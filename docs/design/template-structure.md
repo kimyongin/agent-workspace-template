@@ -56,7 +56,8 @@ agent-workspace-template/
 │  │     │  └─ embedding/         # 채택한 임베딩 공급자 연결
 │  │     └─ bootstrap.ts          # 요청별 문맥과 구현 조립
 │  └─ tests/database/             # 소유권·경쟁·원자 저장 검증
-├─ plugins/workspace/
+├─ plugins/workspace/             # 에이전트용 통합 플러그인 원본
+│  ├─ <manifest·연결 설정>         # 대상 클라이언트의 실제 형식으로 구현
 │  └─ skills/workspace/
 │     ├─ SKILL.md                 # 제품 사용 에이전트 지침
 │     └─ references/              # 작업·기록 작성·검색 활용
@@ -85,7 +86,7 @@ agent-workspace-template/
 - 고객 앱은 src/features/customers와 core/customers를 추가하고, 고객 DB migration·HTTP/MCP·저장 어댑터·스킬·테스트를 함께 연결한다. 범용 Entity/Item 저장소를 만들지 않는다.
 - 검색 이름은 search다. HTTP 검색은 api의 /search에 둔다. search-index는 권한과 실행 계기가 다른 내부 작업이므로 분리한다. knowledge 접두어는 사용하지 않는다.
 - 웹은 업무 API 응답을 사용한다. DB 행 타입, 서버 bootstrap/adapters를 브라우저로 가져오지 않는다. API DTO·DB 행·도메인 모델을 구분하되 형식적인 변환 클래스를 의무화하지 않는다.
-- plugins에는 선택한 클라이언트의 manifest도 둔다. MCP 지원과 스킬/플러그인 호환은 별도로 검증한다. 하나의 manifest가 모든 에이전트에 설치된다고 가정하지 않는다.
+- plugins/workspace는 MCP 연결과 제품 스킬을 함께 배포하는 플러그인 원본이다. manifest·연결 설정·스킬·참고 문서를 포함한다. 트리의 꺾쇠 항목은 설명용 자리이며 실제 파일명이 아니다. 첫 대상 클라이언트의 형식과 endpoint/등록 앱 참조 방식을 확정한 뒤 실제 파일명을 문서화한다. 추가 클라이언트 패키지는 필요할 때 구분하며 공통 스킬 내용의 중복 관리를 줄인다. 하나의 manifest가 모든 에이전트에 설치된다고 가정하지 않는다.
 - AGENTS는 개발 규칙, SKILL은 제품 사용 규칙, principles는 사용자 데이터다. workspace라는 제품 이름이 다중 조직·멤버십 모델을 자동으로 요구하지 않는다.
 
 ## 다음 작업
