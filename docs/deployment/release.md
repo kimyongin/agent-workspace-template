@@ -12,7 +12,9 @@
 | --- | --- | --- |
 | DB | Supabase Postgres | 적용 migration, RLS·역할, 확장, 큐·스케줄 |
 | 서버 | Supabase Edge Functions | HTTP·MCP·worker 버전, 인증 설정, Secrets |
-| 웹 | 정적 호스팅, 기본 후보 GitHub Pages | 빌드 revision, 공개 설정, 기본 경로와 상세 URL |
+| 웹 | GitHub Pages | 빌드 revision, 공개 설정, 기본 경로와 상세 URL |
+| 로그인 공급자 | Google OAuth + Supabase Auth | Google OAuth client·callback, Supabase provider와 웹 복귀 URL |
+| 임베딩 공급자 | Pinecone Inference | 서버 API 키·모델·차원·API 버전·호출 한도 |
 | 에이전트 플러그인 | 실제 지원 클라이언트 | manifest·MCP 연결 설정/앱 참조·제품 스킬을 묶은 패키지 버전과 인증 상태 |
 
 웹 배포가 DB·서버·제품 스킬을 자동으로 배포한다는 전제는 두지 않는다. DB와 서버를 한 workflow에서 배포하더라도 각 단계의 성공과 호환성을 따로 기록한다.
@@ -36,6 +38,16 @@
 | 설정 항목 설명과 예시 | 향후 .env.example과 이 문서. 실제 비밀값은 제외 |
 
 ## 변경 릴리스
+
+### 기본 서비스 초기 설정
+
+- **GitHub Pages:** 저장소의 Pages 배포 소스를 GitHub Actions로 구성하고, 검증된 정적 빌드 artifact를 배포하는 workflow를 구현한다. 프로젝트 경로 또는 custom domain에 맞는 base URL과 라우팅 전략을 정한다. 상세 URL 직접 진입·새로고침·Google 로그인 복귀를 확인한다. Pages에 서버 코드나 비밀값을 배포하지 않는다.
+- **Google OAuth:** Google Cloud의 OAuth 동의 화면과 웹 client를 준비하고 Supabase Google provider에 client ID/secret을 설정한다. Google의 승인된 redirect에는 해당 Supabase 프로젝트가 안내하는 Auth callback을 등록한다. Supabase의 Site URL/허용 redirect에는 실제 Pages 앱의 로그인 복귀 주소를 등록한다. 두 주소를 혼동하지 않으며 로컬·격리·운영 설정을 구분한다. Google client secret은 웹 빌드에 넣지 않는다. 기본 로그인에는 필요한 최소 프로필 범위만 사용하고, Google API 추가 권한은 별도 기능에서 결정한다.
+- **Pinecone:** Inference를 사용할 프로젝트와 API 키를 준비하고 Edge Secrets에 설정한다. 모델·차원·입력 종류·API 버전·배치/호출 한도를 기록하고 문서와 질의 임베딩을 함께 확인한다. 결과 벡터는 Supabase pgvector에 저장한다. 설치 요구에 Pinecone 벡터 인덱스 생성을 추가하지 않는다.
+
+위 항목의 실제 변수명·명령은 구현 시 확정한다. Google 동의 화면의 게시 상태·대상 사용자 제한과 해당 사용 범위의 검증 필요성을 운영 전 확인한다. Google 로그인과 플러그인 MCP OAuth는 각각 실클라이언트에서 검사한다.
+
+### 릴리스 실행
 
 공개 전 [보안 검증](../security/guide.md)을 변경 범위에 적용한다. 인증·역할·RLS·worker 보호·웹 산출물의 비밀 노출·외부 전송 설정을 실제 배포 대상과 대조하고 실패한 필수 경로를 해결한다. 검증 결과와 제외 사유는 해당 릴리스 티켓에 남긴다.
 
@@ -85,3 +97,5 @@
 - [Supabase 배포와 환경 구성](https://supabase.com/docs/guides/deployment)
 - [Edge Functions 배포](https://supabase.com/docs/guides/functions/deploy)
 - [GitHub Pages 사용자 정의 workflow](https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages)
+- [Supabase Google OAuth 설정](https://supabase.com/docs/guides/auth/social-login/auth-google)
+- [Pinecone Inference 임베딩 생성](https://docs.pinecone.io/guides/inference/generate-embeddings)

@@ -16,13 +16,16 @@
 agent-workspace-template/
 ├─ README.md
 ├─ AGENTS.md                       # 개발 에이전트 작업 규칙
+├─ .agents/skills/develop-agent-app/
+│  ├─ SKILL.md                     # 설계·개발·배포·운영 요청별 절차
+│  └─ agents/openai.yaml           # 지원 클라이언트의 표시 정보
 ├─ .env.example                    # 새 프로젝트의 설정 예시
 ├─ .github/workflows/              # 자동 검증과 배포
 ├─ public/                         # 공개 정적 자산
 ├─ src/                            # 웹 클라이언트
 │  ├─ app/                         # 진입, 메뉴, 화면 조립
 │  ├─ features/
-│  │  ├─ auth/                     # 로그인, 세션, OAuth 동의
+│  │  ├─ auth/                     # Google 로그인, 앱 세션, MCP OAuth 동의
 │  │  ├─ activity/                 # 할 일·기록·활동 목록
 │  │  ├─ principles/               # 판단 기준
 │  │  ├─ search/                   # 검색 화면과 API 호출
@@ -53,7 +56,7 @@ agent-workspace-template/
 │  │     │  ├─ mcp/               # 프로토콜과 기능별 도구
 │  │     │  ├─ auth/              # 세션·OAuth 검증 연결
 │  │     │  ├─ supabase/          # 저장·트랜잭션·pgmq·pgvector 연결
-│  │     │  └─ embedding/         # 채택한 임베딩 공급자 연결
+│  │     │  └─ embedding/         # Pinecone Inference 연결
 │  │     └─ bootstrap.ts          # 요청별 문맥과 구현 조립
 │  └─ tests/database/             # 소유권·경쟁·원자 저장 검증
 ├─ plugins/workspace/             # 에이전트용 통합 플러그인 원본
@@ -78,7 +81,7 @@ agent-workspace-template/
 
 트리는 향후 배치 기준이며 실행 코드는 아직 만들지 않았다. 작은 기능은 domain.ts, ports.ts 같은 파일로 시작하고 필요할 때 분리한다. 단위 테스트는 코드 옆에 둔다. activity의 태그 모델은 독립 책임이 필요해질 때 core/tags로 추출한다. 빈 폴더를 일괄 생성하지 않는다.
 
-웹의 공통 시각 토큰·타이포그래피·필드 스타일은 src/styles, 표현과 접근성 컴포넌트는 src/components, 기능별 데이터·초안·필터 상태는 src/features에 둔다. 실제 규격은 [디자인 가이드](guide.md)를 따른다. 첫 구현에서 만드는 AGENTS.md에도 화면 작업 전 이 가이드를 읽도록 연결한다.
+웹의 공통 시각 토큰·타이포그래피·필드 스타일은 src/styles, 표현과 접근성 컴포넌트는 src/components, 기능별 데이터·초안·필터 상태는 src/features에 둔다. 실제 규격은 [디자인 가이드](guide.md)를 따른다. AGENTS.md와 개발 스킬은 이미 문서로 제공하며 첫 앱 구현에서 사용하는 가이드 진입점을 유지한다.
 
 ## 이름과 확장
 

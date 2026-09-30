@@ -1,4 +1,4 @@
-# Supabase 기반 헥사고날 설계
+# 기본 기술 구성과 헥사고날 설계
 
 2026-10-01 · 사용자 방향 반영 · 상세 계약/구현 전
 
@@ -6,12 +6,26 @@
 
 이 문서는 [코드 설계 원칙](principles.md)을 실행 구조에 적용한다. TypeScript 도메인 모델·유스케이스와 Supabase 어댑터를 사용하며, 호출 경계·저장·권한·비동기 처리·검색의 기술 책임을 정의한다. 상세 API와 미정 값은 [첫 기능 티켓](../tickets/template-01-task-record-search.md)이 소유한다.
 
-## Supabase 구성
+## 기본 기술 구성
+
+기본 플랫폼 선택은 다음과 같다. 도메인 요구로 바꾸면 관련 가이드·스킬·검증도 함께 갱신한다.
+
+| 영역 | 기본 선택 | 역할 |
+| --- | --- | --- |
+| 웹 배포 | GitHub Pages | 정적 웹 빌드 배포 |
+| 서버·데이터 기반 | Supabase | HTTP/MCP·worker, Postgres·큐·세션 관리 |
+| 사용자 로그인 | Google OAuth + Supabase Auth | Google 계정 로그인과 앱 세션 발급 |
+| 임베딩 생성 | Pinecone Inference | 기록 및 검색 질의를 벡터로 변환 |
+| 벡터 저장·검색 | Supabase Postgres/pgvector | 사용자 권한 범위의 벡터 저장과 검색 |
+
+Pinecone은 임베딩 생성 공급자로 사용하며 Pinecone 벡터 인덱스 생성은 기본 구성에 포함하지 않는다. 구체적인 모델·차원·API 버전은 품질·입력 한도·비용 검증 후 확정한다.
+
+### Supabase 기능별 역할
 
 | 기능 | 담당하는 역할 |
 | --- | --- |
 | Postgres | 도메인 원본 저장, 제약과 로컬 트랜잭션 |
-| Auth | 웹 세션과 에이전트 인증의 기반. OAuth 연동 방식과 실제 클라이언트 검증은 첫 계약에서 확정 |
+| Auth | Google OAuth 로그인을 기본 제공하고 앱 세션 관리. MCP 인증 연동과 실제 클라이언트 검증은 첫 계약에서 확정 |
 | RLS·DB 권한 | 사용자 격리와 업무 유스케이스를 우회하는 직접 쓰기 제한 |
 | Edge Functions | HTTP·MCP 진입점과 비동기 worker 실행 |
 | Queues(pgmq) | 무거운 작업의 보관·소비·재전달. 검색 색인은 첫 사용처 |
@@ -19,7 +33,13 @@
 | pgvector + SQL 검색 | 벡터 저장과 키워드·유사도 검색 |
 | Vault / 함수 Secrets | DB의 worker 호출 및 함수의 외부 공급자 인증 설정 |
 
-Storage와 Realtime은 실제 첨부·자동 갱신 요구가 생길 때 추가한다. 웹 정적 호스팅은 별도 구성하며 GitHub Pages를 사용할 수 있다. 새 프로젝트의 서비스 설정과 비밀값은 독립적으로 구성한다.
+Storage와 Realtime은 실제 첨부·자동 갱신 요구가 생길 때 추가한다. 웹은 GitHub Pages에 배포한다. 새 프로젝트의 서비스 설정과 비밀값은 독립적으로 구성한다.
+
+## Google 로그인과 MCP 인증
+
+기본 웹 로그인은 웹→Supabase Auth→Google 인증→Supabase callback→웹 복귀 흐름이다. 앱의 사용자 식별과 서버 권한은 검증된 Supabase 사용자 문맥을 따른다. Google의 access token을 앱 업무 API나 MCP의 인증 토큰으로 그대로 사용하지 않는다.
+
+플러그인의 MCP OAuth는 에이전트가 앱에 접근할 권한을 얻는 별도 흐름이다. 사용자 확인 단계에서 Google 로그인 기반 앱 계정을 사용할 수 있지만, MCP 토큰 발급·audience·scope·동의 화면과 클라이언트 callback은 별도 계약으로 확정한다. Google 로그인 성공만으로 MCP 연결을 검증했다고 하지 않는다.
 
 ## 호출과 의존성
 
@@ -89,7 +109,9 @@ DB 제약과 보안 정책, pgmq 같은 인프라 함수는 유지한다. SQL �
 
 ## RAG
 
-검색 입력은 제목·요약 중심, 상세 본문은 원본 조회로 읽는 방향이다. 임베딩 모델·입력 상한·벡터 단위·품질 기준은 검증 후 확정한다. PostgreSQL/pgvector에 벡터를 저장하고 같은 사용자 권한으로 키워드와 의미 검색을 조합한다. 별도 벡터 DB는 기본 도입하지 않는다.
+검색 입력은 제목과 요약을 합친 하나의 문자열이며 항목당 현재 벡터 하나를 관리한다. 본문 청킹·자동 절단·청크 점수 병합을 두지 않는다. 사용자 또는 외부 에이전트가 요약을 작성하고, 본문은 키워드 검색과 상세 조회에 사용한다. 입력·갱신·품질 검증의 정본은 [요약 기반 단일 벡터 검색](search.md)이다. Pinecone Inference로 임베딩하고 PostgreSQL/pgvector에 저장하며 같은 사용자 권한으로 키워드와 의미 검색을 조합한다.
+
+기록 색인은 큐 worker가 Pinecone을 호출해 비동기로 생성한다. 의미 검색 질의의 임베딩도 서버의 같은 어댑터를 사용하며, 문서/질의의 입력 종류는 선택 모델의 계약에 맞춰 전달한다. 질의 처리에는 짧은 timeout과 계약된 fallback을 적용한다. 모델·차원이 다른 벡터를 혼합하지 않는다. Pinecone API 키는 Edge Secrets에만 두고 브라우저·플러그인 패키지에 포함하지 않는다.
 
 검색 응답은 원본 종류·ID·제목·요약·날짜·태그·페이지 정보와 검색 상태다. 외부 에이전트가 상세를 읽고 추론하며, 사용자가 저장한 결과가 다시 지식으로 축적된다. 앱 내부의 임베딩 생성은 검색을 위한 수치 변환이고 사용자 업무를 판단하는 대화형 추론과 구분한다.
 
@@ -127,3 +149,4 @@ DB 제약과 보안 정책, pgmq 같은 인프라 함수는 유지한다. SQL �
 - [Supabase Queues](https://supabase.com/docs/guides/queues), [큐 quickstart](https://supabase.com/docs/guides/queues/quickstart), [PGMQ API](https://supabase.com/docs/guides/queues/pgmq).
 - [예약 Edge 실행](https://supabase.com/docs/guides/functions/schedule-functions), [Edge의 Postgres 연결](https://supabase.com/docs/guides/functions/connect-to-postgres), [벡터 저장](https://supabase.com/docs/guides/ai/vector-columns).
 - [헥사고날 원문](https://alistair.cockburn.us/hexagonal-architecture).
+- [Pinecone 임베딩 생성](https://docs.pinecone.io/guides/inference/generate-embeddings), [Supabase Google 로그인](https://supabase.com/docs/guides/auth/social-login/auth-google).
