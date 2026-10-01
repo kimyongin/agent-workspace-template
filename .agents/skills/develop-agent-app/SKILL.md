@@ -46,14 +46,23 @@ description: 이 저장소와 이를 기반으로 만든 도메인 앱의 설계
 
 ## 기능 구현 시 지킬 연결
 
-- 도메인은 업무 규칙, 유스케이스는 실행 순서·원자 저장 범위, 어댑터는 HTTP/MCP·저장·외부 통신을 맡는다. 포트는 실제 필요한 입출력에 한정한다.
-- 기능마다 DB·공통 유스케이스·HTTP/MCP·필요한 웹·제품 스킬·테스트를 연결한다. 공통 기반에는 즉시 사용할 기능과 종료 조건을 둔다.
-- 에이전트 제공물은 MCP 연결과 제품 스킬을 함께 묶은 플러그인이다. Claude·Codex를 모두 지원하며 클라이언트별 manifest가 같은 제품 스킬을 공유한다. 도구 호출만 성공했다고 플러그인 사용 경험이 완성됐다고 하지 않는다. 이 개발 스킬을 제품 패키지에 포함하지 않는다.
-- 같은 DB의 필수 변경과 큐 등록은 하나의 트랜잭션으로 보장한다. 무거운 후속 처리는 큐로 분리하고 재시도·멱등성·오래된 결과·영구 실패를 해당 작업에서 다룬다.
-- Supabase를 기본 플랫폼으로 사용한다. core에 SDK/SQL을 넣거나 가상의 여러 DB 지원을 만들지 않는다. 직접 DB 연결의 Actor/RLS와 권한 우회 차단은 실제 DB로 확인한다.
-- 기본 웹 배포는 GitHub Pages, 로그인은 Supabase Auth의 Google OAuth, 임베딩 생성은 Pinecone Inference, 벡터 저장·검색은 Supabase pgvector다. Google 로그인과 MCP OAuth를 구분한다. 현재 프로젝트에서 기술 선택을 바꾸면 아키텍처·설정/배포·운영·검증과 이 지침을 함께 맞춘다.
-- UI는 기존 공통 스타일·패턴을 사용한다. 읽기·편집, 초안·저장값, 접수·완료를 구분하고 상세 복귀 시 문맥을 유지한다.
-- 검색은 사용자/외부 에이전트가 작성한 제목·요약을 통째로 임베딩해 항목당 현재 벡터 하나를 유지한다. 본문 청킹이나 서버 자동 요약 LLM을 기본 구성으로 추가하지 않는다. 요약 작성·원문 확인 안내를 제품 스킬에도 반영하고 입력·갱신·검증은 검색 가이드를 따른다.
+결정과 상세 기준은 아래 정본에 있으며 이 스킬에 다시 적지 않는다. 작업 전에 해당 행의 문서를 읽는다.
+
+| 주제 | 결정 | 실행 기준 |
+| --- | --- | --- |
+| 계층 책임·포트·HTTP/MCP 공통 유스케이스 | [ADR-0001](../../../docs/adr/0001-hexagonal-shared-usecases.md) | [코드 원칙](../../../docs/architecture/principles.md), [배치](../../../docs/design/template-structure.md) |
+| 기본 기술 구성 | [ADR-0002](../../../docs/adr/0002-default-tech-stack.md) | [아키텍처](../../../docs/architecture/hexagonal-review.md), [배포](../../../docs/deployment/release.md) |
+| 업무 규칙 위치·로컬 트랜잭션·큐 | [ADR-0003](../../../docs/adr/0003-core-rules-and-local-transactions.md) | [아키텍처](../../../docs/architecture/hexagonal-review.md) |
+| 제목+요약 단일 벡터 검색 | [ADR-0004](../../../docs/adr/0004-summary-single-vector-search.md) | [검색 가이드](../../../docs/architecture/search.md) |
+| 플러그인·제품 스킬 | [ADR-0005](../../../docs/adr/0005-plugin-delivery-claude-codex.md) | [배포](../../../docs/deployment/release.md), [제품 스킬](../../../plugins/workspace/skills/workspace/SKILL.md) |
+| 소유자 접근·로그인과 MCP 인증 분리 | [ADR-0006](../../../docs/adr/0006-owner-only-access-and-separate-auth.md) | [보안](../../../docs/security/guide.md) |
+| 화면 | — | [디자인 가이드](../../../docs/design/guide.md) |
+
+구현 순서:
+
+1. 기능 하나에 필요한 DB·공통 유스케이스·HTTP/MCP·웹 화면·제품 스킬·테스트를 함께 연결한다. 공통 기반에는 즉시 사용할 기능과 종료 조건을 둔다.
+2. 도구 schema·설명과 제품 스킬의 안내를 같은 변경에서 맞춘다. 개발 스킬은 제품 패키지에 넣지 않는다.
+3. 위 결정과 다르게 구현해야 하면 우회하지 말고 [개발 방법](../../../docs/development/workflow.md)의 판단표를 따른다. 기술 선택처럼 ADR에 속하는 변경은 사람이 승인한 대체 ADR이 먼저다.
 
 보안·디자인의 상세 수치와 플랫폼 API는 정본 문서와 실제 버전에 맞춰 확인한다. 관련 전문 스킬/공식 도구가 있으면 활용하되 특정 설치를 필수 전제로 만들지 않는다.
 

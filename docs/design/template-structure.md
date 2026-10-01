@@ -1,6 +1,4 @@
-# 도메인 앱 템플릿 폴더 구조 제안
-
-2026-10-01 · Supabase 기반 헥사고날 방향 반영 · 구조 제안, 구현 전
+# 도메인 앱 템플릿 폴더 구조
 
 ## 목적과 기준
 
@@ -32,7 +30,8 @@ agent-workspace-template/
 │  ├─ features/
 │  │  ├─ auth/                     # Google 로그인, 앱 세션, MCP OAuth 동의
 │  │  ├─ activity/                 # 할 일·기록·활동 목록
-│  │  ├─ principles/               # 판단 기준
+│  │  ├─ principles/               # 사용자 원칙
+│  │  ├─ entity/                   # 단일 예제 엔터티(도메인 교체 대상)
 │  │  ├─ search/                   # 검색 화면과 API 호출
 │  │  ├─ tags/                     # 태그 관리
 │  │  └─ settings/                 # 앱 설정과 연결 안내
@@ -53,7 +52,8 @@ agent-workspace-template/
 │  │     │  │  ├─ domain.ts        # Task, ActivityRecord, 업무 규칙
 │  │     │  │  ├─ ports.ts         # 조회·저장·트랜잭션 계약
 │  │     │  │  └─ application/     # 작성·조회·완료·기록 편집
-│  │     │  ├─ principles/        # 판단 기준 모델·유스케이스·포트
+│  │     │  ├─ principles/        # 사용자 원칙 모델·유스케이스·포트
+│  │     │  ├─ entity/            # 단일 예제 엔터티 모델·유스케이스·포트
 │  │     │  ├─ search/            # 검색·색인 유스케이스와 포트
 │  │     │  └─ shared/            # 실제 공통 Actor·업무 오류만
 │  │     ├─ adapters/
@@ -85,19 +85,20 @@ agent-workspace-template/
    └─ tickets/                    # 구현 범위·게이트·결과
 ```
 
-트리는 향후 배치 기준이며 실행 코드는 아직 만들지 않았다. 작은 기능은 domain.ts, ports.ts 같은 파일로 시작하고 필요할 때 분리한다. 단위 테스트는 코드 옆에 둔다. activity의 태그 모델은 독립 책임이 필요해질 때 core/tags로 추출한다. 빈 폴더를 일괄 생성하지 않는다.
+트리는 배치 기준이며 실제 파일은 소비하는 기능을 구현할 때 만든다. 작은 기능은 domain.ts, ports.ts 같은 파일로 시작하고 필요할 때 분리한다. 단위 테스트는 코드 옆에 둔다. activity의 태그 모델은 독립 책임이 필요해질 때 core/tags로 추출한다. 빈 폴더를 일괄 생성하지 않는다.
 
 웹의 공통 시각 토큰·타이포그래피·필드 스타일은 src/styles, 표현과 접근성 컴포넌트는 src/components, 기능별 데이터·초안·필터 상태는 src/features에 둔다. 실제 규격은 [디자인 가이드](guide.md)를 따른다. AGENTS.md와 개발 스킬은 이미 문서로 제공하며 첫 앱 구현에서 사용하는 가이드 진입점을 유지한다. CLAUDE.md와 .claude/skills는 Claude Code용 연결 파일이며 규칙을 복제하지 않는다.
 
 ## 이름과 확장
 
 - domain은 공통/앱별 구분이 아니라 업무 모델의 역할이다. Task와 ActivityRecord도 도메인 모델이다. UI를 포함하는 별도 src/domain은 두지 않는다.
-- 고객 앱은 src/features/customers와 core/customers를 추가하고, 고객 DB migration·HTTP/MCP·저장 어댑터·스킬·테스트를 함께 연결한다. 범용 Entity/Item 저장소를 만들지 않는다.
+- 예제 엔터티 `Entity`는 [PRD](../product/concept.md)의 기본 예제다. 명시적인 컬럼을 가진 단일 테이블과 그 모델·유스케이스·화면이며 이름 그대로 `entity` 위치에 둔다. 새 앱은 이 위치를 도메인 이름으로 바꾼다. 예를 들어 고객 앱은 `entity`를 `customers`로 바꾸고 고객 DB migration·HTTP/MCP·저장 어댑터·제품 스킬·테스트를 함께 바꾼다.
+- 금지하는 것은 동적 키–값 컬럼이나 범용 payload로 여러 도메인을 담는 Entity/Item 저장소다. 예제 `Entity`는 속성이 컬럼으로 고정된 도메인 테이블이므로 이 금지 대상이 아니다.
 - 검색 이름은 search다. HTTP 검색은 api의 /search에 둔다. search-index는 권한과 실행 계기가 다른 내부 작업이므로 분리한다. knowledge 접두어는 사용하지 않는다.
 - 웹은 업무 API 응답을 사용한다. DB 행 타입, 서버 bootstrap/adapters를 브라우저로 가져오지 않는다. API DTO·DB 행·도메인 모델을 구분하되 형식적인 변환 클래스를 의무화하지 않는다.
 - plugins/workspace는 MCP 연결과 제품 스킬을 함께 배포하는 플러그인 원본이다. manifest·연결 설정·스킬·참고 문서를 포함한다. 트리의 꺾쇠 항목은 설명용 자리이며 실제 파일명이 아니다. 지원 클라이언트는 Claude와 Codex로 확정했다. 각 클라이언트의 공식 형식과 endpoint/등록 앱 참조 방식을 확인한 뒤 실제 파일명을 문서화한다. 클라이언트별 manifest는 같은 skills/workspace를 참조하고 제품 스킬을 클라이언트별로 복제하지 않는다. 하나의 manifest가 모든 에이전트에 설치된다고 가정하지 않는다.
-- AGENTS는 개발 규칙, SKILL은 제품 사용 규칙, principles는 사용자 데이터다. workspace라는 제품 이름이 다중 조직·멤버십 모델을 자동으로 요구하지 않는다.
+- AGENTS는 개발 규칙, SKILL은 제품 사용 규칙, principles는 사용자 원칙 데이터다. 개발용 [코드 설계 원칙](../architecture/principles.md)과 다르다. workspace라는 제품 이름이 다중 조직·멤버십 모델을 자동으로 요구하지 않는다.
 
 ## 다음 작업
 
-[첫 기능 인계](../tickets/template-01-task-record-search.md)의 소비 범위부터 파일을 만든다. 제품의 기본·후속 범위는 [제품 컨셉](../product/concept.md), 최신 구현 상태는 [시작 문서](../START-HERE.md)에서 확인한다.
+구현 순서와 단계별 범위는 [Template-02](../tickets/template-02-implementation-base.md)를 따르고, 소비하는 단계에서 해당 파일을 만든다. 할 일·기록·검색의 상세 계약은 [Template-01](../tickets/template-01-task-record-search.md)에 있다. 제품의 범위는 [PRD](../product/concept.md), 최신 구현 상태는 [시작 문서](../START-HERE.md)에서 확인한다.
