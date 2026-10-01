@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>실험 동의 화면</title>
+<style>body{font-family:system-ui,sans-serif;max-width:32rem;margin:2rem auto;padding:0 1rem}label{display:block;margin:.5rem 0}button{margin:.5rem .5rem 0 0;padding:.5rem 1rem}pre{white-space:pre-wrap;background:#eee;padding:.5rem}</style>
+</head>
+<body>
+<h1>T02-1 실험 동의 화면</h1>
+<p>격리 로컬 실험 전용 화면이다.</p>
+<form id="login" hidden>
+  <label>이메일 <input id="email" type="email" autocomplete="username"></label>
+  <label>비밀번호 <input id="password" type="password" autocomplete="current-password"></label>
+  <button type="submit">로그인</button>
+</form>
+<section id="consent" hidden>
+  <pre id="details"></pre>
+  <button id="approve">승인</button><button id="deny">거부</button>
+</section>
+<pre id="status"></pre>
+<script type="module">
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.117.2";
+import { SUPABASE_URL, PUBLISHABLE_KEY } from "/config.js";
+const supabase = createClient(SUPABASE_URL, PUBLISHABLE_KEY);
+const id = new URLSearchParams(location.search).get("authorization_id");
+const $ = (s) => document.querySelector(s);
+const status = (t) => ($("#status").textContent = t);
+async function showConsent() {
+  const { data, error } = await supabase.auth.oauth.getAuthorizationDetails(id);
+  if (error) return status("details error: " + error.message);
+  if (data?.redirect_url) { location.href = data.redirect_url; return; }
+  $("#details").textContent = JSON.stringify(data, null, 2);
+  $("#consent").hidden = false;
+}
+$("#login").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const { error } = await supabase.auth.signInWithPassword({ email: $("#email").value, password: $("#password").value });
+  if (error) return status("login error: " + error.message);
+  $("#login").hidden = true;
+  showConsent();
+});
+$("#approve").addEventListener("click", async () => {
+  const { data, error } = await supabase.auth.oauth.approveAuthorization(id);
+  if (error) return status("approve error: " + error.message);
+  location.href = data.redirect_url;
+});
+$("#deny").addEventListener("click", async () => {
+  const { data, error } = await supabase.auth.oauth.denyAuthorization(id);
+  if (error) return status("deny error: " + error.message);
+  location.href = data.redirect_url;
+});
+if (!id) status("authorization_id 없음");
+else {
+  const { data } = await supabase.auth.getSession();
+  if (data.session) showConsent(); else $("#login").hidden = false;
+}
+</script>
+</body>
+</html>

@@ -45,6 +45,8 @@
 - **Google OAuth:** Google Cloud의 OAuth 동의 화면과 웹 client를 준비하고 Supabase Google provider에 client ID/secret을 설정한다. Google의 승인된 redirect에는 해당 Supabase 프로젝트가 안내하는 Auth callback을 등록한다. Supabase의 Site URL/허용 redirect에는 실제 Pages 앱의 로그인 복귀 주소를 등록한다. 두 주소를 혼동하지 않으며 로컬·격리·운영 설정을 구분한다. Google client secret은 웹 빌드에 넣지 않는다. 기본 로그인에는 필요한 최소 프로필 범위만 사용하고, Google API 추가 권한은 별도 기능에서 결정한다.
 - **Pinecone:** Inference를 사용할 프로젝트와 API 키를 준비하고 Edge Secrets에 설정한다. 모델·차원·입력 종류·API 버전·배치/호출 한도를 기록하고 문서와 질의 임베딩을 함께 확인한다. 결과 벡터는 Supabase pgvector에 저장한다. 설치 요구에 Pinecone 벡터 인덱스 생성을 추가하지 않는다.
 
+- **MCP OAuth:** Supabase Auth의 OAuth 2.1 서버와 동적 클라이언트 등록을 켜고, 인가 경로를 웹 앱의 `/oauth/consent`로 지정한다. 비대칭 JWT 서명 키(ES256 권장)를 쓰고, MCP 토큰의 `aud`를 MCP 서버 URL로 바꾸는 Custom Access Token Hook을 등록한다. MCP 함수는 자체 토큰 검증을 하므로 게이트웨이 JWT 검사(`verify_jwt`)를 끈다. 구성 근거는 [아키텍처](../architecture/hexagonal-review.md#google-로그인과-mcp-인증)에 있다.
+
 위 항목의 실제 변수명·명령은 구현 시 확정한다. Google 동의 화면의 게시 상태·대상 사용자 제한과 해당 사용 범위의 검증 필요성을 운영 전 확인한다. Google 로그인과 플러그인 MCP OAuth는 각각 실클라이언트에서 검사한다.
 
 ### 릴리스 실행

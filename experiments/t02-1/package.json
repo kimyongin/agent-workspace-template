@@ -1,0 +1,12 @@
+{
+  "name": "t02-1-experiments",
+  "private": true,
+  "type": "module",
+  "description": "T02-1 격리 실험 전용. 앱 코드가 아니다.",
+  "scripts": {
+    "exp1": "node exp1.mjs"
+  },
+  "dependencies": {
+    "postgres": "3.4.9"
+  }
+}

@@ -39,6 +39,8 @@ Storage와 Realtime은 실제 첨부·자동 갱신 요구가 생길 때 추가�
 
 플러그인의 MCP OAuth는 에이전트가 앱에 접근할 권한을 얻는 별도 흐름이다. 사용자 확인 단계에서 Google 로그인 기반 앱 계정을 사용할 수 있지만, MCP 토큰 발급·audience·scope·동의 화면과 클라이언트 callback은 별도 계약으로 확정한다. Google 로그인 성공만으로 MCP 연결을 검증했다고 하지 않는다.
 
+MCP OAuth는 Supabase Auth의 OAuth 2.1 서버를 권한 서버로 쓴다. 클라이언트는 동적 등록과 PKCE로 토큰을 받고, 사용자는 웹 앱의 `/oauth/consent` 화면에서 Google 로그인 세션으로 승인한다. Custom Access Token Hook은 `client_id`가 있는 토큰의 `aud`를 MCP 서버의 정식 URL로 바꾼다. MCP 서버는 그 audience만, 웹용 HTTP API는 `authenticated`만 받으므로 두 토큰은 서로의 진입점에서 거부된다. MCP 서버는 RFC 9728 metadata로 권한 서버를 알린다. 이 방식은 [T02-1 실험](../tickets/template-02-t02-1-contracts.md#실험-결과-작업-9)에서 로컬 Supabase와 Claude Code·Codex로 확인했다.
+
 ## 호출과 의존성
 
 ```text
@@ -70,7 +72,7 @@ DB 제약과 보안 정책, pgmq 같은 인프라 함수는 유지한다. SQL �
 
 ## 로컬 트랜잭션
 
-서버 Supabase 어댑터가 PostgreSQL 연결을 확보하고 하나의 트랜잭션으로 유스케이스의 저장을 실행하는 방식을 우선한다. Edge Functions에서 Postgres client를 사용할 수 있다. 구체적 드라이버/풀링/역할 설정은 첫 기술 검증에서 확정한다. 여러 supabase-js HTTP 호출을 하나의 트랜잭션처럼 취급하지 않는다.
+서버 Supabase 어댑터가 PostgreSQL 연결을 확보하고 하나의 트랜잭션으로 유스케이스의 저장을 실행하는 방식을 우선한다. Edge Functions에서 Postgres.js로 연결하며, 연결이 짧은 환경이므로 Supavisor 트랜잭션 모드와 `prepare: false`를 쓴다. 역할과 문맥 전달은 아래 '권한과 직접 접근'의 방식을 따른다([T02-1 실험](../tickets/template-02-t02-1-contracts.md#실험-결과-작업-9)). 여러 supabase-js HTTP 호출을 하나의 트랜잭션처럼 취급하지 않는다.
 
 설명용 transaction 포트는 콜백 안의 모든 저장·큐 등록이 같은 연결을 사용한다는 계약을 가진다. 실제 범위는 첫 할 일 완료 기능에 한정하며 모든 시스템을 위한 Unit of Work 프레임워크를 만들지 않는다.
 
@@ -84,7 +86,15 @@ DB 제약과 보안 정책, pgmq 같은 인프라 함수는 유지한다. SQL �
 
 업무 로직을 DB 밖으로 옮기므로 일반 사용자에게 상태를 직접 쓰는 DB API를 열어두면 유스케이스를 우회할 수 있다. 제품 데이터 변경은 인증된 HTTP/MCP 경로를 통하게 하고 테이블/저장 함수 권한을 제한한다. RLS와 참조 제약은 유지한다.
 
-직접 Postgres 연결에는 사용자 JWT의 RLS 문맥이 자동 적용되지 않는다. 최소 권한 서버 역할, 검증된 Actor의 트랜잭션 한정 문맥 전달, RLS 적용과 요청 사이 문맥 해제를 실제 테스트로 확정한다. 접속 역할이 RLS를 우회하는지도 검사한다. 입력 user_id를 신뢰하거나 관리자 권한을 사용했다는 이유로 격리가 된다고 주장하지 않는다.
+직접 Postgres 연결에는 사용자 JWT의 RLS 문맥이 자동 적용되지 않는다. 다음 역할 구성과 트랜잭션 한정 문맥 전달을 쓴다([T02-1 실험](../tickets/template-02-t02-1-contracts.md#실험-결과-작업-9)).
+
+| 역할 | 권한 | 사용 |
+| --- | --- | --- |
+| 접속 역할(예: `app_server`) | LOGIN. 업무 테이블 권한 없음, superuser·BYPASSRLS 아님. 사용자 역할로 전환과 큐 전송만 가능 | 서버 어댑터의 연결 |
+| 사용자 역할(예: `app_user`) | NOLOGIN. 업무 테이블 권한과 RLS 정책의 대상. Supabase API에 노출하지 않음 | 트랜잭션 안에서만 전환 |
+| `authenticated`·`anon` | 업무 테이블·큐 권한 없음 | 일반 사용자의 직접 쓰기 차단 |
+
+트랜잭션마다 `set_config('request.jwt.claims', <검증된 Actor>, true)`와 `set local role <사용자 역할>`을 실행하고, 큐 전송은 같은 트랜잭션에서 `reset role` 뒤에 한다. 트랜잭션 한정 설정이라 커밋·롤백 후 연결에 문맥이 남지 않는다. 세션 단위 설정은 연결 재사용 때 다른 요청에 문맥을 넘기므로 쓰지 않는다. 앱의 실제 테스트에서도 RLS 적용과 요청 사이 문맥 해제를 확인한다. 접속 역할이 RLS를 우회하는지도 검사한다. 입력 user_id를 신뢰하거나 관리자 권한을 사용했다는 이유로 격리가 된다고 주장하지 않는다.
 
 큐와 worker는 내부 권한으로 분리하고 사용자/에이전트가 임의 큐를 소비·삭제하지 못하게 한다. 초기 owner-only와 추후 공유의 권한은 별도 계약으로 관리한다. OAuth의 issuer/audience/scope 및 실제 클라이언트 동의 흐름도 별도 검증한다.
 
