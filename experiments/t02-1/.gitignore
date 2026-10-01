@@ -1,0 +1,7 @@
+node_modules/
+supabase/.temp/
+supabase/.branches/
+.env*
+supabase/signing_keys.json
+consent/config.js
+authorize-url.txt
