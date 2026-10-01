@@ -33,7 +33,15 @@
 
 후보 구성: `plugins/workspace/` 하나를 두 클라이언트의 플러그인 루트로 쓴다. `.claude-plugin/plugin.json`·`.mcp.json`(Claude)과 `plugin.json`·`mcp.json`(Codex)을 나란히 두고 `skills/workspace/`를 공유한다. 두 클라이언트 모두 스킬이 플러그인 루트 안에 있어야 하므로 현재 위치(`plugins/workspace/skills/workspace/`)를 유지하면 복제 없이 공유된다. 서로의 manifest 파일을 무시하는지는 T02-4에서 두 클라이언트로 설치해 확인한다. Agent Plugins 1.0의 루트 `plugin.json`을 Claude Code가 읽는다는 공식 근거는 찾지 못했다.
 
-Claude의 대상 표면: Claude Code 플러그인 문서는 같은 패키지를 claude.ai·Cowork에도 조직 설정으로 배포할 수 있다고 안내한다. 기본 검증 대상은 Claude Code와 Codex로 두고, claude.ai·Cowork는 조직 배포 권한이 있을 때 추가 검증한다. ADR-0005의 "Claude"를 이 범위로 해석하는 것이 맞는지 사람의 확인이 필요하다.
+Claude의 대상 표면(2026-10-02 사용자 결정): 사용자 한 명이 개인 계정으로 쓰며 조직 관리자 배포는 대상이 아니다. 공식 문서 기준 표면별 제공 방식은 다음과 같고, 각 표면을 T02-4에서 따로 검증한다.
+
+| 표면 | 제공 방식 | 근거 |
+| --- | --- | --- |
+| Claude Code | 저장소 marketplace로 플러그인 설치 | [플러그인 manifest](https://code.claude.com/docs/en/plugins-reference) |
+| claude.ai 웹·Claude Desktop·Cowork | 개인 Pro/Max 계정이 직접 만든 플러그인 파일을 업로드. 같은 계정의 Claude Code에서도 사용 가능 | [플러그인 사용](https://support.claude.com/en/articles/13837440-use-plugins-in-claude) |
+| Claude 모바일(iOS·Android) | 웹·데스크톱에서 추가한 사용자 지정 커넥터(원격 MCP)를 사용. 모바일에서 직접 추가는 베타. 플러그인·스킬의 모바일 지원은 공식 문서에 없음 | [사용자 지정 커넥터](https://support.claude.com/en/articles/11175166-get-started-with-custom-connectors-using-remote-mcp), [스킬 사용](https://support.claude.com/en/articles/12512180-use-skills-in-claude) |
+
+모바일에서는 MCP 도구만 쓰이고 제품 스킬의 안내가 빠질 수 있다. 서버가 권한·업무 규칙을 강제하므로 데이터 보호는 같지만([ADR-0005](../adr/0005-plugin-delivery-claude-codex.md)) 원문 확인·요약 작성 같은 작업 방법은 도구 설명과 MCP 서버 공통 안내에만 의존한다. 모바일의 실제 스킬 동작은 T02-4에서 확인해 기록한다. claude.ai·모바일의 커넥터는 Anthropic 클라우드에서 MCP 서버로 접속하므로 서버가 공개 인터넷에서 닿아야 하고, OAuth callback이 로컬 주소가 아니라 claude.ai의 HTTPS 주소다. 실험 2에서 Supabase의 동적 등록이 이 callback을 받는지 확인한다.
 
 ### Google 로그인과 MCP OAuth
 
@@ -61,7 +69,8 @@ Claude의 대상 표면: Claude Code 플러그인 문서는 같은 패키지를 
 
 1. **MCP 토큰의 audience.** [MCP 인가 명세 2026-07-28](https://modelcontextprotocol.io/specification/latest/basic/authorization)은 MCP 서버가 자신을 audience로 발급된 토큰만 받도록 요구한다(RFC 8707). Supabase 문서에는 resource indicator나 클라이언트별 audience 설정이 없고 MCP 토큰도 `aud`=`authenticated`라 웹 세션 토큰과 audience로 구분되지 않는다. 그대로 쓰면 웹 세션 토큰으로 MCP를 호출하거나 MCP 토큰으로 HTTP API를 호출할 수 있다. 실험 2에서 다음 순서로 확인한다.
    - Supabase Custom Access Token Hook으로 `client_id`가 있는 토큰의 `aud`를 MCP 정식 URI로 바꿀 수 있는지와 이때 RLS·`@supabase/server` 검증이 동작하는지.
-   - 불가하면 최소 방어: MCP는 `client_id`가 있는 토큰만, HTTP API는 `client_id`가 없는 토큰만 받는다. 명세의 audience 요구를 완전히 충족하지 못하므로 [보안 가이드](../security/guide.md)의 audience 검증 기준에 대한 제한된 예외로 기록할지, ADR-0006을 보완하는 ADR 초안으로 사람의 결정을 받을지 정한다.
+   - 불가하면 최소 방어: MCP는 `client_id`가 있는 토큰만, HTTP API는 `client_id`가 없는 토큰만 받는다. 명세의 audience 요구를 완전히 충족하지 못하는 부분은 [보안 가이드](../security/guide.md)의 audience 검증 기준에 대한 제한된 예외로 기록한다.
+   - 사용자 판단(2026-10-02): 개인 사용 앱이라 두 토큰이 서로의 진입점을 열어도 영향이 크지 않다. 막을 수 있으면 막고, 막지 못해도 위 예외 기록으로 진행하며 별도 ADR은 만들지 않는다.
 2. **DCR 개방.** DCR을 켜면 누구나 클라이언트를 등록할 수 있다. 등록만으로 데이터 접근이 생기지는 않지만(사용자 동의·소유자 검사 필요) 동의 화면에 클라이언트 이름·redirect URI를 표시하고 loopback·허용 redirect만 받는지 실험 2에서 확인한다.
 3. **직접 Postgres 트랜잭션의 Actor 문맥.** 실험 1에서 최소 권한 접속 역할이 트랜잭션 안에서 `set local role authenticated`와 `set_config('request.jwt.claims', ..., true)`로 RLS를 적용하는지, 커밋·롤백 후 연결 재사용 시 문맥이 남지 않는지, 원본 저장과 `pgmq.send`가 함께 롤백되는지 확인한다. 성립하지 않으면 ADR-0003의 대안(업무 규칙 없는 SQL 함수를 사용자 JWT로 호출)을 평가한다.
 4. **임베딩.** 후보 모델은 [검색 가이드](../architecture/search.md)의 `llama-text-embed-v2`(1,024차원)다. 실험 3에서 한국어 관련/무관 질의로 평가한다.
