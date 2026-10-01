@@ -76,7 +76,7 @@ Claude의 대상 표면: Claude Code 플러그인 문서는 같은 패키지를 
 | --- | --- | --- |
 | 할 일·기록·사용자 원칙·태그·검색과 원문 확인, 단일 예제 엔터티 | 포함 | PRD 필수 기본 기능·템플릿 완성 범위 |
 | 원칙과 RAG | 선택 기능이 아니라 기본 기능(T02-3) | PRD "필수 기본 기능" |
-| 반복 일정 | **미정. 사람의 결정 필요.** 결정 전에는 구현하지 않고 할 일은 일회성 | PRD "첫 버전 포함 여부 미정" |
+| 반복 할 일 | 포함(T02-2). 자동 실행·알림이 아니라 회차에 기록을 연결하는 할 일 | 2026-10-02 사용자 결정, PRD 변경 PR [#9](https://github.com/kimyongin/agent-workspace-template/pull/9) 승인 후 확정 |
 | 할 일 재개(완료 취소) | 미포함. 필요하면 완료와 별도 행위로 추가 | Template-01 "재개는 완료 범위에 섞지 않음" |
 | 공유·조직·첨부·실시간 갱신 | 미포함. 요구가 생기면 별도 PRD | PRD 범위 표, [ADR-0006](../adr/0006-owner-only-access-and-separate-auth.md) |
 
@@ -113,9 +113,11 @@ Claude의 대상 표면: Claude Code 플러그인 문서는 같은 패키지를 
 | 필드 | 타입 | 입력 | 비고 |
 | --- | --- | --- | --- |
 | `title`·`summary`·`body` | 텍스트 | 생성 시 제목·요약 필수 | 공통 텍스트 규칙 |
-| `due_on` | 날짜 | 선택 | 알림·반복 없음 |
-| `status` | `open`·`done` | 서버 관리 | 생성 시 `open` |
-| `completed_at`·`result_record_id` | 시각·ID | 서버 관리 | 완료 시 설정 |
+| `kind` | `once`·`recurring` | 생성 시 필수, 이후 변경 불가 | 일회성·반복 할 일 |
+| `due_on` | 날짜 | 선택, `once`만 | 알림 없음 |
+| `recurrence` | 규칙 | `recurring`이면 필수 | 아래 반복 할 일 계약 |
+| `status` | `once`: `open`·`done`, `recurring`: `active`·`stopped` | 서버 관리 | 생성 시 `open` 또는 `active` |
+| `completed_at`·`result_record_id` | 시각·ID | 서버 관리, `once`만 | 완료 시 설정 |
 | `entity_id` | ID | 선택(T02-4부터) | 엔터티 삭제 시 null |
 | `tag_ids` | ID 목록 | 선택(T02-3부터) | 최대 10 |
 
@@ -123,12 +125,31 @@ Claude의 대상 표면: Claude Code 플러그인 문서는 같은 패키지를 
 | --- | --- | --- | --- | --- |
 | 생성 | 목록의 작성 폼 | `POST /tasks` | `create_task` | `open` 할 일 생성, 색인 작업 등록 |
 | 조회 | 상세 `/tasks/:id` | `GET /tasks/:id` | `get_task` | 결과 기록 요약과 링크 포함 |
-| 목록 | `/tasks` | `GET /tasks` | `list_tasks` | 필터: `status`, `due_on` 범위, `tag_id`, `entity_id` |
+| 목록 | `/tasks` | `GET /tasks` | `list_tasks` | 필터: `kind`, `status`, `due_on` 범위, `tag_id`, `entity_id`, `occurrence_on`(그 날짜에 회차가 있는 반복 할 일과 회차 상태) |
 | 수정 | 상세의 편집 | `PATCH /tasks/:id` | `update_task` | 내용 필드만. 완료된 할 일도 수정 가능 |
-| 완료 | 상세의 완료 폼 | `POST /tasks/:id/complete` | `complete_task` | 아래 완료 계약 |
-| 삭제 | 상세의 삭제 확인 | `DELETE /tasks/:id` | `delete_task` | 할 일만 삭제. 결과 기록은 보존하고 `task_id`를 null로 |
+| 완료 | 상세의 완료 폼 | `POST /tasks/:id/complete` | `complete_task` | `once`만. 아래 완료 계약. `recurring`에 요청하면 `conflict` |
+| 삭제 | 상세의 삭제 확인 | `DELETE /tasks/:id` | `delete_task` | 할 일만 삭제. 결과·회차 기록은 보존하고 `task_id`·`occurrence_on`을 null로 |
 
 완료 계약: 입력은 `expected_version`, 결과 기록의 `title`·`summary`·`body`(제목·요약 필수), 선택 `occurred_at`·`request_id`다. `open`인 할 일만 완료할 수 있고(`done`이면 `conflict`), 한 트랜잭션에서 할 일을 `done`으로 바꾸고 `task_id`가 연결된 결과 기록을 만들고 그 기록의 색인 작업을 등록한다. 하나라도 실패하면 모두 롤백한다. 응답은 할 일과 결과 기록이다.
+
+### 반복 할 일 — T02-2
+
+[PRD](../product/concept.md)의 반복 할 일이다. 앱이 정해진 시각에 작업을 실행하거나 알림을 보내지 않으며, 회차와 수행 여부는 저장하지 않고 규칙과 기록으로 계산한다(core 도메인).
+
+| 항목 | 계약 |
+| --- | --- |
+| 규칙 `recurrence` | `freq`: `daily`·`weekly`·`monthly`. `weekly`는 `weekdays`(ISO 1=월~7=일, 1개 이상), `monthly`는 `month_days`(1~31, 1개 이상). 그 달에 없는 날짜(예: 2월 30일)는 그 달의 마지막 날 회차로 계산한다. `starts_on`(날짜) 필수 |
+| 시간대 | `timezone`(IANA, 예: `Asia/Seoul`) 필수. 웹은 브라우저 시간대, MCP는 입력값을 쓴다. "오늘"과 회차 날짜는 이 시간대로 판단 |
+| 회차 상태 | 기록 1개 이상이면 `done`. 기록이 없을 때 오늘이면 `due`, 지난 날짜면 `missed`(하지 않음), 미래면 `upcoming` |
+| 중단·재개 | `active`에서만 중단, `stopped`에서만 재개(아니면 `conflict`). 중단일부터 재개일 전날까지는 회차가 없다. 중단·재개 이력은 서버가 보관 |
+| 규칙 수정 | `recurrence`·`timezone` 수정 가능. 회차는 새 규칙으로 다시 계산하고, 새 규칙에 맞지 않게 된 기존 기록은 보존하며 회차 목록에 "규칙 밖 기록"으로 표시 |
+
+| 행위 | 웹 | HTTP | MCP | 의미 |
+| --- | --- | --- | --- | --- |
+| 회차 목록 | 상세의 회차 달력·목록 | `GET /tasks/:id/occurrences?from&to` | `list_occurrences` | 기간 최대 366일. 회차별 날짜·상태·기록 ID |
+| 회차 기록 | 회차의 기록 작성 폼 | `POST /tasks/:id/occurrences/:date/records` | `record_occurrence` | 기록 생성 입력과 같은 필드에 선택 `request_id`. `:date`는 규칙상 회차이고 `starts_on` 이후, 중단 기간 밖, 오늘(할 일의 시간대 기준) 또는 그 이전이어야 하며 아니면 `invalid_input`. 한 회차에 여러 번 가능. 기록 생성과 색인 등록은 한 트랜잭션 |
+| 중단 | 상세의 중단 | `POST /tasks/:id/stop` | `stop_task` | `expected_version` 필요. 기존 기록 유지 |
+| 재개 | 상세의 재개 | `POST /tasks/:id/resume` | `resume_task` | `expected_version` 필요. 재개일부터 회차 생성 |
 
 ### 활동 기록 (ActivityRecord) — T02-2
 
@@ -136,7 +157,8 @@ Claude의 대상 표면: Claude Code 플러그인 문서는 같은 패키지를 
 | --- | --- | --- | --- |
 | `title`·`summary`·`body` | 텍스트 | 생성 시 제목·요약 필수 | 공통 텍스트 규칙 |
 | `occurred_at` | 시각 | 선택, 기본은 저장 시각 | 실제 수행 시각 |
-| `task_id` | ID | 서버 관리(완료로만 설정) | 할 일 삭제 시 null |
+| `task_id` | ID | 서버 관리(일회성 완료 또는 회차 기록으로만 설정) | 할 일 삭제 시 null |
+| `occurrence_on` | 날짜 | 서버 관리(회차 기록으로만 설정) | 반복 할 일의 회차. 할 일 삭제 시 null |
 | `entity_id`·`tag_ids` | ID | 선택(T02-4·T02-3부터) | 할 일과 같음 |
 | `applied_principle_ids` | ID 목록 | 선택(T02-3부터) | 판단에 적용한 원칙. 원칙 삭제 시 연결만 제거 |
 
@@ -145,7 +167,7 @@ Claude의 대상 표면: Claude Code 플러그인 문서는 같은 패키지를 
 | 생성 | 작성 폼 | `POST /records` | `create_record` | 할 일 없이 직접 작성 |
 | 조회·목록 | `/records/:id`, `/records` | `GET /records/:id`, `GET /records` | `get_record`, `list_records` | 필터: 기간(`occurred_at`), `task_id`, `tag_id`, `entity_id`. 기본 정렬은 `occurred_at` 내림차순 |
 | 수정 | 편집 | `PATCH /records/:id` | `update_record` | 제목·요약이 바뀌면 재색인, 본문만 바뀌면 재임베딩 없음 |
-| 삭제 | 삭제 확인 | `DELETE /records/:id` | `delete_record` | 연결된 할 일은 `done`을 유지하고 `result_record_id`만 null. 계획(할 일)과 수행 결과(기록)를 하나의 상태로 묶지 않는다(PRD) |
+| 삭제 | 삭제 확인 | `DELETE /records/:id` | `delete_record` | 일회성 할 일은 `done`을 유지하고 `result_record_id`만 null. 계획(할 일)과 수행 결과(기록)를 하나의 상태로 묶지 않는다(PRD). 회차 기록을 지우면 그 회차에 다른 기록이 없을 때 회차 상태가 다시 계산된다 |
 
 ### 사용자 원칙 (Principle) — T02-3
 
