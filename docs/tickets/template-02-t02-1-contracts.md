@@ -109,8 +109,8 @@ Claude의 대상 표면(2026-10-02 사용자 결정): 사용자 한 명이 개�
 | --- | --- | --- | --- |
 | `invalid_input` | 400 | 형식·길이·허용 필드 위반. 위반 필드 목록 포함 | 고쳐서 |
 | `invalid_reference` | 400 | 참조한 항목이 없거나 다른 소유자 | 고쳐서 |
-| `unauthenticated` | 401 | 토큰 없음·만료·검증 실패 | 재인증 후 |
-| `forbidden` | 403 | 토큰 종류가 이 진입점에 맞지 않음(예: 웹 세션 토큰으로 MCP 호출) | 아니오 |
+| `unauthenticated` | 401 | 토큰 없음·만료·서명이나 발급자 검증 실패, 다른 진입점용 토큰(audience 불일치. 예: 웹 세션 토큰으로 MCP 호출). MCP 명세의 유효하지 않은 토큰 응답과 같음 | 재인증 후 |
+| `forbidden` | 403 | 유효한 토큰이지만 작업 권한(scope)이 부족함. 현재 업무 scope를 두지 않아 쓰지 않는 예약 코드 | 아니오 |
 | `not_found` | 404 | 없거나 다른 소유자 | 아니오 |
 | `conflict` | 409 | `expected_version` 불일치, 허용하지 않는 상태 전환, 같은 `request_id`의 다른 내용 | 재조회 후 |
 | `rate_limited` | 429 | 요청 한도 초과. 부분 실행 없음 | 지연 후 |
@@ -209,7 +209,8 @@ Claude의 대상 표면(2026-10-02 사용자 결정): 사용자 한 명이 개�
 | 입력 | `query` 1~200자, `kinds`(`task`·`record`·`principle`, 기본 전체), 필터(`tag_id`·`entity_id`·기간·원칙 `status` 기본 `active`), `mode`(`auto`·`keyword`, 기본 `auto`), `limit`·`cursor` |
 | 대상 | 의미 검색은 제목+요약 벡터, 키워드 검색은 제목·요약·본문. 엔터티는 검색 대상이 아니며 엔터티 목록의 키워드 필터로 찾는다 |
 | 결과 항목 | `kind`·`id`·`title`·`summary`·대표 시각·`tag_ids`·`match`(`semantic`·`keyword`·`both`)·`index_state`(`indexed`·`pending`·`excluded`)·웹 상세 경로 |
-| 검색 상태 | `ok`, `keyword_fallback`(의미 검색 실패로 키워드 결과만), `index_pending`(색인 대기 항목이 있어 의미 검색에서 빠졌을 수 있음). 결과 0건과 실패를 구분 |
+| 검색 상태 | `search_state`: `ok` 또는 `keyword_fallback`(의미 검색 실패로 키워드 결과만). 결과 0건과 실패를 구분 |
+| 의미 검색 범위 | `semantic_coverage`: 같은 소유자·`kinds`·필터 범위에서 의미 색인에 아직 없는 항목 수 `pending`과 색인에서 제외된 항목 수 `excluded`(요약 누락·입력 한도 초과 등). 결과가 0건이어도 이 값으로 "찾을 자료가 없음"과 "의미 검색 대상에서 빠진 자료가 있음"을 구분한다. 제외·대기 항목도 키워드 검색 대상이며 결과에 나오면 항목의 `index_state`로 표시한다 |
 | 원문 | 각 `get_*`로 읽는다. 검색 결과에 본문·청크를 넣지 않는다 |
 
 ### 예제 엔터티 (Entity) — T02-4
@@ -300,16 +301,9 @@ Book 전환에서 아래 목록 밖의 파일이 바뀌면 원인과 공통 기�
 
 2026-10-02 수행. 실험 코드는 [`experiments/t02-1/`](../../experiments/t02-1/README.md)(`main`의 `fea0313`에서 머지)이며 앱 코드가 아니다. 격리 로컬 Supabase(CLI 2.98.2, Edge Runtime 1.73.13·Deno 2.1.4, Postgres 17)에서 실행했고 운영·기존 프로젝트는 쓰지 않았다. 호스팅 프로젝트 생성은 이 세션의 권한 정책으로 막혀 호스팅 환경 항목은 남은 실험으로 둔다.
 
-재현:
+재현 절차(서명 키 생성 등 준비 포함)는 [실험 README](../../experiments/t02-1/README.md)를 따른다. 설정이 Git에서 제외된 서명 키를 요구하므로 README의 준비 없이 `supabase start`만 실행하면 시작되지 않는다.
 
-```bash
-cd experiments/t02-1
-npm install
-supabase start -x studio,imgproxy,vector,logflare,mailpit
-npm run exp1
-```
-
-실험 2의 준비(서명 키·환경 파일·시험 계정·동의 화면 서버)와 실행 절차는 [실험 README](../../experiments/t02-1/README.md)를 따른다.
+2026-10-02 교차 리뷰를 반영해 실험 1을 고치고 다시 실행했다. 이전 C8은 `app_server`가 `authenticated`로 전환할 권한이 없어 쓰기 전에 실패한 것을 통과로 셌고, Edge의 롤백 판정은 큐 메시지를 세지 않았다. 지금은 모든 거부 검사가 오류 코드와 함께 원인 메시지(테이블 권한·RLS·스키마 권한)를 확인하고, 직접 쓰기 차단은 역할 전환이 실제로 된 뒤에 시험한다.
 
 ### 실험 1 — 직접 Postgres 트랜잭션: 채택
 
@@ -318,17 +312,19 @@ npm run exp1
 | 다른 소유자로 쓰기 거부(RLS) | 통과 | 통과 | 통과(두 연결 모두) |
 | 읽기 격리, 문맥 없는 접속 역할의 접근 거부 | 통과 | 통과 | — |
 | 커밋·롤백 후 같은 연결에 역할·claims가 남지 않음 | 통과 | 통과 | 통과 |
-| 원본 저장과 `pgmq.send`의 함께 롤백·함께 커밋 | 통과 | 통과 | 롤백 통과 |
-| `authenticated` 역할의 직접 쓰기·큐 전송 거부 | 통과 | 통과 | — |
+| 원본 저장과 `pgmq.send`의 함께 롤백(전송 후 실패)·함께 커밋 | 통과 | 통과 | 롤백 통과(원본·큐 개수 모두 비교) |
+| 접속 역할의 큐 메시지 내용 조회·소비·삭제 거부 | 통과 | 통과 | — |
 | 동시 200요청(연결 4개)에서 다른 사용자 행 노출 | 0건 | 0건 | — |
 
-`npm run exp1`: 23/23 통과. 대조 실험(`exp1-negative.mjs`)에서 트랜잭션 한정이 아닌 세션 설정을 쓰면 다음 요청이 이전 사용자의 문맥으로 행 102개를 보는 누출을 검출해, 위 검사가 실제 누출을 잡는다는 것을 확인했다.
+연결 방식과 무관한 검사: `authenticated` 역할로 전환이 된 것을 확인한 뒤의 업무 테이블 직접 쓰기 거부(`permission denied for table items`)와 큐 전송 거부(`permission denied for schema pgmq`), 접속·전환 역할에 superuser·BYPASSRLS 없음. 모두 통과.
+
+`npm run exp1`: 28/28 통과. 대조 실험(`exp1-negative.mjs`)에서 트랜잭션 한정이 아닌 세션 설정을 쓰면 다음 요청이 이전 사용자의 문맥으로 행 102개를 보는 누출을 검출해, 위 검사가 실제 누출을 잡는다는 것을 확인했다.
 
 채택한 방식:
 
 - 접속 역할 `app_server`(LOGIN, 업무 테이블 권한 없음, superuser·BYPASSRLS 아님)가 트랜잭션마다 `set_config('request.jwt.claims', <검증된 Actor>, true)`와 `set local role app_user`를 실행한다.
 - `app_user`(NOLOGIN)는 업무 테이블 권한과 RLS 정책의 대상이고 PostgREST에 노출되지 않는다. `authenticated`·`anon`은 업무 테이블 권한이 없어 Supabase API로 직접 쓰지 못한다.
-- 큐 전송은 같은 트랜잭션에서 `reset role`로 접속 역할로 돌아간 뒤 실행한다. 일반 사용자 역할에는 pgmq 권한을 주지 않는다.
+- 큐 전송은 같은 트랜잭션에서 `reset role`로 접속 역할로 돌아간 뒤 실행한다. 접속 역할에는 pgmq 스키마 사용, `pgmq.send`와 `pgmq.format_table_name` 실행, 해당 큐 테이블의 INSERT와 `msg_id` 컬럼 SELECT(`INSERT … RETURNING`용)만 준다. 메시지 내용 조회·소비·삭제는 worker 역할(T02-3)의 몫이다. 일반 사용자 역할에는 pgmq 권한을 주지 않는다.
 - 드라이버는 Postgres.js 3.4.9. Edge처럼 연결이 짧은 환경은 트랜잭션 풀러와 `prepare: false`를 쓴다.
 
 ADR-0003의 대안(SQL 함수를 사용자 JWT로 호출)은 필요하지 않다.

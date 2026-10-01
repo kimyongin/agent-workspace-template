@@ -90,7 +90,8 @@ DB 제약과 보안 정책, pgmq 같은 인프라 함수는 유지한다. SQL �
 
 | 역할 | 권한 | 사용 |
 | --- | --- | --- |
-| 접속 역할(예: `app_server`) | LOGIN. 업무 테이블 권한 없음, superuser·BYPASSRLS 아님. 사용자 역할로 전환과 큐 전송만 가능 | 서버 어댑터의 연결 |
+| 접속 역할(예: `app_server`) | LOGIN. 업무 테이블 권한 없음, superuser·BYPASSRLS 아님. 사용자 역할로 전환과 큐 전송만 가능: pgmq 스키마 사용, `pgmq.send`·`pgmq.format_table_name` 실행, 전송할 큐 테이블의 INSERT와 `msg_id` 컬럼 SELECT. 메시지 내용 조회·소비·삭제 권한 없음 | 서버 어댑터의 연결 |
+| worker 역할 | 큐 메시지 읽기·삭제·보관과 색인 저장에 필요한 권한만. 첫 worker(T02-3)에서 정함 | 비동기 worker |
 | 사용자 역할(예: `app_user`) | NOLOGIN. 업무 테이블 권한과 RLS 정책의 대상. Supabase API에 노출하지 않음 | 트랜잭션 안에서만 전환 |
 | `authenticated`·`anon` | 업무 테이블·큐 권한 없음 | 일반 사용자의 직접 쓰기 차단 |
 
