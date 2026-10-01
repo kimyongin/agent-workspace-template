@@ -13,7 +13,7 @@
 | 서버 런타임 | Supabase Edge Runtime(Deno 2 호환), TypeScript | ADR-0002의 Edge Functions. Supabase 예제가 `jsr:`·`npm:` 지정자를 사용 | 정확한 Deno 버전은 T02-2에서 고정한 Supabase CLI(`supabase` 2.119.0)의 로컬 runtime으로 확인 |
 | SQL 드라이버 | Postgres.js(`npm:postgres` 3.4.9) | [Edge의 Postgres 연결](https://supabase.com/docs/guides/functions/connect-to-postgres)이 안내하는 직접 연결 드라이버 중 하나. `sql.begin`으로 한 연결의 트랜잭션을 보장 | Edge 같은 서버리스에는 Supavisor 트랜잭션 모드(6543)가 권장되며 이 모드는 prepared statement를 지원하지 않으므로([연결 방법](https://supabase.com/docs/guides/database/connecting-to-postgres)) `prepare: false` 필요. 대안은 deno-postgres. 실험 1에서 확정 |
 | MCP 서버 | `@modelcontextprotocol/server` 2.2.0의 `createMcpHandler`(Streamable HTTP, 요청별 무상태 서버) | [Supabase BYO MCP 가이드](https://supabase.com/docs/guides/getting-started/byo-mcp)의 공식 SDK 예제 | `mcp-lite`(0.10.0)는 경량 대안. 가이드 예제의 supabase-js·RLS 데이터 접근은 ADR-0003과 달라 데이터 접근은 위 SQL 드라이버를 쓴다 |
-| MCP 인증 보조 | `@supabase/server` 1.9.0의 `withOAuthProtectedResource`(RFC 9728 metadata)와 JWKS 토큰 검증 | 같은 가이드. 비대칭 서명 키(ES256/RS256) 프로젝트가 필요하고 HS256 레거시 토큰은 거부 | 이 미들웨어는 `client_id`·audience를 검사하지 않는다. 아래 MCP OAuth 위험 참고 |
+| MCP 인증 보조 | `@supabase/server` 1.9.0의 `withOAuthProtectedResource`(RFC 9728 metadata)와 JWKS 토큰 검증 | 같은 가이드. 비대칭 서명 키(ES256/RS256) 프로젝트가 필요하고 HS256 레거시 토큰은 거부 | `audience`·`issuer` 옵션으로 토큰을 고정한다(실험 2에서 확인) |
 | HTTP 라우팅 | Hono 4.13 | Deno·Edge 호환 경량 라우터, 목적별 경로(`/tasks` 등) 구성 | `Deno.serve`와 직접 분기도 가능. T02-2에서 경로 수가 적으면 생략 가능 |
 | 공유 schema | Zod 4.6 | MCP SDK의 도구 `inputSchema`가 Zod를 받고, 웹 폼·HTTP 입력 검증에 같은 정의를 쓸 수 있으며 `z.toJSONSchema`로 JSON Schema를 만든다 | Deno는 `npm:zod`, Vite는 `zod`로 해석되므로 import map(`deno.json`)으로 같은 지정자를 맞춘다. 배치는 작업 3·4에서 정함 |
 | 웹 | React 19.3, Vite 8.3, React Router 8.4, TypeScript | 정적 빌드로 GitHub Pages에 배포. 디자인 가이드의 컴포넌트 단위와 맞음 | Pages의 상세 URL 직접 진입은 `404.html` 대체 또는 hash 라우팅 중 T02-2에서 선택하고 새로고침·로그인 복귀로 검증 |
@@ -295,3 +295,71 @@ Book 전환에서 아래 목록 밖의 파일이 바뀌면 원인과 공통 기�
 7. `src/features/entity/` → `src/features/books/`, `src/app`의 메뉴·브랜드
 8. `plugins/workspace/skills/workspace/references/`의 도메인 문서와 SKILL.md 링크 줄
 9. 엔터티 core 단위·DB parity·HTTP/MCP 계약·E2E 테스트와 샘플 데이터
+
+## 실험 결과 (작업 9)
+
+2026-10-02 수행. 실험 코드는 `experiments/t02-1/`(revision `5e65977`)이며 앱 코드가 아니다. 격리 로컬 Supabase(CLI 2.98.2, Edge Runtime 1.73.13·Deno 2.1.4, Postgres 17)에서 실행했고 운영·기존 프로젝트는 쓰지 않았다. 호스팅 프로젝트 생성은 이 세션의 권한 정책으로 막혀 호스팅 환경 항목은 남은 실험으로 둔다.
+
+재현:
+
+```bash
+cd experiments/t02-1
+npm install
+supabase start -x studio,imgproxy,vector,logflare,mailpit
+npm run exp1
+```
+
+실험 2는 서명 키(`supabase gen signing-key`)·`.env.local`·동의 화면 서버를 준비한 뒤 `node exp2-flow.mjs`를 실행하고 `authorize-url.txt`의 주소로 승인한다. 준비 절차는 실험 파일의 주석을 따른다.
+
+### 실험 1 — 직접 Postgres 트랜잭션: 채택
+
+| 확인 | 직접 연결(5432) | 트랜잭션 풀러(Supavisor, `prepare: false`) | Edge Runtime의 `npm:postgres` |
+| --- | --- | --- | --- |
+| 다른 소유자로 쓰기 거부(RLS) | 통과 | 통과 | 통과(두 연결 모두) |
+| 읽기 격리, 문맥 없는 접속 역할의 접근 거부 | 통과 | 통과 | — |
+| 커밋·롤백 후 같은 연결에 역할·claims가 남지 않음 | 통과 | 통과 | 통과 |
+| 원본 저장과 `pgmq.send`의 함께 롤백·함께 커밋 | 통과 | 통과 | 롤백 통과 |
+| `authenticated` 역할의 직접 쓰기·큐 전송 거부 | 통과 | 통과 | — |
+| 동시 200요청(연결 4개)에서 다른 사용자 행 노출 | 0건 | 0건 | — |
+
+`npm run exp1`: 23/23 통과. 대조 실험(`exp1-negative.mjs`)에서 트랜잭션 한정이 아닌 세션 설정을 쓰면 다음 요청이 이전 사용자의 문맥으로 행 102개를 보는 누출을 검출해, 위 검사가 실제 누출을 잡는다는 것을 확인했다.
+
+채택한 방식:
+
+- 접속 역할 `app_server`(LOGIN, 업무 테이블 권한 없음, superuser·BYPASSRLS 아님)가 트랜잭션마다 `set_config('request.jwt.claims', <검증된 Actor>, true)`와 `set local role app_user`를 실행한다.
+- `app_user`(NOLOGIN)는 업무 테이블 권한과 RLS 정책의 대상이고 PostgREST에 노출되지 않는다. `authenticated`·`anon`은 업무 테이블 권한이 없어 Supabase API로 직접 쓰지 못한다.
+- 큐 전송은 같은 트랜잭션에서 `reset role`로 접속 역할로 돌아간 뒤 실행한다. 일반 사용자 역할에는 pgmq 권한을 주지 않는다.
+- 드라이버는 Postgres.js 3.4.9. Edge처럼 연결이 짧은 환경은 트랜잭션 풀러와 `prepare: false`를 쓴다.
+
+ADR-0003의 대안(SQL 함수를 사용자 JWT로 호출)은 필요하지 않다.
+
+### 실험 2 — MCP OAuth와 토큰 구분: 채택(로컬), 호스팅·실클라이언트 일부 남음
+
+| 확인 | 결과 |
+| --- | --- |
+| 토큰 없는 MCP 요청 | 401과 `WWW-Authenticate: Bearer resource_metadata=".../exp2-mcp/oauth-protected-resource"` |
+| 보호 자원 metadata(`@supabase/server`의 `withOAuthProtectedResource`) | `resource`=MCP URL, `authorization_servers`=Supabase Auth |
+| 권한 서버 metadata | 경로 덧붙임형(`/auth/v1/.well-known/oauth-authorization-server`)·OIDC 탐색 200. 경로 삽입형은 로컬에서 404(호스팅 확인 남음). PKCE S256 지원. CIMD·RFC 9207 `iss` 응답 표시 없음 |
+| 동적 등록 | loopback HTTP·claude.ai HTTPS callback 허용, loopback이 아닌 HTTP redirect 거부(400) |
+| Custom Access Token Hook | OAuth 클라이언트 토큰에 `client_id`가 있고, hook으로 `aud`를 MCP URL로 바꿀 수 있음. 갱신 토큰에도 유지 |
+| 토큰 교차 사용 | MCP 토큰→MCP 200, 웹 세션 토큰→MCP 401, 웹 세션 토큰→HTTP API 200, MCP 토큰→HTTP API 401 |
+| Codex 0.147.0 | 동적 등록(클라이언트 이름 `Codex`)·PKCE·`resource` 파라미터·loopback callback으로 로그인 성공. 사용자 설정과 분리한 임시 `CODEX_HOME` 사용 |
+| Claude Code | 인증이 대화형 `/mcp`로만 가능해 사용자 수행 대기 |
+
+`node exp2-flow.mjs`: 15/15 통과.
+
+채택한 방식:
+
+- MCP 서버는 `withOAuthProtectedResource()`와 `withSupabase({ auth: "user", audience: <MCP URL> })`를 쓴다. 웹용 HTTP API는 `audience: "authenticated"`로 고정한다. 기술 후보 표에서 "이 미들웨어는 audience를 검사하지 않는다"고 적은 것은 잘못이었다. `audience`·`issuer` 옵션으로 고정할 수 있다.
+- Custom Access Token Hook은 `client_id`가 있는 토큰의 `aud`를 MCP 서버의 정식 URL로 바꾼다. 따라서 MCP 명세의 audience 요구를 충족하고, 위험 1의 예외 기록은 필요 없다.
+- MCP 토큰의 `aud`가 바뀌면 그 토큰으로 Supabase 데이터 API(PostgREST)를 쓸 수 없다. 이 앱은 서버가 직접 SQL로 Actor 문맥을 넣으므로 영향이 없다.
+- 동의 화면은 웹 앱의 `/oauth/consent` 경로에 둔다. supabase-js의 `auth.oauth.getAuthorizationDetails`·`approveAuthorization`·`denyAuthorization`으로 동작하며 클라이언트 이름과 redirect URI를 보여 준다.
+
+### 남은 실험
+
+| 항목 | 필요한 것 |
+| --- | --- |
+| Claude Code의 OAuth·도구 호출 | 사용자가 대화형 `/mcp`로 인증 |
+| Codex의 도구 호출 | 사용자 Codex 계정으로 실제 대화 실행 |
+| 호스팅 환경: 경로 삽입형 metadata, Supavisor 실서버, claude.ai·모바일 커넥터 | 격리 호스팅 Supabase 프로젝트(사용자가 생성) |
+| 실험 3 임베딩 | Pinecone API 키(사용자가 발급·설정) |

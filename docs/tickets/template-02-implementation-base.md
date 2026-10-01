@@ -3,7 +3,7 @@
 작성: 2026-10-01
 상태: T02-1 진행 중
 검토 기준: `dfac04bab3b8d3f4b78bcdc8dd2fc4a6bdc90347`
-다음 작업: T02-1 PR 7(실험). 격리 서비스 생성 승인 필요
+다음 작업: T02-1 남은 실험(Claude Code OAuth, 호스팅, 임베딩)과 결과의 가이드 반영
 
 ## 목표와 기준 문서
 
@@ -209,7 +209,7 @@ T02-4는 PRD의 중립적인 기본 앱을 구현하고, T02-5는 별도 복사�
 
 | ID | 상태 | 구현 revision / 변경 계약 | 검증 명령·결과 | 남은 작업 |
 | --- | --- | --- | --- | --- |
-| T02-1 | 진행 중 | PR 1 분할 계획, PR 2 문서 검사 `scripts/check-docs.mjs`, PR 3 용어·`Entity` 설명·상태 서술 이동·개발 스킬 정본 링크화·Template-01 단계 매핑, PR 4 기술 후보(런타임·드라이버·MCP·schema·웹, Claude·Codex 플러그인 형식, OAuth 차이와 MCP 토큰 audience 위험), PR 5 기능 계약(할 일·기록·원칙·태그·검색·`Entity`, 공통 오류·버전·멱등성, T02-5 Book 도메인), PR 6 도메인 변경 계약(Zod contracts 정본·파생/수동 대상과 검사, 변경 위치, T02-5 예상 변경 파일 9개), PR 8 반복 할 일 계약(PRD 변경 #9 승인 대기), PR 9 Claude 표면(개인 계정·모바일)과 MCP 토큰 구분 판단 기록 | `node scripts/check-docs.mjs` 통과, `node --test "scripts/*.test.mjs"` 6개 통과 | PR 7(실험): 격리 Supabase 프로젝트·Pinecone 키·클라이언트 연결 승인 대기. 반복 경고 정리는 개발 스킬·README·상태 문구까지 했고, 가이드 사이에 반복된 보호 문장(예: Google 로그인과 MCP OAuth 구분)은 각 가이드의 검증 항목이라 유지 |
+| T02-1 | 진행 중 | PR 1 분할 계획, PR 2 문서 검사 `scripts/check-docs.mjs`, PR 3 용어·`Entity` 설명·상태 서술 이동·개발 스킬 정본 링크화·Template-01 단계 매핑, PR 4 기술 후보(런타임·드라이버·MCP·schema·웹, Claude·Codex 플러그인 형식, OAuth 차이와 MCP 토큰 audience 위험), PR 5 기능 계약(할 일·기록·원칙·태그·검색·`Entity`, 공통 오류·버전·멱등성, T02-5 Book 도메인), PR 6 도메인 변경 계약(Zod contracts 정본·파생/수동 대상과 검사, 변경 위치, T02-5 예상 변경 파일 9개), PR 8 반복 할 일 계약(PRD 변경 #9 승인 대기), PR 9 Claude 표면(개인 계정·모바일)과 MCP 토큰 구분 판단 기록, PR 7 실험 1(트랜잭션) 채택·실험 2(MCP OAuth·토큰 구분) 로컬 채택 | `node scripts/check-docs.mjs` 통과, `node --test "scripts/*.test.mjs"` 6개 통과, 실험 `npm run exp1` 23/23·`node exp2-flow.mjs` 15/15(로컬, `5e65977`) | 남은 실험: Claude Code OAuth(사용자 `/mcp`), Codex 도구 호출, 호스팅 환경, 임베딩(Pinecone 키). 결과를 아키텍처·보안 가이드에 반영. 반복 경고 정리는 개발 스킬·README·상태 문구까지 했고, 가이드 사이에 반복된 보호 문장(예: Google 로그인과 MCP OAuth 구분)은 각 가이드의 검증 항목이라 유지 |
 | T02-2 | 미시작 | — | — | 실행 기반·할 일·기록 |
 | T02-3 | 미시작 | — | — | 원칙·검색·연결 |
 | T02-4 | 미시작 | — | — | 단일 예제 엔터티·화면·플러그인 |
