@@ -158,7 +158,7 @@ T02-4는 PRD의 중립적인 기본 앱을 구현하고, T02-5는 별도 복사�
 
 - [ ] 기본 예제가 테이블 하나의 명시적인 속성으로 구현되고, 주요 화면과 웹/MCP 엔터티 작업이 실제 데이터로 동작한다.
 - [ ] 모바일·데스크톱, 긴 원문·빈 상태·오류·초안 보존·목록 복귀를 디자인 가이드에 따라 확인한다.
-- [ ] Claude와 Codex 각각에서 플러그인 설치·연결·스킬의 원문 확인 행동을 검증한다. 한쪽 결과로 다른 쪽을 통과 처리하지 않는다.
+- [ ] Claude와 Codex 각각에서 플러그인 설치·연결·스킬의 원문 확인 행동을 검증한다. 한쪽 결과로 다른 쪽을 통과 처리하지 않는다. Claude는 Claude Code, claude.ai 웹·데스크톱(개인 계정 플러그인 업로드), 모바일(커넥터와 스킬 동작 여부)을 각각 기록한다([표면별 제공 방식](template-02-t02-1-contracts.md#플러그인-형식-claudecodex)).
 - [ ] 브랜드 변경과 예제 엔터티 교체 위치가 문서화되고 불필요한 공통 기능 수정이 없다.
 
 ## T02-5 — 예제 엔터티의 도메인 전환 검증
@@ -209,7 +209,7 @@ T02-4는 PRD의 중립적인 기본 앱을 구현하고, T02-5는 별도 복사�
 
 | ID | 상태 | 구현 revision / 변경 계약 | 검증 명령·결과 | 남은 작업 |
 | --- | --- | --- | --- | --- |
-| T02-1 | 진행 중 | PR 1 분할 계획, PR 2 문서 검사 `scripts/check-docs.mjs`, PR 3 용어·`Entity` 설명·상태 서술 이동·개발 스킬 정본 링크화·Template-01 단계 매핑, PR 4 기술 후보(런타임·드라이버·MCP·schema·웹, Claude·Codex 플러그인 형식, OAuth 차이와 MCP 토큰 audience 위험), PR 5 기능 계약(할 일·기록·원칙·태그·검색·`Entity`, 공통 오류·버전·멱등성, T02-5 Book 도메인), PR 6 도메인 변경 계약(Zod contracts 정본·파생/수동 대상과 검사, 변경 위치, T02-5 예상 변경 파일 9개), PR 8 반복 할 일 계약(PRD 변경 #9 승인 대기) | `node scripts/check-docs.mjs` 통과, `node --test "scripts/*.test.mjs"` 6개 통과 | PR 7(실험): 격리 Supabase 프로젝트·Pinecone 키·클라이언트 연결 승인 대기. 반복 일정의 첫 버전 포함 여부 결정 요청. ADR-0005의 Claude 검증 표면(Claude Code 기본, claude.ai·Cowork 추가) 확인 요청. 반복 경고 정리는 개발 스킬·README·상태 문구까지 했고, 가이드 사이에 반복된 보호 문장(예: Google 로그인과 MCP OAuth 구분)은 각 가이드의 검증 항목이라 유지 |
+| T02-1 | 진행 중 | PR 1 분할 계획, PR 2 문서 검사 `scripts/check-docs.mjs`, PR 3 용어·`Entity` 설명·상태 서술 이동·개발 스킬 정본 링크화·Template-01 단계 매핑, PR 4 기술 후보(런타임·드라이버·MCP·schema·웹, Claude·Codex 플러그인 형식, OAuth 차이와 MCP 토큰 audience 위험), PR 5 기능 계약(할 일·기록·원칙·태그·검색·`Entity`, 공통 오류·버전·멱등성, T02-5 Book 도메인), PR 6 도메인 변경 계약(Zod contracts 정본·파생/수동 대상과 검사, 변경 위치, T02-5 예상 변경 파일 9개), PR 8 반복 할 일 계약(PRD 변경 #9 승인 대기), PR 9 Claude 표면(개인 계정·모바일)과 MCP 토큰 구분 판단 기록 | `node scripts/check-docs.mjs` 통과, `node --test "scripts/*.test.mjs"` 6개 통과 | PR 7(실험): 격리 Supabase 프로젝트·Pinecone 키·클라이언트 연결 승인 대기. 반복 경고 정리는 개발 스킬·README·상태 문구까지 했고, 가이드 사이에 반복된 보호 문장(예: Google 로그인과 MCP OAuth 구분)은 각 가이드의 검증 항목이라 유지 |
 | T02-2 | 미시작 | — | — | 실행 기반·할 일·기록 |
 | T02-3 | 미시작 | — | — | 원칙·검색·연결 |
 | T02-4 | 미시작 | — | — | 단일 예제 엔터티·화면·플러그인 |
