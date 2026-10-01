@@ -333,7 +333,7 @@ npm run exp1
 
 ADR-0003의 대안(SQL 함수를 사용자 JWT로 호출)은 필요하지 않다.
 
-### 실험 2 — MCP OAuth와 토큰 구분: 채택(로컬), 호스팅·실클라이언트 일부 남음
+### 실험 2 — MCP OAuth와 토큰 구분: 채택(로컬), 호스팅 확인 남음
 
 | 확인 | 결과 |
 | --- | --- |
@@ -344,9 +344,9 @@ ADR-0003의 대안(SQL 함수를 사용자 JWT로 호출)은 필요하지 않다
 | Custom Access Token Hook | OAuth 클라이언트 토큰에 `client_id`가 있고, hook으로 `aud`를 MCP URL로 바꿀 수 있음. 갱신 토큰에도 유지 |
 | 토큰 교차 사용 | MCP 토큰→MCP 200, 웹 세션 토큰→MCP 401, 웹 세션 토큰→HTTP API 200, MCP 토큰→HTTP API 401 |
 | Codex 0.147.0 | 동적 등록(클라이언트 이름 `Codex`)·PKCE·`resource` 파라미터·loopback callback으로 로그인 성공. 사용자 설정과 분리한 임시 `CODEX_HOME` 사용 |
-| Claude Code | 인증이 대화형 `/mcp`로만 가능해 사용자 수행 대기 |
+| Claude Code 2.1.140 | 사용자가 대화형 `/mcp`로 인증(동적 등록, 새 `client_id`). `whoami` 도구 호출 결과 `aud`=MCP URL, `client_id` 있음, `iss`=로컬 Auth |
 
-`node exp2-flow.mjs`: 15/15 통과.
+`node exp2-flow.mjs`: 15/15 통과. Claude Code는 인증과 도구 호출까지, Codex는 인증까지 실제 클라이언트로 확인했다.
 
 채택한 방식:
 
@@ -359,7 +359,6 @@ ADR-0003의 대안(SQL 함수를 사용자 JWT로 호출)은 필요하지 않다
 
 | 항목 | 필요한 것 |
 | --- | --- |
-| Claude Code의 OAuth·도구 호출 | 사용자가 대화형 `/mcp`로 인증 |
 | Codex의 도구 호출 | 사용자 Codex 계정으로 실제 대화 실행 |
 | 호스팅 환경: 경로 삽입형 metadata, Supavisor 실서버, claude.ai·모바일 커넥터 | 격리 호스팅 Supabase 프로젝트(사용자가 생성) |
 | 실험 3 임베딩 | Pinecone API 키(사용자가 발급·설정) |
