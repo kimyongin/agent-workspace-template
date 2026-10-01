@@ -16,7 +16,8 @@
 | 4 | [폴더 구조](design/template-structure.md) | 각 책임의 파일은 어디에 두고 새 도메인은 어디에 추가하는가? |
 | 5 | [디자인 가이드](design/guide.md) | 어떤 시각 규격과 공통 상호작용으로 화면을 만드는가? |
 | 6 | [개발과 검증](development/workflow.md) | 어떤 단위로 만들고 어떤 증거로 완료를 판단하는가? |
-| 7 | [첫 기능 티켓](tickets/template-01-task-record-search.md) | 지금 무엇을 확정·구현·검증해야 하는가? |
+| 7 | [구현형 템플릿 티켓](tickets/template-02-implementation-base.md) | 전체 구현 순서·도메인 교체·완성 기준은 무엇인가? |
+| 첫 기능 상세 | [Template-01](tickets/template-01-task-record-search.md) | 첫 할 일·기록·검색의 계약과 검증 조건은 무엇인가? |
 | 8 | [배포 방법](deployment/release.md) | 새 프로젝트를 설치하고 변경을 공개·복구하는 순서는 무엇인가? |
 | 9 | [운영 방법](operations/runbook.md) | 서비스 상태·큐·검색·인증·비용·백업과 장애를 어떻게 관리하는가? |
 | 공통 필수 | [보안 가이드](security/guide.md) | 인증·데이터·에이전트·외부 서비스의 신뢰 경계를 어떻게 보호하는가? |
@@ -38,4 +39,4 @@
 
 문서 정리 후 UTF-8(BOM 없음)·LF, 내부 상대 링크, 공백 및 git diff --check를 확인한다. 실행 결과는 첫 티켓의 상태 항목에 기록한다. 앱·DB·브라우저 테스트는 구현 이후 해당 기능의 검증으로 수행한다.
 
-다음 작업은 첫 티켓의 미정 계약 확정이다. 배포·운영 절차는 문서화했으며 실제 명령·CI·알림·복원 경로는 실행 기반을 만들면서 검증해 채운다. 새 프로젝트는 자체 서비스 설정과 비밀값을 구성한다.
+다음 작업은 [Template-02의 T02-1](tickets/template-02-implementation-base.md)이다. 목표는 도메인 엔터티·화면·설정·제품 스킬을 조정해 새 앱을 시작할 수 있는 구현형 템플릿이다. 할 일·기록·사용자 원칙·RAG는 기본 기능이며, Template-01의 상세 계약과 검증을 이어서 6단계로 구현한다. 제품 스킬 초안은 [plugins/workspace/skills/workspace](../plugins/workspace/skills/workspace/SKILL.md)에 있다. 실제 명령·CI·알림·복원 경로는 해당 단계에서 구현·검증하고 새 프로젝트의 서비스 설정과 비밀값은 독립적으로 구성한다.
