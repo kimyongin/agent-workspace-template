@@ -54,7 +54,7 @@ test("CRLF를 검출한다", () => {
 });
 
 test("UTF-8 BOM을 검출한다", () => {
-  const problems = problemsOf({ "docs/START.md": "﻿# 시작\n" });
+  const problems = problemsOf({ "docs/START.md": "\uFEFF# 시작\n" });
   assert.match(problems.join("\n"), /docs\/START\.md: UTF-8 BOM/);
 });
 
