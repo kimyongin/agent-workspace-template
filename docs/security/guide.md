@@ -27,7 +27,7 @@
 
 MCP 토큰은 `aud`가 MCP 서버의 정식 URL이고 웹 세션 토큰은 `authenticated`다. MCP 서버와 HTTP API는 각자의 audience만 받는다. 발급 방식은 [아키텍처](../architecture/hexagonal-review.md#google-로그인과-mcp-인증)를 따른다.
 
-HTTP와 MCP는 같은 소유권 검사를 통과해야 한다. OAuth scope는 작업 종류의 허용 범위이며 객체별 소유권 검사를 대체하지 않는다. 잘못된 audience의 토큰을 받거나 클라이언트 토큰을 외부 공급자에 그대로 전달하지 않는다. OAuth의 redirect URI·PKCE·state 등 보호는 채택한 공급자/SDK와 프로토콜 버전에 맞춰 구현·검증한다. 인증 URL의 임의 redirect는 금지한다.
+HTTP와 MCP는 같은 소유권 검사를 통과해야 한다. 채택한 Supabase OAuth 서버의 scope(`openid`·`email`·`profile`·`phone`)는 사용자 정보 제공 범위일 뿐 업무 데이터·API 권한을 정하지 않는다([공식 설명](https://supabase.com/docs/guides/auth/oauth-server/token-security)). 이 앱은 업무 scope를 두지 않으며 접근은 토큰 audience(진입점)와 객체별 소유권 검사로 정한다. 나중에 업무 scope를 추가하더라도 작업 종류의 허용 범위일 뿐 소유권 검사를 대체하지 않는다. 잘못된 audience의 토큰을 받거나 클라이언트 토큰을 외부 공급자에 그대로 전달하지 않는다. OAuth의 redirect URI·PKCE·state 등 보호는 채택한 공급자/SDK와 프로토콜 버전에 맞춰 구현·검증한다. 인증 URL의 임의 redirect는 금지한다.
 
 사용자가 수정 가능한 프로필 metadata를 관리자 권한의 근거로 쓰지 않는다. 서버 관리 권한 정보도 토큰에 담겼다면 최신 상태와 다를 수 있다. 로그아웃·탈퇴·권한 회수 후 기존 access token의 잔여 유효시간을 고려하고, 즉시 회수가 필요한 작업에는 서버 상태 확인을 설계한다. 계정 삭제만으로 모든 토큰이 즉시 무효화된다고 가정하지 않는다.
 

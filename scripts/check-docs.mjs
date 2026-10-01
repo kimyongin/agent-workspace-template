@@ -33,10 +33,12 @@ export function checkText(file, buf) {
   if (buf[0] === 0xef && buf[1] === 0xbb && buf[2] === 0xbf) {
     problems.push(`${file}: UTF-8 BOM이 있다`);
   }
-  const text = buf.toString("utf8");
-  if (text.includes("�") && !buf.includes(Buffer.from("�"))) {
+  try {
+    new TextDecoder("utf-8", { fatal: true }).decode(buf);
+  } catch {
     problems.push(`${file}: UTF-8이 아닌 바이트가 있다`);
   }
+  const text = buf.toString("utf8");
   const lines = text.split("\n");
   lines.forEach((line, i) => {
     if (line.endsWith("\r")) {

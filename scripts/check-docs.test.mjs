@@ -58,6 +58,12 @@ test("UTF-8 BOM을 검출한다", () => {
   assert.match(problems.join("\n"), /docs\/START\.md: UTF-8 BOM/);
 });
 
+test("UTF-8이 아닌 바이트를 검출한다(정상 U+FFFD 문자가 함께 있어도)", () => {
+  const bytes = Buffer.concat([Buffer.from("# 시작 �\n", "utf8"), Buffer.from([0xff, 0x0a])]);
+  const problems = problemsOf({ "docs/START.md": bytes });
+  assert.match(problems.join("\n"), /docs\/START\.md: UTF-8이 아닌 바이트/);
+});
+
 test("줄 끝 공백과 마지막 줄바꿈 누락을 검출한다", () => {
   const problems = problemsOf({ "docs/START.md": "# 시작 \n\n본문" }).join("\n");
   assert.match(problems, /docs\/START\.md:1: 줄 끝 공백/);

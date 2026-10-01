@@ -21,13 +21,17 @@ create policy items_owner on public.items for all to app_user
 grant usage on schema auth to app_user;
 grant execute on function auth.jwt() to app_user;
 
--- 서버 접속 역할: 업무 테이블 권한 없음, app_user로 전환만 가능, 큐 전송 가능.
+-- 서버 접속 역할: 업무 테이블 권한 없음, app_user로 전환과 이 큐의 메시지 전송만 가능.
+-- pgmq.send는 호출자 권한으로 실행되므로 큐 테이블 INSERT와 반환 컬럼 권한만 준다. 읽기·삭제·보관은 worker 역할의 몫이다.
 create role app_server login password 'local-experiment-only' noinherit;
 grant app_user to app_server;
 grant usage on schema pgmq to app_server;
-grant select, insert, update, delete on all tables in schema pgmq to app_server;
-grant usage, select on all sequences in schema pgmq to app_server;
-grant execute on all functions in schema pgmq to app_server;
+grant execute on function pgmq.send(text, jsonb) to app_server;
+grant execute on function pgmq.send(text, jsonb, jsonb, timestamp with time zone) to app_server;
+grant execute on function pgmq.format_table_name(text, text) to app_server;
+grant insert on pgmq.q_exp_index to app_server;
+-- send의 INSERT ... RETURNING msg_id에 필요한 컬럼 권한만 준다. 메시지 내용(message)은 읽지 못한다.
+grant select (msg_id) on pgmq.q_exp_index to app_server;
 
 -- 일반 사용자(PostgREST의 authenticated·anon)의 직접 쓰기 차단.
 revoke all on public.items from anon, authenticated;
