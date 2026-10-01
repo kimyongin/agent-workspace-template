@@ -298,7 +298,7 @@ Book 전환에서 아래 목록 밖의 파일이 바뀌면 원인과 공통 기�
 
 ## 실험 결과 (작업 9)
 
-2026-10-02 수행. 실험 코드는 `experiments/t02-1/`(revision `5e65977`)이며 앱 코드가 아니다. 격리 로컬 Supabase(CLI 2.98.2, Edge Runtime 1.73.13·Deno 2.1.4, Postgres 17)에서 실행했고 운영·기존 프로젝트는 쓰지 않았다. 호스팅 프로젝트 생성은 이 세션의 권한 정책으로 막혀 호스팅 환경 항목은 남은 실험으로 둔다.
+2026-10-02 수행. 실험 코드는 [`experiments/t02-1/`](../../experiments/t02-1/README.md)(`main`의 `fea0313`에서 머지)이며 앱 코드가 아니다. 격리 로컬 Supabase(CLI 2.98.2, Edge Runtime 1.73.13·Deno 2.1.4, Postgres 17)에서 실행했고 운영·기존 프로젝트는 쓰지 않았다. 호스팅 프로젝트 생성은 이 세션의 권한 정책으로 막혀 호스팅 환경 항목은 남은 실험으로 둔다.
 
 재현:
 
@@ -309,7 +309,7 @@ supabase start -x studio,imgproxy,vector,logflare,mailpit
 npm run exp1
 ```
 
-실험 2는 서명 키(`supabase gen signing-key`)·`.env.local`·동의 화면 서버를 준비한 뒤 `node exp2-flow.mjs`를 실행하고 `authorize-url.txt`의 주소로 승인한다. 준비 절차는 실험 파일의 주석을 따른다.
+실험 2의 준비(서명 키·환경 파일·시험 계정·동의 화면 서버)와 실행 절차는 [실험 README](../../experiments/t02-1/README.md)를 따른다.
 
 ### 실험 1 — 직접 Postgres 트랜잭션: 채택
 
