@@ -2,7 +2,7 @@
 
 사람에게는 웹 앱(HTTP), 에이전트에게는 MCP 연결과 제품 스킬을 함께 패키징한 플러그인을 제공한다. 두 접점은 같은 업무 기능과 데이터를 사용한다.
 
-개발 에이전트에게 작업을 위임할 때는 [AGENTS.md](../AGENTS.md)와 [develop-agent-app 스킬](../.agents/skills/develop-agent-app/SKILL.md)을 사용한다. 설계·구현·리뷰·배포·운영 요청에 필요한 문서를 선택해 읽는 진입점이며 제품 사용자용 스킬과 별개다.
+사람이 에이전트에게 일을 시키는 방법은 [에이전트와 일하는 방법](development/working-with-agents.md)을 따른다. 개발 에이전트에게 작업을 위임할 때는 [AGENTS.md](../AGENTS.md)와 [develop-agent-app 스킬](../.agents/skills/develop-agent-app/SKILL.md)을 사용한다. 설계·구현·리뷰·배포·운영 요청에 필요한 문서를 선택해 읽는 진입점이며 제품 사용자용 스킬과 별개다.
 
 ## 읽는 순서와 문서의 책임
 

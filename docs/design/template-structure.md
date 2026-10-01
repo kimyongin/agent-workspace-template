@@ -25,6 +25,7 @@ agent-workspace-template/
 │  └─ SKILL.md                     # Claude Code 발견용 연결 파일 → 정본
 ├─ .env.example                    # 새 프로젝트의 설정 예시
 ├─ .github/workflows/              # 자동 검증과 배포
+├─ .github/pull_request_template.md # PR 설명 양식
 ├─ public/                         # 공개 정적 자산
 ├─ src/                            # 웹 클라이언트
 │  ├─ app/                         # 진입, 메뉴, 화면 조립
