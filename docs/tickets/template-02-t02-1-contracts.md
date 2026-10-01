@@ -210,3 +210,57 @@ PRD의 단일 예제다. 여러 속성 타입의 교체를 시험할 수 있게 
 | — | `reading_status=done`이면 `finished_on` 필수 | 업무 규칙(core 도메인) |
 
 이 도메인의 할 일·기록·원칙(예: "300쪽 넘는 책은 휴가 때 읽는다")으로 지식 활용 흐름을 실행한다. 기본 템플릿에는 넣지 않는다.
+
+## 도메인 변경 계약 (작업 3·4)
+
+2026-10-02 작성. 경로는 [폴더 구조](../design/template-structure.md)를 따른 제안이며 T02-4에서 실제 파일명으로 확정한다. 생성 스크립트·공통 배선 도구는 만들지 않고 T02-5에서 반복이 확인된 범위에만 도입한다.
+
+### 공유 schema 정본
+
+| 결정 | 내용 |
+| --- | --- |
+| 정본 | 기능별 `supabase/functions/_shared/contracts/<기능>.ts`. Zod schema(필드·생성·수정 입력·응답)와 표시 이름(`labels`)을 둔다 |
+| 의존 규칙 | contracts는 `zod`만 가져온다. Deno API·환경변수·SDK·어댑터·core를 가져오지 않는다 |
+| 웹 사용 | 웹은 contracts만 가져올 수 있다(Vite 별칭). 서버의 core·adapters·bootstrap·DB 타입은 가져오지 않는다 |
+| core 사용 | core 도메인은 필드 타입을 contracts에서 추론해 쓰고, 필드를 넘는 업무 규칙(예: Book의 완료 날짜 규칙)은 core에 둔다. Zod는 순수 검증 라이브러리라 [ADR-0001](../adr/0001-hexagonal-shared-usecases.md)의 core 금지 의존성(SDK·SQL·HTTP·환경변수)에 해당하지 않는다 |
+| 지정자 | Deno는 `deno.json` import map으로 `zod`를 `npm:zod@4`에 연결해 웹과 같은 import 문을 쓴다 |
+
+| 대상 | 정본과의 관계 | 불일치를 잡는 검사(T02-2부터) |
+| --- | --- | --- |
+| HTTP 입력 검증 | 파생: 어댑터가 contracts schema로 `parse` | HTTP 계약 테스트의 경계값 |
+| MCP 입력 schema | 파생: `registerTool`의 `inputSchema`에 같은 schema 사용 | `tools/list`의 schema를 `z.toJSONSchema(contract)`와 비교 |
+| 웹 폼 검증·라벨 | 파생: 같은 schema와 `labels` | 폼 경계값 E2E |
+| DTO·도메인 필드 타입 | 파생: `z.infer` | 타입 검사 |
+| DB migration(타입·NOT NULL·길이/범위 CHECK·선택지) | 수동 | 격리 DB의 parity 테스트: 필드별 경계값(한도·한도+1·빈 값·선택지 밖)을 contracts와 DB에 모두 넣어 판정이 같은지, DB 컬럼 집합과 contracts 필드 집합이 같은지 |
+| 웹 목록·상세 배치 | 수동 | 영향 화면 E2E |
+| 제품 스킬 `references/` | 수동 | 참고 문서의 도구 이름이 `tools/list`에 있는지 검사 |
+
+DB CHECK는 contracts와 같은 한도를 두어 직접 쓰기 우회에도 형식을 지킨다. 업무 규칙은 DB에 두지 않는다([ADR-0003](../adr/0003-core-rules-and-local-transactions.md)).
+
+### 바꿀 위치와 유지할 위치
+
+| 계층 | 도메인 전환 시 바꿈 | 공통으로 유지 |
+| --- | --- | --- |
+| 모델·검증 | `_shared/contracts/entity.ts`, `_shared/core/entity/domain.ts` | `contracts`의 공통 오류·페이지·텍스트 규칙, `core/shared` |
+| 유스케이스·포트 | `core/entity/application/`, `core/entity/ports.ts`(필터·정렬 필드) | 트랜잭션 포트, 할 일·기록·원칙·검색 유스케이스 |
+| DB | 엔터티 테이블 migration, parity 테스트 | 인증·할 일·기록·원칙·태그·큐·벡터 테이블과 RLS |
+| 저장 어댑터 | `adapters/supabase/`의 엔터티 저장소 | 연결·Actor 문맥·트랜잭션·pgmq·pgvector |
+| HTTP·MCP | `adapters/http/`·`adapters/mcp/`의 엔터티 경로·도구 | 인증·오류 변환·요청 제한·MCP 서버 조립 |
+| 웹 | `src/features/entity/`의 목록·상세·폼, `src/app`의 메뉴·브랜드 | 공통 컴포넌트·스타일 토큰(브랜드 색 외)·인증 화면 |
+| 검색 표현·원문 링크 | 엔터티 상세의 연결 항목 표시 | 검색 결과 형식·원문 상세 경로(엔터티는 검색 대상 아님) |
+| 제품 스킬 | `skills/workspace/references/<도메인>.md`와 SKILL.md의 링크 줄 | SKILL.md 공통 흐름, 플러그인 manifest(이름 변경은 T02-6 초기화) |
+| 샘플 데이터 | 엔터티 샘플 | 할 일·기록·원칙 샘플의 형식 |
+
+### T02-5에서 비교할 예상 변경 파일
+
+Book 전환에서 아래 목록 밖의 파일이 바뀌면 원인과 공통 기반 수정 여부를 T02-5 기록에 남긴다.
+
+1. `supabase/migrations/`의 엔터티 테이블 migration(새 프로젝트이므로 교체)
+2. `supabase/functions/_shared/contracts/entity.ts` → `book.ts`
+3. `supabase/functions/_shared/core/entity/`(domain·ports·application) → `core/books/`
+4. `supabase/functions/_shared/adapters/supabase/`의 엔터티 저장소
+5. `supabase/functions/_shared/adapters/http/`·`adapters/mcp/`의 엔터티 경로·도구
+6. `supabase/functions/_shared/bootstrap.ts`의 엔터티 조립 한 곳
+7. `src/features/entity/` → `src/features/books/`, `src/app`의 메뉴·브랜드
+8. `plugins/workspace/skills/workspace/references/`의 도메인 문서와 SKILL.md 링크 줄
+9. 엔터티 core 단위·DB parity·HTTP/MCP 계약·E2E 테스트와 샘플 데이터
