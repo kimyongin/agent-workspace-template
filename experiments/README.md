@@ -1,0 +1,9 @@
+# 기술 실험
+
+앱 코드를 쓰기 전에 되돌리기 비싼 기술 가정을 작게 시험하는 폴더다. 여기 있는 코드는 앱이 가져오지 않고 배포하지 않는다. 규칙은 [개발 방법의 기술 실험](../docs/development/workflow.md#기술-실험)을 따른다.
+
+| 폴더 | 목적 | 결과 | 상태 |
+| --- | --- | --- | --- |
+| [t02-1](t02-1/README.md) | 직접 Postgres 트랜잭션의 Actor 문맥·RLS·큐 원자성, MCP OAuth와 토큰 audience 구분 | [T02-1 실험 결과](../docs/tickets/template-02-t02-1-contracts.md#실험-결과-작업-9) | 로컬 실험 완료, 호스팅·임베딩 미완료 |
+
+새 실험은 `experiments/<주제>/`를 만들고 README와 이 표의 행을 함께 추가한다.

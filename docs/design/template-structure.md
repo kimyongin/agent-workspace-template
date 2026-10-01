@@ -72,7 +72,7 @@ agent-workspace-template/
 │     └─ references/              # 작업·기록 작성·검색 활용
 ├─ e2e/                           # 웹↔MCP 실제 사용자 흐름
 ├─ scripts/                       # 개발·검증·설정·배포 보조
-├─ experiments/                   # 기술 가정의 격리 실험. 앱 코드가 아니며 앱이 가져오지 않음
+├─ experiments/                   # 기술 가정의 격리 실험(주제별 독립 폴더). 앱 코드가 아니며 앱이 가져오지 않음
 └─ docs/
    ├─ START-HERE.md
    ├─ product/                    # 목적과 사용자 시나리오
