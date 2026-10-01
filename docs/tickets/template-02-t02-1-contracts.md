@@ -355,10 +355,13 @@ ADR-0003의 대안(SQL 함수를 사용자 JWT로 호출)은 필요하지 않다
 - MCP 토큰의 `aud`가 바뀌면 그 토큰으로 Supabase 데이터 API(PostgREST)를 쓸 수 없다. 이 앱은 서버가 직접 SQL로 Actor 문맥을 넣으므로 영향이 없다.
 - 동의 화면은 웹 앱의 `/oauth/consent` 경로에 둔다. supabase-js의 `auth.oauth.getAuthorizationDetails`·`approveAuthorization`·`denyAuthorization`으로 동작하며 클라이언트 이름과 redirect URI를 보여 준다.
 
-### 남은 실험
+### 남은 실험 (미완료)
 
-| 항목 | 필요한 것 |
-| --- | --- |
-| Codex의 도구 호출 | 사용자 Codex 계정으로 실제 대화 실행 |
-| 호스팅 환경: 경로 삽입형 metadata, Supavisor 실서버, claude.ai·모바일 커넥터 | 격리 호스팅 Supabase 프로젝트(사용자가 생성) |
-| 실험 3 임베딩 | Pinecone API 키(사용자가 발급·설정) |
+2026-10-02 사용자 결정으로 아래 항목은 미완료로 두고 T02-1을 닫는다. 각 항목은 표의 단계에서 수행하며 그 전에는 완료로 보고하지 않는다.
+
+| 항목 | 차단 원인 | 이어서 할 단계 |
+| --- | --- | --- |
+| 호스팅 환경: 경로 삽입형 metadata, Supavisor 실서버, Edge 배포 | 이 세션의 권한 정책이 호스팅 프로젝트 생성을 막음. 사용자가 격리 프로젝트를 만들어야 함 | T02-2(격리 환경의 실제 로그인·MCP 인증 재현) |
+| claude.ai 웹·모바일 커넥터의 OAuth·도구 호출 | 공개 HTTPS 주소의 호스팅 프로젝트 필요 | T02-4(Claude 표면별 검증) |
+| Codex의 실제 대화에서 도구 호출 | 사용자 Codex 계정의 대화 실행 필요(인증은 성공) | T02-4 |
+| 실험 3 임베딩 품질 | Pinecone API 키 필요 | T02-3(모델·차원·입력 예산 확정) |
