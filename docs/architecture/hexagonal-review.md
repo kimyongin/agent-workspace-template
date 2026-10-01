@@ -59,7 +59,7 @@ core는 SDK, React, Request/Response, Deno.env, 직접 SQL·네트워크에 의�
 
 | 위치 | 소유하는 책임 |
 | --- | --- |
-| domain | Task·ActivityRecord·Principle, 내용 검증, 완료/재개 조건, 채택 시 반복 회차 판단 |
+| domain | Task·ActivityRecord·Principle, 내용 검증, 일회성 할 일의 완료 조건, 반복 할 일의 회차 계산·회차 상태·중단/재개 조건 |
 | application | 인증된 행위자의 작업 범위 확인, 읽기→도메인 판단→저장 순서, 트랜잭션 경계, 후속 비동기 작업 결정, 검색 fallback |
 | ports | 필요한 저장·조회·트랜잭션·큐·검색·임베딩 계약; SDK와 SQL 타입을 노출하지 않음 |
 | Supabase 어댑터 | SQL·데이터 매핑·같은 연결의 트랜잭션·조건부 쓰기·잠금·큐 전달·pgvector 조회 |
