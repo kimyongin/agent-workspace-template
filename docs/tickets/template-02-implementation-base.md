@@ -3,7 +3,7 @@
 작성: 2026-10-01
 상태: T02-1 진행 중
 검토 기준: `dfac04bab3b8d3f4b78bcdc8dd2fc4a6bdc90347`
-다음 작업: T02-1 PR 분할 계획의 5번부터 진행
+다음 작업: T02-1 PR 분할 계획의 6번부터 진행
 
 ## 목표와 기준 문서
 
@@ -206,7 +206,7 @@ T02-4는 PRD의 중립적인 기본 앱을 구현하고, T02-5는 별도 복사�
 
 | ID | 상태 | 구현 revision / 변경 계약 | 검증 명령·결과 | 남은 작업 |
 | --- | --- | --- | --- | --- |
-| T02-1 | 진행 중 | PR 1 분할 계획, PR 2 문서 검사 `scripts/check-docs.mjs`, PR 3 용어·`Entity` 설명·상태 서술 이동·개발 스킬 정본 링크화·Template-01 단계 매핑, PR 4 기술 후보(런타임·드라이버·MCP·schema·웹, Claude·Codex 플러그인 형식, OAuth 차이와 MCP 토큰 audience 위험) | `node scripts/check-docs.mjs` 통과, `node --test "scripts/*.test.mjs"` 6개 통과 | PR 5~7. ADR-0005의 Claude 검증 표면(Claude Code 기본, claude.ai·Cowork 추가) 확인 요청. 반복 경고 정리는 개발 스킬·README·상태 문구까지 했고, 가이드 사이에 반복된 보호 문장(예: Google 로그인과 MCP OAuth 구분)은 각 가이드의 검증 항목이라 유지 |
+| T02-1 | 진행 중 | PR 1 분할 계획, PR 2 문서 검사 `scripts/check-docs.mjs`, PR 3 용어·`Entity` 설명·상태 서술 이동·개발 스킬 정본 링크화·Template-01 단계 매핑, PR 4 기술 후보(런타임·드라이버·MCP·schema·웹, Claude·Codex 플러그인 형식, OAuth 차이와 MCP 토큰 audience 위험), PR 5 기능 계약(할 일·기록·원칙·태그·검색·`Entity`, 공통 오류·버전·멱등성, T02-5 Book 도메인) | `node scripts/check-docs.mjs` 통과, `node --test "scripts/*.test.mjs"` 6개 통과 | PR 6~7. 반복 일정의 첫 버전 포함 여부 결정 요청. ADR-0005의 Claude 검증 표면(Claude Code 기본, claude.ai·Cowork 추가) 확인 요청. 반복 경고 정리는 개발 스킬·README·상태 문구까지 했고, 가이드 사이에 반복된 보호 문장(예: Google 로그인과 MCP OAuth 구분)은 각 가이드의 검증 항목이라 유지 |
 | T02-2 | 미시작 | — | — | 실행 기반·할 일·기록 |
 | T02-3 | 미시작 | — | — | 원칙·검색·연결 |
 | T02-4 | 미시작 | — | — | 단일 예제 엔터티·화면·플러그인 |

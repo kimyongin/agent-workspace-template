@@ -19,7 +19,7 @@ S1: MCP 연결과 제품 스킬을 묶은 플러그인 설치·인증 → 웹에
 | 직접 기록 작성/조회 | POST /records, GET /records/:id | create_record, get_record | createRecord, getRecord |
 | 검색 | POST /search | search | search |
 
-경로는 api 내부 상대 경로다. 이름·schema·오류·페이지 형식은 구현 전 확정한다. 완료 조건은 domain, 작업 순서와 함께 저장할 범위는 application에 둔다. 같은 연결에서 실행되는 transaction 포트를 Supabase 어댑터로 구현한다. 변경 데이터는 Task, ActivityRecord, 필요한 태그 연결, 최소 요청 식별 정보 및 큐/벡터 데이터다.
+경로는 api 내부 상대 경로다. 필드·목록·오류·수정·삭제·완료의 계약은 [T02-1 기능 계약](template-02-t02-1-contracts.md#기능-계약-작업-25)에서 정했다. 완료 조건은 domain, 작업 순서와 함께 저장할 범위는 application에 둔다. 같은 연결에서 실행되는 transaction 포트를 Supabase 어댑터로 구현한다. 변경 데이터는 Task, ActivityRecord, 필요한 태그 연결, 최소 요청 식별 정보 및 큐/벡터 데이터다.
 
 ## 먼저 확정할 계약
 
