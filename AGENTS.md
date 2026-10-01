@@ -7,6 +7,19 @@
 - 설계 요청은 문서와 인계까지 수행한다. 앱 구현과 서비스 배포는 사용자가 요청한 범위에 맞춰 진행한다. 이미 승인한 행동을 반복 확인하지 않는다.
 - UI 작업은 [디자인 가이드](docs/design/guide.md), 인증·데이터·외부 통신 변경은 [보안 가이드](docs/security/guide.md)를 먼저 읽는다.
 - 실행 명령은 현재 코드·설정에서 확인한다. 필수 검증의 증거와 환경 제약은 해당 티켓에 남긴다. 운영 DB로 격리 테스트를 대신하지 않는다.
-- 파일은 UTF-8 BOM 없음·LF를 유지하고 편집은 apply_patch를 사용한다. 무관한 사용자 작업을 보존한다.
+- 파일은 UTF-8 BOM 없음·LF를 유지하고, 사용하는 에이전트의 파일 편집 도구로 필요한 부분만 수정한다. 무관한 사용자 작업을 보존한다.
 
-개발 스킬은 `.agents/skills/`, 앱 사용자에게 배포하는 MCP·제품 스킬 통합 플러그인은 `plugins/`가 담당한다. 상세 기준은 스킬이 연결하는 정본 문서에서 관리하며 이 파일에 복제하지 않는다.
+## 여러 개발 에이전트와 함께 쓰기
+
+이 저장소는 Codex와 Claude Code를 함께 사용한다. 이 파일과 `.agents/skills/develop-agent-app/`이 공통 정본이며, 특정 에이전트 전용 도구나 문법을 공통 규칙으로 쓰지 않는다.
+
+| 에이전트 | 지침 진입 | 개발 스킬 발견 | 호출 |
+| --- | --- | --- | --- |
+| Codex | AGENTS.md | `.agents/skills/` 정본 (`agents/openai.yaml`은 Codex 표시 정보) | `$develop-agent-app` |
+| Claude Code | CLAUDE.md → `@AGENTS.md` | `.claude/skills/develop-agent-app/`의 연결 파일 → 정본 | `/develop-agent-app` |
+
+- 지침·스킬 변경은 정본에만 반영한다. 정본 스킬의 name·description을 바꾸면 Claude 연결 파일의 frontmatter도 함께 맞춘다.
+- 두 에이전트가 같은 작업 트리를 동시에 수정하지 않는다. 동시 작업은 branch나 worktree를 나누고, 단계 인계는 해당 티켓의 상태·검증 기록으로 한다.
+- 개인 권한·로컬 설정(`.claude/settings.local.json` 등)은 커밋하지 않는다.
+
+개발 스킬은 `.agents/skills/`, 앱 사용자에게 배포하는 MCP·제품 스킬 통합 플러그인은 `plugins/`가 담당한다. 제품 플러그인은 Claude와 Codex를 모두 지원하며 클라이언트별 manifest가 같은 제품 스킬을 공유한다. 상세 기준은 스킬이 연결하는 정본 문서에서 관리하며 이 파일에 복제하지 않는다.

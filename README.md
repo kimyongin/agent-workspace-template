@@ -14,4 +14,6 @@
 
 인증·사용자 격리·MCP/RAG·외부 통신은 [보안 가이드](docs/security/guide.md)의 경계와 검증 기준을 따릅니다.
 
-개발 에이전트에게는 [develop-agent-app](.agents/skills/develop-agent-app/SKILL.md) 스킬로 설계·개발·리뷰·배포·운영을 위임할 수 있습니다. [사용 방법](docs/development/workflow.md)을 참고하세요. 이 스킬과 AGENTS.md는 저장소와 함께 전달됩니다.
+개발 에이전트에게는 [develop-agent-app](.agents/skills/develop-agent-app/SKILL.md) 스킬로 설계·개발·리뷰·배포·운영을 위임할 수 있습니다. Codex(AGENTS.md, `$develop-agent-app`)와 Claude Code(CLAUDE.md, `/develop-agent-app`)가 같은 지침과 스킬을 함께 사용합니다. [사용 방법](docs/development/workflow.md)을 참고하세요. 이 스킬과 AGENTS.md는 저장소와 함께 전달됩니다.
+
+제품 플러그인은 Claude와 Codex를 모두 지원하며, 클라이언트별 manifest가 같은 제품 스킬과 MCP 서버를 사용합니다.

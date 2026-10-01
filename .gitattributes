@@ -1,0 +1,12 @@
+# 에이전트·OS와 관계없이 텍스트는 LF로 저장한다.
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
+*.woff binary
+*.woff2 binary
+*.zip binary

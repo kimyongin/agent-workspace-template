@@ -15,10 +15,14 @@
 ```text
 agent-workspace-template/
 ├─ README.md
-├─ AGENTS.md                       # 개발 에이전트 작업 규칙
+├─ AGENTS.md                       # 개발 에이전트 작업 규칙(공통 정본)
+├─ CLAUDE.md                       # Claude Code 진입점, AGENTS.md를 가져옴
+├─ .gitattributes · .editorconfig  # UTF-8·LF 강제
 ├─ .agents/skills/develop-agent-app/
-│  ├─ SKILL.md                     # 설계·개발·배포·운영 요청별 절차
-│  └─ agents/openai.yaml           # 지원 클라이언트의 표시 정보
+│  ├─ SKILL.md                     # 설계·개발·배포·운영 요청별 절차(정본)
+│  └─ agents/openai.yaml           # Codex 표시 정보
+├─ .claude/skills/develop-agent-app/
+│  └─ SKILL.md                     # Claude Code 발견용 연결 파일 → 정본
 ├─ .env.example                    # 새 프로젝트의 설정 예시
 ├─ .github/workflows/              # 자동 검증과 배포
 ├─ public/                         # 공개 정적 자산
@@ -60,8 +64,9 @@ agent-workspace-template/
 │  │     └─ bootstrap.ts          # 요청별 문맥과 구현 조립
 │  └─ tests/database/             # 소유권·경쟁·원자 저장 검증
 ├─ plugins/workspace/             # 에이전트용 통합 플러그인 원본
-│  ├─ <manifest·연결 설정>         # 대상 클라이언트의 실제 형식으로 구현
-│  └─ skills/workspace/
+│  ├─ <Claude manifest·연결 설정>  # Claude 플러그인의 실제 형식으로 구현
+│  ├─ <Codex manifest·연결 설정>   # Codex 플러그인의 실제 형식으로 구현
+│  └─ skills/workspace/           # 두 클라이언트가 공유하는 제품 스킬
 │     ├─ SKILL.md                 # 제품 사용 에이전트 지침
 │     └─ references/              # 작업·기록 작성·검색 활용
 ├─ e2e/                           # 웹↔MCP 실제 사용자 흐름
@@ -81,7 +86,7 @@ agent-workspace-template/
 
 트리는 향후 배치 기준이며 실행 코드는 아직 만들지 않았다. 작은 기능은 domain.ts, ports.ts 같은 파일로 시작하고 필요할 때 분리한다. 단위 테스트는 코드 옆에 둔다. activity의 태그 모델은 독립 책임이 필요해질 때 core/tags로 추출한다. 빈 폴더를 일괄 생성하지 않는다.
 
-웹의 공통 시각 토큰·타이포그래피·필드 스타일은 src/styles, 표현과 접근성 컴포넌트는 src/components, 기능별 데이터·초안·필터 상태는 src/features에 둔다. 실제 규격은 [디자인 가이드](guide.md)를 따른다. AGENTS.md와 개발 스킬은 이미 문서로 제공하며 첫 앱 구현에서 사용하는 가이드 진입점을 유지한다.
+웹의 공통 시각 토큰·타이포그래피·필드 스타일은 src/styles, 표현과 접근성 컴포넌트는 src/components, 기능별 데이터·초안·필터 상태는 src/features에 둔다. 실제 규격은 [디자인 가이드](guide.md)를 따른다. AGENTS.md와 개발 스킬은 이미 문서로 제공하며 첫 앱 구현에서 사용하는 가이드 진입점을 유지한다. CLAUDE.md와 .claude/skills는 Claude Code용 연결 파일이며 규칙을 복제하지 않는다.
 
 ## 이름과 확장
 
@@ -89,7 +94,7 @@ agent-workspace-template/
 - 고객 앱은 src/features/customers와 core/customers를 추가하고, 고객 DB migration·HTTP/MCP·저장 어댑터·스킬·테스트를 함께 연결한다. 범용 Entity/Item 저장소를 만들지 않는다.
 - 검색 이름은 search다. HTTP 검색은 api의 /search에 둔다. search-index는 권한과 실행 계기가 다른 내부 작업이므로 분리한다. knowledge 접두어는 사용하지 않는다.
 - 웹은 업무 API 응답을 사용한다. DB 행 타입, 서버 bootstrap/adapters를 브라우저로 가져오지 않는다. API DTO·DB 행·도메인 모델을 구분하되 형식적인 변환 클래스를 의무화하지 않는다.
-- plugins/workspace는 MCP 연결과 제품 스킬을 함께 배포하는 플러그인 원본이다. manifest·연결 설정·스킬·참고 문서를 포함한다. 트리의 꺾쇠 항목은 설명용 자리이며 실제 파일명이 아니다. 첫 대상 클라이언트의 형식과 endpoint/등록 앱 참조 방식을 확정한 뒤 실제 파일명을 문서화한다. 추가 클라이언트 패키지는 필요할 때 구분하며 공통 스킬 내용의 중복 관리를 줄인다. 하나의 manifest가 모든 에이전트에 설치된다고 가정하지 않는다.
+- plugins/workspace는 MCP 연결과 제품 스킬을 함께 배포하는 플러그인 원본이다. manifest·연결 설정·스킬·참고 문서를 포함한다. 트리의 꺾쇠 항목은 설명용 자리이며 실제 파일명이 아니다. 지원 클라이언트는 Claude와 Codex로 확정했다. 각 클라이언트의 공식 형식과 endpoint/등록 앱 참조 방식을 확인한 뒤 실제 파일명을 문서화한다. 클라이언트별 manifest는 같은 skills/workspace를 참조하고 제품 스킬을 클라이언트별로 복제하지 않는다. 하나의 manifest가 모든 에이전트에 설치된다고 가정하지 않는다.
 - AGENTS는 개발 규칙, SKILL은 제품 사용 규칙, principles는 사용자 데이터다. workspace라는 제품 이름이 다중 조직·멤버십 모델을 자동으로 요구하지 않는다.
 
 ## 다음 작업
