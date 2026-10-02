@@ -106,16 +106,6 @@ h3 { font-size: 1.125rem; margin: 40px 0 12px; }
 .g3 { grid-template-columns: repeat(auto-fit, minmax(min(100%, 250px), 1fr)); }
 .g4 { grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); }
 
-/* 문제 → 해결 */
-.problem { display: grid; gap: 10px; }
-.problem .row { display: grid; gap: 8px; align-items: stretch; }
-@media (min-width: 760px) { .problem .row { grid-template-columns: 1fr auto 1fr; } }
-.problem .pain { border-style: dashed; }
-.problem .arrow { display: grid; place-items: center; color: var(--accent); font-weight: 700; font-size: 1.25rem; }
-.problem .arrow::before { content: "↓"; }
-@media (min-width: 760px) { .problem .arrow::before { content: "→"; } }
-.problem .fix { border-color: var(--accent); }
-
 /* 템플릿 → 도메인 앱 */
 .i { width: 20px; height: 20px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .tplx { display: grid; }
@@ -321,25 +311,6 @@ footer a { margin-right: 10px; white-space: nowrap; }
     <p class="sec-num">01</p>
     <h2>무엇을 만들고 어떻게 쓰는가</h2>
     <p class="sec-lead">내가 한 일과 그 결과, 그리고 내가 정한 판단 기준을 쌓아 두는 앱입니다. 다음에 비슷한 일을 할 때 사람도, AI 에이전트도 그 기록을 찾아보고 참고합니다. 이 저장소는 그런 앱을 업무 분야마다 빠르게 만들 수 있게 해 주는 출발점(템플릿)입니다.</p>
-
-    <h3>해결하는 문제</h3>
-    <div class="problem">
-      <div class="row">
-        <div class="card pain"><span class="k">문제</span><h4>해 둔 일이 다음 판단에 쓰이지 않는다</h4><p>무엇을 왜 했고 결과가 어땠는지가 여기저기 흩어져, 비슷한 일을 다시 할 때 처음부터 찾거나 기억에 기댑니다.</p></div>
-        <div class="arrow" aria-hidden="true"></div>
-        <div class="card fix"><span class="k">해결</span><h4>한 일을 기록해 두고, 다음에 찾아서 참고한다</h4><p>기록할 때 핵심을 짧게 요약해 두면, 나중에 검색으로 쉽게 찾고 전체 내용을 다시 읽을 수 있습니다.</p></div>
-      </div>
-      <div class="row">
-        <div class="card pain"><span class="k">문제</span><h4>사람이 쓰는 앱과 AI가 쓰는 도구가 따로 논다</h4><p>각자 다른 곳에 저장하면 내용이 어긋나고, 한쪽에서 한 일을 다른 쪽에서 이어 가기 어렵습니다.</p></div>
-        <div class="arrow" aria-hidden="true"></div>
-        <div class="card fix"><span class="k">해결</span><h4>사람과 AI가 같은 곳의 같은 데이터를 쓴다</h4><p>사람은 웹 화면으로, AI 에이전트는 연결 도구로 들어오지만 결국 같은 앱, 같은 데이터를 다룹니다.</p></div>
-      </div>
-      <div class="row">
-        <div class="card pain"><span class="k">문제</span><h4>분야가 바뀔 때마다 처음부터 만든다</h4><p>로그인·할 일·기록·검색 같은 기본 기능을 앱마다 다시 만듭니다.</p></div>
-        <div class="arrow" aria-hidden="true"></div>
-        <div class="card fix"><span class="k">해결</span><h4>복사해서 업무에 맞는 부분만 바꾼다</h4><p>기본 기능은 그대로 쓰고, “고객”, “책”처럼 내 업무에서 다루는 대상만 바꿔 새 앱을 만듭니다.</p></div>
-      </div>
-    </div>
 
     <h3>템플릿 하나로 여러 앱을</h3>
     <p class="h3-note">모든 앱이 같은 공통 기능을 갖고, 비워 둔 “업무 대상” 자리만 내 업무에 맞게 채웁니다.</p>
