@@ -8,7 +8,7 @@
 
 사람에게는 HTTP API를 사용하는 웹 앱을, 에이전트에게는 MCP 연결과 제품 스킬을 함께 패키징한 플러그인을 제공합니다. MCP는 업무 기능을 실행하고 스킬은 관련 자료를 찾고 작업하는 방법을 안내합니다. 도메인과 유스케이스에 업무 로직을 두고, HTTP·MCP·Supabase·외부 서비스를 포트와 어댑터로 연결합니다.
 
-구현 진행 상태는 [문서 시작점의 현재 상태](docs/START-HERE.md#현재-상태)에서 확인합니다. 문서 시작점에서 제품 컨셉·코드 설계·구현 인계를 읽고, [배포 방법](docs/deployment/release.md)과 [운영 방법](docs/operations/runbook.md)까지 확인할 수 있습니다.
+로컬 실행 명령은 [개발과 검증 방법의 실행 검증](docs/development/workflow.md#실행-검증)에 있습니다. 구현 진행 상태는 [문서 시작점의 현재 상태](docs/START-HERE.md#현재-상태)에서 확인합니다. 문서 시작점에서 제품 컨셉·코드 설계·구현 인계를 읽고, [배포 방법](docs/deployment/release.md)과 [운영 방법](docs/operations/runbook.md)까지 확인할 수 있습니다.
 
 웹 화면은 [디자인 가이드](docs/design/guide.md)의 공통 시각 규격과 상호작용을 따릅니다. 초기 스타일 기본값은 브랜드에 맞게 공통 토큰에서 조정할 수 있습니다.
 

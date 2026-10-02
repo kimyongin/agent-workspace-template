@@ -1,0 +1,12 @@
+# Supabase
+.branches
+.temp
+
+# dotenvx
+.env.keys
+.env.local
+.env.*.local
+
+# 로컬 비밀값: scripts/setup-local.mjs가 만든다
+signing_keys.json
+functions/.env

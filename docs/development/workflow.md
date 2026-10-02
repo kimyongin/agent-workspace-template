@@ -146,7 +146,22 @@ PRD·ADR을 바꾸는 PR은 사람이 승인한다. 머지는 배포가 아니�
 
 ### 실행 검증
 
-검증 명령은 실행 스크립트가 생길 때 확정한다. 환경상 실행할 수 없는 검사는 대상 commit·명령·데이터 조건·실행 가능한 격리 환경을 기록해 인계한다. CI에서 수행하는 경우 해당 revision의 결과까지 확인한다.
+필요한 도구는 Node 22 이상과 Docker다. Deno와 Supabase CLI는 `npm ci`가 `package.json`에 고정한 버전으로 설치하며 `npm run`이 그 버전을 쓴다. 명령의 정본은 `package.json`의 `scripts`와 [CI](../../.github/workflows/ci.yml)다.
+
+| 명령 | 하는 일 |
+| --- | --- |
+| `npm ci` | 잠금 파일대로 의존성 설치 |
+| `npm run setup:local` | 서명 키 생성(처음 한 번), 로컬 Supabase 시작, `.env.local`과 개발용 사용자 A·B 준비. 다시 실행해도 키와 비밀번호를 유지 |
+| `npm run dev` | 웹 개발 서버(`http://127.0.0.1:55480`) |
+| `npm run check:deno` | 서버 코드의 Deno 타입·lint·형식 검사 |
+| `npm run test:core` | DB 없는 contracts·core 테스트 |
+| `npm run test:web` | 웹 단위 테스트(Vitest) |
+| `npm run build` | 웹 타입 검사와 정적 빌드 |
+| `npm run stop:local` | 로컬 Supabase 정지(데이터 유지) |
+
+로컬 Supabase 포트는 55420~55429, 웹은 55480, Edge inspector는 8483이다. 다른 로컬 프로젝트·실험(55320~55329)과 겹치지 않는다. CI는 운영 secret 없이 문서·공백·Deno·core·웹 검사를 실행한다. DB·HTTP·MCP·E2E 검사는 추가되는 단계에서 이 표와 CI에 넣는다.
+
+환경상 실행할 수 없는 검사는 대상 commit·명령·데이터 조건·실행 가능한 격리 환경을 기록해 인계한다. CI에서 수행하는 경우 해당 revision의 결과까지 확인한다.
 
 ## 변경과 완료 기록
 
