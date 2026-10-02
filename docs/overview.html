@@ -116,6 +116,35 @@ h3 { font-size: 1.125rem; margin: 40px 0 12px; }
 @media (min-width: 760px) { .problem .arrow::before { content: "→"; } }
 .problem .fix { border-color: var(--accent); }
 
+/* 템플릿 → 도메인 앱 */
+.tpl { display: grid; gap: 0; }
+.tpl-base { background: var(--panel); border: 2px solid var(--line); border-radius: var(--radius); padding: 18px; display: grid; gap: 12px; }
+@media (min-width: 760px) { .tpl-base { grid-template-columns: 1fr 1.4fr; align-items: center; max-width: 760px; width: 100%; justify-self: center; } }
+.tpl-base h4 { margin: 0; font-size: 1.0625rem; grid-column: 1 / -1; }
+.slot { border: 2px dashed var(--muted-ink); border-radius: 12px; padding: 10px 12px; }
+.slot b { display: block; font-size: 0.9375rem; }
+.slot small { color: var(--muted-ink); font-size: 0.8125rem; }
+.slot.filled { border: 2px solid var(--accent); background: var(--accent-soft); }
+.base-label { font-size: 0.75rem; font-weight: 600; color: var(--muted-ink); margin: 0 0 6px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chips span { font-size: 0.8125rem; padding: 3px 9px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--muted-ink); }
+.tpl-link { position: relative; height: 44px; }
+.tpl-link::before { content: ""; position: absolute; left: 50%; top: 0; bottom: 0; border-left: 2px solid var(--accent); }
+.tpl-link span { position: absolute; left: calc(50% + 12px); top: 50%; transform: translateY(-50%); font-size: 0.8125rem; font-weight: 600; color: var(--muted-ink); white-space: nowrap; }
+.fan { display: grid; gap: 12px; }
+@media (min-width: 760px) { .fan { grid-template-columns: repeat(3, 1fr); padding-top: 24px; } }
+.app { position: relative; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; display: grid; gap: 8px; align-content: start; }
+.app h5 { margin: 0; font-size: 1rem; }
+.app .ask { margin: 0; font-size: 0.875rem; color: var(--ink); }
+.app .ask::before { content: "에이전트에게 · "; color: var(--info); font-weight: 600; }
+.app .same { margin: 0; font-size: 0.75rem; color: var(--muted-ink); }
+@media (min-width: 760px) {
+  .app::before { content: ""; position: absolute; left: 50%; top: -24px; height: 24px; border-left: 2px solid var(--accent); }
+  .app::after { content: ""; position: absolute; top: -24px; left: -7px; right: -7px; border-top: 2px solid var(--accent); }
+  .app:first-child::after { left: 50%; }
+  .app:last-child::after { right: 50%; }
+}
+
 /* 순환 그림 */
 .cycle { display: grid; gap: 20px; align-items: center; }
 @media (min-width: 860px) { .cycle { grid-template-columns: minmax(0, 540px) 1fr; } }
@@ -281,6 +310,39 @@ footer a { margin-right: 10px; white-space: nowrap; }
         <div class="card fix"><span class="k">해결</span><h4>복사해서 업무에 맞는 부분만 바꾼다</h4><p>기본 기능은 그대로 쓰고, “고객”, “책”처럼 내 업무에서 다루는 대상만 바꿔 새 앱을 만듭니다.</p></div>
       </div>
     </div>
+
+    <h3>템플릿 하나로 여러 앱을</h3>
+    <p class="h3-note">공통 기능은 그대로 두고, 비워 둔 “업무 대상” 자리만 내 업무에 맞게 채웁니다.</p>
+    <div class="tpl">
+      <div class="tpl-base">
+        <h4>템플릿</h4>
+        <div class="slot"><b>업무 대상 (Entity)</b><small>이름만 정해 둔 빈 자리 · 항목 1, 항목 2 …</small></div>
+        <div><p class="base-label">그대로 쓰는 공통 기능</p>
+        <div class="chips"><span>로그인</span><span>활동 기록</span><span>할 일</span><span>원칙</span><span>검색</span><span>웹 앱</span><span>에이전트 플러그인</span></div></div>
+      </div>
+      <div class="tpl-link"><span>복사해서 대상을 채우면</span></div>
+      <div class="fan">
+        <div class="app">
+          <h5>고객 관리 앱</h5>
+          <div class="slot filled"><b>고객</b><small>이름 · 연락처 · 등급</small></div>
+          <p class="ask">“이 고객, 지난 상담에서 뭐라고 했지?”</p>
+          <p class="same">+ 공통 기능 그대로</p>
+        </div>
+        <div class="app">
+          <h5>독서 기록 앱</h5>
+          <div class="slot filled"><b>책</b><small>제목 · 저자 · 다 읽은 날</small></div>
+          <p class="ask">“최근 읽은 책 중에 이 주제와 비슷한 게 있었나?”</p>
+          <p class="same">+ 공통 기능 그대로</p>
+        </div>
+        <div class="app">
+          <h5>운동 기록 앱</h5>
+          <div class="slot filled"><b>운동</b><small>종목 · 무게 · 횟수</small></div>
+          <p class="ask">“내 원칙대로라면 이번 주에 무게를 올려도 될까?”</p>
+          <p class="same">+ 공통 기능 그대로</p>
+        </div>
+      </div>
+    </div>
+    <p class="note" style="margin-top:12px">대상을 바꿀 때는 그 대상의 항목, 화면, 에이전트가 참고하는 사용 요령을 함께 바꿉니다. 위 세 앱은 이해를 돕는 예시입니다.</p>
 
     <h3>모든 앱이 갖는 기본 기능</h3>
     <div class="grid g4">
