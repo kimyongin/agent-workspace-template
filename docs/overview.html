@@ -219,19 +219,47 @@ h3 { font-size: 1.125rem; margin: 40px 0 12px; }
 .system li { margin-bottom: 4px; }
 .mapnote { margin-top: 16px; }
 
-/* 흐름(화살표로 이어지는 단계) */
-.flow { display: flex; flex-wrap: wrap; gap: 8px; align-items: stretch; list-style: none; padding: 0; margin: 0; }
-.flow > li { display: flex; align-items: center; gap: 8px; }
-.flow > li:not(:last-child)::after { content: "→"; color: var(--muted-ink); font-weight: 600; }
-.step { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; font-size: 0.875rem; line-height: 1.4; }
-.step b { display: block; font-size: 1rem; }
-.step small { color: var(--muted-ink); font-size: 0.75rem; }
-.step.human { border-color: var(--accent); background: var(--accent-soft); }
-.step.agent { border-color: var(--info); background: var(--info-soft); }
-.legend { display: flex; flex-wrap: wrap; gap: 16px; font-size: 0.875rem; color: var(--muted-ink); margin: 12px 0 0; }
-.legend span::before { content: ""; display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; border: 1px solid; }
-.legend .lh::before { background: var(--accent-soft); border-color: var(--accent); }
-.legend .la::before { background: var(--info-soft); border-color: var(--info); }
+/* 개발 흐름: 사람과 에이전트의 두 줄 */
+.swim-head { display: grid; grid-template-columns: 1fr 48px 1fr; gap: 0 16px; margin-bottom: 12px; }
+.swim-head div { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 0.9375rem; }
+.swim-head div:first-child { justify-content: flex-end; }
+.swim-head div:last-child { grid-column: 3; }
+.swim-head .i { width: 22px; height: 22px; }
+.swim-head .h .i { color: var(--accent); }
+.swim-head .a .i { color: var(--info); }
+.swim { position: relative; display: grid; gap: 14px; }
+.swim::before { content: ""; position: absolute; top: 0; bottom: 0; left: 50%; transform: translateX(-50%); border-left: 2px solid var(--line); }
+.srow { position: relative; display: grid; grid-template-columns: 1fr 48px 1fr; gap: 0 16px; align-items: center; }
+.node { justify-self: center; z-index: 1; width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; background: var(--panel); border: 2px solid var(--accent); font-weight: 700; }
+.say { justify-self: end; width: min(100%, 25rem); background: var(--accent-soft); border: 1.5px solid var(--accent); border-radius: 16px 16px 4px 16px; padding: 10px 14px; display: grid; gap: 4px; }
+.say code { justify-self: start; font-family: inherit; font-size: 1rem; font-weight: 700; background: var(--panel); border-color: var(--accent); padding: 2px 8px; }
+.say small { color: var(--muted-ink); font-size: 0.8125rem; }
+.say .then { font-size: 0.8125rem; color: var(--ink); display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 2px; }
+.say.quiet { background: transparent; border-style: dashed; border-color: var(--line); }
+.say.quiet small { font-size: 0.875rem; }
+.gate { display: inline-flex; align-items: center; gap: 4px; font-size: 0.75rem; font-weight: 700; padding: 2px 9px; border-radius: 999px; background: var(--accent); color: var(--background); }
+.do { justify-self: start; width: min(100%, 25rem); background: var(--panel); border: 1.5px solid var(--info); border-radius: 16px 16px 16px 4px; padding: 10px 14px; display: grid; gap: 6px; }
+.do p { margin: 0; font-size: 0.9375rem; }
+.out { justify-self: start; font-size: 0.8125rem; font-weight: 600; padding: 2px 10px; border-radius: 999px; background: var(--info-soft); border: 1px solid var(--info); }
+.out::before { content: "결과물 · "; color: var(--muted-ink); font-weight: 400; }
+.opt-tag { justify-self: start; font-size: 0.75rem; font-weight: 700; color: var(--muted-ink); border: 1px dashed var(--muted-ink); border-radius: 999px; padding: 1px 8px; }
+.srow.opt .say, .srow.opt .do { border-style: dashed; }
+.srow.opt .node { border-style: dashed; }
+.phase { position: relative; z-index: 1; display: flex; justify-content: center; margin: 6px 0 -2px; }
+.phase span { font-size: 0.8125rem; font-weight: 700; color: var(--muted-ink); background: var(--background); border: 1px solid var(--line); border-radius: 999px; padding: 3px 12px; }
+.loopgrp { position: relative; display: grid; gap: 14px; border: 1.5px dashed var(--info); border-radius: 18px; padding: 40px 12px 14px; }
+.looplabel { position: absolute; top: 10px; right: 14px; font-size: 0.8125rem; font-weight: 700; color: var(--info); }
+@media (max-width: 759px) {
+  .swim-head { display: flex; flex-wrap: wrap; gap: 8px 16px; }
+  .swim-head div:first-child { justify-content: flex-start; }
+  .swim::before { left: 19px; transform: none; }
+  .srow { grid-template-columns: 38px 1fr; grid-template-areas: "n s" "n d"; gap: 8px 12px; align-items: start; }
+  .node { grid-area: n; justify-self: start; }
+  .say { grid-area: s; justify-self: stretch; width: auto; }
+  .do { grid-area: d; justify-self: stretch; width: auto; }
+  .phase { justify-content: flex-start; }
+  .loopgrp { padding: 40px 10px 12px 0; border-left: 0; border-radius: 0 18px 18px 0; }
+}
 
 /* 용어 */
 .terms { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); }
@@ -315,6 +343,7 @@ footer a { margin-right: 10px; white-space: nowrap; }
     <h3>템플릿 하나로 여러 앱을</h3>
     <p class="h3-note">모든 앱이 같은 공통 기능을 갖고, 비워 둔 “업무 대상” 자리만 내 업무에 맞게 채웁니다.</p>
     <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+      <symbol id="i-person" viewBox="0 0 24 24"><circle cx="12" cy="7.5" r="4"/><path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8"/></symbol>
       <symbol id="i-note" viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13 7l4 4"/></symbol>
       <symbol id="i-check" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8 12l3 3 5-6"/></symbol>
       <symbol id="i-flag" viewBox="0 0 24 24"><path d="M5 21V4h12l-2.5 4L17 12H5"/></symbol>
@@ -540,28 +569,55 @@ footer a { margin-right: 10px; white-space: nowrap; }
     </div>
 
     <h3>이렇게 말하면 진행됩니다</h3>
-    <ol class="flow" aria-label="개발 흐름">
-      <li><div class="step human"><b>정리해봐: …</b><small>하고 싶은 것을 말한다</small></div></li>
-      <li><div class="step human"><b>PRD 반영해 / ADR 초안 만들어</b><small>기획·결정이 바뀔 때만</small></div></li>
-      <li><div class="step human"><b>티켓 만들어</b><small>작업 지시서 작성</small></div></li>
-      <li><div class="step human"><b>티켓 진행해</b><small>작은 PR로 만들기</small></div></li>
-      <li><div class="step agent"><b>리뷰 → 머지</b><small>새 대화나 다른 에이전트가 검토</small></div></li>
-      <li><div class="step human"><b>배포해</b><small>실제 서비스에 올리기</small></div></li>
-    </ol>
-    <p class="legend"><span class="lh">사람이 말하는 것</span><span class="la">에이전트끼리 처리</span></p>
+    <p class="h3-note">왼쪽은 사람이 에이전트에게 하는 말, 오른쪽은 그 말을 듣고 에이전트가 하는 일과 남기는 결과물입니다.</p>
+    <div class="swim-head" aria-hidden="true">
+      <div class="h"><svg class="i"><use href="#i-person"/></svg>사람이 하는 말</div>
+      <div class="a"><svg class="i"><use href="#i-bot"/></svg>에이전트가 하는 일</div>
+    </div>
+    <div class="swim" role="list" aria-label="개발 진행 단계">
+      <div class="phase"><span>정하기</span></div>
+      <div class="srow" role="listitem">
+        <div class="say"><code>정리해봐: …</code><small>하고 싶은 것을 편하게 말한다</small><span class="then">→ 정리된 내용을 읽어 본다</span></div>
+        <div class="node">1</div>
+        <div class="do"><p>요청을 정리하고, 기획서(PRD)나 결정 기록(ADR)을 바꿔야 하는지 알려 준다</p><span class="out">정리 메모</span></div>
+      </div>
+      <div class="srow opt" role="listitem">
+        <div class="say"><span class="opt-tag">기획·결정이 바뀔 때만</span><code>PRD 반영해 · ADR 초안 만들어</code><span class="then">→ 읽어 보고 <span class="gate">승인</span></span></div>
+        <div class="node">2</div>
+        <div class="do"><p>기획서나 결정 기록의 수정안을 만들어 검토를 요청한다</p><span class="out">PRD·ADR 변경 PR</span></div>
+      </div>
 
-    <div class="table-scroll" style="margin-top:20px">
-      <table>
-        <thead><tr><th>이렇게 말하면</th><th>에이전트가 하는 일</th><th>사람이 할 일</th></tr></thead>
-        <tbody>
-          <tr><td><code>정리해봐: …</code></td><td>하고 싶은 것을 정리하고, 기획서(PRD)나 결정 기록(ADR)을 바꿔야 하는지 알려 준다</td><td>정리된 내용을 읽는다</td></tr>
-          <tr><td><code>PRD 반영해</code> / <code>ADR 초안 만들어</code></td><td>기획서나 결정 기록의 수정안을 PR로 올린다</td><td>읽어 보고 승인한다</td></tr>
-          <tr><td><code>티켓 만들어</code></td><td>목표, 단계별 계획, 확인 방법을 담은 작업 지시서를 쓴다</td><td>없음</td></tr>
-          <tr><td><code>티켓 진행해</code></td><td>작업을 작게 나눠 만들고 확인한 뒤 PR로 올린다</td><td>새 대화(또는 다른 에이전트)에서 <code>PR #N 리뷰해줘</code></td></tr>
-          <tr><td>(말할 필요 없음)</td><td>리뷰와 자동 검사를 통과하면 공식 코드에 합친다</td><td>없음</td></tr>
-          <tr><td><code>배포해 (운영)</code></td><td>검사를 통과한 버전을 확인하고 실제 서비스에 올린다</td><td>지시 자체가 승인이다</td></tr>
-        </tbody>
-      </table>
+      <div class="phase"><span>만들기</span></div>
+      <div class="srow" role="listitem">
+        <div class="say"><code>티켓 만들어</code><small>무엇을 할지 작업 지시서로 정리</small></div>
+        <div class="node">3</div>
+        <div class="do"><p>목표, 작게 나눈 단계, 다 됐는지 확인하는 방법을 적는다</p><span class="out">티켓</span></div>
+      </div>
+      <div class="loopgrp">
+        <span class="looplabel">↺ PR마다 반복</span>
+        <div class="srow" role="listitem">
+          <div class="say"><code>티켓 진행해</code><small>이제 만들기 시작</small></div>
+          <div class="node">4</div>
+          <div class="do"><p>작업을 작게 나눠 만들고, 잘 되는지 확인한 뒤 검토를 요청한다</p><span class="out">PR</span></div>
+        </div>
+        <div class="srow" role="listitem">
+          <div class="say"><code>PR #N 리뷰해줘</code><small>새 대화(또는 다른 에이전트)에서</small><span class="then">→ 원래 대화에 <code>리뷰 반영해</code></span></div>
+          <div class="node">5</div>
+          <div class="do"><p>만든 맥락과 떨어진 눈으로 문제와 기획 이탈을 찾는다</p><span class="out">머지 가능 · 수정 필요 · 사람 승인 필요</span></div>
+        </div>
+        <div class="srow" role="listitem">
+          <div class="say quiet"><small>말하지 않아도 됩니다</small></div>
+          <div class="node">6</div>
+          <div class="do"><p>리뷰와 자동 검사를 통과하면 공식 코드에 합친다(머지)</p><span class="out">반영된 코드</span></div>
+        </div>
+      </div>
+
+      <div class="phase"><span>내보내기</span></div>
+      <div class="srow" role="listitem">
+        <div class="say"><code>배포해 (운영)</code><span class="then">→ 이 말 자체가 <span class="gate">승인</span></span></div>
+        <div class="node">7</div>
+        <div class="do"><p>검사를 통과한 버전을 확인하고 실제 서비스에 올린다</p><span class="out">사용자가 쓰는 서비스</span></div>
+      </div>
     </div>
 
     <div class="grid g2" style="margin-top:20px">
