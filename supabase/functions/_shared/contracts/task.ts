@@ -37,13 +37,17 @@ export const recurrence = z.discriminatedUnion("freq", [
   z.strictObject({
     freq: z.literal("weekly"),
     /** ISO 요일: 1=월 … 7=일 */
-    weekdays: z.array(z.number().int().min(1).max(7)).min(1).max(7).transform(uniqueSorted),
+    weekdays: z.array(z.number().int().min(1).max(7)).min(1, { message: "요일을 하나 이상 고르세요" }).max(7)
+      .transform(uniqueSorted),
     starts_on: isoDate,
   }),
   z.strictObject({
     freq: z.literal("monthly"),
     /** 그 달에 없는 날짜는 그 달의 마지막 날 회차로 계산한다. */
-    month_days: z.array(z.number().int().min(1).max(31)).min(1).max(31).transform(uniqueSorted),
+    month_days: z.array(
+      z.number().int().min(1, { message: "1~31 사이 날짜를 쓰세요" }).max(31, { message: "1~31 사이 날짜를 쓰세요" }),
+    )
+      .min(1, { message: "날짜를 하나 이상 쓰세요" }).max(31).transform(uniqueSorted),
     starts_on: isoDate,
   }),
 ]);

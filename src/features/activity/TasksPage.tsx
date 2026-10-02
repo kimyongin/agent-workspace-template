@@ -1,0 +1,158 @@
+// 할 일 목록: 종류·상태 필터(URL에 보관해 상세 왕복 뒤 유지), 커서 더 보기, 작성 모달.
+import type { TaskListItem, TaskResult } from "@contracts/task.ts";
+import { taskLabels } from "@contracts/task.ts";
+import { useCallback, useEffect, useState } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router";
+import { Notice } from "../../components/Field.tsx";
+import { api, query } from "../../lib/api.ts";
+import { emptyTask, TaskFormModal, taskInput } from "./forms.tsx";
+import { StatusBadge, useRequestId } from "./shared.tsx";
+
+type Page = { items: TaskListItem[]; next_cursor: string | null };
+
+const KIND_FILTERS = [["", "전체"], ["once", taskLabels.once], ["recurring", taskLabels.recurring]] as const;
+const STATUS_BY_KIND: Record<string, readonly string[]> = {
+  "": ["open", "done", "active", "stopped"],
+  once: ["open", "done"],
+  recurring: ["active", "stopped"],
+};
+
+export function TasksPage() {
+  const [params, setParams] = useSearchParams();
+  const kind = params.get("kind") ?? "";
+  const status = params.get("status") ?? "";
+  const [items, setItems] = useState<TaskListItem[] | null>(null);
+  const [cursor, setCursor] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [formKey, setFormKey] = useState(0);
+  const requestId = useRequestId();
+  const navigate = useNavigate();
+
+  const load = useCallback(async (after?: string) => {
+    const page = await api<Page>("GET", `/tasks${query({ kind, status, limit: 20, cursor: after })}`);
+    return page;
+  }, [kind, status]);
+
+  useEffect(() => {
+    let alive = true;
+    setItems(null);
+    setError(null);
+    load().then((p) => {
+      if (!alive) return;
+      setItems(p.items);
+      setCursor(p.next_cursor);
+    }).catch(() => alive && setError("할 일을 불러오지 못했습니다."));
+    return () => {
+      alive = false;
+    };
+  }, [load]);
+
+  const more = async () => {
+    if (!cursor) return;
+    setLoadingMore(true);
+    try {
+      const p = await load(cursor);
+      setItems((prev) => [...(prev ?? []), ...p.items]);
+      setCursor(p.next_cursor);
+    } catch {
+      setError("다음 항목을 불러오지 못했습니다. 다시 시도하세요.");
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+
+  const setFilter = (key: "kind" | "status", value: string) => {
+    const next = new URLSearchParams(params);
+    if (value) next.set(key, value);
+    else next.delete(key);
+    if (key === "kind" && status && !STATUS_BY_KIND[value].includes(status)) next.delete("status");
+    setParams(next, { replace: true });
+  };
+
+  const filtered = Boolean(kind || status);
+
+  return (
+    <section className="panel" aria-labelledby="tasks-title">
+      <div className="panel-head">
+        <h1 id="tasks-title" className="page-title">할 일</h1>
+        <button type="button" className="btn btn-primary" onClick={() => setCreating(true)}>할 일 추가</button>
+      </div>
+
+      <div className="form" role="group" aria-label="할 일 필터">
+        <div className="chips" role="group" aria-label={taskLabels.kind}>
+          {KIND_FILTERS.map(([v, label]) => (
+            <button key={v} type="button" className="chip" aria-pressed={kind === v} onClick={() => setFilter("kind", v)}>
+              {label}
+            </button>
+          ))}
+        </div>
+        <div className="chips" role="group" aria-label={taskLabels.status}>
+          <button type="button" className="chip" aria-pressed={!status} onClick={() => setFilter("status", "")}>모든 상태</button>
+          {STATUS_BY_KIND[kind].map((s) => (
+            <button key={s} type="button" className="chip" aria-pressed={status === s} onClick={() => setFilter("status", s)}>
+              {taskLabels[s as keyof typeof taskLabels] as string}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {error && <Notice kind="error">{error}</Notice>}
+      {items === null && !error && <p className="secondary" role="status">불러오는 중…</p>}
+      {items?.length === 0 && (
+        <div className="empty">
+          {filtered
+            ? (
+              <>
+                <p className="secondary" style={{ margin: 0 }}>조건에 맞는 할 일이 없습니다.</p>
+                <button type="button" className="btn" onClick={() => setParams(new URLSearchParams(), { replace: true })}>
+                  필터 해제
+                </button>
+              </>
+            )
+            : <p className="secondary" style={{ margin: 0 }}>아직 할 일이 없습니다. 앞으로 할 일을 추가하세요.</p>}
+        </div>
+      )}
+      {items && items.length > 0 && (
+        <ul className="list">
+          {items.map((t) => (
+            <li key={t.id} className="list-item">
+              <div className="list-item-main">
+                <Link className="item-title" to={`/tasks/${t.id}`}>{t.title}</Link>
+                <span className="secondary">{t.summary}</span>
+                <span className="meta">
+                  {taskLabels[t.kind]}
+                  {t.due_on ? ` · 기한 ${t.due_on}` : ""}
+                </span>
+              </div>
+              <StatusBadge status={t.status} />
+            </li>
+          ))}
+        </ul>
+      )}
+      {cursor && (
+        <button type="button" className="btn" onClick={more} disabled={loadingMore}>
+          {loadingMore ? "불러오는 중…" : "더 보기"}
+        </button>
+      )}
+
+      {creating && (
+        <TaskFormModal
+          key={formKey}
+          mode="create"
+          open={creating}
+          initial={emptyTask()}
+          onClose={() => setCreating(false)}
+          onSave={async (draft) => {
+            const created = await api<TaskResult>("POST", "/tasks", { ...taskInput(draft), request_id: requestId.current });
+            requestId.renew();
+            setCreating(false);
+            setFormKey((k) => k + 1);
+            navigate(`/tasks/${created.id}`);
+          }}
+        />
+      )}
+    </section>
+  );
+}
