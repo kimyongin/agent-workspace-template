@@ -1,0 +1,950 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>프로젝트 한눈에 보기</title>
+<meta name="description" content="agent-workspace-template이 무엇을 만들고, 어떻게 쓰고, 어떻게 개발을 시키며, 코드가 어떻게 생겼는지 비개발자도 이해할 수 있게 그림으로 안내한다. 규칙의 정본은 링크된 문서다.">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+<style>
+/* 색·글꼴·간격은 docs/design/visual-spec.md의 기본 토큰을 따른다. */
+:root {
+  --background: #101116;
+  --panel: #18191f;
+  --surface: #13141a;
+  --ink: #ececef;
+  --muted-ink: #a0a4ad;
+  --line: #343740;
+  --accent: #ff8a00;
+  --accent-soft: rgba(255, 138, 0, 0.16);
+  --success: #78dba9;
+  --success-soft: rgba(120, 219, 169, 0.14);
+  --info: #8fb8ff;
+  --info-soft: rgba(143, 184, 255, 0.14);
+  --radius: 16px;
+  --mono: ui-monospace, "SF Mono", "Cascadia Code", Consolas, monospace;
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: light) {
+  :root {
+    --background: #f6f6f8;
+    --panel: #ffffff;
+    --surface: #eff0f3;
+    --ink: #17181c;
+    --muted-ink: #555a64;
+    --line: #dcdee3;
+    --accent: #b35900;
+    --accent-soft: rgba(255, 138, 0, 0.14);
+    --success: #1f7a4d;
+    --success-soft: rgba(31, 122, 77, 0.1);
+    --info: #2f5fb3;
+    --info-soft: rgba(47, 95, 179, 0.1);
+    color-scheme: light;
+  }
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 64px; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+body {
+  margin: 0;
+  background: var(--background);
+  color: var(--ink);
+  font-family: Pretendard, "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+  font-size: 1rem;
+  line-height: 1.5;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+a { color: var(--accent); text-underline-offset: 3px; }
+a:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+code, .path { font-family: var(--mono); font-size: 0.875rem; }
+code { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 1px 6px; }
+.wrap { max-width: 1080px; margin: 0 auto; padding: 0 16px; }
+@media (min-width: 640px) { .wrap { padding: 0 24px; } }
+
+/* 머리말과 목차 */
+header.hero { padding: 48px 0 28px; }
+.eyebrow { color: var(--muted-ink); font-size: 0.875rem; font-weight: 600; margin: 0 0 8px; }
+h1 { font-size: 2rem; line-height: 1.25; margin: 0 0 12px; font-weight: 700; }
+.lead { font-size: 1.125rem; line-height: 1.6; margin: 0 0 16px; }
+.note { color: var(--muted-ink); font-size: 0.875rem; margin: 0; }
+nav.toc {
+  position: sticky; top: 0; z-index: 10;
+  background: color-mix(in srgb, var(--background) 92%, transparent);
+  backdrop-filter: blur(8px);
+  border-top: 1px solid var(--line); border-bottom: 1px solid var(--line);
+}
+nav.toc .wrap { display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; padding-top: 8px; padding-bottom: 8px; }
+nav.toc a {
+  flex: none; display: inline-flex; align-items: center; min-height: 40px; padding: 0 12px;
+  border-radius: 10px; color: var(--ink); text-decoration: none; font-size: 0.875rem; font-weight: 600;
+}
+nav.toc a:hover { background: var(--surface); }
+nav.toc a span { color: var(--accent); font-family: var(--mono); margin-right: 6px; }
+
+/* 섹션 */
+main section { padding: 56px 0 8px; }
+main section + section { border-top: 1px solid var(--line); margin-top: 48px; }
+.sec-num { font-family: var(--mono); color: var(--accent); font-weight: 600; font-size: 0.875rem; margin: 0 0 4px; }
+h2 { font-size: 1.5rem; line-height: 1.33; margin: 0 0 8px; font-weight: 700; }
+.sec-lead { color: var(--muted-ink); margin: 0 0 24px; }
+h3 { font-size: 1.125rem; margin: 40px 0 12px; }
+.h3-note { color: var(--muted-ink); font-size: 0.9375rem; margin: -4px 0 16px; }
+.src { font-size: 0.875rem; color: var(--muted-ink); margin-top: 20px; }
+.src a { margin-right: 10px; white-space: nowrap; }
+
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; }
+@media (min-width: 640px) { .card { padding: 20px; } }
+.card h4 { margin: 0 0 6px; font-size: 1rem; }
+.card p { margin: 0; color: var(--muted-ink); font-size: 0.9375rem; }
+.card p + p { margin-top: 8px; }
+.card ul { margin: 8px 0 0; padding-left: 18px; color: var(--muted-ink); font-size: 0.9375rem; }
+.card li { margin-bottom: 4px; }
+.k { display: block; font-size: 0.75rem; font-weight: 600; color: var(--accent); margin-bottom: 6px; }
+.grid { display: grid; gap: 12px; }
+.g2 { grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); }
+.g3 { grid-template-columns: repeat(auto-fit, minmax(min(100%, 250px), 1fr)); }
+.g4 { grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); }
+
+/* 템플릿 → 도메인 앱 */
+.i { width: 20px; height: 20px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.tplx { display: grid; }
+.board { background: var(--panel); border: 2px solid var(--line); border-radius: 20px; padding: 18px; display: grid; gap: 14px; }
+@media (min-width: 640px) { .board { padding: 22px; } }
+.board-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.board-head h4 { margin: 0; font-size: 1.125rem; }
+.board-head span { font-size: 0.8125rem; color: var(--muted-ink); }
+.layer { border-radius: 14px; padding: 14px; display: grid; gap: 10px; }
+.layer-label { display: inline-flex; align-items: center; gap: 6px; font-size: 0.75rem; font-weight: 700; justify-self: start; padding: 2px 10px; border-radius: 999px; }
+.layer.change { border: 2px dashed var(--accent); }
+.layer.change .layer-label { color: var(--accent); background: var(--accent-soft); }
+.layer.keep { background: var(--surface); border: 1px solid var(--line); }
+.layer.keep .layer-label { color: var(--muted-ink); background: var(--panel); border: 1px solid var(--line); }
+.fields { display: grid; grid-template-columns: auto repeat(3, 1fr); gap: 8px; align-items: center; }
+.fields .ent { font-weight: 700; font-size: 0.9375rem; padding-right: 4px; }
+.field { border: 1.5px dashed var(--muted-ink); border-radius: 8px; padding: 6px 10px; font-size: 0.8125rem; color: var(--muted-ink); text-align: center; }
+.feat { display: grid; gap: 8px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr)); }
+.feat > div { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; align-items: start; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+.feat .i { grid-row: span 2; color: var(--accent); margin-top: 2px; }
+.feat b { font-size: 0.9375rem; }
+.feat b small { font-weight: 600; font-size: 0.75rem; color: var(--muted-ink); margin-left: 4px; }
+.feat span { font-size: 0.8125rem; color: var(--muted-ink); line-height: 1.45; }
+.rails { display: flex; flex-wrap: wrap; gap: 8px 16px; font-size: 0.8125rem; color: var(--muted-ink); padding: 2px 2px 0; }
+.rails span { display: inline-flex; align-items: center; gap: 6px; }
+.rails .i { width: 16px; height: 16px; }
+.branch { position: relative; height: 48px; }
+@media (max-width: 819px) { .branch { height: 40px; } .branch::before { bottom: 8px; } }
+.branch::before { content: ""; position: absolute; left: 50%; top: 0; bottom: 0; border-left: 2px solid var(--accent); }
+.branch span { position: absolute; left: calc(50% + 12px); top: 50%; transform: translateY(-50%); font-size: 0.8125rem; font-weight: 600; color: var(--muted-ink); white-space: nowrap; }
+.apps { display: grid; gap: 12px; }
+@media (min-width: 820px) { .apps { grid-template-columns: repeat(3, 1fr); padding-top: 26px; } }
+.tip { position: absolute; left: 50%; top: -10px; transform: translateX(-50%); width: 0; height: 0; border-left: 6px solid transparent; border-right: 6px solid transparent; border-top: 9px solid var(--accent); }
+.appwin:not(:first-child) .tip { display: none; }
+.appwin { position: relative; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; display: grid; align-content: start; }
+.appbar { display: flex; align-items: center; gap: 8px; padding: 9px 12px; border-bottom: 1px solid var(--line); background: var(--surface); border-radius: 14px 14px 0 0; font-weight: 700; font-size: 0.9375rem; }
+.appbar .dots { display: inline-flex; gap: 4px; margin-right: 4px; }
+.appbar .dots i { width: 7px; height: 7px; border-radius: 50%; background: var(--line); }
+.appbar .i { color: var(--accent); width: 18px; height: 18px; }
+.appbody { padding: 12px; display: grid; gap: 10px; }
+.filled { border: 2px solid var(--accent); background: var(--accent-soft); border-radius: 10px; padding: 8px 10px; display: grid; gap: 6px; }
+.filled .ent { font-weight: 700; font-size: 0.875rem; }
+.kv { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.kv div { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 4px 6px; min-width: 0; }
+.kv small { display: block; font-size: 0.6875rem; color: var(--muted-ink); }
+.kv b { display: block; font-size: 0.8125rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.minibase { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 0.75rem; color: var(--muted-ink); }
+.minibase span { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); }
+.minibase .i { width: 13px; height: 13px; }
+.bubble { display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: start; }
+.bubble .i { color: var(--info); margin-top: 6px; }
+.bubble p { margin: 0; background: var(--info-soft); border: 1px solid var(--info); border-radius: 12px 12px 12px 4px; padding: 8px 10px; font-size: 0.8125rem; line-height: 1.45; }
+@media (min-width: 820px) {
+  .appwin:not(:first-child) .tip { display: block; }
+  .appwin::before { content: ""; position: absolute; left: 50%; top: -26px; height: 17px; border-left: 2px solid var(--accent); }
+  .appwin::after { content: ""; position: absolute; top: -26px; left: -7px; right: -7px; border-top: 2px solid var(--accent); }
+  .appwin:first-child::after { left: 50%; }
+  .appwin:last-child::after { right: 50%; }
+}
+
+/* 순환 그림 */
+.cycle { display: grid; gap: 20px; align-items: center; }
+@media (min-width: 860px) { .cycle { grid-template-columns: minmax(0, 540px) 1fr; } }
+.cycle svg { width: 100%; height: auto; display: block; }
+.cy-track { fill: none; stroke: var(--line); stroke-width: 1.5; stroke-dasharray: 2 6; stroke-linecap: round; }
+.cy-ring { fill: none; stroke: var(--accent); stroke-width: 3; stroke-linecap: round; }
+.cy-arrow { fill: var(--accent); }
+.cy-node { fill: var(--panel); stroke: var(--line); stroke-width: 1.5; }
+.cy-badge { fill: var(--accent); }
+.cy-badgenum { fill: var(--background); font-weight: 700; font-size: 14px; }
+.cy-store { fill: var(--success-soft); stroke: var(--success); stroke-width: 2; }
+.cy-icon { fill: none; stroke: var(--success); stroke-width: 2; stroke-linejoin: round; }
+.cy-link { fill: none; stroke: var(--success); stroke-width: 2; stroke-dasharray: 4 4; }
+.cy-linkhead { fill: var(--success); }
+.cy-chiptext { fill: var(--success); font-size: 12px; font-weight: 700; }
+.cy-title { fill: var(--ink); font-weight: 700; font-size: 18px; }
+.cy-sub { fill: var(--muted-ink); font-size: 13.5px; }
+.cy-edge { fill: var(--muted-ink); font-size: 13.5px; font-weight: 600; }
+.cy-storetitle { fill: var(--ink); font-weight: 700; font-size: 15px; }
+.cy-storesub { fill: var(--muted-ink); font-size: 11.5px; }
+.cycle-notes { display: grid; gap: 12px; }
+
+/* 사용 방법 그림 */
+.usemap { display: grid; gap: 12px; align-items: center; }
+@media (min-width: 900px) { .usemap { grid-template-columns: 120px 1fr 230px; gap: 0; } }
+.who-box { display: grid; justify-items: center; gap: 6px; text-align: center; font-weight: 700; }
+.icon { width: 56px; height: 56px; border-radius: 50%; display: grid; place-items: center; background: var(--surface); border: 1px solid var(--line); }
+.icon svg { width: 30px; height: 30px; fill: none; stroke: var(--ink); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.icon.big { width: 72px; height: 72px; }
+.icon.big svg { width: 38px; height: 38px; }
+.lanes { display: grid; gap: 16px; }
+.lane { display: grid; gap: 8px; align-items: center; justify-items: center; }
+@media (min-width: 900px) { .lane { grid-template-columns: 40px 1fr 40px; justify-items: stretch; } }
+.lane .arr { color: var(--muted-ink); font-weight: 700; font-size: 1.25rem; text-align: center; }
+.lane .arr::before { content: "↓"; }
+@media (min-width: 900px) { .lane .arr::before { content: "→"; } }
+.channel { width: 100%; display: grid; grid-template-columns: auto 1fr; gap: 14px; align-items: start; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; }
+.channel.web { border-color: var(--accent); }
+.channel.agent { border-color: var(--info); }
+.channel h4 { margin: 0 0 2px; font-size: 1.0625rem; }
+.channel .via { font-size: 0.8125rem; color: var(--muted-ink); margin: 0 0 8px; }
+.channel p { margin: 0; color: var(--muted-ink); font-size: 0.9375rem; }
+.tag { display: inline-block; margin-top: 10px; font-size: 0.8125rem; font-weight: 700; padding: 3px 10px; border-radius: 999px; }
+.web .tag { background: var(--accent-soft); color: var(--ink); border: 1px solid var(--accent); }
+.agent .tag { background: var(--info-soft); color: var(--ink); border: 1px solid var(--info); }
+.system { background: var(--success-soft); border: 2px solid var(--success); border-radius: var(--radius); padding: 18px 16px; text-align: center; }
+.system .icon { margin: 0 auto 8px; background: var(--panel); }
+.system h4 { margin: 0 0 4px; font-size: 1.0625rem; }
+.system p { margin: 0 0 10px; font-size: 0.875rem; color: var(--muted-ink); }
+.system ul { text-align: left; margin: 0; padding-left: 18px; font-size: 0.875rem; }
+.system li { margin-bottom: 4px; }
+.mapnote { margin-top: 16px; }
+
+/* 개발 흐름: 사람과 에이전트의 두 줄 */
+.swim-head { display: grid; grid-template-columns: 1fr 44px 1fr; gap: 0 16px; margin-bottom: 10px; }
+.swim-head span { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 0.9375rem; }
+.swim-head span:first-child { justify-content: flex-end; }
+.swim-head span:last-child { grid-column: 3; }
+.swim-head .i { width: 22px; height: 22px; }
+.swim-head .h .i { color: var(--accent); }
+.swim-head .a .i { color: var(--info); }
+.swim { position: relative; display: grid; gap: 12px; }
+.swim::before { content: ""; position: absolute; top: 0; bottom: 0; left: 50%; transform: translateX(-50%); border-left: 2px solid var(--line); }
+.srow { position: relative; display: grid; grid-template-columns: 1fr 44px 1fr; gap: 0 16px; align-items: center; }
+.node { justify-self: center; z-index: 1; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: var(--panel); border: 2px solid var(--accent); font-weight: 700; font-size: 0.9375rem; }
+.say, .do { width: min(100%, 27rem); border-radius: 16px; padding: 12px 16px; font-size: 0.9375rem; line-height: 1.55; }
+.say { justify-self: end; background: var(--accent-soft); border: 1.5px solid var(--accent); border-bottom-right-radius: 4px; }
+.do { justify-self: start; background: var(--panel); border: 1.5px solid var(--info); border-bottom-left-radius: 4px; }
+.say p, .do p { margin: 0; }
+.say p + p, .do p + p { margin-top: 6px; }
+.say .cmd { display: block; font-weight: 700; font-size: 1.0625rem; color: var(--accent); margin-bottom: 4px; }
+.say .ok { color: var(--accent); font-weight: 700; }
+.say.quiet { background: none; border: 0; text-align: right; color: var(--muted-ink); }
+.do .res { color: var(--muted-ink); font-size: 0.875rem; }
+.do .res b { color: var(--info); }
+.phase { position: relative; z-index: 1; display: flex; justify-content: center; margin-top: 8px; }
+.phase span { font-size: 0.875rem; font-weight: 700; color: var(--accent); background: var(--background); padding: 2px 12px; }
+.phase small { font-weight: 400; color: var(--muted-ink); margin-left: 6px; font-size: 0.8125rem; }
+@media (max-width: 759px) {
+  .swim-head { display: flex; flex-wrap: wrap; gap: 8px 16px; }
+  .swim-head span:first-child { justify-content: flex-start; }
+  .swim::before { left: 17px; transform: none; }
+  .srow { grid-template-columns: 34px 1fr; grid-template-areas: "n s" "n d"; gap: 8px 12px; align-items: start; }
+  .node { grid-area: n; justify-self: start; }
+  .say { grid-area: s; width: auto; }
+  .do { grid-area: d; width: auto; }
+  .say.quiet { text-align: left; padding: 6px 0; }
+  .phase { justify-content: flex-start; padding-left: 34px; }
+}
+
+/* 문서 지도 */
+.docmap { display: grid; gap: 12px; }
+@media (min-width: 860px) { .docmap { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: stretch; } }
+.owner-col { background: var(--panel); border: 1px solid var(--line); border-top: 4px solid var(--accent); border-radius: var(--radius); padding: 16px 20px; }
+.owner-col.agent { border-top-color: var(--info); }
+.owner-col > h4 { display: flex; align-items: center; gap: 8px; margin: 0 0 4px; font-size: 1rem; }
+.owner-col > h4 .i { width: 20px; height: 20px; color: var(--accent); }
+.owner-col.agent > h4 .i { color: var(--info); }
+.owner-col > p { margin: 0 0 6px; font-size: 0.875rem; color: var(--muted-ink); }
+.dgroup { margin-top: 16px; }
+.dgroup .folder { display: block; font-family: var(--mono); font-size: 0.75rem; color: var(--muted-ink); padding-bottom: 4px; border-bottom: 1px solid var(--line); }
+.dgroup .folder b { font-family: Pretendard, "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif; font-size: 0.875rem; color: var(--ink); font-weight: 700; margin-right: 6px; }
+.dgroup ul { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 8px; }
+.dgroup li { font-size: 0.8125rem; color: var(--muted-ink); line-height: 1.45; }
+.dgroup li a { display: block; font-size: 0.9375rem; font-weight: 600; }
+.dgroup li .sample { display: block; font-family: var(--mono); font-size: 0.8125rem; font-weight: 600; color: var(--ink); }
+.dgroup .sample-note { margin: 6px 0 0; font-size: 0.75rem; color: var(--muted-ink); }
+.agent-groups { display: grid; gap: 0 24px; }
+@media (min-width: 640px) { .agent-groups { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+
+/* 용어 */
+.terms { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); }
+.term h4 { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; }
+.term h4 small { font-weight: 400; color: var(--muted-ink); font-size: 0.8125rem; }
+.term .like { margin-top: 10px; font-size: 0.875rem; color: var(--ink); }
+.term .like::before { content: "비유 · "; color: var(--accent); font-weight: 600; }
+.owner { display: inline-block; font-size: 0.75rem; font-weight: 700; padding: 1px 8px; border-radius: 999px; margin-left: auto; }
+.owner.h { background: var(--accent-soft); border: 1px solid var(--accent); }
+.owner.a { background: var(--info-soft); border: 1px solid var(--info); }
+
+/* 표 */
+.table-scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; }
+table { width: 100%; border-collapse: collapse; font-size: 0.9375rem; min-width: 600px; }
+th, td { text-align: left; vertical-align: top; padding: 10px 14px; border-bottom: 1px solid var(--line); }
+th { background: var(--surface); font-size: 0.8125rem; color: var(--muted-ink); font-weight: 600; }
+tr:last-child td { border-bottom: 0; }
+td code { white-space: nowrap; }
+
+/* 헥사고날 그림 */
+.hex { display: grid; gap: 12px; align-items: center; }
+@media (min-width: 960px) { .hex { grid-template-columns: 1fr auto 1.1fr auto 1fr; } }
+.hex-col h4 { margin: 0 0 8px; font-size: 0.8125rem; color: var(--muted-ink); font-weight: 600; }
+.hex-col .stack { display: grid; gap: 8px; }
+.box { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; font-size: 0.9375rem; font-weight: 600; line-height: 1.35; }
+.box small { display: block; font-weight: 400; color: var(--muted-ink); font-size: 0.8125rem; }
+.box .who { display: block; font-weight: 400; color: var(--muted-ink); font-size: 0.75rem; margin-bottom: 2px; }
+.joint { color: var(--muted-ink); font-size: 1.5rem; text-align: center; font-weight: 700; }
+.joint::before { content: "↓"; }
+@media (min-width: 960px) { .joint::before { content: "→"; } }
+.core { position: relative; padding: 40px 32px; display: grid; gap: 8px; align-content: center; min-height: 340px; }
+.core::before {
+  content: ""; position: absolute; inset: 0; z-index: 0; background: var(--accent-soft);
+  clip-path: polygon(25% 0, 75% 0, 100% 50%, 75% 100%, 25% 100%, 0 50%);
+}
+.core > * { position: relative; z-index: 1; }
+.core .box { text-align: center; }
+.core-title { text-align: center; font-weight: 700; color: var(--accent); margin: 0; }
+.core-note { text-align: center; font-size: 0.8125rem; color: var(--muted-ink); margin: 0 0 4px; }
+@media (max-width: 959px) {
+  .core { min-height: 0; padding: 20px 16px; }
+  .core::before { clip-path: none; border-radius: var(--radius); border: 1px solid var(--accent); }
+}
+
+/* 폴더 지도 */
+.tree { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 20px; }
+.tr { display: grid; grid-template-columns: 17rem minmax(0, 1fr); gap: 0 16px; align-items: baseline; padding: 3px 0; }
+.tn { font-family: var(--mono); font-size: 0.8125rem; white-space: pre; }
+.tn i { font-style: normal; color: var(--muted-ink); }
+.tn b { font-weight: 600; color: var(--ink); }
+.tr.root .tn b { color: var(--accent); }
+.td { font-size: 0.8125rem; color: var(--muted-ink); }
+@media (max-width: 639px) {
+  .tree { padding: 12px 14px; overflow-x: auto; }
+  .tr { grid-template-columns: 1fr; padding: 4px 0; }
+  .td { font-size: 0.75rem; }
+  .d1 .td { padding-left: 1.5rem; }
+  .d2 .td { padding-left: 2.95rem; }
+  .d3 .td { padding-left: 4.4rem; }
+}
+
+/* 자주 묻는 질문 */
+.faq { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 0 20px; }
+.faq details { border-bottom: 1px solid var(--line); }
+.faq details:last-child { border-bottom: 0; }
+.faq summary { cursor: pointer; list-style: none; display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; padding: 8px 0; font-size: 0.875rem; font-weight: 600; }
+.faq summary::-webkit-details-marker { display: none; }
+.faq summary::after { content: "+"; flex: none; color: var(--accent); font-size: 1.125rem; font-weight: 400; }
+.faq details[open] summary::after { content: "−"; }
+.faq summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.faq details p { margin: 0 0 12px; color: var(--muted-ink); font-size: 0.8125rem; line-height: 1.6; }
+.faq-group { margin: 0; padding: 16px 0 4px; font-size: 0.75rem; font-weight: 700; color: var(--accent); border-bottom: 1px solid var(--line); }
+.faq details:has(+ .faq-group) { border-bottom: 0; }
+
+footer { border-top: 1px solid var(--line); margin-top: 64px; padding: 24px 0 48px; color: var(--muted-ink); font-size: 0.875rem; }
+footer p { margin: 0 0 8px; }
+footer a { margin-right: 10px; white-space: nowrap; }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <p class="eyebrow">agent-workspace-template · 프로젝트 한눈에 보기</p>
+    <h1>사람과 AI 에이전트가 같은 업무를 하고,<br>쌓인 기록이 다음 판단이 되는 앱의 템플릿</h1>
+    <p class="lead">이 저장소를 복사해서 몇 군데만 바꾸면, 내 업무에 맞는 새 앱을 시작할 수 있습니다.</p>
+    <p class="note">이 페이지는 이해를 돕는 그림 안내입니다. 정확한 규칙은 각 섹션 아래 링크된 문서에 있고, 지금 어디까지 만들어졌는지는 <a href="START-HERE.md#현재-상태">START-HERE의 현재 상태</a>에서 확인합니다.</p>
+  </div>
+</header>
+
+<nav class="toc" aria-label="목차">
+  <div class="wrap">
+    <a href="#what"><span>1</span>무엇을 만들고 어떻게 쓰는가</a>
+    <a href="#develop"><span>2</span>어떻게 개발을 시키는가</a>
+    <a href="#code"><span>3</span>코드 구조는 어떠한가</a>
+    <a href="#faq"><span>4</span>자주 묻는 질문</a>
+  </div>
+</nav>
+
+<main class="wrap">
+
+  <!-- 1 -->
+  <section id="what">
+    <p class="sec-num">01</p>
+    <h2>무엇을 만들고 어떻게 쓰는가</h2>
+    <p class="sec-lead">내가 한 일과 그 결과, 그리고 내가 정한 판단 기준을 쌓아 두는 앱입니다. 다음에 비슷한 일을 할 때 사람도, AI 에이전트도 그 기록을 찾아보고 참고합니다. 이 저장소는 그런 앱을 업무 분야마다 빠르게 만들 수 있게 해 주는 출발점(템플릿)입니다.</p>
+
+    <h3>템플릿 하나로 여러 앱을</h3>
+    <p class="h3-note">모든 앱이 같은 공통 기능을 갖고, 비워 둔 “업무 대상” 자리만 내 업무에 맞게 채웁니다.</p>
+    <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+      <symbol id="i-person" viewBox="0 0 24 24"><circle cx="12" cy="7.5" r="4"/><path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8"/></symbol>
+      <symbol id="i-note" viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13 7l4 4"/></symbol>
+      <symbol id="i-check" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8 12l3 3 5-6"/></symbol>
+      <symbol id="i-flag" viewBox="0 0 24 24"><path d="M5 21V4h12l-2.5 4L17 12H5"/></symbol>
+      <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5"/></symbol>
+      <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></symbol>
+      <symbol id="i-web" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></symbol>
+      <symbol id="i-bot" viewBox="0 0 24 24"><rect x="4" y="7" width="16" height="12" rx="3"/><path d="M12 3v4M9 12h.01M15 12h.01M9 16h6"/></symbol>
+      <symbol id="i-users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14c2 .8 3 2.9 3 6"/></symbol>
+      <symbol id="i-book" viewBox="0 0 24 24"><path d="M5 4.5A1.5 1.5 0 0 1 6.5 3H19v15H6.5A1.5 1.5 0 0 0 5 19.5z"/><path d="M5 19.5A1.5 1.5 0 0 0 6.5 21H19v-3"/></symbol>
+      <symbol id="i-gym" viewBox="0 0 24 24"><path d="M6 7v10M3 9.5v5M18 7v10M21 9.5v5M6 12h12"/></symbol>
+    </svg>
+    <div class="tplx" role="img" aria-label="템플릿에는 바꾸는 업무 대상 자리와 그대로 쓰는 공통 기능이 있고, 대상을 고객·책·운동으로 채우면 고객 관리·독서 기록·운동 기록 앱이 된다">
+      <div class="board">
+        <div class="board-head"><h4>템플릿</h4><span>이 저장소</span></div>
+        <div class="layer change">
+          <span class="layer-label">앱마다 바꾸는 부분</span>
+          <div class="fields"><span class="ent">업무 대상</span><span class="field">항목 1</span><span class="field">항목 2</span><span class="field">항목 3</span></div>
+        </div>
+        <div class="layer keep">
+          <span class="layer-label">모든 앱이 그대로 쓰는 공통 기능</span>
+          <div class="feat">
+            <div><svg class="i"><use href="#i-note"/></svg><b>활동 기록</b><span>한 일과 결과. 계획 없이도 바로 남김</span></div>
+            <div><svg class="i"><use href="#i-check"/></svg><b>할 일<small>선택</small></b><span>미리 하는 계획. 한 번 또는 반복</span></div>
+            <div><svg class="i"><use href="#i-flag"/></svg><b>사용자 원칙</b><span>내가 정한 판단 기준</span></div>
+            <div><svg class="i"><use href="#i-search"/></svg><b>검색</b><span>요약 목록에서 전체 내용으로</span></div>
+          </div>
+          <div class="rails">
+            <span><svg class="i"><use href="#i-web"/></svg>웹 앱</span>
+            <span><svg class="i"><use href="#i-bot"/></svg>에이전트 플러그인</span>
+            <span><svg class="i"><use href="#i-lock"/></svg>로그인 · 내 데이터는 나만</span>
+          </div>
+        </div>
+      </div>
+      <div class="branch"><span>복사해서 업무 대상을 채우면</span></div>
+      <div class="apps">
+        <div class="appwin">
+          <span class="tip" aria-hidden="true"></span>
+          <div class="appbar"><span class="dots"><i></i><i></i><i></i></span><svg class="i"><use href="#i-users"/></svg>고객 관리 앱</div>
+          <div class="appbody">
+            <div class="filled"><span class="ent">고객</span><div class="kv"><div><small>이름</small><b>김하늘</b></div><div><small>연락처</small><b>010-…</b></div><div><small>등급</small><b>VIP</b></div></div></div>
+            <div class="minibase"><span><svg class="i"><use href="#i-note"/></svg>기록</span><span><svg class="i"><use href="#i-check"/></svg>할 일</span><span><svg class="i"><use href="#i-flag"/></svg>원칙</span><span><svg class="i"><use href="#i-search"/></svg>검색</span></div>
+            <div class="bubble"><svg class="i"><use href="#i-bot"/></svg><p>“이 고객, 지난 상담에서 뭐라고 했지?”</p></div>
+          </div>
+        </div>
+        <div class="appwin">
+          <span class="tip" aria-hidden="true"></span>
+          <div class="appbar"><span class="dots"><i></i><i></i><i></i></span><svg class="i"><use href="#i-book"/></svg>독서 기록 앱</div>
+          <div class="appbody">
+            <div class="filled"><span class="ent">책</span><div class="kv"><div><small>제목</small><b>데미안</b></div><div><small>저자</small><b>헤세</b></div><div><small>다 읽은 날</small><b>9/28</b></div></div></div>
+            <div class="minibase"><span><svg class="i"><use href="#i-note"/></svg>기록</span><span><svg class="i"><use href="#i-check"/></svg>할 일</span><span><svg class="i"><use href="#i-flag"/></svg>원칙</span><span><svg class="i"><use href="#i-search"/></svg>검색</span></div>
+            <div class="bubble"><svg class="i"><use href="#i-bot"/></svg><p>“최근 읽은 책 중에 이 주제와 비슷한 게 있었나?”</p></div>
+          </div>
+        </div>
+        <div class="appwin">
+          <span class="tip" aria-hidden="true"></span>
+          <div class="appbar"><span class="dots"><i></i><i></i><i></i></span><svg class="i"><use href="#i-gym"/></svg>운동 기록 앱</div>
+          <div class="appbody">
+            <div class="filled"><span class="ent">운동</span><div class="kv"><div><small>종목</small><b>스쿼트</b></div><div><small>무게</small><b>60kg</b></div><div><small>횟수</small><b>5×5</b></div></div></div>
+            <div class="minibase"><span><svg class="i"><use href="#i-note"/></svg>기록</span><span><svg class="i"><use href="#i-check"/></svg>할 일</span><span><svg class="i"><use href="#i-flag"/></svg>원칙</span><span><svg class="i"><use href="#i-search"/></svg>검색</span></div>
+            <div class="bubble"><svg class="i"><use href="#i-bot"/></svg><p>“내 원칙대로라면 이번 주에 무게를 올려도 될까?”</p></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="note" style="margin-top:12px">대상을 바꿀 때는 그 대상의 항목, 화면, 에이전트가 참고하는 사용 요령을 함께 바꿉니다. 세 앱과 값은 이해를 돕는 예시입니다.</p>
+
+    <h3>두 가지 길로 사용한다: 웹 앱과 AI 에이전트</h3>
+    <p class="h3-note">사람은 두 가지 길로 앱을 씁니다. 웹 화면에서 직접 다루거나, AI 에이전트에게 말로 맡기거나. 어느 길로 가도 도착하는 곳은 같은 앱이라, 같은 규칙과 같은 데이터가 적용됩니다.</p>
+
+    <div class="usemap" role="img" aria-label="사람이 웹 앱을 통해 직접, 또는 AI 에이전트를 통해 말로 같은 앱 시스템을 사용한다">
+      <div class="who-box">
+        <span class="icon big"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="7.5" r="4"/><path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8"/></svg></span>
+        사람
+      </div>
+      <div class="lanes">
+        <div class="lane">
+          <span class="arr" aria-hidden="true"></span>
+          <div class="channel web">
+            <span class="icon"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg></span>
+            <div>
+              <h4>웹 앱에서 직접</h4>
+              <p class="via">브라우저 · Google 계정으로 로그인</p>
+              <p>목록·상세·편집 화면에서 할 일, 기록, 원칙을 직접 보고 쓰고 고칩니다. 내가 누른 대로 정확히 바뀝니다.</p>
+              <span class="tag">데이터를 직접 조작</span>
+            </div>
+          </div>
+          <span class="arr" aria-hidden="true"></span>
+        </div>
+        <div class="lane">
+          <span class="arr" aria-hidden="true"></span>
+          <div class="channel agent">
+            <span class="icon"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="7" width="16" height="12" rx="3"/><path d="M12 3v4M9 12h.01M15 12h.01M9 16h6"/></svg></span>
+            <div>
+              <h4>AI 에이전트에게 말로</h4>
+              <p class="via">Claude·Codex · 플러그인으로 앱에 연결</p>
+              <p>“지난번 비슷한 일은 어떻게 했지?”라고 물으면 에이전트가 관련 기록과 원칙을 찾아 읽고, 생각해서 답하거나 일을 처리한 뒤 결과를 기록합니다.</p>
+              <span class="tag">추론해서 처리</span>
+            </div>
+          </div>
+          <span class="arr" aria-hidden="true"></span>
+        </div>
+      </div>
+      <div class="system">
+        <span class="icon big"><svg viewBox="0 0 24 24" aria-hidden="true"><ellipse cx="12" cy="5.5" rx="7" ry="2.5"/><path d="M5 5.5v13c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5v-13M5 12c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5"/></svg></span>
+        <h4>앱 시스템</h4>
+        <p>할 일·기록·원칙이 저장된 곳</p>
+        <ul>
+          <li>어느 길로 와도 같은 규칙, 같은 결과</li>
+          <li>내 데이터는 나만 볼 수 있음</li>
+          <li>앱은 판단하지 않고 정확히 저장·조회만</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="grid g2 mapnote">
+      <div class="card"><h4>플러그인이란?</h4><p>AI 에이전트에 설치하는 확장 기능입니다. 앱을 다루는 도구(조회·저장)와 “자료를 어떻게 찾고, 결과를 어떻게 기록할지” 알려 주는 사용 요령이 함께 들어 있습니다. 에이전트 연결은 웹 로그인과 따로 인증합니다.</p></div>
+      <div class="card"><h4>두 길을 오가며 이어서 쓴다</h4><p>웹에서 할 일을 적어 두면 에이전트가 그걸 읽고 처리해 결과를 기록합니다. 그 결과는 웹에서 바로 확인할 수 있고, 다음 대화에서 에이전트가 다시 찾아 참고합니다.</p></div>
+    </div>
+    <h3>한 일이 다음 일의 참고 자료가 되는 순환</h3>
+    <div class="cycle">
+      <svg viewBox="0 0 540 444" role="img" aria-labelledby="cy-t cy-d">
+        <title id="cy-t">기록 순환</title>
+        <desc id="cy-d">일을 한다, 기록을 남긴다, 지난 기록을 찾는다가 원을 그리며 반복된다. 남긴 기록은 가운데 쌓인 기록에 저장되고, 다음 일을 할 때 거기서 꺼내 본다.</desc>
+        <defs>
+          <marker id="cy-head" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="4" markerHeight="4" markerUnits="strokeWidth" orient="auto">
+            <path class="cy-arrow" d="M0 0 L10 5 L0 10 L2.5 5 z"/>
+          </marker>
+          <marker id="cy-head-g" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="4" markerHeight="4" markerUnits="strokeWidth" orient="auto">
+            <path class="cy-linkhead" d="M0 0 L10 5 L0 10 L2.5 5 z"/>
+          </marker>
+        </defs>
+
+        <!-- 중심 (270, 230), 반지름 160. 노드는 -90°, 30°, 150°, 화살표는 노드 사이 60°씩 -->
+        <circle class="cy-track" cx="270" cy="230" r="160"/>
+        <path class="cy-ring" d="M361.8 98.9 A160 160 0 0 1 429.4 243.9" marker-end="url(#cy-head)"/>
+        <path class="cy-ring" d="M361.8 361.1 A160 160 0 0 1 178.2 361.1" marker-end="url(#cy-head)"/>
+        <path class="cy-ring" d="M110.6 243.9 A160 160 0 0 1 178.2 98.9" marker-end="url(#cy-head)"/>
+        <text class="cy-edge" x="462" y="140" text-anchor="middle">일이 끝나면</text>
+        <text class="cy-edge" x="270" y="424" text-anchor="middle">비슷한 일이 다시 생기면</text>
+        <text class="cy-edge" x="78" y="140" text-anchor="middle">참고해서</text>
+
+        <!-- 가운데: 쌓인 기록 -->
+        <circle class="cy-store" cx="270" cy="230" r="56"/>
+        <ellipse class="cy-icon" cx="270" cy="200" rx="11" ry="4"/>
+        <path class="cy-icon" d="M259 200 v13 c0 2.2 4.9 4 11 4 s11 -1.8 11 -4 v-13 M259 206.5 c0 2.2 4.9 4 11 4 s11 -1.8 11 -4"/>
+        <text class="cy-storetitle" x="270" y="239" text-anchor="middle">쌓인 기록</text>
+        <text class="cy-storesub" x="270" y="255" text-anchor="middle">한 일 · 할 일 · 원칙</text>
+
+        <!-- 저장: 2 → 가운데, 꺼내 보기: 가운데 → 3 -->
+        <path class="cy-link" d="M358 277 L325 258" marker-end="url(#cy-head-g)"/>
+        <text class="cy-chiptext" x="350" y="256">저장</text>
+        <path class="cy-link" d="M215 258 L182 277" marker-end="url(#cy-head-g)"/>
+        <text class="cy-chiptext" x="190" y="256" text-anchor="end">꺼내 보기</text>
+
+        <!-- 1 일을 한다 -->
+        <rect class="cy-node" x="182" y="38" width="176" height="64" rx="14"/>
+        <circle class="cy-badge" cx="182" cy="38" r="12"/>
+        <text class="cy-badgenum" x="182" y="43" text-anchor="middle">1</text>
+        <text class="cy-title" x="270" y="66" text-anchor="middle">일을 한다</text>
+        <text class="cy-sub" x="270" y="88" text-anchor="middle">직접, 또는 AI에게 맡겨</text>
+
+        <!-- 2 기록을 남긴다 -->
+        <rect class="cy-node" x="321" y="278" width="176" height="64" rx="14"/>
+        <circle class="cy-badge" cx="321" cy="278" r="12"/>
+        <text class="cy-badgenum" x="321" y="283" text-anchor="middle">2</text>
+        <text class="cy-title" x="409" y="306" text-anchor="middle">기록을 남긴다</text>
+        <text class="cy-sub" x="409" y="328" text-anchor="middle">무엇을, 왜, 결과는</text>
+
+        <!-- 3 지난 기록을 찾는다 -->
+        <rect class="cy-node" x="43" y="278" width="176" height="64" rx="14"/>
+        <circle class="cy-badge" cx="43" cy="278" r="12"/>
+        <text class="cy-badgenum" x="43" y="283" text-anchor="middle">3</text>
+        <text class="cy-title" x="131" y="306" text-anchor="middle">지난 기록을 찾는다</text>
+        <text class="cy-sub" x="131" y="328" text-anchor="middle">비슷한 일, 내 원칙</text>
+      </svg>
+      <div class="cycle-notes">
+        <div class="card"><h4>시작은 “일을 한다”부터</h4><p>할 일을 미리 만들지 않아도 됩니다. 한 일을 바로 기록하면 그때부터 순환이 시작됩니다.</p></div>
+        <div class="card"><h4>할 일은 계획이 필요할 때만</h4><p>미리 계획해 두고 싶으면 할 일을 만들고, 끝낸 뒤 그 할 일에 연결해 기록을 남깁니다.</p></div>
+        <div class="card"><h4>AI를 다시 가르치지 않는다</h4><p>AI 모델을 새로 학습시키는 대신, 일할 때마다 쌓인 기록을 찾아 읽게 합니다. 그래서 기록이 늘수록 바로 더 똑똑하게 도와줍니다.</p></div>
+      </div>
+    </div>
+    <p class="src">정본: <a href="product/concept.md">PRD</a><a href="adr/0004-summary-single-vector-search.md">ADR-0004 검색 방식</a><a href="../plugins/workspace/skills/workspace/SKILL.md">제품 스킬</a><a href="adr/0005-plugin-delivery-claude-codex.md">ADR-0005 플러그인</a><a href="adr/0006-owner-only-access-and-separate-auth.md">ADR-0006 접근과 인증</a><a href="security/guide.md">보안 가이드</a></p>
+  </section>
+
+  <!-- 2 -->
+  <section id="develop">
+    <p class="sec-num">02</p>
+    <h2>어떻게 개발을 시키는가</h2>
+    <p class="sec-lead">코드는 AI 개발 에이전트(Codex, Claude Code)가 작성합니다. 사람은 무엇을 왜 만들지 정하고 중요한 결정을 승인하며, 짧은 말로 다음 단계를 지시합니다. 먼저 이 과정에서 오가는 문서와 용어부터 알아 둡니다.</p>
+
+    <h3>알아 둘 용어</h3>
+    <div class="terms">
+      <div class="card term">
+        <h4>PRD <small>제품 요구사항 문서</small><span class="owner h">사람이 정함</span></h4>
+        <p>무엇을, 누구를 위해, 왜 만드는지 적은 기획서입니다. 어떤 기능이 꼭 있어야 하는지도 여기서 정합니다.</p>
+        <p class="like">집을 짓기 전 “방 3개, 남향, 4인 가족용”이라고 적은 요청서</p>
+      </div>
+      <div class="card term">
+        <h4>ADR <small>아키텍처 결정 기록</small><span class="owner h">사람이 승인</span></h4>
+        <p>나중에 바꾸기 어렵고 비용이 큰 기술 선택(어떤 서비스를 쓸지, 데이터를 어떻게 보호할지 등)과 그 이유를 남긴 결정 메모입니다.</p>
+        <p class="like">“기초는 철근 콘크리트로 한다, 이유는 …”라는 설계 결정서</p>
+      </div>
+      <div class="card term">
+        <h4>티켓 <small>작업 지시서</small><span class="owner a">에이전트가 작성</span></h4>
+        <p>해야 할 작업 하나를 적은 문서입니다. 목표, 작은 단계로 나눈 계획, 다 됐는지 확인하는 방법, 진행 기록이 들어 있습니다.</p>
+        <p class="like">“이번 주 욕실 공사: 배관 → 방수 → 타일, 물 새는지 확인”</p>
+      </div>
+      <div class="card term">
+        <h4>PR <small>Pull Request, 변경 요청</small><span class="owner a">에이전트가 작성</span></h4>
+        <p>“이렇게 고쳤으니 검토하고 반영해 주세요”라는 요청입니다. 무엇을 어떻게 바꿨는지 한 묶음으로 보여 줍니다. 한 번에 검토하기 쉽도록 작게 나눠 올립니다.</p>
+        <p class="like">공사 한 구간을 마치고 받는 “검수 요청서”</p>
+      </div>
+      <div class="card term">
+        <h4>리뷰와 머지 <small>검토와 반영</small><span class="owner a">에이전트끼리</span></h4>
+        <p>PR을 만든 대화와는 별개의 새 대화(또는 다른 AI 에이전트)가 문제를 찾아 검토(리뷰)하고, 자동 검사까지 통과하면 공식 코드에 합칩니다(머지).</p>
+        <p class="like">시공하지 않은 감리자가 검수하고, 통과하면 설계도 원본에 반영</p>
+      </div>
+      <div class="card term">
+        <h4>배포 <small>실제 서비스에 올리기</small><span class="owner h">사람이 지시</span></h4>
+        <p>합쳐진 변경을 실제 사용자가 쓰는 서비스에 올리는 일입니다. 머지했다고 바로 배포되지 않고, 사람이 지시할 때만 합니다.</p>
+        <p class="like">공사를 마친 집에 실제로 입주하는 날</p>
+      </div>
+    </div>
+
+    <h3>어떤 문서가 있나</h3>
+    <p class="h3-note">사람이 정하는 문서와 에이전트가 관리하는 문서로 나뉩니다. 처음이라면 <a href="START-HERE.md">START-HERE</a>에서 읽는 순서를 확인합니다.</p>
+    <div class="docmap">
+      <div class="owner-col">
+        <h4><svg class="i"><use href="#i-person"/></svg>사람이 정하는 문서</h4>
+        <p>무엇을 왜 만들지, 되돌리기 어려운 결정은 무엇인지. 바꾸려면 사람의 승인이 필요합니다.</p>
+        <div class="dgroup">
+          <span class="folder"><b>PRD</b>product/</span>
+          <ul><li><a href="product/concept.md">제품 요구사항</a>어떤 앱을, 왜, 어떤 기능으로 만드는지</li></ul>
+        </div>
+        <div class="dgroup">
+          <span class="folder"><b>ADR</b>adr/</span>
+          <ul>
+            <li><a href="adr/0001-hexagonal-shared-usecases.md">0001</a>웹과 에이전트가 같은 업무 규칙을 쓰는 구조</li>
+            <li><a href="adr/0002-default-tech-stack.md">0002</a>사용하는 서비스 (GitHub Pages, Supabase 등)</li>
+            <li><a href="adr/0003-core-rules-and-local-transactions.md">0003</a>규칙은 한 곳에, 함께 저장할 것은 한 번에</li>
+            <li><a href="adr/0004-summary-single-vector-search.md">0004</a>검색은 제목과 요약으로</li>
+            <li><a href="adr/0005-plugin-delivery-claude-codex.md">0005</a>에이전트에게는 플러그인으로, Claude·Codex 지원</li>
+            <li><a href="adr/0006-owner-only-access-and-separate-auth.md">0006</a>내 데이터는 나만, 로그인과 에이전트 인증은 따로</li>
+            <li><a href="adr/0007-dual-development-agents.md">0007</a>Codex·Claude Code가 같은 지침을 읽음</li>
+            <li><a href="adr/0008-document-ownership.md">0008</a>사람은 PRD·ADR, 에이전트는 나머지를 맡음</li>
+          </ul>
+        </div>
+      </div>
+      <div class="owner-col agent">
+        <h4><svg class="i"><use href="#i-bot"/></svg>에이전트가 관리하는 문서</h4>
+        <p>PRD·ADR 안에서 일하는 방법을 정리한 가이드와 작업 지시서. 일하면서 배운 것을 반영해 에이전트가 직접 고칩니다.</p>
+        <div class="agent-groups">
+          <div class="dgroup">
+            <span class="folder"><b>설계</b>architecture/</span>
+            <ul>
+              <li><a href="architecture/principles.md">코드 설계 원칙</a>코드를 나누고 바꾸는 기준</li>
+              <li><a href="architecture/hexagonal-review.md">아키텍처</a>원칙을 실제 구조에 적용한 방법</li>
+              <li><a href="architecture/search.md">요약 기반 검색</a>기록을 찾는 방법</li>
+            </ul>
+          </div>
+          <div class="dgroup">
+            <span class="folder"><b>디자인</b>design/</span>
+            <ul>
+              <li><a href="design/guide.md">디자인 가이드</a>화면을 만드는 원칙</li>
+              <li><a href="design/visual-spec.md">시각 규격</a>색·글꼴·간격</li>
+              <li><a href="design/ui-patterns.md">컴포넌트와 상호작용</a>버튼·입력 같은 공통 동작</li>
+              <li><a href="design/template-structure.md">폴더 구조</a>파일을 어디에 둘지</li>
+            </ul>
+          </div>
+          <div class="dgroup">
+            <span class="folder"><b>개발</b>development/</span>
+            <ul>
+              <li><a href="development/working-with-agents.md">에이전트와 일하는 방법</a>사람을 위한 사용법</li>
+              <li><a href="development/workflow.md">개발과 검증 방법</a>에이전트가 따르는 작업 규칙</li>
+            </ul>
+          </div>
+          <div class="dgroup">
+            <span class="folder"><b>보안·배포·운영</b>security/ 외</span>
+            <ul>
+              <li><a href="security/guide.md">보안 가이드</a>데이터와 인증을 지키는 기준</li>
+              <li><a href="deployment/release.md">배포 방법</a>서비스에 올리고 되돌리는 순서</li>
+              <li><a href="operations/runbook.md">운영 방법</a>점검·장애·복구</li>
+            </ul>
+          </div>
+          <div class="dgroup">
+            <span class="folder"><b>티켓</b>tickets/</span>
+            <ul>
+              <li><span class="sample">ticket-01-customer-search.md</span>예: 고객 검색 기능 만들기</li>
+              <li><span class="sample">ticket-02-record-photo.md</span>예: 기록에 사진 첨부하기</li>
+            </ul>
+            <p class="sample-note">작업마다 하나씩 생기는 작업 지시서입니다. 이름은 예시입니다.</p>
+          </div>
+          <div class="dgroup">
+            <span class="folder"><b>지침</b>저장소 루트</span>
+            <ul>
+              <li><a href="../AGENTS.md">AGENTS.md</a>에이전트가 가장 먼저 읽는 규칙</li>
+              <li><a href="../.agents/skills/develop-agent-app/SKILL.md">개발 스킬</a>요청별로 읽을 문서 안내</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <h3>이렇게 말하면 진행됩니다</h3>
+    <p class="h3-note">왼쪽은 사람이 에이전트에게 하는 말, 오른쪽은 그 말을 듣고 에이전트가 하는 일입니다. 위에서 아래로 진행합니다.</p>
+    <div class="swim-head" aria-hidden="true">
+      <span class="h"><svg class="i"><use href="#i-person"/></svg>사람이 하는 말</span>
+      <span class="a"><svg class="i"><use href="#i-bot"/></svg>에이전트가 하는 일</span>
+    </div>
+    <div class="swim" role="list" aria-label="개발 진행 단계">
+      <div class="phase"><span>정하기</span></div>
+      <div class="srow" role="listitem">
+        <div class="say"><span class="cmd">“정리해봐: …”</span><p>“기록에 사진을 첨부하고 싶어”처럼 하고 싶은 것을 편하게 말합니다. 그다음 에이전트가 정리한 내용을 읽어 봅니다.</p></div>
+        <div class="node">1</div>
+        <div class="do"><p>요청을 정리해서 무엇을 바꿔야 하는지 알려 줍니다. 특히 기획서(PRD)나 결정 기록(ADR)까지 바꿔야 하는 일인지 판단해 줍니다.</p><p class="res">결과물: <b>정리 메모</b></p></div>
+      </div>
+      <div class="srow" role="listitem">
+        <div class="say"><span class="cmd">“PRD 반영해” / “ADR 초안 만들어”</span><p>1번에서 기획이나 중요한 결정을 바꿔야 한다고 했을 때만 하는 단계입니다. 그런 일이 아니면 바로 3번으로 갑니다.</p><p class="ok">✓ 수정안을 읽고 괜찮으면 승인합니다</p></div>
+        <div class="node">2</div>
+        <div class="do"><p>기획서나 결정 기록을 어떻게 바꿀지 수정안을 만들어 올립니다. 사람이 승인하기 전에는 그 방향으로 만들지 않습니다.</p><p class="res">결과물: <b>PRD·ADR 변경 PR</b></p></div>
+      </div>
+
+      <div class="phase"><span>만들기<small>4~6번은 PR마다 반복</small></span></div>
+      <div class="srow" role="listitem">
+        <div class="say"><span class="cmd">“티켓 만들어”</span><p>무엇을 만들지 작업 지시서로 정리하라는 뜻입니다.</p></div>
+        <div class="node">3</div>
+        <div class="do"><p>목표, 작게 나눈 작업 순서, 다 됐는지 확인하는 방법을 티켓에 적습니다.</p><p class="res">결과물: <b>티켓</b></p></div>
+      </div>
+      <div class="srow" role="listitem">
+        <div class="say"><span class="cmd">“티켓 진행해”</span><p>티켓대로 만들기 시작하라는 뜻입니다.</p></div>
+        <div class="node">4</div>
+        <div class="do"><p>한 번에 검토할 수 있는 크기로 나눠 만들고, 잘 동작하는지 직접 확인한 뒤 검토를 요청합니다.</p><p class="res">결과물: <b>PR</b></p></div>
+      </div>
+      <div class="srow" role="listitem">
+        <div class="say"><span class="cmd">“PR #N 리뷰해줘”</span><p>새 대화를 열어서(또는 다른 에이전트에게) 요청합니다. 만든 대화와 떨어져 있어야 같은 실수를 놓치지 않습니다. 리뷰가 끝나면 원래 대화에 “리뷰 반영해”라고 합니다.</p></div>
+        <div class="node">5</div>
+        <div class="do"><p>버그, 빠진 확인, 기획이나 결정에서 벗어난 부분을 찾아 결론을 냅니다. 결론은 “머지 가능”, “수정 필요”, “사람 승인 필요” 중 하나입니다.</p><p class="res">결과물: <b>리뷰 결론</b></p></div>
+      </div>
+      <div class="srow" role="listitem">
+        <div class="say quiet"><p>따로 말하지 않아도 됩니다</p></div>
+        <div class="node">6</div>
+        <div class="do"><p>리뷰 결론이 “머지 가능”이고 자동 검사도 통과하면 공식 코드에 합칩니다(머지). 아직 실제 서비스에 올라간 것은 아닙니다.</p><p class="res">결과물: <b>반영된 코드</b></p></div>
+      </div>
+
+      <div class="phase"><span>내보내기</span></div>
+      <div class="srow" role="listitem">
+        <div class="say"><span class="cmd">“배포해 (운영)”</span><p>실제 사용자에게 내보낼 때만 말합니다.</p><p class="ok">✓ 이 말 자체가 배포 승인입니다</p></div>
+        <div class="node">7</div>
+        <div class="do"><p>검사를 통과한 버전인지 확인하고 실제 서비스에 올립니다.</p><p class="res">결과물: <b>사용자가 쓰는 서비스</b></p></div>
+      </div>
+    </div>
+
+    <div class="grid g2" style="margin-top:20px">
+      <div class="card">
+        <span class="k">사람이 개입하는 때</span>
+        <h4>네 가지 경우만 챙기면 됩니다</h4>
+        <ul>
+          <li>기획서(PRD)·결정 기록(ADR) 변경을 승인할 때</li>
+          <li>에이전트가 “기획이나 결정과 다르게 해야 합니다”라며 멈추고 물을 때</li>
+          <li>리뷰를 맡길 때: 새 대화를 열어 요청하면 충분합니다. 두 에이전트를 다 쓴다면 서로 바꿔 리뷰시키는 것을 권장합니다</li>
+          <li>배포, 실제 데이터 변경, 비용이 드는 일을 지시할 때</li>
+        </ul>
+      </div>
+      <div class="card">
+        <span class="k">시작하는 법</span>
+        <h4>하나만 써도, 둘 다 써도 됩니다</h4>
+        <ul>
+          <li>Codex에서는 <code>$develop-agent-app 요청</code></li>
+          <li>Claude Code에서는 <code>/develop-agent-app 요청</code></li>
+          <li>스킬 이름 없이 그냥 말해도 됩니다. 에이전트가 대화를 시작할 때 자동으로 읽는 지침 파일(<a href="../AGENTS.md">AGENTS.md</a>)에 “develop-agent-app 스킬의 절차를 따르라”고 적혀 있어서, 같은 절차로 일합니다.</li>
+        </ul>
+      </div>
+    </div>
+    <p class="src">정본: <a href="development/working-with-agents.md">에이전트와 일하는 방법</a><a href="development/workflow.md">개발과 검증 방법</a><a href="adr/0008-document-ownership.md">ADR-0008 문서 소유권</a><a href="adr/0007-dual-development-agents.md">ADR-0007 두 개발 에이전트</a></p>
+  </section>
+
+  <!-- 3 -->
+  <section id="code">
+    <p class="sec-num">03</p>
+    <h2>코드 구조는 어떠한가</h2>
+    <p class="sec-lead">업무 규칙을 가운데 한 곳에 모아 두고, 웹 화면·AI 에이전트·데이터 저장소 같은 바깥 부품을 그 주위에 연결하는 구조입니다. 입구가 둘이어도 규칙이 한 곳에만 있으니, 어느 쪽으로 와도 똑같이 동작합니다.</p>
+
+    <h3>헥사고날 구조</h3>
+    <p class="h3-note">육각형(헥사곤) 가운데에 핵심 규칙을, 바깥에 갈아 끼울 수 있는 연결 부품을 두는 설계 방식입니다.</p>
+    <div class="hex" role="img" aria-label="웹 앱·AI 에이전트·예약 작업이 들어오는 쪽 부품을 거쳐 가운데 핵심 규칙을 사용하고, 핵심 규칙은 나가는 쪽 부품을 통해 데이터베이스·검색·로그인·임베딩 서비스를 사용한다">
+      <div class="hex-col">
+        <h4>들어오는 쪽 (요청을 받는 부품)</h4>
+        <div class="stack">
+          <div class="box"><span class="who">사람</span>웹 앱 → HTTP<small>화면에서 보낸 요청을 받음</small></div>
+          <div class="box"><span class="who">AI 에이전트</span>플러그인 → MCP<small>에이전트의 도구 호출을 받음</small></div>
+          <div class="box"><span class="who">예약 작업</span>검색 색인 작업<small>새 기록을 검색되게 정리</small></div>
+        </div>
+      </div>
+      <div class="joint" aria-hidden="true"></div>
+      <div class="core">
+        <p class="core-title">핵심 (core)</p>
+        <p class="core-note">특정 서비스에 묶이지 않음</p>
+        <div class="box">업무 처리 순서<small>유스케이스 · 읽고, 판단하고, 저장</small></div>
+        <div class="box">업무 규칙<small>도메인 · “완료할 수 있는가?” 같은 판단</small></div>
+        <div class="box">연결 규격<small>포트 · 바깥 부품이 맞춰야 할 모양</small></div>
+      </div>
+      <div class="joint" aria-hidden="true"></div>
+      <div class="hex-col">
+        <h4>나가는 쪽 (실제 서비스를 쓰는 부품)</h4>
+        <div class="stack">
+          <div class="box"><span class="who">Supabase</span>데이터베이스<small>원본 저장, 권한 검사</small></div>
+          <div class="box"><span class="who">Supabase</span>작업 대기열 · 벡터 검색<small>오래 걸리는 일 줄 세우기, 의미로 찾기</small></div>
+          <div class="box"><span class="who">Supabase Auth</span>로그인 · 에이전트 인증<small>둘은 서로 다른 인증</small></div>
+          <div class="box"><span class="who">Pinecone</span>임베딩<small>글을 검색용 숫자로 바꿈</small></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid g3" style="margin-top:20px">
+      <div class="card"><h4>규칙은 한 곳에</h4><p>“완료할 수 있는가” 같은 판단은 가운데 업무 규칙에만 둡니다. 화면이나 에이전트 쪽에 같은 규칙을 다시 만들지 않습니다.</p></div>
+      <div class="card"><h4>함께 저장할 것은 한 번에</h4><p>할 일 완료와 결과 기록처럼 같이 바뀌어야 하는 것은 한 번에 저장합니다. 하나라도 실패하면 전부 취소됩니다.</p></div>
+      <div class="card"><h4>보호는 서버가</h4><p>누가 무엇을 볼 수 있는지는 앱 서버가 지킵니다. AI 에이전트가 지침을 따르지 않더라도 보호 수준은 같습니다.</p></div>
+    </div>
+
+    <h3>사용하는 서비스</h3>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>하는 일</th><th>사용하는 서비스</th></tr></thead>
+        <tbody>
+          <tr><td>웹 화면을 인터넷에 올리기</td><td>GitHub Pages</td></tr>
+          <tr><td>서버 실행, 데이터 저장, 작업 대기열</td><td>Supabase (Postgres 데이터베이스, Edge Functions, Queues)</td></tr>
+          <tr><td>로그인</td><td>Google 계정 (Supabase Auth)</td></tr>
+          <tr><td>의미로 검색하기</td><td>Pinecone으로 글을 숫자로 바꾸고, Supabase pgvector에 저장·검색</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>폴더 지도</h3>
+    <div class="tree" role="list" aria-label="저장소 폴더 구조">
+      <div class="tr root" role="listitem"><span class="tn"><b>agent-workspace-template/</b></span><span class="td">이 저장소</span></div>
+      <div class="tr d1" role="listitem"><span class="tn"><i>├─ </i><b>src/</b></span><span class="td">웹 화면: 사람이 보는 화면과 버튼</span></div>
+      <div class="tr d2" role="listitem"><span class="tn"><i>│  └─ </i><b>features/</b></span><span class="td">기능별 화면: 할 일·기록·원칙·검색·업무 대상</span></div>
+      <div class="tr d1" role="listitem"><span class="tn"><i>├─ </i><b>supabase/</b></span><span class="td">서버와 데이터베이스</span></div>
+      <div class="tr d2" role="listitem"><span class="tn"><i>│  ├─ </i><b>functions/</b></span><span class="td">요청을 받는 입구: 웹(api) · 에이전트(mcp) · 예약 작업</span></div>
+      <div class="tr d3" role="listitem"><span class="tn"><i>│  │  ├─ </i><b>_shared/core/</b></span><span class="td">가운데 핵심: 업무 규칙과 처리 순서</span></div>
+      <div class="tr d3" role="listitem"><span class="tn"><i>│  │  └─ </i><b>_shared/adapters/</b></span><span class="td">바깥 서비스를 잇는 연결 부품</span></div>
+      <div class="tr d2" role="listitem"><span class="tn"><i>│  └─ </i><b>migrations/</b></span><span class="td">표(테이블) 모양과 접근 권한 설정</span></div>
+      <div class="tr d1" role="listitem"><span class="tn"><i>├─ </i><b>plugins/workspace/</b></span><span class="td">AI 에이전트용 플러그인: 연결 도구와 사용 요령</span></div>
+      <div class="tr d1" role="listitem"><span class="tn"><i>├─ </i><b>docs/</b></span><span class="td">PRD·ADR·가이드·티켓</span></div>
+      <div class="tr d1" role="listitem"><span class="tn"><i>├─ </i><b>AGENTS.md</b></span><span class="td">개발 에이전트가 가장 먼저 읽는 규칙</span></div>
+      <div class="tr d1" role="listitem"><span class="tn"><i>├─ </i><b>.agents/skills/</b></span><span class="td">개발 스킬: 요청별로 읽을 문서 안내</span></div>
+      <div class="tr d1" role="listitem"><span class="tn"><i>├─ </i><b>e2e/</b></span><span class="td">웹과 에이전트를 이어서 실제처럼 확인하는 시험</span></div>
+      <div class="tr d1" role="listitem"><span class="tn"><i>├─ </i><b>scripts/</b></span><span class="td">문서 검사 같은 보조 도구</span></div>
+      <div class="tr d1" role="listitem"><span class="tn"><i>└─ </i><b>experiments/</b></span><span class="td">기술을 미리 시험해 본 기록 (앱 코드 아님)</span></div>
+    </div>
+    <p class="note" style="margin-top:12px">폴더 지도는 “어디에 둘지”의 기준입니다. 실제 파일은 그 기능을 만들 때 생깁니다.</p>
+    <p class="src">정본: <a href="architecture/principles.md">코드 설계 원칙</a><a href="architecture/hexagonal-review.md">아키텍처</a><a href="design/template-structure.md">폴더 구조</a><a href="adr/0001-hexagonal-shared-usecases.md">ADR-0001</a><a href="adr/0002-default-tech-stack.md">ADR-0002</a><a href="adr/0003-core-rules-and-local-transactions.md">ADR-0003</a></p>
+  </section>
+
+  <!-- 4 -->
+  <section id="faq">
+    <p class="sec-num">04</p>
+    <h2>자주 묻는 질문</h2>
+    <div class="faq">
+      <p class="faq-group">앱 사용</p>
+      <details>
+        <summary>앱 안에 AI가 들어 있나요?</summary>
+        <p>아니요. 앱은 할 일·기록·원칙을 정확하게 저장하고 꺼내 주는 역할만 합니다. 기록을 읽고 생각해서 판단하는 일은 사용자가 연결한 AI 에이전트(Claude·Codex)가 합니다. 검색을 위해 글을 숫자로 바꾸는 일(임베딩)에만 외부 서비스를 씁니다.</p>
+      </details>
+      <details>
+        <summary>어떤 AI 에이전트로 쓸 수 있나요?</summary>
+        <p>Claude와 Codex를 지원합니다. 각 에이전트에 플러그인을 설치하면 같은 도구와 같은 사용 요령으로 앱을 다룹니다.</p>
+      </details>
+      <details>
+        <summary>내 기록은 누가 볼 수 있나요?</summary>
+        <p>기본적으로 나만 볼 수 있습니다. 웹으로 오든 에이전트로 오든 서버가 누구인지 확인하고 그 사람의 데이터만 보여 줍니다. 팀 공유 같은 기능은 기본에 없고, 필요하면 기획서(PRD)와 결정 기록(ADR)을 바꿔서 추가합니다.</p>
+      </details>
+      <details>
+        <summary>꼭 할 일을 먼저 만들어야 하나요?</summary>
+        <p>아니요. 한 일은 언제든 바로 기록할 수 있습니다. 할 일은 미리 계획해 두고 싶을 때만 만들고, 끝낸 뒤 그 할 일에 연결해 기록을 남깁니다.</p>
+      </details>
+      <details>
+        <summary>반복 할 일은 정해진 시간에 알림을 주나요?</summary>
+        <p>아니요. 반복 할 일은 매일·매주(요일)·매월(날짜) 규칙으로 “언제 할 차례인지”를 정해 줄 뿐, 자동으로 실행하거나 알림을 보내지 않습니다. 그 회차에 기록이 하나라도 있으면 한 것으로, 없으면 아직 안 한 것으로 표시합니다. 끝낼 때는 완료 대신 중단하고, 나중에 다시 재개할 수 있습니다.</p>
+      </details>
+      <details>
+        <summary>검색은 기록 본문까지 찾나요?</summary>
+        <p>의미로 찾는 검색은 기록의 제목과 요약을 봅니다. 본문은 정확한 단어로 찾는 키워드 검색과 전체 내용 보기에 쓰입니다. 그래서 기록할 때 핵심을 요약에 잘 적어 두면 나중에 훨씬 잘 찾아집니다.</p>
+      </details>
+      <details>
+        <summary>방금 쓴 기록이 검색에 안 나와요.</summary>
+        <p>기록은 바로 저장되지만, 의미로 찾는 검색에 반영되기까지는 잠시 걸릴 수 있습니다. 앱은 “결과 없음”과 “아직 정리 중”을 구분해서 알려 주므로, 못 찾았다고 해서 기록이 없는 것은 아닙니다.</p>
+      </details>
+      <details>
+        <summary>에이전트가 기록 속 문장을 명령으로 따르지는 않나요?</summary>
+        <p>따르지 않습니다. 기록 안에 “이렇게 해라” 같은 문장이 있어도 에이전트와 서버는 참고 자료로만 다룹니다. 그리고 누가 무엇을 할 수 있는지는 서버가 지키기 때문에, 에이전트가 지침을 어기더라도 데이터 보호 수준은 같습니다.</p>
+      </details>
+      <details>
+        <summary>“사용자 원칙”과 “코드 설계 원칙”은 같은 건가요?</summary>
+        <p>다릅니다. 사용자 원칙은 앱 사용자가 저장해 두는 판단 기준(데이터)이고, 코드 설계 원칙은 개발 에이전트가 코드를 만들 때 따르는 문서입니다.</p>
+      </details>
+
+      <p class="faq-group">새 앱 만들기</p>
+      <details>
+        <summary>내 업무에 맞는 앱으로 바꾸려면 무엇을 하나요?</summary>
+        <p>업무 대상(예: 고객, 책)과 그 항목, 화면, 에이전트가 참고하는 사용 요령을 바꿉니다. 로그인·할 일·기록·원칙·검색은 그대로 씁니다. 에이전트에게 “정리해봐: 고객 관리 앱으로 바꾸고 싶어”처럼 시작하면 됩니다.</p>
+      </details>
+      <details>
+        <summary>프로그래밍을 몰라도 쓸 수 있나요?</summary>
+        <p>그것이 목표입니다. 사람은 무엇을 왜 만들지 정하고, 중요한 결정을 승인하고, 배포를 지시하면 됩니다. 코드 작성과 검증은 에이전트가 합니다. 다만 서비스 계정 연결이나 비용이 드는 작업처럼 사람이 직접 결정해야 하는 일은 남아 있습니다.</p>
+      </details>
+      <details>
+        <summary>비용이 드나요?</summary>
+        <p>앱은 Supabase(서버·데이터베이스), Pinecone(검색용 임베딩), GitHub Pages(웹 화면) 같은 외부 서비스를 씁니다. 각 서비스의 요금은 사용량과 요금제에 따라 다릅니다. 비용이 드는 서비스 생성은 에이전트가 마음대로 하지 않고 사람이 지시할 때만 합니다.</p>
+      </details>
+
+      <p class="faq-group">개발 진행</p>
+      <details>
+        <summary>기획을 바꾸고 싶으면 어떻게 하나요?</summary>
+        <p>“정리해봐: …”부터 시작합니다. 에이전트가 기획서(PRD)나 결정 기록(ADR)을 바꿔야 하는지 알려 주고, 수정안을 만들어 승인을 받습니다. 문서를 직접 고쳐도 되지만, 그때도 관련 작업에 영향이 있는지 에이전트에게 확인시키는 것이 좋습니다.</p>
+      </details>
+      <details>
+        <summary>에이전트가 방향을 잘못 잡은 것 같아요.</summary>
+        <p>“멈추고 지금까지 한 것과 남은 것을 정리해줘”라고 말한 뒤 다시 정하면 됩니다. 같은 실패를 반복하면 더 성능이 높은 모델로 바꾸고 “원인부터 다시 조사해줘”라고 요청합니다.</p>
+      </details>
+      <details>
+        <summary>어디까지 진행됐는지 모르겠어요.</summary>
+        <p>“티켓 진행 상태 정리해줘”라고 하면 됩니다. 진행 기록은 각 티켓에 남아 있습니다.</p>
+      </details>
+      <details>
+        <summary>PR이 너무 커서 읽기 어려워요.</summary>
+        <p>“이 PR을 작은 PR로 나눠줘”라고 요청합니다. PR은 30분 안에 검토할 수 있는 크기를 기준으로 합니다.</p>
+      </details>
+      <details>
+        <summary>머지하면 바로 실제 서비스에 반영되나요?</summary>
+        <p>아니요. 머지는 바뀐 코드를 공식 코드에 합치는 것까지입니다. 실제 사용자가 쓰는 서비스에 올리는 배포는 사람이 “배포해”라고 지시할 때만 합니다.</p>
+      </details>
+      <details>
+        <summary>에이전트가 실제 데이터를 망가뜨리지는 않나요?</summary>
+        <p>시험은 실제 서비스와 분리된 환경에서 합니다. 실제 데이터베이스 변경, 데이터 복원, 비밀값 교체처럼 되돌리기 어려운 일은 사람이 지시한 범위에서만 합니다.</p>
+      </details>
+      <details>
+        <summary>개발 에이전트를 하나만 써도 되나요?</summary>
+        <p>네. Codex와 Claude Code 중 하나만 써도 같은 지침과 절차로 일합니다. 리뷰는 새 대화를 열어 요청하면 됩니다. 둘 다 쓴다면 서로 바꿔 리뷰를 맡기는 것을 권장합니다.</p>
+      </details>
+      <details>
+        <summary>어떤 모델을 골라야 하나요?</summary>
+        <p>정리, 기획·결정 초안, 리뷰, 어려운 문제 조사처럼 판단이 중요한 일은 성능이 높은 모델이 좋습니다. 티켓대로 진행하기, 리뷰 반영, 문서 수정 같은 일은 균형 잡힌 모델로 충분합니다.</p>
+      </details>
+      <details>
+        <summary>이 페이지와 다른 문서의 내용이 다르면요?</summary>
+        <p>링크된 원래 문서가 맞습니다. 이 페이지는 이해를 돕는 안내이며, 지금 어디까지 만들어졌는지는 <a href="START-HERE.md#현재-상태">START-HERE의 현재 상태</a>에서 확인합니다.</p>
+      </details>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <p>더 읽기: <a href="START-HERE.md">START-HERE</a><a href="product/concept.md">PRD</a><a href="adr/README.md">ADR</a><a href="development/working-with-agents.md">에이전트와 일하는 방법</a><a href="architecture/hexagonal-review.md">아키텍처</a></p>
+    <p>이 페이지는 규칙을 새로 정하지 않습니다. 문서 구조·결정·단계가 바뀌면 같은 PR에서 이 페이지도 함께 고칩니다.</p>
+  </div>
+</footer>
+
+</body>
+</html>
