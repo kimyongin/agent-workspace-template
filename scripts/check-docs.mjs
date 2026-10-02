@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // 저장소 텍스트 파일과 문서의 기본 규칙을 검사한다.
 // 사용: node scripts/check-docs.mjs [저장소 루트]
-// 검사: UTF-8 BOM 없음, LF 줄바꿈, 줄 끝 공백, 마지막 줄바꿈, 마크다운 내부 상대 링크,
+// 검사: UTF-8 BOM 없음, LF 줄바꿈, 줄 끝 공백, 마지막 줄바꿈, 마크다운·HTML 내부 상대 링크,
 //       개발 스킬 정본과 Claude 연결 파일의 name·description 일치.
 
 import { execFileSync } from "node:child_process";
@@ -74,9 +74,25 @@ export function markdownLinks(text) {
   return links;
 }
 
-export function checkLinks(root, file, text) {
+// script·style·주석을 제외한 HTML의 href·src 대상을 줄 번호와 함께 돌려준다.
+export function htmlLinks(text) {
+  const blanked = text.replace(
+    /<!--[\s\S]*?-->|<(script|style)\b[^>]*>[\s\S]*?<\/\1\s*>/gi,
+    (m) => m.replace(/[^\n]/g, " "),
+  );
+  const links = [];
+  for (const m of blanked.matchAll(/\s(?:href|src)\s*=\s*(?:"([^"]*)"|'([^']*)')/gi)) {
+    const target = (m[1] ?? m[2]).trim();
+    if (!target) continue;
+    const line = blanked.slice(0, m.index).split("\n").length;
+    links.push({ line, target });
+  }
+  return links;
+}
+
+export function checkLinks(root, file, text, links = markdownLinks(text)) {
   const problems = [];
-  for (const { line, target } of markdownLinks(text)) {
+  for (const { line, target } of links) {
     if (/^[a-z][a-z0-9+.-]*:/i.test(target) || target.startsWith("#")) continue;
     const rel = decodeURIComponent(target.split("#")[0]);
     if (rel.startsWith("/")) {
@@ -132,6 +148,9 @@ export function checkRepo(root) {
     problems.push(...checkText(file, buf));
     if (file.endsWith(".md")) {
       problems.push(...checkLinks(root, file, buf.toString("utf8")));
+    } else if (file.endsWith(".html")) {
+      const text = buf.toString("utf8");
+      problems.push(...checkLinks(root, file, text, htmlLinks(text)));
     }
   }
   problems.push(...checkSkillLink(root));
