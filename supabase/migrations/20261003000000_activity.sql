@@ -1,6 +1,7 @@
 -- T02-2: 할 일·활동 기록·요청 결과와 색인 큐.
 -- 권한 구성은 docs/architecture/hexagonal-review.md "권한과 직접 접근"을 따른다.
 -- 형식 한도(CHECK)는 contracts(supabase/functions/_shared/contracts)와 같게 두고, 업무 규칙(완료 조건·회차·상태 전환)은 core에만 둔다.
+-- 시각은 밀리초 정밀도(timestamptz(3))로 저장해 API의 ISO 문자열과 목록 커서가 정확히 일치하게 한다.
 -- 업무 테이블은 PostgREST에 노출하지 않는 app 스키마에 둔다(Supabase의 public 기본 권한을 받지 않는다).
 
 create extension if not exists pgmq;
@@ -29,12 +30,12 @@ create table app.tasks (
   recurrence jsonb check (recurrence is null or jsonb_typeof(recurrence) = 'object'),
   timezone text check (timezone is null or char_length(timezone) between 1 and 64),
   status text not null check (status in ('open', 'done', 'active', 'stopped')),
-  completed_at timestamptz,
+  completed_at timestamptz(3),
   result_record_id uuid,
   pauses jsonb not null default '[]' check (jsonb_typeof(pauses) = 'array'),
   version integer not null default 1 check (version >= 1),
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now(),
+  created_at timestamptz(3) not null default now(),
+  updated_at timestamptz(3) not null default now(),
   unique (id, owner_id),
   -- 종류별 필드의 모양. 상태 전환 규칙이 아니라 행이 가질 수 있는 형태만 제한한다.
   constraint tasks_kind_shape check (
@@ -50,12 +51,12 @@ create table app.records (
   title text not null check (char_length(title) between 1 and 100),
   summary text not null check (char_length(summary) between 1 and 300),
   body text not null default '' check (char_length(body) <= 20000),
-  occurred_at timestamptz not null default now(),
+  occurred_at timestamptz(3) not null default now(),
   task_id uuid,
   occurrence_on date,
   version integer not null default 1 check (version >= 1),
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now(),
+  created_at timestamptz(3) not null default now(),
+  updated_at timestamptz(3) not null default now(),
   unique (id, owner_id),
   -- 같은 소유자의 할 일만 참조한다. 할 일 삭제는 앱이 task_id·occurrence_on을 먼저 비운다.
   foreign key (task_id, owner_id) references app.tasks (id, owner_id) on delete set null (task_id),
@@ -78,7 +79,7 @@ create table app.request_results (
   request_id uuid not null,
   request_hash text not null check (char_length(request_hash) = 64),
   response jsonb not null,
-  created_at timestamptz not null default now(),
+  created_at timestamptz(3) not null default now(),
   primary key (owner_id, operation, request_id)
 );
 
