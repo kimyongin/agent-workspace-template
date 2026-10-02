@@ -58,6 +58,7 @@ body {
 a { color: var(--accent); text-underline-offset: 3px; }
 a:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 code, .path { font-family: var(--mono); font-size: 0.875rem; }
+.nw { white-space: nowrap; }
 code { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 1px 6px; }
 .wrap { max-width: 1080px; margin: 0 auto; padding: 0 16px; }
 @media (min-width: 640px) { .wrap { padding: 0 24px; } }
@@ -87,7 +88,7 @@ main section { padding: 56px 0 8px; }
 main section + section { border-top: 1px solid var(--line); margin-top: 48px; }
 .sec-num { font-family: var(--mono); color: var(--accent); font-weight: 600; font-size: 0.875rem; margin: 0 0 4px; }
 h2 { font-size: 1.5rem; line-height: 1.33; margin: 0 0 8px; font-weight: 700; }
-.sec-lead { color: var(--muted-ink); margin: 0 0 24px; text-wrap: pretty; }
+.sec-lead { color: var(--muted-ink); max-width: 52rem; margin: 0 0 24px; text-wrap: balance; }
 h3 { font-size: 1.125rem; margin: 36px 0 12px; }
 .src { font-size: 0.875rem; color: var(--muted-ink); margin-top: 20px; }
 .src a { margin-right: 10px; white-space: nowrap; }
@@ -233,7 +234,7 @@ footer a { margin-right: 10px; white-space: nowrap; }
   <section id="what">
     <p class="sec-num">01</p>
     <h2>무엇을 만드는가</h2>
-    <p class="sec-lead">할 일·활동 기록·판단 원칙을 쌓고, 그 기록을 사람과 AI 에이전트가 함께 다음 업무에 쓰는 앱입니다.<br>그리고 그런 앱을 도메인마다 빠르게 만들 수 있게 하는 템플릿입니다.</p>
+    <p class="sec-lead">할 일·활동 기록·판단 원칙을 쌓고, 그 기록을 사람과 AI 에이전트가 함께 다음 업무에 쓰는 앱입니다. 그리고 그런 앱을 도메인마다 빠르게 만들 수 있게 하는 템플릿입니다.</p>
 
     <h3>해결하는 문제</h3>
     <div class="problem">
@@ -279,7 +280,7 @@ footer a { margin-right: 10px; white-space: nowrap; }
   <section id="use">
     <p class="sec-num">02</p>
     <h2>어떻게 사용하는가</h2>
-    <p class="sec-lead">입구는 둘이지만 서버에서는 같은 기능을 실행하므로 결과·권한·변경 범위가 같습니다.<br>앱은 데이터를 정확히 보관·조회·변경하고, 판단은 외부 에이전트가 합니다. 앱 안에 대화형 AI를 넣지 않습니다.</p>
+    <p class="sec-lead">입구는 둘이지만 서버에서는 같은 기능을 실행하므로 결과·권한·변경 범위가 같습니다. 앱은 데이터를 정확히 보관·조회·변경하고, 판단은 외부 에이전트가 합니다. 앱 안에 대화형 AI를 넣지 않습니다.</p>
 
     <div class="use">
       <div class="card web">
@@ -325,7 +326,7 @@ footer a { margin-right: 10px; white-space: nowrap; }
   <section id="develop">
     <p class="sec-num">03</p>
     <h2>어떻게 개발을 시키는가</h2>
-    <p class="sec-lead">사람은 “무엇을, 왜”를 정하고 개발 에이전트(Codex·Claude Code)는 “어떻게”를 맡습니다.<br>짧은 말로 단계를 넘기면 에이전트가 계획·구현·검증·머지까지 진행합니다.</p>
+    <p class="sec-lead">사람은 <span class="nw">“무엇을, 왜”를</span> 정하고 개발 에이전트(Codex·Claude Code)는 <span class="nw">“어떻게”를</span> 맡습니다. 짧은 말로 단계를 넘기면 에이전트가 계획·구현·검증·머지까지 진행합니다.</p>
 
     <ol class="flow" aria-label="개발 흐름">
       <li><div class="step human"><b>정리해봐: …</b><small>하고 싶은 것을 말한다</small></div></li>
@@ -379,7 +380,7 @@ footer a { margin-right: 10px; white-space: nowrap; }
   <section id="code">
     <p class="sec-num">04</p>
     <h2>코드 구조는 어떠한가</h2>
-    <p class="sec-lead">복제해서 쓰는 구현형 템플릿입니다.<br>업무 로직을 가운데(core)에 두고 웹·에이전트·DB·외부 서비스를 바깥에서 연결하는 헥사고날 구조라,<br>입구가 둘이어도 규칙은 한 곳에만 있습니다.</p>
+    <p class="sec-lead">복제해서 쓰는 구현형 템플릿입니다. 업무 로직을 가운데(core)에 두고 웹·에이전트·DB·외부 서비스를 바깥에서 연결하는 헥사고날 구조라, 입구가 둘이어도 규칙은 한 곳에만 있습니다.</p>
 
     <h3>템플릿: 무엇을 바꾸고 무엇을 유지하나</h3>
     <div class="grid g2">
