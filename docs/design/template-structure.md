@@ -75,6 +75,7 @@ agent-workspace-template/
 ├─ experiments/                   # 기술 가정의 격리 실험(주제별 독립 폴더). 앱 코드가 아니며 앱이 가져오지 않음
 └─ docs/
    ├─ START-HERE.md
+   ├─ overview.html               # 목적·구조·역할의 그림 지도(정본 아님)
    ├─ product/                    # 목적과 사용자 시나리오
    ├─ architecture/               # 책임·호출·의존성·계약
    ├─ design/                     # 코드 배치·디자인 원칙·시각 규격·UI 패턴
