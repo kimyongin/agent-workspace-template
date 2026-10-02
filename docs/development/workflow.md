@@ -22,7 +22,7 @@ Codex는 `$develop-agent-app`, Claude Code는 `/develop-agent-app`으로 호출�
 
 ## 작업의 출발점
 
-[PRD](../product/concept.md), 관련 [ADR](../adr/README.md), [코드 설계 원칙](../architecture/principles.md)을 읽고 구체적인 사용자 시나리오 하나를 선택한다. 관련 티켓에는 변경 데이터, 유지할 불변 조건, HTTP/MCP 기능, 필요한 화면과 완료 조건을 적는다. 미정인 업무·권한·저장 계약은 구현 전에 확정한다.
+[PRD](../product/concept.md), 관련 [ADR](../adr/README.md), [코드 설계 원칙](../architecture/principles.md)을 읽고 구체적인 사용자 시나리오 하나를 선택한다. 관련 티켓에는 변경 데이터, 유지할 불변 조건, HTTP/MCP 기능, 필요한 화면과 완료 조건을 적는다. 미정인 업무·권한·저장 계약은 구현 전에 확정한다. 티켓 파일의 이름·상태·양식은 [티켓 작성 규칙](../tickets/README.md)을 따른다.
 
 설계는 검토 가능한 문서와 구현 인계로 마친다. 구현 시작은 명시적으로 구분한다. 제안·확정·구현·검증·배포 상태를 혼동하지 않는다.
 
