@@ -258,19 +258,19 @@ h3 { font-size: 1.125rem; margin: 40px 0 12px; }
 
 /* 문서 지도 */
 .docmap { display: grid; gap: 12px; }
-@media (min-width: 860px) { .docmap { grid-template-columns: 1fr 1.5fr; align-items: start; } }
+@media (min-width: 860px) { .docmap { grid-template-columns: 1fr 1fr; align-items: stretch; } }
 .owner-col { background: var(--panel); border: 1px solid var(--line); border-top: 4px solid var(--accent); border-radius: var(--radius); padding: 16px 20px; }
 .owner-col.agent { border-top-color: var(--info); }
 .owner-col > h4 { display: flex; align-items: center; gap: 8px; margin: 0 0 4px; font-size: 1rem; }
 .owner-col > h4 .i { width: 20px; height: 20px; color: var(--accent); }
 .owner-col.agent > h4 .i { color: var(--info); }
 .owner-col > p { margin: 0 0 6px; font-size: 0.875rem; color: var(--muted-ink); }
-.dgroup { margin-top: 12px; }
-.dgroup .folder { font-family: var(--mono); font-size: 0.75rem; color: var(--muted-ink); }
-.dgroup .folder b { font-family: inherit; color: var(--ink); font-weight: 600; margin-right: 6px; }
-.dgroup ul { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 3px; }
-.dgroup li { font-size: 0.875rem; color: var(--muted-ink); line-height: 1.5; }
-.dgroup li a { font-weight: 600; margin-right: 6px; }
+.dgroup { margin-top: 16px; }
+.dgroup .folder { display: block; font-family: var(--mono); font-size: 0.75rem; color: var(--muted-ink); padding-bottom: 4px; border-bottom: 1px solid var(--line); }
+.dgroup .folder b { font-family: Pretendard, "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif; font-size: 0.875rem; color: var(--ink); font-weight: 700; margin-right: 6px; }
+.dgroup ul { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 8px; }
+.dgroup li { font-size: 0.8125rem; color: var(--muted-ink); line-height: 1.45; }
+.dgroup li a { display: block; font-size: 0.9375rem; font-weight: 600; }
 .agent-groups { display: grid; gap: 0 24px; }
 @media (min-width: 640px) { .agent-groups { grid-template-columns: 1fr 1fr; } }
 
@@ -588,11 +588,11 @@ footer a { margin-right: 10px; white-space: nowrap; }
         <h4><svg class="i"><use href="#i-person"/></svg>사람이 정하는 문서</h4>
         <p>무엇을 왜 만들지, 되돌리기 어려운 결정은 무엇인지. 바꾸려면 사람의 승인이 필요합니다.</p>
         <div class="dgroup">
-          <span class="folder"><b>PRD</b>docs/product/</span>
+          <span class="folder"><b>PRD</b>product/</span>
           <ul><li><a href="product/concept.md">제품 요구사항</a>어떤 앱을, 왜, 어떤 기능으로 만드는지</li></ul>
         </div>
         <div class="dgroup">
-          <span class="folder"><b>ADR</b>docs/adr/</span>
+          <span class="folder"><b>ADR</b>adr/</span>
           <ul>
             <li><a href="adr/0001-hexagonal-shared-usecases.md">0001</a>웹과 에이전트가 같은 업무 규칙을 쓰는 구조</li>
             <li><a href="adr/0002-default-tech-stack.md">0002</a>사용하는 서비스 (GitHub Pages, Supabase 등)</li>
@@ -610,7 +610,7 @@ footer a { margin-right: 10px; white-space: nowrap; }
         <p>PRD·ADR 안에서 일하는 방법을 정리한 가이드와 작업 지시서. 일하면서 배운 것을 반영해 에이전트가 직접 고칩니다.</p>
         <div class="agent-groups">
           <div class="dgroup">
-            <span class="folder"><b>설계</b>docs/architecture/</span>
+            <span class="folder"><b>설계</b>architecture/</span>
             <ul>
               <li><a href="architecture/principles.md">코드 설계 원칙</a>코드를 나누고 바꾸는 기준</li>
               <li><a href="architecture/hexagonal-review.md">아키텍처</a>원칙을 실제 구조에 적용한 방법</li>
@@ -618,7 +618,7 @@ footer a { margin-right: 10px; white-space: nowrap; }
             </ul>
           </div>
           <div class="dgroup">
-            <span class="folder"><b>디자인</b>docs/design/</span>
+            <span class="folder"><b>디자인</b>design/</span>
             <ul>
               <li><a href="design/guide.md">디자인 가이드</a>화면을 만드는 원칙</li>
               <li><a href="design/visual-spec.md">시각 규격</a>색·글꼴·간격</li>
@@ -627,14 +627,14 @@ footer a { margin-right: 10px; white-space: nowrap; }
             </ul>
           </div>
           <div class="dgroup">
-            <span class="folder"><b>개발</b>docs/development/</span>
+            <span class="folder"><b>개발</b>development/</span>
             <ul>
               <li><a href="development/working-with-agents.md">에이전트와 일하는 방법</a>사람을 위한 사용법</li>
               <li><a href="development/workflow.md">개발과 검증 방법</a>에이전트가 따르는 작업 규칙</li>
             </ul>
           </div>
           <div class="dgroup">
-            <span class="folder"><b>보안·배포·운영</b>docs/security/ 외 2곳</span>
+            <span class="folder"><b>보안·배포·운영</b>security/ 외</span>
             <ul>
               <li><a href="security/guide.md">보안 가이드</a>데이터와 인증을 지키는 기준</li>
               <li><a href="deployment/release.md">배포 방법</a>서비스에 올리고 되돌리는 순서</li>
@@ -642,14 +642,14 @@ footer a { margin-right: 10px; white-space: nowrap; }
             </ul>
           </div>
           <div class="dgroup">
-            <span class="folder"><b>티켓</b>docs/tickets/</span>
+            <span class="folder"><b>티켓</b>tickets/</span>
             <ul>
               <li><a href="tickets/template-02-implementation-base.md">Template-02</a>템플릿 전체를 만드는 순서</li>
               <li><a href="tickets/template-01-task-record-search.md">Template-01</a>첫 기능(할 일·기록·검색)</li>
             </ul>
           </div>
           <div class="dgroup">
-            <span class="folder"><b>지침</b>AGENTS.md · .agents/skills/</span>
+            <span class="folder"><b>지침</b>저장소 루트</span>
             <ul>
               <li><a href="../AGENTS.md">AGENTS.md</a>에이전트가 가장 먼저 읽는 규칙</li>
               <li><a href="../.agents/skills/develop-agent-app/SKILL.md">개발 스킬</a>요청별로 읽을 문서 안내</li>
