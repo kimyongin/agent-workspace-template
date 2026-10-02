@@ -55,7 +55,7 @@ Codex는 `$develop-agent-app`, Claude Code는 `/develop-agent-app`으로 호출�
 - PR 크기는 lockfile·자동 생성 파일을 빼고 약 400줄, 30분 안에 리뷰할 수 있는 정도를 기준으로 한다. 넘으면 PR 설명에 이유를 적거나 나눈다.
 - 되돌리기 비싼 선택이 구현 전에 필요하면(기술 검증 결과, 공개 계약, schema 정본 등) 먼저 짧은 PR이나 티켓 메모로 확정한다. PRD·ADR에 해당하면 위 승인 절차를 따른다.
 - 앞 PR의 코드나 문서에 실제로 의존하는 PR만 앞 PR의 브랜치 위에 쌓는다. 앞 PR이 바뀌면 뒤 PR을 다시 맞춘다. 티켓 기록 표의 몇 줄처럼 작은 충돌만 예상되면 쌓지 말고 각자 `main`에서 브랜치를 만든 뒤, 나중에 머지하는 PR에서 충돌을 해결한다.
-- 쌓은 PR은 아래부터 머지한다. 아래 PR을 머지하기 전에 바로 위 PR의 base를 `main`으로 바꾼다(`gh pr edit <위 PR> --base main`). base 브랜치가 먼저 지워지면 GitHub가 위 PR을 닫는다.
+- 쌓은 PR은 아래부터 머지한다. 아래 PR을 머지하기 전에 바로 위 PR의 base를 `main`으로 바꾼다(`gh pr edit <위 PR> --base main`). base 브랜치가 먼저 지워지면 GitHub가 위 PR을 닫는다. squash 머지 뒤에는 위 PR에 아래 PR의 원래 커밋이 남아 충돌하므로, 위 PR 브랜치에서 자기 커밋만 `main` 위로 옮기고(`git rebase --onto origin/main <아래 PR의 머지 전 head>`) 강제 푸시(`--force-with-lease`)한 뒤 머지한다. 아래 PR의 머지 전 head는 `gh pr view <아래 PR> --json headRefOid`로 확인한다.
 
 ### 브랜치와 PR
 

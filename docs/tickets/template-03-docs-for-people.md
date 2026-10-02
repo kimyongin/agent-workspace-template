@@ -1,7 +1,7 @@
 # Template-03 — 사람이 읽기 쉬운 문서와 규칙 정본 정리
 
 작성: 2026-10-02
-상태: 진행 중(모든 단계 PR 리뷰 대기)
+상태: 완료
 검토 기준: `a5b8214`
 선행: 단계별로 다르다(아래 [단계와 의존성](#단계와-의존성) 표). 관련 PR은 [#16](https://github.com/kimyongin/agent-workspace-template/pull/16)(HTML 링크 검사), [#17](https://github.com/kimyongin/agent-workspace-template/pull/17)(`docs/overview.html`), [#18](https://github.com/kimyongin/agent-workspace-template/pull/18)(ADR-0009 교차 리뷰 선택)이다. 이 티켓 자체는 선행 없이 머지할 수 있다.
 
@@ -85,8 +85,8 @@
 
 ### 완료 조건
 
-- [ ] 용어집이 있고 위 최소 범위를 포함한다.
-- [ ] working-with-agents.md에 설명 없는 개발 용어가 남지 않는다(첫 등장 시 링크 또는 쉬운 말).
+- [x] 용어집이 있고 위 최소 범위를 포함한다.
+- [x] working-with-agents.md에 설명 없는 개발 용어가 남지 않는다(첫 등장 시 링크 또는 쉬운 말).
 - [x] 사람 리뷰어가 개발 지식 없이 working-with-agents.md를 읽고 "정리해봐부터 배포해까지"의 흐름을 설명할 수 있다. 이 확인은 PR 리뷰에서 사람에게 요청한다. 2026-10-03 사용자 결정으로 이 확인은 하지 않고 넘어갔다.
 
 ## T03-3 — 티켓 이름 규칙과 양식
@@ -105,8 +105,8 @@
 
 ### 완료 조건
 
-- [ ] 티켓 README에 이름 규칙·상태·필수 절·양식이 있다.
-- [ ] 이 티켓(Template-03)이 양식과 맞거나, 차이가 있으면 이유가 적혀 있다.
+- [x] 티켓 README에 이름 규칙·상태·필수 절·양식이 있다.
+- [x] 이 티켓(Template-03)이 양식과 맞거나, 차이가 있으면 이유가 적혀 있다. 이름(`template-03`)만 규칙과 다르며 템플릿 기록으로 보존한다(T03-5).
 
 ## T03-4 — overview 유지 장치
 
@@ -189,7 +189,7 @@ ADR-0008의 분류 기준은 "같은 결과를 더 일관되거나 효율적으�
 ### 완료 조건
 
 - [x] 사람의 결정이 이 티켓에 기록됐다. 2026-10-02 사용자가 2번(결정만 ADR에)을 골랐다.
-- [ ] 2번이면 대체 ADR(상태 `제안`)이 PR로 올라가 승인됐고, T03-1이 그 결과와 맞다. ADR-0010을 PR로 올렸고(T03-1과 한 PR) 머지가 곧 승인이다.
+- [x] 2번이면 대체 ADR(상태 `제안`)이 PR로 올라가 승인됐고, T03-1이 그 결과와 맞다. ADR-0010을 T03-1과 한 PR(#24)로 올렸고 2026-10-03 사용자 승인으로 머지했다.
 
 ADR 작성 규칙에는 이미 "결정의 실행 방법과 세부 기준은 가이드에 둔다"가 있어 규칙은 추가하지 않았다. ADR-0010은 ADR-0009 전체와 ADR-0008 머지 절을 대체한다.
 
@@ -211,7 +211,7 @@ overview 작업 때 쓴 다음 세 문제를 출발점으로 PRD 변경안을 �
 
 ### 완료 조건
 
-- [ ] PRD 변경안 PR이 올라가 사람이 승인했거나, 하지 않기로 한 결정이 기록됐다. 2026-10-02 사용자가 초안대로 변경안 작성을 골랐고, "대상 사용자와 해결하는 문제" 절을 PR로 올렸다. 머지가 곧 승인이다.
+- [x] PRD 변경안 PR이 올라가 사람이 승인했거나, 하지 않기로 한 결정이 기록됐다. 2026-10-02 사용자가 초안대로 변경안 작성을 골랐고, "대상 사용자와 해결하는 문제" 절(#25)을 2026-10-03 사용자 승인으로 머지했다.
 - [x] 승인되면 overview 01의 소개 문장이 PRD와 맞다(T03-4). 01 소개 문장(한 일·결과·판단 기준을 쌓고 사람과 AI가 참고, 업무 분야마다 빠르게 만드는 템플릿)은 새 절과 같은 뜻이라 바꾸지 않는다.
 
 ## PR 분할 계획
@@ -237,16 +237,18 @@ overview 작업 때 쓴 다음 세 문제를 출발점으로 PRD 변경안을 �
 
 | ID | 상태 | revision / 변경 | 검증 명령·결과 | 남은 작업 |
 | --- | --- | --- | --- | --- |
-| T03-1 | 구현(리뷰 대기) | PR 4+6 `docs/t03-merge-rule-canon`: 머지·리뷰 조건을 workflow.md로 모으고 AGENTS.md·개발 스킬·working-with-agents.md는 요약·링크, overview의 ADR 목록 갱신 | `node scripts/check-docs.mjs` 통과, `node --test "scripts/*.test.mjs"` 8개 통과 | — |
-| T03-2 | 구현(리뷰 대기) | PR 2 `docs/t03-glossary`: `docs/glossary.md`(용어 35개, 정본 링크), working-with-agents.md 용어 첫 등장 설명·revision 등 쉬운 말, START-HERE·README 용어집 링크 | `node scripts/check-docs.mjs` 통과, `node --test "scripts/*.test.mjs"` 8개 통과 | 없음(사람 읽기 확인은 2026-10-03 사용자 결정으로 생략) |
-| T03-3 | 구현(리뷰 대기) | PR 3 `docs/t03-tickets-readme`: `docs/tickets/README.md`(이름 `NNN-영문-요약.md`, 하위 `NNN-MM-…`, 상태 값, 필수 절, 양식), workflow.md·working-with-agents.md·용어집에서 연결. Template-03은 이름(`template-03`)만 규칙과 다르며 T03-5에서 다룬다. 머리말·필수 절은 양식과 맞다 | `node scripts/check-docs.mjs` 통과, `node --test "scripts/*.test.mjs"` 8개 통과 | — |
-| T03-4 | 구현(리뷰 대기) | PR 8 `docs/t03-overview-upkeep`: PR 템플릿 확인 항목, overview에 용어집·티켓 작성 규칙 링크, 어두운 테마 확인, T02-6에 공개 방법 항목 | `node scripts/check-docs.mjs` 통과, `node --test "scripts/*.test.mjs"` 8개 통과, 어두운 테마 Playwright 확인 | — |
-| T03-5 | 구현(리뷰 대기) | PR 7 `docs/t03-template-split`: 분류와 보존 방침([결과](#결과-2026-10-02)), 역할 링크 3곳 일반화, 티켓 README에 템플릿 기록 보존 명시, T02-6 초기화·비용 안내 항목 추가와 오래된 문장 삭제 | `node scripts/check-docs.mjs` 통과, `node --test "scripts/*.test.mjs"` 8개 통과 | PRD 문장은 새 앱 PRD 작성 때(T02-6) |
-| T03-6 | 구현(사람 승인 대기) | 같은 PR: ADR-0010 채택안, ADR-0009 대체됨, ADR-0008 머지 절 안내 갱신 | 위와 같음 | PR 머지가 승인 |
-| T03-7 | 구현(사람 승인 대기) | PR 5 `docs/t03-prd-problem`: PRD에 "대상 사용자와 해결하는 문제" 절(대상 2, 문제와 해결 3) | `node scripts/check-docs.mjs` 통과, `node --test "scripts/*.test.mjs"` 8개 통과 | PR 머지가 승인 |
+| T03-1 | 완료(#24) | PR 4+6 `docs/t03-merge-rule-canon`: 머지·리뷰 조건을 workflow.md로 모으고 AGENTS.md·개발 스킬·working-with-agents.md는 요약·링크, overview의 ADR 목록 갱신 | `node scripts/check-docs.mjs` 통과, `node --test "scripts/*.test.mjs"` 8개 통과 | — |
+| T03-2 | 완료(#21) | PR 2 `docs/t03-glossary`: `docs/glossary.md`(용어 35개, 정본 링크), working-with-agents.md 용어 첫 등장 설명·revision 등 쉬운 말, START-HERE·README 용어집 링크 | `node scripts/check-docs.mjs` 통과, `node --test "scripts/*.test.mjs"` 8개 통과 | 없음(사람 읽기 확인은 2026-10-03 사용자 결정으로 생략) |
+| T03-3 | 완료(#22) | PR 3 `docs/t03-tickets-readme`: `docs/tickets/README.md`(이름 `NNN-영문-요약.md`, 하위 `NNN-MM-…`, 상태 값, 필수 절, 양식), workflow.md·working-with-agents.md·용어집에서 연결. Template-03은 이름(`template-03`)만 규칙과 다르며 T03-5에서 다룬다. 머리말·필수 절은 양식과 맞다 | `node scripts/check-docs.mjs` 통과, `node --test "scripts/*.test.mjs"` 8개 통과 | — |
+| T03-4 | 완료(#26) | PR 8 `docs/t03-overview-upkeep`: PR 템플릿 확인 항목, overview에 용어집·티켓 작성 규칙 링크, 어두운 테마 확인, T02-6에 공개 방법 항목 | `node scripts/check-docs.mjs` 통과, `node --test "scripts/*.test.mjs"` 8개 통과, 어두운 테마 Playwright 확인 | — |
+| T03-5 | 완료(#23) | PR 7 `docs/t03-template-split`: 분류와 보존 방침([결과](#결과-2026-10-02)), 역할 링크 3곳 일반화, 티켓 README에 템플릿 기록 보존 명시, T02-6 초기화·비용 안내 항목 추가와 오래된 문장 삭제 | `node scripts/check-docs.mjs` 통과, `node --test "scripts/*.test.mjs"` 8개 통과 | PRD 문장은 새 앱 PRD 작성 때(T02-6) |
+| T03-6 | 완료(#24) | 같은 PR: ADR-0010 채택안, ADR-0009 대체됨, ADR-0008 머지 절 안내 갱신 | 위와 같음 | PR 머지가 승인 |
+| T03-7 | 완료(#25) | PR 5 `docs/t03-prd-problem`: PRD에 "대상 사용자와 해결하는 문제" 절(대상 2, 문제와 해결 3) | `node scripts/check-docs.mjs` 통과, `node --test "scripts/*.test.mjs"` 8개 통과 | PR 머지가 승인 |
 
 ### 이력
 
 2026-10-02 `docs/overview.html` 작성(#17) 중 발견한 문서 문제를 정리해 작성했다.
 
 2026-10-02 별도 세션 리뷰([#19 코멘트](https://github.com/kimyongin/agent-workspace-template/pull/19#issuecomment-5954596506), 결론 수정 필요)를 반영했다: 폴더 구조 근거 행 105행으로 정정, T03-5에 `experiments/` 링크 추가와 아키텍처 링크를 본문/실험 결과로 구분, 권장 순서를 PR 분할 계획과 일치, T03-1의 이미 판단된 항목(Google 로그인과 MCP 인증 분리)은 기존 판단 링크로 대체, 머리말 선행을 단계별로 정리, T03-3에 하위 티켓 이름 규칙 추가, START-HERE의 Template-03 행을 표 끝으로 이동.
+
+2026-10-03 사용자 리뷰·승인으로 #21~#26을 머지해 모든 단계를 마쳤다. 쌓은 PR을 squash 머지하는 과정에서 위 PR이 아래 PR의 원래 커밋 때문에 충돌해, 위 PR의 자기 커밋만 `main` 위로 옮겨(rebase) 머지했다. 이 절차를 [개발 방법](../development/workflow.md#작게-나누기)에 보완했다.
