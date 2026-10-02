@@ -23,5 +23,7 @@ export function activityDeps(): ActivityDeps {
 export const env = {
   /** 토큰 발급자(Supabase Auth의 공개 주소 + /auth/v1). */
   authIssuer: () => required("AUTH_ISSUER"),
+  /** MCP 서버의 정식 URL(토큰 audience). Custom Access Token Hook의 mcp_audience와 같아야 한다. */
+  mcpUrl: () => required("MCP_URL"),
   webOrigins: () => (Deno.env.get("WEB_ORIGINS") ?? "").split(",").map((s) => s.trim()).filter(Boolean),
 };
