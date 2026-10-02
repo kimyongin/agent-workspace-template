@@ -320,8 +320,21 @@ td code { white-space: nowrap; }
 }
 
 /* 폴더 지도 */
-.zone .path { display: block; color: var(--ink); }
-.zone p { margin-top: 8px; }
+.tree { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 20px; }
+.tr { display: grid; grid-template-columns: 17rem minmax(0, 1fr); gap: 0 16px; align-items: baseline; padding: 3px 0; }
+.tn { font-family: var(--mono); font-size: 0.8125rem; white-space: pre; }
+.tn i { font-style: normal; color: var(--muted-ink); }
+.tn b { font-weight: 600; color: var(--ink); }
+.tr.root .tn b { color: var(--accent); }
+.td { font-size: 0.8125rem; color: var(--muted-ink); }
+@media (max-width: 639px) {
+  .tree { padding: 12px 14px; overflow-x: auto; }
+  .tr { grid-template-columns: 1fr; padding: 4px 0; }
+  .td { font-size: 0.75rem; }
+  .d1 .td { padding-left: 1.5rem; }
+  .d2 .td { padding-left: 2.95rem; }
+  .d3 .td { padding-left: 4.4rem; }
+}
 
 /* 자주 묻는 질문 */
 .faq { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 0 20px; }
@@ -806,13 +819,22 @@ footer a { margin-right: 10px; white-space: nowrap; }
     </div>
 
     <h3>폴더 지도</h3>
-    <div class="grid g3">
-      <div class="card zone"><span class="k">웹 화면</span><span class="path">src/</span><p>사람이 보는 화면과 버튼.</p></div>
-      <div class="card zone"><span class="k">서버</span><span class="path">supabase/functions/</span><p>요청을 받는 입구와 가운데 핵심 규칙.</p></div>
-      <div class="card zone"><span class="k">데이터베이스</span><span class="path">supabase/migrations/</span><p>표(테이블)의 모양과 접근 권한 설정.</p></div>
-      <div class="card zone"><span class="k">AI 에이전트용 플러그인</span><span class="path">plugins/workspace/</span><p>Claude·Codex에 설치하는 연결 도구와 사용 요령.</p></div>
-      <div class="card zone"><span class="k">지침과 문서</span><span class="path">AGENTS.md · docs/</span><p>개발 에이전트가 읽는 규칙, PRD·ADR·티켓 등 문서.</p></div>
-      <div class="card zone"><span class="k">검사와 실험</span><span class="path">e2e/ · scripts/ · experiments/</span><p>잘 동작하는지 확인하는 시험과, 기술을 미리 시험해 본 기록.</p></div>
+    <div class="tree" role="list" aria-label="저장소 폴더 구조">
+      <div class="tr root" role="listitem"><span class="tn"><b>agent-workspace-template/</b></span><span class="td">이 저장소</span></div>
+      <div class="tr d1" role="listitem"><span class="tn"><i>├─ </i><b>src/</b></span><span class="td">웹 화면: 사람이 보는 화면과 버튼</span></div>
+      <div class="tr d2" role="listitem"><span class="tn"><i>│  └─ </i><b>features/</b></span><span class="td">기능별 화면: 할 일·기록·원칙·검색·업무 대상</span></div>
+      <div class="tr d1" role="listitem"><span class="tn"><i>├─ </i><b>supabase/</b></span><span class="td">서버와 데이터베이스</span></div>
+      <div class="tr d2" role="listitem"><span class="tn"><i>│  ├─ </i><b>functions/</b></span><span class="td">요청을 받는 입구: 웹(api) · 에이전트(mcp) · 예약 작업</span></div>
+      <div class="tr d3" role="listitem"><span class="tn"><i>│  │  ├─ </i><b>_shared/core/</b></span><span class="td">가운데 핵심: 업무 규칙과 처리 순서</span></div>
+      <div class="tr d3" role="listitem"><span class="tn"><i>│  │  └─ </i><b>_shared/adapters/</b></span><span class="td">바깥 서비스를 잇는 연결 부품</span></div>
+      <div class="tr d2" role="listitem"><span class="tn"><i>│  └─ </i><b>migrations/</b></span><span class="td">표(테이블) 모양과 접근 권한 설정</span></div>
+      <div class="tr d1" role="listitem"><span class="tn"><i>├─ </i><b>plugins/workspace/</b></span><span class="td">AI 에이전트용 플러그인: 연결 도구와 사용 요령</span></div>
+      <div class="tr d1" role="listitem"><span class="tn"><i>├─ </i><b>docs/</b></span><span class="td">PRD·ADR·가이드·티켓</span></div>
+      <div class="tr d1" role="listitem"><span class="tn"><i>├─ </i><b>AGENTS.md</b></span><span class="td">개발 에이전트가 가장 먼저 읽는 규칙</span></div>
+      <div class="tr d1" role="listitem"><span class="tn"><i>├─ </i><b>.agents/skills/</b></span><span class="td">개발 스킬: 요청별로 읽을 문서 안내</span></div>
+      <div class="tr d1" role="listitem"><span class="tn"><i>├─ </i><b>e2e/</b></span><span class="td">웹과 에이전트를 이어서 실제처럼 확인하는 시험</span></div>
+      <div class="tr d1" role="listitem"><span class="tn"><i>├─ </i><b>scripts/</b></span><span class="td">문서 검사 같은 보조 도구</span></div>
+      <div class="tr d1" role="listitem"><span class="tn"><i>└─ </i><b>experiments/</b></span><span class="td">기술을 미리 시험해 본 기록 (앱 코드 아님)</span></div>
     </div>
     <p class="note" style="margin-top:12px">폴더 지도는 “어디에 둘지”의 기준입니다. 실제 파일은 그 기능을 만들 때 생깁니다.</p>
     <p class="src">정본: <a href="architecture/principles.md">코드 설계 원칙</a><a href="architecture/hexagonal-review.md">아키텍처</a><a href="design/template-structure.md">폴더 구조</a><a href="adr/0001-hexagonal-shared-usecases.md">ADR-0001</a><a href="adr/0002-default-tech-stack.md">ADR-0002</a><a href="adr/0003-core-rules-and-local-transactions.md">ADR-0003</a><a href="tickets/template-02-implementation-base.md">구현 순서(Template-02)</a></p>
