@@ -117,32 +117,59 @@ h3 { font-size: 1.125rem; margin: 40px 0 12px; }
 .problem .fix { border-color: var(--accent); }
 
 /* 템플릿 → 도메인 앱 */
-.tpl { display: grid; gap: 0; }
-.tpl-base { background: var(--panel); border: 2px solid var(--line); border-radius: var(--radius); padding: 18px; display: grid; gap: 12px; }
-@media (min-width: 760px) { .tpl-base { grid-template-columns: 1fr 1.4fr; align-items: center; max-width: 760px; width: 100%; justify-self: center; } }
-.tpl-base h4 { margin: 0; font-size: 1.0625rem; grid-column: 1 / -1; }
-.slot { border: 2px dashed var(--muted-ink); border-radius: 12px; padding: 10px 12px; }
-.slot b { display: block; font-size: 0.9375rem; }
-.slot small { color: var(--muted-ink); font-size: 0.8125rem; }
-.slot.filled { border: 2px solid var(--accent); background: var(--accent-soft); }
-.base-label { font-size: 0.75rem; font-weight: 600; color: var(--muted-ink); margin: 0 0 6px; }
-.chips { display: flex; flex-wrap: wrap; gap: 6px; }
-.chips span { font-size: 0.8125rem; padding: 3px 9px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--muted-ink); }
-.tpl-link { position: relative; height: 44px; }
-.tpl-link::before { content: ""; position: absolute; left: 50%; top: 0; bottom: 0; border-left: 2px solid var(--accent); }
-.tpl-link span { position: absolute; left: calc(50% + 12px); top: 50%; transform: translateY(-50%); font-size: 0.8125rem; font-weight: 600; color: var(--muted-ink); white-space: nowrap; }
-.fan { display: grid; gap: 12px; }
-@media (min-width: 760px) { .fan { grid-template-columns: repeat(3, 1fr); padding-top: 24px; } }
-.app { position: relative; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; display: grid; gap: 8px; align-content: start; }
-.app h5 { margin: 0; font-size: 1rem; }
-.app .ask { margin: 0; font-size: 0.875rem; color: var(--ink); }
-.app .ask::before { content: "에이전트에게 · "; color: var(--info); font-weight: 600; }
-.app .same { margin: 0; font-size: 0.75rem; color: var(--muted-ink); }
-@media (min-width: 760px) {
-  .app::before { content: ""; position: absolute; left: 50%; top: -24px; height: 24px; border-left: 2px solid var(--accent); }
-  .app::after { content: ""; position: absolute; top: -24px; left: -7px; right: -7px; border-top: 2px solid var(--accent); }
-  .app:first-child::after { left: 50%; }
-  .app:last-child::after { right: 50%; }
+.i { width: 20px; height: 20px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.tplx { display: grid; }
+.board { background: var(--panel); border: 2px solid var(--line); border-radius: 20px; padding: 18px; display: grid; gap: 14px; }
+@media (min-width: 640px) { .board { padding: 22px; } }
+.board-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.board-head h4 { margin: 0; font-size: 1.125rem; }
+.board-head span { font-size: 0.8125rem; color: var(--muted-ink); }
+.layer { border-radius: 14px; padding: 14px; display: grid; gap: 10px; }
+.layer-label { display: inline-flex; align-items: center; gap: 6px; font-size: 0.75rem; font-weight: 700; justify-self: start; padding: 2px 10px; border-radius: 999px; }
+.layer.change { border: 2px dashed var(--accent); }
+.layer.change .layer-label { color: var(--accent); background: var(--accent-soft); }
+.layer.keep { background: var(--surface); border: 1px solid var(--line); }
+.layer.keep .layer-label { color: var(--muted-ink); background: var(--panel); border: 1px solid var(--line); }
+.fields { display: grid; grid-template-columns: auto repeat(3, 1fr); gap: 8px; align-items: center; }
+.fields .ent { font-weight: 700; font-size: 0.9375rem; padding-right: 4px; }
+.field { border: 1.5px dashed var(--muted-ink); border-radius: 8px; padding: 6px 10px; font-size: 0.8125rem; color: var(--muted-ink); text-align: center; }
+.feat { display: grid; gap: 8px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr)); }
+.feat > div { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; align-items: start; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+.feat .i { grid-row: span 2; color: var(--accent); margin-top: 2px; }
+.feat b { font-size: 0.9375rem; }
+.feat b small { font-weight: 600; font-size: 0.75rem; color: var(--muted-ink); margin-left: 4px; }
+.feat span { font-size: 0.8125rem; color: var(--muted-ink); line-height: 1.45; }
+.rails { display: flex; flex-wrap: wrap; gap: 8px 16px; font-size: 0.8125rem; color: var(--muted-ink); padding: 2px 2px 0; }
+.rails span { display: inline-flex; align-items: center; gap: 6px; }
+.rails .i { width: 16px; height: 16px; }
+.branch { position: relative; height: 48px; }
+.branch::before { content: ""; position: absolute; left: 50%; top: 0; bottom: 0; border-left: 2px solid var(--accent); }
+.branch span { position: absolute; left: calc(50% + 12px); top: 50%; transform: translateY(-50%); font-size: 0.8125rem; font-weight: 600; color: var(--muted-ink); white-space: nowrap; }
+.apps { display: grid; gap: 12px; }
+@media (min-width: 820px) { .apps { grid-template-columns: repeat(3, 1fr); padding-top: 26px; } }
+.appwin { position: relative; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; display: grid; align-content: start; }
+.appbar { display: flex; align-items: center; gap: 8px; padding: 9px 12px; border-bottom: 1px solid var(--line); background: var(--surface); border-radius: 14px 14px 0 0; font-weight: 700; font-size: 0.9375rem; }
+.appbar .dots { display: inline-flex; gap: 4px; margin-right: 4px; }
+.appbar .dots i { width: 7px; height: 7px; border-radius: 50%; background: var(--line); }
+.appbar .i { color: var(--accent); width: 18px; height: 18px; }
+.appbody { padding: 12px; display: grid; gap: 10px; }
+.filled { border: 2px solid var(--accent); background: var(--accent-soft); border-radius: 10px; padding: 8px 10px; display: grid; gap: 6px; }
+.filled .ent { font-weight: 700; font-size: 0.875rem; }
+.kv { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.kv div { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 4px 6px; min-width: 0; }
+.kv small { display: block; font-size: 0.6875rem; color: var(--muted-ink); }
+.kv b { display: block; font-size: 0.8125rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.minibase { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 0.75rem; color: var(--muted-ink); }
+.minibase span { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); }
+.minibase .i { width: 13px; height: 13px; }
+.bubble { display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: start; }
+.bubble .i { color: var(--info); margin-top: 6px; }
+.bubble p { margin: 0; background: var(--info-soft); border: 1px solid var(--info); border-radius: 12px 12px 12px 4px; padding: 8px 10px; font-size: 0.8125rem; line-height: 1.45; }
+@media (min-width: 820px) {
+  .appwin::before { content: ""; position: absolute; left: 50%; top: -26px; height: 26px; border-left: 2px solid var(--accent); }
+  .appwin::after { content: ""; position: absolute; top: -26px; left: -7px; right: -7px; border-top: 2px solid var(--accent); }
+  .appwin:first-child::after { left: 50%; }
+  .appwin:last-child::after { right: 50%; }
 }
 
 /* 순환 그림 */
@@ -312,45 +339,70 @@ footer a { margin-right: 10px; white-space: nowrap; }
     </div>
 
     <h3>템플릿 하나로 여러 앱을</h3>
-    <p class="h3-note">공통 기능은 그대로 두고, 비워 둔 “업무 대상” 자리만 내 업무에 맞게 채웁니다.</p>
-    <div class="tpl">
-      <div class="tpl-base">
-        <h4>템플릿</h4>
-        <div class="slot"><b>업무 대상 (Entity)</b><small>이름만 정해 둔 빈 자리 · 항목 1, 항목 2 …</small></div>
-        <div><p class="base-label">그대로 쓰는 공통 기능</p>
-        <div class="chips"><span>로그인</span><span>활동 기록</span><span>할 일</span><span>원칙</span><span>검색</span><span>웹 앱</span><span>에이전트 플러그인</span></div></div>
+    <p class="h3-note">모든 앱이 같은 공통 기능을 갖고, 비워 둔 “업무 대상” 자리만 내 업무에 맞게 채웁니다.</p>
+    <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+      <symbol id="i-note" viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13 7l4 4"/></symbol>
+      <symbol id="i-check" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8 12l3 3 5-6"/></symbol>
+      <symbol id="i-flag" viewBox="0 0 24 24"><path d="M5 21V4h12l-2.5 4L17 12H5"/></symbol>
+      <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5"/></symbol>
+      <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></symbol>
+      <symbol id="i-web" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></symbol>
+      <symbol id="i-bot" viewBox="0 0 24 24"><rect x="4" y="7" width="16" height="12" rx="3"/><path d="M12 3v4M9 12h.01M15 12h.01M9 16h6"/></symbol>
+      <symbol id="i-users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14c2 .8 3 2.9 3 6"/></symbol>
+      <symbol id="i-book" viewBox="0 0 24 24"><path d="M5 4.5A1.5 1.5 0 0 1 6.5 3H19v15H6.5A1.5 1.5 0 0 0 5 19.5z"/><path d="M5 19.5A1.5 1.5 0 0 0 6.5 21H19v-3"/></symbol>
+      <symbol id="i-gym" viewBox="0 0 24 24"><path d="M6 7v10M3 9.5v5M18 7v10M21 9.5v5M6 12h12"/></symbol>
+    </svg>
+    <div class="tplx" role="img" aria-label="템플릿에는 바꾸는 업무 대상 자리와 그대로 쓰는 공통 기능이 있고, 대상을 고객·책·운동으로 채우면 고객 관리·독서 기록·운동 기록 앱이 된다">
+      <div class="board">
+        <div class="board-head"><h4>템플릿</h4><span>이 저장소</span></div>
+        <div class="layer change">
+          <span class="layer-label">앱마다 바꾸는 부분</span>
+          <div class="fields"><span class="ent">업무 대상</span><span class="field">항목 1</span><span class="field">항목 2</span><span class="field">항목 3</span></div>
+        </div>
+        <div class="layer keep">
+          <span class="layer-label">모든 앱이 그대로 쓰는 공통 기능</span>
+          <div class="feat">
+            <div><svg class="i"><use href="#i-note"/></svg><b>활동 기록</b><span>한 일과 결과. 계획 없이도 바로 남김</span></div>
+            <div><svg class="i"><use href="#i-check"/></svg><b>할 일<small>선택</small></b><span>미리 하는 계획. 한 번 또는 반복</span></div>
+            <div><svg class="i"><use href="#i-flag"/></svg><b>사용자 원칙</b><span>내가 정한 판단 기준</span></div>
+            <div><svg class="i"><use href="#i-search"/></svg><b>검색</b><span>요약 목록에서 전체 내용으로</span></div>
+          </div>
+          <div class="rails">
+            <span><svg class="i"><use href="#i-web"/></svg>웹 앱</span>
+            <span><svg class="i"><use href="#i-bot"/></svg>에이전트 플러그인</span>
+            <span><svg class="i"><use href="#i-lock"/></svg>로그인 · 내 데이터는 나만</span>
+          </div>
+        </div>
       </div>
-      <div class="tpl-link"><span>복사해서 대상을 채우면</span></div>
-      <div class="fan">
-        <div class="app">
-          <h5>고객 관리 앱</h5>
-          <div class="slot filled"><b>고객</b><small>이름 · 연락처 · 등급</small></div>
-          <p class="ask">“이 고객, 지난 상담에서 뭐라고 했지?”</p>
-          <p class="same">+ 공통 기능 그대로</p>
+      <div class="branch"><span>복사해서 업무 대상을 채우면</span></div>
+      <div class="apps">
+        <div class="appwin">
+          <div class="appbar"><span class="dots"><i></i><i></i><i></i></span><svg class="i"><use href="#i-users"/></svg>고객 관리 앱</div>
+          <div class="appbody">
+            <div class="filled"><span class="ent">고객</span><div class="kv"><div><small>이름</small><b>김하늘</b></div><div><small>연락처</small><b>010-…</b></div><div><small>등급</small><b>VIP</b></div></div></div>
+            <div class="minibase"><span><svg class="i"><use href="#i-note"/></svg>기록</span><span><svg class="i"><use href="#i-check"/></svg>할 일</span><span><svg class="i"><use href="#i-flag"/></svg>원칙</span><span><svg class="i"><use href="#i-search"/></svg>검색</span></div>
+            <div class="bubble"><svg class="i"><use href="#i-bot"/></svg><p>“이 고객, 지난 상담에서 뭐라고 했지?”</p></div>
+          </div>
         </div>
-        <div class="app">
-          <h5>독서 기록 앱</h5>
-          <div class="slot filled"><b>책</b><small>제목 · 저자 · 다 읽은 날</small></div>
-          <p class="ask">“최근 읽은 책 중에 이 주제와 비슷한 게 있었나?”</p>
-          <p class="same">+ 공통 기능 그대로</p>
+        <div class="appwin">
+          <div class="appbar"><span class="dots"><i></i><i></i><i></i></span><svg class="i"><use href="#i-book"/></svg>독서 기록 앱</div>
+          <div class="appbody">
+            <div class="filled"><span class="ent">책</span><div class="kv"><div><small>제목</small><b>데미안</b></div><div><small>저자</small><b>헤세</b></div><div><small>다 읽은 날</small><b>9/28</b></div></div></div>
+            <div class="minibase"><span><svg class="i"><use href="#i-note"/></svg>기록</span><span><svg class="i"><use href="#i-check"/></svg>할 일</span><span><svg class="i"><use href="#i-flag"/></svg>원칙</span><span><svg class="i"><use href="#i-search"/></svg>검색</span></div>
+            <div class="bubble"><svg class="i"><use href="#i-bot"/></svg><p>“최근 읽은 책 중에 이 주제와 비슷한 게 있었나?”</p></div>
+          </div>
         </div>
-        <div class="app">
-          <h5>운동 기록 앱</h5>
-          <div class="slot filled"><b>운동</b><small>종목 · 무게 · 횟수</small></div>
-          <p class="ask">“내 원칙대로라면 이번 주에 무게를 올려도 될까?”</p>
-          <p class="same">+ 공통 기능 그대로</p>
+        <div class="appwin">
+          <div class="appbar"><span class="dots"><i></i><i></i><i></i></span><svg class="i"><use href="#i-gym"/></svg>운동 기록 앱</div>
+          <div class="appbody">
+            <div class="filled"><span class="ent">운동</span><div class="kv"><div><small>종목</small><b>스쿼트</b></div><div><small>무게</small><b>60kg</b></div><div><small>횟수</small><b>5×5</b></div></div></div>
+            <div class="minibase"><span><svg class="i"><use href="#i-note"/></svg>기록</span><span><svg class="i"><use href="#i-check"/></svg>할 일</span><span><svg class="i"><use href="#i-flag"/></svg>원칙</span><span><svg class="i"><use href="#i-search"/></svg>검색</span></div>
+            <div class="bubble"><svg class="i"><use href="#i-bot"/></svg><p>“내 원칙대로라면 이번 주에 무게를 올려도 될까?”</p></div>
+          </div>
         </div>
       </div>
     </div>
-    <p class="note" style="margin-top:12px">대상을 바꿀 때는 그 대상의 항목, 화면, 에이전트가 참고하는 사용 요령을 함께 바꿉니다. 위 세 앱은 이해를 돕는 예시입니다.</p>
-
-    <h3>모든 앱이 갖는 기본 기능</h3>
-    <div class="grid g4">
-      <div class="card"><span class="k">한 일</span><h4>활동 기록</h4><p>실제로 한 일과 그 결과. 미리 계획하지 않았어도 언제든 바로 남길 수 있습니다.</p></div>
-      <div class="card"><span class="k">계획 (선택)</span><h4>할 일</h4><p>앞으로 할 일을 미리 적어 둡니다. 한 번 하는 일도, 매일·매주·매월 반복하는 일도 됩니다.</p></div>
-      <div class="card"><span class="k">기준</span><h4>사용자 원칙</h4><p>“이런 경우엔 이렇게 한다”처럼 내가 정해 둔 판단 기준. 에이전트가 판단하기 전에 먼저 확인합니다.</p></div>
-      <div class="card"><span class="k">다시 찾기</span><h4>검색</h4><p>검색하면 먼저 제목과 요약이 목록으로 나오고, 하나를 누르면 그 기록의 전체 내용을 열어 볼 수 있습니다.</p></div>
-    </div>
+    <p class="note" style="margin-top:12px">대상을 바꿀 때는 그 대상의 항목, 화면, 에이전트가 참고하는 사용 요령을 함께 바꿉니다. 세 앱과 값은 이해를 돕는 예시입니다.</p>
 
     <h3>한 일이 다음 일의 참고 자료가 되는 순환</h3>
     <div class="cycle">
