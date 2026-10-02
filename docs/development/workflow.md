@@ -8,7 +8,7 @@
 
 Codex는 `$develop-agent-app`, Claude Code는 `/develop-agent-app`으로 호출한다. Codex는 `.agents/skills/`의 정본을, Claude Code는 `.claude/skills/develop-agent-app/`의 연결 파일을 거쳐 같은 정본을 읽는다. 지침 진입은 Codex가 AGENTS.md, Claude Code가 AGENTS.md를 가져오는 CLAUDE.md다. 새 스킬의 자동 발견 여부는 해당 클라이언트/세션에서 확인한다. 자동 발견이 없으면 AGENTS.md에 연결된 SKILL.md를 직접 읽도록 요청하면 된다. 전역 설치는 필요하지 않으며 이 스킬은 저장소의 docs와 함께 사용한다.
 
-두 에이전트를 함께 쓸 때의 규칙은 [AGENTS.md](../../AGENTS.md)를 따른다. 동시 작업은 branch나 worktree를 나누고 단계 인계는 티켓의 상태·검증 기록으로 한다. 한 에이전트의 구현을 다른 에이전트가 리뷰하는 교차 검토를 권장한다.
+두 에이전트를 함께 쓸 때의 규칙은 [AGENTS.md](../../AGENTS.md)를 따른다. 동시 작업은 branch나 worktree를 나누고 단계 인계는 티켓의 상태·검증 기록으로 한다. 개발 에이전트는 하나만 써도 되며, 두 에이전트를 모두 쓰면 한 에이전트의 구현을 다른 에이전트가 리뷰하는 교차 리뷰를 권장한다([ADR-0009](../adr/0009-review-without-cross-agent.md)).
 
 예시 요청(Codex 기준, Claude Code는 `$` 대신 `/`):
 
@@ -65,7 +65,7 @@ Codex는 `$develop-agent-app`, Claude Code는 `/develop-agent-app`으로 호출�
 
 ### 리뷰
 
-- 기본은 교차 리뷰다. 구현한 에이전트가 아닌 다른 에이전트가 리뷰한다. 리뷰 결과는 PR 코멘트로 남긴다.
+- 모든 PR은 머지 전에 리뷰를 받는다. 리뷰어는 구현한 작업 맥락과 분리되어야 한다. 같은 에이전트의 새 세션 또는 다른 에이전트가 리뷰하며, 두 에이전트를 모두 쓸 수 있으면 다른 에이전트의 교차 리뷰를 우선한다([ADR-0009](../adr/0009-review-without-cross-agent.md)). 리뷰 결과는 PR 코멘트로 남긴다.
 - 리뷰어는 결함과 함께 PRD·ADR 이탈 여부를 확인한다. 점검 기준은 해당 가이드를 따른다: HTTP/MCP 동등성·데이터 수명·실패와 재시도(이 문서의 기능 계약), 권한·입력·비신뢰 콘텐츠([보안 가이드](../security/guide.md)), 화면([디자인 가이드](../design/guide.md)), 검색([검색 가이드](../architecture/search.md)), 플러그인([배포 방법](../deployment/release.md)).
 - 리뷰 결론은 셋 중 하나로 남긴다: `머지 가능`, `수정 필요`(발견 사항과 근거), `사람 승인 필요`(PRD·ADR 변경 또는 이탈).
 - 작성자는 발견 사항을 반영하거나 반영하지 않는 이유를 답한다. 의견이 맞서면 결론을 `사람 승인 필요`로 올린다.
@@ -76,7 +76,7 @@ Codex는 `$develop-agent-app`, Claude Code는 `/develop-agent-app`으로 호출�
 
 - PRD·ADR을 바꾸지 않고 벗어나지도 않는다.
 - 자동 검사(CI)가 통과했다. CI가 아직 없으면 PR에 적은 검사 명령을 실행한 결과가 있다.
-- 다른 에이전트의 교차 리뷰 결론이 `머지 가능`이다.
+- 구현한 세션과 분리된 리뷰의 결론이 `머지 가능`이다.
 - 필수 검증의 증거 또는 검증하지 못한 이유가 티켓에 기록되어 있다.
 
 PRD·ADR을 바꾸는 PR은 사람이 승인한다. 머지는 배포가 아니다. 운영 배포·운영 DB 적용·비용이 드는 작업은 ADR-0008의 실행 예외에 따라 사람이 지시한 범위에서만 한다.
