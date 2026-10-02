@@ -85,6 +85,8 @@ writeEnv(path("supabase/functions/.env"), "로컬 전용. scripts/local-setup.mj
   // Edge Runtime 컨테이너에서 본 트랜잭션 풀러 주소(prepare: false로 연결).
   APP_DB_URL: `postgresql://app_server.pooler-dev:${local.APP_SERVER_PASSWORD}@pooler:6543/postgres`,
   SUPABASE_JWKS: jwks,
+  AUTH_ISSUER: `${apiUrl}/auth/v1`,
+  WEB_ORIGINS: "http://127.0.0.1:55480,http://localhost:55480",
   SUPABASE_PUBLISHABLE_KEY: publishable,
 });
 

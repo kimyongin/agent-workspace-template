@@ -41,7 +41,7 @@ jobs:
       - name: 웹 빌드
         run: npm run build
 
-  db:
+  integration:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -55,3 +55,17 @@ jobs:
         run: npm run setup:local
       - name: DB 테스트
         run: npm run test:db
+      - name: Edge Functions 실행
+        run: |
+          npm run serve:functions > functions.log 2>&1 &
+          for i in $(seq 1 60); do
+            code=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:55421/functions/v1/api/tasks || true)
+            [ "$code" = "401" ] && exit 0
+            sleep 2
+          done
+          cat functions.log; exit 1
+      - name: HTTP 계약 테스트
+        run: npm run test:http
+      - name: 실패 시 함수 로그
+        if: failure()
+        run: cat functions.log || true

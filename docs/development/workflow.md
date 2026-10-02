@@ -157,9 +157,12 @@ PRD·ADR을 바꾸는 PR은 사람이 승인한다. 머지는 배포가 아니�
 | `npm run test:core` | DB 없는 contracts·core 테스트 |
 | `npm run test:web` | 웹 단위 테스트(Vitest) |
 | `npm run build` | 웹 타입 검사와 정적 빌드 |
+| `npm run test:db` | 격리 로컬 DB 테스트: 사용자 격리, 직접 쓰기 차단, 연결 재사용 시 문맥 해제, 원본·큐 원자성, contracts와 DB 한도 parity, 유스케이스 부분 실패 롤백 |
+| `npm run serve:functions` | 로컬 Edge Functions 실행(`/functions/v1/api`). HTTP 테스트 전에 다른 터미널에서 띄운다 |
+| `npm run test:http` | 실제 진입점과 로그인 토큰으로 HTTP 계약 테스트: 인증·입력 오류, 격리, 완료·동시 완료·재시도, 반복 회차, 커서 |
 | `npm run stop:local` | 로컬 Supabase 정지(데이터 유지) |
 
-로컬 Supabase 포트는 55420~55429, 웹은 55480, Edge inspector는 8483이다. 다른 로컬 프로젝트·실험(55320~55329)과 겹치지 않는다. CI는 운영 secret 없이 문서·공백·Deno·core·웹 검사를 실행한다. DB·HTTP·MCP·E2E 검사는 추가되는 단계에서 이 표와 CI에 넣는다.
+로컬 Supabase 포트는 55420~55429, 웹은 55480, Edge inspector는 8483이다. 다른 로컬 프로젝트·실험(55320~55329)과 겹치지 않는다. CI는 운영 secret 없이 `check` job(문서·공백·Deno·core·웹)과 `integration` job(러너 안의 로컬 Supabase로 DB·HTTP 테스트)을 실행한다. MCP·E2E 검사는 추가되는 단계에서 이 표와 CI에 넣는다.
 
 환경상 실행할 수 없는 검사는 대상 commit·명령·데이터 조건·실행 가능한 격리 환경을 기록해 인계한다. CI에서 수행하는 경우 해당 revision의 결과까지 확인한다.
 
