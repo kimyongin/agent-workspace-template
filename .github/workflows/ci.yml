@@ -1,4 +1,4 @@
-# 최소 CI: 문서 검사, 공백 검사, 서버(Deno) 검사·core 테스트, 웹 타입 검사·빌드.
+# 최소 CI: 문서 검사, 공백 검사, 서버(Deno) 검사·core 테스트, 웹 타입 검사·빌드, 격리 로컬 DB 테스트.
 # 운영 secret을 쓰지 않는다. job 이름을 바꾸면 main 보호의 필수 검사 설정도 함께 바꾼다.
 name: ci
 
@@ -40,3 +40,18 @@ jobs:
         run: npm run test:web
       - name: 웹 빌드
         run: npm run build
+
+  db:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: 로컬 Supabase 준비(러너 안의 격리 DB)
+        run: npm run setup:local
+      - name: DB 테스트
+        run: npm run test:db
