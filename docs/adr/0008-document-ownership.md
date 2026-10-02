@@ -1,6 +1,6 @@
 # ADR-0008: 문서 소유권 — 사람은 PRD·ADR, 에이전트는 나머지
 
-- 상태: 채택 (머지 절은 [ADR-0009](0009-review-without-cross-agent.md)로 대체)
+- 상태: 채택 (머지 절은 [ADR-0010](0010-merge-authority.md)으로 대체)
 - 날짜: 2026-10-01
 
 ## 배경
@@ -36,7 +36,7 @@
 
 ### 머지
 
-> 이 절은 [ADR-0009](0009-review-without-cross-agent.md)로 대체되었다.
+> 이 절은 [ADR-0009](0009-review-without-cross-agent.md)로 대체되었고, ADR-0009는 [ADR-0010](0010-merge-authority.md)으로 대체되었다.
 
 PRD·ADR을 바꾸지 않고 벗어나지도 않는 변경은 다른 에이전트의 교차 리뷰와 자동 검사를 통과하면 에이전트가 머지한다. PRD·ADR을 바꾸는 PR은 사람이 승인한다.
 
