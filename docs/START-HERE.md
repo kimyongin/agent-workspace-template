@@ -19,6 +19,7 @@
 | 6 | [개발과 검증](development/workflow.md) | 어떤 단위로 만들고 어떤 증거로 완료를 판단하는가? |
 | 7 | [구현형 템플릿 티켓](tickets/template-02-implementation-base.md) | 전체 구현 순서·도메인 교체·완성 기준은 무엇인가? |
 | 첫 기능 상세 | [Template-01](tickets/template-01-task-record-search.md) | 첫 할 일·기록·검색의 계약과 검증 조건은 무엇인가? |
+| 문서 정리 | [Template-03](tickets/template-03-docs-for-people.md) | 문서를 사람이 읽기 쉽게 하고 복제된 규칙을 정본 하나로 모으는 일은 무엇인가? |
 | 8 | [배포 방법](deployment/release.md) | 새 프로젝트를 설치하고 변경을 공개·복구하는 순서는 무엇인가? |
 | 9 | [운영 방법](operations/runbook.md) | 서비스 상태·큐·검색·인증·비용·백업과 장애를 어떻게 관리하는가? |
 | 공통 필수 | [보안 가이드](security/guide.md) | 인증·데이터·에이전트·외부 서비스의 신뢰 경계를 어떻게 보호하는가? |
