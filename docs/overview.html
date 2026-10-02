@@ -143,10 +143,13 @@ h3 { font-size: 1.125rem; margin: 40px 0 12px; }
 .rails span { display: inline-flex; align-items: center; gap: 6px; }
 .rails .i { width: 16px; height: 16px; }
 .branch { position: relative; height: 48px; }
+@media (max-width: 819px) { .branch { height: 40px; } .branch::before { bottom: 8px; } }
 .branch::before { content: ""; position: absolute; left: 50%; top: 0; bottom: 0; border-left: 2px solid var(--accent); }
 .branch span { position: absolute; left: calc(50% + 12px); top: 50%; transform: translateY(-50%); font-size: 0.8125rem; font-weight: 600; color: var(--muted-ink); white-space: nowrap; }
 .apps { display: grid; gap: 12px; }
 @media (min-width: 820px) { .apps { grid-template-columns: repeat(3, 1fr); padding-top: 26px; } }
+.tip { position: absolute; left: 50%; top: -10px; transform: translateX(-50%); width: 0; height: 0; border-left: 6px solid transparent; border-right: 6px solid transparent; border-top: 9px solid var(--accent); }
+.appwin:not(:first-child) .tip { display: none; }
 .appwin { position: relative; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; display: grid; align-content: start; }
 .appbar { display: flex; align-items: center; gap: 8px; padding: 9px 12px; border-bottom: 1px solid var(--line); background: var(--surface); border-radius: 14px 14px 0 0; font-weight: 700; font-size: 0.9375rem; }
 .appbar .dots { display: inline-flex; gap: 4px; margin-right: 4px; }
@@ -166,7 +169,8 @@ h3 { font-size: 1.125rem; margin: 40px 0 12px; }
 .bubble .i { color: var(--info); margin-top: 6px; }
 .bubble p { margin: 0; background: var(--info-soft); border: 1px solid var(--info); border-radius: 12px 12px 12px 4px; padding: 8px 10px; font-size: 0.8125rem; line-height: 1.45; }
 @media (min-width: 820px) {
-  .appwin::before { content: ""; position: absolute; left: 50%; top: -26px; height: 26px; border-left: 2px solid var(--accent); }
+  .appwin:not(:first-child) .tip { display: block; }
+  .appwin::before { content: ""; position: absolute; left: 50%; top: -26px; height: 17px; border-left: 2px solid var(--accent); }
   .appwin::after { content: ""; position: absolute; top: -26px; left: -7px; right: -7px; border-top: 2px solid var(--accent); }
   .appwin:first-child::after { left: 50%; }
   .appwin:last-child::after { right: 50%; }
@@ -377,6 +381,7 @@ footer a { margin-right: 10px; white-space: nowrap; }
       <div class="branch"><span>복사해서 업무 대상을 채우면</span></div>
       <div class="apps">
         <div class="appwin">
+          <span class="tip" aria-hidden="true"></span>
           <div class="appbar"><span class="dots"><i></i><i></i><i></i></span><svg class="i"><use href="#i-users"/></svg>고객 관리 앱</div>
           <div class="appbody">
             <div class="filled"><span class="ent">고객</span><div class="kv"><div><small>이름</small><b>김하늘</b></div><div><small>연락처</small><b>010-…</b></div><div><small>등급</small><b>VIP</b></div></div></div>
@@ -385,6 +390,7 @@ footer a { margin-right: 10px; white-space: nowrap; }
           </div>
         </div>
         <div class="appwin">
+          <span class="tip" aria-hidden="true"></span>
           <div class="appbar"><span class="dots"><i></i><i></i><i></i></span><svg class="i"><use href="#i-book"/></svg>독서 기록 앱</div>
           <div class="appbody">
             <div class="filled"><span class="ent">책</span><div class="kv"><div><small>제목</small><b>데미안</b></div><div><small>저자</small><b>헤세</b></div><div><small>다 읽은 날</small><b>9/28</b></div></div></div>
@@ -393,6 +399,7 @@ footer a { margin-right: 10px; white-space: nowrap; }
           </div>
         </div>
         <div class="appwin">
+          <span class="tip" aria-hidden="true"></span>
           <div class="appbar"><span class="dots"><i></i><i></i><i></i></span><svg class="i"><use href="#i-gym"/></svg>운동 기록 앱</div>
           <div class="appbody">
             <div class="filled"><span class="ent">운동</span><div class="kv"><div><small>종목</small><b>스쿼트</b></div><div><small>무게</small><b>60kg</b></div><div><small>횟수</small><b>5×5</b></div></div></div>
