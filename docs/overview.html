@@ -256,6 +256,24 @@ h3 { font-size: 1.125rem; margin: 40px 0 12px; }
   .phase { justify-content: flex-start; padding-left: 34px; }
 }
 
+/* 문서 지도 */
+.docmap { display: grid; gap: 12px; }
+@media (min-width: 860px) { .docmap { grid-template-columns: 1fr 1.5fr; align-items: start; } }
+.owner-col { background: var(--panel); border: 1px solid var(--line); border-top: 4px solid var(--accent); border-radius: var(--radius); padding: 16px 20px; }
+.owner-col.agent { border-top-color: var(--info); }
+.owner-col > h4 { display: flex; align-items: center; gap: 8px; margin: 0 0 4px; font-size: 1rem; }
+.owner-col > h4 .i { width: 20px; height: 20px; color: var(--accent); }
+.owner-col.agent > h4 .i { color: var(--info); }
+.owner-col > p { margin: 0 0 6px; font-size: 0.875rem; color: var(--muted-ink); }
+.dgroup { margin-top: 12px; }
+.dgroup .folder { font-family: var(--mono); font-size: 0.75rem; color: var(--muted-ink); }
+.dgroup .folder b { font-family: inherit; color: var(--ink); font-weight: 600; margin-right: 6px; }
+.dgroup ul { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 3px; }
+.dgroup li { font-size: 0.875rem; color: var(--muted-ink); line-height: 1.5; }
+.dgroup li a { font-weight: 600; margin-right: 6px; }
+.agent-groups { display: grid; gap: 0 24px; }
+@media (min-width: 640px) { .agent-groups { grid-template-columns: 1fr 1fr; } }
+
 /* 용어 */
 .terms { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); }
 .term h4 { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; }
@@ -560,6 +578,84 @@ footer a { margin-right: 10px; white-space: nowrap; }
         <h4>배포 <small>실제 서비스에 올리기</small><span class="owner h">사람이 지시</span></h4>
         <p>합쳐진 변경을 실제 사용자가 쓰는 서비스에 올리는 일입니다. 머지했다고 바로 배포되지 않고, 사람이 지시할 때만 합니다.</p>
         <p class="like">공사를 마친 집에 실제로 입주하는 날</p>
+      </div>
+    </div>
+
+    <h3>어떤 문서가 있나</h3>
+    <p class="h3-note">사람이 정하는 문서와 에이전트가 관리하는 문서로 나뉩니다. 처음이라면 <a href="START-HERE.md">START-HERE</a>에서 읽는 순서를 확인합니다.</p>
+    <div class="docmap">
+      <div class="owner-col">
+        <h4><svg class="i"><use href="#i-person"/></svg>사람이 정하는 문서</h4>
+        <p>무엇을 왜 만들지, 되돌리기 어려운 결정은 무엇인지. 바꾸려면 사람의 승인이 필요합니다.</p>
+        <div class="dgroup">
+          <span class="folder"><b>PRD</b>docs/product/</span>
+          <ul><li><a href="product/concept.md">제품 요구사항</a>어떤 앱을, 왜, 어떤 기능으로 만드는지</li></ul>
+        </div>
+        <div class="dgroup">
+          <span class="folder"><b>ADR</b>docs/adr/</span>
+          <ul>
+            <li><a href="adr/0001-hexagonal-shared-usecases.md">0001</a>웹과 에이전트가 같은 업무 규칙을 쓰는 구조</li>
+            <li><a href="adr/0002-default-tech-stack.md">0002</a>사용하는 서비스 (GitHub Pages, Supabase 등)</li>
+            <li><a href="adr/0003-core-rules-and-local-transactions.md">0003</a>규칙은 한 곳에, 함께 저장할 것은 한 번에</li>
+            <li><a href="adr/0004-summary-single-vector-search.md">0004</a>검색은 제목과 요약으로</li>
+            <li><a href="adr/0005-plugin-delivery-claude-codex.md">0005</a>에이전트에게는 플러그인으로, Claude·Codex 지원</li>
+            <li><a href="adr/0006-owner-only-access-and-separate-auth.md">0006</a>내 데이터는 나만, 로그인과 에이전트 인증은 따로</li>
+            <li><a href="adr/0007-dual-development-agents.md">0007</a>Codex·Claude Code가 같은 지침을 읽음</li>
+            <li><a href="adr/0008-document-ownership.md">0008</a>사람은 PRD·ADR, 에이전트는 나머지를 맡음</li>
+          </ul>
+        </div>
+      </div>
+      <div class="owner-col agent">
+        <h4><svg class="i"><use href="#i-bot"/></svg>에이전트가 관리하는 문서</h4>
+        <p>PRD·ADR 안에서 일하는 방법을 정리한 가이드와 작업 지시서. 일하면서 배운 것을 반영해 에이전트가 직접 고칩니다.</p>
+        <div class="agent-groups">
+          <div class="dgroup">
+            <span class="folder"><b>설계</b>docs/architecture/</span>
+            <ul>
+              <li><a href="architecture/principles.md">코드 설계 원칙</a>코드를 나누고 바꾸는 기준</li>
+              <li><a href="architecture/hexagonal-review.md">아키텍처</a>원칙을 실제 구조에 적용한 방법</li>
+              <li><a href="architecture/search.md">요약 기반 검색</a>기록을 찾는 방법</li>
+            </ul>
+          </div>
+          <div class="dgroup">
+            <span class="folder"><b>디자인</b>docs/design/</span>
+            <ul>
+              <li><a href="design/guide.md">디자인 가이드</a>화면을 만드는 원칙</li>
+              <li><a href="design/visual-spec.md">시각 규격</a>색·글꼴·간격</li>
+              <li><a href="design/ui-patterns.md">컴포넌트와 상호작용</a>버튼·입력 같은 공통 동작</li>
+              <li><a href="design/template-structure.md">폴더 구조</a>파일을 어디에 둘지</li>
+            </ul>
+          </div>
+          <div class="dgroup">
+            <span class="folder"><b>개발</b>docs/development/</span>
+            <ul>
+              <li><a href="development/working-with-agents.md">에이전트와 일하는 방법</a>사람을 위한 사용법</li>
+              <li><a href="development/workflow.md">개발과 검증 방법</a>에이전트가 따르는 작업 규칙</li>
+            </ul>
+          </div>
+          <div class="dgroup">
+            <span class="folder"><b>보안·배포·운영</b>docs/security/ 외 2곳</span>
+            <ul>
+              <li><a href="security/guide.md">보안 가이드</a>데이터와 인증을 지키는 기준</li>
+              <li><a href="deployment/release.md">배포 방법</a>서비스에 올리고 되돌리는 순서</li>
+              <li><a href="operations/runbook.md">운영 방법</a>점검·장애·복구</li>
+            </ul>
+          </div>
+          <div class="dgroup">
+            <span class="folder"><b>티켓</b>docs/tickets/</span>
+            <ul>
+              <li><a href="tickets/template-02-implementation-base.md">Template-02</a>템플릿 전체를 만드는 순서</li>
+              <li><a href="tickets/template-01-task-record-search.md">Template-01</a>첫 기능(할 일·기록·검색)</li>
+            </ul>
+          </div>
+          <div class="dgroup">
+            <span class="folder"><b>지침</b>AGENTS.md · .agents/skills/</span>
+            <ul>
+              <li><a href="../AGENTS.md">AGENTS.md</a>에이전트가 가장 먼저 읽는 규칙</li>
+              <li><a href="../.agents/skills/develop-agent-app/SKILL.md">개발 스킬</a>요청별로 읽을 문서 안내</li>
+            </ul>
+          </div>
+        </div>
       </div>
     </div>
 
