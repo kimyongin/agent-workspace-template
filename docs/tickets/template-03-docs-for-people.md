@@ -3,7 +3,7 @@
 작성: 2026-10-02
 상태: 계획(리뷰 대기)
 검토 기준: `a5b8214`
-선행: [#16](https://github.com/kimyongin/agent-workspace-template/pull/16)(HTML 링크 검사), [#17](https://github.com/kimyongin/agent-workspace-template/pull/17)(`docs/overview.html`), [#18](https://github.com/kimyongin/agent-workspace-template/pull/18)(ADR-0009 교차 리뷰 선택) 머지
+선행: 단계별로 다르다(아래 [단계와 의존성](#단계와-의존성) 표). 관련 PR은 [#16](https://github.com/kimyongin/agent-workspace-template/pull/16)(HTML 링크 검사), [#17](https://github.com/kimyongin/agent-workspace-template/pull/17)(`docs/overview.html`), [#18](https://github.com/kimyongin/agent-workspace-template/pull/18)(ADR-0009 교차 리뷰 선택)이다. 이 티켓 자체는 선행 없이 머지할 수 있다.
 
 ## 목표와 기준 문서
 
@@ -34,7 +34,7 @@
 | T03-6 | ADR에는 결정과 이유만 | 사람 | #18 | 승인되면 ADR 작성 규칙과 절차 위치 정리 |
 | T03-7 | PRD에 대상 사용자와 문제 | 사람 | 없음 | 승인되면 PRD에 절 추가 |
 
-권장 순서는 T03-1 → T03-2 → T03-3 → T03-4로 에이전트가 바로 할 수 있는 정리를 먼저 하고, T03-6·T03-7 변경안은 병행해 사람의 결정을 받는다. T03-5는 방침만 이 티켓에서 정하고 실행은 [Template-02 T02-6](template-02-implementation-base.md)이 맡는다.
+진행 순서는 아래 [PR 분할 계획](#pr-분할-계획)을 따른다. 선행이 없는 T03-2·T03-3을 먼저 하고, 사람이 결정할 T03-6·T03-7 변경안은 그와 함께 올려 결정을 기다린다. T03-1은 T03-6 결정 뒤에 해서 규칙을 두 번 옮기지 않는다. T03-5는 방침만 이 티켓에서 정하고 실행은 [Template-02 T02-6](template-02-implementation-base.md)이 맡는다. T03-4는 #17 머지 뒤 마지막에 앞 단계 결과를 overview에 맞춘다.
 
 ## T03-1 — 머지·리뷰 규칙을 정본 하나로
 
@@ -46,14 +46,15 @@
 - [AGENTS.md](../../AGENTS.md) 8행
 - [개발 스킬](../../.agents/skills/develop-agent-app/SKILL.md) "배포와 운영의 실행 범위" 첫 문단
 - [개발과 검증 방법](../development/workflow.md) "리뷰"·"머지" 절
-- [에이전트와 일하는 방법](../development/working-with-agents.md) 3절 흐름도·표, 4절 3번
+- [에이전트와 일하는 방법](../development/working-with-agents.md) 3절 흐름도·표와 46행("조건이 맞으면 머지한다"), 4절 3번
 
 ### 작업
 
 - 머지·리뷰 조건의 정본을 workflow.md의 "리뷰"·"머지" 절로 정한다. ADR에는 결정(누가 머지할 수 있는가)만 남는다(T03-6 결정에 따름).
 - AGENTS.md와 개발 스킬은 조건을 다시 쓰지 않고 "작은 PR, 머지 조건은 workflow.md" 수준의 한 줄과 링크로 줄인다.
 - working-with-agents.md는 사람이 할 행동("새 대화에서 리뷰를 요청한다")만 남기고 조건은 링크한다.
-- 같은 방식으로 복제된 다른 규칙이 있는지 점검한다. 후보: "Google 로그인과 MCP 인증 분리"(보안·아키텍처·배포 가이드), "운영 배포·비용 작업은 사람 지시"(AGENTS.md·ADR-0008·workflow.md·개발 스킬). 각 가이드의 검증 항목으로 필요한 반복은 유지하고 판단을 티켓에 적는다.
+- 같은 방식으로 복제된 다른 규칙이 있는지 점검한다. 후보는 "운영 배포·비용 작업은 사람 지시"(AGENTS.md·ADR-0008·workflow.md·개발 스킬)다. 각 가이드의 검증 항목으로 필요한 반복은 유지하고 판단을 티켓에 적는다.
+- "Google 로그인과 MCP 인증 분리"(보안·아키텍처·배포 가이드)는 [T02-1 완료 기록](template-02-implementation-base.md#구현-인계와-완료-기록)에서 이미 "각 가이드의 검증 항목이라 유지"로 판단했다. 그 뒤 해당 가이드의 역할이 바뀌지 않았다면 다시 점검하지 않는다.
 
 ### 완료 조건
 
@@ -91,7 +92,8 @@
 ### 작업
 
 - `docs/tickets/README.md`를 만들어 이름 규칙, 상태 값, 필수 절(목표와 기준 문서·작업·완료 조건·PR 분할 계획·구현 인계와 완료 기록), 빈 양식을 둔다. 현재 티켓들의 공통 구조를 근거로 쓴다.
-- 이름 규칙 후보: `NN-slug.md` 또는 `ticket-NN-slug.md`. 기존 `template-NN-…` 티켓은 T03-5의 분리 방침에 따라 이름을 유지하거나 옮긴다. 이미 링크된 파일 이름을 바꾸면 모든 링크를 같은 PR에서 고친다.
+- 이름 규칙 후보: `NN-slug.md` 또는 `ticket-NN-slug.md`. 하위·상세 티켓(현재 `template-02-t02-1-contracts.md`처럼 한 단계의 계약·실험 기록을 따로 둔 파일)의 이름 짓는 방법도 함께 정한다(예: `NN-slug.md`의 하위는 `NN-MM-slug.md`).
+- 기존 `template-NN-…` 티켓은 T03-5의 분리 방침에 따라 이름을 유지하거나 옮긴다. 이미 링크된 파일 이름을 바꾸면 `experiments/`를 포함한 모든 링크를 같은 PR에서 고친다.
 - working-with-agents.md의 "티켓 만들어" 설명이 이 양식을 가리키게 한다.
 
 ### 완료 조건
@@ -103,7 +105,7 @@
 
 ### 근거
 
-`docs/overview.html`은 정본이 아닌 그림 안내라 문서가 바뀌면 낡는다. START-HERE에 "문서 구조·결정·단계를 바꾸는 PR은 이 페이지도 함께 갱신한다"는 문장만 있고 확인 장치는 링크 검사(#16)뿐이다. GitHub 저장소 화면에서는 HTML이 원문 코드로 보여 사람이 열기 어렵다.
+`docs/overview.html`은 정본이 아닌 그림 안내라 문서가 바뀌면 낡는다. START-HERE에 "문서 구조·결정·단계를 바꾸는 PR은 이 페이지도 함께 갱신한다"는 문장(#17에서 추가, 머지 후 확인)만 있고 확인 장치는 링크 검사(#16)뿐이다. GitHub 저장소 화면에서는 HTML이 원문 코드로 보여 사람이 열기 어렵다.
 
 ### 작업
 
@@ -125,11 +127,13 @@
 
 저장소를 복제하면 템플릿을 만든 작업 기록이 새 앱에 그대로 따라간다. 다음 문서가 템플릿 전용 티켓을 직접 링크한다.
 
-- 가이드: [개발 방법](../development/workflow.md) 102행, [배포 방법](../deployment/release.md) 93행, [폴더 구조](../design/template-structure.md) 106행, [보안 가이드](../security/guide.md) 7행, [아키텍처](../architecture/hexagonal-review.md) 5·42·75·89·152행
+- 가이드(Template-01·02 본문 링크): [개발 방법](../development/workflow.md) 102행, [배포 방법](../deployment/release.md) 93행, [폴더 구조](../design/template-structure.md) "다음 작업" 절(105행), [보안 가이드](../security/guide.md) 7행, [아키텍처](../architecture/hexagonal-review.md) 5·152행
+- 가이드(T02-1 실험 결과 링크, 결정의 근거): [아키텍처](../architecture/hexagonal-review.md) 42·75·89행 → `template-02-t02-1-contracts.md`
+- 실험: [실험 목록](../../experiments/README.md) 7행 → `template-02-t02-1-contracts.md`, [t02-1 실험](../../experiments/t02-1/README.md) 3행 → `template-02-implementation-base.md`·`template-02-t02-1-contracts.md`
 - 시작점: [START-HERE](../START-HERE.md) 읽는 순서 표와 "다음 단계"
 - PRD: [제품 요구사항](../product/concept.md) 89행(사람 소유)
 
-한편 아키텍처의 링크 일부(T02-1 실험 결과)는 결정의 근거라 새 앱에서도 의미가 있고, T02-6은 이미 "`experiments/`는 새 프로젝트에서도 유지"로 정했다. 따라서 일괄 삭제가 아니라 "근거로 남길 것"과 "새 앱에서 바뀌어야 할 것"을 구분해야 한다.
+T02-1 실험 결과로 가는 링크는 결정의 근거라 새 앱에서도 의미가 있고, T02-6은 이미 "`experiments/`는 새 프로젝트에서도 유지"로 정했다. 티켓을 다른 폴더로 옮기면 유지되는 `experiments/`의 링크도 깨진다. 따라서 일괄 삭제가 아니라 "근거로 남길 것"과 "새 앱에서 바뀌어야 할 것"을 구분해야 한다.
 
 ### 작업
 
@@ -218,4 +222,6 @@ overview 작업 때 쓴 다음 세 문제를 출발점으로 PRD 변경안을 �
 
 ### 이력
 
-2026-10-02 `docs/overview.html` 작성(#17) 중 발견한 문서 문제를 정리해 작성했다. 다른 세션에서 리뷰한다.
+2026-10-02 `docs/overview.html` 작성(#17) 중 발견한 문서 문제를 정리해 작성했다.
+
+2026-10-02 별도 세션 리뷰([#19 코멘트](https://github.com/kimyongin/agent-workspace-template/pull/19#issuecomment-5954596506), 결론 수정 필요)를 반영했다: 폴더 구조 근거 행 105행으로 정정, T03-5에 `experiments/` 링크 추가와 아키텍처 링크를 본문/실험 결과로 구분, 권장 순서를 PR 분할 계획과 일치, T03-1의 이미 판단된 항목(Google 로그인과 MCP 인증 분리)은 기존 판단 링크로 대체, 머리말 선행을 단계별로 정리, T03-3에 하위 티켓 이름 규칙 추가, START-HERE의 Template-03 행을 표 끝으로 이동.
