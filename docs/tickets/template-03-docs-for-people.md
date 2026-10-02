@@ -214,7 +214,7 @@ overview 작업 때 쓴 다음 세 문제를 출발점으로 PRD 변경안을 �
 | --- | --- | --- | --- | --- |
 | T03-1 | 미시작 | — | — | #18 머지 후 |
 | T03-2 | 구현(리뷰 대기) | PR 2 `docs/t03-glossary`: `docs/glossary.md`(용어 35개, 정본 링크), working-with-agents.md 용어 첫 등장 설명·revision 등 쉬운 말, START-HERE·README 용어집 링크 | `node scripts/check-docs.mjs` 통과, `node --test "scripts/*.test.mjs"` 8개 통과 | 사람 읽기 확인(완료 조건 3) |
-| T03-3 | 미시작 | — | — | — |
+| T03-3 | 구현(리뷰 대기) | PR 3 `docs/t03-tickets-readme`: `docs/tickets/README.md`(이름 `NNN-영문-요약.md`, 하위 `NNN-MM-…`, 상태 값, 필수 절, 양식), workflow.md·working-with-agents.md·용어집에서 연결. Template-03은 이름(`template-03`)만 규칙과 다르며 T03-5에서 다룬다. 머리말·필수 절은 양식과 맞다 | `node scripts/check-docs.mjs` 통과, `node --test "scripts/*.test.mjs"` 8개 통과 | — |
 | T03-4 | 미시작 | — | — | #17 머지 후 |
 | T03-5 | 미시작 | — | — | — |
 | T03-6 | 결정 대기 | — | — | 사람 결정 |
