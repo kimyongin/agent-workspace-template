@@ -4,7 +4,7 @@
 
 웹·MCP·비동기 worker가 같은 데이터를 사용할 때 지켜야 할 신뢰 경계와 검증 기준이다. 인증 성공과 작업 권한, 사용자 요청과 저장된 콘텐츠, 공개 설정과 비밀값을 구분한다. 권한과 데이터 보호는 서버가 강제하며 UI·에이전트 스킬 준수에 의존하지 않는다.
 
-이 문서는 보호 기준이며 적용된 보안 설정이나 감사 통과를 의미하지 않는다. 적용과 검증 상태는 [시작 문서의 현재 상태](../START-HERE.md#현재-상태)와 티켓에서 확인한다. 구체적인 인증·세션·역할·요청 제한은 [첫 기능 티켓](../tickets/template-01-task-record-search.md)에서 확정하고 실제 경계에서 검증한다. 실행 구성은 [아키텍처](../architecture/hexagonal-review.md), 배포와 사고 대응은 각각 [배포 방법](../deployment/release.md)·[운영 방법](../operations/runbook.md)이 소유한다.
+이 문서는 보호 기준이며 적용된 보안 설정이나 감사 통과를 의미하지 않는다. 적용과 검증 상태는 [시작 문서의 현재 상태](../START-HERE.md#현재-상태)와 티켓에서 확인한다. 구체적인 인증·세션·역할·요청 제한은 해당 기능 티켓에서 확정하고 실제 경계에서 검증한다(이 템플릿의 공통 기능은 [Template-01](../tickets/template-01-task-record-search.md)). 실행 구성은 [아키텍처](../architecture/hexagonal-review.md), 배포와 사고 대응은 각각 [배포 방법](../deployment/release.md)·[운영 방법](../operations/runbook.md)이 소유한다.
 
 ## 보호 대상과 신뢰 경계
 
