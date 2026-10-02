@@ -258,7 +258,7 @@ h3 { font-size: 1.125rem; margin: 40px 0 12px; }
 
 /* 문서 지도 */
 .docmap { display: grid; gap: 12px; }
-@media (min-width: 860px) { .docmap { grid-template-columns: 1fr 1fr; align-items: stretch; } }
+@media (min-width: 860px) { .docmap { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: stretch; } }
 .owner-col { background: var(--panel); border: 1px solid var(--line); border-top: 4px solid var(--accent); border-radius: var(--radius); padding: 16px 20px; }
 .owner-col.agent { border-top-color: var(--info); }
 .owner-col > h4 { display: flex; align-items: center; gap: 8px; margin: 0 0 4px; font-size: 1rem; }
@@ -272,7 +272,7 @@ h3 { font-size: 1.125rem; margin: 40px 0 12px; }
 .dgroup li { font-size: 0.8125rem; color: var(--muted-ink); line-height: 1.45; }
 .dgroup li a { display: block; font-size: 0.9375rem; font-weight: 600; }
 .agent-groups { display: grid; gap: 0 24px; }
-@media (min-width: 640px) { .agent-groups { grid-template-columns: 1fr 1fr; } }
+@media (min-width: 640px) { .agent-groups { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
 
 /* 용어 */
 .terms { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); }
