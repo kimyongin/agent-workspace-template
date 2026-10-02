@@ -87,7 +87,7 @@
 
 - [ ] 용어집이 있고 위 최소 범위를 포함한다.
 - [ ] working-with-agents.md에 설명 없는 개발 용어가 남지 않는다(첫 등장 시 링크 또는 쉬운 말).
-- [ ] 사람 리뷰어가 개발 지식 없이 working-with-agents.md를 읽고 "정리해봐부터 배포해까지"의 흐름을 설명할 수 있다. 이 확인은 PR 리뷰에서 사람에게 요청한다.
+- [x] 사람 리뷰어가 개발 지식 없이 working-with-agents.md를 읽고 "정리해봐부터 배포해까지"의 흐름을 설명할 수 있다. 이 확인은 PR 리뷰에서 사람에게 요청한다. 2026-10-03 사용자 결정으로 이 확인은 하지 않고 넘어갔다.
 
 ## T03-3 — 티켓 이름 규칙과 양식
 
@@ -238,7 +238,7 @@ overview 작업 때 쓴 다음 세 문제를 출발점으로 PRD 변경안을 �
 | ID | 상태 | revision / 변경 | 검증 명령·결과 | 남은 작업 |
 | --- | --- | --- | --- | --- |
 | T03-1 | 구현(리뷰 대기) | PR 4+6 `docs/t03-merge-rule-canon`: 머지·리뷰 조건을 workflow.md로 모으고 AGENTS.md·개발 스킬·working-with-agents.md는 요약·링크, overview의 ADR 목록 갱신 | `node scripts/check-docs.mjs` 통과, `node --test "scripts/*.test.mjs"` 8개 통과 | — |
-| T03-2 | 구현(리뷰 대기) | PR 2 `docs/t03-glossary`: `docs/glossary.md`(용어 35개, 정본 링크), working-with-agents.md 용어 첫 등장 설명·revision 등 쉬운 말, START-HERE·README 용어집 링크 | `node scripts/check-docs.mjs` 통과, `node --test "scripts/*.test.mjs"` 8개 통과 | 사람 읽기 확인(완료 조건 3) |
+| T03-2 | 구현(리뷰 대기) | PR 2 `docs/t03-glossary`: `docs/glossary.md`(용어 35개, 정본 링크), working-with-agents.md 용어 첫 등장 설명·revision 등 쉬운 말, START-HERE·README 용어집 링크 | `node scripts/check-docs.mjs` 통과, `node --test "scripts/*.test.mjs"` 8개 통과 | 없음(사람 읽기 확인은 2026-10-03 사용자 결정으로 생략) |
 | T03-3 | 구현(리뷰 대기) | PR 3 `docs/t03-tickets-readme`: `docs/tickets/README.md`(이름 `NNN-영문-요약.md`, 하위 `NNN-MM-…`, 상태 값, 필수 절, 양식), workflow.md·working-with-agents.md·용어집에서 연결. Template-03은 이름(`template-03`)만 규칙과 다르며 T03-5에서 다룬다. 머리말·필수 절은 양식과 맞다 | `node scripts/check-docs.mjs` 통과, `node --test "scripts/*.test.mjs"` 8개 통과 | — |
 | T03-4 | 구현(리뷰 대기) | PR 8 `docs/t03-overview-upkeep`: PR 템플릿 확인 항목, overview에 용어집·티켓 작성 규칙 링크, 어두운 테마 확인, T02-6에 공개 방법 항목 | `node scripts/check-docs.mjs` 통과, `node --test "scripts/*.test.mjs"` 8개 통과, 어두운 테마 Playwright 확인 | — |
 | T03-5 | 구현(리뷰 대기) | PR 7 `docs/t03-template-split`: 분류와 보존 방침([결과](#결과-2026-10-02)), 역할 링크 3곳 일반화, 티켓 README에 템플릿 기록 보존 명시, T02-6 초기화·비용 안내 항목 추가와 오래된 문장 삭제 | `node scripts/check-docs.mjs` 통과, `node --test "scripts/*.test.mjs"` 8개 통과 | PRD 문장은 새 앱 PRD 작성 때(T02-6) |
