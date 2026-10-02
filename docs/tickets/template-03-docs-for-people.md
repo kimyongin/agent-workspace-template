@@ -1,7 +1,7 @@
 # Template-03 — 사람이 읽기 쉬운 문서와 규칙 정본 정리
 
 작성: 2026-10-02
-상태: 계획(리뷰 대기)
+상태: 진행 중(T03-2부터)
 검토 기준: `a5b8214`
 선행: 단계별로 다르다(아래 [단계와 의존성](#단계와-의존성) 표). 관련 PR은 [#16](https://github.com/kimyongin/agent-workspace-template/pull/16)(HTML 링크 검사), [#17](https://github.com/kimyongin/agent-workspace-template/pull/17)(`docs/overview.html`), [#18](https://github.com/kimyongin/agent-workspace-template/pull/18)(ADR-0009 교차 리뷰 선택)이다. 이 티켓 자체는 선행 없이 머지할 수 있다.
 
@@ -213,7 +213,7 @@ overview 작업 때 쓴 다음 세 문제를 출발점으로 PRD 변경안을 �
 | ID | 상태 | revision / 변경 | 검증 명령·결과 | 남은 작업 |
 | --- | --- | --- | --- | --- |
 | T03-1 | 미시작 | — | — | #18 머지 후 |
-| T03-2 | 미시작 | — | — | — |
+| T03-2 | 구현(리뷰 대기) | PR 2 `docs/t03-glossary`: `docs/glossary.md`(용어 35개, 정본 링크), working-with-agents.md 용어 첫 등장 설명·revision 등 쉬운 말, START-HERE·README 용어집 링크 | `node scripts/check-docs.mjs` 통과, `node --test "scripts/*.test.mjs"` 8개 통과 | 사람 읽기 확인(완료 조건 3) |
 | T03-3 | 미시작 | — | — | — |
 | T03-4 | 미시작 | — | — | #17 머지 후 |
 | T03-5 | 미시작 | — | — | — |

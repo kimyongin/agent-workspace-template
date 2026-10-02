@@ -14,7 +14,7 @@
 
 인증·사용자 격리·MCP/RAG·외부 통신은 [보안 가이드](docs/security/guide.md)의 경계와 검증 기준을 따릅니다.
 
-**처음이라면 [프로젝트 지도](docs/overview.html)로 전체 그림을 본 뒤 [에이전트와 일하는 방법](docs/development/working-with-agents.md)을 읽으세요.** 사람은 PRD(제품 요구사항)와 ADR(아키텍처 결정)을 정하고, 티켓·구현·리뷰는 에이전트가 맡습니다.
+**처음이라면 [프로젝트 지도](docs/overview.html)로 전체 그림을 본 뒤 [에이전트와 일하는 방법](docs/development/working-with-agents.md)을 읽으세요.** 모르는 용어는 [용어집](docs/glossary.md)에 있습니다. 사람은 PRD(제품 요구사항)와 ADR(아키텍처 결정)을 정하고, 티켓·구현·리뷰는 에이전트가 맡습니다.
 
 개발 에이전트에게는 [develop-agent-app](.agents/skills/develop-agent-app/SKILL.md) 스킬로 설계·개발·리뷰·배포·운영을 위임할 수 있습니다. Codex(AGENTS.md, `$develop-agent-app`)와 Claude Code(CLAUDE.md, `/develop-agent-app`)가 같은 지침과 스킬을 사용하며, 둘 중 하나만 써도 됩니다. [사용 방법](docs/development/workflow.md)을 참고하세요. 이 스킬과 AGENTS.md는 저장소와 함께 전달됩니다.
 
