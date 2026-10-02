@@ -271,6 +271,8 @@ h3 { font-size: 1.125rem; margin: 40px 0 12px; }
 .dgroup ul { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 8px; }
 .dgroup li { font-size: 0.8125rem; color: var(--muted-ink); line-height: 1.45; }
 .dgroup li a { display: block; font-size: 0.9375rem; font-weight: 600; }
+.dgroup li .sample { display: block; font-family: var(--mono); font-size: 0.8125rem; font-weight: 600; color: var(--ink); }
+.dgroup .sample-note { margin: 6px 0 0; font-size: 0.75rem; color: var(--muted-ink); }
 .agent-groups { display: grid; gap: 0 24px; }
 @media (min-width: 640px) { .agent-groups { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
 
@@ -644,9 +646,10 @@ footer a { margin-right: 10px; white-space: nowrap; }
           <div class="dgroup">
             <span class="folder"><b>티켓</b>tickets/</span>
             <ul>
-              <li><a href="tickets/template-02-implementation-base.md">Template-02</a>템플릿 전체를 만드는 순서</li>
-              <li><a href="tickets/template-01-task-record-search.md">Template-01</a>첫 기능(할 일·기록·검색)</li>
+              <li><span class="sample">ticket-01-customer-search.md</span>예: 고객 검색 기능 만들기</li>
+              <li><span class="sample">ticket-02-record-photo.md</span>예: 기록에 사진 첨부하기</li>
             </ul>
+            <p class="sample-note">작업마다 하나씩 생기는 작업 지시서입니다. 이름은 예시입니다.</p>
           </div>
           <div class="dgroup">
             <span class="folder"><b>지침</b>저장소 루트</span>
