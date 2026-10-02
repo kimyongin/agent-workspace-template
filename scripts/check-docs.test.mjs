@@ -48,6 +48,22 @@ test("깨진 상대 링크를 검출한다", () => {
   assert.match(problems.join("\n"), /README\.md:3: 깨진 링크 docs\/NONE\.md/);
 });
 
+test("HTML의 깨진 href·src를 검출하고 script·주석 안은 건너뛴다", () => {
+  const html = [
+    "<!doctype html>",
+    '<a href="../README.md">처음</a> <a href="https://example.com">외부</a> <a href="#a">앵커</a>',
+    "<a href='NONE.md'>없음</a>",
+    '<img src="missing.png" alt="">',
+    '<!-- <a href="comment.md"> -->',
+    "<script>const a = '<a href=\"script.md\">';</script>",
+    "",
+  ].join("\n");
+  const problems = problemsOf({ "docs/page.html": html }).join("\n");
+  assert.match(problems, /docs\/page\.html:3: 깨진 링크 NONE\.md/);
+  assert.match(problems, /docs\/page\.html:4: 깨진 링크 missing\.png/);
+  assert.doesNotMatch(problems, /README|example|comment\.md|script\.md/);
+});
+
 test("CRLF를 검출한다", () => {
   const problems = problemsOf({ "docs/START.md": "# 시작\r\n\r\n본문\r\n" });
   assert.match(problems.join("\n"), /docs\/START\.md:1: CRLF/);
