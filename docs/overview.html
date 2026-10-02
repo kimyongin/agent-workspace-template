@@ -120,18 +120,22 @@ h3 { font-size: 1.125rem; margin: 40px 0 12px; }
 .cycle { display: grid; gap: 20px; align-items: center; }
 @media (min-width: 860px) { .cycle { grid-template-columns: minmax(0, 540px) 1fr; } }
 .cycle svg { width: 100%; height: auto; display: block; }
-.cy-ring { fill: none; stroke: var(--accent); stroke-width: 3; }
+.cy-track { fill: none; stroke: var(--line); stroke-width: 1.5; stroke-dasharray: 2 6; stroke-linecap: round; }
+.cy-ring { fill: none; stroke: var(--accent); stroke-width: 3; stroke-linecap: round; }
 .cy-arrow { fill: var(--accent); }
 .cy-node { fill: var(--panel); stroke: var(--line); stroke-width: 1.5; }
+.cy-badge { fill: var(--accent); }
+.cy-badgenum { fill: var(--background); font-weight: 700; font-size: 14px; }
 .cy-store { fill: var(--success-soft); stroke: var(--success); stroke-width: 2; }
-.cy-link { fill: none; stroke: var(--success); stroke-width: 2; stroke-dasharray: 5 5; }
-.cy-num { fill: var(--accent); font-weight: 700; font-size: 15px; }
+.cy-icon { fill: none; stroke: var(--success); stroke-width: 2; stroke-linejoin: round; }
+.cy-link { fill: none; stroke: var(--success); stroke-width: 2; stroke-dasharray: 4 4; }
+.cy-linkhead { fill: var(--success); }
+.cy-chiptext { fill: var(--success); font-size: 12px; font-weight: 700; }
 .cy-title { fill: var(--ink); font-weight: 700; font-size: 18px; }
-.cy-sub { fill: var(--muted-ink); font-size: 14px; }
-.cy-edge { fill: var(--muted-ink); font-size: 14px; font-weight: 600; }
-.cy-storetitle { fill: var(--ink); font-weight: 700; font-size: 17px; }
-.cy-storesub { fill: var(--muted-ink); font-size: 13px; }
-.cy-linklabel { fill: var(--success); font-size: 13px; font-weight: 600; }
+.cy-sub { fill: var(--muted-ink); font-size: 13.5px; }
+.cy-edge { fill: var(--muted-ink); font-size: 13.5px; font-weight: 600; }
+.cy-storetitle { fill: var(--ink); font-weight: 700; font-size: 15px; }
+.cy-storesub { fill: var(--muted-ink); font-size: 11.5px; }
 .cycle-notes { display: grid; gap: 12px; }
 
 /* 사용 방법 그림 */
@@ -288,47 +292,60 @@ footer a { margin-right: 10px; white-space: nowrap; }
 
     <h3>한 일이 다음 일의 참고 자료가 되는 순환</h3>
     <div class="cycle">
-      <svg viewBox="0 0 520 430" role="img" aria-labelledby="cy-t cy-d">
+      <svg viewBox="0 0 540 444" role="img" aria-labelledby="cy-t cy-d">
         <title id="cy-t">기록 순환</title>
-        <desc id="cy-d">일을 한다, 기록을 남긴다, 다음 일에서 찾아본다가 원을 그리며 반복되고, 가운데 쌓인 기록에 저장하고 거기서 꺼내 본다.</desc>
+        <desc id="cy-d">일을 한다, 기록을 남긴다, 지난 기록을 찾는다가 원을 그리며 반복된다. 남긴 기록은 가운데 쌓인 기록에 저장되고, 다음 일을 할 때 거기서 꺼내 본다.</desc>
         <defs>
-          <marker id="cy-head" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
-            <path class="cy-arrow" d="M0 0 L10 5 L0 10 z"/>
+          <marker id="cy-head" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="4" markerHeight="4" markerUnits="strokeWidth" orient="auto">
+            <path class="cy-arrow" d="M0 0 L10 5 L0 10 L2.5 5 z"/>
           </marker>
-          <marker id="cy-head-g" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-            <path d="M0 0 L10 5 L0 10 z" style="fill: var(--success)"/>
+          <marker id="cy-head-g" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="4" markerHeight="4" markerUnits="strokeWidth" orient="auto">
+            <path class="cy-linkhead" d="M0 0 L10 5 L0 10 L2.5 5 z"/>
           </marker>
         </defs>
-        <!-- 바깥 원: 시계 방향 -->
-        <path class="cy-ring" d="M356 100 A150 150 0 0 1 409 228" marker-end="url(#cy-head)"/>
-        <path class="cy-ring" d="M346 338 A150 150 0 0 1 174 338" marker-end="url(#cy-head)"/>
-        <path class="cy-ring" d="M111 228 A150 150 0 0 1 164 100" marker-end="url(#cy-head)"/>
-        <text class="cy-edge" x="452" y="150" text-anchor="middle">끝나면</text>
-        <text class="cy-edge" x="260" y="395" text-anchor="middle">비슷한 일이 다시 생기면</text>
-        <text class="cy-edge" x="68" y="150" text-anchor="middle">참고해서</text>
+
+        <!-- 중심 (270, 230), 반지름 160. 노드는 -90°, 30°, 150°, 화살표는 노드 사이 60°씩 -->
+        <circle class="cy-track" cx="270" cy="230" r="160"/>
+        <path class="cy-ring" d="M361.8 98.9 A160 160 0 0 1 429.4 243.9" marker-end="url(#cy-head)"/>
+        <path class="cy-ring" d="M361.8 361.1 A160 160 0 0 1 178.2 361.1" marker-end="url(#cy-head)"/>
+        <path class="cy-ring" d="M110.6 243.9 A160 160 0 0 1 178.2 98.9" marker-end="url(#cy-head)"/>
+        <text class="cy-edge" x="462" y="140" text-anchor="middle">일이 끝나면</text>
+        <text class="cy-edge" x="270" y="424" text-anchor="middle">비슷한 일이 다시 생기면</text>
+        <text class="cy-edge" x="78" y="140" text-anchor="middle">참고해서</text>
+
         <!-- 가운데: 쌓인 기록 -->
-        <circle class="cy-store" cx="260" cy="215" r="64"/>
-        <text class="cy-storetitle" x="260" y="210" text-anchor="middle">쌓인 기록</text>
-        <text class="cy-storesub" x="260" y="232" text-anchor="middle">한 일 · 할 일 · 원칙</text>
-        <path class="cy-link" d="M352 258 L318 240" marker-end="url(#cy-head-g)"/>
-        <text class="cy-linklabel" x="350" y="236" text-anchor="start">저장</text>
-        <path class="cy-link" d="M202 240 L168 258" marker-end="url(#cy-head-g)"/>
-        <text class="cy-linklabel" x="170" y="236" text-anchor="end">찾아보기</text>
+        <circle class="cy-store" cx="270" cy="230" r="56"/>
+        <ellipse class="cy-icon" cx="270" cy="200" rx="11" ry="4"/>
+        <path class="cy-icon" d="M259 200 v13 c0 2.2 4.9 4 11 4 s11 -1.8 11 -4 v-13 M259 206.5 c0 2.2 4.9 4 11 4 s11 -1.8 11 -4"/>
+        <text class="cy-storetitle" x="270" y="239" text-anchor="middle">쌓인 기록</text>
+        <text class="cy-storesub" x="270" y="255" text-anchor="middle">한 일 · 할 일 · 원칙</text>
+
+        <!-- 저장: 2 → 가운데, 꺼내 보기: 가운데 → 3 -->
+        <path class="cy-link" d="M358 277 L325 258" marker-end="url(#cy-head-g)"/>
+        <text class="cy-chiptext" x="350" y="256">저장</text>
+        <path class="cy-link" d="M215 258 L182 277" marker-end="url(#cy-head-g)"/>
+        <text class="cy-chiptext" x="190" y="256" text-anchor="end">꺼내 보기</text>
+
         <!-- 1 일을 한다 -->
-        <rect class="cy-node" x="170" y="28" width="180" height="72" rx="14"/>
-        <text class="cy-num" x="188" y="58">1</text>
-        <text class="cy-title" x="270" y="60" text-anchor="middle">일을 한다</text>
-        <text class="cy-sub" x="270" y="84" text-anchor="middle">사람이 직접, 또는 AI에게 맡겨</text>
+        <rect class="cy-node" x="182" y="38" width="176" height="64" rx="14"/>
+        <circle class="cy-badge" cx="182" cy="38" r="12"/>
+        <text class="cy-badgenum" x="182" y="43" text-anchor="middle">1</text>
+        <text class="cy-title" x="270" y="66" text-anchor="middle">일을 한다</text>
+        <text class="cy-sub" x="270" y="88" text-anchor="middle">직접, 또는 AI에게 맡겨</text>
+
         <!-- 2 기록을 남긴다 -->
-        <rect class="cy-node" x="302" y="258" width="190" height="72" rx="14"/>
-        <text class="cy-num" x="320" y="288">2</text>
-        <text class="cy-title" x="404" y="290" text-anchor="middle">기록을 남긴다</text>
-        <text class="cy-sub" x="404" y="314" text-anchor="middle">무엇을, 왜, 결과는</text>
-        <!-- 3 다음 일에서 찾아본다 -->
-        <rect class="cy-node" x="28" y="258" width="190" height="72" rx="14"/>
-        <text class="cy-num" x="46" y="288">3</text>
-        <text class="cy-title" x="130" y="290" text-anchor="middle">지난 기록을 찾는다</text>
-        <text class="cy-sub" x="130" y="314" text-anchor="middle">비슷한 일, 내 원칙</text>
+        <rect class="cy-node" x="321" y="278" width="176" height="64" rx="14"/>
+        <circle class="cy-badge" cx="321" cy="278" r="12"/>
+        <text class="cy-badgenum" x="321" y="283" text-anchor="middle">2</text>
+        <text class="cy-title" x="409" y="306" text-anchor="middle">기록을 남긴다</text>
+        <text class="cy-sub" x="409" y="328" text-anchor="middle">무엇을, 왜, 결과는</text>
+
+        <!-- 3 지난 기록을 찾는다 -->
+        <rect class="cy-node" x="43" y="278" width="176" height="64" rx="14"/>
+        <circle class="cy-badge" cx="43" cy="278" r="12"/>
+        <text class="cy-badgenum" x="43" y="283" text-anchor="middle">3</text>
+        <text class="cy-title" x="131" y="306" text-anchor="middle">지난 기록을 찾는다</text>
+        <text class="cy-sub" x="131" y="328" text-anchor="middle">비슷한 일, 내 원칙</text>
       </svg>
       <div class="cycle-notes">
         <div class="card"><h4>시작은 “일을 한다”부터</h4><p>할 일을 미리 만들지 않아도 됩니다. 한 일을 바로 기록하면 그때부터 순환이 시작됩니다.</p></div>
