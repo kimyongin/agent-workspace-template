@@ -219,46 +219,32 @@ h3 { font-size: 1.125rem; margin: 40px 0 12px; }
 .system li { margin-bottom: 4px; }
 .mapnote { margin-top: 16px; }
 
-/* 개발 흐름: 사람과 에이전트의 두 줄 */
-.swim-head { display: grid; grid-template-columns: 1fr 48px 1fr; gap: 0 16px; margin-bottom: 12px; }
-.swim-head div { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 0.9375rem; }
-.swim-head div:first-child { justify-content: flex-end; }
-.swim-head div:last-child { grid-column: 3; }
-.swim-head .i { width: 22px; height: 22px; }
-.swim-head .h .i { color: var(--accent); }
-.swim-head .a .i { color: var(--info); }
-.swim { position: relative; display: grid; gap: 14px; }
-.swim::before { content: ""; position: absolute; top: 0; bottom: 0; left: 50%; transform: translateX(-50%); border-left: 2px solid var(--line); }
-.srow { position: relative; display: grid; grid-template-columns: 1fr 48px 1fr; gap: 0 16px; align-items: center; }
-.node { justify-self: center; z-index: 1; width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; background: var(--panel); border: 2px solid var(--accent); font-weight: 700; }
-.say { justify-self: end; width: min(100%, 25rem); background: var(--accent-soft); border: 1.5px solid var(--accent); border-radius: 16px 16px 4px 16px; padding: 10px 14px; display: grid; gap: 4px; }
-.say code { justify-self: start; font-family: inherit; font-size: 1rem; font-weight: 700; background: var(--panel); border-color: var(--accent); padding: 2px 8px; }
-.say small { color: var(--muted-ink); font-size: 0.8125rem; }
-.say .then { font-size: 0.8125rem; color: var(--ink); display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 2px; }
-.say.quiet { background: transparent; border-style: dashed; border-color: var(--line); }
-.say.quiet small { font-size: 0.875rem; }
-.gate { display: inline-flex; align-items: center; gap: 4px; font-size: 0.75rem; font-weight: 700; padding: 2px 9px; border-radius: 999px; background: var(--accent); color: var(--background); }
-.do { justify-self: start; width: min(100%, 25rem); background: var(--panel); border: 1.5px solid var(--info); border-radius: 16px 16px 16px 4px; padding: 10px 14px; display: grid; gap: 6px; }
-.do p { margin: 0; font-size: 0.9375rem; }
-.out { justify-self: start; font-size: 0.8125rem; font-weight: 600; padding: 2px 10px; border-radius: 999px; background: var(--info-soft); border: 1px solid var(--info); }
-.out::before { content: "결과물 · "; color: var(--muted-ink); font-weight: 400; }
-.opt-tag { justify-self: start; font-size: 0.75rem; font-weight: 700; color: var(--muted-ink); border: 1px dashed var(--muted-ink); border-radius: 999px; padding: 1px 8px; }
-.srow.opt .say, .srow.opt .do { border-style: dashed; }
-.srow.opt .node { border-style: dashed; }
-.phase { position: relative; z-index: 1; display: flex; justify-content: center; margin: 6px 0 -2px; }
-.phase span { font-size: 0.8125rem; font-weight: 700; color: var(--muted-ink); background: var(--background); border: 1px solid var(--line); border-radius: 999px; padding: 3px 12px; }
-.loopgrp { position: relative; display: grid; gap: 14px; border: 1.5px dashed var(--info); border-radius: 18px; padding: 40px 12px 14px; }
-.looplabel { position: absolute; top: 10px; right: 14px; font-size: 0.8125rem; font-weight: 700; color: var(--info); }
-@media (max-width: 759px) {
-  .swim-head { display: flex; flex-wrap: wrap; gap: 8px 16px; }
-  .swim-head div:first-child { justify-content: flex-start; }
-  .swim::before { left: 19px; transform: none; }
-  .srow { grid-template-columns: 38px 1fr; grid-template-areas: "n s" "n d"; gap: 8px 12px; align-items: start; }
-  .node { grid-area: n; justify-self: start; }
-  .say { grid-area: s; justify-self: stretch; width: auto; }
-  .do { grid-area: d; justify-self: stretch; width: auto; }
-  .phase { justify-content: flex-start; }
-  .loopgrp { padding: 40px 10px 12px 0; border-left: 0; border-radius: 0 18px 18px 0; }
+/* 개발 흐름: 사람이 하는 말과 에이전트가 하는 일 */
+.steps { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 4px 20px 8px; }
+.steps-head, .st { display: grid; grid-template-columns: 32px minmax(0, 1fr) minmax(0, 1.2fr); gap: 4px 20px; }
+.steps-head { padding: 14px 0 10px; border-bottom: 1px solid var(--line); font-size: 0.8125rem; font-weight: 700; color: var(--muted-ink); }
+.steps-head span { display: inline-flex; align-items: center; gap: 6px; }
+.steps-head span:first-child { grid-column: 2; }
+.steps-head .i { width: 18px; height: 18px; }
+.steps-head .h .i { color: var(--accent); }
+.steps-head .a .i { color: var(--info); }
+.st-phase { padding: 16px 0 2px; font-size: 0.8125rem; font-weight: 700; color: var(--accent); }
+.st-phase small { font-weight: 400; color: var(--muted-ink); margin-left: 6px; }
+.st { padding: 10px 0; border-bottom: 1px solid var(--line); align-items: start; }
+.st:last-child { border-bottom: 0; }
+.st .n { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: var(--accent-soft); font-size: 0.8125rem; font-weight: 700; margin-top: 1px; }
+.st .cmd { font-weight: 700; color: var(--accent); }
+.st .cmd.none { font-weight: 400; color: var(--muted-ink); }
+.st .note { display: block; font-size: 0.8125rem; color: var(--muted-ink); margin-top: 2px; }
+.st .ok { display: block; font-size: 0.8125rem; font-weight: 700; color: var(--accent); margin-top: 2px; }
+.st .act { font-size: 0.9375rem; }
+.st .res { display: block; font-size: 0.8125rem; color: var(--muted-ink); margin-top: 2px; }
+.st .res b { color: var(--info); font-weight: 600; }
+@media (max-width: 639px) {
+  .steps { padding: 4px 14px 8px; }
+  .steps-head { display: none; }
+  .st { grid-template-columns: 26px minmax(0, 1fr); gap: 6px 12px; }
+  .st .act { grid-column: 2; }
 }
 
 /* 용어 */
@@ -569,54 +555,51 @@ footer a { margin-right: 10px; white-space: nowrap; }
     </div>
 
     <h3>이렇게 말하면 진행됩니다</h3>
-    <p class="h3-note">왼쪽은 사람이 에이전트에게 하는 말, 오른쪽은 그 말을 듣고 에이전트가 하는 일과 남기는 결과물입니다.</p>
-    <div class="swim-head" aria-hidden="true">
-      <div class="h"><svg class="i"><use href="#i-person"/></svg>사람이 하는 말</div>
-      <div class="a"><svg class="i"><use href="#i-bot"/></svg>에이전트가 하는 일</div>
-    </div>
-    <div class="swim" role="list" aria-label="개발 진행 단계">
-      <div class="phase"><span>정하기</span></div>
-      <div class="srow" role="listitem">
-        <div class="say"><code>정리해봐: …</code><small>하고 싶은 것을 편하게 말한다</small><span class="then">→ 정리된 내용을 읽어 본다</span></div>
-        <div class="node">1</div>
-        <div class="do"><p>요청을 정리하고, 기획서(PRD)나 결정 기록(ADR)을 바꿔야 하는지 알려 준다</p><span class="out">정리 메모</span></div>
-      </div>
-      <div class="srow opt" role="listitem">
-        <div class="say"><span class="opt-tag">기획·결정이 바뀔 때만</span><code>PRD 반영해 · ADR 초안 만들어</code><span class="then">→ 읽어 보고 <span class="gate">승인</span></span></div>
-        <div class="node">2</div>
-        <div class="do"><p>기획서나 결정 기록의 수정안을 만들어 검토를 요청한다</p><span class="out">PRD·ADR 변경 PR</span></div>
+    <div class="steps" role="list" aria-label="개발 진행 단계">
+      <div class="steps-head" aria-hidden="true">
+        <span class="h"><svg class="i"><use href="#i-person"/></svg>사람이 하는 말</span>
+        <span class="a"><svg class="i"><use href="#i-bot"/></svg>에이전트가 하는 일</span>
       </div>
 
-      <div class="phase"><span>만들기</span></div>
-      <div class="srow" role="listitem">
-        <div class="say"><code>티켓 만들어</code><small>무엇을 할지 작업 지시서로 정리</small></div>
-        <div class="node">3</div>
-        <div class="do"><p>목표, 작게 나눈 단계, 다 됐는지 확인하는 방법을 적는다</p><span class="out">티켓</span></div>
+      <div class="st-phase">정하기</div>
+      <div class="st" role="listitem">
+        <span class="n">1</span>
+        <div><span class="cmd">“정리해봐: …”</span><span class="note">하고 싶은 것을 편하게 말한다</span></div>
+        <div class="act">요청을 정리하고, 기획서(PRD)나 결정 기록(ADR)을 바꿔야 하는지 알려 준다<span class="res">결과물 <b>정리 메모</b></span></div>
       </div>
-      <div class="loopgrp">
-        <span class="looplabel">↺ PR마다 반복</span>
-        <div class="srow" role="listitem">
-          <div class="say"><code>티켓 진행해</code><small>이제 만들기 시작</small></div>
-          <div class="node">4</div>
-          <div class="do"><p>작업을 작게 나눠 만들고, 잘 되는지 확인한 뒤 검토를 요청한다</p><span class="out">PR</span></div>
-        </div>
-        <div class="srow" role="listitem">
-          <div class="say"><code>PR #N 리뷰해줘</code><small>새 대화(또는 다른 에이전트)에서</small><span class="then">→ 원래 대화에 <code>리뷰 반영해</code></span></div>
-          <div class="node">5</div>
-          <div class="do"><p>만든 맥락과 떨어진 눈으로 문제와 기획 이탈을 찾는다</p><span class="out">머지 가능 · 수정 필요 · 사람 승인 필요</span></div>
-        </div>
-        <div class="srow" role="listitem">
-          <div class="say quiet"><small>말하지 않아도 됩니다</small></div>
-          <div class="node">6</div>
-          <div class="do"><p>리뷰와 자동 검사를 통과하면 공식 코드에 합친다(머지)</p><span class="out">반영된 코드</span></div>
-        </div>
+      <div class="st" role="listitem">
+        <span class="n">2</span>
+        <div><span class="cmd">“PRD 반영해” / “ADR 초안 만들어”</span><span class="note">1번에서 바꿔야 한다고 할 때만. 아니면 3번으로 건너뜀</span><span class="ok">✓ 사람이 읽고 승인</span></div>
+        <div class="act">기획서나 결정 기록의 수정안을 올린다<span class="res">결과물 <b>PRD·ADR 변경 PR</b></span></div>
       </div>
 
-      <div class="phase"><span>내보내기</span></div>
-      <div class="srow" role="listitem">
-        <div class="say"><code>배포해 (운영)</code><span class="then">→ 이 말 자체가 <span class="gate">승인</span></span></div>
-        <div class="node">7</div>
-        <div class="do"><p>검사를 통과한 버전을 확인하고 실제 서비스에 올린다</p><span class="out">사용자가 쓰는 서비스</span></div>
+      <div class="st-phase">만들기<small>4–6은 PR마다 반복</small></div>
+      <div class="st" role="listitem">
+        <span class="n">3</span>
+        <div><span class="cmd">“티켓 만들어”</span></div>
+        <div class="act">목표, 작게 나눈 단계, 다 됐는지 확인하는 방법을 적는다<span class="res">결과물 <b>티켓</b></span></div>
+      </div>
+      <div class="st" role="listitem">
+        <span class="n">4</span>
+        <div><span class="cmd">“티켓 진행해”</span></div>
+        <div class="act">작게 나눠 만들고, 잘 되는지 확인한 뒤 검토를 요청한다<span class="res">결과물 <b>PR</b></span></div>
+      </div>
+      <div class="st" role="listitem">
+        <span class="n">5</span>
+        <div><span class="cmd">“PR #N 리뷰해줘”</span><span class="note">새 대화(또는 다른 에이전트)에서. 끝나면 원래 대화에 “리뷰 반영해”</span></div>
+        <div class="act">만든 맥락과 떨어진 눈으로 문제와 기획 이탈을 찾는다<span class="res">결과물 <b>리뷰 결론</b> (머지 가능 / 수정 필요 / 사람 승인 필요)</span></div>
+      </div>
+      <div class="st" role="listitem">
+        <span class="n">6</span>
+        <div><span class="cmd none">말하지 않아도 됨</span></div>
+        <div class="act">리뷰와 자동 검사를 통과하면 공식 코드에 합친다(머지)<span class="res">결과물 <b>반영된 코드</b></span></div>
+      </div>
+
+      <div class="st-phase">내보내기</div>
+      <div class="st" role="listitem">
+        <span class="n">7</span>
+        <div><span class="cmd">“배포해 (운영)”</span><span class="ok">✓ 이 말이 곧 승인</span></div>
+        <div class="act">검사를 통과한 버전을 실제 서비스에 올린다<span class="res">결과물 <b>사용자가 쓰는 서비스</b></span></div>
       </div>
     </div>
 
