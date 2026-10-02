@@ -1,7 +1,7 @@
 # Template-03 — 사람이 읽기 쉬운 문서와 규칙 정본 정리
 
 작성: 2026-10-02
-상태: 진행 중(T03-2부터)
+상태: 진행 중(모든 단계 PR 리뷰 대기)
 검토 기준: `a5b8214`
 선행: 단계별로 다르다(아래 [단계와 의존성](#단계와-의존성) 표). 관련 PR은 [#16](https://github.com/kimyongin/agent-workspace-template/pull/16)(HTML 링크 검사), [#17](https://github.com/kimyongin/agent-workspace-template/pull/17)(`docs/overview.html`), [#18](https://github.com/kimyongin/agent-workspace-template/pull/18)(ADR-0009 교차 리뷰 선택)이다. 이 티켓 자체는 선행 없이 머지할 수 있다.
 
@@ -123,10 +123,10 @@
 
 ### 완료 조건
 
-- [ ] PR 템플릿에 overview 확인 항목이 있다.
-- [ ] overview의 용어·정본 링크가 용어집·workflow.md와 일치한다.
-- [ ] 어두운 테마 확인 결과(또는 확인하지 못한 이유)가 기록되어 있다.
-- [ ] 공개 방법이 T02-6 작업 항목에 들어가 있다.
+- [x] PR 템플릿에 overview 확인 항목이 있다. 용어집도 함께 맞추도록 한 줄에 넣었다.
+- [x] overview의 용어·정본 링크가 용어집·workflow.md와 일치한다. 용어 카드 위에 용어집 링크, 문서 지도에 티켓 작성 규칙, 하단에 용어집 링크를 넣었다. ADR 목록은 T03-6 PR에서 0010으로 갱신했다.
+- [x] 어두운 테마 확인 결과(또는 확인하지 못한 이유)가 기록되어 있다. 2026-10-02 Playwright(Chromium, 1150×900, `prefers-color-scheme: dark`, 로컬 HTTP 서버)로 확인했다. 배경 `#101116`·글자 `#ececef`가 적용되고 템플릿 그림·순환 그림·개발 흐름의 색과 대비가 정상이다. 콘솔 오류는 시험 서버의 favicon 404 하나였다.
+- [x] 공개 방법이 T02-6 작업 항목에 들어가 있다.
 
 ## T03-5 — 템플릿 기록과 새 앱 문서 분리 방침
 
@@ -240,7 +240,7 @@ overview 작업 때 쓴 다음 세 문제를 출발점으로 PRD 변경안을 �
 | T03-1 | 구현(리뷰 대기) | PR 4+6 `docs/t03-merge-rule-canon`: 머지·리뷰 조건을 workflow.md로 모으고 AGENTS.md·개발 스킬·working-with-agents.md는 요약·링크, overview의 ADR 목록 갱신 | `node scripts/check-docs.mjs` 통과, `node --test "scripts/*.test.mjs"` 8개 통과 | — |
 | T03-2 | 구현(리뷰 대기) | PR 2 `docs/t03-glossary`: `docs/glossary.md`(용어 35개, 정본 링크), working-with-agents.md 용어 첫 등장 설명·revision 등 쉬운 말, START-HERE·README 용어집 링크 | `node scripts/check-docs.mjs` 통과, `node --test "scripts/*.test.mjs"` 8개 통과 | 사람 읽기 확인(완료 조건 3) |
 | T03-3 | 구현(리뷰 대기) | PR 3 `docs/t03-tickets-readme`: `docs/tickets/README.md`(이름 `NNN-영문-요약.md`, 하위 `NNN-MM-…`, 상태 값, 필수 절, 양식), workflow.md·working-with-agents.md·용어집에서 연결. Template-03은 이름(`template-03`)만 규칙과 다르며 T03-5에서 다룬다. 머리말·필수 절은 양식과 맞다 | `node scripts/check-docs.mjs` 통과, `node --test "scripts/*.test.mjs"` 8개 통과 | — |
-| T03-4 | 미시작 | — | — | #17 머지 후 |
+| T03-4 | 구현(리뷰 대기) | PR 8 `docs/t03-overview-upkeep`: PR 템플릿 확인 항목, overview에 용어집·티켓 작성 규칙 링크, 어두운 테마 확인, T02-6에 공개 방법 항목 | `node scripts/check-docs.mjs` 통과, `node --test "scripts/*.test.mjs"` 8개 통과, 어두운 테마 Playwright 확인 | — |
 | T03-5 | 구현(리뷰 대기) | PR 7 `docs/t03-template-split`: 분류와 보존 방침([결과](#결과-2026-10-02)), 역할 링크 3곳 일반화, 티켓 README에 템플릿 기록 보존 명시, T02-6 초기화·비용 안내 항목 추가와 오래된 문장 삭제 | `node scripts/check-docs.mjs` 통과, `node --test "scripts/*.test.mjs"` 8개 통과 | PRD 문장은 새 앱 PRD 작성 때(T02-6) |
 | T03-6 | 구현(사람 승인 대기) | 같은 PR: ADR-0010 채택안, ADR-0009 대체됨, ADR-0008 머지 절 안내 갱신 | 위와 같음 | PR 머지가 승인 |
 | T03-7 | 구현(사람 승인 대기) | PR 5 `docs/t03-prd-problem`: PRD에 "대상 사용자와 해결하는 문제" 절(대상 2, 문제와 해결 3) | `node scripts/check-docs.mjs` 통과, `node --test "scripts/*.test.mjs"` 8개 통과 | PR 머지가 승인 |
