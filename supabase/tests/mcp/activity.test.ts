@@ -1,8 +1,15 @@
 // MCP 계약 테스트: 실제 OAuth 토큰과 공식 MCP 클라이언트로 도구를 호출하고, HTTP와 결과·오류 의미가 같은지 본다.
 import { assert, assertEquals } from "@std/assert";
 import { z } from "zod";
-import { recordCreate } from "../../functions/_shared/contracts/record.ts";
-import { taskListQuery } from "../../functions/_shared/contracts/task.ts";
+import { isoDate } from "../../functions/_shared/contracts/common.ts";
+import { recordCreate, recordListQuery, recordUpdate } from "../../functions/_shared/contracts/record.ts";
+import {
+  occurrenceRange,
+  taskComplete,
+  taskCreate,
+  taskListQuery,
+  taskUpdate,
+} from "../../functions/_shared/contracts/task.ts";
 import { API, call, httpTest, seoulDate, signIn } from "../http/_client.ts";
 import { claimsOf, connectMcp, MCP_URL, mcpToken, registerClient, tool } from "./_mcp.ts";
 
@@ -76,6 +83,56 @@ httpTest("tools/list: 계약의 도구 이름과 contracts JSON Schema", async (
   assertEquals(byName.get_task.annotations?.readOnlyHint, true);
   assertEquals(byName.delete_task.annotations?.destructiveHint, true);
 });
+
+// deno-lint-ignore no-explicit-any
+type JsonSchema = Record<string, any>;
+const json = (schema: z.ZodType) => z.toJSONSchema(schema, { target: "draft-2020-12", io: "input" }) as JsonSchema;
+
+httpTest(
+  "tools/list: 대상 도구는 contracts 속성에 id(회차 기록은 date)만 더하고, 할 일 생성은 두 종류 입력의 합집합",
+  async () => {
+    const { tools } = await mcpA.listTools();
+    const byName = Object.fromEntries(tools.map((t) => [t.name, t.inputSchema as JsonSchema]));
+    const idOnly = { id: json(z.uuid()) };
+    const version = json(z.strictObject({ expected_version: z.number().int().min(1) })).properties;
+    const expected: Record<string, Record<string, unknown>> = {
+      list_tasks: json(taskListQuery).properties,
+      list_records: json(recordListQuery).properties,
+      create_record: json(recordCreate).properties,
+      get_task: idOnly,
+      get_record: idOnly,
+      update_task: { ...idOnly, ...json(taskUpdate).properties },
+      update_record: { ...idOnly, ...json(recordUpdate).properties },
+      complete_task: { ...idOnly, ...json(taskComplete).properties },
+      list_occurrences: { ...idOnly, ...json(occurrenceRange).properties },
+      stop_task: { ...idOnly, ...version },
+      resume_task: { ...idOnly, ...version },
+      delete_task: { ...idOnly, ...version },
+      delete_record: { ...idOnly, ...version },
+      // 회차 기록: 기록 생성 입력 + id + date
+      record_occurrence: {
+        ...idOnly,
+        date: json(z.object({ date: isoDate })).properties.date,
+        ...json(recordCreate).properties,
+      },
+    };
+    for (const [name, props] of Object.entries(expected)) {
+      assertEquals(Object.keys(byName[name].properties).sort(), Object.keys(props).sort(), `${name} 속성 이름`);
+      for (const [key, schema] of Object.entries(props)) {
+        if (key === "id") continue; // id는 어댑터가 더한 UUID(date는 contracts의 isoDate와 비교)
+        assertEquals(byName[name].properties[key], schema, `${name}.${key}`);
+      }
+      assertEquals(byName[name].additionalProperties, false, `${name}는 허용 필드만`);
+    }
+    // 할 일 생성: MCP는 최상위 object로 펼쳐 알리므로 두 종류(once·recurring) 입력 필드의 합집합과 같아야 한다.
+    const branches = (json(taskCreate).oneOf ?? json(taskCreate).anyOf) as JsonSchema[];
+    const union = new Set(branches.flatMap((b) => Object.keys(b.properties)));
+    assertEquals(Object.keys(byName.create_task.properties).sort(), [...union].sort());
+    const requiredEverywhere = branches.map((b) => new Set(b.required as string[]))
+      .reduce((a, b) => new Set([...a].filter((k) => b.has(k))));
+    assertEquals([...(byName.create_task.required as string[])].sort(), [...requiredEverywhere].sort());
+  },
+);
 
 httpTest("웹(HTTP)에서 만든 할 일을 MCP로 조회·완료하고 웹에서 결과를 확인한다", async () => {
   const created = await call(sessionA, "POST", "/tasks", {
