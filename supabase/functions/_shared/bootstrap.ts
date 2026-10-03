@@ -2,6 +2,8 @@
 import postgres from "postgres";
 import { SqlUnitOfWork } from "./adapters/supabase/activity-store.ts";
 import type { ActivityDeps } from "./core/activity/application.ts";
+import { SqlPrincipleUnitOfWork } from "./adapters/supabase/principle-store.ts";
+import type { PrincipleDeps } from "./core/principles/application.ts";
 
 function required(name: string): string {
   const v = Deno.env.get(name);
@@ -10,11 +12,24 @@ function required(name: string): string {
 }
 
 let deps: ActivityDeps | undefined;
+let principles: PrincipleDeps | undefined;
+let connection: postgres.Sql | undefined;
+function database() {
+  return connection ??= postgres(required("APP_DB_URL"), {
+    prepare: false,
+    max: 3,
+    idle_timeout: 20,
+    onnotice: () => {},
+  });
+}
+export function principleDeps(): PrincipleDeps {
+  return principles ??= { uow: new SqlPrincipleUnitOfWork(database()) };
+}
 
 /** 트랜잭션 풀러(Supavisor) 연결. prepared statement를 지원하지 않으므로 prepare: false. */
 export function activityDeps(): ActivityDeps {
   if (!deps) {
-    const sql = postgres(required("APP_DB_URL"), { prepare: false, max: 3, idle_timeout: 20, onnotice: () => {} });
+    const sql = database();
     deps = { uow: new SqlUnitOfWork(sql), clock: { now: () => new Date() } };
   }
   return deps;

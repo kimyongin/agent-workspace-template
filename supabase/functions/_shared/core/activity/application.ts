@@ -12,7 +12,8 @@ import type {
   TaskUpdate,
 } from "../../contracts/task.ts";
 import type { Actor } from "../shared/actor.ts";
-import { conflict, invalidInput, notFound } from "../shared/errors.ts";
+import { conflict, notFound } from "../shared/errors.ts";
+import { decodeCursor, once, type Page, paginate, scopeOf, searchInputHash } from "../shared/operations.ts";
 import {
   assertRecordableOccurrence,
   assertVersion,
@@ -24,7 +25,7 @@ import {
   todayOf,
   updateTask as decideUpdate,
 } from "./domain.ts";
-import type { ActivityRecord, ActivityStore, Clock, Keyset, UnitOfWork } from "./ports.ts";
+import type { ActivityRecord, ActivityStore, Clock, UnitOfWork } from "./ports.ts";
 import { isOccurrence, listOccurrences as computeOccurrences, occurrenceStatus } from "./recurrence.ts";
 
 export interface ActivityDeps {
@@ -32,94 +33,7 @@ export interface ActivityDeps {
   clock: Clock;
 }
 
-export interface Page<T> {
-  items: T[];
-  next_cursor: string | null;
-}
-
-// ---------- 공통 보조 ----------
-
-async function sha256Hex(text: string): Promise<string> {
-  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
-  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
-}
-
-/** 키 순서와 무관한 JSON(요청 내용 비교용). */
-function canonical(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
-  if (value && typeof value === "object") {
-    return `{${
-      Object.keys(value).sort().filter((k) => (value as Record<string, unknown>)[k] !== undefined)
-        .map((k) => `${JSON.stringify(k)}:${canonical((value as Record<string, unknown>)[k])}`).join(",")
-    }}`;
-  }
-  return JSON.stringify(value);
-}
-
-const searchInputHash = (item: { title: string; summary: string }) => sha256Hex(`${item.title}\n${item.summary}`);
-
-/**
- * `request_id`가 있으면 같은 소유자·작업·키의 첫 결과를 돌려준다. 내용이 다르면 conflict.
- * 같은 키의 동시 요청은 트랜잭션 잠금으로 직렬화해 한 번만 실행한다. 보관 기간은 7일이다.
- */
-async function once<T>(
-  store: ActivityStore,
-  operation: string,
-  requestId: string | undefined,
-  payload: unknown,
-  run: () => Promise<T>,
-): Promise<T> {
-  if (!requestId) return run();
-  const hash = await sha256Hex(canonical(payload));
-  await store.lockRequest(operation, requestId);
-  const prior = await store.findRequest(operation, requestId);
-  if (prior) {
-    if (prior.request_hash !== hash) throw conflict("같은 request_id로 다른 내용을 보냈습니다");
-    return prior.response as T;
-  }
-  const result = await run();
-  await store.saveRequest(operation, requestId, hash, result);
-  return result;
-}
-
-interface CursorBody {
-  at: string;
-  id: string;
-  /** 커서를 만든 소유자·필터의 해시. 다른 조건에 쓰면 거부한다. */
-  scope: string;
-}
-
-async function scopeOf(actor: Actor, filter: unknown): Promise<string> {
-  return (await sha256Hex(`${actor.userId}:${canonical(filter)}`)).slice(0, 16);
-}
-
-function encodeCursor(body: CursorBody): string {
-  return btoa(JSON.stringify(body)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-}
-
-function decodeCursor(cursor: string, scope: string): Keyset {
-  try {
-    const body = JSON.parse(atob(cursor.replace(/-/g, "+").replace(/_/g, "/"))) as CursorBody;
-    if (body.scope === scope && typeof body.at === "string" && typeof body.id === "string") {
-      return { at: body.at, id: body.id };
-    }
-  } catch {
-    // 아래에서 invalid_input
-  }
-  throw invalidInput("cursor가 이 목록 조건의 것이 아닙니다", [{ path: "cursor", message: "유효하지 않은 cursor" }]);
-}
-
-async function paginate<T extends { id: string }>(
-  rows: T[],
-  limit: number,
-  sortKey: (row: T) => string,
-  scope: string,
-): Promise<Page<T>> {
-  const items = rows.slice(0, limit);
-  const last = items.at(-1);
-  const next = rows.length > limit && last ? encodeCursor({ at: sortKey(last), id: last.id, scope }) : null;
-  return await Promise.resolve({ items, next_cursor: next });
-}
+export type { Page } from "../shared/operations.ts";
 
 function toTaskResult(task: Task): TaskResult {
   return { ...task };

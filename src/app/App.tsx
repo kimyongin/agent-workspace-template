@@ -7,6 +7,8 @@ import { RecordDetailPage } from "../features/activity/RecordDetailPage.tsx";
 import { RecordsPage } from "../features/activity/RecordsPage.tsx";
 import { TaskDetailPage } from "../features/activity/TaskDetailPage.tsx";
 import { TasksPage } from "../features/activity/TasksPage.tsx";
+import { PrinciplesPage } from "../features/principles/PrinciplesPage.tsx";
+import { PrincipleDetailPage } from "../features/principles/PrincipleDetailPage.tsx";
 import { supabase } from "../lib/supabase.ts";
 
 export const APP_NAME = "Workspace";
@@ -22,6 +24,7 @@ function Layout() {
             <nav className="app-nav" aria-label="주 메뉴">
               <NavLink to="/tasks">할 일</NavLink>
               <NavLink to="/records">기록</NavLink>
+              <NavLink to="/principles">원칙</NavLink>
             </nav>
             <button type="button" className="btn btn-text" onClick={() => supabase.auth.signOut()}>로그아웃</button>
           </>
@@ -50,6 +53,8 @@ export function App() {
             <Route path="tasks/:id" element={guarded(<TaskDetailPage />)} />
             <Route path="records" element={guarded(<RecordsPage />)} />
             <Route path="records/:id" element={guarded(<RecordDetailPage />)} />
+            <Route path="principles" element={guarded(<PrinciplesPage />)} />
+            <Route path="principles/:id" element={guarded(<PrincipleDetailPage />)} />
             <Route path="*" element={<p className="secondary">페이지를 찾을 수 없습니다.</p>} />
           </Route>
         </Routes>

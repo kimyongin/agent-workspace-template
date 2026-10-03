@@ -1,5 +1,6 @@
 // 할 일·기록 유스케이스가 쓰는 저장 계약. SQL·SDK 타입을 노출하지 않는다.
 import type { Actor } from "../shared/actor.ts";
+import type { IndexJob } from "../shared/store.ts";
 import type { NewTask, Task } from "./domain.ts";
 
 export interface ActivityRecord {
@@ -49,12 +50,7 @@ export interface RecordFilter {
   limit: number;
 }
 
-export interface IndexJob {
-  kind: "task" | "record";
-  id: string;
-  /** 검색 입력(제목+요약)의 해시. worker가 최신 원본과 비교한다(T02-3). */
-  input_hash: string;
-}
+export type { IndexJob } from "../shared/store.ts";
 
 export interface StoredRequest {
   request_hash: string;

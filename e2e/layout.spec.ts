@@ -54,9 +54,20 @@ test.describe("화면 폭별 배치", () => {
     await expect(page.getByRole("heading", { name: recordTitle, level: 1 })).toBeVisible();
     const recordDetail = page.url();
 
+    await page.goto("/principles");
+    await page.getByRole("button", { name: "원칙 추가" }).click();
+    const principleDialog = page.getByRole("dialog", { name: "원칙 추가" });
+    const principleTitle = unique("긴원칙" + "다".repeat(40));
+    await principleDialog.getByLabel("제목").fill(principleTitle);
+    await principleDialog.getByLabel("요약").fill("조건 " + "c".repeat(150));
+    await principleDialog.getByLabel("적용 조건").fill("d".repeat(300));
+    await principleDialog.getByRole("button", { name: "저장", exact: true }).click();
+    await expect(page.getByRole("heading", { name: principleTitle, level: 1 })).toBeVisible();
+    const principleDetail = page.url();
+
     for (const width of WIDTHS) {
       await page.setViewportSize({ width, height: 900 });
-      for (const path of ["/tasks", taskDetail, "/records", recordDetail]) {
+      for (const path of ["/tasks", taskDetail, "/records", recordDetail, "/principles", principleDetail]) {
         await page.goto(path);
         await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
         expect(await layoutProblems(page), `${width}px ${path}`).toEqual([]);

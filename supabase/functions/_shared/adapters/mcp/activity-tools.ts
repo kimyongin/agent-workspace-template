@@ -1,6 +1,6 @@
 // MCP 도구: HTTP와 같은 유스케이스를 호출한다(ADR-0001). 입력은 contracts로 검사하고,
 // 실패는 HTTP와 같은 오류 본문 {code, message, retryable, fields}를 isError 결과로 돌려준다.
-import type { McpServer, StandardSchemaWithJSON } from "@modelcontextprotocol/server";
+import type { ToolDef } from "./tools.ts";
 import { z } from "zod";
 import { expectedVersion, id, isoDate } from "../../contracts/common.ts";
 import { recordCreate, recordListQuery, recordUpdate } from "../../contracts/record.ts";
@@ -14,25 +14,8 @@ import {
   timezone,
 } from "../../contracts/task.ts";
 import * as activity from "../../core/activity/application.ts";
-import type { Actor } from "../../core/shared/actor.ts";
 import { notFound } from "../../core/shared/errors.ts";
-import { parse, toErrorBody } from "../errors.ts";
-
-/**
- * 도구 목록에는 contracts의 JSON Schema를 그대로 알리고, 검증은 핸들러가 contracts로 한다.
- * SDK의 자체 검증은 오류를 일반 텍스트로 돌려주므로 통과시키고 계약 오류 형식을 지킨다.
- */
-function documented(schema: z.ZodType): StandardSchemaWithJSON<Record<string, unknown>> {
-  const std = schema["~standard"] as unknown as StandardSchemaWithJSON["~standard"];
-  return {
-    "~standard": {
-      version: 1,
-      vendor: "workspace-contracts",
-      validate: (value: unknown) => ({ value: (value ?? {}) as Record<string, unknown> }),
-      jsonSchema: std.jsonSchema,
-    },
-  } as StandardSchemaWithJSON<Record<string, unknown>>;
-}
+import { parse } from "../errors.ts";
 
 /** MCP inputSchema는 최상위가 object여야 하므로, 종류별 생성 입력을 펼친 모양으로 알린다(검증은 taskCreate). */
 const createTaskInput = z.strictObject({
@@ -49,8 +32,6 @@ const createTaskInput = z.strictObject({
 const withId = <T extends z.ZodObject>(schema: T) => z.strictObject({ id, ...schema.shape });
 const idOnly = z.strictObject({ id });
 const deleteInput = z.strictObject({ id, expected_version: expectedVersion });
-
-type Handler = (args: Record<string, unknown>, actor: Actor) => Promise<unknown>;
 
 /** 경로 ID와 같은 규칙: UUID가 아니면 존재 여부를 드러내지 않고 not_found(HTTP와 같음). */
 function split(args: Record<string, unknown>) {
@@ -69,15 +50,6 @@ const byIdAndVersion = (args: Record<string, unknown>) => {
   const { id, rest } = split(args);
   return { id, expected_version: parse(versionOnly, rest).expected_version };
 };
-
-export interface ToolDef {
-  name: string;
-  description: string;
-  input: z.ZodType;
-  readOnly: boolean;
-  destructive?: boolean;
-  handler: Handler;
-}
 
 export function activityTools(deps: activity.ActivityDeps): ToolDef[] {
   return [
@@ -226,37 +198,4 @@ export function activityTools(deps: activity.ActivityDeps): ToolDef[] {
       },
     },
   ];
-}
-
-export function registerTools(server: McpServer, tools: ToolDef[], actor: Actor) {
-  for (const tool of tools) {
-    server.registerTool(
-      tool.name,
-      {
-        description: tool.description,
-        inputSchema: documented(tool.input),
-        annotations: {
-          readOnlyHint: tool.readOnly,
-          destructiveHint: tool.destructive ?? false,
-          openWorldHint: false,
-        },
-      },
-      async (args: Record<string, unknown>) => {
-        try {
-          const result = await tool.handler(args ?? {}, actor);
-          return {
-            content: [{ type: "text" as const, text: JSON.stringify(result) }],
-            structuredContent: result as Record<string, unknown>,
-          };
-        } catch (e) {
-          const { body } = toErrorBody(e);
-          return {
-            content: [{ type: "text" as const, text: JSON.stringify(body) }],
-            structuredContent: body,
-            isError: true,
-          };
-        }
-      },
-    );
-  }
 }

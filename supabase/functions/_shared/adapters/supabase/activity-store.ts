@@ -5,7 +5,6 @@ import type { NewTask, Task } from "../../core/activity/domain.ts";
 import type {
   ActivityRecord,
   ActivityStore,
-  IndexJob,
   NewRecord,
   RecordChanges,
   RecordFilter,
@@ -13,12 +12,11 @@ import type {
   UnitOfWork,
 } from "../../core/activity/ports.ts";
 import type { Actor } from "../../core/shared/actor.ts";
+import { runAsActor, SqlActorStore } from "./sql-context.ts";
 import { AppError } from "../../core/shared/errors.ts";
 
 type Tx = postgres.TransactionSql;
 type Row = Record<string, unknown>;
-
-const REQUEST_RETENTION = "7 days";
 
 const iso = (v: unknown) => (v instanceof Date ? v.toISOString() : v === null ? null : String(v));
 
@@ -89,32 +87,7 @@ function pick<T extends Record<string, unknown>>(tx: Tx, values: T, allowed: rea
   return out;
 }
 
-class SqlActivityStore implements ActivityStore {
-  constructor(private readonly tx: Tx, private readonly actor: Actor) {}
-
-  async lockRequest(operation: string, requestId: string) {
-    await this
-      .tx`select pg_advisory_xact_lock(hashtextextended(${`${this.actor.userId}:${operation}:${requestId}`}, 0))`;
-  }
-
-  async findRequest(operation: string, requestId: string) {
-    // 보관 기간이 지난 결과는 지우고 새 요청으로 처리한다.
-    await this.tx`
-      delete from app.request_results
-      where operation = ${operation} and request_id = ${requestId}
-        and created_at <= now() - ${REQUEST_RETENTION}::interval`;
-    const [row] = await this.tx<{ request_hash: string; response: unknown }[]>`
-      select request_hash, response from app.request_results
-      where operation = ${operation} and request_id = ${requestId}`;
-    return row ?? null;
-  }
-
-  async saveRequest(operation: string, requestId: string, requestHash: string, response: unknown) {
-    await this.tx`
-      insert into app.request_results (owner_id, operation, request_id, request_hash, response)
-      values (${this.actor.userId}, ${operation}, ${requestId}, ${requestHash}, ${this.tx.json(response as never)})`;
-  }
-
+class SqlActivityStore extends SqlActorStore implements ActivityStore {
   async getTask(id: string, opts: { forUpdate?: boolean } = {}) {
     const [row] = await this.tx`
       select ${taskColumns(this.tx)} from app.tasks where id = ${id}
@@ -235,49 +208,12 @@ class SqlActivityStore implements ActivityStore {
       select ${taskColumns(this.tx)} from app.tasks where result_record_id = ${recordId} for update`;
     return row ? toTask(row) : null;
   }
-
-  /** 큐 전송은 접속 역할로 돌아가 같은 트랜잭션에서 한다. 이후 쿼리를 위해 사용자 역할로 다시 전환한다. */
-  async enqueueIndex(job: IndexJob) {
-    await this.tx`reset role`;
-    await this.tx`select pgmq.send('search_index', ${this.tx.json({ ...job, owner_id: this.actor.userId })})`;
-    await this.tx`set local role app_user`;
-  }
-}
-
-/** DB 오류를 업무 오류로 바꾼다. 내부 SQL·메시지는 밖으로 내보내지 않는다. */
-function translate(e: unknown): unknown {
-  if (e instanceof AppError) return e;
-  const code = (e as { code?: string }).code ?? "";
-  if (code === "40001" || code === "40P01" || code === "55P03" || code === "57014") {
-    return new AppError("unavailable", "잠시 후 다시 시도하세요");
-  }
-  if (code === "23503") return new AppError("invalid_reference", "참조한 항목이 없거나 접근할 수 없습니다");
-  if (code === "23514" || code === "22001" || code === "22P02") {
-    return new AppError("invalid_input", "입력 형식이 맞지 않습니다");
-  }
-  if (/^(08|53|57P)/.test(code) || /ECONNREFUSED|ECONNRESET|CONNECT_TIMEOUT/.test(String(code))) {
-    return new AppError("unavailable", "저장소에 일시적으로 연결할 수 없습니다");
-  }
-  console.error("db error", code, (e as Error)?.message);
-  return new AppError("internal", "서버 오류가 발생했습니다");
 }
 
 export class SqlUnitOfWork implements UnitOfWork {
   constructor(private readonly sql: postgres.Sql) {}
 
-  async run<T>(actor: Actor, fn: (store: ActivityStore) => Promise<T>): Promise<T> {
-    try {
-      return await this.sql.begin(async (tx) => {
-        await tx`select set_config('request.jwt.claims', ${
-          JSON.stringify({ sub: actor.userId, role: "authenticated" })
-        }, true),
-                        set_config('lock_timeout', '5s', true),
-                        set_config('statement_timeout', '15s', true)`;
-        await tx`set local role app_user`;
-        return await fn(new SqlActivityStore(tx, actor));
-      }) as T;
-    } catch (e) {
-      throw translate(e);
-    }
+  run<T>(actor: Actor, fn: (store: ActivityStore) => Promise<T>): Promise<T> {
+    return runAsActor(this.sql, actor, (tx) => fn(new SqlActivityStore(tx, actor)));
   }
 }
