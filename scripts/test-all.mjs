@@ -15,13 +15,13 @@ const API = "http://127.0.0.1:55421/functions/v1/api/tasks";
 // Ctrl+C로 끝난 자식의 종료 상태(Windows STATUS_CONTROL_C_EXIT, 셸의 130).
 const INTERRUPT_CODES = new Set([3221225786, -1073741510, 130]);
 
+/** 지금 실행 중인 단계(중단 처리기가 결과에 표시하고 함께 끝낸다). */
+let current = null;
+
 /**
  * 한 단계를 실행한다. 이벤트 루프를 막지 않도록 비동기로 기다려야 Ctrl+C 처리기가 바로 실행된다.
  * 동기 실행(spawnSync)이면 처리기가 단계 사이에도 실행되지 못해 단계마다 Ctrl+C를 다시 눌러야 했다.
  */
-/** 지금 실행 중인 단계(중단 처리기가 결과에 표시하고 함께 끝낸다). */
-let current = null;
-
 function run(label, command) {
   console.log(`\n▶ ${label}: ${command}`);
   const started = Date.now();
