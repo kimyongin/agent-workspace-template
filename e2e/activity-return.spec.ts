@@ -153,4 +153,56 @@ for (
       }
     }
   });
+  test(`${label} 수동 250→251페이지는 누적 행을 보존하고 자동 복원만 250페이지로 제한한다`, async ({ page }) => {
+    await devLogin(page);
+    const reads: number[] = [];
+    let failNext = true;
+    await page.route(`**/api/${path}?**`, async (route) => {
+      const index = Number(new URL(route.request().url()).searchParams.get("cursor") ?? 0);
+      reads.push(index);
+      if (index === 250 && failNext) {
+        failNext = false;
+        await route.fulfill({
+          status: 503,
+          contentType: "application/json",
+          body: JSON.stringify({ code: "internal", message: "temporary boundary failure" }),
+        });
+        return;
+      }
+      await route.fulfill({
+        json: {
+          items: [{
+            id: `00000000-0000-4000-8000-${String(index).padStart(12, "0")}`,
+            title: `${label} 경계 ${index}`,
+            summary: "manual page",
+            kind: "once",
+            status: "open",
+            occurred_at: "2026-10-04T00:00:00Z",
+          }],
+          next_cursor: String(index + 1),
+        },
+      });
+    });
+    await page.goto(`/${path}?pages=250`);
+    await expect(page.locator(".list .item-title")).toHaveCount(250);
+    const first = page.getByRole("link", { name: `${label} 경계 0`, exact: true });
+    await page.getByRole("button", { name: "더 보기", exact: true }).click();
+    await expect(page.getByRole("button", { name: "다시 시도", exact: true })).toBeVisible();
+    await expect(page.locator(".list .item-title")).toHaveCount(250);
+    await first.focus();
+    await page.getByRole("button", { name: "다시 시도", exact: true }).evaluate((button: HTMLButtonElement) =>
+      button.click()
+    );
+    await expect(page.locator(".list .item-title")).toHaveCount(251);
+    await expect(first).toBeFocused();
+    expect(new URL(page.url()).searchParams.get("pages")).toBe("251");
+    expect(reads).toEqual([...Array.from({ length: 250 }, (_, index) => index), 250, 250]);
+    await page.getByRole("button", { name: "더 보기", exact: true }).click();
+    await expect(page.locator(".list .item-title")).toHaveCount(252);
+    expect(reads.at(-1)).toBe(251);
+    reads.length = 0;
+    await page.reload();
+    await expect(page.locator(".list .item-title")).toHaveCount(250);
+    expect(reads).toEqual(Array.from({ length: 250 }, (_, index) => index));
+  });
 }

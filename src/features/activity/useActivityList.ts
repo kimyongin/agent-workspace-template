@@ -10,6 +10,7 @@ import {
   listReturnPath,
   listScope,
   type LoadedList,
+  MAX_RESTORE_PAGES,
   requestedPages,
   restoreList,
 } from "./list-state.ts";
@@ -44,7 +45,7 @@ export function useActivityList<T extends { id: string }>(
     failedMore.current = null;
     const started = ++generation.current;
     const current = () => !controller.signal.aborted && generation.current === started && scopeNow.current === scope;
-    const prior = loaded.current?.scope === scope && loaded.current.value.pages <= pages
+    const prior = loaded.current?.scope === scope && Math.min(loaded.current.value.pages, MAX_RESTORE_PAGES) <= pages
       ? loaded.current.value
       : undefined;
     if (!prior) {

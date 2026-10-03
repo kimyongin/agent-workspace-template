@@ -1,7 +1,7 @@
 export type ActivityListKind = "tasks" | "records";
 export type ListPage<T> = { items: T[]; next_cursor: string | null };
 export type LoadedList<T> = ListPage<T> & { pages: number };
-const MAX_RESTORE_PAGES = 250;
+export const MAX_RESTORE_PAGES = 250;
 const ANCHOR_LOOKAHEAD_PAGES = 5;
 
 export function requestedPages(params: URLSearchParams): number {
