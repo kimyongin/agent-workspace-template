@@ -7,7 +7,7 @@ import { useRequestId } from "../../lib/useRequestId.ts";
 import { EntityForm } from "./forms.tsx";
 type Page = { items: EntityResult[]; next_cursor: string | null; count: number };
 export function EntitiesPage() {
-  const [params, setParams] = useSearchParams(),
+  const [params] = useSearchParams(),
     { hash } = useLocation(),
     navigate = useNavigate(),
     request = useRequestId();
@@ -212,7 +212,10 @@ export function EntitiesPage() {
             }
             const next = new URLSearchParams(params);
             next.set("pages", String(page.count + 1));
-            setParams(next, { replace: true });
+            navigate({ pathname: "/entities", search: next.toString(), hash }, {
+              replace: true,
+              preventScrollReset: true,
+            });
           }}
         >
           {busy ? "불러오는 중…" : error ? "다시 시도" : page.next_cursor ? "더 보기" : "모두 불러왔습니다"}
