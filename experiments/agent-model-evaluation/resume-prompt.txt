@@ -1,0 +1,1 @@
+Recall the exact ORCHID resume marker from prior conversation. Return it and list the four child review defects from prior tool result. No tools, no edits, no delegation.

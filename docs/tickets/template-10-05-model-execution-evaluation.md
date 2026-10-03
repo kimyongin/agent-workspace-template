@@ -52,6 +52,8 @@ native custom 지원이 생긴 CLI에서 해당 경로를 재확인하고 backen
 | `npm ci` | exit 0, lockfile 168개 설치·audit 취약점 0 |
 | `node experiments/agent-model-evaluation/verify-results.mjs` | 입력 hash 일치. 격리 복사한 깨진 baseline은 의도한 4실패, 두 저장된 구현은 각각 4통과 |
 | `node --test oracle.test.mjs`(각 CLI 임시 결과 폴더, 담당자 직접 재실행) | 양쪽 4통과; 모델의 성공 보고만으로 판정하지 않음 |
-| `npm run check:docs`, `git diff --check` | 최종 기록 아래 추가 |
+| `npm run check:docs`, `git diff --check` | 최신 main `a59d58cc8ca5e65f24c3d31c7504367db79d0a01` merge 후 검증 head `2db674525cd3a3802c45c1a27dde66a1bec57e25`: docs 텍스트 274개·모델/native 정합성·script 36통과/실패0/skip1(기존 플러그인 Windows symlink privilege 제약), diff 통과. 이후 결과 기록·입력 prompt 추가 후 최종 재검사 |
 
 로컬 구현·평가 결과와 정확한 commit head를 메인에 인계한다. 독립 리뷰·최종 head 필수 CI·PR·머지는 메인이 수행하며 이 티켓의 체크박스로 완료를 선점하지 않는다. 원 임시 로그에는 fixture·안내만 있고 보고에는 선택된 metadata·응답·코드·hash만 보존했다.
+
+변경량은 400줄을 넘지만 대부분 동일 고정 자료·실제 응답·JSON 관찰값이다. 성공 결과만 선택하지 않고 초기 절차/환경 실패·retry·helper 사용량을 함께 리뷰할 수 있도록 한 티켓에 묶었다. 실행 framework·앱 구현·모델 정책 확장은 없다. fixture commit을 보존하기 위해 최신 main은 rebase 대신 merge했으며 고정 입력 hash는 그대로다.

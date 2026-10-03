@@ -64,6 +64,8 @@ Claude 최초 구현/리뷰는 잘못된 snapshot context 및 7자리 fractional
 
 native 실험은 선택표와 agent 정의 파일을 그대로 복사하고 필요한 안내·review 입력만 둔 임시 workspace에서 수행했다. repository 파일·개인 전역 설정 변경, 앱·서비스·DB 접근은 없다. Codex cache schema warning(`supports_parallel_tool_calls` 누락)과 PowerShell shell snapshot warning도 관찰했으며 auth를 바꾸거나 cache를 삭제하지 않았다.
 
+호출 입력은 [native-prompt](native-prompt.txt), 정확한 custom 지정을 확인한 [custom-prompt](custom-prompt.txt), [resume-prompt](resume-prompt.txt)에 보존했다. native 호출에는 Codex `agents.enabled=true`, Claude `--tools Read,Agent --allowedTools Read Agent`를 사용했고 `--agent`로 부모 역할만 바꾸는 실행을 child 검증으로 세지 않았다. 필요한 안내 복사본의 START-HERE/AGENTS는 offline 실험 경계 안내이며 제품 문서 자체 검증 과제가 아니다.
+
 ## 조회 근거와 후속
 
 Codex CLI 0.147.0의 당일 `app-server initialize → model/list(limit=100, includeHidden=false)`는 nextCursor null, terra/sol/luna/5.5 및 지원 effort를 반환했다. [capabilities.json](results/capabilities.json)은 그 실제 조회 snapshot이다. Claude Code 2.1.140은 이 비대화형 surface에서 전체 계정 모델 목록을 조회한 것이 아니라 sonnet 별칭의 직접 probe·init·usage로 현재 계정의 좁은 지원만 확인했다. 다른 alias/후보 지원을 추정하지 않았다. 두 balanced/medium assign preflight는 정정 후 통과했고 목록·probe와 대표 과제 증거를 구별했다.
