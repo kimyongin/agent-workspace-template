@@ -46,7 +46,7 @@ export function RecordDetailPage() {
     <section className="panel" aria-labelledby="record-title">
       <div className="panel-head">
         <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)", minWidth: 0 }}>
-          <Link to="/records" className="secondary">← 기록 목록</Link>
+          <Link to="/records" className="secondary back-link">← 기록 목록</Link>
           <h1 id="record-title" className="page-title">{record.title}</h1>
         </div>
         <div className="actions">

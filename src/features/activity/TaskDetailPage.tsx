@@ -100,7 +100,7 @@ export function TaskDetailPage() {
       <section className="panel" aria-labelledby="task-title">
         <div className="panel-head">
           <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)", minWidth: 0 }}>
-            <Link to="/tasks" className="secondary">← 할 일 목록</Link>
+            <Link to="/tasks" className="secondary back-link">← 할 일 목록</Link>
             <h1 id="task-title" className="page-title">{task.title}</h1>
           </div>
           <div className="actions">

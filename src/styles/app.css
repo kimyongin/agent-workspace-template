@@ -364,7 +364,19 @@ textarea.input {
   gap: var(--space-1);
 }
 
+/* 상세 화면의 목록으로 돌아가는 링크: 글자는 보조 크기, 누름 영역은 44px 이상. */
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  min-height: 44px;
+}
+
+/* 목록 제목은 상세로 가는 주 조작이므로 누름 영역을 44px 이상으로 둔다(글자 크기는 그대로). */
 .list-item a.item-title {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
   text-decoration: none;
 }
 
