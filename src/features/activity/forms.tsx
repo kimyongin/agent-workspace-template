@@ -105,7 +105,21 @@ function FormModal({ title, open, submitLabel, dirty, onClose, onSubmit, validat
         </>
       }
     >
-      <form id={formId} className="form" onSubmit={submit} noValidate>
+      <form
+        id={formId}
+        className="form"
+        onSubmit={submit}
+        noValidate
+        onKeyDown={(e) => {
+          // 저장 버튼이 폼 밖(대화상자 아래)에 있어 브라우저의 Enter 제출이 동작하지 않으므로 직접 제출한다.
+          // 한 줄 입력에서만, 한글 조합 중의 Enter는 제외한다.
+          const target = e.target as HTMLElement;
+          if (e.key !== "Enter" || e.nativeEvent.isComposing || target.tagName !== "INPUT") return;
+          if ((target as HTMLInputElement).type === "checkbox" || (target as HTMLInputElement).type === "radio") return;
+          e.preventDefault();
+          e.currentTarget.requestSubmit();
+        }}
+      >
         {failure && <Notice kind="error">{failure}</Notice>}
         {children(errors)}
       </form>
