@@ -5,6 +5,8 @@ export default defineConfig({
   testDir: "e2e",
   timeout: 60_000,
   fullyParallel: false,
+  // 로컬 Edge/DB 연결 한도 안에서 브라우저와 OAuth 흐름을 재현한다.
+  workers: 2,
   retries: 0,
   reporter: [["list"]],
   use: { baseURL: "http://127.0.0.1:55480", trace: "retain-on-failure" },

@@ -7,6 +7,7 @@ import { Notice } from "../../components/Field.tsx";
 import { api, query } from "../../lib/api.ts";
 import { emptyTask, TaskFormModal, taskInput } from "./forms.tsx";
 import { StatusBadge, useRequestId } from "./shared.tsx";
+import { TagFilter } from "../tags/TagPicker.tsx";
 
 type Page = { items: TaskListItem[]; next_cursor: string | null };
 
@@ -21,6 +22,7 @@ export function TasksPage() {
   const [params, setParams] = useSearchParams();
   const kind = params.get("kind") ?? "";
   const status = params.get("status") ?? "";
+  const tag_id=params.get("tag_id")??"";
   const [items, setItems] = useState<TaskListItem[] | null>(null);
   const [cursor, setCursor] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -31,9 +33,9 @@ export function TasksPage() {
   const navigate = useNavigate();
 
   const load = useCallback(async (after?: string) => {
-    const page = await api<Page>("GET", `/tasks${query({ kind, status, limit: 20, cursor: after })}`);
+    const page = await api<Page>("GET", `/tasks${query({ kind, status, tag_id, limit: 20, cursor: after })}`);
     return page;
-  }, [kind, status]);
+  }, [kind, status,tag_id]);
 
   useEffect(() => {
     let alive = true;
@@ -63,7 +65,7 @@ export function TasksPage() {
     }
   };
 
-  const setFilter = (key: "kind" | "status", value: string) => {
+  const setFilter = (key: "kind" | "status" | "tag_id", value: string) => {
     const next = new URLSearchParams(params);
     if (value) next.set(key, value);
     else next.delete(key);
@@ -71,7 +73,7 @@ export function TasksPage() {
     setParams(next, { replace: true });
   };
 
-  const filtered = Boolean(kind || status);
+  const filtered = Boolean(kind || status || tag_id);
 
   return (
     <section className="panel" aria-labelledby="tasks-title">
@@ -81,6 +83,7 @@ export function TasksPage() {
       </div>
 
       <div className="form" role="group" aria-label="할 일 필터">
+        <TagFilter value={tag_id} onChange={id=>setFilter("tag_id",id)}/>
         <div className="chips" role="group" aria-label={taskLabels.kind}>
           {KIND_FILTERS.map(([v, label]) => (
             <button key={v} type="button" className="chip" aria-pressed={kind === v} onClick={() => setFilter("kind", v)}>

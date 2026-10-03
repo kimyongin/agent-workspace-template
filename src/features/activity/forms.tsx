@@ -1,5 +1,6 @@
 // 할 일·기록 작성/편집 폼. 검증은 서버와 같은 contracts로 하고, 저장 실패 시 초안을 유지한다.
 import { PrinciplePicker } from "../principles/PrinciplePicker.tsx";
+import { TagPicker } from "../tags/TagPicker.tsx";
 import { recordCreate, recordLabels } from "@contracts/record.ts";
 import { type Recurrence, taskCreate, taskLabels } from "@contracts/task.ts";
 import { type ReactNode, useState } from "react";
@@ -78,6 +79,7 @@ export function RecordFormModal(props: {
 // ---------- 할 일 폼(작성·편집) ----------
 
 export interface TaskDraft extends TextDraft {
+  tag_ids: string[];
   kind: "once" | "recurring";
   due_on: string;
   freq: Recurrence["freq"];
@@ -91,6 +93,7 @@ export function emptyTask(): TaskDraft {
   const tz = browserTimezone();
   return {
     kind: "once",
+    tag_ids:[],
     title: "",
     summary: "",
     body: "",
@@ -104,6 +107,7 @@ export function emptyTask(): TaskDraft {
 }
 
 export function taskDraftFrom(t: {
+  tag_ids:string[];
   kind: "once" | "recurring";
   title: string;
   summary: string;
@@ -117,6 +121,7 @@ export function taskDraftFrom(t: {
   return {
     ...base,
     kind: t.kind,
+    tag_ids:t.tag_ids,
     title: t.title,
     summary: t.summary,
     body: t.body,
@@ -140,7 +145,7 @@ function recurrenceOf(d: TaskDraft): unknown {
 
 /** 생성 입력(contracts의 taskCreate 모양). */
 export function taskInput(d: TaskDraft): Record<string, unknown> {
-  const text = { title: d.title, summary: d.summary, body: d.body };
+  const text = { title: d.title, summary: d.summary, body: d.body, tag_ids:d.tag_ids };
   return d.kind === "once"
     ? { kind: "once", ...text, ...(d.due_on ? { due_on: d.due_on } : {}) }
     : { kind: "recurring", ...text, recurrence: recurrenceOf(d), timezone: d.timezone };
@@ -177,6 +182,7 @@ export function TaskFormModal(props: {
     >
       {(errors) => (
         <>
+          <TagPicker value={draft.tag_ids} error={errors.tag_ids} onChange={tag_ids=>set({tag_ids})}/>
           {props.mode === "create" && (
             <fieldset className="field" style={{ border: 0, padding: 0, margin: 0 }}>
               <legend className="label">{taskLabels.kind}</legend>

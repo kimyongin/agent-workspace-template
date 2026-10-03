@@ -34,6 +34,7 @@ function toTask(r: Row): Task {
     completed_at: iso(r.completed_at),
     result_record_id: (r.result_record_id as string | null) ?? null,
     pauses: (r.pauses as Task["pauses"]) ?? [],
+    tag_ids: (r.tag_ids as string[]) ?? [],
     version: r.version as number,
     created_at: iso(r.created_at)!,
     updated_at: iso(r.updated_at)!,
@@ -63,7 +64,8 @@ function toRecord(r: Row): ActivityRecord {
 // 날짜 컬럼은 문자열(YYYY-MM-DD)로 받는다.
 const taskColumns = (tx: Tx) =>
   tx`id, kind, title, summary, body, due_on::text as due_on, recurrence, timezone, status, completed_at,
-     result_record_id, pauses, version, created_at, updated_at`;
+     result_record_id, pauses, version, created_at, updated_at,
+     coalesce((select jsonb_agg(tag_id order by tag_id) from app.task_tags where task_id=app.tasks.id),'[]'::jsonb) as tag_ids`;
 const recordColumns = (tx: Tx) =>
   tx`id, title, summary, body, occurred_at, task_id, occurrence_on::text as occurrence_on, version, created_at, updated_at,
     coalesce((select jsonb_agg(p.id order by p.id) from app.record_principles rp join app.principles p on p.id=rp.principle_id
@@ -111,6 +113,9 @@ class SqlActivityStore extends SqlActorStore implements ActivityStore {
       where true
         ${f.kind ? tx`and kind = ${f.kind}` : tx``}
         ${f.status ? tx`and status = ${f.status}` : tx``}
+        ${
+      f.tag_id ? tx`and exists(select 1 from app.task_tags where task_id=app.tasks.id and tag_id=${f.tag_id})` : tx``
+    }
         ${f.due_from ? tx`and due_on >= ${f.due_from}` : tx``}
         ${f.due_to ? tx`and due_on <= ${f.due_to}` : tx``}
         ${f.after ? tx`and (updated_at, id) < (${f.after.at}::timestamptz, ${f.after.id}::uuid)` : tx``}
@@ -122,18 +127,36 @@ class SqlActivityStore extends SqlActorStore implements ActivityStore {
   async insertTask(task: NewTask) {
     const tx = this.tx;
     const values = { owner_id: this.actor.userId, kind: task.kind, ...pick(tx, task, TASK_WRITABLE) };
-    const [row] = await tx`insert into app.tasks ${tx(values)} returning ${taskColumns(tx)}`;
-    return toTask(row);
+    const [row] = await tx`insert into app.tasks ${tx(values)} returning id`;
+    await this.setTaskTags(row.id as string, task.tag_ids);
+    return (await this.getTask(row.id as string))!;
+  }
+
+  async setTaskTags(taskId: string, ids: string[]) {
+    const tx = this.tx;
+    if (ids.length) {
+      const rows = await tx`select id from app.tags where id in ${tx(ids)} order by id for key share`;
+      if (rows.length !== ids.length) throw new AppError("invalid_reference", "태그가 없거나 접근할 수 없습니다");
+    }
+    await tx`delete from app.task_tags where task_id=${taskId}`;
+    for (const id of [...ids].sort()) {
+      await tx`insert into app.task_tags(owner_id,task_id,tag_id) values (${this.actor.userId},${taskId},${id})`;
+    }
   }
 
   async updateTask(id: string, changes: Partial<Task>) {
     const tx = this.tx;
     const values = pick(tx, changes, TASK_WRITABLE);
-    if (Object.keys(values).length === 0) throw new AppError("invalid_input", "바꿀 필드가 없습니다");
+    if (changes.tag_ids !== undefined) await this.setTaskTags(id, changes.tag_ids);
+    if (Object.keys(values).length === 0 && changes.tag_ids === undefined) {
+      throw new AppError("invalid_input", "바꿀 필드가 없습니다");
+    }
     // set 도우미는 바로 앞의 `set` 문맥이 필요하므로 같은 템플릿에 둔다.
-    const [row] = await tx`
+    const [row] = Object.keys(values).length
+      ? await tx`
       update app.tasks set ${tx(values)}, version = version + 1, updated_at = now()
-      where id = ${id} returning ${taskColumns(tx)}`;
+      where id = ${id} returning ${taskColumns(tx)}`
+      : await tx`update app.tasks set version=version+1,updated_at=now() where id=${id} returning ${taskColumns(tx)}`;
     if (!row) throw new AppError("not_found", "항목을 찾을 수 없습니다");
     return toTask(row);
   }

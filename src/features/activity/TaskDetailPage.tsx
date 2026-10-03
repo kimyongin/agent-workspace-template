@@ -11,6 +11,7 @@ import { api, ApiError } from "../../lib/api.ts";
 import { addDays, formatDateTime, todayIn } from "../../lib/format.ts";
 import { emptyRecord, RecordFormModal, TaskFormModal, taskDraftFrom, taskInput } from "./forms.tsx";
 import { OccurrenceBadge, StatusBadge, useRequestId } from "./shared.tsx";
+import {TagNames} from "../tags/TagPicker.tsx";
 
 const WEEKDAY_NAMES = ["", "월", "화", "수", "목", "금", "토", "일"];
 
@@ -128,6 +129,7 @@ export function TaskDetailPage() {
         </div>
         {message && <Notice kind="success">{message}</Notice>}
         {actionError && <Notice kind="error">{actionError}</Notice>}
+        <TagNames ids={task.tag_ids}/>
         <dl className="props">
           <div>
             <dt>{taskLabels.status}</dt>
@@ -242,6 +244,7 @@ export function TaskDetailPage() {
               title: draft.title,
               summary: draft.summary,
               body: draft.body,
+              tag_ids:draft.tag_ids,
             };
             if (task.kind === "once") patch.due_on = draft.due_on || null;
             else {

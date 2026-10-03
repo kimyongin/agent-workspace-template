@@ -16,6 +16,25 @@ test("웹 태그 생성→MCP 중복·이름 변경→웹 삭제",async({page})=
   }finally{await mcp.close();}
 });
 
+test("웹 할 일 태그 선택→MCP 필터·정정→태그 삭제 후 본문 유지",async({page})=>{
+  await devLogin(page);const mcp=await mcpClient(await mcpTokenViaConsent(page));
+  try{
+    const tag=await mcp.call("create_tag",{name:unique("업무 태그").slice(0,30)});
+    await page.goto("/tasks");await page.getByRole("button",{name:"할 일 추가",exact:true}).click();
+    const form=page.getByRole("dialog",{name:"할 일 추가"});await form.getByLabel("제목").fill(unique("태그 업무"));await form.getByLabel("요약").fill("분류 검증");await form.getByLabel("본문").fill("삭제 후에도 보존");
+    await form.getByRole("button",{name:tag.name,exact:true}).click();await form.getByRole("button",{name:"추가",exact:true}).click();
+    await expect(form).not.toBeVisible();const id=new URL(page.url()).pathname.split("/").at(-1)!;expect((await mcp.call("get_task",{id})).tag_ids).toEqual([tag.id]);
+    await page.getByRole("button",{name:"편집",exact:true}).click();const edit=page.getByRole("dialog",{name:"할 일 편집"});
+    await edit.getByRole("button",{name:tag.name,exact:true}).click();await edit.getByRole("button",{name:"저장",exact:true}).click();
+    await expect(edit).not.toBeVisible();expect((await mcp.call("get_task",{id})).tag_ids).toEqual([]);
+    await mcp.call("update_task",{id,expected_version:2,tag_ids:[tag.id]});
+    const items=await mcp.call("list_tasks",{tag_id:tag.id});expect(items.items.map((t:{id:string})=>t.id)).toEqual([id]);
+    await page.goto(`/tasks?tag_id=${tag.id}`);await expect(page.getByLabel("태그 필터")).toHaveValue(tag.id);
+    await mcp.call("delete_tag",{id:tag.id,expected_version:1});await page.goto(`/tasks/${id}`);
+    await expect(page.getByText("삭제 후에도 보존",{exact:true})).toBeVisible();expect((await mcp.call("get_task",{id})).tag_ids).toEqual([]);
+  }finally{await mcp.close();}
+});
+
 test("추가 페이지 태그의 편집 취소·충돌·저장 뒤 목록과 초점 유지",async({page})=>{
   await devLogin(page);const mcp=await mcpClient(await mcpTokenViaConsent(page));
   try{
