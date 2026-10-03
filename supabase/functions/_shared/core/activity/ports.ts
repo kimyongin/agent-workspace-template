@@ -93,7 +93,7 @@ export interface ActivityStore {
   insertRecord(record: NewRecord): Promise<ActivityRecord>;
   updateRecord(id: string, changes: RecordChanges): Promise<ActivityRecord>;
   deleteRecord(id: string): Promise<void>;
-  /** 할 일 삭제 전 연결된 기록의 task_id·occurrence_on을 비운다. */
+  /** 할 일 삭제 전 연결된 기록의 task_id·occurrence_on을 비우고 version을 1 올리며 updated_at을 갱신한다. */
   detachRecords(taskId: string): Promise<void>;
   /** 이 기록을 결과로 가진 일회성 할 일. */
   taskWithResult(recordId: string): Promise<Task | null>;
