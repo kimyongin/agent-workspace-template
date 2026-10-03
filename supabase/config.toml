@@ -424,15 +424,14 @@ enabled = true
 # format_options = "{\"keywordCase\":\"upper\",\"indent\":2,\"maxWidth\":180,\"commaStyle\":\"trailing\"}"
 
 # 진입점은 자체 토큰 검증(서명·발급자·audience)을 하므로 게이트웨이 검증을 끈다.
+# import map은 supabase/functions/deno.json(작업 공간 루트)이 정하고, 함수별 deno.json이 그 구성원이다.
 [functions.api]
 enabled = true
 verify_jwt = false
-import_map = "./functions/deno.json"
 
 [functions.mcp]
 enabled = true
 verify_jwt = false
-import_map = "./functions/deno.json"
 
 # 운영 프로젝트 workspace-template(서울). `supabase config push --project-ref <ref>`가 위 기본 설정에 이 값을 덮어 올린다.
 # 로컬 개발용 값(이메일 확인 끔, 짧은 발송 간격, MFA 끔 등)이 운영에 올라가지 않도록 운영값을 여기서 다시 정한다.
