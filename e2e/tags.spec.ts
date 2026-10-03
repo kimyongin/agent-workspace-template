@@ -44,6 +44,12 @@ test("웹 기록·원칙 태그 선택·정정→MCP 필터→태그 삭제 후 
       expect((await mcp.call(`get_${kind}`,{id})).tag_ids).toEqual([]);await mcp.call(`update_${kind}`,{id,expected_version:2,tag_ids:[tag.id]});
       const filtered=await mcp.call(kind==="record"?"list_records":"list_principles",{tag_id:tag.id});expect(filtered.items.map((x:{id:string})=>x.id)).toEqual([id]);
       await page.goto(`${path}?tag_id=${tag.id}`);await expect(page.getByRole("link",{name:title,exact:true})).toBeVisible();
+      await page.getByRole("link",{name:title,exact:true}).click();
+      await page.getByRole("button",{name:"편집",exact:true}).click();
+      const revisit=page.getByRole("dialog",{name:kind==="record"?"기록 편집":"원칙 편집"});
+      await revisit.getByLabel("요약").fill("수정 후 필터 보존");await revisit.getByRole("button",{name:"저장",exact:true}).click();
+      await expect(revisit).not.toBeVisible();await page.getByRole("link",{name:kind==="record"?"← 기록 목록":"← 원칙 목록",exact:true}).click();
+      await expect(page.getByLabel("태그 필터")).toHaveValue(tag.id);await expect(page.locator(".list .item-title")).toHaveCount(1);
     }
     await mcp.call("delete_tag",{id:tag.id,expected_version:1});
     for(const s of saved){await page.goto(`${s.path}/${s.id}`);await expect(page.getByText("원문 보존",{exact:true})).toBeVisible();expect((await mcp.call(`get_${s.kind}`,{id:s.id})).tag_ids).toEqual([]);}

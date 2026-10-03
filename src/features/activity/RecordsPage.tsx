@@ -67,7 +67,7 @@ export function RecordsPage() {
           {items.map((r) => (
             <li key={r.id} className="list-item">
               <div className="list-item-main">
-                <Link className="item-title" to={`/records/${r.id}`}>{r.title}</Link>
+                <Link className="item-title" to={`/records/${r.id}${query({tag_id})}`}>{r.title}</Link>
                 <span className="secondary">{r.summary}</span>
                 <span className="meta">
                   {formatDateTime(r.occurred_at)}
@@ -94,7 +94,7 @@ export function RecordsPage() {
             const created = await api<RecordResult>("POST", "/records", { ...value, request_id: requestId.current });
             requestId.renew();
             setCreating(false);
-            navigate(`/records/${created.id}`);
+            navigate(`/records/${created.id}${query({tag_id})}`);
           }}
         />
       )}
