@@ -43,6 +43,31 @@ worker 소비를 멈춰도 생산이 계속되면 대기량이 늘어난다. 장
 
 재색인은 대상 범위·원본 수·모델/입력 버전·예상 비용을 확인한 뒤 제한된 배치로 시작한다. 오래된 작업이 최신 결과를 덮거나 삭제된 원본을 복구하지 않아야 한다. 진행·실패 수와 완료 후 검색 품질을 확인한다. 모델이나 차원이 바뀌면 구 색인 유지·새 색인 전환·복귀 방식을 해당 변경 티켓에서 정하며, 사용 중인 색인을 무조건 먼저 지우지 않는다.
 
+## 검색 worker 호출과 복구
+
+`POST /functions/v1/index-worker`는 사용자 HTTP/MCP 토큰 대신 `Authorization: Bearer <INDEX_WORKER_TOKEN>`을 요구한다. 본문은 `{ "limit": 5 }`이며 최대 5개를 병렬 처리한다. 제한된 확인에는 `owner_id`·`kind`·`id`를 추가해 범위를 좁힌다. 범위를 생략하면 현재 보이는 전체 큐에서 읽으므로 비용 검증에는 반드시 시험 항목을 지정한다. 키/DB 미설정은 claim 전 503, 인증 실패는 401, 잘못된 입력은 400이다. 반환은 claimed·indexed·excluded·failed·retry·stale 개수이며 원문/비밀은 포함하지 않는다.
+
+서버 Secrets는 `WORKER_DB_URL`(app_worker의 트랜잭션 풀러), `INDEX_WORKER_TOKEN`(32 byte 이상 무작위 값의 base64url), `PINECONE_API_KEY`다. 로컬 `setup:local`은 역할 비밀번호·내부 토큰을 생성/보존하고 풀러 준비 실패를 숨기지 않는다. 함수 env의 기존 Pinecone 키를 우선하며 기존 `.env.local` 실험 키가 있을 때만 초기 설정으로 복사한다. 함수 설정을 바꾸면 실행 중인 함수 서버를 다시 시작한다.
+
+공급자 호출 제한은 30초·응답 128KB, batch 최대 5, 큐 visibility 90초다. 일시 장애/잘못된 응답은 30·60·120·240초 후 재전달하고 다섯 번째 실패는 `failed/retry_exhausted`로 보관한다. 다섯 번을 넘겨 중단된 작업도 추가 호출 없이 실패 처리한다. 인증/구성 오류는 즉시 `failed/configuration`, 입력 누락/상한 초과는 `excluded`이며 원문을 변경하지 않는다. 실패는 검색 범위의 대기로 표시하고 제외는 별도로 센다. 완료 벡터가 없는 indexed 상태도 대기로 취급한다. 장애 원인을 해결한 뒤 현재 소유자 문맥에서 `app.enqueue_search_index(kind,id,current_hash,current_pipeline)`을 호출하면 실패 작업을 새 메시지로 등록한다. 제외 자료는 사용자가 제목/요약을 보완한 뒤 정상 수정 흐름으로 재등록한다. 큐를 비우거나 보관 메시지만 되돌리는 방법을 쓰지 않는다.
+
+Cron 활성화는 해당 환경의 배포 지시 범위에서만 한다. [Supabase 공식 방식](https://supabase.com/docs/guides/functions/schedule-functions)에 따라 pg_cron·pg_net을 켜고 Vault에 `search_worker_url`(함수의 고정 HTTPS 주소)·`search_worker_token`을 저장한다. worker의 인증·소량 성공·비용 확인 뒤 아래 작업을 등록한다. 로컬 초기화나 migration은 자동 소비 일정을 만들지 않는다.
+
+```sql
+select cron.schedule('search-index-worker', '* * * * *', $job$
+  select net.http_post(
+    url := (select decrypted_secret from vault.decrypted_secrets where name='search_worker_url'),
+    headers := jsonb_build_object('Content-Type','application/json','Authorization',
+      'Bearer '||(select decrypted_secret from vault.decrypted_secrets where name='search_worker_token')),
+    body := '{"limit":5}'::jsonb, timeout_milliseconds := 45000
+  );
+$job$);
+-- 인증 실패·반복 장애·비용 이상 시 소비를 중지한다(큐는 보존).
+select cron.unschedule('search-index-worker');
+```
+
+Cron 실행 결과와 pg_net 응답, `app.search_index_state`의 상태/이유별 수·최종 갱신 시각, `pgmq.metrics('search_index')`의 대기량/나이를 함께 확인한다. 토큰을 출력하지 않는다. 실제 호출/알림·복구 기준은 환경별 배포 티켓에서 검증한다. 유료 로컬 검증은 `node scripts/index-worker-smoke.mjs`로 세 종류 시험 원본만 생성·처리·삭제한다. CI에서는 이 명령을 실행하지 않는다.
+
 ## 백업과 데이터 복구
 
 운영 전에 허용 데이터 손실 범위(RPO)와 복구 시간 목표(RTO)를 정한다. Supabase 프로젝트의 실제 백업/PITR 제공 범위·보존 기간·복원 권한을 확인한다. Git 저장소나 migration 이력은 사용자 데이터 백업을 대신하지 않는다. 제공 범위가 부족하면 별도 암호화 백업과 접근·보존 정책을 구성한다.

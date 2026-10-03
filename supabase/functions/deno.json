@@ -1,7 +1,8 @@
 {
   "workspace": [
     "./api",
-    "./mcp"
+    "./mcp",
+    "./index-worker"
   ],
   "nodeModulesDir": "none",
   "imports": {

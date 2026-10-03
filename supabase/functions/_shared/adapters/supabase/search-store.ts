@@ -22,7 +22,7 @@ class SqlSearchStore implements SearchStore {
     return tx`select s.*,case
       when s.summary is null or btrim(s.summary)='' then 'excluded'
       when i.input_hash=encode(extensions.digest(s.title||E'\n'||s.summary,'sha256'),'hex') and i.pipeline=${SEARCH_PIPELINE}
-        and i.state in ('indexed','excluded') then i.state else 'pending' end as index_state
+        and (i.state='excluded' or (i.state='indexed' and i.embedding is not null)) then i.state else 'pending' end as index_state
       from (${originals}) s left join app.search_index_state i on (i.owner_id,i.kind,i.id)=(s.owner_id,s.kind,s.id)`;
   }
   filters(q: SearchInput) {
