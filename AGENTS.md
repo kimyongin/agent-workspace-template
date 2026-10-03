@@ -21,7 +21,7 @@
 | Claude Code | CLAUDE.md → `@AGENTS.md` | `.claude/skills/develop-agent-app/`의 연결 파일 → 정본 | `/develop-agent-app` |
 
 - 지침·스킬 변경은 정본에만 반영한다. 정본 스킬의 name·description을 바꾸면 Claude 연결 파일의 frontmatter도 함께 맞춘다.
-- 두 에이전트가 같은 작업 트리를 동시에 수정하지 않는다. 동시 작업은 branch나 worktree를 나누고, 단계 인계는 해당 티켓의 상태·검증 기록으로 한다.
+- 세션 역할·배정·인계는 [개발 방법](docs/development/workflow.md#세션-배정과-인계)을 따른다. 동시 구현은 별도 worktree 또는 checkout과 브랜치를 사용하고 같은 tracked 파일을 동시에 편집하지 않는다. 공유 실행 환경의 검증은 [환경 규칙](docs/development/workflow.md#공유-환경과-테스트-자료)을 따른다.
 - 개인 권한·로컬 설정(`.claude/settings.local.json` 등)은 커밋하지 않는다.
 
 개발 스킬은 `.agents/skills/`, 앱 사용자에게 배포하는 MCP·제품 스킬 통합 플러그인은 `plugins/`가 담당한다. 제품 플러그인은 Claude와 Codex를 모두 지원하며 클라이언트별 manifest가 같은 제품 스킬을 공유한다. 상세 기준은 스킬이 연결하는 정본 문서에서 관리하며 이 파일에 복제하지 않는다.
