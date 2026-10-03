@@ -13,6 +13,7 @@ for (
     const ids = new Set<string>();
     const tag = await mcp.call("create_tag", { name: unique("활동 왕복").slice(0, 30) });
     const emptyTag = await mcp.call("create_tag", { name: unique("빈 활동 조건").slice(0, 30) });
+    const entity = await mcp.call("create_entity", { prop1: unique("활동 문맥"), prop2: 0 });
     const title = unique(`${label} 복원 대상`);
     const create = async (title: string) => {
       const item = await mcp.call(`create_${kind}`, {
@@ -20,6 +21,7 @@ for (
         title,
         summary: "추가 페이지에서 진입하는 대상",
         tag_ids: [tag.id],
+        entity_id: entity.id,
       });
       ids.add(item.id);
       return item;
@@ -27,7 +29,10 @@ for (
     try {
       const target = await create(title);
       for (let i = 0; i < 21; i++) await create(unique("앞선 항목"));
-      await page.goto(`/${path}?tag_id=${tag.id}${kind === "task" ? "&kind=once&status=open" : ""}`);
+      const listPath = `/${path}?tag_id=${tag.id}&entity_id=${entity.id}${
+        kind === "task" ? "&kind=once&status=open" : ""
+      }`;
+      await page.goto(listPath);
       await expect(page.locator(".list .item-title")).toHaveCount(20);
       const requests: (string | null)[] = [];
       let failedCursor: string | null = null;
@@ -57,7 +62,7 @@ for (
       await expect(page.locator(".list .item-title")).toHaveCount(20);
       // Keep a row focused while invoking retry, so clearing/replaying the list
       // would expose lost DOM focus and scroll before the held response returns.
-      const retained = page.locator(".list .item-title").last();
+      const retained = page.locator(`#${await page.locator(".list .item-title").last().getAttribute("id")}`);
       await retained.focus();
       const scrollBefore = await page.evaluate(() => window.scrollY);
       await retry.evaluate((button: HTMLButtonElement) => button.click());
@@ -76,6 +81,10 @@ for (
       await link.focus();
       await page.keyboard.press("Enter");
       await expect(page.getByRole("heading", { name: title, exact: true })).toBeVisible();
+      await expect(page.getByRole("link", { name: "엔터티 보기", exact: true })).toHaveAttribute(
+        "href",
+        `/entities/${entity.id}`,
+      );
       await page.getByRole("button", { name: "편집", exact: true }).click();
       const dialog = page.getByRole("dialog", { name: editLabel, exact: true });
       await dialog.getByRole("button", { name: "취소", exact: true }).click();
@@ -87,6 +96,7 @@ for (
       await expect(link).toBeFocused();
       await expect(link).toBeInViewport();
       await expect(page.getByLabel("태그 필터")).toHaveValue(tag.id);
+      await expect(page.getByLabel("엔터티 필터")).toHaveValue(entity.id);
       await page.reload();
       await expect(page.locator(".list .item-title")).toHaveCount(43);
       await expect(link).toBeFocused();
@@ -114,6 +124,17 @@ for (
       expect(new URL(page.url()).hash).toBe("");
       expect(new URL(page.url()).searchParams.has("pages")).toBe(false);
       expect(new URL(page.url()).searchParams.has("scroll")).toBe(false);
+      // An edited item that leaves the entity filter also restores a valid
+      // fallback focus, without widening the filter to include detached items.
+      const leaving = await create(unique("연결 조건 이탈"));
+      await page.goto(listPath);
+      const leavingLink = page.getByRole("link", { name: leaving.title, exact: true });
+      await leavingLink.click();
+      await mcp.call(`update_${kind}`, { id: leaving.id, expected_version: leaving.version, entity_id: null });
+      await page.goBack();
+      await expect(leavingLink).toHaveCount(0);
+      await expect(page.getByRole("heading", { name: label, exact: true })).toBeFocused();
+      await expect(page.getByLabel("엔터티 필터")).toHaveValue(entity.id);
     } finally {
       try {
         for (const id of ids) {
@@ -126,6 +147,7 @@ for (
         }
         await mcp.call("delete_tag", { id: tag.id, expected_version: 1 });
         await mcp.call("delete_tag", { id: emptyTag.id, expected_version: 1 });
+        await mcp.call("delete_entity", { id: entity.id, expected_version: 1 });
       } finally {
         await mcp.close();
       }

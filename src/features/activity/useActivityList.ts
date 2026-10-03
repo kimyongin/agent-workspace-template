@@ -105,7 +105,6 @@ export function useActivityList<T extends { id: string }>(
     const started = generation.current;
     const current = () => started === generation.current && scopeNow.current === scope;
     setBusy(true);
-    setError(null);
     try {
       const page = await load(cursor);
       if (!current()) return;
@@ -119,6 +118,7 @@ export function useActivityList<T extends { id: string }>(
       failedMore.current = null;
       setItems(value.items);
       setCursor(value.next_cursor);
+      setError(null);
       const next = new URLSearchParams(params);
       next.set("pages", String(value.pages));
       navigate({ pathname: `/${kind}`, search: `?${next}`, hash }, { replace: true });
