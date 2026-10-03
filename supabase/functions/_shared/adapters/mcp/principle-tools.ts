@@ -35,6 +35,7 @@ export function principleTools(deps: principles.PrincipleDeps): ToolDef[] {
     },
     {
       name: "delete_principle",
+      destructive: true,
       description: "원칙을 삭제한다. 연결된 판단 기록의 본문은 보존하고 원칙 연결만 제거한다.",
       input: z.strictObject({ id, expected_version: expectedVersion }),
       readOnly: false,

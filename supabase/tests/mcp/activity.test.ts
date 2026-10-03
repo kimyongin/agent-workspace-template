@@ -133,6 +133,7 @@ httpTest("동적 등록: loopback이 아닌 HTTP redirect는 거부", async () =
 
 httpTest("tools/list: 계약의 도구 이름과 contracts JSON Schema", async () => {
   const { tools } = await mcpA.listTools();
+  assertEquals(tools.find((t) => t.name === "delete_principle")?.annotations?.destructiveHint, true);
   assertEquals(tools.map((t) => t.name).sort(), EXPECTED_TOOLS);
   const byName = Object.fromEntries(tools.map((t) => [t.name, t]));
   // 목록·기록 입력은 contracts schema를 그대로 노출한다.
