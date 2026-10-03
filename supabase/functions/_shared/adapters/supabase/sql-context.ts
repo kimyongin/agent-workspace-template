@@ -3,6 +3,7 @@ import type postgres from "postgres";
 import type { Actor } from "../../core/shared/actor.ts";
 import type { IndexJob } from "../../core/shared/store.ts";
 import { AppError } from "../../core/shared/errors.ts";
+import { SEARCH_PIPELINE } from "../../core/search/config.ts";
 
 const REQUEST_RETENTION = "7 days";
 export class SqlActorStore {
@@ -31,11 +32,9 @@ export class SqlActorStore {
       values (${this.actor.userId}, ${operation}, ${requestId}, ${requestHash}, ${this.tx.json(response as never)})`;
   }
 
-  /** 큐 전송은 접속 역할로 돌아가 같은 트랜잭션에서 한다. 이후 쿼리를 위해 사용자 역할로 다시 전환한다. */
+  /** 소유자의 현재 원본 하나만 검증하는 내부 함수가 상태와 최신 큐 메시지를 같은 트랜잭션에서 교체한다. */
   async enqueueIndex(job: IndexJob) {
-    await this.tx`reset role`;
-    await this.tx`select pgmq.send('search_index', ${this.tx.json({ ...job, owner_id: this.actor.userId })})`;
-    await this.tx`set local role app_user`;
+    await this.tx`select app.enqueue_search_index(${job.kind},${job.id},${job.input_hash},${SEARCH_PIPELINE})`;
   }
 }
 
@@ -47,7 +46,7 @@ function translate(e: unknown): unknown {
     return new AppError("unavailable", "잠시 후 다시 시도하세요");
   }
   if (code === "23503") return new AppError("invalid_reference", "참조한 항목이 없거나 접근할 수 없습니다");
-  if (code === "23514" || code === "22001" || code === "22P02") {
+  if (code === "23514" || code === "22001" || code === "22P02" || code === "22023") {
     return new AppError("invalid_input", "입력 형식이 맞지 않습니다");
   }
   if (/^(08|53|57P)/.test(code) || /ECONNREFUSED|ECONNRESET|CONNECT_TIMEOUT/.test(String(code))) {

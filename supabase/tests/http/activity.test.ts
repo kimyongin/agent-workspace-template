@@ -267,10 +267,15 @@ httpTest("기록 목록: 커서 페이지와 다른 조건의 커서 거부", as
 
 httpTest("기록 수정: 제목·요약 변경은 재색인, 본문만 변경은 재색인하지 않음", async () => {
   const r = (await call(A, "POST", "/records", { title: "기록", summary: "요약" })).body;
-  let before = await queueCount();
+  const pending = () =>
+    admin`select msg_id,message from pgmq.q_search_index where message->>'kind'='record' and message->>'id'=${r.id}`;
+  const first = await pending();
+  assertEquals(first.length, 1);
   assertEquals((await call(A, "PATCH", `/records/${r.id}`, { expected_version: 1, body: "본문만" })).status, 200);
-  assertEquals(await queueCount(), before);
-  before = await queueCount();
+  assertEquals((await pending())[0].msg_id, first[0].msg_id);
   assertEquals((await call(A, "PATCH", `/records/${r.id}`, { expected_version: 2, summary: "새 요약" })).status, 200);
-  assertEquals(await queueCount(), before + 1);
+  const latest = await pending();
+  assertEquals(latest.length, 1);
+  assertNotEquals(latest[0].msg_id, first[0].msg_id);
+  assertNotEquals(latest[0].message.input_hash, first[0].message.input_hash);
 });

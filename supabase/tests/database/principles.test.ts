@@ -3,6 +3,7 @@ import { SqlPrincipleUnitOfWork } from "../../functions/_shared/adapters/supabas
 import { principleCreate, principleListQuery } from "../../functions/_shared/contracts/principle.ts";
 import { createPrinciple, getPrinciple, listPrinciples } from "../../functions/_shared/core/principles/application.ts";
 import { asUser, connect, dbTest, devUsers, outcome, urls } from "./_db.ts";
+import { searchInputHash } from "../../functions/_shared/core/shared/operations.ts";
 
 const admin = connect(urls.admin, { max: 1 });
 const sql = connect(urls.pooler, { max: 2, prepare: false });
@@ -56,13 +57,17 @@ dbTest("원칙: 큐 등록 후 실패는 원본·큐·요청 결과를 함께 �
     deps.uow.run(A, async (store) => {
       const p = await store.insert(request);
       insertedId = p.id;
-      await store.enqueueIndex({ kind: "principle", id: p.id, input_hash: "f".repeat(64) });
+      await store.enqueueIndex({ kind: "principle", id: p.id, input_hash: await searchInputHash(p) });
       await store.saveRequest("create_principle", request.request_id!, "f".repeat(64), p);
       throw new Error("큐 전송 뒤 실패");
     })
   );
   assertEquals((await admin`select id from app.principles where title = ${title}`).length, 0);
   assertEquals((await admin`select msg_id from pgmq.q_search_index where message->>'id' = ${insertedId}`).length, 0);
+  assertEquals(
+    (await admin`select id from app.search_index_state where kind='principle' and id=${insertedId}`).length,
+    0,
+  );
   assertEquals(
     (await admin`select request_id from app.request_results where request_id = ${request.request_id!}`).length,
     0,

@@ -4,6 +4,7 @@ import { type SearchInput, type SearchItem, searchKind, type SearchResult } from
 import type { Actor } from "../shared/actor.ts";
 import { invalidInput } from "../shared/errors.ts";
 import { scopeOf } from "../shared/operations.ts";
+import { SEARCH_PIPELINE } from "./config.ts";
 const position = z.strictObject({ at: isoDateTime, kind: searchKind, id, scope: z.string() });
 export type SearchPosition = Pick<SearchItem, "at" | "kind" | "id">;
 export interface SearchStore {
@@ -16,7 +17,11 @@ export interface SearchDeps {
 }
 export async function search(d: SearchDeps, a: Actor, q: SearchInput): Promise<SearchResult> {
   const { cursor: _cursor, limit: _limit, anchor: _anchor, ...filter } = q;
-  const scope = await scopeOf(a, { search: { ...filter, kinds: [...q.kinds].sort() }, pipeline: "keyword-v1" });
+  const scope = await scopeOf(a, {
+    search: { ...filter, kinds: [...q.kinds].sort() },
+    pipeline: SEARCH_PIPELINE,
+    ranking: "keyword-v1",
+  });
   let after: SearchPosition | undefined;
   if (q.cursor) {
     try {
