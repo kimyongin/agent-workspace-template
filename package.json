@@ -20,7 +20,8 @@
     "test:http": "deno test --config supabase/functions/deno.json --allow-env --allow-net --allow-read --env-file=.env.local supabase/tests/http",
     "test:mcp": "deno test --config supabase/functions/deno.json --allow-env --allow-net --allow-read --env-file=.env.local supabase/tests/mcp",
     "test:e2e": "playwright test",
-    "check:boundaries": "node scripts/check-boundaries.mjs"
+    "check:boundaries": "node scripts/check-boundaries.mjs",
+    "test:all": "node scripts/test-all.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "2.117.2",

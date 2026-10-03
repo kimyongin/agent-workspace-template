@@ -176,6 +176,7 @@ PRD·ADR을 바꾸는 PR은 사람이 승인한다. 머지는 배포가 아니�
 | `npm run test:http` | 실제 진입점과 로그인 토큰으로 HTTP 계약 테스트: 인증·입력 오류, 격리, 완료·동시 완료·재시도, 반복 회차, 커서 |
 | `npm run test:mcp` | 실제 OAuth 흐름(동적 등록·PKCE·동의 API·코드 교환)으로 받은 MCP 토큰과 공식 MCP 클라이언트로 도구 계약 검사: 토큰 audience 구분, `tools/list` schema, 웹 작성→MCP 완료→웹 확인, HTTP와 같은 결과·오류, 제품 스킬의 도구 이름 |
 | `npm run test:e2e` | Playwright(데스크톱·모바일 viewport): 웹 작성→브라우저 동의 화면 승인으로 MCP 연결→MCP 완료→웹 확인, MCP 작성→웹 편집→MCP 확인, 다른 사용자의 URL 접근 거부. 웹 개발 서버는 자동으로 띄운다. 처음 한 번 `npx playwright install chromium` |
+| `npm run test:all` | 위 테스트를 한 번에: 로컬 Supabase 준비, Edge Functions가 없으면 띄우고 끝나면 정리, core·DB·HTTP·MCP·E2E를 차례로 실행하고 결과 요약 |
 | `npm run stop:local` | 로컬 Supabase 정지(데이터 유지) |
 
 로컬 Supabase 포트는 55420~55429, 웹은 55480, Edge inspector는 8483이다. 다른 로컬 프로젝트·실험(55320~55329)과 겹치지 않는다. CI는 운영 secret 없이 `check` job(문서·공백·Deno·core·웹)과 `integration` job(러너 안의 로컬 Supabase로 DB·HTTP·MCP·E2E 테스트)을 실행한다. 새 검사는 추가되는 단계에서 이 표와 CI에 넣는다.
