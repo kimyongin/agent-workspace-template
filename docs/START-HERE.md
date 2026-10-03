@@ -51,7 +51,7 @@ T02-3의 원칙 관리·기록 적용, 태그 관리·세 종류 연결/필터, 
 
 지침 후속 정리는 [Template-07](tickets/template-07-guidance-review-followup.md)에서 추적한다. 개발일 조회·재개 절차는 PR #67로 완료했다. 티켓 영역·완료 기록·설계/리뷰 역할의 [PR #68](https://github.com/kimyongin/agent-workspace-template/pull/68)은 `29071c1`로 머지됐다. 제출 후 최종 리뷰·CI 결과는 그 PR 완료 코멘트와 [checks](https://github.com/kimyongin/agent-workspace-template/pull/68/checks)가 소유한다([기록 규칙](development/workflow.md#변경과-완료-기록)).
 
-2026-10-04 일상 수정의 빠른 검증은 [Template-08](tickets/template-08-mock-first-testing.md)에서 진행한다. 서비스 없는 할 일 생성·완료·직렬 재시도와 HTTP/MCP handler 계약을 구현하고 로컬 `test:fast`·정적 검사·빌드를 통과했다. 실제 통합 CI·독립 리뷰·머지는 제출 후 확인한다. 명령과 실제 통합의 역할은 [개발 방법](development/workflow.md#실행-검증)을 따른다. 기존 환경 격리 [PR #69](https://github.com/kimyongin/agent-workspace-template/pull/69)는 미머지 종료했으며 그 이력을 보존한다.
+2026-10-04 일상 수정의 빠른 검증은 [Template-08](tickets/template-08-mock-first-testing.md)에서 진행한다. 서비스 없는 할 일 생성·완료·직렬 재시도와 HTTP/MCP handler 계약은 [PR #70](https://github.com/kimyongin/agent-workspace-template/pull/70)으로 독립 리뷰·실제 통합 CI를 통과해 `3166941`로 머지됐다([완료 증거](https://github.com/kimyongin/agent-workspace-template/pull/70#issuecomment-5971872108)). 후속은 실제 할 일 수정·삭제/기록 보존·HTTP/MCP 입력과 오류 검사, worker 빠른 검사를 별도 worktree에서 병렬 진행한다. 전체 업무·화면 검증 확대는 아직 완료하지 않았다. 명령과 실제 통합의 역할은 [개발 방법](development/workflow.md#실행-검증)을 따른다. 기존 환경 격리 [PR #69](https://github.com/kimyongin/agent-workspace-template/pull/69)는 미머지 종료했으며 그 이력을 보존한다. T02-4 사용자 보류는 유지한다.
 
 제품 방향과 코드 설계 원칙은 합의한 기준이다. 기능·데이터·HTTP/MCP·권한·트랜잭션 계약은 [T02-1](tickets/template-02-t02-1-contracts.md)에 확정돼 있고 위 T02-2/3 흐름은 구현·검증돼 있다. 폴더 구조 문서의 제안 트리는 배치 안내이므로 실제 파일과 구분하며, 남은 예제 Entity·제품 패키지 단계는 T02-4 보류를 유지한다.
 

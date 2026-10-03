@@ -1,11 +1,12 @@
 import { assertEquals, assertRejects } from "@std/assert";
-import { taskComplete, taskCreate, taskResult } from "../../functions/_shared/contracts/task.ts";
-import { recordResult } from "../../functions/_shared/contracts/record.ts";
+import { taskComplete, taskCreate, taskResult, taskUpdate } from "../../functions/_shared/contracts/task.ts";
+import { recordCreate, recordResult } from "../../functions/_shared/contracts/record.ts";
 import * as activity from "../../functions/_shared/core/activity/application.ts";
 import type { Task } from "../../functions/_shared/core/activity/domain.ts";
 import type { ActivityRecord, ActivityStore, StoredRequest } from "../../functions/_shared/core/activity/ports.ts";
 import { AppError } from "../../functions/_shared/core/shared/errors.ts";
 import type { IndexJob } from "../../functions/_shared/core/shared/store.ts";
+import { searchInputHash } from "../../functions/_shared/core/shared/operations.ts";
 import { createHttpApp } from "../../functions/_shared/adapters/http/app.ts";
 import { activityTools } from "../../functions/_shared/adapters/mcp/activity-tools.ts";
 import { toErrorBody } from "../../functions/_shared/adapters/errors.ts";
@@ -30,6 +31,7 @@ function fixture() {
   const records = new Map<string, ActivityRecord>();
   const requests = new Map<string, StoredRequest>();
   const jobs: IndexJob[] = [];
+  const mutations: string[] = [];
   const key = (operation: string, id: string) => `${operation}:${id}`;
   const store: ActivityStore = {
     lockRequest: () => Promise.resolve(), // Serial retry only; concurrency belongs to the real DB tests.
@@ -53,6 +55,7 @@ function fixture() {
       return Promise.resolve(structuredClone(task));
     },
     updateTask: (id, changes) => {
+      mutations.push(`update:${id}`);
       const current = tasks.get(id)!;
       const task = { ...current, ...changes, version: current.version + 1, updated_at: now };
       tasks.set(id, task);
@@ -78,14 +81,24 @@ function fixture() {
       return Promise.resolve();
     },
     listTasks: unsupported,
-    deleteTask: unsupported,
+    deleteTask: (id) => {
+      mutations.push(`delete:${id}`);
+      tasks.delete(id);
+      return Promise.resolve();
+    },
     getRecord: unsupported,
     getRecordSummaries: unsupported,
     listRecords: unsupported,
     occurrenceRecords: unsupported,
     updateRecord: unsupported,
     deleteRecord: unsupported,
-    detachRecords: unsupported,
+    detachRecords: (taskId) => {
+      mutations.push(`detach:${taskId}`);
+      for (const [id, record] of records) {
+        if (record.task_id === taskId) records.set(id, { ...record, task_id: null, occurrence_on: null });
+      }
+      return Promise.resolve();
+    },
     taskWithResult: unsupported,
   };
   const deps: activity.ActivityDeps = {
@@ -108,8 +121,111 @@ function fixture() {
     assertEquals(policy, config.token);
     return Promise.resolve(actor);
   });
-  return { deps, app, config, unused, tasks, records, jobs };
+  return { deps, app, config, unused, tasks, records, jobs, mutations };
 }
+
+function snapshot(f: ReturnType<typeof fixture>) {
+  return structuredClone({ tasks: [...f.tasks], records: [...f.records], jobs: f.jobs, mutations: f.mutations });
+}
+
+Deno.test("application: task content edits index only changed title/summary; stale mutations write nothing", async () => {
+  const f = fixture();
+  let task = await activity.createTask(f.deps, actor, taskCreate.parse(createInput));
+  for (const patch of [{ title: "새 제목" }, { summary: "새 요약" }]) {
+    task = await activity.updateTask(
+      f.deps,
+      actor,
+      task.id,
+      taskUpdate.parse({ expected_version: task.version, ...patch }),
+    );
+    taskResult.parse(task);
+    assertEquals(f.jobs.at(-1), { kind: "task", id: task.id, input_hash: await searchInputHash(task) });
+  }
+  assertEquals(task.version, 3);
+  assertEquals(new Set(f.jobs.map((job) => job.input_hash)).size, 3);
+  task = await activity.updateTask(
+    f.deps,
+    actor,
+    task.id,
+    taskUpdate.parse({
+      expected_version: 3,
+      title: task.title,
+      summary: task.summary,
+      body: "검색 대상이 아닌 본문",
+      due_on: "2026-10-05",
+    }),
+  );
+  assertEquals(task.version, 4);
+  assertEquals(task.body, "검색 대상이 아닌 본문");
+  assertEquals(task.due_on, "2026-10-05");
+  assertEquals(f.jobs.length, 3);
+  const before = snapshot(f);
+  for (
+    const mutate of [
+      () =>
+        activity.updateTask(f.deps, actor, task.id, taskUpdate.parse({ expected_version: 3, title: "오래된 수정" })),
+      () => activity.deleteTask(f.deps, actor, task.id, 3),
+    ]
+  ) {
+    const error = await assertRejects(mutate, AppError);
+    assertEquals(error.code, "conflict");
+    assertEquals(snapshot(f), before);
+  }
+  await activity.deleteTask(f.deps, actor, task.id, 4);
+  assertEquals(f.tasks.has(task.id), false);
+  assertEquals(f.jobs.length, 3);
+});
+
+Deno.test("application: deleting completed/recurring tasks detaches history and preserves unrelated records", async () => {
+  for (const kind of ["once", "recurring"] as const) {
+    const f = fixture();
+    const task = await activity.createTask(
+      f.deps,
+      actor,
+      taskCreate.parse(
+        kind === "once" ? createInput : {
+          kind,
+          title: "반복 수행",
+          summary: "회차 기록 보존",
+          recurrence: { freq: "daily", starts_on: "2026-10-01" },
+          timezone: "Asia/Seoul",
+        },
+      ),
+    );
+    const input = recordCreate.parse({ title: "기록", summary: "보존할 요약", body: "보존할 본문" });
+    const unrelated = await activity.createRecord(f.deps, actor, input);
+    const linked = kind === "once"
+      ? (await activity.completeTask(f.deps, actor, task.id, taskComplete.parse(completeInput))).record
+      : await activity.recordOccurrence(f.deps, actor, task.id, "2026-10-03", input);
+    assertEquals(linked.task_id, task.id);
+    assertEquals(linked.occurrence_on, kind === "once" ? null : "2026-10-03");
+    const current = f.tasks.get(task.id)!;
+    if (kind === "once") assertEquals(current.result_record_id, linked.id);
+    const before = snapshot(f);
+    const stale = await assertRejects(() => activity.deleteTask(f.deps, actor, task.id, current.version + 1), AppError);
+    assertEquals(stale.code, "conflict");
+    assertEquals(snapshot(f), before);
+    await activity.deleteTask(f.deps, actor, task.id, current.version);
+    assertEquals(f.mutations.slice(-2), [`detach:${task.id}`, `delete:${task.id}`]);
+    assertEquals(f.tasks.size, 0);
+    assertEquals(f.records.size, 2);
+    assertEquals(recordResult.parse(f.records.get(linked.id)), { ...linked, task_id: null, occurrence_on: null });
+    assertEquals(f.records.get(unrelated.id), unrelated);
+    assertEquals(f.jobs, before.jobs);
+    const deleted = snapshot(f);
+    for (const id of [task.id, crypto.randomUUID()]) {
+      for (
+        const mutate of [
+          () => activity.updateTask(f.deps, actor, id, taskUpdate.parse({ expected_version: 1, title: "수정" })),
+          () => activity.deleteTask(f.deps, actor, id, 1),
+        ]
+      ) {
+        assertEquals((await assertRejects(mutate, AppError)).code, "not_found");
+        assertEquals(snapshot(f), deleted);
+      }
+    }
+  }
+});
 
 Deno.test("application: create → complete → identical serial retry uses real business rules", async () => {
   const f = fixture();
@@ -141,10 +257,10 @@ Deno.test("application: create → complete → identical serial retry uses real
   assertEquals(f.records.size, 1);
 });
 
-async function post(app: ReturnType<typeof createHttpApp>, path: string, input: unknown) {
+async function post(app: ReturnType<typeof createHttpApp>, path: string, input?: unknown, method = "POST") {
   return await app.fetch(
     new Request(`https://app.invalid/api${path}`, {
-      method: "POST",
+      method,
       headers: { authorization: "Bearer fixture", "content-type": "application/json" },
       body: JSON.stringify(input),
     }),
@@ -191,6 +307,77 @@ Deno.test("HTTP routes and MCP ToolDef schema/handler share task outcomes and in
   assertEquals(create.input.safeParse({ ...createInput, owner_id: actor.userId }).success, false);
   assertEquals(f.records.size, 1);
   assertEquals(f.jobs.length, 2);
+});
+
+Deno.test("HTTP PATCH/DELETE and MCP task mutation schema/handler share validation and no-write errors", async () => {
+  const f = fixture();
+  const tools = activityTools(f.deps);
+  const update = tools.find((tool) => tool.name === "update_task")!;
+  const remove = tools.find((tool) => tool.name === "delete_task")!;
+  const task = await activity.createTask(f.deps, actor, taskCreate.parse(createInput));
+  const path = `/tasks/${task.id}`;
+  const patch = { expected_version: 1, title: "HTTP 수정" };
+  assertEquals(update.input.safeParse({ id: task.id, ...patch }).success, true);
+  const edited = await post(f.app, path, patch, "PATCH");
+  assertEquals(edited.status, 200);
+  assertEquals(taskResult.parse(await edited.json()), f.tasks.get(task.id));
+  const mcpEdited = await update.handler({ id: task.id, expected_version: 2, summary: "MCP 수정" }, actor);
+  assertEquals(taskResult.parse(mcpEdited), f.tasks.get(task.id));
+  assertEquals(f.tasks.get(task.id)?.title, "HTTP 수정");
+  assertEquals(f.tasks.get(task.id)?.summary, "MCP 수정");
+  assertEquals(f.tasks.get(task.id)?.version, 3);
+  assertEquals(f.jobs.length, 3);
+
+  const errors = [
+    { tool: update, input: { expected_version: 0, title: "수정" }, code: "invalid_input", status: 400 },
+    { tool: update, input: { expected_version: 3, status: "done" }, code: "invalid_input", status: 400 },
+    { tool: update, input: { expected_version: 3, timezone: "Asia/Seoul" }, code: "invalid_input", status: 400 },
+    { tool: update, input: { expected_version: 2, title: "오래된 수정" }, code: "conflict", status: 409 },
+    { tool: remove, input: { expected_version: 0 }, code: "invalid_input", status: 400 },
+    { tool: remove, input: { expected_version: 2 }, code: "conflict", status: 409 },
+  ];
+  const before = snapshot(f);
+  for (const { tool, input, code, status } of errors) {
+    const isDelete = tool === remove;
+    const http = await post(
+      f.app,
+      isDelete ? `${path}?expected_version=${input.expected_version}` : path,
+      isDelete ? undefined : input,
+      isDelete ? "DELETE" : "PATCH",
+    );
+    assertEquals(http.status, status);
+    const error = await assertRejects(async () => await tool.handler({ id: task.id, ...input }, actor), AppError);
+    const mapped = toErrorBody(error);
+    assertEquals(mapped.body.code, code);
+    assertEquals(await http.json(), mapped.body);
+    assertEquals(snapshot(f), before);
+  }
+  assertEquals(update.input.safeParse({ id: task.id, expected_version: 3, status: "done" }).success, false);
+  assertEquals(remove.input.safeParse({ id: task.id, expected_version: 0 }).success, false);
+  assertEquals(remove.input.safeParse({ id: task.id, expected_version: 3 }).success, true);
+  const deleted = await post(f.app, `${path}?expected_version=3`, undefined, "DELETE");
+  assertEquals(deleted.status, 204);
+  assertEquals(await deleted.text(), "");
+  const another = await activity.createTask(f.deps, actor, taskCreate.parse({ ...createInput, request_id: undefined }));
+  assertEquals(await remove.handler({ id: another.id, expected_version: 1 }, actor), { deleted: another.id });
+  assertEquals(f.tasks.size, 0);
+  const after = snapshot(f);
+  for (const id of [task.id, crypto.randomUUID()]) {
+    for (const tool of [update, remove]) {
+      const input = tool === update ? { expected_version: 1, title: "수정" } : { expected_version: 1 };
+      const http = await post(
+        f.app,
+        `/tasks/${id}${tool === remove ? "?expected_version=1" : ""}`,
+        tool === remove ? undefined : input,
+        tool === remove ? "DELETE" : "PATCH",
+      );
+      assertEquals(http.status, 404);
+      const error = await assertRejects(async () => await tool.handler({ id, ...input }, actor), AppError);
+      assertEquals(error.code, "not_found");
+      assertEquals(await http.json(), toErrorBody(error).body);
+      assertEquals(snapshot(f), after);
+    }
+  }
 });
 
 Deno.test("HTTP production default still rejects missing bearer token before any port runs", async () => {
