@@ -45,6 +45,7 @@ export interface Keyset {
 }
 
 export interface TaskFilter {
+  tag_id?: string;
   kind?: "once" | "recurring";
   status?: Task["status"];
   due_from?: string;

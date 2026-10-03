@@ -15,6 +15,7 @@ import {
   title,
 } from "./common.ts";
 import { recordResult } from "./record.ts";
+import { tagIds } from "./tag.ts";
 
 export const TASK_KINDS = ["once", "recurring"] as const;
 export const TASK_STATUSES = ["open", "done", "active", "stopped"] as const;
@@ -57,6 +58,7 @@ export type Recurrence = z.infer<typeof recurrence>;
 export const taskCreate = z.discriminatedUnion("kind", [
   z.strictObject({
     kind: z.literal("once"),
+    tag_ids: tagIds.optional(),
     title,
     summary,
     body: body.default(""),
@@ -65,6 +67,7 @@ export const taskCreate = z.discriminatedUnion("kind", [
   }),
   z.strictObject({
     kind: z.literal("recurring"),
+    tag_ids: tagIds.optional(),
     title,
     summary,
     body: body.default(""),
@@ -79,6 +82,7 @@ export type TaskCreate = z.infer<typeof taskCreate>;
 export const taskUpdate = z
   .strictObject({
     expected_version: expectedVersion,
+    tag_ids: tagIds.optional(),
     title: title.optional(),
     summary: summary.optional(),
     body: body.optional(),
@@ -111,6 +115,7 @@ export const taskListQuery = z
     due_to: isoDate.optional(),
     /** 그 날짜에 회차가 있는 반복 할 일만, 회차 상태와 함께. */
     occurrence_on: isoDate.optional(),
+    tag_id: id.optional(),
     ...pageInput,
   })
   .refine((q) => !(q.due_from && q.due_to) || q.due_from <= q.due_to, {
@@ -132,6 +137,7 @@ export const pause = z.object({ stopped_on: isoDate, resumed_on: isoDate.nullabl
 
 export const taskResult = z.object({
   id,
+  tag_ids: z.array(id),
   kind: z.enum(TASK_KINDS),
   title: z.string(),
   summary: z.string(),

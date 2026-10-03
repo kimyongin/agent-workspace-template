@@ -21,6 +21,7 @@ export interface Task {
   completed_at: string | null;
   result_record_id: string | null;
   pauses: Pause[];
+  tag_ids: string[];
   version: number;
   created_at: string;
   updated_at: string;
@@ -28,11 +29,17 @@ export interface Task {
 
 export type NewTask = Pick<
   Task,
-  "kind" | "title" | "summary" | "body" | "due_on" | "recurrence" | "timezone" | "status" | "pauses"
+  "kind" | "title" | "summary" | "body" | "due_on" | "recurrence" | "timezone" | "status" | "pauses" | "tag_ids"
 >;
 
 export function newTask(input: TaskCreate): NewTask {
-  const common = { title: input.title, summary: input.summary, body: input.body, pauses: [] };
+  const common = {
+    title: input.title,
+    summary: input.summary,
+    body: input.body,
+    pauses: [],
+    tag_ids: input.tag_ids ?? [],
+  };
   if (input.kind === "once") {
     return { ...common, kind: "once", due_on: input.due_on ?? null, recurrence: null, timezone: null, status: "open" };
   }
@@ -52,7 +59,9 @@ export function assertVersion(current: { version: number }, expected: number): v
   }
 }
 
-export type TaskChanges = Partial<Pick<Task, "title" | "summary" | "body" | "due_on" | "recurrence" | "timezone">>;
+export type TaskChanges = Partial<
+  Pick<Task, "title" | "summary" | "body" | "due_on" | "recurrence" | "timezone" | "tag_ids">
+>;
 
 /** 내용 필드만 바꾼다. 완료된 할 일도 수정할 수 있다. 종류에 맞지 않는 필드는 거부한다. */
 export function updateTask(task: Task, patch: TaskUpdate): TaskChanges {

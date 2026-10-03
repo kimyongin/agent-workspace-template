@@ -4,29 +4,19 @@ import type { ToolDef } from "./tools.ts";
 import { z } from "zod";
 import { expectedVersion, id, isoDate } from "../../contracts/common.ts";
 import { recordCreate, recordListQuery, recordUpdate } from "../../contracts/record.ts";
-import {
-  occurrenceRange,
-  recurrence,
-  taskComplete,
-  taskCreate,
-  taskListQuery,
-  taskUpdate,
-  timezone,
-} from "../../contracts/task.ts";
+import { occurrenceRange, taskComplete, taskCreate, taskListQuery, taskUpdate } from "../../contracts/task.ts";
 import * as activity from "../../core/activity/application.ts";
 import { notFound } from "../../core/shared/errors.ts";
 import { parse } from "../errors.ts";
 
 /** MCP inputSchema는 최상위가 object여야 하므로, 종류별 생성 입력을 펼친 모양으로 알린다(검증은 taskCreate). */
+const createTaskShape: Record<string, z.ZodType> = Object.assign({}, ...taskCreate.options.map((s) => s.shape));
+for (const [key, schema] of Object.entries(createTaskShape)) {
+  if (!taskCreate.options.every((s) => key in s.shape)) createTaskShape[key] = schema.optional();
+}
 const createTaskInput = z.strictObject({
+  ...createTaskShape,
   kind: z.enum(["once", "recurring"]).describe("once: 일회성, recurring: 반복(회차에 기록을 남김)"),
-  title: z.string().describe("제목 1~100자"),
-  summary: z.string().describe("검색에 쓰는 요약 1~300자"),
-  body: z.string().optional().describe("본문(마크다운) 0~20,000자"),
-  due_on: isoDate.optional().describe("once만: 기한 YYYY-MM-DD(알림 없음)"),
-  recurrence: recurrence.optional().describe("recurring만: 반복 규칙"),
-  timezone: timezone.optional().describe("recurring만: IANA 시간대(예: Asia/Seoul). 오늘·회차 날짜의 기준"),
-  request_id: z.uuid().optional().describe("재시도 시 같은 값을 보내면 첫 결과를 돌려받는다"),
 });
 
 const withId = <T extends z.ZodObject>(schema: T) => z.strictObject({ id, ...schema.shape });
@@ -56,7 +46,7 @@ export function activityTools(deps: activity.ActivityDeps): ToolDef[] {
     {
       name: "create_task",
       description:
-        "할 일을 만든다. 일회성은 open, 반복은 active로 시작한다. 반복 할 일은 앱이 자동 실행·알림하지 않는다.",
+        "할 일을 만든다. 일회성은 open, 반복은 active. tag_ids는 내 태그 ID 최대 10개. 반복 할 일은 앱이 자동 실행·알림하지 않는다.",
       input: createTaskInput,
       readOnly: false,
       handler: (args, actor) => activity.createTask(deps, actor, parse(taskCreate, args)),
@@ -71,7 +61,7 @@ export function activityTools(deps: activity.ActivityDeps): ToolDef[] {
     {
       name: "list_tasks",
       description:
-        "할 일 목록(updated_at 내림차순, 커서 페이지). occurrence_on을 주면 그 날짜에 회차가 있는 반복 할 일과 회차 상태를 돌려준다.",
+        "할 일 목록(updated_at 내림차순, 커서 페이지). tag_id로 필터한다. occurrence_on은 해당 회차가 있는 반복 할 일과 회차 상태를 돌려준다.",
       input: taskListQuery,
       readOnly: true,
       handler: (args, actor) => activity.listTasks(deps, actor, parse(taskListQuery, args)),
@@ -79,7 +69,7 @@ export function activityTools(deps: activity.ActivityDeps): ToolDef[] {
     {
       name: "update_task",
       description:
-        "할 일의 내용 필드를 고친다(바꿀 필드만). 완료된 할 일도 고칠 수 있다. expected_version이 다르면 conflict.",
+        "할 일의 내용 필드를 고친다. tag_ids 생략은 유지, 빈 배열은 제거. 완료된 할 일도 고칠 수 있다. expected_version이 다르면 conflict.",
       input: withId(taskUpdate),
       readOnly: false,
       handler: (args, actor) => {

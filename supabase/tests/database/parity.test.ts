@@ -73,7 +73,7 @@ async function columns(table: string): Promise<string[]> {
 }
 
 dbTest("할 일: DB 컬럼(owner_id 제외)과 contracts 응답 필드가 같다", async () => {
-  assertEquals(await columns("tasks"), Object.keys(taskResult.shape).sort());
+  assertEquals(await columns("tasks"), Object.keys(taskResult.shape).filter((k) => k !== "tag_ids").sort());
 });
 
 dbTest("기록: DB 컬럼(owner_id 제외)과 contracts 응답 필드가 같다", async () => {
