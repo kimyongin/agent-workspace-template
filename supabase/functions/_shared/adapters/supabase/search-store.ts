@@ -10,13 +10,13 @@ class SqlSearchStore implements SearchStore {
   sources() {
     const tx = this.tx;
     const originals =
-      tx`select owner_id,'task'::text as kind,id,title,summary,body,updated_at as at,null::text as status,${
+      tx`select owner_id,'task'::text as kind,id,title,summary,body,updated_at as at,null::text as status,entity_id,${
         tagIdsColumn(tx, "task")
       } from app.tasks
-      union all select owner_id,'record',id,title,summary,body,occurred_at,null::text,${
+      union all select owner_id,'record',id,title,summary,body,occurred_at,null::text,entity_id,${
         tagIdsColumn(tx, "record")
       } from app.records
-      union all select owner_id,'principle',id,title,summary,body,updated_at,status,${
+      union all select owner_id,'principle',id,title,summary,body,updated_at,status,entity_id,${
         tagIdsColumn(tx, "principle")
       } from app.principles`;
     return tx`select s.*,i.embedding,case
@@ -29,6 +29,7 @@ class SqlSearchStore implements SearchStore {
     const tx = this.tx;
     return tx`kind in ${tx(q.kinds)} and (kind<>'principle' or ${q.status}='all' or status=${q.status})
       ${q.tag_id ? tx`and tag_ids ? ${q.tag_id}` : tx``}
+      ${q.entity_id ? tx`and entity_id=${q.entity_id}::uuid` : tx``}
       ${q.from ? tx`and at>=${q.from}::timestamptz` : tx``} ${q.to ? tx`and at<=${q.to}::timestamptz` : tx``}`;
   }
   async coverage(q: SearchInput) {

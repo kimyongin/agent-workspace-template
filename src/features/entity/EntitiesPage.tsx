@@ -11,7 +11,8 @@ export function EntitiesPage() {
     { hash } = useLocation(),
     navigate = useNavigate(),
     request = useRequestId();
-  const pages = Math.max(1, Math.min(250, Number(params.get("pages")) || 1));
+  const requested = Number(params.get("pages") ?? 1);
+  const pages = Number.isSafeInteger(requested) && requested > 0 ? Math.min(250, requested) : 1;
   const filter = {
     keyword: params.get("keyword"),
     prop3_from: params.get("prop3_from"),
@@ -25,28 +26,29 @@ export function EntitiesPage() {
     [busy, setBusy] = useState(false),
     [retry, setRetry] = useState(0),
     [creating, setCreating] = useState(false);
-  const currentKey = useRef(key), focused = useRef(false);
+  const currentKey = useRef(key), focused = useRef("");
   useEffect(() => {
     const controller = new AbortController();
     setError(null);
     setBusy(true);
+    focused.current = "";
     if (currentKey.current !== key) {
       setPage(null);
       currentKey.current = key;
-      focused.current = false;
     }
     (async () => {
       let result: Page = { items: [], next_cursor: null }, n = 0;
       const anchor = /^#entity-[0-9a-f-]+$/.test(hash) ? hash.slice(8) : null;
-      while (
-        n < pages || (anchor && !result.items.some((e) => e.id === anchor))
-      ) {
+      // A concurrent insertion may move the anchor one page. Never scan beyond this finite window.
+      const maximum = anchor ? Math.min(250, pages + 1) : pages;
+      while (n < pages || (anchor && n < maximum && !result.items.some((e) => e.id === anchor))) {
         const next: Page = await api(
           "GET",
           `/entities${query({ ...filter, cursor: result.next_cursor })}`,
           undefined,
           controller.signal,
         );
+        if (controller.signal.aborted) return;
         result = {
           items: [...result.items, ...next.items],
           next_cursor: next.next_cursor,
@@ -54,7 +56,7 @@ export function EntitiesPage() {
         n++;
         if (!next.next_cursor) break;
       }
-      setPage(result);
+      if (!controller.signal.aborted) setPage(result);
     })().catch((e) => {
       if (!controller.signal.aborted) {
         setError(
@@ -67,25 +69,25 @@ export function EntitiesPage() {
     return () => controller.abort();
   }, [key, pages, retry, hash]);
   useEffect(() => {
-    if (busy || focused.current || !/^#entity-[0-9a-f-]+$/.test(hash)) return;
+    if (busy || focused.current === hash || !page || !/^#entity-[0-9a-f-]+$/.test(hash)) return;
     const node = document.getElementById(hash.slice(1));
     if (node) {
       node.focus();
       node.scrollIntoView({ block: "center" });
-      focused.current = true;
-    }
+    } else document.getElementById("entities-title")?.focus();
+    focused.current = hash;
   }, [page, busy, hash]);
   const set = (name: string, value: string) => {
     const next = new URLSearchParams(params);
     if (value) next.set(name, value);
     else next.delete(name);
     next.delete("pages");
-    setParams(next, { replace: true });
+    navigate({ pathname: "/entities", search: next.toString(), hash: "" }, { replace: true });
   };
   return (
     <section className="panel" aria-labelledby="entities-title">
       <div className="panel-head">
-        <h1 id="entities-title" className="page-title">엔터티</h1>
+        <h1 id="entities-title" className="page-title" tabIndex={-1}>엔터티</h1>
         <button className="btn btn-primary" onClick={() => setCreating(true)}>
           엔터티 추가
         </button>
@@ -105,9 +107,7 @@ export function EntitiesPage() {
           {(["prop3_from", "prop3_to"] as const).map((name) => (
             <Field
               key={name}
-              label={name === "prop3_from"
-                ? "속성 3 시작 날짜"
-                : "속성 3 끝 날짜"}
+              label={name === "prop3_from" ? "속성 3 시작 날짜" : "속성 3 끝 날짜"}
             >
               {(p) => (
                 <input
@@ -143,9 +143,7 @@ export function EntitiesPage() {
               onChange={(e) => set("sort", e.target.value)}
             >
               <option value="updated_at">최근 수정순</option>
-              {[1, 2, 3].map((n) => (
-                <option key={n} value={`prop${n}`}>속성 {n} 오름차순</option>
-              ))}
+              {[1, 2, 3].map((n) => <option key={n} value={`prop${n}`}>속성 {n} 오름차순</option>)}
             </select>
           )}
         </Field>
@@ -162,11 +160,9 @@ export function EntitiesPage() {
       {page?.items.length === 0 && (
         <>
           <p className="secondary">
-            {key !== "?sort=updated_at"
-              ? "조건에 맞는 엔터티가 없습니다."
-              : "아직 엔터티가 없습니다."}
+            {key !== "?sort=updated_at" ? "조건에 맞는 엔터티가 없습니다." : "아직 엔터티가 없습니다."}
           </p>
-          <button className="btn" onClick={() => setParams({})}>
+          <button className="btn" onClick={() => navigate("/entities", { replace: true })}>
             필터 해제
           </button>
         </>
@@ -183,9 +179,7 @@ export function EntitiesPage() {
                 {e.prop1}
               </Link>
               <span className="secondary">
-                속성 2: {e.prop2 ?? "미지정"} · 속성 3: {e.prop3 ?? "미지정"}
-                {" "}
-                · 속성 4: {e.prop4}
+                속성 2: {e.prop2 ?? "미지정"} · 속성 3: {e.prop3 ?? "미지정"} · 속성 4: {e.prop4}
               </span>
             </div>
           </li>

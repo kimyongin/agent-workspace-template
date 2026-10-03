@@ -45,6 +45,22 @@ dbTest("의미 검색: 3종류·hybrid 순위/anchor/커서·현재성·권한·
   assertEquals(first.search_state, "ok");
   assertEquals(first.items.map((x) => [x.id, x.match]), [[ids[0], "both"]]);
   assertEquals(first.semantic_coverage, { pending: 0, excluded: 0 });
+  const entity = crypto.randomUUID(), otherEntity = crypto.randomUUID();
+  await asUser(sql, users.a, async (tx) => {
+    await tx`insert into app.entities(id,owner_id,prop1) values(${entity},${users.a},'의미 범위'),(${otherEntity},${users.a},'다른 범위')`;
+    await tx`update app.tasks set entity_id=${entity} where id=${ids[0]}`;
+    await tx`update app.records set entity_id=${otherEntity} where id=${ids[1]}`;
+    await tx`update app.principles set entity_id=${entity} where id=${ids[2]}`;
+    const [excluded] =
+      await tx`insert into app.records(owner_id,title,body,entity_id,occurred_at) values(${users.a},'색인 제외','질의 없음',${entity},${at}) returning id`;
+    await tx`insert into app.record_tags(owner_id,record_id,tag_id) values(${users.a},${excluded.id},${tag})`;
+  });
+  const scoped = await search(d, A, { ...q, entity_id: entity, limit: 20, anchor: { kind: "record", id: ids[1] } });
+  assertEquals(scoped.items.map((x) => [x.id, x.match]), [[ids[0], "both"], [ids[2], "semantic"]]);
+  assertEquals(scoped.semantic_coverage, { pending: 0, excluded: 1 });
+  assertEquals(scoped.anchor_page, null);
+  assertEquals((await search(d, A, { ...q, entity_id: otherEntity })).items.map((x) => x.id), [ids[1]]);
+  await assertRejects(() => search(d, A, { ...q, entity_id: entity, cursor: first.next_cursor! }), AppError);
   assertEquals("rank" in first.items[0], false);
   const second = await search(d, A, { ...q, cursor: first.next_cursor! });
   assertEquals(second.items.map((x) => [x.id, x.match]), [[ids[1], "keyword"]]);

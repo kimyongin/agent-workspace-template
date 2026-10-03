@@ -19,6 +19,12 @@ httpTest("Entity MCP: 실제 SDK/OAuth CRUD·웹 parity·참조 거부·삭제 �
     const p = await tool(client, "create_principle", { title: "연결 원칙", summary: "요약", entity_id: e.id });
     assertEquals((await tool(client, "get_entity", { id: e.id })).principles.count, 1);
     assertEquals((await tool(client, "list_principles", { entity_id: e.id })).items[0].id, p.id);
+    const search = { query: "연결 원칙", entity_id: e.id, mode: "keyword" };
+    const found = await tool(client, "search", search);
+    assertEquals(found.items.map((x: { id: string }) => x.id), [p.id]);
+    assertEquals(found, (await call(token, "POST", "/search", search)).body);
+    assertEquals((await tool(client, "search", { ...search, entity_id: crypto.randomUUID() })).items, []);
+    assertEquals((await tool(client, "search", { ...search, entity_id: "bad" })).error.code, "invalid_input");
     assertEquals(
       (await tool(client, "update_entity", { id: e.id, expected_version: 2, prop1: "경쟁" })).error.code,
       "conflict",
@@ -29,6 +35,7 @@ httpTest("Entity MCP: 실제 SDK/OAuth CRUD·웹 parity·참조 거부·삭제 �
     const current = await tool(client, "get_principle", { id: p.id });
     assertEquals(current.entity_id, null);
     assertEquals(current.version, 2);
+    assertEquals((await tool(client, "search", search)).items, []);
     await tool(client, "delete_principle", { id: p.id, expected_version: 2 });
   } finally {
     await client.close();

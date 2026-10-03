@@ -31,6 +31,8 @@ Entity의 실제 소비자까지 한 수직 기능 경계로 구현한다. DB→
 
 ## 실행 기록
 
+- 독립 리뷰 `017bc29`: P2 두 건(검색 entity_id 계약 누락, Entity 복원의 대상 없음 전체 스캔·hash 유지·제목 초점/늦은 응답 보호 누락). 리뷰 종료 후 검색 계약/공통 SQL 범위/웹/제품 스킬과 회귀를 추가한다. HTTP/MCP는 같은 strict schema를 소비하며 cursor scope는 이미 모든 필터를 포함한다. 복원은 저장 pages(최대 250)에 추가 1페이지까지만 허용해 동시 추가로 한 페이지 밀린 항목을 찾고, 대상 없음은 제목 초점으로 끝낸다. 활동 목록 helper는 다른 세션 소유로 변경하지 않는다. 공유 로컬 검증 exclusive를 재배정받았으며 소스 고정 후 own runtime을 시작한다.
+
 - npm ci: 성공, 168 packages 설치, audit 0 vulnerabilities.
 - 최종 서비스 없는 검사: build, check:deno(check/lint/fmt), check:boundaries, check:docs(문서 254개·스크립트 테스트 32개), git diff --check 성공. test:fast는 core 60개·handler 8개·web 1개 통과. build의 기존 큰 번들 경고는 남음.
 - 독립 리뷰·제출·통합 CI·머지·배포·실클라이언트 검증: 아직 수행하지 않음.

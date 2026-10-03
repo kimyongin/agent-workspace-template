@@ -31,6 +31,22 @@ test("Entity 웹 CRUD·초안 보호→MCP parity·활동 연결→삭제 원문
       summary: "연결을 보존",
       entity_id: id,
     });
+    const unrelated = await mcp.call("create_task", { kind: "once", title: task.title + " 외부", summary: "별도" });
+    await page.goto(`/search?q=${encodeURIComponent(task.title)}&mode=keyword`);
+    await page.getByLabel("엔터티", { exact: true }).selectOption(id);
+    await expect(page.locator(".list .item-title")).toHaveCount(1);
+    expect(new URL(page.url()).searchParams.get("entity_id")).toBe(id);
+    await page.getByRole("link", { name: task.title, exact: true }).click();
+    await page.getByRole("link", { name: "← 검색 결과" }).click();
+    await expect(page.getByRole("link", { name: task.title, exact: true })).toBeFocused();
+    await page.reload();
+    await expect(page.locator(".list .item-title")).toHaveCount(1);
+    expect(
+      (await mcp.call("search", { query: task.title, entity_id: id, mode: "keyword" })).items.map((x: { id: string }) =>
+        x.id
+      ),
+    ).toEqual([task.id]);
+    await mcp.call("delete_task", { id: unrelated.id, expected_version: 1 });
     await page.goto(`/entities/${id}`);
     await expect(page.getByRole("heading", { name: "연결된 할 일 (1개)" }))
       .toBeVisible();
@@ -93,6 +109,11 @@ test("Entity 목록: 키워드/선택/정렬·추가 페이지·상세 복귀/�
     );
     await expect(page.getByRole("link", { name: `${marker} 00`, exact: true }))
       .toBeVisible();
+    await page.getByRole("link", { name: `${marker} 19`, exact: true }).click();
+    const concurrent = await mcp.call("create_entity", { prop1: `${marker} 새 항목`, prop2: 0, prop4: "c" });
+    ids.push(concurrent.id);
+    await page.getByRole("link", { name: "← 엔터티 목록" }).click();
+    await expect(page.getByRole("link", { name: `${marker} 19`, exact: true })).toBeFocused();
     await page.getByRole("button", { name: "더 보기", exact: true }).click();
     const last = page.getByRole("link", { name: `${marker} 20`, exact: true });
     await expect(last).toBeVisible();
@@ -106,9 +127,7 @@ test("Entity 목록: 키워드/선택/정렬·추가 페이지·상세 복귀/�
     for (const width of [360, 390, 768, 1024, 1440]) {
       await page.setViewportSize({ width, height: 900 });
       expect(
-        await page.evaluate(() =>
-          document.documentElement.scrollWidth <= window.innerWidth
-        ),
+        await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
       ).toBe(true);
     }
   } finally {
@@ -117,4 +136,43 @@ test("Entity 목록: 키워드/선택/정렬·추가 페이지·상세 복귀/�
     }
     await mcp.close();
   }
+});
+
+test("Entity 복원: 대상 없음 조회 한도·제목 초점·필터 hash 제거·늦은 응답 격리", async ({ page }) => {
+  await devLogin(page);
+  let requests = 0, release: () => void = () => {}, started: () => void = () => {};
+  const delayed = new Promise<void>((resolve) => release = resolve),
+    arrived = new Promise<void>((resolve) => started = resolve);
+  await page.route("**/api/entities?**", async (route) => {
+    const url = new URL(route.request().url()), keyword = url.searchParams.get("keyword");
+    requests++;
+    if (keyword === "느림") {
+      started();
+      await delayed;
+    }
+    const item = {
+      id: crypto.randomUUID(),
+      prop1: keyword ?? "계속되는 목록",
+      prop2: null,
+      prop3: null,
+      prop4: "a",
+      version: 1,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    await route.fulfill({ json: { items: [item], next_cursor: keyword ? null : "more" } }).catch(() => {});
+  });
+  await page.goto(`/entities?pages=1#entity-${crypto.randomUUID()}`);
+  await expect(page.getByRole("heading", { name: "엔터티", exact: true })).toBeFocused();
+  expect(requests).toBe(2);
+  await page.getByLabel("속성 4 필터").selectOption("b");
+  await expect(page).not.toHaveURL(/#entity-/);
+  expect(new URL(page.url()).searchParams.has("pages")).toBe(false);
+  await page.getByLabel("속성 1 키워드").fill("느림");
+  await arrived;
+  await page.getByLabel("속성 1 키워드").fill("최신");
+  await expect(page.getByRole("link", { name: "최신", exact: true })).toBeVisible();
+  release();
+  await expect(page.getByRole("link", { name: "느림", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "최신", exact: true })).toBeVisible();
 });

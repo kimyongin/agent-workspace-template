@@ -5,6 +5,7 @@ import { Field, Notice } from "../../components/Field.tsx";
 import { api } from "../../lib/api.ts";
 import { formatDateTime } from "../../lib/format.ts";
 import { TagFilter } from "../tags/TagPicker.tsx";
+import { EntityPicker } from "../entity/EntityPicker.tsx";
 const kinds={task:"할 일",record:"기록",principle:"원칙"} as const;
 export function SearchPage(){
   const [params,setParams]=useSearchParams(), [draft,setDraft]=useState(params.get("q")??"");
@@ -16,7 +17,7 @@ export function SearchPage(){
   const searchParams=new URLSearchParams(params);searchParams.delete("pages");searchParams.delete("scroll");
   const key=searchParams.toString(),q=params.get("q")??"",tag=params.get("tag_id")??"";
   const requested=Number(params.get("pages")??1),pages=Number.isSafeInteger(requested)&&requested>0?Math.min(requested,1000):1;
-  const input=()=>searchInput.parse({query:q, ...(tag?{tag_id:tag}:{}), mode:params.get("mode")??"auto",
+  const input=()=>searchInput.parse({query:q, ...(tag?{tag_id:tag}:{}), ...(params.get("entity_id")?{entity_id:params.get("entity_id")}:{}), mode:params.get("mode")??"auto",
     status:params.get("status")??"active", ...(params.get("kind")?{kinds:[params.get("kind")]}:{}),
     ...(params.get("from")?{from:new Date(params.get("from")!).toISOString()}:{}),
     ...(params.get("to")?{to:new Date(params.get("to")!).toISOString()}:{}),});
@@ -72,6 +73,7 @@ export function SearchPage(){
       <Field label="검색 방식">{p=><select {...p} className="input" value={params.get("mode")??"auto"} onChange={e=>change("mode",e.target.value)}><option value="auto">자동</option><option value="keyword">키워드</option></select>}</Field>
     </div>
     <TagFilter value={tag} onChange={id=>change("tag_id",id)}/>
+    <EntityPicker value={params.get("entity_id")??""} onChange={id=>change("entity_id",id??"")}/>
     <div className="actions">{["from","to"].map(name=><Field key={name} label={name==="from"?"기간 시작":"기간 끝"}>{p=><input {...p} type="datetime-local" className="input" value={params.get(name)??""} onChange={e=>change(name,e.target.value)}/>}</Field>)}</div>
     {error&&<><Notice kind="error">{error}</Notice><button className="btn" type="button" onClick={()=>setRetry(n=>n+1)}>다시 시도</button></>}
     {busy&&<p role="status" className="secondary">검색 중…</p>}
