@@ -13,6 +13,7 @@ import {
   summary,
   title,
 } from "./common.ts";
+import { recordResult } from "./record.ts";
 
 export const TASK_KINDS = ["once", "recurring"] as const;
 export const TASK_STATUSES = ["open", "done", "active", "stopped"] as const;
@@ -152,8 +153,24 @@ export const occurrence = z.object({
 });
 export type Occurrence = z.infer<typeof occurrence>;
 
+/** 단건 조회: 결과 기록의 요약과 함께. 상세 경로는 웹이 `/records/:id`로 만든다. */
+export const taskDetail = taskResult.extend({
+  result_record: z.object({ id, title: z.string(), summary: z.string() }).nullable(),
+});
+export type TaskDetail = z.infer<typeof taskDetail>;
+
 export const taskListItem = taskResult.extend({ occurrence: occurrence.nullable() });
+export type TaskListItem = z.infer<typeof taskListItem>;
 export const taskPage = page(taskListItem);
+
+export const completeResult = z.object({ task: taskResult, record: recordResult });
+export const occurrenceList = z.object({
+  task_id: id,
+  from: isoDate,
+  to: isoDate,
+  today: isoDate,
+  items: z.array(occurrence),
+});
 
 export const taskLabels = {
   kind: "종류",
