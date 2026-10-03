@@ -7,7 +7,11 @@ import { parse } from "../errors.ts";
 import type { ToolDef } from "./tools.ts";
 
 export function principleTools(deps: principles.PrincipleDeps): ToolDef[] {
-  const withId = (schema: z.ZodObject) => z.strictObject({ ...schema.shape, id });
+  const withId = (schema: z.ZodObject) =>
+    z.strictObject({ ...schema.shape, id }).superRefine(({ id: _id, ...input }, context) => {
+      const result = schema.safeParse(input);
+      if (!result.success) { for (const issue of result.error.issues) context.addIssue({ ...issue }); }
+    });
   return [
     {
       name: "update_principle",
@@ -17,7 +21,7 @@ export function principleTools(deps: principles.PrincipleDeps): ToolDef[] {
       readOnly: false,
       handler: (args, actor) => {
         if (!id.safeParse(args.id).success) throw notFound();
-        const { id: target, ...input } = parse(withId(principleUpdate), args);
+        const { id: target, ...input } = args;
         return principles.updatePrinciple(deps, actor, target as string, parse(principleUpdate, input));
       },
     },
