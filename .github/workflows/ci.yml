@@ -1,5 +1,6 @@
 # 최소 CI: 문서·공백·서버(Deno)·core·웹 빌드 검사(check)와 러너 안의 로컬 Supabase로 DB·HTTP·MCP·E2E(integration).
-# 운영 secret을 쓰지 않는다. job 이름을 바꾸면 main 보호의 필수 검사 설정도 함께 바꾼다.
+# 운영 secret을 쓰지 않는다. check·integration은 main의 필수 상태 검사다. job 이름을 바꾸면
+# 같은 PR에서 필수 검사 설정도 바꾼다(docs/development/workflow.md "머지").
 name: ci
 
 on:
