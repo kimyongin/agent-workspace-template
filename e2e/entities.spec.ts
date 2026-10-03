@@ -295,4 +295,12 @@ test("Entity 자동 복원 250 상한 뒤 수동 251페이지·같은 cursor 재
   await expect(more).toBeFocused();
   expect(cursors).toHaveLength(252);
   expect(cursors.slice(-2)).toEqual(["page-250", "page-250"]);
+  const beforeFilter = cursors.length;
+  await page.getByLabel("속성 4 필터").selectOption("b");
+  await expect(page.locator(".list .item-title")).toHaveCount(1);
+  await page.getByLabel("속성 4 필터").selectOption("");
+  await expect.poll(() => cursors.length).toBe(beforeFilter + 2);
+  await expect(page.locator(".list .item-title")).toHaveCount(1);
+  await expect(more).toHaveAttribute("aria-disabled", "false");
+  expect(cursors.slice(beforeFilter)).toEqual([null, null]);
 });

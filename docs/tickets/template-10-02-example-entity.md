@@ -31,6 +31,9 @@ Entity의 실제 소비자까지 한 수직 기능 경계로 구현한다. DB→
 
 ## 실행 기록
 
+- `8a7c503` 통합 actual Entity lookahead 회귀에서 URL pages 변경과 manualPage 변경이 각각 effect를 재시작해 같은 cursor 요청을 abort/재전송한 결함을 확인함. 별도 Entity worktree 오프라인 수정은 두 이벤트가 공유하는 단일 숫자 target을 effect 의존성으로 사용하고 누적 cache 생성 epoch에 수동 목표를 묶어 새 필터 문맥에서는 이전 목표를 재사용하지 않는다. 기존 61+1 회귀의 cursor 1회 기대를 보존하고 250→251 회귀에 필터 이탈/복귀가 각각 첫 페이지만 읽는 검사를 추가한다. 공유 환경·Auth·E2E는 활동 담당 독점으로 이 세션에서 실행하지 않는다.
+- 단일 target/epoch 수정의 오프라인 build·fast(core 60/handler 13/web 1)·Deno·boundary·docs(298개, scripts 36/1 Windows skip) 통과. 실제 Entity lookahead·250 boundary·필터 복귀 및 전체 E2E는 새 head를 활동 담당에게 넘겨 실행한다. UI 담당의 exact 8a 단독 desktop/mobile lookahead 중복 요청 재현 자료는 별도 `activity-entity-boundary` worktree의 `test-results/entity-8a-lookahead`에 보존되어 있으며 수정한 후보의 실제 통과로 혼동하지 않는다.
+
 - 최종 재리뷰 `cba11dd`: 자동 복원 pages 250 clamp가 수동 탐색에도 적용되어 251번째 클릭이 effect를 실행하지 않는 P2를 발견함. Entity 별도 worktree에서 frontend/E2E 경계만 수정하고 수동 요청의 문맥·목표 page를 URL 복원 상한과 분리한다. 초기 큰 URL은 여전히 250페이지까지만 복원하고 사용자 클릭은 현재 cursor에서 다음 1페이지를 append한다. route fixture로 999999 URL→250 요청 제한→251 클릭 실패/동일 cursor retry→251행 증가/초점을 검사한다(실제 DB 5000개 fixture 없음). 활동 담당의 공유 환경 독점 동안 서비스·DB/Auth·E2E 실행은 하지 않고 static/fast/build만 수행하며 실제 회귀는 담당 인계 후 실행한다.
 - 위 작은 경계 수정 후 build·fast(core 60/handler 13/web 1)·Deno·boundary·docs(298개, scripts 36/1 Windows skip) 통과. 새로운 수동 목표는 현재 문맥의 누적 cache가 있을 때만 적용해 필터를 떠났다 돌아오는 경우 과거 수동 목표로 자동 복원을 확대하지 않는다. 250→251 route fixture 및 기존 61+1·전체 E2E 실제 실행은 활동 담당이 새 후보로 통합한 뒤 수행하도록 인계하며 이 세션에서는 실행하지 않음.
 

@@ -24,24 +24,31 @@ export function EntitiesPage() {
     [page, setPage] = useState<Page | null>(null),
     [error, setError] = useState<string | null>(null),
     [busy, setBusy] = useState(false),
-    [manualPage, setManualPage] = useState<{ context: string; count: number } | null>(null),
+    [manualPage, setManualPage] = useState<{ context: string; count: number; epoch: number } | null>(null),
     [retry, setRetry] = useState(0),
     [creating, setCreating] = useState(false);
   const context = `${key}|${hash}`;
-  const loaded = useRef<{ context: string; page: Page } | null>(null), focused = useRef("");
+  const loaded = useRef<{ context: string; page: Page; epoch: number } | null>(null),
+    focused = useRef(""),
+    epoch = useRef(0);
+  // Both the click state and URL navigation describe one target, so they must not restart the same fetch.
+  const manualTarget =
+    loaded.current?.context === context && manualPage?.context === context && manualPage.epoch === loaded.current.epoch
+      ? manualPage.count
+      : 0;
+  const target = Math.max(pages, manualTarget);
   useEffect(() => {
     const controller = new AbortController();
     setError(null);
     setBusy(true);
-    const cached = loaded.current?.context === context ? loaded.current.page : null;
+    const cachedEntry = loaded.current?.context === context ? loaded.current : null;
+    const cached = cachedEntry?.page ?? null, loadEpoch = cachedEntry?.epoch ?? ++epoch.current;
     if (!cached) {
       setPage(null);
       loaded.current = null;
     }
     (async () => {
       let result: Page = cached ?? { items: [], next_cursor: null, count: 0 };
-      // URL pages bounds automatic restoration; an explicit click advances from the current cursor.
-      const target = cached && manualPage?.context === context ? Math.max(pages, manualPage.count) : pages;
       const anchor = /^#entity-[0-9a-f-]+$/.test(hash) ? hash.slice(8) : null;
       // A concurrent insertion may move the anchor one page. Never scan beyond this finite window.
       const maximum = anchor && focused.current !== context ? Math.min(250, pages + 1) : pages;
@@ -61,7 +68,7 @@ export function EntitiesPage() {
           next_cursor: next.next_cursor,
           count: result.count + 1,
         };
-        loaded.current = { context, page: result };
+        loaded.current = { context, page: result, epoch: loadEpoch };
         setPage(result);
         if (!next.next_cursor) break;
       }
@@ -76,7 +83,7 @@ export function EntitiesPage() {
       if (!controller.signal.aborted) setBusy(false);
     });
     return () => controller.abort();
-  }, [key, pages, retry, hash, manualPage]);
+  }, [key, target, retry, hash]);
   useEffect(() => {
     if (
       busy || error || loaded.current?.context !== context || focused.current === context || !page ||
@@ -208,13 +215,14 @@ export function EntitiesPage() {
           className="btn"
           aria-disabled={busy || !page.next_cursor}
           onClick={() => {
-            if (busy || !page.next_cursor) return;
+            const current = loaded.current;
+            if (busy || !page.next_cursor || current?.context !== context) return;
             if (error) {
               setRetry((n) => n + 1);
               return;
             }
             const next = new URLSearchParams(params);
-            setManualPage({ context, count: page.count + 1 });
+            setManualPage({ context, count: page.count + 1, epoch: current.epoch });
             next.set("pages", String(page.count + 1));
             navigate({ pathname: "/entities", search: next.toString(), hash }, {
               replace: true,
