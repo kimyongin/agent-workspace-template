@@ -50,3 +50,11 @@
 | 작성한 E2E의 별도 정적 검사 / 구현 세션 | `npx tsc --ignoreConfig --noEmit --target es2022 --module nodenext --moduleResolution nodenext --allowImportingTsExtensions --skipLibCheck --types node --strict false e2e/activity-return.spec.ts` | 통과. 처음 TS7의 명시 파일/설정 선택 오류와 기존 support의 Node 타입·환경값 strict 오류를 확인해 별도 명령 인자를 맞췄다. 런타임·브라우저·인증 성공 증거가 아니며 기존 shared support는 수정하지 않음 |
 
 다음은 Entity 머지 revision 반영·필터 `entity_id` 연결 보존, 문서 링크 검사, 배정받은 공유 환경에서 실제 변경 E2E와 전체 회귀·디자인 체크리스트 검증이다. 그 뒤 정확한 최종 head의 독립 리뷰·CI·머지를 메인이 확인한다. 위 체크박스는 실제 브라우저 검증까지 마치기 전 완료로 표시하지 않는다.
+
+### 첫 독립 리뷰 수정 — 추가 조회 실패 재시도
+
+- 메인이 `origin/main`의 `db70cbf`를 반영한 검토 head는 `a288ad0464fd1038d1b2472b2ff3454713926ca4`였다. 독립 리뷰는 P2 한 건을 보고했다. `useActivityList.retry`가 추가 페이지 조회 실패에도 누적 값을 비워 첫 페이지를 다시 읽어 [목록 실패 재시도 기준](../design/ui-patterns.md#필터와-목록)에 어긋났다. PRD/ADR 이탈이나 다른 차단 발견은 보고되지 않았다.
+- 같은 구현 세션을 desktop `gpt-6.1-sol`/medium으로 재개했다. 메인이 당일 preflight PASS와 동일 설정을 인계했으며 backend 실행 metadata는 여전히 미노출이다. 공유 서비스는 Entity 담당이 독점하므로 오프라인 수정·검사만 수행했다.
+- 수정은 추가 조회에서 실패한 scope/cursor를 기억하고 같은 조건의 재시도에서 해당 cursor의 `more`를 다시 실행한다. 누적 항목·cursor·복원 초점 표시를 초기화하지 않는다. 최초 조회/전체 복원 재시도의 기존 첫 페이지 재조회는 유지하며 필터 변경은 실패 정보를 폐기한다.
+- 두 목록의 실제 E2E에 첫 cursor 요청의 503 실패와 지연시킨 재시도를 넣었다. 재시도가 첫 페이지를 읽지 않고 동일 cursor를 요청하며 응답 대기 중 기존 20행·스크롤·행 초점, 성공 후 22행·행 초점을 유지하는지 검사한다. 네트워크 실패만 브라우저 route로 주입하고 성공 응답·자료 생성/정리는 실제 서비스에 맡긴다. 현재는 작성·타입 검사만 통과했으며 공유 환경 해제 후 실제 실행해야 한다.
+- 직접 재검사: `test:fast` core 59 + adapter 11 + web 6 = 76 통과, `build` 423 modules 통과(기존 큰 chunk 경고), `check:deno` 78/82 files 통과, `check:boundaries`·`git diff --check` 통과, `check:docs` 255 text files·36 pass/1 Windows symlink 권한 skip 통과, 위 E2E 별도 타입 검사 통과. 최신 main 반영으로 이전 부모 상대 링크 실패는 해결됐다. Entity 최종 검색/filter 수정은 아직 미머지이며 실제 E2E·화면 폭/키보드/접근성/확대 검증은 미실행이다.

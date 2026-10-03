@@ -29,8 +29,48 @@ for (
       for (let i = 0; i < 21; i++) await create(unique("앞선 항목"));
       await page.goto(`/${path}?tag_id=${tag.id}${kind === "task" ? "&kind=once&status=open" : ""}`);
       await expect(page.locator(".list .item-title")).toHaveCount(20);
-      await page.getByRole("button", { name: "더 보기", exact: true }).click();
+      const requests: (string | null)[] = [];
+      let failedCursor: string | null = null;
+      let releaseRetry!: () => void;
+      const retryHeld = new Promise<void>((resolve) => {
+        releaseRetry = resolve;
+      });
+      await page.route(`**/api/${path}?**`, async (route) => {
+        const cursor = new URL(route.request().url()).searchParams.get("cursor");
+        requests.push(cursor);
+        if (cursor && !failedCursor) {
+          failedCursor = cursor;
+          await route.fulfill({
+            status: 503,
+            contentType: "application/json",
+            body: JSON.stringify({ code: "internal", message: "temporary list failure" }),
+          });
+        } else {
+          if (cursor) await retryHeld;
+          await route.continue();
+        }
+      });
+      const more = page.getByRole("button", { name: "더 보기", exact: true });
+      await more.click();
+      const retry = page.getByRole("button", { name: "다시 시도", exact: true });
+      await expect(retry).toBeVisible();
+      await expect(page.locator(".list .item-title")).toHaveCount(20);
+      // Keep a row focused while invoking retry, so clearing/replaying the list
+      // would expose lost DOM focus and scroll before the held response returns.
+      const retained = page.locator(".list .item-title").last();
+      await retained.focus();
+      const scrollBefore = await page.evaluate(() => window.scrollY);
+      await retry.evaluate((button: HTMLButtonElement) => button.click());
+      await expect.poll(() => requests.length).toBe(2);
+      expect(requests).toEqual([failedCursor, failedCursor]);
+      expect(failedCursor).toBeTruthy();
+      await expect(page.locator(".list .item-title")).toHaveCount(20);
+      await expect(retained).toBeFocused();
+      expect(await page.evaluate(() => window.scrollY)).toBe(scrollBefore);
+      releaseRetry();
       await expect(page.locator(".list .item-title")).toHaveCount(22);
+      await expect(retained).toBeFocused();
+      await page.unroute(`**/api/${path}?**`);
       const link = page.getByRole("link", { name: title, exact: true });
       await link.scrollIntoViewIfNeeded();
       await link.focus();

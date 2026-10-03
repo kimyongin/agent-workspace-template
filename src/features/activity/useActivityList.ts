@@ -30,6 +30,7 @@ export function useActivityList<T extends { id: string }>(
   const loaded = useRef<{ scope: string; value: LoadedList<T> } | null>(null);
   const generation = useRef(0);
   const focused = useRef("");
+  const failedMore = useRef<{ scope: string; cursor: string } | null>(null);
   const [items, setItems] = useState<T[] | null>(null);
   const [cursor, setCursor] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -40,6 +41,7 @@ export function useActivityList<T extends { id: string }>(
 
   useEffect(() => {
     const controller = new AbortController();
+    failedMore.current = null;
     const started = ++generation.current;
     const current = () => !controller.signal.aborted && generation.current === started && scopeNow.current === scope;
     const prior = loaded.current?.scope === scope && loaded.current.value.pages <= pages
@@ -114,13 +116,17 @@ export function useActivityList<T extends { id: string }>(
         pages: (loaded.current?.value.pages ?? 1) + 1,
       };
       loaded.current = { scope, value };
+      failedMore.current = null;
       setItems(value.items);
       setCursor(value.next_cursor);
       const next = new URLSearchParams(params);
       next.set("pages", String(value.pages));
       navigate({ pathname: `/${kind}`, search: `?${next}`, hash }, { replace: true });
     } catch {
-      if (current()) setError(errorMessage);
+      if (current()) {
+        failedMore.current = { scope, cursor };
+        setError(errorMessage);
+      }
     } finally {
       if (current()) setBusy(false);
     }
@@ -139,6 +145,10 @@ export function useActivityList<T extends { id: string }>(
     busy,
     more,
     retry: () => {
+      if (failedMore.current?.scope === scope && failedMore.current.cursor === cursor) {
+        void more();
+        return;
+      }
       loaded.current = null;
       focused.current = "";
       setRetry((n) => n + 1);
