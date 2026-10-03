@@ -1,0 +1,6 @@
+All 4 tests pass. The implementation:
+- Filters by `ownerId` before deduplication
+- Picks the highest `revision` per `id` (not last-seen)
+- Excludes records whose winning revision is `deleted: true`
+- Sorts `updatedAt` descending, then `id` ascending as tiebreaker
+- Never mutates the input (uses a separate Map and new array via spread)
