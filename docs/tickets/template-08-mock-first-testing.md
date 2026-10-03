@@ -1,8 +1,8 @@
 # Template-08 — 포트 교체로 빠른 업무·HTTP/MCP 검증
 
 작성: 2026-10-04
-상태: 진행 중 (PR #70·#71 완료, A PR #72 리뷰 P2의 기록 연결 해제 metadata 계약 정정·로컬 재검증 완료; 새 head 리뷰·CI·머지 대기)
-검토 기준: 최신 main `a2e59ddedfcc005b03333f8c65c27c6ffe2b7810` 위 A head `67bffa311253fdda4b15af78d7d9af86ce3fe720`와 P2 수정 patch; 첫 제출 base는 아래 snapshot 기록에 보존
+상태: 진행 중 (PR #70·#71·#72 완료, 전체 업무·화면 fast 검증 확대는 미완료)
+검토 기준: PR #72 최종 head `b2e71e8c38e6df55ffc22c8978da11134a2573c5`, 머지 `4143b8475a0935e982d5339c495a8c11f955b4b3`; 이전 base/head는 아래 snapshot 기록에 보존
 선행: Template-07 PR #68, 기존 환경 격리 시도의 [PR #69](https://github.com/kimyongin/agent-workspace-template/pull/69)는 미머지 종료
 
 ## 목표와 기준 문서
@@ -21,7 +21,7 @@
 - [x] 첫 PR #70의 실제 통합 CI·독립 리뷰·머지 확인. 검토 head `a05a91c8014c643625af08a1b1238bde0884aff8`, 머지 `3166941041f64d79237b9fa14e6bab69c3d866ef`. [독립 리뷰](https://github.com/kimyongin/agent-workspace-template/pull/70#issuecomment-5971838110)·[완료 기록](https://github.com/kimyongin/agent-workspace-template/pull/70#issuecomment-5971872108)·[CI check/integration SUCCESS](https://github.com/kimyongin/agent-workspace-template/actions/runs/37141785739)가 최종 증거다.
 - [x] 후속 A: 실제 application 수정→삭제, 제목·요약 재색인과 본문·기한 수정의 구분, 버전 충돌 무쓰기, 결과·회차 기록 보존, HTTP PATCH/DELETE·MCP schema/handler 입력·오류 검사 구현.
 - [x] 후속 A: B 머지된 최신 main 위 로컬 통합 `test:fast`·문서·Deno·경계·diff 검사 완료(아래 직접 실행 증거).
-- [ ] 후속 A의 최종 head CI·독립 리뷰·머지 확인.
+- [x] 후속 A의 최종 head CI·독립 리뷰·머지 확인. [PR #72 독립 리뷰](https://github.com/kimyongin/agent-workspace-template/pull/72#issuecomment-5972463220)·[CI check/integration SUCCESS](https://github.com/kimyongin/agent-workspace-template/actions/runs/37146097764)·[최종 완료 증거](https://github.com/kimyongin/agent-workspace-template/pull/72#issuecomment-5972536260)가 최종 결과를 소유한다. 위 head와 머지 기록은 다음 실제 작업인 Template-09에서 메인 인계 증거를 확인해 현재 요약에 반영했다.
 - [x] 후속 B: worker 실패 검사와 동의 요청 생명주기 회귀는 [PR #71](https://github.com/kimyongin/agent-workspace-template/pull/71)로 완료했다. 최종 head `dcd2a3500193d710b788ace4d16645255fbc1610`, 머지 `a2e59ddedfcc005b03333f8c65c27c6ffe2b7810`. [독립 리뷰](https://github.com/kimyongin/agent-workspace-template/pull/71#issuecomment-5972279168)·[CI check/integration SUCCESS](https://github.com/kimyongin/agent-workspace-template/actions/runs/37144925303)·[완료 증거](https://github.com/kimyongin/agent-workspace-template/pull/71#issuecomment-5972322159)가 최종 결과를 소유한다. 로컬 실행·실패 조사는 [Template-08-01](template-08-01-worker-fast-tests.md)에 제출 snapshot으로 보존한다.
 
 fixture는 이 직렬 흐름의 insert/get/update/delete·기록 연결 해제·요청 결과 저장·색인 등록만 지원하며 나머지 포트는 명확히 실패한다. 상태·완료·입력·요청 hash/재시도 판단은 실제 core/contracts가 수행한다. fake는 SQL·RLS·OAuth·잠금·rollback을 모사하지 않으며 실제 DB 동시성·트랜잭션·사용자 격리의 증거가 아니다. 기록 연결 해제는 기존 저장 포트의 필드 변경만 수행하고 삭제 판단은 실제 application에 둔다.
@@ -31,7 +31,7 @@ fixture는 이 직렬 흐름의 insert/get/update/delete·기록 연결 해제·
 | 순서 | 브랜치 | 내용과 직접 확인할 결과 | 남은 범위 |
 | --- | --- | --- | --- |
 | 1 | `codex/mock-fast-tests` | Supabase 없이 첫 할 일 업무와 HTTP/MCP handler 계약 확인. 승인된 세션 실행 담당·보고 지침 정리 | PR #70 머지 완료, 외부 최종 증거 위 연결 |
-| 2A | `codex/mock-task-mutations` | 서비스 없이 실제 할 일 수정→삭제와 HTTP/MCP 오류·결과를 확인 | 최신 main 위 로컬 통합 검사 완료; 최종 CI·독립 리뷰·머지 대기 |
+| 2A | `codex/mock-task-mutations` | 서비스 없이 실제 할 일 수정→삭제와 HTTP/MCP 오류·결과를 확인 | PR #72 최종 리뷰·CI·머지 완료; 아래 제출 snapshot 보존 |
 | 2B | `codex/mock-worker-failures` | worker의 원본·최신성·공급자 경계 검사, 동의 요청 생명주기 회귀 | PR #71 리뷰·CI·머지 완료; [자식 티켓](template-08-01-worker-fast-tests.md) 제출 snapshot 보존 |
 | 후속 | 미배정 | 필요한 업무·화면의 fast 검사 확대와 중복 검증 정리 | 전 기능 fake·가짜 OAuth·환경 자동화는 선행 조건 아님; T02-4 사용자 보류 유지 |
 
