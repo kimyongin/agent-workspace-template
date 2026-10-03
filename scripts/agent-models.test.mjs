@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { parse } from "smol-toml";
 import { assign, check, generated, sync, TABLE, validate } from "./agent-models.mjs";
 
 const seed = JSON.parse(readFileSync(new URL(`../${TABLE}`, import.meta.url), "utf8"));
@@ -130,7 +131,7 @@ test("선택 근거와 역할 없이 advanced 또는 xhigh를 배정하지 않�
   assert.throws(() => assign(t, options(t, { role: "unknown" })), /역할/);
 });
 
-test("여러 줄 TOML basic/literal 문자열은 실제 agents 공존 여부와 무관하게 쓰기 전에 거부한다", () => {
+test("여러 줄 TOML basic/literal 본문과 실제 agents를 parser로 구분하고 본문을 보존한다", () => {
   for (const delimiter of ['"""', "'''"]) {
     for (const realAgents of [false, true]) {
       const root = mkdtempSync(path.join(tmpdir(), "agent-multiline-"));
@@ -139,14 +140,14 @@ test("여러 줄 TOML basic/literal 문자열은 실제 agents 공존 여부와 
         const config = path.join(root, ".codex/config.toml");
         const text = `developer_instructions = ${delimiter}\n[agents]\ndefault_subagent_model = "instruction-model"\n${delimiter}\n${realAgents ? '[agents]\ndefault_subagent_model = "old"\n' : ""}`;
         writeFileSync(config, text);
-        const ownedAgent = path.join(root, ".codex/agents/task-balanced.toml");
-        writeFileSync(ownedAgent, "unchanged native file\n");
-        const beforeConfig = readFileSync(config);
-        const beforeAgent = readFileSync(ownedAgent);
-        assert.throws(() => sync(root, table()), /여러 줄 TOML 문자열/);
-        assert.deepEqual(readFileSync(config), beforeConfig);
-        assert.deepEqual(readFileSync(ownedAgent), beforeAgent);
-        assert.throws(() => check(root, table()), /여러 줄 TOML 문자열/);
+        const before = parse(text);
+        sync(root, table());
+        const result = readFileSync(config, "utf8");
+        const after = parse(result);
+        assert.equal(after.developer_instructions, before.developer_instructions);
+        assert.ok(result.startsWith(text.split(delimiter)[0] + delimiter + text.split(delimiter)[1] + delimiter));
+        assert.equal(after.agents.default_subagent_model, table().clients["codex-cli"].models.balanced.model);
+        assert.deepEqual(check(root, table()), []);
       } finally { rmSync(root, { recursive: true, force: true }); }
     }
   }
@@ -168,7 +169,85 @@ test("TOML 주석과 다른 단일행 문자열의 delimiter는 거부하거나 
     sync(root, table());
     const result = readFileSync(config, "utf8");
     assert.ok(result.startsWith(prefix));
-    assert.match(result.slice(prefix.length), /\[agents\]\ndefault_subagent_model = "gpt-5.6-terra"/);
+    assert.equal(parse(result).agents.default_subagent_model, table().clients["codex-cli"].models.balanced.model);
     assert.deepEqual(check(root, table()), []);
   } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test("공백/basic/literal 표와 quoted 키의 같은 의미를 읽고 두 값 외 원문을 보존한다", () => {
+  for (const header of ["[ agents ]", '["agents"]', "['agents']", String.raw`["\u0061gents"]`]) {
+    for (const key of ["default_subagent_model", '"default_subagent_model"', "'default_subagent_model'"]) {
+      const root = mkdtempSync(path.join(tmpdir(), "agent-toml-syntax-"));
+      try {
+        sync(root, table());
+        const config = path.join(root, ".codex/config.toml");
+        const original = `# user header\nmodel = 'main'\n${header} # user table comment\n${key}   = 'old' # model comment\n'default_subagent_reasoning_effort' = 'low' # effort comment\nmax_threads = 3\n\n[mcp_servers.example]\nurl = 'https://example.com' # user provider\n`;
+        assert.equal(parse(original).agents.default_subagent_model, "old");
+        writeFileSync(config, original);
+        assert.match(check(root, table()).join(), /설정 불일치/);
+        sync(root, table());
+        const expected = original.replace("'old'", `'${table().clients["codex-cli"].models.balanced.model}'`).replace("'low'", "'medium'");
+        const result = readFileSync(config, "utf8");
+        // 소유한 agents 표 header의 동등한 표기/공백 정규화만 허용한다.
+        assert.deepEqual(result.split("\n").filter((_, i) => i !== 2), expected.split("\n").filter((_, i) => i !== 2));
+        assert.ok(result.split("\n")[2].includes("# user table comment"));
+        assert.equal(parse(result).agents.default_subagent_model, table().clients["codex-cli"].models.balanced.model);
+        assert.deepEqual(check(root, table()), []);
+        sync(root, table());
+        assert.equal(readFileSync(config, "utf8"), result);
+      } finally { rmSync(root, { recursive: true, force: true }); }
+    }
+  }
+});
+
+test("dotted/inline/nested 표도 parser 의미로 갱신하고 다른 설정을 보존한다", () => {
+  for (const text of [
+    'agents.default_subagent_model = "old"\nagents.max_threads = 4\n',
+    'agents = { default_subagent_model = "old", max_threads = 4 } # inline comment\n',
+    '[agents.child]\nmodel = "user-child"\n',
+    '# arrays and dates\nlimits = [\n  1, # first\n  2,\n]\ncreated = 2026-10-03\nbig = 9223372036854775807\n',
+  ]) {
+    const root = mkdtempSync(path.join(tmpdir(), "agent-toml-structure-"));
+    try {
+      sync(root, table());
+      const config = path.join(root, ".codex/config.toml");
+      writeFileSync(config, text);
+      const before = parse(text, { integersAsBigInt: "asNeeded" });
+      sync(root, table());
+      const result = readFileSync(config, "utf8");
+      const after = parse(result, { integersAsBigInt: "asNeeded" });
+      assert.equal(after.agents.default_subagent_model, table().clients["codex-cli"].models.balanced.model);
+      for (const [key, value] of Object.entries(before)) {
+        if (key !== "agents") assert.deepEqual(after[key], value);
+      }
+      if (before.agents?.max_threads) assert.equal(after.agents.max_threads, before.agents.max_threads);
+      if (before.agents?.child) assert.deepEqual(after.agents.child, before.agents.child);
+      for (const line of text.split("\n").filter((line) => line.includes("#"))) assert.ok(result.includes(line.includes("inline") ? "# inline comment" : line));
+      assert.deepEqual(check(root, table()), []);
+    } finally { rmSync(root, { recursive: true, force: true }); }
+  }
+});
+
+test("중복 표/키·잘못된 구조·문법은 check와 sync에서 거부하고 모든 파일을 보존한다", () => {
+  for (const text of [
+    '[agents]\n["agents"]\n',
+    '[agents]\ndefault_subagent_model = "one"\n"default_subagent_model" = "two"\n',
+    '[agents]\ndefault_subagent_model = "unterminated\n',
+    'agents = "user scalar"\n',
+    '[[agents]]\nmodel = "array entry"\n',
+  ]) {
+    const root = mkdtempSync(path.join(tmpdir(), "agent-toml-reject-"));
+    try {
+      sync(root, table());
+      const config = path.join(root, ".codex/config.toml");
+      writeFileSync(config, text);
+      const files = Object.keys(generated(table()));
+      const owned = path.join(root, ".codex/agents/task-balanced.toml");
+      writeFileSync(owned, "user pending file\n");
+      const before = files.map((file) => readFileSync(path.join(root, file)));
+      assert.throws(() => check(root, table()), /TOML 문법|agents는 설정 표/);
+      assert.throws(() => sync(root, table()), /TOML 문법|agents는 설정 표/);
+      for (let i = 0; i < files.length; i++) assert.deepEqual(readFileSync(path.join(root, files[i])), before[i]);
+    } finally { rmSync(root, { recursive: true, force: true }); }
+  }
 });

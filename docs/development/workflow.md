@@ -200,12 +200,12 @@ PRD·ADR을 바꾸는 PR은 사람이 승인한다. 머지는 배포가 아니�
 
 ### 문서 검사
 
-문서·스킬·설정 파일을 바꾸면 저장소 루트에서 다음을 실행하고 결과를 PR과 티켓에 남긴다. Node 22 이상만 필요하며 설치할 의존성은 없다.
+문서·스킬·설정 파일을 바꾸면 저장소 루트에서 다음을 실행하고 결과를 PR과 티켓에 남긴다. Node 22 이상에서 `npm ci`로 lockfile의 검사 의존성을 준비한다. 기본 텍스트/링크 검사기는 단독 실행할 수 있지만 모델 설정 검사는 고정된 TOML parser·편집기를 사용한다.
 
 | 명령 | 검사 |
 | --- | --- |
 | `node scripts/check-docs.mjs` | Git이 추적하거나 무시하지 않는 텍스트 파일의 UTF-8 유효성·BOM 없음·LF·줄 끝 공백·마지막 줄바꿈, 마크다운 내부 상대 링크(코드 블록·인라인 코드 제외)와 HTML의 href·src 상대 경로(script·style·주석 제외. 둘 다 앵커는 미검사), 개발 스킬 정본과 Claude 연결 파일의 name·description 일치 |
-| `node scripts/agent-models.mjs check` | 모델 선택표 schema·지원 강도와 양쪽 native 설정 drift(날짜 최신성은 배정 시 검사) |
+| `node scripts/agent-models.mjs check` | 모델 선택표 schema·지원 강도와 양쪽 native 설정 drift, 실제 TOML 문법·parsed defaults(날짜 최신성은 배정 시 검사) |
 | `node --test "scripts/*.test.mjs"` | 검사기 자체의 시험. 정상 저장소 통과와 깨진 링크(마크다운·HTML)·CRLF·BOM·UTF-8이 아닌 바이트·줄 끝 공백·frontmatter 불일치 검출 |
 | `git diff --check` | 변경분의 공백 오류 |
 

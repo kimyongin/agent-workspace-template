@@ -4,6 +4,8 @@
 
 ## 배정 전 확인
 
+새 checkout에서는 Node 22 이상으로 `npm ci`를 먼저 실행해 lockfile에 고정한 TOML 편집·검증 의존성을 준비한다. 이후 아래 검사·배정 명령을 실행한다. 개인 전역 설정이나 추가 런타임 설치는 필요하지 않다.
+
 계정의 실제 목록/도구 노출과 CLI 버전, 별칭의 actual 모델을 읽어 아래 형식의 JSON을 저장소 밖 임시 파일에 만든다. observedAt은 **조회한 시각**이며 복사한 자료에 현재 날짜만 넣지 않는다. 배열의 effort도 실제 지원 확인 결과다. API 키·메일·토큰을 넣지 않는다. 스크립트는 snapshot과 선택표의 일치만 검사하므로 사람이 만든 허위 snapshot을 실제 공급자 증거로 보증하지 않는다.
 
 ```json
@@ -44,6 +46,6 @@ node scripts/agent-models.mjs assign --client claude-cli --tier balanced --effor
 
 [별칭](https://code.claude.com/docs/en/model-config)은 영구 ID보다 갱신에 유리하지만 공급자·버전과 alias 이동에 따라 actual 모델이 바뀔 수 있다. 확인한 resolvedModel과 다른 actual 모델은 같은 family의 새 버전이어도 재평가 전 거부한다. 초기 pending 후보의 평가에는 family 일치만 확인하며 일반 배정으로 승격하지 않는다. 누락·차단 때 `--fallback-model` 또는 부모 모델 상속으로 대체하지 않고 선택표를 갱신한다.
 
-`sync`는 생성된 agent 파일들을 소유하지만 `.codex/config.toml`에서는 `[agents]`의 두 default 키만 소유한다. 다른 설정·주석·환경 키는 보존한다. 작은 편집기는 단일행 TOML 문자열·주석 문맥만 지원한다. 여러 줄 basic/literal 문자열이나 중복 `[agents]`처럼 안전하게 고칠 수 없는 구조는 `check`/`sync`에서 거부하며, `sync`는 모든 변경을 준비한 뒤 쓰므로 거부 시 다른 native 파일도 보존한다. 이 제한에 걸리면 원문을 보존한 채 문맥을 지원하는 편집·검사 경로로 도구를 보강한다. 선택표 외 모델/추론 설정을 직접 고쳐 drift 검사를 우회하지 않는다.
+`sync`는 생성된 agent 파일들을 소유하지만 `.codex/config.toml`에서는 agents의 두 default 키만 소유한다. [toml-patch 3.3.0 parse/patch](https://github.com/DecimalTurn/toml-patch/blob/v3.3.0/docs/API.md)의 실제 문법·서식 보존 편집과 [smol-toml 1.9.0 parse](https://github.com/squirrelchat/smol-toml)의 독립 검증을 사용한다. 원문과 변경 후보를 모두 parse하며 `check`는 agents의 parsed 두 값으로 판단한다. 공백·basic/literal quoted 표/키, dotted/inline 표, multiline 본문을 처리하고 다른 설정·지침의 의미와 주석 내용은 보존한다. 편집기는 표 header의 동등한 표기·공백을 다른 표에서도 정규화할 수 있으며 전체 파일의 동일 byte를 보장하지 않는다. 두 키 외 parsed 의미가 변한 후보, 중복·잘못된 문법, agents가 표가 아닌 구조, parser/patch가 안전하게 처리하지 못한 입력은 거부한다. `sync`는 모든 후보를 검증한 뒤 쓰므로 이 거부 시 원본과 다른 native 파일 모두 보존한다. 선택표 외 모델/추론 설정을 직접 고쳐 drift 검사를 우회하지 않는다.
 
 신규 후보를 `evaluation=passed`로 승격하려면 `evaluationEvidence`의 implementation/review/quality/cost에 각각 동일 revision의 과제·결과·비교·사용량/요금 근거 위치를 기록한다. 실행 성공만 확인한 현재 baseline에 이 상태를 붙이지 않는다.

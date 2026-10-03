@@ -2,6 +2,9 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { isDeepStrictEqual } from "node:util";
+import { parse as parseToml, patch } from "@decimalturn/toml-patch";
+import { parse as validateToml } from "smol-toml";
 
 export const TABLE = "docs/development/agent-models.json";
 const tiers = ["light", "balanced", "advanced"];
@@ -46,39 +49,52 @@ export function generated(table) {
 export function check(root, table) {
   return Object.entries(generated(table)).flatMap(([file, expected]) => {
     const actual = existsSync(path.join(root, file)) ? readFileSync(path.join(root, file), "utf8") : "";
-    const mismatch = file === ".codex/config.toml" ? defaults(actual).join() !== defaults(expected).join() : actual !== expected;
+    const mismatch = file === ".codex/config.toml" ? !isDeepStrictEqual(defaults(parseConfig(actual)), defaults(parseConfig(expected))) : actual !== expected;
     return mismatch ? [`${file}: 선택표와 native 설정 불일치; node scripts/agent-models.mjs sync`] : [];
   });
 }
 
-// 이 편집기는 단일행 문자열/주석만 지원한다. 문자열 속 테이블을 줄 기준으로
-// 오인하지 않도록 TOML lexical 문맥에서 여러 줄 문자열을 발견하면 먼저 거부한다.
-function assertEditableToml(text) {
-  let string = null;
-  for (let i = 0; i < text.length; i++) {
-    const char = text[i];
-    if (string) {
-      if (char === "\n") throw Error("단일행 TOML 문자열이 닫히지 않음: 수동 정리 필요");
-      if (string === '"' && char === "\\") i++;
-      else if (char === string) string = null;
-    } else if (char === "#") {
-      while (i < text.length && text[i] !== "\n") i++;
-    } else if (char === '"' || char === "'") {
-      if (text.slice(i, i + 3) === char.repeat(3)) throw Error("여러 줄 TOML 문자열은 안전 편집 미지원: 설정을 변경하지 않음");
-      string = char;
-    }
+function parseConfig(text) {
+  let doc;
+  try {
+    parseToml(text); // 편집 parser와 독립 검증 parser가 원문 문법에 모두 동의해야 한다.
+    doc = validateToml(text, { integersAsBigInt: "asNeeded", unsafeKeyBehaviour: "throw" });
+  } catch {
+    throw Error(".codex/config.toml: TOML 문법 오류 또는 안전하게 처리할 수 없는 키; 설정을 변경하지 않음");
   }
-  if (string) throw Error("단일행 TOML 문자열이 닫히지 않음: 수동 정리 필요");
-  if (text.split("\n").filter((line) => /^\s*\[agents\]\s*(?:#.*)?$/.test(line)).length > 1) throw Error("중복 [agents] 설정: 수동 정리 필요");
+  if (Object.hasOwn(doc, "agents") && (doc.agents === null || typeof doc.agents !== "object" || Array.isArray(doc.agents) || doc.agents instanceof Date)) throw Error(".codex/config.toml: agents는 설정 표여야 함; 설정을 변경하지 않음");
+  return doc;
 }
 
-function defaults(text) {
-  assertEditableToml(text);
-  let inAgents = false;
-  return text.split("\n").flatMap((line) => {
-    if (/^\s*\[/.test(line)) inAgents = /^\s*\[agents\]\s*(?:#.*)?$/.test(line);
-    return inAgents && /^\s*default_subagent_(?:model|reasoning_effort)\s*=/.test(line) ? [line.trim()] : [];
-  }).sort();
+function defaults(doc) {
+  return {
+    default_subagent_model: doc.agents?.default_subagent_model,
+    default_subagent_reasoning_effort: doc.agents?.default_subagent_reasoning_effort,
+  };
+}
+
+function unowned(doc) {
+  const { agents, ...rest } = doc;
+  const { default_subagent_model: _model, default_subagent_reasoning_effort: _effort, ...otherAgents } = agents ?? {};
+  return { ...rest, agents: otherAgents };
+}
+
+function syncConfig(actual, expected) {
+  const before = parseConfig(actual);
+  const desired = defaults(parseConfig(expected));
+  // 이미 같은 의미면 원문 byte와 수정 시각을 보존한다.
+  if (isDeepStrictEqual(defaults(before), desired)) return actual;
+  let content;
+  try {
+    const updated = parseToml(actual);
+    updated.agents = { ...updated.agents, ...desired };
+    content = patch(actual, updated);
+  } catch {
+    throw Error(".codex/config.toml: TOML 서식 보존 편집 불가; 설정을 변경하지 않음");
+  }
+  const after = parseConfig(content);
+  if (!isDeepStrictEqual(defaults(after), desired) || !isDeepStrictEqual(unowned(before), unowned(after))) throw Error(".codex/config.toml: 후보의 defaults 또는 비소유 설정 의미가 달라짐; 설정을 변경하지 않음");
+  return content;
 }
 
 export function sync(root, table) {
@@ -87,23 +103,7 @@ export function sync(root, table) {
     const target = path.join(root, file);
     const actual = existsSync(target) ? readFileSync(target, "utf8") : "";
     let content = expected;
-    if (file === ".codex/config.toml" && actual) {
-      assertEditableToml(actual);
-      let inAgents = false;
-      let found = false;
-      content = actual.split("\n").flatMap((line) => {
-        if (/^\s*\[/.test(line)) {
-          inAgents = /^\s*\[agents\]\s*(?:#.*)?$/.test(line);
-          if (inAgents) {
-            if (found) throw Error("중복 [agents] 설정: 수동 정리 필요");
-            found = true;
-            return [line, ...defaults(expected)];
-          }
-        }
-        return inAgents && /^\s*default_subagent_(?:model|reasoning_effort)\s*=/.test(line) ? [] : [line];
-      }).join("\n");
-      if (!found) content = `${actual.trimEnd()}\n\n[agents]\n${defaults(expected).join("\n")}\n`;
-    }
+    if (file === ".codex/config.toml") content = actual ? syncConfig(actual, expected) : expected;
     return { target, actual, content };
   });
   for (const { target, actual, content } of changes) {
