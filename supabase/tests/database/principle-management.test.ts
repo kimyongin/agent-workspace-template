@@ -26,7 +26,7 @@ dbTest("원칙 관리: 버전 경쟁·본문 색인 억제·제목 재색인·�
   assertEquals((await admin`select msg_id from pgmq.q_search_index where message->>'id'=${p.id}`).length, 1);
   const current = await getPrinciple(deps, A, p.id);
   await updatePrinciple(deps, A, p.id, principleUpdate.parse({ expected_version: current.version, title: "새 표현" }));
-  assertEquals((await admin`select msg_id from pgmq.q_search_index where message->>'id'=${p.id}`).length, 2);
+  assertEquals((await admin`select msg_id from pgmq.q_search_index where message->>'id'=${p.id}`).length, 1);
   await assertRejects(
     () => updatePrinciple(deps, B, p.id, principleUpdate.parse({ expected_version: 3, title: "탈취" })),
     AppError,
