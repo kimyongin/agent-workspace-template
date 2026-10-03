@@ -54,7 +54,17 @@ export async function mcpTokenViaConsent(page: Page): Promise<string> {
     callback = new URL(route.request().url());
     return route.fulfill({ status: 200, contentType: "text/plain", body: "ok" });
   });
-  await page.goto(url.href);
+  // A worktree can serve its app on a separate loopback port while the shared local Auth site_url stays fixed.
+  // Preserve the real authorization request and ID, then show consent in the current app origin/session.
+  const appOrigin = new URL(page.url()).origin;
+  const authorization = await fetch(url, { redirect: "manual" });
+  await authorization.body?.cancel();
+  const consent = new URL(authorization.headers.get("location") ?? "", SUPABASE);
+  if (!/^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/.test(appOrigin) ||
+      !["127.0.0.1", "localhost"].includes(consent.hostname) || consent.pathname !== "/oauth/consent") {
+    throw new Error("Expected local OAuth consent redirect");
+  }
+  await page.goto(new URL(`${consent.pathname}${consent.search}`, appOrigin).href);
   await expect(page.getByRole("heading", { name: "에이전트 연결 승인" })).toBeVisible();
   await expect(page.getByText("E2E 에이전트")).toBeVisible();
   await expect(page.getByText(REDIRECT)).toBeVisible();
