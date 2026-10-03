@@ -9,6 +9,7 @@ import {
   isoDateTime,
   page,
   pageInput,
+  referenceIds,
   requestId,
   summary,
   title,
@@ -92,6 +93,7 @@ export const versionOnly = z.strictObject({ expected_version: expectedVersion })
 
 /** 일회성 할 일 완료: 결과 기록 내용과 함께 한 트랜잭션으로 저장한다. */
 export const taskComplete = z.strictObject({
+  applied_principle_ids: referenceIds.default([]),
   expected_version: expectedVersion,
   title,
   summary,

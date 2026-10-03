@@ -11,12 +11,21 @@ export interface ActivityRecord {
   occurred_at: string;
   task_id: string | null;
   occurrence_on: string | null;
+  applied_principle_ids: string[];
+  applied_principles: {
+    id: string;
+    title: string;
+    status: "active" | "inactive";
+    updated_at: string;
+    version: number;
+  }[];
   version: number;
   created_at: string;
   updated_at: string;
 }
 
 export interface NewRecord {
+  applied_principle_ids?: string[];
   title: string;
   summary: string;
   body: string;
@@ -25,7 +34,9 @@ export interface NewRecord {
   occurrence_on: string | null;
 }
 
-export type RecordChanges = Partial<Pick<ActivityRecord, "title" | "summary" | "body" | "occurred_at">>;
+export type RecordChanges = Partial<
+  Pick<ActivityRecord, "title" | "summary" | "body" | "occurred_at" | "applied_principle_ids">
+>;
 
 /** 목록의 다음 위치(정렬 키 + id). */
 export interface Keyset {

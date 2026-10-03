@@ -75,6 +75,14 @@ export function RecordDetailPage() {
         </div>
       </dl>
       <div>
+        <h2 className="section-title">적용한 원칙</h2>
+        {record.applied_principles.length?<ul className="list">{record.applied_principles.map(p=><li key={p.id} className="list-item">
+          <Link className="item-title" to={`/principles/${p.id}`}>{p.title}</Link>
+          <span className="meta">{p.status==="active"?"활성":"비활성"} · 현재 원칙 수정 {formatDateTime(p.updated_at)}</span>
+        </li>)}</ul>:<p className="secondary">없음</p>}
+        <p className="help">연결은 원칙의 현재 내용입니다. 당시 판단의 근거는 기록 본문을 확인하세요.</p>
+      </div>
+      <div>
         <h2 className="section-title">{recordLabels.body}</h2>
         <MarkdownContent text={record.body} />
       </div>

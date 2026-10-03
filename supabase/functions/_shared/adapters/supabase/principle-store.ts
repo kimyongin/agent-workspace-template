@@ -38,6 +38,8 @@ class SqlPrincipleStore extends SqlActorStore implements PrincipleStore {
   async delete(id: string) {
     await this.tx`update app.principles set replaced_by_id=null, version=version+1, updated_at=now()
       where replaced_by_id=${id}`;
+    await this.tx`update app.records set version=version+1, updated_at=now() where id in
+      (select record_id from app.record_principles where principle_id=${id})`;
     await this.tx`delete from app.principles where id=${id}`;
   }
   async list(f: Parameters<PrincipleStore["list"]>[0]) {
