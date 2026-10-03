@@ -759,8 +759,10 @@ footer a { margin-right: 10px; white-space: nowrap; }
           <li>Codex에서는 <code>$develop-agent-app 요청</code></li>
           <li>Claude Code에서는 <code>/develop-agent-app 요청</code></li>
           <li>스킬 이름 없이 그냥 말해도 됩니다. 에이전트가 대화를 시작할 때 자동으로 읽는 지침 파일(<a href="../AGENTS.md">AGENTS.md</a>)에 “develop-agent-app 스킬의 절차를 따르라”고 적혀 있어서, 같은 절차로 일합니다.</li>
-          <li>짧은 수정이나 서브세션 도구가 없는 환경에서는 본 대화에서 구현합니다. 여러 대화의 배정·환경 조정은 <a href="development/workflow.md#세션-배정과-인계">개발 절차</a>를 따릅니다.</li>
-          <li>서브세션 배정·중요 변화·결과 인계 때 작업과 모델·추론 강도의 선택 이유, 결과·미확인·다음 판단을 표로 보고받습니다. 근거는 티켓에서 확인합니다(<a href="development/workflow.md#세션-운영-브리핑">운영 브리핑</a>).</li>
+          <li>본 대화의 직접 편집은 합의 문서·오탈자·링크·Git/PR 조정으로 한정합니다. 서브세션 도구가 없거나 사용자가 직접 작업을 지정하면 실행 주체와 사유를 보고하고 구현·검증할 수 있습니다. 배정·환경 조정·독립 리뷰는 <a href="development/workflow.md#세션-배정과-인계">개발 절차</a>를 따릅니다.</li>
+          <li>구현 세션은 테스트·실패 조사·수정·재검증까지 담당하고 메인은 범위·증거·리뷰·CI·머지를 조정합니다. 통합 검증 담당은 필요할 때 배정합니다.</li>
+          <li>서브세션 배정·중요 변화·결과 인계 때 작업과 모델·추론 강도의 선택 이유, 결과·미확인·다음 판단을 표로 보고받습니다. 구현·리뷰·통합·메인의 실행 주체와 전달받은 보고·증거 확인·직접 실행을 구분합니다. 근거는 티켓에서 확인합니다(<a href="development/workflow.md#세션-운영-브리핑">운영 브리핑</a>).</li>
+          <li>일상 수정은 서비스 없는 <code>test:fast</code>로 업무·HTTP/MCP handler를 먼저 검사하고, 실제 인증·DB·SDK 전송은 기존 통합 CI에서 확인합니다(<a href="tickets/template-08-mock-first-testing.md">Template-08</a>).</li>
         </ul>
       </div>
     </div>

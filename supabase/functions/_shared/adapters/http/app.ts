@@ -28,6 +28,8 @@ export function createHttpApp(
   principles: PrincipleDeps,
   tags: TagDeps,
   search: SearchDeps,
+  // Test assembly can inject an Actor verifier; production always defaults to token verification.
+  authenticate: typeof verifyActor = verifyActor,
 ) {
   const app = new Hono<HttpEnv>().basePath(config.basePath);
 
@@ -41,7 +43,7 @@ export function createHttpApp(
     }),
   );
   app.use("*", async (c, next) => {
-    c.set("actor", await verifyActor(c.req.raw, config.token));
+    c.set("actor", await authenticate(c.req.raw, config.token));
     await next();
   });
 

@@ -43,6 +43,8 @@ jobs:
         run: npm run test:core
       - name: 웹 테스트
         run: npm run test:web
+      - name: 빠른 HTTP·MCP handler 검사(서비스 없음)
+        run: npm run test:adapters:fast
       - name: 웹 빌드
         run: npm run build
 
