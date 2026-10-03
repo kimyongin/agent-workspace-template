@@ -4,6 +4,7 @@ import { z } from "zod";
 import { isoDate } from "../../functions/_shared/contracts/common.ts";
 import { recordCreate, recordListQuery, recordUpdate } from "../../functions/_shared/contracts/record.ts";
 import { principleCreate, principleListQuery } from "../../functions/_shared/contracts/principle.ts";
+import { tagCreate, tagListQuery, tagRename } from "../../functions/_shared/contracts/tag.ts";
 import {
   occurrenceRange,
   taskComplete,
@@ -25,9 +26,11 @@ const EXPECTED_TOOLS = [
   "complete_task",
   "create_principle",
   "create_record",
+  "create_tag",
   "create_task",
   "delete_principle",
   "delete_record",
+  "delete_tag",
   "delete_task",
   "get_principle",
   "get_record",
@@ -35,8 +38,10 @@ const EXPECTED_TOOLS = [
   "list_occurrences",
   "list_principles",
   "list_records",
+  "list_tags",
   "list_tasks",
   "record_occurrence",
+  "rename_tag",
   "resume_task",
   "set_principle_status",
   "stop_task",
@@ -99,6 +104,27 @@ httpTest("MCP 토큰: aud가 MCP URL이고 client_id가 있다", () => {
   assertEquals(c.aud, MCP_URL);
   assert(typeof c.client_id === "string" && c.client_id.length > 0);
   return Promise.resolve();
+});
+
+httpTest("태그: HTTP/MCP 왕복·중복 이름·버전 충돌·소유자 격리", async () => {
+  const name = "Tag" + crypto.randomUUID().slice(0, 20);
+  const p = await call(sessionA, "POST", "/tags", { name });
+  assertEquals(p.status, 201);
+  const duplicate = await tool(mcpA, "create_tag", { name: name.toLowerCase() });
+  assertEquals(duplicate.error.code, "conflict");
+  const renamed = await tool(mcpA, "rename_tag", {
+    id: p.body.id,
+    name: "정정" + crypto.randomUUID().slice(0, 20),
+    expected_version: 1,
+  });
+  assertEquals(renamed.version, 2);
+  assertEquals(
+    (await tool(mcpB, "rename_tag", { id: p.body.id, name: "다른 사용자", expected_version: 2 })).error.code,
+    "not_found",
+  );
+  const httpConflict = await call(sessionA, "PATCH", `/tags/${p.body.id}`, { name, expected_version: 1 });
+  assertEquals(httpConflict.status, 409);
+  assertEquals((await tool(mcpA, "delete_tag", { id: p.body.id, expected_version: 2 })).deleted, p.body.id);
 });
 
 httpTest("원칙 관리: HTTP/MCP 수정·버전 충돌·상태·삭제 동등성", async () => {
@@ -214,6 +240,10 @@ httpTest(
       list_tasks: json(taskListQuery).properties,
       list_records: json(recordListQuery).properties,
       create_principle: json(principleCreate).properties,
+      create_tag: json(tagCreate).properties,
+      list_tags: json(tagListQuery).properties,
+      rename_tag: { ...idOnly, ...json(tagRename).properties },
+      delete_tag: { ...idOnly, ...version },
       list_principles: json(principleListQuery).properties,
       get_principle: idOnly,
       create_record: json(recordCreate).properties,

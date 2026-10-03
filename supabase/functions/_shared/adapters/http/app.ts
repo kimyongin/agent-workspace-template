@@ -9,6 +9,8 @@ import { type TokenPolicy, verifyActor } from "../auth/verify.ts";
 import { toErrorBody } from "../errors.ts";
 import { activityRoutes } from "./activity-routes.ts";
 import type { HttpEnv } from "./input.ts";
+import type { TagDeps } from "../../core/tags/application.ts";
+import { tagRoutes } from "./tag-routes.ts";
 
 export interface HttpConfig {
   /** 함수 이름에 해당하는 경로 접두어(Supabase Edge는 `/api/...`로 전달한다). */
@@ -18,7 +20,7 @@ export interface HttpConfig {
   allowedOrigins: string[];
 }
 
-export function createHttpApp(deps: ActivityDeps, config: HttpConfig, principles: PrincipleDeps) {
+export function createHttpApp(deps: ActivityDeps, config: HttpConfig, principles: PrincipleDeps, tags: TagDeps) {
   const app = new Hono<HttpEnv>().basePath(config.basePath);
 
   app.use(
@@ -37,6 +39,7 @@ export function createHttpApp(deps: ActivityDeps, config: HttpConfig, principles
 
   app.route("/", activityRoutes(deps));
   app.route("/", principleRoutes(principles));
+  app.route("/", tagRoutes(tags));
 
   app.notFound(() => {
     throw new AppError("not_found", "경로를 찾을 수 없습니다");
