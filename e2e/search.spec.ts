@@ -12,5 +12,27 @@ test("웹 검색→태그 범위→MCP 결과 비교→본문 원문 확인",asy
     await page.getByLabel("검색 방식").selectOption("keyword");await expect(page.getByText("현재 키워드 검색 결과를 표시합니다.",{exact:false})).toHaveCount(0);
     expect((await mcp.call("search",{query:marker,tag_id:tag.id,mode:"keyword"})).items[0].title).toBe(title);
     await page.getByRole("link",{name:title,exact:true}).click();await expect(page.getByText(marker,{exact:true})).toBeVisible();
+    await page.getByRole("link",{name:"← 검색 결과",exact:true}).click();
+    await expect(page.getByLabel("태그 필터")).toHaveValue(tag.id);await expect(page.getByLabel("검색 방식")).toHaveValue("keyword");
+    await expect(page.getByRole("link",{name:title,exact:true})).toBeFocused();
+  }finally{await mcp.close();}
+});
+
+test("세 원문 종류의 검색 상세 왕복·뒤로 가기·새로고침이 추가 페이지와 초점을 복원한다",async({page})=>{
+  await devLogin(page);const mcp=await mcpClient(await mcpTokenViaConsent(page));
+  try{
+    const marker=unique("검색 복원"),titles:string[]=[];
+    for(const kind of ["record","task","principle"]){const title=unique(kind);titles.push(title);await mcp.call(`create_${kind}`,{...(kind==="task"?{kind:"once"}:{}),title,summary:marker,body:"원문"});}
+    for(let i=0;i<21;i++)await mcp.call("create_record",{title:unique("추가 결과"),summary:marker});
+    await page.goto(`/search?q=${encodeURIComponent(marker)}&mode=keyword`);await expect(page.locator(".list .item-title")).toHaveCount(20);
+    await page.getByRole("button",{name:"더 보기",exact:true}).click();await expect(page.locator(".list .item-title")).toHaveCount(24);
+    for(const [index,title] of titles.entries()){
+      const link=page.getByRole("link",{name:title,exact:true});await link.scrollIntoViewIfNeeded();await link.click();
+      await expect(page.getByRole("heading",{name:title,exact:true})).toBeVisible();
+      if(index===0)await page.goBack();else await page.getByRole("link",{name:"← 검색 결과",exact:true}).click();
+      await expect(page.locator(".list .item-title")).toHaveCount(24);await expect(link).toBeFocused();
+      await page.reload();await expect(page.locator(".list .item-title")).toHaveCount(24);await expect(link).toBeFocused();
+      await expect(link).toBeInViewport();expect(new URL(page.url()).searchParams.get("pages")).toBe("2");
+    }
   }finally{await mcp.close();}
 });

@@ -12,6 +12,7 @@ import { addDays, formatDateTime, todayIn } from "../../lib/format.ts";
 import { emptyRecord, RecordFormModal, TaskFormModal, taskDraftFrom, taskInput } from "./forms.tsx";
 import { OccurrenceBadge, StatusBadge, useRequestId } from "./shared.tsx";
 import {TagNames} from "../tags/TagPicker.tsx";
+import {useSearchReturn} from "../search/return.ts";
 
 const WEEKDAY_NAMES = ["", "월", "화", "수", "목", "금", "토", "일"];
 
@@ -30,6 +31,7 @@ type Dialog = null | "edit" | "complete" | "delete" | { occurrence: string };
 
 export function TaskDetailPage() {
   const { id = "" } = useParams();
+  const back=useSearchReturn("/tasks","← 할 일 목록");
   const navigate = useNavigate();
   const [task, setTask] = useState<TaskDetail | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -90,7 +92,7 @@ export function TaskDetailPage() {
     return (
       <section className="panel">
         <Notice kind="error">{loadError}</Notice>
-        <Link to="/tasks">할 일 목록으로</Link>
+        <Link to={back.path}>{back.label}</Link>
       </section>
     );
   }
@@ -101,7 +103,7 @@ export function TaskDetailPage() {
       <section className="panel" aria-labelledby="task-title">
         <div className="panel-head">
           <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)", minWidth: 0 }}>
-            <Link to="/tasks" className="secondary back-link">← 할 일 목록</Link>
+            <Link to={back.path} className="secondary back-link">{back.label}</Link>
             <h1 id="task-title" className="page-title">{task.title}</h1>
           </div>
           <div className="actions">
@@ -310,7 +312,7 @@ export function TaskDetailPage() {
         onConfirm={() =>
           run(async () => {
             await api("DELETE", `/tasks/${task.id}?expected_version=${task.version}`);
-            navigate("/tasks", { replace: true });
+            navigate(back.path, { replace: true });
           }, "삭제했습니다.")}
       />
     </>
