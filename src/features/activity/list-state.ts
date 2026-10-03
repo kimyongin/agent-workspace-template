@@ -1,0 +1,85 @@
+export type ActivityListKind = "tasks" | "records";
+export type ListPage<T> = { items: T[]; next_cursor: string | null };
+export type LoadedList<T> = ListPage<T> & { pages: number };
+export const MAX_RESTORE_PAGES = 250;
+const ANCHOR_LOOKAHEAD_PAGES = 5;
+
+export function requestedPages(params: URLSearchParams): number {
+  const value = Number(params.get("pages") ?? 1);
+  return Number.isSafeInteger(value) && value > 0 ? Math.min(value, MAX_RESTORE_PAGES) : 1;
+}
+
+export function listScope(params: URLSearchParams): string {
+  const scope = new URLSearchParams(params);
+  scope.delete("pages");
+  scope.delete("scroll");
+  scope.sort();
+  return scope.toString();
+}
+
+export function listAnchor(kind: ActivityListKind, id: string): string {
+  return `activity-${kind}-${id}`;
+}
+
+export function anchorId(kind: ActivityListKind, hash: string): string | undefined {
+  const match = new RegExp(`^#activity-${kind}-([0-9a-f-]{36})$`).exec(hash);
+  return match?.[1];
+}
+
+export function listReturnPath(kind: ActivityListKind, params: URLSearchParams, id: string, scroll: number): string {
+  const next = new URLSearchParams(params);
+  next.set("scroll", String(Math.max(0, Math.round(scroll))));
+  return `/${kind}?${next}#${listAnchor(kind, id)}`;
+}
+
+/** Only a matching internal list can override the normal detail fallback. */
+export function safeListReturn(value: string | null, kind: ActivityListKind, fallback: string): string {
+  if (!value || !value.startsWith("/") || value.startsWith("//") || value.includes("\\")) return fallback;
+  try {
+    const url = new URL(value, "https://activity.invalid");
+    if (url.origin !== "https://activity.invalid" || url.pathname !== `/${kind}`) return fallback;
+    return `${url.pathname}${url.search}${url.hash}`;
+  } catch {
+    return fallback;
+  }
+}
+
+export function appendItems<T extends { id: string }>(prior: T[], next: T[]): T[] {
+  const ids = new Set(prior.map((item) => item.id));
+  return [
+    ...prior,
+    ...next.filter((item) => {
+      if (ids.has(item.id)) return false;
+      ids.add(item.id);
+      return true;
+    }),
+  ];
+}
+
+/** Fresh first-page reads on remount. The caller cancels/ignores a superseded scope. */
+export async function restoreList<T extends { id: string }>(options: {
+  load: (cursor?: string) => Promise<ListPage<T>>;
+  pages: number;
+  anchor?: string;
+  prior?: LoadedList<T>;
+  current: () => boolean;
+  publish: (value: LoadedList<T>) => void;
+}): Promise<LoadedList<T> | undefined> {
+  let result = options.prior;
+  const visited = new Set<string>();
+  const budget = Math.min(MAX_RESTORE_PAGES, options.pages + (options.anchor ? ANCHOR_LOOKAHEAD_PAGES : 0));
+  while (
+    (!result || result.pages < options.pages ||
+      !!options.anchor && !result.items.some((item) => item.id === options.anchor)) &&
+    (!result || result.next_cursor) && (result?.pages ?? 0) < budget
+  ) {
+    const cursor = result?.next_cursor ?? undefined;
+    if (cursor && visited.has(cursor)) throw new Error("Repeated list cursor");
+    if (cursor) visited.add(cursor);
+    const page = await options.load(cursor);
+    if (!options.current()) return undefined;
+    result = { ...page, items: appendItems(result?.items ?? [], page.items), pages: (result?.pages ?? 0) + 1 };
+    options.publish(result);
+  }
+  return result;
+}

@@ -12,11 +12,12 @@ import { RecordFormModal, recordDraftFrom } from "./forms.tsx";
 import {TagNames} from "../tags/TagPicker.tsx";
 import {EntityLink} from "../entity/EntityPicker.tsx";
 import {useSearchReturn} from "../search/return.ts";
+import { safeListReturn } from "./list-state.ts";
 
 export function RecordDetailPage() {
   const { id = "" } = useParams();
   const [params] = useSearchParams();
-  const back=useSearchReturn(`/records${query({tag_id:params.get("tag_id")??"",entity_id:params.get("entity_id")??""})}`,"← 기록 목록");
+  const back=useSearchReturn(safeListReturn(params.get("list"), "records", `/records${query({tag_id:params.get("tag_id")??"",entity_id:params.get("entity_id")??""})}`),"← 기록 목록");
   const listPath = back.path;
   const navigate = useNavigate();
   const [record, setRecord] = useState<RecordResult | null>(null);

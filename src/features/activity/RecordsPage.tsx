@@ -1,6 +1,6 @@
 // 기록 목록(수행 시각 내림차순)과 직접 작성.
 import type { RecordResult } from "@contracts/record.ts";
-import { useEffect, useRef,useState } from "react";
+import { useState } from "react";
 import { Link, useNavigate,useSearchParams } from "react-router";
 import { Notice } from "../../components/Field.tsx";
 import { api, query } from "../../lib/api.ts";
@@ -8,69 +8,37 @@ import { formatDateTime } from "../../lib/format.ts";
 import { emptyRecord, RecordFormModal } from "./forms.tsx";
 import { useRequestId } from "./shared.tsx";
 import {TagFilter} from "../tags/TagPicker.tsx";
+import { useActivityList } from "./useActivityList.ts";
 import {EntityPicker} from "../entity/EntityPicker.tsx";
-
-type Page = { items: RecordResult[]; next_cursor: string | null };
 
 export function RecordsPage() {
   const [params,setParams]=useSearchParams();const tag_id=params.get("tag_id")??"";
   const entity_id=params.get("entity_id")??"";
-  const generation=useRef(0);
-  const [items, setItems] = useState<RecordResult[] | null>(null);
-  const [cursor, setCursor] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [loadingMore, setLoadingMore] = useState(false);
+  const list = useActivityList<RecordResult>("records", `/records${query({ limit: 20, tag_id, entity_id })}`,
+    "records-title", "기록을 불러오지 못했습니다. 다시 시도하세요.");
+  const { items, cursor, error, busy: loadingMore, more } = list;
   const [creating, setCreating] = useState(false);
   const requestId = useRequestId();
   const navigate = useNavigate();
 
-  useEffect(() => {
-    let alive=true;generation.current++;setItems(null);setError(null);setCursor(null);setLoadingMore(false);
-    api<Page>("GET", `/records${query({ limit: 20,tag_id,entity_id })}`)
-      .then((p) => {
-        if(!alive)return;
-        setItems(p.items);
-        setCursor(p.next_cursor);
-      })
-      .catch(() => {if(alive)setError("기록을 불러오지 못했습니다.");});
-    return()=>{alive=false;generation.current++;};
-  }, [tag_id,entity_id]);
-
-  const more = async () => {
-    if (!cursor) return;
-    const started=generation.current;
-    setLoadingMore(true);
-    try {
-      const p = await api<Page>("GET", `/records${query({ limit: 20, cursor,tag_id,entity_id })}`);
-      if(started!==generation.current)return;
-      setItems((prev) => [...(prev ?? []), ...p.items]);
-      setCursor(p.next_cursor);
-    } catch {
-      if(started===generation.current)setError("다음 항목을 불러오지 못했습니다. 다시 시도하세요.");
-    } finally {
-      if(started===generation.current)setLoadingMore(false);
-    }
-  };
-
   return (
     <section className="panel" aria-labelledby="records-title">
       <div className="panel-head">
-        <h1 id="records-title" className="page-title">기록</h1>
+        <h1 id="records-title" className="page-title" tabIndex={-1}>기록</h1>
         <button type="button" className="btn btn-primary" onClick={() => setCreating(true)}>기록 작성</button>
       </div>
-      {error && <Notice kind="error">{error}</Notice>}
-      <TagFilter value={tag_id} onChange={id=>{const next=new URLSearchParams(params);if(id)next.set("tag_id",id);else next.delete("tag_id");setParams(next);}}/>
-      <EntityPicker label="엔터티 필터" value={entity_id} onChange={id=>{const next=new URLSearchParams(params);if(id)next.set("entity_id",id);else next.delete("entity_id");setParams(next);}}/>
+      <TagFilter value={tag_id} onChange={id=>{const next=new URLSearchParams(params);next.delete("pages");next.delete("scroll");id?next.set("tag_id",id):next.delete("tag_id");setParams(next);}}/>
+      <EntityPicker label="엔터티 필터" value={entity_id} onChange={id=>{const next=new URLSearchParams(params);next.delete("pages");next.delete("scroll");id?next.set("entity_id",id):next.delete("entity_id");setParams(next);}}/>
       {items === null && !error && <p className="secondary" role="status">불러오는 중…</p>}
       {items?.length === 0 && (
-        <p className="secondary" style={{ margin: 0 }}>아직 기록이 없습니다. 수행한 일과 결과를 기록하세요.</p>
+        <p className="secondary" style={{ margin: 0 }}>{tag_id || entity_id ? "조건에 맞는 기록이 없습니다. 필터를 변경하거나 해제하세요." : "아직 기록이 없습니다. 수행한 일과 결과를 기록하세요."}</p>
       )}
       {items && items.length > 0 && (
         <ul className="list">
           {items.map((r) => (
             <li key={r.id} className="list-item">
               <div className="list-item-main">
-                <Link className="item-title" to={`/records/${r.id}${query({tag_id,entity_id})}`}>{r.title}</Link>
+                <Link className="item-title" {...list.link(r.id)}>{r.title}</Link>
                 <span className="secondary">{r.summary}</span>
                 <span className="meta">
                   {formatDateTime(r.occurred_at)}
@@ -81,9 +49,11 @@ export function RecordsPage() {
           ))}
         </ul>
       )}
-      {cursor && (
-        <button type="button" className="btn" onClick={more} disabled={loadingMore}>
-          {loadingMore ? "불러오는 중…" : "더 보기"}
+      {error && <Notice kind="error">{error}</Notice>}
+      {list.showMoreControl && (
+        <button id="activity-records-page-control" type="button" className="btn" onClick={error ? list.retry : more}
+          aria-disabled={loadingMore || (!cursor && !error)}>
+          {loadingMore ? "불러오는 중…" : error ? "다시 시도" : cursor ? "더 보기" : "모두 불러왔습니다"}
         </button>
       )}
       {creating && (
