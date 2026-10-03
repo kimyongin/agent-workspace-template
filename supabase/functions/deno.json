@@ -1,4 +1,8 @@
 {
+  "workspace": [
+    "./api",
+    "./mcp"
+  ],
   "nodeModulesDir": "none",
   "imports": {
     "zod": "npm:zod@4.6.5",
