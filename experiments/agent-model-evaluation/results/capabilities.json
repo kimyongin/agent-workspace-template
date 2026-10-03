@@ -1,0 +1,77 @@
+[
+  {
+    "client": "codex-cli",
+    "version": "0.147.0",
+    "context": "owner-desktop-codex-cli",
+    "observedAt": "2026-10-03T20:02:52.834Z",
+    "timeZone": "Asia/Seoul",
+    "models": [
+      {
+        "model": "gpt-5.6-sol",
+        "actualModel": "gpt-5.6-sol",
+        "efforts": [
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max",
+          "ultra"
+        ],
+        "blocked": false
+      },
+      {
+        "model": "gpt-5.6-terra",
+        "actualModel": "gpt-5.6-terra",
+        "efforts": [
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max",
+          "ultra"
+        ],
+        "blocked": false
+      },
+      {
+        "model": "gpt-5.6-luna",
+        "actualModel": "gpt-5.6-luna",
+        "efforts": [
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max"
+        ],
+        "blocked": false
+      },
+      {
+        "model": "gpt-5.5",
+        "actualModel": "gpt-5.5",
+        "efforts": [
+          "low",
+          "medium",
+          "high",
+          "xhigh"
+        ],
+        "blocked": false
+      }
+    ]
+  },
+  {
+    "observedAt": "2026-10-03T20:03:52.448Z",
+    "timeZone": "Asia/Seoul",
+    "context": "owner-desktop-claude",
+    "version": "2.1.140",
+    "models": [
+      {
+        "actualModel": "claude-sonnet-4-6",
+        "efforts": [
+          "medium"
+        ],
+        "blocked": false,
+        "model": "sonnet"
+      }
+    ],
+    "client": "claude-cli"
+  }
+]

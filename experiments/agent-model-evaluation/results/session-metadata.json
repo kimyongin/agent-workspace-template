@@ -1,0 +1,118 @@
+{
+  "codex": [
+    {
+      "run": "codex-custom-retry",
+      "sessionId": "01a10362-d860-7b90-b41b-ee61909ac677",
+      "turnContexts": [
+        {
+          "model": "gpt-5.6-terra",
+          "effort": "medium"
+        }
+      ]
+    },
+    {
+      "run": "codex-custom",
+      "sessionId": "01a10362-8da1-7180-9441-dda767e9fe56",
+      "turnContexts": [
+        {
+          "model": "gpt-5.6-terra",
+          "effort": "medium"
+        }
+      ]
+    },
+    {
+      "run": "codex-implementation-retry",
+      "sessionId": "01a1035f-7d50-77c2-81ac-517fcbdb60b1",
+      "turnContexts": [
+        {
+          "model": "gpt-5.6-terra",
+          "effort": "medium"
+        }
+      ]
+    },
+    {
+      "run": "codex-implementation",
+      "sessionId": "01a1035d-b1fe-7d31-8c52-84f1ccfd58ca",
+      "turnContexts": [
+        {
+          "model": "gpt-5.6-terra",
+          "effort": "medium"
+        }
+      ]
+    },
+    {
+      "run": "codex-native",
+      "sessionId": "01a10360-83b5-7d72-a343-ea6e52dbecbf",
+      "turnContexts": [
+        {
+          "model": "gpt-5.6-terra",
+          "effort": "medium"
+        },
+        {
+          "model": "gpt-5.6-terra",
+          "effort": "medium"
+        }
+      ]
+    },
+    {
+      "run": "codex-review",
+      "sessionId": "01a1035e-50ad-7ed1-bd78-2562c2c8012d",
+      "turnContexts": [
+        {
+          "model": "gpt-5.6-terra",
+          "effort": "medium"
+        }
+      ]
+    },
+    {
+      "run": "codex-resume",
+      "sessionId": "01a10360-83b5-7d72-a343-ea6e52dbecbf",
+      "turnContexts": [
+        {
+          "model": "gpt-5.6-terra",
+          "effort": "medium"
+        },
+        {
+          "model": "gpt-5.6-terra",
+          "effort": "medium"
+        }
+      ]
+    }
+  ],
+  "claudeChild": {
+    "agentType": "task-balanced",
+    "agentId": "a2398b11f2ffc7080",
+    "model": "claude-sonnet-4-6",
+    "tool": "Agent",
+    "status": "completed",
+    "reportedTaskUsage": {
+      "total_tokens": 5837,
+      "tool_uses": 1,
+      "duration_ms": 16588
+    },
+    "effort": "backend metadata not exposed",
+    "guidanceReads": "child only read review.mjs; required guidance compliance not confirmed"
+  },
+  "codexChild": {
+    "tool": "collaboration.spawn_agent",
+    "requestedModel": "gpt-5.6-terra",
+    "requestedEffort": "medium",
+    "agentType": null,
+    "customDefinitionApplied": false
+  },
+  "customRetry": {
+    "blocker": "collaboration.spawn_agent does not expose agent_type"
+  },
+  "fixtureCopyChecks": [
+    {
+      "client": "codex",
+      "oracleSHA256": "8921df59ba8f274b7cc263e1824d9f478f52a66cadf684ce00ea053082a70398",
+      "reviewSHA256": "90deff2e0d508557b68f4235c65f39dfad29f2dcc9a4150e969f6149e8a2372c"
+    },
+    {
+      "client": "claude",
+      "oracleSHA256": "8921df59ba8f274b7cc263e1824d9f478f52a66cadf684ce00ea053082a70398",
+      "reviewSHA256": "90deff2e0d508557b68f4235c65f39dfad29f2dcc9a4150e969f6149e8a2372c"
+    }
+  ]
+}
