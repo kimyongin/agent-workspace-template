@@ -181,3 +181,63 @@ test("Entity 복원: 대상 없음 조회 한도·제목 초점·필터 hash 제
   await expect(page.getByRole("link", { name: "느림", exact: true })).toHaveCount(0);
   await expect(page.getByRole("link", { name: "최신", exact: true })).toBeVisible();
 });
+
+test("Entity lookahead 뒤 더 보기: 현재 커서 append·실패 retry·행과 버튼 초점 보존", async ({ page }) => {
+  await devLogin(page);
+  const mcp = await mcpClient(await mcpTokenViaConsent(page)), marker = unique("복원 후 추가"), ids: string[] = [];
+  try {
+    for (let i = 0; i < 61; i++) {
+      ids.push((await mcp.call("create_entity", { prop1: `${marker} ${String(i).padStart(2, "0")}`, prop2: i })).id);
+    }
+    await page.goto(`/entities?keyword=${encodeURIComponent(marker)}&sort=prop2`);
+    const anchor = page.getByRole("link", { name: `${marker} 19`, exact: true });
+    await anchor.click();
+    ids.push((await mcp.call("create_entity", { prop1: `${marker} 동시 추가`, prop2: 0 })).id);
+    await page.getByRole("link", { name: "← 엔터티 목록" }).click();
+    await expect(anchor).toBeFocused();
+    await expect(page.locator(".list .item-title")).toHaveCount(40);
+    const cursors: string[] = [];
+    let fail = false, failed = false;
+    await page.route("**/api/entities?**", async (route) => {
+      const cursor = new URL(route.request().url()).searchParams.get("cursor");
+      if (cursor) cursors.push(cursor);
+      if (fail && !failed) {
+        failed = true;
+        await route.fulfill({
+          status: 503,
+          json: { code: "unavailable", message: "추가 페이지 일시 실패", retryable: true, fields: [] },
+        });
+      } else await route.continue();
+    });
+    const more = page.getByRole("button", { name: "더 보기", exact: true });
+    await more.scrollIntoViewIfNeeded();
+    const y = await page.evaluate(() => window.scrollY);
+    await more.click();
+    await expect(page.locator(".list .item-title")).toHaveCount(60);
+    await expect(more).toBeFocused();
+    expect(cursors).toHaveLength(1);
+    expect(new URL(page.url()).searchParams.get("pages")).toBe("3");
+    expect(await page.evaluate(() => window.scrollY)).toBe(y);
+    await more.scrollIntoViewIfNeeded();
+    const retryY = await page.evaluate(() => window.scrollY);
+    fail = true;
+    await more.click();
+    const retry = page.getByRole("button", { name: "다시 시도", exact: true });
+    await expect(retry).toBeFocused();
+    await expect(page.locator(".list .item-title")).toHaveCount(60);
+    expect(await page.evaluate(() => window.scrollY)).toBe(retryY);
+    await retry.click();
+    const done = page.getByRole("button", { name: "모두 불러왔습니다", exact: true });
+    await expect(page.locator(".list .item-title")).toHaveCount(62);
+    await expect(done).toBeFocused();
+    await expect(done).toHaveAttribute("aria-disabled", "true");
+    expect(cursors).toHaveLength(3);
+    expect(cursors[2]).toBe(cursors[1]);
+    expect(cursors[1]).not.toBe(cursors[0]);
+    expect(await page.evaluate(() => window.scrollY)).toBe(retryY);
+    await expect(anchor).not.toBeFocused();
+  } finally {
+    for (const id of ids) await mcp.call("delete_entity", { id, expected_version: 1 });
+    await mcp.close();
+  }
+});

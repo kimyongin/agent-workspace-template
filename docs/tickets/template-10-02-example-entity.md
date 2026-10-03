@@ -31,6 +31,8 @@ Entity의 실제 소비자까지 한 수직 기능 경계로 구현한다. DB→
 
 ## 실행 기록
 
+- 재리뷰 `72d4d70`의 추가 P2 두 건: lookahead의 실제 페이지 수를 버려 더 보기 첫 클릭이 중복 조회되는 문제, 추가 조회/재시도마다 복귀 초점을 재설정하는 문제. 패키지 담당의 고정 소스/환경 독점 반환 후 Entity UI·E2E만 수정한다. 실제 count·누적 결과·next_cursor를 필터/hash 문맥별로 보존하고 추가/실패 재시도는 마지막 성공 cursor부터 append한다. 복귀 초점 완료 표식은 pages/retry에 의해 지우지 않으며 동일 버튼을 실패 재시도와 완료 상태까지 유지해 초점·위치를 보호한다. 61개+동시 1개 actual fixture로 40→60→추가 실패/같은 cursor 재시도→62행을 검증한다. 최신 main 통합과 소스 checkpoint 뒤 own runtime 검증을 시작한다.
+
 - 독립 리뷰 `017bc29`: P2 두 건(검색 entity_id 계약 누락, Entity 복원의 대상 없음 전체 스캔·hash 유지·제목 초점/늦은 응답 보호 누락). 리뷰 종료 후 검색 계약/공통 SQL 범위/웹/제품 스킬과 회귀를 추가한다. HTTP/MCP는 같은 strict schema를 소비하며 cursor scope는 이미 모든 필터를 포함한다. 복원은 저장 pages(최대 250)에 추가 1페이지까지만 허용해 동시 추가로 한 페이지 밀린 항목을 찾고, 대상 없음은 제목 초점으로 끝낸다. 활동 목록 helper는 다른 세션 소유로 변경하지 않는다. 공유 로컬 검증 exclusive를 재배정받았으며 소스 고정 후 own runtime을 시작한다.
 - 리뷰 수정 checkpoint를 만든 뒤 최신 main `db70cbf`(PR #75)로 rebase했다. 신규 fast PrincipleResult fixture에 `entity_id ?? null`을 반영해 계약 통합 타입 오류를 고쳤으며 기존 principle routes/tools refinement를 보존했다. `c7e9b8b`에서 실제 DB 70/70·HTTP 17/17·MCP 17/17(검색 필터, 원칙 Entity-only 수정과 malformed Entity의 HTTP/MCP 오류 동등성 포함), fast(core 60/handler 13/web 1), Deno 통과. 같은 앱/서버 코드의 `1d4e385`에서 Entity·검색 E2E 12/12 통과. build·boundary·plugin checker·docs(268개, scripts 36/1 Windows skip) 통과.
 - 리뷰 수정 1차 실패는 DB excluded fixture의 summary 필수/빈 문자열 제약 누락과, 동시 추가 복원이 이미 마지막 페이지까지 가져온 뒤 더 보기 버튼을 기다린 E2E 검사 오류였다. 정상 요약과 현재 excluded index state를 만든 fixture 및 동시 추가 검사를 분리한 뒤 통과했다. E2E 실패 자료 `TEMP/entity-e2e-run5`, 성공 자료 `TEMP/entity-e2e-run6`에 보존함.

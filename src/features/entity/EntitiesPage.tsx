@@ -5,7 +5,7 @@ import { Field, Notice } from "../../components/Field.tsx";
 import { api, ApiError, query } from "../../lib/api.ts";
 import { useRequestId } from "../../lib/useRequestId.ts";
 import { EntityForm } from "./forms.tsx";
-type Page = { items: EntityResult[]; next_cursor: string | null };
+type Page = { items: EntityResult[]; next_cursor: string | null; count: number };
 export function EntitiesPage() {
   const [params, setParams] = useSearchParams(),
     { hash } = useLocation(),
@@ -26,23 +26,27 @@ export function EntitiesPage() {
     [busy, setBusy] = useState(false),
     [retry, setRetry] = useState(0),
     [creating, setCreating] = useState(false);
-  const currentKey = useRef(key), focused = useRef("");
+  const context = `${key}|${hash}`;
+  const loaded = useRef<{ context: string; page: Page } | null>(null), focused = useRef("");
   useEffect(() => {
     const controller = new AbortController();
     setError(null);
     setBusy(true);
-    focused.current = "";
-    if (currentKey.current !== key) {
+    const cached = loaded.current?.context === context ? loaded.current.page : null;
+    if (!cached) {
       setPage(null);
-      currentKey.current = key;
+      loaded.current = null;
     }
     (async () => {
-      let result: Page = { items: [], next_cursor: null }, n = 0;
+      let result: Page = cached ?? { items: [], next_cursor: null, count: 0 };
       const anchor = /^#entity-[0-9a-f-]+$/.test(hash) ? hash.slice(8) : null;
       // A concurrent insertion may move the anchor one page. Never scan beyond this finite window.
-      const maximum = anchor ? Math.min(250, pages + 1) : pages;
-      while (n < pages || (anchor && n < maximum && !result.items.some((e) => e.id === anchor))) {
-        const next: Page = await api(
+      const maximum = anchor && focused.current !== context ? Math.min(250, pages + 1) : pages;
+      while (
+        !result.count || (result.next_cursor &&
+          (result.count < pages || (anchor && result.count < maximum && !result.items.some((e) => e.id === anchor))))
+      ) {
+        const next: Omit<Page, "count"> = await api(
           "GET",
           `/entities${query({ ...filter, cursor: result.next_cursor })}`,
           undefined,
@@ -52,8 +56,10 @@ export function EntitiesPage() {
         result = {
           items: [...result.items, ...next.items],
           next_cursor: next.next_cursor,
+          count: result.count + 1,
         };
-        n++;
+        loaded.current = { context, page: result };
+        setPage(result);
         if (!next.next_cursor) break;
       }
       if (!controller.signal.aborted) setPage(result);
@@ -69,14 +75,17 @@ export function EntitiesPage() {
     return () => controller.abort();
   }, [key, pages, retry, hash]);
   useEffect(() => {
-    if (busy || focused.current === hash || !page || !/^#entity-[0-9a-f-]+$/.test(hash)) return;
+    if (
+      busy || error || loaded.current?.context !== context || focused.current === context || !page ||
+      !/^#entity-[0-9a-f-]+$/.test(hash)
+    ) return;
     const node = document.getElementById(hash.slice(1));
     if (node) {
       node.focus();
       node.scrollIntoView({ block: "center" });
     } else document.getElementById("entities-title")?.focus();
-    focused.current = hash;
-  }, [page, busy, hash]);
+    focused.current = context;
+  }, [page, busy, error, context, hash]);
   const set = (name: string, value: string) => {
     const next = new URLSearchParams(params);
     if (value) next.set(name, value);
@@ -151,9 +160,12 @@ export function EntitiesPage() {
       {error && (
         <>
           <Notice kind="error">{error}</Notice>
-          <button className="btn" onClick={() => setRetry((n) => n + 1)}>
-            다시 시도
-          </button>
+          {!page &&
+            (
+              <button className="btn" onClick={() => setRetry((n) => n + 1)}>
+                다시 시도
+              </button>
+            )}
         </>
       )}
       {!page && busy && <p role="status" className="secondary">불러오는 중…</p>}
@@ -174,7 +186,10 @@ export function EntitiesPage() {
               <Link
                 id={`entity-${e.id}`}
                 className="item-title"
-                to={`/entities/${e.id}?${params}`}
+                to={`/entities/${e.id}?${new URLSearchParams({
+                  ...Object.fromEntries(params),
+                  pages: String(page.count),
+                })}`}
               >
                 {e.prop1}
               </Link>
@@ -185,17 +200,22 @@ export function EntitiesPage() {
           </li>
         ))}
       </ul>
-      {page?.next_cursor && (
+      {page && (page.next_cursor || page.count > 1) && (
         <button
           className="btn"
-          disabled={busy}
+          aria-disabled={busy || !page.next_cursor}
           onClick={() => {
+            if (busy || !page.next_cursor) return;
+            if (error) {
+              setRetry((n) => n + 1);
+              return;
+            }
             const next = new URLSearchParams(params);
-            next.set("pages", String(pages + 1));
+            next.set("pages", String(page.count + 1));
             setParams(next, { replace: true });
           }}
         >
-          {busy ? "불러오는 중…" : "더 보기"}
+          {busy ? "불러오는 중…" : error ? "다시 시도" : page.next_cursor ? "더 보기" : "모두 불러왔습니다"}
         </button>
       )}
       {creating && (
