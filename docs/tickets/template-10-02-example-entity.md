@@ -1,6 +1,6 @@
 # Template-10-02 — 예제 Entity 수직 슬라이스
 
-상태: 진행 중. 부모 `docs/tickets/template-10-priority-completion.md`의 T02-4 하위 작업이며 확정 계약은 [T02-1](template-02-t02-1-contracts.md#예제-엔터티-entity--t02-4)을 따른다. 부모 통합 후 링크를 연결한다.
+상태: 진행 중. 부모 [Template-10](template-10-priority-completion.md)의 T02-4 하위 작업이며 확정 계약은 [T02-1](template-02-t02-1-contracts.md#예제-엔터티-entity--t02-4)을 따른다.
 
 ## 배정과 승인 범위
 
@@ -32,6 +32,8 @@ Entity의 실제 소비자까지 한 수직 기능 경계로 구현한다. DB→
 ## 실행 기록
 
 - 독립 리뷰 `017bc29`: P2 두 건(검색 entity_id 계약 누락, Entity 복원의 대상 없음 전체 스캔·hash 유지·제목 초점/늦은 응답 보호 누락). 리뷰 종료 후 검색 계약/공통 SQL 범위/웹/제품 스킬과 회귀를 추가한다. HTTP/MCP는 같은 strict schema를 소비하며 cursor scope는 이미 모든 필터를 포함한다. 복원은 저장 pages(최대 250)에 추가 1페이지까지만 허용해 동시 추가로 한 페이지 밀린 항목을 찾고, 대상 없음은 제목 초점으로 끝낸다. 활동 목록 helper는 다른 세션 소유로 변경하지 않는다. 공유 로컬 검증 exclusive를 재배정받았으며 소스 고정 후 own runtime을 시작한다.
+- 리뷰 수정 checkpoint를 만든 뒤 최신 main `db70cbf`(PR #75)로 rebase했다. 신규 fast PrincipleResult fixture에 `entity_id ?? null`을 반영해 계약 통합 타입 오류를 고쳤으며 기존 principle routes/tools refinement를 보존했다. `c7e9b8b`에서 실제 DB 70/70·HTTP 17/17·MCP 17/17(검색 필터, 원칙 Entity-only 수정과 malformed Entity의 HTTP/MCP 오류 동등성 포함), fast(core 60/handler 13/web 1), Deno 통과. 같은 앱/서버 코드의 `1d4e385`에서 Entity·검색 E2E 12/12 통과. build·boundary·plugin checker·docs(268개, scripts 36/1 Windows skip) 통과.
+- 리뷰 수정 1차 실패는 DB excluded fixture의 summary 필수/빈 문자열 제약 누락과, 동시 추가 복원이 이미 마지막 페이지까지 가져온 뒤 더 보기 버튼을 기다린 E2E 검사 오류였다. 정상 요약과 현재 excluded index state를 만든 fixture 및 동시 추가 검사를 분리한 뒤 통과했다. E2E 실패 자료 `TEMP/entity-e2e-run5`, 성공 자료 `TEMP/entity-e2e-run6`에 보존함.
 
 - npm ci: 성공, 168 packages 설치, audit 0 vulnerabilities.
 - 최종 서비스 없는 검사: build, check:deno(check/lint/fmt), check:boundaries, check:docs(문서 254개·스크립트 테스트 32개), git diff --check 성공. test:fast는 core 60개·handler 8개·web 1개 통과. build의 기존 큰 번들 경고는 남음.
