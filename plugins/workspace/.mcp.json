@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "workspace": {
+      "type": "http",
+      "url": "https://ayzcluvdppsppwszzaqx.supabase.co/functions/v1/mcp"
+    }
+  }
+}
