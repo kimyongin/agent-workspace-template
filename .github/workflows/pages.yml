@@ -1,0 +1,61 @@
+# 웹(정적 빌드)을 GitHub Pages에 배포한다. 운영 배포이므로 사람이 지시할 때만 수동으로 실행한다(ADR-0008).
+# 공개 값만 쓴다: Supabase 주소·publishable key·API 주소는 저장소 Actions 변수(vars)에 둔다. 비밀값은 쓰지 않는다.
+# 개발용 로그인(VITE_DEV_LOGIN)은 설정하지 않으므로 운영 빌드에 나타나지 않는다.
+name: pages
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 배포할 revision(검증된 main의 커밋 또는 브랜치)
+        required: true
+        default: main
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.ref }}
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: 웹 빌드
+        run: npm run build
+        env:
+          VITE_BASE: /${{ github.event.repository.name }}/
+          VITE_SUPABASE_URL: ${{ vars.PROD_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.PROD_SUPABASE_PUBLISHABLE_KEY }}
+          VITE_API_URL: ${{ vars.PROD_API_URL }}
+      - name: 운영 빌드가 로컬 Supabase를 가리키지 않는지 확인
+        # 개발용 로그인 코드 자체를 번들에서 빼는 일은 T02-6의 운영 빌드 검사에서 한다(지금은 표시만 막힘).
+        run: |
+          test -n "${{ vars.PROD_SUPABASE_URL }}"
+          ! grep -rqE "127\.0\.0\.1|localhost:554" dist/
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
