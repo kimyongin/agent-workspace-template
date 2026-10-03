@@ -23,8 +23,9 @@ jobs:
         with:
           node-version: 22
           cache: npm
+      - run: npm ci
       - name: 문서 검사
-        run: node scripts/check-docs.mjs && node --test "scripts/*.test.mjs"
+        run: npm run check:docs
       - name: 임베딩 평가기 검사(오프라인)
         run: npm run test --prefix experiments/t02-3-embedding
       - name: 공백 검사
@@ -34,7 +35,6 @@ jobs:
           else
             git diff --check "${{ github.event.before }}" HEAD 2>/dev/null || git diff --check HEAD~1 HEAD
           fi
-      - run: npm ci
       - name: 의존 경계 검사
         run: npm run check:boundaries
       - name: 서버 검사(Deno)

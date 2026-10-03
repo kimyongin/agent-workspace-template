@@ -12,7 +12,7 @@
     "build": "tsc -p tsconfig.json --noEmit && vite build",
     "preview": "vite preview",
     "test:web": "vitest run",
-    "check:docs": "node scripts/check-docs.mjs && node --test \"scripts/*.test.mjs\"",
+    "check:docs": "node scripts/check-docs.mjs && node scripts/agent-models.mjs check && node --test \"scripts/*.test.mjs\"",
     "check:deno": "deno check --config supabase/functions/deno.json supabase/functions supabase/tests && deno lint --config supabase/functions/deno.json supabase/functions supabase/tests && deno fmt --check --config supabase/functions/deno.json supabase/functions supabase/tests",
     "test:core": "deno test --config supabase/functions/deno.json supabase/functions/_shared",
     "test:db": "deno test --config supabase/functions/deno.json --allow-env --allow-net --allow-read --env-file=.env.local supabase/tests/database",
@@ -32,6 +32,7 @@
     "zod": "4.6.5"
   },
   "devDependencies": {
+    "@decimalturn/toml-patch": "3.3.0",
     "@modelcontextprotocol/client": "2.2.0",
     "@playwright/test": "1.63.0",
     "@types/node": "22.20.5",
@@ -40,6 +41,7 @@
     "@vitejs/plugin-react": "6.1.1",
     "deno": "2.9.6",
     "postgres": "3.4.9",
+    "smol-toml": "1.9.0",
     "supabase": "2.119.0",
     "typescript": "7.0.2",
     "vite": "8.3.2",
