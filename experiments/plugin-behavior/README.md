@@ -47,6 +47,10 @@ node experiments/plugin-behavior/native-discovery.mjs <new-outside-native-output
 
 ## Claude native OAuth 후속 준비
 
-설치된 2.1.140은 `mcp login/logout` 명령이 없다. 정상 개인 CLI 계정 인증을 그대로 읽는 interactive 세션의 `--setting-sources project,local --plugin-dir <outside-unique-plugin>`과 `ENABLE_CLAUDEAI_MCP_SERVERS=false`를 사용하고 `/mcp`의 실제 인증/해제 메뉴를 확인할 예정이다. 고유 시험 plugin/server 이름, Authorization header 없는 loopback MCP, 사용자 요청과 외부 업무 도구 없는 시작 세션을 사용한다. `--strict-mcp-config`는 번들 서버를 제외했으므로 이 경로에 쓰지 않는다.
+설치된 2.1.140은 `mcp login/logout` 명령이 없다. 정상 개인 CLI 계정 인증을 그대로 읽는 interactive 세션의 `--setting-sources project,local --plugin-dir <outside-unique-plugin>`과 `ENABLE_CLAUDEAI_MCP_SERVERS=false`로 `/mcp`의 실제 Authenticate/Clear authentication을 완료했다. 고유 시험 plugin/server 이름, Authorization header 없는 loopback MCP를 사용했다. `--strict-mcp-config`는 번들 서버를 제외했으므로 이 경로에 쓰지 않는다.
 
-공식 [MCP 문서](https://code.claude.com/docs/en/mcp)의 Clear authentication은 정상 해제 경로 후보다. 실제 설치 버전의 메뉴 지원과 endpoint별 기존 OAuth와의 충돌 여부는 아직 확인하지 않았다. 이미 로그인된 같은 endpoint를 발견하거나 시험 연결만 정상 해제할 수 없으면 기존 인증을 덮어쓰지 않는다. 공유 환경이 Entity에 재배정된 현재는 PTY·MCP 연결을 실행하지 않는다.
+공식 [MCP 문서](https://code.claude.com/docs/en/mcp)의 Clear authentication을 실제 설치 메뉴에서 확인했다. 시험 서버는 처음 미인증이었다. 이미 로그인된 같은 endpoint를 발견하거나 시험 연결만 정상 해제할 수 없으면 기존 인증을 덮어쓰지 않는다. 이번 실행은 정상 동의/CLI callback→connected31→native 저장 auth의 list_tags→own Clear authentication→own DCR 등록 삭제를 완료하고 공유 환경을 반환했다. 자세한 frozen head·사용한 환경·메인의 런타임 컨테이너 정리 인계는 티켓에 있다.
+
+`authorize-native-web.mjs <allocated-env> <outside-cli-issued-request.json> <loopback-web-url> <outside-evidence>`는 실제 CLI PKCE 요청을 정상 로그인·승인 UI로 완료한다. 승인 요청 URL/원시 PTY 로그를 증거에 넣지 않으며 해당 외부 임시 요청 파일은 완료 후 삭제한다. `read-native-claude.mjs <outside-unique-plugin> <current-claude-snapshot> <outside-evidence>`는 정상 CLI가 저장한 native 인증을 읽어 정확한 list_tags 한 번만 허용한다. 개인 token 파일을 직접 읽거나 전달하지 않는다. 두 명령 모두 공유 환경 독점 인계가 필요하다.
+
+`node --test experiments/plugin-behavior/native-guards.test.mjs`는 외부 issuer/callback·PKCE 누락과 canonical 제품/외부 endpoint/주입 header 거부를 오프라인 검증한다. 범용 경로·guard 보강 뒤 실제 native 연결을 반복하지 않았으며 실제 성공 실행과 정적/거부 검증을 구분한다.

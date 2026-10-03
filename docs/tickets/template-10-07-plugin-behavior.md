@@ -1,7 +1,7 @@
 # Template-10-07 — 제품 스킬의 실제 CLI 행동
 
 작성: 2026-10-04
-상태: 진행 중 — 로컬 실제 CLI 체크포인트, Claude native OAuth·통합 패키지 갱신 대기
+상태: 로컬 실제 CLI·native 인증 검증 완료 — 최신 main 통합·최종 artifact 후속
 선행: 제품 패키지 PR #74, Entity 서버 계약과 공유 로컬 환경 인계
 
 ## 목표와 기준
@@ -26,8 +26,8 @@ T02-4의 패키지 설치와 실제 스킬 행동을 구분해 Claude Code와 Co
 
 - [x] 두 CLI의 모델/effort 배정 preflight와 실제 설정·버전을 확인한다.
 - [x] 실제 공유 스킬 선택·MCP 도구 발견·검색/원문/저장/재조회 흐름을 각 클라이언트에서 관찰한다(별도 선택 검사와 행동 실행의 범위는 아래 구분).
-- [ ] 설치/업데이트·로컬 토큰 전달과 클라이언트 자체 OAuth·접근 불가 surface의 증거를 구분한다.
-- [ ] 실행 revision·재현 명령·fixture 정리·한계·다음 판단을 기록하고 문서 검사를 통과한다.
+- [x] 설치/업데이트·로컬 토큰 전달과 클라이언트 자체 OAuth·접근 불가 surface의 증거를 구분한다.
+- [x] 실행 revision·재현 명령·fixture 정리·한계·다음 판단을 기록하고 문서 검사를 통과한다.
 
 ## 현재 접근 조건
 
@@ -122,3 +122,37 @@ exact `2e57a2e` 재리뷰에서 cleanup의 `list_principles(status=all)`은 실�
 모의 transport는 실제 앱의 activity/entity/principle/tag MCP ToolDef를 import하고 각 `input.parse`를 통과한 요청만 수행한다. UUID·필수 필드·기본값도 실제 입력 계약을 따른다. source ToolDef의 TypeScript parameter property 때문에 일반 Node strip-only import는 실패했으며 `node --experimental-transform-types --test experiments/plugin-behavior/journal.test.mjs`로 Node 24.15.0에서 실행했다(실험 경고 있음). 앱 코드·의존성·전역 설정은 바꾸지 않았다.
 
 실제 schema가 all/status를 invalid_value로 거부하고 그 시점 OAuth 삭제 0/token 잔존임을 재현했다. 그 뒤 수정된 cleanup은 active/inactive 각각의 여러 페이지에서 자기 원칙만 찾아 지웠다. 자기 원칙이 각 상태의 세 번째 페이지인 두 회귀에서 foreign 원칙 4개 보존·상태별 cursor 분리·own OAuth 삭제 1·journal token 제거를 확인했다. 기존 부분 생성/삭제/인증/디스크 failure와 실제 setup 목록 실패를 합쳐 7개 PASS. 이 검증은 실제 입력 계약+모의 저장/전송이며 실제 DB/OAuth/CLI 흐름 성공으로 표시하지 않는다. 공유 UI 독점 중 서비스·PTY·OAuth·MCP 호출은 없었다.
+
+## 강화 runner의 실제 재실행과 Claude native 인증
+
+UI 담당이 명시 반환한 뒤 메인이 공유 local 환경 독점과 medium 실제 구현 검증을 재배정했다. 서버·스킬·runner를 승인 head `8c94b4b1e6c43be5463e6ddb91e17c22e34cc4d5`(main base `24d1251`)에 고정했다. master의 `.env.local`, `supabase/functions/.env`, `supabase/signing_keys.json` 세 로컬 파일만 ignored 위치에 복사했고 prod `supabase/.env`는 복사하지 않았다. 기존 DB55421/primary55480/fin을 유지하며 자기 checkout에서 `npx supabase functions serve --env-file supabase/functions/.env`를 실행했다.
+
+2026-10-04(KST) `models.mjs`를 다시 실행해 Codex0.147.0 model/list 4개 및 Terra/medium 지원, Claude2.1.140 sonnet→claude-sonnet-4-6과 medium 옵션 수락을 확인했다. 새 snapshot은 외부 `plugin-behavior-models-20261004-final/`에 있고 실제 행동 runner가 각 실행 직전 assign PASS를 다시 확인했다. Codex backend 실제 model/effort는 미노출, Claude init/modelUsage는 Sonnet4.6이며 backend effort는 미노출이다.
+
+| 실제 0.1.1 로컬 실행 | Codex | Claude |
+| --- | --- | --- |
+| 실행 표식 | plugin-codex-cli-d21d493b9e6d | plugin-claude-cli-93882ffb54a3 |
+| 발견/선택 | 31개 MCP 도구, 동일 shared SKILL hash. 별도 `$workspace` 선택 증거와 구분 | init에 workspace 제품만 connected31, Skill workspace:workspace 성공. claude.ai discovery 제외 확인 |
+| 실제 호출 | list_principles/search/list_entities/list_tags/get_record/get_principle/get_entity/create_record | search/list_principles/list_tags/get_record/get_entity/create_record. 별도 get_principle는 미호출이며 목록의 전체 원칙 body를 사용 |
+| 독립 재조회 | resultCount1, 원문 코드·원칙·Entity·tag_ids 모두 PASS | 동일 PASS, permission_denials0, exit0 |
+| 실제 강화 cleanup | active 자기 원칙 및 자기 자료만 삭제, journal cleaned/deleted4/OAuth 삭제/token 제거 | 자기 원칙을 inactive로 전환한 뒤 같은 cleanup으로 삭제, 동일 journal/인증 정리 PASS |
+
+두 행동은 실제 웹 동의로 발급한 시험 MCP Bearer를 환경으로 전달한 실행이며 native 인증 사용 실행과 구분한다. 시작/완료 도구 이벤트의 반복은 중복 저장이 아니며 재조회에서 정확히 한 기록을 확인했다. 비밀 없는 실행/독립 재조회/정리 증거는 외부 `C:/Users/yongin/AppData/Local/Temp/plugin-behavior-final-20261004/`의 각 표식 디렉터리와 `cleanup-evidence.json`, `own-inactive-evidence.json`이다. 정리된 두 journal에는 token이 없다. Codex cleanup 프로세스가 아직 종료 전인 순간 첫 증거 수집이 cleaned를 기대해 실패했으나, 실행 완료를 기다린 뒤 두 journal의 정리 완료를 확인했다. 서버 정리 실패나 blind retry로 처리하지 않았다.
+
+### 정상 기존 계정의 Claude native OAuth
+
+일반 CLI 계정 인증을 복사 없이 읽는 PTY에서 `--setting-sources project,local --plugin-dir <outside-copy> --model sonnet --effort medium`, `ENABLE_CLAUDEAI_MCP_SERVERS=false`를 사용했다. 복사본만 제품 `workspace-native-check-8c94`/서버 `oauth-check-8c94`의 고유 식별자와 기존 loopback MCP 주소로 바꾸고 Authorization header를 넣지 않았다. `/mcp`는 서버 1개와 처음 `needs authentication`/`not authenticated`를 보여 기존 인증을 재사용하지 않는 시험임을 관찰했다. 원래 prod Workspace 연결이나 다른 연결은 노출되지 않았다.
+
+해당 서버의 정상 Authenticate 메뉴를 선택해 CLI가 만든 PKCE 요청을 실제 로컬 dev owner A 로그인·승인 버튼으로 승인했다. `authorize-native-web.mjs`는 요청 URL을 외부 임시 파일로 읽고 정상 CLI loopback callback까지 이동했다. callback을 가로채거나 token을 주입하지 않았다. CLI는 Authentication successful/Connected를 표시했고 `/mcp`에서 authenticated/connected31을 재확인했다. 이것은 새 home의 LLM 미로그인 제약을 정상 계정 경로로 해결한 실제 native 인증 성공이다.
+
+이어 정상 CLI의 native 저장 인증을 그대로 읽는 별도 print 세션에서 Sonnet/medium assign PASS와 init Sonnet4.6·단일 시험 서버 connected31을 확인했다. `read-native-claude.mjs`는 정확한 시험 list_tags만 허용했고 실제 호출 1회·tool_result 오류 없음·permission_denials0·exit0을 관찰했다. 개인/native token 파일을 직접 읽거나 복사하지 않았다. 모델/medium 표시·옵션 수락과 backend 실제 effort를 구분한다.
+
+원래 PTY에서 시험 서버의 정상 Clear authentication을 선택해 Authentication cleared for 해당 식별자를 확인했고 `/mcp`가 다시 needs authentication을 표시했다. 그 요청에서 생성된 exact 시험 DCR client_id만 local admin API로 삭제하고 getClient404를 확인했다. 기존 연결의 OAuth/keychain/global MCP 설정을 교체·삭제하지 않았다. 외부 authorization.json은 삭제했으며 비밀 없는 `native-claude-8c94/{preparation,web-consent-evidence,native-read-evidence,native-oauth-evidence}.json`만 남겼다. 이 인증/읽기 증거는 외부 Claude 웹/desktop/mobile나 prod endpoint의 업무 성공이 아니다.
+
+### 서비스 반환과 최종 인계
+
+자기 native PTY는 exit0, functions CLI 세션95086은 CtrlC로 종료했다. DB55421/primary55480 Listen을 확인하고 환경을 명시 반환했다. 다만 CLI 종료 뒤 Edge 런타임 컨테이너는 자기 source bind로 계속 실행 중인 것을 메인이 확인했다. CLI 프로세스 종료만으로 컨테이너까지 종료됐다고 보고한 부분을 정정했다. 메인이 정확한 `supabase_edge_runtime_agent-workspace-template` 1개를 stop/rm(volume 보존)하고 primary main `ff1863d20bd558774dba4312cf3d9cd3c7fd2924`의 기존 앱 API를 복구하기로 인계했다. 그 뒤 이 담당은 서비스 호출을 중단했다. fin/DB reset·다른 프로세스 종료·운영 쓰기는 없었다.
+
+후속 helper의 고유 식별자 파생·외부 증거 위치·loopback/PKCE/외부 callback·주입 header 거부 보강은 실제 성공 실행 뒤 적용했다. `native-guards.test.mjs`는 서비스/LLM/브라우저 시작 전 거부 경로 2개(6개 입력 조합)를 오프라인 검증했다. 실제 입력 schema journal 회귀7, 문서·구문·diff 검사도 수행한다. 최신 main rebase/독립 리뷰/PR80 CI와 최종 ZIP/sidecar main revision 고정·운영 release 검증은 메인이 후속 조정한다. 로컬 양 CLI 행동·정리는 8c94에서 완료했다. native 인증/발견 증거의 source는 이전 Codex 72d4와 이번 Claude 8c94로 다르며 둘을 같은 revision에서 완료했다고 주장하지 않는다. 접근 불가 surface와 운영 행동은 미검증으로 유지한다.
+
+최종 로컬 검사: `npm run check:docs` PASS(문서321개, 스크립트36 PASS/1 Windows file symlink privilege SKIP), journal 실제 schema/fault injection7 PASS, native guard2 PASS, 실험 `.mjs` 전체 `node --check` 및 `git diff --check` PASS. helper 보강 뒤에는 서비스·LLM 재호출 없이 이 오프라인 검사만 수행했다.
