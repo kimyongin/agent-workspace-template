@@ -179,8 +179,25 @@ for (
     }
   });
   test(`${label} 수동 250→251페이지는 누적 행을 보존하고 자동 복원만 250페이지로 제한한다`, async ({ page }) => {
+    // Two sequential 250-page restores need their own bounded progress budget,
+    // rather than sharing the default 60s test deadline with login/manual retry.
+    test.setTimeout(150_000);
     await devLogin(page);
     const reads: number[] = [];
+    const expectRestoredPages = async () => {
+      const deadline = Date.now() + 60_000;
+      const remaining = () => Math.max(1, deadline - Date.now());
+      for (let target = 25; target <= 250; target += 25) {
+        await expect.poll(() => page.locator(".list .item-title").count(), {
+          message: `${label}: restore must reach ${target}/250 rows without stalling`,
+          timeout: Math.min(10_000, remaining()),
+          intervals: [100, 250, 500],
+        }).toBeGreaterThanOrEqual(target);
+        expect(reads.slice(0, target)).toEqual(Array.from({ length: target }, (_, index) => index));
+      }
+      await expect(page.locator(".list .item-title")).toHaveCount(250, { timeout: remaining() });
+      expect(reads).toEqual(Array.from({ length: 250 }, (_, index) => index));
+    };
     let failNext = true;
     await page.route(`**/api/${path}?**`, async (route) => {
       const index = Number(new URL(route.request().url()).searchParams.get("cursor") ?? 0);
@@ -209,7 +226,7 @@ for (
       });
     });
     await page.goto(`/${path}?pages=250`);
-    await expect(page.locator(".list .item-title")).toHaveCount(250, { timeout: 20_000 });
+    await expectRestoredPages();
     const first = page.getByRole("link", { name: `${label} 경계 0`, exact: true });
     await page.getByRole("button", { name: "더 보기", exact: true }).click();
     await expect(page.getByRole("button", { name: "다시 시도", exact: true })).toBeVisible();
@@ -234,7 +251,6 @@ for (
     expect(reads.at(-1)).toBe(251);
     reads.length = 0;
     await page.reload();
-    await expect(page.locator(".list .item-title")).toHaveCount(250, { timeout: 20_000 });
-    expect(reads).toEqual(Array.from({ length: 250 }, (_, index) => index));
+    await expectRestoredPages();
   });
 }
