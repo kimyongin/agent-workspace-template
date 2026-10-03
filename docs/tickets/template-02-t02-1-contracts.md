@@ -359,7 +359,7 @@ ADR-0003의 대안(SQL 함수를 사용자 JWT로 호출)은 필요하지 않다
 
 | 항목 | 차단 원인 | 이어서 할 단계 |
 | --- | --- | --- |
-| 호스팅 환경: 경로 삽입형 metadata, Supavisor 실서버, Edge 배포 | 이 세션의 권한 정책이 호스팅 프로젝트 생성을 막음. 2026-10-03 사용자 결정으로 별도 격리 프로젝트 없이 운영 프로젝트 `workspace-template`을 만들고, 이 항목은 실험이 아닌 운영 배포 뒤 동작 확인으로 바꿈 | T02-2 운영 배포 확인([Template-02 외부 자원 표](template-02-implementation-base.md#외부-자원-준비-전의-로컬-대체)) |
+| 호스팅 환경: 경로 삽입형 metadata, Supavisor 실서버, Edge 배포 | 이 세션의 권한 정책이 호스팅 프로젝트 생성을 막음. 2026-10-03 사용자 결정으로 별도 격리 프로젝트 없이 운영 프로젝트 `workspace-template`을 만들고, 이 항목은 실험이 아닌 운영 배포 뒤 동작 확인으로 바꿈 | 2026-10-03 첫 운영 배포에서 확인: 경로 삽입형 metadata 200, Supavisor 트랜잭션 풀러 경유 API 200, Edge 배포 후 `api`·`mcp` 정상([Template-02 이력](template-02-implementation-base.md#이력)) |
 | claude.ai 웹·모바일 커넥터의 OAuth·도구 호출 | 공개 HTTPS 주소의 호스팅 프로젝트 필요 | T02-4(Claude 표면별 검증) |
 | Codex의 실제 대화에서 도구 호출 | 사용자 Codex 계정의 대화 실행 필요(인증은 성공) | T02-4 |
 | 실험 3 임베딩 품질 | Pinecone API 키 필요 | T02-3(모델·차원·입력 예산 확정) |

@@ -442,6 +442,9 @@ project_id = "ayzcluvdppsppwszzaqx"
 
 [remotes.production.auth]
 site_url = "http://127.0.0.1:55480"
+# 운영은 비밀번호 로그인을 쓰지 않지만(이메일 가입 끔), Google 사용자가 비밀번호를 정하는 경우에 대비해 정책을 둔다.
+minimum_password_length = 8
+password_requirements = "lower_upper_letters_digits"
 additional_redirect_urls = ["http://127.0.0.1:55480/**"]
 
 # 운영 로그인은 Google만 쓴다(ADR-0002). 이메일·비밀번호 가입은 로컬 개발·E2E용이므로 운영에서는 끈다.
