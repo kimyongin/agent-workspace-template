@@ -157,6 +157,8 @@ DB 제약과 보안 정책, pgmq 같은 인프라 함수는 유지한다. SQL �
 
 폴더는 [폴더 구조](../design/template-structure.md)를 따른다. 방향 합의가 구현·배포 완료를 의미하지 않는다.
 
+포트 교체로 실행하는 빠른 검사는 실제 application·HTTP route·MCP ToolDef handler의 업무와 계약 증거다. 메모리 저장과 Actor fixture는 DB 원자성·권한·인증이나 MCP SDK 전송을 증명하지 않는다. 이 경계의 실제 통합 게이트는 유지하며 실행 배치는 [개발 방법](../development/workflow.md#실행-검증)을 따른다.
+
 ## 공식 참고
 
 - [Supabase Queues](https://supabase.com/docs/guides/queues), [큐 quickstart](https://supabase.com/docs/guides/queues/quickstart), [PGMQ API](https://supabase.com/docs/guides/queues/pgmq).
