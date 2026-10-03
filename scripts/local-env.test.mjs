@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync, statSync, utimesSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -33,6 +33,19 @@ test("함수 환경 파일도 사용자 값을 보존하고 비어 있던 파일
   writeEnv(file, "함수", { APP_DB_URL: "postgresql://local" });
   assert.equal(readEnv(file).PINECONE_API_KEY, "test-key");
   assert.equal(readEnv(file).CUSTOM, "it's a # value");
+});
+
+test("같은 설정으로 초기화를 반복해도 파일 감시 대상의 수정 시각이 바뀌지 않는다", (t) => {
+  const file = fixture(t);
+  writeEnv(file, "함수", { APP_DB_URL: "postgresql://local" });
+  const timestamp = new Date("2000-01-01T00:00:00Z");
+  utimesSync(file, timestamp, timestamp);
+  const before = statSync(file).mtimeMs;
+  writeEnv(file, "함수", { APP_DB_URL: "postgresql://local" });
+  assert.equal(statSync(file).mtimeMs, before);
+  writeEnv(file, "함수", { APP_DB_URL: "postgresql://changed" });
+  assert.notEqual(statSync(file).mtimeMs, before);
+  assert.equal(readEnv(file).APP_DB_URL, "postgresql://changed");
 });
 
 test("손실 없이 저장할 수 없는 값은 기존 설정을 지우지 않고 거부한다", (t) => {
