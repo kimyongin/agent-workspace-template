@@ -3,8 +3,9 @@
 // 사용: node scripts/local-setup.mjs
 import { execSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, writeFileSync } from "node:fs";
 import postgres from "postgres";
+import { readEnv, writeEnv } from "./local-env.mjs";
 
 const root = new URL("..", import.meta.url);
 const path = (p) => new URL(p, root);
@@ -16,21 +17,6 @@ function supabase(args, opts = {}) {
     encoding: "utf8",
     stdio: opts.inherit ? "inherit" : ["ignore", "pipe", "inherit"],
   });
-}
-
-function readEnv(file) {
-  if (!existsSync(file)) return {};
-  return Object.fromEntries(
-    readFileSync(file, "utf8")
-      .split("\n")
-      .filter((l) => l && !l.startsWith("#") && l.includes("="))
-      .map((l) => [l.slice(0, l.indexOf("=")), l.slice(l.indexOf("=") + 1)]),
-  );
-}
-
-function writeEnv(file, header, values) {
-  const lines = [`# ${header}`, ...Object.entries(values).map(([k, v]) => `${k}=${v}`), ""];
-  writeFileSync(file, lines.join("\n"));
 }
 
 const secret = () => randomBytes(18).toString("base64url");
@@ -52,7 +38,8 @@ if (authEnv.SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID && authEnv.SUPABASE_AUTH_EXT
 }
 
 // 2. 로컬 Supabase. 쓰지 않는 서비스는 띄우지 않는다.
-supabase(["start", "-x", "studio,imgproxy,vector,logflare,mailpit,realtime,storage-api"], { inherit: true });
+// CLI start의 stdout에는 로컬 secret key가 포함되므로 일반 로그에 출력하지 않는다.
+supabase(["start", "-x", "studio,imgproxy,vector,logflare,mailpit,realtime,storage-api"]);
 // 이미 떠 있던 로컬 DB에도 새 migration을 적용한다(새로 시작하면 start가 적용한다).
 supabase(["migration", "up", "--local"], { inherit: true });
 const status = Object.fromEntries(

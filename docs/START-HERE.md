@@ -45,4 +45,4 @@ PRD와 ADR은 사람이 소유하고 나머지 문서·티켓·구현은 에이�
 
 문서를 바꾸면 [개발 방법의 문서 검사](development/workflow.md#문서-검사) 명령을 실행하고 결과를 해당 티켓에 기록한다. 앱·DB·브라우저 테스트는 구현 이후 해당 기능의 검증으로 수행한다.
 
-다음 작업은 [Template-02](tickets/template-02-implementation-base.md) T02-2의 실연결 검증과 T02-3(원칙·검색)이며, 할 일·기록·검색 등의 계약과 기술 선택은 [T02-1 기술 후보와 계약](tickets/template-02-t02-1-contracts.md)에 있다. 목표는 도메인 엔터티·화면·설정·제품 스킬을 조정해 새 앱을 시작할 수 있는 구현형 템플릿이다. 할 일·기록·사용자 원칙·RAG는 기본 기능이며, Template-01의 상세 계약과 검증을 이어서 6단계로 구현한다. 제품 스킬 초안은 [plugins/workspace/skills/workspace](../plugins/workspace/skills/workspace/SKILL.md)에 있다. 실제 명령·CI·알림·복원 경로는 해당 단계에서 구현·검증하고 새 프로젝트의 서비스 설정과 비밀값은 독립적으로 구성한다.
+다음 작업은 [Template-02](tickets/template-02-implementation-base.md) T02-3(원칙·검색)이며, T02-2의 잔여 화면·MCP 동의 흐름 검증은 티켓의 완료 기록에서 추적한다. 할 일·기록·검색 등의 계약과 기술 선택은 [T02-1 기술 후보와 계약](tickets/template-02-t02-1-contracts.md)에 있다. 목표는 도메인 엔터티·화면·설정·제품 스킬을 조정해 새 앱을 시작할 수 있는 구현형 템플릿이다. 할 일·기록·사용자 원칙·RAG는 기본 기능이며, Template-01의 상세 계약과 검증을 이어서 6단계로 구현한다. 제품 스킬 초안은 [plugins/workspace/skills/workspace](../plugins/workspace/skills/workspace/SKILL.md)에 있다. 실제 명령·CI·알림·복원 경로는 해당 단계에서 구현·검증하고 새 프로젝트의 서비스 설정과 비밀값은 독립적으로 구성한다.
