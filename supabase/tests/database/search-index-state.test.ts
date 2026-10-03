@@ -64,7 +64,10 @@ dbTest("색인 상태: 3종류 최신 작업 하나·중복/실패 복구·본�
     await enqueue();
     assertEquals((await messages()).length, 1);
     const query = searchInput.parse({ query: input.title, kinds: [kind], mode: "keyword", tag_id: tag });
-    await admin`update app.search_index_state set state='indexed',message_id=null where kind=${kind} and id=${item.id}`;
+    await admin`update app.search_index_state set state='indexed',message_id=null,
+      embedding=${
+      JSON.stringify(Array.from({ length: 1024 }, (_, i) => i === 0 ? 1 : 0))
+    }::extensions.vector where kind=${kind} and id=${item.id}`;
     assertEquals((await search(s, A, query)).items[0].index_state, "indexed");
     assertEquals((await search(s, A, query)).semantic_coverage, { pending: 0, excluded: 0 });
     await admin`update app.search_index_state set state='excluded',reason='input_limit' where kind=${kind} and id=${item.id}`;

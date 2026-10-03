@@ -91,7 +91,7 @@ DB 제약과 보안 정책, pgmq 같은 인프라 함수는 유지한다. SQL �
 | 역할 | 권한 | 사용 |
 | --- | --- | --- |
 | 접속 역할(예: `app_server`) | LOGIN. 업무 테이블 권한 없음, superuser·BYPASSRLS 아님. 사용자 역할로 전환과 큐 전송만 가능: pgmq 스키마 사용, `pgmq.send`·`pgmq.format_table_name` 실행, 전송할 큐 테이블의 INSERT와 `msg_id` 컬럼 SELECT. 메시지 내용 조회·소비·삭제 권한 없음 | 서버 어댑터의 연결 |
-| worker 역할 | 큐 메시지 읽기·삭제·보관과 색인 저장에 필요한 권한만. 첫 worker(T02-3)에서 정함 | 비동기 worker |
+| worker 역할(`app_worker`) | LOGIN·NOINHERIT·superuser/BYPASSRLS 아님. 업무/큐 테이블 직접 접근·사용자 역할 전환 없음. `claim_search_index`·`prepare_search_index`·`finish_search_index`만 실행 | 비동기 worker |
 | 사용자 역할(예: `app_user`) | NOLOGIN. 업무 테이블 권한과 RLS 정책의 대상. Supabase API에 노출하지 않음 | 트랜잭션 안에서만 전환 |
 | `authenticated`·`anon` | 업무 테이블·큐 권한 없음 | 일반 사용자의 직접 쓰기 차단 |
 
@@ -117,6 +117,8 @@ DB 제약과 보안 정책, pgmq 같은 인프라 함수는 유지한다. SQL �
 6. 중간 종료나 일시 실패는 메시지가 다시 보이게 해 재시도한다. 재전달을 전제로 벡터 쓰기를 멱등적으로 처리한다. 영구 실패·입력 오류·할당량 소진은 제한 재시도 후 확인/재처리 경로를 둔다. 큐가 있다는 이유로 무한 재시도하지 않는다.
 
 큐의 visibility 보장은 전체 임베딩 API 호출의 exactly-once 실행이나 과금 중복 방지를 의미하지 않는다. 목표는 원본에 맞는 현재 벡터를 중복 효과 없이 유지하는 것이다. 원본 저장은 즉시, 의미 검색 반영은 지연될 수 있다. 검색 불가/색인 중 상태와 키워드 fallback은 공통 search 유스케이스가 처리한다.
+
+색인 worker의 제한된 DB 함수는 SECURITY DEFINER·빈 search_path·PUBLIC 실행 금지를 적용한다. claim은 `search_index` 큐만 90초 visibility로 최대 5개 읽고, prepare/finish는 실제 큐의 소유자·종류·ID·해시와 현재 원본을 확인한다. 원본 → 상태 순서의 잠금 아래에서 현재 벡터 저장과 메시지 완료를 함께 확정한다. 외부 호출은 이 트랜잭션 밖에서 실행한다. 구 서버의 pipeline 없는 메시지는 현재 해시가 맞고 새 상태와 충돌하지 않을 때만 받는다. worker의 HTTP 인증·재시도·재처리 계약은 [운영 방법](../operations/runbook.md#검색-worker-호출과-복구)을 따른다.
 
 ## RAG
 

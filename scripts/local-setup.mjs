@@ -63,6 +63,8 @@ const local = {
   LOCAL_SUPABASE_SECRET_KEY: secretKey,
   LOCAL_DB_URL: status.DB_URL,
   APP_SERVER_PASSWORD: prev.APP_SERVER_PASSWORD ?? secret(),
+  APP_WORKER_PASSWORD: prev.APP_WORKER_PASSWORD ?? secret(),
+  INDEX_WORKER_TOKEN: prev.INDEX_WORKER_TOKEN ?? randomBytes(32).toString("base64url"),
   DEV_USER_A_EMAIL: "dev-a@example.test",
   DEV_USER_A_PASSWORD: prev.DEV_USER_A_PASSWORD ?? secret(),
   DEV_USER_B_EMAIL: "dev-b@example.test",
@@ -74,25 +76,27 @@ writeEnv(path(".env.local"), "로컬 전용. scripts/local-setup.mjs가 만든�
 // 같은 값이어도 다시 설정하면 비밀번호 해시가 바뀌어 트랜잭션 풀러가 한동안 예전 값으로 인증을 거부한다(28P01).
 // 그래서 저장된 비밀번호로 접속이 안 될 때(처음·DB 초기화 뒤)만 설정한다.
 const db = postgres(status.DB_URL, { max: 1, onnotice: () => {} });
-const direct = new URL(status.DB_URL);
-direct.username = "app_server";
-direct.password = encodeURIComponent(local.APP_SERVER_PASSWORD);
-const probe = postgres(direct.href, { max: 1, connect_timeout: 5, onnotice: () => {} });
-const loginOk = await probe`select 1`.then(() => true, () => false);
-await probe.end();
-if (!loginOk) {
-  await db.unsafe(`alter role app_server password '${local.APP_SERVER_PASSWORD.replace(/'/g, "''")}'`);
-  // 풀러가 새 비밀번호로 인증할 때까지 기다린다(설정 직후 테스트가 28P01로 실패하지 않게).
+for (const [role, password] of [["app_server", local.APP_SERVER_PASSWORD], ["app_worker", local.APP_WORKER_PASSWORD]]) {
+  const direct = new URL(status.DB_URL);
+  direct.username = role;
+  direct.password = encodeURIComponent(password);
+  const probe = postgres(direct.href, { max: 1, connect_timeout: 5, onnotice: () => {} });
+  const loginOk = await probe`select 1`.then(() => true, () => false);
+  await probe.end();
+  if (!loginOk) await db.unsafe(`alter role ${role} password '${password.replace(/'/g, "''")}'`);
+  // 직접 접속이 되더라도 풀러의 준비 상태를 확인하고 대기 한도 초과는 실패로 알린다.
   const pooler = new URL(direct.href);
-  pooler.username = "app_server.pooler-dev";
+  pooler.username = `${role}.pooler-dev`;
   pooler.port = "55429";
+  let ready = false;
   for (let i = 0; i < 30; i++) {
     const p = postgres(pooler.href, { max: 1, prepare: false, connect_timeout: 5, onnotice: () => {} });
     const ok = await p`select 1`.then(() => true, () => false);
     await p.end();
-    if (ok) break;
+    if (ok) { ready = true; break; }
     await new Promise((r) => setTimeout(r, 1000));
   }
+  if (!ready) throw new Error(`${role} 로컬 풀러가 제한 시간 안에 준비되지 않았습니다`);
 }
 const mcpUrl = `${apiUrl}/functions/v1/mcp`;
 await db`
@@ -101,9 +105,14 @@ await db`
 await db.end();
 // SUPABASE_로 시작하는 이름은 CLI가 함수에 넘기지 않는다. SUPABASE_URL 등은 CLI가 직접 넣고,
 // 토큰 검증 키(JWKS)는 @supabase/server가 그 주소에서 가져온다.
+const functionEnv = readEnv(path("supabase/functions/.env"));
 writeEnv(path("supabase/functions/.env"), "로컬 전용. scripts/local-setup.mjs가 만든다. 커밋하지 않는다.", {
   // Edge Runtime 컨테이너에서 본 트랜잭션 풀러 주소(prepare: false로 연결).
   APP_DB_URL: `postgresql://app_server.pooler-dev:${local.APP_SERVER_PASSWORD}@pooler:6543/postgres`,
+  WORKER_DB_URL: `postgresql://app_worker.pooler-dev:${local.APP_WORKER_PASSWORD}@pooler:6543/postgres`,
+  INDEX_WORKER_TOKEN: local.INDEX_WORKER_TOKEN,
+  ...(functionEnv.PINECONE_API_KEY || prev.PINECONE_API_KEY
+    ? { PINECONE_API_KEY: functionEnv.PINECONE_API_KEY ?? prev.PINECONE_API_KEY } : {}),
   AUTH_ISSUER: `${apiUrl}/auth/v1`,
   MCP_URL: mcpUrl,
   WEB_ORIGINS: "http://127.0.0.1:55480,http://localhost:55480",

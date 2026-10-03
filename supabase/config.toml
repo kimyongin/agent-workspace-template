@@ -433,6 +433,11 @@ verify_jwt = false
 enabled = true
 verify_jwt = false
 
+# 사용자 토큰 대신 별도 내부 worker 토큰으로 인증한다. 자동 호출 일정은 기본으로 꺼져 있다.
+[functions.index-worker]
+enabled = true
+verify_jwt = false
+
 # 운영 프로젝트 workspace-template(서울). `supabase config push --project-ref <ref>`가 위 기본 설정에 이 값을 덮어 올린다.
 # 로컬 개발용 값(이메일 확인 끔, 짧은 발송 간격, MFA 끔 등)이 운영에 올라가지 않도록 운영값을 여기서 다시 정한다.
 # 운영 웹은 GitHub Pages(.github/workflows/pages.yml)에 있다. 로그인 복귀와 MCP 동의 화면(/oauth/consent)이 이 주소 아래에 있다.
