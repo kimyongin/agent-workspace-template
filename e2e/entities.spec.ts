@@ -1,30 +1,118 @@
-import { expect,test } from "@playwright/test";
-import { devLogin,mcpClient,mcpTokenViaConsent,unique } from "./support.ts";
+import { expect, test } from "@playwright/test";
+import { devLogin, mcpClient, mcpTokenViaConsent, unique } from "./support.ts";
 
-test("Entity 웹 CRUD·초안 보호→MCP parity·활동 연결→삭제 원문 보존",async({page})=>{
-  await devLogin(page);await page.getByRole("link",{name:"엔터티",exact:true}).click();
-  await page.getByRole("button",{name:"엔터티 추가"}).click();const form=page.getByRole("dialog",{name:"엔터티 추가"}),name=unique("예제 엔터티");
-  await form.getByLabel("속성 1").fill(name);await form.getByLabel("속성 2").fill("0");await form.getByLabel("속성 3").fill("2024-02-29");await form.getByLabel("속성 4").selectOption("b");
-  await form.getByRole("button",{name:"취소",exact:true}).click();await page.getByRole("dialog",{name:"변경을 버릴까요?"}).getByRole("button",{name:"취소",exact:true}).click();await expect(form.getByLabel("속성 1")).toHaveValue(name);
-  await form.getByRole("button",{name:"저장",exact:true}).click();await expect(page.getByRole("heading",{name,level:1})).toBeVisible();const id=new URL(page.url()).pathname.split("/").at(-1)!;
-  const mcp=await mcpClient(await mcpTokenViaConsent(page));
-  try{
-    const e=await mcp.call("get_entity",{id});expect(e.prop2).toBe(0);expect(e.prop3).toBe("2024-02-29");
-    const task=await mcp.call("create_task",{kind:"once",title:unique("연결 행동"),summary:"연결을 보존",entity_id:id});
-    await page.goto(`/entities/${id}`);await expect(page.getByRole("heading",{name:"연결된 할 일 (1개)"})).toBeVisible();await page.getByRole("link",{name:"전체 할 일 보기"}).click();await expect(page.getByRole("link",{name:task.title,exact:true})).toBeVisible();expect(new URL(page.url()).searchParams.get("entity_id")).toBe(id);
-    await page.goto(`/tasks/${task.id}`);await page.getByRole("button",{name:"편집",exact:true}).click();const editTask=page.getByRole("dialog",{name:"할 일 편집"});await expect(editTask.getByLabel("엔터티",{exact:true})).toHaveValue(id);await editTask.getByRole("button",{name:"취소",exact:true}).click();
-    await page.goto(`/entities/${id}`);await page.getByRole("button",{name:"편집",exact:true}).click();const edit=page.getByRole("dialog",{name:"엔터티 편집"});await edit.getByLabel("속성 2").fill("10");await edit.getByRole("button",{name:"저장",exact:true}).click();await expect(edit).not.toBeVisible();expect((await mcp.call("get_entity",{id})).prop2).toBe(10);
-    await page.getByRole("button",{name:"삭제",exact:true}).click();const remove=page.getByRole("dialog",{name:"엔터티를 삭제할까요?"});await remove.getByRole("button",{name:"취소",exact:true}).click();await expect(page.getByRole("heading",{name,level:1})).toBeVisible();await page.getByRole("button",{name:"삭제",exact:true}).click();await page.getByRole("dialog",{name:"엔터티를 삭제할까요?"}).getByRole("button",{name:"삭제",exact:true}).click();await expect(page.getByRole("heading",{name:"엔터티",level:1})).toBeVisible();
-    const current=await mcp.call("get_task",{id:task.id});expect(current.entity_id).toBeNull();expect(current.version).toBe(2);await mcp.call("delete_task",{id:task.id,expected_version:2});
-  }finally{await mcp.close();}
+test("Entity 웹 CRUD·초안 보호→MCP parity·활동 연결→삭제 원문 보존", async ({ page }) => {
+  await devLogin(page);
+  await page.getByRole("link", { name: "엔터티", exact: true }).click();
+  await page.getByRole("button", { name: "엔터티 추가" }).click();
+  const form = page.getByRole("dialog", { name: "엔터티 추가" }),
+    name = unique("예제 엔터티");
+  await form.getByLabel("속성 1").fill(name);
+  await form.getByLabel("속성 2").fill("0");
+  await form.getByLabel("속성 3").fill("2024-02-29");
+  await form.getByLabel("속성 4").selectOption("b");
+  await form.getByRole("button", { name: "취소", exact: true }).click();
+  await page.getByRole("dialog", { name: "변경을 버릴까요?" }).getByRole(
+    "button",
+    { name: "취소", exact: true },
+  ).click();
+  await expect(form.getByLabel("속성 1")).toHaveValue(name);
+  await form.getByRole("button", { name: "저장", exact: true }).click();
+  await expect(page.getByRole("heading", { name, level: 1 })).toBeVisible();
+  const id = new URL(page.url()).pathname.split("/").at(-1)!;
+  const mcp = await mcpClient(await mcpTokenViaConsent(page));
+  try {
+    const e = await mcp.call("get_entity", { id });
+    expect(e.prop2).toBe(0);
+    expect(e.prop3).toBe("2024-02-29");
+    const task = await mcp.call("create_task", {
+      kind: "once",
+      title: unique("연결 행동"),
+      summary: "연결을 보존",
+      entity_id: id,
+    });
+    await page.goto(`/entities/${id}`);
+    await expect(page.getByRole("heading", { name: "연결된 할 일 (1개)" }))
+      .toBeVisible();
+    await page.getByRole("link", { name: "전체 할 일 보기" }).click();
+    await expect(page.getByRole("link", { name: task.title, exact: true }))
+      .toBeVisible();
+    expect(new URL(page.url()).searchParams.get("entity_id")).toBe(id);
+    await page.goto(`/tasks/${task.id}`);
+    await page.getByRole("button", { name: "편집", exact: true }).click();
+    const editTask = page.getByRole("dialog", { name: "할 일 편집" });
+    await expect(editTask.getByLabel("엔터티", { exact: true })).toHaveValue(
+      id,
+    );
+    await editTask.getByRole("button", { name: "취소", exact: true }).click();
+    await page.goto(`/entities/${id}`);
+    await page.getByRole("button", { name: "편집", exact: true }).click();
+    const edit = page.getByRole("dialog", { name: "엔터티 편집" });
+    await edit.getByLabel("속성 2").fill("10");
+    await edit.getByRole("button", { name: "저장", exact: true }).click();
+    await expect(edit).not.toBeVisible();
+    expect((await mcp.call("get_entity", { id })).prop2).toBe(10);
+    await page.getByRole("button", { name: "삭제", exact: true }).click();
+    const remove = page.getByRole("dialog", { name: "엔터티를 삭제할까요?" });
+    await remove.getByRole("button", { name: "취소", exact: true }).click();
+    await expect(page.getByRole("heading", { name, level: 1 })).toBeVisible();
+    await page.getByRole("button", { name: "삭제", exact: true }).click();
+    await page.getByRole("dialog", { name: "엔터티를 삭제할까요?" }).getByRole(
+      "button",
+      { name: "삭제", exact: true },
+    ).click();
+    await expect(page.getByRole("heading", { name: "엔터티", level: 1 }))
+      .toBeVisible();
+    const current = await mcp.call("get_task", { id: task.id });
+    expect(current.entity_id).toBeNull();
+    expect(current.version).toBe(2);
+    await mcp.call("delete_task", { id: task.id, expected_version: 2 });
+  } finally {
+    await mcp.close();
+  }
 });
 
-test("Entity 목록: 키워드/선택/정렬·추가 페이지·상세 복귀/새로고침 초점·viewport",async({page})=>{
-  await devLogin(page);const mcp=await mcpClient(await mcpTokenViaConsent(page)),marker=unique("페이지 엔터티"),ids:string[]=[];
-  try{
-    for(let i=0;i<21;i++){const e=await mcp.call("create_entity",{prop1:`${marker} ${String(i).padStart(2,"0")}`,prop2:i,prop4:"c"});ids.push(e.id);}
-    await page.goto(`/entities?keyword=${encodeURIComponent(marker)}&prop4=c&sort=prop2`);await expect(page.getByRole("link",{name:`${marker} 00`,exact:true})).toBeVisible();
-    await page.getByRole("button",{name:"더 보기",exact:true}).click();const last=page.getByRole("link",{name:`${marker} 20`,exact:true});await expect(last).toBeVisible();const before=page.url();await last.click();await page.getByRole("link",{name:"← 엔터티 목록"}).click();expect(page.url().split("#")[0]).toBe(before);await expect(last).toBeFocused();await page.reload();await expect(last).toBeFocused();
-    for(const width of [360,390,768,1024,1440]){await page.setViewportSize({width,height:900});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);}
-  }finally{for(const id of ids)await mcp.call("delete_entity",{id,expected_version:1});await mcp.close();}
+test("Entity 목록: 키워드/선택/정렬·추가 페이지·상세 복귀/새로고침 초점·viewport", async ({ page }) => {
+  await devLogin(page);
+  const mcp = await mcpClient(await mcpTokenViaConsent(page)),
+    marker = unique("페이지 엔터티"),
+    ids: string[] = [];
+  try {
+    for (let i = 0; i < 21; i++) {
+      const e = await mcp.call("create_entity", {
+        prop1: `${marker} ${String(i).padStart(2, "0")}`,
+        prop2: i,
+        prop4: "c",
+      });
+      ids.push(e.id);
+    }
+    await page.goto(
+      `/entities?keyword=${encodeURIComponent(marker)}&prop4=c&sort=prop2`,
+    );
+    await expect(page.getByRole("link", { name: `${marker} 00`, exact: true }))
+      .toBeVisible();
+    await page.getByRole("button", { name: "더 보기", exact: true }).click();
+    const last = page.getByRole("link", { name: `${marker} 20`, exact: true });
+    await expect(last).toBeVisible();
+    const before = page.url();
+    await last.click();
+    await page.getByRole("link", { name: "← 엔터티 목록" }).click();
+    expect(page.url().split("#")[0]).toBe(before);
+    await expect(last).toBeFocused();
+    await page.reload();
+    await expect(last).toBeFocused();
+    for (const width of [360, 390, 768, 1024, 1440]) {
+      await page.setViewportSize({ width, height: 900 });
+      expect(
+        await page.evaluate(() =>
+          document.documentElement.scrollWidth <= window.innerWidth
+        ),
+      ).toBe(true);
+    }
+  } finally {
+    for (const id of ids) {
+      await mcp.call("delete_entity", { id, expected_version: 1 });
+    }
+    await mcp.close();
+  }
 });
