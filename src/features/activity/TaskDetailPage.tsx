@@ -3,17 +3,18 @@ import type { RecordResult } from "@contracts/record.ts";
 import type { Occurrence, TaskDetail, TaskResult } from "@contracts/task.ts";
 import { taskLabels } from "@contracts/task.ts";
 import { useCallback, useEffect, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { Notice } from "../../components/Field.tsx";
 import { MarkdownContent } from "../../components/MarkdownContent.tsx";
 import { ConfirmDialog } from "../../components/Modal.tsx";
-import { api, ApiError } from "../../lib/api.ts";
+import { api, ApiError, query } from "../../lib/api.ts";
 import { addDays, formatDateTime, todayIn } from "../../lib/format.ts";
 import { emptyRecord, RecordFormModal, TaskFormModal, taskDraftFrom, taskInput } from "./forms.tsx";
 import { OccurrenceBadge, StatusBadge, useRequestId } from "./shared.tsx";
 import {TagNames} from "../tags/TagPicker.tsx";
 import {EntityLink} from "../entity/EntityPicker.tsx";
 import {useSearchReturn} from "../search/return.ts";
+import { safeListReturn } from "./list-state.ts";
 
 const WEEKDAY_NAMES = ["", "월", "화", "수", "목", "금", "토", "일"];
 
@@ -32,7 +33,8 @@ type Dialog = null | "edit" | "complete" | "delete" | { occurrence: string };
 
 export function TaskDetailPage() {
   const { id = "" } = useParams();
-  const back=useSearchReturn(`/tasks${window.location.search}`,"← 할 일 목록");
+  const [params] = useSearchParams();
+  const back=useSearchReturn(safeListReturn(params.get("list"), "tasks", `/tasks${query({kind:params.get("kind"),status:params.get("status"),tag_id:params.get("tag_id"),entity_id:params.get("entity_id")})}`),"← 할 일 목록");
   const navigate = useNavigate();
   const [task, setTask] = useState<TaskDetail | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);

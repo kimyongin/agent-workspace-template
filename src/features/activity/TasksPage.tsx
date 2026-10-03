@@ -1,16 +1,15 @@
 // 할 일 목록: 종류·상태 필터(URL에 보관해 상세 왕복 뒤 유지), 커서 더 보기, 작성 모달.
 import type { TaskListItem, TaskResult } from "@contracts/task.ts";
 import { taskLabels } from "@contracts/task.ts";
-import { useCallback, useEffect, useRef,useState } from "react";
+import { useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import { Notice } from "../../components/Field.tsx";
 import { api, query } from "../../lib/api.ts";
 import { emptyTask, TaskFormModal, taskInput } from "./forms.tsx";
 import { StatusBadge, useRequestId } from "./shared.tsx";
 import { TagFilter } from "../tags/TagPicker.tsx";
+import { useActivityList } from "./useActivityList.ts";
 import { EntityPicker } from "../entity/EntityPicker.tsx";
-
-type Page = { items: TaskListItem[]; next_cursor: string | null };
 
 const KIND_FILTERS = [["", "전체"], ["once", taskLabels.once], ["recurring", taskLabels.recurring]] as const;
 const STATUS_BY_KIND: Record<string, readonly string[]> = {
@@ -25,55 +24,17 @@ export function TasksPage() {
   const status = params.get("status") ?? "";
   const tag_id=params.get("tag_id")??"";
   const entity_id=params.get("entity_id")??"";
-  const generation=useRef(0);
-  const [items, setItems] = useState<TaskListItem[] | null>(null);
-  const [cursor, setCursor] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [loadingMore, setLoadingMore] = useState(false);
+  const list = useActivityList<TaskListItem>("tasks", `/tasks${query({ kind, status, tag_id, entity_id, limit: 20 })}`,
+    "tasks-title", "할 일을 불러오지 못했습니다. 다시 시도하세요.");
+  const { items, cursor, error, busy: loadingMore, more } = list;
   const [creating, setCreating] = useState(false);
   const [formKey, setFormKey] = useState(0);
   const requestId = useRequestId();
   const navigate = useNavigate();
 
-  const load = useCallback(async (after?: string) => {
-    const page = await api<Page>("GET", `/tasks${query({ kind, status, tag_id, entity_id, limit: 20, cursor: after })}`);
-    return page;
-  }, [kind, status,tag_id,entity_id]);
-
-  useEffect(() => {
-    let alive = true;
-    generation.current++;setCursor(null);setLoadingMore(false);
-    setItems(null);
-    setError(null);
-    load().then((p) => {
-      if (!alive) return;
-      setItems(p.items);
-      setCursor(p.next_cursor);
-    }).catch(() => alive && setError("할 일을 불러오지 못했습니다."));
-    return () => {
-      alive = false;
-      generation.current++;
-    };
-  }, [load]);
-
-  const more = async () => {
-    if (!cursor) return;
-    const started=generation.current;
-    setLoadingMore(true);
-    try {
-      const p = await load(cursor);
-      if(started!==generation.current)return;
-      setItems((prev) => [...(prev ?? []), ...p.items]);
-      setCursor(p.next_cursor);
-    } catch {
-      if(started===generation.current)setError("다음 항목을 불러오지 못했습니다. 다시 시도하세요.");
-    } finally {
-      if(started===generation.current)setLoadingMore(false);
-    }
-  };
-
   const setFilter = (key: "kind" | "status" | "tag_id" | "entity_id", value: string) => {
     const next = new URLSearchParams(params);
+    next.delete("pages"); next.delete("scroll");
     if (value) next.set(key, value);
     else next.delete(key);
     if (key === "kind" && status && !STATUS_BY_KIND[value].includes(status)) next.delete("status");
@@ -85,7 +46,7 @@ export function TasksPage() {
   return (
     <section className="panel" aria-labelledby="tasks-title">
       <div className="panel-head">
-        <h1 id="tasks-title" className="page-title">할 일</h1>
+        <h1 id="tasks-title" className="page-title" tabIndex={-1}>할 일</h1>
         <button type="button" className="btn btn-primary" onClick={() => setCreating(true)}>할 일 추가</button>
       </div>
 
@@ -109,7 +70,7 @@ export function TasksPage() {
         </div>
       </div>
 
-      {error && <Notice kind="error">{error}</Notice>}
+      {error && <><Notice kind="error">{error}</Notice><button type="button" className="btn" onClick={list.retry}>다시 시도</button></>}
       {items === null && !error && <p className="secondary" role="status">불러오는 중…</p>}
       {items?.length === 0 && (
         <div className="empty">
@@ -130,7 +91,7 @@ export function TasksPage() {
           {items.map((t) => (
             <li key={t.id} className="list-item">
               <div className="list-item-main">
-                <Link className="item-title" to={`/tasks/${t.id}?${params}`}>{t.title}</Link>
+                <Link className="item-title" {...list.link(t.id)}>{t.title}</Link>
                 <span className="secondary">{t.summary}</span>
                 <span className="meta">
                   {taskLabels[t.kind]}
