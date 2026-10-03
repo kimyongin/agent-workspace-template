@@ -94,20 +94,20 @@ Claude의 대상 표면(2026-10-02 사용자 결정): 사용자 한 명이 개�
 | 항목 | 계약 |
 | --- | --- |
 | 소유 | 모든 항목은 소유자 한 명. 다른 사용자의 항목은 존재 여부를 드러내지 않고 `not_found` |
-| ID | 서버가 만드는 UUID. 참조 ID(태그·엔터티·할 일·원칙)는 같은 소유자의 항목이어야 하며 아니면 `invalid_reference` |
+| ID | 서버가 만드는 UUID. 참조 ID(태그·엔터티·할 일·원칙)는 같은 소유자의 항목이어야 하며 아니면 `invalid_reference`. 대상 ID(HTTP 경로, MCP의 `id`)가 UUID가 아니면 존재 여부를 드러내지 않고 `not_found` |
 | 시각 | ISO 8601 UTC(`created_at`·`updated_at`). 날짜만 쓰는 필드는 `YYYY-MM-DD` |
 | 텍스트 | 길이는 Unicode 코드 포인트. 앞뒤 공백 제거 후 검사. 제목 1~100, 요약 1~300(검색 입력, [검색 가이드](../architecture/search.md)), 본문 0~20,000 마크다운 |
 | 동시 수정 | 모든 항목에 `version`(정수). 수정·삭제·완료는 `expected_version`을 받고 다르면 `conflict` |
-| 중복 요청 | 생성과 완료는 선택 입력 `request_id`(클라이언트 UUID)를 받는다. 같은 소유자·같은 작업·같은 `request_id`면 첫 결과를 다시 돌려주고, 내용이 다르면 `conflict`. 보관 기간은 T02-2에서 정함 |
+| 중복 요청 | 생성·완료·회차 기록은 선택 입력 `request_id`(클라이언트 UUID)를 받는다. 같은 소유자·같은 작업(대상 ID·회차 날짜 포함)·같은 `request_id`면 첫 결과를 다시 돌려주고, 내용이 다르면 `conflict`. 같은 키의 동시 요청은 한 번만 실행한다. 실패한 요청의 결과는 저장하지 않으므로 다시 보내면 다시 실행된다. 보관 기간은 7일이며 지나면 새 요청으로 처리한다(만료 정리 작업은 T02-6) |
 | 목록 | 커서 기반. `limit` 기본 20·최대 100, 응답에 불투명한 `next_cursor`. 기본 정렬은 `updated_at` 내림차순(동점은 `id`). 커서는 소유자·필터에 묶이며 다른 조건에 쓰면 `invalid_input` |
 | 부분 수정 | 수정은 바꿀 필드만 보낸다. 서버 관리 필드(`id`·`owner`·`version`·`status`·시각·`task_id`)는 수정 입력에서 거부 |
-| 삭제 | 물리 삭제. 파생 데이터(벡터·대기 색인 작업)는 같은 트랜잭션에서 정리하고 실행 중인 늦은 색인 결과는 저장을 거부([검색 가이드](../architecture/search.md)) |
+| 삭제 | 물리 삭제. `expected_version`은 HTTP에서 쿼리 문자열(`DELETE /tasks/:id?expected_version=3`), MCP에서 인자로 받는다. 파생 데이터(벡터·대기 색인 작업)는 같은 트랜잭션에서 정리하고 실행 중인 늦은 색인 결과는 저장을 거부([검색 가이드](../architecture/search.md)) |
 
 오류는 HTTP 상태와 MCP 도구 오류(`isError: true`, 본문 `{code, message, retryable}`)가 같은 `code`를 쓴다.
 
 | code | HTTP | 의미 | 재시도 |
 | --- | --- | --- | --- |
-| `invalid_input` | 400 | 형식·길이·허용 필드 위반. 위반 필드 목록 포함 | 고쳐서 |
+| `invalid_input` | 400 | 형식·길이·허용 필드 위반. `fields`에 `{path, message}` 목록(허용하지 않은 필드는 필드 이름별로) | 고쳐서 |
 | `invalid_reference` | 400 | 참조한 항목이 없거나 다른 소유자 | 고쳐서 |
 | `unauthenticated` | 401 | 토큰 없음·만료·서명이나 발급자 검증 실패, 다른 진입점용 토큰(audience 불일치. 예: 웹 세션 토큰으로 MCP 호출). MCP 명세의 유효하지 않은 토큰 응답과 같음 | 재인증 후 |
 | `forbidden` | 403 | 유효한 토큰이지만 작업 권한(scope)이 부족함. 현재 업무 scope를 두지 않아 쓰지 않는 예약 코드 | 아니오 |
@@ -125,6 +125,8 @@ Claude의 대상 표면(2026-10-02 사용자 결정): 사용자 한 명이 개�
 | `kind` | `once`·`recurring` | 생성 시 필수, 이후 변경 불가 | 일회성·반복 할 일 |
 | `due_on` | 날짜 | 선택, `once`만 | 알림 없음 |
 | `recurrence` | 규칙 | `recurring`이면 필수 | 아래 반복 할 일 계약 |
+| `timezone` | IANA 시간대 | `recurring`이면 필수, `once`는 없음 | 규칙과 따로 수정할 수 있는 할 일 필드 |
+| `pauses` | `{stopped_on, resumed_on}` 목록 | 서버 관리 | 반복 할 일의 중단·재개 이력. 아직 중단 중이면 `resumed_on`이 null |
 | `status` | `once`: `open`·`done`, `recurring`: `active`·`stopped` | 서버 관리 | 생성 시 `open` 또는 `active` |
 | `completed_at`·`result_record_id` | 시각·ID | 서버 관리, `once`만 | 완료 시 설정 |
 | `entity_id` | ID | 선택(T02-4부터) | 엔터티 삭제 시 null |
@@ -133,13 +135,13 @@ Claude의 대상 표면(2026-10-02 사용자 결정): 사용자 한 명이 개�
 | 행위 | 웹 | HTTP | MCP | 의미 |
 | --- | --- | --- | --- | --- |
 | 생성 | 목록의 작성 폼 | `POST /tasks` | `create_task` | `open` 할 일 생성, 색인 작업 등록 |
-| 조회 | 상세 `/tasks/:id` | `GET /tasks/:id` | `get_task` | 결과 기록 요약과 링크 포함 |
-| 목록 | `/tasks` | `GET /tasks` | `list_tasks` | 필터: `kind`, `status`, `due_on` 범위, `tag_id`, `entity_id`, `occurrence_on`(그 날짜에 회차가 있는 반복 할 일과 회차 상태) |
+| 조회 | 상세 `/tasks/:id` | `GET /tasks/:id` | `get_task` | 응답에 `result_record`(`{id, title, summary}` 또는 null). 웹 링크는 `/records/:id` |
+| 목록 | `/tasks` | `GET /tasks` | `list_tasks` | 필터: `kind`, `status`, `due_from`·`due_to`, `tag_id`, `entity_id`, `occurrence_on`(그 날짜에 회차가 있거나 기록이 있는 반복 할 일. 항목마다 `occurrence`에 회차 상태) |
 | 수정 | 상세의 편집 | `PATCH /tasks/:id` | `update_task` | 내용 필드만. 완료된 할 일도 수정 가능 |
 | 완료 | 상세의 완료 폼 | `POST /tasks/:id/complete` | `complete_task` | `once`만. 아래 완료 계약. `recurring`에 요청하면 `conflict` |
 | 삭제 | 상세의 삭제 확인 | `DELETE /tasks/:id` | `delete_task` | 할 일만 삭제. 결과·회차 기록은 보존하고 `task_id`·`occurrence_on`을 null로 |
 
-완료 계약: 입력은 `expected_version`, 결과 기록의 `title`·`summary`·`body`(제목·요약 필수), 선택 `occurred_at`·`request_id`다. `open`인 할 일만 완료할 수 있고(`done`이면 `conflict`), 한 트랜잭션에서 할 일을 `done`으로 바꾸고 `task_id`가 연결된 결과 기록을 만들고 그 기록의 색인 작업을 등록한다. 하나라도 실패하면 모두 롤백한다. 응답은 할 일과 결과 기록이다.
+완료 계약: 입력은 `expected_version`, 결과 기록의 `title`·`summary`·`body`(제목·요약 필수), 선택 `occurred_at`·`request_id`이며 한 단계의 평평한 객체다. `open`인 할 일만 완료할 수 있고(`done`이면 `conflict`), 한 트랜잭션에서 할 일을 `done`으로 바꾸고 `task_id`가 연결된 결과 기록을 만들고 그 기록의 색인 작업을 등록한다. 하나라도 실패하면 모두 롤백한다. 응답은 할 일과 결과 기록이다.
 
 ### 반복 할 일 — T02-2
 
@@ -148,14 +150,14 @@ Claude의 대상 표면(2026-10-02 사용자 결정): 사용자 한 명이 개�
 | 항목 | 계약 |
 | --- | --- |
 | 규칙 `recurrence` | `freq`: `daily`·`weekly`·`monthly`. `weekly`는 `weekdays`(ISO 1=월~7=일, 1개 이상), `monthly`는 `month_days`(1~31, 1개 이상). 그 달에 없는 날짜(예: 2월 30일)는 그 달의 마지막 날 회차로 계산한다. `starts_on`(날짜) 필수 |
-| 시간대 | `timezone`(IANA, 예: `Asia/Seoul`) 필수. 웹은 브라우저 시간대, MCP는 입력값을 쓴다. "오늘"과 회차 날짜는 이 시간대로 판단 |
+| 시간대 | `timezone`(IANA, 예: `Asia/Seoul`) 필수. `recurrence` 밖의 할 일 필드다. 웹은 브라우저 시간대를 기본값으로, MCP는 입력값을 쓴다. "오늘"과 회차 날짜는 이 시간대로 판단 |
 | 회차 상태 | 기록 1개 이상이면 `done`. 기록이 없을 때 오늘이면 `due`, 지난 날짜면 `missed`(하지 않음), 미래면 `upcoming` |
-| 중단·재개 | `active`에서만 중단, `stopped`에서만 재개(아니면 `conflict`). 중단일부터 재개일 전날까지는 회차가 없다. 중단·재개 이력은 서버가 보관 |
+| 중단·재개 | `active`에서만 중단, `stopped`에서만 재개(아니면 `conflict`). 중단일부터 재개일 전날까지는 회차가 없다. 중단·재개 이력(`pauses`)은 서버가 보관한다. 같은 날 중단 후 재개하면 빈 중단을 남기지 않고, 재개한 날 다시 중단하면 직전 중단을 이어 간다 |
 | 규칙 수정 | `recurrence`·`timezone` 수정 가능. 회차는 새 규칙으로 다시 계산하고, 새 규칙에 맞지 않게 된 기존 기록은 보존하며 회차 목록에 "규칙 밖 기록"으로 표시 |
 
 | 행위 | 웹 | HTTP | MCP | 의미 |
 | --- | --- | --- | --- | --- |
-| 회차 목록 | 상세의 회차 달력·목록 | `GET /tasks/:id/occurrences?from&to` | `list_occurrences` | 기간 최대 366일. 회차별 날짜·상태·기록 ID |
+| 회차 목록 | 상세의 회차 목록 | `GET /tasks/:id/occurrences?from&to` | `list_occurrences` | 기간은 양 끝 포함 최대 366일. 응답 `{task_id, from, to, today, items}`, 항목 `{date, status, record_ids, in_rule}`. `in_rule=false`는 규칙 밖 기록 |
 | 회차 기록 | 회차의 기록 작성 폼 | `POST /tasks/:id/occurrences/:date/records` | `record_occurrence` | 기록 생성 입력과 같은 필드에 선택 `request_id`. `:date`는 규칙상 회차이고 `starts_on` 이후, 중단 기간 밖, 오늘(할 일의 시간대 기준) 또는 그 이전이어야 하며 아니면 `invalid_input`. 한 회차에 여러 번 가능. 기록 생성과 색인 등록은 한 트랜잭션 |
 | 중단 | 상세의 중단 | `POST /tasks/:id/stop` | `stop_task` | `expected_version` 필요. 기존 기록 유지 |
 | 재개 | 상세의 재개 | `POST /tasks/:id/resume` | `resume_task` | `expected_version` 필요. 재개일부터 회차 생성 |
@@ -251,7 +253,7 @@ PRD의 단일 예제다. 여러 속성 타입의 교체를 시험할 수 있게 
 
 | 결정 | 내용 |
 | --- | --- |
-| 정본 | 기능별 `supabase/functions/_shared/contracts/<기능>.ts`. Zod schema(필드·생성·수정 입력·응답)와 표시 이름(`labels`)을 둔다 |
+| 정본 | 기능별 `supabase/functions/_shared/contracts/<기능>.ts`(현재 `common.ts`·`task.ts`·`record.ts`). Zod schema(필드·생성·수정 입력·응답)와 표시 이름(`labels`)을 둔다 |
 | 의존 규칙 | contracts는 `zod`만 가져온다. Deno API·환경변수·SDK·어댑터·core를 가져오지 않는다 |
 | 웹 사용 | 웹은 contracts만 가져올 수 있다(Vite 별칭). 서버의 core·adapters·bootstrap·DB 타입은 가져오지 않는다 |
 | core 사용 | core 도메인은 필드 타입을 contracts에서 추론해 쓰고, 필드를 넘는 업무 규칙(예: Book의 완료 날짜 규칙)은 core에 둔다. Zod는 순수 검증 라이브러리라 [ADR-0001](../adr/0001-hexagonal-shared-usecases.md)의 core 금지 의존성(SDK·SQL·HTTP·환경변수)에 해당하지 않는다 |
@@ -260,12 +262,12 @@ PRD의 단일 예제다. 여러 속성 타입의 교체를 시험할 수 있게 
 | 대상 | 정본과의 관계 | 불일치를 잡는 검사(T02-2부터) |
 | --- | --- | --- |
 | HTTP 입력 검증 | 파생: 어댑터가 contracts schema로 `parse` | HTTP 계약 테스트의 경계값 |
-| MCP 입력 schema | 파생: `registerTool`의 `inputSchema`에 같은 schema 사용 | `tools/list`의 schema를 `z.toJSONSchema(contract)`와 비교 |
+| MCP 입력 schema | 파생: `tools/list`에는 contracts의 JSON Schema를 그대로 알리고, 검증은 핸들러가 contracts로 해서 오류 본문을 HTTP와 같게 한다. 최상위가 object여야 하므로 할 일 생성은 종류별 입력을 펼친 모양으로 알리고 `taskCreate`로 검증한다 | `supabase/tests/mcp/`에서 `tools/list`의 schema를 `z.toJSONSchema(contract)`와 비교 |
 | 웹 폼 검증·라벨 | 파생: 같은 schema와 `labels` | 폼 경계값 E2E |
 | DTO·도메인 필드 타입 | 파생: `z.infer` | 타입 검사 |
-| DB migration(타입·NOT NULL·길이/범위 CHECK·선택지) | 수동 | 격리 DB의 parity 테스트: 필드별 경계값(한도·한도+1·빈 값·선택지 밖)을 contracts와 DB에 모두 넣어 판정이 같은지, DB 컬럼 집합과 contracts 필드 집합이 같은지 |
+| DB migration(타입·NOT NULL·길이/범위 CHECK·선택지) | 수동 | 격리 DB의 parity 테스트(`supabase/tests/database/parity.test.ts`): 필드별 경계값(한도·한도+1·빈 값·선택지 밖)을 contracts와 DB에 모두 넣어 판정이 같은지, DB 컬럼 집합과 contracts 필드 집합이 같은지 |
 | 웹 목록·상세 배치 | 수동 | 영향 화면 E2E |
-| 제품 스킬 `references/` | 수동 | 참고 문서의 도구 이름이 `tools/list`에 있는지 검사 |
+| 제품 스킬(SKILL.md·`references/`) | 수동 | 스킬이 안내하는 도구 이름과 `tools/list`가 서로 빠짐없이 일치하는지 검사(`supabase/tests/mcp/`) |
 
 DB CHECK는 contracts와 같은 한도를 두어 직접 쓰기 우회에도 형식을 지킨다. 업무 규칙은 DB에 두지 않는다([ADR-0003](../adr/0003-core-rules-and-local-transactions.md)).
 
