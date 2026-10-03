@@ -45,7 +45,11 @@ export function setPrincipleStatus(deps: PrincipleDeps, actor: Actor, id: string
   return deps.uow.run(actor, async (store) => {
     const old = await requirePrinciple(store, id);
     version(old, input.expected_version);
-    const replacement = input.status === "active" ? null : input.replaced_by_id ?? old.replaced_by_id;
+    const replacement = input.status === "active"
+      ? null
+      : input.replaced_by_id === undefined
+      ? old.replaced_by_id
+      : input.replaced_by_id;
     if (replacement) {
       if (replacement === id || !await store.get(replacement)) {
         throw new AppError("invalid_reference", "대체 원칙이 없거나 접근할 수 없습니다");

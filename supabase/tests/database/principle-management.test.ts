@@ -54,21 +54,28 @@ dbTest("원칙 관리: 대체 참조 격리·상태 전환·삭제 연결 해제
   );
   assertEquals(inactive.replaced_by_id, replacement.id);
   await assertRejects(() => deletePrinciple(deps, A, old.id, 1), AppError);
+  const cleared = await setPrincipleStatus(
+    deps,
+    A,
+    old.id,
+    principleStatus.parse({ expected_version: 2, status: "inactive", replaced_by_id: null }),
+  );
+  assertEquals(cleared.replaced_by_id, null);
   const active = await setPrincipleStatus(
     deps,
     A,
     old.id,
-    principleStatus.parse({ expected_version: 2, status: "active" }),
+    principleStatus.parse({ expected_version: 3, status: "active" }),
   );
   assertEquals(active.replaced_by_id, null);
   await setPrincipleStatus(
     deps,
     A,
     old.id,
-    principleStatus.parse({ expected_version: 3, status: "inactive", replaced_by_id: replacement.id }),
+    principleStatus.parse({ expected_version: 4, status: "inactive", replaced_by_id: replacement.id }),
   );
   await deletePrinciple(deps, A, replacement.id, 1);
   assertEquals((await getPrinciple(deps, A, old.id)).replaced_by_id, null);
-  await deletePrinciple(deps, A, old.id, 5);
+  await deletePrinciple(deps, A, old.id, 6);
   await assertRejects(() => getPrinciple(deps, A, old.id), AppError);
 });
