@@ -20,7 +20,7 @@ export function PrincipleDetailPage() {
     return () => { alive = false; };
   }, [id, retry]);
   return <section className="panel" aria-labelledby={item ? "principle-title" : undefined}>
-    <Link className="secondary back-link" to={`/principles?${params}`}>← 원칙 목록</Link>
+    <Link className="secondary back-link" to={`/principles?${params}#principle-${id}`}>← 원칙 목록</Link>
     {error && <><Notice kind="error">{error}</Notice><button type="button" className="btn" onClick={() => setRetry((n) => n + 1)}>다시 시도</button></>}
     {!item && !error && <p role="status" className="secondary">불러오는 중…</p>}
     {item && <>

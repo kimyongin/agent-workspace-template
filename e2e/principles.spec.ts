@@ -46,3 +46,35 @@ test("모든 내용 폼의 취소는 초안을 보호하고 닫은 뒤 초점이
     await expect(trigger).toBeFocused();
   }
 });
+
+test("원칙 상세 왕복과 새로고침은 추가 페이지와 상태 필터를 유지한다", async ({ page }) => {
+  await devLogin(page);
+  const mcp = await mcpClient(await mcpTokenViaConsent(page));
+  const titles: string[] = [];
+  try {
+    for (let i = 0; i < 21; i++) {
+      const title = unique(`페이지 원칙 ${i}`);
+      titles.push(title);
+      await mcp.call("create_principle", { title, summary: "페이지 복원 검증" });
+    }
+  } finally { await mcp.close(); }
+  await page.goto("/principles?status=active");
+  const oldest = page.getByRole("link", { name: titles[0], exact: true });
+  await expect(oldest).toHaveCount(0);
+  // 다른 병렬 사용자 흐름이 같은 개발 계정에 추가한 항목도 포함하므로 실제 위치까지 탐색한다.
+  for (let i = 0; await oldest.count() === 0 && i < 20; i++) {
+    await page.getByRole("button", { name: "더 보기", exact: true }).click();
+    await expect(page.getByRole("button", { name: "불러오는 중…" })).toHaveCount(0);
+  }
+  await expect(oldest).toBeVisible();
+  const listUrl = page.url();
+  expect(new URL(listUrl).searchParams.get("pages")).not.toBeNull();
+  await oldest.click();
+  await page.getByRole("link", { name: "← 원칙 목록" }).click();
+  expect(page.url().split("#")[0]).toBe(listUrl);
+  await expect(oldest).toBeVisible();
+  await expect(oldest).toBeFocused();
+  await page.reload();
+  await expect(oldest).toBeVisible();
+  await expect(oldest).toBeFocused();
+});
