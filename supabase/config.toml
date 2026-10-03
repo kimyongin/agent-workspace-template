@@ -444,7 +444,10 @@ project_id = "ayzcluvdppsppwszzaqx"
 site_url = "http://127.0.0.1:55480"
 additional_redirect_urls = ["http://127.0.0.1:55480/**"]
 
+# 운영 로그인은 Google만 쓴다(ADR-0002). 이메일·비밀번호 가입은 로컬 개발·E2E용이므로 운영에서는 끈다.
+# auth.enable_signup은 Google 첫 로그인 때 계정을 만들기 위해 켠 채로 둔다.
 [remotes.production.auth.email]
+enable_signup = false
 enable_confirmations = true
 max_frequency = "1m0s"
 otp_length = 8
@@ -453,9 +456,12 @@ otp_length = 8
 enroll_enabled = true
 verify_enabled = true
 
+# 로컬과 같은 Google OAuth 클라이언트(workspace-template)를 쓴다. 운영 콜백 주소도 그 클라이언트에 등록한다.
+# client_id·secret은 기본 설정의 env() 참조라 config push를 실행하는 PC의 supabase/.env 값이 올라간다.
 [remotes.production.auth.external.google]
 enabled = true
 
+# 아래 pooler·storage 값은 앱이 쓰지 않지만, 운영 프로젝트의 현재 값을 그대로 적어 로컬 값이 덮어쓰지 않게 한다.
 [remotes.production.db.pooler]
 default_pool_size = 15
 max_client_conn = 200
