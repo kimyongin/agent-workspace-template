@@ -19,9 +19,9 @@ export function TagsPage() {
     }if(alive)setPage(loaded);};
     load().catch(()=>{if(alive)setError("태그를 불러오지 못했습니다.");});
     return()=>{alive=false;};},[retry]);
-  useEffect(()=>{if(page&&restoreFocus.current){document.getElementById(`tag-${restoreFocus.current}`)?.focus();restoreFocus.current=null;}},[page]);
+  useEffect(()=>{if(page&&restoreFocus.current){(document.getElementById(`tag-${restoreFocus.current}`)??document.getElementById("tags-title"))?.focus();restoreFocus.current=null;}},[page]);
   return <section className="panel" aria-labelledby="tags-title">
-    <div className="panel-head"><h1 id="tags-title" className="page-title">태그</h1><button className="btn btn-primary" onClick={()=>setForm("create")}>태그 추가</button></div>
+    <div className="panel-head"><h1 id="tags-title" tabIndex={-1} className="page-title">태그</h1><button className="btn btn-primary" onClick={()=>setForm("create")}>태그 추가</button></div>
     {error&&<><Notice kind="error">{error}</Notice><button className="btn" onClick={()=>setRetry(n=>n+1)}>다시 시도</button></>}
     {actionError&&<Notice kind="error">{actionError}</Notice>}
     {!page&&!error&&<p role="status" className="secondary">불러오는 중…</p>}
@@ -36,8 +36,11 @@ export function TagsPage() {
     }catch{setError("다음 태그를 불러오지 못했습니다.");}finally{setBusy(false);}}}>{busy?"불러오는 중…":"더 보기"}</button>}
     {form&&<TagForm initial={form==="create"?null:form} onClose={refresh=>{if(refresh){restoreFocus.current=form==="create"?null:form.id;setRetry(n=>n+1);}setForm(null);}} onSaved={()=>{restoreFocus.current=form==="create"?null:form.id;setForm(null);setRetry(n=>n+1);}}/>}
     {deleting&&<ConfirmDialog title="태그를 삭제할까요?" open busy={busy} danger message={`${deleting.name} 태그와 연결을 제거합니다. 항목의 원문은 보존합니다.`} confirmLabel="삭제" onCancel={()=>setDeleting(null)} onConfirm={async()=>{
-      setBusy(true);setActionError(null);try{await api("DELETE",`/tags/${deleting.id}?expected_version=${deleting.version}`);setDeleting(null);setRetry(n=>n+1);}
-      catch(e){setActionError(e instanceof ApiError?e.message:"태그를 삭제하지 못했습니다.");setDeleting(null);setRetry(n=>n+1);}finally{setBusy(false);}
+      setBusy(true);setActionError(null);try{await api("DELETE",`/tags/${deleting.id}?expected_version=${deleting.version}`);
+        const at=page?.items.findIndex(t=>t.id===deleting.id)??-1;
+        restoreFocus.current=page?.items[at+1]?.id??page?.items[at-1]?.id??"heading";
+        setDeleting(null);setRetry(n=>n+1);}
+      catch(e){restoreFocus.current=deleting.id;setActionError(e instanceof ApiError?e.message:"태그를 삭제하지 못했습니다.");setDeleting(null);setRetry(n=>n+1);}finally{setBusy(false);}
     }}/>}
   </section>;
 }

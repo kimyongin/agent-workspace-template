@@ -12,6 +12,7 @@ test("웹 태그 생성→MCP 중복·이름 변경→웹 삭제",async({page})=
     await page.reload();await page.getByRole("button",{name:`${renamed} 삭제`,exact:true}).click();
     await page.getByRole("dialog",{name:"태그를 삭제할까요?"}).getByRole("button",{name:"삭제",exact:true}).click();
     await expect(page.getByRole("button",{name:`${renamed} 삭제`,exact:true})).toHaveCount(0);
+    await expect.poll(()=>page.evaluate(()=>document.activeElement?.id)).toMatch(/^(tag-|tags-title)/);
   }finally{await mcp.close();}
 });
 
