@@ -35,7 +35,7 @@ PRD와 ADR은 사람이 소유하고 나머지 문서·티켓·구현은 에이�
 
 보안 가이드는 설계·구현·배포·운영을 가로지르는 보호 기준과 검증 항목을 소유한다. 인증·데이터 접근·외부 통신을 변경하기 전에 관련 항목을 읽고 해당 기능 티켓에 적용 범위를 기록한다.
 
-2026-10-02 기준 Template-02 T02-1(계약·문서 정리)을 마쳤고 일부 실험은 미완료로 후속 단계에 넘겼다. 2026-10-03 T02-2(실행 기반·할 일과 기록)를 구현해 로컬 Supabase와 CI 러너에서 검증했다. 웹(React)·HTTP API·MCP 서버·DB migration·최소 CI와 core·DB·HTTP·MCP·E2E 테스트가 있다. 검증은 로컬에서 하고, 2026-10-03 운영 Supabase 프로젝트 `workspace-template`과 웹(https://kimyongin.github.io/agent-workspace-template/)에 첫 배포를 해 실제 Google 로그인과 MCP 연결을 확인했다. 이 배포는 배포 문서의 준비 게이트(롤백·백업 복원·운영 점검) 이전에 한 것이라 그 항목은 T02-6에서 갖춘다(티켓의 이력). 검색·원칙(T02-3)은 아직 없다. 저장소의 구현 상태는 이 절과 각 티켓에만 기록한다.
+2026-10-02 기준 Template-02 T02-1(계약·문서 정리)을 마쳤고 일부 실험은 미완료로 후속 단계에 넘겼다. 2026-10-03 T02-2(실행 기반·할 일과 기록)를 구현해 로컬 Supabase와 CI 러너에서 검증했다. 웹(React)·HTTP API·MCP 서버·DB migration·최소 CI와 core·DB·HTTP·MCP·E2E 테스트가 있다. 검증은 로컬에서 하고, 2026-10-03 운영 Supabase 프로젝트 `workspace-template`과 웹(https://kimyongin.github.io/agent-workspace-template/)에 첫 배포를 해 실제 Google 로그인과 MCP 연결(소유자 PC의 웹 경유)을 확인했다. claude.ai·Codex 같은 외부 클라이언트 연결은 T02-4에서 확인한다. 이 배포는 배포 문서의 준비 게이트(롤백·백업 복원·운영 점검) 이전에 한 것이라 그 항목은 T02-6에서 갖춘다(티켓의 이력). 검색·원칙(T02-3)은 아직 없다. 저장소의 구현 상태는 이 절과 각 티켓에만 기록한다.
 
 2026-10-03 [Template-03](tickets/template-03-docs-for-people.md)(사람이 읽기 쉬운 문서와 규칙 정본 정리)을 마쳤다. 용어집·티켓 작성 규칙·ADR-0010·PRD의 대상 사용자와 문제가 추가됐다.
 
