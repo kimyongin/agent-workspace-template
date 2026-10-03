@@ -5,7 +5,7 @@
 검토 기준: `10140767a9e88021abba7b439427c3e643481ff2`
 선행: [Template-06 세션 운영 브리핑](template-06-agent-session-briefings.md), PR #66 머지
 
-현재 요약: PR 1은 PR #67로 완료했다. PR 2는 `codex/guidance-operating-rules`의 제출 시점 구현·로컬 검증 snapshot이며 PR 생성·독립 리뷰·필수 CI·머지는 대기 중이다. 본 세션이 PR 생성 후 실제 링크를 연결하고 제출 후 최종 증거를 그 PR 완료 코멘트·checks에 남긴다. PR 번호를 미리 추정하지 않는다.
+현재 요약(제출 시점): PR 1은 PR #67로 완료했다. PR 2는 [PR #68](https://github.com/kimyongin/agent-workspace-template/pull/68)의 구현·로컬 검증 snapshot이며 독립 리뷰·필수 CI·머지는 대기 중이다. 제출 후 실제 최종 상태는 그 PR 완료 코멘트와 [checks](https://github.com/kimyongin/agent-workspace-template/pull/68/checks)에서 확인한다. 다음 실제 작업에서 이 요약을 맞춘다.
 
 ## 목표와 기준 문서
 
@@ -50,7 +50,7 @@
 | 단계 | 상태 | revision / 변경 | 검증 명령·결과 | 남은 작업 |
 | --- | --- | --- | --- | --- |
 | 1 모델 배정·재개 | 완료 | [PR #67](https://github.com/kimyongin/agent-workspace-template/pull/67), head `20bc7a48e3eba490b83238391ea0cacb717d77e7`, merge `b9c02aeb504a9a5faee4337ecb9f5e7cafe668ed` | [최종 독립 리뷰](https://github.com/kimyongin/agent-workspace-template/pull/67#issuecomment-5970013229)·[필수 CI](https://github.com/kimyongin/agent-workspace-template/actions/runs/37128917674) 통과, 2026-10-03 23:22:01 KST 머지·[최종 완료 코멘트](https://github.com/kimyongin/agent-workspace-template/pull/67#issuecomment-5970048585) | — |
-| 2 지침·티켓 기록 | 구현(리뷰 대기) | PR 2 제출 시점 snapshot, 위 branch·base 위 변경 | 아래 PR 2 증거 | PR 생성·독립 리뷰·정확한 head CI·머지, 본 세션이 실제 PR 링크와 최종 완료 코멘트를 연결 |
+| 2 지침·티켓 기록 | 구현(리뷰 대기) | [PR #68](https://github.com/kimyongin/agent-workspace-template/pull/68)의 제출 시점 snapshot, 위 branch·base 위 변경 | 아래 PR 2 증거 | 독립 리뷰·정확한 head CI·머지, 본 세션이 PR 최종 완료 코멘트에 기록 |
 
 ### 세션 실행 기록
 
@@ -70,7 +70,7 @@
 
 배정은 명시 IANA timeZone에서 observedAt과 현재 시각의 달력 날짜가 같고 미래가 아닌지 검사한다. 기존 저장소 밖 snapshot이 개발일 조회 결과이며 새 cache 서비스·스케줄러는 없다. 날짜만 지난 선택표는 오늘 실제 모델·강도가 호환되면 유지한다. context/version·미지원/차단/actualModel·effort·pending·native drift 거부는 유지한다.
 
-현재 desktop followup_task schema는 target/message만 지원한다. 같은 결합 설정은 이어가고 모델·강도 변경은 명시 새 spawn과 좁은 티켓 인계를 쓴다. Claude 2.1.140 resume 유지/변경 적용 및 backend 강도는 여전히 미검증이다. 구현·리뷰 서브세션의 배정은 위 실행 기록에 남기며, 성능 평가를 위한 별도 공급자 모델 실호출과 앱/DB/운영 서비스 실행은 수행하지 않았다.
+현재 desktop followup_task schema는 target/message만 지원한다. 같은 결합 설정은 이어가고 모델·강도 변경은 명시 새 spawn과 좁은 티켓 인계를 쓴다. Claude 2.1.140 resume 유지/변경 적용 및 backend 강도는 여전히 미검증이다. 이번 변경은 유료 모델 실행이나 앱/DB/운영 서비스 실행을 포함하지 않는다.
 
 | 명령 | 결과·범위 |
 | --- | --- |
@@ -97,6 +97,11 @@
 | 링크·계약 수동 대조 | 이전 파일명은 식별자 이력에만 보존. 링크의 대상 제목과 T02-6·티켓 README·workflow 역할/기록 절, START-HERE 실제 평가 이력 위치를 대조 |
 
 제출 후 PR 2 독립 리뷰·필수 CI·머지는 미완료이며 본 세션에 인계한다. 로컬 검사로 외부 완료 또는 실제 환경 격리·모델 품질/비용을 증명하지 않는다.
+
+### 본 세션의 제출 연결과 기록 보충
+
+- 2026-10-03: 실제 생성된 PR #68을 위 현재 요약에 연결했다. 독립 리뷰·CI·머지 전 제출 단계이며 최종 사실은 해당 PR 완료 코멘트·checks가 소유한다.
+- PR 1 snapshot의 “유료 모델 실행” 문장은 성능 평가를 위한 별도 공급자 실호출을 수행하지 않았다는 범위다. 구현·리뷰 서브세션은 실제 배정했고 위 실행 기록에 남겼다. 세션별 토큰·비용은 미노출이며 비용이 없었다고 주장하지 않는다. 원래 제출 기록은 보존하고 이 보충으로 확인 범위를 명확히 한다.
 
 ### 이력
 
