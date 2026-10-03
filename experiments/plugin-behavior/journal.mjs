@@ -57,11 +57,11 @@ function ownedName(journal, kind, object) {
   return kind === 'tag' ? object.name === journal.marker : kind === 'entity' ? object.prop1 === journal.marker :
     object.title === `${journal.marker}-${kind === 'record' ? 'source' : 'principle'}`;
 }
-async function listAll(call, kind) {
+async function listPageSet(call, kind, status) {
   const all = [], seen = new Set();
   let cursor;
   do {
-    const page = await call(`list_${plurals[kind]}`, { ...(kind === 'principle' ? { status: 'all' } : {}), ...(cursor ? { cursor } : {}) });
+    const page = await call(`list_${plurals[kind]}`, { ...(status ? { status } : {}), ...(cursor ? { cursor } : {}) });
     if (!Array.isArray(page.items)) throw new Error('Unexpected fixture list response');
     all.push(...page.items);
     cursor = page.next_cursor;
@@ -69,6 +69,23 @@ async function listAll(call, kind) {
     seen.add(cursor);
   } while (cursor);
   return all;
+}
+async function listAll(call, kind) {
+  if (kind !== 'principle') return listPageSet(call, kind);
+  // Each supported status has its own cursor sequence; never mix cursors.
+  return [...await listPageSet(call, kind, 'active'), ...await listPageSet(call, kind, 'inactive')];
+}
+
+export async function setupOwned(journal, save, call, listTools) {
+  const { marker, originalDetail } = journal;
+  const tag = await createOwned(journal, save, call, 'tag', { name: marker });
+  const entity = await createOwned(journal, save, call, 'entity', { prop1: marker, prop2: 7, prop3: '2026-10-04', prop4: 'b' });
+  const principle = await createOwned(journal, save, call, 'principle', { title: `${marker}-principle`, summary: '검토에는 원문 검증 코드와 대상 속성을 함께 기록한다.', body: '결과 기록에는 원문에서 읽은 검증 코드를 정확히 남기고 대상 속성 2의 현재 값도 함께 적는다.', applies_when: `${marker} 관련 검토`, tag_ids: [tag.id], entity_id: entity.id });
+  await createOwned(journal, save, call, 'record', { title: `${marker}-source`, summary: '이 fixture의 이전 검토 기록. 본문에 검증 코드가 있다.', body: `당시 확인한 원문 검증 코드는 ${originalDetail}이다. 대상 속성 2는 7이며 현재 원문과 원칙을 다시 비교한다.`, tag_ids: [tag.id], entity_id: entity.id, applied_principle_ids: [principle.id] });
+  const tools = (await listTools()).tools.map(({ name }) => name).sort();
+  Object.assign(journal, { tools, state: 'ready' });
+  await save();
+  return tools;
 }
 
 export async function cleanupOwned(journal, save, call, deleteOAuth) {

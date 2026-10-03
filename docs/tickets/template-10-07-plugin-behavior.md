@@ -112,3 +112,13 @@ cleanup은 완성 여부와 관계없이 journal을 읽는다. 생성 응답을 
 업무 fixture 정리가 끝난 뒤 이번 token의 exact OAuth client_id만 정상 로컬 admin API로 삭제하며 404는 이미 정리된 등록으로 처리한다. 등록 정리 실패/응답 유실은 업무 삭제 진행을 유지한 채 재시도한다. 전체 정리 성공 후 journal의 token을 제거한다. OAuth 자체가 token을 반환하기 전 실패하거나 token 검증에 실패한 상태는 자동 정리하지 않고 own 인증 시도 확인 대상으로 남긴다. 만료된 token으로 업무 자료를 조회할 수 없으면 안전한 정리 재실행은 별도 정상 인증 인계가 필요하다.
 
 `node --test experiments/plugin-behavior/journal.test.mjs`의 실제 journal 파일+모의 transport fault injection 5개 PASS: tag 뒤 Entity 실행 전 실패/commit 뒤 응답 유실, 삭제 응답 유실·OAuth 정리 실패 재시도, journal 디스크 실패에서 무쓰기·기존 파일/owner/endpoint/object 변경 거부, 네 생성 뒤 목록 발견 실패의 ID 보존/정리. foreign 자료는 보존하고 같은 request_id의 생성은 중복되지 않음을 확인했다. 이 결과는 실제 DB/OAuth/클라이언트 재실행을 대신하지 않는다. 공유 환경 UI 독점 중 연결·서비스·fixture 실행은 없었으며 강화 runner의 실제 실행과 Claude native 인증은 재배정 후 진행한다.
+
+### 재리뷰 P2 — 원칙 목록의 실제 입력 계약
+
+exact `2e57a2e` 재리뷰에서 cleanup의 `list_principles(status=all)`은 실제 `principleListQuery`의 active/inactive enum에 없는 값으로 거부됨을 확인했다. 첫 journal 문제는 해결됐지만 이전 모의 transport가 입력 schema를 검사하지 않아 이 정리 실패를 놓쳤다. 또 listTools 실패 테스트의 독립 rejected Promise는 runner의 실제 setup 경계를 실행하지 않았다.
+
+원칙 목록 정리는 active/inactive를 별도로 마지막 페이지까지 조회하고 각 상태의 cursor를 새로 시작하도록 바꿨다. 생성 4단계와 listTools·ready 저장을 `setupOwned`로 옮겨 실제 fixture runner와 테스트가 같은 setup 경계를 호출한다. 목록 발견 실패는 그 listTools callback에서 발생시키고 callback 진입 시 디스크의 생성 ID 4개를 검사한다.
+
+모의 transport는 실제 앱의 activity/entity/principle/tag MCP ToolDef를 import하고 각 `input.parse`를 통과한 요청만 수행한다. UUID·필수 필드·기본값도 실제 입력 계약을 따른다. source ToolDef의 TypeScript parameter property 때문에 일반 Node strip-only import는 실패했으며 `node --experimental-transform-types --test experiments/plugin-behavior/journal.test.mjs`로 Node 24.15.0에서 실행했다(실험 경고 있음). 앱 코드·의존성·전역 설정은 바꾸지 않았다.
+
+실제 schema가 all/status를 invalid_value로 거부하고 그 시점 OAuth 삭제 0/token 잔존임을 재현했다. 그 뒤 수정된 cleanup은 active/inactive 각각의 여러 페이지에서 자기 원칙만 찾아 지웠다. 자기 원칙이 각 상태의 세 번째 페이지인 두 회귀에서 foreign 원칙 4개 보존·상태별 cursor 분리·own OAuth 삭제 1·journal token 제거를 확인했다. 기존 부분 생성/삭제/인증/디스크 failure와 실제 setup 목록 실패를 합쳐 7개 PASS. 이 검증은 실제 입력 계약+모의 저장/전송이며 실제 DB/OAuth/CLI 흐름 성공으로 표시하지 않는다. 공유 UI 독점 중 서비스·PTY·OAuth·MCP 호출은 없었다.

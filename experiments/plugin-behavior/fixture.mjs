@@ -5,7 +5,7 @@ import { randomUUID } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
 import { outsideDirectory } from './files.mjs';
-import { saveJournal, readJournal, assertJournal, createOwned, cleanupOwned } from './journal.mjs';
+import { saveJournal, readJournal, assertJournal, setupOwned, cleanupOwned } from './journal.mjs';
 import { createClient } from '@supabase/supabase-js';
 
 const [operation, source, clientName, outputDirectory] = process.argv.slice(2);
@@ -52,15 +52,8 @@ async function call(name, input) {
   return response.structuredContent;
 }
   if (operation === 'setup') {
-    const { marker, originalDetail } = fixture;
-    const tag = await createOwned(fixture, save, call, 'tag', { name: marker });
-    const entity = await createOwned(fixture, save, call, 'entity', { prop1: marker, prop2: 7, prop3: '2026-10-04', prop4: 'b' });
-    const principle = await createOwned(fixture, save, call, 'principle', { title: `${marker}-principle`, summary: '검토에는 원문 검증 코드와 대상 속성을 함께 기록한다.', body: '결과 기록에는 원문에서 읽은 검증 코드를 정확히 남기고 대상 속성 2의 현재 값도 함께 적는다.', applies_when: `${marker} 관련 검토`, tag_ids: [tag.id], entity_id: entity.id });
-    await createOwned(fixture, save, call, 'record', { title: `${marker}-source`, summary: '이 fixture의 이전 검토 기록. 본문에 검증 코드가 있다.', body: `당시 확인한 원문 검증 코드는 ${originalDetail}이다. 대상 속성 2는 7이며 현재 원문과 원칙을 다시 비교한다.`, tag_ids: [tag.id], entity_id: entity.id, applied_principle_ids: [principle.id] });
-    const tools = (await client.listTools()).tools.map(({ name }) => name).sort();
-    Object.assign(fixture, { tools, state: 'ready' });
-    await save();
-    console.log(JSON.stringify({ operation, clientName, marker, discoveredTools: tools.length, fixturePath, secretOrBodyLogged: false }));
+    const tools = await setupOwned(fixture, save, call, () => client.listTools());
+    console.log(JSON.stringify({ operation, clientName, marker: fixture.marker, discoveredTools: tools.length, fixturePath, secretOrBodyLogged: false }));
   } else if (operation === 'cleanup') {
     const admin = createClient(helpers.env.VITE_SUPABASE_URL, helpers.env.LOCAL_SUPABASE_SECRET_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
     await cleanupOwned(fixture, save, call, async (id) => {

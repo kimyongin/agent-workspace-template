@@ -3,22 +3,31 @@ import assert from 'node:assert/strict';
 import { mkdtemp, rm, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
-import { createOwned, cleanupOwned, saveJournal, readJournal, assertJournal } from './journal.mjs';
+import { createOwned, cleanupOwned, setupOwned, saveJournal, readJournal, assertJournal } from './journal.mjs';
+import { randomUUID } from 'node:crypto';
+import { activityTools } from '../../supabase/functions/_shared/adapters/mcp/activity-tools.ts';
+import { entityTools } from '../../supabase/functions/_shared/adapters/mcp/entity-tools.ts';
+import { principleTools } from '../../supabase/functions/_shared/adapters/mcp/principle-tools.ts';
+import { tagTools } from '../../supabase/functions/_shared/adapters/mcp/tag-tools.ts';
+
+const schemas = new Map([...activityTools({}), ...entityTools({}), ...principleTools({}), ...tagTools({})].map(({ name, input }) => [name, input]));
 
 const endpoint = 'http://127.0.0.1:55421/functions/v1/mcp';
 function journal() {
   const claims = Buffer.from(JSON.stringify({ sub: 'own-owner', client_id: 'own-client' })).toString('base64url');
-  return { journalVersion: 1, clientName: 'codex-cli', endpoint, marker: 'plugin-codex-cli-abcdef12', state: 'creating', ownerId: 'own-owner', oauthClientId: 'own-client', token: `mock.${claims}.mock` };
+  return { journalVersion: 1, clientName: 'codex-cli', endpoint, marker: 'plugin-codex-cli-abcdef12', originalDetail: 'SOURCE-test', state: 'creating', ownerId: 'own-owner', oauthClientId: 'own-client', token: `mock.${claims}.mock` };
 }
 function service() {
   const rows = { tag: new Map(), entity: new Map(), principle: new Map(), record: new Map() }, requests = new Map();
   let fault, oauthAttempts = 0;
-  const calls = [];
+  const calls = [], queries = [];
   return {
-    rows, calls, fail: (point) => { fault = point; },
+    rows, calls, queries, fail: (point) => { fault = point; },
     get oauthAttempts() { return oauthAttempts; },
     async oauth(id) { assert.equal(id, 'own-client'); oauthAttempts++; if (fault === 'oauth') { fault = undefined; throw new Error('lost auth response'); } },
     async call(name, input) {
+      assert(schemas.has(name), `Actual MCP ToolDef missing: ${name}`);
+      input = schemas.get(name).parse(input); // Real input contract before any mock effect.
       calls.push(name);
       const [verb, suffix] = name.split('_');
       const kind = suffix === 'entities' ? 'entity' : suffix.replace(/s$/, '');
@@ -26,13 +35,19 @@ function service() {
         if (fault === `before:${kind}`) { fault = undefined; throw new Error('transport before commit'); }
         let object = requests.get(input.request_id);
         if (!object) {
-          object = { ...input, id: `${kind}-${requests.size}`, version: 1 };
+          object = { ...input, id: randomUUID(), version: 1, ...(kind === 'principle' ? { status: 'active' } : {}) };
           rows[kind].set(object.id, object); requests.set(input.request_id, object);
         }
         if (fault === `after:${kind}`) { fault = undefined; throw new Error('lost create response'); }
         return object;
       }
-      if (verb === 'list') return { items: [...rows[kind].values()], next_cursor: null };
+      if (verb === 'list') {
+        queries.push({ kind, ...input });
+        const values = [...rows[kind].values()].filter((value) => kind !== 'principle' || value.status === input.status);
+        const offset = input.cursor ? Number(input.cursor.split(':').at(-1)) : 0;
+        if (input.cursor) assert(input.cursor.startsWith(`${kind}:${input.status ?? '-'}:`), 'Cursor must remain scoped to its status');
+        return { items: values.slice(offset, offset + 1), next_cursor: offset + 1 < values.length ? `${kind}:${input.status ?? '-'}:${offset + 1}` : null };
+      }
       if (verb === 'get') return rows[kind].get(input.id);
       if (verb === 'delete') {
         assert.equal(rows[kind].get(input.id)?.version, input.expected_version);
@@ -121,15 +136,48 @@ test('inventory failure after all four creates leaves every ID available for par
     let data = journal();
     const api = service(), save = () => saveJournal(path, data);
     await saveJournal(path, data, true);
-    for (const [kind, input] of [['tag', { name: data.marker }], ['entity', { prop1: data.marker }], ['principle', { title: `${data.marker}-principle` }], ['record', { title: `${data.marker}-source` }]]) {
-      const created = await createOwned(data, save, api.call, kind, input);
-      assert.equal((await readJournal(path, endpoint, 'codex-cli'))[kind].id, created.id);
-    }
-    await assert.rejects(Promise.reject(new Error('listTools transport failure')), /listTools/);
+    let inventoryCalls = 0;
+    await assert.rejects(setupOwned(data, save, api.call, async () => {
+      inventoryCalls++;
+      const persisted = await readJournal(path, endpoint, 'codex-cli');
+      for (const kind of ['tag', 'entity', 'principle', 'record']) assert.equal(persisted[kind].id, data[kind].id);
+      throw new Error('listTools transport failure');
+    }), /listTools/);
+    assert.equal(inventoryCalls, 1);
     data = await readJournal(path, endpoint, 'codex-cli');
     assert.equal(data.state, 'creating');
     await cleanupOwned(data, save, api.call, api.oauth);
     assert(Object.values(api.rows).every((rows) => rows.size === 0));
     assert.equal(data.state, 'cleaned');
+    assert.deepEqual(api.queries.filter(({ kind }) => kind === 'principle').map(({ status }) => status), ['active', 'inactive']);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+for (const ownStatus of ['active', 'inactive']) test(`actual ToolDef rejects all; cleanup finds own ${ownStatus} principle across separately paged statuses`, async () => {
+  const root = await mkdtemp(resolve(tmpdir(), 'plugin-journal-'));
+  const path = resolve(root, 'fixture.json');
+  try {
+    const data = journal(), api = service(), save = () => saveJournal(path, data);
+    await saveJournal(path, data, true);
+    for (const status of ['active', 'inactive']) for (let index = 0; index < 2; index++) {
+      const id = randomUUID();
+      api.rows.principle.set(id, { id, title: `foreign-${status}-${index}`, status, version: 9 });
+    }
+    await setupOwned(data, save, api.call, async () => ({ tools: [...schemas.keys()].map((name) => ({ name })) }));
+    api.rows.principle.get(data.principle.id).status = ownStatus;
+    await assert.rejects(api.call('list_principles', { status: 'all' }), (error) => error.issues?.some(({ path, code }) => path[0] === 'status' && code === 'invalid_value'));
+    assert.equal(api.oauthAttempts, 0);
+    assert(data.token);
+    await cleanupOwned(data, save, api.call, api.oauth);
+    assert.equal(api.rows.principle.size, 4);
+    assert(!api.rows.principle.has(data.principle.id));
+    for (const status of ['active', 'inactive']) {
+      const pages = api.queries.filter((query) => query.kind === 'principle' && query.status === status);
+      assert(pages.length >= 2);
+      assert.equal(pages[0].cursor, undefined);
+      assert(pages.slice(1).every(({ cursor }) => cursor.startsWith(`principle:${status}:`)));
+    }
+    assert.equal(api.oauthAttempts, 1);
+    assert.equal((await readJournal(path, endpoint, 'codex-cli')).token, undefined);
   } finally { await rm(root, { recursive: true, force: true }); }
 });

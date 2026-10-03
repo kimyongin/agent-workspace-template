@@ -22,7 +22,7 @@ node scripts/agent-models.mjs assign --client claude-cli --tier balanced --effor
 
 setup은 첫 변경 전에 비밀 journal을 만들고 token·생성 전 request_id/입력·반환 ID를 단계별 저장한다. 부분 실패 후에도 같은 `cleanup` 명령을 사용하며 정리 진행을 보존해 다시 실행할 수 있다. 응답 유실의 pending create는 같은 request_id로만 멱등 재시도하며, 미실행 요청이었다면 해당 시험 항목을 생성한 뒤 삭제할 수 있다. 업무 자료 뒤 이번 OAuth 등록만 정리하고 token을 journal에서 제거한다. 기존 fixture 파일은 덮어쓰지 않으므로 새로운 setup에는 새 폴더를 쓴다. token 미반환/검증 실패·만료는 티켓에 기록한 정상 인증 확인/인계 대상이다.
 
-`node --test experiments/plugin-behavior/journal.test.mjs`는 서비스 연결 없이 실제 비밀 journal 파일과 모의 도구에 생성/삭제/인증 정리/디스크 실패를 주입해 소유 범위·재시도를 검사한다.
+`node --experimental-transform-types --test experiments/plugin-behavior/journal.test.mjs`는 서비스 연결 없이 실제 비밀 journal 파일과 모의 도구에 생성/삭제/인증 정리/디스크 실패를 주입해 소유 범위·재시도를 검사한다. 모의 도구는 실제 MCP ToolDef의 input schema로 모든 요청을 먼저 검증한다. 앱 TypeScript의 parameter property를 읽기 위해 transform flag가 필요하며 현재 Node 24.15.0에서 확인했다. runner와 같은 `setupOwned` 경계의 listTools callback에 실패를 주입한다. 원칙 정리는 지원되는 active/inactive를 각각 마지막 페이지까지 확인하며 cursor를 섞지 않는다.
 
 ```powershell
 $env:PLUGIN_ENV_HANDOFF = 'exclusive-local'
