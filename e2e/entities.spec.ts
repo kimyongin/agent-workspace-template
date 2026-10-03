@@ -109,11 +109,6 @@ test("Entity 목록: 키워드/선택/정렬·추가 페이지·상세 복귀/�
     );
     await expect(page.getByRole("link", { name: `${marker} 00`, exact: true }))
       .toBeVisible();
-    await page.getByRole("link", { name: `${marker} 19`, exact: true }).click();
-    const concurrent = await mcp.call("create_entity", { prop1: `${marker} 새 항목`, prop2: 0, prop4: "c" });
-    ids.push(concurrent.id);
-    await page.getByRole("link", { name: "← 엔터티 목록" }).click();
-    await expect(page.getByRole("link", { name: `${marker} 19`, exact: true })).toBeFocused();
     await page.getByRole("button", { name: "더 보기", exact: true }).click();
     const last = page.getByRole("link", { name: `${marker} 20`, exact: true });
     await expect(last).toBeVisible();
@@ -130,6 +125,12 @@ test("Entity 목록: 키워드/선택/정렬·추가 페이지·상세 복귀/�
         await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
       ).toBe(true);
     }
+    await page.goto(`/entities?keyword=${encodeURIComponent(marker)}&prop4=c&sort=prop2`);
+    await page.getByRole("link", { name: `${marker} 19`, exact: true }).click();
+    const concurrent = await mcp.call("create_entity", { prop1: `${marker} 새 항목`, prop2: 0, prop4: "c" });
+    ids.push(concurrent.id);
+    await page.getByRole("link", { name: "← 엔터티 목록" }).click();
+    await expect(page.getByRole("link", { name: `${marker} 19`, exact: true })).toBeFocused();
   } finally {
     for (const id of ids) {
       await mcp.call("delete_entity", { id, expected_version: 1 });
