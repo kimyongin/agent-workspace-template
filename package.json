@@ -1,0 +1,38 @@
+{
+  "name": "agent-workspace-template",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "setup:local": "node scripts/local-setup.mjs",
+    "stop:local": "supabase stop",
+    "dev": "vite",
+    "build": "tsc -p tsconfig.json --noEmit && vite build",
+    "preview": "vite preview",
+    "test:web": "vitest run",
+    "check:docs": "node scripts/check-docs.mjs && node --test \"scripts/*.test.mjs\"",
+    "check:deno": "deno check --config supabase/functions/deno.json supabase/functions && deno lint --config supabase/functions/deno.json supabase/functions && deno fmt --check --config supabase/functions/deno.json supabase/functions",
+    "test:core": "deno test --config supabase/functions/deno.json supabase/functions/_shared"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "2.117.2",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "react-router": "8.4.0",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "@types/node": "22.20.5",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.1.1",
+    "deno": "2.9.6",
+    "supabase": "2.119.0",
+    "typescript": "7.0.2",
+    "vite": "8.3.2",
+    "vitest": "5.0.3"
+  }
+}

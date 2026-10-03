@@ -1,0 +1,20 @@
+{
+  "compilerOptions": {
+    "target": "ES2023",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "strict": true,
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "isolatedModules": true,
+    "skipLibCheck": true,
+    "types": ["vite/client", "node"],
+    "paths": {
+      "@contracts/*": ["./supabase/functions/_shared/contracts/*"]
+    }
+  },
+  "include": ["src", "vite.config.ts", "supabase/functions/_shared/contracts"],
+  "exclude": ["supabase/functions/_shared/contracts/*.test.ts"]
+}

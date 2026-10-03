@@ -1,0 +1,42 @@
+# 최소 CI: 문서 검사, 공백 검사, 서버(Deno) 검사·core 테스트, 웹 타입 검사·빌드.
+# 운영 secret을 쓰지 않는다. job 이름을 바꾸면 main 보호의 필수 검사 설정도 함께 바꾼다.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - name: 문서 검사
+        run: node scripts/check-docs.mjs && node --test "scripts/*.test.mjs"
+      - name: 공백 검사
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            git diff --check "origin/${{ github.base_ref }}...HEAD"
+          else
+            git diff --check "${{ github.event.before }}" HEAD 2>/dev/null || git diff --check HEAD~1 HEAD
+          fi
+      - run: npm ci
+      - name: 서버 검사(Deno)
+        run: npm run check:deno
+      - name: core 테스트
+        run: npm run test:core
+      - name: 웹 테스트
+        run: npm run test:web
+      - name: 웹 빌드
+        run: npm run build
