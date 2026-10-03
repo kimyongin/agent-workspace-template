@@ -1,6 +1,6 @@
 # Template-10-02 — 예제 Entity 수직 슬라이스
 
-상태: 구현 중. 부모 `docs/tickets/template-10-priority-completion.md`(별도 fast branch에서 작성 중)의 T02-4 하위 작업이며 확정 계약은 [T02-1](template-02-t02-1-contracts.md#예제-엔터티-entity--t02-4)을 따른다. 부모 통합 후 링크를 연결한다.
+상태: 진행 중. 부모 `docs/tickets/template-10-priority-completion.md`의 T02-4 하위 작업이며 확정 계약은 [T02-1](template-02-t02-1-contracts.md#예제-엔터티-entity--t02-4)을 따른다. 부모 통합 후 링크를 연결한다.
 
 ## 배정과 승인 범위
 
@@ -8,7 +8,7 @@
 - 구현 서브세션 `implement_entity`: base `46f4cbe`, branch `codex/example-entity`, checkout `C:/Users/yongin/.codex/worktrees/example-entity/agent-workspace-template`.
 - 배정 모델 `gpt-6.1-sol`, medium. 같은 날 desktop preflight는 메인이 수행한 `TEMP/overnight-desktop-snapshot.json` 근거를 전달받음. 실제 backend 모델/effort metadata는 미노출.
 - 이 세션은 Entity 계약·core·저장·migration·HTTP/MCP·UI·연결 필터·제품 스킬 안내·검증을 소유한다. 별도 fast worker와 plugin packaging worker의 파일은 수정하지 않는다. 시작 문서·overview·Template-10 부모 요약은 메인이 조정한다.
-- shared local Supabase 실행 권한은 아직 배정되지 않아 실행하지 않는다. 운영 DB·배포·비용 작업은 범위 밖이다.
+- 메인이 shared local Supabase 검증 exclusive 담당을 이 세션에 배정했다. 운영 DB·배포·비용 작업은 범위 밖이다.
 
 ## 계약과 구현 범위
 
@@ -32,8 +32,11 @@ Entity의 실제 소비자까지 한 수직 기능 경계로 구현한다. DB→
 ## 실행 기록
 
 - npm ci: 성공, 168 packages 설치, audit 0 vulnerabilities.
-- 1차 서버 구현 후 npm run check:deno: 성공. 이후 UI·통합 테스트 추가에 따른 최종 검증은 남아 있음.
+- 최종 서비스 없는 검사: build, check:deno(check/lint/fmt), check:boundaries, check:docs(문서 254개·스크립트 테스트 32개), git diff --check 성공. test:fast는 core 60개·handler 8개·web 1개 통과. build의 기존 큰 번들 경고는 남음.
 - 독립 리뷰·제출·통합 CI·머지·배포·실클라이언트 검증: 아직 수행하지 않음.
 - 메인이 공유 로컬 검증 exclusive 담당을 Entity 세션에 배정함. 원본 로컬 설정 3개만 worktree로 안전 복사했고 `supabase/.env`는 복사하지 않음. `2f17a2f`로 1차 코드를 고정한 뒤 migration up --local 성공(기존 DB reset 없음).
 - 기존 Edge runtime의 primary source bind mount를 확인하고 해당 runtime 하나만 stop/rm한 뒤 worktree source의 functions serve로 교체함. fin 컨테이너는 변경하지 않음.
-- 1차 실제 DB 69/70, fast 7/8: 신규 테스트 fixture가 Task.status 필수 컬럼을 누락한 오류와 sync MCP handler를 assertRejects에 직접 넘긴 검사 오류 각각 1건. 구현 실패와 구분해 fixture/검사만 수정 후 재실행 예정. 실제 HTTP 17/17 통과.
+- 1차 실제 DB 69/70, fast 7/8: 신규 테스트 fixture가 Task.status 필수 컬럼을 누락한 오류와 sync MCP handler를 assertRejects에 직접 넘긴 검사 오류 각각 1건. fixture/검사 수정 뒤 실제 DB 70/70, HTTP 17/17, MCP 17/17 통과. DB security advisors도 이슈 없음.
+- 실제 E2E: `b2923a0`에서 전체 53 passed / 9 skipped / 0 failed. Entity desktop/mobile 4개, 공통 360/390/768/1024/1440 폭·키보드·200% 확대·대비 검사가 통과함. 제외는 모바일 중복 검사 7개와 유료 Pinecone 명시적 opt-in 검사 2개다.
+- E2E 실패는 run1 UI handler 구문 오류(수정 후 build), run2 consent가 primary 55480으로 이동한 로컬 harness 오류, run3 삭제 완료 전 부분 일치 heading을 찾던 테스트 race였다. 실제 OAuth authorize/PKCE/동의를 유지하면서 http localhost/127.0.0.1 consent 경로만 활성 앱 origin으로 표시하고, 정확한 목록 heading을 기다리게 수정함. 실패 자료는 `TEMP/entity-e2e-run1`~`run3`, 성공 자료는 `TEMP/entity-e2e-run4`에 보존했다.
+- DB/HTTP/MCP 검증 뒤 변경은 UI·E2E harness·문서이며 서버/SQL 동작은 동일하다. 최종 제출 head의 통합 CI·독립 리뷰는 메인이 수행한다. 로컬 DB에는 migration up만 적용했고 테스트 자료는 운영 DB에 만들지 않았다.

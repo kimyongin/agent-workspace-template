@@ -61,7 +61,7 @@ export async function mcpTokenViaConsent(page: Page): Promise<string> {
   await authorization.body?.cancel();
   const consent = new URL(authorization.headers.get("location") ?? "", SUPABASE);
   if (!/^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/.test(appOrigin) ||
-      !["127.0.0.1", "localhost"].includes(consent.hostname) || consent.pathname !== "/oauth/consent") {
+      consent.protocol !== "http:" || !["127.0.0.1", "localhost"].includes(consent.hostname) || consent.pathname !== "/oauth/consent") {
     throw new Error("Expected local OAuth consent redirect");
   }
   await page.goto(new URL(`${consent.pathname}${consent.search}`, appOrigin).href);
