@@ -9,14 +9,36 @@ import { parse as validateToml } from "smol-toml";
 export const TABLE = "docs/development/agent-models.json";
 const tiers = ["light", "balanced", "advanced"];
 const efforts = ["low", "medium", "high", "xhigh", "max", "ultra"];
-const instruction = "Read AGENTS.md, .agents/skills/develop-agent-app/SKILL.md, docs/START-HERE.md and the assigned ticket. Follow docs/development/workflow.md for model selection, handoff and review. Report actual model and effort; stop on mismatch or unsupported selection. Do only the assigned role and scope.";
+const instruction = "Read AGENTS.md, .agents/skills/develop-agent-app/SKILL.md, docs/START-HERE.md and the assigned ticket. Follow docs/development/workflow.md for model selection, handoff and review, and docs/development/agent-model-execution.md for assignment and resume. Report actual model and effort; stop on mismatch or unsupported selection. Do only the assigned role and scope.";
 const quote = JSON.stringify;
 
+// Date.parse alone normalizes overflowing dates and accepts timestamps without a zone.
+function timestamp(value) {
+  const parts = typeof value === "string" && /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d{1,3})?(Z|[+-]\d{2}:\d{2})$/.exec(value);
+  if (!parts) throw Error("시간대 포함 시각 필요");
+  const [, year, month, day, hour, minute, second, zone] = parts;
+  const date = new Date(`${year}-${month}-${day}T00:00:00Z`);
+  if (!Number.isFinite(+date) || date.toISOString().slice(0, 10) !== `${year}-${month}-${day}` || +hour > 23 || +minute > 59 || +second > 59 || (zone !== "Z" && (+zone.slice(1, 3) > 23 || +zone.slice(4) > 59))) throw Error("잘못된 시간대 포함 시각");
+  const instant = Date.parse(value);
+  if (!Number.isFinite(instant)) throw Error("잘못된 시간대 포함 시각");
+  return instant;
+}
+
+function localDayFormatter(timeZone) {
+  try {
+    if (typeof timeZone !== "string" || !timeZone.trim() || /^[+-]/.test(timeZone)) throw Error();
+    return new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" });
+  } catch {
+    throw Error("snapshot timeZone은 사용자 IANA 시간대여야 함");
+  }
+}
+
 export function validate(table) {
-  if (table.schemaVersion !== 1 || !Number.isInteger(table.refreshDays) || table.refreshDays < 1) throw Error("선택표 schema/refreshDays 오류");
+  if (table.schemaVersion !== 2 || Object.hasOwn(table, "refreshDays")) throw Error("선택표 schema 오류");
   for (const client of ["codex-cli", "codex-desktop", "claude-cli"]) {
     const c = table.clients?.[client];
-    if (!c?.version || !c.context || !c.evidence || !/^\d{4}-\d{2}-\d{2}$/.test(c.checkedAt) || !Number.isFinite(Date.parse(c.checkedAt)) || new Date(c.checkedAt).toISOString().slice(0, 10) !== c.checkedAt) throw Error(`${client}: 버전/문맥/근거/확인일 누락`);
+    if (!c?.version || !c.context || !c.evidence) throw Error(`${client}: 버전/문맥/근거 누락`);
+    timestamp(c.checkedAt);
     if (Object.keys(c.models ?? {}).sort().join() !== [...tiers].sort().join()) throw Error(`${client}: 잘못된 등급`);
     for (const tier of tiers) {
       const m = c.models[tier];
@@ -120,11 +142,11 @@ export function assign(table, { client, tier, effort, role, reason, snapshot, ev
   const m = c?.models[tier];
   if (!m) throw Error("client/등급 미지원");
   if (!["implement", "review", "investigate", "document"].includes(role) || typeof reason !== "string" || !reason.trim()) throw Error("역할과 모델/강도 선택 근거 명시 필요");
-  const age = (now - new Date(`${c.checkedAt}T00:00:00Z`)) / 86400000;
-  if (age < 0 || age >= table.refreshDays) throw Error("stale: 선택표 재확인 필요");
+  if (!Number.isFinite(+now) || timestamp(c.checkedAt) > +now) throw Error("선택표 확인 시각은 미래일 수 없음");
   if (!snapshot || snapshot.client !== client || snapshot.version !== c.version || snapshot.context !== c.context) throw Error("계정/공급자/클라이언트 변경 또는 snapshot 누락: 재확인 필요");
-  const observedAge = (now - new Date(snapshot.observedAt)) / 86400000;
-  if (!Number.isFinite(observedAge) || observedAge < 0 || observedAge >= 1) throw Error("snapshot은 24시간 이내 현재 계정/클라이언트 증거여야 함");
+  const day = localDayFormatter(snapshot.timeZone);
+  const observedAt = timestamp(snapshot.observedAt);
+  if (observedAt > +now || day.format(observedAt) !== day.format(now)) throw Error("snapshot은 미래가 아닌 사용자 현지 개발일의 조회 증거여야 함");
   const available = snapshot.models?.find((a) => a.model === m.model);
   const expectedModel = client.startsWith("codex") ? m.model : m.resolvedModel;
   if (!available || available.blocked || !available.actualModel || (expectedModel ? available.actualModel !== expectedModel : !available.actualModel.startsWith(`claude-${m.model}-`))) throw Error("모델 누락/차단/실제 모델 불일치; 부모 fallback 금지");
@@ -133,7 +155,7 @@ export function assign(table, { client, tier, effort, role, reason, snapshot, ev
   if (client === "claude-cli" && env.CLAUDE_CODE_SUBAGENT_MODEL) throw Error("CLAUDE_CODE_SUBAGENT_MODEL 충돌: 실제 모델 확인 전 실행 금지");
   if (!evaluate && (m.capability !== "confirmed" || m.evaluation === "pending" || m.nativeExecution === "pending")) throw Error("실행 검증 미완료: --evaluate로 대표 평가 후 선택표 갱신");
   return {
-    client, tier, role, reason, model: m.model, actualModel: available.actualModel, effort, checkedAt: c.checkedAt,
+    client, tier, role, reason, model: m.model, actualModel: available.actualModel, effort, checkedAt: c.checkedAt, observedAt: snapshot.observedAt, timeZone: snapshot.timeZone,
     evaluation: evaluate ? "evaluation-only; 품질/비용/native 실행 미검증 항목은 증거로 별도 확인" : m.evaluation,
     nativeAgent: { name: `task-${tier}`, verified: m.nativeExecution === "native-confirmed", defaultEffort: m.defaultEffort, evidence: m.executionEvidence ?? "pending; 실제 agent 경로 미검증" },
     invocation: client === "codex-desktop" ? { model: m.model, reasoning_effort: effort, fork_turns: "none" } : client === "codex-cli" ? { argv: ["exec", "--strict-config", "--model", m.model, "-c", `model_reasoning_effort=${quote(effort)}`], instructions: instruction } : { ...(m.nativeExecution === "native-confirmed" ? { agent: `task-${tier}` } : {}), model: m.model, ...(effort === "none" ? {} : { effort }), instructions: instruction },
