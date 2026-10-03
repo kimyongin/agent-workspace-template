@@ -244,3 +244,55 @@ test("Entity lookahead 뒤 더 보기: 현재 커서 append·실패 retry·행�
     await mcp.close();
   }
 });
+
+test("Entity 자동 복원 250 상한 뒤 수동 251페이지·같은 cursor 재시도", async ({ page }) => {
+  await devLogin(page);
+  const cursors: (string | null)[] = [];
+  let failed = false;
+  await page.route("**/api/entities?**", async (route) => {
+    const cursor = new URL(route.request().url()).searchParams.get("cursor");
+    cursors.push(cursor);
+    if (cursor === "page-250" && !failed) {
+      failed = true;
+      await route.fulfill({
+        status: 503,
+        json: { code: "unavailable", message: "251페이지 일시 실패", retryable: true, fields: [] },
+      });
+      return;
+    }
+    const index = cursor ? Number(cursor.slice(5)) + 1 : 1;
+    await route.fulfill({
+      json: {
+        items: [{
+          id: crypto.randomUUID(),
+          prop1: `경계 항목 ${index}`,
+          prop2: null,
+          prop3: null,
+          prop4: "a",
+          version: 1,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        }],
+        next_cursor: `page-${index}`,
+      },
+    });
+  });
+  // One item per fake page exercises page transitions without 5000 real DB rows.
+  await page.goto("/entities?pages=999999");
+  const more = page.getByRole("button", { name: "더 보기", exact: true });
+  await expect(more).toHaveAttribute("aria-disabled", "false", { timeout: 30000 });
+  await expect(page.locator(".list .item-title")).toHaveCount(250);
+  expect(cursors).toHaveLength(250);
+  await more.click();
+  const retry = page.getByRole("button", { name: "다시 시도", exact: true });
+  await expect(retry).toBeFocused();
+  await expect(retry).toBeInViewport();
+  await expect(page.locator(".list .item-title")).toHaveCount(250);
+  expect(new URL(page.url()).searchParams.get("pages")).toBe("251");
+  expect(cursors.at(-1)).toBe("page-250");
+  await retry.click();
+  await expect(page.locator(".list .item-title")).toHaveCount(251);
+  await expect(more).toBeFocused();
+  expect(cursors).toHaveLength(252);
+  expect(cursors.slice(-2)).toEqual(["page-250", "page-250"]);
+});

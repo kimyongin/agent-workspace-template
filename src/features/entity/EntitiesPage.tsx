@@ -24,6 +24,7 @@ export function EntitiesPage() {
     [page, setPage] = useState<Page | null>(null),
     [error, setError] = useState<string | null>(null),
     [busy, setBusy] = useState(false),
+    [manualPage, setManualPage] = useState<{ context: string; count: number } | null>(null),
     [retry, setRetry] = useState(0),
     [creating, setCreating] = useState(false);
   const context = `${key}|${hash}`;
@@ -39,12 +40,14 @@ export function EntitiesPage() {
     }
     (async () => {
       let result: Page = cached ?? { items: [], next_cursor: null, count: 0 };
+      // URL pages bounds automatic restoration; an explicit click advances from the current cursor.
+      const target = cached && manualPage?.context === context ? Math.max(pages, manualPage.count) : pages;
       const anchor = /^#entity-[0-9a-f-]+$/.test(hash) ? hash.slice(8) : null;
       // A concurrent insertion may move the anchor one page. Never scan beyond this finite window.
       const maximum = anchor && focused.current !== context ? Math.min(250, pages + 1) : pages;
       while (
         !result.count || (result.next_cursor &&
-          (result.count < pages || (anchor && result.count < maximum && !result.items.some((e) => e.id === anchor))))
+          (result.count < target || (anchor && result.count < maximum && !result.items.some((e) => e.id === anchor))))
       ) {
         const next: Omit<Page, "count"> = await api(
           "GET",
@@ -73,7 +76,7 @@ export function EntitiesPage() {
       if (!controller.signal.aborted) setBusy(false);
     });
     return () => controller.abort();
-  }, [key, pages, retry, hash]);
+  }, [key, pages, retry, hash, manualPage]);
   useEffect(() => {
     if (
       busy || error || loaded.current?.context !== context || focused.current === context || !page ||
@@ -211,6 +214,7 @@ export function EntitiesPage() {
               return;
             }
             const next = new URLSearchParams(params);
+            setManualPage({ context, count: page.count + 1 });
             next.set("pages", String(page.count + 1));
             navigate({ pathname: "/entities", search: next.toString(), hash }, {
               replace: true,
