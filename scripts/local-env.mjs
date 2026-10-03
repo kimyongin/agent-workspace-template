@@ -24,7 +24,8 @@ export function writeEnv(file, header, managed) {
     return [key, `${key}=${encode(value)}`];
   }));
   const seen = new Set();
-  const original = existsSync(file) ? readFileSync(file, "utf8").replace(/\r\n/g, "\n") : `# ${header}\n`;
+  const rawOriginal = existsSync(file) ? readFileSync(file, "utf8") : null;
+  const original = rawOriginal?.replace(/\r\n/g, "\n") ?? `# ${header}\n`;
   // 여러 줄의 quoted 값을 하나의 선언으로 소비하므로 그 안의 KEY= 문장을 바꾸지 않는다.
   const declaration = /(^|\n)[ \t]*(?:export[ \t]+)?([A-Za-z_][A-Za-z0-9_]*)[ \t]*=[ \t]*(?:'(?:\\'|[^'])*'|"(?:\\"|[^"])*"|`(?:\\`|[^`])*`|[^\n]*)(?:[ \t]*#[^\n]*)?/g;
   let content = original.replace(declaration, (raw, prefix, key) => {
@@ -42,5 +43,6 @@ export function writeEnv(file, header, managed) {
   if (Object.entries(managed).some(([key, value]) => decoded[key] !== String(value))) {
     throw new Error("로컬 설정 직렬화에 실패했습니다. 원본 파일을 유지합니다.");
   }
-  writeFileSync(file, content, { mode: 0o600 });
+  // 같은 내용을 다시 저장하면 Edge Runtime의 파일 감시가 worker를 재시작한다.
+  if (content !== rawOriginal) writeFileSync(file, content, { mode: 0o600 });
 }
