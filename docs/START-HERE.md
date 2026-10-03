@@ -45,6 +45,8 @@ T02-3의 원칙 관리·기록 적용, 태그 관리·세 종류 연결/필터, 
 
 개발 절차의 검증·세션 인계 보강은 [001 티켓](tickets/001-development-workflow-hardening.md)에서 추적한다. 문서 반영·검증 결과와 PR의 최종 리뷰·CI·머지 증거를 구분하며, 실행 환경 격리 구현은 후속 과제로 남긴다.
 
+모델·추론 강도 선택과 갱신은 [개발 정책](development/workflow.md#모델과-추론-강도-선택갱신)·[현재 선택표](development/agent-models.json)·[클라이언트 실행](development/agent-model-execution.md)으로 연결한다. [002 티켓](tickets/002-agent-model-policy.md)에서 구현·검증·클라이언트별 확인 범위와 미검증을 추적한다. CLI/desktop의 모델 지원은 서로 다르며 실제 품질·비용 평가와 실행 smoke를 구분한다.
+
 제품 방향과 코드 설계 원칙은 합의한 기준이다. 폴더 트리와 API 이름은 구현 전 제안이다. 첫 구현은 할 일·결과 기록·검색 흐름이며, 권한 문맥과 트랜잭션 연결, 상세 데이터/API 계약, 임베딩 모델 등은 첫 티켓에서 확정한다.
 
 ## 문서 검증과 다음 단계

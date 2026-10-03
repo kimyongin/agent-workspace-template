@@ -1,0 +1,5 @@
+# Generated project subagent defaults; the main session model is unchanged.
+# Preflight is mandatory; defaults alone do not check freshness/account support.
+[agents]
+default_subagent_model = "gpt-5.6-terra"
+default_subagent_reasoning_effort = "medium"
