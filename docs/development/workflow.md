@@ -164,7 +164,7 @@ PRD·ADR을 바꾸는 PR은 사람이 승인한다. 머지는 배포가 아니�
 | 명령 | 하는 일 |
 | --- | --- |
 | `npm ci` | 잠금 파일대로 의존성 설치 |
-| `npm run setup:local` | 서명 키 생성(처음 한 번), 로컬 Supabase 시작, `.env.local`과 개발용 사용자 A·B 준비. 다시 실행해도 키와 비밀번호를 유지하고 `.env.local`·`supabase/functions/.env`에 사용자가 추가한 공급자 키 등 설정 값을 보존한다(주석·배치는 다시 작성). `supabase/.env`에 Google OAuth 클라이언트 값이 있으면 로컬 Google 로그인도 켠다(`.env.example` 참고, 바꾼 뒤에는 `npm run stop:local` 후 다시 실행) |
+| `npm run setup:local` | 서명 키 생성(처음 한 번), 로컬 Supabase 시작, `.env.local`과 개발용 사용자 A·B 준비. 다시 실행해도 키와 비밀번호를 유지하고 `.env.local`·`supabase/functions/.env`의 사용자 추가 값·dotenv 구문·주석을 보존한다. 생성 스크립트가 소유한 키만 갱신한다. `supabase/.env`에 Google OAuth 클라이언트 값이 있으면 로컬 Google 로그인도 켠다(`.env.example` 참고, 바꾼 뒤에는 `npm run stop:local` 후 다시 실행) |
 | `npm run dev` | 웹 개발 서버(`http://127.0.0.1:55480`) |
 | `npm run check:boundaries` | 의존 경계: contracts는 zod만, core는 contracts·core·zod만(Deno API·네트워크·HTTP 타입 금지), 웹은 서버 코드를 `@contracts`로만 가져오고 제품 데이터에 supabase-js `.from`/`.rpc`를 쓰지 않음 |
 | `npm run check:deno` | 서버 코드의 Deno 타입·lint·형식 검사 |

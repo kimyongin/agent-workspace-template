@@ -8,20 +8,36 @@ export function readEnv(file) {
 
 function encode(value) {
   const text = String(value);
-  if (!/[\s#'"`]/.test(text)) return text;
-  // dotenv는 escape 문법으로 값을 복원하지 않는다. 값에 없는 구분자를 선택한다.
-  const quote = ["'", '"', "`"].find((q) => !text.includes(q));
-  if (!quote) throw new Error("로컬 설정 값을 손실 없이 저장할 수 없습니다(모든 따옴표 포함). 원본 파일을 유지합니다.");
+  if (!/[\s#'"`$\\]/.test(text)) return text;
+  // Node와 CLI가 같은 의미로 읽는 범위만 생성한다. $ 확장은 작은따옴표로 막는다.
+  const quote = !text.includes("'") ? "'" : !/["$\\]/.test(text) ? '"' : null;
+  if (!quote) throw new Error("로컬 설정 값을 손실 없이 저장할 수 없습니다. 원본 파일을 유지합니다.");
   return `${quote}${text}${quote}`;
 }
 
 export function writeEnv(file, header, managed) {
-  const values = { ...readEnv(file), ...managed };
-  const lines = [`# ${header}`, ...Object.entries(values).map(([key, value]) => `${key}=${encode(value)}`), ""];
-  // 저장 전에 dotenv로 다시 읽어 값의 손실 여부를 확인한다. 실패하면 기존 파일을 건드리지 않는다.
-  const content = lines.join("\n");
+  // 사용자 선언·주석은 재직렬화하지 않는다. CLI의 변수 확장·escape 의미까지 보존해야 한다.
+  const encoded = Object.fromEntries(Object.entries(managed).map(([key, value]) => {
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) throw new Error("잘못된 설정 키입니다");
+    return [key, `${key}=${encode(value)}`];
+  }));
+  const seen = new Set();
+  const original = existsSync(file) ? readFileSync(file, "utf8").replace(/\r\n/g, "\n") : `# ${header}\n`;
+  // 여러 줄의 quoted 값을 하나의 선언으로 소비하므로 그 안의 KEY= 문장을 바꾸지 않는다.
+  const declaration = /(^|\n)[ \t]*(?:export[ \t]+)?([A-Za-z_][A-Za-z0-9_]*)[ \t]*=[ \t]*(?:'(?:\\'|[^'])*'|"(?:\\"|[^"])*"|`(?:\\`|[^`])*`|[^\n]*)(?:[ \t]*#[^\n]*)?/g;
+  let content = original.replace(declaration, (raw, prefix, key) => {
+    if (!Object.hasOwn(encoded, key)) return raw;
+    if (seen.has(key)) return prefix;
+    seen.add(key);
+    return prefix + encoded[key];
+  });
+  content = content.replace(/\n?$/, "\n");
+  for (const [key, line] of Object.entries(encoded)) {
+    if (!seen.has(key)) content += `${line}\n`;
+  }
+  // 생성 값은 저장 전에 왕복 검증한다. 실패하면 기존 파일을 건드리지 않는다.
   const decoded = parseEnv(content);
-  if (Object.entries(values).some(([key, value]) => decoded[key] !== String(value))) {
+  if (Object.entries(managed).some(([key, value]) => decoded[key] !== String(value))) {
     throw new Error("로컬 설정 직렬화에 실패했습니다. 원본 파일을 유지합니다.");
   }
   writeFileSync(file, content, { mode: 0o600 });
