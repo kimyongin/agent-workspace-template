@@ -1,10 +1,9 @@
-import { principleCreate, principleLabels, type PrincipleResult } from "@contracts/principle.ts";
+import { principleLabels, type PrincipleResult } from "@contracts/principle.ts";
 import { useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router";
-import { FormModal, TextFields } from "../../components/ContentForm.tsx";
+import { PrincipleFormModal, emptyPrinciple } from "./forms.tsx";
 import { Field, Notice } from "../../components/Field.tsx";
 import { api, query } from "../../lib/api.ts";
-import { fieldErrors } from "../../lib/format.ts";
 import { useRequestId } from "../../lib/useRequestId.ts";
 
 type Page = { items: PrincipleResult[]; next_cursor: string | null };
@@ -91,19 +90,9 @@ export function PrinciplesPage() {
 }
 
 function CreatePrinciple({ onClose, onCreated }: { onClose: () => void; onCreated: (id: string) => void }) {
-  const [draft, setDraft] = useState({ title: "", summary: "", body: "", applies_when: "" });
   const request = useRequestId();
-  return <FormModal title="원칙 추가" open submitLabel="저장" dirty={Object.values(draft).some(Boolean)} onClose={onClose}
-    validate={() => { const result = principleCreate.safeParse(draft); return result.success ? null : fieldErrors(result.error.issues); }}
-    onSubmit={async () => {
-      const result = await api<PrincipleResult>("POST", "/principles", { ...principleCreate.parse(draft), request_id: request.current });
-      request.renew(); onCreated(result.id);
-    }}>
-    {(errors) => <>
-      <TextFields draft={draft} set={(patch) => setDraft((d) => ({ ...d, ...patch }))} errors={errors} />
-      <Field label={principleLabels.applies_when} error={errors.applies_when} help="이 원칙을 적용할 상황, 300자 이하">
-        {(p) => <textarea {...p} className="input" rows={3} value={draft.applies_when} onChange={(e) => setDraft((d) => ({ ...d, applies_when: e.target.value }))} />}
-      </Field>
-    </>}
-  </FormModal>;
+  return <PrincipleFormModal initial={emptyPrinciple} onClose={onClose} onSave={async draft => {
+    const result = await api<PrincipleResult>("POST","/principles",{...draft,request_id:request.current});
+    request.renew(); onCreated(result.id);
+  }}/>;
 }

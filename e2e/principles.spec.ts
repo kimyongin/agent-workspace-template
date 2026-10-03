@@ -78,3 +78,29 @@ test("원칙 상세 왕복과 새로고침은 추가 페이지와 상태 필터�
   await expect(oldest).toBeVisible();
   await expect(oldest).toBeFocused();
 });
+
+test("원칙 웹 편집→MCP 상태 전환·삭제→웹 확인",async({page})=>{
+  await devLogin(page);
+  const mcp=await mcpClient(await mcpTokenViaConsent(page));
+  try {
+    const p=await mcp.call("create_principle",{title:unique("관리 원칙"),summary:"판단 근거",body:"기존 근거"});
+    await page.goto(`/principles/${p.id}`);
+    await page.getByRole("button",{name:"편집",exact:true}).click();
+    const edit=page.getByRole("dialog",{name:"원칙 편집"});
+    await edit.getByLabel("본문").fill("정정된 근거");
+    await edit.getByRole("button",{name:"저장",exact:true}).click();
+    await expect(edit).not.toBeVisible();
+    const updated=await mcp.call("get_principle",{id:p.id});
+    expect(updated.body).toBe("정정된 근거");
+    const inactive=await mcp.call("set_principle_status",{id:p.id,expected_version:updated.version,status:"inactive"});
+    await page.reload();
+    await expect(page.getByRole("button",{name:"활성화",exact:true})).toBeVisible();
+    await page.getByRole("button",{name:"활성화",exact:true}).click();
+    await page.getByRole("dialog",{name:"원칙 활성화"}).getByRole("button",{name:"변경",exact:true}).click();
+    await expect(page.getByRole("button",{name:"비활성화",exact:true})).toBeVisible();
+    const active=await mcp.call("get_principle",{id:p.id});
+    expect(active.version).toBe(Number(inactive.version)+1);
+    await mcp.call("delete_principle",{id:p.id,expected_version:active.version});
+    await page.reload();await expect(page.getByText("원칙을 찾을 수 없습니다.")).toBeVisible();
+  }finally{await mcp.close();}
+});

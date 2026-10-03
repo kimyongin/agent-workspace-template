@@ -70,8 +70,9 @@ description: 연결된 도메인 앱의 데이터·할 일·활동 기록·사�
 | 반복 할 일의 회차 기록·중단·재개 | `record_occurrence`, `stop_task`, `resume_task` |
 | 기록 찾기·읽기·쓰기 | `list_records`, `get_record`, `create_record`, `update_record`, `delete_record` |
 | 사용자 원칙 저장·현재 원문 확인 | `create_principle`, `list_principles`, `get_principle` |
+| 원칙 표현 정정·상태 전환·삭제 | `update_principle`, `set_principle_status`, `delete_principle` |
 
-현재 원칙은 `list_principles(status=active)`의 `next_cursor`가 없어질 때까지 확인하고, 적용할 원칙은 `get_principle`로 본문·적용 조건·현재 상태·수정 시각을 읽는다. 의미가 바뀌는 제안은 기존 원칙의 표현 수정과 구분한다. 상태 전환·수정·삭제는 연결된 서버가 해당 도구를 제공할 때만 실행한다.
+현재 원칙은 `list_principles(status=active)`의 `next_cursor`가 없어질 때까지 확인하고, 적용할 원칙은 `get_principle`로 본문·적용 조건·현재 상태·수정 시각을 읽는다. `update_principle`은 표현 정정에 쓰고, 의미가 바뀌면 새 원칙을 만든 뒤 기존 원칙을 비활성화하며 `replaced_by_id`로 연결한다. 활성화하면 대체 연결을 비운다. 비활성과 삭제는 다르며, 과거 판단을 남겨야 하면 비활성을 우선 검토한다.
 
 - 쓰기 도구는 `expected_version`을 받는다. `conflict`면 다시 조회해 현재 상태를 확인한 뒤 판단한다.
 - 생성·완료·회차 기록에는 `request_id`(UUID)를 붙일 수 있다. 응답을 받지 못했으면 같은 `request_id`로 다시 보내 중복 없이 결과를 확인한다.

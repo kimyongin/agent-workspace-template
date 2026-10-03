@@ -6,10 +6,9 @@ import { expectedVersion, isoDate } from "../../contracts/common.ts";
 import { recordCreate, recordListQuery, recordUpdate } from "../../contracts/record.ts";
 import { occurrenceRange, taskComplete, taskCreate, taskListQuery, taskUpdate } from "../../contracts/task.ts";
 import * as activity from "../../core/activity/application.ts";
-import { type HttpEnv, idParam, json } from "./input.ts";
+import { type HttpEnv, idParam, json, versionQuery } from "./input.ts";
 import { parse } from "../errors.ts";
 
-const versionQuery = z.strictObject({ expected_version: z.coerce.number().pipe(expectedVersion) });
 const versionBody = z.strictObject({ expected_version: expectedVersion });
 
 export function activityRoutes(deps: activity.ActivityDeps) {
