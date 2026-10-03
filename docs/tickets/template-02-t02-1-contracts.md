@@ -101,9 +101,9 @@ Claude의 대상 표면(2026-10-02 사용자 결정): 사용자 한 명이 개�
 | 중복 요청 | 생성·완료·회차 기록은 선택 입력 `request_id`(클라이언트 UUID)를 받는다. 같은 소유자·같은 작업(대상 ID·회차 날짜 포함)·같은 `request_id`면 첫 결과를 다시 돌려주고, 내용이 다르면 `conflict`. 같은 키의 동시 요청은 한 번만 실행한다. 실패한 요청의 결과는 저장하지 않으므로 다시 보내면 다시 실행된다. 보관 기간은 7일이며 지나면 새 요청으로 처리한다(만료 정리 작업은 T02-6) |
 | 목록 | 커서 기반. `limit` 기본 20·최대 100, 응답에 불투명한 `next_cursor`. 기본 정렬은 `updated_at` 내림차순(동점은 `id`). 커서는 소유자·필터에 묶이며 다른 조건에 쓰면 `invalid_input` |
 | 부분 수정 | 수정은 바꿀 필드만 보낸다. 서버 관리 필드(`id`·`owner`·`version`·`status`·시각·`task_id`)는 수정 입력에서 거부 |
-| 삭제 | 물리 삭제. `expected_version`은 HTTP에서 쿼리 문자열(`DELETE /tasks/:id?expected_version=3`), MCP에서 인자로 받는다. 파생 데이터(벡터·대기 색인 작업)는 같은 트랜잭션에서 정리하고 실행 중인 늦은 색인 결과는 저장을 거부([검색 가이드](../architecture/search.md)) |
+| 삭제 | 물리 삭제. `expected_version`은 HTTP에서 쿼리 문자열(`DELETE /tasks/:id?expected_version=3`), MCP에서 인자로 받는다. 파생 데이터(벡터·대기 색인 작업)는 같은 트랜잭션에서 정리하고(색인 파이프라인과 함께 T02-3에서 구현. T02-2는 원본만 삭제) 실행 중인 늦은 색인 결과는 저장을 거부([검색 가이드](../architecture/search.md)) |
 
-오류는 HTTP 상태와 MCP 도구 오류(`isError: true`, 본문 `{code, message, retryable}`)가 같은 `code`를 쓴다.
+오류는 HTTP 상태와 MCP 도구 오류(`isError: true`)가 같은 본문 `{code, message, retryable, fields?}`를 쓴다.
 
 | code | HTTP | 의미 | 재시도 |
 | --- | --- | --- | --- |
@@ -134,9 +134,9 @@ Claude의 대상 표면(2026-10-02 사용자 결정): 사용자 한 명이 개�
 
 | 행위 | 웹 | HTTP | MCP | 의미 |
 | --- | --- | --- | --- | --- |
-| 생성 | 목록의 작성 폼 | `POST /tasks` | `create_task` | `open` 할 일 생성, 색인 작업 등록 |
+| 생성 | 목록의 작성 폼 | `POST /tasks` | `create_task` | 일회성은 `open`, 반복은 `active`로 생성, 색인 작업 등록 |
 | 조회 | 상세 `/tasks/:id` | `GET /tasks/:id` | `get_task` | 응답에 `result_record`(`{id, title, summary}` 또는 null). 웹 링크는 `/records/:id` |
-| 목록 | `/tasks` | `GET /tasks` | `list_tasks` | 필터: `kind`, `status`, `due_from`·`due_to`, `tag_id`, `entity_id`, `occurrence_on`(그 날짜에 회차가 있거나 기록이 있는 반복 할 일. 항목마다 `occurrence`에 회차 상태) |
+| 목록 | `/tasks` | `GET /tasks` | `list_tasks` | 필터: `kind`, `status`, `due_from`·`due_to`, `tag_id`(T02-3부터), `entity_id`(T02-4부터), `occurrence_on`(그 날짜에 회차가 있거나 기록이 있는 반복 할 일. 항목마다 `occurrence`에 회차 상태) |
 | 수정 | 상세의 편집 | `PATCH /tasks/:id` | `update_task` | 내용 필드만. 완료된 할 일도 수정 가능 |
 | 완료 | 상세의 완료 폼 | `POST /tasks/:id/complete` | `complete_task` | `once`만. 아래 완료 계약. `recurring`에 요청하면 `conflict` |
 | 삭제 | 상세의 삭제 확인 | `DELETE /tasks/:id` | `delete_task` | 할 일만 삭제. 결과·회차 기록은 보존하고 `task_id`·`occurrence_on`을 null로 |
@@ -176,7 +176,7 @@ Claude의 대상 표면(2026-10-02 사용자 결정): 사용자 한 명이 개�
 | 행위 | 웹 | HTTP | MCP | 의미 |
 | --- | --- | --- | --- | --- |
 | 생성 | 작성 폼 | `POST /records` | `create_record` | 할 일 없이 직접 작성 |
-| 조회·목록 | `/records/:id`, `/records` | `GET /records/:id`, `GET /records` | `get_record`, `list_records` | 필터: 기간(`occurred_at`), `task_id`, `tag_id`, `entity_id`. 기본 정렬은 `occurred_at` 내림차순 |
+| 조회·목록 | `/records/:id`, `/records` | `GET /records/:id`, `GET /records` | `get_record`, `list_records` | 필터: 기간(`occurred_from`·`occurred_to`), `task_id`, `tag_id`(T02-3부터), `entity_id`(T02-4부터). 기본 정렬은 `occurred_at` 내림차순 |
 | 수정 | 편집 | `PATCH /records/:id` | `update_record` | 제목·요약이 바뀌면 재색인, 본문만 바뀌면 재임베딩 없음 |
 | 삭제 | 삭제 확인 | `DELETE /records/:id` | `delete_record` | 일회성 할 일은 `done`을 유지하고 `result_record_id`만 null. 계획(할 일)과 수행 결과(기록)를 하나의 상태로 묶지 않는다(PRD). 회차 기록을 지우면 그 회차에 다른 기록이 없을 때 회차 상태가 다시 계산된다 |
 
@@ -262,12 +262,12 @@ PRD의 단일 예제다. 여러 속성 타입의 교체를 시험할 수 있게 
 | 대상 | 정본과의 관계 | 불일치를 잡는 검사(T02-2부터) |
 | --- | --- | --- |
 | HTTP 입력 검증 | 파생: 어댑터가 contracts schema로 `parse` | HTTP 계약 테스트의 경계값 |
-| MCP 입력 schema | 파생: `tools/list`에는 contracts의 JSON Schema를 그대로 알리고, 검증은 핸들러가 contracts로 해서 오류 본문을 HTTP와 같게 한다. 최상위가 object여야 하므로 할 일 생성은 종류별 입력을 펼친 모양으로 알리고 `taskCreate`로 검증한다 | `supabase/tests/mcp/`에서 `tools/list`의 schema를 `z.toJSONSchema(contract)`와 비교 |
+| MCP 입력 schema | 파생: 목록·직접 기록 생성은 contracts schema 그대로, 대상이 있는 도구는 contracts 속성에 `id`(회차 기록은 `date`도)를 더한 모양으로 알린다. 최상위가 object여야 하므로 할 일 생성은 두 종류 입력을 펼친 모양으로 알린다. 검증은 모든 도구에서 핸들러가 contracts로 해서 오류 본문을 HTTP와 같게 한다 | `supabase/tests/mcp/`: 도구마다 `tools/list`의 속성을 `z.toJSONSchema(contract)`의 속성과 비교(더한 `id`·`date` 제외, 허용 필드 외 거부 포함). 할 일 생성은 속성 집합이 두 종류 입력의 합집합인지와 필수 필드를 비교 |
 | 웹 폼 검증·라벨 | 파생: 같은 schema와 `labels` | 폼 경계값 E2E |
 | DTO·도메인 필드 타입 | 파생: `z.infer` | 타입 검사 |
 | DB migration(타입·NOT NULL·길이/범위 CHECK·선택지) | 수동 | 격리 DB의 parity 테스트(`supabase/tests/database/parity.test.ts`): 필드별 경계값(한도·한도+1·빈 값·선택지 밖)을 contracts와 DB에 모두 넣어 판정이 같은지, DB 컬럼 집합과 contracts 필드 집합이 같은지 |
 | 웹 목록·상세 배치 | 수동 | 영향 화면 E2E |
-| 제품 스킬(SKILL.md·`references/`) | 수동 | 스킬이 안내하는 도구 이름과 `tools/list`가 서로 빠짐없이 일치하는지 검사(`supabase/tests/mcp/`) |
+| 제품 스킬 SKILL.md | 수동 | 스킬이 안내하는 도구 이름과 `tools/list`가 서로 빠짐없이 일치하는지 검사(`supabase/tests/mcp/`). `references/`를 추가하면 같은 검사 대상에 넣는다 |
 
 DB CHECK는 contracts와 같은 한도를 두어 직접 쓰기 우회에도 형식을 지킨다. 업무 규칙은 DB에 두지 않는다([ADR-0003](../adr/0003-core-rules-and-local-transactions.md)).
 
