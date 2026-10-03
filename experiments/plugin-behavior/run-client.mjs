@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { createInterface } from 'node:readline';
 import { createHash } from 'node:crypto';
 import { outsideDirectory } from './files.mjs';
+import { assertJournal } from './journal.mjs';
 
 const repo = fileURLToPath(new URL('../../', import.meta.url));
 const [client, fixtureFile, snapshotFile] = process.argv.slice(2);
@@ -13,6 +14,8 @@ if (process.env.PLUGIN_ENV_HANDOFF !== 'exclusive-local' || !['codex-cli', 'clau
   throw new Error('Usage: node experiments/plugin-behavior/run-client.mjs <codex-cli|claude-cli> <outside-fixture.json> <outside-model-snapshot.json>');
 }
 const fixture = JSON.parse(await readFile(fixtureFile, 'utf8'));
+assertJournal(fixture, fixture.endpoint, client);
+if (fixture.state !== 'ready') throw new Error('Only a complete ready fixture may run a product client');
 const endpoint = new URL(fixture.endpoint);
 if (endpoint.protocol !== 'http:' || !['127.0.0.1', 'localhost'].includes(endpoint.hostname)) throw new Error('Only allocated loopback fixture endpoint is allowed');
 if (!fixture.environmentHandoff || !fixture.marker || !fixture.token || !fixture.outputRoot) throw new Error('Explicit environment handoff and prepared fixture are required');

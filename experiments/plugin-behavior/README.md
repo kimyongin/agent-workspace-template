@@ -20,6 +20,10 @@ node scripts/agent-models.mjs assign --client claude-cli --tier balanced --effor
 
 아래는 메인의 공유 환경 독점 인계가 필요한 명령이다. `setup`은 후보 checkout의 `.env.local`을 정상 helper로 읽는다. `verify`/`cleanup`은 같은 실행 파일을 사용한다. output은 반드시 저장소 밖 새 실행 폴더로 지정한다. Node 22의 TypeScript 지원과 설치된 저장소 의존성을 사용한다.
 
+setup은 첫 변경 전에 비밀 journal을 만들고 token·생성 전 request_id/입력·반환 ID를 단계별 저장한다. 부분 실패 후에도 같은 `cleanup` 명령을 사용하며 정리 진행을 보존해 다시 실행할 수 있다. 응답 유실의 pending create는 같은 request_id로만 멱등 재시도하며, 미실행 요청이었다면 해당 시험 항목을 생성한 뒤 삭제할 수 있다. 업무 자료 뒤 이번 OAuth 등록만 정리하고 token을 journal에서 제거한다. 기존 fixture 파일은 덮어쓰지 않으므로 새로운 setup에는 새 폴더를 쓴다. token 미반환/검증 실패·만료는 티켓에 기록한 정상 인증 확인/인계 대상이다.
+
+`node --test experiments/plugin-behavior/journal.test.mjs`는 서비스 연결 없이 실제 비밀 journal 파일과 모의 도구에 생성/삭제/인증 정리/디스크 실패를 주입해 소유 범위·재시도를 검사한다.
+
 ```powershell
 $env:PLUGIN_ENV_HANDOFF = 'exclusive-local'
 node experiments/plugin-behavior/fixture.mjs setup <candidate-checkout> codex-cli <outside-output>

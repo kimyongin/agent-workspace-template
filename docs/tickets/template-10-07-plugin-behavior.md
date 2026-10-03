@@ -100,3 +100,15 @@ Claude 설치 버전의 `mcp --help`에는 login/logout이 없고 `claude mcp lo
 후보 ZIP와 sidecar는 저장소 밖 `C:/Users/yongin/AppData/Local/Temp/plugin-candidate-artifacts-20261004/`에 만들었다. `workspace-0.1.1.zip` 및 역검증용 `repeat-0.1.1.zip`의 bytes/hash가 같다. SHA-256 `78974e53e41615a85943037a91db04c30c766a2b6e353e8d992ef71013fa60e3`, 서버 도구 원본 해시 `859d8df7ffbf2ce5c022bcc7ad04559e0b5d6f740187b4e2f71d750c0f54bddc`. 파일 6개는 portable/Claude manifest·각 MCP 설정·README·단일 shared SKILL뿐이며 개발 스킬/앱/서버/자격 증명을 넣지 않는다. sidecar에는 버전·endpoint·31개 도구·각 파일 해시가 있고 별도 candidate-revision.json에 후보/미커밋 packaging 구분을 남긴다. 최종 공개 artifact/sidecar revision은 Entity/활동이 머지된 main으로 다시 고정해야 한다.
 
 검증: `npm ci` PASS(168 packages, audit0), `npm run check:docs` PASS(문서 308개, tests36 PASS/1 file-symlink privilege SKIP), `npm run test:adapters:fast` PASS(13개 실제 유스케이스/HTTP/MCP ToolDef schema·handler 검사, 외부 서비스 없음), `npm run build` PASS(기존 large chunk 경고). 후보 ZIP 결정성/포함 범위 PASS. 이 단계에서 DB·API·OAuth·PTY/MCP 연결은 실행하지 않았다. 공유 환경은 활동 담당의 독점을 유지한다. Claude native 정상 계정 인증/해제는 재배정 후, 운영/외부 surface는 여전히 미검증이다.
+
+## 독립 리뷰 P2 — 부분 fixture의 정리 journal
+
+exact `244fb00` 리뷰에서 setup은 tag→Entity→원칙→기록→listTools가 모두 성공한 뒤에만 fixture 파일을 저장했다. tag 성공 후 Entity transport 실패를 mock으로 재현하면 ID/token 정리 근거가 남지 않았다. 실제 서비스 없이 수정했다.
+
+새 setup은 OAuth 시작 전에 저장소 밖 새 실행 journal을 `wx`로 생성하여 기존 실행을 덮어쓰지 않는다. OAuth가 반환한 token을 즉시 비밀 파일에 보존하고 검증한 owner/client_id를 넣은 뒤 MCP에 연결한다. 각 create의 exact 입력과 고유 request_id를 먼저 원자 저장하고 반환 ID도 다음 변경 전에 저장한다. 이후 listTools 실패에도 앞선 ID는 남는다. ready 상태인 journal만 클라이언트 실행/검증에 사용할 수 있다. 새 journal에는 endpoint·client·실행 표식과 token의 owner/client_id 정합 검사, 기존 파일/심볼릭 링크 거부가 적용된다.
+
+cleanup은 완성 여부와 관계없이 journal을 읽는다. 생성 응답을 잃었다면 기록한 같은 request_id/입력으로만 멱등 재시도해 ID를 복원한다. 원래 요청이 실행되지 않았으면 의도했던 시험 항목을 만들어 즉시 정리할 수 있다는 부수효과를 명시한다. 현재 소유자 목록의 전 페이지에서 기록된 ID와 정확한 표식/제목을 확인하고 현재 버전으로 삭제한다. 결과 기록에는 표식뿐 아니라 journal의 Entity/태그 연결도 확인한다. 각 삭제 진행을 저장하고, 응답 유실 뒤 이미 없는 ID는 정리된 것으로 처리한다. 다른 ID/변경된 표식은 삭제하지 않는다.
+
+업무 fixture 정리가 끝난 뒤 이번 token의 exact OAuth client_id만 정상 로컬 admin API로 삭제하며 404는 이미 정리된 등록으로 처리한다. 등록 정리 실패/응답 유실은 업무 삭제 진행을 유지한 채 재시도한다. 전체 정리 성공 후 journal의 token을 제거한다. OAuth 자체가 token을 반환하기 전 실패하거나 token 검증에 실패한 상태는 자동 정리하지 않고 own 인증 시도 확인 대상으로 남긴다. 만료된 token으로 업무 자료를 조회할 수 없으면 안전한 정리 재실행은 별도 정상 인증 인계가 필요하다.
+
+`node --test experiments/plugin-behavior/journal.test.mjs`의 실제 journal 파일+모의 transport fault injection 5개 PASS: tag 뒤 Entity 실행 전 실패/commit 뒤 응답 유실, 삭제 응답 유실·OAuth 정리 실패 재시도, journal 디스크 실패에서 무쓰기·기존 파일/owner/endpoint/object 변경 거부, 네 생성 뒤 목록 발견 실패의 ID 보존/정리. foreign 자료는 보존하고 같은 request_id의 생성은 중복되지 않음을 확인했다. 이 결과는 실제 DB/OAuth/클라이언트 재실행을 대신하지 않는다. 공유 환경 UI 독점 중 연결·서비스·fixture 실행은 없었으며 강화 runner의 실제 실행과 Claude native 인증은 재배정 후 진행한다.
