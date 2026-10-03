@@ -1,0 +1,11 @@
+{
+  "name": "workspace-template",
+  "plugins": [
+    {
+      "name": "workspace",
+      "source": { "source": "local", "path": "./plugins/workspace" },
+      "policy": { "installation": "AVAILABLE", "authentication": "ON_INSTALL" },
+      "category": "Productivity"
+    }
+  ]
+}

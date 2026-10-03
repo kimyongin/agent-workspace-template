@@ -1,0 +1,6 @@
+{
+  "name": "workspace",
+  "version": "0.1.0",
+  "description": "연결된 Workspace의 할 일, 기록, 원칙과 도메인 데이터를 관리합니다.",
+  "author": { "name": "Workspace" }
+}
