@@ -44,6 +44,6 @@ node scripts/agent-models.mjs assign --client claude-cli --tier balanced --effor
 
 [별칭](https://code.claude.com/docs/en/model-config)은 영구 ID보다 갱신에 유리하지만 공급자·버전과 alias 이동에 따라 actual 모델이 바뀔 수 있다. 확인한 resolvedModel과 다른 actual 모델은 같은 family의 새 버전이어도 재평가 전 거부한다. 초기 pending 후보의 평가에는 family 일치만 확인하며 일반 배정으로 승격하지 않는다. 누락·차단 때 `--fallback-model` 또는 부모 모델 상속으로 대체하지 않고 선택표를 갱신한다.
 
-`sync`는 생성된 agent 파일들을 소유하지만 `.codex/config.toml`에서는 `[agents]`의 두 default 키만 소유한다. 다른 설정·주석·환경 키는 보존한다. 중복 `[agents]`처럼 안전하게 고칠 수 없는 구조는 거부한다. 선택표 외 모델/추론 설정을 직접 고쳐 drift 검사를 우회하지 않는다.
+`sync`는 생성된 agent 파일들을 소유하지만 `.codex/config.toml`에서는 `[agents]`의 두 default 키만 소유한다. 다른 설정·주석·환경 키는 보존한다. 작은 편집기는 단일행 TOML 문자열·주석 문맥만 지원한다. 여러 줄 basic/literal 문자열이나 중복 `[agents]`처럼 안전하게 고칠 수 없는 구조는 `check`/`sync`에서 거부하며, `sync`는 모든 변경을 준비한 뒤 쓰므로 거부 시 다른 native 파일도 보존한다. 이 제한에 걸리면 원문을 보존한 채 문맥을 지원하는 편집·검사 경로로 도구를 보강한다. 선택표 외 모델/추론 설정을 직접 고쳐 drift 검사를 우회하지 않는다.
 
 신규 후보를 `evaluation=passed`로 승격하려면 `evaluationEvidence`의 implementation/review/quality/cost에 각각 동일 revision의 과제·결과·비교·사용량/요금 근거 위치를 기록한다. 실행 성공만 확인한 현재 baseline에 이 상태를 붙이지 않는다.

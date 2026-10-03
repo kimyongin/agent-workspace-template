@@ -38,14 +38,14 @@
 | 계약과 의존성 | [개발 방법](../development/workflow.md), [선택표](../development/agent-models.json), 앱/DB 의존성 없음 |
 | 모델 배정 | 이번 구현: Codex desktop 명시 `gpt-6.1-sol` / `medium` / `fork_turns=none`, 일반 개발 절차·도구 구현이므로 균형 배정. 2026-10-03 도구 목록 확인. 모델/강도 상향 없음. CLI 지원과 별개 |
 | 완료 조건과 검증 | 위 검증 절. 로컬 Node만 사용하며 공유 서비스 시작 없음 |
-| 결과와 다음 행동 | 정책·얇은 설정·배정 도구 구현 및 로컬 검사 통과, 본 세션이 Codex defaults 정적 로딩·Claude native CLI·양쪽 균형 배정 명령 통과 확인. 독립 리뷰·CI·머지로 인계 |
+| 결과와 다음 행동 | 정책·얇은 설정·배정 도구 구현 및 로컬 검사 통과, 본 세션이 Codex defaults 정적 로딩·Claude native CLI·양쪽 균형 배정 명령 통과 확인. PR #65 독립 리뷰의 TOML 문자열 오인 결함을 수정했고 새 head 재리뷰·CI·머지로 인계 |
 
 | 단계 | 상태 | revision / 변경 | 검증 명령·결과 | 남은 작업 |
 | --- | --- | --- | --- | --- |
-| 정책·도구 | 구현(리뷰 대기) | base `c98d7e0` 위 작업 변경 | `npm run check:docs`: 텍스트 228개 및 선택표/native 정합성, 회귀 21개 통과 | 독립 리뷰·CI |
+| 정책·도구 | 구현(리뷰 대기) | base `c98d7e0` 위 작업 변경 | `npm run check:docs`: 텍스트 228개 및 선택표/native 정합성, 회귀 23개 통과(리뷰 수정 포함) | 새 head 재리뷰·CI |
 | 직접 실행·설정 연결 | 구현(리뷰 대기) | Codex CLI 0.147.0 / Claude Code 2.1.140 / desktop 도구 | 아래 실제 smoke·목록 결과. 균형 direct, Codex defaults 파싱, Claude CLI agent 실행, 양쪽 assign medium 통과 | Codex custom spawn·Claude child/resume와 신규 후보 평가 |
 | 신규 모델 평가 | 미완료(사유) | CLI/desktop 지원 목록이 다름 | 모델별 광범위 품질·비용 비교는 미실행. 현재 기본은 baseline이며 신규 평가 통과로 표기하지 않음 | 신규 발견 시 대표 구현·리뷰·사용량/요금 평가 |
-| PR·리뷰·CI·머지 | 미시작 | — | — | 본 세션 담당 |
+| PR·리뷰·CI·머지 | 구현(리뷰 대기) | [PR #65](https://github.com/kimyongin/agent-workspace-template/pull/65), 최초 head `9e054f7654cab7f24ac3b5425eb89ef9d59f4f50` | 독립 리뷰: 수정 필요(P2 TOML 문자열 오인). 원 구현 세션이 수정·회귀 확인 | 본 세션의 새 head 재리뷰·CI·머지 |
 
 ### 이력
 
@@ -58,3 +58,5 @@
 - 2026-10-03: 자동 회귀는 mapping 변경→양쪽 drift 거부→재생성 통과, 동일 모델 강도 override, stale와 문맥 변경, 미지원/누락/차단/부모 fallback, alias actual 불일치, Claude 환경 override, 비소유 config 보존, 역할/선택 근거 누락을 확인했다. 앱/DB·공유 서비스 검사는 변경 범위에 없어 실행하지 않았다.
 - 2026-10-03: 본 세션이 `claude agents --setting-sources project`로 세 등급 model frontmatter 로딩을 확인했다. 프로젝트 cwd의 `claude -p --agent task-balanced --effort medium --tools '' --disable-slash-commands --setting-sources project --output-format json --no-session-persistence` 권한 리뷰 smoke exit0, 주 modelUsage claude-sonnet-4-6(input 3/cacheCreate 5262/output 188), 내부 haiku는 별도 사용. 소유자 노출 영향과 타인 ID 거부 테스트 답변 적절. 선택표의 balanced를 native-confirmed로 표시하되 CLI 역할 세션 경로만 확인했으며 일반 Agent tool child/resume·backend 실제 effort·광범위 품질/청구 비용 비교는 미검증이다.
 - 2026-10-03: 본 세션이 `codex --strict-config app-server --stdio`의 initialize→config/read(`cwd`=프로젝트 절대 경로, `includeLayers=false`)로 실제 parser가 `[agents]` defaults gpt-5.6-terra/medium을 읽고 exit0임을 확인했다. cwd 없는 첫 조회의 agents=null을 schema 확인 후 올바른 cwd 재조회로 해결했다. 이는 defaults 정적 로딩의 증거이며 custom agent 실제 spawn까지 검증한 것은 아니라 balanced는 direct-confirmed를 유지한다. 실제 목록 snapshot으로 Codex CLI·Claude CLI 균형/medium `assign` 명령도 통과했다.
+- 2026-10-03: PR #65의 정확한 최초 head 독립 리뷰가 유효한 multiline developer_instructions 안의 `[agents]`를 테이블로 오인해 사용자 문자열을 수정하고 정합성 검사가 통과하는 P2를 재현했다. 원 구현 세션에서 문자열·escape·주석 문맥을 검사하고 현재 안전 편집 지원 범위 밖인 multiline basic/literal 문자열은 `check`와 `sync` 모두 거부하도록 수정했다. sync는 모든 변경을 계획한 뒤 쓰므로 거부 전에 다른 생성 파일도 바꾸지 않는다. 실제 agents 테이블 공존/미존재 네 조합에서 거부·원문/native 파일 byte 보존, 주석과 다른 단일행 문자열의 delimiter 오탐 방지를 확인했다. 이 편집기는 완전한 TOML parser가 아니며 여러 줄 문자열을 사용하는 새 설정은 문맥을 지원하는 도구 보강 전 자동 동기화하지 않는다.
+- 2026-10-03: 리뷰 수정 재개 시 본 세션의 desktop balanced/medium preflight 통과를 전달받았고 기존 `gpt-6.1-sol` / `medium`을 유지했다. 수정 범위가 원인으로 좁혀진 설정 보존 결함이므로 모델/추론 강도 상향·하향은 없다. `npm run check:docs`의 선택표/native 정합성·회귀 23개 및 `git diff --check` 통과. 앱/DB·운영·개인 설정 변경 없음.

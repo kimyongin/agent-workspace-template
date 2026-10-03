@@ -129,3 +129,46 @@ test("선택 근거와 역할 없이 advanced 또는 xhigh를 배정하지 않�
   assert.throws(() => assign(t, options(t, { effort: "xhigh", reason: "" })), /선택 근거/);
   assert.throws(() => assign(t, options(t, { role: "unknown" })), /역할/);
 });
+
+test("여러 줄 TOML basic/literal 문자열은 실제 agents 공존 여부와 무관하게 쓰기 전에 거부한다", () => {
+  for (const delimiter of ['"""', "'''"]) {
+    for (const realAgents of [false, true]) {
+      const root = mkdtempSync(path.join(tmpdir(), "agent-multiline-"));
+      try {
+        sync(root, table());
+        const config = path.join(root, ".codex/config.toml");
+        const text = `developer_instructions = ${delimiter}\n[agents]\ndefault_subagent_model = "instruction-model"\n${delimiter}\n${realAgents ? '[agents]\ndefault_subagent_model = "old"\n' : ""}`;
+        writeFileSync(config, text);
+        const ownedAgent = path.join(root, ".codex/agents/task-balanced.toml");
+        writeFileSync(ownedAgent, "unchanged native file\n");
+        const beforeConfig = readFileSync(config);
+        const beforeAgent = readFileSync(ownedAgent);
+        assert.throws(() => sync(root, table()), /여러 줄 TOML 문자열/);
+        assert.deepEqual(readFileSync(config), beforeConfig);
+        assert.deepEqual(readFileSync(ownedAgent), beforeAgent);
+        assert.throws(() => check(root, table()), /여러 줄 TOML 문자열/);
+      } finally { rmSync(root, { recursive: true, force: true }); }
+    }
+  }
+});
+
+test("TOML 주석과 다른 단일행 문자열의 delimiter는 거부하거나 변경하지 않는다", () => {
+  const root = mkdtempSync(path.join(tmpdir(), "agent-toml-context-"));
+  try {
+    sync(root, table());
+    const prefix = [
+      '# comment: """ and \'\'\' [agents]',
+      `developer_instructions = 'basic delimiter """ [agents]'`,
+      'other_instructions = "literal delimiter \'\'\' [agents]"',
+      'escaped_instructions = "escaped \\" quotes and \\\\\\" [agents]"',
+      '',
+    ].join("\n");
+    const config = path.join(root, ".codex/config.toml");
+    writeFileSync(config, prefix);
+    sync(root, table());
+    const result = readFileSync(config, "utf8");
+    assert.ok(result.startsWith(prefix));
+    assert.match(result.slice(prefix.length), /\[agents\]\ndefault_subagent_model = "gpt-5.6-terra"/);
+    assert.deepEqual(check(root, table()), []);
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});

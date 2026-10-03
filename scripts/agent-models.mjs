@@ -51,7 +51,29 @@ export function check(root, table) {
   });
 }
 
+// 이 편집기는 단일행 문자열/주석만 지원한다. 문자열 속 테이블을 줄 기준으로
+// 오인하지 않도록 TOML lexical 문맥에서 여러 줄 문자열을 발견하면 먼저 거부한다.
+function assertEditableToml(text) {
+  let string = null;
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i];
+    if (string) {
+      if (char === "\n") throw Error("단일행 TOML 문자열이 닫히지 않음: 수동 정리 필요");
+      if (string === '"' && char === "\\") i++;
+      else if (char === string) string = null;
+    } else if (char === "#") {
+      while (i < text.length && text[i] !== "\n") i++;
+    } else if (char === '"' || char === "'") {
+      if (text.slice(i, i + 3) === char.repeat(3)) throw Error("여러 줄 TOML 문자열은 안전 편집 미지원: 설정을 변경하지 않음");
+      string = char;
+    }
+  }
+  if (string) throw Error("단일행 TOML 문자열이 닫히지 않음: 수동 정리 필요");
+  if (text.split("\n").filter((line) => /^\s*\[agents\]\s*(?:#.*)?$/.test(line)).length > 1) throw Error("중복 [agents] 설정: 수동 정리 필요");
+}
+
 function defaults(text) {
+  assertEditableToml(text);
   let inAgents = false;
   return text.split("\n").flatMap((line) => {
     if (/^\s*\[/.test(line)) inAgents = /^\s*\[agents\]\s*(?:#.*)?$/.test(line);
@@ -60,12 +82,13 @@ function defaults(text) {
 }
 
 export function sync(root, table) {
-  for (const [file, expected] of Object.entries(generated(table))) {
+  // 모든 변경을 준비하고 config의 안전성을 확인한 뒤 쓴다. 거부 시 native 파일도 보존한다.
+  const changes = Object.entries(generated(table)).map(([file, expected]) => {
     const target = path.join(root, file);
-    mkdirSync(path.dirname(target), { recursive: true });
     const actual = existsSync(target) ? readFileSync(target, "utf8") : "";
     let content = expected;
     if (file === ".codex/config.toml" && actual) {
+      assertEditableToml(actual);
       let inAgents = false;
       let found = false;
       content = actual.split("\n").flatMap((line) => {
@@ -81,7 +104,13 @@ export function sync(root, table) {
       }).join("\n");
       if (!found) content = `${actual.trimEnd()}\n\n[agents]\n${defaults(expected).join("\n")}\n`;
     }
-    if (actual !== content) writeFileSync(target, content);
+    return { target, actual, content };
+  });
+  for (const { target, actual, content } of changes) {
+    if (actual !== content) {
+      mkdirSync(path.dirname(target), { recursive: true });
+      writeFileSync(target, content);
+    }
   }
 }
 
