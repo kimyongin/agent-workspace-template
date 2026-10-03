@@ -1,4 +1,4 @@
-# 최소 CI: 문서 검사, 공백 검사, 서버(Deno) 검사·core 테스트, 웹 타입 검사·빌드, 격리 로컬 DB 테스트.
+# 최소 CI: 문서·공백·서버(Deno)·core·웹 빌드 검사(check)와 러너 안의 로컬 Supabase로 DB·HTTP·MCP·E2E(integration).
 # 운영 secret을 쓰지 않는다. job 이름을 바꾸면 main 보호의 필수 검사 설정도 함께 바꾼다.
 name: ci
 
@@ -32,6 +32,8 @@ jobs:
             git diff --check "${{ github.event.before }}" HEAD 2>/dev/null || git diff --check HEAD~1 HEAD
           fi
       - run: npm ci
+      - name: 의존 경계 검사
+        run: npm run check:boundaries
       - name: 서버 검사(Deno)
         run: npm run check:deno
       - name: core 테스트
@@ -68,6 +70,17 @@ jobs:
         run: npm run test:http
       - name: MCP 계약 테스트
         run: npm run test:mcp
+      - name: 브라우저 설치
+        run: npx playwright install --with-deps chromium
+      - name: 웹↔MCP E2E
+        run: npm run test:e2e
       - name: 실패 시 함수 로그
         if: failure()
         run: cat functions.log || true
+      - name: 실패 시 E2E 기록
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-results
+          path: test-results/
+          retention-days: 7

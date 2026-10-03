@@ -35,7 +35,7 @@ PRD와 ADR은 사람이 소유하고 나머지 문서·티켓·구현은 에이�
 
 보안 가이드는 설계·구현·배포·운영을 가로지르는 보호 기준과 검증 항목을 소유한다. 인증·데이터 접근·외부 통신을 변경하기 전에 관련 항목을 읽고 해당 기능 티켓에 적용 범위를 기록한다.
 
-2026-10-02 기준 Template-02 T02-1(계약·문서 정리)을 마쳤고 일부 실험은 미완료로 후속 단계에 넘겼다. T02-2(실행 기반·할 일과 기록)는 2026-10-03 시작했으며 외부 자원(호스팅 Supabase·Google OAuth·Pinecone) 대신 로컬 대체로 개발한다(티켓의 "외부 자원 준비 전의 로컬 대체"). 저장소에는 설계·개발·배포·운영 가이드, 문서 검사 스크립트(`scripts/check-docs.mjs`), 기술 가정의 격리 실험(`experiments/t02-1/`)이 있다. 앱 실행 코드·DB migration·CI는 아직 만들지 않았으며 서비스 배포도 수행하지 않았다. 저장소의 구현 상태는 이 절과 각 티켓에만 기록한다.
+2026-10-02 기준 Template-02 T02-1(계약·문서 정리)을 마쳤고 일부 실험은 미완료로 후속 단계에 넘겼다. 2026-10-03 T02-2(실행 기반·할 일과 기록)를 구현해 로컬 Supabase와 CI 러너에서 검증했다. 웹(React)·HTTP API·MCP 서버·DB migration·최소 CI와 core·DB·HTTP·MCP·E2E 테스트가 있다. 외부 자원(호스팅 Supabase·Google OAuth·Pinecone) 대신 로컬 대체로 개발했으므로 호스팅 배포·실제 Google 로그인은 검증하지 않았고 서비스 배포도 하지 않았다(티켓의 "외부 자원 준비 전의 로컬 대체"). 검색·원칙(T02-3)은 아직 없다. 저장소의 구현 상태는 이 절과 각 티켓에만 기록한다.
 
 2026-10-03 [Template-03](tickets/template-03-docs-for-people.md)(사람이 읽기 쉬운 문서와 규칙 정본 정리)을 마쳤다. 용어집·티켓 작성 규칙·ADR-0010·PRD의 대상 사용자와 문제가 추가됐다.
 
@@ -45,4 +45,4 @@ PRD와 ADR은 사람이 소유하고 나머지 문서·티켓·구현은 에이�
 
 문서를 바꾸면 [개발 방법의 문서 검사](development/workflow.md#문서-검사) 명령을 실행하고 결과를 해당 티켓에 기록한다. 앱·DB·브라우저 테스트는 구현 이후 해당 기능의 검증으로 수행한다.
 
-다음 작업은 [Template-02의 T02-2](tickets/template-02-implementation-base.md)이며, 할 일·기록·검색 등의 계약과 기술 선택은 [T02-1 기술 후보와 계약](tickets/template-02-t02-1-contracts.md)에 있다. 목표는 도메인 엔터티·화면·설정·제품 스킬을 조정해 새 앱을 시작할 수 있는 구현형 템플릿이다. 할 일·기록·사용자 원칙·RAG는 기본 기능이며, Template-01의 상세 계약과 검증을 이어서 6단계로 구현한다. 제품 스킬 초안은 [plugins/workspace/skills/workspace](../plugins/workspace/skills/workspace/SKILL.md)에 있다. 실제 명령·CI·알림·복원 경로는 해당 단계에서 구현·검증하고 새 프로젝트의 서비스 설정과 비밀값은 독립적으로 구성한다.
+다음 작업은 [Template-02](tickets/template-02-implementation-base.md) T02-2의 실연결 검증과 T02-3(원칙·검색)이며, 할 일·기록·검색 등의 계약과 기술 선택은 [T02-1 기술 후보와 계약](tickets/template-02-t02-1-contracts.md)에 있다. 목표는 도메인 엔터티·화면·설정·제품 스킬을 조정해 새 앱을 시작할 수 있는 구현형 템플릿이다. 할 일·기록·사용자 원칙·RAG는 기본 기능이며, Template-01의 상세 계약과 검증을 이어서 6단계로 구현한다. 제품 스킬 초안은 [plugins/workspace/skills/workspace](../plugins/workspace/skills/workspace/SKILL.md)에 있다. 실제 명령·CI·알림·복원 경로는 해당 단계에서 구현·검증하고 새 프로젝트의 서비스 설정과 비밀값은 독립적으로 구성한다.
