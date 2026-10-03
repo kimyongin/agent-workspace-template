@@ -5,7 +5,7 @@
 검토 기준: `c98d7e0`
 선행: 없음
 
-현재 요약: PR #65의 정책·도구·독립 리뷰·CI·머지는 완료했다. [Template-10-05](template-10-05-model-execution-evaluation.md)의 후속 실험은 CLI balanced 동일 구현·리뷰 두 과제, Claude native child 및 두 CLI의 동일 model/medium 부모 resume를 확인했다. Codex custom agent 지정은 현 도구 schema 미지원으로 종료했고 backend 실제 effort·child/설정 변경 resume·실제 청구비용·광범위/신규 후보 평가는 미확인이다. 선택표의 상태는 바꾸지 않았으며 아래 당시 실행 이력은 보존한다. 개발일 조회와 재개 절차의 정책 변경은 [Template-07](template-07-guidance-review-followup.md) PR 1이 소유한다.
+현재 요약: PR #65의 정책·도구·독립 리뷰·CI·머지는 완료했다. [Template-10-05](template-10-05-model-execution-evaluation.md)의 후속 실험은 CLI balanced 동일 구현·리뷰 두 과제, Claude native child 및 두 CLI의 동일 model/medium 부모 resume를 확인했다. [Template-10-08](template-10-08-model-resume.md)은 같은 Codex 부모 ID·marker를 유지한 Terra medium→high 로컬 turn_context 적용을 확인했다. Codex custom agent 지정과 Claude 원 child 자체 재개는 현재 CLI 도구 schema 미지원으로 종료했고 backend 실제 effort·실제 청구비용·광범위/신규 후보 평가는 미확인이다. Claude child의 guidance read 준수도 미확인이다. 선택표의 상태는 바꾸지 않았으며 아래 당시 실행 이력은 보존한다. 개발일 조회와 재개 절차의 정책 변경은 [Template-07](template-07-guidance-review-followup.md) PR 1이 소유한다.
 이전 식별자: `002-agent-model-policy.md` / `002`. Template-07에서 템플릿 유지보수 영역으로 옮겼으며 아래 실패·조사·실행 이력은 당시 증거로 보존한다.
 
 ## 목표와 기준 문서

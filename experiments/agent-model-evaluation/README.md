@@ -73,3 +73,16 @@ Codex CLI 0.147.0의 당일 `app-server initialize → model/list(limit=100, inc
 공식 문서는 [OpenAI subagents](https://learn.chatgpt.com/docs/agent-configuration/subagents), [app-server model/list](https://learn.chatgpt.com/docs/app-server#list-models-modellist), [Claude subagents](https://code.claude.com/docs/en/sub-agents), [Claude model 설정](https://code.claude.com/docs/en/model-config)을 실제 열어 확인했다. 공식 최신 문서의 기능을 설치 버전의 실행 지원으로 간주하지 않는다.
 
 이 고정 자료는 대표 과제 2개/각 baseline의 좁은 성공 근거다. 신규 후보 승격, 광범위 benchmark, 실제 과금 우수성, 모든 등급/계정/surface 검증을 완료하지 않았다. custom 인자 지원이 생긴 설치에서 Codex native child를 다시 확인하고, 설정 변경 resume가 필요하면 실제 적용 metadata까지 대조한다. 노출되지 않는 backend effort·청구액은 공급자 근거를 얻을 때만 확정한다.
+
+## 2026-10-04 관측 가능한 재개 후속
+
+[Template-10-08](../../docs/tickets/template-10-08-model-resume.md)의 구현 서브세션 `verify_resume`가 위 당시 보고를 보존하고 [별도 관찰값](results/resume-followup-20261004.json)을 추가했다. 같은 CLI 버전과 계정/client 문맥에서 당일 capabilities의 원 observedAt을 저장소 밖 파일로 추출해 Codex balanced/high와 Claude balanced/medium assign을 먼저 통과했다. 새 조회 시각을 만들지 않았고 원 fixture·oracle·hash는 보존했다.
+
+| 경로 | 후속 결과 | 관찰의 한계 |
+| --- | --- | --- |
+| Codex 부모 설정 변경 resume | `codex exec resume --model gpt-5.6-terra -c model_reasoning_effort="high"`를 원 native cwd와 session `01a10360-83b5-7d72-a343-ea6e52dbecbf`에 명시. exit 0, 4.505초. 같은 ID, 사전에 값 없이 회상시킨 ORCHID-527 및 네 결함 복원. known rollout의 turn_context는 `medium, medium, high` | 로컬 모델/강도 변경 적용 확인이며 별도 backend actual model/effort는 미노출. usage는 누적 형태라 증분 비용으로 계산하지 않음 |
+| Claude 원 child 재개 지원 확인 | 같은 부모 `8c6e67dd-6368-4d66-ad68-2c6a051f11f3`를 Sonnet/medium으로 재개. 첫 `Read,Agent` 호출 exit 0, 10.560초에서 Agent.resume 필드 없음 보고. 이어 같은 설정 preflight 후 `--tools Read,Agent,SendMessage`·대응 allowedTools를 명시한 정상 continuation도 exit 0, 7.315초. 실제 init.tools는 `Task,Read`만 있고 부모도 SendMessage 미등록 보고. 양쪽 init·assistant·modelUsage Sonnet 일치, Agent/SendMessage 호출0 | 첫 미노출은 우리가 제한한 surface이며 단독으로 설치 제약을 판정하지 않음. 추가 명시 허용에도 도구 미등록이 확인되어 이 설치/비대화형 경로의 제약으로 종료. 원 child `a2398b11f2ffc7080` 자체 재개·guidance read 준수는 미확인, 새 child 대체 없음 |
+
+입력은 [Codex 후속 prompt](codex-resume-followup-prompt.txt)·[Claude 후속 prompt](claude-resume-followup-prompt.txt), 제한된 응답은 [Codex](results/codex-resume-followup-response.txt)·[Claude](results/claude-resume-followup-response.txt)에 있다. 시스템 prompt·thinking·서명·auth/config 원문은 저장하지 않았다. Claude 후속 usage는 input 3/cache create 12211/cache read 0/output 545, CLI costUSD 0.05397525이며 실제 추가 청구액을 뜻하지 않는다. CLI 업데이트·설정 우회·앱/DB/운영 접근·선택표 승격은 없다. 미지원 child 경로와 미노출 backend/청구액은 지원 또는 공급자 근거가 생길 때만 다시 확인한다.
+
+[Claude 공식 재개 문서](https://code.claude.com/docs/en/sub-agents#resume-subagents)를 실제 열어 SendMessage의 기존 ID continuation 경로를 확인한 후 [추가 prompt](claude-sendmessage-resume-followup-prompt.txt)로 위 명시 허용을 실행했다. [추가 응답](results/claude-sendmessage-resume-followup-response.txt)의 도구 미등록 보고와 실제 init.tools 관찰은 위 별도 JSON에 함께 보존한다. 추가 usage는 input 3/cache create 768/cache read 12211/output 264, CLI costUSD 0.0105123이다. 현재 공식 기능을 설치 2.1.140의 지원으로 간주하거나 최신 CLI로 업데이트하지 않았다.

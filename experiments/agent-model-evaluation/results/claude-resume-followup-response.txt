@@ -1,0 +1,16 @@
+Inspecting the Agent tool schema as provided in my system context. The declared parameters are:
+
+- `description`
+- `isolation`
+- `model`
+- `prompt`
+- `run_in_background`
+- `subagent_type`
+
+**`resume` is not a field in the Agent tool schema.** It is unsupported.
+
+Per your instructions: I am not invoking a new child and not substituting one. The field `resume` does not exist in the Agent tool's JSON schema, so the resume-by-ID path cannot be executed.
+
+For reference, the child agent's own result noted `SendMessage` (with `to: 'a2398b11f2ffc7080'`) as the continuation mechanism — but `SendMessage` is also not among my available tools in this environment.
+
+**Exact unsupported field: `resume`**
