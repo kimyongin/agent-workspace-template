@@ -35,15 +35,28 @@ test.describe("화면 폭별 배치", () => {
     // 긴 공백 없는 제목으로 줄바꿈 처리도 함께 본다.
     await page.getByRole("button", { name: "할 일 추가" }).click();
     const dialog = page.getByRole("dialog", { name: "할 일 추가" });
-    await dialog.getByLabel("제목").fill(unique("가".repeat(40) + "공백없는긴제목"));
+    const longTitle = unique("가".repeat(40) + "공백없는긴제목");
+    await dialog.getByLabel("제목").fill(longTitle);
     await dialog.getByLabel("요약").fill("https://example.com/" + "a".repeat(120));
     await dialog.getByRole("button", { name: "추가" }).click();
-    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
-    const detail = page.url();
+    // 목록의 h1이 아니라 만든 할 일의 상세 화면이 뜰 때까지 기다린다(모달 뒤 목록 h1도 보이는 것으로 판정됨).
+    await expect(page.getByRole("heading", { name: longTitle, level: 1 })).toBeVisible();
+    const taskDetail = page.url();
+
+    // 기록 상세도 함께 본다.
+    await page.goto("/records");
+    await page.getByRole("button", { name: "기록 작성" }).click();
+    const recordDialog = page.getByRole("dialog", { name: "기록 작성" });
+    const recordTitle = unique("긴기록" + "나".repeat(40));
+    await recordDialog.getByLabel("제목").fill(recordTitle);
+    await recordDialog.getByLabel("요약").fill("요약 " + "b".repeat(150));
+    await recordDialog.getByRole("button", { name: "저장" }).click();
+    await expect(page.getByRole("heading", { name: recordTitle, level: 1 })).toBeVisible();
+    const recordDetail = page.url();
 
     for (const width of WIDTHS) {
       await page.setViewportSize({ width, height: 900 });
-      for (const path of ["/tasks", detail, "/records"]) {
+      for (const path of ["/tasks", taskDetail, "/records", recordDetail]) {
         await page.goto(path);
         await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
         expect(await layoutProblems(page), `${width}px ${path}`).toEqual([]);
@@ -60,7 +73,7 @@ test.describe("화면 폭별 배치", () => {
     }
   });
 
-  test("200% 확대(폭 절반)에서도 기능과 읽기 순서가 유지된다", async ({ page }) => {
+  test("200% 확대(폭 절반)에서 넘침·누름 영역·루트 글자 크기가 유지된다", async ({ page }) => {
     await devLogin(page);
     // 1280px 화면의 200% 확대는 CSS 폭 640px과 같다. 루트 글자 크기를 줄이지 않는다.
     await page.setViewportSize({ width: 640, height: 400 });
@@ -82,9 +95,12 @@ test("키보드만으로 할 일을 만들고, 미저장 내용이 있으면 닫
   await page.keyboard.press("Enter");
   const dialog = page.getByRole("dialog", { name: "할 일 추가" });
   await expect(dialog).toBeVisible();
+  // 열리면 초점이 대화상자 안에 있다.
+  expect(await page.evaluate(() => !!document.activeElement?.closest("dialog[open]"))).toBe(true);
 
   // 대화상자 안으로 초점이 들어가고, 뒤 화면 요소로 빠져나가지 않는다.
   // 네이티브 모달은 마지막 요소 다음에 초점을 브라우저 UI로 보낼 수 있다(activeElement가 body). 뒤 화면 요소로는 가면 안 된다.
+  let inDialog = 0;
   for (let i = 0; i < 25; i++) {
     await page.keyboard.press("Tab");
     const where = await page.evaluate(() => {
@@ -93,7 +109,10 @@ test("키보드만으로 할 일을 만들고, 미저장 내용이 있으면 닫
       return el.closest("dialog[open]") ? "dialog" : `outside:${el.tagName}:${(el.textContent || "").trim().slice(0, 20)}`;
     });
     expect(where === "dialog" || where === "browser", where).toBe(true);
+    if (where === "dialog") inDialog++;
   }
+  // 대부분의 Tab은 대화상자 안의 조작 요소에 머문다(브라우저 UI로 나가는 것은 한 바퀴에 한 번 정도).
+  expect(inDialog).toBeGreaterThan(15);
 
   // 미저장 내용이 있을 때 Escape → 확인창, 취소하면 초안이 남는다.
   await dialog.getByLabel("제목").focus();
@@ -105,7 +124,7 @@ test("키보드만으로 할 일을 만들고, 미저장 내용이 있으면 닫
   await page.keyboard.press("Enter");
   await expect(dialog.getByLabel("제목")).toHaveValue("키보드 할 일");
 
-  // 요약을 채우고 Enter(제출)로 저장한다.
+  // 요약을 채우고 제목 칸에서 Enter(브라우저의 기본 제출)로 저장한다.
   const title = unique("키보드 할 일");
   await dialog.getByLabel("제목").fill(title);
   await dialog.getByLabel("요약").focus();
