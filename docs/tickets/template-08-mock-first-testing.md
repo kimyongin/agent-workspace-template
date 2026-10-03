@@ -1,8 +1,8 @@
 # Template-08 — 포트 교체로 빠른 업무·HTTP/MCP 검증
 
 작성: 2026-10-04
-상태: 진행 중 (PR #70·#71 완료, A 수정·삭제 검사·최신 main 로컬 통합 검증 완료; A 최종 리뷰·CI·머지 대기)
-검토 기준: 최신 main `a2e59ddedfcc005b03333f8c65c27c6ffe2b7810` 위 A head `60b85f4010ef7b380bf81892cad69fa1bd40398d`; 첫 제출 base는 아래 snapshot 기록에 보존
+상태: 진행 중 (PR #70·#71 완료, A PR #72 리뷰 P2의 기록 연결 해제 metadata 계약 정정·로컬 재검증 완료; 새 head 리뷰·CI·머지 대기)
+검토 기준: 최신 main `a2e59ddedfcc005b03333f8c65c27c6ffe2b7810` 위 A head `67bffa311253fdda4b15af78d7d9af86ce3fe720`와 P2 수정 patch; 첫 제출 base는 아래 snapshot 기록에 보존
 선행: Template-07 PR #68, 기존 환경 격리 시도의 [PR #69](https://github.com/kimyongin/agent-workspace-template/pull/69)는 미머지 종료
 
 ## 목표와 기준 문서
@@ -71,7 +71,7 @@ fixture는 이 직렬 흐름의 insert/get/update/delete·기록 연결 해제·
 - A 모델·강도: 메인이 same-day desktop snapshot 재사용 preflight 통과 후 `gpt-6.1-sol`/`medium`을 명시 배정했다. 기존 계약 안의 테스트 확장이라 균형 모델과 medium을 유지한다. backend 모델/effort·세션 토큰·비용 metadata는 미노출이며 추정하지 않는다.
 - 현재 배정표의 B 범위는 worker 실패 검사와 동의 요청 생명주기 회귀다. 메인이 PR #71의 최종 리뷰·CI·머지 증거를 인계하고 A를 최신 main 위 rebase했다. A는 B의 브라우저 회귀·실패 조사를 직접 실행하지 않았으며 아래 합쳐진 fast·정적 검사만 직접 담당한다. B 자식 티켓의 당시 제출·CI 조사 기록은 변경하지 않는다.
 - A는 기존 fixture에 삭제·연결 해제 저장 메서드만 더했다. 제목/요약의 각 변경은 현재 hash 색인 작업을 등록하고 동일 값·본문/기한 수정은 등록하지 않는다. stale update/delete·missing/deleted ID는 저장·색인·detach 호출까지 snapshot 무변경을 검사한다.
-- 일회성 완료 결과와 반복 회차 기록은 실제 application으로 생성한다. 삭제 뒤 task만 없어지고 연결 필드 `task_id`·`occurrence_on`만 비워지며 본문·요약·버전과 관계없는 기록은 보존되는지 검사한다. 실제 DB rollback·경쟁·RLS·OAuth·MCP SDK 전송의 증거는 아니다.
+- 일회성 완료 결과와 반복 회차 기록은 실제 application으로 생성한다. 삭제 뒤 task만 없어지고 연결 필드 `task_id`·`occurrence_on`은 비워진다. 연결 해제된 기록의 `version`은 1 증가하고 `updated_at`은 갱신되며 본문·요약·작성/수행 시각과 관계없는 기록은 보존되는지 검사한다. 실제 DB rollback·경쟁·RLS·OAuth·MCP SDK 전송의 증거는 아니다.
 - HTTP 성공은 PATCH 200의 실제 task 계약·DELETE 204 빈 본문, MCP 성공은 실제 handler의 task 계약·`{deleted:id}`다. 숫자 버전·서버 상태 필드·종류 부적합 필드·stale/missing/deleted 오류를 실제 handler와 HTTP 오류 본문으로 교차 검사한다. 운영 인증·core·schema·CI·package·PRD/ADR은 변경하지 않았다.
 
 | 시점·사건 / 담당 | 직접 실행 결과 | 미확인·다음 행동 |
@@ -82,3 +82,5 @@ fixture는 이 직렬 흐름의 insert/get/update/delete·기록 연결 해제·
 | 후속 A 최종 인계 / A 구현 세션 | HTTP 제목·MCP 요약의 명시 기대값 추가 후 `npm run test:adapters:fast` 재통과(6 tests), wall 2.50초·suite 70ms. 증거 기입 후 `npm run check:docs` 재통과(232개·32 tests), wall 3.25초. `git diff --check` 통과 | 메인이 먼저 준비된 PR부터 순차 머지하고 나중 PR에 최신 main을 반영한다. 작성·검증 주체는 A이며 메인의 직접 실행이 아님 |
 | B 리뷰·CI 대기 중 현재 문서 정리 / A 구현 세션 | HEAD `3311d997618ef057f669988f2c9a5a8442acf6ad` clean에서 재개. 같은날 balanced `gpt-6.1-sol`/`medium` preflight 통과 인계를 받고 설정 유지. 현재 B 소유권·PR #71 상태와 PR #69 보존 위치만 수정. `npm run check:docs` 통과(232개·32 tests), wall 3.40초. `git diff --check` 통과 | B의 새 head 리뷰·CI 결과는 메인 인계 사실이며 A 직접 검증 아님. B 머지 뒤 최신 main·통합 재검증은 다음 배정 |
 | B 머지 후 최신 main 통합 검증 / A 구현 세션 | base `a2e59ddedfcc005b03333f8c65c27c6ffe2b7810`, rebase head `60b85f4010ef7b380bf81892cad69fa1bd40398d` clean에서 재개. 같은날 balanced `gpt-6.1-sol`/`medium`·preflight 유지. `npm run test:fast` 통과(core 59·fast 6·web 1, 총 66), wall 5.50초·core 625ms·fast 74ms. `check:deno` 타입·lint·fmt 통과(77/81 files), wall 2.89초. `check:docs` 통과(235개·32 tests·모델 정합성), wall 3.93초. `check:boundaries`·`git diff --check` 통과. 실패·source/test 추가 변경 없음 | B 최종 CI·리뷰·머지는 위 메인 인계 링크로 확인. A는 서비스·DB·OAuth·MCP wire·브라우저/build를 별도 실행하지 않음. A 최종 head의 기존 check/integration CI·독립 리뷰·머지는 제출 후 메인이 확인 |
+| PR #72 P2 회귀·수정 / A 구현 세션 | clean head `67bffa311253fdda4b15af78d7d9af86ce3fe720`에서 [독립 리뷰](https://github.com/kimyongin/agent-workspace-template/pull/72#issuecomment-5972393333)와 실제 `SqlActivityStore.detachRecords`를 대조했다. 원인은 fixture/기대값이 DB의 `version + 1`·`updated_at` 갱신을 누락한 계약 불일치다. metadata 기대값을 먼저 고쳐 `npm run test:adapters:fast -- --filter "deleting completed"`로 기존 fixture의 version 1/01:00과 기대 version 2/02:00 불일치를 재현(1 failed·5 filtered, wall 2.10초, 도구 출력·이 기록 보존) | reviewer는 수정하지 않았고 A가 조사·수정 담당. 같은날 preflight balanced `gpt-6.1-sol`/`medium`·설정 유지; 작은 계약 정정이라 상향 없음 |
+| P2 수정 후 재검증 / A 구현 세션 | fixture의 연결 해제만 version 증가·주입된 저장 시각 갱신에 맞췄다. 작성보다 한 시간 뒤 연결 해제를 두 종류 기록에서 검사하고 본문·요약·무관한 기록 보존, 충돌 무쓰기를 유지했다. `ActivityStore.detachRecords` 주석을 실제 metadata 계약으로 정확화했다. `npm run test:fast` 통과(59+6+1), wall 5.85초·fast 65ms. `check:deno` 통과(77/81 files), wall 3.68초. `check:docs` 통과(235개·32 tests), wall 3.49초. `check:boundaries`·`git diff --check` 통과 | 기존 업무/API 정책·SQL·인증·권한·잠금·CI는 변경 없음. 현재 서술은 metadata 보존 오류를 정정하고 이전 제출 검사 기록은 보존. 실제 DB/서비스·OAuth·MCP wire·browser/build 별도 실행 없음. 새 head 최종 리뷰·CI·머지는 메인 |

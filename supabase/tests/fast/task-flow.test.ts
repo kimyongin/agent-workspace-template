@@ -26,7 +26,7 @@ const unsupported = () => {
 };
 
 // Only this serial flow's storage operations. No SQL, ownership, locks or rollback simulation.
-function fixture() {
+function fixture(storageNow = () => now) {
   const tasks = new Map<string, Task>();
   const records = new Map<string, ActivityRecord>();
   const requests = new Map<string, StoredRequest>();
@@ -95,7 +95,15 @@ function fixture() {
     detachRecords: (taskId) => {
       mutations.push(`detach:${taskId}`);
       for (const [id, record] of records) {
-        if (record.task_id === taskId) records.set(id, { ...record, task_id: null, occurrence_on: null });
+        if (record.task_id === taskId) {
+          records.set(id, {
+            ...record,
+            task_id: null,
+            occurrence_on: null,
+            version: record.version + 1,
+            updated_at: storageNow(),
+          });
+        }
       }
       return Promise.resolve();
     },
@@ -178,7 +186,8 @@ Deno.test("application: task content edits index only changed title/summary; sta
 
 Deno.test("application: deleting completed/recurring tasks detaches history and preserves unrelated records", async () => {
   for (const kind of ["once", "recurring"] as const) {
-    const f = fixture();
+    let detachedAt = now;
+    const f = fixture(() => detachedAt);
     const task = await activity.createTask(
       f.deps,
       actor,
@@ -201,6 +210,8 @@ Deno.test("application: deleting completed/recurring tasks detaches history and 
     assertEquals(linked.occurrence_on, kind === "once" ? null : "2026-10-03");
     const current = f.tasks.get(task.id)!;
     if (kind === "once") assertEquals(current.result_record_id, linked.id);
+    assertEquals(linked.updated_at, now);
+    detachedAt = "2026-10-04T02:00:00.000Z";
     const before = snapshot(f);
     const stale = await assertRejects(() => activity.deleteTask(f.deps, actor, task.id, current.version + 1), AppError);
     assertEquals(stale.code, "conflict");
@@ -209,7 +220,13 @@ Deno.test("application: deleting completed/recurring tasks detaches history and 
     assertEquals(f.mutations.slice(-2), [`detach:${task.id}`, `delete:${task.id}`]);
     assertEquals(f.tasks.size, 0);
     assertEquals(f.records.size, 2);
-    assertEquals(recordResult.parse(f.records.get(linked.id)), { ...linked, task_id: null, occurrence_on: null });
+    assertEquals(recordResult.parse(f.records.get(linked.id)), {
+      ...linked,
+      task_id: null,
+      occurrence_on: null,
+      version: linked.version + 1,
+      updated_at: detachedAt,
+    });
     assertEquals(f.records.get(unrelated.id), unrelated);
     assertEquals(f.jobs, before.jobs);
     const deleted = snapshot(f);
