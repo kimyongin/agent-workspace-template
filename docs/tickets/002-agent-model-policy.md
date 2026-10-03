@@ -1,7 +1,7 @@
 # 002 — 개발·리뷰 세션 모델 선택과 갱신
 
 작성: 2026-10-03
-상태: 진행 중
+상태: 완료(일부 미완료)
 검토 기준: `c98d7e0`
 선행: 없음
 
@@ -14,7 +14,7 @@
 - [x] 공통 등급·상향/하향 정책과 갱신 절차, 단일 선택표를 연결한다.
 - [x] Claude/Codex 연결 설정과 drift·배정 전 최신성/지원 검사를 구현한다.
 - [x] 오류 경로 회귀 검사와 문서 검사를 통과하고 실제 확인·미검증을 구분한다.
-- [ ] 구현과 분리된 리뷰·CI를 통과하고 작은 PR을 머지한다.
+- [x] 구현과 분리된 리뷰·CI를 통과하고 작은 PR을 머지한다.
 
 ## PR 분할 계획
 
@@ -38,16 +38,18 @@
 | 계약과 의존성 | [개발 방법](../development/workflow.md), [선택표](../development/agent-models.json), 앱/DB 의존성 없음 |
 | 모델 배정 | 이번 구현: Codex desktop 명시 `gpt-6.1-sol` / `medium` / `fork_turns=none`, 일반 개발 절차·도구 구현이므로 균형 배정. 2026-10-03 도구 목록 확인. 모델/강도 상향 없음. CLI 지원과 별개 |
 | 완료 조건과 검증 | 위 검증 절. 로컬 Node만 사용하며 공유 서비스 시작 없음 |
-| 결과와 다음 행동 | 정책·얇은 설정·배정 도구 구현 및 로컬 검사 통과, 본 세션이 Codex defaults 정적 로딩·Claude native CLI·양쪽 균형 배정 명령 통과 확인. PR #65 독립 리뷰의 TOML 문자열 오인 결함을 수정했고 새 head 재리뷰·CI·머지로 인계 |
+| 결과와 다음 행동 | 정책·얇은 설정·배정 도구 및 실제 확인 범위는 아래 기록. PR #65 최종 head `7710753`의 독립 리뷰·필수 CI 통과 후 `f504c47`로 머지 완료. Codex custom spawn·Claude child/resume·backend effort·신규 후보 품질/비용 평가는 미검증 유지 |
 
 | 단계 | 상태 | revision / 변경 | 검증 명령·결과 | 남은 작업 |
 | --- | --- | --- | --- | --- |
-| 정책·도구 | 구현(리뷰 대기) | base `c98d7e0` 위 작업 변경 | `npm run check:docs`: 텍스트 228개 및 실제 TOML 문법·parsed defaults 정합성, 회귀 26개 통과(두 번째 리뷰 수정 포함) | 새 head 재리뷰·CI |
-| 직접 실행·설정 연결 | 구현(리뷰 대기) | Codex CLI 0.147.0 / Claude Code 2.1.140 / desktop 도구 | 아래 실제 smoke·목록 결과. 균형 direct, Codex defaults 파싱, Claude CLI agent 실행, 양쪽 assign medium 통과 | Codex custom spawn·Claude child/resume와 신규 후보 평가 |
+| 정책·도구 | 완료 | merge `f504c47` | `npm run check:docs`: 텍스트 228개 및 실제 TOML 문법·parsed defaults 정합성, 회귀 26개 통과(두 번째 리뷰 수정 포함), 최종 독립 리뷰·CI 통과 | — |
+| 직접 실행·설정 연결 | 미완료(사유) | Codex CLI 0.147.0 / Claude Code 2.1.140 / desktop 도구 | 아래 실제 smoke·목록 결과. 균형 direct, Codex defaults 파싱, Claude CLI agent 실행, 양쪽 assign medium 통과 | Codex custom spawn·Claude child/resume와 신규 후보 평가 |
 | 신규 모델 평가 | 미완료(사유) | CLI/desktop 지원 목록이 다름 | 모델별 광범위 품질·비용 비교는 미실행. 현재 기본은 baseline이며 신규 평가 통과로 표기하지 않음 | 신규 발견 시 대표 구현·리뷰·사용량/요금 평가 |
-| PR·리뷰·CI·머지 | 구현(리뷰 대기) | [PR #65](https://github.com/kimyongin/agent-workspace-template/pull/65), 리뷰 head `9e054f7654cab7f24ac3b5425eb89ef9d59f4f50` / `ee070096c651ad072a9ff77633b969c0c3e10876` | 각각 수정 필요: P2 multiline 문자열 오인 / quoted·공백 표와 키의 중복 생성. 두 번째 수정은 부분 문법 처리를 실제 parser/patch로 대체 | 본 세션의 새 head 재리뷰·CI·머지 |
+| PR·리뷰·CI·머지 | 완료 | [PR #65](https://github.com/kimyongin/agent-workspace-template/pull/65), 최종 head `77107532eca2eac8880b1ca5ff4d06a6e6eaf8d4`, merge `f504c472d6551375ebaca8c4ed8ab5b46dcedc75` | [최종 독립 리뷰](https://github.com/kimyongin/agent-workspace-template/pull/65#issuecomment-5969278926) 발견 사항 없음·머지 가능, 같은 head의 [CI check·integration](https://github.com/kimyongin/agent-workspace-template/actions/runs/37123564974) 성공 | — |
 
 ### 이력
+
+- 2026-10-03 21:45:42 KST: [최종 인계](https://github.com/kimyongin/agent-workspace-template/pull/65#issuecomment-5969302801)에 따라 PR #65 머지 완료. 003 작업 시작 때 GitHub의 MERGED·merge commit·최종 리뷰·필수 CI 증거를 실제 조회해 현재 요약을 맞췄다. 앞선 두 리뷰 head `9e054f7654cab7f24ac3b5425eb89ef9d59f4f50` / `ee070096c651ad072a9ff77633b969c0c3e10876`의 P2 multiline 문자열 오인 / quoted·공백 표와 키 중복 생성은 수정 이력이며 아래 당시 실행 증거와 미검증은 보존한다.
 
 - 2026-10-03: 승인 범위·base·단독 편집 담당·작은 PR 계획 기록 후 시작.
 - 2026-10-03: 본 세션이 Codex CLI app-server stdio에서 `initialize`→`model/list(limit=100, includeHidden=false)`를 LLM turn 없이 조회. gpt-5.6-sol/terra/luna, gpt-5.5와 지원 강도를 확인(nextCursor/upgrade=null). desktop spawn_agent의 gpt-6 목록과 구분했다.
