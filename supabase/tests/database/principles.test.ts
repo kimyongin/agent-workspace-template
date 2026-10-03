@@ -1,4 +1,4 @@
-import { assert, assertEquals, assertRejects } from "@std/assert";
+import { assert, assertEquals, assertMatch, assertRejects } from "@std/assert";
 import { SqlPrincipleUnitOfWork } from "../../functions/_shared/adapters/supabase/principle-store.ts";
 import { principleCreate, principleListQuery } from "../../functions/_shared/contracts/principle.ts";
 import { createPrinciple, getPrinciple, listPrinciples } from "../../functions/_shared/core/principles/application.ts";
@@ -33,7 +33,7 @@ dbTest("원칙: RLS·직접 쓰기 거부·상태 필터·소유자/필터 커�
     await tx`set local role authenticated`;
     await tx`insert into app.principles (owner_id, title, summary) values (${A.userId}, '우회', '우회')`;
   }));
-  assert(denied.startsWith("42501"));
+  assertMatch(denied, /^42501 permission denied for (schema app|table principles)/);
   const page = await listPrinciples(deps, A, principleListQuery.parse({ limit: 1 }));
   assert(page.next_cursor);
   const next = await listPrinciples(deps, A, principleListQuery.parse({ limit: 1, cursor: page.next_cursor }));
