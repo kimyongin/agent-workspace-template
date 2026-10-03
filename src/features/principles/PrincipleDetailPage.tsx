@@ -10,6 +10,7 @@ import { ConfirmDialog } from "../../components/Modal.tsx";
 import { FormModal } from "../../components/ContentForm.tsx";
 import { Field } from "../../components/Field.tsx";
 import {TagNames} from "../tags/TagPicker.tsx";
+import {EntityLink} from "../entity/EntityPicker.tsx";
 import {useSearchReturn} from "../search/return.ts";
 
 export function PrincipleDetailPage() {
@@ -53,6 +54,7 @@ export function PrincipleDetailPage() {
         <div><dt>{principleLabels.applies_when}</dt><dd>{item.applies_when || "지정하지 않음"}</dd></div>
         <div><dt>{principleLabels.summary}</dt><dd>{item.summary}</dd></div></dl>
       <TagNames ids={item.tag_ids}/>
+      <EntityLink id={item.entity_id}/>
       <div><h2 className="section-title">본문</h2><MarkdownContent text={item.body} /></div>
       <p className="meta">수정 {formatDateTime(item.updated_at)}</p>
       {item.replaced_by_id&&<p><Link to={`/principles/${item.replaced_by_id}`}>대체 원칙 확인</Link></p>}

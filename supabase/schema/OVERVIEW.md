@@ -8,6 +8,7 @@
 | `app.tasks` | 같은 파일 | 할 일(일회성·반복). 종류별 필드 모양 CHECK, 중단 이력 `pauses`(jsonb) |
 | `app.records` | 같은 파일 | 활동 기록. `(task_id, owner_id)` 복합 외래 키로 같은 소유자의 할 일만 참조 |
 | `app.principles` | `20261003065427_principles.sql` | 사용자 원칙·적용 조건·현재 상태. 소유자 RLS, 대체 원칙은 같은 소유자만 참조 |
+| `app.entities`·활동/원칙의 `entity_id` | `20261003194119_example_entity.sql` | 네 명시 속성·소유자 RLS·같은 owner 복합 FK. 삭제 시 연결만 해제하며 Entity는 검색 색인에서 제외 |
 | `app.record_principles` | `20261003074639_record_principles.sql` | 기록에 적용한 원칙. 양쪽 복합 FK·소유자 RLS. 원칙 삭제는 연결만 제거 |
 | `app.tags` | `20261003080756_tags.sql` | 소유자 안에서 대소문자 무시 고유 이름·낙관적 버전·소유자 RLS |
 | `app.task_tags` | `20261003081643_task_tags.sql` | 같은 소유자 복합 FK·RLS. 태그 삭제는 연결만 제거 |

@@ -12,6 +12,7 @@ import { addDays, formatDateTime, todayIn } from "../../lib/format.ts";
 import { emptyRecord, RecordFormModal, TaskFormModal, taskDraftFrom, taskInput } from "./forms.tsx";
 import { OccurrenceBadge, StatusBadge, useRequestId } from "./shared.tsx";
 import {TagNames} from "../tags/TagPicker.tsx";
+import {EntityLink} from "../entity/EntityPicker.tsx";
 import {useSearchReturn} from "../search/return.ts";
 
 const WEEKDAY_NAMES = ["", "월", "화", "수", "목", "금", "토", "일"];
@@ -31,7 +32,7 @@ type Dialog = null | "edit" | "complete" | "delete" | { occurrence: string };
 
 export function TaskDetailPage() {
   const { id = "" } = useParams();
-  const back=useSearchReturn("/tasks","← 할 일 목록");
+  const back=useSearchReturn(`/tasks${window.location.search}`,"← 할 일 목록");
   const navigate = useNavigate();
   const [task, setTask] = useState<TaskDetail | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -132,6 +133,7 @@ export function TaskDetailPage() {
         {message && <Notice kind="success">{message}</Notice>}
         {actionError && <Notice kind="error">{actionError}</Notice>}
         <TagNames ids={task.tag_ids}/>
+        <EntityLink id={task.entity_id}/>
         <dl className="props">
           <div>
             <dt>{taskLabels.status}</dt>
@@ -247,6 +249,7 @@ export function TaskDetailPage() {
               summary: draft.summary,
               body: draft.body,
               tag_ids:draft.tag_ids,
+              entity_id:draft.entity_id,
             };
             if (task.kind === "once") patch.due_on = draft.due_on || null;
             else {
@@ -264,6 +267,7 @@ export function TaskDetailPage() {
       {dialog === "complete" && (
         <RecordFormModal
           title="할 일 완료"
+          entityEditable={false}
           submitLabel="완료하고 기록 저장"
           open
           initial={emptyRecord()}
@@ -283,7 +287,7 @@ export function TaskDetailPage() {
           title={`${dialog.occurrence} 회차 기록`}
           submitLabel="기록 저장"
           open
-          initial={emptyRecord()}
+          initial={{...emptyRecord(),entity_id:task.entity_id}}
           onClose={() => setDialog(null)}
           onSave={async (value) => {
             await api<RecordResult>("POST", `/tasks/${task.id}/occurrences/${dialog.occurrence}/records`, {

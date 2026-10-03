@@ -73,6 +73,7 @@ description: 연결된 도메인 앱의 데이터·할 일·활동 기록·사�
 | 원칙 표현 정정·상태 전환·삭제 | `update_principle`, `set_principle_status`, `delete_principle` |
 | 태그 목록·생성·이름 변경·삭제 | `list_tags`, `create_tag`, `rename_tag`, `delete_tag` |
 | 제목·요약·본문에서 근거 찾기 | `search` |
+| 예제 엔터티 찾기·읽기·만들기·고치기·지우기 | `list_entities`, `get_entity`, `create_entity`, `update_entity`, `delete_entity` |
 
 근거를 찾을 때는 `search`로 후보를 찾고 해당 `get_task`·`get_record`·`get_principle`로 원문을 확인한다. 결과의 제목·요약만으로 본문을 읽었다고 보고하지 않는다. `auto`는 제목·요약의 의미 검색과 제목·요약·본문 키워드를 합친다. 질의는 Pinecone로 전달되며 `keyword`는 외부 호출 없이 본문 세부 정보를 찾는다. `search_state=keyword_fallback`이면 키워드 대체 결과이며, 결과가 0건이어도 `semantic_coverage`의 대기·제외 수를 확인한다. 기본 검색은 활성 원칙만 포함한다. 필요하면 `status=all` 또는 `inactive`로 과거 근거를 확인하고 현재 원칙과 구분한다. `tag_id`, `kinds`, `from`·`to`로 범위를 좁히며 커서는 같은 조건에만 사용한다. 의미 페이지를 잇는 중 오류가 나면 재시도하거나 첫 페이지부터 다시 검색하고 서로 다른 결과를 섞지 않는다.
 
@@ -86,6 +87,10 @@ description: 연결된 도메인 앱의 데이터·할 일·활동 기록·사�
 - 오류 본문의 `code`·`retryable`·`fields`로 고칠 입력과 재시도 여부를 판단한다.
 
 ## 다음 업무에서 다시 쓸 지식 남기기
+
+예제 엔터티는 `list_entities`의 `keyword`(속성 1 부분 일치), `prop3_from`·`prop3_to`(날짜 범위), `prop4`로 찾는다. 이 조건들은 AND이며 `sort`와 필터를 바꾸면 새 첫 페이지부터 조회한다. 엔터티는 임베딩하지 않으므로 `search`에서 찾지 않는다. `get_entity`는 연결된 할 일·기록·원칙의 최근 5개와 전체 개수를 준다. 해당 `list_tasks`·`list_records`·`list_principles`의 `entity_id` 필터로 전체를 탐색한다.
+
+할 일·기록·원칙 생성/수정의 `entity_id`는 같은 소유자의 엔터티여야 한다. 수정에서 생략은 유지, null은 연결 해제다. 일회성 완료 결과는 할 일의 연결을 이어받고 회차 기록은 entity_id 생략 시 이어받는다. 엔터티 삭제는 연결만 비우고 연결 항목 버전을 올리며 원문을 보존한다. 삭제 전에 `get_entity`로 현재 버전과 영향을 확인한다.
 
 업무 결과에서 다시 활용할 결론·근거·조건이 생기면 기록으로 남길 가치가 있는지 판단한다. 일회성 답변을 모두 저장하지 않고, 기존 기록과 중복되는지 확인한다. 같은 조건에서 반복 적용할 기준이 생겼다면 활동 결과와 사용자 원칙의 변경 제안을 구분한다.
 

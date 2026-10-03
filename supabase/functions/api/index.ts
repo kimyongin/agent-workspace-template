@@ -1,6 +1,6 @@
 // 웹 HTTP API 진입점: /api/tasks, /api/records ...
 import { createHttpApp } from "../_shared/adapters/http/app.ts";
-import { activityDeps, env, principleDeps, searchDeps, tagDeps } from "../_shared/bootstrap.ts";
+import { activityDeps, entityDeps, env, principleDeps, searchDeps, tagDeps } from "../_shared/bootstrap.ts";
 
 const app = createHttpApp(
   activityDeps(),
@@ -12,6 +12,8 @@ const app = createHttpApp(
   principleDeps(),
   tagDeps(),
   searchDeps(),
+  undefined,
+  entityDeps(),
 );
 
 Deno.serve(app.fetch);

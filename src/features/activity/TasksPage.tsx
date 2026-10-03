@@ -8,6 +8,7 @@ import { api, query } from "../../lib/api.ts";
 import { emptyTask, TaskFormModal, taskInput } from "./forms.tsx";
 import { StatusBadge, useRequestId } from "./shared.tsx";
 import { TagFilter } from "../tags/TagPicker.tsx";
+import { EntityPicker } from "../entity/EntityPicker.tsx";
 
 type Page = { items: TaskListItem[]; next_cursor: string | null };
 
@@ -23,6 +24,7 @@ export function TasksPage() {
   const kind = params.get("kind") ?? "";
   const status = params.get("status") ?? "";
   const tag_id=params.get("tag_id")??"";
+  const entity_id=params.get("entity_id")??"";
   const generation=useRef(0);
   const [items, setItems] = useState<TaskListItem[] | null>(null);
   const [cursor, setCursor] = useState<string | null>(null);
@@ -34,9 +36,9 @@ export function TasksPage() {
   const navigate = useNavigate();
 
   const load = useCallback(async (after?: string) => {
-    const page = await api<Page>("GET", `/tasks${query({ kind, status, tag_id, limit: 20, cursor: after })}`);
+    const page = await api<Page>("GET", `/tasks${query({ kind, status, tag_id, entity_id, limit: 20, cursor: after })}`);
     return page;
-  }, [kind, status,tag_id]);
+  }, [kind, status,tag_id,entity_id]);
 
   useEffect(() => {
     let alive = true;
@@ -70,7 +72,7 @@ export function TasksPage() {
     }
   };
 
-  const setFilter = (key: "kind" | "status" | "tag_id", value: string) => {
+  const setFilter = (key: "kind" | "status" | "tag_id" | "entity_id", value: string) => {
     const next = new URLSearchParams(params);
     if (value) next.set(key, value);
     else next.delete(key);
@@ -78,7 +80,7 @@ export function TasksPage() {
     setParams(next, { replace: true });
   };
 
-  const filtered = Boolean(kind || status || tag_id);
+  const filtered = Boolean(kind || status || tag_id || entity_id);
 
   return (
     <section className="panel" aria-labelledby="tasks-title">
@@ -89,6 +91,7 @@ export function TasksPage() {
 
       <div className="form" role="group" aria-label="할 일 필터">
         <TagFilter value={tag_id} onChange={id=>setFilter("tag_id",id)}/>
+        <EntityPicker label="엔터티 필터" value={entity_id} onChange={id=>setFilter("entity_id",id??"")}/>
         <div className="chips" role="group" aria-label={taskLabels.kind}>
           {KIND_FILTERS.map(([v, label]) => (
             <button key={v} type="button" className="chip" aria-pressed={kind === v} onClick={() => setFilter("kind", v)}>
@@ -127,7 +130,7 @@ export function TasksPage() {
           {items.map((t) => (
             <li key={t.id} className="list-item">
               <div className="list-item-main">
-                <Link className="item-title" to={`/tasks/${t.id}`}>{t.title}</Link>
+                <Link className="item-title" to={`/tasks/${t.id}?${params}`}>{t.title}</Link>
                 <span className="secondary">{t.summary}</span>
                 <span className="meta">
                   {taskLabels[t.kind]}

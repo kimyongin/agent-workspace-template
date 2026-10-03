@@ -76,11 +76,22 @@ export function getPrinciple(deps: PrincipleDeps, actor: Actor, id: string) {
   });
 }
 export async function listPrinciples(deps: PrincipleDeps, actor: Actor, query: PrincipleListQuery) {
-  const scope = await scopeOf(actor, { list: "principles", status: query.status, tag_id: query.tag_id });
+  const scope = await scopeOf(actor, {
+    list: "principles",
+    status: query.status,
+    tag_id: query.tag_id,
+    entity_id: query.entity_id,
+  });
   const after = query.cursor ? decodeCursor(query.cursor, scope) : undefined;
   return deps.uow.run(actor, async (store) =>
     paginate(
-      await store.list({ status: query.status, tag_id: query.tag_id, limit: query.limit + 1, after }),
+      await store.list({
+        status: query.status,
+        tag_id: query.tag_id,
+        entity_id: query.entity_id,
+        limit: query.limit + 1,
+        after,
+      }),
       query.limit,
       (p) => p.updated_at,
       scope,

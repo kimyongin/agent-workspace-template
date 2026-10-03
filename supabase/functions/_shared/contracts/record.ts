@@ -18,6 +18,7 @@ import {
 
 /** 직접 작성과 반복 할 일의 회차 기록이 같은 입력을 쓴다. */
 export const recordCreate = z.strictObject({
+  entity_id: id.nullable().optional(),
   tag_ids: tagIds.optional(),
   title,
   summary,
@@ -31,6 +32,7 @@ export type RecordCreate = z.infer<typeof recordCreate>;
 export const recordUpdate = z
   .strictObject({
     expected_version: expectedVersion,
+    entity_id: id.nullable().optional(),
     tag_ids: tagIds.optional(),
     title: title.optional(),
     summary: summary.optional(),
@@ -47,6 +49,7 @@ export const recordListQuery = z
     occurred_to: isoDateTime.optional(),
     task_id: id.optional(),
     tag_id: id.optional(),
+    entity_id: id.optional(),
     ...pageInput,
   })
   .refine((q) => !(q.occurred_from && q.occurred_to) || Date.parse(q.occurred_from) <= Date.parse(q.occurred_to), {
@@ -57,6 +60,7 @@ export type RecordListQuery = z.infer<typeof recordListQuery>;
 
 export const recordResult = z.object({
   id,
+  entity_id: id.nullable(),
   tag_ids: z.array(id),
   title: z.string(),
   summary: z.string(),
