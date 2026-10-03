@@ -106,11 +106,6 @@ export function useActivityList<T extends { id: string }>(
     focused.current = hash;
   }, [items, busy, hash, titleId, error]);
 
-  useEffect(() => {
-    const control = document.getElementById(`activity-${kind}-page-control`);
-    if (!busy && control && document.activeElement === control) control.scrollIntoView({ block: "nearest" });
-  }, [busy, items, error, kind]);
-
   const more = async () => {
     if (!cursor || busy) return;
     const started = generation.current;
