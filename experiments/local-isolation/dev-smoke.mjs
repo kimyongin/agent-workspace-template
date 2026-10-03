@@ -1,0 +1,26 @@
+// Real owned development endpoints; this is a lifecycle smoke, not the PR 2 test runner.
+import assert from "node:assert/strict";
+import { join } from "node:path";
+import { readFile, writeFile } from "node:fs/promises";
+import { readEnv } from "../../scripts/local-env.mjs";
+import { environment } from "../../scripts/environment-state.mjs";
+const expected = await environment(process.cwd());
+const manifest = JSON.parse(await readFile(join(expected.dir, "manifest.json"), "utf8"));
+const env = readEnv(join(expected.dir, "runtime.env"));
+const tokenResponse = await fetch(`${env.VITE_SUPABASE_URL}/auth/v1/token?grant_type=password`, { method: "POST", headers: { apikey: env.VITE_SUPABASE_PUBLISHABLE_KEY, "Content-Type": "application/json" }, body: JSON.stringify({ email: env.DEV_USER_A_EMAIL, password: env.DEV_USER_A_PASSWORD }) });
+assert.equal(tokenResponse.status, 200);
+const { access_token: token, user } = await tokenResponse.json();
+const headers = { Authorization: `Bearer ${token}`, "Content-Type": "application/json", Origin: `http://127.0.0.1:${manifest.ports.web}` };
+const api = env.VITE_API_URL;
+const response = await fetch(`${api}/tasks`, { headers });
+assert.equal(response.status, 200);
+const created = await fetch(`${api}/tasks`, { method: "POST", headers, body: JSON.stringify({ kind: "once", title: `T08 lifecycle ${manifest.id}`, summary: "Preserve across stop/restart", body: "local only" }) });
+assert.equal(created.status, 201);
+const task = await created.json();
+const web = await fetch(`http://127.0.0.1:${manifest.ports.web}/src/lib/supabase.ts`);
+const webSource = await web.text(); assert.ok(webSource.includes(env.VITE_SUPABASE_URL));
+const foreign = await fetch("http://127.0.0.1:56100/auth/v1/user", { headers: { Authorization: `Bearer ${token}`, apikey: env.VITE_SUPABASE_PUBLISHABLE_KEY } });
+assert.notEqual(foreign.status, 200);
+const evidence = { observedAt: new Date().toISOString(), id: manifest.id, ports: manifest.ports, userId: user.id, taskId: task.id, apiStatus: response.status, createStatus: created.status, foreignGatewayStatus: foreign.status, foreignGatewayEvidenceScope: "foreign gateway rejected this environment's API key; cross-environment JWT verification requires a valid key for the destination", webStatus: web.status, corsHeader: response.headers.get("access-control-allow-origin"), configHash: manifest.configHash };
+await writeFile(new URL("dev-smoke-windows-20261004.json", import.meta.url), JSON.stringify(evidence, null, 2) + "\n");
+console.log("Owned ES256 login/API/create/web endpoints succeeded; foreign gateway rejected this environment's API key.");

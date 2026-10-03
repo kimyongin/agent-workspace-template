@@ -1,0 +1,12 @@
+import assert from "node:assert/strict";
+import { writeFile } from "node:fs/promises";
+import { join } from "node:path";
+import { environment, optionalJson } from "../../scripts/environment-state.mjs";
+import { inventory } from "../../scripts/environment-runtime.mjs";
+const env = await environment(process.cwd());
+const resources = await inventory(env);
+const lock = await optionalJson(join(env.dir, "operation.lock/owner.json"));
+assert.equal(lock, null); assert.equal(resources.container.length, 0); assert.equal(resources.network.length, 0);
+assert.ok(resources.volume.some((volume) => volume.name === `supabase_db_${env.project}`));
+await writeFile(new URL("cancellation-windows-20261004.json", import.meta.url), JSON.stringify({ observedAt: new Date().toISOString(), id: env.id, trigger: "Windows PTY Ctrl+C before development ready", lifecycleOutput: "Interrupted dev: owned services stopped; development DB preserved", lockReleased: true, containers: resources.container, networks: resources.network, preservedVolumes: resources.volume.map(({ name, createdAt }) => ({ name, createdAt })) }, null, 2) + "\n");
+console.log("Preparation cancellation left no owned container/network/lock and retained development volumes.");

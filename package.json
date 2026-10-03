@@ -6,6 +6,10 @@
     "node": ">=22"
   },
   "scripts": {
+    "env:setup": "node scripts/environment.mjs setup",
+    "env:status": "node scripts/environment.mjs status",
+    "env:stop": "node scripts/environment.mjs stop",
+    "env:dev": "node scripts/environment.mjs dev",
     "setup:local": "node scripts/local-setup.mjs",
     "stop:local": "supabase stop",
     "dev": "vite",

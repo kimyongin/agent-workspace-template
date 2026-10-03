@@ -1,0 +1,19 @@
+{
+  "observedAt": "2026-10-03T15:54:52.951Z",
+  "id": "aw-dev-6739d1b500bb6eb3",
+  "trigger": "Windows PTY Ctrl+C before development ready",
+  "lifecycleOutput": "Interrupted dev: owned services stopped; development DB preserved",
+  "lockReleased": true,
+  "containers": [],
+  "networks": [],
+  "preservedVolumes": [
+    {
+      "name": "supabase_db_aw-dev-6739d1b500bb6eb3",
+      "createdAt": "2026-10-03T15:23:28Z"
+    },
+    {
+      "name": "supabase_edge_runtime_aw-dev-6739d1b500bb6eb3",
+      "createdAt": "2026-10-03T15:23:45Z"
+    }
+  ]
+}

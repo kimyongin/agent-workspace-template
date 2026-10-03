@@ -49,7 +49,9 @@ T02-3의 원칙 관리·기록 적용, 태그 관리·세 종류 연결/필터, 
 
 세션별 작업 목적·모델/추론 강도 선택 이유·결과와 다음 판단의 보고는 [운영 브리핑](development/workflow.md#세션-운영-브리핑)을 따른다. [Template-06](tickets/template-06-agent-session-briefings.md)의 절차와 실행 증거·리뷰/CI/머지는 PR #66으로 완료했다.
 
-지침 후속 정리는 [Template-07](tickets/template-07-guidance-review-followup.md)에서 추적한다. 개발일 조회·재개 절차는 PR #67로 완료했다. 티켓 영역·완료 기록·설계/리뷰 역할의 [PR #68](https://github.com/kimyongin/agent-workspace-template/pull/68)은 제출 시점의 구현·로컬 검증 snapshot이며 독립 리뷰·CI·머지는 아직 남아 있다. 제출 후 실제 최종 결과는 그 PR 완료 코멘트와 [checks](https://github.com/kimyongin/agent-workspace-template/pull/68/checks)가 소유하고, 이 현재 요약은 다음 실제 작업에서 맞춘다([기록 규칙](development/workflow.md#변경과-완료-기록)).
+지침 후속 정리 [Template-07](tickets/template-07-guidance-review-followup.md)은 PR #67·[PR #68](https://github.com/kimyongin/agent-workspace-template/pull/68)로 완료했다. PR #68은 최종 독립 리뷰·필수 CI를 통과하고 2026-10-03 23:48:05 KST에 `29071c1`로 머지했다([최종 완료 근거](https://github.com/kimyongin/agent-workspace-template/pull/68#issuecomment-5970265422)). 당시 제출 기록은 티켓 이력에 보존한다.
+
+개발·통합 검증 환경 격리는 [Template-08](tickets/template-08-local-environment-isolation.md)에서 구현 중이다. PR 1은 [checkout별 개발 명령](development/local-environments.md)의 별도 Supabase·포트·소유권·잠금을 다룬다. 실행별 snapshot·통합 runner·기존 명령/CI 전환은 PR 2에 남아 있으며 기존 공유 검사 경로는 순차 관리한다.
 
 제품 방향과 코드 설계 원칙은 합의한 기준이다. 기능·데이터·HTTP/MCP·권한·트랜잭션 계약은 [T02-1](tickets/template-02-t02-1-contracts.md)에 확정돼 있고 위 T02-2/3 흐름은 구현·검증돼 있다. 폴더 구조 문서의 제안 트리는 배치 안내이므로 실제 파일과 구분하며, 남은 예제 Entity·제품 패키지 단계는 T02-4 보류를 유지한다.
 

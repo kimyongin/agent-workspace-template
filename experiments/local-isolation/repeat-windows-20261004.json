@@ -1,0 +1,28 @@
+{
+  "observedAt": "2026-10-03T15:40:39.556Z",
+  "id": "aw-dev-6739d1b500bb6eb3",
+  "generatedFilesByteAndMtimePreserved": true,
+  "files": {
+    "supabase/config.toml": {
+      "sha256": "596daf2a094983690d107e7b0ef61e9b7d6fa61ca05b9f784610d760773a66da",
+      "mtimeMs": 1791041001313.876
+    },
+    "supabase/signing_keys.json": {
+      "sha256": "b7fc0879caf9eb599a47983cf00ee3e44e329722ff5d896a4f96e9b1896918cd",
+      "mtimeMs": 1791041002291.379
+    },
+    "runtime.env": {
+      "sha256": "31047f539b0b9433d6130f6e8161e4d8ef4b130198d7669d188fe17e8a589dc0",
+      "mtimeMs": 1791041046306.8284
+    },
+    "functions.env": {
+      "sha256": "afd7a646a173acffca4da6e1251c50d3bfb65e60a46b596012490e3cc75faac9",
+      "mtimeMs": 1791041557922.9778
+    },
+    "web/.env.local": {
+      "sha256": "8f6d0cd6fe56e1a619798cba6891d47e844b3d8737bb3bee21f1ff14dfa71e82",
+      "mtimeMs": 1791041046514.9114
+    }
+  },
+  "developmentTaskAndUserSurvivedStopRestart": true
+}

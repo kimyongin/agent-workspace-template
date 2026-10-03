@@ -1,0 +1,25 @@
+{
+  "observedAt": "2026-10-03T15:36:19.286Z",
+  "id": "aw-dev-6739d1b500bb6eb3",
+  "ports": {
+    "api": 57000,
+    "db": 57001,
+    "shadow": 57002,
+    "pooler": 57003,
+    "studio": 57004,
+    "smtp": 57005,
+    "analytics": 57006,
+    "inspector": 57007,
+    "web": 57008,
+    "callback": 57009
+  },
+  "userId": "5acb7506-4ffa-4745-a246-2b850ba4d98c",
+  "taskId": "d6d8ca9d-d4c9-4a6d-ae23-39ad7b736291",
+  "apiStatus": 200,
+  "createStatus": 201,
+  "foreignGatewayStatus": 403,
+  "foreignGatewayEvidenceScope": "foreign gateway rejected this environment's API key; cross-environment JWT verification requires a valid key for the destination",
+  "webStatus": 200,
+  "corsHeader": "*",
+  "configHash": "596daf2a094983690d107e7b0ef61e9b7d6fa61ca05b9f784610d760773a66da"
+}

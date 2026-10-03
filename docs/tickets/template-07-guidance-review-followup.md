@@ -1,11 +1,11 @@
 # Template-07 — 지침 재검토 후속 개선
 
 작성: 2026-10-03
-상태: 진행 중
+상태: 완료
 검토 기준: `10140767a9e88021abba7b439427c3e643481ff2`
 선행: [Template-06 세션 운영 브리핑](template-06-agent-session-briefings.md), PR #66 머지
 
-현재 요약(제출 시점): PR 1은 PR #67로 완료했다. PR 2는 [PR #68](https://github.com/kimyongin/agent-workspace-template/pull/68)의 구현·로컬 검증 snapshot이며 독립 리뷰·필수 CI·머지는 대기 중이다. 제출 후 실제 최종 상태는 그 PR 완료 코멘트와 [checks](https://github.com/kimyongin/agent-workspace-template/pull/68/checks)에서 확인한다. 다음 실제 작업에서 이 요약을 맞춘다.
+현재 요약: PR #67·[PR #68](https://github.com/kimyongin/agent-workspace-template/pull/68)로 승인한 두 단계를 완료했다. PR #68의 최종 head `2faff03`는 독립 리뷰·필수 CI를 통과하고 2026-10-03 23:48:05 KST에 `29071c1`로 머지했다([최종 완료 코멘트](https://github.com/kimyongin/agent-workspace-template/pull/68#issuecomment-5970265422)). 아래 제출 당시 실행 기록과 당시 대기 상태는 과거 증거로 보존한다. 실제 환경 격리는 Template-08의 후속 범위다.
 
 ## 목표와 기준 문서
 

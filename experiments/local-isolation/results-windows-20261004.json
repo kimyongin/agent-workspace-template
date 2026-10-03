@@ -1,0 +1,41 @@
+{
+  "observedAt": "2026-10-03T15:29:57.774Z",
+  "cli": "2.119.0",
+  "platform": "win32",
+  "projects": [
+    {
+      "project": "t08-probe-a",
+      "apiPort": 56100,
+      "tenant": "pooler-dev",
+      "networkId": "60d2739f2b1e44d8d3af1b973dc12d55f3afcfc4e6d588d0ff45eb294c7f2f5a",
+      "volume": "supabase_db_t08-probe-a",
+      "dbContainerId": "8667f8672565b1e957921ca408b1fa10bf32b3db6cb51a950efb1c71e3f2d7e4",
+      "poolerContainerId": "ed238dde7e63fbfe7af28434029a275de89c33dd7e8f256cdb26ef1ad5e29243",
+      "poolerAliases": [
+        "pooler"
+      ],
+      "response": {
+        "project": "t08-probe-a",
+        "url": "http://kong:8000",
+        "marker": "t08-probe-a"
+      }
+    },
+    {
+      "project": "t08-probe-b",
+      "apiPort": 56120,
+      "tenant": "pooler-dev",
+      "networkId": "83eb2fcc6fe42d50d39dc96227ff47b284c38ce1dd1ff6b3f37dd9766f3cd75d",
+      "volume": "supabase_db_t08-probe-b",
+      "dbContainerId": "a986fc941f6d00867637de0749402c752e760ce2cc0339e6c70d797904b572a7",
+      "poolerContainerId": "5cbd088ff7fe8ff83621c56febf699e3ffe13c9d50316035d610fcd63ac3970e",
+      "poolerAliases": [
+        "pooler"
+      ],
+      "response": {
+        "project": "t08-probe-b",
+        "url": "http://kong:8000",
+        "marker": "t08-probe-b"
+      }
+    }
+  ]
+}

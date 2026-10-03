@@ -5,6 +5,7 @@ import { defineConfig } from "vitest/config";
 
 // 웹은 서버 코드 중 contracts만 가져온다(docs/tickets/template-02-t02-1-contracts.md "공유 schema 정본").
 export default defineConfig({
+  envDir: process.env.LOCAL_ENV_WEB_DIR ?? process.cwd(),
   base: process.env.VITE_BASE ?? "/",
   plugins: [
     react(),
