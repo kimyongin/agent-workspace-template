@@ -61,7 +61,9 @@ test("Entity 웹 CRUD·초안 보호→MCP parity·활동 연결→삭제 원문
       "button",
       { name: "삭제", exact: true },
     ).click();
-    await expect(page.getByRole("heading", { name: "엔터티", level: 1 }))
+    await expect(
+      page.getByRole("heading", { name: "엔터티", level: 1, exact: true }),
+    )
       .toBeVisible();
     const current = await mcp.call("get_task", { id: task.id });
     expect(current.entity_id).toBeNull();
