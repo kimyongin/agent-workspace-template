@@ -5,6 +5,7 @@ import { isoDate } from "../../functions/_shared/contracts/common.ts";
 import { recordCreate, recordListQuery, recordUpdate } from "../../functions/_shared/contracts/record.ts";
 import { principleCreate, principleListQuery } from "../../functions/_shared/contracts/principle.ts";
 import { tagCreate, tagListQuery, tagRename } from "../../functions/_shared/contracts/tag.ts";
+import { searchInput, searchResult } from "../../functions/_shared/contracts/search.ts";
 import {
   occurrenceRange,
   taskComplete,
@@ -21,6 +22,29 @@ const tokenA = await mcpToken(sessionA);
 const tokenB = await mcpToken(sessionB);
 const mcpA = await connectMcp(tokenA);
 const mcpB = await connectMcp(tokenB);
+
+httpTest("검색: HTTP/MCP 본문 키워드·원문 최소 응답·대체 상태·잘못된 입력 동등성", async () => {
+  const marker = crypto.randomUUID(),
+    r = await tool(mcpA, "create_record", { title: "검색 원문", summary: "본문 확인", body: marker + " 근거" });
+  const q = { query: marker, mode: "keyword" };
+  const found = searchResult.parse(await tool(mcpA, "search", q));
+  assertEquals(found, (await call(sessionA, "POST", "/search", q)).body);
+  assertEquals(found.items.map((x) => x.id), [r.id]);
+  assertEquals("body" in found.items[0], false);
+  assertEquals((await tool(mcpB, "search", q)).items, []);
+  assertEquals((await tool(mcpA, "search", { query: marker })).search_state, "keyword_fallback");
+  for (
+    const bad of [{ query: " " }, { query: "가".repeat(201) }, { query: marker, kinds: ["record", "record"] }, {
+      query: marker,
+      from: "2026-10-04T00:00:00Z",
+      to: "2026-10-03T00:00:00Z",
+    }, { query: marker, owner_id: crypto.randomUUID() }]
+  ) {
+    const web = await call(sessionA, "POST", "/search", bad), mcp = await tool(mcpA, "search", bad);
+    assertEquals(web.status, 400);
+    assertEquals(mcp.error, web.body);
+  }
+});
 
 const EXPECTED_TOOLS = [
   "complete_task",
@@ -43,6 +67,7 @@ const EXPECTED_TOOLS = [
   "record_occurrence",
   "rename_tag",
   "resume_task",
+  "search",
   "set_principle_status",
   "stop_task",
   "update_principle",
@@ -272,6 +297,7 @@ httpTest(
       create_principle: json(principleCreate).properties,
       create_tag: json(tagCreate).properties,
       list_tags: json(tagListQuery).properties,
+      search: json(searchInput).properties,
       rename_tag: { ...idOnly, ...json(tagRename).properties },
       delete_tag: { ...idOnly, ...version },
       list_principles: json(principleListQuery).properties,
