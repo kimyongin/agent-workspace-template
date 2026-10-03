@@ -24,7 +24,11 @@ codex plugin add workspace@workspace-template
 codex plugin list --json
 ```
 
-Codex desktop의 프로젝트 marketplace 검색·설치는 앱의 Plugins 화면에서 진행한다. CLI 설치가 desktop 스킬 선택·OAuth·업무 수행을 검증했다는 의미는 아니다. 업데이트는 패키지 버전을 올리고 `codex plugin marketplace upgrade workspace-template` 후 같은 식별자를 다시 설치한다. 패키지와 서버의 호환성을 먼저 검사한다.
+Codex desktop의 프로젝트 marketplace 검색·설치는 앱의 Plugins 화면에서 진행한다. CLI 설치가 desktop 스킬 선택·OAuth·업무 수행을 검증했다는 의미는 아니다. 패키지와 서버의 호환성을 먼저 검사하고 업데이트 시 두 manifest의 버전을 함께 올린다.
+
+위 로컬 경로 marketplace는 원본을 수정한 뒤 `codex plugin add workspace@workspace-template --json`을 다시 실행하면 새 버전의 cache로 설치된다. `codex plugin list --json`으로 버전·enabled를 확인하고 새 세션에서 다시 사용한다. Codex CLI 0.147.0의 격리 설정에서 0.1.0→0.1.1 재설치를 확인했다.
+
+Git source로 등록한 marketplace만 `codex plugin marketplace upgrade workspace-template`로 원격 snapshot을 갱신한 뒤 같은 `plugin add`를 실행한다. 로컬 source에서 `marketplace upgrade`는 `not configured as a Git marketplace`로 실패한다.
 
 ## 검사와 보관
 

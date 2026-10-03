@@ -48,3 +48,22 @@ CLI isolated root는 `C:/Users/yongin/AppData/Local/Temp/workspace-plugin-cli-18
 - 이 제출 snapshot에서 로컬 구현·오프라인 검사·격리 CLI 설치는 완료, 독립 리뷰·CI·머지·운영 서버 후속 배포·실클라이언트 업무 검증은 남아 있다. 제출 후 최종 head·리뷰·CI·머지는 PR 완료 코멘트와 checks가 소유한다.
 
 공식 자료는 2026-10-04 직접 열어 확인했다: [OpenAI 패키징](https://developers.openai.com/plugins/build/plugins), [Claude manifest](https://code.claude.com/docs/en/plugins-reference), [Claude marketplace](https://code.claude.com/docs/en/plugin-marketplaces).
+
+## 독립 리뷰 수정 snapshot
+
+2026-10-04 메인으로부터 기존 head `a61a539`의 독립 리뷰 결과(수정 필요, P2 두 개, PRD/ADR 이탈 없음)를 전달받아 같은 구현 담당·`gpt-6.1-sol`/`medium` 명시 배정으로 재개했다. 같은 날 preflight 유지 보고를 받았으며 backend 실제 metadata는 여전히 미노출이다. 다른 worktree의 작업과 공유 제품 스킬을 수정하지 않는다.
+
+1. README가 로컬 marketplace 등록 다음에 Git 전용 `marketplace upgrade`를 안내했다. 격리 Codex CLI 0.147.0에서 기존 명령을 직접 재현했고 `not configured as a Git marketplace`로 실패했다. 로컬 source는 원본 수정·버전 증가 후 같은 `plugin add`로 재설치하며 Git source의 snapshot 갱신과 분리하도록 고쳤다.
+2. ZIP 출력 경계의 lexical 경로 검사는 저장소를 가리키는 저장소 밖 junction을 통과시켰고 기존 destination symlink를 따라 쓸 수 있었다는 리뷰어 재현을 받았다. archive와 sidecar를 모두 쓰기 전에 기존 ancestor의 `realpath`로 저장소 안을 거부하고 기존 출력 symlink/junction·비정규 파일을 거부하도록 고쳤다. 디렉터리 생성 후에도 두 경로를 재검사한다. 어떤 출력도 만들기 전 양쪽을 확인해 sidecar 거부 때 archive만 남는 것을 막는다.
+
+| 직접 실행 | 결과 |
+| --- | --- |
+| 격리 `<TEMP>/workspace-plugin-update-f5f8bb60a60947f8834977599483342d`의 Codex `marketplace add <fixture>`, 최초 `plugin add`, local `marketplace upgrade` | 첫 설치 0.1.0 성공, 기존 upgrade 실패 재현 |
+| 위 fixture manifest를 0.1.1로 변경 후 같은 `plugin add`, `plugin list --json` | 0.1.1 cache 경로·enabled=true 확인 |
+| 위 fixture skill에 증거 문장을 추가하고 manifest를 0.1.2로 변경 후 같은 `plugin add` | 0.1.2 설치 성공, cache의 SKILL.md와 수정 source 내용이 정확히 일치. 제품 원본 0.1.0은 유지 |
+| `node --test scripts/check-plugin.test.mjs` | 4 passed/0 failed/1 skipped. 저장소를 향하는 바깥 junction, archive/sidecar leaf junction 모두 거부, 원본 보존·부분 출력 없음 확인 |
+| file symlink 회귀 | Windows file symlink 생성이 EPERM으로 거부돼 이 로컬 검사만 skip. 같은 회귀는 생성 권한이 있는 환경에서 실행하며 CI에 인계. directory junction은 실제 Windows에서 통과 |
+| `npm run check:docs`, `git diff --check` | docs·모델 설정 통과, 37 script tests 중 36 passed/0 failed/1 file-symlink skip. diff 검사 통과 |
+| 수정본 ZIP 생성, `Expand-Archive`, 추출 폴더 `claude plugin validate` | 저장소 밖 정상 출력·추출·manifest 검증 통과 |
+
+수정본 artifact는 `<TEMP>/workspace-plugin-artifacts/workspace-0.1.0-reviewed.zip`과 `.json`, archive SHA-256은 `afd96e8309880025daca1f6e2a91e859490240df66ec4b0f792d0b6b77c8e68d`다. README 변경에 따른 원본 해시 차이이며 서버 도구·공유 스킬은 기존과 같다. OAuth·실클라이언트 업무 검증 범위는 앞의 미검증 목록을 유지한다. 수정 새 head의 독립 리뷰·CI·머지는 메인 인계다.
