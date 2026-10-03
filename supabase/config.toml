@@ -321,6 +321,14 @@ max_frequency = "5s"
 # Use an external OAuth provider. The full list of providers are: `apple`, `azure`, `bitbucket`,
 # `discord`, `facebook`, `github`, `gitlab`, `google`, `keycloak`, `linkedin_oidc`, `notion`, `twitch`,
 # `twitter`, `x`, `slack`, `spotify`, `workos`, `zoom`.
+# Google 로그인(웹). 값은 Git에서 제외되는 supabase/.env에 둔다(.env.example 참고).
+# CI처럼 값이 없는 환경에서도 시작되도록 기본은 끄고, scripts/local-setup.mjs가 값이 있으면 켠다.
+[auth.external.google]
+enabled = false
+client_id = "env(SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID)"
+secret = "env(SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET)"
+skip_nonce_check = false
+
 [auth.external.apple]
 enabled = false
 client_id = ""
@@ -425,3 +433,45 @@ import_map = "./functions/deno.json"
 enabled = true
 verify_jwt = false
 import_map = "./functions/deno.json"
+
+# 운영 프로젝트 workspace-template(서울). `supabase config push --project-ref <ref>`가 위 기본 설정에 이 값을 덮어 올린다.
+# 로컬 개발용 값(이메일 확인 끔, 짧은 발송 간격, MFA 끔 등)이 운영에 올라가지 않도록 운영값을 여기서 다시 정한다.
+# 웹을 공개 배포하기 전까지는 로컬 웹(127.0.0.1:55480)이 운영 Supabase에 접속한다.
+[remotes.production]
+project_id = "ayzcluvdppsppwszzaqx"
+
+[remotes.production.auth]
+site_url = "http://127.0.0.1:55480"
+# 운영은 비밀번호 로그인을 쓰지 않지만(이메일 가입 끔), Google 사용자가 비밀번호를 정하는 경우에 대비해 정책을 둔다.
+minimum_password_length = 8
+password_requirements = "lower_upper_letters_digits"
+additional_redirect_urls = ["http://127.0.0.1:55480/**"]
+
+# 운영 로그인은 Google만 쓴다(ADR-0002). 이메일·비밀번호 가입은 로컬 개발·E2E용이므로 운영에서는 끈다.
+# auth.enable_signup은 Google 첫 로그인 때 계정을 만들기 위해 켠 채로 둔다.
+[remotes.production.auth.email]
+enable_signup = false
+enable_confirmations = true
+max_frequency = "1m0s"
+otp_length = 8
+
+[remotes.production.auth.mfa.totp]
+enroll_enabled = true
+verify_enabled = true
+
+# 로컬과 같은 Google OAuth 클라이언트(workspace-template)를 쓴다. 운영 콜백 주소도 그 클라이언트에 등록한다.
+# client_id·secret은 기본 설정의 env() 참조라 config push를 실행하는 PC의 supabase/.env 값이 올라간다.
+[remotes.production.auth.external.google]
+enabled = true
+
+# 아래 pooler·storage 값은 앱이 쓰지 않지만, 운영 프로젝트의 현재 값을 그대로 적어 로컬 값이 덮어쓰지 않게 한다.
+[remotes.production.db.pooler]
+default_pool_size = 15
+max_client_conn = 200
+
+[remotes.production.storage.analytics]
+enabled = true
+max_namespaces = 10
+
+[remotes.production.storage.vector]
+enabled = true

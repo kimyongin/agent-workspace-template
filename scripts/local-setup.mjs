@@ -44,6 +44,13 @@ if (!existsSync(keysFile)) {
   console.log("서명 키를 만들었습니다: supabase/signing_keys.json");
 }
 
+// Google 로그인: supabase/.env(커밋하지 않음)에 클라이언트 값이 있으면 켠다. 없으면 이메일 개발용 로그인만 쓴다.
+const authEnv = readEnv(path("supabase/.env"));
+if (authEnv.SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID && authEnv.SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET) {
+  process.env.SUPABASE_AUTH_EXTERNAL_GOOGLE_ENABLED = "true";
+  console.log("Google 로그인을 켭니다(supabase/.env). 이미 실행 중이면 npm run stop:local 뒤 다시 실행해야 반영됩니다.");
+}
+
 // 2. 로컬 Supabase. 쓰지 않는 서비스는 띄우지 않는다.
 supabase(["start", "-x", "studio,imgproxy,vector,logflare,mailpit,realtime,storage-api"], { inherit: true });
 // 이미 떠 있던 로컬 DB에도 새 migration을 적용한다(새로 시작하면 start가 적용한다).
