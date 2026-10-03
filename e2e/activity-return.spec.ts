@@ -28,7 +28,7 @@ for (
     };
     try {
       const target = await create(title);
-      for (let i = 0; i < 21; i++) await create(unique("앞선 항목"));
+      for (let i = 0; i < 41; i++) await create(unique("앞선 항목"));
       const listPath = `/${path}?tag_id=${tag.id}&entity_id=${entity.id}${
         kind === "task" ? "&kind=once&status=open" : ""
       }`;
@@ -75,13 +75,18 @@ for (
       await page.keyboard.press("Enter");
       expect(requests).toHaveLength(2);
       releaseRetry();
-      await expect(page.locator(".list .item-title")).toHaveCount(22);
+      await expect(page.locator(".list .item-title")).toHaveCount(40);
       await expect.poll(() => page.evaluate(() => document.activeElement?.tagName)).toBe("BUTTON");
+      await expect(control).toBeFocused();
+      await expect(control).toHaveAttribute("aria-disabled", "false");
+      expect(await page.evaluate(() => window.scrollY)).toBe(scrollBefore);
+      await control.click();
+      await expect(page.locator(".list .item-title")).toHaveCount(42);
       await expect(control).toBeFocused();
       await expect(control).toHaveAttribute("aria-disabled", "true");
       await expect(control).toBeInViewport();
       await page.keyboard.press("Enter");
-      expect(requests).toHaveLength(2);
+      expect(requests).toHaveLength(3);
       await page.unroute(`**/api/${path}?**`);
       const link = page.getByRole("link", { name: title, exact: true });
       await link.scrollIntoViewIfNeeded();
@@ -99,13 +104,13 @@ for (
       await expect(page.getByRole("button", { name: "편집", exact: true })).toBeFocused();
       for (let i = 0; i < 21; i++) await create(unique("상세 중 추가"));
       await page.goBack();
-      await expect(page.locator(".list .item-title")).toHaveCount(43);
+      await expect(page.locator(".list .item-title")).toHaveCount(63);
       await expect(link).toBeFocused();
       await expect(link).toBeInViewport();
       await expect(page.getByLabel("태그 필터")).toHaveValue(tag.id);
       await expect(page.getByLabel("엔터티 필터")).toHaveValue(entity.id);
       await page.reload();
-      await expect(page.locator(".list .item-title")).toHaveCount(43);
+      await expect(page.locator(".list .item-title")).toHaveCount(63);
       await expect(link).toBeFocused();
       await link.click();
       await page.getByRole("button", { name: "편집", exact: true }).click();
@@ -122,7 +127,7 @@ for (
         exact: true,
       }).click();
       await expect(link).toHaveCount(0);
-      await expect(page.locator(".list .item-title")).toHaveCount(42);
+      await expect(page.locator(".list .item-title")).toHaveCount(62);
       ids.delete(target.id);
       await expect(page.getByRole("heading", { name: label, exact: true })).toBeFocused();
       await expect(page.getByRole("button", { name: "더 보기", exact: true })).toHaveCount(0);
