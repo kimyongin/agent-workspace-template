@@ -38,6 +38,10 @@ class SqlTagStore extends SqlActorStore implements TagStore {
   async delete(id: string) {
     await this
       .tx`update app.tasks set version=version+1,updated_at=now() where id in(select task_id from app.task_tags where tag_id=${id})`;
+    await this
+      .tx`update app.records set version=version+1,updated_at=now() where id in(select record_id from app.record_tags where tag_id=${id})`;
+    await this
+      .tx`update app.principles set version=version+1,updated_at=now() where id in(select principle_id from app.principle_tags where tag_id=${id})`;
     await this.tx`delete from app.tags where id=${id}`;
   }
   async list(limit: number, after?: Keyset) {

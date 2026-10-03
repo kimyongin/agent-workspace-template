@@ -14,6 +14,7 @@ import type {
 import type { Actor } from "../../core/shared/actor.ts";
 import { runAsActor, SqlActorStore } from "./sql-context.ts";
 import { AppError } from "../../core/shared/errors.ts";
+import { hasTag, setTagLinks, tagIdsColumn } from "./tag-links.ts";
 
 type Tx = postgres.TransactionSql;
 type Row = Record<string, unknown>;
@@ -43,6 +44,7 @@ function toTask(r: Row): Task {
 
 function toRecord(r: Row): ActivityRecord {
   return {
+    tag_ids: (r.tag_ids as string[]) ?? [],
     id: r.id as string,
     title: r.title as string,
     summary: r.summary as string,
@@ -65,9 +67,10 @@ function toRecord(r: Row): ActivityRecord {
 const taskColumns = (tx: Tx) =>
   tx`id, kind, title, summary, body, due_on::text as due_on, recurrence, timezone, status, completed_at,
      result_record_id, pauses, version, created_at, updated_at,
-     coalesce((select jsonb_agg(tag_id order by tag_id) from app.task_tags where task_id=app.tasks.id),'[]'::jsonb) as tag_ids`;
+     ${tagIdsColumn(tx, "task")}`;
 const recordColumns = (tx: Tx) =>
   tx`id, title, summary, body, occurred_at, task_id, occurrence_on::text as occurrence_on, version, created_at, updated_at,
+    ${tagIdsColumn(tx, "record")},
     coalesce((select jsonb_agg(p.id order by p.id) from app.record_principles rp join app.principles p on p.id=rp.principle_id
       where rp.record_id=app.records.id), '[]'::jsonb) as applied_principle_ids,
     coalesce((select jsonb_agg(jsonb_build_object('id',p.id,'title',p.title,'status',p.status,'version',p.version,'updated_at',p.updated_at) order by p.id)
@@ -113,9 +116,7 @@ class SqlActivityStore extends SqlActorStore implements ActivityStore {
       where true
         ${f.kind ? tx`and kind = ${f.kind}` : tx``}
         ${f.status ? tx`and status = ${f.status}` : tx``}
-        ${
-      f.tag_id ? tx`and exists(select 1 from app.task_tags where task_id=app.tasks.id and tag_id=${f.tag_id})` : tx``
-    }
+        ${f.tag_id ? tx`and ${hasTag(tx, "task", f.tag_id)}` : tx``}
         ${f.due_from ? tx`and due_on >= ${f.due_from}` : tx``}
         ${f.due_to ? tx`and due_on <= ${f.due_to}` : tx``}
         ${f.after ? tx`and (updated_at, id) < (${f.after.at}::timestamptz, ${f.after.id}::uuid)` : tx``}
@@ -133,15 +134,7 @@ class SqlActivityStore extends SqlActorStore implements ActivityStore {
   }
 
   async setTaskTags(taskId: string, ids: string[]) {
-    const tx = this.tx;
-    if (ids.length) {
-      const rows = await tx`select id from app.tags where id in ${tx(ids)} order by id for key share`;
-      if (rows.length !== ids.length) throw new AppError("invalid_reference", "태그가 없거나 접근할 수 없습니다");
-    }
-    await tx`delete from app.task_tags where task_id=${taskId}`;
-    for (const id of [...ids].sort()) {
-      await tx`insert into app.task_tags(owner_id,task_id,tag_id) values (${this.actor.userId},${taskId},${id})`;
-    }
+    await setTagLinks(this.tx, this.actor, "task", taskId, ids);
   }
 
   async updateTask(id: string, changes: Partial<Task>) {
@@ -184,6 +177,7 @@ class SqlActivityStore extends SqlActorStore implements ActivityStore {
       select ${recordColumns(tx)} from app.records
       where true
         ${f.task_id ? tx`and task_id = ${f.task_id}` : tx``}
+        ${f.tag_id ? tx`and ${hasTag(tx, "record", f.tag_id)}` : tx``}
         ${f.occurred_from ? tx`and occurred_at >= ${f.occurred_from}::timestamptz` : tx``}
         ${f.occurred_to ? tx`and occurred_at <= ${f.occurred_to}::timestamptz` : tx``}
         ${f.after ? tx`and (occurred_at, id) < (${f.after.at}::timestamptz, ${f.after.id}::uuid)` : tx``}
@@ -226,6 +220,7 @@ class SqlActivityStore extends SqlActorStore implements ActivityStore {
     if (record.occurred_at) values.occurred_at = record.occurred_at;
     const [row] = await tx`insert into app.records ${tx(values)} returning id`;
     await this.setPrinciples(row.id as string, record.applied_principle_ids ?? []);
+    await setTagLinks(tx, this.actor, "record", row.id as string, record.tag_ids ?? []);
     return (await this.getRecord(row.id as string))!;
   }
 
@@ -233,7 +228,10 @@ class SqlActivityStore extends SqlActorStore implements ActivityStore {
     const tx = this.tx;
     const values = pick(tx, changes, RECORD_WRITABLE);
     if (changes.applied_principle_ids !== undefined) await this.setPrinciples(id, changes.applied_principle_ids);
-    if (Object.keys(values).length === 0 && changes.applied_principle_ids === undefined) {
+    if (changes.tag_ids !== undefined) await setTagLinks(tx, this.actor, "record", id, changes.tag_ids);
+    if (
+      Object.keys(values).length === 0 && changes.applied_principle_ids === undefined && changes.tag_ids === undefined
+    ) {
       throw new AppError("invalid_input", "바꿀 필드가 없습니다");
     }
     const [row] = Object.keys(values).length

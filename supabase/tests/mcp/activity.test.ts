@@ -127,6 +127,36 @@ httpTest("태그: HTTP/MCP 왕복·중복 이름·버전 충돌·소유자 격�
   assertEquals((await tool(mcpA, "delete_tag", { id: p.body.id, expected_version: 2 })).deleted, p.body.id);
 });
 
+httpTest("기록·원칙·완료·회차의 태그 HTTP/MCP 동등성", async () => {
+  const tag = await tool(mcpA, "create_tag", { name: crypto.randomUUID().slice(0, 30) });
+  const refs = { title: "분류", summary: "검증", tag_ids: [tag.id] };
+  const p = await tool(mcpA, "create_principle", refs);
+  assertEquals((await call(sessionA, "GET", `/principles/${p.id}`)).body.tag_ids, [tag.id]);
+  const r = await call(sessionA, "POST", "/records", refs);
+  assertEquals((await tool(mcpA, "get_record", { id: r.body.id })).tag_ids, [tag.id]);
+  const once = await tool(mcpA, "create_task", { kind: "once", title: "실행", summary: "검증" });
+  const done = await call(sessionA, "POST", `/tasks/${once.id}/complete`, { ...refs, expected_version: 1 });
+  assertEquals(done.body.record.tag_ids, [tag.id]);
+  const repeat = await tool(mcpA, "create_task", {
+    kind: "recurring",
+    title: "반복",
+    summary: "검증",
+    recurrence: { freq: "daily", starts_on: "2020-01-01" },
+    timezone: "Asia/Seoul",
+  });
+  const occurrence = await tool(mcpA, "record_occurrence", { ...refs, id: repeat.id, date: "2020-01-01" });
+  assertEquals(occurrence.tag_ids, [tag.id]);
+  const foreign = await tool(mcpB, "create_tag", { name: crypto.randomUUID().slice(0, 30) });
+  assertEquals(
+    (await tool(mcpA, "update_record", { id: r.body.id, expected_version: 1, tag_ids: [foreign.id] })).error.code,
+    "invalid_reference",
+  );
+  assertEquals(
+    (await call(sessionA, "PATCH", `/principles/${p.id}`, { expected_version: 1, tag_ids: [foreign.id] })).status,
+    400,
+  );
+});
+
 httpTest("원칙 관리: HTTP/MCP 수정·버전 충돌·상태·삭제 동등성", async () => {
   const { body: p } = await call(sessionA, "POST", "/principles", { title: "정정 전", summary: "판단 기준" });
   const edited = await tool(mcpA, "update_principle", { id: p.id, expected_version: 1, title: "정정 후" });

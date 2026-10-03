@@ -161,7 +161,7 @@ export function activityTools(deps: activity.ActivityDeps): ToolDef[] {
     },
     {
       name: "list_records",
-      description: "기록 목록(occurred_at 내림차순, 커서 페이지). 기간·task_id로 거른다.",
+      description: "기록 목록(occurred_at 내림차순, 커서 페이지). 기간·task_id·tag_id로 거른다.",
       input: recordListQuery,
       readOnly: true,
       handler: (args, actor) => activity.listRecords(deps, actor, parse(recordListQuery, args)),
@@ -169,7 +169,7 @@ export function activityTools(deps: activity.ActivityDeps): ToolDef[] {
     {
       name: "update_record",
       description:
-        "기록을 고친다(바꿀 필드만). applied_principle_ids 생략은 유지, 빈 배열은 연결 제거. expected_version이 다르면 conflict.",
+        "기록을 고친다. tag_ids·applied_principle_ids 생략은 유지, 빈 배열은 연결 제거. expected_version이 다르면 conflict.",
       input: withId(recordUpdate),
       readOnly: false,
       handler: (args, actor) => {

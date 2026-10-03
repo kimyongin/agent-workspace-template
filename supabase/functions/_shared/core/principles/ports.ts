@@ -8,11 +8,13 @@ export interface PrincipleStore extends RequestStore {
   update(
     id: string,
     changes: Partial<
-      Pick<PrincipleResult, "title" | "summary" | "body" | "applies_when" | "status" | "replaced_by_id">
+      Pick<PrincipleResult, "title" | "summary" | "body" | "applies_when" | "status" | "replaced_by_id" | "tag_ids">
     >,
   ): Promise<PrincipleResult>;
   delete(id: string): Promise<void>;
-  list(filter: { status: "active" | "inactive"; limit: number; after?: Keyset }): Promise<PrincipleResult[]>;
+  list(
+    filter: { status: "active" | "inactive"; tag_id?: string; limit: number; after?: Keyset },
+  ): Promise<PrincipleResult[]>;
   enqueueIndex(job: IndexJob): Promise<void>;
 }
 export interface PrincipleUnitOfWork {

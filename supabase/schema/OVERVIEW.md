@@ -11,6 +11,7 @@
 | `app.record_principles` | `20261003074639_record_principles.sql` | 기록에 적용한 원칙. 양쪽 복합 FK·소유자 RLS. 원칙 삭제는 연결만 제거 |
 | `app.tags` | `20261003080756_tags.sql` | 소유자 안에서 대소문자 무시 고유 이름·낙관적 버전·소유자 RLS |
 | `app.task_tags` | `20261003081643_task_tags.sql` | 같은 소유자 복합 FK·RLS. 태그 삭제는 연결만 제거 |
+| `app.record_tags`·`app.principle_tags` | `20261003083425_knowledge_tags.sql` | 기록·원칙 태그의 같은 소유자 FK·RLS. 삭제에서 원문 보존 |
 | `app.request_results` | 같은 파일 | `request_id` 재전송에 첫 결과를 돌려주는 요청 결과(보관 7일) |
 | 큐 `search_index` | 같은 파일 | 색인 작업. 접속 역할은 전송만 가능 |
 | 역할 `app_server`·`app_user` | 같은 파일 | 접속 역할(전환·큐 전송만), 사용자 역할(RLS 대상, NOLOGIN) |

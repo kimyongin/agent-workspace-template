@@ -1,7 +1,7 @@
 // 할 일 목록: 종류·상태 필터(URL에 보관해 상세 왕복 뒤 유지), 커서 더 보기, 작성 모달.
 import type { TaskListItem, TaskResult } from "@contracts/task.ts";
 import { taskLabels } from "@contracts/task.ts";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef,useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import { Notice } from "../../components/Field.tsx";
 import { api, query } from "../../lib/api.ts";
@@ -23,6 +23,7 @@ export function TasksPage() {
   const kind = params.get("kind") ?? "";
   const status = params.get("status") ?? "";
   const tag_id=params.get("tag_id")??"";
+  const generation=useRef(0);
   const [items, setItems] = useState<TaskListItem[] | null>(null);
   const [cursor, setCursor] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -39,6 +40,7 @@ export function TasksPage() {
 
   useEffect(() => {
     let alive = true;
+    generation.current++;setCursor(null);setLoadingMore(false);
     setItems(null);
     setError(null);
     load().then((p) => {
@@ -48,20 +50,23 @@ export function TasksPage() {
     }).catch(() => alive && setError("할 일을 불러오지 못했습니다."));
     return () => {
       alive = false;
+      generation.current++;
     };
   }, [load]);
 
   const more = async () => {
     if (!cursor) return;
+    const started=generation.current;
     setLoadingMore(true);
     try {
       const p = await load(cursor);
+      if(started!==generation.current)return;
       setItems((prev) => [...(prev ?? []), ...p.items]);
       setCursor(p.next_cursor);
     } catch {
-      setError("다음 항목을 불러오지 못했습니다. 다시 시도하세요.");
+      if(started===generation.current)setError("다음 항목을 불러오지 못했습니다. 다시 시도하세요.");
     } finally {
-      setLoadingMore(false);
+      if(started===generation.current)setLoadingMore(false);
     }
   };
 
