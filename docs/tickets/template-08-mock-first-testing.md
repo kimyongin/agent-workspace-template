@@ -1,13 +1,13 @@
 # Template-08 — 포트 교체로 빠른 업무·HTTP/MCP 검증
 
 작성: 2026-10-04
-상태: 진행 중 (첫 PR #70 리뷰·CI·머지 완료, 할 일 수정·삭제와 worker 빠른 검사 병렬 후속)
+상태: 진행 중 (첫 PR #70 완료, A 수정·삭제 검사 구현 완료, B PR #71 동의 화면 경합 회귀 후 새 head 리뷰·CI 대기)
 검토 기준: 후속 base `3166941041f64d79237b9fa14e6bab69c3d866ef`; 첫 제출 base는 아래 snapshot 기록에 보존
 선행: Template-07 PR #68, 기존 환경 격리 시도의 [PR #69](https://github.com/kimyongin/agent-workspace-template/pull/69)는 미머지 종료
 
 ## 목표와 기준 문서
 
-사용자는 기존 환경 격리 PR을 종료하고 mock 우선 방향으로 새 구현을 진행하도록 승인했다. 일상 업무 검증에서 공유 서비스 의존성을 줄이고 실제 인증·저장 보장은 기존 통합 CI에서 유지한다. 기존 PR #69의 commit·미커밋 변경·실행 증거는 원본 checkout에 보존하며 새 PR에 이전 lifecycle 구현을 옮기지 않는다.
+사용자는 기존 환경 격리 PR을 종료하고 mock 우선 방향으로 새 구현을 진행하도록 승인했다. 일상 업무 검증에서 공유 서비스 의존성을 줄이고 실제 인증·저장 보장은 기존 통합 CI에서 유지한다. 기존 PR #69의 미커밋 변경은 Git stash `9452a15f0cda04e070713884afa85bd9a03ba5d8`와 저장소 밖 `C:/Users/yongin/AppData/Local/Temp/template-pr69-preserved-93952042a80c46ebb6a758b720cb2b52`에 보존됐고 primary main checkout은 clean이다(메인 확인 인계). 기존 commit·실행 증거와 제출 snapshot은 보존하며 새 PR에 이전 lifecycle 구현을 옮기지 않는다.
 
 [PRD](../product/concept.md), [ADR-0001](../adr/0001-hexagonal-shared-usecases.md)·[0003](../adr/0003-core-rules-and-local-transactions.md)·[0006](../adr/0006-owner-only-access-and-separate-auth.md), [개발 방법](../development/workflow.md#실행-검증), [보안](../security/guide.md)을 따른다. PRD·ADR 이탈은 사람에게 변경안을 제시한다. migration·운영 DB/서비스·공급자 호출·실제 Google/OAuth·개발 환경 lifecycle·T02-4 재개는 범위 밖이다.
 
@@ -21,7 +21,7 @@
 - [x] 첫 PR #70의 실제 통합 CI·독립 리뷰·머지 확인. 검토 head `a05a91c8014c643625af08a1b1238bde0884aff8`, 머지 `3166941041f64d79237b9fa14e6bab69c3d866ef`. [독립 리뷰](https://github.com/kimyongin/agent-workspace-template/pull/70#issuecomment-5971838110)·[완료 기록](https://github.com/kimyongin/agent-workspace-template/pull/70#issuecomment-5971872108)·[CI check/integration SUCCESS](https://github.com/kimyongin/agent-workspace-template/actions/runs/37141785739)가 최종 증거다.
 - [x] 후속 A: 실제 application 수정→삭제, 제목·요약 재색인과 본문·기한 수정의 구분, 버전 충돌 무쓰기, 결과·회차 기록 보존, HTTP PATCH/DELETE·MCP schema/handler 입력·오류 검사 구현.
 - [ ] 후속 A의 최신 main 통합·최종 head CI·독립 리뷰·머지 확인.
-- [ ] 후속 B: worker의 서비스 없는 빠른 검사·최종 CI·독립 리뷰·머지 확인. 별도 `docs/tickets/template-08-01-worker-fast-tests.md`에서 추적한다.
+- [ ] 후속 B: worker 빠른 검사와 CI 실패 후 동의 화면 요청 경합 수정·회귀 검사는 구현 완료 보고를 받았다. [PR #71](https://github.com/kimyongin/agent-workspace-template/pull/71) 새 head `dcd2a3500193d710b788ace4d16645255fbc1610`의 독립 리뷰·CI·머지는 대기 중이다. 별도 `docs/tickets/template-08-01-worker-fast-tests.md`에서 추적한다.
 
 fixture는 이 직렬 흐름의 insert/get/update/delete·기록 연결 해제·요청 결과 저장·색인 등록만 지원하며 나머지 포트는 명확히 실패한다. 상태·완료·입력·요청 hash/재시도 판단은 실제 core/contracts가 수행한다. fake는 SQL·RLS·OAuth·잠금·rollback을 모사하지 않으며 실제 DB 동시성·트랜잭션·사용자 격리의 증거가 아니다. 기록 연결 해제는 기존 저장 포트의 필드 변경만 수행하고 삭제 판단은 실제 application에 둔다.
 
@@ -31,7 +31,7 @@ fixture는 이 직렬 흐름의 insert/get/update/delete·기록 연결 해제·
 | --- | --- | --- | --- |
 | 1 | `codex/mock-fast-tests` | Supabase 없이 첫 할 일 업무와 HTTP/MCP handler 계약 확인. 승인된 세션 실행 담당·보고 지침 정리 | PR #70 머지 완료, 외부 최종 증거 위 연결 |
 | 2A | `codex/mock-task-mutations` | 서비스 없이 실제 할 일 수정→삭제와 HTTP/MCP 오류·결과를 확인 | 최신 main 반영 후 최종 CI·독립 리뷰·머지 |
-| 2B | `codex/mock-worker-failures` | worker의 원본·최신성·공급자 경계를 서비스 없이 확인 | 독립 브랜치의 별도 티켓·검증; 코드 의존 없음 |
+| 2B | `codex/mock-worker-failures` | worker의 원본·최신성·공급자 경계 검사, 통합 CI에서 드러난 동의 화면 요청 경합 수정·회귀 | PR #71 새 head 독립 리뷰·CI 대기, 미머지; A 코드 의존 없음 |
 | 후속 | 미배정 | 필요한 업무·화면의 fast 검사 확대와 중복 검증 정리 | 전 기능 fake·가짜 OAuth·환경 자동화는 선행 조건 아님; T02-4 사용자 보류 유지 |
 
 ## 검증
@@ -64,10 +64,11 @@ fixture는 이 직렬 흐름의 insert/get/update/delete·기록 연결 해제·
 | 배정 | 단독 작성·테스트/수정/재검증 담당 | 브랜치·worktree | 소유 파일·의존성 |
 | --- | --- | --- | --- |
 | A 할 일 수정·삭제 | `/root/implement_mock_mutations` | `codex/mock-task-mutations`, `C:/Users/yongin/.codex/worktrees/mock-task-mutations/agent-workspace-template` | `supabase/tests/fast/task-flow.test.ts`, 이 부모 티켓·START-HERE·overview. B 코드 의존 없음 |
-| B worker | `/root/implement_mock_worker` | `codex/mock-worker-failures`, `C:/Users/yongin/.codex/worktrees/mock-worker-failures/agent-workspace-template` | `supabase/functions/_shared/core/search/index-worker.test.ts`·`docs/tickets/template-08-01-worker-fast-tests.md`. A 파일 편집 없음 |
+| B worker·동의 경합 회귀 | `/root/implement_mock_worker` | `codex/mock-worker-failures`, `C:/Users/yongin/.codex/worktrees/mock-worker-failures/agent-workspace-template` | `supabase/functions/_shared/core/search/index-worker.test.ts`·`docs/tickets/template-08-01-worker-fast-tests.md`·`src/features/auth/ConsentPage.tsx`·`e2e/consent.spec.ts`. A 파일 편집 없음 |
 
 - A 시작 base `3166941041f64d79237b9fa14e6bab69c3d866ef`, clean checkout. `.agents/skills/develop-agent-app/` 정본·START-HERE·이 티켓·ADR-0001/0003/0006·보안·workflow와 실제 contracts/application/routes/tools를 확인했다.
 - A 모델·강도: 메인이 same-day desktop snapshot 재사용 preflight 통과 후 `gpt-6.1-sol`/`medium`을 명시 배정했다. 기존 계약 안의 테스트 확장이라 균형 모델과 medium을 유지한다. backend 모델/effort·세션 토큰·비용 metadata는 미노출이며 추정하지 않는다.
+- 현재 배정표의 B 범위는 첫 통합 CI 실패 조사 뒤 동의 화면·회귀 검사를 추가한 상태다. 메인이 B의 조사·수정·회귀 완료와 PR #71 새 head의 독립 리뷰·CI 진행을 인계했다. A는 B의 검사나 실패 조사를 직접 실행하지 않았으며 머지 성공으로 표시하지 않는다. B 머지 후 메인이 A에 최신 main을 반영하고 합쳐진 fast·정적 검사와 최종 증거 갱신을 다시 배정한다.
 - A는 기존 fixture에 삭제·연결 해제 저장 메서드만 더했다. 제목/요약의 각 변경은 현재 hash 색인 작업을 등록하고 동일 값·본문/기한 수정은 등록하지 않는다. stale update/delete·missing/deleted ID는 저장·색인·detach 호출까지 snapshot 무변경을 검사한다.
 - 일회성 완료 결과와 반복 회차 기록은 실제 application으로 생성한다. 삭제 뒤 task만 없어지고 연결 필드 `task_id`·`occurrence_on`만 비워지며 본문·요약·버전과 관계없는 기록은 보존되는지 검사한다. 실제 DB rollback·경쟁·RLS·OAuth·MCP SDK 전송의 증거는 아니다.
 - HTTP 성공은 PATCH 200의 실제 task 계약·DELETE 204 빈 본문, MCP 성공은 실제 handler의 task 계약·`{deleted:id}`다. 숫자 버전·서버 상태 필드·종류 부적합 필드·stale/missing/deleted 오류를 실제 handler와 HTTP 오류 본문으로 교차 검사한다. 운영 인증·core·schema·CI·package·PRD/ADR은 변경하지 않았다.
@@ -78,3 +79,4 @@ fixture는 이 직렬 흐름의 insert/get/update/delete·기록 연결 해제·
 | 후속 A 정적 검사 / A 구현 세션 | `check:boundaries` 통과. `check:deno` 타입·lint 통과 뒤 fmt가 긴 호출·loop의 줄바꿈을 거부. 포맷 진단대로 `apply_patch`로 수정 | 수정 후 재검증 결과 아래 기록 |
 | 후속 A 수정 후 재검증 / A 구현 세션 | `npm run check:deno` 타입·lint·fmt 통과(76/80 files), wall 2.30초. `npm run check:docs` 통과(텍스트 232개·검사기 32 tests·모델 정합성), wall 3.35초. `git diff --check` 통과. `npm run test:fast` 재통과(core 24·fast 6·web 1), wall 5.14초·fast suite 69ms | 테스트·문서만 변경해 웹 build 재실행 불필요; 기존 CI build 유지. 최신 main 통합 후 필요한 검증과 최종 CI·독립 리뷰·머지는 별도 확인 |
 | 후속 A 최종 인계 / A 구현 세션 | HTTP 제목·MCP 요약의 명시 기대값 추가 후 `npm run test:adapters:fast` 재통과(6 tests), wall 2.50초·suite 70ms. 증거 기입 후 `npm run check:docs` 재통과(232개·32 tests), wall 3.25초. `git diff --check` 통과 | 메인이 먼저 준비된 PR부터 순차 머지하고 나중 PR에 최신 main을 반영한다. 작성·검증 주체는 A이며 메인의 직접 실행이 아님 |
+| B 리뷰·CI 대기 중 현재 문서 정리 / A 구현 세션 | HEAD `3311d997618ef057f669988f2c9a5a8442acf6ad` clean에서 재개. 같은날 balanced `gpt-6.1-sol`/`medium` preflight 통과 인계를 받고 설정 유지. 현재 B 소유권·PR #71 상태와 PR #69 보존 위치만 수정. `npm run check:docs` 통과(232개·32 tests), wall 3.40초. `git diff --check` 통과 | B의 새 head 리뷰·CI 결과는 메인 인계 사실이며 A 직접 검증 아님. B 머지 뒤 최신 main·통합 재검증은 다음 배정 |
