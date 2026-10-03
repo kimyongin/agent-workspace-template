@@ -36,6 +36,7 @@ export function useActivityList<T extends { id: string }>(
   const [cursor, setCursor] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [controlScope, setControlScope] = useState<string | null>(null);
   const [retry, setRetry] = useState(0);
   const load = (after?: string, signal?: AbortSignal) =>
     api<ListPage<T>>("GET", `${path}${after ? `&cursor=${encodeURIComponent(after)}` : ""}`, undefined, signal);
@@ -65,6 +66,7 @@ export function useActivityList<T extends { id: string }>(
         loaded.current = { scope, value };
         setItems(value.items);
         setCursor(value.next_cursor);
+        if (value.next_cursor) setControlScope(scope);
       },
     })
       .then((value) => {
@@ -76,7 +78,10 @@ export function useActivityList<T extends { id: string }>(
         }
       })
       .catch(() => {
-        if (current()) setError(errorMessage);
+        if (current()) {
+          setControlScope(scope);
+          setError(errorMessage);
+        }
       })
       .finally(() => {
         if (current()) setBusy(false);
@@ -100,6 +105,11 @@ export function useActivityList<T extends { id: string }>(
     }
     focused.current = hash;
   }, [items, busy, hash, titleId, error]);
+
+  useEffect(() => {
+    const control = document.getElementById(`activity-${kind}-page-control`);
+    if (!busy && control && document.activeElement === control) control.scrollIntoView({ block: "nearest" });
+  }, [busy, items, error, kind]);
 
   const more = async () => {
     if (!cursor || busy) return;
@@ -144,8 +154,10 @@ export function useActivityList<T extends { id: string }>(
     cursor,
     error,
     busy,
+    showMoreControl: controlScope === scope,
     more,
     retry: () => {
+      if (busy) return;
       if (failedMore.current?.scope === scope && failedMore.current.cursor === cursor) {
         void more();
         return;

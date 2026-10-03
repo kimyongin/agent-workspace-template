@@ -70,7 +70,7 @@ export function TasksPage() {
         </div>
       </div>
 
-      {error && <><Notice kind="error">{error}</Notice><button type="button" className="btn" onClick={list.retry}>다시 시도</button></>}
+      {error && <Notice kind="error">{error}</Notice>}
       {items === null && !error && <p className="secondary" role="status">불러오는 중…</p>}
       {items?.length === 0 && (
         <div className="empty">
@@ -103,9 +103,10 @@ export function TasksPage() {
           ))}
         </ul>
       )}
-      {cursor && (
-        <button type="button" className="btn" onClick={more} disabled={loadingMore}>
-          {loadingMore ? "불러오는 중…" : "더 보기"}
+      {list.showMoreControl && (
+        <button id="activity-tasks-page-control" type="button" className="btn" onClick={error ? list.retry : more}
+          aria-disabled={loadingMore || (!cursor && !error)}>
+          {loadingMore ? "불러오는 중…" : error ? "다시 시도" : cursor ? "더 보기" : "모두 불러왔습니다"}
         </button>
       )}
 

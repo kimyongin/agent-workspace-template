@@ -72,11 +72,16 @@ for (
       await expect(page.locator(".list .item-title")).toHaveCount(20);
       await expect.poll(() => page.evaluate(() => document.activeElement?.tagName)).toBe("BUTTON");
       expect(await page.evaluate(() => window.scrollY)).toBe(scrollBefore);
+      await page.keyboard.press("Enter");
+      expect(requests).toHaveLength(2);
       releaseRetry();
       await expect(page.locator(".list .item-title")).toHaveCount(22);
       await expect.poll(() => page.evaluate(() => document.activeElement?.tagName)).toBe("BUTTON");
       await expect(control).toBeFocused();
       await expect(control).toHaveAttribute("aria-disabled", "true");
+      await expect(control).toBeInViewport();
+      await page.keyboard.press("Enter");
+      expect(requests).toHaveLength(2);
       await page.unroute(`**/api/${path}?**`);
       const link = page.getByRole("link", { name: title, exact: true });
       await link.scrollIntoViewIfNeeded();
@@ -191,12 +196,11 @@ for (
     await page.getByRole("button", { name: "더 보기", exact: true }).click();
     await expect(page.getByRole("button", { name: "다시 시도", exact: true })).toBeVisible();
     await expect(page.locator(".list .item-title")).toHaveCount(250);
-    await first.focus();
-    await page.getByRole("button", { name: "다시 시도", exact: true }).evaluate((button: HTMLButtonElement) =>
-      button.click()
-    );
+    await page.getByRole("button", { name: "다시 시도", exact: true }).click();
     await expect(page.locator(".list .item-title")).toHaveCount(251);
-    await expect(first).toBeFocused();
+    await expect(first).toHaveCount(1);
+    await expect(page.getByRole("button", { name: "더 보기", exact: true })).toBeFocused();
+    await expect(page.getByRole("button", { name: "더 보기", exact: true })).toBeInViewport();
     expect(new URL(page.url()).searchParams.get("pages")).toBe("251");
     expect(reads).toEqual([...Array.from({ length: 250 }, (_, index) => index), 250, 250]);
     await page.getByRole("button", { name: "더 보기", exact: true }).click();
