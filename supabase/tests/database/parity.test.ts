@@ -1,0 +1,76 @@
+// contracts(정본)와 DB CHECK의 판정이 같은지, DB 컬럼과 contracts 응답 필드가 같은지 확인한다.
+// 형식 검사만 본다. 소유자 격리는 isolation.test.ts가 맡는다.
+import { assertEquals } from "@std/assert";
+import type { z } from "zod";
+import { recordCreate, recordResult } from "../../functions/_shared/contracts/record.ts";
+import { taskCreate, taskResult } from "../../functions/_shared/contracts/task.ts";
+import { connect, dbTest, devUsers, urls } from "./_db.ts";
+
+const admin = connect(urls.admin, { max: 1 });
+const { a: A } = await devUsers(admin);
+
+/** 한 행을 넣어 보고 롤백한다. CHECK·NOT NULL 위반이면 false. */
+async function dbAccepts(table: "tasks" | "records", row: Record<string, unknown>): Promise<boolean> {
+  try {
+    await admin.begin(async (tx) => {
+      await tx`insert into ${tx("app." + table)} ${tx({ owner_id: A, ...row })}`;
+      throw new Error("rollback");
+    });
+  } catch (e) {
+    if ((e as Error).message === "rollback") return true;
+    const code = (e as { code?: string }).code;
+    if (code === "23514" || code === "23502") return false;
+    throw e;
+  }
+  return true;
+}
+
+function contractAccepts(schema: z.ZodType, value: unknown): boolean {
+  return schema.safeParse(value).success;
+}
+
+const boundaries = (field: "title" | "summary" | "body", max: number, min: number) => [
+  { name: `${field} ${max}자`, value: "가".repeat(max) },
+  { name: `${field} ${max + 1}자`, value: "가".repeat(max + 1) },
+  ...(min > 0 ? [{ name: `${field} 빈 값`, value: "" }] : []),
+];
+
+const onceTask = { kind: "once", title: "제목", summary: "요약", body: "" };
+const record = { title: "제목", summary: "요약", body: "" };
+
+for (const [field, max, min] of [["title", 100, 1], ["summary", 300, 1], ["body", 20_000, 0]] as const) {
+  for (const b of boundaries(field, max, min)) {
+    dbTest(`할 일 parity: ${b.name}`, async () => {
+      const input = { ...onceTask, [field]: b.value };
+      assertEquals(await dbAccepts("tasks", { ...input, status: "open" }), contractAccepts(taskCreate, input));
+    });
+    dbTest(`기록 parity: ${b.name}`, async () => {
+      const input = { ...record, [field]: b.value };
+      assertEquals(await dbAccepts("records", input), contractAccepts(recordCreate, input));
+    });
+  }
+}
+
+dbTest("할 일 parity: 선택지 밖의 종류", async () => {
+  const input = { ...onceTask, kind: "someday" };
+  assertEquals(await dbAccepts("tasks", { ...input, status: "open" }), contractAccepts(taskCreate, input));
+});
+
+dbTest("할 일 parity: 반복 할 일에 규칙·시간대가 없으면 거부", async () => {
+  const input = { ...onceTask, kind: "recurring" };
+  assertEquals(await dbAccepts("tasks", { ...input, status: "active" }), contractAccepts(taskCreate, input));
+});
+
+async function columns(table: string): Promise<string[]> {
+  const rows = await admin<{ column_name: string }[]>`
+    select column_name from information_schema.columns where table_schema = 'app' and table_name = ${table}`;
+  return rows.map((r) => r.column_name).filter((c) => c !== "owner_id").sort();
+}
+
+dbTest("할 일: DB 컬럼(owner_id 제외)과 contracts 응답 필드가 같다", async () => {
+  assertEquals(await columns("tasks"), Object.keys(taskResult.shape).sort());
+});
+
+dbTest("기록: DB 컬럼(owner_id 제외)과 contracts 응답 필드가 같다", async () => {
+  assertEquals(await columns("records"), Object.keys(recordResult.shape).sort());
+});

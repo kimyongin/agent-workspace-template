@@ -4,6 +4,7 @@
 import { execSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import postgres from "postgres";
 
 const root = new URL("..", import.meta.url);
 const path = (p) => new URL(p, root);
@@ -45,6 +46,8 @@ if (!existsSync(keysFile)) {
 
 // 2. 로컬 Supabase. 쓰지 않는 서비스는 띄우지 않는다.
 supabase(["start", "-x", "studio,imgproxy,vector,logflare,mailpit,realtime,storage-api"], { inherit: true });
+// 이미 떠 있던 로컬 DB에도 새 migration을 적용한다(새로 시작하면 start가 적용한다).
+supabase(["migration", "up", "--local"], { inherit: true });
 const status = Object.fromEntries(
   supabase(["status", "-o", "env"])
     .split("\n")
@@ -65,6 +68,7 @@ const local = {
   VITE_DEV_LOGIN: "true",
   LOCAL_SUPABASE_SECRET_KEY: secretKey,
   LOCAL_DB_URL: status.DB_URL,
+  APP_SERVER_PASSWORD: prev.APP_SERVER_PASSWORD ?? secret(),
   DEV_USER_A_EMAIL: "dev-a@example.test",
   DEV_USER_A_PASSWORD: prev.DEV_USER_A_PASSWORD ?? secret(),
   DEV_USER_B_EMAIL: "dev-b@example.test",
@@ -72,7 +76,19 @@ const local = {
 };
 writeEnv(path(".env.local"), "로컬 전용. scripts/local-setup.mjs가 만든다. 커밋하지 않는다.", local);
 
-// 4. 개발용 사용자(A·B). 이미 있으면 비밀번호만 맞춘다.
+// 4. 서버 접속 역할(app_server)의 로컬 비밀번호와 Edge Functions용 설정.
+const db = postgres(status.DB_URL, { max: 1, onnotice: () => {} });
+await db.unsafe(`alter role app_server password '${local.APP_SERVER_PASSWORD.replace(/'/g, "''")}'`);
+await db.end();
+const jwks = await (await fetch(`${apiUrl}/auth/v1/.well-known/jwks.json`)).text();
+writeEnv(path("supabase/functions/.env"), "로컬 전용. scripts/local-setup.mjs가 만든다. 커밋하지 않는다.", {
+  // Edge Runtime 컨테이너에서 본 트랜잭션 풀러 주소(prepare: false로 연결).
+  APP_DB_URL: `postgresql://app_server.pooler-dev:${local.APP_SERVER_PASSWORD}@pooler:6543/postgres`,
+  SUPABASE_JWKS: jwks,
+  SUPABASE_PUBLISHABLE_KEY: publishable,
+});
+
+// 5. 개발용 사용자(A·B). 이미 있으면 비밀번호만 맞춘다.
 const admin = (p, init = {}) =>
   fetch(`${apiUrl}/auth/v1/admin${p}`, {
     ...init,

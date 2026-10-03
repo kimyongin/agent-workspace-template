@@ -1,0 +1,14 @@
+# 스키마 색인
+
+정본은 [`migrations/`](../migrations)다. 이 파일은 위치를 찾기 위한 색인이며 migration을 바꾸면 함께 고친다. 권한 구성의 이유는 [아키텍처의 권한과 직접 접근](../../docs/architecture/hexagonal-review.md#권한과-직접-접근)에 있다.
+
+| 대상 | 위치 | 내용 |
+| --- | --- | --- |
+| `app` 스키마 | `20261003000000_activity.sql` | 업무 테이블. PostgREST에 노출하지 않으며 `anon`·`authenticated`는 접근 권한이 없다 |
+| `app.tasks` | 같은 파일 | 할 일(일회성·반복). 종류별 필드 모양 CHECK, 중단 이력 `pauses`(jsonb) |
+| `app.records` | 같은 파일 | 활동 기록. `(task_id, owner_id)` 복합 외래 키로 같은 소유자의 할 일만 참조 |
+| `app.request_results` | 같은 파일 | `request_id` 재전송에 첫 결과를 돌려주는 요청 결과(보관 7일) |
+| 큐 `search_index` | 같은 파일 | 색인 작업. 접속 역할은 전송만 가능 |
+| 역할 `app_server`·`app_user` | 같은 파일 | 접속 역할(전환·큐 전송만), 사용자 역할(RLS 대상, NOLOGIN) |
+
+형식 한도는 contracts와 같고 [`tests/database/parity.test.ts`](../tests/database/parity.test.ts)가 확인한다. 업무 규칙(완료 조건·회차·상태 전환)은 core에만 있다.
