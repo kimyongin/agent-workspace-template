@@ -49,7 +49,8 @@ test("모든 내용 폼의 취소는 초안을 보호하고 닫은 뒤 초점이
 
 test("원칙 상세 왕복과 새로고침은 추가 페이지와 상태 필터를 유지한다", async ({ page }) => {
   await devLogin(page);
-  const mcp = await mcpClient(await mcpTokenViaConsent(page));
+  const token = await mcpTokenViaConsent(page);
+  const mcp = await mcpClient(token);
   const titles: string[] = [];
   try {
     for (let i = 0; i < 21; i++) {
@@ -70,6 +71,10 @@ test("원칙 상세 왕복과 새로고침은 추가 페이지와 상태 필터�
   const listUrl = page.url();
   expect(new URL(listUrl).searchParams.get("pages")).not.toBeNull();
   await oldest.click();
+  const concurrent = await mcpClient(token);
+  try {
+    for (let i = 0; i < 21; i++) await concurrent.call("create_principle", { title: unique("왕복 중 추가"), summary: "항목 이동" });
+  } finally { await concurrent.close(); }
   await page.getByRole("link", { name: "← 원칙 목록" }).click();
   expect(page.url().split("#")[0]).toBe(listUrl);
   await expect(oldest).toBeVisible();
@@ -134,5 +139,26 @@ test("원칙 편집 충돌은 초안을 유지하고 명시적으로 닫으면 �
     await page.getByRole("button",{name:"편집",exact:true}).click();
     await form.getByLabel("본문").fill("비교 후 정정");await form.getByRole("button",{name:"저장",exact:true}).click();
     await expect(form).not.toBeVisible();expect((await mcp.call("get_principle",{id:p.id})).body).toBe("비교 후 정정");
+  }finally{await mcp.close();}
+});
+
+test("웹 기록에 원칙 적용→MCP 현재 상태 조회→원칙 삭제 후 기록 보존",async({page})=>{
+  await devLogin(page);const mcp=await mcpClient(await mcpTokenViaConsent(page));
+  try{
+    const p=await mcp.call("create_principle",{title:unique("적용 원칙"),summary:"근거"});
+    await page.goto("/records");await page.getByRole("button",{name:"기록 작성",exact:true}).click();
+    const form=page.getByRole("dialog",{name:"기록 작성"});
+    await form.getByLabel("제목").fill(unique("적용 결과"));await form.getByLabel("요약").fill("판단 결과");
+    await form.getByLabel("본문").fill("당시 근거를 보존합니다.");
+    await form.getByRole("button",{name:p.title,exact:true}).click();
+    await form.getByRole("button",{name:"저장",exact:true}).click();
+    await expect(form).not.toBeVisible();
+    const id=new URL(page.url()).pathname.split("/").at(-1)!;
+    expect((await mcp.call("get_record",{id})).applied_principle_ids).toEqual([p.id]);
+    await mcp.call("set_principle_status",{id:p.id,expected_version:1,status:"inactive"});
+    await page.reload();await expect(page.getByText(/비활성 · 현재 원칙 수정/)).toBeVisible();
+    await mcp.call("delete_principle",{id:p.id,expected_version:2});
+    await page.reload();await expect(page.getByText("당시 근거를 보존합니다.",{exact:true})).toBeVisible();
+    expect((await mcp.call("get_record",{id})).applied_principle_ids).toEqual([]);
   }finally{await mcp.close();}
 });

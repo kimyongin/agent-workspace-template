@@ -45,6 +45,55 @@ const EXPECTED_TOOLS = [
   "update_task",
 ];
 
+httpTest("적용 원칙: 완료·회차·직접 작성의 HTTP/MCP 동등성과 잘못된 참조 롤백", async () => {
+  const p = await tool(mcpA, "create_principle", { title: "실행 기준", summary: "판단 근거" });
+  const once = await tool(mcpA, "create_task", { kind: "once", title: "한 번", summary: "실행" });
+  const denied = await tool(mcpA, "complete_task", {
+    id: once.id,
+    expected_version: 1,
+    title: "결과",
+    summary: "거부",
+    applied_principle_ids: [crypto.randomUUID()],
+  });
+  assertEquals(denied.error.code, "invalid_reference");
+  assertEquals((await tool(mcpA, "get_task", { id: once.id })).status, "open");
+  const done = await tool(mcpA, "complete_task", {
+    id: once.id,
+    expected_version: 1,
+    title: "결과",
+    summary: "완료",
+    applied_principle_ids: [p.id],
+  });
+  assertEquals(done.record.applied_principle_ids, [p.id]);
+  const recurring = await tool(mcpA, "create_task", {
+    kind: "recurring",
+    title: "매일",
+    summary: "실행",
+    recurrence: { freq: "daily", starts_on: "2020-01-01" },
+    timezone: "Asia/Seoul",
+  });
+  const r = await call(sessionA, "POST", `/tasks/${recurring.id}/occurrences/2020-01-01/records`, {
+    title: "회차",
+    summary: "실행",
+    applied_principle_ids: [p.id],
+  });
+  assertEquals(r.status, 201);
+  const current = await tool(mcpA, "get_record", { id: r.body.id });
+  assertEquals(current.applied_principle_ids, [p.id]);
+  assertEquals(current.applied_principles[0].updated_at.endsWith("Z"), true);
+  const direct = await call(sessionA, "POST", "/records", {
+    title: "직접",
+    summary: "실행",
+    applied_principle_ids: [p.id],
+  });
+  const updated = await tool(mcpA, "update_record", {
+    id: direct.body.id,
+    expected_version: 1,
+    applied_principle_ids: [],
+  });
+  assertEquals(updated.applied_principle_ids, []);
+});
+
 httpTest("MCP 토큰: aud가 MCP URL이고 client_id가 있다", () => {
   const c = claimsOf(tokenA);
   assertEquals(c.aud, MCP_URL);

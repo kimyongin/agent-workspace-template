@@ -1,5 +1,6 @@
 // 활동 기록(ActivityRecord) 계약. 정본: docs/tickets/template-02-t02-1-contracts.md "활동 기록".
 import { z } from "zod";
+import { principleResult } from "./principle.ts";
 import {
   body,
   expectedVersion,
@@ -8,6 +9,7 @@ import {
   isoDateTime,
   page,
   pageInput,
+  referenceIds,
   requestId,
   summary,
   title,
@@ -19,6 +21,7 @@ export const recordCreate = z.strictObject({
   summary,
   body: body.default(""),
   occurred_at: isoDateTime.optional(),
+  applied_principle_ids: referenceIds.default([]),
   request_id: requestId.optional(),
 });
 export type RecordCreate = z.infer<typeof recordCreate>;
@@ -30,6 +33,7 @@ export const recordUpdate = z
     summary: summary.optional(),
     body: body.optional(),
     occurred_at: isoDateTime.optional(),
+    applied_principle_ids: referenceIds.optional(),
   })
   .refine((v) => Object.keys(v).some((k) => k !== "expected_version"), { message: "바꿀 필드가 없습니다" });
 export type RecordUpdate = z.infer<typeof recordUpdate>;
@@ -55,6 +59,10 @@ export const recordResult = z.object({
   occurred_at: isoDateTime,
   task_id: id.nullable(),
   occurrence_on: isoDate.nullable(),
+  applied_principle_ids: z.array(id),
+  applied_principles: z.array(
+    principleResult.pick({ id: true, title: true, status: true, updated_at: true, version: true }),
+  ),
   version: z.number().int(),
   created_at: isoDateTime,
   updated_at: isoDateTime,
@@ -70,4 +78,5 @@ export const recordLabels = {
   occurred_at: "수행 시각",
   task_id: "할 일",
   occurrence_on: "회차",
+  applied_principle_ids: "적용한 원칙",
 } as const;

@@ -52,6 +52,7 @@ for (const step of ["insertRecord", "updateTask", "enqueueIndex"] as const) {
     await assertRejects(() =>
       activity.completeTask({ uow: failingAt(step), clock }, actor, task.id, {
         expected_version: 1,
+        applied_principle_ids: [],
         title: "결과",
         summary: "결과 요약",
         body: "",
@@ -62,6 +63,7 @@ for (const step of ["insertRecord", "updateTask", "enqueueIndex"] as const) {
     // 실패 뒤 같은 완료가 정상 경로로 다시 성공한다.
     const done = await activity.completeTask({ uow: real, clock }, actor, task.id, {
       expected_version: 1,
+      applied_principle_ids: [],
       title: "결과",
       summary: "결과 요약",
       body: "",

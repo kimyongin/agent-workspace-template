@@ -1,4 +1,5 @@
 // 할 일·기록 작성/편집 폼. 검증은 서버와 같은 contracts로 하고, 저장 실패 시 초안을 유지한다.
+import { PrinciplePicker } from "../principles/PrinciplePicker.tsx";
 import { recordCreate, recordLabels } from "@contracts/record.ts";
 import { type Recurrence, taskCreate, taskLabels } from "@contracts/task.ts";
 import { type ReactNode, useState } from "react";
@@ -12,12 +13,13 @@ const WEEKDAYS = ["월", "화", "수", "목", "금", "토", "일"];
 
 export interface RecordDraft extends TextDraft {
   occurred_at: string; // datetime-local
+  applied_principle_ids: string[];
 }
 
-export const emptyRecord = (): RecordDraft => ({ title: "", summary: "", body: "", occurred_at: "" });
+export const emptyRecord = (): RecordDraft => ({ title: "", summary: "", body: "", occurred_at: "", applied_principle_ids: [] });
 
-export function recordDraftFrom(r: { title: string; summary: string; body: string; occurred_at: string }): RecordDraft {
-  return { title: r.title, summary: r.summary, body: r.body, occurred_at: toLocalInput(r.occurred_at) };
+export function recordDraftFrom(r: { title: string; summary: string; body: string; occurred_at: string; applied_principle_ids?: string[] }): RecordDraft {
+  return { title: r.title, summary: r.summary, body: r.body, occurred_at: toLocalInput(r.occurred_at), applied_principle_ids:r.applied_principle_ids??[] };
 }
 
 export function RecordFormModal(props: {
@@ -27,7 +29,7 @@ export function RecordFormModal(props: {
   initial: RecordDraft;
   intro?: ReactNode;
   onClose: () => void;
-  onSave: (value: { title: string; summary: string; body: string; occurred_at?: string }) => Promise<void>;
+  onSave: (value: { title: string; summary: string; body: string; occurred_at?: string; applied_principle_ids:string[] }) => Promise<void>;
 }) {
   const [draft, setDraft] = useState(props.initial);
   const dirty = JSON.stringify(draft) !== JSON.stringify(props.initial);
@@ -36,6 +38,7 @@ export function RecordFormModal(props: {
     summary: draft.summary,
     body: draft.body,
     occurred_at: fromLocalInput(draft.occurred_at),
+    applied_principle_ids:draft.applied_principle_ids,
   });
   return (
     <FormModal
@@ -54,6 +57,7 @@ export function RecordFormModal(props: {
         <>
           {props.intro}
           <TextFields draft={draft} set={(d) => setDraft((prev) => ({ ...prev, ...d }))} errors={errors} />
+          <PrinciplePicker value={draft.applied_principle_ids} error={errors.applied_principle_ids} onChange={ids=>setDraft(d=>({...d,applied_principle_ids:ids}))}/>
           <Field label={recordLabels.occurred_at} error={errors.occurred_at} help="비우면 저장한 시각">
             {(p) => (
               <input

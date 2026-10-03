@@ -90,7 +90,7 @@ export function activityTools(deps: activity.ActivityDeps): ToolDef[] {
     {
       name: "complete_task",
       description:
-        "일회성 할 일을 완료하고 결과 기록을 함께 저장한다(한 트랜잭션). 실제로 수행한 결과만 기록한다. 반복 할 일은 record_occurrence를 쓴다.",
+        "일회성 할 일을 완료하고 결과 기록·applied_principle_ids를 함께 저장한다(한 트랜잭션). 실제로 수행한 결과만 기록한다. 반복 할 일은 record_occurrence를 쓴다.",
       input: withId(taskComplete),
       readOnly: false,
       handler: (args, actor) => {
@@ -123,7 +123,7 @@ export function activityTools(deps: activity.ActivityDeps): ToolDef[] {
     {
       name: "record_occurrence",
       description:
-        "반복 할 일의 회차(date)에 수행 기록을 남긴다. 규칙상 회차·시작일 이후·중단 기간 밖·오늘(할 일 시간대) 이전만 가능. 한 회차에 여러 번 가능.",
+        "반복 할 일의 회차(date)에 수행 기록·applied_principle_ids를 남긴다. 규칙상 회차·시작일 이후·중단 기간 밖·오늘(할 일 시간대) 이전만 가능. 한 회차에 여러 번 가능.",
       input: withId(recordCreate).extend({ date: isoDate }),
       readOnly: false,
       handler: (args, actor) => {
@@ -155,14 +155,16 @@ export function activityTools(deps: activity.ActivityDeps): ToolDef[] {
     },
     {
       name: "create_record",
-      description: "할 일 없이 수행 기록을 직접 작성한다. 제목·요약은 검색에 쓰인다.",
+      description:
+        "할 일 없이 수행 기록을 직접 작성한다. 제목·요약은 검색에 쓰인다. applied_principle_ids는 실제 적용한 원칙 ID(최대 100개).",
       input: recordCreate,
       readOnly: false,
       handler: (args, actor) => activity.createRecord(deps, actor, parse(recordCreate, args)),
     },
     {
       name: "get_record",
-      description: "기록 하나의 원문을 읽는다.",
+      description:
+        "기록 원문과 적용 원칙을 읽는다. applied_principles는 현재 제목·상태·버전·수정 시각이며 당시 사본이 아니다.",
       input: idOnly,
       readOnly: true,
       handler: (args, actor) => activity.getRecord(deps, actor, byId(args)),
@@ -176,7 +178,8 @@ export function activityTools(deps: activity.ActivityDeps): ToolDef[] {
     },
     {
       name: "update_record",
-      description: "기록을 고친다(바꿀 필드만). expected_version이 다르면 conflict.",
+      description:
+        "기록을 고친다(바꿀 필드만). applied_principle_ids 생략은 유지, 빈 배열은 연결 제거. expected_version이 다르면 conflict.",
       input: withId(recordUpdate),
       readOnly: false,
       handler: (args, actor) => {

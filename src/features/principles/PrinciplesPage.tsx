@@ -40,7 +40,9 @@ export function PrinciplesPage() {
       let result = cached?.page ?? null;
       let count = cached?.count ?? 0;
       // 상세 왕복·새로고침 때 URL에 보관한 페이지 범위를 현재 데이터로 다시 조회한다.
-      while (count < pages && (!result || result.next_cursor)) {
+      const anchor = /^#principle-[0-9a-f-]+$/.test(hash) ? hash.slice(11) : null;
+      // 동시 추가로 항목이 뒤 페이지로 밀려도 이전 상세의 항목까지 복원한다.
+      while ((count < pages || (anchor && !result?.items.some(p => p.id === anchor))) && (!result || result.next_cursor)) {
         const next: Page = await api<Page>("GET", `/principles${query({ status, cursor: result?.next_cursor })}`);
         if (!alive) return;
         result = { items: [...(result?.items ?? []), ...next.items], next_cursor: next.next_cursor };
@@ -52,7 +54,7 @@ export function PrinciplesPage() {
     restore().catch(() => { if (alive) setError("원칙을 불러오지 못했습니다. 조건을 확인하거나 다시 시도하세요."); })
       .finally(() => { if (alive) setLoadingMore(false); });
     return () => { alive = false; generation.current++; };
-  }, [status, pages, retry]);
+  }, [status, pages, retry, hash]);
   const more = async () => {
     if (!page?.next_cursor) return;
     const started = generation.current;

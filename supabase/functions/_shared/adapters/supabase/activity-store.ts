@@ -49,6 +49,11 @@ function toRecord(r: Row): ActivityRecord {
     occurred_at: iso(r.occurred_at)!,
     task_id: (r.task_id as string | null) ?? null,
     occurrence_on: (r.occurrence_on as string | null) ?? null,
+    applied_principle_ids: (r.applied_principle_ids as string[]) ?? [],
+    applied_principles: ((r.applied_principles as ActivityRecord["applied_principles"]) ?? []).map((p) => ({
+      ...p,
+      updated_at: new Date(p.updated_at).toISOString(),
+    })),
     version: r.version as number,
     created_at: iso(r.created_at)!,
     updated_at: iso(r.updated_at)!,
@@ -60,7 +65,11 @@ const taskColumns = (tx: Tx) =>
   tx`id, kind, title, summary, body, due_on::text as due_on, recurrence, timezone, status, completed_at,
      result_record_id, pauses, version, created_at, updated_at`;
 const recordColumns = (tx: Tx) =>
-  tx`id, title, summary, body, occurred_at, task_id, occurrence_on::text as occurrence_on, version, created_at, updated_at`;
+  tx`id, title, summary, body, occurred_at, task_id, occurrence_on::text as occurrence_on, version, created_at, updated_at,
+    coalesce((select jsonb_agg(p.id order by p.id) from app.record_principles rp join app.principles p on p.id=rp.principle_id
+      where rp.record_id=app.records.id), '[]'::jsonb) as applied_principle_ids,
+    coalesce((select jsonb_agg(jsonb_build_object('id',p.id,'title',p.title,'status',p.status,'version',p.version,'updated_at',p.updated_at) order by p.id)
+      from app.record_principles rp join app.principles p on p.id=rp.principle_id where rp.record_id=app.records.id), '[]'::jsonb) as applied_principles`;
 
 /** 수정 가능한 컬럼의 허용 목록. 이 밖의 키는 SQL로 가지 않는다. */
 const TASK_WRITABLE = [
@@ -167,6 +176,20 @@ class SqlActivityStore extends SqlActorStore implements ActivityStore {
       order by occurrence_on, occurred_at, id`;
   }
 
+  async setPrinciples(recordId: string, ids: string[]) {
+    const tx = this.tx;
+    if (ids.length) {
+      const found = await tx<{ id: string }[]>`select id from app.principles where id in ${
+        tx(ids)
+      } order by id for key share`;
+      if (found.length !== ids.length) throw new AppError("invalid_reference", "적용 원칙이 없거나 접근할 수 없습니다");
+    }
+    await tx`delete from app.record_principles where record_id=${recordId}`;
+    for (const id of [...ids].sort()) {
+      await tx`insert into app.record_principles(owner_id,record_id,principle_id) values (${this.actor.userId},${recordId},${id})`;
+    }
+  }
+
   async insertRecord(record: NewRecord) {
     const tx = this.tx;
     const values: Record<string, unknown> = {
@@ -178,17 +201,23 @@ class SqlActivityStore extends SqlActorStore implements ActivityStore {
       occurrence_on: record.occurrence_on,
     };
     if (record.occurred_at) values.occurred_at = record.occurred_at;
-    const [row] = await tx`insert into app.records ${tx(values)} returning ${recordColumns(tx)}`;
-    return toRecord(row);
+    const [row] = await tx`insert into app.records ${tx(values)} returning id`;
+    await this.setPrinciples(row.id as string, record.applied_principle_ids ?? []);
+    return (await this.getRecord(row.id as string))!;
   }
 
   async updateRecord(id: string, changes: RecordChanges) {
     const tx = this.tx;
     const values = pick(tx, changes, RECORD_WRITABLE);
-    if (Object.keys(values).length === 0) throw new AppError("invalid_input", "바꿀 필드가 없습니다");
-    const [row] = await tx`
-      update app.records set ${tx(values)}, version = version + 1, updated_at = now()
-      where id = ${id} returning ${recordColumns(tx)}`;
+    if (changes.applied_principle_ids !== undefined) await this.setPrinciples(id, changes.applied_principle_ids);
+    if (Object.keys(values).length === 0 && changes.applied_principle_ids === undefined) {
+      throw new AppError("invalid_input", "바꿀 필드가 없습니다");
+    }
+    const [row] = Object.keys(values).length
+      ? await tx`update app.records set ${tx(values)}, version=version+1, updated_at=now()
+          where id=${id} returning ${recordColumns(tx)}`
+      : await tx`update app.records set version=version+1, updated_at=now()
+          where id=${id} returning ${recordColumns(tx)}`;
     if (!row) throw new AppError("not_found", "항목을 찾을 수 없습니다");
     return toRecord(row);
   }

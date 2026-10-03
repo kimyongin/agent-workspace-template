@@ -1,0 +1,2 @@
+-- 로컬 준비 중 빈 migration으로 적용된 이력을 보존한다.
+-- 실제 연결 schema는 20261003074639_record_principles.sql에서 추가한다.
