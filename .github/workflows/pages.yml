@@ -50,7 +50,8 @@ jobs:
           for v in "${{ vars.PROD_SUPABASE_URL }}" "${{ vars.PROD_SUPABASE_PUBLISHABLE_KEY }}" "${{ vars.PROD_API_URL }}"; do
             if [ -z "$v" ]; then echo "PROD_* Actions 변수가 비어 있습니다"; exit 1; fi
           done
-          if grep -rqE "127\.0\.0\.1|localhost:554" dist/; then echo "빌드가 로컬 주소를 담고 있습니다"; exit 1; fi
+          # 로컬 Supabase(포트 554xx)를 가리키면 실패. supabase-js는 허용 호스트 목록에 127.0.0.1을 원래 담고 있으므로 포트까지 본다.
+          if grep -rqE "(127\.0\.0\.1|localhost):554[0-9]{2}" dist/; then echo "빌드가 로컬 Supabase 주소를 담고 있습니다"; exit 1; fi
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v4
         with:
