@@ -59,16 +59,19 @@ description: 연결된 도메인 앱의 데이터·할 일·활동 기록·사�
 - 편집·삭제 전 현재 항목과 도구가 설명하는 영향·버전 조건을 확인한다. 결과 기록 삭제가 할 일 상태까지 바꾸는지 임의로 가정하지 않는다.
 - 변경 후 응답으로 실제 반영 범위를 확인한다. 작업 접수와 완료, 원본 저장과 검색 색인 완료를 구분한다. 응답이 불확실하면 재조회나 계약된 요청 식별 방법으로 확인한 뒤 재시도한다.
 
-현재 서버의 할 일·기록 도구와 쓰임새는 다음과 같다. 입력·출력의 정확한 계약은 연결된 서버의 도구 설명을 따른다.
+현재 서버의 할 일·기록·원칙 도구와 쓰임새는 다음과 같다. 입력·출력의 정확한 계약은 연결된 서버의 도구 설명을 따른다. 아래 도구 열의 코드 표기는 도구 이름만 담는다.
 
 | 하려는 일 | 도구 |
 | --- | --- |
 | 할 일 찾기·읽기 | `list_tasks`, `get_task` |
-| 오늘 해야 할 반복 할 일 확인 | `list_tasks`의 `occurrence_on`, `list_occurrences` |
+| 오늘 해야 할 반복 할 일 확인(occurrence_on 지정) | `list_tasks`, `list_occurrences` |
 | 할 일 만들기·고치기·지우기 | `create_task`, `update_task`, `delete_task` |
 | 일회성 할 일 완료와 결과 저장 | `complete_task` |
 | 반복 할 일의 회차 기록·중단·재개 | `record_occurrence`, `stop_task`, `resume_task` |
 | 기록 찾기·읽기·쓰기 | `list_records`, `get_record`, `create_record`, `update_record`, `delete_record` |
+| 사용자 원칙 저장·현재 원문 확인 | `create_principle`, `list_principles`, `get_principle` |
+
+현재 원칙은 `list_principles(status=active)`의 `next_cursor`가 없어질 때까지 확인하고, 적용할 원칙은 `get_principle`로 본문·적용 조건·현재 상태·수정 시각을 읽는다. 의미가 바뀌는 제안은 기존 원칙의 표현 수정과 구분한다. 상태 전환·수정·삭제는 연결된 서버가 해당 도구를 제공할 때만 실행한다.
 
 - 쓰기 도구는 `expected_version`을 받는다. `conflict`면 다시 조회해 현재 상태를 확인한 뒤 판단한다.
 - 생성·완료·회차 기록에는 `request_id`(UUID)를 붙일 수 있다. 응답을 받지 못했으면 같은 `request_id`로 다시 보내 중복 없이 결과를 확인한다.

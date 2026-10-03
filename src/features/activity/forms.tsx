@@ -1,117 +1,12 @@
 // 할 일·기록 작성/편집 폼. 검증은 서버와 같은 contracts로 하고, 저장 실패 시 초안을 유지한다.
 import { recordCreate, recordLabels } from "@contracts/record.ts";
 import { type Recurrence, taskCreate, taskLabels } from "@contracts/task.ts";
-import { type FormEvent, type ReactNode, useState } from "react";
-import { Field, Notice } from "../../components/Field.tsx";
-import { ModalShell } from "../../components/Modal.tsx";
-import { ApiError, isUncertain } from "../../lib/api.ts";
+import { type ReactNode, useState } from "react";
+import { Field } from "../../components/Field.tsx";
+import { FormModal, TextFields, type TextDraft } from "../../components/ContentForm.tsx";
 import { browserTimezone, fieldErrors, fromLocalInput, todayIn, toLocalInput } from "../../lib/format.ts";
 
-export interface TextDraft {
-  title: string;
-  summary: string;
-  body: string;
-}
-
 const WEEKDAYS = ["월", "화", "수", "목", "금", "토", "일"];
-
-function saveErrorMessage(e: unknown): string {
-  if (isUncertain(e)) {
-    return "응답을 받지 못해 저장 여부를 알 수 없습니다. 같은 내용으로 다시 시도하면 중복 없이 결과를 확인합니다.";
-  }
-  if (e instanceof ApiError) {
-    if (e.code === "conflict") return `${e.message} 화면을 닫고 다시 연 뒤 시도하세요.`;
-    return e.message;
-  }
-  return "저장하지 못했습니다.";
-}
-
-function serverFieldErrors(e: unknown): Record<string, string> {
-  return e instanceof ApiError ? Object.fromEntries(e.fields.map((f) => [f.path, f.message])) : {};
-}
-
-/** 제목·요약·본문 입력 묶음. */
-function TextFields(
-  { draft, set, errors }: { draft: TextDraft; set: (patch: Partial<TextDraft>) => void; errors: Record<string, string> },
-) {
-  return (
-    <>
-      <Field label={recordLabels.title} required error={errors.title} help="핵심 대상과 행동 또는 결론, 100자 이하">
-        {(p) => <input {...p} className="input" value={draft.title} onChange={(e) => set({ title: e.target.value })} />}
-      </Field>
-      <Field label={recordLabels.summary} required error={errors.summary} help="나중에 검색할 때 쓰는 요약, 300자 이하">
-        {(p) => (
-          <textarea {...p} className="input" rows={3} value={draft.summary} onChange={(e) => set({ summary: e.target.value })} />
-        )}
-      </Field>
-      <Field label={recordLabels.body} error={errors.body} help="상세 근거·결과(마크다운)">
-        {(p) => (
-          <textarea {...p} className="input" rows={8} value={draft.body} onChange={(e) => set({ body: e.target.value })} />
-        )}
-      </Field>
-    </>
-  );
-}
-
-interface FormModalProps {
-  title: string;
-  open: boolean;
-  submitLabel: string;
-  dirty: boolean;
-  onClose: () => void;
-  /** 검증·저장. 실패하면 throw하고 초안은 유지된다. */
-  onSubmit: () => Promise<void>;
-  validate: () => Record<string, string> | null;
-  children: (errors: Record<string, string>) => ReactNode;
-}
-
-function FormModal({ title, open, submitLabel, dirty, onClose, onSubmit, validate, children }: FormModalProps) {
-  const [busy, setBusy] = useState(false);
-  const [errors, setErrors] = useState<Record<string, string>>({});
-  const [failure, setFailure] = useState<string | null>(null);
-  const formId = `form-${title.replace(/\s/g, "-")}`;
-
-  const submit = async (e: FormEvent) => {
-    e.preventDefault();
-    if (busy) return;
-    const local = validate();
-    setErrors(local ?? {});
-    if (local) return setFailure("입력을 확인하세요.");
-    setBusy(true);
-    setFailure(null);
-    try {
-      await onSubmit();
-    } catch (err) {
-      setErrors(serverFieldErrors(err));
-      setFailure(saveErrorMessage(err));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <ModalShell
-      title={title}
-      open={open}
-      dirty={dirty}
-      busy={busy}
-      onClose={onClose}
-      footer={
-        <>
-          <button type="button" className="btn" onClick={onClose} disabled={busy}>취소</button>
-          <button type="submit" form={formId} className="btn btn-primary" disabled={busy}>
-            {busy ? "저장 중…" : submitLabel}
-          </button>
-        </>
-      }
-    >
-      <form id={formId} className="form" onSubmit={submit} noValidate>
-        {failure && <Notice kind="error">{failure}</Notice>}
-        {children(errors)}
-      </form>
-    </ModalShell>
-  );
-}
 
 // ---------- 기록 폼(직접 작성·완료 결과·회차 기록·편집) ----------
 

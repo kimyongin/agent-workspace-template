@@ -3,6 +3,7 @@
 import { assertEquals } from "@std/assert";
 import type { z } from "zod";
 import { recordCreate, recordResult } from "../../functions/_shared/contracts/record.ts";
+import { principleCreate, principleResult } from "../../functions/_shared/contracts/principle.ts";
 import { taskCreate, taskResult } from "../../functions/_shared/contracts/task.ts";
 import { connect, dbTest, devUsers, urls } from "./_db.ts";
 
@@ -10,7 +11,7 @@ const admin = connect(urls.admin, { max: 1 });
 const { a: A } = await devUsers(admin);
 
 /** 한 행을 넣어 보고 롤백한다. CHECK·NOT NULL 위반이면 false. */
-async function dbAccepts(table: "tasks" | "records", row: Record<string, unknown>): Promise<boolean> {
+async function dbAccepts(table: "tasks" | "records" | "principles", row: Record<string, unknown>): Promise<boolean> {
   try {
     await admin.begin(async (tx) => {
       await tx`insert into ${tx("app." + table)} ${tx({ owner_id: A, ...row })}`;
@@ -48,6 +49,10 @@ for (const [field, max, min] of [["title", 100, 1], ["summary", 300, 1], ["body"
       const input = { ...record, [field]: b.value };
       assertEquals(await dbAccepts("records", input), contractAccepts(recordCreate, input));
     });
+    dbTest(`원칙 parity: ${b.name}`, async () => {
+      const input = { ...record, [field]: b.value };
+      assertEquals(await dbAccepts("principles", input), contractAccepts(principleCreate, input));
+    });
   }
 }
 
@@ -73,4 +78,12 @@ dbTest("할 일: DB 컬럼(owner_id 제외)과 contracts 응답 필드가 같다
 
 dbTest("기록: DB 컬럼(owner_id 제외)과 contracts 응답 필드가 같다", async () => {
   assertEquals(await columns("records"), Object.keys(recordResult.shape).sort());
+});
+
+dbTest("원칙: 적용 조건 한도와 DB 컬럼 계약 일치", async () => {
+  for (const value of ["", "가".repeat(300), "가".repeat(301), "😺".repeat(300)]) {
+    const input = { ...record, applies_when: value };
+    assertEquals(await dbAccepts("principles", input), contractAccepts(principleCreate, input));
+  }
+  assertEquals(await columns("principles"), Object.keys(principleResult.shape).sort());
 });

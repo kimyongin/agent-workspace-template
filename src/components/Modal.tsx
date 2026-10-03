@@ -10,7 +10,7 @@ interface ModalProps {
   dirty?: boolean;
   /** 저장 중에는 닫지 않는다. */
   busy?: boolean;
-  footer?: ReactNode;
+  footer?: ReactNode | ((requestClose: () => void) => ReactNode);
   children: ReactNode;
 }
 
@@ -30,6 +30,12 @@ export function ModalShell({ title, open, onClose, dirty = false, busy = false, 
       d.close();
       (returnFocus.current as HTMLElement | null)?.focus?.();
     }
+    return () => {
+      if (d.open) {
+        d.close();
+        (returnFocus.current as HTMLElement | null)?.focus?.();
+      }
+    };
   }, [open]);
 
   const requestClose = () => {
@@ -56,7 +62,7 @@ export function ModalShell({ title, open, onClose, dirty = false, busy = false, 
           </button>
         </div>
         <div className="modal-body">{children}</div>
-        {footer && <div className="modal-foot">{footer}</div>}
+        {footer && <div className="modal-foot">{typeof footer === "function" ? footer(requestClose) : footer}</div>}
       </div>
       <ConfirmDialog
         open={confirmDiscard}

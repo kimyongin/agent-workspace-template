@@ -2,10 +2,13 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import type { ActivityDeps } from "../../core/activity/application.ts";
+import type { PrincipleDeps } from "../../core/principles/application.ts";
+import { principleRoutes } from "./principle-routes.ts";
 import { AppError } from "../../core/shared/errors.ts";
 import { type TokenPolicy, verifyActor } from "../auth/verify.ts";
 import { toErrorBody } from "../errors.ts";
-import { activityRoutes, type HttpEnv } from "./activity-routes.ts";
+import { activityRoutes } from "./activity-routes.ts";
+import type { HttpEnv } from "./input.ts";
 
 export interface HttpConfig {
   /** 함수 이름에 해당하는 경로 접두어(Supabase Edge는 `/api/...`로 전달한다). */
@@ -15,7 +18,7 @@ export interface HttpConfig {
   allowedOrigins: string[];
 }
 
-export function createHttpApp(deps: ActivityDeps, config: HttpConfig) {
+export function createHttpApp(deps: ActivityDeps, config: HttpConfig, principles: PrincipleDeps) {
   const app = new Hono<HttpEnv>().basePath(config.basePath);
 
   app.use(
@@ -33,6 +36,7 @@ export function createHttpApp(deps: ActivityDeps, config: HttpConfig) {
   });
 
   app.route("/", activityRoutes(deps));
+  app.route("/", principleRoutes(principles));
 
   app.notFound(() => {
     throw new AppError("not_found", "경로를 찾을 수 없습니다");

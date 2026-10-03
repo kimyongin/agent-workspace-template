@@ -6,29 +6,11 @@ import { expectedVersion, isoDate } from "../../contracts/common.ts";
 import { recordCreate, recordListQuery, recordUpdate } from "../../contracts/record.ts";
 import { occurrenceRange, taskComplete, taskCreate, taskListQuery, taskUpdate } from "../../contracts/task.ts";
 import * as activity from "../../core/activity/application.ts";
-import type { Actor } from "../../core/shared/actor.ts";
-import { notFound } from "../../core/shared/errors.ts";
+import { type HttpEnv, idParam, json } from "./input.ts";
 import { parse } from "../errors.ts";
-
-export type HttpEnv = { Variables: { actor: Actor } };
 
 const versionQuery = z.strictObject({ expected_version: z.coerce.number().pipe(expectedVersion) });
 const versionBody = z.strictObject({ expected_version: expectedVersion });
-
-/** 경로의 ID가 UUID가 아니면 존재 여부를 드러내지 않고 not_found. */
-function idParam(value: string): string {
-  if (!z.uuid().safeParse(value).success) throw notFound();
-  return value;
-}
-
-async function json(req: Request): Promise<unknown> {
-  if (!req.headers.get("content-type")?.includes("application/json")) return {};
-  try {
-    return await req.json();
-  } catch {
-    return Symbol("invalid json"); // contracts 검사에서 invalid_input
-  }
-}
 
 export function activityRoutes(deps: activity.ActivityDeps) {
   const app = new Hono<HttpEnv>();

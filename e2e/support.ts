@@ -1,15 +1,11 @@
 // E2E 보조: 로컬 설정 읽기, 개발용 로그인, 브라우저 동의 화면을 거친 MCP 토큰, MCP 클라이언트.
 import { readFileSync } from "node:fs";
+import { parseEnv } from "node:util";
 import { createHash, randomBytes } from "node:crypto";
 import { Client, StreamableHTTPClientTransport } from "@modelcontextprotocol/client";
 import { expect, type Page } from "@playwright/test";
 
-export const env: Record<string, string> = Object.fromEntries(
-  readFileSync(new URL("../.env.local", import.meta.url), "utf8")
-    .split("\n")
-    .filter((l) => l.includes("=") && !l.startsWith("#"))
-    .map((l) => [l.slice(0, l.indexOf("=")), l.slice(l.indexOf("=") + 1)]),
-);
+export const env = parseEnv(readFileSync(new URL("../.env.local", import.meta.url), "utf8"));
 const SUPABASE = env.VITE_SUPABASE_URL;
 if (!/^http:\/\/(127\.0\.0\.1|localhost)/.test(SUPABASE)) throw new Error("E2E는 로컬 Supabase에서만 실행합니다");
 const AUTH = `${SUPABASE}/auth/v1`;

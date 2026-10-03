@@ -3,6 +3,7 @@ import { assert, assertEquals } from "@std/assert";
 import { z } from "zod";
 import { isoDate } from "../../functions/_shared/contracts/common.ts";
 import { recordCreate, recordListQuery, recordUpdate } from "../../functions/_shared/contracts/record.ts";
+import { principleCreate, principleListQuery } from "../../functions/_shared/contracts/principle.ts";
 import {
   occurrenceRange,
   taskComplete,
@@ -22,13 +23,16 @@ const mcpB = await connectMcp(tokenB);
 
 const EXPECTED_TOOLS = [
   "complete_task",
+  "create_principle",
   "create_record",
   "create_task",
   "delete_record",
   "delete_task",
+  "get_principle",
   "get_record",
   "get_task",
   "list_occurrences",
+  "list_principles",
   "list_records",
   "list_tasks",
   "record_occurrence",
@@ -43,6 +47,45 @@ httpTest("MCP 토큰: aud가 MCP URL이고 client_id가 있다", () => {
   assertEquals(c.aud, MCP_URL);
   assert(typeof c.client_id === "string" && c.client_id.length > 0);
   return Promise.resolve();
+});
+
+httpTest("원칙: HTTP/MCP 원문 왕복·재시도·오류 동등성·소유자 격리", async () => {
+  const input = {
+    title: "독서 원칙",
+    summary: "휴가에 긴 책 읽기",
+    body: "# 근거",
+    applies_when: "300쪽 초과",
+    request_id: crypto.randomUUID(),
+  };
+  const created = await call(sessionA, "POST", "/principles", input);
+  assertEquals(created.status, 201);
+  const retried = await tool(mcpA, "create_principle", input);
+  assertEquals(retried.id, created.body.id);
+  assertEquals(await tool(mcpA, "get_principle", { id: retried.id }), created.body);
+  const second = await tool(mcpA, "create_principle", {
+    title: "비밀 보관",
+    summary: "키는 서버 설정에",
+    body: "본문 근거",
+  });
+  assertEquals((await call(sessionA, "GET", `/principles/${second.id}`)).body, second);
+  const missing = await tool(mcpB, "get_principle", { id: second.id });
+  assertEquals(missing.error, (await call(sessionB, "GET", `/principles/${second.id}`)).body);
+  const bad = { ...input, applies_when: "가".repeat(301) };
+  assertEquals(
+    (await tool(mcpA, "create_principle", bad)).error,
+    (await call(sessionA, "POST", "/principles", bad)).body,
+  );
+  assertEquals(
+    (await tool(mcpA, "get_principle", { id: "bad" })).error,
+    (await call(sessionA, "GET", "/principles/bad")).body,
+  );
+  const first = await tool(mcpA, "list_principles", { limit: 1 });
+  assert(first.next_cursor);
+  assertEquals(first, (await call(sessionA, "GET", "/principles?limit=1")).body);
+  const next = await tool(mcpA, "list_principles", { limit: 1, cursor: first.next_cursor });
+  assert(next.items[0].id !== first.items[0].id);
+  const cross = await tool(mcpB, "list_principles", { cursor: first.next_cursor });
+  assertEquals(cross.error.code, "invalid_input");
 });
 
 httpTest("토큰 교차 사용: 웹 세션 토큰은 MCP에서, MCP 토큰은 HTTP API에서 401", async () => {
@@ -98,6 +141,9 @@ httpTest(
     const expected: Record<string, Record<string, unknown>> = {
       list_tasks: json(taskListQuery).properties,
       list_records: json(recordListQuery).properties,
+      create_principle: json(principleCreate).properties,
+      list_principles: json(principleListQuery).properties,
+      get_principle: idOnly,
       create_record: json(recordCreate).properties,
       get_task: idOnly,
       get_record: idOnly,
@@ -226,8 +272,10 @@ httpTest("제품 스킬이 안내하는 도구 이름이 모두 tools/list에 �
   const skill = await Deno.readTextFile(
     new URL("../../../plugins/workspace/skills/workspace/SKILL.md", import.meta.url),
   );
-  const mentioned = [...skill.matchAll(/`([a-z]+_[a-z_]+)`/g)].map((m) => m[1])
-    .filter((n) => !["expected_version", "request_id", "occurrence_on"].includes(n));
+  const table = skill.split("| 하려는 일 | 도구 |\n")[1]?.split("\n\n")[0];
+  assert(table, "스킬의 도구 안내 표가 없음");
+  const toolColumns = table.split("\n").map((line) => line.split("|")[2] ?? "").join("\n");
+  const mentioned = [...toolColumns.matchAll(/`([a-z_]+)`/g)].map((m) => m[1]);
   const { tools } = await mcpA.listTools();
   const names = new Set(tools.map((t) => t.name));
   for (const n of new Set(mentioned)) assert(names.has(n), `스킬의 ${n}이 서버에 없음`);
