@@ -11,10 +11,10 @@
 
 ## 작업과 완료 조건
 
-- [ ] 할 일·기록 목록의 URL 필터와 추가 페이지 범위·대상 anchor·스크롤을 상세 왕복 및 브라우저 뒤로 가기·새로고침에서 복원한다.
-- [ ] 상세 편집 저장/취소·삭제 후에도 목록 문맥을 유지하고 대상 삭제/필터 이탈이면 유효한 초점으로 복귀한다.
-- [ ] 복원 중 필터 전환·이탈 뒤 늦은 응답을 버리고 조회 실패·종료 cursor에서 무한 복원을 막는다.
-- [ ] 360/390/768/1024/1440px, 긴 값, 빈/오류 상태·키보드·초점·확대/대비의 가능한 검증을 기록한다.
+- [x] 할 일·기록 목록의 URL 필터와 추가 페이지 범위·대상 anchor·스크롤을 상세 왕복 및 브라우저 뒤로 가기·새로고침에서 복원한다.
+- [x] 상세 편집 저장/취소·삭제 후에도 목록 문맥을 유지하고 대상 삭제/필터 이탈이면 유효한 초점으로 복귀한다.
+- [x] 복원 중 필터 전환·이탈 뒤 늦은 응답을 버리고 조회 실패·종료 cursor에서 무한 복원을 막는다.
+- [x] 360/390/768/1024/1440px, 긴 값, 빈/오류 상태·키보드·초점·확대/대비의 가능한 검증을 기록한다.
 - [ ] Entity worker의 `entity_id` 목록/상세 연결과 함께 최신 main에서 통합한다.
 
 ## PR 분할 계획
@@ -58,3 +58,14 @@
 - 수정은 추가 조회에서 실패한 scope/cursor를 기억하고 같은 조건의 재시도에서 해당 cursor의 `more`를 다시 실행한다. 누적 항목·cursor·복원 초점 표시를 초기화하지 않는다. 최초 조회/전체 복원 재시도의 기존 첫 페이지 재조회는 유지하며 필터 변경은 실패 정보를 폐기한다.
 - 두 목록의 실제 E2E에 첫 cursor 요청의 503 실패와 지연시킨 재시도를 넣었다. 재시도가 첫 페이지를 읽지 않고 동일 cursor를 요청하며 응답 대기 중 기존 20행·스크롤·행 초점, 성공 후 22행·행 초점을 유지하는지 검사한다. 네트워크 실패만 브라우저 route로 주입하고 성공 응답·자료 생성/정리는 실제 서비스에 맡긴다. 현재는 작성·타입 검사만 통과했으며 공유 환경 해제 후 실제 실행해야 한다.
 - 직접 재검사: `test:fast` core 59 + adapter 11 + web 6 = 76 통과, `build` 423 modules 통과(기존 큰 chunk 경고), `check:deno` 78/82 files 통과, `check:boundaries`·`git diff --check` 통과, `check:docs` 255 text files·36 pass/1 Windows symlink 권한 skip 통과, 위 E2E 별도 타입 검사 통과. 최신 main 반영으로 이전 부모 상대 링크 실패는 해결됐다. Entity 최종 검색/filter 수정은 아직 미머지이며 실제 E2E·화면 폭/키보드/접근성/확대 검증은 미실행이다.
+
+### Entity 후보 통합과 첫 실제 브라우저 검증
+
+- 메인은 검증을 마친 Entity 후보 `cba11dd1892f2c0a5848903201c927077aecf76c`(base `09851bb`)로 rebase를 시작하고 공유 로컬 환경을 이 구현 세션에 단독 배정했다. 소유 활동 4파일의 충돌은 Entity picker·`entity_id` 필터·상세 연결과 기존 search 복귀를 보존하고 목록 helper/복귀 값을 함께 적용해 해결했다. Task 직접 상세 fallback도 kind/status/tag/entity를 보존한다. rebase 후 head `aeddd0fa502f6b1abb9733c8656a0bbba470e8bd`에서 첫 실제 검사를 시작했다. Entity는 아직 독립 재리뷰/CI/머지 전이며 최종 squash main의 Git 정리는 메인이 담당한다.
+- 환경은 공유 로컬 DB/SQL·backend 후보를 고정하고 `npm run serve:functions`와 `npm run dev -- --port 55482`를 이 worktree에서 실행했다. primary 앱 55480·fin·기존 DB/자료를 유지했고 reset/운영 접근은 하지 않았다. primary의 로컬 env/signing key를 이 checkout의 ignored 경로에 복사했다. 첫 functions 실행은 signing key 파일 누락으로 종료했으며 기존 로컬 파일을 복사한 뒤 정상 실행했다. OAuth helper의 loopback consent를 own 앱 origin으로 연결하는 실제 등록/PKCE 동의 경로를 보존했다.
+- 초기 활동 4개는 모두 재시도 시작 시 scroll 122px 이동으로 실패했다. 첫 head의 `test-results/activity-first/**/trace.zip`·`error-context.md`를 보존했다. 누적 행을 비우지는 않았지만 오류 안내를 바로 제거해 문서 높이가 줄었던 원인이므로 `more`의 오류 안내는 성공 응답까지 유지하게 했다. 다음 `activity-retry`는 이 scroll 검사를 통과한 뒤 테스트의 `.last()` locator가 새 append 행을 가리키는 문제를 확인했다. 테스트가 동일 row ID를 유지하게 수정했다. 두 실행의 실패 자료를 성공 실행 디렉터리로 덮지 않았다.
+- 수정·Entity 문맥 회귀를 커밋한 정확한 source head는 `8ddd4b4395d57c91bca083a431b2612c91aef18b`이다. 실행마다 생성한 own tag/entity로 격리한 22행→상세 중 21행 추가→43행 복원, Entity filter/상세 link, 편집 저장/취소, 삭제, entity 연결 해제에 따른 조건 이탈, hash/pages/scroll 해제를 검사했다. own 활동·태그·Entity만 `finally`에서 정리했다. 503과 지연 응답만 route로 주입하며 정상 HTTP·MCP·DB·OAuth는 실제 경계를 실행했다.
+- ignored `test-results/activity-integrated.config.ts`는 기존 Playwright 설정을 가져오고 baseURL `http://127.0.0.1:55482`, webServer 없이 `outputDir=activity-integrated`로 지정한다. `npx playwright test -c test-results/activity-integrated.config.ts e2e/activity-return.spec.ts --workers=1`: desktop/mobile 활동 4 PASS(43.8s). 같은 source head에서 `activity-full.config.ts`·`outputDir=activity-full`로 전체 실행: 70개 중 61 PASS/9 skip(4.6m), Entity 8 포함. skip은 두 실제 의미모델 opt-in 검사와 desktop에서 수행한 폭/키보드 검사의 mobile 중복 7개다. 양쪽 `.last-run.json`은 PASS이고 실패 artifact는 별도 경로에 남았다.
+- 전체 E2E는 태그 조건 전환 뒤 늦은 more 응답 격리, 실제 원문/활동/원칙 CRUD·권한·OAuth 회귀를 포함한다. `layout.spec.ts`의 360/390/768/1024/1440px 목록·상세·작성, 긴 공백 없는 제목과 긴 요약, 가로 넘침·44px 조작 영역, 640x400 CSS viewport의 200% 확대 모사·16px root 글자, 키보드 Enter/Tab/Escape·모달 초점/초안 보호, CSS 대비 검사도 직접 PASS를 확인했다. 빈 상태와 503 오류/재시도는 활동 회귀에서 실제 렌더링했다. 자동 Chromium viewport·CSS 폭 모사이며 실제 OS 확대·실기기·스크린리더 접근은 없었다. 스크린리더 동작과 실기기 터치 완료로 주장하지 않는다.
+- 같은 source head의 직접 오프라인 검사: fast core 60+adapter 13+web 6=79, Deno 89/93 files, build 428 modules(기존 큰 chunk 경고), boundaries·diff 통과. docs 303 text files(보존한 로컬 artifact 포함)·36 pass/1 Windows symlink 권한 skip 통과. 실제 서비스 회귀와 모의/pure 검사 증거를 구분한다.
+- 남은 의존성: Entity 후보 독립 리뷰의 manual 250→251 페이지 경계 수정·재리뷰/CI/머지 및 최종 main 반영. 활동에도 동일한 clamp 경계의 재조회 가능성을 발견해 메인에 보고했다. 현재 성공 head/자료를 보존하고 추가 회귀·좁은 수정과 새 Entity 후보 반영 후 필요한 실제 검사를 반복한다. 최종 head 독립 리뷰·CI·머지는 아직 완료가 아니다.
