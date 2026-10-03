@@ -90,7 +90,12 @@ export async function listTasks(deps: ActivityDeps, actor: Actor, query: TaskLis
     // 그 날짜에 회차가 있는 반복 할 일. 회차는 계산값이라 반복 할 일을 모두 읽어 거른다(개인 앱 규모).
     const date = filter.occurrence_on;
     if (filter.kind === "once") return { items: [], next_cursor: null };
-    const candidates = await store.listTasks({ kind: "recurring", status: filter.status, limit: 5000 });
+    const candidates = await store.listTasks({
+      kind: "recurring",
+      status: filter.status,
+      tag_id: filter.tag_id,
+      limit: 5000,
+    });
     const items: TaskListItem[] = [];
     for (const task of candidates) {
       if (!task.recurrence) continue;

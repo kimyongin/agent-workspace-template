@@ -11,6 +11,21 @@ const admin = connect(urls.admin, { max: 1 }), sql = connect(urls.pooler, { max:
 const users = await devUsers(admin), A = { userId: users.a }, B = { userId: users.b };
 const deps = { uow: new SqlUnitOfWork(sql), clock: { now: () => new Date() } },
   tags = { uow: new SqlTagUnitOfWork(sql) };
+
+dbTest("할 일 태그: 회차 날짜와 태그 결합 필터", async () => {
+  const tag = await createTag(tags, A, tagCreate.parse({ name: crypto.randomUUID().slice(0, 30) }));
+  const base = {
+    kind: "recurring",
+    title: "매일",
+    summary: "필터",
+    recurrence: { freq: "daily", starts_on: "2020-01-01" },
+    timezone: "Asia/Seoul",
+  };
+  const tagged = await createTask(deps, A, taskCreate.parse({ ...base, tag_ids: [tag.id] }));
+  await createTask(deps, A, taskCreate.parse(base));
+  const q = taskListQuery.parse({ occurrence_on: "2020-01-01", tag_id: tag.id });
+  assertEquals((await listTasks(deps, A, q)).items.map((t) => t.id), [tagged.id]);
+});
 dbTest("할 일 태그: 필터·부분 수정·삭제 후 원문·색인 보존", async () => {
   const tag = await createTag(tags, A, tagCreate.parse({ name: crypto.randomUUID().slice(0, 30) }));
   const task = await createTask(
