@@ -39,6 +39,12 @@ dbTest("검색: 한국어 본문·literal 와일드카드·상태·태그·기�
     first = searchResult.parse(await search(d, A, base));
   assertEquals(first.semantic_coverage, { pending: 3, excluded: 0 });
   assertEquals(first.items[0].kind, "task");
+  assertEquals((await search(d, A, { ...base, anchor: { kind: "principle", id: sameId } })).anchor_page, 3);
+  assertEquals((await search(d, B, { ...base, anchor: { kind: "principle", id: sameId } })).anchor_page, null);
+  assertEquals(
+    (await search(d, A, { ...base, query: "없는 말", anchor: { kind: "principle", id: sameId } })).anchor_page,
+    null,
+  );
   assert(first.next_cursor);
   const second = await search(d, A, { ...base, cursor: first.next_cursor });
   assertEquals(second.items[0].kind, "record");

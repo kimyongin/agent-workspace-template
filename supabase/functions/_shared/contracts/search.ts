@@ -13,6 +13,7 @@ export const searchInput = z.strictObject({
   to: isoDateTime.optional(),
   status: z.enum(["active", "inactive", "all"]).default("active"),
   mode: z.enum(["auto", "keyword"]).default("auto"),
+  anchor: z.strictObject({ kind: searchKind, id }).optional(),
   ...pageInput,
 }).refine((v) => !v.from || !v.to || Date.parse(v.from) <= Date.parse(v.to), {
   path: ["to"],
@@ -32,6 +33,7 @@ export const searchItem = z.object({
 });
 export type SearchItem = z.infer<typeof searchItem>;
 export const searchResult = z.object({
+  anchor_page: z.number().int().min(1).nullable(),
   items: z.array(searchItem),
   next_cursor: z.string().nullable(),
   search_state: z.enum(["ok", "keyword_fallback"]),

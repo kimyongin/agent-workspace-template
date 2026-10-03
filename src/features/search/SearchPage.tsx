@@ -11,6 +11,7 @@ export function SearchPage(){
   const [result,setResult]=useState<SearchResult|null>(null), [error,setError]=useState<string|null>(null), [busy,setBusy]=useState(false);
   const generation=useRef(0), [retry,setRetry]=useState(0);
   const loaded=useRef<{key:string;retry:number;count:number;result:SearchResult}|null>(null);
+  const pending=useRef<AbortController|null>(null);
   const {hash}=useLocation(),navigate=useNavigate(),focused=useRef("");
   const searchParams=new URLSearchParams(params);searchParams.delete("pages");searchParams.delete("scroll");
   const key=searchParams.toString(),q=params.get("q")??"",tag=params.get("tag_id")??"";
@@ -21,14 +22,17 @@ export function SearchPage(){
     ...(params.get("to")?{to:new Date(params.get("to")!).toISOString()}:{}),});
   useEffect(()=>{
     let alive=true;const current=++generation.current;setDraft(q);setError(null);focused.current="";
+    const controller=new AbortController();pending.current=controller;
     const prior=loaded.current,cached=prior?.key===key&&prior.retry===retry&&prior.count<=pages?prior:null;
     if(!cached){loaded.current=null;setResult(null);}setBusy(!!q);
     if(q){
       try{const value=input(),restore=async()=>{
         let result=cached?.result??null,count=cached?.count??0;
-        const anchor=/^#search-(task|record|principle)-[0-9a-f-]+$/.test(hash)?hash.slice(1):null;
-        while(count<1000&&(count<pages||(anchor&&!result?.items.some(r=>`search-${r.kind}-${r.id}`===anchor)))&&(!result||result.next_cursor)){
-          const next:SearchResult=await api<SearchResult>("POST","/search",{...value,...(result?.next_cursor?{cursor:result.next_cursor}:{})});
+        const anchor=/^#search-(task|record|principle)-([0-9a-f-]+)$/.exec(hash);
+        let targetPages=pages;
+        while(count<targetPages&&(!result||result.next_cursor)){
+          const next:SearchResult=await api<SearchResult>("POST","/search",{...value,...(!count&&anchor?{anchor:{kind:anchor[1],id:anchor[2]}}:{}),...(result?.next_cursor?{cursor:result.next_cursor}:{})},controller.signal);
+          if(!count)targetPages=Math.max(pages,next.anchor_page??0);
           if(!alive)return;result={...next,items:[...(result?.items??[]),...next.items]};count++;
           loaded.current={key,retry,count,result};setResult(result);
         }
@@ -36,11 +40,11 @@ export function SearchPage(){
         .catch(()=>{if(alive)setError("검색하지 못했습니다. 다시 시도하세요.");}).finally(()=>{if(alive&&current===generation.current)setBusy(false);});
       }catch{setBusy(false);setError("검색어와 필터를 확인하세요. 검색어는 1~200자입니다.");}
     }
-    return()=>{alive=false;generation.current++;};
+    return()=>{alive=false;generation.current++;controller.abort();};
   },[key,pages,retry,hash]);
   useEffect(()=>{
     if(busy||focused.current===hash||!/^#search-(task|record|principle)-[0-9a-f-]+$/.test(hash))return;
-    const target=document.getElementById(hash.slice(1));if(!target)return;
+    const target=document.getElementById(hash.slice(1));if(!target){if(result){document.getElementById("search-title")?.focus();focused.current=hash;}return;}
     target.focus({preventScroll:true});const y=Number(params.get("scroll"));
     if(params.has("scroll")&&Number.isFinite(y)&&y>=0)window.scrollTo(0,y);
     const rect=target.getBoundingClientRect();if(rect.top<0||rect.bottom>window.innerHeight)target.scrollIntoView({block:"center"});
@@ -49,7 +53,7 @@ export function SearchPage(){
   const change=(name:string,value:string)=>{const p=new URLSearchParams(params);p.delete("pages");p.delete("scroll");value?p.set(name,value):p.delete(name);setParams(p);};
   const more=async()=>{
     if(!result?.next_cursor)return;const current=generation.current;setBusy(true);setError(null);
-    try{const next=await api<SearchResult>("POST","/search",{...input(),cursor:result.next_cursor});if(current===generation.current){
+    try{const next=await api<SearchResult>("POST","/search",{...input(),cursor:result.next_cursor},pending.current?.signal);if(current===generation.current){
       const combined={...next,items:[...result.items,...next.items]},count=(loaded.current?.count??1)+1;
       loaded.current={key,retry,count,result:combined};setResult(combined);const p=new URLSearchParams(params);p.set("pages",String(count));setParams(p,{replace:true});
     }}
@@ -57,7 +61,7 @@ export function SearchPage(){
     finally{if(current===generation.current)setBusy(false);}
   };
   return <section className="panel" aria-labelledby="search-title">
-    <h1 id="search-title" className="page-title">검색</h1>
+    <h1 id="search-title" className="page-title" tabIndex={-1}>검색</h1>
     <form onSubmit={e=>{e.preventDefault();const value=draft.trim();if(value===q)setRetry(n=>n+1);else change("q",value);}}>
       <Field label="검색어" required help="제목·요약·본문에서 찾습니다. 검색 후 원문을 열어 확인하세요.">{p=><input {...p} className="input" value={draft} onChange={e=>setDraft(e.target.value)} required/>}</Field>
       <button className="btn btn-primary" type="submit" disabled={busy}>검색</button>

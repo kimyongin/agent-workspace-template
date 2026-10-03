@@ -31,10 +31,22 @@ class SqlSearchStore implements SearchStore {
     }`;
     return { pending: r.pending as number, excluded: 0 };
   }
+  matches(q: SearchInput) {
+    return this.tx`strpos(lower(title||E'\n'||coalesce(summary,'')||E'\n'||body),lower(${q.query}))>0`;
+  }
+  async anchorPage(q: SearchInput) {
+    if (!q.anchor) return null;
+    const tx = this.tx;
+    const [r] = await tx`with sources as (${this.sources()}), ranked as (
+      select kind,id,row_number() over(order by at desc,kind desc,id desc) as position
+      from sources where ${this.filters(q)} and ${this.matches(q)})
+      select ceil(position::numeric/${q.limit})::int as page from ranked where kind=${q.anchor.kind} and id=${q.anchor.id}`;
+    return r ? r.page as number : null;
+  }
   async keyword(q: SearchInput, after?: SearchPosition): Promise<SearchItem[]> {
     const tx = this.tx;
     const rows = await tx`with sources as (${this.sources()}) select kind,id,title,summary,at,tag_ids from sources
-      where ${this.filters(q)} and strpos(lower(title||E'\n'||coalesce(summary,'')||E'\n'||body),lower(${q.query}))>0
+      where ${this.filters(q)} and ${this.matches(q)}
       ${after ? tx`and (at,kind,id)<(${after.at}::timestamptz,${after.kind}::text,${after.id}::uuid)` : tx``}
       order by at desc,kind desc,id desc limit ${q.limit + 1}`;
     return rows.map((r) => ({

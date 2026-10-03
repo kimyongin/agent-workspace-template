@@ -19,15 +19,17 @@ export class ApiError extends Error {
 /** 응답을 받지 못한 경우: 서버에서 실행됐는지 알 수 없다. 같은 request_id로 다시 보내면 안전하다. */
 export const isUncertain = (e: unknown) => e instanceof ApiError && (e.code === "network" || e.status >= 500);
 
-export async function api<T>(method: string, path: string, body?: unknown): Promise<T> {
+export async function api<T>(method: string, path: string, body?: unknown, signal?:AbortSignal): Promise<T> {
   const { data } = await supabase.auth.getSession();
+  signal?.throwIfAborted();
   const headers: Record<string, string> = {};
   if (data.session) headers.authorization = `Bearer ${data.session.access_token}`;
   if (body !== undefined) headers["content-type"] = "application/json";
   let res: Response;
   try {
-    res = await fetch(`${base}${path}`, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
-  } catch {
+    res = await fetch(`${base}${path}`, { method, headers, body: body === undefined ? undefined : JSON.stringify(body), signal });
+  } catch (e) {
+    if(signal?.aborted)throw e;
     throw new ApiError(0, "network", "서버에 연결하지 못했습니다. 저장 여부를 확인한 뒤 다시 시도하세요", [], true);
   }
   if (res.status === 204) return undefined as T;

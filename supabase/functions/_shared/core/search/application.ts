@@ -9,12 +9,13 @@ export type SearchPosition = Pick<SearchItem, "at" | "kind" | "id">;
 export interface SearchStore {
   keyword(q: SearchInput, after?: SearchPosition): Promise<SearchItem[]>;
   coverage(q: SearchInput): Promise<SearchResult["semantic_coverage"]>;
+  anchorPage(q: SearchInput): Promise<number | null>;
 }
 export interface SearchDeps {
   uow: { run<T>(a: Actor, fn: (s: SearchStore) => Promise<T>): Promise<T> };
 }
 export async function search(d: SearchDeps, a: Actor, q: SearchInput): Promise<SearchResult> {
-  const { cursor: _cursor, limit: _limit, ...filter } = q;
+  const { cursor: _cursor, limit: _limit, anchor: _anchor, ...filter } = q;
   const scope = await scopeOf(a, { search: { ...filter, kinds: [...q.kinds].sort() }, pipeline: "keyword-v1" });
   let after: SearchPosition | undefined;
   if (q.cursor) {
@@ -42,6 +43,7 @@ export async function search(d: SearchDeps, a: Actor, q: SearchInput): Promise<S
       : null;
     // 의미 파이프라인 연결 전에는 auto 요청도 키워드 대체임을 명시한다.
     return {
+      anchor_page: await s.anchorPage(q),
       items,
       next_cursor: next,
       search_state: q.mode === "keyword" ? "ok" : "keyword_fallback",
