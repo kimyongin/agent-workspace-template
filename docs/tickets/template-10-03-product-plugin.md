@@ -67,3 +67,15 @@ CLI isolated root는 `C:/Users/yongin/AppData/Local/Temp/workspace-plugin-cli-18
 | 수정본 ZIP 생성, `Expand-Archive`, 추출 폴더 `claude plugin validate` | 저장소 밖 정상 출력·추출·manifest 검증 통과 |
 
 수정본 artifact는 `<TEMP>/workspace-plugin-artifacts/workspace-0.1.0-reviewed.zip`과 `.json`, archive SHA-256은 `afd96e8309880025daca1f6e2a91e859490240df66ec4b0f792d0b6b77c8e68d`다. README 변경에 따른 원본 해시 차이이며 서버 도구·공유 스킬은 기존과 같다. OAuth·실클라이언트 업무 검증 범위는 앞의 미검증 목록을 유지한다. 수정 새 head의 독립 리뷰·CI·머지는 메인 인계다.
+
+## 제출 후 현재 완료 기록
+
+2026-10-04 release 담당이 GitHub MERGED·merge SHA를 직접 확인했다. [PR #74](https://github.com/kimyongin/agent-workspace-template/pull/74)·[checks](https://github.com/kimyongin/agent-workspace-template/pull/74/checks)의 독립 리뷰·CI·머지 완료, merge `a59d58cc8ca5e65f24c3d31c7504367db79d0a01`. 위 구현·제출 snapshot은 당시 이력으로 보존하며 운영 배포·미지원 도구·미노출 backend/실청구액·미접근 클라이언트의 추가 완료를 뜻하지 않는다.
+
+최종 머지 전 인계 snapshot: [PR #80](https://github.com/kimyongin/agent-workspace-template/pull/80)은 실제 local source8c94의 양 CLI 업무/단일 저장/독립 재조회·자기 자료와 인증 정리, 정상 계정 Claude native 새 OAuth·발견31·실제 단일 읽기·정상 인증 해제 성공을 기록했다. exact f70c3e7의 독립 머지 가능·check SUCCESS를 메인이 전달했고 integration·최종 머지는 대기다. Codex native 증거의 이전 source와 실제 Bearer 행동 source를 구분하며 prod 세션·외부 웹/mobile의 성공은 미확인이다. 최종 자식07 링크·main ZIP/hash는 머지 후 연결한다.
+
+후속 PR #80의 integration37158709415는 최종 FAIL(메인 인계:65 PASS·9 SKIP·2 FAIL)이다. 활동의 기록250페이지 mock 복원 deadline 실패를 별도 안정성 PR에서 조사한 뒤 rebase·CI를 재검증한다. 실제 로컬 인증/행동의 성공 이력은 보존하며 최종 CI·머지·운영 준비 완료로 표현하지 않는다.
+
+## 최종 현재 완료 연결
+
+[PR #80 완료5974516525](https://github.com/kimyongin/agent-workspace-template/pull/80#issuecomment-5974516525)·[CI37160563892 SUCCESS](https://github.com/kimyongin/agent-workspace-template/actions/runs/37160563892), exact18b7eff 독립 머지 가능 후 main `1730dc983eb10e282e28f3a200ffbd265978480e`으로 완료됐다. 첫 통합 실패·활동 PR #81 보강·rebase/최종 재검증과 각 frozen 실제 실행 이력은 보존한다. 최종 cleanmain1730dc의0.1.1 ZIP SHA78974e53e41615a85943037a91db04c30c766a2b6e353e8d992ef71013fa60e3 및 서버·Pages 적용/제약은 [Template-10-06](template-10-06-existing-release.md)에 연결한다. 실제 local8c94 양CLI 업무/정리·Claude native 인증/읽기/해제, 이전72d4 Codex native 근거와 prod 실사용은 구분한다. 운영 세션 미접근·claude.ai 웹/mobile·backend effort/실청구액은 미확인이고 Cron은 소량 성공 미증명으로 보류다.

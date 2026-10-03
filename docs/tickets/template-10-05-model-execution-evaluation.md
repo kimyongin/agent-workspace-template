@@ -1,7 +1,7 @@
 # Template-10-05 — 개발 세션 실행과 대표 과제 평가
 
 작성: 2026-10-04
-상태: 구현 완료(PR·독립 리뷰·CI·머지 전)
+상태: 완료(PR #76 독립 리뷰·CI·머지, 미관측 범위 보존)
 검토 기준: `46f4cbef3c8098626647055ec741463eb1aa3066`
 선행: Template-05·07의 모델 선택 정책 유지
 
@@ -16,7 +16,7 @@
 - [x] native child 실행과 같은 설정 resume의 실제 관찰을 구분하고 명시 값·actual metadata·내부 helper를 기록한다(Codex custom 미지원, backend effort 미노출 유지).
 - [x] elapsed·재시도·검증 결과·실제 노출 token/cost를 구분한다. ChatGPT 계정 사용량을 세션 비용으로 배분하지 않는다.
 - [x] 관찰되지 않은 backend effort/청구비용은 미확인으로 남기며 완료한 범위만 현재 요약에 반영한다.
-- [ ] 독립 리뷰·필수 CI·머지 조건을 확인한다.
+- [x] 독립 리뷰·필수 CI·머지 조건을 확인한다(PR #76).
 
 ## PR 분할 계획
 
@@ -57,3 +57,7 @@ native custom 지원이 생긴 CLI에서 해당 경로를 재확인하고 backen
 로컬 구현·평가 결과와 정확한 commit head를 메인에 인계한다. 독립 리뷰·최종 head 필수 CI·PR·머지는 메인이 수행하며 이 티켓의 체크박스로 완료를 선점하지 않는다. 원 임시 로그에는 fixture·안내만 있고 보고에는 선택된 metadata·응답·코드·hash만 보존했다.
 
 변경량은 400줄을 넘지만 대부분 동일 고정 자료·실제 응답·JSON 관찰값이다. 성공 결과만 선택하지 않고 초기 절차/환경 실패·retry·helper 사용량을 함께 리뷰할 수 있도록 한 티켓에 묶었다. 실행 framework·앱 구현·모델 정책 확장은 없다. fixture commit을 보존하기 위해 최신 main은 rebase 대신 merge했으며 고정 입력 hash는 그대로다.
+
+## 제출 후 현재 완료 기록
+
+2026-10-04 release 담당이 GitHub MERGED·merge SHA를 직접 확인했다. [PR #76](https://github.com/kimyongin/agent-workspace-template/pull/76)·[checks](https://github.com/kimyongin/agent-workspace-template/pull/76/checks)의 독립 리뷰·CI·머지 완료, merge `09851bb1caa754a58f6542f24442735f90214d0d`. 위 구현·제출 snapshot은 당시 이력으로 보존하며 운영 배포·미지원 도구·미노출 backend/실청구액·미접근 클라이언트의 추가 완료를 뜻하지 않는다.

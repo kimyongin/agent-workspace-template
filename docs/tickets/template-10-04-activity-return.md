@@ -1,7 +1,7 @@
 # Template-10-04 — 활동 목록 왕복 복원과 접근성 검증
 
 작성: 2026-10-04
-상태: 진행 중
+상태: 완료(PR #79·81 독립 리뷰·CI·머지, 실제 기기·스크린리더 미확인)
 검토 기준: `46f4cbef3c8098626647055ec741463eb1aa3066`
 선행: [Template-10](template-10-priority-completion.md)의 승인 범위, Entity 변경은 통합 시 반영
 
@@ -111,3 +111,9 @@
 - 직접 브라우저 검사: ignored `test-results/activity-ci-stability.config.ts`(testDir `../e2e`, primary baseURL 55480, webServer 없음, workers 1)로 `npx playwright test -c test-results/activity-ci-stability.config.ts e2e/activity-return.spec.ts --grep "수동 250" --workers=1`: 두 목록×desktop/mobile 4 PASS(1.3m), outputDir `test-results/activity-ci-stability-local/`의 `.last-run.json` PASS. 정상 HTTP 목록은 route fixture이며 DB 자료를 생성/삭제하지 않았다.
 - 대기/거부 의미는 커밋하지 않는 ignored spec 복사본 `test-results/activity-ci-stability-probe.spec.ts`에 실패 조건만 주입해 같은 helper와 브라우저를 실행했다. 기록 desktop의 매 응답 100ms 지연은 두 복원 모두 20초를 넘어도 1 PASS(57.8s; `activity-ci-stability-slow/`). cursor 50 무응답은 target 75/실제 50의 10초 진행 제한으로 의도대로 FAIL(11.9s; `activity-ci-stability-stall/`), next cursor 51을 건너뛴 52는 checkpoint의 정확한 요청 순서 비교로 의도대로 FAIL(2.8s; `activity-ci-stability-order/`). 반복 cursor 50은 유한 복원 종료 뒤 target 75 미달로 거부했다(`activity-ci-stability-duplicate/`). 이 FAIL들은 제품 회귀 실패가 아니라 검사 거부 경로 확인이며 각각 trace/error-context·`.last-run.json`을 보존한다. 임시 probe는 배포/CI 테스트 소스에 포함하지 않는다.
 - 변경 E2E 별도 TypeScript 검사와 `git diff --check`를 통과했다. 티켓 수정 후 `check:docs`는 311 text files·36 PASS/1 Windows symlink 권한 skip이었다. 전체 통합 E2E는 이 소스의 독립 리뷰와 작은 PR #81 CI에서 검증하도록 메인에 인계하며 기존 전체 성공을 새 commit의 CI 성공으로 주장하지 않는다. 메인은 PR #81 머지 후 PR #80을 재배치한다. 전용 서비스는 시작하지 않았고 기존 primary/functions/API/DB를 그대로 보존했다.
+
+## 제출 후 현재 완료 기록
+
+[PR #79 완료 기록](https://github.com/kimyongin/agent-workspace-template/pull/79#issuecomment-5974064551)과 [checks](https://github.com/kimyongin/agent-workspace-template/pull/79/checks)에 따라 merge `ff1863d20bd558774dba4312cf3d9cd3c7fd2924`로 완료했다. release 담당이 GitHub MERGED·SHA를 조회했고 최종 리뷰·CI 결과는 메인 인계와 증거를 연결한다. 실제 기기·스크린리더·OS 확대 및 운영 업무 성공은 자동 Chromium viewport·CSS 모사 결과와 구분하며 아래 당시 실행 기록은 보존한다.
+
+PR #80 CI 실패 후 deadline 보강 [PR #81 완료](https://github.com/kimyongin/agent-workspace-template/pull/81#issuecomment-5974412125)도 [CI37159805324](https://github.com/kimyongin/agent-workspace-template/actions/runs/37159805324) SUCCESS 후 `2a55e1397a427388cb0d47671cf0236bb1ab36a6`으로 머지됐다. 이전 실패와 수정/대조 검사 이력은 위 기록에 보존한다.

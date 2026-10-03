@@ -156,3 +156,7 @@ UI 담당이 명시 반환한 뒤 메인이 공유 local 환경 독점과 medium
 후속 helper의 고유 식별자 파생·외부 증거 위치·loopback/PKCE/외부 callback·주입 header 거부 보강은 실제 성공 실행 뒤 적용했다. `native-guards.test.mjs`는 서비스/LLM/브라우저 시작 전 거부 경로 2개(6개 입력 조합)를 오프라인 검증했다. 실제 입력 schema journal 회귀7, 문서·구문·diff 검사도 수행한다. 최신 main rebase/독립 리뷰/PR80 CI와 최종 ZIP/sidecar main revision 고정·운영 release 검증은 메인이 후속 조정한다. 로컬 양 CLI 행동·정리는 8c94에서 완료했다. native 인증/발견 증거의 source는 이전 Codex 72d4와 이번 Claude 8c94로 다르며 둘을 같은 revision에서 완료했다고 주장하지 않는다. 접근 불가 surface와 운영 행동은 미검증으로 유지한다.
 
 최종 로컬 검사: `npm run check:docs` PASS(문서321개, 스크립트36 PASS/1 Windows file symlink privilege SKIP), journal 실제 schema/fault injection7 PASS, native guard2 PASS, 실험 `.mjs` 전체 `node --check` 및 `git diff --check` PASS. helper 보강 뒤에는 서비스·LLM 재호출 없이 이 오프라인 검사만 수행했다.
+
+## 최종 현재 완료 연결
+
+[PR #80 완료5974516525](https://github.com/kimyongin/agent-workspace-template/pull/80#issuecomment-5974516525)·[CI37160563892 SUCCESS](https://github.com/kimyongin/agent-workspace-template/actions/runs/37160563892), exact18b7eff 독립 머지 가능 후 main `1730dc983eb10e282e28f3a200ffbd265978480e`으로 완료됐다. 첫 통합 실패·활동 PR #81 보강·rebase/최종 재검증과 각 frozen 실제 실행 이력은 보존한다. 최종 cleanmain1730dc의0.1.1 ZIP SHA78974e53e41615a85943037a91db04c30c766a2b6e353e8d992ef71013fa60e3 및 서버·Pages 적용/제약은 [Template-10-06](template-10-06-existing-release.md)에 연결한다. 실제 local8c94 양CLI 업무/정리·Claude native 인증/읽기/해제, 이전72d4 Codex native 근거와 prod 실사용은 구분한다. 운영 세션 미접근·claude.ai 웹/mobile·backend effort/실청구액은 미확인이고 Cron은 소량 성공 미증명으로 보류다.

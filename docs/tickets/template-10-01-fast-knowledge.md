@@ -1,7 +1,7 @@
 # Template-10-01 — 기록·원칙·연결의 빠른 업무 검사
 
 작성: 2026-10-04
-상태: 진행 중
+상태: 완료(PR #75 독립 리뷰·CI·머지)
 검토 기준: `46f4cbef3c8098626647055ec741463eb1aa3066`
 선행: Template-08 PR #70/71/72·Template-09 PR #73 완료
 
@@ -15,7 +15,7 @@
 - [x] 실제 원칙 비활성·대체 참조·재활성 규칙과 적용 원칙의 현재 응답을 검사한다.
 - [x] 태그/원칙 연결의 생략 유지·빈 배열 제거와 목록 필터 전달·커서 범위 검사를 추가한다.
 - [x] 실제 HTTP route·MCP ToolDef schema/handler의 정상 결과 및 입력·업무 오류 본문을 교차 검사하고 발견한 원칙 도구의 오류 fields 차이를 수정한다.
-- [ ] 최종 로컬 commit의 독립 리뷰·격리 integration CI·최신 main·머지를 확인한다.
+- [x] 최종 로컬 commit의 독립 리뷰·격리 integration CI·최신 main·머지를 확인한다(PR #75).
 
 ## PR 분할 계획
 
@@ -55,3 +55,7 @@
 기존 `update_principle`에서 `{expected_version:2,status:"active"}`만 보내면 HTTP는 금지 `status`의 fields 하나, MCP handler는 거기에 `(입력)`의 "바꿀 필드가 없습니다"를 추가했다. 두 접점 모두 `invalid_input`이고 저장하지 않았지만 T02-1의 같은 오류 본문 계약과 달랐다. 원인은 `withId(principleUpdate)` 검사 뒤 contracts를 다시 검사하는 순서다. 메인의 추가 배정에 따라 handler를 원본 계약 직접 검사로 맞추고 ToolDef schema의 원본 refinement도 유지했다. 정확한 실패 입력·빈 수정·정상 수정과 active/replacement 거부 회귀가 통과했다. HTTP/MCP 업무 의미·DB·인증 정책은 바꾸지 않았다.
 
 Supabase 스킬의 외부 자료 확인은 2026-10-04 [JWT 정본](https://supabase.com/docs/guides/auth/jwts)·[changelog](https://supabase.com/changelog)으로 수행했다. markdown changelog endpoint는 web 도구의 unsupported content-type으로 읽지 못해 HTML 정본을 사용했다. Supabase SDK·JWT 검증·migration·RLS는 변경하지 않았으며 이 outbound fixture의 성공을 실제 인증/DB 증거로 확대하지 않는다.
+
+## 제출 후 현재 완료 기록
+
+2026-10-04 release 담당이 GitHub MERGED·merge SHA를 직접 확인했다. [PR #75](https://github.com/kimyongin/agent-workspace-template/pull/75)·[checks](https://github.com/kimyongin/agent-workspace-template/pull/75/checks)의 독립 리뷰·CI·머지 완료, merge `db70cbf22b39732e24aaad57000268f7a281128d`. 위 구현·제출 snapshot은 당시 이력으로 보존하며 운영 배포·미지원 도구·미노출 backend/실청구액·미접근 클라이언트의 추가 완료를 뜻하지 않는다.

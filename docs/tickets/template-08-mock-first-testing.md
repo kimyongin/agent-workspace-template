@@ -1,7 +1,7 @@
 # Template-08 — 포트 교체로 빠른 업무·HTTP/MCP 검증
 
 작성: 2026-10-04
-상태: 진행 중 (PR #70·#71·#72 완료, 전체 업무·화면 fast 검증 확대는 미완료)
+상태: 승인된 fast 검사 확대 완료(PR #70·#71·#72·#75), 실제 인증·DB·화면 검증은 각 통합 증거로 구분
 검토 기준: PR #72 최종 head `b2e71e8c38e6df55ffc22c8978da11134a2573c5`, 머지 `4143b8475a0935e982d5339c495a8c11f955b4b3`; 이전 base/head는 아래 snapshot 기록에 보존
 선행: Template-07 PR #68, 기존 환경 격리 시도의 [PR #69](https://github.com/kimyongin/agent-workspace-template/pull/69)는 미머지 종료
 
@@ -33,7 +33,7 @@ fixture는 이 직렬 흐름의 insert/get/update/delete·기록 연결 해제·
 | 1 | `codex/mock-fast-tests` | Supabase 없이 첫 할 일 업무와 HTTP/MCP handler 계약 확인. 승인된 세션 실행 담당·보고 지침 정리 | PR #70 머지 완료, 외부 최종 증거 위 연결 |
 | 2A | `codex/mock-task-mutations` | 서비스 없이 실제 할 일 수정→삭제와 HTTP/MCP 오류·결과를 확인 | PR #72 최종 리뷰·CI·머지 완료; 아래 제출 snapshot 보존 |
 | 2B | `codex/mock-worker-failures` | worker의 원본·최신성·공급자 경계 검사, 동의 요청 생명주기 회귀 | PR #71 리뷰·CI·머지 완료; [자식 티켓](template-08-01-worker-fast-tests.md) 제출 snapshot 보존 |
-| 후속 | 미배정 | 필요한 업무·화면의 fast 검사 확대와 중복 검증 정리 | 전 기능 fake·가짜 OAuth·환경 자동화는 선행 조건 아님; T02-4 사용자 보류 유지 |
+| 후속 | `codex/fast-knowledge` | 기록·원칙·태그 업무와 HTTP/MCP 오류 확대 | [Template-10-01](template-10-01-fast-knowledge.md) PR #75 완료. T02-4 보류는 2026-10-04 해제. 전 기능 fake·가짜 OAuth·환경 자동화는 선행 조건 아님 |
 
 ## 검증
 
