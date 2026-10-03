@@ -19,9 +19,26 @@ class SqlPrincipleStore extends SqlActorStore implements PrincipleStore {
       returning ${this.tx.unsafe(columns)}`;
     return result(row);
   }
-  async get(id: string) {
-    const [row] = await this.tx<Row[]>`select ${this.tx.unsafe(columns)} from app.principles where id = ${id}`;
+  async get(id: string, forUpdate = false) {
+    const [row] = await this.tx<Row[]>`select ${this.tx.unsafe(columns)} from app.principles where id = ${id} ${
+      forUpdate ? this.tx`for update` : this.tx``
+    }`;
     return row ? result(row) : null;
+  }
+  async update(id: string, changes: Parameters<PrincipleStore["update"]>[1]) {
+    const tx = this.tx;
+    const allowed = ["title", "summary", "body", "applies_when", "status", "replaced_by_id"];
+    const values = Object.fromEntries(
+      Object.entries(changes).filter(([k, v]) => allowed.includes(k) && v !== undefined),
+    );
+    const [row] = await tx<Row[]>`update app.principles set ${tx(values)}, version=version+1, updated_at=now()
+      where id=${id} returning ${tx.unsafe(columns)}`;
+    return result(row);
+  }
+  async delete(id: string) {
+    await this.tx`update app.principles set replaced_by_id=null, version=version+1, updated_at=now()
+      where replaced_by_id=${id}`;
+    await this.tx`delete from app.principles where id=${id}`;
   }
   async list(f: Parameters<PrincipleStore["list"]>[0]) {
     const tx = this.tx;

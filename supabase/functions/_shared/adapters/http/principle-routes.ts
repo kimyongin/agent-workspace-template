@@ -1,8 +1,9 @@
 import { Hono } from "hono";
-import { principleCreate, principleListQuery } from "../../contracts/principle.ts";
+import { principleCreate, principleListQuery, principleStatus, principleUpdate } from "../../contracts/principle.ts";
 import * as principles from "../../core/principles/application.ts";
+import { z } from "zod";
 import { parse } from "../errors.ts";
-import { type HttpEnv, idParam, json } from "./input.ts";
+import { type HttpEnv, idParam, json, versionQuery } from "./input.ts";
 
 export function principleRoutes(deps: principles.PrincipleDeps) {
   const app = new Hono<HttpEnv>();
@@ -18,6 +19,37 @@ export function principleRoutes(deps: principles.PrincipleDeps) {
   app.get("/principles/:id", async (c) => {
     const id = idParam(c.req.param("id"));
     return c.json(await principles.getPrinciple(deps, c.get("actor"), id));
+  });
+  app.patch(
+    "/principles/:id",
+    async (c) =>
+      c.json(
+        await principles.updatePrinciple(
+          deps,
+          c.get("actor"),
+          idParam(c.req.param("id")),
+          parse(principleUpdate, await json(c.req.raw)),
+        ),
+      ),
+  );
+  for (const [action, status] of [["activate", "active"], ["deactivate", "inactive"]] as const) {
+    app.post("/principles/:id/" + action, async (c) => {
+      const schema = z.strictObject({ ...principleStatus.shape }).omit({ status: true });
+      const input = parse(schema, await json(c.req.raw));
+      return c.json(
+        await principles.setPrincipleStatus(
+          deps,
+          c.get("actor"),
+          idParam(c.req.param("id") ?? ""),
+          parse(principleStatus, { ...input, status }),
+        ),
+      );
+    });
+  }
+  app.delete("/principles/:id", async (c) => {
+    const input = parse(versionQuery, c.req.query());
+    await principles.deletePrinciple(deps, c.get("actor"), idParam(c.req.param("id")), input.expected_version);
+    return c.body(null, 204);
   });
   return app;
 }

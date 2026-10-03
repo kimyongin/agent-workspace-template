@@ -26,6 +26,7 @@ const EXPECTED_TOOLS = [
   "create_principle",
   "create_record",
   "create_task",
+  "delete_principle",
   "delete_record",
   "delete_task",
   "get_principle",
@@ -37,7 +38,9 @@ const EXPECTED_TOOLS = [
   "list_tasks",
   "record_occurrence",
   "resume_task",
+  "set_principle_status",
   "stop_task",
+  "update_principle",
   "update_record",
   "update_task",
 ];
@@ -47,6 +50,25 @@ httpTest("MCP 토큰: aud가 MCP URL이고 client_id가 있다", () => {
   assertEquals(c.aud, MCP_URL);
   assert(typeof c.client_id === "string" && c.client_id.length > 0);
   return Promise.resolve();
+});
+
+httpTest("원칙 관리: HTTP/MCP 수정·버전 충돌·상태·삭제 동등성", async () => {
+  const { body: p } = await call(sessionA, "POST", "/principles", { title: "정정 전", summary: "판단 기준" });
+  const edited = await tool(mcpA, "update_principle", { id: p.id, expected_version: 1, title: "정정 후" });
+  assertEquals(edited.title, "정정 후");
+  const current = await call(sessionA, "GET", `/principles/${p.id}`);
+  assertEquals(current.body.title, "정정 후");
+  const bad = await tool(mcpA, "update_principle", { id: p.id, expected_version: 1, title: "충돌" });
+  const httpBad = await call(sessionA, "PATCH", `/principles/${p.id}`, { expected_version: 1, title: "충돌" });
+  assertEquals(bad.error.code, httpBad.body.code);
+  const inactive = await call(sessionA, "POST", `/principles/${p.id}/deactivate`, { expected_version: 2 });
+  assertEquals(inactive.body.status, "inactive");
+  const denied = await tool(mcpB, "delete_principle", { id: p.id, expected_version: 3 });
+  assertEquals(denied.error.code, "not_found");
+  const active = await tool(mcpA, "set_principle_status", { id: p.id, expected_version: 3, status: "active" });
+  assertEquals(active.status, "active");
+  assertEquals((await call(sessionA, "DELETE", `/principles/${p.id}?expected_version=4`)).status, 204);
+  assertEquals((await call(sessionA, "GET", `/principles/${p.id}`)).status, 404);
 });
 
 httpTest("원칙: HTTP/MCP 원문 왕복·재시도·오류 동등성·소유자 격리", async () => {
@@ -111,6 +133,7 @@ httpTest("동적 등록: loopback이 아닌 HTTP redirect는 거부", async () =
 
 httpTest("tools/list: 계약의 도구 이름과 contracts JSON Schema", async () => {
   const { tools } = await mcpA.listTools();
+  assertEquals(tools.find((t) => t.name === "delete_principle")?.annotations?.destructiveHint, true);
   assertEquals(tools.map((t) => t.name).sort(), EXPECTED_TOOLS);
   const byName = Object.fromEntries(tools.map((t) => [t.name, t]));
   // 목록·기록 입력은 contracts schema를 그대로 노출한다.
