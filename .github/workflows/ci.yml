@@ -66,6 +66,8 @@ jobs:
           cat functions.log; exit 1
       - name: HTTP 계약 테스트
         run: npm run test:http
+      - name: MCP 계약 테스트
+        run: npm run test:mcp
       - name: 실패 시 함수 로그
         if: failure()
         run: cat functions.log || true

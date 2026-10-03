@@ -79,6 +79,10 @@ writeEnv(path(".env.local"), "로컬 전용. scripts/local-setup.mjs가 만든�
 // 4. 서버 접속 역할(app_server)의 로컬 비밀번호와 Edge Functions용 설정.
 const db = postgres(status.DB_URL, { max: 1, onnotice: () => {} });
 await db.unsafe(`alter role app_server password '${local.APP_SERVER_PASSWORD.replace(/'/g, "''")}'`);
+const mcpUrl = `${apiUrl}/functions/v1/mcp`;
+await db`
+  insert into private.auth_settings (key, value) values ('mcp_audience', ${mcpUrl})
+  on conflict (key) do update set value = excluded.value`;
 await db.end();
 const jwks = await (await fetch(`${apiUrl}/auth/v1/.well-known/jwks.json`)).text();
 writeEnv(path("supabase/functions/.env"), "로컬 전용. scripts/local-setup.mjs가 만든다. 커밋하지 않는다.", {
@@ -86,6 +90,7 @@ writeEnv(path("supabase/functions/.env"), "로컬 전용. scripts/local-setup.mj
   APP_DB_URL: `postgresql://app_server.pooler-dev:${local.APP_SERVER_PASSWORD}@pooler:6543/postgres`,
   SUPABASE_JWKS: jwks,
   AUTH_ISSUER: `${apiUrl}/auth/v1`,
+  MCP_URL: mcpUrl,
   WEB_ORIGINS: "http://127.0.0.1:55480,http://localhost:55480",
   SUPABASE_PUBLISHABLE_KEY: publishable,
 });

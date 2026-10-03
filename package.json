@@ -17,7 +17,8 @@
     "test:core": "deno test --config supabase/functions/deno.json supabase/functions/_shared",
     "test:db": "deno test --config supabase/functions/deno.json --allow-env --allow-net --allow-read --env-file=.env.local supabase/tests/database",
     "serve:functions": "supabase functions serve --env-file supabase/functions/.env",
-    "test:http": "deno test --config supabase/functions/deno.json --allow-env --allow-net --allow-read --env-file=.env.local supabase/tests/http"
+    "test:http": "deno test --config supabase/functions/deno.json --allow-env --allow-net --allow-read --env-file=.env.local supabase/tests/http",
+    "test:mcp": "deno test --config supabase/functions/deno.json --allow-env --allow-net --allow-read --env-file=.env.local supabase/tests/mcp"
   },
   "dependencies": {
     "@supabase/supabase-js": "2.117.2",
