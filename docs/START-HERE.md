@@ -31,7 +31,7 @@ PRD와 ADR은 사람이 소유하고 나머지 문서·티켓·구현은 에이�
 
 ## 현재 상태
 
-기본 기술 선택은 GitHub Pages 웹 배포, Supabase 서버·DB, Supabase Auth를 통한 Google OAuth 로그인, Pinecone Inference 임베딩 생성, Supabase pgvector 저장·검색이다. 공급자 선택은 정했으며 구체적인 모델과 연결 설정은 첫 티켓에서 검증한다.
+기본 기술 선택은 GitHub Pages 웹 배포, Supabase 서버·DB, Supabase Auth를 통한 Google OAuth 로그인, Pinecone Inference 임베딩 생성, Supabase pgvector 저장·검색이다. 구체적인 계약·연결 설정은 [T02-1 계약](tickets/template-02-t02-1-contracts.md), 채택한 `llama-text-embed-v2`·1024차원·cosine·초기 임계값 0.27과 실제 평가 근거는 [T02-3 이력](tickets/template-02-implementation-base.md#이력)에서 확인한다. 새 앱의 자료·질의에는 다시 평가한다.
 
 보안 가이드는 설계·구현·배포·운영을 가로지르는 보호 기준과 검증 항목을 소유한다. 인증·데이터 접근·외부 통신을 변경하기 전에 관련 항목을 읽고 해당 기능 티켓에 적용 범위를 기록한다.
 
@@ -43,13 +43,15 @@ T02-3의 원칙 관리·기록 적용, 태그 관리·세 종류 연결/필터, 
 
 2026-10-03 [Template-03](tickets/template-03-docs-for-people.md)(사람이 읽기 쉬운 문서와 규칙 정본 정리)을 마쳤다. 용어집·티켓 작성 규칙·ADR-0010·PRD의 대상 사용자와 문제가 추가됐다.
 
-개발 절차의 검증·세션 인계 보강은 [001 티켓](tickets/001-development-workflow-hardening.md)에서 추적한다. 문서 반영·검증 결과와 PR의 최종 리뷰·CI·머지 증거를 구분하며, 실행 환경 격리 구현은 후속 과제로 남긴다.
+개발 절차의 검증·세션 인계 보강은 [Template-04](tickets/template-04-development-workflow-hardening.md)에서 추적한다. 문서 절차는 PR #64의 최종 리뷰·CI·머지로 완료했으며 실제 실행 환경 격리 구현·동시 검증은 그 범위 밖 후속 과제다.
 
-모델·추론 강도 선택과 갱신은 [개발 정책](development/workflow.md#모델과-추론-강도-선택갱신)·[현재 선택표](development/agent-models.json)·[클라이언트 실행](development/agent-model-execution.md)으로 연결한다. [002 티켓](tickets/002-agent-model-policy.md)에서 구현·검증·클라이언트별 확인 범위와 미검증을 추적한다. CLI/desktop의 모델 지원은 서로 다르며 실제 품질·비용 평가와 실행 smoke를 구분한다.
+모델·추론 강도 선택과 갱신은 [개발 정책](development/workflow.md#모델과-추론-강도-선택갱신)·[현재 선택표](development/agent-models.json)·[클라이언트 실행](development/agent-model-execution.md)으로 연결한다. [Template-05](tickets/template-05-agent-model-policy.md)의 정책·도구는 PR #65로 완료했지만 custom native/child/resume·backend 실제 effort·대표 품질/비용 평가는 일부 미완료다. CLI/desktop의 모델 지원은 서로 다르며 실제 품질·비용 평가와 실행 smoke를 구분한다.
 
-세션별 작업 목적·모델/추론 강도 선택 이유·결과와 다음 판단의 보고는 [운영 브리핑](development/workflow.md#세션-운영-브리핑)을 따른다. 절차 반영과 이번 실행 증거·리뷰/CI/머지는 [003 티켓](tickets/003-agent-session-briefings.md)에서 구분해 추적한다.
+세션별 작업 목적·모델/추론 강도 선택 이유·결과와 다음 판단의 보고는 [운영 브리핑](development/workflow.md#세션-운영-브리핑)을 따른다. [Template-06](tickets/template-06-agent-session-briefings.md)의 절차와 실행 증거·리뷰/CI/머지는 PR #66으로 완료했다.
 
-제품 방향과 코드 설계 원칙은 합의한 기준이다. 폴더 트리와 API 이름은 구현 전 제안이다. 첫 구현은 할 일·결과 기록·검색 흐름이며, 권한 문맥과 트랜잭션 연결, 상세 데이터/API 계약, 임베딩 모델 등은 첫 티켓에서 확정한다.
+지침 후속 정리는 [Template-07](tickets/template-07-guidance-review-followup.md)에서 추적한다. 개발일 조회·재개 절차는 PR #67로 완료했다. PR 2의 티켓 영역·완료 기록·설계/리뷰 역할은 제출 시점의 구현·로컬 검증 snapshot이며 독립 리뷰·CI·머지는 아직 남아 있다. 제출 후 최종 결과는 해당 PR 완료 코멘트와 checks가 소유하고, 이 현재 요약은 다음 실제 작업에서 맞춘다([기록 규칙](development/workflow.md#변경과-완료-기록)).
+
+제품 방향과 코드 설계 원칙은 합의한 기준이다. 기능·데이터·HTTP/MCP·권한·트랜잭션 계약은 [T02-1](tickets/template-02-t02-1-contracts.md)에 확정돼 있고 위 T02-2/3 흐름은 구현·검증돼 있다. 폴더 구조 문서의 제안 트리는 배치 안내이므로 실제 파일과 구분하며, 남은 예제 Entity·제품 패키지 단계는 T02-4 보류를 유지한다.
 
 ## 문서 검증과 다음 단계
 

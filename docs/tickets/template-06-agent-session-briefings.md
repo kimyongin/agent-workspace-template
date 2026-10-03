@@ -1,9 +1,12 @@
-# 003 — 서브세션 작업·모델 운영 브리핑
+# Template-06 — 서브세션 작업·모델 운영 브리핑
 
 작성: 2026-10-03
-상태: 진행 중
+상태: 완료
 검토 기준: `f504c472d6551375ebaca8c4ed8ab5b46dcedc75`
-선행: [002 모델·추론 강도 선택과 갱신](002-agent-model-policy.md), [PR #65](https://github.com/kimyongin/agent-workspace-template/pull/65) 머지
+선행: [Template-05 모델·추론 강도 선택과 갱신](template-05-agent-model-policy.md), [PR #65](https://github.com/kimyongin/agent-workspace-template/pull/65) 머지
+
+현재 요약: 브리핑 절차와 이번 실행 기록·독립 리뷰·필수 CI·PR #66 머지는 완료했다. 아래 제출 당시 배정/인계 기록은 당시 사실로 보존한다.
+이전 식별자: `003-agent-session-briefings.md` / `003`. Template-07에서 템플릿 유지보수 영역으로 옮겼다.
 
 ## 목표와 기준 문서
 
@@ -16,7 +19,7 @@
 - [x] 본 세션의 배정·중요 변화·완료 브리핑 절차와 간결한 표 형식을 연결한다.
 - [x] 모델/강도 각각의 선택·변경 근거, 재시도 원인, 확인 범위·미확인 및 인계 기록을 정한다.
 - [x] 공통 정본·개발 스킬·사람용 안내·티켓 양식·시작점·지도 연결을 맞춘다.
-- [ ] 문서 검사와 실제 이번 배정/완료 브리핑을 확인하고 독립 리뷰·필수 CI 후 PR을 머지한다.
+- [x] 문서 검사와 실제 이번 배정/완료 브리핑을 확인하고 독립 리뷰·필수 CI 후 PR을 머지한다.
 
 ## PR 분할 계획
 
@@ -38,14 +41,16 @@
 | 계약과 의존성 | 개발 방법·티켓 작성 규칙·현재 모델 선택표·ADR-0007/0008/0010. 새로운 실행 도구나 공급자 기능 전제 없음 |
 | 모델과 추론 강도 | 구현: Codex desktop 균형 `gpt-6.1-sol`, 일반 개발 절차·문서 연결 계약이므로 선택. `medium`은 이 계약 정리에 충분한 시작값. `fork_turns=none`. 본 세션의 배정 전 preflight 통과 보고와 명시 배정은 아래 실행 기록으로 구분. 상향·하향 없음 |
 | 완료 조건과 검증 | 위 완료 조건 및 검증 절. 모든 날짜·시각 보고는 사용자 시간대를 따른다 |
-| 결과와 다음 행동 | 공통 절차·얇은 문서 연결과 최소 실행 기록 구현, 로컬 문서 검사 통과. 본 세션이 정확한 커밋에서 새 독립 리뷰·필수 CI·PR 머지와 사용자 완료 브리핑을 확인 |
+| 결과와 다음 행동 | 공통 절차·얇은 문서 연결과 최소 실행 기록 완료. 아래 최종 PR 증거로 현재 요약을 맞춤. 이후 배정·인계에 절차 적용 |
 
 | 단계 | 상태 | revision / 변경 | 검증 명령·결과 | 남은 작업 |
 | --- | --- | --- | --- | --- |
-| 브리핑 절차·기록 | 구현(리뷰 대기) | base `f504c47` 위 이 PR의 문서 변경 | `npm run check:docs`: 텍스트 229개·모델/native 정합성·회귀 26개 통과. `git diff --check`: 통과. 절차와 이번 배정/인계 기록 수동 대조 | 사용자 완료 브리핑·독립 리뷰·CI |
-| PR·독립 리뷰·CI·머지 | 미시작 | — | — | 본 세션 담당 |
+| 브리핑 절차·기록 | 완료 | merge `10140767a9e88021abba7b439427c3e643481ff2` | 제출 당시 `npm run check:docs`: 텍스트 229개·모델/native 정합성·회귀 26개 통과. `git diff --check`: 통과. 절차와 이번 배정/인계 기록 수동 대조 | — |
+| PR·독립 리뷰·CI·머지 | 완료 | [PR #66](https://github.com/kimyongin/agent-workspace-template/pull/66), head `458e9fe2ae0b5257b60160def825720876a1f692`, 위 merge | [독립 리뷰](https://github.com/kimyongin/agent-workspace-template/pull/66#issuecomment-5969438088) 머지 가능·[필수 CI](https://github.com/kimyongin/agent-workspace-template/actions/runs/37124707191) 성공·[최종 완료 코멘트](https://github.com/kimyongin/agent-workspace-template/pull/66#issuecomment-5969467940), 2026-10-03 22:07:08 KST 머지 | — |
 
 ### 세션 실행 기록
+
+아래는 제출 당시의 배정·결과 인계 snapshot이다. 당시 남은 PR 절차는 위 현재 요약의 최종 외부 증거로 완료됐으며 아래 사건의 사실은 다시 쓰지 않는다.
 
 | 시점·사건 / 세션·역할 | 작업·목적 / 기준 head | 모델·강도 / 각각의 이유 | 실행 확인·근거 | 결과·미확인 / 다음 행동 |
 | --- | --- | --- | --- | --- |

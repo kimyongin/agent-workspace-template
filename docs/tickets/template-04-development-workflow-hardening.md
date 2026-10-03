@@ -1,9 +1,12 @@
-# 001 — 개발 검증과 세션 인계 절차 보강
+# Template-04 — 개발 검증과 세션 인계 절차 보강
 
 작성: 2026-10-03
-상태: 진행 중
+상태: 완료
 검토 기준: `7afef78014a92cc955b9001ec6d2e61b0fe1a6ab`
 선행: Template-02의 사용자 지시 1~3번 완료(PR #63 머지), 4번은 재개 전 보류
+
+현재 요약: 문서 절차 보강은 PR #64로 완료했다. 실제 공유 환경 격리 구현·동시 실행 검증은 이 문서 전용 작업 범위 밖의 후속 과제이며 수행한 것으로 간주하지 않는다.
+이전 식별자: `001-development-workflow-hardening.md` / `001`. Template-07에서 템플릿 유지보수 영역으로 옮겼으며 아래 당시 실행 증거는 보존한다.
 
 ## 목표와 기준 문서
 
@@ -27,9 +30,9 @@
 - [x] 인계 필드와 작업 공간/실행 환경의 구분, 공유 환경 담당·순서가 명시된다.
 - [x] START-HERE·Template-02 현재 요약의 1~3번 머지와 4번 보류가 일치한다.
 - [x] 문서·공백·스킬 검사와 변경 문서의 내부 앵커 확인을 통과한다.
-- [ ] 최종 PR head의 독립 리뷰·필수 CI가 통과하고 본 세션이 머지를 확인한다.
+- [x] 최종 PR head의 독립 리뷰·필수 CI가 통과하고 본 세션이 머지를 확인한다.
 
-상태·체크박스·아래 기록 표는 PR 제출 시점의 기록이다. 마지막 조건의 최종 증거는 [PR #64의 리뷰·머지 결과](https://github.com/kimyongin/agent-workspace-template/pull/64)와 [해당 head의 checks](https://github.com/kimyongin/agent-workspace-template/pull/64/checks)에서 확인한다. 기록을 갱신하려고 머지 후 별도 상태 PR을 반복하지 않는다.
+상태·체크박스는 Template-07 작업에서 최종 외부 증거에 맞춘 현재 요약이다. 아래 제출 당시 로컬 검사 기록은 당시 증거로 보존한다. 최종 head `248fb4507b1c9ee1100b550c144ac95416ae05f7`의 [독립 리뷰](https://github.com/kimyongin/agent-workspace-template/pull/64#issuecomment-5968637762)·[필수 CI](https://github.com/kimyongin/agent-workspace-template/actions/runs/37118861123)가 통과했고 [PR #64](https://github.com/kimyongin/agent-workspace-template/pull/64)는 2026-10-03 20:17:55 KST에 `c98d7e0b759725578170a024a1ac3bf441eaba5e`로 머지됐다. 상태만 갱신하는 PR을 반복하지 않는다.
 
 ## PR 분할 계획
 
@@ -60,11 +63,11 @@
 | 담당 변경 | 구현 서브세션만 tracked 문서·스킬을 편집. 본 세션은 읽기·조정·통합·독립 리뷰·CI 확인·머지·브리핑 담당 |
 | 계약·의존성 | 위 정본과 [Template-02 이력](template-02-implementation-base.md#t02-3--사용자-원칙rag지식-연결). 다른 병렬 구현 없음 |
 | 환경·순서 | 로컬 문서 검사만 사용, Python 3.13.2·PyYAML 6.0.2·Node 24.15.0 확인. DB·서버·setup·migration 조작 없음 |
-| 결과·다음 행동 | 아래 검사 결과와 [PR #64](https://github.com/kimyongin/agent-workspace-template/pull/64)의 최종 head를 본 세션에 전달. 독립 리뷰 수정은 이 구현 세션에서 수행 |
+| 결과·다음 행동 | 아래 당시 검사와 위 최종 외부 증거로 PR #64 완료. 실제 환경 격리 구현은 이 문서 범위 밖 후속 과제로 남음 |
 
 | 단계 | 상태 | revision / 변경 | 검증 명령·결과 | 남은 작업 |
 | --- | --- | --- | --- | --- |
-| 1 | 구현(리뷰 대기) | 위 base 이후 [PR #64](https://github.com/kimyongin/agent-workspace-template/pull/64)의 문서 diff, 최종 head는 PR에서 확인 | `npm run check:docs` 텍스트 216개·기존 회귀 13/13 통과; `git diff --check` 통과; `python -X utf8 C:/Users/yongin/.codex/skills/.system/skill-creator/scripts/quick_validate.py .agents/skills/develop-agent-app` 통과; 내부 앵커 38개 대상 제목/id 일치 | 정확한 head의 독립 리뷰·필수 CI·머지 |
+| 1 문서 절차 보강 | 완료 | PR #64, 위 최종 head·merge | 제출 당시 `npm run check:docs` 텍스트 216개·기존 회귀 13/13 통과; `git diff --check` 통과; `python -X utf8 C:/Users/yongin/.codex/skills/.system/skill-creator/scripts/quick_validate.py .agents/skills/develop-agent-app` 통과; 내부 앵커 38개 대상 제목/id 일치. 최종 독립 리뷰·필수 CI는 위 외부 증거 | 실제 환경 격리 구현은 범위 밖 후속 과제 |
 
 ### 이력과 환경 제약
 
