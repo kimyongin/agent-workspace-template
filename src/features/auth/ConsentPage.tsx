@@ -1,9 +1,10 @@
 // MCP OAuth 동의 화면(/oauth/consent). Supabase OAuth 서버가 authorization_id와 함께 보낸다.
 // 클라이언트 이름과 돌아갈 주소를 보여 주고 사용자가 승인·거부한다(T02-1 실험 2의 채택 방식).
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router";
 import { Notice } from "../../components/Field.tsx";
 import { supabase } from "../../lib/supabase.ts";
+import { useAuth } from "./AuthProvider.tsx";
 
 interface Details {
   /** Supabase Auth 응답: client.id·client.name(동적 등록 때 클라이언트가 보낸 이름). */
@@ -15,25 +16,43 @@ interface Details {
 export function ConsentPage() {
   const [params] = useSearchParams();
   const authorizationId = params.get("authorization_id");
-  const [details, setDetails] = useState<Details | null>(null);
+  const userId = useAuth().session?.user.id;
+  const request = useRef<{
+    authorizationId: string;
+    userId: string;
+    promise: ReturnType<typeof supabase.auth.oauth.getAuthorizationDetails>;
+  } | null>(null);
+  const [loaded, setLoaded] = useState<{ authorizationId: string; userId: string; details: Details } | null>(null);
+  const details = loaded?.authorizationId === authorizationId && loaded.userId === userId ? loaded.details : null;
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
+    let active = true;
+    setError(null);
+    setBusy(false);
     if (!authorizationId) {
       setError("인가 요청 정보가 없습니다. 에이전트에서 연결을 다시 시작하세요.");
       return;
     }
-    supabase.auth.oauth.getAuthorizationDetails(authorizationId).then(({ data, error }) => {
+    if (!userId) return;
+    // StrictMode replays effects. Share this component's request so consent cannot
+    // race another details GET holding Supabase Auth's authorization row lock.
+    if (request.current?.authorizationId !== authorizationId || request.current.userId !== userId) {
+      request.current = { authorizationId, userId, promise: supabase.auth.oauth.getAuthorizationDetails(authorizationId) };
+    }
+    request.current.promise.then(({ data, error }) => {
+      if (!active) return;
       if (error || !data) return setError("인가 요청을 찾을 수 없거나 만료되었습니다. 에이전트에서 다시 시작하세요.");
       // 이미 승인한 클라이언트면 바로 돌아간다.
       if ("redirect_url" in data && data.redirect_url) {
         window.location.assign(data.redirect_url as string);
         return;
       }
-      setDetails(data as Details);
+      setLoaded({ authorizationId, userId, details: data as Details });
     });
-  }, [authorizationId]);
+    return () => { active = false; };
+  }, [authorizationId, userId]);
 
   const decide = async (approve: boolean) => {
     if (!authorizationId) return;
