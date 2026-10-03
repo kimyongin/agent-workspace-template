@@ -1,0 +1,6 @@
+ORCHID-527
+
+1. Missing `actorId == ownerId` authorization check.
+2. Revision check lacks a conditional update guard.
+3. Update and activity append are non-atomic.
+4. Returns the pre-update, not persisted new, revision.
