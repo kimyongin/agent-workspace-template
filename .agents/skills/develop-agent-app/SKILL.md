@@ -28,7 +28,7 @@ description: 이 저장소와 이를 기반으로 만든 도메인 앱의 설계
 | PR·머지·배포 | [PR·리뷰 규칙](../../../docs/development/workflow.md), [배포 방법](../../../docs/deployment/release.md) | 작은 PR, 머지 조건 충족 시 머지, 요청한 배포 단계의 실제 결과·revision |
 | 운영 점검·장애·복구 | [운영 방법](../../../docs/operations/runbook.md), 보안, 실제 배포 기록 | 영향·원인·실행 조치·복구 증거·남은 작업 |
 
-여러 요청이 섞이면 필요한 결과를 순서대로 연결한다. 스킬 이름이나 모드 선택을 사용자에게 반복해서 요구하지 않는다. 배정·재개 때 [모델과 추론 강도 정책](../../../docs/development/workflow.md#모델과-추론-강도-선택갱신)과 [갱신 가능한 선택표](../../../docs/development/agent-models.json)를 읽고 [배정 preflight](../../../docs/development/agent-model-execution.md)로 선택·지원·최신성을 확인한다. 이 스킬에 공급자 모델명을 영구 정본으로 고정하지 않는다. 선택 모델/추론 강도를 명시 인자로 전달하며 실행 도구가 없다면 실제 변경했다고 주장하지 않는다.
+여러 요청이 섞이면 필요한 결과를 순서대로 연결한다. 스킬 이름이나 모드 선택을 사용자에게 반복해서 요구하지 않는다. 배정·재개 때 [모델과 추론 강도 정책](../../../docs/development/workflow.md#모델과-추론-강도-선택갱신)과 [갱신 가능한 선택표](../../../docs/development/agent-models.json)를 읽고 [배정 preflight와 재개 경로](../../../docs/development/agent-model-execution.md)로 개발일 조회·선택·지원과 실행 가능성을 확인한다. 이 스킬에 공급자 모델명을 영구 정본으로 고정하지 않는다. 선택 모델/추론 강도를 명시 인자로 전달하며 preflight만으로 기존 세션의 설정이 바뀌었다고 주장하지 않는다. 변경 적용을 지원하지 않는 재개는 정본의 새 세션 인계를 따른다.
 
 구현을 배정하거나 이어받을 때는 [세션 배정과 인계](../../../docs/development/workflow.md#세션-배정과-인계)와 [티켓 인계 필드](../../../docs/tickets/README.md#인계와-작업-배정)를 따른다. 본 세션이 범위·의존성·통합·최종 리뷰/CI·머지를 조정하며 새 세션에 전달한 작업도 기존 승인 범위 안에서 수행한다.
 

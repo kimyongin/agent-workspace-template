@@ -1,6 +1,5 @@
 {
-  "schemaVersion": 1,
-  "refreshDays": 7,
+  "schemaVersion": 2,
   "sources": {
     "codex": "https://learn.chatgpt.com/docs/agent-configuration/subagents",
     "claude": "https://code.claude.com/docs/en/model-config"
@@ -9,8 +8,8 @@
     "codex-cli": {
       "version": "0.147.0",
       "context": "owner-desktop-codex-cli",
-      "checkedAt": "2026-10-03",
-      "evidence": "CLI app-server initialize → model/list(limit=100, includeHidden=false), nextCursor/upgrade=null; desktop 목록과 다름",
+      "checkedAt": "2026-10-03T11:52:04.221Z",
+      "evidence": "002 기존 근거: CLI app-server initialize → model/list(limit=100, includeHidden=false), nextCursor/upgrade=null; desktop 목록과 다름. checkedAt은 보존된 codex-cli-snapshot의 balanced 확인 시각; 다른 등급의 새 실행/평가를 뜻하지 않음",
       "models": {
         "light": { "model": "gpt-5.6-luna", "defaultEffort": "low", "efforts": ["low", "medium", "high", "xhigh", "max"], "capability": "confirmed", "evaluation": "baseline", "nativeExecution": "pending", "evidence": "현재 계정 목록 확인; 역할별 기본 선택은 가이드 기준이며 품질/비용 비교 미실행", "replaceWhen": "검증된 더 효율적인 후보 또는 지원 종료" },
         "balanced": { "model": "gpt-5.6-terra", "defaultEffort": "medium", "efforts": ["low", "medium", "high", "xhigh", "max", "ultra"], "capability": "confirmed", "evaluation": "baseline", "nativeExecution": "direct-confirmed", "executionEvidence": "002 티켓: CLI 명시 모델/medium 작은 구현+리뷰 smoke exit0; native custom agent 실행·광범위 품질/과금 미검증", "evidence": "현재 계정 목록 확인; 역할별 기본 선택은 가이드 기준이며 품질/비용 비교 미실행", "replaceWhen": "대표 구현/리뷰 평가에서 개선을 확인한 신규 후보" },
@@ -20,8 +19,8 @@
     "codex-desktop": {
       "version": "session-tool-catalog-2026-10-03",
       "context": "owner-desktop-codex-tools",
-      "checkedAt": "2026-10-03",
-      "evidence": "현재 desktop spawn_agent 도구 목록; CLI 모델 지원과 구별",
+      "checkedAt": "2026-10-03T13:59:42Z",
+      "evidence": "Template-07 본 세션의 guidance-desktop-snapshot: 현재 desktop spawn_agent 도구의 모델·강도 목록 조회; CLI 지원과 구별. 002의 품질/실행 근거는 그대로 보존하며 새 smoke/품질 검증을 뜻하지 않음",
       "models": {
         "light": { "model": "gpt-6-luna", "defaultEffort": "low", "efforts": ["low", "medium", "high", "xhigh", "max"], "capability": "confirmed", "evaluation": "baseline", "nativeExecution": "pending", "evidence": "목록·지원 effort 확인; 대표 구현/리뷰·사용량 비교 미실행", "replaceWhen": "검증된 더 효율적인 후보 또는 지원 종료" },
         "balanced": { "model": "gpt-6.1-sol", "defaultEffort": "medium", "efforts": ["low", "medium", "high", "xhigh", "max", "ultra"], "capability": "confirmed", "evaluation": "baseline", "nativeExecution": "direct-confirmed", "executionEvidence": "002 구현 서브세션을 model=gpt-6.1-sol, reasoning_effort=medium, fork_turns=none으로 실제 배정하여 구현; native CLI 설정과 별개", "evidence": "목록·지원 effort 확인; 대표 구현/리뷰·사용량 비교 미실행", "replaceWhen": "대표 과제에서 품질 유지와 사용량 개선을 확인한 신규 후보" },
@@ -31,8 +30,8 @@
     "claude-cli": {
       "version": "2.1.140",
       "context": "owner-desktop-claude",
-      "checkedAt": "2026-10-03",
-      "evidence": "CLI version과 --help의 --effort 옵션 확인; 계정별 별칭 해석·모델별 effort·실행은 미검증",
+      "checkedAt": "2026-10-03T11:49:56.802Z",
+      "evidence": "002 기존 CLI version/--help와 실행 근거를 보존. checkedAt은 보존된 claude-cli-snapshot의 sonnet/medium 확인 시각; 다른 별칭/강도 지원과 새 실행은 미검증",
       "models": {
         "light": { "model": "haiku", "defaultEffort": null, "efforts": [], "capability": "pending", "evaluation": "baseline", "nativeExecution": "pending", "evidence": "공식 별칭 후보; 실제 모델·계정 지원·추론 지원 미확인", "replaceWhen": "공급자/별칭 해석 변경 또는 검증된 신규 후보" },
         "balanced": { "model": "sonnet", "resolvedModel": "claude-sonnet-4-6", "defaultEffort": "medium", "efforts": ["medium"], "capability": "confirmed", "evaluation": "baseline", "nativeExecution": "native-confirmed", "executionEvidence": "002 티켓: CLI --agent task-balanced --effort medium smoke exit0, modelUsage claude-sonnet-4-6; Agent tool child/resume·backend 실제 강도는 미검증", "evidence": "CLI 옵션 수락·작은 구현/권한 리뷰 성공; backend 실제 추론량·high/low 지원은 미확인", "replaceWhen": "공급자/별칭 해석 변경 또는 대표 평가에서 개선된 신규 후보" },
