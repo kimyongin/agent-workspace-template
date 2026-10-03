@@ -121,7 +121,7 @@ T02-4는 PRD의 중립적인 기본 앱을 구현하고, T02-5는 별도 복사�
 - [x] 사용자 A/B 격리, 직접 쓰기 우회 거부, 연결 재사용 시 권한 문맥 격리를 실제 DB로 검증한다.
 - [x] 동시 완료·부분 실패·응답 유실 후 재시도에서 중복 기록과 부분 저장이 없다.
 - [x] 반복 할 일의 회차 상태(`done`·`due`·`missed`·`upcoming`)가 웹과 MCP에서 같고, 회차가 아닌 날짜·중단 기간·미래 날짜의 기록이 거부된다.
-- [ ] 실제 Google 로그인과 MCP 인증 결과를 구분해 기록한다. 모의 인증 시험을 실연결 완료로 보고하지 않는다. (MCP OAuth는 로컬 실제 흐름으로 검증, Google 로그인은 미검증)
+- [x] 실제 Google 로그인과 MCP 인증 결과를 구분해 기록한다. 모의 인증 시험을 실연결 완료로 보고하지 않는다. (로컬: 실제 Google 계정 로그인과 MCP OAuth 실제 흐름 모두 검증. 운영 프로젝트에서의 확인은 아래 표)
 - [x] 최소 CI가 `main`의 필수 상태 검사로 등록되어, CI가 실패하거나 실행되지 않은 PR은 머지할 수 없음을 확인한다. (2026-10-03, 아래 이력)
 
 ### 외부 자원 준비 전의 로컬 대체
@@ -130,8 +130,8 @@ T02-4는 PRD의 중립적인 기본 앱을 구현하고, T02-5는 별도 복사�
 
 | 외부 자원 | 개발 중 대체 | 실연결 검증(자원 준비 후) |
 | --- | --- | --- |
-| 격리 호스팅 Supabase 프로젝트 | 로컬 Supabase(Docker). migration·RLS·Edge Functions·OAuth 서버를 로컬에서 실행 | 호스팅 프로젝트에 migration 적용, Edge 배포, Supavisor 실서버, 경로 삽입형 metadata([남은 실험](template-02-t02-1-contracts.md#남은-실험-미완료)) |
-| Google OAuth 클라이언트 | 로컬 Supabase Auth의 이메일·비밀번호 로그인. 웹은 개발용 로그인 폼을 `VITE_DEV_LOGIN=true`이고 Supabase 주소가 로컬일 때만 표시하며 운영 빌드에는 넣지 않는다. Google 로그인 버튼과 Supabase 설정 자리는 함께 구현한다 | 로컬과 호스팅에서 실제 Google 로그인→세션→HTTP 호출 |
+| 호스팅 Supabase 프로젝트 | 로컬 Supabase(Docker). migration·RLS·Edge Functions·OAuth 서버를 로컬에서 실행 | 2026-10-03 사용자 결정: 검증은 로컬에서 하고, 호스팅 프로젝트 `workspace-template`(서울)은 별도 격리 환경이 아닌 운영 환경으로 쓴다. 운영에는 사람이 지시할 때 migration 적용·Edge 배포를 하고, 배포 뒤에는 로그인·MCP 연결 같은 동작 확인만 한다. 데이터를 만들고 지우는 자동 테스트는 운영에서 돌리지 않는다. Supavisor 실서버·경로 삽입형 metadata([남은 실험](template-02-t02-1-contracts.md#남은-실험-미완료))도 이 배포 확인에서 본다 |
+| Google OAuth 클라이언트 | 로컬 Supabase Auth의 이메일·비밀번호 로그인. 웹은 개발용 로그인 폼을 `VITE_DEV_LOGIN=true`이고 Supabase 주소가 로컬일 때만 표시하며 운영 빌드에는 넣지 않는다. Google 로그인 버튼과 Supabase 설정 자리는 함께 구현한다 | 로컬: 2026-10-03 완료. Google Cloud의 웹 OAuth 클라이언트 `workspace-template`(테스트 사용자 모드)로 실제 계정 로그인 → 세션 토큰(`aud=authenticated`) → HTTP 목록·생성 성공. 운영: 배포 뒤 같은 흐름 확인 |
 | Pinecone API 키 | T02-2는 임베딩을 호출하지 않는다. 색인 작업은 큐 등록까지만 하고 worker·검색은 T02-3에서 구현한다 | T02-3의 실험 3 |
 
 개발용 로그인은 [ADR-0002](../adr/0002-default-tech-stack.md)의 로그인 방식(Google OAuth)을 바꾸지 않는 제한된 예외다. 적용 범위는 로컬 개발·E2E 시험이며, 재검토 조건은 T02-6의 운영 빌드 검사(개발용 로그인 코드 미포함 확인)다.
