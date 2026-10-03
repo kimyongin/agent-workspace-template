@@ -10,10 +10,12 @@ import { ConfirmDialog } from "../../components/Modal.tsx";
 import { FormModal } from "../../components/ContentForm.tsx";
 import { Field } from "../../components/Field.tsx";
 import {TagNames} from "../tags/TagPicker.tsx";
+import {useSearchReturn} from "../search/return.ts";
 
 export function PrincipleDetailPage() {
   const { id = "" } = useParams();
   const [params] = useSearchParams();
+  const back=useSearchReturn(`/principles?${params}#principle-${id}`,"← 원칙 목록");
   const [item, setItem] = useState<PrincipleResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [retry, setRetry] = useState(0);
@@ -36,7 +38,7 @@ export function PrincipleDetailPage() {
     return () => { alive = false; };
   }, [id, retry]);
   return <section className="panel" aria-labelledby={item ? "principle-title" : undefined}>
-    <Link className="secondary back-link" to={`/principles?${params}#principle-${id}`}>← 원칙 목록</Link>
+    <Link className="secondary back-link" to={back.path}>{back.label}</Link>
     {error && <><Notice kind="error">{error}</Notice><button type="button" className="btn" onClick={() => setRetry((n) => n + 1)}>다시 시도</button></>}
     {!item && !error && <p role="status" className="secondary">불러오는 중…</p>}
     {item && <>
@@ -62,7 +64,7 @@ export function PrincipleDetailPage() {
       <ConfirmDialog open={dialog==="delete"} title="원칙을 삭제할까요?" message="연결된 판단 기록의 본문은 보존하고 원칙 연결만 제거합니다."
         confirmLabel="삭제" danger busy={busy} onCancel={()=>setDialog(null)} onConfirm={async()=>{
           setBusy(true);setError(null);
-          try {await api("DELETE",`/principles/${id}?expected_version=${item.version}`);navigate(`/principles?${params}`,{replace:true});}
+          try {await api("DELETE",`/principles/${id}?expected_version=${item.version}`);navigate(back.path,{replace:true});}
           catch(e){setError(e instanceof ApiError?e.message:"삭제하지 못했습니다.");setDialog(null);}
           finally{setBusy(false);}
         }}/>

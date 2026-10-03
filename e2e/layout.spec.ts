@@ -30,7 +30,7 @@ async function layoutProblems(page: Page) {
 test.describe("화면 폭별 배치", () => {
   test.skip(({ isMobile }) => isMobile, "폭은 테스트 안에서 바꾼다");
 
-  test("목록·상세·작성 대화상자에 가로 넘침과 작은 조작 영역이 없다", async ({ page }) => {
+  for(const width of WIDTHS) test(`${width}px 목록·상세·작성 대화상자에 가로 넘침과 작은 조작 영역이 없다`, async ({ page }) => {
     await devLogin(page);
     // 긴 공백 없는 제목으로 줄바꿈 처리도 함께 본다.
     await page.getByRole("button", { name: "할 일 추가" }).click();
@@ -65,9 +65,8 @@ test.describe("화면 폭별 배치", () => {
     await expect(page.getByRole("heading", { name: principleTitle, level: 1 })).toBeVisible();
     const principleDetail = page.url();
 
-    for (const width of WIDTHS) {
       await page.setViewportSize({ width, height: 900 });
-      for (const path of ["/tasks", taskDetail, "/records", recordDetail, "/principles", principleDetail]) {
+      for (const path of ["/tasks", taskDetail, "/records", recordDetail, "/principles", principleDetail,"/tags",`/search?q=${encodeURIComponent(longTitle)}&mode=keyword`]) {
         await page.goto(path);
         await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
         expect(await layoutProblems(page), `${width}px ${path}`).toEqual([]);
@@ -81,7 +80,6 @@ test.describe("화면 폭별 배치", () => {
       if (width < 640) expect(Math.round(box!.width)).toBe(width);
       else expect(box!.width).toBeLessThanOrEqual(640);
       await page.keyboard.press("Escape");
-    }
   });
 
   test("200% 확대(폭 절반)에서 넘침·누름 영역·루트 글자 크기가 유지된다", async ({ page }) => {

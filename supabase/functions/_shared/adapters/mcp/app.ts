@@ -10,6 +10,8 @@ import { activityTools } from "./activity-tools.ts";
 import { registerTools } from "./tools.ts";
 import type { TagDeps } from "../../core/tags/application.ts";
 import { tagTools } from "./tag-tools.ts";
+import type { SearchDeps } from "../../core/search/application.ts";
+import { searchTools } from "./search-tools.ts";
 
 export interface McpConfig {
   /** MCP 서버의 정식 URL. 토큰 audience이자 보호 자원 식별자. */
@@ -25,8 +27,14 @@ const INSTRUCTIONS = [
   "응답이 불확실하면 같은 request_id로 다시 보내거나 다시 조회한다. conflict는 다시 조회한 뒤 판단한다.",
 ].join("\n");
 
-export function createMcpApp(deps: ActivityDeps, config: McpConfig, principles: PrincipleDeps, tags: TagDeps) {
-  const tools = [...activityTools(deps), ...principleTools(principles), ...tagTools(tags)];
+export function createMcpApp(
+  deps: ActivityDeps,
+  config: McpConfig,
+  principles: PrincipleDeps,
+  tags: TagDeps,
+  search: SearchDeps,
+) {
+  const tools = [...activityTools(deps), ...principleTools(principles), ...tagTools(tags), ...searchTools(search)];
   const handler = async (req: Request): Promise<Response> => {
     let actor;
     try {

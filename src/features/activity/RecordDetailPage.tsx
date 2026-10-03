@@ -10,11 +10,13 @@ import { api, ApiError, query } from "../../lib/api.ts";
 import { formatDateTime } from "../../lib/format.ts";
 import { RecordFormModal, recordDraftFrom } from "./forms.tsx";
 import {TagNames} from "../tags/TagPicker.tsx";
+import {useSearchReturn} from "../search/return.ts";
 
 export function RecordDetailPage() {
   const { id = "" } = useParams();
   const [params] = useSearchParams();
-  const listPath = `/records${query({tag_id:params.get("tag_id")??""})}`;
+  const back=useSearchReturn(`/records${query({tag_id:params.get("tag_id")??""})}`,"← 기록 목록");
+  const listPath = back.path;
   const navigate = useNavigate();
   const [record, setRecord] = useState<RecordResult | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -39,7 +41,7 @@ export function RecordDetailPage() {
     return (
       <section className="panel">
         <Notice kind="error">{loadError}</Notice>
-        <Link to={listPath}>기록 목록으로</Link>
+        <Link to={listPath}>{back.label}</Link>
       </section>
     );
   }
@@ -49,7 +51,7 @@ export function RecordDetailPage() {
     <section className="panel" aria-labelledby="record-title">
       <div className="panel-head">
         <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)", minWidth: 0 }}>
-          <Link to={listPath} className="secondary back-link">← 기록 목록</Link>
+          <Link to={listPath} className="secondary back-link">{back.label}</Link>
           <h1 id="record-title" className="page-title">{record.title}</h1>
         </div>
         <div className="actions">
