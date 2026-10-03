@@ -77,22 +77,42 @@ const local = {
 writeEnv(path(".env.local"), "로컬 전용. scripts/local-setup.mjs가 만든다. 커밋하지 않는다.", local);
 
 // 4. 서버 접속 역할(app_server)의 로컬 비밀번호와 Edge Functions용 설정.
+// 같은 값이어도 다시 설정하면 비밀번호 해시가 바뀌어 트랜잭션 풀러가 한동안 예전 값으로 인증을 거부한다(28P01).
+// 그래서 저장된 비밀번호로 접속이 안 될 때(처음·DB 초기화 뒤)만 설정한다.
 const db = postgres(status.DB_URL, { max: 1, onnotice: () => {} });
-await db.unsafe(`alter role app_server password '${local.APP_SERVER_PASSWORD.replace(/'/g, "''")}'`);
+const direct = new URL(status.DB_URL);
+direct.username = "app_server";
+direct.password = encodeURIComponent(local.APP_SERVER_PASSWORD);
+const probe = postgres(direct.href, { max: 1, connect_timeout: 5, onnotice: () => {} });
+const loginOk = await probe`select 1`.then(() => true, () => false);
+await probe.end();
+if (!loginOk) {
+  await db.unsafe(`alter role app_server password '${local.APP_SERVER_PASSWORD.replace(/'/g, "''")}'`);
+  // 풀러가 새 비밀번호로 인증할 때까지 기다린다(설정 직후 테스트가 28P01로 실패하지 않게).
+  const pooler = new URL(direct.href);
+  pooler.username = "app_server.pooler-dev";
+  pooler.port = "55429";
+  for (let i = 0; i < 30; i++) {
+    const p = postgres(pooler.href, { max: 1, prepare: false, connect_timeout: 5, onnotice: () => {} });
+    const ok = await p`select 1`.then(() => true, () => false);
+    await p.end();
+    if (ok) break;
+    await new Promise((r) => setTimeout(r, 1000));
+  }
+}
 const mcpUrl = `${apiUrl}/functions/v1/mcp`;
 await db`
   insert into private.auth_settings (key, value) values ('mcp_audience', ${mcpUrl})
   on conflict (key) do update set value = excluded.value`;
 await db.end();
-const jwks = await (await fetch(`${apiUrl}/auth/v1/.well-known/jwks.json`)).text();
+// SUPABASE_로 시작하는 이름은 CLI가 함수에 넘기지 않는다. SUPABASE_URL 등은 CLI가 직접 넣고,
+// 토큰 검증 키(JWKS)는 @supabase/server가 그 주소에서 가져온다.
 writeEnv(path("supabase/functions/.env"), "로컬 전용. scripts/local-setup.mjs가 만든다. 커밋하지 않는다.", {
   // Edge Runtime 컨테이너에서 본 트랜잭션 풀러 주소(prepare: false로 연결).
   APP_DB_URL: `postgresql://app_server.pooler-dev:${local.APP_SERVER_PASSWORD}@pooler:6543/postgres`,
-  SUPABASE_JWKS: jwks,
   AUTH_ISSUER: `${apiUrl}/auth/v1`,
   MCP_URL: mcpUrl,
   WEB_ORIGINS: "http://127.0.0.1:55480,http://localhost:55480",
-  SUPABASE_PUBLISHABLE_KEY: publishable,
 });
 
 // 5. 개발용 사용자(A·B). 이미 있으면 비밀번호만 맞춘다.
