@@ -1,7 +1,7 @@
 # Template-09 — 로컬 리뷰부터 제출·머지까지 마무리 흐름
 
 작성: 2026-10-04
-상태: 진행 중 (문서 구현·로컬 검증 완료, 커밋 후 독립 리뷰·제출·CI·머지 대기)
+상태: 완료
 검토 기준: base `4143b8475a0935e982d5339c495a8c11f955b4b3`
 선행: Template-08 PR #72 머지
 
@@ -17,7 +17,7 @@
 - [x] 사람용 안내·용어집·티켓 형식·개발 스킬·프로젝트 지도를 짧은 요약과 정본 링크로 맞춘다.
 - [x] Template-08/START-HERE의 현재 요약에 PR #72 최종 증거를 연결하고 과거 제출 snapshot·전체 fast 확대 미완료·T02-4 보류를 보존한다.
 - [x] 문서·링크/앵커·diff 검사 완료.
-- [ ] 정확한 최종 head의 독립 리뷰·필수 check/integration CI·최신 main·머지 확인. 제출 후 증거는 해당 PR 완료 코멘트·checks에 남긴다.
+- [x] 정확한 최종 head의 독립 리뷰·필수 check/integration CI·최신 main·머지 확인. [PR #73 완료 기록](https://github.com/kimyongin/agent-workspace-template/pull/73#issuecomment-5972743090)·[checks](https://github.com/kimyongin/agent-workspace-template/pull/73/checks)가 제출 후 증거를 소유한다.
 
 ## PR 분할 계획
 

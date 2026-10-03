@@ -35,13 +35,17 @@ export function principleRoutes(deps: principles.PrincipleDeps) {
   for (const [action, status] of [["activate", "active"], ["deactivate", "inactive"]] as const) {
     app.post("/principles/:id/" + action, async (c) => {
       const schema = z.strictObject({ ...principleStatus.shape }).omit({ status: true });
-      const input = parse(schema, await json(c.req.raw));
+      const raw = await json(c.req.raw);
+      // The route supplies status. Reject a caller status/non-object before injecting it,
+      // then let the original contract report field and status-refinement issues together.
+      if (typeof raw !== "object" || raw === null || Array.isArray(raw) || "status" in raw) parse(schema, raw);
+      const input = parse(principleStatus, { ...raw as Record<string, unknown>, status });
       return c.json(
         await principles.setPrincipleStatus(
           deps,
           c.get("actor"),
           idParam(c.req.param("id") ?? ""),
-          parse(principleStatus, { ...input, status }),
+          input,
         ),
       );
     });

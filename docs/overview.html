@@ -762,8 +762,8 @@ footer a { margin-right: 10px; white-space: nowrap; }
           <li>본 대화의 직접 편집은 합의 문서·오탈자·링크·Git/PR 조정으로 한정합니다. 서브세션 도구가 없거나 사용자가 직접 작업을 지정하면 실행 주체와 사유를 보고하고 구현·검증할 수 있습니다. 배정·환경 조정·독립 리뷰는 <a href="development/workflow.md#세션-배정과-인계">개발 절차</a>를 따릅니다.</li>
           <li>구현 세션은 테스트·실패 조사·수정·재검증까지 담당하고 메인은 범위·증거·리뷰·CI·머지를 조정합니다. 통합 검증 담당은 필요할 때 배정합니다.</li>
           <li>서브세션 배정·중요 변화·결과 인계 때 작업과 모델·추론 강도의 선택 이유, 결과·미확인·다음 판단을 표로 보고받습니다. 구현·리뷰·통합·메인의 실행 주체와 전달받은 보고·증거 확인·직접 실행을 구분합니다. 근거는 티켓에서 확인합니다(<a href="development/workflow.md#세션-운영-브리핑">운영 브리핑</a>).</li>
-          <li>일상 수정은 서비스 없는 <code>test:fast</code>로 업무·HTTP/MCP handler를 먼저 검사합니다. 생성·완료의 PR #70, worker 실패·동의 요청 생명주기 회귀의 PR #71, 수정·삭제 검사의 PR #72가 독립 리뷰·전체 CI를 통과해 머지됐습니다. 전체 업무·화면 검사 확대는 미완료이며 T02-4 보류를 유지합니다. 각 구현 세션이 테스트·수정·재검증을 맡고 실제 인증·DB·SDK 전송은 기존 통합 CI에서 확인합니다(<a href="tickets/template-08-mock-first-testing.md">Template-08</a>, <a href="tickets/template-08-01-worker-fast-tests.md">worker·동의 회귀 기록</a>).</li>
-          <li>구현·필요 검사·문서 인계를 묶어 로컬 커밋과 독립 리뷰를 먼저 마치고 같은 head를 제출합니다. 병렬 구현의 제출과 최종 증거 위치는 <a href="development/workflow.md#마무리-순서">마무리 순서</a>가 정합니다. <a href="tickets/template-09-finishing-flow.md">Template-09</a>의 문서 변경은 최종 리뷰·CI·머지 대기이며 실제 운영 속도 개선은 아직 측정하지 않았습니다.</li>
+          <li>일상 수정은 서비스 없는 <code>test:fast</code>로 업무·HTTP/MCP handler를 먼저 검사합니다. 생성·완료의 PR #70, worker 실패·동의 요청 생명주기 회귀의 PR #71, 수정·삭제 검사의 PR #72가 독립 리뷰·전체 CI를 통과해 머지됐습니다. 전체 업무·화면 검사 확대는 미완료입니다. 2026-10-04 T02-4를 재개했으며 <a href="tickets/template-10-priority-completion.md">Template-10</a>의 첫 조각인 <a href="tickets/template-10-01-fast-knowledge.md">기록·원칙·태그 연결 검사</a>를 진행합니다. 각 구현 세션이 테스트·수정·재검증을 맡고 실제 인증·DB·SDK 전송은 기존 통합 CI에서 확인합니다(<a href="tickets/template-08-mock-first-testing.md">Template-08</a>, <a href="tickets/template-08-01-worker-fast-tests.md">worker·동의 회귀 기록</a>).</li>
+          <li>구현·필요 검사·문서 인계를 묶어 로컬 커밋과 독립 리뷰를 먼저 마치고 같은 head를 제출합니다. 병렬 구현의 제출과 최종 증거 위치는 <a href="development/workflow.md#마무리-순서">마무리 순서</a>가 정합니다. <a href="tickets/template-09-finishing-flow.md">Template-09</a>의 문서 변경은 PR #73으로 최종 리뷰·CI·머지를 마쳤으며 실제 운영 속도 개선은 아직 측정하지 않았습니다.</li>
         </ul>
       </div>
     </div>
