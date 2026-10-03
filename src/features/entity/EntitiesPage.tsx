@@ -14,11 +14,11 @@ export function EntitiesPage() {
   const currentKey=useRef(key),focused=useRef(false);
   useEffect(()=>{const controller=new AbortController();setError(null);setBusy(true);
     if(currentKey.current!==key){setPage(null);currentKey.current=key;focused.current=false;}
-    (async()=>{let result:Page={items:[],next_cursor:null};for(let n=0;n<pages;n++){
+    (async()=>{let result:Page={items:[],next_cursor:null},n=0;const anchor=/^#entity-[0-9a-f-]+$/.test(hash)?hash.slice(8):null;while(n<pages||(anchor&&!result.items.some(e=>e.id===anchor))){
       const next:Page=await api("GET",`/entities${query({...filter,cursor:result.next_cursor})}`,undefined,controller.signal);
-      result={items:[...result.items,...next.items],next_cursor:next.next_cursor};if(!next.next_cursor)break;
+      result={items:[...result.items,...next.items],next_cursor:next.next_cursor};n++;if(!next.next_cursor)break;
     }setPage(result);})().catch(e=>{if(!controller.signal.aborted)setError(e instanceof ApiError?e.message:"엔터티를 불러오지 못했습니다.");}).finally(()=>{if(!controller.signal.aborted)setBusy(false);});
-    return()=>controller.abort();},[key,pages,retry]);
+    return()=>controller.abort();},[key,pages,retry,hash]);
   useEffect(()=>{if(busy||focused.current||!/^#entity-[0-9a-f-]+$/.test(hash))return;const node=document.getElementById(hash.slice(1));if(node){node.focus();node.scrollIntoView({block:"center"});focused.current=true;}},[page,busy,hash]);
   const set=(name:string,value:string)=>{const next=new URLSearchParams(params);if(value)next.set(name,value);else next.delete(name);next.delete("pages");setParams(next,{replace:true});};
   return <section className="panel" aria-labelledby="entities-title">

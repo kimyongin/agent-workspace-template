@@ -34,3 +34,6 @@ Entity의 실제 소비자까지 한 수직 기능 경계로 구현한다. DB→
 - npm ci: 성공, 168 packages 설치, audit 0 vulnerabilities.
 - 1차 서버 구현 후 npm run check:deno: 성공. 이후 UI·통합 테스트 추가에 따른 최종 검증은 남아 있음.
 - 독립 리뷰·제출·통합 CI·머지·배포·실클라이언트 검증: 아직 수행하지 않음.
+- 메인이 공유 로컬 검증 exclusive 담당을 Entity 세션에 배정함. 원본 로컬 설정 3개만 worktree로 안전 복사했고 `supabase/.env`는 복사하지 않음. `2f17a2f`로 1차 코드를 고정한 뒤 migration up --local 성공(기존 DB reset 없음).
+- 기존 Edge runtime의 primary source bind mount를 확인하고 해당 runtime 하나만 stop/rm한 뒤 worktree source의 functions serve로 교체함. fin 컨테이너는 변경하지 않음.
+- 1차 실제 DB 69/70, fast 7/8: 신규 테스트 fixture가 Task.status 필수 컬럼을 누락한 오류와 sync MCP handler를 assertRejects에 직접 넘긴 검사 오류 각각 1건. 구현 실패와 구분해 fixture/검사만 수정 후 재실행 예정. 실제 HTTP 17/17 통과.

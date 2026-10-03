@@ -10,9 +10,9 @@ function idParam(value: unknown): string {
   return value as string;
 }
 export function entityTools(d: entity.EntityDeps): ToolDef[] {
-  const get = z.strictObject({ id: z.string() }),
-    update = entityUpdate.extend({ id: z.string() }),
-    remove = z.strictObject({ id: z.string(), expected_version: expectedVersion });
+  const get = z.strictObject({ id: z.unknown() }),
+    update = entityUpdate.extend({ id: z.unknown() }),
+    remove = z.strictObject({ id: z.unknown(), expected_version: expectedVersion });
   return [
     {
       name: "list_entities",
@@ -44,6 +44,7 @@ export function entityTools(d: entity.EntityDeps): ToolDef[] {
       input: entityUpdate.extend({ id }),
       readOnly: false,
       handler: (i, a) => {
+        idParam(i.id);
         const { id, ...rest } = parse(update, i);
         return entity.updateEntity(d, a, idParam(id), rest);
       },
@@ -55,9 +56,10 @@ export function entityTools(d: entity.EntityDeps): ToolDef[] {
       readOnly: false,
       destructive: true,
       handler: async (i, a) => {
+        idParam(i.id);
         const p = parse(remove, i);
         await entity.deleteEntity(d, a, idParam(p.id), p.expected_version);
-        return { deleted: p.id };
+        return { deleted: idParam(p.id) };
       },
     },
   ];

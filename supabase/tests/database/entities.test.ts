@@ -100,7 +100,7 @@ dbTest("Entity DB: RLS·직접 접근 차단·복합 FK·멱등성·버전 경�
         sql,
         users.b,
         (tx) =>
-          tx`insert into app.tasks(owner_id,kind,title,summary,entity_id) values (${users.b},'once','외부','요약',${e.id})`,
+          tx`insert into app.tasks(owner_id,kind,title,summary,status,entity_id) values (${users.b},'once','외부','요약','open',${e.id})`,
       ),
     ))
       .startsWith("23503"),
