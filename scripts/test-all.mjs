@@ -1,5 +1,8 @@
-// 전체 검사를 한 번에: 로컬 Supabase 준비 → Edge Functions 실행(이미 떠 있으면 그대로 사용) →
+// 로컬 통합 테스트를 한 번에: 로컬 Supabase 준비 → Edge Functions 실행(이미 떠 있으면 그대로 사용) →
 // core·DB·HTTP·MCP·E2E 테스트 → 이 스크립트가 띄운 함수 서버만 정리. 로컬 전용이다.
+// 정적 검사(check:docs·check:boundaries·check:deno·test:web·build)는 포함하지 않는다.
+// 한계: 이미 떠 있는 함수 서버가 401이 아닌 응답(부팅 중 등)을 주면 새로 띄우며, 정리할 때
+// 같은 이름의 Edge Runtime 컨테이너를 멈추므로 다른 터미널의 함수 서버도 함께 끊길 수 있다.
 // 사용: npm run test:all  (E2E 브라우저가 없으면 먼저 npx playwright install chromium)
 import { spawn, spawnSync } from "node:child_process";
 import { openSync, readFileSync } from "node:fs";
@@ -40,9 +43,13 @@ const projectId = readFileSync(new URL("../supabase/config.toml", import.meta.ur
 function stop(child) {
   if (!child) return;
   if (child.exitCode === null) {
-    // Windows는 셸 아래 자식까지 함께 끝낸다.
-    if (isWin) spawnSync(`taskkill /pid ${child.pid} /T /F`, { shell: true, stdio: "ignore" });
-    else process.kill(-child.pid, "SIGTERM"); // detached로 만든 프로세스 그룹 전체
+    try {
+      // Windows는 셸 아래 자식까지 함께 끝낸다.
+      if (isWin) spawnSync(`taskkill /pid ${child.pid} /T /F`, { shell: true, stdio: "ignore" });
+      else process.kill(-child.pid, "SIGTERM"); // detached로 만든 프로세스 그룹 전체
+    } catch {
+      // 이미 끝난 그룹(ESRCH)이어도 아래 컨테이너 정리는 계속한다.
+    }
   }
   // CLI를 강제로 끝내면 CLI가 띄운 Edge Runtime 컨테이너가 남으므로 직접 멈춘다.
   if (projectId) spawnSync(`docker stop supabase_edge_runtime_${projectId}`, { shell: true, stdio: "ignore" });
@@ -54,6 +61,13 @@ results.push(setup);
 if (!setup.ok) process.exit(1);
 
 let served = null;
+// 중단(Ctrl+C 등)되어도 이 스크립트가 띄운 서버와 컨테이너를 남기지 않는다.
+for (const signal of ["SIGINT", "SIGTERM"]) {
+  process.on(signal, () => {
+    stop(served);
+    process.exit(130);
+  });
+}
 if (!(await functionsReady())) {
   const log = join(tmpdir(), "workspace-functions.log");
   console.log(`\n▶ Edge Functions 실행(테스트가 끝나면 정리, 로그: ${log})`);

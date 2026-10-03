@@ -86,7 +86,20 @@ direct.password = encodeURIComponent(local.APP_SERVER_PASSWORD);
 const probe = postgres(direct.href, { max: 1, connect_timeout: 5, onnotice: () => {} });
 const loginOk = await probe`select 1`.then(() => true, () => false);
 await probe.end();
-if (!loginOk) await db.unsafe(`alter role app_server password '${local.APP_SERVER_PASSWORD.replace(/'/g, "''")}'`);
+if (!loginOk) {
+  await db.unsafe(`alter role app_server password '${local.APP_SERVER_PASSWORD.replace(/'/g, "''")}'`);
+  // 풀러가 새 비밀번호로 인증할 때까지 기다린다(설정 직후 테스트가 28P01로 실패하지 않게).
+  const pooler = new URL(direct.href);
+  pooler.username = "app_server.pooler-dev";
+  pooler.port = "55429";
+  for (let i = 0; i < 30; i++) {
+    const p = postgres(pooler.href, { max: 1, prepare: false, connect_timeout: 5, onnotice: () => {} });
+    const ok = await p`select 1`.then(() => true, () => false);
+    await p.end();
+    if (ok) break;
+    await new Promise((r) => setTimeout(r, 1000));
+  }
+}
 const mcpUrl = `${apiUrl}/functions/v1/mcp`;
 await db`
   insert into private.auth_settings (key, value) values ('mcp_audience', ${mcpUrl})
