@@ -71,6 +71,7 @@ description: 연결된 도메인 앱의 데이터·할 일·활동 기록·사�
 | 기록 찾기·읽기·쓰기 | `list_records`, `get_record`, `create_record`, `update_record`, `delete_record` |
 | 사용자 원칙 저장·현재 원문 확인 | `create_principle`, `list_principles`, `get_principle` |
 | 원칙 표현 정정·상태 전환·삭제 | `update_principle`, `set_principle_status`, `delete_principle` |
+| 태그 목록·생성·이름 변경·삭제 | `list_tags`, `create_tag`, `rename_tag`, `delete_tag` |
 
 현재 원칙은 `list_principles(status=active)`의 `next_cursor`가 없어질 때까지 확인하고, 적용할 원칙은 `get_principle`로 본문·적용 조건·현재 상태·수정 시각을 읽는다. `update_principle`은 표현 정정에 쓰고, 의미가 바뀌면 새 원칙을 만든 뒤 기존 원칙을 비활성화하며 `replaced_by_id`로 연결한다. 활성화하면 대체 연결을 비운다. 비활성과 삭제는 다르며, 과거 판단을 남겨야 하면 비활성을 우선 검토한다.
 

@@ -4,6 +4,8 @@ import { SqlUnitOfWork } from "./adapters/supabase/activity-store.ts";
 import type { ActivityDeps } from "./core/activity/application.ts";
 import { SqlPrincipleUnitOfWork } from "./adapters/supabase/principle-store.ts";
 import type { PrincipleDeps } from "./core/principles/application.ts";
+import { SqlTagUnitOfWork } from "./adapters/supabase/tag-store.ts";
+import type { TagDeps } from "./core/tags/application.ts";
 
 function required(name: string): string {
   const v = Deno.env.get(name);
@@ -14,6 +16,10 @@ function required(name: string): string {
 let deps: ActivityDeps | undefined;
 let principles: PrincipleDeps | undefined;
 let connection: postgres.Sql | undefined;
+let tags: TagDeps | undefined;
+export function tagDeps(): TagDeps {
+  return tags ??= { uow: new SqlTagUnitOfWork(database()) };
+}
 function database() {
   return connection ??= postgres(required("APP_DB_URL"), {
     prepare: false,
