@@ -1,0 +1,10 @@
+{
+  "name": "t02-3-embedding-experiment",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "evaluate": "node --env-file=.env.local evaluate.mjs",
+    "test": "node --test evaluate.test.mjs"
+  }
+}
