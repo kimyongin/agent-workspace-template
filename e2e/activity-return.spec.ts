@@ -60,21 +60,23 @@ for (
       const retry = page.getByRole("button", { name: "다시 시도", exact: true });
       await expect(retry).toBeVisible();
       await expect(page.locator(".list .item-title")).toHaveCount(20);
-      // Keep a row focused while invoking retry, so clearing/replaying the list
-      // would expose lost DOM focus and scroll before the held response returns.
-      const retained = page.locator(`#${await page.locator(".list .item-title").last().getAttribute("id")}`);
-      await retained.focus();
+      await retry.scrollIntoViewIfNeeded();
+      await retry.focus();
       const scrollBefore = await page.evaluate(() => window.scrollY);
-      await retry.evaluate((button: HTMLButtonElement) => button.click());
+      if (kind === "task") await page.keyboard.press("Enter");
+      else await retry.click();
+      const control = page.locator(`#activity-${path}-page-control`);
       await expect.poll(() => requests.length).toBe(2);
       expect(requests).toEqual([failedCursor, failedCursor]);
       expect(failedCursor).toBeTruthy();
       await expect(page.locator(".list .item-title")).toHaveCount(20);
-      await expect(retained).toBeFocused();
+      await expect.poll(() => page.evaluate(() => document.activeElement?.tagName)).toBe("BUTTON");
       expect(await page.evaluate(() => window.scrollY)).toBe(scrollBefore);
       releaseRetry();
       await expect(page.locator(".list .item-title")).toHaveCount(22);
-      await expect(retained).toBeFocused();
+      await expect.poll(() => page.evaluate(() => document.activeElement?.tagName)).toBe("BUTTON");
+      await expect(control).toBeFocused();
+      await expect(control).toHaveAttribute("aria-disabled", "true");
       await page.unroute(`**/api/${path}?**`);
       const link = page.getByRole("link", { name: title, exact: true });
       await link.scrollIntoViewIfNeeded();
