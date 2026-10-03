@@ -37,7 +37,9 @@ node experiments/plugin-behavior/native-discovery.mjs <new-outside-native-output
 
 첫 명령은 새 Codex home에만 MCP 설정을 생성하며 기존 config가 있으면 덮어쓰지 않는다. 둘째는 이번 실험 home에 생긴 workspace MCP 토큰만 메모리에서 읽어 정상 CLI 발견과 독립 harmless read를 비교한다. 개인 auth 파일을 복사하지 않는다. 완료 후 정확히 이번 fixture/등록만 삭제하고 시험 token 파일을 정리한다. 현재 결과의 OAuth 등록은 이미 삭제했으므로 기존 fixture를 다시 쓰지 않는다.
 
-`select-codex.mjs <outside-copy-marketplace> <codex-snapshot>`은 MCP를 끈 오프라인 `$workspace` 선택 증거를 따로 모은다. 첫 실행에서 SKILL.md 읽기는 관찰했으나 reference/hash 응답은 timeout으로 미완료였다. 이 결과를 전체 선택 검증 PASS로 취급하지 않는다.
+`select-codex.mjs <outside-copy-marketplace> <codex-snapshot>`은 MCP를 끈 오프라인 `$workspace` 선택 증거를 따로 모은다. 첫 실행은 패키지에 없는 example-entity 참고 파일과 hash 응답을 요구했고 timeout으로 미완료였다. 실제 SKILL.md만 읽고 Entity 도구를 보고하도록 수정한 재실행은 읽기 완료·5개 도구 보고·MCP 호출 0·exit0을 확인했다. 이 선택 검사는 별도 로컬 조회/저장 행동 실행과 구분한다.
+
+`install-update.mjs <new-outside-output>`은 서비스/LLM 없이 git의 원래 0.1.0 패키지를 외부 marketplace에 복원한 뒤 새 CODEX_HOME·CLAUDE_CONFIG_DIR에 설치한다. 최신 원본을 복사하고 Codex 재설치 및 Claude marketplace/plugin update로 0.1.1·enabled·양 cache의 공유 SKILL 해시를 검사한다. 개인 설정을 복사/수정하지 않는다. `claude plugin marketplace add`에는 `./`를 사용한다(`.`은 2.1.140에서 거부됨).
 
 ## Claude native OAuth 후속 준비
 

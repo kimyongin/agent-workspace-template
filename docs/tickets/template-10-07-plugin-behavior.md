@@ -25,7 +25,7 @@ T02-4의 패키지 설치와 실제 스킬 행동을 구분해 Claude Code와 Co
 ## 완료 조건
 
 - [x] 두 CLI의 모델/effort 배정 preflight와 실제 설정·버전을 확인한다.
-- [ ] 실제 공유 스킬 선택·MCP 도구 발견·검색/원문/저장/재조회 흐름을 각 클라이언트에서 관찰한다.
+- [x] 실제 공유 스킬 선택·MCP 도구 발견·검색/원문/저장/재조회 흐름을 각 클라이언트에서 관찰한다(별도 선택 검사와 행동 실행의 범위는 아래 구분).
 - [ ] 설치/업데이트·로컬 토큰 전달과 클라이언트 자체 OAuth·접근 불가 surface의 증거를 구분한다.
 - [ ] 실행 revision·재현 명령·fixture 정리·한계·다음 판단을 기록하고 문서 검사를 통과한다.
 
@@ -88,3 +88,15 @@ Claude 설치 버전의 `mcp --help`에는 login/logout이 없고 `claude mcp lo
 체크포인트 검증: `npm run check:docs` PASS(문서 256개, 스크립트 tests 36 PASS/1 SKIP; Windows file symlink privilege 미지원), 실험 `.mjs` 전부 `node --check` PASS, `git diff --check` PASS. native home 소유 표식·기존 config 덮어쓰기 거부·현재 환경 인계 확인 등 runner 보강은 이후 실제 재실행 전 코드 검사만 수행했다.
 
 남은 작업은 Claude native 인증·정상 해제 실증, Codex 스킬 선택 보강, Entity 최신 main 통합 후 두 manifest 0.1.1·checker·실제 설치 갱신·새 외부 ZIP/hash 검증이다. 웹/desktop/mobile 제품 흐름은 접근 불가로 미검증이며 운영 배포/새 서비스/public 제출은 수행하지 않는다.
+
+## 최신 후보의 오프라인 통합
+
+메인이 `cba11dd1892f2c0a5848903201c927077aecf76c`로 시작한 rebase에서 `experiments/README.md`의 model-evaluation/plugin-behavior 두 행을 모두 보존하고 continue했다. 이전 체크포인트는 `7af5856ff20b04206a4a3eca2321bc0d405c383f`로 재작성되었다. 최종 후보의 서버/스킬을 받아 두 manifest를 0.1.1로 함께 갱신했고 version 테스트의 고정 0.1.0 기대값을 portable 정본 manifest에서 읽도록 좁게 수정했다. 서버/SKILL 도구명 31개, 숨김 manifest·동일 운영 endpoint·UTF-8 LF·파일 포함 범위 checker PASS. SKILL 자체는 수정하지 않았다.
+
+메인이 허용한 오프라인 선택 재실행은 같은 balanced/medium assign PASS 뒤 MCP를 끄고 정상 LLM으로 `$workspace`를 선택했다. 첫 90초 timeout 프롬프트가 없는 `example-entity.md` 참고 파일을 요구했던 절차 오류를 확인했다(실제 정본은 참고 자료 없음). 불필요한 참고/hash 요구를 제거한 재실행은 SKILL.md 파일 명령의 exit0 완료, Entity 도구 list_entities/get_entity/create_entity/update_entity/delete_entity 보고, MCP 호출 0, CLI exit0을 확인했다. 기존 timeout의 런타임 원인을 모두 단정하지 않는다. 원문/저장 행동과 동일 세션의 선택 증거라고 표현하지 않는다. 구조적 선택 증거는 기존 외부 Codex 표식 폴더의 `codex-cli/skill-selection.json`에 있다.
+
+두 설치 CLI는 새 외부 home에 git base `a59d58c`의 실제 0.1.0 패키지만 설치하고 후보 원본으로 갱신했다. Codex는 로컬 marketplace `plugin add` 재실행, Claude는 로컬 marketplace update와 plugin update를 사용했다. 각 list JSON에서 처음 0.1.0→나중 0.1.1, installed/enabled를 관찰했고 두 cache의 공유 SKILL SHA-256을 원본과 비교했다. 기존 개인 auth/설정을 복사하거나 덮어쓰지 않았고 OAuth/MCP/LLM은 실행하지 않았다. 첫 자동화의 Claude marketplace add `.` 실패를 `./`로 수정했다. 실제 명령과 결과는 외부 `plugin-offline-update-20261004-c/install-update.json`에 보존한다.
+
+후보 ZIP와 sidecar는 저장소 밖 `C:/Users/yongin/AppData/Local/Temp/plugin-candidate-artifacts-20261004/`에 만들었다. `workspace-0.1.1.zip` 및 역검증용 `repeat-0.1.1.zip`의 bytes/hash가 같다. SHA-256 `78974e53e41615a85943037a91db04c30c766a2b6e353e8d992ef71013fa60e3`, 서버 도구 원본 해시 `859d8df7ffbf2ce5c022bcc7ad04559e0b5d6f740187b4e2f71d750c0f54bddc`. 파일 6개는 portable/Claude manifest·각 MCP 설정·README·단일 shared SKILL뿐이며 개발 스킬/앱/서버/자격 증명을 넣지 않는다. sidecar에는 버전·endpoint·31개 도구·각 파일 해시가 있고 별도 candidate-revision.json에 후보/미커밋 packaging 구분을 남긴다. 최종 공개 artifact/sidecar revision은 Entity/활동이 머지된 main으로 다시 고정해야 한다.
+
+검증: `npm ci` PASS(168 packages, audit0), `npm run check:docs` PASS(문서 308개, tests36 PASS/1 file-symlink privilege SKIP), `npm run test:adapters:fast` PASS(13개 실제 유스케이스/HTTP/MCP ToolDef schema·handler 검사, 외부 서비스 없음), `npm run build` PASS(기존 large chunk 경고). 후보 ZIP 결정성/포함 범위 PASS. 이 단계에서 DB·API·OAuth·PTY/MCP 연결은 실행하지 않았다. 공유 환경은 활동 담당의 독점을 유지한다. Claude native 정상 계정 인증/해제는 재배정 후, 운영/외부 surface는 여전히 미검증이다.

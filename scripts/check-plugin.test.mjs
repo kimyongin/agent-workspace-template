@@ -8,7 +8,8 @@ import { packagePlugin, zipPlugin } from './package-plugin.mjs';
 
 test('shared package manifests, endpoints, references and server tools agree', async () => {
   const result = await validatePlugin();
-  assert.equal(result.version, '0.1.0');
+  const manifest = JSON.parse(await readFile(resolve(repository, 'plugins/workspace/plugin.json'), 'utf8'));
+  assert.equal(result.version, manifest.version);
   assert(result.tools.includes('search'));
 });
 
