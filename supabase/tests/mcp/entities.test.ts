@@ -25,6 +25,20 @@ httpTest("Entity MCP: 실제 SDK/OAuth CRUD·웹 parity·참조 거부·삭제 �
     assertEquals(found, (await call(token, "POST", "/search", search)).body);
     assertEquals((await tool(client, "search", { ...search, entity_id: crypto.randomUUID() })).items, []);
     assertEquals((await tool(client, "search", { ...search, entity_id: "bad" })).error.code, "invalid_input");
+    const bad = { expected_version: 1, entity_id: 42 };
+    assertEquals(
+      (await tool(client, "update_principle", { id: p.id, ...bad })).error,
+      (await call(token, "PATCH", `/principles/${p.id}`, bad)).body,
+    );
+    assertEquals(
+      (await tool(client, "update_principle", { id: p.id, expected_version: 1, entity_id: null })).entity_id,
+      null,
+    );
+    assertEquals((await call(token, "GET", `/principles/${p.id}`)).body.entity_id, null);
+    assertEquals(
+      (await tool(client, "update_principle", { id: p.id, expected_version: 2, entity_id: e.id })).entity_id,
+      e.id,
+    );
     assertEquals(
       (await tool(client, "update_entity", { id: e.id, expected_version: 2, prop1: "경쟁" })).error.code,
       "conflict",
@@ -34,9 +48,9 @@ httpTest("Entity MCP: 실제 SDK/OAuth CRUD·웹 parity·참조 거부·삭제 �
     await tool(client, "delete_entity", { id: e.id, expected_version: 2 });
     const current = await tool(client, "get_principle", { id: p.id });
     assertEquals(current.entity_id, null);
-    assertEquals(current.version, 2);
+    assertEquals(current.version, 4);
     assertEquals((await tool(client, "search", search)).items, []);
-    await tool(client, "delete_principle", { id: p.id, expected_version: 2 });
+    await tool(client, "delete_principle", { id: p.id, expected_version: 4 });
   } finally {
     await client.close();
   }
