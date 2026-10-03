@@ -1,7 +1,9 @@
 import { z } from "zod";
+import { tagIds } from "./tag.ts";
 import { body, expectedVersion, id, isoDateTime, page, pageInput, requestId, summary, text, title } from "./common.ts";
 
 export const principleCreate = z.strictObject({
+  tag_ids: tagIds.optional(),
   title,
   summary,
   body: body.default(""),
@@ -10,6 +12,7 @@ export const principleCreate = z.strictObject({
 });
 export type PrincipleCreate = z.infer<typeof principleCreate>;
 export const principleUpdate = z.strictObject({
+  tag_ids: tagIds.optional(),
   expected_version: expectedVersion,
   title: title.optional(),
   summary: summary.optional(),
@@ -27,12 +30,14 @@ export const principleStatus = z.strictObject({
 });
 export type PrincipleStatus = z.infer<typeof principleStatus>;
 export const principleListQuery = z.strictObject({
+  tag_id: id.optional(),
   status: z.enum(["active", "inactive"]).default("active"),
   ...pageInput,
 });
 export type PrincipleListQuery = z.infer<typeof principleListQuery>;
 export const principleResult = z.object({
   id,
+  tag_ids: z.array(id),
   title: z.string(),
   summary: z.string(),
   body: z.string(),

@@ -149,6 +149,7 @@ export async function completeTask(
         task_id: task.id,
         occurrence_on: null,
         applied_principle_ids: input.applied_principle_ids,
+        tag_ids: input.tag_ids,
       });
       const updated = await store.updateTask(id, { ...decided, result_record_id: record.id });
       await store.enqueueIndex({ kind: "record", id: record.id, input_hash: await searchInputHash(record) });
@@ -219,6 +220,7 @@ export async function recordOccurrence(
           task_id: id,
           occurrence_on: date,
           applied_principle_ids: input.applied_principle_ids,
+          tag_ids: input.tag_ids,
         });
         await store.enqueueIndex({ kind: "record", id: record.id, input_hash: await searchInputHash(record) });
         return toRecordResult(record);
@@ -239,6 +241,7 @@ export async function createRecord(deps: ActivityDeps, actor: Actor, input: Reco
         task_id: null,
         occurrence_on: null,
         applied_principle_ids: input.applied_principle_ids,
+        tag_ids: input.tag_ids,
       });
       await store.enqueueIndex({ kind: "record", id: record.id, input_hash: await searchInputHash(record) });
       return toRecordResult(record);

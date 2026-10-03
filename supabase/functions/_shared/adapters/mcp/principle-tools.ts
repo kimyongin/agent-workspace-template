@@ -12,7 +12,7 @@ export function principleTools(deps: principles.PrincipleDeps): ToolDef[] {
     {
       name: "update_principle",
       description:
-        "원칙의 표현을 정정한다. 의미가 바뀌면 새 원칙을 만들고 기존 원칙을 비활성·대체 연결한다. expected_version 불일치는 conflict.",
+        "원칙의 표현을 정정한다. tag_ids 생략은 유지, 빈 배열은 제거. 의미가 바뀌면 새 원칙을 만들고 기존을 비활성·대체 연결한다. expected_version 불일치는 conflict.",
       input: withId(principleUpdate),
       readOnly: false,
       handler: (args, actor) => {
@@ -57,7 +57,7 @@ export function principleTools(deps: principles.PrincipleDeps): ToolDef[] {
     {
       name: "list_principles",
       description:
-        "사용자 원칙 목록(updated_at 내림차순). 기본 active이며 현재 원칙을 빠짐없이 확인하려면 next_cursor가 없을 때까지 탐색한다.",
+        "사용자 원칙 목록(updated_at 내림차순). 기본 active, tag_id로 필터. 현재 원칙을 빠짐없이 확인하려면 next_cursor가 없을 때까지 탐색한다.",
       input: principleListQuery,
       readOnly: true,
       handler: (args, actor) => principles.listPrinciples(deps, actor, parse(principleListQuery, args)),

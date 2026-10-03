@@ -1,16 +1,19 @@
 // 기록 목록(수행 시각 내림차순)과 직접 작성.
 import type { RecordResult } from "@contracts/record.ts";
-import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router";
+import { useEffect, useRef,useState } from "react";
+import { Link, useNavigate,useSearchParams } from "react-router";
 import { Notice } from "../../components/Field.tsx";
 import { api, query } from "../../lib/api.ts";
 import { formatDateTime } from "../../lib/format.ts";
 import { emptyRecord, RecordFormModal } from "./forms.tsx";
 import { useRequestId } from "./shared.tsx";
+import {TagFilter} from "../tags/TagPicker.tsx";
 
 type Page = { items: RecordResult[]; next_cursor: string | null };
 
 export function RecordsPage() {
+  const [params,setParams]=useSearchParams();const tag_id=params.get("tag_id")??"";
+  const generation=useRef(0);
   const [items, setItems] = useState<RecordResult[] | null>(null);
   const [cursor, setCursor] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -20,25 +23,30 @@ export function RecordsPage() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    api<Page>("GET", `/records${query({ limit: 20 })}`)
+    let alive=true;generation.current++;setItems(null);setError(null);setCursor(null);setLoadingMore(false);
+    api<Page>("GET", `/records${query({ limit: 20,tag_id })}`)
       .then((p) => {
+        if(!alive)return;
         setItems(p.items);
         setCursor(p.next_cursor);
       })
-      .catch(() => setError("기록을 불러오지 못했습니다."));
-  }, []);
+      .catch(() => {if(alive)setError("기록을 불러오지 못했습니다.");});
+    return()=>{alive=false;generation.current++;};
+  }, [tag_id]);
 
   const more = async () => {
     if (!cursor) return;
+    const started=generation.current;
     setLoadingMore(true);
     try {
-      const p = await api<Page>("GET", `/records${query({ limit: 20, cursor })}`);
+      const p = await api<Page>("GET", `/records${query({ limit: 20, cursor,tag_id })}`);
+      if(started!==generation.current)return;
       setItems((prev) => [...(prev ?? []), ...p.items]);
       setCursor(p.next_cursor);
     } catch {
-      setError("다음 항목을 불러오지 못했습니다. 다시 시도하세요.");
+      if(started===generation.current)setError("다음 항목을 불러오지 못했습니다. 다시 시도하세요.");
     } finally {
-      setLoadingMore(false);
+      if(started===generation.current)setLoadingMore(false);
     }
   };
 
@@ -49,6 +57,7 @@ export function RecordsPage() {
         <button type="button" className="btn btn-primary" onClick={() => setCreating(true)}>기록 작성</button>
       </div>
       {error && <Notice kind="error">{error}</Notice>}
+      <TagFilter value={tag_id} onChange={id=>setParams(id?{tag_id:id}:{})}/>
       {items === null && !error && <p className="secondary" role="status">불러오는 중…</p>}
       {items?.length === 0 && (
         <p className="secondary" style={{ margin: 0 }}>아직 기록이 없습니다. 수행한 일과 결과를 기록하세요.</p>

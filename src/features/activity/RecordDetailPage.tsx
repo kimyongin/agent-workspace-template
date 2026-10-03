@@ -9,6 +9,7 @@ import { ConfirmDialog } from "../../components/Modal.tsx";
 import { api, ApiError } from "../../lib/api.ts";
 import { formatDateTime } from "../../lib/format.ts";
 import { RecordFormModal, recordDraftFrom } from "./forms.tsx";
+import {TagNames} from "../tags/TagPicker.tsx";
 
 export function RecordDetailPage() {
   const { id = "" } = useParams();
@@ -56,6 +57,7 @@ export function RecordDetailPage() {
       </div>
       {message && <Notice kind="success">{message}</Notice>}
       {error && <Notice kind="error">{error}</Notice>}
+      <TagNames ids={record.tag_ids}/>
       <dl className="props">
         <div>
           <dt>{recordLabels.occurred_at}</dt>

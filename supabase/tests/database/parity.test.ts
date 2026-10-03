@@ -79,7 +79,9 @@ dbTest("할 일: DB 컬럼(owner_id 제외)과 contracts 응답 필드가 같다
 dbTest("기록: DB 컬럼(owner_id 제외)과 contracts 응답 필드가 같다", async () => {
   assertEquals(
     await columns("records"),
-    Object.keys(recordResult.shape).filter((k) => !["applied_principle_ids", "applied_principles"].includes(k)).sort(),
+    Object.keys(recordResult.shape).filter((k) =>
+      !["applied_principle_ids", "applied_principles", "tag_ids"].includes(k)
+    ).sort(),
   );
 });
 
@@ -88,5 +90,5 @@ dbTest("원칙: 적용 조건 한도와 DB 컬럼 계약 일치", async () => {
     const input = { ...record, applies_when: value };
     assertEquals(await dbAccepts("principles", input), contractAccepts(principleCreate, input));
   }
-  assertEquals(await columns("principles"), Object.keys(principleResult.shape).sort());
+  assertEquals(await columns("principles"), Object.keys(principleResult.shape).filter((k) => k !== "tag_ids").sort());
 });

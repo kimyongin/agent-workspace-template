@@ -9,6 +9,7 @@ import { PrincipleFormModal } from "./forms.tsx";
 import { ConfirmDialog } from "../../components/Modal.tsx";
 import { FormModal } from "../../components/ContentForm.tsx";
 import { Field } from "../../components/Field.tsx";
+import {TagNames} from "../tags/TagPicker.tsx";
 
 export function PrincipleDetailPage() {
   const { id = "" } = useParams();
@@ -49,6 +50,7 @@ export function PrincipleDetailPage() {
       <dl className="props"><div><dt>상태</dt><dd>{principleLabels[item.status]}</dd></div>
         <div><dt>{principleLabels.applies_when}</dt><dd>{item.applies_when || "지정하지 않음"}</dd></div>
         <div><dt>{principleLabels.summary}</dt><dd>{item.summary}</dd></div></dl>
+      <TagNames ids={item.tag_ids}/>
       <div><h2 className="section-title">본문</h2><MarkdownContent text={item.body} /></div>
       <p className="meta">수정 {formatDateTime(item.updated_at)}</p>
       {item.replaced_by_id&&<p><Link to={`/principles/${item.replaced_by_id}`}>대체 원칙 확인</Link></p>}

@@ -13,14 +13,15 @@ const WEEKDAYS = ["월", "화", "수", "목", "금", "토", "일"];
 // ---------- 기록 폼(직접 작성·완료 결과·회차 기록·편집) ----------
 
 export interface RecordDraft extends TextDraft {
+  tag_ids:string[];
   occurred_at: string; // datetime-local
   applied_principle_ids: string[];
 }
 
-export const emptyRecord = (): RecordDraft => ({ title: "", summary: "", body: "", occurred_at: "", applied_principle_ids: [] });
+export const emptyRecord = (): RecordDraft => ({ title: "", summary: "", body: "", occurred_at: "", applied_principle_ids: [],tag_ids:[] });
 
-export function recordDraftFrom(r: { title: string; summary: string; body: string; occurred_at: string; applied_principle_ids?: string[] }): RecordDraft {
-  return { title: r.title, summary: r.summary, body: r.body, occurred_at: toLocalInput(r.occurred_at), applied_principle_ids:r.applied_principle_ids??[] };
+export function recordDraftFrom(r: { title: string; summary: string; body: string; occurred_at: string; applied_principle_ids?: string[];tag_ids?:string[] }): RecordDraft {
+  return { title: r.title, summary: r.summary, body: r.body, occurred_at: toLocalInput(r.occurred_at), applied_principle_ids:r.applied_principle_ids??[],tag_ids:r.tag_ids??[] };
 }
 
 export function RecordFormModal(props: {
@@ -30,7 +31,7 @@ export function RecordFormModal(props: {
   initial: RecordDraft;
   intro?: ReactNode;
   onClose: () => void;
-  onSave: (value: { title: string; summary: string; body: string; occurred_at?: string; applied_principle_ids:string[] }) => Promise<void>;
+  onSave: (value: { title: string; summary: string; body: string; occurred_at?: string; applied_principle_ids:string[];tag_ids?:string[] }) => Promise<void>;
 }) {
   const [draft, setDraft] = useState(props.initial);
   const dirty = JSON.stringify(draft) !== JSON.stringify(props.initial);
@@ -40,6 +41,7 @@ export function RecordFormModal(props: {
     body: draft.body,
     occurred_at: fromLocalInput(draft.occurred_at),
     applied_principle_ids:draft.applied_principle_ids,
+    tag_ids:draft.tag_ids,
   });
   return (
     <FormModal
@@ -59,6 +61,7 @@ export function RecordFormModal(props: {
           {props.intro}
           <TextFields draft={draft} set={(d) => setDraft((prev) => ({ ...prev, ...d }))} errors={errors} />
           <PrinciplePicker value={draft.applied_principle_ids} error={errors.applied_principle_ids} onChange={ids=>setDraft(d=>({...d,applied_principle_ids:ids}))}/>
+          <TagPicker value={draft.tag_ids} error={errors.tag_ids} onChange={tag_ids=>setDraft(d=>({...d,tag_ids}))}/>
           <Field label={recordLabels.occurred_at} error={errors.occurred_at} help="비우면 저장한 시각">
             {(p) => (
               <input
