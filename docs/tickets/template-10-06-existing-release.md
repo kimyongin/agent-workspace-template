@@ -165,3 +165,5 @@ release 담당이 GitHub MERGED·SHA를 직접 확인하고 main `2a55e1397a4273
 메인은 최종 Pages run37161621033 completed/success·headSHA1730dc와 deployment6834375397 sha일치를 직접 재조회했다. 별도 public GET4(루트200/API tasks401/MCP401/정확metadata200)도 직접 확인했으며 운영 쓰기·인증token·worker 호출은 없었다. release 담당의 직접 실행과 별도 메인 재확인을 구분한다.
 
 최종 기록 검사: `npm run check:docs`는 텍스트327개·모델/native 정합성·script36 PASS/0 FAIL/기존 Windows symlink권한1 SKIP, `git diff --check` 통과. 운영 실행은 검증 source1730dc이며 이 문서-only 기록 commit의 독립 리뷰·CI·머지는 메인에게 인계한다. 새 자동검사·앱 구현·모델 선택표 변경은 없다.
+
+독립 리뷰 b12edaee의 P2 현재 상태 불일치를 수정했다. START-HERE의 ‘문서 검증과 다음 단계’에 남아 있던 PR #80 CI/머지·운영 배포 대기를 완료1730dc·실제 남은 본인 업무/색인 미확인·Cron 보류로 맞췄다. 당시 실행 이력과 서비스 source는 변경하지 않았다. 수정 후 `check:docs`·`git diff --check`를 다시 확인한다.
