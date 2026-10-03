@@ -25,6 +25,8 @@ jobs:
           cache: npm
       - name: 문서 검사
         run: node scripts/check-docs.mjs && node --test "scripts/*.test.mjs"
+      - name: 임베딩 평가기 검사(오프라인)
+        run: npm run test --prefix experiments/t02-3-embedding
       - name: 공백 검사
         run: |
           if [ "${{ github.event_name }}" = "pull_request" ]; then

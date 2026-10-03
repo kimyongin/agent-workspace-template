@@ -1,0 +1,1110 @@
+{
+  "generated_at": "2026-10-03T06:48:25.332Z",
+  "api_version": "2026-07",
+  "results": [
+    {
+      "model": "llama-text-embed-v2",
+      "dimension": 1024,
+      "metadata": {
+        "model": "llama-text-embed-v2",
+        "short_description": "A high performance dense embedding model optimized for multilingual and cross-lingual text question-answering retrieval with support for long documents (up to 2048 tokens) and dynamic embedding size (Matryoshka Embeddings).",
+        "type": "embed",
+        "vector_type": "dense",
+        "default_dimension": 1024,
+        "modality": "text",
+        "max_sequence_length": 2048,
+        "max_batch_size": 96,
+        "provider_name": "NVIDIA",
+        "supported_metrics": [
+          "cosine",
+          "dotproduct"
+        ],
+        "supported_dimensions": [
+          384,
+          512,
+          768,
+          1024,
+          2048
+        ],
+        "supported_parameters": [
+          {
+            "parameter": "input_type",
+            "required": true,
+            "type": "one_of",
+            "value_type": "string",
+            "allowed_values": [
+              "query",
+              "passage"
+            ]
+          },
+          {
+            "parameter": "truncate",
+            "required": false,
+            "default": "END",
+            "type": "one_of",
+            "value_type": "string",
+            "allowed_values": [
+              "END",
+              "NONE",
+              "START"
+            ]
+          },
+          {
+            "parameter": "dimension",
+            "required": false,
+            "default": 1024,
+            "type": "one_of",
+            "value_type": "integer",
+            "allowed_values": [
+              384,
+              512,
+              768,
+              1024,
+              2048
+            ]
+          }
+        ]
+      },
+      "calibration": [
+        {
+          "query": "두꺼운 책은 언제 읽기로 했지?",
+          "relevant": "long-book",
+          "expected_score": 0.5207808884300972,
+          "top": [
+            {
+              "id": "long-book",
+              "score": 0.5207808884300972
+            },
+            {
+              "id": "ebook",
+              "score": 0.3939133365811615
+            },
+            {
+              "id": "exercise",
+              "score": 0.1618371027132187
+            }
+          ]
+        },
+        {
+          "query": "예산 허가가 안 난 비싼 장비를 바로 결제해도 될까?",
+          "relevant": "approval",
+          "expected_score": 0.4560223035384566,
+          "top": [
+            {
+              "id": "approval",
+              "score": 0.4560223035384566
+            },
+            {
+              "id": "small-purchase",
+              "score": 0.23939542932359828
+            },
+            {
+              "id": "meeting",
+              "score": 0.07556270090475135
+            }
+          ]
+        },
+        {
+          "query": "복구가 실제로 되는지 확인하는 절차",
+          "relevant": "backup",
+          "expected_score": 0.4410087606409111,
+          "top": [
+            {
+              "id": "backup",
+              "score": 0.4410087606409111
+            },
+            {
+              "id": "study",
+              "score": 0.1495358211988438
+            },
+            {
+              "id": "approval",
+              "score": 0.13107770223484771
+            }
+          ]
+        },
+        {
+          "query": "고객 시안 전달 후 생산 시작 조건",
+          "relevant": "meeting",
+          "expected_score": 0.5117590138304206,
+          "top": [
+            {
+              "id": "meeting",
+              "score": 0.5117590138304206
+            },
+            {
+              "id": "garden",
+              "score": 0.1151798223501056
+            },
+            {
+              "id": "approval",
+              "score": 0.1067255420800198
+            }
+          ]
+        },
+        {
+          "query": "어휘와 오답을 반복해서 학습하는 일정",
+          "relevant": "study",
+          "expected_score": 0.4524746456986398,
+          "top": [
+            {
+              "id": "study",
+              "score": 0.4524746456986398
+            },
+            {
+              "id": "backup",
+              "score": 0.11463751907249324
+            },
+            {
+              "id": "ebook",
+              "score": 0.10348292144944998
+            }
+          ]
+        },
+        {
+          "query": "토성의 고리에서 얼음 입자의 크기는 얼마인가?",
+          "relevant": null,
+          "expected_score": null,
+          "top": [
+            {
+              "id": "study",
+              "score": 0.06594783133698959
+            },
+            {
+              "id": "small-purchase",
+              "score": 0.06176278519753376
+            },
+            {
+              "id": "exercise",
+              "score": 0.05899352422980597
+            }
+          ]
+        },
+        {
+          "query": "프랑스 혁명의 발발 연도는 언제인가?",
+          "relevant": null,
+          "expected_score": null,
+          "top": [
+            {
+              "id": "backup",
+              "score": -0.0029792490466581775
+            },
+            {
+              "id": "privacy",
+              "score": -0.0064457905091953645
+            },
+            {
+              "id": "long-book",
+              "score": -0.007115889561149876
+            }
+          ]
+        },
+        {
+          "query": "피타고라스 정리의 증명을 알려줘",
+          "relevant": null,
+          "expected_score": null,
+          "top": [
+            {
+              "id": "backup",
+              "score": 0.05201796862743627
+            },
+            {
+              "id": "meeting",
+              "score": 0.03667134897418546
+            },
+            {
+              "id": "garden",
+              "score": 0.0031871219910633328
+            }
+          ]
+        },
+        {
+          "query": "스페인 수도의 인구 통계",
+          "relevant": null,
+          "expected_score": null,
+          "top": [
+            {
+              "id": "meeting",
+              "score": -0.009599541652005817
+            },
+            {
+              "id": "small-purchase",
+              "score": -0.01593897235950564
+            },
+            {
+              "id": "backup",
+              "score": -0.017379978670536138
+            }
+          ]
+        },
+        {
+          "query": "고래가 초음파를 내는 원리",
+          "relevant": null,
+          "expected_score": null,
+          "top": [
+            {
+              "id": "approval",
+              "score": 0.09131738165930443
+            },
+            {
+              "id": "meeting",
+              "score": 0.06651153133184022
+            },
+            {
+              "id": "long-book",
+              "score": 0.0635790635571548
+            }
+          ]
+        }
+      ],
+      "fitted": {
+        "minimumRelevant": 0.4410087606409111,
+        "maximumUnrelated": 0.09131738165930443,
+        "separable": true,
+        "threshold": 0.27
+      },
+      "validation": [
+        {
+          "query": "버스에서 읽을 짧은 책을 어떤 형식으로 사지?",
+          "relevant": "ebook",
+          "expected_score": 0.41605073325577413,
+          "top": [
+            {
+              "id": "ebook",
+              "score": 0.41605073325577413
+            },
+            {
+              "id": "long-book",
+              "score": 0.31189650340269154
+            },
+            {
+              "id": "study",
+              "score": 0.08499764055921187
+            }
+          ]
+        },
+        {
+          "query": "인증 키를 어디에 두고 어떤 곳에는 올리지 말아야 할까?",
+          "relevant": "privacy",
+          "expected_score": 0.30129434717928166,
+          "top": [
+            {
+              "id": "privacy",
+              "score": 0.30129434717928166
+            },
+            {
+              "id": "ebook",
+              "score": 0.10334447174225268
+            },
+            {
+              "id": "backup",
+              "score": 0.10056159606406907
+            }
+          ]
+        },
+        {
+          "query": "오늘 수행한 산책의 결과를 확인해줘",
+          "relevant": "exercise",
+          "expected_score": 0.32161916456874895,
+          "top": [
+            {
+              "id": "exercise",
+              "score": 0.32161916456874895
+            },
+            {
+              "id": "meeting",
+              "score": 0.16325511398258774
+            },
+            {
+              "id": "backup",
+              "score": 0.1353163260482539
+            }
+          ]
+        },
+        {
+          "query": "흙이 젖어 있는 식물에 또 물을 줘도 될까?",
+          "relevant": "garden",
+          "expected_score": 0.47602741173704116,
+          "top": [
+            {
+              "id": "garden",
+              "score": 0.47602741173704116
+            },
+            {
+              "id": "long-book",
+              "score": 0.1008805325098391
+            },
+            {
+              "id": "approval",
+              "score": 0.09415419816057004
+            }
+          ]
+        },
+        {
+          "query": "사무실 종이와 필기구에 지출한 내역",
+          "relevant": "small-purchase",
+          "expected_score": 0.4322182464296151,
+          "top": [
+            {
+              "id": "small-purchase",
+              "score": 0.4322182464296151
+            },
+            {
+              "id": "meeting",
+              "score": 0.10685089551814084
+            },
+            {
+              "id": "approval",
+              "score": 0.0751378782136947
+            }
+          ]
+        },
+        {
+          "query": "해왕성의 대기 성분과 공전 주기",
+          "relevant": null,
+          "expected_score": null,
+          "top": [
+            {
+              "id": "garden",
+              "score": 0.1185672499750609
+            },
+            {
+              "id": "small-purchase",
+              "score": 0.02707571980347397
+            },
+            {
+              "id": "privacy",
+              "score": 0.026521403820101284
+            }
+          ]
+        },
+        {
+          "query": "삼각함수의 덧셈 공식 유도",
+          "relevant": null,
+          "expected_score": null,
+          "top": [
+            {
+              "id": "approval",
+              "score": 0.031706768047224845
+            },
+            {
+              "id": "backup",
+              "score": 0.011490450105330927
+            },
+            {
+              "id": "privacy",
+              "score": 0.01020156836241396
+            }
+          ]
+        },
+        {
+          "query": "고대 이집트 피라미드의 건축 연대",
+          "relevant": null,
+          "expected_score": null,
+          "top": [
+            {
+              "id": "meeting",
+              "score": 0.07424288570712363
+            },
+            {
+              "id": "approval",
+              "score": 0.047481254269705724
+            },
+            {
+              "id": "long-book",
+              "score": 0.029025395810497606
+            }
+          ]
+        },
+        {
+          "query": "남극 펭귄의 번식 생태",
+          "relevant": null,
+          "expected_score": null,
+          "top": [
+            {
+              "id": "garden",
+              "score": 0.029913908261979587
+            },
+            {
+              "id": "privacy",
+              "score": 0.029762448624469636
+            },
+            {
+              "id": "backup",
+              "score": 0.012479684682043454
+            }
+          ]
+        },
+        {
+          "query": "인도네시아 화산의 지질학적 형성 원리",
+          "relevant": null,
+          "expected_score": null,
+          "top": [
+            {
+              "id": "garden",
+              "score": 0.04184195653477391
+            },
+            {
+              "id": "approval",
+              "score": 0.038728983585271104
+            },
+            {
+              "id": "backup",
+              "score": 0.03289965090539495
+            }
+          ]
+        }
+      ],
+      "validationPassed": true,
+      "body_only": [
+        {
+          "query": "오로라-731",
+          "relevant": "long-book",
+          "expected_score": -0.06883430937781715,
+          "top": [
+            {
+              "id": "exercise",
+              "score": 0.053830540068799115
+            },
+            {
+              "id": "small-purchase",
+              "score": 0.030294854386512225
+            },
+            {
+              "id": "approval",
+              "score": 0.029410001077742092
+            }
+          ],
+          "keyword_hit": true,
+          "semantic_hit": false
+        },
+        {
+          "query": "가람-928",
+          "relevant": "ebook",
+          "expected_score": -0.0275501126258289,
+          "top": [
+            {
+              "id": "approval",
+              "score": 0.11730414722977271
+            },
+            {
+              "id": "meeting",
+              "score": 0.09678466200136945
+            },
+            {
+              "id": "privacy",
+              "score": 0.09504701850813528
+            }
+          ],
+          "keyword_hit": true,
+          "semantic_hit": false
+        },
+        {
+          "query": "다온-642",
+          "relevant": "approval",
+          "expected_score": 0.09212881473125063,
+          "top": [
+            {
+              "id": "approval",
+              "score": 0.09212881473125063
+            },
+            {
+              "id": "small-purchase",
+              "score": 0.06986892136081273
+            },
+            {
+              "id": "study",
+              "score": 0.05228967387434542
+            }
+          ],
+          "keyword_hit": true,
+          "semantic_hit": false
+        }
+      ],
+      "boundaries": [
+        {
+          "name": "korean",
+          "code_points": 401,
+          "utf8_bytes": 1201,
+          "accepted": true,
+          "tokens": 430
+        },
+        {
+          "name": "emoji",
+          "code_points": 401,
+          "utf8_bytes": 1481,
+          "accepted": true,
+          "tokens": 901
+        },
+        {
+          "name": "combining",
+          "code_points": 401,
+          "utf8_bytes": 961,
+          "accepted": true,
+          "tokens": 885
+        },
+        {
+          "name": "unspaced",
+          "code_points": 401,
+          "utf8_bytes": 401,
+          "accepted": true,
+          "tokens": 29
+        },
+        {
+          "name": "query-200",
+          "code_points": 200,
+          "utf8_bytes": 520,
+          "accepted": true,
+          "tokens": 243
+        }
+      ],
+      "overflowRejected": true,
+      "calls": 9,
+      "total_tokens": 3550,
+      "acceptable": true
+    },
+    {
+      "model": "multilingual-e5-large",
+      "dimension": 1024,
+      "metadata": {
+        "model": "multilingual-e5-large",
+        "short_description": "A high-performance dense embedding model trained on a mixture of multilingual datasets. It works well on messy data and short queries expected to return medium-length passages of text (1-2 paragraphs)",
+        "type": "embed",
+        "vector_type": "dense",
+        "default_dimension": 1024,
+        "modality": "text",
+        "max_sequence_length": 507,
+        "max_batch_size": 96,
+        "provider_name": "Microsoft",
+        "supported_metrics": [
+          "cosine",
+          "euclidean"
+        ],
+        "supported_dimensions": [
+          1024
+        ],
+        "supported_parameters": [
+          {
+            "parameter": "input_type",
+            "required": true,
+            "type": "one_of",
+            "value_type": "string",
+            "allowed_values": [
+              "query",
+              "passage"
+            ]
+          },
+          {
+            "parameter": "truncate",
+            "required": false,
+            "default": "END",
+            "type": "one_of",
+            "value_type": "string",
+            "allowed_values": [
+              "END",
+              "NONE"
+            ]
+          }
+        ]
+      },
+      "calibration": [
+        {
+          "query": "두꺼운 책은 언제 읽기로 했지?",
+          "relevant": "long-book",
+          "expected_score": 0.8112225538900931,
+          "top": [
+            {
+              "id": "long-book",
+              "score": 0.8112225538900931
+            },
+            {
+              "id": "ebook",
+              "score": 0.7864199075035311
+            },
+            {
+              "id": "small-purchase",
+              "score": 0.7354468920778118
+            }
+          ]
+        },
+        {
+          "query": "예산 허가가 안 난 비싼 장비를 바로 결제해도 될까?",
+          "relevant": "approval",
+          "expected_score": 0.8808105380159688,
+          "top": [
+            {
+              "id": "approval",
+              "score": 0.8808105380159688
+            },
+            {
+              "id": "small-purchase",
+              "score": 0.801851354699565
+            },
+            {
+              "id": "meeting",
+              "score": 0.7889393945956331
+            }
+          ]
+        },
+        {
+          "query": "복구가 실제로 되는지 확인하는 절차",
+          "relevant": "backup",
+          "expected_score": 0.8530820375544628,
+          "top": [
+            {
+              "id": "backup",
+              "score": 0.8530820375544628
+            },
+            {
+              "id": "meeting",
+              "score": 0.801539818344983
+            },
+            {
+              "id": "approval",
+              "score": 0.7909308141069419
+            }
+          ]
+        },
+        {
+          "query": "고객 시안 전달 후 생산 시작 조건",
+          "relevant": "meeting",
+          "expected_score": 0.8778136718030422,
+          "top": [
+            {
+              "id": "meeting",
+              "score": 0.8778136718030422
+            },
+            {
+              "id": "approval",
+              "score": 0.8038686895790877
+            },
+            {
+              "id": "small-purchase",
+              "score": 0.7952012328013892
+            }
+          ]
+        },
+        {
+          "query": "어휘와 오답을 반복해서 학습하는 일정",
+          "relevant": "study",
+          "expected_score": 0.8740008008895206,
+          "top": [
+            {
+              "id": "study",
+              "score": 0.8740008008895206
+            },
+            {
+              "id": "meeting",
+              "score": 0.8058393487594846
+            },
+            {
+              "id": "exercise",
+              "score": 0.8035501750371273
+            }
+          ]
+        },
+        {
+          "query": "토성의 고리에서 얼음 입자의 크기는 얼마인가?",
+          "relevant": null,
+          "expected_score": null,
+          "top": [
+            {
+              "id": "exercise",
+              "score": 0.7190326646381177
+            },
+            {
+              "id": "meeting",
+              "score": 0.7156185070370497
+            },
+            {
+              "id": "backup",
+              "score": 0.7075923132207353
+            }
+          ]
+        },
+        {
+          "query": "프랑스 혁명의 발발 연도는 언제인가?",
+          "relevant": null,
+          "expected_score": null,
+          "top": [
+            {
+              "id": "meeting",
+              "score": 0.6641627821101661
+            },
+            {
+              "id": "exercise",
+              "score": 0.6599934940385075
+            },
+            {
+              "id": "small-purchase",
+              "score": 0.6499075305724383
+            }
+          ]
+        },
+        {
+          "query": "피타고라스 정리의 증명을 알려줘",
+          "relevant": null,
+          "expected_score": null,
+          "top": [
+            {
+              "id": "exercise",
+              "score": 0.7669488527855978
+            },
+            {
+              "id": "backup",
+              "score": 0.7647293636733924
+            },
+            {
+              "id": "meeting",
+              "score": 0.7645490090799884
+            }
+          ]
+        },
+        {
+          "query": "스페인 수도의 인구 통계",
+          "relevant": null,
+          "expected_score": null,
+          "top": [
+            {
+              "id": "exercise",
+              "score": 0.731220826766348
+            },
+            {
+              "id": "small-purchase",
+              "score": 0.7091673825638146
+            },
+            {
+              "id": "meeting",
+              "score": 0.7071592572735587
+            }
+          ]
+        },
+        {
+          "query": "고래가 초음파를 내는 원리",
+          "relevant": null,
+          "expected_score": null,
+          "top": [
+            {
+              "id": "approval",
+              "score": 0.7567538521247984
+            },
+            {
+              "id": "meeting",
+              "score": 0.7556012262053884
+            },
+            {
+              "id": "exercise",
+              "score": 0.7540156233974091
+            }
+          ]
+        }
+      ],
+      "fitted": {
+        "minimumRelevant": 0.8112225538900931,
+        "maximumUnrelated": 0.7669488527855978,
+        "separable": true,
+        "threshold": 0.79
+      },
+      "validation": [
+        {
+          "query": "버스에서 읽을 짧은 책을 어떤 형식으로 사지?",
+          "relevant": "ebook",
+          "expected_score": 0.8177435655002115,
+          "top": [
+            {
+              "id": "ebook",
+              "score": 0.8177435655002115
+            },
+            {
+              "id": "long-book",
+              "score": 0.7810876798193679
+            },
+            {
+              "id": "small-purchase",
+              "score": 0.7659136512081822
+            }
+          ]
+        },
+        {
+          "query": "인증 키를 어디에 두고 어떤 곳에는 올리지 말아야 할까?",
+          "relevant": "privacy",
+          "expected_score": 0.8326811035993945,
+          "top": [
+            {
+              "id": "privacy",
+              "score": 0.8326811035993945
+            },
+            {
+              "id": "backup",
+              "score": 0.7711091514878393
+            },
+            {
+              "id": "meeting",
+              "score": 0.7525495247172616
+            }
+          ]
+        },
+        {
+          "query": "오늘 수행한 산책의 결과를 확인해줘",
+          "relevant": "exercise",
+          "expected_score": 0.8429334106974761,
+          "top": [
+            {
+              "id": "exercise",
+              "score": 0.8429334106974761
+            },
+            {
+              "id": "meeting",
+              "score": 0.8022516623761226
+            },
+            {
+              "id": "backup",
+              "score": 0.8007089694978234
+            }
+          ]
+        },
+        {
+          "query": "흙이 젖어 있는 식물에 또 물을 줘도 될까?",
+          "relevant": "garden",
+          "expected_score": 0.8437297867468954,
+          "top": [
+            {
+              "id": "garden",
+              "score": 0.8437297867468954
+            },
+            {
+              "id": "exercise",
+              "score": 0.7629254409479835
+            },
+            {
+              "id": "ebook",
+              "score": 0.7420620881975873
+            }
+          ]
+        },
+        {
+          "query": "사무실 종이와 필기구에 지출한 내역",
+          "relevant": "small-purchase",
+          "expected_score": 0.8724024222142395,
+          "top": [
+            {
+              "id": "small-purchase",
+              "score": 0.8724024222142395
+            },
+            {
+              "id": "meeting",
+              "score": 0.8025122559513616
+            },
+            {
+              "id": "approval",
+              "score": 0.7959057743666492
+            }
+          ]
+        },
+        {
+          "query": "해왕성의 대기 성분과 공전 주기",
+          "relevant": null,
+          "expected_score": null,
+          "top": [
+            {
+              "id": "exercise",
+              "score": 0.7753023651107918
+            },
+            {
+              "id": "garden",
+              "score": 0.7687135491772104
+            },
+            {
+              "id": "meeting",
+              "score": 0.7623327973363248
+            }
+          ]
+        },
+        {
+          "query": "삼각함수의 덧셈 공식 유도",
+          "relevant": null,
+          "expected_score": null,
+          "top": [
+            {
+              "id": "privacy",
+              "score": 0.771145067845415
+            },
+            {
+              "id": "exercise",
+              "score": 0.7622416097971152
+            },
+            {
+              "id": "meeting",
+              "score": 0.7591718817534046
+            }
+          ]
+        },
+        {
+          "query": "고대 이집트 피라미드의 건축 연대",
+          "relevant": null,
+          "expected_score": null,
+          "top": [
+            {
+              "id": "meeting",
+              "score": 0.7603951566058096
+            },
+            {
+              "id": "exercise",
+              "score": 0.7306719865025385
+            },
+            {
+              "id": "garden",
+              "score": 0.7261194703070951
+            }
+          ]
+        },
+        {
+          "query": "남극 펭귄의 번식 생태",
+          "relevant": null,
+          "expected_score": null,
+          "top": [
+            {
+              "id": "garden",
+              "score": 0.7701998882264012
+            },
+            {
+              "id": "exercise",
+              "score": 0.7674523619012618
+            },
+            {
+              "id": "meeting",
+              "score": 0.7571475915325041
+            }
+          ]
+        },
+        {
+          "query": "인도네시아 화산의 지질학적 형성 원리",
+          "relevant": null,
+          "expected_score": null,
+          "top": [
+            {
+              "id": "exercise",
+              "score": 0.7423921905124452
+            },
+            {
+              "id": "meeting",
+              "score": 0.7408049359372194
+            },
+            {
+              "id": "garden",
+              "score": 0.7403578960356496
+            }
+          ]
+        }
+      ],
+      "validationPassed": true,
+      "body_only": [
+        {
+          "query": "오로라-731",
+          "relevant": "long-book",
+          "expected_score": 0.7058876116674102,
+          "top": [
+            {
+              "id": "meeting",
+              "score": 0.7350154342927914
+            },
+            {
+              "id": "exercise",
+              "score": 0.7297556687377661
+            },
+            {
+              "id": "approval",
+              "score": 0.7242052130317304
+            }
+          ],
+          "keyword_hit": true,
+          "semantic_hit": false
+        },
+        {
+          "query": "가람-928",
+          "relevant": "ebook",
+          "expected_score": 0.7305806232012969,
+          "top": [
+            {
+              "id": "exercise",
+              "score": 0.7609616776225554
+            },
+            {
+              "id": "meeting",
+              "score": 0.7508333744978012
+            },
+            {
+              "id": "privacy",
+              "score": 0.7438324373326666
+            }
+          ],
+          "keyword_hit": true,
+          "semantic_hit": false
+        },
+        {
+          "query": "다온-642",
+          "relevant": "approval",
+          "expected_score": 0.7392564473064827,
+          "top": [
+            {
+              "id": "meeting",
+              "score": 0.7438418353403301
+            },
+            {
+              "id": "approval",
+              "score": 0.7392564473064827
+            },
+            {
+              "id": "small-purchase",
+              "score": 0.7382391510102833
+            }
+          ],
+          "keyword_hit": true,
+          "semantic_hit": false
+        }
+      ],
+      "boundaries": [
+        {
+          "name": "korean",
+          "code_points": 401,
+          "utf8_bytes": 1201,
+          "accepted": true,
+          "tokens": 353
+        },
+        {
+          "name": "emoji",
+          "code_points": 401,
+          "utf8_bytes": 1481,
+          "accepted": true,
+          "tokens": 406
+        },
+        {
+          "name": "combining",
+          "code_points": 401,
+          "utf8_bytes": 961,
+          "accepted": true,
+          "tokens": 324
+        },
+        {
+          "name": "unspaced",
+          "code_points": 401,
+          "utf8_bytes": 401,
+          "accepted": true,
+          "tokens": 204
+        },
+        {
+          "name": "query-200",
+          "code_points": 200,
+          "utf8_bytes": 520,
+          "accepted": true,
+          "tokens": 164
+        }
+      ],
+      "overflowRejected": true,
+      "calls": 9,
+      "total_tokens": 2210,
+      "acceptable": true
+    }
+  ],
+  "fixtures_sha256": "c38314f47616654cd2dc9c3da900ef4c2b12efb02549b7323f8890154020d4f4"
+}
