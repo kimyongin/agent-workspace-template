@@ -1,0 +1,8 @@
+{
+  "name": "workspace-template",
+  "description": "Workspace 제품 플러그인의 저장소 배포 목록",
+  "owner": { "name": "Workspace" },
+  "plugins": [
+    { "name": "workspace", "source": "./plugins/workspace" }
+  ]
+}
