@@ -49,6 +49,11 @@ httpTest("검색: HTTP/MCP 본문 키워드·원문 최소 응답·대체 상태
 });
 
 const EXPECTED_TOOLS = [
+  "create_entity",
+  "delete_entity",
+  "get_entity",
+  "list_entities",
+  "update_entity",
   "complete_task",
   "create_principle",
   "create_record",
@@ -75,7 +80,7 @@ const EXPECTED_TOOLS = [
   "update_principle",
   "update_record",
   "update_task",
-];
+].sort();
 
 httpTest("적용 원칙: 완료·회차·직접 작성의 HTTP/MCP 동등성과 잘못된 참조 롤백", async () => {
   const p = await tool(mcpA, "create_principle", { title: "실행 기준", summary: "판단 근거" });

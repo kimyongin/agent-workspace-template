@@ -10,12 +10,13 @@ import { api, ApiError, query } from "../../lib/api.ts";
 import { formatDateTime } from "../../lib/format.ts";
 import { RecordFormModal, recordDraftFrom } from "./forms.tsx";
 import {TagNames} from "../tags/TagPicker.tsx";
+import {EntityLink} from "../entity/EntityPicker.tsx";
 import {useSearchReturn} from "../search/return.ts";
 
 export function RecordDetailPage() {
   const { id = "" } = useParams();
   const [params] = useSearchParams();
-  const back=useSearchReturn(`/records${query({tag_id:params.get("tag_id")??""})}`,"← 기록 목록");
+  const back=useSearchReturn(`/records${query({tag_id:params.get("tag_id")??"",entity_id:params.get("entity_id")??""})}`,"← 기록 목록");
   const listPath = back.path;
   const navigate = useNavigate();
   const [record, setRecord] = useState<RecordResult | null>(null);
@@ -62,6 +63,7 @@ export function RecordDetailPage() {
       {message && <Notice kind="success">{message}</Notice>}
       {error && <Notice kind="error">{error}</Notice>}
       <TagNames ids={record.tag_ids}/>
+      <EntityLink id={record.entity_id}/>
       <dl className="props">
         <div>
           <dt>{recordLabels.occurred_at}</dt>

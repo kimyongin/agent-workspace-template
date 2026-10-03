@@ -8,11 +8,13 @@ import { formatDateTime } from "../../lib/format.ts";
 import { emptyRecord, RecordFormModal } from "./forms.tsx";
 import { useRequestId } from "./shared.tsx";
 import {TagFilter} from "../tags/TagPicker.tsx";
+import {EntityPicker} from "../entity/EntityPicker.tsx";
 
 type Page = { items: RecordResult[]; next_cursor: string | null };
 
 export function RecordsPage() {
   const [params,setParams]=useSearchParams();const tag_id=params.get("tag_id")??"";
+  const entity_id=params.get("entity_id")??"";
   const generation=useRef(0);
   const [items, setItems] = useState<RecordResult[] | null>(null);
   const [cursor, setCursor] = useState<string | null>(null);
@@ -24,7 +26,7 @@ export function RecordsPage() {
 
   useEffect(() => {
     let alive=true;generation.current++;setItems(null);setError(null);setCursor(null);setLoadingMore(false);
-    api<Page>("GET", `/records${query({ limit: 20,tag_id })}`)
+    api<Page>("GET", `/records${query({ limit: 20,tag_id,entity_id })}`)
       .then((p) => {
         if(!alive)return;
         setItems(p.items);
@@ -32,14 +34,14 @@ export function RecordsPage() {
       })
       .catch(() => {if(alive)setError("기록을 불러오지 못했습니다.");});
     return()=>{alive=false;generation.current++;};
-  }, [tag_id]);
+  }, [tag_id,entity_id]);
 
   const more = async () => {
     if (!cursor) return;
     const started=generation.current;
     setLoadingMore(true);
     try {
-      const p = await api<Page>("GET", `/records${query({ limit: 20, cursor,tag_id })}`);
+      const p = await api<Page>("GET", `/records${query({ limit: 20, cursor,tag_id,entity_id })}`);
       if(started!==generation.current)return;
       setItems((prev) => [...(prev ?? []), ...p.items]);
       setCursor(p.next_cursor);
@@ -57,7 +59,8 @@ export function RecordsPage() {
         <button type="button" className="btn btn-primary" onClick={() => setCreating(true)}>기록 작성</button>
       </div>
       {error && <Notice kind="error">{error}</Notice>}
-      <TagFilter value={tag_id} onChange={id=>setParams(id?{tag_id:id}:{})}/>
+      <TagFilter value={tag_id} onChange={id=>{const next=new URLSearchParams(params);if(id)next.set("tag_id",id);else next.delete("tag_id");setParams(next);}}/>
+      <EntityPicker label="엔터티 필터" value={entity_id} onChange={id=>{const next=new URLSearchParams(params);if(id)next.set("entity_id",id);else next.delete("entity_id");setParams(next);}}/>
       {items === null && !error && <p className="secondary" role="status">불러오는 중…</p>}
       {items?.length === 0 && (
         <p className="secondary" style={{ margin: 0 }}>아직 기록이 없습니다. 수행한 일과 결과를 기록하세요.</p>
@@ -67,7 +70,7 @@ export function RecordsPage() {
           {items.map((r) => (
             <li key={r.id} className="list-item">
               <div className="list-item-main">
-                <Link className="item-title" to={`/records/${r.id}${query({tag_id})}`}>{r.title}</Link>
+                <Link className="item-title" to={`/records/${r.id}${query({tag_id,entity_id})}`}>{r.title}</Link>
                 <span className="secondary">{r.summary}</span>
                 <span className="meta">
                   {formatDateTime(r.occurred_at)}

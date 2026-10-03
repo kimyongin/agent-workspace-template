@@ -15,6 +15,7 @@ import type { Actor } from "../../core/shared/actor.ts";
 import { runAsActor, SqlActorStore } from "./sql-context.ts";
 import { AppError } from "../../core/shared/errors.ts";
 import { hasTag, setTagLinks, tagIdsColumn } from "./tag-links.ts";
+import { requireEntity } from "./entity-reference.ts";
 
 type Tx = postgres.TransactionSql;
 type Row = Record<string, unknown>;
@@ -23,6 +24,7 @@ const iso = (v: unknown) => (v instanceof Date ? v.toISOString() : v === null ? 
 
 function toTask(r: Row): Task {
   return {
+    entity_id: (r.entity_id as string | null) ?? null,
     id: r.id as string,
     kind: r.kind as Task["kind"],
     title: r.title as string,
@@ -44,6 +46,7 @@ function toTask(r: Row): Task {
 
 function toRecord(r: Row): ActivityRecord {
   return {
+    entity_id: (r.entity_id as string | null) ?? null,
     tag_ids: (r.tag_ids as string[]) ?? [],
     id: r.id as string,
     title: r.title as string,
@@ -65,11 +68,11 @@ function toRecord(r: Row): ActivityRecord {
 
 // 날짜 컬럼은 문자열(YYYY-MM-DD)로 받는다.
 const taskColumns = (tx: Tx) =>
-  tx`id, kind, title, summary, body, due_on::text as due_on, recurrence, timezone, status, completed_at,
+  tx`id, entity_id, kind, title, summary, body, due_on::text as due_on, recurrence, timezone, status, completed_at,
      result_record_id, pauses, version, created_at, updated_at,
      ${tagIdsColumn(tx, "task")}`;
 const recordColumns = (tx: Tx) =>
-  tx`id, title, summary, body, occurred_at, task_id, occurrence_on::text as occurrence_on, version, created_at, updated_at,
+  tx`id, entity_id, title, summary, body, occurred_at, task_id, occurrence_on::text as occurrence_on, version, created_at, updated_at,
     ${tagIdsColumn(tx, "record")},
     coalesce((select jsonb_agg(p.id order by p.id) from app.record_principles rp join app.principles p on p.id=rp.principle_id
       where rp.record_id=app.records.id), '[]'::jsonb) as applied_principle_ids,
@@ -78,6 +81,7 @@ const recordColumns = (tx: Tx) =>
 
 /** 수정 가능한 컬럼의 허용 목록. 이 밖의 키는 SQL로 가지 않는다. */
 const TASK_WRITABLE = [
+  "entity_id",
   "title",
   "summary",
   "body",
@@ -89,7 +93,7 @@ const TASK_WRITABLE = [
   "result_record_id",
   "pauses",
 ] as const;
-const RECORD_WRITABLE = ["title", "summary", "body", "occurred_at"] as const;
+const RECORD_WRITABLE = ["title", "summary", "body", "occurred_at", "entity_id"] as const;
 
 function pick<T extends Record<string, unknown>>(tx: Tx, values: T, allowed: readonly string[]) {
   const out: Record<string, unknown> = {};
@@ -115,6 +119,7 @@ class SqlActivityStore extends SqlActorStore implements ActivityStore {
       select ${taskColumns(tx)} from app.tasks
       where true
         ${f.kind ? tx`and kind = ${f.kind}` : tx``}
+        ${f.entity_id ? tx`and entity_id = ${f.entity_id}` : tx``}
         ${f.status ? tx`and status = ${f.status}` : tx``}
         ${f.tag_id ? tx`and ${hasTag(tx, "task", f.tag_id)}` : tx``}
         ${f.due_from ? tx`and due_on >= ${f.due_from}` : tx``}
@@ -127,6 +132,7 @@ class SqlActivityStore extends SqlActorStore implements ActivityStore {
 
   async insertTask(task: NewTask) {
     const tx = this.tx;
+    await requireEntity(tx, task.entity_id);
     const values = { owner_id: this.actor.userId, kind: task.kind, ...pick(tx, task, TASK_WRITABLE) };
     const [row] = await tx`insert into app.tasks ${tx(values)} returning id`;
     await this.setTaskTags(row.id as string, task.tag_ids);
@@ -139,6 +145,7 @@ class SqlActivityStore extends SqlActorStore implements ActivityStore {
 
   async updateTask(id: string, changes: Partial<Task>) {
     const tx = this.tx;
+    await requireEntity(tx, changes.entity_id);
     const values = pick(tx, changes, TASK_WRITABLE);
     if (changes.tag_ids !== undefined) await this.setTaskTags(id, changes.tag_ids);
     if (Object.keys(values).length === 0 && changes.tag_ids === undefined) {
@@ -177,6 +184,7 @@ class SqlActivityStore extends SqlActorStore implements ActivityStore {
       select ${recordColumns(tx)} from app.records
       where true
         ${f.task_id ? tx`and task_id = ${f.task_id}` : tx``}
+        ${f.entity_id ? tx`and entity_id = ${f.entity_id}` : tx``}
         ${f.tag_id ? tx`and ${hasTag(tx, "record", f.tag_id)}` : tx``}
         ${f.occurred_from ? tx`and occurred_at >= ${f.occurred_from}::timestamptz` : tx``}
         ${f.occurred_to ? tx`and occurred_at <= ${f.occurred_to}::timestamptz` : tx``}
@@ -209,8 +217,10 @@ class SqlActivityStore extends SqlActorStore implements ActivityStore {
 
   async insertRecord(record: NewRecord) {
     const tx = this.tx;
+    await requireEntity(tx, record.entity_id);
     const values: Record<string, unknown> = {
       owner_id: this.actor.userId,
+      entity_id: record.entity_id ?? null,
       title: record.title,
       summary: record.summary,
       body: record.body,
@@ -226,6 +236,7 @@ class SqlActivityStore extends SqlActorStore implements ActivityStore {
 
   async updateRecord(id: string, changes: RecordChanges) {
     const tx = this.tx;
+    await requireEntity(tx, changes.entity_id);
     const values = pick(tx, changes, RECORD_WRITABLE);
     if (changes.applied_principle_ids !== undefined) await this.setPrinciples(id, changes.applied_principle_ids);
     if (changes.tag_ids !== undefined) await setTagLinks(tx, this.actor, "record", id, changes.tag_ids);

@@ -1,6 +1,7 @@
 // 할 일·기록 작성/편집 폼. 검증은 서버와 같은 contracts로 하고, 저장 실패 시 초안을 유지한다.
 import { PrinciplePicker } from "../principles/PrinciplePicker.tsx";
 import { TagPicker } from "../tags/TagPicker.tsx";
+import { EntityPicker } from "../entity/EntityPicker.tsx";
 import { recordCreate, recordLabels } from "@contracts/record.ts";
 import { type Recurrence, taskCreate, taskLabels } from "@contracts/task.ts";
 import { type ReactNode, useState } from "react";
@@ -13,6 +14,7 @@ const WEEKDAYS = ["월", "화", "수", "목", "금", "토", "일"];
 // ---------- 기록 폼(직접 작성·완료 결과·회차 기록·편집) ----------
 
 export interface RecordDraft extends TextDraft {
+  entity_id?:string|null;
   tag_ids:string[];
   occurred_at: string; // datetime-local
   applied_principle_ids: string[];
@@ -20,8 +22,8 @@ export interface RecordDraft extends TextDraft {
 
 export const emptyRecord = (): RecordDraft => ({ title: "", summary: "", body: "", occurred_at: "", applied_principle_ids: [],tag_ids:[] });
 
-export function recordDraftFrom(r: { title: string; summary: string; body: string; occurred_at: string; applied_principle_ids?: string[];tag_ids?:string[] }): RecordDraft {
-  return { title: r.title, summary: r.summary, body: r.body, occurred_at: toLocalInput(r.occurred_at), applied_principle_ids:r.applied_principle_ids??[],tag_ids:r.tag_ids??[] };
+export function recordDraftFrom(r: { title: string; summary: string; body: string; occurred_at: string; applied_principle_ids?: string[];tag_ids?:string[];entity_id?:string|null }): RecordDraft {
+  return { title: r.title, summary: r.summary, body: r.body, occurred_at: toLocalInput(r.occurred_at), applied_principle_ids:r.applied_principle_ids??[],tag_ids:r.tag_ids??[],entity_id:r.entity_id??null };
 }
 
 export function RecordFormModal(props: {
@@ -30,8 +32,9 @@ export function RecordFormModal(props: {
   open: boolean;
   initial: RecordDraft;
   intro?: ReactNode;
+  entityEditable?:boolean;
   onClose: () => void;
-  onSave: (value: { title: string; summary: string; body: string; occurred_at?: string; applied_principle_ids:string[];tag_ids?:string[] }) => Promise<void>;
+  onSave: (value: { title: string; summary: string; body: string; occurred_at?: string; applied_principle_ids:string[];tag_ids?:string[];entity_id?:string|null }) => Promise<void>;
 }) {
   const [draft, setDraft] = useState(props.initial);
   const dirty = JSON.stringify(draft) !== JSON.stringify(props.initial);
@@ -42,6 +45,7 @@ export function RecordFormModal(props: {
     occurred_at: fromLocalInput(draft.occurred_at),
     applied_principle_ids:draft.applied_principle_ids,
     tag_ids:draft.tag_ids,
+    ...(props.entityEditable===false?{}:{entity_id:draft.entity_id}),
   });
   return (
     <FormModal
@@ -62,6 +66,7 @@ export function RecordFormModal(props: {
           <TextFields draft={draft} set={(d) => setDraft((prev) => ({ ...prev, ...d }))} errors={errors} />
           <PrinciplePicker value={draft.applied_principle_ids} error={errors.applied_principle_ids} onChange={ids=>setDraft(d=>({...d,applied_principle_ids:ids}))}/>
           <TagPicker value={draft.tag_ids} error={errors.tag_ids} onChange={tag_ids=>setDraft(d=>({...d,tag_ids}))}/>
+          {props.entityEditable!==false&&<EntityPicker value={draft.entity_id} error={errors.entity_id} onChange={entity_id=>setDraft(d=>({...d,entity_id}))}/>}
           <Field label={recordLabels.occurred_at} error={errors.occurred_at} help="비우면 저장한 시각">
             {(p) => (
               <input
@@ -82,6 +87,7 @@ export function RecordFormModal(props: {
 // ---------- 할 일 폼(작성·편집) ----------
 
 export interface TaskDraft extends TextDraft {
+  entity_id?:string|null;
   tag_ids: string[];
   kind: "once" | "recurring";
   due_on: string;
@@ -110,6 +116,7 @@ export function emptyTask(): TaskDraft {
 }
 
 export function taskDraftFrom(t: {
+  entity_id?:string|null;
   tag_ids:string[];
   kind: "once" | "recurring";
   title: string;
@@ -123,6 +130,7 @@ export function taskDraftFrom(t: {
   const r = t.recurrence;
   return {
     ...base,
+    entity_id:t.entity_id??null,
     kind: t.kind,
     tag_ids:t.tag_ids,
     title: t.title,
@@ -148,7 +156,7 @@ function recurrenceOf(d: TaskDraft): unknown {
 
 /** 생성 입력(contracts의 taskCreate 모양). */
 export function taskInput(d: TaskDraft): Record<string, unknown> {
-  const text = { title: d.title, summary: d.summary, body: d.body, tag_ids:d.tag_ids };
+  const text = { title: d.title, summary: d.summary, body: d.body, tag_ids:d.tag_ids,entity_id:d.entity_id };
   return d.kind === "once"
     ? { kind: "once", ...text, ...(d.due_on ? { due_on: d.due_on } : {}) }
     : { kind: "recurring", ...text, recurrence: recurrenceOf(d), timezone: d.timezone };
@@ -204,6 +212,7 @@ export function TaskFormModal(props: {
             </fieldset>
           )}
           <TextFields draft={draft} set={set} errors={errors} />
+          <EntityPicker value={draft.entity_id} error={errors.entity_id} onChange={entity_id=>set({entity_id})}/>
           {draft.kind === "once"
             ? (
               <Field label={taskLabels.due_on} error={errors.due_on} help="알림은 없습니다">

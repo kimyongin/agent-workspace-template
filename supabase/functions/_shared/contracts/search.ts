@@ -9,6 +9,7 @@ export const searchInput = z.strictObject({
     "principle",
   ]),
   tag_id: id.optional(),
+  entity_id: id.optional(),
   from: isoDateTime.optional(),
   to: isoDateTime.optional(),
   status: z.enum(["active", "inactive", "all"]).default("active"),

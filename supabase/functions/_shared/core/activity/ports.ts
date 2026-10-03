@@ -4,6 +4,7 @@ import type { IndexJob } from "../shared/store.ts";
 import type { NewTask, Task } from "./domain.ts";
 
 export interface ActivityRecord {
+  entity_id?: string | null;
   tag_ids: string[];
   id: string;
   title: string;
@@ -26,6 +27,7 @@ export interface ActivityRecord {
 }
 
 export interface NewRecord {
+  entity_id?: string | null;
   tag_ids?: string[];
   applied_principle_ids?: string[];
   title: string;
@@ -37,7 +39,7 @@ export interface NewRecord {
 }
 
 export type RecordChanges = Partial<
-  Pick<ActivityRecord, "title" | "summary" | "body" | "occurred_at" | "applied_principle_ids" | "tag_ids">
+  Pick<ActivityRecord, "title" | "summary" | "body" | "occurred_at" | "applied_principle_ids" | "tag_ids" | "entity_id">
 >;
 
 /** 목록의 다음 위치(정렬 키 + id). */
@@ -47,6 +49,7 @@ export interface Keyset {
 }
 
 export interface TaskFilter {
+  entity_id?: string;
   tag_id?: string;
   kind?: "once" | "recurring";
   status?: Task["status"];
@@ -57,6 +60,7 @@ export interface TaskFilter {
 }
 
 export interface RecordFilter {
+  entity_id?: string;
   tag_id?: string;
   occurred_from?: string;
   occurred_to?: string;

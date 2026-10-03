@@ -36,11 +36,11 @@ export interface ActivityDeps {
 export type { Page } from "../shared/operations.ts";
 
 function toTaskResult(task: Task): TaskResult {
-  return { ...task };
+  return { ...task, entity_id: task.entity_id ?? null };
 }
 
 function toRecordResult(record: ActivityRecord): RecordResult {
-  return { ...record };
+  return { ...record, entity_id: record.entity_id ?? null };
 }
 
 async function requireTask(store: ActivityStore, id: string, forUpdate = false): Promise<Task> {
@@ -94,6 +94,7 @@ export async function listTasks(deps: ActivityDeps, actor: Actor, query: TaskLis
       kind: "recurring",
       status: filter.status,
       tag_id: filter.tag_id,
+      entity_id: filter.entity_id,
       limit: 5000,
     });
     const items: TaskListItem[] = [];
@@ -142,6 +143,7 @@ export async function completeTask(
       const task = await requireTask(store, id, true);
       const decided = decideComplete(task, input.expected_version, now);
       const record = await store.insertRecord({
+        entity_id: task.entity_id ?? null,
         title: input.title,
         summary: input.summary,
         body: input.body,
@@ -213,6 +215,7 @@ export async function recordOccurrence(
         const task = await requireTask(store, id, true);
         assertRecordableOccurrence(task, date, deps.clock.now());
         const record = await store.insertRecord({
+          entity_id: input.entity_id === undefined ? task.entity_id ?? null : input.entity_id,
           title: input.title,
           summary: input.summary,
           body: input.body,
@@ -234,6 +237,7 @@ export async function createRecord(deps: ActivityDeps, actor: Actor, input: Reco
   return await deps.uow.run(actor, (store) =>
     once(store, "create_record", input.request_id, input, async () => {
       const record = await store.insertRecord({
+        entity_id: input.entity_id ?? null,
         title: input.title,
         summary: input.summary,
         body: input.body,

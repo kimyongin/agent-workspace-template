@@ -12,6 +12,8 @@ import type { TagDeps } from "../../core/tags/application.ts";
 import { tagTools } from "./tag-tools.ts";
 import type { SearchDeps } from "../../core/search/application.ts";
 import { searchTools } from "./search-tools.ts";
+import type { EntityDeps } from "../../core/entity/application.ts";
+import { entityTools } from "./entity-tools.ts";
 
 export interface McpConfig {
   /** MCP 서버의 정식 URL. 토큰 audience이자 보호 자원 식별자. */
@@ -33,8 +35,15 @@ export function createMcpApp(
   principles: PrincipleDeps,
   tags: TagDeps,
   search: SearchDeps,
+  entities?: EntityDeps,
 ) {
-  const tools = [...activityTools(deps), ...principleTools(principles), ...tagTools(tags), ...searchTools(search)];
+  const tools = [
+    ...activityTools(deps),
+    ...principleTools(principles),
+    ...tagTools(tags),
+    ...searchTools(search),
+    ...(entities ? entityTools(entities) : []),
+  ];
   const handler = async (req: Request): Promise<Response> => {
     let actor;
     try {

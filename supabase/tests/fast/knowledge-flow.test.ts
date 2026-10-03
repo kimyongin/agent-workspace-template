@@ -102,6 +102,7 @@ function fixture() {
     insert: (input) => {
       const p: PrincipleResult = {
         ...input,
+        entity_id: input.entity_id ?? null,
         id: crypto.randomUUID(),
         tag_ids: input.tag_ids ?? [],
         status: "active",

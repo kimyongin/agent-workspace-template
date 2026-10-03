@@ -12,6 +12,8 @@ import { PrincipleDetailPage } from "../features/principles/PrincipleDetailPage.
 import { TagsPage } from "../features/tags/TagsPage.tsx";
 import { SearchPage } from "../features/search/SearchPage.tsx";
 import { supabase } from "../lib/supabase.ts";
+import { EntitiesPage } from "../features/entity/EntitiesPage.tsx";
+import { EntityDetailPage } from "../features/entity/EntityDetailPage.tsx";
 
 export const APP_NAME = "Workspace";
 
@@ -29,6 +31,7 @@ function Layout() {
               <NavLink to="/principles">원칙</NavLink>
               <NavLink to="/tags">태그</NavLink>
               <NavLink to="/search">검색</NavLink>
+              <NavLink to="/entities">엔터티</NavLink>
             </nav>
             <button type="button" className="btn btn-text" onClick={() => supabase.auth.signOut()}>로그아웃</button>
           </>
@@ -61,6 +64,8 @@ export function App() {
             <Route path="principles/:id" element={guarded(<PrincipleDetailPage />)} />
             <Route path="tags" element={guarded(<TagsPage />)} />
             <Route path="search" element={guarded(<SearchPage />)} />
+            <Route path="entities" element={guarded(<EntitiesPage />)} />
+            <Route path="entities/:id" element={guarded(<EntityDetailPage />)} />
             <Route path="*" element={<p className="secondary">페이지를 찾을 수 없습니다.</p>} />
           </Route>
         </Routes>

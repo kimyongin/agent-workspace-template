@@ -8,12 +8,15 @@ export interface PrincipleStore extends RequestStore {
   update(
     id: string,
     changes: Partial<
-      Pick<PrincipleResult, "title" | "summary" | "body" | "applies_when" | "status" | "replaced_by_id" | "tag_ids">
+      Pick<
+        PrincipleResult,
+        "title" | "summary" | "body" | "applies_when" | "status" | "replaced_by_id" | "tag_ids" | "entity_id"
+      >
     >,
   ): Promise<PrincipleResult>;
   delete(id: string): Promise<void>;
   list(
-    filter: { status: "active" | "inactive"; tag_id?: string; limit: number; after?: Keyset },
+    filter: { status: "active" | "inactive"; tag_id?: string; entity_id?: string; limit: number; after?: Keyset },
   ): Promise<PrincipleResult[]>;
   enqueueIndex(job: IndexJob): Promise<void>;
 }

@@ -9,6 +9,7 @@ export type TaskKind = "once" | "recurring";
 export type TaskStatus = "open" | "done" | "active" | "stopped";
 
 export interface Task {
+  entity_id?: string | null;
   id: string;
   kind: TaskKind;
   title: string;
@@ -29,11 +30,22 @@ export interface Task {
 
 export type NewTask = Pick<
   Task,
-  "kind" | "title" | "summary" | "body" | "due_on" | "recurrence" | "timezone" | "status" | "pauses" | "tag_ids"
+  | "kind"
+  | "title"
+  | "summary"
+  | "body"
+  | "due_on"
+  | "recurrence"
+  | "timezone"
+  | "status"
+  | "pauses"
+  | "tag_ids"
+  | "entity_id"
 >;
 
 export function newTask(input: TaskCreate): NewTask {
   const common = {
+    entity_id: input.entity_id ?? null,
     title: input.title,
     summary: input.summary,
     body: input.body,
@@ -60,7 +72,7 @@ export function assertVersion(current: { version: number }, expected: number): v
 }
 
 export type TaskChanges = Partial<
-  Pick<Task, "title" | "summary" | "body" | "due_on" | "recurrence" | "timezone" | "tag_ids">
+  Pick<Task, "title" | "summary" | "body" | "due_on" | "recurrence" | "timezone" | "tag_ids" | "entity_id">
 >;
 
 /** 내용 필드만 바꾼다. 완료된 할 일도 수정할 수 있다. 종류에 맞지 않는 필드는 거부한다. */
