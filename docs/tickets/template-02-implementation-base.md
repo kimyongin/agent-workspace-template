@@ -1,9 +1,9 @@
 # Template-02 — 도메인 교체로 시작하는 구현형 템플릿
 
 작성: 2026-10-01
-상태: T02-1 완료(실험 일부 미완료), T02-2 구현·로컬 검증·첫 운영 배포 완료, T02-3 서버·웹 기능 머지 완료(제품 스킬 실클라이언트 평가 남음), T02-4 보류
+상태: T02-1 완료(실험 일부 미확인), T02-2 첫 운영 배포 완료, T02-3/4 승인 범위 구현·검증·기존 운영 적용 완료(실사용/색인 미확인·Cron 보류), T02-5/6 사용자 제외
 검토 기준: `7afef78014a92cc955b9001ec6d2e61b0fe1a6ab`
-다음 작업: 사용자 지시의 1~3번은 PR #63까지 머지해 완료했다. 4번(T02-4)은 재개 요청 전까지 진행하지 않는다. T02-2의 잔여 화면·동의 흐름 검증과 T02-1의 [미완료 실험](template-02-t02-1-contracts.md#남은-실험-미완료)은 해당 후속 단계에서 수행. T02-3 변경의 운영 배포는 미수행
+다음 작업: [Template-10-06](template-10-06-existing-release.md)의 최종 기록 PR 독립 리뷰·CI·머지. 운영 본인 세션·실클라이언트 업무·소량 색인 성공은 미확인으로 유지하고 Cron은 보류한다. T02-5/6은 진행하지 않는다. 각 과거 snapshot은 당시 이력으로 보존한다.
 
 ## 목표와 기준 문서
 
@@ -15,7 +15,9 @@ T02-4는 PRD의 중립적인 기본 앱을 구현하고, T02-5는 별도 복사�
 
 ## 현재 상태와 기존 티켓 관계
 
-현재 저장소에는 실행 코드·DB migration·CI와 웹/HTTP/MCP의 할 일·기록 기능이 있다. 첫 운영 배포까지 마쳤으며 상세 증거는 아래 완료 기록을 따른다. 설치 가능한 플러그인 패키징·실클라이언트 검증은 T02-4에서 수행한다. [제품 스킬](../../plugins/workspace/skills/workspace/SKILL.md)의 도구 안내도 후속 기능과 함께 갱신한다.
+현재 완료 연결: [Template-10](template-10-priority-completion.md)의 PR #74·75·76·78과 [Entity PR #77 완료](https://github.com/kimyongin/agent-workspace-template/pull/77#issuecomment-5973772100)를 따른다. Entity exact `03df8bc`의 독립 승인·격리 E2E 4/통합 18 PASS·[CI 성공](https://github.com/kimyongin/agent-workspace-template/actions/runs/37155546745) 후 merge `24d1251`은 메인이 인계한 증거다. 활동·제품 행동 후속도 PR #79·81·80으로 완료했고 기존 운영은1730dc로 적용했다. 실제 사용자/색인 성공·Cron 활성화는 미확인/보류이며 아래 당시 이력은 보존한다.
+
+현재 저장소에는 할 일·기록·원칙·태그·검색·Entity의 웹/HTTP/MCP·migration·검사가 있다. 승인된 T02-4 구현·패키징과 가능한 로컬 CLI 행동은 PR #77·79·81·80까지 완료했고, 최종1730dc의 DB·함수·Pages·ZIP 운영 적용 결과와 미확인은 [Template-10-06](template-10-06-existing-release.md)에 있다. [제품 스킬](../../plugins/workspace/skills/workspace/SKILL.md)의 도구 안내도 후속 기능과 함께 갱신한다.
 
 이 티켓은 전체 구현 순서와 템플릿 완성 기준을 소유한다. [Template-01](template-01-task-record-search.md)의 S1a는 T02-2, S1b는 T02-3에서 이어서 구현한다. 기존 상세 계약·실패 경로·검증 조건은 유지하되 중복된 새 구현을 만들지 않는다. Template-01의 후속 항목인 사용자 원칙은 T02-3에 포함한다. 그 티켓의 운영 출시 게이트는 T02-6에서 완료하며 첫 기능 착수의 선행 조건으로 취급하지 않는다.
 

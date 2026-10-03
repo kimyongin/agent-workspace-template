@@ -369,5 +369,5 @@ ADR-0003의 대안(SQL 함수를 사용자 JWT로 호출)은 필요하지 않다
 | --- | --- | --- |
 | 호스팅 환경: 경로 삽입형 metadata, Supavisor 실서버, Edge 배포 | 이 세션의 권한 정책이 호스팅 프로젝트 생성을 막음. 2026-10-03 사용자 결정으로 별도 격리 프로젝트 없이 운영 프로젝트 `workspace-template`을 만들고, 이 항목은 실험이 아닌 운영 배포 뒤 동작 확인으로 바꿈 | 2026-10-03 첫 운영 배포에서 확인: 경로 삽입형 metadata 200, Supavisor 트랜잭션 풀러 경유 API 200, Edge 배포 후 `api`·`mcp` 정상([Template-02 이력](template-02-implementation-base.md#이력)) |
 | claude.ai 웹·모바일 커넥터의 OAuth·도구 호출 | 공개 HTTPS 주소의 호스팅 프로젝트 필요 | T02-4(Claude 표면별 검증) |
-| Codex의 실제 대화에서 도구 호출 | 사용자 Codex 계정의 대화 실행 필요(인증은 성공) | T02-4 |
+| Codex의 실제 대화에서 도구 호출 | 사용자 Codex 계정의 대화 실행 필요(인증은 성공) | [Template-10-07](template-10-07-plugin-behavior.md) PR #80: local8c94 실제 CLI LLM 업무·단일저장/재조회/정리 및 Codex72d4 native 인증/발견 확인. native 저장 인증을 LLM 업무가 사용했다는 증거와 prod 실제 계정 성공은 구분; claude.ai 웹/mobile 미확인 유지 |
 | 실험 3 임베딩 품질 | 2026-10-03 전용 키 발급 후 평가 완료 | [T02-3 임베딩 실험](../../experiments/t02-3-embedding/README.md): 모델·차원·입력 예산·초기 임계값 확인. 새 도메인의 품질은 별도 재평가 |

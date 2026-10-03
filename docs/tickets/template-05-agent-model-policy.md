@@ -1,11 +1,11 @@
 # Template-05 — 개발·리뷰 세션 모델 선택과 갱신
 
 작성: 2026-10-03
-상태: 완료(일부 미완료)
+상태: 정책·대표 과제·지원 재개 확인 완료(PR #65·76·78, 미지원·미관측 범위 보존)
 검토 기준: `c98d7e0`
 선행: 없음
 
-현재 요약: PR #65의 정책·도구·독립 리뷰·CI·머지는 완료했다. [Template-10-05](template-10-05-model-execution-evaluation.md)의 후속 실험은 CLI balanced 동일 구현·리뷰 두 과제, Claude native child 및 두 CLI의 동일 model/medium 부모 resume를 확인했다. [Template-10-08](template-10-08-model-resume.md)은 같은 Codex 부모 ID·marker를 유지한 Terra medium→high 로컬 turn_context 적용을 확인했다. Codex custom agent 지정과 Claude 원 child 자체 재개는 현재 CLI 도구 schema 미지원으로 종료했고 backend 실제 effort·실제 청구비용·광범위/신규 후보 평가는 미확인이다. Claude child의 guidance read 준수도 미확인이다. 선택표의 상태는 바꾸지 않았으며 아래 당시 실행 이력은 보존한다. 개발일 조회와 재개 절차의 정책 변경은 [Template-07](template-07-guidance-review-followup.md) PR 1이 소유한다.
+현재 요약: PR #65의 정책·도구·독립 리뷰·CI·머지는 완료했다. [Template-10-05](template-10-05-model-execution-evaluation.md)의 후속 실험은 PR #76의 독립 리뷰·CI·머지를 완료했고 CLI balanced 동일 구현·리뷰 두 과제, Claude native child 및 두 CLI의 동일 model/medium 부모 resume를 확인했다. [Template-10-08](template-10-08-model-resume.md)은 PR #78의 독립 리뷰·CI·머지를 완료했고 같은 Codex 부모 ID·marker를 유지한 Terra medium→high 로컬 turn_context 적용을 확인했다. Codex custom agent 지정과 Claude 원 child 자체 재개는 현재 CLI 도구 schema 미지원으로 종료했고 backend 실제 effort·실제 청구비용·광범위/신규 후보 평가는 미확인이다. Claude child의 guidance read 준수도 미확인이다. 선택표의 상태는 바꾸지 않았으며 아래 당시 실행 이력은 보존한다. 개발일 조회와 재개 절차의 정책 변경은 [Template-07](template-07-guidance-review-followup.md) PR 1이 소유한다.
 이전 식별자: `002-agent-model-policy.md` / `002`. Template-07에서 템플릿 유지보수 영역으로 옮겼으며 아래 실패·조사·실행 이력은 당시 증거로 보존한다.
 
 ## 목표와 기준 문서
@@ -46,7 +46,7 @@
 | 단계 | 상태 | revision / 변경 | 검증 명령·결과 | 남은 작업 |
 | --- | --- | --- | --- | --- |
 | 정책·도구 | 완료 | merge `f504c47` | `npm run check:docs`: 텍스트 228개 및 실제 TOML 문법·parsed defaults 정합성, 회귀 26개 통과(두 번째 리뷰 수정 포함), 최종 독립 리뷰·CI 통과 | — |
-| 직접 실행·설정 연결 | 미완료(사유) | Codex CLI 0.147.0 / Claude Code 2.1.140 / desktop 도구 | 아래 실제 smoke·목록 결과. 균형 direct, Codex defaults 파싱, Claude CLI agent 실행, 양쪽 assign medium 통과 | Codex custom spawn·Claude child/resume와 신규 후보 평가 |
+| 직접 실행·설정 연결 | 지원 범위 확인 완료·미지원 종료 | Codex CLI 0.147.0 / Claude Code 2.1.140 / desktop 도구, PR #76·78 | 동일 설정 양쪽 부모 resume·Claude native child·Codex 부모 medium→high 로컬 적용 확인 | Codex custom 지정과 Claude 원 child/SendMessage 재개 미지원. guidance read·backend effort·실청구액 미관측 유지 |
 | 신규 모델 평가 | 미완료(사유) | CLI/desktop 지원 목록이 다름 | 모델별 광범위 품질·비용 비교는 미실행. 현재 기본은 baseline이며 신규 평가 통과로 표기하지 않음 | 신규 발견 시 대표 구현·리뷰·사용량/요금 평가 |
 | PR·리뷰·CI·머지 | 완료 | [PR #65](https://github.com/kimyongin/agent-workspace-template/pull/65), 최종 head `77107532eca2eac8880b1ca5ff4d06a6e6eaf8d4`, merge `f504c472d6551375ebaca8c4ed8ab5b46dcedc75` | [최종 독립 리뷰](https://github.com/kimyongin/agent-workspace-template/pull/65#issuecomment-5969278926) 발견 사항 없음·머지 가능, 같은 head의 [CI check·integration](https://github.com/kimyongin/agent-workspace-template/actions/runs/37123564974) 성공 | — |
 

@@ -1,7 +1,7 @@
 # Template-10-08 — 관측 가능한 설정 변경·child 재개 확인
 
 작성: 2026-10-04
-상태: 관측 가능한 실행·로컬 구현 완료(독립 리뷰·CI·머지 전)
+상태: 완료(PR #78 독립 리뷰·CI·머지, 미지원 child 재개 범위 보존)
 선행: Template-10-05 PR #76
 
 ## 목표와 범위
@@ -29,3 +29,9 @@
 [후속 증거](../../experiments/agent-model-evaluation/results/resume-followup-20261004.json)에는 명시 인자·원 snapshot·시간·usage·선별 metadata와 fixture hash를, [README 후속](../../experiments/agent-model-evaluation/README.md#2026-10-04-관측-가능한-재개-후속)에는 정확한 범위·응답 링크를 남겼다. CLI 부모의 schema 보고를 독립 schema dump로 표현하지 않는다. Claude CLI 계산비용은 실제 subscription 추가 청구액이 아니며 Codex resume 누적 usage를 증분으로 합산하지 않았다. 현재 선택표/native 정의·앱/DB/서비스·개인 auth/config·CLI 버전은 변경하지 않았다.
 
 검증: 기존 `verify-results.mjs`는 hash 일치·깨진 baseline 의도한 4실패·보관된 양쪽 결과 4통과. `npm run check:docs`는 텍스트 288개·모델/native 정합성과 37검사 중 36통과/실패0/skip1(기존 Windows symlink privilege 제약), `git diff --check` 통과. 미지원 child와 미노출 backend/청구액의 추가 완료를 선점하지 않으며 독립 리뷰·최종 head CI·PR/머지는 메인 담당이다.
+
+## 제출 후 현재 완료 기록
+
+2026-10-04 release 담당이 GitHub MERGED·merge SHA를 직접 확인했다. [PR #78](https://github.com/kimyongin/agent-workspace-template/pull/78)·[checks](https://github.com/kimyongin/agent-workspace-template/pull/78/checks)의 독립 리뷰·CI·머지 완료, merge `6b259351879788b997bc1cb874b4152b1ba67a40`. 위 구현·제출 snapshot은 당시 이력으로 보존하며 운영 배포·미지원 도구·미노출 backend/실청구액·미접근 클라이언트의 추가 완료를 뜻하지 않는다.
+
+[완료 코멘트](https://github.com/kimyongin/agent-workspace-template/pull/78#issuecomment-5973691655)와 [CI check/integration PASS](https://github.com/kimyongin/agent-workspace-template/actions/runs/37154969595)는 메인이 전달한 최종 증거다.

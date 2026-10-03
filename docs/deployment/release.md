@@ -59,12 +59,20 @@
 
 1. **릴리스 준비:** 대상 commit, 테스트 결과, 변경 migration·함수·웹·스킬, 기존 클라이언트와 큐 메시지의 호환성, 복구할 이전 artifact를 기록한다. DB 변경 전 복구 지점과 실제 백업 가능 여부를 확인한다.
 2. **DB 확장:** 기존 서버가 계속 동작할 수 있는 추가 변경부터 적용한다. 운영 reset이나 과거 migration 재작성으로 변경하지 않는다. 실패하면 이후 배포를 중단하고 실제 적용 상태부터 확인한다.
-3. **서버와 worker:** 필요한 Secrets와 HTTP/MCP/worker를 배포한다. 새 worker가 기존 대기 메시지를 처리할 수 있어야 한다. 호환되지 않으면 생산·소비 중지와 메시지 이관 방식을 먼저 정한다. 최초 Cron은 worker 준비·인증 확인 후 활성화한다.
+3. **서버와 worker:** 필요한 Secrets와 HTTP/MCP/worker를 배포한다. 새 worker가 기존 대기 메시지를 처리할 수 있어야 한다. 호환되지 않으면 생산·소비 중지와 메시지 이관 방식을 먼저 정한다. 최초 Cron은 worker 준비·인증과 해당 환경의 소량 성공·비용 확인 후 활성화한다.
 4. **서버 확인:** 승인된 점검 계정으로 인증·읽기·최소 쓰기·재조회와 비동기 작업 완료를 확인한다. 점검 데이터의 표시와 정리 범위를 미리 정하고 실제 사용자 자료로 파괴적 시험을 하지 않는다.
 5. **웹·플러그인 공개:** 검증한 서버 계약을 사용하는 웹과 MCP·스킬 통합 플러그인을 공개한다. Pages의 기본 경로, 새로고침·상세 URL, 로그인 복귀와 아래 플러그인 설치·행동 검증을 수행한다.
 6. **관찰과 종료:** 오류·지연·큐 적체·검색 반영을 확인하고 단위별 배포 결과를 기록한다. 구 필드·구 도구 등 파괴적인 정리는 호환 기간과 소비자 확인 후 별도 릴리스로 진행한다.
 
 이 순서는 후방 호환 변경의 기본 순서다. 호환되지 않는 변경은 작업 중지 범위와 데이터 이관을 포함한 별도 릴리스 계획이 필요하다. migration·서버·웹을 하나의 원자적 배포로 간주하지 않는다.
+
+### CLI 서버 bundler의 공통 import map
+
+Supabase CLI 2.119.0의 실제 `functions deploy --help`와 [Template-10-06 실행](../tickets/template-10-06-existing-release.md)에서 `--use-api --import-map` 조합을 확인했다. 이 저장소는 `supabase/functions/deno.json`에 공통 imports를 두고 각 함수의 deno.json은 빈 workspace member다. 원격 bundler에 함수만 보내면 공통 alias를 찾지 못해 400이 날 수 있으므로 검증 revision의 imports를 명시한다.
+
+검증한 source/config를 저장소 밖 임시 workspace로 복사하고, 공통 deno.json의 `imports` 객체만 담은 UTF-8/LF JSON을 그 workspace의 `supabase/functions/release-import-map.json`에 만든다. 비밀·env·개인 설정을 map/source에 넣지 않는다. locked CLI에 `--workdir <임시 workspace> --project-ref <승인한 ref>`를 명시하고 `functions deploy api mcp index-worker --use-api --no-verify-jwt --import-map <임시 workspace>/supabase/functions/release-import-map.json`으로 대상 함수만 배포한다. gateway 검사를 끈 함수의 서버 자체 인증은 유지한다.
+
+map을 functions 밖 임시 root에 두면 배포가 성공해도 정상 `functions download --use-api`가 추출 경계 밖 경로를 거부할 수 있다. 경로 검사를 우회하지 않고 처음부터 functions 안에 둔다. 배포 후 ACTIVE/version/runtime bundle hash를 기록하고 새 외부 workspace에 정상 다운로드해 실행 source와 map imports를 검증 revision과 대조한다. 다운로드된 artifact와 generated deploy map을 구분하고 작업이 끝나면 generated map만 정확한 경로를 검증해 제거한다. map 경로 차이는 bundle hash에 영향을 주므로 코드 revision과 runtime hash를 각각 기록한다. 비밀 없는 source artifact는 복구 기준이며 DB 복원 검증을 뜻하지 않는다.
 
 ## 플러그인 패키징과 배포
 
