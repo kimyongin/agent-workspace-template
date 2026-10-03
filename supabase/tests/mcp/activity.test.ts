@@ -32,7 +32,9 @@ httpTest("검색: HTTP/MCP 본문 키워드·원문 최소 응답·대체 상태
   assertEquals(found.items.map((x) => x.id), [r.id]);
   assertEquals("body" in found.items[0], false);
   assertEquals((await tool(mcpB, "search", q)).items, []);
-  assertEquals((await tool(mcpA, "search", { query: marker })).search_state, "keyword_fallback");
+  const auto = searchResult.parse(await tool(mcpA, "search", { query: marker }));
+  assert(["ok", "keyword_fallback"].includes(auto.search_state));
+  assert(auto.items.some((x) => x.id === r.id));
   for (
     const bad of [{ query: " " }, { query: "가".repeat(201) }, { query: marker, kinds: ["record", "record"] }, {
       query: marker,

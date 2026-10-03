@@ -6,7 +6,7 @@ export function searchTools(d: SearchDeps): ToolDef[] {
   return [{
     name: "search",
     description:
-      "내 할 일·기록·원칙의 제목·요약·본문 검색. 원칙 기본 active. auto 대체 여부·색인 대기 수를 확인하고 본문은 get_*로 읽는다. next_cursor는 같은 검색 조건에서만 사용한다. 선택 anchor는 결과의 현재 페이지를 anchor_page로 확인하며 결과 밖이면 null.",
+      "내 할 일·기록·원칙 검색. auto는 제목+요약 의미와 제목·요약·본문 키워드를 합친다. 질의는 Pinecone로 전송되며 keyword는 외부 호출이 없다. 원칙 기본 active. 대체/색인 대기·제외 수를 확인하고 원문은 get_*로 읽는다. next_cursor는 같은 조건에만 사용하며 의미 페이지 오류는 재시도하거나 처음부터 검색한다. 선택 anchor의 현재 페이지는 anchor_page, 결과 밖은 null.",
     input: searchInput,
     readOnly: true,
     handler: (i, a) => search(d, a, parse(searchInput, i)),

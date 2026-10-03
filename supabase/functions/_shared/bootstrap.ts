@@ -8,6 +8,7 @@ import { SqlTagUnitOfWork } from "./adapters/supabase/tag-store.ts";
 import type { TagDeps } from "./core/tags/application.ts";
 import type { SearchDeps } from "./core/search/application.ts";
 import { SqlSearchUnitOfWork } from "./adapters/supabase/search-store.ts";
+import { PineconeEmbedder } from "./adapters/pinecone/embedder.ts";
 
 function required(name: string): string {
   const v = Deno.env.get(name);
@@ -21,7 +22,11 @@ let connection: postgres.Sql | undefined;
 let tags: TagDeps | undefined;
 let search: SearchDeps | undefined;
 export function searchDeps(): SearchDeps {
-  return search ??= { uow: new SqlSearchUnitOfWork(database()) };
+  const key = Deno.env.get("PINECONE_API_KEY");
+  return search ??= {
+    uow: new SqlSearchUnitOfWork(database()),
+    ...(key ? { embedder: new PineconeEmbedder(key) } : {}),
+  };
 }
 export function tagDeps(): TagDeps {
   return tags ??= { uow: new SqlTagUnitOfWork(database()) };
