@@ -39,6 +39,7 @@ test("손실 없이 저장할 수 없는 값은 기존 설정을 지우지 않�
   const file = fixture(t);
   writeFileSync(file, "KEEP=unchanged\n");
   assert.throws(() => writeEnv(file, "로컬", { INVALID: "'\"`" }), /원본 파일을 유지/);
+  assert.throws(() => writeEnv(file, "로컬", { APP_SERVER_PASSWORD: "ends\\" }), /원본 파일을 유지/);
   assert.equal(readFileSync(file, "utf8"), "KEEP=unchanged\n");
 });
 

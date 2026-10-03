@@ -8,6 +8,8 @@ export function readEnv(file) {
 
 function encode(value) {
   const text = String(value);
+  // 생성 대상은 URL·키·비밀번호다. CLI가 escape로 해석하는 값은 조용히 바꾸지 않는다.
+  if (/[\\\r\n\0]/.test(text)) throw new Error("생성 설정에 백슬래시·줄바꿈·NUL을 사용할 수 없습니다. 원본 파일을 유지합니다.");
   if (!/[\s#'"`$\\]/.test(text)) return text;
   // Node와 CLI가 같은 의미로 읽는 범위만 생성한다. $ 확장은 작은따옴표로 막는다.
   const quote = !text.includes("'") ? "'" : !/["$\\]/.test(text) ? '"' : null;
