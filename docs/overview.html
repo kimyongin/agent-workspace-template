@@ -905,7 +905,7 @@ footer a { margin-right: 10px; white-space: nowrap; }
       <p class="faq-group">개발 진행</p>
       <details>
         <summary>기획을 바꾸고 싶으면 어떻게 하나요?</summary>
-        <p>“정리해봐: …”부터 시작합니다. 에이전트가 기획서(PRD)나 결정 기록(ADR)을 바꿔야 하는지 알려 주고, 수정안을 만들어 승인을 받습니다. 문서를 직접 고쳐도 되지만, 그때도 관련 작업에 영향이 있는지 에이전트에게 확인시키는 것이 좋습니다.</p>
+        <p>“정리해봐: …”부터 시작합니다. 사람과 본 세션이 함께 설계·결정하고 구현 세션은 합의 안의 상세 구조를 정합니다. 기획서(PRD)나 결정 기록(ADR) 변경이 필요하면 수정안을 승인합니다. <a href="development/workflow.md#세션-배정과-인계">역할과 인계</a>를 따릅니다. 문서를 직접 고쳐도 되지만, 그때도 관련 작업에 영향이 있는지 에이전트에게 확인시키는 것이 좋습니다.</p>
       </details>
       <details>
         <summary>에이전트가 방향을 잘못 잡은 것 같아요.</summary>
@@ -913,7 +913,7 @@ footer a { margin-right: 10px; white-space: nowrap; }
       </details>
       <details>
         <summary>어디까지 진행됐는지 모르겠어요.</summary>
-        <p>“티켓 진행 상태 정리해줘”라고 하면 됩니다. 진행 기록은 각 티켓에 남아 있습니다.</p>
+        <p>“티켓 진행 상태 정리해줘”라고 하면 됩니다. 현재 요약은 시작 문서와 티켓에, 제출 후 최종 리뷰·CI·머지 증거는 PR 완료 코멘트와 checks에 있습니다. <a href="development/workflow.md#변경과-완료-기록">기록 규칙</a>을 따릅니다.</p>
       </details>
       <details>
         <summary>PR이 너무 커서 읽기 어려워요.</summary>
@@ -933,7 +933,7 @@ footer a { margin-right: 10px; white-space: nowrap; }
       </details>
       <details>
         <summary>어떤 모델을 골라야 하나요?</summary>
-        <p>일반 구현·리뷰는 균형 모델의 medium으로 시작합니다. 모델과 추론 강도는 따로 선택하고, 어려운 범위와 실패 근거에 따라 조정합니다. 개발하는 날 첫 작업에서 목록과 새 후보를 조회하고 사용자 시간대의 그날 결과를 재사용합니다. 재개 때 설정 변경을 적용할 수 없으면 새 세션으로 인계합니다. <a href="development/workflow.md#모델과-추론-강도-선택갱신">공통 정책</a>과 <a href="development/agent-models.json">갱신 가능한 선택표</a>를 <a href="development/agent-model-execution.md">배정 확인·클라이언트 설정</a>으로 연결합니다. 기존 확인 범위는 <a href="tickets/002-agent-model-policy.md">002 티켓</a>, 이번 변경과 제출 단계는 <a href="tickets/template-07-guidance-review-followup.md">Template-07</a>에서 봅니다.</p>
+        <p>일반 구현·리뷰는 균형 모델의 medium으로 시작합니다. 모델과 추론 강도는 따로 선택하고, 어려운 범위와 실패 근거에 따라 조정합니다. 개발하는 날 첫 작업에서 목록과 새 후보를 조회하고 사용자 시간대의 그날 결과를 재사용합니다. 재개 때 설정 변경을 적용할 수 없으면 새 세션으로 인계합니다. <a href="development/workflow.md#모델과-추론-강도-선택갱신">공통 정책</a>과 <a href="development/agent-models.json">갱신 가능한 선택표</a>를 <a href="development/agent-model-execution.md">배정 확인·클라이언트 설정</a>으로 연결합니다. 기존 확인 범위는 <a href="tickets/template-05-agent-model-policy.md">Template-05</a>, 이번 변경과 제출 단계는 <a href="tickets/template-07-guidance-review-followup.md">Template-07</a>에서 봅니다.</p>
       </details>
       <details>
         <summary>이 페이지와 다른 문서의 내용이 다르면요?</summary>

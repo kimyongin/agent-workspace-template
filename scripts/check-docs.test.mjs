@@ -43,6 +43,36 @@ test("정상 저장소는 통과한다", () => {
   assert.deepEqual(problemsOf(), []);
 });
 
+test("템플릿 이력과 새 앱 001·서로 다른 하위 ID는 함께 통과한다", () => {
+  assert.deepEqual(problemsOf({
+    "docs/tickets/template-01-task-record-search.md": "# Template-01 — 이력\n",
+    "docs/tickets/template-04-development-workflow-hardening.md": "# Template-04 — 이력\n",
+    "docs/tickets/001-customer-search.md": "# 001 — 고객 검색\n",
+    "docs/tickets/001-01-contracts.md": "# 001-01 — 계약\n",
+    "docs/tickets/001-02-experiment.md": "# 001-02 — 실험\n",
+    "docs/tickets/002-01-contracts.md": "# 002-01 — 다른 계약\n",
+  }), []);
+});
+
+test("동일 상위 번호의 일반 앱 티켓 두 개는 실패한다", () => {
+  const problems = problemsOf({
+    "docs/tickets/001-customer-search.md": "# 001 — 고객 검색\n",
+    "docs/tickets/001-another-feature.md": "# 001 — 다른 기능\n",
+  });
+  assert.equal(problems.length, 1);
+  assert.match(problems[0], /일반 티켓 ID 001 중복/);
+});
+
+test("동일 하위 ID만 중복으로 검출하고 상위와 구분한다", () => {
+  const problems = problemsOf({
+    "docs/tickets/001-customer-search.md": "# 001 — 고객 검색\n",
+    "docs/tickets/001-01-contracts.md": "# 001-01 — 계약\n",
+    "docs/tickets/001-01-other-contracts.md": "# 001-01 — 다른 계약\n",
+  });
+  assert.equal(problems.length, 1);
+  assert.match(problems[0], /일반 티켓 ID 001-01 중복/);
+});
+
 test("깨진 상대 링크를 검출한다", () => {
   const problems = problemsOf({ "README.md": "# 제목\n\n[없음](docs/NONE.md)\n" });
   assert.match(problems.join("\n"), /README\.md:3: 깨진 링크 docs\/NONE\.md/);

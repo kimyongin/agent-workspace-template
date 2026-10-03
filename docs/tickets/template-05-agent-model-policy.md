@@ -1,9 +1,12 @@
-# 002 — 개발·리뷰 세션 모델 선택과 갱신
+# Template-05 — 개발·리뷰 세션 모델 선택과 갱신
 
 작성: 2026-10-03
 상태: 완료(일부 미완료)
 검토 기준: `c98d7e0`
 선행: 없음
+
+현재 요약: PR #65의 정책·도구·독립 리뷰·CI·머지는 완료했다. custom native spawn·child/resume·backend 실제 effort 및 대표 품질·비용 평가는 아래 범위대로 미완료다. 개발일 조회와 재개 절차의 후속 변경은 [Template-07](template-07-guidance-review-followup.md) PR 1이 소유한다.
+이전 식별자: `002-agent-model-policy.md` / `002`. Template-07에서 템플릿 유지보수 영역으로 옮겼으며 아래 실패·조사·실행 이력은 당시 증거로 보존한다.
 
 ## 목표와 기준 문서
 

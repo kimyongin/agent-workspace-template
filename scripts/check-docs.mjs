@@ -139,7 +139,9 @@ export function checkSkillLink(root) {
 export function checkRepo(root) {
   const problems = [];
   let count = 0;
-  for (const file of listFiles(root)) {
+  const files = listFiles(root);
+  problems.push(...checkTicketIds(files));
+  for (const file of files) {
     const full = path.join(root, file);
     if (!statSync(full).isFile()) continue;
     const buf = readFileSync(full);
@@ -155,6 +157,23 @@ export function checkRepo(root) {
   }
   problems.push(...checkSkillLink(root));
   return { count, problems };
+}
+
+// 일반 앱 티켓의 상위 NNN과 하위 NNN-MM은 별도 ID다. template-* 이력은 제외한다.
+export function checkTicketIds(files) {
+  const seen = new Map();
+  const problems = [];
+  for (const file of files) {
+    const match = file.match(/^docs\/tickets\/(\d{3}(?:-\d{2})?)-[^/]+\.md$/);
+    if (!match) continue;
+    const id = match[1];
+    if (seen.has(id) && seen.get(id) !== file) {
+      problems.push(`${file}: 일반 티켓 ID ${id} 중복 (${seen.get(id)})`);
+    } else {
+      seen.set(id, file);
+    }
+  }
+  return problems;
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
