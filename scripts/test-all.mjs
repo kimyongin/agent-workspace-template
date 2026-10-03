@@ -19,20 +19,38 @@ const INTERRUPT_CODES = new Set([3221225786, -1073741510, 130]);
  * 한 단계를 실행한다. 이벤트 루프를 막지 않도록 비동기로 기다려야 Ctrl+C 처리기가 바로 실행된다.
  * 동기 실행(spawnSync)이면 처리기가 단계 사이에도 실행되지 못해 단계마다 Ctrl+C를 다시 눌러야 했다.
  */
+/** 지금 실행 중인 단계(중단 처리기가 결과에 표시하고 함께 끝낸다). */
+let current = null;
+
 function run(label, command) {
   console.log(`\n▶ ${label}: ${command}`);
   const started = Date.now();
   return new Promise((resolve) => {
     const child = spawn(command, { stdio: "inherit", shell: true });
+    current = { label, started, child };
+    const done = (result) => {
+      current = null;
+      resolve({ label, seconds: Math.round((Date.now() - started) / 1000), ...result });
+    };
+    // 실행 자체가 실패해도 다음 정리 경로(finally)가 돌도록 실패로 돌려준다.
+    child.on("error", () => done({ ok: false, interrupted: false }));
     child.on("close", (code, signal) => {
-      resolve({
-        label,
+      done({
         ok: code === 0,
         interrupted: signal === "SIGINT" || signal === "SIGTERM" || INTERRUPT_CODES.has(code),
-        seconds: Math.round((Date.now() - started) / 1000),
       });
     });
   });
+}
+
+function killTree(child) {
+  if (!child || child.exitCode !== null) return;
+  try {
+    if (isWin) spawnSync(`taskkill /pid ${child.pid} /T /F`, { shell: true, stdio: "ignore" });
+    else child.kill("SIGTERM");
+  } catch {
+    // 이미 끝났으면 무시
+  }
 }
 
 /** 함수 서버가 응답하면 인증 없는 요청에 401을 준다. */
@@ -86,9 +104,19 @@ function summary() {
 for (const signal of ["SIGINT", "SIGTERM"]) {
   process.on(signal, () => {
     console.log("\n중단 요청을 받아 남은 단계를 건너뜁니다.");
+    // Ctrl+C는 같은 콘솔의 단계도 받지만, 신호가 이 프로세스에만 온 경우(kill 등)에도 단계를 남기지 않는다.
+    if (current) {
+      killTree(current.child);
+      results.push({
+        label: current.label,
+        ok: false,
+        interrupted: true,
+        seconds: Math.round((Date.now() - current.started) / 1000),
+      });
+    }
     stop(served);
     summary();
-    process.exit(130);
+    process.exit(signal === "SIGINT" ? 130 : 143);
   });
 }
 
