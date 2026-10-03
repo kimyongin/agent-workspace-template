@@ -63,7 +63,7 @@ export function SearchPage(){
   return <section className="panel" aria-labelledby="search-title">
     <h1 id="search-title" className="page-title" tabIndex={-1}>검색</h1>
     <form onSubmit={e=>{e.preventDefault();const value=draft.trim();if(value===q)setRetry(n=>n+1);else change("q",value);}}>
-      <Field label="검색어" required help="제목·요약·본문에서 찾습니다. 검색 후 원문을 열어 확인하세요.">{p=><input {...p} className="input" value={draft} onChange={e=>setDraft(e.target.value)} required/>}</Field>
+      <Field label="검색어" required help="자동 검색은 제목·요약의 의미와 본문 키워드를 함께 찾습니다. 원문을 열어 확인하세요.">{p=><input {...p} className="input" value={draft} onChange={e=>setDraft(e.target.value)} required/>}</Field>
       <button className="btn btn-primary" type="submit" disabled={busy}>검색</button>
     </form>
     <div className="actions">

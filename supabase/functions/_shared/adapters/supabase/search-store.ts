@@ -1,7 +1,7 @@
 import type postgres from "postgres";
 import type { SearchInput, SearchItem } from "../../contracts/search.ts";
 import type { Actor } from "../../core/shared/actor.ts";
-import type { SearchPosition, SearchStore } from "../../core/search/application.ts";
+import type { SearchPosition, SearchRow, SearchStore } from "../../core/search/application.ts";
 import { runAsActor } from "./sql-context.ts";
 import { tagIdsColumn } from "./tag-links.ts";
 import { SEARCH_PIPELINE } from "../../core/search/config.ts";
@@ -19,7 +19,7 @@ class SqlSearchStore implements SearchStore {
       union all select owner_id,'principle',id,title,summary,body,updated_at,status,${
         tagIdsColumn(tx, "principle")
       } from app.principles`;
-    return tx`select s.*,case
+    return tx`select s.*,i.embedding,case
       when s.summary is null or btrim(s.summary)='' then 'excluded'
       when i.input_hash=encode(extensions.digest(s.title||E'\n'||s.summary,'sha256'),'hex') and i.pipeline=${SEARCH_PIPELINE}
         and (i.state='excluded' or (i.state='indexed' and i.embedding is not null)) then i.state else 'pending' end as index_state
@@ -41,22 +41,43 @@ class SqlSearchStore implements SearchStore {
   matches(q: SearchInput) {
     return this.tx`strpos(lower(title||E'\n'||coalesce(summary,'')||E'\n'||body),lower(${q.query}))>0`;
   }
-  async anchorPage(q: SearchInput) {
+  ranked(q: SearchInput, vector: number[] | undefined) {
+    const tx = this.tx;
+    const score = vector
+      ? tx`case when index_state='indexed' then greatest(0::float8,least(1::float8,1-(embedding operator(extensions.<=>) ${
+        JSON.stringify(vector)
+      }::extensions.vector))) else 0::float8 end`
+      : tx`0::float8`;
+    return tx`with sources as (${this.sources()}),scored as (
+      select *,${this.matches(q)} as keyword_match,${score} as score from sources where ${this.filters(q)})
+      select *,case when keyword_match then 1::float8 else 0::float8 end + case when score>=0.27 then score else 0::float8 end as rank,
+      case when keyword_match and score>=0.27 then 'both' when keyword_match then 'keyword' else 'semantic' end as match
+      from scored where keyword_match or score>=0.27`;
+  }
+  async reserveEmbedding() {
+    const [r] = await this.tx`select app.reserve_search_embedding() as allowed`;
+    return r.allowed as boolean;
+  }
+  async anchorPage(q: SearchInput, vector: number[] | undefined) {
     if (!q.anchor) return null;
     const tx = this.tx;
-    const [r] = await tx`with sources as (${this.sources()}), ranked as (
-      select kind,id,row_number() over(order by at desc,kind desc,id desc) as position
-      from sources where ${this.filters(q)} and ${this.matches(q)})
+    const [r] = await tx`with candidates as (${this.ranked(q, vector)}), ranked as (
+      select kind,id,row_number() over(order by rank desc,at desc,kind desc,id desc) as position
+      from candidates)
       select ceil(position::numeric/${q.limit})::int as page from ranked where kind=${q.anchor.kind} and id=${q.anchor.id}`;
     return r ? r.page as number : null;
   }
-  async keyword(q: SearchInput, after?: SearchPosition): Promise<SearchItem[]> {
+  async candidates(q: SearchInput, vector: number[] | undefined, after?: SearchPosition): Promise<SearchRow[]> {
     const tx = this.tx;
-    const rows =
-      await tx`with sources as (${this.sources()}) select kind,id,title,summary,at,tag_ids,index_state from sources
-      where ${this.filters(q)} and ${this.matches(q)}
-      ${after ? tx`and (at,kind,id)<(${after.at}::timestamptz,${after.kind}::text,${after.id}::uuid)` : tx``}
-      order by at desc,kind desc,id desc limit ${q.limit + 1}`;
+    const rows = await tx`with candidates as (${
+      this.ranked(q, vector)
+    }) select kind,id,title,summary,at,tag_ids,index_state,match,rank from candidates
+      ${
+      after
+        ? tx`where (rank,at,kind,id)<(${after.rank}::float8,${after.at}::timestamptz,${after.kind}::text,${after.id}::uuid)`
+        : tx``
+    }
+      order by rank desc,at desc,kind desc,id desc limit ${q.limit + 1}`;
     return rows.map((r) => ({
       kind: r.kind as SearchItem["kind"],
       id: r.id as string,
@@ -64,7 +85,8 @@ class SqlSearchStore implements SearchStore {
       summary: (r.summary ?? "") as string,
       at: (r.at as Date).toISOString(),
       tag_ids: r.tag_ids as string[],
-      match: "keyword",
+      match: r.match as SearchItem["match"],
+      rank: r.rank as number,
       index_state: r.index_state as SearchItem["index_state"],
       path: `/${r.kind}s/${r.id}`,
     }));
