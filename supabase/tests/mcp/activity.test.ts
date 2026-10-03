@@ -1,8 +1,8 @@
 // MCP 계약 테스트: 실제 OAuth 토큰과 공식 MCP 클라이언트로 도구를 호출하고, HTTP와 결과·오류 의미가 같은지 본다.
 import { assert, assertEquals } from "@std/assert";
 import { z } from "zod";
-import { recordCreate } from "../../functions/_shared/contracts/record.ts";
-import { recordListQuery, recordUpdate } from "../../functions/_shared/contracts/record.ts";
+import { isoDate } from "../../functions/_shared/contracts/common.ts";
+import { recordCreate, recordListQuery, recordUpdate } from "../../functions/_shared/contracts/record.ts";
 import {
   occurrenceRange,
   taskComplete,
@@ -109,19 +109,21 @@ httpTest(
       resume_task: { ...idOnly, ...version },
       delete_task: { ...idOnly, ...version },
       delete_record: { ...idOnly, ...version },
+      // 회차 기록: 기록 생성 입력 + id + date
+      record_occurrence: {
+        ...idOnly,
+        date: json(z.object({ date: isoDate })).properties.date,
+        ...json(recordCreate).properties,
+      },
     };
     for (const [name, props] of Object.entries(expected)) {
       assertEquals(Object.keys(byName[name].properties).sort(), Object.keys(props).sort(), `${name} 속성 이름`);
       for (const [key, schema] of Object.entries(props)) {
-        if (key === "id") continue; // id는 어댑터가 더한 UUID
+        if (key === "id") continue; // id는 어댑터가 더한 UUID(date는 contracts의 isoDate와 비교)
         assertEquals(byName[name].properties[key], schema, `${name}.${key}`);
       }
       assertEquals(byName[name].additionalProperties, false, `${name}는 허용 필드만`);
     }
-    // 회차 기록: 기록 생성 입력 + id + date
-    const occ = byName.record_occurrence.properties;
-    assertEquals(Object.keys(occ).sort(), [...Object.keys(json(recordCreate).properties), "date", "id"].sort());
-
     // 할 일 생성: MCP는 최상위 object로 펼쳐 알리므로 두 종류(once·recurring) 입력 필드의 합집합과 같아야 한다.
     const branches = (json(taskCreate).oneOf ?? json(taskCreate).anyOf) as JsonSchema[];
     const union = new Set(branches.flatMap((b) => Object.keys(b.properties)));
