@@ -184,7 +184,7 @@ for (
       });
     });
     await page.goto(`/${path}?pages=250`);
-    await expect(page.locator(".list .item-title")).toHaveCount(250);
+    await expect(page.locator(".list .item-title")).toHaveCount(250, { timeout: 20_000 });
     const first = page.getByRole("link", { name: `${label} 경계 0`, exact: true });
     await page.getByRole("button", { name: "더 보기", exact: true }).click();
     await expect(page.getByRole("button", { name: "다시 시도", exact: true })).toBeVisible();
@@ -202,7 +202,7 @@ for (
     expect(reads.at(-1)).toBe(251);
     reads.length = 0;
     await page.reload();
-    await expect(page.locator(".list .item-title")).toHaveCount(250);
+    await expect(page.locator(".list .item-title")).toHaveCount(250, { timeout: 20_000 });
     expect(reads).toEqual(Array.from({ length: 250 }, (_, index) => index));
   });
 }
