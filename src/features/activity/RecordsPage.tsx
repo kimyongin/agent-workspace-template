@@ -27,7 +27,6 @@ export function RecordsPage() {
         <h1 id="records-title" className="page-title" tabIndex={-1}>기록</h1>
         <button type="button" className="btn btn-primary" onClick={() => setCreating(true)}>기록 작성</button>
       </div>
-      {error && <Notice kind="error">{error}</Notice>}
       <TagFilter value={tag_id} onChange={id=>{const next=new URLSearchParams(params);next.delete("pages");next.delete("scroll");id?next.set("tag_id",id):next.delete("tag_id");setParams(next);}}/>
       <EntityPicker label="엔터티 필터" value={entity_id} onChange={id=>{const next=new URLSearchParams(params);next.delete("pages");next.delete("scroll");id?next.set("entity_id",id):next.delete("entity_id");setParams(next);}}/>
       {items === null && !error && <p className="secondary" role="status">불러오는 중…</p>}
@@ -50,6 +49,7 @@ export function RecordsPage() {
           ))}
         </ul>
       )}
+      {error && <Notice kind="error">{error}</Notice>}
       {list.showMoreControl && (
         <button id="activity-records-page-control" type="button" className="btn" onClick={error ? list.retry : more}
           aria-disabled={loadingMore || (!cursor && !error)}>

@@ -70,7 +70,6 @@ export function TasksPage() {
         </div>
       </div>
 
-      {error && <Notice kind="error">{error}</Notice>}
       {items === null && !error && <p className="secondary" role="status">불러오는 중…</p>}
       {items?.length === 0 && (
         <div className="empty">
@@ -103,6 +102,7 @@ export function TasksPage() {
           ))}
         </ul>
       )}
+      {error && <Notice kind="error">{error}</Notice>}
       {list.showMoreControl && (
         <button id="activity-tasks-page-control" type="button" className="btn" onClick={error ? list.retry : more}
           aria-disabled={loadingMore || (!cursor && !error)}>
