@@ -8,9 +8,22 @@ import type { ToolDef } from "./tools.ts";
 
 export function principleTools(deps: principles.PrincipleDeps): ToolDef[] {
   const withId = (schema: z.ZodObject) =>
-    z.strictObject({ ...schema.shape, id }).superRefine(({ id: _id, ...input }, context) => {
+    z.strictObject({ ...schema.shape, id }).superRefine((value, context) => {
+      // An unknown-key issue retains raw input; reuse it so stripping does not change source refinements.
+      const unknownKeys = context.issues.find((issue) => issue.code === "unrecognized_keys");
+      const { id: _id, ...input } = unknownKeys ? unknownKeys.input as Record<string, unknown> : value;
       const result = schema.safeParse(input);
-      if (!result.success) { for (const issue of result.error.issues) context.addIssue({ ...issue }); }
+      const shapeIssues = [...context.issues];
+      if (!result.success) {
+        for (const issue of result.error.issues) {
+          // The outer shape already reports field failures. Add only missing source refinement issues.
+          const reported = shapeIssues.some((existing) =>
+            existing.code === issue.code && JSON.stringify(existing.path ?? []) === JSON.stringify(issue.path) &&
+            (existing.message === undefined || existing.message === issue.message)
+          );
+          if (!reported) context.addIssue({ ...issue });
+        }
+      }
     });
   return [
     {
@@ -33,7 +46,7 @@ export function principleTools(deps: principles.PrincipleDeps): ToolDef[] {
       readOnly: false,
       handler: (args, actor) => {
         if (!id.safeParse(args.id).success) throw notFound();
-        const { id: target, ...input } = parse(withId(principleStatus), args);
+        const { id: target, ...input } = args;
         return principles.setPrincipleStatus(deps, actor, target as string, parse(principleStatus, input));
       },
     },

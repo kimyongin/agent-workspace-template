@@ -29,7 +29,7 @@
 
 ## 구현 인계와 완료 기록
 
-- 담당: `/root/implement_fast_knowledge` 구현 서브세션. 소유는 `supabase/tests/fast/knowledge-flow.test.ts`, 이 자식·Template-10 부모 티켓·START-HERE·overview·Template-09 현재 요약이다. 메인이 발견한 작은 확정 계약 결함의 수정을 추가 배정해 `adapters/mcp/principle-tools.ts`도 수정했다. Entity 구현은 별도 worktree이며 `task-flow.test.ts`·Entity 파일은 편집하지 않는다.
+- 담당: `/root/implement_fast_knowledge` 구현 서브세션. 소유는 `supabase/tests/fast/knowledge-flow.test.ts`, 이 자식·Template-10 부모 티켓·START-HERE·overview·Template-09 현재 요약이다. 메인이 발견한 작은 확정 계약 결함의 수정을 추가 배정해 `adapters/mcp/principle-tools.ts`와 P2 재개 때 `adapters/http/principle-routes.ts`도 수정했다. Entity 구현은 별도 worktree이며 `task-flow.test.ts`·Entity 파일은 편집하지 않는다.
 - 작업 공간: `C:/Users/yongin/.codex/worktrees/fast-knowledge/agent-workspace-template`, branch `codex/fast-knowledge`, 위 base. 시작 변경은 메인이 작성한 미커밋 Template-10 부모 티켓 하나다.
 - 배정: desktop balanced `gpt-6.1-sol`/`medium`. 확정 계약의 일반 테스트 확대라 균형 모델과 medium을 유지한다. 메인이 오늘의 실제 도구 카탈로그로 만든 저장소 밖 TEMP `overnight-desktop-snapshot.json`과 preflight 통과를 인계했다. 명시 배정 수락과 backend 실제 모델/effort는 구분하며 실제 metadata·세션 비용은 미노출이다.
 - 계약·의존성: 업무 application·contracts·HTTP/MCP를 그대로 실행한다. outbound 저장·Actor verifier만 fixture다. fixture에 인증·잠금·rollback·RLS를 모의 구현하지 않는다. Entity schema 변경에 의존하지 않으며 최신 main 통합 시 영향받는 목록 계약을 다시 검사한다.
@@ -44,6 +44,11 @@
 | 계약 결함 회귀·수정 / 구현 세션 | 기존 실패 입력을 회귀에 추가하고 `principle-tools.ts`를 수정 | 첫 safeExtend 시도는 id가 수정 필드 판단에 포함돼 여전히 실패. id를 분리한 원본 계약 검증으로 바꿨다. 파생 ToolDef schema도 id 제외 후 원본 refinement를 재사용한다. Zod issue 직접 전달의 타입 오류는 spread로 해결. actual handler와 schema의 정상 수정·빈 수정·금지 status·활성+대체 연결을 검사; 다른 task/record handler는 이미 id 분리 후 원본 계약 검사였음 |
 | 수정 후 최종 로컬 검증 / 구현 세션 | `test:fast`, `check:deno`, `check:docs`, `check:boundaries`, `build` | 59+10+1=70 tests 통과(마지막 fast wall 6.19초·suite 314ms). Deno 타입·lint·fmt 78/82 files 통과(wall 2.48초). 문서 239개·32 tests·모델 정합성 통과(wall 3.29초). 경계 통과(wall 1.09초). build 통과(wall 2.72초), 기존 500kB chunk 경고 유지. 실제 서비스·DB·SDK wire·브라우저 실행 없음 |
 | 문서 증거 기입 후 / 구현 세션 | `check:docs`, `git diff --check` | 문서 239개·32 tests 재통과(wall 3.07초), diff 공백 검사 통과. 제출 snapshot과 기존 역사적 완료 기록은 보존하며 현재 T02-4 재개·PR #73 완료를 요약에 반영 |
+| 독립 리뷰 P2 재개 / 구현 세션 | 메인이 exact head `e8d5f5dc6716fbc120053b29fb530d7aa9dde487`의 수정 필요 결론과 `set_principle_status` expected_version 0 재현을 인계 | same-day desktop preflight 통과 인계 후 동일 balanced `gpt-6.1-sol`/medium 유지. 첫 독립 리뷰 수정이며 원인별 조합 검사에서 계속 진전이 있어 상향하지 않음. 메인이 `principle-routes.ts`의 좁은 동반 수정을 추가 승인 |
+| P2 실패 재현 / 구현 세션 | `npm run test:adapters:fast -- --filter "principle input boundaries"` | 새 matrix 첫 case가 수정 전 exact head에서 expected_version의 같은 fields 2개 대 원본 계약 1개로 실패(1 failed·10 filtered, wall 2.55초). HTTP/MCP와 ToolDef를 원본 schema 결과에 비교해 no-write를 확인 |
+| P2 원인 수정·추가 발견 / 구현 세션 | 파생 schema의 이미 보고한 field issue 중복과 raw unknown 입력 손실을 조사하고 status handler를 원본 계약 직접 검사로 정리 | outer 오류를 제거하는 첫 시도는 unknown 입력을 허용하는 새 실패로 드러나 제거. outer 오류 유지·원본 오류 중복 배제와 raw unknown 입력 유지로 고쳤다. active+replacement+version 0 조합은 기존 HTTP가 선행 shape 검사에서 field 오류만 내고 status refinement를 건너뛰는 문제를 노출. HTTP는 URL status 고정·body status 금지를 유지한 원본 계약 1회 검사로 수정 |
+| P2 수정 후 업무 재검증 / 구현 세션 | `test:fast` | core 59·fast 11·web 1=71 tests 통과(wall 6.79초, fast 455ms). matrix는 빈 입력·빈 수정·unknown·version 0·빈 제목·active+replacement 및 결합 입력의 ToolDef·실제 handler·HTTP body를 원본 schema 결과와 대조한다. HTTP non-object/body status 거부·malformed id의 not_found 우선 처리·실제 상태 전환 성공과 무쓰기 회귀도 통과 |
+| P2 정적 재검증 / 구현 세션 | `check:deno`, `check:docs`, `check:boundaries`, `build`, `git diff --check` | Deno 타입·lint·fmt 78/82 files 통과(wall 3.16초), 문서 239개·32 tests·모델 정합성 통과(wall 3.44초), 경계/diff 통과(wall 1.32초), build 통과(wall 2.14초, 기존 chunk 경고 유지). 운영·DB·OAuth·SDK wire·브라우저 실행 없음. 새 head의 독립 리뷰·필수 CI·머지는 메인 |
 
 ### 발견과 수정
 

@@ -444,3 +444,79 @@ Deno.test("HTTP/MCP: record and principle writes share strict input and business
   assertEquals(await statusHttp.json(), toErrorBody(statusError).body);
   assertEquals(statusHttp.status, 400);
 });
+
+Deno.test("principle input boundaries: ToolDef and handlers preserve each original field/object issue once", async () => {
+  const f = fixture();
+  const p = principleResult.parse(await f.call("create_principle", content));
+  const cases: { tool: string; action?: string; body: Record<string, unknown> }[] = [
+    { tool: "set_principle_status", action: "deactivate", body: { expected_version: 0 } },
+    { tool: "set_principle_status", action: "deactivate", body: {} },
+    { tool: "set_principle_status", action: "deactivate", body: { expected_version: 1, extra: true } },
+    { tool: "set_principle_status", action: "deactivate", body: { expected_version: 0, extra: true } },
+    { tool: "set_principle_status", action: "activate", body: { expected_version: 1, replaced_by_id: missing } },
+    { tool: "set_principle_status", action: "activate", body: { expected_version: 0, replaced_by_id: missing } },
+    { tool: "update_principle", body: {} },
+    { tool: "update_principle", body: { expected_version: 1 } },
+    { tool: "update_principle", body: { expected_version: 0 } },
+    { tool: "update_principle", body: { expected_version: 0, title: "" } },
+    { tool: "update_principle", body: { expected_version: 1, status: "active" } },
+    { tool: "update_principle", body: { expected_version: 0, status: "active" } },
+  ];
+  for (const c of cases) {
+    const before = f.snapshot();
+    const body = c.action ? { ...c.body, status: c.action === "activate" ? "active" : "inactive" } : c.body;
+    const original = (c.action ? principleStatus : principleUpdate).safeParse(body);
+    assertEquals(original.success, false);
+    if (original.success) throw new Error("expected invalid original contract");
+    const expected = toErrorBody(original.error);
+    const args = { id: p.id, ...body };
+    const derived = f.tools.find((t) => t.name === c.tool)!.input.safeParse(args);
+    assertEquals(derived.success, false, JSON.stringify(c));
+    if (derived.success) throw new Error("expected invalid ToolDef contract");
+    assertEquals(toErrorBody(derived.error), expected);
+    const error = await assertRejects(async () => {
+      await f.call(c.tool, args);
+    }, AppError);
+    assertEquals(toErrorBody(error), expected);
+    const http = await f.http(
+      `/principles/${p.id}${c.action ? `/${c.action}` : ""}`,
+      c.action ? "POST" : "PATCH",
+      c.body,
+    );
+    assertEquals(http.status, expected.status);
+    assertEquals(await http.json(), expected.body);
+    assertEquals(f.snapshot(), before);
+  }
+  const before = f.snapshot();
+  for (
+    const body of [null, [], { expected_version: 1, status: "inactive" }, { expected_version: 0, status: "active" }]
+  ) {
+    const http = await f.http(`/principles/${p.id}/activate`, "POST", body);
+    assertEquals(http.status, 400);
+    const error = await http.json();
+    assertEquals(error.code, "invalid_input");
+    if (body && !Array.isArray(body)) {
+      assertEquals(
+        error.fields.some((field: { path: string }) => field.path === "status"),
+        true,
+      );
+    }
+    assertEquals(f.snapshot(), before);
+  }
+  const badId = "not-a-uuid";
+  const http = await f.http(`/principles/${badId}/deactivate`, "POST", { expected_version: 1 });
+  assertEquals(http.status, 404);
+  for (const expected_version of [1, 0]) {
+    const e = await assertRejects(async () => {
+      await f.call("set_principle_status", { id: badId, expected_version, status: "inactive" });
+    }, AppError);
+    assertEquals(e.code, "not_found");
+  }
+  assertEquals(f.snapshot(), before);
+  const args = { id: p.id, expected_version: 1, status: "inactive" };
+  assertEquals(f.tools.find((t) => t.name === "set_principle_status")!.input.safeParse(args).success, true);
+  assertEquals(principleResult.parse(await f.call("set_principle_status", args)).status, "inactive");
+  const active = await f.http(`/principles/${p.id}/activate`, "POST", { expected_version: 2 });
+  assertEquals(active.status, 200);
+  assertEquals(principleResult.parse(await active.json()).status, "active");
+});
