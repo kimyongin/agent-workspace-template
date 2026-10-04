@@ -91,3 +91,9 @@ fixture는 이 checkout의 Vite `55584`와 존재하지 않는 로컬 주소 `55
 - 9 SKIP은 모바일에서 반복하지 않는 desktop 전용 viewport/zoom/keyboard 검사 7개와 환경 조건을 충족하지 않은 실제 의미 검색 검사 2개다. 실제 의미 검색 성공은 이번 검증의 완료 증거에 포함하지 않는다.
 - 로그와 결과·캡처는 `C:/Users/yongin/AppData/Local/Temp/template-18-04-full-e2e-c68ea59-20261004/e2e-output.log` 및 같은 폴더의 `test-results/`에 보존했다. 종료 후 root의 exact head와 clean 상태를 재확인하고 메인에게 단독 환경 소유권을 반환했다. 실패 아티팩트는 없다.
 - 선행 탐색 [PR #91](https://github.com/kimyongin/agent-workspace-template/pull/91)은 main `69b2d499`에 머지됐으며 CI `37182243338` 완료 근거는 [머지 검증 기록](https://github.com/kimyongin/agent-workspace-template/pull/91#issuecomment-5977338758)이다. 활동 PR #92는 최종 독립 승인/검사 후 CI·머지 대기다. 활동 squash 머지 후 latest main에 feature 범위만 재통합하고 독립 재리뷰·정확한 head CI를 수행해야 한다. 이 갱신은 문서만 변경하며 검사한 제품 코드는 `c68ea59`와 동일하다.
+
+### 2026-10-04 활동 제목 링크 크기 수정 통합
+
+메인 배정으로 `git rebase --onto 6615d180e022a43e397948cd1b715f5e69a6f615 c5f24c181d62b6bd0306f69e1c1e9b4dde4c7806 codex/fin-ux-entity-tags`를 실행해 활동 PR의 짧은 제목 링크 최소 44px 수정을 통합했다. 충돌 없이 성공한 검증 head는 `9d5f9c687823e8f84e839d76912fd65b82fc6a67`이다. upstream 대비 기존 15개 파일 범위를 유지하며 Entity/Tags 소스·자체 fixture·tags E2E의 이전 `76a75b4` 대비 diff는 0이다. 공통 Modal/ContentForm·EntitiesPage·activity·App는 upstream 그대로 보존했다.
+
+같은 모델/강도의 유효한 당일 preflight를 재사용했다. own checkout에서 `npm run build`, `npm run test:web`(14 PASS), `npm run check:docs`(48 PASS / Windows symlink 1 SKIP), `git diff --check` PASS. `npx playwright test --config e2e/entity-tags-fixtures.config.ts` desktop/mobile 22 PASS(32.3초)로 통합 뒤 초안 보호·저장·충돌·로그아웃·Entity 연결을 재검증했다. 전용 fixture 서버만 사용하고 activity가 소유한 공유 root/DB/서비스에 접근하지 않았다. 위 `c68ea59` 전체 E2E는 당시 head의 증거로 보존하며 새 upstream의 전체 E2E는 activity 담당 결과와 이후 메인 배정을 따른다. 활동 최종 문서/머지 뒤 latest main 재통합·독립 재리뷰·정확한 head CI는 남아 있다.
