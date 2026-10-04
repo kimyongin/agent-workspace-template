@@ -1,5 +1,15 @@
 .workspace-search { display: grid; gap: var(--space-3); min-width: 0; }
-.workspace-search > .actions { align-self: end; }
+.workspace-search-input { position: relative; min-width: 0; }
+.workspace-search-input .input { padding-right: 48px; }
+.search-clear { position: absolute; top: 2px; right: 2px; width: 44px; height: 44px; border: 0; background: transparent; color: var(--muted-ink); font: inherit; font-size: 20px; cursor: pointer; }
+.tab-actions { position: relative; flex-shrink: 0; margin-left: auto; }
+.tab-action-trigger { display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; border: 0; border-radius: 12px; background: transparent; color: var(--ink); cursor: pointer; }
+.tab-action-options { position: absolute; z-index: 15; right: 0; top: calc(100% + 8px); width: min(18rem, calc(100vw - 64px)); display: grid; gap: 4px; padding: 8px; background: var(--input-surface); border: 1px solid var(--control-border); border-radius: 16px; box-shadow: var(--shadow-soft); }
+.tab-action-options a,.tab-action-options button { display: flex; align-items: center; text-align: left; min-height: 44px; padding: 12px; color: var(--ink); border: 0; border-radius: 12px; background: transparent; font: inherit; font-size: 14px; text-decoration: none; cursor: pointer; }
+.tab-action-options a:hover,.tab-action-options button:hover { background: var(--surface); }
+.panel-body { display: grid; gap: 12px; border-top: 1px solid var(--line); padding-top: 16px; }
+.tag-filter-chips { border: 0; padding: 0; margin: 0; min-width: 0; }
+.tag-filter-chips legend { margin-bottom: 8px; }
 .workspace-conditions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
 .workspace-conditions .chip { overflow-wrap: anywhere; max-width: 100%; }
 .workspace-additional > summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; font-weight: 600; }
@@ -7,4 +17,4 @@
 .workspace-additional[open] > summary::after { content: " ▴"; }
 .change-snapshot { display: grid; gap: var(--space-3); }
 .change-snapshot pre { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; font: inherit; font-size: .875rem; }
-@media(min-width:640px) { .workspace-search { grid-template-columns: minmax(0, 1fr) auto; } .workspace-search > .field:last-child { grid-column: 1 / -1; } .change-snapshot { grid-template-columns: repeat(2,minmax(0,1fr)); } }
+@media(min-width:640px) { .change-snapshot { grid-template-columns: repeat(2,minmax(0,1fr)); } }

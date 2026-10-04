@@ -14,7 +14,7 @@ import type {
 import type { Actor } from "../../core/shared/actor.ts";
 import { runAsActor, SqlActorStore } from "./sql-context.ts";
 import { AppError } from "../../core/shared/errors.ts";
-import { hasTag, setTagLinks, tagIdsColumn } from "./tag-links.ts";
+import { hasAnyTag, hasTag, setTagLinks, tagIdsColumn } from "./tag-links.ts";
 import { requireEntity } from "./entity-reference.ts";
 
 type Tx = postgres.TransactionSql;
@@ -130,7 +130,8 @@ export class SqlActivityStore extends SqlActorStore implements ActivityStore {
         ${f.kind ? tx`and kind = ${f.kind}` : tx``}
         ${f.entity_id ? tx`and entity_id = ${f.entity_id}` : tx``}
         ${f.status ? tx`and status = ${f.status}` : tx``}
-        ${f.tag_id ? tx`and ${hasTag(tx, "task", f.tag_id)}` : tx``}
+        ${f.tag_id && !f.tag_ids?.length ? tx`and ${hasTag(tx, "task", f.tag_id)}` : tx``}
+        ${f.tag_ids?.length ? tx`and ${hasAnyTag(tx, "task", [...f.tag_ids, ...(f.tag_id ? [f.tag_id] : [])])}` : tx``}
         ${f.due_from ? tx`and due_on >= ${f.due_from}` : tx``}
         ${f.due_to ? tx`and due_on <= ${f.due_to}` : tx``}
         ${f.after ? tx`and (updated_at, id) < (${f.after.at}::timestamptz, ${f.after.id}::uuid)` : tx``}
@@ -198,7 +199,10 @@ export class SqlActivityStore extends SqlActorStore implements ActivityStore {
         ${f.task_id ? tx`and task_id = ${f.task_id}` : tx``}
         ${f.record_kind ? tx`and record_kind=${f.record_kind}` : tx``}
         ${f.entity_id ? tx`and entity_id = ${f.entity_id}` : tx``}
-        ${f.tag_id ? tx`and ${hasTag(tx, "record", f.tag_id)}` : tx``}
+        ${f.tag_id && !f.tag_ids?.length ? tx`and ${hasTag(tx, "record", f.tag_id)}` : tx``}
+        ${
+      f.tag_ids?.length ? tx`and ${hasAnyTag(tx, "record", [...f.tag_ids, ...(f.tag_id ? [f.tag_id] : [])])}` : tx``
+    }
         ${f.occurred_from ? tx`and occurred_at >= ${f.occurred_from}::timestamptz` : tx``}
         ${f.occurred_to ? tx`and occurred_at <= ${f.occurred_to}::timestamptz` : tx``}
         ${f.after ? tx`and (occurred_at, id) < (${f.after.at}::timestamptz, ${f.after.id}::uuid)` : tx``}

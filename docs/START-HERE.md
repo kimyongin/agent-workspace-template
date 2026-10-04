@@ -31,6 +31,8 @@ PRD와 ADR은 사람이 소유하고 나머지 문서·티켓·구현은 에이�
 
 ## 현재 상태
 
+2026-10-05 승인한 [Template-21](tickets/template-21-fin-visual-parity.md)의 세 탭 작업 메뉴·자동 검색·fin 시각 규격과 활동 할 일/기록 동시 조회, 기록/과거 원칙 타임라인을 구현했다. 최소 additive `tag_ids` OR 조회와 검색 메모 DTO를 HTTP/MCP 공통 계약에서 제공하며 DB migration은 없다. 격리 DB89·HTTP18·MCP18, 화면 fixture102·엔터티/태그 fixture22와 빠른 검사가 통과했고 실제 desktop/mobile 전체 E2E80 PASS/12 SKIP/0 FAIL을 완료했다(중복 desktop 전용10·명시 유료 의미 검색2 제외). 정확한 head의 독립 리뷰·CI·머지와 사용자 로컬 반영은 메인 담당이며 아직 완료를 주장하지 않는다. 운영 배포는 제외한다.
+
 fin UX의 배포 화면·로컬 코드와 [fin 문서](tickets/template-18-01-fin-docs-review.md)를 비교한 [Template-18 적용안](tickets/template-18-fin-ux-adaptation.md)은 PR #91/#92/#93의 구현·독립 리뷰·필수 CI·머지를 완료했다. 최종 main은 `399b82b744f3ea9471dc335ccf5b13c972c16e93`이며 단일 Entity와 기존 업무/권한 계약을 유지한다. [탐색 완료](https://github.com/kimyongin/agent-workspace-template/pull/91#issuecomment-5977338758), [활동 완료](https://github.com/kimyongin/agent-workspace-template/pull/92#issuecomment-5977860336), [엔터티·태그 완료](https://github.com/kimyongin/agent-workspace-template/pull/93#issuecomment-5977999865)가 제출 이후의 최종 사실을 소유한다. 마지막 CI `37187276858`은 DB70·HTTP17·MCP17·웹97 PASS/9 SKIP이며 웹 통과 수에는 격리 fixture22개가 포함된다. 9 SKIP은 실제 의미 검색 조건 미충족2건과 desktop 전용 반복 검사7건이다. 활동 CI의 최초 조작 영역 결함 수정과 후속 runtime500의 관측 한계·재실행 성공은 활동 완료 기록에 보존했다. 이번 UX 변경의 운영 배포는 수행하지 않았다.
 
 2026-10-04 후속 사용자 요청의 세 탭·탭 내부 검색·프로필/설정·반응형 상세와 출시 UX는 [Template-19](tickets/template-19-three-tab-release-ux.md)에 정리했다. 추가 설명의 현재 원칙 하나·태그 사전 분리·CRUD 편집 메모와 활동 변경 기록은 [Template-20](tickets/template-20-current-principle-change-records.md)이 의미와 승인 범위를 소유한다. 사용자의 구현 승인 후 PRD를 반영하고 서버·탐색/설정·업무 화면의 세 구현 티켓으로 나눠 구현·로컬 통합 검증을 마쳤다. 최종 정확한 통합 head의 독립 리뷰·필수 CI·머지는 제출 단계에서 확인한다. 기존 다중 활성 원칙/원칙 태그를 목표로 삼지 않으며 운영 배포는 이번 승인 범위에 포함하지 않는다.

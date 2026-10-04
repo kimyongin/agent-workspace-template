@@ -1,3 +1,4 @@
+import { beginTabAction } from "./ui-actions.ts";
 // T02-2 완료 조건: 웹 작성 → MCP 조회·완료 → 웹 결과 확인, 그리고 반대 방향.
 import { expect, test } from "@playwright/test";
 import { devLogin, mcpClient, mcpTokenViaConsent, unique } from "./support.ts";
@@ -7,7 +8,7 @@ test("웹에서 만든 할 일을 에이전트가 MCP로 완료하고 웹에서 
   const title = unique("보고서 초안");
 
   // 1. 웹에서 일회성 할 일 작성
-  await page.getByRole("button", { name: "할 일 추가" }).click();
+  await beginTabAction(page,"할 일 추가");
   const dialog = page.getByRole("dialog", { name: "할 일 추가" });
   await dialog.getByLabel("제목").fill(title);
   await dialog.getByLabel("요약").fill("다음 주 회의용 초안 3쪽");
@@ -88,7 +89,7 @@ test("에이전트가 MCP로 만든 기록·반복 회차를 웹에서 보고 �
 
 test("다른 사용자는 URL을 알아도 남의 할 일을 볼 수 없다", async ({ page, browser }) => {
   await devLogin(page, "A");
-  await page.getByRole("button", { name: "할 일 추가" }).click();
+  await beginTabAction(page,"할 일 추가");
   const dialog = page.getByRole("dialog", { name: "할 일 추가" });
   const title = unique("A의 비밀 할 일");
   await dialog.getByLabel("제목").fill(title);

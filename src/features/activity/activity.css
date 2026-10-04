@@ -9,7 +9,8 @@
 .activity-item-heading { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-2); }
 .activity-item-heading > .item-title { min-width: 44px; }
 .activity-item-actions { display: inline-flex; flex-shrink: 0; gap: var(--space-1); }
-.activity-item-actions a { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; font-size: .875rem; }
+.activity-item-actions { align-items: center; }
+.activity-item-actions a { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; font-size: .875rem; font-weight: 400; text-underline-offset: 2px; }
 .record-timeline { display: flex; flex-direction: column; gap: var(--space-4); }
 .record-date-toggle { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); width: 100%; }
 .record-date-toggle::after { content: "접기"; font-size: .875rem; font-weight: normal; }
@@ -19,3 +20,16 @@
 .tag-read { display: inline-block; border: 1px solid var(--line); border-radius: var(--radius-chip); padding: var(--space-1) var(--space-2); overflow-wrap: anywhere; max-width: 100%; }
 .tag-selection .chip { min-width: 44px; border-radius: var(--radius-chip); }
 .record-date-group > .list[hidden] { display: none; }
+.record-period { display: grid; gap: 8px; }
+.record-period-inputs { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 8px; }
+.record-period-inputs .input { min-width: 0; padding: 10px 6px; }
+.activity-section { display: grid; gap: 12px; min-width: 0; }
+.tasks-list { padding: 16px; }
+.tasks-list:empty { display: none; }
+.timeline-day { margin: 0; }
+.fin-timeline { border-top: 1px solid var(--line); margin-top: 12px; padding-top: 8px; }
+.fin-timeline .fin-entry { position: relative; padding: 16px 0 16px 16px; margin-left: 0; border-top: 0; border-bottom: 1px solid var(--line); border-left: 1px solid var(--line); }
+.fin-timeline .fin-entry:last-child { border-bottom: 0; }
+.timeline-dot { position: absolute; left: -4px; top: 20px; width: 8px; height: 8px; border-radius: 50%; background: var(--muted-ink); }
+.current-document .markdown > :first-child { margin-top: 0; }
+@media(min-width:640px) { .tasks-list { padding: 24px; } }

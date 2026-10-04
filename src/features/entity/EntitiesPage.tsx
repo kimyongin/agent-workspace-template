@@ -10,6 +10,7 @@ import { api, ApiError, query } from "../../lib/api.ts";
 import { useRequestId } from "../../lib/useRequestId.ts";
 import { EntityForm } from "./forms.tsx";
 import { GuideLink } from "../../components/GuideLink.tsx";
+import { TabActions } from "../../components/TabActions.tsx";
 type Page = { items: EntityResult[]; next_cursor: string | null; count: number };
 export function EntitiesPage() {
   const create=useCreateMode();
@@ -122,14 +123,12 @@ export function EntitiesPage() {
     <section className="panel" aria-labelledby="entities-title">
       <div className="panel-head">
         <h1 id="entities-title" className="page-title" tabIndex={-1}>엔터티</h1>
-        <button className="btn btn-primary" onClick={create.begin}>
-          엔터티 추가
-        </button>
+        <TabActions title="엔터티" actions={[{label:"엔터티 등록",run:create.begin},{label:"엔터티 태그 관리",to:"/tags/entity"}]}/>
       </div>
       <TabSearch entity/>
       <TagDictionaryStatus dictionary={dictionary}/>
-      <details className="workspace-additional"><summary>추가 조건</summary><div className="form" role="group" aria-label="엔터티 필터">
-        <TagFilter showFailure={false} dictionary={dictionary} value={filter.tag_id??""} onChange={v=>set("tag_id",v)}/>
+      <fieldset className="field tag-filter-chips"><legend className="label">엔터티 태그</legend><div className="chips">{dictionary.tags?.map(tag=><button type="button" className="chip" key={tag.id} aria-pressed={filter.tag_id===tag.id} onClick={()=>set("tag_id",filter.tag_id===tag.id?"":tag.id)}>{tag.name}</button>)}</div></fieldset>
+      <details className="workspace-additional"><summary>필터</summary><div className="form" role="group" aria-label="엔터티 필터">
         <div className="field-row">
           {(["prop3_from", "prop3_to"] as const).map((name) => (
             <Field

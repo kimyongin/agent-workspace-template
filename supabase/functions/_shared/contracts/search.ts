@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { id, isoDateTime, pageInput, text } from "./common.ts";
+import { tagFilterIds } from "./tag.ts";
 export const searchKind = z.enum(["task", "record", "principle"]);
 export const searchInput = z.strictObject({
   task_kind: z.enum(["once", "recurring"]).optional(),
@@ -13,6 +14,7 @@ export const searchInput = z.strictObject({
     "principle",
   ]),
   tag_id: id.optional(),
+  tag_ids: tagFilterIds.optional(),
   entity_id: id.optional(),
   from: isoDateTime.optional(),
   to: isoDateTime.optional(),
@@ -43,6 +45,9 @@ export const searchItem = z.object({
   match: z.enum(["keyword", "semantic", "both"]),
   index_state: z.enum(["indexed", "pending", "excluded"]),
   path: z.string(),
+  change_note: z.string().nullable().optional(),
+  task_status: z.enum(["open", "done", "active", "stopped"]).nullable().optional(),
+  record_kind: z.enum(["user", "result", "change"]).nullable().optional(),
 });
 export type SearchItem = z.infer<typeof searchItem>;
 export const searchResult = z.object({

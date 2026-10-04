@@ -12,6 +12,11 @@ export function hasTag(tx: Tx, kind: Kind, id: string) {
     tx(`app.${kind === "entity" ? "entities" : `${kind}s`}.id`)
   } and tag_id=${id})`;
 }
+export function hasAnyTag(tx: Tx, kind: Kind, ids: string[]) {
+  return tx`exists(select 1 from ${tx(`app.${kind}_tags`)} where ${tx(`${kind}_id`)}=${
+    tx(`app.${kind === "entity" ? "entities" : `${kind}s`}.id`)
+  } and tag_id in ${tx(ids)})`;
+}
 export async function setTagLinks(tx: Tx, actor: Actor, kind: Kind, itemId: string, ids: string[]) {
   if (ids.length) {
     const rows = await tx`select id from app.tags where id in ${tx(ids)} and scope=${

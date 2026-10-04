@@ -17,7 +17,7 @@ export async function devLogin(page: Page, who: "A" | "B" = "A") {
   await page.getByLabel("이메일").fill(env[`DEV_USER_${who}_EMAIL`]);
   await page.getByLabel("비밀번호").fill(env[`DEV_USER_${who}_PASSWORD`]);
   await page.getByRole("button", { name: "이메일로 로그인" }).click();
-  await expect(page.getByRole("heading", { name: "할 일", level: 1 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "활동", level: 1 })).toBeVisible();
 }
 
 const b64url = (b: Buffer) => b.toString("base64url");

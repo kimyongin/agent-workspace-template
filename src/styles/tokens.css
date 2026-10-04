@@ -1,12 +1,15 @@
 /* 시각 규격(docs/design/visual-spec.md)의 공통 토큰. 화면은 이 토큰만 쓴다. */
+@font-face { font-family: Pretendard; src: url('/fonts/Pretendard-Regular.woff2') format('woff2'); font-style: normal; font-weight: 400; font-display: swap; }
+@font-face { font-family: Pretendard; src: url('/fonts/Pretendard-SemiBold.woff2') format('woff2'); font-style: normal; font-weight: 600; font-display: swap; }
 :root {
-  --background: #101116;
-  --panel: #18191f;
-  --surface: #13141a;
-  --input-surface: #0f1014;
+  --background: #0d0e12;
+  --panel: rgba(24, 25, 31, 0.94);
+  --surface: rgba(19, 20, 26, 0.9);
+  --input-surface: rgba(15, 16, 20, 0.96);
   --ink: #ececef;
   --muted-ink: #a0a4ad;
-  --line: #343740;
+  --line: rgba(255, 255, 255, 0.1);
+  --shadow-soft: 0 28px 60px rgba(0, 0, 0, 0.32);
   --control-border: #747985;
   --accent: #ff8a00;
   --accent-ink: #15120d;
@@ -38,7 +41,8 @@
 
 body {
   margin: 0;
-  background: var(--background);
+  background: radial-gradient(circle at top left, rgba(255, 138, 0, 0.14), transparent 24%), radial-gradient(circle at top right, rgba(38, 198, 218, 0.1), transparent 24%), linear-gradient(180deg, #0d0e12 0%, #14151a 100%);
+  background-attachment: fixed;
   color: var(--ink);
   font-family: var(--font-sans);
   font-size: 1rem;

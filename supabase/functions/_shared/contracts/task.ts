@@ -16,7 +16,7 @@ import {
   title,
 } from "./common.ts";
 import { recordResult } from "./record.ts";
-import { tagIds } from "./tag.ts";
+import { tagFilterIds, tagIds } from "./tag.ts";
 
 export const TASK_KINDS = ["once", "recurring"] as const;
 export const TASK_STATUSES = ["open", "done", "active", "stopped"] as const;
@@ -127,6 +127,7 @@ export const taskListQuery = z
     /** 그 날짜에 회차가 있는 반복 할 일만, 회차 상태와 함께. */
     occurrence_on: isoDate.optional(),
     tag_id: id.optional(),
+    tag_ids: tagFilterIds.optional(),
     entity_id: id.optional(),
     ...pageInput,
   })

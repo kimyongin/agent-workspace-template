@@ -109,6 +109,7 @@ export async function listTasks(deps: ActivityDeps, actor: Actor, query: TaskLis
       kind: "recurring",
       status: filter.status,
       tag_id: filter.tag_id,
+      tag_ids: filter.tag_ids,
       entity_id: filter.entity_id,
       limit: 5000,
     });
