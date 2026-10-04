@@ -4,7 +4,7 @@
 상태: 진행 중
 기준: main399b82b와 승인한 [Template-19](template-19-three-tab-release-ux.md)/[Template-20](template-20-current-principle-change-records.md)
 
-현재 단계: navigation19 구현·독립 리뷰 지적 수정의 로컬 검증 완료, 제출 전 인계 중. 정확한 최종 commit의 새 독립 리뷰·전체 runtime CI는 메인 담당이다. 아래 최초 구현 기록의 generation 검사만으로는 SDK 저장소 복원을 막지 못했던 점을 후속 수정 기록에서 바로잡았다.
+현재 단계: navigation19 두 번째 재리뷰의 공유 refresh 초기화 결함 수정·제출 전 인계 중. 실제 SDK 경계·단위·build 검사는 통과했지만 이번 sandbox의 Chromium spawn EPERM으로 브라우저 재검증은 차단됐다. 정확한 최종 revision의 새 독립 리뷰·브라우저 fixture·전체 runtime CI는 메인 담당이다. 아래 과거 generation/공유 refresh 결론은 마지막 수정 기록으로 대체한다.
 
 ## 목표와 소유
 
@@ -50,6 +50,8 @@ fixture는 아이콘 실패/재시도·성공 응답/새로고침·기본값/취
 남은 필수 검증은 screens/server와 scoped 태그 계약 통합, 메인이 배정하는 격리 실제 OAuth/DB/전체 E2E, 정확한 commit 독립 리뷰·필수 CI·머지다. 실제 Google 계정 metadata 저장/다른 기기 조회와 운영 배포는 수행하지 않았다. 실제 휴대폰은 기존 사용자 이관, 스크린리더 직접 실행 제외는 유지한다.
 
 ## navigation19 fresh CLI 수정·제출 전 인계 (2026-10-04)
+
+이 절은 `e00ea0e`까지의 첫 수정 이력이다. 공유 refresh의 안전성 결론은 아래 두 번째 독립 재리뷰 수정 절로 대체한다. 당시 검사 PASS를 현재 변경의 브라우저 PASS로 해석하지 않는다.
 
 사용자 지정 구현 worker가 `codex/three-tab-navigation`의 clean `9e2c397b00a901cbba3ca06276c88938081373c6`을 확인하고 작업을 이어받았다. 기존 Desktop 구현 세션의 재개가 전역 thread limit으로 차단되어 새 CLI 직접 실행을 지정받았다. 다른 worktree의 server/screens 담당 작업은 가져오거나 되돌리지 않았다. 소유 범위는 Auth·설정과 fixture/unit, 기존 전체 E2E 소비자의 탐색 경로, ui-patterns의 탐색/설정 절과 이 티켓이다. 업무 화면·backend·PRD/ADR·main seed 문서는 수정하지 않았다. spawn·공유 DB/서비스 시작/초기화·실계정·유료 모델·push·PR·merge·운영 배포를 수행하지 않았다.
 
@@ -99,3 +101,48 @@ fixture는 아이콘 실패/재시도·성공 응답/새로고침·기본값/취
 ### 다음 담당과 한계
 
 메인이 최종 clean commit의 새 독립 리뷰를 배정하고 정확한 revision의 전체 CI check/integration(DB·HTTP·MCP·전체 E2E)을 확인한다. 이 티켓에 리뷰 승인을 추가하지 않았다. 현재 old backend의 활동 태그 소비자는 runnable하며 `/tags/:scope`의 실제 분리 계약·업무 구현은 server/screens의 별도 범위다. 실제 Google metadata 저장·재로그인/다른 기기 조회·실제 OAuth/DB·운영 배포는 미수행이다. 실제 휴대폰 사용자 이관과 스크린리더 직접 실행 제외는 유지한다.
+
+## 두 번째 독립 재리뷰 수정·인계 (2026-10-04)
+
+같은 CLI 구현 세션이 사용자 지정 clean `e00ea0efcc0ca0a3955422cd8ef7d6fb919872b7`을 확인하고 이어서 수정했다. 재리뷰 원본은 `TEMP/template19-nav-rereview-final.md`, 독립 재현 원본은 `TEMP/template19-independent-e00ea0e-refresh-races.mjs`와 같은 이름의 `.log`다. `TEMP`는 `C:/Users/yongin/AppData/Local/Temp`다. 코드 수정 전에 원본 스크립트를 그대로 복사해 실행했고 `TEMP/template19-nav-fix2-before.log`에 결과를 보존했다. profile 응답·refresh 응답 경계4개는 보존됐으나 공유 세션 읽기가 SDK snapshot보다 먼저 지연된 logout/account switch2개는 provider·SDK·storage 모두 A를 복원했다. 원격 logout500 뒤 로컬 세션 해제 조건도 원본대로 유지했다.
+
+### 결함 처리와 현재 계약
+
+P1의 원인은 공유 `refreshSession()`의 초기 세션 읽기와 commit snapshot 사이였다. generation 검사는 SDK의 저장/이벤트 뒤라 이미 복원된 세션을 막지 못했다. 프로필 저장 함수에서 공유 `getSession()`과 `refreshSession()`을 모두 제거했다. 캡처한 세션의 장식용 쓰기만 고유 키·메모리 storage의 실제 AuthClient에서 실행하며, 만료 임박 snapshot의 refresh 거부 회귀는 유지한다. 원래 Auth lifecycle의 초기 세션 조회·로그인·로그아웃·자동 refresh는 프로필 저장과 분리되어 유지된다.
+
+표시 재조회는 세션을 seed하지 않은 별도 AuthClient의 `getUser(access_token)`이다. 공식 [getUser의 명시적 JWT](https://supabase.com/docs/reference/javascript/auth-getuser)·[updateUser](https://supabase.com/docs/reference/javascript/auth-updateuser)와 고정 auth-js2.117.2 소스를 확인했다. 명시적 JWT 분기는 SDK 초기 세션 읽기/refresh 없이 서버를 조회하며, AuthSessionMissingError의 로컬 해제도 별도 메모리 storage에만 영향을 준다. changelog 당일 보존본의 관련 SAML breaking change는 이번 변경에 적용되지 않는다.
+
+확인한 서버 아이콘만 provider의 현재 세션에 복사한다. 토큰·refresh token·app_metadata·다른 공급자 필드는 재주입하거나 공유 SDK에 저장하지 않는다. provider 표시와 SDK metadata가 달라도 인증 자격 증명은 SDK가 소유한다. account generation·조회 순서·현재 token 검사는 늦은 표시 응답을 거부한다. 다른 탭에는 별도 BroadcastChannel로 계정 ID만 알리고 수신 탭이 자기 token으로 서버 정본을 읽는다. 새 provider/새로고침·재로그인·Auth 이벤트도 비변이 조회를 수행한다. 저장 원본 성공 뒤 표시 읽기 실패 안내와 초안 재시도는 유지하며 shared refresh 실패 cache의 시계 진행은 더 이상 필요 없다.
+
+security metadata는 여전히 장식용이다. permissions·scope·RLS·업무 API·서비스 키를 확대하거나 바꾸지 않았다. SettingsPage의 dirty 선택·외부 같은 계정 갱신·명시적 취소/로컬 성공/계정 remount 로직과 기존 entity-tags 소비자의 초안/초점/logout0→1 검사를 보존했다. backend·business screens·main seed·PRD/ADR은 수정하지 않았다. 다른 worktree의 변경을 가져오거나 되돌리지 않았다.
+
+### 직접 검사·증거·제약
+
+`e2e/fixtures/auth-profile-boundary.mjs`는 실제 설치 SDK와 현재 provider/profile 소스를 실행한다. React hook 저장소만 재현 harness로 제어하고 HTTP·storage 일정만 fixture로 제어한다. SDK 함수·이벤트·저장 결과를 fake로 대체하지 않는다. 초기화 검사에서는 실제 AuthClient 생성에 storage getItem 지연을 주입한다. cross-tab 모드에서는 최소 window/document 플랫폼과 Node의 실제 BroadcastChannel을 제공해 SDK 자체의 auth broadcast 수신을 실행한다. 이는 Chromium·별도 browser context 증거와 구분하며 두 SDK 인스턴스의 동일 문맥 경고는 fixture 플랫폼의 한계다.
+
+- 공유 SDK negative control4개: snapshot 전에는 이전 A가 복원되는 알려진 SDK 경계, snapshot 뒤 `/token` 지연에서는 logout/B가 보존되는 좁은 기존 경계를 모두 유지한다. 앱이 이 SDK 경로를 호출하지 않음을 별도로 검사한다.
+- 실제 provider 경쟁12개: profile 응답·명시적 read 응답·격리 read 초기화 × 같은/다른 탭 × logout/account switch. 저장 중 공유 storage 읽기0·refresh0, provider·SDK·storage의 현재 계정과 actor SDK 상태, 전체 직렬화된 세션(자격 증명 포함)의 불변성을 검증한다.
+- 서버 정본 검사1개: PUT 응답star/GET 정본leaf를 구분하고 저장 결과·provider·다른 provider의 실제 profile broadcast·재마운트·재로그인에서 leaf를 확인한다. 프로필 저장/표시 읽기/재마운트 동안 SDK의 person metadata와 전체 저장 문자열은 유지된다.
+- Vitest의 `auth-profile-boundary.test.ts`가 이 Node 검사17개를 실행하므로 기존 `test:web`/CI에서 빠지지 않는다. Playwright 자동 발견과 충돌하지 않도록 `.test.mjs` 이름은 사용하지 않는다. expiry fixture가 초 경계에서 바뀐 첫 canonical 검사 실패는 `TEMP/template19-nav-fix2-canonical-first-failure.log`에 남겼고 최초 token의 expiry를 고정했다.
+- 브라우저의 profile 지연8개는 공유 refresh 대신 비변이 read 지연을 검사하고 refresh0 및 전체 SDK 문자열 보존을 추가했다. 같은 계정 dirty·명시적 취소·서버 정본의 두 탭/새로고침/재로그인·부분 실패 재시도 검사를 유지했다. navigation fixture의 GET 서버 정본과 기존 실패/busy/초안 보호를 함께 갱신했다. 기존 full E2E entity-tags의 행동 assertion·경로 수정은 그대로다.
+
+| 명령/직접 확인 | 이번 변경 결과·증거 |
+| --- | --- |
+| 원본 독립 재현 | SDK 초기 read 경계2개 A 복원 재현, `TEMP/template19-nav-fix2-before.log` |
+| `node --test e2e/fixtures/auth-profile-boundary.mjs` | 17 PASS, `TEMP/template19-nav-fix2-boundaries.log` |
+| `npm run test:web` | 8 files/18 PASS(그중1개가 SDK 경계17개 실행), `TEMP/template19-nav-fix2-web.log` |
+| `npm run build` | 타입/Vite PASS, 기존500kB chunk 경고, `TEMP/template19-nav-fix2-build.log` |
+| `npm run test:adapters:fast` | 기존 handler/schema13 PASS, `TEMP/template19-nav-fix2-adapters.log` |
+| `npm run check:boundaries` | PASS, `TEMP/template19-nav-fix2-layer-boundaries.log` |
+| `npm run check:docs`, `git diff --check` | PASS(문서388·scripts48 PASS/Windows symlink privilege1 SKIP), `TEMP/template19-nav-fix2-docs.log`, `TEMP/template19-nav-fix2-diff.log`; Git safe.directory는 이번 명령의 환경에만 지정, 전역 설정 변경 없음 |
+| 관련 default desktop/mobile fixture | 실행 시 Chromium launch `spawn EPERM`으로 차단, `TEMP/template19-nav-fix2-browser-blocked.log`; 현재 source의 브라우저 PASS를 주장하지 않음 |
+
+전용 listener56580이 없음을 확인한 뒤 own Vite만 시작했고 실제 Supabase/DB/Edge·운영 API/계정은 호출하지 않았다. 처음 default fixture 실행에서 과거 config의 output 경로를 재사용해 이전 `template19-nav-default-final2/artifacts` 일부가 새 launch 실패 artifact로 교체됐다. 이전60 PASS 로그·hash manifest와 독립 재현/원래 수정 전 증거는 유지되지만 그 artifact 폴더를 이전 성공의 확정 증거로 사용하지 않는다. 새 browser 실패 trace는 별도 fix2 artifact로 보존한다. 공유 서비스 시작/초기화·spawn agent·push·PR·merge·실계정·유료 대체모델 호출은 없었다.
+
+### 동일 CLI 세션 metadata와 다음 담당
+
+명시 요청과 실제 기존 native turn_context 관측은 `gpt-6.1-sol/high`, CLI0.160.0, session `01a10640-f364-7f21-9685-ebb16a5c2575`를 유지한다. 모델 유지 이유는 허용된 동일 구현 인계, high 유지 이유는 SDK 초기화·저장·broadcast 경쟁 분석이다. 세션을 새로 spawn하거나 fallback하지 않았다. backend effort·실청구액은 미노출/미확인이다. 초기 소유자 셸과 달리 현재 실행은 restricted workspace-write sandbox이며 browser spawn과 Git 쓰기의 가능 여부는 실제 실행 결과로 남긴다.
+
+최종 source/file hash·원본 재현 script hash·명령 로그·commit/clean 상태는 `TEMP/template19-nav-fix2-handoff.json`, 진행 상태는 `TEMP/template19-nav-fix2-status.md`로 인계한다. 이 티켓에 리뷰 승인을 추가하지 않는다. 메인은 정확한 최종 revision의 새 독립 리뷰, 브라우저3 fixture의 desktop/mobile 재실행, 실제 통합 CI·OAuth/DB/전체 E2E를 담당한다. backend/screens 통합과 실제 다른 기기/휴대폰·스크린리더는 여전히 별도 범위다.
+
+최종 지정9개 파일의 `git add`는 `C:/Users/yongin/projects/agent-workspace-template/.git/worktrees/agent-workspace-template7/index.lock: Permission denied`로 실패했다. 현재 정책은 Git 관리 경로를 읽기 전용으로 제한하며 escalation도 허용하지 않는다. 우회하거나 다른 checkout을 만들지 않았다. 따라서 새 commit/clean 상태를 주장하지 않는다. 기준 HEAD는 계속 `e00ea0efcc0ca0a3955422cd8ef7d6fb919872b7`이며 source9개 변경을 정확한 파일 hash와 `TEMP/template19-nav-fix2.patch`로 고정한다. 메인이 이 worktree의 동일 파일을 stage/commit하고 새 SHA를 독립 리뷰에 전달해야 한다. 이 실행 제한과 browser launch 제한은 구현 결함의 미수정과 구분하며 모든 허용된 소유 범위 수정·검증은 완료했다.

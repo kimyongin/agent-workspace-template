@@ -1,9 +1,10 @@
 import { AuthClient, type Session } from "@supabase/supabase-js";
+import { profileIconId } from "../settings/profile.tsx";
 
 /** updateUser는 캡처한 세션을 응답 뒤 저장한다. 프로필 쓰기는 공유 세션과 격리한다. */
-export function profileClient(session: Session) {
+export function profileClient(session?: Session) {
   const storageKey = `workspace-profile-${crypto.randomUUID()}`;
-  const memory = new Map([[storageKey, JSON.stringify(session)]]);
+  const memory = new Map<string, string>(session ? [[storageKey, JSON.stringify(session)]] : []);
   return new AuthClient({
     url: `${import.meta.env.VITE_SUPABASE_URL.replace(/\/$/, "")}/auth/v1`,
     headers: { apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY },
@@ -24,6 +25,17 @@ export function profileClient(session: Session) {
     detectSessionInUrl: false,
     flowType: "pkce",
   });
+}
+
+/** 명시적 JWT 조회는 공유 SDK의 세션 읽기·초기화·refresh·저장을 전혀 사용하지 않는다. */
+export async function readProfile(session: Session) {
+  const client = profileClient();
+  try {
+    const { data, error } = await client.getUser(session.access_token);
+    if (error) throw error;
+    if (data.user?.id !== session.user.id) throw new Error("로그인 계정이 변경되었습니다.");
+    return profileIconId(data.user.user_metadata.workspace_avatar_id);
+  } finally { await client.dispose(); }
 }
 
 export class ProfileDisplayRefreshError extends Error {

@@ -3,8 +3,8 @@ import type { Session } from "@supabase/supabase-js";
 import { createContext, type ReactNode, useContext, useEffect, useRef, useState } from "react";
 import { Navigate, useLocation } from "react-router";
 import { supabase } from "../../lib/supabase.ts";
-import { profileIconId, type ProfileIconId } from "../settings/profile.tsx";
-import { profileClient, ProfileDisplayRefreshError } from "./profile-client.ts";
+import type { ProfileIconId } from "../settings/profile.tsx";
+import { profileClient, readProfile, ProfileDisplayRefreshError } from "./profile-client.ts";
 
 interface AuthState {
   session: Session | null;
@@ -18,20 +18,47 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<{ session: Session | null; loading: boolean }>({ session: null, loading: true });
   const activeSession = useRef<Session | null>(null);
   const accountGeneration = useRef(0);
+  const profileRevision = useRef(0);
+  const channel = useRef<BroadcastChannel | null>(null);
+  const applyIcon = (id: ProfileIconId) => {
+    const session = activeSession.current;
+    if (!session) return;
+    // 표시용 필드만 복사한다. 토큰·권한·SDK 세션 저장소는 프로필 흐름이 변경하지 않는다.
+    const display = { ...session, user: { ...session.user, user_metadata: { ...session.user.user_metadata, workspace_avatar_id: id } } };
+    activeSession.current = display;
+    setState({ session: display, loading: false });
+  };
   useEffect(() => {
     let alive = true;
     let eventReceived = false;
+    const hydrate = async () => {
+      const session = activeSession.current;
+      const generation = accountGeneration.current;
+      const revision = ++profileRevision.current;
+      if (!session) return;
+      try {
+        const icon = await readProfile(session);
+        if (alive && generation === accountGeneration.current && revision === profileRevision.current && activeSession.current?.access_token === session.access_token) applyIcon(icon);
+      } catch { /* 읽기 실패는 기존 표시를 유지한다. 저장 뒤 실패는 별도로 안내한다. */ }
+    };
     const apply = (session: Session | null) => {
       if (!alive) return;
       if (activeSession.current?.user.id !== session?.user.id) accountGeneration.current++;
       activeSession.current = session;
       setState({ session, loading: false });
+      // Auth 콜백의 SDK 잠금 밖에서, 별도 클라이언트로 서버 정본을 읽는다.
+      queueMicrotask(() => { if (alive) void hydrate(); });
     };
     const { data } = supabase.auth.onAuthStateChange((_event, session) => { eventReceived = true; apply(session); });
     void supabase.auth.getSession().then(({ data, error }) => {
       if (!eventReceived) apply(error ? null : data.session);
     }).catch(() => { if (!eventReceived) apply(null); });
-    return () => { alive = false; accountGeneration.current++; data.subscription.unsubscribe(); };
+    const updates = new BroadcastChannel("workspace-decorative-profile");
+    channel.current = updates;
+    updates.onmessage = event => {
+      if (event.data === activeSession.current?.user.id) void hydrate();
+    };
+    return () => { alive = false; accountGeneration.current++; profileRevision.current++; channel.current = null; updates.close(); data.subscription.unsubscribe(); };
   }, []);
   const saveProfileIcon = async (id: ProfileIconId) => {
     const original = activeSession.current;
@@ -40,23 +67,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const assertAccount = () => {
       if (activeSession.current?.user.id !== original.user.id || generation !== accountGeneration.current) throw new Error("로그인 계정이 변경되었습니다.");
     };
-    // 먼저 현재 SDK 세션을 조회한다. 공유 refresh token을 개인 클라이언트가 회전시키지 않는다.
-    const current = await supabase.auth.getSession();
-    assertAccount();
-    if (current.error) throw current.error;
-    if (current.data.session?.user.id !== original.user.id) throw new Error("로그인 계정이 변경되었습니다.");
-    const client = profileClient(current.data.session);
+    ++profileRevision.current;
+    const client = profileClient(original);
     try {
       const { data, error } = await client.updateUser({ data: { workspace_avatar_id: id } });
       assertAccount();
       if (error) throw error;
       if (data.user?.id !== original.user.id) throw new Error("로그인 계정이 변경되었습니다.");
-      // 공유 SDK의 refresh는 저장소 변경을 검사한다(고정 SDK 2.117.2).
-      // 이전 계정 토큰을 setSession으로 다시 주입하지 않고 현재 세션만 새로 조회한다.
-      const refreshed = await supabase.auth.refreshSession();
+      // 저장 알림에는 계정 ID만 담는다. 수신 탭도 자기 토큰으로 서버 표시를 읽는다.
+      channel.current?.postMessage(original.user.id);
+      let icon: ProfileIconId;
+      try { icon = await readProfile(original); }
+      catch { assertAccount(); throw new ProfileDisplayRefreshError(); }
       assertAccount();
-      if (refreshed.error || refreshed.data.session?.user.id !== original.user.id) throw new ProfileDisplayRefreshError();
-      return profileIconId(refreshed.data.session.user.user_metadata.workspace_avatar_id);
+      ++profileRevision.current;
+      applyIcon(icon);
+      return icon;
     } finally { await client.dispose(); }
   };
   return <AuthContext.Provider value={{ ...state, saveProfileIcon }}>{children}</AuthContext.Provider>;

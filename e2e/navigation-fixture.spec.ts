@@ -16,11 +16,11 @@ test.beforeEach(async ({ page, baseURL }) => {
   }, user);
 });
 async function settings(page: Page) { await page.getByRole("button", { name: "메뉴", exact: true }).click(); await page.getByRole("link", { name: "설정", exact: true }).click(); }
-async function refreshedProfile(page: Page, icon: string) {
-  await page.route("**/auth/v1/token*", route => route.fulfill({ json: {
-    access_token: "refreshed-fixture", refresh_token: "refreshed-fixture", token_type: "bearer", expires_in: 3600,
-    user: { ...user, user_metadata: { ...user.user_metadata, workspace_avatar_id: icon } },
-  } }));
+async function refreshedProfile(page: Page, icon: () => string) {
+  await page.route("**/auth/v1/user", route => {
+    if (route.request().method() === "PUT") return route.fallback();
+    return route.fulfill({ json: { ...user, user_metadata: { ...user.user_metadata, workspace_avatar_id: icon() } } });
+  });
 }
 async function signIn(page: Page, id = user.id) {
   await page.evaluate(async id => {
@@ -74,9 +74,10 @@ test("팝오버는 하나만 열리며 키보드·외부 클릭·경로 이동�
 });
 
 test("아이콘 저장 실패의 초안을 보존하고 서버 성공 응답·재조회·기본 복원을 반영한다", async ({ page }) => {
-  await refreshedProfile(page, "leaf");
   let fail = true; let calls = 0;
+  await refreshedProfile(page, () => fail ? "person" : "leaf");
   await page.route("**/auth/v1/user", async route => {
+    if (route.request().method() !== "PUT") return route.fallback();
     calls++; const body = route.request().postDataJSON(); expect(body.data).toEqual({ workspace_avatar_id: "leaf" });
     if (fail) await route.fulfill({ status: 500, json: { msg: "fixture failure" } });
     else await route.fulfill({ json: { ...user, user_metadata: { ...user.user_metadata, workspace_avatar_id: "leaf" } } });
@@ -94,9 +95,10 @@ test("아이콘 저장 실패의 초안을 보존하고 서버 성공 응답·�
 });
 
 test("저장 중 중복 요청과 탭·로그아웃 이동을 막고 응답 뒤 이동할 수 있다", async ({ page }) => {
-  await refreshedProfile(page, "sun");
+  let saved = false;
+  await refreshedProfile(page, () => saved ? "sun" : "person");
   let finish!: () => void; const waiting = new Promise<void>(resolve => { finish = resolve; }); let calls = 0;
-  await page.route("**/auth/v1/user", async route => { calls++; await waiting; await route.fulfill({ json: { ...user, user_metadata: { ...user.user_metadata, workspace_avatar_id: "sun" } } }); });
+  await page.route("**/auth/v1/user", async route => { if (route.request().method() !== "PUT") return route.fallback(); calls++; await waiting; saved = true; await route.fulfill({ json: { ...user, user_metadata: { ...user.user_metadata, workspace_avatar_id: "sun" } } }); });
   await page.goto("/settings"); await page.getByRole("radio", { name: "해", exact: true }).check(); await page.getByRole("button", { name: "아이콘 저장" }).click();
   await expect(page.getByRole("button", { name: "저장 중…" })).toBeDisabled(); await page.getByRole("navigation", { name: "주 메뉴" }).getByRole("link", { name: "엔터티", exact: true }).click();
   await expect(page).toHaveURL(/\/settings$/); await expect(page.getByRole("dialog")).toHaveCount(0);
