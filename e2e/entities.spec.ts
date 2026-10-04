@@ -32,7 +32,7 @@ test("Entity 웹 CRUD·초안 보호→MCP parity·활동 연결→삭제 원문
       entity_id: id,
     });
     const unrelated = await mcp.call("create_task", { kind: "once", title: task.title + " 외부", summary: "별도" });
-    await page.goto(`/search?q=${encodeURIComponent(task.title)}&mode=keyword`);
+    await page.goto(`/search?q=${encodeURIComponent(task.title)}&mode=keyword&kind=task`);
     await page.getByLabel("엔터티", { exact: true }).selectOption(id);
     await expect(page.locator(".list .item-title")).toHaveCount(1);
     expect(new URL(page.url()).searchParams.get("entity_id")).toBe(id);
@@ -42,7 +42,7 @@ test("Entity 웹 CRUD·초안 보호→MCP parity·활동 연결→삭제 원문
     await page.reload();
     await expect(page.locator(".list .item-title")).toHaveCount(1);
     expect(
-      (await mcp.call("search", { query: task.title, entity_id: id, mode: "keyword" })).items.map((x: { id: string }) =>
+      (await mcp.call("search", { query: task.title, entity_id: id, mode: "keyword", kinds:["task"] })).items.map((x: { id: string }) =>
         x.id
       ),
     ).toEqual([task.id]);
@@ -65,6 +65,7 @@ test("Entity 웹 CRUD·초안 보호→MCP parity·활동 연결→삭제 원문
     await page.getByRole("button", { name: "편집", exact: true }).click();
     const edit = page.getByRole("dialog", { name: "엔터티 편집" });
     await edit.getByLabel("속성 2").fill("10");
+    await edit.getByLabel("편집 메모").fill("실측 반영");
     await edit.getByRole("button", { name: "저장", exact: true }).click();
     await expect(edit).not.toBeVisible();
     expect((await mcp.call("get_entity", { id })).prop2).toBe(10);
@@ -115,11 +116,13 @@ test("Entity 목록: 키워드/선택/정렬·추가 페이지·상세 복귀/�
     const before = page.url();
     await last.click();
     await page.getByRole("link", { name: "← 엔터티 목록" }).click();
-    expect(page.url().split("#")[0]).toBe(before);
+    const restored=new URL(page.url()),original=new URL(before);
+    for(const [key,value] of original.searchParams)expect(restored.searchParams.get(key)).toBe(value);
+    expect(restored.searchParams.has("scroll")).toBe(true);
     await expect(last).toBeFocused();
     await page.reload();
     await expect(last).toBeFocused();
-    for (const width of [360, 390, 768, 1024, 1440]) {
+    for (const width of [320,360,390,639,640,768,1024,1440]) {
       await page.setViewportSize({ width, height: 900 });
       expect(
         await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
@@ -170,12 +173,13 @@ test("Entity 복원: 대상 없음 조회 한도·제목 초점·필터 hash 제
   await page.goto(`/entities?pages=1#entity-${crypto.randomUUID()}`);
   await expect(page.getByRole("heading", { name: "엔터티", exact: true })).toBeFocused();
   expect(requests).toBe(2);
+  await page.getByText("추가 조건",{exact:true}).click();
   await page.getByLabel("속성 4 필터").selectOption("b");
   await expect(page).not.toHaveURL(/#entity-/);
   expect(new URL(page.url()).searchParams.has("pages")).toBe(false);
-  await page.getByLabel("속성 1 키워드").fill("느림");
+  await page.getByLabel("속성 1 키워드").fill("느림");await page.getByRole("button",{name:"검색",exact:true}).click();
   await arrived;
-  await page.getByLabel("속성 1 키워드").fill("최신");
+  await page.getByLabel("속성 1 키워드").fill("최신");await page.getByRole("button",{name:"검색",exact:true}).click();
   await expect(page.getByRole("link", { name: "최신", exact: true })).toBeVisible();
   release();
   await expect(page.getByRole("link", { name: "느림", exact: true })).toHaveCount(0);
@@ -296,6 +300,7 @@ test("Entity 자동 복원 250 상한 뒤 수동 251페이지·같은 cursor 재
   expect(cursors).toHaveLength(252);
   expect(cursors.slice(-2)).toEqual(["page-250", "page-250"]);
   const beforeFilter = cursors.length;
+  await page.getByText("추가 조건",{exact:true}).click();
   await page.getByLabel("속성 4 필터").selectOption("b");
   await expect(page.locator(".list .item-title")).toHaveCount(1);
   await page.getByLabel("속성 4 필터").selectOption("");

@@ -1,9 +1,10 @@
 // 디자인 가이드의 화면 검수 중 자동으로 확인할 수 있는 항목(docs/design/guide.md "화면 완료 체크리스트").
 // 화면 폭별 가로 넘침, 조작 영역 44px, 200% 확대(폭 절반), 키보드만으로 작성·닫기, 대화상자 초점.
 import { expect, type Page, test } from "@playwright/test";
-import { devLogin, unique } from "./support.ts";
+import {savePrinciple} from "./principle-support.ts";
+import { devLogin, mcpClient, mcpTokenViaConsent, unique } from "./support.ts";
 
-const WIDTHS = [360, 390, 768, 1024, 1440];
+const WIDTHS = [320,360,390,639,640,768,1024,1440];
 
 /** 가로 넘침과 44px보다 작은 조작 영역(보이는 버튼·링크·입력)을 찾는다. */
 async function layoutProblems(page: Page) {
@@ -54,15 +55,10 @@ test.describe("화면 폭별 배치", () => {
     await expect(page.getByRole("heading", { name: recordTitle, level: 1 })).toBeVisible();
     const recordDetail = page.url();
 
-    await page.goto("/principles");
-    await page.getByRole("button", { name: "원칙 추가" }).click();
-    const principleDialog = page.getByRole("dialog", { name: "원칙 추가" });
-    const principleTitle = unique("긴원칙" + "다".repeat(40));
-    await principleDialog.getByLabel("제목").fill(principleTitle);
-    await principleDialog.getByLabel("요약").fill("조건 " + "c".repeat(150));
-    await principleDialog.getByLabel("적용 조건").fill("d".repeat(300));
-    await principleDialog.getByRole("button", { name: "저장", exact: true }).click();
-    await expect(page.getByRole("heading", { name: principleTitle, level: 1 })).toBeVisible();
+    const mcp=await mcpClient(await mcpTokenViaConsent(page));
+    const principleTitle=unique("긴원칙"+"다".repeat(40));
+    try{const p=await savePrinciple(mcp,{title:principleTitle,summary:"조건 "+"c".repeat(150),body:"d".repeat(300)});await page.goto(`/principles/${p.id}`);}finally{await mcp.close();}
+    await expect(page.getByRole("heading",{name:principleTitle,level:1})).toBeVisible();
     const principleDetail = page.url();
 
       await page.setViewportSize({ width, height: 900 });
