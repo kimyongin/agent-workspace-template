@@ -1,4 +1,42 @@
 import { expect, test, type Page } from "@playwright/test";
+const targetCases=[["entity","entities",1],["task","tasks",2],["record","records",31],["principle","principles",4]] as const;
+for(const [kind,route,n] of targetCases) for(const outcome of ["exists","deleted","foreign","failed"] as const)test(`변경 대상 ${kind}: ${outcome} 현재 조회와 역사 metadata 분리`,async({page})=>{
+  const state=await fixtures(page),r=state.rows.records[0];
+  const change={event_id:id(30),target_kind:kind,target_id:id(n),target_title:"당시 대상 이름",action:"update",source:"mcp",before:{title:"수정 전"},after:{title:"수정 후"},path:`/${route}/${id(n)}`};
+  Object.assign(r,{record_kind:"change",change_note:"당시 편집 근거",change});
+  const original=JSON.stringify(r);let reads=0,fail=outcome==="failed";
+  await page.route(`**/api/${route}/${id(n)}`,endpoint=>{reads++;return outcome==="deleted"||outcome==="foreign"?endpoint.fulfill({status:404,json:{code:"not_found",message:"항목을 찾을 수 없습니다"}}):fail?endpoint.fulfill({status:503,json:{code:"internal",message:"조회 실패"}}):endpoint.fulfill({json:{id:id(n)}});});
+  await go(page,`/records/${r.id}`);
+  const link=form(page).getByRole("link",{name:"대상 원문 보기",exact:true});
+  if(outcome==="exists")await expect(link).toHaveAttribute("href",change.path);
+  else if(outcome==="failed"){
+    await expect(form(page)).toContainText("대상의 현재 상태를 확인하지 못했습니다.");
+    await expect(form(page)).not.toContainText("삭제된 대상");await expect(link).toHaveCount(0);
+    fail=false;await form(page).getByRole("button",{name:"대상 다시 조회",exact:true}).click();
+    await expect(link).toHaveAttribute("href",change.path);expect(reads).toBe(2);
+  }else{await expect(form(page)).toContainText("삭제된 대상 또는 접근할 수 없는 대상");await expect(link).toHaveCount(0);}
+  await expect(form(page)).toContainText("당시 대상 이름");await expect(form(page)).toContainText("수정 전");await expect(form(page)).toContainText("수정 후");await expect(form(page)).toContainText("당시 편집 근거");await expect(form(page)).toContainText("에이전트");
+  expect(JSON.stringify(r)).toBe(original);expect(state.writes).toHaveLength(0);expect(state.errors).toEqual([]);
+});
+
+for(const failure of [401,403,500,"network","other404"] as const)test(`변경 대상 조회 ${failure}: 삭제로 오인하지 않고 GET 재시도`,async({page})=>{
+  const state=await fixtures(page),r=state.rows.records[0];Object.assign(r,{record_kind:"change",change:{event_id:id(30),target_kind:"entity",target_id:id(1),target_title:"당시 이름",action:"create",source:"http",before:null,after:{prop1:"당시 이름"},path:`/entities/${id(1)}`}});
+  await page.route(`**/api/entities/${id(1)}`,endpoint=>failure==="network"?endpoint.abort("connectionreset"):endpoint.fulfill({status:failure==="other404"?404:failure,json:{code:failure===401?"unauthenticated":failure===403?"forbidden":"internal",message:"조회 실패"}}));
+  await go(page,`/records/${r.id}`);await expect(form(page)).toContainText("대상의 현재 상태를 확인하지 못했습니다.");await expect(form(page)).not.toContainText("삭제된 대상");await expect(form(page).getByRole("link",{name:"대상 원문 보기",exact:true})).toHaveCount(0);
+  await expect(form(page).getByRole("button",{name:"대상 다시 조회",exact:true})).toBeEnabled();expect(state.writes).toHaveLength(0);expect(state.errors).toEqual([]);
+});
+
+test("변경 대상 목록은 추가 조회 없이 당시 행동만 표시·늦은 상세 응답은 다음 대상에 반영하지 않는다",async({page})=>{
+  const state=await fixtures(page),r=state.rows.records[0];
+  const historical={event_id:id(30),target_kind:"entity",target_id:id(1),target_title:"첫 대상",action:"create",source:"http",before:null,after:{prop1:"첫 대상"},path:`/entities/${id(1)}`};
+  Object.assign(r,{record_kind:"change",change:historical});const second={...record(32),record_kind:"change",change:{...historical,target_id:id(99),target_title:"다음 대상",path:`/entities/${id(99)}`}};state.rows.records.push(second);
+  let reads=0,release=()=>{};const held=new Promise<void>(resolve=>{release=resolve;});
+  await page.route(`**/api/entities/${id(1)}`,async endpoint=>{reads++;await held;await endpoint.fulfill({json:state.rows.entities[0]}).catch(()=>{});});
+  await go(page,"/records");await expect(page.locator(".list")).toContainText("첫 대상");expect(reads).toBe(0);await expect(page.locator(".list")).not.toContainText("삭제된 대상");
+  await go(page,`/records/${r.id}`);await expect(form(page)).toContainText("대상의 현재 상태 확인 중");await expect.poll(()=>reads).toBe(1);
+  await go(page,`/records/${second.id}`);await expect(form(page)).toContainText("삭제된 대상 또는 접근할 수 없는 대상");release();
+  await expect(form(page)).toContainText("다음 대상");await expect(form(page).getByRole("link",{name:"대상 원문 보기",exact:true})).toHaveCount(0);expect(state.writes).toHaveLength(0);expect(state.errors).toEqual([]);
+});
 
 for(const [kind,label] of [["entities","엔터티"],["tasks","할 일"],["records","기록"],["principles","원칙"]])test(`${kind}: uncertain 생성 폐기 후 새 작성은 새로운 요청키`,async({page})=>{
   const state=await fixtures(page,{failWrite:"unknown",emptyPrinciple:true});await go(page,`/${kind}`);
@@ -254,7 +292,7 @@ for (const selected of [false, true]) test(`기록: 원칙 ${selected ? "선택 
 });
 
 test("기록: 자동 변경 문맥·원칙 snapshot·정정 시스템 필드 제외",async({page})=>{
-  const state=await fixtures(page);const r=state.rows.records[0];Object.assign(r,{record_kind:"change",change_note:"실측 반영",change:{event_id:id(30),target_kind:"entity",target_id:id(1),target_title:"삭제된 엔터티",action:"delete",source:"mcp",before:{prop2:10},after:null,path:null},applied_principle_snapshots:[{title:"당시 기준",body:"당시 본문",saved_at:stamp,summary:"당시 요약",captured_at:"migration"}]});
+  const state=await fixtures(page);const r=state.rows.records[0];Object.assign(r,{record_kind:"change",change_note:"실측 반영",change:{event_id:id(30),target_kind:"entity",target_id:id(99),target_title:"삭제된 엔터티",action:"delete",source:"mcp",before:{prop2:10},after:null,path:null},applied_principle_snapshots:[{title:"당시 기준",body:"당시 본문",saved_at:stamp,summary:"당시 요약",captured_at:"migration"}]});
   await go(page,`/records/${r.id}`);await expect(form(page)).toContainText("에이전트");await expect(form(page)).toContainText("삭제된 대상");await expect(form(page)).toContainText("당시 본문");await expect(form(page)).toContainText("실제 판단 당시의 본문을 보증하지 않습니다.");await expect(form(page).getByRole("link",{name:"대상 원문 보기"})).toHaveCount(0);
   await form(page).getByRole("button",{name:"편집",exact:true}).click();await expect(form(page).getByLabel("수행 시각")).toHaveCount(0);await expect(form(page).getByText("활동 태그",{exact:true})).toHaveCount(0);await form(page).getByLabel("편집 메모",{exact:false}).fill("설명 정정");await form(page).getByRole("button",{name:"저장",exact:true}).click();
   expect(Object.keys(state.writes[0].body).sort()).toEqual(["body","change_note","expected_version","request_id","summary","title"].sort());expect(state.rows.entities[0].prop2).toBe(0);

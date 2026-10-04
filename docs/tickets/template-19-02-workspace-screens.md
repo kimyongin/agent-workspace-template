@@ -150,3 +150,21 @@ mock144 PASS와 독립 원본6 PASS, 실제72 PASS/12 SKIP를 서로 구분한�
 `test-results/screens-failures/real-desktop-final-853949d`와 `real-mobile-final-853949d`의 metadata가 PASS이며 a3 baseline·실패12/실제04 자료도 보존했다. 자체 Edge14355와 Vite/모의 fixture 서비스를 종료했고 private DB/API·volume/env/외부 증거는 보존해 부모에게 exclusive lease를 반환한다. backend963/SQL/auth/nav primary source는 추가 변경하지 않았다.
 
 마지막 결과 커밋은 이 티켓만 갱신한다. exact 최종 SHA, tested853949 source와 문서 전용 차이, clean tracked 상태와 환경 반환은 TEMP status/final 인계가 소유한다. 보고된3결함의 수정과 재현 회귀가 모두 통과했으며 부모의 독립 최종 재리뷰·필수 CI·계약 호환 통합 PR·최신 main 확인·머지는 남는다. 실제 휴대전화/스크린리더/native zoom·유료 의미 검색·기존 전체E2ETS5 오류 한계는 유지한다. push/PR/merge/배포는 수행하지 않았다.
+
+## 2026-10-04 최종 독립 리뷰 P2 재개: 삭제된 변경 대상
+
+사용자가 같은 화면 구현 소유자에게 직접 재개를 배정했다. base는 `e9a63c667ff83bb2fea480eb4cccf51069061336`이며 부모의 문서 변경을 보존했다. 요청·명시 실행 설정은 gpt-6.1-sol/high, 오늘 preflight 통과는 사용자 인계 근거다. 모델/강도 대체·자식 세션은 없으며 backend 실제 effort·비용은 미노출이다. AGENTS·개발 스킬·모델 실행·workflow·화면/서버 계약·디자인/보안 가이드와 독립 리뷰 보고서를 읽었다. frozen853 리뷰 checkout은 수정하지 않았다.
+
+독립 P2는 엔터티 삭제 뒤 이전 생성/수정 변경 기록의 저장된 path를 현재 존재로 취급해 잘못된 원문 링크를 제공한 문제다. 삭제 문맥 표시 요구(이 티켓의 승인 범위)를 실제 현재 상태 확인과 연결했다. entity/task/record/principle 정본 GET의 성공 때만 종류·ID의 원문 링크를 표시한다. 404 not_found는 다른 사용자 접근 거부와 구별할 수 없으므로 “삭제된 대상 또는 접근할 수 없는 대상”으로 안내한다. 인증/권한 오류·서버/통신 실패·다른 404는 삭제로 단정하지 않고 GET 재시도를 제공한다. 당시 metadata·source·path·전후·메모는 수정하지 않는다. 목록은 추가 대상 GET 없이 당시 행동만 표시하며 상세 변경/해제는 진행 중 조회를 취소해 늦은 응답을 무시한다. backend/contracts/Auth/nav 변경은 없다.
+
+직접 검증과 증거:
+
+| 검사 | 결과·범위 |
+| --- | --- |
+| 독립 원본 `deleted-target.fixture.ts`, import/포트만 로컬 조정 | 수정 전 desktop/mobile2 PASS로 결함 재현. 수정 후 동일2 FAIL: 원본이 요구한 잘못된 링크1 대신0. assertion·timeout을 유지했고 `e2e/test-results/screens-deleted-target-original-after`에 두 screenshot/trace를 보존했다. 결함을 요구하는 원본의 실패를 회귀 실패로 숨기거나 PASS로 보고하지 않는다. |
+| 원본의 올바른 기대값 별도 파생 fixture | desktop/mobile2 PASS(4.3s): 링크0·삭제/접근 불가 문맥·당시 제목/metadata·쓰기0. 원본 fixture는 보존했다. |
+| `workspace-screens.config.ts --grep "변경 대상\|기록: 자동"` | 23 PASS(19.9s). 4종 존재/삭제/다른 사용자404/503→GET 재시도16, 401/403/500/network/다른404 5, 목록 추가 조회0·늦은 상세 응답 격리1, 기존 자동 기록 정정/삭제·시스템 입력 제외1. 기존 삭제 fixture의 target_id를 실제 없는99로 맞췄고 다른 엔터티의 불변 assertion을 유지했다. |
+| `workspace-integration.config.ts e2e/deleted-target.spec.ts` | API56421/DB56422 exclusive lease에서 desktop/mobile8 PASS(24.2s). 4종 실제 MCP 생성/저장→삭제→웹 이전 변경 기록 보기→MCP metadata 동일 확인. 저장된 과거 path가 남아 있어도 원문 링크0·삭제 문맥이 표시된다. own 생성 대상만 삭제했고 다른 DB 자료·volume/env를 보존했다. |
+| build / frontend / boundaries / 소유 mock strict TS | PASS / 22 PASS / PASS / PASS. 기존 build 500kB advisory 유지. 실제 새 spec 포함 strict TS는 소유 오류0이며 변경 없는 `e2e/support.ts`의 기존 nullable env 오류3(10/17/18행)로 종료1; 이 공통 helper를 수정하거나 strict 설정을 완화하지 않았다. 실행 후 spec의 SDK 결과 type assertion만 보강했고 동작/검증은 동일하다. |
+
+모의 포트55580/55581 및 독립 재현55586/55587, 실제 Vite56680을 사전 inventory 후 썼다. 실제 Edge serve는 이 세션만 시작/종료했다. 모든 own Vite listener와 private functions serve process0을 확인하고 API56421/DB56422 lease를 부모에게 반환했다. root55421/fin54321/다른 worker57421·DB reset/migration·유료 모델·운영 변경은 없다. docs432개·모델 정합성·script48 PASS/기존 Windows symlink1 SKIP, diff 검사 PASS다. 두 원본 재현 실패 screenshot 중 mobile을 직접 읽어 삭제/접근 불가 안내·보존 snapshot·깨진 링크 없음과 화면 줄바꿈을 확인했다. 전체 suite는 새 위험 없는 좁은 수정에 반복하지 않았으며 최종 독립 리뷰/CI는 부모 책임이다. exact commit·변경 source SHA256 manifest는 실제 worktree TEMP status/final 인계로 전달한다.
