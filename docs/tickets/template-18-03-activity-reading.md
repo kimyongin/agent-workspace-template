@@ -15,7 +15,7 @@
 - [x] 활동/원칙 상세를 제목→요약→필요 메타→본문→관련 대상으로 정리. 현재 원칙 연결은 당시 원칙 snapshot을 뜻하지 않음.
 - [x] 작성 필드 순서 정돈, 상시 필터 구획과 해제 제공. 기존 필드 검증·완료·중단·재개·멱등성·버전 충돌 유지.
 - [x] 저장 성공 뒤 재조회 실패는 저장 실패와 구분하고 조회만 재시도. 늦은 조회가 초안 덮어쓰지 않음.
-- [ ] 페이지 추가→상세→편집/취소→복귀, 날짜 접기, 검색 원문 복귀, 오류·dirty·모달 키보드 회귀 검증.
+- [x] 페이지 추가→상세→편집/취소→복귀, 날짜 접기, 검색 원문 복귀, 오류·dirty·모달 키보드 회귀 검증.
 
 ## PR 분할과 담당
 
@@ -83,3 +83,9 @@ PR 하나 `codex/fin-ux-activity`. activity 세션이 activity/principles featur
 - navigation 수정 `08d580506a8bd25eb3567fe8426b305404a5fabc` 위로 activity 커밋을 rebase하고, entity-tags 담당의 전용 공유 guard/API `9741aadeb6f1af4f0134e95b5c5260da960421a8`를 `f35b4bc`로 cherry-pick했다. Entity/TagsPage feature는 포함하지 않았다.
 - Task/Record/Principle 작성·편집과 원칙 상태/대체 폼은 `onRouteDiscard`를 순수 편집 종료 콜백으로 연결했다. 일반 취소의 deferred 목록 복귀는 별도로 유지하여 요청한 라우트와 경합하지 않는다. 공유 guard는 dirty/busy 라우트 이탈과 beforeunload를 보호한다.
 - 해당 통합 및 caller 소스에서 build·문서 검사 PASS(48 PASS·기존 1 SKIP), 격리 브라우저 26 PASS. 실제 작성/직접 편집 폼의 같은 경로 query 이동에서 확인 취소의 초안 보존, 버리기 후 편집 종료·새 작성 초기값, 직접 편집의 요청 상세 조건 유지(목록으로 잘못 복귀하지 않음)를 desktop/mobile로 추가 검사했다. 기존 저장/취소·오류·긴 태그 복원 검사는 함께 통과했다. 최종 정확한 head의 실제 전체 E2E는 공유 환경 재배정 후 수행한다.
+
+### 최종 실제 전체 E2E — 2026-10-04
+
+- 공유 환경 배정 root detached `83a3e80bf9c03a38fb57ca121e465f25fca062ff`에서 `npm run test:e2e`: 75 PASS·9 기존 SKIP·0 FAIL, 4.8분. navigation 최종 로그아웃/초점 수정, 긴 태그 사전 복원, 공유 모달 route guard와 순수 route-discard, EntitiesPage 작성 성공 후 deferred navigation 소비자를 포함한 소스다.
+- 할 일/기록의 추가 페이지→상세→편집→취소/저장→뒤로가기/새로고침/삭제 복귀, 수동250→251페이지, 검색 원문 종류별 복귀, 원칙 충돌·초안, 작성/완료·반복 회차·웹/MCP·다른 사용자 거부, 탐색 로그아웃 후 재로그인·초안 이동 확인 취소 초점, 대표 viewport·200% 확대·키보드·대비가 통과했다. 9 SKIP은 기존 실제 의미 검색 키 미설정 2건과 desktop에 집중된 중복 viewport/키보드 검사 7건이다.
+- 전후 SHA와 clean을 확인하고 setup/reset·서비스 변경·root tracked 파일 편집 없이 실행했다. 자료는 `C:/Users/yongin/AppData/Local/Temp/template18-activity-full83a3e80-pass`·`template18-activity-full83a3e80-output.txt`에 보존했다. 공유 환경 소유권을 메인에 반환했다. 독립 리뷰·정확한 최종 PR head CI와 실제 휴대폰/스크린리더 제외 범위는 남는다.
