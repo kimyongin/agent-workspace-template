@@ -54,7 +54,7 @@ a {
   box-shadow: inset 0 0 0 1px var(--accent);
 }
 
-:root { --navigation-height: 4rem; }
+:root { --navigation-height: 5rem; }
 html { scroll-padding-bottom: calc(var(--navigation-height) + env(safe-area-inset-bottom, 0px) + var(--space-4)); }
 .has-navigation .app-main {
   padding-bottom: calc(var(--navigation-height) + env(safe-area-inset-bottom, 0px) + var(--space-8));
@@ -71,7 +71,7 @@ html { scroll-padding-bottom: calc(var(--navigation-height) + env(safe-area-inse
   max-width: 56rem;
   margin: 0 auto;
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: 44px repeat(3, minmax(0, 1fr)) 44px;
   gap: var(--space-1);
 }
 .bottom-nav-inner > a, .nav-more-trigger { justify-content: center; padding: 0 var(--space-1); }
@@ -99,6 +99,17 @@ html { scroll-padding-bottom: calc(var(--navigation-height) + env(safe-area-inse
   gap: var(--space-2);
 }
 .nav-more-options .btn { justify-content: flex-start; }
+.bottom-nav-inner > a { flex-direction: column; gap: var(--space-1); min-height: 56px; }
+.nav-more-trigger { min-width: 44px; min-height: 56px; }
+.navigation-icon, .profile-icon { width: 24px; height: 24px; flex-shrink: 0; }
+.nav-profile .nav-more-options { left: 0; right: auto; }
+.nav-more-options p { margin: 0; overflow-wrap: anywhere; }
+.settings { display: grid; gap: var(--space-6); }
+.settings p { overflow-wrap: anywhere; }
+.settings fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+.profile-preview { display: flex; align-items: center; gap: var(--space-3); margin: var(--space-3) 0; }
+.profile-choices { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-bottom: var(--space-4); }
+.profile-choice { display: flex; align-items: center; gap: var(--space-2); min-height: 44px; padding: var(--space-2); border: 1px solid var(--control-border); border-radius: var(--radius-card); }
 .activity-tabs { display: flex; gap: var(--space-2); border-bottom: 1px solid var(--line); padding-bottom: var(--space-2); }
 .guide > p { margin: 0; }
 .guide-steps { margin: 0; padding-left: var(--space-6); display: grid; gap: var(--space-6); }

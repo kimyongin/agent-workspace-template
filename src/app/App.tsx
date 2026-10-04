@@ -1,8 +1,9 @@
 // 앱 조립: 경로·메뉴·브랜드. 새 도메인은 메뉴와 경로를 여기서 바꾼다.
 import { useState } from "react";
-import { createBrowserRouter, createRoutesFromElements, Navigate, Outlet, Route, RouterProvider } from "react-router";
+import { createBrowserRouter, createRoutesFromElements, Navigate, Outlet, Route, RouterProvider, useLocation } from "react-router";
 import { Navigation } from "./Navigation.tsx";
 import { GuidePage } from "../features/settings/GuidePage.tsx";
+import { SettingsPage } from "../features/settings/SettingsPage.tsx";
 import { LogoutPage } from "../features/auth/LogoutPage.tsx";
 import { ConsentPage } from "../features/auth/ConsentPage.tsx";
 import { AuthProvider, RequireAuth, useAuth } from "../features/auth/AuthProvider.tsx";
@@ -22,12 +23,13 @@ export const APP_NAME = "Workspace";
 
 function Layout() {
   const { session } = useAuth();
+  const location = useLocation();
   return (
     <div className={`app-shell${session ? " has-navigation" : ""}`}>
-      <header className="app-header">
+      {!session && <header className="app-header">
         <span className="app-brand">{APP_NAME}</span>
-      </header>
-      <main className="app-main">
+      </header>}
+      <main className="app-main" key={location.pathname === "/logout" ? "logout" : session?.user.id ?? "signed-out"}>
         <Outlet />
       </main>
       {session && <Navigation />}
@@ -53,10 +55,12 @@ export function App() {
             <Route path="principles" element={guarded(<PrinciplesPage />)} />
             <Route path="principles/:id" element={guarded(<PrincipleDetailPage />)} />
             <Route path="tags" element={guarded(<TagsPage />)} />
+            <Route path="tags/:scope" element={guarded(<TagsPage />)} />
             <Route path="search" element={guarded(<SearchPage />)} />
             <Route path="entities" element={guarded(<EntitiesPage />)} />
             <Route path="entities/:id" element={guarded(<EntityDetailPage />)} />
             <Route path="guide" element={guarded(<GuidePage />)} />
+            <Route path="settings" element={guarded(<SettingsPage />)} />
             <Route path="*" element={<p className="secondary">페이지를 찾을 수 없습니다.</p>} />
           </Route>
   ), { basename: import.meta.env.BASE_URL.replace(/\/$/, "") }));
