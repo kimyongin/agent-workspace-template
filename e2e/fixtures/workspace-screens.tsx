@@ -19,6 +19,6 @@ const router=createBrowserRouter([{element:<main className="app-main"><nav aria-
   {path:"/tasks",element:<TasksPage/>},{path:"/tasks/:id",element:<TaskDetailPage/>},
   {path:"/records",element:<RecordsPage/>},{path:"/records/:id",element:<RecordDetailPage/>},
   {path:"/principles",element:<PrinciplesPage/>},{path:"/principles/:id",element:<PrincipleDetailPage/>},
-  {path:"/tags/:scope",element:<TagsPage/>},{path:"/search",element:<SearchPage/>},
+  {path:"/tags/:scope",element:<TagsPage/>},{path:"/tags/:scope/:id",element:<TagsPage/>},{path:"/search",element:<SearchPage/>},
 ]}]);
 createRoot(document.getElementById("root")!).render(<RouterProvider router={router}/>);

@@ -1,7 +1,7 @@
 import { useDeferredNavigation } from "../../lib/useDeferredNavigation.ts";
 import { tagCreate, tagLabels, type TagResult } from "@contracts/tag.ts";
 import { useEffect, useRef, useState } from "react";
-import { useLocation, useSearchParams } from "react-router";
+import { Navigate, useLocation, useParams, useSearchParams } from "react-router";
 import { Field, Notice } from "../../components/Field.tsx";
 import { DeleteDialog } from "../../components/DeleteDialog.tsx";
 import { query } from "../../lib/api.ts";
@@ -13,8 +13,10 @@ import { findTag } from "./resolve-tag.ts";
 type Page = { items: TagResult[]; next_cursor: string | null };
 type Draft = { initial: TagResult | null; name: string };
 export function TagsPage() {
-  const {pathname}=useLocation();
-  const scope=pathname.endsWith("/entity")?"entity":"activity";
+  const {pathname}=useLocation(),route=useParams(),[params]=useSearchParams();
+  const scope=route.scope==="entity"||pathname.endsWith("/entity")?"entity":"activity";
+  const id=route.id??(route.scope&&/^[0-9a-f-]{36}$/i.test(route.scope)?route.scope:null);
+  if(id){const next=new URLSearchParams(params);if(next.get("edit")==="1"){next.set("edit",id);next.delete("view");}else if(!next.has("edit"))next.set("view",id);return <Navigate to={`/tags/${scope}?${next}`} replace/>;}
   return <ScopedTagsPage key={scope} scope={scope}/>;
 }
 function ScopedTagsPage({scope}:{scope:"entity"|"activity"}) {

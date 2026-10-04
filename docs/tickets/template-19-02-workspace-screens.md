@@ -65,3 +65,14 @@ CLI와 메인의 인계는 저장소 밖 TEMP/template20-screens-inbox.md(계약
 - 통합 spec의 메모·current/history·snapshot·scoped tag·manual record 검색 가정을 갱신했다. `npx playwright test --list`는 이 checkout의 `.env.local` 부재로 수집 단계에서 ENOENT였다. Auth/support는 소유 경계 때문에 수정하지 않았다. 전체 e2e를 임시 확장 tsconfig로 검사했을 때 남은 오류는 기존 consent의 ES2023 `Promise.withResolvers`와 support의 dotenv nullable 타입5곳이다. 소유 fixture 타입 검사는 별도로 통과했다.
 - `e2e/entity-tags-fixtures.spec.ts`의 중간3개 “실제 App…” 탐색/Auth 테스트는 nav 소유자에게 인계했다. 기존 inline 태그 editor 뒤 탐색 클릭, `/tags`와 작성 query 없는 URL 기대를 새 native surface와 scoped route에 맞춰야 한다. 해당 테스트 본문은 수정하지 않았다.
 - 실제 휴대전화 소프트웨어 키보드·safe-area·화면 읽기 도구와 실제 브라우저200% zoom은 확인하지 않았다. 자동 viewport/CSS 확대·키보드 조작 증거와 구분하며 최종 독립 리뷰/CI/최신 main/실환경 확인은 메인이 담당한다.
+
+
+### 부모 immutable 통합·격리 실환경 인계 수신
+
+부모 inbox가 화면 단독 검증 뒤 도착했다. own head `aa452566a1cde317ceb19978026327f0d5430c0a`에서70 screen/16 desktop·mobile/18 unit·build/docs/boundaries/strict fixture TS가 통과했다. 부모가 지정한 backend `8af1be0`+`7b18c4261391dd982d6b9f5914b1eef73ad1889a`와 nav `f4f7c31`/`952cccb`/`9e2c397`/`e00ea0e`/`25ee7dc45c48a2d2c2a0e0deac68f0eecf926fbc`를 순서대로 cherry-pick했다. 충돌은 없고 nav/modal CSS와 E2E 부분 변경을 함께 보존했다. source 결과 타입은 이제 canonical contract 별칭으로 바꿨다. scope 필수 tag 단위 fixture를 맞췄고 build가 통과했다.
+
+부모가 App의 태그 경로 통합만 추가 배정했다. `/tags/:scope/:id`를 연결하고 scope param을 읽으며 legacy `/tags/:id`와 scoped detail/edit를 query shell로 canonical redirect한다. 다른 App/Auth/nav 동작은 수정하지 않았다. 새 직접 링크 fixture1 PASS다. 실패 원인은 fixture의 활동 설명 문자열 오기였고 screenshot/trace를 `screens-failure-run10`에 보존했다.
+
+부모가 API56421/DB56422/pooler56429의 `template20server` 단독 환경 lease를 넘겼다. 외부 private environment-handoff의 runtime/config와 Docker project를 먼저 확인했고56680 listener 없음도 확인했다. private Auth site/redirect와 Edge CORS만56680으로 바꿨다. private runtime에 한정한 stop/start로 DB volume을 보존했고 reset·이관·공유 root/fin 변경은 없다. 이전 serve PID28896은 functions serve와 private runtime 경로를 다시 검증해 종료했고 같은 immutable runtime source로 새 serve를 시작했다. 비밀값을 출력하지 않고 공급받은 env를 ignored `.env.local`에 복사했다. 별도 `e2e/workspace-integration.config.ts`가 strict Vite56680/reuse=false/한 worker와 desktop·mobile project를 사용한다. 실제 모델 검사는 opt-in을 켜지 않는다.
+
+통합 nav/Auth mock19 PASS. nav 소유 실제 App 태그 fixture는 native dialog의 배경 inert와 새 작성 query를 아직 반영하지 못해 부모에게 source/trace/요청을 status로 보냈다. 소유하지 않은 nav/Auth 테스트 본문은 고치지 않는다. 실제 전체 E2E는 이 lease에서 실행 중이며 부모 backend/nav 추가 수정 immutable delta와 최종 실환경·exact-head 결과는 status에 갱신한다. 앞 절의 inbox/env 부재 한계는 이 새 인계로 해소됐다. 독립 리뷰·CI·최종 머지는 계속 부모 책임이다.

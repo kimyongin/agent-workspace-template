@@ -43,6 +43,12 @@ test("엔터티 create/edit 복합 직접 링크는 연결 작성 한 폼만 연
   await fillText(page,"연결 작성 한 번");await form(page).getByRole("button",{name:"추가",exact:true}).click();await expect.poll(()=>state.writes.length).toBe(1);expect(state.writes[0].body.entity_id).toBe(id(1));expect(state.errors).toEqual([]);
 });
 
+test("태그 scoped 상세/편집·legacy ID 직접 링크 호환",async({page})=>{
+  const state=await fixtures(page);await go(page,`/tags/entity/${id(10)}`);await expect(page).toHaveURL(/tags\/entity\?view=/);await expect(form(page)).toContainText("엔터티에 사용하는 태그");
+  await go(page,`/tags/entity/${id(10)}?edit=1`);await expect(form(page).getByRole("textbox",{name:/태그 이름/})).toHaveValue("같은 이름");
+  await go(page,`/tags/${id(11)}`);await expect(page).toHaveURL(/tags\/activity\?view=/);await expect(form(page)).toContainText("할 일·기록에 사용하는 태그");expect(state.errors).toEqual([]);
+});
+
 test("원칙 삭제 영향 조회 실패: 삭제 금지·취소 가능·GET 재시도",async({page})=>{
   const state=await fixtures(page);let failed=true;
   await page.route("**/api/principles?view=history&limit=1",route=>failed?route.fulfill({status:503,json:{code:"internal",message:"조회 실패"}}):route.fulfill({json:{items:[state.rows.principles[1]],next_cursor:null}}));

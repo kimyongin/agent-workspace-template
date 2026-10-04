@@ -56,6 +56,7 @@ export function App() {
             <Route path="principles/:id" element={guarded(<PrincipleDetailPage />)} />
             <Route path="tags" element={guarded(<TagsPage />)} />
             <Route path="tags/:scope" element={guarded(<TagsPage />)} />
+            <Route path="tags/:scope/:id" element={guarded(<TagsPage />)} />
             <Route path="search" element={guarded(<SearchPage />)} />
             <Route path="entities" element={guarded(<EntitiesPage />)} />
             <Route path="entities/:id" element={guarded(<EntityDetailPage />)} />

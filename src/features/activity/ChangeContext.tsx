@@ -3,12 +3,7 @@ import { Link } from "react-router";
 import { MarkdownContent } from "../../components/MarkdownContent.tsx";
 import { formatDateTime } from "../../lib/format.ts";
 
-export type WorkspaceRecord = RecordResult & {
-  record_kind: "user" | "result" | "change";
-  change_note: string | null;
-  applied_principle_snapshots: Record<string,unknown>[];
-  change: null | { event_id: string; target_kind:"entity"|"task"|"record"|"principle";target_id:string;target_title:string;action:"create"|"update"|"delete"|"stop"|"resume";source:"http"|"mcp";before:Record<string,unknown>|null;after:Record<string,unknown>|null;path:string|null };
-};
+export type WorkspaceRecord = RecordResult;
 export const recordKindNames = {user:"직접 작성",result:"수행 결과",change:"변경 기록"};
 const actions = {create:"등록",update:"수정",delete:"삭제",stop:"중단",resume:"재개"};
 const targets = {entity:"엔터티",task:"할 일",record:"기록",principle:"원칙"};
