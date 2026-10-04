@@ -16,6 +16,19 @@ server 세션이 supabase/functions·supabase/migrations·supabase/tests·plugin
 
 ## 검증과 환경
 
+## 확정 서버 입력과 결과 (2026-10-04 구현 인계)
+
+- `GET /principles/current` → `{current: PrincipleResult|null}`. `POST /principles/current` → `{title,summary,body,expected_version?,change_note?,request_id?}`. 기존 현재본이 있으면 expected_version와 공백 아닌 change_note가 필수다. 새 저장본을 반환하며 ID가 바뀐다. 기존 `POST /principles`는 최초 등록만 허용하고 `PATCH /principles/:id`는 현재본 새 저장 별칭이다.
+- `GET /principles?view=current|history|all` (기본 current, limit/cursor). `PATCH /principles/:id/correct` → `{expected_version,title?,summary?,body?,change_note,request_id?}`는 과거본만 정정한다. `DELETE /principles/:id?expected_version=&change_note=&request_id=`는204, 현재 삭제 시 남은 saved_at/id 최신본을 승격한다. 활성/비활성 행위는 제거한다.
+- 원칙 결과는 기존 호환 필드에 `is_current:boolean,saved_at:string,change_note:string|null,origin:'saved'|'legacy',legacy_context:object|null`를 추가한다. 새 입력은 entity_id/tag_ids/applies_when/status를 받지 않는다. 기존 metadata는 legacy_context에 보존하며 원칙 tag_ids는 빈 배열, entity_id는 null로 반환한다. 이관은 기존 active 중 created_at/id 최신본을 현재로 선택하고 나머지를 legacy 과거 자료로 표시한다. 과거 실제 편집 사건이나 변경 기록을 소급 생성하지 않는다.
+- 태그 `POST /tags` 입력은 `{scope:'entity'|'activity',name,request_id?}`; `GET /tags?scope=entity|activity` 기본 activity. 결과에 scope 추가. 같은 이름은 사전별 허용. entity create/update/result에 tag_ids 추가하고 목록에 tag_id 조건을 추가한다. task/record는 activity 사전만 연결한다.
+- entity/task/record/principle 수정은 `change_note` 필수와 `request_id?`를 받는다. 생성/삭제의 change_note는 선택이다. DELETE는 expected_version/change_note/request_id query를 받는다. no-op는 기존 결과를 반환하며 버전과 활동을 늘리지 않는다.
+- 기록 결과에 `record_kind:'user'|'result'|'change',change_note:string|null,change:null|{event_id,target_kind:'entity'|'task'|'record'|'principle',target_id,target_title,action:'create'|'update'|'delete'|'stop'|'resume',source:'http'|'mcp',before:object|null,after:object|null,path:string|null}`를 추가한다. 시스템 metadata는 편집 입력에 없으며 자동 기록도 title/summary/body/change_note를 정정하거나 삭제할 수 있다. `GET /records`는 record_kind 선택 조건을 받는다.
+- 검색은 기존 조건에 `task_kind,task_status,principle_view:'current'|'history'|'all',record_kind`를 추가한다. 활동 tag_id는 원칙 검색에서 제외하며 모든 조건은 cursor scope와 실제 SQL 후보/coverage/anchor에 적용한다.
+- 원칙 당시 적용 자료는 record에 title/summary/body/version/saved_at snapshot을 보존한다. 이후 정정/삭제는 당시 문맥을 바꾸지 않는다. 원칙 활동 기록은 저장본 ID로 연결하며 해당 본문 정본은 원칙 저장본이다. 활동 설명 정정은 원칙 본문을 바꾸지 않는다.
+
+실행 분할: (1) 계약·변경 기록+Entity, (2) 현재 원칙·이관·scoped tags, (3) 활동 CRUD/검색/MCP/제품 안내와 격리 검증. 모든 단계는 같은 승인 범위의 구현이며 제출/리뷰 단위는 메인이 조정한다.
+
 - core/빠른 handler·타입/lint/format·경계·웹 build 소비 계약을 검증한다.
 - 기존 사용자 DB와 fin DB를 reset하거나 이관하지 않는다. worktree 전용 Supabase project_id/포트/설정/함수 소스/계정/정리 대상을 모두 격리한 새 로컬 stack을 사용한다. 그 격리가 준비되기 전 기존 공유 DB에는 변경하지 않는다.
 - 격리 DB·HTTP·MCP에서 이관 fixtures(복수 기존 원칙·기존 태그/원칙 연결 보존), 최초/동시 원칙 저장·정정/삭제, 두 사전 혼용·다른 사용자 거부, 원자 변경+이력 실패 rollback·재시도·기록 재귀 종료·이력 삭제와 원본 독립을 검증한다.

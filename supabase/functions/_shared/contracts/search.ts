@@ -2,6 +2,10 @@ import { z } from "zod";
 import { id, isoDateTime, pageInput, text } from "./common.ts";
 export const searchKind = z.enum(["task", "record", "principle"]);
 export const searchInput = z.strictObject({
+  task_kind: z.enum(["once", "recurring"]).optional(),
+  task_status: z.enum(["open", "done", "active", "stopped"]).optional(),
+  principle_view: z.enum(["current", "history", "all"]).default("current"),
+  record_kind: z.enum(["user", "result", "change"]).optional(),
   query: text(1, 200),
   kinds: z.array(searchKind).min(1).max(3).refine((v) => new Set(v).size === v.length).default([
     "task",
