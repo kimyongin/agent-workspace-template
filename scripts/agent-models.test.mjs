@@ -28,13 +28,48 @@ test("변경한 선택표는 양쪽 설정 drift를 거부하고 다시 생성�
   try {
     sync();
     assert.deepEqual(check(root, t), []);
-    t.clients["codex-cli"].models.balanced.model = "new-model";
-    t.clients["claude-cli"].models.balanced.model = "new-alias";
+    t.clients["codex-cli"].models.balanced.defaultEffort = "high";
+    t.clients["claude-cli"].models.balanced.defaultEffort = "high";
     assert.match(check(root, t).join(), /codex\/agents\/task-balanced/);
     assert.match(check(root, t).join(), /claude\/agents\/task-balanced/);
     sync();
     assert.deepEqual(check(root, t), []);
   } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test("사용자 허용 모델 정책은 모든 등급의 check/sync/assign 및 평가에도 적용한다", () => {
+  const root = mkdtempSync(path.join(tmpdir(), "agent-allowlist-"));
+  try {
+    sync(root, table());
+    const original = Object.entries(generated(table())).map(([file]) => [file, readFileSync(path.join(root, file))]);
+    for (const client of ["codex-cli", "codex-desktop", "claude-cli"]) {
+      const forbidden = client.startsWith("codex") ? ["gpt-6-astra", "gpt-5.6-sol", "gpt-6-luna"] : ["claude-fable-5-5", "claude-sonnet-4-6", "opus", "haiku"];
+      for (const tier of ["light", "balanced", "advanced"]) {
+        for (const model of forbidden) {
+          const t = table(); t.clients[client].models[tier].model = model;
+          assert.throws(() => validate(t), /허용 모델/);
+          assert.throws(() => check(root, t), /허용 모델/);
+          assert.throws(() => sync(root, t), /허용 모델/);
+          for (const evaluate of [false, true]) assert.throws(() => assign(t, options(t, { client, tier, evaluate })), /허용 모델/);
+        }
+      }
+    }
+    for (const [file, bytes] of original) assert.deepEqual(readFileSync(path.join(root, file)), bytes);
+    for (const modelPolicy of [undefined, {}, { allowedModels: {}, changeAuthority: "explicit-human-policy-change" }, { ...table().modelPolicy, changeAuthority: "automatic" }]) {
+      const t = table(); t.modelPolicy = modelPolicy;
+      assert.throws(() => validate(t), /허용 정책/);
+    }
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test("허용 고정 ID의 resolved/actual 이동은 pending 평가에서도 거부한다", () => {
+  for (const actualModel of ["opus", "claude-opus-4-6", "claude-opus-5-5-new", "claude-fable-5-5", "claude-sonnet-4-6"]) {
+    const t = table(); const c = t.clients["claude-cli"]; const m = c.models.advanced;
+    const o = options(t, { client: "claude-cli", tier: "advanced", effort: "high", snapshot: { client: "claude-cli", version: c.version, context: c.context, timeZone: "Asia/Seoul", observedAt: now.toISOString(), models: [{ model: m.model, actualModel, efforts: m.efforts }] } });
+    assert.throws(() => assign(t, o), /실제 모델 불일치/);
+    m.resolvedModel = actualModel;
+    assert.throws(() => validate(t), /허용 모델/);
+  }
 });
 
 test("동일 모델에서 medium/high/xhigh를 명시하고 부모 맥락을 상속하지 않는다", () => {
@@ -162,14 +197,15 @@ test("Claude 환경 모델 override를 거부하고 effort는 CLI 인자로 출�
   assert.throws(() => validate(t), /검증 상태/);
 });
 
-test("sync는 다른 프로젝트 설정과 agents 키를 보존하고 선택 키만 맞춘다", () => {
+test("sync는 프로젝트 main 모델과 agents defaults만 맞추고 다른 키는 보존한다", () => {
   const root = mkdtempSync(path.join(tmpdir(), "agent-config-"));
   try {
     mkdirSync(path.join(root, ".codex"));
-    writeFileSync(path.join(root, ".codex/config.toml"), 'model = "user-main"\n[agents]\nmax_threads = 4\ndefault_subagent_model = "old"\n[mcp_servers.example]\nurl = "https://example.com"\n');
+    writeFileSync(path.join(root, ".codex/config.toml"), 'model = "user-main"\nmodel_reasoning_effort = "high"\n[agents]\nmax_threads = 4\ndefault_subagent_model = "old"\n[mcp_servers.example]\nurl = "https://example.com"\n');
     sync(root, table());
     const text = readFileSync(path.join(root, ".codex/config.toml"), "utf8");
-    assert.match(text, /model = "user-main"/);
+    assert.equal(parse(text).model, table().modelPolicy.allowedModels.codex);
+    assert.match(text, /model_reasoning_effort = "high"/);
     assert.match(text, /max_threads = 4/);
     assert.match(text, /\[mcp_servers.example\]/);
     assert.deepEqual(check(root, table()), []);
@@ -180,6 +216,34 @@ test("선택 근거와 역할 없이 advanced 또는 xhigh를 배정하지 않�
   const t = table();
   assert.throws(() => assign(t, options(t, { effort: "xhigh", reason: "" })), /선택 근거/);
   assert.throws(() => assign(t, options(t, { role: "unknown" })), /역할/);
+});
+
+test("Claude 프로젝트 main 모델만 갱신하고 비소유 설정·동일 원문은 보존한다", () => {
+  const root = mkdtempSync(path.join(tmpdir(), "claude-main-"));
+  try {
+    sync(root, table());
+    const config = path.join(root, ".claude/settings.json");
+    const original = { model: "old", permissions: { allow: ["Read"] }, env: { EXAMPLE: "unchanged" }, hooks: {} };
+    writeFileSync(config, JSON.stringify(original));
+    assert.match(check(root, table()).join(), /settings.json/);
+    sync(root, table());
+    const expected = { ...original, model: table().modelPolicy.allowedModels.claude };
+    assert.deepEqual(JSON.parse(readFileSync(config, "utf8")), expected);
+    const customFormatting = JSON.stringify(expected);
+    writeFileSync(config, customFormatting);
+    sync(root, table());
+    assert.equal(readFileSync(config, "utf8"), customFormatting);
+    assert.deepEqual(check(root, table()), []);
+    for (const invalid of ["{", "null", "[]", '"scalar"']) {
+      writeFileSync(config, invalid);
+      const owned = path.join(root, ".codex/agents/task-balanced.toml");
+      writeFileSync(owned, "user pending file\n");
+      assert.throws(() => check(root, table()), /JSON 객체/);
+      assert.throws(() => sync(root, table()), /JSON 객체/);
+      assert.equal(readFileSync(config, "utf8"), invalid);
+      assert.equal(readFileSync(owned, "utf8"), "user pending file\n");
+    }
+  } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
 test("여러 줄 TOML basic/literal 본문과 실제 agents를 parser로 구분하고 본문을 보존한다", () => {
@@ -237,7 +301,7 @@ test("공백/basic/literal 표와 quoted 키의 같은 의미를 읽고 두 값 
         writeFileSync(config, original);
         assert.match(check(root, table()).join(), /설정 불일치/);
         sync(root, table());
-        const expected = original.replace("'old'", `'${table().clients["codex-cli"].models.balanced.model}'`).replace("'low'", "'medium'");
+        const expected = original.replace("'main'", `'${table().modelPolicy.allowedModels.codex}'`).replace("'old'", `'${table().clients["codex-cli"].models.balanced.model}'`).replace("'low'", "'medium'");
         const result = readFileSync(config, "utf8");
         // 소유한 agents 표 header의 동등한 표기/공백 정규화만 허용한다.
         assert.deepEqual(result.split("\n").filter((_, i) => i !== 2), expected.split("\n").filter((_, i) => i !== 2));

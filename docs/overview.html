@@ -937,7 +937,7 @@ footer a { margin-right: 10px; white-space: nowrap; }
       </details>
       <details>
         <summary>어떤 모델을 골라야 하나요?</summary>
-        <p>일반 구현·리뷰는 균형 모델의 medium으로 시작합니다. 모델과 추론 강도는 따로 선택하고, 어려운 범위와 실패 근거에 따라 조정합니다. 개발하는 날 첫 작업에서 목록과 새 후보를 조회하고 사용자 시간대의 그날 결과를 재사용합니다. 재개 때 설정 변경을 적용할 수 없으면 새 세션으로 인계합니다. <a href="development/workflow.md#모델과-추론-강도-선택갱신">공통 정책</a>과 <a href="development/agent-models.json">갱신 가능한 선택표</a>를 <a href="development/agent-model-execution.md">배정 확인·클라이언트 설정</a>으로 연결합니다. 기존 확인 범위는 <a href="tickets/template-05-agent-model-policy.md">Template-05</a>, 이번 변경과 제출 단계는 <a href="tickets/template-07-guidance-review-followup.md">Template-07</a>에서 봅니다.</p>
+        <p>Codex는 GPT-6.1 Sol, Claude Code는 Opus 5.5만 사용합니다. 일반 구현·리뷰는 medium으로 시작하고 같은 모델의 low/high 등 지원되는 강도를 조절합니다. 다른 모델이나 별칭 자동 이동은 허용하지 않으며 CLI 미지원이면 대체하지 않습니다. 개발하는 날 첫 작업에서 목록과 새 후보를 조회하고 사용자 시간대의 그날 결과를 재사용합니다. 재개 때 설정 변경을 적용할 수 없으면 새 세션으로 인계합니다. <a href="development/workflow.md#모델과-추론-강도-선택갱신">공통 정책</a>과 <a href="development/agent-models.json">갱신 가능한 선택표</a>를 <a href="development/agent-model-execution.md">배정 확인·클라이언트 설정</a>으로 연결합니다. 기존 확인 범위는 <a href="tickets/template-05-agent-model-policy.md">Template-05</a>, 허용 정책과 현재 CLI 지원 제약은 <a href="tickets/template-11-model-allowlist.md">Template-11</a>에서 봅니다.</p>
       </details>
       <details>
         <summary>이 페이지와 다른 문서의 내용이 다르면요?</summary>
