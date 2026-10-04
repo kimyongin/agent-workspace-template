@@ -142,3 +142,28 @@ test("긴 제목·태그와 편집 조작은 대표 폭에서 읽기 순서와 �
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
   await page.screenshot({path:testInfo.outputPath("record-edit-360.png"),fullPage:true});
 });
+
+test("늦은 태그 이름 조회는 읽던 행의 높이·스크롤을 바꾸지 않는다", async ({page}) => {
+  let release!:()=>void;
+  const held=new Promise<void>(resolve=>{release=resolve;});
+  const records=Array.from({length:20},(_,index)=>({...record(index+1),tag_ids:[id(8)]}));
+  await page.route("**/fixture-api/**",async route=>{
+    const path=new URL(route.request().url()).pathname;
+    if(path.endsWith("/tags")) {
+      await held;
+      await route.fulfill({json:{items:[{id:id(8),name:"활동 왕복 태그"}],next_cursor:null}});return;
+    }
+    await route.fulfill({json:path.endsWith("/records")?{items:records,next_cursor:null}:{items:[],next_cursor:null}});
+  });
+  await page.goto("/e2e/fixtures/activity.html");
+  const row=page.locator(`#activity-records-${id(20)}`);
+  await row.scrollIntoViewIfNeeded();
+  await row.focus();
+  const before=(await row.boundingBox())!.y;
+  const scroll=await page.evaluate(()=>scrollY);
+  release();
+  await expect(page.locator(".tag-read").last()).toHaveText("활동 왕복 태그");
+  expect((await row.boundingBox())!.y).toBeCloseTo(before,1);
+  expect(await page.evaluate(()=>scrollY)).toBe(scroll);
+  await expect(row).toBeFocused();
+});

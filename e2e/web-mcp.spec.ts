@@ -64,7 +64,7 @@ test("에이전트가 MCP로 만든 기록·반복 회차를 웹에서 보고 �
 
     // 웹: 기록 목록에서 찾아 편집
     await page.goto("/records");
-    await page.getByRole("link", { name: title }).click();
+    await page.getByRole("link", { name: `${title} 보기`, exact: true }).click();
     await page.getByRole("button", { name: "편집" }).click();
     const dialog = page.getByRole("dialog", { name: "기록 편집" });
     await dialog.getByLabel("요약").fill("웹에서 고친 요약");

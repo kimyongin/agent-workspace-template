@@ -217,6 +217,8 @@ for (
             id: `00000000-0000-4000-8000-${String(index).padStart(12, "0")}`,
             title: `${label} 경계 ${index}`,
             summary: "manual page",
+            tag_ids: [],
+            entity_id: null,
             kind: "once",
             status: "open",
             occurred_at: "2026-10-04T00:00:00Z",

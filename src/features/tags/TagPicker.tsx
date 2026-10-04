@@ -51,5 +51,5 @@ export function TagNames({ids, compact=false}:{ids:string[];compact?:boolean}) {
   const {tags,failed,retry}=shared ?? local;
   if(compact && !ids.length)return null;
   return <div>{!compact && <h2 className="section-title">태그</h2>}{!ids.length?<p className="secondary">없음</p>:failed?<><Notice kind="error">태그 이름을 불러오지 못했습니다.</Notice><button className="btn" onClick={retry}>태그 다시 시도</button></>:
-    !tags?<p className="secondary" role="status">태그를 불러오는 중…</p>:<div className="chips" aria-label="태그">{ids.map(id=><span className="meta tag-read" key={id}>{tags.find(t=>t.id===id)?.name ?? "삭제된 태그"}</span>)}</div>}</div>;
+    !tags?(compact?<div className="chips" role="status">{ids.map(id=><span className="meta tag-read" key={id}>태그를 불러오는 중…</span>)}</div>:<p className="secondary" role="status">태그를 불러오는 중…</p>):<div className="chips" aria-label="태그">{ids.map(id=><span className="meta tag-read" key={id}>{tags.find(t=>t.id===id)?.name ?? "삭제된 태그"}</span>)}</div>}</div>;
 }
