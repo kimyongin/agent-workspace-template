@@ -1,7 +1,7 @@
 # Template-18-04 — 엔터티 문맥 작성과 태그 사전
 
 작성: 2026-10-04
-상태: 로컬 구현·선행 탐색/활동 최종 문서 통합·전체 E2E 완료, 활동 머지 후 최신 main 재통합·독립 재리뷰·CI·머지 대기
+상태: 구현·전체 E2E·선행 PR 머지된 최신 main 재통합 완료, 최종 독립 재리뷰·CI·머지 대기
 검토 기준: `745130148c90de842d7617c232194b653d1c638b`
 
 ## 목표와 승인 범위
@@ -101,3 +101,9 @@ fixture는 이 checkout의 Vite `55584`와 존재하지 않는 로컬 주소 `55
 ### 2026-10-04 활동 최종 문서와 현재 요약 통합
 
 `git rebase --onto 733e1cff4e6febf4b1c1acbf4cfebe6743ddd786 6615d180e022a43e397948cd1b715f5e69a6f615 codex/fin-ux-entity-tags`는 충돌 없이 성공했다. 통합 head `a989cf60fafc9f97a51ad0a2e133a260a3337bf0`의 `src`·`e2e`는 이전 검증 최종 `4ac68b0`와 `git diff --exit-code`로 동일함을 확인했다. 활동의 `6615d180` 전체 E2E 75 PASS·9 SKIP 완료 기록을 보존하고 START-HERE·상위18 현재 요약을 완료된 구현/검증과 남은 최종 검증으로 정리했다. 활동 PR #92는 아직 머지 대기이며 latest main 재통합·18-04 최종 독립 재리뷰·CI·머지가 남는다. 문서 검사와 diff 검사만 수행하며 공유 서비스는 사용하지 않았다.
+
+### 2026-10-04 활동 PR 머지 뒤 최종 main 재통합
+
+활동 PR #92는 exact `733e1cff` 독립 승인과 CI `37185709342` attempt2 성공 후 main `1bf9ee13f327831e796c4c1dd2a6a8bf020596d7`에 머지됐다. 실패 integration의 gateway500/WorkerAlreadyRetired 관측·인과 한계와 동일 head 재검증 성공은 [활동 완료 기록](https://github.com/kimyongin/agent-workspace-template/pull/92#issuecomment-5977860336)에 연결한다. 승인 head와 squash main의 전체 tree diff가 0임은 메인이 확인했다.
+
+own checkout에서 fetch 후 `git rebase --onto origin/main 733e1cff4e6febf4b1c1acbf4cfebe6743ddd786 codex/fin-ux-entity-tags`는 충돌 없이 성공했다. 재통합 head `effcf2b5582391cfc52cd99a7762630a1bae662b`의 `src`·`e2e`는 이전 최종 `89cc9a6`와 `git diff --exit-code`로 동일하다. START-HERE·상위18·이 티켓 현재 상태를 갱신하고 문서/diff 검사만 수행했다. 공유 환경·브라우저 검증을 반복하거나 배포를 변경하지 않았다. 18-04 최종 독립 재리뷰·정확한 head CI·머지는 남아 있다.
