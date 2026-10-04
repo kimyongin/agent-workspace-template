@@ -24,6 +24,8 @@ export function Navigation() {
   useEffect(() => {
     if (!open) return;
     const outside = (event: PointerEvent) => {
+      // 경로 초안 확인창을 취소하면 브라우저가 원래 링크로 초점을 돌린다.
+      if (event.target instanceof Element && event.target.closest("dialog[open]")) return;
       if (!root.current?.contains(event.target as Node)) setOpen(false);
     };
     document.addEventListener("pointerdown", outside);
@@ -34,6 +36,7 @@ export function Navigation() {
       {entries.map(([key, to, label]) => <Link key={key} to={to}
         aria-current={current === key ? "page" : undefined}>{label}</Link>)}
       <div className="nav-more" ref={root} onBlur={event => {
+        if (event.relatedTarget instanceof Element && event.relatedTarget.closest("dialog[open]")) return;
         if (event.relatedTarget && !event.currentTarget.contains(event.relatedTarget as Node)) setOpen(false);
       }} onKeyDown={event => {
         if (event.key === "Escape" && open) {

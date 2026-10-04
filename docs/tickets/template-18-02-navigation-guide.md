@@ -45,3 +45,10 @@ PR 하나 `codex/fin-ux-navigation`. navigation 세션이 App route/layout, 새 
 - `/logout`은 `RequireAuth` wrapper 대신 LogoutPage에서 로그인 로딩·미인증 진입을 직접 처리한다. 기존 경로 이동으로 초안 보호를 거친 후 signOut을 실행하며 성공한 뒤 `/login`으로 replace 이동한다. `SIGNED_OUT`에 대한 미인증 보호가 `next=/logout`을 만들지 않는다. 이미 미인증인 직접 진입도 깨끗한 `/login`으로 이동한다. 로그인 후 일반 guarded 상세의 원래 위치 복귀 계약은 바꾸지 않았다.
 - 의미 있는 회귀: 같은 페이지의 SDK `setSession`을 통해 실제 `SIGNED_IN` 처리를 실행하고 `/tasks` 복귀·로그아웃 호출1회·브라우저 세션 유지까지 확인했다. 기존 guarded `/logout`을 일시 복원하면 이 테스트가 `/login?next=%2Flogout`으로 FAIL하는 red를 확인했고 수정 코드를 복원했다. red trace/context는 `C:/Users/yongin/AppData/Local/Temp/template-18-logout-red-artifacts/`에 보존했다.
 - 수정 후 별도 Vite55482/가짜 loopback Auth·API route fixture에서 navigation fixture **3 PASS**, 웹 unit **9 PASS**, 타입/build PASS(기존 bundle 경고 유지). 이는 SDK/라우터 동작 검사이며 실제 Google 로그인·OAuth 서버 증거로 대체하지 않는다. 공유 실제 E2E의 수정 revision 재검증은 메인 환경 배정 후 진행한다. 독립 리뷰 재확인·full CI·머지는 대기한다.
+
+### 통합 검증의 더보기 초안 확인 취소 초점 수정 — 2026-10-04
+
+- 18-04 담당의 실제 App/Tags 통합 검사에서 더보기 로그아웃 링크 → 초안 변경 버리기 확인 → 취소 시 메뉴의 `onBlur`/문서 pointerdown이 링크를 먼저 제거해 초점 복귀를 잃는 문제를 인계받았다. navigation 세션은 오늘 snapshot으로 같은 모델/medium `assign --role implement --reason "통합 검증의 dirty logout 취소 초점 회귀 수정"` PASS 후 담당 탐색 코드만 수정했다.
+- 열린 native dialog로 들어가는 초점·pointerdown은 더보기 메뉴를 닫지 않는다. 확인 취소는 남아 있는 진입 링크로 native dialog가 초점을 돌릴 수 있고, 일반 바깥 클릭·Escape·승인한 경로 이동의 닫기는 유지한다. 디자인 가이드 소비 계약도 함께 반영했다.
+- `e2e/fixtures/navigation-blocker.html`은 실제 Navigation·ConfirmDialog·data-router `useBlocker`를 같은 브라우저에 조립한 격리 probe다. 제품 경로·프로덕션 번들에 포함하지 않는다. 이전 close handlers를 일시 복원하면 새 회귀가 열린 확인창에서 메뉴 `aria-expanded=false`로 FAIL했다. red trace/context: `C:/Users/yongin/AppData/Local/Temp/template-18-navigation-focus-red-artifacts/`. 코드를 복원하고 취소 버튼·확인 Escape 모두 원래 로그아웃 링크 초점, 메뉴 Escape는 더보기 버튼 초점, 일반 바깥 클릭 닫기, 변경 버리기 후 경로 진입·메뉴 닫기를 확인했다.
+- 수정 후 navigation fixture **4 PASS**, unit **9 PASS**, 타입/build PASS, docs 텍스트354개·모델/native PASS 및48 PASS/1기존SKIP, diff PASS. 공유 DB/서비스·root 파일은 변경하지 않았다. 실제 Tags 통합 소비 회귀 재검증은 18-04 담당에게 인계하며 최신 exact head의 독립 리뷰·full CI는 대기한다. 이전 전체 E2E revision과 최신 수정 증거를 구분한다.

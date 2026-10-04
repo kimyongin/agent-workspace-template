@@ -106,3 +106,29 @@ test("로그아웃 뒤 재로그인은 할 일로 돌아오며 로그아웃을 �
   expect(logoutCalls).toBe(1);
   expect(await page.evaluate(() => localStorage.getItem("sb-127-auth-token"))).not.toBeNull();
 });
+
+test("초안 이동 확인 취소는 더보기 링크와 초점을 보존한다", async ({ page }) => {
+  await page.goto("/e2e/fixtures/navigation-blocker.html");
+  const more = page.getByRole("button", { name: "더보기", exact: true });
+  const logout = page.getByRole("link", { name: "로그아웃", exact: true });
+  await more.click(); await logout.click();
+  const confirm = page.getByRole("dialog", { name: "변경을 버릴까요?" });
+  await expect(confirm).toBeVisible();
+  await expect(confirm.getByRole("button", { name: "취소", exact: true })).toBeFocused();
+  await expect(more).toHaveAttribute("aria-expanded", "true");
+  await confirm.getByRole("button", { name: "취소", exact: true }).click();
+  await expect(confirm).not.toBeVisible();
+  await expect(logout).toBeFocused();
+  await expect(more).toHaveAttribute("aria-expanded", "true");
+  await logout.press("Enter"); await expect(confirm).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(logout).toBeFocused();
+  await logout.press("Escape"); await expect(more).toBeFocused();
+  await expect(more).toHaveAttribute("aria-expanded", "false");
+  await more.click(); await page.getByRole("button", { name: "본문 조작" }).click();
+  await expect(more).toHaveAttribute("aria-expanded", "false");
+  await more.click(); await logout.click();
+  await confirm.getByRole("button", { name: "변경 버리기", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "로그아웃 경로 진입", exact: true })).toBeVisible();
+  await expect(more).toHaveAttribute("aria-expanded", "false");
+});
