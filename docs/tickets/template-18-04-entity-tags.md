@@ -45,3 +45,12 @@ PR 하나 `codex/fin-ux-entity-tags`. entity-tags 세션은 entities feature와 
 fixture는 이 checkout의 Vite `55584`와 존재하지 않는 로컬 주소 `55585`를 사용하며 모든 업무 응답을 Playwright route로 제공한다. 인증/실 DB/실 HTTP·MCP 증거가 아니다. 서버 생명주기는 전용 config가 관리하며 공유 `55480`·DB·함수 서버/setup을 사용하지 않았다. 최초 fixture 실행 실패는 넓은 `getByLabel("태그 이름")`이 목록 버튼/폼까지 매칭한 fixture selector 오류로 분류하고 textbox role로 좁혀 재검증했다. 모바일·데스크톱 태그 편집 캡처를 직접 읽어 한/두 열 배치·긴 도움말 줄바꿈·초점을 확인했고 페이지 가로 overflow가 없음을 자동 대조했다.
 
 미검증/다음 작업: navigation/활동 선행 PR 통합 뒤 실제 인증·업무 API를 쓰는 `e2e/tags.spec.ts`, `e2e/entities.spec.ts`와 전체 desktop/mobile E2E, 독립 리뷰·정확한 head CI. 태그 관리의 기존 실제 E2E 선택자는 inline form에 맞춰 갱신했으며 아직 공유 환경에서 실행하지 않았다. 운영 배포·실휴대폰·스크린리더·backend effort/청구 검증은 완료로 표시하지 않는다. 안내/디자인 정본의 data-router 미저장 보호와 저장 뒤 이동 규칙은 메인에 갱신 권고를 전달했으며 동시 편집하지 않았다.
+
+### 2026-10-04 선행 탐색·활동 통합과 실제 App fixture
+
+- 메인 배정으로 own branch의 단일 커밋을 `git rebase --onto 85cb4ee6f860380a104e2d3bdfb40ef083261d92 8e5b11c codex/fin-ux-entity-tags`로 옮겼다. 충돌 없이 rebased 구현 head `791711427f489c8c4cdeff456f4e869e0a605a36`. 탐색의 EntitiesPage GuideLink, data-router·활동의 deferred navigation 변경을 보존했다. 모델/강도 변경 없음, 같은 날 유효한 Desktop preflight 근거를 재사용했다.
+- App/RequireAuth/실제 주요 탐색/data-router를 소비하는 추가 fixture를 만들었다. 로컬 fixture 세션을 Supabase Auth 저장 형식으로 제공하고 모든 업무 API는 route로 대체한다. 실제 인증 서버 성공을 검증한 것으로 보지 않는다. 기존 전용 `55584` 서버만 사용하고 공유 DB·함수·`55480`은 activity 담당에게 유지했다.
+- `npx playwright test --config e2e/entity-tags-fixtures.config.ts`: desktop/mobile 각 7, 총 14 PASS. 추가 App 검사에서 태그 dirty 주요 탐색·뒤로가기·앞으로가기·로그아웃 취소의 URL/초안/세션 보존, Task 생성 성공 후 상세 이동, 직접 편집 취소/저장 뒤 목록 복귀, 저장 중 POP 시도 reset 후 정상 생성 이동, Entity 생성의 모달 제거 후 상세 이동을 대조했다. 공통 모달 검사에서 여러 blocker·unmounted·maximum update 경고가 없었다.
+- 통합 코드에서 `npm run test:web` 5 files / 14 PASS, `npm run build`, `npm run check:boundaries`, `npm run check:docs`(48 PASS / Windows symlink 1 SKIP), `git diff --check` PASS. 마지막 추가 fixture 시나리오도 같은 14 PASS로 확인했다.
+- 메인이 이 세션에 배정한 [상호작용 정본](../design/ui-patterns.md)을 실제 구현과 함께 보완했다. 활성 1차 편집 영역 하나의 blocker·검색 조건/POP/forward 보호·저장 중 이동 reset·모달 제거 후 의도된 이동과 태그 단일 초안/불확정/조회 오류 구분을 기록했다.
+- 남은 통합: navigation 로그아웃 후 재진입 루프 수정과 activity TagNames 로딩 높이/실제 E2E fixture 후속 수정이 현재 base 뒤에서 진행 중이다. 최신 승인 head 재통합 후 실제 logout 폐기/인증 해제와 전체 E2E를 다시 검증해야 한다. 이번 fixture는 로그아웃 취소까지이며 폐기 후 종료 성공을 완료로 표시하지 않는다. 공유 환경에서의 실제 E2E는 메인 재배정 전까지 수행하지 않았다.
