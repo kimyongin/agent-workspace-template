@@ -76,30 +76,21 @@ export function presentationCss(before, after) {
   return a !== null && a === b;
 }
 
-export function documentationHtml(before, after) {
-  // Only prose between identical tags. Scripts/styles and comments stay exact.
-  for (const source of [before, after]) {
-    if ((source.match(/<!--/g) ?? []).length !== (source.match(/<!--[\s\S]*?-->/g) ?? []).length) return false;
-    for (const tag of ["script", "style"]) {
-      if ((source.match(new RegExp(`<${tag}\\b`, "gi")) ?? []).length !== (source.match(new RegExp(`<${tag}\\b[\\s\\S]*?<\\/${tag}\\s*>`, "gi")) ?? []).length) return false;
-    }
-    if (source.replace(/<script\b[\s\S]*?<\/script\s*>|<style\b[\s\S]*?<\/style\s*>|<!--[\s\S]*?-->|<[^>]*>/gi, "").includes("<")) return false;
-  }
-  const normalize = (source) => source.replace(/<script\b[\s\S]*?<\/script\s*>|<style\b[\s\S]*?<\/style\s*>|<!--[\s\S]*?-->|<[^>]*>|[^<]+/gi, (part) => part.startsWith("<") ? part : "<prose>");
-  return normalize(before) === normalize(after);
-}
+// Documentation artifacts only. JSON/model policy and standalone executable files
+// under docs remain full; placing a file in docs is not enough to skip runtime checks.
+const isDocument = (path) => /^docs\/.*\.(?:md|html|txt|svg|png|jpe?g|webp|gif|pdf)$/.test(path);
 
 export function classifyChanges(changes, { forceFull = false } = {}) {
   if (forceFull) return { mode: "full", reasons: ["forced full verification"] };
   if (!changes.length) return { mode: "full", reasons: ["empty or unavailable diff"] };
   const kinds = new Set(), reasons = [];
-  for (const { status, path, before, after } of changes) {
+  for (const { status, path, oldPath, before, after } of changes) {
     let kind = "full";
-    if (["M", "A"].includes(status) && typeof after === "string") {
+    if (isDocument(path) && (["M", "A", "D"].includes(status) || /^R\d+$/.test(status) && isDocument(oldPath ?? ""))) kind = "docs";
+    else if (["M", "A"].includes(status) && typeof after === "string") {
       if (/^(?:docs\/|\.agents\/skills\/).*\.md$/.test(path) || /^(?:README|AGENTS|CLAUDE)\.md$/.test(path)) kind = "docs";
       else if (status === "M" && typeof before === "string") {
-        if (/^docs\/.*\.html$/.test(path) && documentationHtml(before, after)) kind = "docs";
-        else if (/^src\/(?:features\/(?!auth\/)|components\/).*\.tsx$/.test(path) && !/auth|oauth|token/i.test(path) && presentationTsx(before, after)) kind = "presentation";
+        if (/^src\/(?:features\/(?!auth\/)|components\/).*\.tsx$/.test(path) && !/auth|oauth|token/i.test(path) && presentationTsx(before, after)) kind = "presentation";
         else if (/^src\/styles\/.*\.css$/.test(path) && presentationCss(before, after)) kind = "presentation";
       }
     }
@@ -133,7 +124,7 @@ export function gitChanges(base, head) {
   for (let i = 0; fields[i];) {
     const status = fields[i++], path = fields[i++];
     if (/^[RC]/.test(status)) {
-      changes.push({ status, path: `${path} -> ${fields[i++]}` });
+      changes.push({ status, oldPath: path, path: fields[i++] });
       continue;
     }
     const read = (ref) => git("show", `${ref}:${path}`);

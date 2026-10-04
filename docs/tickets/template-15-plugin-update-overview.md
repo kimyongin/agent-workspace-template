@@ -11,6 +11,8 @@
 
 이번 범위는 문서만 수정한다. 계정 게시·실제 업데이트/설치·버전 변경·서비스 배포·모델 정책·CI 분류기·PRD/ADR 변경은 수행하지 않는다. 과거 Claude 웹 검증 기록도 수정하지 않는다.
 
+이 문서 구현 뒤 사용자는 docs/ 문서가 바뀔 때 전체 테스트할 필요가 없다고 추가 지시했고, 메인은 문서 전용 경량 정책으로 분류기·회귀·workflow 정본 수정을 추가 배정했다. 따라서 위 최초 범위의 CI 분류기 제외는 아래 승인 후속에서는 해제한다. job·branch protection·앱·서비스·모델 정책은 유지한다.
+
 사용자는 역할 설명에 모델 지정도 포함하는지 추가로 확인한 뒤, 새 설명에는 구체 모델명·추론 강도를 넣지 말고 ‘각 세션의 역할과 작업 난이도에 맞는 모델을 선택합니다’ 수준으로 정정했다. 이 최종 정정을 반영해 새 블록은 짧은 원칙과 정본 링크만 남기며 기존 모델 FAQ는 변경하지 않는다. 모델 정책 자체도 바꾸지 않는다.
 
 ## 계약·구현
@@ -27,6 +29,14 @@
 공식 [Codex 패키징](https://developers.openai.com/plugins/build/plugins)과 [Claude marketplace](https://code.claude.com/docs/en/plugin-marketplaces) 문서도 조회했다. 스킬의 계정 편집 경로는 Git 관리/canonical App/Sites 플러그인에 일반 적용하지 않는다. 이번 선택 원본은 저장소라 계정 목록·게시 도구를 호출하지 않았다. 권한·청중·설정·cache·제품 버전을 바꾸지 않았다.
 
 ## 검증과 인계
+
+### 승인 후속: docs 문서 전용 검사
+
+현재 docs/ 실제 파일은 Markdown53개·HTML1개·JSON1개다. package/scripts/CI의 실행 참조를 검색했고 JSON은 `scripts/agent-models.mjs`의 실제 선택표 TABLE이다. Markdown·HTML·텍스트·문서 그림/PDF 확장자만 docs로 분류하고 HTML markup/inline script/style 변경도 문서 검사 대상이다. 문서 삭제와 docs 간 rename도 문서 검사로 링크 손상을 확인한다. 독립 실행 파일·설정/JSON·알 수 없는 파일은 full이며 제품 plugins README/실행 스킬은 확장하지 않는다. 문서와 앱/CI/스크립트/의존성 혼합은 최대 위험 분류를 유지한다.
+
+이 정책은 문서 화면 script/style가 바뀌면 문서 시각 확인을 수행할 수 있다는 뜻이며 제품 DB·HTTP/MCP·전체 E2E를 대신 실행하라는 뜻이 아니다. 문서가 앱 런타임에 사용되도록 경계를 변경하는 PR은 runtime 소비 코드가 full 대상이며 해당 역할과 분류 기준을 함께 갱신한다. 아래 최초 문서 판정 full은 당시 정책의 증거로 보존한다.
+
+수정 후 분류 회귀9/9 PASS, `npm run check:docs` 텍스트336·모델/native PASS·49개 중48 PASS/0 FAIL/기존 Windows권한1 SKIP, `git diff --check` PASS다. 실제 `68f5d0f`→`4fbbe62`의 overview HTML 변경만 추출해 docs를 확인했다. 같은 전체 diff는 plugins README 때문에 full이고, 이번 후속은 분류기 코드/회귀 수정 때문에 full이다. HTML tag/script/style와 문서 추가·삭제·docs 간 rename의 docs 경로, 실행 JSON/코드·외부 source rename·plugins 파일·앱/CI 혼합의 full 경로를 회귀로 검증했다. required job·workflow·branch protection은 변경하지 않았으며 앱/서비스 검사를 로컬에서 반복하지 않았다. 같은 제출 head의 독립 리뷰·원격 full CI는 메인에게 인계한다.
 
 직접 실행: `npm run check:docs` 텍스트336개·모델/native 정합성 PASS, 회귀49개 중48 PASS/0 FAIL/기존 Windows file-symlink권한1 SKIP. `git diff --check` PASS. 실제 변경 내용을 현재 분류기로 확인해 overview markup과 plugins README 경로는 full, 배포 방법/개발 스킬은 docs, 전체 full이다. 경량 판정을 얻으려고 CI 정책을 수정하지 않았다. 문서 위험에 맞춰 앱·DB·HTTP/MCP·E2E를 로컬에서 반복하지 않고 원격 CI를 메인에게 인계한다.
 

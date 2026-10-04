@@ -5,6 +5,8 @@
 검토 기준: base `b7339796dff5fd1c8d4856b94b0054d3731fcb3e`, branch `codex/ci-by-change-impact`
 선행: [Template-08](template-08-mock-first-testing.md)의 서비스 없는 빠른 검사
 
+후속 사용자 지시로 docs/의 HTML 구조·inline script/style와 문서 추가·삭제·rename도 경량 문서 검사로 처리한다([Template-15](template-15-plugin-update-overview.md#승인-후속-docs-문서-전용-검사), [현재 정본](../development/workflow.md#변경-영향별-ci)). 아래 구현·회귀 기록은 최초 정책 당시 증거이며 현재 docs 범위는 후속 정본을 따른다.
+
 ## 승인·소유와 목표
 
 사용자는 웹 문구·버튼 위치 같은 작은 변경에도 전체 check/integration이 오래 걸리므로 변경 영향에 따라 검증을 나누도록 승인했다. 담당 구현 세션은 CI workflow·분류기/회귀·필요 의존성·가이드/개발 스킬·현재 요약·PR 검증 필드를 소유한다. 메인은 설계 조정·독립 리뷰·Git/PR·실제 CI·머지를 맡는다. 전달받은 당일 desktop balanced/medium implement preflight PASS와 고정 `gpt-6.1-sol`/medium 배정으로 작업한다. 이전 사용자·다른 개발자의 작업을 되돌리지 않는다.
