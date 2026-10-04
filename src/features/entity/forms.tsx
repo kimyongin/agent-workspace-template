@@ -5,14 +5,16 @@ import {
   type EntityResult,
 } from "@contracts/entity.ts";
 import { useState } from "react";
-import { FormModal } from "../../components/ContentForm.tsx";
+import { changeNoteErrors, ChangeNoteField, FormModal } from "../../components/ContentForm.tsx";
 import { Field } from "../../components/Field.tsx";
 import { fieldErrors } from "../../lib/format.ts";
+import { TagPicker } from "../tags/TagPicker.tsx";
 export function EntityForm(
-  { initial, onClose, onSave }: {
+  { initial, onClose, onRouteDiscard, onSave }: {
     initial?: EntityResult;
     onClose: () => void;
-    onSave: (value: EntityCreate) => Promise<void>;
+    onRouteDiscard?: () => void;
+    onSave: (value: EntityCreate & {tag_ids: string[]; change_note?: string}) => Promise<void>;
   },
 ) {
   const baseline = {
@@ -20,6 +22,8 @@ export function EntityForm(
     prop2: initial?.prop2 == null ? "" : String(initial.prop2),
     prop3: initial?.prop3 ?? "",
     prop4: initial?.prop4 ?? "a",
+    tag_ids: (initial as EntityResult & {tag_ids?: string[]})?.tag_ids ?? [],
+    change_note: "",
   };
   const [draft, setDraft] = useState(baseline);
   const value = () => ({
@@ -33,12 +37,15 @@ export function EntityForm(
       title={initial ? "엔터티 편집" : "엔터티 추가"}
       submitLabel="저장"
       onClose={onClose}
+      onRouteDiscard={onRouteDiscard}
       dirty={JSON.stringify(draft) !== JSON.stringify(baseline)}
       validate={() => {
-        const parsed = entityCreate.safeParse(value());
+        const noteErrors=changeNoteErrors(draft.change_note,!!initial);if(noteErrors)return noteErrors;
+        const {tag_ids, change_note, ...fields} = value();
+        const parsed = entityCreate.safeParse(fields);
         return parsed.success ? null : fieldErrors(parsed.error.issues);
       }}
-      onSubmit={() => onSave(entityCreate.parse(value()))}
+      onSubmit={() => {const {tag_ids,change_note,...fields}=value(); return onSave({...entityCreate.parse(fields),tag_ids,change_note:change_note.trim()||undefined});}}
     >
       {(errors) => (
         <>
@@ -105,6 +112,8 @@ export function EntityForm(
               </select>
             )}
           </Field>
+          <TagPicker scope="entity" value={draft.tag_ids} error={errors.tag_ids} onChange={tag_ids=>setDraft(d=>({...d,tag_ids}))}/>
+          <ChangeNoteField value={draft.change_note} required={!!initial} error={errors.change_note} onChange={change_note=>setDraft(d=>({...d,change_note}))}/>
         </>
       )}
     </FormModal>

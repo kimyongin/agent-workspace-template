@@ -1,14 +1,17 @@
+import { useCreateMode } from "../../components/useCreateMode.ts";
+import { TabSearch, AppliedConditions, resetTabFilters } from "../../components/TabSearch.tsx";
+import { TabSearchResults } from "../search/TabSearchResults.tsx";
 // 할 일 목록: 종류·상태 필터(URL에 보관해 상세 왕복 뒤 유지), 커서 더 보기, 작성 모달.
 import type { TaskListItem, TaskResult } from "@contracts/task.ts";
 import { taskLabels } from "@contracts/task.ts";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import {useDeferredNavigation} from "../../lib/useDeferredNavigation.ts";
 import { Notice } from "../../components/Field.tsx";
 import { api, query } from "../../lib/api.ts";
 import { emptyTask, TaskFormModal, taskInput } from "./forms.tsx";
 import { StatusBadge, useRequestId } from "./shared.tsx";
-import { TagFilter, TagNames, TagReadProvider, useTagDictionary } from "../tags/TagPicker.tsx";
+import { TagDictionaryStatus, TagFilter, TagNames, TagReadProvider, useTagDictionary } from "../tags/TagPicker.tsx";
 import { useActivityList } from "./useActivityList.ts";
 import { EntityPicker } from "../entity/EntityPicker.tsx";
 import { ActivityTabs } from "./ActivityTabs.tsx";
@@ -31,11 +34,15 @@ export function TasksPage() {
   const tag_id=params.get("tag_id")??"";
   const entity_id=params.get("entity_id")??"";
   const list = useActivityList<TaskListItem>("tasks", `/tasks${query({ kind, status, tag_id, entity_id, limit: 20 })}`,
-    "tasks-title", "할 일을 불러오지 못했습니다. 다시 시도하세요.", tagDictionary.tags !== null || tagDictionary.failed);
+    "tasks-title", "할 일을 불러오지 못했습니다. 다시 시도하세요.", tagDictionary.tags !== null || tagDictionary.failed,!params.get("q"));
   const { items, cursor, error, busy: loadingMore, more } = list;
-  const [creating, setCreating] = useState(false);
+  const searching=!!params.get("q");
+  const create=useCreateMode();
+  const creating=create.open;
+  const setCreating=(value:boolean)=>value?create.begin():create.discard();
   const [formKey, setFormKey] = useState(0);
   const requestId = useRequestId();
+  useEffect(()=>{if(create.open)requestId.renew();},[create.open,create.key]);
   const navigate = useNavigate();
   const navigateAfterClose = useDeferredNavigation();
 
@@ -44,7 +51,7 @@ export function TasksPage() {
     next.delete("pages"); next.delete("scroll");
     if (value) next.set(key, value);
     else next.delete(key);
-    if (key === "kind" && status && !STATUS_BY_KIND[value].includes(status)) next.delete("status");
+    if (key === "kind" && status && !(STATUS_BY_KIND[value]??[]).includes(status)) next.delete("status");
     setParams(next, { replace: true });
   };
 
@@ -55,12 +62,10 @@ export function TasksPage() {
       <ActivityTabs />
       <div className="panel-head">
         <h1 id="tasks-title" className="page-title" tabIndex={-1}>할 일</h1>
-        <button type="button" className="btn btn-primary" onClick={() => setCreating(true)}>할 일 추가</button>
+        <button type="button" className="btn btn-primary" onClick={create.begin}>할 일 추가</button>
       </div>
 
-      <div className="activity-filters" role="group" aria-label="할 일 필터">
-        <TagFilter dictionary={tagDictionary} value={tag_id} onChange={id=>setFilter("tag_id",id)}/>
-        <EntityPicker label="엔터티 필터" value={entity_id} onChange={id=>setFilter("entity_id",id??"")}/>
+      <TabSearch/>
         <div className="chips" role="group" aria-label={taskLabels.kind}>
           {KIND_FILTERS.map(([v, label]) => (
             <button key={v} type="button" className="chip" aria-pressed={kind === v} onClick={() => setFilter("kind", v)}>
@@ -70,15 +75,21 @@ export function TasksPage() {
         </div>
         <div className="chips" role="group" aria-label={taskLabels.status}>
           <button type="button" className="chip" aria-pressed={!status} onClick={() => setFilter("status", "")}>모든 상태</button>
-          {STATUS_BY_KIND[kind].map((s) => (
+          {(STATUS_BY_KIND[kind]??[]).map((s) => (
             <button key={s} type="button" className="chip" aria-pressed={status === s} onClick={() => setFilter("status", s)}>
               {taskLabels[s as keyof typeof taskLabels] as string}
             </button>
           ))}
         </div>
-        {filtered && <button type="button" className="btn filter-reset" onClick={() => setParams({}, {replace:true})}>필터 해제</button>}
-      </div>
 
+      <TagDictionaryStatus dictionary={tagDictionary}/>
+      <details className="workspace-additional"><summary>추가 조건</summary><div className="activity-filters" role="group" aria-label="할 일 필터">
+        <TagFilter showFailure={false} dictionary={tagDictionary} value={tag_id} onChange={id=>setFilter("tag_id",id)}/>
+        <EntityPicker label="엔터티 필터" value={entity_id} onChange={id=>setFilter("entity_id",id??"")}/>
+        {filtered && <button type="button" className="btn filter-reset" onClick={() => setParams(resetTabFilters(params), {replace:true})}>필터 해제</button>}
+      </div></details>
+      <AppliedConditions namesForIds={Object.fromEntries(tagDictionary.tags?.map(t=>[t.id,t.name])??[])}/>
+      {searching ? <TabSearchResults kind="tasks"/> : <>
       {items === null && !error && <p className="secondary" role="status">불러오는 중…</p>}
       {items?.length === 0 && (
         <div className="empty">
@@ -86,7 +97,7 @@ export function TasksPage() {
             ? (
               <>
                 <p className="secondary" style={{ margin: 0 }}>조건에 맞는 할 일이 없습니다.</p>
-                <button type="button" className="btn" onClick={() => setParams(new URLSearchParams(), { replace: true })}>
+                <button type="button" className="btn" onClick={() => setParams(resetTabFilters(params), { replace: true })}>
                   필터 해제
                 </button>
               </>
@@ -121,20 +132,21 @@ export function TasksPage() {
         </button>
       )}
 
+      </>}
       {creating && (
         <TaskFormModal
-          key={formKey}
+          key={`${formKey}:${create.key}`}
           mode="create"
           open={creating}
           initial={emptyTask()}
-          onClose={() => setCreating(false)}
-          onRouteDiscard={() => setCreating(false)}
+          onClose={create.close}
+          onRouteDiscard={create.discard}
           onSave={async (draft) => {
             const created = await api<TaskResult>("POST", "/tasks", { ...taskInput(draft), request_id: requestId.current });
             requestId.renew();
             setCreating(false);
             setFormKey((k) => k + 1);
-            navigateAfterClose(`/tasks/${created.id}`);
+            const p=new URLSearchParams(params);p.delete("create");create.finish(`/tasks/${created.id}?list=${encodeURIComponent(`/tasks?${p}`)}`);
           }}
         />
       )}

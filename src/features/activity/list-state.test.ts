@@ -99,4 +99,14 @@ describe("activity list return", () => {
     expect(result?.next_cursor).toBe("cursor-7");
     expect(result?.items.some((item) => item.id === "deleted")).toBe(false);
   });
+
+  it("uses the server search anchor page while preserving a finite restoration cap",async()=>{
+    let count=0;
+    const load=vi.fn(async()=>{count++;return {items:[{id:count===8?"target":String(count)}],next_cursor:`page-${count}`,anchor_page:count===1?8:null};});
+    const result=await restoreList({load,pages:1,anchor:"target",current:()=>true,publish:vi.fn()});
+    expect(load).toHaveBeenCalledTimes(8);expect(result?.items.at(-1)?.id).toBe("target");
+    const entityPath=listReturnPath("entities",new URLSearchParams("keyword=한글&pages=2"),"00000000-0000-4000-8000-000000000001",10);
+    expect(anchorId("entities",new URL(entityPath,"https://activity.invalid").hash)).toBe("00000000-0000-4000-8000-000000000001");
+    expect(listScope(new URLSearchParams("create=1&q=명시&pages=2"))).toBe("q=%EB%AA%85%EC%8B%9C");
+  });
 });

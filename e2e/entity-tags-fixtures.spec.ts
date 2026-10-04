@@ -8,12 +8,13 @@ test("태그 한 초안 선택 전환과 경로·뒤로가기 폐기 취소", as
   await page.getByRole("button", { name: "첫 태그 이름 변경" }).click(); await page.getByRole("textbox", { name: /태그 이름/ }).fill("초안");
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: info.outputPath("tag-editor.png"), fullPage: true });
-  await page.getByRole("button", { name: "다른 태그 이름 변경" }).click();
+  // Programmatic route/action probes exercise blocked intents behind a native modal.
+  await page.getByRole("button", { name: "다른 태그 이름 변경" }).evaluate((el:HTMLButtonElement)=>el.click());
   let confirm = page.getByRole("dialog", { name: "변경을 버릴까요?" }); await confirm.getByRole("button", { name: "취소", exact: true }).click();
   await expect(page.getByRole("textbox", { name: /태그 이름/ })).toHaveValue("초안");
   await page.goBack(); await expect(confirm).toBeVisible(); await confirm.getByRole("button", { name: "취소", exact: true }).click();
-  await expect(page).toHaveURL(/view=other/); await expect(page.getByRole("textbox", { name: /태그 이름/ })).toHaveValue("초안");
-  await page.getByRole("link", { name: "다른 화면" }).click(); await expect(confirm).toBeVisible();
+  await expect(page).toHaveURL(/fixture=other/); await expect(page.getByRole("textbox", { name: /태그 이름/ })).toHaveValue("초안");
+  await page.getByRole("link", { name: "다른 화면" }).evaluate((el:HTMLAnchorElement)=>el.click()); await expect(confirm).toBeVisible();
   await confirm.getByRole("button", { name: "변경 버리기" }).click();
   await expect(page.getByRole("textbox", { name: /태그 이름/ })).toHaveCount(0);
 });
@@ -127,8 +128,8 @@ test("불확정 이름 변경을 최신 목록에서 확인하며 중복 PATCH �
 });
 test("불확정 생성 같은 request_id 재시도와 성공 뒤 목록 실패 구분", async ({ page }) => {
   let calls = 0; const bodies: Record<string, unknown>[] = []; let saved = false;
-  await page.route("**/api/tags", async route => {
-    if (route.request().method() === "POST") { bodies.push(route.request().postDataJSON()); calls++; if (calls === 1) await route.abort(); else { saved = true; await route.fulfill({ status: 201, json: { ...tags[0], name: "새 태그" } }); } }
+  await page.route(/\/api\/tags(?:\?.*)?$/, async route => {
+    if (route.request().method() === "POST") { bodies.push(route.request().postDataJSON()); calls++; if (calls === 1) await route.abort(); else { saved = true; await route.fulfill({ status: 201, json: { ...tags[0],id:"50000000-0000-4000-8000-000000000000", name: "새 태그" } }); } }
     else await route.fulfill(saved ? { status: 503, json: { code: "internal", message: "목록 실패" } } : { json: { items: tags, next_cursor: null } });
   });
   await page.goto(url); await page.getByRole("button", { name: "태그 추가", exact: true }).click(); await page.getByRole("textbox", { name: /태그 이름/ }).fill("새 태그"); await page.getByRole("button", { name: "저장", exact: true }).click();
@@ -139,7 +140,7 @@ test("불확정 생성 같은 request_id 재시도와 성공 뒤 목록 실패 �
 });
 test("이름 충돌 초안 보존과 삭제 실패·성공", async ({ page }) => {
   let failedDelete = true, conflicted = false;
-  await page.route("**/api/tags", route => route.fulfill({ json: { items: tags.map(t => conflicted && t.id === tags[0].id ? { ...t, version: 2 } : t), next_cursor: null } }));
+  await page.route(/\/api\/tags(?:\?.*)?$/, route => route.fulfill({ json: { items: tags.map(t => conflicted && t.id === tags[0].id ? { ...t, version: 2 } : t), next_cursor: null } }));
   await page.route("**/api/tags/*", route => { if (route.request().method() === "PATCH") { conflicted = true; return route.fulfill({ status: 409, json: { code: "conflict", message: "다른 변경" } }); } return failedDelete ? route.fulfill({ status: 409, json: { code: "conflict", message: "삭제 충돌" } }) : route.fulfill({ status: 204 }); });
   await page.goto(url); await page.getByRole("button", { name: "첫 태그 이름 변경" }).click(); await page.getByRole("textbox", { name: /태그 이름/ }).fill("초안 유지"); await page.getByRole("button", { name: "저장", exact: true }).click();
   await expect(page.getByText(/다른 변경이 저장되었습니다/)).toBeVisible(); await expect(page.getByRole("textbox", { name: /태그 이름/ })).toHaveValue("초안 유지");

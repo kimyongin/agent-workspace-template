@@ -4,15 +4,16 @@ import {api} from "../../lib/api.ts";
 import {Field,Notice} from "../../components/Field.tsx";
 import "../activity/activity.css";
 
-async function loadTags() {
+export type TagScope = "entity" | "activity";
+async function loadTags(scope: TagScope) {
     const all: TagResult[] = []; let cursor: string | null = null;
     do {
-      const page: {items:TagResult[];next_cursor:string|null} = await api("GET", `/tags?limit=100${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`);
+      const page: {items:TagResult[];next_cursor:string|null} = await api("GET", `/tags?scope=${scope}&limit=100${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`);
       all.push(...page.items); cursor = page.next_cursor;
     } while (cursor);
     return all;
 }
-export function useTagDictionary(enabled = true, preserveListLayout = false) {
+export function useTagDictionary(enabled = true, preserveListLayout = false, scope: TagScope = "activity") {
   const [tags,setTags]=useState<TagResult[]|null>(null),[failed,setFailed]=useState(false),[retry,setRetry]=useState(0);
   const position = useRef<{target:HTMLElement;y:number;focus:boolean}|null>(null);
   useLayoutEffect(()=>{const saved=position.current;if(!saved||!saved.target.isConnected)return;
@@ -31,12 +32,12 @@ export function useTagDictionary(enabled = true, preserveListLayout = false) {
   };
   const retryLookup=()=>{capturePosition();setRetry(n=>n+1);};
   useEffect(()=>{if(!enabled)return;let alive=true;
-    loadTags().then(all=>{if(alive){capturePosition();setTags(all);setFailed(false);}}).catch(()=>{if(alive)setFailed(true);});return()=>{alive=false;};},[retry,enabled]);
+    loadTags(scope).then(all=>{if(alive){capturePosition();setTags(all);setFailed(false);}}).catch(()=>{if(alive)setFailed(true);});return()=>{alive=false;};},[retry,enabled,scope]);
   return {tags,failed,retry:retryLookup};
 }
-export function TagPicker({value,onChange,error}:{value:string[];onChange:(ids:string[])=>void;error?:string}) {
-  const {tags,failed,retry}=useTagDictionary();
-  return <fieldset className="field" style={{border:0,padding:0,margin:0}}><legend className="label">태그</legend>
+export function TagPicker({value,onChange,error,scope="activity"}:{value:string[];onChange:(ids:string[])=>void;error?:string;scope?:TagScope}) {
+  const {tags,failed,retry}=useTagDictionary(true,false,scope);
+  return <fieldset className="field" style={{border:0,padding:0,margin:0}}><legend className="label">{scope==="entity"?"엔터티 태그":"활동 태그"}</legend>
     <p className="help">최대 10개까지 선택합니다.</p>
     {error&&<p className="error-text">{error}</p>}
     {failed?<><Notice kind="error">태그를 불러오지 못했습니다. 기존 선택은 유지합니다.</Notice><button type="button" className="btn" onClick={retry}>태그 다시 시도</button></>:
@@ -48,13 +49,16 @@ export function TagPicker({value,onChange,error}:{value:string[];onChange:(ids:s
     <button type="button" className="btn btn-text" disabled={!value.length} onClick={()=>onChange([])}>태그 선택 해제</button>
   </fieldset>;
 }
-export function TagFilter({value,onChange,dictionary}:{value:string;onChange:(id:string)=>void;dictionary?:ReturnType<typeof useTagDictionary>}) {
+export function TagFilter({value,onChange,dictionary,showFailure=true}:{value:string;onChange:(id:string)=>void;dictionary?:ReturnType<typeof useTagDictionary>;showFailure?:boolean}) {
   const local = useTagDictionary(!dictionary);
   const {tags,failed,retry}=dictionary ?? local;
   return <><Field label="태그 필터">{p=><select {...p} className="input" value={value} onChange={e=>onChange(e.target.value)} disabled={!tags}>
     <option value="">모든 태그</option>{tags?.map(t=><option key={t.id} value={t.id}>{t.name}</option>)}
     {value&&tags&&!tags.some(t=>t.id===value)&&<option value={value}>삭제된 태그</option>}
-  </select>}</Field>{failed&&<><Notice kind="error">태그 필터를 불러오지 못했습니다.</Notice><button type="button" className="btn" onClick={retry}>태그 다시 시도</button></>}</>;
+  </select>}</Field>{showFailure&&failed&&<><Notice kind="error">태그 필터를 불러오지 못했습니다.</Notice><button type="button" className="btn" onClick={retry}>태그 다시 시도</button></>}</>;
+}
+export function TagDictionaryStatus({dictionary}:{dictionary:ReturnType<typeof useTagDictionary>}) {
+  return dictionary.failed?<><Notice kind="error">태그 사전을 불러오지 못했습니다. 조건과 기존 행은 유지합니다.</Notice><button type="button" className="btn" onClick={dictionary.retry}>태그 다시 시도</button></>:null;
 }
 const TagReadContext = createContext<ReturnType<typeof useTagDictionary> | null>(null);
 /** One lookup per visible list, with scope-local cancellation rather than a cross-owner cache. */
@@ -65,9 +69,9 @@ export function TagReadProvider({children,enabled=true,dictionary}:{children:Rea
   if(enabled && !state.tags && !state.failed)return <p className="secondary" role="status">태그 이름을 불러오는 중…</p>;
   return <TagReadContext.Provider value={state}>{children}</TagReadContext.Provider>;
 }
-export function TagNames({ids, compact=false}:{ids:string[];compact?:boolean}) {
+export function TagNames({ids, compact=false, scope="activity"}:{ids:string[];compact?:boolean;scope?:TagScope}) {
   const shared = useContext(TagReadContext);
-  const local = useTagDictionary(ids.length > 0 && !shared);
+  const local = useTagDictionary(ids.length > 0 && !shared,false,scope);
   const {tags,failed,retry}=shared ?? local;
   if(compact && !ids.length)return null;
   // The shared filter owns retry; repeating an error card/button in every row destabilizes reading geometry.

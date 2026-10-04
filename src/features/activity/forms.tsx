@@ -6,7 +6,7 @@ import { recordCreate, recordLabels } from "@contracts/record.ts";
 import { type Recurrence, taskCreate, taskLabels } from "@contracts/task.ts";
 import { type ReactNode, useState } from "react";
 import { Field } from "../../components/Field.tsx";
-import { FormModal, TextFields, type TextDraft } from "../../components/ContentForm.tsx";
+import { changeNoteErrors, ChangeNoteField, FormModal, TextFields, type TextDraft } from "../../components/ContentForm.tsx";
 import { browserTimezone, fieldErrors, fromLocalInput, todayIn, toLocalInput } from "../../lib/format.ts";
 
 const WEEKDAYS = ["월", "화", "수", "목", "금", "토", "일"];
@@ -14,6 +14,7 @@ const WEEKDAYS = ["월", "화", "수", "목", "금", "토", "일"];
 // ---------- 기록 폼(직접 작성·완료 결과·회차 기록·편집) ----------
 
 export interface RecordDraft extends TextDraft {
+  change_note?: string;
   entity_id?:string|null;
   tag_ids:string[];
   occurred_at: string; // datetime-local
@@ -33,9 +34,11 @@ export function RecordFormModal(props: {
   initial: RecordDraft;
   intro?: ReactNode;
   entityEditable?:boolean;
+  systemRecord?: boolean;
+  editing?: boolean;
   onClose: () => void;
   onRouteDiscard?: () => void;
-  onSave: (value: { title: string; summary: string; body: string; occurred_at?: string; applied_principle_ids:string[];tag_ids?:string[];entity_id?:string|null }) => Promise<void>;
+  onSave: (value: { title: string; summary: string; body: string; change_note?: string; occurred_at?: string; applied_principle_ids?:string[];tag_ids?:string[];entity_id?:string|null }) => Promise<void>;
 }) {
   const [initial] = useState(props.initial);
   const [draft, setDraft] = useState(initial);
@@ -58,16 +61,17 @@ export function RecordFormModal(props: {
       onClose={props.onClose}
       onRouteDiscard={props.onRouteDiscard}
       validate={() => {
+        const noteErrors=changeNoteErrors(draft.change_note,props.editing);if(noteErrors)return noteErrors;
         const r = recordCreate.safeParse(value());
         return r.success ? null : fieldErrors(r.error.issues);
       }}
-      onSubmit={() => props.onSave(recordCreate.parse(value()))}
+      onSubmit={() => {const parsed=recordCreate.parse(value());return props.onSave({... (props.systemRecord?{title:parsed.title,summary:parsed.summary,body:parsed.body}:parsed),change_note:draft.change_note?.trim()||undefined});}}
     >
       {(errors) => (
         <>
           {props.intro}
           <TextFields draft={draft} set={(d) => setDraft((prev) => ({ ...prev, ...d }))} errors={errors} />
-          <PrinciplePicker value={draft.applied_principle_ids} error={errors.applied_principle_ids} onChange={ids=>setDraft(d=>({...d,applied_principle_ids:ids}))}/>
+          {!props.systemRecord && <><PrinciplePicker value={draft.applied_principle_ids} error={errors.applied_principle_ids} onChange={ids=>setDraft(d=>({...d,applied_principle_ids:ids}))}/>
           <TagPicker value={draft.tag_ids} error={errors.tag_ids} onChange={tag_ids=>setDraft(d=>({...d,tag_ids}))}/>
           {props.entityEditable!==false&&<EntityPicker value={draft.entity_id} error={errors.entity_id} onChange={entity_id=>setDraft(d=>({...d,entity_id}))}/>}
           <Field label={recordLabels.occurred_at} error={errors.occurred_at} help="비우면 저장한 시각">
@@ -80,7 +84,8 @@ export function RecordFormModal(props: {
                 onChange={(e) => setDraft((prev) => ({ ...prev, occurred_at: e.target.value }))}
               />
             )}
-          </Field>
+          </Field></>}
+          <ChangeNoteField value={draft.change_note??""} required={props.editing} error={errors.change_note} onChange={change_note=>setDraft(d=>({...d,change_note}))}/>
         </>
       )}
     </FormModal>
@@ -90,6 +95,7 @@ export function RecordFormModal(props: {
 // ---------- 할 일 폼(작성·편집) ----------
 
 export interface TaskDraft extends TextDraft {
+  change_note?: string;
   entity_id?:string|null;
   tag_ids: string[];
   kind: "once" | "recurring";
@@ -159,7 +165,7 @@ function recurrenceOf(d: TaskDraft): unknown {
 
 /** 생성 입력(contracts의 taskCreate 모양). */
 export function taskInput(d: TaskDraft): Record<string, unknown> {
-  const text = { title: d.title, summary: d.summary, body: d.body, tag_ids:d.tag_ids,entity_id:d.entity_id };
+  const text = { title: d.title, summary: d.summary, body: d.body, tag_ids:d.tag_ids,entity_id:d.entity_id, change_note:d.change_note?.trim()||undefined };
   return d.kind === "once"
     ? { kind: "once", ...text, ...(d.due_on ? { due_on: d.due_on } : {}) }
     : { kind: "recurring", ...text, recurrence: recurrenceOf(d), timezone: d.timezone };
@@ -188,7 +194,9 @@ export function TaskFormModal(props: {
       onClose={props.onClose}
       onRouteDiscard={props.onRouteDiscard}
       validate={() => {
-        const r = taskCreate.safeParse(taskInput(draft));
+        const noteErrors=changeNoteErrors(draft.change_note,props.mode==="edit");if(noteErrors)return noteErrors;
+        const {change_note, ...input}=taskInput(draft);
+        const r = taskCreate.safeParse(input);
         if (r.success) return null;
         const errs = fieldErrors(r.error.issues);
         // 반복 규칙 하위 오류는 해당 입력 옆에 보인다.
@@ -282,6 +290,7 @@ export function TaskFormModal(props: {
                 </div>
               </>
             )}
+          <ChangeNoteField value={draft.change_note??""} required={props.mode==="edit"} error={errors.change_note} onChange={change_note=>set({change_note})}/>
         </>
       )}
     </FormModal>

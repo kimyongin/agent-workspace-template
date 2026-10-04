@@ -21,6 +21,8 @@ export function useActivityList<T extends { id: string }>(
   titleId: string,
   errorMessage: string,
   layoutReady = true,
+  enabled = true,
+  customLoad?: (cursor?: string, signal?: AbortSignal) => Promise<ListPage<T>>,
 ) {
   const [params] = useSearchParams();
   const { hash } = useLocation();
@@ -40,9 +42,10 @@ export function useActivityList<T extends { id: string }>(
   const [controlScope, setControlScope] = useState<string | null>(null);
   const [retry, setRetry] = useState(0);
   const load = (after?: string, signal?: AbortSignal) =>
-    api<ListPage<T>>("GET", `${path}${after ? `&cursor=${encodeURIComponent(after)}` : ""}`, undefined, signal);
+    customLoad ? customLoad(after, signal) : api<ListPage<T>>("GET", `${path}${after ? `&cursor=${encodeURIComponent(after)}` : ""}`, undefined, signal);
 
   useEffect(() => {
+    if (!enabled) return;
     const controller = new AbortController();
     failedMore.current = null;
     const started = ++generation.current;
@@ -91,7 +94,7 @@ export function useActivityList<T extends { id: string }>(
       controller.abort();
       generation.current++;
     };
-  }, [scope, pages, hash, retry]);
+  }, [scope, pages, hash, retry, enabled]);
 
   useEffect(() => {
     if (!layoutReady || busy || items === null && !error || focused.current === hash || !anchorId(kind, hash)) return;

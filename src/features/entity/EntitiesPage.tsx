@@ -1,23 +1,29 @@
+import { useCreateMode } from "../../components/useCreateMode.ts";
+import { TabSearch, AppliedConditions, resetTabFilters } from "../../components/TabSearch.tsx";
+import { TagDictionaryStatus, TagFilter, TagNames, TagReadProvider, useTagDictionary } from "../tags/TagPicker.tsx";
+import { listReturnPath } from "../activity/list-state.ts";
 import type { EntityResult } from "@contracts/entity.ts";
 import { useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router";
 import { Field, Notice } from "../../components/Field.tsx";
 import { api, ApiError, query } from "../../lib/api.ts";
 import { useRequestId } from "../../lib/useRequestId.ts";
-import { useDeferredNavigation } from "../../lib/useDeferredNavigation.ts";
 import { EntityForm } from "./forms.tsx";
 import { GuideLink } from "../../components/GuideLink.tsx";
 type Page = { items: EntityResult[]; next_cursor: string | null; count: number };
 export function EntitiesPage() {
+  const create=useCreateMode();
+  const dictionary=useTagDictionary(true,true,"entity");
   const [params] = useSearchParams(),
     { hash } = useLocation(),
     navigate = useNavigate(),
     request = useRequestId();
-  const navigateAfterClose = useDeferredNavigation();
+  useEffect(()=>{if(create.open)request.renew();},[create.open,create.key]);
   const requested = Number(params.get("pages") ?? 1);
   const pages = Number.isSafeInteger(requested) && requested > 0 ? Math.min(250, requested) : 1;
   const filter = {
     keyword: params.get("keyword"),
+    tag_id: params.get("tag_id"),
     prop3_from: params.get("prop3_from"),
     prop3_to: params.get("prop3_to"),
     prop4: params.get("prop4"),
@@ -28,8 +34,8 @@ export function EntitiesPage() {
     [error, setError] = useState<string | null>(null),
     [busy, setBusy] = useState(false),
     [manualPage, setManualPage] = useState<{ context: string; count: number; epoch: number } | null>(null),
-    [retry, setRetry] = useState(0),
-    [creating, setCreating] = useState(false);
+    [retry, setRetry] = useState(0);
+  const creating=create.open;
   const context = `${key}|${hash}`;
   const loaded = useRef<{ context: string; page: Page; epoch: number } | null>(null),
     focused = useRef(""),
@@ -89,16 +95,17 @@ export function EntitiesPage() {
   }, [key, target, retry, hash]);
   useEffect(() => {
     if (
-      busy || error || loaded.current?.context !== context || focused.current === context || !page ||
+      (dictionary.tags===null&&!dictionary.failed) || busy || error || loaded.current?.context !== context || focused.current === context || !page ||
       !/^#entity-[0-9a-f-]+$/.test(hash)
     ) return;
     const node = document.getElementById(hash.slice(1));
     if (node) {
-      node.focus();
-      node.scrollIntoView({ block: "center" });
+      node.focus({preventScroll:true});
+      const y=Number(params.get("scroll"));if(params.has("scroll")&&Number.isFinite(y)&&y>=0)window.scrollTo(0,y);
+      const rect=node.getBoundingClientRect();if(rect.top<0||rect.bottom>innerHeight)node.scrollIntoView({ block: "center" });
     } else document.getElementById("entities-title")?.focus();
     focused.current = context;
-  }, [page, busy, error, context, hash]);
+  }, [page, busy, error, context, hash,dictionary.tags,dictionary.failed]);
   const set = (name: string, value: string) => {
     const next = new URLSearchParams(params);
     if (value) next.set(name, value);
@@ -106,25 +113,22 @@ export function EntitiesPage() {
     next.delete("pages");
     navigate({ pathname: "/entities", search: next.toString(), hash: "" }, { replace: true });
   };
+  const rowLink=(id:string,edit=false)=>{
+    const p=new URLSearchParams(params);p.delete("create");p.set("pages",String(page?.count??1));const back=listReturnPath("entities",p,id,0);
+    return {to:`/entities/${id}?list=${encodeURIComponent(back)}${edit?"&edit=1":""}`,onClick:(event:React.MouseEvent<HTMLAnchorElement>)=>{if(event.button!==0||event.metaKey||event.ctrlKey||event.shiftKey||event.altKey)return;event.preventDefault();const at=listReturnPath("entities",p,id,window.scrollY);navigate(at,{replace:true,preventScrollReset:true});navigate(`/entities/${id}?list=${encodeURIComponent(at)}${edit?"&edit=1":""}`);}};
+  };
   return (
     <section className="panel" aria-labelledby="entities-title">
       <div className="panel-head">
         <h1 id="entities-title" className="page-title" tabIndex={-1}>엔터티</h1>
-        <button className="btn btn-primary" onClick={() => setCreating(true)}>
+        <button className="btn btn-primary" onClick={create.begin}>
           엔터티 추가
         </button>
       </div>
-      <div className="form" role="group" aria-label="엔터티 필터">
-        <Field label="속성 1 키워드">
-          {(p) => (
-            <input
-              {...p}
-              className="input"
-              value={filter.keyword ?? ""}
-              onChange={(e) => set("keyword", e.target.value)}
-            />
-          )}
-        </Field>
+      <TabSearch entity/>
+      <TagDictionaryStatus dictionary={dictionary}/>
+      <details className="workspace-additional"><summary>추가 조건</summary><div className="form" role="group" aria-label="엔터티 필터">
+        <TagFilter showFailure={false} dictionary={dictionary} value={filter.tag_id??""} onChange={v=>set("tag_id",v)}/>
         <div className="field-row">
           {(["prop3_from", "prop3_to"] as const).map((name) => (
             <Field
@@ -169,7 +173,7 @@ export function EntitiesPage() {
             </select>
           )}
         </Field>
-      </div>
+      </div></details><AppliedConditions namesForIds={Object.fromEntries(dictionary.tags?.map(t=>[t.id,t.name])??[])}/>
       {error && (
         <>
           <Notice kind="error">{error}</Notice>
@@ -188,32 +192,24 @@ export function EntitiesPage() {
             {key !== "?sort=updated_at" ? "조건에 맞는 엔터티가 없습니다." : "아직 엔터티가 없습니다."}
           </p>
           {key === "?sort=updated_at" && <GuideLink />}
-          <button className="btn" onClick={() => navigate("/entities", { replace: true })}>
+          <button className="btn" onClick={() => navigate(`/entities?${resetTabFilters(params)}`, { replace: true })}>
             필터 해제
           </button>
         </>
       )}
-      <ul className="list">
+      <TagReadProvider dictionary={dictionary} enabled={!!page?.items.some(e=>(e as EntityResult & {tag_ids?:string[]}).tag_ids?.length)}><ul className="list">
         {page?.items.map((e) => (
           <li className="list-item" key={e.id}>
             <div className="list-item-main">
-              <Link
-                id={`entity-${e.id}`}
-                className="item-title"
-                to={`/entities/${e.id}?${new URLSearchParams({
-                  ...Object.fromEntries(params),
-                  pages: String(page.count),
-                })}`}
-              >
-                {e.prop1}
-              </Link>
+              <div className="activity-item-heading"><Link id={`entity-${e.id}`} className="item-title" {...rowLink(e.id)}>{e.prop1}</Link><span className="activity-item-actions"><Link {...rowLink(e.id)} aria-label={`${e.prop1} 보기`}>보기</Link><Link {...rowLink(e.id,true)} aria-label={`${e.prop1} 편집`}>편집</Link></span></div>
+              <TagNames scope="entity" ids={(e as EntityResult & {tag_ids?:string[]}).tag_ids??[]} compact/>
               <span className="secondary">
                 속성 2: {e.prop2 ?? "미지정"} · 속성 3: {e.prop3 ?? "미지정"} · 속성 4: {e.prop4}
               </span>
             </div>
           </li>
         ))}
-      </ul>
+      </ul></TagReadProvider>
       {page && (page.next_cursor || page.count > 1) && (
         <button
           className="btn"
@@ -239,15 +235,16 @@ export function EntitiesPage() {
       )}
       {creating && (
         <EntityForm
-          onClose={() => setCreating(false)}
+          key={create.key}
+          onClose={create.close}
+          onRouteDiscard={create.discard}
           onSave={async (value) => {
             const e = await api<EntityResult>("POST", "/entities", {
               ...value,
               request_id: request.current,
             });
             request.renew();
-            setCreating(false);
-            navigateAfterClose(`/entities/${e.id}?${params}`);
+            const p=new URLSearchParams(params);p.delete("create");create.finish(`/entities/${e.id}?list=${encodeURIComponent(`/entities?${p}`)}`);
           }}
         />
       )}

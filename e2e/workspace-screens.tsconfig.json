@@ -1,0 +1,13 @@
+{
+  "extends": "../tsconfig.json",
+  "include": [
+    "../src",
+    "./activity.fixture.ts",
+    "./workspace-screens.fixture.ts",
+    "./workspace-screens.config.ts",
+    "./fixtures/activity.tsx",
+    "./fixtures/entity-tags.tsx",
+    "./fixtures/workspace-screens.tsx"
+  ],
+  "exclude": ["../supabase/functions/_shared/contracts/*.test.ts"]
+}

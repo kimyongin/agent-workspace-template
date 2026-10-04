@@ -1,10 +1,11 @@
 // ModalShell·ConfirmDialog: 네이티브 <dialog>의 showModal로 뒤 화면을 inert 처리하고 초점을 가둔다.
 // Escape·닫기는 같은 미저장 보호를 거치며 배경 클릭으로 초안을 버리지 않는다(docs/design/ui-patterns.md).
-import { type ReactNode, useEffect, useId, useRef, useState } from "react";
+import { createContext, type ReactNode, type RefObject, useCallback, useContext, useEffect, useId, useRef, useState } from "react";
 import { useBlocker } from "react-router";
 
-interface ModalProps {
+export interface ModalProps {
   title: string;
+  headingLevel?: 1 | 2;
   open: boolean;
   /** 닫기 요청. dirty면 변경 버리기 확인을 먼저 묻는다. */
   onClose: () => void;
@@ -17,16 +18,56 @@ interface ModalProps {
   children: ReactNode;
 }
 
+export interface SurfaceEditor {
+  title: string;
+  dirty: boolean;
+  busy: boolean;
+  onClose: () => void;
+  onRouteDiscard?: () => void;
+  footer: ModalProps["footer"];
+}
+export const SurfaceContext = createContext<{slot: HTMLDivElement | null; editor: RefObject<SurfaceEditor | null>; busy: RefObject<boolean>; register: (editor: SurfaceEditor | null) => void} | null>(null);
+
+/** URL detail and its editor share one native dialog, focus trap and scroll surface. */
+export function DetailSurface({title, onClose, children, busy = false}: {title: string; onClose: () => void; children: ReactNode; busy?: boolean}) {
+  const [editor, setEditor] = useState<SurfaceEditor | null>(null);
+  const editorRef = useRef<SurfaceEditor | null>(null), busyRef = useRef(busy);
+  const readFocus=useRef<HTMLElement|null>(null);
+  busyRef.current = busy;
+  const register = useCallback((value: SurfaceEditor | null) => {
+    if(value&&!readFocus.current)readFocus.current=document.activeElement as HTMLElement;
+    editorRef.current=value; setEditor(value);
+  }, []);
+  useEffect(()=>{if(!editor&&readFocus.current){if(readFocus.current.isConnected)readFocus.current.focus();readFocus.current=null;}},[editor]);
+  const [slot, setSlot] = useState<HTMLDivElement | null>(null);
+  return <SurfaceContext.Provider value={{slot, register, editor:editorRef, busy:busyRef}}>
+    <ModalShell open title={editor?.title ?? title} headingLevel={editor?2:1} onClose={editor?.onClose ?? onClose}
+      onRouteDiscard={editor?.onRouteDiscard} dirty={editor?.dirty} busy={busy || editor?.busy}
+      footer={editor?.footer ?? <button type="button" className="btn" onClick={onClose} disabled={busy}>목록으로</button>}>
+      <div hidden={!!editor}>{children}</div>
+      <div ref={setSlot} hidden={!editor} />
+    </ModalShell>
+  </SurfaceContext.Provider>;
+}
+
 export function ModalShell(props: ModalProps) {
   return props.open ? <ActiveModalShell {...props} /> : null;
 }
 
-function ActiveModalShell({ title, open, onClose, onRouteDiscard = onClose, dirty = false, busy = false, footer, children }: ModalProps) {
+function ActiveModalShell({ title, headingLevel=2, open, onClose, onRouteDiscard = onClose, dirty = false, busy = false, footer, children }: ModalProps) {
   const ref = useRef<HTMLDialogElement>(null);
   const titleId = useId();
   const [confirmDiscard, setConfirmDiscard] = useState(false);
+  const surface = useContext(SurfaceContext);
   const returnFocus = useRef<Element | null>(null);
-  const blocker = useBlocker(open && (dirty || busy));
+  const guard = useRef({open,dirty,busy,surface});
+  guard.current = {open,dirty,busy,surface};
+  // The router keeps this callback; it reads the committed mode instead of a previous editor's boolean.
+  const shouldBlock = useCallback(() => {
+    const state=guard.current;
+    return state.open && (state.surface ? !!state.surface.editor.current?.dirty || !!state.surface.editor.current?.busy || state.surface.busy.current : state.dirty || state.busy);
+  }, []);
+  const blocker = useBlocker(shouldBlock);
   useEffect(() => { if (busy && blocker.state === "blocked") blocker.reset(); }, [busy, blocker]);
   useEffect(() => {
     const unload = (e: BeforeUnloadEvent) => { if (open && (dirty || busy)) { e.preventDefault(); e.returnValue = ""; } };
@@ -40,6 +81,7 @@ function ActiveModalShell({ title, open, onClose, onRouteDiscard = onClose, dirt
     if (open && !d.open) {
       returnFocus.current = document.activeElement;
       d.showModal();
+      (d.querySelector<HTMLElement>("form input, form textarea, form select") ?? d.querySelector<HTMLElement>(".dialog-title"))?.focus();
     } else if (!open && d.open) {
       d.close();
       (returnFocus.current as HTMLElement | null)?.focus?.();
@@ -52,6 +94,13 @@ function ActiveModalShell({ title, open, onClose, onRouteDiscard = onClose, dirt
     };
   }, [open]);
 
+  useEffect(() => {
+    const overflow = document.documentElement.style.overflow;
+    document.documentElement.style.overflow = "hidden";
+    return () => { document.documentElement.style.overflow = overflow; };
+  }, []);
+
+  useSurfaceViewport(ref);
   const requestClose = () => {
     if (busy) return;
     if (dirty) setConfirmDiscard(true);
@@ -70,7 +119,7 @@ function ActiveModalShell({ title, open, onClose, onRouteDiscard = onClose, dirt
     >
       <div className="modal-inner">
         <div className="modal-head">
-          <h2 id={titleId} className="dialog-title">{title}</h2>
+          {headingLevel===1?<h1 id={titleId} className="dialog-title" tabIndex={-1}>{title}</h1>:<h2 id={titleId} className="dialog-title" tabIndex={-1}>{title}</h2>}
           <button type="button" className="btn btn-text" onClick={requestClose} disabled={busy}>
             닫기
           </button>
@@ -102,22 +151,27 @@ interface ConfirmProps {
   confirmLabel: string;
   danger?: boolean;
   busy?: boolean;
+  confirmDisabled?: boolean;
   onConfirm: () => void;
   onCancel: () => void;
 }
 
-export function ConfirmDialog({ open, title, message, confirmLabel, danger, busy, onConfirm, onCancel }: ConfirmProps) {
+export function ConfirmDialog({ open, title, message, confirmLabel, danger, busy, confirmDisabled=false, onConfirm, onCancel }: ConfirmProps) {
   const ref = useRef<HTMLDialogElement>(null);
   const titleId = useId();
   const cancelRef = useRef<HTMLButtonElement>(null);
+  useSurfaceViewport(ref);
+  const returnFocus = useRef<HTMLElement | null>(null);
   useEffect(() => {
     const d = ref.current;
     if (!d) return;
     if (open && !d.open) {
+      returnFocus.current = document.activeElement as HTMLElement;
       d.showModal();
       cancelRef.current?.focus();
-    } else if (!open && d.open) d.close();
+    } else if (!open && d.open) { d.close(); returnFocus.current?.focus(); }
   }, [open]);
+  useEffect(() => () => { if(ref.current?.open)ref.current.close(); returnFocus.current?.focus(); }, []);
   return (
     <dialog
       ref={ref}
@@ -141,7 +195,7 @@ export function ConfirmDialog({ open, title, message, confirmLabel, danger, busy
             type="button"
             className={danger ? "btn btn-danger" : "btn btn-primary"}
             onClick={onConfirm}
-            disabled={busy}
+            disabled={busy||confirmDisabled}
           >
             {busy ? "처리 중…" : confirmLabel}
           </button>
@@ -149,4 +203,17 @@ export function ConfirmDialog({ open, title, message, confirmLabel, danger, busy
       </div>
     </dialog>
   );
+}
+
+function useSurfaceViewport(ref: RefObject<HTMLDialogElement|null>) {
+  useEffect(()=>{
+    const viewport = window.visualViewport;
+    const resize = () => {
+      const zoom=Number.parseFloat(getComputedStyle(document.documentElement).zoom)||1;
+      ref.current?.style.setProperty("--surface-height", `${(viewport?.height ?? window.innerHeight)/zoom}px`);
+      ref.current?.style.setProperty("--surface-top", `${(viewport?.offsetTop ?? 0)/zoom}px`);
+    };
+    resize(); viewport?.addEventListener("resize", resize); viewport?.addEventListener("scroll", resize);
+    return () => { viewport?.removeEventListener("resize", resize); viewport?.removeEventListener("scroll", resize); };
+  },[ref]);
 }

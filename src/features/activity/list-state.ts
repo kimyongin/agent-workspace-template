@@ -1,5 +1,5 @@
-export type ActivityListKind = "tasks" | "records" | "principles";
-export type ListPage<T> = { items: T[]; next_cursor: string | null };
+export type ActivityListKind = "tasks" | "records" | "principles" | "entities";
+export type ListPage<T> = { items: T[]; next_cursor: string | null; anchor_page?: number | null };
 export type LoadedList<T> = ListPage<T> & { pages: number };
 export const MAX_RESTORE_PAGES = 250;
 const ANCHOR_LOOKAHEAD_PAGES = 5;
@@ -14,16 +14,17 @@ export function listScope(params: URLSearchParams): string {
   scope.delete("pages");
   scope.delete("scroll");
   scope.delete("collapsed");
+  scope.delete("create");
   scope.sort();
   return scope.toString();
 }
 
 export function listAnchor(kind: ActivityListKind, id: string): string {
-  return kind === "principles" ? `principle-${id}` : `activity-${kind}-${id}`;
+  return kind === "principles" ? `principle-${id}` : kind === "entities" ? `entity-${id}` : `activity-${kind}-${id}`;
 }
 
 export function anchorId(kind: ActivityListKind, hash: string): string | undefined {
-  const prefix = kind === "principles" ? "principle" : `activity-${kind}`;
+  const prefix = kind === "principles" ? "principle" : kind === "entities" ? "entity" : `activity-${kind}`;
   const match = new RegExp(`^#${prefix}-([0-9a-f-]{36})$`).exec(hash);
   return match?.[1];
 }
@@ -69,9 +70,10 @@ export async function restoreList<T extends { id: string }>(options: {
 }): Promise<LoadedList<T> | undefined> {
   let result = options.prior;
   const visited = new Set<string>();
-  const budget = Math.min(MAX_RESTORE_PAGES, options.pages + (options.anchor ? ANCHOR_LOOKAHEAD_PAGES : 0));
+  let targetPages=options.pages;
+  let budget = Math.min(MAX_RESTORE_PAGES, options.pages + (options.anchor ? ANCHOR_LOOKAHEAD_PAGES : 0));
   while (
-    (!result || result.pages < options.pages ||
+    (!result || result.pages < targetPages ||
       !!options.anchor && !result.items.some((item) => item.id === options.anchor)) &&
     (!result || result.next_cursor) && (result?.pages ?? 0) < budget
   ) {
@@ -80,6 +82,10 @@ export async function restoreList<T extends { id: string }>(options: {
     if (cursor) visited.add(cursor);
     const page = await options.load(cursor);
     if (!options.current()) return undefined;
+    if(!result && options.anchor && page.anchor_page && Number.isSafeInteger(page.anchor_page)) {
+      targetPages=Math.min(MAX_RESTORE_PAGES,Math.max(targetPages,page.anchor_page));
+      budget=Math.min(MAX_RESTORE_PAGES,Math.max(budget,targetPages));
+    }
     result = { ...page, items: appendItems(result?.items ?? [], page.items), pages: (result?.pages ?? 0) + 1 };
     options.publish(result);
   }

@@ -519,9 +519,10 @@ textarea.input {
   color: var(--ink);
   width: 100%;
   max-width: 100%;
-  height: 100%;
-  max-height: 100%;
+  height: var(--surface-height, 100dvh);
+  max-height: var(--surface-height, 100dvh);
   margin: 0;
+  top: var(--surface-top, 0px);
 }
 
 .modal::backdrop {
@@ -532,6 +533,7 @@ textarea.input {
   display: flex;
   flex-direction: column;
   height: 100%;
+  min-height: 0;
 }
 
 .modal-head,
@@ -540,11 +542,16 @@ textarea.input {
   align-items: center;
   gap: var(--space-2);
   padding: var(--space-3) var(--space-4);
+  flex-shrink: 0;
 }
 
 .modal-head {
   border-bottom: 1px solid var(--line);
+  padding-top: calc(var(--space-3) + env(safe-area-inset-top, 0px));
+  min-width: 0;
 }
+.modal-head .dialog-title { overflow-wrap: anywhere; min-width: 0; }
+.modal-head .btn { flex-shrink: 0; }
 
 .modal-head > :first-child {
   margin-right: auto;
@@ -552,6 +559,8 @@ textarea.input {
 
 .modal-body {
   flex: 1;
+  min-height: 0;
+  overscroll-behavior: contain;
   overflow-y: auto;
   padding: var(--space-4);
 }
@@ -560,20 +569,21 @@ textarea.input {
   border-top: 1px solid var(--line);
   justify-content: flex-end;
   flex-wrap: wrap;
+  padding-bottom: calc(var(--space-3) + env(safe-area-inset-bottom, 0px));
 }
 
 @media (min-width: 640px) {
   .modal {
     width: min(40rem, calc(100% - 2 * var(--space-6)));
     height: auto;
-    max-height: calc(100% - 2 * var(--space-6));
+    max-height: calc(var(--surface-height, 100dvh) - 2 * var(--space-6));
     margin: auto;
     border-radius: var(--radius-card);
     box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
   }
 
   .modal-inner {
-    max-height: calc(100vh - 2 * var(--space-6));
+    max-height: calc(var(--surface-height, 100dvh) - 2 * var(--space-6));
   }
 
   .modal-body {
@@ -587,7 +597,10 @@ textarea.input {
   height: auto;
   margin: auto;
   border-radius: var(--radius-card);
+  max-height: calc(var(--surface-height, 100dvh) - 2 * var(--space-4));
 }
+
+.modal-confirm .modal-inner { max-height: calc(var(--surface-height, 100dvh) - 2 * var(--space-4)); }
 
 .visually-hidden {
   position: absolute;

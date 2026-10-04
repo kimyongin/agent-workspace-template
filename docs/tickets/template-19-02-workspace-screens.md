@@ -1,7 +1,7 @@
 # Template-19-02 — 탭 내부 검색·반응형 상세·메모와 변경 기록 화면
 
 작성: 2026-10-04
-상태: 진행 중
+상태: 화면 구현·격리 자동 검증 완료, 메인의 소스 통합·독립 리뷰·전체 E2E 대기
 기준: main399b82b와 승인한 [Template-19](template-19-three-tab-release-ux.md)/[Template-20](template-20-current-principle-change-records.md)
 
 ## 목표와 소유
@@ -21,3 +21,44 @@
 explicit gpt-6.1-sol/high(여러 화면의 router/초안/저장/API교차경계), 오늘 desktop snapshot과 assignpreflight 확인. backend실제effort/비용은미관측이다. worktreeunit/build/docs/boundaries·응답mockfixtures에서 모든자료 CRUD/메모·목록복귀·원칙최신삭제승격/마지막삭제빈상태·두태그혼용·초안보호·실패·긴/짧은제목/한글IME·320/360/390/639/640/768/1024/1440px·200%·keyboard를검증한다.
 
 로컬사용자DB/finDB/reset/서비스시작은금지한다. 실제전체E2E/DBHTTPMCP는메인이격리환경·immutablehead와단독소유자를배정한다. 실패자료와검사한head를보존, 가이드/티켓·소스·검증을묶어cleancommit인계, 독립리뷰·정확CI·최신main머지는메인이조정한다. 운영배포하지않는다.
+
+## 화면 세션 실행 기록 — 2026-10-04
+
+실행 주체는 별도 CLI 화면 구현 세션이다. worktree는 `fin-ux-activity/agent-workspace-template`, branch는 `codex/three-tab-screens`, base는 `773e3652834b9b7a15999016858591ba6dd3794f`다. explicit gpt-6.1-sol/high와 오늘 사용자 제공 모델 preflight를 사용했고 모델 대체·자식 에이전트는 없었다. backend 실제 effort/실청구액은 미관측이다.
+
+### 구현과 경계
+
+- 공통 `DetailSurface`가 읽기·편집을 하나의 native dialog와 portal로 유지한다. 등록은 목록의 `create=1`, 편집은 기존 detail URL의 `edit=1`이다. 읽기에서 연 편집은 `edit_from=view`로 같은 history 항목의 모드만 바꾸며 취소·저장 뒤 읽기로 복귀한다. 행의 직접 편집은 목록으로 복귀한다. 엔터티 연결 작성은 detail URL의 `create=task|record`다.
+- 640px 미만 전체 화면/이상 최대40rem, 확인28rem, 고정 header/footer·본문 스크롤·safe-area·visualViewport 높이를 공통화했다. 편집 재조회 중 읽기 surface와 초점 대상을 보존하고 최신 GET 뒤 editor를 연다.
+- 엔터티 키워드 의미를 유지하고 각 탭의 명시 검색·별도 지우기·추가/적용 조건·보기/편집 행을 연결했다. 활동·과거 원칙 검색은 keyword 기본/auto 선택이며 실제 서버 조건을 보낸다. 기존 `/search`의 혼합 검색·목록 복귀를 유지하고 원칙 범위를 current/history/all로 표시한다.
+- 엔터티·활동 태그를 분리했다. nav 세션에 `/tags/entity`, `/tags/activity` → `TagsPage` 연결을 요청했다. 기존 `/tags`는 activity 호환 경로다. 태그 이름 충돌/버전 충돌·불확정 생성/rename 확인·늦은 cursor 무시·저장 성공 뒤 조회 실패를 유지했다. 태그 사전 실패 재시도는 접힌 조건 밖에 표시한다.
+- 계정 전체 current0~1, 현재 저장 새 ID, 과거 정정/삭제, 최신 삭제 승격 본문 확인/영향 조회 실패 시 취소·GET 재시도/삭제 금지, 마지막 삭제 빈 상태를 구현했다. 원칙에 태그/엔터티/상태 선택은 없다. 기록의 당시 본문 snapshot과 migration 캡처의 한계를 구분한다.
+- 편집 메모1,000 Unicode 문자 필수, 생성/삭제 이유 선택, 반복 중단/재개 메모, 동일 uncertain 요청의 키 재사용/초안 고정과 폐기 뒤 새 작성·편집의 새 키를 적용했다. 작성 모드를 유지한 승인 URL 변경도 새 draft를 연다. 변경 기록은 출처·대상·행동·전후·삭제 문맥·메모를 표시하며 정정/삭제가 업무 상태를 되돌리지 않음을 알린다. 시스템 필드는 자동 기록 폼에 노출하거나 PATCH하지 않는다.
+- server 세션의 외부 checkout `current-principle-server/agent-workspace-template/docs/tickets/template-20-01-server-contracts.md`와 실제 contract를 읽었다. 부모의 immutable 통합 head 배정은 이 세션 inbox에 아직 없다. 서버 source/type를 복사·cherry-pick하지 않았고 새 필드는 소유 화면의 구조 타입으로 한정했다. App/Navigation/Auth/settings·공통 CSS의 탐색 절·서버/contracts/migrations/plugins는 수정하지 않았다.
+
+### 직접 실행한 검증
+
+| 명령 | 결과와 범위 |
+| --- | --- |
+| `npm run test:web` | 7 files / 18 PASS |
+| `npm run build` | 타입·Vite build PASS; 기존500kB chunk 권고 남음 |
+| `npm run check:boundaries` | PASS |
+| `npm run check:docs` | 문서/인코딩/링크·모델 설정 PASS, script48 PASS/Windows symlink 권한1 SKIP |
+| `npx tsc -p e2e/workspace-screens.tsconfig.json --noEmit` | 실제 화면·격리 fixture strict 타입 PASS |
+| `npx playwright test -c e2e/workspace-screens.config.ts` | 67 PASS; 실제 소유 feature/router, API 응답 mock |
+| `npx playwright test -c e2e/entity-tags-fixtures.config.ts --grep-invert '실제 App'` | 16 PASS; desktop/mobile 비탐색 fixture |
+| `git diff --check` | PASS |
+
+화면 fixture는 시작 전 listener를 확인한55580(Vite)/55581(가상 API, Playwright intercept)을 쓴다. 기존 태그 fixture는 별도55584/55585를 확인해 썼다. DB·Auth·서버 업무·실제 모델을 호출하지 않는다. 기존55480 listener와 root55421/fin54321 서비스를 변경하지 않았다.
+
+자료 CRUD·메모·동일 요청키 재시도/폐기 뒤 새 요청키·충돌 초안·확인된 저장 뒤 GET 실패·재조회만 재시도·원칙 새 ID/정정/승격/빈 상태·자동 기록 시스템 입력 제외/독립 삭제·scoped tags·IME·조건·busy POP/dirty back/forward/reload/deeplink·목록 cursor/anchor/scroll/focus를 검증했다. 320/360/390/639/640/768/1024/1440px의 모든 소비 화면과 긴/한 글자 제목, CSS200%와 축소 viewport, 긴 승격 본문 확인창을 검증했다. 스크린샷은 `e2e/test-results/workspace-screens`에 생성하고320px 태그/390px 엔터티 등 대표 자료를 직접 보았다.
+
+초기 fixture 실패는 Vite HTML preamble, 저장 뒤 blocker 정리 시점, CSS zoom 높이, scoped 태그 cursor URL, 빠른 관련 폼 재개방, 과거 원칙 재진입 조회와 읽기 편집 초점 복귀에서 발생했다. source/fixture 원인을 고친 뒤 같은 검증을 재실행했다. 원래 assertion/timeout을 완화하지 않았다. 실패 자료는 ignored `test-results/screens-failures/screens-failure-run01..08`, `entity-tags-run01`, `activity-run01..03`에 보존했다. 같은 fixture config를 종료 전에 다시 실행한 한 번의 실수로 occupied-port 거부와 마지막 mobile trace ENOENT가 있었다. 이미 복사한 desktop 실패 자료는 남았고 이후 종료를 기다린 순차 재실행은 통과했다.
+
+### 메인의 남은 통합과 검증
+
+- immutable backend/type 및 navigation head 통합 후 위 검사와 전체 DB/HTTP/MCP/web E2E를 exact head에서 실행한다. 이 세션은 실제 DB 실행·운영 이관·서비스 시작·push/PR/merge/배포를 하지 않았다.
+- 현재 원칙은 계정 전체 하나이므로 실제 principle/layout/search 통합 E2E는 격리된 계정을 단독 소유하고 desktop/mobile을 한 project씩 `--workers=1`로 실행한다. 공급자는 stub 또는 비용 없는 설정이며 `RUN_PINECONE_E2E`는 활성화하지 않는다.
+- 통합 spec의 메모·current/history·snapshot·scoped tag·manual record 검색 가정을 갱신했다. `npx playwright test --list`는 이 checkout의 `.env.local` 부재로 수집 단계에서 ENOENT였다. Auth/support는 소유 경계 때문에 수정하지 않았다. 전체 e2e를 임시 확장 tsconfig로 검사했을 때 남은 오류는 기존 consent의 ES2023 `Promise.withResolvers`와 support의 dotenv nullable 타입5곳이다. 소유 fixture 타입 검사는 별도로 통과했다.
+- `e2e/entity-tags-fixtures.spec.ts`의 중간3개 “실제 App…” 탐색/Auth 테스트는 nav 소유자에게 인계했다. 기존 inline 태그 editor 뒤 탐색 클릭, `/tags`와 작성 query 없는 URL 기대를 새 native surface와 scoped route에 맞춰야 한다. 해당 테스트 본문은 수정하지 않았다.
+- 실제 휴대전화 소프트웨어 키보드·safe-area·화면 읽기 도구와 실제 브라우저200% zoom은 확인하지 않았다. 자동 viewport/CSS 확대·키보드 조작 증거와 구분하며 최종 독립 리뷰/CI/최신 main/실환경 확인은 메인이 담당한다.

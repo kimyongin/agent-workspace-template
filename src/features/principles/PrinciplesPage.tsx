@@ -1,55 +1,46 @@
-import { principleLabels, type PrincipleResult } from "@contracts/principle.ts";
-import { useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router";
+import { useCreateMode } from "../../components/useCreateMode.ts";
+import { useEffect, useState } from "react";
+import { Link, useSearchParams } from "react-router";
 import { PrincipleFormModal, emptyPrinciple } from "./forms.tsx";
-import {useDeferredNavigation} from "../../lib/useDeferredNavigation.ts";
-import { Field, Notice } from "../../components/Field.tsx";
-import { api, query } from "../../lib/api.ts";
+import { Notice } from "../../components/Field.tsx";
+import { TabSearch, AppliedConditions } from "../../components/TabSearch.tsx";
+import { TabSearchResults } from "../search/TabSearchResults.tsx";
+import { MarkdownContent } from "../../components/MarkdownContent.tsx";
+import { api } from "../../lib/api.ts";
 import { useRequestId } from "../../lib/useRequestId.ts";
-import {TagFilter,TagNames,TagReadProvider, useTagDictionary} from "../tags/TagPicker.tsx";
-import {EntityPicker} from "../entity/EntityPicker.tsx";
-
-import {useActivityList} from "../activity/useActivityList.ts";
+import { formatDateTime } from "../../lib/format.ts";
+import { useActivityList } from "../activity/useActivityList.ts";
+import type { WorkspacePrinciple } from "./model.ts";
 import "../activity/activity.css";
 export function PrinciplesPage() {
-  const tagDictionary = useTagDictionary(true,true);
-  const [params, setParams] = useSearchParams();
-  const status = params.get("status") ?? "active";
-  const tag_id=params.get("tag_id")??"";
-  const entity_id=params.get("entity_id")??"";
-  const list = useActivityList<PrincipleResult>("principles", `/principles${query({status,tag_id,entity_id,limit:20})}`, "principles-title", "원칙을 불러오지 못했습니다. 다시 시도하세요.", tagDictionary.tags !== null || tagDictionary.failed);
-  const {items,cursor,error,busy:loadingMore,more} = list;
-  const [creating,setCreating] = useState(false);
-  const navigate = useNavigate();
-  const navigateAfterClose = useDeferredNavigation();
+  const create=useCreateMode();
+  const [params]=useSearchParams(), request=useRequestId();
+  useEffect(()=>{if(create.open)request.renew();},[create.open,create.key]);
+  const [current,setCurrent]=useState<WorkspacePrinciple|null|undefined>(undefined),[error,setError]=useState<string|null>(null),[retry,setRetry]=useState(0);
+  const list=useActivityList<WorkspacePrinciple>("principles","/principles?view=history&limit=20","principles-title","과거 원칙을 불러오지 못했습니다.",true,!params.get("q"));
+  useEffect(()=>{const controller=new AbortController();setError(null);
+    api<{current:WorkspacePrinciple|null}>("GET","/principles/current",undefined,controller.signal).then(p=>{if(!controller.signal.aborted)setCurrent(p.current);}).catch(()=>{if(!controller.signal.aborted)setError("현재 원칙을 불러오지 못했습니다.");});
+    return()=>controller.abort();},[retry]);
   return <section className="panel" aria-labelledby="principles-title">
     <div className="panel-head"><h1 id="principles-title" className="page-title" tabIndex={-1}>원칙</h1>
-      <button type="button" className="btn btn-primary" onClick={() => setCreating(true)}>원칙 추가</button></div>
-    <div className="activity-filters" role="group" aria-label="원칙 필터">
-    <Field label="원칙 상태">{(p) => <select {...p} className="input" value={status} disabled={loadingMore}
-      onChange={(e) => setParams({ status: e.target.value,tag_id,entity_id })}>
-      <option value="active">활성</option><option value="inactive">비활성</option>
-    </select>}</Field>
-    <TagFilter dictionary={tagDictionary} value={tag_id} onChange={id=>setParams({status,tag_id:id,entity_id})}/>
-    <EntityPicker label="엔터티 필터" value={entity_id} onChange={id=>setParams({status,tag_id,entity_id:id??""})}/>
-    {(status!=="active" || tag_id || entity_id) && <button className="btn filter-reset" onClick={() => setParams({}, {replace:true})}>필터 해제</button>}
+      {current===null&&<button className="btn btn-primary" onClick={create.begin}>현재 원칙 등록</button>}
+      {current&&<Link className="btn btn-primary" {...list.link(current.id,true)} id={undefined}>현재 원칙 편집</Link>}
     </div>
-    {error && <Notice kind="error">{error}</Notice>}
-    {!items && !error && <p role="status" className="secondary">불러오는 중…</p>}
-    {items?.length === 0 && <p className="secondary">이 조건에 해당하는 원칙이 없습니다.</p>}
-    {items && <TagReadProvider dictionary={tagDictionary} enabled={items.some(p=>p.tag_ids.length>0)}><ul className="list">{items.map((p) => <li key={p.id} className="list-item"><div className="list-item-main">
-      <div className="activity-item-heading"><Link {...list.link(p.id)} className="item-title">{p.title}</Link><span className="activity-item-actions"><Link {...list.link(p.id)} id={undefined} aria-label={`${p.title} 보기`}>보기</Link><Link {...list.link(p.id,true)} aria-label={`${p.title} 편집`}>편집</Link></span></div>
-      <span className="secondary">{p.summary}</span><span className="meta">{principleLabels[p.status]}</span><TagNames ids={p.tag_ids} compact />
-    </div></li>)}</ul></TagReadProvider>}
-    {list.showMoreControl && <button id="activity-principles-page-control" type="button" className="btn" aria-disabled={loadingMore || (!cursor&&!error)} onClick={error?list.retry:more}>{loadingMore?"불러오는 중…":error?"다시 시도":cursor?"더 보기":"모두 불러왔습니다"}</button>}
-    {creating && <CreatePrinciple onClose={() => setCreating(false)} onCreated={(id) => { setCreating(false); navigateAfterClose(`/principles/${id}`); }} />}
+    {error&&<><Notice kind="error">{error}</Notice><button className="btn" onClick={()=>setRetry(n=>n+1)}>다시 시도</button></>}
+    {current===undefined&&!error&&<p role="status">현재 원칙을 불러오는 중…</p>}
+    {current===null&&<p className="secondary">현재 원칙이 없습니다. 계정 전체에서 사용할 판단 기준을 등록하세요.</p>}
+    {current&&<section className="form" aria-label="현재 원칙"><h2 className="section-title">{current.title}</h2><p className="secondary">{current.summary}</p><MarkdownContent text={current.body}/><p className="meta">저장 {formatDateTime(current.saved_at)}</p>{current.change_note&&<p className="notice">편집 메모: {current.change_note}</p>}<Link {...list.link(current.id)} id={undefined} className="btn">현재 원칙 보기</Link></section>}
+    {["tag_id","entity_id","status"].some(k=>params.has(k))&&<Notice>원칙은 계정 전체의 문서입니다. 기존 태그·엔터티·활성 상태 조건은 적용하지 않습니다.</Notice>}
+    <h2 className="section-title">과거 저장본</h2><TabSearch/><AppliedConditions excluded={["tag_id","entity_id","status"]}/>
+    {params.get("q")?<TabSearchResults kind="principles"/>:<>
+      {list.error&&<Notice kind="error">{list.error}</Notice>}
+      {!list.items&&!list.error&&<p role="status">과거본을 불러오는 중…</p>}
+      {list.items?.length===0&&<p className="secondary">과거 저장본이 없습니다.</p>}
+      <ul className="list">{list.items?.map(p=><li key={p.id} className="list-item"><div className="list-item-main"><span className="meta">{formatDateTime(p.saved_at)}{p.origin==="legacy"?" · 기존 보존 자료":""}</span><div className="activity-item-heading"><Link {...list.link(p.id)} className="item-title">{p.title}</Link><span className="activity-item-actions"><Link {...list.link(p.id)} id={undefined} aria-label={`${p.title} 보기`}>보기</Link><Link {...list.link(p.id,true)} aria-label={`${p.title} 정정`}>정정</Link></span></div>{p.change_note&&<span className="secondary">편집 메모: {p.change_note}</span>}<span className="secondary">{p.summary}</span></div></li>)}</ul>
+      {list.showMoreControl&&<button className="btn" aria-disabled={list.busy||!list.cursor&&!list.error} onClick={list.error?list.retry:list.more}>{list.busy?"불러오는 중…":list.error?"다시 시도":list.cursor?"더 보기":"모두 불러왔습니다"}</button>}
+    </>}
+    {create.open&&current===null&&<PrincipleFormModal key={create.key} initial={emptyPrinciple} onClose={create.close} onRouteDiscard={create.discard} onSave={async draft=>{
+      const saved=await api<WorkspacePrinciple>("POST","/principles/current",{...draft,request_id:request.current});request.renew();const p=new URLSearchParams(params);p.delete("create");create.finish(`/principles/${saved.id}?list=${encodeURIComponent(`/principles?${p}`)}`);
+    }}/>}
   </section>;
-}
-
-function CreatePrinciple({ onClose, onCreated }: { onClose: () => void; onCreated: (id: string) => void }) {
-  const request = useRequestId();
-  return <PrincipleFormModal initial={emptyPrinciple} onClose={onClose} onRouteDiscard={onClose} onSave={async draft => {
-    const result = await api<PrincipleResult>("POST","/principles",{...draft,request_id:request.current});
-    request.renew(); onCreated(result.id);
-  }}/>;
 }
