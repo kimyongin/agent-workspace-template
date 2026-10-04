@@ -1,3 +1,4 @@
+import { beginTabAction } from "./ui-actions.ts";
 import { expect, test, type Page } from "@playwright/test";
 const url = "/e2e/fixtures/entity-tags.html";
 const tags = ["첫 태그", "다른 태그"].map((name, i) => ({ id: `00000000-0000-4000-8000-00000000000${i}`, name, version: 1, created_at: "2026-10-04T00:00:00Z", updated_at: "2026-10-04T00:00:00Z" }));
@@ -88,12 +89,12 @@ test("실제 App에서 태그 dirty 주 탐색·뒤로가기·앞으로가기 �
   expect(await page.evaluate(() => !!localStorage.getItem("sb-127-auth-token"))).toBe(true); await expect(page.getByRole("textbox", { name: /태그 이름/ })).toHaveValue("앱 초안");
   await page.goBack(); await discard.getByRole("button", { name: "변경 버리기" }).click(); await expect(page).toHaveURL(/\/settings$/);
   await page.goBack(); await expect(page).toHaveURL(/\/tasks$/);
-  await page.getByRole("button", { name: "할 일 추가", exact: true }).click();
+  await beginTabAction(page,"할 일 추가");
   // Keep a real forward entry before editing the URL-aware creation form.
   await expect(page.getByRole("dialog",{name:"할 일 추가",exact:true})).toBeVisible();
   await settings(page);await expect(page).toHaveURL(/\/settings$/);await page.goBack();
   const form = page.getByRole("dialog", { name: "할 일 추가", exact: true });await form.getByLabel("제목").fill("새 초안");
-  await page.goForward(); await discard.getByRole("button", { name: "취소", exact: true }).click(); await expect(page).toHaveURL(/\/tasks\?create=1$/); await expect(form.getByLabel("제목")).toHaveValue("새 초안");
+  await page.goForward(); await discard.getByRole("button", { name: "취소", exact: true }).click(); await expect(page).toHaveURL(/\/tasks\?create=task$/); await expect(form.getByLabel("제목")).toHaveValue("새 초안");
 });
 test("실제 App 공통 모달 생성·직접 편집 성공/취소·저장 중 POP 취소", async ({ page }) => {
   let current = { ...task }, hold = false, release = () => {}, arrived = () => {}; const started = new Promise<void>(resolve => { arrived = resolve; }); const warnings: string[] = [];
@@ -108,10 +109,10 @@ test("실제 App 공통 모달 생성·직접 편집 성공/취소·저장 중 P
   await page.goto("/e2e/fixtures/entity-tags-app.html"); await expect(page.getByRole("heading", { name: "할 일", exact: true })).toBeVisible();
   await tagManagement(page);
   await page.getByRole("navigation", { name: "주 메뉴" }).getByRole("link", { name: "활동", exact: true }).click();
-  await page.getByRole("button", { name: "할 일 추가", exact: true }).click(); let form = page.getByRole("dialog", { name: "할 일 추가", exact: true }); await form.getByLabel("제목").fill("생성 결과"); await form.getByLabel("요약").fill("생성 요약");
+  await beginTabAction(page,"할 일 추가"); let form = page.getByRole("dialog", { name: "할 일 추가", exact: true }); await form.getByLabel("제목").fill("생성 결과"); await form.getByLabel("요약").fill("생성 요약");
   hold = true; await form.getByRole("button", { name: "추가", exact: true }).click(); await expect(form.getByRole("button", { name: "저장 중…", exact: true })).toBeDisabled();
   await started;
-  await page.goBack(); await expect(page).toHaveURL(/\/tasks\?create=1$/); await expect(page.getByRole("dialog", { name: "변경을 버릴까요?" })).not.toBeVisible();
+  await page.goBack(); await expect(page).toHaveURL(/\/tasks\?create=task$/); await expect(page.getByRole("dialog", { name: "변경을 버릴까요?" })).not.toBeVisible();
   release(); await expect(page).toHaveURL(new RegExp(`/tasks/${task.id}\\?list=`)); await expect(form).not.toBeVisible();
   await page.getByRole("link", { name: "← 할 일 목록", exact: true }).click(); await page.getByRole("link", { name: "생성 결과 편집", exact: true }).click();
   form = page.getByRole("dialog", { name: "할 일 편집", exact: true }); await form.getByRole("button", { name: "취소", exact: true }).click(); await expect(page).toHaveURL(/\/tasks\?/); await expect(form).not.toBeVisible();
@@ -119,7 +120,7 @@ test("실제 App 공통 모달 생성·직접 편집 성공/취소·저장 중 P
   await expect(page).toHaveURL(/\/tasks\?/); await expect(form).not.toBeVisible(); await expect(page.getByText("직접 편집 성공", { exact: true })).toBeVisible(); expect(warnings).toEqual([]);
   const entity = { id: "30000000-0000-4000-8000-000000000000", prop1: "App 엔터티", prop2: null, prop3: null, prop4: "a", version: 1, created_at: task.created_at, updated_at: task.updated_at, tasks: { count: 0, items: [] }, records: { count: 0, items: [] }, principles: { count: 0, items: [] } };
   await page.route("**/api/entities**", route => route.fulfill({ json: route.request().method() === "POST" || new URL(route.request().url()).pathname.endsWith(entity.id) ? entity : { items: [], next_cursor: null } }));
-  await page.getByRole("navigation", { name: "주 메뉴" }).getByRole("link", { name: "엔터티", exact: true }).click(); await page.getByRole("button", { name: "엔터티 추가", exact: true }).click();
+  await page.getByRole("navigation", { name: "주 메뉴" }).getByRole("link", { name: "엔터티", exact: true }).click(); await beginTabAction(page,"엔터티 추가");
   const entityForm = page.getByRole("dialog", { name: "엔터티 추가", exact: true }); await entityForm.getByLabel("속성 1").fill(entity.prop1); await entityForm.getByRole("button", { name: "저장", exact: true }).click();
   await expect(entityForm).not.toBeVisible(); await expect(page).toHaveURL(new RegExp(`/entities/${entity.id}`)); await expect(page.getByRole("heading", { name: entity.prop1 })).toBeVisible();
 });
@@ -194,13 +195,13 @@ test("엔터티 연결 작성·실패 초안·성공 후 조회 실패와 모달
   await expect(form.getByLabel("제목")).toHaveValue("연결된 초안"); failSave = false; await form.getByRole("button", { name: "추가", exact: true }).click();
   await expect(form).not.toBeVisible(); await expect(page.getByText("할 일을 추가했습니다.")).toBeVisible(); await expect(page.getByText("관련 자료 조회 실패")).toBeVisible();
   expect(bodies[1].entity_id).toBe(entity.id); await expect(page.getByRole("heading", { name: entity.prop1 })).toBeVisible();
-  await page.getByRole("button", { name: "기록 작성", exact: true }).click();
+  await beginTabAction(page,"기록 작성");
   const record = page.getByRole("dialog", { name: "기록 작성", exact: true }); await expect(record.getByLabel("엔터티", { exact: true })).toHaveValue(entity.id);
   await record.getByLabel("제목").fill("기록 초안"); await record.getByRole("button", { name: "취소", exact: true }).click();
   await page.getByRole("dialog", { name: "변경을 버릴까요?" }).getByRole("button", { name: "취소", exact: true }).click(); await expect(record.getByLabel("제목")).toHaveValue("기록 초안");
   await record.getByRole("button", { name: "취소", exact: true }).click(); await page.getByRole("dialog", { name: "변경을 버릴까요?" }).getByRole("button", { name: "변경 버리기" }).click();
   await expect(page.getByRole("button", { name: "기록 작성", exact: true })).toBeFocused();
-  await page.getByRole("button", { name: "기록 작성", exact: true }).click();
+  await beginTabAction(page,"기록 작성");
   await record.getByLabel("제목").fill("연결 기록"); await record.getByLabel("요약").fill("엔터티 문맥"); await record.getByRole("button", { name: "저장", exact: true }).click();
   await expect(page.getByText("기록을 저장했습니다.")).toBeVisible(); expect(bodies.at(-1)?.entity_id).toBe(entity.id);
 });

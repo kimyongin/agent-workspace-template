@@ -69,6 +69,8 @@
 
 결과는 항목 단위의 ID·제목·요약·날짜·검색 상태를 반환한다. 에이전트는 필요한 원문을 추가 조회하고 사용자는 같은 상세를 웹에서 연다. 청크 원문·청크 위치·최고 청크 점수는 반환하지 않는다. 모든 후보·요약·원문에 같은 권한을 적용한다.
 
+Template-21의 선택 tag_ids는 최대 10개·중복 거부·정렬 정규화한 OR 조건이다. 기존 tag_id는 호환하며 둘 다 있으면 OR 집합에 포함한다. HTTP 목록은 tag_ids 쉼표 구분, MCP/검색 POST는 배열을 받는다. 후보·coverage·anchor·cursor scope에 같은 조건을 적용하고 페이지 수신 후 태그 필터링으로 대신하지 않는다. 검색 반환 change_note는 저장 메모, task_status/record_kind는 원문의 상태/종류이며 읽기용 additive 필드다. 활동·과거 원칙 웹은 auto 고정, 혼합 /search와 HTTP/MCP 명시 keyword는 기존대로 유지한다.
+
 Template-20의 task_kind/task_status, principle_view(current 기본/history/all), record_kind(user/result/change), entity_id와 activity tag_id는 실제 SQL 후보·의미 coverage·키워드 anchor에 같은 조건으로 적용한다. 커서는 소유자와 정규화한 필터 전체에 묶이며 조건을 바꾸면 첫 페이지부터 조회한다. 원칙에는 새 태그·엔터티 연결을 허용하지 않는다. 기존 search status=active/inactive/all은 principle_view를 생략할 때만 current/history/all로 정규화하는 호환 입력이다. 둘을 함께 보내면 명시한 principle_view가 우선하며 같은 view의 별칭·명시 입력은 같은 커서를 사용할 수 있다. 현재 정책의 새 저장본은 별도 ID로 색인하고 과거 표현 정정은 해당 ID의 제목·요약 입력이 실제 바뀌었을 때만 재색인한다. 변경 기록도 기록 정본의 제목·요약으로 색인하며 snapshot 본문과 태그명은 임베딩 입력에 넣지 않는다.
 
 색인 중·입력 제외·공급자 장애·검색 결과 없음을 구분한다. 의미 검색 실패 시 계약된 키워드 대체 결과임을 알린다. 제외 항목을 무관한 항목으로 판단하지 않도록 검색 상태와 운영 집계에 드러낸다.

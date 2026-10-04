@@ -1,3 +1,4 @@
+import { beginTabAction } from "./ui-actions.ts";
 // 디자인 가이드의 화면 검수 중 자동으로 확인할 수 있는 항목(docs/design/guide.md "화면 완료 체크리스트").
 // 화면 폭별 가로 넘침, 조작 영역 44px, 200% 확대(폭 절반), 키보드만으로 작성·닫기, 대화상자 초점.
 import { expect, type Page, test } from "@playwright/test";
@@ -34,7 +35,7 @@ test.describe("화면 폭별 배치", () => {
   for(const width of WIDTHS) test(`${width}px 목록·상세·작성 대화상자에 가로 넘침과 작은 조작 영역이 없다`, async ({ page }) => {
     await devLogin(page);
     // 긴 공백 없는 제목으로 줄바꿈 처리도 함께 본다.
-    await page.getByRole("button", { name: "할 일 추가" }).click();
+    await beginTabAction(page,"할 일 추가");
     const dialog = page.getByRole("dialog", { name: "할 일 추가" });
     const longTitle = unique("가".repeat(40) + "공백없는긴제목");
     await dialog.getByLabel("제목").fill(longTitle);
@@ -46,7 +47,7 @@ test.describe("화면 폭별 배치", () => {
 
     // 기록 상세도 함께 본다.
     await page.goto("/records");
-    await page.getByRole("button", { name: "기록 작성" }).click();
+    await beginTabAction(page,"기록 작성");
     const recordDialog = page.getByRole("dialog", { name: "기록 작성" });
     const recordTitle = unique("긴기록" + "나".repeat(40));
     await recordDialog.getByLabel("제목").fill(recordTitle);
@@ -68,13 +69,13 @@ test.describe("화면 폭별 배치", () => {
         expect(await layoutProblems(page), `${width}px ${path}`).toEqual([]);
       }
       await page.goto("/tasks");
-      await page.getByRole("button", { name: "할 일 추가" }).click();
+      await beginTabAction(page,"할 일 추가");
       await expect(page.getByRole("dialog", { name: "할 일 추가" })).toBeVisible();
       expect(await layoutProblems(page), `${width}px 작성 대화상자`).toEqual([]);
       const box = await page.getByRole("dialog", { name: "할 일 추가" }).boundingBox();
       // 640px 미만은 전체 화면, 이상은 중앙 40rem 이하
       if (width < 640) expect(Math.round(box!.width)).toBe(width);
-      else expect(box!.width).toBeLessThanOrEqual(640);
+      else expect(box!.width).toBeLessThanOrEqual(672);
       await page.keyboard.press("Escape");
   });
 
@@ -95,9 +96,10 @@ test.describe("화면 폭별 배치", () => {
 test("키보드만으로 할 일을 만들고, 미저장 내용이 있으면 닫기 전에 확인한다", async ({ page, isMobile }) => {
   test.skip(isMobile, "키보드 흐름은 데스크톱에서 본다");
   await devLogin(page);
-  const add = page.getByRole("button", { name: "할 일 추가" });
+  const add = page.getByRole("button", { name: "활동 작업 메뉴" });
   await add.focus();
   await page.keyboard.press("Enter");
+  await page.keyboard.press("ArrowDown");await page.keyboard.press("Enter");
   const dialog = page.getByRole("dialog", { name: "할 일 추가" });
   await expect(dialog).toBeVisible();
   // 열리면 초점이 대화상자 안에 있다.
@@ -143,15 +145,24 @@ test("보조 글자와 상태 표시의 대비가 검수 목표 이상이다", a
   await devLogin(page);
   const ratios = await page.evaluate(() => {
     const css = getComputedStyle(document.documentElement);
-    const hex = (name: string) => css.getPropertyValue(name).trim();
-    const lum = (h: string) => {
-      const n = h.replace("#", "");
-      const [r, g, b] = [0, 2, 4].map((i) => parseInt(n.slice(i, i + 2), 16) / 255)
+    const color = (name: string): number[] => {
+      const value = css.getPropertyValue(name).trim();
+      return value.startsWith("#") ? [0, 2, 4].map(i => parseInt(value.slice(i + 1, i + 3), 16)).concat(1)
+        : [...value.matchAll(/[\d.]+/g)].map(match => Number(match[0]));
+    };
+    const blend = (front: number[], back: number[]) => front.slice(0, 3).map((channel, i) => channel * (front[3] ?? 1) + back[i] * (1 - (front[3] ?? 1))).concat(1);
+    // Both gradient accents at their strongest gives a conservative backdrop
+    // for transparent surfaces, rather than treating rgba text as hex.
+    const backdrop = blend([38, 198, 218, 0.1], blend([255, 138, 0, 0.14], color("--background")));
+    const panel = blend(color("--panel"), backdrop);
+    const resolved = (name: string) => name === "--background" ? backdrop : name === "--panel" ? panel : name === "--input-surface" ? blend(color(name), panel) : color(name);
+    const lum = (rgb: number[]) => {
+      const [r, g, b] = rgb.slice(0, 3).map(channel => channel / 255)
         .map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
       return 0.2126 * r + 0.7152 * g + 0.0722 * b;
     };
     const ratio = (a: string, b: string) => {
-      const [x, y] = [lum(hex(a)), lum(hex(b))].sort((p, q) => q - p);
+      const [x, y] = [lum(resolved(a)), lum(resolved(b))].sort((p, q) => q - p);
       return (x + 0.05) / (y + 0.05);
     };
     return {

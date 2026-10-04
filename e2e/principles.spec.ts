@@ -1,3 +1,4 @@
+import { beginTabAction } from "./ui-actions.ts";
 import { expect, test } from "@playwright/test";
 import { devLogin, mcpClient, mcpTokenViaConsent, unique } from "./support.ts";
 import { savePrinciple } from "./principle-support.ts";
@@ -32,7 +33,7 @@ test("현재 웹 저장→MCP 과거 원문 보존·정정→최신 삭제 승�
 test("내용 폼 취소는 초안·초점을 보호한다",async({page})=>{
   await devLogin(page);
   for(const [path,action] of [["/tasks","할 일 추가"],["/records","기록 작성"]]){
-    await page.goto(path);const trigger=page.getByRole("button",{name:action,exact:true});await trigger.click();
+    await page.goto(path);const trigger=page.getByRole("button",{name:"활동 작업 메뉴",exact:true});await beginTabAction(page,action);
     const dialog=page.getByRole("dialog",{name:action,exact:true});await dialog.getByLabel("제목").fill("보존할 초안");await dialog.getByRole("button",{name:"취소",exact:true}).click();
     const discard=page.getByRole("dialog",{name:"변경을 버릴까요?"});await discard.getByRole("button",{name:"취소",exact:true}).click();
     await expect(dialog.getByLabel("제목")).toHaveValue("보존할 초안");await dialog.getByRole("button",{name:"취소",exact:true}).click();
@@ -74,7 +75,7 @@ test("기록의 당시 원칙 snapshot은 현재 변경·과거본 삭제 뒤에
   await devLogin(page);const mcp=await mcpClient(await mcpTokenViaConsent(page));
   try{
     const p=await savePrinciple(mcp,{title:unique("적용 기준"),summary:"당시 요약",body:"당시 판단 본문"});
-    await page.goto("/records");await page.getByRole("button",{name:"기록 작성",exact:true}).click();
+    await page.goto("/records");await beginTabAction(page,"기록 작성");
     const form=page.getByRole("dialog",{name:"기록 작성"});await form.getByLabel("제목").fill(unique("적용 결과"));await form.getByLabel("요약").fill("판단 결과");
     await form.getByRole("button",{name:p.title,exact:true}).click();await form.getByRole("button",{name:"저장",exact:true}).click();
     await expect(form).not.toBeVisible();const id=new URL(page.url()).pathname.split("/").at(-1)!;

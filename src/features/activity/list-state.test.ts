@@ -52,10 +52,11 @@ describe("activity list return", () => {
     expect(listScope(url.searchParams)).toBe("entity_id=entity&kind=once&status=open&tag_id=tag");
     expect(safeListReturn(path, "tasks", "/tasks")).toBe(path);
     for (
-      const unsafe of ["https://evil.invalid/tasks", "//evil.invalid/tasks", "/tasks/other", "/records", "/tasks\\x"]
+      const unsafe of ["https://evil.invalid/tasks", "//evil.invalid/tasks", "/tasks/other", "/principles", "/tasks\\x"]
     ) {
       expect(safeListReturn(unsafe, "tasks", "/tasks")).toBe("/tasks");
     }
+    expect(safeListReturn("/records?tasks_pages=2", "tasks", "/tasks")).toBe("/records?tasks_pages=2");
     for (const pages of ["0", "-1", "1.5", "oops"]) expect(requestedPages(new URLSearchParams({ pages }))).toBe(1);
     expect(requestedPages(new URLSearchParams({ pages: "10000000" }))).toBe(250);
   });

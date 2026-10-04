@@ -1,9 +1,10 @@
 import { test, expect } from "@playwright/test";
+import { beginTabAction } from "./ui-actions.ts";
 const id = (n:number) => `00000000-0000-4000-8000-${String(n).padStart(12,"0")}`;
 test.beforeEach(async({page})=>{await page.route("http://127.0.0.1:55580/**",async route=>{if(route.request().isNavigationRequest()){const response=await route.fetch({url:"http://127.0.0.1:55580/e2e/fixtures/activity.html"});await route.fulfill({response});}else await route.continue();});});
 const record = (n:number, occurred_at="2026-10-03T16:00:00Z") => ({id:id(n),title:`기록 ${n}`,summary:"요약 먼저",body:"본문 근거",occurred_at,task_id:null,occurrence_on:null,tag_ids:[],entity_id:null,applied_principle_ids:[],applied_principles:[],record_kind:"user",change_note:null,change:null,applied_principle_snapshots:[],version:1,created_at:occurred_at,updated_at:occurred_at});
 
-test("날짜 병합·접힘과 직접 편집 취소/저장이 목록을 복원한다", async ({page}) => {
+test("항상 펼친 날짜 병합과 직접 편집 취소/저장이 목록을 복원한다", async ({page}) => {
   let changed = record(2);
   await page.route("http://127.0.0.1:55581/api/**", async route => {
     const path = new URL(route.request().url()).pathname;
@@ -16,18 +17,17 @@ test("날짜 병합·접힘과 직접 편집 취소/저장이 목록을 복원�
     await route.fulfill({json:data});
   });
   await page.goto("/e2e/fixtures/activity.html");
-  const older = page.getByRole("button",{name:"2026-10-03 기록",exact:true});
-  await older.click();
-  await expect(page.getByRole("link",{name:"기록 3",exact:true})).toBeHidden();
-  await page.getByRole("button",{name:"더 보기",exact:true}).click();
+  const older = page.getByRole("region",{name:"2026-10-03 기록",exact:true});
+  await expect(page.getByRole("link",{name:"기록 3",exact:true})).toBeVisible();
+  await page.locator("#activity-records-page-control").click();
   await expect(page.locator(".record-date-group")).toHaveCount(2);
   await expect(page.getByRole("link",{name:"기록 1",exact:true})).toHaveCount(1);
-  await expect(older).toHaveAttribute("aria-expanded","false");
+  await expect(older).toBeVisible();await expect(older.getByRole("button")).toHaveCount(0);
   await page.getByRole("link",{name:"기록 2 편집",exact:true}).click();
   await expect(page.getByRole("dialog",{name:"기록 편집",exact:true})).toBeVisible();
   await page.getByRole("button",{name:"취소",exact:true}).click();
   await expect(page).toHaveURL(/\/records\?/);
-  await expect(older).toHaveAttribute("aria-expanded","false");
+  await expect(older).toBeVisible();await expect(older.getByRole("button")).toHaveCount(0);
   await expect(page.locator(`#activity-records-${id(2)}`)).toBeFocused();
   await page.getByRole("link",{name:"기록 2 편집",exact:true}).click();
   await page.getByRole("textbox",{name:"제목 (필수)",exact:true}).fill("정정 기록");
@@ -80,7 +80,7 @@ test("직접 편집의 실패·Escape·확인 취소는 초안을 유지한다",
     await route.fulfill({json:{items:[record(1)],next_cursor:null}});
   });
   await page.goto("/e2e/fixtures/activity.html");
-  await page.getByRole("link",{name:"기록 1 편집",exact:true}).click();
+  await page.locator(".records").getByRole("link",{name:"기록 1 편집",exact:true}).click();
   const title=page.getByRole("textbox",{name:"제목 (필수)",exact:true});
   await title.fill("보존할 초안");
   await page.getByLabel("편집 메모",{exact:false}).fill("검증 정정 이유");
@@ -194,7 +194,7 @@ for (const [routePath, createLabel] of [["/records","기록 작성"],["/tasks","
   test(`같은 ${routePath} 조건 이동의 취소는 초안을 보존하고 버리기는 새 작성 상태로 닫는다`,async({page})=>{
     await page.route("http://127.0.0.1:55581/api/**",route=>route.fulfill({json:new URL(route.request().url()).pathname.endsWith("/principles/current")?{current:null}:{items:[],next_cursor:null}}));
     await page.goto(`/e2e/fixtures/activity.html?route=${routePath}`);
-    await page.getByRole("button",{name:createLabel,exact:true}).click();
+    await beginTabAction(page,createLabel);
     const title=page.getByRole("textbox",{name:"제목 (필수)",exact:true});
     await title.fill("이탈 확인 초안");
     // The fixture probe exercises real router navigation while the modal owns focus.
@@ -208,7 +208,7 @@ for (const [routePath, createLabel] of [["/records","기록 작성"],["/tasks","
     await page.getByRole("button",{name:"변경 버리기",exact:true}).click();
     await expect(page).toHaveURL(/fixture=next/);
     await expect(page.getByRole("dialog")).toHaveCount(0);
-    await page.getByRole("button",{name:createLabel,exact:true}).click();
+    await beginTabAction(page,createLabel);
     await expect(page.getByRole("textbox",{name:"제목 (필수)",exact:true})).toHaveValue("");
   });
 }
@@ -217,7 +217,7 @@ for (const kind of ["records","tasks","principles"]) {
     const item={...record(1),kind:"once",status:kind==="principles"?"active":"open",due_on:null,recurrence:null,timezone:null,result_record:null,is_current:false,saved_at:"2026-10-04T00:00:00Z",change_note:"과거 메모",origin:"saved",legacy_context:null};
     await page.route("http://127.0.0.1:55581/api/**",route=>route.fulfill({json:new URL(route.request().url()).pathname.endsWith("/principles/current")?{current:null}:new URL(route.request().url()).pathname.endsWith(`/${kind}/${id(1)}`)?item:{items:[item],next_cursor:null}}));
     await page.goto(`/e2e/fixtures/activity.html?route=/${kind}`);
-    await page.getByRole("link",{name:kind==="principles"?"기록 1 정정":"기록 1 편집",exact:true}).click();
+    await (kind==="principles"?page:page.locator(`.${kind}`)).getByRole("link",{name:kind==="principles"?"기록 1 정정":"기록 1 편집",exact:true}).click();
     const title=page.getByRole("textbox",{name:"제목 (필수)",exact:true});
     await title.fill("상세 이동 초안");
     await page.getByRole("link",{name:"fixture 같은 화면 조건 이동"}).evaluate((el:HTMLAnchorElement)=>el.click());
@@ -251,28 +251,29 @@ for(const kind of ["records","tasks"]){
       await route.fulfill({json:new URL(route.request().url()).pathname.endsWith("/principles/current")?{current:null}:{items,next_cursor:null}});
     });
     await page.goto(`/e2e/fixtures/activity.html?route=/${kind}`);
-    const title=page.getByRole("link",{name:"기록 20",exact:true});
+    const section=page.locator(`.${kind}`);
+    const title=section.getByRole("link",{name:"기록 20",exact:true});
     await expect(title).toBeVisible();
     await title.focus();await title.evaluate(el=>el.scrollIntoView({block:"center"}));
     const y=await title.evaluate(el=>el.getBoundingClientRect().top);
     await page.getByRole("button",{name:"태그 다시 시도",exact:true}).first().evaluate((el:HTMLButtonElement)=>el.click());
     await expect.poll(()=>attempts).toBe(2);
-    await expect(page.locator(".list-item")).toHaveCount(20);
+    await expect(section.locator(".list-item")).toHaveCount(20);
     await expect(title).toBeFocused();
     expect(await title.evaluate(el=>el.getBoundingClientRect().top)).toBeCloseTo(y,0);
     release();
     await expect(page.locator(".tag-read").first()).toHaveText("한".repeat(30));
-    await expect(page.locator(".list-item")).toHaveCount(20);
+    await expect(section.locator(".list-item")).toHaveCount(20);
     await expect(title).toBeFocused();
     expect(await title.evaluate(el=>el.getBoundingClientRect().top)).toBeCloseTo(y,0);
   });
 }
 for(const kind of ["records","tasks","principles"]){
   test(`${kind} 한 글자 제목도 모든 폭에서44px 조작 영역을 유지한다`,async({page})=>{
-    const item={...record(1),title:"함",kind:"once",status:kind==="principles"?"active":"open",due_on:null,recurrence:null,timezone:null,result_record:null,applies_when:"판단할 때",replaced_by_id:null};
+    const item={...record(1),saved_at:"2026-10-03T16:00:00Z",title:"함",kind:"once",status:kind==="principles"?"active":"open",due_on:null,recurrence:null,timezone:null,result_record:null,applies_when:"판단할 때",replaced_by_id:null};
     await page.route("http://127.0.0.1:55581/api/**",route=>route.fulfill({json:new URL(route.request().url()).pathname.endsWith("/principles/current")?{current:null}:{items:[item],next_cursor:null}}));
     await page.goto(`/e2e/fixtures/activity.html?route=/${kind}`);
-    const title=page.getByRole("link",{name:"함",exact:true});
+    const title=(kind==="principles"?page:page.locator(`.${kind}`)).getByRole("link",{name:"함",exact:true});
     await expect(title).toBeVisible();
     for(const width of [320,360,390,639,640,768,1024,1440]){
       await page.setViewportSize({width,height:900});

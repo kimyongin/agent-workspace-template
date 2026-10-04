@@ -35,10 +35,10 @@ export function anchorId(kind: ActivityListKind, hash: string): string | undefin
   return match?.[1];
 }
 
-export function listReturnPath(kind: ActivityListKind, params: URLSearchParams, id: string, scroll: number): string {
+export function listReturnPath(kind: ActivityListKind, params: URLSearchParams, id: string, scroll: number, route = `/${kind}`): string {
   const next = new URLSearchParams(params);
   next.set("scroll", String(Math.max(0, Math.round(scroll))));
-  return `/${kind}?${next}#${listAnchor(kind, id)}`;
+  return `${route}?${next}#${listAnchor(kind, id)}`;
 }
 
 /** Only a matching internal list can override the normal detail fallback. */
@@ -46,7 +46,8 @@ export function safeListReturn(value: string | null, kind: ActivityListKind, fal
   if (!value || !value.startsWith("/") || value.startsWith("//") || value.includes("\\")) return fallback;
   try {
     const url = new URL(value, "https://activity.invalid");
-    if (url.origin !== "https://activity.invalid" || url.pathname !== `/${kind}`) return fallback;
+    const allowed = kind === "tasks" || kind === "records" ? ["/tasks", "/records"] : [`/${kind}`];
+    if (url.origin !== "https://activity.invalid" || !allowed.includes(url.pathname)) return fallback;
     return `${url.pathname}${url.search}${url.hash}`;
   } catch {
     return fallback;

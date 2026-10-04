@@ -2,7 +2,7 @@
 import { z } from "zod";
 import { changeMetadata, editMeta, mutationMeta } from "./change.ts";
 import { principleResult } from "./principle.ts";
-import { tagIds } from "./tag.ts";
+import { tagFilterIds, tagIds } from "./tag.ts";
 import {
   body,
   expectedVersion,
@@ -52,6 +52,7 @@ export const recordListQuery = z
     task_id: id.optional(),
     record_kind: z.enum(["user", "result", "change"]).optional(),
     tag_id: id.optional(),
+    tag_ids: tagFilterIds.optional(),
     entity_id: id.optional(),
     ...pageInput,
   })

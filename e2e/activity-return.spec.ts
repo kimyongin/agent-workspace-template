@@ -29,11 +29,9 @@ for (
     try {
       const target = await create(title);
       for (let i = 0; i < 41; i++) await create(unique("앞선 항목"));
-      const listPath = `/${path}?tag_id=${tag.id}&entity_id=${entity.id}${
-        kind === "task" ? "&kind=once&status=open" : ""
-      }`;
+      const listPath = `/${path}?tag_id=${tag.id}`;
       await page.goto(listPath);
-      await expect(page.locator(".list .item-title")).toHaveCount(20);
+      await expect(page.locator(`.${path} .list .item-title`)).toHaveCount(20);
       const requests: (string | null)[] = [];
       let failedCursor: string | null = null;
       let releaseRetry!: () => void;
@@ -55,15 +53,15 @@ for (
           await route.continue();
         }
       });
-      const more = page.getByRole("button", { name: "더 보기", exact: true });
+      const more = page.locator(`#activity-${path}-page-control`);
       await more.click();
       const retry = page.getByRole("button", { name: "다시 시도", exact: true });
       await expect(retry).toBeVisible();
-      await expect(page.locator(".list .item-title")).toHaveCount(20);
+      await expect(page.locator(`.${path} .list .item-title`)).toHaveCount(20);
       await retry.scrollIntoViewIfNeeded();
       await retry.focus();
       const scrollBefore = await page.evaluate(() => window.scrollY);
-      const readingRow = page.locator(`#${await page.locator(".list .item-title").last().getAttribute("id")}`);
+      const readingRow = page.locator(`#${await page.locator(`.${path} .list .item-title`).last().getAttribute("id")}`);
       await expect(readingRow).toBeInViewport();
       const readingY = (await readingRow.boundingBox())!.y;
       if (kind === "task") await page.keyboard.press("Enter");
@@ -72,14 +70,14 @@ for (
       await expect.poll(() => requests.length).toBe(2);
       expect(requests).toEqual([failedCursor, failedCursor]);
       expect(failedCursor).toBeTruthy();
-      await expect(page.locator(".list .item-title")).toHaveCount(20);
+      await expect(page.locator(`.${path} .list .item-title`)).toHaveCount(20);
       await expect.poll(() => page.evaluate(() => document.activeElement?.tagName)).toBe("BUTTON");
       expect(await page.evaluate(() => window.scrollY)).toBe(scrollBefore);
       expect((await readingRow.boundingBox())!.y).toBeCloseTo(readingY, 1);
       await page.keyboard.press("Enter");
       expect(requests).toHaveLength(2);
       releaseRetry();
-      await expect(page.locator(".list .item-title")).toHaveCount(40);
+      await expect(page.locator(`.${path} .list .item-title`)).toHaveCount(40);
       await expect.poll(() => page.evaluate(() => document.activeElement?.tagName)).toBe("BUTTON");
       await expect(control).toBeFocused();
       await expect(control).toHaveAttribute("aria-disabled", "false");
@@ -87,12 +85,12 @@ for (
       await expect(readingRow).toBeInViewport();
       expect((await readingRow.boundingBox())!.y).toBeCloseTo(readingY, 1);
       await control.scrollIntoViewIfNeeded();
-      const lastRow = page.locator(`#${await page.locator(".list .item-title").last().getAttribute("id")}`);
+      const lastRow = page.locator(`#${await page.locator(`.${path} .list .item-title`).last().getAttribute("id")}`);
       await expect(lastRow).toBeInViewport();
       const lastY = (await lastRow.boundingBox())!.y;
       const lastScroll = await page.evaluate(() => window.scrollY);
       await control.click();
-      await expect(page.locator(".list .item-title")).toHaveCount(42);
+      await expect(page.locator(`.${path} .list .item-title`)).toHaveCount(42);
       await expect(control).toBeFocused();
       await expect(control).toHaveAttribute("aria-disabled", "true");
       expect(await page.evaluate(() => window.scrollY)).toBe(lastScroll);
@@ -117,14 +115,12 @@ for (
       await expect(page.getByRole("button", { name: "편집", exact: true })).toBeFocused();
       for (let i = 0; i < 21; i++) await create(unique("상세 중 추가"));
       await page.goBack();
-      await expect(page.locator(".list .item-title")).toHaveCount(63);
+      await expect(page.locator(`.${path} .list .item-title`)).toHaveCount(63);
       await expect(link).toBeFocused();
       await expect(link).toBeInViewport();
-      await page.getByText("추가 조건",{exact:true}).click();
-      await expect(page.getByLabel("태그 필터")).toHaveValue(tag.id);
-      await expect(page.getByLabel("엔터티 필터")).toHaveValue(entity.id);
+      await expect(page.getByRole("button",{name:tag.name,exact:true})).toHaveAttribute("aria-pressed","true");
       await page.reload();
-      await expect(page.locator(".list .item-title")).toHaveCount(63);
+      await expect(page.locator(`.${path} .list .item-title`)).toHaveCount(63);
       await expect(link).toBeFocused();
       await link.click();
       await page.getByRole("button", { name: "편집", exact: true }).click();
@@ -142,13 +138,12 @@ for (
         exact: true,
       }).click();
       await expect(link).toHaveCount(0);
-      await expect(page.locator(".list .item-title")).toHaveCount(62);
+      await expect(page.locator(`.${path} .list .item-title`)).toHaveCount(62);
       ids.delete(target.id);
       await expect(page.getByRole("heading", { name: label, exact: true })).toBeFocused();
-      await expect(page.getByRole("button", { name: "더 보기", exact: true })).toHaveCount(0);
-      await page.getByText("추가 조건",{exact:true}).click();
-      await page.getByLabel("태그 필터").selectOption(emptyTag.id);
-      await expect(page.locator(".list .item-title")).toHaveCount(0);
+      await expect(page.locator(`#activity-${path}-page-control`)).toHaveCount(0);
+      await page.getByRole("button",{name:tag.name,exact:true}).click();await page.getByRole("button",{name:emptyTag.name,exact:true}).click();
+      await expect(page.locator(`.${path} .list .item-title`)).toHaveCount(0);
       expect(new URL(page.url()).hash).toBe("");
       expect(new URL(page.url()).searchParams.has("pages")).toBe(false);
       expect(new URL(page.url()).searchParams.has("scroll")).toBe(false);
@@ -158,12 +153,11 @@ for (
       await page.goto(listPath);
       const leavingLink = page.getByRole("link", { name: leaving.title, exact: true });
       await leavingLink.click();
-      await mcp.call(`update_${kind}`, { id: leaving.id, expected_version: leaving.version, entity_id: null, change_note:"연결 해제" });
+      await mcp.call(`update_${kind}`, { id: leaving.id, expected_version: leaving.version, tag_ids: [], change_note:"태그 해제" });
       await page.goBack();
       await expect(leavingLink).toHaveCount(0);
       await expect(page.getByRole("heading", { name: label, exact: true })).toBeFocused();
-      await page.getByText("추가 조건",{exact:true}).click();
-      await expect(page.getByLabel("엔터티 필터")).toHaveValue(entity.id);
+      await expect(page.getByRole("button",{name:tag.name,exact:true})).toHaveAttribute("aria-pressed","true");
     } finally {
       try {
         for (const id of ids) {
@@ -192,14 +186,14 @@ for (
       const deadline = Date.now() + 60_000;
       const remaining = () => Math.max(1, deadline - Date.now());
       for (let target = 25; target <= 250; target += 25) {
-        await expect.poll(() => page.locator(".list .item-title").count(), {
+        await expect.poll(() => page.locator(`.${path} .list .item-title`).count(), {
           message: `${label}: restore must reach ${target}/250 rows without stalling`,
           timeout: Math.min(10_000, remaining()),
           intervals: [100, 250, 500],
         }).toBeGreaterThanOrEqual(target);
         expect(reads.slice(0, target)).toEqual(Array.from({ length: target }, (_, index) => index));
       }
-      await expect(page.locator(".list .item-title")).toHaveCount(250, { timeout: remaining() });
+      await expect(page.locator(`.${path} .list .item-title`)).toHaveCount(250, { timeout: remaining() });
       expect(reads).toEqual(Array.from({ length: 250 }, (_, index) => index));
     };
     let failNext = true;
@@ -234,26 +228,26 @@ for (
     await page.goto(`/${path}?pages=250`);
     await expectRestoredPages();
     const first = page.getByRole("link", { name: `${label} 경계 0`, exact: true });
-    await page.getByRole("button", { name: "더 보기", exact: true }).click();
+    await page.locator(`#activity-${path}-page-control`).click();
     await expect(page.getByRole("button", { name: "다시 시도", exact: true })).toBeVisible();
-    await expect(page.locator(".list .item-title")).toHaveCount(250);
+    await expect(page.locator(`.${path} .list .item-title`)).toHaveCount(250);
     const retry = page.getByRole("button", { name: "다시 시도", exact: true });
     await retry.scrollIntoViewIfNeeded();
-    const readingRow = page.locator(`#${await page.locator(".list .item-title").last().getAttribute("id")}`);
+    const readingRow = page.locator(`#${await page.locator(`.${path} .list .item-title`).last().getAttribute("id")}`);
     await expect(readingRow).toBeInViewport();
     const readingY = (await readingRow.boundingBox())!.y;
     const readingScroll = await page.evaluate(() => window.scrollY);
     await retry.click();
-    await expect(page.locator(".list .item-title")).toHaveCount(251);
+    await expect(page.locator(`.${path} .list .item-title`)).toHaveCount(251);
     await expect(first).toHaveCount(1);
-    await expect(page.getByRole("button", { name: "더 보기", exact: true })).toBeFocused();
+    await expect(page.locator(`#activity-${path}-page-control`)).toBeFocused();
     expect(await page.evaluate(() => window.scrollY)).toBe(readingScroll);
     await expect(readingRow).toBeInViewport();
     expect((await readingRow.boundingBox())!.y).toBeCloseTo(readingY, 1);
-    expect(new URL(page.url()).searchParams.get("pages")).toBe("251");
+    expect(new URL(page.url()).searchParams.get(`${path}_pages`)).toBe("251");
     expect(reads).toEqual([...Array.from({ length: 250 }, (_, index) => index), 250, 250]);
-    await page.getByRole("button", { name: "더 보기", exact: true }).click();
-    await expect(page.locator(".list .item-title")).toHaveCount(252);
+    await page.locator(`#activity-${path}-page-control`).click();
+    await expect(page.locator(`.${path} .list .item-title`)).toHaveCount(252);
     expect(reads.at(-1)).toBe(251);
     reads.length = 0;
     await page.reload();

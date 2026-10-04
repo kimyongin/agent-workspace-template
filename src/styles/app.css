@@ -49,9 +49,8 @@ a {
 .bottom-nav a[aria-current="page"],
 .nav-more-trigger[data-current],
 .activity-tabs a[aria-current="page"] {
-  color: var(--ink);
-  background: var(--accent-soft);
-  box-shadow: inset 0 0 0 1px var(--accent);
+  color: var(--accent-ink);
+  background: var(--accent);
 }
 
 :root { --navigation-height: 5rem; }
@@ -61,14 +60,17 @@ html { scroll-padding-bottom: calc(var(--navigation-height) + env(safe-area-inse
 }
 .bottom-nav {
   position: fixed;
-  inset: auto 0 0;
+  inset: auto auto 0 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 72rem;
   z-index: 20;
-  background: var(--panel);
+  background: var(--input-surface);
   border-top: 1px solid var(--line);
   padding: var(--space-2) var(--space-2) calc(var(--space-2) + env(safe-area-inset-bottom, 0px));
 }
 .bottom-nav-inner {
-  max-width: 56rem;
+  max-width: 72rem;
   margin: 0 auto;
   display: grid;
   grid-template-columns: 44px repeat(3, minmax(0, 1fr)) 44px;
@@ -121,7 +123,7 @@ html { scroll-padding-bottom: calc(var(--navigation-height) + env(safe-area-inse
 
 .app-main {
   width: 100%;
-  max-width: 56rem;
+  max-width: 72rem;
   margin: 0 auto;
   padding: var(--space-5) var(--space-4) var(--space-8);
   display: flex;
@@ -145,6 +147,8 @@ html { scroll-padding-bottom: calc(var(--navigation-height) + env(safe-area-inse
   flex-direction: column;
   gap: var(--space-4);
   min-width: 0;
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-soft);
 }
 
 @media (min-width: 640px) {
@@ -172,8 +176,8 @@ html { scroll-padding-bottom: calc(var(--navigation-height) + env(safe-area-inse
 
 .page-title {
   margin: 0;
-  font-size: 1.5rem;
-  line-height: 2rem;
+  font-size: 1.125rem;
+  line-height: 1.75rem;
   font-weight: 600;
   overflow-wrap: anywhere;
 }
@@ -585,7 +589,7 @@ textarea.input {
 
 @media (min-width: 640px) {
   .modal {
-    width: min(40rem, calc(100% - 2 * var(--space-6)));
+    width: min(42rem, calc(100% - 2 * var(--space-6)));
     height: auto;
     max-height: calc(var(--surface-height, 100dvh) - 2 * var(--space-6));
     margin: auto;

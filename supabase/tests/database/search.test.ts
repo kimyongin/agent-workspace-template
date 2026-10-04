@@ -63,6 +63,12 @@ dbTest("검색: 한국어 본문·literal 와일드카드·상태·태그·기�
   const second = await search(d, A, { ...base, cursor: first.next_cursor });
   assertEquals(second.items[0].kind, "record");
   assertEquals(second.next_cursor, null);
+  const multi = searchInput.parse({ query: token, mode: "keyword", tag_ids: [tagId, scopeTag], limit: 1 });
+  const multiFirst = await search(d, A, multi);
+  assertEquals(multiFirst.items[0].kind, "task");
+  assertEquals((await search(d, A, { ...multi, cursor: multiFirst.next_cursor! })).items[0].kind, "record");
+  assertEquals((await search(d, B, multi)).items, []);
+  await assertRejects(() => search(d, A, { ...multi, tag_ids: [tagId], cursor: multiFirst.next_cursor! }), AppError);
   assertEquals("body" in first.items[0], false);
   for (
     const change of [

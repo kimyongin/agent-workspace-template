@@ -63,6 +63,7 @@ export interface Keyset {
 }
 
 export interface TaskFilter {
+  tag_ids?: string[];
   entity_id?: string;
   tag_id?: string;
   kind?: "once" | "recurring";
@@ -74,6 +75,7 @@ export interface TaskFilter {
 }
 
 export interface RecordFilter {
+  tag_ids?: string[];
   record_kind?: "user" | "result" | "change";
   entity_id?: string;
   tag_id?: string;

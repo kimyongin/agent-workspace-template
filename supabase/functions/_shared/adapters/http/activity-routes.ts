@@ -20,7 +20,11 @@ export function activityRoutes(deps: activity.ActivityDeps) {
     return c.json(await activity.createTask(deps, c.get("actor"), input), 201);
   });
   app.get("/tasks", async (c) => {
-    const query = parse(taskListQuery, c.req.query());
+    const raw = c.req.query();
+    const query = parse(taskListQuery, {
+      ...raw,
+      ...(raw.tag_ids !== undefined ? { tag_ids: raw.tag_ids.split(",") } : {}),
+    });
     return c.json(await activity.listTasks(deps, c.get("actor"), query));
   });
   app.get("/tasks/:id", async (c) => {
@@ -69,7 +73,11 @@ export function activityRoutes(deps: activity.ActivityDeps) {
     return c.json(await activity.createRecord(deps, c.get("actor"), input), 201);
   });
   app.get("/records", async (c) => {
-    const query = parse(recordListQuery, c.req.query());
+    const raw = c.req.query();
+    const query = parse(recordListQuery, {
+      ...raw,
+      ...(raw.tag_ids !== undefined ? { tag_ids: raw.tag_ids.split(",") } : {}),
+    });
     return c.json(await activity.listRecords(deps, c.get("actor"), query));
   });
   app.get("/records/:id", async (c) => {
