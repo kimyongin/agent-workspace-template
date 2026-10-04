@@ -65,3 +65,7 @@ fixture는 이 checkout의 Vite `55584`와 존재하지 않는 로컬 주소 `55
 - 메인 지시로 완성된 공유 구현만 별도 commit `9741aadeb6f1af4f0134e95b5c5260da960421a8`, branch `codex/fin-ux-shared-draft-guard`, parent `85cb4ee6f860380a104e2d3bdfb40ef083261d92`에 추출했다. 별도 Git index를 사용해 이 worktree/기존 index를 보존했고 변경은 Modal.tsx·ContentForm.tsx 두 파일뿐이다. activity PR에 이 commit을 소비하도록 전달했으며 Tags/Entity 기능은 포함하지 않았다.
 - 회귀: 전용 fixture에 중복 이름 생성/변경의 정정 저장과 expected_version 보존, held old cursor → 생성 성공 → 첫 페이지 갱신 → 늦은 응답 → 새 cursor로 경계 항목 복구, 태그 query 폐기 후 editor 제거, 모달 query 폐기 후 editor 닫기와 원래 목적지 유지(ordinary close 경로 미실행)를 추가했다. `npx playwright test --config e2e/entity-tags-fixtures.config.ts` desktop/mobile 각 10, 총 20 PASS. `npm run test:web` 14 PASS, `npm run build` PASS. 이전에 실패한 fixture의 버전 충돌 응답은 실제 최신 버전 증가를 모의하도록 수정해 중복 충돌과 분리했다.
 - 공유 DB·함수·서비스/full E2E 담당은 여전히 activity 세션이며 접근하지 않았다. 최신 navigation/activity 승인 head 통합, 명시 onRouteDiscard 소비, 실제 전체 E2E·재리뷰·정확한 head CI가 남아 있다. 이전 14 PASS 결과는 수정 전 당시 증거로 보존한다.
+
+### 2026-10-04 공통 보호 소비자의 stage2 전달
+
+메인 요청으로 EntitiesPage 생성 성공 후 이동만 activity stage2에 전달했다. 같은 페이지의 가이드 링크를 보존하고 기존 `useDeferredNavigation` helper로 모달 제거 뒤 상세로 이동한다. 별도 index로 추출한 단일 파일 commit `f4c4d3708fc78ae198c1d4c9a4309e8edae41733`은 parent `89abf9b894ea6ae4a0a0fdb8bd5a446c2b3e3605`, branch `codex/fin-ux-entity-deferred-create`이며 EntityDetail·TagsPage 기능을 포함하지 않는다. own branch도 같은 helper로 맞췄다. `npm run build` PASS, `npx playwright test --config e2e/entity-tags-fixtures.config.ts --grep '실제 App 공통 모달'` desktop/mobile 2 PASS에서 Entity 생성 모달 제거와 상세 URL 이동을 확인했다. 공유 환경은 변경하지 않았다.
