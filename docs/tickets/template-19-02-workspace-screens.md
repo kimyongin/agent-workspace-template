@@ -18,7 +18,9 @@
 
 ## 검증과 인계
 
-explicit gpt-6.1-sol/high(여러 화면의 router/초안/저장/API교차경계), 오늘 desktop snapshot과 assignpreflight 확인. backend실제effort/비용은미관측이다. worktreeunit/build/docs/boundaries·응답mockfixtures에서 모든자료 CRUD/메모·목록복귀·원칙최신삭제승격/마지막삭제빈상태·두태그혼용·초안보호·실패·긴/짧은제목/한글IME·320/360/390/639/640/768/1024/1440px·200%·keyboard를검증한다.
+explicit gpt-6.1-sol/high(여러 화면의 router/초안/저장/API교차경계). desktop의 새 생성과 기존 세션 재개 모두 전체 thread limit으로 거부되어 CLI0.160.0의 fresh 실행으로 전환했다. 실제 model/list8개를2026-10-04T09:06:42.608Z에 조회한 TEMP/template20-cli-models.json과 balanced/high assign preflight를 확인했다. explicit exec thread `01a1062b-6b2f-7dc2-a58b-b686e0acf113` 시작을 관측했다. 지원/명시 실행과 backend실제effort/비용은 구분하며 후자는미관측이다. worktreeunit/build/docs/boundaries·응답mockfixtures에서 모든자료 CRUD/메모·목록복귀·원칙최신삭제승격/마지막삭제빈상태·두태그혼용·초안보호·실패·긴/짧은제목/한글IME·320/360/390/639/640/768/1024/1440px·200%·keyboard를검증한다.
+
+CLI와 메인의 인계는 저장소 밖 TEMP/template20-screens-inbox.md(계약/배정)·template20-screens-status.md(진행/요청)·template20-screens-final.md(완료)에서 전달하며 최종 필요한 증거는 이 티켓에 연결한다. CLI가 서버/탐색 세션의 코드를 직접 편집하지 않는다.
 
 로컬사용자DB/finDB/reset/서비스시작은금지한다. 실제전체E2E/DBHTTPMCP는메인이격리환경·immutablehead와단독소유자를배정한다. 실패자료와검사한head를보존, 가이드/티켓·소스·검증을묶어cleancommit인계, 독립리뷰·정확CI·최신main머지는메인이조정한다. 운영배포하지않는다.
 
