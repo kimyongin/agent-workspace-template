@@ -1,7 +1,7 @@
 # Template-18-02 — 탐색과 첫 사용 안내
 
 작성: 2026-10-04
-상태: 진행 중
+상태: 구현·로컬 검증 완료(독립 리뷰·CI·머지 대기)
 검토 기준: `745130148c90de842d7617c232194b653d1c638b`
 
 ## 목표와 승인 범위
@@ -34,4 +34,6 @@ PR 하나 `codex/fin-ux-navigation`. navigation 세션이 App route/layout, 새 
 - 직접 검증: `npm run test:web` 3파일/9 PASS, `npm run build` 타입·Vite PASS(기존 큰 bundle 경고 유지), `npm run check:docs` 텍스트352개·모델/native PASS 및 회귀48 PASS/0 FAIL/기존 Windows file-symlink권한1 SKIP, `git diff --check` PASS.
 - 브라우저 격리: 별도 Vite `55482`, 가짜 공개 loopback Supabase/API `55591`와 임시 Auth storage를 사용했다. `e2e/navigation-fixture.config.ts`의 `npx playwright test --config e2e/navigation-fixture.config.ts` 2 PASS. 모든 API 응답은 route fixture, 다른 origin 요청은 차단하여 DB·함수·운영 데이터에 연결하지 않았다. 실행 시 Vite에 `VITE_SUPABASE_URL=http://127.0.0.1:55591`, `VITE_SUPABASE_PUBLISHABLE_KEY=ui-fixture-public-key`, `VITE_API_URL=http://127.0.0.1:55591/functions/v1/api`, 선택 `VITE_REPOSITORY_URL=https://github.com/example/neutral-app`을 전달했다.
 - 화면 증거: 360/390/768/1024/1440 CSS px의 실제 guide/tasks 소비 화면·가로 넘침·44px 주요 조작·하단 뒤 가림 없는 마지막 링크 초점 PASS. 200% 글자 확대와 zoom에 해당하는 reflow 폭도 검사했다. `test-results/navigation-fixture-…/guide-*.png`, `tasks-*.png`를 생성했고 360 guide·1440 guide·390 tasks를 직접 시각 확인했다. 더보기 Enter/방향키/Escape·바깥 클릭·경로 이동 닫기, 복사 성공/실패·주소 유지 PASS. safe-area는 CSS 계약이며 실제 기기 확인으로 주장하지 않는다.
-- 후속: 메인 조정 후 공유 로컬 환경의 실제 전체 E2E, independent review·full CI·머지. 운영 배포·제품 설치·실기기·스크린리더 검증은 수행하지 않았다. 안내 읽기는 저장/검색/설치를 자동 실행하지 않는다.
+- 공유 로컬 전체 E2E: 메인이 root checkout을 exact `97e8509ce6aab05205e79917d9bbb2d2e2f8d392`로 detached·clean 전환하고 기존 Vite `55480`의 `createBrowserRouter` source 응답, local Supabase/API `55421`·개발 로그인 설정·동일 root Edge source mount를 확인한 뒤 navigation 구현 세션을 단독 실행 담당으로 배정했다. navigation 세션이 root에서 `npm run test:e2e` 직접 실행: **71 PASS / 0 FAIL / 9 SKIP, 4.1분, exit0**. desktop+Pixel7 에뮬레이션에서 실제 로컬 로그인·업무 HTTP/MCP·사용자 격리·상세 복귀/초안·viewport/키보드/대비를 확인했다. 9 SKIP은 모바일의 desktop 전용 viewport/키보드 7개와 `semantic-real`의 기존 선택 환경 검사 2개다. 의미 검색의 실공급자 품질·운영 인증 검증으로 주장하지 않는다.
+- E2E 기록: `C:/Users/yongin/AppData/Local/Temp/template-18-navigation-e2e-97e8509.log`, root `test-results`를 `C:/Users/yongin/AppData/Local/Temp/template-18-navigation-e2e-97e8509-artifacts/`로 보존했다. 공유 DB/서비스를 reset·재설정하지 않고 기존 local 테스트 계정·환경에서 순차 실행했다. 테스트 생성 자료는 기존 suite의 정리 계약을 따랐다. 실행 후 root tracked 변경 없음. 별도 fixture Vite `55482`는 종료했다.
+- 최종 변경은 이 E2E 증거·상태 기록뿐이며 앱/test source는 위 검증 revision과 같다. 후속은 독립 리뷰·full CI·머지와 18-04 공통 blocker 소비 검증이다. 운영 배포·제품 설치·실기기·스크린리더 검증은 수행하지 않았다. 안내 읽기는 저장/검색/설치를 자동 실행하지 않는다.
