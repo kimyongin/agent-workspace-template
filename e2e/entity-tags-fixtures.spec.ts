@@ -70,6 +70,7 @@ test("실제 App에서 태그 dirty 주 탐색·뒤로가기·앞으로가기 �
   await page.goBack(); await discard.getByRole("button", { name: "취소", exact: true }).click(); await expect(page).toHaveURL(/\/tags$/);
   await page.getByRole("button", { name: "더보기", exact: true }).click(); await page.getByRole("link", { name: "로그아웃", exact: true }).click();
   await discard.getByRole("button", { name: "취소", exact: true }).click(); await expect(page).toHaveURL(/\/tags$/);
+  await expect(page.getByRole("link", { name: "로그아웃", exact: true })).toBeFocused();
   expect(await page.evaluate(() => !!localStorage.getItem("sb-127-auth-token"))).toBe(true); await expect(page.getByRole("textbox", { name: /태그 이름/ })).toHaveValue("앱 초안");
   await page.goBack(); await discard.getByRole("button", { name: "변경 버리기" }).click(); await expect(page).toHaveURL(/\/tasks$/);
   await page.getByRole("button", { name: "할 일 추가", exact: true }).click(); const form = page.getByRole("dialog", { name: "할 일 추가", exact: true }); await form.getByLabel("제목").fill("새 초안");
@@ -102,6 +103,18 @@ test("실제 App 공통 모달 생성·직접 편집 성공/취소·저장 중 P
   await page.getByRole("navigation", { name: "주 메뉴" }).getByRole("link", { name: "엔터티", exact: true }).click(); await page.getByRole("button", { name: "엔터티 추가", exact: true }).click();
   const entityForm = page.getByRole("dialog", { name: "엔터티 추가", exact: true }); await entityForm.getByLabel("속성 1").fill(entity.prop1); await entityForm.getByRole("button", { name: "저장", exact: true }).click();
   await expect(entityForm).not.toBeVisible(); await expect(page).toHaveURL(new RegExp(`/entities/${entity.id}`)); await expect(page.getByRole("heading", { name: entity.prop1 })).toBeVisible();
+});
+test("실제 App 태그 폐기 승인 뒤에만 로그아웃 요청하고 로그인으로 종료", async ({ page }) => {
+  let signOuts = 0;
+  await page.route("**/api/tasks**", route => route.fulfill({ json: { items: [], next_cursor: null } }));
+  await page.route("**/api/entities**", route => route.fulfill({ json: { items: [], next_cursor: null } }));
+  await page.route("**/auth/v1/logout**", route => { signOuts++; return route.fulfill({ status: 200, json: {} }); });
+  await page.goto("/e2e/fixtures/entity-tags-app.html"); await expect(page.getByRole("heading", { name: "할 일", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "더보기", exact: true }).click(); await page.getByRole("link", { name: "태그 관리", exact: true }).click(); await page.getByRole("button", { name: "태그 추가", exact: true }).click(); await page.getByRole("textbox", { name: /태그 이름/ }).fill("로그아웃 초안");
+  await page.getByRole("button", { name: "더보기", exact: true }).click(); await page.getByRole("link", { name: "로그아웃", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "변경을 버릴까요?" })).toBeVisible(); expect(signOuts).toBe(0);
+  await page.getByRole("dialog", { name: "변경을 버릴까요?" }).getByRole("button", { name: "변경 버리기" }).click(); await expect(page).toHaveURL(/\/login$/); expect(signOuts).toBe(1);
+  expect(await page.evaluate(() => !!localStorage.getItem("sb-127-auth-token"))).toBe(false); await expect(page.getByRole("navigation", { name: "주 메뉴" })).toHaveCount(0);
 });
 test("불확정 이름 변경을 최신 목록에서 확인하며 중복 PATCH 안 함", async ({ page }) => {
   let patches = 0, updated = false;

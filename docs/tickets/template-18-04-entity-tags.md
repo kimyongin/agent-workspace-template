@@ -1,7 +1,7 @@
 # Template-18-04 — 엔터티 문맥 작성과 태그 사전
 
 작성: 2026-10-04
-상태: 로컬 구현·격리 UI fixture 검증 완료, 선행 탐색/활동 통합·전체 E2E·독립 리뷰 대기
+상태: 로컬 구현·선행 탐색/활동 통합·격리 UI fixture 검증 완료, 실제 전체 E2E·독립 재리뷰·CI 대기
 검토 기준: `745130148c90de842d7617c232194b653d1c638b`
 
 ## 목표와 승인 범위
@@ -69,3 +69,11 @@ fixture는 이 checkout의 Vite `55584`와 존재하지 않는 로컬 주소 `55
 ### 2026-10-04 공통 보호 소비자의 stage2 전달
 
 메인 요청으로 EntitiesPage 생성 성공 후 이동만 activity stage2에 전달했다. 같은 페이지의 가이드 링크를 보존하고 기존 `useDeferredNavigation` helper로 모달 제거 뒤 상세로 이동한다. 별도 index로 추출한 단일 파일 commit `f4c4d3708fc78ae198c1d4c9a4309e8edae41733`은 parent `89abf9b894ea6ae4a0a0fdb8bd5a446c2b3e3605`, branch `codex/fin-ux-entity-deferred-create`이며 EntityDetail·TagsPage 기능을 포함하지 않는다. own branch도 같은 helper로 맞췄다. `npm run build` PASS, `npx playwright test --config e2e/entity-tags-fixtures.config.ts --grep '실제 App 공통 모달'` desktop/mobile 2 PASS에서 Entity 생성 모달 제거와 상세 URL 이동을 확인했다. 공유 환경은 변경하지 않았다.
+
+### 2026-10-04 최신 선행 stage2 통합
+
+- `git rebase --onto 83a3e80bf9c03a38fb57ca121e465f25fca062ff 85cb4ee6f860380a104e2d3bdfb40ef083261d92 codex/fin-ux-entity-tags`로 최신 탐색·활동·로그아웃/메뉴 초점·공유 guard/callback·EntitiesPage helper를 통합했다. 최초 feature commit의 Modal/EntitiesPage 충돌은 승인된 upstream 두 파일을 그대로 유지해 해결했다. 뒤의 동등한 shared API/helper 변경도 차분에서 제거됐으며 통합 구현 head `0acd868`의 upstream 대비 Modal.tsx·ContentForm.tsx·EntitiesPage.tsx diff는 0이다.
+- 실제 제품 변경은 EntityDetail의 문맥 작성·속성표, TagsPage의 한 초안/충돌/불확정/조회 세대 보호와 해당 feature CSS다. 추가 fixture·단위 테스트·기존 tags E2E form 선택자·가이드/티켓만 포함하고 App/global CSS/activity 구현은 변경하지 않는다.
+- 통합 코드 검사: `npm run test:web` 14 PASS, `npm run build`, `npm run check:docs`(48 PASS / Windows symlink 1 SKIP), `npm run check:boundaries` PASS. 전용 UI fixture 전체 20 PASS에서 dirty 태그의 로그아웃 취소 후 원래 메뉴 링크 초점 복귀를 추가 확인했다.
+- 추가 `npx playwright test --config e2e/entity-tags-fixtures.config.ts --grep '실제 App 태그 폐기'` desktop/mobile 2 PASS. 실제 App/LogoutPage가 폐기 확인 전에는 로그아웃 요청을 보내지 않고 승인 뒤 정확히 한 번 요청·로컬 fixture 세션 제거·`/login` 종료하는 것을 대조했다. Auth 응답을 route로 대체한 결과이며 실제 Supabase 인증 성공의 증거는 아니다.
+- 모델/강도 변경 없이 같은 개발일 preflight를 재사용했다. 공유 root/서비스/DB·전체 실제 E2E는 activity 담당 `83a3e80`에 유지했다. 승인된 navigation/activity 최신 main 재통합 뒤 실제 전체 E2E·독립 재리뷰·정확한 head CI가 남아 있다.
