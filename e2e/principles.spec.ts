@@ -82,5 +82,8 @@ test("기록의 당시 원칙 snapshot은 현재 변경·과거본 삭제 뒤에
     await savePrinciple(mcp,{title:unique("새 기준"),summary:"새 요약",body:"새 본문"});
     await mcp.call("delete_principle",{id:p.id,expected_version:p.version});await page.reload();
     await expect(page.getByText("당시 판단 본문",{exact:true})).toBeVisible();expect((await mcp.call("get_record",{id})).applied_principle_snapshots[0].body).toBe("당시 판단 본문");
+    await page.getByRole("button",{name:"편집",exact:true}).click();const edit=page.getByRole("dialog",{name:"기록 편집",exact:true});
+    await edit.getByLabel("요약").fill("원칙 삭제 뒤 설명 정정");await edit.getByLabel("편집 메모").fill("판단 본문을 유지한 설명 정정");await edit.getByRole("button",{name:"저장",exact:true}).click();await expect(edit).not.toBeVisible();
+    const corrected=await mcp.call("get_record",{id});expect(corrected.applied_principle_ids).toEqual([]);expect(corrected.applied_principle_snapshots[0].body).toBe("당시 판단 본문");await expect(page.getByText("당시 판단 본문",{exact:true})).toBeVisible();
   }finally{await mcp.close();}
 });

@@ -119,7 +119,14 @@ export function RecordDetailPage() {
           onSave={async (value) => {
             loadGeneration.current++;
             try {
-            setRecord(await api<WorkspaceRecord>("PATCH", `/records/${record.id}`, { ...value, expected_version: record.version, request_id:request.current }));
+            const { applied_principle_ids, ...content } = value;
+            const selectionChanged = applied_principle_ids !== undefined &&
+              JSON.stringify([...applied_principle_ids].sort()) !== JSON.stringify([...record.applied_principle_ids].sort());
+            setRecord(await api<WorkspaceRecord>("PATCH", `/records/${record.id}`, {
+              ...content,
+              ...(selectionChanged ? { applied_principle_ids } : {}),
+              expected_version: record.version, request_id: request.current,
+            }));
             }catch(e){if(e instanceof ApiError&&e.code==="conflict")conflicted.current=true;throw e;}
             request.renew(); closeEdit();
             setMessage("저장했습니다.");

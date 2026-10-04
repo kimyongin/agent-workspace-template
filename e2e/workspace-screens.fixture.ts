@@ -189,6 +189,36 @@ test("원칙: 최초 등록·현재 저장 새 ID·과거 정정·최신 삭제 
   await page.getByRole("link",{name:"현재 원칙 보기"}).click();await form(page).getByRole("button",{name:"삭제",exact:true}).click();let confirm=page.getByRole("dialog",{name:"원칙을 삭제할까요?"});await expect(confirm).toContainText("현재 원칙이 됩니다");await expect(confirm).toContainText("정정 본문");await confirm.getByRole("button",{name:"삭제",exact:true}).click();
   await page.getByRole("link",{name:"현재 원칙 보기"}).click();await form(page).getByRole("button",{name:"삭제",exact:true}).click();confirm=page.getByRole("dialog",{name:"원칙을 삭제할까요?"});await expect(confirm).toContainText("현재 원칙이 없는 상태");await confirm.getByRole("button",{name:"삭제",exact:true}).click();await expect(page.getByRole("button",{name:"현재 원칙 등록"})).toBeVisible();expect(state.errors).toEqual([]);
 });
+for (const selected of [false, true]) test(`기록: 원칙 ${selected ? "선택 해제는 snapshot 삭제" : "삭제 뒤 설명 정정은 snapshot 보존"}`, async ({page}) => {
+  const state = await fixtures(page), r = state.rows.records[0];
+  Object.assign(r, {applied_principle_ids:selected ? [id(4)] : [], applied_principle_snapshots:[
+    {id:id(4),title:"당시 기준",body:"보존할 당시 본문",summary:"당시 요약",version:1,saved_at:stamp,captured_at:"application",status:"active"}
+  ]});
+  await page.route("**/api/records/"+r.id, async route => {
+    if(route.request().method() !== "PATCH") return route.fallback();
+    const body = route.request().postDataJSON();
+    state.writes.push({method:"PATCH",path:new URL(route.request().url()).pathname,body,params:new URLSearchParams()});
+    if(Object.hasOwn(body,"applied_principle_ids")) r.applied_principle_snapshots = [];
+    Object.assign(r,body,{version:r.version+1});await route.fulfill({json:r});
+  });
+  await go(page,`/records/${r.id}`);await expect(form(page)).toContainText("보존할 당시 본문");
+  await form(page).getByRole("button",{name:"편집",exact:true}).click();
+  if(selected) await form(page).getByRole("button",{name:"현재 기준 (선택한 저장본)",exact:true}).click();
+  await form(page).getByLabel("요약",{exact:false}).fill("설명 정정");
+  await form(page).getByLabel("편집 메모",{exact:false}).fill("당시 판단을 유지한 설명 정정");
+  await form(page).getByRole("button",{name:"저장",exact:true}).click();
+  await expect(form(page).getByRole("button",{name:"편집",exact:true})).toBeVisible();
+  expect(state.writes).toHaveLength(1);
+  if(selected) {
+    expect(state.writes[0].body.applied_principle_ids).toEqual([]);
+    await expect(form(page)).not.toContainText("보존할 당시 본문");
+  } else {
+    expect(state.writes[0].body).not.toHaveProperty("applied_principle_ids");
+    await expect(form(page)).toContainText("보존할 당시 본문");
+  }
+  expect(state.errors).toEqual([]);
+});
+
 test("기록: 자동 변경 문맥·원칙 snapshot·정정 시스템 필드 제외",async({page})=>{
   const state=await fixtures(page);const r=state.rows.records[0];Object.assign(r,{record_kind:"change",change_note:"실측 반영",change:{event_id:id(30),target_kind:"entity",target_id:id(1),target_title:"삭제된 엔터티",action:"delete",source:"mcp",before:{prop2:10},after:null,path:null},applied_principle_snapshots:[{title:"당시 기준",body:"당시 본문",saved_at:stamp,summary:"당시 요약",captured_at:"migration"}]});
   await go(page,`/records/${r.id}`);await expect(form(page)).toContainText("에이전트");await expect(form(page)).toContainText("삭제된 대상");await expect(form(page)).toContainText("당시 본문");await expect(form(page)).toContainText("실제 판단 당시의 본문을 보증하지 않습니다.");await expect(form(page).getByRole("link",{name:"대상 원문 보기"})).toHaveCount(0);

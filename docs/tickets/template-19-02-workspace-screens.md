@@ -81,3 +81,10 @@ CLI와 메인의 인계는 저장소 밖 TEMP/template20-screens-inbox.md(계약
 실제 desktop 첫 전체 실행은34 PASS/5 FAIL/실제 모델1 SKIP(4.7m)였고 `real-desktop-run01`에 screenshot/trace를 보존했다. 입력과 조건 chip/form label/h1·dd의 부분 일치 selector 충돌3건은 정확한 textbox·definition 대상으로 고쳤다. 삭제 확인 click 뒤 실제 DELETE·목록 복귀 완료를 기다린 뒤 MCP 정본을 검사하고, 비동기 search anchor 재조회가 pages3을 반영할 때까지 같은 값을 polling한다. API·내용·초점·총42행 assertions는 유지했다. 부모의 backend 수정 `96380d62ca2475fda401bcc3b7ebd1bfa6ead392`를 통합했고 START-HERE의 상태 문단 충돌만 양쪽 사실을 유지해 해소했다. SQL migration 변경은 없고 서버 source를 별도로 수정하지 않았다. private Edge만 종료한 뒤68개 non-env function source를 immutable 통합본으로 갱신하고 env/DB volume을 보존해 다시 serve했다. 동일 실패5개의 실제 targeted rerun은5 PASS(33.2s)다.
 
 부모가 nav-bearing 화면 fixture3개의 통합 적응을 추가 배정했다. native dialog 아래에서는 실제 App Link/button handler의 route intent를 호출하고 화면 내부 초점 유지도 검증한다. 작성 URL은 create=1로 정확히 검사하며 forward entry를 실제 settings→back으로 준비해 dirty forward 취소 assertions를 유지했다. busy POP·메모 PATCH·로그아웃 요청0→승인 후1·세션 제거·초점 assertions를 보존했다. 새 task dialog open effect 완료를 기다린 뒤 route intent를 호출한다. 최종6 desktop/mobile PASS(14.1s)이며 이전6/2 실패 trace는 `entity-tags-nav-run02..03`에 남겼다. 부모 inbox LF를 부모가 고친 뒤 docs48 PASS/Windows symlink1 SKIP도 통과했다. primary Auth/nav source는 배정된 immutable patch 외 수정하지 않았다.
+
+
+### 삭제된 원칙의 기록 정정 회귀
+
+backend963 통합 뒤 desktop 전체39 PASS/실모델1 SKIP(4.6m)를 확인했다. 당시 원칙의 원문 삭제 뒤 기록의 설명까지 정정하는 실제 회귀를 추가하자, 이미 빈 연결 ID를 항상 PATCH하는 화면이 보존 캡처를 지우는 문제가 재현됐다. RecordDetail은 적용 원칙 선택이 정본과 같으면 해당 입력을 생략하며, 선택 변경은 명시 배열(모두 해제 시 빈 배열)을 보낸다. 자동 기록 시스템 필드 제외는 유지한다. 실제 MCP 재조회로 원문 캡처 유지·ID 빈 배열을 검사한 targeted1 PASS(8.5s)다. 실패 screenshot/trace는 `test-results/screens-failures/real-snapshot-run03`에 보존했다. 설명 정정 보존/명시 선택 해제를 모의 API에서 각각 검증한다.
+
+모의 snapshot2 PASS(4.1s). 첫 선택 해제 fixture는 선택된 저장본 접미사가 있는 실제 버튼 이름을 누락해 timeout이었다. 정확한 accessible name으로 고쳤고 실패 자료는 `screens-snapshot-run11`에 보존했다. assertion/timeout 변경은 없다.
