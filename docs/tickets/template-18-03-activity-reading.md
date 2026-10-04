@@ -58,9 +58,9 @@ PR 하나 `codex/fin-ux-activity`. activity 세션이 activity/principles featur
 
 ### 남은 검증과 인계
 
-- 메인이 순차 배정하는 정확한 통합 head의 실제 DB·HTTP·MCP·전체 E2E 및 검색 원문 복귀, 완료/중단/재개·브라우저 뒤로가기/새로고침 회귀는 아직 activity 세션이 실행하지 않았다. 격리 fixture 통과를 그 증거로 대신하지 않는다.
-- shared ModalShell의 dirty/busy route guard는 entity-tags 담당 후속이다. 이 세션의 deferred navigation과 함께 최종 통합에서 다시 검증한다.
-- 하단 탐색을 포함한 최종 앱의 200% 확대·모든 대표 화면의 computed style·전체 초점 회귀는 통합 검증에서 확인한다. 실제 휴대폰·스크린리더는 상위 티켓의 제외 범위를 유지한다.
+- 실제 DB·HTTP·MCP·전체 E2E와 검색 원문 복귀, 완료/반복 회차·브라우저 뒤로가기/새로고침 회귀는 아래 최종 `c5f24c1` 실행 기록을 따른다. 격리 fixture의 추가 경계 검사와 실제 전체 E2E는 별도 근거다.
+- shared ModalShell의 dirty/busy route guard는 entity-tags 담당 전용 커밋을 받아 즉시 소비하는 활동 폼과 함께 통합·검증했다. 일반 닫기와 route-discard는 분리한다.
+- 하단 탐색·대표 viewport·200% 확대·누름 영역·키보드·대비·초점 회귀는 실제 전체 E2E가 통과했다. 실제 휴대폰·스크린리더는 상위 티켓의 제외 범위를 유지한다.
 - 독립 리뷰·정확한 최종 head CI·PR/머지는 메인이 조정한다. 운영 배포는 제외한다.
 
 ### 첫 실제 전체 E2E와 수정 — 2026-10-04
@@ -97,3 +97,10 @@ PR 하나 `codex/fin-ux-activity`. activity 세션이 activity/principles featur
 - 사전 재시도는 기존 실패 상태/행을 응답까지 유지한다. 목록별 공유 사전의 응답 반영 직전에 현재 읽던 행을 기록하고 layout 반영 뒤 행 y와 초점을 유지한다. 반복되는 행 오류 카드 대신 짧은 읽기 칩을 사용하고 필터의 단일 재시도 조작을 제공한다. 긴 이름은 그대로 줄바꿈하며 고정 높이·잘림·허용치 확대를 사용하지 않았다.
 - 상세의 query 진입 상태를 ID 조회와 별도로 동기화했다. 허용된 query 이동에서 편집을 닫고 `edit=1`로 돌아오면 새 원문을 조회해 새 폼으로 연다. 이탈 확인 취소는 URL·기존 초안을 유지한다. 단순 query 변경 때문에 진행 중 초안을 같은 대상 조회로 덮어쓰지 않는다.
 - 수정 소스의 build·웹12 PASS, 격리 브라우저32 PASS. 세 목록 모두 20번째 행의 초점/y를 초기 사전503→응답 보류→30자 한글 성공 전후 검사하고, 세 상세 모두 직접 편집 초안 확인 취소→버리기→서버 제목 변경→Back 편집 최신값→Forward 읽기를 검사했다. 첫 retry fixture는 반복 오류 카드 제거 전 응답 뒤 마지막 행 y의 62px/44px 이동을 드러냈으며 trace를 `C:/Users/yongin/AppData/Local/Temp/template18-activity-review-retry-first-failure`에 보존했다. 최종 수정 head의 실제 전체 E2E·독립 재리뷰·CI는 다시 필요하다.
+
+### 리뷰 수정 head 실제 전체 검증과 환경 실패 기록 — 2026-10-04
+
+- root detached `c5f24c181d62b6bd0306f69e1c1e9b4dde4c7806`의 첫 `npm run test:e2e`는 74 PASS·9 기존 SKIP·1 FAIL(4.9분)이었다. mobile 웹/MCP 할 일 생성 POST가 HTTP500을 받아 상세 이동을 기대한 검사가 실패했다. 화면은 초안과 저장 여부 불명 안내를 유지했다. 실패 trace·출력은 TEMP `template18-activity-fullc5f24c1-failure`·`template18-activity-fullc5f24c1-output.txt`에 보존했다.
+- 실패 POST 시작은 `2026-10-04T06:47:58.805Z`, 응답 Date는 `06:47:58 GMT`, Kong upstream/proxy latency는 17/0ms다. 응답 `{code:"Internal Server Error",message:"Request failed due to an internal server error"}`는 앱의 `toErrorBody`가 반환하는 `code:"internal"`/`retryable` 형식과 다르다. Kong은 `06:47:58.835353Z` POST/tasks500을, Edge Runtime은 같은 시각 `06:47:58.827` worker already retired 및 `06:47:58.834523` `WorkerAlreadyRetired`/`UserWorker.fetch` 오류를 기록했다. 인접 CPU soft-limit/early-termination과 BadResource도 관측했다. runtime worker에서 발생한 실패라는 근거는 강하지만 해당 POST와 특정 isolate 연결·CPU 제한의 직접 인과·근본 CPU 원인은 관측하지 못했다. 이를 확정된 일시 장애나 앱 버그 없음의 근거로 과장하지 않는다. scoped 로그는 TEMP `template18-activity-c5-edge-failure.log`·`template18-activity-c5-kong-failure.log`에 보존했다.
+- 같은 코드의 해당 mobile 시나리오 재검사는 1 PASS(3.5초), 이어 전체 재검사는 75 PASS·9 기존 SKIP·0 FAIL(4.6분)이었다. 같은 `c5f24c1` 소스·검사·timeout을 사용하고 setup/reset·서비스 재시작·fixture 정리·root tracked 수정은 하지 않았다. 전후 root SHA·clean을 확인했다. 재검사 증거는 TEMP `template18-activity-fullc5f24c1-targeted-rerun.txt`와 `template18-activity-fullc5f24c1-pass-rerun`·`template18-activity-fullc5f24c1-pass-rerun-output.txt`다. 첫 실패를 지우지 않고 재검증 통과와 분리해 남겼다. 공유 환경 소유권을 메인에 반환했다.
+- 이 후속 변경은 티켓/인계 문서만이며 검증한 제품 소스는 `c5f24c1`와 동일하다. 독립 재리뷰·최종 정확한 PR head CI·머지는 메인이 조정하며 운영 배포는 제외한다.
