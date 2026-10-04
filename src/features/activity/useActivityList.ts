@@ -23,11 +23,23 @@ export function useActivityList<T extends { id: string }>(
   layoutReady = true,
   enabled = true,
   customLoad?: (cursor?: string, signal?: AbortSignal) => Promise<ListPage<T>>,
-  context?: { route: string; keys: string[]; pageKey: string },
+  context?: { route: string; keys: string[]; pageKey: string; locationRef?: React.RefObject<ReturnType<typeof useLocation>> },
+  onAccepted?: (page: ListPage<T>) => void,
 ) {
   const [params] = useSearchParams();
-  const { hash } = useLocation();
+  const location = useLocation(), { hash } = location;
+  const ownLocation = useRef(location), ownLocationKey = useRef(location.key);
+  const latestLocation = context?.locationRef ?? ownLocation;
+  if (!context?.locationRef && ownLocationKey.current !== location.key) { ownLocationKey.current = location.key; ownLocation.current = location; }
   const navigate = useNavigate();
+  const publishPages = (count: number) => {
+    const latest = latestLocation.current, next = new URLSearchParams(latest.search);
+    next.set(context?.pageKey ?? "pages", String(count));
+    // Publish the URL snapshot synchronously: another section can complete
+    // before React renders this navigation and must retain this page key.
+    latestLocation.current = { ...latest, search: `?${next}` };
+    navigate({ pathname: latest.pathname, search: `?${next}`, hash: latest.hash }, { replace: true });
+  };
   const scopeParams = context ? new URLSearchParams([...params].filter(([key]) => context.keys.includes(key))) : params;
   const scope = `${listScope(scopeParams)}|${path}`;
   const pageKey = context?.pageKey ?? "pages";
@@ -67,7 +79,7 @@ export function useActivityList<T extends { id: string }>(
     setError(null);
     setBusy(true);
     restoreList<T>({
-      load: (after) => load(after, controller.signal),
+      load: async (after) => { const page = await load(after, controller.signal); if (current()) onAccepted?.(page); return page; },
       pages,
       anchor: anchorId(kind, hash),
       prior,
@@ -85,9 +97,7 @@ export function useActivityList<T extends { id: string }>(
         if (current() && value && !prior && !value.next_cursor) setControlScope(null);
         const target = anchorId(kind, hash);
         if (current() && value && value.pages > pages && (!target || value.items.some((item) => item.id === target))) {
-          const next = new URLSearchParams(params);
-          next.set(pageKey, String(value.pages));
-          navigate({ pathname: route, search: `?${next}`, hash }, { replace: true });
+          publishPages(value.pages);
         }
       })
       .catch(() => {
@@ -127,6 +137,7 @@ export function useActivityList<T extends { id: string }>(
     try {
       const page = await load(cursor);
       if (!current()) return;
+      onAccepted?.(page);
       if (page.next_cursor === cursor) throw new Error("Repeated list cursor");
       const value = {
         ...page,
@@ -138,9 +149,7 @@ export function useActivityList<T extends { id: string }>(
       setItems(value.items);
       setCursor(value.next_cursor);
       setError(null);
-      const next = new URLSearchParams(params);
-      next.set(pageKey, String(value.pages));
-      navigate({ pathname: route, search: `?${next}`, hash }, { replace: true });
+      publishPages(value.pages);
     } catch {
       if (current()) {
         failedMore.current = { scope, cursor };

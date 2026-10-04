@@ -376,6 +376,41 @@ test("저장 성공 후 GET 실패·조회만 재시도·서버 conflict 초안 
   await go(page,`/tasks/${id(2)}`);await form(page).getByRole("button",{name:"편집",exact:true}).click();await form(page).getByLabel("편집 메모",{exact:false}).fill("수정 사유");await form(page).getByLabel("제목",{exact:false}).fill("최신 내용");await form(page).getByRole("button",{name:"저장",exact:true}).click();await expect(form(page).getByText("저장은 완료했습니다. 최신 내용을 불러오지 못했습니다.")).toBeVisible();await expect(form(page).getByRole("heading",{name:"최신 내용",level:1})).toBeVisible();fail=false;await form(page).getByRole("button",{name:"조회 다시 시도"}).click();await expect(form(page).getByText("저장은 완료했습니다. 최신 내용을 불러오지 못했습니다.")).toHaveCount(0);expect(patches).toBe(1);expect(state.errors).toEqual([]);
 });
 
+test("늦은 할 일 페이지는 최신 기록 날짜·기록 페이지·검색 초안과 날짜 초점을 보존한다",async({page})=>{
+  const state=await fixtures(page);let release=()=>{},started=()=>{};const held=new Promise<void>(r=>release=r),pending=new Promise<void>(r=>started=r);
+  await page.route("**/api/tasks?**",async route=>{const cursor=new URL(route.request().url()).searchParams.get("cursor");if(cursor){started();await held;}await route.fulfill({json:{items:[task(cursor?102:101)],next_cursor:cursor?null:"next"}});});
+  await page.route("**/api/records?**",route=>{const cursor=new URL(route.request().url()).searchParams.get("cursor");return route.fulfill({json:{items:[record(cursor?104:103)],next_cursor:cursor?null:"next"}});});
+  await go(page,"/tasks");await page.locator("#activity-tasks-page-control").click();await pending;
+  const date=page.getByLabel("기록 시작일",{exact:true});await date.fill("2026-10-01");await page.locator("#activity-records-page-control").click();await expect(page).toHaveURL(/records_pages=2/);
+  const input=page.getByLabel("검색어",{exact:true});await input.dispatchEvent("compositionstart");await input.fill("아직 조합 중인 초안");await date.focus();release();
+  await expect(page).toHaveURL(/tasks_pages=2/);const params=new URL(page.url()).searchParams;
+  expect(params.get("from")).toBe("2026-10-01");expect(params.get("records_pages")).toBe("2");await expect(date).toHaveValue("2026-10-01");await expect(date).toBeFocused();await expect(input).toHaveValue("아직 조합 중인 초안");
+  await expect(page.locator(".tasks .list .item-title")).toHaveCount(2);
+  let releaseBoth=()=>{},bothStarted=()=>{},startedCount=0;const bothHeld=new Promise<void>(r=>releaseBoth=r),bothPending=new Promise<void>(r=>bothStarted=r);
+  await page.route(/\/api\/(tasks|records)\?/,async route=>{const url=new URL(route.request().url()),cursor=url.searchParams.get("cursor"),kind=url.pathname.split("/").at(-1);if(cursor){if(++startedCount===2)bothStarted();await bothHeld;}await route.fulfill({json:{items:[kind==="tasks"?task(cursor?202:201):record(cursor?204:203)],next_cursor:cursor?null:"next"}});});
+  await go(page,"/tasks");await page.locator("#activity-tasks-page-control").click();await page.locator("#activity-records-page-control").click();await bothPending;releaseBoth();
+  await expect.poll(()=>[new URL(page.url()).searchParams.get("tasks_pages"),new URL(page.url()).searchParams.get("records_pages")]).toEqual(["2","2"]);
+  await expect(page.locator(".tasks .list .item-title")).toHaveCount(2);await expect(page.locator(".records .list .item-title")).toHaveCount(2);expect(state.errors).toEqual([]);
+});
+for(const overLimit of [false,true])test(`활동 태그 10개 한도: ${overLimit?"기존 URL 정규화":"선택 제한과 해제"}`,async({page})=>{
+  const state=await fixtures(page),tags=Array.from({length:11},(_,i)=>({...base(200+i,""),name:`분류 ${i+1}`,scope:"activity"}));state.rows.tags=tags;
+  const requests:number[]=[];await page.route(/\/api\/(tasks|records)\?/,route=>{const count=new URL(route.request().url()).searchParams.get("tag_ids")?.split(",").filter(Boolean).length??0;requests.push(count);return route.fulfill({status:count>10?400:200,json:count>10?{code:"invalid_input",message:"tag_ids max10"}:{items:[],next_cursor:null}});});
+  await go(page,overLimit?`/tasks?tag_ids=${tags.map(tag=>tag.id).join(",")}`:"/tasks");
+  if(overLimit){await expect(page.locator(".tag-filter-chips").getByRole("status")).toContainText("기존 조건의 앞 10개만 적용");expect(new URL(page.url()).searchParams.get("tag_ids")?.split(",")).toHaveLength(10);}
+  else for(const tag of tags.slice(0,10))await page.getByRole("button",{name:tag.name,exact:true}).click();
+  const eleventh=page.getByRole("button",{name:tags[10].name,exact:true});await expect(eleventh).toBeDisabled();await expect(page.locator(".tag-filter-chips button[aria-pressed=true]")).toHaveCount(10);
+  await page.getByRole("button",{name:tags[0].name,exact:true}).click();await expect(eleventh).toBeEnabled();await eleventh.click();await expect(eleventh).toHaveAttribute("aria-pressed","true");
+  expect(Math.max(...requests)).toBeLessThanOrEqual(10);await expect(page.getByRole("alert")).toHaveCount(0);expect(state.errors).toEqual([]);
+});
+for(const kind of ["tasks","principles"] as const)test(`${kind}: 무시한 이전 검색 페이지는 최신 행·대체 상태·coverage를 덮지 않는다`,async({page})=>{
+  const state=await fixtures(page);let release=()=>{},started=()=>{};const held=new Promise<void>(r=>release=r),pending=new Promise<void>(r=>started=r);
+  await page.route("**/api/search",async route=>{const input=route.request().postDataJSON(),target=(input.kinds as string[])[0];const stale=input.query==="old"&&input.cursor&&target===kind.slice(0,-1);if(stale){started();await held;}
+    await route.fulfill({json:{items:[{id:id(input.query==="old"?101:102),kind:target,title:input.query==="old"?"old hit":"new hit",summary:"요약",at:stamp,tag_ids:[],path:`/${target}s/${id(102)}`,match:"keyword",index_state:"pending"}],next_cursor:input.query==="old"&&!input.cursor?"next":null,search_state:stale?"keyword_fallback":"ok",semantic_coverage:{pending:stale?99:1,excluded:0}}});});
+  await go(page,`/${kind}?q=old`);const section=kind==="tasks"?page.locator(".tasks"):page.locator("main");await section.getByRole("button",{name:kind==="tasks"?"할 일 더 보기":"더 보기",exact:true}).click();await pending;
+  await page.getByLabel("검색어",{exact:true}).fill("new");await expect(section.getByRole("link",{name:"new hit",exact:true})).toBeVisible();
+  const oldResponse=page.waitForResponse(response=>{const request=response.request();return request.url().endsWith("/api/search")&&request.postDataJSON().query==="old"&&!!request.postDataJSON().cursor;});release();await (await oldResponse).finished();await page.evaluate(()=>new Promise<void>(resolve=>requestAnimationFrame(()=>resolve())));
+  await expect(section.getByText(/색인 대기 1개/)).toBeVisible();await expect(section.getByText(/의미 검색을 사용할 수 없어/)).toHaveCount(0);await expect(section.getByText(/대기 99개/)).toHaveCount(0);await expect(section.getByRole("link",{name:"old hit",exact:true})).toHaveCount(0);expect(state.errors).toEqual([]);
+});
 test("목록 페이지·조건·scroll/focus 왕복과 검색 anchor 재조회",async({page})=>{
   const state=await fixtures(page);const many=Array.from({length:21},(_,i)=>({...task(100+i),title:`행 ${i}`}));
   await page.route("**/api/tasks**",route=>{const url=new URL(route.request().url()),key=url.pathname.split("/").at(-1);if(key!=="tasks")return route.fulfill({json:many.find(t=>t.id===key)??state.rows.tasks.find(t=>t.id===key)});return route.fulfill({json:url.searchParams.get("cursor")?{items:many.slice(20),next_cursor:null}:{items:many.slice(0,20),next_cursor:"page2"}});});

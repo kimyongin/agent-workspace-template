@@ -183,3 +183,15 @@
 실제 owned58480 App의 읽기 캡처는 C:/Users/yongin/.codex/tmp/template21-artifacts/screens/{entities,tasks,principles}-{390,1440}.png이며6개 모두 overflow=false다. integration 스트레스 자료가 보이며 고정 시안 자료가 아니다. 320/390/640/1024/1440·긴 제목·모달·축소 viewport·200% reflow의 원본은 e2e/test-results/workspace-screens에 보존했다. 코드 편집 없이 freeze 이후 화면을 검증했다.
 
 머지 후 메인은 root checkout에서 기존 .env.local·supabase/functions/.env·DB자료를 그대로 두고 소스만 fast-forward한다. migration 적용 명령은 필요 없다. 기존 Vite55480은 변경 파일을 읽고 public/fonts를 제공하며 브라우저 새로고침으로 세 탭/메뉴/clear를 확인한다. 메인이 Docker inspect로 root functions가 C:/Users/yongin/projects/agent-workspace-template/supabase/functions를 직접 mount함을 확인했다. 머지 후 인증된 읽기 전용 tag_ids/schema 응답을 먼저 검사한다. mount가 root 소스면 hot reload를 확인하며 성공 시 재시작하지 않는다. 소스가 반영되지 않을 때만 기존 functions serve 소유 프로세스를 조정하여 root의 기존 supabase/functions/.env를 지정해 npm run serve:functions로 다시 시작한다. setup:local·db reset·seed·환경파일 복사는 실행하지 않는다. 독립 리뷰·정확한 head CI·머지·로컬 반영 결과는 메인이 이후 추가한다.
+
+## 독립 리뷰 수정 — 2026-10-05
+
+독립 리뷰는 최초 구현 `af58a1c3ceab04e4ddf22e304dd4169da02f44e8`에서 P2 세 건을 재현했다. 보고서와 재현 스크립트는 저장소 밖 `C:/Users/yongin/.codex/tmp/template21-review-af58a1c.md`와 같은 이름의 `.mjs`에 보존했다. 리뷰어가 owned58480/58421 사용을 종료하고 반환한 뒤 구현 세션이 수정·검증을 재개했다. 최초 구현의 통과 기록은 이 결함을 부정하는 근거로 사용하지 않는다.
+
+- 늦은 할 일 more 응답이 요청 시점 URL을 다시 써서 새 기록 날짜를 제거했다. hook은 완료 시 최신 URL의 자기 페이지 키만 갱신한다. 두 섹션이 공유하는 동기 URL snapshot으로 같은 렌더 전 동시 완료도 두 페이지 키를 보존한다. 초점을 이동하지 않는다. 회귀 검사는 실제 지연 응답 도중 날짜·기록 페이지·IME 초안을 바꾸고 날짜 입력 초점과 두 페이지 키를 검증하며, 이어 두 more 응답을 동시에 해제해 양쪽 2페이지를 확인한다.
+- 활동 칩은 11개를 선택할 수 있지만 API 계약은 최대10이었다. UI도 최대10으로 제한하고 미선택 칩만 비활성화하며 선택한 칩의 해제는 유지한다. status 안내가 제한 이유를 설명한다. 오래된 11개 URL은 첫 요청 전 정렬된 10개로 제한하고 URL과 안내에 정규화를 표시한다. API 제한을 확대하지 않았다. 실제 11개 사전과 10개 초과 요청을 거절하는 fixture로 선택·해제·URL 정규화·요청 상한을 검증했다.
+- 폐기된 검색 more 응답의 loader 부수 효과가 새 결과의 메타데이터를 fallback/coverage99로 덮었다. metadata는 loader 밖 hook의 요청·scope 수락 경계에서만 갱신한다. 활동과 원칙 공통 검색 결과에 적용했다. 회귀 검사는 새 검색의 원문·normal/coverage1을 먼저 확인하고 옛 응답 종료와 렌더 이후에도 fallback/coverage99가 노출되지 않음을 확인한다.
+
+이 수정은 웹 UI·hook·회귀 fixture·디자인 패턴 안내에 한정한다. backend source가 같으므로 이미 통과한 DB89·HTTP18·MCP18을 중복 실행하지 않았다. 핵심 재현 5개는 최종 5 PASS(9.1초), 전체 화면 fixture107 PASS와 엔터티/태그 fixture22 PASS다. 최초 집중 실행의 status selector 1건은 로딩 status와 중복되어 태그 fieldset 안으로 범위를 좁혔으며 제한 안내 assertion은 유지했다. 두 more 동시 완료 검사를 보강하기 전에 시작한 전체 통합은 실패 없이 중단하고, 소스 동결 후 처음부터 다시 실행했다. 빠른 web unit26·build·boundaries·문서 검사(script48 PASS/1 SKIP)도 통과했다. 수정 head의 독립 재리뷰·필수 CI·머지·로컬 반영은 후속이다.
+
+동결한 수정 소스의 `npx playwright test --config e2e/fin-integration.config.ts` 최종 전체 결과는 80 PASS/12 SKIP/0 FAIL(7.3분)이다. fail-fast·retry 없이 양쪽 프로젝트 92개를 수집했다. 12 SKIP 이유는 위 최초 실행과 같은 desktop 전용 중복10·유료 공급자 설정 없는 의미 검색2다. 결과는 외부 `C:/Users/yongin/.codex/tmp/template21-artifacts`의 workspace-reviewfix-final·entity-tags-reviewfix-final·integration-reviewfix-final에 따로 보존했다. 기존 최초 구현 아티팩트도 유지했다. root/fin 환경과 자료는 변경하지 않았고 owned runtime은 재리뷰에 넘길 수 있게 유지한다.

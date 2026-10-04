@@ -25,9 +25,8 @@ export function TabSearchResults({kind}: {kind: ActivityListKind}) {
   const list=useActivityList<SearchItem>(kind,JSON.stringify(input),`${kind}-title`,"검색하지 못했습니다. 조건을 유지하고 다시 시도하세요.",true,!!q,async(cursor,signal)=>{
     const anchor=anchorId(kind,hash);
     const result=await api<SearchResult>("POST","/search",{...input,...(cursor?{cursor}:anchor?{anchor:{kind:kind.slice(0,-1),id:anchor}}:{})},signal);
-    if(!signal?.aborted)setMetadata(result);
     return result;
-  });
+  }, undefined, page=>setMetadata(page as SearchResult));
   return <>
     <p className="help">검색 결과 · {input.mode==="keyword"?"키워드 일치순":"관련도순"}</p>
     {metadata?.search_state==="keyword_fallback"&&<Notice>의미 검색을 사용할 수 없어 키워드 검색 결과를 표시합니다.</Notice>}

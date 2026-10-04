@@ -16,12 +16,12 @@ import { ChangeContext, recordKindNames } from "./ChangeContext.tsx";
 import { emptyRecord, emptyTask, RecordFormModal, TaskFormModal, taskInput } from "./forms.tsx";
 import { useActivityList } from "./useActivityList.ts";
 import { Timeline } from "./Timeline.tsx";
-import { activityTags, periodBounds, removedActivityFilters } from "./activity-filters.ts";
+import { ACTIVITY_TAG_LIMIT, activityTags, periodBounds, removedActivityFilters } from "./activity-filters.ts";
 import { anchorId } from "./list-state.ts";
 import "./activity.css";
 
 type ActivityItem = TaskListItem | RecordResult | SearchItem;
-function ActivitySection({ kind, tags, bounds, route, dictionary, otherReady, onReady }: { kind: "tasks" | "records"; tags: string[]; bounds: NonNullable<ReturnType<typeof periodBounds>>; route: string; dictionary: ReturnType<typeof useTagDictionary>; otherReady: boolean; onReady: (ready:boolean)=>void }) {
+function ActivitySection({ kind, tags, bounds, route, dictionary, otherReady, onReady, locationRef }: { kind: "tasks" | "records"; tags: string[]; bounds: NonNullable<ReturnType<typeof periodBounds>>; route: string; dictionary: ReturnType<typeof useTagDictionary>; otherReady: boolean; onReady: (ready:boolean)=>void; locationRef: React.RefObject<ReturnType<typeof useLocation>> }) {
   const [params] = useSearchParams(), {hash}=useLocation(), q = params.get("q") ?? "";
   const [metadata, setMetadata] = useState<SearchResult | null>(null);
   const input = { query: q, kinds: [kind === "tasks" ? "task" : "record"], mode: "auto", limit: 20,
@@ -30,8 +30,8 @@ function ActivitySection({ kind, tags, bounds, route, dictionary, otherReady, on
     ...(kind === "records" ? { occurred_from: bounds.from, occurred_to: bounds.to } : {}) })}`;
   useEffect(() => setMetadata(null), [path]);
   const list = useActivityList<ActivityItem>(kind, path, `${kind}-title`, `${kind === "tasks" ? "할 일" : "기록"}을 불러오지 못했습니다. 다시 시도하세요.`, (!!dictionary.tags || dictionary.failed) && otherReady, true,
-    q ? async (cursor, signal) => { const anchor=anchorId(kind,hash);const result = await api<SearchResult>("POST", "/search", { ...input, ...(cursor ? { cursor } : anchor?{anchor:{kind:kind==="tasks"?"task":"record",id:anchor}}:{}) }, signal); if (!signal?.aborted) setMetadata(result); return result; } : undefined,
-    { route, keys: ["q", "tag_ids", "tag_id"], pageKey: `${kind}_pages` });
+    q ? async (cursor, signal) => { const anchor=anchorId(kind,hash);return await api<SearchResult>("POST", "/search", { ...input, ...(cursor ? { cursor } : anchor?{anchor:{kind:kind==="tasks"?"task":"record",id:anchor}}:{}) }, signal); } : undefined,
+    { route, keys: ["q", "tag_ids", "tag_id"], pageKey: `${kind}_pages`, locationRef }, q ? page => setMetadata(page as SearchResult) : undefined);
   useEffect(()=>onReady(!list.busy&&(list.items!==null||!!list.error)),[list.busy,list.items,list.error,onReady]);
   const heading = (item: ActivityItem) => <div className="activity-item-heading"><Link className="item-title" {...list.link(item.id)}>{item.title}</Link><span className="activity-item-actions"><Link {...list.link(item.id)} id={undefined} aria-label={`${item.title} 보기`}>보기</Link><span aria-hidden="true">·</span><Link {...list.link(item.id, true)} aria-label={`${item.title} 편집`}>편집</Link></span></div>;
   const summary = (item: ActivityItem) => <><span className="secondary">{item.summary}</span>{"change_note" in item && item.change_note && <p className="notice">편집 메모: {item.change_note}</p>}{"match" in item && <span className="meta">{item.match === "both" ? "키워드·의미" : item.match === "keyword" ? "키워드" : "의미"} · {item.index_state === "pending" ? "색인 대기" : item.index_state === "excluded" ? "색인 제외" : "색인 완료"}</span>}<TagNames ids={item.tag_ids} compact/></>;
@@ -53,14 +53,20 @@ function ActivitySection({ kind, tags, bounds, route, dictionary, otherReady, on
 }
 
 export function ActivityPage() {
-  const [params, setParams] = useSearchParams(), { pathname } = useLocation(), dictionary = useTagDictionary(true, true);
-  const tags = activityTags(params), from = params.get("from") ?? "", to = params.get("to") ?? "";
+  const [params, setParams] = useSearchParams(), location = useLocation(), { pathname } = location, dictionary = useTagDictionary(true, true);
+  const locationRef = useRef(location), locationKey = useRef(location.key);
+  if (locationKey.current !== location.key) { locationKey.current = location.key; locationRef.current = location; }
+  const allTags = activityTags(params), tags = allTags.slice(0, ACTIVITY_TAG_LIMIT), from = params.get("from") ?? "", to = params.get("to") ?? "";
+  const [trimmedTags, setTrimmedTags] = useState(false);
   const [tasksReady,setTasksReady]=useState(false),[recordsReady,setRecordsReady]=useState(false);
   const checked = periodBounds(from, to), prior = useRef<NonNullable<ReturnType<typeof periodBounds>>>({from:undefined,to:undefined});
   if (checked) prior.current = checked;
   const bounds = checked ?? prior.current;
-  useEffect(() => { if (!removedActivityFilters.some(key => params.has(key))) return;
-    const next = new URLSearchParams(params); removedActivityFilters.forEach(key => next.delete(key)); setParams(next, { replace: true }); }, [params, setParams]);
+  useEffect(() => { const overLimit = allTags.length > ACTIVITY_TAG_LIMIT;
+    if (!overLimit && !removedActivityFilters.some(key => params.has(key))) return;
+    const next = new URLSearchParams(params); removedActivityFilters.forEach(key => next.delete(key));
+    if (overLimit) { setTrimmedTags(true); next.delete("tag_id"); next.set("tag_ids", tags.join(",")); clearListPosition(next); }
+    setParams(next, { replace: true }); }, [params, setParams]);
   const create = useCreateMode(params.get("create") === "1" ? "1" : params.get("create") === "record" ? "record" : "task"), request = useRequestId();
   const createKind = params.get("create") === "record" || params.get("create") === "1" && pathname === "/records" ? "record" : "task";
   useEffect(() => { if (create.open) request.renew(); }, [create.open, create.key]);
@@ -72,11 +78,11 @@ export function ActivityPage() {
       <div className="panel-body"><TabSearch/><div className="record-period"><span className="label">기록 기간</span><div className="record-period-inputs">{[["from", "기록 시작일", from], ["to", "기록 종료일", to]].map(([name, label, value]) => <Field key={name} label={label}>{props => <input {...props} type="date" className="input" value={value} aria-invalid={!checked || undefined} onChange={event => setDate(name, event.target.value)}/>}</Field>)}</div>
         {!checked && <Notice kind="error">기록 시작일은 종료일보다 늦을 수 없습니다. 이전 유효 기간의 기록을 유지합니다.</Notice>}
         <p className="help">기간은 기록에만 적용됩니다. 날짜와 시각 기준: {browserTimezone()}</p></div>
-        <TagDictionaryStatus dictionary={dictionary}/><fieldset className="field tag-filter-chips"><legend className="label">활동 태그</legend><div className="chips">{dictionary.tags?.map(tag => <button type="button" key={tag.id} className="chip" aria-pressed={tags.includes(tag.id)} onClick={() => { const selected = tags.includes(tag.id) ? tags.filter(id => id !== tag.id) : [...tags, tag.id]; const next = clearListPosition(new URLSearchParams(params)); next.delete("tag_id"); selected.length ? next.set("tag_ids", selected.sort().join(",")) : next.delete("tag_ids"); setParams(next, { replace: true }); }}>{tag.name}</button>)}</div></fieldset>
+        <TagDictionaryStatus dictionary={dictionary}/><fieldset className="field tag-filter-chips"><legend className="label">활동 태그</legend><div className="chips">{dictionary.tags?.map(tag => <button type="button" key={tag.id} className="chip" disabled={tags.length >= ACTIVITY_TAG_LIMIT && !tags.includes(tag.id)} aria-pressed={tags.includes(tag.id)} onClick={() => { setTrimmedTags(false); const selected = tags.includes(tag.id) ? tags.filter(id => id !== tag.id) : [...tags, tag.id]; const next = clearListPosition(new URLSearchParams(params)); next.delete("tag_id"); selected.length ? next.set("tag_ids", selected.sort().join(",")) : next.delete("tag_ids"); setParams(next, { replace: true }); }}>{tag.name}</button>)}</div>{(trimmedTags || tags.length === ACTIVITY_TAG_LIMIT) && <p className="help" role="status">{trimmedTags ? "태그는 최대 10개입니다. 기존 조건의 앞 10개만 적용했습니다." : "태그는 최대 10개까지 선택할 수 있습니다. 선택한 태그를 해제하면 바꿀 수 있습니다."}</p>}</fieldset>
       </div>
     </section>
-    <ActivitySection kind="tasks" tags={tags} bounds={bounds} route={pathname} dictionary={dictionary} otherReady={recordsReady} onReady={setTasksReady}/>
-    <ActivitySection kind="records" tags={tags} bounds={bounds} route={pathname} dictionary={dictionary} otherReady={tasksReady} onReady={setRecordsReady}/>
+    <ActivitySection kind="tasks" tags={tags} bounds={bounds} route={pathname} dictionary={dictionary} otherReady={recordsReady} onReady={setTasksReady} locationRef={locationRef}/>
+    <ActivitySection kind="records" tags={tags} bounds={bounds} route={pathname} dictionary={dictionary} otherReady={tasksReady} onReady={setRecordsReady} locationRef={locationRef}/>
     {create.open && (createKind === "task" ? <TaskFormModal key={create.key} mode="create" open initial={emptyTask()} onClose={create.close} onRouteDiscard={create.discard} onSave={async draft => { const task = await api<TaskResult>("POST", "/tasks", { ...taskInput(draft), request_id: request.current }); saved("task", task.id); }}/>
       : <RecordFormModal key={create.key} title="기록 작성" submitLabel="저장" open initial={emptyRecord()} onClose={create.close} onRouteDiscard={create.discard} onSave={async draft => { const record = await api<RecordResult>("POST", "/records", { ...draft, request_id: request.current }); saved("record", record.id); }}/>) }
   </>;
