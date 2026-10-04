@@ -24,7 +24,7 @@ const STATUS_BY_KIND: Record<string, readonly string[]> = {
 };
 
 export function TasksPage() {
-  const tagDictionary = useTagDictionary();
+  const tagDictionary = useTagDictionary(true,true);
   const [params, setParams] = useSearchParams();
   const kind = params.get("kind") ?? "";
   const status = params.get("status") ?? "";

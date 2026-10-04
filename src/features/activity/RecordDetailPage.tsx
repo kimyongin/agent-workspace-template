@@ -31,6 +31,7 @@ export function RecordDetailPage() {
   const closeEdit = () => { setDialog(null); if(directEdit)navigateAfterClose(back.path,true); };
   const [busy, setBusy] = useState(false);
 
+  const previousQuery = useRef(params.toString());
   const loadGeneration = useRef(0);
   const reload = useCallback(async () => {
     const started = ++loadGeneration.current;
@@ -50,6 +51,14 @@ export function RecordDetailPage() {
     reload();
     return () => {loadGeneration.current++;};
   }, [reload]);
+
+  useEffect(()=>{
+    const query=params.toString();
+    if(previousQuery.current===query)return;
+    previousQuery.current=query;
+    setDialog(directEdit?"edit":null);
+    if(directEdit){setRecord(null);void reload();}
+  },[params.toString(),reload]);
 
   if (loadError && !record) {
     return (

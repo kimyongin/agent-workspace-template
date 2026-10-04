@@ -216,11 +216,49 @@ for (const kind of ["records","tasks","principles"]) {
     const title=page.getByRole("textbox",{name:"제목 (필수)",exact:true});
     await title.fill("상세 이동 초안");
     await page.getByRole("link",{name:"fixture 같은 화면 조건 이동"}).evaluate((el:HTMLAnchorElement)=>el.click());
-    await expect(page.getByRole("dialog",{name:"변경을 버릴까요?",exact:true})).toBeVisible();
+    const confirm=page.getByRole("dialog",{name:"변경을 버릴까요?",exact:true});
+    await expect(confirm).toBeVisible();
+    await confirm.getByRole("button",{name:"취소",exact:true}).click();
+    await expect(title).toHaveValue("상세 이동 초안");
+    await page.getByRole("link",{name:"fixture 같은 화면 조건 이동"}).evaluate((el:HTMLAnchorElement)=>el.click());
+    await expect(confirm).toBeVisible();
     await page.getByRole("button",{name:"변경 버리기",exact:true}).click();
     await expect(page).toHaveURL(new RegExp(`/${kind}/${id(1)}\\?fixture=next$`));
     await expect(page.getByRole("dialog")).toHaveCount(0);
-    await page.getByRole("button",{name:"편집",exact:true}).click();
-    await expect(page.getByRole("textbox",{name:"제목 (필수)",exact:true})).toHaveValue("기록 1");
+    item.title="새 서버 원문";
+    await page.goBack();
+    await expect(page.getByRole("textbox",{name:"제목 (필수)",exact:true})).toHaveValue("새 서버 원문");
+    await page.goForward();
+    await expect(page).toHaveURL(/fixture=next/);
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+  });
+}
+for(const kind of ["records","tasks","principles"]){
+  test(`${kind} 태그 사전 실패 재시도는 표시 행·읽던 위치·초점을 유지한다`,async({page})=>{
+    let attempts=0,release:()=>void=()=>{};
+    const held=new Promise<void>(resolve=>release=resolve);
+    const items=Array.from({length:20},(_,i)=>({...record(i+1),tag_ids:[id(99)],kind:"once",status:kind==="principles"?"active":"open",due_on:null,recurrence:null,timezone:null,result_record:null,applies_when:"판단할 때",replaced_by_id:null}));
+    await page.route("**/fixture-api/**",async route=>{
+      if(new URL(route.request().url()).pathname.endsWith("/tags")){
+        if(!attempts++){await route.fulfill({status:503,json:{code:"internal",message:"태그 사전 실패"}});return;}
+        await held;await route.fulfill({json:{items:[{id:id(99),name:"한".repeat(30)}],next_cursor:null}});return;
+      }
+      await route.fulfill({json:{items,next_cursor:null}});
+    });
+    await page.goto(`/e2e/fixtures/activity.html?route=/${kind}`);
+    const title=page.getByRole("link",{name:"기록 20",exact:true});
+    await expect(title).toBeVisible();
+    await title.focus();await title.evaluate(el=>el.scrollIntoView({block:"center"}));
+    const y=await title.evaluate(el=>el.getBoundingClientRect().top);
+    await page.getByRole("button",{name:"태그 다시 시도",exact:true}).first().evaluate((el:HTMLButtonElement)=>el.click());
+    await expect.poll(()=>attempts).toBe(2);
+    await expect(page.locator(".list-item")).toHaveCount(20);
+    await expect(title).toBeFocused();
+    expect(await title.evaluate(el=>el.getBoundingClientRect().top)).toBeCloseTo(y,0);
+    release();
+    await expect(page.locator(".tag-read").first()).toHaveText("한".repeat(30));
+    await expect(page.locator(".list-item")).toHaveCount(20);
+    await expect(title).toBeFocused();
+    expect(await title.evaluate(el=>el.getBoundingClientRect().top)).toBeCloseTo(y,0);
   });
 }

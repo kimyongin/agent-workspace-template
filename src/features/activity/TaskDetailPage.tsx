@@ -50,6 +50,7 @@ export function TaskDetailPage() {
   const [rangeEnd, setRangeEnd] = useState<string | null>(null);
   const requestId = useRequestId();
 
+  const previousQuery = useRef(params.toString());
   const loadGeneration = useRef(0);
   const reload = useCallback(async () => {
     const started = ++loadGeneration.current;
@@ -101,6 +102,14 @@ export function TaskDetailPage() {
       setBusy(false);
     }
   };
+
+  useEffect(()=>{
+    const query=params.toString();
+    if(previousQuery.current===query)return;
+    previousQuery.current=query;
+    setDialog(directEdit?"edit":null);
+    if(directEdit){setTask(null);void reload();}
+  },[params.toString(),reload]);
 
   if (loadError && !task) {
     return (

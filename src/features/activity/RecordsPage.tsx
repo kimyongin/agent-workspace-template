@@ -18,7 +18,7 @@ import { collapsedDates, groupRecords } from "./timeline.ts";
 import "./activity.css";
 
 export function RecordsPage() {
-  const tagDictionary = useTagDictionary();
+  const tagDictionary = useTagDictionary(true,true);
   const [params,setParams]=useSearchParams();const tag_id=params.get("tag_id")??"";
   const entity_id=params.get("entity_id")??"";
   const list = useActivityList<RecordResult>("records", `/records${query({ limit: 20, tag_id, entity_id })}`,

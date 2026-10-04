@@ -89,3 +89,11 @@ PR 하나 `codex/fin-ux-activity`. activity 세션이 activity/principles featur
 - 공유 환경 배정 root detached `83a3e80bf9c03a38fb57ca121e465f25fca062ff`에서 `npm run test:e2e`: 75 PASS·9 기존 SKIP·0 FAIL, 4.8분. navigation 최종 로그아웃/초점 수정, 긴 태그 사전 복원, 공유 모달 route guard와 순수 route-discard, EntitiesPage 작성 성공 후 deferred navigation 소비자를 포함한 소스다.
 - 할 일/기록의 추가 페이지→상세→편집→취소/저장→뒤로가기/새로고침/삭제 복귀, 수동250→251페이지, 검색 원문 종류별 복귀, 원칙 충돌·초안, 작성/완료·반복 회차·웹/MCP·다른 사용자 거부, 탐색 로그아웃 후 재로그인·초안 이동 확인 취소 초점, 대표 viewport·200% 확대·키보드·대비가 통과했다. 9 SKIP은 기존 실제 의미 검색 키 미설정 2건과 desktop에 집중된 중복 viewport/키보드 검사 7건이다.
 - 전후 SHA와 clean을 확인하고 setup/reset·서비스 변경·root tracked 파일 편집 없이 실행했다. 자료는 `C:/Users/yongin/AppData/Local/Temp/template18-activity-full83a3e80-pass`·`template18-activity-full83a3e80-output.txt`에 보존했다. 공유 환경 소유권을 메인에 반환했다. 독립 리뷰·정확한 최종 PR head CI와 실제 휴대폰/스크린리더 제외 범위는 남는다.
+- 탐색 PR #91 머지 후 `git fetch origin` 및 `git rebase --onto origin/main 08d580506a8bd25eb3567fe8426b305404a5fabc`를 수행했다. 새 base `69b2d4991634c707f7d75970d3270bafb0568aff`는 이전 탐색 head와 전체 tree가 같다. rebase 후 검증 소스 `83a3e80`와의 차이는 티켓/인계 문서뿐이며 제품 소스는 동일하다.
+
+### 독립 리뷰 P2 두 건 수정 — 2026-10-04
+
+- 리뷰가 `83a3e80`에서 태그 사전 최초 실패 후 재시도 시 목록 unmount·스크롤/초점 소실, 같은 대상 `edit=1` query로 뒤로갈 때 편집 미재진입을 재현했다. 위 전체 E2E 통과는 해당 head의 기존 검사 근거이며 이 경계를 검사한 완료 증거로 사용하지 않는다.
+- 사전 재시도는 기존 실패 상태/행을 응답까지 유지한다. 목록별 공유 사전의 응답 반영 직전에 현재 읽던 행을 기록하고 layout 반영 뒤 행 y와 초점을 유지한다. 반복되는 행 오류 카드 대신 짧은 읽기 칩을 사용하고 필터의 단일 재시도 조작을 제공한다. 긴 이름은 그대로 줄바꿈하며 고정 높이·잘림·허용치 확대를 사용하지 않았다.
+- 상세의 query 진입 상태를 ID 조회와 별도로 동기화했다. 허용된 query 이동에서 편집을 닫고 `edit=1`로 돌아오면 새 원문을 조회해 새 폼으로 연다. 이탈 확인 취소는 URL·기존 초안을 유지한다. 단순 query 변경 때문에 진행 중 초안을 같은 대상 조회로 덮어쓰지 않는다.
+- 수정 소스의 build·웹12 PASS, 격리 브라우저32 PASS. 세 목록 모두 20번째 행의 초점/y를 초기 사전503→응답 보류→30자 한글 성공 전후 검사하고, 세 상세 모두 직접 편집 초안 확인 취소→버리기→서버 제목 변경→Back 편집 최신값→Forward 읽기를 검사했다. 첫 retry fixture는 반복 오류 카드 제거 전 응답 뒤 마지막 행 y의 62px/44px 이동을 드러냈으며 trace를 `C:/Users/yongin/AppData/Local/Temp/template18-activity-review-retry-first-failure`에 보존했다. 최종 수정 head의 실제 전체 E2E·독립 재리뷰·CI는 다시 필요하다.

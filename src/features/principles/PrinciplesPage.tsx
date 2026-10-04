@@ -12,7 +12,7 @@ import {EntityPicker} from "../entity/EntityPicker.tsx";
 import {useActivityList} from "../activity/useActivityList.ts";
 import "../activity/activity.css";
 export function PrinciplesPage() {
-  const tagDictionary = useTagDictionary();
+  const tagDictionary = useTagDictionary(true,true);
   const [params, setParams] = useSearchParams();
   const status = params.get("status") ?? "active";
   const tag_id=params.get("tag_id")??"";

@@ -27,6 +27,7 @@ export function PrincipleDetailPage() {
   const navigateAfterClose = useDeferredNavigation();
   const [dialog, setDialog] = useState<null|"edit"|"status"|"replace"|"delete">(params.get("edit")==="1"?"edit":null);
   const [busy,setBusy] = useState(false);
+  const previousQuery = useRef(params.toString());
   const refreshOnClose = useRef(false);
   const closeDialog = () => {
     setDialog(null);
@@ -44,6 +45,13 @@ export function PrincipleDetailPage() {
       .catch((e) => { if (alive) setError(e instanceof ApiError && e.code === "not_found" ? "원칙을 찾을 수 없습니다." : "원칙을 불러오지 못했습니다."); });
     return () => { alive = false; };
   }, [id, retry]);
+  useEffect(()=>{
+    const query=params.toString();
+    if(previousQuery.current===query)return;
+    previousQuery.current=query;
+    setDialog(params.get("edit")==="1"?"edit":null);
+    if(params.get("edit")==="1")setRetry(n=>n+1);
+  },[params.toString()]);
   return <section className="panel" aria-labelledby={item ? "principle-title" : undefined}>
     <Link className="secondary back-link" to={back.path}>{back.label}</Link>
     {error && <><Notice kind="error">{error}</Notice><button type="button" className="btn" onClick={() => setRetry((n) => n + 1)}>다시 시도</button></>}
