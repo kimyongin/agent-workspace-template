@@ -31,6 +31,8 @@ PRD와 ADR은 사람이 소유하고 나머지 문서·티켓·구현은 에이�
 
 ## 현재 상태
 
+fin UX의 배포 화면·로컬 코드와 [fin 문서](tickets/template-18-01-fin-docs-review.md)를 비교한 [Template-18 적용안](tickets/template-18-fin-ux-adaptation.md)은 사용자 구현 승인을 받아 진행 중이다. [탐색·가이드](tickets/template-18-02-navigation-guide.md), [활동·읽기](tickets/template-18-03-activity-reading.md), [엔터티·태그](tickets/template-18-04-entity-tags.md)로 나누며 단일 Entity와 기존 업무/권한 계약은 유지한다. 구현·검증·독립 리뷰·CI·머지 후 운영 배포는 별도 요청 범위다.
+
 작은 문서·웹 문구/간격 수정의 검증을 줄이는 [Template-13](tickets/template-13-ci-change-impact.md)의 구현·서비스 없는 로컬 검사를 마쳤다. [변경 영향별 CI](development/workflow.md#변경-영향별-ci)는 필수 `check`·`integration` 이름을 유지하고 불명확한 변경은 전체 검증하며, 단순 표시 변경에도 웹 unit·타입/build와 티켓의 화면 확인을 요구한다. 독립 리뷰·실제 full CI·머지는 후속이다.
 
 기본 기술 선택은 GitHub Pages 웹 배포, Supabase 서버·DB, Supabase Auth를 통한 Google OAuth 로그인, Pinecone Inference 임베딩 생성, Supabase pgvector 저장·검색이다. 구체적인 계약·연결 설정은 [T02-1 계약](tickets/template-02-t02-1-contracts.md), 채택한 `llama-text-embed-v2`·1024차원·cosine·초기 임계값 0.27과 실제 평가 근거는 [T02-3 이력](tickets/template-02-implementation-base.md#이력)에서 확인한다. 새 앱의 자료·질의에는 다시 평가한다.

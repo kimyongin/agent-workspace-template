@@ -1,0 +1,54 @@
+# Template-18-02 — 탐색과 첫 사용 안내
+
+작성: 2026-10-04
+상태: 구현·로컬 검증 완료(독립 리뷰·CI·머지 대기)
+검토 기준: `745130148c90de842d7617c232194b653d1c638b`
+
+## 목표와 승인 범위
+
+[상위 티켓의 확정 범위](template-18-fin-ux-adaptation.md#확정-범위와-구현-티켓)를 구현한다. 사용자 “티켓 정리해서 개발해줘” 승인. [PRD](../product/concept.md), [디자인 가이드](../design/guide.md), [상호작용](../design/ui-patterns.md) 안에서 웹만 변경한다. 배포·PRD·ADR·서버 계약 변경 제외.
+
+## 작업과 완료 조건
+
+- [x] 모든 폭 하단 주요 탐색과 더보기, 현재 경로·safe-area·본문 여백·키보드 메뉴 제공.
+- [x] 기존 tasks/records URL에 활동 로컬 탐색 제공. 첫 진입 tasks 유지.
+- [x] 중립적 엔터티→할 일/기록→플러그인 연결→검색/원문→명시 저장/웹 확인 안내 route 제공.
+- [x] 연결 주소는 현재 공개 설정에서 생성. OAuth와 제품 스킬을 구분하고 미설정·복사 실패 처리. 지원 클라이언트의 상세 설치 절차는 기존 검증된 배포 문서로 연결하고 추측하지 않음.
+- [x] 대표 빈 상태에서 가이드 진입, 모바일/데스크톱/200%/키보드 검증(route fixture; 실제 인증/DB 전체 E2E는 아래 후속).
+
+## PR 분할과 담당
+
+PR 하나 `codex/fin-ux-navigation`. navigation 세션이 App route/layout, 새 탐색/가이드 컴포넌트, 전역 CSS, 활동 로컬 탐색 컴포넌트와 각 목록의 삽입만 소유한다. 다른 세션은 전역 CSS를 동시에 수정하지 않는다. 소비 기능과 가이드 정본을 함께 갱신한다. 단위·build·docs 검사와 전체 E2E는 구현 세션이 담당하며 공유 환경은 메인과 조정한다.
+
+## 구현 인계와 실행 기록
+
+작업 공간·base/head·실행 명령과 결과·실패 근거·미검증은 배정/결과 인계 때 기록한다. 제출 전 독립 리뷰·CI·머지는 대기이며 최종 증거는 PR checks/완료 코멘트가 소유한다. 실제 휴대폰·스크린리더 검수는 기존 제외 범위를 유지한다.
+
+### navigation 구현 세션 — 2026-10-04
+
+- 작업 공간: `C:/Users/yongin/.codex/worktrees/fin-ux-navigation/agent-workspace-template`, branch `codex/fin-ux-navigation`, base `8e5b11c`. 메인의 승인·배정 상태 문서 `0eaa692`를 `60dbf2c`로 cherry-pick했다. 최종 head는 결과 인계와 PR의 exact revision으로 고정한다.
+- 역할/모델: navigation 구현 세션. `npm ci` 후 `node scripts/agent-models.mjs assign --client codex-desktop --tier balanced --effort medium --role implement --reason "승인된 탐색과 사용 가이드 UI 구현" --snapshot C:/Users/yongin/AppData/Local/Temp/template-18-desktop-models.json` PASS. `gpt-6.1-sol`/`medium` 명시 배정과 도구 노출을 확인했고 일반 웹 구현이므로 balanced/medium을 유지했다. backend 실제 effort·실청구액은 미관측이다.
+- 구현: 주요 하단 탐색·보조 disclosure·활동 로컬 링크·guide route·엔터티/할 일/기록 최초 빈 상태 안내. 공개 `VITE_API_URL`에서 `/mcp`를 계산하고 선택 `VITE_REPOSITORY_URL`/Pages `PROD_REPOSITORY_URL`로 이 앱의 설치·배포 문서만 연결한다. 미설정 안내와 주소 직접 복사 경로를 제공한다.
+- 경로/초안 의존성: `createBrowserRouter`/`RouterProvider`로 기존 basename·인증 wrapper·routes를 보존했다. `/logout` 경로 진입 뒤 기존 기본 scope `signOut()`을 실행해 후속 Tags/Modal `useBlocker`가 경로 이동을 먼저 보호할 수 있게 했다. 공통 보호 구현은 18-04 담당이며 이 PR만으로 전체 초안 회귀를 완료했다고 표시하지 않는다. 실패는 같은 화면에서 재시도 가능하다.
+- 설정/인증 확인: [Supabase signOut 공식 문서](https://supabase.com/docs/reference/javascript/auth-signout)와 [changelog](https://supabase.com/changelog.md)를 2026-10-04 확인했다. 로그아웃 SDK 호출과 기본 scope는 유지하며 DB/서버/Auth 공급자 설정은 바꾸지 않았다. 제품 설치 내용은 저장소의 기존 `plugins/workspace/README.md`·배포 정본으로 연결하고 클라이언트 UI 설치 절차를 새로 작성하지 않았다.
+- 직접 검증: `npm run test:web` 3파일/9 PASS, `npm run build` 타입·Vite PASS(기존 큰 bundle 경고 유지), `npm run check:docs` 텍스트352개·모델/native PASS 및 회귀48 PASS/0 FAIL/기존 Windows file-symlink권한1 SKIP, `git diff --check` PASS.
+- 브라우저 격리: 별도 Vite `55482`, 가짜 공개 loopback Supabase/API `55591`와 임시 Auth storage를 사용했다. `e2e/navigation-fixture.config.ts`의 `npx playwright test --config e2e/navigation-fixture.config.ts` 2 PASS. 모든 API 응답은 route fixture, 다른 origin 요청은 차단하여 DB·함수·운영 데이터에 연결하지 않았다. 실행 시 Vite에 `VITE_SUPABASE_URL=http://127.0.0.1:55591`, `VITE_SUPABASE_PUBLISHABLE_KEY=ui-fixture-public-key`, `VITE_API_URL=http://127.0.0.1:55591/functions/v1/api`, 선택 `VITE_REPOSITORY_URL=https://github.com/example/neutral-app`을 전달했다.
+- 화면 증거: 360/390/768/1024/1440 CSS px의 실제 guide/tasks 소비 화면·가로 넘침·44px 주요 조작·하단 뒤 가림 없는 마지막 링크 초점 PASS. 200% 글자 확대와 zoom에 해당하는 reflow 폭도 검사했다. `test-results/navigation-fixture-…/guide-*.png`, `tasks-*.png`를 생성했고 360 guide·1440 guide·390 tasks를 직접 시각 확인했다. 더보기 Enter/방향키/Escape·바깥 클릭·경로 이동 닫기, 복사 성공/실패·주소 유지 PASS. safe-area는 CSS 계약이며 실제 기기 확인으로 주장하지 않는다.
+- 공유 로컬 전체 E2E: 메인이 root checkout을 exact `97e8509ce6aab05205e79917d9bbb2d2e2f8d392`로 detached·clean 전환하고 기존 Vite `55480`의 `createBrowserRouter` source 응답, local Supabase/API `55421`·개발 로그인 설정·동일 root Edge source mount를 확인한 뒤 navigation 구현 세션을 단독 실행 담당으로 배정했다. navigation 세션이 root에서 `npm run test:e2e` 직접 실행: **71 PASS / 0 FAIL / 9 SKIP, 4.1분, exit0**. desktop+Pixel7 에뮬레이션에서 실제 로컬 로그인·업무 HTTP/MCP·사용자 격리·상세 복귀/초안·viewport/키보드/대비를 확인했다. 9 SKIP은 모바일의 desktop 전용 viewport/키보드 7개와 `semantic-real`의 기존 선택 환경 검사 2개다. 의미 검색의 실공급자 품질·운영 인증 검증으로 주장하지 않는다.
+- E2E 기록: `C:/Users/yongin/AppData/Local/Temp/template-18-navigation-e2e-97e8509.log`, root `test-results`를 `C:/Users/yongin/AppData/Local/Temp/template-18-navigation-e2e-97e8509-artifacts/`로 보존했다. 공유 DB/서비스를 reset·재설정하지 않고 기존 local 테스트 계정·환경에서 순차 실행했다. 테스트 생성 자료는 기존 suite의 정리 계약을 따랐다. 실행 후 root tracked 변경 없음. 별도 fixture Vite `55482`는 종료했다.
+- 최종 변경은 이 E2E 증거·상태 기록뿐이며 앱/test source는 위 검증 revision과 같다. 후속은 독립 리뷰·full CI·머지와 18-04 공통 blocker 소비 검증이다. 운영 배포·제품 설치·실기기·스크린리더 검증은 수행하지 않았다. 안내 읽기는 저장/검색/설치를 자동 실행하지 않는다.
+
+### 독립 리뷰 P1 로그아웃 재로그인 회귀 수정 — 2026-10-04
+
+- 독립 리뷰의 exact `ee4ca9b90c666bcb999e3548eff1ec8055fcfdd7`에서 로그아웃 직후 `RequireAuth`가 `/login?next=%2Flogout`으로 보내어 다음 로그인에서도 세션을 해제하는 문제를 확인했다. 위 71 PASS 기록은 수정 전 revision의 결과이며 이 회귀를 검증한 증거가 아니다.
+- 같은 navigation 세션·`gpt-6.1-sol`/`medium`으로 오늘 snapshot의 `assign --role implement --reason "독립 리뷰 logout 재로그인 회귀 수정"` 재실행 PASS. root tracked 파일과 공유 환경은 수정하지 않았다.
+- `/logout`은 `RequireAuth` wrapper 대신 LogoutPage에서 로그인 로딩·미인증 진입을 직접 처리한다. 기존 경로 이동으로 초안 보호를 거친 후 signOut을 실행하며 성공한 뒤 `/login`으로 replace 이동한다. `SIGNED_OUT`에 대한 미인증 보호가 `next=/logout`을 만들지 않는다. 이미 미인증인 직접 진입도 깨끗한 `/login`으로 이동한다. 로그인 후 일반 guarded 상세의 원래 위치 복귀 계약은 바꾸지 않았다.
+- 의미 있는 회귀: 같은 페이지의 SDK `setSession`을 통해 실제 `SIGNED_IN` 처리를 실행하고 `/tasks` 복귀·로그아웃 호출1회·브라우저 세션 유지까지 확인했다. 기존 guarded `/logout`을 일시 복원하면 이 테스트가 `/login?next=%2Flogout`으로 FAIL하는 red를 확인했고 수정 코드를 복원했다. red trace/context는 `C:/Users/yongin/AppData/Local/Temp/template-18-logout-red-artifacts/`에 보존했다.
+- 수정 후 별도 Vite55482/가짜 loopback Auth·API route fixture에서 navigation fixture **3 PASS**, 웹 unit **9 PASS**, 타입/build PASS(기존 bundle 경고 유지). 이는 SDK/라우터 동작 검사이며 실제 Google 로그인·OAuth 서버 증거로 대체하지 않는다. 공유 실제 E2E의 수정 revision 재검증은 메인 환경 배정 후 진행한다. 독립 리뷰 재확인·full CI·머지는 대기한다.
+
+### 통합 검증의 더보기 초안 확인 취소 초점 수정 — 2026-10-04
+
+- 18-04 담당의 실제 App/Tags 통합 검사에서 더보기 로그아웃 링크 → 초안 변경 버리기 확인 → 취소 시 메뉴의 `onBlur`/문서 pointerdown이 링크를 먼저 제거해 초점 복귀를 잃는 문제를 인계받았다. navigation 세션은 오늘 snapshot으로 같은 모델/medium `assign --role implement --reason "통합 검증의 dirty logout 취소 초점 회귀 수정"` PASS 후 담당 탐색 코드만 수정했다.
+- 열린 native dialog로 들어가는 초점·pointerdown은 더보기 메뉴를 닫지 않는다. 확인 취소는 남아 있는 진입 링크로 native dialog가 초점을 돌릴 수 있고, 일반 바깥 클릭·Escape·승인한 경로 이동의 닫기는 유지한다. 디자인 가이드 소비 계약도 함께 반영했다.
+- `e2e/fixtures/navigation-blocker.html`은 실제 Navigation·ConfirmDialog·data-router `useBlocker`를 같은 브라우저에 조립한 격리 probe다. 제품 경로·프로덕션 번들에 포함하지 않는다. 이전 close handlers를 일시 복원하면 새 회귀가 열린 확인창에서 메뉴 `aria-expanded=false`로 FAIL했다. red trace/context: `C:/Users/yongin/AppData/Local/Temp/template-18-navigation-focus-red-artifacts/`. 코드를 복원하고 취소 버튼·확인 Escape 모두 원래 로그아웃 링크 초점, 메뉴 Escape는 더보기 버튼 초점, 일반 바깥 클릭 닫기, 변경 버리기 후 경로 진입·메뉴 닫기를 확인했다.
+- 수정 후 navigation fixture **4 PASS**, unit **9 PASS**, 타입/build PASS, docs 텍스트354개·모델/native PASS 및48 PASS/1기존SKIP, diff PASS. 공유 DB/서비스·root 파일은 변경하지 않았다. 실제 Tags 통합 소비 회귀 재검증은 18-04 담당에게 인계하며 최신 exact head의 독립 리뷰·full CI는 대기한다. 이전 전체 E2E revision과 최신 수정 증거를 구분한다.

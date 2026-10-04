@@ -31,13 +31,9 @@ a {
   margin-right: auto;
 }
 
-.app-nav {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-}
-
-.app-nav a {
+.bottom-nav a,
+.nav-more-trigger,
+.activity-tabs a {
   display: inline-flex;
   align-items: center;
   min-height: 44px;
@@ -50,11 +46,67 @@ a {
   color: var(--muted-ink);
 }
 
-.app-nav a[aria-current="page"] {
+.bottom-nav a[aria-current="page"],
+.nav-more-trigger[data-current],
+.activity-tabs a[aria-current="page"] {
   color: var(--ink);
   background: var(--accent-soft);
   box-shadow: inset 0 0 0 1px var(--accent);
 }
+
+:root { --navigation-height: 4rem; }
+html { scroll-padding-bottom: calc(var(--navigation-height) + env(safe-area-inset-bottom, 0px) + var(--space-4)); }
+.has-navigation .app-main {
+  padding-bottom: calc(var(--navigation-height) + env(safe-area-inset-bottom, 0px) + var(--space-8));
+}
+.bottom-nav {
+  position: fixed;
+  inset: auto 0 0;
+  z-index: 20;
+  background: var(--panel);
+  border-top: 1px solid var(--line);
+  padding: var(--space-2) var(--space-2) calc(var(--space-2) + env(safe-area-inset-bottom, 0px));
+}
+.bottom-nav-inner {
+  max-width: 56rem;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: var(--space-1);
+}
+.bottom-nav-inner > a, .nav-more-trigger { justify-content: center; padding: 0 var(--space-1); }
+.nav-more { position: relative; min-width: 0; }
+.nav-more-trigger {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  font-family: inherit;
+  cursor: pointer;
+}
+.nav-more-options {
+  position: absolute;
+  bottom: calc(100% + var(--space-4));
+  right: 0;
+  width: min(18rem, calc(100vw - 2 * var(--space-4)));
+  max-height: calc(100dvh - var(--navigation-height) - env(safe-area-inset-bottom, 0px) - var(--space-8));
+  overflow-y: auto;
+  padding: var(--space-2);
+  background: var(--panel);
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius-card);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.nav-more-options .btn { justify-content: flex-start; }
+.activity-tabs { display: flex; gap: var(--space-2); border-bottom: 1px solid var(--line); padding-bottom: var(--space-2); }
+.guide > p { margin: 0; }
+.guide-steps { margin: 0; padding-left: var(--space-6); display: grid; gap: var(--space-6); }
+.guide-steps li { min-width: 0; padding-left: var(--space-1); }
+.guide-steps p { overflow-wrap: anywhere; }
+.guide-steps .field { margin: var(--space-4) 0; }
+.guide-steps .field .btn { align-self: flex-start; }
+.guide-steps .field [role="status"] { min-height: 1.25rem; margin: 0; }
 
 .app-main {
   width: 100%;

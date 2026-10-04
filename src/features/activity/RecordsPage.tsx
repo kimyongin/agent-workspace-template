@@ -10,6 +10,8 @@ import { useRequestId } from "./shared.tsx";
 import {TagFilter} from "../tags/TagPicker.tsx";
 import { useActivityList } from "./useActivityList.ts";
 import {EntityPicker} from "../entity/EntityPicker.tsx";
+import { ActivityTabs } from "./ActivityTabs.tsx";
+import { GuideLink } from "../../components/GuideLink.tsx";
 
 export function RecordsPage() {
   const [params,setParams]=useSearchParams();const tag_id=params.get("tag_id")??"";
@@ -23,6 +25,7 @@ export function RecordsPage() {
 
   return (
     <section className="panel" aria-labelledby="records-title">
+      <ActivityTabs />
       <div className="panel-head">
         <h1 id="records-title" className="page-title" tabIndex={-1}>기록</h1>
         <button type="button" className="btn btn-primary" onClick={() => setCreating(true)}>기록 작성</button>
@@ -31,7 +34,10 @@ export function RecordsPage() {
       <EntityPicker label="엔터티 필터" value={entity_id} onChange={id=>{const next=new URLSearchParams(params);next.delete("pages");next.delete("scroll");id?next.set("entity_id",id):next.delete("entity_id");setParams(next);}}/>
       {items === null && !error && <p className="secondary" role="status">불러오는 중…</p>}
       {items?.length === 0 && (
-        <p className="secondary" style={{ margin: 0 }}>{tag_id || entity_id ? "조건에 맞는 기록이 없습니다. 필터를 변경하거나 해제하세요." : "아직 기록이 없습니다. 수행한 일과 결과를 기록하세요."}</p>
+        <div className="empty">
+          <p className="secondary" style={{ margin: 0 }}>{tag_id || entity_id ? "조건에 맞는 기록이 없습니다. 필터를 변경하거나 해제하세요." : "아직 기록이 없습니다. 수행한 일과 결과를 기록하세요."}</p>
+          {!tag_id && !entity_id && <GuideLink />}
+        </div>
       )}
       {items && items.length > 0 && (
         <ul className="list">
