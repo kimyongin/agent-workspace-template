@@ -16,6 +16,12 @@ test.beforeEach(async ({ page, baseURL }) => {
   }, user);
 });
 async function settings(page: Page) { await page.getByRole("button", { name: "메뉴", exact: true }).click(); await page.getByRole("link", { name: "설정", exact: true }).click(); }
+async function refreshedProfile(page: Page, icon: string) {
+  await page.route("**/auth/v1/token*", route => route.fulfill({ json: {
+    access_token: "refreshed-fixture", refresh_token: "refreshed-fixture", token_type: "bearer", expires_in: 3600,
+    user: { ...user, user_metadata: { ...user.user_metadata, workspace_avatar_id: icon } },
+  } }));
+}
 async function signIn(page: Page, id = user.id) {
   await page.evaluate(async id => {
     const path = "/src/lib/supabase.ts"; const { supabase } = await import(path);
@@ -68,6 +74,7 @@ test("팝오버는 하나만 열리며 키보드·외부 클릭·경로 이동�
 });
 
 test("아이콘 저장 실패의 초안을 보존하고 서버 성공 응답·재조회·기본 복원을 반영한다", async ({ page }) => {
+  await refreshedProfile(page, "leaf");
   let fail = true; let calls = 0;
   await page.route("**/auth/v1/user", async route => {
     calls++; const body = route.request().postDataJSON(); expect(body.data).toEqual({ workspace_avatar_id: "leaf" });
@@ -87,6 +94,7 @@ test("아이콘 저장 실패의 초안을 보존하고 서버 성공 응답·�
 });
 
 test("저장 중 중복 요청과 탭·로그아웃 이동을 막고 응답 뒤 이동할 수 있다", async ({ page }) => {
+  await refreshedProfile(page, "sun");
   let finish!: () => void; const waiting = new Promise<void>(resolve => { finish = resolve; }); let calls = 0;
   await page.route("**/auth/v1/user", async route => { calls++; await waiting; await route.fulfill({ json: { ...user, user_metadata: { ...user.user_metadata, workspace_avatar_id: "sun" } } }); });
   await page.goto("/settings"); await page.getByRole("radio", { name: "해", exact: true }).check(); await page.getByRole("button", { name: "아이콘 저장" }).click();
@@ -119,7 +127,13 @@ test("미저장 설정의 탭·메뉴·뒤로가기·로그아웃은 같은 폐�
   await page.goto("/guide"); await settings(page); await page.getByRole("radio", { name: "별", exact: true }).check();
   const confirm = page.getByRole("dialog", { name: "변경을 버릴까요?" });
   let step = 0;
-  for (const action of [async () => page.getByRole("navigation", { name: "주 메뉴" }).getByRole("link", { name: "활동", exact: true }).click(), async () => { await page.getByRole("button", { name: "메뉴", exact: true }).click(); await page.getByRole("link", { name: "사용 가이드", exact: true }).click(); }, async () => { await page.goBack(); }, async () => page.getByRole("link", { name: "로그아웃", exact: true }).click()]) {
+  for (const action of [async () => page.getByRole("navigation", { name: "주 메뉴" }).getByRole("link", { name: "활동", exact: true }).click(), async () => { await page.getByRole("button", { name: "메뉴", exact: true }).click(); await page.getByRole("link", { name: "사용 가이드", exact: true }).click(); }, async () => { await page.goBack(); }, async () => {
+    // 취소 뒤 유지된 메뉴는 작은 화면에서 본문의 로그아웃 위에 열린다.
+    const menu = page.getByRole("button", { name: "메뉴", exact: true });
+    if (await menu.getAttribute("aria-expanded") === "true") await menu.click();
+    await expect(menu).toHaveAttribute("aria-expanded", "false");
+    await page.getByRole("link", { name: "로그아웃", exact: true }).click();
+  }]) {
     await action(); await expect(confirm).toBeVisible(); await confirm.getByRole("button", { name: "취소", exact: true }).click(); await expect(page.getByRole("radio", { name: "별", exact: true })).toBeChecked();
     if (step === 1) { await expect(page.getByRole("link", { name: "사용 가이드", exact: true })).toBeFocused(); await expect(page.getByRole("button", { name: "메뉴", exact: true })).toHaveAttribute("aria-expanded", "true"); }
     step++;

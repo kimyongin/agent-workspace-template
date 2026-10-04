@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useBlocker } from "react-router";
 import { ConfirmDialog } from "../../components/Modal.tsx";
 import { useAuth } from "../auth/AuthProvider.tsx";
+import { ProfileDisplayRefreshError } from "../auth/profile-client.ts";
 import { ProfileIcon, profileIconId, profileIcons, type ProfileIconId } from "./profile.tsx";
 
 export function SettingsPage() {
@@ -17,10 +18,15 @@ function AccountSettings() {
   const [error, setError] = useState(false);
   const pending = useRef(false);
   const mounted = useRef(true);
+  const previousSaved = useRef(saved);
   const dirty = draft !== saved;
   const blocker = useBlocker(dirty || busy);
   useEffect(() => { if (busy && blocker.state === "blocked") blocker.reset(); }, [busy, blocker]);
-  useEffect(() => { setDraft(saved); }, [saved]);
+  useEffect(() => {
+    const previous = previousSaved.current;
+    previousSaved.current = saved;
+    setDraft(value => value === previous ? saved : value);
+  }, [saved]);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   useEffect(() => {
     const unload = (event: BeforeUnloadEvent) => { if (dirty || busy) { event.preventDefault(); event.returnValue = ""; } };
@@ -36,8 +42,11 @@ function AccountSettings() {
     <form onSubmit={async event => {
       event.preventDefault(); if (pending.current || !dirty) return;
       pending.current = true; setBusy(true); setMessage(""); setError(false);
-      try { await saveProfileIcon(draft); if (mounted.current) setMessage("프로필 아이콘을 저장했습니다."); }
-      catch { if (mounted.current) { setError(true); setMessage("저장하지 못했습니다. 선택한 아이콘을 유지했습니다. 다시 시도하세요."); } }
+      try {
+        const confirmed = await saveProfileIcon(draft);
+        if (mounted.current) { setDraft(confirmed); setMessage("프로필 아이콘을 저장했습니다."); }
+      }
+      catch (cause) { if (mounted.current) { setError(true); setMessage(cause instanceof ProfileDisplayRefreshError ? cause.message : "저장하지 못했습니다. 선택한 아이콘을 유지했습니다. 다시 시도하세요."); } }
       finally { pending.current = false; if (mounted.current) setBusy(false); }
     }} aria-busy={busy}>
       <fieldset disabled={busy}><legend className="section-title">프로필 아이콘</legend>

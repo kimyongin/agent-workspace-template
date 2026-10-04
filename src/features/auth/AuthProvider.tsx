@@ -3,12 +3,13 @@ import type { Session } from "@supabase/supabase-js";
 import { createContext, type ReactNode, useContext, useEffect, useRef, useState } from "react";
 import { Navigate, useLocation } from "react-router";
 import { supabase } from "../../lib/supabase.ts";
-import type { ProfileIconId } from "../settings/profile.tsx";
+import { profileIconId, type ProfileIconId } from "../settings/profile.tsx";
+import { profileClient, ProfileDisplayRefreshError } from "./profile-client.ts";
 
 interface AuthState {
   session: Session | null;
   loading: boolean;
-  saveProfileIcon: (id: ProfileIconId) => Promise<void>;
+  saveProfileIcon: (id: ProfileIconId) => Promise<ProfileIconId>;
 }
 
 const AuthContext = createContext<AuthState>({ session: null, loading: true, saveProfileIcon: async () => { throw new Error("로그인이 필요합니다."); } });
@@ -30,18 +31,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     void supabase.auth.getSession().then(({ data, error }) => {
       if (!eventReceived) apply(error ? null : data.session);
     }).catch(() => { if (!eventReceived) apply(null); });
-    return () => { alive = false; data.subscription.unsubscribe(); };
+    return () => { alive = false; accountGeneration.current++; data.subscription.unsubscribe(); };
   }, []);
   const saveProfileIcon = async (id: ProfileIconId) => {
     const original = activeSession.current;
     const generation = accountGeneration.current;
     if (!original) throw new Error("로그인이 필요합니다.");
-    const { data, error } = await supabase.auth.updateUser({ data: { workspace_avatar_id: id } });
-    if (error) throw error;
-    if (!data.user || data.user.id !== original.user.id || activeSession.current?.user.id !== original.user.id || generation !== accountGeneration.current) throw new Error("로그인 계정이 변경되었습니다.");
-    const session = { ...activeSession.current, user: data.user };
-    activeSession.current = session;
-    setState({ session, loading: false });
+    const assertAccount = () => {
+      if (activeSession.current?.user.id !== original.user.id || generation !== accountGeneration.current) throw new Error("로그인 계정이 변경되었습니다.");
+    };
+    // 먼저 현재 SDK 세션을 조회한다. 공유 refresh token을 개인 클라이언트가 회전시키지 않는다.
+    const current = await supabase.auth.getSession();
+    assertAccount();
+    if (current.error) throw current.error;
+    if (current.data.session?.user.id !== original.user.id) throw new Error("로그인 계정이 변경되었습니다.");
+    const client = profileClient(current.data.session);
+    try {
+      const { data, error } = await client.updateUser({ data: { workspace_avatar_id: id } });
+      assertAccount();
+      if (error) throw error;
+      if (data.user?.id !== original.user.id) throw new Error("로그인 계정이 변경되었습니다.");
+      // 공유 SDK의 refresh는 저장소 변경을 검사한다(고정 SDK 2.117.2).
+      // 이전 계정 토큰을 setSession으로 다시 주입하지 않고 현재 세션만 새로 조회한다.
+      const refreshed = await supabase.auth.refreshSession();
+      assertAccount();
+      if (refreshed.error || refreshed.data.session?.user.id !== original.user.id) throw new ProfileDisplayRefreshError();
+      return profileIconId(refreshed.data.session.user.user_metadata.workspace_avatar_id);
+    } finally { await client.dispose(); }
   };
   return <AuthContext.Provider value={{ ...state, saveProfileIcon }}>{children}</AuthContext.Provider>;
 }
