@@ -692,7 +692,7 @@ footer a { margin-right: 10px; white-space: nowrap; }
       </div>
     </div>
 
-    <p class="note">승인된 잔여 구현은 Entity PR #77, 활동 복원·CI 안정성 PR #79/81, 제품 실제 CLI 행동 PR #80까지 리뷰·CI·머지를 마쳤습니다. <a href="tickets/template-10-06-existing-release.md">기존 운영 반영</a>은 검증 main1730dc의 DB·API/MCP·worker·Pages와 제품0.1.1 ZIP 출처를 고정했습니다. 최신 <a href="tickets/template-12-production-verification.md">Template-12</a>는 운영 본인 로그인·기록 생성/수정·색인·의미 검색과 매분 limit5 Cron의 실제 HTTP200을 확인했습니다. Claude 웹 검색·원문 읽기와 Codex CLI native OAuth/31tools·SDK 읽기도 확인했습니다. 실제 휴대폰 확인은 사용자에게 이관했고 스크린리더 검증은 이번 요청 범위에서 제외했습니다. Codex desktop 제품 UI, backend effort·실청구액·전체 백업/복구는 미확인이며 T02-5/6과 대표 모델 품질·비용 평가는 사용자 제외 범위입니다.</p>
+    <p class="note">프로젝트의 최신 진행 상태는 <a href="START-HERE.md#현재-상태">START-HERE</a>에서, 기능별 결정과 검증 근거는 <a href="tickets/README.md">작업 티켓</a>에서 확인합니다.</p>
     <h3>이렇게 말하면 진행됩니다</h3>
     <p class="h3-note">왼쪽은 사람이 에이전트에게 하는 말, 오른쪽은 그 말을 듣고 에이전트가 하는 일입니다. 위에서 아래로 진행합니다.</p>
     <div class="swim-head" aria-hidden="true">
@@ -726,7 +726,7 @@ footer a { margin-right: 10px; white-space: nowrap; }
       <div class="srow" role="listitem">
         <div class="say quiet"><p>따로 말하지 않아도 됩니다. 에이전트가 만든 대화의 내용을 모르는 새 서브 에이전트를 띄워 검토하게 합니다. 다른 에이전트(Codex·Claude)의 교차 리뷰는 원할 때만 요청합니다.</p></div>
         <div class="node">5</div>
-        <div class="do"><p>로컬 커밋의 정확한 base/head에서 버그, 빠진 확인, 기획이나 결정에서 벗어난 부분을 찾습니다. 결론은 “머지 가능”, “수정 필요”, “사람 승인 필요” 중 하나이며 수정은 원래 구현 대화가 맡습니다. 최종 head를 PR로 제출합니다(<a href="development/workflow.md#마무리-순서">마무리 순서</a>).</p><p class="res">결과물: <b>리뷰 결론</b></p></div>
+        <div class="do"><p>작업 결과의 버그, 빠진 확인, 기획이나 결정에서 벗어난 부분을 독립적으로 검토합니다. 수정이 필요하면 구현 담당이 고칩니다. 자세한 절차는 <a href="development/workflow.md#마무리-순서">마무리 순서</a>를 따릅니다.</p><p class="res">결과물: <b>리뷰 결론</b></p></div>
       </div>
       <div class="srow" role="listitem">
         <div class="say quiet"><p>따로 말하지 않아도 됩니다</p></div>
@@ -759,13 +759,8 @@ footer a { margin-right: 10px; white-space: nowrap; }
         <ul>
           <li>Codex에서는 <code>$develop-agent-app 요청</code></li>
           <li>Claude Code에서는 <code>/develop-agent-app 요청</code></li>
-          <li>스킬 이름 없이 그냥 말해도 됩니다. 에이전트가 대화를 시작할 때 자동으로 읽는 지침 파일(<a href="../AGENTS.md">AGENTS.md</a>)에 “develop-agent-app 스킬의 절차를 따르라”고 적혀 있어서, 같은 절차로 일합니다.</li>
-          <li>본 대화의 직접 편집은 합의 문서·오탈자·링크·Git/PR 조정으로 한정합니다. 서브세션 도구가 없거나 사용자가 직접 작업을 지정하면 실행 주체와 사유를 보고하고 구현·검증할 수 있습니다. 배정·환경 조정·독립 리뷰는 <a href="development/workflow.md#세션-배정과-인계">개발 절차</a>를 따릅니다.</li>
-          <li>구현 세션은 테스트·실패 조사·수정·재검증까지 담당하고 메인은 범위·증거·리뷰·CI·머지를 조정합니다. 통합 검증 담당은 필요할 때 배정합니다.</li>
-          <li><a href="development/workflow.md#변경-영향별-ci">변경 영향별 CI</a>는 문서만 바뀌면 문서·링크·공백을, 단순 웹 문구·간격이면 웹 unit·타입/build까지 검사합니다. 동작·구조·인증·데이터·도구·불명확한 변경은 전체 DB·HTTP·MCP·E2E를 유지합니다. 필수 check/integration job은 항상 실행하며 표시 변경의 실제 화면 확인은 티켓에 남깁니다. <a href="tickets/template-13-ci-change-impact.md">Template-13</a>의 구현·독립 리뷰·CI·머지 상태를 구분합니다.</li>
-          <li>서브세션 배정·중요 변화·결과 인계 때 작업과 모델·추론 강도의 선택 이유, 결과·미확인·다음 판단을 표로 보고받습니다. 구현·리뷰·통합·메인의 실행 주체와 전달받은 보고·증거 확인·직접 실행을 구분합니다. 근거는 티켓에서 확인합니다(<a href="development/workflow.md#세션-운영-브리핑">운영 브리핑</a>).</li>
-<li>업무·어댑터 수정은 서비스 없는 <code>test:fast</code>로 업무·HTTP/MCP handler를 먼저 검사합니다. 문서·단순 표시 수정은 위 변경 영향별 로컬·CI 검사 범위를 따릅니다. 생성·완료의 PR #70, worker 실패·동의 요청 생명주기 회귀의 PR #71, 수정·삭제 검사의 PR #72가 독립 리뷰·전체 CI를 통과해 머지됐습니다. 기록·원칙·태그와 HTTP/MCP 오류 확대도 PR #75로 독립 리뷰·CI·머지를 마쳤습니다. 실제 인증·DB·화면 검증은 각 통합 증거로 구분합니다. 2026-10-04 T02-4를 재개했으며 <a href="tickets/template-10-priority-completion.md">Template-10</a>의 첫 조각인 <a href="tickets/template-10-01-fast-knowledge.md">기록·원칙·태그 연결 검사</a>를 완료했습니다. 제품 패키징 PR #74, 대표 모델 과제 PR #76, 지원 재개 확인 PR #78도 머지 완료입니다. Entity도 PR #77의 독립 승인·CI 성공 후 머지됐으며 활동 복원도 PR #79로 머지됐습니다. 제품 PR #80은 실제 로컬 CLI 업무·정리와 Claude native 인증·읽기·해제를 확인했고 최종 CI·머지를 완료했습니다. <a href="tickets/template-10-06-existing-release.md">기존 운영 반영</a>도 main1730dc로 적용했습니다. 후속 <a href="tickets/template-12-production-verification.md">Template-12</a>에서 본인 웹 기록 생성·수정 각각 indexed1과 현재 해시/1024차원 벡터·의미 검색 최신성, 활성 Cron의 복수 주기 HTTP200·queue0, net Data API406 거부를 확인했습니다. Claude 웹의 동일 version2 검색·원문 읽기와 Codex CLI native 인증·발견/SDK 읽기는 각각의 실제 근거로 구분합니다. 실제 휴대폰 확인은 사용자에게 이관했고 스크린리더 검증은 이번 요청 범위에서 제외했습니다. 남은 클라이언트 검증은 Codex desktop 제품 UI입니다. backend effort·실청구액·전체 백업/복구도 미확인입니다. T02-5/6과 대표 모델 품질·비용 평가는 사용자 제외 범위입니다. 각 구현 세션이 테스트·수정·재검증을 맡고 실제 인증·DB·SDK 전송은 기존 통합 CI에서 확인합니다(<a href="tickets/template-08-mock-first-testing.md">Template-08</a>, <a href="tickets/template-08-01-worker-fast-tests.md">worker·동의 회귀 기록</a>).</li>
-          <li>구현·필요 검사·문서 인계를 묶어 로컬 커밋과 독립 리뷰를 먼저 마치고 같은 head를 제출합니다. 병렬 구현의 제출과 최종 증거 위치는 <a href="development/workflow.md#마무리-순서">마무리 순서</a>가 정합니다. <a href="tickets/template-09-finishing-flow.md">Template-09</a>의 문서 변경은 PR #73으로 최종 리뷰·CI·머지를 마쳤으며 실제 운영 속도 개선은 아직 측정하지 않았습니다.</li>
+          <li>스킬 이름 없이 “할 일 화면을 고쳐줘”처럼 평범하게 요청해도 됩니다.</li>
+          <li>두 에이전트는 <a href="../AGENTS.md">공통 지침</a>을 따릅니다. 자세한 요청 방법은 <a href="development/working-with-agents.md">에이전트와 일하는 방법</a>에서 봅니다.</li>
         </ul>
       </div>
     </div>
@@ -938,7 +933,7 @@ footer a { margin-right: 10px; white-space: nowrap; }
       </details>
       <details>
         <summary>어떤 모델을 골라야 하나요?</summary>
-        <p>Codex는 GPT-6.1 Sol, Claude Code는 Opus 5.5만 사용합니다. 일반 구현·리뷰는 medium으로 시작하고 같은 모델의 low/high 등 지원되는 강도를 조절합니다. 다른 모델이나 별칭 자동 이동은 허용하지 않으며 CLI 미지원이면 대체하지 않습니다. 개발하는 날 첫 작업에서 목록과 새 후보를 조회하고 사용자 시간대의 그날 결과를 재사용합니다. 재개 때 설정 변경을 적용할 수 없으면 새 세션으로 인계합니다. <a href="development/workflow.md#모델과-추론-강도-선택갱신">공통 정책</a>과 <a href="development/agent-models.json">갱신 가능한 선택표</a>를 <a href="development/agent-model-execution.md">배정 확인·클라이언트 설정</a>으로 연결합니다. 기존 확인 범위는 <a href="tickets/template-05-agent-model-policy.md">Template-05</a>, 허용 정책과 현재 CLI 지원 제약은 <a href="tickets/template-11-model-allowlist.md">Template-11</a>에서 봅니다.</p>
+        <p>Codex는 GPT-6.1 Sol, Claude Code는 Opus 5.5를 사용합니다. 보통 medium으로 시작하고 작업 난이도에 맞춰 같은 모델의 추론 강도를 조절합니다. 상세한 선택·지원 확인은 <a href="development/workflow.md#모델과-추론-강도-선택갱신">모델 정책</a>을 따릅니다.</p>
       </details>
       <details>
         <summary>이 페이지와 다른 문서의 내용이 다르면요?</summary>
