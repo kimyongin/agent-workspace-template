@@ -16,7 +16,7 @@ PRD·ADR·GitHub branch protection·job 이름·운영/공유 Supabase·서비�
 정본은 [개발 방법](../development/workflow.md#변경-영향별-ci)과 [디자인 가이드](../design/guide.md)다. [GitHub workflow syntax](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax)·[필수 검사 문제 해결](https://docs.github.com/en/pull-requests/how-tos/merge-and-close-pull-requests/troubleshooting-required-status-checks)·[Babel parser](https://babeljs.io/docs/babel-parser)를 직접 조회했다. workflow paths skip으로 required 상태가 사라지거나 downstream skipped가 성공처럼 처리되는 경계를 피한다.
 
 - [x] docs/presentation/full을 실제 파일 내용과 비교 범위로 판정하고 불명확·삭제·rename·누락 이력·tooling은 full로 처리한다.
-- [x] 기존 비인증 TSX의 표준 HTML 직접 문구/한정 정적 표시 attr만 AST 비교로 완화한다. custom children/props·fragment·동작 attr·표현식·DOM 구조·주석·script/style·parse 실패는 full이다.
+- [x] 기존 비인증 TSX의 허용 표시 HTML 직접 문구와 title/placeholder/aria-label만 AST 비교로 완화한다. 입력 요소 children·className 변경·custom children/props·fragment·동작 attr·표현식·DOM 구조·주석·script/style·parse 실패는 full이다.
 - [x] CSS의 제한 표시 속성값만 완화하고 selector/구조·auth/state·숨김·URL·escape·토큰 변경은 full로 처리한다. 문서 HTML은 동일 tag/script/style/comment의 prose만 허용하며 미닫힌 실행 markup은 거부한다.
 - [x] PR merge-base→head와 push before→after를 구분하며 workflow_dispatch는 항상 full이다.
 - [x] check/integration 필수 job은 항상 실행한다. integration은 check 실패/분류 누락을 명시 실패시키며 가벼운 변경에서 heavy step만 생략하고 근거 summary를 남긴다.
@@ -35,6 +35,8 @@ TypeScript7.0.2의 실제 import에는 JS compiler `createSourceFile` API가 없
 현재 `src/styles/app.css`에서 `.app-brand`의 `margin-right: auto`만 `1rem`으로 바꾼 메모리 fixture는 presentation이다. 실제 TSX 문구·정적 attr fixture도 presentation이며 onClick 변경은 full이다. 앱 파일에 fixture를 저장하지 않았고 실제 버튼 배치/화면 성공을 주장하지 않는다. 이후 표시 변경 PR은 대표 소비 화면의 viewport·키보드·초점을 티켓에 기록해야 한다.
 
 ## 검증과 인계
+
+독립 리뷰는 최초 head `11f7e91`에서 option의 value 없는 text 변경이 제출값을 바꾸고 textarea children이 기본 입력값을 바꾸는데 presentation으로 분류되는 결함을 재현했다. className을 현행 숨김 클래스 visually-hidden으로 바꾸는 것도 presentation이었다. 같은 승인 범위에서 직접 text 허용 tag를 표시 요소로 좁히고 입력 요소를 제외했으며, className은 모든 변경을 full로 처리했다. 입력 요소 title/placeholder/aria-label 같은 정적 표시 attr와 일반 표시 문구·CSS 간격 경로는 유지한다. 해당 세 결함과 일반 className 변경의 negative 회귀를 추가했다. 수정 후 `npm run check:docs` 텍스트334·모델/native PASS·48개 중47 PASS/0 FAIL/기존 Windows권한1 SKIP(분류 회귀8개 PASS), `git diff --check` PASS다. 앱·CSS·workflow 동작을 추가 변경하지 않아 최초 웹/서버 검사를 불필요하게 반복하지 않았다. 기존 최초 검사 결과는 아래 당시 증거로 보존한다.
 
 직접 실행한 현재 구현 검사: `npm run check:docs` 텍스트334개·모델/native 정합성 PASS·스크립트47개 중46 PASS/0 FAIL/기존 Windows file-symlink권한1 SKIP(새 분류7개 포함), `npm run check:boundaries` PASS, `npm run check:deno` 타입/lint/fmt PASS(89/93 files), `npm run test:fast` core60/fast handler13/web6 PASS, `npm run build` 타입·빌드 PASS, `npm run test --prefix experiments/t02-3-embedding` 오프라인4 PASS, `git diff --check` PASS. 빌드의 기존 500kB chunk 경고는 실패가 아니다. 화면·업무 코드는 바꾸지 않았으므로 앱 화면 성공 증거를 새로 만들지 않는다.
 

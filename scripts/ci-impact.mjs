@@ -4,8 +4,9 @@ import { execFileSync } from "node:child_process";
 import { appendFileSync, readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
-const displayAttributes = new Set(["className", "title", "placeholder", "aria-label"]);
-const displayTags = new Set("a article aside b blockquote br button caption code dd details div dl dt em fieldset figcaption figure footer form h1 h2 h3 h4 h5 h6 header hr i img input label legend li main nav ol option p pre section select small span strong summary table tbody td textarea th thead time tr ul".split(" "));
+const displayAttributes = new Set(["title", "placeholder", "aria-label"]);
+const displayTags = new Set("a article aside b blockquote button caption code dd details div dl dt em figcaption figure footer h1 h2 h3 h4 h5 h6 header i label legend li main nav ol p pre section small span strong summary table tbody td th thead time tr ul".split(" "));
+const attributeTags = new Set([...displayTags, "br", "fieldset", "form", "hr", "img", "input", "option", "select", "textarea"]);
 const ignoredAstKeys = new Set(["start", "end", "loc", "extra"]);
 
 export function presentationTsx(before, after) {
@@ -19,7 +20,7 @@ export function presentationTsx(before, after) {
         if (!node || typeof node !== "object") return node;
         if (Array.isArray(node)) return node.map((item) => visit(item, intrinsic, textAllowed));
         if (node.type === "JSXOpeningElement") {
-          intrinsic = node.name.type === "JSXIdentifier" && displayTags.has(node.name.name);
+          intrinsic = node.name.type === "JSXIdentifier" && attributeTags.has(node.name.name);
         }
         if (node.type === "JSXElement") {
           const tag = node.openingElement.name;

@@ -11,7 +11,7 @@ const mode = (...changes) => classifyChanges(changes).mode;
 const component = 'export const View = () => <button className="old" title="Old" onClick={save}>Old text</button>;';
 
 test("only static JSX text/intrinsic display attributes qualify; AST behavior and comments stay exact", () => {
-  assert.equal(presentationTsx(component, component.replaceAll("Old", "New").replace('className="old"', 'className="new"')), true);
+  assert.equal(presentationTsx(component, component.replaceAll("Old", "New")), true);
   for (const after of [
     component.replace("{save}", "{remove}"), component.replace("button", "a"),
     component.replace("Old text", "<span>Old text</span>"), component.replace("Old text", "{label}"),
@@ -29,6 +29,21 @@ test("only static JSX text/intrinsic display attributes qualify; AST behavior an
   assert.equal(presentationTsx('<script>old</script>', '<script>new</script>'), false);
   assert.equal(presentationTsx('<style>old</style>', '<style>new</style>'), false);
   assert.equal(presentationTsx('<div dangerouslySetInnerHTML={html}>old</div>', '<div dangerouslySetInnerHTML={html}>new</div>'), false);
+});
+
+test("input children and class names cannot bypass full verification; safe display labels still qualify", () => {
+  for (const tag of ["option", "textarea", "select", "input"]) {
+    const before = `<${tag}>public</${tag}>`, after = `<${tag}>private</${tag}>`;
+    assert.equal(presentationTsx(before, after), false, tag);
+    assert.equal(mode(change('src/features/activity/forms.tsx', before, after)), 'full', tag);
+  }
+  for (const className of ["visually-hidden", "hidden", "other-layout"]) {
+    const after = component.replace('className="old"', `className="${className}"`);
+    assert.equal(presentationTsx(component, after), false, className);
+    assert.equal(mode(change('src/components/Field.tsx', component, after)), 'full', className);
+  }
+  assert.equal(presentationTsx('<input placeholder="Old" aria-label="Old" />', '<input placeholder="New" aria-label="New" />'), true);
+  assert.equal(presentationTsx(component, component.replace("Old text", "New text")), true);
 });
 
 test("CSS position spacing is presentation but auth/state/hiding/external/selector/token changes are full", () => {

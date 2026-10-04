@@ -288,10 +288,10 @@ PRD·ADR을 바꾸는 PR은 사람이 승인한다. 머지는 배포가 아니�
 | 분류 | 허용 변경 | 로컬·CI 검사 |
 | --- | --- | --- |
 | `docs` | 문서/개발 스킬 Markdown, 태그·script/style·주석이 같은 문서 HTML의 정적 문구 | `check:docs`(모델/native·스크립트 회귀 포함), diff 공백 |
-| `presentation` | 기존 비인증 feature/component TSX의 표준 HTML 요소 직접 JSXText와 정적 className/title/placeholder/aria-label만 변경, 제한 CSS 표시 속성값 변경 | docs 범위 + 웹 unit·타입 검사·build |
+| `presentation` | 기존 비인증 feature/component TSX의 허용 표시 HTML 요소 직접 JSXText와 정적 title/placeholder/aria-label만 변경, 제한 CSS 표시 속성값 변경 | docs 범위 + 웹 unit·타입 검사·build |
 | `full` | 동작·DOM 구조·표현식·route/action·인증·계약·데이터·API/MCP·설정·의존성·CI/tooling 또는 판정 불명 | 기존 전체 check + 러너 격리 Supabase의 DB·HTTP·MCP·전체 E2E |
 
-TSX는 TypeScript/JSX AST에서 허용 표시값 외 모든 노드와 주석이 같아야 한다. custom component children/props·fragment의 문구, 이벤트·href/to/type/value/disabled/id/name/role 등은 완화하지 않는다. CSS는 selector·속성 구조·비허용 값이 같아야 하며 인증·상태 selector, 숨김/입력 제어, URL·escape·토큰·불명확 문법 변경을 완화하지 않는다. 문서와 표시 변경의 조합은 `presentation`, 그 외 런타임 혼합 변경은 `full`이다. 자동 분류는 의미·접근성 검수의 대체가 아니다. 표시 변경은 티켓에 대표 소비 화면·viewport·키보드·초점 확인 결과를 남기고 불확실하면 전체 검증한다.
+TSX는 TypeScript/JSX AST에서 허용 표시값 외 모든 노드와 주석이 같아야 한다. option/textarea 등 입력값에 영향을 주는 요소의 children, custom component children/props·fragment의 문구, 이벤트·href/to/type/value/disabled/id/name/role 등은 완화하지 않는다. className 변경은 숨김·입력 제어·JS 동작에 영향을 줄 수 있어 모두 `full`이다. CSS는 selector·속성 구조·비허용 값이 같아야 하며 인증·상태 selector, 숨김/입력 제어, URL·escape·토큰·불명확 문법 변경을 완화하지 않는다. 문서와 표시 변경의 조합은 `presentation`, 그 외 런타임 혼합 변경은 `full`이다. 자동 분류는 의미·접근성 검수의 대체가 아니다. 표시 변경은 티켓에 대표 소비 화면·viewport·키보드·초점 확인 결과를 남기고 불확실하면 전체 검증한다.
 
 필수 상태 이름 `check`·`integration`과 branch protection을 유지한다. workflow-level path skip·job-level 영향 skip은 쓰지 않는다. `integration`은 `always()`로 실행해 `check` 실패/분류 누락을 명시 실패시키고, 가벼운 분류에서 heavy steps만 생략해 근거 summary와 실제 성공 상태를 남긴다. 전체 검증을 강제하려면 Actions의 `ci` workflow를 `workflow_dispatch`로 실행한다(항상 `full`). 분류기·CI·의존성 변경은 `full`이며 독립 리뷰·필수 CI를 요구한다. 구현·회귀 근거는 [Template-13](../tickets/template-13-ci-change-impact.md)에 기록한다.
 
