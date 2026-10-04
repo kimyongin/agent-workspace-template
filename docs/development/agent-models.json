@@ -1,42 +1,51 @@
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "sources": {
-    "codex": "https://learn.chatgpt.com/docs/agent-configuration/subagents",
-    "claude": "https://code.claude.com/docs/en/model-config"
+    "codex": "https://developers.openai.com/api/docs/models/gpt-6.1-sol",
+    "claude": "https://platform.claude.com/docs/en/models/opus-5-5/overview",
+    "claudeConfig": "https://code.claude.com/docs/en/model-config"
   },
   "clients": {
     "codex-cli": {
       "version": "0.147.0",
       "context": "owner-desktop-codex-cli",
-      "checkedAt": "2026-10-03T11:52:04.221Z",
-      "evidence": "002 기존 근거: CLI app-server initialize → model/list(limit=100, includeHidden=false), nextCursor/upgrade=null; desktop 목록과 다름. checkedAt은 보존된 codex-cli-snapshot의 balanced 확인 시각; 다른 등급의 새 실행/평가를 뜻하지 않음",
+      "checkedAt": "2026-10-04T00:01:09.921Z",
+      "evidence": "Template-11 오늘 read-only app-server initialize → model/list(limit100,includeHidden=false), nextCursor=null: gpt-5.6-sol/terra/luna 및 gpt-5.5만 노출; 허용 gpt-6.1-sol 없음. --evaluate assign도 실제 거부. LLM turn/fallback/업데이트 없음",
       "models": {
-        "light": { "model": "gpt-5.6-luna", "defaultEffort": "low", "efforts": ["low", "medium", "high", "xhigh", "max"], "capability": "confirmed", "evaluation": "baseline", "nativeExecution": "pending", "evidence": "현재 계정 목록 확인; 역할별 기본 선택은 가이드 기준이며 품질/비용 비교 미실행", "replaceWhen": "검증된 더 효율적인 후보 또는 지원 종료" },
-        "balanced": { "model": "gpt-5.6-terra", "defaultEffort": "medium", "efforts": ["low", "medium", "high", "xhigh", "max", "ultra"], "capability": "confirmed", "evaluation": "baseline", "nativeExecution": "direct-confirmed", "executionEvidence": "Template-05 티켓: CLI 명시 모델/medium 작은 구현+리뷰 smoke exit0; native custom agent 실행·광범위 품질/과금 미검증", "evidence": "현재 계정 목록 확인; 역할별 기본 선택은 가이드 기준이며 품질/비용 비교 미실행", "replaceWhen": "대표 구현/리뷰 평가에서 개선을 확인한 신규 후보" },
-        "advanced": { "model": "gpt-5.6-sol", "defaultEffort": "high", "efforts": ["low", "medium", "high", "xhigh", "max", "ultra"], "capability": "confirmed", "evaluation": "baseline", "nativeExecution": "pending", "evidence": "현재 CLI에는 Astra 후보 없음. 동일 모델 high를 제한된 대안으로 선택; desktop 고성능과 동등함을 주장하지 않음", "replaceWhen": "실제 지원되는 고성능 후보의 대표 경계/조사 평가 통과" }
+        "light": {"model":"gpt-6.1-sol","defaultEffort":"low","efforts":["low","medium","high","xhigh","max"],"capability":"pending","evaluation":"baseline","nativeExecution":"pending","evidence":"허용 고정 ID 후보. 실제 계정/CLI 모델·강도 지원 및 실행 미확인; 과거 다른 모델 성공을 재사용하지 않음","replaceWhen":"허용 모델의 지원·실행 증거 갱신; 다른 ID는 사람의 명시 정책 변경 필요"},
+        "balanced": {"model":"gpt-6.1-sol","defaultEffort":"medium","efforts":["low","medium","high","xhigh","max"],"capability":"pending","evaluation":"baseline","nativeExecution":"pending","evidence":"허용 고정 ID 후보. 실제 계정/CLI 모델·강도 지원 및 실행 미확인; 과거 다른 모델 성공을 재사용하지 않음","replaceWhen":"허용 모델의 지원·실행 증거 갱신; 다른 ID는 사람의 명시 정책 변경 필요"},
+        "advanced": {"model":"gpt-6.1-sol","defaultEffort":"high","efforts":["low","medium","high","xhigh","max"],"capability":"pending","evaluation":"baseline","nativeExecution":"pending","evidence":"허용 고정 ID 후보. 실제 계정/CLI 모델·강도 지원 및 실행 미확인; 과거 다른 모델 성공을 재사용하지 않음","replaceWhen":"허용 모델의 지원·실행 증거 갱신; 다른 ID는 사람의 명시 정책 변경 필요"}
       }
     },
     "codex-desktop": {
       "version": "session-tool-catalog-2026-10-03",
       "context": "owner-desktop-codex-tools",
       "checkedAt": "2026-10-03T13:59:42Z",
-      "evidence": "Template-07 본 세션의 guidance-desktop-snapshot: 현재 desktop spawn_agent 도구의 모델·강도 목록 조회; CLI 지원과 구별. 002의 품질/실행 근거는 그대로 보존하며 새 smoke/품질 검증을 뜻하지 않음",
+      "evidence": "Template-11 본 세션이 읽은 오늘 snapshot observedAt2026-10-03T19:38:53.586Z(Asia/Seoul10-04): gpt-6.1-sol actual 동일, low medium high xhigh max ultra 지원. 기존 checkedAt은 당시 조회 시각 보존; 이번 worker explicit gpt-6.1-sol/medium 실제 배정. CLI/backend effort와 구별",
       "models": {
-        "light": { "model": "gpt-6-luna", "defaultEffort": "low", "efforts": ["low", "medium", "high", "xhigh", "max"], "capability": "confirmed", "evaluation": "baseline", "nativeExecution": "pending", "evidence": "목록·지원 effort 확인; 대표 구현/리뷰·사용량 비교 미실행", "replaceWhen": "검증된 더 효율적인 후보 또는 지원 종료" },
-        "balanced": { "model": "gpt-6.1-sol", "defaultEffort": "medium", "efforts": ["low", "medium", "high", "xhigh", "max", "ultra"], "capability": "confirmed", "evaluation": "baseline", "nativeExecution": "direct-confirmed", "executionEvidence": "002 구현 서브세션을 model=gpt-6.1-sol, reasoning_effort=medium, fork_turns=none으로 실제 배정하여 구현; native CLI 설정과 별개", "evidence": "목록·지원 effort 확인; 대표 구현/리뷰·사용량 비교 미실행", "replaceWhen": "대표 과제에서 품질 유지와 사용량 개선을 확인한 신규 후보" },
-        "advanced": { "model": "gpt-6-astra", "defaultEffort": "high", "efforts": ["low", "medium", "high", "xhigh", "max", "ultra"], "capability": "confirmed", "evaluation": "baseline", "nativeExecution": "pending", "evidence": "목록·지원 effort 확인; 대표 구현/리뷰·사용량 비교 미실행", "replaceWhen": "복잡한 조사/경계 평가에서 개선을 확인한 신규 후보" }
+        "light": {"model":"gpt-6.1-sol","defaultEffort":"low","efforts":["low","medium","high","xhigh","max","ultra"],"capability":"confirmed","evaluation":"baseline","nativeExecution":"pending","evidence":"오늘 Desktop 목록 지원 확인. 사용자 허용 정책의 기본이며 품질·비용 비교 통과가 아님; 강도별 실행 상태 별도","replaceWhen":"허용 모델의 지원·실행 증거 갱신; 다른 ID는 사람의 명시 정책 변경 필요"},
+        "balanced": {"model":"gpt-6.1-sol","defaultEffort":"medium","efforts":["low","medium","high","xhigh","max","ultra"],"capability":"confirmed","evaluation":"baseline","nativeExecution":"direct-confirmed","evidence":"오늘 Desktop 목록 지원 확인. 사용자 허용 정책의 기본이며 품질·비용 비교 통과가 아님; 강도별 실행 상태 별도","replaceWhen":"허용 모델의 지원·실행 증거 갱신; 다른 ID는 사람의 명시 정책 변경 필요","executionEvidence":"Template-11 본 세션이 이번 구현 서브세션을 gpt-6.1-sol / medium으로 명시 배정. 실제 도구 배정 근거이며 backend effort·실청구액 미확인"},
+        "advanced": {"model":"gpt-6.1-sol","defaultEffort":"high","efforts":["low","medium","high","xhigh","max","ultra"],"capability":"confirmed","evaluation":"baseline","nativeExecution":"pending","evidence":"오늘 Desktop 목록 지원 확인. 사용자 허용 정책의 기본이며 품질·비용 비교 통과가 아님; 강도별 실행 상태 별도","replaceWhen":"허용 모델의 지원·실행 증거 갱신; 다른 ID는 사람의 명시 정책 변경 필요"}
       }
     },
     "claude-cli": {
       "version": "2.1.140",
       "context": "owner-desktop-claude",
       "checkedAt": "2026-10-03T11:49:56.802Z",
-      "evidence": "002 기존 CLI version/--help와 실행 근거를 보존. checkedAt은 보존된 claude-cli-snapshot의 sonnet/medium 확인 시각; 다른 별칭/강도 지원과 새 실행은 미검증",
+      "evidence": "Template-11 CLI2.1.140 고정 claude-opus-5-5 / medium 단일 READY smoke exit1 API400: 이 모델은 CLI2.1.280 이상 필요. input/output0, modelUsage{}, total_cost_usd0; actual Opus 실행 아님. 업데이트/fallback 없음",
       "models": {
-        "light": { "model": "haiku", "defaultEffort": null, "efforts": [], "capability": "pending", "evaluation": "baseline", "nativeExecution": "pending", "evidence": "공식 별칭 후보; 실제 모델·계정 지원·추론 지원 미확인", "replaceWhen": "공급자/별칭 해석 변경 또는 검증된 신규 후보" },
-        "balanced": { "model": "sonnet", "resolvedModel": "claude-sonnet-4-6", "defaultEffort": "medium", "efforts": ["medium"], "capability": "confirmed", "evaluation": "baseline", "nativeExecution": "native-confirmed", "executionEvidence": "Template-05 티켓: CLI --agent task-balanced --effort medium smoke exit0, modelUsage claude-sonnet-4-6; Agent tool child/resume·backend 실제 강도는 미검증", "evidence": "CLI 옵션 수락·작은 구현/권한 리뷰 성공; backend 실제 추론량·high/low 지원은 미확인", "replaceWhen": "공급자/별칭 해석 변경 또는 대표 평가에서 개선된 신규 후보" },
-        "advanced": { "model": "opus", "defaultEffort": "high", "efforts": ["low", "medium", "high"], "capability": "pending", "evaluation": "baseline", "nativeExecution": "pending", "evidence": "공식 별칭 후보; xhigh/max는 실제 모델별 지원 확인 후 추가", "replaceWhen": "공급자/별칭 해석 변경 또는 복잡한 경계 평가에서 개선된 신규 후보" }
+        "light": {"model":"claude-opus-5-5","defaultEffort":"low","efforts":["low","medium","high"],"capability":"pending","evaluation":"baseline","nativeExecution":"pending","evidence":"허용 고정 ID 후보. 실제 계정/CLI 모델·강도 지원 및 실행 미확인; 과거 다른 모델 성공을 재사용하지 않음","replaceWhen":"허용 모델의 지원·실행 증거 갱신; 다른 ID는 사람의 명시 정책 변경 필요","resolvedModel":"claude-opus-5-5"},
+        "balanced": {"model":"claude-opus-5-5","resolvedModel":"claude-opus-5-5","defaultEffort":"medium","efforts":["low","medium","high"],"capability":"pending","evaluation":"baseline","nativeExecution":"pending","evidence":"허용 고정 ID 후보. 실제 계정/CLI 모델·강도 지원 및 실행 미확인; 과거 다른 모델 성공을 재사용하지 않음","replaceWhen":"허용 모델의 지원·실행 증거 갱신; 다른 ID는 사람의 명시 정책 변경 필요"},
+        "advanced": {"model":"claude-opus-5-5","defaultEffort":"high","efforts":["low","medium","high"],"capability":"pending","evaluation":"baseline","nativeExecution":"pending","evidence":"허용 고정 ID 후보. 실제 계정/CLI 모델·강도 지원 및 실행 미확인; 과거 다른 모델 성공을 재사용하지 않음","replaceWhen":"허용 모델의 지원·실행 증거 갱신; 다른 ID는 사람의 명시 정책 변경 필요","resolvedModel":"claude-opus-5-5"}
       }
     }
+  },
+  "modelPolicy": {
+    "allowedModels": {
+      "codex": "gpt-6.1-sol",
+      "claude": "claude-opus-5-5"
+    },
+    "changeAuthority": "explicit-human-policy-change",
+    "evidence": "Template-11: 2026-10-04 사용자 지시로 Codex GPT-6.1 Sol / Claude Opus 5.5만 사용. Astra/Fable 및 다른 모델은 평가에서도 금지. 첨부 그래프는 선택 이유이며 프로젝트별 실청구액 증거가 아님"
   }
 }
