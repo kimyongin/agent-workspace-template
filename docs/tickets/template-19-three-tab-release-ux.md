@@ -8,7 +8,7 @@
 
 사용자는 엔터티/활동/원칙 세 탭, 각 탭의 등록·검색·목록·보기/편집, 하단 메뉴의 가이드/설정, 설정의 프로필 아이콘 선택과 하단 로그인 표시를 요청했다. 2026-10-04 사용자의 “좋아. 티켓 정리하고 개발해줘”로 제안과 구현을 승인했다. 키워드 기본+자동 검색 옵션, 중앙/전체 화면 상세, 고정 아이콘+계정 metadata, 인증 후 브랜드 헤더 제거를 기본값으로 확정했다. 원칙의 예외 흐름은 Template-20을 따른다. 운영 배포는 포함하지 않는다.
 
-단순 Entity의 prop1~4, 사용자 소유권, HTTP/MCP 공통 업무, 제목+요약 단일 벡터 검색을 유지한다. 후속 사용자 설명의 현재 원칙 하나·태그 사전 분리·메모와 CRUD 변경 기록은 [Template-20 제품 정리안](template-20-current-principle-change-records.md)을 먼저 따른다. fin의 친구·공유·금융 기능은 가져오지 않는다. PRD/ADR은 변경하지 않았으며 제품 의미의 변경안을 Template-20에 구분했다.
+단순 Entity의 prop1~4, 사용자 소유권, HTTP/MCP 공통 업무, 제목+요약 단일 벡터 검색을 유지한다. 후속 사용자 설명의 현재 원칙 하나·태그 사전 분리·메모와 CRUD 변경 기록은 [Template-20](template-20-current-principle-change-records.md)을 먼저 따른다. fin의 친구·공유·금융 기능은 가져오지 않는다. 설계 당시 PRD/ADR을 변경하지 않았으며, 이후 사용자 구현 승인으로 제품 의미를 PRD에 반영했다. 아래 설계 당시 실행 기록과 현재 구현 상태는 구분한다.
 
 기준 문서: [PRD](../product/concept.md), [ADR-0004](../adr/0004-summary-single-vector-search.md), [코드 원칙](../architecture/principles.md), [검색](../architecture/search.md), [디자인](../design/guide.md), [시각 규격](../design/visual-spec.md), [상호작용](../design/ui-patterns.md), [보안](../security/guide.md), [개발 방법](../development/workflow.md).
 
