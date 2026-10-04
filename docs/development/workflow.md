@@ -283,13 +283,15 @@ PRD·ADR을 바꾸는 PR은 사람이 승인한다. 머지는 배포가 아니�
 
 ### 변경 영향별 CI
 
-[분류기](../../scripts/ci-impact.mjs)는 파일 경로와 실제 diff를 함께 검사한다. PR은 base/head의 merge-base부터 실제 PR head까지, push는 event의 before부터 after까지 비교한다. 테스트 checkout은 GitHub의 PR merge commit이므로 분류 비교 대상과 구분한다. 이력 누락·분석 오류·알 수 없는 파일은 `full`로 처리한다. 삭제·rename·신규 웹 파일도 `full`이다.
+[분류기](../../scripts/ci-impact.mjs)는 파일 경로와 실제 diff를 함께 검사한다. PR은 base/head의 merge-base부터 실제 PR head까지, push는 event의 before부터 after까지 비교한다. 테스트 checkout은 GitHub의 PR merge commit이므로 분류 비교 대상과 구분한다. 이력 누락·분석 오류·알 수 없는 파일은 `full`로 처리한다. 문서 외 삭제·rename·신규 웹 파일도 `full`이다.
 
 | 분류 | 허용 변경 | 로컬·CI 검사 |
 | --- | --- | --- |
-| `docs` | 문서/개발 스킬 Markdown, 태그·script/style·주석이 같은 문서 HTML의 정적 문구 | `check:docs`(모델/native·스크립트 회귀 포함), diff 공백 |
+| `docs` | docs/의 Markdown·HTML·텍스트·그림/PDF 문서(추가·삭제·문서 간 rename 포함), 기존 개발 스킬 Markdown | `check:docs`(모델/native·스크립트 회귀 포함), diff 공백 |
 | `presentation` | 기존 비인증 feature/component TSX의 허용 표시 HTML 요소 직접 JSXText와 정적 title/placeholder/aria-label만 변경, 제한 CSS 표시 속성값 변경 | docs 범위 + 웹 unit·타입 검사·build |
 | `full` | 동작·DOM 구조·표현식·route/action·인증·계약·데이터·API/MCP·설정·의존성·CI/tooling 또는 판정 불명 | 기존 전체 check + 러너 격리 Supabase의 DB·HTTP·MCP·전체 E2E |
+
+docs/의 문서 HTML은 tag·inline script/style가 바뀌어도 앱의 DB·HTTP/MCP·전체 E2E 대상이 아니다. 내용·링크·공백 검사와 영향받는 문서 화면의 시각 확인을 분리한다. 문서 확장자는 md/html/txt/svg/png/jpg/jpeg/webp/gif/pdf로 한정하며, 실행 코드·설정 파일을 docs/로 옮겨 자동 제외하지 않는다. 실제 실행 선택표 `docs/development/agent-models.json`과 독립 js/mjs/ts/sh·JSON/YAML 등은 full이다. 앱·CI·스크립트·의존성 변경이 섞이면 가장 높은 영향 분류를 적용한다. 제품 플러그인 README·실행 스킬까지 문서 경량 범위를 확대하지 않는다.
 
 TSX는 TypeScript/JSX AST에서 허용 표시값 외 모든 노드와 주석이 같아야 한다. option/textarea 등 입력 요소·custom component·fragment·허용하지 않은 tag는 하위 트리 전체를 엄격하게 비교한다. 후손의 일반 DOM 요소에서도 텍스트·표시 attr 허용을 다시 켜지 않으며 입력 요소 자체의 attr도 완화하지 않는다. 이벤트·href/to/type/value/disabled/id/name/role 등은 완화하지 않는다. className 변경은 숨김·입력 제어·JS 동작에 영향을 줄 수 있어 모두 `full`이다. CSS는 selector·속성 구조·비허용 값이 같아야 하며 인증·상태 selector, 숨김/입력 제어, URL·escape·토큰·불명확 문법 변경을 완화하지 않는다. 문서와 표시 변경의 조합은 `presentation`, 그 외 런타임 혼합 변경은 `full`이다. 자동 분류는 의미·접근성 검수의 대체가 아니다. 표시 변경은 티켓에 대표 소비 화면·viewport·키보드·초점 확인 결과를 남기고 불확실하면 전체 검증한다.
 

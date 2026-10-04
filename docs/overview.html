@@ -738,9 +738,22 @@ footer a { margin-right: 10px; white-space: nowrap; }
       <div class="srow" role="listitem">
         <div class="say"><span class="cmd">“배포해 (운영)”</span><p>실제 사용자에게 내보낼 때만 말합니다.</p><p class="ok">✓ 이 말 자체가 배포 승인입니다</p></div>
         <div class="node">7</div>
-        <div class="do"><p>검사를 통과한 버전인지 확인하고 실제 서비스에 올립니다.</p><p class="res">결과물: <b>사용자가 쓰는 서비스</b></p></div>
+        <div class="do"><p>검사를 통과한 버전을 실제 서비스에 올립니다. 제품 플러그인은 관리 도구나 CLI로 원본에서 갱신하며 앱·서버와 각각 배포합니다. 절차는 <a href="deployment/release.md#플러그인-패키징과-배포">배포 방법</a>을 따릅니다.</p><p class="res">결과물: <b>사용자가 쓰는 서비스</b></p></div>
       </div>
     </div>
+
+    <h3>여러 세션은 어떻게 함께 일하나요?</h3>
+    <p class="h3-note">멀티세션은 여러 작업 대화의 협업이고, 서브세션은 본 대화에서 한정된 일을 맡긴 작업 대화입니다. 사람은 본 대화에서 범위를 정하고 진행과 결과를 확인합니다.</p>
+    <div class="card">
+      <p><b>사람 ↔ 본 대화</b><br>본 대화 → 구현 세션 · 독립 리뷰 세션 → 결과 통합 → 사람</p>
+    </div>
+    <div class="grid g3 mapnote">
+      <div class="card"><h4>본 대화</h4><p>사람과 범위·설계를 정하고 작업을 나눠 결과를 모아 설명합니다.</p></div>
+      <div class="card"><h4>구현 세션</h4><p>작은 기능을 만들고 테스트·실패 수정까지 맡습니다.</p></div>
+      <div class="card"><h4>독립 리뷰 세션</h4><p>구현 담당과 분리해 변경과 검증 근거를 검토합니다.</p></div>
+    </div>
+    <p class="note">독립 작업은 병렬로, 의존하는 작업은 순서대로 진행합니다. 필요하면 통합 검증 담당을 둡니다. 상세한 배정·인계는 <a href="development/workflow.md#세션-배정과-인계">개발 방법</a>을 따릅니다.</p>
+    <p class="note">각 세션의 역할과 작업 난이도에 맞는 모델을 선택합니다. 상세한 선택 기준은 <a href="development/workflow.md#모델과-추론-강도-선택갱신">모델 정책</a>을 따릅니다.</p>
 
     <div class="grid g2" style="margin-top:20px">
       <div class="card">

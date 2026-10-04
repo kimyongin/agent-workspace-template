@@ -4,7 +4,7 @@ import { mkdtempSync, readFileSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
-import { classifyChanges, comparisonRange, documentationHtml, presentationCss, presentationTsx } from "./ci-impact.mjs";
+import { classifyChanges, comparisonRange, presentationCss, presentationTsx } from "./ci-impact.mjs";
 
 const change = (path, before, after, status = "M") => ({ path, before, after, status });
 const mode = (...changes) => classifyChanges(changes).mode;
@@ -81,15 +81,17 @@ test("CSS position spacing is presentation but auth/state/hiding/external/select
   ]) assert.equal(presentationCss(before, after), false, after);
 });
 
-test("docs HTML accepts only prose with identical tags, comments and executable content", () => {
-  const html = '<p>Old</p><script>const value = 1;</script><style>p{color:red}</style>';
-  assert.equal(documentationHtml(html, html.replace("Old", "New")), true);
-  for (const after of [html.replace("= 1", "= 2"), html.replace("red", "blue"), html.replace("<p>", '<p onclick="run()">'), '<script>unfinished old']) {
-    assert.equal(documentationHtml(html, after), false);
-  }
-  assert.equal(documentationHtml('<script>unfinished old', '<script>unfinished new'), false);
-  assert.equal(documentationHtml('<!-- unfinished old', '<!-- unfinished new'), false);
-  assert.equal(documentationHtml('<style>unfinished old', '<style>unfinished new'), false);
+test("docs artifacts including HTML markup/script/style are docs; runtime files and mixed edits stay full", () => {
+  const before = '<p>Old</p>', after = '<section><p>New</p></section><script>run()</script><style>p{color:red}</style>';
+  assert.equal(mode(change('docs/overview.html', before, after)), 'docs');
+  assert.equal(mode(change('docs/new.html', null, after, 'A')), 'docs');
+  assert.equal(mode(change('docs/old.md', before, null, 'D')), 'docs');
+  assert.equal(classifyChanges([{status:'R100',oldPath:'docs/old.html',path:'docs/new.html'}]).mode, 'docs');
+  assert.equal(classifyChanges([{status:'R100',oldPath:'src/page.html',path:'docs/new.html'}]).mode, 'full');
+  for (const extension of ['md','html','txt','svg','png','jpg','jpeg','webp','gif','pdf']) assert.equal(mode(change(`docs/assets/example.${extension}`,before,after)), 'docs');
+  for (const path of ['docs/development/agent-models.json','docs/check.mjs','docs/tool.ts','docs/run.sh','docs/config.yaml','plugins/workspace/README.md','plugins/workspace/skills/workspace/SKILL.md']) assert.equal(mode(change(path,before,after)), 'full', path);
+  assert.equal(mode(change('docs/overview.html',before,after),change('src/lib/api.ts','old','new')), 'full');
+  assert.equal(mode(change('docs/overview.html',before,after),change('.github/workflows/ci.yml','old','new')), 'full');
 });
 
 test("classification defaults full for auth/config/data/tooling/mixed runtime/delete/rename/missing source", () => {
@@ -99,7 +101,7 @@ test("classification defaults full for auth/config/data/tooling/mixed runtime/de
   for (const path of ['src/features/auth/LoginPage.tsx', 'src/app/App.tsx', 'src/lib/api.ts', 'supabase/functions/api/index.ts', 'package.json', '.github/workflows/ci.yml', 'scripts/check-docs.mjs']) {
     assert.equal(mode(change(path, component, component.replace("Old text", "New text"))), 'full', path);
   }
-  for (const status of ['D', 'R100', 'C100', 'T', 'U']) assert.equal(mode(change('docs/guide.md', 'old', 'new', status)), 'full');
+  for (const status of ['R100', 'C100', 'T', 'U']) assert.equal(mode(change('docs/guide.md', 'old', 'new', status)), 'full');
   assert.equal(mode(change('src/features/activity/TasksPage.tsx', null, component, 'A')), 'full');
   assert.equal(mode(change('docs/guide.md', 'old', 'new'), change('src/lib/api.ts', 'old', 'new')), 'full');
   assert.equal(classifyChanges([], {}).mode, 'full');

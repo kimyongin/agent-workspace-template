@@ -4,6 +4,10 @@
 
 ## 설치와 업데이트
 
+이 패키지의 소유 원본은 이 저장소의 `plugins/workspace/`와 로컬/Git marketplace다. `plugin-creator:update-plugin` 스킬은 소유 원본에 맞는 갱신 경로를 선택하는 절차다. Workspace는 원본 수정·패키지 검사 후 아래 CLI 갱신/재설치를 사용하며 설치 cache를 직접 편집하지 않는다. 계정 편집 도구는 정확한 backend plugin ID·현재 release·편집 가능 scope를 확인한 eligible 계정 플러그인에만 적용한다([배포 기준](../../docs/deployment/release.md#플러그인-패키징과-배포)).
+
+앞으로 웹/앱 UI에서 플러그인을 설치·갱신·게시하지 않는다. 대상의 도구·CLI가 지원하지 않으면 미지원/미검증으로 기록하고 UI로 대신하지 않는다. 과거 Claude 웹 설치·사용 검증은 당시 이력이며 이 새 배포 경로의 검증을 뜻하지 않는다.
+
 저장소 루트에서 Claude Code:
 
 ```powershell
@@ -24,7 +28,7 @@ codex plugin add workspace@workspace-template
 codex plugin list --json
 ```
 
-Codex desktop의 프로젝트 marketplace 검색·설치는 앱의 Plugins 화면에서 진행한다. CLI 설치가 desktop 스킬 선택·OAuth·업무 수행을 검증했다는 의미는 아니다. 패키지와 서버의 호환성을 먼저 검사하고 업데이트 시 두 manifest의 버전을 함께 올린다.
+Codex 설치·갱신은 아래 CLI 지원 경로를 사용한다. desktop에서 CLI 설치가 실제 반영되는지와 스킬 선택·OAuth·업무 수행은 별도 확인하며, 미확인 상태에서 desktop까지 갱신됐다고 표시하지 않는다. 패키지와 서버의 호환성을 먼저 검사하고 실제 제품 릴리스에서 두 manifest의 버전을 함께 올린다.
 
 위 로컬 경로 marketplace는 원본을 수정한 뒤 `codex plugin add workspace@workspace-template --json`을 다시 실행하면 새 버전의 cache로 설치된다. `codex plugin list --json`으로 버전·enabled를 확인하고 새 세션에서 다시 사용한다. Codex CLI 0.147.0의 격리 설정에서 0.1.0→0.1.1 재설치를 확인했다.
 
