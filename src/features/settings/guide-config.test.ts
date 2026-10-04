@@ -1,12 +1,14 @@
 import { expect, test } from "vitest";
 import { guideConfig } from "./guide-config.ts";
-import { navigationSection } from "../../app/Navigation.tsx";
+import { navigationSection } from "../../app/navigation-section.ts";
 
 test("활동과 상세 URL은 같은 주요 탐색에 속한다", () => {
   for (const path of ["/tasks", "/tasks/abc", "/records", "/records/abc"]) expect(navigationSection(path)).toBe("activity");
   expect(navigationSection("/entities/abc")).toBe("entities");
   expect(navigationSection("/principles/abc")).toBe("principles");
-  expect(navigationSection("/search")).toBe("search");
+  expect(navigationSection("/search")).toBe("more");
+  expect(navigationSection("/settings")).toBe("more");
+  expect(navigationSection("/tags/entity")).toBe("more");
   expect(navigationSection("/guide")).toBe("more");
   expect(navigationSection("/tags")).toBe("more");
   expect(navigationSection("/tasks-other")).toBeNull();

@@ -3,10 +3,12 @@ import { SqlSearchUnitOfWork } from "../../functions/_shared/adapters/supabase/s
 import { searchInput, searchResult } from "../../functions/_shared/contracts/search.ts";
 import { search } from "../../functions/_shared/core/search/application.ts";
 import { AppError } from "../../functions/_shared/core/shared/errors.ts";
-import { asUser, connect, dbTest, devUsers, urls } from "./_db.ts";
+import { asUser, connect, dbTest, fixtureOwner, urls } from "./_db.ts";
 const admin = connect(urls.admin, { max: 1 }),
   sql = connect(urls.pooler, { max: 3, prepare: false }),
-  users = await devUsers(admin);
+  fixture = await fixtureOwner(admin),
+  foreignFixture = await fixtureOwner(admin),
+  users = { a: fixture.actor.userId, b: foreignFixture.actor.userId };
 const d = { uow: new SqlSearchUnitOfWork(sql) }, A = { userId: users.a }, B = { userId: users.b };
 dbTest("검색: 한국어 본문·literal 와일드카드·상태·태그·기간·개수 격리와 복합 커서", async () => {
   const token = crypto.randomUUID(),
@@ -25,13 +27,12 @@ dbTest("검색: 한국어 본문·literal 와일드카드·상태·태그·기�
     await tx`insert into app.records(id,owner_id,title,summary,body,occurred_at) values(${sameId},${users.a},'기록','근거',${
       token + " 재활용 %_"
     },${at})`;
-    await tx`insert into app.principles(id,owner_id,title,summary,body,updated_at) values(${sameId},${users.a},'원칙','규칙',${
+    await tx`insert into app.principles(id,owner_id,title,summary,body,updated_at,saved_at,is_current) values(${sameId},${users.a},'원칙','규칙',${
       token + " 재활용 %_"
-    },${at})`;
+    },${at},${at},true)`;
     await tx`insert into app.record_tags(owner_id,record_id,tag_id) values(${users.a},${sameId},${tagId})`;
     await tx`insert into app.task_tags(owner_id,task_id,tag_id) values(${users.a},${sameId},${scopeTag})`;
     await tx`insert into app.record_tags(owner_id,record_id,tag_id) values(${users.a},${sameId},${scopeTag})`;
-    await tx`insert into app.principle_tags(owner_id,principle_id,tag_id) values(${users.a},${sameId},${scopeTag})`;
     await tx`insert into app.principles(owner_id,title,summary,body,status) values(${users.a},'과거','비활성',${token},'inactive')`;
     await tx`update app.tasks set entity_id=${entity} where id=${sameId}`;
     await tx`update app.records set entity_id=${entity} where id=${sameId}`;
@@ -50,9 +51,9 @@ dbTest("검색: 한국어 본문·literal 와일드카드·상태·태그·기�
       to: at,
     }),
     first = searchResult.parse(await search(d, A, base));
-  assertEquals(first.semantic_coverage, { pending: 3, excluded: 0 });
+  assertEquals(first.semantic_coverage, { pending: 2, excluded: 0 });
   assertEquals(first.items[0].kind, "task");
-  assertEquals((await search(d, A, { ...base, anchor: { kind: "principle", id: sameId } })).anchor_page, 3);
+  assertEquals((await search(d, A, { ...base, anchor: { kind: "principle", id: sameId } })).anchor_page, null);
   assertEquals((await search(d, B, { ...base, anchor: { kind: "principle", id: sameId } })).anchor_page, null);
   assertEquals(
     (await search(d, A, { ...base, query: "없는 말", anchor: { kind: "principle", id: sameId } })).anchor_page,
@@ -61,10 +62,7 @@ dbTest("검색: 한국어 본문·literal 와일드카드·상태·태그·기�
   assert(first.next_cursor);
   const second = await search(d, A, { ...base, cursor: first.next_cursor });
   assertEquals(second.items[0].kind, "record");
-  assert(second.next_cursor);
-  const third = await search(d, A, { ...base, cursor: second.next_cursor });
-  assertEquals(third.items[0].kind, "principle");
-  assertEquals(third.next_cursor, null);
+  assertEquals(second.next_cursor, null);
   assertEquals("body" in first.items[0], false);
   for (
     const change of [
@@ -100,11 +98,16 @@ dbTest("검색: 한국어 본문·literal 와일드카드·상태·태그·기�
   );
   assertEquals(
     (await search(d, A, searchInput.parse({ query: token, entity_id: entity, status: "all" }))).items.length,
-    3,
+    2,
   );
   const noMatch = await search(d, A, searchInput.parse({ query: "없는 말", entity_id: entity }));
-  assertEquals(noMatch.semantic_coverage, { pending: 3, excluded: 0 });
+  assertEquals(noMatch.semantic_coverage, { pending: 2, excluded: 0 });
   const foreignEntity = await search(d, B, searchInput.parse({ query: token, entity_id: entity }));
   assertEquals(foreignEntity.items, []);
   assertEquals(foreignEntity.semantic_coverage, { pending: 0, excluded: 0 });
+});
+
+dbTest("search fixture cleanup", async () => {
+  await fixture.cleanup();
+  await foreignFixture.cleanup();
 });

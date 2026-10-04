@@ -35,10 +35,25 @@ dbTest("할 일 태그: 필터·부분 수정·삭제 후 원문·색인 보존"
   );
   assertEquals(task.tag_ids, [tag.id]);
   assertEquals((await listTasks(deps, A, taskListQuery.parse({ tag_id: tag.id }))).items.map((t) => t.id), [task.id]);
-  await updateTask(deps, A, task.id, taskUpdate.parse({ expected_version: 1, body: "정정" }));
+  await updateTask(
+    deps,
+    A,
+    task.id,
+    taskUpdate.parse({ change_note: "테스트 변경 이유", expected_version: 1, body: "정정" }),
+  );
   assertEquals((await getTask(deps, A, task.id)).tag_ids, [tag.id]);
-  await updateTask(deps, A, task.id, taskUpdate.parse({ expected_version: 2, tag_ids: [] }));
-  await updateTask(deps, A, task.id, taskUpdate.parse({ expected_version: 3, tag_ids: [tag.id] }));
+  await updateTask(
+    deps,
+    A,
+    task.id,
+    taskUpdate.parse({ change_note: "테스트 변경 이유", expected_version: 2, tag_ids: [] }),
+  );
+  await updateTask(
+    deps,
+    A,
+    task.id,
+    taskUpdate.parse({ change_note: "테스트 변경 이유", expected_version: 3, tag_ids: [tag.id] }),
+  );
   await deleteTag(tags, A, tag.id, 1);
   const after = await getTask(deps, A, task.id);
   assertEquals(after.tag_ids, []);
@@ -56,14 +71,28 @@ dbTest("할 일 태그: 다른 소유자·없는 태그·중복·10개 초과 �
   }
   const task = await createTask(deps, A, taskCreate.parse({ kind: "once", title: "보존", summary: "격리" }));
   await assertRejects(
-    () => updateTask(deps, A, task.id, taskUpdate.parse({ expected_version: 1, body: "변경", tag_ids: [foreign.id] })),
+    () =>
+      updateTask(
+        deps,
+        A,
+        task.id,
+        taskUpdate.parse({ change_note: "테스트 변경 이유", expected_version: 1, body: "변경", tag_ids: [foreign.id] }),
+      ),
     AppError,
   );
   assertEquals((await getTask(deps, A, task.id)).version, 1);
   assertEquals((await getTask(deps, A, task.id)).body, "");
-  assertEquals(taskUpdate.safeParse({ expected_version: 1, tag_ids: [foreign.id, foreign.id] }).success, false);
   assertEquals(
-    taskUpdate.safeParse({ expected_version: 1, tag_ids: Array.from({ length: 11 }, () => crypto.randomUUID()) })
+    taskUpdate.safeParse({ change_note: "테스트 변경 이유", expected_version: 1, tag_ids: [foreign.id, foreign.id] })
+      .success,
+    false,
+  );
+  assertEquals(
+    taskUpdate.safeParse({
+      change_note: "테스트 변경 이유",
+      expected_version: 1,
+      tag_ids: Array.from({ length: 11 }, () => crypto.randomUUID()),
+    })
       .success,
     false,
   );

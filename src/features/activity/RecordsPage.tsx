@@ -1,6 +1,11 @@
+import { useCreateMode } from "../../components/useCreateMode.ts";
+import { ChangeContext, recordKindNames, type WorkspaceRecord } from "./ChangeContext.tsx";
+import { Field } from "../../components/Field.tsx";
+import { TabSearch, AppliedConditions, resetTabFilters } from "../../components/TabSearch.tsx";
+import { TabSearchResults } from "../search/TabSearchResults.tsx";
 // 기록 목록(수행 시각 내림차순)과 직접 작성.
 import type { RecordResult } from "@contracts/record.ts";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate,useSearchParams } from "react-router";
 import {useDeferredNavigation} from "../../lib/useDeferredNavigation.ts";
 import { Notice } from "../../components/Field.tsx";
@@ -8,7 +13,7 @@ import { api, query } from "../../lib/api.ts";
 import { browserTimezone, formatDateTime } from "../../lib/format.ts";
 import { emptyRecord, RecordFormModal } from "./forms.tsx";
 import { useRequestId } from "./shared.tsx";
-import {TagFilter, TagNames, TagReadProvider, useTagDictionary} from "../tags/TagPicker.tsx";
+import {TagDictionaryStatus, TagFilter, TagNames, TagReadProvider, useTagDictionary} from "../tags/TagPicker.tsx";
 import { useActivityList } from "./useActivityList.ts";
 import {EntityPicker} from "../entity/EntityPicker.tsx";
 import { ActivityTabs } from "./ActivityTabs.tsx";
@@ -21,11 +26,15 @@ export function RecordsPage() {
   const tagDictionary = useTagDictionary(true,true);
   const [params,setParams]=useSearchParams();const tag_id=params.get("tag_id")??"";
   const entity_id=params.get("entity_id")??"";
-  const list = useActivityList<RecordResult>("records", `/records${query({ limit: 20, tag_id, entity_id })}`,
-    "records-title", "기록을 불러오지 못했습니다. 다시 시도하세요.", tagDictionary.tags !== null || tagDictionary.failed);
+  const list = useActivityList<WorkspaceRecord>("records", `/records${query({ limit: 20, tag_id, entity_id, record_kind:params.get("record_kind") })}`,
+    "records-title", "기록을 불러오지 못했습니다. 다시 시도하세요.", tagDictionary.tags !== null || tagDictionary.failed,!params.get("q"));
   const { items, cursor, error, busy: loadingMore, more } = list;
-  const [creating, setCreating] = useState(false);
+  const searching=!!params.get("q");
+  const create=useCreateMode();
+  const creating=create.open;
+  const setCreating=(value:boolean)=>value?create.begin():create.discard();
   const requestId = useRequestId();
+  useEffect(()=>{if(create.open)requestId.renew();},[create.open,create.key]);
   const navigate = useNavigate();
   const navigateAfterClose = useDeferredNavigation();
   const timezone = browserTimezone();
@@ -42,13 +51,19 @@ export function RecordsPage() {
       <ActivityTabs />
       <div className="panel-head">
         <h1 id="records-title" className="page-title" tabIndex={-1}>기록</h1>
-        <button type="button" className="btn btn-primary" onClick={() => setCreating(true)}>기록 작성</button>
+        <button type="button" className="btn btn-primary" onClick={create.begin}>기록 작성</button>
       </div>
-      <div className="activity-filters" role="group" aria-label="기록 필터">
-      <TagFilter dictionary={tagDictionary} value={tag_id} onChange={id=>{const next=new URLSearchParams(params);next.delete("pages");next.delete("scroll");next.delete("collapsed");id?next.set("tag_id",id):next.delete("tag_id");setParams(next);}}/>
+      <TabSearch/>
+      <Field label="기록 종류">{p=><select {...p} className="input" value={params.get("record_kind")??""} onChange={e=>{const p=new URLSearchParams(params);p.delete("pages");p.delete("scroll");e.target.value?p.set("record_kind",e.target.value):p.delete("record_kind");setParams(p);}}><option value="">전체 기록</option>{Object.entries(recordKindNames).map(([v,label])=><option key={v} value={v}>{label}</option>)}</select>}</Field>
+
+      <TagDictionaryStatus dictionary={tagDictionary}/>
+      <details className="workspace-additional"><summary>추가 조건</summary><div className="activity-filters" role="group" aria-label="기록 필터">
+      <TagFilter showFailure={false} dictionary={tagDictionary} value={tag_id} onChange={id=>{const next=new URLSearchParams(params);next.delete("pages");next.delete("scroll");next.delete("collapsed");id?next.set("tag_id",id):next.delete("tag_id");setParams(next);}}/>
       <EntityPicker label="엔터티 필터" value={entity_id} onChange={id=>{const next=new URLSearchParams(params);next.delete("pages");next.delete("scroll");next.delete("collapsed");id?next.set("entity_id",id):next.delete("entity_id");setParams(next);}}/>
-      {(tag_id || entity_id) && <button className="btn filter-reset" onClick={() => setParams({}, {replace:true})}>필터 해제</button>}
-      </div>
+      {(tag_id || entity_id) && <button className="btn filter-reset" onClick={() => setParams(resetTabFilters(params), {replace:true})}>필터 해제</button>}
+      </div></details>
+      <AppliedConditions namesForIds={Object.fromEntries(tagDictionary.tags?.map(t=>[t.id,t.name])??[])}/>
+      {searching ? <TabSearchResults kind="records"/> : <>
       <p className="help">날짜와 시각 기준: {timezone}</p>
       {items === null && !error && <p className="secondary" role="status">불러오는 중…</p>}
       {items?.length === 0 && (
@@ -71,6 +86,7 @@ export function RecordsPage() {
                   {formatDateTime(r.occurred_at)}
                   {r.occurrence_on ? ` · ${r.occurrence_on} 회차` : r.task_id ? " · 할 일 결과" : ""}
                 </span>
+                <ChangeContext record={r} compact/>
                 <TagNames ids={r.tag_ids} compact />
               </div>
             </li>
@@ -84,19 +100,21 @@ export function RecordsPage() {
           {loadingMore ? "불러오는 중…" : error ? "다시 시도" : cursor ? "더 보기" : "모두 불러왔습니다"}
         </button>
       )}
+      </>}
       {creating && (
         <RecordFormModal
+          key={create.key}
           title="기록 작성"
           submitLabel="저장"
           open
           initial={emptyRecord()}
-          onClose={() => setCreating(false)}
-          onRouteDiscard={() => setCreating(false)}
+          onClose={create.close}
+          onRouteDiscard={create.discard}
           onSave={async (value) => {
             const created = await api<RecordResult>("POST", "/records", { ...value, request_id: requestId.current });
             requestId.renew();
             setCreating(false);
-            navigateAfterClose(`/records/${created.id}${query({tag_id})}`);
+            const p=new URLSearchParams(params);p.delete("create");create.finish(`/records/${created.id}?list=${encodeURIComponent(`/records?${p}`)}`);
           }}
         />
       )}

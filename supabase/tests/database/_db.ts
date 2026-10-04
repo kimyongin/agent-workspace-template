@@ -16,7 +16,9 @@ const dbPort = new URL(adminUrl).port;
 export const urls = {
   admin: adminUrl,
   direct: `postgresql://app_server:${password}@${host}:${dbPort}/postgres`,
-  pooler: `postgresql://app_server.pooler-dev:${password}@${host}:55429/postgres`,
+  pooler: `postgresql://app_server.pooler-dev:${password}@${host}:${
+    Deno.env.get("LOCAL_POOLER_PORT") ?? 55429
+  }/postgres`,
 };
 
 export function connect(url: string, opts: postgres.Options<Record<string, never>> = {}) {
@@ -55,4 +57,17 @@ export async function outcome(p: Promise<unknown>): Promise<string> {
 /** 모듈 공용 관리 연결을 테스트 사이에 재사용하므로 자원 검사(sanitizer)를 끈다. */
 export function dbTest(name: string, fn: () => Promise<void>) {
   Deno.test({ name, fn, sanitizeOps: false, sanitizeResources: false });
+}
+
+/** A test owns this whole account; cleanup never selects unrelated rows. */
+export async function fixtureOwner(admin: postgres.Sql) {
+  const userId = crypto.randomUUID();
+  await admin`insert into auth.users(id,email) values(${userId},${`template20-${userId}@example.test`})`;
+  return {
+    actor: { userId },
+    cleanup: async () => {
+      await admin`delete from pgmq.q_search_index where message->>'owner_id'=${userId}`;
+      await admin`delete from auth.users where id=${userId}`;
+    },
+  };
 }

@@ -12,6 +12,7 @@ const newOnce = (title = "보고서 초안 쓰기") => ({
   body: "# 메모",
 });
 const completion = (version: number, extra: Record<string, unknown> = {}) => ({
+  change_note: "테스트 변경 이유",
   expected_version: version,
   title: "초안 완료",
   summary: "3쪽 초안을 공유함",
@@ -41,7 +42,10 @@ httpTest("할 일 생성·조회·한글 왕복과 색인 작업 등록", async 
   assertEquals(created.body.title, "한글 제목 ✅");
   assertEquals(created.body.status, "open");
   assertEquals(created.body.version, 1);
-  assertEquals(await queueCount(), before + 1);
+  assertEquals(await queueCount(), before + 2); // task + required change record, both atomically indexed
+  const [history] =
+    await admin`select id from app.records where record_kind='change' and change_metadata->>'target_id'=${created.body.id}`;
+  assert(history);
   const got = await call(A, "GET", `/tasks/${created.body.id}`);
   assertEquals(got.status, 200);
   assertEquals(got.body.result_record, null);
@@ -55,13 +59,21 @@ httpTest("입력 검증: 서버 관리 필드·한도 초과는 400과 위반 �
   assertEquals(long.status, 400);
   assertEquals(long.body.fields[0].path, "title");
   const t = (await call(A, "POST", "/tasks", newOnce())).body;
-  assertEquals((await call(A, "PATCH", `/tasks/${t.id}`, { expected_version: 1, version: 9 })).status, 400);
+  assertEquals(
+    (await call(A, "PATCH", `/tasks/${t.id}`, { change_note: "테스트 변경 이유", expected_version: 1, version: 9 }))
+      .status,
+    400,
+  );
 });
 
 httpTest("사용자 격리: B는 A의 할 일을 조회·수정·완료·삭제하지 못하고 목록에도 없다(404)", async () => {
   const t = (await call(A, "POST", "/tasks", newOnce("A만의 할 일"))).body;
   assertEquals((await call(B, "GET", `/tasks/${t.id}`)).status, 404);
-  assertEquals((await call(B, "PATCH", `/tasks/${t.id}`, { expected_version: 1, title: "탈취" })).status, 404);
+  assertEquals(
+    (await call(B, "PATCH", `/tasks/${t.id}`, { change_note: "테스트 변경 이유", expected_version: 1, title: "탈취" }))
+      .status,
+    404,
+  );
   assertEquals((await call(B, "POST", `/tasks/${t.id}/complete`, completion(1))).status, 404);
   assertEquals((await call(B, "DELETE", `/tasks/${t.id}?expected_version=1`)).status, 404);
   const list = await call(B, "GET", "/tasks?limit=100");
@@ -87,7 +99,11 @@ httpTest("완료: 할 일 done·결과 기록·기록 색인을 함께 저장하
   const again = await call(A, "POST", `/tasks/${t.id}/complete`, completion(2));
   assertEquals(again.status, 409);
   assertEquals(again.body.code, "conflict");
-  const stale = await call(A, "PATCH", `/tasks/${t.id}`, { expected_version: 1, title: "늦은 수정" });
+  const stale = await call(A, "PATCH", `/tasks/${t.id}`, {
+    change_note: "테스트 변경 이유",
+    expected_version: 1,
+    title: "늦은 수정",
+  });
   assertEquals(stale.status, 409);
 });
 
@@ -200,11 +216,20 @@ httpTest("반복 할 일: 회차 목록·기록·거부(미래·중단 기간)·
   const mine = filtered.body.items.find((x: { id: string }) => x.id === t.id);
   assertEquals(mine.occurrence.status, "due");
 
-  const stopped = await call(A, "POST", `/tasks/${t.id}/stop`, { expected_version: 1 });
+  const stopped = await call(A, "POST", `/tasks/${t.id}/stop`, {
+    change_note: "테스트 변경 이유",
+    expected_version: 1,
+  });
   assertEquals(stopped.body.status, "stopped");
-  assertEquals((await call(A, "POST", `/tasks/${t.id}/stop`, { expected_version: 2 })).status, 409);
+  assertEquals(
+    (await call(A, "POST", `/tasks/${t.id}/stop`, { change_note: "테스트 변경 이유", expected_version: 2 })).status,
+    409,
+  );
   assertEquals((await call(A, "POST", `/tasks/${t.id}/occurrences/${today}/records`, rec)).status, 400);
-  const resumed = await call(A, "POST", `/tasks/${t.id}/resume`, { expected_version: 2 });
+  const resumed = await call(A, "POST", `/tasks/${t.id}/resume`, {
+    change_note: "테스트 변경 이유",
+    expected_version: 2,
+  });
   assertEquals(resumed.body.status, "active");
   assertEquals((await call(A, "POST", `/tasks/${t.id}/occurrences/${today}/records`, rec)).status, 201);
 
@@ -226,6 +251,7 @@ httpTest("반복 규칙 수정: 기존 기록은 규칙 밖 기록으로 남는�
   const weekday = new Date(`${day}T00:00:00Z`).getUTCDay() || 7;
   const other = (weekday % 7) + 1; // 기록한 날의 다음 요일만 회차로
   const upd = await call(A, "PATCH", `/tasks/${t.id}`, {
+    change_note: "테스트 변경 이유",
     expected_version: 1,
     recurrence: { freq: "weekly", weekdays: [other], starts_on: start },
   });
@@ -271,9 +297,23 @@ httpTest("기록 수정: 제목·요약 변경은 재색인, 본문만 변경은
     admin`select msg_id,message from pgmq.q_search_index where message->>'kind'='record' and message->>'id'=${r.id}`;
   const first = await pending();
   assertEquals(first.length, 1);
-  assertEquals((await call(A, "PATCH", `/records/${r.id}`, { expected_version: 1, body: "본문만" })).status, 200);
+  assertEquals(
+    (await call(A, "PATCH", `/records/${r.id}`, {
+      change_note: "테스트 변경 이유",
+      expected_version: 1,
+      body: "본문만",
+    })).status,
+    200,
+  );
   assertEquals((await pending())[0].msg_id, first[0].msg_id);
-  assertEquals((await call(A, "PATCH", `/records/${r.id}`, { expected_version: 2, summary: "새 요약" })).status, 200);
+  assertEquals(
+    (await call(A, "PATCH", `/records/${r.id}`, {
+      change_note: "테스트 변경 이유",
+      expected_version: 2,
+      summary: "새 요약",
+    })).status,
+    200,
+  );
   const latest = await pending();
   assertEquals(latest.length, 1);
   assertNotEquals(latest[0].msg_id, first[0].msg_id);

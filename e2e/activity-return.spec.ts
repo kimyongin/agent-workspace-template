@@ -120,6 +120,7 @@ for (
       await expect(page.locator(".list .item-title")).toHaveCount(63);
       await expect(link).toBeFocused();
       await expect(link).toBeInViewport();
+      await page.getByText("추가 조건",{exact:true}).click();
       await expect(page.getByLabel("태그 필터")).toHaveValue(tag.id);
       await expect(page.getByLabel("엔터티 필터")).toHaveValue(entity.id);
       await page.reload();
@@ -128,6 +129,7 @@ for (
       await link.click();
       await page.getByRole("button", { name: "편집", exact: true }).click();
       await dialog.getByLabel("요약").fill("수정한 근거");
+      await dialog.getByLabel("편집 메모").fill("판단 근거 정정");
       await dialog.getByRole("button", { name: "저장", exact: true }).click();
       await expect(dialog).not.toBeVisible();
       await page.getByRole("link", { name: `← ${label} 목록`, exact: true }).click();
@@ -144,6 +146,7 @@ for (
       ids.delete(target.id);
       await expect(page.getByRole("heading", { name: label, exact: true })).toBeFocused();
       await expect(page.getByRole("button", { name: "더 보기", exact: true })).toHaveCount(0);
+      await page.getByText("추가 조건",{exact:true}).click();
       await page.getByLabel("태그 필터").selectOption(emptyTag.id);
       await expect(page.locator(".list .item-title")).toHaveCount(0);
       expect(new URL(page.url()).hash).toBe("");
@@ -155,10 +158,11 @@ for (
       await page.goto(listPath);
       const leavingLink = page.getByRole("link", { name: leaving.title, exact: true });
       await leavingLink.click();
-      await mcp.call(`update_${kind}`, { id: leaving.id, expected_version: leaving.version, entity_id: null });
+      await mcp.call(`update_${kind}`, { id: leaving.id, expected_version: leaving.version, entity_id: null, change_note:"연결 해제" });
       await page.goBack();
       await expect(leavingLink).toHaveCount(0);
       await expect(page.getByRole("heading", { name: label, exact: true })).toBeFocused();
+      await page.getByText("추가 조건",{exact:true}).click();
       await expect(page.getByLabel("엔터티 필터")).toHaveValue(entity.id);
     } finally {
       try {

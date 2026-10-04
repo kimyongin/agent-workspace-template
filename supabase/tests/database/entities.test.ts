@@ -1,14 +1,11 @@
 import { assert, assertEquals, assertRejects } from "@std/assert";
 import { SqlEntityUnitOfWork } from "../../functions/_shared/adapters/supabase/entity-store.ts";
 import { SqlUnitOfWork } from "../../functions/_shared/adapters/supabase/activity-store.ts";
-import { SqlPrincipleUnitOfWork } from "../../functions/_shared/adapters/supabase/principle-store.ts";
 import { entityCreate, entityListQuery, entityUpdate } from "../../functions/_shared/contracts/entity.ts";
 import { taskComplete, taskCreate, taskListQuery, taskUpdate } from "../../functions/_shared/contracts/task.ts";
 import { recordCreate, recordListQuery, recordUpdate } from "../../functions/_shared/contracts/record.ts";
-import { principleCreate, principleListQuery, principleUpdate } from "../../functions/_shared/contracts/principle.ts";
 import * as entity from "../../functions/_shared/core/entity/application.ts";
 import * as activity from "../../functions/_shared/core/activity/application.ts";
-import * as principles from "../../functions/_shared/core/principles/application.ts";
 import { AppError } from "../../functions/_shared/core/shared/errors.ts";
 import { asUser, connect, dbTest, devUsers, outcome, urls } from "./_db.ts";
 const admin = connect(urls.admin, { max: 1 }),
@@ -17,8 +14,7 @@ const admin = connect(urls.admin, { max: 1 }),
 const A = { userId: users.a },
   B = { userId: users.b },
   d = { uow: new SqlEntityUnitOfWork(sql) },
-  a = { uow: new SqlUnitOfWork(sql), clock: { now: () => new Date() } },
-  p = { uow: new SqlPrincipleUnitOfWork(sql) };
+  a = { uow: new SqlUnitOfWork(sql), clock: { now: () => new Date() } };
 const create = (name: string, actor = A, extra = {}) =>
   entity.createEntity(d, actor, entityCreate.parse({ prop1: name, ...extra }));
 dbTest("Entity DB: same owner 참조 거부·삭제 링크 해제·원문/버전/태그/색인 보존", async () => {
@@ -33,22 +29,22 @@ dbTest("Entity DB: same owner 참조 거부·삭제 링크 해제·원문/버전
     A,
     recordCreate.parse({ title: "기록", summary: "요약", body: "기록 원문", entity_id: e.id }),
   );
-  const principle = await principles.createPrinciple(
-    p,
-    A,
-    principleCreate.parse({ title: "원칙", summary: "요약", entity_id: e.id }),
-  );
   for (const ref of [foreign.id, crypto.randomUUID()]) {
     for (
       const run of [
-        () => activity.updateTask(a, A, task.id, taskUpdate.parse({ expected_version: 1, entity_id: ref })),
-        () => activity.updateRecord(a, A, record.id, recordUpdate.parse({ expected_version: 1, entity_id: ref })),
         () =>
-          principles.updatePrinciple(
-            p,
+          activity.updateTask(
+            a,
             A,
-            principle.id,
-            principleUpdate.parse({ expected_version: 1, entity_id: ref }),
+            task.id,
+            taskUpdate.parse({ change_note: "테스트 변경 이유", expected_version: 1, entity_id: ref }),
+          ),
+        () =>
+          activity.updateRecord(
+            a,
+            A,
+            record.id,
+            recordUpdate.parse({ change_note: "테스트 변경 이유", expected_version: 1, entity_id: ref }),
           ),
       ]
     ) {
@@ -60,31 +56,25 @@ dbTest("Entity DB: same owner 참조 거부·삭제 링크 해제·원문/버전
     a,
     A,
     task.id,
-    taskComplete.parse({ expected_version: 1, title: "완료 결과", summary: "요약" }),
+    taskComplete.parse({ change_note: "테스트 변경 이유", expected_version: 1, title: "완료 결과", summary: "요약" }),
   );
   assertEquals(completed.record.entity_id, e.id);
   const detail = await entity.getEntity(d, A, e.id);
-  assertEquals([detail.tasks.count, detail.records.count, detail.principles.count], [1, 2, 1]);
+  assertEquals([detail.tasks.count, detail.records.count, detail.principles.count], [1, 5, 0]);
   assertEquals((await activity.listTasks(a, A, taskListQuery.parse({ entity_id: e.id }))).items.map((t) => t.id), [
     task.id,
   ]);
-  assertEquals((await activity.listRecords(a, A, recordListQuery.parse({ entity_id: e.id }))).items.length, 2);
-  assertEquals(
-    (await principles.listPrinciples(p, A, principleListQuery.parse({ entity_id: e.id }))).items.map((t) => t.id),
-    [principle.id],
-  );
+  assertEquals((await activity.listRecords(a, A, recordListQuery.parse({ entity_id: e.id }))).items.length, 5);
   await entity.deleteEntity(d, A, e.id, 1);
   assertEquals((await activity.getTask(a, A, task.id)).entity_id, null);
   const current = await activity.getRecord(a, A, record.id);
   assertEquals([current.body, current.entity_id, current.version], ["기록 원문", null, 2]);
-  assertEquals((await principles.getPrinciple(p, A, principle.id)).version, 2);
   assertEquals(
     (await admin`select count(*)::integer as n from app.search_index_state where id=${e.id}`)[0].n,
     0,
   );
   await admin`delete from app.tasks where id=${task.id}`;
   await admin`delete from app.records where id in (${record.id},${completed.record.id})`;
-  await admin`delete from app.principles where id=${principle.id}`;
   await entity.deleteEntity(d, B, foreign.id, 1);
 });
 dbTest("Entity DB: RLS·직접 접근 차단·복합 FK·멱등성·버전 경쟁", async () => {
@@ -111,7 +101,12 @@ dbTest("Entity DB: RLS·직접 접근 차단·복합 FK·멱등성·버전 경�
   }))).startsWith("42501"));
   const writes = await Promise.allSettled(
     ["정정1", "정정2"].map((prop1) =>
-      entity.updateEntity(d, A, e.id, entityUpdate.parse({ expected_version: 1, prop1 }))
+      entity.updateEntity(
+        d,
+        A,
+        e.id,
+        entityUpdate.parse({ change_note: "테스트 변경 이유", expected_version: 1, prop1 }),
+      )
     ),
   );
   assertEquals(writes.filter((v) => v.status === "fulfilled").length, 1);

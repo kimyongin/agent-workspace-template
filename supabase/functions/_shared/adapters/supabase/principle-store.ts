@@ -3,75 +3,85 @@ import type { PrincipleCreate, PrincipleResult } from "../../contracts/principle
 import type { PrincipleStore, PrincipleUnitOfWork } from "../../core/principles/ports.ts";
 import type { Actor } from "../../core/shared/actor.ts";
 import { runAsActor, SqlActorStore } from "./sql-context.ts";
-import { hasTag, setTagLinks, tagIdsColumn } from "./tag-links.ts";
-import { requireEntity } from "./entity-reference.ts";
-
-type Row = Omit<PrincipleResult, "created_at" | "updated_at"> & { created_at: Date; updated_at: Date };
-const result = (r: Row): PrincipleResult => ({
-  ...r,
-  created_at: r.created_at.toISOString(),
-  updated_at: r.updated_at.toISOString(),
-});
-const columns = (tx: postgres.TransactionSql) =>
-  tx`id, entity_id, title, summary, body, applies_when, status, replaced_by_id, version, created_at, updated_at,${
-    tagIdsColumn(tx, "principle")
-  }`;
-
+function result(r: Record<string, unknown>): PrincipleResult {
+  return {
+    id: r.id as string,
+    title: r.title as string,
+    summary: r.summary as string,
+    body: r.body as string,
+    is_current: r.is_current as boolean,
+    saved_at: (r.saved_at as Date).toISOString(),
+    change_note: r.change_note as string | null,
+    origin: r.origin as PrincipleResult["origin"],
+    legacy_context: r.legacy_context as PrincipleResult["legacy_context"],
+    entity_id: null,
+    tag_ids: [],
+    applies_when: "",
+    status: r.is_current ? "active" : "inactive",
+    replaced_by_id: null,
+    version: r.version as number,
+    created_at: (r.created_at as Date).toISOString(),
+    updated_at: (r.updated_at as Date).toISOString(),
+  };
+}
 class SqlPrincipleStore extends SqlActorStore implements PrincipleStore {
-  async insert(input: Omit<PrincipleCreate, "request_id">) {
-    await requireEntity(this.tx, input.entity_id);
-    const [row] = await this.tx<
-      Row[]
-    >`insert into app.principles (owner_id, entity_id, title, summary, body, applies_when)
-      values (${this.actor.userId}, ${
-      input.entity_id ?? null
-    }, ${input.title}, ${input.summary}, ${input.body}, ${input.applies_when})
-      returning id`;
-    await setTagLinks(this.tx, this.actor, "principle", row.id, input.tag_ids ?? []);
-    return (await this.get(row.id))!;
+  async lockCurrent() {
+    await this.tx`select pg_advisory_xact_lock(hashtextextended(${`${this.actor.userId}:current_principle`},0))`;
   }
-  async get(id: string, forUpdate = false) {
-    const [row] = await this.tx<Row[]>`select ${columns(this.tx)} from app.principles where id = ${id} ${
-      forUpdate ? this.tx`for update` : this.tx``
-    }`;
-    return row ? result(row) : null;
+  async nextVersion() {
+    const [r] = await this.tx`insert into app.principle_versions(owner_id,version)
+      values(${this.actor.userId},coalesce((select max(version) from app.principles),0)+1)
+      on conflict(owner_id) do update set version=greatest(app.principle_versions.version,
+        coalesce((select max(version) from app.principles),0))+1 returning version`;
+    return r.version as number;
   }
-  async update(id: string, changes: Parameters<PrincipleStore["update"]>[1]) {
-    const tx = this.tx;
-    await requireEntity(tx, changes.entity_id);
-    const allowed = ["title", "summary", "body", "applies_when", "status", "replaced_by_id", "entity_id"];
-    const values = Object.fromEntries(
-      Object.entries(changes).filter(([k, v]) => allowed.includes(k) && v !== undefined),
-    );
-    if (changes.tag_ids !== undefined) await setTagLinks(tx, this.actor, "principle", id, changes.tag_ids);
-    const [row] = Object.keys(values).length
-      ? await tx<Row[]>`update app.principles set ${tx(values)}, version=version+1, updated_at=now()
-      where id=${id} returning ${columns(tx)}`
-      : await tx<Row[]>`update app.principles set version=version+1,updated_at=now() where id=${id} returning ${
-        columns(tx)
-      }`;
-    return result(row);
+  async current() {
+    const [r] = await this.tx`select * from app.principles where is_current`;
+    return r ? result(r) : null;
+  }
+  async insert(i: Omit<PrincipleCreate, "request_id">, version = 1) {
+    const [r] = await this.tx`insert into app.principles(owner_id,title,summary,body,is_current,change_note,version)
+    values(${this.actor.userId},${i.title},${i.summary},${i.body},true,${
+      i.change_note ?? null
+    },${version}) returning *`;
+    return result(r);
+  }
+  async get(id: string, lock = false) {
+    const [r] = await this.tx`select * from app.principles where id=${id} ${lock ? this.tx`for update` : this.tx``}`;
+    return r ? result(r) : null;
+  }
+  async retire(id: string) {
+    await this.tx`update app.principles set is_current=false where id=${id}`;
+  }
+  async update(id: string, i: Parameters<PrincipleStore["update"]>[1]) {
+    const values = Object.fromEntries(Object.entries(i).filter(([, v]) => v !== undefined));
+    const [r] = await this.tx`update app.principles set ${
+      this.tx(values)
+    },version=version+1,updated_at=now() where id=${id} returning *`;
+    return result(r);
   }
   async delete(id: string) {
-    await this.tx`update app.principles set replaced_by_id=null, version=version+1, updated_at=now()
-      where replaced_by_id=${id}`;
-    await this.tx`update app.records set version=version+1, updated_at=now() where id in
-      (select record_id from app.record_principles where principle_id=${id})`;
+    await this.tx`update app.principles set replaced_by_id=null where replaced_by_id=${id}`;
     await this.tx`delete from app.principles where id=${id}`;
+  }
+  async promoteLatest(version: number) {
+    await this
+      .tx`update app.principles set is_current=true,version=${version} where id=(select id from app.principles order by saved_at desc,id desc limit 1)`;
   }
   async list(f: Parameters<PrincipleStore["list"]>[0]) {
     const tx = this.tx;
-    const rows = await tx<Row[]>`select ${columns(tx)} from app.principles where status = ${f.status}
-      ${f.entity_id ? tx`and entity_id=${f.entity_id}` : tx``}
-      ${f.tag_id ? tx`and ${hasTag(tx, "principle", f.tag_id)}` : tx``}
-      ${f.after ? tx`and (updated_at, id) < (${f.after.at}::timestamptz, ${f.after.id}::uuid)` : tx``}
-      order by updated_at desc, id desc limit ${f.limit}`;
-    return rows.map(result);
+    return (await tx`select * from app.principles where true
+    ${f.view === "current" ? tx`and is_current` : f.view === "history" ? tx`and not is_current` : tx``}
+    ${
+      f.after
+        ? tx`and (saved_at,id)<(${f.after.at}::timestamptz,${f.after.id}::uuid)`
+        : tx``
+    } order by saved_at desc,id desc limit ${f.limit}`).map(result);
   }
 }
 export class SqlPrincipleUnitOfWork implements PrincipleUnitOfWork {
   constructor(private readonly sql: postgres.Sql) {}
-  run<T>(actor: Actor, fn: (store: PrincipleStore) => Promise<T>): Promise<T> {
-    return runAsActor(this.sql, actor, (tx) => fn(new SqlPrincipleStore(tx, actor)));
+  run<T>(a: Actor, fn: (s: PrincipleStore) => Promise<T>): Promise<T> {
+    return runAsActor(this.sql, a, (tx) => fn(new SqlPrincipleStore(tx, a)));
   }
 }

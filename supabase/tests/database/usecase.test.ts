@@ -51,6 +51,7 @@ for (const step of ["insertRecord", "updateTask", "enqueueIndex"] as const) {
     const before = await counts(task.id);
     await assertRejects(() =>
       activity.completeTask({ uow: failingAt(step), clock }, actor, task.id, {
+        change_note: "테스트 변경 이유",
         expected_version: 1,
         applied_principle_ids: [],
         title: "결과",
@@ -62,6 +63,7 @@ for (const step of ["insertRecord", "updateTask", "enqueueIndex"] as const) {
     assertEquals(before.status, "open");
     // 실패 뒤 같은 완료가 정상 경로로 다시 성공한다.
     const done = await activity.completeTask({ uow: real, clock }, actor, task.id, {
+      change_note: "테스트 변경 이유",
       expected_version: 1,
       applied_principle_ids: [],
       title: "결과",

@@ -46,7 +46,7 @@ export function registerTools(server: McpServer, tools: ToolDef[], actor: Actor)
       },
       async (args: Record<string, unknown>) => {
         try {
-          const result = await tool.handler(args ?? {}, actor);
+          const result = await tool.handler(args ?? {}, { ...actor, source: "mcp" });
           return {
             content: [{ type: "text" as const, text: JSON.stringify(result) }],
             structuredContent: result as Record<string, unknown>,

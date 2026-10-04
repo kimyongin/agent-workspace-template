@@ -5,10 +5,12 @@ import { searchInput } from "../../functions/_shared/contracts/search.ts";
 import { SEARCH_PIPELINE } from "../../functions/_shared/core/search/config.ts";
 import { EmbeddingError } from "../../functions/_shared/core/search/index-worker.ts";
 import { AppError } from "../../functions/_shared/core/shared/errors.ts";
-import { asUser, connect, dbTest, devUsers, outcome, urls } from "./_db.ts";
+import { asUser, connect, dbTest, fixtureOwner, outcome, urls } from "./_db.ts";
 const admin = connect(urls.admin, { max: 1 }),
   sql = connect(urls.pooler, { max: 3, prepare: false }),
-  users = await devUsers(admin);
+  fixture = await fixtureOwner(admin),
+  foreignFixture = await fixtureOwner(admin),
+  users = { a: fixture.actor.userId, b: foreignFixture.actor.userId };
 const vector = (a: number, b = 0) => Array.from({ length: 1024 }, (_, i) => i === 0 ? a : i === 1 ? b : 0);
 const d = { uow: new SqlSearchUnitOfWork(sql), embedder: { embed: () => Promise.resolve(vector(1)) } },
   A = { userId: users.a };
@@ -24,12 +26,11 @@ dbTest("의미 검색: 3종류·hybrid 순위/anchor/커서·현재성·권한·
     await tx`insert into app.records(id,owner_id,title,summary,body,occurred_at) values(${
       ids[1]
     },${users.a},'검토','단어 없음','본문 복구',${at})`;
-    await tx`insert into app.principles(id,owner_id,title,summary,body,updated_at) values(${
+    await tx`insert into app.principles(id,owner_id,title,summary,body,updated_at,saved_at,is_current) values(${
       ids[2]
-    },${users.a},'서버 장애','해결 절차','원문',${at})`;
+    },${users.a},'서버 장애','해결 절차','원문',${at},${at},true)`;
     await tx`insert into app.task_tags(owner_id,task_id,tag_id) values(${users.a},${ids[0]},${tag})`;
     await tx`insert into app.record_tags(owner_id,record_id,tag_id) values(${users.a},${ids[1]},${tag})`;
-    await tx`insert into app.principle_tags(owner_id,principle_id,tag_id) values(${users.a},${ids[2]},${tag})`;
   });
   for (const [n, kind] of ["task", "record", "principle"].entries()) {
     const source = n === 0 ? "tasks" : n === 1 ? "records" : "principles";
@@ -40,7 +41,7 @@ dbTest("의미 검색: 3종류·hybrid 순위/anchor/커서·현재성·권한·
       [kind, SEARCH_PIPELINE, JSON.stringify(n === 0 ? vector(1) : n === 1 ? vector(0, 1) : vector(.8, .6)), ids[n]],
     );
   }
-  const q = searchInput.parse({ query: "복구", tag_id: tag, from: at, to: at, limit: 1 });
+  const q = searchInput.parse({ query: "복구", from: at, to: at, limit: 1 });
   const first = await search(d, A, q);
   assertEquals(first.search_state, "ok");
   assertEquals(first.items.map((x) => [x.id, x.match]), [[ids[0], "both"]]);
@@ -57,7 +58,7 @@ dbTest("의미 검색: 3종류·hybrid 순위/anchor/커서·현재성·권한·
   await admin`insert into app.search_index_state(owner_id,kind,id,input_hash,pipeline,state,reason)
     select owner_id,'record',id,encode(extensions.digest(title||E'\n'||summary,'sha256'),'hex'),${SEARCH_PIPELINE},'excluded','input_limit' from app.records where id=${excludedId}`;
   const scoped = await search(d, A, { ...q, entity_id: entity, limit: 20, anchor: { kind: "record", id: ids[1] } });
-  assertEquals(scoped.items.map((x) => [x.id, x.match]), [[ids[0], "both"], [ids[2], "semantic"]]);
+  assertEquals(scoped.items.map((x) => [x.id, x.match]), [[ids[0], "both"]]);
   assertEquals(scoped.semantic_coverage, { pending: 0, excluded: 1 });
   assertEquals(scoped.anchor_page, null);
   assertEquals((await search(d, A, { ...q, entity_id: otherEntity })).items.map((x) => x.id), [ids[1]]);
@@ -73,13 +74,28 @@ dbTest("의미 검색: 3종류·hybrid 순위/anchor/커서·현재성·권한·
   assertEquals((await search(d, { userId: users.b }, { ...q, anchor: { kind: "task", id: ids[0] } })).items, []);
   assertEquals((await search(d, A, { ...q, from: "2002-02-04T00:00:00Z", to: undefined })).items, []);
   await asUser(sql, users.a, async (tx) => {
-    await tx`update app.principles set status='inactive' where id=${ids[2]}`;
+    await tx`update app.principles set is_current=false where id=${ids[2]}`;
   });
   assertEquals((await search(d, A, { ...q, kinds: ["principle"] })).items, []);
-  assertEquals((await search(d, A, { ...q, kinds: ["principle"], status: "inactive" })).items[0].id, ids[2]);
+  assertEquals(
+    (await search(
+      d,
+      A,
+      searchInput.parse({ ...q, principle_view: undefined, kinds: ["principle"], status: "inactive" }),
+    )).items[0].id,
+    ids[2],
+  );
   await admin`update app.search_index_state set pipeline='old' where id=${ids[2]}`;
-  assertEquals((await search(d, A, { ...q, kinds: ["principle"], status: "all" })).semantic_coverage.pending, 1);
-  assertEquals((await search(d, A, { ...q, kinds: ["principle"], status: "all" })).items, []);
+  assertEquals(
+    (await search(d, A, searchInput.parse({ ...q, principle_view: undefined, kinds: ["principle"], status: "all" })))
+      .semantic_coverage.pending,
+    1,
+  );
+  assertEquals(
+    (await search(d, A, searchInput.parse({ ...q, principle_view: undefined, kinds: ["principle"], status: "all" })))
+      .items,
+    [],
+  );
   await asUser(sql, users.a, async (tx) => {
     await tx`update app.tasks set summary='해시 변경' where id=${ids[0]}`;
   });
@@ -134,4 +150,9 @@ dbTest("검색 질의 예산: 동시 21건 중 20건·다른 사용자 분리·�
   } finally {
     await admin`delete from private.search_embedding_budget where owner_id in (${users.a},${users.b})`;
   }
+});
+
+dbTest("hybrid-search fixture cleanup", async () => {
+  await fixture.cleanup();
+  await foreignFixture.cleanup();
 });

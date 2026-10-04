@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { TagResult } from "@contracts/tag.ts";
 import { findTag } from "./resolve-tag.ts";
-const tag = (id: string, name: string): TagResult => ({ id, name, version: 2, created_at: "2026-10-04T00:00:00Z", updated_at: "2026-10-04T00:00:00Z" });
+const tag = (id: string, name: string): TagResult => ({ id, name, scope:"activity", version: 2, created_at: "2026-10-04T00:00:00Z", updated_at: "2026-10-04T00:00:00Z" });
 describe("불확정 태그 이름 변경 확인", () => {
   it("이름이 같은 다른 태그가 있어도 다음 페이지의 ID로 확인한다", async () => {
     const cursors: (string | null)[] = [];

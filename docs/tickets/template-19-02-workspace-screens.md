@@ -1,0 +1,191 @@
+# Template-19-02 — 탭 내부 검색·반응형 상세·메모와 변경 기록 화면
+
+작성: 2026-10-04
+상태: 구현·배정된 통합·독립 UI 리뷰3결함 수정·수정 source 전체 검증 완료, 부모 최종 재리뷰·CI·PR·머지 대기
+기준: main399b82b와 승인한 [Template-19](template-19-three-tab-release-ux.md)/[Template-20](template-20-current-principle-change-records.md)
+
+## 목표와 소유
+
+화면 세션은 src/components·src/features/entity/activity/principles/tags/search·해당 CSS/unit·e2e(탐색전용 제외)·공통 app.css의 모달 관련 절·디자인 정본의 목록/모달/폼/기록/원칙/태그 절·이 티켓을 소유한다. nav/App/Auth/settings와 모든 서버 contract 파일은 다른 세션 소유다. 공통 files는 해당 절만 수정하고 타인의 변경을 보존한다.
+
+상단 등록·명시적 검색/지우기·추가조건/적용조건, 하단 목록의 보기/편집, URL 문맥 복귀를 통일한다. 할 일/기록은 활동의 내부 전환이다. 원칙은 current없음일때등록·현재본문편집, 과거본문/메모/시각 목록·정정/삭제를 보여주고 태그·active/inactive selector는 제거한다. 엔터티/활동 태그 선택과 관리 범위가 다르고 원칙에는 없다.
+
+등록·보기·편집은640px미만전체화면/이상중앙40rem의 공통 shell, 확인28rem중앙, header/footer와본문스크롤분리, dirty/back/forward/reload/deeplink/focus/keyboard/safearea/긴내용을 검증한다. 현재 detail URLs는 유지한다. 보기→편집은 같은 shell 모드 전환이며 일반 폼 중첩을 만들지 않는다. 앱router 연결이 필요하면 nav소유자에게 요구한다.
+
+편집 메모는 필수 입력, 생성/삭제 이유는 선택 입력이다. 전체업무입력+태그+메모를한번저장하고 unknownsave/versionconflict/getfailure 처리와중복요청키를 보존한다. 활동기록에 source/recordkind/change_note/대상/전후/삭제됨을 보여주며 종류별필터·검색을 제공한다. 자동기록도정정/삭제허용하되 systemfields는쓰기필드로 노출하지않는다. 원칙의 과거본문·활동메모를서로독립적으로잘못편집하지않는다.
+
+정확한 새 serverendpoint/type는 서버소유자가 이 티켓/메인에게 먼저 인계한다. UI세션이 임의의 API를 만들어 가정하지 않는다. 기다리는동안 공통 shell과 CSS·mockfixture·기존 listcontext검토는 진행할 수 있다. 기존검색 route는호환용유지, 새검색은현재탭scope에서사용하며 엔터티keyword는그대로, 활동/원칙은키워드기본+자동옵션·서버실제필터를쓴다.
+
+## 검증과 인계
+
+explicit gpt-6.1-sol/high(여러 화면의 router/초안/저장/API교차경계). desktop의 새 생성과 기존 세션 재개 모두 전체 thread limit으로 거부되어 CLI0.160.0의 fresh 실행으로 전환했다. 실제 model/list8개를2026-10-04T09:06:42.608Z에 조회한 TEMP/template20-cli-models.json과 balanced/high assign preflight를 확인했다. explicit exec thread `01a1062b-6b2f-7dc2-a58b-b686e0acf113` 시작을 관측했다. 지원/명시 실행과 backend실제effort/비용은 구분하며 후자는미관측이다. worktreeunit/build/docs/boundaries·응답mockfixtures에서 모든자료 CRUD/메모·목록복귀·원칙최신삭제승격/마지막삭제빈상태·두태그혼용·초안보호·실패·긴/짧은제목/한글IME·320/360/390/639/640/768/1024/1440px·200%·keyboard를검증한다.
+
+CLI와 메인의 인계는 저장소 밖 TEMP/template20-screens-inbox.md(계약/배정)·template20-screens-status.md(진행/요청)·template20-screens-final.md(완료)에서 전달하며 최종 필요한 증거는 이 티켓에 연결한다. CLI가 서버/탐색 세션의 코드를 직접 편집하지 않는다.
+
+로컬사용자DB/finDB/reset/서비스시작은금지한다. 실제전체E2E/DBHTTPMCP는메인이격리환경·immutablehead와단독소유자를배정한다. 실패자료와검사한head를보존, 가이드/티켓·소스·검증을묶어cleancommit인계, 독립리뷰·정확CI·최신main머지는메인이조정한다. 운영배포하지않는다.
+
+## 최초 화면 단독 구현 기록 — 2026-10-04
+
+아래 초기 기록은 화면 단독 head의 당시 상태다. 이후 배정된 소스·격리 환경 통합과 최종 검증은 뒤의 실행 기록 및 마지막 표가 현재 결과를 소유한다.
+
+실행 주체는 별도 CLI 화면 구현 세션이다. worktree는 `fin-ux-activity/agent-workspace-template`, branch는 `codex/three-tab-screens`, base는 `773e3652834b9b7a15999016858591ba6dd3794f`다. explicit gpt-6.1-sol/high와 오늘 사용자 제공 모델 preflight를 사용했고 모델 대체·자식 에이전트는 없었다. backend 실제 effort/실청구액은 미관측이다.
+
+### 구현과 경계
+
+- 공통 `DetailSurface`가 읽기·편집을 하나의 native dialog와 portal로 유지한다. 등록은 목록의 `create=1`, 편집은 기존 detail URL의 `edit=1`이다. 읽기에서 연 편집은 `edit_from=view`로 같은 history 항목의 모드만 바꾸며 취소·저장 뒤 읽기로 복귀한다. 행의 직접 편집은 목록으로 복귀한다. 엔터티 연결 작성은 detail URL의 `create=task|record`다.
+- 640px 미만 전체 화면/이상 최대40rem, 확인28rem, 고정 header/footer·본문 스크롤·safe-area·visualViewport 높이를 공통화했다. 편집 재조회 중 읽기 surface와 초점 대상을 보존하고 최신 GET 뒤 editor를 연다.
+- 엔터티 키워드 의미를 유지하고 각 탭의 명시 검색·별도 지우기·추가/적용 조건·보기/편집 행을 연결했다. 활동·과거 원칙 검색은 keyword 기본/auto 선택이며 실제 서버 조건을 보낸다. 기존 `/search`의 혼합 검색·목록 복귀를 유지하고 원칙 범위를 current/history/all로 표시한다.
+- 엔터티·활동 태그를 분리했다. nav 세션에 `/tags/entity`, `/tags/activity` → `TagsPage` 연결을 요청했다. 기존 `/tags`는 activity 호환 경로다. 태그 이름 충돌/버전 충돌·불확정 생성/rename 확인·늦은 cursor 무시·저장 성공 뒤 조회 실패를 유지했다. 태그 사전 실패 재시도는 접힌 조건 밖에 표시한다.
+- 계정 전체 current0~1, 현재 저장 새 ID, 과거 정정/삭제, 최신 삭제 승격 본문 확인/영향 조회 실패 시 취소·GET 재시도/삭제 금지, 마지막 삭제 빈 상태를 구현했다. 원칙에 태그/엔터티/상태 선택은 없다. 기록의 당시 본문 snapshot과 migration 캡처의 한계를 구분한다.
+- 편집 메모1,000 Unicode 문자 필수, 생성/삭제 이유 선택, 반복 중단/재개 메모, 동일 uncertain 요청의 키 재사용/초안 고정과 폐기 뒤 새 작성·편집의 새 키를 적용했다. 작성 모드를 유지한 승인 URL 변경도 새 draft를 연다. 변경 기록은 출처·대상·행동·전후·삭제 문맥·메모를 표시하며 정정/삭제가 업무 상태를 되돌리지 않음을 알린다. 시스템 필드는 자동 기록 폼에 노출하거나 PATCH하지 않는다.
+- server 세션의 외부 checkout `current-principle-server/agent-workspace-template/docs/tickets/template-20-01-server-contracts.md`와 실제 contract를 읽었다. 부모의 immutable 통합 head 배정은 이 세션 inbox에 아직 없다. 서버 source/type를 복사·cherry-pick하지 않았고 새 필드는 소유 화면의 구조 타입으로 한정했다. App/Navigation/Auth/settings·공통 CSS의 탐색 절·서버/contracts/migrations/plugins는 수정하지 않았다.
+
+### 직접 실행한 검증
+
+| 명령 | 결과와 범위 |
+| --- | --- |
+| `npm run test:web` | 7 files / 18 PASS |
+| `npm run build` | 타입·Vite build PASS; 기존500kB chunk 권고 남음 |
+| `npm run check:boundaries` | PASS |
+| `npm run check:docs` | 문서/인코딩/링크·모델 설정 PASS, script48 PASS/Windows symlink 권한1 SKIP |
+| `npx tsc -p e2e/workspace-screens.tsconfig.json --noEmit` | 실제 화면·격리 fixture strict 타입 PASS |
+| `npx playwright test -c e2e/workspace-screens.config.ts` | 67 PASS(앞선 source); 실제 소유 feature/router, API 응답 mock |
+| `npx playwright test -c e2e/entity-tags-fixtures.config.ts --grep-invert '실제 App'` | 16 PASS; desktop/mobile 비탐색 fixture |
+| `npx playwright test -c e2e/workspace-screens.config.ts --grep 'forward 새 요청키\|복합 직접 링크\|엔터티 관련 작성'` | 4 PASS; 최종 추가 회귀 |
+| `git diff --check` | PASS |
+
+화면 fixture는 시작 전 listener를 확인한55580(Vite)/55581(가상 API, Playwright intercept)을 쓴다. 기존 태그 fixture는 별도55584/55585를 확인해 썼다. DB·Auth·서버 업무·실제 모델을 호출하지 않는다. 최종 추가 회귀를 포함한70개 화면 검사의 exact-head 결과·커밋 전체 SHA와 현재 남은 인계는 `TEMP/template20-screens-status.md`에 기록한다. 기존55480 listener와 root55421/fin54321 서비스를 변경하지 않았다.
+
+자료 CRUD·메모·동일 요청키 재시도/폐기 뒤 새 요청키/연결 작성 forward 새 키와 복합 create/edit URL의 단일 폼·충돌 초안·확인된 저장 뒤 GET 실패·재조회만 재시도·원칙 새 ID/정정/승격/빈 상태·자동 기록 시스템 입력 제외/독립 삭제·scoped tags·IME·조건·busy POP/dirty back/forward/reload/deeplink·목록 cursor/anchor/scroll/focus를 검증했다. 320/360/390/639/640/768/1024/1440px의 모든 소비 화면과 긴/한 글자 제목, CSS200%와 축소 viewport, 긴 승격 본문 확인창을 검증했다. 스크린샷은 `e2e/test-results/workspace-screens`에 생성하고320px 태그/390px 엔터티 등 대표 자료를 직접 보았다.
+
+초기 fixture 실패는 Vite HTML preamble, 저장 뒤 blocker 정리 시점, CSS zoom 높이, scoped 태그 cursor URL, 빠른 관련 폼 재개방, 과거 원칙 재진입 조회와 읽기 편집 초점 복귀와 연결 작성의 uncertain 폐기→forward 요청키에서 발생했다. source/fixture 원인을 고친 뒤 같은 검증을 재실행했다. 원래 assertion/timeout을 완화하지 않았다. 실패 자료는 ignored `test-results/screens-failures/screens-failure-run01..09`, `entity-tags-run01`, `activity-run01..03`에 보존했다. 같은 fixture config를 종료 전에 다시 실행한 한 번의 실수로 occupied-port 거부와 마지막 mobile trace ENOENT가 있었다. 이미 복사한 desktop 실패 자료는 남았고 이후 종료를 기다린 순차 재실행은 통과했다.
+
+### 최초 인계 당시 남은 통합과 검증
+
+- immutable backend/type 및 navigation head 통합 후 위 검사와 전체 DB/HTTP/MCP/web E2E를 exact head에서 실행한다. 이 세션은 실제 DB 실행·운영 이관·서비스 시작·push/PR/merge/배포를 하지 않았다.
+- 현재 원칙은 계정 전체 하나이므로 실제 principle/layout/search 통합 E2E는 격리된 계정을 단독 소유하고 desktop/mobile을 한 project씩 `--workers=1`로 실행한다. 공급자는 stub 또는 비용 없는 설정이며 `RUN_PINECONE_E2E`는 활성화하지 않는다.
+- 통합 spec의 메모·current/history·snapshot·scoped tag·manual record 검색 가정을 갱신했다. `npx playwright test --list`는 이 checkout의 `.env.local` 부재로 수집 단계에서 ENOENT였다. Auth/support는 소유 경계 때문에 수정하지 않았다. 전체 e2e를 임시 확장 tsconfig로 검사했을 때 남은 오류는 기존 consent의 ES2023 `Promise.withResolvers`와 support의 dotenv nullable 타입5곳이다. 소유 fixture 타입 검사는 별도로 통과했다.
+- `e2e/entity-tags-fixtures.spec.ts`의 중간3개 “실제 App…” 탐색/Auth 테스트는 nav 소유자에게 인계했다. 기존 inline 태그 editor 뒤 탐색 클릭, `/tags`와 작성 query 없는 URL 기대를 새 native surface와 scoped route에 맞춰야 한다. 해당 테스트 본문은 수정하지 않았다.
+- 실제 휴대전화 소프트웨어 키보드·safe-area·화면 읽기 도구와 실제 브라우저200% zoom은 확인하지 않았다. 자동 viewport/CSS 확대·키보드 조작 증거와 구분하며 최종 독립 리뷰/CI/최신 main/실환경 확인은 메인이 담당한다.
+
+
+### 부모 immutable 통합·격리 실환경 인계 수신
+
+부모 inbox가 화면 단독 검증 뒤 도착했다. own head `aa452566a1cde317ceb19978026327f0d5430c0a`에서70 screen/16 desktop·mobile/18 unit·build/docs/boundaries/strict fixture TS가 통과했다. 부모가 지정한 backend `8af1be0`+`7b18c4261391dd982d6b9f5914b1eef73ad1889a`와 nav `f4f7c31`/`952cccb`/`9e2c397`/`e00ea0e`/`25ee7dc45c48a2d2c2a0e0deac68f0eecf926fbc`를 순서대로 cherry-pick했다. 충돌은 없고 nav/modal CSS와 E2E 부분 변경을 함께 보존했다. source 결과 타입은 이제 canonical contract 별칭으로 바꿨다. scope 필수 tag 단위 fixture를 맞췄고 build가 통과했다.
+
+부모가 App의 태그 경로 통합만 추가 배정했다. `/tags/:scope/:id`를 연결하고 scope param을 읽으며 legacy `/tags/:id`와 scoped detail/edit를 query shell로 canonical redirect한다. 다른 App/Auth/nav 동작은 수정하지 않았다. 새 직접 링크 fixture1 PASS다. 실패 원인은 fixture의 활동 설명 문자열 오기였고 screenshot/trace를 `screens-failure-run10`에 보존했다.
+
+부모가 API56421/DB56422/pooler56429의 `template20server` 단독 환경 lease를 넘겼다. 외부 private environment-handoff의 runtime/config와 Docker project를 먼저 확인했고56680 listener 없음도 확인했다. private Auth site/redirect와 Edge CORS만56680으로 바꿨다. private runtime에 한정한 stop/start로 DB volume을 보존했고 reset·이관·공유 root/fin 변경은 없다. 이전 serve PID28896은 functions serve와 private runtime 경로를 다시 검증해 종료했고 같은 immutable runtime source로 새 serve를 시작했다. 비밀값을 출력하지 않고 공급받은 env를 ignored `.env.local`에 복사했다. 별도 `e2e/workspace-integration.config.ts`가 strict Vite56680/reuse=false/한 worker와 desktop·mobile project를 사용한다. 실제 모델 검사는 opt-in을 켜지 않는다.
+
+통합 nav/Auth mock19 PASS. nav 소유 실제 App 태그 fixture는 native dialog의 배경 inert와 새 작성 query를 아직 반영하지 못해 부모에게 source/trace/요청을 status로 보냈다. 소유하지 않은 nav/Auth 테스트 본문은 고치지 않는다. 실제 전체 E2E는 이 lease에서 실행 중이며 부모 backend/nav 추가 수정 immutable delta와 최종 실환경·exact-head 결과는 status에 갱신한다. 앞 절의 inbox/env 부재 한계는 이 새 인계로 해소됐다. 독립 리뷰·CI·최종 머지는 계속 부모 책임이다.
+
+
+실제 desktop 첫 전체 실행은34 PASS/5 FAIL/실제 모델1 SKIP(4.7m)였고 `real-desktop-run01`에 screenshot/trace를 보존했다. 입력과 조건 chip/form label/h1·dd의 부분 일치 selector 충돌3건은 정확한 textbox·definition 대상으로 고쳤다. 삭제 확인 click 뒤 실제 DELETE·목록 복귀 완료를 기다린 뒤 MCP 정본을 검사하고, 비동기 search anchor 재조회가 pages3을 반영할 때까지 같은 값을 polling한다. API·내용·초점·총42행 assertions는 유지했다. 부모의 backend 수정 `96380d62ca2475fda401bcc3b7ebd1bfa6ead392`를 통합했고 START-HERE의 상태 문단 충돌만 양쪽 사실을 유지해 해소했다. SQL migration 변경은 없고 서버 source를 별도로 수정하지 않았다. private Edge만 종료한 뒤68개 non-env function source를 immutable 통합본으로 갱신하고 env/DB volume을 보존해 다시 serve했다. 동일 실패5개의 실제 targeted rerun은5 PASS(33.2s)다.
+
+부모가 nav-bearing 화면 fixture3개의 통합 적응을 추가 배정했다. native dialog 아래에서는 실제 App Link/button handler의 route intent를 호출하고 화면 내부 초점 유지도 검증한다. 작성 URL은 create=1로 정확히 검사하며 forward entry를 실제 settings→back으로 준비해 dirty forward 취소 assertions를 유지했다. busy POP·메모 PATCH·로그아웃 요청0→승인 후1·세션 제거·초점 assertions를 보존했다. 새 task dialog open effect 완료를 기다린 뒤 route intent를 호출한다. 최종6 desktop/mobile PASS(14.1s)이며 이전6/2 실패 trace는 `entity-tags-nav-run02..03`에 남겼다. 부모 inbox LF를 부모가 고친 뒤 docs48 PASS/Windows symlink1 SKIP도 통과했다. primary Auth/nav source는 배정된 immutable patch 외 수정하지 않았다.
+
+
+### 삭제된 원칙의 기록 정정 회귀
+
+backend963 통합 뒤 desktop 전체39 PASS/실모델1 SKIP(4.6m)를 확인했다. 당시 원칙의 원문 삭제 뒤 기록의 설명까지 정정하는 실제 회귀를 추가하자, 이미 빈 연결 ID를 항상 PATCH하는 화면이 보존 캡처를 지우는 문제가 재현됐다. RecordDetail은 적용 원칙 선택이 정본과 같으면 해당 입력을 생략하며, 선택 변경은 명시 배열(모두 해제 시 빈 배열)을 보낸다. 자동 기록 시스템 필드 제외는 유지한다. 실제 MCP 재조회로 원문 캡처 유지·ID 빈 배열을 검사한 targeted1 PASS(8.5s)다. 실패 screenshot/trace는 `test-results/screens-failures/real-snapshot-run03`에 보존했다. 설명 정정 보존/명시 선택 해제를 모의 API에서 각각 검증한다.
+
+모의 snapshot2 PASS(4.1s). 첫 선택 해제 fixture는 선택된 저장본 접미사가 있는 실제 버튼 이름을 누락해 timeout이었다. 정확한 accessible name으로 고쳤고 실패 자료는 `screens-snapshot-run11`에 보존했다. assertion/timeout 변경은 없다.
+
+
+### a3 baseline 통합 검증과 최초 인계
+
+검사한 source head는 `a3a69d575b4b5ca995608be752a354f2258187cc`, base는 `773e3652834b9b7a15999016858591ba6dd3794f`다. 소유 snapshot 수정 `b13d7e74914569304d128798cf01bbaeb33ba880` 뒤 부모 nav 최종 `ba597a657ee2bc6dce0c00d4ec37e555f2f1ff1e`를 `b3ef346fb4f47f7425eb0e5d21336ef3153179f3`로 통합했다. 부모 문서 `a858b00`/`dbfa222`/`06d0208`도 충돌 없이 통합했다. 디자인 nav/화면 절과 native App fixture 수정은 함께 보존했다. 통합 뒤 코드 변경 없이 다음 검사를 직접 실행했다.
+
+| 직접 실행 명령 | 최종 결과 |
+| --- | --- |
+| `npm run test:fast` | core60 + fast adapter10 + frontend22 PASS |
+| `node --test e2e/fixtures/auth-profile-boundary.mjs` | 실제 설치 SDK 경계20 PASS |
+| `npm run build` | PASS; 기존500kB chunk 권고 |
+| `npm run check:boundaries` | PASS |
+| `npm run check:docs` | text421/모델 설정 PASS; script48 PASS/기존 Windows symlink1 SKIP |
+| `npx tsc -p e2e/workspace-screens.tsconfig.json --noEmit` | PASS |
+| `npx playwright test -c e2e/workspace-screens.config.ts` | mock screen73 PASS(2.2m) |
+| `npx playwright test -c e2e/entity-tags-fixtures.config.ts` | mock22 desktop/mobile PASS(35.5s) |
+| `npx playwright test -c TEMP/template20-nav.config.ts`(desktop) 및 `--project=mobile` | mock nav/Auth23+23 PASS(38.2s/39.4s); 새 overlap8 모두 포함 |
+| `npx playwright test -c e2e/workspace-integration.config.ts --project=desktop` | 실제 private DB/Auth/HTTP/MCP 웹39 PASS/실모델1 SKIP(5.4m) |
+| 같은 실제 config `--project=mobile` | 29 PASS/11 SKIP(3.4m); desktop 전용 폭·확대·keyboard10 + 실모델1 |
+| `git diff --check` | PASS |
+
+Deno check/lint100/fmt104는 backend963 통합 시 직접 PASS했고 이후 final source까지 서버/SQL/tests 변경이 없음을 Git diff로 확인했다. 별도 backend DB89/HTTP18/MCP17/이관 검증은 부모/server 보고이며 이 화면 세션의 직접 실행 수치와 구분한다. 실제 브라우저 검사 안의 HTTP/MCP 사용과 독립 서버 suite도 구분한다.
+
+실제 desktop/mobile은 API56421/DB56422의 exclusive `template20server`와 Vite56680을 단독 사용했다. supplied ignored env의 키는 출력/커밋하지 않았고 paid provider opt-in은 비활성화했다. private runtime의68 non-env function SHA256 manifest가 backend963 source와 일치한다. DB reset/SQL 이관/운영 배포/기존 root55421·fin54321·55480/다른 worker57421 변경은 없다. 완료 뒤 자체 Vite·Edge serve만 종료하고 private DB volume/env/외부 manifest·로그를 보존해 lease를 부모에게 반환한다.
+
+pass metadata는 `test-results/screens-failures/real-desktop-final-a3a69d5`와 `real-mobile-final-a3a69d5`에 보존했고 각 모의 suite의 `.last-run.json`도 PASS다. 최신320px 태그/360px 기록 편집/1440px shell screenshot을 직접 확인했다. 앞선 실패 자료·정확한 selector/async 완료 보정·snapshot 결함 수정 기록을 유지하며 assertion/timeout 완화는 없다.
+
+이번 마지막 커밋은 이 티켓의 상태/증거만 바꾼다. 최종 commit 전체 SHA와 source head 사이의 문서 전용 diff, lease 반환, branch/clean tracked 상태는 `TEMP/template20-screens-status.md` 및 `template20-screens-final.md`가 소유한다. 화면 구현/API route 질문은 남아 있지 않다. 부모는 계약 호환 backend+화면 통합 PR의 독립 최종 리뷰·필수 CI·최신 main 확인·머지를 수행한다. 이 세션은 push/PR/merge/배포하지 않는다. 실제 휴대전화 keyboard/safe-area/screenreader/native200% zoom·유료 의미 검색·기존 non-owned 전체E2ETS5 오류 한계는 앞 기록대로 남는다.
+
+
+### 독립 UI 리뷰 추가 결함과 수정
+
+부모가 immutable954의 독립 UI 리뷰를 인계했다. 외부 정본은 `C:/Users/yongin/AppData/Local/Temp/template20-ui-review-final.md` 및 `template20-ui-review-9545433/review-extra.fixture.ts`다. P1 snapshot 삭제는 b13의 변경되지 않은 RecordDetail과 실제/모의 회귀로 이미 해결했다. P2 두 건은 a3/ddfa source에서 새3개 fixture(task control1 PASS, record cancel1 FAIL, tag pendingBack1 FAIL/17s)로 다시 재현했다. 실패 자료는 `screens-review-run12`에 보존했다.
+
+엔터티 관련 기록 작성의 일반 onClose를 closeCreate로 바꿔 query를 제거하고 경로 폐기 콜백은 순수 local close로 분리했다. 태그 단독 삭제는 shell이 없으므로 pending ref 기반 BusyNavigationGuard 하나로 POP/경로 이동/beforeunload를 막고, 일반 shell의 기존 blocker는 중복 등록하지 않는다. 새3 회귀가3 PASS(6.2s)다. pristine/dirty 폐기 확인 취소·승인·조건 보존·초점·reload·pending Escape·요청 완료 뒤 정상Back과 단일 DELETE를 검증하며 assertion/timeout 변경은 없다. 부모가 같은 private56421/56422 lease를 명시 재배정했다. 앞 최종68 실제 PASS는 보존된 a3 baseline 증거이고 수정 head의 full run을 이어서 기록한다.
+
+
+독립 원본의3개 재현을 assertions 변경 없이 복사해 import 경로와 별도 unused55586/55587만 현재 checkout으로 맞췄다. desktop/mobile6 PASS(8.4s); P1의 PATCH IDs 입력은 undefined이며 보존 본문을 검사했다. 새로운 실제 HTTP/MCP 회귀는4 desktop/mobile PASS(8.9s/9.0s)다. 취소가 manual record·변경 이벤트·entity version을 바꾸지 않으며 tag DELETE를 지연한 상태의 Back·Escape·중복 요청1개·응답 완료 뒤 Settings 복귀를 검증했다. 첫 실제 fixture는 page.goto로 document history를 만들었고 SPA blocker 검사가 목적 경로를 떠났다. 실제 메뉴→Settings→활동 태그 링크를 통해 앱 history를 구성해 같은 route/assertions를 검증했다. 원본 failure는 `real-review-run04`에 남겼고 timeout은 변경하지 않았다. 현재 서버 source963/환경은 그대로이며 자체 Edge14355를 다시 시작했다.
+
+
+### 독립 리뷰 수정 source의 최종 결과
+
+코드·브라우저 spec·가이드 수정 commit은 `853949de8115d9eade57f8cd94796ec2811eabf0`다. 이 source를 다시 동결하고 mock/full 실제 desktop·mobile을 순차로 검증했다. 추가 소스 수정은 없었다.
+
+| 직접 실행 | 수정 source 최종 증거 |
+| --- | --- |
+| `npm run test:fast`, build/boundaries/strict fixture TS | core60/fast10/frontend22 및 모두 PASS; SDK20 harness는 frontend 경계 검사에서 함께 실행 |
+| docs/model/scripts, `git diff --check` | text424/48 PASS/기존 Windows symlink1 SKIP 및 PASS; status의 임시 줄 끝 공백1건 제거 후 재실행 PASS |
+| `workspace-screens.config.ts` | 76 PASS(2.3m) |
+| `entity-tags-fixtures.config.ts` | desktop/mobile22 PASS(36.7s) |
+| `TEMP/template20-nav.config.ts` | desktop/mobile46 PASS(1.3m), 기존8 canonical overlap 포함 |
+| 독립 원본 `TEMP/template20-review.config.ts` | desktop/mobile6 PASS(8.4s), source b13의 snapshot 해결도 확인 |
+| `workspace-integration.config.ts --project=desktop` | 실제41 PASS/실모델1 SKIP(5.4m) |
+| 같은 실제 config `--project=mobile` | 실제31 PASS/11 SKIP(3.5m): desktop 전용10 + 실모델1 |
+
+mock144 PASS와 독립 원본6 PASS, 실제72 PASS/12 SKIP를 서로 구분한다. 실제 검사는 같은 API56421/DB56422의 계정을 한 project씩 단독 사용했으며 단독 태그 DELETE를 실제 요청에 전달하기 전 지연해 Back 차단을 확인했다. cancelled 관련 기록은 사용자 기록·변경 이벤트·entity version에 쓰기를 만들지 않는다.
+
+`test-results/screens-failures/real-desktop-final-853949d`와 `real-mobile-final-853949d`의 metadata가 PASS이며 a3 baseline·실패12/실제04 자료도 보존했다. 자체 Edge14355와 Vite/모의 fixture 서비스를 종료했고 private DB/API·volume/env/외부 증거는 보존해 부모에게 exclusive lease를 반환한다. backend963/SQL/auth/nav primary source는 추가 변경하지 않았다.
+
+마지막 결과 커밋은 이 티켓만 갱신한다. exact 최종 SHA, tested853949 source와 문서 전용 차이, clean tracked 상태와 환경 반환은 TEMP status/final 인계가 소유한다. 보고된3결함의 수정과 재현 회귀가 모두 통과했으며 부모의 독립 최종 재리뷰·필수 CI·계약 호환 통합 PR·최신 main 확인·머지는 남는다. 실제 휴대전화/스크린리더/native zoom·유료 의미 검색·기존 전체E2ETS5 오류 한계는 유지한다. push/PR/merge/배포는 수행하지 않았다.
+
+## 2026-10-04 PR94 CI 실패 조사·수정
+
+사용자가 통합 worktree의 exact `379de5eac37db8182b46c14238d01ee9d0830b3c`에서 이 구현 소유자에게 PR94/run37202784462의 web E2E 실패 조사를 배정했다. 부모의 independent exact-head mergeable 리뷰·check SUCCESS와 integration의140 PASS/12 SKIP/8 FAIL은 인계 근거이며 이번 세션의 직접 실행으로 바꾸어 보고하지 않는다. 명시 gpt-6.1-sol/high와 오늘 CLI preflight를 재사용했고 현재 native thread의 turn_context에도 해당 model/effort를 직접 확인했다. 정제한 metadata는 외부 `screens-ci-native-model-metadata.json`에 보존했다. backend 실제 effort·비용은 미노출, 대체 모델·자식 세션은 없다.
+
+원본 CI 로그와 내려받은 trace/context 등37개 파일을 먼저 읽고 SHA256을 고정했다. 원본 파일은 변경하지 않았다. 같은 source의 local 원본2-worker 조건에서 관련12 cases는 PASS(1.6m)였으므로 그 결과만으로 CI 결함을 부정하지 않았다. 원본 trace의200 응답·순차 cursor 진행과 렌더 지연, 계정 전체 current의 다른 worker 저장, 태그의 목표 행은 이미 있는데 없어진 More를 기다린 증거를 분리했다. 불확정 제품 의미나 backend 오류로 취급하지 않았으며 서버 변경은 필요하지 않았다.
+
+| 원인·직접 재현 | 수정·확인 |
+| --- | --- |
+| 기록/엔터티250 복원: 매 응답마다 커지는 전체 목록을 렌더해 기존 진행/30s budget을 넘김. 원본에 CPU4×와2 workers를 적용해 두 종류 desktop/mobile 실패를 재현. | 첫 페이지·20페이지 간격·완료에 publish하며 실패는 마지막 유효 묶음까지 flush. 짧은 복원·모든 행/cursor·250 상한·수동251 이후·focus 유지. unit은250 순서/14 publish와23페이지 실패·취소를 검증하고 기존 assertion을 유지. |
+| current 원칙/promotion과 검색24→45: 다른 같은 계정 worker의 저장이 current를 바꾸어 conflict 또는 기존 원칙의 검색 제외를 유발. 실제 다른 MCP client로 원본 실패를 재현. | 두 projects가 DEV_USER_A를 공유하므로 정본 playwright workers를1로 맞춰 한 작성자씩 실행. 저장/승격/현재 기본 검색 계약은 그대로이며 conflict를 재시도하거나 assertion을 수정하지 않음. |
+| 태그 cancel/conflict/save: loading은 status 문구인데 button으로 조회해 기다림 없이 다음 click을 시작함. CI context에 target은 존재하지만 More는 사라짐. private DB를 보존한 fresh21-tag read fixture+500ms 마지막 응답에서 원본2 cases FAIL 재현. | 최초 행과 실제 누적 행 증가를 기다린 뒤 target을 다시 판단. 원래 conflict·draft·save·focus assertions 유지. |
+| 추가 full run의320/360/390 layout: 현재 원칙 chip 제목의 “저장”이 submit selector와 일치함. | submit controls로 action을 한정. 실제 현재 원칙 이름을 정확히 “저장”으로 만든320px 원본 layout1 PASS(13.4s), inserted 원칙은 해당 ID만 정리. |
+
+검증 증거는 각 실행의 별도 output/log로 보존했다. 수정 전 controlled8 FAIL/2 PASS 및 fresh-tag2 FAIL, 수정 후 CPU4×/fresh-tag desktop/mobile6 PASS(2.9m)다. 버퍼 내부 조회 실패에서 entities/records의23행 보존과 기존 list focus mock은3 PASS(6.1s). frontend24 PASS, build/boundaries/소유 fixture strict TS PASS다. 어떤 timeout·retry·skip·업무 assertion도 완화하지 않았다.
+
+전체 정본 CI160 case set을 API56421/DB56422와 Vite56680에서 직접 실행했다. run01은143 PASS/12 SKIP/5 FAIL(9.3m)이며 원래 CI8 cases는 모두 직접 PASS했다. 위 layout selector3 외에 auth-profile 초기 mount와 pending-tag의 menu 대기2는 Chrome ERR_NETWORK_CHANGED로 local ESM/CSS 요청이 중단되어 앱이 mount되지 않은 transport 실패였다. trace의 오류/실패 module paths를 확인했고 auth source를 바꾸거나 자동 재시도하지 않았다. 추가 targeted6 PASS(34.3s), 동일 이름 chip1 PASS 뒤 변경된 fixture source로 전체 run02를 실행해148 PASS/12 SKIP/0 FAIL(8.5m)을 확인했다. 단순히 원본을 다시 돌려 녹색으로 만든 것과 구분한다. 첫 전체 desktop 집계의 조기 보고 오류도 status에서 정정했다.
+
+전체는 실제 HTTP/MCP 업무 흐름과 기존 nav/consent/Auth mock fixtures를 포함하며160개를 모두 실서비스 검사라고 부르지 않는다. desktop79 PASS/paid-model1 SKIP, mobile69 PASS/desktop 전용10+paid-model1 SKIP다. 원래 CI8 failures 및 이후 layout/초기 mount/pending-delete cases가 final-source 전체에서 직접 PASS했다. 네트워크 observer는 설정을 바꾸지 않고 사건만 기록했으며 마지막 full run 동안 주소/가용성 변경이 없었다. 최초 Windows transport 중단의 OS 원인은 확정하지 않는다. CI Linux 재검증은 부모 책임이다.
+
+template20server는 기존 backup에서만 재시작했고 non-env runtime source68 SHA256이 immutable963 manifest와 동일함을 확인했다. reset/migration·template20fix57421/root55421/fin54321·유료 모델·backend/Auth/nav 변경은 없다. observer·Edge·Vite를 종료하고 own runtime을 backup 보존 stop한 뒤56421/56422 lease를 부모에게 반환했다. own API/DB/Vite/inspector listener0·container0을 확인했다. final build·boundaries·소유 mock strict TS PASS, docs446/model/scripts48 PASS/기존 Windows symlink1 SKIP, diff PASS다. 변경 real spec/config 포함 strict TS는 소유 오류0이고 변경 없는 support.ts의 nullable env3(10/17/18행)만 남는다. 이를 고치거나 strict 옵션을 완화하지 않았다. source/evidence manifest·exact commit·clean 상태는 실제 worktree TEMP status/final 인계가 소유한다. PRD/ADR 의미 변경은 없으며 독립 delta 리뷰·CI/push/merge/배포는 부모에게 남긴다.
+
+## 2026-10-04 최종 독립 리뷰 P2 재개: 삭제된 변경 대상
+
+사용자가 같은 화면 구현 소유자에게 직접 재개를 배정했다. base는 `e9a63c667ff83bb2fea480eb4cccf51069061336`이며 부모의 문서 변경을 보존했다. 요청·명시 실행 설정은 gpt-6.1-sol/high, 오늘 preflight 통과는 사용자 인계 근거다. 모델/강도 대체·자식 세션은 없으며 backend 실제 effort·비용은 미노출이다. AGENTS·개발 스킬·모델 실행·workflow·화면/서버 계약·디자인/보안 가이드와 독립 리뷰 보고서를 읽었다. frozen853 리뷰 checkout은 수정하지 않았다.
+
+독립 P2는 엔터티 삭제 뒤 이전 생성/수정 변경 기록의 저장된 path를 현재 존재로 취급해 잘못된 원문 링크를 제공한 문제다. 삭제 문맥 표시 요구(이 티켓의 승인 범위)를 실제 현재 상태 확인과 연결했다. entity/task/record/principle 정본 GET의 성공 때만 종류·ID의 원문 링크를 표시한다. 404 not_found는 다른 사용자 접근 거부와 구별할 수 없으므로 “삭제된 대상 또는 접근할 수 없는 대상”으로 안내한다. 인증/권한 오류·서버/통신 실패·다른 404는 삭제로 단정하지 않고 GET 재시도를 제공한다. 당시 metadata·source·path·전후·메모는 수정하지 않는다. 목록은 추가 대상 GET 없이 당시 행동만 표시하며 상세 변경/해제는 진행 중 조회를 취소해 늦은 응답을 무시한다. backend/contracts/Auth/nav 변경은 없다.
+
+직접 검증과 증거:
+
+| 검사 | 결과·범위 |
+| --- | --- |
+| 독립 원본 `deleted-target.fixture.ts`, import/포트만 로컬 조정 | 수정 전 desktop/mobile2 PASS로 결함 재현. 수정 후 동일2 FAIL: 원본이 요구한 잘못된 링크1 대신0. assertion·timeout을 유지했고 `e2e/test-results/screens-deleted-target-original-after`에 두 screenshot/trace를 보존했다. 결함을 요구하는 원본의 실패를 회귀 실패로 숨기거나 PASS로 보고하지 않는다. |
+| 원본의 올바른 기대값 별도 파생 fixture | desktop/mobile2 PASS(4.3s): 링크0·삭제/접근 불가 문맥·당시 제목/metadata·쓰기0. 원본 fixture는 보존했다. |
+| `workspace-screens.config.ts --grep "변경 대상\|기록: 자동"` | 23 PASS(19.9s). 4종 존재/삭제/다른 사용자404/503→GET 재시도16, 401/403/500/network/다른404 5, 목록 추가 조회0·늦은 상세 응답 격리1, 기존 자동 기록 정정/삭제·시스템 입력 제외1. 기존 삭제 fixture의 target_id를 실제 없는99로 맞췄고 다른 엔터티의 불변 assertion을 유지했다. |
+| `workspace-integration.config.ts e2e/deleted-target.spec.ts` | API56421/DB56422 exclusive lease에서 desktop/mobile8 PASS(24.2s). 4종 실제 MCP 생성/저장→삭제→웹 이전 변경 기록 보기→MCP metadata 동일 확인. 저장된 과거 path가 남아 있어도 원문 링크0·삭제 문맥이 표시된다. own 생성 대상만 삭제했고 다른 DB 자료·volume/env를 보존했다. |
+| build / frontend / boundaries / 소유 mock strict TS | PASS / 22 PASS / PASS / PASS. 기존 build 500kB advisory 유지. 실제 새 spec 포함 strict TS는 소유 오류0이며 변경 없는 `e2e/support.ts`의 기존 nullable env 오류3(10/17/18행)로 종료1; 이 공통 helper를 수정하거나 strict 설정을 완화하지 않았다. 실행 후 spec의 SDK 결과 type assertion만 보강했고 동작/검증은 동일하다. |
+
+모의 포트55580/55581 및 독립 재현55586/55587, 실제 Vite56680을 사전 inventory 후 썼다. 실제 Edge serve는 이 세션만 시작/종료했다. 모든 own Vite listener와 private functions serve process0을 확인하고 API56421/DB56422 lease를 부모에게 반환했다. root55421/fin54321/다른 worker57421·DB reset/migration·유료 모델·운영 변경은 없다. docs432개·모델 정합성·script48 PASS/기존 Windows symlink1 SKIP, diff 검사 PASS다. 두 원본 재현 실패 screenshot 중 mobile을 직접 읽어 삭제/접근 불가 안내·보존 snapshot·깨진 링크 없음과 화면 줄바꿈을 확인했다. 전체 suite는 새 위험 없는 좁은 수정에 반복하지 않았으며 최종 독립 리뷰/CI는 부모 책임이다. exact commit·변경 source SHA256 manifest는 실제 worktree TEMP status/final 인계로 전달한다.

@@ -1,58 +1,72 @@
 import { Hono } from "hono";
-import { principleCreate, principleListQuery, principleStatus, principleUpdate } from "../../contracts/principle.ts";
+import {
+  principleCorrection,
+  principleCreate,
+  principleListQuery,
+  principleSave,
+  principleUpdate,
+} from "../../contracts/principle.ts";
 import * as principles from "../../core/principles/application.ts";
-import { z } from "zod";
 import { parse } from "../errors.ts";
 import { type HttpEnv, idParam, json, versionQuery } from "./input.ts";
-
-export function principleRoutes(deps: principles.PrincipleDeps) {
+export function principleRoutes(d: principles.PrincipleDeps) {
   const app = new Hono<HttpEnv>();
-  app.post("/principles", async (c) => {
-    const input = await json(c.req.raw);
-    return c.json(await principles.createPrinciple(deps, c.get("actor"), parse(principleCreate, input)), 201);
-  });
-  app.get(
+  app.get("/principles/current", async (c) => c.json(await principles.currentPrinciple(d, c.get("actor"))));
+  app.post(
+    "/principles/current",
+    async (c) =>
+      c.json(
+        await principles.saveCurrentPrinciple(d, c.get("actor"), parse(principleSave, await json(c.req.raw))),
+        201,
+      ),
+  );
+  app.post(
     "/principles",
     async (c) =>
-      c.json(await principles.listPrinciples(deps, c.get("actor"), parse(principleListQuery, c.req.query()))),
+      c.json(await principles.createPrinciple(d, c.get("actor"), parse(principleCreate, await json(c.req.raw))), 201),
   );
-  app.get("/principles/:id", async (c) => {
-    const id = idParam(c.req.param("id"));
-    return c.json(await principles.getPrinciple(deps, c.get("actor"), id));
-  });
+  app.get(
+    "/principles",
+    async (c) => c.json(await principles.listPrinciples(d, c.get("actor"), parse(principleListQuery, c.req.query()))),
+  );
+  app.get(
+    "/principles/:id",
+    async (c) => c.json(await principles.getPrinciple(d, c.get("actor"), idParam(c.req.param("id")))),
+  );
   app.patch(
     "/principles/:id",
     async (c) =>
       c.json(
         await principles.updatePrinciple(
-          deps,
+          d,
           c.get("actor"),
           idParam(c.req.param("id")),
           parse(principleUpdate, await json(c.req.raw)),
         ),
       ),
   );
-  for (const [action, status] of [["activate", "active"], ["deactivate", "inactive"]] as const) {
-    app.post("/principles/:id/" + action, async (c) => {
-      const schema = z.strictObject({ ...principleStatus.shape }).omit({ status: true });
-      const raw = await json(c.req.raw);
-      // The route supplies status. Reject a caller status/non-object before injecting it,
-      // then let the original contract report field and status-refinement issues together.
-      if (typeof raw !== "object" || raw === null || Array.isArray(raw) || "status" in raw) parse(schema, raw);
-      const input = parse(principleStatus, { ...raw as Record<string, unknown>, status });
-      return c.json(
-        await principles.setPrincipleStatus(
-          deps,
+  app.patch(
+    "/principles/:id/correct",
+    async (c) =>
+      c.json(
+        await principles.correctPrinciple(
+          d,
           c.get("actor"),
-          idParam(c.req.param("id") ?? ""),
-          input,
+          idParam(c.req.param("id")),
+          parse(principleCorrection, await json(c.req.raw)),
         ),
-      );
-    });
-  }
+      ),
+  );
   app.delete("/principles/:id", async (c) => {
-    const input = parse(versionQuery, c.req.query());
-    await principles.deletePrinciple(deps, c.get("actor"), idParam(c.req.param("id")), input.expected_version);
+    const i = parse(versionQuery, c.req.query());
+    await principles.deletePrinciple(
+      d,
+      c.get("actor"),
+      idParam(c.req.param("id")),
+      i.expected_version,
+      i.change_note,
+      i.request_id,
+    );
     return c.body(null, 204);
   });
   return app;

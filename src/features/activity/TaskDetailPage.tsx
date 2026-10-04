@@ -1,3 +1,5 @@
+import { ChangeNoteField, FormModal, changeNoteErrors } from "../../components/ContentForm.tsx";
+import { DeleteDialog } from "../../components/DeleteDialog.tsx";
 // 할 일 상세: 읽기, 편집, 일회성 완료, 반복 할 일의 회차·회차 기록·중단/재개, 삭제.
 import type { RecordResult } from "@contracts/record.ts";
 import type { Occurrence, TaskDetail, TaskResult } from "@contracts/task.ts";
@@ -7,7 +9,7 @@ import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import {useDeferredNavigation} from "../../lib/useDeferredNavigation.ts";
 import { Notice } from "../../components/Field.tsx";
 import { MarkdownContent } from "../../components/MarkdownContent.tsx";
-import { ConfirmDialog } from "../../components/Modal.tsx";
+import { DetailSurface } from "../../components/Modal.tsx";
 import { api, ApiError, query } from "../../lib/api.ts";
 import { addDays, formatDateTime, todayIn } from "../../lib/format.ts";
 import { emptyRecord, RecordFormModal, TaskFormModal, taskDraftFrom, taskInput } from "./forms.tsx";
@@ -30,7 +32,7 @@ function describeRecurrence(t: TaskResult): string {
   return `${rule}, ${r.starts_on}부터 (${t.timezone})`;
 }
 
-type Dialog = null | "edit" | "complete" | "delete" | { occurrence: string };
+type Dialog = null | "edit" | "complete" | "delete" | "transition" | { occurrence: string };
 
 export function TaskDetailPage() {
   const { id = "" } = useParams();
@@ -44,7 +46,9 @@ export function TaskDetailPage() {
   const [message, setMessage] = useState<string | null>(null);
   const directEdit = params.get("edit") === "1";
   const [dialog, setDialog] = useState<Dialog>(directEdit ? "edit" : null);
-  const closeEdit = () => { setDialog(null); if(directEdit)navigateAfterClose(back.path,true); };
+  const conflicted=useRef(false);
+  const closeEdit = () => { setDialog(null);if(conflicted.current){conflicted.current=false;void reload();} if(directEdit&&params.get("edit_from")!=="view")navigateAfterClose(back.path,true);else{const p=new URLSearchParams(params);p.delete("edit");p.delete("edit_from");navigateAfterClose(`?${p}`,true);} };
+  const [editReady,setEditReady]=useState(false);
   const [busy, setBusy] = useState(false);
   const [occurrences, setOccurrences] = useState<{ today: string; items: Occurrence[] } | null>(null);
   const [rangeEnd, setRangeEnd] = useState<string | null>(null);
@@ -58,7 +62,7 @@ export function TaskDetailPage() {
       const loaded = await api<TaskDetail>("GET", `/tasks/${id}`);
       if(started !== loadGeneration.current)return;
       setTask(loaded);
-      setLoadError(null);
+      setLoadError(null);setEditReady(true);
     } catch (e) {
       if(started !== loadGeneration.current)return;
       setLoadError(e instanceof ApiError && e.code === "not_found" ? "할 일을 찾을 수 없습니다." : "할 일을 불러오지 못했습니다.");
@@ -71,14 +75,19 @@ export function TaskDetailPage() {
     return () => {loadGeneration.current++;};
   }, [reload]);
 
+  const occurrenceGeneration=useRef(0);
+  useEffect(()=>()=>{occurrenceGeneration.current++;},[id]);
   const loadOccurrences = useCallback(async (t: TaskResult, end: string | null) => {
+    const started=++occurrenceGeneration.current;
     try {
       // 할 일 시간대의 오늘 기준 앞 13일과 뒤 7일. 이전 기간으로 옮길 수 있다.
       const to = end ?? addDays(todayIn(t.timezone ?? "UTC"), 7);
       const from = addDays(to, -20);
       const res = await api<{ today: string; items: Occurrence[] }>("GET", `/tasks/${t.id}/occurrences?from=${from}&to=${to}`);
+      if(started!==occurrenceGeneration.current)return;
       setOccurrences({ today: res.today, items: [...res.items].reverse() });
     } catch {
+      if(started!==occurrenceGeneration.current)return;
       setOccurrences(null);
       setActionError("회차를 불러오지 못했습니다.");
     }
@@ -108,7 +117,7 @@ export function TaskDetailPage() {
     if(previousQuery.current===query)return;
     previousQuery.current=query;
     setDialog(directEdit?"edit":null);
-    if(directEdit){setTask(null);void reload();}
+    if(directEdit){requestId.renew();setEditReady(false);void reload();}
   },[params.toString(),reload]);
 
   if (loadError && !task) {
@@ -123,34 +132,28 @@ export function TaskDetailPage() {
   if (!task) return <p className="secondary" role="status">불러오는 중…</p>;
 
   return (
-    <>
-      <section className="panel" aria-labelledby="task-title">
+    <DetailSurface title={task.title} onClose={()=>navigate(back.path)} busy={busy}>
+      <section className="panel">
         <div className="panel-head">
           <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)", minWidth: 0 }}>
             <Link to={back.path} className="secondary back-link">{back.label}</Link>
-            <h1 id="task-title" className="page-title">{task.title}</h1>
           </div>
           <div className="actions">
             {task.kind === "once" && task.status === "open" && (
-              <button type="button" className="btn btn-primary" onClick={() => setDialog("complete")}>완료</button>
+              <button type="button" className="btn btn-primary" onClick={() => {requestId.renew();setDialog("complete");}}>완료</button>
             )}
             {task.kind === "recurring" && (
               <button
                 type="button"
                 className="btn"
                 disabled={busy}
-                onClick={() =>
-                  run(async () => {
-                    const path = task.status === "active" ? "stop" : "resume";
-                    await api("POST", `/tasks/${task.id}/${path}`, { expected_version: task.version });
-                    await reload();
-                  }, task.status === "active" ? "중단했습니다. 오늘부터 회차가 없습니다." : "재개했습니다.")}
+                onClick={() => setDialog("transition")}
               >
                 {task.status === "active" ? "중단" : "재개"}
               </button>
             )}
-            <button type="button" className="btn" onClick={() => setDialog("edit")}>편집</button>
-            <button type="button" className="btn btn-danger" onClick={() => setDialog("delete")}>삭제</button>
+            <button type="button" className="btn" onClick={() => {const p=new URLSearchParams(params);p.set("edit","1");p.set("edit_from","view");navigate(`?${p}`,{replace:true});}}>편집</button>
+            <button type="button" className="btn btn-danger" onClick={() => {requestId.renew();setDialog("delete");}}>삭제</button>
           </div>
         </div>
         {message && <Notice kind="success">{message}</Notice>}
@@ -237,7 +240,7 @@ export function TaskDetailPage() {
                   </div>
                   <OccurrenceBadge status={o.status} />
                   {o.in_rule && o.status !== "upcoming" && (
-                    <button type="button" className="btn" onClick={() => setDialog({ occurrence: o.date })} aria-label={`${o.date} 회차 기록`}>
+                    <button type="button" className="btn" onClick={() => {requestId.renew();setDialog({ occurrence: o.date });}} aria-label={`${o.date} 회차 기록`}>
                       기록
                     </button>
                   )}
@@ -248,7 +251,7 @@ export function TaskDetailPage() {
         </section>
       )}
 
-      {dialog === "edit" && (
+      {dialog === "edit" && editReady && (
         <TaskFormModal
           mode="edit"
           open
@@ -256,12 +259,15 @@ export function TaskDetailPage() {
           onClose={closeEdit}
           onRouteDiscard={() => setDialog(null)}
           onSave={async (draft) => {
+            try {
             loadGeneration.current++;
             const patch: Record<string, unknown> = {
               expected_version: task.version,
               title: draft.title,
               summary: draft.summary,
               body: draft.body,
+              change_note:draft.change_note,
+              request_id:requestId.current,
               tag_ids:draft.tag_ids,
               entity_id:draft.entity_id,
             };
@@ -273,12 +279,14 @@ export function TaskDetailPage() {
             }
             const saved = await api<TaskResult>("PATCH", `/tasks/${task.id}`, patch);
             setTask(current => current?.id === task.id ? {...current,...saved} : current);
-            closeEdit();
+            }catch(e){if(e instanceof ApiError&&e.code==="conflict")conflicted.current=true;throw e;}
+            requestId.renew(); closeEdit();
             setMessage("저장했습니다.");
             await reload();
           }}
         />
       )}
+      {dialog==="transition"&&<TaskTransitionForm task={task} onClose={()=>setDialog(null)} onSaved={async()=>{setDialog(null);setMessage(task.status==="active"?"중단했습니다. 오늘부터 회차가 없습니다.":"재개했습니다.");await reload();}}/>}
       {dialog === "complete" && (
         <RecordFormModal
           title="할 일 완료"
@@ -318,24 +326,33 @@ export function TaskDetailPage() {
           }}
         />
       )}
-      <ConfirmDialog
-        open={dialog === "delete"}
+      {dialog==="delete"&&<DeleteDialog
         title="할 일을 삭제할까요?"
         message={
           <p style={{ margin: 0 }}>
             「{task.title}」을(를) 삭제합니다. 연결된 결과·회차 기록은 남고 이 할 일과의 연결만 사라집니다.
           </p>
         }
-        confirmLabel="삭제"
-        danger
         busy={busy}
         onCancel={() => setDialog(null)}
-        onConfirm={() =>
+        onConfirm={(reason) =>
           run(async () => {
-            await api("DELETE", `/tasks/${task.id}?expected_version=${task.version}`);
-            navigate(back.path, { replace: true });
+            await api("DELETE", `/tasks/${task.id}${query({expected_version:task.version,change_note:reason,request_id:requestId.current})}`);
+            navigateAfterClose(back.path,true);
           }, "삭제했습니다.")}
-      />
-    </>
+      />}
+    </DetailSurface>
   );
+}
+
+function TaskTransitionForm({task,onClose,onSaved}:{task:TaskResult;onClose:()=>void;onSaved:()=>Promise<void>}) {
+  const [note,setNote]=useState(""),request=useRequestId();
+  const action=task.status==="active"?"stop":"resume",label=action==="stop"?"중단":"재개";
+  return <FormModal open title={`반복 할 일 ${label}`} submitLabel={label} dirty={!!note} onClose={onClose} onRouteDiscard={onClose}
+    validate={()=>changeNoteErrors(note,true)} onSubmit={async()=>{
+      await api("POST",`/tasks/${task.id}/${action}`,{expected_version:task.version,change_note:note.trim(),request_id:request.current});
+      request.renew();await onSaved();
+    }}>
+    {errors=><><p className="help">{action==="stop"?"오늘부터 이후 회차가 생기지 않고 기존 기록은 남습니다.":"오늘부터 규칙에 따라 회차가 다시 생깁니다."}</p><ChangeNoteField required value={note} onChange={setNote} error={errors.change_note}/></>}
+  </FormModal>;
 }

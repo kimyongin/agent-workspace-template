@@ -2,6 +2,7 @@
 // 실패는 HTTP와 같은 오류 본문 {code, message, retryable, fields}를 isError 결과로 돌려준다.
 import type { ToolDef } from "./tools.ts";
 import { z } from "zod";
+import { mutationMeta } from "../../contracts/change.ts";
 import { expectedVersion, id, isoDate } from "../../contracts/common.ts";
 import { recordCreate, recordListQuery, recordUpdate } from "../../contracts/record.ts";
 import { occurrenceRange, taskComplete, taskCreate, taskListQuery, taskUpdate } from "../../contracts/task.ts";
@@ -21,7 +22,7 @@ const createTaskInput = z.strictObject({
 
 const withId = <T extends z.ZodObject>(schema: T) => z.strictObject({ id, ...schema.shape });
 const idOnly = z.strictObject({ id });
-const deleteInput = z.strictObject({ id, expected_version: expectedVersion });
+const deleteInput = z.strictObject({ id, expected_version: expectedVersion, ...mutationMeta });
 
 /** 경로 ID와 같은 규칙: UUID가 아니면 존재 여부를 드러내지 않고 not_found(HTTP와 같음). */
 function split(args: Record<string, unknown>) {
@@ -30,7 +31,7 @@ function split(args: Record<string, unknown>) {
   return { id: rawId as string, rest };
 }
 
-const versionOnly = z.strictObject({ expected_version: expectedVersion });
+const versionOnly = z.strictObject({ expected_version: expectedVersion, ...mutationMeta });
 const byId = (args: Record<string, unknown>) => {
   const { id, rest } = split(args);
   parse(z.strictObject({}), rest);
@@ -38,8 +39,9 @@ const byId = (args: Record<string, unknown>) => {
 };
 const byIdAndVersion = (args: Record<string, unknown>) => {
   const { id, rest } = split(args);
-  return { id, expected_version: parse(versionOnly, rest).expected_version };
+  return { id, ...parse(versionOnly, rest) };
 };
+const byIdDelete = (args: Record<string, unknown>) => parse(deleteInput, args);
 
 export function activityTools(deps: activity.ActivityDeps): ToolDef[] {
   return [
@@ -95,8 +97,8 @@ export function activityTools(deps: activity.ActivityDeps): ToolDef[] {
       readOnly: false,
       destructive: true,
       handler: async (args, actor) => {
-        const input = byIdAndVersion(args);
-        await activity.deleteTask(deps, actor, input.id, input.expected_version);
+        const input = byIdDelete(args);
+        await activity.deleteTask(deps, actor, input.id, input.expected_version, input.change_note, input.request_id);
         return { deleted: input.id };
       },
     },
@@ -130,7 +132,7 @@ export function activityTools(deps: activity.ActivityDeps): ToolDef[] {
       readOnly: false,
       handler: (args, actor) => {
         const input = byIdAndVersion(args);
-        return activity.stopTask(deps, actor, input.id, input.expected_version);
+        return activity.stopTask(deps, actor, input.id, input.expected_version, input.change_note, input.request_id);
       },
     },
     {
@@ -140,7 +142,7 @@ export function activityTools(deps: activity.ActivityDeps): ToolDef[] {
       readOnly: false,
       handler: (args, actor) => {
         const input = byIdAndVersion(args);
-        return activity.resumeTask(deps, actor, input.id, input.expected_version);
+        return activity.resumeTask(deps, actor, input.id, input.expected_version, input.change_note, input.request_id);
       },
     },
     {
@@ -154,7 +156,7 @@ export function activityTools(deps: activity.ActivityDeps): ToolDef[] {
     {
       name: "get_record",
       description:
-        "기록 원문과 적용 원칙을 읽는다. applied_principles는 현재 제목·상태·버전·수정 시각이며 당시 사본이 아니다.",
+        "기록 원문과 연결 시점의 적용 원칙 캡처를 읽는다. captured_at=migration은 이관 당시 자료이며 과거 실제 적용 시점의 사본을 보증하지 않는다.",
       input: idOnly,
       readOnly: true,
       handler: (args, actor) => activity.getRecord(deps, actor, byId(args)),
@@ -185,8 +187,8 @@ export function activityTools(deps: activity.ActivityDeps): ToolDef[] {
       readOnly: false,
       destructive: true,
       handler: async (args, actor) => {
-        const input = byIdAndVersion(args);
-        await activity.deleteRecord(deps, actor, input.id, input.expected_version);
+        const input = byIdDelete(args);
+        await activity.deleteRecord(deps, actor, input.id, input.expected_version, input.change_note, input.request_id);
         return { deleted: input.id };
       },
     },

@@ -4,9 +4,11 @@ import type { EntityStore } from "../../core/entity/application.ts";
 import type { Actor } from "../../core/shared/actor.ts";
 import type { Keyset } from "../../core/shared/store.ts";
 import { runAsActor, SqlActorStore } from "./sql-context.ts";
+import { hasTag, setTagLinks, tagIdsColumn } from "./tag-links.ts";
 const columns = "id,prop1,prop2,prop3,prop4,version,created_at,updated_at";
 function result(r: Record<string, unknown>): EntityResult {
   return {
+    tag_ids: (r.tag_ids as string[]) ?? [],
     id: r.id as string,
     prop1: r.prop1 as string,
     prop2: r.prop2 as number | null,
@@ -17,29 +19,36 @@ function result(r: Record<string, unknown>): EntityResult {
     updated_at: (r.updated_at as Date).toISOString(),
   };
 }
-class SqlEntityStore extends SqlActorStore implements EntityStore {
+export class SqlEntityStore extends SqlActorStore implements EntityStore {
   async get(id: string, lock = false) {
-    const [r] = await this.tx`select ${this.tx.unsafe(columns)} from app.entities where id=${id} ${
-      lock ? this.tx`for update` : this.tx``
-    }`;
+    if (lock) {
+      const rows = await this.tx`select id from app.entities where id=${id} for update`;
+      if (!rows.length) return null;
+    }
+    const [r] = await this.tx`select ${this.tx.unsafe(columns)},${
+      tagIdsColumn(this.tx, "entity")
+    } from app.entities where id=${id}`;
     return r ? result(r) : null;
   }
   async insert(i: Omit<EntityCreate, "request_id">) {
-    return result(
+    const entity = result(
       (await this.tx`insert into app.entities(owner_id,prop1,prop2,prop3,prop4)
       values (${this.actor.userId},${i.prop1},${i.prop2},${i.prop3},${i.prop4}) returning ${this.tx.unsafe(columns)}`)[
         0
       ],
     );
+    await setTagLinks(this.tx, this.actor, "entity", entity.id, i.tag_ids ?? []);
+    return (await this.get(entity.id))!;
   }
-  async update(id: string, changes: Omit<EntityUpdate, "expected_version">) {
+  async update(id: string, changes: Omit<EntityUpdate, "expected_version" | "change_note" | "request_id">) {
+    if (changes.tag_ids !== undefined) await setTagLinks(this.tx, this.actor, "entity", id, changes.tag_ids);
     const values = Object.fromEntries(
       Object.entries(changes).filter(([k, v]) => ["prop1", "prop2", "prop3", "prop4"].includes(k) && v !== undefined),
     );
-    return result(
-      (await this.tx`update app.entities set ${this.tx(values)},version=version+1,updated_at=now()
-      where id=${id} returning ${this.tx.unsafe(columns)}`)[0],
-    );
+    if (Object.keys(values).length) {
+      await this.tx`update app.entities set ${this.tx(values)},version=version+1,updated_at=now() where id=${id}`;
+    } else await this.tx`update app.entities set version=version+1,updated_at=now() where id=${id}`;
+    return (await this.get(id))!;
   }
   async delete(id: string) {
     await this.tx`update app.tasks set entity_id=null,version=version+1,updated_at=now() where entity_id=${id}`;
@@ -66,7 +75,8 @@ class SqlEntityStore extends SqlActorStore implements EntityStore {
         : tx`${after.at}`
       : tx``;
     const descending = q.sort === "updated_at";
-    return (await tx`select ${tx.unsafe(columns)} from app.entities where true
+    return (await tx`select ${tx.unsafe(columns)},${tagIdsColumn(tx, "entity")} from app.entities where true
+      ${q.tag_id ? tx`and ${hasTag(tx, "entity", q.tag_id)}` : tx``}
       ${q.keyword ? tx`and position(lower(${q.keyword}) in lower(prop1))>0` : tx``}
       ${q.prop4 ? tx`and prop4=${q.prop4}` : tx``}
       ${q.prop3_from ? tx`and prop3>=${q.prop3_from}::date` : tx``}

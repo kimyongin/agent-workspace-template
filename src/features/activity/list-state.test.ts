@@ -11,6 +11,34 @@ import {
 } from "./list-state.ts";
 
 describe("activity list return", () => {
+  it("batches long restoration renders while retaining every page and ordered cursor", async () => {
+    const published: number[] = [];
+    const load = vi.fn(async (cursor?: string) => {
+      const index = Number(cursor ?? 0);
+      return { items: [{ id: String(index) }], next_cursor: String(index + 1) };
+    });
+    const result = await restoreList({ load, pages: 250, current: () => true, publish: value => published.push(value.pages) });
+    expect(load.mock.calls.map(([cursor]) => cursor)).toEqual([undefined, ...Array.from({ length: 249 }, (_, i) => String(i + 1))]);
+    expect(result?.items).toEqual(Array.from({ length: 250 }, (_, i) => ({ id: String(i) })));
+    expect(result?.pages).toBe(250);
+    expect(result?.next_cursor).toBe("250");
+    expect(published).toEqual([1, ...Array.from({ length: 12 }, (_, i) => (i + 1) * 20), 250]);
+  });
+
+  it("flushes a partial render batch on failure but never publishes it after cancellation", async () => {
+    for (const cancelled of [false, true]) {
+      const published: number[] = [];
+      let current = true;
+      const load = vi.fn(async (cursor?: string) => {
+        const index = Number(cursor ?? 0);
+        if (index === 23) { current = !cancelled; throw new Error("network"); }
+        return { items: [{ id: String(index) }], next_cursor: String(index + 1) };
+      });
+      await expect(restoreList({ load, pages: 250, current: () => current, publish: value => published.push(value.pages) })).rejects.toThrow("network");
+      expect(published).toEqual(cancelled ? [1, 20] : [1, 20, 23]);
+    }
+  });
+
   it("preserves all URL filters, loaded extent and the focus target while constraining return paths", () => {
     const params = new URLSearchParams("kind=once&status=open&tag_id=tag&entity_id=entity&pages=3&scroll=9");
     const id = "00000000-0000-4000-8000-000000000001";
@@ -98,5 +126,15 @@ describe("activity list return", () => {
     expect(load).toHaveBeenCalledTimes(7); // Saved extent plus at most five lookahead pages.
     expect(result?.next_cursor).toBe("cursor-7");
     expect(result?.items.some((item) => item.id === "deleted")).toBe(false);
+  });
+
+  it("uses the server search anchor page while preserving a finite restoration cap",async()=>{
+    let count=0;
+    const load=vi.fn(async()=>{count++;return {items:[{id:count===8?"target":String(count)}],next_cursor:`page-${count}`,anchor_page:count===1?8:null};});
+    const result=await restoreList({load,pages:1,anchor:"target",current:()=>true,publish:vi.fn()});
+    expect(load).toHaveBeenCalledTimes(8);expect(result?.items.at(-1)?.id).toBe("target");
+    const entityPath=listReturnPath("entities",new URLSearchParams("keyword=한글&pages=2"),"00000000-0000-4000-8000-000000000001",10);
+    expect(anchorId("entities",new URL(entityPath,"https://activity.invalid").hash)).toBe("00000000-0000-4000-8000-000000000001");
+    expect(listScope(new URLSearchParams("create=1&q=명시&pages=2"))).toBe("q=%EB%AA%85%EC%8B%9C");
   });
 });

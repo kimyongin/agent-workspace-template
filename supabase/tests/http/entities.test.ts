@@ -25,12 +25,17 @@ httpTest("Entity HTTP: CRUD·권한·입력·버전·참조·삭제 보존 실�
   assertEquals(detail.tasks.count, 1);
   assertEquals(detail.tasks.items[0].id, task.id);
   assert((await call(A, "GET", `/tasks?entity_id=${e.id}`)).body.items.some((t: { id: string }) => t.id === task.id));
-  const search = { query: "HTTP 연결", entity_id: e.id, mode: "keyword" };
+  const search = { query: "HTTP 연결", entity_id: e.id, mode: "keyword", kinds: ["task"] };
   assertEquals((await call(A, "POST", "/search", search)).body.items.map((x: { id: string }) => x.id), [task.id]);
   assertEquals((await call(B, "POST", "/search", search)).body.items, []);
   assertEquals((await call(A, "POST", "/search", { ...search, entity_id: crypto.randomUUID() })).body.items, []);
   assertEquals((await call(A, "POST", "/search", { ...search, entity_id: "bad" })).body.code, "invalid_input");
-  const updated = await call(A, "PATCH", `/entities/${e.id}`, { expected_version: 1, prop2: null, prop4: "c" });
+  const updated = await call(A, "PATCH", `/entities/${e.id}`, {
+    change_note: "테스트 변경 이유",
+    expected_version: 1,
+    prop2: null,
+    prop4: "c",
+  });
   assertEquals(updated.status, 200);
   assertEquals(updated.body.prop2, null);
   assertEquals((await call(A, "DELETE", `/entities/${e.id}?expected_version=1`)).status, 409);
@@ -39,6 +44,9 @@ httpTest("Entity HTTP: CRUD·권한·입력·버전·참조·삭제 보존 실�
   assertEquals(current.entity_id, null);
   assertEquals(current.version, 2);
   assertEquals((await call(A, "POST", "/search", search)).body.items, []);
-  assertEquals((await call(A, "POST", "/search", { query: search.query, mode: "keyword" })).body.items[0].id, task.id);
+  assertEquals(
+    (await call(A, "POST", "/search", { query: search.query, mode: "keyword", kinds: ["task"] })).body.items[0].id,
+    task.id,
+  );
   await call(A, "DELETE", `/tasks/${task.id}?expected_version=2`);
 });

@@ -1,8 +1,9 @@
 // 할 일·기록·원칙에서 함께 쓰는 내용 입력과 저장 실패·미저장 보호.
 import { contentLabels } from "@contracts/common.ts";
-import { type FormEvent, type ReactNode, useState } from "react";
+import { type FormEvent, type ReactNode, useContext, useId, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Field, Notice } from "./Field.tsx";
-import { ModalShell } from "./Modal.tsx";
+import { ModalShell, SurfaceContext } from "./Modal.tsx";
 import { ApiError, isUncertain } from "../lib/api.ts";
 
 export interface TextDraft {
@@ -67,47 +68,70 @@ export function FormModal({ title, open, submitLabel, dirty, onClose, onRouteDis
   const [busy, setBusy] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [failure, setFailure] = useState<string | null>(null);
-  const formId = `form-${title.replace(/\s/g, "-")}`;
+  const formId = useId();
+  const surface = useContext(SurfaceContext);
+  const [uncertain, setUncertain] = useState(false);
+  const submitting = useRef(false);
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
-    if (busy) return;
+    if (submitting.current) return;
     const local = validate();
     setErrors(local ?? {});
     if (local) return setFailure("입력을 확인하세요.");
-    setBusy(true);
+    submitting.current = true; setBusy(true);
     setFailure(null);
     try {
       await onSubmit();
     } catch (err) {
+      setUncertain(isUncertain(err));
       setErrors(serverFieldErrors(err));
       setFailure(saveErrorMessage(err));
     } finally {
-      setBusy(false);
+      submitting.current = false; setBusy(false);
     }
   };
 
+  const footer = (requestClose: () => void) => <>
+    <button type="button" className="btn" onClick={requestClose} disabled={busy}>취소</button>
+    <button type="submit" form={formId} className="btn btn-primary" disabled={busy}>{busy ? "저장 중…" : uncertain ? "같은 내용 다시 시도" : submitLabel}</button>
+  </>;
+  const callbacks = useRef({onClose, onRouteDiscard}); callbacks.current = {onClose, onRouteDiscard};
+  const register = surface?.register;
+  useLayoutEffect(() => {
+    if (!register || !open) return;
+    register({title, dirty: dirty || uncertain, busy, footer,
+      onClose: () => callbacks.current.onClose(), onRouteDiscard: () => (callbacks.current.onRouteDiscard ?? callbacks.current.onClose)()});
+    return () => register(null);
+  }, [register, open, title, dirty, uncertain, busy, formId, submitLabel]);
+  const form = <form id={formId} className="form" onSubmit={submit} noValidate>
+    {failure && <Notice kind="error">{failure}</Notice>}
+    <fieldset disabled={busy || uncertain} style={{border:0,padding:0,margin:0,minWidth:0}} className="form">{children(errors)}</fieldset>
+  </form>;
+  useLayoutEffect(() => {
+    if(Object.keys(errors).length)document.getElementById(formId)?.querySelector<HTMLElement>("[aria-invalid='true']")?.focus();
+  }, [errors,formId]);
+  useLayoutEffect(() => { if(surface?.slot && open)surface.slot.querySelector<HTMLElement>("input,textarea,select,button")?.focus(); }, [surface?.slot, open]);
+  if (surface) return surface.slot && open ? createPortal(form, surface.slot) : null;
   return (
     <ModalShell
       title={title}
       open={open}
-      dirty={dirty}
+      dirty={dirty || uncertain}
       busy={busy}
       onClose={onClose}
       onRouteDiscard={onRouteDiscard}
-      footer={(requestClose) =>
-        <>
-          <button type="button" className="btn" onClick={requestClose} disabled={busy}>취소</button>
-          <button type="submit" form={formId} className="btn btn-primary" disabled={busy}>
-            {busy ? "저장 중…" : submitLabel}
-          </button>
-        </>
-      }
+      footer={footer}
     >
-      <form id={formId} className="form" onSubmit={submit} noValidate>
-        {failure && <Notice kind="error">{failure}</Notice>}
-        {children(errors)}
-      </form>
+      {form}
     </ModalShell>
   );
 }
+
+export function ChangeNoteField({value, onChange, required = false, error}: {value: string; onChange: (value: string) => void; required?: boolean; error?: string}) {
+  return <Field label={required ? "편집 메모" : "이유 (선택)"} required={required} error={error} help="무엇을 왜 바꾸는지 남깁니다. 1,000자 이하">
+    {p => <textarea {...p} className="input" rows={3} value={value} onChange={e => onChange(e.target.value)} />}
+  </Field>;
+}
+
+export { changeNoteErrors } from "./change-note.ts";

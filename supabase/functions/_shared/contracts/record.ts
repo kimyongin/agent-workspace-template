@@ -1,5 +1,6 @@
 // 활동 기록(ActivityRecord) 계약. 정본: docs/tickets/template-02-t02-1-contracts.md "활동 기록".
 import { z } from "zod";
+import { changeMetadata, editMeta, mutationMeta } from "./change.ts";
 import { principleResult } from "./principle.ts";
 import { tagIds } from "./tag.ts";
 import {
@@ -18,6 +19,7 @@ import {
 
 /** 직접 작성과 반복 할 일의 회차 기록이 같은 입력을 쓴다. */
 export const recordCreate = z.strictObject({
+  ...mutationMeta,
   entity_id: id.nullable().optional(),
   tag_ids: tagIds.optional(),
   title,
@@ -31,6 +33,7 @@ export type RecordCreate = z.infer<typeof recordCreate>;
 
 export const recordUpdate = z
   .strictObject({
+    ...editMeta,
     expected_version: expectedVersion,
     entity_id: id.nullable().optional(),
     tag_ids: tagIds.optional(),
@@ -39,8 +42,7 @@ export const recordUpdate = z
     body: body.optional(),
     occurred_at: isoDateTime.optional(),
     applied_principle_ids: referenceIds.optional(),
-  })
-  .refine((v) => Object.keys(v).some((k) => k !== "expected_version"), { message: "바꿀 필드가 없습니다" });
+  }); // Automatic change records also allow editing only their note.
 export type RecordUpdate = z.infer<typeof recordUpdate>;
 
 export const recordListQuery = z
@@ -48,6 +50,7 @@ export const recordListQuery = z
     occurred_from: isoDateTime.optional(),
     occurred_to: isoDateTime.optional(),
     task_id: id.optional(),
+    record_kind: z.enum(["user", "result", "change"]).optional(),
     tag_id: id.optional(),
     entity_id: id.optional(),
     ...pageInput,
@@ -58,7 +61,21 @@ export const recordListQuery = z
   });
 export type RecordListQuery = z.infer<typeof recordListQuery>;
 
+export const appliedPrincipleSnapshot = principleResult.pick({
+  id: true,
+  title: true,
+  summary: true,
+  body: true,
+  version: true,
+  saved_at: true,
+  status: true,
+}).extend({ captured_at: z.enum(["application", "migration"]) });
+export type AppliedPrincipleSnapshot = z.infer<typeof appliedPrincipleSnapshot>;
 export const recordResult = z.object({
+  record_kind: z.enum(["user", "result", "change"]),
+  change_note: z.string().nullable(),
+  change: changeMetadata.nullable(),
+  applied_principle_snapshots: z.array(appliedPrincipleSnapshot),
   id,
   entity_id: id.nullable(),
   tag_ids: z.array(id),

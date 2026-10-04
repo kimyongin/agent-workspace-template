@@ -78,17 +78,16 @@ dbTest("할 일: DB 컬럼(owner_id 제외)과 contracts 응답 필드가 같다
 
 dbTest("기록: DB 컬럼(owner_id 제외)과 contracts 응답 필드가 같다", async () => {
   assertEquals(
-    await columns("records"),
+    (await columns("records")).map((k) => k === "change_metadata" ? "change" : k).sort(),
     Object.keys(recordResult.shape).filter((k) =>
       !["applied_principle_ids", "applied_principles", "tag_ids"].includes(k)
     ).sort(),
   );
 });
 
-dbTest("원칙: 적용 조건 한도와 DB 컬럼 계약 일치", async () => {
-  for (const value of ["", "가".repeat(300), "가".repeat(301), "😺".repeat(300)]) {
-    const input = { ...record, applies_when: value };
-    assertEquals(await dbAccepts("principles", input), contractAccepts(principleCreate, input));
-  }
+dbTest("원칙: legacy fields rejected by current input and preserved DB/result columns", async () => {
+  assertEquals(principleCreate.safeParse({ ...record, applies_when: "legacy" }).success, false);
+  assertEquals(principleCreate.safeParse({ ...record, entity_id: crypto.randomUUID() }).success, false);
+  assertEquals(principleCreate.safeParse({ ...record, tag_ids: [] }).success, false);
   assertEquals(await columns("principles"), Object.keys(principleResult.shape).filter((k) => k !== "tag_ids").sort());
 });

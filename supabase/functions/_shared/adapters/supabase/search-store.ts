@@ -10,15 +10,13 @@ class SqlSearchStore implements SearchStore {
   sources() {
     const tx = this.tx;
     const originals =
-      tx`select owner_id,'task'::text as kind,id,title,summary,body,updated_at as at,null::text as status,entity_id,${
+      tx`select owner_id,'task'::text as kind,id,title,summary,body,updated_at as at,status,entity_id,kind as task_kind,null::text as record_kind,null::boolean as is_current,${
         tagIdsColumn(tx, "task")
       } from app.tasks
-      union all select owner_id,'record',id,title,summary,body,occurred_at,null::text,entity_id,${
+      union all select owner_id,'record',id,title,summary,body,occurred_at,null::text,entity_id,null::text,record_kind,null::boolean,${
         tagIdsColumn(tx, "record")
       } from app.records
-      union all select owner_id,'principle',id,title,summary,body,updated_at,status,entity_id,${
-        tagIdsColumn(tx, "principle")
-      } from app.principles`;
+      union all select owner_id,'principle',id,title,summary,body,saved_at,status,null::uuid,null::text,null::text,is_current,'[]'::jsonb from app.principles`;
     return tx`select s.*,i.embedding,case
       when s.summary is null or btrim(s.summary)='' then 'excluded'
       when i.input_hash=encode(extensions.digest(s.title||E'\n'||s.summary,'sha256'),'hex') and i.pipeline=${SEARCH_PIPELINE}
@@ -27,7 +25,18 @@ class SqlSearchStore implements SearchStore {
   }
   filters(q: SearchInput) {
     const tx = this.tx;
-    return tx`kind in ${tx(q.kinds)} and (kind<>'principle' or ${q.status}='all' or status=${q.status})
+    const view = q.principle_view;
+    return tx`kind in ${tx(q.kinds)}
+      ${
+      view === "current"
+        ? tx`and (kind<>'principle' or is_current)`
+        : view === "history"
+        ? tx`and (kind<>'principle' or not is_current)`
+        : tx``
+    }
+      ${q.task_kind ? tx`and (kind<>'task' or task_kind=${q.task_kind})` : tx``}
+      ${q.task_status ? tx`and (kind<>'task' or status=${q.task_status})` : tx``}
+      ${q.record_kind ? tx`and (kind<>'record' or record_kind=${q.record_kind})` : tx``}
       ${q.tag_id ? tx`and tag_ids ? ${q.tag_id}` : tx``}
       ${q.entity_id ? tx`and entity_id=${q.entity_id}::uuid` : tx``}
       ${q.from ? tx`and at>=${q.from}::timestamptz` : tx``} ${q.to ? tx`and at<=${q.to}::timestamptz` : tx``}`;

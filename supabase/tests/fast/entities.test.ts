@@ -26,6 +26,7 @@ function memory() {
     requests = new Map<string, { request_hash: string; response: unknown }>();
   let writes = 0;
   const store: EntityStore = {
+    appendChange: () => Promise.resolve(),
     lockRequest: () => Promise.resolve(),
     findRequest: (_op, key) => Promise.resolve(requests.get(key) ?? null),
     saveRequest: (_op, key, hash, response) => {
@@ -43,6 +44,7 @@ function memory() {
       writes++;
       const row = {
         ...input,
+        tag_ids: input.tag_ids ?? [],
         id: crypto.randomUUID(),
         version: 1,
         created_at: "2026-10-04T00:00:00.000Z",
@@ -82,10 +84,19 @@ Deno.test("Entity application: 멱등 serial retry·버전 거부 무쓰기·한
     (await assertRejects(() => createEntity(d, A, { ...input, prop1: "다른 내용" }), AppError)).code,
     "conflict",
   );
-  await assertRejects(() => updateEntity(d, A, e.id, entityUpdate.parse({ expected_version: 2, prop2: 0 })), AppError);
+  await assertRejects(
+    () =>
+      updateEntity(d, A, e.id, entityUpdate.parse({ change_note: "테스트 변경 이유", expected_version: 2, prop2: 0 })),
+    AppError,
+  );
   await assertRejects(() => deleteEntity(d, A, e.id, 2), AppError);
   assertEquals(writes(), 1);
-  const changed = await updateEntity(d, A, e.id, entityUpdate.parse({ expected_version: 1, prop2: 0 }));
+  const changed = await updateEntity(
+    d,
+    A,
+    e.id,
+    entityUpdate.parse({ change_note: "테스트 변경 이유", expected_version: 1, prop2: 0 }),
+  );
   assertEquals(changed.prop2, 0);
   await createEntity(d, A, entityCreate.parse({ prop1: "둘째" }));
   const q = entityListQuery.parse({ limit: 1 }), first = await listEntities(d, A, q);
@@ -127,7 +138,14 @@ Deno.test("Entity HTTP/MCP 실제 handler: CRUD parity·엄격 입력·존재 �
   const e = await res.json();
   assertEquals((await tool("get_entity", { id: e.id }) as EntityResult).prop1, "웹");
   const before = writes();
-  assertEquals((await request("PATCH", `/entities/${e.id}`, { expected_version: 1, owner_id: B.userId })).status, 400);
+  assertEquals(
+    (await request("PATCH", `/entities/${e.id}`, {
+      change_note: "테스트 변경 이유",
+      expected_version: 1,
+      owner_id: B.userId,
+    })).status,
+    400,
+  );
   assertEquals((await request("DELETE", `/entities/${e.id}?expected_version=2`)).status, 409);
   assertEquals(writes(), before);
   assertEquals((await request("GET", "/entities/not-id")).status, 404);
@@ -135,9 +153,14 @@ Deno.test("Entity HTTP/MCP 실제 handler: CRUD parity·엄격 입력·존재 �
     (await assertRejects(async () => await tool("get_entity", { id: "not-id" }), AppError)).code,
     "not_found",
   );
-  const changed = await tool("update_entity", { id: e.id, expected_version: 1, prop4: "c" }) as EntityResult;
+  const changed = await tool("update_entity", {
+    change_note: "테스트 변경 이유",
+    id: e.id,
+    expected_version: 1,
+    prop4: "c",
+  }) as EntityResult;
   assertEquals(changed.version, 2);
   assertEquals((await request("GET", `/entities/${e.id}`)).status, 200);
-  await tool("delete_entity", { id: e.id, expected_version: 2 });
+  await tool("delete_entity", { change_note: "테스트 변경 이유", id: e.id, expected_version: 2 });
   assertEquals((await request("GET", `/entities/${e.id}`)).status, 404);
 });

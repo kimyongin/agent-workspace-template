@@ -8,6 +8,7 @@ import { TagFilter } from "../tags/TagPicker.tsx";
 import { EntityPicker } from "../entity/EntityPicker.tsx";
 const kinds={task:"할 일",record:"기록",principle:"원칙"} as const;
 export function SearchPage(){
+  const composing=useRef(false);
   const [params,setParams]=useSearchParams(), [draft,setDraft]=useState(params.get("q")??"");
   const [result,setResult]=useState<SearchResult|null>(null), [error,setError]=useState<string|null>(null), [busy,setBusy]=useState(false);
   const generation=useRef(0), [retry,setRetry]=useState(0);
@@ -17,10 +18,12 @@ export function SearchPage(){
   const searchParams=new URLSearchParams(params);searchParams.delete("pages");searchParams.delete("scroll");
   const key=searchParams.toString(),q=params.get("q")??"",tag=params.get("tag_id")??"";
   const requested=Number(params.get("pages")??1),pages=Number.isSafeInteger(requested)&&requested>0?Math.min(requested,1000):1;
-  const input=()=>searchInput.parse({query:q, ...(tag?{tag_id:tag}:{}), ...(params.get("entity_id")?{entity_id:params.get("entity_id")}:{}), mode:params.get("mode")??"auto",
+  const input=()=>({...searchInput.parse({query:q, ...(tag?{tag_id:tag}:{}), ...(params.get("entity_id")?{entity_id:params.get("entity_id")}:{}), mode:params.get("mode")??"auto",
     status:params.get("status")??"active", ...(params.get("kind")?{kinds:[params.get("kind")]}:{}),
     ...(params.get("from")?{from:new Date(params.get("from")!).toISOString()}:{}),
-    ...(params.get("to")?{to:new Date(params.get("to")!).toISOString()}:{}),});
+    ...(params.get("to")?{to:new Date(params.get("to")!).toISOString()}:{}),}),
+    ...(params.get("record_kind")?{record_kind:params.get("record_kind")} : {}),
+    principle_view:params.get("principle_view")??(params.get("status")==="inactive"?"history":params.get("status")==="all"?"all":"current")});
   useEffect(()=>{
     let alive=true;const current=++generation.current;setDraft(q);setError(null);focused.current="";
     const controller=new AbortController();pending.current=controller;
@@ -63,13 +66,13 @@ export function SearchPage(){
   };
   return <section className="panel" aria-labelledby="search-title">
     <h1 id="search-title" className="page-title" tabIndex={-1}>검색</h1>
-    <form onSubmit={e=>{e.preventDefault();const value=draft.trim();if(value===q)setRetry(n=>n+1);else change("q",value);}}>
-      <Field label="검색어" required help="자동 검색은 제목·요약의 의미와 본문 키워드를 함께 찾습니다. 원문을 열어 확인하세요.">{p=><input {...p} className="input" value={draft} onChange={e=>setDraft(e.target.value)} required/>}</Field>
+    <form onSubmit={e=>{e.preventDefault();if(composing.current)return;const value=draft.trim();if(value===q)setRetry(n=>n+1);else change("q",value);}}>
+      <Field label="검색어" required help="자동 검색은 제목·요약의 의미와 본문 키워드를 함께 찾습니다. 원문을 열어 확인하세요.">{p=><input {...p} className="input" value={draft} onCompositionStart={()=>{composing.current=true;}} onCompositionEnd={()=>{composing.current=false;}} onKeyDown={e=>{if(e.key==="Enter"&&(e.nativeEvent.isComposing||e.keyCode===229))e.preventDefault();}} onChange={e=>setDraft(e.target.value)} required/>}</Field>
       <button className="btn btn-primary" type="submit" disabled={busy}>검색</button>
     </form>
     <div className="actions">
       <Field label="검색 대상">{p=><select {...p} className="input" value={params.get("kind")??""} onChange={e=>change("kind",e.target.value)}><option value="">전체</option>{Object.entries(kinds).map(([k,v])=><option key={k} value={k}>{v}</option>)}</select>}</Field>
-      <Field label="원칙 상태">{p=><select {...p} className="input" value={params.get("status")??"active"} onChange={e=>change("status",e.target.value)}><option value="active">활성</option><option value="inactive">비활성</option><option value="all">전체</option></select>}</Field>
+      <Field label="원칙 범위">{p=><select {...p} className="input" value={params.get("principle_view")??(params.get("status")==="inactive"?"history":params.get("status")==="all"?"all":"current")} onChange={e=>{const p=new URLSearchParams(params);p.delete("status");p.delete("pages");p.delete("scroll");p.set("principle_view",e.target.value);setParams(p);}}><option value="current">현재</option><option value="history">과거본</option><option value="all">전체</option></select>}</Field>
       <Field label="검색 방식">{p=><select {...p} className="input" value={params.get("mode")??"auto"} onChange={e=>change("mode",e.target.value)}><option value="auto">자동</option><option value="keyword">키워드</option></select>}</Field>
     </div>
     <TagFilter value={tag} onChange={id=>change("tag_id",id)}/>

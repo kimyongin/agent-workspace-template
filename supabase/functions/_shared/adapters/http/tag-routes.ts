@@ -18,11 +18,14 @@ export function tagRoutes(d: tags.TagDeps) {
       ),
   );
   app.delete("/tags/:id", async (c) => {
+    const i = parse(versionQuery, c.req.query());
     await tags.deleteTag(
       d,
       c.get("actor"),
       idParam(c.req.param("id")),
-      parse(versionQuery, c.req.query()).expected_version,
+      i.expected_version,
+      i.change_note,
+      i.request_id,
     );
     return c.body(null, 204);
   });

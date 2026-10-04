@@ -5,7 +5,11 @@ import type { Actor } from "../../core/shared/actor.ts";
 import type { Keyset } from "../../core/shared/store.ts";
 import { conflict } from "../../core/shared/errors.ts";
 import { runAsActor, SqlActorStore } from "./sql-context.ts";
+import { SqlEntityStore } from "./entity-store.ts";
+import { SqlActivityStore } from "./activity-store.ts";
+import type { ChangeInput } from "../../core/shared/changes.ts";
 const toTag = (r: Record<string, unknown>): TagResult => ({
+  scope: r.scope as TagResult["scope"],
   id: r.id as string,
   name: r.name as string,
   version: r.version as number,
@@ -25,9 +29,9 @@ class SqlTagStore extends SqlActorStore implements TagStore {
       throw e;
     }
   }
-  insert(name: string) {
+  insert(name: string, scope: TagResult["scope"]) {
     return this.unique(() =>
-      this.tx`insert into app.tags(owner_id,name) values (${this.actor.userId},${name}) returning *`
+      this.tx`insert into app.tags(owner_id,name,scope) values (${this.actor.userId},${name},${scope}) returning *`
     );
   }
   rename(id: string, name: string) {
@@ -35,19 +39,39 @@ class SqlTagStore extends SqlActorStore implements TagStore {
       this.tx`update app.tags set name=${name},version=version+1,updated_at=now() where id=${id} returning *`
     );
   }
+  async unlinkUses(id: string) {
+    const changes: ChangeInput[] = [],
+      entities = new SqlEntityStore(this.tx, this.actor),
+      activity = new SqlActivityStore(this.tx, this.actor);
+    for (const r of await this.tx`select entity_id id from app.entity_tags where tag_id=${id} order by entity_id`) {
+      const before = await entities.get(r.id as string, true);
+      if (!before?.tag_ids.includes(id)) continue;
+      const after = await entities.update(before.id, { tag_ids: before.tag_ids.filter((tag) => tag !== id) });
+      changes.push({ target_kind: "entity", action: "update", before, after });
+    }
+    for (const r of await this.tx`select task_id id from app.task_tags where tag_id=${id} order by task_id`) {
+      const before = await activity.getTask(r.id as string, { forUpdate: true });
+      if (!before?.tag_ids.includes(id)) continue;
+      const after = await activity.updateTask(before.id, { tag_ids: before.tag_ids.filter((tag) => tag !== id) });
+      changes.push({ target_kind: "task", action: "update", before, after });
+    }
+    for (const r of await this.tx`select record_id id from app.record_tags where tag_id=${id} order by record_id`) {
+      const before = await activity.getRecord(r.id as string, { forUpdate: true });
+      if (!before?.tag_ids.includes(id)) continue;
+      const after = await activity.updateRecord(before.id, { tag_ids: before.tag_ids.filter((tag) => tag !== id) });
+      if (before.record_kind !== "change") changes.push({ target_kind: "record", action: "update", before, after });
+    }
+    return changes;
+  }
   async delete(id: string) {
-    await this
-      .tx`update app.tasks set version=version+1,updated_at=now() where id in(select task_id from app.task_tags where tag_id=${id})`;
-    await this
-      .tx`update app.records set version=version+1,updated_at=now() where id in(select record_id from app.record_tags where tag_id=${id})`;
     await this
       .tx`update app.principles set version=version+1,updated_at=now() where id in(select principle_id from app.principle_tags where tag_id=${id})`;
     await this.tx`delete from app.tags where id=${id}`;
   }
-  async list(limit: number, after?: Keyset) {
+  async list(limit: number, after?: Keyset, scope: TagResult["scope"] = "activity") {
     const tx = this.tx;
-    return (await tx`select * from app.tags ${
-      after ? tx`where (updated_at,id)<(${after.at}::timestamptz,${after.id}::uuid)` : tx``
+    return (await tx`select * from app.tags where scope=${scope} ${
+      after ? tx`and (updated_at,id)<(${after.at}::timestamptz,${after.id}::uuid)` : tx``
     } order by updated_at desc,id desc limit ${limit}`).map(toTag);
   }
 }

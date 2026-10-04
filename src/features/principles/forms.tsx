@@ -1,30 +1,25 @@
-import { principleCreate, principleLabels, type PrincipleCreate } from "@contracts/principle.ts";
 import { useState } from "react";
-import { FormModal, TextFields } from "../../components/ContentForm.tsx";
-import { Field } from "../../components/Field.tsx";
+import { body, summary, title } from "@contracts/common.ts";
+import { z } from "zod";
+import { changeNoteErrors, ChangeNoteField, FormModal, TextFields, type TextDraft } from "../../components/ContentForm.tsx";
 import { fieldErrors } from "../../lib/format.ts";
-import {TagPicker} from "../tags/TagPicker.tsx";
-import {EntityPicker} from "../entity/EntityPicker.tsx";
 
-export type PrincipleDraft = Pick<PrincipleCreate, "title" | "summary" | "body" | "applies_when" | "tag_ids" | "entity_id">;
-export const emptyPrinciple: PrincipleDraft = {title:"", summary:"", body:"", applies_when:"",tag_ids:[]};
-export function PrincipleFormModal({initial, editing=false, onClose, onRouteDiscard, onSave}: {
-  initial: PrincipleDraft; editing?: boolean; onClose:()=>void; onRouteDiscard?:()=>void; onSave:(draft:PrincipleDraft)=>Promise<void>;
+export type PrincipleDraft = TextDraft & {change_note?: string};
+export const emptyPrinciple: PrincipleDraft = {title:"",summary:"",body:"",change_note:""};
+const content = z.object({title,summary,body});
+export function PrincipleFormModal({initial,editing=false,correcting=false,onClose,onRouteDiscard,onSave}: {
+  initial: PrincipleDraft; editing?: boolean; correcting?: boolean; onClose:()=>void; onRouteDiscard?:()=>void; onSave:(draft:PrincipleDraft)=>Promise<void>;
 }) {
-  const [initialDraft] = useState(() => ({title:initial.title,summary:initial.summary,body:initial.body,applies_when:initial.applies_when,tag_ids:initial.tag_ids??[],entity_id:initial.entity_id??null}));
-  const [draft,setDraft]=useState(initialDraft);
-  return <FormModal title={editing?"원칙 편집":"원칙 추가"} open submitLabel="저장"
-    dirty={JSON.stringify(draft)!==JSON.stringify(initialDraft)} onClose={onClose} onRouteDiscard={onRouteDiscard}
-    validate={()=>{const r=principleCreate.safeParse(draft); return r.success?null:fieldErrors(r.error.issues);}}
-    onSubmit={()=>onSave(principleCreate.parse(draft))}>
+  const [baseline] = useState({title:initial.title,summary:initial.summary,body:initial.body,change_note: correcting ? initial.change_note??"" : ""});
+  const [draft,setDraft]=useState(baseline);
+  return <FormModal title={correcting?"과거 원칙 정정":editing?"현재 원칙 편집":"현재 원칙 등록"} open submitLabel="저장"
+    dirty={JSON.stringify(draft)!==JSON.stringify(baseline)} onClose={onClose} onRouteDiscard={onRouteDiscard}
+    validate={()=>{const noteErrors=changeNoteErrors(draft.change_note,editing);if(noteErrors)return noteErrors; const r=content.safeParse(draft);return r.success?null:fieldErrors(r.error.issues);}}
+    onSubmit={()=>onSave({...content.parse(draft),change_note:draft.change_note.trim()||undefined})}>
     {errors=><>
-      {editing&&<p className="help">표현을 정정합니다. 의미가 바뀌면 새 원칙을 만들고 기존 원칙을 비활성·대체 연결하세요.</p>}
+      {editing&&<p className="help">{correcting?"이 저장본의 본문과 메모를 정정합니다. 저장 순서와 현재 원칙은 바뀌지 않습니다.":"저장하면 새 최신본이 현재 원칙이 되고 이전 본문은 과거본에 남습니다."}</p>}
       <TextFields draft={draft} set={patch=>setDraft(d=>({...d,...patch}))} errors={errors}/>
-      <TagPicker value={draft.tag_ids} error={errors.tag_ids} onChange={tag_ids=>setDraft(d=>({...d,tag_ids}))}/>
-      <EntityPicker value={draft.entity_id} error={errors.entity_id} onChange={entity_id=>setDraft(d=>({...d,entity_id}))}/>
-      <Field label={principleLabels.applies_when} error={errors.applies_when} help="이 원칙을 적용할 상황, 300자 이하">
-        {p=><textarea {...p} className="input" rows={3} value={draft.applies_when} onChange={e=>setDraft(d=>({...d,applies_when:e.target.value}))}/>}
-      </Field>
+      <ChangeNoteField required={editing} value={draft.change_note} error={errors.change_note} onChange={change_note=>setDraft(d=>({...d,change_note}))}/>
     </>}
   </FormModal>;
 }

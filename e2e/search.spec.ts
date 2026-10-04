@@ -1,12 +1,13 @@
 import {expect,test} from "@playwright/test";
 import {devLogin,mcpClient,mcpTokenViaConsent,unique} from "./support.ts";
+import {savePrinciple} from "./principle-support.ts";
 test("웹 검색→태그 범위→MCP 결과 비교→본문 원문 확인",async({page})=>{
   await devLogin(page);const mcp=await mcpClient(await mcpTokenViaConsent(page));
   try{
     const title=unique("원문"),marker=unique("본문 검색"), tag=await mcp.call("create_tag",{name:unique("검색").slice(0,30)});
     await mcp.call("create_record",{title,summary:"검색할 근거",body:marker,tag_ids:[tag.id]});
     await mcp.call("create_record",{title:unique("다른 태그"),summary:"필터 밖",body:marker});
-    await page.goto("/search");await page.getByLabel("검색어").fill(marker);await page.getByRole("button",{name:"검색",exact:true}).click();
+    await page.goto("/search?record_kind=user");await page.getByLabel("검색어").fill(marker);await page.getByRole("button",{name:"검색",exact:true}).click();
     await expect(page.locator(".list .item-title")).toHaveCount(2);
     await page.getByLabel("태그 필터").selectOption(tag.id);await expect(page.locator(".list .item-title")).toHaveCount(1);
     await page.getByLabel("검색 방식").selectOption("keyword");await expect(page.getByText("현재 키워드 검색 결과를 표시합니다.",{exact:false})).toHaveCount(0);
@@ -22,9 +23,9 @@ test("세 원문 종류의 검색 상세 왕복·뒤로 가기·새로고침이 
   await devLogin(page);const mcp=await mcpClient(await mcpTokenViaConsent(page));
   try{
     const marker=unique("검색 복원"),titles:string[]=[];
-    for(const kind of ["record","task","principle"]){const title=unique(kind);titles.push(title);await mcp.call(`create_${kind}`,{...(kind==="task"?{kind:"once"}:{}),title,summary:marker,body:"원문"});}
+    for(const kind of ["record","task","principle"]){const title=unique(kind);titles.push(title);if(kind==="principle")await savePrinciple(mcp,{title,summary:marker,body:"원문"});else await mcp.call(`create_${kind}`,{...(kind==="task"?{kind:"once"}:{}),title,summary:marker,body:"원문"});}
     for(let i=0;i<21;i++)await mcp.call("create_record",{title:unique("추가 결과"),summary:marker});
-    await page.goto(`/search?q=${encodeURIComponent(marker)}&mode=keyword`);await expect(page.locator(".list .item-title")).toHaveCount(20);
+    await page.goto(`/search?q=${encodeURIComponent(marker)}&mode=keyword&record_kind=user`);await expect(page.locator(".list .item-title")).toHaveCount(20);
     await page.getByRole("button",{name:"더 보기",exact:true}).click();await expect(page.locator(".list .item-title")).toHaveCount(24);
     for(const [index,title] of titles.entries()){
       const link=page.getByRole("link",{name:title,exact:true});await link.scrollIntoViewIfNeeded();await link.click();
@@ -43,7 +44,7 @@ test("검색 대상 삭제·불일치 편집 후에는 저장한 페이지까지
   try{
     const marker=unique("범위 복원"),targets:string[]=[];
     for(let i=0;i<45;i++){const title=unique("결과");await mcp.call("create_record",{title,summary:marker});if(i===20||i===21)targets.push(title);}
-    await page.goto(`/search?q=${encodeURIComponent(marker)}&mode=keyword`);await expect(page.locator(".list .item-title")).toHaveCount(20);
+    await page.goto(`/search?q=${encodeURIComponent(marker)}&mode=keyword&record_kind=user`);await expect(page.locator(".list .item-title")).toHaveCount(20);
     await page.getByRole("button",{name:"더 보기",exact:true}).click();await expect(page.locator(".list .item-title")).toHaveCount(40);
     let requests=0;page.on("request",r=>{if(r.url().endsWith("/api/search")&&r.method()==="POST")requests++;});
     await page.getByRole("link",{name:targets[0],exact:true}).click();
@@ -51,7 +52,7 @@ test("검색 대상 삭제·불일치 편집 후에는 저장한 페이지까지
     await page.getByRole("dialog",{name:"기록을 삭제할까요?"}).getByRole("button",{name:"삭제",exact:true}).click();
     await expect(page.locator(".list .item-title")).toHaveCount(40);await expect(page.getByRole("heading",{name:"검색",exact:true})).toBeFocused();expect(requests).toBe(2);
     await page.getByRole("link",{name:targets[1],exact:true}).click();await page.getByRole("button",{name:"편집",exact:true}).click();
-    const form=page.getByRole("dialog",{name:"기록 편집"});await form.getByLabel("요약").fill("검색어 없음");await form.getByRole("button",{name:"저장",exact:true}).click();await expect(form).not.toBeVisible();
+    const form=page.getByRole("dialog",{name:"기록 편집"});await form.getByLabel("요약").fill("검색어 없음");await form.getByLabel("편집 메모").fill("검색 범위 정정");await form.getByRole("button",{name:"저장",exact:true}).click();await expect(form).not.toBeVisible();
     requests=0;await page.getByRole("link",{name:"← 검색 결과",exact:true}).click();
     await expect(page.locator(".list .item-title")).toHaveCount(40);await expect(page.getByRole("heading",{name:"검색",exact:true})).toBeFocused();expect(requests).toBe(2);
   }finally{await mcp.close();}

@@ -4,6 +4,8 @@ import type { Actor } from "../../core/shared/actor.ts";
 import type { IndexJob } from "../../core/shared/store.ts";
 import { AppError } from "../../core/shared/errors.ts";
 import { SEARCH_PIPELINE } from "../../core/search/config.ts";
+import type { ChangeInput } from "../../core/shared/changes.ts";
+import { searchInputHash } from "../../core/shared/operations.ts";
 
 const REQUEST_RETENTION = "7 days";
 export class SqlActorStore {
@@ -12,6 +14,55 @@ export class SqlActorStore {
   async lockRequest(operation: string, requestId: string) {
     await this
       .tx`select pg_advisory_xact_lock(hashtextextended(${`${this.actor.userId}:${operation}:${requestId}`}, 0))`;
+  }
+
+  /** Explicit user commands call this once, never the internal insert itself. */
+  async appendChange(input: ChangeInput) {
+    const snapshot = async (value: object | null) => {
+      if (!value) return null;
+      const safe = Object.fromEntries(
+        Object.entries(value).filter(([key]) =>
+          !["change", "change_metadata", "applied_principles", "legacy_context"].includes(key)
+        ),
+      );
+      const ids = safe.tag_ids as string[] | undefined;
+      if (ids?.length) {
+        safe.tags = await this.tx`select id,name,scope from app.tags where id in ${this.tx(ids)} order by id`;
+      }
+      return safe;
+    };
+    const target = (input.after ?? input.before) as Record<string, unknown>;
+    const target_title = String(target.prop1 ?? target.title ?? "");
+    const words = { create: "등록", update: "수정", delete: "삭제", stop: "중단", resume: "재개" };
+    const title = `${Array.from(target_title).slice(0, 90).join("")} ${words[input.action]}`;
+    const summary = Array.from(input.change_note ?? title).slice(0, 300).join("");
+    // Only typed domain results enter this snapshot. Actor credentials never enter it.
+    const metadata = {
+      event_id: crypto.randomUUID(),
+      target_kind: input.target_kind,
+      target_id: target.id,
+      target_title,
+      action: input.action,
+      source: this.actor.source ?? "http",
+      before: await snapshot(input.before),
+      after: await snapshot(input.after),
+      path: input.action === "delete"
+        ? null
+        : `/${input.target_kind === "entity" ? "entities" : `${input.target_kind}s`}/${target.id}`,
+    };
+    const entity = input.target_kind === "entity"
+      ? (input.action === "delete" ? null : target.id)
+      : target.entity_id ?? null;
+    const [row] = await this
+      .tx`insert into app.records(owner_id,entity_id,title,summary,body,record_kind,change_note,change_metadata)
+      values(${this.actor.userId},${entity as string | null},${title},${summary},'', 'change',${
+      input.change_note ?? null
+    },${this.tx.json(metadata as never)}) returning id`;
+    await this.enqueueIndex({
+      kind: "record",
+      id: row.id as string,
+      input_hash: await searchInputHash({ title, summary }),
+    });
   }
 
   async findRequest(operation: string, requestId: string) {

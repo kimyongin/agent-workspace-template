@@ -15,6 +15,7 @@ const actor = { userId: "00000000-0000-4000-8000-000000000001" };
 const now = "2026-10-04T01:00:00.000Z";
 const createInput = { kind: "once", title: "준비", summary: "완료 흐름 검증", request_id: crypto.randomUUID() };
 const completeInput = {
+  change_note: "테스트 변경 이유",
   expected_version: 1,
   title: "결과",
   summary: "수행 완료",
@@ -34,6 +35,7 @@ function fixture(storageNow = () => now) {
   const mutations: string[] = [];
   const key = (operation: string, id: string) => `${operation}:${id}`;
   const store: ActivityStore = {
+    appendChange: () => Promise.resolve(),
     lockRequest: () => Promise.resolve(), // Serial retry only; concurrency belongs to the real DB tests.
     findRequest: (operation, id) => Promise.resolve(structuredClone(requests.get(key(operation, id)) ?? null)),
     saveRequest: (operation, id, request_hash, response) => {
@@ -64,6 +66,10 @@ function fixture(storageNow = () => now) {
     insertRecord: (input) => {
       const record: ActivityRecord = {
         ...input,
+        change_note: input.change_note ?? null,
+        record_kind: input.record_kind ?? "user",
+        change: null,
+        applied_principle_snapshots: [],
         id: crypto.randomUUID(),
         occurred_at: input.occurred_at ?? now,
         tag_ids: input.tag_ids ?? [],
@@ -113,7 +119,7 @@ function fixture(storageNow = () => now) {
     clock: { now: () => new Date(now) },
     uow: {
       run: (received, fn) => {
-        assertEquals(received, actor);
+        assertEquals(received.userId, actor.userId);
         return fn(store);
       },
     },
@@ -144,7 +150,7 @@ Deno.test("application: task content edits index only changed title/summary; sta
       f.deps,
       actor,
       task.id,
-      taskUpdate.parse({ expected_version: task.version, ...patch }),
+      taskUpdate.parse({ change_note: "테스트 변경 이유", expected_version: task.version, ...patch }),
     );
     taskResult.parse(task);
     assertEquals(f.jobs.at(-1), { kind: "task", id: task.id, input_hash: await searchInputHash(task) });
@@ -156,6 +162,7 @@ Deno.test("application: task content edits index only changed title/summary; sta
     actor,
     task.id,
     taskUpdate.parse({
+      change_note: "테스트 변경 이유",
       expected_version: 3,
       title: task.title,
       summary: task.summary,
@@ -171,7 +178,12 @@ Deno.test("application: task content edits index only changed title/summary; sta
   for (
     const mutate of [
       () =>
-        activity.updateTask(f.deps, actor, task.id, taskUpdate.parse({ expected_version: 3, title: "오래된 수정" })),
+        activity.updateTask(
+          f.deps,
+          actor,
+          task.id,
+          taskUpdate.parse({ change_note: "테스트 변경 이유", expected_version: 3, title: "오래된 수정" }),
+        ),
       () => activity.deleteTask(f.deps, actor, task.id, 3),
     ]
   ) {
@@ -233,7 +245,13 @@ Deno.test("application: deleting completed/recurring tasks detaches history and 
     for (const id of [task.id, crypto.randomUUID()]) {
       for (
         const mutate of [
-          () => activity.updateTask(f.deps, actor, id, taskUpdate.parse({ expected_version: 1, title: "수정" })),
+          () =>
+            activity.updateTask(
+              f.deps,
+              actor,
+              id,
+              taskUpdate.parse({ change_note: "테스트 변경 이유", expected_version: 1, title: "수정" }),
+            ),
           () => activity.deleteTask(f.deps, actor, id, 1),
         ]
       ) {
@@ -249,7 +267,8 @@ Deno.test("application: create → complete → identical serial retry uses real
   const task = await activity.createTask(f.deps, actor, taskCreate.parse(createInput));
   const input = taskComplete.parse(completeInput);
   const versionError = await assertRejects(
-    () => activity.completeTask(f.deps, actor, task.id, { ...input, expected_version: 2 }),
+    () =>
+      activity.completeTask(f.deps, actor, task.id, { change_note: "테스트 변경 이유", ...input, expected_version: 2 }),
     AppError,
   );
   assertEquals(versionError.code, "conflict");
@@ -307,7 +326,13 @@ Deno.test("HTTP routes and MCP ToolDef schema/handler share task outcomes and in
     const [path, tool, input, code, status] of [
       ["/tasks", create, { ...createInput, title: "" }, "invalid_input", 400],
       ["/tasks", create, { ...createInput, owner_id: actor.userId }, "invalid_input", 400],
-      [`/tasks/${task.id}/complete`, complete, { ...completeInput, expected_version: 0 }, "invalid_input", 400],
+      [
+        `/tasks/${task.id}/complete`,
+        complete,
+        { ...completeInput, change_note: "테스트 변경 이유", expected_version: 0 },
+        "invalid_input",
+        400,
+      ],
       [`/tasks/${task.id}/complete`, complete, { ...completeInput, request_id: crypto.randomUUID() }, "conflict", 409],
       ["/tasks/bad-id/complete", complete, completeInput, "not_found", 404],
     ] as const
@@ -320,7 +345,10 @@ Deno.test("HTTP routes and MCP ToolDef schema/handler share task outcomes and in
     assertEquals(mapped.body.code, code);
     assertEquals(await http.json(), mapped.body);
   }
-  assertEquals(complete.input.safeParse({ ...args, expected_version: 0 }).success, false);
+  assertEquals(
+    complete.input.safeParse({ ...args, change_note: "테스트 변경 이유", expected_version: 0 }).success,
+    false,
+  );
   assertEquals(create.input.safeParse({ ...createInput, owner_id: actor.userId }).success, false);
   assertEquals(f.records.size, 1);
   assertEquals(f.jobs.length, 2);
@@ -333,12 +361,17 @@ Deno.test("HTTP PATCH/DELETE and MCP task mutation schema/handler share validati
   const remove = tools.find((tool) => tool.name === "delete_task")!;
   const task = await activity.createTask(f.deps, actor, taskCreate.parse(createInput));
   const path = `/tasks/${task.id}`;
-  const patch = { expected_version: 1, title: "HTTP 수정" };
+  const patch = { change_note: "테스트 변경 이유", expected_version: 1, title: "HTTP 수정" };
   assertEquals(update.input.safeParse({ id: task.id, ...patch }).success, true);
   const edited = await post(f.app, path, patch, "PATCH");
   assertEquals(edited.status, 200);
   assertEquals(taskResult.parse(await edited.json()), f.tasks.get(task.id));
-  const mcpEdited = await update.handler({ id: task.id, expected_version: 2, summary: "MCP 수정" }, actor);
+  const mcpEdited = await update.handler({
+    change_note: "테스트 변경 이유",
+    id: task.id,
+    expected_version: 2,
+    summary: "MCP 수정",
+  }, actor);
   assertEquals(taskResult.parse(mcpEdited), f.tasks.get(task.id));
   assertEquals(f.tasks.get(task.id)?.title, "HTTP 수정");
   assertEquals(f.tasks.get(task.id)?.summary, "MCP 수정");
@@ -346,12 +379,37 @@ Deno.test("HTTP PATCH/DELETE and MCP task mutation schema/handler share validati
   assertEquals(f.jobs.length, 3);
 
   const errors = [
-    { tool: update, input: { expected_version: 0, title: "수정" }, code: "invalid_input", status: 400 },
-    { tool: update, input: { expected_version: 3, status: "done" }, code: "invalid_input", status: 400 },
-    { tool: update, input: { expected_version: 3, timezone: "Asia/Seoul" }, code: "invalid_input", status: 400 },
-    { tool: update, input: { expected_version: 2, title: "오래된 수정" }, code: "conflict", status: 409 },
-    { tool: remove, input: { expected_version: 0 }, code: "invalid_input", status: 400 },
-    { tool: remove, input: { expected_version: 2 }, code: "conflict", status: 409 },
+    {
+      tool: update,
+      input: { change_note: "테스트 변경 이유", expected_version: 0, title: "수정" },
+      code: "invalid_input",
+      status: 400,
+    },
+    {
+      tool: update,
+      input: { change_note: "테스트 변경 이유", expected_version: 3, status: "done" },
+      code: "invalid_input",
+      status: 400,
+    },
+    {
+      tool: update,
+      input: { change_note: "테스트 변경 이유", expected_version: 3, timezone: "Asia/Seoul" },
+      code: "invalid_input",
+      status: 400,
+    },
+    {
+      tool: update,
+      input: { change_note: "테스트 변경 이유", expected_version: 2, title: "오래된 수정" },
+      code: "conflict",
+      status: 409,
+    },
+    {
+      tool: remove,
+      input: { change_note: "테스트 변경 이유", expected_version: 0 },
+      code: "invalid_input",
+      status: 400,
+    },
+    { tool: remove, input: { change_note: "테스트 변경 이유", expected_version: 2 }, code: "conflict", status: 409 },
   ];
   const before = snapshot(f);
   for (const { tool, input, code, status } of errors) {
@@ -369,19 +427,33 @@ Deno.test("HTTP PATCH/DELETE and MCP task mutation schema/handler share validati
     assertEquals(await http.json(), mapped.body);
     assertEquals(snapshot(f), before);
   }
-  assertEquals(update.input.safeParse({ id: task.id, expected_version: 3, status: "done" }).success, false);
-  assertEquals(remove.input.safeParse({ id: task.id, expected_version: 0 }).success, false);
-  assertEquals(remove.input.safeParse({ id: task.id, expected_version: 3 }).success, true);
+  assertEquals(
+    update.input.safeParse({ change_note: "테스트 변경 이유", id: task.id, expected_version: 3, status: "done" })
+      .success,
+    false,
+  );
+  assertEquals(
+    remove.input.safeParse({ change_note: "테스트 변경 이유", id: task.id, expected_version: 0 }).success,
+    false,
+  );
+  assertEquals(
+    remove.input.safeParse({ change_note: "테스트 변경 이유", id: task.id, expected_version: 3 }).success,
+    true,
+  );
   const deleted = await post(f.app, `${path}?expected_version=3`, undefined, "DELETE");
   assertEquals(deleted.status, 204);
   assertEquals(await deleted.text(), "");
   const another = await activity.createTask(f.deps, actor, taskCreate.parse({ ...createInput, request_id: undefined }));
-  assertEquals(await remove.handler({ id: another.id, expected_version: 1 }, actor), { deleted: another.id });
+  assertEquals(await remove.handler({ change_note: "테스트 변경 이유", id: another.id, expected_version: 1 }, actor), {
+    deleted: another.id,
+  });
   assertEquals(f.tasks.size, 0);
   const after = snapshot(f);
   for (const id of [task.id, crypto.randomUUID()]) {
     for (const tool of [update, remove]) {
-      const input = tool === update ? { expected_version: 1, title: "수정" } : { expected_version: 1 };
+      const input = tool === update
+        ? { change_note: "테스트 변경 이유", expected_version: 1, title: "수정" }
+        : { change_note: "테스트 변경 이유", expected_version: 1 };
       const http = await post(
         f.app,
         `/tasks/${id}${tool === remove ? "?expected_version=1" : ""}`,
