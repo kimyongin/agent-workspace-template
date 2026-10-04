@@ -62,3 +62,12 @@ PR 하나 `codex/fin-ux-activity`. activity 세션이 activity/principles featur
 - shared ModalShell의 dirty/busy route guard는 entity-tags 담당 후속이다. 이 세션의 deferred navigation과 함께 최종 통합에서 다시 검증한다.
 - 하단 탐색을 포함한 최종 앱의 200% 확대·모든 대표 화면의 computed style·전체 초점 회귀는 통합 검증에서 확인한다. 실제 휴대폰·스크린리더는 상위 티켓의 제외 범위를 유지한다.
 - 독립 리뷰·정확한 최종 head CI·PR/머지는 메인이 조정한다. 운영 배포는 제외한다.
+
+### 첫 실제 전체 E2E와 수정 — 2026-10-04
+
+- 메인의 공유 환경 순차 배정으로 root `C:/Users/yongin/projects/agent-workspace-template`의 detached `85cb4ee6f860380a104e2d3bdfb40ef083261d92`에서 `npm run test:e2e`를 실행했다. 전후 checkout은 같은 SHA·clean이고 setup/reset·추적 파일 수정·서비스 재시작은 하지 않았다. 기존 55480 Vite·55421 로컬 Auth/API/DB를 사용했다.
+- 결과: 80개 중 59 PASS·9 기존 SKIP·12 FAIL, 3.7분. 실제 검색 원문 복귀·작성/완료·반복 회차·원칙 충돌/초안·대표 viewport·200% 확대·대비·키보드와 다른 사용자 거부 흐름은 통과했지만 전체 회귀 통과로 표시하지 않는다.
+- 실패 분류: 데스크톱/모바일의 할 일·기록 목록 4건은 태그 이름 로딩의 paragraph가 읽기 칩으로 바뀌며 행 높이가 줄어 기존 scroll/행 위치를 바꾼 구현 회귀였다. 250→251페이지 4건은 수동 API fixture의 필수 `tag_ids` 누락, 원칙 왕복 2건은 새 `scroll` URL 상태를 고려하지 않은 문자열 equality, 웹/MCP 기록 2건은 새 보기·편집 링크까지 일치하는 부분 제목 locator였다.
+- 재실행 전에 root 전체 traces/error-context를 `C:/Users/yongin/AppData/Local/Temp/template18-activity-full85cb4ee-failure`, 수집 출력은 `template18-activity-full85cb4ee-output.txt`에 보존하고 공유 환경 소유권을 메인에 반환했다.
+- 수정 커밋 `55e07202676136f8c94623d03de59b374d3620fb`: compact 태그 로딩에도 실제 읽기 칩과 같은 구조·글자·padding을 사용했다. 제목·행·버튼 위치 허용치를 늘리지 않았다. 수동 fixture에 필수 태그/엔터티 목록 필드를 추가하고, 원칙은 원래 필터·최소 페이지 범위·새 scroll 상태와 원래 anchor 초점을 검증하며, 웹/MCP는 대상별 명시적 보기 링크를 사용한다.
+- 같은 실행 소스에서 build·웹 12 PASS·격리 브라우저 12 PASS. 추가한 늦은 dictionary 응답 검사는 20개 태그 행에서 읽던 행의 y·scroll·초점이 응답 전후 정확히 유지되는지 desktop/mobile에서 확인했다. 수정 head의 실제 전체 E2E는 메인이 새 root checkout을 고정한 뒤 순차 재배정해야 한다.
