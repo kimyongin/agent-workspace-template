@@ -8,7 +8,7 @@ import { Notice } from "../../components/Field.tsx";
 import { api, query } from "../../lib/api.ts";
 import { emptyTask, TaskFormModal, taskInput } from "./forms.tsx";
 import { StatusBadge, useRequestId } from "./shared.tsx";
-import { TagFilter, TagNames, TagReadProvider } from "../tags/TagPicker.tsx";
+import { TagFilter, TagNames, TagReadProvider, useTagDictionary } from "../tags/TagPicker.tsx";
 import { useActivityList } from "./useActivityList.ts";
 import { EntityPicker } from "../entity/EntityPicker.tsx";
 import { ActivityTabs } from "./ActivityTabs.tsx";
@@ -24,13 +24,14 @@ const STATUS_BY_KIND: Record<string, readonly string[]> = {
 };
 
 export function TasksPage() {
+  const tagDictionary = useTagDictionary();
   const [params, setParams] = useSearchParams();
   const kind = params.get("kind") ?? "";
   const status = params.get("status") ?? "";
   const tag_id=params.get("tag_id")??"";
   const entity_id=params.get("entity_id")??"";
   const list = useActivityList<TaskListItem>("tasks", `/tasks${query({ kind, status, tag_id, entity_id, limit: 20 })}`,
-    "tasks-title", "할 일을 불러오지 못했습니다. 다시 시도하세요.");
+    "tasks-title", "할 일을 불러오지 못했습니다. 다시 시도하세요.", tagDictionary.tags !== null || tagDictionary.failed);
   const { items, cursor, error, busy: loadingMore, more } = list;
   const [creating, setCreating] = useState(false);
   const [formKey, setFormKey] = useState(0);
@@ -58,7 +59,7 @@ export function TasksPage() {
       </div>
 
       <div className="activity-filters" role="group" aria-label="할 일 필터">
-        <TagFilter value={tag_id} onChange={id=>setFilter("tag_id",id)}/>
+        <TagFilter dictionary={tagDictionary} value={tag_id} onChange={id=>setFilter("tag_id",id)}/>
         <EntityPicker label="엔터티 필터" value={entity_id} onChange={id=>setFilter("entity_id",id??"")}/>
         <div className="chips" role="group" aria-label={taskLabels.kind}>
           {KIND_FILTERS.map(([v, label]) => (
@@ -95,7 +96,7 @@ export function TasksPage() {
         </div>
       )}
       {items && items.length > 0 && (
-        <TagReadProvider enabled={items.some(t=>t.tag_ids.length>0)}><ul className="list">
+        <TagReadProvider dictionary={tagDictionary} enabled={items.some(t=>t.tag_ids.length>0)}><ul className="list">
           {items.map((t) => (
             <li key={t.id} className="list-item">
               <div className="list-item-main">

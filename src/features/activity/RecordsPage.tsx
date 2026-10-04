@@ -8,7 +8,7 @@ import { api, query } from "../../lib/api.ts";
 import { browserTimezone, formatDateTime } from "../../lib/format.ts";
 import { emptyRecord, RecordFormModal } from "./forms.tsx";
 import { useRequestId } from "./shared.tsx";
-import {TagFilter, TagNames, TagReadProvider} from "../tags/TagPicker.tsx";
+import {TagFilter, TagNames, TagReadProvider, useTagDictionary} from "../tags/TagPicker.tsx";
 import { useActivityList } from "./useActivityList.ts";
 import {EntityPicker} from "../entity/EntityPicker.tsx";
 import { ActivityTabs } from "./ActivityTabs.tsx";
@@ -18,10 +18,11 @@ import { collapsedDates, groupRecords } from "./timeline.ts";
 import "./activity.css";
 
 export function RecordsPage() {
+  const tagDictionary = useTagDictionary();
   const [params,setParams]=useSearchParams();const tag_id=params.get("tag_id")??"";
   const entity_id=params.get("entity_id")??"";
   const list = useActivityList<RecordResult>("records", `/records${query({ limit: 20, tag_id, entity_id })}`,
-    "records-title", "기록을 불러오지 못했습니다. 다시 시도하세요.");
+    "records-title", "기록을 불러오지 못했습니다. 다시 시도하세요.", tagDictionary.tags !== null || tagDictionary.failed);
   const { items, cursor, error, busy: loadingMore, more } = list;
   const [creating, setCreating] = useState(false);
   const requestId = useRequestId();
@@ -44,7 +45,7 @@ export function RecordsPage() {
         <button type="button" className="btn btn-primary" onClick={() => setCreating(true)}>기록 작성</button>
       </div>
       <div className="activity-filters" role="group" aria-label="기록 필터">
-      <TagFilter value={tag_id} onChange={id=>{const next=new URLSearchParams(params);next.delete("pages");next.delete("scroll");next.delete("collapsed");id?next.set("tag_id",id):next.delete("tag_id");setParams(next);}}/>
+      <TagFilter dictionary={tagDictionary} value={tag_id} onChange={id=>{const next=new URLSearchParams(params);next.delete("pages");next.delete("scroll");next.delete("collapsed");id?next.set("tag_id",id):next.delete("tag_id");setParams(next);}}/>
       <EntityPicker label="엔터티 필터" value={entity_id} onChange={id=>{const next=new URLSearchParams(params);next.delete("pages");next.delete("scroll");next.delete("collapsed");id?next.set("entity_id",id):next.delete("entity_id");setParams(next);}}/>
       {(tag_id || entity_id) && <button className="btn filter-reset" onClick={() => setParams({}, {replace:true})}>필터 해제</button>}
       </div>
@@ -57,7 +58,7 @@ export function RecordsPage() {
         </div>
       )}
       {items && items.length > 0 && (
-        <TagReadProvider enabled={items.some(r=>r.tag_ids.length>0)}><div className="record-timeline">{groupRecords(items, timezone).map(({date, records}) => <section key={date} className="record-date-group" aria-label={`${date} 기록`}>
+        <TagReadProvider dictionary={tagDictionary} enabled={items.some(r=>r.tag_ids.length>0)}><div className="record-timeline">{groupRecords(items, timezone).map(({date, records}) => <section key={date} className="record-date-group" aria-label={`${date} 기록`}>
         <h2 className="section-title"><button type="button" className="btn record-date-toggle" aria-label={`${date} 기록`} aria-expanded={!collapsed.has(date)} aria-controls={`records-date-${date}`} onClick={() => toggleDate(date)}>{date}</button></h2>
         <ul className="list" id={`records-date-${date}`} hidden={collapsed.has(date)}>
           {records.map((r) => (

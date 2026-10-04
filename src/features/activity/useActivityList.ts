@@ -20,6 +20,7 @@ export function useActivityList<T extends { id: string }>(
   path: string,
   titleId: string,
   errorMessage: string,
+  layoutReady = true,
 ) {
   const [params] = useSearchParams();
   const { hash } = useLocation();
@@ -93,7 +94,7 @@ export function useActivityList<T extends { id: string }>(
   }, [scope, pages, hash, retry]);
 
   useEffect(() => {
-    if (busy || items === null && !error || focused.current === hash || !anchorId(kind, hash)) return;
+    if (!layoutReady || busy || items === null && !error || focused.current === hash || !anchorId(kind, hash)) return;
     const target = document.getElementById(hash.slice(1));
     const focus = target ?? document.getElementById(titleId);
     focus?.focus({ preventScroll: true });
@@ -104,7 +105,7 @@ export function useActivityList<T extends { id: string }>(
       if (rect.top < 0 || rect.bottom > window.innerHeight) focus.scrollIntoView({ block: "center" });
     }
     focused.current = hash;
-  }, [items, busy, hash, titleId, error]);
+  }, [items, busy, hash, titleId, error, layoutReady]);
 
   const more = async () => {
     if (!cursor || busy) return;

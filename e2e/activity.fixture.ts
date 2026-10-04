@@ -143,27 +143,45 @@ test("긴 제목·태그와 편집 조작은 대표 폭에서 읽기 순서와 �
   await page.screenshot({path:testInfo.outputPath("record-edit-360.png"),fullPage:true});
 });
 
-test("늦은 태그 이름 조회는 읽던 행의 높이·스크롤을 바꾸지 않는다", async ({page}) => {
-  let release!:()=>void;
-  const held=new Promise<void>(resolve=>{release=resolve;});
-  const records=Array.from({length:20},(_,index)=>({...record(index+1),tag_ids:[id(8)]}));
-  await page.route("**/fixture-api/**",async route=>{
-    const path=new URL(route.request().url()).pathname;
-    if(path.endsWith("/tags")) {
-      await held;
-      await route.fulfill({json:{items:[{id:id(8),name:"활동 왕복 태그"}],next_cursor:null}});return;
-    }
-    await route.fulfill({json:path.endsWith("/records")?{items:records,next_cursor:null}:{items:[],next_cursor:null}});
+for (const name of ["활동 왕복 태그", "한".repeat(30)]) {
+  test(`늦은 태그 이름 ${name.length}자 응답 뒤에 목록 행·스크롤·초점을 복원한다`, async ({page}) => {
+    let release!:()=>void;
+    let held!:Promise<void>;
+    const hold = () => {held = new Promise<void>(resolve=>{release=resolve;});};
+    hold();
+    const records=Array.from({length:20},(_,index)=>({...record(index+1),tag_ids:[id(8)]}));
+    await page.route("**/fixture-api/**",async route=>{
+      const path=new URL(route.request().url()).pathname;
+      if(path.endsWith("/tags")) {
+        await held;
+        await route.fulfill({json:{items:[{id:id(8),name}],next_cursor:null}});return;
+      }
+      const data=path.endsWith("/records")?{items:records,next_cursor:null}:path.endsWith(`/records/${id(20)}`)?records[19]:{items:[],next_cursor:null};
+      await route.fulfill({json:data});
+    });
+    await page.setViewportSize({width:360,height:900});
+    await page.goto("/e2e/fixtures/activity.html");
+    const row=page.locator(`#activity-records-${id(20)}`);
+    await expect(page.getByText("태그 이름을 불러오는 중…",{exact:true})).toBeVisible();
+    await expect(row).toHaveCount(0);
+    release();
+    await expect(page.locator(".tag-read").last()).toHaveText(name);
+    if(name.length===30)expect((await page.locator(".tag-read").last().boundingBox())!.height).toBeGreaterThan(30);
+    await row.scrollIntoViewIfNeeded();
+    await row.focus();
+    const before=(await row.boundingBox())!.y;
+    const scroll=await page.evaluate(()=>scrollY);
+    await page.getByRole("link",{name:"기록 20 보기",exact:true}).click();
+    await expect(page.getByRole("heading",{name:"기록 20",exact:true})).toBeVisible();
+    await expect(page.locator(".tag-read")).toHaveText(name);
+    hold();
+    await page.getByRole("link",{name:"← 기록 목록",exact:true}).click();
+    await expect(page.getByText("태그 이름을 불러오는 중…",{exact:true})).toBeVisible();
+    await expect(row).toHaveCount(0);
+    release();
+    await expect(row).toBeFocused();
+    expect((await row.boundingBox())!.y).toBeCloseTo(before,1);
+    expect(await page.evaluate(()=>scrollY)).toBe(scroll);
+    await expect(page.locator(".tag-read").last()).toHaveText(name);
   });
-  await page.goto("/e2e/fixtures/activity.html");
-  const row=page.locator(`#activity-records-${id(20)}`);
-  await row.scrollIntoViewIfNeeded();
-  await row.focus();
-  const before=(await row.boundingBox())!.y;
-  const scroll=await page.evaluate(()=>scrollY);
-  release();
-  await expect(page.locator(".tag-read").last()).toHaveText("활동 왕복 태그");
-  expect((await row.boundingBox())!.y).toBeCloseTo(before,1);
-  expect(await page.evaluate(()=>scrollY)).toBe(scroll);
-  await expect(row).toBeFocused();
-});
+}
