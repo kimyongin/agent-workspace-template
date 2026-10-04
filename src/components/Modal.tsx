@@ -1,12 +1,15 @@
 // ModalShell·ConfirmDialog: 네이티브 <dialog>의 showModal로 뒤 화면을 inert 처리하고 초점을 가둔다.
 // Escape·닫기는 같은 미저장 보호를 거치며 배경 클릭으로 초안을 버리지 않는다(docs/design/ui-patterns.md).
 import { type ReactNode, useEffect, useId, useRef, useState } from "react";
+import { useBlocker } from "react-router";
 
 interface ModalProps {
   title: string;
   open: boolean;
   /** 닫기 요청. dirty면 변경 버리기 확인을 먼저 묻는다. */
   onClose: () => void;
+  /** 경로 폐기 확인 후 편집 영역만 닫거나 초기화한다. 이동하는 onClose는 별도 콜백을 반드시 제공한다. */
+  onRouteDiscard?: () => void;
   dirty?: boolean;
   /** 저장 중에는 닫지 않는다. */
   busy?: boolean;
@@ -14,11 +17,22 @@ interface ModalProps {
   children: ReactNode;
 }
 
-export function ModalShell({ title, open, onClose, dirty = false, busy = false, footer, children }: ModalProps) {
+export function ModalShell(props: ModalProps) {
+  return props.open ? <ActiveModalShell {...props} /> : null;
+}
+
+function ActiveModalShell({ title, open, onClose, onRouteDiscard = onClose, dirty = false, busy = false, footer, children }: ModalProps) {
   const ref = useRef<HTMLDialogElement>(null);
   const titleId = useId();
   const [confirmDiscard, setConfirmDiscard] = useState(false);
   const returnFocus = useRef<Element | null>(null);
+  const blocker = useBlocker(open && (dirty || busy));
+  useEffect(() => { if (busy && blocker.state === "blocked") blocker.reset(); }, [busy, blocker]);
+  useEffect(() => {
+    const unload = (e: BeforeUnloadEvent) => { if (open && (dirty || busy)) { e.preventDefault(); e.returnValue = ""; } };
+    window.addEventListener("beforeunload", unload);
+    return () => window.removeEventListener("beforeunload", unload);
+  }, [open, dirty, busy]);
 
   useEffect(() => {
     const d = ref.current;
@@ -65,15 +79,17 @@ export function ModalShell({ title, open, onClose, dirty = false, busy = false, 
         {footer && <div className="modal-foot">{typeof footer === "function" ? footer(requestClose) : footer}</div>}
       </div>
       <ConfirmDialog
-        open={confirmDiscard}
+        open={confirmDiscard || blocker.state === "blocked"}
+        busy={busy}
         title="변경을 버릴까요?"
         message="저장하지 않은 내용이 사라집니다."
         confirmLabel="변경 버리기"
         onConfirm={() => {
           setConfirmDiscard(false);
-          onClose();
+          if (blocker.state === "blocked") { onRouteDiscard(); blocker.proceed(); }
+          else onClose();
         }}
-        onCancel={() => setConfirmDiscard(false)}
+        onCancel={() => { setConfirmDiscard(false); if (blocker.state === "blocked") blocker.reset(); }}
       />
     </dialog>
   );

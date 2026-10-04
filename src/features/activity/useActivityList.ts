@@ -20,6 +20,7 @@ export function useActivityList<T extends { id: string }>(
   path: string,
   titleId: string,
   errorMessage: string,
+  layoutReady = true,
 ) {
   const [params] = useSearchParams();
   const { hash } = useLocation();
@@ -93,7 +94,7 @@ export function useActivityList<T extends { id: string }>(
   }, [scope, pages, hash, retry]);
 
   useEffect(() => {
-    if (busy || items === null && !error || focused.current === hash || !anchorId(kind, hash)) return;
+    if (!layoutReady || busy || items === null && !error || focused.current === hash || !anchorId(kind, hash)) return;
     const target = document.getElementById(hash.slice(1));
     const focus = target ?? document.getElementById(titleId);
     focus?.focus({ preventScroll: true });
@@ -104,7 +105,7 @@ export function useActivityList<T extends { id: string }>(
       if (rect.top < 0 || rect.bottom > window.innerHeight) focus.scrollIntoView({ block: "center" });
     }
     focused.current = hash;
-  }, [items, busy, hash, titleId, error]);
+  }, [items, busy, hash, titleId, error, layoutReady]);
 
   const more = async () => {
     if (!cursor || busy) return;
@@ -137,12 +138,12 @@ export function useActivityList<T extends { id: string }>(
       if (current()) setBusy(false);
     }
   };
-  const open = (event: React.MouseEvent<HTMLAnchorElement>, id: string) => {
+  const open = (event: React.MouseEvent<HTMLAnchorElement>, id: string, edit: boolean) => {
     if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
     event.preventDefault();
     const back = listReturnPath(kind, params, id, window.scrollY);
     navigate(back, { replace: true });
-    navigate(`/${kind}/${id}?list=${encodeURIComponent(back)}`);
+    navigate(`/${kind}/${id}?list=${encodeURIComponent(back)}${edit ? "&edit=1" : ""}`);
   };
   return {
     items,
@@ -161,10 +162,10 @@ export function useActivityList<T extends { id: string }>(
       focused.current = "";
       setRetry((n) => n + 1);
     },
-    link: (id: string) => ({
-      id: listAnchor(kind, id),
-      to: `/${kind}/${id}?list=${encodeURIComponent(listReturnPath(kind, params, id, 0))}`,
-      onClick: (event: React.MouseEvent<HTMLAnchorElement>) => open(event, id),
+    link: (id: string, edit = false) => ({
+      id: edit ? undefined : listAnchor(kind, id),
+      to: `/${kind}/${id}?list=${encodeURIComponent(listReturnPath(kind, params, id, 0))}${edit ? "&edit=1" : ""}`,
+      onClick: (event: React.MouseEvent<HTMLAnchorElement>) => open(event, id, edit),
     }),
   };
 }

@@ -1,4 +1,4 @@
-export type ActivityListKind = "tasks" | "records";
+export type ActivityListKind = "tasks" | "records" | "principles";
 export type ListPage<T> = { items: T[]; next_cursor: string | null };
 export type LoadedList<T> = ListPage<T> & { pages: number };
 export const MAX_RESTORE_PAGES = 250;
@@ -13,16 +13,18 @@ export function listScope(params: URLSearchParams): string {
   const scope = new URLSearchParams(params);
   scope.delete("pages");
   scope.delete("scroll");
+  scope.delete("collapsed");
   scope.sort();
   return scope.toString();
 }
 
 export function listAnchor(kind: ActivityListKind, id: string): string {
-  return `activity-${kind}-${id}`;
+  return kind === "principles" ? `principle-${id}` : `activity-${kind}-${id}`;
 }
 
 export function anchorId(kind: ActivityListKind, hash: string): string | undefined {
-  const match = new RegExp(`^#activity-${kind}-([0-9a-f-]{36})$`).exec(hash);
+  const prefix = kind === "principles" ? "principle" : `activity-${kind}`;
+  const match = new RegExp(`^#${prefix}-([0-9a-f-]{36})$`).exec(hash);
   return match?.[1];
 }
 

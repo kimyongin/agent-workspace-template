@@ -76,7 +76,13 @@ test("원칙 상세 왕복과 새로고침은 추가 페이지와 상태 필터�
     for (let i = 0; i < 21; i++) await concurrent.call("create_principle", { title: unique("왕복 중 추가"), summary: "항목 이동" });
   } finally { await concurrent.close(); }
   await page.getByRole("link", { name: "← 원칙 목록" }).click();
-  expect(page.url().split("#")[0]).toBe(listUrl);
+  const restored = new URL(page.url()), original = new URL(listUrl);
+  expect(restored.pathname).toBe(original.pathname);
+  for (const [key,value] of original.searchParams) {
+    if(key!=="pages")expect(restored.searchParams.get(key)).toBe(value);
+  }
+  expect(Number(restored.searchParams.get("pages"))).toBeGreaterThanOrEqual(Number(original.searchParams.get("pages")));
+  expect(restored.searchParams.has("scroll")).toBe(true);
   await expect(oldest).toBeVisible();
   await expect(oldest).toBeFocused();
   await page.reload();

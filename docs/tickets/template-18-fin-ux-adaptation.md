@@ -26,7 +26,7 @@
 
 별도 worktree에서 구현하고 순서대로 최신 main에 통합·검증·독립 리뷰 후 작은 PR로 머지한다. 공유 DB/HTTP/MCP/E2E 환경은 한 구현 담당만 순차 사용한다. 본 세션은 티켓·Git·PR·리뷰 조정 담당이다.
 
-구현 경계 조사에서 기존 BrowserRouter/ModalShell의 브라우저 뒤로가기 초안 보호가 부족함을 확인했다. 18-02는 URL·basename·인증을 유지한 data router 전환을 소유하고 18-04는 지원되는 useBlocker 기반 이탈 보호를 소유한다. 서버 데이터 의미나 상세 overlay 도입이 아닌 승인된 미저장 보호의 구현 선택이다. 18-04의 라우터 소비는 18-02에 의존한다. 기록 날짜는 기존 표시 계약과 같은 브라우저 시간대를 사용하고 해당 시간대를 표시한다.
+구현 경계 조사에서 기존 BrowserRouter/ModalShell의 브라우저 뒤로가기 초안 보호가 부족함을 확인했다. 18-02는 URL·basename·인증을 유지한 data router 전환을 소유하고 entity-tags 담당은 지원되는 useBlocker 기반 이탈 보호를 구현하고, 즉시 소비하는 활동 폼과 함께 18-03 PR에 공유 guard/API와 엔터티 작성 성공 후 이동의 최소 소비자 수정을 전달한다. 서버 데이터 의미나 상세 overlay 도입이 아닌 승인된 미저장 보호의 구현 선택이다. 이 라우터 소비는 18-02에 의존한다. 기록 날짜는 기존 표시 계약과 같은 브라우저 시간대를 사용하고 해당 시간대를 표시한다.
 
 배정 preflight: 2026-10-04T05:37:29Z의 Desktop 도구 목록에서 gpt-6.1-sol actual ID와 low/medium/high/xhigh/max/ultra 노출을 확인했다. 저장소 밖 TEMP snapshot으로 assign PASS. navigation/activity/entity_tags를 worker 경로, fork_turns=none, balanced gpt-6.1-sol/medium으로 명시 배정했다. 모델은 허용 정책, 강도는 확정 웹 기능 구현/회귀 목적에 따른다. 도구 배정과 backend 실제 effort·비용은 구분하며 후자는 미관측이다.
 
@@ -157,3 +157,8 @@ Claude/Codex의 MCP 연결과 제품 스킬 패키지를 함께 안내한다. �
 직접 검사: `npm run check:docs` 텍스트339개·모델/native 정합성 PASS, 회귀49개 중48 PASS/0 FAIL/기존 Windows file-symlink권한1 SKIP. 최초에는 기존 node_modules의 `@babel/parser` 누락으로 회귀가 실패했다. `npm ci --ignore-scripts`는 잠긴 rolldown native 파일, 후속 install은 잠긴 Supabase 실행 파일로 실패했다. 기존 프로세스를 종료하지 않고 저장소 밖 TEMP에 동일 package/lock으로 `npm ci --ignore-scripts`(172개 설치, audit 취약점0)를 완료한 후 기존 파일을 덮어쓰지 않는 복사로 누락 파일을 복구해 최종 검사를 통과했다. package/lock·앱 코드·환경 설정을 수정하지 않았다. `git diff --check` PASS. 앱 동작/실기기·독립 리뷰·원격 CI·머지는 이번 로컬 조사 완료와 구분한다.
 
 이번 조사 완료를 앱 반영이나 운영 배포 완료로 표시하지 않는다.
+
+## 순차 통합 현황 — 2026-10-04
+
+- 탐색·가이드 PR [#91](https://github.com/kimyongin/agent-workspace-template/pull/91)은 구현 head `08d580506a8bd25eb3567fe8426b305404a5fabc`의 CI 두 작업 통과 후 main `69b2d4991634c707f7d75970d3270bafb0568aff`로 머지됐다. squash main과 구현 head의 전체 tree diff가 비어 있음을 확인했다.
+- 18-03은 위 main에 rebase했다. rebase 전 통합 소스 `83a3e80bf9c03a38fb57ca121e465f25fca062ff`의 실제 전체 E2E는 75 PASS·9 기존 SKIP·0 FAIL이며 독립 리뷰의 태그 재시도/편집 query 복귀 수정 후 격리 활동 fixture는 32 PASS다. 공유 초안 guard와 최소 EntitiesPage 작성 성공 후 이동 소비자를 포함한다. 정확한 결과·범위·환경 근거는 [18-03](template-18-03-activity-reading.md#최종-실제-전체-e2e--2026-10-04)에 기록했다. 18-03 최종 수정 head `c5f24c1`의 전체 재검증도 75 PASS·9 기존 SKIP다. 첫 실행의 runtime worker HTTP500 한 건·원인 관측 한계·같은 코드 재검사 결과는 활동 티켓에 보존했다. 독립 재리뷰·최종 head CI와 18-03/18-04 머지는 아직 남는다.

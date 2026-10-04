@@ -2,8 +2,9 @@
 import type { RecordResult } from "@contracts/record.ts";
 import type { Occurrence, TaskDetail, TaskResult } from "@contracts/task.ts";
 import { taskLabels } from "@contracts/task.ts";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
+import {useDeferredNavigation} from "../../lib/useDeferredNavigation.ts";
 import { Notice } from "../../components/Field.tsx";
 import { MarkdownContent } from "../../components/MarkdownContent.tsx";
 import { ConfirmDialog } from "../../components/Modal.tsx";
@@ -36,27 +37,38 @@ export function TaskDetailPage() {
   const [params] = useSearchParams();
   const back=useSearchReturn(safeListReturn(params.get("list"), "tasks", `/tasks${query({kind:params.get("kind"),status:params.get("status"),tag_id:params.get("tag_id"),entity_id:params.get("entity_id")})}`),"← 할 일 목록");
   const navigate = useNavigate();
+  const navigateAfterClose = useDeferredNavigation();
   const [task, setTask] = useState<TaskDetail | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-  const [dialog, setDialog] = useState<Dialog>(null);
+  const directEdit = params.get("edit") === "1";
+  const [dialog, setDialog] = useState<Dialog>(directEdit ? "edit" : null);
+  const closeEdit = () => { setDialog(null); if(directEdit)navigateAfterClose(back.path,true); };
   const [busy, setBusy] = useState(false);
   const [occurrences, setOccurrences] = useState<{ today: string; items: Occurrence[] } | null>(null);
   const [rangeEnd, setRangeEnd] = useState<string | null>(null);
   const requestId = useRequestId();
 
+  const previousQuery = useRef(params.toString());
+  const loadGeneration = useRef(0);
   const reload = useCallback(async () => {
+    const started = ++loadGeneration.current;
     try {
-      setTask(await api<TaskDetail>("GET", `/tasks/${id}`));
+      const loaded = await api<TaskDetail>("GET", `/tasks/${id}`);
+      if(started !== loadGeneration.current)return;
+      setTask(loaded);
       setLoadError(null);
     } catch (e) {
+      if(started !== loadGeneration.current)return;
       setLoadError(e instanceof ApiError && e.code === "not_found" ? "할 일을 찾을 수 없습니다." : "할 일을 불러오지 못했습니다.");
     }
   }, [id]);
 
   useEffect(() => {
+    setTask(null); setLoadError(null); setDialog(directEdit ? "edit" : null);
     reload();
+    return () => {loadGeneration.current++;};
   }, [reload]);
 
   const loadOccurrences = useCallback(async (t: TaskResult, end: string | null) => {
@@ -91,10 +103,19 @@ export function TaskDetailPage() {
     }
   };
 
-  if (loadError) {
+  useEffect(()=>{
+    const query=params.toString();
+    if(previousQuery.current===query)return;
+    previousQuery.current=query;
+    setDialog(directEdit?"edit":null);
+    if(directEdit){setTask(null);void reload();}
+  },[params.toString(),reload]);
+
+  if (loadError && !task) {
     return (
       <section className="panel">
         <Notice kind="error">{loadError}</Notice>
+        <button type="button" className="btn" onClick={reload}>조회 다시 시도</button>
         <Link to={back.path}>{back.label}</Link>
       </section>
     );
@@ -134,8 +155,8 @@ export function TaskDetailPage() {
         </div>
         {message && <Notice kind="success">{message}</Notice>}
         {actionError && <Notice kind="error">{actionError}</Notice>}
-        <TagNames ids={task.tag_ids}/>
-        <EntityLink id={task.entity_id}/>
+        <p className="document-summary">{task.summary}</p>
+        {loadError && <><Notice kind="error">{message ? "저장은 완료했습니다. 최신 내용을 불러오지 못했습니다." : loadError}</Notice><button type="button" className="btn" onClick={reload}>조회 다시 시도</button></>}
         <dl className="props">
           <div>
             <dt>{taskLabels.status}</dt>
@@ -164,25 +185,14 @@ export function TaskDetailPage() {
               <dd>{formatDateTime(task.completed_at)}</dd>
             </div>
           )}
-          {task.kind === "once" && task.status === "done" && (
-            <div>
-              <dt>결과 기록</dt>
-              <dd>
-                {task.result_record
-                  ? <Link to={`/records/${task.result_record.id}`}>{task.result_record.title}</Link>
-                  : "결과 기록이 삭제되었습니다"}
-              </dd>
-            </div>
-          )}
-          <div>
-            <dt>{taskLabels.summary}</dt>
-            <dd>{task.summary}</dd>
-          </div>
         </dl>
         <div>
           <h2 className="section-title">{taskLabels.body}</h2>
           <MarkdownContent text={task.body} />
         </div>
+        {task.kind === "once" && task.status === "done" && <div><h2 className="section-title">결과 기록</h2>{task.result_record ? <Link to={`/records/${task.result_record.id}`}>{task.result_record.title}</Link> : <p className="secondary">결과 기록이 삭제되었습니다</p>}</div>}
+        <TagNames ids={task.tag_ids}/>
+        <EntityLink id={task.entity_id}/>
         <p className="meta" style={{ margin: 0 }}>
           만든 시각 {formatDateTime(task.created_at)} · 수정 {formatDateTime(task.updated_at)}
         </p>
@@ -243,8 +253,10 @@ export function TaskDetailPage() {
           mode="edit"
           open
           initial={taskDraftFrom(task)}
-          onClose={() => setDialog(null)}
+          onClose={closeEdit}
+          onRouteDiscard={() => setDialog(null)}
           onSave={async (draft) => {
+            loadGeneration.current++;
             const patch: Record<string, unknown> = {
               expected_version: task.version,
               title: draft.title,
@@ -259,8 +271,9 @@ export function TaskDetailPage() {
               patch.recurrence = input.recurrence;
               patch.timezone = input.timezone;
             }
-            await api("PATCH", `/tasks/${task.id}`, patch);
-            setDialog(null);
+            const saved = await api<TaskResult>("PATCH", `/tasks/${task.id}`, patch);
+            setTask(current => current?.id === task.id ? {...current,...saved} : current);
+            closeEdit();
             setMessage("저장했습니다.");
             await reload();
           }}
@@ -275,6 +288,7 @@ export function TaskDetailPage() {
           initial={emptyRecord()}
           intro={<p className="help" style={{ margin: 0 }}>실제로 수행한 결과를 남기면 할 일이 완료됩니다.</p>}
           onClose={() => setDialog(null)}
+          onRouteDiscard={() => setDialog(null)}
           onSave={async (value) => {
             await api("POST", `/tasks/${task.id}/complete`, { ...value, expected_version: task.version, request_id: requestId.current });
             requestId.renew();
@@ -291,6 +305,7 @@ export function TaskDetailPage() {
           open
           initial={{...emptyRecord(),entity_id:task.entity_id}}
           onClose={() => setDialog(null)}
+          onRouteDiscard={() => setDialog(null)}
           onSave={async (value) => {
             await api<RecordResult>("POST", `/tasks/${task.id}/occurrences/${dialog.occurrence}/records`, {
               ...value,

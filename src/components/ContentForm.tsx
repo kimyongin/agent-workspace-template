@@ -55,13 +55,15 @@ interface FormModalProps {
   submitLabel: string;
   dirty: boolean;
   onClose: () => void;
+  /** 경로 폐기는 이동 없이 편집만 닫는다. onClose가 이동하면 별도 콜백이 필요하다. */
+  onRouteDiscard?: () => void;
   /** 검증·저장. 실패하면 throw하고 초안은 유지된다. */
   onSubmit: () => Promise<void>;
   validate: () => Record<string, string> | null;
   children: (errors: Record<string, string>) => ReactNode;
 }
 
-export function FormModal({ title, open, submitLabel, dirty, onClose, onSubmit, validate, children }: FormModalProps) {
+export function FormModal({ title, open, submitLabel, dirty, onClose, onRouteDiscard, onSubmit, validate, children }: FormModalProps) {
   const [busy, setBusy] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [failure, setFailure] = useState<string | null>(null);
@@ -92,6 +94,7 @@ export function FormModal({ title, open, submitLabel, dirty, onClose, onSubmit, 
       dirty={dirty}
       busy={busy}
       onClose={onClose}
+      onRouteDiscard={onRouteDiscard}
       footer={(requestClose) =>
         <>
           <button type="button" className="btn" onClick={requestClose} disabled={busy}>취소</button>
