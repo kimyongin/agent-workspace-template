@@ -66,10 +66,10 @@ postgres는 이 큐 SELECT GRANT OPTION false·supabase_admin MEMBER false이고
 
 메인은 `00:54:10Z` Codex CLI native appserver `mcpServerStatus/list`에서 workspace authStatus oAuth·toolCount31을 추가 확인했다. 외부 `TEMP/workspace-prod-oauth-20261004/native-inventory-evidence.json`과 앞선 독립 SDK 읽기 증거를 구분한다. 검증 전용 isolated home credential은 CurrentUser DPAPI 메모리 roundtrip PASS 후 `.credentials.json.dpapi`2134bytes로 보존하고 해당 평문 파일만 제거했다고 인계했다. token값을 증거/출력에 포함하지 않았고 전역 Codex 설정 변경 없음이며 사용자 정상 로그인과 Claude 연결은 보존했다. 이는 Codex desktop UI 검증이 아니다.
 
-CSS viewport319/scrollWidth304의 모바일 크기 검색·원문 접근 관찰과 screenshot은 메인 보고이며 실제 휴대폰·스크린리더·Codex desktop 제품 UI 검증은 아니다. 사용자는 실제 휴대폰·스크린리더를 지금 확인할 수 없다고 답했다는 메인 인계를 받았다. 이 두 항목은 남은 수동 검증이며 CSS 크기 모사로 완료 처리하지 않는다. Codex desktop 제품 UI도 미접근으로 유지한다. START-HERE·Template-11·모델 선택표는 이 담당이 편집하지 않는다.
+CSS viewport319/scrollWidth304의 모바일 크기 검색·원문 접근 관찰과 screenshot은 메인 보고이며 실제 휴대폰·스크린리더·Codex desktop 제품 UI 검증은 아니다. 최초에는 휴대폰·스크린리더를 남은 수동 검증으로 기록했다. 이후 2026-10-04 사용자 지시에 따라 실제 휴대폰 확인은 사용자에게 이관하고 에이전트 작업 목록에서 제거했으며, 스크린리더 검증은 이번 요청 범위에서 제외했다. 두 항목을 검증 성공으로 처리하지 않는다. 남은 클라이언트 검증은 Codex desktop 제품 UI다. START-HERE·Template-11·모델 선택표는 이 담당이 편집하지 않는다.
 
 호출/usage 제한: 수동 scoped worker는 같은 본인 기록 생성/수정 각각 한 번, 총 두 번이다. 숨은 재시도 없이 title+summary 한 passage/vector1024 처리 성공을 관찰했다. 실제 공급자 token usage·달러 청구액은 배포 응답에 미노출이고 콘솔/청구 내역을 조회하지 않아 미확인이다. 매분 limit5는 최대batch 경계이며 자동 실패 재시도/외부 호출·실제 소비량은 운영 가이드로 관찰한다. 최초 운영의 빈 큐 점검·보류를 보존하면서 현재 Cron 활성화 근거로 연결한다. 백업/복구·T02-5/6 제외 범위는 변하지 않는다.
 
-메인은 별도 SQL로 active 매분 job·최근3개 Cron SQL succeeded·원본 version2·state indexed·1024벡터를 직접 재확인해 PASS를 인계했다. current hash 일치는 이 담당의 scoped 사후 대조 근거이며 메인 추가 재조회와 구분한다. 최종 Claude 웹 읽기 결과까지 인계받았으며 실기기·스크린리더·Codex desktop UI와 실제 공급자 청구액은 여전히 미확인이다.
+메인은 별도 SQL로 active 매분 job·최근3개 Cron SQL succeeded·원본 version2·state indexed·1024벡터를 직접 재확인해 PASS를 인계했다. current hash 일치는 이 담당의 scoped 사후 대조 근거이며 메인 추가 재조회와 구분한다. 최종 Claude 웹 읽기 결과까지 인계받았다. Codex desktop UI와 실제 공급자 청구액은 미확인이며 휴대폰·스크린리더는 위 사용자 지시에 따라 에이전트의 남은 작업에서 제외한다. 이 기록은 [PR #84](https://github.com/kimyongin/agent-workspace-template/pull/84)에서 독립 리뷰·필수 CI를 통과해 `90708ff287a82d46cdf1bfe3f6c9289f49733863`으로 머지됐다.
 
 검사: `npm run check:docs` 텍스트330개·모델/native 정합성·script39 PASS/0 FAIL/기존 Windows file-symlink권한1 SKIP, `git diff --check` 통과. 앱·migration·모델 선택표·START-HERE·Template-11·로컬 서비스는 편집/변경하지 않았다. 기록 commit을 메인 독립 리뷰·PR/CI·머지로 넘기며 이 티켓 작성 시 그 후속 절차는 완료 전이다.
