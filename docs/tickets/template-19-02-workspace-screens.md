@@ -1,7 +1,7 @@
 # Template-19-02 — 탭 내부 검색·반응형 상세·메모와 변경 기록 화면
 
 작성: 2026-10-04
-상태: 화면 구현·격리 자동 검증 완료, 메인의 소스 통합·독립 리뷰·전체 E2E 대기
+상태: 화면 구현·배정된 immutable 통합·격리 mock/실제 desktop·mobile 검증 완료, 부모 독립 리뷰·CI·PR·머지 대기
 기준: main399b82b와 승인한 [Template-19](template-19-three-tab-release-ux.md)/[Template-20](template-20-current-principle-change-records.md)
 
 ## 목표와 소유
@@ -24,7 +24,9 @@ CLI와 메인의 인계는 저장소 밖 TEMP/template20-screens-inbox.md(계약
 
 로컬사용자DB/finDB/reset/서비스시작은금지한다. 실제전체E2E/DBHTTPMCP는메인이격리환경·immutablehead와단독소유자를배정한다. 실패자료와검사한head를보존, 가이드/티켓·소스·검증을묶어cleancommit인계, 독립리뷰·정확CI·최신main머지는메인이조정한다. 운영배포하지않는다.
 
-## 화면 세션 실행 기록 — 2026-10-04
+## 최초 화면 단독 구현 기록 — 2026-10-04
+
+아래 초기 기록은 화면 단독 head의 당시 상태다. 이후 배정된 소스·격리 환경 통합과 최종 검증은 뒤의 실행 기록 및 마지막 표가 현재 결과를 소유한다.
 
 실행 주체는 별도 CLI 화면 구현 세션이다. worktree는 `fin-ux-activity/agent-workspace-template`, branch는 `codex/three-tab-screens`, base는 `773e3652834b9b7a15999016858591ba6dd3794f`다. explicit gpt-6.1-sol/high와 오늘 사용자 제공 모델 preflight를 사용했고 모델 대체·자식 에이전트는 없었다. backend 실제 effort/실청구액은 미관측이다.
 
@@ -58,7 +60,7 @@ CLI와 메인의 인계는 저장소 밖 TEMP/template20-screens-inbox.md(계약
 
 초기 fixture 실패는 Vite HTML preamble, 저장 뒤 blocker 정리 시점, CSS zoom 높이, scoped 태그 cursor URL, 빠른 관련 폼 재개방, 과거 원칙 재진입 조회와 읽기 편집 초점 복귀와 연결 작성의 uncertain 폐기→forward 요청키에서 발생했다. source/fixture 원인을 고친 뒤 같은 검증을 재실행했다. 원래 assertion/timeout을 완화하지 않았다. 실패 자료는 ignored `test-results/screens-failures/screens-failure-run01..09`, `entity-tags-run01`, `activity-run01..03`에 보존했다. 같은 fixture config를 종료 전에 다시 실행한 한 번의 실수로 occupied-port 거부와 마지막 mobile trace ENOENT가 있었다. 이미 복사한 desktop 실패 자료는 남았고 이후 종료를 기다린 순차 재실행은 통과했다.
 
-### 메인의 남은 통합과 검증
+### 최초 인계 당시 남은 통합과 검증
 
 - immutable backend/type 및 navigation head 통합 후 위 검사와 전체 DB/HTTP/MCP/web E2E를 exact head에서 실행한다. 이 세션은 실제 DB 실행·운영 이관·서비스 시작·push/PR/merge/배포를 하지 않았다.
 - 현재 원칙은 계정 전체 하나이므로 실제 principle/layout/search 통합 E2E는 격리된 계정을 단독 소유하고 desktop/mobile을 한 project씩 `--workers=1`로 실행한다. 공급자는 stub 또는 비용 없는 설정이며 `RUN_PINECONE_E2E`는 활성화하지 않는다.
@@ -88,3 +90,31 @@ CLI와 메인의 인계는 저장소 밖 TEMP/template20-screens-inbox.md(계약
 backend963 통합 뒤 desktop 전체39 PASS/실모델1 SKIP(4.6m)를 확인했다. 당시 원칙의 원문 삭제 뒤 기록의 설명까지 정정하는 실제 회귀를 추가하자, 이미 빈 연결 ID를 항상 PATCH하는 화면이 보존 캡처를 지우는 문제가 재현됐다. RecordDetail은 적용 원칙 선택이 정본과 같으면 해당 입력을 생략하며, 선택 변경은 명시 배열(모두 해제 시 빈 배열)을 보낸다. 자동 기록 시스템 필드 제외는 유지한다. 실제 MCP 재조회로 원문 캡처 유지·ID 빈 배열을 검사한 targeted1 PASS(8.5s)다. 실패 screenshot/trace는 `test-results/screens-failures/real-snapshot-run03`에 보존했다. 설명 정정 보존/명시 선택 해제를 모의 API에서 각각 검증한다.
 
 모의 snapshot2 PASS(4.1s). 첫 선택 해제 fixture는 선택된 저장본 접미사가 있는 실제 버튼 이름을 누락해 timeout이었다. 정확한 accessible name으로 고쳤고 실패 자료는 `screens-snapshot-run11`에 보존했다. assertion/timeout 변경은 없다.
+
+
+### 최종 통합 검증과 부모 인계
+
+검사한 source head는 `a3a69d575b4b5ca995608be752a354f2258187cc`, base는 `773e3652834b9b7a15999016858591ba6dd3794f`다. 소유 snapshot 수정 `b13d7e74914569304d128798cf01bbaeb33ba880` 뒤 부모 nav 최종 `ba597a657ee2bc6dce0c00d4ec37e555f2f1ff1e`를 `b3ef346fb4f47f7425eb0e5d21336ef3153179f3`로 통합했다. 부모 문서 `a858b00`/`dbfa222`/`06d0208`도 충돌 없이 통합했다. 디자인 nav/화면 절과 native App fixture 수정은 함께 보존했다. 통합 뒤 코드 변경 없이 다음 검사를 직접 실행했다.
+
+| 직접 실행 명령 | 최종 결과 |
+| --- | --- |
+| `npm run test:fast` | core60 + fast adapter10 + frontend22 PASS |
+| `node --test e2e/fixtures/auth-profile-boundary.mjs` | 실제 설치 SDK 경계20 PASS |
+| `npm run build` | PASS; 기존500kB chunk 권고 |
+| `npm run check:boundaries` | PASS |
+| `npm run check:docs` | text421/모델 설정 PASS; script48 PASS/기존 Windows symlink1 SKIP |
+| `npx tsc -p e2e/workspace-screens.tsconfig.json --noEmit` | PASS |
+| `npx playwright test -c e2e/workspace-screens.config.ts` | mock screen73 PASS(2.2m) |
+| `npx playwright test -c e2e/entity-tags-fixtures.config.ts` | mock22 desktop/mobile PASS(35.5s) |
+| `npx playwright test -c TEMP/template20-nav.config.ts`(desktop) 및 `--project=mobile` | mock nav/Auth23+23 PASS(38.2s/39.4s); 새 overlap8 모두 포함 |
+| `npx playwright test -c e2e/workspace-integration.config.ts --project=desktop` | 실제 private DB/Auth/HTTP/MCP 웹39 PASS/실모델1 SKIP(5.4m) |
+| 같은 실제 config `--project=mobile` | 29 PASS/11 SKIP(3.4m); desktop 전용 폭·확대·keyboard10 + 실모델1 |
+| `git diff --check` | PASS |
+
+Deno check/lint100/fmt104는 backend963 통합 시 직접 PASS했고 이후 final source까지 서버/SQL/tests 변경이 없음을 Git diff로 확인했다. 별도 backend DB89/HTTP18/MCP17/이관 검증은 부모/server 보고이며 이 화면 세션의 직접 실행 수치와 구분한다. 실제 브라우저 검사 안의 HTTP/MCP 사용과 독립 서버 suite도 구분한다.
+
+실제 desktop/mobile은 API56421/DB56422의 exclusive `template20server`와 Vite56680을 단독 사용했다. supplied ignored env의 키는 출력/커밋하지 않았고 paid provider opt-in은 비활성화했다. private runtime의68 non-env function SHA256 manifest가 backend963 source와 일치한다. DB reset/SQL 이관/운영 배포/기존 root55421·fin54321·55480/다른 worker57421 변경은 없다. 완료 뒤 자체 Vite·Edge serve만 종료하고 private DB volume/env/외부 manifest·로그를 보존해 lease를 부모에게 반환한다.
+
+pass metadata는 `test-results/screens-failures/real-desktop-final-a3a69d5`와 `real-mobile-final-a3a69d5`에 보존했고 각 모의 suite의 `.last-run.json`도 PASS다. 최신320px 태그/360px 기록 편집/1440px shell screenshot을 직접 확인했다. 앞선 실패 자료·정확한 selector/async 완료 보정·snapshot 결함 수정 기록을 유지하며 assertion/timeout 완화는 없다.
+
+이번 마지막 커밋은 이 티켓의 상태/증거만 바꾼다. 최종 commit 전체 SHA와 source head 사이의 문서 전용 diff, lease 반환, branch/clean tracked 상태는 `TEMP/template20-screens-status.md` 및 `template20-screens-final.md`가 소유한다. 화면 구현/API route 질문은 남아 있지 않다. 부모는 계약 호환 backend+화면 통합 PR의 독립 최종 리뷰·필수 CI·최신 main 확인·머지를 수행한다. 이 세션은 push/PR/merge/배포하지 않는다. 실제 휴대전화 keyboard/safe-area/screenreader/native200% zoom·유료 의미 검색·기존 non-owned 전체E2ETS5 오류 한계는 앞 기록대로 남는다.
