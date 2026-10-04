@@ -4,6 +4,7 @@ import { Link, useLocation, useNavigate, useSearchParams } from "react-router";
 import { Field, Notice } from "../../components/Field.tsx";
 import { api, ApiError, query } from "../../lib/api.ts";
 import { useRequestId } from "../../lib/useRequestId.ts";
+import { useDeferredNavigation } from "../../lib/useDeferredNavigation.ts";
 import { EntityForm } from "./forms.tsx";
 import { GuideLink } from "../../components/GuideLink.tsx";
 type Page = { items: EntityResult[]; next_cursor: string | null; count: number };
@@ -12,6 +13,7 @@ export function EntitiesPage() {
     { hash } = useLocation(),
     navigate = useNavigate(),
     request = useRequestId();
+  const navigateAfterClose = useDeferredNavigation();
   const requested = Number(params.get("pages") ?? 1);
   const pages = Number.isSafeInteger(requested) && requested > 0 ? Math.min(250, requested) : 1;
   const filter = {
@@ -245,7 +247,7 @@ export function EntitiesPage() {
             });
             request.renew();
             setCreating(false);
-            navigate(`/entities/${e.id}?${params}`);
+            navigateAfterClose(`/entities/${e.id}?${params}`);
           }}
         />
       )}
