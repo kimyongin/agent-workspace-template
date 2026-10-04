@@ -166,3 +166,75 @@ test("프로필 저장 성공·표시 재조회 실패를 구분하고 초안으
   await expect(page.getByTestId("provider-icon")).toHaveText("star");
   expect(await sdkState(page)).toMatchObject({ icon: "person" });
 });
+
+for (const hydration of ["completed", "pending"] as const) for (const writer of ["sdk-event", "profile-save"] as const) {
+  test(`이전 저장 GET 뒤 ${writer}의 ${hydration} canonical 조회를 따르고 취소는 최신값 복원`, async ({ page, context }, info) => {
+    let icon = "person", written = false, held = false, refreshes = 0;
+    let releaseOld!: () => void, releaseNew!: () => void, oldArrived!: () => void, newArrived!: () => void;
+    const oldGate = new Promise<void>(resolve => { releaseOld = resolve; });
+    const newGate = new Promise<void>(resolve => { releaseNew = resolve; });
+    const oldStarted = new Promise<void>(resolve => { oldArrived = resolve; });
+    const newStarted = new Promise<void>(resolve => { newArrived = resolve; });
+    const response = (value: string) => ({ ...user, user_metadata: { ...user.user_metadata, workspace_avatar_id: value } });
+    await context.route("**/auth/v1/token*", route => { refreshes++; return route.abort(); });
+    await context.route("**/auth/v1/user", async route => {
+      if (route.request().method() === "PUT") {
+        icon = route.request().postDataJSON().data.workspace_avatar_id; written = true;
+        return route.fulfill({ json: response(icon) });
+      }
+      const captured = icon;
+      if (route.request().frame().page() === page && written) {
+        if (!held) { held = true; oldArrived(); await oldGate; }
+        else if (captured === "leaf") { newArrived(); if (hydration === "pending") await newGate; }
+      }
+      return route.fulfill({ json: response(captured) });
+    });
+    await page.goto(fixture);
+    const second = await context.newPage(); await second.goto(fixture);
+    for (const tab of [page, second]) await expect(tab.getByTestId("provider-icon")).toHaveText("person");
+    await page.getByRole("radio", { name: "별", exact: true }).check();
+    await page.getByRole("button", { name: "아이콘 저장" }).click(); await oldStarted;
+    if (writer === "sdk-event") {
+      await second.evaluate(async () => {
+        const path = "/src/lib/supabase.ts"; const { supabase } = await import(path);
+        const { error } = await supabase.auth.updateUser({ data: { workspace_avatar_id: "leaf" } }); if (error) throw error;
+      });
+    } else {
+      await second.getByRole("radio", { name: "잎", exact: true }).check();
+      await second.getByRole("button", { name: "아이콘 저장" }).click();
+      await expect(second.getByRole("region", { name: "설정", exact: true }).getByRole("status")).toContainText("저장했습니다");
+    }
+    await newStarted;
+    if (hydration === "completed") await expect(page.getByTestId("provider-icon")).toHaveText("leaf");
+    // 외부 갱신은 저장 중인 로컬 선택도 덮어쓰지 않는다.
+    await expect(page.getByRole("radio", { name: "별", exact: true })).toBeChecked();
+    const before = (await sdkState(page)).serialized;
+    let staleDelivered!: () => void;
+    const delivered = new Promise<void>(resolve => { staleDelivered = resolve; });
+    page.on("response", response => {
+      if (response.url().endsWith("/auth/v1/user") && response.request().method() === "GET") {
+        void response.json().then(body => { if (body.user_metadata?.workspace_avatar_id === "star") staleDelivered(); });
+      }
+    });
+    releaseOld(); await delivered;
+    if (hydration === "pending") {
+      // 처리된 오래된 응답으로 완료하지 않고 진행 중 최신 조회를 기다린다.
+      await page.waitForTimeout(100);
+      await expect(page.getByRole("button", { name: "저장 중…" })).toBeDisabled();
+      await expect(page.getByTestId("provider-icon")).not.toHaveText("star");
+      await expect(page.getByRole("radio", { name: "별", exact: true })).toBeChecked();
+      releaseNew();
+    }
+    await expect(page.getByRole("region", { name: "설정", exact: true }).getByRole("status")).toContainText("저장했습니다");
+    await expect(page.getByTestId("provider-icon")).toHaveText("leaf");
+    await expect(page.getByRole("radio", { name: "잎", exact: true })).toBeChecked();
+    await expect(page.getByRole("button", { name: "아이콘 저장" })).toBeDisabled();
+    expect(icon).toBe("leaf"); expect(refreshes).toBe(0);
+    expect((await sdkState(page)).serialized).toBe(before);
+    await page.getByRole("radio", { name: "해", exact: true }).check();
+    await page.getByRole("button", { name: "변경 취소" }).click();
+    await expect(page.getByRole("radio", { name: "잎", exact: true })).toBeChecked();
+    await page.reload(); await expect(page.getByTestId("provider-icon")).toHaveText("leaf");
+    await info.attach("canonical-read-order", { contentType: "application/json", body: JSON.stringify({ hydration, writer, server: icon, provider: await page.getByTestId("provider-icon").textContent(), ...await sdkState(page), refreshes }) });
+  });
+}

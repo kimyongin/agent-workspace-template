@@ -12,6 +12,12 @@ interface AuthState {
   saveProfileIcon: (id: ProfileIconId) => Promise<ProfileIconId>;
 }
 
+interface CanonicalRead {
+  revision: number;
+  token: string;
+  promise: Promise<ProfileIconId>;
+}
+
 const AuthContext = createContext<AuthState>({ session: null, loading: true, saveProfileIcon: async () => { throw new Error("로그인이 필요합니다."); } });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -19,6 +25,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const activeSession = useRef<Session | null>(null);
   const accountGeneration = useRef(0);
   const profileRevision = useRef(0);
+  const latestRead = useRef<CanonicalRead | null>(null);
   const channel = useRef<BroadcastChannel | null>(null);
   const applyIcon = (id: ProfileIconId) => {
     const session = activeSession.current;
@@ -28,22 +35,48 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     activeSession.current = display;
     setState({ session: display, loading: false });
   };
+  const readCanonical = () => {
+    const session = activeSession.current;
+    const generation = accountGeneration.current;
+    if (!session) throw new Error("로그인이 필요합니다.");
+    const revision = ++profileRevision.current;
+    const task: CanonicalRead = {
+      revision, token: session.access_token,
+      promise: readProfile(session).then(icon => {
+        if (generation !== accountGeneration.current || activeSession.current?.user.id !== session.user.id) throw new Error("로그인 계정이 변경되었습니다.");
+        if (revision === profileRevision.current && activeSession.current.access_token === task.token) applyIcon(icon);
+        return icon;
+      }),
+    };
+    latestRead.current = task;
+    return task;
+  };
+  const confirmLatest = async (initial: CanonicalRead, assertAccount: () => void) => {
+    let task = initial;
+    for (;;) {
+      const result = await task.promise.then(value => ({ value }), error => ({ error }));
+      assertAccount();
+      // 오래된 성공/실패 모두 최신 조회를 기다린다. 진행 중 hydration을 무효화하지 않는다.
+      const latest = latestRead.current;
+      if (task !== latest || task.revision !== profileRevision.current || task.token !== activeSession.current?.access_token) {
+        task = latest?.revision === profileRevision.current && latest.token === activeSession.current?.access_token ? latest : readCanonical();
+        continue;
+      }
+      if ("error" in result) throw result.error;
+      return result.value;
+    }
+  };
   useEffect(() => {
     let alive = true;
     let eventReceived = false;
-    const hydrate = async () => {
-      const session = activeSession.current;
-      const generation = accountGeneration.current;
-      const revision = ++profileRevision.current;
-      if (!session) return;
-      try {
-        const icon = await readProfile(session);
-        if (alive && generation === accountGeneration.current && revision === profileRevision.current && activeSession.current?.access_token === session.access_token) applyIcon(icon);
-      } catch { /* 읽기 실패는 기존 표시를 유지한다. 저장 뒤 실패는 별도로 안내한다. */ }
+    const hydrate = () => {
+      if (!alive || !activeSession.current) return;
+      void readCanonical().promise.catch(() => { /* 읽기 실패는 기존 표시를 유지한다. 저장 뒤 실패는 별도로 안내한다. */ });
     };
     const apply = (session: Session | null) => {
       if (!alive) return;
       if (activeSession.current?.user.id !== session?.user.id) accountGeneration.current++;
+      profileRevision.current++;
       activeSession.current = session;
       setState({ session, loading: false });
       // Auth 콜백의 SDK 잠금 밖에서, 별도 클라이언트로 서버 정본을 읽는다.
@@ -75,15 +108,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (error) throw error;
       if (data.user?.id !== original.user.id) throw new Error("로그인 계정이 변경되었습니다.");
       // 저장 알림에는 계정 ID만 담는다. 수신 탭도 자기 토큰으로 서버 표시를 읽는다.
-      channel.current?.postMessage(original.user.id);
-      let icon: ProfileIconId;
-      try { icon = await readProfile(original); }
-      catch { assertAccount(); throw new ProfileDisplayRefreshError(); }
-      assertAccount();
-      ++profileRevision.current;
-      applyIcon(icon);
-      return icon;
     } finally { await client.dispose(); }
+    assertAccount();
+    channel.current?.postMessage(original.user.id);
+    try { return await confirmLatest(readCanonical(), assertAccount); }
+    catch { assertAccount(); throw new ProfileDisplayRefreshError(); }
   };
   return <AuthContext.Provider value={{ ...state, saveProfileIcon }}>{children}</AuthContext.Provider>;
 }

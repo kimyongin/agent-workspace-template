@@ -4,7 +4,7 @@
 상태: 진행 중
 기준: main399b82b와 승인한 [Template-19](template-19-three-tab-release-ux.md)/[Template-20](template-20-current-principle-change-records.md)
 
-현재 단계: navigation19 두 번째 재리뷰의 공유 refresh 초기화 결함 수정·제출 전 인계 중. 실제 SDK 경계·단위·build 검사는 통과했지만 이번 sandbox의 Chromium spawn EPERM으로 브라우저 재검증은 차단됐다. 정확한 최종 revision의 새 독립 리뷰·브라우저 fixture·전체 runtime CI는 메인 담당이다. 아래 과거 generation/공유 refresh 결론은 마지막 수정 기록으로 대체한다.
+현재 단계: 세 번째 독립 리뷰의 P2 canonical 조회 순서 결함 수정·로컬 검증 완료, clean commit 인계 중. 기존60+신규8의 desktop/mobile fixture68, 실제 SDK 경계20, unit18과 build/docs/boundaries/fast 검사를 통과했다. P1 세션 복원 제거는 독립 리뷰에서 해결 확인됐고 그대로 유지한다. 정확한 최종 commit의 새 독립 리뷰·실제 전체 runtime CI는 메인 담당이며 아래 과거 sandbox 차단·공유 refresh 결론은 마지막 실행 기록과 구분한다.
 
 ## 목표와 소유
 
@@ -146,3 +146,43 @@ security metadata는 여전히 장식용이다. permissions·scope·RLS·업무 
 최종 source/file hash·원본 재현 script hash·명령 로그·commit/clean 상태는 `TEMP/template19-nav-fix2-handoff.json`, 진행 상태는 `TEMP/template19-nav-fix2-status.md`로 인계한다. 이 티켓에 리뷰 승인을 추가하지 않는다. 메인은 정확한 최종 revision의 새 독립 리뷰, 브라우저3 fixture의 desktop/mobile 재실행, 실제 통합 CI·OAuth/DB/전체 E2E를 담당한다. backend/screens 통합과 실제 다른 기기/휴대폰·스크린리더는 여전히 별도 범위다.
 
 최종 지정9개 파일의 `git add`는 `C:/Users/yongin/projects/agent-workspace-template/.git/worktrees/agent-workspace-template7/index.lock: Permission denied`로 실패했다. 현재 정책은 Git 관리 경로를 읽기 전용으로 제한하며 escalation도 허용하지 않는다. 우회하거나 다른 checkout을 만들지 않았다. 따라서 새 commit/clean 상태를 주장하지 않는다. 기준 HEAD는 계속 `e00ea0efcc0ca0a3955422cd8ef7d6fb919872b7`이며 source9개 변경을 정확한 파일 hash와 `TEMP/template19-nav-fix2.patch`로 고정한다. 메인이 이 worktree의 동일 파일을 stage/commit하고 새 SHA를 독립 리뷰에 전달해야 한다. 이 실행 제한과 browser launch 제한은 구현 결함의 미수정과 구분하며 모든 허용된 소유 범위 수정·검증은 완료했다.
+
+## 세 번째 독립 리뷰 수정·인계 (2026-10-04)
+
+메인이 앞선9개 파일과92개 source hash를 대조한 뒤 Git만 실행해 `25ee7dc45c48a2d2c2a0e0deac68f0eecf926fbc`로 커밋했다. 동일 구현 세션이 그 exact clean HEAD를 확인하고 사용자 복원 `danger-full-access` 안에서 이어서 작업했다. 소유 범위는 Auth·설정/탐색 검사·가이드의 관련 문단·이 child 티켓이며 sibling UI·backend·main seed·PRD/ADR은 수정하지 않았다. 새로운 외부 권한·계정·서비스는 추가하지 않았다.
+
+독립 원본은 `TEMP/template19-nav-review3-final.md`다. 리뷰어가 직접 현재 Chromium60·SDK 경계17·unit18을 확인하고 P1을 해결로 판단한 기록과, 본 구현 세션의 아래 직접 실행을 구분한다. 이번 P2는 같은 계정에서 A 저장 후 GET star를 지연하고 B가 leaf로 저장한 뒤, A가 leaf hydration을 확인했는데도 오래된 GET star가 표시와 선택값을 덮어쓰고 저장 완료로 보고하는 문제였다.
+
+### 지적 처리와 회귀 계약
+
+- 코드 수정 전 `TEMP/template19-independent-25ee7dc-canonical-race.mjs`를 실제 pinned SDK·현재 source·독립 Chromium으로 실행했다. 종료된 reviewer Vite56880 대신 own56580으로 주소만 치환했고 assertion/행동은 유지했다. `TEMP/template19-nav-fix3-before.log`는 beforeRelease leaf→afterRelease star, server leaf, 선택 star/Save disabled, reload leaf와 refresh0을 재현한다. 변경 후 같은 script의 주소와 수정 기대값만 바꾼 `TEMP/template19-nav-fix3-independent-fixed.log`는 before/after/reload/선택 모두 leaf, refresh0을 확인했다.
+- 모든 canonical GET은 `readCanonical`의 단일 revision/task 체계에서 시작하며 계정 generation·현재 token·최신 revision을 통과한 응답만 표시를 갱신한다. Auth 이벤트는 이전 조회를 먼저 무효화한다. 저장 후 GET도 같은 경로를 사용하고, 오래된 성공이나 실패가 최신 hydration을 덮어쓰거나 무효화하지 않는다.
+- `confirmLatest`는 저장 조회가 뒤처지면 최신 완료/진행 중 task를 따라간다. 최신 조회까지 확인한 값을 반환하므로 SettingsPage의 기존 성공 처리도 서버 최신값을 draft로 채택한다. 최신 조회가 실패하면 오래된 성공을 대신 쓰지 않고 기존 표시 재조회 실패 안내로 연결한다. 격리 쓰기 client를 dispose한 뒤 canonical 확인을 시작해 확인 이후 cleanup await가 결과를 지연시키지 않는다.
+- Chromium 회귀8개는 completed/pending hydration × SDK 외부 USER_UPDATED/다른 탭의 실제 로컬 profile save × desktop/mobile이다. 오래된 GET을 실제 전달한 뒤 pending 최신 조회 동안 저장 중 상태·dirty star를 유지하고 stale star 표시/완료를 거부한다. 완료 시 provider·서버·선택은 leaf이고 저장 버튼은 깨끗한 상태가 된다. 다시 sun을 선택해 취소하면 최신 leaf로 복원하며 reload leaf와 전체 SDK 저장 문자열 불변/refresh0을 검사한다.
+- 실제 SDK/source Node 검사에3개를 추가했다: 오래된 저장 GET 실패보다 최신 성공 우선, 최신 hydration 실패 시 오래된 성공 채택 거부, 오래된 hydration 응답이 새 저장 정본을 덮어쓰지 않음. 기존17개는 유지하며 전체20개를 `test:web`의 subprocess 검사도 실행한다. SDK fake나 narrow negative control 제거는 없다.
+- P1 구조는 그대로다. profile-driven 공유 SDK 세션 조회·refresh·쓰기0, 별도 SDK explicit-token read, 현재 provider의 장식용 아이콘만 반영, ID-only BroadcastChannel과 logout/account switch fences를 유지했다. 기존 dirty 외부 갱신·명시적 취소·계정 remount·reload/relogin과 E2E dirty-form/logout 보호 assertion도 유지했다. security permissions·scope·RLS·업무/API 계약은 변경하지 않았다.
+
+### 직접 실행과 제출 전 증거
+
+own Vite56580 listener가 사라진 것을 다시 확인하고 공개 fixture Auth/API56521을 사용했다. 첫 전체 실행에서는 구현자가 `VITE_API_URL`을 누락해 `${undefined}/tags`가 own Vite의 HTML 응답을 받아 태그 검사가 실패했다. `.env.local`은 없었고 외부 서비스 호출은 없었다. 실패 로그/trace는 `TEMP/template19-nav-fix3-fixture-env-first-failure.log`와 같은 prefix의 `-artifacts`에 보존했다. Vite를 종료하고 process 환경에 `VITE_API_URL=http://127.0.0.1:56521/functions/v1/api`를 지정한 뒤 기존 assertion·timeout·retry를 그대로 재실행했다. 공유57421/56421·rootfin과 실제 Supabase/DB/Edge는 접근하거나 시작/초기화하지 않았다.
+
+| 직접 명령/확인 | 결과·증거 |
+| --- | --- |
+| 독립 Chromium script before/after | P2 직접 재현/수정 확인, `TEMP/template19-nav-fix3-before.log`, `template19-nav-fix3-independent-fixed.log` |
+| 새 overlapping GET 회귀만 실행 | desktop/mobile8 PASS, `TEMP/template19-nav-fix3-overlap.log` |
+| default fixture config 전체 | 기존60+신규8=68 PASS, retry0·기존 timeout·desktop/mobile 유지, `TEMP/template19-nav-fix3-fixtures-final.log`; artifact `TEMP/template19-nav-fix3-fixtures/artifacts` |
+| `node --test e2e/fixtures/auth-profile-boundary.mjs` | 실제 SDK/source20 PASS, `TEMP/template19-nav-fix3-sdk-boundary.log` |
+| `npm run test:web` | 8 files/18 PASS, 그중1개가 경계20 실행, `TEMP/template19-nav-fix3-unit.log` |
+| `npm run build` | 타입/Vite PASS, 기존500kB chunk 경고, `TEMP/template19-nav-fix3-build.log` |
+| `npm run check:docs`, `git diff --check` | 문서388·model 정합성·scripts48 PASS/Windows symlink privilege1 SKIP·whitespace PASS, 최종 `TEMP/template19-nav-fix3-docs.log`, `template19-nav-fix3-diff.log` |
+| `npm run check:boundaries`, `npm run test:adapters:fast` | PASS/기존 handler mock13 PASS, `TEMP/template19-nav-fix3-boundaries.log`, `template19-nav-fix3-fast.log` |
+
+현재 명령은 owner 환경에서 직접 실행했다. unit/harness·HTTP route 격리 Chromium 증거를 실제 OAuth/계정/DB/전체 runtime CI와 혼동하지 않는다. own Vite는 최종 종료한다. agent spawn·새 실제 서비스·실계정·유료 대체모델·deploy·push·PR·merge는 없었다.
+
+### 동일 모델과 exact commit 인계
+
+같은 native session `01a10640-f364-7f21-9685-ebb16a5c2575`의 이번 최신 `turn_context`에서 실제 노출 model=`gpt-6.1-sol`, effort=`high`, sandbox=`danger-full-access`, 현재 worktree를 직접 확인했다. 제한된 요약은 `TEMP/template19-nav-fix3-model.json`에 보존했다. 사용자 지정 같은 모델을 유지했고 high는 canonical 응답·SDK 저장·cross-tab 순서 분석 때문에 유지했다. backend 실제 effort·billing은 미노출/미확인이며 비용을 추정하지 않는다. 세션 변경이나 fallback은 없다.
+
+browser 검증 중 runtime hash는 `TEMP/template19-nav-fix3-validation-source.json`에 고정하고 커밋 후 같은 source bytes를 대조한다. 변경5개 파일·전체92개 source/config/document hash, 원본 review/script·새 증거 log/config/artifact, 최종 SHA·tree·clean 상태는 `TEMP/template19-nav-fix3-handoff.json`이 소유한다. 진행·최종 요약은 `TEMP/template19-nav-fix3-status.md`다. 동일 브랜치에 source+tests+guide+child 티켓을 함께 커밋하고 정확한 최종 SHA를 반환한다. 리뷰 승인을 append하지 않는다.
+
+메인은 정확한 최종 commit의 새 독립 리뷰와 sibling UI 통합·실제 runtime CI/OAuth/DB/전체 E2E를 담당한다. 이번 commit은 `25ee7dc` 위의 순서 결함 수정 delta이며 다른 worktree는 수정하지 않았다. 실기기·스크린리더·실제 다른 기기와 운영 배포의 기존 한계는 유지한다.

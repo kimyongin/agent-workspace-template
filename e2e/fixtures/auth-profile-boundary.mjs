@@ -91,6 +91,55 @@ function hooks() {
   };
 }
 
+for (const order of ["older-save-fails", "newer-hydration-fails", "older-hydration"]) {
+  test(`all canonical reads share ordering: ${order}`, { timeout: 5000 }, async () => {
+    const values = new Map(), gate = deferred(), arrived = deferred(), newerArrived = deferred();
+    let icon = "person", holdNext = false, held = false, refreshes = 0;
+    const storage = { getItem: k => values.get(k) ?? null, setItem: (k, v) => values.set(k, v), removeItem: k => values.delete(k) };
+    const oldFetch = globalThis.fetch;
+    globalThis.fetch = async (input, init) => {
+      if (String(input).includes("/token")) { refreshes++; throw new Error("unexpected shared refresh"); }
+      if (init?.method === "PUT") { icon = "star"; if (order !== "older-hydration") holdNext = true; return json({ ...first, user_metadata: { workspace_avatar_id: icon } }); }
+      const captured = icon;
+      if (holdNext && !held) {
+        held = true; arrived.resolve(); await gate.promise;
+        if (order === "older-save-fails") return json({ msg: "obsolete read failed" }, 400);
+      } else if (held) {
+        newerArrived.resolve();
+        if (order === "newer-hydration-fails") return json({ msg: "latest read failed" }, 400);
+      }
+      return json({ ...first, user_metadata: { workspace_avatar_id: captured } });
+    };
+    const client = createClient("http://fixture.invalid", "fixture-public", { auth: { storage, storageKey: "canonical-order-" + order, autoRefreshToken: false, detectSessionInUrl: false } });
+    const hook = hooks(), updates = new BroadcastChannel("workspace-decorative-profile");
+    try {
+      await client.auth.setSession({ access_token: jwt(first.id), refresh_token: "refresh-a" });
+      const { profileIconId } = await loadSource("src/features/settings/profile.tsx", hook, "\nreturn {profileIconId};");
+      const profile = await loadSource("src/features/auth/profile-client.ts", { AuthClient, profileIconId }, "\nreturn {profileClient, readProfile, ProfileDisplayRefreshError};");
+      const provider = await loadSource("src/features/auth/AuthProvider.tsx", { ...hook, supabase: client, ...profile }, "\nreturn AuthProvider;");
+      const render = () => hook.render(provider);
+      render(); await new Promise(r => setTimeout(r, 10));
+      const before = values.get("canonical-order-" + order);
+      if (order === "older-hydration") {
+        holdNext = true; updates.postMessage(first.id); await arrived.promise;
+        assert.equal(await render().saveProfileIcon("star"), "star");
+        gate.resolve(); await new Promise(r => setTimeout(r, 10));
+        assert.equal(render().session.user.user_metadata.workspace_avatar_id, "star");
+      } else {
+        const outcome = render().saveProfileIcon("star").then(value => ({ value }), error => ({ error: error.message }));
+        await arrived.promise;
+        icon = "leaf"; updates.postMessage(first.id); await newerArrived.promise;
+        if (order === "older-save-fails") await eventually(() => render().session.user.user_metadata.workspace_avatar_id === "leaf");
+        gate.resolve();
+        assert.deepEqual(await outcome, order === "older-save-fails" ? { value: "leaf" } : { error: new profile.ProfileDisplayRefreshError().message });
+        assert.equal(render().session.user.user_metadata.workspace_avatar_id, order === "older-save-fails" ? "leaf" : "person");
+      }
+      assert.equal(values.get("canonical-order-" + order), before);
+      assert.equal(refreshes, 0);
+    } finally { gate.resolve(); updates.close(); hook.cleanup(); await client.auth.dispose(); globalThis.fetch = oldFetch; }
+  });
+}
+
 // Keep both SDK boundaries: its guard protects a delayed /token response, but does not protect
 // a shared-session read paused BEFORE snapshot capture. This is a negative SDK control, not app behavior.
 for (const phase of ["before-snapshot", "after-snapshot"]) for (const action of ["logout", "switch"]) {
