@@ -6,7 +6,6 @@ import { pathToFileURL } from "node:url";
 
 const displayAttributes = new Set(["title", "placeholder", "aria-label"]);
 const displayTags = new Set("a article aside b blockquote button caption code dd details div dl dt em figcaption figure footer h1 h2 h3 h4 h5 h6 header i label legend li main nav ol p pre section small span strong summary table tbody td th thead time tr ul".split(" "));
-const attributeTags = new Set([...displayTags, "br", "fieldset", "form", "hr", "img", "input", "option", "select", "textarea"]);
 const ignoredAstKeys = new Set(["start", "end", "loc", "extra"]);
 
 export function presentationTsx(before, after) {
@@ -16,25 +15,27 @@ export function presentationTsx(before, after) {
       // Comments may carry JSX pragmas/build directives; compare them verbatim.
       const comments = ast.comments.map(({ type, value }) => ({ type, value }));
       let unsafe = false;
-      function visit(node, intrinsic = false, textAllowed = false) {
+      function visit(node, intrinsic = false, textAllowed = false, strictSubtree = false) {
         if (!node || typeof node !== "object") return node;
-        if (Array.isArray(node)) return node.map((item) => visit(item, intrinsic, textAllowed));
+        if (Array.isArray(node)) return node.map((item) => visit(item, intrinsic, textAllowed, strictSubtree));
+        if (node.type === "JSXFragment") strictSubtree = true;
         if (node.type === "JSXOpeningElement") {
-          intrinsic = node.name.type === "JSXIdentifier" && attributeTags.has(node.name.name);
+          intrinsic = !strictSubtree && node.name.type === "JSXIdentifier" && displayTags.has(node.name.name);
         }
         if (node.type === "JSXElement") {
           const tag = node.openingElement.name;
+          strictSubtree ||= tag.type !== "JSXIdentifier" || !displayTags.has(tag.name);
           if (tag.type === "JSXIdentifier" && ["script", "style"].includes(tag.name)) unsafe = true;
         }
-        if (node.type === "JSXText") return { type: node.type, value: textAllowed ? "<display>" : node.value };
+        if (node.type === "JSXText") return { type: node.type, value: !strictSubtree && textAllowed ? "<display>" : node.value };
         if (node.type === "JSXAttribute" && node.name.name === "dangerouslySetInnerHTML") unsafe = true;
-        if (intrinsic && node.type === "JSXAttribute" && displayAttributes.has(node.name.name) && node.value?.type === "StringLiteral") {
+        if (!strictSubtree && intrinsic && node.type === "JSXAttribute" && displayAttributes.has(node.name.name) && node.value?.type === "StringLiteral") {
           return { type: node.type, name: visit(node.name), value: { type: "StringLiteral", value: "<display>" } };
         }
         return Object.fromEntries(Object.entries(node).filter(([key]) => !ignoredAstKeys.has(key) && key !== "comments").map(([key, value]) => {
           const tag = node.type === "JSXElement" ? node.openingElement.name : null;
           const childText = key === "children" && tag?.type === "JSXIdentifier" && displayTags.has(tag.name);
-          return [key, visit(value, intrinsic, childText)];
+          return [key, visit(value, intrinsic, childText, strictSubtree)];
         }));
       }
       const tree = visit(ast);

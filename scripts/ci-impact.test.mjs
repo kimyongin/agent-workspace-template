@@ -42,8 +42,27 @@ test("input children and class names cannot bypass full verification; safe displ
     assert.equal(presentationTsx(component, after), false, className);
     assert.equal(mode(change('src/components/Field.tsx', component, after)), 'full', className);
   }
-  assert.equal(presentationTsx('<input placeholder="Old" aria-label="Old" />', '<input placeholder="New" aria-label="New" />'), true);
+  assert.equal(presentationTsx('<input placeholder="Old" aria-label="Old" />', '<input placeholder="New" aria-label="New" />'), false);
   assert.equal(presentationTsx(component, component.replace("Old text", "New text")), true);
+});
+
+test("strict custom/input/fragment ancestry propagates through nested DOM text and attributes", () => {
+  for (const wrap of [
+    (body) => `<Widget>${body}</Widget>`,
+    (body) => `<select><option>${body}</option></select>`,
+    (body) => `<textarea>${body}</textarea>`,
+    (body) => `<>${body}</>`,
+    (body) => `<div><Widget>${body}</Widget></div>`,
+  ]) {
+    for (const [before, after] of [
+      [wrap('<span>public</span>'), wrap('<span>private</span>')],
+      [wrap('<div><span title="public">same</span></div>'), wrap('<div><span title="private">same</span></div>')],
+    ]) {
+      assert.equal(presentationTsx(before, after), false, after);
+      assert.equal(mode(change('src/components/Field.tsx', before, after)), 'full', after);
+    }
+  }
+  assert.equal(presentationTsx('<div><span title="Old">public</span></div>', '<div><span title="New">private</span></div>'), true);
 });
 
 test("CSS position spacing is presentation but auth/state/hiding/external/selector/token changes are full", () => {
