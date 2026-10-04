@@ -1,7 +1,7 @@
 # Template-18-04 — 엔터티 문맥 작성과 태그 사전
 
 작성: 2026-10-04
-상태: 로컬 구현·선행 탐색/활동 통합·전체 E2E 완료, 활동 머지 후 최신 main 재통합·독립 재리뷰·CI 대기
+상태: 로컬 구현·선행 탐색/활동 최종 문서 통합·전체 E2E 완료, 활동 머지 후 최신 main 재통합·독립 재리뷰·CI·머지 대기
 검토 기준: `745130148c90de842d7617c232194b653d1c638b`
 
 ## 목표와 승인 범위
@@ -97,3 +97,7 @@ fixture는 이 checkout의 Vite `55584`와 존재하지 않는 로컬 주소 `55
 메인 배정으로 `git rebase --onto 6615d180e022a43e397948cd1b715f5e69a6f615 c5f24c181d62b6bd0306f69e1c1e9b4dde4c7806 codex/fin-ux-entity-tags`를 실행해 활동 PR의 짧은 제목 링크 최소 44px 수정을 통합했다. 충돌 없이 성공한 검증 head는 `9d5f9c687823e8f84e839d76912fd65b82fc6a67`이다. upstream 대비 기존 15개 파일 범위를 유지하며 Entity/Tags 소스·자체 fixture·tags E2E의 이전 `76a75b4` 대비 diff는 0이다. 공통 Modal/ContentForm·EntitiesPage·activity·App는 upstream 그대로 보존했다.
 
 같은 모델/강도의 유효한 당일 preflight를 재사용했다. own checkout에서 `npm run build`, `npm run test:web`(14 PASS), `npm run check:docs`(48 PASS / Windows symlink 1 SKIP), `git diff --check` PASS. `npx playwright test --config e2e/entity-tags-fixtures.config.ts` desktop/mobile 22 PASS(32.3초)로 통합 뒤 초안 보호·저장·충돌·로그아웃·Entity 연결을 재검증했다. 전용 fixture 서버만 사용하고 activity가 소유한 공유 root/DB/서비스에 접근하지 않았다. 위 `c68ea59` 전체 E2E는 당시 head의 증거로 보존하며 새 upstream의 전체 E2E는 activity 담당 결과와 이후 메인 배정을 따른다. 활동 최종 문서/머지 뒤 latest main 재통합·독립 재리뷰·정확한 head CI는 남아 있다.
+
+### 2026-10-04 활동 최종 문서와 현재 요약 통합
+
+`git rebase --onto 733e1cff4e6febf4b1c1acbf4cfebe6743ddd786 6615d180e022a43e397948cd1b715f5e69a6f615 codex/fin-ux-entity-tags`는 충돌 없이 성공했다. 통합 head `a989cf60fafc9f97a51ad0a2e133a260a3337bf0`의 `src`·`e2e`는 이전 검증 최종 `4ac68b0`와 `git diff --exit-code`로 동일함을 확인했다. 활동의 `6615d180` 전체 E2E 75 PASS·9 SKIP 완료 기록을 보존하고 START-HERE·상위18 현재 요약을 완료된 구현/검증과 남은 최종 검증으로 정리했다. 활동 PR #92는 아직 머지 대기이며 latest main 재통합·18-04 최종 독립 재리뷰·CI·머지가 남는다. 문서 검사와 diff 검사만 수행하며 공유 서비스는 사용하지 않았다.
