@@ -45,15 +45,16 @@ explicit gpt-6.1-sol/high(여러 화면의 router/초안/저장/API교차경계)
 | `npm run check:boundaries` | PASS |
 | `npm run check:docs` | 문서/인코딩/링크·모델 설정 PASS, script48 PASS/Windows symlink 권한1 SKIP |
 | `npx tsc -p e2e/workspace-screens.tsconfig.json --noEmit` | 실제 화면·격리 fixture strict 타입 PASS |
-| `npx playwright test -c e2e/workspace-screens.config.ts` | 67 PASS; 실제 소유 feature/router, API 응답 mock |
+| `npx playwright test -c e2e/workspace-screens.config.ts` | 67 PASS(앞선 source); 실제 소유 feature/router, API 응답 mock |
 | `npx playwright test -c e2e/entity-tags-fixtures.config.ts --grep-invert '실제 App'` | 16 PASS; desktop/mobile 비탐색 fixture |
+| `npx playwright test -c e2e/workspace-screens.config.ts --grep 'forward 새 요청키\|복합 직접 링크\|엔터티 관련 작성'` | 4 PASS; 최종 추가 회귀 |
 | `git diff --check` | PASS |
 
-화면 fixture는 시작 전 listener를 확인한55580(Vite)/55581(가상 API, Playwright intercept)을 쓴다. 기존 태그 fixture는 별도55584/55585를 확인해 썼다. DB·Auth·서버 업무·실제 모델을 호출하지 않는다. 기존55480 listener와 root55421/fin54321 서비스를 변경하지 않았다.
+화면 fixture는 시작 전 listener를 확인한55580(Vite)/55581(가상 API, Playwright intercept)을 쓴다. 기존 태그 fixture는 별도55584/55585를 확인해 썼다. DB·Auth·서버 업무·실제 모델을 호출하지 않는다. 최종 추가 회귀를 포함한70개 화면 검사의 exact-head 결과·커밋 전체 SHA와 현재 남은 인계는 `TEMP/template20-screens-status.md`에 기록한다. 기존55480 listener와 root55421/fin54321 서비스를 변경하지 않았다.
 
-자료 CRUD·메모·동일 요청키 재시도/폐기 뒤 새 요청키·충돌 초안·확인된 저장 뒤 GET 실패·재조회만 재시도·원칙 새 ID/정정/승격/빈 상태·자동 기록 시스템 입력 제외/독립 삭제·scoped tags·IME·조건·busy POP/dirty back/forward/reload/deeplink·목록 cursor/anchor/scroll/focus를 검증했다. 320/360/390/639/640/768/1024/1440px의 모든 소비 화면과 긴/한 글자 제목, CSS200%와 축소 viewport, 긴 승격 본문 확인창을 검증했다. 스크린샷은 `e2e/test-results/workspace-screens`에 생성하고320px 태그/390px 엔터티 등 대표 자료를 직접 보았다.
+자료 CRUD·메모·동일 요청키 재시도/폐기 뒤 새 요청키/연결 작성 forward 새 키와 복합 create/edit URL의 단일 폼·충돌 초안·확인된 저장 뒤 GET 실패·재조회만 재시도·원칙 새 ID/정정/승격/빈 상태·자동 기록 시스템 입력 제외/독립 삭제·scoped tags·IME·조건·busy POP/dirty back/forward/reload/deeplink·목록 cursor/anchor/scroll/focus를 검증했다. 320/360/390/639/640/768/1024/1440px의 모든 소비 화면과 긴/한 글자 제목, CSS200%와 축소 viewport, 긴 승격 본문 확인창을 검증했다. 스크린샷은 `e2e/test-results/workspace-screens`에 생성하고320px 태그/390px 엔터티 등 대표 자료를 직접 보았다.
 
-초기 fixture 실패는 Vite HTML preamble, 저장 뒤 blocker 정리 시점, CSS zoom 높이, scoped 태그 cursor URL, 빠른 관련 폼 재개방, 과거 원칙 재진입 조회와 읽기 편집 초점 복귀에서 발생했다. source/fixture 원인을 고친 뒤 같은 검증을 재실행했다. 원래 assertion/timeout을 완화하지 않았다. 실패 자료는 ignored `test-results/screens-failures/screens-failure-run01..08`, `entity-tags-run01`, `activity-run01..03`에 보존했다. 같은 fixture config를 종료 전에 다시 실행한 한 번의 실수로 occupied-port 거부와 마지막 mobile trace ENOENT가 있었다. 이미 복사한 desktop 실패 자료는 남았고 이후 종료를 기다린 순차 재실행은 통과했다.
+초기 fixture 실패는 Vite HTML preamble, 저장 뒤 blocker 정리 시점, CSS zoom 높이, scoped 태그 cursor URL, 빠른 관련 폼 재개방, 과거 원칙 재진입 조회와 읽기 편집 초점 복귀와 연결 작성의 uncertain 폐기→forward 요청키에서 발생했다. source/fixture 원인을 고친 뒤 같은 검증을 재실행했다. 원래 assertion/timeout을 완화하지 않았다. 실패 자료는 ignored `test-results/screens-failures/screens-failure-run01..09`, `entity-tags-run01`, `activity-run01..03`에 보존했다. 같은 fixture config를 종료 전에 다시 실행한 한 번의 실수로 occupied-port 거부와 마지막 mobile trace ENOENT가 있었다. 이미 복사한 desktop 실패 자료는 남았고 이후 종료를 기다린 순차 재실행은 통과했다.
 
 ### 메인의 남은 통합과 검증
 

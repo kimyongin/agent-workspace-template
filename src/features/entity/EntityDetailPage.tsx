@@ -23,7 +23,7 @@ export function EntityDetailPage() {
   const location=useLocation();
   const [creating, setCreating] = useState<"task" | "record" | null>(null);
   const closeCreate=()=>{setCreating(null);const p=new URLSearchParams(params);p.delete("create");afterClose(`${location.pathname}?${p}`,true);};
-  useEffect(()=>{const value=params.get("create");setCreating(value==="task"||value==="record"?value:null);},[params.toString()]);
+  useEffect(()=>{const value=params.get("create");if(value==="task"||value==="record")request.renew();setCreating(value==="task"||value==="record"?value:null);},[location.key]);
   const [editReady,setEditReady]=useState(false);
   const [saved, setSaved] = useState<string | null>(null);
   const [entity, setEntity] = useState<EntityDetail | null>(null),
@@ -121,17 +121,17 @@ export function EntityDetailPage() {
                 )}
             </section>
           ))}
-          {creating === "task" && <TaskFormModal open mode="create" initial={{ ...emptyTask(), entity_id: entity.id }}
+          {creating === "task" && <TaskFormModal key={location.key} open mode="create" initial={{ ...emptyTask(), entity_id: entity.id }}
             onClose={closeCreate} onRouteDiscard={()=>setCreating(null)} onSave={async draft => {
               await api("POST", "/tasks", { ...taskInput(draft), request_id: request.current });
               closeCreate(); setSaved("할 일을 추가했습니다."); setRetry(n => n + 1);
             }} />}
-          {creating === "record" && <RecordFormModal open title="기록 작성" submitLabel="저장" initial={{ ...emptyRecord(), entity_id: entity.id }}
+          {creating === "record" && <RecordFormModal key={location.key} open title="기록 작성" submitLabel="저장" initial={{ ...emptyRecord(), entity_id: entity.id }}
             onClose={() => setCreating(null)} onSave={async value => {
               await api("POST", "/records", { ...value, request_id: request.current });
               closeCreate(); setSaved("기록을 저장했습니다."); setRetry(n => n + 1);
             }} />}
-          {editing && editReady && (
+          {editing && !creating && editReady && (
             <EntityForm
               initial={entity}
               onClose={closeEdit}

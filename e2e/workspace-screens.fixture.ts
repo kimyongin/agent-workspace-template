@@ -28,6 +28,21 @@ test("dirty 작성 조건 이동 승인: create 유지 URL도 새 초안",async(
   await expect(page).toHaveURL(/create=1&kind=recurring/);await expect(form(page).getByLabel("제목",{exact:false})).toHaveValue("");expect(state.errors).toEqual([]);
 });
 
+for(const [kind,label,submit] of [["task","관련 할 일 추가","추가"],["record","기록 작성","저장"]])test(`엔터티 관련 ${kind}: uncertain 폐기 후 forward 새 요청키`,async({page})=>{
+  const state=await fixtures(page,{failWrite:"unknown"});await go(page,`/entities/${id(1)}`);
+  await form(page).getByRole("button",{name:label,exact:true}).click();await fillText(page,"첫 연결 작성");await form(page).getByRole("button",{name:submit,exact:true}).click();
+  await expect(form(page).getByRole("button",{name:"같은 내용 다시 시도"})).toBeVisible();await page.goBack();
+  await page.getByRole("dialog",{name:"변경을 버릴까요?"}).getByRole("button",{name:"변경 버리기"}).click();await expect(page).not.toHaveURL(/create=/);
+  await page.goForward();await fillText(page,"새 연결 작성");await form(page).getByRole("button",{name:submit,exact:true}).click();
+  await expect.poll(()=>state.writes.length).toBe(2);expect(state.writes[1].body.request_id).not.toBe(state.writes[0].body.request_id);expect(state.errors).toEqual([]);
+});
+
+test("엔터티 create/edit 복합 직접 링크는 연결 작성 한 폼만 연다",async({page})=>{
+  const state=await fixtures(page);await go(page,`/entities/${id(1)}?create=task&edit=1`);
+  await expect(form(page)).toHaveCount(1);await expect(form(page).getByLabel("제목",{exact:false})).toBeVisible();await expect(form(page).getByLabel("속성 1",{exact:false})).toHaveCount(0);
+  await fillText(page,"연결 작성 한 번");await form(page).getByRole("button",{name:"추가",exact:true}).click();await expect.poll(()=>state.writes.length).toBe(1);expect(state.writes[0].body.entity_id).toBe(id(1));expect(state.errors).toEqual([]);
+});
+
 test("원칙 삭제 영향 조회 실패: 삭제 금지·취소 가능·GET 재시도",async({page})=>{
   const state=await fixtures(page);let failed=true;
   await page.route("**/api/principles?view=history&limit=1",route=>failed?route.fulfill({status:503,json:{code:"internal",message:"조회 실패"}}):route.fulfill({json:{items:[state.rows.principles[1]],next_cursor:null}}));
