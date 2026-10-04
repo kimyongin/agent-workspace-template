@@ -106,14 +106,22 @@ h3 { font-size: 1.125rem; margin: 40px 0 12px; }
 .g3 { grid-template-columns: repeat(auto-fit, minmax(min(100%, 250px), 1fr)); }
 .g4 { grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); }
 
-/* 세션별 지시·결과 회수. 번호와 문서 순서는 구현 뒤 리뷰를 나타낸다. */
-.session-map { display: grid; gap: 12px; margin: 16px 0; }
-.session-main { border-color: var(--accent); }
-.session-tasks { display: grid; gap: 12px; margin: 0; padding: 0; list-style: none; }
-@media (min-width: 760px) { .session-tasks { grid-template-columns: 1fr 1fr; } }
-.session-task { display: grid; gap: 10px; align-content: start; }
-.session-route { margin: 0; color: var(--accent); font-size: 0.8125rem; font-weight: 600; }
-.session-report { color: var(--info); }
+/* 본 대화로 돌아오는 지시·보고. 작은 화면은 전용 배치로 글자 축소를 피한다. */
+.session-map { margin: 16px 0; }
+.session-map svg { width: 100%; height: auto; display: block; }
+.session-map .sf-mobile { display: none; }
+@media (max-width: 1023px) { .session-map .sf-wide { display: none; } .session-map .sf-mobile { display: block; max-width: 420px; margin: auto; } }
+.sf-send, .sf-return { fill: none; stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; }
+.sf-send { stroke: var(--accent); }
+.sf-return { stroke: var(--info); stroke-dasharray: 8 6; }
+.sf-send-head { fill: var(--accent); }
+.sf-return-head { fill: var(--info); }
+.sf-hub { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 2; }
+.sf-send-label, .sf-return-label { font-size: 16px; font-weight: 700; fill: var(--accent); }
+.sf-return-label { fill: var(--info); }
+.sf-mobile .cy-title { font-size: 17px; }
+.sf-wide .cy-sub { font-size: 14px; }
+.sf-mobile .cy-sub, .sf-mobile .sf-send-label, .sf-mobile .sf-return-label { font-size: 14px; }
 
 /* 템플릿 → 도메인 앱 */
 .i { width: 20px; height: 20px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
@@ -755,20 +763,72 @@ footer a { margin-right: 10px; white-space: nowrap; }
     <p class="h3-note">세션은 AI와 일하는 대화 공간입니다. 각 대화에는 맡은 일의 지시와 작업 기록이 쌓입니다. 사람과 이야기하는 본 대화가 메인 세션이고, 본 대화가 일을 나눠 맡기는 별도 대화가 서브세션입니다.</p>
     <p class="h3-note">컨텍스트는 AI가 답할 때 참고하는 대화 내용과 작업 자료입니다. 여러 일이 한 대화에 쌓이면 정보가 섞일 수 있어, 작업별로 집중할 대화를 나누고 필요한 자료를 골라 전달합니다.</p>
     <figure class="session-map" aria-labelledby="session-flow-title">
-      <div class="card session-main"><h4>사람 ↔ 본 대화</h4><p>무엇을 만들지 함께 정합니다. 본 대화는 일을 나누고 각 서브세션에 필요한 지시·자료를 전달합니다.</p></div>
-      <ol class="session-tasks">
-        <li class="session-task">
-          <p class="session-route">① 본 대화 ↓ 새 구현 대화 생성·지시와 자료 전달</p>
-          <div class="card"><h4>구현을 맡은 서브세션</h4><p>작은 기능을 만들고 테스트·실패 수정까지 맡습니다.</p></div>
-          <p class="session-route session-report">② 구현 결과 ↑ 본 대화로 보고</p>
-        </li>
-        <li class="session-task">
-          <p class="session-route">③ 본 대화가 구현 결과를 받은 뒤 ↓ 새 리뷰 대화 생성·검토 요청</p>
-          <div class="card"><h4>독립 리뷰를 맡은 서브세션</h4><p>구현 담당과 분리해 작업 결과와 확인 근거를 검토합니다.</p></div>
-          <p class="session-route session-report">④ 리뷰 결과 ↑ 본 대화로 보고</p>
-        </li>
-      </ol>
-      <figcaption class="card session-main"><h4>본 대화 → 사람</h4><p>돌아온 결과를 취합·검토하고, 필요한 수정을 맡긴 뒤 진행 상황과 결과를 설명합니다. 사람은 다른 대화를 일일이 관리하지 않고 본 대화에서 확인합니다.</p></figcaption>
+      <svg class="sf-wide" viewBox="0 0 960 600" role="img" aria-labelledby="sf-wide-title sf-wide-desc">
+        <title id="sf-wide-title">본 대화가 일을 맡기고 결과를 돌려받는 흐름</title>
+        <desc id="sf-wide-desc">사람이 본 대화에 요청한다. 본 대화는 1 새 구현 대화를 만들어 지시와 필요한 자료를 전달하고 2 구현 결과를 보고받는다. 그 뒤 3 새 독립 리뷰 대화에 구현 결과를 전달해 검토를 요청하고 4 리뷰 결과를 보고받는다. 본 대화는 결과를 취합·검토하고 필요한 수정을 맡긴 뒤 5 사람에게 설명한다.</desc>
+        <defs>
+          <marker id="sf-wide-send" viewBox="0 0 12 12" refX="12" refY="6" markerWidth="16" markerHeight="16" markerUnits="userSpaceOnUse" orient="auto"><path class="sf-send-head" d="M0 0 L12 6 L0 12 z"/></marker>
+          <marker id="sf-wide-return" viewBox="0 0 12 12" refX="12" refY="6" markerWidth="16" markerHeight="16" markerUnits="userSpaceOnUse" orient="auto"><path class="sf-return-head" d="M0 0 L12 6 L0 12 z"/></marker>
+        </defs>
+        <path class="sf-send" d="M445 106 L445 200" marker-end="url(#sf-wide-send)"/>
+        <path class="sf-return" d="M515 200 L515 106" marker-end="url(#sf-wide-return)"/>
+        <path class="sf-send" d="M317 245 Q155 245 155 345 L155 472" marker-end="url(#sf-wide-send)"/>
+        <path class="sf-return" d="M328 528 Q405 528 405 445 L405 358" marker-end="url(#sf-wide-return)"/>
+        <path class="sf-send" d="M643 245 Q805 245 805 345 L805 472" marker-end="url(#sf-wide-send)"/>
+        <path class="sf-return" d="M632 528 Q555 528 555 445 L555 358" marker-end="url(#sf-wide-return)"/>
+        <text class="sf-send-label" x="425" y="157" text-anchor="end">하고 싶은 일 요청</text>
+        <text class="sf-return-label" x="540" y="148">⑤ 취합한 결과 설명</text>
+        <text class="sf-return-label" x="540" y="173">진행 상황·필요한 판단</text>
+        <text class="sf-send-label" x="135" y="342" text-anchor="end">① 새 구현 생성</text>
+        <text class="sf-send-label" x="135" y="367" text-anchor="end">지시·필요 자료</text>
+        <text class="sf-return-label" x="385" y="416" text-anchor="end">② 구현 결과</text>
+        <text class="sf-return-label" x="385" y="441" text-anchor="end">본 대화로 보고</text>
+        <text class="sf-send-label" x="825" y="332">③ 구현 결과 뒤</text>
+        <text class="sf-send-label" x="825" y="357">새 리뷰 생성</text>
+        <text class="sf-send-label" x="825" y="382">자료·검토 요청</text>
+        <text class="sf-return-label" x="575" y="416">④ 리뷰 결과</text>
+        <text class="sf-return-label" x="575" y="441">본 대화로 보고</text>
+        <rect class="cy-node" x="380" y="18" width="200" height="80" rx="18"/>
+        <text class="cy-title" x="480" y="52" text-anchor="middle">사람</text><text class="cy-sub" x="480" y="78" text-anchor="middle">본 대화에서 요청·결과 확인</text>
+        <rect class="sf-hub" x="325" y="208" width="310" height="142" rx="22"/>
+        <text class="cy-title" x="480" y="243" text-anchor="middle">본 대화 (메인 세션)</text>
+        <text class="cy-sub" x="480" y="273" text-anchor="middle">일을 나눠 맡기고 필요한 자료 전달</text>
+        <text class="cy-sub" x="480" y="298" text-anchor="middle">돌아온 결과 취합·검토</text>
+        <text class="cy-sub" x="480" y="323" text-anchor="middle">필요한 수정도 다시 맡김</text>
+        <rect class="cy-node" x="40" y="480" width="280" height="96" rx="18"/>
+        <circle class="cy-badge" cx="63" cy="503" r="14"/><text class="cy-badgenum" x="63" y="508" text-anchor="middle">1</text>
+        <text class="cy-title" x="190" y="517" text-anchor="middle">구현 서브세션</text><text class="cy-sub" x="180" y="550" text-anchor="middle">기능 만들기 · 테스트 · 수정</text>
+        <rect class="cy-node" x="640" y="480" width="280" height="96" rx="18"/>
+        <circle class="cy-badge" cx="663" cy="503" r="14"/><text class="cy-badgenum" x="663" y="508" text-anchor="middle">3</text>
+        <text class="cy-title" x="790" y="517" text-anchor="middle">독립 리뷰 서브세션</text><text class="cy-sub" x="780" y="550" text-anchor="middle">구현 결과를 분리해 검토</text>
+      </svg>
+      <svg class="sf-mobile" viewBox="0 0 360 760" role="img" aria-labelledby="sf-mobile-title sf-mobile-desc">
+        <title id="sf-mobile-title">본 대화의 지시와 서브세션의 결과 보고</title>
+        <desc id="sf-mobile-desc">사람, 본 대화, 구현, 독립 리뷰 순서로 배치된다. 주황 실선은 본 대화에서 생성·지시·필요 자료를 보내는 길, 파랑 점선은 각 결과를 본 대화로 돌려보내는 길이다. 1 구현 지시, 2 구현 결과 보고 뒤 3 독립 리뷰 요청, 4 리뷰 결과 보고, 5 본 대화가 취합한 결과를 사람에게 설명한다.</desc>
+        <defs>
+          <marker id="sf-mobile-send" viewBox="0 0 12 12" refX="12" refY="6" markerWidth="14" markerHeight="14" markerUnits="userSpaceOnUse" orient="auto"><path class="sf-send-head" d="M0 0 L12 6 L0 12 z"/></marker>
+          <marker id="sf-mobile-return" viewBox="0 0 12 12" refX="12" refY="6" markerWidth="14" markerHeight="14" markerUnits="userSpaceOnUse" orient="auto"><path class="sf-return-head" d="M0 0 L12 6 L0 12 z"/></marker>
+        </defs>
+        <path class="sf-send" d="M145 88 L145 177" marker-end="url(#sf-mobile-send)"/>
+        <path class="sf-return" d="M215 177 L215 88" marker-end="url(#sf-mobile-return)"/>
+        <path class="sf-send" d="M115 313 L115 412" marker-end="url(#sf-mobile-send)"/>
+        <path class="sf-return" d="M278 465 Q335 465 335 430 L335 285 Q335 265 298 265" marker-end="url(#sf-mobile-return)"/>
+        <path class="sf-send" d="M62 220 Q8 220 8 260 L8 590 Q8 615 120 615 L120 637" marker-end="url(#sf-mobile-send)"/>
+        <path class="sf-return" d="M348 690 L350 690 L350 260 Q350 240 298 240" marker-end="url(#sf-mobile-return)"/>
+        <text class="sf-send-label" x="125" y="140" text-anchor="end">요청</text><text class="sf-return-label" x="235" y="128">⑤ 취합·설명</text>
+        <text class="sf-send-label" x="135" y="350">① 구현 생성</text><text class="sf-send-label" x="135" y="373">지시·필요 자료</text>
+        <text class="sf-return-label" x="315" y="399" text-anchor="end">② 결과 보고</text>
+        <text class="sf-send-label" x="28" y="559">③ 구현 결과 뒤 새 리뷰 생성</text><text class="sf-send-label" x="28" y="582">자료·검토 요청</text>
+        <text class="sf-return-label" x="330" y="606" text-anchor="end">④ 결과 보고</text>
+        <rect class="cy-node" x="95" y="12" width="170" height="68" rx="16"/><text class="cy-title" x="180" y="40" text-anchor="middle">사람</text><text class="cy-sub" x="180" y="63" text-anchor="middle">본 대화에서 결과 확인</text>
+        <rect class="sf-hub" x="70" y="185" width="220" height="120" rx="18"/>
+        <text class="cy-title" x="180" y="216" text-anchor="middle">본 대화 (메인 세션)</text><text class="cy-sub" x="180" y="245" text-anchor="middle">일을 나눠 맡기고 자료 전달</text><text class="cy-sub" x="180" y="271" text-anchor="middle">결과 취합·검토 · 수정 요청</text>
+        <rect class="cy-node" x="20" y="420" width="250" height="90" rx="16"/><circle class="cy-badge" cx="43" cy="443" r="13"/><text class="cy-badgenum" x="43" y="448" text-anchor="middle">1</text>
+        <text class="cy-title" x="155" y="455" text-anchor="middle">구현 서브세션</text><text class="cy-sub" x="145" y="484" text-anchor="middle">기능 만들기 · 테스트 · 수정</text>
+        <rect class="cy-node" x="90" y="645" width="250" height="90" rx="16"/><circle class="cy-badge" cx="113" cy="668" r="13"/><text class="cy-badgenum" x="113" y="673" text-anchor="middle">3</text>
+        <text class="cy-title" x="226" y="680" text-anchor="middle">독립 리뷰 서브세션</text><text class="cy-sub" x="215" y="710" text-anchor="middle">구현 결과를 분리해 검토</text>
+      </svg>
+      <figcaption class="note">주황 실선은 생성·지시·자료 전달, 파랑 점선은 결과 보고입니다. 구현 결과를 받은 뒤 독립 리뷰를 맡깁니다. 사람은 다른 대화를 일일이 관리하지 않고 본 대화에서 취합한 결과를 확인합니다.</figcaption>
     </figure>
     <p class="note">여러 세션이 함께 일하는 것을 멀티세션이라고 합니다. 독립 작업은 동시에, 앞선 결과가 필요한 작업은 순서대로 진행합니다. 필요하면 통합 검증 담당을 둡니다. 상세한 배정·인계는 <a href="development/workflow.md#세션-배정과-인계">개발 방법</a>을 따릅니다.</p>
     <p class="note">각 세션의 역할과 작업 난이도에 맞는 모델을 선택합니다. 상세한 선택 기준은 <a href="development/workflow.md#모델과-추론-강도-선택갱신">모델 정책</a>을 따릅니다.</p>
