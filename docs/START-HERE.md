@@ -31,7 +31,7 @@ PRD와 ADR은 사람이 소유하고 나머지 문서·티켓·구현은 에이�
 
 ## 현재 상태
 
-fin UX의 배포 화면·로컬 코드와 현재 템플릿을 비교한 [Template-18 적용안](tickets/template-18-fin-ux-adaptation.md)을 작성했다. 탐색·활동·날짜별 기록·필터/작성·문서형 상세·첫 사용 안내를 제안하며 단일 Entity와 기존 업무/권한 계약은 유지한다. [fin 문서 추가 검토](tickets/template-18-01-fin-docs-review.md)는 최신 가이드/과거 계약·template 제안의 차이를 구분하고 태그 관리·저장/초안 회귀를 보완했다. 조사·설계 초안이며 앱 구현·운영 반영은 아직 수행하지 않았다.
+fin UX의 배포 화면·로컬 코드와 [fin 문서](tickets/template-18-01-fin-docs-review.md)를 비교한 [Template-18 적용안](tickets/template-18-fin-ux-adaptation.md)은 사용자 구현 승인을 받아 진행 중이다. [탐색·가이드](tickets/template-18-02-navigation-guide.md), [활동·읽기](tickets/template-18-03-activity-reading.md), [엔터티·태그](tickets/template-18-04-entity-tags.md)로 나누며 단일 Entity와 기존 업무/권한 계약은 유지한다. 구현·검증·독립 리뷰·CI·머지 후 운영 배포는 별도 요청 범위다.
 
 작은 문서·웹 문구/간격 수정의 검증을 줄이는 [Template-13](tickets/template-13-ci-change-impact.md)의 구현·서비스 없는 로컬 검사를 마쳤다. [변경 영향별 CI](development/workflow.md#변경-영향별-ci)는 필수 `check`·`integration` 이름을 유지하고 불명확한 변경은 전체 검증하며, 단순 표시 변경에도 웹 unit·타입/build와 티켓의 화면 확인을 요구한다. 독립 리뷰·실제 full CI·머지는 후속이다.
 

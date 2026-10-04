@@ -26,6 +26,10 @@
 
 별도 worktree에서 구현하고 순서대로 최신 main에 통합·검증·독립 리뷰 후 작은 PR로 머지한다. 공유 DB/HTTP/MCP/E2E 환경은 한 구현 담당만 순차 사용한다. 본 세션은 티켓·Git·PR·리뷰 조정 담당이다.
 
+구현 경계 조사에서 기존 BrowserRouter/ModalShell의 브라우저 뒤로가기 초안 보호가 부족함을 확인했다. 18-02는 URL·basename·인증을 유지한 data router 전환을 소유하고 18-04는 지원되는 useBlocker 기반 이탈 보호를 소유한다. 서버 데이터 의미나 상세 overlay 도입이 아닌 승인된 미저장 보호의 구현 선택이다. 18-04의 라우터 소비는 18-02에 의존한다. 기록 날짜는 기존 표시 계약과 같은 브라우저 시간대를 사용하고 해당 시간대를 표시한다.
+
+배정 preflight: 2026-10-04T05:37:29Z의 Desktop 도구 목록에서 gpt-6.1-sol actual ID와 low/medium/high/xhigh/max/ultra 노출을 확인했다. 저장소 밖 TEMP snapshot으로 assign PASS. navigation/activity/entity_tags를 worker 경로, fork_turns=none, balanced gpt-6.1-sol/medium으로 명시 배정했다. 모델은 허용 정책, 강도는 확정 웹 기능 구현/회귀 목적에 따른다. 도구 배정과 backend 실제 effort·비용은 구분하며 후자는 미관측이다.
+
 [PRD의 기본 예제 엔터티](../product/concept.md#기본-예제-엔터티), [디자인 가이드](../design/guide.md), [상호작용](../design/ui-patterns.md), [시각 규격](../design/visual-spec.md)이 기준이다. PRD·ADR은 수정하지 않는다. 정본 가이드의 변경은 앱 구현 시 소비 화면·검증과 함께 한다.
 
 ## 조사 범위와 근거의 한계
@@ -146,8 +150,9 @@ Claude/Codex의 MCP 연결과 제품 스킬 패키지를 함께 안내한다. �
 - [x] fin 배포 UX와 로컬 구현, template 배포 화면과 코드 비교.
 - [x] 이미 이식된 기준·보강할 UX·도메인/권한상 제외 대상을 구분.
 - [x] 단일 엔터티와 기존 서버 계약 안의 사용자 흐름·PR 분할·검증 인계 작성.
-- [ ] 사용자와 적용 순서/정보 구조를 논의하고 구현 요청 범위 확정.
-- [ ] 앱 구현·독립 리뷰·CI·머지·운영 반영(이번 조사 결과와 별개).
+- [x] 사용자 구현 요청에 따라 적용 범위/정보 구조와 기능별 티켓 확정.
+- [ ] 앱 구현·검증·독립 리뷰·CI·머지.
+- 운영 반영은 별도 배포 요청 범위이며 이번 완료 조건에서 제외.
 
 직접 검사: `npm run check:docs` 텍스트339개·모델/native 정합성 PASS, 회귀49개 중48 PASS/0 FAIL/기존 Windows file-symlink권한1 SKIP. 최초에는 기존 node_modules의 `@babel/parser` 누락으로 회귀가 실패했다. `npm ci --ignore-scripts`는 잠긴 rolldown native 파일, 후속 install은 잠긴 Supabase 실행 파일로 실패했다. 기존 프로세스를 종료하지 않고 저장소 밖 TEMP에 동일 package/lock으로 `npm ci --ignore-scripts`(172개 설치, audit 취약점0)를 완료한 후 기존 파일을 덮어쓰지 않는 복사로 누락 파일을 복구해 최종 검사를 통과했다. package/lock·앱 코드·환경 설정을 수정하지 않았다. `git diff --check` PASS. 앱 동작/실기기·독립 리뷰·원격 CI·머지는 이번 로컬 조사 완료와 구분한다.
 
