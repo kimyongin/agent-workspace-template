@@ -1,7 +1,7 @@
 # Template-18-04 — 엔터티 문맥 작성과 태그 사전
 
 작성: 2026-10-04
-상태: 로컬 구현·선행 탐색/활동 통합·격리 UI fixture 검증 완료, 실제 전체 E2E·독립 재리뷰·CI 대기
+상태: 로컬 구현·선행 탐색/활동 통합·전체 E2E 완료, 활동 머지 후 최신 main 재통합·독립 재리뷰·CI 대기
 검토 기준: `745130148c90de842d7617c232194b653d1c638b`
 
 ## 목표와 승인 범위
@@ -14,7 +14,7 @@
 - [x] 관련 할 일 추가/기록 작성에서 기존 폼의 entity_id만 미리 채움. 생성 성공 후 관련 자료 갱신, 실패/취소 초안·상세 보존. 일반 폼 위에 일반 폼 중첩 없음.
 - [x] 태그 관리는 페이지 한 영역에서 생성/선택 이름 수정 한 초안·단일 저장. 선택 전환/이탈에 dirty 보호, 삭제만 짧은 확인.
 - [x] 저장 성공과 후속 조회 실패를 구분, 충돌·불확정 응답·중복 저장 방지·초점 복귀 유지.
-- [ ] 생성/취소/실패/충돌/삭제와 엔터티 연결 필드·목록 복귀를 검증.
+- [x] 생성/취소/실패/충돌/삭제와 엔터티 연결 필드·목록 복귀를 검증.
 
 ## PR 분할과 담당
 
@@ -83,3 +83,11 @@ fixture는 이 checkout의 Vite `55584`와 존재하지 않는 로컬 주소 `55
 `git rebase --onto c5f24c181d62b6bd0306f69e1c1e9b4dde4c7806 83a3e80bf9c03a38fb57ca121e465f25fca062ff codex/fin-ux-entity-tags`는 충돌 없이 성공했다. 검사한 통합 구현 head `18ef9011816852f15b2fd94f22aef5ba770c2055`는 최신 main `69b2`와 activity 리뷰 수정(태그 재시도 anchor, 상세 query 편집 상태 동기화)을 포함한다. upstream 대비 15개 feature/검증/문서 파일이며 Modal·ContentForm·EntitiesPage·activity·App diff가 0임을 `git diff --exit-code`로 확인했다.
 
 이 head에서 `npm run build`, `npm run test:web`(14 PASS), `npm run check:docs`(48 PASS / Windows symlink 1 SKIP), `git diff --check` PASS. `npx playwright test --config e2e/entity-tags-fixtures.config.ts` desktop/mobile 각 11, 총 22 PASS로 전체 격리 fixture를 재실행했다. 모델/강도와 환경은 유지했으며 공유 root/DB/서비스는 activity 담당 `c5f24c1`에 유지했다. 실제 전체 E2E 인계·최신 main squash 반영 후 재통합·독립 재리뷰·정확한 head CI가 남아 있다.
+
+### 2026-10-04 공유 환경 전체 E2E 완료
+
+- 메인이 activity의 선행 전체 E2E 75 PASS / 9 SKIP / 0 FAIL 종료 후 entity-tags 세션에 단독 검증 소유권을 배정했다. 실행 checkout은 `C:/Users/yongin/projects/agent-workspace-template`, clean detached head `c68ea59bed450fc05d960682b664c918cb26b508`이다. 기존 로컬 DB·함수·Vite `55480`을 그대로 사용했으며 DB reset·setup·서비스 재시작·사용자 설정 변경은 하지 않았다.
+- `npm run test:e2e`: desktop/mobile, 2 workers, 106 tests 중 **97 PASS / 9 SKIP / 0 FAIL**, 4.7분, exit 0. 실제 인증·HTTP·MCP를 사용하는 Entity CRUD/연결/목록 복귀와 태그 생성/중복/이름 변경/삭제/원문 보존/추가 페이지 편집·충돌·초점 복귀를 통과했다. 전체 수에는 응답을 대체하는 격리 fixture 22개도 포함되므로 97개 모두를 실제 서버 검증으로 해석하지 않는다.
+- 9 SKIP은 모바일에서 반복하지 않는 desktop 전용 viewport/zoom/keyboard 검사 7개와 환경 조건을 충족하지 않은 실제 의미 검색 검사 2개다. 실제 의미 검색 성공은 이번 검증의 완료 증거에 포함하지 않는다.
+- 로그와 결과·캡처는 `C:/Users/yongin/AppData/Local/Temp/template-18-04-full-e2e-c68ea59-20261004/e2e-output.log` 및 같은 폴더의 `test-results/`에 보존했다. 종료 후 root의 exact head와 clean 상태를 재확인하고 메인에게 단독 환경 소유권을 반환했다. 실패 아티팩트는 없다.
+- 선행 탐색 [PR #91](https://github.com/kimyongin/agent-workspace-template/pull/91)은 main `69b2d499`에 머지됐으며 CI `37182243338` 완료 근거는 [머지 검증 기록](https://github.com/kimyongin/agent-workspace-template/pull/91#issuecomment-5977338758)이다. 활동 PR #92는 최종 독립 승인/검사 후 CI·머지 대기다. 활동 squash 머지 후 latest main에 feature 범위만 재통합하고 독립 재리뷰·정확한 head CI를 수행해야 한다. 이 갱신은 문서만 변경하며 검사한 제품 코드는 `c68ea59`와 동일하다.
