@@ -1,7 +1,7 @@
 # Template-10-06 — 기존 운영 서비스 변경 반영
 
 작성: 2026-10-04
-상태: 기존 운영 적용·후속 본인 기록 색인/Cron·Claude 웹/Codex CLI 읽기 검증 완료(데스크톱 UI·실기기/스크린리더·과금 미확인)
+상태: 기존 운영 적용·후속 본인 기록 색인/Cron·Claude 웹/Codex CLI 읽기 검증 완료(데스크톱 UI·과금 미확인, 휴대폰 확인 사용자 이관·스크린리더 검증 범위 제외)
 검토 기준: 배포할 최종 main revision은 선행 PR 머지 후 고정
 선행: Entity·활동 복원·제품 패키지의 독립 리뷰와 필수 CI
 
@@ -9,7 +9,7 @@
 
 사용자가 남은1~4 진행을 승인했고 메인이 실제 본인 Google OAuth/UI로 운영 점검 기록 한 건을 저장·수정했다. [Template-12](template-12-production-verification.md)는 이 담당의 생성/수정 scoped worker 각1회 indexed1·current hash/1024벡터 일치, 메인의 두 의미 질의·최신 원문 확인과 매분 limit5 Cron/job1 실제 주기 성공을 연결한다. 소량 성공 조건을 충족해 이전 Cron 보류를 해제했다. Vault 두 이름/중복 없는 job·pg_cron1.6.4/pg_net0.20.4·cron succeeded 및 pg_net HTTP200/0결과를 별도로 대조했다.
 
-pg_net 기본 PUBLIC ACL·postgres 관리권한 한계는 실제 public Data API `Accept-Profile:net/select=id`의406 거부와 구분해 기록했다. token/header 값 조회나 미지원 ACL/owner 변경은 하지 않았다. 운영 기록은 보존하고 추가 자동 CRUD 시험·새 user/admin JWT·앱 배포·local 서비스 변경·T02-5/6은 없다. 메인의 Claude 웹 실제 검색/원문 읽기와 Codex CLI native OAuth·31도구/동일 원문 읽기 성공은 Template-12에 실행 주체와 증거를 연결했다. 실제 공급자usage/실청구액·provider 백업/복구·Codex desktop UI·실기기·스크린리더는 미확인이다. 아래 최초 적용 당시 빈 큐/세션 부재/보류·실패/수정 이력은 당시 snapshot으로 보존한다.
+pg_net 기본 PUBLIC ACL·postgres 관리권한 한계는 실제 public Data API `Accept-Profile:net/select=id`의406 거부와 구분해 기록했다. token/header 값 조회나 미지원 ACL/owner 변경은 하지 않았다. 운영 기록은 보존하고 추가 자동 CRUD 시험·새 user/admin JWT·앱 배포·local 서비스 변경·T02-5/6은 없다. 메인의 Claude 웹 실제 검색/원문 읽기와 Codex CLI native OAuth·31도구/동일 원문 읽기 성공은 Template-12에 실행 주체와 증거를 연결했다. 실제 공급자usage/실청구액·provider 백업/복구·Codex desktop UI는 미확인이다. 2026-10-04 사용자 지시에 따라 실제 휴대폰 확인은 사용자에게 이관하고 스크린리더 검증은 이번 범위에서 제외했다. 아래 최초 적용 당시 빈 큐/세션 부재/보류·실패/수정 이력은 당시 snapshot으로 보존한다.
 
 ## 최초 릴리스 실행 결과 — 2026-10-04 KST(당시 snapshot)
 
