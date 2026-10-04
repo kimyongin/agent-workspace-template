@@ -1,7 +1,7 @@
 # Template-19-02 — 탭 내부 검색·반응형 상세·메모와 변경 기록 화면
 
 작성: 2026-10-04
-상태: 통합·초기 최종 검증 완료 후 부모 독립 UI 리뷰의 추가2결함 재현·수정, 수정 head 전체 재검증 진행
+상태: 구현·배정된 통합·독립 UI 리뷰3결함 수정·수정 source 전체 검증 완료, 부모 최종 재리뷰·CI·PR·머지 대기
 기준: main399b82b와 승인한 [Template-19](template-19-three-tab-release-ux.md)/[Template-20](template-20-current-principle-change-records.md)
 
 ## 목표와 소유
@@ -92,7 +92,7 @@ backend963 통합 뒤 desktop 전체39 PASS/실모델1 SKIP(4.6m)를 확인했�
 모의 snapshot2 PASS(4.1s). 첫 선택 해제 fixture는 선택된 저장본 접미사가 있는 실제 버튼 이름을 누락해 timeout이었다. 정확한 accessible name으로 고쳤고 실패 자료는 `screens-snapshot-run11`에 보존했다. assertion/timeout 변경은 없다.
 
 
-### 최종 통합 검증과 부모 인계
+### a3 baseline 통합 검증과 최초 인계
 
 검사한 source head는 `a3a69d575b4b5ca995608be752a354f2258187cc`, base는 `773e3652834b9b7a15999016858591ba6dd3794f`다. 소유 snapshot 수정 `b13d7e74914569304d128798cf01bbaeb33ba880` 뒤 부모 nav 최종 `ba597a657ee2bc6dce0c00d4ec37e555f2f1ff1e`를 `b3ef346fb4f47f7425eb0e5d21336ef3153179f3`로 통합했다. 부모 문서 `a858b00`/`dbfa222`/`06d0208`도 충돌 없이 통합했다. 디자인 nav/화면 절과 native App fixture 수정은 함께 보존했다. 통합 뒤 코드 변경 없이 다음 검사를 직접 실행했다.
 
@@ -127,4 +127,26 @@ pass metadata는 `test-results/screens-failures/real-desktop-final-a3a69d5`와 `
 엔터티 관련 기록 작성의 일반 onClose를 closeCreate로 바꿔 query를 제거하고 경로 폐기 콜백은 순수 local close로 분리했다. 태그 단독 삭제는 shell이 없으므로 pending ref 기반 BusyNavigationGuard 하나로 POP/경로 이동/beforeunload를 막고, 일반 shell의 기존 blocker는 중복 등록하지 않는다. 새3 회귀가3 PASS(6.2s)다. pristine/dirty 폐기 확인 취소·승인·조건 보존·초점·reload·pending Escape·요청 완료 뒤 정상Back과 단일 DELETE를 검증하며 assertion/timeout 변경은 없다. 부모가 같은 private56421/56422 lease를 명시 재배정했다. 앞 최종68 실제 PASS는 보존된 a3 baseline 증거이고 수정 head의 full run을 이어서 기록한다.
 
 
-독립 원본의3개 재현을 assertions 변경 없이 복사해 import 경로와 별도 unused55586/55587만 현재 checkout으로 맞췄다. desktop/mobile6 PASS(8.4s); P1의 PATCH IDs 입력은 undefined이며 보존 본문을 검사했다. 새로운 실제 HTTP/MCP 회귀는4 desktop/mobile PASS(8.9s/8.9s)다. 취소가 manual record·변경 이벤트·entity version을 바꾸지 않으며 tag DELETE를 지연한 상태의 Back·Escape·중복 요청1개·응답 완료 뒤 Settings 복귀를 검증했다. 첫 실제 fixture는 page.goto로 document history를 만들었고 SPA blocker 검사가 목적 경로를 떠났다. 실제 메뉴→Settings→활동 태그 링크를 통해 앱 history를 구성해 같은 route/assertions를 검증했다. 원본 failure는 `real-review-run04`에 남겼고 timeout은 변경하지 않았다. 현재 서버 source963/환경은 그대로이며 자체 Edge14355를 다시 시작했다.
+독립 원본의3개 재현을 assertions 변경 없이 복사해 import 경로와 별도 unused55586/55587만 현재 checkout으로 맞췄다. desktop/mobile6 PASS(8.4s); P1의 PATCH IDs 입력은 undefined이며 보존 본문을 검사했다. 새로운 실제 HTTP/MCP 회귀는4 desktop/mobile PASS(8.9s/9.0s)다. 취소가 manual record·변경 이벤트·entity version을 바꾸지 않으며 tag DELETE를 지연한 상태의 Back·Escape·중복 요청1개·응답 완료 뒤 Settings 복귀를 검증했다. 첫 실제 fixture는 page.goto로 document history를 만들었고 SPA blocker 검사가 목적 경로를 떠났다. 실제 메뉴→Settings→활동 태그 링크를 통해 앱 history를 구성해 같은 route/assertions를 검증했다. 원본 failure는 `real-review-run04`에 남겼고 timeout은 변경하지 않았다. 현재 서버 source963/환경은 그대로이며 자체 Edge14355를 다시 시작했다.
+
+
+### 독립 리뷰 수정 source의 최종 결과
+
+코드·브라우저 spec·가이드 수정 commit은 `853949de8115d9eade57f8cd94796ec2811eabf0`다. 이 source를 다시 동결하고 mock/full 실제 desktop·mobile을 순차로 검증했다. 추가 소스 수정은 없었다.
+
+| 직접 실행 | 수정 source 최종 증거 |
+| --- | --- |
+| `npm run test:fast`, build/boundaries/strict fixture TS | core60/fast10/frontend22 및 모두 PASS; SDK20 harness는 frontend 경계 검사에서 함께 실행 |
+| docs/model/scripts, `git diff --check` | text424/48 PASS/기존 Windows symlink1 SKIP 및 PASS; status의 임시 줄 끝 공백1건 제거 후 재실행 PASS |
+| `workspace-screens.config.ts` | 76 PASS(2.3m) |
+| `entity-tags-fixtures.config.ts` | desktop/mobile22 PASS(36.7s) |
+| `TEMP/template20-nav.config.ts` | desktop/mobile46 PASS(1.3m), 기존8 canonical overlap 포함 |
+| 독립 원본 `TEMP/template20-review.config.ts` | desktop/mobile6 PASS(8.4s), source b13의 snapshot 해결도 확인 |
+| `workspace-integration.config.ts --project=desktop` | 실제41 PASS/실모델1 SKIP(5.4m) |
+| 같은 실제 config `--project=mobile` | 실제31 PASS/11 SKIP(3.5m): desktop 전용10 + 실모델1 |
+
+mock144 PASS와 독립 원본6 PASS, 실제72 PASS/12 SKIP를 서로 구분한다. 실제 검사는 같은 API56421/DB56422의 계정을 한 project씩 단독 사용했으며 단독 태그 DELETE를 실제 요청에 전달하기 전 지연해 Back 차단을 확인했다. cancelled 관련 기록은 사용자 기록·변경 이벤트·entity version에 쓰기를 만들지 않는다.
+
+`test-results/screens-failures/real-desktop-final-853949d`와 `real-mobile-final-853949d`의 metadata가 PASS이며 a3 baseline·실패12/실제04 자료도 보존했다. 자체 Edge14355와 Vite/모의 fixture 서비스를 종료했고 private DB/API·volume/env/외부 증거는 보존해 부모에게 exclusive lease를 반환한다. backend963/SQL/auth/nav primary source는 추가 변경하지 않았다.
+
+마지막 결과 커밋은 이 티켓만 갱신한다. exact 최종 SHA, tested853949 source와 문서 전용 차이, clean tracked 상태와 환경 반환은 TEMP status/final 인계가 소유한다. 보고된3결함의 수정과 재현 회귀가 모두 통과했으며 부모의 독립 최종 재리뷰·필수 CI·계약 호환 통합 PR·최신 main 확인·머지는 남는다. 실제 휴대전화/스크린리더/native zoom·유료 의미 검색·기존 전체E2ETS5 오류 한계는 유지한다. push/PR/merge/배포는 수행하지 않았다.
