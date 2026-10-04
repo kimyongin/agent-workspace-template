@@ -24,6 +24,7 @@ test("현재 웹 저장→MCP 과거 원문 보존·정정→최신 삭제 승�
     await page.goto(`/principles/${current.id}`);await page.getByRole("button",{name:"삭제",exact:true}).click();
     const confirm=page.getByRole("dialog",{name:"원칙을 삭제할까요?"});await expect(confirm).toContainText(first.title);await expect(confirm).toContainText("오타만 정정한 원문");
     await confirm.getByRole("button",{name:"삭제",exact:true}).click();
+    await expect(page).toHaveURL(/\/principles(?:\?|$)/);
     expect((await mcp.call("get_current_principle",{})).current.id).toBe(first.id);
   }finally{await mcp.close();}
 });
@@ -49,7 +50,7 @@ test("과거 원칙 페이지·검색·상세 왕복·새로고침은 목록 초
     await oldest.click();
     for(let i=0;i<21;i++)await savePrinciple(mcp,{title:`${marker} 동시 추가 ${i}`,summary:"상세 왕복 중 새 저장본"});
     await page.getByRole("link",{name:"← 원칙 목록",exact:true}).click();
-    expect(new URL(page.url()).searchParams.get("q")).toBe(marker);expect(new URL(page.url()).searchParams.get("pages")).toBe("3");
+    expect(new URL(page.url()).searchParams.get("q")).toBe(marker);await expect.poll(()=>new URL(page.url()).searchParams.get("pages")).toBe("3");
     expect(new URL(page.url()).searchParams.has("scroll")).toBe(true);await expect(page.locator(".list .item-title")).toHaveCount(42);
     await expect(oldest).toBeFocused();await page.reload();await expect(oldest).toBeFocused();await expect(oldest).toBeInViewport();
   }finally{await mcp.close();}

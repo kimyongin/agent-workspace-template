@@ -49,7 +49,7 @@ test("엔터티·활동 태그 같은 이름·웹 선택 정정·삭제 뒤 원�
       await page.getByRole("link",{name:kind==="entity"?"← 엔터티 목록":"← 기록 목록",exact:true}).click();await page.getByText("추가 조건",{exact:true}).click();await expect(page.getByLabel("태그 필터")).toHaveValue(tag.id);await expect(page.locator(".list .item-title")).toHaveCount(1);
       await mcp.call("delete_tag",{id:tag.id,expected_version:1});await page.goto(`${path}/${id}`);
       expect((await mcp.call(`get_${kind}`,{id})).tag_ids).toEqual([]);
-      await expect(page.getByText(kind==="entity"?title:"원문 보존",{exact:true})).toBeVisible();
+      if(kind==="entity")await expect(page.getByRole("definition").filter({hasText:title})).toHaveText(title);else await expect(page.getByText("원문 보존",{exact:true})).toBeVisible();
     }
   }finally{await mcp.close();}
 });
@@ -58,7 +58,7 @@ test("웹 태그 생성→MCP 중복·이름 변경→웹 삭제",async({page})=
   try{
     await page.goto("/tags/activity");await page.getByRole("button",{name:"태그 추가"}).click();
     const title=unique("태그").slice(0,30),form=page.getByRole("dialog",{name:"태그 추가"});
-    await form.getByLabel("태그 이름").fill(title);await form.getByRole("button",{name:"저장"}).click();
+    await form.getByRole("textbox",{name:/태그 이름/}).fill(title);await form.getByRole("button",{name:"저장"}).click();
     await expect(page.getByRole("button",{name:`${title} 이름 변경`,exact:true})).toBeVisible();
     const list=await mcp.call("list_tags",{limit:100});const tag=list.items.find((t:{name:string})=>t.name===title);
     const renamed=unique("정정").slice(0,30);await mcp.call("rename_tag",{id:tag.id,expected_version:1,name:renamed});
@@ -98,14 +98,14 @@ test("추가 페이지 태그의 편집 취소·충돌·저장 뒤 목록과 초
     while(await trigger.count()===0){await page.getByRole("button",{name:"더 보기",exact:true}).click();await expect(page.getByRole("button",{name:"불러오는 중…"})).toHaveCount(0);}
     await trigger.click();let form=page.getByRole("dialog",{name:"태그 이름 변경"});
     await form.getByRole("button",{name:"취소",exact:true}).click();await expect(trigger).toBeFocused();
-    await trigger.click();const draft=unique("초안").slice(0,30);await form.getByLabel("태그 이름").fill(draft);
+    await trigger.click();const draft=unique("초안").slice(0,30);await form.getByRole("textbox",{name:/태그 이름/}).fill(draft);
     const server=unique("서버").slice(0,30);await mcp.call("rename_tag",{id:oldest.id,expected_version:1,name:server});
     await form.getByRole("button",{name:"저장",exact:true}).click();await expect(form.getByText(/다른 변경이 저장/)).toBeVisible();
-    await expect(form.getByLabel("태그 이름")).toHaveValue(draft);await form.getByRole("button",{name:"취소",exact:true}).click();
+    await expect(form.getByRole("textbox",{name:/태그 이름/})).toHaveValue(draft);await form.getByRole("button",{name:"취소",exact:true}).click();
     await page.getByRole("dialog",{name:"변경을 버릴까요?"}).getByRole("button",{name:"변경 버리기"}).click();
     const fresh=page.getByRole("button",{name:`${server} 이름 변경`,exact:true});await expect(fresh).toBeFocused();
     await expect(trigger).toHaveCount(0);await fresh.click();form=page.getByRole("dialog",{name:"태그 이름 변경"});
-    await form.getByLabel("태그 이름").fill(draft);await form.getByRole("button",{name:"저장",exact:true}).click();
+    await form.getByRole("textbox",{name:/태그 이름/}).fill(draft);await form.getByRole("button",{name:"저장",exact:true}).click();
     await expect(page.getByRole("button",{name:`${draft} 이름 변경`,exact:true})).toBeFocused();
     await expect(page.getByRole("button",{name:`${tags[1].name} 이름 변경`,exact:true})).toBeVisible();
   }finally{await mcp.close();}

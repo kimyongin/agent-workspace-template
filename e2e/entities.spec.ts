@@ -177,9 +177,9 @@ test("Entity 복원: 대상 없음 조회 한도·제목 초점·필터 hash 제
   await page.getByLabel("속성 4 필터").selectOption("b");
   await expect(page).not.toHaveURL(/#entity-/);
   expect(new URL(page.url()).searchParams.has("pages")).toBe(false);
-  await page.getByLabel("속성 1 키워드").fill("느림");await page.getByRole("button",{name:"검색",exact:true}).click();
+  await page.getByLabel("속성 1 키워드",{exact:true}).fill("느림");await page.getByRole("button",{name:"검색",exact:true}).click();
   await arrived;
-  await page.getByLabel("속성 1 키워드").fill("최신");await page.getByRole("button",{name:"검색",exact:true}).click();
+  await page.getByLabel("속성 1 키워드",{exact:true}).fill("최신");await page.getByRole("button",{name:"검색",exact:true}).click();
   await expect(page.getByRole("link", { name: "최신", exact: true })).toBeVisible();
   release();
   await expect(page.getByRole("link", { name: "느림", exact: true })).toHaveCount(0);
