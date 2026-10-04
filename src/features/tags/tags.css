@@ -1,0 +1,8 @@
+.tag-management { display: grid; gap: 1.5rem; align-items: start; }
+.tag-editor { border-top: 1px solid var(--line); padding-top: 1.5rem; }
+.tag-management .item-title { overflow-wrap: anywhere; }
+.tag-management .btn[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
+@media (min-width: 640px) {
+  .tag-management:has(.tag-editor) { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .tag-editor { border-top: 0; border-left: 1px solid var(--line); padding-top: 0; padding-left: 1.5rem; position: sticky; top: 1rem; }
+}

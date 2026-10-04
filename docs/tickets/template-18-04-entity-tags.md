@@ -1,7 +1,7 @@
 # Template-18-04 — 엔터티 문맥 작성과 태그 사전
 
 작성: 2026-10-04
-상태: 진행 중
+상태: 로컬 구현·격리 UI fixture 검증 완료, 선행 탐색/활동 통합·전체 E2E·독립 리뷰 대기
 검토 기준: `745130148c90de842d7617c232194b653d1c638b`
 
 ## 목표와 승인 범위
@@ -10,10 +10,10 @@
 
 ## 작업과 완료 조건
 
-- [ ] Entity 상세의 속성과 관련 미리보기를 문서로 정리하고 기술 버전은 일상 읽기에서 제외.
-- [ ] 관련 할 일 추가/기록 작성에서 기존 폼의 entity_id만 미리 채움. 생성 성공 후 관련 자료 갱신, 실패/취소 초안·상세 보존. 일반 폼 위에 일반 폼 중첩 없음.
-- [ ] 태그 관리는 페이지 한 영역에서 생성/선택 이름 수정 한 초안·단일 저장. 선택 전환/이탈에 dirty 보호, 삭제만 짧은 확인.
-- [ ] 저장 성공과 후속 조회 실패를 구분, 충돌·불확정 응답·중복 저장 방지·초점 복귀 유지.
+- [x] Entity 상세의 속성과 관련 미리보기를 문서로 정리하고 기술 버전은 일상 읽기에서 제외.
+- [x] 관련 할 일 추가/기록 작성에서 기존 폼의 entity_id만 미리 채움. 생성 성공 후 관련 자료 갱신, 실패/취소 초안·상세 보존. 일반 폼 위에 일반 폼 중첩 없음.
+- [x] 태그 관리는 페이지 한 영역에서 생성/선택 이름 수정 한 초안·단일 저장. 선택 전환/이탈에 dirty 보호, 삭제만 짧은 확인.
+- [x] 저장 성공과 후속 조회 실패를 구분, 충돌·불확정 응답·중복 저장 방지·초점 복귀 유지.
 - [ ] 생성/취소/실패/충돌/삭제와 엔터티 연결 필드·목록 복귀를 검증.
 
 ## PR 분할과 담당
@@ -23,3 +23,25 @@ PR 하나 `codex/fin-ux-entity-tags`. entity-tags 세션은 entities feature와 
 ## 구현 인계와 실행 기록
 
 작업 공간·base/head·모델·검증 명령/결과·미검증을 기록한다. 공유 DB/서버 테스트는 지정된 한 담당이 순차 실행. 운영 배포·실제 휴대폰·스크린리더 검수는 이번 완료 범위 밖이다.
+
+### 2026-10-04 로컬 구현 인계
+
+- 구현 주체: entity-tags 서브세션. checkout `C:/Users/yongin/.codex/worktrees/fin-ux-entity-tags/agent-workspace-template`, branch `codex/fin-ux-entity-tags`, base `8e5b11c`. 작업 시작 clean 상태에서 `npm ci` 성공(172 packages, audit 취약점 0).
+- 모델 배정: 부모의 명시 `gpt-6.1-sol` / `medium` / balanced 구현. 같은 checkout에서 `node scripts/agent-models.mjs assign --client codex-desktop --tier balanced --effort medium --role implement --reason "엔터티 문맥 작성과 태그 한 초안 관리 구현" --snapshot C:/Users/yongin/AppData/Local/Temp/template-18-desktop-models.json` 통과. 실제 도구의 명시 배정과 오늘 Desktop 목록 지원을 확인하며 backend effort·실청구액·비교 품질은 미관측.
+- 변경: Entity 속성 1/2/3/4를 짧은 속성표로 읽고 버전 노출 제거. 기존 TaskFormModal/RecordFormModal 초안에 `entity_id`만 채워 독립 1차 폼으로 열며 생성 성공 후 상세 재조회. 갱신 실패에도 기존 상세와 저장 성공 안내를 유지한다. Entity 생성의 상세 이동은 모달 제거 뒤 effect에서 수행한다.
+- 태그: 페이지에서 목록과 한 편집 영역, 한 저장. 선택 전환·취소·삭제 진입의 dirty 확인, 경로 PUSH/POP/replace와 새로고침 이탈 보호. 생성 불확정 상태는 입력을 읽기 전용으로 유지하고 동일 request_id/내용으로 재시도. 이름 변경 불확정은 새 API 없이 모든 `/tags` 페이지에서 ID/버전/이름을 확인한다. 충돌은 초안을 유지하며 취소 후 목록 재조회. 저장/삭제 성공은 로컬 목록에 먼저 반영해 후속 조회 오류와 구분한다.
+- 공통 의존: 메인 승인으로 navigation 담당의 data-router 전환을 소비한다. `ModalShell`은 열린 1차 모달만 blocker를 등록하며 ConfirmDialog는 등록하지 않는다. 미저장 경로 이탈도 기존 폐기 확인을 공유한다. 저장 중 이탈 시도는 reset해 저장이 끝난 뒤 오래된 이동 의도가 실행되지 않게 한다. activity 담당에게 성공/확인된 취소 후 이동을 모달 제거 뒤 effect로 연기하도록 인계했다. 기존 App의 BrowserRouter만 있는 이 branch는 통합 전 실행 대상이 아니며 fixture는 createBrowserRouter로 검증한다.
+- 유지 계약: 서버·DB·MCP·검색·권한·Entity 검증·prop1/2/3/4 불변. 태그 생성 request_id, 이름 변경/삭제 expected_version 유지. TagPicker/TagNames·activity 폼의 인터페이스 변경 없음.
+
+| 검사 | 결과와 범위 |
+| --- | --- |
+| `npm run test:web` | 3 files / 8 PASS. 불확정 이름 변경의 여러 페이지 ID 탐색, 삭제/조회 오류 구분 포함 |
+| `npm run build` | 타입·정적 빌드 PASS. 기존 500 kB bundle 경고는 유지 |
+| `npm run check:boundaries` | PASS |
+| `npm run check:docs` | 문서/모델 PASS, script 48 PASS / Windows symlink 권한 1 SKIP |
+| `git diff --check` | PASS |
+| `npx playwright test --config e2e/entity-tags-fixtures.config.ts` | desktop/mobile 각 5, 총 10 PASS. 단일 태그 초안·선택 전환·경로/뒤로가기 취소, 불확정 생성 같은 request_id, 불확정 이름 변경의 재조회(중복 PATCH 없음), 성공 뒤 조회 실패, 충돌/삭제, Entity 연결 할 일 실패/재시도·기록 취소/생성·모달 뒤로가기·초점 복귀 |
+
+fixture는 이 checkout의 Vite `55584`와 존재하지 않는 로컬 주소 `55585`를 사용하며 모든 업무 응답을 Playwright route로 제공한다. 인증/실 DB/실 HTTP·MCP 증거가 아니다. 서버 생명주기는 전용 config가 관리하며 공유 `55480`·DB·함수 서버/setup을 사용하지 않았다. 최초 fixture 실행 실패는 넓은 `getByLabel("태그 이름")`이 목록 버튼/폼까지 매칭한 fixture selector 오류로 분류하고 textbox role로 좁혀 재검증했다. 모바일·데스크톱 태그 편집 캡처를 직접 읽어 한/두 열 배치·긴 도움말 줄바꿈·초점을 확인했고 페이지 가로 overflow가 없음을 자동 대조했다.
+
+미검증/다음 작업: navigation/활동 선행 PR 통합 뒤 실제 인증·업무 API를 쓰는 `e2e/tags.spec.ts`, `e2e/entities.spec.ts`와 전체 desktop/mobile E2E, 독립 리뷰·정확한 head CI. 태그 관리의 기존 실제 E2E 선택자는 inline form에 맞춰 갱신했으며 아직 공유 환경에서 실행하지 않았다. 운영 배포·실휴대폰·스크린리더·backend effort/청구 검증은 완료로 표시하지 않는다. 안내/디자인 정본의 data-router 미저장 보호와 저장 뒤 이동 규칙은 메인에 갱신 권고를 전달했으며 동시 편집하지 않았다.

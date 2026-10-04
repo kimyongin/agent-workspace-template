@@ -6,11 +6,17 @@ import { ConfirmDialog } from "../../components/Modal.tsx";
 import { api, ApiError, query } from "../../lib/api.ts";
 import { formatDateTime } from "../../lib/format.ts";
 import { EntityForm } from "./forms.tsx";
+import { emptyRecord, emptyTask, RecordFormModal, TaskFormModal, taskInput } from "../activity/forms.tsx";
+import { useRequestId } from "../../lib/useRequestId.ts";
+import "./entity.css";
 export function EntityDetailPage() {
   const { id } = useParams(),
     [params] = useSearchParams(),
     navigate = useNavigate();
   const conflicted = useRef(false);
+  const request = useRequestId();
+  const [creating, setCreating] = useState<"task" | "record" | null>(null);
+  const [saved, setSaved] = useState<string | null>(null);
   const [entity, setEntity] = useState<EntityDetail | null>(null),
     [error, setError] = useState<string | null>(null),
     [retry, setRetry] = useState(0),
@@ -19,10 +25,9 @@ export function EntityDetailPage() {
     [busy, setBusy] = useState(false);
   useEffect(() => {
     const controller = new AbortController();
-    setEntity(null);
     setError(null);
     api<EntityDetail>("GET", `/entities/${id}`, undefined, controller.signal)
-      .then(setEntity).catch((e) => {
+      .then(value => { if (!controller.signal.aborted) setEntity(value); }).catch((e) => {
         if (!controller.signal.aborted) {
           setError(
             e instanceof ApiError ? e.message : "엔터티를 불러오지 못했습니다.",
@@ -31,10 +36,12 @@ export function EntityDetailPage() {
       });
     return () => controller.abort();
   }, [id, retry]);
+  useEffect(() => { setEntity(null); setSaved(null); setCreating(null); setEditing(false); setDeleting(false); }, [id]);
   const back = `/entities?${params}${id ? `#entity-${id}` : ""}`;
   return (
     <section className="panel">
       <Link className="action-link" to={back}>← 엔터티 목록</Link>
+      {saved && <Notice>{saved}</Notice>}
       {error && (
         <>
           <Notice kind="error">{error}</Notice>
@@ -62,7 +69,9 @@ export function EntityDetailPage() {
               </button>
             </div>
           </div>
-          <dl>
+          <dl className="entity-properties">
+            <dt className="label">속성 1</dt>
+            <dd className="value">{entity.prop1}</dd>
             <dt className="label">속성 2</dt>
             <dd className="value">{entity.prop2 ?? "미지정"}</dd>
             <dt className="label">속성 3</dt>
@@ -71,19 +80,22 @@ export function EntityDetailPage() {
             <dd className="value">{entity.prop4}</dd>
           </dl>
           <p className="meta">
-            수정 {formatDateTime(entity.updated_at)} · 버전 {entity.version}
+            수정 {formatDateTime(entity.updated_at)}
           </p>
           {([["tasks", "할 일"], ["records", "기록"], [
             "principles",
             "원칙",
           ]] as const).map(([kind, label]) => (
-            <section key={kind}>
+            <section className="entity-related" key={kind}>
               <h2 className="section-title">
                 연결된 {label} ({entity[kind].count}개)
               </h2>
               <Link to={`/${kind}${query({ entity_id: id })}`}>
                 전체 {label} 보기
               </Link>
+              {kind !== "principles" && <button className="btn" onClick={() => {
+                request.renew(); setCreating(kind === "tasks" ? "task" : "record");
+              }}>{kind === "tasks" ? "관련 할 일 추가" : "기록 작성"}</button>}
               {entity[kind].count === 0
                 ? <p className="secondary">연결된 {label}이 없습니다.</p>
                 : (
@@ -99,6 +111,16 @@ export function EntityDetailPage() {
                 )}
             </section>
           ))}
+          {creating === "task" && <TaskFormModal open mode="create" initial={{ ...emptyTask(), entity_id: entity.id }}
+            onClose={() => setCreating(null)} onSave={async draft => {
+              await api("POST", "/tasks", { ...taskInput(draft), request_id: request.current });
+              setCreating(null); setSaved("할 일을 추가했습니다."); setRetry(n => n + 1);
+            }} />}
+          {creating === "record" && <RecordFormModal open title="기록 작성" submitLabel="저장" initial={{ ...emptyRecord(), entity_id: entity.id }}
+            onClose={() => setCreating(null)} onSave={async value => {
+              await api("POST", "/records", { ...value, request_id: request.current });
+              setCreating(null); setSaved("기록을 저장했습니다."); setRetry(n => n + 1);
+            }} />}
           {editing && (
             <EntityForm
               initial={entity}
