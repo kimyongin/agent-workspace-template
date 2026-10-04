@@ -77,3 +77,9 @@ fixture는 이 checkout의 Vite `55584`와 존재하지 않는 로컬 주소 `55
 - 통합 코드 검사: `npm run test:web` 14 PASS, `npm run build`, `npm run check:docs`(48 PASS / Windows symlink 1 SKIP), `npm run check:boundaries` PASS. 전용 UI fixture 전체 20 PASS에서 dirty 태그의 로그아웃 취소 후 원래 메뉴 링크 초점 복귀를 추가 확인했다.
 - 추가 `npx playwright test --config e2e/entity-tags-fixtures.config.ts --grep '실제 App 태그 폐기'` desktop/mobile 2 PASS. 실제 App/LogoutPage가 폐기 확인 전에는 로그아웃 요청을 보내지 않고 승인 뒤 정확히 한 번 요청·로컬 fixture 세션 제거·`/login` 종료하는 것을 대조했다. Auth 응답을 route로 대체한 결과이며 실제 Supabase 인증 성공의 증거는 아니다.
 - 모델/강도 변경 없이 같은 개발일 preflight를 재사용했다. 공유 root/서비스/DB·전체 실제 E2E는 activity 담당 `83a3e80`에 유지했다. 승인된 navigation/activity 최신 main 재통합 뒤 실제 전체 E2E·독립 재리뷰·정확한 head CI가 남아 있다.
+
+### 2026-10-04 활동 리뷰 수정 최종 통합
+
+`git rebase --onto c5f24c181d62b6bd0306f69e1c1e9b4dde4c7806 83a3e80bf9c03a38fb57ca121e465f25fca062ff codex/fin-ux-entity-tags`는 충돌 없이 성공했다. 검사한 통합 구현 head `18ef9011816852f15b2fd94f22aef5ba770c2055`는 최신 main `69b2`와 activity 리뷰 수정(태그 재시도 anchor, 상세 query 편집 상태 동기화)을 포함한다. upstream 대비 15개 feature/검증/문서 파일이며 Modal·ContentForm·EntitiesPage·activity·App diff가 0임을 `git diff --exit-code`로 확인했다.
+
+이 head에서 `npm run build`, `npm run test:web`(14 PASS), `npm run check:docs`(48 PASS / Windows symlink 1 SKIP), `git diff --check` PASS. `npx playwright test --config e2e/entity-tags-fixtures.config.ts` desktop/mobile 각 11, 총 22 PASS로 전체 격리 fixture를 재실행했다. 모델/강도와 환경은 유지했으며 공유 root/DB/서비스는 activity 담당 `c5f24c1`에 유지했다. 실제 전체 E2E 인계·최신 main squash 반영 후 재통합·독립 재리뷰·정확한 head CI가 남아 있다.
