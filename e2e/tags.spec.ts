@@ -26,6 +26,33 @@ test("더 보기 응답이 늦어도 새 태그 필터 목록에 섞이지 않�
   }finally{release();await mcp.close();}
 });
 
+
+test("태그 실제 DELETE pending은 Back을 막고 응답 뒤 정상 복귀한다",async({page})=>{
+  await devLogin(page);const mcp=await mcpClient(await mcpTokenViaConsent(page));let release=()=>{};
+  try{
+    const tag=await mcp.call("create_tag",{scope:"activity",name:unique("지연 삭제").slice(0,30)});
+    await page.goto("/entities");
+    await page.getByRole("button",{name:"메뉴",exact:true}).click();
+    await page.getByRole("link",{name:"설정",exact:true}).click();
+    await page.getByRole("link",{name:"활동 태그 관리",exact:true}).click();
+    let arrived!:()=>void,finished!:()=>void,deletes=0;
+    const waiting=new Promise<void>(resolve=>{arrived=resolve;}),done=new Promise<void>(resolve=>{finished=resolve;}),hold=new Promise<void>(resolve=>{release=resolve;});
+    await page.route(`**/api/tags/${tag.id}?**`,async route=>{
+      if(route.request().method()!=="DELETE") return route.continue();
+      deletes++;arrived();await hold;const response=await route.fetch();await route.fulfill({response});finished();
+    });
+    await page.getByRole("button",{name:`${tag.name} 삭제`,exact:true}).click();
+    const confirm=page.getByRole("dialog",{name:"태그를 삭제할까요?"});
+    await confirm.getByRole("button",{name:"삭제",exact:true}).click();await waiting;
+    await page.goBack();await expect(page).toHaveURL(/tags\/activity$/);await expect(confirm).toBeVisible();
+    await expect(confirm.getByRole("button",{name:"처리 중…"})).toBeDisabled();
+    await page.keyboard.press("Escape");await expect(confirm).toBeVisible();
+    release();await done;await expect(confirm).toHaveCount(0);
+    await expect(page.getByRole("button",{name:`${tag.name} 삭제`,exact:true})).toHaveCount(0);
+    expect(deletes).toBe(1);expect((await mcp.call("list_tags",{scope:"activity",limit:100})).items.some((value:{id:string})=>value.id===tag.id)).toBe(false);
+    await page.goBack();await expect(page).toHaveURL(/settings$/);
+  }finally{release();await mcp.close();}
+});
 test("엔터티·활동 태그 같은 이름·웹 선택 정정·삭제 뒤 원문 보존",async({page})=>{
   await devLogin(page);const mcp=await mcpClient(await mcpTokenViaConsent(page));
   try{

@@ -1,7 +1,7 @@
 # Template-19-02 — 탭 내부 검색·반응형 상세·메모와 변경 기록 화면
 
 작성: 2026-10-04
-상태: 화면 구현·배정된 immutable 통합·격리 mock/실제 desktop·mobile 검증 완료, 부모 독립 리뷰·CI·PR·머지 대기
+상태: 통합·초기 최종 검증 완료 후 부모 독립 UI 리뷰의 추가2결함 재현·수정, 수정 head 전체 재검증 진행
 기준: main399b82b와 승인한 [Template-19](template-19-three-tab-release-ux.md)/[Template-20](template-20-current-principle-change-records.md)
 
 ## 목표와 소유
@@ -118,3 +118,13 @@ Deno check/lint100/fmt104는 backend963 통합 시 직접 PASS했고 이후 fina
 pass metadata는 `test-results/screens-failures/real-desktop-final-a3a69d5`와 `real-mobile-final-a3a69d5`에 보존했고 각 모의 suite의 `.last-run.json`도 PASS다. 최신320px 태그/360px 기록 편집/1440px shell screenshot을 직접 확인했다. 앞선 실패 자료·정확한 selector/async 완료 보정·snapshot 결함 수정 기록을 유지하며 assertion/timeout 완화는 없다.
 
 이번 마지막 커밋은 이 티켓의 상태/증거만 바꾼다. 최종 commit 전체 SHA와 source head 사이의 문서 전용 diff, lease 반환, branch/clean tracked 상태는 `TEMP/template20-screens-status.md` 및 `template20-screens-final.md`가 소유한다. 화면 구현/API route 질문은 남아 있지 않다. 부모는 계약 호환 backend+화면 통합 PR의 독립 최종 리뷰·필수 CI·최신 main 확인·머지를 수행한다. 이 세션은 push/PR/merge/배포하지 않는다. 실제 휴대전화 keyboard/safe-area/screenreader/native200% zoom·유료 의미 검색·기존 non-owned 전체E2ETS5 오류 한계는 앞 기록대로 남는다.
+
+
+### 독립 UI 리뷰 추가 결함과 수정
+
+부모가 immutable954의 독립 UI 리뷰를 인계했다. 외부 정본은 `C:/Users/yongin/AppData/Local/Temp/template20-ui-review-final.md` 및 `template20-ui-review-9545433/review-extra.fixture.ts`다. P1 snapshot 삭제는 b13의 변경되지 않은 RecordDetail과 실제/모의 회귀로 이미 해결했다. P2 두 건은 a3/ddfa source에서 새3개 fixture(task control1 PASS, record cancel1 FAIL, tag pendingBack1 FAIL/17s)로 다시 재현했다. 실패 자료는 `screens-review-run12`에 보존했다.
+
+엔터티 관련 기록 작성의 일반 onClose를 closeCreate로 바꿔 query를 제거하고 경로 폐기 콜백은 순수 local close로 분리했다. 태그 단독 삭제는 shell이 없으므로 pending ref 기반 BusyNavigationGuard 하나로 POP/경로 이동/beforeunload를 막고, 일반 shell의 기존 blocker는 중복 등록하지 않는다. 새3 회귀가3 PASS(6.2s)다. pristine/dirty 폐기 확인 취소·승인·조건 보존·초점·reload·pending Escape·요청 완료 뒤 정상Back과 단일 DELETE를 검증하며 assertion/timeout 변경은 없다. 부모가 같은 private56421/56422 lease를 명시 재배정했다. 앞 최종68 실제 PASS는 보존된 a3 baseline 증거이고 수정 head의 full run을 이어서 기록한다.
+
+
+독립 원본의3개 재현을 assertions 변경 없이 복사해 import 경로와 별도 unused55586/55587만 현재 checkout으로 맞췄다. desktop/mobile6 PASS(8.4s); P1의 PATCH IDs 입력은 undefined이며 보존 본문을 검사했다. 새로운 실제 HTTP/MCP 회귀는4 desktop/mobile PASS(8.9s/8.9s)다. 취소가 manual record·변경 이벤트·entity version을 바꾸지 않으며 tag DELETE를 지연한 상태의 Back·Escape·중복 요청1개·응답 완료 뒤 Settings 복귀를 검증했다. 첫 실제 fixture는 page.goto로 document history를 만들었고 SPA blocker 검사가 목적 경로를 떠났다. 실제 메뉴→Settings→활동 태그 링크를 통해 앱 history를 구성해 같은 route/assertions를 검증했다. 원본 failure는 `real-review-run04`에 남겼고 timeout은 변경하지 않았다. 현재 서버 source963/환경은 그대로이며 자체 Edge14355를 다시 시작했다.

@@ -43,6 +43,40 @@ test("엔터티 create/edit 복합 직접 링크는 연결 작성 한 폼만 연
   await fillText(page,"연결 작성 한 번");await form(page).getByRole("button",{name:"추가",exact:true}).click();await expect.poll(()=>state.writes.length).toBe(1);expect(state.writes[0].body.entity_id).toBe(id(1));expect(state.errors).toEqual([]);
 });
 
+for(const [kind,label] of [["task","관련 할 일 추가"],["record","기록 작성"]] as const) test(`엔터티 연결 ${kind}: 취소·폐기 승인은 작성 URL을 닫고 reload는 읽기`,async({page})=>{
+  const state=await fixtures(page);await go(page,`/entities/${id(1)}?list=%2Fentities%3Fq%3D%EC%97%94%ED%84%B0%ED%8B%B0`);
+  for(const dirty of [false,true]){
+    await form(page).getByRole("button",{name:label,exact:true}).click();await expect(page).toHaveURL(new RegExp(`create=${kind}`));
+    if(dirty) await fillText(page,"폐기할 연결 작성");
+    await form(page).getByRole("button",{name:"취소",exact:true}).click();
+    if(dirty){
+      const confirm=page.getByRole("dialog",{name:"변경을 버릴까요?"});await confirm.getByRole("button",{name:"취소",exact:true}).click();
+      await expect(form(page).getByLabel("제목",{exact:false})).toHaveValue("폐기할 연결 작성");
+      await form(page).getByRole("button",{name:"취소",exact:true}).click();await confirm.getByRole("button",{name:"변경 버리기"}).click();
+    }
+    await expect(page).not.toHaveURL(/create=/);await expect(page).toHaveURL(/list=/);
+    await expect(form(page).getByRole("button",{name:label,exact:true})).toBeFocused();
+  }
+  await page.reload();await expect(form(page).getByRole("button",{name:label,exact:true})).toBeVisible();
+  await expect(form(page).getByLabel("제목",{exact:false})).toHaveCount(0);expect(state.writes).toHaveLength(0);expect(state.errors).toEqual([]);
+});
+
+test("태그 DELETE pending: Back·경로 이동·reload 보호와 응답 뒤 복귀",async({page})=>{
+  const state=await fixtures(page,{hold:true});await go(page,"/entities");
+  await page.getByRole("link",{name:"활동 태그 fixture",exact:true}).click();
+  await page.getByRole("button",{name:"같은 이름 삭제",exact:true}).click();
+  const confirm=page.getByRole("dialog",{name:"태그를 삭제할까요?"});await confirm.getByRole("button",{name:"삭제",exact:true}).click();await state.pending;
+  await expect(confirm.getByRole("button",{name:"처리 중…"})).toBeDisabled();await expect(confirm.getByRole("button",{name:"취소",exact:true})).toBeDisabled();
+  await page.goBack();await expect(page).toHaveURL(/tags\/activity$/);await expect(confirm).toBeVisible();
+  await page.getByRole("link",{name:"엔터티 fixture",exact:true}).evaluate(el=>el.dispatchEvent(new MouseEvent("click",{bubbles:true,cancelable:true})));
+  await expect(page).toHaveURL(/tags\/activity$/);await expect(page.getByRole("dialog",{name:"변경을 버릴까요?"})).toHaveCount(0);
+  expect(await page.evaluate(()=>{const event=new Event("beforeunload",{cancelable:true});window.dispatchEvent(event);return event.defaultPrevented;})).toBe(true);
+  await page.keyboard.press("Escape");await expect(confirm).toBeVisible();state.release();
+  await expect(confirm).toHaveCount(0);await expect(page.getByRole("button",{name:"같은 이름 삭제",exact:true})).toHaveCount(0);
+  await expect(page.getByRole("heading",{name:"활동 태그 관리",exact:true})).toBeFocused();
+  await page.goBack();await expect(page).toHaveURL(/entities$/);expect(state.writes).toHaveLength(1);expect(state.errors).toEqual([]);
+});
+
 test("태그 scoped 상세/편집·legacy ID 직접 링크 호환",async({page})=>{
   const state=await fixtures(page);await go(page,`/tags/entity/${id(10)}`);await expect(page).toHaveURL(/tags\/entity\?view=/);await expect(form(page)).toContainText("엔터티에 사용하는 태그");
   await go(page,`/tags/entity/${id(10)}?edit=1`);await expect(form(page).getByRole("textbox",{name:/태그 이름/})).toHaveValue("같은 이름");

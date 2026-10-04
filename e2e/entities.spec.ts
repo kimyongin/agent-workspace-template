@@ -91,6 +91,29 @@ test("Entity 웹 CRUD·초안 보호→MCP parity·활동 연결→삭제 원문
   }
 });
 
+
+test("엔터티 관련 기록 취소: 작성 URL·reload·메모와 변경 이벤트 무쓰기",async({page})=>{
+  await devLogin(page);const mcp=await mcpClient(await mcpTokenViaConsent(page));
+  try{
+    const entity=await mcp.call("create_entity",{prop1:unique("연결 취소"),prop2:0,prop4:"a"});
+    const before=await mcp.call("list_records",{entity_id:entity.id,record_kind:"change",limit:100});
+    await page.goto(`/entities/${entity.id}?list=%2Fentities`);
+    for(const dirty of [false,true]){
+      await page.getByRole("button",{name:"기록 작성",exact:true}).click();
+      const editor=page.getByRole("dialog",{name:"기록 작성",exact:true});await expect(page).toHaveURL(/create=record/);
+      if(dirty){await editor.getByLabel("제목").fill("저장하지 않을 기록");await editor.getByLabel("요약").fill("취소할 설명");}
+      await editor.getByRole("button",{name:"취소",exact:true}).click();
+      if(dirty) await page.getByRole("dialog",{name:"변경을 버릴까요?"}).getByRole("button",{name:"변경 버리기"}).click();
+      await expect(page).not.toHaveURL(/create=/);await expect(page).toHaveURL(/list=/);
+      await expect(page.getByRole("button",{name:"기록 작성",exact:true})).toBeFocused();
+    }
+    await page.reload();await expect(page.getByRole("heading",{name:entity.prop1,level:1})).toBeVisible();
+    await expect(page.getByRole("dialog",{name:"기록 작성",exact:true})).toHaveCount(0);
+    expect((await mcp.call("get_entity",{id:entity.id})).version).toBe(1);
+    expect((await mcp.call("list_records",{entity_id:entity.id,record_kind:"user"})).items).toEqual([]);
+    expect((await mcp.call("list_records",{entity_id:entity.id,record_kind:"change",limit:100})).items).toEqual(before.items);
+  }finally{await mcp.close();}
+});
 test("Entity 목록: 키워드/선택/정렬·추가 페이지·상세 복귀/새로고침 초점·viewport", async ({ page }) => {
   await devLogin(page);
   const mcp = await mcpClient(await mcpTokenViaConsent(page)),

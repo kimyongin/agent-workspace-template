@@ -5,7 +5,7 @@ import { Navigate, useLocation, useParams, useSearchParams } from "react-router"
 import { Field, Notice } from "../../components/Field.tsx";
 import { DeleteDialog } from "../../components/DeleteDialog.tsx";
 import { query } from "../../lib/api.ts";
-import { ConfirmDialog, ModalShell } from "../../components/Modal.tsx";
+import { BusyNavigationGuard, ConfirmDialog, ModalShell } from "../../components/Modal.tsx";
 import { api, ApiError, isUncertain } from "../../lib/api.ts";
 import { useRequestId } from "../../lib/useRequestId.ts";
 import "./tags.css";
@@ -129,7 +129,7 @@ function ScopedTagsPage({scope}:{scope:"entity"|"activity"}) {
     <ConfirmDialog open={!!pending} busy={busy} title="변경을 버릴까요?" message="저장하지 않은 내용이 사라집니다." confirmLabel="변경 버리기"
       onCancel={() => setPending(null)}
       onConfirm={() => {const action=pending;setPending(null);action?.();}} />
-    {deleting && <DeleteDialog title="태그를 삭제할까요?" busy={busy} message={`${deleting.name} 태그와 연결을 제거합니다. 항목의 원문은 보존합니다.`} onCancel={() => setDeleting(null)} onConfirm={async reason => {
+    {deleting && <><BusyNavigationGuard pending={saving}/><DeleteDialog title="태그를 삭제할까요?" busy={busy} message={`${deleting.name} 태그와 연결을 제거합니다. 항목의 원문은 보존합니다.`} onCancel={() => setDeleting(null)} onConfirm={async reason => {
       if (saving.current) return; saving.current = true; setBusy(true); setFailure(null);
       try { await api("DELETE", `/tags/${deleting.id}${query({expected_version:deleting.version,change_note:reason,request_id:request.current})}`);
         invalidateReads();
@@ -137,7 +137,7 @@ function ScopedTagsPage({scope}:{scope:"entity"|"activity"}) {
         setPage(p => p && ({ ...p, items: p.items.filter(t => t.id !== deleting.id) })); setNotice("태그를 삭제했습니다.");
       } catch (e) { focusId.current = deleting.id; setNotice(null); setFailure(isUncertain(e) ? "삭제 응답을 받지 못했습니다. 최신 목록에서 삭제 여부를 확인하세요." : e instanceof ApiError ? e.message : "삭제하지 못했습니다."); }
       finally { setDeleting(null); setRetry(n => n + 1); setBusy(false); saving.current = false; }
-    }} />}
+    }} /></>}
     {!draft && failure && <Notice kind="error">{failure}</Notice>}
   </section>;
 }

@@ -127,7 +127,7 @@ export function EntityDetailPage() {
               closeCreate(); setSaved("할 일을 추가했습니다."); setRetry(n => n + 1);
             }} />}
           {creating === "record" && <RecordFormModal key={location.key} open title="기록 작성" submitLabel="저장" initial={{ ...emptyRecord(), entity_id: entity.id }}
-            onClose={() => setCreating(null)} onSave={async value => {
+            onClose={closeCreate} onRouteDiscard={()=>setCreating(null)} onSave={async value => {
               await api("POST", "/records", { ...value, request_id: request.current });
               closeCreate(); setSaved("기록을 저장했습니다."); setRetry(n => n + 1);
             }} />}

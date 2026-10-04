@@ -144,6 +144,23 @@ function ActiveModalShell({ title, headingLevel=2, open, onClose, onRouteDiscard
   );
 }
 
+/** Standalone pending mutation guard; general surfaces already own their router guard. */
+export function BusyNavigationGuard({pending}: {pending: RefObject<boolean>}) {
+  const shouldBlock = useCallback(() => pending.current, [pending]);
+  const blocker = useBlocker(shouldBlock);
+  useEffect(() => {
+    if(blocker.state === "blocked") blocker.reset();
+  }, [blocker]);
+  useEffect(() => {
+    const unload = (event: BeforeUnloadEvent) => {
+      if(pending.current) { event.preventDefault(); event.returnValue = ""; }
+    };
+    window.addEventListener("beforeunload", unload);
+    return () => window.removeEventListener("beforeunload", unload);
+  }, [pending]);
+  return null;
+}
+
 interface ConfirmProps {
   open: boolean;
   title: string;
