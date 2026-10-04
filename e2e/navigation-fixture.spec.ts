@@ -75,3 +75,34 @@ test("더보기 키보드·바깥 클릭·경로 이동과 복사 실패를 안�
   await page.getByRole("button", { name: "연결 주소 복사" }).click();
   await expect(page.getByRole("status")).toHaveText("연결 주소를 복사했습니다.");
 });
+
+test("로그아웃 뒤 재로그인은 할 일로 돌아오며 로그아웃을 반복하지 않는다", async ({ page }) => {
+  let logoutCalls = 0;
+  await page.route("**/auth/v1/logout*", async route => {
+    logoutCalls++;
+    await route.fulfill({ status: 204 });
+  });
+  await page.route("**/auth/v1/user", route => route.fulfill({ json: {
+    id: "00000000-0000-0000-0000-000000000001", aud: "authenticated",
+  } }));
+  await page.goto("/tasks");
+  await page.getByRole("button", { name: "더보기", exact: true }).click();
+  await page.getByRole("link", { name: "로그아웃", exact: true }).click();
+  await expect(page).toHaveURL(/\/login$/);
+  await expect(page.getByRole("heading", { name: "로그인", exact: true })).toBeVisible();
+  expect(logoutCalls).toBe(1);
+  expect(await page.evaluate(() => localStorage.getItem("sb-127-auth-token"))).toBeNull();
+  // 같은 페이지의 SDK로 세션을 복구해 Google/이메일 로그인 후 SIGNED_IN 경로를 재현한다.
+  await page.evaluate(async () => {
+    const modulePath = "/src/lib/supabase.ts";
+    const { supabase } = await import(modulePath);
+    const encode = (value: object) => btoa(JSON.stringify(value)).replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");
+    const jwt = `${encode({ alg: "HS256", typ: "JWT" })}.${encode({ exp: Math.floor(Date.now() / 1000) + 3600, sub: "00000000-0000-0000-0000-000000000001" })}.fixture`;
+    const { error } = await supabase.auth.setSession({ access_token: jwt, refresh_token: "ui-fixture" });
+    if (error) throw error;
+  });
+  await expect(page).toHaveURL(/\/tasks$/);
+  await expect(page.getByRole("heading", { name: "할 일", exact: true })).toBeVisible();
+  expect(logoutCalls).toBe(1);
+  expect(await page.evaluate(() => localStorage.getItem("sb-127-auth-token"))).not.toBeNull();
+});

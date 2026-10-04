@@ -43,7 +43,8 @@ export function App() {
           <Route element={<Layout />}>
             <Route index element={<Navigate to="/tasks" replace />} />
             <Route path="login" element={<LoginPage />} />
-            <Route path="logout" element={guarded(<LogoutPage />)} />
+            {/* 세션 해제 뒤 next=/logout으로 재로그인하는 루프를 만들지 않는다. */}
+            <Route path="logout" element={<LogoutPage />} />
             <Route path="oauth/consent" element={guarded(<ConsentPage />)} />
             <Route path="tasks" element={guarded(<TasksPage />)} />
             <Route path="tasks/:id" element={guarded(<TaskDetailPage />)} />
