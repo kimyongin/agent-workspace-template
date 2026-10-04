@@ -39,3 +39,5 @@
 직접 검사: `npm run check:docs` 텍스트335개·모델/native 정합성 PASS, 회귀49개 중48 PASS/0 FAIL/기존 Windows file-symlink권한1 SKIP. `git diff --check` PASS. 기존/수정 overview의 모든 script/style 블록과 id 목록 동일, ul 열기/닫기 개수 동일을 Node로 대조했다. 내용 검색에서 overview의 반복 PR/SHA·HTTP200/31tools/queue·현재 미확인/제외 목록이 제거된 것을 확인했다. 실제 diff 내용으로 현재 분류기를 실행해 overview는 full, 나머지 정본 Markdown은 docs, 전체는 full로 확인했다. HTML markup 변경이 원인이며 CI 코드·분류 정책은 유지했다. 실제 시각 렌더링 검증·원격 CI는 이 로컬 문서 검사로 대체하지 않으며 메인에게 후속으로 인계한다.
 
 문서/markup 정리 때문에 현재 CI가 보수적으로 full을 선택할 수 있다. 분류기를 바꾸거나 태그를 유지하는 편법으로 경량 판정을 만들지 않는다. 실제 화면 기능·script/style 변경은 없으며 운영/공유 서비스·추가 모델 호출을 수행하지 않는다. 상세 증거·현재 상태는 기존 정본을 그대로 보존한다.
+
+독립 리뷰에서 작업 티켓 안내 링크가 실제 근거 대신 작성 규칙으로 이동하는 비차단 문제를 확인했다. 메인은 링크 정리 범위에서 START-HERE와 그곳에 연결된 기능 티켓으로 안내하도록 수정했다. 리뷰어는 기존 head에서 Chromium의 넓은/좁은 화면·어두운/밝은 테마 렌더링도 직접 확인했다. 최종 head의 재리뷰·CI·머지는 제출 후 외부 완료 기록에 남긴다.
