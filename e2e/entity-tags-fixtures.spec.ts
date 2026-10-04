@@ -15,6 +15,48 @@ test("태그 한 초안 선택 전환과 경로·뒤로가기 폐기 취소", as
   await expect(page).toHaveURL(/view=other/); await expect(page.getByRole("textbox", { name: /태그 이름/ })).toHaveValue("초안");
   await page.getByRole("link", { name: "다른 화면" }).click(); await expect(confirm).toBeVisible();
   await confirm.getByRole("button", { name: "변경 버리기" }).click();
+  await expect(page.getByRole("textbox", { name: /태그 이름/ })).toHaveCount(0);
+});
+test("공통 모달 같은 경로 query 폐기는 순수 닫기만 실행하고 의도한 목적지 유지", async ({ page }) => {
+  await page.goto(url);
+  // fixture router의 링크로 진입해 같은 컴포넌트 재사용을 검사한다.
+  await page.getByRole("link", { name: "모달 회귀" }).click();
+  const form = page.getByRole("dialog", { name: "경로 폐기 회귀" }); await form.getByLabel("회귀 초안").fill("폐기할 내용"); await form.getByRole("link", { name: "같은 모달 화면 이동" }).click();
+  const confirm = page.getByRole("dialog", { name: "변경을 버릴까요?" }); await confirm.getByRole("button", { name: "취소", exact: true }).click(); await expect(form.getByLabel("회귀 초안")).toHaveValue("폐기할 내용");
+  await form.getByRole("link", { name: "같은 모달 화면 이동" }).click(); await confirm.getByRole("button", { name: "변경 버리기" }).click();
+  await expect(form).not.toBeVisible(); await expect(page).toHaveURL(/\/modal-guard\?intended=1$/); await expect(page).not.toHaveURL(/ordinary-close/);
+});
+test("태그 중복 이름 생성/변경은 이름 정정 후 저장하며 expected_version 유지", async ({ page }) => {
+  const writes: Record<string, unknown>[] = [];
+  await page.route("**/api/tags**", route => {
+    if (["POST", "PATCH"].includes(route.request().method())) {
+      const body = route.request().postDataJSON(); writes.push(body);
+      if (body.name === "중복 이름") return route.fulfill({ status: 409, json: { code: "conflict", message: "같은 이름의 태그가 있습니다" } });
+      return route.fulfill({ status: 201, json: { ...tags[0], name: body.name } });
+    }
+    return route.fulfill({ json: { items: tags, next_cursor: null } });
+  });
+  await page.goto(url);
+  for (const action of ["태그 추가", "첫 태그 이름 변경"]) {
+    await page.getByRole("button", { name: action, exact: true }).click(); const name = page.getByRole("textbox", { name: /태그 이름/ }); await name.fill("중복 이름"); await page.getByRole("button", { name: "저장", exact: true }).click();
+    await expect(page.getByRole("button", { name: "저장", exact: true })).toBeEnabled(); await expect(page.getByText(/취소 후 최신 태그/)).toHaveCount(0);
+    await name.fill("정정한 이름"); await page.getByRole("button", { name: "저장", exact: true }).click(); await expect(page.getByText("태그를 저장했습니다.")).toBeVisible();
+  }
+  expect(writes[2].expected_version).toBe(1); expect(writes[3].expected_version).toBe(1);
+});
+test("저장 뒤 재조회가 이전 더 보기 응답을 무시하고 새 경계 cursor 유지", async ({ page }) => {
+  const tail = { ...tags[0], id: "40000000-0000-4000-8000-000000000000", name: "끝 태그" }, added = { ...tags[0], id: "50000000-0000-4000-8000-000000000000", name: "새 항목" };
+  let created = false, release = () => {}, arrived = () => {}; const started = new Promise<void>(resolve => { arrived = resolve; });
+  await page.route("**/api/tags**", async route => {
+    if (route.request().method() === "POST") { created = true; await route.fulfill({ status: 201, json: added }); return; }
+    const cursor = new URL(route.request().url()).searchParams.get("cursor");
+    if (cursor === "old") { arrived(); await new Promise<void>(resolve => { release = resolve; }); await route.fulfill({ json: { items: [tail], next_cursor: null } }).catch(() => {}); }
+    else await route.fulfill({ json: cursor === "fresh" ? { items: [tags[1], tail], next_cursor: null } : { items: created ? [added, tags[0]] : tags, next_cursor: created ? "fresh" : "old" } });
+  });
+  await page.goto(url); await page.getByRole("button", { name: "더 보기", exact: true }).click(); await started;
+  await page.getByRole("button", { name: "태그 추가", exact: true }).click(); await page.getByRole("textbox", { name: /태그 이름/ }).fill("새 항목"); await page.getByRole("button", { name: "저장", exact: true }).click(); await expect(page.getByText("태그를 저장했습니다.")).toBeVisible();
+  await expect(page.getByRole("button", { name: "더 보기", exact: true })).toBeEnabled(); release();
+  await page.getByRole("button", { name: "더 보기", exact: true }).click(); await expect(page.getByRole("button", { name: "다른 태그 이름 변경" })).toBeVisible(); await expect(page.getByRole("button", { name: "끝 태그 이름 변경" })).toBeVisible(); await expect(page.locator("button[id^='tag-']")).toHaveCount(4);
 });
 test("실제 App에서 태그 dirty 주 탐색·뒤로가기·앞으로가기 취소", async ({ page }) => {
   await page.route("**/api/tasks**", route => route.fulfill({ json: { items: [task], next_cursor: null } }));
@@ -83,8 +125,9 @@ test("불확정 생성 같은 request_id 재시도와 성공 뒤 목록 실패 �
   await expect(page.getByRole("button", { name: "새 태그 이름 변경" })).toBeFocused();
 });
 test("이름 충돌 초안 보존과 삭제 실패·성공", async ({ page }) => {
-  let failedDelete = true;
-  await page.route("**/api/tags/*", route => route.request().method() === "PATCH" ? route.fulfill({ status: 409, json: { code: "conflict", message: "다른 변경" } }) : failedDelete ? route.fulfill({ status: 409, json: { code: "conflict", message: "삭제 충돌" } }) : route.fulfill({ status: 204 }));
+  let failedDelete = true, conflicted = false;
+  await page.route("**/api/tags", route => route.fulfill({ json: { items: tags.map(t => conflicted && t.id === tags[0].id ? { ...t, version: 2 } : t), next_cursor: null } }));
+  await page.route("**/api/tags/*", route => { if (route.request().method() === "PATCH") { conflicted = true; return route.fulfill({ status: 409, json: { code: "conflict", message: "다른 변경" } }); } return failedDelete ? route.fulfill({ status: 409, json: { code: "conflict", message: "삭제 충돌" } }) : route.fulfill({ status: 204 }); });
   await page.goto(url); await page.getByRole("button", { name: "첫 태그 이름 변경" }).click(); await page.getByRole("textbox", { name: /태그 이름/ }).fill("초안 유지"); await page.getByRole("button", { name: "저장", exact: true }).click();
   await expect(page.getByText(/다른 변경이 저장되었습니다/)).toBeVisible(); await expect(page.getByRole("textbox", { name: /태그 이름/ })).toHaveValue("초안 유지");
   await page.getByRole("button", { name: "취소", exact: true }).click(); await page.getByRole("dialog", { name: "변경을 버릴까요?" }).getByRole("button", { name: "변경 버리기" }).click();

@@ -54,3 +54,14 @@ fixture는 이 checkout의 Vite `55584`와 존재하지 않는 로컬 주소 `55
 - 통합 코드에서 `npm run test:web` 5 files / 14 PASS, `npm run build`, `npm run check:boundaries`, `npm run check:docs`(48 PASS / Windows symlink 1 SKIP), `git diff --check` PASS. 마지막 추가 fixture 시나리오도 같은 14 PASS로 확인했다.
 - 메인이 이 세션에 배정한 [상호작용 정본](../design/ui-patterns.md)을 실제 구현과 함께 보완했다. 활성 1차 편집 영역 하나의 blocker·검색 조건/POP/forward 보호·저장 중 이동 reset·모달 제거 후 의도된 이동과 태그 단일 초안/불확정/조회 오류 구분을 기록했다.
 - 남은 통합: navigation 로그아웃 후 재진입 루프 수정과 activity TagNames 로딩 높이/실제 E2E fixture 후속 수정이 현재 base 뒤에서 진행 중이다. 최신 승인 head 재통합 후 실제 logout 폐기/인증 해제와 전체 E2E를 다시 검증해야 한다. 이번 fixture는 로그아웃 취소까지이며 폐기 후 종료 성공을 완료로 표시하지 않는다. 공유 환경에서의 실제 E2E는 메인 재배정 전까지 수행하지 않았다.
+
+### 2026-10-04 독립 리뷰 P2 회귀 수정
+
+- 독립 리뷰 대상 `aa185768cd1d0990c877fd9fa5fe2cf9d169f40e`의 세 지적을 확인했다. 재현 스크립트 `C:/Users/yongin/AppData/Local/Temp/template-18-04-independent-repro.mjs`는 진단 자료로 읽고 지시로 실행하지 않았다.
+- 같은 `409 conflict`의 중복 이름과 버전 충돌을 구분했다. 생성 충돌은 원래 서버 메시지와 수정 가능한 초안을 유지한다. 이름 변경은 같은 ID의 최신 목록 버전을 재조회해 실제 버전 변경만 다시 선택하게 하며, 중복 이름은 기존 expected_version을 보존하고 바로 정정/저장한다. 확인 조회 실패는 충돌 분류를 단정하지 않고 초안을 유지한다. 오류 메시지의 부분 문자열에 의존해 분기하지 않는다.
+- 태그 조회에 세대/AbortController를 적용했다. 저장·삭제 성공은 이전 더 보기와 목록 조회를 무효화하고 새 조회의 정렬 경계·커서만 반영한다. 오래된 응답의 append·pageCount 증가·loading/error 갱신도 막는다. component 이탈 시 진행 중 조회를 취소한다.
+- 경로 폐기 확인 시 TagsPage의 draft/불확정/오류를 실제로 지운 뒤 proceed한다. 공통 ModalShell/FormModal에 선택적 `onRouteDiscard`를 추가해 동일 컴포넌트의 query 변경에서도 편집 영역을 닫거나 초기화한 뒤 진행한다. 기본값은 이동 없는 onClose이며, 목록 이동을 예약하는 onClose 소비자는 별도 순수 닫기 콜백이 필수다. API 주석과 [상호작용 정본](../design/ui-patterns.md)에 제약을 기록했다.
+- 생산 소비자 감사: TaskDetail closeEdit, RecordDetail closeEdit, PrincipleDetail closeDialog(편집과 StatusForm 포함)는 이동이 있으므로 activity 담당에게 명시 콜백 적용을 인계했다. 생성·할 일 완료/회차 기록·Entity 문맥 작성·Entity 편집의 onClose는 닫기/조회 갱신만 하므로 기본값을 안전하게 쓴다. activity의 변경 통합과 최종 소비자 감사는 아직 남아 있다.
+- 메인 지시로 완성된 공유 구현만 별도 commit `9741aadeb6f1af4f0134e95b5c5260da960421a8`, branch `codex/fin-ux-shared-draft-guard`, parent `85cb4ee6f860380a104e2d3bdfb40ef083261d92`에 추출했다. 별도 Git index를 사용해 이 worktree/기존 index를 보존했고 변경은 Modal.tsx·ContentForm.tsx 두 파일뿐이다. activity PR에 이 commit을 소비하도록 전달했으며 Tags/Entity 기능은 포함하지 않았다.
+- 회귀: 전용 fixture에 중복 이름 생성/변경의 정정 저장과 expected_version 보존, held old cursor → 생성 성공 → 첫 페이지 갱신 → 늦은 응답 → 새 cursor로 경계 항목 복구, 태그 query 폐기 후 editor 제거, 모달 query 폐기 후 editor 닫기와 원래 목적지 유지(ordinary close 경로 미실행)를 추가했다. `npx playwright test --config e2e/entity-tags-fixtures.config.ts` desktop/mobile 각 10, 총 20 PASS. `npm run test:web` 14 PASS, `npm run build` PASS. 이전에 실패한 fixture의 버전 충돌 응답은 실제 최신 버전 증가를 모의하도록 수정해 중복 충돌과 분리했다.
+- 공유 DB·함수·서비스/full E2E 담당은 여전히 activity 세션이며 접근하지 않았다. 최신 navigation/activity 승인 head 통합, 명시 onRouteDiscard 소비, 실제 전체 E2E·재리뷰·정확한 head CI가 남아 있다. 이전 14 PASS 결과는 수정 전 당시 증거로 보존한다.

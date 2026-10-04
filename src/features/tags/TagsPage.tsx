@@ -17,6 +17,9 @@ export function TagsPage() {
   const [uncertain, setUncertain] = useState(false), [conflict, setConflict] = useState(false);
   const [pending, setPending] = useState<(() => void) | null>(null), [deleting, setDeleting] = useState<TagResult | null>(null);
   const pageCount = useRef(1), focusId = useRef<string | null>(null), input = useRef<HTMLInputElement>(null), saving = useRef(false);
+  const readEpoch = useRef(0), readAbort = useRef<AbortController | null>(null);
+  const invalidateReads = () => { readEpoch.current++; readAbort.current?.abort(); };
+  useEffect(() => () => { readEpoch.current++; readAbort.current?.abort(); }, []);
   const request = useRequestId();
   const dirty = !!draft && (draft.name !== (draft.initial?.name ?? "") || uncertain);
   const blocker = useBlocker(dirty || busy);
@@ -26,16 +29,18 @@ export function TagsPage() {
     window.addEventListener("beforeunload", unload); return () => window.removeEventListener("beforeunload", unload);
   }, [dirty, busy]);
   useEffect(() => {
-    const controller = new AbortController(); setLoading(true); setError(null);
+    readAbort.current?.abort(); const controller = new AbortController(); readAbort.current = controller;
+    const epoch = ++readEpoch.current; const current = () => !controller.signal.aborted && epoch === readEpoch.current;
+    setLoading(true); setError(null);
     (async () => {
       let loaded: Page = { items: [], next_cursor: null };
       for (let i = 0; i < pageCount.current; i++) {
         const next = await api<Page>("GET", `/tags${loaded.next_cursor ? `?cursor=${encodeURIComponent(loaded.next_cursor)}` : ""}`, undefined, controller.signal);
         loaded = { items: [...loaded.items, ...next.items], next_cursor: next.next_cursor }; if (!next.next_cursor) break;
       }
-      if (!controller.signal.aborted) setPage(loaded);
-    })().catch(() => { if (!controller.signal.aborted) setError("태그 목록을 불러오지 못했습니다. 기존 목록은 유지합니다."); })
-      .finally(() => { if (!controller.signal.aborted) setLoading(false); });
+      if (current()) setPage(loaded);
+    })().catch(() => { if (current()) setError("태그 목록을 불러오지 못했습니다. 기존 목록은 유지합니다."); })
+      .finally(() => { if (current()) setLoading(false); });
     return () => controller.abort();
   }, [retry]);
   useEffect(() => { if (focusId.current && !loading) {
@@ -64,13 +69,23 @@ export function TagsPage() {
         else saved = await api<TagResult>("PATCH", `/tags/${draft.initial.id}`, { name: parsed.data.name, expected_version: draft.initial.version });
       } else saved = await api<TagResult>(draft.initial ? "PATCH" : "POST", draft.initial ? `/tags/${draft.initial.id}` : "/tags",
         draft.initial ? { name: parsed.data.name, expected_version: draft.initial.version } : { ...parsed.data, request_id: request.current });
+      invalidateReads();
       setPage(p => p ? { ...p, items: p.items.some(t => t.id === saved.id) ? p.items.map(t => t.id === saved.id ? saved : t) : [saved, ...p.items] } : { items: [saved], next_cursor: null });
       focusId.current = saved.id; setDraft(null); setUncertain(false); request.renew(); setNotice("태그를 저장했습니다."); setRetry(n => n + 1);
     } catch (e) {
       setUncertain(isUncertain(e));
-      if (e instanceof ApiError && e.code === "conflict") { setConflict(true); setFailure("다른 변경이 저장되었습니다. 초안을 유지합니다. 취소 후 최신 태그를 다시 선택하세요."); }
+      if (e instanceof ApiError && e.code === "conflict") {
+        let versionConflict = false, readFailure = false;
+        if (draft.initial) {
+          try { const current = await findTag(draft.initial.id, cursor => api<Page>("GET", `/tags${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ""}`)); versionConflict = !current || current.version !== draft.initial.version; }
+          catch { readFailure = true; }
+        }
+        setConflict(versionConflict);
+        setFailure(versionConflict ? "다른 변경이 저장되었습니다. 초안을 유지합니다. 취소 후 최신 태그를 다시 선택하세요." : readFailure ? `${e.message} 최신 상태를 조회하지 못했습니다. 초안을 유지합니다.` : e.message);
+        if (!versionConflict && !readFailure) setFieldError(e.message);
+      }
       else setFailure(isUncertain(e) ? "응답을 받지 못해 저장 여부를 알 수 없습니다. 같은 내용으로 다시 시도해 결과를 확인하세요." : e instanceof ApiError ? e.message : "저장하지 못했습니다.");
-      if (e instanceof ApiError) setFieldError(e.fields.find(f => f.path === "name")?.message);
+      if (e instanceof ApiError && e.fields.some(f => f.path === "name")) setFieldError(e.fields.find(f => f.path === "name")?.message);
     } finally { saving.current = false; setBusy(false); }
   };
   return <section className="panel" aria-labelledby="tags-title">
@@ -90,16 +105,20 @@ export function TagsPage() {
       <div className="actions"><button type="button" className="btn" disabled={busy} onClick={cancel}>취소</button><button className="btn btn-primary" disabled={busy || conflict}>{busy ? "저장 중…" : uncertain ? "같은 내용 다시 시도" : "저장"}</button></div>
     </form>}</div>
     {page?.next_cursor && <button className="btn" disabled={loading || busy} onClick={async () => {
-      setLoading(true); setError(null); try { const next = await api<Page>("GET", `/tags?cursor=${encodeURIComponent(page.next_cursor!)}`);
+      const epoch = readEpoch.current, controller = new AbortController(); readAbort.current = controller;
+      const current = () => !controller.signal.aborted && epoch === readEpoch.current;
+      setLoading(true); setError(null); try { const next = await api<Page>("GET", `/tags?cursor=${encodeURIComponent(page.next_cursor!)}`, undefined, controller.signal);
+        if (!current()) return;
         setPage(p => p && ({ items: [...p.items, ...next.items.filter(t => !p.items.some(old => old.id === t.id))], next_cursor: next.next_cursor })); pageCount.current++;
-      } catch { setError("다음 태그를 불러오지 못했습니다."); } finally { setLoading(false); }
+      } catch { if (current()) setError("다음 태그를 불러오지 못했습니다."); } finally { if (current()) setLoading(false); }
     }}>더 보기</button>}
     <ConfirmDialog open={!!pending || blocker.state === "blocked"} busy={busy} title="변경을 버릴까요?" message="저장하지 않은 내용이 사라집니다." confirmLabel="변경 버리기"
       onCancel={() => { setPending(null); if (blocker.state === "blocked") blocker.reset(); }}
-      onConfirm={() => { const action = pending; setPending(null); if (blocker.state === "blocked") blocker.proceed(); else action?.(); }} />
+      onConfirm={() => { const action = pending; setPending(null); if (blocker.state === "blocked") { setDraft(null); setUncertain(false); setConflict(false); setFailure(null); setFieldError(undefined); request.renew(); blocker.proceed(); } else action?.(); }} />
     {deleting && <ConfirmDialog open title="태그를 삭제할까요?" busy={busy} danger message={`${deleting.name} 태그와 연결을 제거합니다. 항목의 원문은 보존합니다.`} confirmLabel="삭제" onCancel={() => setDeleting(null)} onConfirm={async () => {
       if (saving.current) return; saving.current = true; setBusy(true); setFailure(null);
       try { await api("DELETE", `/tags/${deleting.id}?expected_version=${deleting.version}`);
+        invalidateReads();
         const at = page?.items.findIndex(t => t.id === deleting.id) ?? -1; focusId.current = page?.items[at + 1]?.id ?? page?.items[at - 1]?.id ?? "heading";
         setPage(p => p && ({ ...p, items: p.items.filter(t => t.id !== deleting.id) })); setNotice("태그를 삭제했습니다.");
       } catch (e) { focusId.current = deleting.id; setNotice(null); setFailure(isUncertain(e) ? "삭제 응답을 받지 못했습니다. 최신 목록에서 삭제 여부를 확인하세요." : e instanceof ApiError ? e.message : "삭제하지 못했습니다."); }
