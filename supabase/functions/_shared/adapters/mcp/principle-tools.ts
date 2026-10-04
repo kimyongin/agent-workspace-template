@@ -1,7 +1,13 @@
 import { z } from "zod";
 import { expectedVersion, id } from "../../contracts/common.ts";
 import { mutationMeta } from "../../contracts/change.ts";
-import { principleCreate, principleListQuery, principleSave, principleUpdate } from "../../contracts/principle.ts";
+import {
+  principleCorrection,
+  principleCreate,
+  principleListQuery,
+  principleSave,
+  principleUpdate,
+} from "../../contracts/principle.ts";
 import * as p from "../../core/principles/application.ts";
 import { parse } from "../errors.ts";
 import { notFound } from "../../core/shared/errors.ts";
@@ -12,9 +18,11 @@ function idParam(value: unknown): string {
 }
 export function principleTools(d: p.PrincipleDeps): ToolDef[] {
   const update = principleUpdate.extend({ id }),
+    correction = principleCorrection.extend({ id }),
     remove = z.strictObject({ id, expected_version: expectedVersion, ...mutationMeta }),
     get = z.strictObject({ id: z.unknown() }),
     editInput = principleUpdate.extend({ id: z.unknown() }),
+    correctionInput = principleCorrection.extend({ id: z.unknown() }),
     removeInput = remove.extend({ id: z.unknown() });
   return [
     {
@@ -51,11 +59,12 @@ export function principleTools(d: p.PrincipleDeps): ToolDef[] {
     },
     {
       name: "correct_principle",
-      description: "과거 저장본 정정. saved_at와 현재 여부는 유지. change_note 필수.",
-      input: update,
+      description:
+        "과거 저장본의 본문 또는 메모만 정정. saved_at와 현재 여부는 유지. change_note 필수, 동일 값은 무변경.",
+      input: correction,
       readOnly: false,
       handler: (i, a) => {
-        const { id, ...rest } = parse(editInput, i);
+        const { id, ...rest } = parse(correctionInput, i);
         return p.correctPrinciple(d, a, idParam(id), rest);
       },
     },

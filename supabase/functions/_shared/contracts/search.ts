@@ -4,7 +4,7 @@ export const searchKind = z.enum(["task", "record", "principle"]);
 export const searchInput = z.strictObject({
   task_kind: z.enum(["once", "recurring"]).optional(),
   task_status: z.enum(["open", "done", "active", "stopped"]).optional(),
-  principle_view: z.enum(["current", "history", "all"]).default("current"),
+  principle_view: z.enum(["current", "history", "all"]).optional(),
   record_kind: z.enum(["user", "result", "change"]).optional(),
   query: text(1, 200),
   kinds: z.array(searchKind).min(1).max(3).refine((v) => new Set(v).size === v.length).default([
@@ -23,6 +23,14 @@ export const searchInput = z.strictObject({
 }).refine((v) => !v.from || !v.to || Date.parse(v.from) <= Date.parse(v.to), {
   path: ["to"],
   message: "기간의 끝은 시작 이후여야 합니다",
+}).transform((v) => {
+  const principle_view = v.principle_view ??
+    ({ active: "current", inactive: "history", all: "all" } as const)[v.status];
+  return {
+    ...v,
+    principle_view,
+    status: ({ current: "active", history: "inactive", all: "all" } as const)[principle_view],
+  };
 });
 export type SearchInput = z.infer<typeof searchInput>;
 export const searchItem = z.object({

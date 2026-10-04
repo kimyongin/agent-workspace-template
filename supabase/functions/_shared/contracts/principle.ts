@@ -5,15 +5,20 @@ export const principleCreate = z.strictObject({ title, summary, body: body.defau
 export type PrincipleCreate = z.infer<typeof principleCreate>;
 export const principleSave = principleCreate.extend({ expected_version: expectedVersion.optional() });
 export type PrincipleSave = z.infer<typeof principleSave>;
-export const principleUpdate = z.strictObject({
+export const principleCorrection = z.strictObject({
   expected_version: expectedVersion,
   title: title.optional(),
   summary: summary.optional(),
   body: body.optional(),
   ...editMeta,
-}).refine((v) => v.title !== undefined || v.summary !== undefined || v.body !== undefined, {
-  message: "바꿀 필드가 없습니다",
 });
+export type PrincipleCorrection = z.infer<typeof principleCorrection>;
+export const principleUpdate = principleCorrection.refine(
+  (v) => v.title !== undefined || v.summary !== undefined || v.body !== undefined,
+  {
+    message: "바꿀 필드가 없습니다",
+  },
+);
 export type PrincipleUpdate = z.infer<typeof principleUpdate>;
 export const principleStatus = z.strictObject({
   expected_version: expectedVersion,

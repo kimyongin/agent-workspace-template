@@ -35,6 +35,8 @@ fin UX의 배포 화면·로컬 코드와 [fin 문서](tickets/template-18-01-fi
 
 2026-10-04 후속 사용자 요청의 세 탭·탭 내부 검색·프로필/설정·반응형 상세와 출시 UX는 [Template-19](tickets/template-19-three-tab-release-ux.md)에 정리했다. 추가 설명의 현재 원칙 하나·태그 사전 분리·CRUD 편집 메모와 활동 변경 기록은 [Template-20](tickets/template-20-current-principle-change-records.md)이 의미와 승인 범위를 소유한다. 사용자의 구현 승인 후 PRD를 반영하고 서버·탐색/설정·업무 화면의 세 구현 티켓으로 나눠 진행 중이다. 기존 다중 활성 원칙/원칙 태그를 목표로 삼지 않는다. 독립 리뷰·필수 CI·머지는 각 자식 티켓의 결과로 확인하며 운영 배포는 이번 승인 범위에 포함하지 않는다.
 
+사용자 승인 이후 [서버 구현과 독립 리뷰 수정](tickets/template-20-01-server-contracts.md)을 새 격리 template20fix에서 검증했다. 서버 checkout의 기준 소비 오류는 화면의 canonical contract 통합 build에서 해소했으며 실제 leased 환경의 전체 E2E가 진행 중이다. 서버·화면·탐색의 exact-head 독립 리뷰·필수 CI·머지는 메인 담당이고 운영 배포는 수행하지 않았다.
+
 작은 문서·웹 문구/간격 수정의 검증을 줄이는 [Template-13](tickets/template-13-ci-change-impact.md)의 구현·서비스 없는 로컬 검사를 마쳤다. [변경 영향별 CI](development/workflow.md#변경-영향별-ci)는 필수 `check`·`integration` 이름을 유지하고 불명확한 변경은 전체 검증하며, 단순 표시 변경에도 웹 unit·타입/build와 티켓의 화면 확인을 요구한다. 독립 리뷰·실제 full CI·머지는 후속이다.
 
 기본 기술 선택은 GitHub Pages 웹 배포, Supabase 서버·DB, Supabase Auth를 통한 Google OAuth 로그인, Pinecone Inference 임베딩 생성, Supabase pgvector 저장·검색이다. 구체적인 계약·연결 설정은 [T02-1 계약](tickets/template-02-t02-1-contracts.md), 채택한 `llama-text-embed-v2`·1024차원·cosine·초기 임계값 0.27과 실제 평가 근거는 [T02-3 이력](tickets/template-02-implementation-base.md#이력)에서 확인한다. 새 앱의 자료·질의에는 다시 평가한다.

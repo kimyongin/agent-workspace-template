@@ -21,9 +21,13 @@ function result(r: Record<string, unknown>): EntityResult {
 }
 export class SqlEntityStore extends SqlActorStore implements EntityStore {
   async get(id: string, lock = false) {
+    if (lock) {
+      const rows = await this.tx`select id from app.entities where id=${id} for update`;
+      if (!rows.length) return null;
+    }
     const [r] = await this.tx`select ${this.tx.unsafe(columns)},${
       tagIdsColumn(this.tx, "entity")
-    } from app.entities where id=${id} ${lock ? this.tx`for update` : this.tx``}`;
+    } from app.entities where id=${id}`;
     return r ? result(r) : null;
   }
   async insert(i: Omit<EntityCreate, "request_id">) {

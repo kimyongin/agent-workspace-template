@@ -1,4 +1,10 @@
-import type { PrincipleCreate, PrincipleListQuery, PrincipleSave, PrincipleUpdate } from "../../contracts/principle.ts";
+import type {
+  PrincipleCorrection,
+  PrincipleCreate,
+  PrincipleListQuery,
+  PrincipleSave,
+  PrincipleUpdate,
+} from "../../contracts/principle.ts";
 import type { Actor } from "../shared/actor.ts";
 import { conflict, invalidInput, notFound } from "../shared/errors.ts";
 import { changed } from "../shared/changes.ts";
@@ -63,7 +69,7 @@ export function updatePrinciple(d: PrincipleDeps, a: Actor, id: string, i: Princ
       });
     }));
 }
-export function correctPrinciple(d: PrincipleDeps, a: Actor, id: string, i: PrincipleUpdate) {
+export function correctPrinciple(d: PrincipleDeps, a: Actor, id: string, i: PrincipleCorrection) {
   return d.uow.run(a, (s) =>
     once(s, `correct_principle:${id}`, i.request_id, i, async () => {
       await s.lockCurrent();

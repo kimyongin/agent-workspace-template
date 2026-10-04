@@ -113,9 +113,12 @@ function pick<T extends Record<string, unknown>>(tx: Tx, values: T, allowed: rea
 
 export class SqlActivityStore extends SqlActorStore implements ActivityStore {
   async getTask(id: string, opts: { forUpdate?: boolean } = {}) {
+    if (opts.forUpdate) {
+      const rows = await this.tx`select id from app.tasks where id=${id} for update`;
+      if (!rows.length) return null;
+    }
     const [row] = await this.tx`
-      select ${taskColumns(this.tx)} from app.tasks where id = ${id}
-      ${opts.forUpdate ? this.tx`for update` : this.tx``}`;
+      select ${taskColumns(this.tx)} from app.tasks where id = ${id}`;
     return row ? toTask(row) : null;
   }
 
@@ -172,9 +175,12 @@ export class SqlActivityStore extends SqlActorStore implements ActivityStore {
   }
 
   async getRecord(id: string, opts: { forUpdate?: boolean } = {}) {
+    if (opts.forUpdate) {
+      const rows = await this.tx`select id from app.records where id=${id} for update`;
+      if (!rows.length) return null;
+    }
     const [row] = await this.tx`
-      select ${recordColumns(this.tx)} from app.records where id = ${id}
-      ${opts.forUpdate ? this.tx`for update` : this.tx``}`;
+      select ${recordColumns(this.tx)} from app.records where id = ${id}`;
     return row ? toRecord(row) : null;
   }
 

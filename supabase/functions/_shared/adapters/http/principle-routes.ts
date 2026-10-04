@@ -1,5 +1,11 @@
 import { Hono } from "hono";
-import { principleCreate, principleListQuery, principleSave, principleUpdate } from "../../contracts/principle.ts";
+import {
+  principleCorrection,
+  principleCreate,
+  principleListQuery,
+  principleSave,
+  principleUpdate,
+} from "../../contracts/principle.ts";
 import * as principles from "../../core/principles/application.ts";
 import { parse } from "../errors.ts";
 import { type HttpEnv, idParam, json, versionQuery } from "./input.ts";
@@ -47,7 +53,7 @@ export function principleRoutes(d: principles.PrincipleDeps) {
           d,
           c.get("actor"),
           idParam(c.req.param("id")),
-          parse(principleUpdate, await json(c.req.raw)),
+          parse(principleCorrection, await json(c.req.raw)),
         ),
       ),
   );

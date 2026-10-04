@@ -44,17 +44,20 @@ class SqlTagStore extends SqlActorStore implements TagStore {
       entities = new SqlEntityStore(this.tx, this.actor),
       activity = new SqlActivityStore(this.tx, this.actor);
     for (const r of await this.tx`select entity_id id from app.entity_tags where tag_id=${id} order by entity_id`) {
-      const before = (await entities.get(r.id as string, true))!;
+      const before = await entities.get(r.id as string, true);
+      if (!before?.tag_ids.includes(id)) continue;
       const after = await entities.update(before.id, { tag_ids: before.tag_ids.filter((tag) => tag !== id) });
       changes.push({ target_kind: "entity", action: "update", before, after });
     }
     for (const r of await this.tx`select task_id id from app.task_tags where tag_id=${id} order by task_id`) {
-      const before = (await activity.getTask(r.id as string, { forUpdate: true }))!;
+      const before = await activity.getTask(r.id as string, { forUpdate: true });
+      if (!before?.tag_ids.includes(id)) continue;
       const after = await activity.updateTask(before.id, { tag_ids: before.tag_ids.filter((tag) => tag !== id) });
       changes.push({ target_kind: "task", action: "update", before, after });
     }
     for (const r of await this.tx`select record_id id from app.record_tags where tag_id=${id} order by record_id`) {
-      const before = (await activity.getRecord(r.id as string, { forUpdate: true }))!;
+      const before = await activity.getRecord(r.id as string, { forUpdate: true });
+      if (!before?.tag_ids.includes(id)) continue;
       const after = await activity.updateRecord(before.id, { tag_ids: before.tag_ids.filter((tag) => tag !== id) });
       if (before.record_kind !== "change") changes.push({ target_kind: "record", action: "update", before, after });
     }

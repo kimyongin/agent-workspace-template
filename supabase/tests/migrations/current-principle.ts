@@ -4,8 +4,8 @@ import { assert, assertEquals } from "@std/assert";
 import postgres from "postgres";
 const url = Deno.env.get("LOCAL_DB_URL")!;
 const parsed = new URL(url);
-if (parsed.hostname !== "127.0.0.1" || parsed.port !== "56422") {
-  throw Error("migration fixture requires template20server DB56422");
+if (parsed.hostname !== "127.0.0.1" || parsed.port !== "57422") {
+  throw Error("migration fixture requires isolated template20fix DB57422");
 }
 const [stage, file] = Deno.args;
 if (!["prepare", "verify"].includes(stage) || !file) throw Error("prepare|verify <fixture-json>");

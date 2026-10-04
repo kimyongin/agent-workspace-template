@@ -77,10 +77,25 @@ dbTest("의미 검색: 3종류·hybrid 순위/anchor/커서·현재성·권한·
     await tx`update app.principles set is_current=false where id=${ids[2]}`;
   });
   assertEquals((await search(d, A, { ...q, kinds: ["principle"] })).items, []);
-  assertEquals((await search(d, A, { ...q, kinds: ["principle"], status: "inactive" })).items[0].id, ids[2]);
+  assertEquals(
+    (await search(
+      d,
+      A,
+      searchInput.parse({ ...q, principle_view: undefined, kinds: ["principle"], status: "inactive" }),
+    )).items[0].id,
+    ids[2],
+  );
   await admin`update app.search_index_state set pipeline='old' where id=${ids[2]}`;
-  assertEquals((await search(d, A, { ...q, kinds: ["principle"], status: "all" })).semantic_coverage.pending, 1);
-  assertEquals((await search(d, A, { ...q, kinds: ["principle"], status: "all" })).items, []);
+  assertEquals(
+    (await search(d, A, searchInput.parse({ ...q, principle_view: undefined, kinds: ["principle"], status: "all" })))
+      .semantic_coverage.pending,
+    1,
+  );
+  assertEquals(
+    (await search(d, A, searchInput.parse({ ...q, principle_view: undefined, kinds: ["principle"], status: "all" })))
+      .items,
+    [],
+  );
   await asUser(sql, users.a, async (tx) => {
     await tx`update app.tasks set summary='해시 변경' where id=${ids[0]}`;
   });

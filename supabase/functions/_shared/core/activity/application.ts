@@ -364,8 +364,11 @@ export async function updateRecord(
         throw invalidInput("변경 기록은 제목·요약·본문·메모만 정정할 수 있습니다");
       }
       const { expected_version: _v, request_id: _r, change_note, ...changes } = patch;
+      const removesSnapshots = changes.applied_principle_ids !== undefined &&
+        (record.applied_principle_snapshots ?? []).some((p) => !changes.applied_principle_ids!.includes(p.id));
       if (
-        !changed(record, changes) && (record.record_kind !== "change" || record.change_note === change_note)
+        !removesSnapshots && !changed(record, changes) &&
+        (record.record_kind !== "change" || record.change_note === change_note)
       ) return toRecordResult(record);
       const updated = await store.updateRecord(id, { ...changes, change_note });
       if (updated.title !== record.title || updated.summary !== record.summary) {

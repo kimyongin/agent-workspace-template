@@ -25,9 +25,7 @@ class SqlSearchStore implements SearchStore {
   }
   filters(q: SearchInput) {
     const tx = this.tx;
-    const view = q.principle_view === "current" && q.status !== "active"
-      ? (q.status === "all" ? "all" : "history")
-      : q.principle_view;
+    const view = q.principle_view;
     return tx`kind in ${tx(q.kinds)}
       ${
       view === "current"
