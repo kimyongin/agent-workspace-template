@@ -26,7 +26,7 @@ Codex는 `$develop-agent-app`, Claude Code는 `/develop-agent-app`으로 호출�
 
 설계는 검토 가능한 문서와 구현 인계로 마친다. 구현 시작은 명시적으로 구분한다. 제안·확정·구현·검증·배포 상태를 혼동하지 않는다.
 
-웹 화면 설계·수정 전에는 [디자인 가이드](../design/guide.md)와 그에 연결된 시각 규격·상호작용을 읽는다. 티켓에 소비할 공통 패턴과 상태, 예외, viewport·키보드·초안 보존 검증을 명시한다. 공통 UI 변경은 실제 소비 화면을 함께 검사하고 여러 화면에 영향을 주면 전체 브라우저 E2E를 수행한다.
+웹 화면 설계·수정 전에는 [디자인 가이드](../design/guide.md)와 그에 연결된 시각 규격·상호작용을 읽는다. 티켓에 소비할 공통 패턴과 상태, 예외, viewport·키보드·초안 보존 검증을 명시한다. 공통 UI의 단순 문구·간격 변경은 대표 소비 화면의 viewport·키보드·초점을 확인한다. 동작·DOM 구조가 바뀌고 여러 화면에 영향을 주면 전체 브라우저 E2E를 수행한다. 자동 검사 범위는 [변경 영향별 CI](#변경-영향별-ci)를 따른다.
 
 ## 세션 배정과 인계
 
@@ -275,11 +275,25 @@ PRD·ADR을 바꾸는 PR은 사람이 승인한다. 머지는 배포가 아니�
 | `npm run test:all` | 로컬 통합 테스트를 한 번에(정적 검사·웹 빌드 제외): 로컬 Supabase 준비, Edge Functions가 없으면 띄우고 끝나면 정리, core·DB·HTTP·MCP·E2E를 차례로 실행하고 결과 요약 |
 | `npm run stop:local` | 로컬 Supabase 정지(데이터 유지) |
 
-로컬 Supabase 포트는 55420~55429, 웹은 55480, Edge inspector는 8483이다. 다른 로컬 프로젝트·실험(55320~55329)과 겹치지 않는다. CI는 운영 secret 없이 `check` job(문서·공백·Deno·core·웹)과 `integration` job(러너 안의 로컬 Supabase로 DB·HTTP·MCP·E2E 테스트)을 실행한다. 새 검사는 추가되는 단계에서 이 표와 CI에 넣는다.
+로컬 Supabase 포트는 55420~55429, 웹은 55480, Edge inspector는 8483이다. 다른 로컬 프로젝트·실험(55320~55329)과 겹치지 않는다. CI는 운영 secret 없이 아래 변경 영향에 따라 `check`와 `integration`을 실행한다. 새 검사는 추가되는 단계에서 이 표와 CI에 넣는다.
 
 환경상 실행할 수 없는 검사는 대상 commit·명령·데이터 조건·실행 가능한 격리 환경을 기록해 인계한다. CI에서 수행하는 경우 해당 revision의 결과까지 확인한다.
 
-일상 수정은 `test:fast`로 업무·입출력 오류를 먼저 확인한다. 설치 시 패키지 다운로드가 필요할 수 있지만 테스트 런타임은 외부 서비스를 호출하지 않는다. fake는 해당 흐름에 필요한 포트만 지원하며 미지원 메서드는 명확히 실패한다. 업무 규칙·SQL·OAuth를 fake에 복제하지 않는다. HTTP Actor 주입은 테스트 factory 조립에서만 하며 운영 기본값은 실제 토큰 검증이다. MCP handler 증거는 SDK 전송·OAuth 증거와 구분한다. 실제 DB 잠금·동시 요청·롤백·RLS와 인증·웹↔MCP 검사는 기존 `integration` CI에서 유지한다. 첫 범위와 결과는 [Template-08](../tickets/template-08-mock-first-testing.md)에 기록한다.
+업무·어댑터 변경은 `test:fast`로 업무·입출력 오류를 먼저 확인한다. 문서·단순 표시 변경의 로컬 검사도 아래 분류별 범위를 따른다. 설치 시 패키지 다운로드가 필요할 수 있지만 테스트 런타임은 외부 서비스를 호출하지 않는다. fake는 해당 흐름에 필요한 포트만 지원하며 미지원 메서드는 명확히 실패한다. 업무 규칙·SQL·OAuth를 fake에 복제하지 않는다. HTTP Actor 주입은 테스트 factory 조립에서만 하며 운영 기본값은 실제 토큰 검증이다. MCP handler 증거는 SDK 전송·OAuth 증거와 구분한다. 실제 DB 잠금·동시 요청·롤백·RLS와 인증·웹↔MCP 검사는 기존 `integration` CI에서 유지한다. 첫 범위와 결과는 [Template-08](../tickets/template-08-mock-first-testing.md)에 기록한다.
+
+### 변경 영향별 CI
+
+[분류기](../../scripts/ci-impact.mjs)는 파일 경로와 실제 diff를 함께 검사한다. PR은 base/head의 merge-base부터 실제 PR head까지, push는 event의 before부터 after까지 비교한다. 테스트 checkout은 GitHub의 PR merge commit이므로 분류 비교 대상과 구분한다. 이력 누락·분석 오류·알 수 없는 파일은 `full`로 처리한다. 삭제·rename·신규 웹 파일도 `full`이다.
+
+| 분류 | 허용 변경 | 로컬·CI 검사 |
+| --- | --- | --- |
+| `docs` | 문서/개발 스킬 Markdown, 태그·script/style·주석이 같은 문서 HTML의 정적 문구 | `check:docs`(모델/native·스크립트 회귀 포함), diff 공백 |
+| `presentation` | 기존 비인증 feature/component TSX의 표준 HTML 요소 직접 JSXText와 정적 className/title/placeholder/aria-label만 변경, 제한 CSS 표시 속성값 변경 | docs 범위 + 웹 unit·타입 검사·build |
+| `full` | 동작·DOM 구조·표현식·route/action·인증·계약·데이터·API/MCP·설정·의존성·CI/tooling 또는 판정 불명 | 기존 전체 check + 러너 격리 Supabase의 DB·HTTP·MCP·전체 E2E |
+
+TSX는 TypeScript/JSX AST에서 허용 표시값 외 모든 노드와 주석이 같아야 한다. custom component children/props·fragment의 문구, 이벤트·href/to/type/value/disabled/id/name/role 등은 완화하지 않는다. CSS는 selector·속성 구조·비허용 값이 같아야 하며 인증·상태 selector, 숨김/입력 제어, URL·escape·토큰·불명확 문법 변경을 완화하지 않는다. 문서와 표시 변경의 조합은 `presentation`, 그 외 런타임 혼합 변경은 `full`이다. 자동 분류는 의미·접근성 검수의 대체가 아니다. 표시 변경은 티켓에 대표 소비 화면·viewport·키보드·초점 확인 결과를 남기고 불확실하면 전체 검증한다.
+
+필수 상태 이름 `check`·`integration`과 branch protection을 유지한다. workflow-level path skip·job-level 영향 skip은 쓰지 않는다. `integration`은 `always()`로 실행해 `check` 실패/분류 누락을 명시 실패시키고, 가벼운 분류에서 heavy steps만 생략해 근거 summary와 실제 성공 상태를 남긴다. 전체 검증을 강제하려면 Actions의 `ci` workflow를 `workflow_dispatch`로 실행한다(항상 `full`). 분류기·CI·의존성 변경은 `full`이며 독립 리뷰·필수 CI를 요구한다. 구현·회귀 근거는 [Template-13](../tickets/template-13-ci-change-impact.md)에 기록한다.
 
 ## 변경과 완료 기록
 

@@ -1,4 +1,4 @@
-# 최소 CI: 문서·공백·서버(Deno)·core·웹 빌드 검사(check)와 러너 안의 로컬 Supabase로 DB·HTTP·MCP·E2E(integration).
+# 변경 영향에 따라 heavy steps를 생략하되 check/integration job은 항상 실행한다.
 # 운영 secret을 쓰지 않는다. check·integration은 main의 필수 상태 검사다. job 이름을 바꾸면
 # 같은 PR에서 필수 검사 설정도 바꾼다(docs/development/workflow.md "머지").
 name: ci
@@ -7,6 +7,7 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -15,6 +16,8 @@ jobs:
   check:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    outputs:
+      mode: ${{ steps.impact.outputs.mode }}
     steps:
       - uses: actions/checkout@v5
         with:
@@ -24,45 +27,76 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: 변경 영향 분류(PR merge-base→head / push before→after)
+        id: impact
+        run: node scripts/ci-impact.mjs
       - name: 문서 검사
         run: npm run check:docs
       - name: 임베딩 평가기 검사(오프라인)
+        if: steps.impact.outputs.mode == 'full'
         run: npm run test --prefix experiments/t02-3-embedding
       - name: 공백 검사
         run: |
           if [ "${{ github.event_name }}" = "pull_request" ]; then
-            git diff --check "origin/${{ github.base_ref }}...HEAD"
+            git diff --check "${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }}"
+          elif [ "${{ github.event_name }}" = "push" ] && git cat-file -e "${{ github.event.before }}^{commit}" 2>/dev/null; then
+            git diff --check "${{ github.event.before }}" "${{ github.event.after }}"
           else
-            git diff --check "${{ github.event.before }}" HEAD 2>/dev/null || git diff --check HEAD~1 HEAD
+            git show --format= --check HEAD
           fi
       - name: 의존 경계 검사
+        if: steps.impact.outputs.mode == 'full'
         run: npm run check:boundaries
       - name: 서버 검사(Deno)
+        if: steps.impact.outputs.mode == 'full'
         run: npm run check:deno
       - name: core 테스트
+        if: steps.impact.outputs.mode == 'full'
         run: npm run test:core
       - name: 웹 테스트
+        if: steps.impact.outputs.mode != 'docs'
         run: npm run test:web
       - name: 빠른 HTTP·MCP handler 검사(서비스 없음)
+        if: steps.impact.outputs.mode == 'full'
         run: npm run test:adapters:fast
       - name: 웹 빌드
+        if: steps.impact.outputs.mode != 'docs'
         run: npm run build
 
   integration:
+    needs: check
+    if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
+      - name: check 성공 여부와 integration 범위
+        env:
+          CHECK_RESULT: ${{ needs.check.result }}
+          IMPACT_MODE: ${{ needs.check.outputs.mode }}
+        run: |
+          [ "$CHECK_RESULT" = "success" ] || { echo "check failed or unavailable"; exit 1; }
+          case "$IMPACT_MODE" in
+            full) echo "Full isolated DB/HTTP/MCP/E2E verification" >> "$GITHUB_STEP_SUMMARY" ;;
+            docs|presentation) echo "Impact: $IMPACT_MODE. Isolated DB/HTTP/MCP/E2E omitted; check passed." >> "$GITHUB_STEP_SUMMARY" ;;
+            *) echo "Missing/invalid classification"; exit 1 ;;
+          esac
       - uses: actions/checkout@v5
+        if: needs.check.outputs.mode == 'full'
       - uses: actions/setup-node@v5
+        if: needs.check.outputs.mode == 'full'
         with:
           node-version: 22
           cache: npm
       - run: npm ci
+        if: needs.check.outputs.mode == 'full'
       - name: 로컬 Supabase 준비(러너 안의 격리 DB)
+        if: needs.check.outputs.mode == 'full'
         run: npm run setup:local
       - name: DB 테스트
+        if: needs.check.outputs.mode == 'full'
         run: npm run test:db
       - name: Edge Functions 실행
+        if: needs.check.outputs.mode == 'full'
         run: |
           npm run serve:functions > functions.log 2>&1 &
           for i in $(seq 1 60); do
@@ -72,18 +106,22 @@ jobs:
           done
           cat functions.log; exit 1
       - name: HTTP 계약 테스트
+        if: needs.check.outputs.mode == 'full'
         run: npm run test:http
       - name: MCP 계약 테스트
+        if: needs.check.outputs.mode == 'full'
         run: npm run test:mcp
       - name: 브라우저 설치
+        if: needs.check.outputs.mode == 'full'
         run: npx playwright install --with-deps chromium
       - name: 웹↔MCP E2E
+        if: needs.check.outputs.mode == 'full'
         run: npm run test:e2e
       - name: 실패 시 함수 로그
-        if: failure()
+        if: failure() && needs.check.outputs.mode == 'full'
         run: cat functions.log || true
       - name: 실패 시 E2E 기록
-        if: failure()
+        if: failure() && needs.check.outputs.mode == 'full'
         uses: actions/upload-artifact@v4
         with:
           name: playwright-results
