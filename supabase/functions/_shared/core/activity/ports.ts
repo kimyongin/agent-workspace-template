@@ -1,9 +1,16 @@
 // 할 일·기록 유스케이스가 쓰는 저장 계약. SQL·SDK 타입을 노출하지 않는다.
 import type { Actor } from "../shared/actor.ts";
+import type { ChangeStore } from "../shared/changes.ts";
+import type { ChangeMetadata } from "../../contracts/change.ts";
+import type { AppliedPrincipleSnapshot } from "../../contracts/record.ts";
 import type { IndexJob } from "../shared/store.ts";
 import type { NewTask, Task } from "./domain.ts";
 
 export interface ActivityRecord {
+  record_kind?: "user" | "result" | "change";
+  change_note?: string | null;
+  change?: ChangeMetadata | null;
+  applied_principle_snapshots?: AppliedPrincipleSnapshot[];
   entity_id?: string | null;
   tag_ids: string[];
   id: string;
@@ -27,6 +34,8 @@ export interface ActivityRecord {
 }
 
 export interface NewRecord {
+  record_kind?: "user" | "result";
+  change_note?: string;
   entity_id?: string | null;
   tag_ids?: string[];
   applied_principle_ids?: string[];
@@ -38,9 +47,14 @@ export interface NewRecord {
   occurrence_on: string | null;
 }
 
-export type RecordChanges = Partial<
-  Pick<ActivityRecord, "title" | "summary" | "body" | "occurred_at" | "applied_principle_ids" | "tag_ids" | "entity_id">
->;
+export type RecordChanges =
+  & { change_note?: string }
+  & Partial<
+    Pick<
+      ActivityRecord,
+      "title" | "summary" | "body" | "occurred_at" | "applied_principle_ids" | "tag_ids" | "entity_id"
+    >
+  >;
 
 /** 목록의 다음 위치(정렬 키 + id). */
 export interface Keyset {
@@ -60,6 +74,7 @@ export interface TaskFilter {
 }
 
 export interface RecordFilter {
+  record_kind?: "user" | "result" | "change";
   entity_id?: string;
   tag_id?: string;
   occurred_from?: string;
@@ -77,7 +92,7 @@ export interface StoredRequest {
 }
 
 /** 한 트랜잭션 안의 저장소. 모든 조회·쓰기·큐 등록이 같은 연결을 쓴다. */
-export interface ActivityStore {
+export interface ActivityStore extends ChangeStore {
   /** 같은 요청 키의 동시 처리를 직렬화한다(트랜잭션 끝까지). */
   lockRequest(operation: string, requestId: string): Promise<void>;
   findRequest(operation: string, requestId: string): Promise<StoredRequest | null>;

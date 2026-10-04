@@ -14,7 +14,11 @@ Deno.test("Entity 입력: 코드 포인트·숫자 0·날짜·선택·부분 수
       { prop1: "예제", owner_id: crypto.randomUUID() },
     ]
   ) assertEquals(entityCreate.safeParse(input).success, false);
-  assertEquals(entityUpdate.safeParse({ expected_version: 1 }).success, false);
-  assertEquals(entityUpdate.parse({ expected_version: 1, prop2: null }), { expected_version: 1, prop2: null });
+  assertEquals(entityUpdate.safeParse({ change_note: "테스트 변경 이유", expected_version: 1 }).success, false);
+  assertEquals(entityUpdate.parse({ change_note: "테스트 변경 이유", expected_version: 1, prop2: null }), {
+    change_note: "테스트 변경 이유",
+    expected_version: 1,
+    prop2: null,
+  });
   assertEquals(entityListQuery.safeParse({ prop3_from: "2026-10-05", prop3_to: "2026-10-04" }).success, false);
 });

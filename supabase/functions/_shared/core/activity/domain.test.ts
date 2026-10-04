@@ -57,10 +57,22 @@ Deno.test("일회성 완료: open이고 버전이 맞을 때만", () => {
 });
 
 Deno.test("수정: 종류에 맞지 않는 필드는 invalid_input, 버전 불일치는 conflict", () => {
-  assertEquals(updateTask(once({ status: "done" }), { expected_version: 1, title: "새 제목" }), { title: "새 제목" });
-  assertEquals(code(() => updateTask(once(), { expected_version: 1, timezone: "UTC" })), "invalid_input");
-  assertEquals(code(() => updateTask(recurring(), { expected_version: 1, due_on: "2026-10-10" })), "invalid_input");
-  assertEquals(code(() => updateTask(once(), { expected_version: 3, title: "x" })), "conflict");
+  assertEquals(
+    updateTask(once({ status: "done" }), { change_note: "테스트 변경 이유", expected_version: 1, title: "새 제목" }),
+    { title: "새 제목" },
+  );
+  assertEquals(
+    code(() => updateTask(once(), { change_note: "테스트 변경 이유", expected_version: 1, timezone: "UTC" })),
+    "invalid_input",
+  );
+  assertEquals(
+    code(() => updateTask(recurring(), { change_note: "테스트 변경 이유", expected_version: 1, due_on: "2026-10-10" })),
+    "invalid_input",
+  );
+  assertEquals(
+    code(() => updateTask(once(), { change_note: "테스트 변경 이유", expected_version: 3, title: "x" })),
+    "conflict",
+  );
 });
 
 Deno.test("중단·재개: 상태 전환과 할 일 시간대 기준 날짜", () => {

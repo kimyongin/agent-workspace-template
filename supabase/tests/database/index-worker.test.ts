@@ -9,14 +9,18 @@ import * as activity from "../../functions/_shared/core/activity/application.ts"
 import * as principles from "../../functions/_shared/core/principles/application.ts";
 import { EmbeddingError, indexBatch } from "../../functions/_shared/core/search/index-worker.ts";
 import { SEARCH_PIPELINE } from "../../functions/_shared/core/search/config.ts";
-import { asUser, connect, dbTest, devUsers, outcome, urls } from "./_db.ts";
+import { asUser, connect, dbTest, fixtureOwner, outcome, urls } from "./_db.ts";
 
 const admin = connect(urls.admin, { max: 1 }), user = connect(urls.pooler, { max: 3, prepare: false });
 const workerUrl = new URL(urls.pooler);
 workerUrl.username = "app_worker.pooler-dev";
 workerUrl.password = encodeURIComponent(Deno.env.get("APP_WORKER_PASSWORD")!);
 const worker = connect(workerUrl.href, { max: 3, prepare: false });
-const queue = new SqlIndexQueue(worker), users = await devUsers(admin), A = { userId: users.a };
+const queue = new SqlIndexQueue(worker),
+  fixture = await fixtureOwner(admin),
+  foreignFixture = await fixtureOwner(admin),
+  users = { a: fixture.actor.userId, b: foreignFixture.actor.userId },
+  A = { userId: users.a };
 const deps = { uow: new SqlUnitOfWork(user), clock: { now: () => new Date() } },
   p = { uow: new SqlPrincipleUnitOfWork(user) };
 const vector = Array.from({ length: 1024 }, (_, i) => i === 0 ? 1 : 0);
@@ -30,12 +34,12 @@ const make = (kind: Kind) => {
     : principles.createPrinciple(p, A, principleCreate.parse(input));
 };
 const change = (kind: Kind, id: string, version: number, fields: Record<string, string>) => {
-  const input = { expected_version: version, ...fields };
+  const input = { change_note: "테스트 변경 이유", expected_version: version, ...fields };
   return kind === "task"
     ? activity.updateTask(deps, A, id, taskUpdate.parse(input))
     : kind === "record"
     ? activity.updateRecord(deps, A, id, recordUpdate.parse(input))
-    : principles.updatePrinciple(p, A, id, principleUpdate.parse(input));
+    : principles.correctPrinciple(p, A, id, principleUpdate.parse(input));
 };
 const remove = (kind: Kind, id: string, version: number) =>
   kind === "task"
@@ -51,6 +55,8 @@ const state = async (kind: Kind, id: string) =>
 for (const kind of ["task", "record", "principle"] as const) {
   dbTest(`worker ${kind}: 실제 역할·단일 벡터·재전달·본문 억제·수정/삭제 늦은 결과`, async () => {
     const item = await make(kind), scope = { limit: 1, owner_id: users.a, kind, id: item.id };
+    // Corrections evolve a historical row in place; policy saves use a new ID (principles.test.ts).
+    if (kind === "principle") await admin`update app.principles set is_current=false where id=${item.id}`;
     let calls = 0;
     const embedder = {
       embed: (text: string, type: string) => {
@@ -172,4 +178,9 @@ dbTest("worker 실패: 입력 제외·제한 재시도·구 파이프라인/변�
     );
   }
   await remove("record", item.id, 4);
+});
+
+dbTest("index-worker fixture cleanup", async () => {
+  await fixture.cleanup();
+  await foreignFixture.cleanup();
 });

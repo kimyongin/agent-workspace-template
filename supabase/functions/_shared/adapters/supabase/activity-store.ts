@@ -46,6 +46,10 @@ function toTask(r: Row): Task {
 
 function toRecord(r: Row): ActivityRecord {
   return {
+    record_kind: r.record_kind as "user" | "result" | "change",
+    change_note: (r.change_note as string | null) ?? null,
+    change: (r.change_metadata as ActivityRecord["change"]) ?? null,
+    applied_principle_snapshots: (r.applied_principle_snapshots as ActivityRecord["applied_principle_snapshots"]) ?? [],
     entity_id: (r.entity_id as string | null) ?? null,
     tag_ids: (r.tag_ids as string[]) ?? [],
     id: r.id as string,
@@ -56,9 +60,12 @@ function toRecord(r: Row): ActivityRecord {
     task_id: (r.task_id as string | null) ?? null,
     occurrence_on: (r.occurrence_on as string | null) ?? null,
     applied_principle_ids: (r.applied_principle_ids as string[]) ?? [],
-    applied_principles: ((r.applied_principles as ActivityRecord["applied_principles"]) ?? []).map((p) => ({
-      ...p,
-      updated_at: new Date(p.updated_at).toISOString(),
+    applied_principles: ((r.applied_principle_snapshots as Record<string, unknown>[]) ?? []).map((p) => ({
+      id: p.id as string,
+      title: p.title as string,
+      status: (p.status ?? "active") as "active" | "inactive",
+      version: p.version as number,
+      updated_at: new Date(p.saved_at as string).toISOString(),
     })),
     version: r.version as number,
     created_at: iso(r.created_at)!,
@@ -73,11 +80,10 @@ const taskColumns = (tx: Tx) =>
      ${tagIdsColumn(tx, "task")}`;
 const recordColumns = (tx: Tx) =>
   tx`id, entity_id, title, summary, body, occurred_at, task_id, occurrence_on::text as occurrence_on, version, created_at, updated_at,
+    record_kind,change_note,change_metadata,applied_principle_snapshots,
     ${tagIdsColumn(tx, "record")},
     coalesce((select jsonb_agg(p.id order by p.id) from app.record_principles rp join app.principles p on p.id=rp.principle_id
-      where rp.record_id=app.records.id), '[]'::jsonb) as applied_principle_ids,
-    coalesce((select jsonb_agg(jsonb_build_object('id',p.id,'title',p.title,'status',p.status,'version',p.version,'updated_at',p.updated_at) order by p.id)
-      from app.record_principles rp join app.principles p on p.id=rp.principle_id where rp.record_id=app.records.id), '[]'::jsonb) as applied_principles`;
+      where rp.record_id=app.records.id), '[]'::jsonb) as applied_principle_ids`;
 
 /** 수정 가능한 컬럼의 허용 목록. 이 밖의 키는 SQL로 가지 않는다. */
 const TASK_WRITABLE = [
@@ -93,7 +99,7 @@ const TASK_WRITABLE = [
   "result_record_id",
   "pauses",
 ] as const;
-const RECORD_WRITABLE = ["title", "summary", "body", "occurred_at", "entity_id"] as const;
+const RECORD_WRITABLE = ["title", "summary", "body", "occurred_at", "entity_id", "change_note"] as const;
 
 function pick<T extends Record<string, unknown>>(tx: Tx, values: T, allowed: readonly string[]) {
   const out: Record<string, unknown> = {};
@@ -105,7 +111,7 @@ function pick<T extends Record<string, unknown>>(tx: Tx, values: T, allowed: rea
   return out;
 }
 
-class SqlActivityStore extends SqlActorStore implements ActivityStore {
+export class SqlActivityStore extends SqlActorStore implements ActivityStore {
   async getTask(id: string, opts: { forUpdate?: boolean } = {}) {
     const [row] = await this.tx`
       select ${taskColumns(this.tx)} from app.tasks where id = ${id}
@@ -184,6 +190,7 @@ class SqlActivityStore extends SqlActorStore implements ActivityStore {
       select ${recordColumns(tx)} from app.records
       where true
         ${f.task_id ? tx`and task_id = ${f.task_id}` : tx``}
+        ${f.record_kind ? tx`and record_kind=${f.record_kind}` : tx``}
         ${f.entity_id ? tx`and entity_id = ${f.entity_id}` : tx``}
         ${f.tag_id ? tx`and ${hasTag(tx, "record", f.tag_id)}` : tx``}
         ${f.occurred_from ? tx`and occurred_at >= ${f.occurred_from}::timestamptz` : tx``}
@@ -203,6 +210,10 @@ class SqlActivityStore extends SqlActorStore implements ActivityStore {
 
   async setPrinciples(recordId: string, ids: string[]) {
     const tx = this.tx;
+    const [record] = await tx`select applied_principle_snapshots from app.records where id=${recordId}`;
+    const existing = (record.applied_principle_snapshots as Record<string, unknown>[]).filter((p) =>
+      ids.includes(p.id as string)
+    );
     if (ids.length) {
       const found = await tx<{ id: string }[]>`select id from app.principles where id in ${
         tx(ids)
@@ -213,6 +224,19 @@ class SqlActivityStore extends SqlActorStore implements ActivityStore {
     for (const id of [...ids].sort()) {
       await tx`insert into app.record_principles(owner_id,record_id,principle_id) values (${this.actor.userId},${recordId},${id})`;
     }
+    const snapshots = ids.length
+      ? await tx`select id,title,summary,body,version,saved_at,case when is_current then 'active' else 'inactive' end as status from app.principles where id in ${
+        tx(ids)
+      } order by id`
+      : [];
+    await tx`update app.records set applied_principle_snapshots=${
+      tx.json(
+        snapshots.map((p) => ({
+          ...(existing.find((old) => old.id === p.id) ??
+            { ...p, saved_at: (p.saved_at as Date).toISOString(), captured_at: "application" }),
+        })) as never,
+      )
+    } where id=${recordId}`;
   }
 
   async insertRecord(record: NewRecord) {
@@ -226,6 +250,8 @@ class SqlActivityStore extends SqlActorStore implements ActivityStore {
       body: record.body,
       task_id: record.task_id,
       occurrence_on: record.occurrence_on,
+      record_kind: record.record_kind ?? "user",
+      change_note: record.change_note ?? null,
     };
     if (record.occurred_at) values.occurred_at = record.occurred_at;
     const [row] = await tx`insert into app.records ${tx(values)} returning id`;

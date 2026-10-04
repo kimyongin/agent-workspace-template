@@ -46,7 +46,7 @@ export function createHttpApp(
     }),
   );
   app.use("*", async (c, next) => {
-    c.set("actor", await authenticate(c.req.raw, config.token));
+    c.set("actor", { ...await authenticate(c.req.raw, config.token), source: "http" });
     await next();
   });
 

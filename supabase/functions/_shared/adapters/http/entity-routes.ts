@@ -27,11 +27,14 @@ export function entityRoutes(d: entity.EntityDeps) {
       ),
   );
   app.delete("/entities/:id", async (c) => {
+    const i = parse(versionQuery, c.req.query());
     await entity.deleteEntity(
       d,
       c.get("actor"),
       idParam(c.req.param("id")),
-      parse(versionQuery, c.req.query()).expected_version,
+      i.expected_version,
+      i.change_note,
+      i.request_id,
     );
     return c.body(null, 204);
   });

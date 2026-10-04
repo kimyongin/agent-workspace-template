@@ -97,13 +97,16 @@ export const taskUpdate = z
     recurrence: recurrence.optional(),
     timezone: timezone.optional(),
   })
-  .refine((v) => Object.keys(v).some((k) => !["expected_version", "change_note", "request_id"].includes(k)), { message: "바꿀 필드가 없습니다" });
+  .refine((v) => Object.keys(v).some((k) => !["expected_version", "change_note", "request_id"].includes(k)), {
+    message: "바꿀 필드가 없습니다",
+  });
 export type TaskUpdate = z.infer<typeof taskUpdate>;
 
-export const versionOnly = z.strictObject({ expected_version: expectedVersion });
+export const versionOnly = z.strictObject({ expected_version: expectedVersion, ...mutationMeta });
 
 /** 일회성 할 일 완료: 결과 기록 내용과 함께 한 트랜잭션으로 저장한다. */
 export const taskComplete = z.strictObject({
+  ...mutationMeta,
   tag_ids: tagIds.optional(),
   applied_principle_ids: referenceIds.default([]),
   expected_version: expectedVersion,

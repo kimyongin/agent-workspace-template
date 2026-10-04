@@ -1,99 +1,116 @@
-import type {
-  PrincipleCreate,
-  PrincipleListQuery,
-  PrincipleStatus,
-  PrincipleUpdate,
-} from "../../contracts/principle.ts";
+import type { PrincipleCreate, PrincipleListQuery, PrincipleSave, PrincipleUpdate } from "../../contracts/principle.ts";
 import type { Actor } from "../shared/actor.ts";
-import { AppError, conflict, notFound } from "../shared/errors.ts";
+import { conflict, invalidInput, notFound } from "../shared/errors.ts";
+import { changed } from "../shared/changes.ts";
 import { decodeCursor, once, paginate, scopeOf, searchInputHash } from "../shared/operations.ts";
-import type { PrincipleUnitOfWork } from "./ports.ts";
-
+import type { PrincipleStore, PrincipleUnitOfWork } from "./ports.ts";
 export interface PrincipleDeps {
   uow: PrincipleUnitOfWork;
 }
-export function createPrinciple(deps: PrincipleDeps, actor: Actor, input: PrincipleCreate) {
-  return deps.uow.run(actor, (store) =>
-    once(store, "create_principle", input.request_id, input, async () => {
-      const { request_id: _request, ...content } = input;
-      const principle = await store.insert(content);
-      await store.enqueueIndex({ kind: "principle", id: principle.id, input_hash: await searchInputHash(principle) });
-      return principle;
-    }));
-}
-async function requirePrinciple(store: import("./ports.ts").PrincipleStore, id: string) {
-  const p = await store.get(id, true);
+async function requirePrinciple(s: PrincipleStore, id: string) {
+  const p = await s.get(id, true);
   if (!p) throw notFound();
   return p;
 }
-function version(p: { version: number }, expected: number) {
-  if (p.version !== expected) throw conflict("다른 변경이 저장되어 있습니다. 원문을 다시 확인하세요.");
+function version(p: { version: number }, v: number | undefined) {
+  if (p.version !== v) throw conflict("다른 변경이 저장되어 있습니다. 현재 원칙을 다시 확인하세요.");
 }
-export function updatePrinciple(deps: PrincipleDeps, actor: Actor, id: string, patch: PrincipleUpdate) {
-  return deps.uow.run(actor, async (store) => {
-    const old = await requirePrinciple(store, id);
-    version(old, patch.expected_version);
-    const { expected_version: _v, ...changes } = patch;
-    const updated = await store.update(id, changes);
-    if (old.title !== updated.title || old.summary !== updated.summary) {
-      await store.enqueueIndex({ kind: "principle", id, input_hash: await searchInputHash(updated) });
+async function save(s: PrincipleStore, i: PrincipleSave, firstOnly = false) {
+  await s.lockCurrent();
+  const old = await s.current();
+  if (firstOnly && old) throw conflict("현재 원칙이 있습니다. 현재 문서를 편집하세요.");
+  if (old) {
+    version(old, i.expected_version);
+    if (!i.change_note?.trim()) {
+      throw invalidInput("변경 메모를 입력하세요", [{ path: "change_note", message: "변경 이유가 필요합니다" }]);
     }
-    return updated;
+  } else if (i.expected_version !== undefined) throw conflict("현재 원칙이 없습니다. 다시 조회하세요.");
+  const { expected_version: _v, request_id: _r, ...content } = i;
+  if (old && !changed(old, { title: i.title, summary: i.summary, body: i.body })) return old;
+  if (old) await s.retire(old.id);
+  const result = await s.insert(content, await s.nextVersion());
+  await s.enqueueIndex({ kind: "principle", id: result.id, input_hash: await searchInputHash(result) });
+  await s.appendChange({
+    target_kind: "principle",
+    action: old ? "update" : "create",
+    before: old,
+    after: result,
+    change_note: i.change_note,
   });
+  return result;
 }
-export function setPrincipleStatus(deps: PrincipleDeps, actor: Actor, id: string, input: PrincipleStatus) {
-  return deps.uow.run(actor, async (store) => {
-    const old = await requirePrinciple(store, id);
-    version(old, input.expected_version);
-    const replacement = input.status === "active"
-      ? null
-      : input.replaced_by_id === undefined
-      ? old.replaced_by_id
-      : input.replaced_by_id;
-    if (replacement) {
-      if (replacement === id || !await store.get(replacement)) {
-        throw new AppError("invalid_reference", "대체 원칙이 없거나 접근할 수 없습니다");
+export function saveCurrentPrinciple(d: PrincipleDeps, a: Actor, i: PrincipleSave) {
+  return d.uow.run(a, (s) => once(s, "save_current_principle", i.request_id, i, () => save(s, i)));
+}
+export function createPrinciple(d: PrincipleDeps, a: Actor, i: PrincipleCreate) {
+  return d.uow.run(a, (s) => once(s, "create_principle", i.request_id, i, () => save(s, i, true)));
+}
+export function currentPrinciple(d: PrincipleDeps, a: Actor) {
+  return d.uow.run(a, async (s) => ({ current: await s.current() }));
+}
+export function updatePrinciple(d: PrincipleDeps, a: Actor, id: string, i: PrincipleUpdate) {
+  return d.uow.run(a, (s) =>
+    once(s, `update_principle:${id}`, i.request_id, i, async () => {
+      await s.lockCurrent();
+      const old = await requirePrinciple(s, id);
+      if (!old.is_current) throw conflict("과거본은 정정 기능을 사용하세요");
+      return save(s, {
+        title: i.title ?? old.title,
+        summary: i.summary ?? old.summary,
+        body: i.body ?? old.body,
+        expected_version: i.expected_version,
+        change_note: i.change_note,
+      });
+    }));
+}
+export function correctPrinciple(d: PrincipleDeps, a: Actor, id: string, i: PrincipleUpdate) {
+  return d.uow.run(a, (s) =>
+    once(s, `correct_principle:${id}`, i.request_id, i, async () => {
+      await s.lockCurrent();
+      const old = await requirePrinciple(s, id);
+      version(old, i.expected_version);
+      if (old.is_current) throw conflict("현재 원칙은 새 저장본으로 편집하세요");
+      const { expected_version: _v, request_id: _r, change_note, ...changes } = i;
+      if (!changed(old, changes) && old.change_note === change_note) return old;
+      const result = await s.update(id, { ...changes, change_note });
+      if (old.title !== result.title || old.summary !== result.summary) {
+        await s.enqueueIndex({ kind: "principle", id, input_hash: await searchInputHash(result) });
       }
-    }
-    if (old.status === input.status && old.replaced_by_id === replacement) {
-      throw conflict("이미 요청한 상태입니다");
-    }
-    return store.update(id, { status: input.status, replaced_by_id: replacement });
+      await s.appendChange({ target_kind: "principle", action: "update", before: old, after: result, change_note });
+      return result;
+    }));
+}
+export function deletePrinciple(
+  d: PrincipleDeps,
+  a: Actor,
+  id: string,
+  expected: number,
+  change_note?: string,
+  request_id?: string,
+) {
+  return d.uow.run(a, (s) =>
+    once(s, `delete_principle:${id}`, request_id, { expected, change_note }, async () => {
+      await s.lockCurrent();
+      const old = await requirePrinciple(s, id);
+      version(old, expected);
+      await s.delete(id);
+      if (old.is_current) await s.promoteLatest(await s.nextVersion());
+      await s.appendChange({ target_kind: "principle", action: "delete", before: old, after: null, change_note });
+      return { deleted: true };
+    }));
+}
+export function getPrinciple(d: PrincipleDeps, a: Actor, id: string) {
+  return d.uow.run(a, async (s) => {
+    const p = await s.get(id);
+    if (!p) throw notFound();
+    return p;
   });
 }
-export function deletePrinciple(deps: PrincipleDeps, actor: Actor, id: string, expected: number) {
-  return deps.uow.run(actor, async (store) => {
-    const p = await requirePrinciple(store, id);
-    version(p, expected);
-    await store.delete(id);
-  });
-}
-export function getPrinciple(deps: PrincipleDeps, actor: Actor, id: string) {
-  return deps.uow.run(actor, async (store) => {
-    const item = await store.get(id);
-    if (!item) throw notFound();
-    return item;
-  });
-}
-export async function listPrinciples(deps: PrincipleDeps, actor: Actor, query: PrincipleListQuery) {
-  const scope = await scopeOf(actor, {
-    list: "principles",
-    status: query.status,
-    tag_id: query.tag_id,
-    entity_id: query.entity_id,
-  });
-  const after = query.cursor ? decodeCursor(query.cursor, scope) : undefined;
-  return deps.uow.run(actor, async (store) =>
-    paginate(
-      await store.list({
-        status: query.status,
-        tag_id: query.tag_id,
-        entity_id: query.entity_id,
-        limit: query.limit + 1,
-        after,
-      }),
-      query.limit,
-      (p) => p.updated_at,
-      scope,
-    ));
+export async function listPrinciples(d: PrincipleDeps, a: Actor, q: PrincipleListQuery) {
+  const scope = await scopeOf(a, { list: "principles", view: q.view });
+  const after = q.cursor ? decodeCursor(q.cursor, scope) : undefined;
+  return d.uow.run(
+    a,
+    async (s) => paginate(await s.list({ view: q.view, limit: q.limit + 1, after }), q.limit, (p) => p.saved_at, scope),
+  );
 }

@@ -2,6 +2,7 @@
 // 경로 계약: docs/tickets/template-02-t02-1-contracts.md "할 일", "반복 할 일", "활동 기록".
 import { Hono } from "hono";
 import { z } from "zod";
+import { mutationMeta } from "../../contracts/change.ts";
 import { expectedVersion, isoDate } from "../../contracts/common.ts";
 import { recordCreate, recordListQuery, recordUpdate } from "../../contracts/record.ts";
 import { occurrenceRange, taskComplete, taskCreate, taskListQuery, taskUpdate } from "../../contracts/task.ts";
@@ -9,7 +10,7 @@ import * as activity from "../../core/activity/application.ts";
 import { type HttpEnv, idParam, json, versionQuery } from "./input.ts";
 import { parse } from "../errors.ts";
 
-const versionBody = z.strictObject({ expected_version: expectedVersion });
+const versionBody = z.strictObject({ expected_version: expectedVersion, ...mutationMeta });
 
 export function activityRoutes(deps: activity.ActivityDeps) {
   const app = new Hono<HttpEnv>();
@@ -32,8 +33,8 @@ export function activityRoutes(deps: activity.ActivityDeps) {
   });
   app.delete("/tasks/:id", async (c) => {
     const id = idParam(c.req.param("id"));
-    const { expected_version } = parse(versionQuery, c.req.query());
-    await activity.deleteTask(deps, c.get("actor"), id, expected_version);
+    const i = parse(versionQuery, c.req.query());
+    await activity.deleteTask(deps, c.get("actor"), id, i.expected_version, i.change_note, i.request_id);
     return c.body(null, 204);
   });
   app.post("/tasks/:id/complete", async (c) => {
@@ -43,13 +44,13 @@ export function activityRoutes(deps: activity.ActivityDeps) {
   });
   app.post("/tasks/:id/stop", async (c) => {
     const id = idParam(c.req.param("id"));
-    const { expected_version } = parse(versionBody, await json(c.req.raw));
-    return c.json(await activity.stopTask(deps, c.get("actor"), id, expected_version));
+    const i = parse(versionBody, await json(c.req.raw));
+    return c.json(await activity.stopTask(deps, c.get("actor"), id, i.expected_version, i.change_note, i.request_id));
   });
   app.post("/tasks/:id/resume", async (c) => {
     const id = idParam(c.req.param("id"));
-    const { expected_version } = parse(versionBody, await json(c.req.raw));
-    return c.json(await activity.resumeTask(deps, c.get("actor"), id, expected_version));
+    const i = parse(versionBody, await json(c.req.raw));
+    return c.json(await activity.resumeTask(deps, c.get("actor"), id, i.expected_version, i.change_note, i.request_id));
   });
   app.get("/tasks/:id/occurrences", async (c) => {
     const id = idParam(c.req.param("id"));
@@ -81,8 +82,8 @@ export function activityRoutes(deps: activity.ActivityDeps) {
   });
   app.delete("/records/:id", async (c) => {
     const id = idParam(c.req.param("id"));
-    const { expected_version } = parse(versionQuery, c.req.query());
-    await activity.deleteRecord(deps, c.get("actor"), id, expected_version);
+    const i = parse(versionQuery, c.req.query());
+    await activity.deleteRecord(deps, c.get("actor"), id, i.expected_version, i.change_note, i.request_id);
     return c.body(null, 204);
   });
 

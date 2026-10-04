@@ -11,10 +11,12 @@ import * as principles from "../../functions/_shared/core/principles/application
 import { search } from "../../functions/_shared/core/search/application.ts";
 import { SEARCH_PIPELINE } from "../../functions/_shared/core/search/config.ts";
 import { searchInputHash } from "../../functions/_shared/core/shared/operations.ts";
-import { asUser, connect, dbTest, devUsers, outcome, urls } from "./_db.ts";
+import { asUser, connect, dbTest, fixtureOwner, outcome, urls } from "./_db.ts";
 const admin = connect(urls.admin, { max: 1 }),
   sql = connect(urls.pooler, { max: 3, prepare: false }),
-  users = await devUsers(admin);
+  fixture = await fixtureOwner(admin),
+  foreignFixture = await fixtureOwner(admin),
+  users = { a: fixture.actor.userId, b: foreignFixture.actor.userId };
 const A = { userId: users.a },
   d = { uow: new SqlUnitOfWork(sql), clock: { now: () => new Date() } },
   p = { uow: new SqlPrincipleUnitOfWork(sql) },
@@ -30,7 +32,12 @@ dbTest("색인 상태: 3종류 최신 작업 하나·중복/실패 복구·본�
       ? await activity.createTask(d, A, taskCreate.parse({ ...input, kind: "once" }))
       : kind === "record"
       ? await activity.createRecord(d, A, recordCreate.parse(input))
-      : await principles.createPrinciple(p, A, principleCreate.parse(input));
+      : await principles.createPrinciple(
+        p,
+        A,
+        principleCreate.parse({ title: input.title, summary: input.summary, body: input.body }),
+      );
+    if (kind === "principle") await admin`update app.principles set is_current=false where id=${item.id}`;
     const hash = await searchInputHash(item);
     const enqueue = (actor = A, value = hash) =>
       asUser(sql, actor.userId, async (tx) => {
@@ -63,7 +70,13 @@ dbTest("색인 상태: 3종류 최신 작업 하나·중복/실패 복구·본�
     await admin`delete from pgmq.q_search_index where msg_id=${first.message_id}`;
     await enqueue();
     assertEquals((await messages()).length, 1);
-    const query = searchInput.parse({ query: input.title, kinds: [kind], mode: "keyword", tag_id: tag });
+    const query = searchInput.parse({
+      query: input.title,
+      kinds: [kind],
+      mode: "keyword",
+      tag_id: kind === "principle" ? undefined : tag,
+      principle_view: "all",
+    });
     await admin`update app.search_index_state set state='indexed',message_id=null,
       embedding=${
       JSON.stringify(Array.from({ length: 1024 }, (_, i) => i === 0 ? 1 : 0))
@@ -77,33 +90,48 @@ dbTest("색인 상태: 3종류 최신 작업 하나·중복/실패 복구·본�
     assertEquals((await search(s, A, query)).items[0].index_state, "pending");
     assertEquals((await search(s, A, query)).semantic_coverage, { pending: 1, excluded: 0 });
     const changed = kind === "task"
-      ? await activity.updateTask(d, A, item.id, taskUpdate.parse({ expected_version: 1, title: "새 " + input.title }))
+      ? await activity.updateTask(
+        d,
+        A,
+        item.id,
+        taskUpdate.parse({ change_note: "테스트 변경 이유", expected_version: 1, title: "새 " + input.title }),
+      )
       : kind === "record"
       ? await activity.updateRecord(
         d,
         A,
         item.id,
-        recordUpdate.parse({ expected_version: 1, title: "새 " + input.title }),
+        recordUpdate.parse({ change_note: "테스트 변경 이유", expected_version: 1, title: "새 " + input.title }),
       )
-      : await principles.updatePrinciple(
+      : await principles.correctPrinciple(
         p,
         A,
         item.id,
-        principleUpdate.parse({ expected_version: 1, title: "새 " + input.title }),
+        principleUpdate.parse({ change_note: "테스트 변경 이유", expected_version: 1, title: "새 " + input.title }),
       );
     assertEquals((await messages()).length, 1);
     assertEquals((await state()).input_hash, await searchInputHash(changed));
     assertEquals((await state()).state, "pending");
     const latest = (await state()).message_id;
     if (kind === "task") {
-      await activity.updateTask(d, A, item.id, taskUpdate.parse({ expected_version: 2, body: "수정 원문" }));
+      await activity.updateTask(
+        d,
+        A,
+        item.id,
+        taskUpdate.parse({ change_note: "테스트 변경 이유", expected_version: 2, body: "수정 원문" }),
+      );
     } else if (kind === "record") {
-      await activity.updateRecord(d, A, item.id, recordUpdate.parse({ expected_version: 2, body: "수정 원문" }));
-    } else {await principles.updatePrinciple(
+      await activity.updateRecord(
+        d,
+        A,
+        item.id,
+        recordUpdate.parse({ change_note: "테스트 변경 이유", expected_version: 2, body: "수정 원문" }),
+      );
+    } else {await principles.correctPrinciple(
         p,
         A,
         item.id,
-        principleUpdate.parse({ expected_version: 2, body: "수정 원문" }),
+        principleUpdate.parse({ change_note: "테스트 변경 이유", expected_version: 2, body: "수정 원문" }),
       );}
     assertEquals((await state()).message_id, latest);
     if (kind === "task") await activity.deleteTask(d, A, item.id, 3);
@@ -121,4 +149,9 @@ dbTest("색인 상태: 3종류 최신 작업 하나·중복/실패 복구·본�
       /^42501/,
     );
   }
+});
+
+dbTest("search-index-state fixture cleanup", async () => {
+  await fixture.cleanup();
+  await foreignFixture.cleanup();
 });

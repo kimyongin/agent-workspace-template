@@ -24,9 +24,15 @@ Deno.test("반복 규칙과 시간대 검증", () => {
 });
 
 Deno.test("수정: 바꿀 필드가 있어야 하고 kind·status는 거부", () => {
-  assertEquals(taskUpdate.safeParse({ expected_version: 1 }).success, false);
-  assertEquals(taskUpdate.safeParse({ expected_version: 1, kind: "recurring" }).success, false);
-  assertEquals(taskUpdate.safeParse({ expected_version: 1, due_on: null }).success, true);
+  assertEquals(taskUpdate.safeParse({ change_note: "테스트 변경 이유", expected_version: 1 }).success, false);
+  assertEquals(
+    taskUpdate.safeParse({ change_note: "테스트 변경 이유", expected_version: 1, kind: "recurring" }).success,
+    false,
+  );
+  assertEquals(
+    taskUpdate.safeParse({ change_note: "테스트 변경 이유", expected_version: 1, due_on: null }).success,
+    true,
+  );
 });
 
 Deno.test("회차 기간은 최대 366일", () => {

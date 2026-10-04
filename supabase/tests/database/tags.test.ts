@@ -21,7 +21,10 @@ dbTest("태그: 대소문자 중복·경쟁·버전·소유자 격리·멱등", 
     deps,
     A,
     p.id,
-    tagRename.parse({ name: "정정" + crypto.randomUUID().slice(0, 20), expected_version: 1 }),
+    tagRename.parse({
+      name: "정정" + crypto.randomUUID().slice(0, 20),
+      expected_version: 1,
+    }),
   );
   assertEquals(renamed.version, 2);
   await assertRejects(() => deleteTag(deps, A, p.id, 1), AppError);

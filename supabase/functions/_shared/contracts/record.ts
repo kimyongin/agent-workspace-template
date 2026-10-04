@@ -42,8 +42,7 @@ export const recordUpdate = z
     body: body.optional(),
     occurred_at: isoDateTime.optional(),
     applied_principle_ids: referenceIds.optional(),
-  })
-  .refine((v) => Object.keys(v).some((k) => !["expected_version", "change_note", "request_id"].includes(k)), { message: "바꿀 필드가 없습니다" });
+  }); // Automatic change records also allow editing only their note.
 export type RecordUpdate = z.infer<typeof recordUpdate>;
 
 export const recordListQuery = z
@@ -62,11 +61,21 @@ export const recordListQuery = z
   });
 export type RecordListQuery = z.infer<typeof recordListQuery>;
 
+export const appliedPrincipleSnapshot = principleResult.pick({
+  id: true,
+  title: true,
+  summary: true,
+  body: true,
+  version: true,
+  saved_at: true,
+  status: true,
+}).extend({ captured_at: z.enum(["application", "migration"]) });
+export type AppliedPrincipleSnapshot = z.infer<typeof appliedPrincipleSnapshot>;
 export const recordResult = z.object({
   record_kind: z.enum(["user", "result", "change"]),
   change_note: z.string().nullable(),
   change: changeMetadata.nullable(),
-  applied_principle_snapshots: z.array(z.record(z.string(), z.unknown())),
+  applied_principle_snapshots: z.array(appliedPrincipleSnapshot),
   id,
   entity_id: id.nullable(),
   tag_ids: z.array(id),
