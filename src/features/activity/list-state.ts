@@ -3,6 +3,12 @@ export type ListPage<T> = { items: T[]; next_cursor: string | null; anchor_page?
 export type LoadedList<T> = ListPage<T> & { pages: number };
 export const MAX_RESTORE_PAGES = 250;
 const ANCHOR_LOOKAHEAD_PAGES = 5;
+const RESTORE_PUBLISH_PAGES = 20;
+
+/** Long replays keep progress visible without rendering every growing prefix. */
+export function shouldPublishRestoredPage(count: number, target: number): boolean {
+  return target <= RESTORE_PUBLISH_PAGES || count === 1 || count % RESTORE_PUBLISH_PAGES === 0 || count >= target;
+}
 
 export function requestedPages(params: URLSearchParams): number {
   const value = Number(params.get("pages") ?? 1);
@@ -72,22 +78,36 @@ export async function restoreList<T extends { id: string }>(options: {
   const visited = new Set<string>();
   let targetPages=options.pages;
   let budget = Math.min(MAX_RESTORE_PAGES, options.pages + (options.anchor ? ANCHOR_LOOKAHEAD_PAGES : 0));
-  while (
-    (!result || result.pages < targetPages ||
-      !!options.anchor && !result.items.some((item) => item.id === options.anchor)) &&
-    (!result || result.next_cursor) && (result?.pages ?? 0) < budget
-  ) {
-    const cursor = result?.next_cursor ?? undefined;
-    if (cursor && visited.has(cursor)) throw new Error("Repeated list cursor");
-    if (cursor) visited.add(cursor);
-    const page = await options.load(cursor);
-    if (!options.current()) return undefined;
-    if(!result && options.anchor && page.anchor_page && Number.isSafeInteger(page.anchor_page)) {
-      targetPages=Math.min(MAX_RESTORE_PAGES,Math.max(targetPages,page.anchor_page));
-      budget=Math.min(MAX_RESTORE_PAGES,Math.max(budget,targetPages));
+  let published: LoadedList<T> | undefined;
+  const publish = () => {
+    if (result && result !== published && options.current()) {
+      published = result;
+      options.publish(result);
     }
-    result = { ...page, items: appendItems(result?.items ?? [], page.items), pages: (result?.pages ?? 0) + 1 };
-    options.publish(result);
+  };
+  try {
+    while (
+      (!result || result.pages < targetPages ||
+        !!options.anchor && !result.items.some((item) => item.id === options.anchor)) &&
+      (!result || result.next_cursor) && (result?.pages ?? 0) < budget
+    ) {
+      const cursor = result?.next_cursor ?? undefined;
+      if (cursor && visited.has(cursor)) throw new Error("Repeated list cursor");
+      if (cursor) visited.add(cursor);
+      const page = await options.load(cursor);
+      if (!options.current()) return undefined;
+      if(!result && options.anchor && page.anchor_page && Number.isSafeInteger(page.anchor_page)) {
+        targetPages=Math.min(MAX_RESTORE_PAGES,Math.max(targetPages,page.anchor_page));
+        budget=Math.min(MAX_RESTORE_PAGES,Math.max(budget,targetPages));
+      }
+      result = { ...page, items: appendItems(result?.items ?? [], page.items), pages: (result?.pages ?? 0) + 1 };
+      if (shouldPublishRestoredPage(result.pages, targetPages)) publish();
+    }
+    publish();
+    return result;
+  } catch (error) {
+    // A failure must reveal every valid page, including the unfinished render batch.
+    publish();
+    throw error;
   }
-  return result;
 }

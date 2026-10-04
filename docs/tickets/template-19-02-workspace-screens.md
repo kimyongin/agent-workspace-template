@@ -151,6 +151,27 @@ mock144 PASS와 독립 원본6 PASS, 실제72 PASS/12 SKIP를 서로 구분한�
 
 마지막 결과 커밋은 이 티켓만 갱신한다. exact 최종 SHA, tested853949 source와 문서 전용 차이, clean tracked 상태와 환경 반환은 TEMP status/final 인계가 소유한다. 보고된3결함의 수정과 재현 회귀가 모두 통과했으며 부모의 독립 최종 재리뷰·필수 CI·계약 호환 통합 PR·최신 main 확인·머지는 남는다. 실제 휴대전화/스크린리더/native zoom·유료 의미 검색·기존 전체E2ETS5 오류 한계는 유지한다. push/PR/merge/배포는 수행하지 않았다.
 
+## 2026-10-04 PR94 CI 실패 조사·수정
+
+사용자가 통합 worktree의 exact `379de5eac37db8182b46c14238d01ee9d0830b3c`에서 이 구현 소유자에게 PR94/run37202784462의 web E2E 실패 조사를 배정했다. 부모의 independent exact-head mergeable 리뷰·check SUCCESS와 integration의140 PASS/12 SKIP/8 FAIL은 인계 근거이며 이번 세션의 직접 실행으로 바꾸어 보고하지 않는다. 명시 gpt-6.1-sol/high와 오늘 CLI preflight를 재사용했고 현재 native thread의 turn_context에도 해당 model/effort를 직접 확인했다. 정제한 metadata는 외부 `screens-ci-native-model-metadata.json`에 보존했다. backend 실제 effort·비용은 미노출, 대체 모델·자식 세션은 없다.
+
+원본 CI 로그와 내려받은 trace/context 등37개 파일을 먼저 읽고 SHA256을 고정했다. 원본 파일은 변경하지 않았다. 같은 source의 local 원본2-worker 조건에서 관련12 cases는 PASS(1.6m)였으므로 그 결과만으로 CI 결함을 부정하지 않았다. 원본 trace의200 응답·순차 cursor 진행과 렌더 지연, 계정 전체 current의 다른 worker 저장, 태그의 목표 행은 이미 있는데 없어진 More를 기다린 증거를 분리했다. 불확정 제품 의미나 backend 오류로 취급하지 않았으며 서버 변경은 필요하지 않았다.
+
+| 원인·직접 재현 | 수정·확인 |
+| --- | --- |
+| 기록/엔터티250 복원: 매 응답마다 커지는 전체 목록을 렌더해 기존 진행/30s budget을 넘김. 원본에 CPU4×와2 workers를 적용해 두 종류 desktop/mobile 실패를 재현. | 첫 페이지·20페이지 간격·완료에 publish하며 실패는 마지막 유효 묶음까지 flush. 짧은 복원·모든 행/cursor·250 상한·수동251 이후·focus 유지. unit은250 순서/14 publish와23페이지 실패·취소를 검증하고 기존 assertion을 유지. |
+| current 원칙/promotion과 검색24→45: 다른 같은 계정 worker의 저장이 current를 바꾸어 conflict 또는 기존 원칙의 검색 제외를 유발. 실제 다른 MCP client로 원본 실패를 재현. | 두 projects가 DEV_USER_A를 공유하므로 정본 playwright workers를1로 맞춰 한 작성자씩 실행. 저장/승격/현재 기본 검색 계약은 그대로이며 conflict를 재시도하거나 assertion을 수정하지 않음. |
+| 태그 cancel/conflict/save: loading은 status 문구인데 button으로 조회해 기다림 없이 다음 click을 시작함. CI context에 target은 존재하지만 More는 사라짐. private DB를 보존한 fresh21-tag read fixture+500ms 마지막 응답에서 원본2 cases FAIL 재현. | 최초 행과 실제 누적 행 증가를 기다린 뒤 target을 다시 판단. 원래 conflict·draft·save·focus assertions 유지. |
+| 추가 full run의320/360/390 layout: 현재 원칙 chip 제목의 “저장”이 submit selector와 일치함. | submit controls로 action을 한정. 실제 현재 원칙 이름을 정확히 “저장”으로 만든320px 원본 layout1 PASS(13.4s), inserted 원칙은 해당 ID만 정리. |
+
+검증 증거는 각 실행의 별도 output/log로 보존했다. 수정 전 controlled8 FAIL/2 PASS 및 fresh-tag2 FAIL, 수정 후 CPU4×/fresh-tag desktop/mobile6 PASS(2.9m)다. 버퍼 내부 조회 실패에서 entities/records의23행 보존과 기존 list focus mock은3 PASS(6.1s). frontend24 PASS, build/boundaries/소유 fixture strict TS PASS다. 어떤 timeout·retry·skip·업무 assertion도 완화하지 않았다.
+
+전체 정본 CI160 case set을 API56421/DB56422와 Vite56680에서 직접 실행했다. run01은143 PASS/12 SKIP/5 FAIL(9.3m)이며 원래 CI8 cases는 모두 직접 PASS했다. 위 layout selector3 외에 auth-profile 초기 mount와 pending-tag의 menu 대기2는 Chrome ERR_NETWORK_CHANGED로 local ESM/CSS 요청이 중단되어 앱이 mount되지 않은 transport 실패였다. trace의 오류/실패 module paths를 확인했고 auth source를 바꾸거나 자동 재시도하지 않았다. 추가 targeted6 PASS(34.3s), 동일 이름 chip1 PASS 뒤 변경된 fixture source로 전체 run02를 실행해148 PASS/12 SKIP/0 FAIL(8.5m)을 확인했다. 단순히 원본을 다시 돌려 녹색으로 만든 것과 구분한다. 첫 전체 desktop 집계의 조기 보고 오류도 status에서 정정했다.
+
+전체는 실제 HTTP/MCP 업무 흐름과 기존 nav/consent/Auth mock fixtures를 포함하며160개를 모두 실서비스 검사라고 부르지 않는다. desktop79 PASS/paid-model1 SKIP, mobile69 PASS/desktop 전용10+paid-model1 SKIP다. 원래 CI8 failures 및 이후 layout/초기 mount/pending-delete cases가 final-source 전체에서 직접 PASS했다. 네트워크 observer는 설정을 바꾸지 않고 사건만 기록했으며 마지막 full run 동안 주소/가용성 변경이 없었다. 최초 Windows transport 중단의 OS 원인은 확정하지 않는다. CI Linux 재검증은 부모 책임이다.
+
+template20server는 기존 backup에서만 재시작했고 non-env runtime source68 SHA256이 immutable963 manifest와 동일함을 확인했다. reset/migration·template20fix57421/root55421/fin54321·유료 모델·backend/Auth/nav 변경은 없다. observer·Edge·Vite를 종료하고 own runtime을 backup 보존 stop한 뒤56421/56422 lease를 부모에게 반환했다. own API/DB/Vite/inspector listener0·container0을 확인했다. final build·boundaries·소유 mock strict TS PASS, docs446/model/scripts48 PASS/기존 Windows symlink1 SKIP, diff PASS다. 변경 real spec/config 포함 strict TS는 소유 오류0이고 변경 없는 support.ts의 nullable env3(10/17/18행)만 남는다. 이를 고치거나 strict 옵션을 완화하지 않았다. source/evidence manifest·exact commit·clean 상태는 실제 worktree TEMP status/final 인계가 소유한다. PRD/ADR 의미 변경은 없으며 독립 delta 리뷰·CI/push/merge/배포는 부모에게 남긴다.
+
 ## 2026-10-04 최종 독립 리뷰 P2 재개: 삭제된 변경 대상
 
 사용자가 같은 화면 구현 소유자에게 직접 재개를 배정했다. base는 `e9a63c667ff83bb2fea480eb4cccf51069061336`이며 부모의 문서 변경을 보존했다. 요청·명시 실행 설정은 gpt-6.1-sol/high, 오늘 preflight 통과는 사용자 인계 근거다. 모델/강도 대체·자식 세션은 없으며 backend 실제 effort·비용은 미노출이다. AGENTS·개발 스킬·모델 실행·workflow·화면/서버 계약·디자인/보안 가이드와 독립 리뷰 보고서를 읽었다. frozen853 리뷰 checkout은 수정하지 않았다.

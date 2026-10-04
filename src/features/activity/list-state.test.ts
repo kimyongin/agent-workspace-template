@@ -11,6 +11,34 @@ import {
 } from "./list-state.ts";
 
 describe("activity list return", () => {
+  it("batches long restoration renders while retaining every page and ordered cursor", async () => {
+    const published: number[] = [];
+    const load = vi.fn(async (cursor?: string) => {
+      const index = Number(cursor ?? 0);
+      return { items: [{ id: String(index) }], next_cursor: String(index + 1) };
+    });
+    const result = await restoreList({ load, pages: 250, current: () => true, publish: value => published.push(value.pages) });
+    expect(load.mock.calls.map(([cursor]) => cursor)).toEqual([undefined, ...Array.from({ length: 249 }, (_, i) => String(i + 1))]);
+    expect(result?.items).toEqual(Array.from({ length: 250 }, (_, i) => ({ id: String(i) })));
+    expect(result?.pages).toBe(250);
+    expect(result?.next_cursor).toBe("250");
+    expect(published).toEqual([1, ...Array.from({ length: 12 }, (_, i) => (i + 1) * 20), 250]);
+  });
+
+  it("flushes a partial render batch on failure but never publishes it after cancellation", async () => {
+    for (const cancelled of [false, true]) {
+      const published: number[] = [];
+      let current = true;
+      const load = vi.fn(async (cursor?: string) => {
+        const index = Number(cursor ?? 0);
+        if (index === 23) { current = !cancelled; throw new Error("network"); }
+        return { items: [{ id: String(index) }], next_cursor: String(index + 1) };
+      });
+      await expect(restoreList({ load, pages: 250, current: () => current, publish: value => published.push(value.pages) })).rejects.toThrow("network");
+      expect(published).toEqual(cancelled ? [1, 20] : [1, 20, 23]);
+    }
+  });
+
   it("preserves all URL filters, loaded extent and the focus target while constraining return paths", () => {
     const params = new URLSearchParams("kind=once&status=open&tag_id=tag&entity_id=entity&pages=3&scroll=9");
     const id = "00000000-0000-4000-8000-000000000001";

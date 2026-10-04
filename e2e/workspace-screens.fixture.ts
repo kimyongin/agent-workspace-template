@@ -1,4 +1,16 @@
 import { expect, test, type Page } from "@playwright/test";
+for(const kind of ["entities","records"] as const)test(`${kind}: 긴 복원 중 실패는 미표시 batch까지 유효한23행을 보존`,async({page})=>{
+  const state=await fixtures(page),reads:number[]=[];
+  await page.route(`**/api/${kind}?**`,route=>{
+    const index=Number(new URL(route.request().url()).searchParams.get("cursor")??0);reads.push(index);
+    if(index===23)return route.fulfill({status:503,json:{code:"internal",message:"partial restoration failure"}});
+    const item=kind==="entities"?{...entity(100+index),prop1:`부분 행 ${index}`}:{...record(100+index),title:`부분 행 ${index}`};
+    return route.fulfill({json:{items:[item],next_cursor:String(index+1)}});
+  });
+  await go(page,`/${kind}?pages=250`);await expect(page.getByRole("alert")).toBeVisible();
+  await expect(page.locator(".list .item-title")).toHaveCount(23);await expect(page.locator(".list .item-title").last()).toHaveText("부분 행 22");
+  expect(reads).toEqual(Array.from({length:24},(_,index)=>index));expect(state.writes).toHaveLength(0);expect(state.errors).toEqual([]);
+});
 const targetCases=[["entity","entities",1],["task","tasks",2],["record","records",31],["principle","principles",4]] as const;
 for(const [kind,route,n] of targetCases) for(const outcome of ["exists","deleted","foreign","failed"] as const)test(`변경 대상 ${kind}: ${outcome} 현재 조회와 역사 metadata 분리`,async({page})=>{
   const state=await fixtures(page),r=state.rows.records[0];

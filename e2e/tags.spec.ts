@@ -122,7 +122,12 @@ test("추가 페이지 태그의 편집 취소·충돌·저장 뒤 목록과 초
     for(let i=0;i<21;i++)tags.push(await mcp.call("create_tag",{name:unique(`보존 ${i}`).slice(0,30)}));
     const oldest=tags[0];await page.goto("/tags/activity");
     const trigger=page.getByRole("button",{name:`${oldest.name} 이름 변경`,exact:true});
-    while(await trigger.count()===0){await page.getByRole("button",{name:"더 보기",exact:true}).click();await expect(page.getByRole("button",{name:"불러오는 중…"})).toHaveCount(0);}
+    await expect(page.locator(".tag-management .list-item").first()).toBeVisible();
+    while(await trigger.count()===0){
+      const before=await page.locator(".tag-management .list-item").count();
+      await page.getByRole("button",{name:"더 보기",exact:true}).click();
+      await expect.poll(()=>page.locator(".tag-management .list-item").count()).toBeGreaterThan(before);
+    }
     await trigger.click();let form=page.getByRole("dialog",{name:"태그 이름 변경"});
     await form.getByRole("button",{name:"취소",exact:true}).click();await expect(trigger).toBeFocused();
     await trigger.click();const draft=unique("초안").slice(0,30);await form.getByRole("textbox",{name:/태그 이름/}).fill(draft);

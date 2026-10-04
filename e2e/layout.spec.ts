@@ -39,7 +39,7 @@ test.describe("화면 폭별 배치", () => {
     const longTitle = unique("가".repeat(40) + "공백없는긴제목");
     await dialog.getByLabel("제목").fill(longTitle);
     await dialog.getByLabel("요약").fill("https://example.com/" + "a".repeat(120));
-    await dialog.getByRole("button", { name: "추가" }).click();
+    await dialog.locator('button[type="submit"]').click();
     // 목록의 h1이 아니라 만든 할 일의 상세 화면이 뜰 때까지 기다린다(모달 뒤 목록 h1도 보이는 것으로 판정됨).
     await expect(page.getByRole("heading", { name: longTitle, level: 1 })).toBeVisible();
     const taskDetail = page.url();
@@ -51,7 +51,7 @@ test.describe("화면 폭별 배치", () => {
     const recordTitle = unique("긴기록" + "나".repeat(40));
     await recordDialog.getByLabel("제목").fill(recordTitle);
     await recordDialog.getByLabel("요약").fill("요약 " + "b".repeat(150));
-    await recordDialog.getByRole("button", { name: "저장" }).click();
+    await recordDialog.locator('button[type="submit"]').click();
     await expect(page.getByRole("heading", { name: recordTitle, level: 1 })).toBeVisible();
     const recordDetail = page.url();
 

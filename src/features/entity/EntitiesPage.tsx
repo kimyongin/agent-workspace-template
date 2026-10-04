@@ -1,7 +1,7 @@
 import { useCreateMode } from "../../components/useCreateMode.ts";
 import { TabSearch, AppliedConditions, resetTabFilters } from "../../components/TabSearch.tsx";
 import { TagDictionaryStatus, TagFilter, TagNames, TagReadProvider, useTagDictionary } from "../tags/TagPicker.tsx";
-import { listReturnPath } from "../activity/list-state.ts";
+import { listReturnPath, shouldPublishRestoredPage } from "../activity/list-state.ts";
 import type { EntityResult } from "@contracts/entity.ts";
 import { useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router";
@@ -78,12 +78,13 @@ export function EntitiesPage() {
           count: result.count + 1,
         };
         loaded.current = { context, page: result, epoch: loadEpoch };
-        setPage(result);
+        if (shouldPublishRestoredPage(result.count, target)) setPage(result);
         if (!next.next_cursor) break;
       }
       if (!controller.signal.aborted) setPage(result);
     })().catch((e) => {
       if (!controller.signal.aborted) {
+        if (loaded.current?.context === context) setPage(loaded.current.page);
         setError(
           e instanceof ApiError ? e.message : "엔터티를 불러오지 못했습니다.",
         );
