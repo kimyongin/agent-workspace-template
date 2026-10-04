@@ -1,5 +1,9 @@
 // 앱 조립: 경로·메뉴·브랜드. 새 도메인은 메뉴와 경로를 여기서 바꾼다.
-import { BrowserRouter, Navigate, NavLink, Outlet, Route, Routes } from "react-router";
+import { useState } from "react";
+import { createBrowserRouter, createRoutesFromElements, Navigate, Outlet, Route, RouterProvider } from "react-router";
+import { Navigation } from "./Navigation.tsx";
+import { GuidePage } from "../features/settings/GuidePage.tsx";
+import { LogoutPage } from "../features/auth/LogoutPage.tsx";
 import { ConsentPage } from "../features/auth/ConsentPage.tsx";
 import { AuthProvider, RequireAuth, useAuth } from "../features/auth/AuthProvider.tsx";
 import { LoginPage } from "../features/auth/LoginPage.tsx";
@@ -11,7 +15,6 @@ import { PrinciplesPage } from "../features/principles/PrinciplesPage.tsx";
 import { PrincipleDetailPage } from "../features/principles/PrincipleDetailPage.tsx";
 import { TagsPage } from "../features/tags/TagsPage.tsx";
 import { SearchPage } from "../features/search/SearchPage.tsx";
-import { supabase } from "../lib/supabase.ts";
 import { EntitiesPage } from "../features/entity/EntitiesPage.tsx";
 import { EntityDetailPage } from "../features/entity/EntityDetailPage.tsx";
 
@@ -20,26 +23,14 @@ export const APP_NAME = "Workspace";
 function Layout() {
   const { session } = useAuth();
   return (
-    <div className="app-shell">
+    <div className={`app-shell${session ? " has-navigation" : ""}`}>
       <header className="app-header">
         <span className="app-brand">{APP_NAME}</span>
-        {session && (
-          <>
-            <nav className="app-nav" aria-label="주 메뉴">
-              <NavLink to="/tasks">할 일</NavLink>
-              <NavLink to="/records">기록</NavLink>
-              <NavLink to="/principles">원칙</NavLink>
-              <NavLink to="/tags">태그</NavLink>
-              <NavLink to="/search">검색</NavLink>
-              <NavLink to="/entities">엔터티</NavLink>
-            </nav>
-            <button type="button" className="btn btn-text" onClick={() => supabase.auth.signOut()}>로그아웃</button>
-          </>
-        )}
       </header>
       <main className="app-main">
         <Outlet />
       </main>
+      {session && <Navigation />}
     </div>
   );
 }
@@ -47,14 +38,12 @@ function Layout() {
 const guarded = (el: React.ReactNode) => <RequireAuth>{el}</RequireAuth>;
 
 export function App() {
-  return (
-    <AuthProvider>
-      {/* GitHub Pages 경로(VITE_BASE) 아래에서 동작한다. 상세 URL 직접 진입은 404.html 대체로 처리한다. */}
-      <BrowserRouter basename={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-        <Routes>
+  // Data router는 기존 URL을 유지하고 편집 초안의 useBlocker 경로를 지원한다.
+  const [router] = useState(() => createBrowserRouter(createRoutesFromElements(
           <Route element={<Layout />}>
             <Route index element={<Navigate to="/tasks" replace />} />
             <Route path="login" element={<LoginPage />} />
+            <Route path="logout" element={guarded(<LogoutPage />)} />
             <Route path="oauth/consent" element={guarded(<ConsentPage />)} />
             <Route path="tasks" element={guarded(<TasksPage />)} />
             <Route path="tasks/:id" element={guarded(<TaskDetailPage />)} />
@@ -66,10 +55,9 @@ export function App() {
             <Route path="search" element={guarded(<SearchPage />)} />
             <Route path="entities" element={guarded(<EntitiesPage />)} />
             <Route path="entities/:id" element={guarded(<EntityDetailPage />)} />
+            <Route path="guide" element={guarded(<GuidePage />)} />
             <Route path="*" element={<p className="secondary">페이지를 찾을 수 없습니다.</p>} />
           </Route>
-        </Routes>
-      </BrowserRouter>
-    </AuthProvider>
-  );
+  ), { basename: import.meta.env.BASE_URL.replace(/\/$/, "") }));
+  return <AuthProvider><RouterProvider router={router} /></AuthProvider>;
 }

@@ -10,6 +10,8 @@ import { StatusBadge, useRequestId } from "./shared.tsx";
 import { TagFilter } from "../tags/TagPicker.tsx";
 import { useActivityList } from "./useActivityList.ts";
 import { EntityPicker } from "../entity/EntityPicker.tsx";
+import { ActivityTabs } from "./ActivityTabs.tsx";
+import { GuideLink } from "../../components/GuideLink.tsx";
 
 const KIND_FILTERS = [["", "전체"], ["once", taskLabels.once], ["recurring", taskLabels.recurring]] as const;
 const STATUS_BY_KIND: Record<string, readonly string[]> = {
@@ -45,6 +47,7 @@ export function TasksPage() {
 
   return (
     <section className="panel" aria-labelledby="tasks-title">
+      <ActivityTabs />
       <div className="panel-head">
         <h1 id="tasks-title" className="page-title" tabIndex={-1}>할 일</h1>
         <button type="button" className="btn btn-primary" onClick={() => setCreating(true)}>할 일 추가</button>
@@ -83,6 +86,7 @@ export function TasksPage() {
               </>
             )
             : <p className="secondary" style={{ margin: 0 }}>아직 할 일이 없습니다. 앞으로 할 일을 추가하세요.</p>}
+          {!filtered && <GuideLink />}
         </div>
       )}
       {items && items.length > 0 && (

@@ -1,0 +1,29 @@
+import { expect, test } from "vitest";
+import { guideConfig } from "./guide-config.ts";
+import { navigationSection } from "../../app/Navigation.tsx";
+
+test("활동과 상세 URL은 같은 주요 탐색에 속한다", () => {
+  for (const path of ["/tasks", "/tasks/abc", "/records", "/records/abc"]) expect(navigationSection(path)).toBe("activity");
+  expect(navigationSection("/entities/abc")).toBe("entities");
+  expect(navigationSection("/principles/abc")).toBe("principles");
+  expect(navigationSection("/search")).toBe("search");
+  expect(navigationSection("/guide")).toBe("more");
+  expect(navigationSection("/tags")).toBe("more");
+  expect(navigationSection("/tasks-other")).toBeNull();
+});
+
+test("새 앱의 공개 주소에서 같은 서버의 MCP와 설치 문서를 만든다", () => {
+  expect(guideConfig("https://example.supabase.co/functions/v1/api/", "https://github.com/owner/app/")).toEqual({
+    mcp: "https://example.supabase.co/functions/v1/mcp",
+    pluginDocs: "https://github.com/owner/app/blob/HEAD/plugins/workspace/README.md",
+    releaseDocs: "https://github.com/owner/app/blob/HEAD/docs/deployment/release.md#플러그인-패키징과-배포",
+  });
+  expect(guideConfig("http://127.0.0.1:55421/functions/v1/api").mcp).toBe("http://127.0.0.1:55421/functions/v1/mcp");
+});
+
+test("미설정·자격 증명·스크립트·잘못된 API 경로를 연결 주소로 제공하지 않는다", () => {
+  for (const value of [undefined, "", "javascript:alert(1)", "https://user:pass@example.org/api", "https://example.org/api?token=x", "https://example.org/api#x", "https://example.org/not-api"]) {
+    expect(guideConfig(value).mcp).toBeNull();
+  }
+  expect(guideConfig(undefined, "javascript:alert(1)").pluginDocs).toBeNull();
+});

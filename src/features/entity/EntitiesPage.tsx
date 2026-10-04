@@ -5,6 +5,7 @@ import { Field, Notice } from "../../components/Field.tsx";
 import { api, ApiError, query } from "../../lib/api.ts";
 import { useRequestId } from "../../lib/useRequestId.ts";
 import { EntityForm } from "./forms.tsx";
+import { GuideLink } from "../../components/GuideLink.tsx";
 type Page = { items: EntityResult[]; next_cursor: string | null; count: number };
 export function EntitiesPage() {
   const [params] = useSearchParams(),
@@ -184,6 +185,7 @@ export function EntitiesPage() {
           <p className="secondary">
             {key !== "?sort=updated_at" ? "조건에 맞는 엔터티가 없습니다." : "아직 엔터티가 없습니다."}
           </p>
+          {key === "?sort=updated_at" && <GuideLink />}
           <button className="btn" onClick={() => navigate("/entities", { replace: true })}>
             필터 해제
           </button>
