@@ -1,0 +1,4 @@
+.entity-properties { display: grid; grid-template-columns: minmax(5rem, 1fr) minmax(0, 3fr); gap: .75rem 1rem; margin: 1.5rem 0; }
+.entity-properties dd { margin: 0; overflow-wrap: anywhere; }
+.entity-related { margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--line); }
+.entity-related > .btn { margin-left: .75rem; }
