@@ -65,11 +65,11 @@ export function PrincipleDetailPage() {
       <EntityLink id={item.entity_id}/>
       <p className="meta">수정 {formatDateTime(item.updated_at)}</p>
       {item.replaced_by_id&&<p><Link to={`/principles/${item.replaced_by_id}`}>대체 원칙 확인</Link></p>}
-      {dialog==="edit"&&<PrincipleFormModal editing initial={item} onClose={closeDialog} onSave={async draft=>{
+      {dialog==="edit"&&<PrincipleFormModal editing initial={item} onClose={closeDialog} onRouteDiscard={()=>setDialog(null)} onSave={async draft=>{
         try {setItem(await api<PrincipleResult>("PATCH",`/principles/${id}`,{...draft,expected_version:item.version}));closeDialog();}
         catch(e){changedElsewhere(e);throw e;}
       }}/>}
-      {(dialog==="status"||dialog==="replace")&&<StatusForm replaceOnly={dialog==="replace"} item={item} onClose={closeDialog} onError={changedElsewhere} onSave={p=>{setItem(p);setDialog(null);}}/>}
+      {(dialog==="status"||dialog==="replace")&&<StatusForm replaceOnly={dialog==="replace"} item={item} onClose={closeDialog} onRouteDiscard={()=>setDialog(null)} onError={changedElsewhere} onSave={p=>{setItem(p);setDialog(null);}}/>}
       <ConfirmDialog open={dialog==="delete"} title="원칙을 삭제할까요?" message="연결된 판단 기록의 본문은 보존하고 원칙 연결만 제거합니다."
         confirmLabel="삭제" danger busy={busy} onCancel={()=>setDialog(null)} onConfirm={async()=>{
           setBusy(true);setError(null);
@@ -81,7 +81,7 @@ export function PrincipleDetailPage() {
   </section>;
 }
 
-function StatusForm({item,onClose,onSave,onError,replaceOnly=false}:{item:PrincipleResult;replaceOnly?:boolean;onClose:()=>void;onError:(e:unknown)=>void;onSave:(p:PrincipleResult)=>void}) {
+function StatusForm({item,onClose,onRouteDiscard,onSave,onError,replaceOnly=false}:{item:PrincipleResult;replaceOnly?:boolean;onClose:()=>void;onRouteDiscard:()=>void;onError:(e:unknown)=>void;onSave:(p:PrincipleResult)=>void}) {
   const [replacement,setReplacement]=useState(item.replaced_by_id??"");
   const [options,setOptions]=useState<PrincipleResult[]|null>(null);
   const [failed,setFailed]=useState(false);
@@ -99,7 +99,7 @@ function StatusForm({item,onClose,onSave,onError,replaceOnly=false}:{item:Princi
     load().catch(()=>{if(alive)setFailed(true);});return()=>{alive=false;};
   },[item.id,item.status,replaceOnly,attempt]);
   const deactivating=item.status==="active"||replaceOnly;
-  return <FormModal title={replaceOnly?"대체 연결 변경":item.status==="active"?"원칙 비활성화":"원칙 활성화"} open submitLabel="변경" dirty={replacement!==(item.replaced_by_id??"")} onClose={onClose}
+  return <FormModal title={replaceOnly?"대체 연결 변경":item.status==="active"?"원칙 비활성화":"원칙 활성화"} open submitLabel="변경" dirty={replacement!==(item.replaced_by_id??"")} onClose={onClose} onRouteDiscard={onRouteDiscard}
     validate={()=>deactivating&&(failed||!options)?{replaced_by_id:"원칙 목록을 불러온 뒤 다시 시도하세요."}:null}
     onSubmit={async()=>{try{onSave(await api<PrincipleResult>("POST",`/principles/${item.id}/${deactivating?"deactivate":"activate"}`,
       {expected_version:item.version,...(deactivating?{replaced_by_id:replacement||null}:{})}));}catch(e){onError(e);throw e;}}}>

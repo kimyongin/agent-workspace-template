@@ -128,6 +128,7 @@ export function TasksPage() {
           open={creating}
           initial={emptyTask()}
           onClose={() => setCreating(false)}
+          onRouteDiscard={() => setCreating(false)}
           onSave={async (draft) => {
             const created = await api<TaskResult>("POST", "/tasks", { ...taskInput(draft), request_id: requestId.current });
             requestId.renew();

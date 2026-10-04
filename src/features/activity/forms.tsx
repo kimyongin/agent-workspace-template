@@ -34,6 +34,7 @@ export function RecordFormModal(props: {
   intro?: ReactNode;
   entityEditable?:boolean;
   onClose: () => void;
+  onRouteDiscard?: () => void;
   onSave: (value: { title: string; summary: string; body: string; occurred_at?: string; applied_principle_ids:string[];tag_ids?:string[];entity_id?:string|null }) => Promise<void>;
 }) {
   const [initial] = useState(props.initial);
@@ -55,6 +56,7 @@ export function RecordFormModal(props: {
       open={props.open}
       dirty={dirty}
       onClose={props.onClose}
+      onRouteDiscard={props.onRouteDiscard}
       validate={() => {
         const r = recordCreate.safeParse(value());
         return r.success ? null : fieldErrors(r.error.issues);
@@ -168,6 +170,7 @@ export function TaskFormModal(props: {
   open: boolean;
   initial: TaskDraft;
   onClose: () => void;
+  onRouteDiscard?: () => void;
   onSave: (draft: TaskDraft) => Promise<void>;
 }) {
   const [initial] = useState(props.initial);
@@ -183,6 +186,7 @@ export function TaskFormModal(props: {
       open={props.open}
       dirty={dirty}
       onClose={props.onClose}
+      onRouteDiscard={props.onRouteDiscard}
       validate={() => {
         const r = taskCreate.safeParse(taskInput(draft));
         if (r.success) return null;

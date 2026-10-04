@@ -107,6 +107,7 @@ export function RecordDetailPage() {
           open
           initial={recordDraftFrom(record)}
           onClose={closeEdit}
+          onRouteDiscard={() => setDialog(null)}
           onSave={async (value) => {
             loadGeneration.current++;
             setRecord(await api<RecordResult>("PATCH", `/records/${record.id}`, { ...value, expected_version: record.version }));

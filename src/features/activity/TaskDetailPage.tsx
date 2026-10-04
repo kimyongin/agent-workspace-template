@@ -245,6 +245,7 @@ export function TaskDetailPage() {
           open
           initial={taskDraftFrom(task)}
           onClose={closeEdit}
+          onRouteDiscard={() => setDialog(null)}
           onSave={async (draft) => {
             loadGeneration.current++;
             const patch: Record<string, unknown> = {
@@ -278,6 +279,7 @@ export function TaskDetailPage() {
           initial={emptyRecord()}
           intro={<p className="help" style={{ margin: 0 }}>실제로 수행한 결과를 남기면 할 일이 완료됩니다.</p>}
           onClose={() => setDialog(null)}
+          onRouteDiscard={() => setDialog(null)}
           onSave={async (value) => {
             await api("POST", `/tasks/${task.id}/complete`, { ...value, expected_version: task.version, request_id: requestId.current });
             requestId.renew();
@@ -294,6 +296,7 @@ export function TaskDetailPage() {
           open
           initial={{...emptyRecord(),entity_id:task.entity_id}}
           onClose={() => setDialog(null)}
+          onRouteDiscard={() => setDialog(null)}
           onSave={async (value) => {
             await api<RecordResult>("POST", `/tasks/${task.id}/occurrences/${dialog.occurrence}/records`, {
               ...value,

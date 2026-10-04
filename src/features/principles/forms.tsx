@@ -8,13 +8,13 @@ import {EntityPicker} from "../entity/EntityPicker.tsx";
 
 export type PrincipleDraft = Pick<PrincipleCreate, "title" | "summary" | "body" | "applies_when" | "tag_ids" | "entity_id">;
 export const emptyPrinciple: PrincipleDraft = {title:"", summary:"", body:"", applies_when:"",tag_ids:[]};
-export function PrincipleFormModal({initial, editing=false, onClose, onSave}: {
-  initial: PrincipleDraft; editing?: boolean; onClose:()=>void; onSave:(draft:PrincipleDraft)=>Promise<void>;
+export function PrincipleFormModal({initial, editing=false, onClose, onRouteDiscard, onSave}: {
+  initial: PrincipleDraft; editing?: boolean; onClose:()=>void; onRouteDiscard?:()=>void; onSave:(draft:PrincipleDraft)=>Promise<void>;
 }) {
   const [initialDraft] = useState(() => ({title:initial.title,summary:initial.summary,body:initial.body,applies_when:initial.applies_when,tag_ids:initial.tag_ids??[],entity_id:initial.entity_id??null}));
   const [draft,setDraft]=useState(initialDraft);
   return <FormModal title={editing?"원칙 편집":"원칙 추가"} open submitLabel="저장"
-    dirty={JSON.stringify(draft)!==JSON.stringify(initialDraft)} onClose={onClose}
+    dirty={JSON.stringify(draft)!==JSON.stringify(initialDraft)} onClose={onClose} onRouteDiscard={onRouteDiscard}
     validate={()=>{const r=principleCreate.safeParse(draft); return r.success?null:fieldErrors(r.error.issues);}}
     onSubmit={()=>onSave(principleCreate.parse(draft))}>
     {errors=><>

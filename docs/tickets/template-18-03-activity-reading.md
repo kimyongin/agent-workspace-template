@@ -77,3 +77,9 @@ PR 하나 `codex/fin-ux-activity`. activity 세션이 activity/principles featur
 - 메인이 고정한 root detached `e15c9e95d9599043e72297d97b11cef28f939427`에서 `npm run test:e2e`: 71 PASS·9 기존 SKIP·0 FAIL, 4.6분. setup/reset 없이 동일 로컬 환경을 사용했고 전후 SHA·clean을 확인했다. 결과 자료는 `C:/Users/yongin/AppData/Local/Temp/template18-activity-fulle15c9e9-pass`와 `template18-activity-fulle15c9e9-output.txt`에 보존하고 공유 환경 소유권을 반환했다.
 - 추가 검사에서 유효한 30자 한글 태그가 360px에서 줄바꿈되면 로딩 칩과 높이가 달라 복귀 행 y가 90px 이동하는 실제 회귀를 재현했다. 실패 trace는 `template18-activity-long-tag-failure`에 보존했다. 고정 높이·이름 생략·허용치 확대 대신 필터와 목록의 사전 조회를 하나로 공유하고 최초 태그 목록 표시 및 scroll/focus 복원을 사전 응답 완료 뒤에 수행한다. 페이지 추가에는 이미 받은 사전을 유지한다.
 - 긴 태그 수정 소스에서 build PASS, 격리 브라우저 14 PASS. 늦은 8자/30자 이름 응답과 줄바꿈, 목록→상세→목록 왕복의 원래 행 y·scroll·초점을 desktop/mobile에서 검사했다. 실제 전체 E2E 통과 증거는 위 `e15c9e9`에 한정하며 이 후속 수정과 최종 탐색/공유 route guard 통합 head의 전체 검증은 아직 남아 있다.
+
+### 최종 탐색·공유 초안 보호 통합 — 2026-10-04
+
+- navigation 수정 `08d580506a8bd25eb3567fe8426b305404a5fabc` 위로 activity 커밋을 rebase하고, entity-tags 담당의 전용 공유 guard/API `9741aadeb6f1af4f0134e95b5c5260da960421a8`를 `f35b4bc`로 cherry-pick했다. Entity/TagsPage feature는 포함하지 않았다.
+- Task/Record/Principle 작성·편집과 원칙 상태/대체 폼은 `onRouteDiscard`를 순수 편집 종료 콜백으로 연결했다. 일반 취소의 deferred 목록 복귀는 별도로 유지하여 요청한 라우트와 경합하지 않는다. 공유 guard는 dirty/busy 라우트 이탈과 beforeunload를 보호한다.
+- 해당 통합 및 caller 소스에서 build·문서 검사 PASS(48 PASS·기존 1 SKIP), 격리 브라우저 26 PASS. 실제 작성/직접 편집 폼의 같은 경로 query 이동에서 확인 취소의 초안 보존, 버리기 후 편집 종료·새 작성 초기값, 직접 편집의 요청 상세 조건 유지(목록으로 잘못 복귀하지 않음)를 desktop/mobile로 추가 검사했다. 기존 저장/취소·오류·긴 태그 복원 검사는 함께 통과했다. 최종 정확한 head의 실제 전체 E2E는 공유 환경 재배정 후 수행한다.

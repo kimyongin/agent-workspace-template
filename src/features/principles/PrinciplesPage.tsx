@@ -48,7 +48,7 @@ export function PrinciplesPage() {
 
 function CreatePrinciple({ onClose, onCreated }: { onClose: () => void; onCreated: (id: string) => void }) {
   const request = useRequestId();
-  return <PrincipleFormModal initial={emptyPrinciple} onClose={onClose} onSave={async draft => {
+  return <PrincipleFormModal initial={emptyPrinciple} onClose={onClose} onRouteDiscard={onClose} onSave={async draft => {
     const result = await api<PrincipleResult>("POST","/principles",{...draft,request_id:request.current});
     request.renew(); onCreated(result.id);
   }}/>;

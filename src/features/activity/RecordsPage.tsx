@@ -91,6 +91,7 @@ export function RecordsPage() {
           open
           initial={emptyRecord()}
           onClose={() => setCreating(false)}
+          onRouteDiscard={() => setCreating(false)}
           onSave={async (value) => {
             const created = await api<RecordResult>("POST", "/records", { ...value, request_id: requestId.current });
             requestId.renew();

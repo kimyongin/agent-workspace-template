@@ -185,3 +185,42 @@ for (const name of ["활동 왕복 태그", "한".repeat(30)]) {
     await expect(page.locator(".tag-read").last()).toHaveText(name);
   });
 }
+for (const [routePath, createLabel] of [["/records","기록 작성"],["/tasks","할 일 추가"],["/principles","원칙 추가"]]) {
+  test(`같은 ${routePath} 조건 이동의 취소는 초안을 보존하고 버리기는 새 작성 상태로 닫는다`,async({page})=>{
+    await page.route("**/fixture-api/**",route=>route.fulfill({json:{items:[],next_cursor:null}}));
+    await page.goto(`/e2e/fixtures/activity.html?route=${routePath}`);
+    await page.getByRole("button",{name:createLabel,exact:true}).click();
+    const title=page.getByRole("textbox",{name:"제목 (필수)",exact:true});
+    await title.fill("이탈 확인 초안");
+    // The fixture probe exercises real router navigation while the modal owns focus.
+    await page.getByRole("link",{name:"fixture 같은 화면 조건 이동"}).evaluate((el:HTMLAnchorElement)=>el.click());
+    const confirm=page.getByRole("dialog",{name:"변경을 버릴까요?",exact:true});
+    await expect(confirm).toBeVisible();
+    await confirm.getByRole("button",{name:"취소",exact:true}).click();
+    await expect(title).toHaveValue("이탈 확인 초안");
+    await expect(page).not.toHaveURL(/fixture=next/);
+    await page.getByRole("link",{name:"fixture 같은 화면 조건 이동"}).evaluate((el:HTMLAnchorElement)=>el.click());
+    await page.getByRole("button",{name:"변경 버리기",exact:true}).click();
+    await expect(page).toHaveURL(/fixture=next/);
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await page.getByRole("button",{name:createLabel,exact:true}).click();
+    await expect(page.getByRole("textbox",{name:"제목 (필수)",exact:true})).toHaveValue("");
+  });
+}
+for (const kind of ["records","tasks","principles"]) {
+  test(`직접 편집 ${kind} 라우트 버리기는 목록 복귀 대신 요청한 상세 조건으로 이동한다`,async({page})=>{
+    const item={...record(1),kind:"once",status:kind==="principles"?"active":"open",due_on:null,recurrence:null,timezone:null,result_record:null,applies_when:"판단할 때",replaced_by_id:null};
+    await page.route("**/fixture-api/**",route=>route.fulfill({json:new URL(route.request().url()).pathname.endsWith(`/${kind}/${id(1)}`)?item:{items:[item],next_cursor:null}}));
+    await page.goto(`/e2e/fixtures/activity.html?route=/${kind}`);
+    await page.getByRole("link",{name:"기록 1 편집",exact:true}).click();
+    const title=page.getByRole("textbox",{name:"제목 (필수)",exact:true});
+    await title.fill("상세 이동 초안");
+    await page.getByRole("link",{name:"fixture 같은 화면 조건 이동"}).evaluate((el:HTMLAnchorElement)=>el.click());
+    await expect(page.getByRole("dialog",{name:"변경을 버릴까요?",exact:true})).toBeVisible();
+    await page.getByRole("button",{name:"변경 버리기",exact:true}).click();
+    await expect(page).toHaveURL(new RegExp(`/${kind}/${id(1)}\\?fixture=next$`));
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await page.getByRole("button",{name:"편집",exact:true}).click();
+    await expect(page.getByRole("textbox",{name:"제목 (필수)",exact:true})).toHaveValue("기록 1");
+  });
+}
