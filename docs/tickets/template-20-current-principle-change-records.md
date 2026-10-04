@@ -14,7 +14,7 @@
 
 기준: [PRD](../product/concept.md), [ADR-0001](../adr/0001-hexagonal-shared-usecases.md), [ADR-0003](../adr/0003-core-rules-and-local-transactions.md), [ADR-0004](../adr/0004-summary-single-vector-search.md), [문서 소유권](../adr/0008-document-ownership.md), [검색](../architecture/search.md), [디자인](../design/guide.md), [보안](../security/guide.md).
 
-fin의 `docs/tickets/principles-01-single-current-document.md`, `docs/tickets/crud-01-principles.md`, `docs/design/domain-crud-parity.md`를 직접 확인했다. 현재 템플릿의 principle 계약은 여러 활성 원칙·태그·엔터티 연결이고 기록의 적용 원칙은 현재값 참조다. 따라서 이번 요청은 화면 변경뿐 아니라 제품/저장/API/MCP/검색 의미 변경이다. PRD·ADR 정본은 수정하지 않고 제품 변경안을 이 티켓에 제안한다. 사용자 설명을 재확인하라고 반복 요구하지 않으며 추가 미정 의미만 구현 전에 확정한다.
+fin의 `docs/tickets/principles-01-single-current-document.md`, `docs/tickets/crud-01-principles.md`, `docs/design/domain-crud-parity.md`를 직접 확인했다. 설계 기준 revision의 principle 계약은 여러 활성 원칙·태그·엔터티 연결이고 기록의 적용 원칙은 현재값 참조였다. 따라서 이번 요청은 화면 변경뿐 아니라 제품/저장/API/MCP/검색 의미 변경이다. 설계 당시에는 PRD·ADR을 수정하지 않고 변경안을 제안했으며, 이후 사용자 구현 승인으로 PRD에 반영했다. 사용자 설명을 재확인하라고 반복 요구하지 않으며 추가 미정 의미만 구현 전에 확정한다.
 
 ## 데이터의 역할
 
@@ -56,7 +56,7 @@ fin의 `docs/tickets/principles-01-single-current-document.md`, `docs/tickets/cr
 - 엔터티 태그 ID를 할 일/기록에 연결하거나 활동 태그를 엔터티에 연결하는 요청은 서버가 거부한다. 화면에서 목록만 나누는 것으로 끝내지 않는다.
 - 태그 연결/해제는 해당 대상의 편집에 포함한다. 대상 속성·태그·편집 메모를 한 번 저장하고 하나의 변경 사건으로 기록한다.
 - 엔터티 관련 활동은 entity_id 연결로 찾는다. 엔터티 태그를 활동 태그로 자동 복제하지 않는다. 태그 이름 변경/삭제 때문에 당시 변경 기록의 문맥이 사라지지 않도록 표시 자료를 보존한다.
-- 태그 사전 자체의 생성/이름 변경/삭제를 자동 기록에 넣는 범위는 추가 기본안이다. 포함하면 태그 사전 범위와 변경 영향을 표시하며 연결된 부모의 동일 변경 사건을 중복 발행하지 않는다.
+- 태그 사전 자체는 요청한 네 업무 데이터의 변경 기록 범위에 포함하지 않는다. 사전 편집에 별도 필수 메모를 추가하지 않으며, 부모의 태그 연결/해제는 해당 부모의 변경 기록에 포함한다. 사전 범위·사용 중 삭제·중복 이름 거부는 기존 사전 계약과 새 scope 경계를 따른다.
 
 ## CRUD와 편집 메모가 남는 기록
 
