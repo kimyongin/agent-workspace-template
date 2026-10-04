@@ -36,8 +36,9 @@ export function RecordFormModal(props: {
   onClose: () => void;
   onSave: (value: { title: string; summary: string; body: string; occurred_at?: string; applied_principle_ids:string[];tag_ids?:string[];entity_id?:string|null }) => Promise<void>;
 }) {
-  const [draft, setDraft] = useState(props.initial);
-  const dirty = JSON.stringify(draft) !== JSON.stringify(props.initial);
+  const [initial] = useState(props.initial);
+  const [draft, setDraft] = useState(initial);
+  const dirty = JSON.stringify(draft) !== JSON.stringify(initial);
   const value = () => ({
     title: draft.title,
     summary: draft.summary,
@@ -169,8 +170,9 @@ export function TaskFormModal(props: {
   onClose: () => void;
   onSave: (draft: TaskDraft) => Promise<void>;
 }) {
-  const [draft, setDraft] = useState(props.initial);
-  const dirty = JSON.stringify(draft) !== JSON.stringify(props.initial);
+  const [initial] = useState(props.initial);
+  const [draft, setDraft] = useState(initial);
+  const dirty = JSON.stringify(draft) !== JSON.stringify(initial);
   // 연속 입력이 앞선 변경을 덮지 않도록 항상 최신 초안에 합친다.
   const set = (patch: Partial<TaskDraft> | ((d: TaskDraft) => Partial<TaskDraft>)) =>
     setDraft((prev) => ({ ...prev, ...(typeof patch === "function" ? patch(prev) : patch) }));
@@ -193,7 +195,6 @@ export function TaskFormModal(props: {
     >
       {(errors) => (
         <>
-          <TagPicker value={draft.tag_ids} error={errors.tag_ids} onChange={tag_ids=>set({tag_ids})}/>
           {props.mode === "create" && (
             <fieldset className="field" style={{ border: 0, padding: 0, margin: 0 }}>
               <legend className="label">{taskLabels.kind}</legend>
@@ -213,6 +214,7 @@ export function TaskFormModal(props: {
           )}
           <TextFields draft={draft} set={set} errors={errors} />
           <EntityPicker value={draft.entity_id} error={errors.entity_id} onChange={entity_id=>set({entity_id})}/>
+          <TagPicker value={draft.tag_ids} error={errors.tag_ids} onChange={tag_ids=>set({tag_ids})}/>
           {draft.kind === "once"
             ? (
               <Field label={taskLabels.due_on} error={errors.due_on} help="알림은 없습니다">

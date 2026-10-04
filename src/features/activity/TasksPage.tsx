@@ -3,15 +3,18 @@ import type { TaskListItem, TaskResult } from "@contracts/task.ts";
 import { taskLabels } from "@contracts/task.ts";
 import { useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
+import {useDeferredNavigation} from "../../lib/useDeferredNavigation.ts";
 import { Notice } from "../../components/Field.tsx";
 import { api, query } from "../../lib/api.ts";
 import { emptyTask, TaskFormModal, taskInput } from "./forms.tsx";
 import { StatusBadge, useRequestId } from "./shared.tsx";
-import { TagFilter } from "../tags/TagPicker.tsx";
+import { TagFilter, TagNames, TagReadProvider } from "../tags/TagPicker.tsx";
 import { useActivityList } from "./useActivityList.ts";
 import { EntityPicker } from "../entity/EntityPicker.tsx";
 import { ActivityTabs } from "./ActivityTabs.tsx";
 import { GuideLink } from "../../components/GuideLink.tsx";
+
+import "./activity.css";
 
 const KIND_FILTERS = [["", "전체"], ["once", taskLabels.once], ["recurring", taskLabels.recurring]] as const;
 const STATUS_BY_KIND: Record<string, readonly string[]> = {
@@ -33,6 +36,7 @@ export function TasksPage() {
   const [formKey, setFormKey] = useState(0);
   const requestId = useRequestId();
   const navigate = useNavigate();
+  const navigateAfterClose = useDeferredNavigation();
 
   const setFilter = (key: "kind" | "status" | "tag_id" | "entity_id", value: string) => {
     const next = new URLSearchParams(params);
@@ -53,7 +57,7 @@ export function TasksPage() {
         <button type="button" className="btn btn-primary" onClick={() => setCreating(true)}>할 일 추가</button>
       </div>
 
-      <div className="form" role="group" aria-label="할 일 필터">
+      <div className="activity-filters" role="group" aria-label="할 일 필터">
         <TagFilter value={tag_id} onChange={id=>setFilter("tag_id",id)}/>
         <EntityPicker label="엔터티 필터" value={entity_id} onChange={id=>setFilter("entity_id",id??"")}/>
         <div className="chips" role="group" aria-label={taskLabels.kind}>
@@ -71,6 +75,7 @@ export function TasksPage() {
             </button>
           ))}
         </div>
+        {filtered && <button type="button" className="btn filter-reset" onClick={() => setParams({}, {replace:true})}>필터 해제</button>}
       </div>
 
       {items === null && !error && <p className="secondary" role="status">불러오는 중…</p>}
@@ -90,21 +95,22 @@ export function TasksPage() {
         </div>
       )}
       {items && items.length > 0 && (
-        <ul className="list">
+        <TagReadProvider enabled={items.some(t=>t.tag_ids.length>0)}><ul className="list">
           {items.map((t) => (
             <li key={t.id} className="list-item">
               <div className="list-item-main">
-                <Link className="item-title" {...list.link(t.id)}>{t.title}</Link>
+                <div className="activity-item-heading"><Link className="item-title" {...list.link(t.id)}>{t.title}</Link><span className="activity-item-actions"><Link {...list.link(t.id)} id={undefined} aria-label={`${t.title} 보기`}>보기</Link><Link {...list.link(t.id,true)} aria-label={`${t.title} 편집`}>편집</Link></span></div>
                 <span className="secondary">{t.summary}</span>
                 <span className="meta">
                   {taskLabels[t.kind]}
                   {t.due_on ? ` · 기한 ${t.due_on}` : ""}
                 </span>
+                <TagNames ids={t.tag_ids} compact />
               </div>
               <StatusBadge status={t.status} />
             </li>
           ))}
-        </ul>
+        </ul></TagReadProvider>
       )}
       {error && <Notice kind="error">{error}</Notice>}
       {list.showMoreControl && (
@@ -126,7 +132,7 @@ export function TasksPage() {
             requestId.renew();
             setCreating(false);
             setFormKey((k) => k + 1);
-            navigate(`/tasks/${created.id}`);
+            navigateAfterClose(`/tasks/${created.id}`);
           }}
         />
       )}

@@ -2,16 +2,20 @@
 import type { RecordResult } from "@contracts/record.ts";
 import { useState } from "react";
 import { Link, useNavigate,useSearchParams } from "react-router";
+import {useDeferredNavigation} from "../../lib/useDeferredNavigation.ts";
 import { Notice } from "../../components/Field.tsx";
 import { api, query } from "../../lib/api.ts";
-import { formatDateTime } from "../../lib/format.ts";
+import { browserTimezone, formatDateTime } from "../../lib/format.ts";
 import { emptyRecord, RecordFormModal } from "./forms.tsx";
 import { useRequestId } from "./shared.tsx";
-import {TagFilter} from "../tags/TagPicker.tsx";
+import {TagFilter, TagNames, TagReadProvider} from "../tags/TagPicker.tsx";
 import { useActivityList } from "./useActivityList.ts";
 import {EntityPicker} from "../entity/EntityPicker.tsx";
 import { ActivityTabs } from "./ActivityTabs.tsx";
 import { GuideLink } from "../../components/GuideLink.tsx";
+
+import { collapsedDates, groupRecords } from "./timeline.ts";
+import "./activity.css";
 
 export function RecordsPage() {
   const [params,setParams]=useSearchParams();const tag_id=params.get("tag_id")??"";
@@ -22,6 +26,15 @@ export function RecordsPage() {
   const [creating, setCreating] = useState(false);
   const requestId = useRequestId();
   const navigate = useNavigate();
+  const navigateAfterClose = useDeferredNavigation();
+  const timezone = browserTimezone();
+  const collapsed = collapsedDates(params);
+  const toggleDate = (date: string) => {
+    const next = new URLSearchParams(params);
+    collapsed.has(date) ? collapsed.delete(date) : collapsed.add(date);
+    collapsed.size ? next.set("collapsed", [...collapsed].join(",")) : next.delete("collapsed");
+    setParams(next, { replace: true });
+  };
 
   return (
     <section className="panel" aria-labelledby="records-title">
@@ -30,8 +43,12 @@ export function RecordsPage() {
         <h1 id="records-title" className="page-title" tabIndex={-1}>기록</h1>
         <button type="button" className="btn btn-primary" onClick={() => setCreating(true)}>기록 작성</button>
       </div>
-      <TagFilter value={tag_id} onChange={id=>{const next=new URLSearchParams(params);next.delete("pages");next.delete("scroll");id?next.set("tag_id",id):next.delete("tag_id");setParams(next);}}/>
-      <EntityPicker label="엔터티 필터" value={entity_id} onChange={id=>{const next=new URLSearchParams(params);next.delete("pages");next.delete("scroll");id?next.set("entity_id",id):next.delete("entity_id");setParams(next);}}/>
+      <div className="activity-filters" role="group" aria-label="기록 필터">
+      <TagFilter value={tag_id} onChange={id=>{const next=new URLSearchParams(params);next.delete("pages");next.delete("scroll");next.delete("collapsed");id?next.set("tag_id",id):next.delete("tag_id");setParams(next);}}/>
+      <EntityPicker label="엔터티 필터" value={entity_id} onChange={id=>{const next=new URLSearchParams(params);next.delete("pages");next.delete("scroll");next.delete("collapsed");id?next.set("entity_id",id):next.delete("entity_id");setParams(next);}}/>
+      {(tag_id || entity_id) && <button className="btn filter-reset" onClick={() => setParams({}, {replace:true})}>필터 해제</button>}
+      </div>
+      <p className="help">날짜와 시각 기준: {timezone}</p>
       {items === null && !error && <p className="secondary" role="status">불러오는 중…</p>}
       {items?.length === 0 && (
         <div className="empty">
@@ -40,20 +57,24 @@ export function RecordsPage() {
         </div>
       )}
       {items && items.length > 0 && (
-        <ul className="list">
-          {items.map((r) => (
+        <TagReadProvider enabled={items.some(r=>r.tag_ids.length>0)}><div className="record-timeline">{groupRecords(items, timezone).map(({date, records}) => <section key={date} className="record-date-group" aria-label={`${date} 기록`}>
+        <h2 className="section-title"><button type="button" className="btn record-date-toggle" aria-label={`${date} 기록`} aria-expanded={!collapsed.has(date)} aria-controls={`records-date-${date}`} onClick={() => toggleDate(date)}>{date}</button></h2>
+        <ul className="list" id={`records-date-${date}`} hidden={collapsed.has(date)}>
+          {records.map((r) => (
             <li key={r.id} className="list-item">
               <div className="list-item-main">
-                <Link className="item-title" {...list.link(r.id)}>{r.title}</Link>
+                <div className="activity-item-heading"><Link className="item-title" {...list.link(r.id)}>{r.title}</Link>
+                <span className="activity-item-actions"><Link {...list.link(r.id)} id={undefined} aria-label={`${r.title} 보기`}>보기</Link><Link {...list.link(r.id,true)} aria-label={`${r.title} 편집`}>편집</Link></span></div>
                 <span className="secondary">{r.summary}</span>
                 <span className="meta">
                   {formatDateTime(r.occurred_at)}
                   {r.occurrence_on ? ` · ${r.occurrence_on} 회차` : r.task_id ? " · 할 일 결과" : ""}
                 </span>
+                <TagNames ids={r.tag_ids} compact />
               </div>
             </li>
           ))}
-        </ul>
+        </ul></section>)}</div></TagReadProvider>
       )}
       {error && <Notice kind="error">{error}</Notice>}
       {list.showMoreControl && (
@@ -73,7 +94,7 @@ export function RecordsPage() {
             const created = await api<RecordResult>("POST", "/records", { ...value, request_id: requestId.current });
             requestId.renew();
             setCreating(false);
-            navigate(`/records/${created.id}${query({tag_id})}`);
+            navigateAfterClose(`/records/${created.id}${query({tag_id})}`);
           }}
         />
       )}

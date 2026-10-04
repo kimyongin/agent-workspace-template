@@ -1,6 +1,7 @@
 import { principleLabels, type PrincipleResult } from "@contracts/principle.ts";
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
+import {useDeferredNavigation} from "../../lib/useDeferredNavigation.ts";
 import { Notice } from "../../components/Field.tsx";
 import { MarkdownContent } from "../../components/MarkdownContent.tsx";
 import { api, ApiError } from "../../lib/api.ts";
@@ -11,21 +12,25 @@ import { FormModal } from "../../components/ContentForm.tsx";
 import { Field } from "../../components/Field.tsx";
 import {TagNames} from "../tags/TagPicker.tsx";
 import {EntityLink} from "../entity/EntityPicker.tsx";
+import {safeListReturn} from "../activity/list-state.ts";
+import "../activity/activity.css";
 import {useSearchReturn} from "../search/return.ts";
 
 export function PrincipleDetailPage() {
   const { id = "" } = useParams();
   const [params] = useSearchParams();
-  const back=useSearchReturn(`/principles?${params}#principle-${id}`,"← 원칙 목록");
+  const back=useSearchReturn(safeListReturn(params.get("list"),"principles",`/principles?${params}#principle-${id}`),"← 원칙 목록");
   const [item, setItem] = useState<PrincipleResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [retry, setRetry] = useState(0);
   const navigate = useNavigate();
-  const [dialog, setDialog] = useState<null|"edit"|"status"|"replace"|"delete">(null);
+  const navigateAfterClose = useDeferredNavigation();
+  const [dialog, setDialog] = useState<null|"edit"|"status"|"replace"|"delete">(params.get("edit")==="1"?"edit":null);
   const [busy,setBusy] = useState(false);
   const refreshOnClose = useRef(false);
   const closeDialog = () => {
     setDialog(null);
+    if(params.get("edit")==="1")navigateAfterClose(back.path,true);
     if(refreshOnClose.current){refreshOnClose.current=false;setRetry(n=>n+1);}
   };
   const changedElsewhere = (e:unknown) => {
@@ -34,6 +39,7 @@ export function PrincipleDetailPage() {
   useEffect(() => {
     let alive = true;
     setItem(null); setError(null);
+    setDialog(params.get("edit")==="1"?"edit":null);
     api<PrincipleResult>("GET", `/principles/${id}`).then((p) => { if (alive) setItem(p); })
       .catch((e) => { if (alive) setError(e instanceof ApiError && e.code === "not_found" ? "원칙을 찾을 수 없습니다." : "원칙을 불러오지 못했습니다."); });
     return () => { alive = false; };
@@ -50,16 +56,17 @@ export function PrincipleDetailPage() {
         {item.status==="inactive"&&<button type="button" className="btn" onClick={()=>setDialog("replace")}>대체 연결 변경</button>}
         <button type="button" className="btn btn-danger" onClick={()=>setDialog("delete")}>삭제</button>
       </div>
+      <p className="document-summary">{item.summary}</p>
       <dl className="props"><div><dt>상태</dt><dd>{principleLabels[item.status]}</dd></div>
         <div><dt>{principleLabels.applies_when}</dt><dd>{item.applies_when || "지정하지 않음"}</dd></div>
-        <div><dt>{principleLabels.summary}</dt><dd>{item.summary}</dd></div></dl>
+</dl>
+      <div><h2 className="section-title">본문</h2><MarkdownContent text={item.body} /></div>
       <TagNames ids={item.tag_ids}/>
       <EntityLink id={item.entity_id}/>
-      <div><h2 className="section-title">본문</h2><MarkdownContent text={item.body} /></div>
       <p className="meta">수정 {formatDateTime(item.updated_at)}</p>
       {item.replaced_by_id&&<p><Link to={`/principles/${item.replaced_by_id}`}>대체 원칙 확인</Link></p>}
       {dialog==="edit"&&<PrincipleFormModal editing initial={item} onClose={closeDialog} onSave={async draft=>{
-        try {setItem(await api<PrincipleResult>("PATCH",`/principles/${id}`,{...draft,expected_version:item.version}));setDialog(null);}
+        try {setItem(await api<PrincipleResult>("PATCH",`/principles/${id}`,{...draft,expected_version:item.version}));closeDialog();}
         catch(e){changedElsewhere(e);throw e;}
       }}/>}
       {(dialog==="status"||dialog==="replace")&&<StatusForm replaceOnly={dialog==="replace"} item={item} onClose={closeDialog} onError={changedElsewhere} onSave={p=>{setItem(p);setDialog(null);}}/>}

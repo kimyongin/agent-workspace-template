@@ -1,0 +1,21 @@
+.activity-filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+  gap: var(--space-3);
+  border-bottom: 1px solid var(--line);
+  padding-bottom: var(--space-4);
+}
+.activity-filters > .chips, .activity-filters > .filter-reset { grid-column: 1 / -1; }
+.activity-item-heading { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-2); }
+.activity-item-heading > .item-title { min-width: 0; }
+.activity-item-actions { display: inline-flex; flex-shrink: 0; gap: var(--space-1); }
+.activity-item-actions a { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; font-size: .875rem; }
+.record-timeline { display: flex; flex-direction: column; gap: var(--space-4); }
+.record-date-toggle { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); width: 100%; }
+.record-date-toggle::after { content: "접기"; font-size: .875rem; font-weight: normal; }
+.record-date-toggle[aria-expanded="false"]::after { content: "펼치기"; }
+.record-date-group > .list { margin-top: var(--space-2); }
+.document-summary { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.tag-read { display: inline-block; border: 1px solid var(--line); border-radius: var(--radius-chip); padding: var(--space-1) var(--space-2); overflow-wrap: anywhere; max-width: 100%; }
+.tag-selection .chip { min-width: 44px; border-radius: var(--radius-chip); }
+.record-date-group > .list[hidden] { display: none; }

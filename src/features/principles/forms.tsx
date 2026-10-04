@@ -11,7 +11,7 @@ export const emptyPrinciple: PrincipleDraft = {title:"", summary:"", body:"", ap
 export function PrincipleFormModal({initial, editing=false, onClose, onSave}: {
   initial: PrincipleDraft; editing?: boolean; onClose:()=>void; onSave:(draft:PrincipleDraft)=>Promise<void>;
 }) {
-  const initialDraft = {title:initial.title,summary:initial.summary,body:initial.body,applies_when:initial.applies_when,tag_ids:initial.tag_ids??[],entity_id:initial.entity_id??null};
+  const [initialDraft] = useState(() => ({title:initial.title,summary:initial.summary,body:initial.body,applies_when:initial.applies_when,tag_ids:initial.tag_ids??[],entity_id:initial.entity_id??null}));
   const [draft,setDraft]=useState(initialDraft);
   return <FormModal title={editing?"원칙 편집":"원칙 추가"} open submitLabel="저장"
     dirty={JSON.stringify(draft)!==JSON.stringify(initialDraft)} onClose={onClose}
