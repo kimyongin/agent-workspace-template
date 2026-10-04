@@ -7,7 +7,7 @@
 }
 .activity-filters > .chips, .activity-filters > .filter-reset { grid-column: 1 / -1; }
 .activity-item-heading { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-2); }
-.activity-item-heading > .item-title { min-width: 0; }
+.activity-item-heading > .item-title { min-width: 44px; }
 .activity-item-actions { display: inline-flex; flex-shrink: 0; gap: var(--space-1); }
 .activity-item-actions a { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; font-size: .875rem; }
 .record-timeline { display: flex; flex-direction: column; gap: var(--space-4); }

@@ -262,3 +262,19 @@ for(const kind of ["records","tasks","principles"]){
     expect(await title.evaluate(el=>el.getBoundingClientRect().top)).toBeCloseTo(y,0);
   });
 }
+for(const kind of ["records","tasks","principles"]){
+  test(`${kind} 한 글자 제목도 모든 폭에서44px 조작 영역을 유지한다`,async({page})=>{
+    const item={...record(1),title:"함",kind:"once",status:kind==="principles"?"active":"open",due_on:null,recurrence:null,timezone:null,result_record:null,applies_when:"판단할 때",replaced_by_id:null};
+    await page.route("**/fixture-api/**",route=>route.fulfill({json:{items:[item],next_cursor:null}}));
+    await page.goto(`/e2e/fixtures/activity.html?route=/${kind}`);
+    const title=page.getByRole("link",{name:"함",exact:true});
+    await expect(title).toBeVisible();
+    for(const width of [360,390,768,1024,1440]){
+      await page.setViewportSize({width,height:900});
+      const box=await title.boundingBox();
+      expect(box!.width).toBeGreaterThanOrEqual(44);
+      expect(box!.height).toBeGreaterThanOrEqual(44);
+      expect(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth)).toBe(false);
+    }
+  });
+}
