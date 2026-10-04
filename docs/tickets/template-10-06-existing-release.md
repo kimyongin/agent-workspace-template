@@ -1,11 +1,17 @@
 # Template-10-06 — 기존 운영 서비스 변경 반영
 
 작성: 2026-10-04
-상태: 승인된 기존 운영 변경 적용 완료(실제 사용자 업무·소량 색인 미확인, Cron 보류; 기록 PR 검증 대기)
+상태: 기존 운영 적용·후속 본인 기록 색인/Cron·Claude 웹/Codex CLI 읽기 검증 완료(데스크톱 UI·실기기/스크린리더·과금 미확인)
 검토 기준: 배포할 최종 main revision은 선행 PR 머지 후 고정
 선행: Entity·활동 복원·제품 패키지의 독립 리뷰와 필수 CI
 
-## 최종 운영 결과 — 2026-10-04 KST
+## 본인 운영 검증 후속 — 2026-10-04 KST
+
+사용자가 남은1~4 진행을 승인했고 메인이 실제 본인 Google OAuth/UI로 운영 점검 기록 한 건을 저장·수정했다. [Template-12](template-12-production-verification.md)는 이 담당의 생성/수정 scoped worker 각1회 indexed1·current hash/1024벡터 일치, 메인의 두 의미 질의·최신 원문 확인과 매분 limit5 Cron/job1 실제 주기 성공을 연결한다. 소량 성공 조건을 충족해 이전 Cron 보류를 해제했다. Vault 두 이름/중복 없는 job·pg_cron1.6.4/pg_net0.20.4·cron succeeded 및 pg_net HTTP200/0결과를 별도로 대조했다.
+
+pg_net 기본 PUBLIC ACL·postgres 관리권한 한계는 실제 public Data API `Accept-Profile:net/select=id`의406 거부와 구분해 기록했다. token/header 값 조회나 미지원 ACL/owner 변경은 하지 않았다. 운영 기록은 보존하고 추가 자동 CRUD 시험·새 user/admin JWT·앱 배포·local 서비스 변경·T02-5/6은 없다. 메인의 Claude 웹 실제 검색/원문 읽기와 Codex CLI native OAuth·31도구/동일 원문 읽기 성공은 Template-12에 실행 주체와 증거를 연결했다. 실제 공급자usage/실청구액·provider 백업/복구·Codex desktop UI·실기기·스크린리더는 미확인이다. 아래 최초 적용 당시 빈 큐/세션 부재/보류·실패/수정 이력은 당시 snapshot으로 보존한다.
+
+## 최초 릴리스 실행 결과 — 2026-10-04 KST(당시 snapshot)
 
 메인이 기존 운영 반영의 실행을 명시 인계했다. source는 merged main `1730dc983eb10e282e28f3a200ffbd265978480e`, PR #80 exact `18b7eff0f8199996767585a04109216eb3208738`, [완료5974516525](https://github.com/kimyongin/agent-workspace-template/pull/80#issuecomment-5974516525)·[CI37160563892](https://github.com/kimyongin/agent-workspace-template/actions/runs/37160563892) check36초/integration11분37초 SUCCESS/CLEAN·독립 머지 가능이다. release 담당은 해당 main으로 FF하고 정상 signed-in CLI/connector로 아래 운영 변경·재조회를 직접 수행했다. 같은 balanced/medium 배정 유지·당일 preflight PASS는 메인 인계이며 backend model/effort/실청구액은 미노출이다.
 
@@ -38,7 +44,7 @@
 - [x] 원격 migration dry-run으로 추가 목록과 호환성을 확인한 뒤 적용한다. seed/reset 없이 기존 데이터를 보존한다.
 - [x] 신규 worker의 역할·Secrets를 서버에만 설정하고 API/MCP/worker를 배포한다.
 - [x] 미인증 거부·metadata·worker 인증 거부와 승인된 최소 점검을 수행한다. 실제 사용자 Google/OAuth 검증 접근이 없으면 그 범위를 남긴다.
-- [ ] worker 준비·소량 성공·호출 범위를 확인한 뒤 기존 검색 소비의 운영 설정을 적용한다. 실제 소량 성공을 확인하지 못해 Cron/Vault 일정은 보류한다. 빈 큐 0건은 색인 성공이 아니다.
+- [x] worker 준비·소량 성공·호출 범위를 확인한 뒤 기존 검색 소비의 운영 설정을 적용한다. Template-12의 실제 본인 기록 생성/수정 색인 성공 후 Cron/Vault 일정을 활성화했다. 최초 빈 큐 0건은 별도 이력이다.
 - [x] 같은 서버 계약의 Pages revision과 제품 ZIP/hash를 고정하고 원격 동작을 확인한다.
 - [x] 실제 단위별 배포 revision·적용 결과·미확인·복구 기준을 남긴다.
 

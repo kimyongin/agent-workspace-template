@@ -7,14 +7,14 @@
   },
   "clients": {
     "codex-cli": {
-      "version": "0.147.0",
+      "version": "0.160.0",
       "context": "owner-desktop-codex-cli",
-      "checkedAt": "2026-10-04T00:01:09.921Z",
-      "evidence": "Template-11 오늘 read-only app-server initialize → model/list(limit100,includeHidden=false), nextCursor=null: gpt-5.6-sol/terra/luna 및 gpt-5.5만 노출; 허용 gpt-6.1-sol 없음. --evaluate assign도 실제 거부. LLM turn/fallback/업데이트 없음",
+      "checkedAt": "2026-10-04T00:40:07.248Z",
+      "evidence": "Template-11 후속: 0.160.0 정상 기존 계정 strict-config app-server initialize/model-list 8개 끝까지 조회, gpt-6.1-sol actual/low medium high xhigh max ultra 노출. 다른 후보는 조회만 수행; balanced/medium 직접 부모·child·지원 재개 성공. 과거0.147.0 거부는 Template-11 당시 이력 보존",
       "models": {
-        "light": {"model":"gpt-6.1-sol","defaultEffort":"low","efforts":["low","medium","high","xhigh","max"],"capability":"pending","evaluation":"baseline","nativeExecution":"pending","evidence":"허용 고정 ID 후보. 실제 계정/CLI 모델·강도 지원 및 실행 미확인; 과거 다른 모델 성공을 재사용하지 않음","replaceWhen":"허용 모델의 지원·실행 증거 갱신; 다른 ID는 사람의 명시 정책 변경 필요"},
-        "balanced": {"model":"gpt-6.1-sol","defaultEffort":"medium","efforts":["low","medium","high","xhigh","max"],"capability":"pending","evaluation":"baseline","nativeExecution":"pending","evidence":"허용 고정 ID 후보. 실제 계정/CLI 모델·강도 지원 및 실행 미확인; 과거 다른 모델 성공을 재사용하지 않음","replaceWhen":"허용 모델의 지원·실행 증거 갱신; 다른 ID는 사람의 명시 정책 변경 필요"},
-        "advanced": {"model":"gpt-6.1-sol","defaultEffort":"high","efforts":["low","medium","high","xhigh","max"],"capability":"pending","evaluation":"baseline","nativeExecution":"pending","evidence":"허용 고정 ID 후보. 실제 계정/CLI 모델·강도 지원 및 실행 미확인; 과거 다른 모델 성공을 재사용하지 않음","replaceWhen":"허용 모델의 지원·실행 증거 갱신; 다른 ID는 사람의 명시 정책 변경 필요"}
+        "light": {"model":"gpt-6.1-sol","defaultEffort":"low","efforts":["low","medium","high","xhigh","max","ultra"],"capability":"confirmed","evaluation":"baseline","nativeExecution":"pending","evidence":"현재 모델/강도 목록 확인; 실행은 등급별 nativeExecution 증거와 구분","replaceWhen":"허용 모델의 지원·실행 증거 갱신; 다른 ID는 사람의 명시 정책 변경 필요"},
+        "balanced": {"model":"gpt-6.1-sol","defaultEffort":"medium","efforts":["low","medium","high","xhigh","max","ultra"],"capability":"confirmed","evaluation":"baseline","nativeExecution":"direct-confirmed","evidence":"현재 모델/강도 목록 확인; 실행은 등급별 nativeExecution 증거와 구분","replaceWhen":"허용 모델의 지원·실행 증거 갱신; 다른 ID는 사람의 명시 정책 변경 필요","executionEvidence":"Template-11 / experiments/agent-model-evaluation/results/fixed-model-cli-20261004.json: 0.160.0 strict-config gpt-6.1-sol/medium 부모·동일 ID resume, explicit generic native child·동일 child followup 성공. 로컬 turn_context 모델/강도 일치. custom task-balanced 선택은 미지원; backend 실제 effort/청구 미관측"},
+        "advanced": {"model":"gpt-6.1-sol","defaultEffort":"high","efforts":["low","medium","high","xhigh","max","ultra"],"capability":"confirmed","evaluation":"baseline","nativeExecution":"pending","evidence":"현재 모델/강도 목록 확인; 실행은 등급별 nativeExecution 증거와 구분","replaceWhen":"허용 모델의 지원·실행 증거 갱신; 다른 ID는 사람의 명시 정책 변경 필요"}
       }
     },
     "codex-desktop": {
@@ -29,13 +29,13 @@
       }
     },
     "claude-cli": {
-      "version": "2.1.140",
+      "version": "2.1.289",
       "context": "owner-desktop-claude",
-      "checkedAt": "2026-10-03T11:49:56.802Z",
-      "evidence": "Template-11 CLI2.1.140 고정 claude-opus-5-5 / medium 단일 READY smoke exit1 API400: 이 모델은 CLI2.1.280 이상 필요. input/output0, modelUsage{}, total_cost_usd0; actual Opus 실행 아님. 업데이트/fallback 없음",
+      "checkedAt": "2026-10-04T00:40:10.378Z",
+      "evidence": "Template-11 후속: native2.1.289 고정 Opus5.5/medium 단일 부모 READY exit0, init/assistant/modelUsage 모두 정확 ID. 실제 supported effort는 이 medium 실행 범위; balanced native 역할·child와 지원 재개 확인. 과거2.1.140 API400은 Template-11 당시 이력 보존",
       "models": {
         "light": {"model":"claude-opus-5-5","defaultEffort":"low","efforts":["low","medium","high"],"capability":"pending","evaluation":"baseline","nativeExecution":"pending","evidence":"허용 고정 ID 후보. 실제 계정/CLI 모델·강도 지원 및 실행 미확인; 과거 다른 모델 성공을 재사용하지 않음","replaceWhen":"허용 모델의 지원·실행 증거 갱신; 다른 ID는 사람의 명시 정책 변경 필요","resolvedModel":"claude-opus-5-5"},
-        "balanced": {"model":"claude-opus-5-5","resolvedModel":"claude-opus-5-5","defaultEffort":"medium","efforts":["low","medium","high"],"capability":"pending","evaluation":"baseline","nativeExecution":"pending","evidence":"허용 고정 ID 후보. 실제 계정/CLI 모델·강도 지원 및 실행 미확인; 과거 다른 모델 성공을 재사용하지 않음","replaceWhen":"허용 모델의 지원·실행 증거 갱신; 다른 ID는 사람의 명시 정책 변경 필요"},
+        "balanced": {"model":"claude-opus-5-5","resolvedModel":"claude-opus-5-5","defaultEffort":"medium","efforts":["low","medium","high"],"capability":"confirmed","evaluation":"baseline","nativeExecution":"native-confirmed","evidence":"고정 Opus5.5/medium 부모 READY 성공. 다른 강도의 현재 CLI 실행은 이 근거로 확인하지 않음","replaceWhen":"허용 모델의 지원·실행 증거 갱신; 다른 ID는 사람의 명시 정책 변경 필요","executionEvidence":"Template-11 / experiments/agent-model-evaluation/results/fixed-model-cli-20261004.json: 2.1.289 --agent task-balanced/Opus5.5/medium 역할 시작, 실제 native Task child·SendMessage 동일 child 재개, 부모 동일 ID resume 성공. init/assistant/modelUsage와 child transcript exact Opus5.5. child effort는 부모 명시 medium 상속; backend 실제 effort/청구 미관측"},
         "advanced": {"model":"claude-opus-5-5","defaultEffort":"high","efforts":["low","medium","high"],"capability":"pending","evaluation":"baseline","nativeExecution":"pending","evidence":"허용 고정 ID 후보. 실제 계정/CLI 모델·강도 지원 및 실행 미확인; 과거 다른 모델 성공을 재사용하지 않음","replaceWhen":"허용 모델의 지원·실행 증거 갱신; 다른 ID는 사람의 명시 정책 변경 필요","resolvedModel":"claude-opus-5-5"}
       }
     }

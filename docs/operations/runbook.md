@@ -66,6 +66,10 @@ $job$);
 select cron.unschedule('search-index-worker');
 ```
 
+Cron 설정 전 같은 이름의 job·Vault 항목이 있으면 값을 출력하거나 덮어쓰지 않고 기존 소유·설정부터 확인한다. 활성화 후 `cron.job_run_details`의 succeeded는 비동기 HTTP 등록 성공이므로 `net._http_response`의 상태·timeout/error·worker count도 별도로 확인한다. 빈 큐의 HTTP200/0건을 실제 임베딩 성공으로 세지 않으며 본인 계정의 scoped 소량 성공과 현재 hash/vector를 앞서 대조한다. 공급자 usage/청구액이 응답에 없으면 batch/처리 수의 한정 관찰과 실제 금액을 구분한다. 실제 적용 근거는 [Template-12](../tickets/template-12-production-verification.md)에 있다.
+
+pg_net 기본 queue ACL과 공개 접근 경계를 설치 환경에서 확인한다. 요청 큐의 header/token 값은 조회하지 않는다. 공개 Data API 노출 여부는 `Accept-Profile: net`·`select=id`/count처럼 비밀 없는 요청과 schema 거부로 확인한다. net이 공개로 노출되면 해당 소비 job을 중지하고 권한/노출 원인을 해결한 뒤 재개한다. 플랫폼 소유 테이블의 ACL을 바꿀 권한이 없다면 ownership 변경·권한 우회를 하지 않고 실제 경계와 관리 권한 한계를 기록한다. 서버 role/고정 SQL 또는 Data API 노출 설정이 바뀌면 다시 확인한다.
+
 Cron 실행 결과와 pg_net 응답, `app.search_index_state`의 상태/이유별 수·최종 갱신 시각, `pgmq.metrics('search_index')`의 대기량/나이를 함께 확인한다. 토큰을 출력하지 않는다. 실제 호출/알림·복구 기준은 환경별 배포 티켓에서 검증한다. 유료 로컬 검증은 `node scripts/index-worker-smoke.mjs`로 세 종류 시험 원본만 생성·처리·삭제한다. CI에서는 이 명령을 실행하지 않는다.
 
 ## 백업과 데이터 복구
