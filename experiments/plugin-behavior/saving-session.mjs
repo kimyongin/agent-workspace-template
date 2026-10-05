@@ -1,8 +1,7 @@
 import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
-import { randomUUID } from 'node:crypto';
 import { saveJournal } from './journal.mjs';
 import { readBusinessOriginals } from './preparation.mjs';
-import { verifyStoredChange } from './saving.mjs';
+import { verifyStoredChange, newSavingIntent } from './saving.mjs';
 
 export async function openSavingTrial(fixture, fixturePath, mode) {
   if (!fixture.preparation || fixture.scenario !== 'normal' || !fixture.authCreated || fixture.authDeleted || fixture.ownerId !== fixture.authUserId || fixture.authEmail !== `${fixture.marker}@fixture.invalid`) throw new Error('Saving trials require a fresh journal-owned synthetic user');
@@ -16,7 +15,7 @@ export async function openSavingTrial(fixture, fixturePath, mode) {
   try {
     await client.connect(new StreamableHTTPClientTransport(new URL(fixture.endpoint), { requestInit: { headers: { Authorization: `Bearer ${fixture.token}` } } }));
     const before = await readBusinessOriginals(call);
-    fixture.saving ??= { correction: `검토 메모 정정 ${randomUUID()}`, ownedRecordIds: [] };
+    fixture.saving = newSavingIntent(fixture.saving, mode);
     if (mode === 'save-memo' && !before.records.some(row => row.id === fixture.saving.recordId && row.record_kind === 'result')) throw new Error('Memo trial requires this journal-owned saved task result');
     fixture.saving.pending = { mode, before }; await saveJournal(fixturePath, fixture);
     return {

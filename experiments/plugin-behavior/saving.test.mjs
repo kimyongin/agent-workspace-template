@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { assessSaving, verifyStoredChange, classifyIndexStatements } from './saving.mjs';
+import { assessSaving, verifyStoredChange, classifyIndexStatements, newSavingIntent, savingPrompt } from './saving.mjs';
 
 const evidence = { exitCode: 0, completedSkillRead: true, originalSourceRead: true, answer: { savedId: true }, independent: { originalReads: true, allowedChange: true, newRecords: 2, requestedRecords: 1, automaticChanges: 1, recordKind: 'user', contentVerified: true, entityLinked: true } };
 test('a requested record needs independent original content; search or a client success is insufficient', () => {
@@ -82,4 +82,20 @@ test('index statements distinguish affirmative completion from negated or unconf
   assert.equal(classifyIndexStatements('색인 완료를 확인했습니다. 다른 자료는 확인하지 못했습니다.').affirmative, 1);
   assert.equal(classifyIndexStatements('색인 상태만 확인했습니다.').affirmative, 0);
   assert.equal(assessSaving({ ...evidence, answer: { savedId: true, indexComplete: true } }, 'save-record').pass, false);
+  const claims = classifyIndexStatements('키워드 검색 반영을 확인했습니다. 의미 색인 완료는 확인하지 못했습니다.').claims;
+  assert.deepEqual(claims.map(({ subject, polarity, verb, keywordQualified, semanticQualified }) => ({ subject, polarity, verb, keywordQualified, semanticQualified })), [{ subject: 'search-reflection', polarity: 'affirmative', verb: 'confirm', keywordQualified: true, semanticQualified: false }, { subject: 'index', polarity: 'negated', verb: 'complete', keywordQualified: false, semanticQualified: true }]);
+  assert.equal(claims.every(claim => /^[a-f0-9]{64}$/.test(claim.sha256)), true);
+});
+
+test('each fresh memo request changes its correction while unchanged stored text cannot satisfy it', () => {
+  const previous = { correction: 'already saved', recordId: 'result', ownedRecordIds: ['result'] };
+  const next = newSavingIntent(previous, 'save-memo');
+  assert.notEqual(next.correction, previous.correction);
+  assert.equal(newSavingIntent(previous, 'save-task').correction, previous.correction);
+  assert.equal(next.recordId, 'result');
+  assert.equal(previous.correction, 'already saved');
+  assert.ok(savingPrompt('save-memo', { marker: 'owned', saving: next }).includes(next.correction));
+  const record = { id: 'result', record_kind: 'result', body: previous.correction, entity_ids: ['entity'], version: 1 };
+  const state = { current: null, entities: [], tasks: [{ id: 'task' }], records: [record], principles: [], tags: [] };
+  assert.equal(verifyStoredChange(state, state, { entity: { id: 'entity' }, task: { id: 'task' }, saving: next }, 'save-memo').contentVerified, false);
 });

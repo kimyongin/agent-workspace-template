@@ -1,14 +1,24 @@
+import { createHash, randomUUID } from 'node:crypto';
 export const savingModes = ['save-record', 'save-task', 'save-memo', 'save-failure', 'save-response-loss'];
+
+export function newSavingIntent(previous, mode) {
+  return { ...previous, correction: mode === 'save-memo' || !previous?.correction ? `검토 메모 정정 ${randomUUID()}` : previous.correction, ownedRecordIds: previous?.ownedRecordIds ?? [] };
+}
 
 // Structural language signals only. Preserve no answer text; independent stored
 // facts and actual trial review remain separate from this bounded classifier.
 export function classifyIndexStatements(text) {
-  const result = { affirmative: 0, negated: 0 };
+  const result = { affirmative: 0, negated: 0, claims: [] };
   for (const sentence of text.split(/[.!?;,\n]+|하지만|그러나|지만|(?<=[했됐었])고\s+/)) {
     const clause = sentence.replace(/[*_`#]/g, '');
     if (!/(?:색인|인덱싱|검색\s*반영)/.test(clause) || !/완료|확인/.test(clause)) continue;
-    if (/확인하지|확인할\s*수\s*없|확인\s*못|확인되지|말할\s*수\s*없|주장하지|단정하지|추정하지|아직|미확인|불확실|는지|여부|완료되지|완료.{0,20}(?:않|못)/.test(clause)) result.negated++;
-    else if (!/상태만\s*확인/.test(clause) && /(?:색인|인덱싱|검색\s*반영).{0,30}(?:완료했|완료됐|완료되었|완료되었습니다|확인했|확인됐|확인되었|확인되었습니다)/.test(clause)) result.affirmative++;
+    let polarity;
+    if (/확인하지|확인할\s*수\s*없|확인\s*못|확인되지|말할\s*수\s*없|주장하지|단정하지|추정하지|아직|미확인|불확실|는지|여부|완료되지|완료.{0,20}(?:않|못)/.test(clause)) polarity = 'negated';
+    else if (!/상태만\s*확인/.test(clause) && /(?:색인|인덱싱|검색\s*반영).{0,30}(?:완료했|완료됐|완료되었|완료되었습니다|확인했|확인됐|확인되었|확인되었습니다)/.test(clause)) polarity = 'affirmative';
+    if (polarity) {
+      result[polarity]++;
+      result.claims.push({ subject: /색인|인덱싱/.test(clause) ? 'index' : 'search-reflection', polarity, verb: /완료/.test(clause) ? 'complete' : 'confirm', keywordQualified: /키워드|keyword|문자열\s*검색/i.test(clause), semanticQualified: /의미|semantic|임베딩/i.test(clause), sha256: createHash('sha256').update(clause).digest('hex') });
+    }
   }
   return result;
 }
