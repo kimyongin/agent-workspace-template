@@ -24,7 +24,7 @@ Codex는 `$스킬이름`, Claude Code는 `/스킬이름`으로 호출한다. 원
 | 명시적으로 선택해 시작 (16개) | `ask-matt`, `grill-me`, `grill-with-docs`, `handoff`, `implement`, `implement-spec`, `improve-codebase-architecture`, `retro`, `setup-matt-pocock-skills`, `teach`, `to-questionnaire`, `to-spec`, `to-tickets`, `triage`, `wait-what`, `wayfinder` |
 | 에이전트가 상황에 맞춰 선택 가능 (11개) | `code-review`, `codebase-design`, `diagnosing-bugs`, `domain-modeling`, `grilling`, `pr`, `prototype`, `research`, `tdd`, `wizard`, `writing-for-agents` |
 
-첫 목록은 원본의 `disable-model-invocation: true`를 가진 스킬이다. 에이전트의 자율 선택을 막는 정책이며, 다른 스킬이 절차에서 명시적으로 호출하는 경우까지 금지하는 뜻은 아니다. 이름을 지정해 요청하려면 Codex의 `$이름`, Claude Code의 `/이름`을 사용한다. 두 번째 목록도 사람이 직접 호출할 수 있다. 자동 선택 가능은 항상 실행된다는 뜻이 아니다.
+첫 목록은 원본의 `disable-model-invocation: true`를 가진 스킬이다. 원본의 사용자 호출 전용 정책에 따라 사람이 이름을 지정해 시작한다. 에이전트나 다른 스킬은 시작할 스킬을 추천하며, 대신 호출하지 않는다. Codex의 `$이름`, Claude Code의 `/이름`을 사용한다. 두 번째 목록은 에이전트의 자동 선택과 다른 스킬의 내부 호출 대상이며 사람이 직접 호출할 수도 있다. 자동 선택 가능은 항상 실행된다는 뜻이 아니다.
 
 | 사람이 시작한 작업 | 이어서 사용하는 스킬과 조건 |
 | --- | --- |
