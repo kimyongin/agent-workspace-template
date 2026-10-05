@@ -1,5 +1,7 @@
 # Template-21 — fin 화면과 시각·배치 일치
 
+> 이전 기록이다. 현재 작업과 완료 근거는 [GitHub 이관 대응표](migration-to-github.md)에서 확인한다.
+
 작성: 2026-10-05
 상태: 완료
 현재 단계: [PR #95 완료 기록](https://github.com/kimyongin/agent-workspace-template/pull/95#issuecomment-5983464078)의 독립 리뷰·CI·머지·사용자 로컬 확인 완료. 이후 [Template-22](template-22-fin-modal-details.md)의 모달 정리와 관련 `entity_id` URL 조회 범위 보존 예외가 현재 후속 계약이다. 아래 확정 구현 계약이 과거 시안 제안을 대체한다.

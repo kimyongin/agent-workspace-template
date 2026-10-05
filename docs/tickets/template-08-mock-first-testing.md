@@ -1,5 +1,7 @@
 # Template-08 — 포트 교체로 빠른 업무·HTTP/MCP 검증
 
+> 이전 기록이다. 현재 작업과 완료 근거는 [GitHub 이관 대응표](migration-to-github.md)에서 확인한다.
+
 작성: 2026-10-04
 상태: 승인된 fast 검사 확대 완료(PR #70·#71·#72·#75), 실제 인증·DB·화면 검증은 각 통합 증거로 구분
 검토 기준: PR #72 최종 head `b2e71e8c38e6df55ffc22c8978da11134a2573c5`, 머지 `4143b8475a0935e982d5339c495a8c11f955b4b3`; 이전 base/head는 아래 snapshot 기록에 보존

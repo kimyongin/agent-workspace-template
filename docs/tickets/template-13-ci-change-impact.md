@@ -1,5 +1,7 @@
 # Template-13 — 변경 영향에 따른 CI 검사 범위
 
+> 이전 기록이다. 현재 작업과 완료 근거는 [GitHub 이관 대응표](migration-to-github.md)에서 확인한다.
+
 작성: 2026-10-04
 상태: 구현·서비스 없는 로컬 검사 완료(독립 리뷰·실제 full CI·머지는 메인 후속)
 검토 기준: base `b7339796dff5fd1c8d4856b94b0054d3731fcb3e`, branch `codex/ci-by-change-impact`

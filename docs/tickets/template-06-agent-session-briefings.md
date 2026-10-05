@@ -1,5 +1,7 @@
 # Template-06 — 서브세션 작업·모델 운영 브리핑
 
+> 이전 기록이다. 현재 작업과 완료 근거는 [GitHub 이관 대응표](migration-to-github.md)에서 확인한다.
+
 작성: 2026-10-03
 상태: 완료
 검토 기준: `f504c472d6551375ebaca8c4ed8ab5b46dcedc75`

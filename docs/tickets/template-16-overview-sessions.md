@@ -1,5 +1,7 @@
 # Template-16 — 세션과 지시·결과 회수 흐름 설명
 
+> 이전 기록이다. 현재 작업과 완료 근거는 [GitHub 이관 대응표](migration-to-github.md)에서 확인한다.
+
 작성: 2026-10-04
 상태: 진행 중(문서 구현·로컬 검사 완료, 독립 리뷰·CI·머지 대기)
 검토 기준: base `3fefb81b9079a21b255295ff179ea4214d15915c`, branch `codex/overview-session-explanation`

@@ -1,5 +1,7 @@
 # Template-10-07 — 제품 스킬의 실제 CLI 행동
 
+> 이전 기록이다. 현재 작업과 완료 근거는 [GitHub 이관 대응표](migration-to-github.md)에서 확인한다.
+
 작성: 2026-10-04
 상태: 로컬 실제 CLI·native 인증 검증 완료 — 최신 main 통합·최종 artifact 후속
 선행: 제품 패키지 PR #74, Entity 서버 계약과 공유 로컬 환경 인계

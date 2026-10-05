@@ -1,5 +1,7 @@
 # Template-19-02 — 탭 내부 검색·반응형 상세·메모와 변경 기록 화면
 
+> 이전 기록이다. 현재 작업과 완료 근거는 [GitHub 이관 대응표](migration-to-github.md)에서 확인한다.
+
 작성: 2026-10-04
 상태: 구현·배정된 통합·독립 UI 리뷰3결함 수정·수정 source 전체 검증 완료, 부모 최종 재리뷰·CI·PR·머지 대기
 기준: main399b82b와 승인한 [Template-19](template-19-three-tab-release-ux.md)/[Template-20](template-20-current-principle-change-records.md)

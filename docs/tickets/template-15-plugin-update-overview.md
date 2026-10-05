@@ -1,5 +1,7 @@
 # Template-15 — 플러그인 갱신 경로와 협업 역할 안내
 
+> 이전 기록이다. 현재 작업과 완료 근거는 [GitHub 이관 대응표](migration-to-github.md)에서 확인한다.
+
 작성: 2026-10-04
 상태: 진행 중(문서 구현·로컬 검사 완료, 독립 리뷰·CI·머지 대기)
 검토 기준: base `68f5d0fd0b765cfe07448d7c5673405470f8eafe`, branch `codex/plugin-update-overview`
