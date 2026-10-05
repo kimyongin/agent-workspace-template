@@ -136,7 +136,13 @@ dbTest("색인 상태: 3종류 최신 작업 하나·중복/실패 복구·본�
     assertEquals((await state()).message_id, latest);
     if (kind === "task") await activity.deleteTask(d, A, item.id, 3);
     else if (kind === "record") await activity.deleteRecord(d, A, item.id, 3);
-    else await principles.deletePrinciple(p, A, item.id, 3);
+    else {
+      // 과거 보존 자료는 현재 원칙 삭제 API가 처리하지 않는다. 이 계정의 fixture만
+      // 관리 연결로 정리하고 기존 삭제 트리거의 색인·대기 메시지 정리를 검증한다.
+      const deleted = await admin`delete from app.principles where owner_id=${users.a}
+        and id=${item.id} and not is_current returning id`;
+      assertEquals(deleted.map((row) => row.id), [item.id]);
+    }
     assertEquals(await state(), undefined);
     assertEquals((await messages()).length, 0);
   }
