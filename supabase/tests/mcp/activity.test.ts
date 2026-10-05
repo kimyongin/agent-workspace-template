@@ -1,7 +1,7 @@
 // MCP 계약 테스트: 실제 OAuth 토큰과 공식 MCP 클라이언트로 도구를 호출하고, HTTP와 결과·오류 의미가 같은지 본다.
 import { assert, assertEquals } from "@std/assert";
 import { z } from "zod";
-import { mutationMeta } from "../../functions/_shared/contracts/change.ts";
+import { businessMeta, mutationMeta } from "../../functions/_shared/contracts/change.ts";
 import { isoDate } from "../../functions/_shared/contracts/common.ts";
 import { recordCreate, recordListQuery, recordUpdate } from "../../functions/_shared/contracts/record.ts";
 import {
@@ -77,9 +77,15 @@ httpTest("검색: HTTP/MCP 본문 키워드·원문 최소 응답·대체 상태
   const marker = crypto.randomUUID(),
     r = await tool(mcpA, "create_record", { title: "검색 원문", summary: "본문 확인", body: marker + " 근거" });
   const q = { query: marker, mode: "keyword" };
+  const history = await tool(mcpA, "list_records", { record_kind: "change", limit: 100 });
+  const createdEvent = history.items.find((item: { change?: { target_id: string; action: string } }) =>
+    item.change?.target_id === r.id && item.change?.action === "create"
+  );
+  assert(createdEvent);
+  assert((await tool(mcpA, "get_record", { id: createdEvent.id })).body.includes(marker));
   const found = searchResult.parse(await tool(mcpA, "search", q));
   assertEquals(found, (await call(sessionA, "POST", "/search", q)).body);
-  assertEquals(found.items.map((x) => x.id), [r.id]);
+  assertEquals(found.items.map((x) => x.id).sort(), [r.id, createdEvent.id].sort());
   assertEquals("body" in found.items[0], false);
   assertEquals((await tool(mcpB, "search", q)).items, []);
   const auto = searchResult.parse(await tool(mcpA, "search", { query: marker }));
@@ -451,6 +457,8 @@ httpTest(
     const idOnly = { id: json(z.uuid()) };
     const mutationVersion =
       json(z.strictObject({ expected_version: z.number().int().min(1), ...mutationMeta })).properties;
+    const businessVersion =
+      json(z.strictObject({ expected_version: z.number().int().min(1), ...businessMeta })).properties;
     const expected: Record<string, Record<string, unknown>> = {
       list_tasks: json(taskListQuery).properties,
       list_records: json(recordListQuery).properties,
@@ -474,10 +482,10 @@ httpTest(
       update_record: { ...idOnly, ...json(recordUpdate).properties },
       complete_task: { ...idOnly, ...json(taskComplete).properties },
       list_occurrences: { ...idOnly, ...json(occurrenceRange).properties },
-      stop_task: { ...idOnly, ...mutationVersion },
-      resume_task: { ...idOnly, ...mutationVersion },
-      delete_task: { ...idOnly, ...mutationVersion },
-      delete_record: { ...idOnly, ...mutationVersion },
+      stop_task: { ...idOnly, ...businessVersion },
+      resume_task: { ...idOnly, ...businessVersion },
+      delete_task: { ...idOnly, ...businessVersion },
+      delete_record: { ...idOnly, ...businessVersion },
       // 회차 기록: 기록 생성 입력 + id + date
       record_occurrence: {
         ...idOnly,
