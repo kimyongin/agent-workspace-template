@@ -519,7 +519,7 @@ httpTest(
       stop_task: { ...idOnly, ...businessVersion },
       resume_task: { ...idOnly, ...businessVersion },
       delete_task: { ...idOnly, ...businessVersion },
-      delete_record: { ...idOnly, ...businessVersion },
+      delete_record: { ...idOnly, ...mutationVersion },
       // 회차 기록: 기록 생성 입력 + id + date
       record_occurrence: {
         ...idOnly,

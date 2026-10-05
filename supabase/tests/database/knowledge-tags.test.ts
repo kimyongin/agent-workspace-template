@@ -84,7 +84,8 @@ dbTest(
       const entityChange = changes.items.find((r) =>
         r.change?.target_id === entity.id && r.change.action === "update"
       )!;
-      assertEquals((entityChange.change!.before!.tags as { name: string }[])[0].name, "분류");
+      assertEquals([entityChange.change!.before, entityChange.change!.after], [null, null]);
+      assertEquals(entityChange.change!.target_id, entity.id);
     } finally {
       await f.cleanup();
       await b.cleanup();

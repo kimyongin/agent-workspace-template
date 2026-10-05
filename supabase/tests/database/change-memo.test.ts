@@ -56,7 +56,7 @@ dbTest("Entity/Task preview stores nothing; final memo is atomic/idempotent, no-
     assertEquals(changes.items.length, before.items.length + 1);
     const record = changes.items.find((r) => r.change?.target_id === e.id && r.change.action === "update")!;
     assertEquals([record.title, record.summary, record.body], [memo.title, memo.summary, memo.body]);
-    assertEquals([record.change!.before!.prop2, record.change!.after!.prop2], [10, 20]);
+    assertEquals([record.change!.before, record.change!.after], [null, null]);
     assertEquals((await entity.getEntity(ed, f.actor, e.id)).prop2, 20);
     await entity.updateEntity(
       ed,
@@ -101,6 +101,7 @@ dbTest("Entity/Task preview stores nothing; final memo is atomic/idempotent, no-
     const taskPatch = taskUpdate.parse({
       expected_version: task.version,
       title: "상담 준비",
+      body: `메모에 포함하지 않은 전체 원문 ${"긴 본문 ".repeat(1000)}`,
       change_memo: memo,
       request_id: crypto.randomUUID(),
     });
@@ -110,6 +111,11 @@ dbTest("Entity/Task preview stores nothing; final memo is atomic/idempotent, no-
       r.change?.target_id === task.id && r.change.action === "update"
     )!;
     assertEquals(taskEvent.body, memo.body);
+    assertEquals([taskEvent.change!.before, taskEvent.change!.after], [null, null]);
+    const [stored] = await admin`select change_metadata from app.records where id=${taskEvent.id}`;
+    assertEquals(stored.change_metadata.before, null);
+    assertEquals(stored.change_metadata.after, null);
+    assertEquals(JSON.stringify(stored.change_metadata).includes("메모에 포함하지 않은 전체 원문"), false);
     await activity.deleteTask(ad, f.actor, t.id, t.version, undefined, crypto.randomUUID(), memo);
     const deleted = (await records()).items.find((r) =>
       r.change?.target_id === task.id && r.change.action === "delete"

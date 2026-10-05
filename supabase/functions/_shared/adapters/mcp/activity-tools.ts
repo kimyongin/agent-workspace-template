@@ -2,7 +2,7 @@
 // 실패는 HTTP와 같은 오류 본문 {code, message, retryable, fields}를 isError 결과로 돌려준다.
 import type { ToolDef } from "./tools.ts";
 import { z } from "zod";
-import { businessMeta } from "../../contracts/change.ts";
+import { businessMeta, mutationMeta } from "../../contracts/change.ts";
 import { taskChangePreview } from "../../contracts/task-change.ts";
 import { expectedVersion, id, isoDate } from "../../contracts/common.ts";
 import { recordCreate, recordListQuery, recordUpdate } from "../../contracts/record.ts";
@@ -24,6 +24,7 @@ const createTaskInput = z.strictObject({
 const withId = <T extends z.ZodObject>(schema: T) => z.strictObject({ id, ...schema.shape });
 const idOnly = z.strictObject({ id });
 const deleteInput = z.strictObject({ id, expected_version: expectedVersion, ...businessMeta });
+const recordDeleteInput = z.strictObject({ id, expected_version: expectedVersion, ...mutationMeta });
 
 /** 경로 ID와 같은 규칙: UUID가 아니면 존재 여부를 드러내지 않고 not_found(HTTP와 같음). */
 function split(args: Record<string, unknown>) {
@@ -221,11 +222,11 @@ export function activityTools(deps: activity.ActivityDeps): ToolDef[] {
       name: "delete_record",
       description:
         "기록을 지운다. 일회성 할 일의 결과였다면 할 일은 완료 상태를 유지하고 결과 연결만 비워진다. 회차 기록이면 그 회차 상태가 다시 계산된다.",
-      input: deleteInput,
+      input: recordDeleteInput,
       readOnly: false,
       destructive: true,
       handler: async (args, actor) => {
-        const input = byIdDelete(args);
+        const input = parse(recordDeleteInput, args);
         await activity.deleteRecord(deps, actor, input.id, input.expected_version, input.change_note, input.request_id);
         return { deleted: input.id };
       },
