@@ -1,0 +1,35 @@
+# 별도 프로젝트 시작하기
+
+업무 요구를 설명하면 개발 에이전트가 복사본 준비·설정·검사를 맡고 사람은 제품 결정과 직접 해야 하는 계정 연결을 담당한다. 지금은 검증 앱을 선택하지 않는다. 이 절차는 기본 템플릿의 로컬 초기화이며 최종 도메인 교체·독립 배포 검증과 구분한다([#125](https://github.com/kimyongin/agent-workspace-template/issues/125), 후속 #127·#128은 보류).
+
+## 사람과 에이전트가 정할 것
+
+| 사람의 결정·직접 작업 | 에이전트의 작업 |
+| --- | --- |
+| 앱의 업무 대상·속성·규칙과 브랜드 | 합의한 내용을 PRD에 반영하고 코드·화면·제품 스킬을 함께 변경. 미정은 기본 예제를 유지 |
+| 새 저장소와 공개 주소, 운영 실행 범위 | 별도 복사본과 revision 확인, 기존 원본과 분리된 프로젝트 ID·포트·설정 준비 |
+| 서비스 계정 로그인, OAuth 동의, 비밀값 입력 | 필요한 설정 항목과 입력 위치를 안내하고 비밀값을 출력하지 않은 상태에서 설정·검사 |
+
+“별도 프로젝트를 시작하고 로컬에서 확인해줘. 실제 앱 종류와 운영 배포는 아직 미정이야”라고 요청할 수 있다. 로컬 준비에 운영 DB·기존 OAuth 키·공급자 키를 복사할 필요는 없다.
+
+## 복사본과 환경 분리
+
+1. 원본의 검증할 commit을 기록하고 새 폴더에 checkout한다. 새 저장소를 사용할 때는 Git remote를 그 저장소로 바꾼다. `.env*`, Supabase signing keys·`.temp`, 개인 설정·기존 로그인 자료는 원본에서 복사하지 않는다. `npm ci`로 고정 의존성을 설치한다.
+2. 서비스 시작 전에 `supabase/config.toml`의 최상위 `project_id`, 모든 로컬 port·shadow port·Edge inspector port를 사용 중인 프로젝트와 구분한다. 예: 프로젝트 `my-separate-app`, API 55621, DB 55622, shadow 55620, pooler 55629, 나머지 서비스 55623~55627, inspector 8583. 이 값은 예시이며 실제 사용 여부를 먼저 확인한다.
+3. `auth.site_url`을 `http://127.0.0.1:55680`, `auth.additional_redirect_urls`를 해당 loopback 주소로 맞춘다. setup의 `WEB_ORIGINS`, 웹 개발 서버·Playwright 주소, 풀러 준비 검사·통합 테스트의 함수 확인 주소는 이 TOML 설정을 따른다. 설정 변경은 해당 프로젝트를 정지한 뒤 적용한다.
+4. `remotes.production`에 남아 있는 원본 project ID·Pages URL은 원본의 배포 예시다. 새 앱의 대상이 정해질 때까지 제거하거나 원본임을 확인하고 사용하지 않는다. `supabase/.temp`의 원격 link도 가져오지 않는다. 원본 프로젝트의 `stop`, `reset`, `link`, `config push`, 배포 명령을 실행하지 않는다.
+
+Supabase의 프로젝트 식별과 설정 적용 조건은 [공식 CLI 설정](https://supabase.com/docs/guides/local-development/cli/config)을 따른다. 작업 공간만 분리했다고 DB·포트가 분리된 것은 아니다([검증 환경](verification.md#공유-환경과-테스트-자료)).
+
+## 로컬 초기화와 확인
+
+1. `npm run setup:local`을 실행한다. 로컬 서명 키·비밀번호·사용자 A/B와 함수 환경이 생성된다. 출력에서 준비 완료를 확인하되 환경 파일의 키·비밀번호를 로그나 티켓에 붙이지 않는다.
+2. 같은 명령을 다시 실행한다. 생성 키·비밀번호와 사용자 설정·주석이 유지되고 내용이 같은 `.env.local`, `supabase/functions/.env`의 byte·수정 시각이 유지되는지 값 공개 없이 비교한다.
+3. `npm run serve:functions`와 `npm run dev`로 해당 복사본의 서버와 웹을 실행한다. 로컬 개발용 이메일 로그인으로 기본 화면을 확인한다. `npm run test:all`은 해당 설정의 DB·HTTP·MCP·브라우저 공개 계약을 확인한다. 테스트가 새로 시작한 함수 서버는 해당 프로젝트 안에서 정리하며 다른 프로젝트의 서버를 정지하지 않는다.
+4. `node scripts/check-plugin.mjs`, 문서·경계·서버·웹 검사와 빌드를 실행한다. 두 manifest의 이름·버전, 두 MCP 설정의 endpoint, 공유 제품 스킬의 도구 안내가 일치하는지 기존 검사 도구로 확인한다. 기본 브랜드·`workspace` 식별자는 도메인 미정일 때 유지한다. 로컬 MCP 시험은 SDK/OAuth 증거이며 실제 Claude·Codex 제품 스킬 선택·행동 검증을 대신하지 않는다.
+
+새 앱의 이름을 정하면 웹 브랜드·package 이름·제품 manifest와 marketplace·공유 제품 스킬·README를 함께 검토한다. 운영 MCP endpoint와 공개 저장소 주소는 새 서비스 대상이 확정된 뒤 바꾸며 원본 endpoint로 로컬 쓰기를 시험하지 않는다. 로컬 설정 파일과 secrets는 제품 패키지에 포함하지 않는다.
+
+## 로컬 확인 뒤 남는 일
+
+도메인 구현·실제 클라이언트 행동·Google 로그인·공급자 임베딩·독립 서비스 배포는 각각의 증거가 필요하다. 로컬 이메일 로그인과 시험 OAuth의 통과로 완료를 주장하지 않는다. 사람이 제공할 계정과 실행 조건, 미확인 항목을 후속 티켓에 남기고 [배포 방법](../deployment/release.md)을 사용한다. 앱·외부 연동 대상과 #126·#127·#128은 이번 실행에서 보류한다.
