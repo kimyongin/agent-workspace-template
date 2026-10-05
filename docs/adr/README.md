@@ -17,6 +17,7 @@
 | [0009](0009-review-without-cross-agent.md) | 리뷰는 필수, 다른 에이전트의 교차 리뷰는 선택 | 대체됨(ADR-0010) |
 | [0010](0010-merge-authority.md) | 에이전트의 머지 권한, 절차는 가이드가 소유 | 채택 (승인 확인 방식은 0011로 대체) |
 | [0011](0011-matt-skills-and-github-workflow.md) | Matt Pocock 스킬과 GitHub Issues 개발 방식 | 채택 |
+| [0012](0012-current-state-and-unified-records.md) | 최신 상태와 메모 기반 통합 기록 | 채택 |
 
 0001~0007은 2026-10-01 이전에 합의해 여러 문서에 흩어져 있던 결정을 소급 기록한 것이다.
 

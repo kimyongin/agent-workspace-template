@@ -1,5 +1,7 @@
 # 기본 기술 구성과 헥사고날 설계
 
+최신 도메인 목표는 [ADR-0012](../adr/0012-current-state-and-unified-records.md)와 [통합 기록 설계](unified-record-model.md)를 따른다. 아래 적용 원칙 연결 등 구체적인 저장 계약은 전환 전 구현의 근거이며, 새 계약으로 보존·이관 검증 후 대체한다. 헥사고날 의존성·격리·트랜잭션·큐 책임은 유지한다.
+
 ## 문서의 책임
 
 이 문서는 [코드 설계 원칙](principles.md)을 실행 구조에 적용한다. TypeScript 도메인 모델·유스케이스와 Supabase 어댑터를 사용하며, 호출 경계·저장·권한·비동기 처리·검색의 기술 책임을 정의한다. 할 일·기록·검색의 상세 API는 [Template-01](../tickets/template-01-task-record-search.md), 구현 순서와 미정 기술 선택은 [Template-02](../tickets/template-02-implementation-base.md)가 소유한다.

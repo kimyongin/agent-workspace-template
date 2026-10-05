@@ -31,6 +31,8 @@ PRD와 ADR은 사람이 소유하고 나머지 문서·티켓·구현은 에이�
 
 ## 현재 상태
 
+2026-10-05 합의한 [통합 기록 목표](architecture/unified-record-model.md)는 [ADR-0012](adr/0012-current-state-and-unified-records.md)를 따른다. 최신 상태와 기록 RAG, 기록 무로그 편집, 네 탭으로 전환할 설계이며 앱 구현은 아직 이전 모델이다. 아래 원칙 과거본·세 탭·snapshot 완료 기록은 이전 구현 근거다. 현재 전환 작업은 [백엔드 #110](https://github.com/kimyongin/agent-workspace-template/issues/110)·[프론트엔드 #111](https://github.com/kimyongin/agent-workspace-template/issues/111)이 관리한다.
+
 [과거 티켓 이관 판정](tickets/migration-to-github.md)은 기존 작업과 최종 PR 근거를 연결한다. 실제 잔여 [Codex desktop 제품 UI 검증](https://github.com/kimyongin/agent-workspace-template/issues/102)의 상태·접근 제약은 해당 issue에서 관리한다.
 
 2026-10-05 합의한 [개발 방식 전환 #96](https://github.com/kimyongin/agent-workspace-template/issues/96)을 진행하고 있다. [설치·지침 전환 #97](https://github.com/kimyongin/agent-workspace-template/issues/97), [기록 이전 #98](https://github.com/kimyongin/agent-workspace-template/issues/98), [실제 파일럿 #99](https://github.com/kimyongin/agent-workspace-template/issues/99)의 현재 상태와 검증은 GitHub에서 확인한다. 아래 기존 작업 기록의 대기 표현은 제출 당시 상태이며 최신 PR 근거와 함께 읽는다.
