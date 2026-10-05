@@ -1,5 +1,0 @@
-Implemented `summarize` in [implementation.mjs](<isolated-workspace>/codex-implementation\implementation.mjs).
-
-It now scopes by owner, selects highest revision per ID, honors latest tombstones, sorts by `updatedAt` descending then ID ascending, and leaves input unchanged.
-
-Validation: `node --test oracle.test.mjs` — 4 passed, 0 failed.

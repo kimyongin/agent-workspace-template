@@ -89,7 +89,7 @@ test("docs artifacts including HTML markup/script/style are docs; runtime files 
   assert.equal(classifyChanges([{status:'R100',oldPath:'docs/old.html',path:'docs/new.html'}]).mode, 'docs');
   assert.equal(classifyChanges([{status:'R100',oldPath:'src/page.html',path:'docs/new.html'}]).mode, 'full');
   for (const extension of ['md','html','txt','svg','png','jpg','jpeg','webp','gif','pdf']) assert.equal(mode(change(`docs/assets/example.${extension}`,before,after)), 'docs');
-  for (const path of ['docs/development/agent-models.json','docs/check.mjs','docs/tool.ts','docs/run.sh','docs/config.yaml','plugins/workspace/README.md','plugins/workspace/skills/workspace/SKILL.md']) assert.equal(mode(change(path,before,after)), 'full', path);
+  for (const path of ['docs/config.json','docs/check.mjs','docs/tool.ts','docs/run.sh','docs/config.yaml','plugins/workspace/README.md','plugins/workspace/skills/workspace/SKILL.md']) assert.equal(mode(change(path,before,after)), 'full', path);
   assert.equal(mode(change('docs/overview.html',before,after),change('src/lib/api.ts','old','new')), 'full');
   assert.equal(mode(change('docs/overview.html',before,after),change('.github/workflows/ci.yml','old','new')), 'full');
 });

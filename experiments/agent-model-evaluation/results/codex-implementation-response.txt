@@ -1,3 +1,0 @@
-Blocked by the read-only sandbox: I could not modify `implementation.mjs`, and the requested `node --test oracle.test.mjs` command was also rejected by policy.
-
-Required implementation behavior identified: owner-scope before deduplication; retain max numeric revision per ID; remove latest tombstones; sort by `updatedAt` descending then ID ascending without mutating input.
