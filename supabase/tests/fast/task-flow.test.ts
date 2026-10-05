@@ -46,6 +46,7 @@ function fixture(storageNow = () => now) {
     insertTask: (input) => {
       const task: Task = {
         ...input,
+        entity_context: [],
         id: crypto.randomUUID(),
         version: 1,
         created_at: now,
@@ -68,6 +69,7 @@ function fixture(storageNow = () => now) {
         ...input,
         change_note: input.change_note ?? null,
         record_kind: input.record_kind ?? "user",
+        entity_context: [],
         change: null,
         applied_principle_snapshots: [],
         id: crypto.randomUUID(),

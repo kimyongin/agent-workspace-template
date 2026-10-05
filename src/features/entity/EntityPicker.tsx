@@ -1,3 +1,4 @@
+import type { EntityContext } from "@contracts/entity-links.ts";
 import type { EntityResult } from "@contracts/entity.ts";
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
@@ -11,33 +12,7 @@ export function EntityPicker(
     label?: string;
   },
 ) {
-  const [items, setItems] = useState<EntityResult[] | null>(null),
-    [failed, setFailed] = useState(false),
-    [retry, setRetry] = useState(0);
-  useEffect(() => {
-    const controller = new AbortController();
-    setFailed(false);
-    setItems(null);
-    (async () => {
-      let cursor: string | null = null;
-      const all: EntityResult[] = [];
-      do {
-        const page: { items: EntityResult[]; next_cursor: string | null } =
-          await api(
-            "GET",
-            `/entities${query({ limit: 100, cursor })}`,
-            undefined,
-            controller.signal,
-          );
-        all.push(...page.items);
-        cursor = page.next_cursor;
-      } while (cursor);
-      setItems(all);
-    })().catch(() => {
-      if (!controller.signal.aborted) setFailed(true);
-    });
-    return () => controller.abort();
-  }, [retry]);
+  const { items, failed, retry } = useEntities();
   return (
     <div className="form">
       <Field label={label} error={error}>
@@ -65,7 +40,7 @@ export function EntityPicker(
           <button
             className="btn"
             type="button"
-            onClick={() => setRetry((n) => n + 1)}
+            onClick={retry}
           >
             다시 시도
           </button>
@@ -82,4 +57,78 @@ export function EntityLink({ id }: { id: string | null | undefined }) {
       </p>
     )
     : null;
+}
+
+function useEntities() {
+  const [items, setItems] = useState<EntityResult[] | null>(null),
+    [failed, setFailed] = useState(false),
+    [retry, setRetry] = useState(0);
+  useEffect(() => {
+    const controller = new AbortController();
+    setFailed(false);
+    setItems(null);
+    (async () => {
+      let cursor: string | null = null;
+      const all: EntityResult[] = [];
+      do {
+        const page: { items: EntityResult[]; next_cursor: string | null } =
+          await api(
+            "GET",
+            `/entities${query({ limit: 100, cursor })}`,
+            undefined,
+            controller.signal,
+          );
+        all.push(...page.items);
+        cursor = page.next_cursor;
+      } while (cursor);
+      setItems(all);
+    })().catch(() => {
+      if (!controller.signal.aborted) setFailed(true);
+    });
+    return () => controller.abort();
+  }, [retry]);
+  return { items, failed, retry: () => setRetry((n) => n + 1) };
+}
+
+export function EntityMultiPicker({ value, context = [], onChange, error }: {
+  value: string[];
+  context?: EntityContext[];
+  onChange: (ids: string[]) => void;
+  error?: string;
+}) {
+  const { items, failed, retry } = useEntities();
+  const options = [...(items ?? []).map((item) => ({ id: item.id, title: item.prop1 })),
+    ...value.filter((id) => !items?.some((item) => item.id === id)).map((id) => ({
+      id, title: context.find((item) => item.id === id)?.title ?? `현재 연결 (${id})`,
+    }))];
+  return <fieldset className="field" style={{ border: 0, padding: 0, margin: 0 }}>
+    <legend className="label">엔터티</legend>
+    <p className="help" style={{ margin: 0 }}>선택 입력입니다. 여러 대상을 연결할 수 있습니다.</p>
+    <div className="chips">
+      {options.map((item) => <label key={item.id} className="chip" style={{ display: "inline-flex", alignItems: "center", gap: "0.5rem" }}>
+        <input type="checkbox" checked={value.includes(item.id)} disabled={!items}
+          onChange={(e) => onChange(e.target.checked ? [...value, item.id].sort() : value.filter((id) => id !== item.id))}/>
+        {item.title}
+      </label>)}
+    </div>
+    {!items && !failed && <p role="status">엔터티를 불러오는 중…</p>}
+    {items?.length === 0 && options.length === 0 && <p className="help">연결할 엔터티가 없습니다.</p>}
+    {items && value.some((id) => !items.some((item) => item.id === id)) &&
+      <p className="help">삭제된 대상은 저장된 이름으로 표시합니다. 선택을 해제하면 연결 문맥을 제거합니다.</p>}
+    {error && <p role="alert" className="error-text">{error}</p>}
+    {failed && <><Notice kind="error">엔터티를 불러오지 못했습니다.</Notice><button type="button" className="btn" onClick={retry}>다시 시도</button></>}
+  </fieldset>;
+}
+
+export function EntityLinks({ ids, context = [] }: { ids?: string[]; context?: EntityContext[] }) {
+  if (!ids?.length) return null;
+  return <section aria-label="연결 엔터티">
+    <p className="label">연결 엔터티</p>
+    <ul>{ids.map((id) => {
+      const capture = context.find((item) => item.id === id);
+      return <li key={id}><Link to={`/entities/${id}`}>{capture?.title ?? id}</Link>
+        {capture && <span className="secondary"> · {capture.source === "legacy_backfill" ? "기존 연결 전환 시 이름" : "연결 선택 시 이름"} ({new Date(capture.captured_at).toLocaleString()})</span>}
+      </li>;
+    })}</ul>
+  </section>;
 }
