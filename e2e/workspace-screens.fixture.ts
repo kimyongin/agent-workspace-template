@@ -214,13 +214,18 @@ test("연결 엔터티 범위: 각 탭 조회·검색 조건·본문 왕복·해
   await go(page,`/records?entity_id=${id(1)}&from=2026-10-01&q=기록`);await expect(page.locator(".records .list .item-title")).toBeVisible();expect(state.searches.at(-1)?.kinds).toEqual(["record"]);expect(state.searches.at(-1)?.from).toBeTruthy();expect(state.searches.at(-1)?.entity_id).toBe(id(1));expect(state.errors).toEqual([]);
 });
 for(const kind of ["tasks","records"] as const) test(`${kind} 연결 대상은44px 독립 링크이며 클릭·키보드로 같은 엔터티를 연다`,async({page})=>{
-  const state=await fixtures(page),row=state.rows[kind][0];
+  const state=await fixtures(page),row=state.rows[kind][0],summary=row.summary;
   row.entity_ids=[id(1)];row.entity_context=[{id:id(1),title:"함",source:"selection",captured_at:stamp}];
   for(const width of [320,390,1440]){
     await page.setViewportSize({width,height:900});await go(page,`/${kind}/${row.id}`);await compatibleEdit(page);
     const link=form(page).getByRole("region",{name:"연결 엔터티"}).getByRole("link",{name:"함",exact:true});
     await expect(link).toHaveAttribute("href",`/entities/${id(1)}`);
     const box=(await link.boundingBox())!;expect(box.width).toBeGreaterThanOrEqual(44);expect(box.height).toBeGreaterThanOrEqual(44);
+    const editorUrl=page.url();await form(page).getByLabel("요약").fill("연결 이동 취소 초안");await link.click();
+    const discard=page.getByRole("dialog",{name:"변경을 버릴까요?",exact:true});await expect(discard).toBeVisible();
+    await discard.getByRole("button",{name:"취소",exact:true}).click();await expect(page).toHaveURL(editorUrl);
+    await expect(form(page).getByLabel("요약")).toHaveValue("연결 이동 취소 초안");expect(row.summary).toBe(summary);
+    await form(page).getByLabel("요약").fill(summary);
     await link.click({position:{x:box.width-5,y:box.height/2}});await expect(page).toHaveURL(new RegExp(`/entities/${id(1)}$`));
     await go(page,`/${kind}/${row.id}`);await compatibleEdit(page);await form(page).getByRole("region",{name:"연결 엔터티"}).getByRole("link",{name:"함",exact:true}).focus();await page.keyboard.press("Enter");
     await expect(page).toHaveURL(new RegExp(`/entities/${id(1)}$`));expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);

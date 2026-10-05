@@ -107,11 +107,22 @@ for (
       await expect(page.getByRole("heading", { name: title, exact: true })).toBeVisible();
       await page.getByRole("button",{name:"닫기",exact:true}).click();
       await page.getByRole("link",{name:`${title} 편집`,exact:true}).click();
-      await expect(page.getByRole("link", { name: "엔터티 편집", exact: true })).toHaveAttribute(
+      const dialog = page.getByRole("dialog", { name: editLabel, exact: true });
+      const entityLink = dialog.getByRole("region", { name: "연결 엔터티" }).getByRole("link", { name: entity.prop1, exact: true });
+      await expect(entityLink).toHaveAttribute(
         "href",
         `/entities/${entity.id}`,
       );
-      const dialog = page.getByRole("dialog", { name: editLabel, exact: true });
+      const editorUrl = page.url();
+      await dialog.getByLabel("요약").fill("엔터티 이동 취소 뒤 보존할 초안");
+      await entityLink.click();
+      const discard = page.getByRole("dialog", { name: "변경을 버릴까요?", exact: true });
+      await expect(discard).toBeVisible();
+      await discard.getByRole("button", { name: "취소", exact: true }).click();
+      await expect(page).toHaveURL(editorUrl);
+      await expect(dialog.getByLabel("요약")).toHaveValue("엔터티 이동 취소 뒤 보존할 초안");
+      expect((await mcp.call(`get_${kind}`, { id: target.id })).summary).toBe(target.summary);
+      await dialog.getByLabel("요약").fill(target.summary);
       await dialog.getByRole("button", {name:"닫기",exact:true}).click();
       await expect(dialog).not.toBeVisible();
       await expect(link).toBeFocused();await link.click();
