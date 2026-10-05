@@ -10,9 +10,12 @@ import { lstat } from 'node:fs/promises';
 import { outsideDirectory } from './files.mjs';
 import { assertJournal } from './journal.mjs';
 import { installPreparedPlugin } from './native-install.mjs';
+import { configuredMcpNames } from './session-isolation.mjs';
+import { assessPreparation } from './assess-preparation.mjs';
+import { hasOriginalRecord } from './original-record-proof.mjs';
 
 const repo = fileURLToPath(new URL('../../', import.meta.url));
-const [client, fixtureFile, snapshotFile, mode = 'save'] = process.argv.slice(2);
+const [client, fixtureFile, snapshotFile, mode = 'save', expectedCondition] = process.argv.slice(2);
 if (process.env.PLUGIN_ENV_HANDOFF !== 'exclusive-local' || !['codex-cli', 'claude-cli'].includes(client) || !fixtureFile || !snapshotFile) {
   throw new Error('Usage: node experiments/plugin-behavior/run-client.mjs <codex-cli|claude-cli> <outside-fixture.json> <outside-model-snapshot.json>');
 }
@@ -20,6 +23,13 @@ const fixture = JSON.parse(await readFile(fixtureFile, 'utf8'));
 assertJournal(fixture, fixture.endpoint, client);
 if (!['save', 'prepare', 'prepare-explicit'].includes(mode)) throw new Error('Only documented client scenarios are allowed');
 const preparing = mode.startsWith('prepare');
+const allocatedBackendRevision = process.env.PREPARATION_BACKEND_REVISION ?? null;
+if (preparing && !/^[a-f0-9]{40}$/.test(allocatedBackendRevision ?? '')) throw new Error('Preparation requires root-allocated actual backend revision separately from fixture origin');
+const condition = expectedCondition ?? fixture.scenario ?? 'normal';
+if (!['normal', 'missing', 'conflict', 'semantic-failure', 'index-delay'].includes(condition)) throw new Error('Unknown preparation condition');
+const faultCondition = ['semantic-failure', 'index-delay'].includes(condition);
+if (faultCondition !== Boolean(process.env.PREPARATION_MCP_PROXY)) throw new Error('Fault condition requires its allocated proxy; ordinary conditions use originals');
+if (!faultCondition && condition !== (fixture.scenario ?? 'normal')) throw new Error('Expected condition differs from owned fixture');
 if (preparing && !fixture.preparation) throw new Error('Prepare requires its synthetic owner fixture');
 const claims = JSON.parse(Buffer.from(fixture.token.split('.')[1], 'base64url').toString());
 if (claims.exp * 1000 <= Date.now() + 30000) throw new Error('Fixture token expired; no blind client retry');
@@ -33,13 +43,15 @@ const outputRoot = resolve(fixture.outputRoot, client, `${mode}-${randomUUID()}`
 await outsideDirectory(outputRoot);
 const market = resolve(outputRoot, 'market');
 const marketplaceName = `workspace-prepare122-${randomUUID().replaceAll('-', '')}`;
+const sessionServer = `workspace_prepare122_${randomUUID().replaceAll('-', '')}`;
 const runtimeCache = resolve(process.env.CODEX_HOME ?? resolve(homedir(), '.codex'), 'plugins/cache', marketplaceName);
 if (await lstat(runtimeCache).then(() => true, error => { if (error.code === 'ENOENT') return false; throw error; })) throw new Error('Unique experiment runtime cache already exists');
 await mkdir(resolve(market, '.agents/plugins'), { recursive: true });
 await cp(fixture.productSource ?? resolve(repo, 'plugins/workspace'), resolve(market, 'plugins/workspace'), { recursive: true });
 const plugin = resolve(market, 'plugins/workspace');
 await writeFile(resolve(market, '.agents/plugins/marketplace.json'), `${JSON.stringify({ name: marketplaceName, plugins: [{ name: 'workspace', source: { source: 'local', path: './plugins/workspace' }, policy: { installation: 'AVAILABLE', authentication: 'ON_INSTALL' }, category: 'Productivity' }] })}\n`);
-const mcp = { mcpServers: { workspace: { type: 'http', url: endpoint.href, headers: { Authorization: 'Bearer ${WORKSPACE_MCP_TOKEN}' } } } };
+const claudeServer = sessionServer;
+const mcp = { mcpServers: { [client === 'claude-cli' ? claudeServer : 'workspace']: { type: 'http', url: endpoint.href, headers: { Authorization: 'Bearer ${WORKSPACE_MCP_TOKEN}' } } } };
 await writeFile(resolve(plugin, '.mcp.json'), `${JSON.stringify(mcp)}\n`);
 await writeFile(resolve(plugin, 'mcp.json'), `${JSON.stringify({ $schema: 'https://agent-plugins.org/schemas/1.0.0/mcp.schema.json', mcpServers: { workspace: { type: 'streamable-http', url: endpoint.href } } })}\n`);
 const mcpFile = resolve(outputRoot, 'mcp.json');
@@ -57,25 +69,26 @@ const codexConfig = {
   [`marketplaces.${marketplaceName}.source`]: market,
   [`plugins."workspace@${marketplaceName}".enabled`]: true,
   [`plugins."workspace@${marketplaceName}".mcp_servers.workspace.enabled`]: false,
-  'mcp_servers.workspace.url': endpoint.href,
-  'mcp_servers.workspace.bearer_token_env_var': 'WORKSPACE_MCP_TOKEN',
-  'mcp_servers.workspace.required': true,
-  'mcp_servers.workspace.enabled_tools': tools,
-  'mcp_servers.workspace.default_tools_approval_mode': 'approve',
+  [`mcp_servers.${sessionServer}.url`]: endpoint.href,
+  [`mcp_servers.${sessionServer}.bearer_token_env_var`]: 'WORKSPACE_MCP_TOKEN',
+  [`mcp_servers.${sessionServer}.required`]: true,
+  [`mcp_servers.${sessionServer}.enabled_tools`]: tools,
+  [`mcp_servers.${sessionServer}.default_tools_approval_mode`]: 'approve',
 };
-const codexArgs = ['exec', '--ignore-user-config', '--ignore-rules', '--strict-config', '--ephemeral', '--skip-git-repo-check', '--sandbox', 'read-only', '--model', assignment.model, '--json'];
+const codexArgs = ['exec', '--ignore-rules', '--strict-config', '--ephemeral', '--skip-git-repo-check', '--sandbox', 'read-only', '--model', assignment.model, '--json'];
 if (process.env.PREPARATION_RETAIN_TRIAL === 'own-thread') {
   if (!preparing || client !== 'codex-cli') throw new Error('Only own Codex preparation trial may retain native context');
   codexArgs.splice(codexArgs.indexOf('--ephemeral'), 1);
 }
 for (const [key, value] of Object.entries(codexConfig)) codexArgs.push('-c', `${key}=${JSON.stringify(value)}`);
-const claudeArgs = ['--print', '--model', assignment.model, '--effort', assignment.effort, '--setting-sources', 'project,local', '--plugin-dir', plugin, '--tools', 'Skill,Read', '--allowedTools', ['Skill', `Read(${plugin.replaceAll('\\', '/')}/skills/**)`, ...tools.map((name) => `mcp__plugin_workspace_workspace__${name}`)].join(','), '--permission-mode', 'dontAsk', '--no-session-persistence', '--output-format', 'stream-json', '--verbose'];
+const claudeArgs = ['--print', '--model', assignment.model, '--effort', assignment.effort, '--setting-sources', 'project,local', '--plugin-dir', plugin, '--tools', 'Skill,Read', '--allowedTools', ['Skill', `Read(${plugin.replaceAll('\\', '/')}/skills/**)`, ...tools.map((name) => `mcp__plugin_workspace_${claudeServer}__${name}`)].join(','), '--permission-mode', 'dontAsk', '--no-session-persistence', '--output-format', 'stream-json', '--verbose'];
 const command = client === 'codex-cli' ? (process.env.CODEX_CLI_BINARY ?? 'codex') : 'claude';
 const actualVersion = execFileSync(command, ['--version'], { encoding: 'utf8' }).trim();
 const snapshot = JSON.parse(await readFile(snapshotFile, 'utf8'));
 if (!actualVersion.includes(snapshot.version)) throw new Error('Selected CLI binary/version differs from capability snapshot');
 const args = client === 'codex-cli' ? codexArgs : claudeArgs;
-const evidence = { client, mode, assignment, marketplaceName, availableSkillEvidence: client === 'codex-cli' ? 'CLI initialization does not expose skill inventory in known JSON events' : 'native initialization metadata below', eventTypes: {}, itemTypes: {}, skillReads: [], cachePolicy: 'unique native runtime materialization allowed; no manual installed cache edits', readsSkill: false, completedSkillRead: false, answer: { originalDetail: false, currentValue: false, sourceId: false, currentPrincipleId: false, taskId: false, uncertainty: false }, actualBackendModel: 'unexposed unless client metadata reports it', actualBackendEffort: 'unexposed', serverRevision: fixture.serverRevision, marker: fixture.marker, sourceRevision: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: repo, encoding: 'utf8' }).trim(), productSourceRevision: fixture.serverRevision, runnerSha256: createHash('sha256').update(await readFile(fileURLToPath(import.meta.url))).digest('hex'), dependencyProxy: Boolean(process.env.PREPARATION_MCP_PROXY), sharedSkillSha256: createHash('sha256').update(await readFile(resolve(plugin, 'skills/workspace/SKILL.md'))).digest('hex'), authentication: 'real local OAuth consent+PKCE token supplied by fixture; CLI-native OAuth unverified', connection: client === 'codex-cli' ? 'shared plugin skill with bundled MCP disabled; identical loopback direct session MCP uses bearer_token_env_var' : 'shared plugin-dir with bundled loopback MCP environment header', events: [] };
+const checkoutMetadata = path => ({ path, revision: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: path, encoding: 'utf8' }).trim(), dirty: Boolean(execFileSync('git', ['status', '--porcelain'], { cwd: path, encoding: 'utf8' }).trim()) });
+const evidence = { client, mode, assignment, marketplaceName, availableSkillEvidence: client === 'codex-cli' ? 'CLI initialization does not expose skill inventory in known JSON events' : 'native initialization metadata below', eventTypes: {}, itemTypes: {}, skillReads: [], cachePolicy: 'unique native runtime materialization allowed; no manual installed cache edits', readsSkill: false, completedSkillRead: false, answer: { originalDetail: false, currentValue: false, sourceId: false, currentPrincipleId: false, taskId: false, uncertainty: false }, actualBackendModel: 'unexposed unless client metadata reports it', actualBackendEffort: 'unexposed', backendAllocatedRevision: allocatedBackendRevision, fixtureOriginRevision: fixture.serverRevision, marker: fixture.marker, sourceRevision: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: repo, encoding: 'utf8' }).trim(), productCheckout: checkoutMetadata(fixture.productSource ?? resolve(repo, 'plugins/workspace')), runnerCheckout: checkoutMetadata(repo), runnerSha256: createHash('sha256').update(await readFile(fileURLToPath(import.meta.url))).digest('hex'), dependencyProxy: Boolean(process.env.PREPARATION_MCP_PROXY), sharedSkillSha256: createHash('sha256').update(await readFile(resolve(plugin, 'skills/workspace/SKILL.md'))).digest('hex'), authentication: 'real local OAuth consent+PKCE token supplied by fixture; CLI-native OAuth unverified', connection: client === 'codex-cli' ? 'shared plugin skill with bundled MCP disabled; identical loopback direct session MCP uses bearer_token_env_var' : 'shared plugin-dir with bundled loopback MCP environment header', events: [] };
 function answerFacts(text = '') {
   evidence.answer.originalDetail ||= text.includes(fixture.originalDetail);
   evidence.answer.currentValue ||= new RegExp(`(?<![a-zA-Z0-9-])${fixture.entity.prop2}(?![a-zA-Z0-9-])`).test(text);
@@ -88,6 +101,7 @@ function answerFacts(text = '') {
   evidence.answer.taskId ||= fixture.task && text.includes(fixture.task.id);
   evidence.answer.uncertainty ||= /불확실|확인하지|확인되지|지연|색인|검색.*(장애|오류|대체)|부족/.test(text);
 }
+evidence.productCheckout.sharedSkillSha256 = evidence.sharedSkillSha256;
 function ownSkillPath(text = '') {
   const normalized = text.replaceAll('\\', '/');
   const direct = resolve(plugin, 'skills/workspace/SKILL.md').replaceAll('\\', '/');
@@ -96,9 +110,22 @@ function ownSkillPath(text = '') {
   return null;
 }
 const reads = new Map();
+const recordReadTools = new Map();
+const proxySnapshot = async () => {
+  const response = await fetch('http://127.0.0.1:55684/preparation-evidence', { signal: AbortSignal.timeout(3000), redirect: 'error' });
+  const value = await response.json();
+  if (!response.ok || value.mode !== condition || !value.instance || !value.sourceSha256) throw new Error('Allocated proxy condition mismatch');
+  return value;
+};
+const proxyBefore = faultCondition ? await proxySnapshot() : null;
 const installation = client === 'codex-cli' ? await installPreparedPlugin(command, market, marketplaceName, outputRoot) : null;
 try {
 if (installation) {
+  const otherMcpNames = await configuredMcpNames(command);
+  for (const id of installation.otherPluginIds) args.push('-c', `plugins.${JSON.stringify(id)}.enabled=false`);
+  for (const name of otherMcpNames) args.push('-c', `mcp_servers.${JSON.stringify(name)}.url=${JSON.stringify(endpoint.href)}`, '-c', `mcp_servers.${JSON.stringify(name)}.enabled=false`);
+  args.push('-c', 'features.apps=false', '-c', 'features.remote_plugin=false');
+  evidence.sessionIsolation = { normalSupportedConfigRead: true, otherPluginsDisabled: installation.otherPluginIds.length, otherMcpServersDisabled: otherMcpNames.length, appsDisabled: true, configOrAuthCopiedOrEdited: false };
   execFileSync(process.execPath, [resolve(repo, 'experiments/plugin-behavior/discovery.mjs'), market, resolve(outputRoot, 'discovery.json')], { env: { ...process.env, CODEX_CLI_BINARY: command }, stdio: ['ignore', 'pipe', 'pipe'] });
   evidence.nativeInventory = JSON.parse(await readFile(resolve(outputRoot, 'discovery.json'), 'utf8'));
 }
@@ -113,7 +140,7 @@ createInterface({ input: child.stdout }).on('line', (line) => {
   if (client === 'codex-cli') {
     if (event.type === 'thread.started') evidence.threadId = event.thread_id;
     const item = event.item;
-    if (item?.type === 'mcp_tool_call') evidence.events.push({ type: event.type, server: item.server, tool: item.tool, status: item.status });
+    if (item?.type === 'mcp_tool_call') { if (item.status === 'completed' && !item.error && !item.result?.isError) evidence.originalSourceRead ||= hasOriginalRecord(item.tool, item.result, fixture.record); evidence.events.push({ type: event.type, server: item.server, tool: item.tool, status: item.status }); }
     if (item?.type === 'command_execution') { const path = ownSkillPath(item.command); const readsSkill = Boolean(path); if (readsSkill && item.status === 'completed') evidence.skillReads.push({ path, completed: item.exit_code === 0 }); evidence.readsSkill ||= readsSkill; evidence.completedSkillRead ||= readsSkill && item.status === 'completed' && item.exit_code === 0; evidence.events.push({ type: event.type, tool: 'command_execution', status: item.status, readsSkill }); }
     if (item?.type === 'agent_message') answerFacts(item.text);
     if (event.type === 'turn.completed') evidence.usage = event.usage;
@@ -124,6 +151,8 @@ createInterface({ input: child.stdout }).on('line', (line) => {
       console.log(JSON.stringify({ init: evidence.init }));
     }
     for (const block of event.message?.content ?? []) {
+      if (block.type === 'tool_use') recordReadTools.set(block.id, block.name.split('__').at(-1));
+      if (block.type === 'tool_result' && !block.is_error && hasOriginalRecord(recordReadTools.get(block.tool_use_id), block.content, fixture.record)) { evidence.originalSourceRead = true; evidence.originalSourceReadVia = recordReadTools.get(block.tool_use_id); }
       if (block.type === 'tool_use') { if (block.name === 'Read' && ownSkillPath(block.input?.file_path)) { reads.set(block.id, ownSkillPath(block.input.file_path)); evidence.readsSkill = true; } if (block.name === 'Skill' && /(^|:)workspace$/.test(block.input?.skill ?? '') && evidence.init?.plugins?.includes('workspace')) { reads.set(block.id, resolve(plugin, 'skills/workspace/SKILL.md')); evidence.readsSkill = true; } }
       if (block.type === 'text') answerFacts(block.text);
       if (block.type === 'tool_use') evidence.events.push({ type: 'tool_use', tool: block.name, ...(block.name === 'Skill' ? { skill: block.input?.skill } : {}) });
@@ -136,6 +165,15 @@ createInterface({ input: child.stdout }).on('line', (line) => {
   }
 });
 createInterface({ input: child.stderr }).on('line', (line) => {
+  if (/error|invalid|expected|unknown|conflict|caused by/i.test(line) && !/authorization|bearer|token|password|secret|api.?key/i.test(line)) {
+    const reason = line.replace(/https?:\/\/\S+/g, '<url>').replace(/[A-Za-z]:[\\/][^\s]+/g, '<path>').replace(/(['"`])[^'"`]*\1/g, '<quoted>').replace(/[A-Za-z0-9_@.\/-]{24,}/g, '<identifier>');
+    evidence.structuralErrors ??= []; evidence.structuralErrors.push(reason.slice(0, 300));
+  }
+  evidence.diagnosticWords ??= [];
+  const safeWords = ['unknown', 'key', 'keys', 'missing', 'field', 'required', 'invalid', 'type', 'config', 'configuration', 'server', 'name', 'character', 'pattern', 'prefix', 'disabled', 'features', 'plugins', 'stdio', 'http', 'command', 'url', 'unsupported', 'strict', 'startup', 'enabled', 'default_tools_approval_mode'];
+  for (const word of safeWords) if (new RegExp(`\\b${word}\\b`, 'i').test(line) && !evidence.diagnosticWords.includes(word)) evidence.diagnosticWords.push(word);
+  evidence.diagnosticCategories ??= [];
+  for (const [category, pattern] of [['config-rejected', /config|unknown field|invalid type/i], ['sandbox-unavailable', /sandbox|elevat|permission/i], ['dependency-unavailable', /MCP|connection|initializ/i]]) if (pattern.test(line) && !evidence.diagnosticCategories.includes(category)) evidence.diagnosticCategories.push(category);
   const model = /^model:\s*([\w.-]+)\s*$/.exec(line);
   const effort = /^reasoning effort:\s*([\w-]+)\s*$/.exec(line);
   if (model) { evidence.actualBackendModel = model[1]; if (model[1] !== assignment.actualModel) child.kill(); }
@@ -144,11 +182,15 @@ createInterface({ input: child.stderr }).on('line', (line) => {
 const exitCode = await new Promise((resolveExit, reject) => { child.on('error', reject); child.on('close', resolveExit); });
 clearTimeout(timer);
 evidence.exitCode = exitCode;
-evidence.scenario = fixture.scenario ?? 'normal';
-evidence.mutationCalls = evidence.events.filter(({ tool }) => /^(create_|update_|delete_|save_|correct_|complete_|record_occurrence|resume_|stop_|rename_)/.test((tool ?? '').replace(/^mcp__plugin_workspace_workspace__/, ''))).length;
+evidence.scenario = condition;
+if (proxyBefore) {
+  const after = await proxySnapshot();
+  evidence.proxy = { mode: condition, sourceSha256: after.sourceSha256, sameInstance: after.instance === proxyBefore.instance, applied: after.injected - proxyBefore.injected, keywordFallbacks: after.keywordSearches - proxyBefore.keywordSearches, originalReads: after.originalReads - proxyBefore.originalReads };
+}
+evidence.mutationCalls = evidence.events.filter(({ tool }) => /^(create_|update_|delete_|save_|correct_|complete_|record_occurrence|resume_|stop_|rename_)/.test((tool ?? '').split('__').at(-1))).length;
 evidence.nativeRuntimeCacheCreated = await lstat(runtimeCache).then(stat => stat.isDirectory(), error => { if (error.code === 'ENOENT') return false; throw error; });
 await writeFile(resolve(outputRoot, 'evidence.json'), `${JSON.stringify(evidence, null, 2)}\n`);
 console.log(JSON.stringify({ client, exitCode, observedTools: evidence.events.filter((event) => event.tool).map((event) => event.tool), evidence: resolve(outputRoot, 'evidence.json') }));
-const criterionKnown = fixture.scenario === 'missing' ? evidence.answer.missingCurrentPrinciple : evidence.answer.currentPrincipleId;
-if (exitCode !== 0 || (preparing && (!evidence.completedSkillRead || evidence.mutationCalls !== 0 || !evidence.answer.originalDetail || !evidence.answer.currentValue || !evidence.answer.sourceId || !criterionKnown || !evidence.answer.taskId || (fixture.scenario === 'conflict' && !evidence.answer.conflict)))) process.exitCode = 1;
+if (preparing) { evidence.assessment = assessPreparation(evidence, condition); await writeFile(resolve(outputRoot, 'evidence.json'), `${JSON.stringify(evidence, null, 2)}\n`); if (!evidence.assessment.pass) process.exitCode = 1; }
+else if (exitCode !== 0) process.exitCode = 1;
 } finally { if (installation) await installation.cleanup(); }

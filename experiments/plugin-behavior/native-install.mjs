@@ -32,6 +32,6 @@ export async function installPreparedPlugin(binary, market, name, output) {
     const own = list().find(row => row.marketplaceName === name && row.name === 'workspace');
     if (!own?.installed) throw new Error('Native CLI did not install allocated plugin');
     journal.installed = true; journal.version = own.version; await save();
-    return { cleanup, journal };
+    return { cleanup, journal, otherPluginIds: before.map(row => `${row.name}@${row.marketplaceName}`) };
   } catch (error) { await cleanup(); throw error; }
 }

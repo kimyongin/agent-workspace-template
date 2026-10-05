@@ -18,19 +18,22 @@ node scripts/agent-models.mjs assign --client claude-cli --tier balanced --effor
 
 ```powershell
 $env:PLUGIN_ENV_HANDOFF = 'exclusive-local'
+$env:PREPARATION_BACKEND_REVISION = '<root-allocated-40-character-revision>'
 node --experimental-transform-types experiments/plugin-behavior/prepare-fixture.mjs setup <allocated-checkout> codex-cli <new-outside-output>
 node experiments/plugin-behavior/run-client.mjs codex-cli <outside-output>/codex-cli-fixture.json <current-codex-snapshot> prepare
 node --experimental-transform-types experiments/plugin-behavior/prepare-fixture.mjs verify <allocated-checkout> codex-cli <outside-output>
 node --experimental-transform-types experiments/plugin-behavior/prepare-fixture.mjs cleanup <allocated-checkout> codex-cli <outside-output>
 ```
 
-Claude는 client와 snapshot을 바꾼다. 자연 업무 prompt에는 스킬·도구명·검색 순서를 넣지 않는다. 준비 세션에도 실제 변경 도구를 제공하고 호출 수 0과 독립 SDK의 전체 원문 전후 digest를 각각 확인한다. SDK 성공은 실제 CLI의 스킬 선택·읽기를 대신하지 않는다. Codex는 승인된 고유 UUID marketplace의 시험 항목만 정상 `plugin add`로 설치하고 `finally`에서 동일 selector를 `plugin remove`로 정리한다. 기존 설치의 id/version/enabled digest가 바뀌면 멈춘다. 개인 설치 cache를 직접 편집하지 않는다. native cache 생성, 정확한 제품 SKILL 읽기 완료, 제공 metadata와 새 실행별 증거 경로를 따로 남긴다.
+Claude는 client와 snapshot을 바꾼다. 자연 업무 prompt에는 스킬·도구명·검색 순서를 넣지 않는다. 준비 세션에도 실제 변경 도구를 제공하고 호출 수 0과 독립 SDK의 전체 원문 전후 digest를 각각 확인한다. SDK 성공은 실제 CLI의 스킬 선택·읽기를 대신하지 않는다. Codex는 승인된 고유 UUID marketplace의 시험 항목만 정상 `plugin add`로 설치하고 `finally`에서 동일 selector를 `plugin remove`로 정리한다. 기존 설치의 id/version/enabled digest가 바뀌면 멈춘다. 개인 설치 cache를 직접 편집하지 않는다. native cache 생성, 정확한 제품 SKILL 읽기 완료, 제공 metadata와 새 실행별 증거 경로를 따로 남긴다. `--strict-config`와 정상 CLI 설정 읽기를 유지하고 다른 설치 plugins·지원 status 목록의 다른 MCP·apps를 session override로 비활성화한다. disabled MCP 항목도 transport 형태가 필요하므로 배정 loopback URL과 `enabled=false`를 함께 준다. 이를 제품 설치 변경과 구분한다. Claude도 복사 패키지의 시험 MCP 이름을 UUID로 분리한다.
 
 setup의 마지막 인수 `missing`은 이번 owner의 현재 원칙을 삭제한 상태, `conflict`는 현재 원칙의 최소 수치 조건과 과거 기록의 실행 판단이 충돌하는 상태를 만든다. 기본값은 `normal`이다. 이 구성 단계 이후 baseline을 잡고 새로운 자연 CLI 세션을 실행한다. `prepare-explicit`은 명시 스킬/파일 읽기 지원 경로의 별도 진단이며 자동 선택 성공으로 합산하지 않는다. 승인된 `PREPARATION_RETAIN_TRIAL=own-thread` 실행의 `threadId`로 `trial-context.mjs <own-evidence> <shared-SKILL>`를 호출하면 지원된 native thread/read와 반환된 바로 그 rollout에서 제품 path·공유 body/hash만 검사한다. 일반 skills catalog marker와 실제 제품 활성화 증거를 구분한다.
 
 토큰 만료 전에 이번 fixture를 정리하거나 배정된 후속 검증을 마친다. 유지가 승인된 fixture도 새 대화에서 사용하고 token 만료 시 정상 로그인·동의를 다시 수행한다. 비밀 journal에 ID가 없는 응답 유실 DCR 등록은 자동 정리할 수 없으며, pending registration 자료를 보존해 환경 owner에게 인계한다. 다른 OAuth 등록이나 사용자에 대한 admin 조회·삭제로 추측하지 않는다.
 
 `proxy-preparation.mjs`는 배정된 55684→55621 loopback 검색 의존성만 다룬다. `semantic-failure`는 auto/semantic 검색만 실패시키고 나머지는 원본으로 전달한다. `index-delay`는 실제 keyword 검색의 자료를 그대로 사용하며 미색인 metadata를 주입한다. 이는 실제 backend의 색인 실패가 아닌 local adapter 조건이다. `PREPARATION_MCP_PROXY`는 이 배정 주소만 허용하고 독립 전후 조회는 원본 endpoint로 수행한다. 서비스 owner 배정 없이 proxy를 시작하지 않는다. 토큰·원시 stdout·검색 payload는 증거에 기록하지 않는다. 실행하지 않은 시나리오는 통과로 추정하지 않는다.
+
+fault 실행은 runner의 다섯째 인수에 `semantic-failure` 또는 `index-delay`를 고정한다. runner는 proxy의 `/preparation-evidence`에서 mode·같은 instance·소스 해시·주입/keyword/원문 조회 counter를 전후 확인한다. 주입0, 사용자 안내 누락, 실제 keyword fallback 또는 정확한 source 원문 완료 누락은 실패다. missing/conflict는 해당 조건과 불확실성 안내도 필수다. 제품 checkout revision/dirty/공유 SKILL 해시, runner checkout, root가 배정한 실제 backend revision, fixture setup origin revision은 각각 보존한다. 과거 proof의 출처 표기를 바로잡을 때는 원본을 덮어쓰지 않고 별도 correction metadata를 쓴다.
 
 실제 서비스 실행은 메인의 Entity 통합 및 공유 로컬 Supabase 독점 배정 후에만 한다. loopback OAuth 토큰을 fixture 소유자가 실제 동의·PKCE·코드 교환으로 받아 세션 MCP 설정에 전달한다. 이는 CLI 자체 OAuth 로그인 성공과 다르다. 원본 운영 endpoint는 유지하고 복사 패키지·세션 설정만 loopback 대상으로 쓴다. 토큰과 원시 클라이언트 출력은 저장소 밖에만 두며 보관하는 증거는 도구 이름/성공/모델/스킬 선택과 독립 재조회 판정만 남긴다.
 
