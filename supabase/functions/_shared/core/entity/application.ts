@@ -103,7 +103,11 @@ export function previewEntityChange(d: EntityDeps, actor: Actor, input: EntityCh
       return { memo: basicChangeMemo({ action: "create", before: null, after: input.input }), changed: true };
     }
     const old = await requireVersion(s, input.id, input.input.expected_version);
-    const { expected_version: _v, ...values } = input.input;
+    const values = Object.fromEntries(
+      Object.entries(input.input).filter(([key]) =>
+        !["expected_version", "change_note", "change_memo", "request_id"].includes(key)
+      ),
+    );
     const after = input.action === "delete" ? null : { ...old, ...values };
     return {
       memo: basicChangeMemo({ action: input.action, before: old, after }),

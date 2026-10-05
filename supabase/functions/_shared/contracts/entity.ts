@@ -27,9 +27,12 @@ export const entityUpdate = z.strictObject({
   prop3: properties.prop3.optional(),
   prop4: properties.prop4.optional(),
   expected_version: expectedVersion,
-}).refine((v) => Object.keys(v).some((k) => !["expected_version", "change_note", "change_memo", "request_id"].includes(k)), {
-  message: "바꿀 필드가 없습니다",
-});
+}).refine(
+  (v) => Object.keys(v).some((k) => !["expected_version", "change_note", "change_memo", "request_id"].includes(k)),
+  {
+    message: "바꿀 필드가 없습니다",
+  },
+);
 export const entityListQuery = z.strictObject({
   tag_id: id.optional(),
   ...pageInput,

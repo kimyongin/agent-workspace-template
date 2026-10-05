@@ -319,7 +319,7 @@ export function TaskFormModal(props: {
                 </div>
               </>
             )}
-          <ChangeNoteField value={draft.change_note??""} required={props.mode==="edit"} error={errors.change_note} onChange={change_note=>set({change_note})}/>
+          <ChangeNoteField label="편집 메모" value={draft.change_note??""} required={false} error={errors.change_note} onChange={change_note=>set({change_note})}/>
           {props.details}
         </>
       )}

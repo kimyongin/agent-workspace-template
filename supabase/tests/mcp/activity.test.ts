@@ -99,6 +99,8 @@ httpTest("검색: HTTP/MCP 본문 키워드·원문 최소 응답·대체 상태
 });
 
 const EXPECTED_TOOLS = [
+  "preview_entity_change",
+  "preview_task_change",
   "create_entity",
   "delete_entity",
   "get_entity",

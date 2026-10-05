@@ -2,7 +2,7 @@
 // 경로 계약: docs/tickets/template-02-t02-1-contracts.md "할 일", "반복 할 일", "활동 기록".
 import { Hono } from "hono";
 import { z } from "zod";
-import { businessMeta, mutationMeta } from "../../contracts/change.ts";
+import { businessMeta } from "../../contracts/change.ts";
 import { taskChangePreview } from "../../contracts/task-change.ts";
 import { expectedVersion, isoDate } from "../../contracts/common.ts";
 import { recordCreate, recordListQuery, recordUpdate } from "../../contracts/record.ts";

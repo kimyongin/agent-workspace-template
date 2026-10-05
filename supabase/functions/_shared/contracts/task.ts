@@ -97,9 +97,12 @@ export const taskUpdate = z
     recurrence: recurrence.optional(),
     timezone: timezone.optional(),
   })
-  .refine((v) => Object.keys(v).some((k) => !["expected_version", "change_note", "change_memo", "request_id"].includes(k)), {
-    message: "바꿀 필드가 없습니다",
-  });
+  .refine(
+    (v) => Object.keys(v).some((k) => !["expected_version", "change_note", "change_memo", "request_id"].includes(k)),
+    {
+      message: "바꿀 필드가 없습니다",
+    },
+  );
 export type TaskUpdate = z.infer<typeof taskUpdate>;
 
 export const versionOnly = z.strictObject({ expected_version: expectedVersion, ...businessMeta });

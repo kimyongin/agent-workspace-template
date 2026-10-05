@@ -142,8 +142,8 @@ export function FormModal({ title, open, submitLabel, dirty, onClose, onRouteDis
   );
 }
 
-export function ChangeNoteField({value, onChange, required = false, error}: {value: string; onChange: (value: string) => void; required?: boolean; error?: string}) {
-  return <Field label={required ? "편집 메모" : "이유 (선택)"} required={required} error={error} help="무엇을 왜 바꾸는지 남깁니다. 1,000자 이하">
+export function ChangeNoteField({value, onChange, required = false, error, label}: {value: string; onChange: (value: string) => void; required?: boolean; error?: string;label?:string}) {
+  return <Field label={label??(required ? "편집 메모" : "이유 (선택)")} required={required} error={error} help="무엇을 왜 바꾸는지 남깁니다. 1,000자 이하">
     {p => <textarea {...p} className="input" rows={3} value={value} onChange={e => onChange(e.target.value)} />}
   </Field>;
 }

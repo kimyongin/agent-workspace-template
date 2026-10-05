@@ -361,6 +361,6 @@ function TaskTransitionForm({task,onClose,onSaved}:{task:TaskResult;onClose:()=>
       await api("POST",`/tasks/${task.id}/${action}`,{expected_version:task.version,change_note:note.trim()||undefined,request_id:request.current,change_memo});
       request.renew();await onSaved();
     }}>
-    {errors=><><p className="help">{action==="stop"?"오늘부터 이후 회차가 생기지 않고 기존 기록은 남습니다.":"오늘부터 규칙에 따라 회차가 다시 생깁니다."}</p><ChangeNoteField required value={note} onChange={setNote} error={errors.change_note}/></>}
+    {errors=><><p className="help">{action==="stop"?"오늘부터 이후 회차가 생기지 않고 기존 기록은 남습니다.":"오늘부터 규칙에 따라 회차가 다시 생깁니다."}</p><ChangeNoteField label="편집 메모" value={note} onChange={setNote} error={errors.change_note}/></>}
   </FormModal>;
 }

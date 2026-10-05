@@ -122,7 +122,7 @@ export function EntityForm(
             )}
           </Field>
           <TagPicker scope="entity" value={draft.tag_ids} error={errors.tag_ids} onChange={tag_ids=>setDraft(d=>({...d,tag_ids}))}/>
-          <ChangeNoteField value={draft.change_note} required={!!initial} error={errors.change_note} onChange={change_note=>setDraft(d=>({...d,change_note}))}/>
+          <ChangeNoteField label="편집 메모" value={draft.change_note} required={false} error={errors.change_note} onChange={change_note=>setDraft(d=>({...d,change_note}))}/>
           {details}
         </>
       )}
