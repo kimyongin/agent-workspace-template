@@ -62,29 +62,31 @@ description: 연결된 도메인 앱의 데이터·할 일·활동 기록·사�
 
 현재 서버의 할 일·기록·원칙 도구와 쓰임새는 다음과 같다. 입력·출력의 정확한 계약은 연결된 서버의 도구 설명을 따른다. 아래 도구 열의 코드 표기는 도구 이름만 담는다.
 
-엔터티·할 일의 변경 메모를 준비할 때는 해당 preview 도구에 실제 업무 입력과 현재 버전을 전달한다. 미리보기는 저장하지 않는다. 반환한 메모의 제목·요약·본문에 필요한 이유·근거를 보충하고 같은 변경 입력의 `change_memo`로 제출한다. 일회성 완료·회차 수행에서는 최종 메모를 결과 기록의 제목·요약·본문으로 제출해 결과 하나를 저장한다. 사용자에게 도구 이름을 고르게 할 필요는 없다. 준비만 요청했다면 미리보기·초안으로 마치고 실제 변경을 요청했다면 승인된 범위를 실행한 뒤 결과를 확인한다.
+엔터티·할 일·현재 원칙의 변경 메모를 준비할 때는 해당 preview 도구에 실제 업무 입력과 현재 버전을 전달한다. 미리보기는 저장하지 않는다. 반환한 메모의 제목·요약·본문에 필요한 이유·근거를 보충하고 같은 변경 입력의 `change_memo`로 제출한다. 일회성 완료·회차 수행에서는 최종 메모를 결과 기록의 제목·요약·본문으로 제출해 결과 하나를 저장한다. 사용자에게 도구 이름을 고르게 할 필요는 없다. 준비만 요청했다면 미리보기·초안으로 마치고 실제 변경을 요청했다면 승인된 범위를 실행한 뒤 결과를 확인한다.
 
 | 하려는 일 | 도구 |
 | --- | --- |
 | 엔터티 변경 전 현재 사실의 기본 기록 메모 확인 | `preview_entity_change` |
 | 할 일 변경·완료·회차 수행 전 기본 기록 메모 확인 | `preview_task_change` |
+| 현재 원칙 등록·편집·삭제 전 기본 기록 메모 확인 | `preview_principle_change` |
 | 할 일 찾기·읽기 | `list_tasks`, `get_task` |
 | 오늘 해야 할 반복 할 일 확인(occurrence_on 지정) | `list_tasks`, `list_occurrences` |
 | 할 일 만들기·고치기·지우기 | `create_task`, `update_task`, `delete_task` |
 | 일회성 할 일 완료와 결과 저장 | `complete_task` |
 | 반복 할 일의 회차 기록·중단·재개 | `record_occurrence`, `stop_task`, `resume_task` |
 | 기록 찾기·읽기·쓰기 | `list_records`, `get_record`, `create_record`, `update_record`, `delete_record` |
-| 현재 원칙 확인·최초 등록·새 최신본 저장 | `get_current_principle`, `create_principle`, `save_current_principle`, `update_principle` |
-| 과거 원칙 찾기·원문 확인·정정·삭제 | `list_principles`, `get_principle`, `correct_principle`, `delete_principle` |
+| 현재 원칙 확인·최초 등록·같은 문서 갱신 | `get_current_principle`, `create_principle`, `save_current_principle`, `update_principle` |
+| 현재 원칙 삭제 | `delete_principle` |
+| 기존 과거 자료 조회·호환 정정 | `list_principles`, `get_principle`, `correct_principle` |
 | 태그 목록·생성·이름 변경·삭제 | `list_tags`, `create_tag`, `rename_tag`, `delete_tag` |
 | 제목·요약·본문에서 근거 찾기 | `search` |
 | 예제 엔터티 찾기·읽기·만들기·고치기·지우기 | `list_entities`, `get_entity`, `create_entity`, `update_entity`, `delete_entity` |
 
 근거를 찾을 때는 `search`로 후보를 찾고 해당 `get_task`·`get_record`·`get_principle`로 원문을 확인한다. 결과의 제목·요약만으로 본문을 읽었다고 보고하지 않는다. `auto`는 제목·요약의 의미 검색과 제목·요약·본문 키워드를 합친다. 질의는 Pinecone로 전달되며 `keyword`는 외부 호출 없이 본문 세부 정보를 찾는다. `search_state=keyword_fallback`이면 키워드 대체 결과이며, 결과가 0건이어도 `semantic_coverage`의 대기·제외 수를 확인한다. 기본 검색은 현재 원칙만 포함한다. 필요하면 `principle_view=history` 또는 `all`로 과거 근거를 확인하고 현재 원칙과 구분한다. `task_kind`, `task_status`, `record_kind=user|result|change`, `tag_id`, `kinds`, `from`·`to`로 범위를 좁히며 커서는 같은 조건에만 사용한다. 의미 페이지를 잇는 중 오류가 나면 재시도하거나 첫 페이지부터 다시 검색하고 서로 다른 결과를 섞지 않는다.
 
-현재 원칙은 계정 전체에서 하나 또는 없음이며 `get_current_principle`로 확인한다. 적용할 저장본은 `get_principle`로 본문·saved_at·is_current·변경 메모를 읽는다. 최초 등록은 `create_principle`, 현재 원칙 변경은 `save_current_principle` 또는 현재 ID의 `update_principle`을 쓴다. 변경은 새 ID를 만들고 이전 본을 과거 목록에 남긴다. `list_principles(view=history|all)`은 saved_at 순서로 과거를 찾는다. `correct_principle`은 과거 본의 표현 또는 메모만 정정하며 저장 시점과 현재 여부를 바꾸지 않는다. 같은 메모와 본문이면 버전·변경 기록을 늘리지 않는다. 현재 본을 삭제하면 남은 최신 저장본이 현재가 되고 마지막 삭제는 없음이 된다. 삭제 전에 이 영향을 확인한다. 이관 자료의 origin=legacy와 legacy_context는 과거 독립 원칙의 문맥이며 새 현재 정책의 일부였다고 재해석하지 않는다.
+현재 원칙은 계정 전체에서 하나 또는 없음이며 `get_current_principle`로 확인한다. 적용할 저장본은 `get_principle`로 본문·saved_at·is_current·변경 메모를 읽는다. 최초 등록은 `create_principle`, 현재 원칙 변경은 `save_current_principle` 또는 현재 ID의 `update_principle`을 쓴다. 변경은 같은 ID의 현재 문서를 갱신하고 최종 메모를 통합 기록에 함께 남긴다. `list_principles(view=history|all)`은 saved_at 순서로 과거를 찾는다. `correct_principle`은 과거 본의 표현 또는 메모만 정정하며 저장 시점과 현재 여부를 바꾸지 않는다. 같은 메모와 본문이면 버전·변경 기록을 늘리지 않는다. 현재 원칙을 삭제하면 현재 문서가 없는 상태가 된다. 과거 자료는 현재로 승격하지 않는다. 과거 판단 근거는 통합 기록에서 찾고 옛 ID·history 조회는 기존 보존 자료의 호환 조회로 사용한다. 이관 자료의 origin=legacy와 legacy_context는 과거 독립 원칙의 문맥이며 새 현재 정책의 일부였다고 재해석하지 않는다.
 
-직접 기록·완료·회차 기록에는 실제 판단에 적용한 저장본의 `applied_principle_ids`를 함께 저장한다(중복 없이 최대 100개). 정정에서 이 필드를 생략하면 당시 캡처를 유지하고 빈 배열은 삭제된 원칙의 캡처까지 제거한다. 같은 저장본 연결을 유지하면 기존 캡처를 보존한다. `applied_principle_snapshots`와 `applied_principles`는 연결 시점의 원칙 자료를 보존한다. 원칙의 이후 정정·삭제가 당시 캡처를 바꾸지 않는다. captured_at=application은 이 기능 도입 후 연결 시점이며 captured_at=migration은 이관 시점의 기존 자료 캡처로, 과거 실제 적용 당시의 원문임을 보증하지 않는다. 당시 적용 이유는 기록 본문에도 남긴다.
+원칙을 참고한 설명은 필요할 때 기록 본문에 남긴다. 신규 기록에서 원칙 ID나 스냅샷은 필수가 아니다. 기존 `applied_principle_ids` 입력(중복 없이 최대 100개)은 호환을 위해 유지한다. 정정에서 이 필드를 생략하면 당시 캡처를 유지하고 빈 배열은 삭제된 원칙의 캡처까지 제거한다. 같은 저장본 연결을 유지하면 기존 캡처를 보존한다. `applied_principle_snapshots`와 `applied_principles`는 연결 시점의 원칙 자료를 보존한다. 원칙의 이후 정정·삭제가 당시 캡처를 바꾸지 않는다. captured_at=application은 이 기능 도입 후 연결 시점이며 captured_at=migration은 이관 시점의 기존 자료 캡처로, 과거 실제 적용 당시의 원문임을 보증하지 않는다. 당시 적용 이유는 기록 본문에도 남긴다.
 
 검색의 `principle_view`는 함께 전달된 legacy `status`보다 우선한다. `principle_view`를 생략할 때만 `status=active|inactive|all`을 현재·과거·전체의 별칭으로 해석한다. 조건이 같은 별칭과 명시 view 사이에는 커서를 이어 쓸 수 있다.
 

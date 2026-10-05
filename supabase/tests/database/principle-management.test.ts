@@ -7,7 +7,7 @@ const admin = connect(urls.admin, { max: 1 }),
   sql = connect(urls.pooler, { max: 3, prepare: false }),
   d = { uow: new SqlPrincipleUnitOfWork(sql) };
 dbTest(
-  "principle required change-record failure rolls back retired current/new row/queue/request; same retry succeeds",
+  "principle change-record failure rolls back same current document/queue/request; same retry succeeds",
   async () => {
     const f = await fixtureOwner(admin);
     const a = f.actor;
@@ -35,6 +35,7 @@ dbTest(
       };
       await assertRejects(() => p.saveCurrentPrinciple(broken, a, i));
       assertEquals((await p.currentPrinciple(d, a)).current?.id, first.id);
+      assertEquals((await p.currentPrinciple(d, a)).current, first);
       assertEquals((await admin`select id from app.principles where owner_id=${a.userId}`).length, 1);
       assertEquals(
         (await admin`select request_id from app.request_results where owner_id=${a.userId} and request_id=${i
@@ -43,6 +44,7 @@ dbTest(
       );
       assertEquals((await admin`select id from app.search_index_state where owner_id=${a.userId}`).length, 2);
       const result = await p.saveCurrentPrinciple(d, a, i);
+      assertEquals(result.id, first.id);
       assertEquals(result.version, 2);
       assertEquals((await p.saveCurrentPrinciple(d, a, i)).id, result.id);
     } finally {

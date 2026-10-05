@@ -15,7 +15,7 @@ export async function saveWithMemo(page: Page, scope: Page | Locator = page, lab
 
 /** Fixtures return a public read-only preview, never a mock business mutation. */
 export async function fixtureMemoPreview(page: Page) {
-  await page.route(/\/api\/(entities|tasks)\/preview$/, route => route.fulfill({json:{
+  await page.route(/\/api\/(entities|tasks|principles)\/preview$/, route => route.fulfill({json:{
     memo:{title:"업무 변경",summary:"확인한 업무 변경 내용",body:"업무 변경 전 확인한 내용"},changed:true,
   }}));
 }

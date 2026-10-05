@@ -1,10 +1,31 @@
 import { z } from "zod";
 import { body, expectedVersion, id, isoDateTime, page, pageInput, summary, title } from "./common.ts";
-import { editMeta, mutationMeta } from "./change.ts";
-export const principleCreate = z.strictObject({ title, summary, body: body.default(""), ...mutationMeta });
+import { changeMemo, editMeta, mutationMeta } from "./change.ts";
+export const principleCreate = z.strictObject({
+  title,
+  summary,
+  body: body.default(""),
+  ...mutationMeta,
+  change_memo: changeMemo.optional(),
+});
 export type PrincipleCreate = z.infer<typeof principleCreate>;
 export const principleSave = principleCreate.extend({ expected_version: expectedVersion.optional() });
 export type PrincipleSave = z.infer<typeof principleSave>;
+export const principleDelete = z.strictObject({
+  expected_version: expectedVersion,
+  ...mutationMeta,
+  change_memo: changeMemo.optional(),
+});
+export const principlePreview = z.discriminatedUnion("action", [
+  z.strictObject({ action: z.literal("create"), input: principleCreate }),
+  z.strictObject({
+    action: z.literal("update"),
+    id,
+    input: principleSave.extend({ expected_version: expectedVersion }),
+  }),
+  z.strictObject({ action: z.literal("delete"), id, input: principleDelete }),
+]);
+export type PrinciplePreview = z.infer<typeof principlePreview>;
 export const principleCorrection = z.strictObject({
   expected_version: expectedVersion,
   title: title.optional(),
@@ -13,7 +34,10 @@ export const principleCorrection = z.strictObject({
   ...editMeta,
 });
 export type PrincipleCorrection = z.infer<typeof principleCorrection>;
-export const principleUpdate = principleCorrection.refine(
+export const principleUpdate = principleCorrection.extend({
+  change_note: mutationMeta.change_note,
+  change_memo: changeMemo.optional(),
+}).refine(
   (v) => v.title !== undefined || v.summary !== undefined || v.body !== undefined,
   {
     message: "바꿀 필드가 없습니다",

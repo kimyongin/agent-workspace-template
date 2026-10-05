@@ -1,5 +1,4 @@
 // 할 일·기록 작성/편집 폼. 검증은 서버와 같은 contracts로 하고, 저장 실패 시 초안을 유지한다.
-import { PrinciplePicker } from "../principles/PrinciplePicker.tsx";
 import { TagPicker } from "../tags/TagPicker.tsx";
 import { EntityMultiPicker } from "../entity/EntityPicker.tsx";
 import { recordCreate, recordLabels } from "@contracts/record.ts";
@@ -54,7 +53,6 @@ export function RecordFormModal(props: {
     summary: draft.summary,
     body: draft.body,
     occurred_at: fromLocalInput(draft.occurred_at),
-    applied_principle_ids:draft.applied_principle_ids,
     tag_ids:draft.tag_ids,
     ...(props.entityEditable===false?{}:{entity_ids:draft.entity_ids??(draft.entity_id?[draft.entity_id]:[])}),
   });
@@ -71,13 +69,13 @@ export function RecordFormModal(props: {
         const r = recordCreate.safeParse(value());
         return r.success ? null : fieldErrors(r.error.issues);
       }}
-      onSubmit={() => {const parsed=recordCreate.parse(value());return props.onSave({... (props.systemRecord?{title:parsed.title,summary:parsed.summary,body:parsed.body}:parsed),change_note:draft.change_note?.trim()||undefined});}}
+      onSubmit={() => {const {applied_principle_ids:_legacy,...parsed}=recordCreate.parse(value());return props.onSave({... (props.systemRecord?{title:parsed.title,summary:parsed.summary,body:parsed.body}:parsed),change_note:draft.change_note?.trim()||undefined});}}
     >
       {(errors) => (
         <>
           {props.intro}
           <TextFields draft={draft} set={(d) => setDraft((prev) => ({ ...prev, ...d }))} errors={errors} />
-          {!props.systemRecord && <><PrinciplePicker value={draft.applied_principle_ids} error={errors.applied_principle_ids} onChange={ids=>setDraft(d=>({...d,applied_principle_ids:ids}))}/>
+          {!props.systemRecord && <>
           <TagPicker value={draft.tag_ids} error={errors.tag_ids} onChange={tag_ids=>setDraft(d=>({...d,tag_ids}))}/>
           {props.entityEditable!==false&&<EntityMultiPicker value={draft.entity_ids??(draft.entity_id?[draft.entity_id]:[])} context={draft.entity_context} error={errors.entity_ids} onChange={entity_ids=>setDraft(d=>({...d,entity_ids}))}/>}
           <Field label={recordLabels.occurred_at} error={errors.occurred_at} help="비우면 저장한 시각">

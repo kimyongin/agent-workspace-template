@@ -8,19 +8,36 @@ export async function currentPrincipleFixes(invoke: Invoke) {
   const marker = `review-${crypto.randomUUID()}`;
   const baseline = (await invoke("current", {})).current as { version: number; id: string } | null;
   const ids: string[] = [];
-  let version = baseline?.version;
+  let current: Record<string, unknown> | undefined;
   let recordId: string | undefined;
   try {
-    for (let n = 0; n < 3; n++) {
-      const row = await invoke("save", {
-        title: `${marker} ${n}`,
-        summary: "context",
-        body: "original",
-        ...(version ? { expected_version: version, change_note: "next" } : {}),
-      });
-      ids.unshift(row.id as string);
-      version = row.version as number;
+    // Isolate this fixture from the account's current document, preserving its original ID/content.
+    if (baseline) await admin`update app.principles set is_current=false where id=${baseline.id}`;
+    current = await invoke("save", {
+      title: `${marker} 2`,
+      summary: "context",
+      body: "original",
+    });
+    ids.push(current.id as string);
+    const [owner] = await admin`select owner_id from app.principles where id=${current.id as string}`;
+    // Explicit legacy fixtures retain compatibility correction/search coverage until #134.
+    for (let n = 1; n >= 0; n--) {
+      const [row] = await admin`insert into app.principles(owner_id,title,summary,body,is_current,origin,saved_at)
+        values(${owner.owner_id},${`${marker} ${n}`},'context','original',false,'legacy',${`2020-01-0${
+        n + 1
+      }T00:00:00Z`}) returning id`;
+      ids.push(row.id as string);
     }
+    const updated = await invoke("save", {
+      title: `${marker} 2 updated`,
+      summary: "context",
+      body: "original",
+      expected_version: current.version,
+      change_note: "next",
+    });
+    assertEquals(updated.id, current.id);
+    assertEquals(updated.version, (current.version as number) + 1);
+    current = updated;
     const old = await invoke("get", { id: ids[2] });
     const queue =
       await admin`select message from pgmq.q_search_index where message->>'kind'='principle' and message->>'id'=${old
@@ -96,12 +113,13 @@ export async function currentPrincipleFixes(invoke: Invoke) {
     const record = await invoke("create_record", {
       title: marker,
       summary: "decision",
-      applied_principle_ids: [old.id],
+      applied_principle_ids: [current.id],
     });
     recordId = record.id as string;
     const snapshots = record.applied_principle_snapshots;
-    await invoke("delete", { id: old.id, expected_version: corrected.version });
-    ids.pop();
+    await invoke("delete", { id: current.id, expected_version: current.version });
+    current = undefined;
+    assertEquals((await invoke("current", {})).current, null);
     const omitted = await invoke("update_record", {
       id: record.id,
       expected_version: record.version,
@@ -133,10 +151,10 @@ export async function currentPrincipleFixes(invoke: Invoke) {
       const row = await invoke("get_record", { id: recordId });
       await invoke("delete_record", { id: recordId, expected_version: row.version });
     }
-    for (const id of ids) {
-      const row = await invoke("get", { id });
-      await invoke("delete", { id, expected_version: row.version });
-    }
+    if (current) await invoke("delete", { id: current.id, expected_version: current.version });
+    // History fixtures are test setup, not publicly deletable current documents.
+    for (const id of ids) await admin`delete from app.principles where id=${id}`;
+    if (baseline) await admin`update app.principles set is_current=true where id=${baseline.id}`;
     assertEquals(((await invoke("current", {})).current as { id: string } | null)?.id ?? null, baseline?.id ?? null);
   }
 }

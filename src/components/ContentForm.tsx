@@ -76,6 +76,9 @@ export function FormModal({ title, open, submitLabel, dirty, onClose, onRouteDis
   const [uncertain, setUncertain] = useState(false);
   const submitting = useRef(false);
   const [memo, setMemo] = useState<ChangeMemo | null>(null);
+  const memoTitle = useRef<HTMLInputElement>(null);
+  const memoEditable = !!memo && !busy && !uncertain;
+  useLayoutEffect(() => { if(open && memoEditable)memoTitle.current?.focus(); }, [open,memoEditable]);
   const key = useRef(previewKey);
   if(key.current!==previewKey){key.current=previewKey; if(memo)setMemo(null);}
 
@@ -116,7 +119,7 @@ export function FormModal({ title, open, submitLabel, dirty, onClose, onRouteDis
     <fieldset disabled={busy || uncertain} style={{border:0,padding:0,margin:0,minWidth:0}} className="form">{children(errors)}
       {memo&&<section aria-label="저장할 기록 메모" className="panel">
         <h2 className="section-title">저장할 기록 메모</h2><p className="help">아직 저장하지 않았습니다. 확인 가능한 사실로 작성한 기본 메모를 보충한 뒤 업무 변경과 함께 저장합니다.</p>
-        <Field label="기록 제목" required>{p=><input {...p} className="input" value={memo.title} onChange={e=>setMemo({...memo,title:e.target.value})}/>}</Field>
+        <Field label="기록 제목" required>{p=><input {...p} ref={memoTitle} className="input" value={memo.title} onChange={e=>setMemo({...memo,title:e.target.value})}/>}</Field>
         <Field label="기록 요약" required>{p=><textarea {...p} className="input" rows={3} value={memo.summary} onChange={e=>setMemo({...memo,summary:e.target.value})}/>}</Field>
         <Field label="기록 본문">{p=><textarea {...p} className="input" rows={6} value={memo.body} onChange={e=>setMemo({...memo,body:e.target.value})}/>}</Field>
       </section>}
