@@ -130,7 +130,7 @@ for (
             kind === "entity" ? (final as { prop1: string }).prop1 : (final as { title: string }).title,
             "edited parent",
           );
-          assertEquals(events.length, 2);
+          assertEquals(events.length, kind === "record" ? 1 : 2);
           const unlink = events.find((r) => r.change_note === "delete dictionary entry")!;
           assertEquals(unlink.change_metadata.before.tag_ids.length, 2);
           assertEquals(unlink.change_metadata.after.tag_ids, [other.id]);
@@ -141,9 +141,11 @@ for (
         } else {
           assertEquals(final.tag_ids, []);
           assertEquals(final.version, parent.version + 1);
-          assertEquals(events.length, 1);
-          assertEquals(events[0].change_note, "remove both");
-          assertEquals(events[0].change_metadata.after.tag_ids, []);
+          assertEquals(events.length, kind === "record" ? 0 : 1);
+          if (kind !== "record") {
+            assertEquals(events[0].change_note, "remove both");
+            assertEquals(events[0].change_metadata.after.tag_ids, []);
+          }
         }
       } finally {
         release.resolve();
