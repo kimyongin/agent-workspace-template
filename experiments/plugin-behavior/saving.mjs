@@ -23,6 +23,20 @@ export function classifyIndexStatements(text) {
   return result;
 }
 
+export function classifyStorageStatements(text) {
+  const result = { affirmative: 0, negated: 0, claims: [] };
+  for (const sentence of text.split(/[.!?;,\n]+|하지만|그러나|그래도|지만|(?<=[했됐었])고\s+/)) {
+    const clause = sentence.replace(/[*_`#]/g, '');
+    const predicate = /(?:저장|생성)(?:을|이|은|는|에)?\s*(?:했습니다|했어요|했음|됐습니다|되었습니다|완료했|완료됐|완료되었|성공했)/;
+    const denied = /(?:저장|생성)(?:에|이|은|는)?\s*(?:실패|오류|불가|하지\s*(?:못|않)|되지\s*(?:못|않))|(?:저장|생성)(?:을|이|은|는)?\s*완료.{0,20}(?:말할\s*수\s*없|주장하지|단정하지|확인하지|않|못)/;
+    const polarity = denied.test(clause) ? 'negated' : predicate.test(clause) ? 'affirmative' : null;
+    if (!polarity) continue;
+    result[polarity]++;
+    result.claims.push({ subject: /저장/.test(clause) ? 'storage' : 'creation', polarity, verb: /완료/.test(clause) ? 'complete' : /성공/.test(clause) ? 'succeed' : 'store', sha256: createHash('sha256').update(clause).digest('hex') });
+  }
+  return result;
+}
+
 const canonical = value => Array.isArray(value) ? value.map(canonical) : value && typeof value === 'object' ? Object.fromEntries(Object.keys(value).sort().map(key => [key, canonical(value[key])])) : value;
 const equal = (a, b) => JSON.stringify(canonical(a)) === JSON.stringify(canonical(b));
 const without = (value, keys) => Object.fromEntries(Object.entries(value).filter(([key]) => !keys.includes(key)));

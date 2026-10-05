@@ -13,7 +13,7 @@ import { installPreparedPlugin } from './native-install.mjs';
 import { configuredMcpNames } from './session-isolation.mjs';
 import { assessPreparation } from './assess-preparation.mjs';
 import { hasOriginalRecord } from './original-record-proof.mjs';
-import { savingModes, savingPrompt, assessSaving, classifyIndexStatements } from './saving.mjs';
+import { savingModes, savingPrompt, assessSaving, classifyIndexStatements, classifyStorageStatements } from './saving.mjs';
 import { openSavingTrial } from './saving-session.mjs';
 import { hasCompletedSharedSkillOutput } from './skill-output-proof.mjs';
 import { observeSearch, searchProofForTarget } from './search-proof.mjs';
@@ -229,7 +229,8 @@ if (savingTrial) {
   evidence.answer.indexStatements = classifyIndexStatements(savingAnswer);
   evidence.answer.indexComplete = evidence.answer.indexStatements.affirmative > 0;
   evidence.answer.failureExplained = /저장.{0,35}(?:실패|불가|되지 않았|되지 않|오류)|(?:실패|오류).{0,35}저장/.test(savingAnswer);
-  evidence.answer.completionClaim = /(?:저장|생성).{0,15}(?:완료했|완료됐|했습니다|성공했)/.test(savingAnswer);
+  evidence.answer.storageStatements = classifyStorageStatements(savingAnswer);
+  evidence.answer.completionClaim = evidence.answer.storageStatements.affirmative > 0;
   if (savingProxyBefore) {
     const after = await savingProxySnapshot();
     evidence.fault = { ...after, sameInstance: after.instance === savingProxyBefore.instance, injected: after.injected - savingProxyBefore.injected, upstreamMutations: after.upstreamMutations - savingProxyBefore.upstreamMutations };
