@@ -90,8 +90,7 @@ dbTest(
       rows.items.forEach((r) => recordResult.parse(r));
       const event = rows.items.find((r) => r.change?.action === "update")!;
       assertEquals(event.change_note, "실측");
-      assertEquals(event.change!.before!.prop2, 10);
-      assertEquals(event.change!.after!.prop2, 20);
+      assertEquals([event.change!.before, event.change!.after], [null, null]);
       assertEquals(event.change!.source, "mcp");
       assertEquals(event.change!.path, `/entities/${entity.id}`);
       const immutable = {
@@ -158,7 +157,8 @@ dbTest(
         r.change?.target_kind === "entity" && r.change.action === "delete"
       )!;
       assertEquals(deleted.change!.path, null);
-      assertEquals(deleted.change!.before!.prop1, "대상");
+      assertEquals([deleted.change!.before, deleted.change!.after], [null, null]);
+      assertEquals(deleted.change!.target_title, "대상");
       assert(JSON.stringify(deleted.change).includes("대상"));
     } finally {
       await f.cleanup();

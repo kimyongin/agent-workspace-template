@@ -21,23 +21,11 @@ export class SqlActorStore {
 
   /** Explicit user commands call this once, never the internal insert itself. */
   async appendChange(input: ChangeInput) {
-    const snapshot = async (value: object | null) => {
-      if (!value) return null;
-      const safe = Object.fromEntries(
-        Object.entries(value).filter(([key]) =>
-          !["change", "change_metadata", "applied_principles", "legacy_context"].includes(key)
-        ),
-      );
-      const ids = safe.tag_ids as string[] | undefined;
-      if (ids?.length) {
-        safe.tags = await this.tx`select id,name,scope from app.tags where id in ${this.tx(ids)} order by id`;
-      }
-      return safe;
-    };
     const target = (input.after ?? input.before) as Record<string, unknown>;
     const target_title = String(target.prop1 ?? target.title ?? "");
     const { title, summary, body } = input.change_memo ?? basicChangeMemo(input);
-    // Only typed domain results enter this snapshot. Actor credentials never enter it.
+    // New events retain facts and the final memo, not an extra full domain capture.
+    // Nullable keys remain compatible with old stored snapshots and readers.
     const metadata = {
       event_id: crypto.randomUUID(),
       target_kind: input.target_kind,
@@ -45,8 +33,8 @@ export class SqlActorStore {
       target_title,
       action: input.action,
       source: this.actor.source ?? "http",
-      before: await snapshot(input.before),
-      after: await snapshot(input.after),
+      before: null,
+      after: null,
       path: input.action === "delete"
         ? null
         : `/${input.target_kind === "entity" ? "entities" : `${input.target_kind}s`}/${target.id}`,

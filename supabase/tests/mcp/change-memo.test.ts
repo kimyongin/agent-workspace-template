@@ -1,5 +1,5 @@
 import { assertEquals } from "@std/assert";
-import { call, httpTest, seoulDate, signIn } from "../http/_client.ts";
+import { admin, call, httpTest, seoulDate, signIn } from "../http/_client.ts";
 import { connectMcp, mcpToken, tool } from "./_mcp.ts";
 
 httpTest("HTTP/MCP business preview is read-only and final memo has identical saved meaning", async () => {
@@ -7,8 +7,27 @@ httpTest("HTTP/MCP business preview is read-only and final memo has identical sa
     b = await signIn("B"),
     client = await connectMcp(await mcpToken(a)),
     foreign = await connectMcp(await mcpToken(b));
+  const legacyId = crypto.randomUUID();
   try {
     const e = await tool(client, "create_entity", { prop1: `memo-${crypto.randomUUID()}`, prop2: 10 });
+    const legacy = {
+      event_id: crypto.randomUUID(),
+      target_kind: "entity",
+      target_id: e.id,
+      target_title: "당시 고객",
+      action: "update",
+      source: "http",
+      path: `/entities/${e.id}`,
+      before: { prop1: "옛 이름", prop2: 10, tags: [{ name: "당시 태그" }] },
+      after: { prop1: "새 이름", prop2: 20, body: "기존에 저장된 전체 원문" },
+    };
+    await admin`insert into app.records(id,owner_id,title,summary,body,record_kind,change_metadata)
+      select ${legacyId},owner_id,'과거 캡처','이전 사건','당시 메모','change',${
+      admin.json(legacy)
+    } from app.entities where id=${e.id}`;
+    assertEquals((await call(a, "GET", `/records/${legacyId}`)).body.change, legacy);
+    assertEquals((await tool(client, "get_record", { id: legacyId })).change, legacy);
+    assertEquals((await tool(foreign, "get_record", { id: legacyId })).error.code, "not_found");
     const input = { action: "update", id: e.id, input: { expected_version: e.version, prop2: 20 } };
     const before = await tool(client, "list_records", { record_kind: "change", limit: 100 });
     const web = await call(a, "POST", "/entities/preview", input);
@@ -36,7 +55,8 @@ httpTest("HTTP/MCP business preview is read-only and final memo has identical sa
       r.change?.target_id === e.id && r.change?.action === "update"
     );
     assertEquals([event.title, event.summary, event.body], [memo.title, memo.summary, memo.body]);
-    assertEquals([event.change.before.prop2, event.change.after.prop2], [10, 20]);
+    assertEquals([event.change.before, event.change.after], [null, null]);
+    assertEquals((await tool(client, "get_record", { id: legacyId })).change, legacy);
     const stale = { ...input, input: { ...input.input, expected_version: e.version } };
     assertEquals((await call(a, "POST", "/entities/preview", stale)).status, 409);
     assertEquals((await tool(client, "preview_entity_change", stale)).error.code, "conflict");
@@ -105,7 +125,31 @@ httpTest("HTTP/MCP business preview is read-only and final memo has identical sa
     });
     assertEquals(deleted.status, 204);
     assertEquals((await tool(client, "get_task", { id: task.id })).error.code, "not_found");
+    const record = await tool(client, "create_record", { title: "삭제 계약 확인", summary: "입력 거부" });
+    const count = async () =>
+      Number(
+        (await admin`select count(*)::int n from app.records where change_metadata->>'target_id'=${record.id}`)[0].n,
+      );
+    const initialCount = await count();
+    assertEquals(
+      (await tool(client, "delete_record", { id: record.id, expected_version: record.version, change_memo: memo }))
+        .error.code,
+      "invalid_input",
+    );
+    assertEquals(
+      (await call(a, "DELETE", `/records/${record.id}?expected_version=${record.version}&change_memo=unsupported`))
+        .status,
+      400,
+    );
+    assertEquals(await tool(client, "get_record", { id: record.id }), record);
+    assertEquals(await count(), initialCount);
+    assertEquals(await tool(client, "delete_record", { id: record.id, expected_version: record.version }), {
+      deleted: record.id,
+    });
+    assertEquals((await call(a, "GET", `/records/${record.id}`)).status, 404);
+    assertEquals(await count(), initialCount + 1);
   } finally {
+    await admin`delete from app.records where id=${legacyId}`;
     await client.close();
     await foreign.close();
   }
