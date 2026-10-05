@@ -97,7 +97,7 @@
 - 기록에 비밀값·인증 정보를 넣지 않는다. 필요한 사건 식별정보만 구조화하며 모든 서술을 연관키로 바꾸거나 별도 관계망을 만들지 않는다.
 - 기존 원칙 저장본·적용 자료·단일 대상 관계는 기존 자료를 보존하는 이관안을 검증한 뒤 전환한다. 운영 실행은 별도 지시 범위다.
 
-최신 결정은 [ADR-0012](../adr/0012-current-state-and-unified-records.md)와 [구현 인계](../architecture/unified-record-model.md)를 따른다. Template-19/20은 이전 세 탭·원칙 과거본 계약의 구현 근거이며 현재 목표와 구분한다.
+최신 결정은 [ADR-0012](../adr/0012-current-state-and-unified-records.md)와 [구현 인계](../architecture/unified-record-model.md)를 따른다. 이전 세 탭·원칙 과거본 계약의 구현 근거는 Git/GitHub 이력에서 확인하며 현재 목표와 구분한다.
 
 ### 일회성 할 일과 반복 할 일
 
@@ -162,7 +162,7 @@ Entity
 | 이후 구현 범위 | 사용자 원칙 관리·적용, 태그 관리, 예제 엔터티, 도메인 전환 검증 |
 | 요구가 있을 때 별도 PRD로 추가 | 공유·조직·첨부·실시간 갱신 |
 
-첫 구현 범위와 이후 구현 범위는 순서일 뿐이며 모두 템플릿 완성에 필요하다. [Template-02](../tickets/template-02-implementation-base.md)는 초기 구현의 배경이며, 현재 구현 순서와 완료 기준은 [통합 실행 명세 #120](https://github.com/kimyongin/agent-workspace-template/issues/120)과 하위 티켓이 관리한다.
+첫 구현 범위와 이후 구현 범위는 순서일 뿐이며 모두 템플릿 완성에 필요하다. 현재 구현 순서와 완료 기준은 [통합 실행 명세 #120](https://github.com/kimyongin/agent-workspace-template/issues/120)과 하위 티켓이 관리한다.
 
 ## 관련 결정
 

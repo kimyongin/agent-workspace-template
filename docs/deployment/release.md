@@ -4,7 +4,7 @@
 
 새 프로젝트의 최초 설치, 이후 릴리스와 부분 실패 시 복구 절차를 정의한다. 배포 후 상시 점검과 장애 대응은 [운영 방법](../operations/runbook.md)이 담당한다.
 
-이 문서는 배포 절차의 기준이다. 실제 명령·환경변수 이름·워크플로 파일은 구현하면서 빈 프로젝트에서 재현한 뒤 이 문서에 추가한다. 무엇이 구현·재현되었는지는 [시작 문서의 현재 상태](../START-HERE.md#현재-상태)와 티켓에서 확인한다.
+이 문서는 배포 환경과 복구의 기준이다. 실제 명령·환경변수·workflow는 코드와 설정에서 확인하고, 실행한 revision·환경·결과는 해당 GitHub issue·PR의 배포 증거로 확인한다.
 
 ## 배포 단위와 환경
 
@@ -72,7 +72,7 @@
 
 ### CLI 서버 bundler의 공통 import map
 
-Supabase CLI 2.119.0의 실제 `functions deploy --help`와 [Template-10-06 실행](../tickets/template-10-06-existing-release.md)에서 `--use-api --import-map` 조합을 확인했다. 이 저장소는 `supabase/functions/deno.json`에 공통 imports를 두고 각 함수의 deno.json은 빈 workspace member다. 원격 bundler에 함수만 보내면 공통 alias를 찾지 못해 400이 날 수 있으므로 검증 revision의 imports를 명시한다.
+Supabase CLI 2.119.0의 실제 `functions deploy --help`와 [PR #82 배포 기록](https://github.com/kimyongin/agent-workspace-template/pull/82)에서 `--use-api --import-map` 조합을 확인했다. 이 저장소는 `supabase/functions/deno.json`에 공통 imports를 두고 각 함수의 deno.json은 빈 workspace member다. 원격 bundler에 함수만 보내면 공통 alias를 찾지 못해 400이 날 수 있으므로 검증 revision의 imports를 명시한다.
 
 검증한 source/config를 저장소 밖 임시 workspace로 복사하고, 공통 deno.json의 `imports` 객체만 담은 UTF-8/LF JSON을 그 workspace의 `supabase/functions/release-import-map.json`에 만든다. 비밀·env·개인 설정을 map/source에 넣지 않는다. locked CLI에 `--workdir <임시 workspace> --project-ref <승인한 ref>`를 명시하고 `functions deploy api mcp index-worker --use-api --no-verify-jwt --import-map <임시 workspace>/supabase/functions/release-import-map.json`으로 대상 함수만 배포한다. gateway 검사를 끈 함수의 서버 자체 인증은 유지한다.
 
@@ -112,7 +112,7 @@ map을 functions 밖 임시 root에 두면 배포가 성공해도 정상 `functi
 
 릴리스별로 일시·시간대, 담당자, 대상 환경, commit/CI 링크, DB migration 목록, Edge·웹·스킬 버전, 적용 순서와 결과, 실제 확인 흐름, 잔여 문제, 복구 지점을 기록한다. 비밀값과 사용자 본문은 남기지 않는다.
 
-첫 운영 배포 전에는 실행 명령과 설정 항목, 비배포 PR 검증 workflow, 운영 배포 workflow, 신규 프로젝트 설치 재현, 이전 artifact 복귀, 백업 복원 연습, [운영 점검](../operations/runbook.md)의 담당·기준·알림 경로가 준비되어야 한다. 이 항목들은 첫 운영 배포를 다루는 티켓의 배포 준비 게이트다(이 템플릿에서는 [Template-01](../tickets/template-01-task-record-search.md)).
+첫 운영 배포 전에는 실행 명령과 설정 항목, 비배포 PR 검증 workflow, 운영 배포 workflow, 신규 프로젝트 설치 재현, 이전 artifact 복귀, 백업 복원 연습, [운영 점검](../operations/runbook.md)의 담당·기준·알림 경로가 준비되어야 한다. 준비 상태와 실제 실행 증거는 해당 배포 GitHub issue와 PR에서 확인한다.
 
 ## 공식 참고
 

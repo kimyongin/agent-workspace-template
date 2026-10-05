@@ -4,7 +4,7 @@
 
 웹·MCP·비동기 worker가 같은 데이터를 사용할 때 지켜야 할 신뢰 경계와 검증 기준이다. 인증 성공과 작업 권한, 사용자 요청과 저장된 콘텐츠, 공개 설정과 비밀값을 구분한다. 권한과 데이터 보호는 서버가 강제하며 UI·에이전트 스킬 준수에 의존하지 않는다.
 
-이 문서는 보호 기준이며 적용된 보안 설정이나 감사 통과를 의미하지 않는다. 적용과 검증 상태는 [시작 문서의 현재 상태](../START-HERE.md#현재-상태)와 티켓에서 확인한다. 구체적인 인증·세션·역할·요청 제한은 해당 기능 티켓에서 확정하고 실제 경계에서 검증한다(이 템플릿의 공통 기능은 [Template-01](../tickets/template-01-task-record-search.md)). 실행 구성은 [아키텍처](../architecture/hexagonal-review.md), 배포와 사고 대응은 각각 [배포 방법](../deployment/release.md)·[운영 방법](../operations/runbook.md)이 소유한다.
+이 문서는 보호 기준이며 적용된 보안 설정이나 감사 통과를 의미하지 않는다. 적용과 검증 상태는 [GitHub Issues](https://github.com/kimyongin/agent-workspace-template/issues)와 해당 PR의 증거에서 확인한다. 인증·세션·역할·요청 제한의 실제 입력과 경계는 코드의 공유 계약과 검증이 소유한다. 실행 구성은 [아키텍처](../architecture/hexagonal-review.md), 배포와 사고 대응은 각각 [배포 방법](../deployment/release.md)·[운영 방법](../operations/runbook.md)이 소유한다.
 
 ## 보호 대상과 신뢰 경계
 
@@ -45,7 +45,7 @@ DB는 grant와 RLS를 함께 설정한다. 공개 스키마의 테이블에는 R
 
 입력은 목적별 schema로 길이·타입·허용 필드·페이지 크기·배치 크기를 검증한다. owner·role·서버 상태 같은 필드를 임의로 갱신하는 mass assignment를 막는다. 내부 SQL·stack·비밀값이 포함된 오류를 외부에 반환하지 않는다.
 
-HTTP와 MCP에 동일한 의미의 작업별 요청 제한을 적용한다. 인증·쓰기·검색·비싼 외부 호출은 사용자별 한도와 필요 시 전체 한도를 둔다. timeout·응답 크기·재시도·동시성의 구체 값은 첫 기능 계약에서 정한다. 제한 오류에도 부분 실행 여부를 명확하게 한다.
+HTTP와 MCP에 동일한 의미의 작업별 요청 제한을 적용한다. 인증·쓰기·검색·비싼 외부 호출은 사용자별 한도와 필요 시 전체 한도를 둔다. timeout·응답 크기·재시도·동시성의 구체 값은 실제 서버 계약에서 확인한다. 제한 오류에도 부분 실행 여부를 명확하게 한다.
 
 CORS는 인증이 아니다. 브라우저 허용 origin은 배포 URL에 맞춰 제한하며 서버의 인증·권한을 그대로 유지한다. MCP HTTP의 Origin 검증 등 전송 계층 보호는 채택한 SDK/명세를 따른다. origin이 없는 합법적인 에이전트 요청도 토큰으로 검증한다.
 
@@ -91,7 +91,7 @@ MCP의 readOnly/destructive 등의 설명·힌트는 실제 동작과 일치시�
 
 검증 revision·명령·결과·미검증 경로와 적용하지 않은 항목의 이유를 티켓에 기록한다. 아직 없는 공유·첨부 기능을 시험했다고 표시하지 않는다. 보안상 실패한 필수 경로는 해결 후 공개하며 환경 제약은 검증 가능한 격리 환경으로 인계한다.
 
-빠른 HTTP/MCP handler 검사의 Actor는 테스트 factory에서만 주입한다. 운영 조립은 실제 토큰 검증을 기본값으로 유지하며 런타임 인증 우회 설정을 만들지 않는다. fixture 성공은 서명·issuer/audience·OAuth·RLS·사용자 격리·실제 SDK 전송의 증거가 아니므로 기존 격리 통합 CI를 함께 확인한다([검증 배치](../development/verification.md#실행-검증)).
+빠른 HTTP/MCP handler 검사의 Actor는 테스트 factory에서만 주입한다. 운영 조립은 실제 토큰 검증을 기본값으로 유지하며 런타임 인증 우회 설정을 만들지 않는다. fixture 성공은 서명·issuer/audience·OAuth·RLS·사용자 격리·실제 SDK 전송의 증거가 아니다. 격리 통합 검사의 실행 구성은 [CI](../../.github/workflows/ci.yml), 증거 범위는 [검사 도구의 한계](../development/verification.md#검사-도구의-한계)에 있다.
 
 ## 공식 참고
 

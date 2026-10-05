@@ -6,7 +6,7 @@ import { readLocalConfig } from "./scripts/local-config.mjs";
 
 const { webPort } = readLocalConfig();
 
-// 웹은 서버 코드 중 contracts만 가져온다(docs/tickets/template-02-t02-1-contracts.md "공유 schema 정본").
+// 웹은 서버 코드 중 공유 contracts만 가져온다.
 export default defineConfig({
   base: process.env.VITE_BASE ?? "/",
   plugins: [

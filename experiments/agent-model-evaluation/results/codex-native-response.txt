@@ -1,8 +1,0 @@
-CHILD-527 received. The child completed successfully (`Wait completed`, not timed out).
-
-1. Critical: no `actorId == ownerId` check.
-2. Critical: revision is checked before update, not guarded conditionally in `db.update`.
-3. High: update and activity append are separate, non-atomic operations.
-4. Medium: response returns the old task revision rather than the persisted new revision.
-
-No files were changed; the review remained offline and read-only.

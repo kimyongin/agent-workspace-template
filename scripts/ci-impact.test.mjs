@@ -89,7 +89,7 @@ test("docs artifacts including HTML markup/script/style are docs; runtime files 
   assert.equal(classifyChanges([{status:'R100',oldPath:'docs/old.html',path:'docs/new.html'}]).mode, 'docs');
   assert.equal(classifyChanges([{status:'R100',oldPath:'src/page.html',path:'docs/new.html'}]).mode, 'full');
   for (const extension of ['md','html','txt','svg','png','jpg','jpeg','webp','gif','pdf']) assert.equal(mode(change(`docs/assets/example.${extension}`,before,after)), 'docs');
-  for (const path of ['docs/development/agent-models.json','docs/check.mjs','docs/tool.ts','docs/run.sh','docs/config.yaml','plugins/workspace/README.md','plugins/workspace/skills/workspace/SKILL.md']) assert.equal(mode(change(path,before,after)), 'full', path);
+  for (const path of ['docs/config.json','docs/check.mjs','docs/tool.ts','docs/run.sh','docs/config.yaml','plugins/workspace/README.md','plugins/workspace/skills/workspace/SKILL.md']) assert.equal(mode(change(path,before,after)), 'full', path);
   assert.equal(mode(change('docs/overview.html',before,after),change('src/lib/api.ts','old','new')), 'full');
   assert.equal(mode(change('docs/overview.html',before,after),change('.github/workflows/ci.yml','old','new')), 'full');
 });
@@ -130,16 +130,16 @@ test("CLI failure/missing history emits full; dispatch forces full; output and s
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
-test("required job names remain; integration runs always and explicitly fails a failed/missing check", () => {
+test("required jobs skip draft/canceled runs; active integration explicitly fails a failed/missing check", () => {
   const yaml = readFileSync(new URL('../.github/workflows/ci.yml', import.meta.url), 'utf8');
-  assert.match(yaml, /  check:\n/);
-  assert.match(yaml, /  integration:\n    needs: check\n    if: always\(\)/);
+  assert.match(yaml, /  check:\n    if: github\.event_name != 'pull_request' \|\| github\.event\.pull_request\.draft == false/);
+  assert.match(yaml, /  integration:\n    needs: check\n    if: \$\{\{ !cancelled\(\) && \(github\.event_name != 'pull_request' \|\| github\.event\.pull_request\.draft == false\) \}\}/);
   assert.match(yaml, /\[ "\$CHECK_RESULT" = "success" \] \|\|.*exit 1/);
   assert.match(yaml, /Missing\/invalid classification.*exit 1/);
   assert.match(yaml, /workflow_dispatch:/);
   assert.doesNotMatch(yaml, /paths-ignore:|continue-on-error:/);
   const integration = yaml.slice(yaml.indexOf('  integration:'));
-  for (const name of ['로컬 Supabase 준비(러너 안의 격리 DB)', 'DB 테스트', 'Edge Functions 실행', 'HTTP 계약 테스트', 'MCP 계약 테스트', '브라우저 설치', '웹↔MCP E2E']) {
+  for (const name of ['로컬 Supabase 준비(러너 안의 격리 DB)', 'DB 테스트', 'Edge Functions 실행', 'HTTP 계약 테스트', 'MCP 계약 테스트']) {
     assert.ok(integration.includes(`- name: ${name}\n        if: needs.check.outputs.mode == 'full'`), name);
   }
 });

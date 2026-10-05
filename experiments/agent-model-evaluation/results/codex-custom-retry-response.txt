@@ -1,3 +1,0 @@
-Blocked: `collaboration.spawn_agent` in this environment does not expose an `agent_type` parameter, so I cannot invoke the required `agent_type="task-balanced"` child without substituting a generic agent (which you explicitly prohibited).
-
-Noted for later resume: `CUSTOM-528`.

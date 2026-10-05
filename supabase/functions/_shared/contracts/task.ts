@@ -1,5 +1,5 @@
 import { consistentEntities, entityContext, entitySelection, entitySelectionError } from "./entity-links.ts";
-// 할 일(Task)·반복 할 일 계약. 정본: docs/tickets/template-02-t02-1-contracts.md "할 일", "반복 할 일".
+// 할 일(Task)·반복 할 일 계약.
 // HTTP 입력 검증·MCP inputSchema·웹 폼이 이 정의를 함께 쓴다. zod만 가져온다.
 import { z } from "zod";
 import { businessMeta, mutationMeta } from "./change.ts";
