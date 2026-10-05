@@ -393,14 +393,15 @@ test("기록: 자동 변경 문맥·원칙 snapshot·정정 시스템 필드 제
   expect(Object.keys(state.writes[0].body).sort()).toEqual(["body","change_note","expected_version","request_id","summary","title"].sort());expect(state.rows.entities[0].prop2).toBe(0);
   await expect(form(page).getByRole("heading",{name:r.title,exact:true})).toBeVisible();await compatibleEdit(page);await form(page).getByRole("button",{name:"삭제",exact:true}).click();const confirm=page.getByRole("dialog",{name:"기록을 삭제할까요?"});await expect(confirm).toContainText("대상의 업무 상태는 되돌리지 않습니다.");await saveWithMemo(page,confirm,"삭제");await expect(page).toHaveURL(/\/records$/);expect(state.rows.entities[0].prop2).toBe(0);expect(state.rows.records).toHaveLength(0);expect(state.errors).toEqual([]);
 });
-test("검색: IME·300ms·선택 mode·할 일 scope·clear 초점",async({page})=>{
+test("검색: IME·300ms·옛 keyword URL도 auto·할 일 scope·clear 초점",async({page})=>{
   const state=await fixtures(page);await go(page,"/tasks?kind=once&status=open&mode=keyword");
   const input=page.getByLabel("검색어",{exact:true});await input.dispatchEvent("compositionstart");await input.fill("한글");await input.press("Enter");
   await page.waitForTimeout(350);expect(state.searches).toHaveLength(0);await input.dispatchEvent("compositionend");
   await expect.poll(()=>state.searches.length).toBe(1);
   expect(state.searches[0].kinds).toEqual(["task"]);
-  expect(state.searches[0].mode).toBe("keyword");expect(state.searches[0].task_kind).toBe("once");expect(state.searches[0].task_status).toBe("open");
-  await expect(page.getByText("의미 검색을 사용할 수 없어 키워드 검색 결과를 표시합니다.")).toHaveCount(0);
+  expect(state.searches[0].mode).toBe("auto");expect(state.searches[0].task_kind).toBe("once");expect(state.searches[0].task_status).toBe("open");
+  await expect(page.getByLabel("검색 방식",{exact:true})).toHaveCount(0);
+  await expect(page.getByText("의미 검색을 사용할 수 없어 키워드 검색 결과를 표시합니다.")).toHaveCount(1);
   await expect(page.getByText("의미 색인 대기 1개 · 제외 0개")).toBeVisible();
   await page.getByRole("button",{name:"검색어 지우기"}).click();await expect(page).not.toHaveURL(/q=/);await expect(input).toBeFocused();expect(state.errors).toEqual([]);
 });
