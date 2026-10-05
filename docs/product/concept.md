@@ -57,7 +57,7 @@
 - 직접 작성 및 자동 변경 기록도 소유자가 정정·삭제할 수 있다. 서버 식별 정보는 임의 위조하는 편집 필드로 제공하지 않는다. 기록 정정/삭제는 원래 엔터티·할 일·원칙의 상태를 되돌리지 않는다.
 - 기록에 대한 명시적 사용자 변경도 한 번 기록하지만 그 자동 기록 저장 자체는 다시 기록하지 않는다. 할 일 완료와 결과 기록처럼 하나의 작업에서 생긴 변화는 같은 원인으로 묶어 중복 표시를 피한다.
 
-2026-10-04 사용자 승인 근거와 상세 의미·전환 계약은 [Template-20](../tickets/template-20-current-principle-change-records.md), 세 탭과 설정·반응형 상세는 [Template-19](../tickets/template-19-three-tab-release-ux.md)에서 추적한다.
+세 탭과 설정·반응형 표현은 [UI 패턴](../design/ui-patterns.md)에 있다. 2026-10-04 화면 적용 근거는 [PR #94](https://github.com/kimyongin/agent-workspace-template/pull/94#issuecomment-5981010891)와 [PR #95](https://github.com/kimyongin/agent-workspace-template/pull/95#issuecomment-5983464078)에서 확인한다.
 
 ### 일회성 할 일과 반복 할 일
 
@@ -122,7 +122,7 @@ Entity
 | 이후 구현 범위 | 사용자 원칙 관리·적용, 태그 관리, 예제 엔터티, 도메인 전환 검증 |
 | 요구가 있을 때 별도 PRD로 추가 | 공유·조직·첨부·실시간 갱신 |
 
-첫 구현 범위와 이후 구현 범위는 순서일 뿐이며 모두 템플릿 완성에 필요하다. 구현 순서와 완료 기준은 [Template-02](../tickets/template-02-implementation-base.md)가 관리한다.
+첫 구현 범위와 이후 구현 범위는 순서일 뿐이며 모두 템플릿 완성에 필요하다. 현재 작업 범위와 완료 기준은 [GitHub Issues](https://github.com/kimyongin/agent-workspace-template/issues)가 관리한다.
 
 ## 관련 결정
 

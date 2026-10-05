@@ -45,7 +45,9 @@
 
 검색 질의는 같은 모델·차원으로 `query`, 저장할 제목·요약은 `passage` 등 채택 모델의 입력 종류를 사용한다. 응답의 모델·벡터 개수·차원·유한한 수치 여부를 검증한다. 임계값은 실제 도메인 자료로 보정하며 다른 앱·모델의 점수를 복사하지 않는다.
 
-원본 색인과 질의는 같은 서버의 `PINECONE_API_KEY` 설정을 사용한다. 키가 없으면 키워드 검색을 제공하고, 키를 설정하면 `auto` 질의를 임베딩한다. `keyword`는 외부 호출을 하지 않는다. 사용자별 질의 호출 예산·대체/의미 커서·hybrid 순위의 상세는 [T02-1 검색 계약](../tickets/template-02-t02-1-contracts.md#검색-search--t02-3)에 있다. 공급자/예산 장애 이후에도 후속 페이지에 다른 정렬을 조용히 섞지 않는다.
+원본 색인과 질의는 같은 서버의 `PINECONE_API_KEY` 설정을 사용한다. 키가 없으면 키워드 검색을 제공하고, 키를 설정하면 `auto` 질의를 임베딩한다. `keyword`는 외부 호출을 하지 않는다.
+
+`auto`는 현재 원본과 일치하는 벡터의 cosine 0.27 이상 후보와 키워드 후보를 합쳐 키워드 일치 1점에 의미 점수를 더하고, 동점은 대표 시각·종류·ID 내림차순으로 정렬한다. 사용자별 질의 임베딩 예산은 분 경계 기준 20회이며 HTTP와 MCP가 공유한다. 첫 페이지의 공급자 미설정·실패·예산 초과는 키워드 대체를 제공하고 그 커서는 후속 페이지도 같은 방식으로 유지한다. 의미 페이지를 이어갈 수 없거나 질의 벡터가 달라지면 unavailable을 반환하며 다른 정렬을 섞지 않는다. 커서는 소유자·질의·필터·파이프라인·실제 검색 방식에 묶인다. 검색은 페이지 간 고정 스냅샷을 제공하지 않는다. 실제 입력은 [검색 계약](../../supabase/functions/_shared/contracts/search.ts), 순위와 커서는 [검색 저장소](../../supabase/functions/_shared/adapters/supabase/search-store.ts)에 있다.
 
 ## 저장·큐·갱신
 
@@ -69,9 +71,9 @@
 
 결과는 항목 단위의 ID·제목·요약·날짜·검색 상태를 반환한다. 에이전트는 필요한 원문을 추가 조회하고 사용자는 같은 상세를 웹에서 연다. 청크 원문·청크 위치·최고 청크 점수는 반환하지 않는다. 모든 후보·요약·원문에 같은 권한을 적용한다.
 
-Template-21의 선택 tag_ids는 최대 10개·중복 거부·정렬 정규화한 OR 조건이다. 기존 tag_id는 호환하며 둘 다 있으면 OR 집합에 포함한다. HTTP 목록은 tag_ids 쉼표 구분, MCP/검색 POST는 배열을 받는다. 후보·coverage·anchor·cursor scope에 같은 조건을 적용하고 페이지 수신 후 태그 필터링으로 대신하지 않는다. 검색 반환 change_note는 저장 메모, task_status/record_kind는 원문의 상태/종류이며 읽기용 additive 필드다. 활동·과거 원칙 웹은 auto 고정, 혼합 /search와 HTTP/MCP 명시 keyword는 기존대로 유지한다.
+선택 tag_ids는 최대 10개·중복 거부·정렬 정규화한 OR 조건이다. 기존 tag_id는 호환하며 둘 다 있으면 OR 집합에 포함한다. HTTP 목록은 tag_ids 쉼표 구분, MCP/검색 POST는 배열을 받는다. 후보·coverage·anchor·cursor scope에 같은 조건을 적용하고 페이지 수신 후 태그 필터링으로 대신하지 않는다. 검색 반환 change_note는 저장 메모, task_status/record_kind는 원문의 상태/종류이며 읽기용 additive 필드다. 활동·과거 원칙 웹은 auto 고정, 혼합 /search와 HTTP/MCP 명시 keyword는 기존대로 유지한다.
 
-Template-20의 task_kind/task_status, principle_view(current 기본/history/all), record_kind(user/result/change), entity_id와 activity tag_id는 실제 SQL 후보·의미 coverage·키워드 anchor에 같은 조건으로 적용한다. 커서는 소유자와 정규화한 필터 전체에 묶이며 조건을 바꾸면 첫 페이지부터 조회한다. 원칙에는 새 태그·엔터티 연결을 허용하지 않는다. 기존 search status=active/inactive/all은 principle_view를 생략할 때만 current/history/all로 정규화하는 호환 입력이다. 둘을 함께 보내면 명시한 principle_view가 우선하며 같은 view의 별칭·명시 입력은 같은 커서를 사용할 수 있다. 현재 정책의 새 저장본은 별도 ID로 색인하고 과거 표현 정정은 해당 ID의 제목·요약 입력이 실제 바뀌었을 때만 재색인한다. 변경 기록도 기록 정본의 제목·요약으로 색인하며 snapshot 본문과 태그명은 임베딩 입력에 넣지 않는다.
+task_kind/task_status, principle_view(current 기본/history/all), record_kind(user/result/change), entity_id와 activity tag_id는 실제 SQL 후보·의미 coverage·키워드 anchor에 같은 조건으로 적용한다. 커서는 소유자와 정규화한 필터 전체에 묶이며 조건을 바꾸면 첫 페이지부터 조회한다. 원칙에는 새 태그·엔터티 연결을 허용하지 않는다. 기존 search status=active/inactive/all은 principle_view를 생략할 때만 current/history/all로 정규화하는 호환 입력이다. 둘을 함께 보내면 명시한 principle_view가 우선하며 같은 view의 별칭·명시 입력은 같은 커서를 사용할 수 있다. 현재 정책의 새 저장본은 별도 ID로 색인하고 과거 표현 정정은 해당 ID의 제목·요약 입력이 실제 바뀌었을 때만 재색인한다. 변경 기록도 기록 정본의 제목·요약으로 색인하며 snapshot 본문과 태그명은 임베딩 입력에 넣지 않는다.
 
 색인 중·입력 제외·공급자 장애·검색 결과 없음을 구분한다. 의미 검색 실패 시 계약된 키워드 대체 결과임을 알린다. 제외 항목을 무관한 항목으로 판단하지 않도록 검색 상태와 운영 집계에 드러낸다.
 
@@ -79,7 +81,7 @@ Template-20의 task_kind/task_status, principle_view(current 기본/history/all)
 
 기존 데이터가 있는 프로젝트에서는 원본을 보존하고 새 입력 계약에 맞는 항목부터 재색인한다. 요약이 없는 자료의 보완은 사용자/에이전트의 별도 작업으로 수행하고 자동 backfill을 배포 부수효과로 넣지 않는다. 기존 청크 구현이 있다면 새 경로 검증 후 사용하지 않는 청크 저장·API·worker·검색 병합·테스트·지침을 함께 정리한다.
 
-첫 기능에서 필수 확인할 사항:
+검색의 제품 검증 경계:
 
 - 제목·요약을 한 입력으로 보내며 본문 전용 문구가 임베딩 payload에 들어가지 않는다.
 - 항목당 현재 벡터 하나와 최신 논리 작업 하나를 유지하고 동시 수정·재전달·삭제 후 늦은 응답을 처리한다.
