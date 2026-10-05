@@ -148,7 +148,7 @@ try {
   });
   await nativePhase('roundtrip-task', { summary: '왕복 검증 후 값 확인', body: '속성2가 11인지 확인하고 결과를 남긴다' });
   await webPhase('web-complete', { id: f.task.id, body: `속성2=11 확인 완료; RESULT-${randomUUID()}` }, `/tasks/${f.task.id}/complete`, async () => {
-    await page.goto(`/tasks/${f.task.id}`); await page.getByRole('button', { name: '완료', exact: true }).click(); const form = page.getByRole('dialog', { name: '할 일 완료', exact: true });
+    await page.goto(`/tasks/${f.task.id}`); await openDetailEditor(page); await page.getByRole('button', { name: '완료', exact: true }).click(); const form = page.getByRole('dialog', { name: '할 일 완료', exact: true });
     await fields(form, { 제목: `${f.marker}-result`, 요약: '대상 값 확인 완료', 본문: f.roundtrip.intent.body });
     await form.getByRole('button', { name: '완료하고 기록 저장', exact: true }).click(); await expect(form).not.toBeVisible();
   });
@@ -166,7 +166,10 @@ try {
   await page.setViewportSize(evidence.mobileViewport);
   await readWeb('mobile-result-and-current-reread', async () => {
     await page.goto(`/entities/${f.entity.id}`); await expect(page.getByRole('dialog', { name: '엔터티 편집', exact: true }).getByLabel(webFieldLabel('속성 2'))).toHaveValue('11');
-    await page.goto(`/tasks/${f.task.id}`); await expect(page.getByText('완료', { exact: true }).first()).toBeVisible();
+    await page.goto('/tasks');
+    const taskLink = page.getByRole('link', { name: `${f.task.title} 보기`, exact: true });
+    await expect(page.getByRole('listitem').filter({ has: taskLink }).getByText('완료', { exact: true })).toBeVisible();
+    await taskLink.click(); await expect(page.locator('main')).toContainText(f.task.body);
     await page.goto(`/records/${f.roundtrip.result.id}`); await expect(page.locator('main')).toContainText(f.roundtrip.result.body);
     await page.goto(`/principles/${f.principle.id}`); await expect(page.locator('main')).toContainText(f.principle.body);
     await page.goto(`/records/${f.record.id}`); await expect(page.locator('main')).toContainText(f.record.body);
