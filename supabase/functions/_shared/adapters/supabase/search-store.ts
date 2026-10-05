@@ -10,13 +10,13 @@ class SqlSearchStore implements SearchStore {
   sources() {
     const tx = this.tx;
     const originals =
-      tx`select owner_id,'task'::text as kind,id,title,summary,body,updated_at as at,status,entity_id,kind as task_kind,null::text as record_kind,null::boolean as is_current,null::text as change_note,${
+      tx`select owner_id,'task'::text as kind,id,title,summary,body,updated_at as at,status,entity_id,entity_ids,kind as task_kind,null::text as record_kind,null::boolean as is_current,null::text as change_note,${
         tagIdsColumn(tx, "task")
       } from app.tasks
-      union all select owner_id,'record',id,title,summary,body,occurred_at,null::text,entity_id,null::text,record_kind,null::boolean,change_note,${
+      union all select owner_id,'record',id,title,summary,body,occurred_at,null::text,entity_id,entity_ids,null::text,record_kind,null::boolean,change_note,${
         tagIdsColumn(tx, "record")
       } from app.records
-      union all select owner_id,'principle',id,title,summary,body,saved_at,status,null::uuid,null::text,null::text,is_current,change_note,'[]'::jsonb from app.principles`;
+      union all select owner_id,'principle',id,title,summary,body,saved_at,status,null::uuid,'{}'::uuid[],null::text,null::text,is_current,change_note,'[]'::jsonb from app.principles`;
     return tx`select s.*,i.embedding,case
       when s.summary is null or btrim(s.summary)='' then 'excluded'
       when i.input_hash=encode(extensions.digest(s.title||E'\n'||s.summary,'sha256'),'hex') and i.pipeline=${SEARCH_PIPELINE}
@@ -41,7 +41,7 @@ class SqlSearchStore implements SearchStore {
       ${
       q.tag_ids?.length ? tx`and tag_ids ?| ${tx.array([...q.tag_ids, ...(q.tag_id ? [q.tag_id] : [])])}::text[]` : tx``
     }
-      ${q.entity_id ? tx`and entity_id=${q.entity_id}::uuid` : tx``}
+      ${q.entity_id ? tx`and entity_ids @> array[${q.entity_id}::uuid]` : tx``}
       ${q.from ? tx`and at>=${q.from}::timestamptz` : tx``} ${q.to ? tx`and at<=${q.to}::timestamptz` : tx``}`;
   }
   async coverage(q: SearchInput) {

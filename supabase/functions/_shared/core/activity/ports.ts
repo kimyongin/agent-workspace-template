@@ -1,3 +1,4 @@
+import type { EntityContext } from "../../contracts/entity-links.ts";
 // 할 일·기록 유스케이스가 쓰는 저장 계약. SQL·SDK 타입을 노출하지 않는다.
 import type { Actor } from "../shared/actor.ts";
 import type { ChangeStore } from "../shared/changes.ts";
@@ -12,6 +13,8 @@ export interface ActivityRecord {
   change?: ChangeMetadata | null;
   applied_principle_snapshots?: AppliedPrincipleSnapshot[];
   entity_id?: string | null;
+  entity_ids?: string[];
+  entity_context?: EntityContext[];
   tag_ids: string[];
   id: string;
   title: string;
@@ -37,6 +40,8 @@ export interface NewRecord {
   record_kind?: "user" | "result";
   change_note?: string;
   entity_id?: string | null;
+  entity_ids?: string[];
+  entity_context?: EntityContext[];
   tag_ids?: string[];
   applied_principle_ids?: string[];
   title: string;
@@ -52,7 +57,7 @@ export type RecordChanges =
   & Partial<
     Pick<
       ActivityRecord,
-      "title" | "summary" | "body" | "occurred_at" | "applied_principle_ids" | "tag_ids" | "entity_id"
+      "title" | "summary" | "body" | "occurred_at" | "applied_principle_ids" | "tag_ids" | "entity_id" | "entity_ids"
     >
   >;
 

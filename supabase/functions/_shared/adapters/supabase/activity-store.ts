@@ -15,7 +15,8 @@ import type { Actor } from "../../core/shared/actor.ts";
 import { runAsActor, SqlActorStore } from "./sql-context.ts";
 import { AppError } from "../../core/shared/errors.ts";
 import { hasAnyTag, hasTag, setTagLinks, tagIdsColumn } from "./tag-links.ts";
-import { requireEntity } from "./entity-reference.ts";
+import { captureEntities } from "./entity-links.ts";
+import { selectedEntities } from "../../core/activity/entity-selection.ts";
 
 type Tx = postgres.TransactionSql;
 type Row = Record<string, unknown>;
@@ -25,6 +26,8 @@ const iso = (v: unknown) => (v instanceof Date ? v.toISOString() : v === null ? 
 function toTask(r: Row): Task {
   return {
     entity_id: (r.entity_id as string | null) ?? null,
+    entity_ids: (r.entity_ids as string[]) ?? [],
+    entity_context: (r.entity_context as Task["entity_context"]) ?? [],
     id: r.id as string,
     kind: r.kind as Task["kind"],
     title: r.title as string,
@@ -51,6 +54,8 @@ function toRecord(r: Row): ActivityRecord {
     change: (r.change_metadata as ActivityRecord["change"]) ?? null,
     applied_principle_snapshots: (r.applied_principle_snapshots as ActivityRecord["applied_principle_snapshots"]) ?? [],
     entity_id: (r.entity_id as string | null) ?? null,
+    entity_ids: (r.entity_ids as string[]) ?? [],
+    entity_context: (r.entity_context as Task["entity_context"]) ?? [],
     tag_ids: (r.tag_ids as string[]) ?? [],
     id: r.id as string,
     title: r.title as string,
@@ -75,11 +80,11 @@ function toRecord(r: Row): ActivityRecord {
 
 // 날짜 컬럼은 문자열(YYYY-MM-DD)로 받는다.
 const taskColumns = (tx: Tx) =>
-  tx`id, entity_id, kind, title, summary, body, due_on::text as due_on, recurrence, timezone, status, completed_at,
+  tx`id, entity_id, entity_ids, entity_context, kind, title, summary, body, due_on::text as due_on, recurrence, timezone, status, completed_at,
      result_record_id, pauses, version, created_at, updated_at,
      ${tagIdsColumn(tx, "task")}`;
 const recordColumns = (tx: Tx) =>
-  tx`id, entity_id, title, summary, body, occurred_at, task_id, occurrence_on::text as occurrence_on, version, created_at, updated_at,
+  tx`id, entity_id, entity_ids, entity_context, title, summary, body, occurred_at, task_id, occurrence_on::text as occurrence_on, version, created_at, updated_at,
     record_kind,change_note,change_metadata,applied_principle_snapshots,
     ${tagIdsColumn(tx, "record")},
     coalesce((select jsonb_agg(p.id order by p.id) from app.record_principles rp join app.principles p on p.id=rp.principle_id
@@ -128,7 +133,7 @@ export class SqlActivityStore extends SqlActorStore implements ActivityStore {
       select ${taskColumns(tx)} from app.tasks
       where true
         ${f.kind ? tx`and kind = ${f.kind}` : tx``}
-        ${f.entity_id ? tx`and entity_id = ${f.entity_id}` : tx``}
+        ${f.entity_id ? tx`and entity_ids @> ${tx.array([f.entity_id])}::uuid[]` : tx``}
         ${f.status ? tx`and status = ${f.status}` : tx``}
         ${f.tag_id && !f.tag_ids?.length ? tx`and ${hasTag(tx, "task", f.tag_id)}` : tx``}
         ${f.tag_ids?.length ? tx`and ${hasAnyTag(tx, "task", [...f.tag_ids, ...(f.tag_id ? [f.tag_id] : [])])}` : tx``}
@@ -142,8 +147,16 @@ export class SqlActivityStore extends SqlActorStore implements ActivityStore {
 
   async insertTask(task: NewTask) {
     const tx = this.tx;
-    await requireEntity(tx, task.entity_id);
-    const values = { owner_id: this.actor.userId, kind: task.kind, ...pick(tx, task, TASK_WRITABLE) };
+    const ids = selectedEntities(task) ?? [];
+    const context = await captureEntities(tx, ids);
+    const values = {
+      owner_id: this.actor.userId,
+      kind: task.kind,
+      ...pick(tx, task, TASK_WRITABLE),
+      entity_id: ids[0] ?? null,
+      entity_ids: tx.array(ids, 2950),
+      entity_context: tx.json(context),
+    };
     const [row] = await tx`insert into app.tasks ${tx(values)} returning id`;
     await this.setTaskTags(row.id as string, task.tag_ids);
     return (await this.getTask(row.id as string))!;
@@ -155,8 +168,16 @@ export class SqlActivityStore extends SqlActorStore implements ActivityStore {
 
   async updateTask(id: string, changes: Partial<Task>) {
     const tx = this.tx;
-    await requireEntity(tx, changes.entity_id);
     const values = pick(tx, changes, TASK_WRITABLE);
+    const ids = selectedEntities(changes);
+    if (ids !== undefined) {
+      const context = await captureEntities(tx, ids);
+      Object.assign(values, {
+        entity_id: ids[0] ?? null,
+        entity_ids: tx.array(ids, 2950),
+        entity_context: tx.json(context),
+      });
+    }
     if (changes.tag_ids !== undefined) await this.setTaskTags(id, changes.tag_ids);
     if (Object.keys(values).length === 0 && changes.tag_ids === undefined) {
       throw new AppError("invalid_input", "바꿀 필드가 없습니다");
@@ -198,7 +219,7 @@ export class SqlActivityStore extends SqlActorStore implements ActivityStore {
       where true
         ${f.task_id ? tx`and task_id = ${f.task_id}` : tx``}
         ${f.record_kind ? tx`and record_kind=${f.record_kind}` : tx``}
-        ${f.entity_id ? tx`and entity_id = ${f.entity_id}` : tx``}
+        ${f.entity_id ? tx`and entity_ids @> ${tx.array([f.entity_id])}::uuid[]` : tx``}
         ${f.tag_id && !f.tag_ids?.length ? tx`and ${hasTag(tx, "record", f.tag_id)}` : tx``}
         ${
       f.tag_ids?.length ? tx`and ${hasAnyTag(tx, "record", [...f.tag_ids, ...(f.tag_id ? [f.tag_id] : [])])}` : tx``
@@ -251,10 +272,13 @@ export class SqlActivityStore extends SqlActorStore implements ActivityStore {
 
   async insertRecord(record: NewRecord) {
     const tx = this.tx;
-    await requireEntity(tx, record.entity_id);
+    const ids = selectedEntities(record) ?? [];
+    const context = await captureEntities(tx, ids);
     const values: Record<string, unknown> = {
       owner_id: this.actor.userId,
-      entity_id: record.entity_id ?? null,
+      entity_id: ids[0] ?? null,
+      entity_ids: tx.array(ids, 2950),
+      entity_context: tx.json(context),
       title: record.title,
       summary: record.summary,
       body: record.body,
@@ -272,8 +296,18 @@ export class SqlActivityStore extends SqlActorStore implements ActivityStore {
 
   async updateRecord(id: string, changes: RecordChanges) {
     const tx = this.tx;
-    await requireEntity(tx, changes.entity_id);
     const values = pick(tx, changes, RECORD_WRITABLE);
+    const ids = selectedEntities(changes);
+    if (ids !== undefined) {
+      const prior = (await this.getRecord(id))?.entity_context ?? [];
+      const context = await captureEntities(tx, ids, prior);
+      const [live] = ids[0] ? await tx`select id from app.entities where id=${ids[0]}` : [];
+      Object.assign(values, {
+        entity_id: live?.id ?? null,
+        entity_ids: tx.array(ids, 2950),
+        entity_context: tx.json(context),
+      });
+    }
     if (changes.applied_principle_ids !== undefined) await this.setPrinciples(id, changes.applied_principle_ids);
     if (changes.tag_ids !== undefined) await setTagLinks(tx, this.actor, "record", id, changes.tag_ids);
     if (

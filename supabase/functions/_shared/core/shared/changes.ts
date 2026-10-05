@@ -23,7 +23,11 @@ export function changed(old: object, patch: object): boolean {
     return value;
   };
   const comparable = (key: string, value: unknown) =>
-    canonical(["tag_ids", "applied_principle_ids"].includes(key) && Array.isArray(value) ? [...value].sort() : value);
+    canonical(
+      ["tag_ids", "applied_principle_ids", "entity_ids"].includes(key) && Array.isArray(value)
+        ? [...value].sort()
+        : value,
+    );
   return Object.entries(patch).some(([key, value]) =>
     value !== undefined &&
     JSON.stringify(comparable(key, (old as Record<string, unknown>)[key])) !== JSON.stringify(comparable(key, value))
