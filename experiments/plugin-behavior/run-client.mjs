@@ -17,18 +17,26 @@ import { savingModes, savingPrompt, assessSaving, classifyIndexStatements, class
 import { openSavingTrial } from './saving-session.mjs';
 import { hasCompletedSharedSkillOutput } from './skill-output-proof.mjs';
 import { observeSearch, searchProofForTarget } from './search-proof.mjs';
+import { roundtripModes, roundtripPrompt, assessRoundtripNative, hasRoundtripOriginal } from './roundtrip.mjs';
+import { openRoundtripTrial } from './roundtrip-session.mjs';
 
 const repo = fileURLToPath(new URL('../../', import.meta.url));
 const [client, fixtureFile, mode, expectedCondition] = process.argv.slice(2);
-if (process.env.PLUGIN_ENV_HANDOFF !== 'exclusive-local' || !['codex-cli', 'claude-cli'].includes(client) || !fixtureFile || !['prepare', 'prepare-explicit', ...savingModes].includes(mode)) {
-  throw new Error('Usage: run-client.mjs <codex-cli|claude-cli> <outside-fixture.json> <prepare|prepare-explicit|save-record|save-task|save-memo|save-failure|save-response-loss> [condition]');
+if (process.env.PLUGIN_ENV_HANDOFF !== 'exclusive-local' || !['codex-cli', 'claude-cli'].includes(client) || !fixtureFile || !['prepare', 'prepare-explicit', ...savingModes, ...roundtripModes].includes(mode)) {
+  throw new Error('Usage: run-client.mjs <codex-cli|claude-cli> <outside-fixture.json> <prepare|prepare-explicit|save-record|save-task|save-memo|save-failure|save-response-loss|roundtrip-entity|roundtrip-task|roundtrip-task-read|roundtrip-principle-read> [condition]');
 }
 const fixture = JSON.parse(await readFile(fixtureFile, 'utf8'));
 assertJournal(fixture, fixture.endpoint, client);
 const preparing = mode.startsWith('prepare');
 const saving = savingModes.includes(mode);
+const roundtrip = roundtripModes.includes(mode);
+const originalRecord = mode === 'roundtrip-task-read' ? fixture.roundtrip?.result : fixture.record;
+function hasCurrentPrinciple(tool, payload) {
+  return hasRoundtripOriginal(tool, payload, 'principle', fixture.principle);
+}
+if (roundtrip && (!fixture.record || !fixture.entity || !fixture.principle || (mode === 'roundtrip-task-read' && !originalRecord))) throw new Error('Roundtrip native phase requires its durably observed web originals');
 const allocatedBackendRevision = process.env.PREPARATION_BACKEND_REVISION ?? null;
-if ((preparing || saving) && !/^[a-f0-9]{40}$/.test(allocatedBackendRevision ?? '')) throw new Error('Trial requires root-allocated actual backend revision separately from fixture origin');
+if ((preparing || saving || roundtrip) && !/^[a-f0-9]{40}$/.test(allocatedBackendRevision ?? '')) throw new Error('Trial requires root-allocated actual backend revision separately from fixture origin');
 const condition = expectedCondition ?? fixture.scenario ?? 'normal';
 if (!['normal', 'missing', 'conflict', 'semantic-failure', 'index-delay'].includes(condition)) throw new Error('Unknown preparation condition');
 const faultCondition = ['semantic-failure', 'index-delay'].includes(condition);
@@ -46,6 +54,7 @@ if (process.env.PREPARATION_MCP_PROXY && (!preparing || endpoint.href !== 'http:
 if (endpoint.protocol !== 'http:' || !['127.0.0.1', 'localhost'].includes(endpoint.hostname)) throw new Error('Only allocated loopback fixture endpoint is allowed');
 if (!fixture.environmentHandoff || !fixture.marker || !fixture.token || !fixture.outputRoot) throw new Error('Explicit environment handoff and prepared fixture are required');
 let savingTrial = null;
+let roundtripTrial = null;
 const model = client === 'codex-cli' ? 'gpt-6.1-sol' : 'claude-opus-5-5';
 const effort = 'medium';
 const outputRoot = resolve(fixture.outputRoot, client, `${mode}-${randomUUID()}`);
@@ -98,7 +107,7 @@ const canonicalSharedSkill = await readFile(resolve(plugin, 'skills/workspace/SK
 const evidence = { client, mode, requested: { model, effort }, cliVersion: actualVersion, marketplaceName, availableSkillEvidence: client === 'codex-cli' ? 'CLI initialization does not expose skill inventory in known JSON events' : 'native initialization metadata below', eventTypes: {}, itemTypes: {}, skillReads: [], cachePolicy: 'unique native runtime materialization allowed; no manual installed cache edits', readsSkill: false, completedSkillRead: false, answer: { originalDetail: false, currentValue: false, sourceId: false, currentPrincipleId: false, taskId: false, uncertainty: false }, actualBackendModel: 'unexposed unless client metadata reports it', actualBackendEffort: 'unexposed', backendAllocatedRevision: allocatedBackendRevision, fixtureOriginRevision: fixture.serverRevision, marker: fixture.marker, sourceRevision: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: repo, encoding: 'utf8' }).trim(), productCheckout: checkoutMetadata(fixture.productSource ?? resolve(repo, 'plugins/workspace')), runnerCheckout: checkoutMetadata(repo), runnerSha256: createHash('sha256').update(await readFile(fileURLToPath(import.meta.url))).digest('hex'), dependencyProxy: Boolean(process.env.PREPARATION_MCP_PROXY), sharedSkillSha256: createHash('sha256').update(await readFile(resolve(plugin, 'skills/workspace/SKILL.md'))).digest('hex'), authentication: 'real local OAuth consent+PKCE token supplied by fixture; CLI-native OAuth unverified', connection: client === 'codex-cli' ? 'shared plugin skill with bundled MCP disabled; identical loopback direct session MCP uses bearer_token_env_var' : 'shared plugin-dir with bundled loopback MCP environment header', events: [] };
 let savingAnswer = '';
 function answerFacts(text = '') {
-  if (saving) savingAnswer += text + '\n'; // Memory only; no raw answer persisted.
+  if (saving || roundtrip) savingAnswer += text + '\n'; // Memory only; no raw answer persisted.
   evidence.answer.originalDetail ||= text.includes(fixture.originalDetail);
   evidence.answer.currentValue ||= new RegExp(`(?<![a-zA-Z0-9-])${fixture.entity.prop2}(?![a-zA-Z0-9-])`).test(text);
   evidence.answer.sourceId ||= text.includes(fixture.record.id);
@@ -138,6 +147,7 @@ const savingProxyBefore = savingFault ? await savingProxySnapshot() : null;
 const installation = client === 'codex-cli' ? await installPreparedPlugin(command, market, marketplaceName, outputRoot) : null;
 try {
 if (saving) { savingTrial = await openSavingTrial(fixture, fixtureFile, mode); prompt = savingPrompt(mode, fixture); }
+if (roundtrip) { roundtripTrial = await openRoundtripTrial(fixture, fixtureFile, mode); prompt = roundtripPrompt(mode, fixture); }
 if (installation) {
   const otherMcpNames = await configuredMcpNames(command);
   for (const id of installation.otherPluginIds) args.push('-c', `plugins.${JSON.stringify(id)}.enabled=false`);
@@ -161,7 +171,9 @@ createInterface({ input: child.stdout }).on('line', (line) => {
     if (item?.type === 'mcp_tool_call') {
       if (saving && item.tool === 'search' && typeof item.id === 'string' && item.arguments) searchInputs.set(item.id, item.arguments);
       if (item.status === 'completed' && !item.error && !item.result?.isError) {
-        evidence.originalSourceRead ||= hasOriginalRecord(item.tool, item.result, fixture.record);
+        evidence.originalSourceRead ||= hasOriginalRecord(item.tool, item.result, originalRecord);
+        if (roundtrip) evidence.currentPrincipleRead ||= hasCurrentPrinciple(item.tool, item.result);
+        if (roundtrip) evidence.completedTaskRead ||= hasRoundtripOriginal(item.tool, item.result, 'task', fixture.task);
         if (saving && item.tool === 'search') { const observed = observeSearch(item.arguments ?? searchInputs.get(item.id), item.result, fixture.saving?.correction); if (observed) searchObservations.push(observed); }
       }
       if (item.status === 'completed') searchInputs.delete(item.id);
@@ -188,7 +200,9 @@ createInterface({ input: child.stdout }).on('line', (line) => {
       if (block.type === 'tool_use') recordReadTools.set(block.id, block.name.split('__').at(-1));
       if (saving && block.type === 'tool_use' && block.name.split('__').at(-1) === 'search') searchInputs.set(block.id, block.input);
       if (saving && block.type === 'tool_result' && !block.is_error && recordReadTools.get(block.tool_use_id) === 'search') { const observed = observeSearch(searchInputs.get(block.tool_use_id), block.content, fixture.saving?.correction); if (observed) searchObservations.push(observed); searchInputs.delete(block.tool_use_id); }
-      if (block.type === 'tool_result' && !block.is_error && hasOriginalRecord(recordReadTools.get(block.tool_use_id), block.content, fixture.record)) { evidence.originalSourceRead = true; evidence.originalSourceReadVia = recordReadTools.get(block.tool_use_id); }
+      if (block.type === 'tool_result' && !block.is_error && hasOriginalRecord(recordReadTools.get(block.tool_use_id), block.content, originalRecord)) { evidence.originalSourceRead = true; evidence.originalSourceReadVia = recordReadTools.get(block.tool_use_id); }
+      if (roundtrip && block.type === 'tool_result' && !block.is_error) evidence.currentPrincipleRead ||= hasCurrentPrinciple(recordReadTools.get(block.tool_use_id), block.content);
+      if (roundtrip && block.type === 'tool_result' && !block.is_error) evidence.completedTaskRead ||= hasRoundtripOriginal(recordReadTools.get(block.tool_use_id), block.content, 'task', fixture.task);
       if (block.type === 'tool_use') { if (block.name === 'Read' && ownSkillPath(block.input?.file_path)) { reads.set(block.id, ownSkillPath(block.input.file_path)); evidence.readsSkill = true; } if (block.name === 'Skill' && /(^|:)workspace$/.test(block.input?.skill ?? '') && evidence.init?.plugins?.includes('workspace')) { reads.set(block.id, resolve(plugin, 'skills/workspace/SKILL.md')); evidence.readsSkill = true; } }
       if (block.type === 'text') answerFacts(block.text);
       if (block.type === 'tool_use') evidence.events.push({ type: 'tool_use', tool: block.name, ...(block.name === 'Skill' ? { skill: block.input?.skill } : {}) });
@@ -240,10 +254,16 @@ if (proxyBefore) {
   evidence.proxy = { mode: condition, sourceSha256: after.sourceSha256, sameInstance: after.instance === proxyBefore.instance, applied: after.injected - proxyBefore.injected, keywordFallbacks: after.keywordSearches - proxyBefore.keywordSearches, originalReads: after.originalReads - proxyBefore.originalReads };
 }
 evidence.mutationCalls = evidence.events.filter(({ tool }) => /^(create_|update_|delete_|save_|correct_|complete_|record_occurrence|resume_|stop_|rename_)/.test((tool ?? '').split('__').at(-1))).length;
+if (roundtripTrial) {
+  evidence.independent = await roundtripTrial.finish();
+  evidence.answer.indexStatements = classifyIndexStatements(savingAnswer);
+  evidence.assessment = assessRoundtripNative(evidence);
+}
 evidence.nativeRuntimeCacheCreated = await lstat(runtimeCache).then(stat => stat.isDirectory(), error => { if (error.code === 'ENOENT') return false; throw error; });
 await writeFile(resolve(outputRoot, 'evidence.json'), `${JSON.stringify(evidence, null, 2)}\n`);
 console.log(JSON.stringify({ client, exitCode, observedTools: evidence.events.filter((event) => event.tool).map((event) => event.tool), evidence: resolve(outputRoot, 'evidence.json') }));
 if (preparing) { evidence.assessment = assessPreparation(evidence, condition); await writeFile(resolve(outputRoot, 'evidence.json'), `${JSON.stringify(evidence, null, 2)}\n`); if (!evidence.assessment.pass) process.exitCode = 1; }
 else if (exitCode !== 0) process.exitCode = 1;
 if (saving && !evidence.assessment.pass) process.exitCode = 1;
-} finally { try { await savingTrial?.close(); } finally { if (installation) await installation.cleanup(); } }
+if (roundtrip && !evidence.assessment.pass) process.exitCode = 1;
+} finally { try { await savingTrial?.close(); } finally { try { await roundtripTrial?.close(); } finally { if (installation) await installation.cleanup(); } } }

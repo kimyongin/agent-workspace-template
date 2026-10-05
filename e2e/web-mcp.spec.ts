@@ -82,6 +82,7 @@ test("에이전트가 MCP로 만든 기록·반복 회차를 웹에서 보고 �
     const again = await mcp.call("get_record", { id: rec.id });
     expect(again.summary).toBe("웹에서 고친 요약");
     expect(again.version).toBe(2);
+    expect(again.occurred_at).toBe(rec.occurred_at);
   } finally {
     await mcp.close();
   }

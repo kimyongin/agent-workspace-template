@@ -40,7 +40,7 @@ export function PrincipleDetailPage() {
           {item.origin==="legacy"&&<p className="help">기존 원칙에서 보존한 자료입니다. 과거의 실제 편집 사건을 뜻하지 않습니다.</p>}</div>}
         onSave={async draft=>{
         let saved:WorkspacePrinciple;
-        try {saved=await api<WorkspacePrinciple>(item.is_current?"POST":"PATCH",item.is_current?"/principles/current":`/principles/${item.id}/correct`,{...draft,expected_version:item.version,request_id:request.current});}catch(e){if(e instanceof ApiError&&e.code==="conflict")conflicted.current=true;throw e;}
+        try {saved=await api<WorkspacePrinciple>("POST","/principles/current",{...draft,expected_version:item.version,request_id:request.current});}catch(e){if(e instanceof ApiError&&e.code==="conflict")conflicted.current=true;throw e;}
         confirmed.current=saved;setMessage("저장했습니다.");request.renew();setEditing(false);setItem(saved);const p=new URLSearchParams(params);p.delete("edit");p.delete("edit_from");afterClose(params.get("edit_from")==="view"?`/principles/${saved.id}?${p}`:back,true);
       }}/>}
       {!item.is_current&&<p className="help">기존 보존 자료입니다. 현재 원칙으로 변경하지 않습니다. 과거 근거는 통합 기록에서 확인하세요.</p>}

@@ -12,9 +12,10 @@ import { createOwnedUser, deleteOwnedUser } from './owned-auth.mjs';
 import { ownedConsent } from './owned-consent.mjs';
 import { readPreparationState } from './preparation.mjs';
 import { cleanupSavingRecords } from './saving-session.mjs';
+import { cleanupRoundtrip, prepareRoundtripProfile } from './roundtrip-session.mjs';
 
 const [operation, source, clientName, outputDirectory, scenario = 'normal'] = process.argv.slice(2);
-if (!['normal', 'missing', 'conflict'].includes(scenario)) throw new Error('Only owned documented preparation scenarios');
+if (!['normal', 'missing', 'conflict', 'roundtrip'].includes(scenario)) throw new Error('Only owned documented preparation scenarios');
 if (!['setup', 'baseline', 'verify', 'cleanup'].includes(operation) || !source || !['codex-cli', 'claude-cli'].includes(clientName) || !outputDirectory || process.env.PLUGIN_ENV_HANDOFF !== 'exclusive-local') throw new Error('Root exclusive-local handoff required: prepare-fixture.mjs setup|baseline|verify|cleanup <allocated-source> <client> <outside-output>');
 const output = await outsideDirectory(outputDirectory), fixturePath = resolve(output, `${clientName}-fixture.json`);
 const { chromium } = await import(pathToFileURL(resolve(source, 'node_modules/@playwright/test/index.mjs')).href);
@@ -46,7 +47,7 @@ try {
     await ownedConsent(page, env, journal, save);
     journal.state = 'creating'; await save(); await browser.close();
   } else journal = await readJournal(fixturePath, endpoint, clientName);
-  const ownsBusiness = ['record', 'task', 'principle', 'entity', 'tag'].some(kind => journal[kind]);
+  const ownsBusiness = Boolean(journal.roundtrip) || ['record', 'task', 'principle', 'entity', 'tag'].some(kind => journal[kind]);
   if (journal.token && journal.state !== 'cleaned') {
     const claims = JSON.parse(Buffer.from(journal.token.split('.')[1], 'base64url').toString());
     if (claims.exp * 1000 <= Date.now() + 30000) throw new Error('Fixture OAuth expired; no blind client retry');
@@ -54,6 +55,10 @@ try {
     await client.connect(new StreamableHTTPClientTransport(new URL(endpoint), { requestInit: { headers: { Authorization: `Bearer ${journal.token}` } } }));
   }
   if (operation === 'setup') {
+    if (scenario === 'roundtrip') {
+      await prepareRoundtripProfile(journal, save, call, () => client.listTools());
+      console.log(JSON.stringify({ operation, clientName, state: journal.state, authOnly: true, fixturePath, rawAuthOrBodiesLogged: false }));
+    } else {
     await setupOwned(journal, save, call, () => client.listTools());
     journal.state = 'creating'; await save();
     await createOwned(journal, save, call, 'task', { kind: 'once', title: `${journal.marker}-task`, summary: '다음 검토에서 최신 수치와 과거 원문을 확인하고 가능한 순서를 준비한다.', entity_ids: [journal.entity.id] });
@@ -68,11 +73,17 @@ try {
     }
     journal.baseline = await readPreparationState(call); journal.state = 'ready'; await save();
     console.log(JSON.stringify({ operation, clientName, state: journal.state, syntheticOwner: true, fixturePath, counts: journal.baseline.counts, rawAuthOrBodiesLogged: false }));
+    }
   } else if (operation === 'cleanup') {
     if (ownsBusiness && !client && journal.state !== 'cleaned') throw new Error('Own business cleanup needs valid OAuth; auth identity retained');
     if (client) {
+      if (journal.roundtrip) {
+        await cleanupRoundtrip(journal, save, call);
+        if (journal.oauthClientId && !journal.oauthDeleted) { const { error } = await admin.auth.admin.oauth.deleteClient(journal.oauthClientId); if (error && error.status !== 404) throw new Error('Own DCR cleanup failed'); journal.oauthDeleted = true; await save(); }
+      } else {
       await cleanupSavingRecords(journal, save, call);
       await cleanupOwned(journal, save, call, async id => { const { error } = await admin.auth.admin.oauth.deleteClient(id); if (error && error.status !== 404) throw new Error('Own DCR cleanup failed'); });
+      }
     }
     else if (journal.oauthClientId && !journal.oauthDeleted) { const { error } = await admin.auth.admin.oauth.deleteClient(journal.oauthClientId); if (error && error.status !== 404) throw new Error('Own DCR cleanup failed'); journal.oauthDeleted = true; await save(); }
     await deleteOwnedUser(journal, save, admin);

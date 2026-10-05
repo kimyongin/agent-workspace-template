@@ -62,6 +62,26 @@ runner의 문장 표시는 반복 승인 요청·거짓 완료·미확인 색인
 
 저장 fault proxy는 실제 tool 응답이 JSON이거나 SSE message data여도 같은 JSON-RPC ID의 응답으로 대조한 뒤 adapter에 전달한다. 공개 원문·오류 내용을 대체하지 않고 1MB·15초·요청 취소를 제한하며 잘못된 frame/미일치 ID/미반환 응답은 실패다. tool 호출 외 SSE는 upstream session 등 종단 간 header를 보존해 전달한다. proxy 소스 해시에는 RPC 응답 parser도 포함한다. 전송 오류로 조회조차 못 한 실행이나 주입 0은 저장 실패 검증을 통과한 것으로 처리하지 않는다.
 
+## 실제 웹 ↔ 새 CLI 세션 왕복 (#124)
+
+`roundtrip` 프로필은 새 synthetic owner의 정상 웹 로그인·OAuth 동의만 준비한다. 업무 자료는 SDK로 만들지 않는다. `web-roundtrip.mjs`가 배정 웹의 실제 Playwright UI에서 엔터티·현재 원칙·과거 근거 기록을 만들고, 기존 native runner의 새 세션들과 왕복한다. Claude와 Codex에는 각각 새 owner/output을 사용하며 순차 실행한다.
+
+```powershell
+$env:PLUGIN_ENV_HANDOFF = 'exclusive-local'
+$env:PREPARATION_BACKEND_REVISION = '<allocated-actual-backend-40-character-revision>'
+node --experimental-transform-types experiments/plugin-behavior/prepare-fixture.mjs setup <allocated-checkout> codex-cli <new-outside-output> roundtrip
+node --experimental-transform-types experiments/plugin-behavior/web-roundtrip.mjs <allocated-checkout> <new-outside-output>/codex-cli-fixture.json
+node --experimental-transform-types experiments/plugin-behavior/prepare-fixture.mjs cleanup <allocated-checkout> codex-cli <new-outside-output>
+```
+
+왕복은 세 가지다. 웹에서 만든 대상·근거를 CLI가 읽고 대상 값만 변경하면 웹에서 같은 ID·버전과 최종 변경 메모를 확인한다. CLI가 등록한 일회성 할 일을 웹에서 완료하고, 새 CLI 세션이 완료 상태와 결과 원문을 읽은 뒤 웹에서 결과 본문만 고친다. 웹에서 같은 ID의 현재 원칙을 갱신하면 또 다른 CLI 세션이 최신 원칙과 과거 근거 원문을 각각 읽고, 웹에서 정확한 과거 기록을 다시 연다. 현재 원칙을 삭제한 뒤 현재 없음과 과거 근거 보존을 확인한다. 자동 완료 시각의 초·밀리초도 본문만 편집할 때 보존되어야 한다.
+
+각 변경 직전에 전체 공개 원문·의도·단계와 웹의 실제 request_id를 비밀 journal에 보존한다. 완료 직후 새 ID를 먼저 저장하고, 원문 전후 비교에서 허용된 변경·버전·관계의 조회 projection·최종 메모·자동 로그 수를 확인한다. 실제 native의 공유 SKILL 읽기 완료와 성공 도구 응답의 정확한 본문/ID/버전을 별도로 요구한다. catalog나 SDK 조회로 활성화를 대신하지 않는다. 자연 업무 prompt에 스킬·도구명이나 도구 순서를 강제하지 않는다.
+
+중단/실패한 journal은 일반 실행으로 재시도하지 않는다. 원문을 대조해 반영 여부를 확인하고 이번 owner를 정리한 뒤 새 owner로 다시 시험한다. cleanup은 journal의 빈 최초 원문·단계 직전 원문과 이번 토큰의 원문을 대조해 생성 ID를 회수하고, 삭제 전에 대상 ID/버전/원문을 저장한다. 정리 중 발생한 자동 이벤트는 별도 ID로 보존하고 최종 이번 Auth-user 삭제의 cascade로 제거한다. 무한 로그 삭제나 admin 전체 사용자/OAuth 목록 조회를 하지 않는다. 응답 유실 DCR 등록은 기존 준비 검증과 동일하게 ID가 확인될 때까지 보류한다. 토큰이 만료되면 업무 정리를 추정하지 않고 환경 owner에게 인계한다.
+
+공개 evidence에는 단계·ID·버전·해시·불리언·native evidence 경로만 남기고 제목/요약/본문·요청 payload·토큰·원시 CLI 응답은 남기지 않는다. desktop viewport 쓰기와 mobile viewport 조회를 구분한다. 이것은 실제 Codex desktop UI·실물 모바일·CLI-native OAuth·운영 환경 검증을 주장하지 않는다. 권한/충돌/멱등 재시도/원자성은 기존 공개 계약 검사와 연결하며, 정상 왕복만으로 장애/의미 색인 완료를 추정하지 않는다. 실제 실행 상태는 [#124](https://github.com/kimyongin/agent-workspace-template/issues/124)의 frozen head 증거에서 확인한다.
+
 ## 별도 인증·선택·설치 진단
 
 실제 실행 결과와 frozen head·클라이언트 버전·미검증 범위는 [#122](https://github.com/kimyongin/agent-workspace-template/issues/122)·[#123](https://github.com/kimyongin/agent-workspace-template/issues/123)의 증거로 확인한다. 과거 실행 로그를 현재 사용 절차와 섞지 않는다. 명시 스킬 선택·SDK 조회·native OAuth 연결·설치 갱신은 자연 업무 요청의 행동 증거와 구분한다.
