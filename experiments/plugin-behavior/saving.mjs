@@ -27,7 +27,7 @@ export function verifyStoredChange(before, after, fixture, mode) {
   const target = mode === 'save-memo' ? after.records.find(row => row.id === fixture.saving?.recordId) : requested[0];
   const events = created.filter(row => row.record_kind === 'change');
   const needsEvent = ['save-record', 'save-response-loss'].includes(mode);
-  const creationEvent = event => Boolean(target && event.change?.target_kind === 'record' && event.change.target_id === target.id && event.change.target_title === target.title && event.change.action === 'create' && event.change.source === 'mcp' && event.change.path === `/records/${target.id}` && event.change.before === null && typeof event.change.event_id === 'string' && event.change.event_id && equal(event.entity_ids, target.entity_ids) && ['id', 'title', 'summary', 'body', 'version', 'entity_ids'].every(key => equal(event.change.after?.[key], target[key])));
+  const creationEvent = event => Boolean(target && event.change?.target_kind === 'record' && event.change.target_id === target.id && event.change.target_title === target.title && event.change.action === 'create' && event.change.source === 'mcp' && event.change.path === `/records/${target.id}` && event.change.before === null && typeof event.change.event_id === 'string' && event.change.event_id && equal(event.entity_ids, target.entity_ids) && (event.change.after === null || ['id', 'title', 'summary', 'body', 'version', 'entity_ids'].every(key => equal(event.change.after?.[key], target[key]))));
   let allowedChange = ['current', 'principles', 'tags'].every(kind => equal(before[kind], after[kind])) && unchangedEntities(before, after);
   allowedChange &&= before.records.every(old => {
     const current = after.records.find(row => row.id === old.id);

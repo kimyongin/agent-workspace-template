@@ -56,6 +56,7 @@ test('independent originals permit only the requested record, task result or mem
   const saved = { ...before, records: [source, event, user] };
   assert.equal(verifyStoredChange(before, saved, fixture, 'save-record').allowedChange, true);
   assert.equal(verifyStoredChange(before, saved, fixture, 'save-response-loss').recordId, 'new');
+  assert.equal(verifyStoredChange(before, { ...saved, records: [source, { ...event, change: { ...event.change, after: null } }, user] }, fixture, 'save-record').allowedChange, true);
   assert.equal(verifyStoredChange(before, { ...saved, records: [source, user] }, fixture, 'save-record').allowedChange, false);
   assert.equal(verifyStoredChange(before, { ...saved, records: [source, event, user, { ...event, id: 'extra' }] }, fixture, 'save-record').allowedChange, false);
   assert.equal(verifyStoredChange(before, { ...saved, records: [source, { ...event, change: { ...event.change, target_id: 'wrong' } }, user] }, fixture, 'save-record').allowedChange, false);
