@@ -75,3 +75,11 @@
 - artifact 기준 위치는 `C:/Users/yongin/.codex/tmp/template22-artifacts/`다. `workspace-final-pass.log`, `entity-tags-final.log`, `integration-final.log`는 위 freeze 전 전체 결과이며, `final/`은 390/1440px 탭·viewer·edit·표/코드 캡처다. 최종 inset 캡처와 정확한 HEAD 전체 재검증은 별도 `head-final/`에 남긴다. 독립 reviewer는 59580/59581 mock 서비스만 사용하고 소유 통합584xx 자료를 건드리지 않는다.
 
 backend·DB·migration 변경 없음. root/fin 서비스·자료·환경은 변경하지 않았다. 신규 의존성 때문에 승인 후 로컬 반영은 root의 기존 lock 기준 `npm ci`가 필요하며, 현재 Vite PID 보존을 우선하고 optimizer/잠금 오류는 재시작 전에 진단한다. 로컬 반영 권한과 검증은 메인이 별도 조정한다.
+
+### 독립 리뷰 수정 — 기록 POP 편집 첫 진입 조회 실패
+
+독립 reviewer가 `171507dd`에서 P2를 재현했다. 기록 viewer의 확인된 원문을 가진 같은 컴포넌트에서 POP으로 `edit=1&edit_from=view`에 진입할 때 재조회503이면 Form이 아직 등록되지 않아 편집 영역 안의 오류와 재시도가 숨겨졌다. 초안이 없는 이 상태에서 공통 surface에 확인된 본문·오류·조회 재시도를 표시하고 성공 재조회 뒤 새 Form을 연다. 오류 surface 닫기도 편집 복귀 의미를 유지한다. 실제 Form이 등록된 기존 편집 초안·dirty 보호는 그대로 유지한다.
+
+최초 수정은 실패한 조회 뒤 기존 자료로 Form을 먼저 여는 방식이었고, focused2개에서 재시도 성공 version2 자료를 Form이 초기 초안으로 유지하는 문제가 확인됐다. 이 방식을 폐기하고 아직 초안이 없는 첫 진입 실패를 명시 오류 상태로 유지하는 위 수정으로 desktop/mobile focused **2 PASS(4.4s)**를 확인했다. viewer 원문 보존·업무 쓰기0·첫 실패 때 저장 없음·재시도 GET 뒤 새 제목/삭제 행동·닫기 후 viewer 제목과 버튼1개를 검사한다.
+
+`171507dd` 첫 exact-head 전체는123 PASS/1 FAIL이었다. 실패 trace에서 원칙 첫 편집 진입 모듈 GET5개가 `net::ERR_NETWORK_CHANGED`이고 원문 GET200 외 업무 POST가 없음을 확인했다. 원본 trace/캡처와 network 진단은 `head-final/uncertain-failure/`에 보존했으며 assertion·timeout·retry 변경 없이 동일HEAD uncertain4개 focused는 모두 PASS(10.6s)였다. 다음 전체는 새 독립 리뷰 결함 수정 때문에 11개 진행에서 안전 중단했고 성공으로 기록하지 않는다. 이 수정 포함 새 HEAD의 전체126→22→92 검사와 독립 재리뷰가 다시 pending이다. 결과는 PR 증거와 새 HEAD 외부 로그로 인계한다.

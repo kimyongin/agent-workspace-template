@@ -96,8 +96,12 @@ export function RecordDetailPage() {
         만든 시각 {formatDateTime(record.created_at)} · 수정 {formatDateTime(record.updated_at)}
       </p>
     </div>;
-  return <DetailSurface title={record.title} onClose={()=>navigate(back.path)} busy={busy}>
+  return <DetailSurface title={record.title} onClose={()=>dialog==="edit"&&!editReady?closeEdit():navigate(back.path)} busy={busy}>
       <MarkdownContent text={record.body}/>
+      {dialog === "edit" && !editReady && loadError && <>
+        <Notice kind="error">{loadError}</Notice>
+        <button type="button" className="btn" onClick={reload}>조회 다시 시도</button>
+      </>}
       {dialog === "edit" && editReady && (
         <RecordFormModal
           editing systemRecord={record.record_kind==="change"}
