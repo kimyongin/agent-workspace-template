@@ -95,11 +95,25 @@ httpTest("Entity MCP: 실제 SDK/OAuth CRUD·태그 scope·웹 parity·참조 �
     assertEquals(unlinked.version, 4);
     assertEquals(unlinked.tag_ids, []);
     const updates =
-      await admin`select change_metadata from app.records where change_metadata->>'target_id'=${e.id} and change_metadata->>'action'='update'`;
+      await admin`select id,change_metadata from app.records where change_metadata->>'target_id'=${e.id} and change_metadata->>'action'='update'`;
     assertEquals(updates.length, 3);
-    const unlink = updates.find((r) => r.change_metadata.source === "http")!.change_metadata;
-    assertEquals(unlink.before.tags[0].name, tag.name);
-    assertEquals(unlink.after.tag_ids, []);
+    const unlinkRow = updates.find((r) => r.change_metadata.source === "http")!;
+    const unlink = await tool(client, "get_record", { id: unlinkRow.id });
+    assertEquals(unlink.change, unlinkRow.change_metadata);
+    assertEquals([unlink.change.before, unlink.change.after], [null, null]);
+    assertEquals([
+      unlink.change.target_kind,
+      unlink.change.target_id,
+      unlink.change.target_title,
+      unlink.change.action,
+      unlink.change.path,
+    ], ["entity", e.id, "이유 없이 수정", "update", `/entities/${e.id}`]);
+    assertEquals(unlink.body, `태그: ["${tag.id}"] → []`);
+    assertEquals((await call(token, "GET", `/records/${unlinkRow.id}`)).body, unlink);
+    assertEquals(
+      (await tool(client, "list_tags", { scope: "entity" })).items.some((row: { id: string }) => row.id === tag.id),
+      false,
+    );
     const task = await tool(client, "create_task", {
       kind: "once",
       title: "엔터티 삭제 관계 검증",
