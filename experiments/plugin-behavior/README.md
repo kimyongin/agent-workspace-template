@@ -31,6 +31,27 @@ fault 실행은 runner의 넷째 인수에 `semantic-failure` 또는 `index-dela
 
 실제 서비스 실행은 메인의 Entity 통합 및 공유 로컬 Supabase 독점 배정 후에만 한다. loopback OAuth 토큰을 fixture 소유자가 실제 동의·PKCE·코드 교환으로 받아 세션 MCP 설정에 전달한다. 이는 CLI 자체 OAuth 로그인 성공과 다르다. 원본 운영 endpoint는 유지하고 복사 패키지·세션 설정만 loopback 대상으로 쓴다. 토큰과 원시 클라이언트 출력은 저장소 밖에만 두며 보관하는 증거는 도구 이름/성공/모델/스킬 선택과 독립 재조회 판정만 남긴다.
 
+## 요청한 저장 검증 (#123)
+
+새 저장 경로는 #122의 `normal` synthetic owner fixture를 재사용한다. 기존 `save` 기본 모드는 과거 강제 스킬·도구 prompt이며 이번 요청 범위 증거로 사용하지 않는다. 새 `save-record`, `save-task`, `save-memo`, `save-failure`, `save-response-loss`는 업무 요청만 전달하고 스킬·도구명이나 입력 필드를 지정하지 않는다. 모든 변경 도구는 제공하되 실제 요청 밖 쓰기는 독립 원문 전후 비교로 거부한다. 원본 `prepare`/`prepare-explicit` 평가와 무저장 digest는 유지한다.
+
+root가 서비스 독점과 실제 backend revision을 배정한 후에만 실행한다. `prepare-fixture.mjs setup` 이후 같은 비밀 journal을 사용하며, 각 클라이언트는 새 세션을 실행한다. 기록 저장과 할 일 완료는 각각 별도 새 fixture에서 시작한다. 완료 결과의 본문 정정은 성공한 `save-task`의 같은 fixture에 이어서 `save-memo`를 실행한다. runner는 별도 SDK 연결로 모든 페이지의 원문을 읽고 저장 전에 journal에 baseline을 남긴다. 종료 후 실제 새 기록 ID·종류·본문·엔터티, 완료 할 일과 결과 ID, 메모 정정의 사건 식별정보와 추가 로그 0개를 확인한다. 검색 결과와 클라이언트의 성공 문장은 저장 증거가 아니다.
+
+```powershell
+$env:PLUGIN_ENV_HANDOFF = 'exclusive-local'
+$env:PREPARATION_BACKEND_REVISION = '<root-allocated-40-character-revision>'
+node experiments/plugin-behavior/run-client.mjs claude-cli <owned-fixture.json> save-record
+# 별도 새 fixture에서 실행
+node experiments/plugin-behavior/run-client.mjs claude-cli <owned-task-fixture.json> save-task
+node experiments/plugin-behavior/run-client.mjs claude-cli <owned-task-fixture.json> save-memo
+```
+
+Codex는 client를 `codex-cli`로 바꾼다. native 설치·고유 서버·다른 연결 제외·정확한 공유 SKILL 읽기 판정은 준비 경로와 동일하다. 준비 때와 같은 `prepare-fixture.mjs cleanup`으로 runner가 journal에 보존한 새 기록을 먼저 정리하고, 기존 시험 업무 자료·이번 OAuth client·synthetic user 순서로 정리한다. 중간 종료 시 journal의 pending baseline과 새 owner의 원문을 대조하여 해당 시험의 새 기록만 회수한다. 개인·기존 DevA/B 자료는 쓰지 않는다.
+
+`proxy-saving.mjs save-failure 55685 http://127.0.0.1:55621/functions/v1/mcp`와 `save-response-loss`는 각각 저장 전 미전달 오류, 실제 upstream 성공 후 응답 유실을 주입하는 배정 local adapter다. root가 포트 소유를 배정한 뒤 시작하고 `SAVING_MCP_PROXY=http://127.0.0.1:55685/functions/v1/mcp`로 연결한다. 각 trial에 새 proxy instance를 쓰고 정상 시나리오에서는 이 환경 변수를 제거한다. 저장 전 오류는 모든 쓰기를 upstream에 전달하지 않는다. 응답 유실은 실제 반환된 ID를 메모리에서만 보존하고 원문 조회 또는 동일 입력·동일 request_id의 replay로 확인한다. 다른 입력/키는 전달하지 않고 평가도 실패시킨다. `/saving-evidence`는 같은 instance·소스 해시·주입 수·upstream 성공 응답 수·요청 키 해시·원문 확인 여부만 제공한다. upstream counter는 호출 경계 증거이고 실제 새 저장 1개는 독립 원문 비교가 입증한다. 실제 서비스의 장애나 트랜잭션 성공을 모의 counter만으로 주장하지 않는다.
+
+runner의 문장 표시는 반복 승인 요청·거짓 완료·미확인 색인 완료의 보수적 신호다. 자연어 판정과 독립 저장 증거를 구분하며 실제 trial 리뷰에서 설명의 의미를 확인한다. 새 시나리오의 서비스 없는 seam 검사는 `node --test experiments/plugin-behavior/saving.test.mjs experiments/plugin-behavior/saving-fault.test.mjs`다. 실제 CLI·서비스 trial을 수행하지 않은 조건은 완료로 처리하지 않는다.
+
 ## 실제 실행과 증거
 
 2026-10-04 후보 서버/스킬 head `72d4d702afa0fc278651e2b97314b1e8a909e754`로 두 CLI가 요청된 결과 기록을 만들었고 별도 SDK의 재조회가 원문 코드·원칙·Entity·태그 연결을 확인했다. Codex native MCP OAuth는 새 home에서 승인/callback·31개 도구 발견까지 확인했다. 상세 호출·실패 시도·정리·미검증 범위는 연결한 티켓이 정본이다. 최종 제품 패키지 0.1.1 설치 갱신은 Entity main 통합 후 별도로 검증한다.
