@@ -76,6 +76,14 @@ test('task answer reports done, exact result body and reopening IDs; an open-sta
   assert.equal(roundtripAnswerProof(good.replace('RESULT-code', 'wrong'), fixture, 'roundtrip-task-read').correct, false);
   assert.equal(roundtripAnswerProof(good.replace('result-id', 'wrong-id'), fixture, 'roundtrip-task-read').correct, false);
   assert.equal(roundtripAnswerProof(good.replace('done (완료)', 'done 상태가 아닙니다'), fixture, 'roundtrip-task-read').correct, false);
+  const indexUnconfirmed = good.replace('상태: done (완료)', '상태: done (완료)\n색인 완료는 확인하지 못했습니다.');
+  assert.equal(roundtripAnswerProof(indexUnconfirmed, fixture, 'roundtrip-task-read').correct, true);
+  const priorOpen = good.replace('상태: done (완료)', '이전 할 일 상태는 open (미완료)이었습니다.\n현재 할 일 상태: done (완료)');
+  assert.equal(roundtripAnswerProof(priorOpen, fixture, 'roundtrip-task-read').correct, true);
+  const currentOpen = good.replace('상태: done (완료)', '현재 할 일 상태: open (미완료)\n색인 완료는 확인하지 못했습니다.');
+  assert.equal(roundtripAnswerProof(currentOpen, fixture, 'roundtrip-task-read').correct, false);
+  assert.equal(roundtripAnswerProof(good.replace('상태: done (완료)', '현재 할 일 상태: done이고 색인 완료는 확인하지 못했습니다.'), fixture, 'roundtrip-task-read').correct, true);
+  assert.equal(roundtripAnswerProof(good.replace('상태: done (완료)', '이전 할 일 상태는 open이었지만 현재 할 일 상태는 done입니다.'), fixture, 'roundtrip-task-read').correct, true);
 });
 test('read-only phase detects a memo write even when a task still reports done', () => {
   const before = { ...empty(), tasks: [{ id: 't', status: 'done', version: 2 }], records: [{ id: 'r', body: 'old', version: 1 }] };

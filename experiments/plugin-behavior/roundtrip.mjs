@@ -113,10 +113,20 @@ export function roundtripAnswerProof(text, f, mode) {
     }
     const taskText = taskLines.join('\n');
     const taskId = taskText.includes(f.task.id), resultId = clean.includes(f.roundtrip.result.id);
-    const done = /(?:상태|status)(?:는|가|이)?\s*[:：]?\s*(?:done|완료)|할\s*일.{0,80}(?:완료됐|완료되었|완료됨|완료된)|완료\s*상태/i.test(taskText);
-    const wrong = /(?:상태|status).{0,15}(?:open|미완료|진행|대기)|할\s*일.{0,80}(?:open|미완료|완료되지|완료하지)|(?:done|완료).{0,15}(?:아니|아닙|않|못)/i.test(taskText);
+    const stateClaims = [];
+    for (const clause of taskText.split(/[.!?;,\n]+|하지만|그러나|지만|\s+(?=(?:색인|검색|인덱싱|의미))/)) {
+      if (/색인|검색|인덱싱|semantic|index/i.test(clause) && !/할\s*일|task/i.test(clause)) continue;
+      if (/이전|과거|처음|등록\s*당시|완료\s*전|원래/.test(clause) && !/현재|지금|최종/.test(clause)) continue;
+      if (!/할\s*일|task|상태|status|^\s*현재/i.test(clause)) continue;
+      const open = /(?:상태|status)(?:는|가|이)?\s*[:：]?\s*(?:open|미완료|진행\s*중|대기)|할\s*일.{0,80}(?:open|미완료)/i.test(clause);
+      const denied = /(?:done|완료).{0,15}(?:아니|아닙|않|못)|할\s*일.{0,80}(?:완료되지|완료하지)/i.test(clause);
+      const completed = /(?:상태|status)(?:는|가|이)?\s*[:：]?\s*(?:done|완료)|할\s*일.{0,80}(?:완료됐|완료되었|완료됨|완료된)|완료\s*상태|^\s*현재.{0,12}done/i.test(clause);
+      const reason = open ? 'current-open' : denied ? 'completion-denied' : completed ? 'current-done' : null;
+      if (reason) stateClaims.push({ reason, sha256: createHash('sha256').update(clause).digest('hex') });
+    }
+    const done = stateClaims.some(c => c.reason === 'current-done'), wrong = stateClaims.some(c => c.reason !== 'current-done');
     const resultBody = compact(clean).includes(compact(f.roundtrip.result.body));
-    return { correct: taskId && resultId && done && !wrong && resultBody, taskId, resultId, state: wrong ? 'wrong' : done ? 'done' : 'unconfirmed', resultBody, sha256 };
+    return { correct: taskId && resultId && done && !wrong && resultBody, taskId, resultId, state: wrong ? 'wrong' : done ? 'done' : 'unconfirmed', stateClaims, resultBody, sha256 };
   }
   if (mode !== 'roundtrip-principle-read') return { correct: false, sha256 };
   const expected = body => ({ value: /속성\s*2\s*(?:가|=|:)?\s*(\d+)/.exec(body)?.[1], action: /(진행|보류)/.exec(body)?.[1] });
