@@ -11,6 +11,7 @@ export interface PrincipleStore extends RequestStore, ChangeStore {
   update(
     id: string,
     changes: Pick<PrincipleUpdate, "change_note"> & Partial<Pick<PrincipleResult, "title" | "summary" | "body">>,
+    version?: number,
   ): Promise<PrincipleResult>;
   retire(id: string): Promise<void>;
   delete(id: string): Promise<void>;

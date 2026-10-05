@@ -53,11 +53,11 @@ class SqlPrincipleStore extends SqlActorStore implements PrincipleStore {
   async retire(id: string) {
     await this.tx`update app.principles set is_current=false where id=${id}`;
   }
-  async update(id: string, i: Parameters<PrincipleStore["update"]>[1]) {
+  async update(id: string, i: Parameters<PrincipleStore["update"]>[1], version?: number) {
     const values = Object.fromEntries(Object.entries(i).filter(([, v]) => v !== undefined));
-    const [r] = await this.tx`update app.principles set ${
-      this.tx(values)
-    },version=version+1,updated_at=now() where id=${id} returning *`;
+    const [r] = await this.tx`update app.principles set ${this.tx(values)},version=${
+      version ?? this.tx`version+1`
+    },updated_at=now(),saved_at=case when is_current then clock_timestamp() else saved_at end where id=${id} returning *`;
     return result(r);
   }
   async delete(id: string) {
