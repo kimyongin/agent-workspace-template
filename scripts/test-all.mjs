@@ -6,12 +6,14 @@
 // 같은 이름의 Edge Runtime 컨테이너를 멈추므로 다른 터미널의 함수 서버도 함께 끊길 수 있다.
 // 사용: npm run test:all  (E2E 브라우저가 없으면 먼저 npx playwright install chromium)
 import { spawn, spawnSync } from "node:child_process";
-import { openSync, readFileSync } from "node:fs";
+import { openSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { readLocalConfig } from "./local-config.mjs";
 
 const isWin = process.platform === "win32";
-const API = "http://127.0.0.1:55421/functions/v1/api/tasks";
+const { projectId, apiUrl } = readLocalConfig();
+const API = `${apiUrl}/functions/v1/api/tasks`;
 // Ctrl+C로 끝난 자식의 종료 상태(Windows STATUS_CONTROL_C_EXIT, 셸의 130).
 const INTERRUPT_CODES = new Set([3221225786, -1073741510, 130]);
 
@@ -71,9 +73,6 @@ async function waitReady(timeoutMs) {
   return false;
 }
 
-const projectId = readFileSync(new URL("../supabase/config.toml", import.meta.url), "utf8")
-  .match(/^project_id\s*=\s*"([^"]+)"/m)?.[1];
-
 function stop(child) {
   if (!child) return;
   if (child.exitCode === null) {
@@ -128,7 +127,7 @@ if (!setup.ok) {
 }
 
 if (!(await functionsReady())) {
-  const log = join(tmpdir(), "workspace-functions.log");
+  const log = join(tmpdir(), `workspace-functions-${projectId}-${process.pid}.log`);
   console.log(`\n▶ Edge Functions 실행(테스트가 끝나면 정리, 로그: ${log})`);
   const out = openSync(log, "w");
   served = spawn("npm run -s serve:functions", { shell: true, stdio: ["ignore", out, out], detached: !isWin });

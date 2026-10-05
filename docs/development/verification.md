@@ -114,7 +114,7 @@
 | `npm run test:all` | 로컬 통합 테스트를 한 번에(정적 검사·웹 빌드 제외): 로컬 Supabase 준비, Edge Functions가 없으면 띄우고 끝나면 정리, core·DB·HTTP·MCP·E2E를 차례로 실행하고 결과 요약 |
 | `npm run stop:local` | 로컬 Supabase 정지(데이터 유지) |
 
-로컬 Supabase 포트는 55420~55429, 웹은 55480, Edge inspector는 8483이다. 다른 로컬 프로젝트·실험(55320~55329)과 겹치지 않는다. CI는 운영 secret 없이 아래 변경 영향에 따라 `check`와 `integration`을 실행한다. 새 검사는 추가되는 단계에서 이 표와 CI에 넣는다.
+기본 로컬 Supabase 포트는 55420~55429, 웹은 55480, Edge inspector는 8483이다. 별도 프로젝트는 [새 프로젝트 시작](new-project.md)에 따라 `supabase/config.toml`의 프로젝트 ID·포트·웹 주소를 분리한다. setup의 풀러 확인·허용 웹 origin, Vite·Playwright·통합 테스트의 준비 확인은 해당 설정을 읽는다. CI는 운영 secret 없이 아래 변경 영향에 따라 `check`와 `integration`을 실행한다. 새 검사는 추가되는 단계에서 이 표와 CI에 넣는다.
 
 환경상 실행할 수 없는 검사는 대상 commit·명령·데이터 조건·실행 가능한 격리 환경을 기록해 인계한다. CI에서 수행하는 경우 해당 revision의 결과까지 확인한다.
 

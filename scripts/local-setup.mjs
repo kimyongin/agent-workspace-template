@@ -6,9 +6,11 @@ import { randomBytes } from "node:crypto";
 import { existsSync, writeFileSync } from "node:fs";
 import postgres from "postgres";
 import { readEnv, writeEnv } from "./local-env.mjs";
+import { readLocalConfig } from "./local-config.mjs";
 
 const root = new URL("..", import.meta.url);
 const path = (p) => new URL(p, root);
+const config = readLocalConfig();
 
 function supabase(args, opts = {}) {
   // 인자는 이 파일의 고정 값뿐이라 셸 문자열로 합쳐도 안전하다(Windows의 npx.cmd 실행용).
@@ -87,7 +89,7 @@ for (const [role, password] of [["app_server", local.APP_SERVER_PASSWORD], ["app
   // 직접 접속이 되더라도 풀러의 준비 상태를 확인하고 대기 한도 초과는 실패로 알린다.
   const pooler = new URL(direct.href);
   pooler.username = `${role}.pooler-dev`;
-  pooler.port = "55429";
+  pooler.port = String(config.poolerPort);
   let ready = false;
   for (let i = 0; i < 30; i++) {
     const p = postgres(pooler.href, { max: 1, prepare: false, connect_timeout: 5, onnotice: () => {} });
@@ -115,7 +117,7 @@ writeEnv(path("supabase/functions/.env"), "로컬 전용. scripts/local-setup.mj
     ? { PINECONE_API_KEY: functionEnv.PINECONE_API_KEY ?? prev.PINECONE_API_KEY } : {}),
   AUTH_ISSUER: `${apiUrl}/auth/v1`,
   MCP_URL: mcpUrl,
-  WEB_ORIGINS: "http://127.0.0.1:55480,http://localhost:55480",
+  WEB_ORIGINS: config.webOrigins,
 });
 
 // 5. 개발용 사용자(A·B). 이미 있으면 비밀번호만 맞춘다.
