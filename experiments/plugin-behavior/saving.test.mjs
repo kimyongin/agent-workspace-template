@@ -116,6 +116,8 @@ test('pending index-state observation is not completion; unrelated task completi
   const confirmation = classifyIndexStatements('할 일 완료 후 키워드 검색 반영을 확인했습니다.').claims[0];
   assert.equal(confirmation.verb, 'confirm');
   assert.equal(confirmation.polarity, 'affirmative');
+  const denied = classifyIndexStatements('의미 검색 반영 pending 상태를 확인했다고 말할 수 없습니다.');
+  assert.equal(denied.affirmative, 0); assert.equal(denied.stateOnly, 0); assert.equal(denied.negated, 1);
 });
 
 test('each fresh memo request changes its correction while unchanged stored text cannot satisfy it', () => {
