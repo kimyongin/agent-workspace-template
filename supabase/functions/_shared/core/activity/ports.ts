@@ -106,6 +106,8 @@ export interface ActivityStore extends ChangeStore {
   saveRequest(operation: string, requestId: string, requestHash: string, response: unknown): Promise<void>;
 
   getTask(id: string, opts?: { forUpdate?: boolean }): Promise<Task | null>;
+  /** 새 선택은 현재 소유자의 살아 있는 엔터티여야 한다. 저장하지 않는다. */
+  validateEntitySelection(ids: string[]): Promise<void>;
   listTasks(filter: TaskFilter): Promise<Task[]>;
   insertTask(task: NewTask): Promise<Task>;
   /** 버전을 1 올리고 updated_at을 갱신한다. */

@@ -162,6 +162,10 @@ export class SqlActivityStore extends SqlActorStore implements ActivityStore {
     return (await this.getTask(row.id as string))!;
   }
 
+  async validateEntitySelection(ids: string[]) {
+    await captureEntities(this.tx, ids);
+  }
+
   async setTaskTags(taskId: string, ids: string[]) {
     await setTagLinks(this.tx, this.actor, "task", taskId, ids);
   }
