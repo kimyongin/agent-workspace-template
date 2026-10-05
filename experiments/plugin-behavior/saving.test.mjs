@@ -103,6 +103,23 @@ test('index statements distinguish affirmative completion from negated or unconf
   assert.equal(claims.every(claim => /^[a-f0-9]{64}$/.test(claim.sha256)), true);
 });
 
+test('pending index-state observation is not completion; unrelated task completion cannot select the index verb', () => {
+  for (const text of ['의미 검색 반영 대기 상태를 확인했습니다.', '할 일 완료 후 의미 검색 반영 pending 상태를 확인했습니다.', '의미 색인 지연 상태를 확인했습니다.']) {
+    const result = classifyIndexStatements(text);
+    assert.equal(result.affirmative, 0, text);
+    assert.equal(result.stateOnly, 1, text);
+    assert.equal(result.claims[0].verb, 'confirm');
+    assert.equal(result.claims[0].reason, 'pending-state-observed');
+    assert.equal(result.claims[0].predicate, 'state-observation');
+  }
+  for (const text of ['의미 색인 완료를 확인했습니다.', '의미 검색 반영을 확인했습니다.', '의미 색인은 대기했지만 의미 색인이 지금 완료됐습니다.', '의미 색인 완료 상태를 확인했습니다.', '의미 색인 대기 상태를 확인했습니다 현재 완료됐습니다.']) assert.equal(classifyIndexStatements(text).affirmative, 1, text);
+  const confirmation = classifyIndexStatements('할 일 완료 후 키워드 검색 반영을 확인했습니다.').claims[0];
+  assert.equal(confirmation.verb, 'confirm');
+  assert.equal(confirmation.polarity, 'affirmative');
+  const denied = classifyIndexStatements('의미 검색 반영 pending 상태를 확인했다고 말할 수 없습니다.');
+  assert.equal(denied.affirmative, 0); assert.equal(denied.stateOnly, 0); assert.equal(denied.negated, 1);
+});
+
 test('each fresh memo request changes its correction while unchanged stored text cannot satisfy it', () => {
   const previous = { correction: 'already saved', recordId: 'result', ownedRecordIds: ['result'] };
   const next = newSavingIntent(previous, 'save-memo');

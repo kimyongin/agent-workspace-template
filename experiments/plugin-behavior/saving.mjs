@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
+import { entityProjectionMatches } from './entity-projection.mjs';
 export const savingModes = ['save-record', 'save-task', 'save-memo', 'save-failure', 'save-response-loss'];
 
 export function newSavingIntent(previous, mode) {
@@ -8,16 +9,23 @@ export function newSavingIntent(previous, mode) {
 // Structural language signals only. Preserve no answer text; independent stored
 // facts and actual trial review remain separate from this bounded classifier.
 export function classifyIndexStatements(text) {
-  const result = { affirmative: 0, negated: 0, claims: [] };
+  const result = { affirmative: 0, negated: 0, stateOnly: 0, claims: [] };
   for (const sentence of text.split(/[.!?;,\n]+|하지만|그러나|지만|(?<=[했됐었])고\s+/)) {
     const clause = sentence.replace(/[*_`#]/g, '');
-    if (!/(?:색인|인덱싱|검색\s*반영)/.test(clause) || !/완료|확인/.test(clause)) continue;
-    let polarity;
-    if (/확인하지|확인할\s*수\s*없|확인\s*못|확인되지|말할\s*수\s*없|주장하지|단정하지|추정하지|아직|미확인|불확실|는지|여부|완료되지|완료.{0,20}(?:않|못)/.test(clause)) polarity = 'negated';
-    else if (!/상태만\s*확인/.test(clause) && /(?:색인|인덱싱|검색\s*반영).{0,30}(?:완료했|완료됐|완료되었|완료되었습니다|확인했|확인됐|확인되었|확인되었습니다)/.test(clause)) polarity = 'affirmative';
+    const subject = /(?:색인|인덱싱|검색\s*반영)/.exec(clause);
+    if (!subject) continue;
+    // A preceding task's completion is not this index subject's predicate.
+    const tail = clause.slice(subject.index + subject[0].length), firstPredicate = /완료|확인/.exec(tail)?.[0];
+    if (!firstPredicate) continue;
+    const verb = firstPredicate === '완료' ? 'complete' : 'confirm';
+    const stateOnly = verb === 'confirm' && !/완료/.test(tail) && /(?:대기|pending|지연|미완|미색인).{0,15}상태(?:만|를|가|는|임을)?\s*확인했/i.test(tail);
+    let polarity, reason;
+    if (/확인하지|확인할\s*수\s*없|확인\s*못|확인되지|말할\s*수\s*없|주장하지|단정하지|추정하지|아직|미확인|불확실|는지|여부|완료되지|완료.{0,20}(?:않|못)/.test(tail)) { polarity = 'negated'; reason = 'index-claim-negated'; }
+    else if (stateOnly) { polarity = 'state-only'; reason = 'pending-state-observed'; }
+    else if (!/상태만\s*확인/.test(tail) && /^.{0,30}(?:완료했|완료됐|완료되었|완료되었습니다|확인했|확인됐|확인되었|확인되었습니다)/.test(tail)) { polarity = 'affirmative'; reason = verb === 'complete' ? 'index-completion-asserted' : 'index-confirmation-asserted'; }
     if (polarity) {
-      result[polarity]++;
-      result.claims.push({ subject: /색인|인덱싱/.test(clause) ? 'index' : 'search-reflection', polarity, verb: /완료/.test(clause) ? 'complete' : 'confirm', keywordQualified: /키워드|keyword|문자열\s*검색/i.test(clause), semanticQualified: /의미|semantic|임베딩/i.test(clause), sha256: createHash('sha256').update(clause).digest('hex') });
+      if (polarity === 'state-only') result.stateOnly++; else result[polarity]++;
+      result.claims.push({ subject: /색인|인덱싱/.test(subject[0]) ? 'index' : 'search-reflection', polarity, verb, predicate: polarity === 'state-only' ? 'state-observation' : verb === 'complete' ? 'completion' : 'confirmation', reason, keywordQualified: /키워드|keyword|문자열\s*검색/i.test(clause), semanticQualified: /의미|semantic|임베딩/i.test(clause), sha256: createHash('sha256').update(clause).digest('hex') });
     }
   }
   return result;
@@ -47,12 +55,7 @@ function unchangedEntities(before, after) {
   return before.entities.every(entity => {
     const current = after.entities.find(row => row.id === entity.id);
     if (!current || !equal(without(entity, ['tasks', 'records', 'principles']), without(current, ['tasks', 'records', 'principles']))) return false;
-    return ['tasks', 'records', 'principles'].every(kind => {
-      if (entity[kind] === undefined && current[kind] === undefined) return true;
-      const related = after[kind].filter(row => kind === 'principles' ? row.entity_id === entity.id : row.entity_ids?.includes(entity.id));
-      const items = related.toSorted((a, b) => b.updated_at.localeCompare(a.updated_at) || b.id.localeCompare(a.id)).slice(0, 5).map(({ id, title, updated_at }) => ({ id, title, updated_at }));
-      return equal(current[kind], { count: related.length, items });
-    });
+    return entityProjectionMatches(current, after, entity);
   });
 }
 

@@ -22,13 +22,20 @@ export interface RecordDraft extends TextDraft {
   entity_context?:EntityContext[];
   tag_ids:string[];
   occurred_at: string; // datetime-local
+  original_occurred_at?: string;
   applied_principle_ids: string[];
 }
 
 export const emptyRecord = (): RecordDraft => ({ title: "", summary: "", body: "", occurred_at: "", applied_principle_ids: [],tag_ids:[] });
 
 export function recordDraftFrom(r: { title: string; summary: string; body: string; occurred_at: string; applied_principle_ids?: string[];tag_ids?:string[];entity_id?:string|null;entity_ids?:string[];entity_context?:EntityContext[] }): RecordDraft {
-  return { title: r.title, summary: r.summary, body: r.body, occurred_at: toLocalInput(r.occurred_at), applied_principle_ids:r.applied_principle_ids??[],tag_ids:r.tag_ids??[],entity_ids:r.entity_ids??(r.entity_id?[r.entity_id]:[]),entity_context:r.entity_context??[] };
+  return { title: r.title, summary: r.summary, body: r.body, occurred_at: toLocalInput(r.occurred_at), original_occurred_at: r.occurred_at, applied_principle_ids:r.applied_principle_ids??[],tag_ids:r.tag_ids??[],entity_ids:r.entity_ids??(r.entity_id?[r.entity_id]:[]),entity_context:r.entity_context??[] };
+}
+
+/** The minute-only input must not truncate an untouched stored timestamp. */
+export function recordDraftTime(draft: RecordDraft): string | undefined {
+  return draft.original_occurred_at && draft.occurred_at === toLocalInput(draft.original_occurred_at)
+    ? draft.original_occurred_at : fromLocalInput(draft.occurred_at);
 }
 
 export function RecordFormModal(props: {
@@ -52,7 +59,7 @@ export function RecordFormModal(props: {
     title: draft.title,
     summary: draft.summary,
     body: draft.body,
-    occurred_at: fromLocalInput(draft.occurred_at),
+    occurred_at: recordDraftTime(draft),
     tag_ids:draft.tag_ids,
     ...(props.entityEditable===false?{}:{entity_ids:draft.entity_ids??(draft.entity_id?[draft.entity_id]:[])}),
   });
