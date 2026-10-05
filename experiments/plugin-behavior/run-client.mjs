@@ -15,6 +15,7 @@ import { assessPreparation } from './assess-preparation.mjs';
 import { hasOriginalRecord } from './original-record-proof.mjs';
 import { savingModes, savingPrompt, assessSaving, classifyIndexStatements } from './saving.mjs';
 import { openSavingTrial } from './saving-session.mjs';
+import { hasCompletedSharedSkillOutput } from './skill-output-proof.mjs';
 
 const repo = fileURLToPath(new URL('../../', import.meta.url));
 const [client, fixtureFile, mode = 'save', expectedCondition] = process.argv.slice(2);
@@ -94,6 +95,7 @@ const command = client === 'codex-cli' ? (process.env.CODEX_CLI_BINARY ?? 'codex
 const actualVersion = execFileSync(command, ['--version'], { encoding: 'utf8' }).trim();
 const args = client === 'codex-cli' ? codexArgs : claudeArgs;
 const checkoutMetadata = path => ({ path, revision: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: path, encoding: 'utf8' }).trim(), dirty: Boolean(execFileSync('git', ['status', '--porcelain'], { cwd: path, encoding: 'utf8' }).trim()) });
+const canonicalSharedSkill = await readFile(resolve(plugin, 'skills/workspace/SKILL.md'), 'utf8');
 const evidence = { client, mode, requested: { model, effort }, cliVersion: actualVersion, marketplaceName, availableSkillEvidence: client === 'codex-cli' ? 'CLI initialization does not expose skill inventory in known JSON events' : 'native initialization metadata below', eventTypes: {}, itemTypes: {}, skillReads: [], cachePolicy: 'unique native runtime materialization allowed; no manual installed cache edits', readsSkill: false, completedSkillRead: false, answer: { originalDetail: false, currentValue: false, sourceId: false, currentPrincipleId: false, taskId: false, uncertainty: false }, actualBackendModel: 'unexposed unless client metadata reports it', actualBackendEffort: 'unexposed', backendAllocatedRevision: allocatedBackendRevision, fixtureOriginRevision: fixture.serverRevision, marker: fixture.marker, sourceRevision: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: repo, encoding: 'utf8' }).trim(), productCheckout: checkoutMetadata(fixture.productSource ?? resolve(repo, 'plugins/workspace')), runnerCheckout: checkoutMetadata(repo), runnerSha256: createHash('sha256').update(await readFile(fileURLToPath(import.meta.url))).digest('hex'), dependencyProxy: Boolean(process.env.PREPARATION_MCP_PROXY), sharedSkillSha256: createHash('sha256').update(await readFile(resolve(plugin, 'skills/workspace/SKILL.md'))).digest('hex'), authentication: 'real local OAuth consent+PKCE token supplied by fixture; CLI-native OAuth unverified', connection: client === 'codex-cli' ? 'shared plugin skill with bundled MCP disabled; identical loopback direct session MCP uses bearer_token_env_var' : 'shared plugin-dir with bundled loopback MCP environment header', events: [] };
 let savingAnswer = '';
 function answerFacts(text = '') {
@@ -157,7 +159,15 @@ createInterface({ input: child.stdout }).on('line', (line) => {
     if (event.type === 'thread.started') evidence.threadId = event.thread_id;
     const item = event.item;
     if (item?.type === 'mcp_tool_call') { if (item.status === 'completed' && !item.error && !item.result?.isError) evidence.originalSourceRead ||= hasOriginalRecord(item.tool, item.result, fixture.record); evidence.events.push({ type: event.type, server: item.server, tool: item.tool, status: item.status }); }
-    if (item?.type === 'command_execution') { const path = ownSkillPath(item.command); const readsSkill = Boolean(path); if (readsSkill && item.status === 'completed') evidence.skillReads.push({ path, completed: item.exit_code === 0 }); evidence.readsSkill ||= readsSkill; evidence.completedSkillRead ||= readsSkill && item.status === 'completed' && item.exit_code === 0; evidence.events.push({ type: event.type, tool: 'command_execution', status: item.status, readsSkill }); }
+    if (item?.type === 'command_execution') {
+      const path = ownSkillPath(item.command), fullCanonicalOutput = hasCompletedSharedSkillOutput(item, canonicalSharedSkill);
+      const readsSkill = Boolean(path) || fullCanonicalOutput;
+      if (path && item.status === 'completed') evidence.skillReads.push({ path, completed: item.exit_code === 0 });
+      if (fullCanonicalOutput) evidence.skillReads.push({ via: 'completed-command-full-canonical-file', sharedSkillSha256: evidence.sharedSkillSha256, completed: true });
+      evidence.readsSkill ||= readsSkill;
+      evidence.completedSkillRead ||= path && item.status === 'completed' && item.exit_code === 0 || fullCanonicalOutput;
+      evidence.events.push({ type: event.type, tool: 'command_execution', status: item.status, readsSkill, fullCanonicalOutput });
+    }
     if (item?.type === 'agent_message') answerFacts(item.text);
     if (event.type === 'turn.completed') evidence.usage = event.usage;
     if (event.type === 'error' || event.type === 'turn.failed') evidence.events.push({ type: event.type });

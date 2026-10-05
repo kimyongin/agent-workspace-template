@@ -25,6 +25,8 @@ setup의 마지막 인수 `missing`은 이번 owner의 현재 원칙을 삭제�
 
 토큰 만료 전에 이번 fixture를 정리하거나 배정된 후속 검증을 마친다. 유지가 승인된 fixture도 새 대화에서 사용하고 token 만료 시 정상 로그인·동의를 다시 수행한다. 비밀 journal에 ID가 없는 응답 유실 DCR 등록은 자동 정리할 수 없으며, pending registration 자료를 보존해 환경 owner에게 인계한다. 다른 OAuth 등록이나 사용자에 대한 admin 조회·삭제로 추측하지 않는다.
 
+Codex가 동적 변수나 상대 경로로 스킬을 읽으면 명령 문자열에 정본 경로가 없을 수 있다. 이 경우 성공 종료한 native command의 실제 `aggregated_output`에 현재 시험 패키지의 완전한 SKILL 파일이 LF만 정규화한 형태로 포함됐는지 보조 확인한다. 경로를 추측하지 않고 canonical 파일 해시·fullCanonicalOutput·완료 여부만 보존한다. 원시 출력·명령 본문은 저장하지 않으며 스킬 이름·marker·부분 출력·행동 성공만으로 활성화했다고 판단하지 않는다. 이전 raw output이 없는 실패 실행에는 이 증거를 소급 적용하지 않는다.
+
 `proxy-preparation.mjs`는 배정된 55684→55621 loopback 검색 의존성만 다룬다. `semantic-failure`는 auto/semantic 검색만 실패시키고 나머지는 원본으로 전달한다. `index-delay`는 실제 keyword 검색의 자료를 그대로 사용하며 미색인 metadata를 주입한다. 이는 실제 backend의 색인 실패가 아닌 local adapter 조건이다. `PREPARATION_MCP_PROXY`는 이 배정 주소만 허용하고 독립 전후 조회는 원본 endpoint로 수행한다. 서비스 owner 배정 없이 proxy를 시작하지 않는다. 토큰·원시 stdout·검색 payload는 증거에 기록하지 않는다. 실행하지 않은 시나리오는 통과로 추정하지 않는다.
 
 fault 실행은 runner의 넷째 인수에 `semantic-failure` 또는 `index-delay`를 고정한다. runner는 proxy의 `/preparation-evidence`에서 mode·같은 instance·소스 해시·주입/keyword/원문 조회 counter를 전후 확인한다. 주입0, 사용자 안내 누락, 실제 keyword fallback 또는 정확한 source 원문 완료 누락은 실패다. missing/conflict는 해당 조건과 불확실성 안내도 필수다. 제품 checkout revision/dirty/공유 SKILL 해시, runner checkout, root가 배정한 실제 backend revision, fixture setup origin revision은 각각 보존한다. 과거 proof의 출처 표기를 바로잡을 때는 원본을 덮어쓰지 않고 별도 correction metadata를 쓴다.
