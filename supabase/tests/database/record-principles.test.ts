@@ -1,7 +1,7 @@
 import { assertEquals, assertRejects } from "@std/assert";
 import { SqlPrincipleUnitOfWork } from "../../functions/_shared/adapters/supabase/principle-store.ts";
 import { SqlUnitOfWork } from "../../functions/_shared/adapters/supabase/activity-store.ts";
-import { principleCreate, principleSave, principleUpdate } from "../../functions/_shared/contracts/principle.ts";
+import { principleCreate, principleSave } from "../../functions/_shared/contracts/principle.ts";
 import { recordCreate, recordUpdate } from "../../functions/_shared/contracts/record.ts";
 import * as p from "../../functions/_shared/core/principles/application.ts";
 import * as r from "../../functions/_shared/core/activity/application.ts";
@@ -11,7 +11,7 @@ const admin = connect(urls.admin, { max: 1 }),
   d = { uow: new SqlPrincipleUnitOfWork(sql) },
   rd = { uow: new SqlUnitOfWork(sql), clock: { now: () => new Date() } };
 dbTest(
-  "applied principle snapshot survives policy save/history correction/deletion; references stay owner scoped",
+  "applied principle snapshot survives current policy update/deletion; references stay owner scoped",
   async () => {
     const f = await fixtureOwner(admin), b = await fixtureOwner(admin);
     try {
@@ -24,17 +24,14 @@ dbTest(
       );
       const snapshot = record.applied_principle_snapshots;
       assertEquals(snapshot[0].body, "그때 본문");
-      await p.saveCurrentPrinciple(
+      const current = await p.saveCurrentPrinciple(
         d,
         a,
         principleSave.parse({ ...content, body: "새 기준", change_note: "갱신", expected_version: first.version }),
       );
-      const old = await p.correctPrinciple(
-        d,
-        a,
-        first.id,
-        principleUpdate.parse({ body: "과거 오타", change_note: "정정", expected_version: first.version }),
-      );
+      assertEquals(current.id, first.id);
+      assertEquals(current.body, "새 기준");
+      assertEquals(current.version, first.version + 1);
       assertEquals((await r.getRecord(rd, a, record.id)).applied_principle_snapshots, snapshot);
       const edited = await r.updateRecord(
         rd,
@@ -48,7 +45,8 @@ dbTest(
         }),
       );
       assertEquals(edited.applied_principle_snapshots, snapshot);
-      await p.deletePrinciple(d, a, old.id, old.version);
+      await p.deletePrinciple(d, a, current.id, current.version);
+      assertEquals((await p.currentPrinciple(d, a)).current, null);
       const after = await r.getRecord(rd, a, record.id);
       assertEquals(after.applied_principle_snapshots, snapshot);
       assertEquals(after.applied_principle_ids, []);
