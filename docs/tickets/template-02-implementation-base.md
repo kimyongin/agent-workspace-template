@@ -132,7 +132,7 @@ T02-4는 PRD의 중립적인 기본 앱을 구현하고, T02-5는 별도 복사�
 
 | 외부 자원 | 개발 중 대체 | 실연결 검증(자원 준비 후) |
 | --- | --- | --- |
-| 호스팅 Supabase 프로젝트 | 로컬 Supabase(Docker). migration·RLS·Edge Functions·OAuth 서버를 로컬에서 실행 | 2026-10-03 사용자 결정: 검증은 로컬에서 하고, 호스팅 프로젝트 `workspace-template`(서울)은 별도 격리 환경이 아닌 운영 환경으로 쓴다. 운영에는 사람이 지시할 때 migration 적용·Edge 배포를 하고, 배포 뒤에는 로그인·MCP 연결 같은 동작 확인만 한다. 데이터를 만들고 지우는 자동 테스트는 운영에서 돌리지 않는다. 배포 뒤 확인은 로그인·조회·MCP 연결(`tools/list`)까지 하고, 쓰기 확인이 필요하면 사람 본인 계정으로 한 건 만들고 확인 뒤 지운다. Supavisor 실서버·경로 삽입형 metadata·Edge 배포([남은 실험](template-02-t02-1-contracts.md#남은-실험-미완료))는 실험이 아니라 이 배포 확인 항목이다([기술 실험의 환경](../development/workflow.md#기술-실험)). 위험: 이 항목들은 첫 운영 배포에서 처음 확인된다. 운영 설정은 `supabase/config.toml`의 `[remotes.production]`에 두고 `config push` 전에 `config diff`로 바뀌는 항목을 확인한다. 운영은 이메일·비밀번호 가입을 끄고 Google 로그인만 쓴다. Google OAuth 클라이언트는 로컬과 같은 `workspace-template`을 쓰고 운영 콜백을 함께 등록한다. 임시 예외였던 "운영 Site URL·redirect가 로컬 웹"은 2026-10-03 GitHub Pages 배포(run 37101766617)와 `config push`로 해제했다. 운영 웹: https://kimyongin.github.io/agent-workspace-template/ |
+| 호스팅 Supabase 프로젝트 | 로컬 Supabase(Docker). migration·RLS·Edge Functions·OAuth 서버를 로컬에서 실행 | 2026-10-03 사용자 결정: 검증은 로컬에서 하고, 호스팅 프로젝트 `workspace-template`(서울)은 별도 격리 환경이 아닌 운영 환경으로 쓴다. 운영에는 사람이 지시할 때 migration 적용·Edge 배포를 하고, 배포 뒤에는 로그인·MCP 연결 같은 동작 확인만 한다. 데이터를 만들고 지우는 자동 테스트는 운영에서 돌리지 않는다. 배포 뒤 확인은 로그인·조회·MCP 연결(`tools/list`)까지 하고, 쓰기 확인이 필요하면 사람 본인 계정으로 한 건 만들고 확인 뒤 지운다. Supavisor 실서버·경로 삽입형 metadata·Edge 배포([남은 실험](template-02-t02-1-contracts.md#남은-실험-미완료))는 실험이 아니라 이 배포 확인 항목이다([기술 실험의 환경](../development/verification.md#기술-실험)). 위험: 이 항목들은 첫 운영 배포에서 처음 확인된다. 운영 설정은 `supabase/config.toml`의 `[remotes.production]`에 두고 `config push` 전에 `config diff`로 바뀌는 항목을 확인한다. 운영은 이메일·비밀번호 가입을 끄고 Google 로그인만 쓴다. Google OAuth 클라이언트는 로컬과 같은 `workspace-template`을 쓰고 운영 콜백을 함께 등록한다. 임시 예외였던 "운영 Site URL·redirect가 로컬 웹"은 2026-10-03 GitHub Pages 배포(run 37101766617)와 `config push`로 해제했다. 운영 웹: https://kimyongin.github.io/agent-workspace-template/ |
 | Google OAuth 클라이언트 | 로컬 Supabase Auth의 이메일·비밀번호 로그인. 웹은 개발용 로그인 폼을 `VITE_DEV_LOGIN=true`이고 Supabase 주소가 로컬일 때만 표시하며 운영 빌드에는 넣지 않는다. Google 로그인 버튼과 Supabase 설정 자리는 함께 구현한다 | 로컬: 2026-10-03 완료(revision `8eca4b4` + 이 설정 변경). Google Cloud의 웹 OAuth 클라이언트 `workspace-template`(테스트 사용자 모드), `supabase/.env`의 클라이언트 값으로 `npm run setup:local`. 확인: `/auth/v1/settings`의 `external.google`이 true, `/auth/v1/authorize?provider=google`의 Google 주소에 client_id와 등록한 콜백 포함, 실제 계정 로그인 뒤 세션 provider=google·`aud=authenticated`·client_id 없음, 그 토큰으로 `GET /tasks` 200·`POST /tasks` 201·목록 표시. 운영: 배포 뒤 로그인·조회 확인(위 행의 범위) |
 | Pinecone API 키 | T02-2는 임베딩을 호출하지 않는다. 색인 작업은 큐 등록까지만 하고 worker·검색은 T02-3에서 구현한다 | T02-3의 실험 3 |
 
@@ -363,7 +363,7 @@ HTTP/MCP의 같은 search 유스케이스가 제목·요약 의미 후보와 본
 
 ## 구현 인계와 완료 기록
 
-[AGENTS.md](../../AGENTS.md)와 [개발 스킬](../../.agents/skills/develop-agent-app/SKILL.md)을 읽고 현재 checkout·원격 revision·작업 변경·실행 환경을 확인한다. 기술 작업에는 해당 전문 지침과 실제 버전의 공식 자료를 사용한다.
+[AGENTS.md](../../AGENTS.md)와 [개발 스킬](https://github.com/kimyongin/agent-workspace-template/blob/2639a466feed874c0d8ddf393069c2b00661d39f/.agents/skills/develop-agent-app/SKILL.md)을 읽고 현재 checkout·원격 revision·작업 변경·실행 환경을 확인한다. 기술 작업에는 해당 전문 지침과 실제 버전의 공식 자료를 사용한다.
 
 단계별로 필요한 정본만 읽고 작은 기능 단위로 구현·검증한다. 다음 단계의 독립 작업이 가능하면 환경 제약 때문에 전체 진행을 중단하지 않는다. 필수 검증을 실행하지 못하면 정확한 revision·명령·환경·차단 원인을 남기고 그 항목을 완료 처리하지 않는다. 운영 DB를 테스트 대상으로 사용하지 않는다.
 

@@ -1,6 +1,6 @@
 # ADR-0007: 개발 에이전트 Codex·Claude Code 공용 정본
 
-- 상태: 채택 (소급 기록)
+- 상태: 대체됨([ADR-0011](0011-matt-skills-and-github-workflow.md)) (소급 기록)
 - 날짜: 2026-10-01
 
 ## 배경

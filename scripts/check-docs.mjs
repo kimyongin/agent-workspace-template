@@ -2,15 +2,15 @@
 // 저장소 텍스트 파일과 문서의 기본 규칙을 검사한다.
 // 사용: node scripts/check-docs.mjs [저장소 루트]
 // 검사: UTF-8 BOM 없음, LF 줄바꿈, 줄 끝 공백, 마지막 줄바꿈, 마크다운·HTML 내부 상대 링크,
-//       개발 스킬 정본과 Claude 연결 파일의 name·description 일치.
+//       공유 스킬 정본과 Claude 연결 파일의 metadata·호출 정책·연결 일치.
 
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-const SKILL_CANONICAL = ".agents/skills/develop-agent-app/SKILL.md";
-const SKILL_CLAUDE_LINK = ".claude/skills/develop-agent-app/SKILL.md";
+const SKILL_CANONICAL_ROOT = ".agents/skills";
+const SKILL_CLAUDE_ROOT = ".claude/skills";
 
 export function listFiles(root) {
   const out = execFileSync(
@@ -122,18 +122,34 @@ export function frontmatter(text) {
 }
 
 export function checkSkillLink(root) {
-  const canonicalPath = path.join(root, SKILL_CANONICAL);
-  const linkPath = path.join(root, SKILL_CLAUDE_LINK);
-  if (!existsSync(canonicalPath) && !existsSync(linkPath)) return [];
-  if (!existsSync(canonicalPath) || !existsSync(linkPath)) {
-    return [`${SKILL_CLAUDE_LINK}: 정본 스킬과 Claude 연결 파일 중 하나가 없다`];
+  const directories = (relative) => existsSync(path.join(root, relative))
+    ? readdirSync(path.join(root, relative), { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((entry) => entry.name)
+    : [];
+  const names = new Set([...directories(SKILL_CANONICAL_ROOT), ...directories(SKILL_CLAUDE_ROOT)]);
+  const problems = [];
+  for (const name of names) {
+    const canonical = `${SKILL_CANONICAL_ROOT}/${name}/SKILL.md`;
+    const link = `${SKILL_CLAUDE_ROOT}/${name}/SKILL.md`;
+    if (!existsSync(path.join(root, canonical)) || !existsSync(path.join(root, link))) {
+      problems.push(`${link}: 정본 스킬과 Claude 연결 파일 중 하나가 없다`);
+      continue;
+    }
+    const a = frontmatter(readFileSync(path.join(root, canonical), "utf8"));
+    const linkedText = readFileSync(path.join(root, link), "utf8");
+    const b = frontmatter(linkedText);
+    if (!a || !b) {
+      problems.push(`${link}: frontmatter를 읽을 수 없다`);
+      continue;
+    }
+    for (const key of ["name", "description", "disable-model-invocation"]) {
+      if (a[key] !== b[key]) problems.push(`${link}: ${key} 값이 정본(${canonical})과 다르다`);
+    }
+    const target = `../../../${canonical}`;
+    if (!markdownLinks(linkedText).some((entry) => entry.target === target)) {
+      problems.push(`${link}: 정본(${canonical}) 연결이 없다`);
+    }
   }
-  const a = frontmatter(readFileSync(canonicalPath, "utf8"));
-  const b = frontmatter(readFileSync(linkPath, "utf8"));
-  if (!a || !b) return [`${SKILL_CLAUDE_LINK}: frontmatter를 읽을 수 없다`];
-  return ["name", "description"]
-    .filter((key) => a[key] !== b[key])
-    .map((key) => `${SKILL_CLAUDE_LINK}: ${key} 값이 정본(${SKILL_CANONICAL})과 다르다`);
+  return problems;
 }
 
 export function checkRepo(root) {

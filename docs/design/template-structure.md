@@ -4,7 +4,7 @@
 
 이 문서는 파일의 위치, 모듈 이름과 새 도메인의 추가 위치를 정의한다. 제품 의미는 [제품 컨셉](../product/concept.md), 코드 판단 기준은 [설계 원칙](../architecture/principles.md), 실행 책임은 [아키텍처](../architecture/hexagonal-review.md)를 따른다.
 
-트리는 배치 제안이며 빈 디렉토리를 모두 미리 만드는 지시가 아니다. 기능별 구현 범위와 검증 조건은 해당 티켓에서 관리한다.
+트리는 배치 제안이며 빈 디렉토리를 모두 미리 만드는 지시가 아니다. 기능별 구현 범위와 검증 조건은 해당 GitHub issue/spec에서 관리한다.
 
 단일 저장소와 단일 웹 앱, 하나의 서버 코드 기반으로 시작한다. api, mcp와 비동기 worker는 같은 서버 코드를 조립하는 배포 진입점이다. 아래 search-index는 첫 worker의 예시다. 공통 및 앱별 업무 기능은 실제 이름으로 같은 위치에 추가한다.
 
@@ -16,11 +16,13 @@ agent-workspace-template/
 ├─ AGENTS.md                       # 개발 에이전트 작업 규칙(공통 정본)
 ├─ CLAUDE.md                       # Claude Code 진입점, AGENTS.md를 가져옴
 ├─ .gitattributes · .editorconfig  # UTF-8·LF 강제
-├─ .agents/skills/develop-agent-app/
-│  ├─ SKILL.md                     # 설계·개발·배포·운영 요청별 절차(정본)
-│  └─ agents/openai.yaml           # Codex 표시 정보
-├─ .claude/skills/develop-agent-app/
-│  └─ SKILL.md                     # Claude Code 발견용 연결 파일 → 정본
+├─ GLOSSARY.md                     # 도메인 용어 정본
+├─ .agents/skills/<skill>/          # Matt Pocock 공식 27개 공유 정본
+│  ├─ SKILL.md                     # 원본 작업 방법과 호출 정책
+│  ├─ agents/openai.yaml           # 원본 Codex 표시·호출 정보
+│  └─ <참조 자료·보조 파일>        # 원본의 상대 경로 유지
+├─ .claude/skills/<skill>/
+│  └─ SKILL.md                     # 원본 frontmatter와 정본 연결
 ├─ .env.example                    # 새 프로젝트의 설정 예시
 ├─ .github/workflows/              # 자동 검증과 배포
 ├─ .github/pull_request_template.md # PR 설명 양식
@@ -75,6 +77,7 @@ agent-workspace-template/
 ├─ experiments/                   # 기술 가정의 격리 실험(주제별 독립 폴더). 앱 코드가 아니며 앱이 가져오지 않음
 └─ docs/
    ├─ START-HERE.md
+   ├─ agents/                     # issue tracker·triage labels·domain 설정
    ├─ overview.html               # 목적·사용법·개발 방법·코드 구조의 그림 안내(정본 아님)
    ├─ product/                    # 목적과 사용자 시나리오
    ├─ architecture/               # 책임·호출·의존성·계약
@@ -84,12 +87,12 @@ agent-workspace-template/
    ├─ deployment/                 # 서비스 설정과 배포
    ├─ operations/                 # 점검·장애·백업·데이터 복구
    ├─ security/                   # 신뢰 경계·보호 규칙·보안 검증
-   └─ tickets/                    # 구현 범위·게이트·결과
+   └─ tickets/                    # 이전 계약·실험·검증 이력; 현재 작업은 GitHub Issues
 ```
 
 트리는 배치 기준이며 실제 파일은 소비하는 기능을 구현할 때 만든다. 작은 기능은 domain.ts, ports.ts 같은 파일로 시작하고 필요할 때 분리한다. 단위 테스트는 코드 옆에 둔다. activity의 태그 모델은 독립 책임이 필요해질 때 core/tags로 추출한다. 빈 폴더를 일괄 생성하지 않는다.
 
-웹의 공통 시각 토큰·타이포그래피·필드 스타일은 src/styles, 표현과 접근성 컴포넌트는 src/components, 기능별 데이터·초안·필터 상태는 src/features에 둔다. 실제 규격은 [디자인 가이드](guide.md)를 따른다. AGENTS.md와 개발 스킬은 이미 문서로 제공하며 첫 앱 구현에서 사용하는 가이드 진입점을 유지한다. CLAUDE.md와 .claude/skills는 Claude Code용 연결 파일이며 규칙을 복제하지 않는다.
+웹의 공통 시각 토큰·타이포그래피·필드 스타일은 src/styles, 표현과 접근성 컴포넌트는 src/components, 기능별 데이터·초안·필터 상태는 src/features에 둔다. 실제 규격은 [디자인 가이드](guide.md)를 따른다. AGENTS.md는 프로젝트 문맥을 연결하고 단계별 작업 방법은 [공유 스킬](../development/matt-skills.md)이 담당한다. CLAUDE.md와 .claude/skills는 Claude Code용 연결 파일이며 정본의 작업 방법을 복제하지 않는다.
 
 ## 이름과 확장
 
@@ -99,8 +102,8 @@ agent-workspace-template/
 - 검색 이름은 search다. HTTP 검색은 api의 /search에 둔다. search-index는 권한과 실행 계기가 다른 내부 작업이므로 분리한다. knowledge 접두어는 사용하지 않는다.
 - 웹은 업무 API 응답을 사용한다. DB 행 타입, 서버 bootstrap/adapters를 브라우저로 가져오지 않는다. API DTO·DB 행·도메인 모델을 구분하되 형식적인 변환 클래스를 의무화하지 않는다.
 - plugins/workspace는 MCP 연결과 제품 스킬을 함께 배포하는 플러그인 원본이다. manifest·연결 설정·스킬·참고 문서를 포함한다. 트리의 꺾쇠 항목은 설명용 자리이며 실제 파일명이 아니다. 지원 클라이언트는 Claude와 Codex로 확정했다. 각 클라이언트의 공식 형식과 endpoint/등록 앱 참조 방식을 확인한 뒤 실제 파일명을 문서화한다. 클라이언트별 manifest는 같은 skills/workspace를 참조하고 제품 스킬을 클라이언트별로 복제하지 않는다. 하나의 manifest가 모든 에이전트에 설치된다고 가정하지 않는다.
-- AGENTS는 개발 규칙, SKILL은 제품 사용 규칙, principles는 사용자 원칙 데이터다. 개발용 [코드 설계 원칙](../architecture/principles.md)과 다르다. workspace라는 제품 이름이 다중 조직·멤버십 모델을 자동으로 요구하지 않는다.
+- AGENTS는 프로젝트 개발 문맥, .agents/skills의 SKILL은 개발 방법, plugins/workspace의 SKILL은 제품 사용 규칙, principles는 사용자 원칙 데이터다. 개발용 [코드 설계 원칙](../architecture/principles.md)과 다르다. workspace라는 제품 이름이 다중 조직·멤버십 모델을 자동으로 요구하지 않는다.
 
 ## 다음 작업
 
-구현 순서와 단계별 범위는 [Template-02](../tickets/template-02-implementation-base.md)를 따르고, 소비하는 단계에서 해당 파일을 만든다. 할 일·기록·검색의 상세 계약은 [Template-01](../tickets/template-01-task-record-search.md)에 있다. 제품의 범위는 [PRD](../product/concept.md), 최신 구현 상태는 [시작 문서](../START-HERE.md)에서 확인한다.
+새 작업과 실제 진행 작업은 [GitHub Issues](https://github.com/kimyongin/agent-workspace-template/issues)에서 확인하고 필요한 기능의 파일을 만든다. [Template-02](../tickets/template-02-implementation-base.md)와 [Template-01](../tickets/template-01-task-record-search.md)은 이전 구현 범위와 할 일·기록·검색 계약의 근거다. 제품의 범위는 [PRD](../product/concept.md), 문서와 이전 근거의 진입점은 [START-HERE](../START-HERE.md)에서 확인한다.

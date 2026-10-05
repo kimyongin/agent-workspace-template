@@ -1,5 +1,5 @@
 # Generated project main model and subagent defaults; existing sessions need actual verification.
-# Preflight is mandatory; defaults alone do not check freshness/account support.
+# Defaults do not establish account support or change existing sessions.
 model = "gpt-6.1-sol"
 [agents]
 default_subagent_model = "gpt-6.1-sol"

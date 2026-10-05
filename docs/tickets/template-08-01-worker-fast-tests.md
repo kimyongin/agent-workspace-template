@@ -7,7 +7,7 @@
 
 ## 목표와 기준 문서
 
-사용자가 승인한 mock 우선 후속 작업 중 실제 `indexBatch`의 실패·재시도·오래된 결과 처리를 서비스 없이 확인한다. 제출 후 CI 조사에서 드러난 OAuth 동의 화면의 중복 조회 경합도 수정하고, id·사용자 변경과 늦은 응답을 포함한 요청 생명주기를 실제 React/SDK 회귀로 확인한다. [PRD](../product/concept.md), [ADR-0003](../adr/0003-core-rules-and-local-transactions.md)·[0004](../adr/0004-summary-single-vector-search.md), [검색 가이드](../architecture/search.md), [보안 가이드](../security/guide.md), [빠른 검사 규칙](../development/workflow.md#실행-검증)을 따른다. PRD·ADR 이탈이 필요하면 변경안으로 사람의 승인을 받는다.
+사용자가 승인한 mock 우선 후속 작업 중 실제 `indexBatch`의 실패·재시도·오래된 결과 처리를 서비스 없이 확인한다. 제출 후 CI 조사에서 드러난 OAuth 동의 화면의 중복 조회 경합도 수정하고, id·사용자 변경과 늦은 응답을 포함한 요청 생명주기를 실제 React/SDK 회귀로 확인한다. [PRD](../product/concept.md), [ADR-0003](../adr/0003-core-rules-and-local-transactions.md)·[0004](../adr/0004-summary-single-vector-search.md), [검색 가이드](../architecture/search.md), [보안 가이드](../security/guide.md), [빠른 검사 규칙](../development/verification.md#실행-검증)을 따른다. PRD·ADR 이탈이 필요하면 변경안으로 사람의 승인을 받는다.
 
 worker 검사에서 교체 대상은 outbound `IndexQueue`·`Embedder`뿐이다. 실제 worker가 업무 판단을 수행하며 작은 stub는 지정한 claim/source/응답과 호출 인자만 제공·기록한다. DB 잠금·visibility timeout·RLS·최신 해시 조건부 저장은 모사하지 않으며 기존 실제 DB worker 통합 검사가 그 보장을 확인한다. OAuth 회귀는 실제 App/StrictMode/SDK와 synthetic session을 실행하고 outbound Auth HTTP만 교체한다. migration·서버 인증 정책 변경·공급자 API 변경·운영/공유 서비스·유료 호출·T02-4 재개는 범위 밖이다.
 

@@ -1,56 +1,38 @@
-# 모델 선택표와 클라이언트 실행
+# 모델 선택과 클라이언트 실행
 
-정책은 [개발 방법](workflow.md#모델과-추론-강도-선택갱신), 값은 [선택표](agent-models.json)가 소유한다. 이 문서는 클라이언트별 연결만 설명한다. 선택표의 context는 비밀을 담지 않는 현재 계정·공급자·surface 식별자다. 다른 계정이나 설치에서는 복사해서 지원된 것으로 간주하지 않고 다시 확인한다.
+[프로젝트 모델 정책](workflow.md#모델과-추론-강도-선택갱신)은 Codex `gpt-6.1-sol`, Claude Code `claude-opus-5-5`를 사용한다. 일반 작업은 medium으로 시작하고 난이도·실패 근거에 따라 같은 모델의 강도를 조절한다. 값과 지원 확인 근거는 [선택표](agent-models.json)에 있다.
 
-## 배정 전 확인
+이 문서는 실행 환경 연결을 설명한다. Matt 스킬을 실행하기 위한 별도의 일일 점검·배정표·사전 승인 절차를 추가하지 않는다. 스킬의 작업 방법은 원문을 따른다.
 
-새 checkout에서는 Node 22 이상으로 `npm ci`를 먼저 실행해 lockfile에 고정한 TOML 편집·검증 의존성을 준비한다. 이후 아래 검사·배정 명령을 실행한다. 개인 전역 설정이나 추가 런타임 설치는 필요하지 않다.
+## 직접 실행
 
-개발일 첫 작업에서 계정·공급자·클라이언트별 실제 목록/도구 노출과 CLI 버전, 고정 ID의 actual 모델 및 새 후보를 한 번 읽고 아래 형식의 JSON을 저장소 밖 임시 파일에 만든다. 허용 ID 밖 후보는 발견 사실만 기록하며 평가 호출하지 않는다. 이 파일이 그날 재사용하는 조회 결과다. timeZone은 사용자가 명시한 IANA 시간대이며 observedAt은 시간대가 포함된 **실제 조회 시각**이다. 호스트 시간대로 추정하거나 복사한 자료에 현재 시각만 넣지 않는다. 배열의 effort도 실제 지원 확인 결과다. API 키·메일·토큰을 넣지 않는다. 스크립트는 snapshot과 선택표의 일치만 검사하므로 사람이 만든 허위 snapshot을 실제 공급자 증거로 보증하지 않는다.
+설치된 클라이언트의 실제 도움말·지원 목록에서 고정 ID와 강도를 확인한다. Desktop의 도구 목록은 CLI 지원 증거가 아니며, 설정 파일 생성만으로 이미 실행 중인 세션의 모델이 바뀌지 않는다.
 
-```json
-{
-  "client": "codex-desktop",
-  "version": "session-tool-catalog-2026-10-03",
-  "context": "owner-desktop-codex-tools",
-  "observedAt": "2026-10-03T12:00:00Z",
-  "timeZone": "Asia/Seoul",
-  "models": [{ "model": "gpt-6.1-sol", "actualModel": "gpt-6.1-sol", "efforts": ["low", "medium", "high", "xhigh", "max", "ultra"], "blocked": false }]
-}
-```
+- Codex CLI: `codex exec --model gpt-6.1-sol -c model_reasoning_effort=medium`. 설정 지원은 `--strict-config`로 검사할 수 있다.
+- Claude Code: `claude --model claude-opus-5-5 --effort medium`. 별칭·fallback 모델로 대체하지 않는다.
+- Desktop 서브 에이전트: 현재 도구가 지원하는 명시 모델·강도로 생성한다. 모델을 바꿀 수 없는 고정 profile이 정책 밖이면 다른 지원 경로를 사용한다. 전체 대화 상속이 override를 막는 환경에서는 좁은 인계와 `fork_turns="none"`을 사용한다.
+- 재개: 현재 도구가 동일 설정의 재개만 지원한다면 설정을 바꾸는 요청으로 실행값이 바뀌었다고 주장하지 않는다. 변경이 필요하면 지원되는 경로의 새 세션에 issue·현재 branch·남은 작업을 인계한다.
 
-client는 `codex-cli`, `codex-desktop`, `claude-cli` 중 실제 실행할 surface다. CLI의 `model/list`와 desktop의 도구 목록을 바꿔 쓰지 않는다. Codex는 app-server `initialize` 뒤 `model/list`를 페이지 끝까지 읽는다. Claude는 현재 공급자·별칭 해석·모델별 지원을 확인한다. CLI help에 effort 옵션이 있다는 사실만으로 모든 모델의 강도 지원을 입증하지 않는다.
+Native 역할 파일은 `.codex/agents/`, `.claude/agents/`에 있다. 역할 파일 존재와 실제 selector 지원은 별도로 확인한다. 실제 실행값이 노출되지 않으면 명시 배정값과 미확인을 구분한다. backend의 실제 추론 토큰·청구액도 별도 증거 없이 확인됐다고 쓰지 않는다.
+
+## 선택적 보조 도구
+
+새 checkout에서 `npm ci` 후 사용할 수 있다. 일반적인 스킬 호출에 이 도구 실행을 의무화하지 않는다.
 
 ```text
-node scripts/agent-models.mjs assign --client codex-cli --tier balanced --effort medium --role implement --reason "일반 구현" --snapshot <저장소 밖 현재 증거.json>
-node scripts/agent-models.mjs assign --client codex-desktop --tier balanced --effort high --role investigate --reason "복잡한 경계 조사" --snapshot <현재 증거.json>
-node scripts/agent-models.mjs assign --client claude-cli --tier balanced --effort medium --role review --reason "일반 리뷰" --snapshot <현재 증거.json>
+node scripts/agent-models.mjs check
+node scripts/agent-models.mjs sync
+node scripts/agent-models.mjs assign --client codex-desktop --tier balanced --effort medium --role implement --reason "일반 구현" --snapshot <저장소 밖 실제 조회.json>
 ```
 
-출력은 실행 명령이 아니라 검토할 **인자**다. 이를 실제 도구/CLI로 전달하고 역할·티켓·승인 범위를 prompt에 포함한다. 선택 근거와 역할은 필수이며 높은 강도에서도 생략하지 않는다. `--evaluate`는 허용 고정 ID의 작은 검증만 가능하며 actual ID·지원·조회 검사를 우회하지 못한다. 결과에 미검증 항목을 남긴다. snapshot은 미래가 아닌 사용자 현지 오늘의 조회여야 하며 자정이 지나면 첫 작업에서 다시 조회한다. 선택표 checkedAt은 기존 검증의 실제 시각으로 보존하며 쉬었던 기간만으로 만료되지 않는다. 계정·공급자·클라이언트가 달라지면 목록·버전·능력·근거를 재확인한다. 목록 조회와 후보 평가·실행 smoke의 근거는 구분한다. 이 명령은 LLM을 호출하거나 버전/설정/계정을 자동 변경하지 않는다.
+`check`는 선택표와 생성 설정의 일치를 검사한다. `sync`는 선택표에서 native 설정을 생성하며 소유하지 않는 설정 의미를 보존한다. 개인 global/local 설정은 고치지 않는다. `assign`은 LLM을 실행하지 않고 검토할 인자를 출력한다.
 
-## Codex
+`assign`을 사용하는 경우에는 그 도구가 요구하는 실제 조회 snapshot을 제공한다. client·version·context·observedAt·사용자 timeZone과 고정 모델 actualModel·지원 efforts를 넣는다. 당일 조회·계정/공급자/surface 일치 검사를 우회하기 위해 증거의 시각이나 지원 목록을 만들어 쓰지 않는다. 이 요건은 보조 도구의 입력 검증이며 프로젝트 전체에 새로운 의식을 강제하는 규칙이 아니다.
 
-[공식 설정](https://learn.chatgpt.com/docs/agent-configuration/subagents)은 `.codex/agents/*.toml`의 명시 모델/강도와 `.codex/config.toml`의 main `model`과 `[agents]` 균형 defaults를 지원한다. 설치 CLI에서 schema 지원과 actual 실행은 별도로 확인한다. custom 정의의 모델/강도는 explicit spawn보다 우선하므로 정의의 기본 강도와 다른 배정에 custom agent를 그대로 지정하지 않는다.
+모델 선택표를 바꾸는 경우 관련 지원·실행 증거와 설정을 함께 갱신한다. 지원되지 않는 고정 모델을 다른 모델로 몰래 대체하지 않는다. 실행 smoke를 품질·비용 평가 완료로 승격하지 않는다.
 
-- **desktop 직접 도구:** 현재 도구의 profile에 고정된 모델이 허용 ID인지 먼저 확인한다. task-light/task-balanced/task-advanced라는 이름이 같은 등급이라는 이유로 선택하지 않는다. 기존 profile이 5.6 계열로 고정됐다면 금지하며 worker/default 같은 일반 경로에 명시 `model`, `reasoning_effort`, `fork_turns="none"`를 출력대로 전달하고 좁은 인계를 준다. 대화 전체를 상속하면 model override가 허용되지 않는 현재 도구에서는 이 경로가 필요하다.
-- **desktop 재개:** 현재 `collaboration.followup_task`는 target/message만 받고 모델·강도 변경 인자가 없다. 같은 결합 설정이면 followup으로 이어가고, 변경이 필요하면 preflight 후 `spawn_agent`에 새 모델·강도와 `fork_turns="none"`를 명시해 좁은 티켓 인계로 새 세션을 만든다. 기존 child가 금지 모델이면 followup으로 계속하지 않는다. 생성 CLI 파일은 현재 Desktop 도구 metadata를 바꾸지 않는다. 기존 child에 preflight 출력이나 변경 요청을 보내는 것만으로 설정이 적용됐다고 하지 않는다.
-- **CLI 직접 새 세션:** 출력된 `argv`의 `codex exec --model … -c model_reasoning_effort=…`와 공통 정본 읽기 지시를 전달한다. 모델/강도가 다른 custom 정의는 선택하지 않는다. `codex exec --strict-config`로 설치 버전의 설정 오류를 드러낼 수 있다. parent session의 강도에 의존하지 않는다.
-- **CLI native child:** 0.160.0의 확인한 runtime에서는 `collaboration.spawn_agent`의 `task_name`, `message`, `fork_turns`, `model`, `reasoning_effort`로 직접 생성하고 같은 child의 `followup_task(target,message)`로 이어간다. 명시 `gpt-6.1-sol`/`medium`/`fork_turns="none"`의 실제 child와 두 turn의 로컬 metadata를 확인했다. custom 정의 selector는 기본 surface와 invocation-local multi_agent_v2 모두 미지원 보고였으므로 이 경로를 custom 정의 실행으로 표기하지 않는다. [현재 CLI 증거](../tickets/template-11-model-allowlist.md#업데이트-후-cli-실행-확인)에 직접 실행과 custom 미지원 범위를 구분한다.
-- **native custom agent:** 현재 schema가 정확한 custom 정의 선택을 지원하고 배정이 정의의 모델·기본 강도와 정확히 같을 때만 사용한다. 다른 강도는 위 직접 경로를 쓰거나 해당 배정용 정의를 별도 작업 공간에 생성·검증한다. 기본 세 등급 파일을 매 배정마다 덮어쓰지 않는다.
+## 기존 증거
 
-[model/list](https://learn.chatgpt.com/docs/app-server#list-models-modellist)는 계정/버전에 의존한다. Template-05와 Template-11 초기 0.147.0 목록에는 6.1이 없었고 실제 호출도 unsupported였다. 사용자 승인 업데이트 후 0.160.0에서 6.1/지원 강도 목록과 명시 medium 부모·child·같은 ID 재개를 확인했다. 현재 CLI 지원은 개발일마다 다시 조회하고, 오늘 목록에 허용 ID가 없으면 평가도 멈춘다. API 문서의 강도 지원이나 Desktop 목록은 CLI 계정 지원을 증명하지 않는다.
+[Template-11](../tickets/template-11-model-allowlist.md)과 [PR #84 완료 기록](https://github.com/kimyongin/agent-workspace-template/pull/84#issuecomment-5975318940)은 승인된 CLI 업데이트와 실제 실행·재개 결과를 보존한다. Codex 0.160.0의 명시 부모·child·동일 ID 재개와 Claude 2.1.289의 native 역할·child·동일 설정 재개를 확인한 기록이다. Codex custom selector, 다른 강도의 실행, backend effort·실청구액 등 미확인 항목을 설치 완료와 혼동하지 않는다. 과거 미지원 기록을 현재 모든 버전의 제한이라고 단정하지 않는다.
 
-## Claude Code
-
-[공식 subagent 정의](https://code.claude.com/docs/en/sub-agents)의 model frontmatter를 `.claude/agents/*.md`에 명시한다. 2.1.140의 고정 Opus 5.5 호출은 API400/min2.1.280으로 거부된 당시 이력이다. 사용자 승인 업데이트 후 2.1.289에서 `--model`, `--agent`, `--effort medium`과 실제 고정 ID 역할 시작·native child·부모/child 재개를 확인했다. 현재 생성 정의는 effort frontmatter를 사용하지 않으며 부모 CLI effort를 명시한다. 이 smoke의 child는 같은 부모 medium을 상속했으며 child/backend 실제 effort metadata는 별도 미관측이다. 검증된 출력 model/effort는 `claude --model … --effort …`로 전달한다. native 경로까지 확인한 경우에만 출력 agent를 `--agent …`로 함께 전달한다. `none`은 해당 모델이 조절 기능을 지원하지 않음을 확인했을 때만 사용한다. 선택표의 `direct-confirmed`는 직접 명시 CLI/도구 경로, `native-confirmed`는 agent 정의 경로까지 증거가 있는 상태이며 각각 executionEvidence가 필요하다.
-
-`CLAUDE_CODE_SUBAGENT_MODEL`은 이 설치 버전에서 정의보다 우선할 수 있으므로 설정되어 있으면 preflight가 거부한다. 부모의 호출에서도 이 환경이 비어 있는지 확인한다. 모델/추론 강도 변경 및 resume 직후 actual 모델을 다시 확인하고 불일치하면 중단한다. 2.1.289의 같은 고정 Opus/medium 부모 ID 재개와 `SendMessage`의 같은 task-balanced child 재개를 실제 확인했다. 모델·강도 변경 재개는 이번 범위 밖이며 과거 2.1.140 제약을 새 버전의 제약으로 재사용하지 않는다. 같은 설정의 재개도 실제 출력/세션 metadata를 대조하고 관찰되지 않은 값은 미확인으로 남긴다. 모델·강도를 바꿀 때는 명시 변경을 지원하고 적용을 확인할 수 있는 경로만 사용하며, 그렇지 않으면 검증된 직접 호출 인자로 새 세션에 좁은 티켓 인계를 준다. native 정의와 다른 모델을 지정해 검증된 native 경로라고 하지 않는다. 해석된 모델과 내부 보조 모델의 사용량은 구분한다. CLI가 effort를 수락한 사실과 backend의 실제 추론 토큰 검증도 구분한다.
-
-[모델 설정](https://code.claude.com/docs/en/model-config)에 따라 `opus` 별칭 대신 선택표의 고정 ID `claude-opus-5-5`를 명시한다. resolvedModel과 actualModel 모두 이 ID와 정확히 같아야 하며 pending 평가도 family/별칭 일치로 통과시키지 않는다. 자동 모델 전환·`--fallback-model`·부모 상속을 사용하지 않는다. 현재 CLI의 고정 ID·강도 지원은 실제 응답으로 확인한다. 공급자 내부 보조 모델의 사용량은 별도로 기록하며 이 정책이 내부 분류/보조 모델을 통제한다고 주장하지 않는다.
-
-본 대화에도 같은 허용 정책을 적용한다. 프로젝트 파일 생성은 기존 메인 세션의 실제 모델을 변경하지 않으므로 metadata를 확인하고 미관측 값은 미확인으로 보고한다. 명시 변경이 확인되지 않으면 새 허용 세션으로 인계한다.
-
-`sync`는 생성된 agent 파일들을 소유하지만 `.codex/config.toml`에서는 top-level `model`과 agents의 두 default 키만 소유한다. `.claude/settings.json`에서는 `model`만 소유하며 JSON 객체를 검증하고 나머지 설정의 의미를 보존한다. 이미 같은 값이면 원문을 그대로 유지한다. 개인 global/local override는 수정하지 않으며 실제 선택과 불일치하는 세션은 시작/재개를 멈춘다. [toml-patch 3.3.0 parse/patch](https://github.com/DecimalTurn/toml-patch/blob/v3.3.0/docs/API.md)의 실제 문법·서식 보존 편집과 [smol-toml 1.9.0 parse](https://github.com/squirrelchat/smol-toml)의 독립 검증을 사용한다. 원문과 변경 후보를 모두 parse하며 `check`는 main/agents의 parsed 세 값으로 판단한다. 공백·basic/literal quoted 표/키, dotted/inline 표, multiline 본문을 처리하고 다른 설정·지침의 의미와 주석 내용은 보존한다. 편집기는 표 header의 동등한 표기·공백을 다른 표에서도 정규화할 수 있으며 전체 파일의 동일 byte를 보장하지 않는다. 세 키 외 parsed 의미가 변한 후보, 중복·잘못된 문법, agents가 표가 아닌 구조, parser/patch가 안전하게 처리하지 못한 입력은 거부한다. `sync`는 모든 후보를 검증한 뒤 쓰므로 이 거부 시 원본과 다른 native 파일 모두 보존한다. 선택표 외 모델/추론 설정을 직접 고쳐 drift 검사를 우회하지 않는다.
-
-허용 정책 안의 후보를 `evaluation=passed`로 승격하려면 `evaluationEvidence`의 implementation/review/quality/cost에 각각 동일 revision의 과제·결과·비교·사용량/요금 근거 위치를 기록한다. 실행 성공만 확인한 현재 baseline에 이 상태를 붙이지 않는다.
+현재 installation smoke는 [#97](https://github.com/kimyongin/agent-workspace-template/issues/97)에 실제 버전·호출·정본 발견·제약을 기록한다.

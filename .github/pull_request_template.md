@@ -1,34 +1,23 @@
-## 사람이 결정할 것
+## Summary
 
-<!-- PRD·ADR을 바꾸거나 벗어나는 PR만 작성한다. 해당 없으면 "없음". -->
-없음
+<!-- pr 스킬처럼 해결할 문제와 변경 후 구조를 작은 diff·트리·그림으로 보여 준다. -->
 
-## 관련 문서
+- Issue: <!-- Closes #N, Related #N -->
+- PRD·ADR: <!-- 해당 없으면 없음. 대화에서 이미 합의한 변경이면 합의 범위와 문서를 연결한다. -->
 
-- 티켓: <!-- 예: Template-02 T02-2, PR 분할 계획의 몇 번째 PR인지 -->
-- PRD·ADR: <!-- 관련 항목 -->
+## Evidence
 
-## PRD·ADR 일치
+<!-- 변경 전/후 근거, 실행한 명령과 결과, revision을 기록한다. UI는 확인 화면을 연결한다. -->
 
-- [ ] PRD·ADR을 바꾸지 않고 벗어나지도 않는다 (해당하면 위 "사람이 결정할 것"에 적고 체크하지 않는다)
-- [ ] PRD·ADR·문서 구조·개발 흐름·용어를 바꿨다면 `docs/overview.html`과 `docs/glossary.md`도 맞췄다 (해당 없으면 체크)
+- **Before:**
+  **After:**
 
-## 변경 내용
+- 변경 영향 분류(docs/presentation/full)와 근거:
+- 실행 결과와 리뷰(Standards / Spec):
+- 실행하지 못한 검사와 이유:
 
--
+## Merge Danger
 
-## 검증
+**Door:** <!-- one-way / two-way -->
 
-<!-- 실행한 명령과 결과. 실행하지 못한 필수 검증은 이유와 함께 적는다. -->
-
-- 변경 영향 분류(docs/presentation/full)·근거:
-- 직접 검증·결과(presentation이면 대표 화면 viewport·키보드·초점 포함):
-- 생략한 검사·근거 또는 강제 full 결과:
-
-## 리뷰어가 볼 부분
-
--
-
-## 되돌리는 방법
-
-<!-- 예: 이 PR revert. DB migration·외부 설정이 있으면 별도 절차 -->
+**Blast Radius:** <!-- 영향 범위. migration·배포 등 후속 실행은 승인 범위와 구분한다. -->

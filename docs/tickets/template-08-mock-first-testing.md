@@ -9,7 +9,7 @@
 
 사용자는 기존 환경 격리 PR을 종료하고 mock 우선 방향으로 새 구현을 진행하도록 승인했다. 일상 업무 검증에서 공유 서비스 의존성을 줄이고 실제 인증·저장 보장은 기존 통합 CI에서 유지한다. 기존 PR #69의 미커밋 변경은 Git stash `9452a15f0cda04e070713884afa85bd9a03ba5d8`와 저장소 밖 `C:/Users/yongin/AppData/Local/Temp/template-pr69-preserved-93952042a80c46ebb6a758b720cb2b52`에 보존됐고 primary main checkout은 clean이다(메인 확인 인계). 기존 commit·실행 증거와 제출 snapshot은 보존하며 새 PR에 이전 lifecycle 구현을 옮기지 않는다.
 
-[PRD](../product/concept.md), [ADR-0001](../adr/0001-hexagonal-shared-usecases.md)·[0003](../adr/0003-core-rules-and-local-transactions.md)·[0006](../adr/0006-owner-only-access-and-separate-auth.md), [개발 방법](../development/workflow.md#실행-검증), [보안](../security/guide.md)을 따른다. PRD·ADR 이탈은 사람에게 변경안을 제시한다. migration·운영 DB/서비스·공급자 호출·실제 Google/OAuth·개발 환경 lifecycle·T02-4 재개는 범위 밖이다.
+[PRD](../product/concept.md), [ADR-0001](../adr/0001-hexagonal-shared-usecases.md)·[0003](../adr/0003-core-rules-and-local-transactions.md)·[0006](../adr/0006-owner-only-access-and-separate-auth.md), [개발 방법](../development/verification.md#실행-검증), [보안](../security/guide.md)을 따른다. PRD·ADR 이탈은 사람에게 변경안을 제시한다. migration·운영 DB/서비스·공급자 호출·실제 Google/OAuth·개발 환경 lifecycle·T02-4 재개는 범위 밖이다.
 
 ## 작업과 완료 조건
 
@@ -37,7 +37,7 @@ fixture는 이 직렬 흐름의 insert/get/update/delete·기록 연결 해제·
 
 ## 검증
 
-명령과 검사 역할은 [개발 방법](../development/workflow.md#실행-검증)이 정본이다. 구현 세션이 이 worktree에서 설치·검사·실패 조사·수정·재검증을 직접 담당한다. 실제 통합 DB는 로컬 개발 DB로 대체하지 않고 새 PR의 격리 CI 러너에서 실행한다. 제출 snapshot 결과는 아래 기록에 남긴다.
+명령과 검사 역할은 [개발 방법](../development/verification.md#실행-검증)이 정본이다. 구현 세션이 이 worktree에서 설치·검사·실패 조사·수정·재검증을 직접 담당한다. 실제 통합 DB는 로컬 개발 DB로 대체하지 않고 새 PR의 격리 CI 러너에서 실행한다. 제출 snapshot 결과는 아래 기록에 남긴다.
 
 ## 첫 PR 구현 인계와 완료 기록 (제출 snapshot)
 
