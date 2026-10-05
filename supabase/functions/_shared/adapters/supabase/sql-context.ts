@@ -6,6 +6,7 @@ import { AppError } from "../../core/shared/errors.ts";
 import { SEARCH_PIPELINE } from "../../core/search/config.ts";
 import type { ChangeInput } from "../../core/shared/changes.ts";
 import { searchInputHash } from "../../core/shared/operations.ts";
+import { basicChangeMemo } from "../../core/shared/change-memo.ts";
 
 const REQUEST_RETENTION = "7 days";
 export class SqlActorStore {
@@ -33,9 +34,7 @@ export class SqlActorStore {
     };
     const target = (input.after ?? input.before) as Record<string, unknown>;
     const target_title = String(target.prop1 ?? target.title ?? "");
-    const words = { create: "등록", update: "수정", delete: "삭제", stop: "중단", resume: "재개" };
-    const title = `${Array.from(target_title).slice(0, 90).join("")} ${words[input.action]}`;
-    const summary = Array.from(input.change_note ?? title).slice(0, 300).join("");
+    const { title, summary, body } = input.change_memo ?? basicChangeMemo(input);
     // Only typed domain results enter this snapshot. Actor credentials never enter it.
     const metadata = {
       event_id: crypto.randomUUID(),
@@ -55,7 +54,7 @@ export class SqlActorStore {
       : target.entity_id ?? null;
     const [row] = await this
       .tx`insert into app.records(owner_id,entity_id,title,summary,body,record_kind,change_note,change_metadata)
-      values(${this.actor.userId},${entity as string | null},${title},${summary},'', 'change',${
+      values(${this.actor.userId},${entity as string | null},${title},${summary},${body}, 'change',${
       input.change_note ?? null
     },${this.tx.json(metadata as never)}) returning id`;
     await this.enqueueIndex({

@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { Field, Notice } from "./Field.tsx";
 import { ModalShell, SurfaceContext } from "./Modal.tsx";
 import { ApiError, isUncertain } from "../lib/api.ts";
+import { changeMemo, type ChangeMemo } from "@contracts/change.ts";
 
 export interface TextDraft {
   title: string;
@@ -59,12 +60,14 @@ interface FormModalProps {
   /** 경로 폐기는 이동 없이 편집만 닫는다. onClose가 이동하면 별도 콜백이 필요하다. */
   onRouteDiscard?: () => void;
   /** 검증·저장. 실패하면 throw하고 초안은 유지된다. */
-  onSubmit: () => Promise<void>;
+  onSubmit: (memo?: ChangeMemo) => Promise<void>;
+  prepare?: () => Promise<ChangeMemo>;
+  previewKey?: string;
   validate: () => Record<string, string> | null;
   children: (errors: Record<string, string>) => ReactNode;
 }
 
-export function FormModal({ title, open, submitLabel, dirty, onClose, onRouteDiscard, onSubmit, validate, children }: FormModalProps) {
+export function FormModal({ title, open, submitLabel, dirty, onClose, onRouteDiscard, onSubmit, prepare, previewKey, validate, children }: FormModalProps) {
   const [busy, setBusy] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [failure, setFailure] = useState<string | null>(null);
@@ -72,6 +75,9 @@ export function FormModal({ title, open, submitLabel, dirty, onClose, onRouteDis
   const surface = useContext(SurfaceContext);
   const [uncertain, setUncertain] = useState(false);
   const submitting = useRef(false);
+  const [memo, setMemo] = useState<ChangeMemo | null>(null);
+  const key = useRef(previewKey);
+  if(key.current!==previewKey){key.current=previewKey; if(memo)setMemo(null);}
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -82,30 +88,39 @@ export function FormModal({ title, open, submitLabel, dirty, onClose, onRouteDis
     submitting.current = true; setBusy(true);
     setFailure(null);
     try {
-      await onSubmit();
+      if(prepare&&!memo){setMemo(changeMemo.parse(await prepare()));return;}
+      if(memo){const parsed=changeMemo.safeParse(memo);if(!parsed.success){setFailure("기록 메모의 제목·요약과 길이를 확인하세요.");return;}}
+      await onSubmit(memo??undefined);
     } catch (err) {
-      setUncertain(isUncertain(err));
+      setUncertain((!prepare||!!memo)&&isUncertain(err));
       setErrors(serverFieldErrors(err));
-      setFailure(saveErrorMessage(err));
+      setFailure(prepare&&!memo ? `${err instanceof ApiError?err.message:"기본 메모를 불러오지 못했습니다."} 아직 저장하지 않았습니다.` : saveErrorMessage(err));
     } finally {
       submitting.current = false; setBusy(false);
     }
   };
 
   const footer = <>
-    <button type="submit" form={formId} className="btn btn-primary" disabled={busy}>{busy ? "저장 중…" : uncertain ? "같은 내용 다시 시도" : submitLabel}</button>
+    <button type="submit" form={formId} className="btn btn-primary" disabled={busy}>{busy ? "처리 중…" : uncertain ? "같은 내용 다시 시도" : prepare ? memo ? "확인하고 저장" : "기록 메모 확인" : submitLabel}</button>
   </>;
   const callbacks = useRef({onClose, onRouteDiscard}); callbacks.current = {onClose, onRouteDiscard};
   const register = surface?.register;
   useLayoutEffect(() => {
     if (!register || !open) return;
-    register({title, dirty: dirty || uncertain, busy, footer,
+    register({title, dirty: dirty || uncertain || !!memo, busy, footer,
       onClose: () => callbacks.current.onClose(), onRouteDiscard: () => (callbacks.current.onRouteDiscard ?? callbacks.current.onClose)()});
     return () => register(null);
-  }, [register, open, title, dirty, uncertain, busy, formId, submitLabel]);
+  }, [register, open, title, dirty, uncertain, busy, formId, submitLabel, memo, prepare]);
   const form = <form id={formId} className="form" onSubmit={submit} noValidate>
     {failure && <Notice kind="error">{failure}</Notice>}
-    <fieldset disabled={busy || uncertain} style={{border:0,padding:0,margin:0,minWidth:0}} className="form">{children(errors)}</fieldset>
+    <fieldset disabled={busy || uncertain} style={{border:0,padding:0,margin:0,minWidth:0}} className="form">{children(errors)}
+      {memo&&<section aria-label="저장할 기록 메모" className="panel">
+        <h2 className="section-title">저장할 기록 메모</h2><p className="help">아직 저장하지 않았습니다. 확인 가능한 사실로 작성한 기본 메모를 보충한 뒤 업무 변경과 함께 저장합니다.</p>
+        <Field label="기록 제목" required>{p=><input {...p} className="input" value={memo.title} onChange={e=>setMemo({...memo,title:e.target.value})}/>}</Field>
+        <Field label="기록 요약" required>{p=><textarea {...p} className="input" rows={3} value={memo.summary} onChange={e=>setMemo({...memo,summary:e.target.value})}/>}</Field>
+        <Field label="기록 본문">{p=><textarea {...p} className="input" rows={6} value={memo.body} onChange={e=>setMemo({...memo,body:e.target.value})}/>}</Field>
+      </section>}
+    </fieldset>
   </form>;
   useLayoutEffect(() => {
     if(Object.keys(errors).length)document.getElementById(formId)?.querySelector<HTMLElement>("[aria-invalid='true']")?.focus();
@@ -116,7 +131,7 @@ export function FormModal({ title, open, submitLabel, dirty, onClose, onRouteDis
     <ModalShell
       title={title}
       open={open}
-      dirty={dirty || uncertain}
+      dirty={dirty || uncertain || !!memo}
       busy={busy}
       onClose={onClose}
       onRouteDiscard={onRouteDiscard}
@@ -127,8 +142,8 @@ export function FormModal({ title, open, submitLabel, dirty, onClose, onRouteDis
   );
 }
 
-export function ChangeNoteField({value, onChange, required = false, error}: {value: string; onChange: (value: string) => void; required?: boolean; error?: string}) {
-  return <Field label={required ? "편집 메모" : "이유 (선택)"} required={required} error={error} help="무엇을 왜 바꾸는지 남깁니다. 1,000자 이하">
+export function ChangeNoteField({value, onChange, required = false, error, label}: {value: string; onChange: (value: string) => void; required?: boolean; error?: string;label?:string}) {
+  return <Field label={label??(required ? "편집 메모" : "이유 (선택)")} required={required} error={error} help="무엇을 왜 바꾸는지 남깁니다. 1,000자 이하">
     {p => <textarea {...p} className="input" rows={3} value={value} onChange={e => onChange(e.target.value)} />}
   </Field>;
 }

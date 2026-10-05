@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { editMeta, mutationMeta } from "./change.ts";
+import { businessMeta } from "./change.ts";
 import { tagIds } from "./tag.ts";
 import { expectedVersion, id, isoDate, isoDateTime, page, pageInput, requestId, text } from "./common.ts";
 
@@ -11,7 +11,7 @@ const properties = {
   prop4: z.enum(["a", "b", "c"]),
 };
 export const entityCreate = z.strictObject({
-  ...mutationMeta,
+  ...businessMeta,
   tag_ids: tagIds.optional(),
   ...properties,
   prop2: properties.prop2.default(null),
@@ -20,16 +20,19 @@ export const entityCreate = z.strictObject({
   request_id: requestId.optional(),
 });
 export const entityUpdate = z.strictObject({
-  ...editMeta,
+  ...businessMeta,
   tag_ids: tagIds.optional(),
   prop1: properties.prop1.optional(),
   prop2: properties.prop2.optional(),
   prop3: properties.prop3.optional(),
   prop4: properties.prop4.optional(),
   expected_version: expectedVersion,
-}).refine((v) => Object.keys(v).some((k) => !["expected_version", "change_note", "request_id"].includes(k)), {
-  message: "바꿀 필드가 없습니다",
-});
+}).refine(
+  (v) => Object.keys(v).some((k) => !["expected_version", "change_note", "change_memo", "request_id"].includes(k)),
+  {
+    message: "바꿀 필드가 없습니다",
+  },
+);
 export const entityListQuery = z.strictObject({
   tag_id: id.optional(),
   ...pageInput,

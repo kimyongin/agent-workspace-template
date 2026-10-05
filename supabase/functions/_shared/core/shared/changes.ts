@@ -1,10 +1,12 @@
 import type { ChangeMetadata } from "../../contracts/change.ts";
+import type { ChangeMemo } from "../../contracts/change.ts";
 export interface ChangeInput {
   target_kind: ChangeMetadata["target_kind"];
   action: ChangeMetadata["action"];
   before: object | null;
   after: object | null;
   change_note?: string;
+  change_memo?: ChangeMemo;
 }
 export interface ChangeStore {
   appendChange(input: ChangeInput): Promise<void>;

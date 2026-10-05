@@ -1,7 +1,7 @@
 // 할 일(Task)·반복 할 일 계약. 정본: docs/tickets/template-02-t02-1-contracts.md "할 일", "반복 할 일".
 // HTTP 입력 검증·MCP inputSchema·웹 폼이 이 정의를 함께 쓴다. zod만 가져온다.
 import { z } from "zod";
-import { editMeta, mutationMeta } from "./change.ts";
+import { businessMeta, mutationMeta } from "./change.ts";
 import {
   body,
   expectedVersion,
@@ -59,7 +59,7 @@ export type Recurrence = z.infer<typeof recurrence>;
 export const taskCreate = z.discriminatedUnion("kind", [
   z.strictObject({
     kind: z.literal("once"),
-    ...mutationMeta,
+    ...businessMeta,
     entity_id: id.nullable().optional(),
     tag_ids: tagIds.optional(),
     title,
@@ -70,7 +70,7 @@ export const taskCreate = z.discriminatedUnion("kind", [
   }),
   z.strictObject({
     kind: z.literal("recurring"),
-    ...mutationMeta,
+    ...businessMeta,
     entity_id: id.nullable().optional(),
     tag_ids: tagIds.optional(),
     title,
@@ -86,7 +86,7 @@ export type TaskCreate = z.infer<typeof taskCreate>;
 /** 내용 필드만 고친다. `kind`·`status`·시각 등 서버 관리 필드는 strict로 거부된다. */
 export const taskUpdate = z
   .strictObject({
-    ...editMeta,
+    ...businessMeta,
     expected_version: expectedVersion,
     entity_id: id.nullable().optional(),
     tag_ids: tagIds.optional(),
@@ -97,12 +97,15 @@ export const taskUpdate = z
     recurrence: recurrence.optional(),
     timezone: timezone.optional(),
   })
-  .refine((v) => Object.keys(v).some((k) => !["expected_version", "change_note", "request_id"].includes(k)), {
-    message: "바꿀 필드가 없습니다",
-  });
+  .refine(
+    (v) => Object.keys(v).some((k) => !["expected_version", "change_note", "change_memo", "request_id"].includes(k)),
+    {
+      message: "바꿀 필드가 없습니다",
+    },
+  );
 export type TaskUpdate = z.infer<typeof taskUpdate>;
 
-export const versionOnly = z.strictObject({ expected_version: expectedVersion, ...mutationMeta });
+export const versionOnly = z.strictObject({ expected_version: expectedVersion, ...businessMeta });
 
 /** 일회성 할 일 완료: 결과 기록 내용과 함께 한 트랜잭션으로 저장한다. */
 export const taskComplete = z.strictObject({
