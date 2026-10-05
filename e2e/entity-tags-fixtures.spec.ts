@@ -78,7 +78,7 @@ test("실제 App에서 태그 dirty 주 탐색·뒤로가기·앞으로가기 �
   await page.goto("/e2e/fixtures/entity-tags-app.html"); await expect(page.getByRole("heading", { name: "할 일", exact: true })).toBeVisible();
   await tagManagement(page);
   await page.getByRole("button", { name: "태그 추가", exact: true }).click(); await page.getByRole("textbox", { name: /태그 이름/ }).fill("앱 초안");
-  await page.getByRole("navigation", { name: "주 메뉴" }).getByRole("link", { name: "활동", exact: true }).evaluate((el:HTMLAnchorElement)=>el.click());
+  await page.getByRole("navigation", { name: "주 메뉴" }).getByRole("link", { name: "할 일", exact: true }).evaluate((el:HTMLAnchorElement)=>el.click());
   const discard = page.getByRole("dialog", { name: "변경을 버릴까요?" }); await discard.getByRole("button", { name: "취소", exact: true }).click();
   await expect(page).toHaveURL(/\/tags\/activity\?create=1$/); await expect(page.getByRole("textbox", { name: /태그 이름/ })).toHaveValue("앱 초안");
   await page.goBack(); await discard.getByRole("button", { name: "취소", exact: true }).click(); await expect(page).toHaveURL(/\/tags\/activity\?create=1$/);
@@ -94,7 +94,7 @@ test("실제 App에서 태그 dirty 주 탐색·뒤로가기·앞으로가기 �
   await expect(page.getByRole("dialog",{name:"할 일 추가",exact:true})).toBeVisible();
   await settings(page);await expect(page).toHaveURL(/\/settings$/);await page.goBack();
   const form = page.getByRole("dialog", { name: "할 일 추가", exact: true });await form.getByRole("textbox",{name:/^제목(?: \(필수\))?$/}).fill("새 초안");
-  await page.goForward(); await discard.getByRole("button", { name: "취소", exact: true }).click(); await expect(page).toHaveURL(/\/tasks\?create=task$/); await expect(form.getByRole("textbox",{name:/^제목(?: \(필수\))?$/})).toHaveValue("새 초안");
+  await page.goForward(); await discard.getByRole("button", { name: "취소", exact: true }).click(); await expect(page).toHaveURL(/\/tasks\?create=1$/); await expect(form.getByRole("textbox",{name:/^제목(?: \(필수\))?$/})).toHaveValue("새 초안");
 });
 test("실제 App 공통 모달 생성·직접 편집 성공/취소·저장 중 POP 취소", async ({ page }) => {
   let current = { ...task }, hold = false, release = () => {}, arrived = () => {}; const started = new Promise<void>(resolve => { arrived = resolve; }); const warnings: string[] = [];
@@ -108,12 +108,12 @@ test("실제 App 공통 모달 생성·직접 편집 성공/취소·저장 중 P
   });
   await page.goto("/e2e/fixtures/entity-tags-app.html"); await expect(page.getByRole("heading", { name: "할 일", exact: true })).toBeVisible();
   await tagManagement(page);
-  await page.getByRole("navigation", { name: "주 메뉴" }).getByRole("link", { name: "활동", exact: true }).click();
+  await page.getByRole("navigation", { name: "주 메뉴" }).getByRole("link", { name: "할 일", exact: true }).click();
   await beginTabAction(page,"할 일 추가"); let form = page.getByRole("dialog", { name: "할 일 추가", exact: true }); await form.getByRole("textbox",{name:/^제목(?: \(필수\))?$/}).fill("생성 결과"); await form.getByRole("textbox",{name:/^요약(?: \(필수\))?$/}).fill("생성 요약");
   await fixtureMemoPreview(page);
   hold = true; await saveWithMemo(page, form, "추가"); await expect(form.getByRole("button", { name: "처리 중…", exact: true })).toBeDisabled();
   await started;
-  await page.goBack(); await expect(page).toHaveURL(/\/tasks\?create=task$/); await expect(page.getByRole("dialog", { name: "변경을 버릴까요?" })).not.toBeVisible();
+  await page.goBack(); await expect(page).toHaveURL(/\/tasks\?create=1$/); await expect(page.getByRole("dialog", { name: "변경을 버릴까요?" })).not.toBeVisible();
   release(); await expect(page).toHaveURL(new RegExp(`/tasks/${task.id}\\?list=`)); await expect(form).not.toBeVisible();
   await page.getByRole("button", { name: "닫기", exact: true }).click(); await page.getByRole("link", { name: "생성 결과 편집", exact: true }).click();
   form = page.getByRole("dialog", { name: "할 일 편집", exact: true }); await form.getByRole("button", { name: "닫기", exact: true }).click(); await expect(page).toHaveURL(/\/tasks\?/); await expect(form).not.toBeVisible();

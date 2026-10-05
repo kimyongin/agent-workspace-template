@@ -244,7 +244,7 @@ for (
     expect(await page.evaluate(() => window.scrollY)).toBe(readingScroll);
     await expect(readingRow).toBeInViewport();
     expect((await readingRow.boundingBox())!.y).toBeCloseTo(readingY, 1);
-    expect(new URL(page.url()).searchParams.get(`${path}_pages`)).toBe("251");
+    expect(new URL(page.url()).searchParams.get("pages")).toBe("251");
     expect(reads).toEqual([...Array.from({ length: 250 }, (_, index) => index), 250, 250]);
     await page.locator(`#activity-${path}-page-control`).click();
     await expect(page.locator(`.${path} .list .item-title`)).toHaveCount(252);

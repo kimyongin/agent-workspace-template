@@ -16,11 +16,20 @@ async function layoutProblems(page: Page) {
     }
     const targets = document.querySelectorAll<HTMLElement>("button, a, input, textarea, select");
     for (const el of targets) {
-      const r = el.getBoundingClientRect();
+      let r = el.getBoundingClientRect();
       if (r.width === 0 || r.height === 0) continue; // 숨은 요소(닫힌 대화상자 등)
       if (el.closest(".markdown")) continue; // 본문 속 링크는 글자 크기를 따른다
       const inline = el.tagName === "A" && !el.classList.contains("btn") && getComputedStyle(el).display === "inline";
       if (inline) continue; // 문장 속 링크는 가이드상 예외(텍스트 조작)
+      // Native checkbox/radio glyphs use their associated label as the real pointer target.
+      if (el instanceof HTMLInputElement && ["checkbox", "radio"].includes(el.type)) {
+        const label = [...(el.labels ?? [])].find(label => {
+          const box = label.getBoundingClientRect();
+          return box.width >= r.width && box.height >= r.height && box.left <= r.left && box.right >= r.right
+            && box.top <= r.top && box.bottom >= r.bottom;
+        });
+        if (label) r = label.getBoundingClientRect();
+      }
       if (r.height < 43.5 || (el.tagName !== "INPUT" && el.tagName !== "TEXTAREA" && r.width < 43.5)) {
         problems.push(`작은 조작 영역 ${el.tagName} "${(el.textContent || el.getAttribute("aria-label") || "").trim().slice(0, 20)}" ${Math.round(r.width)}x${Math.round(r.height)}`);
       }
@@ -96,7 +105,7 @@ test.describe("화면 폭별 배치", () => {
 test("키보드만으로 할 일을 만들고, 미저장 내용이 있으면 닫기 전에 확인한다", async ({ page, isMobile }) => {
   test.skip(isMobile, "키보드 흐름은 데스크톱에서 본다");
   await devLogin(page);
-  const add = page.getByRole("button", { name: "활동 작업 메뉴" });
+  const add = page.getByRole("button", { name: "할 일 작업 메뉴" });
   await add.focus();
   await page.keyboard.press("Enter");
   await page.keyboard.press("ArrowDown");await page.keyboard.press("Enter");

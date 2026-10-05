@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router";
-import { searchInput, type SearchResult } from "@contracts/search.ts";
+import { type SearchResult } from "@contracts/search.ts";
 import { Field, Notice } from "../../components/Field.tsx";
 import { api } from "../../lib/api.ts";
 import { formatDateTime } from "../../lib/format.ts";
-import { TagFilter } from "../tags/TagPicker.tsx";
+import { TagFilter, TagNames } from "../tags/TagPicker.tsx";
 import { EntityPicker } from "../entity/EntityPicker.tsx";
+import { workspaceSearchScope } from "./search-scope.ts";
+import { activityTags } from "../activity/activity-filters.ts";
 const kinds={task:"할 일",record:"기록",principle:"원칙"} as const;
 export function SearchPage(){
   const composing=useRef(false);
@@ -18,12 +20,7 @@ export function SearchPage(){
   const searchParams=new URLSearchParams(params);searchParams.delete("pages");searchParams.delete("scroll");
   const key=searchParams.toString(),q=params.get("q")??"",tag=params.get("tag_id")??"";
   const requested=Number(params.get("pages")??1),pages=Number.isSafeInteger(requested)&&requested>0?Math.min(requested,1000):1;
-  const input=()=>({...searchInput.parse({query:q, ...(tag?{tag_id:tag}:{}), ...(params.get("entity_id")?{entity_id:params.get("entity_id")}:{}), mode:params.get("mode")??"auto",
-    status:params.get("status")??"active", ...(params.get("kind")?{kinds:[params.get("kind")]}:{}),
-    ...(params.get("from")?{from:new Date(params.get("from")!).toISOString()}:{}),
-    ...(params.get("to")?{to:new Date(params.get("to")!).toISOString()}:{}),}),
-    ...(params.get("record_kind")?{record_kind:params.get("record_kind")} : {}),
-    principle_view:params.get("principle_view")??(params.get("status")==="inactive"?"history":params.get("status")==="all"?"all":"current")});
+  const input=()=>workspaceSearchScope(params);
   useEffect(()=>{
     let alive=true;const current=++generation.current;setDraft(q);setError(null);focused.current="";
     const controller=new AbortController();pending.current=controller;
@@ -75,7 +72,10 @@ export function SearchPage(){
       <Field label="원칙 범위">{p=><select {...p} className="input" value={params.get("principle_view")??(params.get("status")==="inactive"?"history":params.get("status")==="all"?"all":"current")} onChange={e=>{const p=new URLSearchParams(params);p.delete("status");p.delete("pages");p.delete("scroll");p.set("principle_view",e.target.value);setParams(p);}}><option value="current">현재</option><option value="history">과거본</option><option value="all">전체</option></select>}</Field>
       <Field label="검색 방식">{p=><select {...p} className="input" value={params.get("mode")??"auto"} onChange={e=>change("mode",e.target.value)}><option value="auto">자동</option><option value="keyword">키워드</option></select>}</Field>
     </div>
-    <TagFilter value={tag} onChange={id=>change("tag_id",id)}/>
+    <p className="help">현재 원칙은 원칙 탭에서 확인하고, 과거 변경과 근거는 기록을 검색해 원문을 읽으세요.</p>
+    {(params.get("principle_view")==="history"||params.get("principle_view")==="all"||params.get("status")==="inactive"||params.get("status")==="all")&&<Notice>기존 원칙 보존 자료를 포함하는 검색입니다. 과거 문서를 현재 기준으로 사용하지 마세요.</Notice>}
+    {params.has("tag_ids")&&<div className="form"><TagNames ids={activityTags(params)}/><button type="button" className="btn" onClick={()=>change("tag_ids","")}>저장된 태그 조건 해제</button></div>}
+    <TagFilter value={tag} onChange={id=>{const next=new URLSearchParams(params);next.delete("tag_ids");next.delete("pages");next.delete("scroll");id?next.set("tag_id",id):next.delete("tag_id");setParams(next);}}/>
     <EntityPicker value={params.get("entity_id")??""} onChange={id=>change("entity_id",id??"")}/>
     <div className="actions">{["from","to"].map(name=><Field key={name} label={name==="from"?"기간 시작":"기간 끝"}>{p=><input {...p} type="datetime-local" className="input" value={params.get(name)??""} onChange={e=>change(name,e.target.value)}/>}</Field>)}</div>
     {error&&<><Notice kind="error">{error}</Notice><button className="btn" type="button" onClick={()=>setRetry(n=>n+1)}>다시 시도</button></>}

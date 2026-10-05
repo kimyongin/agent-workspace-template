@@ -56,7 +56,10 @@ describe("activity list return", () => {
     ) {
       expect(safeListReturn(unsafe, "tasks", "/tasks")).toBe("/tasks");
     }
-    expect(safeListReturn("/records?tasks_pages=2", "tasks", "/tasks")).toBe("/records?tasks_pages=2");
+    expect(safeListReturn("/records?tasks_pages=2", "tasks", "/tasks")).toBe("/tasks?pages=2&legacy_activity=1");
+    expect(safeListReturn("/records?q=unrelated", "tasks", "/tasks")).toBe("/tasks");
+    expect(safeListReturn(`/tasks?records_pages=2#activity-records-${id}`, "records", "/records"))
+      .toBe(`/records?pages=2&legacy_activity=1#activity-records-${id}`);
     for (const pages of ["0", "-1", "1.5", "oops"]) expect(requestedPages(new URLSearchParams({ pages }))).toBe(1);
     expect(requestedPages(new URLSearchParams({ pages: "10000000" }))).toBe(250);
   });
