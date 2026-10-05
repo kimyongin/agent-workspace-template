@@ -241,16 +241,24 @@ h3 { font-size: 1.125rem; margin: 40px 0 12px; }
 .dev-flow { list-style: none; margin: 0; padding: 0; display: grid; gap: 36px; }
 .dev-step { display: grid; gap: 12px; grid-template-columns: minmax(0, 1fr); position: relative; }
 .dev-action, .dev-artifact { min-width: 0; padding: 20px; border-radius: var(--radius); }
-.dev-action { background: var(--accent-soft); border: 1px solid var(--accent); }
+.dev-action { background: var(--panel); border: 1px solid var(--accent); }
 .dev-artifact { background: var(--panel); border: 1px solid var(--info); position: relative; }
-.dev-action h4, .dev-artifact h4 { margin: 8px 0 12px; }
+.dev-action h4, .dev-artifact h4 { margin: 8px 0 16px; font-size: 1.125rem; line-height: 1.5; }
 .dev-step p { margin: 0; font-size: 0.9375rem; }
 .dev-step p + p { margin-top: 10px; }
 .dev-action .k { color: var(--accent); }
 .dev-artifact .k { color: var(--info); }
 .dev-action code { display: inline; }
-.dev-command { display: block; margin-top: 14px; font-size: 0.875rem; }
-.dev-next { padding-top: 12px; margin-top: 14px !important; border-top: 1px solid var(--line); color: var(--info); }
+.dev-label { display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 8px; }
+.dev-examples { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--line); }
+.dev-command { padding: 12px; border-radius: 10px; background: var(--accent-soft); line-height: 1.7; }
+.dev-command code { background: none; padding: 0; font-weight: 600; }
+.dev-details { margin: 0; display: grid; gap: 16px; }
+.dev-details dt { font-size: 0.875rem; font-weight: 600; margin-bottom: 6px; }
+.dev-details dd { margin: 0; font-size: 0.9375rem; line-height: 1.7; }
+.dev-storage { padding: 12px; border-radius: 10px; background: var(--surface); }
+.dev-next { padding: 12px; border-radius: 10px; background: var(--info-soft); }
+.dev-next dt { color: var(--info); }
 .dev-step + .dev-step::before { content: "↓"; position: absolute; top: -31px; left: calc(50% - 8px); color: var(--info); font-size: 1.25rem; }
 .dev-transfer { align-self: center; justify-self: center; color: var(--muted-ink); transform: rotate(90deg); font-size: 1.5rem; line-height: 1; }
 .dev-shortcuts { margin-top: 24px; padding: 16px 20px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
@@ -557,57 +565,95 @@ footer a { margin-right: 10px; white-space: nowrap; }
     <ol class="dev-flow" aria-label="요청하는 스킬과 결과 저장 위치, 다음 단계의 입력">
       <li class="dev-step">
         <div class="dev-action">
-          <span class="k">1 · 방향을 정할 때</span><h4>설계하거나 개선할 곳 찾기</h4>
+          <span class="k">1 · 방향을 정할 때</span>
+          <h4>설계하거나 개선할 곳 찾기</h4>
           <p>새 아이디어는 <code>grill-with-docs</code>로 요구와 제약을 논의합니다.</p>
           <p>기존 코드 개선은 <code>improve-codebase-architecture</code>로 조사한 뒤 후보를 골라 설계를 논의합니다.</p>
-          <span class="dev-command"><code>$grill-with-docs 기록에 사진을 첨부하고 싶어</code></span>
-          <span class="dev-command"><code>$improve-codebase-architecture 코드 구조를 개선할 곳을 조사해줘</code></span>
+          <div class="dev-examples">
+            <span class="dev-label">요청 예시</span>
+            <p class="dev-command"><code>$grill-with-docs</code> 기록에 사진을 첨부하고 싶어</p>
+            <p class="dev-command"><code>$improve-codebase-architecture</code> 코드 구조를 개선할 곳을 조사해줘</p>
+          </div>
         </div>
         <span class="dev-transfer" aria-hidden="true">→</span>
         <div class="dev-artifact">
-          <span class="k">저장 · 현재 대화 + 필요한 저장소 문서</span><h4>합의한 요구와 설계</h4>
-          <p>용어는 <code>GLOSSARY.md</code>, 중요한 아키텍처 결정은 필요할 때 <code>docs/adr/</code>에 기록합니다. 구조 조사 보고서는 OS 임시 폴더의 HTML로 남습니다.</p>
-          <p class="dev-next"><b>다음 입력:</b> 선택하고 합의한 내용 + 코드 근거. 후보 보고서만으로 설계가 확정되지는 않습니다.</p>
+          <span class="k">저장되는 결과</span>
+          <h4>합의한 요구와 설계</h4>
+          <dl class="dev-details">
+            <div class="dev-storage"><dt>저장 위치</dt><dd>현재 대화 · 필요한 저장소 문서 · 임시 HTML</dd></div>
+            <div><dt>남기는 내용</dt><dd>선택한 방향, 요구와 제약, 설계의 근거.</dd></div>
+            <div><dt>자료별 위치</dt><dd>용어는 <code>GLOSSARY.md</code>, 중요한 아키텍처 결정은 필요할 때 <code>docs/adr/</code>에 기록합니다. 구조 조사 보고서는 OS 임시 폴더에 저장합니다.</dd></div>
+            <div class="dev-next"><dt>다음 단계에 전달</dt><dd>합의한 내용 + 코드 근거. 후보 보고서에서 선택하고 논의한 설계를 명세로 정리합니다.</dd></div>
+          </dl>
         </div>
       </li>
       <li class="dev-step">
         <div class="dev-action">
-          <span class="k">2 · 합의한 내용을 남길 때</span><h4><code>to-spec</code></h4>
-          <p>현재 대화와 코드 이해를 종합합니다. 어떤 동작으로 검증할지 확인한 뒤 명세를 등록합니다.</p>
-          <span class="dev-command"><code>$to-spec 지금까지 합의한 내용을 명세로 정리해줘</code></span>
+          <span class="k">2 · 합의한 내용을 남길 때</span>
+          <h4>명세로 정리하기</h4>
+          <p><code>to-spec</code>은 현재 대화와 코드 이해를 종합합니다.</p>
+          <p>어떤 동작으로 검증할지 확인한 뒤 명세를 등록합니다.</p>
+          <div class="dev-examples">
+            <span class="dev-label">요청 예시</span>
+            <p class="dev-command"><code>$to-spec</code> 지금까지 합의한 내용을 명세로 정리해줘</p>
+          </div>
         </div>
         <span class="dev-transfer" aria-hidden="true">→</span>
         <div class="dev-artifact">
-          <span class="k">저장 · GitHub Issue</span><h4>명세: 무엇을 만들고 어떻게 확인할지</h4>
-          <p>목적·사용자 동작·설계 결정·검증 방법·제외 범위를 담습니다. GitHub에 게시한다는 것은 이 내용을 이슈 본문으로 등록한다는 뜻입니다.</p>
-          <p class="dev-next"><b>다음 입력:</b> 이 명세의 이슈 번호 또는 URL.</p>
+          <span class="k">저장되는 결과</span>
+          <h4>명세 · 전체 목표와 검증 기준</h4>
+          <dl class="dev-details">
+            <div class="dev-storage"><dt>저장 위치</dt><dd>GitHub Issue의 본문</dd></div>
+            <div><dt>남기는 내용</dt><dd>목적 · 사용자 동작 · 설계 결정 · 검증 방법 · 제외 범위.</dd></div>
+            <div><dt>게시의 의미</dt><dd>이 내용을 GitHub 이슈로 등록합니다. 구현 작업을 나누는 기준이 됩니다.</dd></div>
+            <div class="dev-next"><dt>다음 단계에 전달</dt><dd>명세의 이슈 번호 또는 URL.</dd></div>
+          </dl>
         </div>
       </li>
       <li class="dev-step">
         <div class="dev-action">
-          <span class="k">3 · 실행할 작업으로 나눌 때</span><h4><code>to-tickets</code></h4>
-          <p>명세의 본문과 댓글을 읽고 작은 작업으로 나눕니다. 작업 크기와 선행 관계를 함께 확인한 뒤 등록합니다.</p>
-          <span class="dev-command"><code>$to-tickets #N 명세를 구현 티켓으로 나눠줘</code></span>
+          <span class="k">3 · 실행할 작업으로 나눌 때</span>
+          <h4>구현 티켓으로 나누기</h4>
+          <p><code>to-tickets</code>는 명세의 본문과 댓글을 읽고 작은 작업으로 나눕니다.</p>
+          <p>작업 크기와 선행 관계를 함께 확인한 뒤 등록합니다.</p>
+          <div class="dev-examples">
+            <span class="dev-label">요청 예시</span>
+            <p class="dev-command"><code>$to-tickets</code> #N 명세를 구현 티켓으로 나눠줘</p>
+          </div>
         </div>
         <span class="dev-transfer" aria-hidden="true">→</span>
         <div class="dev-artifact">
-          <span class="k">저장 · 작업별 GitHub Issues</span><h4>구현 티켓: 하나씩 완료할 작업</h4>
-          <p>각 티켓에 완료 조건·원본 명세 연결·먼저 끝내야 할 작업을 남깁니다. 명세는 전체 목표, 티켓은 실행할 작업을 맡습니다.</p>
-          <p class="dev-next"><b>다음 입력:</b> 전체 구현은 명세와 연결된 티켓들, 한 작업은 해당 티켓.</p>
+          <span class="k">저장되는 결과</span>
+          <h4>구현 티켓 · 하나씩 완료할 작업</h4>
+          <dl class="dev-details">
+            <div class="dev-storage"><dt>저장 위치</dt><dd>작업마다 별도의 GitHub Issue</dd></div>
+            <div><dt>남기는 내용</dt><dd>완료 조건 · 원본 명세 연결 · 먼저 끝내야 할 작업.</dd></div>
+            <div><dt>명세와의 관계</dt><dd>명세는 전체 목표를 담고, 티켓은 실제로 실행할 작업을 담습니다.</dd></div>
+            <div class="dev-next"><dt>구현 단계에 전달</dt><dd>전체 구현: 명세 + 연결된 티켓들.<br>한 작업: 해당 티켓.</dd></div>
+          </dl>
         </div>
       </li>
       <li class="dev-step">
         <div class="dev-action">
-          <span class="k">4 · 구현을 맡길 때</span><h4><code>implement-spec</code> / <code>implement</code></h4>
+          <span class="k">4 · 구현을 맡길 때</span>
+          <h4>구현하고 검증하기</h4>
           <p>연결된 작업 전체는 <code>implement-spec</code>, 한 작업은 <code>implement</code>로 요청합니다.</p>
-          <span class="dev-command"><code>$implement-spec #N 명세와 연결된 티켓들을 구현해줘</code></span>
-          <span class="dev-command"><code>$implement #M 티켓을 구현해줘</code></span>
+          <div class="dev-examples">
+            <span class="dev-label">요청 예시</span>
+            <p class="dev-command"><code>$implement-spec</code> #N 명세와 연결된 티켓들을 구현해줘</p>
+            <p class="dev-command"><code>$implement</code> #M 티켓을 구현해줘</p>
+          </div>
         </div>
         <span class="dev-transfer" aria-hidden="true">→</span>
         <div class="dev-artifact">
-          <span class="k">저장 · 작업 브랜치 + GitHub PR·이슈</span><h4>코드·테스트와 완료 근거</h4>
-          <p>구현 스킬 안에서 테스트와 <code>code-review</code>가 이어집니다. <code>implement</code>의 TDD는 가능한 경우 사용하며, <code>implement-spec</code>의 티켓 구현은 TDD를 사용합니다. 리뷰는 변경 코드와 원본 요구를 읽습니다.</p>
-          <p class="dev-next"><b>완료 확인:</b> 연결된 PR·이슈에서 리뷰와 CI 근거를 확인합니다. 필수 검사를 통과하면 머지하며, 운영 배포는 사람이 지시한 범위에서 진행합니다.</p>
+          <span class="k">저장되는 결과</span>
+          <h4>코드·테스트와 완료 근거</h4>
+          <dl class="dev-details">
+            <div class="dev-storage"><dt>저장 위치</dt><dd>작업 브랜치 · GitHub PR와 연결된 이슈</dd></div>
+            <div><dt>안에서 이어지는 검증</dt><dd><code>implement</code>는 가능한 경우 TDD를, <code>implement-spec</code>의 티켓 구현은 TDD를 사용합니다. 구현 뒤 <code>code-review</code>가 변경 코드와 원본 요구를 읽고 리뷰합니다.</dd></div>
+            <div><dt>완료 확인</dt><dd>연결된 PR·이슈에서 리뷰와 CI 근거를 확인합니다. 필수 검사를 통과하면 머지합니다.</dd></div>
+            <div class="dev-next"><dt>서비스에 적용하려면</dt><dd>운영 배포는 사람이 지시한 범위에서 진행합니다.</dd></div>
+          </dl>
         </div>
       </li>
     </ol>
