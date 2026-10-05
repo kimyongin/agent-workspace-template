@@ -35,6 +35,7 @@ function fixture(storageNow = () => now) {
   const mutations: string[] = [];
   const key = (operation: string, id: string) => `${operation}:${id}`;
   const store: ActivityStore = {
+    validateEntitySelection: unsupported,
     appendChange: () => Promise.resolve(),
     lockRequest: () => Promise.resolve(), // Serial retry only; concurrency belongs to the real DB tests.
     findRequest: (operation, id) => Promise.resolve(structuredClone(requests.get(key(operation, id)) ?? null)),

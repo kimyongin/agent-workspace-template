@@ -78,11 +78,14 @@ async function requireRecord(store: ActivityStore, id: string, forUpdate = false
 export async function previewTaskChange(deps: ActivityDeps, actor: Actor, input: TaskChangePreview) {
   return await deps.uow.run(actor, async (store) => {
     if (input.action === "create") {
+      const task = newTask(input.input as TaskCreate);
+      const ids = selectedEntities(input.input as TaskCreate) ?? [];
+      if (ids.length) await store.validateEntitySelection(ids);
       return {
         memo: basicChangeMemo({
           action: "create",
           before: null,
-          after: newTask(input.input as TaskCreate),
+          after: task,
           change_note: input.input.change_note,
         }),
         changed: true,
@@ -114,6 +117,10 @@ export async function previewTaskChange(deps: ActivityDeps, actor: Actor, input:
         ? decideStop(task, input.input.expected_version as number, now)
         : decideResume(task, input.input.expected_version as number, now)),
     };
+    if (input.action === "update" && changed(task, after!)) {
+      const ids = selectedEntities(input.input as TaskUpdate);
+      if (ids?.length) await store.validateEntitySelection(ids);
+    }
     return {
       memo: basicChangeMemo({
         action: input.action as "update" | "delete" | "stop" | "resume",
