@@ -2,6 +2,7 @@ export function assessPreparation(evidence, scenario) {
   const failures = [];
   if (evidence.exitCode !== 0) failures.push('native-exit');
   if (!evidence.completedSkillRead) failures.push('skill-activation');
+  if (!evidence.originalSourceRead) failures.push('original-source-read');
   if (evidence.mutationCalls !== 0) failures.push('unexpected-write');
   for (const name of ['originalDetail', 'currentValue', 'sourceId', 'taskId']) if (!evidence.answer?.[name]) failures.push(name);
   if (!(scenario === 'missing' ? evidence.answer?.missingCurrentPrinciple : evidence.answer?.currentPrincipleId)) failures.push('current-criterion');

@@ -2,6 +2,14 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { assessPreparation } from './assess-preparation.mjs';
 const success = () => ({ exitCode: 0, completedSkillRead: true, mutationCalls: 0, originalSourceRead: true, answer: { originalDetail: true, currentValue: true, sourceId: true, currentPrincipleId: true, taskId: true, uncertainty: true, missingCurrentPrinciple: true, conflict: true, searchFailure: true, indexDelay: true }, proxy: { mode: 'semantic-failure', applied: 1, keywordFallbacks: 1, originalReads: 1, sameInstance: true } });
+test('correct preparation answers cannot pass without observed original-source reading', () => {
+  for (const scenario of ['normal', 'missing', 'conflict']) {
+    const evidence = success(); delete evidence.proxy;
+    assert.equal(assessPreparation(evidence, scenario).pass, true, scenario);
+    evidence.originalSourceRead = false;
+    assert.equal(assessPreparation(evidence, scenario).pass, false, scenario);
+  }
+});
 test('semantic failure needs applied dependency fault, warning and original keyword fallback', () => {
   assert.equal(assessPreparation(success(), 'semantic-failure').pass, true);
   for (const field of ['applied', 'keywordFallbacks', 'originalReads']) {
