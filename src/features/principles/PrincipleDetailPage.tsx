@@ -47,7 +47,7 @@ export function PrincipleDetailPage() {
       {deleting&&item.is_current&&<DeleteDialog title="원칙을 삭제할까요?" busy={busy}
         message={<p>삭제하면 현재 원칙이 없는 상태가 됩니다. 과거 원칙을 자동 승격하지 않습니다. 기록에 보존한 근거는 남습니다.</p>}
         prepare={async reason=> (await api<{memo:ChangeMemo}>("POST","/principles/preview",{action:"delete",id:item.id,input:{expected_version:item.version,change_note:reason||undefined}})).memo}
-        onCancel={()=>setDeleting(false)} onConfirm={async(reason,change_memo)=>{setBusy(true);try{await api("POST",`/principles/${item.id}/delete`,{expected_version:item.version,change_note:reason||undefined,request_id:request.current,change_memo});setEditing(false);afterClose(back,true);}catch(e){setError(e instanceof ApiError?e.message:"삭제하지 못했습니다.");setDeleting(false);}finally{setBusy(false);}}}/>}
+        onCancel={()=>setDeleting(false)} onConfirm={async(reason,change_memo)=>{setBusy(true);try{await api("POST",`/principles/${item.id}/delete`,{expected_version:item.version,change_note:reason||undefined,request_id:request.current,change_memo});setEditing(false);afterClose(back,true);}catch(e){setError(e instanceof ApiError?e.message:"삭제하지 못했습니다.");throw e;}finally{setBusy(false);}}}/>}
     </section>}
   </DetailSurface>;
 }

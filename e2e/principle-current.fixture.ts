@@ -23,3 +23,22 @@ test("현재 원칙의 메모 확인은 저장하지 않고 같은 문서를 갱
   await confirm.getByRole("button",{name:"기록 메모 확인",exact:true}).click();expect(writes).toHaveLength(1);await confirm.getByRole("button",{name:"삭제",exact:true}).click();
   await expect(page.getByText("현재 원칙이 없습니다.",{exact:false})).toBeVisible();expect(current).toBeNull();expect(writes).toHaveLength(2);
 });
+
+test("원칙 삭제 응답이 끊기면 최종 메모와 같은 요청키로 재시도한다",async({page})=>{
+  const current={id,title:"현재 기준",summary:"현재 요약",body:"원문",is_current:true,version:1,saved_at:stamp,created_at:stamp,updated_at:stamp,origin:"saved"};
+  const writes:Record<string,unknown>[]=[];
+  await page.route("http://127.0.0.1:55586/**",async route=>{if(route.request().isNavigationRequest()){const response=await route.fetch({url:"http://127.0.0.1:55586/e2e/fixtures/workspace-screens.html"});return route.fulfill({response});}return route.continue();});
+  await page.route("**/api/**",route=>{
+    const path=new URL(route.request().url()).pathname;
+    if(path.endsWith("/preview"))return route.fulfill({json:{memo:{title:"삭제 기록",summary:"확인 내용",body:"기본 근거"}}});
+    if(path.endsWith("/delete")){writes.push(route.request().postDataJSON());return writes.length===1?route.abort("connectionreset"):route.fulfill({status:204});}
+    return route.fulfill({json:path.endsWith("/current")?{current:writes.length>1?null:current}:path.endsWith(id)?current:{items:[],next_cursor:null}});
+  });
+  await page.goto(`/e2e/fixtures/workspace-screens.html?route=/principles/${id}?edit=1`);
+  await page.getByRole("button",{name:"삭제",exact:true}).click();const confirm=page.getByRole("dialog",{name:"원칙을 삭제할까요?"});
+  await confirm.getByRole("button",{name:"기록 메모 확인",exact:true}).click();await confirm.getByLabel("기록 본문").fill("확인한 최종 메모");
+  await confirm.getByRole("button",{name:"삭제",exact:true}).click();await expect(confirm.getByRole("button",{name:"같은 내용 다시 시도",exact:true})).toBeVisible();
+  await expect(confirm.getByLabel("기록 본문")).toHaveValue("확인한 최종 메모");await expect(confirm.getByLabel("기록 본문")).toBeDisabled();
+  await confirm.getByRole("button",{name:"같은 내용 다시 시도",exact:true}).click();await expect(confirm).not.toBeVisible();
+  expect(writes).toHaveLength(2);expect(writes[1]).toEqual(writes[0]);expect(writes[0].request_id).toBeTruthy();
+});

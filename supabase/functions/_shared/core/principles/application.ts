@@ -106,7 +106,7 @@ export function correctPrinciple(d: PrincipleDeps, a: Actor, id: string, i: Prin
       await s.lockCurrent();
       const old = await requirePrinciple(s, id);
       version(old, i.expected_version);
-      if (old.is_current) throw conflict("현재 원칙은 새 저장본으로 편집하세요");
+      if (old.is_current) throw conflict("현재 원칙은 현재 문서 편집 기능을 사용하세요");
       const { expected_version: _v, request_id: _r, change_note, ...changes } = i;
       if (!changed(old, changes) && old.change_note === change_note) return old;
       const result = await s.update(id, { ...changes, change_note });
