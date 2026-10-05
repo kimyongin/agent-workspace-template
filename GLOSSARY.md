@@ -10,21 +10,21 @@
 | ADR (아키텍처 결정 기록) | 나중에 바꾸기 어렵고 비용이 큰 결정(어떤 서비스를 쓸지, 데이터를 어떻게 보호할지 등)과 그 이유를 남긴 메모. 사람이 승인한다. | [ADR 목록](docs/adr/README.md) |
 | 가이드 | PRD·ADR 안에서 일하는 구체적인 방법을 정리한 문서(디자인·보안·개발·배포·운영 등). 에이전트가 일하면서 고쳐 나간다. | [ADR-0008](docs/adr/0008-document-ownership.md) |
 | 티켓 | 해야 할 작업 하나를 적은 작업 지시서. GitHub issue에 목표, 다 됐는지 확인하는 방법과 진행 기록을 남긴다. | [작업 추적](docs/agents/issue-tracker.md) |
-| 정본 | 같은 내용이 여러 문서에 있을 때 기준이 되는 원래 문서. 다른 문서는 정본을 링크한다. | [START-HERE](docs/START-HERE.md#읽는-순서와-문서의-책임) |
-| 개발 에이전트 | 코드와 문서를 작성하는 AI(Codex, Claude Code). 사람이 말로 지시하면 계획·구현·검증까지 한다. | [에이전트와 일하는 방법](docs/development/working-with-agents.md) |
-| 세션 | 에이전트와 나누는 대화 한 묶음. "새 세션"은 앞의 대화 내용을 모르는 새 대화를 뜻한다. | [에이전트와 일하는 방법](docs/development/working-with-agents.md) |
+| 정본 | 같은 내용이 여러 문서에 있을 때 기준이 되는 원래 문서. 다른 문서는 정본을 링크한다. | [START-HERE](docs/START-HERE.md) |
+| 개발 에이전트 | 코드와 문서를 작성하는 AI(Codex, Claude Code). 사람이 말로 지시하면 계획·구현·검증까지 한다. | [Matt 스킬](docs/development/matt-skills.md) |
+| 세션 | 에이전트와 나누는 대화 한 묶음. "새 세션"은 앞의 대화 내용을 모르는 새 대화를 뜻한다. | [Matt 스킬](docs/development/matt-skills.md) |
 
 ## 코드를 바꾸고 내보내는 과정
 
 | 용어 | 쉬운 설명 | 정본 |
 | --- | --- | --- |
-| 브랜치 | 원본(`main`)을 건드리지 않고 따로 작업하는 사본. 작업이 끝나면 PR로 원본에 합칠지 검토받는다. | [개발과 검증 방법](docs/development/workflow.md#브랜치와-pr) |
-| 커밋 | 바뀐 내용을 저장한 한 번의 기록. 무엇을 왜 바꿨는지 메시지를 함께 남긴다. | [개발과 검증 방법](docs/development/workflow.md#브랜치와-pr) |
-| 푸시 | 내 컴퓨터의 커밋을 GitHub 저장소에 올리는 것. 에이전트가 PR을 만들 때 함께 한다. | [에이전트와 일하는 방법](docs/development/working-with-agents.md) |
-| PR (Pull Request) | "이렇게 고쳤으니 검토하고 반영해 주세요"라는 변경 요청. 무엇을 어떻게 바꿨는지 한 묶음으로 보여 준다. 검토하기 쉽도록 작게 나눠 올린다. | [개발과 검증 방법](docs/development/workflow.md#브랜치와-pr) |
-| 리뷰 | 구현 대화의 맥락이 없는 새 서브 에이전트(또는 새 세션)가 정확한 base/head의 변경을 검토하는 것. 보통 로컬 커밋을 먼저 검토하고 같은 head를 PR로 제출한다. 결론과 교차 리뷰 기준은 정본을 따른다. | [개발과 검증 방법](docs/development/workflow.md#리뷰) |
-| 머지 | 리뷰와 자동 검사를 통과한 PR을 원본(`main`)에 합치는 것. 머지했다고 실제 서비스에 바로 반영되지는 않는다. | [개발과 검증 방법](docs/development/workflow.md#머지) |
-| 자동 검사 (CI) | 변경을 올릴 때마다 정해진 검사를 자동으로 실행하는 장치. `main`은 CI 통과를 머지 필수 조건(필수 상태 검사)으로 걸어 두어, 검사가 실패하거나 실행되지 않은 PR은 머지할 수 없다. | [개발과 검증 방법](docs/development/verification.md) |
+| 브랜치 | 원본(`main`)을 건드리지 않고 따로 작업하는 사본. 작업이 끝나면 PR로 원본에 합칠지 검토받는다. | [개발 기준](.agents/skills/pr/SKILL.md) |
+| 커밋 | 바뀐 내용을 저장한 한 번의 기록. 무엇을 왜 바꿨는지 메시지를 함께 남긴다. | [개발 기준](.agents/skills/pr/SKILL.md) |
+| 푸시 | 내 컴퓨터의 커밋을 GitHub 저장소에 올리는 것. 에이전트가 PR을 만들 때 함께 한다. | [Matt 스킬](docs/development/matt-skills.md) |
+| PR (Pull Request) | "이렇게 고쳤으니 검토하고 반영해 주세요"라는 변경 요청. 무엇을 어떻게 바꿨는지 한 묶음으로 보여 준다. 검토하기 쉽도록 작게 나눠 올린다. | [개발 기준](.agents/skills/pr/SKILL.md) |
+| 리뷰 | 변경을 Standards(저장소 기준)와 Spec(요구사항)의 두 관점에서 검토하는 것. | [개발 기준](.agents/skills/code-review/SKILL.md) |
+| 머지 | 리뷰와 자동 검사를 통과한 PR을 원본(`main`)에 합치는 것. 머지했다고 실제 서비스에 바로 반영되지는 않는다. | [개발 기준](docs/adr/0011-matt-skills-and-github-workflow.md) |
+| 자동 검사 (CI) | 변경을 올릴 때마다 정해진 검사를 자동으로 실행하는 장치. `main`은 CI 통과를 머지 필수 조건(필수 상태 검사)으로 걸어 두어, 검사가 실패하거나 실행되지 않은 PR은 머지할 수 없다. | [개발 기준](docs/development/verification.md) |
 | revision | 저장소의 특정 시점 상태. 커밋 하나를 가리키는 짧은 식별자(예: `a5b8214`)로 쓴다. "검증한 revision"은 검사를 통과한 그 시점의 버전이다. | [배포 방법](docs/deployment/release.md) |
 | 배포 | 머지된 변경을 실제 사용자가 쓰는 서비스에 올리는 것. 사람이 "배포해"라고 지시할 때만 한다. | [배포 방법](docs/deployment/release.md) |
 | 운영 | 실제 사용자가 쓰고 있는 서비스와 그 데이터. 시험용 환경과 구분하며, 운영 데이터로 시험하지 않는다. | [운영 방법](docs/operations/runbook.md) |

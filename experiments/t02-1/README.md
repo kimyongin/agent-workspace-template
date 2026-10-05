@@ -1,6 +1,6 @@
 # T02-1 실험: 트랜잭션과 MCP OAuth
 
-[Template-02 T02-1](../../docs/tickets/template-02-implementation-base.md) 작업 9의 격리 실험이다. 결과와 채택 판단은 [T02-1 실험 결과](../../docs/tickets/template-02-t02-1-contracts.md#실험-결과-작업-9)에 있다. 앱 코드가 아니다.
+직접 Postgres 트랜잭션과 MCP OAuth의 격리 실험이다. 채택한 제품 구조와 권한 경계는 [아키텍처](../../docs/architecture/hexagonal-review.md)에 있다. 이 폴더는 앱 코드가 아니다.
 
 | 실험 | 확인 내용 | 파일 |
 | --- | --- | --- |

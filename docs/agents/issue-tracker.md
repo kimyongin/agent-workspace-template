@@ -48,4 +48,4 @@ Used by `/wayfinder`. The **map** is a single issue with **child** issues as tic
 
 Current repository: `kimyongin/agent-workspace-template`. Confirm the actual remote in a new domain app and update this setup. On Windows, prepare exact multi-line Markdown in a UTF-8 file and pass `--body-file` instead of interpolating shell text.
 
-New and ongoing work is canonical on GitHub. Existing [Markdown tickets](../tickets/README.md) are historical contracts and evidence; link them from the issue. [Migration #98](https://github.com/kimyongin/agent-workspace-template/issues/98) reconciles genuine residuals against PR/CI proof. Do not keep a second local execution-status record.
+New and ongoing work is canonical on GitHub. Historical decisions and execution evidence remain in Git history and GitHub issues/PRs.

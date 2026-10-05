@@ -1,6 +1,6 @@
 # 아키텍처 결정 기록(ADR)
 
-되돌리기 비싼 구조·기술·보안 경계의 결정과 그 이유를 기록한다. ADR은 사람이 소유한다. 에이전트는 초안을 쓸 수 있지만 채택은 사람이 한다. 소유권과 분류 기준은 [ADR-0008](0008-document-ownership.md)을 따른다.
+되돌리기 비싼 구조·기술·보안 경계의 결정과 이유를 기록한다. ADR의 결정권은 사람이 가지며, 에이전트는 초안과 구체적으로 합의한 변경을 작성한다([문서 소유권](0008-document-ownership.md)).
 
 ## 목록
 
@@ -12,31 +12,10 @@
 | [0004](0004-summary-single-vector-search.md) | 제목+요약 단일 벡터 검색 | 채택 |
 | [0005](0005-plugin-delivery-claude-codex.md) | 에이전트 제공 단위는 플러그인, Claude·Codex 지원 | 채택 |
 | [0006](0006-owner-only-access-and-separate-auth.md) | 소유자 한정 접근과 로그인·MCP 인증 분리 | 채택 |
-| [0007](0007-dual-development-agents.md) | 개발 에이전트 Codex·Claude Code 공용 정본 | 대체됨(ADR-0011) |
-| [0008](0008-document-ownership.md) | 문서 소유권: 사람은 PRD·ADR, 에이전트는 나머지 | 채택 (티켓 위치·승인·이탈 확인은 0011, 기존 머지 절은 0010으로 대체) |
-| [0009](0009-review-without-cross-agent.md) | 리뷰는 필수, 다른 에이전트의 교차 리뷰는 선택 | 대체됨(ADR-0010) |
-| [0010](0010-merge-authority.md) | 에이전트의 머지 권한, 절차는 가이드가 소유 | 채택 (승인 확인 방식은 0011로 대체) |
-| [0011](0011-matt-skills-and-github-workflow.md) | Matt Pocock 스킬과 GitHub Issues 개발 방식 | 채택 |
+| [0008](0008-document-ownership.md) | 문서 소유권 | 채택 |
+| [0011](0011-matt-skills-and-github-workflow.md) | Matt Pocock 스킬과 GitHub 작업 정본 | 채택 |
 | [0012](0012-current-state-and-unified-records.md) | 최신 상태와 메모 기반 통합 기록 | 채택 |
 
-0001~0007은 2026-10-01 이전에 합의해 여러 문서에 흩어져 있던 결정을 소급 기록한 것이다.
+## 문서의 책임
 
-## 작성 규칙
-
-- 파일 이름은 `NNNN-영문-요약.md`, 번호는 순서대로 붙이고 재사용하지 않는다.
-- 상태는 `제안`, `채택`, `대체됨(ADR-NNNN)`, `폐기` 중 하나다.
-- 채택한 ADR의 결정을 바꿀 때는 본문을 고쳐 쓰지 않고 새 ADR을 만들어 이전 ADR을 `대체됨`으로 표시한다. 오탈자·링크 수정은 예외다.
-- 결정의 일부만 바꿀 때는 새 ADR에 대체하는 절을 밝히고, 이전 ADR은 상태를 `채택 (… 절은 ADR-NNNN으로 대체)`로 표시하며 해당 절 첫머리에 대체 안내 한 줄만 추가한다.
-- 결정의 실행 방법과 세부 기준은 가이드에 두고 ADR은 링크로 연결한다. ADR에는 결정·이유·대가만 짧게 적는다.
-
-```markdown
-# ADR-NNNN: 제목
-
-- 상태: 제안 | 채택 | 대체됨(ADR-NNNN) | 폐기
-- 날짜: YYYY-MM-DD
-
-## 배경
-## 결정
-## 결과
-## 관련 문서
-```
+ADR에는 결정·이유·대가를 담는다. 제품의 의미와 범위는 [PRD](../product/concept.md), 설계·개발 방법은 [Matt 스킬](../development/matt-skills.md)이 담당한다. 번호는 재사용하지 않는다. 합의한 변경과 과거 근거는 Git/GitHub에서 추적한다.

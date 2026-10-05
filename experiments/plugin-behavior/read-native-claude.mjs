@@ -1,14 +1,12 @@
 // Uses normal CLI-owned native OAuth storage; never reads or copies its token.
-import { spawn, execFileSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { readFile, writeFile } from 'node:fs/promises';
 import { createInterface } from 'node:readline';
 import { resolve, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { outsideDirectory } from './files.mjs';
 
-const [plugin, snapshot, evidenceFile] = process.argv.slice(2);
-if (!plugin || !snapshot || !evidenceFile || process.env.PLUGIN_ENV_HANDOFF !== 'exclusive-local') throw new Error('Exclusive local handoff required');
-const repo = fileURLToPath(new URL('../../', import.meta.url));
+const [plugin, evidenceFile] = process.argv.slice(2);
+if (!plugin || !evidenceFile || process.env.PLUGIN_ENV_HANDOFF !== 'exclusive-local') throw new Error('Exclusive local handoff required');
 await outsideDirectory(plugin);
 await outsideDirectory(dirname(resolve(evidenceFile)));
 let manifest, mcp;
@@ -23,10 +21,11 @@ let endpoint;
 try { endpoint = new URL(config.url); }
 catch { throw new Error('Only loopback native OAuth without injected headers is allowed'); }
 if (endpoint.protocol !== 'http:' || !['127.0.0.1', 'localhost'].includes(endpoint.hostname) || config.headers) throw new Error('Only loopback native OAuth without injected headers is allowed');
-const assignment = JSON.parse(execFileSync(process.execPath, [resolve(repo, 'scripts/agent-models.mjs'), 'assign', '--client', 'claude-cli', '--tier', 'balanced', '--effort', 'medium', '--role', 'implement', '--reason', '고유 native OAuth 연결의 harmless read', '--snapshot', snapshot], { encoding: 'utf8' }));
+const model = 'claude-opus-5-5';
+const effort = 'medium';
 const tool = `mcp__plugin_${manifest.name}_${serverKey}__list_tags`;
-const evidence = { assignment, personalTokenReadOrCopied: false, suppliedAuthorizationHeader: false, events: [] };
-const child = spawn('claude', ['--print', '--setting-sources', 'project,local', '--plugin-dir', plugin, '--model', assignment.model, '--effort', assignment.effort, '--tools', '', '--allowedTools', tool, '--permission-mode', 'dontAsk', '--no-session-persistence', '--output-format', 'stream-json', '--verbose', `Call only this session's ${serverKey} MCP list_tags once for a harmless native-authenticated read. Do not write any data, read local files, or use other services. Reply only NATIVE_READ_OK if the tool succeeds.`], { cwd: resolve(plugin, '..'), env: { ...process.env, ENABLE_CLAUDEAI_MCP_SERVERS: 'false', ENABLE_TOOL_SEARCH: 'false' }, stdio: ['ignore', 'pipe', 'pipe'] });
+const evidence = { requested: { model, effort }, personalTokenReadOrCopied: false, suppliedAuthorizationHeader: false, events: [] };
+const child = spawn('claude', ['--print', '--setting-sources', 'project,local', '--plugin-dir', plugin, '--model', model, '--effort', effort, '--tools', '', '--allowedTools', tool, '--permission-mode', 'dontAsk', '--no-session-persistence', '--output-format', 'stream-json', '--verbose', `Call only this session's ${serverKey} MCP list_tags once for a harmless native-authenticated read. Do not write any data, read local files, or use other services. Reply only NATIVE_READ_OK if the tool succeeds.`], { cwd: resolve(plugin, '..'), env: { ...process.env, ENABLE_CLAUDEAI_MCP_SERVERS: 'false', ENABLE_TOOL_SEARCH: 'false' }, stdio: ['ignore', 'pipe', 'pipe'] });
 const timer = setTimeout(() => child.kill(), 120000);
 child.stderr.resume();
 createInterface({ input: child.stdout }).on('line', (line) => {

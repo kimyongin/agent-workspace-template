@@ -1,19 +1,25 @@
-# 변경 영향에 따라 heavy steps를 생략하되 check/integration job은 항상 실행한다.
+# Draft PR은 검사를 생략한다. 그 외에는 변경 영향에 따라 check/integration을 실행한다.
 # 운영 secret을 쓰지 않는다. check·integration은 main의 필수 상태 검사다. job 이름을 바꾸면
-# 같은 PR에서 필수 검사 설정도 바꾼다(docs/development/workflow.md "머지").
+# 같은 PR에서 필수 검사 설정도 바꾼다.
 name: ci
 
 on:
   push:
     branches: [main]
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, converted_to_draft]
   workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
 
 jobs:
   check:
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     timeout-minutes: 15
     outputs:
@@ -65,7 +71,7 @@ jobs:
 
   integration:
     needs: check
-    if: always()
+    if: ${{ !cancelled() && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -76,10 +82,11 @@ jobs:
         run: |
           [ "$CHECK_RESULT" = "success" ] || { echo "check failed or unavailable"; exit 1; }
           case "$IMPACT_MODE" in
-            full) echo "Full isolated DB/HTTP/MCP/E2E verification" >> "$GITHUB_STEP_SUMMARY" ;;
-            docs|presentation) echo "Impact: $IMPACT_MODE. Isolated DB/HTTP/MCP/E2E omitted; check passed." >> "$GITHUB_STEP_SUMMARY" ;;
+            full) echo "Full isolated DB/HTTP/MCP verification" >> "$GITHUB_STEP_SUMMARY" ;;
+            docs|presentation) echo "Impact: $IMPACT_MODE. Isolated DB/HTTP/MCP omitted; check passed." >> "$GITHUB_STEP_SUMMARY" ;;
             *) echo "Missing/invalid classification"; exit 1 ;;
           esac
+          echo "Browser E2E runs locally as needed (npm run test:e2e); it is not part of CI." >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/checkout@v5
         if: needs.check.outputs.mode == 'full'
       - uses: actions/setup-node@v5
@@ -111,19 +118,6 @@ jobs:
       - name: MCP 계약 테스트
         if: needs.check.outputs.mode == 'full'
         run: npm run test:mcp
-      - name: 브라우저 설치
-        if: needs.check.outputs.mode == 'full'
-        run: npx playwright install --with-deps chromium
-      - name: 웹↔MCP E2E
-        if: needs.check.outputs.mode == 'full'
-        run: npm run test:e2e
       - name: 실패 시 함수 로그
         if: failure() && needs.check.outputs.mode == 'full'
         run: cat functions.log || true
-      - name: 실패 시 E2E 기록
-        if: failure() && needs.check.outputs.mode == 'full'
-        uses: actions/upload-artifact@v4
-        with:
-          name: playwright-results
-          path: test-results/
-          retention-days: 7

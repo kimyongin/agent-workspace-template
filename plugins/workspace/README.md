@@ -48,6 +48,6 @@ node scripts/package-plugin.mjs C:/release-artifacts/workspace-0.1.2.zip
 
 복구는 보관한 이전 ZIP을 추출하고 같은 marketplace 식별자의 원본을 교체한 뒤 지원되는 갱신·재설치 절차를 따른다. 서버를 함께 롤백하지 않으며 현재 서버와의 호환성을 다시 확인한다.
 
-실클라이언트 검증은 신규 설치와 업데이트 각각에서 OAuth, 도구 발견·호출, 스킬 선택, 검색→원문→요청된 저장을 확인한다. 자동 패키지 검사는 이 행동을 대신하지 않는다. claude.ai·Desktop·모바일의 실제 행동은 별도로 검증한다. 패키지 검증은 저장소의 `docs/tickets/template-10-03-product-plugin.md`, 실제 로컬 CLI 행동과 미검증 범위는 `docs/tickets/template-10-07-plugin-behavior.md`에 기록한다. 0.1.1은 Entity 후보의 31개 도구 안내를 포함한다. 운영에 해당 revision을 배포했다는 의미는 아니다.
+실클라이언트 검증은 신규 설치와 업데이트 각각에서 OAuth, 도구 발견·호출, 스킬 선택, 검색→원문→요청된 저장을 확인한다. 자동 패키지 검사는 이 행동을 대신하지 않는다. [패키지 검사](../../scripts/check-plugin.mjs)와 [제품 행동 검증 도구](../../experiments/plugin-behavior/README.md)를 제공하며 결과는 관련 GitHub 이슈·PR에서 확인한다. claude.ai·Desktop·모바일의 실제 행동은 별도로 검증한다. [Codex desktop 잔여 확인 #102](https://github.com/kimyongin/agent-workspace-template/issues/102)은 다른 클라이언트 결과로 대체하지 않는다. 0.1.1은 Entity 후보의 31개 도구 안내를 포함한다. 운영에 해당 revision을 배포했다는 의미는 아니다.
 
 공식 형식과 명령(2026-10-04 확인): [Codex 패키징](https://developers.openai.com/plugins/build/plugins), [Claude manifest](https://code.claude.com/docs/en/plugins-reference), [Claude marketplace](https://code.claude.com/docs/en/plugin-marketplaces).

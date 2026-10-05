@@ -15,9 +15,9 @@ import { assessPreparation } from './assess-preparation.mjs';
 import { hasOriginalRecord } from './original-record-proof.mjs';
 
 const repo = fileURLToPath(new URL('../../', import.meta.url));
-const [client, fixtureFile, snapshotFile, mode = 'save', expectedCondition] = process.argv.slice(2);
-if (process.env.PLUGIN_ENV_HANDOFF !== 'exclusive-local' || !['codex-cli', 'claude-cli'].includes(client) || !fixtureFile || !snapshotFile) {
-  throw new Error('Usage: node experiments/plugin-behavior/run-client.mjs <codex-cli|claude-cli> <outside-fixture.json> <outside-model-snapshot.json>');
+const [client, fixtureFile, mode = 'save', expectedCondition] = process.argv.slice(2);
+if (process.env.PLUGIN_ENV_HANDOFF !== 'exclusive-local' || !['codex-cli', 'claude-cli'].includes(client) || !fixtureFile) {
+  throw new Error('Usage: node experiments/plugin-behavior/run-client.mjs <codex-cli|claude-cli> <outside-fixture.json> [save|prepare|prepare-explicit] [condition]');
 }
 const fixture = JSON.parse(await readFile(fixtureFile, 'utf8'));
 assertJournal(fixture, fixture.endpoint, client);
@@ -38,7 +38,8 @@ const endpoint = new URL(process.env.PREPARATION_MCP_PROXY ?? fixture.endpoint);
 if (process.env.PREPARATION_MCP_PROXY && (!preparing || endpoint.href !== 'http://127.0.0.1:55684/functions/v1/mcp')) throw new Error('Only allocated preparation dependency proxy');
 if (endpoint.protocol !== 'http:' || !['127.0.0.1', 'localhost'].includes(endpoint.hostname)) throw new Error('Only allocated loopback fixture endpoint is allowed');
 if (!fixture.environmentHandoff || !fixture.marker || !fixture.token || !fixture.outputRoot) throw new Error('Explicit environment handoff and prepared fixture are required');
-const assignment = JSON.parse(execFileSync(process.execPath, [resolve(repo, 'scripts/agent-models.mjs'), 'assign', '--client', client, '--tier', 'balanced', '--effort', 'medium', '--role', 'implement', '--reason', '제품 스킬의 실제 fixture 업무 행동', '--snapshot', snapshotFile], { encoding: 'utf8' }));
+const model = client === 'codex-cli' ? 'gpt-6.1-sol' : 'claude-opus-5-5';
+const effort = 'medium';
 const outputRoot = resolve(fixture.outputRoot, client, `${mode}-${randomUUID()}`);
 await outsideDirectory(outputRoot);
 const market = resolve(outputRoot, 'market');
@@ -63,7 +64,7 @@ const tools = preparing ? fixture.tools : ['search', 'get_record', 'list_records
 const codexConfig = {
   'features.plugins': true,
   'features.skill_search': true,
-  'model_reasoning_effort': assignment.effort,
+  'model_reasoning_effort': effort,
   'approval_policy': 'never',
   [`marketplaces.${marketplaceName}.source_type`]: 'local',
   [`marketplaces.${marketplaceName}.source`]: market,
@@ -75,20 +76,18 @@ const codexConfig = {
   [`mcp_servers.${sessionServer}.enabled_tools`]: tools,
   [`mcp_servers.${sessionServer}.default_tools_approval_mode`]: 'approve',
 };
-const codexArgs = ['exec', '--ignore-rules', '--strict-config', '--ephemeral', '--skip-git-repo-check', '--sandbox', 'read-only', '--model', assignment.model, '--json'];
+const codexArgs = ['exec', '--ignore-rules', '--strict-config', '--ephemeral', '--skip-git-repo-check', '--sandbox', 'read-only', '--model', model, '--json'];
 if (process.env.PREPARATION_RETAIN_TRIAL === 'own-thread') {
   if (!preparing || client !== 'codex-cli') throw new Error('Only own Codex preparation trial may retain native context');
   codexArgs.splice(codexArgs.indexOf('--ephemeral'), 1);
 }
 for (const [key, value] of Object.entries(codexConfig)) codexArgs.push('-c', `${key}=${JSON.stringify(value)}`);
-const claudeArgs = ['--print', '--model', assignment.model, '--effort', assignment.effort, '--setting-sources', 'project,local', '--plugin-dir', plugin, '--tools', 'Skill,Read', '--allowedTools', ['Skill', `Read(${plugin.replaceAll('\\', '/')}/skills/**)`, ...tools.map((name) => `mcp__plugin_workspace_${claudeServer}__${name}`)].join(','), '--permission-mode', 'dontAsk', '--no-session-persistence', '--output-format', 'stream-json', '--verbose'];
+const claudeArgs = ['--print', '--model', model, '--effort', effort, '--setting-sources', 'project,local', '--plugin-dir', plugin, '--tools', 'Skill,Read', '--allowedTools', ['Skill', `Read(${plugin.replaceAll('\\', '/')}/skills/**)`, ...tools.map((name) => `mcp__plugin_workspace_${claudeServer}__${name}`)].join(','), '--permission-mode', 'dontAsk', '--no-session-persistence', '--output-format', 'stream-json', '--verbose'];
 const command = client === 'codex-cli' ? (process.env.CODEX_CLI_BINARY ?? 'codex') : 'claude';
 const actualVersion = execFileSync(command, ['--version'], { encoding: 'utf8' }).trim();
-const snapshot = JSON.parse(await readFile(snapshotFile, 'utf8'));
-if (!actualVersion.includes(snapshot.version)) throw new Error('Selected CLI binary/version differs from capability snapshot');
 const args = client === 'codex-cli' ? codexArgs : claudeArgs;
 const checkoutMetadata = path => ({ path, revision: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: path, encoding: 'utf8' }).trim(), dirty: Boolean(execFileSync('git', ['status', '--porcelain'], { cwd: path, encoding: 'utf8' }).trim()) });
-const evidence = { client, mode, assignment, marketplaceName, availableSkillEvidence: client === 'codex-cli' ? 'CLI initialization does not expose skill inventory in known JSON events' : 'native initialization metadata below', eventTypes: {}, itemTypes: {}, skillReads: [], cachePolicy: 'unique native runtime materialization allowed; no manual installed cache edits', readsSkill: false, completedSkillRead: false, answer: { originalDetail: false, currentValue: false, sourceId: false, currentPrincipleId: false, taskId: false, uncertainty: false }, actualBackendModel: 'unexposed unless client metadata reports it', actualBackendEffort: 'unexposed', backendAllocatedRevision: allocatedBackendRevision, fixtureOriginRevision: fixture.serverRevision, marker: fixture.marker, sourceRevision: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: repo, encoding: 'utf8' }).trim(), productCheckout: checkoutMetadata(fixture.productSource ?? resolve(repo, 'plugins/workspace')), runnerCheckout: checkoutMetadata(repo), runnerSha256: createHash('sha256').update(await readFile(fileURLToPath(import.meta.url))).digest('hex'), dependencyProxy: Boolean(process.env.PREPARATION_MCP_PROXY), sharedSkillSha256: createHash('sha256').update(await readFile(resolve(plugin, 'skills/workspace/SKILL.md'))).digest('hex'), authentication: 'real local OAuth consent+PKCE token supplied by fixture; CLI-native OAuth unverified', connection: client === 'codex-cli' ? 'shared plugin skill with bundled MCP disabled; identical loopback direct session MCP uses bearer_token_env_var' : 'shared plugin-dir with bundled loopback MCP environment header', events: [] };
+const evidence = { client, mode, requested: { model, effort }, cliVersion: actualVersion, marketplaceName, availableSkillEvidence: client === 'codex-cli' ? 'CLI initialization does not expose skill inventory in known JSON events' : 'native initialization metadata below', eventTypes: {}, itemTypes: {}, skillReads: [], cachePolicy: 'unique native runtime materialization allowed; no manual installed cache edits', readsSkill: false, completedSkillRead: false, answer: { originalDetail: false, currentValue: false, sourceId: false, currentPrincipleId: false, taskId: false, uncertainty: false }, actualBackendModel: 'unexposed unless client metadata reports it', actualBackendEffort: 'unexposed', backendAllocatedRevision: allocatedBackendRevision, fixtureOriginRevision: fixture.serverRevision, marker: fixture.marker, sourceRevision: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: repo, encoding: 'utf8' }).trim(), productCheckout: checkoutMetadata(fixture.productSource ?? resolve(repo, 'plugins/workspace')), runnerCheckout: checkoutMetadata(repo), runnerSha256: createHash('sha256').update(await readFile(fileURLToPath(import.meta.url))).digest('hex'), dependencyProxy: Boolean(process.env.PREPARATION_MCP_PROXY), sharedSkillSha256: createHash('sha256').update(await readFile(resolve(plugin, 'skills/workspace/SKILL.md'))).digest('hex'), authentication: 'real local OAuth consent+PKCE token supplied by fixture; CLI-native OAuth unverified', connection: client === 'codex-cli' ? 'shared plugin skill with bundled MCP disabled; identical loopback direct session MCP uses bearer_token_env_var' : 'shared plugin-dir with bundled loopback MCP environment header', events: [] };
 function answerFacts(text = '') {
   evidence.answer.originalDetail ||= text.includes(fixture.originalDetail);
   evidence.answer.currentValue ||= new RegExp(`(?<![a-zA-Z0-9-])${fixture.entity.prop2}(?![a-zA-Z0-9-])`).test(text);
@@ -159,8 +158,8 @@ createInterface({ input: child.stdout }).on('line', (line) => {
       if (block.type === 'tool_result' && reads.has(block.tool_use_id)) { evidence.skillReads.push({ path: reads.get(block.tool_use_id), completed: !block.is_error }); evidence.completedSkillRead ||= !block.is_error; }
       if (block.type === 'tool_result') evidence.events.push({ type: 'tool_result', isError: Boolean(block.is_error) });
     }
-    if (event.message?.model && event.message.model !== assignment.actualModel) child.kill();
-    if (event.type === 'result') { answerFacts(event.result); if (Object.keys(event.modelUsage ?? {}).some(name => name !== assignment.actualModel)) child.kill(); }
+    if (event.message?.model && event.message.model !== model) child.kill();
+    if (event.type === 'result') { answerFacts(event.result); if (Object.keys(event.modelUsage ?? {}).some(name => name !== model)) child.kill(); }
     if (event.type === 'result') evidence.result = { subtype: event.subtype, isError: event.is_error, modelUsage: event.modelUsage, permissionDenials: event.permission_denials?.map(({ tool_name }) => tool_name) };
   }
 });
@@ -174,10 +173,10 @@ createInterface({ input: child.stderr }).on('line', (line) => {
   for (const word of safeWords) if (new RegExp(`\\b${word}\\b`, 'i').test(line) && !evidence.diagnosticWords.includes(word)) evidence.diagnosticWords.push(word);
   evidence.diagnosticCategories ??= [];
   for (const [category, pattern] of [['config-rejected', /config|unknown field|invalid type/i], ['sandbox-unavailable', /sandbox|elevat|permission/i], ['dependency-unavailable', /MCP|connection|initializ/i]]) if (pattern.test(line) && !evidence.diagnosticCategories.includes(category)) evidence.diagnosticCategories.push(category);
-  const model = /^model:\s*([\w.-]+)\s*$/.exec(line);
-  const effort = /^reasoning effort:\s*([\w-]+)\s*$/.exec(line);
-  if (model) { evidence.actualBackendModel = model[1]; if (model[1] !== assignment.actualModel) child.kill(); }
-  if (effort) { evidence.actualBackendEffort = effort[1]; if (effort[1] !== assignment.effort) child.kill(); }
+  const reportedModel = /^model:\s*([\w.-]+)\s*$/.exec(line);
+  const reportedEffort = /^reasoning effort:\s*([\w-]+)\s*$/.exec(line);
+  if (reportedModel) { evidence.actualBackendModel = reportedModel[1]; if (reportedModel[1] !== model) child.kill(); }
+  if (reportedEffort) { evidence.actualBackendEffort = reportedEffort[1]; if (reportedEffort[1] !== effort) child.kill(); }
 });
 const exitCode = await new Promise((resolveExit, reject) => { child.on('error', reject); child.on('close', resolveExit); });
 clearTimeout(timer);

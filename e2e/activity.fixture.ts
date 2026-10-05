@@ -14,18 +14,28 @@ for (const kind of ["tasks", "records"] as const) test(`${kind} 탭은 자기 �
     if(path.endsWith("/tasks")||path.endsWith("/records"))reads.push(path);
     await route.fulfill({json:{items:[],next_cursor:null}});
   });
-  await page.goto(`/e2e/fixtures/activity.html?route=/${kind}`);
+  await page.goto(`/e2e/fixtures/activity.html?route=/${kind}?mode=keyword`);
   await expect(page.getByRole("heading",{name:kind==="tasks"?"할 일":"기록",level:1})).toBeVisible();
   await expect.poll(()=>reads).toEqual([`/api/${kind}`]);
   await expect(page.locator(kind==="tasks"?".records":".tasks")).toHaveCount(0);
+  await expect(page.getByText(`아직 ${kind==="tasks"?"할 일":"기록"}이 없습니다.`,{exact:true})).toBeVisible();
   await page.getByLabel(kind==="tasks"?"할 일 상태":"기록 종류",{exact:true}).selectOption(kind==="tasks"?"stopped":"change");
   await page.getByLabel("검색어",{exact:true}).fill("과거 근거");
   await expect.poll(()=>searches.length).toBe(1);
   expect(searches[0].kinds).toEqual([kind==="tasks"?"task":"record"]);
+  expect(searches[0].mode).toBe("auto");
+  await expect(page.getByLabel("검색 방식",{exact:true})).toHaveCount(0);
   expect(searches[0][kind==="tasks"?"task_status":"record_kind"]).toBe(kind==="tasks"?"stopped":"change");
   await expect(page.getByText("의미 검색을 사용할 수 없어 키워드 검색 결과를 표시합니다.")).toBeVisible();
   await expect(page.getByText("의미 색인 대기 2개 · 제외 1개")).toBeVisible();
   expect(writes).toEqual([]);
+});
+
+for(const [kind,condition] of [["tasks","kind=once"],["tasks","status=done"],["records","record_kind=change"],["records",`entity_id=${id(8)}`]] as const) test(`${kind} 종류·상태·대상 필터 ${condition}의 빈 결과는 계정에 자료가 없다는 안내와 구분한다`,async({page})=>{
+  await page.route("http://127.0.0.1:55581/api/**",route=>route.fulfill({json:new URL(route.request().url()).pathname.endsWith(`/entities/${id(8)}`)?{id:id(8),prop1:"조건 대상",prop2:null,prop3:null,prop4:"a",version:1}:{items:[],next_cursor:null}}));
+  await page.goto(`/e2e/fixtures/activity.html?route=`+encodeURIComponent(`/${kind}?${condition}`));
+  await expect(page.getByText(`조건에 맞는 ${kind==="tasks"?"할 일":"기록"}이 없습니다.`,{exact:true})).toBeVisible();
+  await expect(page.getByText(`아직 ${kind==="tasks"?"할 일":"기록"}이 없습니다.`,{exact:true})).toHaveCount(0);
 });
 
 test("옛 반대 탭 생성 링크는 의도한 기록 폼으로 안내하고 저장하지 않는다",async({page})=>{

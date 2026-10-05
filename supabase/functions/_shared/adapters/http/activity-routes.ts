@@ -1,5 +1,4 @@
 // 웹용 HTTP: 할 일·기록 경로. 입력을 contracts로 검사하고 유스케이스를 호출한다. 업무 판단은 하지 않는다.
-// 경로 계약: docs/tickets/template-02-t02-1-contracts.md "할 일", "반복 할 일", "활동 기록".
 import { Hono } from "hono";
 import { z } from "zod";
 import { businessMeta } from "../../contracts/change.ts";
