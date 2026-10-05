@@ -147,7 +147,7 @@ export function main(env = process.env) {
   }
   console.log(JSON.stringify({ ...result, range }, null, 2));
   if (env.GITHUB_OUTPUT) appendFileSync(env.GITHUB_OUTPUT, `mode=${result.mode}\n`);
-  if (env.GITHUB_STEP_SUMMARY) appendFileSync(env.GITHUB_STEP_SUMMARY, `### Change impact: ${result.mode}\n\n${range ? `Comparison: ${range.base} → ${range.head}\n\n` : ""}${result.reasons.map((reason) => `- ${reason.replace(/[\r\n]/g, " ")}`).join("\n")}\n\n${result.mode === "full" ? "Full check and isolated integration required." : "Heavy server/DB/HTTP/MCP/E2E steps omitted; presentation still requires ticketed viewport/keyboard/focus checks."}\n`);
+  if (env.GITHUB_STEP_SUMMARY) appendFileSync(env.GITHUB_STEP_SUMMARY, `### Change impact: ${result.mode}\n\n${range ? `Comparison: ${range.base} → ${range.head}\n\n` : ""}${result.reasons.map((reason) => `- ${reason.replace(/[\r\n]/g, " ")}`).join("\n")}\n\n${result.mode === "full" ? "Full check and isolated integration required." : "Heavy server/DB/HTTP/MCP steps omitted; presentation still requires ticketed viewport/keyboard/focus checks."}\n\nBrowser E2E runs locally as needed; it is not part of CI.\n`);
   return result;
 }
 

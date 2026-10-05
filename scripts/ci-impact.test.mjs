@@ -139,7 +139,7 @@ test("required job names remain; integration runs always and explicitly fails a 
   assert.match(yaml, /workflow_dispatch:/);
   assert.doesNotMatch(yaml, /paths-ignore:|continue-on-error:/);
   const integration = yaml.slice(yaml.indexOf('  integration:'));
-  for (const name of ['로컬 Supabase 준비(러너 안의 격리 DB)', 'DB 테스트', 'Edge Functions 실행', 'HTTP 계약 테스트', 'MCP 계약 테스트', '브라우저 설치', '웹↔MCP E2E']) {
+  for (const name of ['로컬 Supabase 준비(러너 안의 격리 DB)', 'DB 테스트', 'Edge Functions 실행', 'HTTP 계약 테스트', 'MCP 계약 테스트']) {
     assert.ok(integration.includes(`- name: ${name}\n        if: needs.check.outputs.mode == 'full'`), name);
   }
 });

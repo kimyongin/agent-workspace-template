@@ -20,7 +20,9 @@ Node·Deno·Supabase CLI 버전과 설치 명령은 package.json·lockfile을 �
 
 문서 검사기는 UTF-8·BOM·LF·공백·상대 파일 링크와 Claude 연결 파일의 원본 frontmatter를 확인한다. Markdown·HTML의 앵커 존재는 확인하지 않으므로 변경한 앵커는 대상 제목이나 HTML id와 대조한다.
 
-[변경 영향 분류기](../../scripts/ci-impact.mjs)는 실제 diff로 CI 범위를 선택한다. 알 수 없는 변경은 전체 검사이며, 필수 상태 `check`·`integration`은 모든 분류에서 남는다. `workflow_dispatch`는 전체 검사를 실행한다. 상세 동작은 분류기 테스트와 CI가 정본이다.
+[변경 영향 분류기](../../scripts/ci-impact.mjs)는 실제 diff로 CI 범위를 선택한다. 알 수 없는 변경은 전체 CI 검사이며, 필수 상태 `check`·`integration`은 모든 분류에서 남는다. `workflow_dispatch`도 전체 CI 검사를 실행한다. CI는 타입·빌드·단위 검사와 격리 DB·HTTP·MCP 통합 검사를 담당하며 브라우저 E2E는 포함하지 않는다. 상세 동작은 분류기 테스트와 CI가 정본이다.
+
+브라우저 E2E는 로컬에서 필요할 때 실행한다. 화면·탐색·로그인·OAuth 동의·웹/MCP 왕복처럼 브라우저 동작을 확인할 변경에는 관련 파일과 프로젝트를 선택할 수 있다. 로컬 Supabase·함수 서버를 준비하고 Chromium을 설치한 뒤 `npm run test:e2e -- e2e/web-mcp.spec.ts --project=desktop`처럼 실행한다. 전체 로컬 통합 검사는 `npm run test:all`로 실행하며 E2E도 포함한다. CI 성공은 브라우저 검증을 뜻하지 않으며, 실제 실행한 revision·범위·결과는 이슈·PR에 남긴다.
 
 빠른 core·웹·어댑터 검사는 실제 DB·OAuth·브라우저 연결의 증거를 대신하지 않는다. 제품의 권한·일관성·웹/MCP 행동은 관련 [계약](../../supabase/functions/_shared/contracts/search.ts)과 실제 진입점의 테스트에서 확인한다. 제품 플러그인의 정적 패키지 검사는 실제 Claude·Codex 사용과 구분한다([제품 행동 검증 도구](../../experiments/plugin-behavior/README.md)).
 

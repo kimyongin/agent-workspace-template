@@ -76,10 +76,11 @@ jobs:
         run: |
           [ "$CHECK_RESULT" = "success" ] || { echo "check failed or unavailable"; exit 1; }
           case "$IMPACT_MODE" in
-            full) echo "Full isolated DB/HTTP/MCP/E2E verification" >> "$GITHUB_STEP_SUMMARY" ;;
-            docs|presentation) echo "Impact: $IMPACT_MODE. Isolated DB/HTTP/MCP/E2E omitted; check passed." >> "$GITHUB_STEP_SUMMARY" ;;
+            full) echo "Full isolated DB/HTTP/MCP verification" >> "$GITHUB_STEP_SUMMARY" ;;
+            docs|presentation) echo "Impact: $IMPACT_MODE. Isolated DB/HTTP/MCP omitted; check passed." >> "$GITHUB_STEP_SUMMARY" ;;
             *) echo "Missing/invalid classification"; exit 1 ;;
           esac
+          echo "Browser E2E runs locally as needed (npm run test:e2e); it is not part of CI." >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/checkout@v5
         if: needs.check.outputs.mode == 'full'
       - uses: actions/setup-node@v5
@@ -111,19 +112,6 @@ jobs:
       - name: MCP 계약 테스트
         if: needs.check.outputs.mode == 'full'
         run: npm run test:mcp
-      - name: 브라우저 설치
-        if: needs.check.outputs.mode == 'full'
-        run: npx playwright install --with-deps chromium
-      - name: 웹↔MCP E2E
-        if: needs.check.outputs.mode == 'full'
-        run: npm run test:e2e
       - name: 실패 시 함수 로그
         if: failure() && needs.check.outputs.mode == 'full'
         run: cat functions.log || true
-      - name: 실패 시 E2E 기록
-        if: failure() && needs.check.outputs.mode == 'full'
-        uses: actions/upload-artifact@v4
-        with:
-          name: playwright-results
-          path: test-results/
-          retention-days: 7
