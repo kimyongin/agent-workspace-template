@@ -62,7 +62,7 @@ export function RecordFormModal(props: {
       onClose={props.onClose}
       onRouteDiscard={props.onRouteDiscard}
       validate={() => {
-        const noteErrors=changeNoteErrors(draft.change_note,props.editing);if(noteErrors)return noteErrors;
+        const noteErrors=changeNoteErrors(draft.change_note,false);if(noteErrors)return noteErrors;
         const r = recordCreate.safeParse(value());
         return r.success ? null : fieldErrors(r.error.issues);
       }}
@@ -86,7 +86,7 @@ export function RecordFormModal(props: {
               />
             )}
           </Field></>}
-          <ChangeNoteField value={draft.change_note??""} required={props.editing} error={errors.change_note} onChange={change_note=>setDraft(d=>({...d,change_note}))}/>
+          <ChangeNoteField value={draft.change_note??""} required={false} error={errors.change_note} onChange={change_note=>setDraft(d=>({...d,change_note}))}/>
           {props.details}
         </>
       )}

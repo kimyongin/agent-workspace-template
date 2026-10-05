@@ -127,7 +127,7 @@ export async function currentPrincipleFixes(invoke: Invoke) {
     );
     const events = await admin`select change_metadata from app.records where change_metadata->>'target_id'=${record
       .id as string} and change_note='clear captured source'`;
-    assertEquals(events.length, 1);
+    assertEquals(events.length, 0);
   } finally {
     if (recordId) {
       const row = await invoke("get_record", { id: recordId });

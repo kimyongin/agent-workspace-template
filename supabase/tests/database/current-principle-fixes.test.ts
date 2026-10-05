@@ -88,8 +88,8 @@ dbTest(
               fn(
                 new Proxy(s, {
                   get: (target, key) =>
-                    key === "appendChange"
-                      ? () => Promise.reject(Error("required snapshot-clear history failure"))
+                    key === "saveRequest"
+                      ? () => Promise.reject(Error("request persistence failure"))
                       : Reflect.get(target, key),
                 }),
               )),
@@ -116,7 +116,7 @@ dbTest(
         ),
         cleared,
       );
-      assertEquals(await count(), beforeCount + 1);
+      assertEquals(await count(), beforeCount);
     } finally {
       await f.cleanup();
     }

@@ -369,19 +369,16 @@ export async function updateRecord(
         (record.applied_principle_snapshots ?? []).some((p) => !changes.applied_principle_ids!.includes(p.id));
       if (
         !removesSnapshots && !changed(record, changes) &&
-        (record.record_kind !== "change" || record.change_note === change_note)
+        (change_note === undefined || record.change_note === change_note)
       ) return toRecordResult(record);
-      const updated = await store.updateRecord(id, { ...changes, change_note });
+      const updated = await store.updateRecord(id, {
+        ...changes,
+        ...(change_note === undefined ? {} : { change_note }),
+      });
       if (updated.title !== record.title || updated.summary !== record.summary) {
         await store.enqueueIndex({ kind: "record", id, input_hash: await searchInputHash(updated) });
       }
-      await store.appendChange({
-        target_kind: "record",
-        action: "update",
-        before: record,
-        after: updated,
-        change_note,
-      });
+      // Records are editable knowledge. Editing their memo does not create another event.
       return toRecordResult(updated);
     }));
 }

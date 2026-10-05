@@ -1,6 +1,6 @@
 // 활동 기록(ActivityRecord) 계약. 정본: docs/tickets/template-02-t02-1-contracts.md "활동 기록".
 import { z } from "zod";
-import { changeMetadata, editMeta, mutationMeta } from "./change.ts";
+import { changeMetadata, mutationMeta } from "./change.ts";
 import { principleResult } from "./principle.ts";
 import { tagFilterIds, tagIds } from "./tag.ts";
 import {
@@ -33,7 +33,7 @@ export type RecordCreate = z.infer<typeof recordCreate>;
 
 export const recordUpdate = z
   .strictObject({
-    ...editMeta,
+    ...mutationMeta,
     expected_version: expectedVersion,
     entity_id: id.nullable().optional(),
     tag_ids: tagIds.optional(),

@@ -317,7 +317,7 @@ for(const [kind,label] of [["entities","엔터티"],["tasks","할 일"],["record
     await form(page).getByRole("button",{name:"같은 이름",exact:true}).click();await form(page).getByRole("button",{name:kind==="tasks"?"추가":"저장",exact:true}).click();
     await expect(page).toHaveURL(new RegExp(`/${kind}/`));await expect(form(page)).toHaveCount(1);const createdPath=new URL(page.url()).pathname;
     await compatibleEdit(page);await expect(form(page)).toHaveCount(1);
-    await form(page).getByRole("button",{name:"저장",exact:true}).click();await expect(form(page).getByText("편집 메모를 입력하세요.", {exact:true})).toBeVisible();
+    if(kind!=="records"){await form(page).getByRole("button",{name:"저장",exact:true}).click();await expect(form(page).getByText("편집 메모를 입력하세요.", {exact:true})).toBeVisible();}
     await form(page).getByLabel("편집 메모",{exact:false}).fill("실측 결과 반영");
     if(kind==="entities")await form(page).getByLabel("속성 2",{exact:false}).fill("20");else await form(page).getByLabel("요약",{exact:false}).fill("편집한 요약");
     await form(page).getByRole("button",{name:"저장",exact:true}).click();if(kind==="entities")await go(page,createdPath);else await compatibleEdit(page);await expect(form(page).getByRole("button",{name:"삭제",exact:true})).toBeVisible();
