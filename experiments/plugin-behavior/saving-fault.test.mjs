@@ -10,6 +10,8 @@ test('prewrite public failure never reaches upstream and remains fail-closed on 
   assert.equal((await adapter.call(create(), forward)).result.isError, true);
   assert.equal(forwarded, 0);
   assert.equal(adapter.evidence().injected, 1);
+  assert.equal(adapter.evidence().sameInputRetry, false, 'the initial request is not a replay');
+  assert.equal(adapter.evidence().replayCalls, 0);
 });
 test('lost committed response requires original content or an identical keyed replay, never a different request', async () => {
   const adapter = savingFaultAdapter('save-response-loss'); let upstream = 0;
@@ -25,4 +27,13 @@ test('lost committed response requires original content or an identical keyed re
   assert.equal(upstream, 1);
   assert.equal(adapter.evidence().sameInputRetry, false);
   assert.match(adapter.evidence().requestIdHash, /^[a-f0-9]{64}$/);
+});
+
+test('actual identical keyed replay is reported separately from read-only recovery', async () => {
+  const adapter = savingFaultAdapter('save-response-loss');
+  await adapter.call(create(), async () => success);
+  await adapter.call(create(), async () => success);
+  assert.equal(adapter.evidence().replayCalls, 1);
+  assert.equal(adapter.evidence().sameInputRetry, true);
+  assert.equal(adapter.evidence().originalReadConfirmation, false);
 });

@@ -2,12 +2,48 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { assessSaving, verifyStoredChange } from './saving.mjs';
 
-const evidence = { exitCode: 0, completedSkillRead: true, originalSourceRead: true, answer: { savedId: true }, independent: { originalReads: true, allowedChange: true, newRecords: 1, recordKind: 'user', contentVerified: true, entityLinked: true } };
+const evidence = { exitCode: 0, completedSkillRead: true, originalSourceRead: true, answer: { savedId: true }, independent: { originalReads: true, allowedChange: true, newRecords: 2, requestedRecords: 1, automaticChanges: 1, recordKind: 'user', contentVerified: true, entityLinked: true } };
 test('a requested record needs independent original content; search or a client success is insufficient', () => {
   assert.equal(assessSaving(evidence, 'save-record').pass, true);
   assert.equal(assessSaving({ ...evidence, independent: { ...evidence.independent, originalReads: false } }, 'save-record').pass, false);
-  assert.equal(assessSaving({ ...evidence, independent: { ...evidence.independent, newRecords: 2 } }, 'save-record').pass, false);
+  assert.equal(assessSaving({ ...evidence, independent: { ...evidence.independent, requestedRecords: 2 } }, 'save-record').pass, false);
   assert.equal(assessSaving({ ...evidence, answer: { savedId: true, approvalRequested: true } }, 'save-record').pass, false);
+});
+
+test('lost-response lookup recovery is valid but cannot claim an unobserved keyed replay', () => {
+  const fault = { mode: 'save-response-loss', sameInstance: true, injected: 1, upstreamMutations: 1, requestIdHash: 'key-hash', originalConfirmation: true, originalReadConfirmation: true, sameInputRetry: false, replayCalls: 0, inputChanged: false };
+  assert.equal(assessSaving({ ...evidence, fault }, 'save-response-loss').pass, true);
+  assert.equal(assessSaving({ ...evidence, fault }, 'save-response-loss').replayObserved, false);
+  assert.equal(assessSaving({ ...evidence, fault: { ...fault, sameInputRetry: true } }, 'save-response-loss').pass, false);
+  assert.equal(assessSaving({ ...evidence, fault: { ...fault, originalReadConfirmation: false } }, 'save-response-loss').pass, false);
+  assert.equal(assessSaving({ ...evidence, fault: { ...fault, upstreamMutations: 2, sameInputRetry: true, replayCalls: 1, originalReadConfirmation: false } }, 'save-response-loss').pass, true);
+});
+
+test('public entity related projections may change only to match the requested saved originals', () => {
+  const t0 = '2026-10-06T00:00:00.000Z', t1 = '2026-10-06T00:01:00.000Z', t2 = '2026-10-06T00:02:00.000Z';
+  const source = { id: 'source', title: 'old', updated_at: t0, entity_ids: ['entity'] };
+  const task = { id: 'task', title: 'review', updated_at: t0, entity_ids: ['entity'], status: 'open', version: 1, result_record_id: null, result_record: null };
+  const entity = { id: 'entity', prop1: 'customer', prop2: 11, version: 2, updated_at: t0, tasks: { count: 1, items: [{ id: 'task', title: 'review', updated_at: t0 }] }, records: { count: 1, items: [{ id: 'source', title: 'old', updated_at: t0 }] }, principles: { count: 0, items: [] } };
+  const before = { current: null, entities: [entity], tasks: [task], records: [source], principles: [], tags: [] };
+  const user = { id: 'new', title: 'result', summary: 'review', body: 'SOURCE-123 current 11', version: 1, updated_at: t1, record_kind: 'user', entity_ids: ['entity'] };
+  const event = { id: 'event', title: 'creation', updated_at: t2, record_kind: 'change', entity_ids: ['entity'], change: { event_id: 'event-identity', target_id: 'new', target_kind: 'record', target_title: 'result', action: 'create', source: 'mcp', path: '/records/new', before: null, after: { ...user } } };
+  const afterEntity = { ...entity, records: { count: 3, items: [{ id: 'event', title: 'creation', updated_at: t2 }, { id: 'new', title: 'result', updated_at: t1 }, { id: 'source', title: 'old', updated_at: t0 }] } };
+  const after = { ...before, entities: [afterEntity], records: [source, event, user] };
+  const fixture = { entity, task, originalDetail: 'SOURCE-123' };
+  assert.equal(verifyStoredChange(before, after, fixture, 'save-record').allowedChange, true);
+  assert.equal(verifyStoredChange(before, { ...after, entities: [{ ...afterEntity, prop2: 12 }] }, fixture, 'save-record').allowedChange, false);
+  assert.equal(verifyStoredChange(before, { ...after, entities: [{ ...afterEntity, records: { count: 4, items: afterEntity.records.items } }] }, fixture, 'save-record').allowedChange, false);
+  assert.equal(verifyStoredChange(before, { ...after, entities: [{ ...afterEntity, tasks: { count: 1, items: [{ id: 'foreign', title: 'other', updated_at: t0 }] } }] }, fixture, 'save-record').allowedChange, false);
+  const result = { ...user, record_kind: 'result', task_id: 'task', occurred_at: t1 };
+  const done = { ...task, version: 2, status: 'done', updated_at: t1, completed_at: t1, result_record_id: 'new', result_record: { id: 'new', title: 'result', summary: 'review' } };
+  const doneEntity = { ...entity, tasks: { count: 1, items: [{ id: 'task', title: 'review', updated_at: t1 }] }, records: { count: 2, items: [{ id: 'new', title: 'result', updated_at: t1 }, { id: 'source', title: 'old', updated_at: t0 }] } };
+  const completed = { ...before, tasks: [done], records: [source, result], entities: [doneEntity] };
+  assert.equal(verifyStoredChange(before, completed, fixture, 'save-task').allowedChange, true);
+  assert.equal(verifyStoredChange(before, { ...completed, tasks: [{ ...done, result_record: { ...done.result_record, id: 'wrong' } }] }, fixture, 'save-task').allowedChange, false);
+  const memoFixture = { ...fixture, saving: { recordId: 'new', correction: 'corrected' } };
+  const corrected = { ...completed, records: [source, { ...result, body: 'corrected', version: 2, updated_at: t2 }], entities: [{ ...doneEntity, records: { count: 2, items: [{ id: 'new', title: 'result', updated_at: t2 }, { id: 'source', title: 'old', updated_at: t0 }] } }] };
+  assert.equal(verifyStoredChange(completed, corrected, memoFixture, 'save-memo').allowedChange, true);
+  assert.equal(verifyStoredChange(completed, { ...corrected, tasks: [{ ...done, version: 3 }] }, memoFixture, 'save-memo').allowedChange, false);
 });
 
 test('independent originals permit only the requested record, task result or memo correction', () => {
@@ -15,10 +51,16 @@ test('independent originals permit only the requested record, task result or mem
   const task = { id: 'task', status: 'open', version: 1, result_record_id: null, result_record: null };
   const before = { current: null, entities: [{ id: 'entity', prop2: 11 }], tasks: [task], records: [source], principles: [], tags: [] };
   const fixture = { entity: { id: 'entity', prop2: 11 }, task, originalDetail: 'SOURCE-123', saving: { correction: 'corrected' } };
-  const user = { id: 'new', record_kind: 'user', body: 'SOURCE-123 current 11', entity_ids: ['entity'] };
-  assert.equal(verifyStoredChange(before, { ...before, records: [source, user] }, fixture, 'save-record').allowedChange, true);
-  assert.equal(verifyStoredChange(before, { ...before, records: [{ ...source, body: 'tampered' }, user] }, fixture, 'save-record').allowedChange, false);
-  assert.equal(verifyStoredChange(before, { ...before, entities: [], records: [source, user] }, fixture, 'save-record').allowedChange, false);
+  const user = { id: 'new', title: 'result', summary: 'review', version: 1, record_kind: 'user', body: 'SOURCE-123 current 11', entity_ids: ['entity'] };
+  const event = { id: 'event', record_kind: 'change', entity_ids: ['entity'], change: { event_id: 'event-identity', target_id: 'new', target_kind: 'record', target_title: 'result', action: 'create', source: 'mcp', path: '/records/new', before: null, after: { ...user } } };
+  const saved = { ...before, records: [source, event, user] };
+  assert.equal(verifyStoredChange(before, saved, fixture, 'save-record').allowedChange, true);
+  assert.equal(verifyStoredChange(before, saved, fixture, 'save-response-loss').recordId, 'new');
+  assert.equal(verifyStoredChange(before, { ...saved, records: [source, user] }, fixture, 'save-record').allowedChange, false);
+  assert.equal(verifyStoredChange(before, { ...saved, records: [source, event, user, { ...event, id: 'extra' }] }, fixture, 'save-record').allowedChange, false);
+  assert.equal(verifyStoredChange(before, { ...saved, records: [source, { ...event, change: { ...event.change, target_id: 'wrong' } }, user] }, fixture, 'save-record').allowedChange, false);
+  assert.equal(verifyStoredChange(before, { ...saved, records: [{ ...source, body: 'tampered' }, event, user] }, fixture, 'save-record').allowedChange, false);
+  assert.equal(verifyStoredChange(before, { ...saved, entities: [] }, fixture, 'save-record').allowedChange, false);
   const result = { ...user, record_kind: 'result', task_id: 'task', occurred_at: '2026-10-06T00:00:00Z', version: 1 };
   const done = { ...task, status: 'done', version: 2, completed_at: result.occurred_at, result_record_id: 'new', result_record: { id: 'new', title: 'result', summary: 'review' } };
   const completed = { ...before, tasks: [done], records: [source, result] };

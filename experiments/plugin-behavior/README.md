@@ -35,7 +35,7 @@ fault 실행은 runner의 넷째 인수에 `semantic-failure` 또는 `index-dela
 
 새 저장 경로는 #122의 `normal` synthetic owner fixture를 재사용한다. 기존 `save` 기본 모드는 과거 강제 스킬·도구 prompt이며 이번 요청 범위 증거로 사용하지 않는다. 새 `save-record`, `save-task`, `save-memo`, `save-failure`, `save-response-loss`는 업무 요청만 전달하고 스킬·도구명이나 입력 필드를 지정하지 않는다. 모든 변경 도구는 제공하되 실제 요청 밖 쓰기는 독립 원문 전후 비교로 거부한다. 원본 `prepare`/`prepare-explicit` 평가와 무저장 digest는 유지한다.
 
-root가 서비스 독점과 실제 backend revision을 배정한 후에만 실행한다. `prepare-fixture.mjs setup` 이후 같은 비밀 journal을 사용하며, 각 클라이언트는 새 세션을 실행한다. 기록 저장과 할 일 완료는 각각 별도 새 fixture에서 시작한다. 완료 결과의 본문 정정은 성공한 `save-task`의 같은 fixture에 이어서 `save-memo`를 실행한다. runner는 별도 SDK 연결로 모든 페이지의 원문을 읽고 저장 전에 journal에 baseline을 남긴다. 종료 후 실제 새 기록 ID·종류·본문·엔터티, 완료 할 일과 결과 ID, 메모 정정의 사건 식별정보와 추가 로그 0개를 확인한다. 검색 결과와 클라이언트의 성공 문장은 저장 증거가 아니다.
+root가 서비스 독점과 실제 backend revision을 배정한 후에만 실행한다. `prepare-fixture.mjs setup` 이후 같은 비밀 journal을 사용하며, 각 클라이언트는 새 세션을 실행한다. 기록 저장과 할 일 완료는 각각 별도 새 fixture에서 시작한다. 완료 결과의 본문 정정은 성공한 `save-task`의 같은 fixture에 이어서 `save-memo`를 실행한다. runner는 별도 SDK 연결로 모든 페이지의 원문을 읽고 저장 전에 journal에 baseline을 남긴다. 종료 후 실제 새 기록 ID·종류·본문·엔터티, 완료 할 일과 결과 ID, 메모 정정의 사건 식별정보와 추가 로그 0개를 확인한다. 일반 기록은 사용자 기록 1개와 같은 ID를 대상으로 하는 정상 생성 이벤트 1개가 함께 생기는 기존 계약을 검증하며 다른 추가 기록은 거부한다. 엔터티의 저장 속성·버전은 유지하고 관련 항목 count/최근 5개는 독립 원문의 해당 연결·현재 제목·시각과 대조한다. 완료 할 일의 결과 요약도 저장된 결과 ID·제목·요약과 일치해야 한다. 검색 결과와 클라이언트의 성공 문장은 저장 증거가 아니다.
 
 ```powershell
 $env:PLUGIN_ENV_HANDOFF = 'exclusive-local'
@@ -51,6 +51,8 @@ Codex는 client를 `codex-cli`로 바꾼다. native 설치·고유 서버·다�
 `proxy-saving.mjs save-failure 55685 http://127.0.0.1:55621/functions/v1/mcp`와 `save-response-loss`는 각각 저장 전 미전달 오류, 실제 upstream 성공 후 응답 유실을 주입하는 배정 local adapter다. root가 포트 소유를 배정한 뒤 시작하고 `SAVING_MCP_PROXY=http://127.0.0.1:55685/functions/v1/mcp`로 연결한다. 각 trial에 새 proxy instance를 쓰고 정상 시나리오에서는 이 환경 변수를 제거한다. 저장 전 오류는 모든 쓰기를 upstream에 전달하지 않는다. 응답 유실은 실제 반환된 ID를 메모리에서만 보존하고 원문 조회 또는 동일 입력·동일 request_id의 replay로 확인한다. 다른 입력/키는 전달하지 않고 평가도 실패시킨다. `/saving-evidence`는 같은 instance·소스 해시·주입 수·upstream 성공 응답 수·요청 키 해시·원문 확인 여부만 제공한다. upstream counter는 호출 경계 증거이고 실제 새 저장 1개는 독립 원문 비교가 입증한다. 실제 서비스의 장애나 트랜잭션 성공을 모의 counter만으로 주장하지 않는다.
 
 runner의 문장 표시는 반복 승인 요청·거짓 완료·미확인 색인 완료의 보수적 신호다. 자연어 판정과 독립 저장 증거를 구분하며 실제 trial 리뷰에서 설명의 의미를 확인한다. 새 시나리오의 서비스 없는 seam 검사는 `node --test experiments/plugin-behavior/saving.test.mjs experiments/plugin-behavior/saving-fault.test.mjs`다. 실제 CLI·서비스 trial을 수행하지 않은 조건은 완료로 처리하지 않는다.
+
+응답 유실의 원문 조회 복구와 동일 키 재시도는 별도 증거다. 첫 요청만으로 `sameInputRetry`를 참으로 만들지 않는다. 실제 동일 입력 재호출 수와 같은 ID의 성공 응답이 있어야 `replayObserved`를 표시하며, 조회로만 복구한 실행은 이 값을 거짓으로 남긴다. 요청을 자연스럽게 복구한 클라이언트에 시험을 위해 재시도를 강제하지 않는다. 기존 공개 HTTP/MCP 검사에서 같은 요청의 멱등 replay를 검증하고 해당 증거를 별도로 연결한다. 재호출 수 0인데 재시도를 주장하는 증거나 변경된 키/입력은 평가를 통과하지 못한다.
 
 ## 실제 실행과 증거
 

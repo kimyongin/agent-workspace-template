@@ -223,4 +223,4 @@ console.log(JSON.stringify({ client, exitCode, observedTools: evidence.events.fi
 if (preparing) { evidence.assessment = assessPreparation(evidence, condition); await writeFile(resolve(outputRoot, 'evidence.json'), `${JSON.stringify(evidence, null, 2)}\n`); if (!evidence.assessment.pass) process.exitCode = 1; }
 else if (exitCode !== 0) process.exitCode = 1;
 if (saving && !evidence.assessment.pass) process.exitCode = 1;
-} finally { await savingTrial?.close(); if (installation) await installation.cleanup(); }
+} finally { try { await savingTrial?.close(); } finally { if (installation) await installation.cleanup(); } }
