@@ -1,4 +1,4 @@
-# 변경 영향에 따라 heavy steps를 생략하되 check/integration job은 항상 실행한다.
+# Draft PR은 검사를 생략한다. 그 외에는 변경 영향에 따라 check/integration을 실행한다.
 # 운영 secret을 쓰지 않는다. check·integration은 main의 필수 상태 검사다. job 이름을 바꾸면
 # 같은 PR에서 필수 검사 설정도 바꾼다.
 name: ci
@@ -7,13 +7,19 @@ on:
   push:
     branches: [main]
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, converted_to_draft]
   workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
 
 jobs:
   check:
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     timeout-minutes: 15
     outputs:
@@ -65,7 +71,7 @@ jobs:
 
   integration:
     needs: check
-    if: always()
+    if: ${{ !cancelled() && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:

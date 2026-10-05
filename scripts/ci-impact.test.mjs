@@ -130,10 +130,10 @@ test("CLI failure/missing history emits full; dispatch forces full; output and s
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
-test("required job names remain; integration runs always and explicitly fails a failed/missing check", () => {
+test("required jobs skip draft/canceled runs; active integration explicitly fails a failed/missing check", () => {
   const yaml = readFileSync(new URL('../.github/workflows/ci.yml', import.meta.url), 'utf8');
-  assert.match(yaml, /  check:\n/);
-  assert.match(yaml, /  integration:\n    needs: check\n    if: always\(\)/);
+  assert.match(yaml, /  check:\n    if: github\.event_name != 'pull_request' \|\| github\.event\.pull_request\.draft == false/);
+  assert.match(yaml, /  integration:\n    needs: check\n    if: \$\{\{ !cancelled\(\) && \(github\.event_name != 'pull_request' \|\| github\.event\.pull_request\.draft == false\) \}\}/);
   assert.match(yaml, /\[ "\$CHECK_RESULT" = "success" \] \|\|.*exit 1/);
   assert.match(yaml, /Missing\/invalid classification.*exit 1/);
   assert.match(yaml, /workflow_dispatch:/);
