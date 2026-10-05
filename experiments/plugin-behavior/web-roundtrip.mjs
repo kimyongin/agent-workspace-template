@@ -9,6 +9,7 @@ import { connectRoundtrip } from './roundtrip-session.mjs';
 import { readBusinessOriginals } from './preparation.mjs';
 import { beginRoundtripPhase, finishRoundtripPhase, digestRoundtrip } from './roundtrip.mjs';
 import { outsideDirectory } from './files.mjs';
+import { webFieldLabel, webFailureDiagnostic } from './web-proof.mjs';
 
 const [source, fixturePath] = process.argv.slice(2);
 if (!source || !fixturePath || process.env.PLUGIN_ENV_HANDOFF !== 'exclusive-local' || !/^[a-f0-9]{40}$/.test(process.env.PREPARATION_BACKEND_REVISION ?? '')) throw new Error('Usage: allocated handoff web-roundtrip.mjs <allocated-source> <outside-fixture.json>');
@@ -25,7 +26,9 @@ const output = await outsideDirectory(resolve(f.outputRoot, 'roundtrip'));
 const evidence = { client: f.clientName, backendAllocatedRevision: process.env.PREPARATION_BACKEND_REVISION, phases: [], desktopViewport: { width: 1280, height: 900 }, mobileViewport: { width: 390, height: 844 }, actualDesktopApp: false, physicalMobile: false, cliNativeOAuth: false, sdkBusinessBootstrap: false, rawAuthOrBodiesLogged: false };
 async function persistEvidence() { await writeFile(resolve(output, 'evidence.json'), JSON.stringify(evidence, null, 2) + '\n'); }
 async function webPhase(mode, intent, path, action) {
+  evidence.phase = mode; evidence.stage = 'baseline';
   const before = await readBusinessOriginals(call);
+  evidence.stage = 'journal-intent';
   await beginRoundtripPhase(f, save, before, mode, intent);
   // Record the UI's own request identity before forwarding its real mutation.
   // This route never substitutes a response, changes a request, or retries it.
@@ -41,8 +44,10 @@ async function webPhase(mode, intent, path, action) {
     await route.continue();
   });
   try {
+    evidence.stage = 'ui-commit';
     const [response] = await Promise.all([page.waitForResponse(r => match(r.url()) && r.request().method() === method), action()]);
     if (!response.ok()) throw new Error('Real web commit failed; no response body logged');
+    evidence.stage = 'verify-originals';
     const after = await readBusinessOriginals(call);
     const proof = await finishRoundtripPhase(f, save, after);
     evidence.phases.push({ mode, writer: 'real-web-ui', requestIdObserved: true, proof }); await persistEvidence();
@@ -56,6 +61,7 @@ async function webPhase(mode, intent, path, action) {
   } finally { await page.unroute(match); }
 }
 async function nativePhase(mode, intent) {
+  evidence.phase = mode; evidence.stage = 'native-start';
   f.roundtrip.intent = intent; await save();
   const script = resolve(import.meta.dirname, 'run-client.mjs');
   const child = spawn(process.execPath, [script, f.clientName, fixturePath, mode], { cwd: resolve(import.meta.dirname, '../..'), env: process.env, stdio: ['ignore', 'pipe', 'pipe'] });
@@ -70,38 +76,53 @@ async function nativePhase(mode, intent) {
   child.stderr.resume();
   const timer = setTimeout(() => child.kill(), 300000);
   let exit;
+  evidence.stage = 'native-await';
   try { exit = await new Promise((done, reject) => { child.once('error', reject); child.once('close', done); }); }
   finally { clearTimeout(timer); }
   f = await readJournal(fixturePath, helpers.MCP_URL, f.clientName);
+  evidence.stage = 'native-assessment';
   const native = location ? JSON.parse(await readFile(location, 'utf8')) : null;
   evidence.phases.push({ mode, writer: mode.endsWith('-read') ? 'new-native-read-session' : 'real-native-cli', exit, evidencePath: location ?? null, assessment: native?.assessment ?? null }); await persistEvidence();
   if (exit !== 0 || !native?.assessment?.pass || f.roundtrip.pending) throw new Error('Native phase failed; retain original evidence, no blind retry');
 }
 async function readWeb(mode, action) {
+  evidence.phase = mode; evidence.stage = 'baseline';
   const before = await readBusinessOriginals(call);
+  evidence.stage = 'ui-reread';
   await action();
+  evidence.stage = 'verify-originals';
   const after = await readBusinessOriginals(call);
   const unchanged = digestRoundtrip(before) === digestRoundtrip(after);
   evidence.phases.push({ mode, writer: 'read-only-web', unchanged }); await persistEvidence();
   if (!unchanged) throw new Error('Web reread changed stored originals');
 }
-async function fields(form, value) { for (const [label, text] of Object.entries(value)) await form.getByLabel(label, { exact: true }).fill(text); }
+async function fields(form, value) {
+  const fieldCodes = { 이메일: 'email', 비밀번호: 'password', '속성 1': 'prop1', '속성 2': 'prop2', '속성 3': 'prop3', 제목: 'title', 요약: 'summary', 본문: 'body' };
+  for (const [label, text] of Object.entries(value)) { evidence.stage = `field-${fieldCodes[label] ?? 'known-input'}`; await form.getByLabel(webFieldLabel(label)).fill(text); }
+  evidence.stage = 'fields-complete';
+}
 async function commitMemo(form, body, label = '저장') {
+  evidence.stage = 'memo-preview';
   await form.getByRole('button', { name: '기록 메모 확인', exact: true }).click();
-  await form.getByLabel('기록 본문', { exact: true }).fill(body);
+  await form.getByLabel(webFieldLabel('기록 본문')).fill(body);
+  evidence.stage = 'memo-commit';
   await form.getByRole('button', { name: label === '삭제' ? '삭제' : '확인하고 저장', exact: true }).click();
 }
 try {
+  evidence.phase = 'initialization'; evidence.stage = 'independent-connect';
   ({ client, call } = await connectRoundtrip(f));
+  evidence.stage = 'browser-launch';
   browser = await chromium.launch({ headless: true });
   page = await browser.newPage({ baseURL: webUrl, viewport: evidence.desktopViewport });
   page.setDefaultTimeout(20000);
+  evidence.phase = 'web-login'; evidence.stage = 'navigate';
   await page.goto('/login'); await fields(page, { 이메일: f.authEmail, 비밀번호: f.authPassword });
-  await page.getByRole('button', { name: '이메일로 로그인', exact: true }).click(); await page.waitForURL(u => u.pathname !== '/login');
+  evidence.stage = 'submit'; await page.getByRole('button', { name: '이메일로 로그인', exact: true }).click();
+  evidence.stage = 'await-login'; await page.waitForURL(u => u.pathname !== '/login');
   await webPhase('web-entity', {}, '/entities', async () => {
     await page.goto('/entities'); await beginTabAction(page, '엔터티 추가');
     const form = page.getByRole('dialog', { name: '엔터티 추가', exact: true });
-    await fields(form, { '속성 1': f.marker, '속성 2': '7', '속성 3': '2026-10-06' }); await form.getByLabel('속성 4').selectOption('b');
+    await fields(form, { '속성 1': f.marker, '속성 2': '7', '속성 3': '2026-10-06' }); await form.getByLabel(webFieldLabel('속성 4')).selectOption('b');
     await saveWithMemo(page, form); await expect(form).not.toBeVisible();
   });
   await webPhase('web-principle', { body: '초기 조건: 속성2가 7이면 보류' }, '/principles/current', async () => {
@@ -118,7 +139,7 @@ try {
   await nativePhase('roundtrip-entity', { id: f.entity.id, memoBody: `${f.originalDetail}; 속성2 7에서 11로 변경; ENTITY-${randomUUID()}` });
   await readWeb('desktop-entity-final-memo', async () => {
     const webResponse = page.waitForResponse(r => r.request().method() === 'GET' && new URL(r.url()).pathname.endsWith(`/api/entities/${f.entity.id}`));
-    await page.goto(`/entities/${f.entity.id}`); await expect(page.getByRole('dialog', { name: '엔터티 편집', exact: true }).getByLabel('속성 2')).toHaveValue('11');
+    await page.goto(`/entities/${f.entity.id}`); await expect(page.getByRole('dialog', { name: '엔터티 편집', exact: true }).getByLabel(webFieldLabel('속성 2'))).toHaveValue('11');
     const row = await (await webResponse).json();
     if (row.id !== f.entity.id || row.version !== f.entity.version || row.prop2 !== 11) throw new Error('Actual web entity identity/version mismatch');
     evidence.webEntity = { sameId: true, sameVersion: true, version: row.version };
@@ -144,7 +165,7 @@ try {
   await readWeb('desktop-exact-source-reopening', async () => { await page.goto(`/records/${f.record.id}`); await expect(page.locator('main')).toContainText(f.record.body); });
   await page.setViewportSize(evidence.mobileViewport);
   await readWeb('mobile-result-and-current-reread', async () => {
-    await page.goto(`/entities/${f.entity.id}`); await expect(page.getByRole('dialog', { name: '엔터티 편집', exact: true }).getByLabel('속성 2')).toHaveValue('11');
+    await page.goto(`/entities/${f.entity.id}`); await expect(page.getByRole('dialog', { name: '엔터티 편집', exact: true }).getByLabel(webFieldLabel('속성 2'))).toHaveValue('11');
     await page.goto(`/tasks/${f.task.id}`); await expect(page.getByText('완료', { exact: true }).first()).toBeVisible();
     await page.goto(`/records/${f.roundtrip.result.id}`); await expect(page.locator('main')).toContainText(f.roundtrip.result.body);
     await page.goto(`/principles/${f.principle.id}`); await expect(page.locator('main')).toContainText(f.principle.body);
@@ -160,8 +181,8 @@ try {
     await page.goto(`/records/${f.record.id}`); await expect(page.locator('main')).toContainText(f.record.body);
   });
   evidence.pass = true;
-} catch {
-  evidence.pass = false; evidence.failure = 'phase-failed; inspect structural phase evidence and retain owned journal for reconciliation/cleanup'; process.exitCode = 1;
+} catch (error) {
+  evidence.pass = false; evidence.failure = { phase: evidence.phase, stage: evidence.stage, ...webFailureDiagnostic(error), pending: Boolean(f.roundtrip.pending) }; process.exitCode = 1;
 } finally {
   try { await persistEvidence(); } finally { try { await browser?.close(); } finally { await client?.close(); } }
 }
