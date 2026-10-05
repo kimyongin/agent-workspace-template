@@ -10,7 +10,27 @@ node scripts/agent-models.mjs assign --client codex-cli --tier balanced --effort
 node scripts/agent-models.mjs assign --client claude-cli --tier balanced --effort medium --role implement --reason "제품 스킬 행동 검증" --snapshot C:/Users/yongin/AppData/Local/Temp/plugin-behavior-models-20261004/claude-cli-snapshot.json
 ```
 
-`models.mjs`는 현재 Codex app-server의 전체 `model/list` 페이지를 읽고 Claude의 명시 sonnet/medium 호출을 도구·MCP 없이 실행해 alias의 actual 모델을 확인한다. 전자는 capability 조회, 후자는 alias·옵션 수락 확인이며 품질/비용이나 backend 실제 effort 평가가 아니다. 결과에는 메일·로그인·토큰을 포함하지 않는다.
+`models.mjs`는 현재 Codex app-server의 전체 `model/list` 페이지를 읽고 Claude의 명시 `claude-opus-5-5`/medium 호출을 도구·MCP 없이 실행해 고정 allowlist 모델을 확인한다. 전자는 capability 조회, 후자는 모델·옵션 수락 확인이며 품질/비용이나 backend 실제 effort 평가가 아니다. 결과에는 메일·로그인·토큰을 포함하지 않는다. 필요한 경우 `CODEX_CLI_BINARY`로 승인된 바이너리를 세션에 지정한다. 기본값은 `codex`이며 실제 버전과 당일 snapshot이 다르면 실행을 중단한다.
+
+## 준비 전용 검증 (#122)
+
+기존 저장 실험과 별도로 `prepare-fixture.mjs`를 사용한다. 배정된 loopback 서비스에서 새 synthetic Auth owner를 만들고 정상 로그인·OAuth 동의를 거친다. 생성 전에 소유 ID와 입력을 저장소 밖 비밀 journal에 보존하고 업무 자료→이번 OAuth client→이번 synthetic user 순서로 정리한다. 기존 DevA/B 자료와 개인 인증 파일을 사용하거나 복사하지 않는다. 웹 주소는 배정 checkout의 `support.ts`와 `config.toml`에서 확인한다.
+
+```powershell
+$env:PLUGIN_ENV_HANDOFF = 'exclusive-local'
+node --experimental-transform-types experiments/plugin-behavior/prepare-fixture.mjs setup <allocated-checkout> codex-cli <new-outside-output>
+node experiments/plugin-behavior/run-client.mjs codex-cli <outside-output>/codex-cli-fixture.json <current-codex-snapshot> prepare
+node --experimental-transform-types experiments/plugin-behavior/prepare-fixture.mjs verify <allocated-checkout> codex-cli <outside-output>
+node --experimental-transform-types experiments/plugin-behavior/prepare-fixture.mjs cleanup <allocated-checkout> codex-cli <outside-output>
+```
+
+Claude는 client와 snapshot을 바꾼다. 자연 업무 prompt에는 스킬·도구명·검색 순서를 넣지 않는다. 준비 세션에도 실제 변경 도구를 제공하고 호출 수 0과 독립 SDK의 전체 원문 전후 digest를 각각 확인한다. SDK 성공은 실제 CLI의 스킬 선택·읽기를 대신하지 않는다. Codex는 승인된 고유 UUID marketplace의 시험 항목만 정상 `plugin add`로 설치하고 `finally`에서 동일 selector를 `plugin remove`로 정리한다. 기존 설치의 id/version/enabled digest가 바뀌면 멈춘다. 개인 설치 cache를 직접 편집하지 않는다. native cache 생성, 정확한 제품 SKILL 읽기 완료, 제공 metadata와 새 실행별 증거 경로를 따로 남긴다.
+
+setup의 마지막 인수 `missing`은 이번 owner의 현재 원칙을 삭제한 상태, `conflict`는 현재 원칙의 최소 수치 조건과 과거 기록의 실행 판단이 충돌하는 상태를 만든다. 기본값은 `normal`이다. 이 구성 단계 이후 baseline을 잡고 새로운 자연 CLI 세션을 실행한다. `prepare-explicit`은 명시 스킬/파일 읽기 지원 경로의 별도 진단이며 자동 선택 성공으로 합산하지 않는다. 승인된 `PREPARATION_RETAIN_TRIAL=own-thread` 실행의 `threadId`로 `trial-context.mjs <own-evidence> <shared-SKILL>`를 호출하면 지원된 native thread/read와 반환된 바로 그 rollout에서 제품 path·공유 body/hash만 검사한다. 일반 skills catalog marker와 실제 제품 활성화 증거를 구분한다.
+
+토큰 만료 전에 이번 fixture를 정리하거나 배정된 후속 검증을 마친다. 유지가 승인된 fixture도 새 대화에서 사용하고 token 만료 시 정상 로그인·동의를 다시 수행한다. 비밀 journal에 ID가 없는 응답 유실 DCR 등록은 자동 정리할 수 없으며, pending registration 자료를 보존해 환경 owner에게 인계한다. 다른 OAuth 등록이나 사용자에 대한 admin 조회·삭제로 추측하지 않는다.
+
+`proxy-preparation.mjs`는 배정된 55684→55621 loopback 검색 의존성만 다룬다. `semantic-failure`는 auto/semantic 검색만 실패시키고 나머지는 원본으로 전달한다. `index-delay`는 실제 keyword 검색의 자료를 그대로 사용하며 미색인 metadata를 주입한다. 이는 실제 backend의 색인 실패가 아닌 local adapter 조건이다. `PREPARATION_MCP_PROXY`는 이 배정 주소만 허용하고 독립 전후 조회는 원본 endpoint로 수행한다. 서비스 owner 배정 없이 proxy를 시작하지 않는다. 토큰·원시 stdout·검색 payload는 증거에 기록하지 않는다. 실행하지 않은 시나리오는 통과로 추정하지 않는다.
 
 실제 서비스 실행은 메인의 Entity 통합 및 공유 로컬 Supabase 독점 배정 후에만 한다. loopback OAuth 토큰을 fixture 소유자가 실제 동의·PKCE·코드 교환으로 받아 세션 MCP 설정에 전달한다. 이는 CLI 자체 OAuth 로그인 성공과 다르다. 원본 운영 endpoint는 유지하고 복사 패키지·세션 설정만 loopback 대상으로 쓴다. 토큰과 원시 클라이언트 출력은 저장소 밖에만 두며 보관하는 증거는 도구 이름/성공/모델/스킬 선택과 독립 재조회 판정만 남긴다.
 
@@ -22,7 +42,7 @@ node scripts/agent-models.mjs assign --client claude-cli --tier balanced --effor
 
 setup은 첫 변경 전에 비밀 journal을 만들고 token·생성 전 request_id/입력·반환 ID를 단계별 저장한다. 부분 실패 후에도 같은 `cleanup` 명령을 사용하며 정리 진행을 보존해 다시 실행할 수 있다. 응답 유실의 pending create는 같은 request_id로만 멱등 재시도하며, 미실행 요청이었다면 해당 시험 항목을 생성한 뒤 삭제할 수 있다. 업무 자료 뒤 이번 OAuth 등록만 정리하고 token을 journal에서 제거한다. 기존 fixture 파일은 덮어쓰지 않으므로 새로운 setup에는 새 폴더를 쓴다. token 미반환/검증 실패·만료는 티켓에 기록한 정상 인증 확인/인계 대상이다.
 
-`node --experimental-transform-types --test experiments/plugin-behavior/journal.test.mjs`는 서비스 연결 없이 실제 비밀 journal 파일과 모의 도구에 생성/삭제/인증 정리/디스크 실패를 주입해 소유 범위·재시도를 검사한다. 모의 도구는 실제 MCP ToolDef의 input schema로 모든 요청을 먼저 검증한다. 앱 TypeScript의 parameter property를 읽기 위해 transform flag가 필요하며 현재 Node 24.15.0에서 확인했다. runner와 같은 `setupOwned` 경계의 listTools callback에 실패를 주입한다. 원칙 정리는 지원되는 active/inactive를 각각 마지막 페이지까지 확인하며 cursor를 섞지 않는다.
+`node --experimental-transform-types --test experiments/plugin-behavior/journal.test.mjs`는 서비스 연결 없이 실제 비밀 journal 파일과 모의 도구에 생성/삭제/인증 정리/디스크 실패를 주입해 소유 범위·재시도를 검사한다. 모의 도구는 실제 MCP ToolDef의 input schema로 모든 요청을 먼저 검증한다. 앱 TypeScript의 parameter property를 읽기 위해 transform flag가 필요하며 현재 Node 24.15.0에서 확인했다. runner와 같은 `setupOwned` 경계의 listTools callback에 실패를 주입한다. 원칙 정리는 현재 계약의 view:all을 마지막 페이지까지 확인한다. setup은 기존 타인 현재 원칙이 있으면 변경 전에 거부한다.
 
 ```powershell
 $env:PLUGIN_ENV_HANDOFF = 'exclusive-local'

@@ -8,11 +8,12 @@ import { outsideDirectory } from './files.mjs';
 const output = resolve(process.argv[2] ?? '');
 if (!process.argv[2]) throw new Error('Usage: node experiments/plugin-behavior/models.mjs <outside-repository-directory>');
 await outsideDirectory(output);
-const codexVersion = execFileSync('codex', ['--version'], { encoding: 'utf8' }).trim().replace('codex-cli ', '');
+const codexBinary = process.env.CODEX_CLI_BINARY ?? 'codex';
+const codexVersion = execFileSync(codexBinary, ['--version'], { encoding: 'utf8' }).trim().replace('codex-cli ', '');
 const claudeVersion = execFileSync('claude', ['--version'], { encoding: 'utf8' }).trim().split(' ')[0];
 
 const listed = await new Promise((resolveList, reject) => {
-  const child = spawn('codex', ['app-server', '--stdio'], { cwd: output, stdio: ['pipe', 'pipe', 'pipe'] });
+  const child = spawn(codexBinary, ['app-server', '--stdio'], { cwd: output, stdio: ['pipe', 'pipe', 'pipe'] });
   const timer = setTimeout(() => { child.kill(); reject(new Error('model/list timed out')); }, 30000);
   const all = [];
   let id = 2;
@@ -43,24 +44,24 @@ const codex = {
 await writeFile(resolve(output, 'codex-cli-snapshot.json'), `${JSON.stringify(codex, null, 2)}\n`);
 
 const claude = await new Promise((resolveResult, reject) => {
-  const child = spawn('claude', ['--print', '--model', 'sonnet', '--effort', 'medium', '--setting-sources', '', '--strict-mcp-config', '--mcp-config', '{"mcpServers":{}}', '--tools', '', '--no-session-persistence', '--output-format', 'json', 'Reply READY only. Do not use tools.'], { cwd: output, stdio: ['ignore', 'pipe', 'pipe'] });
-  const timer = setTimeout(() => { child.kill(); reject(new Error('Claude alias probe timed out')); }, 120000);
+  const child = spawn('claude', ['--print', '--model', 'claude-opus-5-5', '--effort', 'medium', '--setting-sources', '', '--strict-mcp-config', '--mcp-config', '{"mcpServers":{}}', '--tools', '', '--no-session-persistence', '--output-format', 'json', 'Reply READY only. Do not use tools.'], { cwd: output, stdio: ['ignore', 'pipe', 'pipe'] });
+  const timer = setTimeout(() => { child.kill(); reject(new Error('Claude fixed-model probe timed out')); }, 120000);
   let result = '';
   child.stdout.on('data', (chunk) => { result += chunk; });
   child.on('error', (error) => { clearTimeout(timer); reject(error); });
   child.on('close', (code) => {
     clearTimeout(timer);
-    if (code) { reject(new Error(`Claude alias probe exit ${code}; no raw credential-bearing log retained`)); return; }
-    try { resolveResult(JSON.parse(result)); } catch { reject(new Error('Claude alias probe output was not JSON')); }
+    if (code) { reject(new Error(`Claude fixed-model probe exit ${code}; no raw credential-bearing log retained`)); return; }
+    try { resolveResult(JSON.parse(result)); } catch { reject(new Error('Claude fixed-model probe output was not JSON')); }
   });
 });
-const actual = Object.keys(claude.modelUsage ?? {}).find((name) => name.startsWith('claude-sonnet-'));
-if (!actual || claude.is_error) throw new Error('Claude sonnet resolution unavailable');
+const actual = Object.keys(claude.modelUsage ?? {}).find((name) => name === 'claude-opus-5-5');
+if (!actual || claude.is_error || Object.keys(claude.modelUsage).some((name) => name !== actual)) throw new Error('Claude actual model does not match the fixed allowlist');
 const snapshot = {
   client: 'claude-cli', version: claudeVersion, context: 'owner-desktop-claude',
   observedAt: new Date().toISOString(), timeZone: 'Asia/Seoul',
-  models: [{ model: 'sonnet', actualModel: actual, efforts: ['medium'], blocked: false }],
-  evidence: { explicitModel: 'sonnet', explicitEffort: 'medium', resultSubtype: claude.subtype, modelUsage: claude.modelUsage, backendEffort: 'unexposed' },
+  models: [{ model: 'claude-opus-5-5', actualModel: actual, efforts: ['medium'], blocked: false }],
+  evidence: { explicitModel: 'claude-opus-5-5', explicitEffort: 'medium', resultSubtype: claude.subtype, modelUsage: claude.modelUsage, backendEffort: 'unexposed' },
 };
 await writeFile(resolve(output, 'claude-cli-snapshot.json'), `${JSON.stringify(snapshot, null, 2)}\n`);
 console.log(JSON.stringify({ codex: { version: codexVersion, models: codex.models.length }, claude: { version: claudeVersion, actualModel: actual, explicitEffort: 'medium', backendEffort: 'unexposed' } }));
