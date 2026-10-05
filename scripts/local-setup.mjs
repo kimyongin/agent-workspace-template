@@ -64,6 +64,7 @@ const local = {
   VITE_DEV_LOGIN: "true",
   LOCAL_SUPABASE_SECRET_KEY: secretKey,
   LOCAL_DB_URL: status.DB_URL,
+  LOCAL_POOLER_PORT: String(config.poolerPort),
   APP_SERVER_PASSWORD: prev.APP_SERVER_PASSWORD ?? secret(),
   APP_WORKER_PASSWORD: prev.APP_WORKER_PASSWORD ?? secret(),
   INDEX_WORKER_TOKEN: prev.INDEX_WORKER_TOKEN ?? randomBytes(32).toString("base64url"),
