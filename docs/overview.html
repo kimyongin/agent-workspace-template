@@ -662,7 +662,7 @@ footer a { margin-right: 10px; white-space: nowrap; }
       <p><b>이미 정해진 작업이라면</b> 해당 단계부터 시작합니다. <code>to-tickets</code>는 계획·현재 대화에서도 시작할 수 있고, 작은 확정 작업은 바로 <code>implement</code>로 맡길 수 있습니다.</p>
       <p><b>다른 세션에서 이어가려면</b> 이슈 번호·URL과 필요한 문서 경로를 전달합니다. 대화에만 남은 맥락은 <code>handoff</code>로 인계하고, 임시 보고서의 필요한 결론은 명세에 담습니다.</p>
     </div>
-    <p class="src">더 보기: <a href="development/matt-skills.md">전체 스킬과 내부 호출 관계</a><a href="development/working-with-agents.md">요청 예시</a><a href="https://github.com/kimyongin/agent-workspace-template/issues">GitHub Issues</a><a href="development/workflow.md#머지">리뷰·CI·머지 기준</a></p>
+    <p class="src">더 보기: <a href="development/matt-skills.md">전체 스킬 원문</a><a href="../.agents/skills/implement-spec/SKILL.md">여러 티켓 구현</a><a href="../.agents/skills/code-review/SKILL.md">코드 리뷰</a><a href="https://github.com/kimyongin/agent-workspace-template/issues">GitHub Issues</a><a href="adr/0011-matt-skills-and-github-workflow.md">프로젝트 권한과 머지</a></p>
   </section>
 
   <!-- 3 -->
@@ -732,7 +732,7 @@ footer a { margin-right: 10px; white-space: nowrap; }
       <div class="tr d3" role="listitem"><span class="tn"><i>│  │  └─ </i><b>_shared/adapters/</b></span><span class="td">바깥 서비스를 잇는 연결 부품</span></div>
       <div class="tr d2" role="listitem"><span class="tn"><i>│  └─ </i><b>migrations/</b></span><span class="td">표(테이블) 모양과 접근 권한 설정</span></div>
       <div class="tr d1" role="listitem"><span class="tn"><i>├─ </i><b>plugins/workspace/</b></span><span class="td">AI 에이전트용 플러그인: 연결 도구와 사용 요령</span></div>
-      <div class="tr d1" role="listitem"><span class="tn"><i>├─ </i><b>docs/</b></span><span class="td">PRD·ADR·환경·이전 근거</span></div>
+      <div class="tr d1" role="listitem"><span class="tn"><i>├─ </i><b>docs/</b></span><span class="td">PRD·ADR·제품 기준·환경</span></div>
       <div class="tr d1" role="listitem"><span class="tn"><i>├─ </i><b>AGENTS.md</b></span><span class="td">개발 에이전트가 가장 먼저 읽는 규칙</span></div>
       <div class="tr d1" role="listitem"><span class="tn"><i>├─ </i><b>.agents/skills/</b></span><span class="td">개발 스킬: 공식 27개 스킬과 공유 정본</span></div>
       <div class="tr d1" role="listitem"><span class="tn"><i>├─ </i><b>e2e/</b></span><span class="td">웹과 에이전트를 이어서 실제처럼 확인하는 시험</span></div>
@@ -803,19 +803,19 @@ footer a { margin-right: 10px; white-space: nowrap; }
       <p class="faq-group">개발 진행</p>
       <details>
         <summary>기획을 바꾸고 싶으면 어떻게 하나요?</summary>
-        <p>“grill-with-docs로 정리하자: …”부터 시작합니다. 구체적으로 합의한 내용은 PRD·ADR에 반영하고 같은 승인을 반복 요청하지 않습니다. <a href="development/workflow.md#세션-배정과-인계">역할과 인계</a>를 따릅니다. 문서를 직접 고쳐도 되지만, 그때도 관련 작업에 영향이 있는지 에이전트에게 확인시키는 것이 좋습니다.</p>
+        <p><code>grill-with-docs</code>로 요구와 제약을 논의합니다. 합의한 용어와 결정은 <a href="../.agents/skills/domain-modeling/SKILL.md">domain-modeling</a>으로 문서에 남깁니다. 관련 티켓과 구현에 미치는 영향도 함께 검토합니다.</p>
       </details>
       <details>
         <summary>에이전트가 방향을 잘못 잡은 것 같아요.</summary>
-        <p>“멈추고 지금까지 한 것과 남은 것을 정리해줘”라고 말한 뒤 다시 정하면 됩니다. 같은 실패를 반복하면 원인과 수정 결과를 확인하고 <a href="development/workflow.md#모델과-추론-강도-선택갱신">모델·추론 강도 정책</a>에 따라 조정합니다.</p>
+        <p>“멈추고 지금까지 한 것과 남은 것을 정리해줘”라고 말한 뒤 방향을 다시 정하면 됩니다. 오류나 성능 문제의 원인을 찾을 때는 <a href="../.agents/skills/diagnosing-bugs/SKILL.md">diagnosing-bugs</a>를 사용합니다.</p>
       </details>
       <details>
         <summary>어디까지 진행됐는지 모르겠어요.</summary>
-        <p>“GitHub issue #N의 진행 상태를 정리해줘”라고 하면 됩니다. issue에서 결과·blocker·남은 작업을 확인하고 연결된 PR과 checks에서 리뷰·CI·머지 증거를 확인합니다. <a href="development/workflow.md#변경과-완료-기록">기록 규칙</a>을 따릅니다.</p>
+        <p>“GitHub issue #N의 진행 상태를 정리해줘”라고 하면 됩니다. <a href="https://github.com/kimyongin/agent-workspace-template/issues">이슈</a>에서 결과·선행 작업·남은 일을 확인하고, 연결된 PR과 checks에서 리뷰·CI·머지 근거를 확인합니다.</p>
       </details>
       <details>
         <summary>PR이 너무 커서 읽기 어려워요.</summary>
-        <p>“이 PR을 작은 PR로 나눠줘”라고 요청합니다. PR은 30분 안에 검토할 수 있는 크기를 기준으로 합니다.</p>
+        <p>“이 PR을 작은 PR로 나눠줘”라고 요청합니다. 작업 범위와 선행 관계를 <a href="../.agents/skills/to-tickets/SKILL.md">to-tickets</a>의 기준으로 다시 검토할 수 있습니다.</p>
       </details>
       <details>
         <summary>머지하면 바로 실제 서비스에 반영되나요?</summary>
@@ -831,11 +831,11 @@ footer a { margin-right: 10px; white-space: nowrap; }
       </details>
       <details>
         <summary>어떤 모델을 골라야 하나요?</summary>
-        <p>Codex는 GPT-6.1 Sol, Claude Code는 Opus 5.5를 사용합니다. 보통 medium으로 시작하고 작업 난이도에 맞춰 같은 모델의 추론 강도를 조절합니다. 상세한 선택·지원 확인은 <a href="development/workflow.md#모델과-추론-강도-선택갱신">모델 정책</a>을 따릅니다.</p>
+        <p>사용자가 정한 모델은 Codex의 GPT-6.1 Sol과 Claude Code의 Opus 5.5입니다. 기본값은 <a href="../.codex/config.toml">Codex 설정</a>과 <a href="../.claude/settings.json">Claude 설정</a>에서 확인합니다.</p>
       </details>
       <details>
         <summary>이 페이지와 다른 문서의 내용이 다르면요?</summary>
-        <p>링크된 원래 문서가 맞습니다. 이 페이지는 이해를 돕는 안내이며, 지금 어디까지 만들어졌는지는 <a href="START-HERE.md#현재-상태">START-HERE의 현재 상태</a>에서 확인합니다.</p>
+        <p>링크된 원래 문서가 기준입니다. 이 페이지는 이해를 돕는 안내이며, 실제 진행 상태는 <a href="https://github.com/kimyongin/agent-workspace-template/issues">GitHub Issues</a>와 연결된 PR에서 확인합니다.</p>
       </details>
     </div>
   </section>
@@ -844,7 +844,7 @@ footer a { margin-right: 10px; white-space: nowrap; }
 
 <footer>
   <div class="wrap">
-    <p>더 읽기: <a href="START-HERE.md">START-HERE</a><a href="../GLOSSARY.md">용어집</a><a href="product/concept.md">PRD</a><a href="adr/README.md">ADR</a><a href="development/working-with-agents.md">에이전트와 일하는 방법</a><a href="architecture/hexagonal-review.md">아키텍처</a></p>
+    <p>더 읽기: <a href="START-HERE.md">START-HERE</a><a href="../GLOSSARY.md">용어집</a><a href="product/concept.md">PRD</a><a href="adr/README.md">ADR</a><a href="development/matt-skills.md">개발 스킬 원문</a><a href="architecture/hexagonal-review.md">아키텍처</a></p>
     <p>이 페이지는 규칙을 새로 정하지 않습니다. 문서 구조·결정·단계가 바뀌면 같은 PR에서 이 페이지도 함께 고칩니다.</p>
   </div>
 </footer>
