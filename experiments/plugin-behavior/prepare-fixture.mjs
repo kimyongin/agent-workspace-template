@@ -11,6 +11,7 @@ import { readJournal, saveJournal, setupOwned, cleanupOwned, createOwned } from 
 import { createOwnedUser, deleteOwnedUser } from './owned-auth.mjs';
 import { ownedConsent } from './owned-consent.mjs';
 import { readPreparationState } from './preparation.mjs';
+import { cleanupSavingRecords } from './saving-session.mjs';
 
 const [operation, source, clientName, outputDirectory, scenario = 'normal'] = process.argv.slice(2);
 if (!['normal', 'missing', 'conflict'].includes(scenario)) throw new Error('Only owned documented preparation scenarios');
@@ -69,7 +70,10 @@ try {
     console.log(JSON.stringify({ operation, clientName, state: journal.state, syntheticOwner: true, fixturePath, counts: journal.baseline.counts, rawAuthOrBodiesLogged: false }));
   } else if (operation === 'cleanup') {
     if (ownsBusiness && !client && journal.state !== 'cleaned') throw new Error('Own business cleanup needs valid OAuth; auth identity retained');
-    if (client) await cleanupOwned(journal, save, call, async id => { const { error } = await admin.auth.admin.oauth.deleteClient(id); if (error && error.status !== 404) throw new Error('Own DCR cleanup failed'); });
+    if (client) {
+      await cleanupSavingRecords(journal, save, call);
+      await cleanupOwned(journal, save, call, async id => { const { error } = await admin.auth.admin.oauth.deleteClient(id); if (error && error.status !== 404) throw new Error('Own DCR cleanup failed'); });
+    }
     else if (journal.oauthClientId && !journal.oauthDeleted) { const { error } = await admin.auth.admin.oauth.deleteClient(journal.oauthClientId); if (error && error.status !== 404) throw new Error('Own DCR cleanup failed'); journal.oauthDeleted = true; await save(); }
     await deleteOwnedUser(journal, save, admin);
     journal.state = 'cleaned'; delete journal.token; await save();

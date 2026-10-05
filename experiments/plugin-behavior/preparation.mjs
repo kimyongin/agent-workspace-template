@@ -2,6 +2,11 @@
 import { createHash } from 'node:crypto';
 
 export async function readPreparationState(call) {
+  const state = await readBusinessOriginals(call);
+  return { digest: createHash('sha256').update(JSON.stringify(canonical(state))).digest('hex'), counts: Object.fromEntries(Object.entries(state).filter(([, rows]) => Array.isArray(rows)).map(([kind, rows]) => [kind, rows.length])) };
+}
+
+export async function readBusinessOriginals(call) {
   const state = { current: await call('get_current_principle', {}) };
   for (const kind of ['entities', 'tasks', 'records', 'principles', 'tags']) {
     const scopes = kind === 'tags' ? [{ scope: 'entity' }, { scope: 'activity' }] : kind === 'principles' ? [{ view: 'all' }] : [{}];
@@ -20,7 +25,7 @@ export async function readPreparationState(call) {
     for (const row of rows) originals.push(kind === 'tags' ? row : await call(`get_${kind === 'entities' ? 'entity' : kind.slice(0, -1)}`, { id: row.id }));
     state[kind] = originals.sort((a, b) => a.id.localeCompare(b.id));
   }
-  return { digest: createHash('sha256').update(JSON.stringify(canonical(state))).digest('hex'), counts: Object.fromEntries(Object.entries(state).filter(([, rows]) => Array.isArray(rows)).map(([kind, rows]) => [kind, rows.length])) };
+  return state;
 }
 function canonical(value) {
   if (Array.isArray(value)) return value.map(canonical);
