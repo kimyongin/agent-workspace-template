@@ -1,6 +1,0 @@
-ORCHID-527
-
-1. Missing owner-only authorization: no `actorId == ownerId` check.
-2. Revision check is not a conditional update guard.
-3. Task update and activity append are non-atomic.
-4. Response returns the pre-update revision, not the persisted new revision.

@@ -1,6 +1,6 @@
 # 변경 영향에 따라 heavy steps를 생략하되 check/integration job은 항상 실행한다.
 # 운영 secret을 쓰지 않는다. check·integration은 main의 필수 상태 검사다. job 이름을 바꾸면
-# 같은 PR에서 필수 검사 설정도 바꾼다(docs/development/workflow.md "머지").
+# 같은 PR에서 필수 검사 설정도 바꾼다.
 name: ci
 
 on:
