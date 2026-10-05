@@ -78,7 +78,7 @@ export function EntityLink({ id }: { id: string | null | undefined }) {
   return id
     ? (
       <p className="secondary">
-        연결 엔터티: <Link to={`/entities/${id}`}>엔터티 보기</Link>
+        연결 엔터티: <Link to={`/entities/${id}`}>엔터티 편집</Link>
       </p>
     )
     : null;

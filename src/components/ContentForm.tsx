@@ -92,8 +92,7 @@ export function FormModal({ title, open, submitLabel, dirty, onClose, onRouteDis
     }
   };
 
-  const footer = (requestClose: () => void) => <>
-    <button type="button" className="btn" onClick={requestClose} disabled={busy}>취소</button>
+  const footer = <>
     <button type="submit" form={formId} className="btn btn-primary" disabled={busy}>{busy ? "저장 중…" : uncertain ? "같은 내용 다시 시도" : submitLabel}</button>
   </>;
   const callbacks = useRef({onClose, onRouteDiscard}); callbacks.current = {onClose, onRouteDiscard};

@@ -114,15 +114,15 @@ test("실제 App 공통 모달 생성·직접 편집 성공/취소·저장 중 P
   await started;
   await page.goBack(); await expect(page).toHaveURL(/\/tasks\?create=task$/); await expect(page.getByRole("dialog", { name: "변경을 버릴까요?" })).not.toBeVisible();
   release(); await expect(page).toHaveURL(new RegExp(`/tasks/${task.id}\\?list=`)); await expect(form).not.toBeVisible();
-  await page.getByRole("link", { name: "← 할 일 목록", exact: true }).click(); await page.getByRole("link", { name: "생성 결과 편집", exact: true }).click();
-  form = page.getByRole("dialog", { name: "할 일 편집", exact: true }); await form.getByRole("button", { name: "취소", exact: true }).click(); await expect(page).toHaveURL(/\/tasks\?/); await expect(form).not.toBeVisible();
+  await page.getByRole("button", { name: "닫기", exact: true }).click(); await page.getByRole("link", { name: "생성 결과 편집", exact: true }).click();
+  form = page.getByRole("dialog", { name: "할 일 편집", exact: true }); await form.getByRole("button", { name: "닫기", exact: true }).click(); await expect(page).toHaveURL(/\/tasks\?/); await expect(form).not.toBeVisible();
   await page.getByRole("link", { name: "생성 결과 편집", exact: true }).click(); await form.getByLabel("요약").fill("직접 편집 성공");await form.getByLabel("편집 메모").fill("직접 편집 검증"); await form.getByRole("button", { name: "저장", exact: true }).click();
   await expect(page).toHaveURL(/\/tasks\?/); await expect(form).not.toBeVisible(); await expect(page.getByText("직접 편집 성공", { exact: true })).toBeVisible(); expect(warnings).toEqual([]);
   const entity = { id: "30000000-0000-4000-8000-000000000000", prop1: "App 엔터티", prop2: null, prop3: null, prop4: "a", version: 1, created_at: task.created_at, updated_at: task.updated_at, tasks: { count: 0, items: [] }, records: { count: 0, items: [] }, principles: { count: 0, items: [] } };
   await page.route("**/api/entities**", route => route.fulfill({ json: route.request().method() === "POST" || new URL(route.request().url()).pathname.endsWith(entity.id) ? entity : { items: [], next_cursor: null } }));
   await page.getByRole("navigation", { name: "주 메뉴" }).getByRole("link", { name: "엔터티", exact: true }).click(); await beginTabAction(page,"엔터티 추가");
   const entityForm = page.getByRole("dialog", { name: "엔터티 추가", exact: true }); await entityForm.getByLabel("속성 1").fill(entity.prop1); await entityForm.getByRole("button", { name: "저장", exact: true }).click();
-  await expect(entityForm).not.toBeVisible(); await expect(page).toHaveURL(new RegExp(`/entities/${entity.id}`)); await expect(page.getByRole("heading", { name: entity.prop1 })).toBeVisible();
+  await expect(entityForm).not.toBeVisible(); await expect(page).toHaveURL(new RegExp(`/entities/${entity.id}`)); await expect(page.getByLabel("속성 1")).toHaveValue(entity.prop1);
 });
 test("실제 App 태그 폐기 승인 뒤에만 로그아웃 요청하고 로그인으로 종료", async ({ page }) => {
   let signOuts = 0;
@@ -172,7 +172,7 @@ test("이름 충돌 초안 보존과 삭제 실패·성공", async ({ page }) =>
   await page.route("**/api/tags/*", route => { if (route.request().method() === "PATCH") { conflicted = true; return route.fulfill({ status: 409, json: { code: "conflict", message: "다른 변경" } }); } return failedDelete ? route.fulfill({ status: 409, json: { code: "conflict", message: "삭제 충돌" } }) : route.fulfill({ status: 204 }); });
   await page.goto(url); await page.getByRole("button", { name: "첫 태그 이름 변경" }).click(); await page.getByRole("textbox", { name: /태그 이름/ }).fill("초안 유지"); await page.getByRole("button", { name: "저장", exact: true }).click();
   await expect(page.getByText(/다른 변경이 저장되었습니다/)).toBeVisible(); await expect(page.getByRole("textbox", { name: /태그 이름/ })).toHaveValue("초안 유지");
-  await page.getByRole("button", { name: "취소", exact: true }).click(); await page.getByRole("dialog", { name: "변경을 버릴까요?" }).getByRole("button", { name: "변경 버리기" }).click();
+  await page.getByRole("button", { name: "닫기", exact: true }).click(); await page.getByRole("dialog", { name: "변경을 버릴까요?" }).getByRole("button", { name: "변경 버리기" }).click();
   await page.getByRole("button", { name: "첫 태그 삭제" }).click(); await page.getByRole("dialog", { name: "태그를 삭제할까요?" }).getByRole("button", { name: "삭제", exact: true }).click(); await expect(page.getByText("삭제 충돌")).toBeVisible();
   failedDelete = false; await page.getByRole("button", { name: "첫 태그 삭제" }).click(); await page.getByRole("dialog", { name: "태그를 삭제할까요?" }).getByRole("button", { name: "삭제", exact: true }).click(); await expect(page.getByText("태그를 삭제했습니다.")).toBeVisible();
 });
@@ -194,14 +194,14 @@ test("엔터티 연결 작성·실패 초안·성공 후 조회 실패와 모달
   await form.getByRole("button", { name: "추가", exact: true }).click(); await expect(form.getByText("저장 실패", { exact: true })).toBeVisible();
   await expect(form.getByLabel("제목")).toHaveValue("연결된 초안"); failSave = false; await form.getByRole("button", { name: "추가", exact: true }).click();
   await expect(form).not.toBeVisible(); await expect(page.getByText("할 일을 추가했습니다.")).toBeVisible(); await expect(page.getByText("관련 자료 조회 실패")).toBeVisible();
-  expect(bodies[1].entity_id).toBe(entity.id); await expect(page.getByRole("heading", { name: entity.prop1 })).toBeVisible();
-  await beginTabAction(page,"기록 작성");
+  expect(bodies[1].entity_id).toBe(entity.id); await expect(page.getByLabel("속성 1")).toHaveValue(entity.prop1);
+  await page.getByRole("button",{name:"기록 작성",exact:true}).click();
   const record = page.getByRole("dialog", { name: "기록 작성", exact: true }); await expect(record.getByLabel("엔터티", { exact: true })).toHaveValue(entity.id);
-  await record.getByLabel("제목").fill("기록 초안"); await record.getByRole("button", { name: "취소", exact: true }).click();
+  await record.getByLabel("제목").fill("기록 초안"); await record.getByRole("button", { name: "닫기", exact: true }).click();
   await page.getByRole("dialog", { name: "변경을 버릴까요?" }).getByRole("button", { name: "취소", exact: true }).click(); await expect(record.getByLabel("제목")).toHaveValue("기록 초안");
-  await record.getByRole("button", { name: "취소", exact: true }).click(); await page.getByRole("dialog", { name: "변경을 버릴까요?" }).getByRole("button", { name: "변경 버리기" }).click();
+  await record.getByRole("button", { name: "닫기", exact: true }).click(); await page.getByRole("dialog", { name: "변경을 버릴까요?" }).getByRole("button", { name: "변경 버리기" }).click();
   await expect(page.getByRole("button", { name: "기록 작성", exact: true })).toBeFocused();
-  await beginTabAction(page,"기록 작성");
+  await page.getByRole("button",{name:"기록 작성",exact:true}).click();
   await record.getByLabel("제목").fill("연결 기록"); await record.getByLabel("요약").fill("엔터티 문맥"); await record.getByRole("button", { name: "저장", exact: true }).click();
   await expect(page.getByText("기록을 저장했습니다.")).toBeVisible(); expect(bodies.at(-1)?.entity_id).toBe(entity.id);
 });

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Link, useNavigate, useParams, useSearchParams } from "react-router";
+import { useNavigate, useParams, useSearchParams } from "react-router";
 import { DetailSurface, ConfirmDialog } from "../../components/Modal.tsx";
 import { Notice } from "../../components/Field.tsx";
 import { ChangeNoteField } from "../../components/ContentForm.tsx";
@@ -36,22 +36,20 @@ export function PrincipleDetailPage() {
   return <DetailSurface title={item?.title??"원칙"} onClose={()=>navigate(back)} busy={busy}>
     {error&&<><Notice kind="error">{confirmed.current?.id===id?"저장은 완료했습니다. 최신 내용을 불러오지 못했습니다.":error}</Notice><button className="btn" onClick={()=>setRetry(n=>n+1)}>조회 다시 시도</button></>}
     {!item&&!error&&<p role="status">불러오는 중…</p>}
-    <Link className="back-link" to={back}>{origin.label}</Link>
-    {message&&<Notice kind="success">{message}</Notice>}
     {item&&<section className="form">
-      <p className="meta">{item.is_current?"현재 원칙":"과거 저장본"} · {formatDateTime(item.saved_at)}</p>
-      <div className="actions"><button className="btn" onClick={()=>{const p=new URLSearchParams(params);p.set("edit","1");p.set("edit_from","view");navigate(`?${p}`,{replace:true});}}>{item.is_current?"편집":"정정"}</button><button className="btn btn-danger" onClick={()=>{request.renew();setPromotion(undefined);setPromotionError(false);setDeleting(true);}}>삭제</button></div>
-      <p className="document-summary">{item.summary}</p><MarkdownContent text={item.body}/>
-      {item.change_note&&<p className="notice">편집 메모: {item.change_note}</p>}
-      {item.origin==="legacy"&&<p className="help">기존 원칙에서 보존한 자료입니다. 과거의 실제 편집 사건을 뜻하지 않습니다.</p>}
-      {editing&&editReady&&<PrincipleFormModal editing correcting={!item.is_current} initial={{...item,change_note:item.change_note??""}} onClose={closeEdit} onRouteDiscard={()=>setEditing(false)} onSave={async draft=>{
+      <MarkdownContent text={item.body}/>
+      {editing&&editReady&&<PrincipleFormModal editing correcting={!item.is_current} initial={{...item,change_note:item.change_note??""}} onClose={closeEdit} onRouteDiscard={()=>setEditing(false)}
+        details={<div className="detail-management">{message&&<Notice kind="success">{message}</Notice>}{error&&<Notice kind="error">{error}</Notice>}<p className="meta">{item.is_current?"현재 원칙":"과거 저장본"} · {formatDateTime(item.saved_at)}</p>
+          <button type="button" className="btn btn-danger" onClick={()=>{request.renew();setPromotion(undefined);setPromotionError(false);setDeleting(true);}}>삭제</button>
+          {item.origin==="legacy"&&<p className="help">기존 원칙에서 보존한 자료입니다. 과거의 실제 편집 사건을 뜻하지 않습니다.</p>}</div>}
+        onSave={async draft=>{
         let saved:WorkspacePrinciple;
         try {saved=await api<WorkspacePrinciple>(item.is_current?"POST":"PATCH",item.is_current?"/principles/current":`/principles/${item.id}/correct`,{...draft,expected_version:item.version,request_id:request.current});}catch(e){if(e instanceof ApiError&&e.code==="conflict")conflicted.current=true;throw e;}
         confirmed.current=saved;setMessage("저장했습니다.");request.renew();setEditing(false);setItem(saved);const p=new URLSearchParams(params);p.delete("edit");p.delete("edit_from");afterClose(params.get("edit_from")==="view"?`/principles/${saved.id}?${p}`:back,true);
       }}/>}
       <ConfirmDialog open={deleting} title="원칙을 삭제할까요?" confirmLabel="삭제" danger busy={busy} confirmDisabled={item.is_current&&promotion===undefined}
         message={<div className="form">{promotionError&&<><Notice kind="error">삭제 후의 현재 원칙을 확인하지 못했습니다.</Notice><button className="btn" onClick={()=>setPromotionRetry(n=>n+1)}>삭제 영향 다시 조회</button></>}<p>{item.is_current ? promotion===undefined?promotionError?"삭제 영향을 확인한 뒤 삭제할 수 있습니다.":"삭제 영향을 확인하는 중…":promotion?`「${promotion.title}」(${formatDateTime(promotion.saved_at)})이 현재 원칙이 됩니다.`:"마지막 저장본입니다. 삭제하면 현재 원칙이 없는 상태가 됩니다.":"이 과거본을 삭제합니다. 현재 원칙은 바뀌지 않습니다."}</p>{promotion&&<><p className="secondary">{promotion.summary}</p><MarkdownContent text={promotion.body}/></>}<p>판단 기록에 저장된 당시 본문은 남습니다.</p><ChangeNoteField value={reason} onChange={setReason}/></div>}
-        onCancel={()=>setDeleting(false)} onConfirm={async()=>{setBusy(true);try{await api("DELETE",`/principles/${item.id}${query({expected_version:item.version,change_note:reason,request_id:request.current})}`);afterClose(back,true);}catch(e){setError(e instanceof ApiError?e.message:"삭제하지 못했습니다.");setDeleting(false);}finally{setBusy(false);}}}/>
+        onCancel={()=>setDeleting(false)} onConfirm={async()=>{setBusy(true);try{await api("DELETE",`/principles/${item.id}${query({expected_version:item.version,change_note:reason,request_id:request.current})}`);setEditing(false);afterClose(back,true);}catch(e){setError(e instanceof ApiError?e.message:"삭제하지 못했습니다.");setDeleting(false);}finally{setBusy(false);}}}/>
     </section>}
   </DetailSurface>;
 }

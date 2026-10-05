@@ -33,6 +33,11 @@ function describeRecurrence(t: TaskResult): string {
 }
 
 type Dialog = null | "edit" | "complete" | "delete" | "transition" | { occurrence: string };
+function requestedDialog(params: URLSearchParams): Dialog {
+  if (params.get("edit") !== "1") return null;
+  const action = params.get("action");
+  return action === "complete" || action === "transition" ? action : params.has("occurrence") ? { occurrence: params.get("occurrence")! } : "edit";
+}
 
 export function TaskDetailPage() {
   const { id = "" } = useParams();
@@ -45,7 +50,10 @@ export function TaskDetailPage() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const directEdit = params.get("edit") === "1";
-  const [dialog, setDialog] = useState<Dialog>(directEdit ? "edit" : null);
+  const [dialog, setDialog] = useState<Dialog>(requestedDialog(params));
+  const [deleting, setDeleting] = useState(false);
+  const manage = (action: string, occurrence?: string) => { const next = new URLSearchParams(params); next.set("action", action); occurrence ? next.set("occurrence", occurrence) : next.delete("occurrence"); navigate(`?${next}`); };
+  const closeManagement = () => { setDialog(null); const next = new URLSearchParams(params); next.delete("action"); next.delete("occurrence"); navigateAfterClose(`?${next}`, true); };
   const conflicted=useRef(false);
   const closeEdit = () => { setDialog(null);if(conflicted.current){conflicted.current=false;void reload();} if(directEdit&&params.get("edit_from")!=="view")navigateAfterClose(back.path,true);else{const p=new URLSearchParams(params);p.delete("edit");p.delete("edit_from");navigateAfterClose(`?${p}`,true);} };
   const [editReady,setEditReady]=useState(false);
@@ -70,7 +78,7 @@ export function TaskDetailPage() {
   }, [id]);
 
   useEffect(() => {
-    setTask(null); setLoadError(null); setDialog(directEdit ? "edit" : null);
+    setTask(null); setLoadError(null); setDialog(requestedDialog(params));
     reload();
     return () => {loadGeneration.current++;};
   }, [reload]);
@@ -116,49 +124,42 @@ export function TaskDetailPage() {
     const query=params.toString();
     if(previousQuery.current===query)return;
     previousQuery.current=query;
-    setDialog(directEdit?"edit":null);
+    setDialog(requestedDialog(params));
     if(directEdit){requestId.renew();setEditReady(false);void reload();}
   },[params.toString(),reload]);
 
   if (loadError && !task) {
     return (
-      <section className="panel">
+      <DetailSurface title="할 일" onClose={()=>navigate(back.path)}>
         <Notice kind="error">{loadError}</Notice>
         <button type="button" className="btn" onClick={reload}>조회 다시 시도</button>
-        <Link to={back.path}>{back.label}</Link>
-      </section>
+      </DetailSurface>
     );
   }
   if (!task) return <p className="secondary" role="status">불러오는 중…</p>;
 
-  return (
-    <DetailSurface title={task.title} onClose={()=>navigate(back.path)} busy={busy}>
+  const management = <div className="detail-management">
       <section className="panel">
         <div className="panel-head">
-          <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)", minWidth: 0 }}>
-            <Link to={back.path} className="secondary back-link">{back.label}</Link>
-          </div>
           <div className="actions">
             {task.kind === "once" && task.status === "open" && (
-              <button type="button" className="btn btn-primary" onClick={() => {requestId.renew();setDialog("complete");}}>완료</button>
+              <button type="button" className="btn btn-primary" onClick={() => manage("complete")}>완료</button>
             )}
             {task.kind === "recurring" && (
               <button
                 type="button"
                 className="btn"
                 disabled={busy}
-                onClick={() => setDialog("transition")}
+                onClick={() => manage("transition")}
               >
                 {task.status === "active" ? "중단" : "재개"}
               </button>
             )}
-            <button type="button" className="btn" onClick={() => {const p=new URLSearchParams(params);p.set("edit","1");p.set("edit_from","view");navigate(`?${p}`,{replace:true});}}>편집</button>
-            <button type="button" className="btn btn-danger" onClick={() => {requestId.renew();setDialog("delete");}}>삭제</button>
+            <button type="button" className="btn btn-danger" onClick={() => {requestId.renew();setDeleting(true);}}>삭제</button>
           </div>
         </div>
         {message && <Notice kind="success">{message}</Notice>}
         {actionError && <Notice kind="error">{actionError}</Notice>}
-        <p className="document-summary">{task.summary}</p>
         {loadError && <><Notice kind="error">{message ? "저장은 완료했습니다. 최신 내용을 불러오지 못했습니다." : loadError}</Notice><button type="button" className="btn" onClick={reload}>조회 다시 시도</button></>}
         <dl className="props">
           <div>
@@ -189,10 +190,6 @@ export function TaskDetailPage() {
             </div>
           )}
         </dl>
-        <div>
-          <h2 className="section-title">{taskLabels.body}</h2>
-          <MarkdownContent text={task.body} />
-        </div>
         {task.kind === "once" && task.status === "done" && <div><h2 className="section-title">결과 기록</h2>{task.result_record ? <Link to={`/records/${task.result_record.id}`}>{task.result_record.title}</Link> : <p className="secondary">결과 기록이 삭제되었습니다</p>}</div>}
         <TagNames ids={task.tag_ids}/>
         <EntityLink id={task.entity_id}/>
@@ -240,7 +237,7 @@ export function TaskDetailPage() {
                   </div>
                   <OccurrenceBadge status={o.status} />
                   {o.in_rule && o.status !== "upcoming" && (
-                    <button type="button" className="btn" onClick={() => {requestId.renew();setDialog({ occurrence: o.date });}} aria-label={`${o.date} 회차 기록`}>
+                    <button type="button" className="btn" onClick={() => manage("occurrence", o.date)} aria-label={`${o.date} 회차 기록`}>
                       기록
                     </button>
                   )}
@@ -250,12 +247,16 @@ export function TaskDetailPage() {
           )}
         </section>
       )}
-
+    </div>;
+  return <DetailSurface title={task.title} onClose={()=>navigate(back.path)} busy={busy}>
+      {loadError&&<><Notice kind="error">{message ? "저장은 완료했습니다. 최신 내용을 불러오지 못했습니다." : loadError}</Notice><button type="button" className="btn" onClick={reload}>조회 다시 시도</button></>}
+      <MarkdownContent text={task.body}/>
       {dialog === "edit" && editReady && (
         <TaskFormModal
           mode="edit"
           open
           initial={taskDraftFrom(task)}
+          details={management}
           onClose={closeEdit}
           onRouteDiscard={() => setDialog(null)}
           onSave={async (draft) => {
@@ -286,7 +287,7 @@ export function TaskDetailPage() {
           }}
         />
       )}
-      {dialog==="transition"&&<TaskTransitionForm task={task} onClose={()=>setDialog(null)} onSaved={async()=>{setDialog(null);setMessage(task.status==="active"?"중단했습니다. 오늘부터 회차가 없습니다.":"재개했습니다.");await reload();}}/>}
+      {dialog==="transition"&&<TaskTransitionForm task={task} onClose={closeManagement} onSaved={async()=>{closeManagement();setMessage(task.status==="active"?"중단했습니다. 오늘부터 회차가 없습니다.":"재개했습니다.");await reload();}}/>}
       {dialog === "complete" && (
         <RecordFormModal
           title="할 일 완료"
@@ -295,12 +296,12 @@ export function TaskDetailPage() {
           open
           initial={emptyRecord()}
           intro={<p className="help" style={{ margin: 0 }}>실제로 수행한 결과를 남기면 할 일이 완료됩니다.</p>}
-          onClose={() => setDialog(null)}
+          onClose={closeManagement}
           onRouteDiscard={() => setDialog(null)}
           onSave={async (value) => {
             await api("POST", `/tasks/${task.id}/complete`, { ...value, expected_version: task.version, request_id: requestId.current });
             requestId.renew();
-            setDialog(null);
+            closeManagement();
             setMessage("완료하고 결과 기록을 저장했습니다.");
             await reload();
           }}
@@ -312,7 +313,7 @@ export function TaskDetailPage() {
           submitLabel="기록 저장"
           open
           initial={{...emptyRecord(),entity_id:task.entity_id}}
-          onClose={() => setDialog(null)}
+          onClose={closeManagement}
           onRouteDiscard={() => setDialog(null)}
           onSave={async (value) => {
             await api<RecordResult>("POST", `/tasks/${task.id}/occurrences/${dialog.occurrence}/records`, {
@@ -320,13 +321,13 @@ export function TaskDetailPage() {
               request_id: requestId.current,
             });
             requestId.renew();
-            setDialog(null);
+            closeManagement();
             setMessage(`${dialog.occurrence} 회차에 기록했습니다.`);
             await loadOccurrences(task, rangeEnd);
           }}
         />
       )}
-      {dialog==="delete"&&<DeleteDialog
+      {deleting&&<DeleteDialog
         title="할 일을 삭제할까요?"
         message={
           <p style={{ margin: 0 }}>
@@ -334,15 +335,15 @@ export function TaskDetailPage() {
           </p>
         }
         busy={busy}
-        onCancel={() => setDialog(null)}
+        onCancel={() => setDeleting(false)}
         onConfirm={(reason) =>
           run(async () => {
             await api("DELETE", `/tasks/${task.id}${query({expected_version:task.version,change_note:reason,request_id:requestId.current})}`);
+            setDialog(null);
             navigateAfterClose(back.path,true);
           }, "삭제했습니다.")}
       />}
-    </DetailSurface>
-  );
+    </DetailSurface>;
 }
 
 function TaskTransitionForm({task,onClose,onSaved}:{task:TaskResult;onClose:()=>void;onSaved:()=>Promise<void>}) {

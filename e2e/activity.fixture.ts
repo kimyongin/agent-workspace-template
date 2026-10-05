@@ -25,7 +25,7 @@ test("항상 펼친 날짜 병합과 직접 편집 취소/저장이 목록을 �
   await expect(older).toBeVisible();await expect(older.getByRole("button")).toHaveCount(0);
   await page.getByRole("link",{name:"기록 2 편집",exact:true}).click();
   await expect(page.getByRole("dialog",{name:"기록 편집",exact:true})).toBeVisible();
-  await page.getByRole("button",{name:"취소",exact:true}).click();
+  await page.getByRole("button",{name:"닫기",exact:true}).click();
   await expect(page).toHaveURL(/\/records\?/);
   await expect(older).toBeVisible();await expect(older.getByRole("button")).toHaveCount(0);
   await expect(page.locator(`#activity-records-${id(2)}`)).toBeFocused();
@@ -36,11 +36,12 @@ test("항상 펼친 날짜 병합과 직접 편집 취소/저장이 목록을 �
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await expect(page.getByRole("link",{name:"정정 기록",exact:true})).toBeFocused();
   await page.getByRole("link",{name:"정정 기록 보기",exact:true}).click();
-  const summary = page.locator(".document-summary");
-  await expect(summary).toHaveText("요약 먼저");
-  await page.getByRole("button",{name:"편집",exact:true}).click();
-  await page.getByRole("button",{name:"취소",exact:true}).click();
-  await expect(summary).toBeVisible();
+  await expect(page.locator(".markdown")).toHaveText("본문 근거");
+  await expect(page.locator(".document-summary")).toHaveCount(0);
+  await page.getByRole("button",{name:"닫기",exact:true}).click();
+  await page.getByRole("link",{name:"정정 기록 편집",exact:true}).click();
+  await page.getByRole("button",{name:"닫기",exact:true}).click();
+  await expect(page.locator(`#activity-records-${id(2)}`)).toBeFocused();
   const overflow = await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth);
   expect(overflow).toBe(false);
 });
@@ -57,8 +58,7 @@ test("할 일 저장 성공 후 조회 실패는 초안 재저장을 요구하�
     }
     await route.fulfill({json:{items:[],next_cursor:null}});
   });
-  await page.goto(`/e2e/fixtures/activity.html?route=/tasks/${id(1)}`);
-  await page.getByRole("button",{name:"편집",exact:true}).click();
+  await page.goto(`/e2e/fixtures/activity.html?route=${encodeURIComponent(`/tasks/${id(1)}?edit=1&edit_from=view`)}`);
   await page.getByRole("textbox",{name:"제목 (필수)",exact:true}).fill("정정한 할 일");
   await page.getByLabel("편집 메모",{exact:false}).fill("검증 정정 이유");
   await page.getByRole("button",{name:"저장",exact:true}).click();
@@ -114,7 +114,7 @@ test("원칙 추가 페이지 직접 편집 취소는 필터·페이지·초점�
   await page.getByRole("button",{name:"더 보기",exact:true}).click();
   await expect(page.getByRole("link",{name:"원칙 1",exact:true})).toHaveCount(1);
   await page.getByRole("link",{name:"원칙 2 정정",exact:true}).click();
-  await page.getByRole("button",{name:"취소",exact:true}).click();
+  await page.getByRole("button",{name:"닫기",exact:true}).click();
   await expect(page).toHaveURL(/\/principles\?pages=2/);
   await expect(page.locator(`#principle-${id(2)}`)).toBeFocused();
 });
@@ -178,9 +178,9 @@ for (const name of ["활동 왕복 태그", "한".repeat(30)]) {
     const scroll=await page.evaluate(()=>scrollY);
     await page.getByRole("link",{name:"기록 20 보기",exact:true}).click();
     await expect(page.getByRole("heading",{name:"기록 20",exact:true})).toBeVisible();
-    await expect(page.locator(".tag-read")).toHaveText(name);
+    await expect(page.locator(".tag-read")).toHaveCount(0);
     hold();
-    await page.getByRole("link",{name:"← 기록 목록",exact:true}).click();
+    await page.getByRole("button",{name:"닫기",exact:true}).click();
     await expect(page.getByText("태그 이름을 불러오는 중…",{exact:true})).toBeVisible();
     await expect(row).toHaveCount(0);
     release();

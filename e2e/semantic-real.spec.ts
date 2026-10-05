@@ -1,3 +1,4 @@
+import { openDetailEditor } from "./ui-actions.ts";
 // 유료 실제 공급자 E2E: RUN_PINECONE_E2E=1로 명시적으로 실행한다. CI 기본 실행에는 포함하지 않는다.
 import {expect,test} from "@playwright/test";
 import {devLogin,env,mcpClient,mcpTokenViaConsent} from "./support.ts";
@@ -17,7 +18,7 @@ test("실제 의미 검색→원칙 원문→필터와 초점 복귀",async({pag
     await expect(page.getByText("현재 키워드 검색 결과를 표시합니다.",{exact:false})).toHaveCount(0);
     expect((await mcp.call("search",{query,kinds:["principle"],principle_view:"current"})).items[0].id).toBe(item!.id);
     await link.click();await expect(page.getByText("관리 코드는 오로라-731이다.",{exact:true})).toBeVisible();
-    await page.getByRole("link",{name:"← 검색 결과",exact:true}).click();
+    await page.getByRole("button",{name:"닫기",exact:true}).click();
     await expect(page.getByLabel("원칙 범위")).toHaveValue("current");await expect(link).toBeFocused();
   }finally{
     if(item)await mcp.call("delete_principle",{id:item.id,expected_version:item.version});

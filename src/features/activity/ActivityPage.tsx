@@ -18,20 +18,22 @@ import { useActivityList } from "./useActivityList.ts";
 import { Timeline } from "./Timeline.tsx";
 import { ACTIVITY_TAG_LIMIT, activityTags, periodBounds, removedActivityFilters } from "./activity-filters.ts";
 import { anchorId } from "./list-state.ts";
+import { EntityScope } from "../entity/EntityScope.tsx";
 import "./activity.css";
 
 type ActivityItem = TaskListItem | RecordResult | SearchItem;
 function ActivitySection({ kind, tags, bounds, route, dictionary, otherReady, onReady, locationRef }: { kind: "tasks" | "records"; tags: string[]; bounds: NonNullable<ReturnType<typeof periodBounds>>; route: string; dictionary: ReturnType<typeof useTagDictionary>; otherReady: boolean; onReady: (ready:boolean)=>void; locationRef: React.RefObject<ReturnType<typeof useLocation>> }) {
   const [params] = useSearchParams(), {hash}=useLocation(), q = params.get("q") ?? "";
+  const entity = params.get("entity_id") || undefined;
   const [metadata, setMetadata] = useState<SearchResult | null>(null);
   const input = { query: q, kinds: [kind === "tasks" ? "task" : "record"], mode: "auto", limit: 20,
-    ...(tags.length ? { tag_ids: tags } : {}), ...(kind === "records" ? bounds : {}) };
-  const path = q ? JSON.stringify(input) : `/${kind}${query({ limit: 20, tag_ids: tags.length ? tags.join(",") : undefined,
+    ...(tags.length ? { tag_ids: tags } : {}), ...(entity ? {entity_id:entity} : {}), ...(kind === "records" ? bounds : {}) };
+  const path = q ? JSON.stringify(input) : `/${kind}${query({ limit: 20, entity_id: entity, tag_ids: tags.length ? tags.join(",") : undefined,
     ...(kind === "records" ? { occurred_from: bounds.from, occurred_to: bounds.to } : {}) })}`;
   useEffect(() => setMetadata(null), [path]);
   const list = useActivityList<ActivityItem>(kind, path, `${kind}-title`, `${kind === "tasks" ? "할 일" : "기록"}을 불러오지 못했습니다. 다시 시도하세요.`, (!!dictionary.tags || dictionary.failed) && otherReady, true,
     q ? async (cursor, signal) => { const anchor=anchorId(kind,hash);return await api<SearchResult>("POST", "/search", { ...input, ...(cursor ? { cursor } : anchor?{anchor:{kind:kind==="tasks"?"task":"record",id:anchor}}:{}) }, signal); } : undefined,
-    { route, keys: ["q", "tag_ids", "tag_id"], pageKey: `${kind}_pages`, locationRef }, q ? page => setMetadata(page as SearchResult) : undefined);
+    { route, keys: ["q", "tag_ids", "tag_id", "entity_id"], pageKey: `${kind}_pages`, locationRef }, q ? page => setMetadata(page as SearchResult) : undefined);
   useEffect(()=>onReady(!list.busy&&(list.items!==null||!!list.error)),[list.busy,list.items,list.error,onReady]);
   const heading = (item: ActivityItem) => <div className="activity-item-heading"><Link className="item-title" {...list.link(item.id)}>{item.title}</Link><span className="activity-item-actions"><Link {...list.link(item.id)} id={undefined} aria-label={`${item.title} 보기`}>보기</Link><span aria-hidden="true">·</span><Link {...list.link(item.id, true)} aria-label={`${item.title} 편집`}>편집</Link></span></div>;
   const summary = (item: ActivityItem) => <><span className="secondary">{item.summary}</span>{"change_note" in item && item.change_note && <p className="notice">편집 메모: {item.change_note}</p>}{"match" in item && <span className="meta">{item.match === "both" ? "키워드·의미" : item.match === "keyword" ? "키워드" : "의미"} · {item.index_state === "pending" ? "색인 대기" : item.index_state === "excluded" ? "색인 제외" : "색인 완료"}</span>}<TagNames ids={item.tag_ids} compact/></>;
@@ -75,6 +77,7 @@ export function ActivityPage() {
   const saved = (kind: string, id: string) => { request.renew(); const next = new URLSearchParams(params); next.delete("create"); create.finish(`/${kind}s/${id}?list=${encodeURIComponent(`${pathname}?${next}`)}`); };
   return <>
     <section className="panel" aria-labelledby="activity-title"><div className="panel-head"><h1 id="activity-title" className="page-title">활동</h1><TabActions title="활동" actions={[{ label: "할 일 등록", run: () => begin("task") }, { label: "기록 작성", run: () => begin("record") }, { label: "활동 태그 관리", to: "/tags/activity" }]}/></div>
+      {params.get("entity_id")&&<EntityScope key={params.get("entity_id")} id={params.get("entity_id")!} onClear={()=>{const next=clearListPosition(new URLSearchParams(params));next.delete("entity_id");setParams(next,{replace:true});}}/>}
       <div className="panel-body"><TabSearch/><div className="record-period"><span className="label">기록 기간</span><div className="record-period-inputs">{[["from", "기록 시작일", from], ["to", "기록 종료일", to]].map(([name, label, value]) => <Field key={name} label={label}>{props => <input {...props} type="date" className="input" value={value} aria-invalid={!checked || undefined} onChange={event => setDate(name, event.target.value)}/>}</Field>)}</div>
         {!checked && <Notice kind="error">기록 시작일은 종료일보다 늦을 수 없습니다. 이전 유효 기간의 기록을 유지합니다.</Notice>}
         <p className="help">기간은 기록에만 적용됩니다. 날짜와 시각 기준: {browserTimezone()}</p></div>

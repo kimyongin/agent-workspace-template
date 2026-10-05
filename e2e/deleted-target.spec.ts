@@ -1,3 +1,4 @@
+import { openDetailEditor } from "./ui-actions.ts";
 import { expect, test } from "@playwright/test";
 import { devLogin, mcpClient, mcpTokenViaConsent, unique } from "./support.ts";
 import { savePrinciple } from "./principle-support.ts";
@@ -14,7 +15,7 @@ for(const kind of ["entity","task","record","principle"] as const)test(`삭제�
     expect(historical).toBeTruthy();expect(historical.change.path).toBeTruthy();
     const metadata=structuredClone(historical.change);
     await mcp.call(`delete_${kind}`,{id:target!.id,expected_version:target!.version,change_note:"삭제 문맥 검증",request_id:crypto.randomUUID()});deleted=true;
-    await page.goto(`/records/${historical.id}`);
+    await page.goto(`/records/${historical.id}?edit=1`);
     const detail=page.locator("dialog.modal:not(.modal-confirm)[open]");
     await expect(detail).toContainText("삭제된 대상 또는 접근할 수 없는 대상");
     await expect(detail.getByRole("link",{name:"대상 원문 보기",exact:true})).toHaveCount(0);

@@ -1,4 +1,4 @@
-import { beginTabAction } from "./ui-actions.ts";
+import { beginTabAction, openDetailEditor } from "./ui-actions.ts";
 import { expect, test } from "@playwright/test";
 import { devLogin, mcpClient, mcpTokenViaConsent, unique } from "./support.ts";
 
@@ -12,14 +12,15 @@ test("Entity 웹 CRUD·초안 보호→MCP parity·활동 연결→삭제 원문
   await form.getByLabel("속성 2").fill("0");
   await form.getByLabel("속성 3").fill("2024-02-29");
   await form.getByLabel("속성 4").selectOption("b");
-  await form.getByRole("button", { name: "취소", exact: true }).click();
+  await form.getByRole("button", {name:"닫기",exact:true}).click();
   await page.getByRole("dialog", { name: "변경을 버릴까요?" }).getByRole(
     "button",
     { name: "취소", exact: true },
   ).click();
   await expect(form.getByLabel("속성 1")).toHaveValue(name);
   await form.getByRole("button", { name: "저장", exact: true }).click();
-  await expect(page.getByRole("heading", { name, level: 1 })).toBeVisible();
+  await expect(form).not.toBeVisible();await expect(page).toHaveURL(/\/entities\/[0-9a-f-]{36}(?:\?|$)/);
+  await expect(page.locator("dialog.modal:not(.modal-confirm)[open]").getByLabel("속성 1")).toHaveValue(name);
   const id = new URL(page.url()).pathname.split("/").at(-1)!;
   const mcp = await mcpClient(await mcpTokenViaConsent(page));
   try {
@@ -38,7 +39,7 @@ test("Entity 웹 CRUD·초안 보호→MCP parity·활동 연결→삭제 원문
     await expect(page.locator(".list .item-title")).toHaveCount(1);
     expect(new URL(page.url()).searchParams.get("entity_id")).toBe(id);
     await page.getByRole("link", { name: task.title, exact: true }).click();
-    await page.getByRole("link", { name: "← 검색 결과" }).click();
+    await page.getByRole("button",{name:"닫기",exact:true}).click();
     await expect(page.getByRole("link", { name: task.title, exact: true })).toBeFocused();
     await page.reload();
     await expect(page.locator(".list .item-title")).toHaveCount(1);
@@ -52,28 +53,30 @@ test("Entity 웹 CRUD·초안 보호→MCP parity·활동 연결→삭제 원문
     await expect(page.getByRole("heading", { name: "연결된 할 일 (1개)" }))
       .toBeVisible();
     await page.getByRole("link", { name: "전체 할 일 보기" }).click();
+    await expect(page).toHaveURL(new RegExp(`/tasks\\?entity_id=${id}`));
     await expect(page.getByRole("link", { name: task.title, exact: true }))
       .toBeVisible();
     expect(new URL(page.url()).searchParams.get("entity_id")).toBe(id);
     await page.goto(`/tasks/${task.id}`);
-    await page.getByRole("button", { name: "편집", exact: true }).click();
+    await openDetailEditor(page);
     const editTask = page.getByRole("dialog", { name: "할 일 편집" });
     await expect(editTask.getByLabel("엔터티", { exact: true })).toHaveValue(
       id,
     );
-    await editTask.getByRole("button", { name: "취소", exact: true }).click();
+    await editTask.getByRole("button", {name:"닫기",exact:true}).click();
     await page.goto(`/entities/${id}`);
-    await page.getByRole("button", { name: "편집", exact: true }).click();
+    await openDetailEditor(page);
     const edit = page.getByRole("dialog", { name: "엔터티 편집" });
     await edit.getByLabel("속성 2").fill("10");
     await edit.getByLabel("편집 메모").fill("실측 반영");
     await edit.getByRole("button", { name: "저장", exact: true }).click();
     await expect(edit).not.toBeVisible();
     expect((await mcp.call("get_entity", { id })).prop2).toBe(10);
+    await page.goto(`/entities/${id}`);
     await page.getByRole("button", { name: "삭제", exact: true }).click();
     const remove = page.getByRole("dialog", { name: "엔터티를 삭제할까요?" });
     await remove.getByRole("button", { name: "취소", exact: true }).click();
-    await expect(page.getByRole("heading", { name, level: 1 })).toBeVisible();
+    await expect(page.locator("dialog.modal:not(.modal-confirm)[open]").getByLabel("속성 1")).toHaveValue(name);
     await page.getByRole("button", { name: "삭제", exact: true }).click();
     await page.getByRole("dialog", { name: "엔터티를 삭제할까요?" }).getByRole(
       "button",
@@ -103,12 +106,12 @@ test("엔터티 관련 기록 취소: 작성 URL·reload·메모와 변경 이�
       await beginTabAction(page,"기록 작성");
       const editor=page.getByRole("dialog",{name:"기록 작성",exact:true});await expect(page).toHaveURL(/create=record/);
       if(dirty){await editor.getByLabel("제목").fill("저장하지 않을 기록");await editor.getByLabel("요약").fill("취소할 설명");}
-      await editor.getByRole("button",{name:"취소",exact:true}).click();
+      await editor.getByRole("button", {name:"닫기",exact:true}).click();
       if(dirty) await page.getByRole("dialog",{name:"변경을 버릴까요?"}).getByRole("button",{name:"변경 버리기"}).click();
       await expect(page).not.toHaveURL(/create=/);await expect(page).toHaveURL(/list=/);
       await expect(page.getByRole("button",{name:"기록 작성",exact:true})).toBeFocused();
     }
-    await page.reload();await expect(page.getByRole("heading",{name:entity.prop1,level:1})).toBeVisible();
+    await page.reload();await expect(page.locator("dialog.modal:not(.modal-confirm)[open]").getByLabel("속성 1")).toHaveValue(entity.prop1);
     await expect(page.getByRole("dialog",{name:"기록 작성",exact:true})).toHaveCount(0);
     expect((await mcp.call("get_entity",{id:entity.id})).version).toBe(1);
     expect((await mcp.call("list_records",{entity_id:entity.id,record_kind:"user"})).items).toEqual([]);
@@ -139,7 +142,7 @@ test("Entity 목록: 키워드/선택/정렬·추가 페이지·상세 복귀/�
     await expect(last).toBeVisible();
     const before = page.url();
     await last.click();
-    await page.getByRole("link", { name: "← 엔터티 목록" }).click();
+    await page.getByRole("button",{name:"닫기",exact:true}).click();
     const restored=new URL(page.url()),original=new URL(before);
     for(const [key,value] of original.searchParams)expect(restored.searchParams.get(key)).toBe(value);
     expect(restored.searchParams.has("scroll")).toBe(true);
@@ -156,7 +159,7 @@ test("Entity 목록: 키워드/선택/정렬·추가 페이지·상세 복귀/�
     await page.getByRole("link", { name: `${marker} 19`, exact: true }).click();
     const concurrent = await mcp.call("create_entity", { prop1: `${marker} 새 항목`, prop2: 0, prop4: "c" });
     ids.push(concurrent.id);
-    await page.getByRole("link", { name: "← 엔터티 목록" }).click();
+    await page.getByRole("button",{name:"닫기",exact:true}).click();
     await expect(page.getByRole("link", { name: `${marker} 19`, exact: true })).toBeFocused();
     await mcp.call("delete_entity", { id: ids[19], expected_version: 1 });
     ids.splice(19, 1);
@@ -221,7 +224,7 @@ test("Entity lookahead 뒤 더 보기: 현재 커서 append·실패 retry·행�
     const anchor = page.getByRole("link", { name: `${marker} 19`, exact: true });
     await anchor.click();
     ids.push((await mcp.call("create_entity", { prop1: `${marker} 동시 추가`, prop2: 0 })).id);
-    await page.getByRole("link", { name: "← 엔터티 목록" }).click();
+    await page.getByRole("button",{name:"닫기",exact:true}).click();
     await expect(anchor).toBeFocused();
     await expect(page.locator(".list .item-title")).toHaveCount(40);
     const cursors: string[] = [];
