@@ -52,6 +52,8 @@ Codex는 client를 `codex-cli`로 바꾼다. native 설치·고유 서버·다�
 
 runner의 문장 표시는 반복 승인 요청·거짓 완료·미확인 색인 완료의 보수적 신호다. 자연어 판정과 독립 저장 증거를 구분하며 실제 trial 리뷰에서 설명의 의미를 확인한다. 새 시나리오의 서비스 없는 seam 검사는 `node --test experiments/plugin-behavior/saving.test.mjs experiments/plugin-behavior/saving-fault.test.mjs`다. 실제 CLI·서비스 trial을 수행하지 않은 조건은 완료로 처리하지 않는다.
 
+할 일의 완료 시각과 결과 기록의 수행 시각은 각각 application clock과 입력/DB 시각으로 정해지므로 같을 필요가 없다. 두 시각의 유효성·완료 상태·버전·양방향 결과 ID·요약 일치와 나머지 필드 불변을 검증한다. 색인 문장 신호는 명시 완료 주장과 부정·미확인 문장을 절 단위로 구분하고 원문 대신 `indexStatements`의 affirmative/negated 수만 남긴다. 이 신호는 모든 자연어의 의미를 증명하지 않는다. 원문을 보존하지 않은 이전 실패 실행을 새 matcher로 통과 처리하지 않고 새 세션으로 다시 검증한다.
+
 응답 유실의 원문 조회 복구와 동일 키 재시도는 별도 증거다. 첫 요청만으로 `sameInputRetry`를 참으로 만들지 않는다. 실제 동일 입력 재호출 수와 같은 ID의 성공 응답이 있어야 `replayObserved`를 표시하며, 조회로만 복구한 실행은 이 값을 거짓으로 남긴다. 요청을 자연스럽게 복구한 클라이언트에 시험을 위해 재시도를 강제하지 않는다. 기존 공개 HTTP/MCP 검사에서 같은 요청의 멱등 replay를 검증하고 해당 증거를 별도로 연결한다. 재호출 수 0인데 재시도를 주장하는 증거나 변경된 키/입력은 평가를 통과하지 못한다.
 
 ## 실제 실행과 증거

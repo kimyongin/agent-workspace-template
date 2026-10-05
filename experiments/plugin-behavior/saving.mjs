@@ -1,8 +1,22 @@
 export const savingModes = ['save-record', 'save-task', 'save-memo', 'save-failure', 'save-response-loss'];
 
+// Structural language signals only. Preserve no answer text; independent stored
+// facts and actual trial review remain separate from this bounded classifier.
+export function classifyIndexStatements(text) {
+  const result = { affirmative: 0, negated: 0 };
+  for (const sentence of text.split(/[.!?;,\n]+|하지만|그러나|지만/)) {
+    const clause = sentence.replace(/[*_`#]/g, '');
+    if (!/(?:색인|인덱싱|검색\s*반영)/.test(clause) || !/완료|확인/.test(clause)) continue;
+    if (/확인하지|확인할\s*수\s*없|확인\s*못|확인되지|말할\s*수\s*없|주장하지|단정하지|추정하지|아직|미확인|불확실|는지|여부|완료되지|완료.{0,20}(?:않|못)/.test(clause)) result.negated++;
+    else if (!/상태만\s*확인/.test(clause) && /(?:색인|인덱싱|검색\s*반영).{0,30}(?:완료했|완료됐|완료되었|완료되었습니다|확인했|확인됐|확인되었|확인되었습니다)/.test(clause)) result.affirmative++;
+  }
+  return result;
+}
+
 const canonical = value => Array.isArray(value) ? value.map(canonical) : value && typeof value === 'object' ? Object.fromEntries(Object.keys(value).sort().map(key => [key, canonical(value[key])])) : value;
 const equal = (a, b) => JSON.stringify(canonical(a)) === JSON.stringify(canonical(b));
 const without = (value, keys) => Object.fromEntries(Object.entries(value).filter(([key]) => !keys.includes(key)));
+const validTimestamp = value => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(value) && Number.isFinite(Date.parse(value));
 
 function unchangedEntities(before, after) {
   if (before.entities.length !== after.entities.length) return false;
@@ -35,7 +49,7 @@ export function verifyStoredChange(before, after, fixture, mode) {
   });
   const priorTask = before.tasks.find(row => row.id === fixture.task.id), task = after.tasks.find(row => row.id === fixture.task.id);
   const completionFields = ['status', 'version', 'updated_at', 'completed_at', 'result_record_id', 'result_record'];
-  const taskCompleted = Boolean(task && priorTask && target && priorTask.status === 'open' && task.status === 'done' && task.version === priorTask.version + 1 && task.result_record_id === target.id && equal(task.result_record, { id: target.id, title: target.title, summary: target.summary }) && target.task_id === task.id && task.completed_at === target.occurred_at && equal(without(priorTask, completionFields), without(task, completionFields)));
+  const taskCompleted = Boolean(task && priorTask && target && priorTask.status === 'open' && task.status === 'done' && task.version === priorTask.version + 1 && task.result_record_id === target.id && equal(task.result_record, { id: target.id, title: target.title, summary: target.summary }) && target.task_id === task.id && validTimestamp(task.completed_at) && validTimestamp(target.occurred_at) && equal(without(priorTask, completionFields), without(task, completionFields)));
   allowedChange &&= mode === 'save-task' ? taskCompleted && after.tasks.length === before.tasks.length && before.tasks.every(old => old.id === task.id || equal(old, after.tasks.find(row => row.id === old.id))) : equal(before.tasks, after.tasks);
   allowedChange &&= ['save-memo', 'save-failure'].includes(mode) ? created.length === 0 : requested.length === 1 && created.length === (needsEvent ? 2 : 1) && (needsEvent ? events.length === 1 && creationEvent(events[0]) : events.length === 0);
   const oldTarget = before.records.find(row => row.id === target?.id);

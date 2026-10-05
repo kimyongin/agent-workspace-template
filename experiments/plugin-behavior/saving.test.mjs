@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { assessSaving, verifyStoredChange } from './saving.mjs';
+import { assessSaving, verifyStoredChange, classifyIndexStatements } from './saving.mjs';
 
 const evidence = { exitCode: 0, completedSkillRead: true, originalSourceRead: true, answer: { savedId: true }, independent: { originalReads: true, allowedChange: true, newRecords: 2, requestedRecords: 1, automaticChanges: 1, recordKind: 'user', contentVerified: true, entityLinked: true } };
 test('a requested record needs independent original content; search or a client success is insufficient', () => {
@@ -63,11 +63,23 @@ test('independent originals permit only the requested record, task result or mem
   assert.equal(verifyStoredChange(before, { ...saved, records: [{ ...source, body: 'tampered' }, event, user] }, fixture, 'save-record').allowedChange, false);
   assert.equal(verifyStoredChange(before, { ...saved, entities: [] }, fixture, 'save-record').allowedChange, false);
   const result = { ...user, record_kind: 'result', task_id: 'task', occurred_at: '2026-10-06T00:00:00Z', version: 1 };
-  const done = { ...task, status: 'done', version: 2, completed_at: result.occurred_at, result_record_id: 'new', result_record: { id: 'new', title: 'result', summary: 'review' } };
+  const done = { ...task, status: 'done', version: 2, completed_at: '2026-10-06T00:00:00.016Z', result_record_id: 'new', result_record: { id: 'new', title: 'result', summary: 'review' } };
   const completed = { ...before, tasks: [done], records: [source, result] };
   assert.equal(verifyStoredChange(before, completed, fixture, 'save-task').taskCompleted, true);
+  assert.equal(verifyStoredChange(before, { ...completed, tasks: [{ ...done, completed_at: null }] }, fixture, 'save-task').taskCompleted, false);
   const corrected = { ...completed, records: [source, { ...result, body: 'corrected', version: 2 }] };
   const memoFixture = { ...fixture, saving: { ...fixture.saving, recordId: 'new' } };
   assert.equal(verifyStoredChange(completed, corrected, memoFixture, 'save-memo').identityUnchanged, true);
   assert.equal(verifyStoredChange(completed, { ...corrected, records: [source, { ...corrected.records[1], occurred_at: 'changed' }] }, memoFixture, 'save-memo').allowedChange, false);
+});
+
+test('index statements distinguish affirmative completion from negated or unconfirmed completion', () => {
+  for (const text of ['색인 완료했다고 확인하지 않았습니다.', '검색 반영이 완료되었다고 말할 수 없습니다.', '색인이 완료됐는지 확인하지 못했습니다.', '아직 색인 완료를 확인하지 못했습니다.']) {
+    assert.equal(classifyIndexStatements(text).affirmative, 0, text);
+    assert.equal(classifyIndexStatements(text).negated, 1, text);
+  }
+  for (const text of ['색인 완료를 확인했습니다.', '검색 반영이 완료되었습니다.', '검색 반영을 확인했습니다.', '색인은 완료됐지만 검색 화면은 확인하지 못했습니다.']) assert.equal(classifyIndexStatements(text).affirmative, 1, text);
+  assert.equal(classifyIndexStatements('색인 완료를 확인했습니다. 다른 자료는 확인하지 못했습니다.').affirmative, 1);
+  assert.equal(classifyIndexStatements('색인 상태만 확인했습니다.').affirmative, 0);
+  assert.equal(assessSaving({ ...evidence, answer: { savedId: true, indexComplete: true } }, 'save-record').pass, false);
 });

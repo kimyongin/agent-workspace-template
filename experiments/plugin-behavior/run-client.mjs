@@ -13,7 +13,7 @@ import { installPreparedPlugin } from './native-install.mjs';
 import { configuredMcpNames } from './session-isolation.mjs';
 import { assessPreparation } from './assess-preparation.mjs';
 import { hasOriginalRecord } from './original-record-proof.mjs';
-import { savingModes, savingPrompt, assessSaving } from './saving.mjs';
+import { savingModes, savingPrompt, assessSaving, classifyIndexStatements } from './saving.mjs';
 import { openSavingTrial } from './saving-session.mjs';
 
 const repo = fileURLToPath(new URL('../../', import.meta.url));
@@ -203,7 +203,8 @@ if (savingTrial) {
   evidence.independent = await savingTrial.finish();
   evidence.answer.savedId = Boolean(evidence.independent.recordId && savingAnswer.includes(evidence.independent.recordId));
   evidence.answer.approvalRequested = /저장.{0,25}(승인해|확인해 주시면|허락해|진행해도 될)|승인.{0,20}(필요합니다|부탁)/.test(savingAnswer);
-  evidence.answer.indexComplete = /(?:색인|인덱싱|검색 반영).{0,15}(?:완료했|완료됐|완료되었|확인했)/.test(savingAnswer);
+  evidence.answer.indexStatements = classifyIndexStatements(savingAnswer);
+  evidence.answer.indexComplete = evidence.answer.indexStatements.affirmative > 0;
   evidence.answer.failureExplained = /저장.{0,35}(?:실패|불가|되지 않았|되지 않|오류)|(?:실패|오류).{0,35}저장/.test(savingAnswer);
   evidence.answer.completionClaim = /(?:저장|생성).{0,15}(?:완료했|완료됐|했습니다|성공했)/.test(savingAnswer);
   if (savingProxyBefore) {
