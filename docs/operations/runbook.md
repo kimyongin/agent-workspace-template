@@ -4,7 +4,7 @@
 
 배포한 앱의 상태를 확인하고 장애·데이터 복구·반복 작업을 처리하는 기준이다. 최초 설치와 버전 변경은 [배포 방법](../deployment/release.md)을 따른다.
 
-운영 환경과 모니터링의 구현 상태는 [시작 문서의 현재 상태](../START-HERE.md#현재-상태)와 티켓에서 확인한다. 아래 항목은 첫 운영 배포 전에 실제 조회 위치·담당자·점검 주기·알림 경로를 채워야 한다. 모든 기능을 위한 운영 대시보드를 미리 만들 필요는 없다. 초기에는 플랫폼 로그와 제한된 관리 절차로 시작한다.
+운영 환경과 모니터링의 적용 상태는 해당 GitHub issue·PR의 환경별 증거에서 확인한다. 실제 조회 위치·담당자·점검 주기·알림 경로는 운영 환경에 맞춰 정한다. 초기에는 플랫폼 로그와 제한된 관리 절차로 시작한다.
 
 ## 상태 확인
 
@@ -66,7 +66,7 @@ $job$);
 select cron.unschedule('search-index-worker');
 ```
 
-Cron 설정 전 같은 이름의 job·Vault 항목이 있으면 값을 출력하거나 덮어쓰지 않고 기존 소유·설정부터 확인한다. 활성화 후 `cron.job_run_details`의 succeeded는 비동기 HTTP 등록 성공이므로 `net._http_response`의 상태·timeout/error·worker count도 별도로 확인한다. 빈 큐의 HTTP200/0건을 실제 임베딩 성공으로 세지 않으며 본인 계정의 scoped 소량 성공과 현재 hash/vector를 앞서 대조한다. 공급자 usage/청구액이 응답에 없으면 batch/처리 수의 한정 관찰과 실제 금액을 구분한다. 실제 적용 근거는 [Template-12](../tickets/template-12-production-verification.md)에 있다.
+Cron 설정 전 같은 이름의 job·Vault 항목이 있으면 값을 출력하거나 덮어쓰지 않고 기존 소유·설정부터 확인한다. 활성화 후 `cron.job_run_details`의 succeeded는 비동기 HTTP 등록 성공이므로 `net._http_response`의 상태·timeout/error·worker count도 별도로 확인한다. 빈 큐의 HTTP200/0건을 실제 임베딩 성공으로 세지 않으며 본인 계정의 scoped 소량 성공과 현재 hash/vector를 앞서 대조한다. 공급자 usage/청구액이 응답에 없으면 batch/처리 수의 한정 관찰과 실제 금액을 구분한다. 2026-10-04 본인 기록 생성·수정의 제한 색인 성공과 매분 limit5 Cron 활성화는 [PR #84 완료 기록](https://github.com/kimyongin/agent-workspace-template/pull/84#issuecomment-5975318940)에서 확인한다. 당시 운영 함수 source는 `1730dc983eb10e282e28f3a200ffbd265978480e`였다. 이는 당시의 적용 증거이며 현재 운영 상태나 이후 main의 배포 완료를 보증하지 않는다.
 
 pg_net 기본 queue ACL과 공개 접근 경계를 설치 환경에서 확인한다. 요청 큐의 header/token 값은 조회하지 않는다. 공개 Data API 노출 여부는 `Accept-Profile: net`·`select=id`/count처럼 비밀 없는 요청과 schema 거부로 확인한다. net이 공개로 노출되면 해당 소비 job을 중지하고 권한/노출 원인을 해결한 뒤 재개한다. 플랫폼 소유 테이블의 ACL을 바꿀 권한이 없다면 ownership 변경·권한 우회를 하지 않고 실제 경계와 관리 권한 한계를 기록한다. 서버 role/고정 SQL 또는 Data API 노출 설정이 바뀌면 다시 확인한다.
 

@@ -86,8 +86,7 @@ agent-workspace-template/
    ├─ development/                # 환경과 검증
    ├─ deployment/                 # 서비스 설정과 배포
    ├─ operations/                 # 점검·장애·백업·데이터 복구
-   ├─ security/                   # 신뢰 경계·보호 규칙·보안 검증
-   └─ tickets/                    # 이전 계약·실험·검증 이력; 현재 작업은 GitHub Issues
+   └─ security/                   # 신뢰 경계·보호 규칙·보안 검증
 ```
 
 트리는 배치 기준이며 실제 파일은 소비하는 기능을 구현할 때 만든다. 작은 기능은 domain.ts, ports.ts 같은 파일로 시작하고 필요할 때 분리한다. 단위 테스트는 코드 옆에 둔다. activity의 태그 모델은 독립 책임이 필요해질 때 core/tags로 추출한다. 빈 폴더를 일괄 생성하지 않는다.
@@ -106,4 +105,4 @@ agent-workspace-template/
 
 ## 다음 작업
 
-새 작업과 실제 진행 작업은 [GitHub Issues](https://github.com/kimyongin/agent-workspace-template/issues)에서 확인하고 필요한 기능의 파일을 만든다. [Template-02](../tickets/template-02-implementation-base.md)와 [Template-01](../tickets/template-01-task-record-search.md)은 이전 구현 범위와 할 일·기록·검색 계약의 근거다. 제품의 범위는 [PRD](../product/concept.md), 문서와 이전 근거의 진입점은 [START-HERE](../START-HERE.md)에서 확인한다.
+새 작업과 진행 중 작업은 [GitHub Issues](https://github.com/kimyongin/agent-workspace-template/issues)에서 확인한다. 제품의 범위는 [PRD](../product/concept.md), 입력·출력은 실제 공유 계약, 문서의 진입점은 [START-HERE](../START-HERE.md)가 담당한다.

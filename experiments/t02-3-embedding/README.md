@@ -1,6 +1,6 @@
 # T02-3 — 한국어 임베딩 품질과 입력 경계
 
-Pinecone Inference의 독립 임베딩 호출로 `llama-text-embed-v2`와 `multilingual-e5-large`를 비교한다. 앱 코드·운영 DB·Pinecone 인덱스를 쓰지 않는다. Node 22 이상만 필요하고 설치할 의존성은 없다. 결과와 판단은 [Template-02 T02-3](../../docs/tickets/template-02-implementation-base.md#t02-3--사용자-원칙rag지식-연결)에 기록한다.
+Pinecone Inference의 독립 임베딩 호출로 `llama-text-embed-v2`와 `multilingual-e5-large`를 비교한다. 앱 코드·운영 DB·Pinecone 인덱스를 쓰지 않는다. Node 22 이상만 필요하고 설치할 의존성은 없다. 평가 결과는 이 폴더의 결과 파일, 채택한 모델·입력·임계값은 [검색 설계](../../docs/architecture/search.md)에 있다.
 
 ## 준비·실행·정리
 
