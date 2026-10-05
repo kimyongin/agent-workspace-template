@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto';
 export function assertJournal(journal, endpoint, clientName) {
   if (journal.journalVersion !== 1 || journal.endpoint !== endpoint || journal.clientName !== clientName ||
       !new RegExp(`^plugin-${clientName}-[a-f0-9]{8,12}$`).test(journal.marker)) throw new Error('Fixture journal ownership mismatch');
-  for (const kind of ['tag', 'entity', 'principle', 'record']) {
+  for (const kind of ['tag', 'entity', 'principle', 'record', 'task']) {
     if (journal[kind] && !ownedName(journal, kind, journal[kind])) throw new Error('Fixture journal object identity mismatch');
   }
   if (journal.pendingCreate && (!Object.keys(plurals).includes(journal.pendingCreate.kind) || !ownedName(journal, journal.pendingCreate.kind, journal.pendingCreate.input))) throw new Error('Pending fixture identity mismatch');
@@ -52,16 +52,16 @@ export async function createOwned(journal, save, call, kind, input) {
   return object;
 }
 
-const plurals = { tag: 'tags', entity: 'entities', principle: 'principles', record: 'records' };
+const plurals = { tag: 'tags', entity: 'entities', principle: 'principles', record: 'records', task: 'tasks' };
 function ownedName(journal, kind, object) {
   return kind === 'tag' ? object.name === journal.marker : kind === 'entity' ? object.prop1 === journal.marker :
-    object.title === `${journal.marker}-${kind === 'record' ? 'source' : 'principle'}`;
+    object.title === `${journal.marker}-${kind === 'record' ? 'source' : kind}`;
 }
-async function listPageSet(call, kind, status) {
+async function listPageSet(call, kind) {
   const all = [], seen = new Set();
   let cursor;
   do {
-    const page = await call(`list_${plurals[kind]}`, { ...(status ? { status } : {}), ...(cursor ? { cursor } : {}) });
+    const page = await call(`list_${plurals[kind]}`, { ...(kind === 'principle' ? { view: 'all' } : {}), ...(cursor ? { cursor } : {}) });
     if (!Array.isArray(page.items)) throw new Error('Unexpected fixture list response');
     all.push(...page.items);
     cursor = page.next_cursor;
@@ -71,17 +71,18 @@ async function listPageSet(call, kind, status) {
   return all;
 }
 async function listAll(call, kind) {
-  if (kind !== 'principle') return listPageSet(call, kind);
-  // Each supported status has its own cursor sequence; never mix cursors.
-  return [...await listPageSet(call, kind, 'active'), ...await listPageSet(call, kind, 'inactive')];
+  return listPageSet(call, kind);
 }
 
 export async function setupOwned(journal, save, call, listTools) {
   const { marker, originalDetail } = journal;
+  const { current } = await call('get_current_principle', {});
+  const ownPending = journal.pendingCreate?.kind === 'principle' && current && ownedName(journal, 'principle', current);
+  if (current && current.id !== journal.principle?.id && !ownPending) throw new Error('Fixture refuses existing current principle before writes');
   const tag = await createOwned(journal, save, call, 'tag', { name: marker });
   const entity = await createOwned(journal, save, call, 'entity', { prop1: marker, prop2: 7, prop3: '2026-10-04', prop4: 'b' });
-  const principle = await createOwned(journal, save, call, 'principle', { title: `${marker}-principle`, summary: '검토에는 원문 검증 코드와 대상 속성을 함께 기록한다.', body: '결과 기록에는 원문에서 읽은 검증 코드를 정확히 남기고 대상 속성 2의 현재 값도 함께 적는다.', applies_when: `${marker} 관련 검토`, tag_ids: [tag.id], entity_id: entity.id });
-  await createOwned(journal, save, call, 'record', { title: `${marker}-source`, summary: '이 fixture의 이전 검토 기록. 본문에 검증 코드가 있다.', body: `당시 확인한 원문 검증 코드는 ${originalDetail}이다. 대상 속성 2는 7이며 현재 원문과 원칙을 다시 비교한다.`, tag_ids: [tag.id], entity_id: entity.id, applied_principle_ids: [principle.id] });
+  await createOwned(journal, save, call, 'principle', { title: `${marker}-principle`, summary: '검토에는 원문 검증 코드와 대상 속성을 함께 기록한다.', body: '결과 기록에는 원문에서 읽은 검증 코드를 정확히 남기고 대상 속성 2의 현재 값도 함께 적는다.' });
+  await createOwned(journal, save, call, 'record', { title: `${marker}-source`, summary: '이 fixture의 이전 검토 기록. 본문에 검증 코드가 있다.', body: `당시 확인한 원문 검증 코드는 ${originalDetail}이다. 대상 속성 2는 7이며 현재 원문과 원칙을 다시 비교한다.`, tag_ids: [tag.id], entity_ids: [entity.id] });
   const tools = (await listTools()).tools.map(({ name }) => name).sort();
   Object.assign(journal, { tools, state: 'ready' });
   await save();
@@ -109,7 +110,7 @@ export async function cleanupOwned(journal, save, call, deleteOAuth) {
   }
   journal.resultsCleaned = true;
   await save();
-  for (const kind of ['record', 'principle', 'entity', 'tag']) {
+  for (const kind of ['record', 'task', 'principle', 'entity', 'tag']) {
     const object = journal[kind];
     if (!object || journal.deleted[kind]) continue;
     const current = (await listAll(call, kind)).find(({ id }) => id === object.id);

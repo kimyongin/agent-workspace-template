@@ -29,13 +29,14 @@ function service() {
       assert(schemas.has(name), `Actual MCP ToolDef missing: ${name}`);
       input = schemas.get(name).parse(input); // Real input contract before any mock effect.
       calls.push(name);
+      if (name === 'get_current_principle') return { current: [...rows.principle.values()].find(row => row.is_current) ?? null };
       const [verb, suffix] = name.split('_');
       const kind = suffix === 'entities' ? 'entity' : suffix.replace(/s$/, '');
       if (verb === 'create') {
         if (fault === `before:${kind}`) { fault = undefined; throw new Error('transport before commit'); }
         let object = requests.get(input.request_id);
         if (!object) {
-          object = { ...input, id: randomUUID(), version: 1, ...(kind === 'principle' ? { status: 'active' } : {}) };
+          object = { ...input, id: randomUUID(), version: 1, ...(kind === 'principle' ? { status: 'active', is_current: true } : {}) };
           rows[kind].set(object.id, object); requests.set(input.request_id, object);
         }
         if (fault === `after:${kind}`) { fault = undefined; throw new Error('lost create response'); }
@@ -43,10 +44,10 @@ function service() {
       }
       if (verb === 'list') {
         queries.push({ kind, ...input });
-        const values = [...rows[kind].values()].filter((value) => kind !== 'principle' || value.status === input.status);
+        const values = [...rows[kind].values()].filter((value) => kind !== 'principle' || input.view === 'all' || (input.view === 'history' ? !value.is_current : value.is_current));
         const offset = input.cursor ? Number(input.cursor.split(':').at(-1)) : 0;
-        if (input.cursor) assert(input.cursor.startsWith(`${kind}:${input.status ?? '-'}:`), 'Cursor must remain scoped to its status');
-        return { items: values.slice(offset, offset + 1), next_cursor: offset + 1 < values.length ? `${kind}:${input.status ?? '-'}:${offset + 1}` : null };
+        if (input.cursor) assert(input.cursor.startsWith(`${kind}:${input.view ?? '-'}:`), 'Cursor must remain scoped to its view');
+        return { items: values.slice(offset, offset + 1), next_cursor: offset + 1 < values.length ? `${kind}:${input.view ?? '-'}:${offset + 1}` : null };
       }
       if (verb === 'get') return rows[kind].get(input.id);
       if (verb === 'delete') {
@@ -149,11 +150,11 @@ test('inventory failure after all four creates leaves every ID available for par
     await cleanupOwned(data, save, api.call, api.oauth);
     assert(Object.values(api.rows).every((rows) => rows.size === 0));
     assert.equal(data.state, 'cleaned');
-    assert.deepEqual(api.queries.filter(({ kind }) => kind === 'principle').map(({ status }) => status), ['active', 'inactive']);
+    assert.equal(api.queries.filter(({ kind }) => kind === 'principle').length, 1);
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 
-for (const ownStatus of ['active', 'inactive']) test(`actual ToolDef rejects all; cleanup finds own ${ownStatus} principle across separately paged statuses`, async () => {
+for (const ownStatus of ['active', 'inactive']) test(`actual ToolDef rejects retired status; cleanup finds own ${ownStatus} principle across paged all view`, async () => {
   const root = await mkdtemp(resolve(tmpdir(), 'plugin-journal-'));
   const path = resolve(root, 'fixture.json');
   try {
@@ -165,19 +166,27 @@ for (const ownStatus of ['active', 'inactive']) test(`actual ToolDef rejects all
     }
     await setupOwned(data, save, api.call, async () => ({ tools: [...schemas.keys()].map((name) => ({ name })) }));
     api.rows.principle.get(data.principle.id).status = ownStatus;
-    await assert.rejects(api.call('list_principles', { status: 'all' }), (error) => error.issues?.some(({ path, code }) => path[0] === 'status' && code === 'invalid_value'));
+    await assert.rejects(api.call('list_principles', { status: 'all' }), (error) => error.issues?.some(({ code }) => code === 'unrecognized_keys'));
     assert.equal(api.oauthAttempts, 0);
     assert(data.token);
     await cleanupOwned(data, save, api.call, api.oauth);
     assert.equal(api.rows.principle.size, 4);
     assert(!api.rows.principle.has(data.principle.id));
-    for (const status of ['active', 'inactive']) {
-      const pages = api.queries.filter((query) => query.kind === 'principle' && query.status === status);
-      assert(pages.length >= 2);
-      assert.equal(pages[0].cursor, undefined);
-      assert(pages.slice(1).every(({ cursor }) => cursor.startsWith(`principle:${status}:`)));
-    }
+    const pages = api.queries.filter((query) => query.kind === 'principle');
+    assert(pages.length >= 2);
+    assert.equal(pages[0].cursor, undefined);
+    assert(pages.slice(1).every(({ cursor }) => cursor.startsWith('principle:all:')));
     assert.equal(api.oauthAttempts, 1);
     assert.equal((await readJournal(path, endpoint, 'codex-cli')).token, undefined);
   } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+
+test('setup refuses an existing foreign current principle before any fixture mutation', async () => {
+  const data = journal(), api = service();
+  const id = randomUUID(); api.rows.principle.set(id, { id, title: 'existing current', is_current: true, version: 9 });
+  await assert.rejects(setupOwned(data, async () => {}, api.call, async () => ({ tools: [] })), /existing current/);
+  assert.deepEqual(api.calls, ['get_current_principle']);
+  assert.equal(api.rows.principle.get(id).version, 9);
+  assert.equal(api.rows.tag.size + api.rows.entity.size + api.rows.record.size, 0);
 });
