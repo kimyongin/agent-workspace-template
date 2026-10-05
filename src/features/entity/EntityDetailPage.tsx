@@ -111,12 +111,12 @@ export function EntityDetailPage() {
       {error && !entity && <><Notice kind="error">{error}</Notice><button className="btn" onClick={()=>setRetry(n=>n+1)}>다시 시도</button></>}
       {!entity&&!error&&<p className="secondary" role="status">불러오는 중…</p>}
       {entity&&<>
-          {creating === "task" && <TaskFormModal key={location.key} open mode="create" initial={{ ...emptyTask(), entity_id: entity.id }}
+          {creating === "task" && <TaskFormModal key={location.key} open mode="create" initial={{ ...emptyTask(), entity_ids: [entity.id] }}
             onClose={closeCreate} onRouteDiscard={()=>setCreating(null)} onSave={async draft => {
               await api("POST", "/tasks", { ...taskInput(draft), request_id: request.current });
               closeCreate(); setSaved("할 일을 추가했습니다."); setRetry(n => n + 1);
             }} />}
-          {creating === "record" && <RecordFormModal key={location.key} open title="기록 작성" submitLabel="저장" initial={{ ...emptyRecord(), entity_id: entity.id }}
+          {creating === "record" && <RecordFormModal key={location.key} open title="기록 작성" submitLabel="저장" initial={{ ...emptyRecord(), entity_ids: [entity.id] }}
             onClose={closeCreate} onRouteDiscard={()=>setCreating(null)} onSave={async value => {
               await api("POST", "/records", { ...value, request_id: request.current });
               closeCreate(); setSaved("기록을 저장했습니다."); setRetry(n => n + 1);

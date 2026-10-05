@@ -452,7 +452,10 @@ export async function updateRecord(
         throw invalidInput("변경 기록은 제목·요약·본문·메모만 정정할 수 있습니다");
       }
       const { expected_version: _v, request_id: _r, change_note, ...content } = patch;
-      const changes = { ...content, ...entityChanges(content) };
+      const selection = entityChanges(content);
+      // Array selection owns the projection; deleted captures can have a null live alias.
+      if (content.entity_ids !== undefined && content.entity_id === undefined) delete selection.entity_id;
+      const changes = { ...content, ...selection };
       const removesSnapshots = changes.applied_principle_ids !== undefined &&
         (record.applied_principle_snapshots ?? []).some((p) => !changes.applied_principle_ids!.includes(p.id));
       if (

@@ -15,7 +15,7 @@ import { addDays, formatDateTime, todayIn } from "../../lib/format.ts";
 import { emptyRecord, TaskResultFormModal, TaskFormModal, taskDraftFrom, taskInput } from "./forms.tsx";
 import { OccurrenceBadge, StatusBadge, useRequestId } from "./shared.tsx";
 import {TagNames} from "../tags/TagPicker.tsx";
-import {EntityLink} from "../entity/EntityPicker.tsx";
+import {EntityLinks} from "../entity/EntityPicker.tsx";
 import {useSearchReturn} from "../search/return.ts";
 import { safeListReturn } from "./list-state.ts";
 
@@ -192,7 +192,7 @@ export function TaskDetailPage() {
         </dl>
         {task.kind === "once" && task.status === "done" && <div><h2 className="section-title">결과 기록</h2>{task.result_record ? <Link to={`/records/${task.result_record.id}`}>{task.result_record.title}</Link> : <p className="secondary">결과 기록이 삭제되었습니다</p>}</div>}
         <TagNames ids={task.tag_ids}/>
-        <EntityLink id={task.entity_id}/>
+        <EntityLinks ids={task.entity_ids} context={task.entity_context}/>
         <p className="meta" style={{ margin: 0 }}>
           만든 시각 {formatDateTime(task.created_at)} · 수정 {formatDateTime(task.updated_at)}
         </p>
@@ -272,7 +272,7 @@ export function TaskDetailPage() {
               change_memo:draft.change_memo,
               request_id:requestId.current,
               tag_ids:draft.tag_ids,
-              entity_id:draft.entity_id,
+              entity_ids:draft.entity_ids??(draft.entity_id?[draft.entity_id]:[]),
             };
             if (task.kind === "once") patch.due_on = draft.due_on || null;
             else {
@@ -316,7 +316,7 @@ export function TaskDetailPage() {
           title={`${dialog.occurrence} 회차 기록`}
           submitLabel="기록 저장"
           open
-          initial={{...emptyRecord(),entity_id:task.entity_id}}
+          initial={{...emptyRecord(),entity_ids:task.entity_ids,entity_context:task.entity_context}}
           onClose={closeManagement}
           onRouteDiscard={() => setDialog(null)}
           onSave={async (value) => {

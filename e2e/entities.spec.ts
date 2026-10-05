@@ -60,9 +60,7 @@ test("Entity 웹 CRUD·초안 보호→MCP parity·활동 연결→삭제 원문
     await page.goto(`/tasks/${task.id}`);
     await openDetailEditor(page);
     const editTask = page.getByRole("dialog", { name: "할 일 편집" });
-    await expect(editTask.getByLabel("엔터티", { exact: true })).toHaveValue(
-      id,
-    );
+    await expect(editTask.getByRole("checkbox", { name, exact: true })).toBeChecked();
     await editTask.getByRole("button", {name:"닫기",exact:true}).click();
     await page.goto(`/entities/${id}`);
     await openDetailEditor(page);

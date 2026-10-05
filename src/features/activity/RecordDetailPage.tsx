@@ -13,7 +13,7 @@ import { api, ApiError, query } from "../../lib/api.ts";
 import { formatDateTime } from "../../lib/format.ts";
 import { RecordFormModal, recordDraftFrom } from "./forms.tsx";
 import {TagNames} from "../tags/TagPicker.tsx";
-import {EntityLink} from "../entity/EntityPicker.tsx";
+import {EntityLinks} from "../entity/EntityPicker.tsx";
 import {useSearchReturn} from "../search/return.ts";
 import { safeListReturn } from "./list-state.ts";
 
@@ -90,7 +90,7 @@ export function RecordDetailPage() {
       </dl>
       {record.task_id && <div><h2 className="section-title">관련 할 일</h2><Link to={`/tasks/${record.task_id}`}>{record.occurrence_on ? `${record.occurrence_on} 회차` : "결과로 연결된 할 일"}</Link></div>}
       <TagNames ids={record.tag_ids}/>
-      <EntityLink id={record.entity_id}/>
+      <EntityLinks ids={record.entity_ids} context={record.entity_context}/>
       <PrincipleSnapshots snapshots={record.applied_principle_snapshots??[]}/>
       <p className="meta" style={{ margin: 0 }}>
         만든 시각 {formatDateTime(record.created_at)} · 수정 {formatDateTime(record.updated_at)}
