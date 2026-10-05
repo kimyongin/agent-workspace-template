@@ -33,6 +33,7 @@ export function RecordFormModal(props: {
   open: boolean;
   initial: RecordDraft;
   intro?: ReactNode;
+  details?: ReactNode;
   entityEditable?:boolean;
   systemRecord?: boolean;
   editing?: boolean;
@@ -86,6 +87,7 @@ export function RecordFormModal(props: {
             )}
           </Field></>}
           <ChangeNoteField value={draft.change_note??""} required={props.editing} error={errors.change_note} onChange={change_note=>setDraft(d=>({...d,change_note}))}/>
+          {props.details}
         </>
       )}
     </FormModal>
@@ -175,6 +177,7 @@ export function TaskFormModal(props: {
   mode: "create" | "edit";
   open: boolean;
   initial: TaskDraft;
+  details?: ReactNode;
   onClose: () => void;
   onRouteDiscard?: () => void;
   onSave: (draft: TaskDraft) => Promise<void>;
@@ -291,6 +294,7 @@ export function TaskFormModal(props: {
               </>
             )}
           <ChangeNoteField value={draft.change_note??""} required={props.mode==="edit"} error={errors.change_note} onChange={change_note=>set({change_note})}/>
+          {props.details}
         </>
       )}
     </FormModal>

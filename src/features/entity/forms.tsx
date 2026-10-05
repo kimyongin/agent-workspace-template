@@ -4,14 +4,15 @@ import {
   entityLabels,
   type EntityResult,
 } from "@contracts/entity.ts";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import { changeNoteErrors, ChangeNoteField, FormModal } from "../../components/ContentForm.tsx";
 import { Field } from "../../components/Field.tsx";
 import { fieldErrors } from "../../lib/format.ts";
 import { TagPicker } from "../tags/TagPicker.tsx";
 export function EntityForm(
-  { initial, onClose, onRouteDiscard, onSave }: {
+  { initial, details, onClose, onRouteDiscard, onSave }: {
     initial?: EntityResult;
+    details?: ReactNode;
     onClose: () => void;
     onRouteDiscard?: () => void;
     onSave: (value: EntityCreate & {tag_ids: string[]; change_note?: string}) => Promise<void>;
@@ -114,6 +115,7 @@ export function EntityForm(
           </Field>
           <TagPicker scope="entity" value={draft.tag_ids} error={errors.tag_ids} onChange={tag_ids=>setDraft(d=>({...d,tag_ids}))}/>
           <ChangeNoteField value={draft.change_note} required={!!initial} error={errors.change_note} onChange={change_note=>setDraft(d=>({...d,change_note}))}/>
+          {details}
         </>
       )}
     </FormModal>

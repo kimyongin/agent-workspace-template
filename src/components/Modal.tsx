@@ -2,6 +2,7 @@
 // Escape·닫기는 같은 미저장 보호를 거치며 배경 클릭으로 초안을 버리지 않는다(docs/design/ui-patterns.md).
 import { createContext, type ReactNode, type RefObject, useCallback, useContext, useEffect, useId, useRef, useState } from "react";
 import { useBlocker } from "react-router";
+import { createPortal } from "react-dom";
 
 export interface ModalProps {
   title: string;
@@ -43,7 +44,7 @@ export function DetailSurface({title, onClose, children, busy = false}: {title: 
   return <SurfaceContext.Provider value={{slot, register, editor:editorRef, busy:busyRef}}>
     <ModalShell open title={editor?.title ?? title} headingLevel={editor?2:1} onClose={editor?.onClose ?? onClose}
       onRouteDiscard={editor?.onRouteDiscard} dirty={editor?.dirty} busy={busy || editor?.busy}
-      footer={editor?.footer ?? <button type="button" className="btn" onClick={onClose} disabled={busy}>목록으로</button>}>
+      footer={editor?.footer}>
       <div hidden={!!editor}>{children}</div>
       <div ref={setSlot} hidden={!editor} />
     </ModalShell>
@@ -124,7 +125,7 @@ function ActiveModalShell({ title, headingLevel=2, open, onClose, onRouteDiscard
             닫기
           </button>
         </div>
-        <div className="modal-body">{children}</div>
+        <div className="modal-body" tabIndex={0}>{children}</div>
         {footer && <div className="modal-foot">{typeof footer === "function" ? footer(requestClose) : footer}</div>}
       </div>
       <ConfirmDialog
@@ -189,7 +190,7 @@ export function ConfirmDialog({ open, title, message, confirmLabel, danger, busy
     } else if (!open && d.open) { d.close(); returnFocus.current?.focus(); }
   }, [open]);
   useEffect(() => () => { if(ref.current?.open)ref.current.close(); returnFocus.current?.focus(); }, []);
-  return (
+  return createPortal(
     <dialog
       ref={ref}
       className="modal modal-confirm"
@@ -218,7 +219,7 @@ export function ConfirmDialog({ open, title, message, confirmLabel, danger, busy
           </button>
         </div>
       </div>
-    </dialog>
+    </dialog>, document.body
   );
 }
 

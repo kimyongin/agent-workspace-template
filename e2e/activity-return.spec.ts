@@ -1,3 +1,4 @@
+import { openDetailEditor } from "./ui-actions.ts";
 import { expect, test } from "@playwright/test";
 import { devLogin, mcpClient, mcpTokenViaConsent, unique } from "./support.ts";
 
@@ -104,15 +105,16 @@ for (
       await link.focus();
       await page.keyboard.press("Enter");
       await expect(page.getByRole("heading", { name: title, exact: true })).toBeVisible();
-      await expect(page.getByRole("link", { name: "엔터티 보기", exact: true })).toHaveAttribute(
+      await page.getByRole("button",{name:"닫기",exact:true}).click();
+      await page.getByRole("link",{name:`${title} 편집`,exact:true}).click();
+      await expect(page.getByRole("link", { name: "엔터티 편집", exact: true })).toHaveAttribute(
         "href",
         `/entities/${entity.id}`,
       );
-      await page.getByRole("button", { name: "편집", exact: true }).click();
       const dialog = page.getByRole("dialog", { name: editLabel, exact: true });
-      await dialog.getByRole("button", { name: "취소", exact: true }).click();
+      await dialog.getByRole("button", {name:"닫기",exact:true}).click();
       await expect(dialog).not.toBeVisible();
-      await expect(page.getByRole("button", { name: "편집", exact: true })).toBeFocused();
+      await expect(link).toBeFocused();await link.click();
       for (let i = 0; i < 21; i++) await create(unique("상세 중 추가"));
       await page.goBack();
       await expect(page.locator(`.${path} .list .item-title`)).toHaveCount(63);
@@ -123,15 +125,16 @@ for (
       await expect(page.locator(`.${path} .list .item-title`)).toHaveCount(63);
       await expect(link).toBeFocused();
       await link.click();
-      await page.getByRole("button", { name: "편집", exact: true }).click();
+      await openDetailEditor(page);
       await dialog.getByLabel("요약").fill("수정한 근거");
       await dialog.getByLabel("편집 메모").fill("판단 근거 정정");
       await dialog.getByRole("button", { name: "저장", exact: true }).click();
       await expect(dialog).not.toBeVisible();
-      await page.getByRole("link", { name: `← ${label} 목록`, exact: true }).click();
+      await page.getByRole("button", { name: "닫기", exact: true }).click();
       await expect(link).toBeFocused();
       await expect(link).toBeInViewport();
       await link.click();
+      await openDetailEditor(page);
       await page.getByRole("button", { name: "삭제", exact: true }).click();
       await page.getByRole("dialog", { name: `${label}을 삭제할까요?`, exact: true }).getByRole("button", {
         name: "삭제",
