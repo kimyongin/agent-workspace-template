@@ -1,5 +1,7 @@
 # Template-17 — 본 대화 허브와 지시·결과 회수 그림
 
+> 이전 기록이다. 현재 작업과 완료 근거는 [GitHub 이관 대응표](migration-to-github.md)에서 확인한다.
+
 작성: 2026-10-04
 상태: 구현·로컬 확인 완료(메인 PNG 재확인·독립 리뷰·CI·머지 대기)
 검토 기준: base `6d884d7e377716883511c6f628cf00040a1f4666`, branch `codex/overview-session-flow-diagram`

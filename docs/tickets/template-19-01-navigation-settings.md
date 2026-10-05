@@ -1,5 +1,7 @@
 # Template-19-01 — 세 탭 하단 탐색과 프로필 설정
 
+> 이전 기록이다. 현재 작업과 완료 근거는 [GitHub 이관 대응표](migration-to-github.md)에서 확인한다.
+
 작성: 2026-10-04
 상태: 진행 중
 기준: main399b82b와 승인한 [Template-19](template-19-three-tab-release-ux.md)/[Template-20](template-20-current-principle-change-records.md)

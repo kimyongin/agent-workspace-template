@@ -1,5 +1,7 @@
 # Template-10-03: 공유 제품 플러그인 패키징
 
+> 이전 기록이다. 현재 작업과 완료 근거는 [GitHub 이관 대응표](migration-to-github.md)에서 확인한다.
+
 [Template-02](template-02-implementation-base.md)의 T02-4 중 제품 패키징·클라이언트 검증을 맡는다. 계약은 [T02-1](template-02-t02-1-contracts.md#플러그인-형식-claudecodex), 결정은 [ADR-0005](../adr/0005-plugin-delivery-claude-codex.md), 실행 기준은 [배포](../deployment/release.md#플러그인-패키징과-배포)·[보안](../security/guide.md#큐비밀값공급망)이다.
 
 ## 범위와 인계

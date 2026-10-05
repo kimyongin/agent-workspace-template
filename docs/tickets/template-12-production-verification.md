@@ -1,5 +1,7 @@
 # Template-12 — 본인 운영 기록 색인과 Cron 소비 확인
 
+> 이전 기록이다. 현재 작업과 완료 근거는 [GitHub 이관 대응표](migration-to-github.md)에서 확인한다.
+
 작성: 2026-10-04
 상태: 본인 기록 생성·수정 scoped 색인과 매분 Cron 소비 확인 완료(기록 PR 리뷰·CI·머지 전)
 검토 기준: main `fa8b706fbc461117e9c42a0ced35c5c274a53b12`; 운영 함수 source는 `1730dc983eb10e282e28f3a200ffbd265978480e`

@@ -1,5 +1,7 @@
 # Template-18 — fin UX 조사와 도메인 없는 템플릿 적용안
 
+> 이전 기록이다. 현재 작업과 완료 근거는 [GitHub 이관 대응표](migration-to-github.md)에서 확인한다.
+
 작성: 2026-10-04
 상태: 진행 중(사용자 구현 승인, 기능별 구현 배정)
 검토 기준: template `745130148c90de842d7617c232194b653d1c638b`, branch `codex/fin-ux-study`

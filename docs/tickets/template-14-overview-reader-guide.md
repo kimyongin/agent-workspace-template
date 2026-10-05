@@ -1,5 +1,7 @@
 # Template-14 — 개요의 읽기 부담과 개발 역할 안내
 
+> 이전 기록이다. 현재 작업과 완료 근거는 [GitHub 이관 대응표](migration-to-github.md)에서 확인한다.
+
 작성: 2026-10-04
 상태: 진행 중(개요 정리·로컬 검사 완료, 멀티·서브세션 설명은 제안, 리뷰·CI·머지 대기)
 검토 기준: base `ece231f8c32e5be83e852cfedc27f68c7138b2e0`, branch `codex/overview-reader-guide`

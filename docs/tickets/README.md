@@ -1,5 +1,7 @@
 # 과거 Markdown 티켓 기록
 
+[이전 ID·완료 근거·실제 잔여 대응표](migration-to-github.md)에서 GitHub issue와 과거 계약으로 이동한다.
+
 > 개발 방식 전환 이후 새 작업과 실제 남은 작업의 정본은 [GitHub Issues](../agents/issue-tracker.md)다. 아래 양식·절차는 과거 기록을 해석하기 위해 보존한 이력이며 새 작업에 적용하지 않는다. 승인된 잔여 이전과 old ID 대응은 [#98](https://github.com/kimyongin/agent-workspace-template/issues/98)에서 대조한다.
 
 티켓은 작업 하나의 목표·계획·완료 조건·진행 기록을 담는 작업 지시서다. 에이전트가 작성하고 소유한다([ADR-0008](../adr/0008-document-ownership.md)). 작업 절차와 검증 기준은 [개발과 검증 방법](../development/workflow.md)이 정본이며 이 문서는 티켓의 이름과 형식만 정한다.

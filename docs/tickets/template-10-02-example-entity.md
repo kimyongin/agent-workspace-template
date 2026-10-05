@@ -1,5 +1,7 @@
 # Template-10-02 — 예제 Entity 수직 슬라이스
 
+> 이전 기록이다. 현재 작업과 완료 근거는 [GitHub 이관 대응표](migration-to-github.md)에서 확인한다.
+
 상태: 진행 중. 부모 [Template-10](template-10-priority-completion.md)의 T02-4 하위 작업이며 확정 계약은 [T02-1](template-02-t02-1-contracts.md#예제-엔터티-entity--t02-4)을 따른다.
 
 ## 배정과 승인 범위

@@ -1,5 +1,7 @@
 # Template-18-01 — fin 문서 추가 검토와 UX 적용 경계
 
+> 이전 기록이다. 현재 작업과 완료 근거는 [GitHub 이관 대응표](migration-to-github.md)에서 확인한다.
+
 작성: 2026-10-04
 상태: 완료(문서 조사·설계 인계, 앱 구현은 미수행)
 상위: [Template-18 적용안](template-18-fin-ux-adaptation.md)

@@ -1,5 +1,7 @@
 # Template-04 — 개발 검증과 세션 인계 절차 보강
 
+> 이전 기록이다. 현재 작업과 완료 근거는 [GitHub 이관 대응표](migration-to-github.md)에서 확인한다.
+
 작성: 2026-10-03
 상태: 완료
 검토 기준: `7afef78014a92cc955b9001ec6d2e61b0fe1a6ab`

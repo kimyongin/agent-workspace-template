@@ -1,5 +1,7 @@
 # Template-10-08 — 관측 가능한 설정 변경·child 재개 확인
 
+> 이전 기록이다. 현재 작업과 완료 근거는 [GitHub 이관 대응표](migration-to-github.md)에서 확인한다.
+
 작성: 2026-10-04
 상태: 완료(PR #78 독립 리뷰·CI·머지, 미지원 child 재개 범위 보존)
 선행: Template-10-05 PR #76

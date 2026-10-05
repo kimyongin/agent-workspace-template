@@ -31,6 +31,8 @@ PRD와 ADR은 사람이 소유하고 나머지 문서·티켓·구현은 에이�
 
 ## 현재 상태
 
+[과거 티켓 이관 판정](tickets/migration-to-github.md)은 기존 작업과 최종 PR 근거를 연결한다. 실제 잔여 [Codex desktop 제품 UI 검증](https://github.com/kimyongin/agent-workspace-template/issues/102)의 상태·접근 제약은 해당 issue에서 관리한다.
+
 2026-10-05 합의한 [개발 방식 전환 #96](https://github.com/kimyongin/agent-workspace-template/issues/96)을 진행하고 있다. [설치·지침 전환 #97](https://github.com/kimyongin/agent-workspace-template/issues/97), [기록 이전 #98](https://github.com/kimyongin/agent-workspace-template/issues/98), [실제 파일럿 #99](https://github.com/kimyongin/agent-workspace-template/issues/99)의 현재 상태와 검증은 GitHub에서 확인한다. 아래 기존 작업 기록의 대기 표현은 제출 당시 상태이며 최신 PR 근거와 함께 읽는다.
 
 2026-10-05 승인한 [Template-21](tickets/template-21-fin-visual-parity.md)의 세 탭 작업 메뉴·자동 검색·fin 시각 규격과 활동 할 일/기록 동시 조회, 기록/과거 원칙 타임라인은 [PR #95](https://github.com/kimyongin/agent-workspace-template/pull/95#issuecomment-5983464078)의 독립 리뷰·필수 CI·머지와 사용자 로컬 읽기 전용 확인을 완료했다. main은 `2639a466feed874c0d8ddf393069c2b00661d39f`이며 additive `tag_ids` OR 조회와 검색 메모 DTO를 제공한다. migration과 운영 배포는 없었다. 초기·수정 검증과 제출 이후 결과는 티켓 및 완료 코멘트가 소유한다.
