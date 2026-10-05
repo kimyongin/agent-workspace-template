@@ -3,7 +3,8 @@ import type { ChangeMemo } from "@contracts/change.ts";
 import { type ReactNode, useState } from "react";
 import { body, summary, title } from "@contracts/common.ts";
 import { z } from "zod";
-import { changeNoteErrors, ChangeNoteField, FormModal, TextFields, type TextDraft } from "../../components/ContentForm.tsx";
+import { changeNoteErrors, FormModal, TextFields, type TextDraft } from "../../components/ContentForm.tsx";
+import { Field } from "../../components/Field.tsx";
 import { fieldErrors } from "../../lib/format.ts";
 
 export type PrincipleDraft = TextDraft & {change_note?: string;change_memo?:ChangeMemo};
@@ -23,7 +24,7 @@ export function PrincipleFormModal({initial,editing=false,correcting=false,detai
     {errors=><>
       {editing&&<p className="help">{correcting?"이 저장본의 본문과 메모를 정정합니다. 저장 순서와 현재 원칙은 바뀌지 않습니다.":"현재 문서를 갱신하고 확인한 메모를 통합 기록에 함께 저장합니다."}</p>}
       <TextFields draft={draft} set={patch=>setDraft(d=>({...d,...patch}))} errors={errors}/>
-      <ChangeNoteField required={false} value={draft.change_note} error={errors.change_note} onChange={change_note=>setDraft(d=>({...d,change_note}))}/>
+      <Field label="편집 메모" error={errors.change_note}>{props=><textarea {...props} className="input" value={draft.change_note} onChange={event=>setDraft(d=>({...d,change_note:event.target.value}))} maxLength={1000}/>}</Field>
       {details}
     </>}
   </FormModal>;

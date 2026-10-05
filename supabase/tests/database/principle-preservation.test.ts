@@ -1,5 +1,6 @@
 import { assert, assertEquals, assertRejects } from "@std/assert";
 import { asUser, connect, dbTest, fixtureOwner, urls } from "./_db.ts";
+import { recordUpdate } from "../../functions/_shared/contracts/record.ts";
 
 const admin = connect(urls.admin, { max: 1 });
 const server = connect(urls.direct, { max: 1, prepare: false });
@@ -7,7 +8,7 @@ const server = connect(urls.direct, { max: 1, prepare: false });
 dbTest("원칙 보존: 최대 본문과 당시 적용 자료를 손실 없이 기록으로 캡처하고 반복 실행·권한을 지킨다", async () => {
   const f = await fixtureOwner(admin), other = await fixtureOwner(admin);
   try {
-    const body = "가".repeat(19999) + "끝";
+    const body = "😀".repeat(19999) + "끝";
     const [source] = await admin`insert into app.principles(owner_id,title,summary,body,is_current,origin,saved_at)
       values(${f.actor.userId},'원본 원칙','원본 요약',${body},true,'legacy','2020-01-02T00:00:00Z') returning id`;
     const snapshots = [{
@@ -42,6 +43,7 @@ dbTest("원칙 보존: 최대 본문과 당시 적용 자료를 손실 없이 �
       assert(r.occurred_at.getTime() >= started - 1000);
       assert(r.body.includes("실제 적용 시각이 아닙니다"));
       assert([...r.body].length <= 20000);
+      recordUpdate.parse({ expected_version: r.version, title: r.title, summary: r.summary, body: r.body });
     }
     await admin`call private.preserve_principle_sources(${f.actor.userId}::uuid)`;
     assertEquals(

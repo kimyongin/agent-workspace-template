@@ -54,20 +54,21 @@ begin
   loop
     serialized := jsonb_pretty(source.payload);
     v_source_hash := encode(extensions.digest(serialized,'sha256'),'hex');
-    total_parts := greatest(1,ceil(char_length(serialized)/18000.0)::integer);
+    -- JS/Zod 한도는 UTF-16이다. 9,000 codepoint면 astral 문자도 머리말 포함 20,000 이내다.
+    total_parts := greatest(1,ceil(char_length(serialized)/9000.0)::integer);
     captured_at := clock_timestamp();
     for v_part in 1..total_parts loop
       -- 사용자가 이관 기록을 삭제해도 매핑은 남는다. 재실행으로 다시 만들지 않는다.
       if exists(select 1 from app.legacy_principle_record_parts m where m.owner_id=source.owner_id
         and m.source_kind=source.kind and m.source_id=source.id and m.source_hash=v_source_hash and m.part=v_part)
       then continue; end if;
-      record_title := left('원칙 보존 자료 · '||source.title||' · '||v_part||'/'||total_parts,100);
-      record_summary := left('기존 원칙 근거의 이관 캡처. 실제 적용 시각이 아닙니다. '||source.summary,300);
+      record_title := left('원칙 보존 자료 · '||source.title||' · '||v_part||'/'||total_parts,50);
+      record_summary := left('기존 원칙 근거의 이관 캡처. 실제 적용 시각이 아닙니다. '||source.summary,150);
       insert into app.records(owner_id,title,summary,body,record_kind,occurred_at)
         values(source.owner_id,record_title,record_summary,
           '이관 캡처: '||captured_at||' / 원본: '||source.kind||' '||source.id||' / 조각: '||v_part||'/'||total_parts||E'\n'
           ||'실제 적용 시각이 아닙니다. 원본 시각과 captured_at 의미는 아래 자료 그대로 보존합니다.'||E'\n\n'
-          ||substring(serialized from (v_part-1)*18000+1 for 18000),'user',captured_at)
+          ||substring(serialized from (v_part-1)*9000+1 for 9000),'user',captured_at)
         returning id into record_id;
       insert into app.legacy_principle_record_parts values(source.owner_id,source.kind,source.id,v_source_hash,v_part,record_id,captured_at);
       -- 기존 색인 진입점의 소유자·입력 검증을 그대로 재사용한다. 비용 발생 호출은 없다.
