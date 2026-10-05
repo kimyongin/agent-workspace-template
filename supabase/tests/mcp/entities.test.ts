@@ -36,15 +36,13 @@ httpTest("Entity MCP: 실제 SDK/OAuth CRUD·태그 scope·웹 parity·참조 �
     assertEquals(edit.status, 200);
     assertEquals(edit.body.change_note, "自動記録の説明を補う");
     assertEquals(edit.body.change, createdHistory.change_metadata);
-    const [editedHistory] =
-      await admin`select change_metadata from app.records where record_kind='change' and change_metadata->>'target_id'=${createdHistory.id}`;
-    assertEquals(editedHistory.change_metadata.source, "http");
-    assertEquals(editedHistory.change_metadata.action, "update");
-    assertEquals(editedHistory.change_metadata.before.change, undefined);
+    const readEdited = await tool(client, "get_record", { id: createdHistory.id });
+    assertEquals(readEdited.change, createdHistory.change_metadata);
+    assertEquals(readEdited.change_note, "自動記録の説明を補う");
     assertEquals(
       (await admin`select count(*)::int n from app.records where change_metadata->>'target_id'=${createdHistory.id}`)[0]
         .n,
-      1,
+      0,
     );
     assertEquals(
       (await tool(client, "create_entity", { prop1: "거부", tag_ids: [activityTag.id] })).error.code,

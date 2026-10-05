@@ -86,7 +86,8 @@ export function RecordFormModal(props: {
               />
             )}
           </Field></>}
-          <ChangeNoteField value={draft.change_note??""} required={false} error={errors.change_note} onChange={change_note=>setDraft(d=>({...d,change_note}))}/>
+          <Field label="편집 메모" error={errors.change_note} help="선택 입력입니다. 기록을 고쳐도 추가 편집 로그는 남기지 않습니다.">
+            {p=><textarea {...p} className="input" rows={3} value={draft.change_note??""} onChange={e=>setDraft(d=>({...d,change_note:e.target.value}))}/>}</Field>
           {props.details}
         </>
       )}
