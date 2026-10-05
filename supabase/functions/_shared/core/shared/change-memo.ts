@@ -16,7 +16,7 @@ const labels: Record<string, string> = {
   recurrence: "반복 규칙",
   timezone: "시간대",
   tag_ids: "태그",
-  entity_id: "엔터티",
+  entity_ids: "엔터티",
   pauses: "중단 기간",
 };
 const words = { create: "등록", update: "수정", delete: "삭제", stop: "중단", resume: "재개" };

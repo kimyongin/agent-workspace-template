@@ -1,3 +1,4 @@
+import { entityChanges, selectedEntities } from "./entity-selection.ts";
 // 할 일·기록 유스케이스. HTTP와 MCP가 같은 함수를 호출한다(ADR-0001).
 // 읽기 → 도메인 판단 → 저장 순서와 트랜잭션 경계, 색인 작업 등록, 요청 재전송 처리를 맡는다.
 import type { RecordCreate, RecordListQuery, RecordResult, RecordUpdate } from "../../contracts/record.ts";
@@ -40,13 +41,20 @@ export interface ActivityDeps {
 export type { Page } from "../shared/operations.ts";
 
 function toTaskResult(task: Task): TaskResult {
-  return { ...task, entity_id: task.entity_id ?? null };
+  return {
+    ...task,
+    entity_id: task.entity_id ?? null,
+    entity_ids: selectedEntities(task) ?? [],
+    entity_context: task.entity_context ?? [],
+  };
 }
 
 function toRecordResult(record: ActivityRecord): RecordResult {
   return {
     ...record,
     entity_id: record.entity_id ?? null,
+    entity_ids: selectedEntities(record) ?? [],
+    entity_context: record.entity_context ?? [],
     record_kind: record.record_kind ?? "user",
     change_note: record.change_note ?? null,
     change: record.change ?? null,
@@ -225,7 +233,7 @@ export async function completeTask(
       const record = await store.insertRecord({
         record_kind: "result",
         change_note: input.change_note,
-        entity_id: task.entity_id ?? null,
+        ...entityChanges({ entity_ids: selectedEntities(task) ?? [] }),
         title: input.title,
         summary: input.summary,
         body: input.body,
@@ -362,7 +370,7 @@ export async function recordOccurrence(
         const record = await store.insertRecord({
           record_kind: "result",
           change_note: input.change_note,
-          entity_id: input.entity_id === undefined ? task.entity_id ?? null : input.entity_id,
+          ...entityChanges({ entity_ids: selectedEntities(input) ?? selectedEntities(task) ?? [] }),
           title: input.title,
           summary: input.summary,
           body: input.body,
@@ -385,7 +393,7 @@ export async function createRecord(deps: ActivityDeps, actor: Actor, input: Reco
     once(store, "create_record", input.request_id, input, async () => {
       const record = await store.insertRecord({
         change_note: input.change_note,
-        entity_id: input.entity_id ?? null,
+        ...entityChanges({ entity_ids: selectedEntities(input) ?? [] }),
         title: input.title,
         summary: input.summary,
         body: input.body,
@@ -439,11 +447,12 @@ export async function updateRecord(
       assertVersion(record, patch.expected_version);
       if (
         record.record_kind === "change" &&
-        ["entity_id", "tag_ids", "occurred_at", "applied_principle_ids"].some((k) => k in patch)
+        ["entity_id", "entity_ids", "tag_ids", "occurred_at", "applied_principle_ids"].some((k) => k in patch)
       ) {
         throw invalidInput("변경 기록은 제목·요약·본문·메모만 정정할 수 있습니다");
       }
-      const { expected_version: _v, request_id: _r, change_note, ...changes } = patch;
+      const { expected_version: _v, request_id: _r, change_note, ...content } = patch;
+      const changes = { ...content, ...entityChanges(content) };
       const removesSnapshots = changes.applied_principle_ids !== undefined &&
         (record.applied_principle_snapshots ?? []).some((p) => !changes.applied_principle_ids!.includes(p.id));
       if (

@@ -1,3 +1,4 @@
+import { consistentEntities, entityContext, entitySelection, entitySelectionError } from "./entity-links.ts";
 // 활동 기록(ActivityRecord) 계약. 정본: docs/tickets/template-02-t02-1-contracts.md "활동 기록".
 import { z } from "zod";
 import { changeMetadata, mutationMeta } from "./change.ts";
@@ -20,7 +21,7 @@ import {
 /** 직접 작성과 반복 할 일의 회차 기록이 같은 입력을 쓴다. */
 export const recordCreate = z.strictObject({
   ...mutationMeta,
-  entity_id: id.nullable().optional(),
+  ...entitySelection,
   tag_ids: tagIds.optional(),
   title,
   summary,
@@ -28,21 +29,21 @@ export const recordCreate = z.strictObject({
   occurred_at: isoDateTime.optional(),
   applied_principle_ids: referenceIds.default([]),
   request_id: requestId.optional(),
-});
+}).refine(consistentEntities, entitySelectionError);
 export type RecordCreate = z.infer<typeof recordCreate>;
 
 export const recordUpdate = z
   .strictObject({
     ...mutationMeta,
     expected_version: expectedVersion,
-    entity_id: id.nullable().optional(),
+    ...entitySelection,
     tag_ids: tagIds.optional(),
     title: title.optional(),
     summary: summary.optional(),
     body: body.optional(),
     occurred_at: isoDateTime.optional(),
     applied_principle_ids: referenceIds.optional(),
-  }); // Automatic change records also allow editing only their note.
+  }).refine(consistentEntities, entitySelectionError); // Automatic change records also allow editing only their note.
 export type RecordUpdate = z.infer<typeof recordUpdate>;
 
 export const recordListQuery = z
@@ -79,6 +80,8 @@ export const recordResult = z.object({
   applied_principle_snapshots: z.array(appliedPrincipleSnapshot),
   id,
   entity_id: id.nullable(),
+  entity_ids: z.array(id),
+  entity_context: z.array(entityContext),
   tag_ids: z.array(id),
   title: z.string(),
   summary: z.string(),

@@ -67,17 +67,21 @@ httpTest("Entity MCP: 실제 SDK/OAuth CRUD·태그 scope·웹 parity·참조 �
         .code,
       "conflict",
     );
-    assertEquals(
-      (await tool(client, "update_entity", { id: e.id, expected_version: 1, prop1: "메모 누락" })).error.code,
-      "invalid_input",
-    );
-    const changed = await tool(client, "update_entity", {
+    const withoutReason = await tool(client, "update_entity", {
       id: e.id,
       expected_version: 1,
+      prop1: "이유 없이 수정",
+    });
+    assertEquals(withoutReason.version, 2);
+    assertEquals(withoutReason.prop1, "이유 없이 수정");
+    assertEquals((await call(token, "GET", `/entities/${e.id}`)).body.prop1, withoutReason.prop1);
+    const changed = await tool(client, "update_entity", {
+      id: e.id,
+      expected_version: 2,
       prop3: "2026-10-04",
       change_note: "일자 정정",
     });
-    assertEquals(changed.version, 2);
+    assertEquals(changed.version, 3);
     const deleteRequest = crypto.randomUUID();
     assertEquals(
       (await call(token, "DELETE", `/tags/${tag.id}?expected_version=1&request_id=${deleteRequest}`)).status,
@@ -88,15 +92,15 @@ httpTest("Entity MCP: 실제 SDK/OAuth CRUD·태그 scope·웹 parity·참조 �
       tag.id,
     );
     const unlinked = await tool(client, "get_entity", { id: e.id });
-    assertEquals(unlinked.version, 3);
+    assertEquals(unlinked.version, 4);
     assertEquals(unlinked.tag_ids, []);
     const updates =
       await admin`select change_metadata from app.records where change_metadata->>'target_id'=${e.id} and change_metadata->>'action'='update'`;
-    assertEquals(updates.length, 2);
+    assertEquals(updates.length, 3);
     const unlink = updates.find((r) => r.change_metadata.source === "http")!.change_metadata;
     assertEquals(unlink.before.tags[0].name, tag.name);
     assertEquals(unlink.after.tag_ids, []);
-    await tool(client, "delete_entity", { id: e.id, expected_version: 3 });
+    await tool(client, "delete_entity", { id: e.id, expected_version: 4 });
     const retained = await tool(client, "get_record", { id: r.id });
     assertEquals(retained.entity_id, null);
     assertEquals(retained.summary, marker);

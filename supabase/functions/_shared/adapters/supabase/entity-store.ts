@@ -51,8 +51,12 @@ export class SqlEntityStore extends SqlActorStore implements EntityStore {
     return (await this.get(id))!;
   }
   async delete(id: string) {
-    await this.tx`update app.tasks set entity_id=null,version=version+1,updated_at=now() where entity_id=${id}`;
-    await this.tx`update app.records set entity_id=null,version=version+1,updated_at=now() where entity_id=${id}`;
+    await this
+      .tx`update app.tasks set entity_id=(select selected from unnest(entity_ids) selected where selected<>${id}::uuid order by selected limit 1),
+      entity_ids=array_remove(entity_ids,${id}::uuid),
+      entity_context=(select coalesce(jsonb_agg(context),'[]'::jsonb) from jsonb_array_elements(entity_context) context where context->>'id'<>${id}),
+      version=version+1,updated_at=now() where entity_ids @> array[${id}::uuid]`;
+    await this.tx`update app.records set version=version+1,updated_at=now() where entity_ids @> array[${id}::uuid]`;
     await this.tx`update app.principles set entity_id=null,version=version+1,updated_at=now() where entity_id=${id}`;
     await this.tx`delete from app.entities where id=${id}`;
   }
@@ -93,10 +97,11 @@ export class SqlEntityStore extends SqlActorStore implements EntityStore {
   async related(id: string): Promise<Pick<EntityDetail, "tasks" | "records" | "principles">> {
     const load = async (table: "tasks" | "records" | "principles") => {
       const tx = this.tx;
-      const [count] = await tx`select count(*)::integer as count from app.${tx(table)} where entity_id=${id}`;
+      const membership = table === "principles" ? tx`entity_id=${id}` : tx`entity_ids @> array[${id}::uuid]`;
+      const [count] = await tx`select count(*)::integer as count from app.${tx(table)} where ${membership}`;
       const rows = await tx`select id,title,updated_at from app.${
         tx(table)
-      } where entity_id=${id} order by updated_at desc,id desc limit 5`;
+      } where ${membership} order by updated_at desc,id desc limit 5`;
       return {
         count: count.count as number,
         items: rows.map((r) => ({
