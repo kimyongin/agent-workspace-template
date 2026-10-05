@@ -22,7 +22,7 @@
 | 확정 작업 구현 | `$implement GitHub issue #N을 구현해줘` | `/implement GitHub issue #N을 구현해줘` |
 | spec 전체 구현 | `$implement-spec GitHub spec #N을 구현해줘` | `/implement-spec GitHub spec #N을 구현해줘` |
 
-호출 표기와 사용 가능한 도구는 실제 클라이언트에서 확인한다. 원본에서 사용자 호출로 지정한 스킬은 사용자가 선택해 호출한다. 일반 요청도 가능하며 에이전트는 AGENTS.md(Claude Code는 CLAUDE.md)를 통해 프로젝트 문맥을 읽는다.
+호출 표기와 사용 가능한 도구는 실제 클라이언트에서 확인한다. 일반 요청도 가능하며 에이전트는 AGENTS.md(Claude Code는 CLAUDE.md)를 통해 프로젝트 문맥을 읽는다. 특정 실행 스킬을 확실히 시작하려면 위 예시처럼 이름을 지정한다. [호출 정책과 내부 연결](matt-skills.md#사람이-선택하는-시작점과-내부-사용)에 명시 시작 16개·자동 선택 가능 11개의 전체 목록이 있다. 자동 선택 가능한 스킬도 직접 요청할 수 있으며, 모든 스킬이 매번 실행되는 것은 아니다.
 
 ## 작업에 맞는 흐름
 
@@ -39,7 +39,7 @@ grill-with-docs는 질문으로 요구를 구체화하고 용어와 중요한 �
 
 **implement**는 확정한 작업을 현재 세션에서 구현한다. 티켓별로 진행한다면 다음 티켓은 새 문맥에서 그 티켓을 읽고 시작할 수 있다. **implement-spec**는 여러 티켓을 task graph로 읽고 blocker가 해결된 작업을 별도 worktree의 구현 에이전트에 맡긴다. 결과는 통합 branch에 합친다. 선택은 작업의 크기와 원하는 실행 방식에 따른다.
 
-구현은 원본 tdd와 code-review를 사용한다. 리뷰는 Standards와 Spec 관점을 분리해 diff를 검토한다. PR 본문은 pr 스킬로 변경 모습·실행 증거·머지 위험을 설명한다. 같은 변경의 리뷰와 필수 CI를 확인한 뒤 [머지 기준](workflow.md#머지)을 적용한다. 머지는 서비스 배포와 별개다.
+implement는 미리 합의한 검증 지점에서 가능한 경우 tdd를 사용하고 구현 뒤 code-review를 호출한다. implement-spec은 각 구현 에이전트가 tdd를 사용하고 전체 통합 뒤 code-review를 호출한다. 구현을 맡겼다면 리뷰를 별도로 요청할 필요가 없다. 리뷰는 Standards와 Spec 관점을 분리해 diff를 검토한다. PR 본문을 쓸 때 pr 스킬로 변경 모습·실행 증거·머지 위험을 설명한다. 스킬의 리뷰 호출은 GitHub의 자동 검사(CI)와 별개다. 같은 변경의 리뷰와 필수 CI를 확인한 뒤 [머지 기준](workflow.md#머지)을 적용한다. 머지는 서비스 배포와 별개다.
 
 단계가 바뀌거나 새 세션에서 이어갈 때는 ask-matt의 phase-boundary 판단과 handoff를 사용한다. spec·티켓·자료·commit의 포인터로 문맥을 전달하고 GitHub issue에 결과·미확인·남은 작업을 남긴다. 상세한 원본 절차는 각 스킬에서 읽는다.
 
