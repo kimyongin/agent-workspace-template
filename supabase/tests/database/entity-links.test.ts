@@ -113,3 +113,74 @@ dbTest(
     }
   },
 );
+
+dbTest(
+  "record selection edits retain capture provenance and rollback atomically; deleted selections permit memo no-op",
+  async () => {
+    const f = await fixtureOwner(admin), other = await fixtureOwner(admin);
+    try {
+      const target = await entity.createEntity(ed, f.actor, entityCreate.parse({ prop1: "기록의 대상" }));
+      const foreign = await entity.createEntity(ed, other.actor, entityCreate.parse({ prop1: "다른 소유자" }));
+      let record = await activity.createRecord(
+        ad,
+        f.actor,
+        recordCreate.parse({ title: "선택 기록", summary: "원본", entity_ids: [target.id] }),
+      );
+      const original = await activity.getRecord(ad, f.actor, record.id);
+      for (const id of [foreign.id, crypto.randomUUID()]) {
+        await assertRejects(() =>
+          activity.updateRecord(
+            ad,
+            f.actor,
+            record.id,
+            recordUpdate.parse({ expected_version: record.version, entity_ids: [id] }),
+          )
+        );
+        assertEquals(await activity.getRecord(ad, f.actor, record.id), original);
+      }
+      const patch = recordUpdate.parse({
+        expected_version: record.version,
+        entity_ids: [],
+        request_id: crypto.randomUUID(),
+      });
+      const broken: activity.ActivityDeps = {
+        ...ad,
+        uow: {
+          run: (actor, fn) =>
+            ad.uow.run(actor, (s) =>
+              fn(
+                new Proxy(s, {
+                  get: (target, key) =>
+                    key === "saveRequest"
+                      ? () => Promise.reject(Error("request persistence failure"))
+                      : Reflect.get(target, key),
+                }),
+              )),
+        },
+      };
+      await assertRejects(() => activity.updateRecord(broken, f.actor, record.id, patch));
+      assertEquals(await activity.getRecord(ad, f.actor, record.id), original);
+      const cleared = await activity.updateRecord(ad, f.actor, record.id, patch);
+      assertEquals([cleared.entity_ids, cleared.entity_context, cleared.entity_id], [[], [], null]);
+      assertEquals(await activity.updateRecord(ad, f.actor, record.id, patch), cleared);
+      record = await activity.updateRecord(
+        ad,
+        f.actor,
+        record.id,
+        recordUpdate.parse({ expected_version: cleared.version, entity_ids: [target.id] }),
+      );
+      await entity.deleteEntity(ed, f.actor, target.id, target.version);
+      record = await activity.getRecord(ad, f.actor, record.id);
+      const noOp = await activity.updateRecord(
+        ad,
+        f.actor,
+        record.id,
+        recordUpdate.parse({ expected_version: record.version, entity_ids: record.entity_ids, body: record.body }),
+      );
+      assertEquals(noOp, record);
+    } finally {
+      await f.cleanup();
+      await other.cleanup();
+    }
+  },
+);
