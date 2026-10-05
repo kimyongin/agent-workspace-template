@@ -5,7 +5,7 @@
 검토 기준: base `b7339796dff5fd1c8d4856b94b0054d3731fcb3e`, branch `codex/ci-by-change-impact`
 선행: [Template-08](template-08-mock-first-testing.md)의 서비스 없는 빠른 검사
 
-후속 사용자 지시로 docs/의 HTML 구조·inline script/style와 문서 추가·삭제·rename도 경량 문서 검사로 처리한다([Template-15](template-15-plugin-update-overview.md#승인-후속-docs-문서-전용-검사), [현재 정본](../development/workflow.md#변경-영향별-ci)). 아래 구현·회귀 기록은 최초 정책 당시 증거이며 현재 docs 범위는 후속 정본을 따른다.
+후속 사용자 지시로 docs/의 HTML 구조·inline script/style와 문서 추가·삭제·rename도 경량 문서 검사로 처리한다([Template-15](template-15-plugin-update-overview.md#승인-후속-docs-문서-전용-검사), [현재 정본](../development/verification.md#변경-영향별-ci)). 아래 구현·회귀 기록은 최초 정책 당시 증거이며 현재 docs 범위는 후속 정본을 따른다.
 
 ## 승인·소유와 목표
 
@@ -15,7 +15,7 @@ PRD·ADR·GitHub branch protection·job 이름·운영/공유 Supabase·서비�
 
 ## 계약과 완료 조건
 
-정본은 [개발 방법](../development/workflow.md#변경-영향별-ci)과 [디자인 가이드](../design/guide.md)다. [GitHub workflow syntax](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax)·[필수 검사 문제 해결](https://docs.github.com/en/pull-requests/how-tos/merge-and-close-pull-requests/troubleshooting-required-status-checks)·[Babel parser](https://babeljs.io/docs/babel-parser)를 직접 조회했다. workflow paths skip으로 required 상태가 사라지거나 downstream skipped가 성공처럼 처리되는 경계를 피한다.
+정본은 [개발 방법](../development/verification.md#변경-영향별-ci)과 [디자인 가이드](../design/guide.md)다. [GitHub workflow syntax](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax)·[필수 검사 문제 해결](https://docs.github.com/en/pull-requests/how-tos/merge-and-close-pull-requests/troubleshooting-required-status-checks)·[Babel parser](https://babeljs.io/docs/babel-parser)를 직접 조회했다. workflow paths skip으로 required 상태가 사라지거나 downstream skipped가 성공처럼 처리되는 경계를 피한다.
 
 - [x] docs/presentation/full을 실제 파일 내용과 비교 범위로 판정하고 불명확·삭제·rename·누락 이력·tooling은 full로 처리한다.
 - [x] 기존 비인증 TSX의 허용 표시 HTML 직접 문구와 title/placeholder/aria-label만 AST 비교로 완화한다. 입력 요소 children·className 변경·custom children/props·fragment·동작 attr·표현식·DOM 구조·주석·script/style·parse 실패는 full이다.

@@ -91,7 +91,7 @@ MCP의 readOnly/destructive 등의 설명·힌트는 실제 동작과 일치시�
 
 검증 revision·명령·결과·미검증 경로와 적용하지 않은 항목의 이유를 티켓에 기록한다. 아직 없는 공유·첨부 기능을 시험했다고 표시하지 않는다. 보안상 실패한 필수 경로는 해결 후 공개하며 환경 제약은 검증 가능한 격리 환경으로 인계한다.
 
-빠른 HTTP/MCP handler 검사의 Actor는 테스트 factory에서만 주입한다. 운영 조립은 실제 토큰 검증을 기본값으로 유지하며 런타임 인증 우회 설정을 만들지 않는다. fixture 성공은 서명·issuer/audience·OAuth·RLS·사용자 격리·실제 SDK 전송의 증거가 아니므로 기존 격리 통합 CI를 함께 확인한다([검증 배치](../development/workflow.md#실행-검증)).
+빠른 HTTP/MCP handler 검사의 Actor는 테스트 factory에서만 주입한다. 운영 조립은 실제 토큰 검증을 기본값으로 유지하며 런타임 인증 우회 설정을 만들지 않는다. fixture 성공은 서명·issuer/audience·OAuth·RLS·사용자 격리·실제 SDK 전송의 증거가 아니므로 기존 격리 통합 CI를 함께 확인한다([검증 배치](../development/verification.md#실행-검증)).
 
 ## 공식 참고
 

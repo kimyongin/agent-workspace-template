@@ -10,7 +10,8 @@ import assert from "node:assert/strict";
 
 import { checkRepo } from "./check-docs.mjs";
 
-const SKILL = "---\nname: develop-agent-app\ndescription: 설명\n---\n\n# 스킬\n";
+const SKILL = "---\nname: example\ndescription: 설명\n---\n\n# 스킬\n";
+const wrapper = (name, skill = SKILL) => `${skill}\n[정본](../../../.agents/skills/${name}/SKILL.md)\n`;
 
 function makeRepo(overrides = {}) {
   const root = mkdtempSync(path.join(tmpdir(), "check-docs-"));
@@ -18,8 +19,8 @@ function makeRepo(overrides = {}) {
   const files = {
     "README.md": "# 제목\n\n[시작](docs/START.md)과 [외부](https://example.com), [앵커](#제목).\n",
     "docs/START.md": "# 시작\n\n[처음](../README.md#제목)\n\n```text\n[코드 블록 안](missing.md)\n```\n\n`[인라인](missing.md)`\n",
-    ".agents/skills/develop-agent-app/SKILL.md": SKILL,
-    ".claude/skills/develop-agent-app/SKILL.md": SKILL,
+    ".agents/skills/example/SKILL.md": SKILL,
+    ".claude/skills/example/SKILL.md": wrapper("example"),
     ...overrides,
   };
   for (const [file, content] of Object.entries(files)) {
@@ -118,7 +119,34 @@ test("줄 끝 공백과 마지막 줄바꿈 누락을 검출한다", () => {
 
 test("개발 스킬 정본과 Claude 연결 파일의 frontmatter 불일치를 검출한다", () => {
   const problems = problemsOf({
-    ".claude/skills/develop-agent-app/SKILL.md": SKILL.replace("설명", "다른 설명"),
+    ".claude/skills/example/SKILL.md": wrapper("example", SKILL.replace("설명", "다른 설명")),
   });
   assert.match(problems.join("\n"), /description 값이 정본/);
+});
+
+test("추가 스킬의 호출 정책 변경과 정본 연결 누락을 검출한다", () => {
+  const skill = SKILL.replace("name: example", "name: second\ndisable-model-invocation: true");
+  const problems = problemsOf({
+    ".agents/skills/second/SKILL.md": skill,
+    ".claude/skills/second/SKILL.md": skill.replace("disable-model-invocation: true\n", ""),
+  }).join("\n");
+  assert.match(problems, /second.*disable-model-invocation 값이 정본/);
+  assert.match(problems, /second.*연결이 없다/);
+});
+
+test("두 번째 정본과 고아 Claude 연결의 누락을 모두 검출한다", () => {
+  const problems = problemsOf({
+    ".agents/skills/second/SKILL.md": SKILL,
+    ".claude/skills/orphan/SKILL.md": SKILL,
+  }).join("\n");
+  assert.match(problems, /second.*중 하나가 없다/);
+  assert.match(problems, /orphan.*중 하나가 없다/);
+});
+
+test("여러 공유 스킬과 연결이 모두 일치하면 통과한다", () => {
+  const skill = SKILL.replace("name: example", "name: second\ndisable-model-invocation: true");
+  assert.deepEqual(problemsOf({
+    ".agents/skills/second/SKILL.md": skill,
+    ".claude/skills/second/SKILL.md": wrapper("second", skill),
+  }), []);
 });

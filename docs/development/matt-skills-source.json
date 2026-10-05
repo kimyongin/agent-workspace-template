@@ -1,0 +1,137 @@
+{
+  "repository": "https://github.com/mattpocock/skills",
+  "version": "1.3.1",
+  "revision": "24fe0ef7737efae15c87225755e9f6f5965e4888",
+  "manifest": ".claude-plugin/plugin.json",
+  "license": "MIT",
+  "licenseFile": "docs/development/matt-skills-LICENSE",
+  "canonicalRoot": ".agents/skills",
+  "claudeRoot": ".claude/skills",
+  "skills": [
+    {
+      "name": "ask-matt",
+      "source": "skills/engineering/ask-matt"
+    },
+    {
+      "name": "diagnosing-bugs",
+      "source": "skills/engineering/diagnosing-bugs"
+    },
+    {
+      "name": "grill-with-docs",
+      "source": "skills/engineering/grill-with-docs"
+    },
+    {
+      "name": "triage",
+      "source": "skills/engineering/triage"
+    },
+    {
+      "name": "improve-codebase-architecture",
+      "source": "skills/engineering/improve-codebase-architecture"
+    },
+    {
+      "name": "setup-matt-pocock-skills",
+      "source": "skills/engineering/setup-matt-pocock-skills"
+    },
+    {
+      "name": "tdd",
+      "source": "skills/engineering/tdd"
+    },
+    {
+      "name": "to-spec",
+      "source": "skills/engineering/to-spec"
+    },
+    {
+      "name": "to-tickets",
+      "source": "skills/engineering/to-tickets"
+    },
+    {
+      "name": "wayfinder",
+      "source": "skills/engineering/wayfinder"
+    },
+    {
+      "name": "implement",
+      "source": "skills/engineering/implement"
+    },
+    {
+      "name": "implement-spec",
+      "source": "skills/engineering/implement-spec"
+    },
+    {
+      "name": "prototype",
+      "source": "skills/engineering/prototype"
+    },
+    {
+      "name": "research",
+      "source": "skills/engineering/research"
+    },
+    {
+      "name": "domain-modeling",
+      "source": "skills/engineering/domain-modeling"
+    },
+    {
+      "name": "codebase-design",
+      "source": "skills/engineering/codebase-design"
+    },
+    {
+      "name": "code-review",
+      "source": "skills/engineering/code-review"
+    },
+    {
+      "name": "pr",
+      "source": "skills/engineering/pr"
+    },
+    {
+      "name": "retro",
+      "source": "skills/engineering/retro"
+    },
+    {
+      "name": "wizard",
+      "source": "skills/engineering/wizard"
+    },
+    {
+      "name": "grill-me",
+      "source": "skills/productivity/grill-me"
+    },
+    {
+      "name": "grilling",
+      "source": "skills/productivity/grilling"
+    },
+    {
+      "name": "handoff",
+      "source": "skills/productivity/handoff"
+    },
+    {
+      "name": "teach",
+      "source": "skills/productivity/teach"
+    },
+    {
+      "name": "to-questionnaire",
+      "source": "skills/productivity/to-questionnaire"
+    },
+    {
+      "name": "wait-what",
+      "source": "skills/productivity/wait-what"
+    },
+    {
+      "name": "writing-for-agents",
+      "source": "skills/productivity/writing-for-agents"
+    }
+  ],
+  "localChanges": [
+    "Skill directories relocated from official manifest paths to .agents/skills/<name>; contents and relative resources preserved.",
+    "Claude wrappers preserve upstream frontmatter and delegate to the shared canonical skill. Upstream agents/openai.yaml invocation policy is preserved."
+  ],
+  "installation": {
+    "tool": "OpenAI skill-installer/scripts/install-skill-from-github.py",
+    "arguments": [
+      "--repo",
+      "mattpocock/skills",
+      "--ref",
+      "24fe0ef7737efae15c87225755e9f6f5965e4888",
+      "--dest",
+      ".agents/skills",
+      "--path",
+      "<all skills[].source paths>"
+    ]
+  }
+}

@@ -62,6 +62,17 @@ test("사용자 허용 모델 정책은 모든 등급의 check/sync/assign 및 �
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
+test("native 역할은 GitHub 작업과 설치된 스킬을 읽고 이전 절차를 강제하지 않는다", () => {
+  const files = generated(table());
+  for (const [file, content] of Object.entries(files)) {
+    if (!file.includes("/agents/")) continue;
+    assert.match(content, /assigned GitHub issue\/spec/);
+    assert.match(content, /applicable Matt Pocock skills in \.agents\/skills/);
+    assert.doesNotMatch(content, /develop-agent-app|workflow\.md|agent-model-execution\.md|Run the assignment preflight/);
+  }
+  assert.doesNotMatch(files[".codex/config.toml"], /Preflight is mandatory/);
+});
+
 test("허용 고정 ID의 resolved/actual 이동은 pending 평가에서도 거부한다", () => {
   for (const actualModel of ["opus", "claude-opus-4-6", "claude-opus-5-5-new", "claude-fable-5-5", "claude-sonnet-4-6"]) {
     const t = table(); const c = t.clients["claude-cli"]; const m = c.models.advanced;

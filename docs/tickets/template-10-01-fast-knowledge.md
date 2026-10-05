@@ -7,7 +7,7 @@
 
 ## 목표와 기준 문서
 
-2026-10-04 사용자가 T02-5/6을 제외한 잔여 작업을 우선순위대로 진행하도록 승인했다. [Template-10](template-10-priority-completion.md)의 첫 조각으로 서비스 없이 실제 기록 CRUD·원칙 상태 전환·적용 원칙·태그 연결 및 목록 입력을 검사한다. [T02-1 계약](template-02-t02-1-contracts.md)·[Template-08](template-08-mock-first-testing.md)·[개발 방법](../development/workflow.md#실행-검증)·[보안](../security/guide.md)을 따른다. PRD·ADR 이탈이 필요하면 사람에게 변경안을 인계한다.
+2026-10-04 사용자가 T02-5/6을 제외한 잔여 작업을 우선순위대로 진행하도록 승인했다. [Template-10](template-10-priority-completion.md)의 첫 조각으로 서비스 없이 실제 기록 CRUD·원칙 상태 전환·적용 원칙·태그 연결 및 목록 입력을 검사한다. [T02-1 계약](template-02-t02-1-contracts.md)·[Template-08](template-08-mock-first-testing.md)·[개발 방법](../development/verification.md#실행-검증)·[보안](../security/guide.md)을 따른다. PRD·ADR 이탈이 필요하면 사람에게 변경안을 인계한다.
 
 ## 작업과 완료 조건
 

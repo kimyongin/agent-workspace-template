@@ -12,10 +12,11 @@
 | [0004](0004-summary-single-vector-search.md) | 제목+요약 단일 벡터 검색 | 채택 |
 | [0005](0005-plugin-delivery-claude-codex.md) | 에이전트 제공 단위는 플러그인, Claude·Codex 지원 | 채택 |
 | [0006](0006-owner-only-access-and-separate-auth.md) | 소유자 한정 접근과 로그인·MCP 인증 분리 | 채택 |
-| [0007](0007-dual-development-agents.md) | 개발 에이전트 Codex·Claude Code 공용 정본 | 채택 |
-| [0008](0008-document-ownership.md) | 문서 소유권: 사람은 PRD·ADR, 에이전트는 나머지 | 채택 (머지 절은 0010으로 대체) |
+| [0007](0007-dual-development-agents.md) | 개발 에이전트 Codex·Claude Code 공용 정본 | 대체됨(ADR-0011) |
+| [0008](0008-document-ownership.md) | 문서 소유권: 사람은 PRD·ADR, 에이전트는 나머지 | 채택 (티켓 위치·승인·이탈 확인은 0011, 기존 머지 절은 0010으로 대체) |
 | [0009](0009-review-without-cross-agent.md) | 리뷰는 필수, 다른 에이전트의 교차 리뷰는 선택 | 대체됨(ADR-0010) |
-| [0010](0010-merge-authority.md) | 에이전트의 머지 권한, 절차는 가이드가 소유 | 채택 |
+| [0010](0010-merge-authority.md) | 에이전트의 머지 권한, 절차는 가이드가 소유 | 채택 (승인 확인 방식은 0011로 대체) |
+| [0011](0011-matt-skills-and-github-workflow.md) | Matt Pocock 스킬과 GitHub Issues 개발 방식 | 채택 |
 
 0001~0007은 2026-10-01 이전에 합의해 여러 문서에 흩어져 있던 결정을 소급 기록한 것이다.
 

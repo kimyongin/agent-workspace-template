@@ -44,7 +44,7 @@
 
 - [ADR-0008](../adr/0008-document-ownership.md) "머지" 절(ADR-0009로 대체)과 ADR-0009 결정
 - [AGENTS.md](../../AGENTS.md) 8행
-- [개발 스킬](../../.agents/skills/develop-agent-app/SKILL.md) "배포와 운영의 실행 범위" 첫 문단
+- [개발 스킬](https://github.com/kimyongin/agent-workspace-template/blob/2639a466feed874c0d8ddf393069c2b00661d39f/.agents/skills/develop-agent-app/SKILL.md) "배포와 운영의 실행 범위" 첫 문단
 - [개발과 검증 방법](../development/workflow.md) "리뷰"·"머지" 절
 - [에이전트와 일하는 방법](../development/working-with-agents.md) 3절 흐름도·표와 46행("조건이 맞으면 머지한다"), 4절 3번
 
@@ -231,7 +231,7 @@ overview 작업 때 쓴 다음 세 문제를 출발점으로 PRD 변경안을 �
 
 ## 검증
 
-문서 변경마다 [문서 검사](../development/workflow.md#문서-검사)를 실행하고 결과를 아래 표에 남긴다. 사람용 문서(T03-2)는 자동 검사로 이해도를 확인할 수 없으므로 PR 리뷰에서 사람에게 읽기 확인을 요청하고 결과를 적는다.
+문서 변경마다 [문서 검사](../development/verification.md#문서-검사)를 실행하고 결과를 아래 표에 남긴다. 사람용 문서(T03-2)는 자동 검사로 이해도를 확인할 수 없으므로 PR 리뷰에서 사람에게 읽기 확인을 요청하고 결과를 적는다.
 
 ## 구현 인계와 완료 기록
 
