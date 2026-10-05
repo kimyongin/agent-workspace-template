@@ -1,5 +1,12 @@
 /* 의미별 공통 클래스. 값은 tokens.css의 토큰만 쓴다(docs/design/visual-spec.md). */
 
+/* Hide the chrome, preserving native wheel, touch and keyboard scrolling. */
+* { scrollbar-width: none; -ms-overflow-style: none; }
+*::-webkit-scrollbar { display: none; }
+
+.modal-body .panel { border: 0; box-shadow: none; background: transparent; padding: 0; border-radius: 0; }
+.detail-management { display: grid; gap: var(--space-4); min-width: 0; }
+
 :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
@@ -411,6 +418,16 @@ textarea.input {
   flex-direction: column;
 }
 
+.list.panel {
+  padding: var(--space-4);
+}
+
+@media (min-width: 640px) {
+  .list.panel {
+    padding: var(--space-6);
+  }
+}
+
 .list-item {
   display: flex;
   flex-wrap: wrap;
@@ -603,6 +620,10 @@ textarea.input {
 
   .modal-body {
     padding: var(--space-6);
+  }
+  .modal-head, .modal-foot {
+    padding-left: var(--space-6);
+    padding-right: var(--space-6);
   }
 }
 

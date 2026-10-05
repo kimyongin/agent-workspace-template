@@ -31,7 +31,9 @@ PRD와 ADR은 사람이 소유하고 나머지 문서·티켓·구현은 에이�
 
 ## 현재 상태
 
-2026-10-05 승인한 [Template-21](tickets/template-21-fin-visual-parity.md)의 세 탭 작업 메뉴·자동 검색·fin 시각 규격과 활동 할 일/기록 동시 조회, 기록/과거 원칙 타임라인을 구현했다. 최소 additive `tag_ids` OR 조회와 검색 메모 DTO를 HTTP/MCP 공통 계약에서 제공하며 DB migration은 없다. 격리 DB89·HTTP18·MCP18과 최초 전체 E2E80 PASS/12 SKIP/0 FAIL 이후, 독립 리뷰의 페이지 응답 URL 병합·태그 10개 제한·검색 메타데이터 응답 경합 3건을 수정했다. 수정 후 화면 fixture107·엔터티/태그 fixture22·빠른 검사와 전체 E2E80 PASS/12 SKIP/0 FAIL을 완료했다(중복 desktop 전용10·명시 유료 의미 검색2 제외). 정확한 head의 재리뷰·CI·머지와 사용자 로컬 반영은 메인 담당이며 아직 완료를 주장하지 않는다. 운영 배포는 제외한다.
+2026-10-05 승인한 [Template-21](tickets/template-21-fin-visual-parity.md)의 세 탭 작업 메뉴·자동 검색·fin 시각 규격과 활동 할 일/기록 동시 조회, 기록/과거 원칙 타임라인은 [PR #95](https://github.com/kimyongin/agent-workspace-template/pull/95#issuecomment-5983464078)의 독립 리뷰·필수 CI·머지와 사용자 로컬 읽기 전용 확인을 완료했다. main은 `2639a466feed874c0d8ddf393069c2b00661d39f`이며 additive `tag_ids` OR 조회와 검색 메모 DTO를 제공한다. migration과 운영 배포는 없었다. 초기·수정 검증과 제출 이후 결과는 티켓 및 완료 코멘트가 소유한다.
+
+후속 승인 [Template-22](tickets/template-22-fin-modal-details.md)는 공통 닫기·scrollbar 표시 제거, 제목/본문만의 문서 보기, 엔터티 직접 편집과 업무 영역, 목록 구획·행 여백·GFM 표 지원을 구현하고 회귀를 검증 중이다. 사용자/root/fin 데이터·환경과 HTTP/MCP·DB 계약은 변경하지 않는다. 독립 리뷰·CI·머지·사용자 로컬 반영은 구현 검증 후 메인이 조정하며 아직 완료를 주장하지 않는다.
 
 fin UX의 배포 화면·로컬 코드와 [fin 문서](tickets/template-18-01-fin-docs-review.md)를 비교한 [Template-18 적용안](tickets/template-18-fin-ux-adaptation.md)은 PR #91/#92/#93의 구현·독립 리뷰·필수 CI·머지를 완료했다. 최종 main은 `399b82b744f3ea9471dc335ccf5b13c972c16e93`이며 단일 Entity와 기존 업무/권한 계약을 유지한다. [탐색 완료](https://github.com/kimyongin/agent-workspace-template/pull/91#issuecomment-5977338758), [활동 완료](https://github.com/kimyongin/agent-workspace-template/pull/92#issuecomment-5977860336), [엔터티·태그 완료](https://github.com/kimyongin/agent-workspace-template/pull/93#issuecomment-5977999865)가 제출 이후의 최종 사실을 소유한다. 마지막 CI `37187276858`은 DB70·HTTP17·MCP17·웹97 PASS/9 SKIP이며 웹 통과 수에는 격리 fixture22개가 포함된다. 9 SKIP은 실제 의미 검색 조건 미충족2건과 desktop 전용 반복 검사7건이다. 활동 CI의 최초 조작 영역 결함 수정과 후속 runtime500의 관측 한계·재실행 성공은 활동 완료 기록에 보존했다. 이번 UX 변경의 운영 배포는 수행하지 않았다.
 

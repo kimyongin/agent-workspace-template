@@ -1,4 +1,4 @@
-export const removedActivityFilters = ["entity_id", "kind", "status", "record_kind", "mode", "collapsed"];
+export const removedActivityFilters = ["kind", "status", "record_kind", "mode", "collapsed"];
 export const ACTIVITY_TAG_LIMIT = 10;
 export function activityTags(params: URLSearchParams) {
   return [...new Set([...(params.get("tag_ids")?.split(",") ?? []), ...(params.get("tag_id") ? [params.get("tag_id")!] : [])])].filter(Boolean).sort();

@@ -22,14 +22,15 @@ export function EntityDetailPage() {
   const request = useRequestId();
   const location=useLocation();
   const [creating, setCreating] = useState<"task" | "record" | null>(null);
-  const closeCreate=()=>{setCreating(null);const p=new URLSearchParams(params);p.delete("create");afterClose(`${location.pathname}?${p}`,true);};
-  useEffect(()=>{const value=params.get("create");if(value==="task"||value==="record")request.renew();setCreating(value==="task"||value==="record"?value:null);},[location.key]);
+  const returnCreateFocus=useRef<"task"|"record"|null>(null),previousCreate=useRef<"task"|"record"|null>(null);
+  const closeCreate=()=>{returnCreateFocus.current=creating;setCreating(null);const p=new URLSearchParams(params);p.delete("create");afterClose(`${location.pathname}?${p}`,true);};
+  useEffect(()=>{const value=params.get("create"),next=value==="task"||value==="record"?value:null;if(next)request.renew();else if(previousCreate.current)returnCreateFocus.current=previousCreate.current;previousCreate.current=next;setCreating(next);},[location.key]);
   const [editReady,setEditReady]=useState(false);
   const [saved, setSaved] = useState<string | null>(null);
   const [entity, setEntity] = useState<EntityDetail | null>(null),
     [error, setError] = useState<string | null>(null),
     [retry, setRetry] = useState(0),
-    [editing, setEditing] = useState(false),
+    [editing, setEditing] = useState(true),
     [deleting, setDeleting] = useState(false),
     [busy, setBusy] = useState(false);
   useEffect(() => {
@@ -38,6 +39,8 @@ export function EntityDetailPage() {
     api<EntityDetail>("GET", `/entities/${id}`, undefined, controller.signal)
       .then(value => { if (!controller.signal.aborted){setEntity(value);setEditReady(true);} }).catch((e) => {
         if (!controller.signal.aborted) {
+          // Keep confirmed entity fields/actions available when a follow-up GET fails.
+          setEditReady(true);
           setError(
             e instanceof ApiError ? e.message : "엔터티를 불러오지 못했습니다.",
           );
@@ -45,35 +48,27 @@ export function EntityDetailPage() {
       });
     return () => controller.abort();
   }, [id, retry]);
-  useEffect(() => { setEntity(null); setSaved(null); setEditing(false); setDeleting(false); }, [id]);
+  useEffect(() => { setEntity(null); setSaved(null); setEditing(true); setDeleting(false); }, [id]);
   const returnParams=new URLSearchParams(params); ["edit","edit_from","create"].forEach(key=>returnParams.delete(key));
   const back = safeListReturn(params.get("list"),"entities",`/entities?${returnParams}${id ? `#entity-${id}` : ""}`);
   const previousQuery=useRef(params.toString());
-  useEffect(()=>{setEditing(params.get("edit")==="1");if(previousQuery.current!==params.toString()&&params.get("edit")==="1"){request.renew();setEditReady(false);setRetry(n=>n+1);}previousQuery.current=params.toString();},[params.toString()]);
-  const closeEdit=()=>{setEditing(false);if(params.get("edit_from")==="view"){const p=new URLSearchParams(params);p.delete("edit");p.delete("edit_from");afterClose(`?${p}`,true);}else afterClose(back,true);if(conflicted.current){conflicted.current=false;setRetry(n=>n+1);}};
-  return (
-    <DetailSurface title={entity?.prop1??"엔터티"} onClose={()=>navigate(back)} busy={busy}><section className="panel">
-      <Link className="action-link" to={back}>← 엔터티 목록</Link>
+  useEffect(()=>{setEditing(true);if(previousQuery.current!==params.toString()&&!params.has("create")){request.renew();setEditReady(false);setRetry(n=>n+1);}previousQuery.current=params.toString();},[params.toString()]);
+  useEffect(()=>{if(creating||!editReady||!returnCreateFocus.current)return;const frame=requestAnimationFrame(()=>{const label=returnCreateFocus.current==="task"?"관련 할 일 추가":"기록 작성";const button=Array.from(document.querySelectorAll<HTMLButtonElement>("dialog[open] .detail-management button")).find(el=>el.textContent===label);if(button){button.focus();returnCreateFocus.current=null;}});return()=>cancelAnimationFrame(frame);},[creating,editReady,entity]);
+  const closeEdit=()=>{setEditing(false);afterClose(back,true);if(conflicted.current){conflicted.current=false;setRetry(n=>n+1);}};
+  const management = entity && <div className="detail-management">
       {saved && <Notice>{saved}</Notice>}
       {error && (
         <>
           <Notice kind="error">{error}</Notice>
-          <button className="btn" onClick={() => setRetry((n) => n + 1)}>
+          <button type="button" className="btn" onClick={() => setRetry((n) => n + 1)}>
             다시 시도
           </button>
         </>
       )}
-      {!entity && !error && (
-        <p className="secondary" role="status">불러오는 중…</p>
-      )}
-      {entity && (
-        <>
-          <div className="panel-head">
+          <div>
             <div className="actions">
-              <button className="btn" onClick={() => {const p=new URLSearchParams(params);p.set("edit","1");p.set("edit_from","view");navigate(`?${p}`,{replace:true});}}>
-                편집
-              </button>
               <button
+                type="button"
                 className="btn btn-danger"
                 onClick={() => {request.renew();setDeleting(true);}}
               >
@@ -81,16 +76,6 @@ export function EntityDetailPage() {
               </button>
             </div>
           </div>
-          <dl className="entity-properties">
-            <dt className="label">속성 1</dt>
-            <dd className="value">{entity.prop1}</dd>
-            <dt className="label">속성 2</dt>
-            <dd className="value">{entity.prop2 ?? "미지정"}</dd>
-            <dt className="label">속성 3</dt>
-            <dd className="value">{entity.prop3 ?? "미지정"}</dd>
-            <dt className="label">속성 4</dt>
-            <dd className="value">{entity.prop4}</dd>
-          </dl>
           <TagNames scope="entity" ids={(entity as EntityDetail & {tag_ids?:string[]}).tag_ids??[]}/>
           <p className="meta">
             수정 {formatDateTime(entity.updated_at)}
@@ -103,8 +88,8 @@ export function EntityDetailPage() {
               <Link to={`/${kind}${query({ entity_id: id })}`}>
                 전체 {label} 보기
               </Link>
-              {<button className="btn" onClick={() => {
-                request.renew();setCreating(kind==="tasks"?"task":"record");const p=new URLSearchParams(params);p.set("create",kind==="tasks"?"task":"record");navigate(`?${p}`);
+              {<button type="button" className="btn" onClick={() => {
+                const p=new URLSearchParams(params);p.set("create",kind==="tasks"?"task":"record");navigate(`?${p}`);
               }}>{kind === "tasks" ? "관련 할 일 추가" : "기록 작성"}</button>}
               {entity[kind].count === 0
                 ? <p className="secondary">연결된 {label}이 없습니다.</p>
@@ -121,6 +106,11 @@ export function EntityDetailPage() {
                 )}
             </section>
           ))}
+    </div>;
+  return <DetailSurface title={entity?.prop1??"엔터티"} onClose={()=>navigate(back)} busy={busy}>
+      {error && !entity && <><Notice kind="error">{error}</Notice><button className="btn" onClick={()=>setRetry(n=>n+1)}>다시 시도</button></>}
+      {!entity&&!error&&<p className="secondary" role="status">불러오는 중…</p>}
+      {entity&&<>
           {creating === "task" && <TaskFormModal key={location.key} open mode="create" initial={{ ...emptyTask(), entity_id: entity.id }}
             onClose={closeCreate} onRouteDiscard={()=>setCreating(null)} onSave={async draft => {
               await api("POST", "/tasks", { ...taskInput(draft), request_id: request.current });
@@ -134,6 +124,7 @@ export function EntityDetailPage() {
           {editing && !creating && editReady && (
             <EntityForm
               initial={entity}
+              details={management}
               onClose={closeEdit}
               onRouteDiscard={()=>setEditing(false)}
               onSave={async (value) => {
@@ -168,6 +159,7 @@ export function EntityDetailPage() {
                     "DELETE",
                     `/entities/${id}${query({expected_version:entity.version,change_note:reason,request_id:request.current})}`,
                   );
+                  setEditing(false);
                   afterClose(back,true);
                 } catch (e) {
                   setError(
@@ -180,8 +172,6 @@ export function EntityDetailPage() {
               }}
             />
           )}
-        </>
-      )}
-    </section></DetailSurface>
-  );
+        </>}
+    </DetailSurface>;
 }

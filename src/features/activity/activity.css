@@ -25,6 +25,9 @@
 .record-period-inputs .input { min-width: 0; padding: 10px 6px; }
 .activity-section { display: grid; gap: 12px; min-width: 0; }
 .tasks-list { padding: 16px; }
+.tasks-list > .list-item { padding-left: 12px; padding-right: 12px; }
+.entity-scope { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; overflow-wrap: anywhere; }
+.scope-clear { min-width: 44px; min-height: 44px; border: 0; background: transparent; color: var(--accent); cursor: pointer; font-size: 20px; }
 .tasks-list:empty { display: none; }
 .timeline-day { margin: 0; }
 .fin-timeline { border-top: 1px solid var(--line); margin-top: 12px; padding-top: 8px; }

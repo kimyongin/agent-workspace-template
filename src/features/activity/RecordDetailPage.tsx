@@ -31,6 +31,7 @@ export function RecordDetailPage() {
   const [message, setMessage] = useState<string | null>(null);
   const directEdit = params.get("edit") === "1";
   const [dialog, setDialog] = useState<null | "edit" | "delete">(directEdit ? "edit" : null);
+  const [deleting, setDeleting] = useState(false);
   const conflicted=useRef(false);
   const closeEdit = () => { setDialog(null);if(conflicted.current){conflicted.current=false;void reload();} if(directEdit&&params.get("edit_from")!=="view")navigateAfterClose(back.path,true);else{const p=new URLSearchParams(params);p.delete("edit");p.delete("edit_from");navigateAfterClose(`?${p}`,true);} };
   const [editReady,setEditReady]=useState(false);
@@ -67,30 +68,19 @@ export function RecordDetailPage() {
 
   if (loadError && !record) {
     return (
-      <section className="panel">
+      <DetailSurface title="기록" onClose={()=>navigate(back.path)}>
         <Notice kind="error">{loadError}</Notice>
         <button type="button" className="btn" onClick={reload}>조회 다시 시도</button>
-        <Link to={listPath}>{back.label}</Link>
-      </section>
+      </DetailSurface>
     );
   }
   if (!record) return <p className="secondary" role="status">불러오는 중…</p>;
 
-  return (
-    <DetailSurface title={record.title} onClose={()=>navigate(back.path)} busy={busy}><section className="panel">
-      <div className="panel-head">
-        <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)", minWidth: 0 }}>
-          <Link to={listPath} className="secondary back-link">{back.label}</Link>
-        </div>
-        <div className="actions">
-          <button type="button" className="btn" onClick={() => {const p=new URLSearchParams(params);p.set("edit","1");p.set("edit_from","view");navigate(`?${p}`,{replace:true});}}>편집</button>
-          <button type="button" className="btn btn-danger" onClick={() => {request.renew();setDialog("delete");}}>삭제</button>
-        </div>
-      </div>
+  const management = <div className="detail-management">
+      <div className="actions"><button type="button" className="btn btn-danger" onClick={() => {request.renew();setDeleting(true);}}>삭제</button></div>
       {message && <Notice kind="success">{message}</Notice>}
       {error && <Notice kind="error">{error}</Notice>}
       <ChangeContext record={record}/>
-      <p className="document-summary">{record.summary}</p>
       {loadError && <><Notice kind="error">{loadError}</Notice><button type="button" className="btn" onClick={reload}>조회 다시 시도</button></>}
       <dl className="props">
         <div>
@@ -98,7 +88,6 @@ export function RecordDetailPage() {
           <dd>{formatDateTime(record.occurred_at)}</dd>
         </div>
       </dl>
-      <div><h2 className="section-title">{recordLabels.body}</h2><MarkdownContent text={record.body} /></div>
       {record.task_id && <div><h2 className="section-title">관련 할 일</h2><Link to={`/tasks/${record.task_id}`}>{record.occurrence_on ? `${record.occurrence_on} 회차` : "결과로 연결된 할 일"}</Link></div>}
       <TagNames ids={record.tag_ids}/>
       <EntityLink id={record.entity_id}/>
@@ -106,7 +95,13 @@ export function RecordDetailPage() {
       <p className="meta" style={{ margin: 0 }}>
         만든 시각 {formatDateTime(record.created_at)} · 수정 {formatDateTime(record.updated_at)}
       </p>
-
+    </div>;
+  return <DetailSurface title={record.title} onClose={()=>dialog==="edit"&&!editReady?closeEdit():navigate(back.path)} busy={busy}>
+      <MarkdownContent text={record.body}/>
+      {dialog === "edit" && !editReady && loadError && <>
+        <Notice kind="error">{loadError}</Notice>
+        <button type="button" className="btn" onClick={reload}>조회 다시 시도</button>
+      </>}
       {dialog === "edit" && editReady && (
         <RecordFormModal
           editing systemRecord={record.record_kind==="change"}
@@ -114,6 +109,7 @@ export function RecordDetailPage() {
           submitLabel="저장"
           open
           initial={recordDraftFrom(record)}
+          details={management}
           onClose={closeEdit}
           onRouteDiscard={() => setDialog(null)}
           onSave={async (value) => {
@@ -133,7 +129,7 @@ export function RecordDetailPage() {
           }}
         />
       )}
-      {dialog==="delete"&&<DeleteDialog
+      {deleting&&<DeleteDialog
         title="기록을 삭제할까요?"
         message={
           <p style={{ margin: 0 }}>
@@ -141,22 +137,22 @@ export function RecordDetailPage() {
           </p>
         }
         busy={busy}
-        onCancel={() => setDialog(null)}
+        onCancel={() => setDeleting(false)}
         onConfirm={async reason => {
           setBusy(true);
           setError(null);
           try {
             await api("DELETE", `/records/${record.id}${query({expected_version:record.version,change_note:reason,request_id:request.current})}`);
+            setDialog(null);
             navigateAfterClose(listPath,true);
           } catch (e) {
             setError(e instanceof ApiError ? e.message : "삭제하지 못했습니다.");
-            setDialog(null);
+            setDeleting(false);
             await reload();
           } finally {
             setBusy(false);
           }
         }}
       />}
-    </section></DetailSurface>
-  );
+    </DetailSurface>;
 }
