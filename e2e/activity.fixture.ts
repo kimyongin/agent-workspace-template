@@ -5,6 +5,71 @@ const id = (n:number) => `00000000-0000-4000-8000-${String(n).padStart(12,"0")}`
 test.beforeEach(async({page})=>{await page.route("http://127.0.0.1:55580/**",async route=>{if(route.request().isNavigationRequest()){const response=await route.fetch({url:"http://127.0.0.1:55580/e2e/fixtures/activity.html"});await route.fulfill({response});}else await route.continue();});});
 const record = (n:number, occurred_at="2026-10-03T16:00:00Z") => ({id:id(n),title:`기록 ${n}`,summary:"요약 먼저",body:"본문 근거",occurred_at,task_id:null,occurrence_on:null,tag_ids:[],entity_id:null,applied_principle_ids:[],applied_principles:[],record_kind:"user",change_note:null,change:null,applied_principle_snapshots:[],version:1,created_at:occurred_at,updated_at:occurred_at});
 
+for (const kind of ["tasks", "records"] as const) test(`${kind} 탭은 자기 목록만 조회하고 검색 필터를 같은 업무에 보낸다`, async ({page}) => {
+  const reads:string[]=[],searches:Record<string,unknown>[]=[],writes:string[]=[];
+  await page.route("http://127.0.0.1:55581/api/**", async route => {
+    const request=route.request(),path=new URL(request.url()).pathname;
+    if(path.endsWith("/search")){searches.push(request.postDataJSON());await route.fulfill({json:{items:[],next_cursor:null,search_state:"keyword_fallback",semantic_coverage:{pending:2,excluded:1}}});return;}
+    if(request.method()!=="GET")writes.push(path);
+    if(path.endsWith("/tasks")||path.endsWith("/records"))reads.push(path);
+    await route.fulfill({json:{items:[],next_cursor:null}});
+  });
+  await page.goto(`/e2e/fixtures/activity.html?route=/${kind}`);
+  await expect(page.getByRole("heading",{name:kind==="tasks"?"할 일":"기록",level:1})).toBeVisible();
+  await expect.poll(()=>reads).toEqual([`/api/${kind}`]);
+  await expect(page.locator(kind==="tasks"?".records":".tasks")).toHaveCount(0);
+  await page.getByLabel(kind==="tasks"?"할 일 상태":"기록 종류",{exact:true}).selectOption(kind==="tasks"?"stopped":"change");
+  await page.getByLabel("검색어",{exact:true}).fill("과거 근거");
+  await expect.poll(()=>searches.length).toBe(1);
+  expect(searches[0].kinds).toEqual([kind==="tasks"?"task":"record"]);
+  expect(searches[0][kind==="tasks"?"task_status":"record_kind"]).toBe(kind==="tasks"?"stopped":"change");
+  await expect(page.getByText("의미 검색을 사용할 수 없어 키워드 검색 결과를 표시합니다.")).toBeVisible();
+  await expect(page.getByText("의미 색인 대기 2개 · 제외 1개")).toBeVisible();
+  expect(writes).toEqual([]);
+});
+
+test("옛 반대 탭 생성 링크는 의도한 기록 폼으로 안내하고 저장하지 않는다",async({page})=>{
+  const writes:string[]=[];
+  await page.route("http://127.0.0.1:55581/api/**",route=>{if(route.request().method()!=="GET")writes.push(route.request().url());return route.fulfill({json:{items:[],next_cursor:null}});});
+  await page.goto("/e2e/fixtures/activity.html?route="+encodeURIComponent("/tasks?create=record&tasks_pages=3&records_pages=2"));
+  await expect(page).toHaveURL(/\/records\?/);
+  await expect(page.getByRole("dialog",{name:"기록 작성",exact:true})).toBeVisible();
+  await expect(page.getByText(/기록 탭으로 이동했습니다/)).toBeVisible();
+  expect(new URL(page.url()).searchParams.get("pages")).toBe("2");
+  expect(writes).toEqual([]);
+});
+
+test("옛 반대 목록 anchor는 같은 기록 ID와 초점으로 명시 변환한다",async({page})=>{
+  const reads:string[]=[],writes:string[]=[];
+  await page.route("http://127.0.0.1:55581/api/**",route=>{
+    const request=route.request(),url=new URL(request.url());
+    if(request.method()!=="GET")writes.push(url.pathname);
+    if(url.pathname.endsWith("/tasks")||url.pathname.endsWith("/records"))reads.push(url.pathname);
+    return route.fulfill({json:{items:url.pathname.endsWith("/records")?[record(9)]:[],next_cursor:null}});
+  });
+  await page.goto("/e2e/fixtures/activity.html?route="+encodeURIComponent(`/tasks?tasks_pages=4&records_pages=1#activity-records-${id(9)}`));
+  await expect(page).toHaveURL(new RegExp(`/records\\?pages=1&legacy_activity=1#activity-records-${id(9)}$`));
+  await expect(page.getByText(/기록 탭으로 이동했습니다/)).toBeVisible();
+  await expect(page.getByRole("link",{name:"기록 9",exact:true})).toBeFocused();
+  expect(reads).toEqual(["/api/records"]);expect(writes).toEqual([]);
+});
+
+test("다중 대상의 label 전체는44px 누름 영역이고 클릭·키보드로 선택한다",async({page})=>{
+  const entity={id:id(8),prop1:"함",prop2:null,prop3:null,prop4:"a",version:1};
+  await page.route("http://127.0.0.1:55581/api/**",route=>route.fulfill({json:{items:new URL(route.request().url()).pathname.endsWith("/entities")?[entity]:[],next_cursor:null}}));
+  await page.goto("/e2e/fixtures/activity.html?route=/records?create=1");
+  const checkbox=page.getByRole("checkbox",{name:"함",exact:true});
+  const label=checkbox.locator("..");
+  for(const width of [320,360,390,639,640,768,1024,1440]){
+    await page.setViewportSize({width,height:900});await expect(checkbox).toBeEnabled();
+    const box=(await label.boundingBox())!;
+    expect(box.width).toBeGreaterThanOrEqual(44);expect(box.height).toBeGreaterThanOrEqual(44);
+    await label.click({position:{x:box.width-6,y:box.height/2}});await expect(checkbox).toBeChecked();
+    await expect(checkbox).toBeFocused();await page.keyboard.press("Space");await expect(checkbox).not.toBeChecked();
+    expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+  }
+});
+
 test("항상 펼친 날짜 병합과 직접 편집 취소/저장이 목록을 복원한다", async ({page}) => {
   let changed = record(2);
   await page.route("http://127.0.0.1:55581/api/**", async route => {

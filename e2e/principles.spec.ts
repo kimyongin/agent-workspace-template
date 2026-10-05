@@ -27,7 +27,7 @@ test("현재 웹 메모 확인→MCP 같은 문서 갱신→삭제 후 현재 �
 test("내용 폼 취소는 초안·초점을 보호한다",async({page})=>{
   await devLogin(page);
   for(const [path,action] of [["/tasks","할 일 추가"],["/records","기록 작성"]]){
-    await page.goto(path);const trigger=page.getByRole("button",{name:"활동 작업 메뉴",exact:true});await beginTabAction(page,action);
+    await page.goto(path);const trigger=page.getByRole("button",{name:path==="/tasks"?"할 일 작업 메뉴":"기록 작업 메뉴",exact:true});await beginTabAction(page,action);
     const dialog=page.getByRole("dialog",{name:action,exact:true});await dialog.getByLabel("제목").fill("보존할 초안");await dialog.getByRole("button", {name:"닫기",exact:true}).click();
     const discard=page.getByRole("dialog",{name:"변경을 버릴까요?"});await discard.getByRole("button",{name:"취소",exact:true}).click();
     await expect(dialog.getByLabel("제목")).toHaveValue("보존할 초안");await dialog.getByRole("button", {name:"닫기",exact:true}).click();

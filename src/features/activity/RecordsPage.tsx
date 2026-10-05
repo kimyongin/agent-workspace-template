@@ -1,2 +1,2 @@
-// Legacy /records keeps its URL while displaying the common activity workspace.
-export { ActivityPage as RecordsPage } from "./ActivityPage.tsx";
+import { ActivityPage } from "./ActivityPage.tsx";
+export function RecordsPage() { return <ActivityPage kind="records" />; }

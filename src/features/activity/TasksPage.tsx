@@ -1,1 +1,2 @@
-export { ActivityPage as TasksPage } from "./ActivityPage.tsx";
+import { ActivityPage } from "./ActivityPage.tsx";
+export function TasksPage() { return <ActivityPage kind="tasks" />; }

@@ -126,7 +126,7 @@ export function EntityLinks({ ids, context = [] }: { ids?: string[]; context?: E
     <p className="label">연결 엔터티</p>
     <ul>{ids.map((id) => {
       const capture = context.find((item) => item.id === id);
-      return <li key={id}><Link to={`/entities/${id}`}>{capture?.title ?? id}</Link>
+      return <li key={id}><Link className="btn" to={`/entities/${id}`}>{capture?.title ?? id}</Link>
         {capture && <span className="secondary"> · {capture.source === "legacy_backfill" ? "기존 연결 전환 시 이름" : "연결 선택 시 이름"} ({new Date(capture.captured_at).toLocaleString()})</span>}
       </li>;
     })}</ul>

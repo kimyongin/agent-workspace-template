@@ -31,11 +31,11 @@ async function signIn(page: Page, id = user.id) {
   }, id);
 }
 
-test("세 탭과 프로필·메뉴는 320~1440px와 200%에서 조작 가능하다", async ({ page }, info) => {
+test("네 탭과 프로필·메뉴는 320~1440px와 200%에서 조작 가능하다", async ({ page }, info) => {
   for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
     await page.setViewportSize({ width, height: 844 }); await page.goto("/settings");
     const nav = page.getByRole("navigation", { name: "주 메뉴" });
-    await expect(nav.getByRole("link")).toHaveCount(3);
+    await expect(nav.getByRole("link")).toHaveCount(4);
     await expect(page.locator(".app-header")).toHaveCount(0);
     for (const size of await nav.locator(".bottom-nav-inner > a, .nav-more-trigger").evaluateAll(nodes => nodes.map(node => { const r = node.getBoundingClientRect(); return [r.width, r.height]; }))) {
       expect(size[0]).toBeGreaterThanOrEqual(44); expect(size[1]).toBeGreaterThanOrEqual(44);
@@ -129,7 +129,7 @@ test("미저장 설정의 탭·메뉴·뒤로가기·로그아웃은 같은 폐�
   await page.goto("/guide"); await settings(page); await page.getByRole("radio", { name: "별", exact: true }).check();
   const confirm = page.getByRole("dialog", { name: "변경을 버릴까요?" });
   let step = 0;
-  for (const action of [async () => page.getByRole("navigation", { name: "주 메뉴" }).getByRole("link", { name: "활동", exact: true }).click(), async () => { await page.getByRole("button", { name: "메뉴", exact: true }).click(); await page.getByRole("link", { name: "사용 가이드", exact: true }).click(); }, async () => { await page.goBack(); }, async () => {
+  for (const action of [async () => page.getByRole("navigation", { name: "주 메뉴" }).getByRole("link", { name: "할 일", exact: true }).click(), async () => { await page.getByRole("button", { name: "메뉴", exact: true }).click(); await page.getByRole("link", { name: "사용 가이드", exact: true }).click(); }, async () => { await page.goBack(); }, async () => {
     // 취소 뒤 유지된 메뉴는 작은 화면에서 본문의 로그아웃 위에 열린다.
     const menu = page.getByRole("button", { name: "메뉴", exact: true });
     if (await menu.getAttribute("aria-expanded") === "true") await menu.click();

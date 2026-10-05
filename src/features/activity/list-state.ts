@@ -1,3 +1,4 @@
+import { activityLocation } from "./activity-location.ts";
 export type ActivityListKind = "tasks" | "records" | "principles" | "entities";
 export type ListPage<T> = { items: T[]; next_cursor: string | null; anchor_page?: number | null };
 export type LoadedList<T> = ListPage<T> & { pages: number };
@@ -46,8 +47,13 @@ export function safeListReturn(value: string | null, kind: ActivityListKind, fal
   if (!value || !value.startsWith("/") || value.startsWith("//") || value.includes("\\")) return fallback;
   try {
     const url = new URL(value, "https://activity.invalid");
-    const allowed = kind === "tasks" || kind === "records" ? ["/tasks", "/records"] : [`/${kind}`];
-    if (url.origin !== "https://activity.invalid" || !allowed.includes(url.pathname)) return fallback;
+    if (url.origin !== "https://activity.invalid") return fallback;
+    if (url.pathname !== `/${kind}`) {
+      if ((kind !== "tasks" && kind !== "records") || !["/tasks", "/records"].includes(url.pathname)
+        || !anchorId(kind, url.hash) && !url.searchParams.has(`${kind}_pages`)) return fallback;
+      const legacy = activityLocation(kind, url.searchParams, url.hash);
+      return `${legacy.route}?${legacy.params}${legacy.hash}`;
+    }
     return `${url.pathname}${url.search}${url.hash}`;
   } catch {
     return fallback;
