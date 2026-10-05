@@ -1,5 +1,34 @@
 import { expect,test } from "@playwright/test";
 const id="00000000-0000-4000-8000-000000000131", stamp="2026-10-06T01:00:00Z";
+test("원칙 화면의 기록 이동 링크는 모든 대표 폭에서 44px 누름 영역을 유지한다",async({page})=>{
+  await page.route("**/api/**",route=>route.fulfill({json:new URL(route.request().url()).pathname.endsWith("/current")?{current:null}:{items:[],next_cursor:null}}));
+  await page.goto("/e2e/fixtures/workspace-screens.html?route=/principles");
+  const link=page.getByRole("link",{name:"과거 근거는 통합 기록에서 보기"});
+  for(const width of [320,360,390,639,640,768,1024,1440]){
+    await page.setViewportSize({width,height:900});const box=await link.boundingBox();
+    expect(box!.height,`${width}px 기록 링크 높이`).toBeGreaterThanOrEqual(44);expect(box!.width).toBeGreaterThanOrEqual(44);
+  }
+});
+
+test("키보드 메모 확인이 끝나면 새 메모 입력칸으로 초점이 이동하고 저장 전 상태를 유지한다",async({page})=>{
+  let writes=0;
+  await page.route("**/api/**",async route=>{
+    if(new URL(route.request().url()).pathname.endsWith("/preview")){
+      await new Promise(resolve=>setTimeout(resolve,100));
+      return route.fulfill({json:{memo:{title:"할 일 등록",summary:"기본 요약",body:"기본 사실"}}});
+    }
+    if(route.request().method()!=="GET")writes++;
+    return route.fulfill({json:{items:[],next_cursor:null}});
+  });
+  await page.goto("/e2e/fixtures/workspace-screens.html?route=/tasks?create=1");
+  const form=page.locator("dialog.modal:not(.modal-confirm)[open]");
+  await form.getByLabel(/^제목/).fill("키보드 할 일");await form.getByLabel(/^요약/).fill("할 일 요약");
+  await form.getByLabel(/^제목/).focus();await page.keyboard.press("Enter");
+  await expect(form.getByRole("region",{name:"저장할 기록 메모"})).toBeVisible();
+  await expect(form.getByLabel("기록 제목")).toBeFocused();
+  expect(await page.evaluate(()=>!!document.activeElement?.closest("dialog[open]"))).toBe(true);
+  expect(writes).toBe(0);await expect(form.getByRole("button",{name:"확인하고 저장",exact:true})).toBeEnabled();
+});
 test("현재 원칙의 메모 확인은 저장하지 않고 같은 문서를 갱신하며 삭제 뒤 과거를 승격하지 않는다",async({page})=>{
   let current:Record<string,unknown>|null={id,title:"현재 기준",summary:"현재 요약",body:"원문",is_current:true,version:1,saved_at:stamp,created_at:stamp,updated_at:stamp,origin:"saved"};
   const writes:Record<string,unknown>[]=[];

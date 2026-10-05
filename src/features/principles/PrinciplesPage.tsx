@@ -24,7 +24,7 @@ export function PrinciplesPage() {
     <div className="panel-head"><h1 id="principles-title" className="page-title" tabIndex={-1}>원칙</h1>
       <TabActions title="원칙" actions={error||current===undefined?[]:current===null?[{label:"원칙 작성",run:create.begin}]:[{label:"현재 원칙 편집",to:`/principles/${current.id}?edit=1&list=${encodeURIComponent("/principles#principles-title")}`},{label:"현재 원칙 보기",to:`/principles/${current.id}?list=${encodeURIComponent("/principles#principles-title")}`}]}/>
     </div>
-    <p className="help">현재 판단 기준은 이 문서에서 확인하고 과거 내용과 이유는 기록에서 찾습니다.</p><Link to="/records">과거 근거는 통합 기록에서 보기</Link>
+    <p className="help">현재 판단 기준은 이 문서에서 확인하고 과거 내용과 이유는 기록에서 찾습니다.</p><Link className="btn btn-text" to="/records">과거 근거는 통합 기록에서 보기</Link>
     </section><section className="activity-section" aria-label="현재 원칙">
     {error&&<><Notice kind="error">{error}</Notice><button className="btn" onClick={()=>setRetry(n=>n+1)}>다시 시도</button></>}
     {current===undefined&&!error&&<p role="status">현재 원칙을 불러오는 중…</p>}
