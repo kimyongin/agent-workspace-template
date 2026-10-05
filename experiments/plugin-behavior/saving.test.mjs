@@ -99,3 +99,16 @@ test('each fresh memo request changes its correction while unchanged stored text
   const state = { current: null, entities: [], tasks: [{ id: 'task' }], records: [record], principles: [], tags: [] };
   assert.equal(verifyStoredChange(state, state, { entity: { id: 'entity' }, task: { id: 'task' }, saving: next }, 'save-memo').contentVerified, false);
 });
+
+test('explicit keyword reflection confirmation needs actual correction lookup and independent saved content', () => {
+  const confirmed = { subject: 'search-reflection', polarity: 'affirmative', verb: 'confirm', keywordQualified: true, semanticQualified: false };
+  const memo = { ...evidence, independent: { ...evidence.independent, newRecords: 0, requestedRecords: 0, automaticChanges: 0, recordKind: 'result', identityUnchanged: true }, answer: { savedId: true, indexComplete: true, indexStatements: { claims: [confirmed, { subject: 'index', polarity: 'negated', verb: 'complete', semanticQualified: true }] } }, savedSearches: [{ correctionQueried: true, targetMatched: true, targetMatches: [{ match: 'keyword', index_state: 'pending' }], search_state: 'keyword_fallback', semantic_coverage: { pending: 6, excluded: 0 } }] };
+  assert.equal(assessSaving(memo, 'save-memo').pass, true);
+  for (const missing of [{ ...memo.savedSearches[0], correctionQueried: false }, { ...memo.savedSearches[0], targetMatched: false }, { ...memo.savedSearches[0], targetMatches: [{ match: 'semantic', index_state: 'indexed' }] }]) {
+    assert.ok(assessSaving({ ...memo, savedSearches: [missing] }, 'save-memo').failures.includes('unverified-keyword-reflection'));
+  }
+  assert.equal(assessSaving({ ...memo, independent: { ...memo.independent, contentVerified: false } }, 'save-memo').pass, false);
+  for (const strictClaim of [{ ...confirmed, subject: 'index' }, { ...confirmed, keywordQualified: false }, { ...confirmed, semanticQualified: true }, { ...confirmed, verb: 'complete' }]) {
+    assert.ok(assessSaving({ ...memo, answer: { ...memo.answer, indexStatements: { claims: [strictClaim] } } }, 'save-memo').failures.includes('unverified-index-completion'));
+  }
+});

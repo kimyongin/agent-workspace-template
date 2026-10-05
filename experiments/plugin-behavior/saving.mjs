@@ -84,7 +84,12 @@ export function assessSaving(evidence, mode) {
   const failures = [];
   for (const [name, satisfied] of Object.entries({ 'native-exit': evidence.exitCode === 0, 'skill-activation': evidence.completedSkillRead, 'original-source-read': evidence.originalSourceRead, 'independent-originals': evidence.independent?.originalReads, 'request-scope': evidence.independent?.allowedChange })) if (!satisfied) failures.push(name);
   if (evidence.answer?.approvalRequested) failures.push('repeated-approval');
-  if (evidence.answer?.indexComplete) failures.push('unverified-index-completion');
+  if (evidence.answer?.indexComplete) {
+    const claims = evidence.answer.indexStatements?.claims?.filter(claim => claim.polarity === 'affirmative') ?? [];
+    const keywordConfirmationOnly = claims.length > 0 && claims.every(claim => claim.subject === 'search-reflection' && claim.verb === 'confirm' && claim.keywordQualified === true && claim.semanticQualified === false);
+    if (!keywordConfirmationOnly) failures.push('unverified-index-completion');
+    else if (!evidence.independent?.contentVerified || !evidence.savedSearches?.some(search => search.correctionQueried === true && search.targetMatched === true && search.targetMatches?.some(item => ['keyword', 'both'].includes(item.match)))) failures.push('unverified-keyword-reflection');
+  }
   const proof = evidence.independent ?? {};
   if (mode === 'save-failure') {
     if (proof.newRecords !== 0 || !evidence.answer?.failureExplained || evidence.answer?.completionClaim) failures.push('false-failure-completion');
