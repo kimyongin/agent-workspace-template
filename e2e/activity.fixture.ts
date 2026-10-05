@@ -31,7 +31,7 @@ test("항상 펼친 날짜 병합과 직접 편집 취소/저장이 목록을 �
   await expect(page.locator(`#activity-records-${id(2)}`)).toBeFocused();
   await page.getByRole("link",{name:"기록 2 편집",exact:true}).click();
   await page.getByRole("textbox",{name:"제목 (필수)",exact:true}).fill("정정 기록");
-  await page.getByLabel("편집 메모",{exact:false}).fill("검증 정정 이유");
+  await expect(page.getByLabel("편집 메모",{exact:false})).toHaveValue("");
   await page.getByRole("button",{name:"저장",exact:true}).click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await expect(page.getByRole("link",{name:"정정 기록",exact:true})).toBeFocused();

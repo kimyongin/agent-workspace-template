@@ -171,7 +171,7 @@ export function activityTools(deps: activity.ActivityDeps): ToolDef[] {
     {
       name: "update_record",
       description:
-        "기록을 고친다. tag_ids·applied_principle_ids 생략은 유지, 빈 배열은 연결 제거. expected_version이 다르면 conflict.",
+        "일반 기록·수행 결과·업무 사건의 메모를 추가 편집 로그 없이 고친다. change_note는 선택. 사건 정보는 변경할 수 없다. tag_ids·applied_principle_ids 생략은 유지, 빈 배열은 연결 제거. expected_version이 다르면 conflict.",
       input: withId(recordUpdate),
       readOnly: false,
       handler: (args, actor) => {

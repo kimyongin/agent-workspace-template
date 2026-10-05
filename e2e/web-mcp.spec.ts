@@ -69,7 +69,7 @@ test("에이전트가 MCP로 만든 기록·반복 회차를 웹에서 보고 �
     await openDetailEditor(page);
     const dialog = page.getByRole("dialog", { name: "기록 편집" });
     await dialog.getByLabel("요약").fill("웹에서 고친 요약");
-    await dialog.getByLabel("편집 메모").fill("수행 결과 설명 정정");
+    await expect(dialog.getByLabel("편집 메모")).toHaveValue("");
     await dialog.getByRole("button", { name: "저장" }).click();
     await expect(page.getByRole("heading",{name:title,exact:true})).toBeVisible();
 

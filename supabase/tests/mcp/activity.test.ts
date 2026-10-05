@@ -29,6 +29,50 @@ const tokenB = await mcpToken(sessionB);
 const mcpA = await connectMcp(tokenA);
 const mcpB = await connectMcp(tokenB);
 
+httpTest("기록 HTTP 편집·MCP 재시도는 추가 로그 없이 최신 메모·사건을 보존한다", async () => {
+  const record = await tool(mcpA, "create_record", { title: crypto.randomUUID(), summary: "원본 메모" });
+  const historyBefore = await tool(mcpA, "list_records", { record_kind: "change", limit: 100 });
+  const event = historyBefore.items.find((r: { change?: { target_id: string } }) => r.change?.target_id === record.id);
+  assert(event);
+  for (const row of [record, event]) {
+    const patch = { expected_version: row.version, summary: "정정한 최신 메모", request_id: crypto.randomUUID() };
+    const web = await call(sessionA, "PATCH", `/records/${row.id}`, patch);
+    assertEquals(web.status, 200);
+    assertEquals(await tool(mcpA, "update_record", { id: row.id, ...patch }), web.body);
+    assertEquals(
+      (await call(sessionA, "GET", `/records/${row.id}`)).body,
+      await tool(mcpA, "get_record", { id: row.id }),
+    );
+    assertEquals(web.body.change, row.change);
+    assertEquals(web.body.occurred_at, row.occurred_at);
+    assertEquals(
+      (await call(sessionB, "PATCH", `/records/${row.id}`, { expected_version: 2, body: "타인 수정" })).status,
+      404,
+    );
+    assertEquals(
+      (await tool(mcpB, "update_record", { id: row.id, expected_version: 2, body: "타인 수정" })).error.code,
+      "not_found",
+    );
+  }
+  const historyAfter = await tool(mcpA, "list_records", { record_kind: "change", limit: 100 });
+  assertEquals(
+    historyAfter.items.map((r: { id: string }) => r.id),
+    historyBefore.items.map((r: { id: string }) => r.id),
+  );
+  assertEquals(
+    (await call(sessionA, "PATCH", `/records/${event.id}`, {
+      expected_version: 2,
+      occurred_at: "2020-01-01T00:00:00Z",
+    })).status,
+    400,
+  );
+  assertEquals(
+    (await tool(mcpA, "update_record", { id: event.id, expected_version: 2, occurred_at: "2020-01-01T00:00:00Z" }))
+      .error.code,
+    "invalid_input",
+  );
+});
+
 httpTest("검색: HTTP/MCP 본문 키워드·원문 최소 응답·대체 상태·잘못된 입력 동등성", async () => {
   const marker = crypto.randomUUID(),
     r = await tool(mcpA, "create_record", { title: "검색 원문", summary: "본문 확인", body: marker + " 근거" });
