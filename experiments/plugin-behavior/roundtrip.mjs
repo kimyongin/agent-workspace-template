@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { entityProjectionMatches } from './entity-projection.mjs';
 
 export const roundtripModes = ['roundtrip-entity', 'roundtrip-task', 'roundtrip-task-read', 'roundtrip-principle-read'];
 const canonical = v => Array.isArray(v) ? v.map(canonical) : v && typeof v === 'object' ? Object.fromEntries(Object.keys(v).sort().map(k => [k, canonical(v[k])])) : v;
@@ -7,15 +8,6 @@ const omit = (v, keys) => Object.fromEntries(Object.entries(v ?? {}).filter(([k]
 const stamp = v => typeof v === 'string' && Number.isFinite(Date.parse(v));
 export const digestRoundtrip = state => createHash('sha256').update(JSON.stringify(canonical(state))).digest('hex');
 export const emptyRoundtrip = state => state.current?.current === null && ['entities', 'tasks', 'records', 'principles', 'tags'].every(k => state[k]?.length === 0);
-
-function entityProjection(entity, state) {
-  return ['tasks', 'records', 'principles'].every(kind => {
-    if (entity[kind] === undefined) return true;
-    const rows = state[kind].filter(row => kind === 'principles' ? row.entity_id === entity.id : row.entity_ids?.includes(entity.id));
-    const items = rows.toSorted((a, b) => b.updated_at.localeCompare(a.updated_at) || b.id.localeCompare(a.id)).slice(0, 5).map(({ id, title, updated_at }) => ({ id, title, updated_at }));
-    return equal(entity[kind], { count: rows.length, items });
-  });
-}
 
 // Complete get_* originals, not lists/search snippets or the model's answer.
 export function verifyRoundtrip(before, after, fixture, mode) {
@@ -50,14 +42,14 @@ export function verifyRoundtrip(before, after, fixture, mode) {
         if (mode === 'web-principle-update') scope &&= stamp(current.saved_at) && Date.parse(current.saved_at) >= Date.parse(previous.saved_at);
       }
       scope &&= equal(omit(previous, mutable), omit(current, mutable));
-      if (kind === 'entities') scope &&= entityProjection(current, after);
+      if (kind === 'entities') scope &&= entityProjectionMatches(current, after, previous);
       if (kind === 'tasks' && mode === 'web-memo') scope &&= equal(previous, current); // result summary unchanged for a body-only edit.
     }
   }
   if (singular !== 'principle') scope &&= equal(before.current, after.current) && equal(before.principles, after.principles);
   else scope &&= equal(after.current.current, action === 'delete' ? null : target);
   let content = false;
-  if (mode === 'web-entity') content = target?.prop1 === fixture.marker && target.prop2 === 7 && target.prop3 === '2026-10-06' && target.prop4 === 'b' && entityProjection(target, after);
+  if (mode === 'web-entity') content = target?.prop1 === fixture.marker && target.prop2 === 7 && target.prop3 === '2026-10-06' && target.prop4 === 'b' && entityProjectionMatches(target, after);
   if (mode === 'roundtrip-entity') content = target?.prop2 === 11 && events[0]?.body === intent.memoBody;
   if (mode === 'web-source') content = target?.title === `${fixture.marker}-source` && target.body === intent.body && equal(target.entity_ids, [fixture.entity.id]);
   if (mode === 'web-principle') content = target?.title === `${fixture.marker}-principle` && target.body === intent.body;
@@ -92,8 +84,8 @@ export function roundtripPrompt(mode, f) {
   const request = {
     'roundtrip-entity': `대상의 속성 2만 7에서 11로 바꾸고 다른 속성은 보존해 줘. 변경 기록의 최종 메모 본문은 "${f.roundtrip.intent.memoBody}"로 남겨 줘.`,
     'roundtrip-task': `이 대상에 일회성 할 일 하나를 등록해 줘. 제목은 "${f.marker}-task", 요약은 "${f.roundtrip.intent.summary}", 본문은 "${f.roundtrip.intent.body}"로 해 줘. 이번에는 등록만 하고 완료하지 마.`,
-    'roundtrip-task-read': `완료한 할 일 ${f.task?.id}와 그 결과 기록의 원문을 살펴보고 상태와 결과 본문, 다시 열 수 있는 식별 정보를 알려 줘. 저장은 하지 마.`,
-    'roundtrip-principle-read': `지금 판단 기준과 ${f.originalDetail}가 있는 과거 기록 원문을 비교해 줘. 각각 어떤 수치 조건인지 설명하고 다시 열 수 있는 식별 정보를 알려 줘. 저장은 하지 마.`,
+    'roundtrip-task-read': `완료한 할 일 ${f.task?.id}와 그 결과 기록의 원문을 살펴보고 할 일의 상태와 결과 본문 전체, 각각 다시 열 수 있는 식별 정보를 알려 줘. 저장은 하지 마.`,
+    'roundtrip-principle-read': `지금 판단 기준과 ${f.originalDetail}가 있는 과거 기록 원문을 비교해 줘. 현재 원칙과 과거 기록을 구분하여 각각 원문 식별 정보와 그 자료의 수치 조건을 함께 설명해 줘. 저장은 하지 마.`,
   }[mode];
   if (!request) throw new Error('Unknown roundtrip native phase');
   return context + request + ' 요청한 것 외에는 변경하지 마. 검색 반영을 확인하지 못했다면 완료로 추정하지 마.';
@@ -102,8 +94,49 @@ export function roundtripPrompt(mode, f) {
 export function assessRoundtripNative(e) {
   const failures = [];
   for (const [name, ok] of Object.entries({ 'native-exit': e.exitCode === 0, 'shared-skill-read': e.completedSkillRead, 'actual-original-read': e.originalSourceRead, 'independent-public-contract': e.independent?.pass, 'current-principle-read': e.mode !== 'roundtrip-principle-read' || e.currentPrincipleRead, 'done-task-read': e.mode !== 'roundtrip-task-read' || e.completedTaskRead, 'read-only-native': !e.mode.endsWith('-read') || e.mutationCalls === 0 })) if (!ok) failures.push(name);
+  if (e.mode.endsWith('-read') && !e.answer?.roundtrip?.correct) failures.push('roundtrip-answer');
   if (e.answer?.indexStatements?.affirmative) failures.push('unverified-index-completion');
   return { pass: failures.length === 0, failures };
+}
+
+// Bounded proof for these owned short Korean fixtures, not general answer grading.
+// Unclear formatting remains unverified. Retain categories/hash, never answer text.
+export function roundtripAnswerProof(text, f, mode) {
+  const clean = text.replace(/[*_`#]/g, ''), compact = value => value.replace(/\s+/g, '');
+  const sha256 = createHash('sha256').update(text).digest('hex');
+  if (mode === 'roundtrip-task-read') {
+    let taskContext = false; const taskLines = [];
+    for (const line of clean.split('\n')) {
+      if (/결과\s*기록|결과\s*본문/.test(line) || line.includes(f.roundtrip.result.id)) taskContext = false;
+      if (/할\s*일/.test(line) || line.includes(f.task.id)) taskContext = true;
+      if (taskContext) taskLines.push(line);
+    }
+    const taskText = taskLines.join('\n');
+    const taskId = taskText.includes(f.task.id), resultId = clean.includes(f.roundtrip.result.id);
+    const done = /(?:상태|status)(?:는|가|이)?\s*[:：]?\s*(?:done|완료)|할\s*일.{0,80}(?:완료됐|완료되었|완료됨|완료된)|완료\s*상태/i.test(taskText);
+    const wrong = /(?:상태|status).{0,15}(?:open|미완료|진행|대기)|할\s*일.{0,80}(?:open|미완료|완료되지|완료하지)|(?:done|완료).{0,15}(?:아니|아닙|않|못)/i.test(taskText);
+    const resultBody = compact(clean).includes(compact(f.roundtrip.result.body));
+    return { correct: taskId && resultId && done && !wrong && resultBody, taskId, resultId, state: wrong ? 'wrong' : done ? 'done' : 'unconfirmed', resultBody, sha256 };
+  }
+  if (mode !== 'roundtrip-principle-read') return { correct: false, sha256 };
+  const expected = body => ({ value: /속성\s*2\s*(?:가|=|:)?\s*(\d+)/.exec(body)?.[1], action: /(진행|보류)/.exec(body)?.[1] });
+  const current = expected(f.principle.body), historical = expected(f.record.body);
+  const sections = { current: [], historical: [] }; let context;
+  for (const line of clean.split(/\n|(?=현재\s*(?:원칙|판단|기준|조건)|(?:과거|이전|당시)\s*(?:기록|원문|근거|조건))/)) {
+    const latest = /(?:현재|최신)\s*(?:원칙|판단|기준|조건)/.test(line), past = /(?:과거|이전|당시|초기)\s*(?:기록|원문|근거|조건|기준)/.test(line);
+    if (latest && past) { context = undefined; continue; }
+    if (latest) context = 'current'; else if (past) context = 'historical';
+    if (context) sections[context].push(line);
+  }
+  const facts = (lines, wanted, opposite, id, wrongId) => {
+    const value = lines.join(' '), predicate = (n, action) => Boolean(n && action && new RegExp(`(?<![A-Za-z0-9-])${n}(?![A-Za-z0-9-]|\\s*에서)[^.!?]{0,40}${action}`).test(value));
+    const matched = predicate(wanted.value, wanted.action);
+    const wrong = predicate(opposite.value, wanted.action) || predicate(opposite.value, opposite.action) || predicate(wanted.value, opposite.action) || new RegExp(`${wanted.action}.{0,15}(?:아니|아닙|않|못)`).test(value);
+    return { matched, wrong, id: value.includes(id), wrongId: value.includes(wrongId) };
+  };
+  const latest = facts(sections.current, current, historical, f.principle.id, f.record.id);
+  const past = facts(sections.historical, historical, current, f.record.id, f.principle.id);
+  return { correct: latest.matched && !latest.wrong && latest.id && !latest.wrongId && past.matched && !past.wrong && past.id && !past.wrongId, latest, historical: past, sha256 };
 }
 
 export function hasRoundtripOriginal(tool, payload, kind, original) {

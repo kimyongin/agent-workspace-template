@@ -17,7 +17,7 @@ import { savingModes, savingPrompt, assessSaving, classifyIndexStatements, class
 import { openSavingTrial } from './saving-session.mjs';
 import { hasCompletedSharedSkillOutput } from './skill-output-proof.mjs';
 import { observeSearch, searchProofForTarget } from './search-proof.mjs';
-import { roundtripModes, roundtripPrompt, assessRoundtripNative, hasRoundtripOriginal } from './roundtrip.mjs';
+import { roundtripModes, roundtripPrompt, assessRoundtripNative, hasRoundtripOriginal, roundtripAnswerProof } from './roundtrip.mjs';
 import { openRoundtripTrial } from './roundtrip-session.mjs';
 
 const repo = fileURLToPath(new URL('../../', import.meta.url));
@@ -257,6 +257,7 @@ evidence.mutationCalls = evidence.events.filter(({ tool }) => /^(create_|update_
 if (roundtripTrial) {
   evidence.independent = await roundtripTrial.finish();
   evidence.answer.indexStatements = classifyIndexStatements(savingAnswer);
+  evidence.answer.roundtrip = roundtripAnswerProof(savingAnswer, fixture, mode);
   evidence.assessment = assessRoundtripNative(evidence);
 }
 evidence.nativeRuntimeCacheCreated = await lstat(runtimeCache).then(stat => stat.isDirectory(), error => { if (error.code === 'ENOENT') return false; throw error; });

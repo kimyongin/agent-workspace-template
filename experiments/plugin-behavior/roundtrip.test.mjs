@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { verifyRoundtrip, beginRoundtripPhase, finishRoundtripPhase, hasRoundtripOriginal, assessRoundtripNative } from './roundtrip.mjs';
+import { verifyRoundtrip, beginRoundtripPhase, finishRoundtripPhase, hasRoundtripOriginal, assessRoundtripNative, roundtripAnswerProof } from './roundtrip.mjs';
 
 const empty = () => ({ current: { current: null }, entities: [], tasks: [], records: [], principles: [], tags: [] });
 const f = { marker: 'plugin-codex-cli-12345678', entity: { id: 'e', prop1: 'plugin-codex-cli-12345678', prop2: 7, prop3: '2026-10-06', prop4: 'b', version: 1 }, roundtrip: { intent: { id: 'e', memoBody: 'final memo' } } };
@@ -51,7 +51,31 @@ test('native task/current originals require full exact current DTO; a search res
   assert.equal(hasRoundtripOriginal('get_current_principle', { current: { ...principle, is_current: false } }, 'principle', principle), false);
   const evidence = { mode: 'roundtrip-task-read', exitCode: 0, completedSkillRead: true, originalSourceRead: true, independent: { pass: true }, mutationCalls: 0 };
   assert.equal(assessRoundtripNative(evidence).pass, false);
-  assert.equal(assessRoundtripNative({ ...evidence, completedTaskRead: true }).pass, true);
+  assert.equal(assessRoundtripNative({ ...evidence, completedTaskRead: true, answer: { roundtrip: { correct: true } } }).pass, true);
+});
+test('principle explanation binds current/past conditions and IDs, rejecting swapped answers despite successful original reads', () => {
+  const fixture = { ...f, principle: { id: 'current-id', body: '현재 조건: 속성2가 11이면 진행' }, record: { id: 'source-id', body: 'SOURCE-code; 당시 속성2=7; 초기 기준에서는 보류' }, originalDetail: 'SOURCE-code' };
+  const good = '## 현재 원칙\n원문 ID: current-id\n속성2가 11이면 진행합니다.\n\n## 과거 기록\n원문 ID: source-id\n당시 속성2=7; 초기 기준에서는 보류였습니다.';
+  const swapped = '현재 원칙 current-id: 속성2가 7이면 보류합니다.\n과거 기록 source-id: 속성2가 11이면 진행합니다.';
+  const wrongIds = '현재 원칙 source-id: 속성2가 11이면 진행합니다.\n과거 기록 current-id: 속성2가 7이면 보류합니다.';
+  assert.equal(roundtripAnswerProof(good, fixture, 'roundtrip-principle-read').correct, true);
+  assert.equal(roundtripAnswerProof(swapped, fixture, 'roundtrip-principle-read').correct, false);
+  assert.equal(roundtripAnswerProof(wrongIds, fixture, 'roundtrip-principle-read').correct, false);
+  assert.equal(roundtripAnswerProof(good.replace('11이면 진행합니다', '11이면 진행하지 않습니다'), fixture, 'roundtrip-principle-read').correct, false);
+  assert.equal(roundtripAnswerProof(good.replace('11이면 진행합니다', '11이면 보류합니다'), fixture, 'roundtrip-principle-read').correct, false);
+  const e = { mode: 'roundtrip-principle-read', exitCode: 0, completedSkillRead: true, originalSourceRead: true, currentPrincipleRead: true, independent: { pass: true }, mutationCalls: 0 };
+  assert.equal(assessRoundtripNative({ ...e, answer: { roundtrip: roundtripAnswerProof(swapped, fixture, e.mode) } }).pass, false);
+  assert.equal(assessRoundtripNative({ ...e, answer: { roundtrip: roundtripAnswerProof(good, fixture, e.mode) } }).pass, true);
+});
+test('task answer reports done, exact result body and reopening IDs; an open-state answer cannot borrow result completion words', () => {
+  const fixture = { ...f, task: { id: 'task-id' }, roundtrip: { result: { id: 'result-id', body: '속성2=11 확인 완료; RESULT-code' } } };
+  const good = '할 일 task-id\n상태: done (완료)\n결과 기록 result-id\n본문: 속성2=11 확인 완료; RESULT-code';
+  const wrong = '할 일 task-id\n상태: open (미완료)\n결과 기록 result-id\n본문: 속성2=11 확인 완료; RESULT-code';
+  assert.equal(roundtripAnswerProof(good, fixture, 'roundtrip-task-read').correct, true);
+  assert.equal(roundtripAnswerProof(wrong, fixture, 'roundtrip-task-read').correct, false);
+  assert.equal(roundtripAnswerProof(good.replace('RESULT-code', 'wrong'), fixture, 'roundtrip-task-read').correct, false);
+  assert.equal(roundtripAnswerProof(good.replace('result-id', 'wrong-id'), fixture, 'roundtrip-task-read').correct, false);
+  assert.equal(roundtripAnswerProof(good.replace('done (완료)', 'done 상태가 아닙니다'), fixture, 'roundtrip-task-read').correct, false);
 });
 test('read-only phase detects a memo write even when a task still reports done', () => {
   const before = { ...empty(), tasks: [{ id: 't', status: 'done', version: 2 }], records: [{ id: 'r', body: 'old', version: 1 }] };

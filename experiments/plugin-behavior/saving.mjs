@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
+import { entityProjectionMatches } from './entity-projection.mjs';
 export const savingModes = ['save-record', 'save-task', 'save-memo', 'save-failure', 'save-response-loss'];
 
 export function newSavingIntent(previous, mode) {
@@ -47,12 +48,7 @@ function unchangedEntities(before, after) {
   return before.entities.every(entity => {
     const current = after.entities.find(row => row.id === entity.id);
     if (!current || !equal(without(entity, ['tasks', 'records', 'principles']), without(current, ['tasks', 'records', 'principles']))) return false;
-    return ['tasks', 'records', 'principles'].every(kind => {
-      if (entity[kind] === undefined && current[kind] === undefined) return true;
-      const related = after[kind].filter(row => kind === 'principles' ? row.entity_id === entity.id : row.entity_ids?.includes(entity.id));
-      const items = related.toSorted((a, b) => b.updated_at.localeCompare(a.updated_at) || b.id.localeCompare(a.id)).slice(0, 5).map(({ id, title, updated_at }) => ({ id, title, updated_at }));
-      return equal(current[kind], { count: related.length, items });
-    });
+    return entityProjectionMatches(current, after, entity);
   });
 }
 
