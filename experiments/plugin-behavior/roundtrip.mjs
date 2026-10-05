@@ -131,21 +131,36 @@ export function roundtripAnswerProof(text, f, mode) {
   if (mode !== 'roundtrip-principle-read') return { correct: false, sha256 };
   const expected = body => ({ value: /속성\s*2\s*(?:가|=|:)?\s*(\d+)/.exec(body)?.[1], action: /(진행|보류)/.exec(body)?.[1] });
   const current = expected(f.principle.body), historical = expected(f.record.body);
-  const sections = { current: [], historical: [] }; let context;
-  for (const line of clean.split(/\n|(?=현재\s*(?:원칙|판단|기준|조건)|(?:과거|이전|당시)\s*(?:기록|원문|근거|조건))/)) {
-    const latest = /(?:현재|최신)\s*(?:원칙|판단|기준|조건)/.test(line), past = /(?:과거|이전|당시|초기)\s*(?:기록|원문|근거|조건|기준)/.test(line);
-    if (latest && past) { context = undefined; continue; }
-    if (latest) context = 'current'; else if (past) context = 'historical';
-    if (context) sections[context].push(line);
+  const facts = { current: { matched: false, wrong: false, id: false, wrongId: false, claims: [] }, historical: { matched: false, wrong: false, id: false, wrongId: false, claims: [] } };
+  let context, lastValue;
+  // Bind predicates to their source clause; denied alternatives are not facts.
+  const scopeStart = /\n|[.!?;,]+|(?=(?:현재|지금|최신|과거|이전|당시|초기)(?:는|은|에는|의|\s+(?:원칙|판단|기준|조건|기록|원문|근거)))/;
+  for (const clause of clean.split(scopeStart)) {
+    const latest = /(?:현재|지금|최신)(?:는|은|에는|의|\s*(?:원칙|판단|기준|조건))/.test(clause);
+    const past = /(?:과거|이전|당시|초기)(?:는|은|에는|의|\s*(?:기록|원문|근거|조건|기준))/.test(clause);
+    const next = latest && !past ? 'current' : past && !latest ? 'historical' : context;
+    if (next !== context) lastValue = undefined;
+    context = next;
+    if (!context || (latest && past)) continue;
+    const proof = facts[context], wanted = context === 'current' ? current : historical;
+    const ownId = context === 'current' ? f.principle.id : f.record.id;
+    const otherId = context === 'current' ? f.record.id : f.principle.id;
+    proof.id ||= clause.includes(ownId); proof.wrongId ||= clause.includes(otherId);
+    const values = [...clause.matchAll(new RegExp(`(?<![A-Za-z0-9-])(${current.value}|${historical.value})(?![A-Za-z0-9-]|\\s*에서)`, 'g'))];
+    for (const action of clause.matchAll(/진행|보류/g)) {
+      const number = values.filter(v => v.index < action.index).at(-1);
+      const value = number?.[1] ?? lastValue;
+      if (!value) continue;
+      const tail = clause.slice(action.index + action[0].length).split(/속성\s*2|진행|보류/)[0];
+      const denied = /^.{0,15}(?:아니|아닙|않|못)/.test(tail);
+      const expectedCondition = value === wanted.value && action[0] === wanted.action;
+      const reason = denied ? expectedCondition ? 'denied-expected-condition' : 'negated-condition' : expectedCondition ? 'expected-condition' : 'unexpected-condition';
+      proof.claims.push({ reason, scope: context, sha256: createHash('sha256').update(clause).digest('hex') });
+      proof.matched ||= reason === 'expected-condition'; proof.wrong ||= reason === 'unexpected-condition' || reason === 'denied-expected-condition';
+    }
+    if (values.length) lastValue = values.at(-1)[1];
   }
-  const facts = (lines, wanted, opposite, id, wrongId) => {
-    const value = lines.join(' '), predicate = (n, action) => Boolean(n && action && new RegExp(`(?<![A-Za-z0-9-])${n}(?![A-Za-z0-9-]|\\s*에서)[^.!?]{0,40}${action}`).test(value));
-    const matched = predicate(wanted.value, wanted.action);
-    const wrong = predicate(opposite.value, wanted.action) || predicate(opposite.value, opposite.action) || predicate(wanted.value, opposite.action) || new RegExp(`${wanted.action}.{0,15}(?:아니|아닙|않|못)`).test(value);
-    return { matched, wrong, id: value.includes(id), wrongId: value.includes(wrongId) };
-  };
-  const latest = facts(sections.current, current, historical, f.principle.id, f.record.id);
-  const past = facts(sections.historical, historical, current, f.record.id, f.principle.id);
+  const latest = facts.current, past = facts.historical;
   return { correct: latest.matched && !latest.wrong && latest.id && !latest.wrongId && past.matched && !past.wrong && past.id && !past.wrongId, latest, historical: past, sha256 };
 }
 

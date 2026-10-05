@@ -66,6 +66,17 @@ test('principle explanation binds current/past conditions and IDs, rejecting swa
   const e = { mode: 'roundtrip-principle-read', exitCode: 0, completedSkillRead: true, originalSourceRead: true, currentPrincipleRead: true, independent: { pass: true }, mutationCalls: 0 };
   assert.equal(assessRoundtripNative({ ...e, answer: { roundtrip: roundtripAnswerProof(swapped, fixture, e.mode) } }).pass, false);
   assert.equal(assessRoundtripNative({ ...e, answer: { roundtrip: roundtripAnswerProof(good, fixture, e.mode) } }).pass, true);
+  const contrasted = '현재 원칙 current-id: 현재는 속성2=11이면 진행이고 속성2=7이면 보류가 아닙니다.\n과거 기록 source-id: 당시는 속성2=7이면 보류였고 속성2=11이면 진행이 아닙니다.';
+  assert.equal(roundtripAnswerProof(contrasted, fixture, 'roundtrip-principle-read').correct, true);
+  const proof = roundtripAnswerProof(contrasted, fixture, 'roundtrip-principle-read');
+  assert.deepEqual(proof.latest.claims.map(c => c.reason), ['expected-condition', 'negated-condition']);
+  assert.ok(proof.historical.claims.every(c => c.scope === 'historical' && /^[a-f0-9]{64}$/.test(c.sha256)));
+  const oneComparison = '현재 원칙 current-id: 현재는 11이면 진행합니다, 과거 기록 source-id: 과거에는 7이면 보류였습니다.';
+  assert.equal(roundtripAnswerProof(oneComparison, fixture, 'roundtrip-principle-read').correct, true);
+  assert.equal(roundtripAnswerProof(oneComparison.replace('현재는 11이면 진행', '현재는 11이면 보류'), fixture, 'roundtrip-principle-read').correct, false);
+  assert.equal(roundtripAnswerProof(oneComparison.replace('과거에는 7이면 보류', '과거에는 7이면 진행'), fixture, 'roundtrip-principle-read').correct, false);
+  assert.equal(roundtripAnswerProof(oneComparison.replace('현재는', '지금은').replace('과거에는', '이전에는'), fixture, 'roundtrip-principle-read').correct, true);
+  assert.equal(roundtripAnswerProof(good + '\n현재는 11이면 진행이 아닙니다.', fixture, 'roundtrip-principle-read').correct, false);
 });
 test('task answer reports done, exact result body and reopening IDs; an open-state answer cannot borrow result completion words', () => {
   const fixture = { ...f, task: { id: 'task-id' }, roundtrip: { result: { id: 'result-id', body: '속성2=11 확인 완료; RESULT-code' } } };
