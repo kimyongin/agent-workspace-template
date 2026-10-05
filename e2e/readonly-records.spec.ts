@@ -55,10 +55,11 @@ test("읽기·검색·네 탭 이동·상세 닫기는 계정 기록 원문과 �
       await expect(page.getByRole("heading", { name, level: 1 })).toBeVisible();
     }
     await navigation.getByRole("link", { name: "기록", exact: true }).click();
-    await page.getByLabel("검색 방식", { exact: true }).selectOption("keyword");
+    await expect(page.getByLabel("검색 방식", { exact: true })).toHaveCount(0);
     const search = page.waitForResponse(response => response.request().method() === "POST" && new URL(response.url()).pathname.endsWith("/search"));
     await page.getByLabel("검색어", { exact: true }).fill(title);
     const searched = await search;expect(searched.ok()).toBe(true);
+    expect(searched.request().postDataJSON().mode).toBe("auto");
     expect((await searched.json()).items.some((item: { id: string }) => item.id === fixtureId)).toBe(true);
     await page.getByRole("link", { name: title, exact: true }).click();
     await expect(page.getByRole("heading", { name: title, level: 1, exact: true })).toBeVisible();

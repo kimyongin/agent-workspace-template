@@ -27,10 +27,10 @@ function ActivitySection({ kind, tags, bounds, dictionary }: { kind: WorkspaceLi
   const [params] = useSearchParams(), {hash}=useLocation(), q = params.get("q") ?? "";
   const entity = params.get("entity_id") || undefined;
   const [metadata, setMetadata] = useState<SearchResult | null>(null);
-  const mode = params.get("mode") === "keyword" ? "keyword" : "auto";
   const filters = kind === "tasks" ? { kind: params.get("kind") || undefined, status: params.get("status") || undefined }
     : { record_kind: params.get("record_kind") || undefined };
-  const input = { query: q, kinds: [kind === "tasks" ? "task" : "record"], mode, limit: 20,
+  const filtered = !!(q || tags.length || entity || Object.values(filters).some(Boolean) || kind === "records" && (bounds.from || bounds.to));
+  const input = { query: q, kinds: [kind === "tasks" ? "task" : "record"], mode: "auto", limit: 20,
     ...(kind === "tasks" ? { task_kind: filters.kind, task_status: filters.status } : filters),
     ...(tags.length ? { tag_ids: tags } : {}), ...(entity ? {entity_id:entity} : {}), ...(kind === "records" ? bounds : {}) };
   const path = q ? JSON.stringify(input) : `/${kind}${query({ limit: 20, entity_id: entity, tag_ids: tags.length ? tags.join(",") : undefined,
@@ -46,7 +46,7 @@ function ActivitySection({ kind, tags, bounds, dictionary }: { kind: WorkspaceLi
     {metadata?.search_state === "keyword_fallback" && <Notice>의미 검색을 사용할 수 없어 키워드 검색 결과를 표시합니다.</Notice>}
     {metadata && metadata.semantic_coverage.pending + metadata.semantic_coverage.excluded > 0 && <p className="help">의미 색인 대기 {metadata.semantic_coverage.pending}개 · 제외 {metadata.semantic_coverage.excluded}개</p>}
     {list.busy && !list.items && <p role="status" className="secondary">불러오는 중…</p>}
-    {list.items?.length === 0 && <p className="secondary">{q || tags.length || kind === "records" && (bounds.from || bounds.to) ? `조건에 맞는 ${kind === "tasks" ? "할 일" : "기록"}이 없습니다.` : `아직 ${kind === "tasks" ? "할 일" : "기록"}이 없습니다.`}</p>}
+    {list.items?.length === 0 && <p className="secondary">{filtered ? `조건에 맞는 ${kind === "tasks" ? "할 일" : "기록"}이 없습니다.` : `아직 ${kind === "tasks" ? "할 일" : "기록"}이 없습니다.`}</p>}
     {list.items && <TagReadProvider dictionary={dictionary} enabled={list.items.some(item => item.tag_ids.length > 0)}>
       {kind === "tasks" ? <ul className="list tasks-list panel">{list.items.map(item => <li key={item.id} className="list-item"><div className="list-item-main">{heading(item)}
         <span className="meta">{"status" in item ? taskLabels[item.status as keyof typeof taskLabels] as string : "task_status" in item && item.task_status ? taskLabels[item.task_status] : "할 일"}{"due_on" in item && item.due_on ? ` · 기한 ${item.due_on}` : ""}</span>{summary(item)}</div></li>)}</ul>
@@ -89,7 +89,6 @@ export function ActivityPage({ kind }: { kind: WorkspaceListKind }) {
             <Field label="할 일 종류">{props => <select {...props} className="input" value={params.get("kind") ?? ""} onChange={event => filter("kind", event.target.value)}><option value="">전체</option><option value="once">한 번</option><option value="recurring">반복</option></select>}</Field>
             <Field label="할 일 상태">{props => <select {...props} className="input" value={params.get("status") ?? ""} onChange={event => filter("status", event.target.value)}><option value="">전체</option>{["open", "done", "active", "stopped"].map(status => <option key={status} value={status}>{taskLabels[status as keyof typeof taskLabels] as string}</option>)}</select>}</Field>
           </> : <Field label="기록 종류">{props => <select {...props} className="input" value={params.get("record_kind") ?? ""} onChange={event => filter("record_kind", event.target.value)}><option value="">전체</option>{Object.entries(recordKindNames).map(([value, text]) => <option key={value} value={value}>{text}</option>)}</select>}</Field>}
-          <Field label="검색 방식">{props => <select {...props} className="input" value={params.get("mode") ?? "auto"} onChange={event => filter("mode", event.target.value)}><option value="auto">자동</option><option value="keyword">키워드</option></select>}</Field>
         </div>
         {kind === "records" && <div className="record-period"><span className="label">기록 기간</span><div className="record-period-inputs">{[["from", "기록 시작일", from], ["to", "기록 종료일", to]].map(([name, label, value]) => <Field key={name} label={label}>{props => <input {...props} type="date" className="input" value={value} aria-invalid={!checked || undefined} onChange={event => setDate(name, event.target.value)}/>}</Field>)}</div>
         {!checked && <Notice kind="error">기록 시작일은 종료일보다 늦을 수 없습니다. 이전 유효 기간의 기록을 유지합니다.</Notice>}
