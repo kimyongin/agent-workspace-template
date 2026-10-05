@@ -100,9 +100,6 @@ h3 { font-size: 1.125rem; margin: 40px 0 12px; }
 .card p + p { margin-top: 8px; }
 .card ul { margin: 8px 0 0; padding-left: 18px; color: var(--muted-ink); font-size: 0.9375rem; }
 .card li { margin-bottom: 4px; }
-.skill-callouts code { overflow-wrap: anywhere; }
-.skill-callouts summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; font-weight: 600; }
-.skill-callouts summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .k { display: block; font-size: 0.75rem; font-weight: 600; color: var(--accent); margin-bottom: 6px; }
 .grid { display: grid; gap: 12px; }
 .g2 { grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); }
@@ -239,72 +236,31 @@ h3 { font-size: 1.125rem; margin: 40px 0 12px; }
 .system li { margin-bottom: 4px; }
 .mapnote { margin-top: 16px; }
 
-/* 개발 흐름: 사람과 에이전트의 두 줄 */
-.swim-head { display: grid; grid-template-columns: 1fr 44px 1fr; gap: 0 16px; margin-bottom: 10px; }
-.swim-head span { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 0.9375rem; }
-.swim-head span:first-child { justify-content: flex-end; }
-.swim-head span:last-child { grid-column: 3; }
-.swim-head .i { width: 22px; height: 22px; }
-.swim-head .h .i { color: var(--accent); }
-.swim-head .a .i { color: var(--info); }
-.swim { position: relative; display: grid; gap: 12px; }
-.swim::before { content: ""; position: absolute; top: 0; bottom: 0; left: 50%; transform: translateX(-50%); border-left: 2px solid var(--line); }
-.srow { position: relative; display: grid; grid-template-columns: 1fr 44px 1fr; gap: 0 16px; align-items: center; }
-.node { justify-self: center; z-index: 1; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: var(--panel); border: 2px solid var(--accent); font-weight: 700; font-size: 0.9375rem; }
-.say, .do { width: min(100%, 27rem); border-radius: 16px; padding: 12px 16px; font-size: 0.9375rem; line-height: 1.55; }
-.say { justify-self: end; background: var(--accent-soft); border: 1.5px solid var(--accent); border-bottom-right-radius: 4px; }
-.do { justify-self: start; background: var(--panel); border: 1.5px solid var(--info); border-bottom-left-radius: 4px; }
-.say p, .do p { margin: 0; }
-.say p + p, .do p + p { margin-top: 6px; }
-.say .cmd { display: block; font-weight: 700; font-size: 1.0625rem; color: var(--accent); margin-bottom: 4px; }
-.say .ok { color: var(--accent); font-weight: 700; }
-.say.quiet { background: none; border: 0; text-align: right; color: var(--muted-ink); }
-.do .res { color: var(--muted-ink); font-size: 0.875rem; }
-.do .res b { color: var(--info); }
-.phase { position: relative; z-index: 1; display: flex; justify-content: center; margin-top: 8px; }
-.phase span { font-size: 0.875rem; font-weight: 700; color: var(--accent); background: var(--background); padding: 2px 12px; }
-.phase small { font-weight: 400; color: var(--muted-ink); margin-left: 6px; font-size: 0.8125rem; }
-@media (max-width: 759px) {
-  .swim-head { display: flex; flex-wrap: wrap; gap: 8px 16px; }
-  .swim-head span:first-child { justify-content: flex-start; }
-  .swim::before { left: 17px; transform: none; }
-  .srow { grid-template-columns: 34px 1fr; grid-template-areas: "n s" "n d"; gap: 8px 12px; align-items: start; }
-  .node { grid-area: n; justify-self: start; }
-  .say { grid-area: s; width: auto; }
-  .do { grid-area: d; width: auto; }
-  .say.quiet { text-align: left; padding: 6px 0; }
-  .phase { justify-content: flex-start; padding-left: 34px; }
+/* 개발 요청: 목적별 시작점과 이어지는 작업 */
+#develop code { overflow-wrap: anywhere; }
+.dev-starts, .dev-decisions { display: grid; gap: 12px; grid-template-columns: minmax(0, 1fr); }
+.dev-command { color: var(--ink) !important; padding: 8px 0; }
+.dev-routes { display: grid; gap: 14px; }
+.dev-route { display: grid; gap: 12px; grid-template-columns: minmax(0, 1fr); }
+.dev-request, .dev-response { padding: 16px; border-radius: var(--radius); min-width: 0; }
+.dev-request { background: var(--accent-soft); border: 1px solid var(--accent); }
+.dev-response { background: var(--panel); border: 1px solid var(--info); }
+.dev-route h4 { margin: 0 0 8px; font-size: 1rem; }
+.dev-route p { margin: 0; font-size: 0.9375rem; }
+.dev-route p + p { margin-top: 8px; }
+.dev-request .k { color: var(--accent); }
+.dev-response .k { color: var(--info); }
+.dev-result { color: var(--info); font-weight: 600; }
+.dev-arrow { justify-self: center; color: var(--muted-ink); font-size: 1.5rem; transform: rotate(90deg); line-height: 1; }
+.dev-notes { padding: 16px 20px; margin: 20px 0; border-left: 3px solid var(--info); background: var(--info-soft); border-radius: 0 var(--radius) var(--radius) 0; }
+.dev-notes p { margin: 0; font-size: 0.9375rem; }
+.dev-notes p + p { margin-top: 12px; }
+@media (min-width: 760px) {
+  .dev-starts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .dev-decisions { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .dev-route { grid-template-columns: minmax(0, 1fr) 28px minmax(0, 2fr); align-items: stretch; }
+  .dev-arrow { align-self: center; transform: none; }
 }
-
-/* 문서 지도 */
-.docmap { display: grid; gap: 12px; }
-@media (min-width: 860px) { .docmap { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: stretch; } }
-.owner-col { background: var(--panel); border: 1px solid var(--line); border-top: 4px solid var(--accent); border-radius: var(--radius); padding: 16px 20px; }
-.owner-col.agent { border-top-color: var(--info); }
-.owner-col > h4 { display: flex; align-items: center; gap: 8px; margin: 0 0 4px; font-size: 1rem; }
-.owner-col > h4 .i { width: 20px; height: 20px; color: var(--accent); }
-.owner-col.agent > h4 .i { color: var(--info); }
-.owner-col > p { margin: 0 0 6px; font-size: 0.875rem; color: var(--muted-ink); }
-.dgroup { margin-top: 16px; }
-.dgroup .folder { display: block; font-family: var(--mono); font-size: 0.75rem; color: var(--muted-ink); padding-bottom: 4px; border-bottom: 1px solid var(--line); }
-.dgroup .folder b { font-family: Pretendard, "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif; font-size: 0.875rem; color: var(--ink); font-weight: 700; margin-right: 6px; }
-.dgroup ul { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 8px; }
-.dgroup li { font-size: 0.8125rem; color: var(--muted-ink); line-height: 1.45; }
-.dgroup li a { display: block; font-size: 0.9375rem; font-weight: 600; }
-.dgroup li .sample { display: block; font-family: var(--mono); font-size: 0.8125rem; font-weight: 600; color: var(--ink); }
-.dgroup .sample-note { margin: 6px 0 0; font-size: 0.75rem; color: var(--muted-ink); }
-.agent-groups { display: grid; gap: 0 24px; }
-@media (min-width: 640px) { .agent-groups { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
-
-/* 용어 */
-.terms { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); }
-.term h4 { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; }
-.term h4 small { font-weight: 400; color: var(--muted-ink); font-size: 0.8125rem; }
-.term .like { margin-top: 10px; font-size: 0.875rem; color: var(--ink); }
-.term .like::before { content: "비유 · "; color: var(--accent); font-weight: 600; }
-.owner { display: inline-block; font-size: 0.75rem; font-weight: 700; padding: 1px 8px; border-radius: 999px; margin-left: auto; }
-.owner.h { background: var(--accent-soft); border: 1px solid var(--accent); }
-.owner.a { background: var(--info-soft); border: 1px solid var(--info); }
 
 /* 표 */
 .table-scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; }
@@ -594,259 +550,83 @@ footer a { margin-right: 10px; white-space: nowrap; }
   <section id="develop">
     <p class="sec-num">02</p>
     <h2>어떻게 개발을 시키는가</h2>
-    <p class="sec-lead">코드는 AI 개발 에이전트(Codex, Claude Code)가 작성합니다. 사람은 무엇을 왜 만들지 정하고 중요한 결정을 승인하며, 짧은 말로 다음 단계를 지시합니다. 먼저 이 과정에서 오가는 문서와 용어부터 알아 둡니다.</p>
+    <p class="sec-lead">지금 해결할 일을 고르고, 그 일에 맞는 스킬로 요청합니다. 에이전트는 필요한 조사·구현·검토를 수행하고, 사람은 목표와 중요한 선택을 정합니다.</p>
 
-    <h3>알아 둘 용어</h3>
-    <p class="h3-note">여기 없는 용어는 <a href="../GLOSSARY.md">용어집</a>에서 찾습니다.</p>
-    <div class="terms">
-      <div class="card term">
-        <h4>PRD <small>제품 요구사항 문서</small><span class="owner h">사람이 정함</span></h4>
-        <p>무엇을, 누구를 위해, 왜 만드는지 적은 기획서입니다. 어떤 기능이 꼭 있어야 하는지도 여기서 정합니다.</p>
-        <p class="like">집을 짓기 전 “방 3개, 남향, 4인 가족용”이라고 적은 요청서</p>
-      </div>
-      <div class="card term">
-        <h4>ADR <small>아키텍처 결정 기록</small><span class="owner h">사람이 승인</span></h4>
-        <p>나중에 바꾸기 어렵고 비용이 큰 기술 선택(어떤 서비스를 쓸지, 데이터를 어떻게 보호할지 등)과 그 이유를 남긴 결정 메모입니다.</p>
-        <p class="like">“기초는 철근 콘크리트로 한다, 이유는 …”라는 설계 결정서</p>
-      </div>
-      <div class="card term">
-        <h4>티켓 <small>작업 지시서</small><span class="owner a">에이전트가 작성</span></h4>
-        <p>GitHub issue에 목표·검증 조건·blocker·진행 기록을 남깁니다. spec과 연결된 티켓을 따라 구현합니다.</p>
-        <p class="like">“이번 주 욕실 공사: 배관 → 방수 → 타일, 물 새는지 확인”</p>
-      </div>
-      <div class="card term">
-        <h4>PR <small>Pull Request, 변경 요청</small><span class="owner a">에이전트가 작성</span></h4>
-        <p>“이렇게 고쳤으니 검토하고 반영해 주세요”라는 요청입니다. 무엇을 어떻게 바꿨는지 한 묶음으로 보여 줍니다. 한 번에 검토하기 쉽도록 작게 나눠 올립니다.</p>
-        <p class="like">공사 한 구간을 마치고 받는 “검수 요청서”</p>
-      </div>
-      <div class="card term">
-        <h4>리뷰와 머지 <small>검토와 반영</small><span class="owner a">에이전트끼리</span></h4>
-        <p>code-review가 Standards와 Spec 관점으로 변경을 분리해 검토합니다. 같은 변경의 리뷰와 필수 CI를 확인하면 공식 코드에 합칩니다(머지). 순서는 <a href="development/workflow.md#마무리-순서">개발 절차</a>를 따릅니다.</p>
-        <p class="like">시공하지 않은 감리자가 검수하고, 통과하면 설계도 원본에 반영</p>
-      </div>
-      <div class="card term">
-        <h4>배포 <small>실제 서비스에 올리기</small><span class="owner h">사람이 지시</span></h4>
-        <p>합쳐진 변경을 실제 사용자가 쓰는 서비스에 올리는 일입니다. 머지했다고 바로 배포되지 않고, 사람이 지시할 때만 합니다.</p>
-        <p class="like">공사를 마친 집에 실제로 입주하는 날</p>
-      </div>
-    </div>
-
-    <h3>어떤 문서가 있나</h3>
-    <p class="h3-note">사람이 정하는 문서와 에이전트가 관리하는 문서로 나뉩니다. 처음이라면 <a href="START-HERE.md">START-HERE</a>에서 읽는 순서를 확인합니다.</p>
-    <div class="docmap">
-      <div class="owner-col">
-        <h4><svg class="i"><use href="#i-person"/></svg>사람이 정하는 문서</h4>
-        <p>무엇을 왜 만들지, 되돌리기 어려운 결정은 무엇인지. 구체적인 대화 합의를 에이전트가 반영하고 미정 사항만 확인합니다.</p>
-        <div class="dgroup">
-          <span class="folder"><b>PRD</b>product/</span>
-          <ul><li><a href="product/concept.md">제품 요구사항</a>어떤 앱을, 왜, 어떤 기능으로 만드는지</li></ul>
-        </div>
-        <div class="dgroup">
-          <span class="folder"><b>ADR</b>adr/</span>
-          <ul>
-            <li><a href="adr/0001-hexagonal-shared-usecases.md">0001</a>웹과 에이전트가 같은 업무 규칙을 쓰는 구조</li>
-            <li><a href="adr/0002-default-tech-stack.md">0002</a>사용하는 서비스 (GitHub Pages, Supabase 등)</li>
-            <li><a href="adr/0003-core-rules-and-local-transactions.md">0003</a>규칙은 한 곳에, 함께 저장할 것은 한 번에</li>
-            <li><a href="adr/0004-summary-single-vector-search.md">0004</a>검색은 제목과 요약으로</li>
-            <li><a href="adr/0005-plugin-delivery-claude-codex.md">0005</a>에이전트에게는 플러그인으로, Claude·Codex 지원</li>
-            <li><a href="adr/0006-owner-only-access-and-separate-auth.md">0006</a>내 데이터는 나만, 로그인과 에이전트 인증은 따로</li>
-            <li><a href="adr/0007-dual-development-agents.md">0007</a>Codex·Claude Code가 같은 지침을 읽음</li>
-            <li><a href="adr/0008-document-ownership.md">0008</a>사람은 PRD·ADR, 에이전트는 나머지를 맡음</li>
-            <li><a href="adr/0011-matt-skills-and-github-workflow.md">0011</a>공식 스킬·GitHub Issues·대화 합의의 승인</li>
-            <li><a href="adr/0010-merge-authority.md">0010</a>리뷰와 검사를 통과한 변경은 에이전트가 머지, 개발 방법은 공식 스킬이 담당</li>
-          </ul>
-        </div>
-      </div>
-      <div class="owner-col agent">
-        <h4><svg class="i"><use href="#i-bot"/></svg>에이전트가 관리하는 문서</h4>
-        <p>제품 계약·환경·검증 근거와 GitHub 작업을 관리합니다. 단계별 방법은 Matt Pocock 공식 스킬을 따릅니다.</p>
-        <div class="agent-groups">
-          <div class="dgroup">
-            <span class="folder"><b>설계</b>architecture/</span>
-            <ul>
-              <li><a href="architecture/principles.md">코드 설계 원칙</a>코드를 나누고 바꾸는 기준</li>
-              <li><a href="architecture/hexagonal-review.md">아키텍처</a>원칙을 실제 구조에 적용한 방법</li>
-              <li><a href="architecture/search.md">요약 기반 검색</a>기록을 찾는 방법</li>
-            </ul>
-          </div>
-          <div class="dgroup">
-            <span class="folder"><b>디자인</b>design/</span>
-            <ul>
-              <li><a href="design/guide.md">디자인 가이드</a>화면을 만드는 원칙</li>
-              <li><a href="design/visual-spec.md">시각 규격</a>색·글꼴·간격</li>
-              <li><a href="design/ui-patterns.md">컴포넌트와 상호작용</a>버튼·입력 같은 공통 동작</li>
-              <li><a href="design/template-structure.md">폴더 구조</a>파일을 어디에 둘지</li>
-            </ul>
-          </div>
-          <div class="dgroup">
-            <span class="folder"><b>개발</b>development/</span>
-            <ul>
-              <li><a href="development/working-with-agents.md">에이전트와 일하는 방법</a>사람을 위한 사용법</li>
-              <li><a href="development/workflow.md">개발과 검증 방법</a>제품 기준·환경·스킬 연결</li>
-            </ul>
-          </div>
-          <div class="dgroup">
-            <span class="folder"><b>보안·배포·운영</b>security/ 외</span>
-            <ul>
-              <li><a href="security/guide.md">보안 가이드</a>데이터와 인증을 지키는 기준</li>
-              <li><a href="deployment/release.md">배포 방법</a>서비스에 올리고 되돌리는 순서</li>
-              <li><a href="operations/runbook.md">운영 방법</a>점검·장애·복구</li>
-            </ul>
-          </div>
-          <div class="dgroup">
-            <span class="folder"><b>작업</b>GitHub Issues</span>
-            <ul>
-              <li><a href="https://github.com/kimyongin/agent-workspace-template/issues">GitHub Issues</a>spec·티켓·blocker·현재 상태</li>
-              <li><a href="agents/issue-tracker.md">issue tracker 설정</a>작업과 PR 연결</li>
-              <li><a href="tickets/README.md">이전 티켓</a>계약·실험·검증 이력</li>
-            </ul>
-            <p class="sample-note">현재 작업은 GitHub Issues, 로컬 티켓은 이전 근거입니다.</p>
-          </div>
-          <div class="dgroup">
-            <span class="folder"><b>지침</b>저장소 루트</span>
-            <ul>
-              <li><a href="../AGENTS.md">AGENTS.md</a>에이전트가 가장 먼저 읽는 규칙</li>
-              <li><a href="development/matt-skills.md">개발 스킬</a>공식 27개 스킬과 공유 정본</li>
-            </ul>
-          </div>
-        </div>
-      </div>
+    <h3 id="skill-invocation">지금 무엇을 하고 싶나요?</h3>
+    <p class="h3-note">Codex에서는 <code>$스킬이름 요청</code>, Claude Code에서는 <code>/스킬이름 요청</code>으로 시작합니다. 이미 정해진 작업은 바로 구현을 맡겨도 됩니다.</p>
+    <div class="dev-starts">
+      <article class="card">
+        <span class="k">아이디어를 구체화하고 싶을 때</span>
+        <h4>무엇을 만들지 함께 정하기</h4>
+        <p class="dev-command"><code>grill-with-docs</code> “기록에 사진을 첨부하고 싶어.”</p>
+        <p>질문을 통해 사용자 흐름과 제약을 정하고, 합의한 용어와 중요한 결정을 문서에 남깁니다.</p>
+      </article>
+      <article class="card">
+        <span class="k">코드가 복잡해졌을 때</span>
+        <h4>구조 개선 후보 찾기</h4>
+        <p class="dev-command"><code>improve-codebase-architecture</code> “백엔드 구조를 개선할 곳을 조사해줘.”</p>
+        <p>코드 근거와 전후 그림이 있는 후보 보고서를 만듭니다. 후보를 선택하면 설계를 논의합니다.</p>
+      </article>
+      <article class="card">
+        <span class="k">오류나 성능 문제가 있을 때</span>
+        <h4>원인을 재현하고 해결하기</h4>
+        <p class="dev-command"><code>diagnosing-bugs</code> “저장 뒤 목록에 반영되지 않는 원인을 찾아줘.”</p>
+        <p>실패를 확인할 수 있는 검증부터 만들고, 원인을 좁혀 수정과 회귀 검증으로 이어갑니다.</p>
+      </article>
+      <article class="card">
+        <span class="k">무엇을 만들지 합의했을 때</span>
+        <h4>실행 가능한 계획으로 정리하기</h4>
+        <p class="dev-command"><code>to-spec</code> → <code>to-tickets</code> “합의한 내용을 명세와 티켓으로 정리해줘.”</p>
+        <p>GitHub Issues에 목표·완료 조건·작은 작업과 선행 관계를 남깁니다. 여러 세션에 걸친 작업에 사용합니다.</p>
+      </article>
+      <article class="card">
+        <span class="k">확정한 작업을 만들 때</span>
+        <h4>구현과 검증 맡기기</h4>
+        <p class="dev-command"><code>implement</code> “GitHub issue #N을 구현해줘.”</p>
+        <p>한 작업은 <code>implement</code>, 연결된 티켓 전체는 <code>implement-spec</code>으로 맡깁니다. 구현 뒤 코드 리뷰도 수행합니다.</p>
+      </article>
+      <article class="card">
+        <span class="k">어디서 시작할지 모르겠을 때</span>
+        <h4>알맞은 방법 추천받기</h4>
+        <p class="dev-command"><code>ask-matt</code> “이 작업은 어떤 스킬로 시작하면 좋을까?”</p>
+        <p>상황에 맞는 시작점과 흐름을 추천합니다. 추천을 읽고 실행할 스킬을 선택합니다.</p>
+      </article>
     </div>
 
-    <p class="note">현재 작업은 <a href="https://github.com/kimyongin/agent-workspace-template/issues">GitHub Issues</a>에서, 제품 문서와 이전 근거는 <a href="START-HERE.md">START-HERE</a>에서 확인합니다.</p>
-    <h3 id="skill-invocation">어떤 스킬을 직접 요청하나요?</h3>
-    <p class="h3-note">사람은 시작할 작업을 선택합니다. 에이전트는 그 스킬의 절차에 따라 필요한 스킬을 이어서 사용합니다. “자동 선택 가능”과 “항상 실행”은 다릅니다.</p>
-    <div class="grid g2 skill-callouts">
-      <div class="card">
-        <span class="k">사람이 선택하는 시작점</span>
-        <h4>명시적으로 시작하는 스킬 16개</h4>
-        <p>방법을 고를 때 <code>ask-matt</code>, 요구를 정할 때 <code>grill-with-docs</code>, 구현할 때 <code>implement</code>처럼 이름을 지정합니다.</p>
-        <p>Codex는 <code>$스킬이름</code>, Claude Code는 <code>/스킬이름</code>으로 요청합니다. 이 목록은 사람이 이름을 지정해 시작하는 스킬입니다. 에이전트나 다른 스킬은 알맞은 시작점을 추천합니다.</p>
-        <details>
-          <summary>명시 시작 스킬 전체 보기</summary>
-          <ul>
-            <li>방법·분류·큰 계획: <code>ask-matt</code>, <code>triage</code>, <code>wayfinder</code></li>
-            <li>설계·구조 조사: <code>grill-me</code>, <code>grill-with-docs</code>, <code>improve-codebase-architecture</code></li>
-            <li>명세·티켓·구현: <code>to-spec</code>, <code>to-tickets</code>, <code>implement</code>, <code>implement-spec</code></li>
-            <li>설정·인계·회고: <code>setup-matt-pocock-skills</code>, <code>handoff</code>, <code>retro</code></li>
-            <li>학습·질문서·재설명: <code>teach</code>, <code>to-questionnaire</code>, <code>wait-what</code></li>
-          </ul>
-        </details>
+    <h3>요청하면 어디까지 이어지나요?</h3>
+    <p class="h3-note">사람이 시작하는 스킬과 그 안에서 사용하는 스킬의 관계입니다. 모든 작업에 같은 순서를 강제하지 않습니다.</p>
+    <div class="dev-routes" role="list" aria-label="요청과 내부 스킬의 연결">
+      <div class="dev-route" role="listitem">
+        <div class="dev-request"><span class="k">사람이 시작</span><h4>요구와 설계 정리</h4><code>grill-with-docs</code></div>
+        <span class="dev-arrow" aria-hidden="true">→</span>
+        <div class="dev-response"><span class="k">에이전트가 이어서 사용</span><p><code>grilling</code>으로 질문하고 <code>domain-modeling</code>으로 용어와 결정을 기록합니다.</p><p class="dev-result">결과: 합의한 요구와 결정</p></div>
       </div>
-      <div class="card">
-        <span class="k">에이전트가 필요할 때 사용</span>
-        <h4>자동 선택 가능한 스킬 11개</h4>
-        <p>작업에 맞으면 에이전트가 선택합니다. 사람이 직접 요청해도 됩니다. 예를 들어 구현 없이 <code>code-review</code>만 요청할 수도 있습니다.</p>
-        <p>매번 11개를 전부 실행하지 않습니다. 구현을 맡기면 리뷰를 따로 요청할 필요가 없는 이유는, 구현 스킬 자체가 <code>code-review</code> 호출을 정해 두었기 때문입니다.</p>
-        <details>
-          <summary>자동 선택 가능 스킬 전체 보기</summary>
-          <ul>
-            <li>설계·용어·질문: <code>codebase-design</code>, <code>domain-modeling</code>, <code>grilling</code></li>
-            <li>조사·실험·진단: <code>research</code>, <code>prototype</code>, <code>diagnosing-bugs</code></li>
-            <li>구현 검증·리뷰·PR: <code>tdd</code>, <code>code-review</code>, <code>pr</code></li>
-            <li>설정 안내·지침 작성: <code>wizard</code>, <code>writing-for-agents</code></li>
-          </ul>
-        </details>
+      <div class="dev-route" role="listitem">
+        <div class="dev-request"><span class="k">사람이 시작</span><h4>구조 개선 조사</h4><code>improve-codebase-architecture</code></div>
+        <span class="dev-arrow" aria-hidden="true">→</span>
+        <div class="dev-response"><span class="k">에이전트가 이어서 사용</span><p><code>codebase-design</code>의 기준으로 조사합니다. 사람이 후보를 고르면 <code>grilling</code>으로 설계를 논의하고 필요한 결정은 기록합니다.</p><p class="dev-result">결과: 개선 후보 → 선택한 후보의 설계</p></div>
+      </div>
+      <div class="dev-route" role="listitem">
+        <div class="dev-request"><span class="k">사람이 시작</span><h4>확정 작업 구현</h4><code>implement</code> / <code>implement-spec</code></div>
+        <span class="dev-arrow" aria-hidden="true">→</span>
+        <div class="dev-response"><span class="k">에이전트가 이어서 사용</span><p><code>implement</code>는 합의한 검증 지점에서 가능한 경우 <code>tdd</code>를 사용하고 완료 뒤 <code>code-review</code>를 호출합니다. <code>implement-spec</code>은 티켓별 TDD와 전체 통합 뒤 리뷰를 수행합니다.</p><p>리뷰는 코딩 기준(Standards)과 요구사항(Spec)을 별도 에이전트가 검토합니다. PR 본문을 쓸 때는 <code>pr</code>로 변경·증거·위험을 설명합니다.</p><p class="dev-result">결과: 검증한 변경과 리뷰·PR</p></div>
       </div>
     </div>
-    <h3>요청한 스킬은 무엇을 이어서 사용하나요?</h3>
-    <div class="grid g2 skill-callouts">
-      <div class="card">
-        <h4>요구와 설계 정리</h4>
-        <p><code>grill-with-docs</code> → <code>grilling</code> + <code>domain-modeling</code></p>
-        <p>질문으로 결정을 구체화하면서 용어와 합의한 결정을 문서에 남깁니다. <code>grill-me</code>는 질문 절차만 사용합니다.</p>
-      </div>
-      <div class="card">
-        <h4>구조 개선 후보 조사</h4>
-        <p><code>improve-codebase-architecture</code> → <code>codebase-design</code></p>
-        <p>설계 기준으로 후보를 조사합니다. 사람이 후보를 선택한 뒤 <code>grilling</code>으로 설계를 논의하고 필요한 용어·결정은 <code>domain-modeling</code>으로 기록합니다.</p>
-      </div>
-      <div class="card">
-        <h4>구현을 맡기면 리뷰까지</h4>
-        <p><code>implement</code> / <code>implement-spec</code> → <code>tdd</code> · <code>code-review</code></p>
-        <p><code>implement</code>는 합의한 검증 지점에서 가능한 경우 TDD를 사용하고 구현 뒤 리뷰합니다. <code>implement-spec</code>은 각 티켓을 TDD로 구현하고 전체 통합 뒤 리뷰합니다.</p>
-        <p>리뷰는 Standards(코딩 기준)와 Spec(요구사항)을 별도 에이전트가 검토합니다. GitHub의 자동 검사(CI)와는 별개입니다.</p>
-      </div>
-      <div class="card">
-        <h4>PR 작성과 회고</h4>
-        <p>PR 본문을 작성할 때 → <code>pr</code></p>
-        <p>변경 모습·검증 증거·머지 위험을 설명합니다. 리뷰를 한 번 더 수행하는 단계는 아닙니다.</p>
-        <p><code>retro</code> → <code>writing-for-agents</code>: 회고를 요청하면 지침·도구·검사 환경의 개선을 검토합니다.</p>
-      </div>
-    </div>
-    <p class="note"><code>ask-matt</code>은 알맞은 흐름을 추천합니다. 그 요청만으로 설계부터 구현까지 전부 실행하지 않습니다. 전체 작업을 맡겼다면 합의한 범위 안에서 이어가며, 단계를 각각 맡길 수도 있습니다. <a href="development/matt-skills.md#사람이-선택하는-시작점과-내부-사용">전체 호출 정책과 연결</a>을 참고합니다.</p>
-    <h3>이렇게 말하면 진행됩니다</h3>
-    <p class="h3-note">작업에 필요한 원본 스킬을 선택합니다. 확정한 작은 작업은 implement부터 시작할 수 있습니다.</p>
-    <div class="swim-head" aria-hidden="true">
-      <span class="h"><svg class="i"><use href="#i-person"/></svg>사람이 하는 말</span>
-      <span class="a"><svg class="i"><use href="#i-bot"/></svg>에이전트가 하는 일</span>
-    </div>
-    <div class="swim" role="list" aria-label="개발 진행 단계">
-      <div class="phase"><span>정하기</span></div>
-      <div class="srow" role="listitem">
-        <div class="say"><span class="cmd">“grill-with-docs로 정리하자: …”</span><p>“기록에 사진을 첨부하고 싶어”처럼 하고 싶은 것을 편하게 말합니다. 그다음 에이전트가 정리한 내용을 읽어 봅니다.</p></div>
-        <div class="node">1</div>
-        <div class="do"><p>grilling으로 사용자 흐름과 미정 사항을 질문하고, domain-modeling으로 용어·중요한 결정을 문서에 남깁니다.</p><p class="res">결과물: <b>정리 메모</b></p></div>
-      </div>
-      <div class="srow" role="listitem">
-        <div class="say"><span class="cmd">“합의한 결정을 반영해”</span><p>제품 요구와 중요한 선택을 함께 정합니다. 구체적인 대화 합의는 승인 근거가 됩니다.</p><p class="ok">✓ 미정 결정을 정하고 합의를 확인합니다</p></div>
-        <div class="node">2</div>
-        <div class="do"><p>합의한 내용을 PRD·ADR에 반영하고 미정 결정만 확인합니다. 같은 승인을 형식만 바꿔 다시 묻지 않습니다.</p><p class="res">결과물: <b>승인 근거가 있는 결정</b></p></div>
-      </div>
-
-      <div class="phase"><span>만들기<small>작업에 필요한 단계 선택</small></span></div>
-      <div class="srow" role="listitem">
-        <div class="say"><span class="cmd">“to-spec → to-tickets로 계획해”</span><p>무엇을 만들지 작업 지시서로 정리하라는 뜻입니다.</p></div>
-        <div class="node">3</div>
-        <div class="do"><p>GitHub Issues에 spec과 수직 기능의 티켓을 만들고 blocker·검증 조건을 연결합니다.</p><p class="res">결과물: <b>티켓</b></p></div>
-      </div>
-      <div class="srow" role="listitem">
-        <div class="say"><span class="cmd">“implement / implement-spec으로 구현해”</span><p>작은 확정 작업은 implement, 여러 의존 티켓 전체는 implement-spec으로 요청합니다.</p></div>
-        <div class="node">4</div>
-        <div class="do"><p>implement는 현재 세션에서 구현합니다. implement-spec은 준비된 티켓을 별도 worktree의 구현 에이전트에 맡겨 통합 branch에 합칩니다.</p><p class="res">결과물: <b>PR</b></p></div>
-      </div>
-      <div class="srow" role="listitem">
-        <div class="say quiet"><p>리뷰를 따로 요청하지 않아도 됩니다. 구현 스킬이 code-review를 호출합니다. 추가 교차 리뷰를 원하면 요청할 수 있습니다.</p></div>
-        <div class="node">5</div>
-        <div class="do"><p>Standards와 Spec을 분리해 검토하고 발견 사항을 수정합니다. pr 스킬로 증거와 머지 위험을 설명합니다. 프로젝트 기준은 <a href="development/workflow.md#마무리-순서">마무리 순서</a>를 따릅니다.</p><p class="res">결과물: <b>리뷰 결론</b></p></div>
-      </div>
-      <div class="srow" role="listitem">
-        <div class="say quiet"><p>따로 말하지 않아도 됩니다</p></div>
-        <div class="node">6</div>
-        <div class="do"><p>리뷰 결론이 “머지 가능”이고 자동 검사도 통과하면 공식 코드에 합칩니다(머지). 아직 실제 서비스에 올라간 것은 아닙니다.</p><p class="res">결과물: <b>반영된 코드</b></p></div>
-      </div>
-
-      <div class="phase"><span>내보내기</span></div>
-      <div class="srow" role="listitem">
-        <div class="say"><span class="cmd">“배포해 (운영)”</span><p>실제 사용자에게 내보낼 때만 말합니다.</p><p class="ok">✓ 이 말 자체가 배포 승인입니다</p></div>
-        <div class="node">7</div>
-        <div class="do"><p>검사를 통과한 버전을 실제 서비스에 올립니다. 제품 플러그인은 관리 도구나 CLI로 원본에서 갱신하며 앱·서버와 각각 배포합니다. 절차는 <a href="deployment/release.md#플러그인-패키징과-배포">배포 방법</a>을 따릅니다.</p><p class="res">결과물: <b>사용자가 쓰는 서비스</b></p></div>
-      </div>
+    <div class="dev-notes">
+      <p><b>리뷰를 따로 요청하지 않아도 됩니다.</b> 구현 스킬의 절차에 포함됩니다. 리뷰만 필요하면 <code>code-review</code>를 직접 요청할 수도 있습니다.</p>
+      <p><b>자동 선택은 항상 실행된다는 뜻이 아닙니다.</b> 에이전트가 필요에 따라 선택할 수 있는 스킬과 사람이 이름을 지정해 시작하는 스킬이 있습니다. <a href="development/matt-skills.md#사람이-선택하는-시작점과-내부-사용">전체 27개 목록과 호출 관계</a>에서 확인합니다.</p>
+      <p><b>머지와 배포는 별개입니다.</b> 리뷰와 필수 자동 검사(CI)를 통과하면 프로젝트 기준에 따라 코드를 합칩니다. 실제 서비스 배포는 사람이 지시한 범위에서 수행합니다. 스킬의 리뷰와 GitHub의 CI도 별도 검사입니다.</p>
     </div>
 
-    <div class="grid g2" style="margin-top:20px">
-      <div class="card">
-        <span class="k">사람이 개입하는 때</span>
-        <h4>네 가지 경우만 챙기면 됩니다</h4>
-        <ul>
-          <li>제품 요구·중요한 미정 결정을 정할 때</li>
-          <li>에이전트가 “기획이나 결정과 다르게 해야 합니다”라며 멈추고 물을 때</li>
-          <li>다른 에이전트의 교차 리뷰를 원할 때(선택): 리뷰 자체는 에이전트가 알아서 합니다</li>
-          <li>배포, 실제 데이터 변경, 비용이 드는 일을 지시할 때</li>
-        </ul>
-      </div>
-      <div class="card">
-        <span class="k">시작하는 법</span>
-        <h4>하나만 써도, 둘 다 써도 됩니다</h4>
-        <ul>
-          <li>Codex에서는 <code>$ask-matt 요청</code></li>
-          <li>Claude Code에서는 <code>/ask-matt 요청</code></li>
-          <li>“할 일 화면을 고쳐줘”처럼 평범하게 요청해도 됩니다. 특정 스킬을 확실히 시작하려면 이름을 지정합니다.</li>
-          <li>두 에이전트는 <a href="../AGENTS.md">공통 지침</a>을 따릅니다. 자세한 요청 방법은 <a href="development/working-with-agents.md">에이전트와 일하는 방법</a>에서 봅니다.</li>
-        </ul>
-      </div>
+    <h3>사람은 언제 결정하나요?</h3>
+    <div class="dev-decisions">
+      <div class="card"><span class="k">목표와 선택</span><h4>중요한 결정을 정할 때</h4><p>원하는 사용자 동작, 개선할 후보, 중요한 설계 선택을 함께 정합니다. 이미 합의한 결정은 승인 근거로 기록하고 반복 확인하지 않습니다.</p></div>
+      <div class="card"><span class="k">작업 범위</span><h4>새 선택이 필요할 때</h4><p>미정 사항이 남았거나 합의한 요구·아키텍처를 바꿔야 하면 에이전트가 이유와 선택지를 설명합니다. 시작 단계만 맡길 수도, 정한 범위의 전체 작업을 맡길 수도 있습니다.</p></div>
+      <div class="card"><span class="k">운영 실행</span><h4>실제 서비스에 적용할 때</h4><p>“운영에 배포해”처럼 실행 범위를 지시합니다. 운영 데이터 변경과 비용이 드는 작업도 지시한 범위 안에서 진행합니다.</p></div>
     </div>
-    <p class="src">정본: <a href="development/working-with-agents.md">에이전트와 일하는 방법</a><a href="development/workflow.md">개발과 검증 방법</a><a href="adr/0008-document-ownership.md">ADR-0008 문서 소유권</a><a href="adr/0007-dual-development-agents.md">ADR-0007 두 개발 에이전트</a><a href="adr/0010-merge-authority.md">ADR-0010 머지 권한</a></p>
+
+    <p class="note">진행 상황은 <a href="https://github.com/kimyongin/agent-workspace-template/issues">GitHub Issues</a>와 연결된 PR에서 확인합니다. 이해가 어려우면 <code>wait-what</code>으로 재설명을, 다른 세션으로 옮길 때는 <code>handoff</code>로 인계를, 작업 후에는 <code>retro</code>로 회고를 요청할 수 있습니다.</p>
+    <p class="src">더 보기: <a href="development/working-with-agents.md">에이전트와 일하는 방법</a><a href="development/matt-skills.md">전체 스킬과 호출 정책</a><a href="START-HERE.md">문서 구조와 읽는 순서</a><a href="../GLOSSARY.md">용어집</a><a href="development/workflow.md#머지">리뷰·CI·머지 기준</a><a href="deployment/release.md">배포 방법</a></p>
   </section>
 
   <!-- 3 -->
