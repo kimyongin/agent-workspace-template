@@ -71,7 +71,12 @@ export async function previewTaskChange(deps: ActivityDeps, actor: Actor, input:
   return await deps.uow.run(actor, async (store) => {
     if (input.action === "create") {
       return {
-        memo: basicChangeMemo({ action: "create", before: null, after: newTask(input.input as TaskCreate) }),
+        memo: basicChangeMemo({
+          action: "create",
+          before: null,
+          after: newTask(input.input as TaskCreate),
+          change_note: input.input.change_note,
+        }),
         changed: true,
       };
     }
@@ -102,7 +107,12 @@ export async function previewTaskChange(deps: ActivityDeps, actor: Actor, input:
         : decideResume(task, input.input.expected_version as number, now)),
     };
     return {
-      memo: basicChangeMemo({ action: input.action as "update" | "delete" | "stop" | "resume", before: task, after }),
+      memo: basicChangeMemo({
+        action: input.action as "update" | "delete" | "stop" | "resume",
+        before: task,
+        after,
+        change_note: input.input.change_note,
+      }),
       changed: after === null || changed(task, after),
     };
   });

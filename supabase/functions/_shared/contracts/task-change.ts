@@ -1,7 +1,8 @@
 import { z } from "zod";
 import { taskCreate, taskUpdate } from "./task.ts";
 import { expectedVersion, id, isoDate } from "./common.ts";
-const version = z.strictObject({ expected_version: expectedVersion });
+import { changeNote } from "./change.ts";
+const version = z.strictObject({ expected_version: expectedVersion, change_note: changeNote.optional() });
 export const taskChangePreview = z.discriminatedUnion("action", [
   z.strictObject({ action: z.literal("create"), input: taskCreate }),
   z.strictObject({ action: z.literal("update"), id, input: taskUpdate }),

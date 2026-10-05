@@ -92,9 +92,9 @@ export function FormModal({ title, open, submitLabel, dirty, onClose, onRouteDis
       if(memo){const parsed=changeMemo.safeParse(memo);if(!parsed.success){setFailure("기록 메모의 제목·요약과 길이를 확인하세요.");return;}}
       await onSubmit(memo??undefined);
     } catch (err) {
-      setUncertain(isUncertain(err));
+      setUncertain((!prepare||!!memo)&&isUncertain(err));
       setErrors(serverFieldErrors(err));
-      setFailure(saveErrorMessage(err));
+      setFailure(prepare&&!memo ? `${err instanceof ApiError?err.message:"기본 메모를 불러오지 못했습니다."} 아직 저장하지 않았습니다.` : saveErrorMessage(err));
     } finally {
       submitting.current = false; setBusy(false);
     }

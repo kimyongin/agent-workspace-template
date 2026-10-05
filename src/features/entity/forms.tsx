@@ -44,7 +44,7 @@ export function EntityForm(
       dirty={JSON.stringify(draft) !== JSON.stringify(baseline)}
       previewKey={JSON.stringify(draft)}
       prepare={async()=>{
-        const {change_note,...input}=value();
+        const input={...value(),change_note:draft.change_note.trim()||undefined};
         const result=await api<{memo:ChangeMemo}>("POST","/entities/preview",initial?{action:"update",id:initial.id,input:{...input,expected_version:initial.version}}:{action:"create",input});
         return result.memo;
       }}

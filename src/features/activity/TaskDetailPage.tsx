@@ -114,7 +114,7 @@ export function TaskDetailPage() {
       setMessage(done);
     } catch (e) {
       setActionError(e instanceof ApiError ? e.message : "처리하지 못했습니다.");
-      await reload();
+      throw e;
     } finally {
       setBusy(false);
     }
@@ -333,7 +333,7 @@ export function TaskDetailPage() {
       )}
       {deleting&&<DeleteDialog
         title="할 일을 삭제할까요?"
-        prepare={async()=> (await api<{memo:import("@contracts/change.ts").ChangeMemo}>("POST","/tasks/preview",{action:"delete",id:task.id,input:{expected_version:task.version}})).memo}
+        prepare={async(change_note)=> (await api<{memo:import("@contracts/change.ts").ChangeMemo}>("POST","/tasks/preview",{action:"delete",id:task.id,input:{expected_version:task.version,change_note:change_note||undefined}})).memo}
         message={
           <p style={{ margin: 0 }}>
             「{task.title}」을(를) 삭제합니다. 연결된 결과·회차 기록은 남고 이 할 일과의 연결만 사라집니다.
@@ -355,7 +355,7 @@ function TaskTransitionForm({task,onClose,onSaved}:{task:TaskResult;onClose:()=>
   const [note,setNote]=useState(""),request=useRequestId();
   const action=task.status==="active"?"stop":"resume",label=action==="stop"?"중단":"재개";
   return <FormModal open title={`반복 할 일 ${label}`} submitLabel={label} dirty={!!note} onClose={onClose} onRouteDiscard={onClose}
-    prepare={async()=> (await api<{memo:import("@contracts/change.ts").ChangeMemo}>("POST","/tasks/preview",{action,id:task.id,input:{expected_version:task.version}})).memo}
+    prepare={async()=> (await api<{memo:import("@contracts/change.ts").ChangeMemo}>("POST","/tasks/preview",{action,id:task.id,input:{expected_version:task.version,change_note:note.trim()||undefined}})).memo}
     previewKey={note}
     validate={()=>changeNoteErrors(note,false)} onSubmit={async(change_memo)=>{
       await api("POST",`/tasks/${task.id}/${action}`,{expected_version:task.version,change_note:note.trim()||undefined,request_id:request.current,change_memo});

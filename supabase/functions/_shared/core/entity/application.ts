@@ -100,7 +100,15 @@ export function deleteEntity(
 export function previewEntityChange(d: EntityDeps, actor: Actor, input: EntityChangePreview) {
   return d.uow.run(actor, async (s) => {
     if (input.action === "create") {
-      return { memo: basicChangeMemo({ action: "create", before: null, after: input.input }), changed: true };
+      return {
+        memo: basicChangeMemo({
+          action: "create",
+          before: null,
+          after: input.input,
+          change_note: input.input.change_note,
+        }),
+        changed: true,
+      };
     }
     const old = await requireVersion(s, input.id, input.input.expected_version);
     const values = Object.fromEntries(
@@ -110,7 +118,7 @@ export function previewEntityChange(d: EntityDeps, actor: Actor, input: EntityCh
     );
     const after = input.action === "delete" ? null : { ...old, ...values };
     return {
-      memo: basicChangeMemo({ action: input.action, before: old, after }),
+      memo: basicChangeMemo({ action: input.action, before: old, after, change_note: input.input.change_note }),
       changed: after === null || changed(old, values),
     };
   });
