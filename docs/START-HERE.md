@@ -13,6 +13,7 @@
 | 순서 | 문서 | 답하는 질문 |
 | --- | --- | --- |
 | 1 | [제품 요구사항(PRD)](product/concept.md) | 어떤 앱을 만들며 사람과 에이전트는 어떻게 사용하는가? |
+| 앱 사용자 안내 | [앱을 사용하는 방법](product/using-app.md) | 업무 의도로 어떻게 요청하고 준비·저장·확인 결과를 어떻게 구분하는가? |
 | 1-1 | [아키텍처 결정(ADR)](adr/README.md) | 되돌리기 비싼 구조·기술·보안 결정은 무엇이며 왜 그렇게 정했는가? |
 | 2 | [코드 설계 원칙](architecture/principles.md) | 코드를 나누고 변경할 때 어떤 기준을 따르는가? |
 | 3 | [아키텍처](architecture/hexagonal-review.md) | 호출·저장·권한·비동기 처리에 그 원칙을 어떻게 적용하는가? |
@@ -31,7 +32,7 @@ PRD와 ADR은 사람이 소유하고 나머지 문서·티켓·구현은 에이�
 
 ## 현재 상태
 
-2026-10-05 합의한 [통합 기록 목표](architecture/unified-record-model.md)는 [ADR-0012](adr/0012-current-state-and-unified-records.md)를 따른다. 최신 상태와 기록 RAG, 기록 무로그 편집, 네 탭으로 전환할 설계이며 앱 구현은 아직 이전 모델이다. 아래 원칙 과거본·세 탭·snapshot 완료 기록은 이전 구현 근거다. 현재 전환 작업은 [백엔드 #110](https://github.com/kimyongin/agent-workspace-template/issues/110)·[프론트엔드 #111](https://github.com/kimyongin/agent-workspace-template/issues/111)이 관리한다.
+2026-10-05 합의한 [통합 기록 목표](architecture/unified-record-model.md)는 [ADR-0012](adr/0012-current-state-and-unified-records.md)를 따른다. 최신 상태와 기록 RAG, 기록 무로그 편집, 네 탭으로 전환할 설계이며 앱 구현은 아직 이전 모델이다. 아래 원칙 과거본·세 탭·snapshot 완료 기록은 이전 구현 근거다. 제품 목표와 전환 작업은 [통합 실행 명세 #120](https://github.com/kimyongin/agent-workspace-template/issues/120)의 하위 티켓이 관리한다. 이전 #110·#111은 대체된 계획으로 종료했고, 도메인 문서 정리 #118은 제품 목표 문서 정리 #121에 통합했다.
 
 [과거 티켓 이관 판정](tickets/migration-to-github.md)은 기존 작업과 최종 PR 근거를 연결한다. 실제 잔여 [Codex desktop 제품 UI 검증](https://github.com/kimyongin/agent-workspace-template/issues/102)의 상태·접근 제약은 해당 issue에서 관리한다.
 
