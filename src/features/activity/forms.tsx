@@ -28,7 +28,7 @@ export interface RecordDraft extends TextDraft {
 
 export const emptyRecord = (): RecordDraft => ({ title: "", summary: "", body: "", occurred_at: "", applied_principle_ids: [],tag_ids:[] });
 
-export function recordDraftFrom(r: { title: string; summary: string; body: string; occurred_at: string; applied_principle_ids?: string[];tag_ids?:string[];entity_ids?:string[] }): RecordDraft {
+export function recordDraftFrom(r: { title: string; summary: string; body: string; occurred_at: string; applied_principle_ids?: string[];tag_ids?:string[];entity_id?:string|null;entity_ids?:string[];entity_context?:EntityContext[] }): RecordDraft {
   return { title: r.title, summary: r.summary, body: r.body, occurred_at: toLocalInput(r.occurred_at), applied_principle_ids:r.applied_principle_ids??[],tag_ids:r.tag_ids??[],entity_ids:r.entity_ids??(r.entity_id?[r.entity_id]:[]),entity_context:r.entity_context??[] };
 }
 

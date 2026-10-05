@@ -1,4 +1,4 @@
-import { recordCreate, recordUpdate } from "../../functions/_shared/contracts/record.ts";
+import { recordCreate, recordListQuery, recordUpdate } from "../../functions/_shared/contracts/record.ts";
 import { assertEquals, assertRejects } from "@std/assert";
 import { SqlEntityUnitOfWork } from "../../functions/_shared/adapters/supabase/entity-store.ts";
 import { SqlUnitOfWork } from "../../functions/_shared/adapters/supabase/activity-store.ts";
@@ -64,6 +64,36 @@ dbTest("legacy single-target SQL writes remain visible through expanded public r
       [legacy.id],
     );
     assertEquals((await activity.getTask(ad, f.actor, legacy.id)).entity_ids, [first.id]);
+    const second = await entity.createEntity(ed, f.actor, entityCreate.parse({ prop1: "구 소비자 재지정 대상" }));
+    const [legacyRecord] = await admin`insert into app.records(owner_id,title,summary,entity_id)
+      values(${f.actor.userId},'구 소비자 자료','단일 대상',${first.id}) returning id`;
+    await admin`update app.tasks set entity_id=${second.id} where id=${legacy.id}`;
+    await admin`update app.records set entity_id=${second.id} where id=${legacyRecord.id}`;
+    const reassigned = await activity.getRecord(ad, f.actor, legacyRecord.id);
+    assertEquals(reassigned.entity_ids, [second.id]);
+    assertEquals(reassigned.entity_context.map((capture) => [capture.id, capture.title, capture.source]), [[
+      second.id,
+      second.prop1,
+      "selection",
+    ]]);
+    assertEquals((await activity.getTask(ad, f.actor, legacy.id)).entity_ids, [second.id]);
+    assertEquals((await activity.listTasks(ad, f.actor, taskListQuery.parse({ entity_id: first.id }))).items, []);
+    const relatedIds = (await entity.getEntity(ed, f.actor, second.id)).records.items.map((row) => row.id);
+    const event =
+      (await activity.listRecords(ad, f.actor, recordListQuery.parse({ record_kind: "change", entity_id: second.id })))
+        .items.find((row) => row.change?.target_id === second.id);
+    assertEquals(event?.change?.action, "create");
+    if (!event) throw Error("entity creation event missing");
+    assertEquals((await activity.getRecord(ad, f.actor, event.id)).entity_ids, [second.id]);
+    assertEquals(relatedIds.sort(), [legacyRecord.id, event.id].sort());
+    // The new backend accepts the old API spelling of explicit clear after cutover.
+    const cleared = await activity.updateRecord(
+      ad,
+      f.actor,
+      legacyRecord.id,
+      recordUpdate.parse({ expected_version: reassigned.version, entity_id: null }),
+    );
+    assertEquals([cleared.entity_id, cleared.entity_ids, cleared.entity_context], [null, [], []]);
   } finally {
     await f.cleanup();
   }
@@ -127,6 +157,17 @@ dbTest(
         recordCreate.parse({ title: "선택 기록", summary: "원본", entity_ids: [target.id] }),
       );
       const original = await activity.getRecord(ad, f.actor, record.id);
+      await admin`update app.entities set prop1='현재 바뀐 이름' where id=${target.id}`;
+      const memoEdit = await activity.updateRecord(
+        ad,
+        f.actor,
+        record.id,
+        recordUpdate.parse({ expected_version: record.version, body: "이름 변경 이후 편집", entity_ids: [target.id] }),
+      );
+      assertEquals(memoEdit.entity_context, original.entity_context);
+      record = memoEdit;
+      const beforeRejected = await activity.getRecord(ad, f.actor, record.id);
+
       for (const id of [foreign.id, crypto.randomUUID()]) {
         await assertRejects(() =>
           activity.updateRecord(
@@ -136,7 +177,7 @@ dbTest(
             recordUpdate.parse({ expected_version: record.version, entity_ids: [id] }),
           )
         );
-        assertEquals(await activity.getRecord(ad, f.actor, record.id), original);
+        assertEquals(await activity.getRecord(ad, f.actor, record.id), beforeRejected);
       }
       const patch = recordUpdate.parse({
         expected_version: record.version,
@@ -159,7 +200,7 @@ dbTest(
         },
       };
       await assertRejects(() => activity.updateRecord(broken, f.actor, record.id, patch));
-      assertEquals(await activity.getRecord(ad, f.actor, record.id), original);
+      assertEquals(await activity.getRecord(ad, f.actor, record.id), beforeRejected);
       const cleared = await activity.updateRecord(ad, f.actor, record.id, patch);
       assertEquals([cleared.entity_ids, cleared.entity_context, cleared.entity_id], [[], [], null]);
       assertEquals(await activity.updateRecord(ad, f.actor, record.id, patch), cleared);

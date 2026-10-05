@@ -83,3 +83,92 @@ httpTest(
     }
   },
 );
+
+httpTest(
+  "all selected task targets flow to completion and occurrences; explicit occurrence selections keep reference records separate",
+  async () => {
+    const session = await signIn("A"), client = await connectMcp(await mcpToken(session));
+    const targets: { id: string; version: number }[] = [], tasks: string[] = [], records: string[] = [];
+    try {
+      for (const title of ["완료 대상", "회차 대상"]) {
+        targets.push(await tool(client, "create_entity", { prop1: title + crypto.randomUUID().slice(0, 8) }));
+      }
+      const ids = targets.map((row) => row.id).sort();
+      const once = await tool(client, "create_task", {
+        kind: "once",
+        title: "공동 실행",
+        summary: "대상 둘",
+        entity_ids: ids,
+      });
+      tasks.push(once.id);
+      const completion = await call(session, "POST", `/tasks/${once.id}/complete`, {
+        expected_version: once.version,
+        title: "실행 결과",
+        summary: "모두 완료",
+        request_id: crypto.randomUUID(),
+      });
+      assertEquals(completion.status, 200);
+      records.push(completion.body.record.id);
+      const completed = await tool(client, "get_record", { id: completion.body.record.id });
+      assertEquals(completed.entity_ids, ids);
+      assertEquals([completed.record_kind, completed.task_id, completed.occurrence_on], ["result", once.id, null]);
+      assertEquals((await tool(client, "get_task", { id: once.id })).result_record_id, completed.id);
+      const repeat = await tool(client, "create_task", {
+        kind: "recurring",
+        title: "공동 반복",
+        summary: "대상 둘",
+        entity_ids: ids,
+        recurrence: { freq: "daily", starts_on: "2020-01-01" },
+        timezone: "Asia/Seoul",
+      });
+      tasks.push(repeat.id);
+      for (
+        const [date, selection, expected] of [["2020-01-01", {}, ids], ["2020-01-02", { entity_ids: [ids[1]] }, [
+          ids[1],
+        ]], ["2020-01-03", { entity_ids: [] }, []]] as const
+      ) {
+        const row = await tool(client, "record_occurrence", {
+          id: repeat.id,
+          date,
+          title: "회차 결과",
+          summary: "수동 기록",
+          ...selection,
+        });
+        records.push(row.id);
+        assertEquals(row.entity_ids, expected);
+        const independent = await call(session, "GET", `/records/${row.id}`);
+        assertEquals(independent.body.entity_ids, expected);
+        assertEquals([independent.body.record_kind, independent.body.task_id, independent.body.occurrence_on], [
+          "result",
+          repeat.id,
+          date,
+        ]);
+      }
+      const reference = await tool(client, "create_record", {
+        title: "독립 참고 자료",
+        summary: "실행과 별도",
+        body: `/tasks/${repeat.id}`,
+        entity_ids: ids,
+      });
+      records.push(reference.id);
+      assertEquals([reference.record_kind, reference.task_id, reference.occurrence_on], ["user", null, null]);
+      const schedule = await tool(client, "list_occurrences", { id: repeat.id, from: "2020-01-01", to: "2020-01-03" });
+      assertEquals(
+        schedule.items.flatMap((item: { record_ids: string[] }) => item.record_ids).sort(),
+        records.slice(1, 4).sort(),
+      );
+      assertEquals((await tool(client, "get_task", { id: repeat.id })).entity_ids, ids);
+    } finally {
+      for (const id of records) {
+        const row = await tool(client, "get_record", { id });
+        await tool(client, "delete_record", { id, expected_version: row.version });
+      }
+      for (const id of tasks) {
+        const row = await tool(client, "get_task", { id });
+        await tool(client, "delete_task", { id, expected_version: row.version });
+      }
+      for (const row of targets) await tool(client, "delete_entity", { id: row.id, expected_version: row.version });
+      await client.close();
+    }
+  },
+);
