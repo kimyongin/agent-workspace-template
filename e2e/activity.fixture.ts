@@ -1,3 +1,4 @@
+import { saveWithMemo } from "./ui-actions.ts";
 import { test, expect } from "@playwright/test";
 import { beginTabAction } from "./ui-actions.ts";
 const id = (n:number) => `00000000-0000-4000-8000-${String(n).padStart(12,"0")}`;
@@ -32,7 +33,7 @@ test("항상 펼친 날짜 병합과 직접 편집 취소/저장이 목록을 �
   await page.getByRole("link",{name:"기록 2 편집",exact:true}).click();
   await page.getByRole("textbox",{name:"제목 (필수)",exact:true}).fill("정정 기록");
   await expect(page.getByLabel("편집 메모",{exact:false})).toHaveValue("");
-  await page.getByRole("button",{name:"저장",exact:true}).click();
+  await saveWithMemo(page, page);
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await expect(page.getByRole("link",{name:"정정 기록",exact:true})).toBeFocused();
   await page.getByRole("link",{name:"정정 기록 보기",exact:true}).click();
@@ -51,6 +52,7 @@ test("할 일 저장 성공 후 조회 실패는 초안 재저장을 요구하�
   const task = () => ({...record(1),kind:"once",status:"open",due_on:null,recurrence:null,timezone:null,result_record:null,version});
   await page.route("http://127.0.0.1:55581/api/**",async route=>{
     const path=new URL(route.request().url()).pathname;
+    if(path.endsWith("/tasks/preview")){await route.fulfill({json:{memo:{title:"할 일 수정",summary:"할 일 제목을 수정",body:"제목 수정"},changed:true}});return;}
     if(path.endsWith(`/tasks/${id(1)}`)) {
       if(route.request().method()==="PATCH"){patches++;version++;fail=true;await route.fulfill({json:task()});return;}
       if(fail){await route.fulfill({status:503,json:{code:"internal",message:"fixture read failure"}});return;}
@@ -61,7 +63,10 @@ test("할 일 저장 성공 후 조회 실패는 초안 재저장을 요구하�
   await page.goto(`/e2e/fixtures/activity.html?route=${encodeURIComponent(`/tasks/${id(1)}?edit=1&edit_from=view`)}`);
   await page.getByRole("textbox",{name:"제목 (필수)",exact:true}).fill("정정한 할 일");
   await page.getByLabel("편집 메모",{exact:false}).fill("검증 정정 이유");
-  await page.getByRole("button",{name:"저장",exact:true}).click();
+  await page.getByRole("button",{name:"기록 메모 확인",exact:true}).click();
+  await expect(page.getByLabel("기록 제목",{exact:false})).toHaveValue("할 일 수정");
+  expect(patches).toBe(0);
+  await page.getByRole("button",{name:"확인하고 저장",exact:true}).click();
   await expect(page.getByText("저장은 완료했습니다. 최신 내용을 불러오지 못했습니다.")).toBeVisible();
   await expect(page.locator("dialog.modal:not(.modal-confirm)[open]")).toHaveCount(1);
   fail=false;
@@ -84,7 +89,7 @@ test("직접 편집의 실패·Escape·확인 취소는 초안을 유지한다",
   const title=page.getByRole("textbox",{name:"제목 (필수)",exact:true});
   await title.fill("보존할 초안");
   await page.getByLabel("편집 메모",{exact:false}).fill("검증 정정 이유");
-  await page.getByRole("button",{name:"저장",exact:true}).click();
+  await saveWithMemo(page, page);
   await expect(page.getByRole("alert")).toContainText("다른 곳에서 수정했습니다.");
   await expect(title).toHaveValue("보존할 초안");
   await title.focus();

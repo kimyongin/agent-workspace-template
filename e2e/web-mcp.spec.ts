@@ -1,4 +1,4 @@
-import { beginTabAction, openDetailEditor } from "./ui-actions.ts";
+import { saveWithMemo, beginTabAction, openDetailEditor } from "./ui-actions.ts";
 // T02-2 완료 조건: 웹 작성 → MCP 조회·완료 → 웹 결과 확인, 그리고 반대 방향.
 import { expect, test } from "@playwright/test";
 import { devLogin, mcpClient, mcpTokenViaConsent, unique } from "./support.ts";
@@ -12,7 +12,7 @@ test("웹에서 만든 할 일을 에이전트가 MCP로 완료하고 웹에서 
   const dialog = page.getByRole("dialog", { name: "할 일 추가" });
   await dialog.getByLabel("제목").fill(title);
   await dialog.getByLabel("요약").fill("다음 주 회의용 초안 3쪽");
-  await dialog.getByRole("button", { name: "추가" }).click();
+  await saveWithMemo(page,dialog,"추가");
   await expect(page.getByRole("heading", { name: title, level: 1 })).toBeVisible();
   const taskUrl = page.url();
 
@@ -94,7 +94,7 @@ test("다른 사용자는 URL을 알아도 남의 할 일을 볼 수 없다", as
   const title = unique("A의 비밀 할 일");
   await dialog.getByLabel("제목").fill(title);
   await dialog.getByLabel("요약").fill("B에게 보이면 안 됨");
-  await dialog.getByRole("button", { name: "추가" }).click();
+  await saveWithMemo(page,dialog,"추가");
   await expect(page.getByRole("heading", { name: title, level: 1 })).toBeVisible();
   const path = new URL(page.url()).pathname;
 

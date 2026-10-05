@@ -1,4 +1,4 @@
-import { openDetailEditor } from "./ui-actions.ts";
+import { saveWithMemo, openDetailEditor } from "./ui-actions.ts";
 import { expect, test } from "@playwright/test";
 import { devLogin, mcpClient, mcpTokenViaConsent, unique } from "./support.ts";
 
@@ -128,7 +128,7 @@ for (
       await openDetailEditor(page);
       await dialog.getByLabel("요약").fill("수정한 근거");
       await dialog.getByLabel("편집 메모").fill("판단 근거 정정");
-      await dialog.getByRole("button", { name: "저장", exact: true }).click();
+      await saveWithMemo(page, dialog);
       await expect(dialog).not.toBeVisible();
       await page.getByRole("button", { name: "닫기", exact: true }).click();
       await expect(link).toBeFocused();
@@ -136,10 +136,7 @@ for (
       await link.click();
       await openDetailEditor(page);
       await page.getByRole("button", { name: "삭제", exact: true }).click();
-      await page.getByRole("dialog", { name: `${label}을 삭제할까요?`, exact: true }).getByRole("button", {
-        name: "삭제",
-        exact: true,
-      }).click();
+      await saveWithMemo(page,page.getByRole("dialog", { name: `${label}을 삭제할까요?`, exact: true }),"삭제");
       await expect(link).toHaveCount(0);
       await expect(page.locator(`.${path} .list .item-title`)).toHaveCount(62);
       ids.delete(target.id);
