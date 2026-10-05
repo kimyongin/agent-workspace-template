@@ -2,7 +2,7 @@ import { assert, assertEquals } from "@std/assert";
 import { admin, call, httpTest, signIn } from "../http/_client.ts";
 import { connectMcp, mcpToken, tool } from "./_mcp.ts";
 httpTest("Entity MCP: 실제 SDK/OAuth CRUD·태그 scope·웹 parity·참조 거부·삭제 보존", async () => {
-  const token = await signIn("A"), client = await connectMcp(await mcpToken(token));
+  const token = await signIn("A"), foreignToken = await signIn("B"), client = await connectMcp(await mcpToken(token));
   try {
     const listed = await client.listTools();
     for (const name of ["list_entities", "get_entity", "create_entity", "update_entity", "delete_entity"]) {
@@ -100,11 +100,38 @@ httpTest("Entity MCP: 실제 SDK/OAuth CRUD·태그 scope·웹 parity·참조 �
     const unlink = updates.find((r) => r.change_metadata.source === "http")!.change_metadata;
     assertEquals(unlink.before.tags[0].name, tag.name);
     assertEquals(unlink.after.tag_ids, []);
+    const task = await tool(client, "create_task", {
+      kind: "once",
+      title: "엔터티 삭제 관계 검증",
+      summary: marker,
+      entity_ids: [e.id],
+    });
     await tool(client, "delete_entity", { id: e.id, expected_version: 4 });
+    const liveTask = await tool(client, "get_task", { id: task.id });
+    assertEquals(liveTask.entity_id, null);
+    assertEquals(liveTask.entity_ids, []);
+    assertEquals((await tool(client, "list_tasks", { entity_id: e.id })).items, []);
     const retained = await tool(client, "get_record", { id: r.id });
     assertEquals(retained.entity_id, null);
+    assertEquals(retained.entity_ids, [e.id]);
+    assertEquals(retained.entity_context, r.entity_context);
+    assertEquals(
+      retained.entity_context.map((context: { id: string; title: string; source: string }) => ({
+        id: context.id,
+        title: context.title,
+        source: context.source,
+      })),
+      [
+        { id: e.id, title: e.prop1, source: "selection" },
+      ],
+    );
     assertEquals(retained.summary, marker);
-    assertEquals((await tool(client, "search", search)).items, []);
+    const preservedSearch = await tool(client, "search", search);
+    assertEquals(preservedSearch.items.map((row: { id: string }) => row.id), [r.id]);
+    assertEquals(preservedSearch, (await call(token, "POST", "/search", search)).body);
+    assertEquals((await call(foreignToken, "GET", `/records/${r.id}`)).status, 404);
+    assertEquals((await call(foreignToken, "POST", "/search", search)).body.items, []);
+    await tool(client, "delete_task", { id: task.id, expected_version: liveTask.version });
   } finally {
     await client.close();
   }
