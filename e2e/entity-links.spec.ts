@@ -56,6 +56,7 @@ test("web occurrence defaults preserve both task targets rather than the legacy 
   try {
     const task = await mcp.call("create_task", { kind: "recurring", title: label, summary: "두 대상의 회차", entity_ids: ids, recurrence: { freq: "daily", starts_on: date }, timezone: "UTC" }); taskId = task.id;
     await page.goto(`/tasks/${task.id}`);
+    await openDetailEditor(page);
     await page.getByRole("button", { name: `${date} 회차 기록`, exact: true }).click();
     const form = page.getByRole("dialog", { name: `${date} 회차 기록`, exact: true });
     for (const target of targets) await expect(form.getByRole("checkbox", { name: target.prop1, exact: true })).toBeChecked();

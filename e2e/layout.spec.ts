@@ -1,4 +1,4 @@
-import { beginTabAction } from "./ui-actions.ts";
+import { beginTabAction, saveWithMemo } from "./ui-actions.ts";
 // 디자인 가이드의 화면 검수 중 자동으로 확인할 수 있는 항목(docs/design/guide.md "화면 완료 체크리스트").
 // 화면 폭별 가로 넘침, 조작 영역 44px, 200% 확대(폭 절반), 키보드만으로 작성·닫기, 대화상자 초점.
 import { expect, type Page, test } from "@playwright/test";
@@ -40,7 +40,7 @@ test.describe("화면 폭별 배치", () => {
     const longTitle = unique("가".repeat(40) + "공백없는긴제목");
     await dialog.getByLabel("제목").fill(longTitle);
     await dialog.getByLabel("요약").fill("https://example.com/" + "a".repeat(120));
-    await dialog.locator('button[type="submit"]').click();
+    await saveWithMemo(page, dialog, "추가");
     // 목록의 h1이 아니라 만든 할 일의 상세 화면이 뜰 때까지 기다린다(모달 뒤 목록 h1도 보이는 것으로 판정됨).
     await expect(page.getByRole("heading", { name: longTitle, level: 1 })).toBeVisible();
     const taskDetail = page.url();
@@ -131,12 +131,21 @@ test("키보드만으로 할 일을 만들고, 미저장 내용이 있으면 닫
   await page.keyboard.press("Enter");
   await expect(dialog.getByLabel("제목")).toHaveValue("키보드 할 일");
 
-  // 요약을 채우고 제목 칸에서 Enter(브라우저의 기본 제출)로 저장한다.
+  // 요약을 채우고 제목 칸에서 Enter로 기본 메모를 확인한 뒤 키보드로 확정한다.
   const title = unique("키보드 할 일");
   await dialog.getByLabel("제목").fill(title);
   await dialog.getByLabel("요약").focus();
   await page.keyboard.type("키보드로 만든 할 일");
   await dialog.getByLabel("제목").focus();
+  await page.keyboard.press("Enter");
+  await expect(dialog.getByRole("region", { name: "저장할 기록 메모" })).toBeVisible();
+  await expect(dialog.getByLabel(/^제목/)).toHaveValue(title);
+  // 메모 확인은 아직 저장하지 않으며 초점은 대화상자 안에 남는다.
+  await expect(dialog).toBeVisible();
+  expect(await page.evaluate(() => !!document.activeElement?.closest("dialog[open]"))).toBe(true);
+  const commit = dialog.getByRole("button", { name: "확인하고 저장", exact: true });
+  await expect(commit).toBeEnabled();
+  await commit.focus();
   await page.keyboard.press("Enter");
   await expect(page.getByRole("heading", { name: title, level: 1 })).toBeVisible();
 });
