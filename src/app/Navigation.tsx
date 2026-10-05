@@ -6,7 +6,8 @@ import { ProfileIcon } from "../features/settings/profile.tsx";
 import { navigationSection } from "./navigation-section.ts";
 const entries = [
   ["entities", "/entities", "엔터티", "M3 3h7v7H3ZM14 3h7v7h-7ZM3 14h7v7H3ZM14 14h7v7h-7Z"],
-  ["activity", "/tasks", "활동", "m3 12 3 3 5-6M14 6h7M14 12h7M14 18h7"],
+  ["tasks", "/tasks", "할 일", "m3 12 3 3 5-6M14 6h7M14 12h7M14 18h7"],
+  ["records", "/records", "기록", "M5 3h14v18H5ZM8 7h8M8 11h8M8 15h5"],
   ["principles", "/principles", "원칙", "M5 3h14v18H5ZM8 7h8M8 11h8M8 15h5"],
 ] as const;
 export function Navigation() {

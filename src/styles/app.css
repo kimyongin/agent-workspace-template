@@ -80,7 +80,7 @@ html { scroll-padding-bottom: calc(var(--navigation-height) + env(safe-area-inse
   max-width: 72rem;
   margin: 0 auto;
   display: grid;
-  grid-template-columns: 44px repeat(3, minmax(0, 1fr)) 44px;
+  grid-template-columns: 44px repeat(4, minmax(44px, 1fr)) 44px;
   gap: var(--space-1);
 }
 .bottom-nav-inner > a, .nav-more-trigger { justify-content: center; padding: 0 var(--space-1); }
