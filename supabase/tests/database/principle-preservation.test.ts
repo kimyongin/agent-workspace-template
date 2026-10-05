@@ -1,6 +1,6 @@
 import { assert, assertEquals, assertRejects } from "@std/assert";
 import { asUser, connect, dbTest, fixtureOwner, urls } from "./_db.ts";
-import { recordUpdate } from "../../functions/_shared/contracts/record.ts";
+import { appliedPrincipleSnapshot, recordResult, recordUpdate } from "../../functions/_shared/contracts/record.ts";
 import { entityCreate } from "../../functions/_shared/contracts/entity.ts";
 import { taskCreate } from "../../functions/_shared/contracts/task.ts";
 import { recordCreate } from "../../functions/_shared/contracts/record.ts";
@@ -62,12 +62,16 @@ dbTest(
       const body = "😀".repeat(19999) + "끝";
       const [source] = await admin`insert into app.principles(owner_id,title,summary,body,is_current,origin,saved_at)
       values(${f.actor.userId},'원본 원칙','원본 요약',${body},true,'legacy','2020-01-02T00:00:00Z') returning id`;
-      const snapshots = [{
+      const snapshots = [appliedPrincipleSnapshot.parse({
+        id: source.id,
         title: "당시 제목",
         summary: "당시 요약",
         body: "실제 적용 당시 본문",
+        version: 1,
+        status: "active",
+        saved_at: "2020-01-02T00:00:00.000Z",
         captured_at: "application",
-      }];
+      })];
       const [decision] =
         await admin`insert into app.records(owner_id,entity_id,title,summary,body,occurred_at,applied_principle_snapshots)
       values(${f.actor.userId},${first.id},'당시 판단','판단 요약','판단 내용','2021-02-03T00:00:00Z',${
@@ -105,7 +109,15 @@ dbTest(
       const found = await search(sd, f.actor, query);
       assert(found.items.some((row) => row.id === parts.find((r) => r.source_kind === "record_principle_context")!.id));
       assertEquals((await search(sd, other.actor, query)).items, []);
-      assertEquals((await activity.getRecord(ad, f.actor, decision.id)).applied_principle_snapshots, snapshots);
+      const decisionRead = recordResult.parse(await activity.getRecord(ad, f.actor, decision.id));
+      assertEquals(decisionRead.applied_principle_snapshots, snapshots);
+      assertEquals(decisionRead.applied_principles, [{
+        id: source.id,
+        title: "당시 제목",
+        status: "active",
+        version: 1,
+        updated_at: "2020-01-02T00:00:00.000Z",
+      }]);
       assertEquals((await activity.getRecord(ad, f.actor, decision.id)).entity_ids, [first.id]);
       assertEquals((await activity.getTask(ad, f.actor, legacyTask.id)).entity_ids, [first.id]);
       assertEquals((await activity.getTask(ad, f.actor, unlinked.id)).entity_ids, []);
