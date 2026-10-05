@@ -1,6 +1,6 @@
 import { useCreateMode } from "../../components/useCreateMode.ts";
 import { useEffect, useState } from "react";
-import { Link, useSearchParams } from "react-router";
+import { Link, useLocation, useSearchParams } from "react-router";
 import { PrincipleFormModal, emptyPrinciple } from "./forms.tsx";
 import { Notice } from "../../components/Field.tsx";
 import { MarkdownContent } from "../../components/MarkdownContent.tsx";
@@ -12,6 +12,8 @@ import "../activity/activity.css";
 import { TabActions } from "../../components/TabActions.tsx";
 export function PrinciplesPage() {
   const create=useCreateMode();
+  const location=useLocation();
+  useEffect(()=>{if(location.hash==="#principles-title")document.getElementById("principles-title")?.focus();},[location.key]);
   const [params]=useSearchParams(), request=useRequestId();
   useEffect(()=>{if(create.open)request.renew();},[create.open,create.key]);
   const [current,setCurrent]=useState<WorkspacePrinciple|null|undefined>(undefined),[error,setError]=useState<string|null>(null),[retry,setRetry]=useState(0);
@@ -20,7 +22,7 @@ export function PrinciplesPage() {
     return()=>controller.abort();},[retry]);
   return <><section className="panel" aria-labelledby="principles-title">
     <div className="panel-head"><h1 id="principles-title" className="page-title" tabIndex={-1}>원칙</h1>
-      <TabActions title="원칙" actions={error||current===undefined?[]:current===null?[{label:"원칙 작성",run:create.begin}]:[{label:"현재 원칙 편집",to:`/principles/${current.id}?edit=1&list=${encodeURIComponent("/principles")}`},{label:"현재 원칙 보기",to:`/principles/${current.id}?list=${encodeURIComponent("/principles")}`}]}/>
+      <TabActions title="원칙" actions={error||current===undefined?[]:current===null?[{label:"원칙 작성",run:create.begin}]:[{label:"현재 원칙 편집",to:`/principles/${current.id}?edit=1&list=${encodeURIComponent("/principles#principles-title")}`},{label:"현재 원칙 보기",to:`/principles/${current.id}?list=${encodeURIComponent("/principles#principles-title")}`}]}/>
     </div>
     <p className="help">현재 판단 기준은 이 문서에서 확인하고 과거 내용과 이유는 기록에서 찾습니다.</p><Link to="/records">과거 근거는 통합 기록에서 보기</Link>
     </section><section className="activity-section" aria-label="현재 원칙">
