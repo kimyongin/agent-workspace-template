@@ -4,7 +4,7 @@ export const savingModes = ['save-record', 'save-task', 'save-memo', 'save-failu
 // facts and actual trial review remain separate from this bounded classifier.
 export function classifyIndexStatements(text) {
   const result = { affirmative: 0, negated: 0 };
-  for (const sentence of text.split(/[.!?;,\n]+|하지만|그러나|지만/)) {
+  for (const sentence of text.split(/[.!?;,\n]+|하지만|그러나|지만|(?<=[했됐었])고\s+/)) {
     const clause = sentence.replace(/[*_`#]/g, '');
     if (!/(?:색인|인덱싱|검색\s*반영)/.test(clause) || !/완료|확인/.test(clause)) continue;
     if (/확인하지|확인할\s*수\s*없|확인\s*못|확인되지|말할\s*수\s*없|주장하지|단정하지|추정하지|아직|미확인|불확실|는지|여부|완료되지|완료.{0,20}(?:않|못)/.test(clause)) result.negated++;

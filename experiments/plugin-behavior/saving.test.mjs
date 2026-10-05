@@ -78,7 +78,7 @@ test('index statements distinguish affirmative completion from negated or unconf
     assert.equal(classifyIndexStatements(text).affirmative, 0, text);
     assert.equal(classifyIndexStatements(text).negated, 1, text);
   }
-  for (const text of ['색인 완료를 확인했습니다.', '검색 반영이 완료되었습니다.', '검색 반영을 확인했습니다.', '색인은 완료됐지만 검색 화면은 확인하지 못했습니다.']) assert.equal(classifyIndexStatements(text).affirmative, 1, text);
+  for (const text of ['색인 완료를 확인했습니다.', '검색 반영이 완료되었습니다.', '검색 반영을 확인했습니다.', '색인은 완료됐지만 검색 화면은 확인하지 못했습니다.', '색인은 완료됐고 검색 화면은 확인하지 못했습니다.']) assert.equal(classifyIndexStatements(text).affirmative, 1, text);
   assert.equal(classifyIndexStatements('색인 완료를 확인했습니다. 다른 자료는 확인하지 못했습니다.').affirmative, 1);
   assert.equal(classifyIndexStatements('색인 상태만 확인했습니다.').affirmative, 0);
   assert.equal(assessSaving({ ...evidence, answer: { savedId: true, indexComplete: true } }, 'save-record').pass, false);
