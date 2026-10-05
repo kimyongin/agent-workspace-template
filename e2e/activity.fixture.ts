@@ -105,23 +105,14 @@ test("직접 편집의 실패·Escape·확인 취소는 초안을 유지한다",
   await expect(page.locator(`#activity-records-${id(1)}`)).toBeFocused();
 });
 
-test("원칙 추가 페이지 직접 편집 취소는 필터·페이지·초점을 보존한다", async ({page}) => {
-  const p=(n:number)=>({...record(n),title:`원칙 ${n}`,is_current:false,saved_at:"2026-10-04T00:00:00Z",change_note:"과거 메모",origin:"saved",legacy_context:null});
-  await page.route("http://127.0.0.1:55581/api/**",async route=>{
-    const url=new URL(route.request().url());
-    let data:unknown={items:[],next_cursor:null};
-    if(url.pathname.endsWith("/principles/current"))data={current:null};
-    if(url.pathname.endsWith("/principles"))data=url.searchParams.has("cursor")?{items:[p(1),p(2)],next_cursor:null}:{items:[p(1)],next_cursor:"next"};
-    if(url.pathname.endsWith(`/principles/${id(2)}`))data=p(2);
-    await route.fulfill({json:data});
-  });
+test("현재 원칙 편집 취소는 원칙 화면·초점을 복원하고 과거 근거는 기록에서 찾는다",async({page})=>{
+  const item={...record(1),title:"현재 기준",is_current:true,saved_at:"2026-10-04T00:00:00Z",origin:"saved",legacy_context:null};
+  await page.route("http://127.0.0.1:55581/api/**",route=>route.fulfill({json:new URL(route.request().url()).pathname.endsWith("/principles/current")?{current:item}:item}));
   await page.goto("/e2e/fixtures/activity.html?route=/principles");
-  await page.getByRole("button",{name:"더 보기",exact:true}).click();
-  await expect(page.getByRole("link",{name:"원칙 1",exact:true})).toHaveCount(1);
-  await page.getByRole("link",{name:"원칙 2 정정",exact:true}).click();
+  await page.getByRole("button",{name:"원칙 작업 메뉴"}).click();await page.getByRole("link",{name:"현재 원칙 편집",exact:true}).click();
   await page.getByRole("button",{name:"닫기",exact:true}).click();
-  await expect(page).toHaveURL(/\/principles\?pages=2/);
-  await expect(page.locator(`#principle-${id(2)}`)).toBeFocused();
+  await expect(page).toHaveURL(/principles#principles-title$/);await expect(page.locator("#principles-title")).toBeFocused();
+  await expect(page.getByRole("link",{name:"과거 근거는 통합 기록에서 보기"})).toHaveAttribute("href","/records");
 });
 
 test("긴 제목·태그와 편집 조작은 대표 폭에서 읽기 순서와 누름 영역을 유지한다", async ({page},testInfo) => {
@@ -219,10 +210,11 @@ for (const [routePath, createLabel] of [["/records","기록 작성"],["/tasks","
 }
 for (const kind of ["records","tasks","principles"]) {
   test(`직접 편집 ${kind} 라우트 버리기는 목록 복귀 대신 요청한 상세 조건으로 이동한다`,async({page})=>{
-    const item={...record(1),kind:"once",status:kind==="principles"?"active":"open",due_on:null,recurrence:null,timezone:null,result_record:null,is_current:false,saved_at:"2026-10-04T00:00:00Z",change_note:"과거 메모",origin:"saved",legacy_context:null};
-    await page.route("http://127.0.0.1:55581/api/**",route=>route.fulfill({json:new URL(route.request().url()).pathname.endsWith("/principles/current")?{current:null}:new URL(route.request().url()).pathname.endsWith(`/${kind}/${id(1)}`)?item:{items:[item],next_cursor:null}}));
+    const item={...record(1),kind:"once",status:kind==="principles"?"active":"open",due_on:null,recurrence:null,timezone:null,result_record:null,is_current:true,saved_at:"2026-10-04T00:00:00Z",change_note:"과거 메모",origin:"saved",legacy_context:null};
+    await page.route("http://127.0.0.1:55581/api/**",route=>route.fulfill({json:new URL(route.request().url()).pathname.endsWith("/principles/current")?{current:item}:new URL(route.request().url()).pathname.endsWith(`/${kind}/${id(1)}`)?item:{items:[item],next_cursor:null}}));
     await page.goto(`/e2e/fixtures/activity.html?route=/${kind}`);
-    await (kind==="principles"?page:page.locator(`.${kind}`)).getByRole("link",{name:kind==="principles"?"기록 1 정정":"기록 1 편집",exact:true}).click();
+    if(kind==="principles")await page.getByRole("button",{name:"원칙 작업 메뉴"}).click();
+    await (kind==="principles"?page:page.locator(`.${kind}`)).getByRole("link",{name:kind==="principles"?"현재 원칙 편집":"기록 1 편집",exact:true}).click();
     const title=page.getByRole("textbox",{name:"제목 (필수)",exact:true});
     await title.fill("상세 이동 초안");
     await page.getByRole("link",{name:"fixture 같은 화면 조건 이동"}).evaluate((el:HTMLAnchorElement)=>el.click());
@@ -275,10 +267,11 @@ for(const kind of ["records","tasks"]){
 }
 for(const kind of ["records","tasks","principles"]){
   test(`${kind} 한 글자 제목도 모든 폭에서44px 조작 영역을 유지한다`,async({page})=>{
-    const item={...record(1),saved_at:"2026-10-03T16:00:00Z",title:"함",kind:"once",status:kind==="principles"?"active":"open",due_on:null,recurrence:null,timezone:null,result_record:null,applies_when:"판단할 때",replaced_by_id:null};
-    await page.route("http://127.0.0.1:55581/api/**",route=>route.fulfill({json:new URL(route.request().url()).pathname.endsWith("/principles/current")?{current:null}:{items:[item],next_cursor:null}}));
+    const item={...record(1),is_current:true,origin:"saved",legacy_context:null,saved_at:"2026-10-03T16:00:00Z",title:"함",kind:"once",status:kind==="principles"?"active":"open",due_on:null,recurrence:null,timezone:null,result_record:null,applies_when:"판단할 때",replaced_by_id:null};
+    await page.route("http://127.0.0.1:55581/api/**",route=>route.fulfill({json:new URL(route.request().url()).pathname.endsWith("/principles/current")?{current:item}:{items:[item],next_cursor:null}}));
     await page.goto(`/e2e/fixtures/activity.html?route=/${kind}`);
-    const title=(kind==="principles"?page:page.locator(`.${kind}`)).getByRole("link",{name:"함",exact:true});
+    if(kind==="principles")await page.getByRole("button",{name:"원칙 작업 메뉴"}).click();
+    const title=(kind==="principles"?page:page.locator(`.${kind}`)).getByRole("link",{name:kind==="principles"?"현재 원칙 보기":"함",exact:true});
     await expect(title).toBeVisible();
     for(const width of [320,360,390,639,640,768,1024,1440]){
       await page.setViewportSize({width,height:900});

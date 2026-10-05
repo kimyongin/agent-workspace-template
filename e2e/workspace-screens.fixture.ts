@@ -92,7 +92,7 @@ for(const [kind,label,submit] of [["task","관련 할 일 추가","추가"],["re
 test("엔터티 create/edit 복합 직접 링크는 연결 작성 한 폼만 연다",async({page})=>{
   const state=await fixtures(page);await go(page,`/entities/${id(1)}?create=task&edit=1`);
   await expect(form(page)).toHaveCount(1);await expect(form(page).getByRole("textbox",{name:/^제목(?: \(필수\))?$/})).toBeVisible();await expect(form(page).getByLabel("속성 1",{exact:false})).toHaveCount(0);
-  await fillText(page,"연결 작성 한 번");await saveWithMemo(page, form(page), "추가");await expect.poll(()=>state.writes.length).toBe(1);expect(state.writes[0].body.entity_id).toBe(id(1));expect(state.errors).toEqual([]);
+  await fillText(page,"연결 작성 한 번");await saveWithMemo(page, form(page), "추가");await expect.poll(()=>state.writes.length).toBe(1);expect(state.writes[0].body.entity_ids).toEqual([id(1)]);expect(state.errors).toEqual([]);
 });
 
 for(const [kind,label] of [["task","관련 할 일 추가"],["record","기록 작성"]] as const) test(`엔터티 연결 ${kind}: 취소·폐기 승인은 작성 URL을 닫고 reload는 읽기`,async({page})=>{
@@ -181,7 +181,7 @@ test("엔터티 관련 작성은 URL·뒤로가기 초안 보호·reload·같은
   await form(page).getByRole("button",{name:"관련 할 일 추가",exact:true}).click();await expect(page).toHaveURL(/create=task/);await expect(form(page)).toHaveCount(1);
   await fillText(page,"연결 업무");await page.goBack();const confirm=page.getByRole("dialog",{name:"변경을 버릴까요?"});await confirm.getByRole("button",{name:"취소",exact:true}).click();
   await expect(form(page).getByRole("textbox",{name:/^제목(?: \(필수\))?$/})).toHaveValue("연결 업무");await saveWithMemo(page, form(page), "추가");
-  await expect(page).not.toHaveURL(/create=/);expect(state.writes[0].body.entity_id).toBe(id(1));await expect(form(page)).toContainText("할 일을 추가했습니다.");
+  await expect(page).not.toHaveURL(/create=/);expect(state.writes[0].body.entity_ids).toEqual([id(1)]);await expect(form(page)).toContainText("할 일을 추가했습니다.");
   await form(page).getByRole("button",{name:"기록 작성",exact:true}).click();await page.reload();await expect(form(page).getByRole("textbox",{name:/^제목(?: \(필수\))?$/})).toHaveValue("");
   expect(state.errors).toEqual([]);
 });
@@ -204,7 +204,7 @@ test("반복 중단·재개 메모·결과 생성은 같은 surface",async({page
 
 const stamp="2026-10-04T03:00:00Z", id=(n:number)=>`00000000-0000-4000-8000-${String(n).padStart(12,"0")}`;
 test("연결 엔터티 범위: 전체 링크·양쪽 조회·검색 조건·본문 왕복·해제",async({page})=>{
-  const state=await fixtures(page);for(const kind of ["tasks","records"]){state.rows[kind][0].entity_id=id(1);}
+  const state=await fixtures(page);for(const kind of ["tasks","records"]){state.rows[kind][0].entity_id=id(1);state.rows[kind][0].entity_ids=[id(1)];state.rows[kind][0].entity_context=[{id:id(1),title:"엔터티",state:"current"}];}
   const reads:{kind:string;params:URLSearchParams}[]=[];
   for(const kind of ["tasks","records"])await page.route(`**/api/${kind}?**`,route=>{const params=new URL(route.request().url()).searchParams;reads.push({kind,params});return route.fulfill({json:{items:state.rows[kind].filter(row=>!params.has("entity_id")||row.entity_id===params.get("entity_id")),next_cursor:null}});});
   await go(page,`/entities/${id(1)}`);const full=form(page).getByRole("link",{name:"전체 할 일 보기",exact:true});await expect(full).toHaveAttribute("href",`/tasks?entity_id=${id(1)}`);await full.click();await expect(page.getByText("연결된 엔터티: 엔터티",{exact:true})).toBeVisible();expect(new URL(page.url()).searchParams.get("entity_id")).toBe(id(1));await expect.poll(()=>reads.length).toBe(2);expect(reads.every(read=>read.params.get("entity_id")===id(1))).toBe(true);
@@ -262,8 +262,8 @@ for(const width of [390,1440])test(`긴 GFM 표 ${width}px: 표 안 가로 스�
   const state=await fixtures(page),cells=Array.from({length:40},(_,i)=>`열${i} 긴값`),row="|"+cells.join("|")+"|";state.rows.records[0].body=row+"\n|"+cells.map(()=>"---").join("|")+"|\n"+row+"\n\n- [ ] 읽기 항목\n\n"+"아래 본문\n\n".repeat(30);await page.setViewportSize({width,height:800});await go(page,`/records/${id(3)}`);const table=form(page).getByRole("table");await expect(table).toBeVisible();await expect(table.getByRole("columnheader")).toHaveCount(40);expect(await table.evaluate(el=>el.scrollWidth>el.clientWidth)).toBe(true);expect(await table.evaluate(el=>getComputedStyle(el).scrollbarWidth)).toBe("none");await table.hover();await page.mouse.wheel(300,0);await expect.poll(()=>table.evaluate(el=>el.scrollLeft)).toBeGreaterThan(0);await expect(form(page).getByRole("checkbox")).toBeDisabled();expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);await page.screenshot({path:info.outputPath(`table-${width}.png`)});expect(state.writes).toHaveLength(0);expect(state.errors).toEqual([]);
 });
 const entity=(n=1)=>({...base(n,"엔터티"),prop1:"엔터티",prop2:0,prop3:null,prop4:"a",tag_ids:[],tasks:{count:0,items:[]},records:{count:0,items:[]},principles:{count:0,items:[]}});
-const task=(n=2)=>({...base(n,"할 일"),kind:"once",status:"open",due_on:null,recurrence:null,timezone:null,result_record:null,completed_at:null,result_record_id:null,pauses:[],tag_ids:[],entity_id:null,occurrence:null});
-const record=(n=3)=>({...base(n,"기록"),record_kind:"user",change_note:null,change:null,occurred_at:stamp,task_id:null,occurrence_on:null,tag_ids:[],entity_id:null,applied_principle_ids:[],applied_principles:[],applied_principle_snapshots:[]});
+const task=(n=2)=>({...base(n,"할 일"),kind:"once",status:"open",due_on:null,recurrence:null,timezone:null,result_record:null,completed_at:null,result_record_id:null,pauses:[],tag_ids:[],entity_id:null,entity_ids:[],entity_context:[],occurrence:null});
+const record=(n=3)=>({...base(n,"기록"),record_kind:"user",change_note:null,change:null,occurred_at:stamp,task_id:null,occurrence_on:null,tag_ids:[],entity_id:null,entity_ids:[],entity_context:[],applied_principle_ids:[],applied_principles:[],applied_principle_snapshots:[]});
 const principle=(n=4,current=true)=>({...base(n,current?"현재 기준":"과거 기준"),is_current:current,saved_at:stamp,change_note:"당시 저장 이유",origin:"saved",legacy_context:null});
 type Row=ReturnType<typeof base>&Record<string,unknown>;
 async function fixtures(page:Page, options:{long?:boolean;emptyPrinciple?:boolean;failWrite?:"unknown"|"conflict";hold?:boolean}={}) {
@@ -334,7 +334,13 @@ test("원칙: 최초 등록·같은 ID 편집·삭제 뒤 없음·기록으로 �
   await expect(page.getByRole("link",{name:"과거 근거는 통합 기록에서 보기"})).toHaveAttribute("href","/records");expect(state.errors).toEqual([]);
 });
 
-for (const selected of [false, true]) test(`기록: 원칙 ${selected ? "선택 해제는 snapshot 삭제" : "삭제 뒤 설명 정정은 snapshot 보존"}`, async ({page}) => {
+test("새 기록은 원칙 연관키 선택 없이 본문 근거를 저장한다",async({page})=>{
+  const state=await fixtures(page);await go(page,"/records?create=1");await fillText(page,"독립 기록");
+  await expect(form(page).getByText("적용한 원칙",{exact:true})).toHaveCount(0);
+  await saveWithMemo(page,form(page));expect(state.writes[0].body).not.toHaveProperty("applied_principle_ids");
+  expect(state.errors).toEqual([]);
+});
+for (const selected of [false,true]) test(`기록: 옛 원칙 키 ${selected?"있음":"없음"} 설명 정정은 snapshot 보존`, async ({page}) => {
   const state = await fixtures(page), r = state.rows.records[0];
   Object.assign(r, {applied_principle_ids:selected ? [id(4)] : [], applied_principle_snapshots:[
     {id:id(4),title:"당시 기준",body:"보존할 당시 본문",summary:"당시 요약",version:1,saved_at:stamp,captured_at:"application",status:"active"}
@@ -348,19 +354,14 @@ for (const selected of [false, true]) test(`기록: 원칙 ${selected ? "선택 
   });
   await go(page,`/records/${r.id}?edit=1&edit_from=view`);await expect(form(page)).toContainText("보존할 당시 본문");
   await compatibleEdit(page);
-  if(selected) await form(page).getByRole("button",{name:"현재 기준 (선택한 저장본)",exact:true}).click();
+  await expect(form(page).getByText("적용한 원칙",{exact:true})).toHaveCount(0);
   await form(page).getByRole("textbox",{name:/^요약(?: \(필수\))?$/}).fill("설명 정정");
   await form(page).getByLabel("편집 메모",{exact:false}).fill("당시 판단을 유지한 설명 정정");
   await saveWithMemo(page, form(page));
   await expect.poll(()=>r.version).toBe(2);await expect(page).not.toHaveURL(/[?&]edit=/);await expect(form(page).getByRole("heading",{name:r.title,exact:true})).toBeVisible();await compatibleEdit(page);
   expect(state.writes).toHaveLength(1);
-  if(selected) {
-    expect(state.writes[0].body.applied_principle_ids).toEqual([]);
-    await expect(form(page)).not.toContainText("보존할 당시 본문");
-  } else {
-    expect(state.writes[0].body).not.toHaveProperty("applied_principle_ids");
-    await expect(form(page)).toContainText("보존할 당시 본문");
-  }
+  expect(state.writes[0].body).not.toHaveProperty("applied_principle_ids");
+  await expect(form(page)).toContainText("보존할 당시 본문");
   expect(state.errors).toEqual([]);
 });
 
