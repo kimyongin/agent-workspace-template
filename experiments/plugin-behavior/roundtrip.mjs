@@ -84,8 +84,8 @@ export function roundtripPrompt(mode, f) {
   const request = {
     'roundtrip-entity': `대상의 속성 2만 7에서 11로 바꾸고 다른 속성은 보존해 줘. 변경 기록의 최종 메모 본문은 "${f.roundtrip.intent.memoBody}"로 남겨 줘.`,
     'roundtrip-task': `이 대상에 일회성 할 일 하나를 등록해 줘. 제목은 "${f.marker}-task", 요약은 "${f.roundtrip.intent.summary}", 본문은 "${f.roundtrip.intent.body}"로 해 줘. 이번에는 등록만 하고 완료하지 마.`,
-    'roundtrip-task-read': `완료한 할 일 ${f.task?.id}와 그 결과 기록의 원문을 살펴보고 할 일의 상태와 결과 본문 전체, 각각 다시 열 수 있는 식별 정보를 알려 줘. 저장은 하지 마.`,
-    'roundtrip-principle-read': `지금 판단 기준과 ${f.originalDetail}가 있는 과거 기록 원문을 비교해 줘. 현재 원칙과 과거 기록을 구분하여 각각 원문 식별 정보와 그 자료의 수치 조건을 함께 설명해 줘. 저장은 하지 마.`,
+    'roundtrip-task-read': `완료한 할 일 ${f.task?.id}와 그 결과 기록의 원문을 살펴보고 상태와 결과 본문, 다시 열 수 있는 식별 정보를 알려 줘. 저장은 하지 마.`,
+    'roundtrip-principle-read': `지금 판단 기준과 ${f.originalDetail}가 있는 과거 기록 원문을 비교해 줘. 각각 어떤 수치 조건인지 설명하고 다시 열 수 있는 식별 정보를 알려 줘. 저장은 하지 마.`,
   }[mode];
   if (!request) throw new Error('Unknown roundtrip native phase');
   return context + request + ' 요청한 것 외에는 변경하지 마. 검색 반영을 확인하지 못했다면 완료로 추정하지 마.';
