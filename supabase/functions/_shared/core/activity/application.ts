@@ -14,6 +14,9 @@ import type {
 import type { Actor } from "../shared/actor.ts";
 import { conflict, invalidInput, notFound } from "../shared/errors.ts";
 import { changed } from "../shared/changes.ts";
+import type { ChangeMemo } from "../../contracts/change.ts";
+import { basicChangeMemo } from "../shared/change-memo.ts";
+import type { TaskChangePreview } from "../../contracts/task-change.ts";
 import { decodeCursor, once, type Page, paginate, scopeOf, searchInputHash } from "../shared/operations.ts";
 import {
   assertRecordableOccurrence,
@@ -64,6 +67,46 @@ async function requireRecord(store: ActivityStore, id: string, forUpdate = false
 }
 
 // ---------- 할 일 ----------
+export async function previewTaskChange(deps: ActivityDeps, actor: Actor, input: TaskChangePreview) {
+  return await deps.uow.run(actor, async (store) => {
+    if (input.action === "create") {
+      return {
+        memo: basicChangeMemo({ action: "create", before: null, after: newTask(input.input as TaskCreate) }),
+        changed: true,
+      };
+    }
+    const task = await requireTask(store, input.id);
+    assertVersion(task, input.input.expected_version as number);
+    const now = deps.clock.now();
+    if (input.action === "complete" || input.action === "occurrence") {
+      if (input.action === "complete") decideComplete(task, input.input.expected_version as number, now);
+      else assertRecordableOccurrence(task, input.date!, now);
+      const title = `${Array.from(task.title).slice(0, 85).join("")} 수행 결과`;
+      return {
+        memo: {
+          title,
+          summary: title,
+          body: `할 일: ${task.title}${
+            input.action === "occurrence" ? `\n회차: ${input.date}` : ""
+          }\n실제로 수행한 내용과 결과를 보충하세요.`,
+        },
+        changed: true,
+      };
+    }
+    const after = input.action === "delete" ? null : {
+      ...task,
+      ...(input.action === "update"
+        ? decideUpdate(task, input.input as TaskUpdate)
+        : input.action === "stop"
+        ? decideStop(task, input.input.expected_version as number, now)
+        : decideResume(task, input.input.expected_version as number, now)),
+    };
+    return {
+      memo: basicChangeMemo({ action: input.action as "update" | "delete" | "stop" | "resume", before: task, after }),
+      changed: after === null || changed(task, after),
+    };
+  });
+}
 
 export async function createTask(deps: ActivityDeps, actor: Actor, input: TaskCreate): Promise<TaskResult> {
   return await deps.uow.run(actor, (store) =>
@@ -76,6 +119,7 @@ export async function createTask(deps: ActivityDeps, actor: Actor, input: TaskCr
         before: null,
         after: task,
         change_note: input.change_note,
+        change_memo: input.change_memo,
       });
       return toTaskResult(task);
     }));
@@ -150,6 +194,7 @@ export async function updateTask(deps: ActivityDeps, actor: Actor, id: string, p
         before: task,
         after: updated,
         change_note: patch.change_note,
+        change_memo: patch.change_memo,
       });
       return toTaskResult(updated);
     }));
@@ -194,16 +239,24 @@ export async function deleteTask(
   expectedVersion: number,
   change_note?: string,
   request_id?: string,
+  change_memo?: ChangeMemo,
 ): Promise<void> {
   await deps.uow.run(
     actor,
     (store) =>
-      once(store, `delete_task:${id}`, request_id, { expectedVersion, change_note }, async () => {
+      once(store, `delete_task:${id}`, request_id, { expectedVersion, change_note, change_memo }, async () => {
         const task = await requireTask(store, id, true);
         assertVersion(task, expectedVersion);
         await store.detachRecords(id);
         await store.deleteTask(id);
-        await store.appendChange({ target_kind: "task", action: "delete", before: task, after: null, change_note });
+        await store.appendChange({
+          target_kind: "task",
+          action: "delete",
+          before: task,
+          after: null,
+          change_note,
+          change_memo,
+        });
         return { deleted: true };
       }),
   );
@@ -216,14 +269,22 @@ export async function stopTask(
   expectedVersion: number,
   change_note?: string,
   request_id?: string,
+  change_memo?: ChangeMemo,
 ) {
   return await deps.uow.run(
     actor,
     (store) =>
-      once(store, `stop_task:${id}`, request_id, { expectedVersion, change_note }, async () => {
+      once(store, `stop_task:${id}`, request_id, { expectedVersion, change_note, change_memo }, async () => {
         const task = await requireTask(store, id, true);
         const result = await store.updateTask(id, decideStop(task, expectedVersion, deps.clock.now()));
-        await store.appendChange({ target_kind: "task", action: "stop", before: task, after: result, change_note });
+        await store.appendChange({
+          target_kind: "task",
+          action: "stop",
+          before: task,
+          after: result,
+          change_note,
+          change_memo,
+        });
         return toTaskResult(result);
       }),
   );
@@ -236,14 +297,22 @@ export async function resumeTask(
   expectedVersion: number,
   change_note?: string,
   request_id?: string,
+  change_memo?: ChangeMemo,
 ) {
   return await deps.uow.run(
     actor,
     (store) =>
-      once(store, `resume_task:${id}`, request_id, { expectedVersion, change_note }, async () => {
+      once(store, `resume_task:${id}`, request_id, { expectedVersion, change_note, change_memo }, async () => {
         const task = await requireTask(store, id, true);
         const result = await store.updateTask(id, decideResume(task, expectedVersion, deps.clock.now()));
-        await store.appendChange({ target_kind: "task", action: "resume", before: task, after: result, change_note });
+        await store.appendChange({
+          target_kind: "task",
+          action: "resume",
+          before: task,
+          after: result,
+          change_note,
+          change_memo,
+        });
         return toTaskResult(result);
       }),
   );

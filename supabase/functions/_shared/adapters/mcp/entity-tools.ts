@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { mutationMeta } from "../../contracts/change.ts";
+import { businessMeta } from "../../contracts/change.ts";
+import { entityChangePreview } from "../../contracts/entity-change.ts";
 import { expectedVersion, id } from "../../contracts/common.ts";
 import { entityCreate, entityListQuery, entityUpdate } from "../../contracts/entity.ts";
 import * as entity from "../../core/entity/application.ts";
@@ -13,8 +14,20 @@ function idParam(value: unknown): string {
 export function entityTools(d: entity.EntityDeps): ToolDef[] {
   const get = z.strictObject({ id: z.unknown() }),
     update = entityUpdate.extend({ id: z.unknown() }),
-    remove = z.strictObject({ id: z.unknown(), expected_version: expectedVersion, ...mutationMeta });
+    remove = z.strictObject({ id: z.unknown(), expected_version: expectedVersion, ...businessMeta });
   return [
+    {
+      name: "preview_entity_change",
+      description:
+        "엔터티 create/update/delete의 현재 사실 기반 기록 메모를 저장 없이 확인한다. 기존 대상은 현재 expected_version을 요구한다. 메모 보충 후 같은 업무 입력과 change_memo로 제출한다.",
+      input: z.strictObject({
+        action: z.enum(["create", "update", "delete"]),
+        id: id.optional(),
+        input: z.record(z.string(), z.unknown()),
+      }),
+      readOnly: true,
+      handler: (i, a) => entity.previewEntityChange(d, a, parse(entityChangePreview, i)),
+    },
     {
       name: "list_entities",
       description:
@@ -53,13 +66,13 @@ export function entityTools(d: entity.EntityDeps): ToolDef[] {
     {
       name: "delete_entity",
       description: "엔터티 삭제. 연결 항목의 entity_id를 비우고 버전을 올리며 할 일·기록·원칙 원문은 보존.",
-      input: z.strictObject({ id, expected_version: expectedVersion, ...mutationMeta }),
+      input: z.strictObject({ id, expected_version: expectedVersion, ...businessMeta }),
       readOnly: false,
       destructive: true,
       handler: async (i, a) => {
         idParam(i.id);
         const p = parse(remove, i);
-        await entity.deleteEntity(d, a, idParam(p.id), p.expected_version, p.change_note, p.request_id);
+        await entity.deleteEntity(d, a, idParam(p.id), p.expected_version, p.change_note, p.request_id, p.change_memo);
         return { deleted: idParam(p.id) };
       },
     },

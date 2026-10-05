@@ -1,9 +1,12 @@
 import { z } from "zod";
-import { id, requestId, text } from "./common.ts";
+import { body, id, requestId, summary, text, title } from "./common.ts";
 
 export const changeNote = text(1, 1000);
 export const mutationMeta = { change_note: changeNote.optional(), request_id: requestId.optional() };
 export const editMeta = { change_note: changeNote, request_id: requestId.optional() };
+export const changeMemo = z.strictObject({ title, summary, body: body.default("") });
+export type ChangeMemo = z.infer<typeof changeMemo>;
+export const businessMeta = { ...mutationMeta, change_memo: changeMemo.optional() };
 export const changeMetadata = z.object({
   event_id: id,
   target_kind: z.enum(["entity", "task", "record", "principle"]),

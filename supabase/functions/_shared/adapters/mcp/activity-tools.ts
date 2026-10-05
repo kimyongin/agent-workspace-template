@@ -2,7 +2,8 @@
 // 실패는 HTTP와 같은 오류 본문 {code, message, retryable, fields}를 isError 결과로 돌려준다.
 import type { ToolDef } from "./tools.ts";
 import { z } from "zod";
-import { mutationMeta } from "../../contracts/change.ts";
+import { businessMeta } from "../../contracts/change.ts";
+import { taskChangePreview } from "../../contracts/task-change.ts";
 import { expectedVersion, id, isoDate } from "../../contracts/common.ts";
 import { recordCreate, recordListQuery, recordUpdate } from "../../contracts/record.ts";
 import { occurrenceRange, taskComplete, taskCreate, taskListQuery, taskUpdate } from "../../contracts/task.ts";
@@ -22,7 +23,7 @@ const createTaskInput = z.strictObject({
 
 const withId = <T extends z.ZodObject>(schema: T) => z.strictObject({ id, ...schema.shape });
 const idOnly = z.strictObject({ id });
-const deleteInput = z.strictObject({ id, expected_version: expectedVersion, ...mutationMeta });
+const deleteInput = z.strictObject({ id, expected_version: expectedVersion, ...businessMeta });
 
 /** 경로 ID와 같은 규칙: UUID가 아니면 존재 여부를 드러내지 않고 not_found(HTTP와 같음). */
 function split(args: Record<string, unknown>) {
@@ -31,7 +32,7 @@ function split(args: Record<string, unknown>) {
   return { id: rawId as string, rest };
 }
 
-const versionOnly = z.strictObject({ expected_version: expectedVersion, ...mutationMeta });
+const versionOnly = z.strictObject({ expected_version: expectedVersion, ...businessMeta });
 const byId = (args: Record<string, unknown>) => {
   const { id, rest } = split(args);
   parse(z.strictObject({}), rest);
@@ -45,6 +46,19 @@ const byIdDelete = (args: Record<string, unknown>) => parse(deleteInput, args);
 
 export function activityTools(deps: activity.ActivityDeps): ToolDef[] {
   return [
+    {
+      name: "preview_task_change",
+      description:
+        "할 일 create/update/delete/stop/resume/complete/occurrence의 기본 기록 메모를 저장 없이 확인한다. 현재 버전과 수행 조건을 검증한다. 변경은 change_memo, 완료·회차는 결과 제목·요약·본문으로 최종 제출한다.",
+      input: z.strictObject({
+        action: z.enum(["create", "update", "delete", "stop", "resume", "complete", "occurrence"]),
+        id: id.optional(),
+        date: isoDate.optional(),
+        input: z.record(z.string(), z.unknown()),
+      }),
+      readOnly: true,
+      handler: (args, actor) => activity.previewTaskChange(deps, actor, parse(taskChangePreview, args)),
+    },
     {
       name: "create_task",
       description:
@@ -98,7 +112,15 @@ export function activityTools(deps: activity.ActivityDeps): ToolDef[] {
       destructive: true,
       handler: async (args, actor) => {
         const input = byIdDelete(args);
-        await activity.deleteTask(deps, actor, input.id, input.expected_version, input.change_note, input.request_id);
+        await activity.deleteTask(
+          deps,
+          actor,
+          input.id,
+          input.expected_version,
+          input.change_note,
+          input.request_id,
+          input.change_memo,
+        );
         return { deleted: input.id };
       },
     },
@@ -132,7 +154,15 @@ export function activityTools(deps: activity.ActivityDeps): ToolDef[] {
       readOnly: false,
       handler: (args, actor) => {
         const input = byIdAndVersion(args);
-        return activity.stopTask(deps, actor, input.id, input.expected_version, input.change_note, input.request_id);
+        return activity.stopTask(
+          deps,
+          actor,
+          input.id,
+          input.expected_version,
+          input.change_note,
+          input.request_id,
+          input.change_memo,
+        );
       },
     },
     {
@@ -142,7 +172,15 @@ export function activityTools(deps: activity.ActivityDeps): ToolDef[] {
       readOnly: false,
       handler: (args, actor) => {
         const input = byIdAndVersion(args);
-        return activity.resumeTask(deps, actor, input.id, input.expected_version, input.change_note, input.request_id);
+        return activity.resumeTask(
+          deps,
+          actor,
+          input.id,
+          input.expected_version,
+          input.change_note,
+          input.request_id,
+          input.change_memo,
+        );
       },
     },
     {

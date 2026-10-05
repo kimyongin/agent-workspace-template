@@ -149,15 +149,17 @@ export function EntityDetailPage() {
           {deleting && (
             <DeleteDialog
               title="엔터티를 삭제할까요?"
+              prepare={async()=> (await api<{memo:import("@contracts/change.ts").ChangeMemo}>("POST","/entities/preview",{action:"delete",id:entity.id,input:{expected_version:entity.version}})).memo}
               message={`${entity.prop1}을 삭제하고 연결을 해제합니다. 할 일·기록 원문은 보존합니다.`}
               busy={busy}
               onCancel={() => setDeleting(false)}
-              onConfirm={async (reason) => {
+              onConfirm={async (reason,change_memo) => {
                 setBusy(true);
                 try {
                   await api(
-                    "DELETE",
-                    `/entities/${id}${query({expected_version:entity.version,change_note:reason,request_id:request.current})}`,
+                    "POST",
+                    `/entities/${id}/delete`,
+                    {expected_version:entity.version,change_note:reason||undefined,request_id:request.current,change_memo},
                   );
                   setEditing(false);
                   afterClose(back,true);
@@ -165,7 +167,6 @@ export function EntityDetailPage() {
                   setError(
                     e instanceof ApiError ? e.message : "삭제하지 못했습니다.",
                   );
-                  setDeleting(false);
                 } finally {
                   setBusy(false);
                 }

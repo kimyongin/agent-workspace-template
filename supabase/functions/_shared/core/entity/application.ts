@@ -5,14 +5,17 @@ import { conflict, invalidInput, notFound } from "../shared/errors.ts";
 import { once, scopeOf } from "../shared/operations.ts";
 import type { Keyset, RequestStore } from "../shared/store.ts";
 import { changed, type ChangeStore } from "../shared/changes.ts";
+import { basicChangeMemo } from "../shared/change-memo.ts";
+import type { EntityChangePreview } from "../../contracts/entity-change.ts";
+import type { ChangeMemo } from "../../contracts/change.ts";
 
 export interface EntityStore extends RequestStore, ChangeStore {
   get(id: string, lock?: boolean): Promise<EntityResult | null>;
   related(id: string): Promise<Pick<EntityDetail, "tasks" | "records" | "principles">>;
-  insert(input: Omit<EntityCreate, "request_id">): Promise<EntityResult>;
+  insert(input: Omit<EntityCreate, "request_id" | "change_memo">): Promise<EntityResult>;
   update(
     id: string,
-    changes: Omit<EntityUpdate, "expected_version" | "change_note" | "request_id">,
+    changes: Omit<EntityUpdate, "expected_version" | "change_note" | "change_memo" | "request_id">,
   ): Promise<EntityResult>;
   delete(id: string): Promise<void>;
   list(query: EntityQuery, after?: Keyset): Promise<EntityResult[]>;
@@ -23,9 +26,16 @@ export interface EntityDeps {
 export function createEntity(d: EntityDeps, a: Actor, i: EntityCreate) {
   return d.uow.run(a, (s) =>
     once(s, "create_entity", i.request_id, i, async () => {
-      const { request_id: _r, change_note, ...props } = i;
+      const { request_id: _r, change_note, change_memo, ...props } = i;
       const result = await s.insert(props);
-      await s.appendChange({ target_kind: "entity", action: "create", before: null, after: result, change_note });
+      await s.appendChange({
+        target_kind: "entity",
+        action: "create",
+        before: null,
+        after: result,
+        change_note,
+        change_memo,
+      });
       return result;
     }));
 }
@@ -46,10 +56,17 @@ export function updateEntity(d: EntityDeps, a: Actor, id: string, i: EntityUpdat
   return d.uow.run(a, (s) =>
     once(s, `update_entity:${id}`, i.request_id, i, async () => {
       const old = await requireVersion(s, id, i.expected_version);
-      const { expected_version: _v, change_note, request_id: _r, ...props } = i;
+      const { expected_version: _v, change_note, change_memo, request_id: _r, ...props } = i;
       if (!changed(old, props)) return old;
       const result = await s.update(id, props);
-      await s.appendChange({ target_kind: "entity", action: "update", before: old, after: result, change_note });
+      await s.appendChange({
+        target_kind: "entity",
+        action: "update",
+        before: old,
+        after: result,
+        change_note,
+        change_memo,
+      });
       return result;
     }));
 }
@@ -60,14 +77,39 @@ export function deleteEntity(
   expected: number,
   change_note?: string,
   request_id?: string,
+  change_memo?: ChangeMemo,
 ) {
-  return d.uow.run(a, (s) =>
-    once(s, `delete_entity:${id}`, request_id, { expected, change_note }, async () => {
-      const old = await requireVersion(s, id, expected);
-      await s.delete(id);
-      await s.appendChange({ target_kind: "entity", action: "delete", before: old, after: null, change_note });
-      return { deleted: true };
-    }));
+  return d.uow.run(
+    a,
+    (s) =>
+      once(s, `delete_entity:${id}`, request_id, { expected, change_note, change_memo }, async () => {
+        const old = await requireVersion(s, id, expected);
+        await s.delete(id);
+        await s.appendChange({
+          target_kind: "entity",
+          action: "delete",
+          before: old,
+          after: null,
+          change_note,
+          change_memo,
+        });
+        return { deleted: true };
+      }),
+  );
+}
+export function previewEntityChange(d: EntityDeps, actor: Actor, input: EntityChangePreview) {
+  return d.uow.run(actor, async (s) => {
+    if (input.action === "create") {
+      return { memo: basicChangeMemo({ action: "create", before: null, after: input.input }), changed: true };
+    }
+    const old = await requireVersion(s, input.id, input.input.expected_version);
+    const { expected_version: _v, ...values } = input.input;
+    const after = input.action === "delete" ? null : { ...old, ...values };
+    return {
+      memo: basicChangeMemo({ action: input.action, before: old, after }),
+      changed: after === null || changed(old, values),
+    };
+  });
 }
 function sortValue(e: EntityResult, sort: EntityQuery["sort"]) {
   if (sort === "prop2") return String(e.prop2 ?? -1);

@@ -12,7 +12,7 @@ import { MarkdownContent } from "../../components/MarkdownContent.tsx";
 import { DetailSurface } from "../../components/Modal.tsx";
 import { api, ApiError, query } from "../../lib/api.ts";
 import { addDays, formatDateTime, todayIn } from "../../lib/format.ts";
-import { emptyRecord, RecordFormModal, TaskFormModal, taskDraftFrom, taskInput } from "./forms.tsx";
+import { emptyRecord, TaskResultFormModal, TaskFormModal, taskDraftFrom, taskInput } from "./forms.tsx";
 import { OccurrenceBadge, StatusBadge, useRequestId } from "./shared.tsx";
 import {TagNames} from "../tags/TagPicker.tsx";
 import {EntityLink} from "../entity/EntityPicker.tsx";
@@ -256,6 +256,7 @@ export function TaskDetailPage() {
           mode="edit"
           open
           initial={taskDraftFrom(task)}
+          target={task}
           details={management}
           onClose={closeEdit}
           onRouteDiscard={() => setDialog(null)}
@@ -268,6 +269,7 @@ export function TaskDetailPage() {
               summary: draft.summary,
               body: draft.body,
               change_note:draft.change_note,
+              change_memo:draft.change_memo,
               request_id:requestId.current,
               tag_ids:draft.tag_ids,
               entity_id:draft.entity_id,
@@ -289,7 +291,8 @@ export function TaskDetailPage() {
       )}
       {dialog==="transition"&&<TaskTransitionForm task={task} onClose={closeManagement} onSaved={async()=>{closeManagement();setMessage(task.status==="active"?"중단했습니다. 오늘부터 회차가 없습니다.":"재개했습니다.");await reload();}}/>}
       {dialog === "complete" && (
-        <RecordFormModal
+        <TaskResultFormModal
+          taskId={task.id} version={task.version}
           title="할 일 완료"
           entityEditable={false}
           submitLabel="완료하고 기록 저장"
@@ -308,7 +311,8 @@ export function TaskDetailPage() {
         />
       )}
       {dialog && typeof dialog === "object" && (
-        <RecordFormModal
+        <TaskResultFormModal
+          taskId={task.id} version={task.version} date={dialog.occurrence}
           title={`${dialog.occurrence} 회차 기록`}
           submitLabel="기록 저장"
           open
@@ -329,6 +333,7 @@ export function TaskDetailPage() {
       )}
       {deleting&&<DeleteDialog
         title="할 일을 삭제할까요?"
+        prepare={async()=> (await api<{memo:import("@contracts/change.ts").ChangeMemo}>("POST","/tasks/preview",{action:"delete",id:task.id,input:{expected_version:task.version}})).memo}
         message={
           <p style={{ margin: 0 }}>
             「{task.title}」을(를) 삭제합니다. 연결된 결과·회차 기록은 남고 이 할 일과의 연결만 사라집니다.
@@ -336,9 +341,9 @@ export function TaskDetailPage() {
         }
         busy={busy}
         onCancel={() => setDeleting(false)}
-        onConfirm={(reason) =>
+        onConfirm={(reason,change_memo) =>
           run(async () => {
-            await api("DELETE", `/tasks/${task.id}${query({expected_version:task.version,change_note:reason,request_id:requestId.current})}`);
+            await api("POST", `/tasks/${task.id}/delete`, {expected_version:task.version,change_note:reason||undefined,request_id:requestId.current,change_memo});
             setDialog(null);
             navigateAfterClose(back.path,true);
           }, "삭제했습니다.")}
@@ -350,8 +355,10 @@ function TaskTransitionForm({task,onClose,onSaved}:{task:TaskResult;onClose:()=>
   const [note,setNote]=useState(""),request=useRequestId();
   const action=task.status==="active"?"stop":"resume",label=action==="stop"?"중단":"재개";
   return <FormModal open title={`반복 할 일 ${label}`} submitLabel={label} dirty={!!note} onClose={onClose} onRouteDiscard={onClose}
-    validate={()=>changeNoteErrors(note,true)} onSubmit={async()=>{
-      await api("POST",`/tasks/${task.id}/${action}`,{expected_version:task.version,change_note:note.trim(),request_id:request.current});
+    prepare={async()=> (await api<{memo:import("@contracts/change.ts").ChangeMemo}>("POST","/tasks/preview",{action,id:task.id,input:{expected_version:task.version}})).memo}
+    previewKey={note}
+    validate={()=>changeNoteErrors(note,false)} onSubmit={async(change_memo)=>{
+      await api("POST",`/tasks/${task.id}/${action}`,{expected_version:task.version,change_note:note.trim()||undefined,request_id:request.current,change_memo});
       request.renew();await onSaved();
     }}>
     {errors=><><p className="help">{action==="stop"?"오늘부터 이후 회차가 생기지 않고 기존 기록은 남습니다.":"오늘부터 규칙에 따라 회차가 다시 생깁니다."}</p><ChangeNoteField required value={note} onChange={setNote} error={errors.change_note}/></>}

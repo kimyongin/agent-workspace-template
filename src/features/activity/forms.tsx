@@ -4,10 +4,12 @@ import { TagPicker } from "../tags/TagPicker.tsx";
 import { EntityPicker } from "../entity/EntityPicker.tsx";
 import { recordCreate, recordLabels } from "@contracts/record.ts";
 import { type Recurrence, taskCreate, taskLabels } from "@contracts/task.ts";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { Field } from "../../components/Field.tsx";
 import { changeNoteErrors, ChangeNoteField, FormModal, TextFields, type TextDraft } from "../../components/ContentForm.tsx";
 import { browserTimezone, fieldErrors, fromLocalInput, todayIn, toLocalInput } from "../../lib/format.ts";
+import { api } from "../../lib/api.ts";
+import type { ChangeMemo } from "@contracts/change.ts";
 
 const WEEKDAYS = ["월", "화", "수", "목", "금", "토", "일"];
 
@@ -95,9 +97,25 @@ export function RecordFormModal(props: {
   );
 }
 
+/** Completion/occurrence already save one result record; preview fills that same memo, not another log. */
+export function TaskResultFormModal(props: Parameters<typeof RecordFormModal>[0] & { taskId:string;version:number;date?:string }) {
+  const [initial,setInitial]=useState<RecordDraft|null>(null),[failure,setFailure]=useState<string|null>(null),[retry,setRetry]=useState(0);
+  useEffect(()=>{let cancelled=false;setFailure(null);
+    api<{memo:ChangeMemo}>("POST","/tasks/preview",{action:props.date?"occurrence":"complete",id:props.taskId,...(props.date?{date:props.date}:{}),input:{expected_version:props.version}}).then(result=>{
+      if(!cancelled)setInitial({...props.initial,...result.memo});
+    }).catch(e=>{if(!cancelled)setFailure(e instanceof Error?e.message:"기본 메모를 확인하지 못했습니다.");});
+    return()=>{cancelled=true;};
+  },[props.taskId,props.version,props.date,retry]);
+  if(!initial)return <FormModal title={props.title} open={props.open} submitLabel="불러오는 중" dirty={false} onClose={props.onClose} onRouteDiscard={props.onRouteDiscard} validate={()=>({preview:"기본 메모를 먼저 확인하세요."})} onSubmit={async()=>{}}>
+    {()=>failure?<><p role="alert">{failure}</p><button type="button" className="btn" onClick={()=>setRetry(n=>n+1)}>메모 다시 확인</button></>:<p role="status">기본 메모를 확인하고 있습니다.</p>}
+  </FormModal>;
+  return <RecordFormModal {...props} initial={initial}/>;
+}
+
 // ---------- 할 일 폼(작성·편집) ----------
 
 export interface TaskDraft extends TextDraft {
+  change_memo?: ChangeMemo;
   change_note?: string;
   entity_id?:string|null;
   tag_ids: string[];
@@ -168,7 +186,7 @@ function recurrenceOf(d: TaskDraft): unknown {
 
 /** 생성 입력(contracts의 taskCreate 모양). */
 export function taskInput(d: TaskDraft): Record<string, unknown> {
-  const text = { title: d.title, summary: d.summary, body: d.body, tag_ids:d.tag_ids,entity_id:d.entity_id, change_note:d.change_note?.trim()||undefined };
+  const text = { title: d.title, summary: d.summary, body: d.body, tag_ids:d.tag_ids,entity_id:d.entity_id, change_note:d.change_note?.trim()||undefined,change_memo:d.change_memo };
   return d.kind === "once"
     ? { kind: "once", ...text, ...(d.due_on ? { due_on: d.due_on } : {}) }
     : { kind: "recurring", ...text, recurrence: recurrenceOf(d), timezone: d.timezone };
@@ -178,6 +196,7 @@ export function TaskFormModal(props: {
   mode: "create" | "edit";
   open: boolean;
   initial: TaskDraft;
+  target?: {id:string;version:number};
   details?: ReactNode;
   onClose: () => void;
   onRouteDiscard?: () => void;
@@ -195,10 +214,16 @@ export function TaskFormModal(props: {
       submitLabel={props.mode === "create" ? "추가" : "저장"}
       open={props.open}
       dirty={dirty}
+      previewKey={JSON.stringify(draft)}
+      prepare={async()=>{
+        const {kind,...patch}=taskInput(draft);
+        const result=await api<{memo:ChangeMemo}>("POST","/tasks/preview",props.mode==="edit"?{action:"update",id:props.target?.id,input:{...patch,expected_version:props.target?.version}}:{action:"create",input:{kind,...patch}});
+        return result.memo;
+      }}
       onClose={props.onClose}
       onRouteDiscard={props.onRouteDiscard}
       validate={() => {
-        const noteErrors=changeNoteErrors(draft.change_note,props.mode==="edit");if(noteErrors)return noteErrors;
+        const noteErrors=changeNoteErrors(draft.change_note,false);if(noteErrors)return noteErrors;
         const {change_note, ...input}=taskInput(draft);
         const r = taskCreate.safeParse(input);
         if (r.success) return null;
@@ -207,7 +232,7 @@ export function TaskFormModal(props: {
         for (const [k, v] of Object.entries(errs)) if (k.startsWith("recurrence.")) errs[k.slice(11)] ??= v;
         return errs;
       }}
-      onSubmit={() => props.onSave(draft)}
+      onSubmit={(change_memo) => props.onSave({...draft,change_memo})}
     >
       {(errors) => (
         <>
