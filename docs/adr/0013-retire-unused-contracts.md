@@ -14,6 +14,8 @@
 
 구 인터페이스 제거는 기존 기록의 삭제를 뜻하지 않는다. 보존된 자료는 새 계약으로 조회하며 운영 DB 적용·서비스 배포는 별도 지시 범위를 따른다.
 
+2026-10-06 사용자는 과거 자료 보존용 테이블의 물리적 제거도 지시했다([#148](https://github.com/kimyongin/agent-workspace-template/issues/148)). 마지막 이관으로 미이관 원본을 `app.records`에 보존한 뒤 `record_principles`·`principle_tags`·`legacy_principle_record_parts`·`private.retired_principle_sources`와 재이관 절차를 제거한다. 이미 이관된 기록의 편집·삭제는 존중하며 덮어쓰거나 재생성하지 않는다. 적용된 과거 migration은 유지하고 새 migration으로 정리한다.
+
 ## 결과
 
 지원하는 계약과 실제 사용처가 일치하고, 구 입력과 임시 호환 코드의 정리를 변경 작업 안에서 완료한다. 제거된 계약을 사용하는 이전 버전은 더 이상 지원하지 않으므로 실제 사용처가 생기면 해당 앱의 전환 계획을 먼저 정한다. 현재 제거 범위와 검증·머지 상태는 [#134](https://github.com/kimyongin/agent-workspace-template/issues/134)에서 관리한다.

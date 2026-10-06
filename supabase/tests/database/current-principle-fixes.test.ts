@@ -41,9 +41,19 @@ dbTest(
             tx`insert into app.principles(owner_id,title,summary,is_current) values(${f.actor.userId},'과거 쓰기','거부',false)`,
         )
       );
-      await assertRejects(() => asUser(sql, f.actor.userId, (tx) => tx`select * from app.record_principles`));
-      await assertRejects(() =>
-        asUser(sql, f.actor.userId, (tx) => tx`select * from private.retired_principle_sources`)
+      for (
+        const table of [
+          "app.record_principles",
+          "app.principle_tags",
+          "app.legacy_principle_record_parts",
+          "private.retired_principle_sources",
+        ]
+      ) {
+        assertEquals((await admin`select to_regclass(${table}) as present`)[0].present, null);
+      }
+      assertEquals(
+        (await admin`select to_regprocedure('private.preserve_principle_sources(uuid)') as present`)[0].present,
+        null,
       );
       assertEquals((await admin`select * from app.principles where id=${old.id}`)[0], old);
     } finally {
