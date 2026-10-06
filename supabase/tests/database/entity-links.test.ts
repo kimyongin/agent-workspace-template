@@ -53,7 +53,7 @@ dbTest(
 );
 
 dbTest(
-  "direct target deletion removes only the selected task target and preserves record captured context",
+  "direct target deletion removes live membership once and preserves exact task/record captured context",
   async () => {
     const f = await fixtureOwner(admin);
     try {
@@ -72,12 +72,16 @@ dbTest(
       );
       await admin`delete from app.entities where id=${ids[1]}`;
       const remaining = await activity.getTask(ad, f.actor, task.id);
-      assertEquals([remaining.entity_ids, remaining.entity_context.map((e) => e.id)], [
+      assertEquals([remaining.entity_ids, remaining.entity_context], [
         [ids[0]],
-        [ids[0]],
+        task.entity_context,
       ]);
+      assertEquals(remaining.version, task.version + 1);
       await admin`delete from app.entities where id=${ids[0]}`;
-      assertEquals((await activity.getTask(ad, f.actor, task.id)).entity_ids, []);
+      const detached = await activity.getTask(ad, f.actor, task.id);
+      assertEquals(detached.entity_ids, []);
+      assertEquals(detached.entity_context, task.entity_context);
+      assertEquals(detached.version, task.version + 2);
       assertEquals((await activity.listTasks(ad, f.actor, taskListQuery.parse({ entity_id: ids[0] }))).items, []);
       const read = await activity.getRecord(ad, f.actor, record.id);
       assertEquals(read.entity_ids, ids);

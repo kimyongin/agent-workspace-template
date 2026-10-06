@@ -53,7 +53,6 @@ export class SqlEntityStore extends SqlActorStore implements EntityStore {
   async delete(id: string) {
     await this
       .tx`update app.tasks set entity_ids=array_remove(entity_ids,${id}::uuid),
-      entity_context=(select coalesce(jsonb_agg(context),'[]'::jsonb) from jsonb_array_elements(entity_context) context where context->>'id'<>${id}),
       version=version+1,updated_at=now() where entity_ids @> array[${id}::uuid]`;
     await this.tx`update app.records set version=version+1,updated_at=now() where entity_ids @> array[${id}::uuid]`;
     await this.tx`delete from app.entities where id=${id}`;
