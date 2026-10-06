@@ -444,6 +444,25 @@ test("상세 탐색: 다른 상세를 거친 닫기도 원래 소유 목록 조�
   await expect(page.locator(`#activity-records-${id(3)}`)).toBeFocused();
   expect(state.errors).toEqual([]);
 });
+test("상세 탐색 검색: 동시 추가 뒤 깊은 anchor와 reload 초점 복원",async({page})=>{
+  const state=await fixtures(page);
+  state.rows.records=Array.from({length:45},(_,index)=>({...record(100+index),title:`검색 기록 ${index}`}));
+  await page.route("**/api/search",route=>{
+    const input=route.request().postDataJSON(),start=Number(input.cursor??0),items=state.rows.records.slice(start,start+20);
+    const anchor=input.anchor?state.rows.records.findIndex(row=>row.id===input.anchor.id):-1;
+    return route.fulfill({json:{items:items.map(row=>({id:row.id,kind:"record",title:row.title,summary:row.summary,at:stamp,path:`/records/${row.id}`,match:"keyword",index_state:"pending"})),next_cursor:start+20<state.rows.records.length?String(start+20):null,anchor_page:anchor<0?null:Math.floor(anchor/20)+1,search_state:"ok",semantic_coverage:{pending:0,excluded:0}}});
+  });
+  await go(page,"/search?q=자료&kind=record");
+  await page.getByRole("button",{name:"더 보기",exact:true}).click();
+  const target=page.getByRole("link",{name:"검색 기록 35",exact:true});
+  await target.click();await expect(form(page).getByRole("heading",{name:"검색 기록 35",exact:true})).toBeVisible();
+  state.rows.records.unshift(...Array.from({length:21},(_,index)=>({...record(200+index),title:`새 검색 기록 ${index}`})));
+  await form(page).getByRole("button",{name:/^이전: 검색/}).click();
+  await expect(target).toBeFocused();await expect(target).toBeInViewport();
+  await expect(page.locator(".list .item-title")).toHaveCount(60);
+  await page.reload();await expect(target).toBeFocused();await expect(target).toBeInViewport();
+  expect(state.errors).toEqual([]);
+});
 for (const [kind,label] of [["tasks","할 일"],["records","기록"],["principles","현재 기준"]]) test(`상세 탐색 검색 ${kind}: 이전은 검색·닫기는 소유 목록·직접 링크`,async({page})=>{
   const state=await fixtures(page);
   await go(page,`/search?q=자료&kind=${kind.slice(0,-1)}`);

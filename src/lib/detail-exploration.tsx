@@ -62,14 +62,19 @@ export function DetailLink({ onClick, state, restoreKey, ...props }: Omit<LinkPr
       || props.target && props.target !== "_self" || props.reloadDocument) return;
     if (!detailPath.test(target.split(/[?#]/)[0]) || !(detailPath.test(location.pathname) || location.pathname === "/search")) return;
     const body = document.querySelector<HTMLElement>("dialog[open]:not(.modal-confirm) .modal-body");
-    const frame: Frame = { key: location.key, path: `${location.pathname}${location.search}${location.hash}`,
+    const searchOrigin = location.pathname === "/search" && props.id ? new URLSearchParams(location.search) : null;
+    searchOrigin?.set("scroll", String(window.scrollY));
+    const origin = searchOrigin ? `/search?${searchOrigin}#${props.id}` : `${location.pathname}${location.search}${location.hash}`;
+    const frame: Frame = { key: location.key, path: origin,
       title: document.querySelector(".dialog-title, .page-title")?.textContent ?? "이전 화면",
       scroll: body?.scrollTop ?? window.scrollY, focusKey: event.currentTarget.dataset.detailFocus ?? target };
     context?.frames.set(frame.key, frame);
     const next: TrailState = { ...(state && typeof state === "object" ? state : {}), detailScope: context?.scope ?? "",
       detailTrail: [...detailTrail(location.state, context?.scope), frame].slice(-64) };
     event.preventDefault();
-    void navigate(props.to, { state: next });
+    // The search route's existing anchor replay also restores deep results after reload or concurrent additions.
+    const prepare = searchOrigin ? navigate(origin, {replace: true, state: location.state}) : undefined;
+    void Promise.resolve(prepare).then(() => navigate(props.to, { state: next }));
   }} />;
 }
 
