@@ -68,7 +68,7 @@ export function verifyStoredChange(before, after, fixture, mode) {
   const target = mode === 'save-memo' ? after.records.find(row => row.id === fixture.saving?.recordId) : requested[0];
   const events = created.filter(row => row.record_kind === 'change');
   const needsEvent = ['save-record', 'save-response-loss'].includes(mode);
-  const creationEvent = event => Boolean(target && event.change?.target_kind === 'record' && event.change.target_id === target.id && event.change.target_title === target.title && event.change.action === 'create' && event.change.source === 'mcp' && event.change.path === `/records/${target.id}` && event.change.before === null && typeof event.change.event_id === 'string' && event.change.event_id && equal(event.entity_ids, target.entity_ids) && (event.change.after === null || ['id', 'title', 'summary', 'body', 'version', 'entity_ids'].every(key => equal(event.change.after?.[key], target[key]))));
+  const creationEvent = event => Boolean(target && event.change?.target_kind === 'record' && event.change.target_id === target.id && typeof event.change.target_title === 'string' && event.change.action === 'create' && event.change.source === 'mcp' && event.change.path === `/records/${target.id}` && event.change.before === null && typeof event.change.event_id === 'string' && event.change.event_id && equal(event.entity_ids, target.entity_ids) && (event.change.after === null || ['id', 'body', 'version', 'entity_ids'].every(key => equal(event.change.after?.[key], target[key]))));
   let allowedChange = ['current', 'principles', 'tags'].every(kind => equal(before[kind], after[kind])) && unchangedEntities(before, after);
   allowedChange &&= before.records.every(old => {
     const current = after.records.find(row => row.id === old.id);
@@ -76,8 +76,13 @@ export function verifyStoredChange(before, after, fixture, mode) {
   });
   const priorTask = before.tasks.find(row => row.id === fixture.task.id), task = after.tasks.find(row => row.id === fixture.task.id);
   const completionFields = ['status', 'version', 'updated_at', 'completed_at', 'result_record_id', 'result_record'];
-  const taskCompleted = Boolean(task && priorTask && target && priorTask.status === 'open' && task.status === 'done' && task.version === priorTask.version + 1 && task.result_record_id === target.id && equal(task.result_record, { id: target.id, title: target.title, summary: target.summary }) && target.task_id === task.id && validTimestamp(task.completed_at) && validTimestamp(target.occurred_at) && equal(without(priorTask, completionFields), without(task, completionFields)));
-  allowedChange &&= mode === 'save-task' ? taskCompleted && after.tasks.length === before.tasks.length && before.tasks.every(old => old.id === task.id || equal(old, after.tasks.find(row => row.id === old.id))) : equal(before.tasks, after.tasks);
+  const taskCompleted = Boolean(task && priorTask && target && priorTask.status === 'open' && task.status === 'done' && task.version === priorTask.version + 1 && task.result_record_id === target.id && equal(task.result_record, { id: target.id, body: target.body }) && target.task_id === task.id && validTimestamp(task.completed_at) && validTimestamp(target.occurred_at) && equal(without(priorTask, completionFields), without(task, completionFields)));
+  allowedChange &&= mode === 'save-task' ? taskCompleted && after.tasks.length === before.tasks.length && before.tasks.every(old => old.id === task.id || equal(old, after.tasks.find(row => row.id === old.id))) : mode === 'save-memo' ? after.tasks.length === before.tasks.length && before.tasks.every(old => {
+    const current = after.tasks.find(row => row.id === old.id);
+    if (!current || !equal(without(old, ['result_record']), without(current, ['result_record']))) return false;
+    const result = after.records.find(row => row.id === current.result_record_id);
+    return equal(current.result_record, result ? { id: result.id, body: result.body } : null);
+  }) : equal(before.tasks, after.tasks);
   allowedChange &&= ['save-memo', 'save-failure'].includes(mode) ? created.length === 0 : requested.length === 1 && created.length === (needsEvent ? 2 : 1) && (needsEvent ? events.length === 1 && creationEvent(events[0]) : events.length === 0);
   const oldTarget = before.records.find(row => row.id === target?.id);
   return { originalReads: true, allowedChange, newRecords: created.length, requestedRecords: requested.length, automaticChanges: events.length, recordId: target?.id ?? null, recordKind: target?.record_kind ?? null, entityLinked: target?.entity_ids?.includes(fixture.entity.id) ?? false, contentVerified: Boolean(target && (mode === 'save-memo' ? target.body === fixture.saving.correction : target.body?.includes(fixture.originalDetail) && new RegExp(`(?<![a-zA-Z0-9-])${fixture.entity.prop2}(?![a-zA-Z0-9-])`).test(target.body))), taskCompleted, identityUnchanged: Boolean(oldTarget && target && equal(without(oldTarget, ['body', 'version', 'updated_at']), without(target, ['body', 'version', 'updated_at']))) };
@@ -93,7 +98,8 @@ export function savingPrompt(mode, fixture) {
     'save-response-loss': '지금 확인한 검토 결과를 이 대상의 새 일반 기록 하나로 저장해 줘. 응답이 불확실하면 같은 작업을 중복 저장하지 말고 원래 요청의 반영 여부를 확인해 줘.',
   };
   if (!savingModes.includes(mode) || (mode === 'save-memo' && !fixture.saving?.correction)) throw new Error('Owned saving scenario required');
-  return context + requests[mode] + ' 요청한 것 외에는 자료를 변경하지 마. 실제 저장한 원문의 식별 정보와 확인한 상태를 알려 줘. 검색 반영을 확인하지 못했다면 완료로 추정하지 마.';
+  const marker = mode === 'save-memo' ? '' : ` 새 기록 본문의 첫 줄에는 "${fixture.marker}-result"를 넣어 줘.`;
+  return context + requests[mode] + marker + ' 요청한 것 외에는 자료를 변경하지 마. 실제 저장한 원문의 식별 정보와 확인한 상태를 알려 줘. 검색 반영을 확인하지 못했다면 완료로 추정하지 마.';
 }
 
 export function assessSaving(evidence, mode) {
