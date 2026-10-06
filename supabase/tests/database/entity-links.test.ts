@@ -1,4 +1,4 @@
-import { recordCreate, recordListQuery, recordUpdate } from "../../functions/_shared/contracts/record.ts";
+import { recordCreate, recordUpdate } from "../../functions/_shared/contracts/record.ts";
 import { assertEquals, assertRejects } from "@std/assert";
 import { SqlEntityUnitOfWork } from "../../functions/_shared/adapters/supabase/entity-store.ts";
 import { SqlUnitOfWork } from "../../functions/_shared/adapters/supabase/activity-store.ts";
@@ -52,55 +52,8 @@ dbTest(
   },
 );
 
-dbTest("legacy single-target SQL writes remain visible through expanded public related/list reads", async () => {
-  const f = await fixtureOwner(admin);
-  try {
-    const first = await entity.createEntity(ed, f.actor, entityCreate.parse({ prop1: "구 소비자 대상" }));
-    // Compatibility writer stands for the deployed prior adapter. Observation remains public business reads.
-    const [legacy] = await admin`insert into app.tasks(owner_id,kind,title,summary,status,entity_id)
-      values(${f.actor.userId},'once','구 소비자 업무','단일 대상','open',${first.id}) returning id`;
-    assertEquals(
-      (await activity.listTasks(ad, f.actor, taskListQuery.parse({ entity_id: first.id }))).items.map((row) => row.id),
-      [legacy.id],
-    );
-    assertEquals((await activity.getTask(ad, f.actor, legacy.id)).entity_ids, [first.id]);
-    const second = await entity.createEntity(ed, f.actor, entityCreate.parse({ prop1: "구 소비자 재지정 대상" }));
-    const [legacyRecord] = await admin`insert into app.records(owner_id,title,summary,entity_id)
-      values(${f.actor.userId},'구 소비자 자료','단일 대상',${first.id}) returning id`;
-    await admin`update app.tasks set entity_id=${second.id} where id=${legacy.id}`;
-    await admin`update app.records set entity_id=${second.id} where id=${legacyRecord.id}`;
-    const reassigned = await activity.getRecord(ad, f.actor, legacyRecord.id);
-    assertEquals(reassigned.entity_ids, [second.id]);
-    assertEquals(reassigned.entity_context.map((capture) => [capture.id, capture.title, capture.source]), [[
-      second.id,
-      second.prop1,
-      "selection",
-    ]]);
-    assertEquals((await activity.getTask(ad, f.actor, legacy.id)).entity_ids, [second.id]);
-    assertEquals((await activity.listTasks(ad, f.actor, taskListQuery.parse({ entity_id: first.id }))).items, []);
-    const relatedIds = (await entity.getEntity(ed, f.actor, second.id)).records.items.map((row) => row.id);
-    const event =
-      (await activity.listRecords(ad, f.actor, recordListQuery.parse({ record_kind: "change", entity_id: second.id })))
-        .items.find((row) => row.change?.target_id === second.id);
-    assertEquals(event?.change?.action, "create");
-    if (!event) throw Error("entity creation event missing");
-    assertEquals((await activity.getRecord(ad, f.actor, event.id)).entity_ids, [second.id]);
-    assertEquals(relatedIds.sort(), [legacyRecord.id, event.id].sort());
-    // The new backend accepts the old API spelling of explicit clear after cutover.
-    const cleared = await activity.updateRecord(
-      ad,
-      f.actor,
-      legacyRecord.id,
-      recordUpdate.parse({ expected_version: reassigned.version, entity_id: null }),
-    );
-    assertEquals([cleared.entity_id, cleared.entity_ids, cleared.entity_context], [null, [], []]);
-  } finally {
-    await f.cleanup();
-  }
-});
-
 dbTest(
-  "legacy FK-only target deletion removes only the selected task target and preserves record captured context",
+  "direct target deletion removes live membership once and preserves exact task/record captured context",
   async () => {
     const f = await fixtureOwner(admin);
     try {
@@ -119,13 +72,16 @@ dbTest(
       );
       await admin`delete from app.entities where id=${ids[1]}`;
       const remaining = await activity.getTask(ad, f.actor, task.id);
-      assertEquals([remaining.entity_ids, remaining.entity_id, remaining.entity_context.map((e) => e.id)], [
+      assertEquals([remaining.entity_ids, remaining.entity_context], [
         [ids[0]],
-        ids[0],
-        [ids[0]],
+        task.entity_context,
       ]);
+      assertEquals(remaining.version, task.version + 1);
       await admin`delete from app.entities where id=${ids[0]}`;
-      assertEquals((await activity.getTask(ad, f.actor, task.id)).entity_ids, []);
+      const detached = await activity.getTask(ad, f.actor, task.id);
+      assertEquals(detached.entity_ids, []);
+      assertEquals(detached.entity_context, task.entity_context);
+      assertEquals(detached.version, task.version + 2);
       assertEquals((await activity.listTasks(ad, f.actor, taskListQuery.parse({ entity_id: ids[0] }))).items, []);
       const read = await activity.getRecord(ad, f.actor, record.id);
       assertEquals(read.entity_ids, ids);
@@ -202,7 +158,7 @@ dbTest(
       await assertRejects(() => activity.updateRecord(broken, f.actor, record.id, patch));
       assertEquals(await activity.getRecord(ad, f.actor, record.id), beforeRejected);
       const cleared = await activity.updateRecord(ad, f.actor, record.id, patch);
-      assertEquals([cleared.entity_ids, cleared.entity_context, cleared.entity_id], [[], [], null]);
+      assertEquals([cleared.entity_ids, cleared.entity_context], [[], []]);
       assertEquals(await activity.updateRecord(ad, f.actor, record.id, patch), cleared);
       record = await activity.updateRecord(
         ad,

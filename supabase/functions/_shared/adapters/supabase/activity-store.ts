@@ -25,7 +25,6 @@ const iso = (v: unknown) => (v instanceof Date ? v.toISOString() : v === null ? 
 
 function toTask(r: Row): Task {
   return {
-    entity_id: (r.entity_id as string | null) ?? null,
     entity_ids: (r.entity_ids as string[]) ?? [],
     entity_context: (r.entity_context as Task["entity_context"]) ?? [],
     id: r.id as string,
@@ -53,7 +52,6 @@ function toRecord(r: Row): ActivityRecord {
     change_note: (r.change_note as string | null) ?? null,
     change: (r.change_metadata as ActivityRecord["change"]) ?? null,
     applied_principle_snapshots: (r.applied_principle_snapshots as ActivityRecord["applied_principle_snapshots"]) ?? [],
-    entity_id: (r.entity_id as string | null) ?? null,
     entity_ids: (r.entity_ids as string[]) ?? [],
     entity_context: (r.entity_context as Task["entity_context"]) ?? [],
     tag_ids: (r.tag_ids as string[]) ?? [],
@@ -64,14 +62,6 @@ function toRecord(r: Row): ActivityRecord {
     occurred_at: iso(r.occurred_at)!,
     task_id: (r.task_id as string | null) ?? null,
     occurrence_on: (r.occurrence_on as string | null) ?? null,
-    applied_principle_ids: (r.applied_principle_ids as string[]) ?? [],
-    applied_principles: ((r.applied_principle_snapshots as Record<string, unknown>[]) ?? []).map((p) => ({
-      id: p.id as string,
-      title: p.title as string,
-      status: (p.status ?? "active") as "active" | "inactive",
-      version: p.version as number,
-      updated_at: new Date(p.saved_at as string).toISOString(),
-    })),
     version: r.version as number,
     created_at: iso(r.created_at)!,
     updated_at: iso(r.updated_at)!,
@@ -80,19 +70,16 @@ function toRecord(r: Row): ActivityRecord {
 
 // 날짜 컬럼은 문자열(YYYY-MM-DD)로 받는다.
 const taskColumns = (tx: Tx) =>
-  tx`id, entity_id, entity_ids, entity_context, kind, title, summary, body, due_on::text as due_on, recurrence, timezone, status, completed_at,
+  tx`id, entity_ids, entity_context, kind, title, summary, body, due_on::text as due_on, recurrence, timezone, status, completed_at,
      result_record_id, pauses, version, created_at, updated_at,
      ${tagIdsColumn(tx, "task")}`;
 const recordColumns = (tx: Tx) =>
-  tx`id, entity_id, entity_ids, entity_context, title, summary, body, occurred_at, task_id, occurrence_on::text as occurrence_on, version, created_at, updated_at,
+  tx`id, entity_ids, entity_context, title, summary, body, occurred_at, task_id, occurrence_on::text as occurrence_on, version, created_at, updated_at,
     record_kind,change_note,change_metadata,applied_principle_snapshots,
-    ${tagIdsColumn(tx, "record")},
-    coalesce((select jsonb_agg(p.id order by p.id) from app.record_principles rp join app.principles p on p.id=rp.principle_id
-      where rp.record_id=app.records.id), '[]'::jsonb) as applied_principle_ids`;
+    ${tagIdsColumn(tx, "record")}`;
 
 /** 수정 가능한 컬럼의 허용 목록. 이 밖의 키는 SQL로 가지 않는다. */
 const TASK_WRITABLE = [
-  "entity_id",
   "title",
   "summary",
   "body",
@@ -104,7 +91,7 @@ const TASK_WRITABLE = [
   "result_record_id",
   "pauses",
 ] as const;
-const RECORD_WRITABLE = ["title", "summary", "body", "occurred_at", "entity_id", "change_note"] as const;
+const RECORD_WRITABLE = ["title", "summary", "body", "occurred_at", "change_note"] as const;
 
 function pick<T extends Record<string, unknown>>(tx: Tx, values: T, allowed: readonly string[]) {
   const out: Record<string, unknown> = {};
@@ -153,7 +140,6 @@ export class SqlActivityStore extends SqlActorStore implements ActivityStore {
       owner_id: this.actor.userId,
       kind: task.kind,
       ...pick(tx, task, TASK_WRITABLE),
-      entity_id: ids[0] ?? null,
       entity_ids: tx.array(ids, 2950),
       entity_context: tx.json(context),
     };
@@ -177,7 +163,6 @@ export class SqlActivityStore extends SqlActorStore implements ActivityStore {
     if (ids !== undefined) {
       const context = await captureEntities(tx, ids);
       Object.assign(values, {
-        entity_id: ids[0] ?? null,
         entity_ids: tx.array(ids, 2950),
         entity_context: tx.json(context),
       });
@@ -243,44 +228,12 @@ export class SqlActivityStore extends SqlActorStore implements ActivityStore {
       order by occurrence_on, occurred_at, id`;
   }
 
-  async setPrinciples(recordId: string, ids: string[]) {
-    const tx = this.tx;
-    const [record] = await tx`select applied_principle_snapshots from app.records where id=${recordId}`;
-    const existing = (record.applied_principle_snapshots as Record<string, unknown>[]).filter((p) =>
-      ids.includes(p.id as string)
-    );
-    if (ids.length) {
-      const found = await tx<{ id: string }[]>`select id from app.principles where id in ${
-        tx(ids)
-      } order by id for key share`;
-      if (found.length !== ids.length) throw new AppError("invalid_reference", "적용 원칙이 없거나 접근할 수 없습니다");
-    }
-    await tx`delete from app.record_principles where record_id=${recordId}`;
-    for (const id of [...ids].sort()) {
-      await tx`insert into app.record_principles(owner_id,record_id,principle_id) values (${this.actor.userId},${recordId},${id})`;
-    }
-    const snapshots = ids.length
-      ? await tx`select id,title,summary,body,version,saved_at,case when is_current then 'active' else 'inactive' end as status from app.principles where id in ${
-        tx(ids)
-      } order by id`
-      : [];
-    await tx`update app.records set applied_principle_snapshots=${
-      tx.json(
-        snapshots.map((p) => ({
-          ...(existing.find((old) => old.id === p.id) ??
-            { ...p, saved_at: (p.saved_at as Date).toISOString(), captured_at: "application" }),
-        })) as never,
-      )
-    } where id=${recordId}`;
-  }
-
   async insertRecord(record: NewRecord) {
     const tx = this.tx;
     const ids = selectedEntities(record) ?? [];
     const context = await captureEntities(tx, ids);
     const values: Record<string, unknown> = {
       owner_id: this.actor.userId,
-      entity_id: ids[0] ?? null,
       entity_ids: tx.array(ids, 2950),
       entity_context: tx.json(context),
       title: record.title,
@@ -293,7 +246,6 @@ export class SqlActivityStore extends SqlActorStore implements ActivityStore {
     };
     if (record.occurred_at) values.occurred_at = record.occurred_at;
     const [row] = await tx`insert into app.records ${tx(values)} returning id`;
-    await this.setPrinciples(row.id as string, record.applied_principle_ids ?? []);
     await setTagLinks(tx, this.actor, "record", row.id as string, record.tag_ids ?? []);
     return (await this.getRecord(row.id as string))!;
   }
@@ -305,17 +257,14 @@ export class SqlActivityStore extends SqlActorStore implements ActivityStore {
     if (ids !== undefined) {
       const prior = (await this.getRecord(id))?.entity_context ?? [];
       const context = await captureEntities(tx, ids, prior);
-      const [live] = ids[0] ? await tx`select id from app.entities where id=${ids[0]}` : [];
       Object.assign(values, {
-        entity_id: live?.id ?? null,
         entity_ids: tx.array(ids, 2950),
         entity_context: tx.json(context),
       });
     }
-    if (changes.applied_principle_ids !== undefined) await this.setPrinciples(id, changes.applied_principle_ids);
     if (changes.tag_ids !== undefined) await setTagLinks(tx, this.actor, "record", id, changes.tag_ids);
     if (
-      Object.keys(values).length === 0 && changes.applied_principle_ids === undefined && changes.tag_ids === undefined
+      Object.keys(values).length === 0 && changes.tag_ids === undefined
     ) {
       throw new AppError("invalid_input", "바꿀 필드가 없습니다");
     }

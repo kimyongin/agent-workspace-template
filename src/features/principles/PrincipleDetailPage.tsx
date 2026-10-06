@@ -35,15 +35,14 @@ export function PrincipleDetailPage() {
     {item&&<section className="form">
       <MarkdownContent text={item.body}/>
       {editing&&editReady&&item.is_current&&<PrincipleFormModal id={item.id} version={item.version} editing initial={{...item,change_note:item.change_note??""}} onClose={closeEdit} onRouteDiscard={()=>setEditing(false)}
-        details={<div className="detail-management">{message&&<Notice kind="success">{message}</Notice>}{error&&<Notice kind="error">{error}</Notice>}<p className="meta">{item.is_current?"현재 원칙":"과거 저장본"} · {formatDateTime(item.saved_at)}</p>
+        details={<div className="detail-management">{message&&<Notice kind="success">{message}</Notice>}{error&&<Notice kind="error">{error}</Notice>}<p className="meta">현재 원칙 · {formatDateTime(item.saved_at)}</p>
           <button type="button" className="btn btn-danger" onClick={()=>{request.renew();setDeleting(true);}}>삭제</button>
-          {item.origin==="legacy"&&<p className="help">기존 원칙에서 보존한 자료입니다. 과거의 실제 편집 사건을 뜻하지 않습니다.</p>}</div>}
+          </div>}
         onSave={async draft=>{
         let saved:WorkspacePrinciple;
         try {saved=await api<WorkspacePrinciple>("POST","/principles/current",{...draft,expected_version:item.version,request_id:request.current});}catch(e){if(e instanceof ApiError&&e.code==="conflict")conflicted.current=true;throw e;}
         confirmed.current=saved;setMessage("저장했습니다.");request.renew();setEditing(false);setItem(saved);const p=new URLSearchParams(params);p.delete("edit");p.delete("edit_from");afterClose(params.get("edit_from")==="view"?`/principles/${saved.id}?${p}`:back,true);
       }}/>}
-      {!item.is_current&&<p className="help">기존 보존 자료입니다. 현재 원칙으로 변경하지 않습니다. 과거 근거는 통합 기록에서 확인하세요.</p>}
       {deleting&&item.is_current&&<DeleteDialog title="원칙을 삭제할까요?" busy={busy}
         message={<p>삭제하면 현재 원칙이 없는 상태가 됩니다. 과거 원칙을 자동 승격하지 않습니다. 기록에 보존한 근거는 남습니다.</p>}
         prepare={async reason=> (await api<{memo:ChangeMemo}>("POST","/principles/preview",{action:"delete",id:item.id,input:{expected_version:item.version,change_note:reason||undefined}})).memo}

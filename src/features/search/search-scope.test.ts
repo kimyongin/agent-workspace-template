@@ -8,9 +8,10 @@ test("saved search URLs send all tag selections, record kind and source scope", 
   expect(input.tag_ids).toEqual([first, second]);
   expect(input.entity_id).toBe(first);
 });
-test("new searches use current principles; explicit old scope stays recognizable", () => {
-  expect(workspaceSearchScope(new URLSearchParams("q=기준")).principle_view).toBe("current");
-  expect(workspaceSearchScope(new URLSearchParams("q=기준&status=inactive")).principle_view).toBe("history");
+test("retired saved search conditions fail rather than silently changing scope", () => {
+  for (const condition of ["status=active", "status=inactive", "status=all", "principle_view=current", "principle_view=history", "principle_view=all"]) {
+    expect(() => workspaceSearchScope(new URLSearchParams(`q=기준&${condition}`))).toThrow();
+  }
 });
 test("invalid record filters are rejected before a search request", () => {
   expect(() => workspaceSearchScope(new URLSearchParams("q=근거&record_kind=unknown"))).toThrow();

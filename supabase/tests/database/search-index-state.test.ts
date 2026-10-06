@@ -37,7 +37,6 @@ dbTest("색인 상태: 3종류 최신 작업 하나·중복/실패 복구·본�
         A,
         principleCreate.parse({ title: input.title, summary: input.summary, body: input.body }),
       );
-    if (kind === "principle") await admin`update app.principles set is_current=false where id=${item.id}`;
     const hash = await searchInputHash(item);
     const enqueue = (actor = A, value = hash) =>
       asUser(sql, actor.userId, async (tx) => {
@@ -75,7 +74,6 @@ dbTest("색인 상태: 3종류 최신 작업 하나·중복/실패 복구·본�
       kinds: [kind],
       mode: "keyword",
       tag_id: kind === "principle" ? undefined : tag,
-      principle_view: "all",
     });
     await admin`update app.search_index_state set state='indexed',message_id=null,
       embedding=${
@@ -103,7 +101,7 @@ dbTest("색인 상태: 3종류 최신 작업 하나·중복/실패 복구·본�
         item.id,
         recordUpdate.parse({ change_note: "테스트 변경 이유", expected_version: 1, title: "새 " + input.title }),
       )
-      : await principles.correctPrinciple(
+      : await principles.updatePrinciple(
         p,
         A,
         item.id,
@@ -127,7 +125,7 @@ dbTest("색인 상태: 3종류 최신 작업 하나·중복/실패 복구·본�
         item.id,
         recordUpdate.parse({ change_note: "테스트 변경 이유", expected_version: 2, body: "수정 원문" }),
       );
-    } else {await principles.correctPrinciple(
+    } else {await principles.updatePrinciple(
         p,
         A,
         item.id,
@@ -136,13 +134,7 @@ dbTest("색인 상태: 3종류 최신 작업 하나·중복/실패 복구·본�
     assertEquals((await state()).message_id, latest);
     if (kind === "task") await activity.deleteTask(d, A, item.id, 3);
     else if (kind === "record") await activity.deleteRecord(d, A, item.id, 3);
-    else {
-      // 과거 보존 자료는 현재 원칙 삭제 API가 처리하지 않는다. 이 계정의 fixture만
-      // 관리 연결로 정리하고 기존 삭제 트리거의 색인·대기 메시지 정리를 검증한다.
-      const deleted = await admin`delete from app.principles where owner_id=${users.a}
-        and id=${item.id} and not is_current returning id`;
-      assertEquals(deleted.map((row) => row.id), [item.id]);
-    }
+    else await principles.deletePrinciple(p, A, item.id, 3);
     assertEquals(await state(), undefined);
     assertEquals((await messages()).length, 0);
   }

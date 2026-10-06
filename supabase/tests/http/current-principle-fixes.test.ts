@@ -3,7 +3,7 @@ import { call, httpTest, signIn } from "./_client.ts";
 import { currentPrincipleFixes } from "./_current-principle-fixes.ts";
 
 httpTest(
-  "HTTP review fixes: memo-only/no-op, explicit snapshot clear, all view/status coverage-anchor-cursor combinations",
+  "HTTP review fixes: current-only search and preserved readonly snapshots",
   async () => {
     const token = await signIn("A");
     await currentPrincipleFixes(async (operation, input) => {
@@ -12,7 +12,6 @@ httpTest(
         current: ["GET", "/principles/current"],
         save: ["POST", "/principles/current"],
         get: ["GET", `/principles/${id}`],
-        correct: ["PATCH", `/principles/${id}/correct`],
         delete: ["DELETE", `/principles/${id}?expected_version=${input.expected_version}`],
         search: ["POST", "/search"],
         create_record: ["POST", "/records"],

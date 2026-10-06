@@ -150,37 +150,24 @@ test('inventory failure after all four creates leaves every ID available for par
     await cleanupOwned(data, save, api.call, api.oauth);
     assert(Object.values(api.rows).every((rows) => rows.size === 0));
     assert.equal(data.state, 'cleaned');
-    assert.equal(api.queries.filter(({ kind }) => kind === 'principle').length, 1);
+    assert.equal(api.calls.filter(name => name === 'get_current_principle').length, 2);
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 
-for (const ownStatus of ['active', 'inactive']) test(`actual ToolDef rejects retired status; cleanup finds own ${ownStatus} principle across paged all view`, async () => {
-  const root = await mkdtemp(resolve(tmpdir(), 'plugin-journal-'));
-  const path = resolve(root, 'fixture.json');
+test('cleanup reads only the owned current principle and never uses retired history discovery', async () => {
+  const root = await mkdtemp(resolve(tmpdir(), 'plugin-journal-')); const path = resolve(root, 'fixture.json');
   try {
     const data = journal(), api = service(), save = () => saveJournal(path, data);
     await saveJournal(path, data, true);
-    for (const status of ['active', 'inactive']) for (let index = 0; index < 2; index++) {
-      const id = randomUUID();
-      api.rows.principle.set(id, { id, title: `foreign-${status}-${index}`, status, version: 9 });
-    }
-    await setupOwned(data, save, api.call, async () => ({ tools: [...schemas.keys()].map((name) => ({ name })) }));
-    api.rows.principle.get(data.principle.id).status = ownStatus;
-    await assert.rejects(api.call('list_principles', { status: 'all' }), (error) => error.issues?.some(({ code }) => code === 'unrecognized_keys'));
-    assert.equal(api.oauthAttempts, 0);
-    assert(data.token);
+    const foreign = randomUUID(); api.rows.principle.set(foreign, { id: foreign, title: 'archived data', is_current: false, version: 9 });
+    await setupOwned(data, save, api.call, async () => ({ tools: [...schemas.keys()].map(name => ({ name })) }));
+    assert(!schemas.has('list_principles')); assert(!schemas.has('correct_principle'));
     await cleanupOwned(data, save, api.call, api.oauth);
-    assert.equal(api.rows.principle.size, 4);
-    assert(!api.rows.principle.has(data.principle.id));
-    const pages = api.queries.filter((query) => query.kind === 'principle');
-    assert(pages.length >= 2);
-    assert.equal(pages[0].cursor, undefined);
-    assert(pages.slice(1).every(({ cursor }) => cursor.startsWith('principle:all:')));
-    assert.equal(api.oauthAttempts, 1);
+    assert(api.rows.principle.has(foreign)); assert(!api.rows.principle.has(data.principle.id));
+    assert(!api.calls.includes('list_principles')); assert.equal(api.oauthAttempts, 1);
     assert.equal((await readJournal(path, endpoint, 'codex-cli')).token, undefined);
   } finally { await rm(root, { recursive: true, force: true }); }
 });
-
 
 test('setup refuses an existing foreign current principle before any fixture mutation', async () => {
   const data = journal(), api = service();

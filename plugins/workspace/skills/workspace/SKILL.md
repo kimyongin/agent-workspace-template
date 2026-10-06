@@ -34,13 +34,13 @@ description: Workspace에서 다음 업무의 검토·준비안을 만들거나 
 
 할 일·일반 기록의 선택적 대상은 `entity_ids` 배열이다. 생략·빈 배열·여러 대상 모두 지원한다. 새 대상은 같은 소유자의 현재 엔터티를 조회해 선택한다. 본문 언급에서 연결을 자동 생성하지 않는다. 수정에서 생략은 보존, `[]`는 명시 해제다. 일회성 완료는 전체 대상을 상속하고 회차는 생략 시 전체 상속하며 명시 선택은 그 회차만 바꾼다. 대상 삭제 후 할 일은 남은 live 연결만 유지하며 기록은 `entity_context`의 ID·이름·captured_at·source를 보존한다. 같은 ID의 메모 정정은 기존 캡처를 유지한다.
 
-현재 원칙은 하나 또는 없음이다. 최초 등록과 현재 문서 갱신은 서로 다른 동작이다. 현재 변경은 같은 ID의 문서를 갱신하고 통합 기록에 최종 메모를 함께 남긴다. 삭제하면 현재 원칙이 없어지며 과거 자료를 승격하지 않는다. 과거 근거는 기록에서 찾는다. 신규 기록의 원칙 참고는 필요한 본문 설명으로 남기며 적용 원칙 ID를 필수로 받지 않는다.
+현재 원칙은 하나 또는 없음이다. 최초 등록과 현재 문서 갱신은 서로 다른 동작이다. 현재 변경은 같은 ID의 문서를 갱신하고 통합 기록에 최종 메모를 함께 남긴다. 삭제하면 현재 원칙이 없어지며 과거 자료를 승격하지 않는다. 과거 근거는 기록에서 찾는다. 신규 기록의 원칙 참고는 필요한 본문 설명으로 남기며 원칙 적용 관계 키 없이 본문으로 설명한다.
 
 엔터티·할 일·현재 원칙의 변경을 요청받으면 해당 preview에 현재 버전과 실제 입력을 전달한다. preview는 업무 데이터를 저장하지 않는다. 반환 메모에 이유·근거를 보충해 같은 입력의 `change_memo`로 제출한다. 완료·회차에서는 결과 기록 자체의 제목·요약·본문이 최종 메모다. `change_note`는 선택이며 별도 이유를 반드시 물어 모든 편집을 중단하지 않는다. 버전 충돌은 다시 조회해 판단하고, 불확실한 저장 응답은 독립 조회와 계약된 동일 `request_id`로 확인한다.
 
 일반 기록과 로그 메모의 편집은 추가 편집 로그를 만들지 않는다. change 기록의 사건 ID·시각·대상·행동·before/after는 읽기 전용이며 메모 정정으로 업무 원본을 되돌리지 않는다. 엔터티·할 일·현재 원칙의 실제 변경은 최종 메모와 원자적으로 저장한다. 조회·무변경·실패·동일 요청 재시도에는 추가 성공 기록이 생기지 않는다. 접수·원본 저장·검색 색인 완료를 구분하고 호출하지 않은 변경의 완료를 주장하지 않는다.
 
-기존 단일 대상·원칙 과거본·적용 snapshot 자료를 읽거나 유지할 때는 [보존 자료와 호환 입력](references/compatibility.md)을 읽는다. 이 호환 기능을 새 업무의 필수 입력으로 요구하지 않는다.
+과거 캡처·이관 자료를 해석할 때는 [보존 자료 읽기](references/preservation.md)를 읽는다.
 
 ## 제공 도구
 
@@ -58,8 +58,7 @@ description: Workspace에서 다음 업무의 검토·준비안을 만들거나 
 | 반복 할 일의 회차 기록·중단·재개 | `record_occurrence`, `stop_task`, `resume_task` |
 | 기록 찾기·읽기·쓰기 | `list_records`, `get_record`, `create_record`, `update_record`, `delete_record` |
 | 현재 원칙 확인·최초 등록·같은 문서 갱신 | `get_current_principle`, `create_principle`, `save_current_principle`, `update_principle` |
-| 현재 원칙 삭제 | `delete_principle` |
-| 기존 과거 자료 조회·호환 정정 | `list_principles`, `get_principle`, `correct_principle` |
+| 현재 원칙의 ID로 원문 확인·삭제 | `get_principle`, `delete_principle` |
 | 태그 목록·생성·이름 변경·삭제 | `list_tags`, `create_tag`, `rename_tag`, `delete_tag` |
 | 제목·요약·본문에서 근거 찾기 | `search` |
 | 예제 엔터티 찾기·읽기·만들기·고치기·지우기 | `list_entities`, `get_entity`, `create_entity`, `update_entity`, `delete_entity` |

@@ -49,10 +49,9 @@ dbTest("의미 검색: 3종류·hybrid 순위/anchor/커서·현재성·권한·
   const entity = crypto.randomUUID(), otherEntity = crypto.randomUUID(), excludedId = crypto.randomUUID();
   await asUser(sql, users.a, async (tx) => {
     await tx`insert into app.entities(id,owner_id,prop1) values(${entity},${users.a},'의미 범위'),(${otherEntity},${users.a},'다른 범위')`;
-    await tx`update app.tasks set entity_id=${entity} where id=${ids[0]}`;
-    await tx`update app.records set entity_id=${otherEntity} where id=${ids[1]}`;
-    await tx`update app.principles set entity_id=${entity} where id=${ids[2]}`;
-    await tx`insert into app.records(id,owner_id,title,summary,body,entity_id,occurred_at) values(${excludedId},${users.a},'색인 제외','제외 사유','질의 없음',${entity},${at})`;
+    await tx`update app.tasks set entity_ids=array[${entity}::uuid] where id=${ids[0]}`;
+    await tx`update app.records set entity_ids=array[${otherEntity}::uuid] where id=${ids[1]}`;
+    await tx`insert into app.records(id,owner_id,title,summary,body,entity_ids,occurred_at) values(${excludedId},${users.a},'색인 제외','제외 사유','질의 없음',array[${entity}::uuid],${at})`;
     await tx`insert into app.record_tags(owner_id,record_id,tag_id) values(${users.a},${excludedId},${tag})`;
   });
   await admin`insert into app.search_index_state(owner_id,kind,id,input_hash,pipeline,state,reason)
@@ -73,29 +72,10 @@ dbTest("의미 검색: 3종류·hybrid 순위/anchor/커서·현재성·권한·
   assertEquals((await search(d, A, { ...q, mode: "keyword", limit: 20 })).items.map((x) => x.id), [ids[0], ids[1]]);
   assertEquals((await search(d, { userId: users.b }, { ...q, anchor: { kind: "task", id: ids[0] } })).items, []);
   assertEquals((await search(d, A, { ...q, from: "2002-02-04T00:00:00Z", to: undefined })).items, []);
-  await asUser(sql, users.a, async (tx) => {
-    await tx`update app.principles set is_current=false where id=${ids[2]}`;
-  });
-  assertEquals((await search(d, A, { ...q, kinds: ["principle"] })).items, []);
-  assertEquals(
-    (await search(
-      d,
-      A,
-      searchInput.parse({ ...q, principle_view: undefined, kinds: ["principle"], status: "inactive" }),
-    )).items[0].id,
-    ids[2],
-  );
-  await admin`update app.search_index_state set pipeline='old' where id=${ids[2]}`;
-  assertEquals(
-    (await search(d, A, searchInput.parse({ ...q, principle_view: undefined, kinds: ["principle"], status: "all" })))
-      .semantic_coverage.pending,
-    1,
-  );
-  assertEquals(
-    (await search(d, A, searchInput.parse({ ...q, principle_view: undefined, kinds: ["principle"], status: "all" })))
-      .items,
-    [],
-  );
+  await admin`update app.principles set is_current=false where id=${ids[2]}`;
+  const hidden = await search(d, A, { ...q, kinds: ["principle"] });
+  assertEquals(hidden.items, []);
+  assertEquals(hidden.semantic_coverage, { pending: 0, excluded: 0 });
   await asUser(sql, users.a, async (tx) => {
     await tx`update app.tasks set summary='해시 변경' where id=${ids[0]}`;
   });

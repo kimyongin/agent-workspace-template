@@ -165,7 +165,7 @@ export function roundtripAnswerProof(text, f, mode) {
 }
 
 export function hasRoundtripOriginal(tool, payload, kind, original) {
-  const allowed = kind === 'principle' ? ['get_current_principle', 'get_principle', 'list_principles'] : ['get_task', 'list_tasks'];
+  const allowed = kind === 'principle' ? ['get_current_principle', 'get_principle'] : ['get_task', 'list_tasks'];
   if (!allowed.includes(tool) || !original || !payload) return false;
   if (typeof payload === 'string') { try { return hasRoundtripOriginal(tool, JSON.parse(payload), kind, original); } catch { return false; } }
   if (typeof payload !== 'object') return false;

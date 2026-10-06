@@ -1,8 +1,7 @@
-import { consistentEntities, entityContext, entitySelection, entitySelectionError } from "./entity-links.ts";
+import { entityContext, entitySelection } from "./entity-links.ts";
 // 활동 기록(ActivityRecord) 계약.
 import { z } from "zod";
 import { changeMetadata, mutationMeta } from "./change.ts";
-import { principleResult } from "./principle.ts";
 import { tagFilterIds, tagIds } from "./tag.ts";
 import {
   body,
@@ -12,7 +11,6 @@ import {
   isoDateTime,
   page,
   pageInput,
-  referenceIds,
   requestId,
   summary,
   title,
@@ -27,9 +25,8 @@ export const recordCreate = z.strictObject({
   summary,
   body: body.default(""),
   occurred_at: isoDateTime.optional(),
-  applied_principle_ids: referenceIds.default([]),
   request_id: requestId.optional(),
-}).refine(consistentEntities, entitySelectionError);
+});
 export type RecordCreate = z.infer<typeof recordCreate>;
 
 export const recordUpdate = z
@@ -42,8 +39,7 @@ export const recordUpdate = z
     summary: summary.optional(),
     body: body.optional(),
     occurred_at: isoDateTime.optional(),
-    applied_principle_ids: referenceIds.optional(),
-  }).refine(consistentEntities, entitySelectionError); // Automatic change records also allow editing only their note.
+  }); // Automatic change records also allow editing only their note.
 export type RecordUpdate = z.infer<typeof recordUpdate>;
 
 export const recordListQuery = z
@@ -63,15 +59,16 @@ export const recordListQuery = z
   });
 export type RecordListQuery = z.infer<typeof recordListQuery>;
 
-export const appliedPrincipleSnapshot = principleResult.pick({
-  id: true,
-  title: true,
-  summary: true,
-  body: true,
-  version: true,
-  saved_at: true,
-  status: true,
-}).extend({ captured_at: z.enum(["application", "migration"]) });
+export const appliedPrincipleSnapshot = z.object({
+  id,
+  title: z.string(),
+  summary: z.string(),
+  body: z.string(),
+  version: z.number().int(),
+  saved_at: isoDateTime,
+  status: z.enum(["active", "inactive"]),
+  captured_at: z.enum(["application", "migration"]),
+});
 export type AppliedPrincipleSnapshot = z.infer<typeof appliedPrincipleSnapshot>;
 export const recordResult = z.object({
   record_kind: z.enum(["user", "result", "change"]),
@@ -79,7 +76,6 @@ export const recordResult = z.object({
   change: changeMetadata.nullable(),
   applied_principle_snapshots: z.array(appliedPrincipleSnapshot),
   id,
-  entity_id: id.nullable(),
   entity_ids: z.array(id),
   entity_context: z.array(entityContext),
   tag_ids: z.array(id),
@@ -89,10 +85,6 @@ export const recordResult = z.object({
   occurred_at: isoDateTime,
   task_id: id.nullable(),
   occurrence_on: isoDate.nullable(),
-  applied_principle_ids: z.array(id),
-  applied_principles: z.array(
-    principleResult.pick({ id: true, title: true, status: true, updated_at: true, version: true }),
-  ),
   version: z.number().int(),
   created_at: isoDateTime,
   updated_at: isoDateTime,
@@ -108,5 +100,4 @@ export const recordLabels = {
   occurred_at: "수행 시각",
   task_id: "할 일",
   occurrence_on: "회차",
-  applied_principle_ids: "적용한 원칙",
 } as const;

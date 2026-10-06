@@ -22,7 +22,7 @@ for (
         title,
         summary: "추가 페이지에서 진입하는 대상",
         tag_ids: [tag.id],
-        entity_id: entity.id,
+        entity_ids: [entity.id],
       });
       ids.add(item.id);
       return item;
@@ -227,7 +227,8 @@ for (
             title: `${label} 경계 ${index}`,
             summary: "manual page",
             tag_ids: [],
-            entity_id: null,
+            entity_ids: [],
+            entity_context: [],
             kind: "once",
             status: "open",
             occurred_at: "2026-10-04T00:00:00Z",

@@ -21,13 +21,19 @@ function fixture(kind: "user" | "result" | "change") {
     created_at: now,
     updated_at: now,
     version: 1,
-    entity_id: null,
     task_id: kind === "result" ? crypto.randomUUID() : null,
     occurrence_on: kind === "result" ? "2026-10-06" : null,
     tag_ids: [],
-    applied_principle_ids: [],
-    applied_principles: [],
-    applied_principle_snapshots: [],
+    applied_principle_snapshots: [{
+      id: crypto.randomUUID(),
+      title: "당시 제목",
+      summary: "당시 요약",
+      body: "당시 전체 원문",
+      version: 1,
+      saved_at: "2020-01-02T00:00:00.000Z",
+      status: "inactive",
+      captured_at: "migration",
+    }],
     change_note: "기존 설명",
     change: kind === "change"
       ? {
@@ -116,6 +122,8 @@ for (const kind of ["user", "result", "change"] as const) {
       f.initial.occurrence_on,
       "기존 설명",
     ]);
+    assertEquals(updated.applied_principle_snapshots, f.initial.applied_principle_snapshots);
+    assertEquals("applied_principle_ids" in updated, false);
     assertEquals(f.jobs.length, 1);
     assertEquals(await f.call({ expected_version: 2, title: "정정" }), updated);
     const stale = await f.http({ expected_version: 1, body: "오래된 수정" });

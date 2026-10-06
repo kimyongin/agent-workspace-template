@@ -69,11 +69,10 @@ export function SearchPage(){
     </form>
     <div className="actions">
       <Field label="검색 대상">{p=><select {...p} className="input" value={params.get("kind")??""} onChange={e=>change("kind",e.target.value)}><option value="">전체</option>{Object.entries(kinds).map(([k,v])=><option key={k} value={k}>{v}</option>)}</select>}</Field>
-      <Field label="원칙 범위">{p=><select {...p} className="input" value={params.get("principle_view")??(params.get("status")==="inactive"?"history":params.get("status")==="all"?"all":"current")} onChange={e=>{const p=new URLSearchParams(params);p.delete("status");p.delete("pages");p.delete("scroll");p.set("principle_view",e.target.value);setParams(p);}}><option value="current">현재</option><option value="history">과거본</option><option value="all">전체</option></select>}</Field>
       <Field label="검색 방식">{p=><select {...p} className="input" value={params.get("mode")??"auto"} onChange={e=>change("mode",e.target.value)}><option value="auto">자동</option><option value="keyword">키워드</option></select>}</Field>
     </div>
     <p className="help">현재 원칙은 원칙 탭에서 확인하고, 과거 변경과 근거는 기록을 검색해 원문을 읽으세요.</p>
-    {(params.get("principle_view")==="history"||params.get("principle_view")==="all"||params.get("status")==="inactive"||params.get("status")==="all")&&<Notice>기존 원칙 보존 자료를 포함하는 검색입니다. 과거 문서를 현재 기준으로 사용하지 마세요.</Notice>}
+    {(params.has("status")||params.has("principle_view"))&&<Notice kind="error">이 링크에는 지원하지 않는 검색 조건이 있습니다. 조건을 지운 뒤 현재 원칙이나 통합 기록을 검색하세요. <button type="button" className="btn" onClick={()=>{const next=new URLSearchParams(params);for(const key of ["status","principle_view","pages","scroll"])next.delete(key);setParams(next);}}>지원하지 않는 검색 조건 지우기</button></Notice>}
     {params.has("tag_ids")&&<div className="form"><TagNames ids={activityTags(params)}/><button type="button" className="btn" onClick={()=>change("tag_ids","")}>저장된 태그 조건 해제</button></div>}
     <TagFilter value={tag} onChange={id=>{const next=new URLSearchParams(params);next.delete("tag_ids");next.delete("pages");next.delete("scroll");id?next.set("tag_id",id):next.delete("tag_id");setParams(next);}}/>
     <EntityPicker value={params.get("entity_id")??""} onChange={id=>change("entity_id",id??"")}/>

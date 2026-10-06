@@ -2,7 +2,7 @@ import type postgres from "postgres";
 import type { Actor } from "../../core/shared/actor.ts";
 import { AppError } from "../../core/shared/errors.ts";
 type Tx = postgres.TransactionSql;
-type Kind = "task" | "record" | "principle" | "entity";
+type Kind = "task" | "record" | "entity";
 export function tagIdsColumn(tx: Tx, kind: Kind) {
   return tx`coalesce((select jsonb_agg(tag_id order by tag_id) from ${tx(`app.${kind}_tags`)}
     where ${tx(`${kind}_id`)}=${tx(`app.${kind === "entity" ? "entities" : `${kind}s`}.id`)}),'[]'::jsonb) as tag_ids`;

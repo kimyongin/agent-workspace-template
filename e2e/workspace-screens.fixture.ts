@@ -204,9 +204,9 @@ test("반복 중단·재개 메모·결과 생성은 같은 surface",async({page
 
 const stamp="2026-10-04T03:00:00Z", id=(n:number)=>`00000000-0000-4000-8000-${String(n).padStart(12,"0")}`;
 test("연결 엔터티 범위: 각 탭 조회·검색 조건·본문 왕복·해제",async({page})=>{
-  const state=await fixtures(page);for(const kind of ["tasks","records"]){state.rows[kind][0].entity_id=id(1);state.rows[kind][0].entity_ids=[id(1)];state.rows[kind][0].entity_context=[{id:id(1),title:"엔터티",state:"current"}];}
+  const state=await fixtures(page);for(const kind of ["tasks","records"]){state.rows[kind][0].entity_ids=[id(1)];state.rows[kind][0].entity_context=[{id:id(1),title:"엔터티",source:"selection",captured_at:stamp}];}
   const reads:{kind:string;params:URLSearchParams}[]=[];
-  for(const kind of ["tasks","records"])await page.route(`**/api/${kind}?**`,route=>{const params=new URL(route.request().url()).searchParams;reads.push({kind,params});return route.fulfill({json:{items:state.rows[kind].filter(row=>!params.has("entity_id")||row.entity_id===params.get("entity_id")),next_cursor:null}});});
+  for(const kind of ["tasks","records"])await page.route(`**/api/${kind}?**`,route=>{const params=new URL(route.request().url()).searchParams;reads.push({kind,params});return route.fulfill({json:{items:state.rows[kind].filter(row=>!params.has("entity_id")||(row.entity_ids as string[]).includes(params.get("entity_id")!)),next_cursor:null}});});
   await go(page,`/entities/${id(1)}`);const full=form(page).getByRole("link",{name:"전체 할 일 보기",exact:true});await expect(full).toHaveAttribute("href",`/tasks?entity_id=${id(1)}`);await full.click();await expect(page.getByText("연결된 엔터티: 엔터티",{exact:true})).toBeVisible();expect(new URL(page.url()).searchParams.get("entity_id")).toBe(id(1));await expect.poll(()=>reads.length).toBe(1);expect(reads[0].kind).toBe("tasks");expect(reads[0].params.get("entity_id")).toBe(id(1));
   await page.getByRole("button",{name:"같은 이름",exact:true}).click();await page.getByLabel("검색어",{exact:true}).fill("할");await expect.poll(()=>state.searches.length).toBe(1);expect(state.searches[0].entity_id).toBe(id(1));expect(state.searches[0].tag_ids).toEqual([id(11)]);expect(state.searches[0]).not.toHaveProperty("from");
   await page.getByRole("link",{name:"할 일 보기",exact:true}).click();await form(page).getByRole("button",{name:"닫기",exact:true}).click();await expect(page.getByText("연결된 엔터티: 엔터티",{exact:true})).toBeVisible();expect(new URL(page.url()).searchParams.get("entity_id")).toBe(id(1));
@@ -282,9 +282,9 @@ test("편집 업무 전환: 완료는 dirty 초안을 보호하고 취소 뒤 �
 for(const width of [390,1440])test(`긴 GFM 표 ${width}px: 표 안 가로 스크롤·안전 체크리스트`,async({page},info)=>{
   const state=await fixtures(page),cells=Array.from({length:40},(_,i)=>`열${i} 긴값`),row="|"+cells.join("|")+"|";state.rows.records[0].body=row+"\n|"+cells.map(()=>"---").join("|")+"|\n"+row+"\n\n- [ ] 읽기 항목\n\n"+"아래 본문\n\n".repeat(30);await page.setViewportSize({width,height:800});await go(page,`/records/${id(3)}`);const table=form(page).getByRole("table");await expect(table).toBeVisible();await expect(table.getByRole("columnheader")).toHaveCount(40);expect(await table.evaluate(el=>el.scrollWidth>el.clientWidth)).toBe(true);expect(await table.evaluate(el=>getComputedStyle(el).scrollbarWidth)).toBe("none");await table.hover();await page.mouse.wheel(300,0);await expect.poll(()=>table.evaluate(el=>el.scrollLeft)).toBeGreaterThan(0);await expect(form(page).getByRole("checkbox")).toBeDisabled();expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);await page.screenshot({path:info.outputPath(`table-${width}.png`)});expect(state.writes).toHaveLength(0);expect(state.errors).toEqual([]);
 });
-const entity=(n=1)=>({...base(n,"엔터티"),prop1:"엔터티",prop2:0,prop3:null,prop4:"a",tag_ids:[],tasks:{count:0,items:[]},records:{count:0,items:[]},principles:{count:0,items:[]}});
-const task=(n=2)=>({...base(n,"할 일"),kind:"once",status:"open",due_on:null,recurrence:null,timezone:null,result_record:null,completed_at:null,result_record_id:null,pauses:[],tag_ids:[],entity_id:null,entity_ids:[],entity_context:[],occurrence:null});
-const record=(n=3)=>({...base(n,"기록"),record_kind:"user",change_note:null,change:null,occurred_at:stamp,task_id:null,occurrence_on:null,tag_ids:[],entity_id:null,entity_ids:[],entity_context:[],applied_principle_ids:[],applied_principles:[],applied_principle_snapshots:[]});
+const entity=(n=1)=>({...base(n,"엔터티"),prop1:"엔터티",prop2:0,prop3:null,prop4:"a",tag_ids:[],tasks:{count:0,items:[]},records:{count:0,items:[]},});
+const task=(n=2)=>({...base(n,"할 일"),kind:"once",status:"open",due_on:null,recurrence:null,timezone:null,result_record:null,completed_at:null,result_record_id:null,pauses:[],tag_ids:[],entity_ids:[],entity_context:[],occurrence:null});
+const record=(n=3)=>({...base(n,"기록"),record_kind:"user",change_note:null,change:null,occurred_at:stamp,task_id:null,occurrence_on:null,tag_ids:[],entity_ids:[],entity_context:[],applied_principle_snapshots:[]});
 const principle=(n=4,current=true)=>({...base(n,current?"현재 기준":"과거 기준"),is_current:current,saved_at:stamp,change_note:"당시 저장 이유",origin:"saved",legacy_context:null});
 type Row=ReturnType<typeof base>&Record<string,unknown>;
 async function fixtures(page:Page, options:{long?:boolean;emptyPrinciple?:boolean;failWrite?:"unknown"|"conflict";hold?:boolean}={}) {
@@ -299,13 +299,13 @@ async function fixtures(page:Page, options:{long?:boolean;emptyPrinciple?:boolea
     const req=route.request(),url=new URL(req.url()),parts=url.pathname.replace("/api/","").split("/"),[kind,key,action]=parts,method=req.method();
     const body=(req.postDataJSON()??{}) as Record<string,unknown>;
     const reply=(data:unknown,status=200)=>route.fulfill({status,json:data});
-    if(kind==="search"){searches.push(body);const selected=String((body.kinds as string[])[0])+"s";return reply({items:(rows[selected]??[]).filter(r=>selected!=="principles"||!r.is_current).map(r=>({id:r.id,kind:selected.slice(0,-1),title:r.title,summary:r.summary,at:stamp,change_note:r.change_note,tag_ids:r.tag_ids??[],path:`/${selected}/${r.id}`,match:"keyword",index_state:"pending"})),next_cursor:null,anchor_page:null,search_state:body.mode==="auto"?"keyword_fallback":"ok",semantic_coverage:{pending:1,excluded:0}});}
+    if(kind==="search"){searches.push(body);const selected=String((body.kinds as string[])[0])+"s";return reply({items:(rows[selected]??[]).filter(r=>selected!=="principles"||r.is_current).map(r=>({id:r.id,kind:selected.slice(0,-1),title:r.title,summary:r.summary,at:stamp,change_note:r.change_note,tag_ids:r.tag_ids??[],path:`/${selected}/${r.id}`,match:"keyword",index_state:"pending"})),next_cursor:null,anchor_page:null,search_state:body.mode==="auto"?"keyword_fallback":"ok",semantic_coverage:{pending:1,excluded:0}});}
     if(!rows[kind])return reply({code:"invalid_input",message:`Unexpected fixture endpoint ${url.pathname}`},400);
     if(method==="GET") {
       if(kind==="principles"&&key==="current")return reply({current:rows.principles.find(r=>r.is_current)??null});
-      if(key){const found=rows[kind].find(r=>r.id===key);return found?reply(found):reply({code:"not_found",message:"삭제된 자료"},404);}
+      if(key){const found=rows[kind].find(r=>r.id===key&&(kind!=="principles"||r.is_current));return found?reply(found):reply({code:"not_found",message:"삭제된 자료"},404);}
       let items=rows[kind];if(kind==="tags")items=items.filter(r=>r.scope===(url.searchParams.get("scope")??"activity"));
-      if(kind==="principles")items=items.filter(r=>url.searchParams.get("view")==="history"?!r.is_current:!!r.is_current);
+      if(kind==="principles")return reply({code:"not_found",message:"지원하지 않는 원칙 목록"},404);
       if(kind==="records"&&url.searchParams.get("record_kind"))items=items.filter(r=>r.record_kind===url.searchParams.get("record_kind"));
       return reply({items,next_cursor:null});
     }
@@ -355,22 +355,37 @@ test("원칙: 최초 등록·같은 ID 편집·삭제 뒤 없음·기록으로 �
   await expect(page.getByRole("link",{name:"과거 근거는 통합 기록에서 보기"})).toHaveAttribute("href","/records");expect(state.errors).toEqual([]);
 });
 
+for (const condition of ["status=inactive", "principle_view=all"]) test(`검색: 폐기된 ${condition} 링크는 오류를 알리고 명시적 해제 후 현재 원칙만 찾는다`,async({page})=>{
+  const state=await fixtures(page);
+  await go(page,`/search?q=기준&kind=principle&${condition}`);
+  await expect(page.getByRole("button",{name:"지원하지 않는 검색 조건 지우기",exact:true})).toBeVisible();
+  expect(state.searches).toHaveLength(0);
+  await expect(page.getByLabel("원칙 범위")).toHaveCount(0);
+  await page.getByRole("button",{name:"지원하지 않는 검색 조건 지우기",exact:true}).click();
+  await expect.poll(()=>state.searches.length).toBe(1);
+  expect(state.searches[0]).not.toHaveProperty("status");
+  expect(state.searches[0]).not.toHaveProperty("principle_view");
+  await expect(page.locator(".list .item-title")).toHaveText(["현재 기준"]);
+  expect(new URL(page.url()).searchParams.get("q")).toBe("기준");
+  expect(state.errors).toEqual([]);
+});
+
 test("새 기록은 원칙 연관키 선택 없이 본문 근거를 저장한다",async({page})=>{
   const state=await fixtures(page);await go(page,"/records?create=1");await fillText(page,"독립 기록");
   await expect(form(page).getByText("적용한 원칙",{exact:true})).toHaveCount(0);
   await saveWithMemo(page,form(page));expect(state.writes[0].body).not.toHaveProperty("applied_principle_ids");
   expect(state.errors).toEqual([]);
 });
-for (const selected of [false,true]) test(`기록: 옛 원칙 키 ${selected?"있음":"없음"} 설명 정정은 snapshot 보존`, async ({page}) => {
+for (const capture of ["application","migration"] as const) test(`기록: ${capture} 과거 원칙의 설명 정정은 snapshot 보존`, async ({page}) => {
   const state = await fixtures(page), r = state.rows.records[0];
-  Object.assign(r, {applied_principle_ids:selected ? [id(4)] : [], applied_principle_snapshots:[
-    {id:id(4),title:"당시 기준",body:"보존할 당시 본문",summary:"당시 요약",version:1,saved_at:stamp,captured_at:"application",status:"active"}
+  Object.assign(r, {applied_principle_snapshots:[
+    {id:id(4),title:"당시 기준",body:"보존할 당시 본문",summary:"당시 요약",version:1,saved_at:stamp,captured_at:capture,status:"active"}
   ]});
   await page.route("**/api/records/"+r.id, async route => {
     if(route.request().method() !== "PATCH") return route.fallback();
     const body = route.request().postDataJSON();
     state.writes.push({method:"PATCH",path:new URL(route.request().url()).pathname,body,params:new URLSearchParams()});
-    if(Object.hasOwn(body,"applied_principle_ids")) r.applied_principle_snapshots = [];
+    if(Object.hasOwn(body,"applied_principle_ids")) return route.fulfill({status:400,json:{code:"invalid_input",message:"지원하지 않는 기록 입력"}});
     Object.assign(r,body,{version:r.version+1});await route.fulfill({json:r});
   });
   await go(page,`/records/${r.id}?edit=1&edit_from=view`);await expect(form(page)).toContainText("보존할 당시 본문");
@@ -387,7 +402,7 @@ for (const selected of [false,true]) test(`기록: 옛 원칙 키 ${selected?"�
 });
 
 test("기록: 자동 변경 문맥·원칙 snapshot·정정 시스템 필드 제외",async({page})=>{
-  const state=await fixtures(page);const r=state.rows.records[0];Object.assign(r,{record_kind:"change",change_note:"실측 반영",change:{event_id:id(30),target_kind:"entity",target_id:id(99),target_title:"삭제된 엔터티",action:"delete",source:"mcp",before:{prop2:10},after:null,path:null},applied_principle_snapshots:[{title:"당시 기준",body:"당시 본문",saved_at:stamp,summary:"당시 요약",captured_at:"migration"}]});
+  const state=await fixtures(page);const r=state.rows.records[0];Object.assign(r,{record_kind:"change",change_note:"실측 반영",change:{event_id:id(30),target_kind:"entity",target_id:id(99),target_title:"삭제된 엔터티",action:"delete",source:"mcp",before:{prop2:10},after:null,path:null},applied_principle_snapshots:[{id:id(4),version:1,status:"active",title:"당시 기준",body:"당시 본문",saved_at:stamp,summary:"당시 요약",captured_at:"migration"}]});
   await go(page,`/records/${r.id}?edit=1&edit_from=view`);await expect(form(page)).toContainText("에이전트");await expect(form(page)).toContainText("삭제된 대상");await expect(form(page)).toContainText("당시 본문");await expect(form(page)).toContainText("실제 판단 당시의 본문을 보증하지 않습니다.");await expect(form(page).getByRole("link",{name:"대상 원문 보기"})).toHaveCount(0);
   await compatibleEdit(page);await expect(form(page).getByLabel("수행 시각")).toHaveCount(0);await expect(form(page).getByText("활동 태그",{exact:true})).toHaveCount(0);await form(page).getByLabel("편집 메모",{exact:false}).fill("설명 정정");await saveWithMemo(page, form(page));
   expect(Object.keys(state.writes[0].body).sort()).toEqual(["body","change_note","expected_version","request_id","summary","title"].sort());expect(state.rows.entities[0].prop2).toBe(0);

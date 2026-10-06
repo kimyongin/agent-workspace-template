@@ -56,7 +56,7 @@ httpTest("현재 원칙 HTTP: 같은 문서 갱신·선택 메모·미리보기�
         title: "거부",
         change_note: "현재 문서",
       })).status,
-      409,
+      404,
     );
     assertEquals(
       (await call(a, "POST", "/principles/preview", {

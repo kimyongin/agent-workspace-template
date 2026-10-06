@@ -58,10 +58,11 @@ function ownedName(journal, kind, object) {
     object.title === `${journal.marker}-${kind === 'record' ? 'source' : kind}`;
 }
 async function listPageSet(call, kind) {
+  if (kind === 'principle') { const { current } = await call('get_current_principle', {}); return current ? [current] : []; }
   const all = [], seen = new Set();
   let cursor;
   do {
-    const page = await call(`list_${plurals[kind]}`, { ...(kind === 'principle' ? { view: 'all' } : {}), ...(cursor ? { cursor } : {}) });
+    const page = await call(`list_${plurals[kind]}`, { ...(cursor ? { cursor } : {}) });
     if (!Array.isArray(page.items)) throw new Error('Unexpected fixture list response');
     all.push(...page.items);
     cursor = page.next_cursor;
@@ -104,7 +105,7 @@ export async function cleanupOwned(journal, save, call, deleteOAuth) {
     const results = (await listAll(call, 'record')).filter((record) => record.title === `${journal.marker}-result`);
     for (const record of results) {
       const full = await call('get_record', { id: record.id });
-      if (!journal.entity || full.entity_id !== journal.entity.id || !full.tag_ids?.includes(journal.tag?.id)) throw new Error('Result ownership links differ; no deletion');
+      if (!journal.entity || !full.entity_ids?.includes(journal.entity.id) || !full.tag_ids?.includes(journal.tag?.id)) throw new Error('Result ownership links differ; no deletion');
       await call('delete_record', { id: full.id, expected_version: full.version });
     }
   }

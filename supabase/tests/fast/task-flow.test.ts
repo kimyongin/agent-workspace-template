@@ -76,8 +76,6 @@ function fixture(storageNow = () => now) {
         id: crypto.randomUUID(),
         occurred_at: input.occurred_at ?? now,
         tag_ids: input.tag_ids ?? [],
-        applied_principle_ids: input.applied_principle_ids ?? [],
-        applied_principles: [],
         version: 1,
         created_at: now,
         updated_at: now,

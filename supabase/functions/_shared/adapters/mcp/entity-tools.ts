@@ -39,7 +39,7 @@ export function entityTools(d: entity.EntityDeps): ToolDef[] {
     {
       name: "get_entity",
       description:
-        "엔터티 속성과 연결된 할 일·기록·원칙의 최근 5개 및 전체 개수. 각 list 도구의 entity_id로 전체 조회. 엔터티는 임베딩하지 않는다.",
+        "엔터티 속성과 선택된 할 일·기록의 최근 5개 및 전체 개수. 각 list 도구의 entity_id로 전체 조회. 엔터티는 임베딩하지 않는다.",
       input: z.strictObject({ id }),
       readOnly: true,
       handler: (i, a) => entity.getEntity(d, a, idParam(parse(get, i).id)),
@@ -65,7 +65,7 @@ export function entityTools(d: entity.EntityDeps): ToolDef[] {
     },
     {
       name: "delete_entity",
-      description: "엔터티 삭제. 연결 항목의 entity_id를 비우고 버전을 올리며 할 일·기록·원칙 원문은 보존.",
+      description: "엔터티 삭제. 할 일의 해당 선택을 제거하고 기록의 캡처 문맥과 원문을 보존한다.",
       input: z.strictObject({ id, expected_version: expectedVersion, ...businessMeta }),
       readOnly: false,
       destructive: true,

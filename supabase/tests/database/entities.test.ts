@@ -22,12 +22,12 @@ dbTest("Entity DB: same owner 참조 거부·삭제 링크 해제·원문/버전
   const task = await activity.createTask(
     a,
     A,
-    taskCreate.parse({ kind: "once", title: "행동", summary: "요약", entity_id: e.id }),
+    taskCreate.parse({ kind: "once", title: "행동", summary: "요약", entity_ids: [e.id] }),
   );
   const record = await activity.createRecord(
     a,
     A,
-    recordCreate.parse({ title: "기록", summary: "요약", body: "기록 원문", entity_id: e.id }),
+    recordCreate.parse({ title: "기록", summary: "요약", body: "기록 원문", entity_ids: [e.id] }),
   );
   for (const ref of [foreign.id, crypto.randomUUID()]) {
     for (
@@ -37,14 +37,14 @@ dbTest("Entity DB: same owner 참조 거부·삭제 링크 해제·원문/버전
             a,
             A,
             task.id,
-            taskUpdate.parse({ change_note: "테스트 변경 이유", expected_version: 1, entity_id: ref }),
+            taskUpdate.parse({ change_note: "테스트 변경 이유", expected_version: 1, entity_ids: [ref] }),
           ),
         () =>
           activity.updateRecord(
             a,
             A,
             record.id,
-            recordUpdate.parse({ change_note: "테스트 변경 이유", expected_version: 1, entity_id: ref }),
+            recordUpdate.parse({ change_note: "테스트 변경 이유", expected_version: 1, entity_ids: [ref] }),
           ),
       ]
     ) {
@@ -58,17 +58,21 @@ dbTest("Entity DB: same owner 참조 거부·삭제 링크 해제·원문/버전
     task.id,
     taskComplete.parse({ change_note: "테스트 변경 이유", expected_version: 1, title: "완료 결과", summary: "요약" }),
   );
-  assertEquals(completed.record.entity_id, e.id);
+  assertEquals(completed.record.entity_ids, [e.id]);
   const detail = await entity.getEntity(d, A, e.id);
-  assertEquals([detail.tasks.count, detail.records.count, detail.principles.count], [1, 5, 0]);
+  assertEquals([detail.tasks.count, detail.records.count], [1, 5]);
   assertEquals((await activity.listTasks(a, A, taskListQuery.parse({ entity_id: e.id }))).items.map((t) => t.id), [
     task.id,
   ]);
   assertEquals((await activity.listRecords(a, A, recordListQuery.parse({ entity_id: e.id }))).items.length, 5);
   await entity.deleteEntity(d, A, e.id, 1);
-  assertEquals((await activity.getTask(a, A, task.id)).entity_id, null);
+  const detached = await activity.getTask(a, A, task.id);
+  assertEquals(detached.entity_ids, []);
+  assertEquals(detached.entity_context, task.entity_context);
+  assertEquals(detached.version, completed.task.version + 1);
+  assertEquals((await activity.listTasks(a, A, taskListQuery.parse({ entity_id: e.id }))).items, []);
   const current = await activity.getRecord(a, A, record.id);
-  assertEquals([current.body, current.entity_id, current.version], ["기록 원문", null, 2]);
+  assertEquals([current.body, current.entity_ids, current.version], ["기록 원문", [e.id], 2]);
   assertEquals(
     (await admin`select count(*)::integer as n from app.search_index_state where id=${e.id}`)[0].n,
     0,
@@ -77,24 +81,13 @@ dbTest("Entity DB: same owner 참조 거부·삭제 링크 해제·원문/버전
   await admin`delete from app.records where id in (${record.id},${completed.record.id})`;
   await entity.deleteEntity(d, B, foreign.id, 1);
 });
-dbTest("Entity DB: RLS·직접 접근 차단·복합 FK·멱등성·버전 경쟁", async () => {
+dbTest("Entity DB: RLS·직접 접근 차단·선택 검증·멱등성·버전 경쟁", async () => {
   const request_id = crypto.randomUUID(), input = entityCreate.parse({ prop1: "멱등", request_id });
   const results = await Promise.all([entity.createEntity(d, A, input), entity.createEntity(d, A, input)]);
   assertEquals(results[0].id, results[1].id);
   const e = results[0];
   assertEquals((await asUser(sql, users.b, (tx) => tx`select id from app.entities where id=${e.id}`)).length, 0);
   assertEquals((await assertRejects(() => entity.getEntity(d, B, e.id), AppError)).code, "not_found");
-  assert(
-    (await outcome(
-      asUser(
-        sql,
-        users.b,
-        (tx) =>
-          tx`insert into app.tasks(owner_id,kind,title,summary,status,entity_id) values (${users.b},'once','외부','요약','open',${e.id})`,
-      ),
-    ))
-      .startsWith("23503"),
-  );
   assert((await outcome(admin.begin(async (tx) => {
     await tx`set local role authenticated`;
     return tx`select * from app.entities`;

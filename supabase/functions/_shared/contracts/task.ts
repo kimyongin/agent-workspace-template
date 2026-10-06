@@ -1,4 +1,4 @@
-import { consistentEntities, entityContext, entitySelection, entitySelectionError } from "./entity-links.ts";
+import { entityContext, entitySelection } from "./entity-links.ts";
 // 할 일(Task)·반복 할 일 계약.
 // HTTP 입력 검증·MCP inputSchema·웹 폼이 이 정의를 함께 쓴다. zod만 가져온다.
 import { z } from "zod";
@@ -11,7 +11,6 @@ import {
   isoDateTime,
   page,
   pageInput,
-  referenceIds,
   requestId,
   summary,
   title,
@@ -81,7 +80,7 @@ export const taskCreate = z.discriminatedUnion("kind", [
     timezone,
     request_id: requestId.optional(),
   }),
-]).refine(consistentEntities, entitySelectionError);
+]);
 export type TaskCreate = z.infer<typeof taskCreate>;
 
 /** 내용 필드만 고친다. `kind`·`status`·시각 등 서버 관리 필드는 strict로 거부된다. */
@@ -103,7 +102,7 @@ export const taskUpdate = z
     {
       message: "바꿀 필드가 없습니다",
     },
-  ).refine(consistentEntities, entitySelectionError);
+  );
 export type TaskUpdate = z.infer<typeof taskUpdate>;
 
 export const versionOnly = z.strictObject({ expected_version: expectedVersion, ...businessMeta });
@@ -112,7 +111,6 @@ export const versionOnly = z.strictObject({ expected_version: expectedVersion, .
 export const taskComplete = z.strictObject({
   ...mutationMeta,
   tag_ids: tagIds.optional(),
-  applied_principle_ids: referenceIds.default([]),
   expected_version: expectedVersion,
   title,
   summary,
@@ -154,7 +152,6 @@ export const pause = z.object({ stopped_on: isoDate, resumed_on: isoDate.nullabl
 
 export const taskResult = z.object({
   id,
-  entity_id: id.nullable(),
   entity_ids: z.array(id),
   entity_context: z.array(entityContext),
   tag_ids: z.array(id),

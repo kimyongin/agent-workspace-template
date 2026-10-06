@@ -50,8 +50,10 @@ httpTest("Entity MCP: 실제 SDK/OAuth CRUD·태그 scope·웹 parity·참조 �
     );
     assertEquals((await tool(client, "get_entity", { id: "bad-id" })).error.code, "not_found");
     const marker = crypto.randomUUID();
-    const r = await tool(client, "create_record", { title: "연결 기록", summary: marker, entity_id: e.id });
-    assertEquals((await tool(client, "get_entity", { id: e.id })).principles.count, 0);
+    const r = await tool(client, "create_record", { title: "연결 기록", summary: marker, entity_ids: [e.id] });
+    const detail = await tool(client, "get_entity", { id: e.id });
+    assertEquals("principles" in detail, false);
+    assertEquals(detail.records.items.some((record: { id: string }) => record.id === r.id), true);
     assertEquals(
       (await tool(client, "create_principle", { title: "연결 원칙", summary: "요약", entity_id: e.id })).error.code,
       "invalid_input",
@@ -122,11 +124,11 @@ httpTest("Entity MCP: 실제 SDK/OAuth CRUD·태그 scope·웹 parity·참조 �
     });
     await tool(client, "delete_entity", { id: e.id, expected_version: 4 });
     const liveTask = await tool(client, "get_task", { id: task.id });
-    assertEquals(liveTask.entity_id, null);
+    assertEquals("entity_id" in liveTask, false);
     assertEquals(liveTask.entity_ids, []);
     assertEquals((await tool(client, "list_tasks", { entity_id: e.id })).items, []);
     const retained = await tool(client, "get_record", { id: r.id });
-    assertEquals(retained.entity_id, null);
+    assertEquals("entity_id" in retained, false);
     assertEquals(retained.entity_ids, [e.id]);
     assertEquals(retained.entity_context, r.entity_context);
     assertEquals(
