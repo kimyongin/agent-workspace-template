@@ -30,10 +30,14 @@ httpTest("기록 HTTP 편집·MCP 재시도는 추가 로그 없이 최신 메�
   const event = historyBefore.items.find((r: { change?: { target_id: string } }) => r.change?.target_id === record.id);
   assert(event);
   for (const row of [record, event]) {
-    const patch = { expected_version: row.version };
+    const patch = { expected_version: row.version, body: `${row.body}\n정정 설명` };
     const web = await call(sessionA, "PATCH", `/records/${row.id}`, patch);
     assertEquals(web.status, 200);
     assertEquals((await tool(mcpA, "update_record", { id: row.id, ...patch })).error.code, "conflict");
+    assertEquals(
+      await tool(mcpA, "update_record", { id: row.id, expected_version: web.body.version, body: web.body.body }),
+      web.body,
+    );
     assertEquals(
       (await call(sessionA, "GET", `/records/${row.id}`)).body,
       await tool(mcpA, "get_record", { id: row.id }),
@@ -145,7 +149,7 @@ httpTest("퇴역 적용 키: HTTP/MCP 엄격 거부 후 정상 완료·회차·�
   const recurring = await tool(mcpA, "create_task", {
     kind: "recurring",
 
-    body: "매일",
+    title: "매일",
     recurrence: { freq: "daily", starts_on: "2020-01-01" },
     timezone: "Asia/Seoul",
   });
@@ -317,7 +321,7 @@ httpTest("원칙: HTTP/MCP 현재 수정·과거 접근 차단·재시도·삭�
     // Only explicit pre-transition fixtures are historical documents after current saves become updates.
     const [owner] = await admin`select owner_id from app.principles where id=${second.id}`;
     const [legacy] = await admin`insert into app.principles(owner_id,title,body,is_current,origin,saved_at)
-    values(${owner.owner_id},'옛 독서 원칙','과거 근거','# 과거 본문',false,'2020-01-01T00:00:00Z') returning id`;
+    values(${owner.owner_id},'옛 독서 원칙','# 과거 본문',false,'legacy','2020-01-01T00:00:00Z') returning id`;
     fixtureIds.push(legacy.id);
     assertEquals((await tool(mcpA, "get_principle", { id: legacy.id })).error.code, "not_found");
     assertEquals((await call(sessionA, "GET", `/principles/${legacy.id}`)).status, 404);

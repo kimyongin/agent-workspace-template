@@ -19,10 +19,18 @@ httpTest(
       const ids = targets.map((target) => target.id).sort(), marker = "연결" + crypto.randomUUID();
       record = await tool(client, "create_record", { body: marker, entity_ids: ids });
       assert(record);
-      const patch = { expected_version: record.version };
+      const patch = { expected_version: record.version, body: `${marker}\n선택한 대상 근거 정정` };
       const edited = await call(session, "PATCH", `/records/${record.id}`, patch);
       assertEquals(edited.status, 200);
       assertEquals((await tool(client, "update_record", { id: record.id, ...patch })).error.code, "conflict");
+      assertEquals(
+        await tool(client, "update_record", {
+          id: record.id,
+          expected_version: edited.body.version,
+          body: edited.body.body,
+        }),
+        edited.body,
+      );
       const read = await tool(client, "get_record", { id: record.id });
       assertEquals(read.entity_ids, ids);
       assertEquals((await call(session, "GET", `/records/${record.id}`)).body, read);
