@@ -180,7 +180,7 @@ test("엔터티 관련 작성은 URL·뒤로가기 초안 보호·reload·같은
   await form(page).getByRole("button",{name:"할 일 작성",exact:true}).click();await expect(page).toHaveURL(/create=task/);await expect(form(page)).toHaveCount(1);
   await fillText(page,"연결 업무");await page.goBack();const confirm=page.getByRole("dialog",{name:"변경을 버릴까요?"});await confirm.getByRole("button",{name:"취소",exact:true}).click();
   await expect(form(page).getByRole("textbox",{name:/^제목(?: \(필수\))?$/})).toHaveValue("연결 업무");await saveOnce(page, form(page), "추가");
-  await expect(page).not.toHaveURL(/create=/);expect(state.writes[0].body.entity_ids).toEqual([id(1)]);await expect(form(page)).toContainText("할 일을 추가했습니다.");
+  await expect(page).not.toHaveURL(/create=/);expect(state.writes[0].body.entity_ids).toEqual([id(1)]);await expect(form(page)).not.toContainText("할 일을 추가했습니다.");await expect(form(page).getByRole("button",{name:"할 일 작성",exact:true})).toBeFocused();
   await form(page).getByRole("button",{name:"기록 작성",exact:true}).click();await page.reload();await expect(form(page).getByLabel("본문")).toHaveValue("");
   expect(state.errors).toEqual([]);
 });
