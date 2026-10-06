@@ -187,18 +187,20 @@ dbTest(
   async () => {
     const f = await fixtureOwner(admin);
     try {
-      const target = await entity.createEntity(ed, f.actor, entityCreate.parse({ prop1: "当時の対象" }));
+      const target = await entity.createEntity(ed, f.actor, entityCreate.parse({ prop1: "당시 대상" }));
       const task = await activity.createTask(
         ad,
         f.actor,
-        taskCreate.parse({ kind: "once", title: "関連業務", summary: "現在の選択", entity_ids: [target.id] }),
+        taskCreate.parse({ kind: "once", title: "연결된 업무", summary: "현재 선택", entity_ids: [target.id] }),
       );
       const record = await activity.createRecord(
         ad,
         f.actor,
-        recordCreate.parse({ title: "過去の資料", summary: "当時の文脈", entity_ids: [target.id] }),
+        recordCreate.parse({ title: "과거 자료", summary: "당시 문맥", entity_ids: [target.id] }),
       );
       const before = await entity.getEntity(ed, f.actor, target.id);
+      const taskBefore = await activity.getTask(ad, f.actor, task.id);
+      const recordBefore = await activity.getRecord(ad, f.actor, record.id);
       const requestId = crypto.randomUUID();
       const broken: entity.EntityDeps = {
         uow: {
@@ -216,8 +218,8 @@ dbTest(
       };
       await assertRejects(() => entity.deleteEntity(broken, f.actor, target.id, target.version, undefined, requestId));
       assertEquals(await entity.getEntity(ed, f.actor, target.id), before);
-      assertEquals(await activity.getTask(ad, f.actor, task.id), task);
-      assertEquals(await activity.getRecord(ad, f.actor, record.id), record);
+      assertEquals(await activity.getTask(ad, f.actor, task.id), taskBefore);
+      assertEquals(await activity.getRecord(ad, f.actor, record.id), recordBefore);
 
       await entity.deleteEntity(ed, f.actor, target.id, target.version, undefined, requestId);
       await entity.deleteEntity(ed, f.actor, target.id, target.version, undefined, requestId);
