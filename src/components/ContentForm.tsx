@@ -6,6 +6,7 @@ import { Field, Notice } from "./Field.tsx";
 import { ModalShell, SurfaceContext } from "./Modal.tsx";
 import { ApiError } from "../lib/api-error.ts";
 import { useWriteAttempt, writeErrorMessage } from "../lib/write-attempt.ts";
+import { DeleteAction, type DeletionOptions, type DeletionState } from "./DeleteAction.tsx";
 
 export interface TextDraft {
   title: string;
@@ -49,18 +50,20 @@ interface FormModalProps {
   onSubmit: (creationId: () => string) => Promise<void>;
   validate: () => Record<string, string> | null;
   children: (errors: Record<string, string>) => ReactNode;
-  onDelete?: () => void;
+  deletion?: DeletionOptions;
 }
 
-export function FormModal({ title, open, submitLabel, dirty, onClose, onRouteDiscard, onSubmit, validate, children, onDelete }: FormModalProps) {
+export function FormModal({ title, open, submitLabel, dirty, onClose, onRouteDiscard, onSubmit, validate, children, deletion }: FormModalProps) {
   const { attempt, busy, uncertain } = useWriteAttempt();
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [failure, setFailure] = useState<string | null>(null);
+  const [deletionState,setDeletionState]=useState<DeletionState>({armed:false,busy:false,uncertain:false});
+  const blocked=busy||deletionState.busy;
   const formId = useId();
   const surface = useContext(SurfaceContext);
   const submit = async (e: FormEvent) => {
     e.preventDefault();
-    if (busy) return;
+    if (blocked||deletionState.armed) return;
     const local = validate();
     setErrors(local ?? {});
     if (local) return setFailure("입력을 확인하세요.");
@@ -76,20 +79,20 @@ export function FormModal({ title, open, submitLabel, dirty, onClose, onRouteDis
   };
 
   const footer = <>
-    {onDelete && <button type="button" className="btn btn-danger modal-delete" disabled={busy || uncertain} onClick={onDelete}>삭제</button>}
-    <button type="submit" form={formId} className="btn btn-primary" disabled={busy}>{busy ? "처리 중…" : uncertain ? "같은 내용 다시 시도" : submitLabel}</button>
+    {deletion && !uncertain && <DeleteAction {...deletion} disabled={busy} onStateChange={setDeletionState}/>}
+    <button type="submit" form={formId} className="btn btn-primary" disabled={blocked||deletionState.armed}>{busy ? "처리 중…" : uncertain ? "같은 내용 다시 시도" : submitLabel}</button>
   </>;
   const callbacks = useRef({onClose, onRouteDiscard}); callbacks.current = {onClose, onRouteDiscard};
   const register = surface?.register;
   useLayoutEffect(() => {
     if (!register || !open) return;
-    register({title, dirty: dirty || uncertain, busy, footer,
+    register({title, dirty: dirty || uncertain || deletionState.uncertain, busy:blocked, footer,
       onClose: () => callbacks.current.onClose(), onRouteDiscard: () => (callbacks.current.onRouteDiscard ?? callbacks.current.onClose)()});
     return () => register(null);
-  }, [register, open, title, dirty, uncertain, busy, formId, submitLabel, onDelete]);
+  }, [register, open, title, dirty, uncertain, blocked, formId, submitLabel, deletion, deletionState.armed, deletionState.uncertain]);
   const form = <form id={formId} className="form" onSubmit={submit} noValidate>
     {failure && <Notice kind="error">{failure}</Notice>}
-    <fieldset disabled={busy || uncertain} style={{border:0,padding:0,margin:0,minWidth:0}} className="form">{children(errors)}
+    <fieldset disabled={blocked || uncertain || deletionState.armed} style={{border:0,padding:0,margin:0,minWidth:0}} className="form">{children(errors)}
     </fieldset>
   </form>;
   useLayoutEffect(() => {
@@ -101,8 +104,8 @@ export function FormModal({ title, open, submitLabel, dirty, onClose, onRouteDis
     <ModalShell
       title={title}
       open={open}
-      dirty={dirty || uncertain}
-      busy={busy}
+      dirty={dirty || uncertain || deletionState.uncertain}
+      busy={blocked}
       onClose={onClose}
       onRouteDiscard={onRouteDiscard}
       footer={footer}
@@ -112,10 +115,5 @@ export function FormModal({ title, open, submitLabel, dirty, onClose, onRouteDis
   );
 }
 
-export function ChangeNoteField({value, onChange, required = false, error, label}: {value: string; onChange: (value: string) => void; required?: boolean; error?: string;label?:string}) {
-  return <Field label={label??(required ? "편집 메모" : "이유 (선택)")} required={required} error={error}>
-    {p => <textarea {...p} className="input" rows={3} placeholder="변경 이유나 보충할 내용" value={value} onChange={e => onChange(e.target.value)} />}
-  </Field>;
-}
-
+export { ChangeNoteField } from "./ChangeNoteField.tsx";
 export { changeNoteErrors } from "./change-note.ts";

@@ -3,7 +3,7 @@ import { tagCreate, tagLabels, type TagResult } from "@contracts/tag.ts";
 import { useEffect, useRef, useState } from "react";
 import { Navigate, useLocation, useParams, useSearchParams } from "react-router";
 import { Field, Notice } from "../../components/Field.tsx";
-import { DeleteDialog } from "../../components/DeleteDialog.tsx";
+import { DeleteAction, type DeletionState } from "../../components/DeleteAction.tsx";
 import { query } from "../../lib/api.ts";
 import { BusyNavigationGuard, ConfirmDialog, ModalShell } from "../../components/Modal.tsx";
 import { api, ApiError } from "../../lib/api.ts";
@@ -27,15 +27,17 @@ function ScopedTagsPage({scope}:{scope:"entity"|"activity"}) {
   const [failure, setFailure] = useState<string | null>(null), [fieldError, setFieldError] = useState<string | undefined>();
   const [conflict, setConflict] = useState(false);
   const {attempt, uncertain, busy: writing} = useWriteAttempt();
+  const [deletionState,setDeletionState]=useState<DeletionState>({armed:false,busy:false,uncertain:false});
   const busy = writing || deletingBusy;
-  const [pending, setPending] = useState<(() => void) | null>(null), [deleting, setDeleting] = useState<TagResult | null>(null);
+  const [pending, setPending] = useState<(() => void) | null>(null);
+  useEffect(()=>{setDeletionState({armed:false,busy:false,uncertain:false});},[draft?.initial?.id,!!draft,params.has("view")]);
   const pageCount = useRef(1), focusId = useRef<string | null>(null), input = useRef<HTMLInputElement>(null), saving = useRef(false);
   const readEpoch = useRef(0), readAbort = useRef<AbortController | null>(null);
   const viewEdit = useRef<HTMLButtonElement>(null), returningToView = useRef(false);
   useEffect(()=>{if(params.has("view")&&draft&&returningToView.current){viewEdit.current?.focus();returningToView.current=false;}},[params.toString(),draft]);
   const invalidateReads = () => { readEpoch.current++; readAbort.current?.abort(); };
   useEffect(() => () => { readEpoch.current++; readAbort.current?.abort(); }, []);
-  const dirty = !!draft && (draft.name !== (draft.initial?.name ?? "") || uncertain);
+  const dirty = !!draft && (draft.name !== (draft.initial?.name ?? "") || uncertain || deletionState.uncertain);
   useEffect(() => {
     readAbort.current?.abort(); const controller = new AbortController(); readAbort.current = controller;
     const epoch = ++readEpoch.current; const current = () => !controller.signal.aborted && epoch === readEpoch.current;
@@ -78,7 +80,7 @@ function ScopedTagsPage({scope}:{scope:"entity"|"activity"}) {
     dismiss();
   };
   const save = async () => {
-    if (!draft || attempt.snapshot().busy || conflict) return;
+    if (!draft || attempt.snapshot().busy || conflict || deletionState.armed) return;
     const parsed = tagCreate.omit({id:true}).safeParse({ name: draft.name });
     if (!parsed.success) { setFieldError(parsed.error.issues[0]?.message); input.current?.focus(); return; }
     setFailure(null); setFieldError(undefined);
@@ -108,6 +110,18 @@ function ScopedTagsPage({scope}:{scope:"entity"|"activity"}) {
       if (e instanceof ApiError && e.fields.some(f => f.path === "name")) setFieldError(e.fields.find(f => f.path === "name")?.message);
     }
   };
+  const deleteTag = async (target:TagResult,reason:string) => {
+      if (saving.current) return; saving.current = true; setDeletingBusy(true); setFailure(null);
+      try { await api("DELETE", `/tags/${target.id}${query({expected_version:target.version,change_note:reason})}`);
+        invalidateReads();
+        const at = page?.items.findIndex(t => t.id === target.id) ?? -1; focusId.current = page?.items[at + 1]?.id ?? page?.items[at - 1]?.id ?? "heading";
+        setPage(p => p && ({ ...p, items: p.items.filter(t => t.id !== target.id) })); setNotice("태그를 삭제했습니다.");
+        if(draft?.initial?.id===target.id){setDraft(null);attempt.reset();dismiss();}
+        setRetry(n => n + 1);
+      } catch (e) { focusId.current = target.id; setNotice(null); throw e; }
+      finally { setDeletingBusy(false); saving.current = false; }
+    };
+  const deleteAction=(target:TagResult,editor=false)=><DeleteAction key={target.id} disabled={busy||(editor&&(uncertain||conflict))} label={editor?"삭제":`${target.name} 삭제`} message={`${target.name} 태그와 연결을 제거합니다. 원문은 보존합니다.`} onStateChange={editor?setDeletionState:undefined} onConfirm={reason=>deleteTag(target,reason)}/>;
   return <section className="panel" aria-labelledby="tags-title">
     <div className="panel-head"><h1 id="tags-title" tabIndex={-1} className="page-title">{scope==="entity"?"엔터티":"활동"} 태그 관리</h1><button className="btn btn-primary" disabled={busy} onClick={() => select(null)}>태그 추가</button></div>
     {notice && <Notice>{notice}</Notice>}
@@ -116,14 +130,15 @@ function ScopedTagsPage({scope}:{scope:"entity"|"activity"}) {
     {page?.items.length === 0 && <p className="secondary">아직 태그가 없습니다. 태그를 추가해 항목을 분류하세요.</p>}
     <div className="tag-management"><ul className="list">{page?.items.map(t => <li key={t.id} className="list-item"><button className="btn btn-text item-title" disabled={busy} aria-label={`${t.name} 보기`} onClick={()=>select(t,true)}>{t.name}</button><div className="actions">
       <button id={`tag-${t.id}`} className="btn btn-text" disabled={busy} aria-pressed={draft?.initial?.id === t.id} aria-label={`${t.name} 이름 변경`} onClick={() => select(t)}>이름 변경</button>
-      <button className="btn btn-text btn-danger" disabled={busy} aria-label={`${t.name} 삭제`} onClick={() => change(() => { setDraft(null); attempt.reset(); setDeleting(t); })}>삭제</button>
+      {deleteAction(t)}
     </div></li>)}</ul>
-    {draft && <ModalShell open title={params.has("view")?draft.name:draft.initial?"태그 이름 변경":"태그 추가"} dirty={dirty} busy={busy} onClose={cancel} onRouteDiscard={()=>{setDraft(null);attempt.reset();}} footer={params.has("view")?<button ref={viewEdit} className="btn btn-primary" onClick={()=>select(draft.initial)}>편집</button>:<>{draft.initial&&<button type="button" className="btn btn-danger modal-delete" disabled={busy||uncertain||conflict} onClick={()=>setDeleting(draft.initial)}>삭제</button>}<button form="tag-edit-form" type="submit" className="btn btn-primary" disabled={busy||conflict}>{busy?"저장 중…":uncertain?"같은 내용 다시 시도":"저장"}</button></>}><form id="tag-edit-form" className="form tag-editor" aria-label={draft.initial ? "태그 이름 변경" : "태그 추가"} onSubmit={e => { e.preventDefault(); void save(); }}>
+    {draft && <ModalShell open title={params.has("view")?draft.name:draft.initial?"태그 이름 변경":"태그 추가"} dirty={dirty} busy={busy} onClose={cancel} onRouteDiscard={()=>{setDraft(null);attempt.reset();}} footer={params.has("view")?<button ref={viewEdit} className="btn btn-primary" onClick={()=>select(draft.initial)}>편집</button>:<>{draft.initial&&deleteAction(draft.initial,true)}<button form="tag-edit-form" type="submit" className="btn btn-primary" disabled={busy||conflict||deletionState.armed}>{busy?"저장 중…":uncertain?"같은 내용 다시 시도":"저장"}</button></>}><form id="tag-edit-form" className="form tag-editor" aria-label={draft.initial ? "태그 이름 변경" : "태그 추가"} onSubmit={e => { e.preventDefault(); void save(); }}>
       {params.has("view")?<><p className="help">{scope==="entity"?"엔터티":"할 일·기록"}에 사용하는 태그입니다.</p></>:<>
       {failure && <Notice kind="error">{failure}</Notice>}
-      <section className="detail-section form"><h2 className="section-title">기본 정보</h2><Field label={tagLabels.name} required error={fieldError} >{p => <input {...p} ref={input} className="input" value={draft.name} readOnly={busy || uncertain} onChange={e => setDraft(d => d && ({ ...d, name: e.target.value }))} />}</Field></section>
+      <section className="detail-section form"><h2 className="section-title">기본 정보</h2><Field label={tagLabels.name} required error={fieldError} >{p => <input {...p} ref={input} className="input" value={draft.name} readOnly={busy || uncertain || deletionState.armed} onChange={e => setDraft(d => d && ({ ...d, name: e.target.value }))} />}</Field></section>
     </>}
     </form></ModalShell>}</div>
+    {!draft&&<BusyNavigationGuard pending={saving}/>}
     {page?.next_cursor && <button className="btn" disabled={loading || busy} onClick={async () => {
       const epoch = readEpoch.current, controller = new AbortController(); readAbort.current = controller;
       const current = () => !controller.signal.aborted && epoch === readEpoch.current;
@@ -135,16 +150,7 @@ function ScopedTagsPage({scope}:{scope:"entity"|"activity"}) {
     <ConfirmDialog open={!!pending} busy={busy} title="변경을 버릴까요?" message="저장하지 않은 내용이 사라집니다." confirmLabel="변경 버리기"
       onCancel={() => setPending(null)}
       onConfirm={() => {const action=pending;setPending(null);action?.();}} />
-    {deleting && <>{!draft&&<BusyNavigationGuard pending={saving}/>}<DeleteDialog title="태그를 삭제할까요?" busy={busy} message={`${deleting.name} 태그와 연결을 제거합니다. 항목의 원문은 보존합니다.`} onCancel={() => setDeleting(null)} onConfirm={async reason => {
-      if (saving.current) return; saving.current = true; setDeletingBusy(true); setFailure(null);
-      try { await api("DELETE", `/tags/${deleting.id}${query({expected_version:deleting.version,change_note:reason})}`);
-        invalidateReads();
-        const at = page?.items.findIndex(t => t.id === deleting.id) ?? -1; focusId.current = page?.items[at + 1]?.id ?? page?.items[at - 1]?.id ?? "heading";
-        setPage(p => p && ({ ...p, items: p.items.filter(t => t.id !== deleting.id) })); setNotice("태그를 삭제했습니다."); setDeleting(null);
-        if(draft?.initial?.id===deleting.id){setDraft(null);attempt.reset();dismiss();}
-      } catch (e) { focusId.current = deleting.id; setNotice(null); throw e; }
-      finally { setRetry(n => n + 1); setDeletingBusy(false); saving.current = false; }
-    }} /></>}
+
     {!draft && failure && <Notice kind="error">{failure}</Notice>}
   </section>;
 }

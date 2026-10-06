@@ -1,7 +1,6 @@
 import { recordDisplayText } from "@contracts/record-display.ts";
 import { DetailLink as Link, useDetailNavigate, useDetailOwnerReturn } from "../../lib/detail-exploration.tsx";
 import { editFromView } from "../../lib/detail-navigation.ts";
-import { DeleteDialog } from "../../components/DeleteDialog.tsx";
 import { useDeferredNavigation } from "../../lib/useDeferredNavigation.ts";
 import { TagNames } from "../tags/TagPicker.tsx";
 import { entityLabels } from "@contracts/entity.ts";
@@ -33,7 +32,6 @@ export function EntityDetailPage() {
     [error, setError] = useState<string | null>(null),
     [retry, setRetry] = useState(0),
     [editing, setEditing] = useState(params.get("edit")==="1"),
-    [deleting, setDeleting] = useState(false),
     [busy, setBusy] = useState(false);
   useEffect(() => {
     const controller = new AbortController();
@@ -50,7 +48,7 @@ export function EntityDetailPage() {
       });
     return () => controller.abort();
   }, [id, retry]);
-  useEffect(() => { setEntity(null); setSaved(null); setEditing(params.get("edit")==="1"); setDeleting(false); }, [id]);
+  useEffect(() => { setEntity(null); setSaved(null); setEditing(params.get("edit")==="1"); }, [id]);
   const returnParams=new URLSearchParams(params); ["edit","edit_from","create"].forEach(key=>returnParams.delete(key));
   const back = useDetailOwnerReturn(`/entities?${returnParams}${id ? `#entity-${id}` : ""}`);
   const previousQuery=useRef(params.toString());
@@ -84,8 +82,8 @@ export function EntityDetailPage() {
                   <ul className="entity-related-list">
                     {entity[kind].items.map((item) => (
                       <li key={item.id}>
-                        <Link className="entity-related-item" aria-label={"body" in item ? recordDisplayText(item.body) : item.title} to={`/${kind}/${item.id}`}>
-                          <div className="entity-related-title"><span className="item-title">{"body" in item ? recordDisplayText(item.body) : item.title}</span><span aria-hidden="true">›</span></div>
+                        <Link className="entity-related-item" aria-label={"record_kind" in item ? recordDisplayText(item.body) : item.title} to={`/${kind}/${item.id}`}>
+                          <div className="entity-related-title"><span className="item-title">{"record_kind" in item ? recordDisplayText(item.body) : item.title}</span><span aria-hidden="true">›</span></div>
                           <div className="entity-related-meta">{"record_kind" in item&&<span className="badge">{recordKindNames[item.record_kind]}</span>}<time className="meta" dateTime={"occurred_at" in item?item.occurred_at:item.updated_at}>{"occurred_at" in item?"":"수정 "}{formatDateTime("occurred_at" in item?item.occurred_at:item.updated_at)}</time></div>
                         </Link>
                       </li>
@@ -119,7 +117,25 @@ export function EntityDetailPage() {
           {editing && !creating && editReady && (
             <EntityForm
               initial={entity}
-              onDelete={()=>setDeleting(true)}
+              deletion={{message:`${entity.prop1}을 삭제하고 연결을 해제합니다. 할 일·기록 원문은 보존합니다.`,onConfirm:async (reason) => {
+                setBusy(true);
+                try {
+                  await api(
+                    "POST",
+                    `/entities/${id}/delete`,
+                    {expected_version:entity.version,change_note:reason||undefined},
+                  );
+                  setEditing(false);
+                  afterClose(back,true);
+                } catch (e) {
+                  setError(
+                    e instanceof ApiError ? e.message : "삭제하지 못했습니다.",
+                  );
+                  throw e;
+                } finally {
+                  setBusy(false);
+                }
+              }}}
               onClose={closeEdit}
               onRouteDiscard={()=>setEditing(false)}
               onSave={async (value) => {
@@ -140,33 +156,7 @@ export function EntityDetailPage() {
               }}
             />
           )}
-          {deleting && (
-            <DeleteDialog
-              title="엔터티를 삭제할까요?"
-              message={`${entity.prop1}을 삭제하고 연결을 해제합니다. 할 일·기록 원문은 보존합니다.`}
-              busy={busy}
-              onCancel={() => setDeleting(false)}
-              onConfirm={async (reason) => {
-                setBusy(true);
-                try {
-                  await api(
-                    "POST",
-                    `/entities/${id}/delete`,
-                    {expected_version:entity.version,change_note:reason||undefined},
-                  );
-                  setEditing(false);
-                  afterClose(back,true);
-                } catch (e) {
-                  setError(
-                    e instanceof ApiError ? e.message : "삭제하지 못했습니다.",
-                  );
-                  throw e;
-                } finally {
-                  setBusy(false);
-                }
-              }}
-            />
-          )}
+
         </>}
     </DetailSurface>;
 }

@@ -2,7 +2,6 @@ import { recordDisplayText } from "@contracts/record-display.ts";
 import { DetailLink as Link, useDetailNavigate, useDetailOwnerReturn } from "../../lib/detail-exploration.tsx";
 import { editFromView } from "../../lib/detail-navigation.ts";
 import { ChangeNoteField, FormModal, changeNoteErrors } from "../../components/ContentForm.tsx";
-import { DeleteDialog } from "../../components/DeleteDialog.tsx";
 // 할 일 상세: 읽기, 편집, 일회성 완료, 반복 할 일의 회차·회차 기록·중단/재개, 삭제.
 import type { RecordResult } from "@contracts/record.ts";
 import type { Occurrence, TaskDetail, TaskResult } from "@contracts/task.ts";
@@ -52,8 +51,7 @@ export function TaskDetailPage() {
   const [message, setMessage] = useState<string | null>(null);
   const directEdit = params.get("edit") === "1";
   const [dialog, setDialog] = useState<Dialog>(requestedDialog(params));
-  const [deleting, setDeleting] = useState(false);
-  const manage = (action: string, occurrence?: string) => { const next = new URLSearchParams(params); next.set("action", action); occurrence ? next.set("occurrence", occurrence) : next.delete("occurrence"); navigate(`?${next}`); };
+    const manage = (action: string, occurrence?: string) => { const next = new URLSearchParams(params); next.set("action", action); occurrence ? next.set("occurrence", occurrence) : next.delete("occurrence"); navigate(`?${next}`); };
   const closeManagement = () => { setDialog(null); const next = new URLSearchParams(params); next.delete("action"); next.delete("occurrence"); navigateAfterClose(`?${next}`, true); };
   const conflicted=useRef(false);
   const closeEdit = () => { setDialog(null);if(conflicted.current){conflicted.current=false;void reload();} if(directEdit&&params.get("edit_from")!=="view")navigateAfterClose(back,true);else{const p=new URLSearchParams(params);p.delete("edit");p.delete("edit_from");navigateAfterClose(`?${p}`,true);} };
@@ -247,7 +245,14 @@ export function TaskDetailPage() {
           mode="edit"
           open
           initial={taskDraftFrom(task)}
-          onDelete={()=>setDeleting(true)}
+          deletion={{message:<p style={{ margin: 0 }}>
+            「{task.title}」을(를) 삭제합니다. 연결된 결과·회차 기록은 남고 이 할 일과의 연결만 사라집니다.
+          </p>,onConfirm:(reason) =>
+          run(async () => {
+            await api("POST", `/tasks/${task.id}/delete`, {expected_version:task.version,change_note:reason||undefined});
+            setDialog(null);
+            navigateAfterClose(back,true);
+          }, "삭제했습니다.")}}
           onClose={closeEdit}
           onRouteDiscard={() => setDialog(null)}
           onSave={async (draft) => {
@@ -314,22 +319,7 @@ export function TaskDetailPage() {
           }}
         />
       )}
-      {deleting&&<DeleteDialog
-        title="할 일을 삭제할까요?"
-        message={
-          <p style={{ margin: 0 }}>
-            「{task.title}」을(를) 삭제합니다. 연결된 결과·회차 기록은 남고 이 할 일과의 연결만 사라집니다.
-          </p>
-        }
-        busy={busy}
-        onCancel={() => setDeleting(false)}
-        onConfirm={(reason) =>
-          run(async () => {
-            await api("POST", `/tasks/${task.id}/delete`, {expected_version:task.version,change_note:reason||undefined});
-            setDialog(null);
-            navigateAfterClose(back,true);
-          }, "삭제했습니다.")}
-      />}
+
     </DetailSurface>;
 }
 

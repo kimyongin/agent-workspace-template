@@ -100,7 +100,7 @@ for (
       await page.keyboard.press("Enter");
       expect(requests).toHaveLength(3);
       await page.unroute(`**/api/${path}?**`);
-      const link = page.getByRole("link", { name: title, exact: true });
+      let link = page.getByRole("link", { name: title, exact: true });
       await link.scrollIntoViewIfNeeded();
       await link.focus();
       await page.keyboard.press("Enter");
@@ -126,16 +126,17 @@ for (
       await link.click();
       await openDetailEditor(page);
       await dialog.getByLabel("본문").fill("수정한 근거");
-      await dialog.getByLabel("편집 메모").fill("판단 근거 정정");
+      if(kind==="task")await dialog.getByLabel("편집 메모").fill("판단 근거 정정");
       await saveOnce(page, dialog);
       await expect(dialog).not.toBeVisible();
+      if(kind==="record")link=page.getByRole("link",{name:"수정한 근거",exact:true});
       await page.getByRole("button", { name: "닫기", exact: true }).click();
       await expect(link).toBeFocused();
       await expect(link).toBeInViewport();
       await link.click();
       await openDetailEditor(page);
       await page.getByRole("button", { name: "삭제", exact: true }).click();
-      await saveOnce(page,page.getByRole("dialog", { name: `${label}을 삭제할까요?`, exact: true }),"삭제");
+      await saveOnce(page,page.locator(".delete-action.is-armed"),"삭제 확인");
       await expect(link).toHaveCount(0);
       await expect(page.locator(`.${path} .list .item-title`)).toHaveCount(62);
       ids.delete(target.id);

@@ -123,10 +123,10 @@ function ActiveModalShell({ title, headingLevel=2, open, onClose, previous, onRo
     >
       <div className="modal-inner">
         <div className="modal-head">
-          {previous && <button type="button" className="btn btn-text modal-back" aria-label={previous.label} disabled={busy} onClick={previous.back}>← 이전</button>}
+          {previous && <button type="button" className="btn btn-text modal-icon modal-back" aria-label={previous.label} title={previous.label} disabled={busy} onClick={previous.back}><span aria-hidden="true">←</span></button>}
           {headingLevel===1?<h1 id={titleId} className="dialog-title" tabIndex={-1}>{title}</h1>:<h2 id={titleId} className="dialog-title" tabIndex={-1}>{title}</h2>}
-          <button type="button" className="btn btn-text" onClick={requestClose} disabled={busy}>
-            닫기
+          <button type="button" className="btn btn-text modal-icon" aria-label="닫기" title="닫기" onClick={requestClose} disabled={busy}>
+            <span aria-hidden="true">×</span>
           </button>
         </div>
         <div className="modal-body" tabIndex={0}>{children}</div>
