@@ -635,7 +635,7 @@ textarea.input {
 .modal-head .dialog-title { overflow-wrap: anywhere; min-width: 0; }
 .modal-head .btn { flex-shrink: 0; }
 
-.modal-head > :first-child {
+.modal-head .dialog-title {
   margin-right: auto;
 }
 

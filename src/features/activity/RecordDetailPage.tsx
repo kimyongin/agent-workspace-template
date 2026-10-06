@@ -1,10 +1,11 @@
+import { DetailLink as Link, useDetailNavigate, useDetailOwnerReturn } from "../../lib/detail-exploration.tsx";
 import { editFromView } from "../../lib/detail-navigation.ts";
 import { DeleteDialog } from "../../components/DeleteDialog.tsx";
 import { ChangeContext, PrincipleSnapshots, type WorkspaceRecord } from "./ChangeContext.tsx";
 // 기록 상세: 원문 읽기, 편집, 삭제.
 import { recordLabels } from "@contracts/record.ts";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Link, useNavigate, useParams, useSearchParams } from "react-router";
+import { useParams, useSearchParams } from "react-router";
 import {useDeferredNavigation} from "../../lib/useDeferredNavigation.ts";
 import { Notice } from "../../components/Field.tsx";
 import { MarkdownContent } from "../../components/MarkdownContent.tsx";
@@ -14,15 +15,13 @@ import { formatDateTime } from "../../lib/format.ts";
 import { RecordFormModal, recordDraftFrom } from "./forms.tsx";
 import {TagNames} from "../tags/TagPicker.tsx";
 import {EntityLinks} from "../entity/EntityPicker.tsx";
-import {useSearchReturn} from "../search/return.ts";
-import { safeListReturn } from "./list-state.ts";
 
 export function RecordDetailPage() {
   const { id = "" } = useParams();
   const [params] = useSearchParams();
-  const back=useSearchReturn(safeListReturn(params.get("list"), "records", `/records${query({tag_id:params.get("tag_id")??"",entity_id:params.get("entity_id")??""})}`),"← 기록 목록");
-  const listPath = back.path;
-  const navigate = useNavigate();
+  const back=useDetailOwnerReturn(`/records${query({tag_id:params.get("tag_id")??"",entity_id:params.get("entity_id")??""})}`);
+  const listPath = back;
+  const navigate = useDetailNavigate();
   const navigateAfterClose = useDeferredNavigation();
   const [record, setRecord] = useState<WorkspaceRecord | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -32,7 +31,7 @@ export function RecordDetailPage() {
   const [dialog, setDialog] = useState<null | "edit" | "delete">(directEdit ? "edit" : null);
   const [deleting, setDeleting] = useState(false);
   const conflicted=useRef(false);
-  const closeEdit = () => { setDialog(null);if(conflicted.current){conflicted.current=false;void reload();} if(directEdit&&params.get("edit_from")!=="view")navigateAfterClose(back.path,true);else{const p=new URLSearchParams(params);p.delete("edit");p.delete("edit_from");navigateAfterClose(`?${p}`,true);} };
+  const closeEdit = () => { setDialog(null);if(conflicted.current){conflicted.current=false;void reload();} if(directEdit&&params.get("edit_from")!=="view")navigateAfterClose(back,true);else{const p=new URLSearchParams(params);p.delete("edit");p.delete("edit_from");navigateAfterClose(`?${p}`,true);} };
   const [editReady,setEditReady]=useState(false);
   const [busy, setBusy] = useState(false);
 
@@ -67,7 +66,7 @@ export function RecordDetailPage() {
 
   if (loadError && !record) {
     return (
-      <DetailSurface title="기록" onClose={()=>navigate(back.path)}>
+      <DetailSurface title="기록" onClose={()=>navigate(back)}>
         <Notice kind="error">{loadError}</Notice>
         <button type="button" className="btn" onClick={reload}>조회 다시 시도</button>
       </DetailSurface>
@@ -96,7 +95,7 @@ export function RecordDetailPage() {
       </p>
     </div>;
   const startEdit=()=>navigate(editFromView(params));
-  return <DetailSurface footer={<button type="button" className="btn btn-primary" onClick={startEdit}>편집</button>} title={record.title} onClose={()=>dialog==="edit"&&!editReady?closeEdit():navigate(back.path)} busy={busy}>
+  return <DetailSurface footer={<button type="button" className="btn btn-primary" onClick={startEdit}>편집</button>} title={record.title} onClose={()=>dialog==="edit"&&!editReady?closeEdit():navigate(back)} busy={busy}>
       {record.summary!==record.title&&<section className="detail-section" aria-label="기록 개요"><p className="document-summary">{record.summary}</p></section>}
       {record.body&&<section className="detail-section" aria-label="내용"><MarkdownContent text={record.body} className={record.record_kind==="change"?"memo-text":undefined}/></section>}
       {dialog!=="edit"&&<section className="detail-section"><h2 className="section-title">관련 정보</h2>{management}</section>}

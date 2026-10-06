@@ -1,7 +1,7 @@
 import type { EntityContext } from "@contracts/entity-links.ts";
 import type { EntityResult } from "@contracts/entity.ts";
 import { useEffect, useState } from "react";
-import { Link } from "react-router";
+import { DetailLink as Link } from "../../lib/detail-exploration.tsx";
 import { Field, Notice } from "../../components/Field.tsx";
 import { api, query } from "../../lib/api.ts";
 export function EntityPicker(
@@ -126,7 +126,7 @@ export function EntityLinks({ ids, context = [] }: { ids?: string[]; context?: E
     <p className="label">연결 엔터티</p>
     <ul className="related-list">{ids.map((id) => {
       const capture = context.find((item) => item.id === id);
-      return <li key={id}><Link className="item-title" to={`/entities/${id}`}>{capture?.title ?? id}</Link>
+      return <li key={id}><Link restoreKey={`linked-entity-${id}`} className="item-title" to={`/entities/${id}`}>{capture?.title ?? id}</Link>
         {capture && <details className="related-provenance"><summary className="meta">연결 당시 정보</summary><p className="meta">{capture.source === "legacy_backfill" ? "기존 연결 전환 시 이름" : "연결 선택 시 이름"} · {new Date(capture.captured_at).toLocaleString()}</p></details>}
       </li>;
     })}</ul>

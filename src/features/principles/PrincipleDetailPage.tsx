@@ -1,6 +1,7 @@
+import { useDetailNavigate, useDetailOwnerReturn } from "../../lib/detail-exploration.tsx";
 import { editFromView } from "../../lib/detail-navigation.ts";
 import { useEffect, useRef, useState } from "react";
-import { useNavigate, useParams, useSearchParams } from "react-router";
+import { useParams, useSearchParams } from "react-router";
 import { DetailSurface } from "../../components/Modal.tsx";
 import { Notice } from "../../components/Field.tsx";
 import { DeleteDialog } from "../../components/DeleteDialog.tsx";
@@ -9,14 +10,13 @@ import { MarkdownContent } from "../../components/MarkdownContent.tsx";
 import { api, ApiError } from "../../lib/api.ts";
 import { useDeferredNavigation } from "../../lib/useDeferredNavigation.ts";
 import { formatDateTime } from "../../lib/format.ts";
-import { useSearchReturn } from "../search/return.ts";
-import { safeListReturn } from "../activity/list-state.ts";
+
 import { PrincipleFormModal } from "./forms.tsx";
 import type { WorkspacePrinciple } from "./model.ts";
 
 export function PrincipleDetailPage() {
-  const {id=""}=useParams(), [params]=useSearchParams(), navigate=useNavigate(), afterClose=useDeferredNavigation();
-  const origin=useSearchReturn(safeListReturn(params.get("list"),"principles","/principles"),"← 원칙 목록"), back=origin.path;
+  const {id=""}=useParams(), [params]=useSearchParams(), navigate=useDetailNavigate(), afterClose=useDeferredNavigation();
+  const back=useDetailOwnerReturn("/principles");
   const confirmed=useRef<WorkspacePrinciple|null>(null), conflicted=useRef(false);
   const [message,setMessage]=useState<string|null>(null);
   const [item,setItem]=useState<WorkspacePrinciple|null>(null), [error,setError]=useState<string|null>(null),[retry,setRetry]=useState(0);

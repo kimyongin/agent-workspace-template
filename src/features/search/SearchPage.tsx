@@ -1,6 +1,7 @@
+import { DetailLink as Link, useDetailExploration } from "../../lib/detail-exploration.tsx";
 import { SearchMatch } from "../../components/SearchMatch.tsx";
 import { useEffect, useRef, useState } from "react";
-import { Link, useLocation, useNavigate, useSearchParams } from "react-router";
+import { useLocation, useSearchParams } from "react-router";
 import { type SearchResult } from "@contracts/search.ts";
 import { Field, Notice } from "../../components/Field.tsx";
 import { api } from "../../lib/api.ts";
@@ -11,13 +12,14 @@ import { workspaceSearchScope } from "./search-scope.ts";
 import { activityTags } from "../activity/activity-filters.ts";
 const kinds={task:"할 일",record:"기록",principle:"원칙"} as const;
 export function SearchPage(){
+  useDetailExploration();
   const composing=useRef(false);
   const [params,setParams]=useSearchParams(), [draft,setDraft]=useState(params.get("q")??"");
   const [result,setResult]=useState<SearchResult|null>(null), [error,setError]=useState<string|null>(null), [busy,setBusy]=useState(false);
   const generation=useRef(0), [retry,setRetry]=useState(0);
   const loaded=useRef<{key:string;retry:number;count:number;result:SearchResult}|null>(null);
   const pending=useRef<AbortController|null>(null);
-  const {hash}=useLocation(),navigate=useNavigate(),focused=useRef("");
+  const {hash}=useLocation(),focused=useRef("");
   const searchParams=new URLSearchParams(params);searchParams.delete("pages");searchParams.delete("scroll");
   const key=searchParams.toString(),q=params.get("q")??"",tag=params.get("tag_id")??"";
   const requested=Number(params.get("pages")??1),pages=Number.isSafeInteger(requested)&&requested>0?Math.min(requested,1000):1;
@@ -85,14 +87,8 @@ export function SearchPage(){
       {!!(result.semantic_coverage.pending+result.semantic_coverage.excluded)&&<p className="help">의미 색인 대기 {result.semantic_coverage.pending}개 · 제외 {result.semantic_coverage.excluded}개</p>}
       {!result.items.length&&<p className="secondary">검색 결과가 없습니다. 검색어 또는 필터를 바꿔 보세요.</p>}
       <ul className="list">{result.items.map(r=>{
-        const back=new URLSearchParams(params);back.set("scroll",String(window.scrollY));
-        const origin=`${back}#search-${r.kind}-${r.id}`,detail=`${r.path}?search=${encodeURIComponent(origin)}`;
         return <li className="list-item" key={`${r.kind}:${r.id}`}><div className="list-item-main">
-        <Link id={`search-${r.kind}-${r.id}`} className="item-title" to={detail} onClick={e=>{
-          if(e.button!==0||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey)return;
-          e.preventDefault();back.set("scroll",String(window.scrollY));const at=`${back}#search-${r.kind}-${r.id}`;
-          navigate(`/search?${at}`,{replace:true});navigate(`${r.path}?search=${encodeURIComponent(at)}`);
-        }}>{r.title}</Link>{r.summary!==r.title&&<span className="secondary record-summary">{r.summary}</span>}
+        <Link id={`search-${r.kind}-${r.id}`} className="item-title" to={r.path}>{r.title}</Link>{r.summary!==r.title&&<span className="secondary record-summary">{r.summary}</span>}
         <span className="meta">{kinds[r.kind]} · {formatDateTime(r.at)}</span><SearchMatch item={r}/>
       </div></li>;})}</ul>
       {result.next_cursor&&<button type="button" className="btn" disabled={busy} onClick={more}>더 보기</button>}

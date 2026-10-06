@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router";
+import { useDetailNavigate } from "./detail-exploration.tsx";
 
 /** Commit the dialog removal before navigating, so its dirty route guard is removed first. */
 export function useDeferredNavigation() {
-  const navigate = useNavigate();
+  const navigate = useDetailNavigate();
   const [destination, setDestination] = useState<{path:string;replace:boolean} | null>(null);
   useEffect(() => {
     if (!destination) return;

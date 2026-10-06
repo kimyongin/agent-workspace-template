@@ -3,6 +3,7 @@
 import { createContext, type ReactNode, type RefObject, useCallback, useContext, useEffect, useId, useRef, useState } from "react";
 import { useBlocker } from "react-router";
 import { createPortal } from "react-dom";
+import { useDetailExploration } from "../lib/detail-exploration.tsx";
 
 export interface ModalProps {
   title: string;
@@ -10,6 +11,7 @@ export interface ModalProps {
   open: boolean;
   /** 닫기 요청. dirty면 변경 버리기 확인을 먼저 묻는다. */
   onClose: () => void;
+  previous?: { label: string; back: () => void } | null;
   /** 경로 폐기 확인 후 편집 영역만 닫거나 초기화한다. 이동하는 onClose는 별도 콜백을 반드시 제공한다. */
   onRouteDiscard?: () => void;
   dirty?: boolean;
@@ -31,6 +33,7 @@ export const SurfaceContext = createContext<{slot: HTMLDivElement | null; editor
 
 /** URL detail and its editor share one native dialog, focus trap and scroll surface. */
 export function DetailSurface({title, onClose, children, busy = false, footer}: {title: string; onClose: () => void; children: ReactNode; busy?: boolean; footer?: ReactNode}) {
+  const previous = useDetailExploration();
   const [editor, setEditor] = useState<SurfaceEditor | null>(null);
   const editorRef = useRef<SurfaceEditor | null>(null), busyRef = useRef(busy);
   const readFocus=useRef<HTMLElement|null>(null);
@@ -44,7 +47,7 @@ export function DetailSurface({title, onClose, children, busy = false, footer}: 
   return <SurfaceContext.Provider value={{slot, register, editor:editorRef, busy:busyRef}}>
     <ModalShell open title={editor?.title ?? title} headingLevel={editor?2:1} onClose={editor?.onClose ?? onClose}
       onRouteDiscard={editor?.onRouteDiscard} dirty={editor?.dirty} busy={busy || editor?.busy}
-      footer={editor?.footer ?? footer}>
+      previous={editor ? null : previous} footer={editor?.footer ?? footer}>
       <div hidden={!!editor}>{children}</div>
       <div ref={setSlot} hidden={!editor} />
     </ModalShell>
@@ -55,7 +58,7 @@ export function ModalShell(props: ModalProps) {
   return props.open ? <ActiveModalShell {...props} /> : null;
 }
 
-function ActiveModalShell({ title, headingLevel=2, open, onClose, onRouteDiscard = onClose, dirty = false, busy = false, footer, children }: ModalProps) {
+function ActiveModalShell({ title, headingLevel=2, open, onClose, previous, onRouteDiscard = onClose, dirty = false, busy = false, footer, children }: ModalProps) {
   const ref = useRef<HTMLDialogElement>(null);
   const titleId = useId();
   const [confirmDiscard, setConfirmDiscard] = useState(false);
@@ -120,6 +123,7 @@ function ActiveModalShell({ title, headingLevel=2, open, onClose, onRouteDiscard
     >
       <div className="modal-inner">
         <div className="modal-head">
+          {previous && <button type="button" className="btn btn-text modal-back" aria-label={previous.label} disabled={busy} onClick={previous.back}>← 이전</button>}
           {headingLevel===1?<h1 id={titleId} className="dialog-title" tabIndex={-1}>{title}</h1>:<h2 id={titleId} className="dialog-title" tabIndex={-1}>{title}</h2>}
           <button type="button" className="btn btn-text" onClick={requestClose} disabled={busy}>
             닫기

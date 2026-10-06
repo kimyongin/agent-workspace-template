@@ -1,3 +1,4 @@
+import { DetailLink as Link, useDetailNavigate, useDetailOwnerReturn } from "../../lib/detail-exploration.tsx";
 import { editFromView } from "../../lib/detail-navigation.ts";
 import { ChangeNoteField, FormModal, changeNoteErrors } from "../../components/ContentForm.tsx";
 import { DeleteDialog } from "../../components/DeleteDialog.tsx";
@@ -6,7 +7,7 @@ import type { RecordResult } from "@contracts/record.ts";
 import type { Occurrence, TaskDetail, TaskResult } from "@contracts/task.ts";
 import { taskLabels } from "@contracts/task.ts";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Link, useNavigate, useParams, useSearchParams } from "react-router";
+import { useParams, useSearchParams } from "react-router";
 import {useDeferredNavigation} from "../../lib/useDeferredNavigation.ts";
 import { Notice } from "../../components/Field.tsx";
 import { MarkdownContent } from "../../components/MarkdownContent.tsx";
@@ -17,8 +18,6 @@ import { emptyRecord, TaskResultFormModal, TaskFormModal, taskDraftFrom, taskInp
 import { OccurrenceBadge, StatusBadge } from "./shared.tsx";
 import {TagNames} from "../tags/TagPicker.tsx";
 import {EntityLinks} from "../entity/EntityPicker.tsx";
-import {useSearchReturn} from "../search/return.ts";
-import { safeListReturn } from "./list-state.ts";
 
 const WEEKDAY_NAMES = ["", "월", "화", "수", "목", "금", "토", "일"];
 
@@ -43,8 +42,8 @@ function requestedDialog(params: URLSearchParams): Dialog {
 export function TaskDetailPage() {
   const { id = "" } = useParams();
   const [params] = useSearchParams();
-  const back=useSearchReturn(safeListReturn(params.get("list"), "tasks", `/tasks${query({kind:params.get("kind"),status:params.get("status"),tag_id:params.get("tag_id"),entity_id:params.get("entity_id")})}`),"← 할 일 목록");
-  const navigate = useNavigate();
+  const back=useDetailOwnerReturn(`/tasks${query({kind:params.get("kind"),status:params.get("status"),tag_id:params.get("tag_id"),entity_id:params.get("entity_id")})}`);
+  const navigate = useDetailNavigate();
   const navigateAfterClose = useDeferredNavigation();
   const [task, setTask] = useState<TaskDetail | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -56,7 +55,7 @@ export function TaskDetailPage() {
   const manage = (action: string, occurrence?: string) => { const next = new URLSearchParams(params); next.set("action", action); occurrence ? next.set("occurrence", occurrence) : next.delete("occurrence"); navigate(`?${next}`); };
   const closeManagement = () => { setDialog(null); const next = new URLSearchParams(params); next.delete("action"); next.delete("occurrence"); navigateAfterClose(`?${next}`, true); };
   const conflicted=useRef(false);
-  const closeEdit = () => { setDialog(null);if(conflicted.current){conflicted.current=false;void reload();} if(directEdit&&params.get("edit_from")!=="view")navigateAfterClose(back.path,true);else{const p=new URLSearchParams(params);p.delete("edit");p.delete("edit_from");navigateAfterClose(`?${p}`,true);} };
+  const closeEdit = () => { setDialog(null);if(conflicted.current){conflicted.current=false;void reload();} if(directEdit&&params.get("edit_from")!=="view")navigateAfterClose(back,true);else{const p=new URLSearchParams(params);p.delete("edit");p.delete("edit_from");navigateAfterClose(`?${p}`,true);} };
   const [editReady,setEditReady]=useState(false);
   const [busy, setBusy] = useState(false);
   const [occurrences, setOccurrences] = useState<{ today: string; items: Occurrence[] } | null>(null);
@@ -130,7 +129,7 @@ export function TaskDetailPage() {
 
   if (loadError && !task) {
     return (
-      <DetailSurface title="할 일" onClose={()=>navigate(back.path)}>
+      <DetailSurface title="할 일" onClose={()=>navigate(back)}>
         <Notice kind="error">{loadError}</Notice>
         <button type="button" className="btn" onClick={reload}>조회 다시 시도</button>
       </DetailSurface>
@@ -232,7 +231,7 @@ export function TaskDetailPage() {
         </section>
       )}</>;
   const startEdit=()=>navigate(editFromView(params));
-  return <DetailSurface title={task.title} onClose={()=>navigate(back.path)} busy={busy} footer={<>
+  return <DetailSurface title={task.title} onClose={()=>navigate(back)} busy={busy} footer={<>
     <button type="button" className="btn" disabled={busy} onClick={startEdit}>편집</button>
     {task.kind==="once"&&task.status==="open"&&<button type="button" className="btn btn-primary" disabled={busy} onClick={()=>manage("complete")}>완료하고 기록</button>}
     {task.kind==="recurring"&&<button type="button" className="btn btn-primary" disabled={busy} onClick={()=>manage("transition")}>{task.status==="active"?"중단":"재개"}</button>}
@@ -333,7 +332,7 @@ export function TaskDetailPage() {
           run(async () => {
             await api("POST", `/tasks/${task.id}/delete`, {expected_version:task.version,change_note:reason||undefined,change_memo});
             setDialog(null);
-            navigateAfterClose(back.path,true);
+            navigateAfterClose(back,true);
           }, "삭제했습니다.")}
       />}
     </DetailSurface>;

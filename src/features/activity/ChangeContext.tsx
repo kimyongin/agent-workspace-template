@@ -1,6 +1,6 @@
 import type { RecordResult } from "@contracts/record.ts";
 import { useEffect, useState } from "react";
-import { Link } from "react-router";
+import { DetailLink as Link } from "../../lib/detail-exploration.tsx";
 import { api, ApiError } from "../../lib/api.ts";
 import { MarkdownContent } from "../../components/MarkdownContent.tsx";
 import { formatDateTime } from "../../lib/format.ts";
@@ -25,7 +25,7 @@ function CurrentTarget({change}: {change:NonNullable<WorkspaceRecord["change"]>}
     });
     return ()=>controller.abort();
   },[path,attempt]);
-  if(state==="exists")return <Link className="btn btn-text" to={path}>대상 원문 보기</Link>;
+  if(state==="exists")return <Link restoreKey="change-target" className="btn btn-text" to={path}>대상 원문 보기</Link>;
   if(state==="missing")return <p className="secondary">삭제된 대상 또는 접근할 수 없는 대상입니다. 당시의 기록은 그대로 보존됩니다.</p>;
   if(state==="failed")return <div className="form"><p className="notice" role="status">대상의 현재 상태를 확인하지 못했습니다.</p><button type="button" className="btn" onClick={()=>setAttempt(value=>value+1)}>대상 다시 조회</button></div>;
   return <p className="secondary" role="status">대상의 현재 상태 확인 중…</p>;
