@@ -1,4 +1,4 @@
-import { assertEquals, assertRejects } from "@std/assert";
+import { assertEquals, assertThrows } from "@std/assert";
 import { SqlPrincipleUnitOfWork } from "../../functions/_shared/adapters/supabase/principle-store.ts";
 import { SqlUnitOfWork } from "../../functions/_shared/adapters/supabase/activity-store.ts";
 import { principleCreate, principleSave } from "../../functions/_shared/contracts/principle.ts";
@@ -63,17 +63,12 @@ dbTest(
       assertEquals("applied_principle_ids" in after, false);
       assertEquals(after.version, edited.version);
       const foreign = await p.createPrinciple(d, b.actor, principleCreate.parse(content));
-      await assertRejects(() =>
-        r.updateRecord(
-          rd,
-          a,
-          record.id,
-          recordUpdate.parse({
-            expected_version: edited.version,
-            change_note: "거부",
-            applied_principle_ids: [foreign.id],
-          }),
-        )
+      assertThrows(() =>
+        recordUpdate.parse({
+          expected_version: edited.version,
+          change_note: "거부",
+          applied_principle_ids: [foreign.id],
+        })
       );
       assertEquals((await r.getRecord(rd, a, record.id)).applied_principle_snapshots, snapshot);
     } finally {
