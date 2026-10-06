@@ -1,10 +1,8 @@
 import { z } from "zod";
 import { id } from "../../contracts/common.ts";
 import {
-  principleCorrection,
   principleCreate,
   principleDelete,
-  principleListQuery,
   principlePreview,
   principleSave,
   principleUpdate,
@@ -19,11 +17,9 @@ function idParam(value: unknown): string {
 }
 export function principleTools(d: p.PrincipleDeps): ToolDef[] {
   const update = principleUpdate.extend({ id }),
-    correction = principleCorrection.extend({ id }),
     remove = principleDelete.extend({ id }),
     get = z.strictObject({ id: z.unknown() }),
     editInput = principleUpdate.extend({ id: z.unknown() }),
-    correctionInput = principleCorrection.extend({ id: z.unknown() }),
     removeInput = remove.extend({ id: z.unknown() });
   return [
     {
@@ -66,17 +62,6 @@ export function principleTools(d: p.PrincipleDeps): ToolDef[] {
       },
     },
     {
-      name: "correct_principle",
-      description:
-        "과거 저장본의 본문 또는 메모만 정정. saved_at와 현재 여부는 유지. change_note 필수, 동일 값은 무변경.",
-      input: correction,
-      readOnly: false,
-      handler: (i, a) => {
-        const { id, ...rest } = parse(correctionInput, i);
-        return p.correctPrinciple(d, a, idParam(id), rest);
-      },
-    },
-    {
       name: "delete_principle",
       description:
         "현재 원칙을 삭제하고 최종 메모를 기록한다. 과거 원칙을 자동 승격하지 않는다. 기존 보존 자료는 남는다.",
@@ -91,15 +76,8 @@ export function principleTools(d: p.PrincipleDeps): ToolDef[] {
       },
     },
     {
-      name: "list_principles",
-      description: "view current/history/all, 기본 현재 하나. 과거는 saved_at 내림차순, 커서는 같은 조건만.",
-      input: principleListQuery,
-      readOnly: true,
-      handler: (i, a) => p.listPrinciples(d, a, parse(principleListQuery, i)),
-    },
-    {
       name: "get_principle",
-      description: "원칙 저장본 전체와 저장 메모·이관 출처 조회.",
+      description: "현재 원칙의 원문과 저장 메모 조회. 과거 자료는 보존된 기록에서 확인한다.",
       input: z.strictObject({ id }),
       readOnly: true,
       handler: (i, a) => p.getPrinciple(d, a, idParam(parse(get, i).id)),

@@ -43,7 +43,6 @@ export type { Page } from "../shared/operations.ts";
 function toTaskResult(task: Task): TaskResult {
   return {
     ...task,
-    entity_id: task.entity_id ?? null,
     entity_ids: selectedEntities(task) ?? [],
     entity_context: task.entity_context ?? [],
   };
@@ -52,7 +51,6 @@ function toTaskResult(task: Task): TaskResult {
 function toRecordResult(record: ActivityRecord): RecordResult {
   return {
     ...record,
-    entity_id: record.entity_id ?? null,
     entity_ids: selectedEntities(record) ?? [],
     entity_context: record.entity_context ?? [],
     record_kind: record.record_kind ?? "user",
@@ -247,7 +245,6 @@ export async function completeTask(
         occurred_at: input.occurred_at ?? null,
         task_id: task.id,
         occurrence_on: null,
-        applied_principle_ids: input.applied_principle_ids,
         tag_ids: input.tag_ids,
       });
       const updated = await store.updateTask(id, { ...decided, result_record_id: record.id });
@@ -384,7 +381,6 @@ export async function recordOccurrence(
           occurred_at: input.occurred_at ?? null,
           task_id: id,
           occurrence_on: date,
-          applied_principle_ids: input.applied_principle_ids,
           tag_ids: input.tag_ids,
         });
         await store.enqueueIndex({ kind: "record", id: record.id, input_hash: await searchInputHash(record) });
@@ -407,7 +403,6 @@ export async function createRecord(deps: ActivityDeps, actor: Actor, input: Reco
         occurred_at: input.occurred_at ?? null,
         task_id: null,
         occurrence_on: null,
-        applied_principle_ids: input.applied_principle_ids,
         tag_ids: input.tag_ids,
       });
       await store.enqueueIndex({ kind: "record", id: record.id, input_hash: await searchInputHash(record) });
@@ -454,19 +449,15 @@ export async function updateRecord(
       assertVersion(record, patch.expected_version);
       if (
         record.record_kind === "change" &&
-        ["entity_id", "entity_ids", "tag_ids", "occurred_at", "applied_principle_ids"].some((k) => k in patch)
+        ["entity_ids", "tag_ids", "occurred_at"].some((k) => k in patch)
       ) {
         throw invalidInput("변경 기록은 제목·요약·본문·메모만 정정할 수 있습니다");
       }
       const { expected_version: _v, request_id: _r, change_note, ...content } = patch;
       const selection = entityChanges(content);
-      // Array selection owns the projection; deleted captures can have a null live alias.
-      if (content.entity_ids !== undefined && content.entity_id === undefined) delete selection.entity_id;
       const changes = { ...content, ...selection };
-      const removesSnapshots = changes.applied_principle_ids !== undefined &&
-        (record.applied_principle_snapshots ?? []).some((p) => !changes.applied_principle_ids!.includes(p.id));
       if (
-        !removesSnapshots && !changed(record, changes) &&
+        !changed(record, changes) &&
         (change_note === undefined || record.change_note === change_note)
       ) return toRecordResult(record);
       const updated = await store.updateRecord(id, {

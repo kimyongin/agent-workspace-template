@@ -11,7 +11,6 @@ export type TaskKind = "once" | "recurring";
 export type TaskStatus = "open" | "done" | "active" | "stopped";
 
 export interface Task {
-  entity_id?: string | null;
   entity_ids?: string[];
   entity_context?: EntityContext[];
   id: string;
@@ -44,7 +43,6 @@ export type NewTask = Pick<
   | "status"
   | "pauses"
   | "tag_ids"
-  | "entity_id"
   | "entity_ids"
 >;
 
@@ -79,7 +77,7 @@ export function assertVersion(current: { version: number }, expected: number): v
 export type TaskChanges = Partial<
   Pick<
     Task,
-    "title" | "summary" | "body" | "due_on" | "recurrence" | "timezone" | "tag_ids" | "entity_id" | "entity_ids"
+    "title" | "summary" | "body" | "due_on" | "recurrence" | "timezone" | "tag_ids" | "entity_ids"
   >
 >;
 

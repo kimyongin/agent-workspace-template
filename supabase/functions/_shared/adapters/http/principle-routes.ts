@@ -1,9 +1,7 @@
 import { Hono } from "hono";
 import {
-  principleCorrection,
   principleCreate,
   principleDelete,
-  principleListQuery,
   principlePreview,
   principleSave,
   principleUpdate,
@@ -48,10 +46,6 @@ export function principleRoutes(d: principles.PrincipleDeps) {
       c.json(await principles.createPrinciple(d, c.get("actor"), parse(principleCreate, await json(c.req.raw))), 201),
   );
   app.get(
-    "/principles",
-    async (c) => c.json(await principles.listPrinciples(d, c.get("actor"), parse(principleListQuery, c.req.query()))),
-  );
-  app.get(
     "/principles/:id",
     async (c) => c.json(await principles.getPrinciple(d, c.get("actor"), idParam(c.req.param("id")))),
   );
@@ -64,18 +58,6 @@ export function principleRoutes(d: principles.PrincipleDeps) {
           c.get("actor"),
           idParam(c.req.param("id")),
           parse(principleUpdate, await json(c.req.raw)),
-        ),
-      ),
-  );
-  app.patch(
-    "/principles/:id/correct",
-    async (c) =>
-      c.json(
-        await principles.correctPrinciple(
-          d,
-          c.get("actor"),
-          idParam(c.req.param("id")),
-          parse(principleCorrection, await json(c.req.raw)),
         ),
       ),
   );

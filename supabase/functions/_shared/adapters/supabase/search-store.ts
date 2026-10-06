@@ -10,13 +10,13 @@ class SqlSearchStore implements SearchStore {
   sources() {
     const tx = this.tx;
     const originals =
-      tx`select owner_id,'task'::text as kind,id,title,summary,body,updated_at as at,status,entity_id,entity_ids,kind as task_kind,null::text as record_kind,null::boolean as is_current,null::text as change_note,${
+      tx`select owner_id,'task'::text as kind,id,title,summary,body,updated_at as at,status,entity_ids,kind as task_kind,null::text as record_kind,null::boolean as is_current,null::text as change_note,${
         tagIdsColumn(tx, "task")
       } from app.tasks
-      union all select owner_id,'record',id,title,summary,body,occurred_at,null::text,entity_id,entity_ids,null::text,record_kind,null::boolean,change_note,${
+      union all select owner_id,'record',id,title,summary,body,occurred_at,null::text,entity_ids,null::text,record_kind,null::boolean,change_note,${
         tagIdsColumn(tx, "record")
       } from app.records
-      union all select owner_id,'principle',id,title,summary,body,saved_at,status,null::uuid,'{}'::uuid[],null::text,null::text,is_current,change_note,'[]'::jsonb from app.principles`;
+      union all select owner_id,'principle',id,title,summary,body,saved_at,null::text,'{}'::uuid[],null::text,null::text,is_current,change_note,'[]'::jsonb from app.principles where is_current`;
     return tx`select s.*,i.embedding,case
       when s.summary is null or btrim(s.summary)='' then 'excluded'
       when i.input_hash=encode(extensions.digest(s.title||E'\n'||s.summary,'sha256'),'hex') and i.pipeline=${SEARCH_PIPELINE}
@@ -25,15 +25,8 @@ class SqlSearchStore implements SearchStore {
   }
   filters(q: SearchInput) {
     const tx = this.tx;
-    const view = q.principle_view;
     return tx`kind in ${tx(q.kinds)}
-      ${
-      view === "current"
-        ? tx`and (kind<>'principle' or is_current)`
-        : view === "history"
-        ? tx`and (kind<>'principle' or not is_current)`
-        : tx``
-    }
+      and (kind<>'principle' or is_current)
       ${q.task_kind ? tx`and (kind<>'task' or task_kind=${q.task_kind})` : tx``}
       ${q.task_status ? tx`and (kind<>'task' or status=${q.task_status})` : tx``}
       ${q.record_kind ? tx`and (kind<>'record' or record_kind=${q.record_kind})` : tx``}

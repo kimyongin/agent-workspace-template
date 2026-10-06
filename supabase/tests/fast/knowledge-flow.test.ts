@@ -36,11 +36,6 @@ function fixture() {
         change_note: i.change_note ?? null,
         origin: "saved",
         legacy_context: null,
-        entity_id: null,
-        tag_ids: [],
-        applies_when: "",
-        status: "active",
-        replaced_by_id: null,
       };
       rows.set(r.id, r);
       return Promise.resolve(r);
@@ -51,23 +46,10 @@ function fixture() {
       rows.set(id, r);
       return Promise.resolve(r);
     },
-    retire: (id) => {
-      rows.get(id)!.is_current = false;
-      return Promise.resolve();
-    },
     delete: (id) => {
       rows.delete(id);
       return Promise.resolve();
     },
-    promoteLatest: (version) => {
-      const r = [...rows.values()].at(-1);
-      if (r) {
-        r.is_current = true;
-        r.version = version;
-      }
-      return Promise.resolve();
-    },
-    list: () => Promise.resolve([...rows.values()]),
     enqueueIndex: () => Promise.resolve(),
     appendChange: (i) => {
       events.push(i);
@@ -89,6 +71,8 @@ function fixture() {
     call = (name: string, i: Record<string, unknown>) => tools.find((t) => t.name === name)!.handler(i, actor);
   return {
     d,
+    rows,
+    tools,
     events,
     call,
     http: (method: string, path: string, input?: unknown) =>
@@ -99,6 +83,23 @@ function fixture() {
       }),
   };
 }
+Deno.test("retired principle history routes/tools are absent and exact reads are current-only", async () => {
+  const f = fixture();
+  const current = await f.call("create_principle", { title: "현재", summary: "현재 기준" }) as PrincipleResult;
+  const historical = { ...current, id: crypto.randomUUID(), is_current: false };
+  f.rows.set(historical.id, historical);
+  assertEquals((await f.http("GET", "/principles?view=all")).status, 404);
+  assertEquals(
+    (await f.http("PATCH", `/principles/${historical.id}/correct`, { expected_version: 1, body: "정정" })).status,
+    404,
+  );
+  assertEquals(f.tools.some((t) => ["list_principles", "correct_principle"].includes(t.name)), false);
+  assertEquals((await f.http("GET", `/principles/${historical.id}`)).status, 404);
+  const error = await assertRejects(() => f.call("get_principle", { id: historical.id }), AppError);
+  assertEquals(error.code, "not_found");
+  assertEquals(await (await f.http("GET", `/principles/${current.id}`)).json(), current);
+  assertEquals(f.rows.get(historical.id), historical);
+});
 Deno.test("principle preview is read-only and agrees across HTTP and MCP", async () => {
   const f = fixture(),
     input = { action: "create", input: { title: "새 기준", summary: "현재 판단", body: "확인한 내용" } };
