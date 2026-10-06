@@ -325,7 +325,7 @@ const principle=(n=4,current=true)=>({...base(n,current?"현재 기준":"과거 
 type Row={id:string;version:number;body:string;created_at:string;updated_at:string;title?:string}&Record<string,unknown>;
 async function fixtures(page:Page, options:{long?:boolean;emptyPrinciple?:boolean;failWrite?:"unknown"|"conflict";hold?:boolean}={}) {
   const rows:Record<string,Row[]>={entities:[entity()],tasks:[task()],records:[record()],principles:options.emptyPrinciple?[]:[principle(),principle(5,false)],tags:[{...base(10,""),name:"같은 이름",scope:"entity"},{...base(11,""),name:"같은 이름",scope:"activity"}]};
-  if(options.long){for(const kind of ["entities","tasks","records","principles"]){rows[kind][0].title="긴제목".repeat(32);rows[kind][0].prop1="긴제목".repeat(25);rows[kind][0].body="긴 본문\n\n".repeat(150);}}
+  if(options.long){for(const kind of ["entities","tasks","records","principles"]){if(kind!=="records")rows[kind][0].title="긴제목".repeat(32);rows[kind][0].prop1="긴제목".repeat(25);rows[kind][0].body="긴 본문\n\n".repeat(150);}}
   const writes:{method:string;path:string;body:Record<string,unknown>;params:URLSearchParams}[]=[],searches:Record<string,unknown>[]=[],errors:string[]=[];
   let sequence=20, failed=false,release=()=>{},started=()=>{};
   const pending=new Promise<void>(r=>{started=r;});
