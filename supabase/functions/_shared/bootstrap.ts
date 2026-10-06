@@ -61,7 +61,11 @@ export function activityDeps(): ActivityDeps {
 export const env = {
   /** 토큰 발급자(Supabase Auth의 공개 주소 + /auth/v1). */
   authIssuer: () => required("AUTH_ISSUER"),
-  /** MCP 서버의 정식 URL(토큰 audience). Custom Access Token Hook의 mcp_audience와 같아야 한다. */
-  mcpUrl: () => required("MCP_URL"),
+  /** Auth와 같은 프로젝트의 표준 MCP 주소. 토큰 hook과 같은 규칙으로 계산한다. */
+  mcpUrl: () => {
+    const issuer = required("AUTH_ISSUER");
+    if (!/^https?:\/\/[^/?#@\s]+\/auth\/v1$/.test(issuer)) throw new Error("invalid Auth issuer");
+    return issuer.slice(0, -"/auth/v1".length) + "/functions/v1/mcp";
+  },
   webOrigins: () => (Deno.env.get("WEB_ORIGINS") ?? "").split(",").map((s) => s.trim()).filter(Boolean),
 };

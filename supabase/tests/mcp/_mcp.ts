@@ -34,6 +34,12 @@ export async function registerClient(redirect = REDIRECT): Promise<{ status: num
 
 /** 사용자 세션으로 인가를 승인하고 MCP 토큰을 받는다. */
 export async function mcpToken(sessionToken: string): Promise<string> {
+  return (await mcpGrant(sessionToken)).access_token;
+}
+
+export async function mcpGrant(
+  sessionToken: string,
+): Promise<{ access_token: string; refresh_token: string; client_id: string }> {
   const client = (await registerClient()).body;
   const verifier = b64url(crypto.getRandomValues(new Uint8Array(32)));
   const challenge = b64url(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier))));
@@ -79,7 +85,7 @@ export async function mcpToken(sessionToken: string): Promise<string> {
   return await exchange(approved.redirect_url, client.client_id, verifier, state);
 }
 
-async function exchange(redirectUrl: string, clientId: string, verifier: string, state: string): Promise<string> {
+async function exchange(redirectUrl: string, clientId: string, verifier: string, state: string) {
   const callback = new URL(redirectUrl);
   if (callback.searchParams.get("state") !== state) throw new Error("state 불일치");
   const tokenRes = await fetch(`${AUTH}/oauth/token`, {
@@ -96,7 +102,11 @@ async function exchange(redirectUrl: string, clientId: string, verifier: string,
   });
   const token = await tokenRes.json();
   if (!tokenRes.ok) throw new Error(`토큰 교환 실패: ${JSON.stringify(token)}`);
-  return token.access_token as string;
+  return {
+    access_token: token.access_token as string,
+    refresh_token: token.refresh_token as string,
+    client_id: clientId,
+  };
 }
 
 export function claimsOf(jwt: string): Record<string, unknown> {
@@ -120,4 +130,20 @@ export async function tool(client: Client, name: string, args: Record<string, un
   const res = await client.callTool({ name, arguments: args });
   const body = res.structuredContent ?? JSON.parse((res.content as { text: string }[])[0].text);
   return res.isError ? { error: body } : body;
+}
+
+export async function refreshMcp(grant: { refresh_token: string; client_id: string }): Promise<string> {
+  const response = await fetch(AUTH + "/oauth/token", {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "refresh_token",
+      refresh_token: grant.refresh_token,
+      client_id: grant.client_id,
+      resource: MCP_URL,
+    }),
+  });
+  const body = await response.json();
+  if (!response.ok) throw new Error("OAuth refresh failed: " + response.status);
+  return body.access_token;
 }
