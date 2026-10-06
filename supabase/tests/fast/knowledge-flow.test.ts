@@ -105,7 +105,17 @@ Deno.test("principle preview is read-only and agrees across HTTP and MCP", async
     input = { action: "create", input: { title: "새 기준", summary: "현재 판단", body: "확인한 내용" } };
   const web = await f.http("POST", "/principles/preview", input);
   assertEquals(web.status, 200);
-  assertEquals(await web.json(), await f.call("preview_principle_change", input));
+  const expected = {
+    changed: true,
+    memo: {
+      title: "새 기준 등록",
+      summary: "새 기준 등록",
+      body: "제목: 새 기준\n요약: 현재 판단\n본문: 확인한 내용",
+    },
+  };
+  assertEquals(await web.json(), expected);
+  assertEquals(await f.call("preview_principle_change", input), expected);
+  assertEquals(f.events.length, 0);
   assertEquals((await (await f.http("GET", "/principles/current")).json()).current, null);
 });
 Deno.test("HTTP current principle edited through MCP retains its document identity", async () => {

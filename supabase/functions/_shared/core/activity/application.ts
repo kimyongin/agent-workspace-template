@@ -1,3 +1,4 @@
+import { activityChangeTarget, recordChangeFacts, taskChangeFacts } from "./change.ts";
 import { entityChanges, selectedEntities } from "./entity-selection.ts";
 // 할 일·기록 유스케이스. HTTP와 MCP가 같은 함수를 호출한다(ADR-0001).
 // 읽기 → 도메인 판단 → 저장 순서와 트랜잭션 경계, 색인 작업 등록, 요청 재전송 처리를 맡는다.
@@ -82,8 +83,9 @@ export async function previewTaskChange(deps: ActivityDeps, actor: Actor, input:
       return {
         memo: basicChangeMemo({
           action: "create",
+          target_title: task.title,
           before: null,
-          after: task,
+          after: taskChangeFacts(task),
           change_note: input.input.change_note,
         }),
         changed: true,
@@ -122,8 +124,9 @@ export async function previewTaskChange(deps: ActivityDeps, actor: Actor, input:
     return {
       memo: basicChangeMemo({
         action: input.action as "update" | "delete" | "stop" | "resume",
-        before: task,
-        after,
+        target_title: (after ?? task).title,
+        before: taskChangeFacts(task),
+        after: after && taskChangeFacts(after),
         change_note: input.input.change_note,
       }),
       changed: after === null || changed(task, after),
@@ -138,9 +141,10 @@ export async function createTask(deps: ActivityDeps, actor: Actor, input: TaskCr
       await store.enqueueIndex({ kind: "task", id: task.id, input_hash: await searchInputHash(task) });
       await store.appendChange({
         target_kind: "task",
+        target: activityChangeTarget(task),
         action: "create",
         before: null,
-        after: task,
+        after: taskChangeFacts(task),
         change_note: input.change_note,
         change_memo: input.change_memo,
       });
@@ -213,9 +217,10 @@ export async function updateTask(deps: ActivityDeps, actor: Actor, id: string, p
       }
       await store.appendChange({
         target_kind: "task",
+        target: activityChangeTarget(updated),
         action: "update",
-        before: task,
-        after: updated,
+        before: taskChangeFacts(task),
+        after: taskChangeFacts(updated),
         change_note: patch.change_note,
         change_memo: patch.change_memo,
       });
@@ -273,8 +278,9 @@ export async function deleteTask(
         await store.deleteTask(id);
         await store.appendChange({
           target_kind: "task",
+          target: activityChangeTarget(task),
           action: "delete",
-          before: task,
+          before: taskChangeFacts(task),
           after: null,
           change_note,
           change_memo,
@@ -301,9 +307,10 @@ export async function stopTask(
         const result = await store.updateTask(id, decideStop(task, expectedVersion, deps.clock.now()));
         await store.appendChange({
           target_kind: "task",
+          target: activityChangeTarget(result),
           action: "stop",
-          before: task,
-          after: result,
+          before: taskChangeFacts(task),
+          after: taskChangeFacts(result),
           change_note,
           change_memo,
         });
@@ -329,9 +336,10 @@ export async function resumeTask(
         const result = await store.updateTask(id, decideResume(task, expectedVersion, deps.clock.now()));
         await store.appendChange({
           target_kind: "task",
+          target: activityChangeTarget(result),
           action: "resume",
-          before: task,
-          after: result,
+          before: taskChangeFacts(task),
+          after: taskChangeFacts(result),
           change_note,
           change_memo,
         });
@@ -408,9 +416,10 @@ export async function createRecord(deps: ActivityDeps, actor: Actor, input: Reco
       await store.enqueueIndex({ kind: "record", id: record.id, input_hash: await searchInputHash(record) });
       await store.appendChange({
         target_kind: "record",
+        target: activityChangeTarget(record),
         action: "create",
         before: null,
-        after: record,
+        after: recordChangeFacts(record),
         change_note: input.change_note,
       });
       return toRecordResult(record);
@@ -493,7 +502,14 @@ export async function deleteRecord(
         const owner = await store.taskWithResult(id);
         if (owner) await store.updateTask(owner.id, { result_record_id: null });
         await store.deleteRecord(id);
-        await store.appendChange({ target_kind: "record", action: "delete", before: record, after: null, change_note });
+        await store.appendChange({
+          target_kind: "record",
+          target: activityChangeTarget(record),
+          action: "delete",
+          before: recordChangeFacts(record),
+          after: null,
+          change_note,
+        });
         return { deleted: true };
       }),
   );

@@ -1,5 +1,4 @@
 import { captureEntities } from "./entity-links.ts";
-import type { EntityContext } from "../../contracts/entity-links.ts";
 // 실제 두 도메인이 공유하는 Actor 트랜잭션·요청 결과·색인 큐 저장 배선.
 import type postgres from "postgres";
 import type { Actor } from "../../core/shared/actor.ts";
@@ -21,9 +20,8 @@ export class SqlActorStore {
 
   /** Explicit user commands call this once, never the internal insert itself. */
   async appendChange(input: ChangeInput) {
-    const target = (input.after ?? input.before) as Record<string, unknown>;
-    const target_title = String(target.prop1 ?? target.title ?? "");
-    const { title, summary, body } = input.change_memo ?? basicChangeMemo(input);
+    const target = input.target, target_title = target.title;
+    const { title, summary, body } = input.change_memo ?? basicChangeMemo({ ...input, target_title });
     // New events retain facts and the final memo, not an extra full domain capture.
     // Nullable keys remain compatible with old stored snapshots and readers.
     const metadata = {
@@ -39,17 +37,15 @@ export class SqlActorStore {
         ? null
         : `/${input.target_kind === "entity" ? "entities" : `${input.target_kind}s`}/${target.id}`,
     };
-    const ids = input.target_kind === "entity"
-      ? [target.id as string]
-      : (target.entity_ids as string[] | undefined) ?? [];
+    const ids = target.entity_ids;
     const context = input.target_kind === "entity" && input.action === "delete"
       ? [{
-        id: target.id as string,
+        id: target.id,
         title: target_title,
         captured_at: new Date().toISOString(),
         source: "selection" as const,
       }]
-      : await captureEntities(this.tx, ids, (target.entity_context as EntityContext[] | undefined) ?? []);
+      : await captureEntities(this.tx, ids, target.entity_context);
     const [row] = await this
       .tx`insert into app.records(owner_id,entity_ids,entity_context,title,summary,body,record_kind,change_note,change_metadata)
       values(${this.actor.userId},${this.tx.array(ids, 2950)},${

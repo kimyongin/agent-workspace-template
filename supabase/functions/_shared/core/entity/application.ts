@@ -1,3 +1,4 @@
+import { entityChangeFacts, entityChangeTarget } from "./change.ts";
 import { id, isoDate, isoDateTime, text } from "../../contracts/common.ts";
 import type { EntityCreate, EntityDetail, EntityQuery, EntityResult, EntityUpdate } from "../../contracts/entity.ts";
 import type { Actor } from "../shared/actor.ts";
@@ -30,9 +31,10 @@ export function createEntity(d: EntityDeps, a: Actor, i: EntityCreate) {
       const result = await s.insert(props);
       await s.appendChange({
         target_kind: "entity",
+        target: entityChangeTarget(result),
         action: "create",
         before: null,
-        after: result,
+        after: entityChangeFacts(result),
         change_note,
         change_memo,
       });
@@ -61,9 +63,10 @@ export function updateEntity(d: EntityDeps, a: Actor, id: string, i: EntityUpdat
       const result = await s.update(id, props);
       await s.appendChange({
         target_kind: "entity",
+        target: entityChangeTarget(result),
         action: "update",
-        before: old,
-        after: result,
+        before: entityChangeFacts(old),
+        after: entityChangeFacts(result),
         change_note,
         change_memo,
       });
@@ -87,8 +90,9 @@ export function deleteEntity(
         await s.delete(id);
         await s.appendChange({
           target_kind: "entity",
+          target: entityChangeTarget(old),
           action: "delete",
-          before: old,
+          before: entityChangeFacts(old),
           after: null,
           change_note,
           change_memo,
@@ -103,8 +107,9 @@ export function previewEntityChange(d: EntityDeps, actor: Actor, input: EntityCh
       return {
         memo: basicChangeMemo({
           action: "create",
+          target_title: input.input.prop1,
           before: null,
-          after: input.input,
+          after: entityChangeFacts(input.input),
           change_note: input.input.change_note,
         }),
         changed: true,
@@ -118,7 +123,13 @@ export function previewEntityChange(d: EntityDeps, actor: Actor, input: EntityCh
     );
     const after = input.action === "delete" ? null : { ...old, ...values };
     return {
-      memo: basicChangeMemo({ action: input.action, before: old, after, change_note: input.input.change_note }),
+      memo: basicChangeMemo({
+        action: input.action,
+        target_title: (after ?? old).prop1,
+        before: entityChangeFacts(old),
+        after: after && entityChangeFacts(after),
+        change_note: input.input.change_note,
+      }),
       changed: after === null || changed(old, values),
     };
   });
