@@ -16,6 +16,7 @@
 | [0011](0011-matt-skills-and-github-workflow.md) | Matt Pocock 스킬과 GitHub 작업 정본 | 채택 |
 | [0012](0012-current-state-and-unified-records.md) | 최신 상태와 메모 기반 통합 기록 | 채택 |
 | [0013](0013-retire-unused-contracts.md) | 실제 사용처를 기준으로 미사용 계약 제거 | 채택 |
+| [0014](0014-minimal-content-model.md) | 요약 제거와 본문 하나로 쓰는 기록 | 채택, 구현 전 |
 
 ## 문서의 책임
 
