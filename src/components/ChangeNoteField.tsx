@@ -4,4 +4,3 @@ export function ChangeNoteField({value, onChange, required = false, error, label
     {p => <textarea {...p} className="input" rows={3} placeholder="변경 이유나 보충할 내용" value={value} onChange={e => onChange(e.target.value)} />}
   </Field>;
 }
-

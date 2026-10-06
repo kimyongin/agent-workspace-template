@@ -117,8 +117,9 @@ function ScopedTagsPage({scope}:{scope:"entity"|"activity"}) {
         const at = page?.items.findIndex(t => t.id === target.id) ?? -1; focusId.current = page?.items[at + 1]?.id ?? page?.items[at - 1]?.id ?? "heading";
         setPage(p => p && ({ ...p, items: p.items.filter(t => t.id !== target.id) })); setNotice("태그를 삭제했습니다.");
         if(draft?.initial?.id===target.id){setDraft(null);attempt.reset();dismiss();}
+        setRetry(n => n + 1);
       } catch (e) { focusId.current = target.id; setNotice(null); throw e; }
-      finally { setRetry(n => n + 1); setDeletingBusy(false); saving.current = false; }
+      finally { setDeletingBusy(false); saving.current = false; }
     };
   const deleteAction=(target:TagResult,editor=false)=><DeleteAction key={target.id} disabled={busy||uncertain||conflict} label={editor?"삭제":`${target.name} 삭제`} message={`${target.name} 태그와 연결을 제거합니다. 원문은 보존합니다.`} onStateChange={editor?setDeletionState:undefined} onConfirm={reason=>deleteTag(target,reason)}/>;
   return <section className="panel" aria-labelledby="tags-title">

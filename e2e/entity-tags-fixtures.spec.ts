@@ -177,9 +177,10 @@ test("이름 충돌 초안 보존과 삭제 실패·성공", async ({ page }) =>
   await page.getByRole("button", { name: "첫 태그 삭제" }).click(); await page.locator(".delete-action.is-armed").getByRole("button", { name: "삭제 확인", exact: true }).click(); await expect(page.locator(".delete-action.is-armed").getByText(/삭제 충돌/)).toBeVisible();
   failedDelete = false; await page.locator(".delete-action.is-armed").getByRole("button", { name: "삭제 확인", exact: true }).click(); await expect(page.getByText("태그를 삭제했습니다.")).toBeVisible();
 });
-test("태그 삭제 응답 유실 후 창과 이유를 유지하고 같은 버전으로 재시도", async ({ page }) => {
+test("태그 목록 삭제 반영 후 응답 유실도 이유·같은 버전 재시도를 유지", async ({ page }) => {
   const deletions: string[] = [];
-  await page.route(/\/api\/tags(?:\?.*)?$/, route => route.fulfill({ json: { items: tags, next_cursor: null } }));
+  let reads=0;
+  await page.route(/\/api\/tags(?:\?.*)?$/, route => {reads++;return route.fulfill({ json: { items: deletions.length?tags.slice(1):tags, next_cursor: null } });});
   await page.route("**/api/tags/*", route => {
     deletions.push(route.request().url());
     return deletions.length === 1 ? route.abort() : route.fulfill({ status: 404, json: { code: "not_found", message: "이미 삭제된 태그" } });
@@ -198,6 +199,7 @@ test("태그 삭제 응답 유실 후 창과 이유를 유지하고 같은 버�
   expect(deletions[1]).toBe(deletions[0]);
   expect(new URL(deletions[0]).searchParams.get("expected_version")).toBe("1");
   expect(new URL(deletions[0]).searchParams.get("change_note")).toBe("분류 통합");
+  expect(reads).toBe(1);
 });
 
 test("엔터티 연결 작성·실패 초안·성공 후 조회 실패와 모달 뒤로가기 보호", async ({ page }) => {

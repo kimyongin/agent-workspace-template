@@ -126,7 +126,7 @@ for (
       await link.click();
       await openDetailEditor(page);
       await dialog.getByLabel("본문").fill("수정한 근거");
-      await dialog.getByLabel("편집 메모").fill("판단 근거 정정");
+      if(kind==="task")await dialog.getByLabel("편집 메모").fill("판단 근거 정정");
       await saveOnce(page, dialog);
       await expect(dialog).not.toBeVisible();
       await page.getByRole("button", { name: "닫기", exact: true }).click();

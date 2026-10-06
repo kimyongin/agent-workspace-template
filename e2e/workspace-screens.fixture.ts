@@ -81,12 +81,12 @@ test("dirty 작성 조건 이동 승인: create 유지 URL도 새 초안",async(
   await expect(page).toHaveURL(/tasks\?create=1&kind=recurring$/);await expect(form(page).getByRole("textbox",{name:/^제목(?: \(필수\))?$/})).toHaveValue("");expect(state.errors).toEqual([]);
 });
 
-for(const [kind,label,submit] of [["task","관련 할 일 추가","추가"],["record","기록 작성","저장"]])test(`엔터티 관련 ${kind}: uncertain 폐기 후 forward 새 요청키`,async({page})=>{
+for(const [kind,label,submit] of [["task","관련 할 일 추가","추가"],["record","기록 작성","저장"]])test(`엔터티 관련 ${kind}: uncertain 폐기 후 새 작성은 새 요청키`,async({page})=>{
   const state=await fixtures(page,{failWrite:"unknown"});await go(page,`/entities/${id(1)}`);
   await form(page).getByRole("button",{name:label,exact:true}).click();await fillText(page,"첫 연결 작성");await saveOnce(page, form(page), submit);
-  await expect(form(page).getByRole("button",{name:"같은 내용 다시 시도"})).toBeVisible();await page.goBack();
+  await expect(form(page).getByRole("button",{name:"같은 내용 다시 시도"})).toBeVisible();await page.keyboard.press("Escape");
   await page.getByRole("dialog",{name:"변경을 버릴까요?"}).getByRole("button",{name:"변경 버리기"}).click();await expect(page).not.toHaveURL(/create=/);
-  await page.goForward();await fillText(page,"새 연결 작성");await saveOnce(page, form(page), submit);
+  await form(page).getByRole("button",{name:label,exact:true}).click();await fillText(page,"새 연결 작성");await saveOnce(page, form(page), submit);
   await expect.poll(()=>state.writes.length).toBe(2);expect(state.writes[1].body.id).not.toBe(state.writes[0].body.id);expect(state.errors).toEqual([]);
 });
 
@@ -119,7 +119,7 @@ test("태그 DELETE pending: Back·경로 이동·reload 보호와 응답 뒤 �
   await page.getByRole("link",{name:"활동 태그 fixture",exact:true}).click();
   await page.getByRole("button",{name:"같은 이름 삭제",exact:true}).click();
   const confirm=page.locator(".delete-action.is-armed");await saveOnce(page,confirm,"삭제 확인");await state.pending;
-  await expect(confirm.getByRole("button",{name:"처리 중…"})).toBeDisabled();await expect(confirm.getByRole("button",{name:"취소",exact:true})).toBeDisabled();
+  await expect(confirm.getByRole("button",{name:"삭제 중…"})).toBeDisabled();await expect(confirm.getByRole("button",{name:"취소",exact:true})).toBeDisabled();
   await page.goBack();await expect(page).toHaveURL(/tags\/activity$/);await expect(confirm).toBeVisible();
   await page.getByRole("link",{name:"엔터티 fixture",exact:true}).evaluate(el=>el.dispatchEvent(new MouseEvent("click",{bubbles:true,cancelable:true})));
   await expect(page).toHaveURL(/tags\/activity$/);await expect(page.getByRole("dialog",{name:"변경을 버릴까요?"})).toHaveCount(0);
@@ -218,7 +218,7 @@ for(const width of [320,360,390,639,640,768,1024,1440])test(`시각 위계 ${wid
     if(path==="/tasks"){
       const heading=page.locator(".activity-item-heading").first(),title=heading.locator(".item-title"),edit=heading.locator(".activity-item-actions a");
       const t=(await title.boundingBox())!,e=(await edit.boundingBox())!;expect(e.x).toBeGreaterThanOrEqual(t.x+t.width);expect(e.height).toBeGreaterThanOrEqual(44);expect(e.width).toBeGreaterThanOrEqual(44);
-      const memo=page.locator(".memo-text");await expect(memo).toContainText("보충 메모");expect(await memo.evaluate(el=>el.classList.contains("notice"))).toBe(false);
+      await expect(page.locator(".memo-text")).toHaveCount(0);
     }
     if(width===390&&["/tasks","/guide","/tags/entity","/search"].includes(path))await page.screenshot({path:info.outputPath(`hierarchy-${path.slice(1).replaceAll("/","-")}-${width}.png`)});
   }
@@ -750,7 +750,7 @@ for(const [kind,n] of [["entities",1],["tasks",2],["records",3],["principles",4]
   const confirm=form(page).locator(".delete-action.is-armed");await expect(confirm.getByRole("button",{name:"삭제 확인",exact:true})).toBeVisible();
   await expect(page.locator("dialog[open]")).toHaveCount(1);expect(state.writes).toHaveLength(before);
   await expect(form(page).getByRole("button",{name:"저장",exact:true})).toBeDisabled();
-  await confirm.getByRole("button",{name:"취소",exact:true}).click();await expect(confirm).toHaveCount(0);expect(state.writes).toHaveLength(before);
+  await confirm.getByRole("button",{name:"취소",exact:true}).click();await expect(confirm).toHaveCount(0);await expect(form(page).getByRole("button",{name:"삭제",exact:true})).toBeFocused();expect(state.writes).toHaveLength(before);
   await form(page).getByRole("button",{name:"삭제",exact:true}).click();await form(page).getByRole("button",{name:"삭제 확인",exact:true}).click();
   await expect(page).toHaveURL(new RegExp(`/${kind}$`));expect(state.writes).toHaveLength(before+1);expect(state.errors).toEqual([]);
 });

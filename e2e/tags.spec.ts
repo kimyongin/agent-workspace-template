@@ -46,7 +46,7 @@ test("태그 실제 DELETE pending은 Back을 막고 응답 뒤 정상 복귀한
     const confirm=page.locator(".delete-action.is-armed");
     await confirm.getByRole("button",{name:"삭제 확인",exact:true}).click();await waiting;
     await page.goBack();await expect(page).toHaveURL(/tags\/activity$/);await expect(confirm).toBeVisible();
-    await expect(confirm.getByRole("button",{name:"처리 중…"})).toBeDisabled();
+    await expect(confirm.getByRole("button",{name:"삭제 중…"})).toBeDisabled();
     await page.keyboard.press("Escape");await expect(confirm).toBeVisible();
     release();await done;await expect(confirm).toHaveCount(0);
     await expect(page.getByRole("button",{name:`${tag.name} 삭제`,exact:true})).toHaveCount(0);
