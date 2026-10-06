@@ -1,3 +1,4 @@
+import { editFromView } from "../../lib/detail-navigation.ts";
 import { safeListReturn } from "../activity/list-state.ts";
 import { DeleteDialog } from "../../components/DeleteDialog.tsx";
 import { useDeferredNavigation } from "../../lib/useDeferredNavigation.ts";
@@ -92,7 +93,7 @@ export function EntityDetailPage() {
             </section>
           ))}
     </div>;
-  const startEdit=()=>{const p=new URLSearchParams(params);p.set("edit","1");p.set("edit_from","view");navigate(`?${p}`);};
+  const startEdit=()=>navigate(editFromView(params));
   return <DetailSurface title={entity?.prop1??"엔터티"} onClose={()=>navigate(back)} busy={busy}
     footer={entity&&<button type="button" className="btn btn-primary" onClick={startEdit}>편집</button>}>
       {error && !entity && <><Notice kind="error">{error}</Notice><button className="btn" onClick={()=>setRetry(n=>n+1)}>다시 시도</button></>}

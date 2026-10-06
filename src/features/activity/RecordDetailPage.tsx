@@ -1,3 +1,4 @@
+import { editFromView } from "../../lib/detail-navigation.ts";
 import { DeleteDialog } from "../../components/DeleteDialog.tsx";
 import { ChangeContext, PrincipleSnapshots, type WorkspaceRecord } from "./ChangeContext.tsx";
 // 기록 상세: 원문 읽기, 편집, 삭제.
@@ -94,7 +95,7 @@ export function RecordDetailPage() {
         만든 시각 {formatDateTime(record.created_at)} · 수정 {formatDateTime(record.updated_at)}
       </p>
     </div>;
-  const startEdit=()=>{const p=new URLSearchParams(params);p.set("edit","1");p.set("edit_from","view");navigate(`?${p}`);};
+  const startEdit=()=>navigate(editFromView(params));
   return <DetailSurface footer={<button type="button" className="btn btn-primary" onClick={startEdit}>편집</button>} title={record.title} onClose={()=>dialog==="edit"&&!editReady?closeEdit():navigate(back.path)} busy={busy}>
       <section className="detail-section"><h2 className="section-title">요약</h2><p className="document-summary">{record.summary}</p></section>
       <section className="detail-section"><h2 className="section-title">내용</h2><MarkdownContent text={record.body}/></section>

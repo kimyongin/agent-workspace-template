@@ -1,3 +1,4 @@
+import { SearchMatch } from "../../components/SearchMatch.tsx";
 import { useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router";
 import { type SearchResult } from "@contracts/search.ts";
@@ -92,7 +93,7 @@ export function SearchPage(){
           e.preventDefault();back.set("scroll",String(window.scrollY));const at=`${back}#search-${r.kind}-${r.id}`;
           navigate(`/search?${at}`,{replace:true});navigate(`${r.path}?search=${encodeURIComponent(at)}`);
         }}>{r.title}</Link><span className="secondary record-summary">{r.summary}</span>
-        <span className="meta">{kinds[r.kind]} · {formatDateTime(r.at)} · {r.match==="keyword"?"키워드":r.match==="both"?"키워드·의미":"의미"} · {r.index_state==="pending"?"색인 대기":r.index_state==="excluded"?"색인 제외":"색인 완료"}</span>
+        <span className="meta">{kinds[r.kind]} · {formatDateTime(r.at)}</span><SearchMatch item={r}/>
       </div></li>;})}</ul>
       {result.next_cursor&&<button type="button" className="btn" disabled={busy} onClick={more}>더 보기</button>}
     </>}

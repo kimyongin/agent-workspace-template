@@ -1,3 +1,4 @@
+import { editFromView } from "../../lib/detail-navigation.ts";
 import { ChangeNoteField, FormModal, changeNoteErrors } from "../../components/ContentForm.tsx";
 import { DeleteDialog } from "../../components/DeleteDialog.tsx";
 // 할 일 상세: 읽기, 편집, 일회성 완료, 반복 할 일의 회차·회차 기록·중단/재개, 삭제.
@@ -230,7 +231,7 @@ export function TaskDetailPage() {
           )}
         </section>
       )}</>;
-  const startEdit=()=>{const p=new URLSearchParams(params);p.set("edit","1");p.set("edit_from","view");navigate(`?${p}`);};
+  const startEdit=()=>navigate(editFromView(params));
   return <DetailSurface title={task.title} onClose={()=>navigate(back.path)} busy={busy} footer={<>
     <button type="button" className="btn" disabled={busy} onClick={startEdit}>편집</button>
     {task.kind==="once"&&task.status==="open"&&<button type="button" className="btn btn-primary" disabled={busy} onClick={()=>manage("complete")}>완료하고 기록</button>}
