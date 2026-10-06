@@ -38,8 +38,8 @@ async function webPhase(mode, intent, path, action) {
     const request = route.request();
     if (request.method() === method) {
       const input = request.postDataJSON();
-      if (!input?.request_id) throw new Error('Real web commit lacks request identity');
-      f.roundtrip.pending.webRequestId = input.request_id; await save();
+      if (method === 'POST' ? !input?.id : !input?.expected_version) throw new Error('Real web commit lacks object identity/version');
+      f.roundtrip.pending.webMutation = { path, ...(method === 'POST' ? { id: input.id } : { expected_version: input.expected_version }) }; await save();
     }
     await route.continue();
   });

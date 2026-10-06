@@ -16,7 +16,9 @@ httpTest(
       assertEquals("applied_principle_ids" in schema.properties!, false);
       const tools: Record<string, string> = {
         current: "get_current_principle",
-        save: "save_current_principle",
+        create: "create_principle",
+        update: "update_principle",
+        retry_record: "update_record",
         get: "get_principle",
         delete: "delete_principle",
         search: "search",
@@ -27,6 +29,7 @@ httpTest(
       };
       await currentPrincipleFixes(async (operation, input) => {
         const result = await tool(client, tools[operation], input);
+        if (operation === "retry_record") return result.error;
         assertEquals(result.error, undefined);
         if (operation === "search") {
           const http = await call(session, "POST", "/search", input);

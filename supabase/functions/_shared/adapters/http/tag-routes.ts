@@ -25,7 +25,6 @@ export function tagRoutes(d: tags.TagDeps) {
       idParam(c.req.param("id")),
       i.expected_version,
       i.change_note,
-      i.request_id,
     );
     return c.body(null, 204);
   });

@@ -9,17 +9,11 @@ import type { ChangeInput } from "../../core/shared/changes.ts";
 import { searchInputHash } from "../../core/shared/operations.ts";
 import { basicChangeMemo } from "../../core/shared/change-memo.ts";
 
-const REQUEST_RETENTION = "7 days";
 export class SqlActorStore {
   protected readonly entityLinks: SqlEntityLinks;
 
   constructor(protected readonly tx: postgres.TransactionSql, protected readonly actor: Actor) {
     this.entityLinks = new SqlEntityLinks(tx);
-  }
-
-  async lockRequest(operation: string, requestId: string) {
-    await this
-      .tx`select pg_advisory_xact_lock(hashtextextended(${`${this.actor.userId}:${operation}:${requestId}`}, 0))`;
   }
 
   /** Explicit user commands call this once, never the internal insert itself. */
@@ -59,24 +53,6 @@ export class SqlActorStore {
     });
   }
 
-  async findRequest(operation: string, requestId: string) {
-    // 보관 기간이 지난 결과는 지우고 새 요청으로 처리한다.
-    await this.tx`
-      delete from app.request_results
-      where operation = ${operation} and request_id = ${requestId}
-        and created_at <= now() - ${REQUEST_RETENTION}::interval`;
-    const [row] = await this.tx<{ request_hash: string; response: unknown }[]>`
-      select request_hash, response from app.request_results
-      where operation = ${operation} and request_id = ${requestId}`;
-    return row ?? null;
-  }
-
-  async saveRequest(operation: string, requestId: string, requestHash: string, response: unknown) {
-    await this.tx`
-      insert into app.request_results (owner_id, operation, request_id, request_hash, response)
-      values (${this.actor.userId}, ${operation}, ${requestId}, ${requestHash}, ${this.tx.json(response as never)})`;
-  }
-
   /** 소유자의 현재 원본 하나만 검증하는 내부 함수가 상태와 최신 큐 메시지를 같은 트랜잭션에서 교체한다. */
   async enqueueIndex(job: IndexJob) {
     await this.tx`select app.enqueue_search_index(${job.kind},${job.id},${job.input_hash},${SEARCH_PIPELINE})`;
@@ -90,6 +66,7 @@ function translate(e: unknown): unknown {
   if (code === "40001" || code === "40P01" || code === "55P03" || code === "57014") {
     return new AppError("unavailable", "잠시 후 다시 시도하세요");
   }
+  if (code === "23505") return new AppError("conflict", "이미 존재하는 항목입니다. 최신 데이터를 확인하세요");
   if (code === "23503") return new AppError("invalid_reference", "참조한 항목이 없거나 접근할 수 없습니다");
   if (code === "23514" || code === "22001" || code === "22P02" || code === "22023") {
     return new AppError("invalid_input", "입력 형식이 맞지 않습니다");

@@ -36,7 +36,7 @@ test("현재 원칙의 메모 확인은 저장하지 않고 같은 문서를 갱
   await page.route("**/api/**",route=>{
     const req=route.request(),path=new URL(req.url()).pathname;
     if(path.endsWith("/principles/preview"))return route.fulfill({json:{memo:{title:"원칙 변경",summary:"확인한 사실",body:"기본 사실"},changed:true}});
-    if(req.method()==="POST"){const input=req.postDataJSON();writes.push(input);current=path.endsWith("/delete")?null:{...current,...input,version:2};return path.endsWith("/delete")?route.fulfill({status:204}):route.fulfill({json:current});}
+    if(["POST","PATCH"].includes(req.method())){const input=req.postDataJSON();writes.push(input);current=path.endsWith("/delete")?null:{...current,...input,version:2};return path.endsWith("/delete")?route.fulfill({status:204}):route.fulfill({json:current});}
     return route.fulfill({json:path.endsWith("/current")?{current}:path.endsWith(id)?current:{items:[],next_cursor:null}});
   });
   await page.goto("/e2e/fixtures/workspace-screens.html?route=/principles");
@@ -53,7 +53,7 @@ test("현재 원칙의 메모 확인은 저장하지 않고 같은 문서를 갱
   await expect(page.getByText("현재 원칙이 없습니다.",{exact:false})).toBeVisible();expect(current).toBeNull();expect(writes).toHaveLength(2);
 });
 
-test("원칙 삭제 응답이 끊기면 최종 메모와 같은 요청키로 재시도한다",async({page})=>{
+test("원칙 삭제 응답이 끊기면 최종 메모와 같은 버전로 재시도한다",async({page})=>{
   const current={id,title:"현재 기준",summary:"현재 요약",body:"원문",is_current:true,version:1,saved_at:stamp,created_at:stamp,updated_at:stamp,origin:"saved"};
   const writes:Record<string,unknown>[]=[];
   await page.route("http://127.0.0.1:55586/**",async route=>{if(route.request().isNavigationRequest()){const response=await route.fetch({url:"http://127.0.0.1:55586/e2e/fixtures/workspace-screens.html"});return route.fulfill({response});}return route.continue();});
@@ -69,5 +69,5 @@ test("원칙 삭제 응답이 끊기면 최종 메모와 같은 요청키로 재
   await confirm.getByRole("button",{name:"삭제",exact:true}).click();await expect(confirm.getByRole("button",{name:"같은 내용 다시 시도",exact:true})).toBeVisible();
   await expect(confirm.getByLabel("기록 본문")).toHaveValue("확인한 최종 메모");await expect(confirm.getByLabel("기록 본문")).toBeDisabled();
   await confirm.getByRole("button",{name:"같은 내용 다시 시도",exact:true}).click();await expect(confirm).not.toBeVisible();
-  expect(writes).toHaveLength(2);expect(writes[1]).toEqual(writes[0]);expect(writes[0].request_id).toBeTruthy();
+  expect(writes).toHaveLength(2);expect(writes[1]).toEqual(writes[0]);expect(writes[0].expected_version).toBe(1);
 });

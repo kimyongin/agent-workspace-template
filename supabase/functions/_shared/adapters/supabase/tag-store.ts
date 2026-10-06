@@ -27,13 +27,14 @@ class SqlTagStore extends SqlActorStore implements TagStore {
     try {
       return toTag((await fn())[0]);
     } catch (e) {
-      if ((e as { code?: string }).code === "23505") throw conflict("같은 이름의 태그가 있습니다");
+      if ((e as { code?: string }).code === "23505") throw conflict("같은 ID 또는 이름의 태그가 있습니다");
       throw e;
     }
   }
-  insert(name: string, scope: TagResult["scope"]) {
+  insert(id: string, name: string, scope: TagResult["scope"]) {
     return this.unique(() =>
-      this.tx`insert into app.tags(owner_id,name,scope) values (${this.actor.userId},${name},${scope}) returning *`
+      this
+        .tx`insert into app.tags(id,owner_id,name,scope) values (${id},${this.actor.userId},${name},${scope}) returning *`
     );
   }
   rename(id: string, name: string) {

@@ -3,13 +3,12 @@ import { call, httpTest, signIn } from "./_client.ts";
 const A = await signIn("A"), B = await signIn("B");
 httpTest("Entity HTTP: CRUD·권한·입력·버전·참조·삭제 보존 실제 진입점", async () => {
   assertEquals((await call(null, "GET", "/entities")).status, 401);
-  const request_id = crypto.randomUUID(),
-    input = { prop1: "  실제 엔터티  ", prop2: 0, prop3: "2024-02-29", request_id };
+  const input = { id: crypto.randomUUID(), prop1: "  실제 엔터티  ", prop2: 0, prop3: "2024-02-29" };
   const created = await call(A, "POST", "/entities", input);
   assertEquals(created.status, 201);
   const e = created.body;
   assertEquals(e.prop1, "실제 엔터티");
-  assertEquals((await call(A, "POST", "/entities", input)).body.id, e.id);
+  assertEquals((await call(A, "POST", "/entities", input)).status, 409);
   assertEquals((await call(B, "GET", `/entities/${e.id}`)).status, 404);
   assertEquals((await call(A, "GET", "/entities/not-id")).status, 404);
   for (const bad of [{ ...input, prop2: -1 }, { ...input, prop3: "2023-02-29" }, { ...input, version: 2 }]) {

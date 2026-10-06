@@ -6,7 +6,7 @@ import { SqlUnitOfWork } from "../../functions/_shared/adapters/supabase/activit
 import { SqlPrincipleUnitOfWork } from "../../functions/_shared/adapters/supabase/principle-store.ts";
 import * as activity from "../../functions/_shared/core/activity/application.ts";
 import * as principles from "../../functions/_shared/core/principles/application.ts";
-import { principleSave } from "../../functions/_shared/contracts/principle.ts";
+import { principleUpdate } from "../../functions/_shared/contracts/principle.ts";
 
 const url = Deno.env.get("LOCAL_DB_URL")!;
 const parsed = new URL(url);
@@ -125,10 +125,11 @@ try {
         else assertEquals(preserved.applied_principle_snapshots, f.snapshot);
       }
       const old = await principles.getPrinciple(pd, actor, f.principle);
-      await principles.saveCurrentPrinciple(
+      await principles.updatePrinciple(
         pd,
         actor,
-        principleSave.parse({
+        old.id,
+        principleUpdate.parse({
           title: old.title,
           summary: old.summary,
           body: "현재 문서 편집",

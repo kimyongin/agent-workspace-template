@@ -38,6 +38,14 @@ export async function call<T = Json>(
   path: string,
   body?: unknown,
 ): Promise<Res<T>> {
+  // Fixture convenience: allocate identities for new objects, preserving explicit IDs for retry tests.
+  if (
+    method === "POST" &&
+    /^\/(entities|tasks|records|principles|tags)$|^\/tasks\/[^/]+\/occurrences\/[^/]+\/records$/.test(path) && body &&
+    typeof body === "object" && !("id" in body)
+  ) {
+    body = { id: crypto.randomUUID(), ...body };
+  }
   const headers: Record<string, string> = {};
   if (token) headers.authorization = `Bearer ${token}`;
   if (body !== undefined) headers["content-type"] = "application/json";

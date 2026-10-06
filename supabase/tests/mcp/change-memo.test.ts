@@ -46,10 +46,10 @@ httpTest("HTTP/MCP business preview is read-only and final memo has identical sa
       title: "상담 판단 정리",
       body: "현재 확인한 20으로 갱신. 고객의 설명을 함께 남긴다.",
     };
-    const patch = { ...input.input, change_memo: memo, request_id: crypto.randomUUID() };
+    const patch = { ...input.input, change_memo: memo };
     const saved = await call(a, "PATCH", `/entities/${e.id}`, patch);
     assertEquals(saved.status, 200);
-    assertEquals(await tool(client, "update_entity", { id: e.id, ...patch }), saved.body);
+    assertEquals((await tool(client, "update_entity", { id: e.id, ...patch })).error.code, "conflict");
     const records = await tool(client, "list_records", { record_kind: "change", limit: 100 });
     const event = records.items.find((r: { change?: { target_id: string; action: string } }) =>
       r.change?.target_id === e.id && r.change?.action === "update"
@@ -70,9 +70,9 @@ httpTest("HTTP/MCP business preview is read-only and final memo has identical sa
       await tool(client, "preview_task_change", taskPreview),
       (await call(a, "POST", "/tasks/preview", taskPreview)).body,
     );
-    const taskPatch = { ...taskPreview.input, change_memo: memo, request_id: crypto.randomUUID() };
+    const taskPatch = { ...taskPreview.input, change_memo: memo };
     const t = await tool(client, "update_task", { id: task.id, ...taskPatch });
-    assertEquals((await call(a, "PATCH", `/tasks/${task.id}`, taskPatch)).body, t);
+    assertEquals((await call(a, "PATCH", `/tasks/${task.id}`, taskPatch)).status, 409);
     const completionPreview = await tool(client, "preview_task_change", {
       action: "complete",
       id: task.id,
@@ -84,9 +84,9 @@ httpTest("HTTP/MCP business preview is read-only and final memo has identical sa
       summary: "고객과 확인한 결과",
       body: "결과 메모를 기본 초안에서 보충했다.",
     };
-    const resultInput = { id: task.id, expected_version: t.version, ...resultMemo, request_id: crypto.randomUUID() };
+    const resultInput = { id: task.id, expected_version: t.version, ...resultMemo };
     const completed = await tool(client, "complete_task", resultInput);
-    assertEquals(await tool(client, "complete_task", resultInput), completed);
+    assertEquals((await tool(client, "complete_task", resultInput)).error.code, "conflict");
     assertEquals((await tool(client, "get_record", { id: completed.record.id })).body, resultMemo.body);
     assertEquals(completed.record.title, resultMemo.title);
     assertEquals((await tool(client, "list_records", { task_id: task.id, record_kind: "result" })).items.length, 1);
@@ -104,15 +104,15 @@ httpTest("HTTP/MCP business preview is read-only and final memo has identical sa
       input: { expected_version: recurring.version },
     });
     const occurrenceInput = {
-      id: recurring.id,
+      id: crypto.randomUUID(),
+      task_id: recurring.id,
       date: seoulDate(),
       ...occurrencePreview.memo,
       title: "오늘 상담 수행",
       body: "오늘 확인한 수행 결과",
-      request_id: crypto.randomUUID(),
     };
     const occurrence = await tool(client, "record_occurrence", occurrenceInput);
-    assertEquals(await tool(client, "record_occurrence", occurrenceInput), occurrence);
+    assertEquals((await tool(client, "record_occurrence", occurrenceInput)).error.code, "conflict");
     assertEquals((await tool(client, "get_record", { id: occurrence.id })).body, "오늘 확인한 수행 결과");
     assertEquals(
       (await tool(client, "list_records", { task_id: recurring.id, record_kind: "result" })).items.length,
@@ -121,7 +121,6 @@ httpTest("HTTP/MCP business preview is read-only and final memo has identical sa
     const deleted = await call(a, "POST", `/tasks/${task.id}/delete`, {
       expected_version: completed.task.version,
       change_memo: memo,
-      request_id: crypto.randomUUID(),
     });
     assertEquals(deleted.status, 204);
     assertEquals((await tool(client, "get_task", { id: task.id })).error.code, "not_found");

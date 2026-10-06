@@ -3,20 +3,20 @@ import { id, isoDate, isoDateTime, text } from "../../contracts/common.ts";
 import type { EntityCreate, EntityDetail, EntityQuery, EntityResult, EntityUpdate } from "../../contracts/entity.ts";
 import type { Actor } from "../shared/actor.ts";
 import { conflict, invalidInput, notFound } from "../shared/errors.ts";
-import { once, scopeOf } from "../shared/operations.ts";
-import type { Keyset, RequestStore } from "../shared/store.ts";
+import { scopeOf } from "../shared/operations.ts";
+import type { Keyset } from "../shared/store.ts";
 import { changed, type ChangeStore } from "../shared/changes.ts";
 import { basicChangeMemo } from "../shared/change-memo.ts";
 import type { EntityChangePreview } from "../../contracts/entity-change.ts";
 import type { ChangeMemo } from "../../contracts/change.ts";
 
-export interface EntityStore extends RequestStore, ChangeStore {
+export interface EntityStore extends ChangeStore {
   get(id: string, lock?: boolean): Promise<EntityResult | null>;
   related(id: string): Promise<Pick<EntityDetail, "tasks" | "records">>;
-  insert(input: Omit<EntityCreate, "request_id" | "change_memo">): Promise<EntityResult>;
+  insert(input: Omit<EntityCreate, "change_memo">): Promise<EntityResult>;
   update(
     id: string,
-    changes: Omit<EntityUpdate, "expected_version" | "change_note" | "change_memo" | "request_id">,
+    changes: Omit<EntityUpdate, "expected_version" | "change_note" | "change_memo">,
   ): Promise<EntityResult>;
   delete(id: string): Promise<void>;
   list(query: EntityQuery, after?: Keyset): Promise<EntityResult[]>;
@@ -25,21 +25,20 @@ export interface EntityDeps {
   uow: { run<T>(actor: Actor, fn: (store: EntityStore) => Promise<T>): Promise<T> };
 }
 export function createEntity(d: EntityDeps, a: Actor, i: EntityCreate) {
-  return d.uow.run(a, (s) =>
-    once(s, "create_entity", i.request_id, i, async () => {
-      const { request_id: _r, change_note, change_memo, ...props } = i;
-      const result = await s.insert(props);
-      await s.appendChange({
-        target_kind: "entity",
-        target: entityChangeTarget(result),
-        action: "create",
-        before: null,
-        after: entityChangeFacts(result),
-        change_note,
-        change_memo,
-      });
-      return result;
-    }));
+  return d.uow.run(a, async (s) => {
+    const { change_note, change_memo, ...props } = i;
+    const result = await s.insert(props);
+    await s.appendChange({
+      target_kind: "entity",
+      target: entityChangeTarget(result),
+      action: "create",
+      before: null,
+      after: entityChangeFacts(result),
+      change_note,
+      change_memo,
+    });
+    return result;
+  });
 }
 export function getEntity(d: EntityDeps, a: Actor, id: string) {
   return d.uow.run(a, async (s) => {
@@ -55,23 +54,22 @@ async function requireVersion(s: EntityStore, id: string, expected: number) {
   return entity;
 }
 export function updateEntity(d: EntityDeps, a: Actor, id: string, i: EntityUpdate) {
-  return d.uow.run(a, (s) =>
-    once(s, `update_entity:${id}`, i.request_id, i, async () => {
-      const old = await requireVersion(s, id, i.expected_version);
-      const { expected_version: _v, change_note, change_memo, request_id: _r, ...props } = i;
-      if (!changed(old, props)) return old;
-      const result = await s.update(id, props);
-      await s.appendChange({
-        target_kind: "entity",
-        target: entityChangeTarget(result),
-        action: "update",
-        before: entityChangeFacts(old),
-        after: entityChangeFacts(result),
-        change_note,
-        change_memo,
-      });
-      return result;
-    }));
+  return d.uow.run(a, async (s) => {
+    const old = await requireVersion(s, id, i.expected_version);
+    const { expected_version: _v, change_note, change_memo, ...props } = i;
+    if (!changed(old, props)) return old;
+    const result = await s.update(id, props);
+    await s.appendChange({
+      target_kind: "entity",
+      target: entityChangeTarget(result),
+      action: "update",
+      before: entityChangeFacts(old),
+      after: entityChangeFacts(result),
+      change_note,
+      change_memo,
+    });
+    return result;
+  });
 }
 export function deleteEntity(
   d: EntityDeps,
@@ -79,26 +77,24 @@ export function deleteEntity(
   id: string,
   expected: number,
   change_note?: string,
-  request_id?: string,
   change_memo?: ChangeMemo,
 ) {
   return d.uow.run(
     a,
-    (s) =>
-      once(s, `delete_entity:${id}`, request_id, { expected, change_note, change_memo }, async () => {
-        const old = await requireVersion(s, id, expected);
-        await s.delete(id);
-        await s.appendChange({
-          target_kind: "entity",
-          target: entityChangeTarget(old),
-          action: "delete",
-          before: entityChangeFacts(old),
-          after: null,
-          change_note,
-          change_memo,
-        });
-        return { deleted: true };
-      }),
+    async (s) => {
+      const old = await requireVersion(s, id, expected);
+      await s.delete(id);
+      await s.appendChange({
+        target_kind: "entity",
+        target: entityChangeTarget(old),
+        action: "delete",
+        before: entityChangeFacts(old),
+        after: null,
+        change_note,
+        change_memo,
+      });
+      return { deleted: true };
+    },
   );
 }
 export function previewEntityChange(d: EntityDeps, actor: Actor, input: EntityChangePreview) {
@@ -117,9 +113,7 @@ export function previewEntityChange(d: EntityDeps, actor: Actor, input: EntityCh
     }
     const old = await requireVersion(s, input.id, input.input.expected_version);
     const values = Object.fromEntries(
-      Object.entries(input.input).filter(([key]) =>
-        !["expected_version", "change_note", "change_memo", "request_id"].includes(key)
-      ),
+      Object.entries(input.input).filter(([key]) => !["expected_version", "change_note", "change_memo"].includes(key)),
     );
     const after = input.action === "delete" ? null : { ...old, ...values };
     return {

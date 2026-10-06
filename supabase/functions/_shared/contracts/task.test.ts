@@ -2,10 +2,24 @@ import { assertEquals } from "@std/assert";
 import { occurrenceRange, recurrence, taskCreate, taskUpdate } from "./task.ts";
 
 Deno.test("생성: 서버 관리 필드와 종류에 없는 필드는 거부", () => {
-  assertEquals(taskCreate.safeParse({ kind: "once", title: "a", summary: "b" }).success, true);
-  assertEquals(taskCreate.safeParse({ kind: "once", title: "a", summary: "b", status: "done" }).success, false);
-  assertEquals(taskCreate.safeParse({ kind: "once", title: "a", summary: "b", timezone: "UTC" }).success, false);
-  assertEquals(taskCreate.safeParse({ kind: "recurring", title: "a", summary: "b" }).success, false);
+  assertEquals(
+    taskCreate.safeParse({ id: crypto.randomUUID(), ...{ kind: "once", title: "a", summary: "b" } }).success,
+    true,
+  );
+  assertEquals(
+    taskCreate.safeParse({ id: crypto.randomUUID(), ...{ kind: "once", title: "a", summary: "b", status: "done" } })
+      .success,
+    false,
+  );
+  assertEquals(
+    taskCreate.safeParse({ id: crypto.randomUUID(), ...{ kind: "once", title: "a", summary: "b", timezone: "UTC" } })
+      .success,
+    false,
+  );
+  assertEquals(
+    taskCreate.safeParse({ id: crypto.randomUUID(), ...{ kind: "recurring", title: "a", summary: "b" } }).success,
+    false,
+  );
 });
 
 Deno.test("반복 규칙과 시간대 검증", () => {
@@ -14,11 +28,14 @@ Deno.test("반복 규칙과 시간대 검증", () => {
   const monthly = recurrence.parse({ freq: "monthly", month_days: [31, 1, 31], starts_on: "2026-10-01" });
   assertEquals(monthly.freq === "monthly" && monthly.month_days, [1, 31]);
   const t = taskCreate.safeParse({
-    kind: "recurring",
-    title: "a",
-    summary: "b",
-    recurrence: { freq: "daily", starts_on: "2026-10-01" },
-    timezone: "Mars/Olympus",
+    id: crypto.randomUUID(),
+    ...{
+      kind: "recurring",
+      title: "a",
+      summary: "b",
+      recurrence: { freq: "daily", starts_on: "2026-10-01" },
+      timezone: "Mars/Olympus",
+    },
   });
   assertEquals(t.success, false);
 });

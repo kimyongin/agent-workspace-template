@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { businessMeta } from "./change.ts";
 import { tagIds } from "./tag.ts";
-import { expectedVersion, id, isoDate, isoDateTime, page, pageInput, requestId, text } from "./common.ts";
+import { expectedVersion, id, isoDate, isoDateTime, page, pageInput, text } from "./common.ts";
 
 const date = isoDate.refine((v) => v >= "0001-01-01", { message: "1년 이후의 날짜를 쓰세요" });
 const properties = {
@@ -11,13 +11,13 @@ const properties = {
   prop4: z.enum(["a", "b", "c"]),
 };
 export const entityCreate = z.strictObject({
+  id,
   ...businessMeta,
   tag_ids: tagIds.optional(),
   ...properties,
   prop2: properties.prop2.default(null),
   prop3: properties.prop3.default(null),
   prop4: properties.prop4.default("a"),
-  request_id: requestId.optional(),
 });
 export const entityUpdate = z.strictObject({
   ...businessMeta,
@@ -28,7 +28,7 @@ export const entityUpdate = z.strictObject({
   prop4: properties.prop4.optional(),
   expected_version: expectedVersion,
 }).refine(
-  (v) => Object.keys(v).some((k) => !["expected_version", "change_note", "change_memo", "request_id"].includes(k)),
+  (v) => Object.keys(v).some((k) => !["expected_version", "change_note", "change_memo"].includes(k)),
   {
     message: "바꿀 필드가 없습니다",
   },

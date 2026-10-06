@@ -9,11 +9,14 @@ const users = await devUsers(admin), A = { userId: users.a }, B = { userId: user
 const deps = { uow: new SqlTagUnitOfWork(sql) };
 dbTest("태그: 대소문자 중복·경쟁·버전·소유자 격리·멱등", async () => {
   const name = "Test" + crypto.randomUUID().slice(0, 20),
-    input = tagCreate.parse({ name, request_id: crypto.randomUUID() });
+    input = tagCreate.parse({ id: crypto.randomUUID(), ...{ name } });
   const p = await createTag(deps, A, input);
-  assertEquals((await createTag(deps, A, input)).id, p.id);
-  await assertRejects(() => createTag(deps, A, tagCreate.parse({ name: name.toLowerCase() })), AppError);
-  await createTag(deps, B, tagCreate.parse({ name }));
+  await assertRejects(() => createTag(deps, A, input), AppError);
+  await assertRejects(
+    () => createTag(deps, A, tagCreate.parse({ id: crypto.randomUUID(), ...{ name: name.toLowerCase() } })),
+    AppError,
+  );
+  await createTag(deps, B, tagCreate.parse({ id: crypto.randomUUID(), ...{ name } }));
   await assertRejects(() => deleteTag(deps, B, p.id, 1), AppError);
   const q = tagListQuery.parse({ limit: 1 }), page = await listTags(deps, A, q);
   if (page.next_cursor) await assertRejects(() => listTags(deps, B, { ...q, cursor: page.next_cursor! }), AppError);
@@ -31,7 +34,7 @@ dbTest("태그: 대소문자 중복·경쟁·버전·소유자 격리·멱등", 
   await deleteTag(deps, A, p.id, 2);
   const concurrentName = "경쟁" + crypto.randomUUID().slice(0, 20);
   const results = await Promise.allSettled(
-    [1, 2].map(() => createTag(deps, A, tagCreate.parse({ name: concurrentName }))),
+    [1, 2].map(() => createTag(deps, A, tagCreate.parse({ id: crypto.randomUUID(), ...{ name: concurrentName } }))),
   );
   assertEquals(results.filter((r) => r.status === "fulfilled").length, 1);
 });
@@ -46,7 +49,7 @@ dbTest("태그 parity: 빈 값·Unicode 30/31자와 trim", async () => {
     } catch (e) {
       if ((e as Error).message !== "rollback") accepted = false;
     }
-    assertEquals(accepted, tagCreate.safeParse({ name }).success);
+    assertEquals(accepted, tagCreate.safeParse({ id: crypto.randomUUID(), ...{ name } }).success);
   }
-  assertEquals(tagCreate.parse({ name: " 태그 " }).name, "태그");
+  assertEquals(tagCreate.parse({ id: crypto.randomUUID(), ...{ name: " 태그 " } }).name, "태그");
 });

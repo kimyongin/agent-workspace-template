@@ -1,7 +1,7 @@
 import { assertEquals, assertThrows } from "@std/assert";
 import { SqlPrincipleUnitOfWork } from "../../functions/_shared/adapters/supabase/principle-store.ts";
 import { SqlUnitOfWork } from "../../functions/_shared/adapters/supabase/activity-store.ts";
-import { principleCreate, principleSave } from "../../functions/_shared/contracts/principle.ts";
+import { principleCreate, principleUpdate } from "../../functions/_shared/contracts/principle.ts";
 import { recordCreate, recordUpdate } from "../../functions/_shared/contracts/record.ts";
 import * as p from "../../functions/_shared/core/principles/application.ts";
 import * as r from "../../functions/_shared/core/activity/application.ts";
@@ -16,11 +16,11 @@ dbTest(
     const f = await fixtureOwner(admin), b = await fixtureOwner(admin);
     try {
       const a = f.actor, content = { title: "당시 기준", summary: "당시 근거", body: "그때 본문" };
-      const first = await p.createPrinciple(d, a, principleCreate.parse(content));
+      const first = await p.createPrinciple(d, a, principleCreate.parse({ id: crypto.randomUUID(), ...content }));
       const record = await r.createRecord(
         rd,
         a,
-        recordCreate.parse({ title: "판단", summary: "결과" }),
+        recordCreate.parse({ id: crypto.randomUUID(), ...{ title: "판단", summary: "결과" } }),
       );
       const snapshot = [{
         id: first.id,
@@ -33,13 +33,17 @@ dbTest(
       // Historical rows are seeded administratively; public writers can no longer capture links.
       await admin`update app.records set applied_principle_snapshots=${admin.json(snapshot)} where id=${record.id}`;
       assertEquals(
-        recordCreate.safeParse({ title: "새", summary: "기록", applied_principle_ids: [first.id] }).success,
+        recordCreate.safeParse({
+          id: crypto.randomUUID(),
+          ...{ title: "새", summary: "기록", applied_principle_ids: [first.id] },
+        }).success,
         false,
       );
-      const current = await p.saveCurrentPrinciple(
+      const current = await p.updatePrinciple(
         d,
         a,
-        principleSave.parse({ ...content, body: "새 기준", change_note: "갱신", expected_version: first.version }),
+        first.id,
+        principleUpdate.parse({ ...content, body: "새 기준", change_note: "갱신", expected_version: first.version }),
       );
       assertEquals(current.id, first.id);
       assertEquals(current.body, "새 기준");
@@ -62,7 +66,11 @@ dbTest(
       assertEquals(after.applied_principle_snapshots, snapshot);
       assertEquals("applied_principle_ids" in after, false);
       assertEquals(after.version, edited.version);
-      const foreign = await p.createPrinciple(d, b.actor, principleCreate.parse(content));
+      const foreign = await p.createPrinciple(
+        d,
+        b.actor,
+        principleCreate.parse({ id: crypto.randomUUID(), ...content }),
+      );
       assertThrows(() =>
         recordUpdate.parse({
           expected_version: edited.version,

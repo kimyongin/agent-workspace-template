@@ -1,4 +1,4 @@
-import { assert, assertEquals } from "@std/assert";
+import { assert, assertEquals, assertRejects } from "@std/assert";
 import { SqlTagUnitOfWork } from "../../functions/_shared/adapters/supabase/tag-store.ts";
 import { SqlEntityUnitOfWork } from "../../functions/_shared/adapters/supabase/entity-store.ts";
 import { SqlUnitOfWork } from "../../functions/_shared/adapters/supabase/activity-store.ts";
@@ -29,18 +29,37 @@ for (
       let editing: Promise<unknown> | undefined, deleting: Promise<unknown> | undefined;
       try {
         const scope = kind === "entity" ? "entity" : "activity";
-        const first = await t.createTag(td, f.actor, tagCreate.parse({ name: "removed", scope }));
-        const other = await t.createTag(td, f.actor, tagCreate.parse({ name: "also removed", scope }));
+        const first = await t.createTag(
+          td,
+          f.actor,
+          tagCreate.parse({ id: crypto.randomUUID(), ...{ name: "removed", scope } }),
+        );
+        const other = await t.createTag(
+          td,
+          f.actor,
+          tagCreate.parse({ id: crypto.randomUUID(), ...{ name: "also removed", scope } }),
+        );
         const tag_ids = [first.id, other.id];
         const parent = kind === "entity"
-          ? await e.createEntity(ed, f.actor, entityCreate.parse({ prop1: "parent", tag_ids }))
+          ? await e.createEntity(
+            ed,
+            f.actor,
+            entityCreate.parse({ id: crypto.randomUUID(), ...{ prop1: "parent", tag_ids } }),
+          )
           : kind === "task"
           ? await a.createTask(
             ad,
             f.actor,
-            taskCreate.parse({ kind: "once", title: "parent", summary: "context", tag_ids }),
+            taskCreate.parse({
+              id: crypto.randomUUID(),
+              ...{ kind: "once", title: "parent", summary: "context", tag_ids },
+            }),
           )
-          : await a.createRecord(ad, f.actor, recordCreate.parse({ title: "parent", summary: "context", tag_ids }));
+          : await a.createRecord(
+            ad,
+            f.actor,
+            recordCreate.parse({ id: crypto.randomUUID(), ...{ title: "parent", summary: "context", tag_ids } }),
+          );
         // Hold the real application transaction after its edit, before commit.
         const heldE: e.EntityDeps = {
           uow: {
@@ -89,8 +108,7 @@ for (
             throw Error("edit did not reach barrier");
           }),
         ]);
-        const request = crypto.randomUUID();
-        deleting = t.deleteTag(td, f.actor, first.id, first.version, "delete dictionary entry", request);
+        deleting = t.deleteTag(td, f.actor, first.id, first.version, "delete dictionary entry");
         // Verify PostgreSQL is actually waiting on the parent lock before committing the edit.
         let waited = false;
         for (let n = 0; n < 100; n++) {
@@ -105,7 +123,7 @@ for (
         release.resolve();
         await Promise.all([editing, deleting]);
         assert(waited, "observed real SELECT waiting on parent row lock");
-        await t.deleteTag(td, f.actor, first.id, first.version, "delete dictionary entry", request);
+        await assertRejects(() => t.deleteTag(td, f.actor, first.id, first.version, "delete dictionary entry"));
         const events = await admin`select change_note,change_metadata from app.records where owner_id=${f.actor.userId}
         and change_metadata->>'target_id'=${parent.id} and change_metadata->>'action'='update' order by occurred_at`;
         if (scenario === "delete parent") {

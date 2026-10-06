@@ -9,13 +9,14 @@ export async function currentPrincipleFixes(invoke: Invoke) {
   const ids: string[] = [];
   try {
     if (baseline) await admin`update app.principles set is_current=false where id=${baseline.id}`;
-    current = await invoke("save", { title: marker, summary: "현재", body: "원문" });
+    current = await invoke("create", { title: marker, summary: "현재", body: "원문" });
     ids.push(current.id as string);
     const [owner] = await admin`select owner_id from app.principles where id=${current.id as string}`;
     const [archive] =
       await admin`insert into app.principles(owner_id,title,summary,body,is_current,origin) values(${owner.owner_id},${marker},'과거','과거 원문',false,'legacy') returning id`;
     ids.push(archive.id);
-    const saved = await invoke("save", {
+    const saved = await invoke("update", {
+      id: current.id,
       title: marker,
       summary: "현재",
       body: "새 원문",
@@ -41,10 +42,10 @@ export async function currentPrincipleFixes(invoke: Invoke) {
       .id as string}`;
     const old = await invoke("get_record", { id: record.id });
     const count = (await admin`select count(*)::int n from app.records where owner_id=${owner.owner_id}`)[0].n;
-    const patch = { id: record.id, expected_version: old.version, body: "메모 정정", request_id: crypto.randomUUID() };
+    const patch = { id: record.id, expected_version: old.version, body: "메모 정정" };
     const edited = await invoke("update_record", patch);
     assertEquals(edited.applied_principle_snapshots, snapshot);
-    assertEquals(await invoke("update_record", patch), edited);
+    assertEquals((await invoke("retry_record", patch)).code, "conflict");
     record = edited;
     assertEquals((await admin`select count(*)::int n from app.records where owner_id=${owner.owner_id}`)[0].n, count);
   } finally {

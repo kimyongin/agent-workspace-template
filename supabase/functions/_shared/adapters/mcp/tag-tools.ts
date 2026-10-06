@@ -18,7 +18,8 @@ export function tagTools(d: tags.TagDeps): ToolDef[] {
     },
     {
       name: "create_tag",
-      description: "태그 생성. 이름 1~30자, 소유자와 scope 안에서 대소문자 무시 고유. request_id 재시도 가능.",
+      description:
+        "태그 생성. 이름 1~30자, 소유자와 scope 안에서 대소문자 무시 고유. 클라이언트 UUID id 필수. 같은 id 재시도는 충돌로 거부한다.",
       input: tagCreate,
       readOnly: false,
       handler: (i, a) => tags.createTag(d, a, parse(tagCreate, i)),
@@ -36,13 +37,13 @@ export function tagTools(d: tags.TagDeps): ToolDef[] {
     {
       name: "delete_tag",
       description:
-        "태그 삭제와 부모 연결 해제를 원자 저장. 원문 보존, 부모별 변경 기록 하나, 선택 메모/request_id 재시도. 태그 자체 사건과 자동 기록의 재귀는 없다.",
+        "태그 삭제와 부모 연결 해제를 원자 저장. 원문 보존, 부모별 변경 기록 하나, 선택 메모. 같은 id·버전 재시도는 충돌 또는 없음으로 거부한다. 태그 자체 사건과 자동 기록의 재귀는 없다.",
       input: remove,
       readOnly: false,
       destructive: true,
       handler: async (i, a) => {
         const p = parse(remove, i);
-        await tags.deleteTag(d, a, p.id, p.expected_version, p.change_note, p.request_id);
+        await tags.deleteTag(d, a, p.id, p.expected_version, p.change_note);
         return { deleted: p.id };
       },
     },

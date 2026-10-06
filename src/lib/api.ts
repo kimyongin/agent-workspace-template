@@ -16,7 +16,7 @@ export class ApiError extends Error {
   }
 }
 
-/** 응답을 받지 못한 경우: 서버에서 실행됐는지 알 수 없다. 같은 request_id로 다시 보내면 안전하다. */
+/** 응답을 받지 못한 경우: 서버에서 실행됐는지 알 수 없다. 같은 데이터 id/버전으로 재시도하며 충돌 시 최신 데이터를 확인한다. */
 export const isUncertain = (e: unknown) => e instanceof ApiError && (e.code === "network" || e.status >= 500);
 
 export async function api<T>(method: string, path: string, body?: unknown, signal?:AbortSignal): Promise<T> {

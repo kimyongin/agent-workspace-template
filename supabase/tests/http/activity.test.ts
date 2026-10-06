@@ -118,20 +118,19 @@ httpTest("동시 완료: 서로 다른 요청 5개 중 하나만 성공하고 �
   assertEquals(n, 1);
 });
 
-httpTest("응답 유실 후 재시도: 같은 request_id는 첫 결과를 돌려주고 중복 기록이 없다", async () => {
+httpTest("응답 유실 후 재시도: 같은 버전은 충돌로 거부하고 중복 기록이 없다", async () => {
   const t = (await call(A, "POST", "/tasks", newOnce("재시도"))).body;
-  const requestId = crypto.randomUUID();
   // 동시에 같은 요청을 여러 번 보내도(응답 유실 후 재전송) 한 번만 실행된다.
   const results = await Promise.all(
     Array.from(
       { length: 4 },
-      () => call(A, "POST", `/tasks/${t.id}/complete`, completion(1, { request_id: requestId })),
+      () => call(A, "POST", `/tasks/${t.id}/complete`, completion(1, {})),
     ),
   );
-  assert(results.every((r) => r.status === 200), JSON.stringify(results.map((r) => r.status)));
-  assertEquals(new Set(results.map((r) => r.body.record.id)).size, 1);
-  const late = await call(A, "POST", `/tasks/${t.id}/complete`, completion(1, { request_id: requestId }));
-  assertEquals(late.body.record.id, results[0].body.record.id);
+  assertEquals(results.filter((r) => r.status === 200).length, 1);
+  assertEquals(results.filter((r) => r.status === 409).length, 3);
+  const late = await call(A, "POST", `/tasks/${t.id}/complete`, completion(1, {}));
+  assertEquals(late.status, 409);
   const [{ n }] = await admin<{ n: number }[]>`select count(*)::int as n from app.records where task_id = ${t.id}`;
   assertEquals(n, 1);
   // 같은 키로 다른 내용을 보내면 conflict
@@ -139,19 +138,18 @@ httpTest("응답 유실 후 재시도: 같은 request_id는 첫 결과를 돌려
     A,
     "POST",
     `/tasks/${t.id}/complete`,
-    completion(1, { request_id: requestId, title: "다름" }),
+    completion(1, { title: "다름" }),
   );
   assertEquals(changed.status, 409);
   // 다른 사용자가 같은 키를 써도 A의 결과를 받지 못한다
-  const other = await call(B, "POST", `/tasks/${t.id}/complete`, completion(1, { request_id: requestId }));
+  const other = await call(B, "POST", `/tasks/${t.id}/complete`, completion(1, {}));
   assertEquals(other.status, 404);
 });
 
-httpTest("생성의 request_id 재전송은 같은 할 일을 돌려준다", async () => {
-  const body = { ...newOnce("한 번만 생성"), request_id: crypto.randomUUID() };
+httpTest("생성의 UUID 재전송은 중복 생성을 거부한다", async () => {
+  const body = { id: crypto.randomUUID(), ...newOnce("한 번만 생성") };
   const [x, y] = await Promise.all([call(A, "POST", "/tasks", body), call(A, "POST", "/tasks", body)]);
-  assertEquals(x.status, 201);
-  assertEquals(y.body.id, x.body.id);
+  assertEquals([x.status, y.status].sort(), [201, 409]);
 });
 
 httpTest("기록 삭제: 일회성 할 일은 done을 유지하고 result_record_id만 비운다", async () => {

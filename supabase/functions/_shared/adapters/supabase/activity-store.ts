@@ -136,6 +136,7 @@ export class SqlActivityStore extends SqlActorStore implements ActivityStore {
     const selection = await this.entityLinks.taskSelection(selectedEntities(task) ?? []);
     const values = {
       owner_id: this.actor.userId,
+      id: task.id,
       kind: task.kind,
       ...pick(tx, task, TASK_WRITABLE),
       ...selection,
@@ -224,6 +225,7 @@ export class SqlActivityStore extends SqlActorStore implements ActivityStore {
     const tx = this.tx;
     const selection = await this.entityLinks.recordSelection(selectedEntities(record) ?? []);
     const values: Record<string, unknown> = {
+      id: record.id ?? crypto.randomUUID(),
       owner_id: this.actor.userId,
       ...selection,
       title: record.title,

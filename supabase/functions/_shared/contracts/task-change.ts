@@ -4,7 +4,13 @@ import { expectedVersion, id, isoDate } from "./common.ts";
 import { changeNote } from "./change.ts";
 const version = z.strictObject({ expected_version: expectedVersion, change_note: changeNote.optional() });
 export const taskChangePreview = z.discriminatedUnion("action", [
-  z.strictObject({ action: z.literal("create"), input: taskCreate }),
+  z.strictObject({
+    action: z.literal("create"),
+    input: z.discriminatedUnion("kind", [
+      taskCreate.options[0].omit({ id: true }),
+      taskCreate.options[1].omit({ id: true }),
+    ]),
+  }),
   z.strictObject({ action: z.literal("update"), id, input: taskUpdate }),
   z.strictObject({ action: z.literal("delete"), id, input: version }),
   z.strictObject({ action: z.literal("stop"), id, input: version }),

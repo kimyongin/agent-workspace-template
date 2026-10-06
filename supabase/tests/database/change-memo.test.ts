@@ -20,12 +20,23 @@ const memo = {
 dbTest("Entity/Task preview stores nothing; final memo is atomic/idempotent, no-op creates no event", async () => {
   const f = await fixtureOwner(admin), foreign = await fixtureOwner(admin);
   try {
-    const e = await entity.createEntity(ed, f.actor, entityCreate.parse({ prop1: "고객", prop2: 10 }));
-    const second = await entity.createEntity(ed, f.actor, entityCreate.parse({ prop1: "다른 대상" }));
+    const e = await entity.createEntity(
+      ed,
+      f.actor,
+      entityCreate.parse({ id: crypto.randomUUID(), ...{ prop1: "고객", prop2: 10 } }),
+    );
+    const second = await entity.createEntity(
+      ed,
+      f.actor,
+      entityCreate.parse({ id: crypto.randomUUID(), ...{ prop1: "다른 대상" } }),
+    );
     const task = await activity.createTask(
       ad,
       f.actor,
-      taskCreate.parse({ kind: "once", title: "상담", summary: "준비", entity_ids: [e.id, second.id] }),
+      taskCreate.parse({
+        id: crypto.randomUUID(),
+        ...{ kind: "once", title: "상담", summary: "준비", entity_ids: [e.id, second.id] },
+      }),
     );
     const records = () =>
       activity.listRecords(ad, f.actor, recordListQuery.parse({ record_kind: "change", limit: 100 }));
@@ -49,10 +60,9 @@ dbTest("Entity/Task preview stores nothing; final memo is atomic/idempotent, no-
       expected_version: 1,
       prop2: 20,
       change_memo: memo,
-      request_id: crypto.randomUUID(),
     });
     const saved = await entity.updateEntity(ed, f.actor, e.id, patch);
-    assertEquals(await entity.updateEntity(ed, f.actor, e.id, patch), saved);
+    await assertRejects(() => entity.updateEntity(ed, f.actor, e.id, patch));
     const changes = await records();
     assertEquals(changes.items.length, before.items.length + 1);
     const record = changes.items.find((r) => r.change?.target_id === e.id && r.change.action === "update")!;
@@ -105,7 +115,6 @@ dbTest("Entity/Task preview stores nothing; final memo is atomic/idempotent, no-
           expected_version: saved.version,
           prop2: 30,
           change_memo: memo,
-          request_id: crypto.randomUUID(),
         }),
       )
     );
@@ -116,10 +125,9 @@ dbTest("Entity/Task preview stores nothing; final memo is atomic/idempotent, no-
       title: "상담 준비",
       body: `메모에 포함하지 않은 전체 원문 ${"긴 본문 ".repeat(1000)}`,
       change_memo: memo,
-      request_id: crypto.randomUUID(),
     });
     const t = await activity.updateTask(ad, f.actor, task.id, taskPatch);
-    assertEquals(await activity.updateTask(ad, f.actor, task.id, taskPatch), t);
+    await assertRejects(() => activity.updateTask(ad, f.actor, task.id, taskPatch));
     const taskEvent = (await records()).items.find((r) =>
       r.change?.target_id === task.id && r.change.action === "update"
     )!;
@@ -136,7 +144,7 @@ dbTest("Entity/Task preview stores nothing; final memo is atomic/idempotent, no-
     assertEquals(stored.change_metadata.before, null);
     assertEquals(stored.change_metadata.after, null);
     assertEquals(JSON.stringify(stored.change_metadata).includes("메모에 포함하지 않은 전체 원문"), false);
-    await activity.deleteTask(ad, f.actor, t.id, t.version, undefined, crypto.randomUUID(), memo);
+    await activity.deleteTask(ad, f.actor, t.id, t.version, undefined, memo);
     const deleted = (await records()).items.find((r) =>
       r.change?.target_id === task.id && r.change.action === "delete"
     )!;
@@ -144,7 +152,7 @@ dbTest("Entity/Task preview stores nothing; final memo is atomic/idempotent, no-
     assertEquals([deleted.change!.target_id, deleted.change!.path], [task.id, null]);
     assertEquals(deleted.entity_ids, task.entity_ids);
     assertEquals(deleted.entity_context, task.entity_context);
-    await entity.deleteEntity(ed, f.actor, e.id, saved.version, undefined, undefined, memo);
+    await entity.deleteEntity(ed, f.actor, e.id, saved.version, undefined, memo);
     const entityDeletion = (await records()).items.find((r) =>
       r.change?.target_id === e.id && r.change.action === "delete"
     )!;

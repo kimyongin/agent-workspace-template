@@ -119,7 +119,6 @@ export function activityTools(deps: activity.ActivityDeps): ToolDef[] {
           input.id,
           input.expected_version,
           input.change_note,
-          input.request_id,
           input.change_memo,
         );
         return { deleted: input.id };
@@ -139,13 +138,12 @@ export function activityTools(deps: activity.ActivityDeps): ToolDef[] {
       name: "record_occurrence",
       description:
         "반복 할 일의 회차(date)에 수행 결과 기록을 남긴다. 규칙상 회차·시작일 이후·중단 기간 밖·오늘(할 일 시간대) 이전만 가능. 한 회차에 여러 번 가능.",
-      input: withId(recordCreate).extend({ date: isoDate }),
+      input: recordCreate.extend({ task_id: id, date: isoDate }),
       readOnly: false,
       handler: (args, actor) => {
-        const { id, rest } = split(args);
-        const { date, ...input } = rest;
+        const { task_id, date, ...input } = parse(recordCreate.extend({ task_id: id, date: isoDate }), args);
         const day = parse(z.object({ date: isoDate }), { date }).date;
-        return activity.recordOccurrence(deps, actor, id, day, parse(recordCreate, input));
+        return activity.recordOccurrence(deps, actor, task_id, day, parse(recordCreate, input));
       },
     },
     {
@@ -161,7 +159,6 @@ export function activityTools(deps: activity.ActivityDeps): ToolDef[] {
           input.id,
           input.expected_version,
           input.change_note,
-          input.request_id,
           input.change_memo,
         );
       },
@@ -179,7 +176,6 @@ export function activityTools(deps: activity.ActivityDeps): ToolDef[] {
           input.id,
           input.expected_version,
           input.change_note,
-          input.request_id,
           input.change_memo,
         );
       },
@@ -227,7 +223,7 @@ export function activityTools(deps: activity.ActivityDeps): ToolDef[] {
       destructive: true,
       handler: async (args, actor) => {
         const input = parse(recordDeleteInput, args);
-        await activity.deleteRecord(deps, actor, input.id, input.expected_version, input.change_note, input.request_id);
+        await activity.deleteRecord(deps, actor, input.id, input.expected_version, input.change_note);
         return { deleted: input.id };
       },
     },

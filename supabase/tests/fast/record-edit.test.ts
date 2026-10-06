@@ -4,7 +4,7 @@ import { activityRoutes } from "../../functions/_shared/adapters/http/activity-r
 import type { HttpEnv } from "../../functions/_shared/adapters/http/input.ts";
 import { activityTools } from "../../functions/_shared/adapters/mcp/activity-tools.ts";
 import { toErrorBody } from "../../functions/_shared/adapters/errors.ts";
-import type { ActivityRecord, ActivityStore, StoredRequest } from "../../functions/_shared/core/activity/ports.ts";
+import type { ActivityRecord, ActivityStore } from "../../functions/_shared/core/activity/ports.ts";
 import type { IndexJob } from "../../functions/_shared/core/shared/store.ts";
 import { AppError } from "../../functions/_shared/core/shared/errors.ts";
 
@@ -49,7 +49,7 @@ function fixture(kind: "user" | "result" | "change") {
       }
       : null,
   };
-  const requests = new Map<string, StoredRequest>(), jobs: IndexJob[] = [];
+  const jobs: IndexJob[] = [];
   const store = new Proxy({
     getRecord: () => Promise.resolve(structuredClone(row)),
     updateRecord: (_id: string, patch: object) => {
@@ -58,12 +58,6 @@ function fixture(kind: "user" | "result" | "change") {
     },
     appendChange: () => {
       throw Error("Record edits must not generate another record");
-    },
-    lockRequest: () => Promise.resolve(),
-    findRequest: (op: string, id: string) => Promise.resolve(requests.get(op + id) ?? null),
-    saveRequest: (op: string, id: string, request_hash: string, response: unknown) => {
-      requests.set(op + id, { request_hash, response });
-      return Promise.resolve();
     },
     enqueueIndex: (job: IndexJob) => {
       jobs.push(job);
@@ -108,11 +102,11 @@ function fixture(kind: "user" | "result" | "change") {
 for (const kind of ["user", "result", "change"] as const) {
   Deno.test(`${kind}: HTTP edit without reason and MCP retry preserve facts, without another log`, async () => {
     const f = fixture(kind),
-      patch = { expected_version: 1, title: "정정", summary: "최신 요약", request_id: crypto.randomUUID() };
+      patch = { expected_version: 1, title: "정정", summary: "최신 요약" };
     const web = await f.http(patch);
     assertEquals(web.status, 200);
     const updated = await web.json();
-    assertEquals(await f.call(patch), updated);
+    await assertRejects(() => f.call(patch));
     assertEquals(await f.read(), updated);
     assertEquals([updated.version, updated.title, updated.summary], [2, "정정", "최신 요약"]);
     assertEquals([updated.change, updated.occurred_at, updated.task_id, updated.occurrence_on, updated.change_note], [

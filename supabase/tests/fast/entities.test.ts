@@ -23,17 +23,10 @@ import type { HttpEnv } from "../../functions/_shared/adapters/http/input.ts";
 import { AppError } from "../../functions/_shared/core/shared/errors.ts";
 const A = { userId: crypto.randomUUID() }, B = { userId: crypto.randomUUID() };
 function memory() {
-  const rows = new Map<string, EntityResult>(),
-    requests = new Map<string, { request_hash: string; response: unknown }>();
+  const rows = new Map<string, EntityResult>();
   let writes = 0;
   const store: EntityStore = {
     appendChange: () => Promise.resolve(),
-    lockRequest: () => Promise.resolve(),
-    findRequest: (_op, key) => Promise.resolve(requests.get(key) ?? null),
-    saveRequest: (_op, key, hash, response) => {
-      requests.set(key, { request_hash: hash, response });
-      return Promise.resolve();
-    },
     get: (id) => Promise.resolve(rows.get(id) ?? null),
     related: () =>
       Promise.resolve({
@@ -41,11 +34,12 @@ function memory() {
         records: { count: 0, items: [] },
       }),
     insert: (input) => {
+      if (rows.has(input.id)) throw new AppError("conflict", "이미 존재하는 ID입니다.");
       writes++;
       const row = {
         ...input,
         tag_ids: input.tag_ids ?? [],
-        id: crypto.randomUUID(),
+        id: input.id,
         version: 1,
         created_at: "2026-10-04T00:00:00.000Z",
         updated_at: "2026-10-04T00:00:00.000Z",
@@ -77,7 +71,7 @@ function memory() {
 }
 Deno.test("Entity preview uses current business facts without storing the proposed change", async () => {
   const { d, writes } = memory();
-  const e = await createEntity(d, A, entityCreate.parse({ prop1: "대상", prop2: 10 }));
+  const e = await createEntity(d, A, entityCreate.parse({ id: crypto.randomUUID(), ...{ prop1: "대상", prop2: 10 } }));
   const before = writes();
   const preview = await previewEntityChange(d, A, {
     action: "update",
@@ -96,9 +90,9 @@ Deno.test("Entity preview uses current business facts without storing the propos
   assertEquals((await getEntity(d, A, e.id)).prop1, "대상");
 });
 Deno.test("Entity application: 멱등 serial retry·버전 거부 무쓰기·한글 커서/owner/filter 검사", async () => {
-  const { d, writes } = memory(), input = entityCreate.parse({ prop1: "한글 😀", request_id: crypto.randomUUID() });
+  const { d, writes } = memory(), input = entityCreate.parse({ id: crypto.randomUUID(), ...{ prop1: "한글 😀" } });
   const e = await createEntity(d, A, input);
-  assertEquals((await createEntity(d, A, input)).id, e.id);
+  assertEquals((await assertRejects(() => createEntity(d, A, input), AppError)).code, "conflict");
   assertEquals(writes(), 1);
   assertEquals(
     (await assertRejects(() => createEntity(d, A, { ...input, prop1: "다른 내용" }), AppError)).code,
@@ -118,7 +112,7 @@ Deno.test("Entity application: 멱등 serial retry·버전 거부 무쓰기·한
     entityUpdate.parse({ change_note: "테스트 변경 이유", expected_version: 1, prop2: 0 }),
   );
   assertEquals(changed.prop2, 0);
-  await createEntity(d, A, entityCreate.parse({ prop1: "둘째" }));
+  await createEntity(d, A, entityCreate.parse({ id: crypto.randomUUID(), ...{ prop1: "둘째" } }));
   const q = entityListQuery.parse({ limit: 1 }), first = await listEntities(d, A, q);
   assert(first.next_cursor);
   const tail = await listEntities(d, A, { ...q, cursor: first.next_cursor });
@@ -153,7 +147,7 @@ Deno.test("Entity HTTP/MCP 실제 handler: CRUD parity·엄격 입력·존재 �
       headers: { "content-type": "application/json" },
       body: input === undefined ? undefined : JSON.stringify(input),
     });
-  const res = await request("POST", "/entities", { prop1: "웹" });
+  const res = await request("POST", "/entities", { id: crypto.randomUUID(), prop1: "웹" });
   assertEquals(res.status, 201);
   const e = await res.json();
   assertEquals((await tool("get_entity", { id: e.id }) as EntityResult).prop1, "웹");

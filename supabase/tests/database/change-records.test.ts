@@ -23,12 +23,15 @@ dbTest("no-op recurring rule object order and tag set order preserve version/ind
       ad,
       f.actor,
       taskCreate.parse({
-        kind: "recurring",
-        title: "동일 규칙",
-        summary: "계획",
-        recurrence,
-        timezone: "Asia/Seoul",
-        tag_ids,
+        id: crypto.randomUUID(),
+        ...{
+          kind: "recurring",
+          title: "동일 규칙",
+          summary: "계획",
+          recurrence,
+          timezone: "Asia/Seoul",
+          tag_ids,
+        },
       }),
     );
     const before = await admin`select id,version,updated_at from app.tasks where id=${task.id}`;
@@ -62,7 +65,11 @@ dbTest(
     const f = await fixtureOwner(admin);
     try {
       const A = { ...f.actor, source: "mcp" as const };
-      const entity = await e.createEntity(ed, A, entityCreate.parse({ prop1: "대상", prop2: 10 }));
+      const entity = await e.createEntity(
+        ed,
+        A,
+        entityCreate.parse({ id: crypto.randomUUID(), ...{ prop1: "대상", prop2: 10 } }),
+      );
       const count = async () =>
         Number(
           (await admin`select count(*)::int n from app.records where owner_id=${A.userId} and record_kind='change'`)[0]
@@ -81,10 +88,9 @@ dbTest(
         expected_version: entity.version,
         prop2: 20,
         change_note: "실측",
-        request_id: crypto.randomUUID(),
       });
       const updated = await e.updateEntity(ed, A, entity.id, i);
-      assertEquals((await e.updateEntity(ed, A, entity.id, i)).version, updated.version);
+      await assertRejects(() => e.updateEntity(ed, A, entity.id, i));
       assertEquals(await count(), 2);
       const rows = await a.listRecords(ad, A, recordListQuery.parse({ record_kind: "change" }));
       rows.items.forEach((r) => recordResult.parse(r));
@@ -115,7 +121,10 @@ dbTest(
       const task = await a.createTask(
         ad,
         A,
-        taskCreate.parse({ kind: "once", title: "행동", summary: "계획", entity_ids: [entity.id] }),
+        taskCreate.parse({
+          id: crypto.randomUUID(),
+          ...{ kind: "once", title: "행동", summary: "계획", entity_ids: [entity.id] },
+        }),
       );
       assertEquals(await count(), 3);
       const taskUpdated = await a.updateTask(
@@ -139,7 +148,10 @@ dbTest(
       const record = await a.createRecord(
         ad,
         A,
-        recordCreate.parse({ title: "직접 기록", summary: "관찰", change_note: "생성 이유" }),
+        recordCreate.parse({
+          id: crypto.randomUUID(),
+          ...{ title: "직접 기록", summary: "관찰", change_note: "생성 이유" },
+        }),
       );
       assertEquals(await count(), 6);
       const recordUpdated = await a.updateRecord(
@@ -151,7 +163,7 @@ dbTest(
       assertEquals(await count(), 6);
       await a.deleteRecord(ad, A, record.id, recordUpdated.version);
       assertEquals(await count(), 7);
-      await e.deleteEntity(ed, A, entity.id, updated.version, "불필요", crypto.randomUUID());
+      await e.deleteEntity(ed, A, entity.id, updated.version, "불필요");
       assertEquals(await count(), 8);
       const deleted = (await a.listRecords(ad, A, recordListQuery.parse({ record_kind: "change" }))).items.find((r) =>
         r.change?.target_kind === "entity" && r.change.action === "delete"
@@ -171,9 +183,17 @@ dbTest(
     const f = await fixtureOwner(admin);
     try {
       const A = f.actor,
-        entity = await e.createEntity(ed, A, entityCreate.parse({ prop1: "대상" })),
-        task = await a.createTask(ad, A, taskCreate.parse({ kind: "once", title: "행동", summary: "계획" })),
-        record = await a.createRecord(ad, A, recordCreate.parse({ title: "기록", summary: "관찰" }));
+        entity = await e.createEntity(ed, A, entityCreate.parse({ id: crypto.randomUUID(), ...{ prop1: "대상" } })),
+        task = await a.createTask(
+          ad,
+          A,
+          taskCreate.parse({ id: crypto.randomUUID(), ...{ kind: "once", title: "행동", summary: "계획" } }),
+        ),
+        record = await a.createRecord(
+          ad,
+          A,
+          recordCreate.parse({ id: crypto.randomUUID(), ...{ title: "기록", summary: "관찰" } }),
+        );
       const broken = <S>(store: S) =>
         new Proxy(store as object, {
           get: (target, key) =>
@@ -209,19 +229,16 @@ dbTest(
           expected_version: 1,
           prop1: "새 이름",
           change_note: "정정",
-          request_id: crypto.randomUUID(),
         }),
         ti = taskUpdate.parse({
           expected_version: 1,
           title: "새 계획",
           change_note: "정정",
-          request_id: crypto.randomUUID(),
         }),
         ri = recordUpdate.parse({
           expected_version: 1,
           title: "새 관찰",
           change_note: "정정",
-          request_id: crypto.randomUUID(),
         });
       await assertRejects(() => e.updateEntity(badE, A, entity.id, ei));
       await assertRejects(() => a.updateTask(badA, A, task.id, ti));
@@ -229,7 +246,6 @@ dbTest(
       assertEquals((await e.getEntity(ed, A, entity.id)).version, 1);
       assertEquals((await a.getTask(ad, A, task.id)).title, task.title);
       assertEquals((await a.getRecord(ad, A, record.id)).title, record.title);
-      assertEquals((await admin`select request_id from app.request_results where owner_id=${A.userId}`).length, 0);
       assertEquals(
         (await admin`select id from app.records where owner_id=${A.userId} and record_kind='change'`).length,
         3,

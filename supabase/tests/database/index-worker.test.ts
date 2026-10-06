@@ -28,10 +28,10 @@ type Kind = "task" | "record" | "principle";
 const make = (kind: Kind) => {
   const input = { title: crypto.randomUUID(), summary: "현재 요약", body: "본문 전용 비공개 표식" };
   return kind === "task"
-    ? activity.createTask(deps, A, taskCreate.parse({ ...input, kind: "once" }))
+    ? activity.createTask(deps, A, taskCreate.parse({ id: crypto.randomUUID(), ...{ ...input, kind: "once" } }))
     : kind === "record"
-    ? activity.createRecord(deps, A, recordCreate.parse(input))
-    : principles.createPrinciple(p, A, principleCreate.parse(input));
+    ? activity.createRecord(deps, A, recordCreate.parse({ id: crypto.randomUUID(), ...input }))
+    : principles.createPrinciple(p, A, principleCreate.parse({ id: crypto.randomUUID(), ...input }));
 };
 const change = (kind: Kind, id: string, version: number, fields: Record<string, string>) => {
   const input = { change_note: "테스트 변경 이유", expected_version: version, ...fields };

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { savingFaultAdapter } from './saving-fault.mjs';
-const create = (request_id = 'same-request') => ({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'create_record', arguments: { request_id, title: 'review', body: 'owned' } } });
+const create = (id = 'same-request') => ({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'create_record', arguments: { id, title: 'review', body: 'owned' } } });
 const success = { jsonrpc: '2.0', id: 1, result: { structuredContent: { id: 'record', version: 1 }, content: [] } };
 test('an invalid public request may be corrected before a successful write locks the lost-response input', async () => {
   const adapter = savingFaultAdapter('save-response-loss');
@@ -45,11 +45,13 @@ test('lost committed response requires original content or an identical keyed re
   assert.match(adapter.evidence().requestIdHash, /^[a-f0-9]{64}$/);
 });
 
-test('actual identical keyed replay is reported separately from read-only recovery', async () => {
+test('identical UUID retry returns a conflict is reported separately from read-only recovery', async () => {
   const adapter = savingFaultAdapter('save-response-loss');
   await adapter.call(create(), async () => success);
-  await adapter.call(create(), async () => success);
+  await adapter.call(create(), async () => ({ jsonrpc: "2.0", id: 1, result: { isError: true, structuredContent: { code: "conflict" }, content: [] } }));
   assert.equal(adapter.evidence().replayCalls, 1);
   assert.equal(adapter.evidence().sameInputRetry, true);
   assert.equal(adapter.evidence().originalReadConfirmation, false);
+  assert.equal(adapter.evidence().originalConfirmation, false);
+  assert.equal(adapter.evidence().upstreamMutations, 1);
 });

@@ -3,7 +3,7 @@ import { asUser, connect, dbTest, fixtureOwner, urls } from "./_db.ts";
 import { SqlPrincipleUnitOfWork } from "../../functions/_shared/adapters/supabase/principle-store.ts";
 import { SqlSearchUnitOfWork } from "../../functions/_shared/adapters/supabase/search-store.ts";
 import { searchInput } from "../../functions/_shared/contracts/search.ts";
-import { principleSave } from "../../functions/_shared/contracts/principle.ts";
+import { principleCreate } from "../../functions/_shared/contracts/principle.ts";
 import * as p from "../../functions/_shared/core/principles/application.ts";
 import { search } from "../../functions/_shared/core/search/application.ts";
 const admin = connect(urls.admin, { max: 1 }), sql = connect(urls.pooler, { max: 2, prepare: false });
@@ -16,10 +16,10 @@ dbTest(
       const token = crypto.randomUUID();
       const [old] =
         await admin`insert into app.principles(owner_id,title,summary,body,is_current,origin) values(${f.actor.userId},${token},'옛 근거','과거 원문',false,'legacy') returning *`;
-      const current = await p.saveCurrentPrinciple(
+      const current = await p.createPrinciple(
         pd,
         f.actor,
-        principleSave.parse({ title: token, summary: "현재", body: "현재 원문" }),
+        principleCreate.parse({ id: crypto.randomUUID(), title: token, summary: "현재", body: "현재 원문" }),
       );
       await assertRejects(() => p.getPrinciple(pd, f.actor, old.id));
       await assertRejects(() => p.deletePrinciple(pd, f.actor, old.id, old.version));

@@ -1,6 +1,6 @@
 import { assertEquals, assertRejects } from "@std/assert";
 import { SqlPrincipleUnitOfWork } from "../../functions/_shared/adapters/supabase/principle-store.ts";
-import { principleCreate, principleSave } from "../../functions/_shared/contracts/principle.ts";
+import { principleCreate, principleUpdate } from "../../functions/_shared/contracts/principle.ts";
 import * as p from "../../functions/_shared/core/principles/application.ts";
 import { connect, dbTest, fixtureOwner, urls } from "./_db.ts";
 const admin = connect(urls.admin, { max: 1 }),
@@ -12,14 +12,17 @@ dbTest(
     const f = await fixtureOwner(admin);
     const a = f.actor;
     try {
-      const first = await p.createPrinciple(d, a, principleCreate.parse({ title: "기준", summary: "요약" }));
-      const i = principleSave.parse({
+      const first = await p.createPrinciple(
+        d,
+        a,
+        principleCreate.parse({ id: crypto.randomUUID(), ...{ title: "기준", summary: "요약" } }),
+      );
+      const i = principleUpdate.parse({
         title: "새 기준",
         summary: "새 요약",
         body: "본문",
         change_note: "원자성",
         expected_version: first.version,
-        request_id: crypto.randomUUID(),
       });
       const broken = {
         uow: {
@@ -33,32 +36,30 @@ dbTest(
               )),
         },
       };
-      await assertRejects(() => p.saveCurrentPrinciple(broken, a, i));
+      await assertRejects(() => p.updatePrinciple(broken, a, first.id, i));
       assertEquals((await p.currentPrinciple(d, a)).current?.id, first.id);
       assertEquals((await p.currentPrinciple(d, a)).current, first);
       assertEquals((await admin`select id from app.principles where owner_id=${a.userId}`).length, 1);
-      assertEquals(
-        (await admin`select request_id from app.request_results where owner_id=${a.userId} and request_id=${i
-          .request_id!}`).length,
-        0,
-      );
       assertEquals((await admin`select id from app.search_index_state where owner_id=${a.userId}`).length, 2);
-      const result = await p.saveCurrentPrinciple(d, a, i);
+      const result = await p.updatePrinciple(d, a, first.id, i);
       assertEquals(result.id, first.id);
       assertEquals(result.version, 2);
-      assertEquals((await p.saveCurrentPrinciple(d, a, i)).id, result.id);
+      await assertRejects(() => p.updatePrinciple(d, a, first.id, i));
     } finally {
       await f.cleanup();
     }
   },
 );
 
-dbTest("principle deletion failure rolls back its revision and the same retry recreates at revision four", async () => {
+dbTest("principle deletion failure rolls back its revision and the same retry recreates at version one", async () => {
   const f = await fixtureOwner(admin);
   try {
-    const first = await p.createPrinciple(d, f.actor, principleCreate.parse({ title: "기준", summary: "요약" }));
+    const first = await p.createPrinciple(
+      d,
+      f.actor,
+      principleCreate.parse({ id: crypto.randomUUID(), ...{ title: "기준", summary: "요약" } }),
+    );
     const next = await p.updatePrinciple(d, f.actor, first.id, { title: "갱신 기준", expected_version: first.version });
-    const request = crypto.randomUUID();
     const broken = {
       uow: {
         run: <T>(actor: typeof f.actor, fn: Parameters<typeof d.uow.run<T>>[1]) =>
@@ -71,17 +72,17 @@ dbTest("principle deletion failure rolls back its revision and the same retry re
             )),
       },
     };
-    await assertRejects(() => p.deletePrinciple(broken, f.actor, next.id, next.version, "삭제", request));
+    await assertRejects(() => p.deletePrinciple(broken, f.actor, next.id, next.version, "삭제"));
     assertEquals((await p.currentPrinciple(d, f.actor)).current, next);
-    await p.deletePrinciple(d, f.actor, next.id, next.version, "삭제", request);
-    assertEquals(await p.deletePrinciple(d, f.actor, next.id, next.version, "삭제", request), { deleted: true });
+    await p.deletePrinciple(d, f.actor, next.id, next.version, "삭제");
+    await assertRejects(() => p.deletePrinciple(d, f.actor, next.id, next.version, "삭제"));
     assertEquals((await p.currentPrinciple(d, f.actor)).current, null);
     const replacement = await p.createPrinciple(
       d,
       f.actor,
-      principleCreate.parse({ title: "새 기준", summary: "새 요약" }),
+      principleCreate.parse({ id: crypto.randomUUID(), ...{ title: "새 기준", summary: "새 요약" } }),
     );
-    assertEquals(replacement.version, 4);
+    assertEquals(replacement.version, 1);
   } finally {
     await f.cleanup();
   }

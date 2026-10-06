@@ -47,7 +47,7 @@ export function entityTools(d: entity.EntityDeps): ToolDef[] {
     {
       name: "create_entity",
       description:
-        "예제 엔터티 생성. prop1 1~100자 필수, prop2 정수 0~1000000, prop3 날짜, prop4 a/b/c 기본 a. request_id 재시도 가능.",
+        "예제 엔터티 생성. prop1 1~100자 필수, prop2 정수 0~1000000, prop3 날짜, prop4 a/b/c 기본 a. 클라이언트 UUID id 필수. 같은 id 재시도는 충돌로 거부한다.",
       input: entityCreate,
       readOnly: false,
       handler: (i, a) => entity.createEntity(d, a, parse(entityCreate, i)),
@@ -72,7 +72,7 @@ export function entityTools(d: entity.EntityDeps): ToolDef[] {
       handler: async (i, a) => {
         idParam(i.id);
         const p = parse(remove, i);
-        await entity.deleteEntity(d, a, idParam(p.id), p.expected_version, p.change_note, p.request_id, p.change_memo);
+        await entity.deleteEntity(d, a, idParam(p.id), p.expected_version, p.change_note, p.change_memo);
         return { deleted: idParam(p.id) };
       },
     },

@@ -104,7 +104,7 @@ test("실제 App 공통 모달 생성·직접 편집 성공/취소·저장 중 P
     const request = route.request();
     if (request.method() === "POST") { if (hold) { arrived(); await new Promise<void>(resolve => { release = resolve; }); } current = { ...current, ...request.postDataJSON() }; await route.fulfill({ status: 201, json: current }); }
     else if (request.method() === "PATCH") { current = { ...current, ...request.postDataJSON(), version: current.version + 1 }; await route.fulfill({ json: current }); }
-    else await route.fulfill({ json: new URL(request.url()).pathname.endsWith(task.id) ? current : { items: [current], next_cursor: null } });
+    else await route.fulfill({ json: new URL(request.url()).pathname.endsWith(current.id) ? current : { items: [current], next_cursor: null } });
   });
   await page.goto("/e2e/fixtures/entity-tags-app.html"); await expect(page.getByRole("heading", { name: "할 일", exact: true })).toBeVisible();
   await tagManagement(page);
@@ -114,7 +114,7 @@ test("실제 App 공통 모달 생성·직접 편집 성공/취소·저장 중 P
   hold = true; await saveWithMemo(page, form, "추가"); await expect(form.getByRole("button", { name: "처리 중…", exact: true })).toBeDisabled();
   await started;
   await page.goBack(); await expect(page).toHaveURL(/\/tasks\?create=1$/); await expect(page.getByRole("dialog", { name: "변경을 버릴까요?" })).not.toBeVisible();
-  release(); await expect(page).toHaveURL(new RegExp(`/tasks/${task.id}\\?list=`)); await expect(form).not.toBeVisible();
+  release(); await expect.poll(() => new URL(page.url()).pathname === `/tasks/${current.id}`).toBe(true); await expect(form).not.toBeVisible();
   await page.getByRole("button", { name: "닫기", exact: true }).click(); await page.getByRole("link", { name: "생성 결과 편집", exact: true }).click();
   form = page.getByRole("dialog", { name: "할 일 편집", exact: true }); await form.getByRole("button", { name: "닫기", exact: true }).click(); await expect(page).toHaveURL(/\/tasks\?/); await expect(form).not.toBeVisible();
   await page.getByRole("link", { name: "생성 결과 편집", exact: true }).click(); await form.getByRole("textbox",{name:/^요약(?: \(필수\))?$/}).fill("직접 편집 성공");await form.getByLabel("편집 메모").fill("직접 편집 검증"); await saveWithMemo(page, form);
@@ -147,16 +147,17 @@ test("실제 App 태그 폐기 승인 뒤에만 로그아웃 요청하고 로그
   await page.getByRole("dialog", { name: "변경을 버릴까요?" }).getByRole("button", { name: "변경 버리기" }).click(); await expect(page).toHaveURL(/\/login$/); expect(signOuts).toBe(1);
   expect(await page.evaluate(() => !!localStorage.getItem("sb-127-auth-token"))).toBe(false); await expect(page.getByRole("navigation", { name: "주 메뉴" })).toHaveCount(0);
 });
-test("불확정 이름 변경을 최신 목록에서 확인하며 중복 PATCH 안 함", async ({ page }) => {
-  let patches = 0, updated = false;
+test("불확정 이름 변경은 조회 없이 같은 버전 PATCH 후 충돌을 확인", async ({ page }) => {
+  let patches = 0, updated = false; const bodies: Record<string, unknown>[] = [];
   await page.route("**/api/tags**", route => {
-    if (route.request().method() === "PATCH") { patches++; updated = true; return route.abort(); }
+    if (route.request().method() === "PATCH") { patches++; bodies.push(route.request().postDataJSON()); updated = true; return patches === 1 ? route.abort() : route.fulfill({ status: 409, json: { code: "conflict", message: "버전 충돌" } }); }
+    if (updated && patches === 1) return route.fulfill({ status: 503, json: { code: "internal", message: "조회 장애" } });
     return route.fulfill({ json: { items: tags.map(t => updated && t.id === tags[0].id ? { ...t, name: "정정 이름", version: 2 } : t), next_cursor: null } });
   });
   await page.goto(url); await page.getByRole("button", { name: "첫 태그 이름 변경" }).click(); await page.getByRole("textbox", { name: /태그 이름/ }).fill("정정 이름"); await saveWithMemo(page, page);
-  await page.getByRole("button", { name: "같은 내용 다시 시도" }).click(); await expect(page.getByText("태그를 저장했습니다.")).toBeVisible(); expect(patches).toBe(1);
+  await page.getByRole("button", { name: "같은 내용 다시 시도" }).click(); await expect(page.getByText(/다른 변경이 저장되었습니다/)).toBeVisible(); expect(patches).toBe(2); expect(bodies[1]).toEqual(bodies[0]); expect(bodies[0].expected_version).toBe(1);
 });
-test("불확정 생성 같은 request_id 재시도와 성공 뒤 목록 실패 구분", async ({ page }) => {
+test("불확정 생성 같은 UUID 재시도와 성공 뒤 목록 실패 구분", async ({ page }) => {
   let calls = 0; const bodies: Record<string, unknown>[] = []; let saved = false;
   await page.route(/\/api\/tags(?:\?.*)?$/, async route => {
     if (route.request().method() === "POST") { bodies.push(route.request().postDataJSON()); calls++; if (calls === 1) await route.abort(); else { saved = true; await route.fulfill({ status: 201, json: { ...tags[0],id:"50000000-0000-4000-8000-000000000000", name: "새 태그" } }); } }

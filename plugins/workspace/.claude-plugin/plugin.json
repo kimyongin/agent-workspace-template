@@ -1,6 +1,6 @@
 {
   "name": "workspace",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Workspace의 최신 상태·현재 원칙·통합 기록을 찾아 요청한 업무를 준비하고 수행합니다.",
   "author": { "name": "Workspace" }
 }

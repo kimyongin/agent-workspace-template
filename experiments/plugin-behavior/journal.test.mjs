@@ -18,7 +18,7 @@ function journal() {
   return { journalVersion: 1, clientName: 'codex-cli', endpoint, marker: 'plugin-codex-cli-abcdef12', originalDetail: 'SOURCE-test', state: 'creating', ownerId: 'own-owner', oauthClientId: 'own-client', token: `mock.${claims}.mock` };
 }
 function service() {
-  const rows = { tag: new Map(), entity: new Map(), principle: new Map(), record: new Map() }, requests = new Map();
+  const rows = { tag: new Map(), entity: new Map(), principle: new Map(), record: new Map() };
   let fault, oauthAttempts = 0;
   const calls = [], queries = [];
   return {
@@ -34,11 +34,9 @@ function service() {
       const kind = suffix === 'entities' ? 'entity' : suffix.replace(/s$/, '');
       if (verb === 'create') {
         if (fault === `before:${kind}`) { fault = undefined; throw new Error('transport before commit'); }
-        let object = requests.get(input.request_id);
-        if (!object) {
-          object = { ...input, id: randomUUID(), version: 1, ...(kind === 'principle' ? { status: 'active', is_current: true } : {}) };
-          rows[kind].set(object.id, object); requests.set(input.request_id, object);
-        }
+        if (rows[kind].has(input.id)) throw Object.assign(new Error("conflict"), { code: "conflict" });
+        const object = { ...input, version: 1, ...(kind === "principle" ? { is_current: true } : {}) };
+        rows[kind].set(object.id, object);
         if (fault === `after:${kind}`) { fault = undefined; throw new Error('lost create response'); }
         return object;
       }
@@ -76,7 +74,7 @@ for (const failure of ['before:entity', 'after:entity']) test(`partial setup ${f
     assert.equal(data.tag.id, tag.id);
     assert.equal(data.token, journal().token);
     assert.equal(data.pendingCreate.kind, 'entity');
-    assert.match(data.pendingCreate.input.request_id, /^[a-f0-9-]{36}$/);
+    assert.match(data.pendingCreate.input.id, /^[a-f0-9-]{36}$/);
     api.rows.tag.set('foreign', { id: 'foreign', name: 'unrelated', version: 3 });
     await cleanupOwned(data, save, api.call, api.oauth);
     assert.equal(api.rows.entity.size, 0);

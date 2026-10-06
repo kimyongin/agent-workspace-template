@@ -13,7 +13,7 @@ import { DetailSurface } from "../../components/Modal.tsx";
 import { api, ApiError, query } from "../../lib/api.ts";
 import { addDays, formatDateTime, todayIn } from "../../lib/format.ts";
 import { emptyRecord, TaskResultFormModal, TaskFormModal, taskDraftFrom, taskInput } from "./forms.tsx";
-import { OccurrenceBadge, StatusBadge, useRequestId } from "./shared.tsx";
+import { OccurrenceBadge, StatusBadge, useCreationId } from "./shared.tsx";
 import {TagNames} from "../tags/TagPicker.tsx";
 import {EntityLinks} from "../entity/EntityPicker.tsx";
 import {useSearchReturn} from "../search/return.ts";
@@ -60,7 +60,7 @@ export function TaskDetailPage() {
   const [busy, setBusy] = useState(false);
   const [occurrences, setOccurrences] = useState<{ today: string; items: Occurrence[] } | null>(null);
   const [rangeEnd, setRangeEnd] = useState<string | null>(null);
-  const requestId = useRequestId();
+  const creationId = useCreationId();
 
   const previousQuery = useRef(params.toString());
   const loadGeneration = useRef(0);
@@ -125,7 +125,7 @@ export function TaskDetailPage() {
     if(previousQuery.current===query)return;
     previousQuery.current=query;
     setDialog(requestedDialog(params));
-    if(directEdit){requestId.renew();setEditReady(false);void reload();}
+    if(directEdit){creationId.renew();setEditReady(false);void reload();}
   },[params.toString(),reload]);
 
   if (loadError && !task) {
@@ -155,7 +155,7 @@ export function TaskDetailPage() {
                 {task.status === "active" ? "중단" : "재개"}
               </button>
             )}
-            <button type="button" className="btn btn-danger" onClick={() => {requestId.renew();setDeleting(true);}}>삭제</button>
+            <button type="button" className="btn btn-danger" onClick={() => {creationId.renew();setDeleting(true);}}>삭제</button>
           </div>
         </div>
         {message && <Notice kind="success">{message}</Notice>}
@@ -270,7 +270,6 @@ export function TaskDetailPage() {
               body: draft.body,
               change_note:draft.change_note,
               change_memo:draft.change_memo,
-              request_id:requestId.current,
               tag_ids:draft.tag_ids,
               entity_ids:draft.entity_ids??[],
             };
@@ -283,7 +282,7 @@ export function TaskDetailPage() {
             const saved = await api<TaskResult>("PATCH", `/tasks/${task.id}`, patch);
             setTask(current => current?.id === task.id ? {...current,...saved} : current);
             }catch(e){if(e instanceof ApiError&&e.code==="conflict")conflicted.current=true;throw e;}
-            requestId.renew(); closeEdit();
+            creationId.renew(); closeEdit();
             setMessage("저장했습니다.");
             await reload();
           }}
@@ -302,8 +301,8 @@ export function TaskDetailPage() {
           onClose={closeManagement}
           onRouteDiscard={() => setDialog(null)}
           onSave={async (value) => {
-            await api("POST", `/tasks/${task.id}/complete`, { ...value, expected_version: task.version, request_id: requestId.current });
-            requestId.renew();
+            await api("POST", `/tasks/${task.id}/complete`, { ...value, expected_version: task.version });
+            creationId.renew();
             closeManagement();
             setMessage("완료하고 결과 기록을 저장했습니다.");
             await reload();
@@ -322,9 +321,9 @@ export function TaskDetailPage() {
           onSave={async (value) => {
             await api<RecordResult>("POST", `/tasks/${task.id}/occurrences/${dialog.occurrence}/records`, {
               ...value,
-              request_id: requestId.current,
+              id: creationId.current,
             });
-            requestId.renew();
+            creationId.renew();
             closeManagement();
             setMessage(`${dialog.occurrence} 회차에 기록했습니다.`);
             await loadOccurrences(task, rangeEnd);
@@ -343,7 +342,7 @@ export function TaskDetailPage() {
         onCancel={() => setDeleting(false)}
         onConfirm={(reason,change_memo) =>
           run(async () => {
-            await api("POST", `/tasks/${task.id}/delete`, {expected_version:task.version,change_note:reason||undefined,request_id:requestId.current,change_memo});
+            await api("POST", `/tasks/${task.id}/delete`, {expected_version:task.version,change_note:reason||undefined,change_memo});
             setDialog(null);
             navigateAfterClose(back.path,true);
           }, "삭제했습니다.")}
@@ -352,14 +351,14 @@ export function TaskDetailPage() {
 }
 
 function TaskTransitionForm({task,onClose,onSaved}:{task:TaskResult;onClose:()=>void;onSaved:()=>Promise<void>}) {
-  const [note,setNote]=useState(""),request=useRequestId();
+  const [note,setNote]=useState("");
   const action=task.status==="active"?"stop":"resume",label=action==="stop"?"중단":"재개";
   return <FormModal open title={`반복 할 일 ${label}`} submitLabel={label} dirty={!!note} onClose={onClose} onRouteDiscard={onClose}
     prepare={async()=> (await api<{memo:import("@contracts/change.ts").ChangeMemo}>("POST","/tasks/preview",{action,id:task.id,input:{expected_version:task.version,change_note:note.trim()||undefined}})).memo}
     previewKey={note}
     validate={()=>changeNoteErrors(note,false)} onSubmit={async(change_memo)=>{
-      await api("POST",`/tasks/${task.id}/${action}`,{expected_version:task.version,change_note:note.trim()||undefined,request_id:request.current,change_memo});
-      request.renew();await onSaved();
+      await api("POST",`/tasks/${task.id}/${action}`,{expected_version:task.version,change_note:note.trim()||undefined,change_memo});
+      await onSaved();
     }}>
     {errors=><><p className="help">{action==="stop"?"오늘부터 이후 회차가 생기지 않고 기존 기록은 남습니다.":"오늘부터 규칙에 따라 회차가 다시 생깁니다."}</p><ChangeNoteField label="편집 메모" value={note} onChange={setNote} error={errors.change_note}/></>}
   </FormModal>;

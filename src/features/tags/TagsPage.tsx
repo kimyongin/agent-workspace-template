@@ -7,7 +7,7 @@ import { DeleteDialog } from "../../components/DeleteDialog.tsx";
 import { query } from "../../lib/api.ts";
 import { BusyNavigationGuard, ConfirmDialog, ModalShell } from "../../components/Modal.tsx";
 import { api, ApiError, isUncertain } from "../../lib/api.ts";
-import { useRequestId } from "../../lib/useRequestId.ts";
+import { useCreationId } from "../../lib/useCreationId.ts";
 import "./tags.css";
 import { findTag } from "./resolve-tag.ts";
 type Page = { items: TagResult[]; next_cursor: string | null };
@@ -31,7 +31,7 @@ function ScopedTagsPage({scope}:{scope:"entity"|"activity"}) {
   const readEpoch = useRef(0), readAbort = useRef<AbortController | null>(null);
   const invalidateReads = () => { readEpoch.current++; readAbort.current?.abort(); };
   useEffect(() => () => { readEpoch.current++; readAbort.current?.abort(); }, []);
-  const request = useRequestId();
+  const creationId = useCreationId();
   const dirty = !!draft && (draft.name !== (draft.initial?.name ?? "") || uncertain);
   useEffect(() => {
     readAbort.current?.abort(); const controller = new AbortController(); readAbort.current = controller;
@@ -53,14 +53,14 @@ function ScopedTagsPage({scope}:{scope:"entity"|"activity"}) {
   } }, [page, loading]);
   const change = (action: () => void) => { if (busy) return; if (dirty) setPending(() => action); else action(); };
   const select = (tag: TagResult | null, read=false) => change(() => {
-    setDraft({ initial: tag, name: tag?.name ?? "" }); setFailure(null); setNotice(null); setFieldError(undefined); setUncertain(false); setConflict(false); request.renew();
+    setDraft({ initial: tag, name: tag?.name ?? "" }); setFailure(null); setNotice(null); setFieldError(undefined); setUncertain(false); setConflict(false); creationId.renew();
     const p=new URLSearchParams(params);p.delete("view");p.delete("edit");p.delete("create");tag?p.set(read?"view":"edit",tag.id):p.set("create","1");navigateAfterClose(`?${p}`,true);
     requestAnimationFrame(() => input.current?.focus());
   });
   const dismiss = () => {const p=new URLSearchParams(params);p.delete("view");p.delete("edit");p.delete("create");navigateAfterClose(`?${p}`,true);};
   useEffect(()=>{let alive=true; const selected=params.get("edit")??params.get("view");
-    if(params.get("create")==="1"){if(!draft){request.renew();setDraft({initial:null,name:""});}return;}
-    if(selected&&draft?.initial?.id!==selected)findTag(selected,cursor=>api<Page>("GET",`/tags?scope=${scope}${cursor?`&cursor=${encodeURIComponent(cursor)}`:""}`)).then(tag=>{if(alive){if(tag){request.renew();setDraft({initial:tag,name:tag.name});}else setFailure("태그를 찾을 수 없습니다.");}}).catch(()=>{if(alive)setFailure("태그를 불러오지 못했습니다.");});
+    if(params.get("create")==="1"){if(!draft){creationId.renew();setDraft({initial:null,name:""});}return;}
+    if(selected&&draft?.initial?.id!==selected)findTag(selected,cursor=>api<Page>("GET",`/tags?scope=${scope}${cursor?`&cursor=${encodeURIComponent(cursor)}`:""}`)).then(tag=>{if(alive){if(tag){creationId.renew();setDraft({initial:tag,name:tag.name});}else setFailure("태그를 찾을 수 없습니다.");}}).catch(()=>{if(alive)setFailure("태그를 불러오지 못했습니다.");});
     return()=>{alive=false;};
   },[location.key]);
   const cancel = () => {
@@ -71,20 +71,15 @@ function ScopedTagsPage({scope}:{scope:"entity"|"activity"}) {
   };
   const save = async () => {
     if (!draft || saving.current || conflict) return;
-    const parsed = tagCreate.safeParse({ name: draft.name });
+    const parsed = tagCreate.omit({id:true}).safeParse({ name: draft.name });
     if (!parsed.success) { setFieldError(parsed.error.issues[0]?.message); input.current?.focus(); return; }
     saving.current = true; setBusy(true); setFailure(null); setFieldError(undefined);
     try {
-      let saved: TagResult;
-      if (uncertain && draft.initial) {
-        const current = await findTag(draft.initial.id, cursor => api<Page>("GET", `/tags?scope=${scope}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`));
-        if (current?.name === parsed.data.name && current.version > draft.initial.version) saved = current;
-        else saved = await api<TagResult>("PATCH", `/tags/${draft.initial.id}`, { name: parsed.data.name, expected_version: draft.initial.version });
-      } else saved = await api<TagResult>(draft.initial ? "PATCH" : "POST", draft.initial ? `/tags/${draft.initial.id}` : "/tags",
-        draft.initial ? { name: parsed.data.name, expected_version: draft.initial.version } : { ...parsed.data, scope, request_id: request.current });
+      const saved = await api<TagResult>(draft.initial ? "PATCH" : "POST", draft.initial ? `/tags/${draft.initial.id}` : "/tags",
+        draft.initial ? { name: parsed.data.name, expected_version: draft.initial.version } : { ...parsed.data, scope, id: creationId.current });
       invalidateReads();
       setPage(p => p ? { ...p, items: p.items.some(t => t.id === saved.id) ? p.items.map(t => t.id === saved.id ? saved : t) : [saved, ...p.items] } : { items: [saved], next_cursor: null });
-      focusId.current = saved.id; setDraft(null); setUncertain(false); request.renew(); setNotice("태그를 저장했습니다."); dismiss(); setRetry(n => n + 1);
+      focusId.current = saved.id; setDraft(null); setUncertain(false); creationId.renew(); setNotice("태그를 저장했습니다."); dismiss(); setRetry(n => n + 1);
     } catch (e) {
       setUncertain(isUncertain(e));
       if (e instanceof ApiError && e.code === "conflict") {
@@ -97,7 +92,7 @@ function ScopedTagsPage({scope}:{scope:"entity"|"activity"}) {
         setFailure(versionConflict ? "다른 변경이 저장되었습니다. 초안을 유지합니다. 취소 후 최신 태그를 다시 선택하세요." : readFailure ? `${e.message} 최신 상태를 조회하지 못했습니다. 초안을 유지합니다.` : e.message);
         if (!versionConflict && !readFailure) setFieldError(e.message);
       }
-      else setFailure(isUncertain(e) ? "응답을 받지 못해 저장 여부를 알 수 없습니다. 같은 내용으로 다시 시도해 결과를 확인하세요." : e instanceof ApiError ? e.message : "저장하지 못했습니다.");
+      else setFailure(isUncertain(e) ? "응답을 받지 못해 저장 여부를 알 수 없습니다. 같은 내용으로 다시 시도할 수 있습니다. 충돌하면 최신 상태를 확인하세요." : e instanceof ApiError ? e.message : "저장하지 못했습니다.");
       if (e instanceof ApiError && e.fields.some(f => f.path === "name")) setFieldError(e.fields.find(f => f.path === "name")?.message);
     } finally { saving.current = false; setBusy(false); }
   };
@@ -110,7 +105,7 @@ function ScopedTagsPage({scope}:{scope:"entity"|"activity"}) {
     <div className="tag-management"><ul className="list">{page?.items.map(t => <li key={t.id} className="list-item"><span className="item-title">{t.name}</span><div className="actions">
       <button className="btn" disabled={busy} aria-label={`${t.name} 보기`} onClick={()=>select(t,true)}>보기</button>
       <button id={`tag-${t.id}`} className="btn" disabled={busy} aria-pressed={draft?.initial?.id === t.id} aria-label={`${t.name} 이름 변경`} onClick={() => select(t)}>이름 변경</button>
-      <button className="btn btn-danger" disabled={busy} aria-label={`${t.name} 삭제`} onClick={() => change(() => { setDraft(null); setUncertain(false);request.renew(); setDeleting(t); })}>삭제</button>
+      <button className="btn btn-danger" disabled={busy} aria-label={`${t.name} 삭제`} onClick={() => change(() => { setDraft(null); setUncertain(false);creationId.renew(); setDeleting(t); })}>삭제</button>
     </div></li>)}</ul>
     {draft && <ModalShell open title={params.has("view")?draft.name:draft.initial?"태그 이름 변경":"태그 추가"} dirty={dirty} busy={busy} onClose={cancel} onRouteDiscard={()=>{setDraft(null);setUncertain(false);}} footer={requestClose=>params.has("view")?<button className="btn" onClick={()=>select(draft.initial)}>편집</button>:<><button type="button" className="btn" disabled={busy} onClick={requestClose}>취소</button><button form="tag-edit-form" type="submit" className="btn btn-primary" disabled={busy||conflict}>{busy?"저장 중…":uncertain?"같은 내용 다시 시도":"저장"}</button></>}><form id="tag-edit-form" className="form tag-editor" aria-label={draft.initial ? "태그 이름 변경" : "태그 추가"} onSubmit={e => { e.preventDefault(); void save(); }}>
       {params.has("view")?<><h2 className="section-title">{draft.name}</h2><p className="help">{scope==="entity"?"엔터티":"할 일·기록"}에 사용하는 태그입니다.</p></>:<>
@@ -131,7 +126,7 @@ function ScopedTagsPage({scope}:{scope:"entity"|"activity"}) {
       onConfirm={() => {const action=pending;setPending(null);action?.();}} />
     {deleting && <><BusyNavigationGuard pending={saving}/><DeleteDialog title="태그를 삭제할까요?" busy={busy} message={`${deleting.name} 태그와 연결을 제거합니다. 항목의 원문은 보존합니다.`} onCancel={() => setDeleting(null)} onConfirm={async reason => {
       if (saving.current) return; saving.current = true; setBusy(true); setFailure(null);
-      try { await api("DELETE", `/tags/${deleting.id}${query({expected_version:deleting.version,change_note:reason,request_id:request.current})}`);
+      try { await api("DELETE", `/tags/${deleting.id}${query({expected_version:deleting.version,change_note:reason})}`);
         invalidateReads();
         const at = page?.items.findIndex(t => t.id === deleting.id) ?? -1; focusId.current = page?.items[at + 1]?.id ?? page?.items[at - 1]?.id ?? "heading";
         setPage(p => p && ({ ...p, items: p.items.filter(t => t.id !== deleting.id) })); setNotice("태그를 삭제했습니다.");

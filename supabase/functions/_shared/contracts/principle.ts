@@ -2,6 +2,7 @@ import { z } from "zod";
 import { body, expectedVersion, id, isoDateTime, summary, title } from "./common.ts";
 import { changeMemo, mutationMeta } from "./change.ts";
 export const principleCreate = z.strictObject({
+  id,
   title,
   summary,
   body: body.default(""),
@@ -9,19 +10,17 @@ export const principleCreate = z.strictObject({
   change_memo: changeMemo.optional(),
 });
 export type PrincipleCreate = z.infer<typeof principleCreate>;
-export const principleSave = principleCreate.extend({ expected_version: expectedVersion.optional() });
-export type PrincipleSave = z.infer<typeof principleSave>;
 export const principleDelete = z.strictObject({
   expected_version: expectedVersion,
   ...mutationMeta,
   change_memo: changeMemo.optional(),
 });
 export const principlePreview = z.discriminatedUnion("action", [
-  z.strictObject({ action: z.literal("create"), input: principleCreate }),
+  z.strictObject({ action: z.literal("create"), input: principleCreate.omit({ id: true }) }),
   z.strictObject({
     action: z.literal("update"),
     id,
-    input: principleSave.extend({ expected_version: expectedVersion }),
+    input: principleCreate.omit({ id: true }).extend({ expected_version: expectedVersion }),
   }),
   z.strictObject({ action: z.literal("delete"), id, input: principleDelete }),
 ]);
