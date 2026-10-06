@@ -20,7 +20,7 @@ test("Entity 웹 CRUD·초안 보호→MCP parity·활동 연결→삭제 원문
   await expect(form.getByLabel("속성 1")).toHaveValue(name);
   await saveWithMemo(page, form);
   await expect(form).not.toBeVisible();await expect(page).toHaveURL(/\/entities\/[0-9a-f-]{36}(?:\?|$)/);
-  await expect(page.locator("dialog.modal:not(.modal-confirm)[open]").getByLabel("속성 1")).toHaveValue(name);
+  await expect(page.getByRole("heading",{name,level:1,exact:true})).toBeVisible();
   const id = new URL(page.url()).pathname.split("/").at(-1)!;
   const mcp = await mcpClient(await mcpTokenViaConsent(page));
   try {
@@ -109,7 +109,7 @@ test("엔터티 관련 기록 취소: 작성 URL·reload·메모와 변경 이�
       await expect(page).not.toHaveURL(/create=/);await expect(page).toHaveURL(/list=/);
       await expect(page.getByRole("button",{name:"기록 작성",exact:true})).toBeFocused();
     }
-    await page.reload();await expect(page.locator("dialog.modal:not(.modal-confirm)[open]").getByLabel("속성 1")).toHaveValue(entity.prop1);
+    await page.reload();await expect(page.getByRole("heading",{name:entity.prop1,level:1,exact:true})).toBeVisible();
     await expect(page.getByRole("dialog",{name:"기록 작성",exact:true})).toHaveCount(0);
     expect((await mcp.call("get_entity",{id:entity.id})).version).toBe(1);
     expect((await mcp.call("list_records",{entity_id:entity.id,record_kind:"user"})).items).toEqual([]);

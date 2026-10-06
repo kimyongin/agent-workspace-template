@@ -36,7 +36,7 @@ test("웹에서 만든 할 일을 에이전트가 MCP로 완료하고 웹에서 
   }
 
   // 4. 웹에서 결과 확인
-  await page.goto(taskUrl);await openDetailEditor(page);
+  await page.goto(taskUrl);
   await expect(page.getByText("완료", { exact: true }).first()).toBeVisible();
   await page.getByRole("link", { name: "초안 공유 완료" }).click();
   await expect(page.getByRole("heading", { name: "초안 공유 완료", level: 1 })).toBeVisible();
@@ -73,7 +73,7 @@ test("에이전트가 MCP로 만든 기록·반복 회차를 웹에서 보고 �
     await expect(page.getByRole("heading",{name:title,exact:true})).toBeVisible();
 
     // 웹: 반복 할 일의 오늘 회차가 기록함
-    await page.goto(`/tasks/${task.id}?edit=1`);
+    await page.goto(`/tasks/${task.id}`);
     const todayRow = page.getByRole("listitem").filter({ hasText: `${today} (오늘)` });
     await expect(todayRow.getByText("기록함")).toBeVisible();
 
