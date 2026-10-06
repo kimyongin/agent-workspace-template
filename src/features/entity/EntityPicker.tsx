@@ -113,9 +113,24 @@ export function EntityMultiPicker({ value, context = [], onChange, error }: {
     new Map(context.map((item) => [item.id, item.title]))
   );
   const request = useRef<AbortController | null>(null);
+  const picker = useRef<HTMLFieldSetElement>(null);
+  const searchInput = useRef<HTMLInputElement>(null);
+  const nextFocus = useRef<string | null>(null);
   const keyword = draft.trim();
   // Resolve only unknown selected IDs; a saved name remains usable even if the target is unavailable.
   const selectionKey = value.join(",");
+  useEffect(() => {
+    const id = nextFocus.current;
+    if (id === null) return;
+    nextFocus.current = null;
+    const selected = Array.from(
+      picker.current?.querySelectorAll<HTMLInputElement>(
+        "input[data-entity-id]",
+      ) ?? [],
+    )
+      .find((input) => input.dataset.entityId === id);
+    (selected ?? searchInput.current)?.focus();
+  }, [selectionKey]);
   useEffect(() => {
     const controller = new AbortController();
     for (const id of value.filter((id) => !names.has(id))) {
@@ -203,12 +218,17 @@ export function EntityMultiPicker({ value, context = [], onChange, error }: {
     }
   };
   const select = (item: EntityResult) => {
+    nextFocus.current = item.id;
     setNames((current) => new Map(current).set(item.id, item.prop1));
     onChange([...value, item.id].sort());
   };
-  const remove = (id: string) => onChange(value.filter((item) => item !== id));
+  const remove = (id: string) => {
+    nextFocus.current = "";
+    onChange(value.filter((item) => item !== id));
+  };
   return (
     <fieldset
+      ref={picker}
       className="field entity-picker"
       style={{ border: 0, padding: 0, margin: 0 }}
     >
@@ -218,6 +238,7 @@ export function EntityMultiPicker({ value, context = [], onChange, error }: {
           {value.map((id) => (
             <label key={id} className="chip entity-choice">
               <input
+                data-entity-id={id}
                 type="checkbox"
                 checked
                 onChange={() => remove(id)}
@@ -231,6 +252,7 @@ export function EntityMultiPicker({ value, context = [], onChange, error }: {
         {(p) => (
           <input
             {...p}
+            ref={searchInput}
             type="search"
             className="input"
             value={draft}

@@ -1,3 +1,4 @@
+import type { EntityContext } from "@contracts/entity-links.ts";
 import { recordDisplayText } from "@contracts/record-display.ts";
 import { DetailLink as Link, useDetailNavigate, useDetailOwnerReturn } from "../../lib/detail-exploration.tsx";
 import { editFromView } from "../../lib/detail-navigation.ts";
@@ -54,6 +55,7 @@ export function EntityDetailPage() {
   useEffect(()=>{setEditing(params.get("edit")==="1");if(previousQuery.current!==params.toString()&&!params.has("create")){setEditReady(false);setRetry(n=>n+1);}previousQuery.current=params.toString();},[params.toString()]);
   useEffect(()=>{if(creating||!editReady||!returnCreateFocus.current)return;const frame=requestAnimationFrame(()=>{const label=returnCreateFocus.current==="task"?"할 일 작성":"기록 작성";const button=Array.from(document.querySelectorAll<HTMLButtonElement>("dialog[open] .detail-management button")).find(el=>el.textContent===label);if(button){button.focus();returnCreateFocus.current=null;}});return()=>cancelAnimationFrame(frame);},[creating,editReady,entity]);
   const closeEdit=()=>{setEditing(false);const p=new URLSearchParams(params);p.delete("edit");p.delete("edit_from");afterClose(params.get("edit_from")==="view"?`${location.pathname}?${p}`:back,true);if(conflicted.current){conflicted.current=false;setRetry(n=>n+1);}};
+  const entityContext: EntityContext[] = entity ? [{id:entity.id,title:entity.prop1,source:"selection",captured_at:new Date().toISOString()}] : [];
   const management = entity && <div className="detail-management">
       {error && (
         <>
@@ -98,12 +100,12 @@ export function EntityDetailPage() {
             {(["prop1","prop2","prop3","prop4"] as const).map(key=><div key={key}><dt>{entityLabels[key]}</dt><dd>{entity[key]??"미지정"}</dd></div>)}
           </dl></section>
           {management}
-          {creating === "task" && <TaskFormModal key={location.key} open mode="create" initial={{ ...emptyTask(), entity_ids: [entity.id] }}
+          {creating === "task" && <TaskFormModal key={location.key} open mode="create" initial={{ ...emptyTask(), entity_ids: [entity.id], entity_context: entityContext }}
             onClose={closeCreate} onRouteDiscard={()=>setCreating(null)} onSave={async (draft, creationId) => {
               await api("POST", "/tasks", { ...taskInput(draft), id: creationId() });
               closeCreate(); setRetry(n => n + 1);
             }} />}
-          {creating === "record" && <RecordFormModal key={location.key} open title="기록 작성" submitLabel="저장" initial={{ ...emptyRecord(), entity_ids: [entity.id] }}
+          {creating === "record" && <RecordFormModal key={location.key} open title="기록 작성" submitLabel="저장" initial={{ ...emptyRecord(), entity_ids: [entity.id], entity_context: entityContext }}
             onClose={closeCreate} onRouteDiscard={()=>setCreating(null)} onSave={async (value, creationId) => {
               await api("POST", "/records", { ...value, id: creationId() });
               closeCreate(); setRetry(n => n + 1);

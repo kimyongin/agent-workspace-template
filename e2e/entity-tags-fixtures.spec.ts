@@ -219,7 +219,7 @@ test("엔터티 연결 작성·실패 초안·성공 후 조회 실패와 모달
   await expect(form.getByRole("textbox",{name:/^제목(?: \(필수\))?$/})).toHaveValue("연결된 초안");
   await saveOnce(page, form, "추가"); await expect(form.getByText("저장 실패", { exact: true })).toBeVisible();
   await expect(form.getByRole("textbox",{name:/^제목(?: \(필수\))?$/})).toHaveValue("연결된 초안"); failSave = false; await saveOnce(page, form, "추가");
-  await expect(form).not.toBeVisible(); await expect(page.getByText("할 일을 추가했습니다.")).toBeVisible(); await expect(page.getByText("관련 자료 조회 실패")).toBeVisible();
+  await expect(form).not.toBeVisible(); await expect(page.getByText("할 일을 추가했습니다.")).toHaveCount(0); await expect(page.getByText("관련 자료 조회 실패")).toBeVisible();
   expect(bodies[1].entity_ids).toEqual([entity.id]); await expect(page.getByRole("heading",{name:entity.prop1,level:1,exact:true})).toBeVisible();
   await page.getByRole("button",{name:"기록 작성",exact:true}).click();
   const record = page.getByRole("dialog", { name: "기록 작성", exact: true }); await expect(record.getByRole("checkbox", { name: entity.prop1, exact: true })).toBeChecked();
@@ -229,5 +229,5 @@ test("엔터티 연결 작성·실패 초안·성공 후 조회 실패와 모달
   await expect(page.getByRole("button", { name: "기록 작성", exact: true })).toBeFocused();
   await page.getByRole("button",{name:"기록 작성",exact:true}).click();
   await record.getByLabel("본문").fill("연결 기록\n엔터티 문맥"); await saveOnce(page, record);
-  await expect(page.getByText("기록을 저장했습니다.")).toBeVisible(); expect(bodies.at(-1)?.entity_ids).toEqual([entity.id]);
+  await expect(record).not.toBeVisible(); await expect(page.getByText("기록을 저장했습니다.")).toHaveCount(0); expect(bodies.at(-1)?.entity_ids).toEqual([entity.id]);
 });

@@ -370,11 +370,11 @@ for(const kind of ["tasks","records"] as const)test(`엔터티 제목 연결 검
   });
   await go(page,`/${kind}/${state.rows[kind][0].id}?edit=1`);
   const search=form(page).getByRole("searchbox",{name:"엔터티 제목 검색",exact:true});await expect(search).toBeVisible();expect(reads).toHaveLength(0);
-  await search.fill("aLpHa");await form(page).getByRole("checkbox",{name:"Alpha 고객",exact:true}).check();
+  await search.fill("aLpHa");await form(page).getByRole("checkbox",{name:"Alpha 고객",exact:true}).focus();await page.keyboard.press("Space");await expect(form(page).getByRole("checkbox",{name:"Alpha 고객",exact:true})).toBeFocused();
   expect(reads[0].get("keyword")).toBe("aLpHa");expect(reads[0].get("limit")).toBe("20");
   await search.fill("Beta");await form(page).getByRole("checkbox",{name:"Beta 고객",exact:true}).check();
   await search.clear();await expect(form(page).getByRole("checkbox",{name:"Alpha 고객",exact:true})).toBeChecked();await expect(form(page).getByRole("checkbox",{name:"Beta 고객",exact:true})).toBeChecked();
-  await form(page).getByRole("checkbox",{name:"Alpha 고객",exact:true}).click();await expect(form(page).getByRole("checkbox",{name:"Alpha 고객",exact:true})).toHaveCount(0);await saveOnce(page,form(page));
+  await form(page).getByRole("checkbox",{name:"Alpha 고객",exact:true}).click();await expect(form(page).getByRole("checkbox",{name:"Alpha 고객",exact:true})).toHaveCount(0);await expect(search).toBeFocused();await saveOnce(page,form(page));
   expect(state.writes.at(-1)?.body.entity_ids).toEqual([id(82)]);expect(reads).toHaveLength(2);expect(state.errors).toEqual([]);
 });
 test("엔터티 제목 연결 검색: IME·늦은 응답 격리·페이지 실패 동일 cursor 재시도",async({page})=>{
