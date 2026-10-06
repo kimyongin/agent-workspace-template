@@ -105,9 +105,10 @@ jobs:
       - name: Edge Functions 실행
         if: needs.check.outputs.mode == 'full'
         run: |
+          local_api_url="$(node --input-type=module -e 'import { readLocalConfig } from "./scripts/local-config.mjs"; process.stdout.write(readLocalConfig().apiUrl);')"
           npm run serve:functions > functions.log 2>&1 &
           for i in $(seq 1 60); do
-            code=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:55421/functions/v1/api/tasks || true)
+            code=$(curl -s -o /dev/null -w "%{http_code}" "$local_api_url/functions/v1/api/tasks" || true)
             [ "$code" = "401" ] && exit 0
             sleep 2
           done
