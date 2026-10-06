@@ -4,7 +4,7 @@ import { appliedPrincipleSnapshot, recordResult, recordUpdate } from "../../func
 import { entityCreate } from "../../functions/_shared/contracts/entity.ts";
 import { taskCreate } from "../../functions/_shared/contracts/task.ts";
 import { recordCreate } from "../../functions/_shared/contracts/record.ts";
-import { principleCorrection } from "../../functions/_shared/contracts/principle.ts";
+import { principleSave } from "../../functions/_shared/contracts/principle.ts";
 import { SqlEntityUnitOfWork } from "../../functions/_shared/adapters/supabase/entity-store.ts";
 import { SqlUnitOfWork } from "../../functions/_shared/adapters/supabase/activity-store.ts";
 import { SqlPrincipleUnitOfWork } from "../../functions/_shared/adapters/supabase/principle-store.ts";
@@ -22,15 +22,18 @@ const ed = { uow: new SqlEntityUnitOfWork(server) },
   pd = { uow: new SqlPrincipleUnitOfWork(server) };
 
 dbTest(
-  "통합 보존 dry-run: 긴 원칙·적용 원문·옛 사건·단일/다중/삭제 대상과 정정 재캡처의 손실·중복·권한을 지킨다",
+  "통합 보존 dry-run: 긴 원칙·적용 원문·옛 사건·단일/다중/삭제 대상과 컷오프 아카이브의 손실·중복·권한을 지킨다",
   async () => {
     const f = await fixtureOwner(admin), other = await fixtureOwner(admin);
     try {
       const first = await entity.createEntity(ed, f.actor, entityCreate.parse({ prop1: "이전 단일 대상" }));
       const second = await entity.createEntity(ed, f.actor, entityCreate.parse({ prop1: "삭제할 대상" }));
       const ids = [first.id, second.id].sort();
-      const [legacyTask] = await admin`insert into app.tasks(owner_id,kind,title,summary,status,entity_id)
-      values(${f.actor.userId},'once','옛 단일 업무','보존','open',${first.id}) returning id`;
+      const legacyTask = await activity.createTask(
+        ad,
+        f.actor,
+        taskCreate.parse({ kind: "once", title: "옛 단일 업무", summary: "보존", entity_ids: [first.id] }),
+      );
       const multi = await activity.createTask(
         ad,
         f.actor,
@@ -73,11 +76,17 @@ dbTest(
         captured_at: "application",
       })];
       const [decision] =
-        await admin`insert into app.records(owner_id,entity_id,title,summary,body,occurred_at,applied_principle_snapshots)
-      values(${f.actor.userId},${first.id},'당시 판단','판단 요약','판단 내용','2021-02-03T00:00:00Z',${
+        await admin`insert into app.records(owner_id,entity_ids,title,summary,body,occurred_at,applied_principle_snapshots)
+      values(${f.actor.userId},array[${first.id}::uuid],'당시 판단','판단 요약','판단 내용','2021-02-03T00:00:00Z',${
           admin.json(snapshots)
         }) returning id`;
       await admin`insert into app.record_principles(owner_id,record_id,principle_id) values(${f.actor.userId},${decision.id},${source.id})`;
+      // Post-cutoff recovery fixture: authoritative complete payloads, no product writer.
+      await admin`insert into private.retired_principle_sources(owner_id,source_kind,source_id,title,summary,payload)
+        select owner_id,'principle',id,title,summary,jsonb_build_object('principle',to_jsonb(p)) from app.principles p where id=${source.id}`;
+      await admin`insert into private.retired_principle_sources(owner_id,source_kind,source_id,title,summary,payload)
+        select owner_id,'record_principle_context',id,title,summary,jsonb_build_object('source_record',jsonb_build_object('id',id,'title',title,'occurred_at',occurred_at),
+          'applied_principle_snapshots',applied_principle_snapshots,'linked_principles_at_capture',(select jsonb_agg(to_jsonb(p)) from app.principles p where id=${source.id})) from app.records where id=${decision.id}`;
       const started = Date.now();
       await admin`call private.preserve_principle_sources(${f.actor.userId}::uuid)`;
       const parts =
@@ -111,13 +120,7 @@ dbTest(
       assertEquals((await search(sd, other.actor, query)).items, []);
       const decisionRead = recordResult.parse(await activity.getRecord(ad, f.actor, decision.id));
       assertEquals(decisionRead.applied_principle_snapshots, snapshots);
-      assertEquals(decisionRead.applied_principles, [{
-        id: source.id,
-        title: "당시 제목",
-        status: "active",
-        version: 1,
-        updated_at: "2020-01-02T00:00:00.000Z",
-      }]);
+      assertEquals("applied_principles" in decisionRead, false);
       assertEquals((await activity.getRecord(ad, f.actor, decision.id)).entity_ids, [first.id]);
       assertEquals((await activity.getTask(ad, f.actor, legacyTask.id)).entity_ids, [first.id]);
       assertEquals((await activity.getTask(ad, f.actor, unlinked.id)).entity_ids, []);
@@ -148,42 +151,33 @@ dbTest(
         asUser(server, f.actor.userId, (tx) => tx`call private.preserve_principle_sources(${f.actor.userId}::uuid)`)
       );
       assertEquals((await admin`select body from app.records where id=${decision.id}`)[0].body, "판단 내용");
-      // A prior writer has retired this saved source; the supported legacy correction
-      // changes its current content without rewriting earlier preservation chunks.
-      await admin`update app.principles set is_current=false where id=${source.id}`;
+      // Live edits after the cutoff cannot turn the exact archive into a truncated new source.
       const original = await principle.getPrinciple(pd, f.actor, source.id);
-      await principle.correctPrinciple(
+      const edited = await principle.saveCurrentPrinciple(
         pd,
         f.actor,
-        source.id,
-        principleCorrection.parse({
+        principleSave.parse({
+          title: original.title,
+          summary: original.summary,
+          body: "현재 원칙 변경",
           expected_version: original.version,
-          body: "정정한 원칙 원문",
-          change_note: "이전 원문 오류",
         }),
       );
-      await admin`call private.preserve_principle_sources(${f.actor.userId}::uuid)`;
-      const hashes =
-        await admin`select distinct source_hash from app.legacy_principle_record_parts where owner_id=${f.actor.userId} and source_kind='principle' and source_id=${source.id}`;
-      assertEquals(hashes.length, 2);
-      const oldHash = parts.find((r) => r.source_kind === "principle")!.source_hash;
-      const revised =
-        await admin`select r.body from app.legacy_principle_record_parts m join app.records r on r.id=m.record_id and r.owner_id=m.owner_id where m.owner_id=${f.actor.userId} and m.source_kind='principle' and m.source_id=${source.id} and m.source_hash<>${oldHash} order by m.part`;
-      assertEquals(
-        JSON.parse(revised.map((r) => r.body.split("\n\n", 2)[1]).join("")).principle.body,
-        "정정한 원칙 원문",
-      );
-      const total =
-        (await admin`select count(*)::int n from app.legacy_principle_record_parts where owner_id=${f.actor.userId}`)[0]
-          .n;
+      const beforeParts =
+        await admin`select source_hash,part,record_id,captured_at from app.legacy_principle_record_parts where owner_id=${f.actor.userId} order by source_kind,part`;
       await admin`call private.preserve_principle_sources(${f.actor.userId}::uuid)`;
       assertEquals(
-        (await admin`select count(*)::int n from app.legacy_principle_record_parts where owner_id=${f.actor.userId}`)[0]
-          .n,
-        total,
+        await admin`select source_hash,part,record_id,captured_at from app.legacy_principle_record_parts where owner_id=${f.actor.userId} order by source_kind,part`,
+        beforeParts,
       );
+      assertEquals(
+        (await admin`select payload from private.retired_principle_sources where owner_id=${f.actor.userId} and source_kind='principle'`)[
+          0
+        ].payload.principle.body,
+        body,
+      );
+      assertEquals(edited.body, "현재 원칙 변경");
       assertEquals((await activity.getRecord(ad, f.actor, oldEvent.id)).change, legacyChange);
-      assertEquals((await principle.getPrinciple(pd, f.actor, source.id)).saved_at, "2020-01-02T00:00:00.000Z");
       for (const part of parts.filter((r) => r.id !== parts[0].id)) {
         assertEquals((await activity.getRecord(ad, f.actor, part.id)).body, part.body);
       }

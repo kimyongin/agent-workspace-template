@@ -38,7 +38,6 @@ function memory() {
       Promise.resolve({
         tasks: { count: 0, items: [] },
         records: { count: 0, items: [] },
-        principles: { count: 0, items: [] },
       }),
     insert: (input) => {
       writes++;

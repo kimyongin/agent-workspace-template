@@ -24,9 +24,7 @@ export function changed(old: object, patch: object): boolean {
   };
   const comparable = (key: string, value: unknown) =>
     canonical(
-      ["tag_ids", "applied_principle_ids", "entity_ids"].includes(key) && Array.isArray(value)
-        ? [...value].sort()
-        : value,
+      ["tag_ids", "entity_ids"].includes(key) && Array.isArray(value) ? [...value].sort() : value,
     );
   return Object.entries(patch).some(([key, value]) =>
     value !== undefined &&

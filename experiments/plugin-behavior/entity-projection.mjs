@@ -3,9 +3,9 @@ const equal = (a, b) => JSON.stringify(canonical(a)) === JSON.stringify(canonica
 
 // Only these get_entity derived fields may follow the independently read rows.
 export function entityProjectionMatches(entity, state, previous = entity) {
-  return ['tasks', 'records', 'principles'].every(kind => {
+  return ['tasks', 'records'].every(kind => {
     if (previous[kind] === undefined && entity[kind] === undefined) return true;
-    const related = state[kind].filter(row => kind === 'principles' ? row.entity_id === entity.id : row.entity_ids?.includes(entity.id));
+    const related = state[kind].filter(row => row.entity_ids?.includes(entity.id));
     const items = related.toSorted((a, b) => b.updated_at.localeCompare(a.updated_at) || b.id.localeCompare(a.id)).slice(0, 5).map(({ id, title, updated_at }) => ({ id, title, updated_at }));
     return equal(entity[kind], { count: related.length, items });
   });

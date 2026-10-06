@@ -73,7 +73,7 @@ Deno.test("HTTP task can select two entities and MCP independently reads both; b
   const created = await response.json();
   const read = await f.call("get_task", { id: created.id }) as typeof created;
   assertEquals(read.entity_ids, [...ids].sort());
-  assertEquals(read.entity_id, [...ids].sort()[0]);
+  assertEquals("entity_id" in read, false);
 });
 
 Deno.test("HTTP task rejects conflicting legacy target alias on edit without changing selected targets", async () => {

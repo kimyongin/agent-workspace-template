@@ -7,7 +7,7 @@ const admin = connect(urls.admin, { max: 1 }),
   sql = connect(urls.pooler, { prepare: false, max: 2 }),
   d = { uow: new SqlSearchUnitOfWork(sql) };
 dbTest(
-  "search actual SQL filters task kind/status, principle current/history, record kind, coverage/anchor/cursor",
+  "search actual SQL filters task kind/status, current principle only, record kind, coverage/anchor/cursor",
   async () => {
     const f = await fixtureOwner(admin);
     try {
@@ -31,8 +31,7 @@ dbTest(
         const [extra, expected] of [
           [{ kinds: ["task"], task_kind: "recurring" }, [ids[2]]],
           [{ kinds: ["task"], task_status: "done" }, [ids[1]]],
-          [{ kinds: ["principle"], principle_view: "current" }, [ids[3]]],
-          [{ kinds: ["principle"], principle_view: "history" }, [ids[4]]],
+          [{ kinds: ["principle"] }, [ids[3]]],
           [{ kinds: ["record"], record_kind: "change" }, [ids[6]]],
         ] as const
       ) {

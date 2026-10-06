@@ -24,7 +24,6 @@ function fixture() {
     result_record_id: null,
     pauses: [],
     tag_ids: [],
-    entity_id: null,
     entity_ids: [],
     entity_context: [],
     version: 3,
@@ -71,7 +70,7 @@ function fixture() {
   };
 }
 
-Deno.test("task update preview checks explicit selections, preserves omission, and rejects inconsistent aliases", async () => {
+Deno.test("task update preview checks explicit selections, preserves omission, and rejects retired aliases", async () => {
   const f = fixture(), before = structuredClone(f.task);
   const patch = {
     action: "update",
@@ -80,7 +79,7 @@ Deno.test("task update preview checks explicit selections, preserves omission, a
   };
   assertEquals((await f.http(patch)).status, 400);
   await assertRejects(() => f.mcp(patch), AppError, "엔터티가 없거나 접근할 수 없습니다");
-  for (const selection of [{}, { entity_ids: [] }, { entity_ids: [f.available] }, { entity_id: f.available }]) {
+  for (const selection of [{}, { entity_ids: [] }, { entity_ids: [f.available] }]) {
     const input = { ...patch, input: { expected_version: 3, title: "수정 업무", ...selection } };
     const response = await f.http(input);
     assertEquals(response.status, 200);

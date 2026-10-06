@@ -39,17 +39,10 @@ const change = (kind: Kind, id: string, version: number, fields: Record<string, 
     ? activity.updateTask(deps, A, id, taskUpdate.parse(input))
     : kind === "record"
     ? activity.updateRecord(deps, A, id, recordUpdate.parse(input))
-    : principles.correctPrinciple(p, A, id, principleUpdate.parse(input));
+    : principles.updatePrinciple(p, A, id, principleUpdate.parse(input));
 };
-const remove = async (kind: Kind, id: string, version: number) => {
-  if (kind === "principle") {
-    // 이 검사의 보존 자료는 현재 원칙 삭제 API 대상이 아니다. 계정·ID·과거 여부로
-    // 제한한 private fixture 정리에서도 DB 삭제 트리거가 늦은 색인 결과를 거절해야 한다.
-    const deleted = await admin`delete from app.principles where owner_id=${users.a}
-      and id=${id} and not is_current returning id`;
-    assertEquals(deleted.map((row) => row.id), [id]);
-    return;
-  }
+const remove = (kind: Kind, id: string, version: number) => {
+  if (kind === "principle") return principles.deletePrinciple(p, A, id, version);
   return kind === "task" ? activity.deleteTask(deps, A, id, version) : activity.deleteRecord(deps, A, id, version);
 };
 const state = async (kind: Kind, id: string) =>
@@ -60,9 +53,6 @@ const state = async (kind: Kind, id: string) =>
 for (const kind of ["task", "record", "principle"] as const) {
   dbTest(`worker ${kind}: 실제 역할·단일 벡터·재전달·본문 억제·수정/삭제 늦은 결과`, async () => {
     const item = await make(kind), scope = { limit: 1, owner_id: users.a, kind, id: item.id };
-    // Explicit legacy fixture: compatibility corrections evolve its saved source in place.
-    // New current documents keep their ID and are verified separately in principles.test.ts.
-    if (kind === "principle") await admin`update app.principles set is_current=false where id=${item.id}`;
     let calls = 0;
     const embedder = {
       embed: (text: string, type: string) => {
