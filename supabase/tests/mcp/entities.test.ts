@@ -49,7 +49,7 @@ httpTest("Entity MCP: 실제 SDK/OAuth CRUD·태그 scope·웹 parity·참조 �
     );
     assertEquals((await tool(client, "get_entity", { id: "bad-id" })).error.code, "not_found");
     const marker = crypto.randomUUID();
-    const r = await tool(client, "create_record", { title: "연결 기록", summary: marker, entity_ids: [e.id] });
+    const r = await tool(client, "create_record", { body: "연결 기록", summary: marker, entity_ids: [e.id] });
     const detail = await tool(client, "get_entity", { id: e.id });
     assertEquals("principles" in detail, false);
     assertEquals(detail.records.items.some((record: { id: string }) => record.id === r.id), true);
@@ -60,7 +60,7 @@ httpTest("Entity MCP: 실제 SDK/OAuth CRUD·태그 scope·웹 parity·참조 �
     assertEquals(detail, (await call(token, "GET", `/entities/${e.id}`)).body);
     assert(detail.records.items.some((record: { record_kind: string }) => record.record_kind === "change"));
     assertEquals(
-      (await tool(client, "create_principle", { title: "연결 원칙", summary: "요약", entity_id: e.id })).error.code,
+      (await tool(client, "create_principle", { title: "연결 원칙", entity_id: e.id })).error.code,
       "invalid_input",
     );
     const search = { query: marker, entity_id: e.id, mode: "keyword", record_kind: "user" };
@@ -123,7 +123,6 @@ httpTest("Entity MCP: 실제 SDK/OAuth CRUD·태그 scope·웹 parity·참조 �
     const task = await tool(client, "create_task", {
       kind: "once",
       title: "엔터티 삭제 관계 검증",
-      summary: marker,
       entity_ids: [e.id],
     });
     await tool(client, "delete_entity", { id: e.id, expected_version: 4 });

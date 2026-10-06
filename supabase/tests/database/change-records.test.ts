@@ -27,7 +27,6 @@ dbTest("no-op recurring rule object order and tag set order preserve version/ind
         ...{
           kind: "recurring",
           title: "동일 규칙",
-          summary: "계획",
           recurrence,
           timezone: "Asia/Seoul",
           tag_ids,
@@ -95,7 +94,7 @@ dbTest(
       const rows = await a.listRecords(ad, A, recordListQuery.parse({ record_kind: "change" }));
       rows.items.forEach((r) => recordResult.parse(r));
       const event = rows.items.find((r) => r.change?.action === "update")!;
-      assertEquals(event.change_note, "실측");
+      assertEquals(event.body, "실측");
       assertEquals([event.change!.before, event.change!.after], [null, null]);
       assertEquals(event.change!.source, "mcp");
       assertEquals(event.change!.path, `/entities/${entity.id}`);
@@ -110,10 +109,10 @@ dbTest(
         ad,
         A,
         event.id,
-        recordUpdate.parse({ expected_version: event.version, body: "설명 정정", change_note: "메모 정정" }),
+        recordUpdate.parse({ expected_version: event.version, body: "설명 정정" }),
       );
       assertEquals(corrected.change, event.change);
-      assertEquals(corrected.change_note, "메모 정정");
+      assertEquals(corrected.body, "설명 정정");
       assertEquals(await count(), 2);
       await a.deleteRecord(ad, A, corrected.id, corrected.version);
       assertEquals((await e.getEntity(ed, A, entity.id)).prop2, 20);
@@ -123,7 +122,7 @@ dbTest(
         A,
         taskCreate.parse({
           id: crypto.randomUUID(),
-          ...{ kind: "once", title: "행동", summary: "계획", entity_ids: [entity.id] },
+          ...{ kind: "once", title: "행동", entity_ids: [entity.id] },
         }),
       );
       assertEquals(await count(), 3);
@@ -138,7 +137,7 @@ dbTest(
         ad,
         A,
         task.id,
-        taskComplete.parse({ expected_version: taskUpdated.version, title: "실제 결과", summary: "수행" }),
+        taskComplete.parse({ expected_version: taskUpdated.version, title: "실제 결과" }),
       );
       assertEquals(completion.record.record_kind, "result");
       assertEquals(await count(), 4);
@@ -150,7 +149,7 @@ dbTest(
         A,
         recordCreate.parse({
           id: crypto.randomUUID(),
-          ...{ title: "직접 기록", summary: "관찰", change_note: "생성 이유" },
+          ...{ body: "직접 기록" },
         }),
       );
       assertEquals(await count(), 6);
@@ -158,7 +157,7 @@ dbTest(
         ad,
         A,
         record.id,
-        recordUpdate.parse({ expected_version: record.version, body: "정정 본문", change_note: "관찰 정정" }),
+        recordUpdate.parse({ expected_version: record.version, body: "정정 본문" }),
       );
       assertEquals(await count(), 6);
       await a.deleteRecord(ad, A, record.id, recordUpdated.version);
@@ -187,12 +186,12 @@ dbTest(
         task = await a.createTask(
           ad,
           A,
-          taskCreate.parse({ id: crypto.randomUUID(), ...{ kind: "once", title: "행동", summary: "계획" } }),
+          taskCreate.parse({ id: crypto.randomUUID(), ...{ kind: "once", title: "행동" } }),
         ),
         record = await a.createRecord(
           ad,
           A,
-          recordCreate.parse({ id: crypto.randomUUID(), ...{ title: "기록", summary: "관찰" } }),
+          recordCreate.parse({ id: crypto.randomUUID(), ...{ body: "기록" } }),
         );
       const broken = <S>(store: S) =>
         new Proxy(store as object, {
@@ -238,14 +237,13 @@ dbTest(
         ri = recordUpdate.parse({
           expected_version: 1,
           title: "새 관찰",
-          change_note: "정정",
         });
       await assertRejects(() => e.updateEntity(badE, A, entity.id, ei));
       await assertRejects(() => a.updateTask(badA, A, task.id, ti));
       await assertRejects(() => a.updateRecord(badRecord, A, record.id, ri));
       assertEquals((await e.getEntity(ed, A, entity.id)).version, 1);
       assertEquals((await a.getTask(ad, A, task.id)).title, task.title);
-      assertEquals((await a.getRecord(ad, A, record.id)).title, record.title);
+      assertEquals((await a.getRecord(ad, A, record.id)).body, record.body);
       assertEquals(
         (await admin`select id from app.records where owner_id=${A.userId} and record_kind='change'`).length,
         3,

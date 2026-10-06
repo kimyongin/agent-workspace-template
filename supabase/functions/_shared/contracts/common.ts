@@ -17,14 +17,15 @@ export function text(min: number, max: number) {
 
 export const TEXT_LIMITS = {
   title: { min: 1, max: 100 },
-  summary: { min: 1, max: 300 },
-  body: { min: 0, max: 20_000 },
+  body: { min: 0, max: 22_000 },
 } as const;
 
 export const title = text(TEXT_LIMITS.title.min, TEXT_LIMITS.title.max);
-export const summary = text(TEXT_LIMITS.summary.min, TEXT_LIMITS.summary.max);
-export const body = text(TEXT_LIMITS.body.min, TEXT_LIMITS.body.max);
-export const contentLabels = { title: "제목", summary: "요약", body: "본문" } as const;
+export const body = z.string().refine((value) => codePointLength(value) <= TEXT_LIMITS.body.max, {
+  message: `${TEXT_LIMITS.body.max}자 이하여야 합니다`,
+});
+export const recordBody = body.refine((value) => value.trim().length > 0, { message: "필수 입력입니다" });
+export const contentLabels = { title: "제목", body: "본문" } as const;
 
 export const id = z.uuid();
 export const referenceIds = z.array(id).max(100).refine((v) => new Set(v).size === v.length, {

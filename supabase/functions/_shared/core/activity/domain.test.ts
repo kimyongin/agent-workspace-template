@@ -19,7 +19,7 @@ const meta = {
   updated_at: "2026-10-01T00:00:00.000Z",
 };
 const once = (over: Partial<Task> = {}): Task => ({
-  ...newTask({ id: "t", kind: "once", title: "t", summary: "s", body: "" }),
+  ...newTask({ id: "t", kind: "once", title: "t", body: "" }),
   ...meta,
   ...over,
 });
@@ -28,7 +28,6 @@ const recurring = (over: Partial<Task> = {}): Task => ({
     id: "t",
     kind: "recurring",
     title: "t",
-    summary: "s",
     body: "",
     recurrence: { freq: "daily", starts_on: "2026-10-01" },
     timezone: "Asia/Seoul",

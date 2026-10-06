@@ -6,19 +6,15 @@ import type { Task } from "../../functions/_shared/core/activity/domain.ts";
 import type { ActivityRecord, ActivityStore } from "../../functions/_shared/core/activity/ports.ts";
 import { AppError } from "../../functions/_shared/core/shared/errors.ts";
 import type { IndexJob } from "../../functions/_shared/core/shared/store.ts";
-import { searchInputHash } from "../../functions/_shared/core/shared/operations.ts";
 import { createHttpApp } from "../../functions/_shared/adapters/http/app.ts";
 import { activityTools } from "../../functions/_shared/adapters/mcp/activity-tools.ts";
 import { toErrorBody } from "../../functions/_shared/adapters/errors.ts";
 
 const actor = { userId: "00000000-0000-4000-8000-000000000001" };
 const now = "2026-10-04T01:00:00.000Z";
-const createInput = { id: crypto.randomUUID(), kind: "once", title: "준비", summary: "완료 흐름 검증" };
+const createInput = { id: crypto.randomUUID(), kind: "once", title: "준비" };
 const completeInput = {
-  change_note: "테스트 변경 이유",
   expected_version: 1,
-  title: "결과",
-  summary: "수행 완료",
   body: "실제 결과 본문",
 };
 const unsupported = () => {
@@ -63,7 +59,6 @@ function fixture(storageNow = () => now) {
       if (input.id && records.has(input.id)) throw new AppError("conflict", "중복 ID");
       const record: ActivityRecord = {
         ...input,
-        change_note: input.change_note ?? null,
         record_kind: input.record_kind ?? "user",
         entity_context: [],
         change: null,
@@ -133,49 +128,15 @@ function fixture(storageNow = () => now) {
   });
   return { deps, app, config, unused, tasks, records, jobs, mutations };
 }
-Deno.test("task change previews retain current title/content and deletion facts without writes", async () => {
-  const f = fixture();
-  const task = await activity.createTask(
-    f.deps,
-    actor,
-    taskCreate.parse({ id: crypto.randomUUID(), ...{ kind: "once", title: "준비", summary: "초기", body: "원문" } }),
-  );
-  const update = await activity.previewTaskChange(f.deps, actor, {
-    action: "update",
-    id: task.id,
-    input: taskUpdate.parse({ expected_version: 1, title: "새 준비", body: "새 원문" }),
-  });
-  assertEquals(update, {
-    changed: true,
-    memo: {
-      title: "새 준비 수정",
-      summary: "새 준비 수정",
-      body: "제목: 준비 → 새 준비\n본문: 원문 → 새 원문",
-    },
-  });
-  const deletion = await activity.previewTaskChange(f.deps, actor, {
-    action: "delete",
-    id: task.id,
-    input: { expected_version: 1 },
-  });
-  assertEquals(deletion.memo, {
-    title: "준비 삭제",
-    summary: "준비 삭제",
-    body:
-      "제목: 준비\n요약: 초기\n본문: 원문\n상태: open\n종류: once\n기한: 없음\n반복 규칙: 없음\n시간대: 없음\n태그: []\n엔터티: []\n중단 기간: []",
-  });
-  assertEquals(f.mutations, []);
-  assertEquals(f.tasks.get(task.id)?.title, "준비");
-});
 
 function snapshot(f: ReturnType<typeof fixture>) {
   return structuredClone({ tasks: [...f.tasks], records: [...f.records], jobs: f.jobs, mutations: f.mutations });
 }
 
-Deno.test("application: task content edits index only changed title/summary; stale mutations write nothing", async () => {
+Deno.test("application: task edits never index latest task state; stale mutations write nothing", async () => {
   const f = fixture();
   let task = await activity.createTask(f.deps, actor, taskCreate.parse({ ...createInput, id: crypto.randomUUID() }));
-  for (const patch of [{ title: "새 제목" }, { summary: "새 요약" }]) {
+  for (const patch of [{ title: "새 제목" }, { body: "새 본문" }]) {
     task = await activity.updateTask(
       f.deps,
       actor,
@@ -183,10 +144,10 @@ Deno.test("application: task content edits index only changed title/summary; sta
       taskUpdate.parse({ change_note: "테스트 변경 이유", expected_version: task.version, ...patch }),
     );
     taskResult.parse(task);
-    assertEquals(f.jobs.at(-1), { kind: "task", id: task.id, input_hash: await searchInputHash(task) });
+    assertEquals(f.jobs.length, 0);
   }
   assertEquals(task.version, 3);
-  assertEquals(new Set(f.jobs.map((job) => job.input_hash)).size, 3);
+  assertEquals(f.jobs.length, 0);
   task = await activity.updateTask(
     f.deps,
     actor,
@@ -195,7 +156,6 @@ Deno.test("application: task content edits index only changed title/summary; sta
       change_note: "테스트 변경 이유",
       expected_version: 3,
       title: task.title,
-      summary: task.summary,
       body: "검색 대상이 아닌 본문",
       due_on: "2026-10-05",
     }),
@@ -203,7 +163,7 @@ Deno.test("application: task content edits index only changed title/summary; sta
   assertEquals(task.version, 4);
   assertEquals(task.body, "검색 대상이 아닌 본문");
   assertEquals(task.due_on, "2026-10-05");
-  assertEquals(f.jobs.length, 3);
+  assertEquals(f.jobs.length, 0);
   const before = snapshot(f);
   for (
     const mutate of [
@@ -223,7 +183,7 @@ Deno.test("application: task content edits index only changed title/summary; sta
   }
   await activity.deleteTask(f.deps, actor, task.id, 4);
   assertEquals(f.tasks.has(task.id), false);
-  assertEquals(f.jobs.length, 3);
+  assertEquals(f.jobs.length, 0);
 });
 
 Deno.test("application: deleting completed/recurring tasks detaches history and preserves unrelated records", async () => {
@@ -239,7 +199,6 @@ Deno.test("application: deleting completed/recurring tasks detaches history and 
           ...kind === "once" ? createInput : {
             kind,
             title: "반복 수행",
-            summary: "회차 기록 보존",
             recurrence: { freq: "daily", starts_on: "2026-10-01" },
             timezone: "Asia/Seoul",
           },
@@ -248,7 +207,7 @@ Deno.test("application: deleting completed/recurring tasks detaches history and 
     );
     const input = recordCreate.parse({
       id: crypto.randomUUID(),
-      ...{ title: "기록", summary: "보존할 요약", body: "보존할 본문" },
+      ...{ body: "보존할 본문" },
     });
     const unrelated = await activity.createRecord(f.deps, actor, input);
     const linked = kind === "once"
@@ -303,8 +262,7 @@ Deno.test("application: create → complete → identical serial retry uses real
   const task = await activity.createTask(f.deps, actor, taskCreate.parse({ ...createInput, id: crypto.randomUUID() }));
   const input = taskComplete.parse(completeInput);
   const versionError = await assertRejects(
-    () =>
-      activity.completeTask(f.deps, actor, task.id, { change_note: "테스트 변경 이유", ...input, expected_version: 2 }),
+    () => activity.completeTask(f.deps, actor, task.id, { ...input, expected_version: 2 }),
     AppError,
   );
   assertEquals(versionError.code, "conflict");
@@ -320,7 +278,7 @@ Deno.test("application: create → complete → identical serial retry uses real
   assertEquals(result.record.task_id, task.id);
   await assertRejects(() => activity.completeTask(f.deps, actor, task.id, input), AppError);
   assertEquals(f.records.size, 1);
-  assertEquals(f.jobs.map((job) => job.kind), ["task", "record"]);
+  assertEquals(f.jobs.map((job) => job.kind), ["record"]);
   const error = await assertRejects(
     () => activity.completeTask(f.deps, actor, task.id, { ...input, body: "different" }),
     AppError,
@@ -356,7 +314,7 @@ Deno.test("HTTP routes and MCP ToolDef schema/handler share task outcomes and in
   assertEquals(retry.status, 409);
   assertEquals((await retry.json()).code, "conflict");
   assertEquals(f.records.size, 1);
-  assertEquals(f.jobs.length, 2);
+  assertEquals(f.jobs.length, 1);
 
   for (
     const [path, tool, input, code, status] of [
@@ -387,7 +345,7 @@ Deno.test("HTTP routes and MCP ToolDef schema/handler share task outcomes and in
   );
   assertEquals(create.input.safeParse({ ...createInput, owner_id: actor.userId }).success, false);
   assertEquals(f.records.size, 1);
-  assertEquals(f.jobs.length, 2);
+  assertEquals(f.jobs.length, 1);
 });
 
 Deno.test("HTTP PATCH/DELETE and MCP task mutation schema/handler share validation and no-write errors", async () => {
@@ -406,13 +364,13 @@ Deno.test("HTTP PATCH/DELETE and MCP task mutation schema/handler share validati
     change_note: "테스트 변경 이유",
     id: task.id,
     expected_version: 2,
-    summary: "MCP 수정",
+    body: "MCP 수정",
   }, actor);
   assertEquals(taskResult.parse(mcpEdited), f.tasks.get(task.id));
   assertEquals(f.tasks.get(task.id)?.title, "HTTP 수정");
-  assertEquals(f.tasks.get(task.id)?.summary, "MCP 수정");
+  assertEquals(f.tasks.get(task.id)?.body, "MCP 수정");
   assertEquals(f.tasks.get(task.id)?.version, 3);
-  assertEquals(f.jobs.length, 3);
+  assertEquals(f.jobs.length, 0);
 
   const errors = [
     {

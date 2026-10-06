@@ -7,11 +7,9 @@ function result(r: Record<string, unknown>): PrincipleResult {
   return {
     id: r.id as string,
     title: r.title as string,
-    summary: r.summary as string,
     body: r.body as string,
     is_current: r.is_current as boolean,
     saved_at: (r.saved_at as Date).toISOString(),
-    change_note: r.change_note as string | null,
     origin: r.origin as PrincipleResult["origin"],
     legacy_context: r.legacy_context as PrincipleResult["legacy_context"],
     version: r.version as number,
@@ -31,8 +29,8 @@ class SqlPrincipleStore extends SqlActorStore implements PrincipleStore {
     return r ? result(r) : null;
   }
   async insert(i: PrincipleCreate) {
-    const [r] = await this.tx`insert into app.principles(id,owner_id,title,summary,body,is_current,change_note,version)
-    values(${i.id},${this.actor.userId},${i.title},${i.summary},${i.body},true,${i.change_note ?? null},1) returning *`;
+    const [r] = await this.tx`insert into app.principles(id,owner_id,title,body,is_current,version)
+    values(${i.id},${this.actor.userId},${i.title},${i.body},true,1) returning *`;
     return result(r);
   }
   async get(id: string) {

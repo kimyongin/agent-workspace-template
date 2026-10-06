@@ -25,12 +25,12 @@ const mcpA = await connectMcp(tokenA);
 const mcpB = await connectMcp(tokenB);
 
 httpTest("기록 HTTP 편집·MCP 재시도는 추가 로그 없이 최신 메모·사건을 보존한다", async () => {
-  const record = await tool(mcpA, "create_record", { title: crypto.randomUUID(), summary: "원본 메모" });
+  const record = await tool(mcpA, "create_record", { body: crypto.randomUUID() });
   const historyBefore = await tool(mcpA, "list_records", { record_kind: "change", limit: 100 });
   const event = historyBefore.items.find((r: { change?: { target_id: string } }) => r.change?.target_id === record.id);
   assert(event);
   for (const row of [record, event]) {
-    const patch = { expected_version: row.version, summary: "정정한 최신 메모" };
+    const patch = { expected_version: row.version };
     const web = await call(sessionA, "PATCH", `/records/${row.id}`, patch);
     assertEquals(web.status, 200);
     assertEquals((await tool(mcpA, "update_record", { id: row.id, ...patch })).error.code, "conflict");
@@ -70,7 +70,7 @@ httpTest("기록 HTTP 편집·MCP 재시도는 추가 로그 없이 최신 메�
 
 httpTest("검색: HTTP/MCP 본문 키워드·원문 최소 응답·대체 상태·잘못된 입력 동등성", async () => {
   const marker = crypto.randomUUID(),
-    r = await tool(mcpA, "create_record", { title: "검색 원문", summary: "본문 확인", body: marker + " 근거" });
+    r = await tool(mcpA, "create_record", { body: marker + " 근거" });
   const q = { query: marker, mode: "keyword" };
   const history = await tool(mcpA, "list_records", { record_kind: "change", limit: 100 });
   const createdEvent = history.items.find((item: { change?: { target_id: string; action: string } }) =>
@@ -100,8 +100,6 @@ httpTest("검색: HTTP/MCP 본문 키워드·원문 최소 응답·대체 상태
 });
 
 const EXPECTED_TOOLS = [
-  "preview_entity_change",
-  "preview_task_change",
   "create_entity",
   "delete_entity",
   "get_entity",
@@ -128,7 +126,6 @@ const EXPECTED_TOOLS = [
   "resume_task",
   "search",
   "get_current_principle",
-  "preview_principle_change",
   "stop_task",
   "update_principle",
   "update_record",
@@ -136,8 +133,8 @@ const EXPECTED_TOOLS = [
 ].sort();
 
 httpTest("퇴역 적용 키: HTTP/MCP 엄격 거부 후 정상 완료·회차·기록 입력은 메모를 보존한다", async () => {
-  const once = await tool(mcpA, "create_task", { kind: "once", title: "한 번", summary: "실행" });
-  const result = { expected_version: 1, title: "결과", summary: "수행", body: "원칙 참고는 필요한 설명만 본문으로" };
+  const once = await tool(mcpA, "create_task", { kind: "once", title: "한 번" });
+  const result = { expected_version: 1, body: "원칙 참고는 필요한 설명만 본문으로" };
   const bad = { ...result, applied_principle_ids: [crypto.randomUUID()] };
   assertEquals((await call(sessionA, "POST", `/tasks/${once.id}/complete`, bad)).status, 400);
   assertEquals((await tool(mcpA, "complete_task", { id: once.id, ...bad })).error.code, "invalid_input");
@@ -147,12 +144,12 @@ httpTest("퇴역 적용 키: HTTP/MCP 엄격 거부 후 정상 완료·회차·�
   assertEquals(done.record.applied_principle_snapshots, []);
   const recurring = await tool(mcpA, "create_task", {
     kind: "recurring",
-    title: "매일",
-    summary: "실행",
+
+    body: "매일",
     recurrence: { freq: "daily", starts_on: "2020-01-01" },
     timezone: "Asia/Seoul",
   });
-  const content = { title: "회차", summary: "수행", body: "참고 메모" };
+  const content = { body: "참고 메모" };
   assertEquals(
     (await call(sessionA, "POST", `/tasks/${recurring.id}/occurrences/2020-01-01/records`, {
       ...content,
@@ -228,7 +225,6 @@ httpTest("활동 다중 태그 OR는 HTTP/MCP에서 페이지 전에 적용되�
         await tool(mcpA, createTool, {
           ...(kind === "tasks" ? { kind: "once" } : {}),
           title: "다중 분류",
-          summary: "OR 페이지",
           tag_ids: [tag.id],
         }),
       );
@@ -249,24 +245,19 @@ httpTest("활동 다중 태그 OR는 HTTP/MCP에서 페이지 전에 적용되�
 
 httpTest("기록·원칙·완료·회차의 태그 HTTP/MCP 동등성", async () => {
   const tag = await tool(mcpA, "create_tag", { name: crypto.randomUUID().slice(0, 30) });
-  const refs = { title: "분류", summary: "검증", tag_ids: [tag.id] };
+  const refs = { title: "분류", tag_ids: [tag.id] };
   assertEquals(
     (await tool(mcpA, "create_principle", refs)).error,
     (await call(sessionA, "POST", "/principles", refs)).body,
   );
   const r = await call(sessionA, "POST", "/records", refs);
   assertEquals((await tool(mcpA, "get_record", { id: r.body.id })).tag_ids, [tag.id]);
-  const once = await tool(mcpA, "create_task", { kind: "once", title: "실행", summary: "검증" });
-  const done = await call(sessionA, "POST", `/tasks/${once.id}/complete`, {
-    change_note: "테스트 변경 이유",
-    ...refs,
-    expected_version: 1,
-  });
+  const once = await tool(mcpA, "create_task", { kind: "once", title: "실행" });
+  const done = await call(sessionA, "POST", `/tasks/${once.id}/complete`, { ...refs, expected_version: 1 });
   assertEquals(done.body.record.tag_ids, [tag.id]);
   const repeat = await tool(mcpA, "create_task", {
     kind: "recurring",
     title: "반복",
-    summary: "검증",
     recurrence: { freq: "daily", starts_on: "2020-01-01" },
     timezone: "Asia/Seoul",
   });
@@ -309,7 +300,6 @@ httpTest("원칙: HTTP/MCP 현재 수정·과거 접근 차단·재시도·삭�
     const input = {
       id: crypto.randomUUID(),
       title: "독서 원칙",
-      summary: "긴 책 읽기",
       body: "# 근거",
     };
     const created = await call(sessionA, "POST", "/principles", input);
@@ -328,8 +318,8 @@ httpTest("원칙: HTTP/MCP 현재 수정·과거 접근 차단·재시도·삭�
     assertEquals((await tool(mcpA, "get_principle", { id: retried.id })).is_current, true);
     // Only explicit pre-transition fixtures are historical documents after current saves become updates.
     const [owner] = await admin`select owner_id from app.principles where id=${second.id}`;
-    const [legacy] = await admin`insert into app.principles(owner_id,title,summary,body,is_current,origin,saved_at)
-    values(${owner.owner_id},'옛 독서 원칙','과거 근거','# 과거 본문',false,'legacy','2020-01-01T00:00:00Z') returning id`;
+    const [legacy] = await admin`insert into app.principles(owner_id,title,body,is_current,origin,saved_at)
+    values(${owner.owner_id},'옛 독서 원칙','과거 근거','# 과거 본문',false,'2020-01-01T00:00:00Z') returning id`;
     fixtureIds.push(legacy.id);
     assertEquals((await tool(mcpA, "get_principle", { id: legacy.id })).error.code, "not_found");
     assertEquals((await call(sessionA, "GET", `/principles/${legacy.id}`)).status, 404);
@@ -376,7 +366,6 @@ httpTest("원칙: HTTP/MCP 현재 수정·과거 접근 차단·재시도·삭�
     );
     const recreated = await tool(mcpA, "create_principle", {
       title: "재생성한 원칙",
-      summary: "새 현재 문서",
       body: "재생성 본문",
     });
     fixtureIds.push(recreated.id);
@@ -501,7 +490,6 @@ httpTest("웹(HTTP)에서 만든 할 일을 MCP로 조회·완료하고 웹에�
   const created = await call(sessionA, "POST", "/tasks", {
     kind: "once",
     title: "웹에서 만든 할 일",
-    summary: "에이전트가 완료할 일",
   });
   assertEquals(created.status, 201);
   const viaMcp = await tool(mcpA, "get_task", { id: created.body.id });
@@ -510,26 +498,23 @@ httpTest("웹(HTTP)에서 만든 할 일을 MCP로 조회·완료하고 웹에�
   assert(listed.items.some((t: { id: string }) => t.id === created.body.id));
 
   const done = await tool(mcpA, "complete_task", {
-    change_note: "테스트 변경 이유",
     id: created.body.id,
     expected_version: 1,
     title: "에이전트가 완료",
-    summary: "MCP로 결과 저장",
   });
   assertEquals(done.task.status, "done");
   const web = await call(sessionA, "GET", `/tasks/${created.body.id}`);
   assertEquals(web.body.status, "done");
-  assertEquals(web.body.result_record.title, "에이전트가 완료");
+  assertEquals(web.body.result_record.body, "에이전트가 완료");
 });
 
 httpTest("MCP에서 만든 기록과 반복 회차를 HTTP가 같게 본다", async () => {
-  const rec = await tool(mcpA, "create_record", { title: "MCP 기록", summary: "직접 작성" });
+  const rec = await tool(mcpA, "create_record", { body: "MCP 기록" });
   assertEquals((await call(sessionA, "GET", `/records/${rec.id}`)).body, rec);
 
   const t = await tool(mcpA, "create_task", {
     kind: "recurring",
     title: "스트레칭",
-    summary: "매일 5분",
     recurrence: { freq: "daily", starts_on: seoulDate(-2) },
     timezone: "Asia/Seoul",
   });
@@ -539,7 +524,6 @@ httpTest("MCP에서 만든 기록과 반복 회차를 HTTP가 같게 본다", as
     id: crypto.randomUUID(),
     date: seoulDate(-1),
     title: "함",
-    summary: "5분",
   });
   const range = { from: seoulDate(-2), to: seoulDate(1) };
   const viaMcp = await tool(mcpA, "list_occurrences", { id: t.id, ...range });
@@ -549,10 +533,10 @@ httpTest("MCP에서 만든 기록과 반복 회차를 HTTP가 같게 본다", as
 });
 
 httpTest("오류 의미가 HTTP와 같다(code·retryable·fields)", async () => {
-  const t = await tool(mcpA, "create_task", { kind: "once", title: "오류 시험", summary: "s" });
+  const t = await tool(mcpA, "create_task", { kind: "once", title: "오류 시험" });
 
-  const bad = await tool(mcpA, "create_task", { kind: "once", title: "가".repeat(101), summary: "s" });
-  const badHttp = await call(sessionA, "POST", "/tasks", { kind: "once", title: "가".repeat(101), summary: "s" });
+  const bad = await tool(mcpA, "create_task", { kind: "once", title: "가".repeat(101) });
+  const badHttp = await call(sessionA, "POST", "/tasks", { kind: "once", title: "가".repeat(101) });
   assertEquals(bad.error.code, "invalid_input");
   assertEquals(bad.error, badHttp.body);
 
@@ -594,7 +578,6 @@ httpTest("오류 의미가 HTTP와 같다(code·retryable·fields)", async () =>
     id: crypto.randomUUID(),
     date: seoulDate(),
     title: "a",
-    summary: "b",
   });
   assertEquals(future.error.code, "conflict"); // 일회성 할 일에는 회차가 없다
 
@@ -608,13 +591,12 @@ httpTest("오류 의미가 HTTP와 같다(code·retryable·fields)", async () =>
 });
 
 httpTest("같은 버전의 완료 요청은 한 번만 실행된다", async () => {
-  const t = await tool(mcpA, "create_task", { kind: "once", title: "재시도", summary: "s" });
+  const t = await tool(mcpA, "create_task", { kind: "once", title: "재시도" });
   const args = {
     change_note: "테스트 변경 이유",
     id: t.id,
     expected_version: 1,
     title: "완료",
-    summary: "결과",
   };
   const [x, y] = await Promise.all([tool(mcpA, "complete_task", args), tool(mcpA, "complete_task", args)]);
   assertEquals([x, y].filter((r) => !r.error).length, 1);

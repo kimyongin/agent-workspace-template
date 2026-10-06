@@ -6,9 +6,9 @@ httpTest("writes require object UUIDs and reject retired request metadata/curren
   for (
     const [path, content] of [
       ["/entities", { prop1: "입력 거부" }],
-      ["/tasks", { kind: "once", title: "입력 거부", summary: "검증" }],
-      ["/records", { title: "입력 거부", summary: "검증" }],
-      ["/principles", { title: "입력 거부", summary: "검증" }],
+      ["/tasks", { kind: "once", title: "입력 거부" }],
+      ["/records", { body: "입력 거부" }],
+      ["/principles", { title: "입력 거부" }],
       ["/tags", { name: "입력 거부" }],
     ] as const
   ) {
@@ -23,5 +23,5 @@ httpTest("writes require object UUIDs and reject retired request metadata/curren
       400,
     );
   }
-  assertEquals((await call(token, "POST", "/principles/current", { title: "과거 경로", summary: "거부" })).status, 404);
+  assertEquals((await call(token, "POST", "/principles/current", { title: "과거 경로" })).status, 404);
 });

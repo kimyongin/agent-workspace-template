@@ -52,13 +52,13 @@ for (
             f.actor,
             taskCreate.parse({
               id: crypto.randomUUID(),
-              ...{ kind: "once", title: "parent", summary: "context", tag_ids },
+              ...{ kind: "once", title: "parent", tag_ids },
             }),
           )
           : await a.createRecord(
             ad,
             f.actor,
-            recordCreate.parse({ id: crypto.randomUUID(), ...{ title: "parent", summary: "context", tag_ids } }),
+            recordCreate.parse({ id: crypto.randomUUID(), ...{ body: "parent", tag_ids } }),
           );
         // Hold the real application transaction after its edit, before commit.
         const heldE: e.EntityDeps = {

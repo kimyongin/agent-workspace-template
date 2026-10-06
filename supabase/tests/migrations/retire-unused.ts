@@ -131,7 +131,7 @@ try {
         old.id,
         principleUpdate.parse({
           title: old.title,
-          summary: old.summary,
+          summary: "이전 요약",
           body: "현재 문서 편집",
           expected_version: old.version,
         }),

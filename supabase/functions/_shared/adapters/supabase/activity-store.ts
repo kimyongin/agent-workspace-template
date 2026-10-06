@@ -29,7 +29,6 @@ function toTask(r: Row): Task {
     id: r.id as string,
     kind: r.kind as Task["kind"],
     title: r.title as string,
-    summary: r.summary as string,
     body: r.body as string,
     due_on: (r.due_on as string | null) ?? null,
     recurrence: (r.recurrence as Task["recurrence"]) ?? null,
@@ -48,15 +47,12 @@ function toTask(r: Row): Task {
 function toRecord(r: Row): ActivityRecord {
   return {
     record_kind: r.record_kind as "user" | "result" | "change",
-    change_note: (r.change_note as string | null) ?? null,
     change: (r.change_metadata as ActivityRecord["change"]) ?? null,
     applied_principle_snapshots: (r.applied_principle_snapshots as ActivityRecord["applied_principle_snapshots"]) ?? [],
     entity_ids: (r.entity_ids as string[]) ?? [],
     entity_context: (r.entity_context as Task["entity_context"]) ?? [],
     tag_ids: (r.tag_ids as string[]) ?? [],
     id: r.id as string,
-    title: r.title as string,
-    summary: r.summary as string,
     body: r.body as string,
     occurred_at: iso(r.occurred_at)!,
     task_id: (r.task_id as string | null) ?? null,
@@ -69,18 +65,17 @@ function toRecord(r: Row): ActivityRecord {
 
 // 날짜 컬럼은 문자열(YYYY-MM-DD)로 받는다.
 const taskColumns = (tx: Tx) =>
-  tx`id, entity_ids, entity_context, kind, title, summary, body, due_on::text as due_on, recurrence, timezone, status, completed_at,
+  tx`id, entity_ids, entity_context, kind, title, body, due_on::text as due_on, recurrence, timezone, status, completed_at,
      result_record_id, pauses, version, created_at, updated_at,
      ${tagIdsColumn(tx, "task")}`;
 const recordColumns = (tx: Tx) =>
-  tx`id, entity_ids, entity_context, title, summary, body, occurred_at, task_id, occurrence_on::text as occurrence_on, version, created_at, updated_at,
-    record_kind,change_note,change_metadata,applied_principle_snapshots,
+  tx`id, entity_ids, entity_context, body, occurred_at, task_id, occurrence_on::text as occurrence_on, version, created_at, updated_at,
+    record_kind,change_metadata,applied_principle_snapshots,
     ${tagIdsColumn(tx, "record")}`;
 
 /** 수정 가능한 컬럼의 허용 목록. 이 밖의 키는 SQL로 가지 않는다. */
 const TASK_WRITABLE = [
   "title",
-  "summary",
   "body",
   "due_on",
   "recurrence",
@@ -90,7 +85,7 @@ const TASK_WRITABLE = [
   "result_record_id",
   "pauses",
 ] as const;
-const RECORD_WRITABLE = ["title", "summary", "body", "occurred_at", "change_note"] as const;
+const RECORD_WRITABLE = ["body", "occurred_at"] as const;
 
 function pick<T extends Record<string, unknown>>(tx: Tx, values: T, allowed: readonly string[]) {
   const out: Record<string, unknown> = {};
@@ -190,8 +185,8 @@ export class SqlActivityStore extends SqlActorStore implements ActivityStore {
 
   async getRecordSummaries(ids: string[]) {
     if (ids.length === 0) return [];
-    return await this.tx<{ id: string; title: string; summary: string }[]>`
-      select id, title, summary from app.records where id in ${this.tx(ids)}`;
+    return await this.tx<{ id: string; body: string }[]>`
+      select id, body from app.records where id in ${this.tx(ids)}`;
   }
 
   async listRecords(f: RecordFilter) {
@@ -228,13 +223,10 @@ export class SqlActivityStore extends SqlActorStore implements ActivityStore {
       id: record.id ?? crypto.randomUUID(),
       owner_id: this.actor.userId,
       ...selection,
-      title: record.title,
-      summary: record.summary,
       body: record.body,
       task_id: record.task_id,
       occurrence_on: record.occurrence_on,
       record_kind: record.record_kind ?? "user",
-      change_note: record.change_note ?? null,
     };
     if (record.occurred_at) values.occurred_at = record.occurred_at;
     const [row] = await tx`insert into app.records ${tx(values)} returning id`;

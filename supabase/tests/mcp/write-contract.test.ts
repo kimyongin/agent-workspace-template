@@ -10,9 +10,9 @@ httpTest("OAuth MCP rejects missing object UUIDs and retired request metadata/up
     for (
       const [name, content] of [
         ["create_entity", { prop1: "입력 거부" }],
-        ["create_task", { kind: "once", title: "입력 거부", summary: "검증" }],
-        ["create_record", { title: "입력 거부", summary: "검증" }],
-        ["create_principle", { title: "입력 거부", summary: "검증" }],
+        ["create_task", { kind: "once", title: "입력 거부" }],
+        ["create_record", { body: "입력 거부" }],
+        ["create_principle", { title: "입력 거부" }],
         ["create_tag", { name: "입력 거부" }],
       ] as const
     ) {

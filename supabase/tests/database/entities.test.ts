@@ -24,7 +24,7 @@ dbTest("Entity DB: same owner 참조 거부·삭제 링크 해제·원문/버전
     A,
     taskCreate.parse({
       id: crypto.randomUUID(),
-      ...{ kind: "once", title: "행동", summary: "요약", entity_ids: [e.id] },
+      ...{ kind: "once", title: "행동", entity_ids: [e.id] },
     }),
   );
   const record = await activity.createRecord(
@@ -32,7 +32,7 @@ dbTest("Entity DB: same owner 참조 거부·삭제 링크 해제·원문/버전
     A,
     recordCreate.parse({
       id: crypto.randomUUID(),
-      ...{ title: "기록", summary: "요약", body: "기록 원문", entity_ids: [e.id] },
+      ...{ title: "기록", body: "기록 원문", entity_ids: [e.id] },
     }),
   );
   for (const ref of [foreign.id, crypto.randomUUID()]) {
@@ -50,7 +50,7 @@ dbTest("Entity DB: same owner 참조 거부·삭제 링크 해제·원문/버전
             a,
             A,
             record.id,
-            recordUpdate.parse({ change_note: "테스트 변경 이유", expected_version: 1, entity_ids: [ref] }),
+            recordUpdate.parse({ expected_version: 1, entity_ids: [ref] }),
           ),
       ]
     ) {
@@ -62,7 +62,7 @@ dbTest("Entity DB: same owner 참조 거부·삭제 링크 해제·원문/버전
     a,
     A,
     task.id,
-    taskComplete.parse({ change_note: "테스트 변경 이유", expected_version: 1, title: "완료 결과", summary: "요약" }),
+    taskComplete.parse({ change_note: "테스트 변경 이유", expected_version: 1, title: "완료 결과" }),
   );
   assertEquals(completed.record.entity_ids, [e.id]);
   const detail = await entity.getEntity(d, A, e.id);

@@ -2,7 +2,6 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { businessMeta } from "../../contracts/change.ts";
-import { taskChangePreview } from "../../contracts/task-change.ts";
 import { expectedVersion, isoDate } from "../../contracts/common.ts";
 import { recordCreate, recordListQuery, recordUpdate } from "../../contracts/record.ts";
 import { occurrenceRange, taskComplete, taskCreate, taskListQuery, taskUpdate } from "../../contracts/task.ts";
@@ -14,11 +13,6 @@ const versionBody = z.strictObject({ expected_version: expectedVersion, ...busin
 
 export function activityRoutes(deps: activity.ActivityDeps) {
   const app = new Hono<HttpEnv>();
-  app.post(
-    "/tasks/preview",
-    async (c) =>
-      c.json(await activity.previewTaskChange(deps, c.get("actor"), parse(taskChangePreview, await json(c.req.raw)))),
-  );
   app.post("/tasks/:id/delete", async (c) => {
     const i = parse(versionBody, await json(c.req.raw));
     await activity.deleteTask(
@@ -27,7 +21,6 @@ export function activityRoutes(deps: activity.ActivityDeps) {
       idParam(c.req.param("id")),
       i.expected_version,
       i.change_note,
-      i.change_memo,
     );
     return c.body(null, 204);
   });
@@ -67,7 +60,7 @@ export function activityRoutes(deps: activity.ActivityDeps) {
     const id = idParam(c.req.param("id"));
     const i = parse(versionBody, await json(c.req.raw));
     return c.json(
-      await activity.stopTask(deps, c.get("actor"), id, i.expected_version, i.change_note, i.change_memo),
+      await activity.stopTask(deps, c.get("actor"), id, i.expected_version, i.change_note),
     );
   });
   app.post("/tasks/:id/resume", async (c) => {
@@ -80,7 +73,6 @@ export function activityRoutes(deps: activity.ActivityDeps) {
         id,
         i.expected_version,
         i.change_note,
-        i.change_memo,
       ),
     );
   });

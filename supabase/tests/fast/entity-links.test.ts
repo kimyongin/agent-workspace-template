@@ -64,7 +64,6 @@ Deno.test("HTTP task can select two entities and MCP independently reads both; b
       id: crypto.randomUUID(),
       kind: "once",
       title: "공동 업무",
-      summary: "두 대상",
       body: "본문에는 세 번째 대상도 언급",
       entity_ids: ids,
     }),
@@ -84,7 +83,6 @@ Deno.test("HTTP task rejects conflicting legacy target alias on edit without cha
     id: crypto.randomUUID(),
     kind: "once",
     title: "대상 유지",
-    summary: "선택한 업무",
     entity_ids: [selected],
   }) as { id: string };
   const response = await f.app.request(`/tasks/${created.id}`, {

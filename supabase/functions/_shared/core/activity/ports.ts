@@ -9,15 +9,12 @@ import type { NewTask, Task } from "./domain.ts";
 
 export interface ActivityRecord {
   record_kind?: "user" | "result" | "change";
-  change_note?: string | null;
   change?: ChangeMetadata | null;
   applied_principle_snapshots?: AppliedPrincipleSnapshot[];
   entity_ids?: string[];
   entity_context?: EntityContext[];
   tag_ids: string[];
   id: string;
-  title: string;
-  summary: string;
   body: string;
   occurred_at: string;
   task_id: string | null;
@@ -30,26 +27,21 @@ export interface ActivityRecord {
 export interface NewRecord {
   id?: string;
   record_kind?: "user" | "result";
-  change_note?: string;
   entity_ids?: string[];
   entity_context?: EntityContext[];
   tag_ids?: string[];
-  title: string;
-  summary: string;
   body: string;
   occurred_at: string | null;
   task_id: string | null;
   occurrence_on: string | null;
 }
 
-export type RecordChanges =
-  & { change_note?: string }
-  & Partial<
-    Pick<
-      ActivityRecord,
-      "title" | "summary" | "body" | "occurred_at" | "tag_ids" | "entity_ids"
-    >
-  >;
+export type RecordChanges = Partial<
+  Pick<
+    ActivityRecord,
+    "body" | "occurred_at" | "tag_ids" | "entity_ids"
+  >
+>;
 
 /** 목록의 다음 위치(정렬 키 + id). */
 export interface Keyset {
@@ -95,7 +87,7 @@ export interface ActivityStore extends ChangeStore {
   deleteTask(id: string): Promise<void>;
 
   getRecord(id: string, opts?: { forUpdate?: boolean }): Promise<ActivityRecord | null>;
-  getRecordSummaries(ids: string[]): Promise<Pick<ActivityRecord, "id" | "title" | "summary">[]>;
+  getRecordSummaries(ids: string[]): Promise<Pick<ActivityRecord, "id" | "body">[]>;
   listRecords(filter: RecordFilter): Promise<ActivityRecord[]>;
   occurrenceRecords(taskId: string, from: string, to: string): Promise<{ id: string; occurrence_on: string }[]>;
   insertRecord(record: NewRecord): Promise<ActivityRecord>;

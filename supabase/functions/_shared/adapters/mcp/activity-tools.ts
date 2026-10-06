@@ -3,7 +3,6 @@
 import type { ToolDef } from "./tools.ts";
 import { z } from "zod";
 import { businessMeta, mutationMeta } from "../../contracts/change.ts";
-import { taskChangePreview } from "../../contracts/task-change.ts";
 import { expectedVersion, id, isoDate } from "../../contracts/common.ts";
 import { recordCreate, recordListQuery, recordUpdate } from "../../contracts/record.ts";
 import { occurrenceRange, taskComplete, taskCreate, taskListQuery, taskUpdate } from "../../contracts/task.ts";
@@ -47,19 +46,6 @@ const byIdDelete = (args: Record<string, unknown>) => parse(deleteInput, args);
 
 export function activityTools(deps: activity.ActivityDeps): ToolDef[] {
   return [
-    {
-      name: "preview_task_change",
-      description:
-        "할 일 create/update/delete/stop/resume/complete/occurrence의 기본 기록 메모를 저장 없이 확인한다. 현재 버전과 수행 조건을 검증한다. 변경은 change_memo, 완료·회차는 결과 제목·요약·본문으로 최종 제출한다.",
-      input: z.strictObject({
-        action: z.enum(["create", "update", "delete", "stop", "resume", "complete", "occurrence"]),
-        id: id.optional(),
-        date: isoDate.optional(),
-        input: z.record(z.string(), z.unknown()),
-      }),
-      readOnly: true,
-      handler: (args, actor) => activity.previewTaskChange(deps, actor, parse(taskChangePreview, args)),
-    },
     {
       name: "create_task",
       description:
@@ -119,7 +105,6 @@ export function activityTools(deps: activity.ActivityDeps): ToolDef[] {
           input.id,
           input.expected_version,
           input.change_note,
-          input.change_memo,
         );
         return { deleted: input.id };
       },
@@ -159,7 +144,6 @@ export function activityTools(deps: activity.ActivityDeps): ToolDef[] {
           input.id,
           input.expected_version,
           input.change_note,
-          input.change_memo,
         );
       },
     },
@@ -176,7 +160,6 @@ export function activityTools(deps: activity.ActivityDeps): ToolDef[] {
           input.id,
           input.expected_version,
           input.change_note,
-          input.change_memo,
         );
       },
     },

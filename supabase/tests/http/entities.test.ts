@@ -14,10 +14,9 @@ httpTest("Entity HTTP: CRUD·권한·입력·버전·참조·삭제 보존 실�
   for (const bad of [{ ...input, prop2: -1 }, { ...input, prop3: "2023-02-29" }, { ...input, version: 2 }]) {
     assertEquals((await call(A, "POST", "/entities", bad)).status, 400);
   }
-  const task =
-    (await call(A, "POST", "/tasks", { kind: "once", title: "HTTP 연결", summary: "요약", entity_ids: [e.id] })).body;
+  const task = (await call(A, "POST", "/tasks", { kind: "once", title: "HTTP 연결", entity_ids: [e.id] })).body;
   assertEquals(
-    (await call(B, "POST", "/records", { title: "외부 연결", summary: "요약", entity_ids: [e.id] })).body.code,
+    (await call(B, "POST", "/records", { body: "외부 연결", entity_ids: [e.id] })).body.code,
     "invalid_reference",
   );
   const detail = (await call(A, "GET", `/entities/${e.id}`)).body;

@@ -15,11 +15,10 @@ dbTest(
       const first = await p.createPrinciple(
         d,
         a,
-        principleCreate.parse({ id: crypto.randomUUID(), ...{ title: "기준", summary: "요약" } }),
+        principleCreate.parse({ id: crypto.randomUUID(), ...{ title: "기준" } }),
       );
       const i = principleUpdate.parse({
         title: "새 기준",
-        summary: "새 요약",
         body: "본문",
         change_note: "원자성",
         expected_version: first.version,
@@ -57,7 +56,7 @@ dbTest("principle deletion failure rolls back its revision and the same retry re
     const first = await p.createPrinciple(
       d,
       f.actor,
-      principleCreate.parse({ id: crypto.randomUUID(), ...{ title: "기준", summary: "요약" } }),
+      principleCreate.parse({ id: crypto.randomUUID(), ...{ title: "기준" } }),
     );
     const next = await p.updatePrinciple(d, f.actor, first.id, { title: "갱신 기준", expected_version: first.version });
     const broken = {
@@ -80,7 +79,7 @@ dbTest("principle deletion failure rolls back its revision and the same retry re
     const replacement = await p.createPrinciple(
       d,
       f.actor,
-      principleCreate.parse({ id: crypto.randomUUID(), ...{ title: "새 기준", summary: "새 요약" } }),
+      principleCreate.parse({ id: crypto.randomUUID(), ...{ title: "새 기준" } }),
     );
     assertEquals(replacement.version, 1);
   } finally {

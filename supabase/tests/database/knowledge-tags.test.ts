@@ -52,7 +52,7 @@ dbTest(
               A,
               taskCreate.parse({
                 id: crypto.randomUUID(),
-                ...{ kind: "once", title: "거부", summary: "요약", tag_ids: [entityTag.id] },
+                ...{ kind: "once", title: "거부", tag_ids: [entityTag.id] },
               }),
             ),
           () =>
@@ -61,7 +61,7 @@ dbTest(
               A,
               recordCreate.parse({
                 id: crypto.randomUUID(),
-                ...{ title: "거부", summary: "요약", tag_ids: [entityTag.id] },
+                ...{ body: "거부", tag_ids: [entityTag.id] },
               }),
             ),
         ]
@@ -87,7 +87,7 @@ dbTest(
         A,
         recordCreate.parse({
           id: crypto.randomUUID(),
-          ...{ title: "활동", summary: "요약", body: "보존", tag_ids: [activityTag.id] },
+          ...{ title: "활동", body: "보존", tag_ids: [activityTag.id] },
         }),
       );
       assertEquals(
@@ -98,7 +98,7 @@ dbTest(
         ad,
         A,
         record.id,
-        recordUpdate.parse({ expected_version: record.version, change_note: "분류 제거", tag_ids: [] }),
+        recordUpdate.parse({ expected_version: record.version, tag_ids: [] }),
       );
       await e.updateEntity(
         ed,

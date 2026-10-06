@@ -33,13 +33,13 @@ dbTest(
         f.actor,
         taskCreate.parse({
           id: crypto.randomUUID(),
-          ...{ kind: "once", title: "공동 업무", summary: "두 대상", entity_ids: ids },
+          ...{ kind: "once", title: "공동 업무", entity_ids: ids },
         }),
       );
       const unlinked = await activity.createTask(
         ad,
         f.actor,
-        taskCreate.parse({ id: crypto.randomUUID(), ...{ kind: "once", title: "개인 업무", summary: "대상 없음" } }),
+        taskCreate.parse({ id: crypto.randomUUID(), ...{ kind: "once", title: "개인 업무" } }),
       );
       assertEquals((await activity.getTask(ad, f.actor, task.id)).entity_ids, ids);
       assertEquals(unlinked.entity_ids, []);
@@ -56,7 +56,7 @@ dbTest(
           f.actor,
           taskCreate.parse({
             id: crypto.randomUUID(),
-            ...{ kind: "once", title: "없는 대상", summary: "거부", entity_ids: [crypto.randomUUID()] },
+            ...{ kind: "once", title: "없는 대상", entity_ids: [crypto.randomUUID()] },
           }),
         )
       );
@@ -87,13 +87,13 @@ dbTest(
         f.actor,
         taskCreate.parse({
           id: crypto.randomUUID(),
-          ...{ kind: "once", title: "남은 업무", summary: "보존", entity_ids: ids },
+          ...{ kind: "once", title: "남은 업무", entity_ids: ids },
         }),
       );
       const record = await activity.createRecord(
         ad,
         f.actor,
-        recordCreate.parse({ id: crypto.randomUUID(), ...{ title: "당시 자료", summary: "메모", entity_ids: ids } }),
+        recordCreate.parse({ id: crypto.randomUUID(), ...{ body: "당시 자료", entity_ids: ids } }),
       );
       await admin`delete from app.entities where id=${ids[1]}`;
       const remaining = await activity.getTask(ad, f.actor, task.id);
@@ -145,7 +145,7 @@ dbTest(
         f.actor,
         recordCreate.parse({
           id: crypto.randomUUID(),
-          ...{ title: "선택 기록", summary: "원본", entity_ids: [target.id] },
+          ...{ body: "선택 기록", entity_ids: [target.id] },
         }),
       );
       const original = await activity.getRecord(ad, f.actor, record.id);
@@ -235,7 +235,7 @@ dbTest(
         f.actor,
         taskCreate.parse({
           id: crypto.randomUUID(),
-          ...{ kind: "once", title: "연결된 업무", summary: "현재 선택", entity_ids: [target.id] },
+          ...{ kind: "once", title: "연결된 업무", entity_ids: [target.id] },
         }),
       );
       const record = await activity.createRecord(
@@ -243,7 +243,7 @@ dbTest(
         f.actor,
         recordCreate.parse({
           id: crypto.randomUUID(),
-          ...{ title: "과거 자료", summary: "당시 문맥", entity_ids: [target.id] },
+          ...{ body: "과거 자료", entity_ids: [target.id] },
         }),
       );
       const before = await entity.getEntity(ed, f.actor, target.id);

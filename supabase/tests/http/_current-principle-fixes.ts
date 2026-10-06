@@ -9,16 +9,15 @@ export async function currentPrincipleFixes(invoke: Invoke) {
   const ids: string[] = [];
   try {
     if (baseline) await admin`update app.principles set is_current=false where id=${baseline.id}`;
-    current = await invoke("create", { title: marker, summary: "현재", body: "원문" });
+    current = await invoke("create", { title: marker, body: "원문" });
     ids.push(current.id as string);
     const [owner] = await admin`select owner_id from app.principles where id=${current.id as string}`;
     const [archive] =
-      await admin`insert into app.principles(owner_id,title,summary,body,is_current,origin) values(${owner.owner_id},${marker},'과거','과거 원문',false,'legacy') returning id`;
+      await admin`insert into app.principles(owner_id,title,body,is_current,origin) values(${owner.owner_id},${marker},'과거 원문',false,'legacy') returning id`;
     ids.push(archive.id);
     const saved = await invoke("update", {
       id: current.id,
       title: marker,
-      summary: "현재",
       body: "새 원문",
       expected_version: current.version,
     });
@@ -27,7 +26,7 @@ export async function currentPrincipleFixes(invoke: Invoke) {
     assertEquals(await invoke("get", { id: current.id }), current);
     const found = await invoke("search", { query: marker, kinds: ["principle"], mode: "keyword" });
     assertEquals((found.items as { id: string }[]).map((r) => r.id), [current.id]);
-    record = await invoke("create_record", { title: marker + " 기록", summary: "과거 근거", body: "판단 메모" });
+    record = await invoke("create_record", { body: "판단 메모" });
     const snapshot = [{
       id: archive.id,
       title: "당시 제목",

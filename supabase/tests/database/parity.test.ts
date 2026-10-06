@@ -36,8 +36,8 @@ const boundaries = (field: "title" | "summary" | "body", max: number, min: numbe
   ...(min > 0 ? [{ name: `${field} 빈 값`, value: "" }] : []),
 ];
 
-const onceTask = { kind: "once", title: "제목", summary: "요약", body: "" };
-const record = { title: "제목", summary: "요약", body: "" };
+const onceTask = { kind: "once", title: "제목", body: "" };
+const record = { title: "제목", body: "" };
 
 for (const [field, max, min] of [["title", 100, 1], ["summary", 300, 1], ["body", 20_000, 0]] as const) {
   for (const b of boundaries(field, max, min)) {

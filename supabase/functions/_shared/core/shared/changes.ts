@@ -1,5 +1,4 @@
 import type { ChangeMetadata } from "../../contracts/change.ts";
-import type { ChangeMemo } from "../../contracts/change.ts";
 import type { EntityContext } from "../../contracts/entity-links.ts";
 import type { Recurrence } from "../../contracts/task.ts";
 
@@ -10,7 +9,6 @@ export interface ChangeFacts {
   prop3?: string | null;
   prop4?: "a" | "b" | "c";
   title?: string;
-  summary?: string;
   body?: string;
   status?: "open" | "done" | "active" | "stopped";
   kind?: "once" | "recurring";
@@ -36,7 +34,6 @@ export interface ChangeInput {
   before: ChangeFacts | null;
   after: ChangeFacts | null;
   change_note?: string;
-  change_memo?: ChangeMemo;
 }
 export interface ChangeStore {
   appendChange(input: ChangeInput): Promise<void>;

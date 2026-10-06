@@ -5,7 +5,6 @@ import type { ActivityRecord } from "./ports.ts";
 export function taskChangeFacts(task: Omit<NewTask, "id">): ChangeFacts {
   return {
     title: task.title,
-    summary: task.summary,
     body: task.body,
     status: task.status,
     kind: task.kind,
@@ -20,8 +19,6 @@ export function taskChangeFacts(task: Omit<NewTask, "id">): ChangeFacts {
 
 export function recordChangeFacts(record: ActivityRecord): ChangeFacts {
   return {
-    title: record.title,
-    summary: record.summary,
     body: record.body,
     tag_ids: record.tag_ids,
     ...(record.entity_ids === undefined ? {} : { entity_ids: record.entity_ids }),
@@ -31,7 +28,7 @@ export function recordChangeFacts(record: ActivityRecord): ChangeFacts {
 export function activityChangeTarget(target: Task | ActivityRecord): ChangeTarget {
   return {
     id: target.id,
-    title: target.title,
+    title: "title" in target ? target.title : Array.from(target.body).slice(0, 100).join(""),
     entity_ids: target.entity_ids ?? [],
     entity_context: target.entity_context ?? [],
   };

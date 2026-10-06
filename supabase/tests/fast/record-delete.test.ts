@@ -21,8 +21,7 @@ Deno.test("record deletion rejects unsupported final memo before storage and doe
   const schema = z.toJSONSchema(tool.input, { io: "input" });
   assertEquals(Object.keys(schema.properties ?? {}).sort(), ["change_note", "expected_version", "id"]);
   await assertRejects(
-    () =>
-      tool.handler({ id, expected_version: 1, change_memo: { title: "삭제", summary: "설명", body: "미사용" } }, actor),
+    () => tool.handler({ id, expected_version: 1, change_memo: { title: "삭제", body: "미사용" } }, actor),
     AppError,
   );
   const app = new Hono<HttpEnv>();

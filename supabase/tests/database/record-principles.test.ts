@@ -15,16 +15,17 @@ dbTest(
   async () => {
     const f = await fixtureOwner(admin), b = await fixtureOwner(admin);
     try {
-      const a = f.actor, content = { title: "당시 기준", summary: "당시 근거", body: "그때 본문" };
+      const a = f.actor, content = { title: "당시 기준", body: "그때 본문" };
       const first = await p.createPrinciple(d, a, principleCreate.parse({ id: crypto.randomUUID(), ...content }));
       const record = await r.createRecord(
         rd,
         a,
-        recordCreate.parse({ id: crypto.randomUUID(), ...{ title: "판단", summary: "결과" } }),
+        recordCreate.parse({ id: crypto.randomUUID(), ...{ body: "판단" } }),
       );
       const snapshot = [{
         id: first.id,
         ...content,
+        summary: "당시 요약",
         version: first.version,
         saved_at: first.saved_at,
         status: "active",
@@ -35,7 +36,7 @@ dbTest(
       assertEquals(
         recordCreate.safeParse({
           id: crypto.randomUUID(),
-          ...{ title: "새", summary: "기록", applied_principle_ids: [first.id] },
+          ...{ title: "새", applied_principle_ids: [first.id] },
         }).success,
         false,
       );
@@ -56,7 +57,6 @@ dbTest(
         recordUpdate.parse({
           expected_version: record.version,
           body: "판단 이유 정정",
-          change_note: "설명 정정",
         }),
       );
       assertEquals(edited.applied_principle_snapshots, snapshot);
@@ -74,7 +74,6 @@ dbTest(
       assertThrows(() =>
         recordUpdate.parse({
           expected_version: edited.version,
-          change_note: "거부",
           applied_principle_ids: [foreign.id],
         })
       );

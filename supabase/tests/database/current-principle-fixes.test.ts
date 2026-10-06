@@ -15,11 +15,11 @@ dbTest(
     try {
       const token = crypto.randomUUID();
       const [old] =
-        await admin`insert into app.principles(owner_id,title,summary,body,is_current,origin) values(${f.actor.userId},${token},'옛 근거','과거 원문',false,'legacy') returning *`;
+        await admin`insert into app.principles(owner_id,title,body,is_current,origin) values(${f.actor.userId},${token},'과거 원문',false,'legacy') returning *`;
       const current = await p.createPrinciple(
         pd,
         f.actor,
-        principleCreate.parse({ id: crypto.randomUUID(), title: token, summary: "현재", body: "현재 원문" }),
+        principleCreate.parse({ id: crypto.randomUUID(), title: token, body: "현재 원문" }),
       );
       await assertRejects(() => p.getPrinciple(pd, f.actor, old.id));
       await assertRejects(() => p.deletePrinciple(pd, f.actor, old.id, old.version));
@@ -38,7 +38,7 @@ dbTest(
           sql,
           f.actor.userId,
           (tx) =>
-            tx`insert into app.principles(owner_id,title,summary,is_current) values(${f.actor.userId},'과거 쓰기','거부',false)`,
+            tx`insert into app.principles(owner_id,title,body,is_current) values(${f.actor.userId},'과거 쓰기','거부',false)`,
         )
       );
       for (

@@ -12,7 +12,6 @@ import {
   type EntityStore,
   getEntity,
   listEntities,
-  previewEntityChange,
   updateEntity,
 } from "../../functions/_shared/core/entity/application.ts";
 import { entityRoutes } from "../../functions/_shared/adapters/http/entity-routes.ts";
@@ -69,26 +68,6 @@ function memory() {
   const d: EntityDeps = { uow: { run: (_a, fn) => fn(store) } };
   return { d, writes: () => writes };
 }
-Deno.test("Entity preview uses current business facts without storing the proposed change", async () => {
-  const { d, writes } = memory();
-  const e = await createEntity(d, A, entityCreate.parse({ id: crypto.randomUUID(), ...{ prop1: "대상", prop2: 10 } }));
-  const before = writes();
-  const preview = await previewEntityChange(d, A, {
-    action: "update",
-    id: e.id,
-    input: entityUpdate.parse({ expected_version: 1, prop1: "새 대상", prop2: 20, change_note: "검토 반영" }),
-  });
-  assertEquals(preview, {
-    changed: true,
-    memo: {
-      title: "새 대상 수정",
-      summary: "검토 반영",
-      body: "속성 1: 대상 → 새 대상\n속성 2: 10 → 20\n\n메모: 검토 반영",
-    },
-  });
-  assertEquals(writes(), before);
-  assertEquals((await getEntity(d, A, e.id)).prop1, "대상");
-});
 Deno.test("Entity application: 멱등 serial retry·버전 거부 무쓰기·한글 커서/owner/filter 검사", async () => {
   const { d, writes } = memory(), input = entityCreate.parse({ id: crypto.randomUUID(), ...{ prop1: "한글 😀" } });
   const e = await createEntity(d, A, input);

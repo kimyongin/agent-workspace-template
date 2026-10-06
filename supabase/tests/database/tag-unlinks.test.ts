@@ -40,13 +40,13 @@ dbTest(
         actor,
         taskCreate.parse({
           id: crypto.randomUUID(),
-          ...{ kind: "once", title: "計画", summary: "要約", tag_ids: [tag.id] },
+          ...{ kind: "once", title: "計画", tag_ids: [tag.id] },
         }),
       );
       const record = await a.createRecord(
         ad,
         actor,
-        recordCreate.parse({ id: crypto.randomUUID(), ...{ title: "観察", summary: "要約", tag_ids: [tag.id] } }),
+        recordCreate.parse({ id: crypto.randomUUID(), ...{ body: "観察", tag_ids: [tag.id] } }),
       );
       const [automatic] =
         await admin`select id from app.records where owner_id=${actor.userId} and record_kind='change' order by id limit 1`;
@@ -94,13 +94,13 @@ dbTest(
         actor,
         taskCreate.parse({
           id: crypto.randomUUID(),
-          ...{ kind: "once", title: "計画", summary: "要約", tag_ids: [tag.id] },
+          ...{ kind: "once", title: "計画", tag_ids: [tag.id] },
         }),
       );
       const record = await a.createRecord(
         ad,
         actor,
-        recordCreate.parse({ id: crypto.randomUUID(), ...{ title: "観察", summary: "要約", tag_ids: [tag.id] } }),
+        recordCreate.parse({ id: crypto.randomUUID(), ...{ body: "観察", tag_ids: [tag.id] } }),
       );
       const beforeTask = await a.getTask(ad, actor, task.id), beforeRecord = await a.getRecord(ad, actor, record.id);
       const queue =
