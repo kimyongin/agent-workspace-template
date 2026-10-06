@@ -17,6 +17,7 @@ test("현재 웹 메모 확인→MCP 같은 문서 갱신→삭제 후 현재 �
     await form.getByLabel("기록 요약").fill("사용자가 확인한 근거");await form.getByRole("button",{name:"확인하고 저장",exact:true}).click();
     await expect(page.getByRole("heading",{name:title,level:1})).toBeVisible();
     const {current}=await mcp.call("get_current_principle",{});expect(current.id).toBe(first.id);expect(current.body).toBe("새 판단 원문");
+    expect((await mcp.call("get_principle",{id:first.id})).body).toBe("새 판단 원문");
     await page.goto(`/principles/${current.id}?edit=1`);await page.getByRole("button",{name:"삭제",exact:true}).click();
     const confirm=page.getByRole("dialog",{name:"원칙을 삭제할까요?"});await expect(confirm).toContainText("과거 원칙을 자동 승격하지 않습니다");
     await saveWithMemo(page,confirm,"삭제");await expect(page).toHaveURL(/principles(?:[?#]|$)/);
@@ -60,17 +61,17 @@ test("현재 문서 편집 충돌은 초안 유지·폐기 뒤 최신 원문 재
   }finally{await mcp.close();}
 });
 
-test("기존 적용 자료는 현재 변경·삭제 뒤 기록 설명을 고쳐도 보존된다",async({page})=>{
+test("본문에 남긴 원칙 근거는 현재 변경·삭제 뒤 기록 설명을 고쳐도 보존된다",async({page})=>{
   await devLogin(page);const mcp=await mcpClient(await mcpTokenViaConsent(page));
   try{
     const p=await savePrinciple(mcp,{title:unique("적용 기준"),summary:"당시 요약",body:"당시 판단 본문"});
-    const r=await mcp.call("create_record",{title:unique("기존 적용 결과"),summary:"판단 결과",applied_principle_ids:[p.id]});
+    const r=await mcp.call("create_record",{title:unique("판단 결과"),summary:"판단 결과",body:`참고한 원칙 「${p.title}」: 당시 판단 본문`});
     await savePrinciple(mcp,{title:unique("새 기준"),summary:"새 요약",body:"새 본문"});
     const {current}=await mcp.call("get_current_principle",{});await mcp.call("delete_principle",{id:current.id,expected_version:current.version});
     await page.goto(`/records/${r.id}`);await openDetailEditor(page);
     const edit=page.getByRole("dialog",{name:"기록 편집",exact:true});
     await expect(edit).toContainText("당시 판단 본문");await expect(edit.getByText("적용한 원칙",{exact:true})).toHaveCount(0);
     await edit.getByLabel("요약").fill("원칙 삭제 뒤 설명 정정");await saveWithMemo(page,edit);await expect(edit).not.toBeVisible();
-    const corrected=await mcp.call("get_record",{id:r.id});expect(corrected.applied_principle_ids).toEqual([]);expect(corrected.applied_principle_snapshots[0].body).toBe("당시 판단 본문");
+    const corrected=await mcp.call("get_record",{id:r.id});expect(corrected.body).toBe(r.body);expect(corrected.applied_principle_snapshots).toEqual([]);expect(corrected).not.toHaveProperty("applied_principle_ids");
   }finally{await mcp.close();}
 });

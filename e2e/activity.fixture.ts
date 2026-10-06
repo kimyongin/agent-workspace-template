@@ -3,7 +3,7 @@ import { test, expect } from "@playwright/test";
 import { beginTabAction } from "./ui-actions.ts";
 const id = (n:number) => `00000000-0000-4000-8000-${String(n).padStart(12,"0")}`;
 test.beforeEach(async({page})=>{await page.route("http://127.0.0.1:55580/**",async route=>{if(route.request().isNavigationRequest()){const response=await route.fetch({url:"http://127.0.0.1:55580/e2e/fixtures/activity.html"});await route.fulfill({response});}else await route.continue();});});
-const record = (n:number, occurred_at="2026-10-03T16:00:00Z") => ({id:id(n),title:`기록 ${n}`,summary:"요약 먼저",body:"본문 근거",occurred_at,task_id:null,occurrence_on:null,tag_ids:[],entity_id:null,applied_principle_ids:[],applied_principles:[],record_kind:"user",change_note:null,change:null,applied_principle_snapshots:[],version:1,created_at:occurred_at,updated_at:occurred_at});
+const record = (n:number, occurred_at="2026-10-03T16:00:00Z") => ({id:id(n),title:`기록 ${n}`,summary:"요약 먼저",body:"본문 근거",occurred_at,task_id:null,occurrence_on:null,tag_ids:[],entity_ids:[],entity_context:[],record_kind:"user",change_note:null,change:null,applied_principle_snapshots:[],version:1,created_at:occurred_at,updated_at:occurred_at});
 
 for (const kind of ["tasks", "records"] as const) test(`${kind} 탭은 자기 목록만 조회하고 검색 필터를 같은 업무에 보낸다`, async ({page}) => {
   const reads:string[]=[],searches:Record<string,unknown>[]=[],writes:string[]=[];

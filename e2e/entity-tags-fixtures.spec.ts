@@ -2,7 +2,7 @@ import { saveWithMemo, fixtureMemoPreview, beginTabAction } from "./ui-actions.t
 import { expect, test, type Page } from "@playwright/test";
 const url = "/e2e/fixtures/entity-tags.html";
 const tags = ["첫 태그", "다른 태그"].map((name, i) => ({ id: `00000000-0000-4000-8000-00000000000${i}`, name, version: 1, created_at: "2026-10-04T00:00:00Z", updated_at: "2026-10-04T00:00:00Z" }));
-const task = { id: "20000000-0000-4000-8000-000000000000", entity_id: null, tag_ids: [], kind: "once", title: "App 할 일", summary: "실제 라우터 fixture", body: "본문", due_on: null, recurrence: null, timezone: null, status: "open", completed_at: null, result_record_id: null, pauses: [], version: 1, created_at: tags[0].created_at, updated_at: tags[0].updated_at, occurrence: null, result_record: null };
+const task = { id: "20000000-0000-4000-8000-000000000000", entity_ids: [], entity_context: [], tag_ids: [], kind: "once", title: "App 할 일", summary: "실제 라우터 fixture", body: "본문", due_on: null, recurrence: null, timezone: null, status: "open", completed_at: null, result_record_id: null, pauses: [], version: 1, created_at: tags[0].created_at, updated_at: tags[0].updated_at, occurrence: null, result_record: null };
 test.beforeEach(async ({ page }) => { await page.route("**/api/tags**", route => route.fulfill({ json: { items: tags, next_cursor: null } })); });
 async function settings(page: Page) {
   const inert=await page.locator("dialog.modal:not(.modal-confirm)[open]").count()>0;

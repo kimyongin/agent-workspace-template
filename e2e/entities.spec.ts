@@ -31,7 +31,7 @@ test("Entity 웹 CRUD·초안 보호→MCP parity·활동 연결→삭제 원문
       kind: "once",
       title: unique("연결 행동"),
       summary: "연결을 보존",
-      entity_id: id,
+      entity_ids: [id],
     });
     const unrelated = await mcp.call("create_task", { kind: "once", title: task.title + " 외부", summary: "별도" });
     await page.goto(`/search?q=${encodeURIComponent(task.title)}&mode=keyword&kind=task`);
@@ -82,7 +82,9 @@ test("Entity 웹 CRUD·초안 보호→MCP parity·활동 연결→삭제 원문
     )
       .toBeVisible();
     const current = await mcp.call("get_task", { id: task.id });
-    expect(current.entity_id).toBeNull();
+    expect(current.entity_ids).toEqual([]);
+    expect(current.entity_context).toContainEqual(expect.objectContaining({id,title:name}));
+    expect(current).not.toHaveProperty("entity_id");
     expect(current.version).toBe(2);
     await mcp.call("delete_task", { id: task.id, expected_version: 2 });
   } finally {
