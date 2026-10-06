@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { businessMeta } from "./change.ts";
 import { tagIds } from "./tag.ts";
+import { recordResult } from "./record.ts";
 import { expectedVersion, id, isoDate, isoDateTime, page, pageInput, text } from "./common.ts";
 
 const date = isoDate.refine((v) => v >= "0001-01-01", { message: "1년 이후의 날짜를 쓰세요" });
@@ -54,11 +55,19 @@ export const entityResult = z.object({
   created_at: isoDateTime,
   updated_at: isoDateTime,
 });
+const relatedItem = z.object({ id, title: z.string(), updated_at: isoDateTime });
 const related = z.object({
   count: z.number().int().nonnegative(),
-  items: z.array(z.object({ id, title: z.string(), updated_at: isoDateTime })),
+  items: z.array(relatedItem),
 });
-export const entityDetail = entityResult.extend({ tasks: related, records: related });
+export const entityDetail = entityResult.extend({
+  tasks: related,
+  records: related.extend({
+    items: z.array(
+      relatedItem.extend(recordResult.pick({ record_kind: true, summary: true, occurred_at: true }).shape),
+    ),
+  }),
+});
 export const entityPage = page(entityResult);
 export type EntityCreate = z.infer<typeof entityCreate>;
 export type EntityUpdate = z.infer<typeof entityUpdate>;

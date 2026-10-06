@@ -94,19 +94,32 @@ export class SqlEntityStore extends SqlActorStore implements EntityStore {
       const tx = this.tx;
       const membership = tx`entity_ids @> array[${id}::uuid]`;
       const [count] = await tx`select count(*)::integer as count from app.${tx(table)} where ${membership}`;
-      const rows = await tx`select id,title,updated_at from app.${
-        tx(table)
-      } where ${membership} order by updated_at desc,id desc limit 5`;
+      const rows = await tx`select id,title,updated_at ${
+        table === "records" ? tx`,record_kind,summary,occurred_at` : tx``
+      } from app.${tx(table)} where ${membership} order by updated_at desc,id desc limit 5`;
       return {
         count: count.count as number,
-        items: rows.map((r) => ({
-          id: r.id as string,
-          title: r.title as string,
-          updated_at: (r.updated_at as Date).toISOString(),
-        })),
+        rows,
       };
     };
-    return { tasks: await load("tasks"), records: await load("records") };
+    const tasks = await load("tasks"), records = await load("records");
+    const item = (r: Record<string, unknown>) => ({
+      id: r.id as string,
+      title: r.title as string,
+      updated_at: (r.updated_at as Date).toISOString(),
+    });
+    return {
+      tasks: { count: tasks.count, items: tasks.rows.map(item) },
+      records: {
+        count: records.count,
+        items: records.rows.map((r) => ({
+          ...item(r),
+          record_kind: r.record_kind as EntityDetail["records"]["items"][number]["record_kind"],
+          summary: r.summary as string,
+          occurred_at: (r.occurred_at as Date).toISOString(),
+        })),
+      },
+    };
   }
 }
 export class SqlEntityUnitOfWork {

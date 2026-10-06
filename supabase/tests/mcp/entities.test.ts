@@ -53,6 +53,12 @@ httpTest("Entity MCP: 실제 SDK/OAuth CRUD·태그 scope·웹 parity·참조 �
     const detail = await tool(client, "get_entity", { id: e.id });
     assertEquals("principles" in detail, false);
     assertEquals(detail.records.items.some((record: { id: string }) => record.id === r.id), true);
+    const relatedRecord = detail.records.items.find((record: { id: string }) => record.id === r.id);
+    assertEquals(relatedRecord.record_kind, "user");
+    assertEquals(relatedRecord.summary, marker);
+    assertEquals(relatedRecord.occurred_at, r.occurred_at);
+    assertEquals(detail, (await call(token, "GET", `/entities/${e.id}`)).body);
+    assert(detail.records.items.some((record: { record_kind: string }) => record.record_kind === "change"));
     assertEquals(
       (await tool(client, "create_principle", { title: "연결 원칙", summary: "요약", entity_id: e.id })).error.code,
       "invalid_input",
