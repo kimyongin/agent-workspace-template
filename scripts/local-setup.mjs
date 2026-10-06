@@ -103,10 +103,6 @@ for (const [role, password] of [["app_server", local.APP_SERVER_PASSWORD], ["app
   }
   if (!ready) throw new Error(`${role} 로컬 풀러가 제한 시간 안에 준비되지 않았습니다`);
 }
-const mcpUrl = `${apiUrl}/functions/v1/mcp`;
-await db`
-  insert into private.auth_settings (key, value) values ('mcp_audience', ${mcpUrl})
-  on conflict (key) do update set value = excluded.value`;
 await db.end();
 // SUPABASE_로 시작하는 이름은 CLI가 함수에 넘기지 않는다. SUPABASE_URL 등은 CLI가 직접 넣고,
 // 토큰 검증 키(JWKS)는 @supabase/server가 그 주소에서 가져온다.
@@ -119,9 +115,8 @@ writeEnv(path("supabase/functions/.env"), "로컬 전용. scripts/local-setup.mj
   ...(functionEnv.PINECONE_API_KEY || prev.PINECONE_API_KEY
     ? { PINECONE_API_KEY: functionEnv.PINECONE_API_KEY ?? prev.PINECONE_API_KEY } : {}),
   AUTH_ISSUER: `${apiUrl}/auth/v1`,
-  MCP_URL: mcpUrl,
   WEB_ORIGINS: config.webOrigins,
-});
+}, ["MCP_URL"]);
 
 // 5. 개발용 사용자(A·B). 이미 있으면 비밀번호만 맞춘다.
 const admin = (p, init = {}) =>

@@ -68,3 +68,13 @@ test("사용자 dotenv 구문·주석·변수 확장·혼합 따옴표를 재직
   assert.ok(result.includes("APP_SERVER_PASSWORD='$TOKEN'"));
   assert.equal(result.match(/^VITE_API_URL=new$/gm)?.length, 1);
 });
+
+test("폐기한 MCP 주소 선언만 제거하고 사용자 값과 여러 줄 문자열은 보존한다", (t) => {
+  const file = fixture(t);
+  const retained = 'CUSTOM="first\nMCP_URL=literal\nlast"\nPINECONE_API_KEY=test-key\n';
+  writeFileSync(file, 'export MCP_URL=https://old.example/mcp\n' + retained);
+  writeEnv(file, "함수", { AUTH_ISSUER: "https://example.supabase.co/auth/v1" }, ["MCP_URL"]);
+  assert.equal(readEnv(file).MCP_URL, undefined);
+  assert.equal(readEnv(file).CUSTOM, "first\nMCP_URL=literal\nlast");
+  assert.ok(readFileSync(file, "utf8").includes(retained));
+});

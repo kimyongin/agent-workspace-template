@@ -41,7 +41,7 @@ Storage와 Realtime은 실제 첨부·자동 갱신 요구가 생길 때 추가�
 
 플러그인의 MCP OAuth는 에이전트가 앱에 접근할 권한을 얻는 별도 흐름이다. 사용자 확인 단계에서 Google 로그인 기반 앱 계정을 사용할 수 있지만, MCP 토큰 발급·audience·scope·동의 화면과 클라이언트 callback은 별도 계약으로 확정한다. Google 로그인 성공만으로 MCP 연결을 검증했다고 하지 않는다.
 
-MCP OAuth는 Supabase Auth의 OAuth 2.1 서버를 권한 서버로 쓴다. 클라이언트는 동적 등록과 PKCE로 토큰을 받고, 사용자는 웹 앱의 `/oauth/consent` 화면에서 Google 로그인 세션으로 승인한다. Custom Access Token Hook은 `client_id`가 있는 토큰의 `aud`를 MCP 서버의 정식 URL로 바꾼다. MCP 서버는 그 audience만, 웹용 HTTP API는 `authenticated`만 받으므로 두 토큰은 서로의 진입점에서 거부된다. MCP 서버는 RFC 9728 metadata로 권한 서버를 알린다. 이 방식은 [T02-1 실험](../../experiments/t02-1/README.md)에서 로컬 Supabase와 Claude Code·Codex로 확인했다.
+MCP OAuth는 Supabase Auth의 OAuth 2.1 서버를 권한 서버로 쓴다. 클라이언트는 동적 등록과 PKCE로 토큰을 받고, 사용자는 웹 앱의 `/oauth/consent` 화면에서 Google 로그인 세션으로 승인한다. Custom Access Token Hook은 `client_id`가 있는 토큰의 `aud`를 MCP 서버의 정식 URL로 바꾼다. MCP 서버는 그 audience만, 웹용 HTTP API는 `authenticated`만 받으므로 두 토큰은 서로의 진입점에서 거부된다. MCP는 Auth와 같은 Supabase 프로젝트의 `/functions/v1/mcp`에 제공한다. hook은 Auth가 생성한 `iss`에서, 서버는 신뢰하는 `AUTH_ISSUER`에서 `/auth/v1`을 `/functions/v1/mcp`로 바꿔 audience를 계산한다. 주소 설정 DB와 별도 `MCP_URL` 환경변수는 없다. 제품 연결은 Codex·Claude 플러그인의 메타 정보에 있는 URL과 OAuth를 사용하며 수동 MCP 연결·별도 토큰 발급은 제품 기능으로 제공하지 않는다. 서버가 클라이언트의 플러그인 설치 여부를 인증 근거로 삼는 것은 아니다. MCP 서버는 RFC 9728 metadata로 권한 서버를 알린다. 이 방식은 [T02-1 실험](../../experiments/t02-1/README.md)에서 로컬 Supabase와 Claude Code·Codex로 확인했다.
 
 ## 호출과 의존성
 

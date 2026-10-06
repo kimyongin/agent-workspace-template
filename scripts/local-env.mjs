@@ -17,7 +17,7 @@ function encode(value) {
   return `${quote}${text}${quote}`;
 }
 
-export function writeEnv(file, header, managed) {
+export function writeEnv(file, header, managed, retired = []) {
   // 사용자 선언·주석은 재직렬화하지 않는다. CLI의 변수 확장·escape 의미까지 보존해야 한다.
   const encoded = Object.fromEntries(Object.entries(managed).map(([key, value]) => {
     if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) throw new Error("잘못된 설정 키입니다");
@@ -29,6 +29,7 @@ export function writeEnv(file, header, managed) {
   // 여러 줄의 quoted 값을 하나의 선언으로 소비하므로 그 안의 KEY= 문장을 바꾸지 않는다.
   const declaration = /(^|\n)[ \t]*(?:export[ \t]+)?([A-Za-z_][A-Za-z0-9_]*)[ \t]*=[ \t]*(?:'(?:\\'|[^'])*'|"(?:\\"|[^"])*"|`(?:\\`|[^`])*`|[^\n]*)(?:[ \t]*#[^\n]*)?/g;
   let content = original.replace(declaration, (raw, prefix, key) => {
+    if (retired.includes(key)) return prefix;
     if (!Object.hasOwn(encoded, key)) return raw;
     if (seen.has(key)) return prefix;
     seen.add(key);

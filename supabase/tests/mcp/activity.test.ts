@@ -20,7 +20,7 @@ import {
   taskUpdate,
 } from "../../functions/_shared/contracts/task.ts";
 import { admin, API, call, httpTest, seoulDate, signIn } from "../http/_client.ts";
-import { claimsOf, connectMcp, MCP_URL, mcpToken, registerClient, tool } from "./_mcp.ts";
+import { claimsOf, connectMcp, MCP_URL, mcpGrant, mcpToken, refreshMcp, registerClient, tool } from "./_mcp.ts";
 
 const sessionA = await signIn("A");
 const sessionB = await signIn("B");
@@ -625,4 +625,18 @@ httpTest("제품 스킬이 안내하는 도구 이름이 모두 tools/list에 �
   const names = new Set(tools.map((t) => t.name));
   for (const n of new Set(mentioned)) assert(names.has(n), `스킬의 ${n}이 서버에 없음`);
   for (const n of EXPECTED_TOOLS) assert(mentioned.includes(n), `서버 도구 ${n}을 스킬이 안내하지 않음`);
+});
+
+httpTest("OAuth 갱신 토큰도 MCP audience를 유지하고 웹 API에서 거부된다", async () => {
+  const grant = await mcpGrant(sessionA);
+  const refreshed = await refreshMcp(grant);
+  assertEquals(claimsOf(refreshed).aud, MCP_URL);
+  assertEquals(claimsOf(refreshed).iss, claimsOf(grant.access_token).iss);
+  const client = await connectMcp(refreshed);
+  try {
+    await tool(client, "list_tasks", { limit: 1 });
+  } finally {
+    await client.close();
+  }
+  assertEquals((await call(refreshed, "GET", "/tasks")).status, 401);
 });

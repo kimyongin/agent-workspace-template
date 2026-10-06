@@ -61,7 +61,7 @@
 - **Google OAuth:** Google Cloud의 OAuth 동의 화면과 웹 client를 준비하고 Supabase Google provider에 client ID/secret을 설정한다. Google의 승인된 redirect에는 해당 Supabase 프로젝트가 안내하는 Auth callback을 등록한다. Supabase의 Site URL/허용 redirect에는 실제 Pages 앱의 로그인 복귀 주소를 등록한다. 두 주소를 혼동하지 않으며 로컬·격리·운영 설정을 구분한다. Google client secret은 웹 빌드에 넣지 않는다. 기본 로그인에는 필요한 최소 프로필 범위만 사용하고, Google API 추가 권한은 별도 기능에서 결정한다.
 - **Pinecone:** Inference를 사용할 프로젝트와 API 키를 준비하고 Edge Secrets에 설정한다. 모델·차원·입력 종류·API 버전·배치/호출 한도를 기록하고 문서와 질의 임베딩을 함께 확인한다. 결과 벡터는 Supabase pgvector에 저장한다. 설치 요구에 Pinecone 벡터 인덱스 생성을 추가하지 않는다.
 
-- **MCP OAuth:** Supabase Auth의 OAuth 2.1 서버와 동적 클라이언트 등록을 켜고, 인가 경로를 웹 앱의 `/oauth/consent`로 지정한다. 비대칭 JWT 서명 키(ES256 권장)를 쓰고, MCP 토큰의 `aud`를 MCP 서버 URL로 바꾸는 Custom Access Token Hook을 등록한다. hook은 `private.auth_settings`의 `mcp_audience` 값을 쓰므로 migration 적용 뒤 그 환경의 MCP URL을 넣는다. 값이 없으면 OAuth 클라이언트 토큰 발급이 실패한다(웹 API를 여는 토큰을 만들지 않기 위한 의도된 동작). `api`·`mcp` 함수는 자체 토큰 검증을 하므로 게이트웨이 JWT 검사(`verify_jwt`)를 끈다. 함수 Secrets에는 `APP_DB_URL`(접속 역할 `app_server`의 트랜잭션 풀러 주소), `AUTH_ISSUER`, `MCP_URL`, `WEB_ORIGINS`를 둔다. `app_server`의 비밀번호는 migration에 없으므로 환경마다 따로 설정한다. 로컬 값은 `scripts/local-setup.mjs`가 같은 항목을 만든다. 구성 근거는 [아키텍처](../architecture/hexagonal-review.md#google-로그인과-mcp-인증)에 있다.
+- **MCP OAuth:** Supabase Auth의 OAuth 2.1 서버와 동적 클라이언트 등록을 켜고, 인가 경로를 웹 앱의 `/oauth/consent`로 지정한다. 비대칭 JWT 서명 키(ES256 권장)를 쓰고, MCP 토큰의 `aud`를 MCP 서버 URL로 바꾸는 Custom Access Token Hook을 등록한다. hook은 Auth가 생성한 `iss`의 `/auth/v1`을 `/functions/v1/mcp`로 바꿔 audience를 계산한다. 서버도 신뢰하는 `AUTH_ISSUER`에서 같은 주소를 계산한다. 주소 설정 테이블과 별도 `MCP_URL` Secret은 사용하지 않는다. `AUTH_ISSUER`는 같은 프로젝트의 공개 Auth 주소여야 하며, 다른 호스트의 MCP나 임의 경로는 지원하지 않는다. 잘못된 issuer이면 발급·서버 시작이 실패한다. `api`·`mcp` 함수는 자체 토큰 검증을 하므로 게이트웨이 JWT 검사(`verify_jwt`)를 끈다. 함수 Secrets에는 `APP_DB_URL`(접속 역할 `app_server`의 트랜잭션 풀러 주소), `AUTH_ISSUER`, `WEB_ORIGINS`를 둔다. `app_server`의 비밀번호는 migration에 없으므로 환경마다 따로 설정한다. 로컬 값은 `scripts/local-setup.mjs`가 같은 항목을 만든다. 구성 근거는 [아키텍처](../architecture/hexagonal-review.md#google-로그인과-mcp-인증)에 있다.
 
 위 항목의 실제 변수명·명령은 구현 시 확정한다. Google 동의 화면의 게시 상태·대상 사용자 제한과 해당 사용 범위의 검증 필요성을 운영 전 확인한다. Google 로그인과 플러그인 MCP OAuth는 각각 실클라이언트에서 검사한다.
 
@@ -123,6 +123,8 @@ map을 functions 밖 임시 root에 두면 배포가 성공해도 정상 `functi
 릴리스별로 일시·시간대, 담당자, 대상 환경, commit/CI 링크, DB migration 목록, Edge·웹·스킬 버전, 적용 순서와 결과, 실제 확인 흐름, 잔여 문제, 복구 지점을 기록한다. 비밀값과 사용자 본문은 남기지 않는다.
 
 첫 운영 배포 전에는 실행 명령과 설정 항목, 비배포 PR 검증 workflow, 운영 배포 workflow, 신규 프로젝트 설치 재현, 이전 artifact 복귀, 백업 복원 연습, [운영 점검](../operations/runbook.md)의 담당·기준·알림 경로가 준비되어야 한다. 준비 상태와 실제 실행 증거는 해당 배포 GitHub issue와 PR에서 확인한다.
+
+기존 환경을 업그레이드할 때 새 migration과 함수 변경을 함께 적용한다. 새 서버가 기존 `MCP_URL`을 읽지 않는 것을 확인한 뒤 해당 Secret을 삭제한다. 플러그인 메타 정보의 접속 URL은 같은 프로젝트의 `/functions/v1/mcp`로 유지한다. 이 절차는 운영 적용 지시를 대신하지 않는다.
 
 ## 공식 참고
 
