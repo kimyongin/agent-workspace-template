@@ -16,9 +16,6 @@ import type {
 import type { Actor } from "../shared/actor.ts";
 import { conflict, invalidInput, notFound } from "../shared/errors.ts";
 import { changed } from "../shared/changes.ts";
-import type { ChangeMemo } from "../../contracts/change.ts";
-import { basicChangeMemo } from "../shared/change-memo.ts";
-import type { TaskChangePreview } from "../../contracts/task-change.ts";
 import { decodeCursor, type Page, paginate, scopeOf, searchInputHash } from "../shared/operations.ts";
 import {
   assertRecordableOccurrence,
@@ -28,7 +25,6 @@ import {
   resumeTask as decideResume,
   stopTask as decideStop,
   type Task,
-  taskContent,
   todayOf,
   updateTask as decideUpdate,
 } from "./domain.ts";
@@ -56,7 +52,6 @@ function toRecordResult(record: ActivityRecord): RecordResult {
     entity_ids: selectedEntities(record) ?? [],
     entity_context: record.entity_context ?? [],
     record_kind: record.record_kind ?? "user",
-    change_note: record.change_note ?? null,
     change: record.change ?? null,
     applied_principle_snapshots: record.applied_principle_snapshots ?? [],
   };
@@ -75,70 +70,11 @@ async function requireRecord(store: ActivityStore, id: string, forUpdate = false
 }
 
 // ---------- 할 일 ----------
-export async function previewTaskChange(deps: ActivityDeps, actor: Actor, input: TaskChangePreview) {
-  return await deps.uow.run(actor, async (store) => {
-    if (input.action === "create") {
-      const task = taskContent(input.input);
-      const ids = selectedEntities(input.input) ?? [];
-      if (ids.length) await store.validateEntitySelection(ids);
-      return {
-        memo: basicChangeMemo({
-          action: "create",
-          target_title: task.title,
-          before: null,
-          after: taskChangeFacts(task),
-          change_note: input.input.change_note,
-        }),
-        changed: true,
-      };
-    }
-    const task = await requireTask(store, input.id);
-    assertVersion(task, input.input.expected_version as number);
-    const now = deps.clock.now();
-    if (input.action === "complete" || input.action === "occurrence") {
-      if (input.action === "complete") decideComplete(task, input.input.expected_version as number, now);
-      else assertRecordableOccurrence(task, input.date!, now);
-      const title = `${Array.from(task.title).slice(0, 85).join("")} 수행 결과`;
-      return {
-        memo: {
-          title,
-          summary: title,
-          body: `할 일: ${task.title}${
-            input.action === "occurrence" ? `\n회차: ${input.date}` : ""
-          }\n실제로 수행한 내용과 결과를 보충하세요.`,
-        },
-        changed: true,
-      };
-    }
-    const after = input.action === "delete" ? null : {
-      ...task,
-      ...(input.action === "update"
-        ? decideUpdate(task, input.input as TaskUpdate)
-        : input.action === "stop"
-        ? decideStop(task, input.input.expected_version as number, now)
-        : decideResume(task, input.input.expected_version as number, now)),
-    };
-    if (input.action === "update" && changed(task, after!)) {
-      const ids = selectedEntities(input.input as TaskUpdate);
-      if (ids?.length) await store.validateEntitySelection(ids);
-    }
-    return {
-      memo: basicChangeMemo({
-        action: input.action as "update" | "delete" | "stop" | "resume",
-        target_title: (after ?? task).title,
-        before: taskChangeFacts(task),
-        after: after && taskChangeFacts(after),
-        change_note: input.input.change_note,
-      }),
-      changed: after === null || changed(task, after),
-    };
-  });
-}
 
 export async function createTask(deps: ActivityDeps, actor: Actor, input: TaskCreate): Promise<TaskResult> {
   return await deps.uow.run(actor, async (store) => {
     const task = await store.insertTask(newTask(input));
-    await store.enqueueIndex({ kind: "task", id: task.id, input_hash: await searchInputHash(task) });
+
     await store.appendChange({
       target_kind: "task",
       target: activityChangeTarget(task),
@@ -146,7 +82,6 @@ export async function createTask(deps: ActivityDeps, actor: Actor, input: TaskCr
       before: null,
       after: taskChangeFacts(task),
       change_note: input.change_note,
-      change_memo: input.change_memo,
     });
     return toTaskResult(task);
   });
@@ -155,7 +90,7 @@ export async function createTask(deps: ActivityDeps, actor: Actor, input: TaskCr
 export async function getTask(deps: ActivityDeps, actor: Actor, id: string): Promise<TaskDetail> {
   return await deps.uow.run(actor, async (store) => {
     const task = await requireTask(store, id);
-    const [result] = task.result_record_id ? await store.getRecordSummaries([task.result_record_id]) : [];
+    const [result] = task.result_record_id ? await store.getRecordBodies([task.result_record_id]) : [];
     return { ...toTaskResult(task), result_record: result ?? null };
   });
 }
@@ -211,9 +146,6 @@ export async function updateTask(deps: ActivityDeps, actor: Actor, id: string, p
     const changes = decideUpdate(task, patch);
     if (!changed(task, changes)) return toTaskResult(task);
     const updated = await store.updateTask(id, changes);
-    if (updated.title !== task.title || updated.summary !== task.summary) {
-      await store.enqueueIndex({ kind: "task", id, input_hash: await searchInputHash(updated) });
-    }
     await store.appendChange({
       target_kind: "task",
       target: activityChangeTarget(updated),
@@ -221,7 +153,6 @@ export async function updateTask(deps: ActivityDeps, actor: Actor, id: string, p
       before: taskChangeFacts(task),
       after: taskChangeFacts(updated),
       change_note: patch.change_note,
-      change_memo: patch.change_memo,
     });
     return toTaskResult(updated);
   });
@@ -240,10 +171,7 @@ export async function completeTask(
     const decided = decideComplete(task, input.expected_version, now);
     const record = await store.insertRecord({
       record_kind: "result",
-      change_note: input.change_note,
       ...entityChanges({ entity_ids: selectedEntities(task) ?? [] }),
-      title: input.title,
-      summary: input.summary,
       body: input.body,
       occurred_at: input.occurred_at ?? null,
       task_id: task.id,
@@ -251,7 +179,7 @@ export async function completeTask(
       tag_ids: input.tag_ids,
     });
     const updated = await store.updateTask(id, { ...decided, result_record_id: record.id });
-    await store.enqueueIndex({ kind: "record", id: record.id, input_hash: await searchInputHash(record) });
+    await store.enqueueIndex({ kind: "record", id: record.id, input_hash: await searchInputHash(record.body) });
     return { task: toTaskResult(updated), record: toRecordResult(record) };
   });
 }
@@ -263,7 +191,6 @@ export async function deleteTask(
   id: string,
   expectedVersion: number,
   change_note?: string,
-  change_memo?: ChangeMemo,
 ): Promise<void> {
   await deps.uow.run(
     actor,
@@ -279,7 +206,6 @@ export async function deleteTask(
         before: taskChangeFacts(task),
         after: null,
         change_note,
-        change_memo,
       });
       return { deleted: true };
     },
@@ -292,7 +218,6 @@ export async function stopTask(
   id: string,
   expectedVersion: number,
   change_note?: string,
-  change_memo?: ChangeMemo,
 ) {
   return await deps.uow.run(
     actor,
@@ -306,7 +231,6 @@ export async function stopTask(
         before: taskChangeFacts(task),
         after: taskChangeFacts(result),
         change_note,
-        change_memo,
       });
       return toTaskResult(result);
     },
@@ -319,7 +243,6 @@ export async function resumeTask(
   id: string,
   expectedVersion: number,
   change_note?: string,
-  change_memo?: ChangeMemo,
 ) {
   return await deps.uow.run(
     actor,
@@ -333,7 +256,6 @@ export async function resumeTask(
         before: taskChangeFacts(task),
         after: taskChangeFacts(result),
         change_note,
-        change_memo,
       });
       return toTaskResult(result);
     },
@@ -373,17 +295,14 @@ export async function recordOccurrence(
       const record = await store.insertRecord({
         id: input.id,
         record_kind: "result",
-        change_note: input.change_note,
         ...entityChanges({ entity_ids: selectedEntities(input) ?? selectedEntities(task) ?? [] }),
-        title: input.title,
-        summary: input.summary,
         body: input.body,
         occurred_at: input.occurred_at ?? null,
         task_id: id,
         occurrence_on: date,
         tag_ids: input.tag_ids,
       });
-      await store.enqueueIndex({ kind: "record", id: record.id, input_hash: await searchInputHash(record) });
+      await store.enqueueIndex({ kind: "record", id: record.id, input_hash: await searchInputHash(record.body) });
       return toRecordResult(record);
     },
   );
@@ -395,24 +314,20 @@ export async function createRecord(deps: ActivityDeps, actor: Actor, input: Reco
   return await deps.uow.run(actor, async (store) => {
     const record = await store.insertRecord({
       id: input.id,
-      change_note: input.change_note,
       ...entityChanges({ entity_ids: selectedEntities(input) ?? [] }),
-      title: input.title,
-      summary: input.summary,
       body: input.body,
       occurred_at: input.occurred_at ?? null,
       task_id: null,
       occurrence_on: null,
       tag_ids: input.tag_ids,
     });
-    await store.enqueueIndex({ kind: "record", id: record.id, input_hash: await searchInputHash(record) });
+    await store.enqueueIndex({ kind: "record", id: record.id, input_hash: await searchInputHash(record.body) });
     await store.appendChange({
       target_kind: "record",
       target: activityChangeTarget(record),
       action: "create",
       before: null,
       after: recordChangeFacts(record),
-      change_note: input.change_note,
     });
     return toRecordResult(record);
   });
@@ -437,7 +352,7 @@ export async function listRecords(
   });
 }
 
-/** 제목·요약이 바뀌면 재색인, 본문만 바뀌면 재임베딩하지 않는다. */
+/** 본문 변경만 구간 색인을 교체한다. */
 export async function updateRecord(
   deps: ActivityDeps,
   actor: Actor,
@@ -451,21 +366,19 @@ export async function updateRecord(
       record.record_kind === "change" &&
       ["entity_ids", "tag_ids", "occurred_at"].some((k) => k in patch)
     ) {
-      throw invalidInput("변경 기록은 제목·요약·본문·메모만 정정할 수 있습니다");
+      throw invalidInput("변경 기록은 본문만 정정할 수 있습니다");
     }
-    const { expected_version: _v, change_note, ...content } = patch;
+    const { expected_version: _v, ...content } = patch;
     const selection = entityChanges(content);
     const changes = { ...content, ...selection };
     if (
-      !changed(record, changes) &&
-      (change_note === undefined || record.change_note === change_note)
+      !changed(record, changes)
     ) return toRecordResult(record);
     const updated = await store.updateRecord(id, {
       ...changes,
-      ...(change_note === undefined ? {} : { change_note }),
     });
-    if (updated.title !== record.title || updated.summary !== record.summary) {
-      await store.enqueueIndex({ kind: "record", id, input_hash: await searchInputHash(updated) });
+    if (updated.body !== record.body) {
+      await store.enqueueIndex({ kind: "record", id, input_hash: await searchInputHash(updated.body) });
     }
     // Records are editable knowledge. Editing their memo does not create another event.
     return toRecordResult(updated);

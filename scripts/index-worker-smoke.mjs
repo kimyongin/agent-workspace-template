@@ -1,4 +1,4 @@
-// 명시적으로 실행하는 유료 공급자 검증. CI에서는 실행하지 않으며 시험 원본 3개만 처리한다.
+// 명시적으로 실행하는 유료 공급자 검증. CI에서는 실행하지 않는다.
 import postgres from "postgres";
 import { readEnv } from "./local-env.mjs";
 const env = readEnv(new URL("../.env.local", import.meta.url));
@@ -32,23 +32,29 @@ async function work(kind, id) {
 }
 try {
   for (const kind of ["task", "record", "principle"]) {
-    const body = `본문 전용 표식 ${crypto.randomUUID()}`;
-    const item = await api("POST", `/${kind}s`, { title: "임베딩 시험", summary: "서버 오류를 점검하고 복구 절차를 기록했다.",
-      body, ...(kind === "task" ? { kind: "once" } : {}) });
+    const body = `서버 오류를 점검하고 복구 절차를 기록했다. 본문 표식 ${crypto.randomUUID()}`;
+    const item = await api("POST", `/${kind}s`, {
+      ...(kind === "record" ? {} : { title: "임베딩 시험" }), body, ...(kind === "task" ? { kind: "once" } : {}) });
     const cleanup = { kind, id: item.id, version: 1 }; originals.push(cleanup);
     const result = await work(kind, item.id);
-    if (result.indexed !== 1) throw new Error(`${kind} 실제 임베딩이 완료되지 않았습니다`);
-    const [state] = await sql`select state,pipeline,extensions.vector_dims(embedding) as dimension from app.search_index_state
-      where owner_id=${user.id} and kind=${kind} and id=${item.id}`;
-    if (state.state !== "indexed" || state.dimension !== 1024 || state.pipeline !== "llama-v2-1024-title-summary-v1") {
-      throw new Error(`${kind} 현재 벡터 검증 실패`);
+    if (kind === "record") {
+      if (result.indexed !== 1) throw new Error("기록 실제 임베딩이 완료되지 않았습니다");
+      const [state] = await sql`select i.state,i.pipeline,min(extensions.vector_dims(c.embedding)) as dimension
+        from app.search_index_state i join app.search_chunks c on c.owner_id=i.owner_id and c.record_id=i.id and c.generation=i.generation
+        where i.owner_id=${user.id} and i.kind='record' and i.id=${item.id} group by i.state,i.pipeline`;
+      if (state?.state !== "indexed" || state.dimension !== 1024 || state.pipeline !== "llama-v2-1024-record-body-utf8-1800-overlap180-v1") {
+        throw new Error("기록 현재 구간 벡터 검증 실패");
+      }
+    } else if (result.claimed !== 0) {
+      throw new Error(`${kind} 최신 내용이 별도로 임베딩됐습니다`);
     }
     const read = await api("GET", `/${kind}s/${item.id}`);
     if (read.body !== body) throw new Error("원문이 변경됐습니다");
     const changed = await api("PATCH", `/${kind}s/${item.id}`, { expected_version: 1, body: `${body}\n본문만 수정` });
     cleanup.version = changed.version;
-    if ((await work(kind, item.id)).claimed !== 0) throw new Error("본문 수정으로 재임베딩이 등록됐습니다");
-    console.log(`${kind}: 실제 Pinecone → 1024차원 현재 벡터, 원문 보존, 본문 재임베딩 억제 통과`);
+    const after = await work(kind, item.id);
+    if (kind === "record" ? after.indexed !== 1 : after.claimed !== 0) throw new Error("본문 색인 갱신 범위가 다릅니다");
+    console.log(`${kind}: 원문 보존·기록 본문 구간 재색인·최신 업무 벡터 없음 통과`);
   }
 } finally {
   for (const { kind, id, version } of originals) await api("DELETE", `/${kind}s/${id}?expected_version=${version}`);

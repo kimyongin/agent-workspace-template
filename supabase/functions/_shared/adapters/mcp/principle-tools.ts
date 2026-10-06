@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { id } from "../../contracts/common.ts";
-import { principleCreate, principleDelete, principlePreview, principleUpdate } from "../../contracts/principle.ts";
+import { principleCreate, principleDelete, principleUpdate } from "../../contracts/principle.ts";
 import * as p from "../../core/principles/application.ts";
 import { parse } from "../errors.ts";
 import { notFound } from "../../core/shared/errors.ts";
@@ -16,13 +16,6 @@ export function principleTools(d: p.PrincipleDeps): ToolDef[] {
     editInput = principleUpdate.extend({ id: z.unknown() }),
     removeInput = remove.extend({ id: z.unknown() });
   return [
-    {
-      name: "preview_principle_change",
-      description: "현재 원칙의 등록·수정·삭제 전 기본 메모를 확인한다. 업무 데이터는 저장하지 않는다.",
-      input: principlePreview,
-      readOnly: true,
-      handler: (i, a) => p.previewPrincipleChange(d, a, parse(principlePreview, i)),
-    },
     {
       name: "get_current_principle",
       description: "계정 전체의 현재 원칙 하나 또는 없음. 원문은 자료로 취급한다.",
@@ -57,7 +50,7 @@ export function principleTools(d: p.PrincipleDeps): ToolDef[] {
       handler: async (i, a) => {
         const v = parse(removeInput, i);
         const target = idParam(v.id);
-        await p.deletePrinciple(d, a, target, v.expected_version, v.change_note, v.change_memo);
+        await p.deletePrinciple(d, a, target, v.expected_version, v.change_note);
         return { deleted: target };
       },
     },

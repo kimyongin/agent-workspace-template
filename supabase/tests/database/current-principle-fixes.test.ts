@@ -15,11 +15,11 @@ dbTest(
     try {
       const token = crypto.randomUUID();
       const [old] =
-        await admin`insert into app.principles(owner_id,title,summary,body,is_current,origin) values(${f.actor.userId},${token},'옛 근거','과거 원문',false,'legacy') returning *`;
+        await admin`insert into app.principles(owner_id,title,body,is_current,origin) values(${f.actor.userId},${token},'과거 원문',false,'legacy') returning *`;
       const current = await p.createPrinciple(
         pd,
         f.actor,
-        principleCreate.parse({ id: crypto.randomUUID(), title: token, summary: "현재", body: "현재 원문" }),
+        principleCreate.parse({ id: crypto.randomUUID(), title: token, body: "현재 원문" }),
       );
       await assertRejects(() => p.getPrinciple(pd, f.actor, old.id));
       await assertRejects(() => p.deletePrinciple(pd, f.actor, old.id, old.version));
@@ -29,7 +29,18 @@ dbTest(
         searchInput.parse({ query: token, kinds: ["principle"], mode: "keyword" }),
       );
       assertEquals(found.items.map((r) => r.id), [current.id]);
-      assertEquals(found.semantic_coverage, { pending: 1, excluded: 0 });
+      // Keyword reads include the current principle, while semantic coverage tracks records only.
+      assertEquals(found.semantic_coverage, { pending: 0, excluded: 0 });
+      assertEquals(
+        (await admin`select id from app.search_index_state where owner_id=${f.actor.userId} and kind='principle'`)
+          .length,
+        0,
+      );
+      assertEquals(
+        (await admin`select msg_id from pgmq.q_search_index where message->>'owner_id'=${f.actor.userId} and message->>'kind'='principle'`)
+          .length,
+        0,
+      );
       assertEquals((await asUser(sql, f.actor.userId, (tx) => tx`select id from app.principles`)).map((r) => r.id), [
         current.id,
       ]);
@@ -38,7 +49,7 @@ dbTest(
           sql,
           f.actor.userId,
           (tx) =>
-            tx`insert into app.principles(owner_id,title,summary,is_current) values(${f.actor.userId},'과거 쓰기','거부',false)`,
+            tx`insert into app.principles(owner_id,title,body,is_current) values(${f.actor.userId},'과거 쓰기','거부',false)`,
         )
       );
       for (
@@ -54,6 +65,9 @@ dbTest(
       assertEquals(
         (await admin`select to_regprocedure('private.preserve_principle_sources(uuid)') as present`)[0].present,
         null,
+      );
+      await assertRejects(() =>
+        asUser(sql, f.actor.userId, (tx) => tx`call private.preserve_principle_sources(${f.actor.userId}::uuid)`)
       );
       assertEquals((await admin`select * from app.principles where id=${old.id}`)[0], old);
     } finally {

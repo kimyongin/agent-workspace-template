@@ -14,18 +14,18 @@ dbTest(
       const owner = f.actor.userId,
         token = crypto.randomUUID(),
         ids = Array.from({ length: 7 }, () => crypto.randomUUID());
-      await admin`insert into app.tasks(id,owner_id,kind,status,title,summary) values(${
+      await admin`insert into app.tasks(id,owner_id,kind,status,title,body) values(${
         ids[0]
       },${owner},'once','open',${token},'계획'),(${ids[1]},${owner},'once','done',${token},'완료')`;
-      await admin`insert into app.tasks(id,owner_id,kind,status,title,summary,recurrence,timezone) values(${
+      await admin`insert into app.tasks(id,owner_id,kind,status,title,body,recurrence,timezone) values(${
         ids[2]
       },${owner},'recurring','active',${token},'반복','{"freq":"daily","starts_on":"2026-01-01"}','Asia/Seoul')`;
-      await admin`insert into app.principles(id,owner_id,title,summary,is_current) values(${
+      await admin`insert into app.principles(id,owner_id,title,body,is_current) values(${
         ids[3]
       },${owner},${token},'현재',true),(${ids[4]},${owner},${token},'과거',false)`;
-      await admin`insert into app.records(id,owner_id,title,summary,record_kind) values(${
-        ids[5]
-      },${owner},${token},'관찰','user'),(${ids[6]},${owner},${token},'변경','change')`;
+      await admin`insert into app.records(id,owner_id,body,record_kind) values(${ids[5]},${owner},${token},'user'),(${
+        ids[6]
+      },${owner},${token},'change')`;
       const q = (extra: object) => searchInput.parse({ query: token, mode: "keyword", ...extra });
       for (
         const [extra, expected] of [
@@ -37,7 +37,7 @@ dbTest(
       ) {
         const result = await search(d, f.actor, q(extra));
         assertEquals(result.items.map((r) => r.id), [...expected]);
-        assertEquals(result.semantic_coverage, { pending: 1, excluded: 0 });
+        assertEquals(result.semantic_coverage, { pending: extra.kinds[0] === "record" ? 1 : 0, excluded: 0 });
         assertEquals(
           (await search(d, f.actor, q({ ...extra, anchor: { kind: "task", id: ids[0] } }))).anchor_page,
           null,

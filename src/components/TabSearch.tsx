@@ -26,7 +26,7 @@ export function TabSearch({ entity = false }: { entity?: boolean }) {
   }, [draft, composing, applied, name, setParams]);
   return <div className="workspace-search"><Field label={entity ? "속성 1 키워드" : "검색어"}>
     {props => <div className="workspace-search-input"><input {...props} ref={input} className="input" value={draft}
-      maxLength={entity ? 100 : 200} placeholder={entity ? "속성 1 부분 일치" : "제목·요약·본문 검색"}
+      maxLength={entity ? 100 : 200} placeholder={entity ? "속성 1 부분 일치" : "제목·본문 검색"}
       onChange={event => setDraft(event.target.value)} onCompositionStart={() => setComposing(true)}
       onCompositionEnd={event => { setDraft(event.currentTarget.value); setComposing(false); }}/>
       {!!draft && <button type="button" className="search-clear" aria-label="검색어 지우기" onClick={() => {

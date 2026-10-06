@@ -22,7 +22,6 @@ function fixture() {
         updated_at: now,
         saved_at: now,
         is_current: true,
-        change_note: i.change_note ?? null,
         origin: "saved",
         legacy_context: null,
       };
@@ -39,7 +38,6 @@ function fixture() {
       rows.delete(id);
       return Promise.resolve();
     },
-    enqueueIndex: () => Promise.resolve(),
     appendChange: (i) => {
       events.push(i);
       return Promise.resolve();
@@ -84,7 +82,7 @@ function fixture() {
 }
 Deno.test("retired principle history routes/tools are absent and exact reads are current-only", async () => {
   const f = fixture();
-  const current = await f.call("create_principle", { title: "현재", summary: "현재 기준" }) as PrincipleResult;
+  const current = await f.call("create_principle", { title: "현재" }) as PrincipleResult;
   const historical = { ...current, id: crypto.randomUUID(), is_current: false };
   f.rows.set(historical.id, historical);
   assertEquals((await f.http("GET", "/principles?view=all")).status, 404);
@@ -99,29 +97,15 @@ Deno.test("retired principle history routes/tools are absent and exact reads are
   assertEquals(await (await f.http("GET", `/principles/${current.id}`)).json(), current);
   assertEquals(f.rows.get(historical.id), historical);
 });
-Deno.test("principle preview is read-only and agrees across HTTP and MCP", async () => {
-  const f = fixture(),
-    input = { action: "create", input: { title: "새 기준", summary: "현재 판단", body: "확인한 내용" } };
-  const web = await f.http("POST", "/principles/preview", input);
-  assertEquals(web.status, 200);
-  const expected = {
-    changed: true,
-    memo: {
-      title: "새 기준 등록",
-      summary: "새 기준 등록",
-      body: "제목: 새 기준\n요약: 현재 판단\n본문: 확인한 내용",
-    },
-  };
-  assertEquals(await web.json(), expected);
-  assertEquals(await f.call("preview_principle_change", input), expected);
-  assertEquals(f.events.length, 0);
-  assertEquals((await (await f.http("GET", "/principles/current")).json()).current, null);
+Deno.test("principle preview endpoints and tools are removed", async () => {
+  const f = fixture();
+  assertEquals((await f.http("POST", "/principles/preview", {})).status, 404);
+  assertEquals(f.tools.some((t) => t.name.startsWith("preview_")), false);
 });
 Deno.test("HTTP current principle edited through MCP retains its document identity", async () => {
   const f = fixture();
   const web = await f.http("POST", "/principles", {
     title: "현재 기준",
-    summary: "초기 요약",
     body: "초기 본문",
   });
   assertEquals(web.status, 201);
@@ -129,7 +113,6 @@ Deno.test("HTTP current principle edited through MCP retains its document identi
   const saved = await f.call("update_principle", {
     id: first.id,
     title: "현재 기준",
-    summary: "새 요약",
     body: "새 본문",
     expected_version: first.version,
     change_note: "검토 반영",
@@ -141,22 +124,20 @@ Deno.test("HTTP current principle edited through MCP retains its document identi
 });
 Deno.test("current principle deletion leaves none and stale requests cannot overwrite its replacement", async () => {
   const f = fixture(),
-    first = await f.call("create_principle", { title: "첫 기준", summary: "요약" }) as PrincipleResult;
+    first = await f.call("create_principle", { title: "첫 기준" }) as PrincipleResult;
   const next = await f.call("update_principle", {
     id: first.id,
     title: "수정 기준",
-    summary: "요약",
     expected_version: first.version,
   }) as PrincipleResult;
   assertEquals(next.id, first.id);
   assertEquals(next.version, 2);
   await f.call("delete_principle", { id: next.id, expected_version: next.version });
   assertEquals(await f.call("get_current_principle", {}), { current: null });
-  const replacement = await f.call("create_principle", { title: "다시 등록", summary: "새 기준" }) as PrincipleResult;
+  const replacement = await f.call("create_principle", { title: "다시 등록" }) as PrincipleResult;
   assertEquals(replacement.version, 1);
   const stale = await f.http("PATCH", `/principles/${next.id}`, {
     title: "과거 요청",
-    summary: "요약",
     expected_version: next.version,
   });
   assertEquals(stale.status, 404);
@@ -164,11 +145,11 @@ Deno.test("current principle deletion leaves none and stale requests cannot over
 });
 Deno.test("current principle HTTP/MCP input/result parity and removed activation rejected", async () => {
   const f = fixture();
-  const r = await f.http("POST", "/principles", { title: "기준", summary: "요약" });
+  const r = await f.http("POST", "/principles", { title: "기준" });
   assertEquals(r.status, 201);
   const current = await r.json();
   assertEquals(await f.call("get_current_principle", {}), { current });
-  const invalid = { title: "새", summary: "요약", expected_version: current.version, owner_id: crypto.randomUUID() };
+  const invalid = { title: "새", expected_version: current.version, owner_id: crypto.randomUUID() };
   const bad = await f.http("PATCH", `/principles/${current.id}`, invalid);
   assertEquals(bad.status, 400);
   const error = await assertRejects(
@@ -179,7 +160,6 @@ Deno.test("current principle HTTP/MCP input/result parity and removed activation
   assertEquals((await f.http("POST", `/principles/${current.id}/activate`, { expected_version: 1 })).status, 404);
   const note = {
     title: "새",
-    summary: "요약",
     expected_version: 1,
     change_note: "이유",
   };
@@ -192,17 +172,16 @@ Deno.test("current principle HTTP/MCP input/result parity and removed activation
 
 Deno.test("principle patch retains omitted content and no-op/retry/conflict leave the next revision unchanged", async () => {
   const f = fixture();
-  const input = { title: "기준", summary: "원래 요약", body: "원래 본문" };
+  const input = { title: "기준", body: "원래 본문" };
   const first = await f.call("create_principle", input) as PrincipleResult;
   await assertRejects(() => f.call("create_principle", input), AppError);
-  const exists = await assertRejects(() => f.call("create_principle", { title: "새 기준", summary: "요약" }), AppError);
+  const exists = await assertRejects(() => f.call("create_principle", { title: "새 기준" }), AppError);
   assertEquals(exists.code, "conflict");
   const patch = { id: first.id, title: "변경 기준", expected_version: first.version };
   const next = await f.call("update_principle", patch) as PrincipleResult;
-  assertEquals([next.id, next.title, next.summary, next.body, next.version], [
+  assertEquals([next.id, next.title, next.body, next.version], [
     first.id,
     "변경 기준",
-    "원래 요약",
     "원래 본문",
     2,
   ]);

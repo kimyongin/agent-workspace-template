@@ -94,8 +94,8 @@ export class SqlEntityStore extends SqlActorStore implements EntityStore {
       const tx = this.tx;
       const membership = tx`entity_ids @> array[${id}::uuid]`;
       const [count] = await tx`select count(*)::integer as count from app.${tx(table)} where ${membership}`;
-      const rows = await tx`select id,title,updated_at ${
-        table === "records" ? tx`,record_kind,summary,occurred_at` : tx``
+      const rows = await tx`select id,updated_at ${
+        table === "records" ? tx`,body,record_kind,occurred_at` : tx`,title`
       } from app.${tx(table)} where ${membership} order by updated_at desc,id desc limit 5`;
       return {
         count: count.count as number,
@@ -113,9 +113,10 @@ export class SqlEntityStore extends SqlActorStore implements EntityStore {
       records: {
         count: records.count,
         items: records.rows.map((r) => ({
-          ...item(r),
+          id: r.id as string,
+          body: r.body as string,
+          updated_at: (r.updated_at as Date).toISOString(),
           record_kind: r.record_kind as EntityDetail["records"]["items"][number]["record_kind"],
-          summary: r.summary as string,
           occurred_at: (r.occurred_at as Date).toISOString(),
         })),
       },

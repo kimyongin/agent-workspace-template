@@ -182,7 +182,7 @@ dbTest(
         original.id,
         principleUpdate.parse({
           title: original.title,
-          summary: original.summary,
+          summary: "이전 요약",
           body: "현재 원칙 변경",
           expected_version: original.version,
         }),

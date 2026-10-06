@@ -5,8 +5,8 @@ test('independent proof reads original bodies and detects edits hidden by unchan
   let body = 'original';
   const call = async (name) => {
     if (name === 'get_current_principle') return { current: null };
-    if (name === 'list_records') return { items: [{ id: 'source', summary: 'same preview' }], next_cursor: null };
-    if (name === 'get_record') return { id: 'source', summary: 'same preview', body };
+    if (name === 'list_records') return { items: [{ id: 'source' }], next_cursor: null };
+    if (name === 'get_record') return { id: 'source', body };
     if (name.startsWith('list_')) return { items: [], next_cursor: null };
     throw new Error('Unexpected public read');
   };

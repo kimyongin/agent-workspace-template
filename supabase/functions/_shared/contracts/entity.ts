@@ -29,7 +29,7 @@ export const entityUpdate = z.strictObject({
   prop4: properties.prop4.optional(),
   expected_version: expectedVersion,
 }).refine(
-  (v) => Object.keys(v).some((k) => !["expected_version", "change_note", "change_memo"].includes(k)),
+  (v) => Object.keys(v).some((k) => !["expected_version", "change_note"].includes(k)),
   {
     message: "바꿀 필드가 없습니다",
   },
@@ -64,7 +64,7 @@ export const entityDetail = entityResult.extend({
   tasks: related,
   records: related.extend({
     items: z.array(
-      relatedItem.extend(recordResult.pick({ record_kind: true, summary: true, occurred_at: true }).shape),
+      recordResult.pick({ id: true, body: true, updated_at: true, record_kind: true, occurred_at: true }),
     ),
   }),
 });

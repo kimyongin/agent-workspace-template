@@ -26,7 +26,8 @@ it("describes application capture as provenance rather than inventing a capture 
 });
 
 it("shows stored historical snapshots, without implying missing snapshots describe historical absence", () => {
-  const record = { record_kind: "change", change_note: null, change: { target_kind: "entity", target_id: "target", target_title: "고객", action: "update", source: "http", before: null, after: null } } as WorkspaceRecord;
+  const stamp="2026-10-01T02:03:04Z";
+  const record: WorkspaceRecord = { id:"record", body:"고객 수정",record_kind: "change",occurred_at:stamp,task_id:null,occurrence_on:null,entity_ids:[],entity_context:[],tag_ids:[],applied_principle_snapshots:[],version:1,created_at:stamp,updated_at:stamp,change: { event_id:"event",target_kind: "entity", target_id: "target", target_title: "고객", action: "update", source: "http", before: null, after: null,path:null } };
   const render = (value: WorkspaceRecord) => renderToStaticMarkup(<MemoryRouter><ChangeContext record={value}/></MemoryRouter>);
   expect(render(record)).not.toContain("변경 전");
   expect(render(record)).not.toContain("변경 후");

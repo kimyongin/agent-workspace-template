@@ -16,7 +16,6 @@
 .record-date-toggle::after { content: "접기"; font-size: .875rem; font-weight: normal; }
 .record-date-toggle[aria-expanded="false"]::after { content: "펼치기"; }
 .record-date-group > .list { margin-top: var(--space-2); }
-.document-summary { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--muted-ink); font-size: .875rem; line-height: 1.25rem; }
 .tag-read { display: inline-block; border: 1px solid var(--line); border-radius: var(--radius-chip); padding: var(--space-1) var(--space-2); overflow-wrap: anywhere; max-width: 100%; }
 .tag-selection .chip { min-width: 44px; border-radius: var(--radius-chip); }
 .record-date-group > .list[hidden] { display: none; }
@@ -36,7 +35,7 @@
 .timeline-dot { display: none; }
 .record-date-group.panel { border: 0; border-radius: 0; box-shadow: none; background: transparent; padding: 0; }
 .timeline-day { font-size: .875rem; line-height: 1.25rem; font-weight: 600; color: var(--muted-ink); }
-.record-summary { margin: 0; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+.record-snippet { margin: 0; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
 .record-metadata { display: flex; align-items: baseline; gap: var(--space-2) var(--space-3); flex-wrap: wrap; }
 .record-change-target { flex-basis: 100%; min-width: 0; overflow-wrap: anywhere; }
 .record-metadata p { margin: 0; }

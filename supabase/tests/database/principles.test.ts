@@ -7,7 +7,7 @@ import { asUser, connect, dbTest, fixtureOwner, outcome, urls } from "./_db.ts";
 const admin = connect(urls.admin, { max: 1 }),
   sql = connect(urls.pooler, { max: 4, prepare: false }),
   d = { uow: new SqlPrincipleUnitOfWork(sql) };
-const content = { title: "기준", summary: "판단 근거", body: "첫 본문" };
+const content = { title: "기준", body: "첫 본문" };
 dbTest(
   "current principle: first/concurrent/idempotent save, same document, owner isolation and retired history rejection",
   async () => {
@@ -56,7 +56,7 @@ dbTest(
         3,
       );
       const [legacy] =
-        await admin`insert into app.principles(owner_id,title,summary,body,is_current,origin,saved_at) values(${a.userId},'과거 자료','보존 요약','과거 원문',false,'legacy','2020-01-01T00:00:00Z') returning id`;
+        await admin`insert into app.principles(owner_id,title,body,is_current,origin,saved_at) values(${a.userId},'과거 자료','과거 원문',false,'legacy','2020-01-01T00:00:00Z') returning id`;
       await assertRejects(() => p.getPrinciple(d, a, legacy.id), AppError);
       await assertRejects(() => p.getPrinciple(d, b.actor, first.id), AppError);
       assertEquals(
@@ -82,8 +82,8 @@ dbTest(
     const f = await fixtureOwner(admin);
     try {
       const a = f.actor;
-      const [legacy] = await admin`insert into app.principles(owner_id,title,summary,body,is_current,origin,saved_at)
-      values(${a.userId},'과거 자료','보존 요약','과거 원문',false,'legacy','2020-01-01T00:00:00Z') returning id`;
+      const [legacy] = await admin`insert into app.principles(owner_id,title,body,is_current,origin,saved_at)
+      values(${a.userId},'과거 자료','과거 원문',false,'legacy','2020-01-01T00:00:00Z') returning id`;
       const before = (await admin`select * from app.principles where id=${legacy.id}`)[0];
       const first = await p.createPrinciple(d, a, principleCreate.parse({ id: crypto.randomUUID(), ...content }));
       const noop = await p.updatePrinciple(
@@ -93,8 +93,7 @@ dbTest(
         principleUpdate.parse({
           ...content,
           expected_version: first.version,
-          change_note: "동일 값",
-          change_memo: { title: "메모만 변경", summary: "새 설명", body: "새 메모" },
+          change_note: "새 메모",
         }),
       );
       assertEquals(noop, first);
@@ -108,21 +107,17 @@ dbTest(
           ...content,
           body: "두 번째",
           expected_version: first.version,
-          change_memo: { title: "확인한 기록", summary: "최종 요약", body: "사용자가 편집한 근거" },
+          change_note: "사용자가 편집한 근거",
         }),
       );
       assertEquals(next.id, first.id);
       const record =
-        (await admin`select title,summary,body from app.records where owner_id=${a.userId} and title='확인한 기록'`)[0];
-      assertEquals(record, { title: "확인한 기록", summary: "최종 요약", body: "사용자가 편집한 근거" });
+        (await admin`select body from app.records where owner_id=${a.userId} and body='사용자가 편집한 근거'`)[0];
+      assertEquals(record, { body: "사용자가 편집한 근거" });
       await assertRejects(() => p.getPrinciple(d, a, legacy.id), AppError);
       await assertRejects(() => p.deletePrinciple(d, a, legacy.id, before.version), AppError);
       assertEquals((await admin`select * from app.principles where id=${legacy.id}`)[0], before);
-      await p.deletePrinciple(d, a, next.id, next.version, "삭제", {
-        title: "삭제 근거",
-        summary: "최종 확인",
-        body: "삭제 메모",
-      });
+      await p.deletePrinciple(d, a, next.id, next.version, "삭제 메모");
       assertEquals((await p.currentPrinciple(d, a)).current, null);
       assertEquals((await admin`select * from app.principles where id=${legacy.id}`)[0], before);
       const count = (await logs())[0].n;
@@ -167,9 +162,8 @@ dbTest("current principle concurrent patches keep omitted content and reject the
     assert(loser?.status === "rejected" && loser.reason instanceof AppError);
     assertEquals(loser.reason.code, "conflict");
     const current = (await p.currentPrinciple(d, f.actor)).current!;
-    assertEquals([current.id, current.summary, current.body, current.version], [
+    assertEquals([current.id, current.body, current.version], [
       first.id,
-      content.summary,
       content.body,
       2,
     ]);

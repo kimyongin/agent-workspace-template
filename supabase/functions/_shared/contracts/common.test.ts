@@ -1,5 +1,5 @@
 import { assertEquals } from "@std/assert";
-import { isoDate, summary, title } from "./common.ts";
+import { isoDate, recordBody, title } from "./common.ts";
 
 Deno.test("제목은 앞뒤 공백 제거 후 코드 포인트 1~100자", () => {
   assertEquals(title.safeParse("  a  ").data, "a");
@@ -10,9 +10,10 @@ Deno.test("제목은 앞뒤 공백 제거 후 코드 포인트 1~100자", () => 
   assertEquals(title.safeParse("😀".repeat(100)).success, true);
 });
 
-Deno.test("요약은 1~300자", () => {
-  assertEquals(summary.safeParse("x".repeat(300)).success, true);
-  assertEquals(summary.safeParse("x".repeat(301)).success, false);
+Deno.test("기록 본문은 원문 그대로 보존하고 Unicode 22,000자를 허용한다", () => {
+  assertEquals(recordBody.parse("  본문\n"), "  본문\n");
+  assertEquals(recordBody.safeParse("😀".repeat(22000)).success, true);
+  assertEquals(recordBody.safeParse("가".repeat(22001)).success, false);
 });
 
 Deno.test("날짜는 실제로 있는 YYYY-MM-DD", () => {

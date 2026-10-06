@@ -26,7 +26,7 @@ export function verifyRoundtrip(before, after, fixture, mode) {
   let scope = Boolean(id) && events.length === expectedEvents && equal(before.tags, after.tags);
   const eventTarget = target ?? old;
   const eventEntities = singular === 'entity' ? [id] : eventTarget?.entity_ids ?? [];
-  if (expectedEvents) scope &&= events.every(e => e.change?.target_kind === singular && e.change.target_id === id && e.change.target_title === (eventTarget?.prop1 ?? eventTarget?.title) && e.change.action === action && e.change.source === (mode.startsWith('web-') ? 'http' : 'mcp') && e.change.path === (action === 'delete' ? null : `/${plural}/${id}`) && typeof e.change.event_id === 'string' && e.change.event_id.length > 0 && e.change.before === null && e.change.after === null && equal(e.entity_ids, eventEntities) && (intent.memoBody === undefined || e.body === intent.memoBody));
+  if (expectedEvents) scope &&= events.every(e => e.change?.target_kind === singular && e.change.target_id === id && (singular === 'record' ? typeof e.change.target_title === 'string' : e.change.target_title === (eventTarget?.prop1 ?? eventTarget?.title)) && e.change.action === action && e.change.source === (mode.startsWith('web-') ? 'http' : 'mcp') && e.change.path === (action === 'delete' ? null : `/${plural}/${id}`) && typeof e.change.event_id === 'string' && e.change.event_id.length > 0 && e.change.before === null && e.change.after === null && equal(e.entity_ids, eventEntities) && (intent.memoBody === undefined || e.body === intent.memoBody));
   for (const kind of kinds) {
     const expected = kind === 'records' ? expectedEvents + (mode === 'web-source' || mode === 'web-complete' ? 1 : 0) : kind === plural && action === 'create' ? 1 : 0;
     scope &&= created[kind].length === expected;
@@ -36,6 +36,7 @@ export function verifyRoundtrip(before, after, fixture, mode) {
       if (kind === plural && previous.id === id && action === 'delete') { scope &&= !current; continue; }
       if (!current) { scope = false; continue; }
       let mutable = kind === 'entities' ? ['tasks', 'records', 'principles'] : [];
+      if (kind === 'tasks' && mode === 'web-memo') mutable.push('result_record');
       if (kind === plural && previous.id === id && action !== 'create') {
         mutable = [...mutable, 'version', 'updated_at', ...(mode === 'roundtrip-entity' ? ['prop2'] : mode === 'web-complete' ? ['status', 'completed_at', 'result_record_id', 'result_record'] : mode === 'web-principle-update' ? ['body', 'saved_at'] : ['body'])];
         scope &&= current.version === previous.version + 1;
@@ -43,7 +44,7 @@ export function verifyRoundtrip(before, after, fixture, mode) {
       }
       scope &&= equal(omit(previous, mutable), omit(current, mutable));
       if (kind === 'entities') scope &&= entityProjectionMatches(current, after, previous);
-      if (kind === 'tasks' && mode === 'web-memo') scope &&= equal(previous, current); // result summary unchanged for a body-only edit.
+      if (kind === 'tasks' && mode === 'web-memo') { const result = after.records.find(r => r.id === current.result_record_id); scope &&= equal(omit(previous, ['result_record']), omit(current, ['result_record'])) && equal(current.result_record, result ? { id: result.id, body: result.body } : null); }
     }
   }
   if (singular !== 'principle') scope &&= equal(before.current, after.current) && equal(before.principles, after.principles);
@@ -51,14 +52,14 @@ export function verifyRoundtrip(before, after, fixture, mode) {
   let content = false;
   if (mode === 'web-entity') content = target?.prop1 === fixture.marker && target.prop2 === 7 && target.prop3 === '2026-10-06' && target.prop4 === 'b' && entityProjectionMatches(target, after);
   if (mode === 'roundtrip-entity') content = target?.prop2 === 11 && events[0]?.body === intent.memoBody;
-  if (mode === 'web-source') content = target?.title === `${fixture.marker}-source` && target.body === intent.body && equal(target.entity_ids, [fixture.entity.id]);
+  if (mode === 'web-source') content = target?.body === intent.body && equal(target.entity_ids, [fixture.entity.id]);
   if (mode === 'web-principle') content = target?.title === `${fixture.marker}-principle` && target.body === intent.body;
   if (mode === 'web-principle-update' || mode === 'web-memo') content = target?.body === intent.body;
   if (mode === 'web-principle-delete') content = !target && after.current.current === null;
-  if (mode === 'roundtrip-task') content = target?.title === `${fixture.marker}-task` && target.kind === 'once' && target.status === 'open' && target.summary === intent.summary && target.body === intent.body && equal(target.entity_ids, [fixture.entity.id]);
+  if (mode === 'roundtrip-task') content = target?.title === `${fixture.marker}-task` && target.kind === 'once' && target.status === 'open' && target.body === intent.body && equal(target.entity_ids, [fixture.entity.id]);
   if (mode === 'web-complete') {
     const result = created.records.find(r => r.record_kind === 'result');
-    content = old?.status === 'open' && target?.status === 'done' && stamp(target.completed_at) && result?.body === intent.body && result.task_id === id && result.id === target.result_record_id && equal(result.entity_ids, [fixture.entity.id]) && equal(target.result_record, { id: result.id, title: result.title, summary: result.summary });
+    content = old?.status === 'open' && target?.status === 'done' && stamp(target.completed_at) && result?.body === intent.body && result.task_id === id && result.id === target.result_record_id && equal(result.entity_ids, [fixture.entity.id]) && equal(target.result_record, { id: result.id, body: result.body });
   }
   return { pass: Boolean(scope && content), scope: Boolean(scope), content: Boolean(content), originalReads: true, targetId: id, newIds, automaticChanges: events.length };
 }
@@ -83,7 +84,7 @@ export function roundtripPrompt(mode, f) {
   const context = `Workspace에서 ${f.marker}의 대상과 판단 기준, 이전 근거 원문을 확인해 줘. `;
   const request = {
     'roundtrip-entity': `대상의 속성 2만 7에서 11로 바꾸고 다른 속성은 보존해 줘. 변경 기록의 최종 메모 본문은 "${f.roundtrip.intent.memoBody}"로 남겨 줘.`,
-    'roundtrip-task': `이 대상에 일회성 할 일 하나를 등록해 줘. 제목은 "${f.marker}-task", 요약은 "${f.roundtrip.intent.summary}", 본문은 "${f.roundtrip.intent.body}"로 해 줘. 이번에는 등록만 하고 완료하지 마.`,
+    'roundtrip-task': `이 대상에 일회성 할 일 하나를 등록해 줘. 제목은 "${f.marker}-task", 본문은 "${f.roundtrip.intent.body}"로 해 줘. 이번에는 등록만 하고 완료하지 마.`,
     'roundtrip-task-read': `완료한 할 일 ${f.task?.id}와 그 결과 기록의 원문을 살펴보고 상태와 결과 본문, 다시 열 수 있는 식별 정보를 알려 줘. 저장은 하지 마.`,
     'roundtrip-principle-read': `지금 판단 기준과 ${f.originalDetail}가 있는 과거 기록 원문을 비교해 줘. 각각 어떤 수치 조건인지 설명하고 다시 열 수 있는 식별 정보를 알려 줘. 저장은 하지 마.`,
   }[mode];

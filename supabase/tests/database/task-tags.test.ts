@@ -21,7 +21,6 @@ dbTest("할 일 태그: 회차 날짜와 태그 결합 필터", async () => {
   const base = {
     kind: "recurring",
     title: "매일",
-    summary: "필터",
     recurrence: { freq: "daily", starts_on: "2020-01-01" },
     timezone: "Asia/Seoul",
   };
@@ -45,7 +44,7 @@ dbTest("할 일 태그: 필터·부분 수정·삭제 후 원문·색인 보존"
     A,
     taskCreate.parse({
       id: crypto.randomUUID(),
-      ...{ kind: "once", title: "태그 업무", summary: "판단", body: "본문", tag_ids: [tag.id] },
+      ...{ kind: "once", title: "태그 업무", body: "본문", tag_ids: [tag.id] },
     }),
   );
   assertEquals(task.tag_ids, [tag.id]);
@@ -74,7 +73,7 @@ dbTest("할 일 태그: 필터·부분 수정·삭제 후 원문·색인 보존"
   assertEquals(after.tag_ids, []);
   assertEquals(after.body, "정정");
   assertEquals(after.version, 5);
-  assertEquals((await admin`select msg_id from pgmq.q_search_index where message->>'id'=${task.id}`).length, 1);
+  assertEquals((await admin`select msg_id from pgmq.q_search_index where message->>'id'=${task.id}`).length, 0);
 });
 dbTest("할 일 태그: 다른 소유자·없는 태그·중복·10개 초과 거부와 롤백", async () => {
   const foreign = await createTag(
@@ -90,7 +89,7 @@ dbTest("할 일 태그: 다른 소유자·없는 태그·중복·10개 초과 �
           A,
           taskCreate.parse({
             id: crypto.randomUUID(),
-            ...{ kind: "once", title: "거부", summary: "격리", tag_ids: [id] },
+            ...{ kind: "once", title: "거부", tag_ids: [id] },
           }),
         ),
       AppError,
@@ -99,7 +98,7 @@ dbTest("할 일 태그: 다른 소유자·없는 태그·중복·10개 초과 �
   const task = await createTask(
     deps,
     A,
-    taskCreate.parse({ id: crypto.randomUUID(), ...{ kind: "once", title: "보존", summary: "격리" } }),
+    taskCreate.parse({ id: crypto.randomUUID(), ...{ kind: "once", title: "보존" } }),
   );
   await assertRejects(
     () =>

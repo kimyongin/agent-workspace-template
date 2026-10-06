@@ -14,8 +14,6 @@ function fixture(kind: "user" | "result" | "change") {
   let row: ActivityRecord = {
     id: crypto.randomUUID(),
     record_kind: kind,
-    title: "원본",
-    summary: "요약",
     body: "본문",
     occurred_at: now,
     created_at: now,
@@ -34,7 +32,6 @@ function fixture(kind: "user" | "result" | "change") {
       status: "inactive",
       captured_at: "migration",
     }],
-    change_note: "기존 설명",
     change: kind === "change"
       ? {
         event_id: crypto.randomUUID(),
@@ -102,27 +99,26 @@ function fixture(kind: "user" | "result" | "change") {
 for (const kind of ["user", "result", "change"] as const) {
   Deno.test(`${kind}: HTTP edit without reason and MCP retry preserve facts, without another log`, async () => {
     const f = fixture(kind),
-      patch = { expected_version: 1, title: "정정", summary: "최신 요약" };
+      patch = { expected_version: 1, body: "정정" };
     const web = await f.http(patch);
     assertEquals(web.status, 200);
     const updated = await web.json();
     await assertRejects(() => f.call(patch));
     assertEquals(await f.read(), updated);
-    assertEquals([updated.version, updated.title, updated.summary], [2, "정정", "최신 요약"]);
-    assertEquals([updated.change, updated.occurred_at, updated.task_id, updated.occurrence_on, updated.change_note], [
+    assertEquals([updated.version, updated.body], [2, "정정"]);
+    assertEquals([updated.change, updated.occurred_at, updated.task_id, updated.occurrence_on], [
       f.initial.change,
       f.initial.occurred_at,
       f.initial.task_id,
       f.initial.occurrence_on,
-      "기존 설명",
     ]);
     assertEquals(updated.applied_principle_snapshots, f.initial.applied_principle_snapshots);
     assertEquals("applied_principle_ids" in updated, false);
     assertEquals(f.jobs.length, 1);
-    assertEquals(await f.call({ expected_version: 2, title: "정정" }), updated);
+    assertEquals(await f.call({ expected_version: 2, body: "정정" }), updated);
     const stale = await f.http({ expected_version: 1, body: "오래된 수정" });
     assertEquals(stale.status, 409);
-    assertEquals((await f.read()).body, "본문");
+    assertEquals((await f.read()).body, "정정");
   });
 }
 Deno.test("change: HTTP/MCP reject event identity and occurrence changes", async () => {

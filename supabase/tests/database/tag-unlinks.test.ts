@@ -40,13 +40,13 @@ dbTest(
         actor,
         taskCreate.parse({
           id: crypto.randomUUID(),
-          ...{ kind: "once", title: "計画", summary: "要約", tag_ids: [tag.id] },
+          ...{ kind: "once", title: "計画", tag_ids: [tag.id] },
         }),
       );
       const record = await a.createRecord(
         ad,
         actor,
-        recordCreate.parse({ id: crypto.randomUUID(), ...{ title: "観察", summary: "要約", tag_ids: [tag.id] } }),
+        recordCreate.parse({ id: crypto.randomUUID(), ...{ body: "観察", tag_ids: [tag.id] } }),
       );
       const [automatic] =
         await admin`select id from app.records where owner_id=${actor.userId} and record_kind='change' order by id limit 1`;
@@ -73,10 +73,10 @@ dbTest(
       assertEquals(await count(), 6);
       assertEquals((await e.getEntity(ed, actor, entity.id)).tag_ids, []);
       const [entityChange] =
-        await admin`select change_metadata,change_note from app.records where owner_id=${actor.userId} and change_metadata->>'target_id'=${entity.id} and change_metadata->>'action'='update'`;
+        await admin`select change_metadata,body from app.records where owner_id=${actor.userId} and change_metadata->>'target_id'=${entity.id} and change_metadata->>'action'='update'`;
       assertEquals([entityChange.change_metadata.before, entityChange.change_metadata.after], [null, null]);
       assertEquals(entityChange.change_metadata.target_title, "対象");
-      assertEquals(entityChange.change_note, "対象分類の削除");
+      assertEquals(entityChange.body, "対象分類の削除");
     } finally {
       await f.cleanup();
     }
@@ -94,13 +94,13 @@ dbTest(
         actor,
         taskCreate.parse({
           id: crypto.randomUUID(),
-          ...{ kind: "once", title: "計画", summary: "要約", tag_ids: [tag.id] },
+          ...{ kind: "once", title: "計画", tag_ids: [tag.id] },
         }),
       );
       const record = await a.createRecord(
         ad,
         actor,
-        recordCreate.parse({ id: crypto.randomUUID(), ...{ title: "観察", summary: "要約", tag_ids: [tag.id] } }),
+        recordCreate.parse({ id: crypto.randomUUID(), ...{ body: "観察", tag_ids: [tag.id] } }),
       );
       const beforeTask = await a.getTask(ad, actor, task.id), beforeRecord = await a.getRecord(ad, actor, record.id);
       const queue =

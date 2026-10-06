@@ -1,6 +1,5 @@
 import { z } from "zod";
 import { businessMeta } from "../../contracts/change.ts";
-import { entityChangePreview } from "../../contracts/entity-change.ts";
 import { expectedVersion, id } from "../../contracts/common.ts";
 import { entityCreate, entityListQuery, entityUpdate } from "../../contracts/entity.ts";
 import * as entity from "../../core/entity/application.ts";
@@ -16,18 +15,6 @@ export function entityTools(d: entity.EntityDeps): ToolDef[] {
     update = entityUpdate.extend({ id: z.unknown() }),
     remove = z.strictObject({ id: z.unknown(), expected_version: expectedVersion, ...businessMeta });
   return [
-    {
-      name: "preview_entity_change",
-      description:
-        "엔터티 create/update/delete의 현재 사실 기반 기록 메모를 저장 없이 확인한다. 기존 대상은 현재 expected_version을 요구한다. 메모 보충 후 같은 업무 입력과 change_memo로 제출한다.",
-      input: z.strictObject({
-        action: z.enum(["create", "update", "delete"]),
-        id: id.optional(),
-        input: z.record(z.string(), z.unknown()),
-      }),
-      readOnly: true,
-      handler: (i, a) => entity.previewEntityChange(d, a, parse(entityChangePreview, i)),
-    },
     {
       name: "list_entities",
       description:
@@ -72,7 +59,7 @@ export function entityTools(d: entity.EntityDeps): ToolDef[] {
       handler: async (i, a) => {
         idParam(i.id);
         const p = parse(remove, i);
-        await entity.deleteEntity(d, a, idParam(p.id), p.expected_version, p.change_note, p.change_memo);
+        await entity.deleteEntity(d, a, idParam(p.id), p.expected_version, p.change_note);
         return { deleted: idParam(p.id) };
       },
     },

@@ -1,12 +1,13 @@
-import { saveWithMemo } from "./ui-actions.ts";
+import { recordDisplayText } from "../supabase/functions/_shared/contracts/record-display.ts";
+import { saveOnce } from "./ui-actions.ts";
 import { test, expect } from "@playwright/test";
 import { beginTabAction } from "./ui-actions.ts";
 const id = (n:number) => `00000000-0000-4000-8000-${String(n).padStart(12,"0")}`;
 test.beforeEach(async({page})=>{await page.route("http://127.0.0.1:55580/**",async route=>{if(route.request().isNavigationRequest()){const response=await route.fetch({url:"http://127.0.0.1:55580/e2e/fixtures/activity.html"});await route.fulfill({response});}else await route.continue();});});
-const record = (n:number, occurred_at="2026-10-03T16:00:00Z") => ({id:id(n),title:`기록 ${n}`,summary:"요약 먼저",body:"본문 근거",occurred_at,task_id:null,occurrence_on:null,tag_ids:[],entity_ids:[],entity_context:[],record_kind:"user",change_note:null,change:null,applied_principle_snapshots:[],version:1,created_at:occurred_at,updated_at:occurred_at});
+const record = (n:number, occurred_at="2026-10-03T16:00:00Z") => ({id:id(n),body:`기록 ${n}`,occurred_at,task_id:null,occurrence_on:null,tag_ids:[],entity_ids:[],entity_context:[],record_kind:"user",change:null,applied_principle_snapshots:[],version:1,created_at:occurred_at,updated_at:occurred_at});
 
 for(const width of [390,1024])test(`변경 기록 metadata ${width}px: 시각·종류는 같은 줄, 대상은 다음 줄 왼쪽 정렬`,async({page},info)=>{
-  const items=["수정","삭제"].map((action,i)=>({...record(i+1),title:`새 기준 ${action}`,record_kind:"change",change:{event_id:id(10+i),target_kind:"principle",target_id:id(20+i),target_title:i?"긴 기준 이름 ".repeat(20):"새 기준",action:i?"delete":"update",source:"mcp",before:null,after:null,path:"/principles/example"}}));
+  const items=["수정","삭제"].map((action,i)=>({...record(i+1),body:`새 기준 ${action}`,record_kind:"change",change:{event_id:id(10+i),target_kind:"principle",target_id:id(20+i),target_title:i?"긴 기준 이름 ".repeat(20):"새 기준",action:i?"delete":"update",source:"mcp",before:null,after:null,path:"/principles/example"}}));
   await page.route("http://127.0.0.1:55581/api/**",route=>route.fulfill({json:{items:new URL(route.request().url()).pathname.endsWith("/records")?items:[],next_cursor:null}}));
   await page.setViewportSize({width,height:900});await page.goto("/e2e/fixtures/activity.html?route=/records");
   const rows=page.locator(".record-timeline .list-item");await expect(rows).toHaveCount(2);
@@ -121,14 +122,14 @@ test("항상 펼친 날짜 병합과 직접 편집 취소/저장이 목록을 �
   await expect(older).toBeVisible();await expect(older.getByRole("button")).toHaveCount(0);
   await expect(page.locator(`#activity-records-${id(2)}`)).toBeFocused();
   await page.getByRole("link",{name:"기록 2 편집",exact:true}).click();
-  await page.getByRole("textbox",{name:"제목 (필수)",exact:true}).fill("정정 기록");
-  await expect(page.getByLabel("편집 메모",{exact:false})).toHaveValue("");
-  await saveWithMemo(page, page);
+  await page.getByRole("textbox",{name:/^본문(?: \(필수\))?$/}).fill("정정 기록");
+  await expect(page.getByLabel("편집 메모",{exact:false})).toHaveCount(0);
+  await saveOnce(page, page);
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await expect(page.getByRole("link",{name:"정정 기록",exact:true})).toBeFocused();
   await page.getByRole("link",{name:"정정 기록",exact:true}).click();
-  await expect(page.locator(".markdown")).toHaveText("본문 근거");
-  await expect(page.locator(".document-summary")).toHaveCount(1);
+  await expect(page.locator(".markdown")).toHaveText("정정 기록");
+  await expect(page.locator(".document-summary")).toHaveCount(0);
   await page.getByRole("button",{name:"닫기",exact:true}).click();
   await page.getByRole("link",{name:"정정 기록 편집",exact:true}).click();
   await page.getByRole("button",{name:"닫기",exact:true}).click();
@@ -139,10 +140,9 @@ test("항상 펼친 날짜 병합과 직접 편집 취소/저장이 목록을 �
 
 test("할 일 저장 성공 후 조회 실패는 초안 재저장을 요구하지 않는다", async ({page}) => {
   let version=1, fail=false, patches=0;
-  const task = () => ({...record(1),kind:"once",status:"open",due_on:null,recurrence:null,timezone:null,result_record:null,version});
+  const task = () => ({...record(1),title:"할 일",kind:"once",status:"open",due_on:null,recurrence:null,timezone:null,result_record:null,version});
   await page.route("http://127.0.0.1:55581/api/**",async route=>{
     const path=new URL(route.request().url()).pathname;
-    if(path.endsWith("/tasks/preview")){await route.fulfill({json:{memo:{title:"할 일 수정",summary:"할 일 제목을 수정",body:"제목 수정"},changed:true}});return;}
     if(path.endsWith(`/tasks/${id(1)}`)) {
       if(route.request().method()==="PATCH"){patches++;version++;fail=true;await route.fulfill({json:task()});return;}
       if(fail){await route.fulfill({status:503,json:{code:"internal",message:"fixture read failure"}});return;}
@@ -153,10 +153,8 @@ test("할 일 저장 성공 후 조회 실패는 초안 재저장을 요구하�
   await page.goto(`/e2e/fixtures/activity.html?route=${encodeURIComponent(`/tasks/${id(1)}?edit=1&edit_from=view`)}`);
   await page.getByRole("textbox",{name:"제목 (필수)",exact:true}).fill("정정한 할 일");
   await page.getByLabel("편집 메모",{exact:false}).fill("검증 정정 이유");
-  await page.getByRole("button",{name:"기록 메모 확인",exact:true}).click();
-  await expect(page.getByLabel("기록 제목",{exact:false})).toHaveValue("할 일 수정");
   expect(patches).toBe(0);
-  await page.getByRole("button",{name:"확인하고 저장",exact:true}).click();
+  await page.getByRole("button",{name:"저장",exact:true}).click();
   await expect(page.getByText("저장은 완료했습니다. 최신 내용을 불러오지 못했습니다.")).toBeVisible();
   await expect(page.locator("dialog.modal:not(.modal-confirm)[open]")).toHaveCount(1);
   fail=false;
@@ -176,10 +174,10 @@ test("직접 편집의 실패·Escape·확인 취소는 초안을 유지한다",
   });
   await page.goto("/e2e/fixtures/activity.html");
   await page.locator(".records").getByRole("link",{name:"기록 1 편집",exact:true}).click();
-  const title=page.getByRole("textbox",{name:"제목 (필수)",exact:true});
+  const title=page.getByRole("textbox",{name:/^본문(?: \(필수\))?$/});
   await title.fill("보존할 초안");
-  await page.getByLabel("편집 메모",{exact:false}).fill("검증 정정 이유");
-  await saveWithMemo(page, page);
+  await expect(page.getByLabel("편집 메모",{exact:false})).toHaveCount(0);
+  await saveOnce(page, page);
   await expect(page.getByRole("alert")).toContainText("다른 곳에서 수정했습니다.");
   await expect(title).toHaveValue("보존할 초안");
   await title.focus();
@@ -206,7 +204,7 @@ test("현재 원칙 편집 취소는 원칙 화면·초점을 복원하고 과�
 });
 
 test("긴 제목·태그와 편집 조작은 대표 폭에서 읽기 순서와 누름 영역을 유지한다", async ({page},testInfo) => {
-  const r={...record(1),title:"긴 제목 ".repeat(16).trim(),summary:"긴 요약 ".repeat(40),tag_ids:[id(8)]};
+  const r={...record(1),body:"긴 본문 ".repeat(300),tag_ids:[id(8)]};
   await page.route("http://127.0.0.1:55581/api/**",async route=>{
     const path=new URL(route.request().url()).pathname;
     const data=path.endsWith("/tags")?{items:[{id:id(8),name:"공백없는긴태그이름을선택하고읽는표현을확인"}],next_cursor:null}:path.endsWith("/records")?{items:[r],next_cursor:null}:path.endsWith(`/records/${id(1)}`)?r:{items:[],next_cursor:null};
@@ -224,11 +222,11 @@ test("긴 제목·태그와 편집 조작은 대표 폭에서 읽기 순서와 �
     }
     if(width===390 || width===1440)await page.screenshot({path:testInfo.outputPath(`record-${width}.png`),fullPage:true});
   }
-  await page.getByRole("link",{name:`${r.title} 편집`,exact:true}).focus();
+  await page.getByRole("link",{name:`${recordDisplayText(r.body)} 편집`,exact:true}).focus();
   await page.keyboard.press("Enter");
   await expect(page.getByRole("dialog",{name:"기록 편집",exact:true})).toBeVisible();
   const fieldOrder=await page.locator("form label").allTextContents();
-  expect(fieldOrder.slice(0,3)).toEqual(["제목*(필수)","요약*(필수)","본문"]);
+  expect(fieldOrder[0]).toBe("본문*(필수)");expect(fieldOrder).not.toContain("제목*(필수)");expect(fieldOrder).not.toContain("요약*(필수)");
   await page.setViewportSize({width:360,height:900});
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
   await page.screenshot({path:testInfo.outputPath("record-edit-360.png"),fullPage:true});
@@ -263,7 +261,7 @@ for (const name of ["활동 왕복 태그", "한".repeat(30)]) {
     const before=(await row.boundingBox())!.y;
     const scroll=await page.evaluate(()=>scrollY);
     await page.getByRole("link",{name:"기록 20",exact:true}).click();
-    await expect(page.getByRole("heading",{name:"기록 20",exact:true})).toBeVisible();
+    await expect(page.getByRole("heading",{name:"기록",exact:true})).toBeVisible();
     await expect(page.locator("dialog .tag-read")).toHaveCount(1);
     hold();
     await page.getByRole("button",{name:"닫기",exact:true}).click();
@@ -281,7 +279,7 @@ for (const [routePath, createLabel] of [["/records","기록 작성"],["/tasks","
     await page.route("http://127.0.0.1:55581/api/**",route=>route.fulfill({json:new URL(route.request().url()).pathname.endsWith("/principles/current")?{current:null}:{items:[],next_cursor:null}}));
     await page.goto(`/e2e/fixtures/activity.html?route=${routePath}`);
     await beginTabAction(page,createLabel);
-    const title=page.getByRole("textbox",{name:"제목 (필수)",exact:true});
+    const title=page.getByRole("textbox",{name:/^본문(?: \(필수\))?$/});
     await title.fill("이탈 확인 초안");
     // The fixture probe exercises real router navigation while the modal owns focus.
     await page.getByRole("link",{name:"fixture 같은 화면 조건 이동"}).evaluate((el:HTMLAnchorElement)=>el.click());
@@ -295,17 +293,17 @@ for (const [routePath, createLabel] of [["/records","기록 작성"],["/tasks","
     await expect(page).toHaveURL(/fixture=next/);
     await expect(page.getByRole("dialog")).toHaveCount(0);
     await beginTabAction(page,createLabel);
-    await expect(page.getByRole("textbox",{name:"제목 (필수)",exact:true})).toHaveValue("");
+    await expect(page.getByRole("textbox",{name:/^본문(?: \(필수\))?$/})).toHaveValue("");
   });
 }
 for (const kind of ["records","tasks","principles"]) {
   test(`직접 편집 ${kind} 라우트 버리기는 목록 복귀 대신 요청한 상세 조건으로 이동한다`,async({page})=>{
-    const item={...record(1),kind:"once",status:kind==="principles"?"active":"open",due_on:null,recurrence:null,timezone:null,result_record:null,is_current:true,saved_at:"2026-10-04T00:00:00Z",change_note:"과거 메모",origin:"saved",legacy_context:null};
+    const item={...record(1),...(kind!=="records"?{title:"기록 1"}:{}),kind:"once",status:kind==="principles"?"active":"open",due_on:null,recurrence:null,timezone:null,result_record:null,is_current:true,saved_at:"2026-10-04T00:00:00Z",change_note:"과거 메모",origin:"saved",legacy_context:null};
     await page.route("http://127.0.0.1:55581/api/**",route=>route.fulfill({json:new URL(route.request().url()).pathname.endsWith("/principles/current")?{current:item}:new URL(route.request().url()).pathname.endsWith(`/${kind}/${id(1)}`)?item:{items:[item],next_cursor:null}}));
     await page.goto(`/e2e/fixtures/activity.html?route=/${kind}`);
     if(kind==="principles")await page.getByRole("button",{name:"원칙 작업 메뉴"}).click();
     await (kind==="principles"?page:page.locator(`.${kind}`)).getByRole("link",{name:kind==="principles"?"현재 원칙 편집":"기록 1 편집",exact:true}).click();
-    const title=page.getByRole("textbox",{name:"제목 (필수)",exact:true});
+    const title=page.getByRole("textbox",{name:/^본문(?: \(필수\))?$/});
     await title.fill("상세 이동 초안");
     await page.getByRole("link",{name:"fixture 같은 화면 조건 이동"}).evaluate((el:HTMLAnchorElement)=>el.click());
     const confirm=page.getByRole("dialog",{name:"변경을 버릴까요?",exact:true});
@@ -317,9 +315,9 @@ for (const kind of ["records","tasks","principles"]) {
     await page.getByRole("button",{name:"변경 버리기",exact:true}).click();
     await expect(page).toHaveURL(new RegExp(`/${kind}/${id(1)}\\?fixture=next$`));
     await expect(page.locator("dialog.modal:not(.modal-confirm)[open]")).toHaveCount(1);
-    item.title="새 서버 원문";
+    item.body="새 서버 원문";
     await page.goBack();
-    await expect(page.getByRole("textbox",{name:"제목 (필수)",exact:true})).toHaveValue("새 서버 원문");
+    await expect(page.getByRole("textbox",{name:/^본문(?: \(필수\))?$/})).toHaveValue("새 서버 원문");
     await page.goForward();
     await expect(page).toHaveURL(/fixture=next/);
     await expect(page.locator("dialog.modal:not(.modal-confirm)[open]")).toHaveCount(1);
@@ -329,7 +327,7 @@ for(const kind of ["records","tasks"]){
   test(`${kind} 태그 사전 실패 재시도는 표시 행·읽던 위치·초점을 유지한다`,async({page})=>{
     let attempts=0,release:()=>void=()=>{};
     const held=new Promise<void>(resolve=>release=resolve);
-    const items=Array.from({length:20},(_,i)=>({...record(i+1),tag_ids:[id(99)],kind:"once",status:kind==="principles"?"active":"open",due_on:null,recurrence:null,timezone:null,result_record:null,applies_when:"판단할 때",replaced_by_id:null}));
+    const items=Array.from({length:20},(_,i)=>({...record(i+1),...(kind==="tasks"?{title:`기록 ${i+1}`} : {}),tag_ids:[id(99)],kind:"once",status:kind==="principles"?"active":"open",due_on:null,recurrence:null,timezone:null,result_record:null,applies_when:"판단할 때",replaced_by_id:null}));
     await page.route("http://127.0.0.1:55581/api/**",async route=>{
       if(new URL(route.request().url()).pathname.endsWith("/tags")){
         if(!attempts++){await route.fulfill({status:503,json:{code:"internal",message:"태그 사전 실패"}});return;}
@@ -357,7 +355,7 @@ for(const kind of ["records","tasks"]){
 }
 for(const kind of ["records","tasks","principles"]){
   test(`${kind} 한 글자 제목도 모든 폭에서44px 조작 영역을 유지한다`,async({page})=>{
-    const item={...record(1),is_current:true,origin:"saved",legacy_context:null,saved_at:"2026-10-03T16:00:00Z",title:"함",kind:"once",status:kind==="principles"?"active":"open",due_on:null,recurrence:null,timezone:null,result_record:null,applies_when:"판단할 때",replaced_by_id:null};
+    const item={...record(1),is_current:true,origin:"saved",legacy_context:null,saved_at:"2026-10-03T16:00:00Z",...(kind!=="records"?{title:"함"}:{}),body:"함",kind:"once",status:kind==="principles"?"active":"open",due_on:null,recurrence:null,timezone:null,result_record:null,applies_when:"판단할 때",replaced_by_id:null};
     await page.route("http://127.0.0.1:55581/api/**",route=>route.fulfill({json:new URL(route.request().url()).pathname.endsWith("/principles/current")?{current:item}:{items:[item],next_cursor:null}}));
     await page.goto(`/e2e/fixtures/activity.html?route=/${kind}`);
     if(kind==="principles")await page.getByRole("button",{name:"원칙 작업 메뉴"}).click();

@@ -1,17 +1,10 @@
 import { Hono } from "hono";
-import { principleCreate, principleDelete, principlePreview, principleUpdate } from "../../contracts/principle.ts";
+import { principleCreate, principleDelete, principleUpdate } from "../../contracts/principle.ts";
 import * as principles from "../../core/principles/application.ts";
 import { parse } from "../errors.ts";
 import { type HttpEnv, idParam, json, versionQuery } from "./input.ts";
 export function principleRoutes(d: principles.PrincipleDeps) {
   const app = new Hono<HttpEnv>();
-  app.post(
-    "/principles/preview",
-    async (c) =>
-      c.json(
-        await principles.previewPrincipleChange(d, c.get("actor"), parse(principlePreview, await json(c.req.raw))),
-      ),
-  );
   app.post("/principles/:id/delete", async (c) => {
     const i = parse(principleDelete, await json(c.req.raw));
     await principles.deletePrinciple(
@@ -20,7 +13,6 @@ export function principleRoutes(d: principles.PrincipleDeps) {
       idParam(c.req.param("id")),
       i.expected_version,
       i.change_note,
-      i.change_memo,
     );
     return c.body(null, 204);
   });

@@ -61,15 +61,15 @@ try {
     } else {
     await setupOwned(journal, save, call, () => client.listTools());
     journal.state = 'creating'; await save();
-    await createOwned(journal, save, call, 'task', { kind: 'once', title: `${journal.marker}-task`, summary: '다음 검토에서 최신 수치와 과거 원문을 확인하고 가능한 순서를 준비한다.', entity_ids: [journal.entity.id] });
+    await createOwned(journal, save, call, 'task', { kind: 'once', title: `${journal.marker}-task`, entity_ids: [journal.entity.id] });
     journal.entity = await call('update_entity', { id: journal.entity.id, expected_version: journal.entity.version, prop2: 11 }); await save();
     if (scenario === 'missing') {
       await save(); await call('delete_principle', { id: journal.principle.id, expected_version: journal.principle.version });
       journal.deleted = { principle: true }; await save();
     }
     if (scenario === 'conflict') {
-      await save(); journal.principle = await call('update_principle', { id: journal.principle.id, expected_version: journal.principle.version, title: journal.principle.title, summary: '검토의 필수 수치 조건', body: '대상 속성 2가 20 이상일 때만 검토를 실행한다. 20 미만이면 실행을 보류하고 확인할 점을 준비한다.' }); await save();
-      journal.record = await call('update_record', { id: journal.record.id, expected_version: journal.record.version, summary: '현재 기준과 충돌하는 이전 실행 판단', body: `원문 검증 코드는 ${journal.originalDetail}이다. 대상 속성 2가 11일 때도 검토를 즉시 실행해도 된다는 이전 판단을 남겼다. 현재 판단 기준과 일치하는지는 별도 확인이 필요하다.` }); await save();
+      await save(); journal.principle = await call('update_principle', { id: journal.principle.id, expected_version: journal.principle.version, title: journal.principle.title, body: '대상 속성 2가 20 이상일 때만 검토를 실행한다. 20 미만이면 실행을 보류하고 확인할 점을 준비한다.' }); await save();
+      journal.record = await call('update_record', { id: journal.record.id, expected_version: journal.record.version, body: `원문 검증 코드는 ${journal.originalDetail}이다. 대상 속성 2가 11일 때도 검토를 즉시 실행해도 된다는 이전 판단을 남겼다. 현재 판단 기준과 일치하는지는 별도 확인이 필요하다.` }); await save();
     }
     journal.baseline = await readPreparationState(call); journal.state = 'ready'; await save();
     console.log(JSON.stringify({ operation, clientName, state: journal.state, syntheticOwner: true, fixturePath, counts: journal.baseline.counts, rawAuthOrBodiesLogged: false }));

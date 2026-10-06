@@ -7,7 +7,7 @@ import { AppError } from "../../core/shared/errors.ts";
 import { SEARCH_PIPELINE } from "../../core/search/config.ts";
 import type { ChangeInput } from "../../core/shared/changes.ts";
 import { searchInputHash } from "../../core/shared/operations.ts";
-import { basicChangeMemo } from "../../core/shared/change-memo.ts";
+import { changeBody } from "../../core/shared/change-memo.ts";
 
 export class SqlActorStore {
   protected readonly entityLinks: SqlEntityLinks;
@@ -19,7 +19,7 @@ export class SqlActorStore {
   /** Explicit user commands call this once, never the internal insert itself. */
   async appendChange(input: ChangeInput) {
     const target = input.target, target_title = target.title;
-    const { title, summary, body } = input.change_memo ?? basicChangeMemo({ ...input, target_title });
+    const body = changeBody(input);
     // New events retain facts and the final memo, not an extra full domain capture.
     // Nullable keys remain compatible with old stored snapshots and readers.
     const metadata = {
@@ -38,18 +38,15 @@ export class SqlActorStore {
     const values = {
       owner_id: this.actor.userId,
       ...await this.entityLinks.changeSelection(input),
-      title,
-      summary,
       body,
       record_kind: "change",
-      change_note: input.change_note ?? null,
       change_metadata: this.tx.json(metadata as never),
     };
     const [row] = await this.tx`insert into app.records ${this.tx(values)} returning id`;
     await this.enqueueIndex({
       kind: "record",
       id: row.id as string,
-      input_hash: await searchInputHash({ title, summary }),
+      input_hash: await searchInputHash(body),
     });
   }
 

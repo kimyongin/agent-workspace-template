@@ -8,7 +8,9 @@ const item: SearchItem = {
   kind: "record",
   id: crypto.randomUUID(),
   title: "검색",
-  summary: "요약",
+  snippet: "요약",
+  snippet_start: 0,
+  snippet_end: 2,
   at: "2000-01-01T00:00:00.000Z",
   tag_ids: [],
   match: "keyword",
@@ -78,4 +80,13 @@ Deno.test("검색 호출 경계: 잘못된 커서·키워드·예산 초과는 �
   const blocked = deps({ embed: () => Promise.resolve(vector) }, false);
   assertEquals((await search(blocked.d, actor, q)).search_state, "keyword_fallback");
   assertEquals(blocked.counts(), { reservations: 1, calls: 0 });
+});
+
+Deno.test("current task/principle searches use keyword lookup without embedding or query budget", async () => {
+  const state = deps({ embed: () => Promise.resolve(vector) });
+  const q = searchInput.parse({ query: "질의", kinds: ["task", "principle"], limit: 1 });
+  const first = await search(state.d, actor, q);
+  await search(state.d, actor, { ...q, cursor: first.next_cursor! });
+  assertEquals(state.counts(), { reservations: 0, calls: 0 });
+  assertEquals(first.search_state, "ok");
 });

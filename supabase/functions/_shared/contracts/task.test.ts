@@ -3,21 +3,21 @@ import { occurrenceRange, recurrence, taskCreate, taskUpdate } from "./task.ts";
 
 Deno.test("생성: 서버 관리 필드와 종류에 없는 필드는 거부", () => {
   assertEquals(
-    taskCreate.safeParse({ id: crypto.randomUUID(), ...{ kind: "once", title: "a", summary: "b" } }).success,
+    taskCreate.safeParse({ id: crypto.randomUUID(), ...{ kind: "once", title: "a" } }).success,
     true,
   );
   assertEquals(
-    taskCreate.safeParse({ id: crypto.randomUUID(), ...{ kind: "once", title: "a", summary: "b", status: "done" } })
+    taskCreate.safeParse({ id: crypto.randomUUID(), ...{ kind: "once", title: "a", status: "done" } })
       .success,
     false,
   );
   assertEquals(
-    taskCreate.safeParse({ id: crypto.randomUUID(), ...{ kind: "once", title: "a", summary: "b", timezone: "UTC" } })
+    taskCreate.safeParse({ id: crypto.randomUUID(), ...{ kind: "once", title: "a", timezone: "UTC" } })
       .success,
     false,
   );
   assertEquals(
-    taskCreate.safeParse({ id: crypto.randomUUID(), ...{ kind: "recurring", title: "a", summary: "b" } }).success,
+    taskCreate.safeParse({ id: crypto.randomUUID(), ...{ kind: "recurring", title: "a" } }).success,
     false,
   );
 });
@@ -32,7 +32,6 @@ Deno.test("반복 규칙과 시간대 검증", () => {
     ...{
       kind: "recurring",
       title: "a",
-      summary: "b",
       recurrence: { freq: "daily", starts_on: "2026-10-01" },
       timezone: "Mars/Olympus",
     },

@@ -3,7 +3,6 @@
 import type { ToolDef } from "./tools.ts";
 import { z } from "zod";
 import { businessMeta, mutationMeta } from "../../contracts/change.ts";
-import { taskChangePreview } from "../../contracts/task-change.ts";
 import { expectedVersion, id, isoDate } from "../../contracts/common.ts";
 import { recordCreate, recordListQuery, recordUpdate } from "../../contracts/record.ts";
 import { occurrenceRange, taskComplete, taskCreate, taskListQuery, taskUpdate } from "../../contracts/task.ts";
@@ -48,19 +47,6 @@ const byIdDelete = (args: Record<string, unknown>) => parse(deleteInput, args);
 export function activityTools(deps: activity.ActivityDeps): ToolDef[] {
   return [
     {
-      name: "preview_task_change",
-      description:
-        "할 일 create/update/delete/stop/resume/complete/occurrence의 기본 기록 메모를 저장 없이 확인한다. 현재 버전과 수행 조건을 검증한다. 변경은 change_memo, 완료·회차는 결과 제목·요약·본문으로 최종 제출한다.",
-      input: z.strictObject({
-        action: z.enum(["create", "update", "delete", "stop", "resume", "complete", "occurrence"]),
-        id: id.optional(),
-        date: isoDate.optional(),
-        input: z.record(z.string(), z.unknown()),
-      }),
-      readOnly: true,
-      handler: (args, actor) => activity.previewTaskChange(deps, actor, parse(taskChangePreview, args)),
-    },
-    {
       name: "create_task",
       description:
         "할 일을 만든다. 일회성은 open, 반복은 active. tag_ids는 내 태그 ID 최대 10개. 반복 할 일은 앱이 자동 실행·알림하지 않는다.",
@@ -70,7 +56,7 @@ export function activityTools(deps: activity.ActivityDeps): ToolDef[] {
     },
     {
       name: "get_task",
-      description: "할 일 하나를 읽는다. 결과 기록의 요약과 중단 이력을 포함한다.",
+      description: "할 일 하나를 읽는다. 결과 기록의 본문과 중단 이력을 포함한다.",
       input: idOnly,
       readOnly: true,
       handler: (args, actor) => activity.getTask(deps, actor, byId(args)),
@@ -119,7 +105,6 @@ export function activityTools(deps: activity.ActivityDeps): ToolDef[] {
           input.id,
           input.expected_version,
           input.change_note,
-          input.change_memo,
         );
         return { deleted: input.id };
       },
@@ -159,7 +144,6 @@ export function activityTools(deps: activity.ActivityDeps): ToolDef[] {
           input.id,
           input.expected_version,
           input.change_note,
-          input.change_memo,
         );
       },
     },
@@ -176,14 +160,13 @@ export function activityTools(deps: activity.ActivityDeps): ToolDef[] {
           input.id,
           input.expected_version,
           input.change_note,
-          input.change_memo,
         );
       },
     },
     {
       name: "create_record",
       description:
-        "할 일 없이 수행 기록을 직접 작성한다. 제목·요약은 검색에 쓰인다. 원칙을 참고했다면 필요한 경우 본문에 설명한다.",
+        "할 일 없이 기록 본문을 직접 작성한다. 본문은 구간별 의미 검색과 키워드 검색에 쓰인다. 원칙을 참고했다면 필요한 경우 본문에 설명한다.",
       input: recordCreate,
       readOnly: false,
       handler: (args, actor) => activity.createRecord(deps, actor, parse(recordCreate, args)),
@@ -206,7 +189,7 @@ export function activityTools(deps: activity.ActivityDeps): ToolDef[] {
     {
       name: "update_record",
       description:
-        "일반 기록·수행 결과·업무 사건의 메모를 추가 편집 로그 없이 고친다. change_note는 선택. 사건 정보는 변경할 수 없다. tag_ids 생략은 유지, 빈 배열은 태그 제거. 과거 적용 원문 캡처는 읽기 전용이다. expected_version이 다르면 conflict.",
+        "일반 기록·수행 결과·업무 사건의 본문을 추가 편집 로그 없이 고친다. 사건 정보는 변경할 수 없다. tag_ids 생략은 유지, 빈 배열은 태그 제거. 과거 적용 원문 캡처는 읽기 전용이다. expected_version이 다르면 conflict.",
       input: withId(recordUpdate),
       readOnly: false,
       handler: (args, actor) => {

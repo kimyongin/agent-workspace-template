@@ -6,17 +6,14 @@ import { conflict, invalidInput, notFound } from "../shared/errors.ts";
 import { scopeOf } from "../shared/operations.ts";
 import type { Keyset } from "../shared/store.ts";
 import { changed, type ChangeStore } from "../shared/changes.ts";
-import { basicChangeMemo } from "../shared/change-memo.ts";
-import type { EntityChangePreview } from "../../contracts/entity-change.ts";
-import type { ChangeMemo } from "../../contracts/change.ts";
 
 export interface EntityStore extends ChangeStore {
   get(id: string, lock?: boolean): Promise<EntityResult | null>;
   related(id: string): Promise<Pick<EntityDetail, "tasks" | "records">>;
-  insert(input: Omit<EntityCreate, "change_memo">): Promise<EntityResult>;
+  insert(input: EntityCreate): Promise<EntityResult>;
   update(
     id: string,
-    changes: Omit<EntityUpdate, "expected_version" | "change_note" | "change_memo">,
+    changes: Omit<EntityUpdate, "expected_version" | "change_note">,
   ): Promise<EntityResult>;
   delete(id: string): Promise<void>;
   list(query: EntityQuery, after?: Keyset): Promise<EntityResult[]>;
@@ -26,7 +23,7 @@ export interface EntityDeps {
 }
 export function createEntity(d: EntityDeps, a: Actor, i: EntityCreate) {
   return d.uow.run(a, async (s) => {
-    const { change_note, change_memo, ...props } = i;
+    const { change_note, ...props } = i;
     const result = await s.insert(props);
     await s.appendChange({
       target_kind: "entity",
@@ -35,7 +32,6 @@ export function createEntity(d: EntityDeps, a: Actor, i: EntityCreate) {
       before: null,
       after: entityChangeFacts(result),
       change_note,
-      change_memo,
     });
     return result;
   });
@@ -56,7 +52,7 @@ async function requireVersion(s: EntityStore, id: string, expected: number) {
 export function updateEntity(d: EntityDeps, a: Actor, id: string, i: EntityUpdate) {
   return d.uow.run(a, async (s) => {
     const old = await requireVersion(s, id, i.expected_version);
-    const { expected_version: _v, change_note, change_memo, ...props } = i;
+    const { expected_version: _v, change_note, ...props } = i;
     if (!changed(old, props)) return old;
     const result = await s.update(id, props);
     await s.appendChange({
@@ -66,7 +62,6 @@ export function updateEntity(d: EntityDeps, a: Actor, id: string, i: EntityUpdat
       before: entityChangeFacts(old),
       after: entityChangeFacts(result),
       change_note,
-      change_memo,
     });
     return result;
   });
@@ -77,7 +72,6 @@ export function deleteEntity(
   id: string,
   expected: number,
   change_note?: string,
-  change_memo?: ChangeMemo,
 ) {
   return d.uow.run(
     a,
@@ -91,42 +85,10 @@ export function deleteEntity(
         before: entityChangeFacts(old),
         after: null,
         change_note,
-        change_memo,
       });
       return { deleted: true };
     },
   );
-}
-export function previewEntityChange(d: EntityDeps, actor: Actor, input: EntityChangePreview) {
-  return d.uow.run(actor, async (s) => {
-    if (input.action === "create") {
-      return {
-        memo: basicChangeMemo({
-          action: "create",
-          target_title: input.input.prop1,
-          before: null,
-          after: entityChangeFacts(input.input),
-          change_note: input.input.change_note,
-        }),
-        changed: true,
-      };
-    }
-    const old = await requireVersion(s, input.id, input.input.expected_version);
-    const values = Object.fromEntries(
-      Object.entries(input.input).filter(([key]) => !["expected_version", "change_note", "change_memo"].includes(key)),
-    );
-    const after = input.action === "delete" ? null : { ...old, ...values };
-    return {
-      memo: basicChangeMemo({
-        action: input.action,
-        target_title: (after ?? old).prop1,
-        before: entityChangeFacts(old),
-        after: after && entityChangeFacts(after),
-        change_note: input.input.change_note,
-      }),
-      changed: after === null || changed(old, values),
-    };
-  });
 }
 function sortValue(e: EntityResult, sort: EntityQuery["sort"]) {
   if (sort === "prop2") return String(e.prop2 ?? -1);

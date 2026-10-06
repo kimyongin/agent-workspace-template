@@ -11,7 +11,7 @@ test("읽기·검색·네 탭 이동·상세 닫기는 계정 기록 원문과 �
   try {
     const title = unique("읽기 무기록 확인");
     const fixture = await mcp.call("create_record", {
-      title, summary: "읽기와 검색으로 수정되지 않는 검사 자료", body: "조회 전후 전체 원문을 독립 MCP로 비교합니다.",
+      body: title,
     });
     fixtureId = fixture.id;
     const snapshot = async () => {
@@ -62,7 +62,7 @@ test("읽기·검색·네 탭 이동·상세 닫기는 계정 기록 원문과 �
     expect(searched.request().postDataJSON().mode).toBe("auto");
     expect((await searched.json()).items.some((item: { id: string }) => item.id === fixtureId)).toBe(true);
     await page.getByRole("link", { name: title, exact: true }).click();
-    await expect(page.getByRole("heading", { name: title, level: 1, exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "기록", level: 1, exact: true })).toBeVisible();
     await page.getByRole("button", { name: "닫기", exact: true }).click();
     await expect(page.getByRole("link", { name: title, exact: true })).toBeFocused();
     const after = await snapshot();

@@ -24,8 +24,7 @@ export class WriteAttempt {
     this.state = { busy, uncertain };
     for (const listener of this.listeners) listener();
   }
-  /** Read-only preparation never retains a failed operation as a possibly committed write. */
-  async run(operation: () => Promise<void>, write = true): Promise<void> {
+  async run(operation: () => Promise<void>): Promise<void> {
     if (this.state.busy) return;
     const execute = this.retained ?? operation;
     this.publish(true, this.state.uncertain);
@@ -35,7 +34,7 @@ export class WriteAttempt {
       this.id = null;
       this.publish(false, false);
     } catch (error) {
-      const uncertain = write && isUncertain(error);
+      const uncertain = isUncertain(error);
       this.retained = uncertain ? execute : null;
       this.publish(false, uncertain);
       throw error;

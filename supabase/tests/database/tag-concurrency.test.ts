@@ -52,13 +52,13 @@ for (
             f.actor,
             taskCreate.parse({
               id: crypto.randomUUID(),
-              ...{ kind: "once", title: "parent", summary: "context", tag_ids },
+              ...{ kind: "once", title: "parent", tag_ids },
             }),
           )
           : await a.createRecord(
             ad,
             f.actor,
-            recordCreate.parse({ id: crypto.randomUUID(), ...{ title: "parent", summary: "context", tag_ids } }),
+            recordCreate.parse({ id: crypto.randomUUID(), ...{ body: "parent", tag_ids } }),
           );
         // Hold the real application transaction after its edit, before commit.
         const heldE: e.EntityDeps = {
@@ -86,9 +86,13 @@ for (
         };
         const patch = {
           expected_version: parent.version,
-          change_note: scenario === "edit content" ? "edit content" : "remove both",
+          ...(kind === "record" ? {} : { change_note: scenario === "edit content" ? "edit content" : "remove both" }),
           ...(scenario === "edit content"
-            ? (kind === "entity" ? { prop1: "edited parent" } : { title: "edited parent" })
+            ? (kind === "entity"
+              ? { prop1: "edited parent" }
+              : kind === "record"
+              ? { body: "edited parent" }
+              : { title: "edited parent" })
             : { tag_ids: [] }),
         };
         editing = scenario === "delete parent"
@@ -124,7 +128,7 @@ for (
         await Promise.all([editing, deleting]);
         assert(waited, "observed real SELECT waiting on parent row lock");
         await assertRejects(() => t.deleteTag(td, f.actor, first.id, first.version, "delete dictionary entry"));
-        const events = await admin`select change_note,change_metadata from app.records where owner_id=${f.actor.userId}
+        const events = await admin`select body,change_metadata from app.records where owner_id=${f.actor.userId}
         and change_metadata->>'target_id'=${parent.id} and change_metadata->>'action'='update' order by occurred_at`;
         if (scenario === "delete parent") {
           assertEquals(
@@ -145,11 +149,15 @@ for (
           assertEquals(final.tag_ids, [other.id]);
           assertEquals(final.version, parent.version + 2);
           assertEquals(
-            kind === "entity" ? (final as { prop1: string }).prop1 : (final as { title: string }).title,
+            kind === "entity"
+              ? (final as { prop1: string }).prop1
+              : kind === "record"
+              ? (final as { body: string }).body
+              : (final as { title: string }).title,
             "edited parent",
           );
           assertEquals(events.length, kind === "record" ? 1 : 2);
-          const unlink = events.find((r) => r.change_note === "delete dictionary entry")!;
+          const unlink = events.find((r) => r.body === "delete dictionary entry")!;
           assertEquals([unlink.change_metadata.before, unlink.change_metadata.after], [null, null]);
           assertEquals(unlink.change_metadata.target_title, "edited parent");
         } else {
@@ -157,7 +165,7 @@ for (
           assertEquals(final.version, parent.version + 1);
           assertEquals(events.length, kind === "record" ? 0 : 1);
           if (kind !== "record") {
-            assertEquals(events[0].change_note, "remove both");
+            assertEquals(events[0].body, "remove both");
             assertEquals([events[0].change_metadata.before, events[0].change_metadata.after], [null, null]);
           }
         }

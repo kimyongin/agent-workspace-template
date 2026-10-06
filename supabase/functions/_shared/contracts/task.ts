@@ -2,8 +2,8 @@ import { entityContext, entitySelection } from "./entity-links.ts";
 // 할 일(Task)·반복 할 일 계약.
 // HTTP 입력 검증·MCP inputSchema·웹 폼이 이 정의를 함께 쓴다. zod만 가져온다.
 import { z } from "zod";
-import { businessMeta, mutationMeta } from "./change.ts";
-import { body, expectedVersion, id, isoDate, isoDateTime, page, pageInput, summary, title } from "./common.ts";
+import { businessMeta } from "./change.ts";
+import { body, expectedVersion, id, isoDate, isoDateTime, page, pageInput, recordBody, title } from "./common.ts";
 import { recordResult } from "./record.ts";
 import { tagFilterIds, tagIds } from "./tag.ts";
 
@@ -53,7 +53,6 @@ export const taskCreate = z.discriminatedUnion("kind", [
     ...entitySelection,
     tag_ids: tagIds.optional(),
     title,
-    summary,
     body: body.default(""),
     due_on: isoDate.optional(),
   }),
@@ -64,7 +63,6 @@ export const taskCreate = z.discriminatedUnion("kind", [
     ...entitySelection,
     tag_ids: tagIds.optional(),
     title,
-    summary,
     body: body.default(""),
     recurrence,
     timezone,
@@ -80,14 +78,13 @@ export const taskUpdate = z
     ...entitySelection,
     tag_ids: tagIds.optional(),
     title: title.optional(),
-    summary: summary.optional(),
     body: body.optional(),
     due_on: isoDate.nullable().optional(),
     recurrence: recurrence.optional(),
     timezone: timezone.optional(),
   })
   .refine(
-    (v) => Object.keys(v).some((k) => !["expected_version", "change_note", "change_memo"].includes(k)),
+    (v) => Object.keys(v).some((k) => !["expected_version", "change_note"].includes(k)),
     {
       message: "바꿀 필드가 없습니다",
     },
@@ -98,12 +95,9 @@ export const versionOnly = z.strictObject({ expected_version: expectedVersion, .
 
 /** 일회성 할 일 완료: 결과 기록 내용과 함께 한 트랜잭션으로 저장한다. */
 export const taskComplete = z.strictObject({
-  ...mutationMeta,
   tag_ids: tagIds.optional(),
   expected_version: expectedVersion,
-  title,
-  summary,
-  body: body.default(""),
+  body: recordBody,
   occurred_at: isoDateTime.optional(),
 });
 export type TaskComplete = z.infer<typeof taskComplete>;
@@ -145,7 +139,6 @@ export const taskResult = z.object({
   tag_ids: z.array(id),
   kind: z.enum(TASK_KINDS),
   title: z.string(),
-  summary: z.string(),
   body: z.string(),
   due_on: isoDate.nullable(),
   recurrence: recurrence.nullable(),
@@ -170,9 +163,9 @@ export const occurrence = z.object({
 });
 export type Occurrence = z.infer<typeof occurrence>;
 
-/** 단건 조회: 결과 기록의 요약과 함께. 상세 경로는 웹이 `/records/:id`로 만든다. */
+/** 단건 조회: 결과 기록의 본문과 함께. 상세 경로는 웹이 `/records/:id`로 만든다. */
 export const taskDetail = taskResult.extend({
-  result_record: z.object({ id, title: z.string(), summary: z.string() }).nullable(),
+  result_record: z.object({ id, body: z.string() }).nullable(),
 });
 export type TaskDetail = z.infer<typeof taskDetail>;
 
@@ -194,7 +187,6 @@ export const taskLabels = {
   once: "일회성",
   recurring: "반복",
   title: "제목",
-  summary: "요약",
   body: "본문",
   due_on: "기한",
   recurrence: "반복 규칙",

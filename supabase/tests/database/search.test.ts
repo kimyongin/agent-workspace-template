@@ -21,13 +21,13 @@ dbTest("검색: 한국어 본문·literal 와일드카드·상태·태그·기�
     await tx`insert into app.entities(id,owner_id,prop1) values(${entity},${users.a},'검색 범위')`;
     await tx`insert into app.tags(id,owner_id,name) values(${tagId},${users.a},${token.slice(0, 30)})`;
     await tx`insert into app.tags(id,owner_id,name) values(${scopeTag},${users.a},${scopeTag.slice(0, 30)})`;
-    await tx`insert into app.tasks(id,owner_id,kind,status,title,summary,body,updated_at) values(${sameId},${users.a},'once','open','업무','제목 외',${
+    await tx`insert into app.tasks(id,owner_id,kind,status,title,body,updated_at) values(${sameId},${users.a},'once','open','업무',${
       token + " 재활용 %_"
     },${at})`;
-    await tx`insert into app.records(id,owner_id,title,summary,body,occurred_at) values(${sameId},${users.a},'기록','근거',${
+    await tx`insert into app.records(id,owner_id,body,occurred_at) values(${sameId},${users.a},${
       token + " 재활용 %_"
     },${at})`;
-    await tx`insert into app.principles(id,owner_id,title,summary,body,updated_at,saved_at,is_current) values(${sameId},${users.a},'원칙','규칙',${
+    await tx`insert into app.principles(id,owner_id,title,body,updated_at,saved_at,is_current) values(${sameId},${users.a},'원칙',${
       token + " 재활용 %_"
     },${at},${at},true)`;
     await tx`insert into app.record_tags(owner_id,record_id,tag_id) values(${users.a},${sameId},${tagId})`;
@@ -37,7 +37,7 @@ dbTest("검색: 한국어 본문·literal 와일드카드·상태·태그·기�
     await tx`update app.records set entity_ids=array[${entity}::uuid] where id=${sameId}`;
   });
   await asUser(sql, users.b, async (tx) => {
-    await tx`insert into app.records(owner_id,title,summary,body) values(${users.b},'비밀','보호',${token})`;
+    await tx`insert into app.records(owner_id,body) values(${users.b},${token})`;
   });
   const base = searchInput.parse({
       query: token,
@@ -49,7 +49,7 @@ dbTest("검색: 한국어 본문·literal 와일드카드·상태·태그·기�
       to: at,
     }),
     first = searchResult.parse(await search(d, A, base));
-  assertEquals(first.semantic_coverage, { pending: 2, excluded: 0 });
+  assertEquals(first.semantic_coverage, { pending: 1, excluded: 0 });
   assertEquals(first.items[0].kind, "task");
   assertEquals((await search(d, A, { ...base, anchor: { kind: "principle", id: sameId } })).anchor_page, null);
   assertEquals((await search(d, B, { ...base, anchor: { kind: "principle", id: sameId } })).anchor_page, null);
@@ -99,7 +99,7 @@ dbTest("검색: 한국어 본문·literal 와일드카드·상태·태그·기�
     2,
   );
   const noMatch = await search(d, A, searchInput.parse({ query: "없는 말", entity_id: entity }));
-  assertEquals(noMatch.semantic_coverage, { pending: 2, excluded: 0 });
+  assertEquals(noMatch.semantic_coverage, { pending: 1, excluded: 0 });
   const foreignEntity = await search(d, B, searchInput.parse({ query: token, entity_id: entity }));
   assertEquals(foreignEntity.items, []);
   assertEquals(foreignEntity.semantic_coverage, { pending: 0, excluded: 0 });

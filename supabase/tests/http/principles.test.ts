@@ -8,7 +8,6 @@ httpTest("현재 원칙 HTTP: 같은 문서 갱신·선택 메모·미리보기�
   try {
     const first = await call(a, baseline ? "PATCH" : "POST", baseline ? `/principles/${baseline.id}` : "/principles", {
       title: "현재 기준",
-      summary: "판단",
       body: "첫 원문",
       ...(baseline ? { expected_version: baseline.version } : {}),
     });
@@ -17,24 +16,22 @@ httpTest("현재 원칙 HTTP: 같은 문서 갱신·선택 메모·미리보기�
     const preview = await call(a, "POST", "/principles/preview", {
       action: "update",
       id: current.id,
-      input: { title: "변경 기준", summary: "다음 판단", body: "두 번째 원문", expected_version: current.version },
+      input: { title: "변경 기준", body: "두 번째 원문", expected_version: current.version },
     });
-    assertEquals(preview.status, 200);
+    assertEquals(preview.status, 404);
     assertEquals((await call(a, "GET", "/principles/current")).body.current, current);
     const unchanged = await call(a, "PATCH", `/principles/${current.id}`, {
       title: current.title,
-      summary: current.summary,
       body: current.body,
       expected_version: current.version,
-      change_memo: { title: "메모만", summary: "무변경", body: "기록하지 않음" },
+      change_note: "기록하지 않음",
     });
     assertEquals(unchanged.body, current);
     const input = {
       title: "변경 기준",
-      summary: "다음 판단",
       body: "두 번째 원문",
       expected_version: current.version,
-      change_memo: { title: "최종 메모", summary: "확인한 요약", body: "추가 판단 근거" },
+      change_note: "추가 판단 근거",
     };
     const raced = await Promise.all([
       call(a, "PATCH", `/principles/${current.id}`, input),
@@ -64,12 +61,12 @@ httpTest("현재 원칙 HTTP: 같은 문서 갱신·선택 메모·미리보기�
         id: current.id,
         input: { expected_version: current.version },
       })).status,
-      200,
+      404,
     );
     assertEquals(
       (await call(a, "POST", `/principles/${current.id}/delete`, {
         expected_version: current.version,
-        change_memo: { title: "삭제 메모", summary: "삭제 확인", body: "이유" },
+        change_note: "이유",
       })).status,
       204,
     );
@@ -79,7 +76,6 @@ httpTest("현재 원칙 HTTP: 같은 문서 갱신·선택 메모·미리보기�
     assertEquals(
       (await call(a, "PATCH", `/principles/${previous.id}`, {
         title: "오래된 변경",
-        summary: "거부",
         expected_version: previous.version,
       })).status,
       404,
@@ -89,7 +85,6 @@ httpTest("현재 원칙 HTTP: 같은 문서 갱신·선택 메모·미리보기�
       const actual = (await call(a, "GET", "/principles/current")).body.current;
       const restored = await call(a, actual ? "PATCH" : "POST", actual ? `/principles/${actual.id}` : "/principles", {
         title: baseline.title,
-        summary: baseline.summary,
         body: baseline.body,
         ...(actual ? { expected_version: actual.version } : {}),
         change_note: "테스트 문서 복원",

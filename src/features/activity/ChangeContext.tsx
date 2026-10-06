@@ -37,7 +37,6 @@ export function ChangeContext({record,compact=false}: {record: WorkspaceRecord;c
   if(compact)return <><span className="meta">{kind}</span>{target&&<p className="secondary record-change-target">{target}{change?.action==="delete"?" · 삭제된 대상":""}</p>}</>;
   return <div className="form">
     <span className="meta">{kind}</span>
-    {record.change_note&&<p className="memo-text">편집 메모: {record.change_note}</p>}
     {change&&<>
       <p className="secondary">{target}</p>
       {(change.before!==null||change.after!==null)&&<details className="workspace-additional"><summary>변경 전후 값</summary><div className="change-snapshot"><section><h3 className="section-title">변경 전</h3><pre>{change.before?JSON.stringify(change.before,null,2):"없음"}</pre></section><section><h3 className="section-title">변경 후</h3><pre>{change.after?JSON.stringify(change.after,null,2):"없음"}</pre></section></div></details>}

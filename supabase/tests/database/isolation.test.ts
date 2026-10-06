@@ -7,7 +7,7 @@ const { a: A, b: B } = await devUsers(admin);
 
 const insertTask = (owner: string, title = "격리 시험") => (tx: Parameters<Parameters<typeof asUser>[2]>[0]) =>
   tx<{ id: string }[]>`
-    insert into app.tasks (owner_id, kind, title, summary, status)
+    insert into app.tasks (owner_id, kind, title, body, status)
     values (${owner}, 'once', ${title}, '요약', 'open') returning id`;
 
 for (
@@ -107,7 +107,7 @@ dbTest("Supabase API 역할(authenticated·anon)과 접속 역할은 업무 테�
       await tx.unsafe(`set local role ${role}`);
       const [{ u }] = await tx<{ u: string }[]>`select current_user as u`;
       assertEquals(u, role); // 역할 전환이 실제로 된 뒤에 시험한다
-      await tx`insert into app.tasks (owner_id, kind, title, summary, status) values (${A}, 'once', 'x', 'y', 'open')`;
+      await tx`insert into app.tasks (owner_id, kind, title, body, status) values (${A}, 'once', 'x', 'y', 'open')`;
     }));
     assertMatch(r, /^42501 permission denied for schema app/);
     const q = await outcome(admin.begin(async (tx) => {
@@ -139,7 +139,7 @@ dbTest("다른 소유자의 할 일을 기록에 연결할 수 없다(복합 외
     const [{ id }] = await asUser(sql, A, insertTask(A, "A의 할 일"));
     const r = await outcome(asUser(sql, B, (tx) =>
       tx`
-      insert into app.records (owner_id, title, summary, task_id) values (${B}, '기록', '요약', ${id})`));
+      insert into app.records (owner_id, body, task_id) values (${B}, '기록', ${id})`));
     assertMatch(r, /^23503 /);
   } finally {
     await sql.end();

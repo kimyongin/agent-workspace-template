@@ -67,7 +67,7 @@ export function SearchPage(){
   return <section className="panel" aria-labelledby="search-title">
     <h1 id="search-title" className="page-title" tabIndex={-1}>검색</h1>
     <form className="search-form" onSubmit={e=>{e.preventDefault();if(composing.current)return;const value=draft.trim();if(value===q)setRetry(n=>n+1);else change("q",value);}}>
-      <Field label="검색어" required>{p=><input {...p} className="input" placeholder="제목·요약·본문 검색" value={draft} onCompositionStart={()=>{composing.current=true;}} onCompositionEnd={()=>{composing.current=false;}} onKeyDown={e=>{if(e.key==="Enter"&&(e.nativeEvent.isComposing||e.keyCode===229))e.preventDefault();}} onChange={e=>setDraft(e.target.value)} required/>}</Field>
+      <Field label="검색어" required>{p=><input {...p} className="input" placeholder="제목·본문 검색" value={draft} onCompositionStart={()=>{composing.current=true;}} onCompositionEnd={()=>{composing.current=false;}} onKeyDown={e=>{if(e.key==="Enter"&&(e.nativeEvent.isComposing||e.keyCode===229))e.preventDefault();}} onChange={e=>setDraft(e.target.value)} required/>}</Field>
       <button className="btn btn-primary" type="submit" disabled={busy}>검색</button>
     </form>
     <div className="search-filters">
@@ -88,7 +88,7 @@ export function SearchPage(){
       {!result.items.length&&<p className="secondary">검색 결과가 없습니다. 검색어 또는 필터를 바꿔 보세요.</p>}
       <ul className="list">{result.items.map(r=>{
         return <li className="list-item" key={`${r.kind}:${r.id}`}><div className="list-item-main">
-        <Link id={`search-${r.kind}-${r.id}`} className="item-title" to={r.path}>{r.title}</Link>{r.summary!==r.title&&<span className="secondary record-summary">{r.summary}</span>}
+        <Link id={`search-${r.kind}-${r.id}`} className="item-title" to={r.path}>{r.title}</Link>{r.snippet!==r.title&&<span className="secondary record-snippet">{r.snippet}</span>}
         <span className="meta">{kinds[r.kind]} · {formatDateTime(r.at)}</span><SearchMatch item={r}/>
       </div></li>;})}</ul>
       {result.next_cursor&&<button type="button" className="btn" disabled={busy} onClick={more}>더 보기</button>}

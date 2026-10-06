@@ -3,20 +3,18 @@ import { TagPicker } from "../tags/TagPicker.tsx";
 import { EntityMultiPicker } from "../entity/EntityPicker.tsx";
 import { recordCreate, recordLabels } from "@contracts/record.ts";
 import { type Recurrence, taskCreate, taskLabels } from "@contracts/task.ts";
-import { type ReactNode, useEffect, useState } from "react";
+import { type ReactNode, useState } from "react";
 import { Field } from "../../components/Field.tsx";
 import { changeNoteErrors, ChangeNoteField, FormModal, TextFields, type TextDraft } from "../../components/ContentForm.tsx";
 import { browserTimezone, fieldErrors, fromLocalInput, todayIn, toLocalInput } from "../../lib/format.ts";
-import { api } from "../../lib/api.ts";
 import type { EntityContext } from "@contracts/entity-links.ts";
-import type { ChangeMemo } from "@contracts/change.ts";
 
 const WEEKDAYS = ["월", "화", "수", "목", "금", "토", "일"];
 
 // ---------- 기록 폼(직접 작성·완료 결과·회차 기록·편집) ----------
 
-export interface RecordDraft extends TextDraft {
-  change_note?: string;
+export interface RecordDraft {
+  body: string;
   entity_ids?:string[];
   entity_context?:EntityContext[];
   tag_ids:string[];
@@ -24,10 +22,10 @@ export interface RecordDraft extends TextDraft {
   original_occurred_at?: string;
 }
 
-export const emptyRecord = (): RecordDraft => ({ title: "", summary: "", body: "", occurred_at: "", tag_ids:[] });
+export const emptyRecord = (): RecordDraft => ({ body: "", occurred_at: "", tag_ids:[] });
 
-export function recordDraftFrom(r: { title: string; summary: string; body: string; occurred_at: string; tag_ids?:string[];entity_ids?:string[];entity_context?:EntityContext[] }): RecordDraft {
-  return { title: r.title, summary: r.summary, body: r.body, occurred_at: toLocalInput(r.occurred_at), original_occurred_at: r.occurred_at, tag_ids:r.tag_ids??[],entity_ids:r.entity_ids??[],entity_context:r.entity_context??[] };
+export function recordDraftFrom(r: { body: string; occurred_at: string; tag_ids?:string[];entity_ids?:string[];entity_context?:EntityContext[] }): RecordDraft {
+  return { body: r.body, occurred_at: toLocalInput(r.occurred_at), original_occurred_at: r.occurred_at, tag_ids:r.tag_ids??[],entity_ids:r.entity_ids??[],entity_context:r.entity_context??[] };
 }
 
 /** The minute-only input must not truncate an untouched stored timestamp. */
@@ -49,14 +47,12 @@ export function RecordFormModal(props: {
   editing?: boolean;
   onClose: () => void;
   onRouteDiscard?: () => void;
-  onSave: (value: { title: string; summary: string; body: string; change_note?: string; occurred_at?: string; tag_ids?:string[];entity_ids?:string[] }, creationId: () => string) => Promise<void>;
+  onSave: (value: { body: string; occurred_at?: string; tag_ids?:string[];entity_ids?:string[] }, creationId: () => string) => Promise<void>;
 }) {
   const [initial] = useState(props.initial);
   const [draft, setDraft] = useState(initial);
   const dirty = JSON.stringify(draft) !== JSON.stringify(initial);
   const value = () => ({
-    title: draft.title,
-    summary: draft.summary,
     body: draft.body,
     occurred_at: recordDraftTime(draft),
     tag_ids:draft.tag_ids,
@@ -72,16 +68,15 @@ export function RecordFormModal(props: {
       onClose={props.onClose}
       onRouteDiscard={props.onRouteDiscard}
       validate={() => {
-        const noteErrors=changeNoteErrors(draft.change_note,false);if(noteErrors)return noteErrors;
         const r = recordCreate.omit({id:true}).safeParse(value());
         return r.success ? null : fieldErrors(r.error.issues);
       }}
-      onSubmit={(_memo, creationId) => {const parsed=recordCreate.omit({id:true}).parse(value());return props.onSave({... (props.systemRecord?{title:parsed.title,summary:parsed.summary,body:parsed.body}:parsed),change_note:draft.change_note?.trim()||undefined}, creationId);}}
+      onSubmit={(creationId) => {const parsed=recordCreate.omit({id:true}).parse(value());return props.onSave(props.systemRecord?{body:parsed.body}:parsed, creationId);}}
     >
       {(errors) => (
         <>
           {props.intro}
-          <TextFields draft={draft} set={(d) => setDraft((prev) => ({ ...prev, ...d }))} errors={errors} />
+          <section className="detail-section form"><Field label="본문" required error={errors.body}>{p=><textarea {...p} className="input" rows={8} placeholder="내용과 근거를 작성하세요 (마크다운)" value={draft.body} onChange={e=>setDraft(d=>({...d,body:e.target.value}))}/>}</Field></section>
           {!props.systemRecord && <section className="detail-section form"><h2 className="section-title">관련 정보</h2>
           <TagPicker value={draft.tag_ids} error={errors.tag_ids} onChange={tag_ids=>setDraft(d=>({...d,tag_ids}))}/>
           {props.entityEditable!==false&&<EntityMultiPicker value={draft.entity_ids??[]} context={draft.entity_context} error={errors.entity_ids} onChange={entity_ids=>setDraft(d=>({...d,entity_ids}))}/>}
@@ -96,8 +91,6 @@ export function RecordFormModal(props: {
               />
             )}
           </Field></section>}
-          <section className="detail-section form"><Field label="편집 메모" error={errors.change_note}>
-            {p=><textarea {...p} className="input" rows={3} value={draft.change_note??""} onChange={e=>setDraft(d=>({...d,change_note:e.target.value}))}/>}</Field></section>
           {props.details}
         </>
       )}
@@ -105,25 +98,9 @@ export function RecordFormModal(props: {
   );
 }
 
-/** Completion/occurrence already save one result record; preview fills that same memo, not another log. */
-export function TaskResultFormModal(props: Parameters<typeof RecordFormModal>[0] & { taskId:string;version:number;date?:string }) {
-  const [initial,setInitial]=useState<RecordDraft|null>(null),[failure,setFailure]=useState<string|null>(null),[retry,setRetry]=useState(0);
-  useEffect(()=>{let cancelled=false;setFailure(null);
-    api<{memo:ChangeMemo}>("POST","/tasks/preview",{action:props.date?"occurrence":"complete",id:props.taskId,...(props.date?{date:props.date}:{}),input:{expected_version:props.version}}).then(result=>{
-      if(!cancelled)setInitial({...props.initial,...result.memo});
-    }).catch(e=>{if(!cancelled)setFailure(e instanceof Error?e.message:"기본 메모를 확인하지 못했습니다.");});
-    return()=>{cancelled=true;};
-  },[props.taskId,props.version,props.date,retry]);
-  if(!initial)return <FormModal title={props.title} open={props.open} submitLabel="불러오는 중" dirty={false} onClose={props.onClose} onRouteDiscard={props.onRouteDiscard} validate={()=>({preview:"기본 메모를 먼저 확인하세요."})} onSubmit={async()=>{}}>
-    {()=>failure?<><p role="alert">{failure}</p><button type="button" className="btn" onClick={()=>setRetry(n=>n+1)}>메모 다시 확인</button></>:<p role="status">기본 메모를 확인하고 있습니다.</p>}
-  </FormModal>;
-  return <RecordFormModal {...props} initial={initial}/>;
-}
-
 // ---------- 할 일 폼(작성·편집) ----------
 
 export interface TaskDraft extends TextDraft {
-  change_memo?: ChangeMemo;
   change_note?: string;
   entity_ids?:string[];
   entity_context?:EntityContext[];
@@ -143,7 +120,6 @@ export function emptyTask(): TaskDraft {
     kind: "once",
     tag_ids:[],
     title: "",
-    summary: "",
     body: "",
     due_on: "",
     freq: "daily",
@@ -160,7 +136,6 @@ export function taskDraftFrom(t: {
   tag_ids:string[];
   kind: "once" | "recurring";
   title: string;
-  summary: string;
   body: string;
   due_on: string | null;
   recurrence: Recurrence | null;
@@ -174,7 +149,6 @@ export function taskDraftFrom(t: {
     kind: t.kind,
     tag_ids:t.tag_ids,
     title: t.title,
-    summary: t.summary,
     body: t.body,
     due_on: t.due_on ?? "",
     freq: r?.freq ?? "daily",
@@ -196,7 +170,7 @@ function recurrenceOf(d: TaskDraft): unknown {
 
 /** 생성 입력(contracts의 taskCreate 모양). */
 export function taskInput(d: TaskDraft): Record<string, unknown> {
-  const text = { title: d.title, summary: d.summary, body: d.body, tag_ids:d.tag_ids,entity_ids:d.entity_ids??[], change_note:d.change_note?.trim()||undefined,change_memo:d.change_memo };
+  const text = { title: d.title, body: d.body, tag_ids:d.tag_ids,entity_ids:d.entity_ids??[], change_note:d.change_note?.trim()?d.change_note:undefined };
   return d.kind === "once"
     ? { kind: "once", ...text, ...(d.due_on ? { due_on: d.due_on } : {}) }
     : { kind: "recurring", ...text, recurrence: recurrenceOf(d), timezone: d.timezone };
@@ -206,7 +180,6 @@ export function TaskFormModal(props: {
   mode: "create" | "edit";
   open: boolean;
   initial: TaskDraft;
-  target?: {id:string;version:number};
   details?: ReactNode;
   onDelete?: () => void;
   onClose: () => void;
@@ -225,12 +198,6 @@ export function TaskFormModal(props: {
       submitLabel={props.mode === "create" ? "추가" : "저장"}
       open={props.open}
       dirty={dirty}
-      previewKey={JSON.stringify(draft)}
-      prepare={async()=>{
-        const {kind,...patch}=taskInput(draft);
-        const result=await api<{memo:ChangeMemo}>("POST","/tasks/preview",props.mode==="edit"?{action:"update",id:props.target?.id,input:{...patch,expected_version:props.target?.version}}:{action:"create",input:{kind,...patch}});
-        return result.memo;
-      }}
       onDelete={props.onDelete}
       onClose={props.onClose}
       onRouteDiscard={props.onRouteDiscard}
@@ -244,7 +211,7 @@ export function TaskFormModal(props: {
         for (const [k, v] of Object.entries(errs)) if (k.startsWith("recurrence.")) errs[k.slice(11)] ??= v;
         return errs;
       }}
-      onSubmit={(change_memo, creationId) => props.onSave({...draft,change_memo}, creationId)}
+      onSubmit={(creationId) => props.onSave({...draft}, creationId)}
     >
       {(errors) => (
         <>

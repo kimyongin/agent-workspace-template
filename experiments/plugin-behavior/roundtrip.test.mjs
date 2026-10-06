@@ -4,7 +4,7 @@ import { verifyRoundtrip, beginRoundtripPhase, finishRoundtripPhase, hasRoundtri
 
 const empty = () => ({ current: { current: null }, entities: [], tasks: [], records: [], principles: [], tags: [] });
 const f = { marker: 'plugin-codex-cli-12345678', entity: { id: 'e', prop1: 'plugin-codex-cli-12345678', prop2: 7, prop3: '2026-10-06', prop4: 'b', version: 1 }, roundtrip: { intent: { id: 'e', memoBody: 'final memo' } } };
-const event = (target, kind, action, source = 'http') => ({ id: 'c', record_kind: 'change', title: 'change', summary: 'summary', body: 'final memo', version: 1, entity_ids: kind === 'entity' ? ['e'] : [], change: { event_id: 'evt', target_kind: kind, target_id: target, target_title: kind === 'entity' ? f.marker : `${f.marker}-principle`, action, source, path: action === 'delete' ? null : `/${kind === 'entity' ? 'entities' : kind + 's'}/${target}`, before: null, after: null } });
+const event = (target, kind, action, source = 'http') => ({ id: 'c', record_kind: 'change', title: 'change', body: 'final memo', version: 1, entity_ids: kind === 'entity' ? ['e'] : [], change: { event_id: 'evt', target_kind: kind, target_id: target, target_title: kind === 'entity' ? f.marker : `${f.marker}-principle`, action, source, path: action === 'delete' ? null : `/${kind === 'entity' ? 'entities' : kind + 's'}/${target}`, before: null, after: null } });
 test('entity update preserves scalar identity and requires the actual final memo event, with no extra writes', () => {
   const before = { ...empty(), entities: [f.entity] };
   const after = { ...empty(), entities: [{ ...f.entity, prop2: 11, version: 2 }], records: [event('e', 'entity', 'update', 'mcp')] };
@@ -13,23 +13,23 @@ test('entity update preserves scalar identity and requires the actual final memo
   assert.equal(verifyRoundtrip(before, { ...after, records: [...after.records, { ...after.records[0], id: 'extra' }] }, f, 'roundtrip-entity').pass, false);
   assert.equal(verifyRoundtrip(before, { ...after, records: [{ ...after.records[0], body: '' }] }, f, 'roundtrip-entity').pass, false);
 });
-test('real completion DTO keeps timestamps independent, result links and summaries exact, and memo edit adds no log', () => {
+test('real completion DTO keeps timestamps independent, result body exact, and memo edit adds no log', () => {
   const at = '2026-10-05T20:58:48.277Z', now = '2026-10-05T20:58:48.293Z';
-  const task = { id: 't', kind: 'once', title: f.marker + '-task', summary: '確認', body: '内容', entity_ids: ['e'], version: 1, status: 'open', completed_at: null, result_record_id: null, result_record: null, updated_at: at };
-  const result = { id: 'r', record_kind: 'result', title: '확인 완료', summary: '결과 요약', body: '11 확인', entity_ids: ['e'], task_id: 't', version: 1, occurred_at: at, updated_at: now };
-  const done = { ...task, version: 2, status: 'done', completed_at: now, updated_at: now, result_record_id: 'r', result_record: { id: 'r', title: result.title, summary: result.summary } };
+  const task = { id: 't', kind: 'once', title: f.marker + '-task', body: '内容', entity_ids: ['e'], version: 1, status: 'open', completed_at: null, result_record_id: null, result_record: null, updated_at: at };
+  const result = { id: 'r', record_kind: 'result', title: '확인 완료', body: '11 확인', entity_ids: ['e'], task_id: 't', version: 1, occurred_at: at, updated_at: now };
+  const done = { ...task, version: 2, status: 'done', completed_at: now, updated_at: now, result_record_id: 'r', result_record: { id: 'r', body: '11 확인' } };
   const before = { ...empty(), entities: [f.entity], tasks: [task] }, after = { ...before, tasks: [done], records: [result] };
   const fixture = { ...f, task, roundtrip: { intent: { id: 't', body: result.body } } };
   assert.equal(verifyRoundtrip(before, after, fixture, 'web-complete').pass, true);
   assert.equal(verifyRoundtrip(before, { ...after, tasks: [{ ...done, result_record_id: 'foreign' }] }, fixture, 'web-complete').pass, false);
-  const edited = { ...after, records: [{ ...result, body: '정정', version: 2 }] };
+  const edited = { ...after, tasks: [{ ...done, result_record: { id: 'r', body: '정정' } }], records: [{ ...result, body: '정정', version: 2 }] };
   fixture.roundtrip.intent = { id: 'r', body: '정정' };
   assert.equal(verifyRoundtrip(after, edited, fixture, 'web-memo').pass, true);
   assert.equal(verifyRoundtrip(after, { ...edited, records: [{ ...edited.records[0], occurred_at: now }] }, fixture, 'web-memo').pass, false);
   assert.equal(verifyRoundtrip(after, { ...edited, records: [...edited.records, event('r', 'record', 'update')] }, fixture, 'web-memo').pass, false);
 });
 test('current principle is same ID, saved_at advances, and deletion cannot promote another source', () => {
-  const old = { id: 'p', title: f.marker + '-principle', summary: '현재', body: '7 보류', is_current: true, status: 'active', version: 1, saved_at: '2026-10-05T20:58:48.277Z' };
+  const old = { id: 'p', title: f.marker + '-principle', body: '7 보류', is_current: true, status: 'active', version: 1, saved_at: '2026-10-05T20:58:48.277Z' };
   const updated = { ...old, body: '11 진행', version: 2, saved_at: '2026-10-05T20:58:49.293Z' };
   const before = { ...empty(), principles: [old], current: { current: old } };
   const after = { ...before, principles: [updated], current: { current: updated }, records: [event('p', 'principle', 'update')] };
@@ -42,7 +42,7 @@ test('current principle is same ID, saved_at advances, and deletion cannot promo
   assert.equal(verifyRoundtrip(after, { ...deleted, current: { current: old } }, fixture, 'web-principle-delete').pass, false);
 });
 test('native task/current originals require full exact current DTO; a search result or stale version is insufficient', () => {
-  const task = { id: 't', body: 'task body', status: 'done', version: 2, result_record_id: 'r', result_record: { id: 'r', title: 'result', summary: 'summary' } };
+  const task = { id: 't', body: 'task body', status: 'done', version: 2, result_record_id: 'r', result_record: { id: 'r', body: 'result' } };
   assert.equal(hasRoundtripOriginal('get_task', { structuredContent: task }, 'task', task), true);
   assert.equal(hasRoundtripOriginal('search', { structuredContent: task }, 'task', task), false);
   assert.equal(hasRoundtripOriginal('get_task', { ...task, version: 1 }, 'task', task), false);

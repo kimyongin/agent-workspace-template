@@ -17,12 +17,20 @@ httpTest(
         );
       }
       const ids = targets.map((target) => target.id).sort(), marker = "연결" + crypto.randomUUID();
-      record = await tool(client, "create_record", { title: marker, summary: "공동 자료", entity_ids: ids });
+      record = await tool(client, "create_record", { body: marker, entity_ids: ids });
       assert(record);
-      const patch = { expected_version: record.version, summary: "최신 공동 자료" };
+      const patch = { expected_version: record.version, body: `${marker}\n선택한 대상 근거 정정` };
       const edited = await call(session, "PATCH", `/records/${record.id}`, patch);
       assertEquals(edited.status, 200);
       assertEquals((await tool(client, "update_record", { id: record.id, ...patch })).error.code, "conflict");
+      assertEquals(
+        await tool(client, "update_record", {
+          id: record.id,
+          expected_version: edited.body.version,
+          body: edited.body.body,
+        }),
+        edited.body,
+      );
       const read = await tool(client, "get_record", { id: record.id });
       assertEquals(read.entity_ids, ids);
       assertEquals((await call(session, "GET", `/records/${record.id}`)).body, read);
@@ -97,14 +105,12 @@ httpTest(
       const once = await tool(client, "create_task", {
         kind: "once",
         title: "공동 실행",
-        summary: "대상 둘",
         entity_ids: ids,
       });
       tasks.push(once.id);
       const completion = await call(session, "POST", `/tasks/${once.id}/complete`, {
         expected_version: once.version,
-        title: "실행 결과",
-        summary: "모두 완료",
+        body: "실행 결과",
       });
       assertEquals(completion.status, 200);
       records.push(completion.body.record.id);
@@ -115,7 +121,6 @@ httpTest(
       const repeat = await tool(client, "create_task", {
         kind: "recurring",
         title: "공동 반복",
-        summary: "대상 둘",
         entity_ids: ids,
         recurrence: { freq: "daily", starts_on: "2020-01-01" },
         timezone: "Asia/Seoul",
@@ -130,8 +135,8 @@ httpTest(
           id: crypto.randomUUID(),
           task_id: repeat.id,
           date,
-          title: "회차 결과",
-          summary: "수동 기록",
+
+          body: "회차 결과",
           ...selection,
         });
         records.push(row.id);
@@ -144,12 +149,7 @@ httpTest(
           date,
         ]);
       }
-      const reference = await tool(client, "create_record", {
-        title: "독립 참고 자료",
-        summary: "실행과 별도",
-        body: `/tasks/${repeat.id}`,
-        entity_ids: ids,
-      });
+      const reference = await tool(client, "create_record", { body: `/tasks/${repeat.id}`, entity_ids: ids });
       records.push(reference.id);
       assertEquals([reference.record_kind, reference.task_id, reference.occurrence_on], ["user", null, null]);
       const schedule = await tool(client, "list_occurrences", { id: repeat.id, from: "2020-01-01", to: "2020-01-03" });

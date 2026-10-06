@@ -8,6 +8,6 @@ describe("change note boundary",()=>{
   });
   it("counts Unicode code points consistently with the server",()=>{
     expect(changeNoteErrors("😀".repeat(1000),true)).toBeNull();
-    expect(changeNoteErrors("😀".repeat(1001),true)?.change_note).toContain("1,000");
+    expect(changeNoteErrors("😀".repeat(22001),true)?.change_note).toContain("22,000");
   });
 });

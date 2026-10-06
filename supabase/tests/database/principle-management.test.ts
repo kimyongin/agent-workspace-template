@@ -15,11 +15,10 @@ dbTest(
       const first = await p.createPrinciple(
         d,
         a,
-        principleCreate.parse({ id: crypto.randomUUID(), ...{ title: "기준", summary: "요약" } }),
+        principleCreate.parse({ id: crypto.randomUUID(), ...{ title: "기준" } }),
       );
       const i = principleUpdate.parse({
         title: "새 기준",
-        summary: "새 요약",
         body: "본문",
         change_note: "원자성",
         expected_version: first.version,
@@ -40,10 +39,18 @@ dbTest(
       assertEquals((await p.currentPrinciple(d, a)).current?.id, first.id);
       assertEquals((await p.currentPrinciple(d, a)).current, first);
       assertEquals((await admin`select id from app.principles where owner_id=${a.userId}`).length, 1);
-      assertEquals((await admin`select id from app.search_index_state where owner_id=${a.userId}`).length, 2);
+      // The failed save leaves only the creation change record indexed. Latest principles never enqueue embeddings.
+      const indexed = () => admin`select kind from app.search_index_state where owner_id=${a.userId}`;
+      assertEquals((await indexed()).map((row) => row.kind), ["record"]);
       const result = await p.updatePrinciple(d, a, first.id, i);
       assertEquals(result.id, first.id);
       assertEquals(result.version, 2);
+      assertEquals((await indexed()).map((row) => row.kind), ["record", "record"]);
+      assertEquals(
+        (await admin`select msg_id from pgmq.q_search_index where message->>'owner_id'=${a.userId} and message->>'kind'='principle'`)
+          .length,
+        0,
+      );
       await assertRejects(() => p.updatePrinciple(d, a, first.id, i));
     } finally {
       await f.cleanup();
@@ -57,7 +64,7 @@ dbTest("principle deletion failure rolls back its revision and the same retry re
     const first = await p.createPrinciple(
       d,
       f.actor,
-      principleCreate.parse({ id: crypto.randomUUID(), ...{ title: "기준", summary: "요약" } }),
+      principleCreate.parse({ id: crypto.randomUUID(), ...{ title: "기준" } }),
     );
     const next = await p.updatePrinciple(d, f.actor, first.id, { title: "갱신 기준", expected_version: first.version });
     const broken = {
@@ -80,7 +87,7 @@ dbTest("principle deletion failure rolls back its revision and the same retry re
     const replacement = await p.createPrinciple(
       d,
       f.actor,
-      principleCreate.parse({ id: crypto.randomUUID(), ...{ title: "새 기준", summary: "새 요약" } }),
+      principleCreate.parse({ id: crypto.randomUUID(), ...{ title: "새 기준" } }),
     );
     assertEquals(replacement.version, 1);
   } finally {

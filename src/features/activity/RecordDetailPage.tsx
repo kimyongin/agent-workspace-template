@@ -95,8 +95,8 @@ export function RecordDetailPage() {
       </p>
     </div>;
   const startEdit=()=>navigate(editFromView(params));
-  return <DetailSurface footer={<button type="button" className="btn btn-primary" onClick={startEdit}>편집</button>} title={record.title} onClose={()=>dialog==="edit"&&!editReady?closeEdit():navigate(back)} busy={busy}>
-      {record.summary!==record.title&&<section className="detail-section" aria-label="기록 개요"><p className="document-summary">{record.summary}</p></section>}
+  return <DetailSurface footer={<button type="button" className="btn btn-primary" onClick={startEdit}>편집</button>} title="기록" onClose={()=>dialog==="edit"&&!editReady?closeEdit():navigate(back)} busy={busy}>
+
       {record.body&&<section className="detail-section" aria-label="내용"><MarkdownContent text={record.body} className={record.record_kind==="change"?"memo-text":undefined}/></section>}
       {dialog!=="edit"&&<section className="detail-section"><h2 className="section-title">관련 정보</h2>{management}</section>}
       {dialog === "edit" && !editReady && loadError && <>
@@ -127,20 +127,20 @@ export function RecordDetailPage() {
           }}
         />
       )}
-      {deleting&&<DeleteDialog
+      {deleting&&<DeleteDialog note={false}
         title="기록을 삭제할까요?"
         message={
           <p style={{ margin: 0 }}>
-            「{record.title}」을(를) 삭제합니다. {record.record_kind==="change"?"대상의 업무 상태는 되돌리지 않습니다.":"일회성 할 일의 결과였다면 할 일은 완료 상태로 남고 결과 연결만 사라집니다."}
+            이 기록을 삭제합니다. {record.record_kind==="change"?"대상의 업무 상태는 되돌리지 않습니다.":"일회성 할 일의 결과였다면 할 일은 완료 상태로 남고 결과 연결만 사라집니다."}
           </p>
         }
         busy={busy}
         onCancel={() => setDeleting(false)}
-        onConfirm={async reason => {
+        onConfirm={async () => {
           setBusy(true);
           setError(null);
           try {
-            await api("DELETE", `/records/${record.id}${query({expected_version:record.version,change_note:reason})}`);
+            await api("DELETE", `/records/${record.id}${query({expected_version:record.version})}`);
             setDialog(null);
             navigateAfterClose(listPath,true);
           } catch (e) {
