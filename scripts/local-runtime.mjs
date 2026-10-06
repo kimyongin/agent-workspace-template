@@ -7,7 +7,7 @@ export async function runLocalChecks(adapter, { checks, source, signal, timeoutM
   };
   const capture = state => {
     const c = state.container;
-    if (child && c && c.createdAt >= child.startedAt && c.source === source && adapter.childRunning(child)) {
+    if (child && c && child.ownershipToken && c.ownershipToken === child.ownershipToken && c.source === source) {
       if (ownedContainer && ownedContainer.id !== c.id) throw new Error('Runtime identity changed');
       ownedContainer = c;
     }
@@ -18,6 +18,7 @@ export async function runLocalChecks(adapter, { checks, source, signal, timeoutM
       interrupted();
       if (child && state.state === 'absent') state = { ...state, state: 'starting' };
       capture(state);
+      if (child && !adapter.childRunning(child)) throw new Error('Owned runtime child exited before readiness');
       if (state.state === 'ready') return;
       if (state.state !== 'starting' || adapter.now() >= until || (child && !adapter.childRunning(child))) {
         throw new Error('Local runtime did not become ready');
@@ -32,23 +33,10 @@ export async function runLocalChecks(adapter, { checks, source, signal, timeoutM
     if (state.state === 'absent') {
       const prepared = await adapter.prepare(signal);
       results.push({ label: 'setup', ...prepared });
-      const preparedContainer = prepared.createdContainer;
-      if (preparedContainer && preparedContainer.createdAt >= prepared.startedAt && preparedContainer.source === source) {
-        ownedContainer = preparedContainer;
-        runtime = 'owned';
-      }
       interrupted();
       if (prepared.code !== 0) throw new Error('Local preparation failed');
       // Setup may reveal an independently started runtime. Never spawn over it.
       state = await adapter.observe(signal);
-      if (ownedContainer) {
-        if (state.container?.id !== ownedContainer.id) throw new Error('Prepared runtime identity changed');
-        // Supabase start can create an Edge container before setup writes function env.
-        // Replace only that exact owned container, so serve reads the completed env.
-        await adapter.stopContainer(ownedContainer.id);
-        ownedContainer = undefined;
-        state = await adapter.observe(signal);
-      }
       if (state.state === 'absent') {
         child = await adapter.start(signal);
         runtime = 'owned';
@@ -69,14 +57,14 @@ export async function runLocalChecks(adapter, { checks, source, signal, timeoutM
     errors.push({ phase: 'execution', error });
   } finally {
     if (child || ownedContainer) {
-      // Stop only our child, and only the exact newly-created, source-bound container ID.
+      // Stop only our child, and only the exact nonce-proven, source-bound container ID.
       let current;
       try { current = await adapter.observe(); capture(current); }
       catch (error) { errors.push({ phase: 'ownership', error }); }
       try { if (child) await adapter.stopChild(child); }
       catch (error) { errors.push({ phase: 'child-cleanup', error }); }
       if (current?.container) {
-        if (ownedContainer && current.container.id === ownedContainer.id) {
+        if (ownedContainer && current.container.id === ownedContainer.id && current.container.ownershipToken === child?.ownershipToken && current.container.source === source) {
           try { await adapter.stopContainer(ownedContainer.id); }
           catch (error) { errors.push({ phase: 'container-cleanup', error }); }
         } else errors.push({ phase: 'ownership', error: new Error('Unproven container left untouched') });
