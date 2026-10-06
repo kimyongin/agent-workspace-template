@@ -405,6 +405,45 @@ for (const width of [320, 1440]) test(`상세 탐색 ${width}px: 한 surface·�
   await expect(page).toHaveURL(new RegExp(`/tasks/${id(2)}$`));
   expect(state.writes).toHaveLength(0);expect(state.errors).toEqual([]);
 });
+test("상세 탐색: 같은 대상의 두 링크는 실제 진입한 링크로 복귀",async({page})=>{
+  const state=await fixtures(page);
+  Object.assign(state.rows.records[0],{record_kind:"change",entity_ids:[id(1)],entity_context:[{id:id(1),title:"연결 제목",source:"selection",captured_at:stamp}],change:{event_id:id(30),target_kind:"entity",target_id:id(1),target_title:"당시 엔터티",action:"update",source:"web",before:{prop2:0},after:{prop2:1},path:`/entities/${id(1)}`}});
+  await go(page,`/records/${id(3)}`);
+  await expect(form(page).getByRole("link",{name:"대상 원문 보기",exact:true})).toBeVisible();
+  await form(page).getByRole("link",{name:"연결 제목",exact:true}).click();
+  await form(page).getByRole("button",{name:/^이전: 기록/}).click();
+  await expect(form(page).getByRole("link",{name:"연결 제목",exact:true})).toBeFocused();
+  expect(state.errors).toEqual([]);
+});
+test("상세 탐색: 계정 전환 뒤 이전 계정의 history를 무시",async({page})=>{
+  const state=await fixtures(page);
+  Object.assign(state.rows.entities[0],{records:{count:1,items:[record()]}});
+  Object.assign(state.rows.records[0],{entity_ids:[id(1)],entity_context:[{id:id(1),title:"연결 제목",source:"selection",captured_at:stamp}]});
+  await go(page,`/entities/${id(1)}`);
+  await form(page).getByRole("link",{name:"기록",exact:true}).click();
+  await form(page).getByRole("link",{name:"연결 제목",exact:true}).click();
+  await form(page).getByRole("button",{name:"닫기",exact:true}).click();
+  await page.getByRole("button",{name:"계정 전환 fixture",exact:true}).click();
+  await page.goBack();
+  await expect(form(page).getByRole("heading",{name:"기록",exact:true})).toBeVisible();
+  await expect(form(page).getByRole("button",{name:/^이전:/})).toHaveCount(0);
+  expect(state.errors).toEqual([]);
+});
+test("상세 탐색: 다른 상세를 거친 닫기도 원래 소유 목록 조건 복원",async({page})=>{
+  const state=await fixtures(page);
+  Object.assign(state.rows.records[0],{task_id:id(2)});
+  state.rows.records.push({...record(31),title:"다음 기록"});
+  Object.assign(state.rows.tasks[0],{status:"done",result_record:{id:id(31),title:"다음 기록"}});
+  await go(page,"/records?record_kind=user");
+  await page.getByRole("link",{name:"기록",exact:true}).click();
+  await form(page).getByRole("link",{name:"결과로 연결된 할 일",exact:true}).click();
+  await form(page).getByRole("link",{name:"다음 기록",exact:true}).click();
+  await expect(form(page).getByRole("heading",{name:"다음 기록",exact:true})).toBeVisible();
+  await form(page).getByRole("button",{name:"닫기",exact:true}).click();
+  expect(new URL(page.url()).searchParams.get("record_kind")).toBe("user");
+  await expect(page.locator(`#activity-records-${id(3)}`)).toBeFocused();
+  expect(state.errors).toEqual([]);
+});
 for (const [kind,label] of [["tasks","할 일"],["records","기록"],["principles","현재 기준"]]) test(`상세 탐색 검색 ${kind}: 이전은 검색·닫기는 소유 목록·직접 링크`,async({page})=>{
   const state=await fixtures(page);
   await go(page,`/search?q=자료&kind=${kind.slice(0,-1)}`);
