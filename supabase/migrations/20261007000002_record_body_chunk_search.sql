@@ -140,6 +140,43 @@ grant execute on function app.claim_search_index(integer,uuid,text,uuid) to app_
 grant execute on function app.prepare_search_index(bigint,text) to app_worker;
 grant execute on function app.finish_search_index(bigint,text,text,text,jsonb,integer) to app_worker;
 
+-- Retain the admin-only archive recovery procedure with the current body/hash
+-- contract. Its original capture hashes and idempotent part mappings are kept.
+create or replace procedure private.preserve_principle_sources(p_owner uuid default null)
+language plpgsql security invoker set search_path='' as $$
+declare source record; serialized text; v_source_hash text; v_part integer; total_parts integer;
+  captured_at timestamptz(3); record_id uuid; record_body text;
+  prior_claims text:=current_setting('request.jwt.claims',true);
+begin
+  perform pg_advisory_xact_lock(hashtextextended('preserve-principle-sources',0));
+  for source in select owner_id,source_kind as kind,source_id as id,title,summary,payload
+    from private.retired_principle_sources where p_owner is null or owner_id=p_owner
+  loop
+    serialized:=jsonb_pretty(source.payload);
+    v_source_hash:=encode(extensions.digest(serialized,'sha256'),'hex');
+    total_parts:=greatest(1,ceil(char_length(serialized)/9000.0)::integer);
+    captured_at:=clock_timestamp();
+    for v_part in 1..total_parts loop
+      if exists(select 1 from app.legacy_principle_record_parts m where m.owner_id=source.owner_id
+        and m.source_kind=source.kind and m.source_id=source.id and m.source_hash=v_source_hash and m.part=v_part)
+      then continue; end if;
+      record_body:='원칙 보존 자료 · '||source.title||' · '||v_part||'/'||total_parts||E'\n\n'
+        ||'기존 원칙 근거의 이관 캡처. 실제 적용 시각이 아닙니다. '||source.summary||E'\n\n'
+        ||'이관 캡처: '||captured_at||' / 원본: '||source.kind||' '||source.id||' / 조각: '||v_part||'/'||total_parts||E'\n'
+        ||'실제 적용 시각이 아닙니다. 원본 시각과 captured_at 의미는 아래 자료 그대로 보존합니다.'||E'\n\n'
+        ||substring(serialized from (v_part-1)*9000+1 for 9000);
+      insert into app.records(owner_id,body,record_kind,occurred_at)
+        values(source.owner_id,record_body,'user',captured_at) returning id into record_id;
+      insert into app.legacy_principle_record_parts values(source.owner_id,source.kind,source.id,v_source_hash,v_part,record_id,captured_at);
+      perform set_config('request.jwt.claims',jsonb_build_object('sub',source.owner_id,'role','authenticated')::text,true);
+      perform app.enqueue_search_index('record',record_id,encode(extensions.digest(record_body,'sha256'),'hex'),
+        'llama-v2-1024-record-body-utf8-1800-overlap180-v1');
+    end loop;
+  end loop;
+  perform set_config('request.jwt.claims',coalesce(prior_claims,''),true);
+end $$;
+revoke all on procedure private.preserve_principle_sources(uuid) from public,anon,authenticated,app_user,app_server,app_worker;
+
 -- Reindex every preserved body once; no current task/principle vectors remain.
 do $$
 declare r record; m bigint; h text; p text:='llama-v2-1024-record-body-utf8-1800-overlap180-v1';
