@@ -9,8 +9,6 @@ import { changeNoteErrors, ChangeNoteField, FormModal } from "../../components/C
 import { Field } from "../../components/Field.tsx";
 import { fieldErrors } from "../../lib/format.ts";
 import { TagPicker } from "../tags/TagPicker.tsx";
-import { api } from "../../lib/api.ts";
-import type { ChangeMemo } from "@contracts/change.ts";
 export function EntityForm(
   { initial, details, onDelete, onClose, onRouteDiscard, onSave }: {
     initial?: EntityResult;
@@ -44,19 +42,13 @@ export function EntityForm(
       onClose={onClose}
       onRouteDiscard={onRouteDiscard}
       dirty={JSON.stringify(draft) !== JSON.stringify(baseline)}
-      previewKey={JSON.stringify(draft)}
-      prepare={async()=>{
-        const input={...value(),change_note:draft.change_note.trim()||undefined};
-        const result=await api<{memo:ChangeMemo}>("POST","/entities/preview",initial?{action:"update",id:initial.id,input:{...input,expected_version:initial.version}}:{action:"create",input});
-        return result.memo;
-      }}
       validate={() => {
         const noteErrors=changeNoteErrors(draft.change_note,false);if(noteErrors)return noteErrors;
         const {tag_ids, change_note, ...fields} = value();
         const parsed = entityCreate.omit({id:true}).safeParse(fields);
         return parsed.success ? null : fieldErrors(parsed.error.issues);
       }}
-      onSubmit={(change_memo, creationId) => {const {tag_ids,change_note,...fields}=value(); return onSave({...entityCreate.omit({id:true}).parse(fields),tag_ids,change_note:change_note.trim()||undefined,change_memo}, creationId);}}
+      onSubmit={(creationId) => {const {tag_ids,change_note,...fields}=value(); return onSave({...entityCreate.omit({id:true}).parse(fields),tag_ids,change_note:change_note.trim()?change_note:undefined}, creationId);}}
     >
       {(errors) => (
         <>

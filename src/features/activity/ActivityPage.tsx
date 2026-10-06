@@ -1,3 +1,4 @@
+import { recordDisplayText } from "../../lib/record-display.ts";
 import { SearchMatch } from "../../components/SearchMatch.tsx";
 import { useEffect, useRef, useState } from "react";
 import { Link, Navigate, useLocation, useSearchParams } from "react-router";
@@ -24,8 +25,9 @@ import "./activity.css";
 function ActivitySection({ kind, tags, bounds, dictionary }: { kind: WorkspaceListKind; tags: string[]; bounds: NonNullable<ReturnType<typeof periodBounds>>; dictionary: ReturnType<typeof useTagDictionary> }) {
   const list = useActivityList(kind, { tags, bounds, layoutReady: !!dictionary.tags || dictionary.failed });
   const { metadata, searching: q, filtered } = list;
-  const heading = (item: ActivityItem) => <div className="activity-item-heading"><Link className="item-title" {...list.link(item.id)}>{item.title}</Link><span className="activity-item-actions"><Link {...list.link(item.id, true)} aria-label={`${item.title} 편집`}>편집</Link></span></div>;
-  const summary = (item: ActivityItem) => <>{item.summary!==item.title&&<span className="secondary record-summary">{item.summary}</span>}{"change_note" in item && item.change_note && <p className="memo-text">편집 메모: {item.change_note}</p>}{"match" in item && <SearchMatch item={item}/>}<TagNames ids={item.tag_ids} compact/></>;
+  const displayText = (item: ActivityItem) => kind === "records" && "body" in item ? recordDisplayText(item.body) : "title" in item ? item.title : "기록";
+  const heading = (item: ActivityItem) => <div className="activity-item-heading"><Link className="item-title" {...list.link(item.id)}>{displayText(item)}</Link><span className="activity-item-actions"><Link {...list.link(item.id, true)} aria-label={`${displayText(item)} 편집`}>편집</Link></span></div>;
+  const metadataFor = (item: ActivityItem) => <>{"match" in item && <SearchMatch item={item}/>}<TagNames ids={item.tag_ids} compact/></>;
   return <section className={`activity-section ${kind}`} aria-label={`${kind === "tasks" ? "할 일" : "기록"} 목록`}>
     {q && <p className="help">관련도순으로 회수한 검색 결과{kind === "records" ? "를 날짜별로 표시합니다." : "입니다."}</p>}
     {metadata?.search_state === "keyword_fallback" && <Notice>의미 검색을 사용할 수 없어 키워드 검색 결과를 표시합니다.</Notice>}
@@ -34,8 +36,8 @@ function ActivitySection({ kind, tags, bounds, dictionary }: { kind: WorkspaceLi
     {list.items?.length === 0 && <p className="secondary">{filtered ? `조건에 맞는 ${kind === "tasks" ? "할 일" : "기록"}이 없습니다.` : `아직 ${kind === "tasks" ? "할 일" : "기록"}이 없습니다.`}</p>}
     {list.items && <TagReadProvider dictionary={dictionary} enabled={list.items.some(item => item.tag_ids.length > 0)}>
       {kind === "tasks" ? <ul className="list tasks-list panel">{list.items.map(item => <li key={item.id} className="list-item"><div className="list-item-main">{heading(item)}
-        <span className="meta">{"status" in item ? taskLabels[item.status as keyof typeof taskLabels] as string : "task_status" in item && item.task_status ? taskLabels[item.task_status] : "할 일"}{"due_on" in item && item.due_on ? ` · 기한 ${item.due_on}` : ""}</span>{summary(item)}</div></li>)}</ul>
-        : <Timeline items={list.items} kind="기록" at={item => "occurred_at" in item ? item.occurred_at : (item as SearchItem).at}>{(item,time) => <>{heading(item)}{item.summary!==item.title&&<p className="secondary record-summary">{item.summary}</p>}<div className="record-metadata">{time}{"change" in item ? <ChangeContext record={item as RecordResult} compact/> : "record_kind" in item && item.record_kind && <span className="meta">{recordKindNames[item.record_kind]}</span>}{"match" in item && <SearchMatch item={item}/>}<TagNames ids={item.tag_ids} compact/></div></>}</Timeline>}
+        <span className="meta">{"status" in item ? taskLabels[item.status as keyof typeof taskLabels] as string : "task_status" in item && item.task_status ? taskLabels[item.task_status] : "할 일"}{"due_on" in item && item.due_on ? ` · 기한 ${item.due_on}` : ""}</span>{metadataFor(item)}</div></li>)}</ul>
+        : <Timeline items={list.items} kind="기록" at={item => "occurred_at" in item ? item.occurred_at : (item as SearchItem).at}>{(item,time) => <>{heading(item)}{"snippet" in item&&<p className="secondary record-snippet">{item.snippet}</p>}<div className="record-metadata">{time}{"change" in item ? <ChangeContext record={item as RecordResult} compact/> : "record_kind" in item && item.record_kind && <span className="meta">{recordKindNames[item.record_kind]}</span>}{"match" in item && <SearchMatch item={item}/>}<TagNames ids={item.tag_ids} compact/></div></>}</Timeline>}
     </TagReadProvider>}
     {list.error && <Notice kind="error">{list.error}</Notice>}
     {list.showMoreControl && <button id={`activity-${kind}-page-control`} type="button" className="btn" aria-disabled={list.busy || !list.cursor && !list.error} onClick={list.error ? list.retry : list.more}>{list.busy ? "불러오는 중…" : list.error ? "다시 시도" : list.cursor ? `${kind === "tasks" ? "할 일" : "기록"} 더 보기` : "모두 불러왔습니다"}</button>}

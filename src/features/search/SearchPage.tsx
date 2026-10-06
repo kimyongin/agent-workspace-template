@@ -88,7 +88,7 @@ export function SearchPage(){
       {!result.items.length&&<p className="secondary">검색 결과가 없습니다. 검색어 또는 필터를 바꿔 보세요.</p>}
       <ul className="list">{result.items.map(r=>{
         return <li className="list-item" key={`${r.kind}:${r.id}`}><div className="list-item-main">
-        <Link id={`search-${r.kind}-${r.id}`} className="item-title" to={r.path}>{r.title}</Link>{r.summary!==r.title&&<span className="secondary record-summary">{r.summary}</span>}
+        <Link id={`search-${r.kind}-${r.id}`} className="item-title" to={r.path}>{r.title}</Link>{r.snippet!==r.title&&<span className="secondary record-snippet">{r.snippet}</span>}
         <span className="meta">{kinds[r.kind]} · {formatDateTime(r.at)}</span><SearchMatch item={r}/>
       </div></li>;})}</ul>
       {result.next_cursor&&<button type="button" className="btn" disabled={busy} onClick={more}>더 보기</button>}

@@ -1,4 +1,4 @@
-import { saveWithMemo, openDetailEditor } from "./ui-actions.ts";
+import { saveOnce, openDetailEditor } from "./ui-actions.ts";
 import { expect, test } from "@playwright/test";
 import { devLogin, mcpClient, mcpTokenViaConsent, unique } from "./support.ts";
 
@@ -19,8 +19,8 @@ for (
     const create = async (title: string) => {
       const item = await mcp.call(`create_${kind}`, {
         ...(kind === "task" ? { kind: "once" } : {}),
-        title,
-        summary: "추가 페이지에서 진입하는 대상",
+        ...(kind === "task" ? {title} : {}),
+        body: title,
         tag_ids: [tag.id],
         entity_ids: [entity.id],
       });
@@ -104,15 +104,15 @@ for (
       await link.scrollIntoViewIfNeeded();
       await link.focus();
       await page.keyboard.press("Enter");
-      await expect(page.getByRole("heading", { name: title, exact: true })).toBeVisible();
+      await expect(page.getByRole("heading", { name: kind === "record" ? "기록" : title, exact: true })).toBeVisible();
       const view=page.locator("dialog.modal:not(.modal-confirm)[open]");
       const entityLink=view.getByRole("region",{name:"연결 엔터티"}).getByRole("link",{name:entity.prop1,exact:true});
       await expect(entityLink).toHaveAttribute("href",`/entities/${entity.id}`);await entityLink.click();
       await expect(page.getByRole("heading",{name:entity.prop1,exact:true})).toBeVisible();await page.goBack();
       await openDetailEditor(page);const dialog=page.getByRole("dialog",{name:editLabel,exact:true});
-      await dialog.getByLabel("요약").fill("닫기 취소 뒤 보존할 초안");await dialog.getByRole("button",{name:"닫기",exact:true}).click();
-      const discard=page.getByRole("dialog",{name:"변경을 버릴까요?",exact:true});await discard.getByRole("button",{name:"취소",exact:true}).click();await expect(dialog.getByLabel("요약")).toHaveValue("닫기 취소 뒤 보존할 초안");
-      expect((await mcp.call(`get_${kind}`,{id:target.id})).summary).toBe(target.summary);await dialog.getByLabel("요약").fill(target.summary);await dialog.getByRole("button",{name:"닫기",exact:true}).click();await view.getByRole("button",{name:"닫기",exact:true}).click();
+      await dialog.getByLabel("본문").fill("닫기 취소 뒤 보존할 초안");await dialog.getByRole("button",{name:"닫기",exact:true}).click();
+      const discard=page.getByRole("dialog",{name:"변경을 버릴까요?",exact:true});await discard.getByRole("button",{name:"취소",exact:true}).click();await expect(dialog.getByLabel("본문")).toHaveValue("닫기 취소 뒤 보존할 초안");
+      expect((await mcp.call(`get_${kind}`,{id:target.id})).body).toBe(target.body);await dialog.getByLabel("본문").fill(target.body);await dialog.getByRole("button",{name:"닫기",exact:true}).click();await view.getByRole("button",{name:"닫기",exact:true}).click();
       await expect(link).toBeFocused();await link.click();
       for (let i = 0; i < 21; i++) await create(unique("상세 중 추가"));
       await page.goBack();
@@ -125,9 +125,9 @@ for (
       await expect(link).toBeFocused();
       await link.click();
       await openDetailEditor(page);
-      await dialog.getByLabel("요약").fill("수정한 근거");
+      await dialog.getByLabel("본문").fill("수정한 근거");
       await dialog.getByLabel("편집 메모").fill("판단 근거 정정");
-      await saveWithMemo(page, dialog);
+      await saveOnce(page, dialog);
       await expect(dialog).not.toBeVisible();
       await page.getByRole("button", { name: "닫기", exact: true }).click();
       await expect(link).toBeFocused();
@@ -135,7 +135,7 @@ for (
       await link.click();
       await openDetailEditor(page);
       await page.getByRole("button", { name: "삭제", exact: true }).click();
-      await saveWithMemo(page,page.getByRole("dialog", { name: `${label}을 삭제할까요?`, exact: true }),"삭제");
+      await saveOnce(page,page.getByRole("dialog", { name: `${label}을 삭제할까요?`, exact: true }),"삭제");
       await expect(link).toHaveCount(0);
       await expect(page.locator(`.${path} .list .item-title`)).toHaveCount(62);
       ids.delete(target.id);
@@ -150,9 +150,9 @@ for (
       // fallback focus, without widening the filter to include detached items.
       const leaving = await create(unique("연결 조건 이탈"));
       await page.goto(listPath);
-      const leavingLink = page.getByRole("link", { name: leaving.title, exact: true });
+      const leavingLink = page.getByRole("link", { name: kind === "record" ? leaving.body : leaving.title, exact: true });
       await leavingLink.click();
-      await mcp.call(`update_${kind}`, { id: leaving.id, expected_version: leaving.version, tag_ids: [], change_note:"태그 해제" });
+      await mcp.call(`update_${kind}`, { id: leaving.id, expected_version: leaving.version, tag_ids: [], ...(kind === "task" ? {change_note:"태그 해제"} : {}) });
       await page.goBack();
       await expect(leavingLink).toHaveCount(0);
       await expect(page.getByRole("heading", { name: label, exact: true })).toBeFocused();
@@ -212,8 +212,8 @@ for (
         json: {
           items: [{
             id: `00000000-0000-4000-8000-${String(index).padStart(12, "0")}`,
-            title: `${label} 경계 ${index}`,
-            summary: "manual page",
+            ...(kind === "task" ? {title: `${label} 경계 ${index}`} : {}),
+            body: `${label} 경계 ${index}`,
             tag_ids: [],
             entity_ids: [],
             entity_context: [],

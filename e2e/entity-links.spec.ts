@@ -12,8 +12,7 @@ test("general record selects two entities in web; MCP, both related views and de
     await page.goto("/records");
     await beginTabAction(page, "기록 작성");
     const form = page.getByRole("dialog", { name: "기록 작성", exact: true });
-    await form.getByRole("textbox", { name: /^제목/ }).fill(label + " 자료");
-    await form.getByRole("textbox", { name: /^요약/ }).fill("공동 업무의 참고 자료");
+    await form.getByRole("textbox", { name: /^본문/ }).fill(label + " 자료");
     await form.getByRole("checkbox", { name: first.prop1, exact: true }).check();
     await form.getByRole("checkbox", { name: second.prop1, exact: true }).check();
     await form.getByRole("button", { name: "저장", exact: true }).click();
@@ -31,11 +30,11 @@ test("general record selects two entities in web; MCP, both related views and de
     await page.goto(`/records/${recordId}`); await openDetailEditor(page);
     const edit = page.getByRole("dialog", { name: "기록 편집", exact: true });
     await expect(edit.getByRole("checkbox", { name: first.prop1, exact: true })).toBeChecked();
-    await edit.getByRole("textbox", { name: /^요약/ }).fill("대상 삭제 후에도 자료를 보존");
+    await edit.getByRole("textbox", { name: /^본문/ }).fill("대상 삭제 후에도 자료를 보존");
     await edit.getByRole("button", { name: "저장", exact: true }).click();
     await expect(edit).not.toBeVisible();
     const edited = await mcp.call("get_record", { id: recordId });
-    expect(edited.summary).toBe("대상 삭제 후에도 자료를 보존");
+    expect(edited.body).toBe("대상 삭제 후에도 자료를 보존");
     expect(edited.entity_context).toEqual(read.entity_context);
     expect(edited.task_id).toBeNull();
   } finally {
@@ -54,11 +53,12 @@ test("web occurrence defaults preserve both task targets rather than the legacy 
   const ids = targets.map(target => target.id).sort(), date = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
   let taskId = "", recordId = "";
   try {
-    const task = await mcp.call("create_task", { kind: "recurring", title: label, summary: "두 대상의 회차", entity_ids: ids, recurrence: { freq: "daily", starts_on: date }, timezone: "UTC" }); taskId = task.id;
+    const task = await mcp.call("create_task", { kind: "recurring", title: label, body: "두 대상의 회차", entity_ids: ids, recurrence: { freq: "daily", starts_on: date }, timezone: "UTC" }); taskId = task.id;
     await page.goto(`/tasks/${task.id}`);
     await page.getByRole("button", { name: `${date} 회차 기록`, exact: true }).click();
     const form = page.getByRole("dialog", { name: `${date} 회차 기록`, exact: true });
     for (const target of targets) await expect(form.getByRole("checkbox", { name: target.prop1, exact: true })).toBeChecked();
+    await form.getByLabel("본문",{exact:false}).fill("두 대상의 회차 수행 결과");
     await form.getByRole("button", { name: "기록 저장", exact: true }).click();
     await expect(form).not.toBeVisible();
     const schedule = await mcp.call("list_occurrences", { id: task.id, from: date, to: date });

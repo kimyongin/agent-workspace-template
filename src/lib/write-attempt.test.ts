@@ -36,15 +36,6 @@ it("keeps the expected version on retry and exposes a conflict without rebasing"
   expect(attempt.snapshot()).toEqual({ busy: false, uncertain: false });
 });
 
-it("read-only preparation failure allows a fresh preparation instead of retaining a write", async () => {
-  const attempt = new WriteAttempt();
-  await expect(attempt.run(async () => { throw new ApiError(503, "unavailable", "메모 조회 실패"); }, false)).rejects.toThrow();
-  expect(attempt.snapshot().uncertain).toBe(false);
-  let ready = false;
-  await attempt.run(async () => { ready = true; }, false);
-  expect(ready).toBe(true);
-});
-
 it("discarding an uncertain creation starts a new UUID and prevents concurrent duplicate writes", async () => {
   const attempt = new WriteAttempt();
   const id = attempt.creationId();

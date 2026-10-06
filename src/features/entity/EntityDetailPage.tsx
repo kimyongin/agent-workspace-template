@@ -1,3 +1,4 @@
+import { recordDisplayText } from "../../lib/record-display.ts";
 import { DetailLink as Link, useDetailNavigate, useDetailOwnerReturn } from "../../lib/detail-exploration.tsx";
 import { editFromView } from "../../lib/detail-navigation.ts";
 import { DeleteDialog } from "../../components/DeleteDialog.tsx";
@@ -83,10 +84,9 @@ export function EntityDetailPage() {
                   <ul className="entity-related-list">
                     {entity[kind].items.map((item) => (
                       <li key={item.id}>
-                        <Link className="entity-related-item" aria-label={item.title} to={`/${kind}/${item.id}`}>
-                          <div className="entity-related-title"><span className="item-title">{item.title}</span><span aria-hidden="true">›</span></div>
+                        <Link className="entity-related-item" aria-label={"body" in item ? recordDisplayText(item.body) : item.title} to={`/${kind}/${item.id}`}>
+                          <div className="entity-related-title"><span className="item-title">{"body" in item ? recordDisplayText(item.body) : item.title}</span><span aria-hidden="true">›</span></div>
                           <div className="entity-related-meta">{"record_kind" in item&&<span className="badge">{recordKindNames[item.record_kind]}</span>}<time className="meta" dateTime={"occurred_at" in item?item.occurred_at:item.updated_at}>{"occurred_at" in item?"":"수정 "}{formatDateTime("occurred_at" in item?item.occurred_at:item.updated_at)}</time></div>
-                          {"summary" in item&&item.summary!==item.title&&<p className="secondary record-summary">{item.summary}</p>}
                         </Link>
                       </li>
                     ))}
@@ -143,17 +143,16 @@ export function EntityDetailPage() {
           {deleting && (
             <DeleteDialog
               title="엔터티를 삭제할까요?"
-              prepare={async(change_note)=> (await api<{memo:import("@contracts/change.ts").ChangeMemo}>("POST","/entities/preview",{action:"delete",id:entity.id,input:{expected_version:entity.version,change_note:change_note||undefined}})).memo}
               message={`${entity.prop1}을 삭제하고 연결을 해제합니다. 할 일·기록 원문은 보존합니다.`}
               busy={busy}
               onCancel={() => setDeleting(false)}
-              onConfirm={async (reason,change_memo) => {
+              onConfirm={async (reason) => {
                 setBusy(true);
                 try {
                   await api(
                     "POST",
                     `/entities/${id}/delete`,
-                    {expected_version:entity.version,change_note:reason||undefined,change_memo},
+                    {expected_version:entity.version,change_note:reason||undefined},
                   );
                   setEditing(false);
                   afterClose(back,true);

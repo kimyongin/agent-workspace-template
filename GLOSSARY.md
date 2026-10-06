@@ -51,6 +51,8 @@
 | 트랜잭션 | 함께 성공해야 하는 저장을 한 번에 처리하는 것. 하나라도 실패하면 전부 취소되어 반쪽만 저장되는 일을 막는다. | [ADR-0003](docs/adr/0003-core-rules-and-local-transactions.md) |
 | 큐 | 오래 걸리는 일을 줄 세워 두고 따로 처리하는 대기열. 예: 새 기록을 검색용으로 정리하는 일. 저장은 바로 끝나고 검색 반영은 조금 늦을 수 있다. | [아키텍처](docs/architecture/hexagonal-review.md#큐-기반-비동기-작업) |
 | 임베딩 | 글의 의미를 숫자 목록(벡터)으로 바꾸는 것. 뜻이 비슷한 글을 찾는 의미 검색에 쓴다. | [검색](docs/architecture/search.md) |
+| 본문 구간 (chunk) | 긴 기록 본문을 검색용으로 나눈 부분. 원문에서 다시 만들 수 있으며 직접 입력하거나 편집하는 별도 기록이 아니다. | [검색](docs/architecture/search.md) |
+| 대표 문구 | 기록 목록·연결에서 본문을 짧게 보여 주는 표시값. 별도 제목·요약으로 저장하지 않는다. | [내용 모델 결정](docs/adr/0014-minimal-content-model.md) |
 | RAG | 일할 때 쌓인 자료를 검색해서 읽고 그 내용을 근거로 판단하는 방식. AI 모델을 다시 학습시키지 않는다. | [아키텍처](docs/architecture/hexagonal-review.md#rag) |
 | RLS | 데이터베이스가 행마다 "누가 볼 수 있는지"를 직접 검사하는 기능. 내 데이터는 나만 보게 하는 장치 중 하나다. | [보안 가이드](docs/security/guide.md#권한db-접근) |
 | OAuth | 비밀번호를 넘기지 않고 다른 서비스에 권한을 맡기는 로그인 방식. 웹은 Google 계정으로 로그인하고, 에이전트는 별도의 OAuth로 앱에 연결한다. | [ADR-0006](docs/adr/0006-owner-only-access-and-separate-auth.md) |

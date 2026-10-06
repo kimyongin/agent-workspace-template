@@ -3,13 +3,13 @@ import { expect, test } from "@playwright/test";
 import { devLogin, mcpClient, mcpTokenViaConsent, unique } from "./support.ts";
 import { savePrinciple } from "./principle-support.ts";
 
-for(const kind of ["entity","task","record","principle"] as const)test(`삭제된 ${kind}: 이전 변경 기록은 원문 링크 없이 당시 metadata 보존`,async({page})=>{
+for(const kind of ["entity","task","principle"] as const)test(`삭제된 ${kind}: 이전 변경 기록은 원문 링크 없이 당시 metadata 보존`,async({page})=>{
   await devLogin(page);
   const mcp=await mcpClient(await mcpTokenViaConsent(page));
   let target:{id:string;version:number}|undefined,deleted=false;
   try{
     const title=unique(`삭제 대상 ${kind}`);
-    target=(kind==="principle"?await savePrinciple(mcp,{title,summary:"삭제 뒤 역사 확인",body:"당시 본문"}):await mcp.call(`create_${kind}`,kind==="entity"?{prop1:title,prop2:10,prop4:"a"}:kind==="task"?{kind:"once",title,summary:"삭제 뒤 역사 확인"}:{title,summary:"삭제 뒤 역사 확인"})) as {id:string;version:number};
+    target=(kind==="principle"?await savePrinciple(mcp,{title,body:"당시 본문"}):await mcp.call(`create_${kind}`,kind==="entity"?{prop1:title,prop2:10,prop4:"a"}:{kind:"once",title,body:"삭제 뒤 역사 확인"})) as {id:string;version:number};
     const events=await mcp.call("list_records",{record_kind:"change",limit:50});
     const historical=events.items.find((r:{change?:{target_kind:string;target_id:string;action:string}})=>r.change?.target_kind===kind&&r.change.target_id===target!.id&&r.change.action!=="delete");
     expect(historical).toBeTruthy();expect(historical.change.path).toBeTruthy();

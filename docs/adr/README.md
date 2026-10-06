@@ -9,7 +9,7 @@
 | [0001](0001-hexagonal-shared-usecases.md) | 헥사고날 구조와 HTTP·MCP 공통 유스케이스 | 채택 |
 | [0002](0002-default-tech-stack.md) | 기본 기술 구성 | 채택 |
 | [0003](0003-core-rules-and-local-transactions.md) | 업무 규칙은 core, 일관성은 로컬 트랜잭션과 큐 | 채택 |
-| [0004](0004-summary-single-vector-search.md) | 제목+요약 단일 벡터 검색 | 채택 |
+| [0004](0004-summary-single-vector-search.md) | 제목+요약 단일 벡터 검색 | ADR-0014로 대체 |
 | [0005](0005-plugin-delivery-claude-codex.md) | 에이전트 제공 단위는 플러그인, Claude·Codex 지원 | 채택 |
 | [0006](0006-owner-only-access-and-separate-auth.md) | 소유자 한정 접근과 로그인·MCP 인증 분리 | 채택 |
 | [0008](0008-document-ownership.md) | 문서 소유권 | 채택 |

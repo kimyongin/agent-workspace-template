@@ -1,3 +1,4 @@
+import { recordDisplayText } from "../../lib/record-display.ts";
 import { DetailLink as Link, useDetailNavigate, useDetailOwnerReturn } from "../../lib/detail-exploration.tsx";
 import { editFromView } from "../../lib/detail-navigation.ts";
 import { ChangeNoteField, FormModal, changeNoteErrors } from "../../components/ContentForm.tsx";
@@ -14,7 +15,7 @@ import { MarkdownContent } from "../../components/MarkdownContent.tsx";
 import { DetailSurface } from "../../components/Modal.tsx";
 import { api, ApiError, query } from "../../lib/api.ts";
 import { addDays, formatDateTime, todayIn } from "../../lib/format.ts";
-import { emptyRecord, TaskResultFormModal, TaskFormModal, taskDraftFrom, taskInput } from "./forms.tsx";
+import { emptyRecord, RecordFormModal, TaskFormModal, taskDraftFrom, taskInput } from "./forms.tsx";
 import { OccurrenceBadge, StatusBadge } from "./shared.tsx";
 import {TagNames} from "../tags/TagPicker.tsx";
 import {EntityLinks} from "../entity/EntityPicker.tsx";
@@ -171,7 +172,7 @@ export function TaskDetailPage() {
             </div>
           )}
         </dl>
-        {task.kind === "once" && task.status === "done" && <div><h2 className="section-title">결과 기록</h2>{task.result_record ? <Link to={`/records/${task.result_record.id}`}>{task.result_record.title}</Link> : <p className="secondary">결과 기록이 삭제되었습니다</p>}</div>}
+        {task.kind === "once" && task.status === "done" && <div><h2 className="section-title">결과 기록</h2>{task.result_record ? <Link to={`/records/${task.result_record.id}`}>{recordDisplayText(task.result_record.body)}</Link> : <p className="secondary">결과 기록이 삭제되었습니다</p>}</div>}
       </section>
 
     </div>;
@@ -237,7 +238,7 @@ export function TaskDetailPage() {
     {task.kind==="recurring"&&<button type="button" className="btn btn-primary" disabled={busy} onClick={()=>manage("transition")}>{task.status==="active"?"중단":"재개"}</button>}
   </>}>
       {management}
-      {task.summary!==task.title&&<section className="detail-section" aria-label="할 일 개요"><p className="document-summary">{task.summary}</p></section>}
+
       {task.body&&<section className="detail-section" aria-label="내용"><MarkdownContent text={task.body}/></section>}
       {relatedInformation}
       {occurrenceSection}
@@ -246,7 +247,6 @@ export function TaskDetailPage() {
           mode="edit"
           open
           initial={taskDraftFrom(task)}
-          target={task}
           onDelete={()=>setDeleting(true)}
           onClose={closeEdit}
           onRouteDiscard={() => setDialog(null)}
@@ -256,10 +256,8 @@ export function TaskDetailPage() {
             const patch: Record<string, unknown> = {
               expected_version: task.version,
               title: draft.title,
-              summary: draft.summary,
               body: draft.body,
               change_note:draft.change_note,
-              change_memo:draft.change_memo,
               tag_ids:draft.tag_ids,
               entity_ids:draft.entity_ids??[],
             };
@@ -280,8 +278,7 @@ export function TaskDetailPage() {
       )}
       {dialog==="transition"&&<TaskTransitionForm task={task} onClose={closeManagement} onSaved={async()=>{closeManagement();setMessage(task.status==="active"?"중단했습니다. 오늘부터 회차가 없습니다.":"재개했습니다.");await reload();}}/>}
       {dialog === "complete" && (
-        <TaskResultFormModal
-          taskId={task.id} version={task.version}
+        <RecordFormModal
           title="할 일 완료"
           entityEditable={false}
           submitLabel="완료하고 기록 저장"
@@ -299,8 +296,7 @@ export function TaskDetailPage() {
         />
       )}
       {dialog && typeof dialog === "object" && (
-        <TaskResultFormModal
-          taskId={task.id} version={task.version} date={dialog.occurrence}
+        <RecordFormModal
           title={`${dialog.occurrence} 회차 기록`}
           submitLabel="기록 저장"
           open
@@ -320,7 +316,6 @@ export function TaskDetailPage() {
       )}
       {deleting&&<DeleteDialog
         title="할 일을 삭제할까요?"
-        prepare={async(change_note)=> (await api<{memo:import("@contracts/change.ts").ChangeMemo}>("POST","/tasks/preview",{action:"delete",id:task.id,input:{expected_version:task.version,change_note:change_note||undefined}})).memo}
         message={
           <p style={{ margin: 0 }}>
             「{task.title}」을(를) 삭제합니다. 연결된 결과·회차 기록은 남고 이 할 일과의 연결만 사라집니다.
@@ -328,9 +323,9 @@ export function TaskDetailPage() {
         }
         busy={busy}
         onCancel={() => setDeleting(false)}
-        onConfirm={(reason,change_memo) =>
+        onConfirm={(reason) =>
           run(async () => {
-            await api("POST", `/tasks/${task.id}/delete`, {expected_version:task.version,change_note:reason||undefined,change_memo});
+            await api("POST", `/tasks/${task.id}/delete`, {expected_version:task.version,change_note:reason||undefined});
             setDialog(null);
             navigateAfterClose(back,true);
           }, "삭제했습니다.")}
@@ -342,10 +337,8 @@ function TaskTransitionForm({task,onClose,onSaved}:{task:TaskResult;onClose:()=>
   const [note,setNote]=useState("");
   const action=task.status==="active"?"stop":"resume",label=action==="stop"?"중단":"재개";
   return <FormModal open title={`반복 할 일 ${label}`} submitLabel={label} dirty={!!note} onClose={onClose} onRouteDiscard={onClose}
-    prepare={async()=> (await api<{memo:import("@contracts/change.ts").ChangeMemo}>("POST","/tasks/preview",{action,id:task.id,input:{expected_version:task.version,change_note:note.trim()||undefined}})).memo}
-    previewKey={note}
-    validate={()=>changeNoteErrors(note,false)} onSubmit={async(change_memo)=>{
-      await api("POST",`/tasks/${task.id}/${action}`,{expected_version:task.version,change_note:note.trim()||undefined,change_memo});
+    validate={()=>changeNoteErrors(note,false)} onSubmit={async()=>{
+      await api("POST",`/tasks/${task.id}/${action}`,{expected_version:task.version,change_note:note.trim()?note:undefined});
       await onSaved();
     }}>
     {errors=><><p className="help">{action==="stop"?"오늘부터 이후 회차가 생기지 않고 기존 기록은 남습니다.":"오늘부터 규칙에 따라 회차가 다시 생깁니다."}</p><ChangeNoteField label="편집 메모" value={note} onChange={setNote} error={errors.change_note}/></>}

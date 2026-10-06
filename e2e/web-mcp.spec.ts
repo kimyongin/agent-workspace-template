@@ -1,4 +1,4 @@
-import { saveWithMemo, beginTabAction, openDetailEditor } from "./ui-actions.ts";
+import { saveOnce, beginTabAction, openDetailEditor } from "./ui-actions.ts";
 // T02-2 완료 조건: 웹 작성 → MCP 조회·완료 → 웹 결과 확인, 그리고 반대 방향.
 import { expect, test } from "@playwright/test";
 import { devLogin, mcpClient, mcpTokenViaConsent, unique } from "./support.ts";
@@ -11,8 +11,8 @@ test("웹에서 만든 할 일을 에이전트가 MCP로 완료하고 웹에서 
   await beginTabAction(page,"할 일 추가");
   const dialog = page.getByRole("dialog", { name: "할 일 추가" });
   await dialog.getByLabel("제목").fill(title);
-  await dialog.getByLabel("요약").fill("다음 주 회의용 초안 3쪽");
-  await saveWithMemo(page,dialog,"추가");
+  await dialog.getByLabel("본문").fill("다음 주 회의용 초안 3쪽");
+  await saveOnce(page,dialog,"추가");
   await expect(page.getByRole("heading", { name: title, level: 1 })).toBeVisible();
   const taskUrl = page.url();
 
@@ -26,9 +26,7 @@ test("웹에서 만든 할 일을 에이전트가 MCP로 완료하고 웹에서 
     const done = await mcp.call("complete_task", {
       id: task.id,
       expected_version: task.version,
-      title: "초안 공유 완료",
-      summary: "3쪽 초안을 팀 문서함에 올림",
-      body: "## 결과\n- 문서함에 공유",
+      body: "초안 공유 완료",
     });
     expect(done.task.status).toBe("done");
   } finally {
@@ -39,8 +37,8 @@ test("웹에서 만든 할 일을 에이전트가 MCP로 완료하고 웹에서 
   await page.goto(taskUrl);
   await expect(page.getByText("완료", { exact: true }).first()).toBeVisible();
   await page.getByRole("link", { name: "초안 공유 완료" }).click();
-  await expect(page.getByRole("heading", { name: "초안 공유 완료", level: 1 })).toBeVisible();
-  await expect(page.getByText("문서함에 공유")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "기록", level: 1 })).toBeVisible();
+  await expect(page.getByText("초안 공유 완료",{exact:true})).toBeVisible();
 });
 
 test("에이전트가 MCP로 만든 기록·반복 회차를 웹에서 보고 고치면 MCP가 바뀐 값을 본다", async ({ page }) => {
@@ -48,7 +46,7 @@ test("에이전트가 MCP로 만든 기록·반복 회차를 웹에서 보고 �
   const mcp = await mcpClient(await mcpTokenViaConsent(page));
   try {
     const title = unique("MCP 기록");
-    const rec = await mcp.call("create_record", { title, summary: "에이전트가 남긴 기록" });
+    const rec = await mcp.call("create_record", { body: title });
 
     const timezone = "Asia/Seoul";
     const today = new Intl.DateTimeFormat("en-CA", { timeZone: timezone }).format(new Date());
@@ -56,21 +54,21 @@ test("에이전트가 MCP로 만든 기록·반복 회차를 웹에서 보고 �
     const task = await mcp.call("create_task", {
       kind: "recurring",
       title: taskTitle,
-      summary: "매일 5분",
+      body: "매일 5분",
       recurrence: { freq: "daily", starts_on: today },
       timezone,
     });
-    await mcp.call("record_occurrence", { task_id: task.id, id: crypto.randomUUID(), date: today, title: "스트레칭 함", summary: "5분" });
+    await mcp.call("record_occurrence", { task_id: task.id, id: crypto.randomUUID(), date: today, body: "스트레칭 함 5분" });
 
     // 웹: 기록 목록에서 찾아 편집
     await page.goto("/records");
     await page.getByRole("link", { name: title, exact: true }).click();
     await openDetailEditor(page);
     const dialog = page.getByRole("dialog", { name: "기록 편집" });
-    await dialog.getByLabel("요약").fill("웹에서 고친 요약");
-    await expect(dialog.getByLabel("편집 메모")).toHaveValue("");
+    await dialog.getByLabel("본문").fill("웹에서 고친 본문");
+    await expect(dialog.getByLabel("편집 메모")).toHaveCount(0);
     await dialog.getByRole("button", { name: "저장" }).click();
-    await expect(page.getByRole("heading",{name:title,exact:true})).toBeVisible();
+    await expect(page.getByRole("heading",{name:"기록",exact:true})).toBeVisible();
 
     // 웹: 반복 할 일의 오늘 회차가 기록함
     await page.goto(`/tasks/${task.id}`);
@@ -79,7 +77,7 @@ test("에이전트가 MCP로 만든 기록·반복 회차를 웹에서 보고 �
 
     // MCP가 웹의 수정을 본다
     const again = await mcp.call("get_record", { id: rec.id });
-    expect(again.summary).toBe("웹에서 고친 요약");
+    expect(again.body).toBe("웹에서 고친 본문");
     expect(again.version).toBe(2);
     expect(again.occurred_at).toBe(rec.occurred_at);
   } finally {
@@ -93,8 +91,8 @@ test("다른 사용자는 URL을 알아도 남의 할 일을 볼 수 없다", as
   const dialog = page.getByRole("dialog", { name: "할 일 추가" });
   const title = unique("A의 비밀 할 일");
   await dialog.getByLabel("제목").fill(title);
-  await dialog.getByLabel("요약").fill("B에게 보이면 안 됨");
-  await saveWithMemo(page,dialog,"추가");
+  await dialog.getByLabel("본문").fill("B에게 보이면 안 됨");
+  await saveOnce(page,dialog,"추가");
   await expect(page.getByRole("heading", { name: title, level: 1 })).toBeVisible();
   const path = new URL(page.url()).pathname;
 
