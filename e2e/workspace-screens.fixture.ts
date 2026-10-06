@@ -506,6 +506,42 @@ for(const kind of ["tasks"] as const)test(`${kind}: 무시한 이전 검색 페�
   const oldResponse=page.waitForResponse(response=>{const request=response.request();return request.url().endsWith("/api/search")&&request.postDataJSON().query==="old"&&!!request.postDataJSON().cursor;});release();await (await oldResponse).finished();await page.evaluate(()=>new Promise<void>(resolve=>requestAnimationFrame(()=>resolve())));
   await expect(section.getByText(/색인 대기 1개/)).toBeVisible();await expect(section.getByText(/의미 검색을 사용할 수 없어/)).toHaveCount(0);await expect(section.getByText(/대기 99개/)).toHaveCount(0);await expect(section.getByRole("link",{name:"old hit",exact:true})).toHaveCount(0);expect(state.errors).toEqual([]);
 });
+test("검색 복원의 마지막 요청 페이지가 cursor를 반복하면 이전 행·coverage만 보존한다",async({page})=>{
+  const state=await fixtures(page);
+  await page.route("**/api/search",route=>{
+    const input=route.request().postDataJSON();
+    return route.fulfill({json:{items:[{id:id(input.cursor?102:101),kind:"task",title:input.cursor?"거절할 결과":"보존할 결과",summary:"요약",at:stamp,tag_ids:[],path:`/tasks/${id(101)}`,match:"keyword",index_state:"pending"}],next_cursor:"next",search_state:input.cursor?"keyword_fallback":"ok",semantic_coverage:{pending:input.cursor?99:1,excluded:0}}});
+  });
+  await go(page,"/tasks?q=검색&pages=2");const section=page.locator(".tasks");
+  await expect(section.getByRole("button",{name:"다시 시도",exact:true})).toBeVisible();
+  await expect(section.getByRole("link",{name:"보존할 결과",exact:true})).toBeVisible();
+  await expect(section.getByRole("link",{name:"거절할 결과",exact:true})).toHaveCount(0);
+  await expect(section.getByText(/색인 대기 1개/)).toBeVisible();
+  await expect(section.getByText(/대기 99개|의미 검색을 사용할 수 없어/)).toHaveCount(0);
+  expect(state.errors).toEqual([]);
+});
+
+test("검색의 반복 cursor 실패는 기존 행·coverage를 보존하고 같은 페이지를 재시도한다",async({page})=>{
+  const state=await fixtures(page);let failed=false;
+  await page.route("**/api/search",route=>{
+    const input=route.request().postDataJSON(),bad=!!input.cursor&&!failed;
+    if(bad)failed=true;
+    return route.fulfill({json:{items:[{id:id(input.cursor?102:101),kind:"task",title:input.cursor?"추가 결과":"첫 결과",summary:"요약",at:stamp,tag_ids:[],path:`/tasks/${id(101)}`,match:"keyword",index_state:"pending"}],next_cursor:!input.cursor||bad?"next":null,search_state:bad?"keyword_fallback":"ok",semantic_coverage:{pending:bad?99:1,excluded:0}}});
+  });
+  await go(page,"/tasks?q=검색");const section=page.locator(".tasks");
+  await expect(section.getByText(/색인 대기 1개/)).toBeVisible();
+  await section.getByRole("button",{name:"할 일 더 보기",exact:true}).click();
+  await expect(section.getByRole("button",{name:"다시 시도",exact:true})).toBeVisible();
+  await expect(section.getByRole("link",{name:"첫 결과",exact:true})).toBeVisible();
+  await expect(section.getByRole("link",{name:"추가 결과",exact:true})).toHaveCount(0);
+  await expect(section.getByText(/색인 대기 1개/)).toBeVisible();
+  await expect(section.getByText(/대기 99개|의미 검색을 사용할 수 없어/)).toHaveCount(0);
+  expect(new URL(page.url()).searchParams.has("pages")).toBe(false);
+  await section.getByRole("button",{name:"다시 시도",exact:true}).click();
+  await expect(section.getByRole("link",{name:"추가 결과",exact:true})).toBeVisible();
+  await expect(page).toHaveURL(/pages=2/);expect(state.errors).toEqual([]);
+});
+
 test("목록 페이지·조건·scroll/focus 왕복과 검색 anchor 재조회",async({page})=>{
   const state=await fixtures(page);const many=Array.from({length:21},(_,i)=>({...task(100+i),title:`행 ${i}`}));
   await page.route("**/api/tasks**",route=>{const url=new URL(route.request().url()),key=url.pathname.split("/").at(-1);if(key!=="tasks")return route.fulfill({json:many.find(t=>t.id===key)??state.rows.tasks.find(t=>t.id===key)});return route.fulfill({json:url.searchParams.get("cursor")?{items:many.slice(20),next_cursor:null}:{items:many.slice(0,20),next_cursor:"page2"}});});

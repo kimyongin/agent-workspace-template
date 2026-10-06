@@ -1,3 +1,4 @@
+import { principleChangeFacts, principleChangeTarget } from "./change.ts";
 import type { PrincipleCreate, PrinciplePreview, PrincipleSave, PrincipleUpdate } from "../../contracts/principle.ts";
 import type { Actor } from "../shared/actor.ts";
 import { conflict, notFound } from "../shared/errors.ts";
@@ -25,8 +26,9 @@ export function previewPrincipleChange(d: PrincipleDeps, a: Actor, command: Prin
       return {
         memo: basicChangeMemo({
           action: "create",
+          target_title: command.input.title,
           before: null,
-          after: command.input,
+          after: principleChangeFacts(command.input),
           change_note: command.input.change_note,
         }),
         changed: true,
@@ -41,7 +43,13 @@ export function previewPrincipleChange(d: PrincipleDeps, a: Actor, command: Prin
       ? null
       : { ...old, title: command.input.title, summary: command.input.summary, body: command.input.body };
     return {
-      memo: basicChangeMemo({ action: command.action, before: old, after, change_note: command.input.change_note }),
+      memo: basicChangeMemo({
+        action: command.action,
+        target_title: (after ?? old).title,
+        before: principleChangeFacts(old),
+        after: after && principleChangeFacts(after),
+        change_note: command.input.change_note,
+      }),
       changed: after === null || changed(old, { title: after.title, summary: after.summary, body: after.body }),
     };
   });
@@ -60,9 +68,10 @@ async function save(s: PrincipleStore, i: PrincipleSave, firstOnly = false) {
   await s.enqueueIndex({ kind: "principle", id: result.id, input_hash: await searchInputHash(result) });
   await s.appendChange({
     target_kind: "principle",
+    target: principleChangeTarget(result),
     action: old ? "update" : "create",
-    before: old,
-    after: result,
+    before: old && principleChangeFacts(old),
+    after: principleChangeFacts(result),
     change_note: i.change_note,
     change_memo,
   });
@@ -113,8 +122,9 @@ export function deletePrinciple(
         await s.nextVersion();
         await s.appendChange({
           target_kind: "principle",
+          target: principleChangeTarget(old),
           action: "delete",
-          before: old,
+          before: principleChangeFacts(old),
           after: null,
           change_note,
           change_memo,

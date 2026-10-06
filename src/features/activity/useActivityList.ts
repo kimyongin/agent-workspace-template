@@ -1,69 +1,80 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router";
-import { api } from "../../lib/api.ts";
+import type { SearchItem, SearchResult } from "@contracts/search.ts";
+import type { TaskListItem } from "@contracts/task.ts";
+import type { RecordResult } from "@contracts/record.ts";
+import { api, query } from "../../lib/api.ts";
+import type { WorkspaceListKind } from "./activity-location.ts";
+import type { periodBounds } from "./activity-filters.ts";
 import {
-  type ActivityListKind,
   anchorId,
   appendItems,
   listAnchor,
   type ListPage,
   listReturnPath,
-  listScope,
   type LoadedList,
   MAX_RESTORE_PAGES,
   requestedPages,
   restoreList,
 } from "./list-state.ts";
 
-export function useActivityList<T extends { id: string }>(
-  kind: ActivityListKind,
-  path: string,
-  titleId: string,
-  errorMessage: string,
-  layoutReady = true,
-  enabled = true,
-  customLoad?: (cursor?: string, signal?: AbortSignal) => Promise<ListPage<T>>,
-  context?: { route: string; keys: string[]; pageKey: string; locationRef?: React.RefObject<ReturnType<typeof useLocation>> },
-  onAccepted?: (page: ListPage<T>) => void,
-) {
+export type ActivityItem = TaskListItem | RecordResult | SearchItem;
+type ActivityPage = ListPage<ActivityItem> & Partial<Pick<SearchResult, "search_state" | "semantic_coverage">>;
+
+/** The owning tab's query, accepted result and return position travel together. */
+export function useActivityList(kind: WorkspaceListKind, {
+  tags, bounds, layoutReady,
+}: { tags: string[]; bounds: NonNullable<ReturnType<typeof periodBounds>>; layoutReady: boolean }) {
   const [params] = useSearchParams();
   const location = useLocation(), { hash } = location;
-  const ownLocation = useRef(location), ownLocationKey = useRef(location.key);
-  const latestLocation = context?.locationRef ?? ownLocation;
-  if (!context?.locationRef && ownLocationKey.current !== location.key) { ownLocationKey.current = location.key; ownLocation.current = location; }
+  const latestLocation = useRef(location);
+  latestLocation.current = location;
+  const q = params.get("q") ?? "", entity = params.get("entity_id") || undefined;
+  const filters = kind === "tasks" ? { kind: params.get("kind") || undefined, status: params.get("status") || undefined }
+    : { record_kind: params.get("record_kind") || undefined };
+  const filtered = !!(q || tags.length || entity || Object.values(filters).some(Boolean) || kind === "records" && (bounds.from || bounds.to));
+  const input = { query: q, kinds: [kind === "tasks" ? "task" : "record"], mode: "auto", limit: 20,
+    ...(kind === "tasks" ? { task_kind: filters.kind, task_status: filters.status } : filters),
+    ...(tags.length ? { tag_ids: tags } : {}), ...(entity ? { entity_id: entity } : {}), ...(kind === "records" ? bounds : {}) };
+  const path = `/${kind}${query({ limit: 20, entity_id: entity, tag_ids: tags.length ? tags.join(",") : undefined,
+    ...filters, ...(kind === "records" ? { occurred_from: bounds.from, occurred_to: bounds.to } : {}) })}`;
+  const scope = q ? `${kind}|${JSON.stringify(input)}` : path;
+  const titleId = `${kind}-title`, route = `/${kind}`;
+  const errorMessage = `${kind === "tasks" ? "할 일" : "기록"}을 불러오지 못했습니다. 다시 시도하세요.`;
   const navigate = useNavigate();
   const publishPages = (count: number) => {
     const latest = latestLocation.current, next = new URLSearchParams(latest.search);
-    next.set(context?.pageKey ?? "pages", String(count));
-    // Publish the URL snapshot synchronously: another section can complete
-    // before React renders this navigation and must retain this page key.
+    next.set("pages", String(count));
+    // A completed request preserves filters changed since it started.
     latestLocation.current = { ...latest, search: `?${next}` };
     navigate({ pathname: latest.pathname, search: `?${next}`, hash: latest.hash }, { replace: true });
   };
-  const scopeParams = context ? new URLSearchParams([...params].filter(([key]) => context.keys.includes(key))) : params;
-  const scope = `${listScope(scopeParams)}|${path}`;
-  const pageKey = context?.pageKey ?? "pages";
-  const pageParams = new URLSearchParams();
-  pageParams.set("pages", params.get(pageKey) ?? (context && context.route === `/${kind}` ? params.get("pages") : null) ?? "1");
-  const pages = requestedPages(pageParams);
-  const route = context?.route ?? `/${kind}`;
+  const pages = requestedPages(params);
   const scopeNow = useRef(scope);
   scopeNow.current = scope;
-  const loaded = useRef<{ scope: string; value: LoadedList<T> } | null>(null);
+  const loaded = useRef<{ scope: string; value: LoadedList<ActivityItem> } | null>(null);
   const generation = useRef(0);
   const focused = useRef("");
   const failedMore = useRef<{ scope: string; cursor: string } | null>(null);
-  const [items, setItems] = useState<T[] | null>(null);
-  const [cursor, setCursor] = useState<string | null>(null);
+  const [accepted, setAccepted] = useState<{ scope: string; page: ActivityPage } | null>(null);
+  const visible = accepted?.scope === scope ? accepted.page : null;
+  const items = visible?.items ?? null, cursor = visible?.next_cursor ?? null;
+  const metadata = q && visible?.search_state && visible.semantic_coverage ? {
+    search_state: visible.search_state, semantic_coverage: visible.semantic_coverage,
+  } : null;
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [controlScope, setControlScope] = useState<string | null>(null);
   const [retry, setRetry] = useState(0);
-  const load = (after?: string, signal?: AbortSignal) =>
-    customLoad ? customLoad(after, signal) : api<ListPage<T>>("GET", `${path}${after ? `&cursor=${encodeURIComponent(after)}` : ""}`, undefined, signal);
+  const load = (after?: string, signal?: AbortSignal): Promise<ActivityPage> => {
+    if (!q) return api<ActivityPage>("GET", `${path}${after ? `&cursor=${encodeURIComponent(after)}` : ""}`, undefined, signal);
+    const anchor = anchorId(kind, hash);
+    return api<SearchResult>("POST", "/search", { ...input, ...(after ? { cursor: after } : anchor ? {
+      anchor: { kind: kind === "tasks" ? "task" : "record", id: anchor },
+    } : {}) }, signal);
+  };
 
   useEffect(() => {
-    if (!enabled) return;
     const controller = new AbortController();
     failedMore.current = null;
     const started = ++generation.current;
@@ -73,21 +84,19 @@ export function useActivityList<T extends { id: string }>(
       : undefined;
     if (!prior) {
       loaded.current = null;
-      setItems(null);
-      setCursor(null);
+      setAccepted(null);
     }
     setError(null);
     setBusy(true);
-    restoreList<T>({
-      load: async (after) => { const page = await load(after, controller.signal); if (current()) onAccepted?.(page); return page; },
+    restoreList<ActivityItem>({
+      load: (after) => load(after, controller.signal),
       pages,
       anchor: anchorId(kind, hash),
       prior,
       current,
       publish: (value) => {
         loaded.current = { scope, value };
-        setItems(value.items);
-        setCursor(value.next_cursor);
+        setAccepted({ scope, page: value });
         if (value.next_cursor) setControlScope(scope);
       },
     })
@@ -113,7 +122,7 @@ export function useActivityList<T extends { id: string }>(
       controller.abort();
       generation.current++;
     };
-  }, [scope, pages, hash, retry, enabled]);
+  }, [scope, pages, hash, retry]);
 
   useEffect(() => {
     if (!layoutReady || busy || items === null && !error || focused.current === hash || !anchorId(kind, hash)) return;
@@ -137,7 +146,6 @@ export function useActivityList<T extends { id: string }>(
     try {
       const page = await load(cursor);
       if (!current()) return;
-      onAccepted?.(page);
       if (page.next_cursor === cursor) throw new Error("Repeated list cursor");
       const value = {
         ...page,
@@ -146,8 +154,7 @@ export function useActivityList<T extends { id: string }>(
       };
       loaded.current = { scope, value };
       failedMore.current = null;
-      setItems(value.items);
-      setCursor(value.next_cursor);
+      setAccepted({ scope, page: value });
       setError(null);
       publishPages(value.pages);
     } catch {
@@ -167,6 +174,9 @@ export function useActivityList<T extends { id: string }>(
     navigate(`/${kind}/${id}?list=${encodeURIComponent(back)}${edit ? "&edit=1" : ""}`);
   };
   return {
+    searching: !!q,
+    filtered,
+    metadata,
     items,
     cursor,
     error,
