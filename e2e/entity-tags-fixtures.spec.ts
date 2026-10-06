@@ -211,7 +211,7 @@ test("엔터티 연결 작성·실패 초안·성공 후 조회 실패와 모달
   await page.route("**/api/tasks", route => { bodies.push(route.request().postDataJSON()); if (failSave) return route.fulfill({ status: 400, json: { code: "validation", message: "저장 실패" } }); saved = true; return route.fulfill({ status: 201, json: { id: "created" } }); });
   await page.route("**/api/records", route => { bodies.push(route.request().postDataJSON()); return route.fulfill({ status: 201, json: { id: "record-created" } }); });
   await page.goto(url); await page.getByRole("link", { name: "엔터티", exact: true }).click();
-  await expect(page.getByText("버전 7")).toHaveCount(0); await page.getByRole("button", { name: "관련 할 일 추가" }).click();
+  await expect(page.getByText("버전 7")).toHaveCount(0); await page.getByRole("button", { name: "할 일 작성" }).click();
   const form = page.getByRole("dialog", { name: "할 일 추가", exact: true });
   await expect(form.getByRole("checkbox", { name: entity.prop1, exact: true })).toBeChecked();
   await form.getByRole("textbox",{name:/^제목(?: \(필수\))?$/}).fill("연결된 초안"); await form.getByLabel("본문").fill("문맥 유지");
