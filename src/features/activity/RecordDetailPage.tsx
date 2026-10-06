@@ -1,6 +1,5 @@
 import { DeleteDialog } from "../../components/DeleteDialog.tsx";
 import { ChangeContext, PrincipleSnapshots, type WorkspaceRecord } from "./ChangeContext.tsx";
-import { useCreationId } from "../../lib/useCreationId.ts";
 // 기록 상세: 원문 읽기, 편집, 삭제.
 import { recordLabels } from "@contracts/record.ts";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -24,7 +23,6 @@ export function RecordDetailPage() {
   const listPath = back.path;
   const navigate = useNavigate();
   const navigateAfterClose = useDeferredNavigation();
-  const request=useCreationId();
   const [record, setRecord] = useState<WorkspaceRecord | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -63,7 +61,7 @@ export function RecordDetailPage() {
     if(previousQuery.current===query)return;
     previousQuery.current=query;
     setDialog(directEdit?"edit":null);
-    if(directEdit){request.renew();setEditReady(false);void reload();}
+    if(directEdit){setEditReady(false);void reload();}
   },[params.toString(),reload]);
 
   if (loadError && !record) {
@@ -77,7 +75,7 @@ export function RecordDetailPage() {
   if (!record) return <p className="secondary" role="status">불러오는 중…</p>;
 
   const management = <div className="detail-management">
-      <div className="actions"><button type="button" className="btn btn-danger" onClick={() => {request.renew();setDeleting(true);}}>삭제</button></div>
+      <div className="actions"><button type="button" className="btn btn-danger" onClick={() => {setDeleting(true);}}>삭제</button></div>
       {message && <Notice kind="success">{message}</Notice>}
       {error && <Notice kind="error">{error}</Notice>}
       <ChangeContext record={record}/>
@@ -120,7 +118,7 @@ export function RecordDetailPage() {
               expected_version: record.version,
             }));
             }catch(e){if(e instanceof ApiError&&e.code==="conflict")conflicted.current=true;throw e;}
-            request.renew(); closeEdit();
+             closeEdit();
             setMessage("저장했습니다.");
           }}
         />

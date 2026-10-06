@@ -19,12 +19,12 @@ export function EntityDetailPage() {
     navigate = useNavigate();
   const afterClose=useDeferredNavigation();
   const conflicted = useRef(false);
-  const request = useCreationId();
+  const creationId = useCreationId();
   const location=useLocation();
   const [creating, setCreating] = useState<"task" | "record" | null>(null);
   const returnCreateFocus=useRef<"task"|"record"|null>(null),previousCreate=useRef<"task"|"record"|null>(null);
   const closeCreate=()=>{returnCreateFocus.current=creating;setCreating(null);const p=new URLSearchParams(params);p.delete("create");afterClose(`${location.pathname}?${p}`,true);};
-  useEffect(()=>{const value=params.get("create"),next=value==="task"||value==="record"?value:null;if(next)request.renew();else if(previousCreate.current)returnCreateFocus.current=previousCreate.current;previousCreate.current=next;setCreating(next);},[location.key]);
+  useEffect(()=>{const value=params.get("create"),next=value==="task"||value==="record"?value:null;if(next)creationId.renew();else if(previousCreate.current)returnCreateFocus.current=previousCreate.current;previousCreate.current=next;setCreating(next);},[location.key]);
   const [editReady,setEditReady]=useState(false);
   const [saved, setSaved] = useState<string | null>(null);
   const [entity, setEntity] = useState<EntityDetail | null>(null),
@@ -52,7 +52,7 @@ export function EntityDetailPage() {
   const returnParams=new URLSearchParams(params); ["edit","edit_from","create"].forEach(key=>returnParams.delete(key));
   const back = safeListReturn(params.get("list"),"entities",`/entities?${returnParams}${id ? `#entity-${id}` : ""}`);
   const previousQuery=useRef(params.toString());
-  useEffect(()=>{setEditing(true);if(previousQuery.current!==params.toString()&&!params.has("create")){request.renew();setEditReady(false);setRetry(n=>n+1);}previousQuery.current=params.toString();},[params.toString()]);
+  useEffect(()=>{setEditing(true);if(previousQuery.current!==params.toString()&&!params.has("create")){creationId.renew();setEditReady(false);setRetry(n=>n+1);}previousQuery.current=params.toString();},[params.toString()]);
   useEffect(()=>{if(creating||!editReady||!returnCreateFocus.current)return;const frame=requestAnimationFrame(()=>{const label=returnCreateFocus.current==="task"?"관련 할 일 추가":"기록 작성";const button=Array.from(document.querySelectorAll<HTMLButtonElement>("dialog[open] .detail-management button")).find(el=>el.textContent===label);if(button){button.focus();returnCreateFocus.current=null;}});return()=>cancelAnimationFrame(frame);},[creating,editReady,entity]);
   const closeEdit=()=>{setEditing(false);afterClose(back,true);if(conflicted.current){conflicted.current=false;setRetry(n=>n+1);}};
   const management = entity && <div className="detail-management">
@@ -70,7 +70,7 @@ export function EntityDetailPage() {
               <button
                 type="button"
                 className="btn btn-danger"
-                onClick={() => {request.renew();setDeleting(true);}}
+                onClick={() => {creationId.renew();setDeleting(true);}}
               >
                 삭제
               </button>
@@ -113,12 +113,12 @@ export function EntityDetailPage() {
       {entity&&<>
           {creating === "task" && <TaskFormModal key={location.key} open mode="create" initial={{ ...emptyTask(), entity_ids: [entity.id] }}
             onClose={closeCreate} onRouteDiscard={()=>setCreating(null)} onSave={async draft => {
-              await api("POST", "/tasks", { ...taskInput(draft), id: request.current });
+              await api("POST", "/tasks", { ...taskInput(draft), id: creationId.current });
               closeCreate(); setSaved("할 일을 추가했습니다."); setRetry(n => n + 1);
             }} />}
           {creating === "record" && <RecordFormModal key={location.key} open title="기록 작성" submitLabel="저장" initial={{ ...emptyRecord(), entity_ids: [entity.id] }}
             onClose={closeCreate} onRouteDiscard={()=>setCreating(null)} onSave={async value => {
-              await api("POST", "/records", { ...value, id: request.current });
+              await api("POST", "/records", { ...value, id: creationId.current });
               closeCreate(); setSaved("기록을 저장했습니다."); setRetry(n => n + 1);
             }} />}
           {editing && !creating && editReady && (
@@ -134,7 +134,7 @@ export function EntityDetailPage() {
                     expected_version: entity.version,
                   });
                   setEntity(current=>current?{...current,...savedEntity}:current);
-                  setSaved("저장했습니다.");request.renew(); closeEdit();
+                  setSaved("저장했습니다.");creationId.renew(); closeEdit();
                   setRetry((n) => n + 1);
                 } catch (e) {
                   if (

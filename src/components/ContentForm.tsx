@@ -15,7 +15,7 @@ export interface TextDraft {
 
 function saveErrorMessage(e: unknown): string {
   if (isUncertain(e)) {
-    return "응답을 받지 못해 저장 여부를 알 수 없습니다. 같은 내용으로 다시 시도하면 중복 없이 결과를 확인합니다.";
+    return "응답을 받지 못해 저장 여부를 알 수 없습니다. 같은 내용으로 다시 시도할 수 있습니다. 이미 반영됐다면 충돌하거나 대상이 없다고 응답하므로 최신 상태를 확인하세요.";
   }
   if (e instanceof ApiError) {
     if (e.code === "conflict") return `${e.message} 화면을 닫고 다시 연 뒤 시도하세요.`;

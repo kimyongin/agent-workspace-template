@@ -56,12 +56,12 @@ export function ActivityPage({ kind }: { kind: WorkspaceListKind }) {
     const next = new URLSearchParams(params);
     if (overLimit) { setTrimmedTags(true); next.delete("tag_id"); next.set("tag_ids", tags.join(",")); clearListPosition(next); }
     setParams(next, { replace: true }); }, [params, setParams]);
-  const create = useCreateMode("1"), request = useCreationId();
-  useEffect(() => { if (create.open) request.renew(); }, [create.open, create.key]);
+  const create = useCreateMode("1"), creationId = useCreationId();
+  useEffect(() => { if (create.open) creationId.renew(); }, [create.open, create.key]);
   const begin = () => { const next = new URLSearchParams(params); next.set("create", "1"); setParams(next); };
   const filter = (name: string, value: string) => { const next = clearListPosition(new URLSearchParams(params)); value ? next.set(name, value) : next.delete(name); setParams(next, { replace: true }); };
   const setDate = (name: string, value: string) => { const next = new URLSearchParams(params); value ? next.set(name, value) : next.delete(name); if(periodBounds(next.get("from")??"",next.get("to")??"")){next.delete("records_pages");next.delete("pages");next.delete("scroll");} setParams(next, { replace: true }); };
-  const saved = (kind: string, id: string) => { request.renew(); const next = new URLSearchParams(params); next.delete("create"); create.finish(`/${kind}s/${id}?list=${encodeURIComponent(`${pathname}?${next}`)}`); };
+  const saved = (kind: string, id: string) => { creationId.renew(); const next = new URLSearchParams(params); next.delete("create"); create.finish(`/${kind}s/${id}?list=${encodeURIComponent(`${pathname}?${next}`)}`); };
   if (legacy.route !== pathname || legacy.params.toString() !== params.toString()) return <Navigate replace to={`${legacy.route}?${legacy.params}${legacy.hash}`} />;
   return <>
     <section className="panel" aria-labelledby={`${kind}-title`}><div className="panel-head"><h1 id={`${kind}-title`} className="page-title" tabIndex={-1}>{label}</h1><TabActions title={label} actions={[{ label: kind === "tasks" ? "할 일 등록" : "기록 작성", run: begin }, { label: "활동 태그 관리", to: "/tags/activity" }]}/></div>
@@ -82,7 +82,7 @@ export function ActivityPage({ kind }: { kind: WorkspaceListKind }) {
       </div>
     </section>
     <ActivitySection kind={kind} tags={tags} bounds={bounds} dictionary={dictionary}/>
-    {create.open && (kind === "tasks" ? <TaskFormModal key={create.key} mode="create" open initial={emptyTask()} onClose={create.close} onRouteDiscard={create.discard} onSave={async draft => { const task = await api<TaskResult>("POST", "/tasks", { ...taskInput(draft), id: request.current }); saved("task", task.id); }}/>
-      : <RecordFormModal key={create.key} title="기록 작성" submitLabel="저장" open initial={emptyRecord()} onClose={create.close} onRouteDiscard={create.discard} onSave={async draft => { const record = await api<RecordResult>("POST", "/records", { ...draft, id: request.current }); saved("record", record.id); }}/>) }
+    {create.open && (kind === "tasks" ? <TaskFormModal key={create.key} mode="create" open initial={emptyTask()} onClose={create.close} onRouteDiscard={create.discard} onSave={async draft => { const task = await api<TaskResult>("POST", "/tasks", { ...taskInput(draft), id: creationId.current }); saved("task", task.id); }}/>
+      : <RecordFormModal key={create.key} title="기록 작성" submitLabel="저장" open initial={emptyRecord()} onClose={create.close} onRouteDiscard={create.discard} onSave={async draft => { const record = await api<RecordResult>("POST", "/records", { ...draft, id: creationId.current }); saved("record", record.id); }}/>) }
   </>;
 }

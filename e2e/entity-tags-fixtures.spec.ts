@@ -147,14 +147,15 @@ test("실제 App 태그 폐기 승인 뒤에만 로그아웃 요청하고 로그
   await page.getByRole("dialog", { name: "변경을 버릴까요?" }).getByRole("button", { name: "변경 버리기" }).click(); await expect(page).toHaveURL(/\/login$/); expect(signOuts).toBe(1);
   expect(await page.evaluate(() => !!localStorage.getItem("sb-127-auth-token"))).toBe(false); await expect(page.getByRole("navigation", { name: "주 메뉴" })).toHaveCount(0);
 });
-test("불확정 이름 변경을 최신 목록에서 확인하며 중복 PATCH 안 함", async ({ page }) => {
-  let patches = 0, updated = false;
+test("불확정 이름 변경은 조회 없이 같은 버전 PATCH 후 충돌을 확인", async ({ page }) => {
+  let patches = 0, updated = false; const bodies: Record<string, unknown>[] = [];
   await page.route("**/api/tags**", route => {
-    if (route.request().method() === "PATCH") { patches++; updated = true; return route.abort(); }
+    if (route.request().method() === "PATCH") { patches++; bodies.push(route.request().postDataJSON()); updated = true; return patches === 1 ? route.abort() : route.fulfill({ status: 409, json: { code: "conflict", message: "버전 충돌" } }); }
+    if (updated && patches === 1) return route.fulfill({ status: 503, json: { code: "internal", message: "조회 장애" } });
     return route.fulfill({ json: { items: tags.map(t => updated && t.id === tags[0].id ? { ...t, name: "정정 이름", version: 2 } : t), next_cursor: null } });
   });
   await page.goto(url); await page.getByRole("button", { name: "첫 태그 이름 변경" }).click(); await page.getByRole("textbox", { name: /태그 이름/ }).fill("정정 이름"); await saveWithMemo(page, page);
-  await page.getByRole("button", { name: "같은 내용 다시 시도" }).click(); await expect(page.getByText("태그를 저장했습니다.")).toBeVisible(); expect(patches).toBe(1);
+  await page.getByRole("button", { name: "같은 내용 다시 시도" }).click(); await expect(page.getByText(/다른 변경이 저장되었습니다/)).toBeVisible(); expect(patches).toBe(2); expect(bodies[1]).toEqual(bodies[0]); expect(bodies[0].expected_version).toBe(1);
 });
 test("불확정 생성 같은 UUID 재시도와 성공 뒤 목록 실패 구분", async ({ page }) => {
   let calls = 0; const bodies: Record<string, unknown>[] = []; let saved = false;

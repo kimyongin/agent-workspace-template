@@ -18,8 +18,8 @@ export function EntitiesPage() {
   const [params] = useSearchParams(),
     { hash } = useLocation(),
     navigate = useNavigate(),
-    request = useCreationId();
-  useEffect(()=>{if(create.open)request.renew();},[create.open,create.key]);
+    creationId = useCreationId();
+  useEffect(()=>{if(create.open)creationId.renew();},[create.open,create.key]);
   const requested = Number(params.get("pages") ?? 1);
   const pages = Number.isSafeInteger(requested) && requested > 0 ? Math.min(250, requested) : 1;
   const filter = {
@@ -242,9 +242,9 @@ export function EntitiesPage() {
           onSave={async (value) => {
             const e = await api<EntityResult>("POST", "/entities", {
               ...value,
-              id: request.current,
+              id: creationId.current,
             });
-            request.renew();
+            creationId.renew();
             const p=new URLSearchParams(params);p.delete("create");create.finish(`/entities/${e.id}?list=${encodeURIComponent(`/entities?${p}`)}`);
           }}
         />
