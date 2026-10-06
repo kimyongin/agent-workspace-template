@@ -144,3 +144,30 @@ dbTest(
     }
   },
 );
+
+dbTest("current principle concurrent patches keep omitted content and reject the stale loser", async () => {
+  const f = await fixtureOwner(admin);
+  try {
+    const first = await p.createPrinciple(d, f.actor, principleCreate.parse(content));
+    const patches = await Promise.allSettled(
+      ["수정 A", "수정 B"].map((title) =>
+        p.updatePrinciple(d, f.actor, first.id, { title, expected_version: first.version })
+      ),
+    );
+    const winners = patches.filter((r) => r.status === "fulfilled");
+    assertEquals(winners.length, 1);
+    const loser = patches.find((r) => r.status === "rejected");
+    assert(loser?.status === "rejected" && loser.reason instanceof AppError);
+    assertEquals(loser.reason.code, "conflict");
+    const current = (await p.currentPrinciple(d, f.actor)).current!;
+    assertEquals([current.id, current.summary, current.body, current.version], [
+      first.id,
+      content.summary,
+      content.body,
+      2,
+    ]);
+    assertEquals(winners[0].status === "fulfilled" && winners[0].value, current);
+  } finally {
+    await f.cleanup();
+  }
+});

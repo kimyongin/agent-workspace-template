@@ -14,6 +14,7 @@ function fixture() {
   const rows = new Map<string, PrincipleResult>(),
     events: ChangeInput[] = [],
     requests = new Map<string, { request_hash: string; response: unknown }>();
+  const nextVersion = () => revision = Math.max(revision, ...[...rows.values()].map((r) => r.version)) + 1;
   const s: PrincipleStore = {
     lockRequest: () => Promise.resolve(),
     findRequest: (op, id) => Promise.resolve(requests.get(op + id) ?? null),
@@ -21,14 +22,12 @@ function fixture() {
       requests.set(op + id, { request_hash, response });
       return Promise.resolve();
     },
-    lockCurrent: () => Promise.resolve(),
-    nextVersion: () => Promise.resolve(revision = Math.max(revision, ...[...rows.values()].map((r) => r.version)) + 1),
     current: () => Promise.resolve([...rows.values()].find((r) => r.is_current) ?? null),
-    insert: (i, v = 1) => {
+    insert: (i) => {
       const r: PrincipleResult = {
         ...i,
         id: crypto.randomUUID(),
-        version: v,
+        version: nextVersion(),
         created_at: now,
         updated_at: now,
         saved_at: now,
@@ -41,13 +40,14 @@ function fixture() {
       return Promise.resolve(r);
     },
     get: (id) => Promise.resolve(rows.get(id) ?? null),
-    update: (id, i, version) => {
-      const r = { ...rows.get(id)!, ...i, version: version ?? rows.get(id)!.version + 1 };
+    update: (id, i) => {
+      const r = { ...rows.get(id)!, ...i, version: nextVersion() };
       rows.set(id, r);
       return Promise.resolve(r);
     },
     delete: (id) => {
       rows.delete(id);
+      nextVersion();
       return Promise.resolve();
     },
     enqueueIndex: () => Promise.resolve(),
@@ -184,4 +184,36 @@ Deno.test("current principle HTTP/MCP input/result parity and removed activation
   const next = await saved.json();
   assertEquals(await f.call("save_current_principle", note), next);
   assertEquals(f.events.length, 2);
+});
+
+Deno.test("principle patch retains omitted content and no-op/retry/conflict leave the next revision unchanged", async () => {
+  const f = fixture();
+  const input = { title: "기준", summary: "원래 요약", body: "원래 본문", request_id: crypto.randomUUID() };
+  const first = await f.call("create_principle", input) as PrincipleResult;
+  assertEquals(await f.call("create_principle", input), first);
+  const exists = await assertRejects(() => f.call("create_principle", { title: "새 기준", summary: "요약" }), AppError);
+  assertEquals(exists.code, "conflict");
+  const patch = { id: first.id, title: "변경 기준", expected_version: first.version, request_id: crypto.randomUUID() };
+  const next = await f.call("update_principle", patch) as PrincipleResult;
+  assertEquals([next.id, next.title, next.summary, next.body, next.version], [
+    first.id,
+    "변경 기준",
+    "원래 요약",
+    "원래 본문",
+    2,
+  ]);
+  assertEquals(await f.call("update_principle", patch), next);
+  const noop = { id: next.id, title: next.title, expected_version: next.version, change_note: "메모만 변경" };
+  assertEquals(await f.call("update_principle", noop), next);
+  const stale = await f.http("PATCH", `/principles/${next.id}`, { title: next.title, expected_version: first.version });
+  assertEquals(stale.status, 409);
+  assertEquals(f.events.length, 2);
+  const updated = await f.call("update_principle", {
+    id: next.id,
+    body: "새 본문",
+    expected_version: next.version,
+  }) as PrincipleResult;
+  assertEquals(updated.version, 3);
+  assertEquals(f.events.length, 3);
+  assertEquals(await f.call("get_current_principle", {}), { current: updated });
 });

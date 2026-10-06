@@ -1,4 +1,4 @@
-import { captureEntities } from "./entity-links.ts";
+import { SqlEntityLinks } from "./entity-links.ts";
 // 실제 두 도메인이 공유하는 Actor 트랜잭션·요청 결과·색인 큐 저장 배선.
 import type postgres from "postgres";
 import type { Actor } from "../../core/shared/actor.ts";
@@ -11,7 +11,11 @@ import { basicChangeMemo } from "../../core/shared/change-memo.ts";
 
 const REQUEST_RETENTION = "7 days";
 export class SqlActorStore {
-  constructor(protected readonly tx: postgres.TransactionSql, protected readonly actor: Actor) {}
+  protected readonly entityLinks: SqlEntityLinks;
+
+  constructor(protected readonly tx: postgres.TransactionSql, protected readonly actor: Actor) {
+    this.entityLinks = new SqlEntityLinks(tx);
+  }
 
   async lockRequest(operation: string, requestId: string) {
     await this
@@ -37,22 +41,17 @@ export class SqlActorStore {
         ? null
         : `/${input.target_kind === "entity" ? "entities" : `${input.target_kind}s`}/${target.id}`,
     };
-    const ids = target.entity_ids;
-    const context = input.target_kind === "entity" && input.action === "delete"
-      ? [{
-        id: target.id,
-        title: target_title,
-        captured_at: new Date().toISOString(),
-        source: "selection" as const,
-      }]
-      : await captureEntities(this.tx, ids, target.entity_context);
-    const [row] = await this
-      .tx`insert into app.records(owner_id,entity_ids,entity_context,title,summary,body,record_kind,change_note,change_metadata)
-      values(${this.actor.userId},${this.tx.array(ids, 2950)},${
-      this.tx.json(context)
-    },${title},${summary},${body}, 'change',${input.change_note ?? null},${
-      this.tx.json(metadata as never)
-    }) returning id`;
+    const values = {
+      owner_id: this.actor.userId,
+      ...await this.entityLinks.changeSelection(input),
+      title,
+      summary,
+      body,
+      record_kind: "change",
+      change_note: input.change_note ?? null,
+      change_metadata: this.tx.json(metadata as never),
+    };
+    const [row] = await this.tx`insert into app.records ${this.tx(values)} returning id`;
     await this.enqueueIndex({
       kind: "record",
       id: row.id as string,
