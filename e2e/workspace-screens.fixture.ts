@@ -203,8 +203,25 @@ test("반복 중단·재개 메모·결과 생성은 같은 surface",async({page
 });
 
 const stamp="2026-10-04T03:00:00Z", id=(n:number)=>`00000000-0000-4000-8000-${String(n).padStart(12,"0")}`;
+
+for(const width of [320,390,1024])test(`엔터티 연결 목록 ${width}px: 종류·요약·시각·행 구획과 전체 보기 위치`,async({page},info)=>{
+  const state=await fixtures(page),title="memo-edd743a2-2a0c-455b-b3ad-312e05d47d4e 등록";
+  Object.assign(state.rows.entities[0],{records:{count:2,items:[{id:id(3),title:"상담 판단 정리",summary:"확인한 상담 내용을 정리했습니다.",record_kind:"user",occurred_at:stamp,updated_at:stamp},{id:id(30),title,summary:title,record_kind:"change",occurred_at:stamp,updated_at:stamp}]}});
+  await page.setViewportSize({width,height:900});await go(page,`/entities/${id(1)}`);
+  const section=form(page).locator(".entity-related").filter({has:page.getByRole("heading",{name:"연결된 기록 (2개)",exact:true})}),rows=section.locator(".entity-related-item");
+  await expect(rows).toHaveCount(2);await expect(rows.first()).toContainText("직접 작성");await expect(rows.first()).toContainText("확인한 상담 내용을 정리했습니다.");
+  await expect(rows.last()).toContainText("변경 기록");await expect(rows.last().getByText(title,{exact:true})).toHaveCount(1);
+  await expect(rows.locator("time")).toHaveCount(2);await expect(form(page).getByRole("link",{name:"전체 할 일 보기",exact:true})).toHaveCount(0);
+  const all=section.getByRole("link",{name:"전체 기록 보기",exact:true});await expect(all).toHaveAttribute("href",`/records?entity_id=${id(1)}`);
+  expect((await all.boundingBox())!.y).toBeGreaterThanOrEqual((await rows.last().boundingBox())!.y+(await rows.last().boundingBox())!.height);
+  for(const row of await rows.all())expect((await row.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+  await section.screenshot({path:info.outputPath(`entity-related-${width}.png`)});
+  await rows.first().click();await expect(page).toHaveURL(new RegExp(`/records/${id(3)}$`));expect(state.writes).toHaveLength(0);expect(state.errors).toEqual([]);
+});
 test("연결 엔터티 범위: 각 탭 조회·검색 조건·본문 왕복·해제",async({page})=>{
   const state=await fixtures(page);for(const kind of ["tasks","records"]){state.rows[kind][0].entity_ids=[id(1)];state.rows[kind][0].entity_context=[{id:id(1),title:"엔터티",source:"selection",captured_at:stamp}];}
+  state.rows.entities[0].tasks={count:1,items:[{id:id(2),title:"할 일",updated_at:stamp}]};
   const reads:{kind:string;params:URLSearchParams}[]=[];
   for(const kind of ["tasks","records"])await page.route(`**/api/${kind}?**`,route=>{const params=new URL(route.request().url()).searchParams;reads.push({kind,params});return route.fulfill({json:{items:state.rows[kind].filter(row=>!params.has("entity_id")||(row.entity_ids as string[]).includes(params.get("entity_id")!)),next_cursor:null}});});
   await go(page,`/entities/${id(1)}`);const full=form(page).getByRole("link",{name:"전체 할 일 보기",exact:true});await expect(full).toHaveAttribute("href",`/tasks?entity_id=${id(1)}`);await full.click();await expect(page.getByText("연결된 엔터티: 엔터티",{exact:true})).toBeVisible();expect(new URL(page.url()).searchParams.get("entity_id")).toBe(id(1));await expect.poll(()=>reads.length).toBe(1);expect(reads[0].kind).toBe("tasks");expect(reads[0].params.get("entity_id")).toBe(id(1));

@@ -14,6 +14,7 @@ import { formatDateTime } from "../../lib/format.ts";
 import { EntityForm } from "./forms.tsx";
 import { emptyRecord, emptyTask, RecordFormModal, TaskFormModal, taskInput } from "../activity/forms.tsx";
 import "./entity.css";
+import { recordKindNames } from "../activity/ChangeContext.tsx";
 export function EntityDetailPage() {
   const { id } = useParams(),
     [params] = useSearchParams(),
@@ -76,20 +77,22 @@ export function EntityDetailPage() {
                   const p=new URLSearchParams(params);p.set("create",kind==="tasks"?"task":"record");navigate(`?${p}`);
                 }}>{kind === "tasks" ? "관련 할 일 추가" : "기록 작성"}</button>
               </div>
-              <Link to={`/${kind}${query({ entity_id: id })}`}>전체 {label} 보기</Link>
               {entity[kind].count === 0
                 ? <p className="secondary">연결된 {label}이 없습니다.</p>
                 : (
-                  <ul className="list">
+                  <ul className="entity-related-list">
                     {entity[kind].items.map((item) => (
-                      <li className="list-item" key={item.id}>
-                        <Link className="item-title" to={`/${kind}/${item.id}`}>
-                          {item.title}
+                      <li key={item.id}>
+                        <Link className="entity-related-item" aria-label={item.title} to={`/${kind}/${item.id}`}>
+                          <div className="entity-related-title"><span className="item-title">{item.title}</span><span aria-hidden="true">›</span></div>
+                          <div className="entity-related-meta">{"record_kind" in item&&<span className="badge">{recordKindNames[item.record_kind]}</span>}<time className="meta" dateTime={"occurred_at" in item?item.occurred_at:item.updated_at}>{"occurred_at" in item?"":"수정 "}{formatDateTime("occurred_at" in item?item.occurred_at:item.updated_at)}</time></div>
+                          {"summary" in item&&item.summary!==item.title&&<p className="secondary record-summary">{item.summary}</p>}
                         </Link>
                       </li>
                     ))}
                   </ul>
                 )}
+              {entity[kind].count>0&&<Link className="entity-related-all" to={`/${kind}${query({ entity_id: id })}`}>전체 {label} 보기</Link>}
             </section>
           ))}
     </div>;
