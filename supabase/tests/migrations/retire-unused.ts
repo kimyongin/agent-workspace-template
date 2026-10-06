@@ -63,13 +63,23 @@ try {
     console.log("Prepared owned pre-DDL sources and existing preservation parts");
   } else {
     const f = JSON.parse(await Deno.readTextFile(file));
-    const password = Deno.env.get("APP_SERVER_PASSWORD");
-    if (!password) throw Error("APP_SERVER_PASSWORD is required for business-role verification");
-    direct = postgres(
-      `postgresql://app_server:${encodeURIComponent(password)}@${parsed.hostname}:${parsed.port}/postgres`,
-      { max: 1, onnotice: () => {} },
-    );
+    const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (
+      !f || ![f.owner, f.entity, f.task, f.record, f.principle].every((id) =>
+        typeof id === "string" && uuid.test(id)
+      ) ||
+      !Array.isArray(f.sources) || !Array.isArray(f.snapshot)
+    ) throw Error("Invalid owned cutoff fixture");
+    const owned =
+      await sql`select id from auth.users where id=${f.owner} and email=${`retirement-${f.owner}@fixture.invalid`}`;
+    if (owned.length !== 1) throw Error("Owned cutoff fixture account not found");
     try {
+      const password = Deno.env.get("APP_SERVER_PASSWORD");
+      if (!password) throw Error("APP_SERVER_PASSWORD is required for business-role verification");
+      direct = postgres(
+        `postgresql://app_server:${encodeURIComponent(password)}@${parsed.hostname}:${parsed.port}/postgres`,
+        { max: 1, onnotice: () => {} },
+      );
       const source =
         (await sql`select payload from private.retired_principle_sources where owner_id=${f.owner} and source_kind='principle'`)[
           0
