@@ -66,6 +66,9 @@ dbTest(
         (await admin`select to_regprocedure('private.preserve_principle_sources(uuid)') as present`)[0].present,
         null,
       );
+      await assertRejects(() =>
+        asUser(sql, f.actor.userId, (tx) => tx`call private.preserve_principle_sources(${f.actor.userId}::uuid)`)
+      );
       assertEquals((await admin`select * from app.principles where id=${old.id}`)[0], old);
     } finally {
       await f.cleanup();
