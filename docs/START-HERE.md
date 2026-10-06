@@ -7,6 +7,8 @@
 | 문맥 | 정본 |
 | --- | --- |
 | 제품 목표와 요구 | [PRD](product/concept.md) |
+| 앱 사용자 안내 | [앱을 사용하는 방법](product/using-app.md) |
+| 통합 기록 모델 | [설계와 전환](architecture/unified-record-model.md) · [ADR-0012](adr/0012-current-state-and-unified-records.md) |
 | 구조·기술·권한 결정 | [ADR](adr/README.md) |
 | 도메인 용어와 탐색 | [용어집](../GLOSSARY.md) · [domain](agents/domain.md) |
 | 코드의 판단 기준 | [설계 원칙](architecture/principles.md) · [헥사고날 구조](architecture/hexagonal-review.md) |
@@ -15,6 +17,7 @@
 | 인증·데이터·외부 통신 | [보안](security/guide.md) |
 | 검색·색인 계약 | [검색](architecture/search.md) |
 | 로컬 실행·환경 제약 | [실행 환경](development/verification.md) · [package.json](../package.json) · [CI](../.github/workflows/ci.yml) |
+| 새 프로젝트 시작 | [독립 서비스와 환경 준비](development/new-project.md) |
 | 제품 플러그인 | [패키징과 클라이언트 연결](../plugins/workspace/README.md) |
 | 설치·배포·복구 | [배포](deployment/release.md) |
 | 점검·장애·데이터 복원 | [운영](operations/runbook.md) |

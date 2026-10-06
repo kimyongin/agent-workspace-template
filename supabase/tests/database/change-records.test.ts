@@ -57,7 +57,7 @@ dbTest("no-op recurring rule object order and tag set order preserve version/ind
   }
 });
 dbTest(
-  "explicit entity/task/record CUD each has one editable change record; no read/no-op/failure event or recursive internal record",
+  "business mutations have one change record; record memo edits preserve facts without another event",
   async () => {
     const f = await fixtureOwner(admin);
     try {
@@ -90,8 +90,7 @@ dbTest(
       rows.items.forEach((r) => recordResult.parse(r));
       const event = rows.items.find((r) => r.change?.action === "update")!;
       assertEquals(event.change_note, "실측");
-      assertEquals(event.change!.before!.prop2, 10);
-      assertEquals(event.change!.after!.prop2, 20);
+      assertEquals([event.change!.before, event.change!.after], [null, null]);
       assertEquals(event.change!.source, "mcp");
       assertEquals(event.change!.path, `/entities/${entity.id}`);
       const immutable = {
@@ -109,23 +108,23 @@ dbTest(
       );
       assertEquals(corrected.change, event.change);
       assertEquals(corrected.change_note, "메모 정정");
-      assertEquals(await count(), 3);
+      assertEquals(await count(), 2);
       await a.deleteRecord(ad, A, corrected.id, corrected.version);
       assertEquals((await e.getEntity(ed, A, entity.id)).prop2, 20);
-      assertEquals(await count(), 3);
+      assertEquals(await count(), 2);
       const task = await a.createTask(
         ad,
         A,
         taskCreate.parse({ kind: "once", title: "행동", summary: "계획", entity_id: entity.id }),
       );
-      assertEquals(await count(), 4);
+      assertEquals(await count(), 3);
       const taskUpdated = await a.updateTask(
         ad,
         A,
         task.id,
         taskUpdate.parse({ expected_version: task.version, title: "새 행동", change_note: "계획 수정" }),
       );
-      assertEquals(await count(), 5);
+      assertEquals(await count(), 4);
       const completion = await a.completeTask(
         ad,
         A,
@@ -133,32 +132,33 @@ dbTest(
         taskComplete.parse({ expected_version: taskUpdated.version, title: "실제 결과", summary: "수행" }),
       );
       assertEquals(completion.record.record_kind, "result");
-      assertEquals(await count(), 5);
+      assertEquals(await count(), 4);
       await a.deleteTask(ad, A, task.id, completion.task.version);
-      assertEquals(await count(), 6);
+      assertEquals(await count(), 5);
       assertEquals((await a.getRecord(ad, A, completion.record.id)).task_id, null);
       const record = await a.createRecord(
         ad,
         A,
         recordCreate.parse({ title: "직접 기록", summary: "관찰", change_note: "생성 이유" }),
       );
-      assertEquals(await count(), 7);
+      assertEquals(await count(), 6);
       const recordUpdated = await a.updateRecord(
         ad,
         A,
         record.id,
         recordUpdate.parse({ expected_version: record.version, body: "정정 본문", change_note: "관찰 정정" }),
       );
-      assertEquals(await count(), 8);
+      assertEquals(await count(), 6);
       await a.deleteRecord(ad, A, record.id, recordUpdated.version);
-      assertEquals(await count(), 9);
+      assertEquals(await count(), 7);
       await e.deleteEntity(ed, A, entity.id, updated.version, "불필요", crypto.randomUUID());
-      assertEquals(await count(), 10);
+      assertEquals(await count(), 8);
       const deleted = (await a.listRecords(ad, A, recordListQuery.parse({ record_kind: "change" }))).items.find((r) =>
         r.change?.target_kind === "entity" && r.change.action === "delete"
       )!;
       assertEquals(deleted.change!.path, null);
-      assertEquals(deleted.change!.before!.prop1, "대상");
+      assertEquals([deleted.change!.before, deleted.change!.after], [null, null]);
+      assertEquals(deleted.change!.target_title, "대상");
       assert(JSON.stringify(deleted.change).includes("대상"));
     } finally {
       await f.cleanup();
@@ -166,7 +166,7 @@ dbTest(
   },
 );
 dbTest(
-  "required change record failing after entity/task/record mutation rolls back content/version/index/request; retry one event",
+  "business history or record index failure rolls back content/version/request; record retry adds no event",
   async () => {
     const f = await fixtureOwner(admin);
     try {
@@ -190,6 +190,21 @@ dbTest(
           run: <T>(actor: typeof A, fn: Parameters<typeof ad.uow.run<T>>[1]) => ad.uow.run(actor, (s) => fn(broken(s))),
         },
       };
+      const badRecord = {
+        ...ad,
+        uow: {
+          run: <T>(actor: typeof A, fn: Parameters<typeof ad.uow.run<T>>[1]) =>
+            ad.uow.run(actor, (s) =>
+              fn(
+                new Proxy(s, {
+                  get: (target, key) =>
+                    key === "enqueueIndex"
+                      ? () => Promise.reject(Error("index queue failure"))
+                      : Reflect.get(target, key),
+                }),
+              )),
+        },
+      };
       const ei = entityUpdate.parse({
           expected_version: 1,
           prop1: "새 이름",
@@ -210,7 +225,7 @@ dbTest(
         });
       await assertRejects(() => e.updateEntity(badE, A, entity.id, ei));
       await assertRejects(() => a.updateTask(badA, A, task.id, ti));
-      await assertRejects(() => a.updateRecord(badA, A, record.id, ri));
+      await assertRejects(() => a.updateRecord(badRecord, A, record.id, ri));
       assertEquals((await e.getEntity(ed, A, entity.id)).version, 1);
       assertEquals((await a.getTask(ad, A, task.id)).title, task.title);
       assertEquals((await a.getRecord(ad, A, record.id)).title, record.title);
@@ -224,7 +239,7 @@ dbTest(
       await a.updateRecord(ad, A, record.id, ri);
       assertEquals(
         (await admin`select id from app.records where owner_id=${A.userId} and record_kind='change'`).length,
-        6,
+        5,
       );
     } finally {
       await f.cleanup();

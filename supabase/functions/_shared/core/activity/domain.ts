@@ -1,3 +1,5 @@
+import { entityChanges, selectedEntities } from "./entity-selection.ts";
+import type { EntityContext } from "../../contracts/entity-links.ts";
 // 할 일·활동 기록의 업무 규칙. DB·SDK·HTTP를 모른다(ADR-0001, ADR-0003).
 // 상태 전환과 완료 조건의 유일한 구현이며 SQL에 같은 판단을 두지 않는다.
 import type { Recurrence, TaskCreate, TaskUpdate } from "../../contracts/task.ts";
@@ -10,6 +12,8 @@ export type TaskStatus = "open" | "done" | "active" | "stopped";
 
 export interface Task {
   entity_id?: string | null;
+  entity_ids?: string[];
+  entity_context?: EntityContext[];
   id: string;
   kind: TaskKind;
   title: string;
@@ -41,11 +45,12 @@ export type NewTask = Pick<
   | "pauses"
   | "tag_ids"
   | "entity_id"
+  | "entity_ids"
 >;
 
 export function newTask(input: TaskCreate): NewTask {
   const common = {
-    entity_id: input.entity_id ?? null,
+    ...entityChanges({ entity_ids: selectedEntities(input) ?? [] }),
     title: input.title,
     summary: input.summary,
     body: input.body,
@@ -72,13 +77,16 @@ export function assertVersion(current: { version: number }, expected: number): v
 }
 
 export type TaskChanges = Partial<
-  Pick<Task, "title" | "summary" | "body" | "due_on" | "recurrence" | "timezone" | "tag_ids" | "entity_id">
+  Pick<
+    Task,
+    "title" | "summary" | "body" | "due_on" | "recurrence" | "timezone" | "tag_ids" | "entity_id" | "entity_ids"
+  >
 >;
 
 /** 내용 필드만 바꾼다. 완료된 할 일도 수정할 수 있다. 종류에 맞지 않는 필드는 거부한다. */
 export function updateTask(task: Task, patch: TaskUpdate): TaskChanges {
   assertVersion(task, patch.expected_version);
-  const { expected_version: _v, change_note: _note, request_id: _request, ...changes } = patch;
+  const { expected_version: _v, change_note: _note, change_memo: _memo, request_id: _request, ...changes } = patch;
   if (task.kind === "once" && (changes.recurrence !== undefined || changes.timezone !== undefined)) {
     throw invalidInput("일회성 할 일에는 반복 규칙과 시간대가 없습니다", [
       {
@@ -93,7 +101,7 @@ export function updateTask(task: Task, patch: TaskUpdate): TaskChanges {
       message: "반복 할 일에서 쓸 수 없습니다",
     }]);
   }
-  return changes;
+  return { ...changes, ...entityChanges(changes) };
 }
 
 /** 일회성 할 일 완료 판단. 저장(할 일 상태·결과 기록·색인 등록)은 application이 한 트랜잭션으로 한다. */

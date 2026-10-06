@@ -15,7 +15,7 @@ const td = { uow: new SqlTagUnitOfWork(sql) },
   ed = { uow: new SqlEntityUnitOfWork(sql) },
   ad = { uow: new SqlUnitOfWork(sql), clock: { now: () => new Date() } };
 dbTest(
-  "tag delete atomically records each changed parent once, preserves tag names, retries, and suppresses automatic-record recursion",
+  "tag delete atomically records each changed parent once, preserves event facts, retries, and suppresses automatic-record recursion",
   async () => {
     const f = await fixtureOwner(admin);
     try {
@@ -52,8 +52,7 @@ dbTest(
         await admin`select change_metadata from app.records where owner_id=${actor.userId} and change_metadata->>'action'='update' order by id`;
       assertEquals(changes.length, 2);
       for (const change of changes) {
-        assertEquals(change.change_metadata.before.tags[0].name, "活動分類");
-        assertEquals(change.change_metadata.after.tag_ids, []);
+        assertEquals([change.change_metadata.before, change.change_metadata.after], [null, null]);
         assertEquals(change.change_metadata.source, "mcp");
       }
       await t.deleteTag(td, actor, entityTag.id, entityTag.version, "対象分類の削除", crypto.randomUUID());
@@ -61,7 +60,8 @@ dbTest(
       assertEquals((await e.getEntity(ed, actor, entity.id)).tag_ids, []);
       const [entityChange] =
         await admin`select change_metadata,change_note from app.records where owner_id=${actor.userId} and change_metadata->>'target_id'=${entity.id} and change_metadata->>'action'='update'`;
-      assertEquals(entityChange.change_metadata.before.tags[0].name, "対象分類");
+      assertEquals([entityChange.change_metadata.before, entityChange.change_metadata.after], [null, null]);
+      assertEquals(entityChange.change_metadata.target_title, "対象");
       assertEquals(entityChange.change_note, "対象分類の削除");
     } finally {
       await f.cleanup();

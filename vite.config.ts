@@ -2,6 +2,9 @@ import { copyFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vitest/config";
+import { readLocalConfig } from "./scripts/local-config.mjs";
+
+const { webPort } = readLocalConfig();
 
 // 웹은 서버 코드 중 공유 contracts만 가져온다.
 export default defineConfig({
@@ -22,7 +25,7 @@ export default defineConfig({
       "@contracts": fileURLToPath(new URL("./supabase/functions/_shared/contracts", import.meta.url)),
     },
   },
-  server: { host: "127.0.0.1", port: 55480, strictPort: true },
-  preview: { host: "127.0.0.1", port: 55480, strictPort: true },
+  server: { host: "127.0.0.1", port: webPort, strictPort: true },
+  preview: { host: "127.0.0.1", port: webPort, strictPort: true },
   test: { include: ["src/**/*.test.{ts,tsx}"] },
 });

@@ -1,4 +1,4 @@
-import { beginTabAction, openDetailEditor } from "./ui-actions.ts";
+import { saveWithMemo, beginTabAction, openDetailEditor } from "./ui-actions.ts";
 import { expect, test } from "@playwright/test";
 import { devLogin, mcpClient, mcpTokenViaConsent, unique } from "./support.ts";
 
@@ -18,7 +18,7 @@ test("Entity 웹 CRUD·초안 보호→MCP parity·활동 연결→삭제 원문
     { name: "취소", exact: true },
   ).click();
   await expect(form.getByLabel("속성 1")).toHaveValue(name);
-  await form.getByRole("button", { name: "저장", exact: true }).click();
+  await saveWithMemo(page, form);
   await expect(form).not.toBeVisible();await expect(page).toHaveURL(/\/entities\/[0-9a-f-]{36}(?:\?|$)/);
   await expect(page.locator("dialog.modal:not(.modal-confirm)[open]").getByLabel("속성 1")).toHaveValue(name);
   const id = new URL(page.url()).pathname.split("/").at(-1)!;
@@ -60,16 +60,14 @@ test("Entity 웹 CRUD·초안 보호→MCP parity·활동 연결→삭제 원문
     await page.goto(`/tasks/${task.id}`);
     await openDetailEditor(page);
     const editTask = page.getByRole("dialog", { name: "할 일 편집" });
-    await expect(editTask.getByLabel("엔터티", { exact: true })).toHaveValue(
-      id,
-    );
+    await expect(editTask.getByRole("checkbox", { name, exact: true })).toBeChecked();
     await editTask.getByRole("button", {name:"닫기",exact:true}).click();
     await page.goto(`/entities/${id}`);
     await openDetailEditor(page);
     const edit = page.getByRole("dialog", { name: "엔터티 편집" });
     await edit.getByLabel("속성 2").fill("10");
     await edit.getByLabel("편집 메모").fill("실측 반영");
-    await edit.getByRole("button", { name: "저장", exact: true }).click();
+    await saveWithMemo(page, edit);
     await expect(edit).not.toBeVisible();
     expect((await mcp.call("get_entity", { id })).prop2).toBe(10);
     await page.goto(`/entities/${id}`);
@@ -78,10 +76,7 @@ test("Entity 웹 CRUD·초안 보호→MCP parity·활동 연결→삭제 원문
     await remove.getByRole("button", { name: "취소", exact: true }).click();
     await expect(page.locator("dialog.modal:not(.modal-confirm)[open]").getByLabel("속성 1")).toHaveValue(name);
     await page.getByRole("button", { name: "삭제", exact: true }).click();
-    await page.getByRole("dialog", { name: "엔터티를 삭제할까요?" }).getByRole(
-      "button",
-      { name: "삭제", exact: true },
-    ).click();
+    await saveWithMemo(page,page.getByRole("dialog", { name: "엔터티를 삭제할까요?" }),"삭제");
     await expect(
       page.getByRole("heading", { name: "엔터티", level: 1, exact: true }),
     )

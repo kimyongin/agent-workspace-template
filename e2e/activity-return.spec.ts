@@ -1,4 +1,4 @@
-import { openDetailEditor } from "./ui-actions.ts";
+import { saveWithMemo, openDetailEditor } from "./ui-actions.ts";
 import { expect, test } from "@playwright/test";
 import { devLogin, mcpClient, mcpTokenViaConsent, unique } from "./support.ts";
 
@@ -107,11 +107,22 @@ for (
       await expect(page.getByRole("heading", { name: title, exact: true })).toBeVisible();
       await page.getByRole("button",{name:"닫기",exact:true}).click();
       await page.getByRole("link",{name:`${title} 편집`,exact:true}).click();
-      await expect(page.getByRole("link", { name: "엔터티 편집", exact: true })).toHaveAttribute(
+      const dialog = page.getByRole("dialog", { name: editLabel, exact: true });
+      const entityLink = dialog.getByRole("region", { name: "연결 엔터티" }).getByRole("link", { name: entity.prop1, exact: true });
+      await expect(entityLink).toHaveAttribute(
         "href",
         `/entities/${entity.id}`,
       );
-      const dialog = page.getByRole("dialog", { name: editLabel, exact: true });
+      const editorUrl = page.url();
+      await dialog.getByLabel("요약").fill("엔터티 이동 취소 뒤 보존할 초안");
+      await entityLink.click();
+      const discard = page.getByRole("dialog", { name: "변경을 버릴까요?", exact: true });
+      await expect(discard).toBeVisible();
+      await discard.getByRole("button", { name: "취소", exact: true }).click();
+      await expect(page).toHaveURL(editorUrl);
+      await expect(dialog.getByLabel("요약")).toHaveValue("엔터티 이동 취소 뒤 보존할 초안");
+      expect((await mcp.call(`get_${kind}`, { id: target.id })).summary).toBe(target.summary);
+      await dialog.getByLabel("요약").fill(target.summary);
       await dialog.getByRole("button", {name:"닫기",exact:true}).click();
       await expect(dialog).not.toBeVisible();
       await expect(link).toBeFocused();await link.click();
@@ -128,7 +139,7 @@ for (
       await openDetailEditor(page);
       await dialog.getByLabel("요약").fill("수정한 근거");
       await dialog.getByLabel("편집 메모").fill("판단 근거 정정");
-      await dialog.getByRole("button", { name: "저장", exact: true }).click();
+      await saveWithMemo(page, dialog);
       await expect(dialog).not.toBeVisible();
       await page.getByRole("button", { name: "닫기", exact: true }).click();
       await expect(link).toBeFocused();
@@ -136,10 +147,7 @@ for (
       await link.click();
       await openDetailEditor(page);
       await page.getByRole("button", { name: "삭제", exact: true }).click();
-      await page.getByRole("dialog", { name: `${label}을 삭제할까요?`, exact: true }).getByRole("button", {
-        name: "삭제",
-        exact: true,
-      }).click();
+      await saveWithMemo(page,page.getByRole("dialog", { name: `${label}을 삭제할까요?`, exact: true }),"삭제");
       await expect(link).toHaveCount(0);
       await expect(page.locator(`.${path} .list .item-title`)).toHaveCount(62);
       ids.delete(target.id);
@@ -247,7 +255,7 @@ for (
     expect(await page.evaluate(() => window.scrollY)).toBe(readingScroll);
     await expect(readingRow).toBeInViewport();
     expect((await readingRow.boundingBox())!.y).toBeCloseTo(readingY, 1);
-    expect(new URL(page.url()).searchParams.get(`${path}_pages`)).toBe("251");
+    expect(new URL(page.url()).searchParams.get("pages")).toBe("251");
     expect(reads).toEqual([...Array.from({ length: 250 }, (_, index) => index), 250, 250]);
     await page.locator(`#activity-${path}-page-control`).click();
     await expect(page.locator(`.${path} .list .item-title`)).toHaveCount(252);

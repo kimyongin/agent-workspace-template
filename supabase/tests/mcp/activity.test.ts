@@ -1,11 +1,13 @@
 // MCP 계약 테스트: 실제 OAuth 토큰과 공식 MCP 클라이언트로 도구를 호출하고, HTTP와 결과·오류 의미가 같은지 본다.
 import { assert, assertEquals } from "@std/assert";
 import { z } from "zod";
-import { mutationMeta } from "../../functions/_shared/contracts/change.ts";
+import { businessMeta, mutationMeta } from "../../functions/_shared/contracts/change.ts";
 import { isoDate } from "../../functions/_shared/contracts/common.ts";
 import { recordCreate, recordListQuery, recordUpdate } from "../../functions/_shared/contracts/record.ts";
 import {
+  principleCorrection,
   principleCreate,
+  principleDelete,
   principleListQuery,
   principleSave,
   principleUpdate,
@@ -19,7 +21,7 @@ import {
   taskListQuery,
   taskUpdate,
 } from "../../functions/_shared/contracts/task.ts";
-import { API, call, httpTest, seoulDate, signIn } from "../http/_client.ts";
+import { admin, API, call, httpTest, seoulDate, signIn } from "../http/_client.ts";
 import { claimsOf, connectMcp, MCP_URL, mcpToken, registerClient, tool } from "./_mcp.ts";
 
 const sessionA = await signIn("A");
@@ -29,13 +31,63 @@ const tokenB = await mcpToken(sessionB);
 const mcpA = await connectMcp(tokenA);
 const mcpB = await connectMcp(tokenB);
 
+httpTest("기록 HTTP 편집·MCP 재시도는 추가 로그 없이 최신 메모·사건을 보존한다", async () => {
+  const record = await tool(mcpA, "create_record", { title: crypto.randomUUID(), summary: "원본 메모" });
+  const historyBefore = await tool(mcpA, "list_records", { record_kind: "change", limit: 100 });
+  const event = historyBefore.items.find((r: { change?: { target_id: string } }) => r.change?.target_id === record.id);
+  assert(event);
+  for (const row of [record, event]) {
+    const patch = { expected_version: row.version, summary: "정정한 최신 메모", request_id: crypto.randomUUID() };
+    const web = await call(sessionA, "PATCH", `/records/${row.id}`, patch);
+    assertEquals(web.status, 200);
+    assertEquals(await tool(mcpA, "update_record", { id: row.id, ...patch }), web.body);
+    assertEquals(
+      (await call(sessionA, "GET", `/records/${row.id}`)).body,
+      await tool(mcpA, "get_record", { id: row.id }),
+    );
+    assertEquals(web.body.change, row.change);
+    assertEquals(web.body.occurred_at, row.occurred_at);
+    assertEquals(
+      (await call(sessionB, "PATCH", `/records/${row.id}`, { expected_version: 2, body: "타인 수정" })).status,
+      404,
+    );
+    assertEquals(
+      (await tool(mcpB, "update_record", { id: row.id, expected_version: 2, body: "타인 수정" })).error.code,
+      "not_found",
+    );
+  }
+  const historyAfter = await tool(mcpA, "list_records", { record_kind: "change", limit: 100 });
+  assertEquals(
+    historyAfter.items.map((r: { id: string }) => r.id),
+    historyBefore.items.map((r: { id: string }) => r.id),
+  );
+  assertEquals(
+    (await call(sessionA, "PATCH", `/records/${event.id}`, {
+      expected_version: 2,
+      occurred_at: "2020-01-01T00:00:00Z",
+    })).status,
+    400,
+  );
+  assertEquals(
+    (await tool(mcpA, "update_record", { id: event.id, expected_version: 2, occurred_at: "2020-01-01T00:00:00Z" }))
+      .error.code,
+    "invalid_input",
+  );
+});
+
 httpTest("검색: HTTP/MCP 본문 키워드·원문 최소 응답·대체 상태·잘못된 입력 동등성", async () => {
   const marker = crypto.randomUUID(),
     r = await tool(mcpA, "create_record", { title: "검색 원문", summary: "본문 확인", body: marker + " 근거" });
   const q = { query: marker, mode: "keyword" };
+  const history = await tool(mcpA, "list_records", { record_kind: "change", limit: 100 });
+  const createdEvent = history.items.find((item: { change?: { target_id: string; action: string } }) =>
+    item.change?.target_id === r.id && item.change?.action === "create"
+  );
+  assert(createdEvent);
+  assert((await tool(mcpA, "get_record", { id: createdEvent.id })).body.includes(marker));
   const found = searchResult.parse(await tool(mcpA, "search", q));
   assertEquals(found, (await call(sessionA, "POST", "/search", q)).body);
-  assertEquals(found.items.map((x) => x.id), [r.id]);
+  assertEquals(found.items.map((x) => x.id).sort(), [r.id, createdEvent.id].sort());
   assertEquals("body" in found.items[0], false);
   assertEquals((await tool(mcpB, "search", q)).items, []);
   const auto = searchResult.parse(await tool(mcpA, "search", { query: marker }));
@@ -55,6 +107,8 @@ httpTest("검색: HTTP/MCP 본문 키워드·원문 최소 응답·대체 상태
 });
 
 const EXPECTED_TOOLS = [
+  "preview_entity_change",
+  "preview_task_change",
   "create_entity",
   "delete_entity",
   "get_entity",
@@ -83,6 +137,7 @@ const EXPECTED_TOOLS = [
   "search",
   "get_current_principle",
   "save_current_principle",
+  "preview_principle_change",
   "correct_principle",
   "stop_task",
   "update_principle",
@@ -267,90 +322,121 @@ httpTest("기록·원칙·완료·회차의 태그 HTTP/MCP 동등성", async ()
   );
 });
 
-httpTest("원칙: HTTP/MCP 현재 저장·과거 정정·재시도·승격·오류·페이지 동등성", async () => {
+httpTest("원칙: HTTP/MCP 현재 수정·과거 호환 정정·재시도·삭제·재생성·오류·페이지 동등성", async () => {
   const baseline = (await tool(mcpA, "get_current_principle", {})).current;
   assertEquals(
     await tool(mcpA, "get_current_principle", {}),
     (await call(sessionA, "GET", "/principles/current")).body,
   );
-  const input = {
-    title: "독서 원칙",
-    summary: "긴 책 읽기",
-    body: "# 근거",
-    request_id: crypto.randomUUID(),
-    ...(baseline ? { expected_version: baseline.version, change_note: "새 기준" } : {}),
-  };
-  const created = await call(sessionA, "POST", "/principles/current", input);
-  assertEquals(created.status, 201);
-  const retried = await tool(mcpA, "save_current_principle", input);
-  assertEquals(retried, created.body);
-  const second = await tool(mcpA, "update_principle", {
-    id: retried.id,
-    expected_version: retried.version,
-    title: "새 방향",
-    change_note: "목표 변경",
-  });
-  assert(second.id !== retried.id);
-  assertEquals((await tool(mcpA, "get_principle", { id: retried.id })).is_current, false);
-  const corrected = await tool(mcpA, "correct_principle", {
-    id: retried.id,
-    expected_version: retried.version,
-    title: "과거 오타 수정",
-    change_note: "오타",
-  });
-  assertEquals(corrected.saved_at, retried.saved_at);
-  assertEquals(corrected, (await call(sessionA, "GET", `/principles/${retried.id}`)).body);
-  const bad = {
-    expected_version: second.version,
-    title: "틀린 참조",
-    entity_id: crypto.randomUUID(),
-    change_note: "수정",
-  };
-  assertEquals(
-    (await tool(mcpA, "update_principle", { id: second.id, ...bad })).error,
-    (await call(sessionA, "PATCH", `/principles/${second.id}`, bad)).body,
-  );
-  assertEquals(
-    (await tool(mcpB, "get_principle", { id: second.id })).error,
-    (await call(sessionB, "GET", `/principles/${second.id}`)).body,
-  );
-  assertEquals(
-    (await tool(mcpA, "get_principle", { id: "bad" })).error,
-    (await call(sessionA, "GET", "/principles/bad")).body,
-  );
-  const first = await tool(mcpA, "list_principles", { view: "all", limit: 1 });
-  assert(first.next_cursor);
-  assertEquals(first, (await call(sessionA, "GET", "/principles?view=all&limit=1")).body);
-  const next = await tool(mcpA, "list_principles", { view: "all", limit: 1, cursor: first.next_cursor });
-  assert(next.items[0].id !== first.items[0].id);
-  assertEquals(
-    (await tool(mcpB, "list_principles", { view: "all", cursor: first.next_cursor })).error.code,
-    "invalid_input",
-  );
-  assertEquals(
-    (await tool(mcpA, "list_principles", { view: "history", cursor: first.next_cursor })).error.code,
-    "invalid_input",
-  );
-  assertEquals(
-    (await call(sessionA, "POST", `/principles/${second.id}/deactivate`, { expected_version: second.version })).status,
-    404,
-  );
-  assertEquals(
-    (await tool(mcpA, "delete_principle", { id: second.id, expected_version: second.version })).deleted,
-    second.id,
-  );
-  assertEquals((await tool(mcpA, "get_current_principle", {})).current.id, retried.id);
-  const promoted = (await tool(mcpA, "get_current_principle", {})).current;
-  assert(promoted.version > corrected.version);
-  assertEquals(
-    (await call(sessionA, "DELETE", `/principles/${retried.id}?expected_version=${corrected.version}`)).status,
-    409,
-  );
-  assertEquals(
-    (await tool(mcpA, "delete_principle", { id: retried.id, expected_version: promoted.version })).deleted,
-    retried.id,
-  );
-  assertEquals((await tool(mcpA, "get_current_principle", {})).current?.id ?? null, baseline?.id ?? null);
+  const fixtureIds: string[] = [];
+  try {
+    if (baseline) await admin`update app.principles set is_current=false where id=${baseline.id}`;
+    const input = {
+      title: "독서 원칙",
+      summary: "긴 책 읽기",
+      body: "# 근거",
+      request_id: crypto.randomUUID(),
+    };
+    const created = await call(sessionA, "POST", "/principles/current", input);
+    assertEquals(created.status, 201);
+    fixtureIds.push(created.body.id);
+    const retried = await tool(mcpA, "save_current_principle", input);
+    assertEquals(retried, created.body);
+    const second = await tool(mcpA, "update_principle", {
+      id: retried.id,
+      expected_version: retried.version,
+      title: "새 방향",
+      change_note: "목표 변경",
+    });
+    assertEquals(second.id, retried.id);
+    assertEquals(second.version, retried.version + 1);
+    assertEquals((await tool(mcpA, "get_principle", { id: retried.id })).is_current, true);
+    // Only explicit pre-transition fixtures are historical documents after current saves become updates.
+    const [owner] = await admin`select owner_id from app.principles where id=${second.id}`;
+    const [legacy] = await admin`insert into app.principles(owner_id,title,summary,body,is_current,origin,saved_at)
+    values(${owner.owner_id},'옛 독서 원칙','과거 근거','# 과거 본문',false,'legacy','2020-01-01T00:00:00Z') returning id`;
+    fixtureIds.push(legacy.id);
+    const old = await tool(mcpA, "get_principle", { id: legacy.id });
+    const corrected = await tool(mcpA, "correct_principle", {
+      id: old.id,
+      expected_version: old.version,
+      title: "과거 오타 수정",
+      change_note: "오타",
+    });
+    assertEquals(corrected.saved_at, old.saved_at);
+    assertEquals(corrected.body, old.body);
+    assertEquals(corrected, (await call(sessionA, "GET", `/principles/${old.id}`)).body);
+    const bad = {
+      expected_version: second.version,
+      title: "틀린 참조",
+      entity_id: crypto.randomUUID(),
+      change_note: "수정",
+    };
+    assertEquals(
+      (await tool(mcpA, "update_principle", { id: second.id, ...bad })).error,
+      (await call(sessionA, "PATCH", `/principles/${second.id}`, bad)).body,
+    );
+    assertEquals(
+      (await tool(mcpB, "get_principle", { id: second.id })).error,
+      (await call(sessionB, "GET", `/principles/${second.id}`)).body,
+    );
+    assertEquals(
+      (await tool(mcpA, "get_principle", { id: "bad" })).error,
+      (await call(sessionA, "GET", "/principles/bad")).body,
+    );
+    const first = await tool(mcpA, "list_principles", { view: "all", limit: 1 });
+    assert(first.next_cursor);
+    assertEquals(first, (await call(sessionA, "GET", "/principles?view=all&limit=1")).body);
+    const next = await tool(mcpA, "list_principles", { view: "all", limit: 1, cursor: first.next_cursor });
+    assert(next.items[0].id !== first.items[0].id);
+    assertEquals(
+      (await tool(mcpB, "list_principles", { view: "all", cursor: first.next_cursor })).error.code,
+      "invalid_input",
+    );
+    assertEquals(
+      (await tool(mcpA, "list_principles", { view: "history", cursor: first.next_cursor })).error.code,
+      "invalid_input",
+    );
+    assertEquals(
+      (await call(sessionA, "POST", `/principles/${second.id}/deactivate`, { expected_version: second.version }))
+        .status,
+      404,
+    );
+    assertEquals(
+      (await tool(mcpA, "delete_principle", { id: second.id, expected_version: second.version })).deleted,
+      second.id,
+    );
+    assertEquals((await tool(mcpA, "get_current_principle", {})).current, null);
+    assertEquals(
+      (await call(sessionA, "DELETE", `/principles/${old.id}?expected_version=${corrected.version}`)).status,
+      409,
+    );
+    assertEquals(
+      (await tool(mcpA, "save_current_principle", {
+        ...input,
+        request_id: crypto.randomUUID(),
+        expected_version: second.version,
+      })).error.code,
+      "conflict",
+    );
+    const recreated = await tool(mcpA, "save_current_principle", {
+      title: "재생성한 원칙",
+      summary: "새 현재 문서",
+      body: "재생성 본문",
+    });
+    fixtureIds.push(recreated.id);
+    assert(recreated.id !== second.id);
+    assert(recreated.version > second.version);
+    assertEquals(
+      (await tool(mcpA, "delete_principle", { id: recreated.id, expected_version: recreated.version })).deleted,
+      recreated.id,
+    );
+    assertEquals((await tool(mcpA, "get_current_principle", {})).current, null);
+  } finally {
+    for (const id of fixtureIds) await admin`delete from app.principles where id=${id}`;
+    if (baseline) await admin`update app.principles set is_current=true where id=${baseline.id}`;
+  }
+  assertEquals((await tool(mcpA, "get_current_principle", {})).current, baseline);
 });
 
 httpTest("토큰 교차 사용: 웹 세션 토큰은 MCP에서, MCP 토큰은 HTTP API에서 401", async () => {
@@ -405,6 +491,8 @@ httpTest(
     const idOnly = { id: json(z.uuid()) };
     const mutationVersion =
       json(z.strictObject({ expected_version: z.number().int().min(1), ...mutationMeta })).properties;
+    const businessVersion =
+      json(z.strictObject({ expected_version: z.number().int().min(1), ...businessMeta })).properties;
     const expected: Record<string, Record<string, unknown>> = {
       list_tasks: json(taskListQuery).properties,
       list_records: json(recordListQuery).properties,
@@ -412,8 +500,8 @@ httpTest(
       save_current_principle: json(principleSave).properties,
       get_current_principle: {},
       update_principle: { ...idOnly, ...json(principleUpdate).properties },
-      correct_principle: { ...idOnly, ...json(principleUpdate).properties },
-      delete_principle: { ...idOnly, ...mutationVersion },
+      correct_principle: { ...idOnly, ...json(principleCorrection).properties },
+      delete_principle: { ...idOnly, ...json(principleDelete).properties },
       create_tag: json(tagCreate).properties,
       list_tags: json(tagListQuery).properties,
       search: json(searchInput).properties,
@@ -428,9 +516,9 @@ httpTest(
       update_record: { ...idOnly, ...json(recordUpdate).properties },
       complete_task: { ...idOnly, ...json(taskComplete).properties },
       list_occurrences: { ...idOnly, ...json(occurrenceRange).properties },
-      stop_task: { ...idOnly, ...mutationVersion },
-      resume_task: { ...idOnly, ...mutationVersion },
-      delete_task: { ...idOnly, ...mutationVersion },
+      stop_task: { ...idOnly, ...businessVersion },
+      resume_task: { ...idOnly, ...businessVersion },
+      delete_task: { ...idOnly, ...businessVersion },
       delete_record: { ...idOnly, ...mutationVersion },
       // 회차 기록: 기록 생성 입력 + id + date
       record_occurrence: {

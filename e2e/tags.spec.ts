@@ -1,4 +1,4 @@
-import { beginTabAction, openDetailEditor } from "./ui-actions.ts";
+import { saveWithMemo, beginTabAction, openDetailEditor } from "./ui-actions.ts";
 import {expect,test} from "@playwright/test";
 import {devLogin,mcpClient,mcpTokenViaConsent,unique} from "./support.ts";
 
@@ -63,18 +63,18 @@ test("엔터티·활동 태그 같은 이름·웹 선택 정정·삭제 뒤 원�
       await page.goto(path);await beginTabAction(page,action);
       const form=page.getByRole("dialog",{name:action,exact:true}),title=unique("분류 원문");
       if(kind==="entity")await form.getByLabel("속성 1").fill(title);else{await form.getByLabel("제목").fill(title);await form.getByLabel("요약").fill("분류");await form.getByLabel("본문").fill("원문 보존");}
-      await form.getByRole("button",{name,exact:true}).click();await form.getByRole("button",{name:"저장",exact:true}).click();
+      await form.getByRole("button",{name,exact:true}).click();await saveWithMemo(page,form);
       await expect(form).not.toBeVisible();await expect(page).toHaveURL(/\/(entities|records)\/[0-9a-f-]{36}(?:\?|$)/);
       if(kind==="entity")await expect(page.locator("dialog.modal:not(.modal-confirm)[open]").getByLabel("속성 1")).toHaveValue(title);else await expect(page.getByRole("heading",{name:title,level:1})).toBeVisible();const id=new URL(page.url()).pathname.split("/").at(-1)!;
       expect((await mcp.call(`get_${kind}`,{id})).tag_ids).toEqual([tag.id]);
       await openDetailEditor(page);const edit=page.getByRole("dialog",{name:kind==="entity"?"엔터티 편집":"기록 편집"});
-      await edit.getByRole("button",{name,exact:true}).click();await edit.getByLabel("편집 메모").fill("태그 분류 정정");await edit.getByRole("button",{name:"저장",exact:true}).click();
+      await edit.getByRole("button",{name,exact:true}).click();await edit.getByLabel("편집 메모").fill("태그 분류 정정");await saveWithMemo(page,edit);
       await expect(edit).not.toBeVisible();expect((await mcp.call(`get_${kind}`,{id})).tag_ids).toEqual([]);
       await mcp.call(`update_${kind}`,{id,expected_version:2,tag_ids:[tag.id],change_note:"분류 복구"});
       const filtered=await mcp.call(kind==="entity"?"list_entities":"list_records",{tag_id:tag.id});
       expect(filtered.items.map((x:{id:string})=>x.id)).toEqual([id]);
       await page.goto(`${path}?tag_id=${tag.id}`);await page.getByRole("link",{name:title,exact:true}).click();await openDetailEditor(page);
-      const revisit=page.getByRole("dialog",{name:kind==="entity"?"엔터티 편집":"기록 편집"});await revisit.getByLabel(kind==="entity"?"속성 2":"요약").fill(kind==="entity"?"10":"수정 후 필터 보존");await revisit.getByLabel("편집 메모").fill("분류 상태에서 원문 정정");await revisit.getByRole("button",{name:"저장",exact:true}).click();await expect(revisit).not.toBeVisible();
+      const revisit=page.getByRole("dialog",{name:kind==="entity"?"엔터티 편집":"기록 편집"});await revisit.getByLabel(kind==="entity"?"속성 2":"요약").fill(kind==="entity"?"10":"수정 후 필터 보존");await revisit.getByLabel("편집 메모").fill("분류 상태에서 원문 정정");await saveWithMemo(page,revisit);await expect(revisit).not.toBeVisible();
       if(kind!=="entity")await page.getByRole("button",{name:"닫기",exact:true}).click();await expect(page.getByRole("button",{name:tag.name,exact:true})).toHaveAttribute("aria-pressed","true");await expect(page.locator(kind==="entity"?".list .item-title":".records .list .item-title")).toHaveCount(1);
       await mcp.call("delete_tag",{id:tag.id,expected_version:1});await page.goto(`${path}/${id}`);
       expect((await mcp.call(`get_${kind}`,{id})).tag_ids).toEqual([]);
@@ -104,10 +104,10 @@ test("웹 할 일 태그 선택→MCP 필터·정정→태그 삭제 후 본문 
     const tag=await mcp.call("create_tag",{name:unique("업무 태그").slice(0,30)});
     await page.goto("/tasks");await beginTabAction(page,"할 일 추가");
     const form=page.getByRole("dialog",{name:"할 일 추가"});await form.getByLabel("제목").fill(unique("태그 업무"));await form.getByLabel("요약").fill("분류 검증");await form.getByLabel("본문").fill("삭제 후에도 보존");
-    await form.getByRole("button",{name:tag.name,exact:true}).click();await form.getByRole("button",{name:"추가",exact:true}).click();
+    await form.getByRole("button",{name:tag.name,exact:true}).click();await saveWithMemo(page,form,"추가");
     await expect(form).not.toBeVisible();const id=new URL(page.url()).pathname.split("/").at(-1)!;expect((await mcp.call("get_task",{id})).tag_ids).toEqual([tag.id]);
     await openDetailEditor(page);const edit=page.getByRole("dialog",{name:"할 일 편집"});
-    await edit.getByRole("button",{name:tag.name,exact:true}).click();await edit.getByLabel("편집 메모").fill("분류 정정");await edit.getByRole("button",{name:"저장",exact:true}).click();
+    await edit.getByRole("button",{name:tag.name,exact:true}).click();await edit.getByLabel("편집 메모").fill("분류 정정");await saveWithMemo(page,edit);
     await expect(edit).not.toBeVisible();expect((await mcp.call("get_task",{id})).tag_ids).toEqual([]);
     await mcp.call("update_task",{id,expected_version:2,tag_ids:[tag.id],change_note:"분류 복구"});
     const items=await mcp.call("list_tasks",{tag_id:tag.id});expect(items.items.map((t:{id:string})=>t.id)).toEqual([id]);
@@ -134,12 +134,12 @@ test("추가 페이지 태그의 편집 취소·충돌·저장 뒤 목록과 초
     await form.getByRole("button", {name:"닫기",exact:true}).click();await expect(trigger).toBeFocused();
     await trigger.click();const draft=unique("초안").slice(0,30);await form.getByRole("textbox",{name:/태그 이름/}).fill(draft);
     const server=unique("서버").slice(0,30);await mcp.call("rename_tag",{id:oldest.id,expected_version:1,name:server});
-    await form.getByRole("button",{name:"저장",exact:true}).click();await expect(form.getByText(/다른 변경이 저장/)).toBeVisible();
+    await saveWithMemo(page,form);await expect(form.getByText(/다른 변경이 저장/)).toBeVisible();
     await expect(form.getByRole("textbox",{name:/태그 이름/})).toHaveValue(draft);await form.getByRole("button", {name:"닫기",exact:true}).click();
     await page.getByRole("dialog",{name:"변경을 버릴까요?"}).getByRole("button",{name:"변경 버리기"}).click();
     const fresh=page.getByRole("button",{name:`${server} 이름 변경`,exact:true});await expect(fresh).toBeFocused();
     await expect(trigger).toHaveCount(0);await fresh.click();form=page.getByRole("dialog",{name:"태그 이름 변경"});
-    await form.getByRole("textbox",{name:/태그 이름/}).fill(draft);await form.getByRole("button",{name:"저장",exact:true}).click();
+    await form.getByRole("textbox",{name:/태그 이름/}).fill(draft);await saveWithMemo(page,form);
     await expect(page.getByRole("button",{name:`${draft} 이름 변경`,exact:true})).toBeFocused();
     await expect(page.getByRole("button",{name:`${tags[1].name} 이름 변경`,exact:true})).toBeVisible();
   }finally{await mcp.close();}

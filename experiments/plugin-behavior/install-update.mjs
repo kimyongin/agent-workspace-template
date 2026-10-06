@@ -8,6 +8,10 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 
 const repo = fileURLToPath(new URL('../../', import.meta.url));
+const candidateManifest = JSON.parse(await readFile(resolve(repo, 'plugins/workspace/plugin.json'), 'utf8'));
+const claudeManifest = JSON.parse(await readFile(resolve(repo, 'plugins/workspace/.claude-plugin/plugin.json'), 'utf8'));
+assert.match(candidateManifest.version, /^\d+\.\d+\.\d+$/);
+assert.equal(claudeManifest.version, candidateManifest.version);
 if (!process.argv[2]) throw new Error('Usage: install-update.mjs <new-outside-output>');
 const output = await outsideDirectory(process.argv[2]);
 const market = resolve(output, 'market');
@@ -42,7 +46,7 @@ run('codex', ['plugin', 'add', 'workspace@workspace-template', '--json']);
 run('claude', ['plugin', 'marketplace', 'update', 'workspace-template']);
 run('claude', ['plugin', 'update', 'workspace@workspace-template']);
 evidence.after = { codex: JSON.parse(run('codex', ['plugin', 'list', '--json'])), claude: JSON.parse(run('claude', ['plugin', 'list', '--json'])) };
-for (const [stage, version] of [['before', '0.1.0'], ['after', '0.1.1']]) {
+for (const [stage, version] of [['before', '0.1.0'], ['after', candidateManifest.version]]) {
   const codex = evidence[stage].codex.installed;
   const claude = evidence[stage].claude;
   for (const plugins of [codex, claude]) {
@@ -52,10 +56,10 @@ for (const [stage, version] of [['before', '0.1.0'], ['after', '0.1.1']]) {
   }
 }
 const manifest = JSON.parse(await readFile(resolve(market, 'plugins/workspace/plugin.json'), 'utf8'));
-if (manifest.version !== '0.1.1') throw new Error('Expected candidate 0.1.1');
+assert.equal(manifest.version, candidateManifest.version);
 const skillHash = async (path) => createHash('sha256').update(await readFile(path)).digest('hex');
 evidence.sharedSkillSha256 = await skillHash(resolve(repo, 'plugins/workspace/skills/workspace/SKILL.md'));
-for (const home of [codexHome, claudeHome]) assert.equal(await skillHash(resolve(home, 'plugins/cache/workspace-template/workspace/0.1.1/skills/workspace/SKILL.md')), evidence.sharedSkillSha256);
+for (const home of [codexHome, claudeHome]) assert.equal(await skillHash(resolve(home, 'plugins/cache/workspace-template/workspace', candidateManifest.version, 'skills/workspace/SKILL.md')), evidence.sharedSkillSha256);
 evidence.installedSharedSkillHashesMatch = true;
 await writeFile(resolve(output, 'install-update.json'), `${JSON.stringify(evidence, null, 2)}\n`);
 console.log(JSON.stringify({ output, baselineRevision: baseline, candidateRevision: evidence.candidateRevision, candidateWorkingTreeDirty: evidence.candidateWorkingTreeDirty, before: { codex: evidence.before.codex.installed[0].version, claude: evidence.before.claude[0].version }, after: { codex: evidence.after.codex.installed[0].version, claude: evidence.after.claude[0].version }, installedSharedSkillHashesMatch: evidence.installedSharedSkillHashesMatch }));

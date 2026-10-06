@@ -1,3 +1,4 @@
+import type { EntityContext } from "../../contracts/entity-links.ts";
 // 할 일·기록 유스케이스가 쓰는 저장 계약. SQL·SDK 타입을 노출하지 않는다.
 import type { Actor } from "../shared/actor.ts";
 import type { ChangeStore } from "../shared/changes.ts";
@@ -12,6 +13,8 @@ export interface ActivityRecord {
   change?: ChangeMetadata | null;
   applied_principle_snapshots?: AppliedPrincipleSnapshot[];
   entity_id?: string | null;
+  entity_ids?: string[];
+  entity_context?: EntityContext[];
   tag_ids: string[];
   id: string;
   title: string;
@@ -37,6 +40,8 @@ export interface NewRecord {
   record_kind?: "user" | "result";
   change_note?: string;
   entity_id?: string | null;
+  entity_ids?: string[];
+  entity_context?: EntityContext[];
   tag_ids?: string[];
   applied_principle_ids?: string[];
   title: string;
@@ -52,7 +57,7 @@ export type RecordChanges =
   & Partial<
     Pick<
       ActivityRecord,
-      "title" | "summary" | "body" | "occurred_at" | "applied_principle_ids" | "tag_ids" | "entity_id"
+      "title" | "summary" | "body" | "occurred_at" | "applied_principle_ids" | "tag_ids" | "entity_id" | "entity_ids"
     >
   >;
 
@@ -101,6 +106,8 @@ export interface ActivityStore extends ChangeStore {
   saveRequest(operation: string, requestId: string, requestHash: string, response: unknown): Promise<void>;
 
   getTask(id: string, opts?: { forUpdate?: boolean }): Promise<Task | null>;
+  /** 새 선택은 현재 소유자의 살아 있는 엔터티여야 한다. 저장하지 않는다. */
+  validateEntitySelection(ids: string[]): Promise<void>;
   listTasks(filter: TaskFilter): Promise<Task[]>;
   insertTask(task: NewTask): Promise<Task>;
   /** 버전을 1 올리고 updated_at을 갱신한다. */

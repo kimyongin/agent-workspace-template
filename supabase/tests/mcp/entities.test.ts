@@ -2,7 +2,7 @@ import { assert, assertEquals } from "@std/assert";
 import { admin, call, httpTest, signIn } from "../http/_client.ts";
 import { connectMcp, mcpToken, tool } from "./_mcp.ts";
 httpTest("Entity MCP: 실제 SDK/OAuth CRUD·태그 scope·웹 parity·참조 거부·삭제 보존", async () => {
-  const token = await signIn("A"), client = await connectMcp(await mcpToken(token));
+  const token = await signIn("A"), foreignToken = await signIn("B"), client = await connectMcp(await mcpToken(token));
   try {
     const listed = await client.listTools();
     for (const name of ["list_entities", "get_entity", "create_entity", "update_entity", "delete_entity"]) {
@@ -36,15 +36,13 @@ httpTest("Entity MCP: 실제 SDK/OAuth CRUD·태그 scope·웹 parity·참조 �
     assertEquals(edit.status, 200);
     assertEquals(edit.body.change_note, "自動記録の説明を補う");
     assertEquals(edit.body.change, createdHistory.change_metadata);
-    const [editedHistory] =
-      await admin`select change_metadata from app.records where record_kind='change' and change_metadata->>'target_id'=${createdHistory.id}`;
-    assertEquals(editedHistory.change_metadata.source, "http");
-    assertEquals(editedHistory.change_metadata.action, "update");
-    assertEquals(editedHistory.change_metadata.before.change, undefined);
+    const readEdited = await tool(client, "get_record", { id: createdHistory.id });
+    assertEquals(readEdited.change, createdHistory.change_metadata);
+    assertEquals(readEdited.change_note, "自動記録の説明を補う");
     assertEquals(
       (await admin`select count(*)::int n from app.records where change_metadata->>'target_id'=${createdHistory.id}`)[0]
         .n,
-      1,
+      0,
     );
     assertEquals(
       (await tool(client, "create_entity", { prop1: "거부", tag_ids: [activityTag.id] })).error.code,
@@ -69,17 +67,21 @@ httpTest("Entity MCP: 실제 SDK/OAuth CRUD·태그 scope·웹 parity·참조 �
         .code,
       "conflict",
     );
-    assertEquals(
-      (await tool(client, "update_entity", { id: e.id, expected_version: 1, prop1: "메모 누락" })).error.code,
-      "invalid_input",
-    );
-    const changed = await tool(client, "update_entity", {
+    const withoutReason = await tool(client, "update_entity", {
       id: e.id,
       expected_version: 1,
+      prop1: "이유 없이 수정",
+    });
+    assertEquals(withoutReason.version, 2);
+    assertEquals(withoutReason.prop1, "이유 없이 수정");
+    assertEquals((await call(token, "GET", `/entities/${e.id}`)).body.prop1, withoutReason.prop1);
+    const changed = await tool(client, "update_entity", {
+      id: e.id,
+      expected_version: 2,
       prop3: "2026-10-04",
       change_note: "일자 정정",
     });
-    assertEquals(changed.version, 2);
+    assertEquals(changed.version, 3);
     const deleteRequest = crypto.randomUUID();
     assertEquals(
       (await call(token, "DELETE", `/tags/${tag.id}?expected_version=1&request_id=${deleteRequest}`)).status,
@@ -90,19 +92,60 @@ httpTest("Entity MCP: 실제 SDK/OAuth CRUD·태그 scope·웹 parity·참조 �
       tag.id,
     );
     const unlinked = await tool(client, "get_entity", { id: e.id });
-    assertEquals(unlinked.version, 3);
+    assertEquals(unlinked.version, 4);
     assertEquals(unlinked.tag_ids, []);
     const updates =
-      await admin`select change_metadata from app.records where change_metadata->>'target_id'=${e.id} and change_metadata->>'action'='update'`;
-    assertEquals(updates.length, 2);
-    const unlink = updates.find((r) => r.change_metadata.source === "http")!.change_metadata;
-    assertEquals(unlink.before.tags[0].name, tag.name);
-    assertEquals(unlink.after.tag_ids, []);
-    await tool(client, "delete_entity", { id: e.id, expected_version: 3 });
+      await admin`select id,change_metadata from app.records where change_metadata->>'target_id'=${e.id} and change_metadata->>'action'='update'`;
+    assertEquals(updates.length, 3);
+    const unlinkRow = updates.find((r) => r.change_metadata.source === "http")!;
+    const unlink = await tool(client, "get_record", { id: unlinkRow.id });
+    assertEquals(unlink.change, unlinkRow.change_metadata);
+    assertEquals([unlink.change.before, unlink.change.after], [null, null]);
+    assertEquals([
+      unlink.change.target_kind,
+      unlink.change.target_id,
+      unlink.change.target_title,
+      unlink.change.action,
+      unlink.change.path,
+    ], ["entity", e.id, "이유 없이 수정", "update", `/entities/${e.id}`]);
+    assertEquals(unlink.body, `태그: ["${tag.id}"] → []`);
+    assertEquals((await call(token, "GET", `/records/${unlinkRow.id}`)).body, unlink);
+    assertEquals(
+      (await tool(client, "list_tags", { scope: "entity" })).items.some((row: { id: string }) => row.id === tag.id),
+      false,
+    );
+    const task = await tool(client, "create_task", {
+      kind: "once",
+      title: "엔터티 삭제 관계 검증",
+      summary: marker,
+      entity_ids: [e.id],
+    });
+    await tool(client, "delete_entity", { id: e.id, expected_version: 4 });
+    const liveTask = await tool(client, "get_task", { id: task.id });
+    assertEquals(liveTask.entity_id, null);
+    assertEquals(liveTask.entity_ids, []);
+    assertEquals((await tool(client, "list_tasks", { entity_id: e.id })).items, []);
     const retained = await tool(client, "get_record", { id: r.id });
     assertEquals(retained.entity_id, null);
+    assertEquals(retained.entity_ids, [e.id]);
+    assertEquals(retained.entity_context, r.entity_context);
+    assertEquals(
+      retained.entity_context.map((context: { id: string; title: string; source: string }) => ({
+        id: context.id,
+        title: context.title,
+        source: context.source,
+      })),
+      [
+        { id: e.id, title: e.prop1, source: "selection" },
+      ],
+    );
     assertEquals(retained.summary, marker);
-    assertEquals((await tool(client, "search", search)).items, []);
+    const preservedSearch = await tool(client, "search", search);
+    assertEquals(preservedSearch.items.map((row: { id: string }) => row.id), [r.id]);
+    assertEquals(preservedSearch, (await call(token, "POST", "/search", search)).body);
+    assertEquals((await call(foreignToken, "GET", `/records/${r.id}`)).status, 404);
+    assertEquals((await call(foreignToken, "POST", "/search", search)).body.items, []);
+    await tool(client, "delete_task", { id: task.id, expected_version: liveTask.version });
   } finally {
     await client.close();
   }

@@ -31,7 +31,7 @@ dbTest(
         recordCreate.parse({ title: "decision", summary: "context", applied_principle_ids: [old.id] }),
       );
       const snapshots = record.applied_principle_snapshots;
-      await p.saveCurrentPrinciple(
+      const current = await p.saveCurrentPrinciple(
         pd,
         f.actor,
         principleSave.parse({
@@ -41,11 +41,15 @@ dbTest(
           change_note: "new policy",
         }),
       );
-      await p.correctPrinciple(
-        pd,
-        f.actor,
-        old.id,
-        principleCorrection.parse({ expected_version: old.version, body: "corrected", change_note: "correction" }),
+      assertEquals(current.id, old.id);
+      assertEquals(current.version, old.version + 1);
+      await assertRejects(() =>
+        p.correctPrinciple(
+          pd,
+          f.actor,
+          old.id,
+          principleCorrection.parse({ expected_version: old.version, body: "corrected", change_note: "correction" }),
+        )
       );
       record = await a.updateRecord(
         ad,
@@ -61,6 +65,7 @@ dbTest(
       assertEquals(record.applied_principle_snapshots, snapshots);
       const source = await p.getPrinciple(pd, f.actor, old.id);
       await p.deletePrinciple(pd, f.actor, old.id, source.version);
+      assertEquals((await p.currentPrinciple(pd, f.actor)).current, null);
       record = await a.updateRecord(
         ad,
         f.actor,
@@ -88,8 +93,8 @@ dbTest(
               fn(
                 new Proxy(s, {
                   get: (target, key) =>
-                    key === "appendChange"
-                      ? () => Promise.reject(Error("required snapshot-clear history failure"))
+                    key === "saveRequest"
+                      ? () => Promise.reject(Error("request persistence failure"))
                       : Reflect.get(target, key),
                 }),
               )),
@@ -116,7 +121,7 @@ dbTest(
         ),
         cleared,
       );
-      assertEquals(await count(), beforeCount + 1);
+      assertEquals(await count(), beforeCount);
     } finally {
       await f.cleanup();
     }
@@ -131,13 +136,14 @@ dbTest("history memo correction keeps content/order/current and rollback/no-op/i
       f.actor,
       principleSave.parse({ title: "first", summary: "context", body: "original" }),
     );
+    // Explicit pre-transition history fixture; current saves never create history documents.
+    await admin`update app.principles set is_current=false where id=${old.id} and owner_id=${f.actor.userId}`;
     const current = await p.saveCurrentPrinciple(
       pd,
       f.actor,
       principleSave.parse({
         title: "second",
         summary: "context",
-        expected_version: old.version,
         change_note: "new policy",
       }),
     );
@@ -215,20 +221,14 @@ dbTest(
   async () => {
     const f = await fixtureOwner(admin);
     try {
-      let version: number | undefined;
       const ids: string[] = [];
+      // Compatibility search still reads preserved history until #134.
       for (let n = 0; n < 3; n++) {
-        const row = await p.saveCurrentPrinciple(
-          pd,
-          f.actor,
-          principleSave.parse({
-            title: `policy ${n}`,
-            summary: "context",
-            ...(version ? { expected_version: version, change_note: "next" } : {}),
-          }),
-        );
+        const [row] = await admin`insert into app.principles(owner_id,title,summary,is_current,origin,saved_at)
+          values(${f.actor.userId},${`policy ${n}`},'context',${n === 2},'legacy',${`2020-01-0${
+          n + 1
+        }T00:00:00Z`}) returning id`;
         ids.unshift(row.id);
-        version = row.version;
       }
       for (const view of ["current", "history", "all"] as const) {
         const expected = view === "current" ? ids.slice(0, 1) : view === "history" ? ids.slice(1) : ids;

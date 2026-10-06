@@ -1,4 +1,4 @@
-import { beginTabAction } from "./ui-actions.ts";
+import { beginTabAction, saveWithMemo } from "./ui-actions.ts";
 // 디자인 가이드의 화면 검수 중 자동으로 확인할 수 있는 항목(docs/design/guide.md "화면 완료 체크리스트").
 // 화면 폭별 가로 넘침, 조작 영역 44px, 200% 확대(폭 절반), 키보드만으로 작성·닫기, 대화상자 초점.
 import { expect, type Page, test } from "@playwright/test";
@@ -16,11 +16,20 @@ async function layoutProblems(page: Page) {
     }
     const targets = document.querySelectorAll<HTMLElement>("button, a, input, textarea, select");
     for (const el of targets) {
-      const r = el.getBoundingClientRect();
+      let r = el.getBoundingClientRect();
       if (r.width === 0 || r.height === 0) continue; // 숨은 요소(닫힌 대화상자 등)
       if (el.closest(".markdown")) continue; // 본문 속 링크는 글자 크기를 따른다
       const inline = el.tagName === "A" && !el.classList.contains("btn") && getComputedStyle(el).display === "inline";
       if (inline) continue; // 문장 속 링크는 가이드상 예외(텍스트 조작)
+      // Native checkbox/radio glyphs use their associated label as the real pointer target.
+      if (el instanceof HTMLInputElement && ["checkbox", "radio"].includes(el.type)) {
+        const label = [...(el.labels ?? [])].find(label => {
+          const box = label.getBoundingClientRect();
+          return box.width >= r.width && box.height >= r.height && box.left <= r.left && box.right >= r.right
+            && box.top <= r.top && box.bottom >= r.bottom;
+        });
+        if (label) r = label.getBoundingClientRect();
+      }
       if (r.height < 43.5 || (el.tagName !== "INPUT" && el.tagName !== "TEXTAREA" && r.width < 43.5)) {
         problems.push(`작은 조작 영역 ${el.tagName} "${(el.textContent || el.getAttribute("aria-label") || "").trim().slice(0, 20)}" ${Math.round(r.width)}x${Math.round(r.height)}`);
       }
@@ -40,7 +49,7 @@ test.describe("화면 폭별 배치", () => {
     const longTitle = unique("가".repeat(40) + "공백없는긴제목");
     await dialog.getByLabel("제목").fill(longTitle);
     await dialog.getByLabel("요약").fill("https://example.com/" + "a".repeat(120));
-    await dialog.locator('button[type="submit"]').click();
+    await saveWithMemo(page, dialog, "추가");
     // 목록의 h1이 아니라 만든 할 일의 상세 화면이 뜰 때까지 기다린다(모달 뒤 목록 h1도 보이는 것으로 판정됨).
     await expect(page.getByRole("heading", { name: longTitle, level: 1 })).toBeVisible();
     const taskDetail = page.url();
@@ -96,7 +105,7 @@ test.describe("화면 폭별 배치", () => {
 test("키보드만으로 할 일을 만들고, 미저장 내용이 있으면 닫기 전에 확인한다", async ({ page, isMobile }) => {
   test.skip(isMobile, "키보드 흐름은 데스크톱에서 본다");
   await devLogin(page);
-  const add = page.getByRole("button", { name: "활동 작업 메뉴" });
+  const add = page.getByRole("button", { name: "할 일 작업 메뉴" });
   await add.focus();
   await page.keyboard.press("Enter");
   await page.keyboard.press("ArrowDown");await page.keyboard.press("Enter");
@@ -131,12 +140,21 @@ test("키보드만으로 할 일을 만들고, 미저장 내용이 있으면 닫
   await page.keyboard.press("Enter");
   await expect(dialog.getByLabel("제목")).toHaveValue("키보드 할 일");
 
-  // 요약을 채우고 제목 칸에서 Enter(브라우저의 기본 제출)로 저장한다.
+  // 요약을 채우고 제목 칸에서 Enter로 기본 메모를 확인한 뒤 키보드로 확정한다.
   const title = unique("키보드 할 일");
   await dialog.getByLabel("제목").fill(title);
   await dialog.getByLabel("요약").focus();
   await page.keyboard.type("키보드로 만든 할 일");
   await dialog.getByLabel("제목").focus();
+  await page.keyboard.press("Enter");
+  await expect(dialog.getByRole("region", { name: "저장할 기록 메모" })).toBeVisible();
+  await expect(dialog.getByLabel(/^제목/)).toHaveValue(title);
+  // 메모 확인은 아직 저장하지 않으며 초점은 대화상자 안에 남는다.
+  await expect(dialog).toBeVisible();
+  expect(await page.evaluate(() => !!document.activeElement?.closest("dialog[open]"))).toBe(true);
+  const commit = dialog.getByRole("button", { name: "확인하고 저장", exact: true });
+  await expect(commit).toBeEnabled();
+  await commit.focus();
   await page.keyboard.press("Enter");
   await expect(page.getByRole("heading", { name: title, level: 1 })).toBeVisible();
 });

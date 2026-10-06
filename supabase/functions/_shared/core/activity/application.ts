@@ -1,3 +1,4 @@
+import { entityChanges, selectedEntities } from "./entity-selection.ts";
 // 할 일·기록 유스케이스. HTTP와 MCP가 같은 함수를 호출한다(ADR-0001).
 // 읽기 → 도메인 판단 → 저장 순서와 트랜잭션 경계, 색인 작업 등록, 요청 재전송 처리를 맡는다.
 import type { RecordCreate, RecordListQuery, RecordResult, RecordUpdate } from "../../contracts/record.ts";
@@ -14,6 +15,9 @@ import type {
 import type { Actor } from "../shared/actor.ts";
 import { conflict, invalidInput, notFound } from "../shared/errors.ts";
 import { changed } from "../shared/changes.ts";
+import type { ChangeMemo } from "../../contracts/change.ts";
+import { basicChangeMemo } from "../shared/change-memo.ts";
+import type { TaskChangePreview } from "../../contracts/task-change.ts";
 import { decodeCursor, once, type Page, paginate, scopeOf, searchInputHash } from "../shared/operations.ts";
 import {
   assertRecordableOccurrence,
@@ -37,13 +41,20 @@ export interface ActivityDeps {
 export type { Page } from "../shared/operations.ts";
 
 function toTaskResult(task: Task): TaskResult {
-  return { ...task, entity_id: task.entity_id ?? null };
+  return {
+    ...task,
+    entity_id: task.entity_id ?? null,
+    entity_ids: selectedEntities(task) ?? [],
+    entity_context: task.entity_context ?? [],
+  };
 }
 
 function toRecordResult(record: ActivityRecord): RecordResult {
   return {
     ...record,
     entity_id: record.entity_id ?? null,
+    entity_ids: selectedEntities(record) ?? [],
+    entity_context: record.entity_context ?? [],
     record_kind: record.record_kind ?? "user",
     change_note: record.change_note ?? null,
     change: record.change ?? null,
@@ -64,6 +75,63 @@ async function requireRecord(store: ActivityStore, id: string, forUpdate = false
 }
 
 // ---------- 할 일 ----------
+export async function previewTaskChange(deps: ActivityDeps, actor: Actor, input: TaskChangePreview) {
+  return await deps.uow.run(actor, async (store) => {
+    if (input.action === "create") {
+      const task = newTask(input.input as TaskCreate);
+      const ids = selectedEntities(input.input as TaskCreate) ?? [];
+      if (ids.length) await store.validateEntitySelection(ids);
+      return {
+        memo: basicChangeMemo({
+          action: "create",
+          before: null,
+          after: task,
+          change_note: input.input.change_note,
+        }),
+        changed: true,
+      };
+    }
+    const task = await requireTask(store, input.id);
+    assertVersion(task, input.input.expected_version as number);
+    const now = deps.clock.now();
+    if (input.action === "complete" || input.action === "occurrence") {
+      if (input.action === "complete") decideComplete(task, input.input.expected_version as number, now);
+      else assertRecordableOccurrence(task, input.date!, now);
+      const title = `${Array.from(task.title).slice(0, 85).join("")} 수행 결과`;
+      return {
+        memo: {
+          title,
+          summary: title,
+          body: `할 일: ${task.title}${
+            input.action === "occurrence" ? `\n회차: ${input.date}` : ""
+          }\n실제로 수행한 내용과 결과를 보충하세요.`,
+        },
+        changed: true,
+      };
+    }
+    const after = input.action === "delete" ? null : {
+      ...task,
+      ...(input.action === "update"
+        ? decideUpdate(task, input.input as TaskUpdate)
+        : input.action === "stop"
+        ? decideStop(task, input.input.expected_version as number, now)
+        : decideResume(task, input.input.expected_version as number, now)),
+    };
+    if (input.action === "update" && changed(task, after!)) {
+      const ids = selectedEntities(input.input as TaskUpdate);
+      if (ids?.length) await store.validateEntitySelection(ids);
+    }
+    return {
+      memo: basicChangeMemo({
+        action: input.action as "update" | "delete" | "stop" | "resume",
+        before: task,
+        after,
+        change_note: input.input.change_note,
+      }),
+      changed: after === null || changed(task, after),
+    };
+  });
+}
 
 export async function createTask(deps: ActivityDeps, actor: Actor, input: TaskCreate): Promise<TaskResult> {
   return await deps.uow.run(actor, (store) =>
@@ -76,6 +144,7 @@ export async function createTask(deps: ActivityDeps, actor: Actor, input: TaskCr
         before: null,
         after: task,
         change_note: input.change_note,
+        change_memo: input.change_memo,
       });
       return toTaskResult(task);
     }));
@@ -150,6 +219,7 @@ export async function updateTask(deps: ActivityDeps, actor: Actor, id: string, p
         before: task,
         after: updated,
         change_note: patch.change_note,
+        change_memo: patch.change_memo,
       });
       return toTaskResult(updated);
     }));
@@ -170,7 +240,7 @@ export async function completeTask(
       const record = await store.insertRecord({
         record_kind: "result",
         change_note: input.change_note,
-        entity_id: task.entity_id ?? null,
+        ...entityChanges({ entity_ids: selectedEntities(task) ?? [] }),
         title: input.title,
         summary: input.summary,
         body: input.body,
@@ -194,16 +264,24 @@ export async function deleteTask(
   expectedVersion: number,
   change_note?: string,
   request_id?: string,
+  change_memo?: ChangeMemo,
 ): Promise<void> {
   await deps.uow.run(
     actor,
     (store) =>
-      once(store, `delete_task:${id}`, request_id, { expectedVersion, change_note }, async () => {
+      once(store, `delete_task:${id}`, request_id, { expectedVersion, change_note, change_memo }, async () => {
         const task = await requireTask(store, id, true);
         assertVersion(task, expectedVersion);
         await store.detachRecords(id);
         await store.deleteTask(id);
-        await store.appendChange({ target_kind: "task", action: "delete", before: task, after: null, change_note });
+        await store.appendChange({
+          target_kind: "task",
+          action: "delete",
+          before: task,
+          after: null,
+          change_note,
+          change_memo,
+        });
         return { deleted: true };
       }),
   );
@@ -216,14 +294,22 @@ export async function stopTask(
   expectedVersion: number,
   change_note?: string,
   request_id?: string,
+  change_memo?: ChangeMemo,
 ) {
   return await deps.uow.run(
     actor,
     (store) =>
-      once(store, `stop_task:${id}`, request_id, { expectedVersion, change_note }, async () => {
+      once(store, `stop_task:${id}`, request_id, { expectedVersion, change_note, change_memo }, async () => {
         const task = await requireTask(store, id, true);
         const result = await store.updateTask(id, decideStop(task, expectedVersion, deps.clock.now()));
-        await store.appendChange({ target_kind: "task", action: "stop", before: task, after: result, change_note });
+        await store.appendChange({
+          target_kind: "task",
+          action: "stop",
+          before: task,
+          after: result,
+          change_note,
+          change_memo,
+        });
         return toTaskResult(result);
       }),
   );
@@ -236,14 +322,22 @@ export async function resumeTask(
   expectedVersion: number,
   change_note?: string,
   request_id?: string,
+  change_memo?: ChangeMemo,
 ) {
   return await deps.uow.run(
     actor,
     (store) =>
-      once(store, `resume_task:${id}`, request_id, { expectedVersion, change_note }, async () => {
+      once(store, `resume_task:${id}`, request_id, { expectedVersion, change_note, change_memo }, async () => {
         const task = await requireTask(store, id, true);
         const result = await store.updateTask(id, decideResume(task, expectedVersion, deps.clock.now()));
-        await store.appendChange({ target_kind: "task", action: "resume", before: task, after: result, change_note });
+        await store.appendChange({
+          target_kind: "task",
+          action: "resume",
+          before: task,
+          after: result,
+          change_note,
+          change_memo,
+        });
         return toTaskResult(result);
       }),
   );
@@ -283,7 +377,7 @@ export async function recordOccurrence(
         const record = await store.insertRecord({
           record_kind: "result",
           change_note: input.change_note,
-          entity_id: input.entity_id === undefined ? task.entity_id ?? null : input.entity_id,
+          ...entityChanges({ entity_ids: selectedEntities(input) ?? selectedEntities(task) ?? [] }),
           title: input.title,
           summary: input.summary,
           body: input.body,
@@ -306,7 +400,7 @@ export async function createRecord(deps: ActivityDeps, actor: Actor, input: Reco
     once(store, "create_record", input.request_id, input, async () => {
       const record = await store.insertRecord({
         change_note: input.change_note,
-        entity_id: input.entity_id ?? null,
+        ...entityChanges({ entity_ids: selectedEntities(input) ?? [] }),
         title: input.title,
         summary: input.summary,
         body: input.body,
@@ -360,28 +454,29 @@ export async function updateRecord(
       assertVersion(record, patch.expected_version);
       if (
         record.record_kind === "change" &&
-        ["entity_id", "tag_ids", "occurred_at", "applied_principle_ids"].some((k) => k in patch)
+        ["entity_id", "entity_ids", "tag_ids", "occurred_at", "applied_principle_ids"].some((k) => k in patch)
       ) {
         throw invalidInput("변경 기록은 제목·요약·본문·메모만 정정할 수 있습니다");
       }
-      const { expected_version: _v, request_id: _r, change_note, ...changes } = patch;
+      const { expected_version: _v, request_id: _r, change_note, ...content } = patch;
+      const selection = entityChanges(content);
+      // Array selection owns the projection; deleted captures can have a null live alias.
+      if (content.entity_ids !== undefined && content.entity_id === undefined) delete selection.entity_id;
+      const changes = { ...content, ...selection };
       const removesSnapshots = changes.applied_principle_ids !== undefined &&
         (record.applied_principle_snapshots ?? []).some((p) => !changes.applied_principle_ids!.includes(p.id));
       if (
         !removesSnapshots && !changed(record, changes) &&
-        (record.record_kind !== "change" || record.change_note === change_note)
+        (change_note === undefined || record.change_note === change_note)
       ) return toRecordResult(record);
-      const updated = await store.updateRecord(id, { ...changes, change_note });
+      const updated = await store.updateRecord(id, {
+        ...changes,
+        ...(change_note === undefined ? {} : { change_note }),
+      });
       if (updated.title !== record.title || updated.summary !== record.summary) {
         await store.enqueueIndex({ kind: "record", id, input_hash: await searchInputHash(updated) });
       }
-      await store.appendChange({
-        target_kind: "record",
-        action: "update",
-        before: record,
-        after: updated,
-        change_note,
-      });
+      // Records are editable knowledge. Editing their memo does not create another event.
       return toRecordResult(updated);
     }));
 }

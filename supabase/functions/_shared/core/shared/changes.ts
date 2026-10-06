@@ -1,10 +1,12 @@
 import type { ChangeMetadata } from "../../contracts/change.ts";
+import type { ChangeMemo } from "../../contracts/change.ts";
 export interface ChangeInput {
   target_kind: ChangeMetadata["target_kind"];
   action: ChangeMetadata["action"];
   before: object | null;
   after: object | null;
   change_note?: string;
+  change_memo?: ChangeMemo;
 }
 export interface ChangeStore {
   appendChange(input: ChangeInput): Promise<void>;
@@ -21,7 +23,11 @@ export function changed(old: object, patch: object): boolean {
     return value;
   };
   const comparable = (key: string, value: unknown) =>
-    canonical(["tag_ids", "applied_principle_ids"].includes(key) && Array.isArray(value) ? [...value].sort() : value);
+    canonical(
+      ["tag_ids", "applied_principle_ids", "entity_ids"].includes(key) && Array.isArray(value)
+        ? [...value].sort()
+        : value,
+    );
   return Object.entries(patch).some(([key, value]) =>
     value !== undefined &&
     JSON.stringify(comparable(key, (old as Record<string, unknown>)[key])) !== JSON.stringify(comparable(key, value))

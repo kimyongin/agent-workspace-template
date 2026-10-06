@@ -1,8 +1,6 @@
-import { assert, assertEquals, assertRejects } from "@std/assert";
+import { assertEquals, assertRejects } from "@std/assert";
 import type { PrincipleStore } from "../../functions/_shared/core/principles/ports.ts";
 import type { PrincipleResult } from "../../functions/_shared/contracts/principle.ts";
-import { principleCreate, principleSave, principleUpdate } from "../../functions/_shared/contracts/principle.ts";
-import * as p from "../../functions/_shared/core/principles/application.ts";
 import { principleRoutes } from "../../functions/_shared/adapters/http/principle-routes.ts";
 import { principleTools } from "../../functions/_shared/adapters/mcp/principle-tools.ts";
 import { toErrorBody } from "../../functions/_shared/adapters/errors.ts";
@@ -48,8 +46,8 @@ function fixture() {
       return Promise.resolve(r);
     },
     get: (id) => Promise.resolve(rows.get(id) ?? null),
-    update: (id, i) => {
-      const r = { ...rows.get(id)!, ...i, version: rows.get(id)!.version + 1 };
+    update: (id, i, version) => {
+      const r = { ...rows.get(id)!, ...i, version: version ?? rows.get(id)!.version + 1 };
       rows.set(id, r);
       return Promise.resolve(r);
     },
@@ -101,37 +99,56 @@ function fixture() {
       }),
   };
 }
-Deno.test("current principle application: mandatory reason/version, save new id, no-op no event, correction/current separation", async () => {
-  const f = fixture(), content = { title: "기준", summary: "요약", body: "본문" };
-  const first = await p.createPrinciple(f.d, actor, principleCreate.parse(content));
-  await assertRejects(
-    () => p.saveCurrentPrinciple(f.d, actor, principleSave.parse({ ...content, expected_version: 1, body: "다름" })),
-    AppError,
-  );
-  assertEquals(
-    (await p.saveCurrentPrinciple(
-      f.d,
-      actor,
-      principleSave.parse({ ...content, expected_version: 1, change_note: "동일" }),
-    )).id,
-    first.id,
-  );
-  assertEquals(f.events.length, 1);
-  const next = await p.saveCurrentPrinciple(
-    f.d,
-    actor,
-    principleSave.parse({ ...content, expected_version: 1, body: "새 본문", change_note: "정책" }),
-  );
-  assert(next.id !== first.id);
+Deno.test("principle preview is read-only and agrees across HTTP and MCP", async () => {
+  const f = fixture(),
+    input = { action: "create", input: { title: "새 기준", summary: "현재 판단", body: "확인한 내용" } };
+  const web = await f.http("POST", "/principles/preview", input);
+  assertEquals(web.status, 200);
+  assertEquals(await web.json(), await f.call("preview_principle_change", input));
+  assertEquals((await (await f.http("GET", "/principles/current")).json()).current, null);
+});
+Deno.test("HTTP current principle edited through MCP retains its document identity", async () => {
+  const f = fixture();
+  const web = await f.http("POST", "/principles/current", {
+    title: "현재 기준",
+    summary: "초기 요약",
+    body: "초기 본문",
+  });
+  assertEquals(web.status, 201);
+  const first = await web.json();
+  const saved = await f.call("save_current_principle", {
+    title: "현재 기준",
+    summary: "새 요약",
+    body: "새 본문",
+    expected_version: first.version,
+    change_note: "검토 반영",
+  }) as PrincipleResult;
+  assertEquals(saved.id, first.id);
+  assertEquals(saved.body, "새 본문");
+  const read = await f.http("GET", "/principles/current");
+  assertEquals((await read.json()).current, saved);
+});
+Deno.test("current principle deletion leaves none and stale requests cannot overwrite its replacement", async () => {
+  const f = fixture(),
+    first = await f.call("create_principle", { title: "첫 기준", summary: "요약" }) as PrincipleResult;
+  const next = await f.call("save_current_principle", {
+    title: "수정 기준",
+    summary: "요약",
+    expected_version: first.version,
+  }) as PrincipleResult;
+  assertEquals(next.id, first.id);
   assertEquals(next.version, 2);
-  await p.correctPrinciple(
-    f.d,
-    actor,
-    first.id,
-    principleUpdate.parse({ expected_version: 1, body: "오타", change_note: "정정" }),
-  );
-  assertEquals((await p.currentPrinciple(f.d, actor)).current!.id, next.id);
-  assertEquals(f.events.length, 3);
+  await f.call("delete_principle", { id: next.id, expected_version: next.version });
+  assertEquals(await f.call("get_current_principle", {}), { current: null });
+  const replacement = await f.call("create_principle", { title: "다시 등록", summary: "새 기준" }) as PrincipleResult;
+  assertEquals(replacement.version, 4);
+  const stale = await f.http("POST", "/principles/current", {
+    title: "과거 요청",
+    summary: "요약",
+    expected_version: next.version,
+  });
+  assertEquals(stale.status, 409);
+  assertEquals((await f.http("GET", `/principles/${next.id}`)).status, 404);
 });
 Deno.test("current principle HTTP/MCP input/result parity and removed activation rejected", async () => {
   const f = fixture();
@@ -139,10 +156,10 @@ Deno.test("current principle HTTP/MCP input/result parity and removed activation
   assertEquals(r.status, 201);
   const current = await r.json();
   assertEquals(await f.call("get_current_principle", {}), { current });
-  const invalid = { title: "새", summary: "요약", expected_version: current.version };
+  const invalid = { title: "새", summary: "요약", expected_version: current.version, owner_id: crypto.randomUUID() };
   const bad = await f.http("POST", "/principles/current", invalid);
   assertEquals(bad.status, 400);
-  const error = await assertRejects(() => f.call("save_current_principle", invalid), AppError);
+  const error = await assertRejects(async () => await f.call("save_current_principle", invalid), AppError);
   assertEquals((await bad.json()).code, error.code);
   assertEquals((await f.http("POST", `/principles/${current.id}/activate`, { expected_version: 1 })).status, 404);
   const note = {

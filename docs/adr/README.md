@@ -14,6 +14,7 @@
 | [0006](0006-owner-only-access-and-separate-auth.md) | 소유자 한정 접근과 로그인·MCP 인증 분리 | 채택 |
 | [0008](0008-document-ownership.md) | 문서 소유권 | 채택 |
 | [0011](0011-matt-skills-and-github-workflow.md) | Matt Pocock 스킬과 GitHub 작업 정본 | 채택 |
+| [0012](0012-current-state-and-unified-records.md) | 최신 상태와 메모 기반 통합 기록 | 채택 |
 
 ## 문서의 책임
 

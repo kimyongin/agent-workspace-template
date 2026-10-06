@@ -1,7 +1,8 @@
 // 웹용 HTTP: 할 일·기록 경로. 입력을 contracts로 검사하고 유스케이스를 호출한다. 업무 판단은 하지 않는다.
 import { Hono } from "hono";
 import { z } from "zod";
-import { mutationMeta } from "../../contracts/change.ts";
+import { businessMeta } from "../../contracts/change.ts";
+import { taskChangePreview } from "../../contracts/task-change.ts";
 import { expectedVersion, isoDate } from "../../contracts/common.ts";
 import { recordCreate, recordListQuery, recordUpdate } from "../../contracts/record.ts";
 import { occurrenceRange, taskComplete, taskCreate, taskListQuery, taskUpdate } from "../../contracts/task.ts";
@@ -9,10 +10,28 @@ import * as activity from "../../core/activity/application.ts";
 import { type HttpEnv, idParam, json, versionQuery } from "./input.ts";
 import { parse } from "../errors.ts";
 
-const versionBody = z.strictObject({ expected_version: expectedVersion, ...mutationMeta });
+const versionBody = z.strictObject({ expected_version: expectedVersion, ...businessMeta });
 
 export function activityRoutes(deps: activity.ActivityDeps) {
   const app = new Hono<HttpEnv>();
+  app.post(
+    "/tasks/preview",
+    async (c) =>
+      c.json(await activity.previewTaskChange(deps, c.get("actor"), parse(taskChangePreview, await json(c.req.raw)))),
+  );
+  app.post("/tasks/:id/delete", async (c) => {
+    const i = parse(versionBody, await json(c.req.raw));
+    await activity.deleteTask(
+      deps,
+      c.get("actor"),
+      idParam(c.req.param("id")),
+      i.expected_version,
+      i.change_note,
+      i.request_id,
+      i.change_memo,
+    );
+    return c.body(null, 204);
+  });
 
   app.post("/tasks", async (c) => {
     const input = parse(taskCreate, await json(c.req.raw));
@@ -48,12 +67,24 @@ export function activityRoutes(deps: activity.ActivityDeps) {
   app.post("/tasks/:id/stop", async (c) => {
     const id = idParam(c.req.param("id"));
     const i = parse(versionBody, await json(c.req.raw));
-    return c.json(await activity.stopTask(deps, c.get("actor"), id, i.expected_version, i.change_note, i.request_id));
+    return c.json(
+      await activity.stopTask(deps, c.get("actor"), id, i.expected_version, i.change_note, i.request_id, i.change_memo),
+    );
   });
   app.post("/tasks/:id/resume", async (c) => {
     const id = idParam(c.req.param("id"));
     const i = parse(versionBody, await json(c.req.raw));
-    return c.json(await activity.resumeTask(deps, c.get("actor"), id, i.expected_version, i.change_note, i.request_id));
+    return c.json(
+      await activity.resumeTask(
+        deps,
+        c.get("actor"),
+        id,
+        i.expected_version,
+        i.change_note,
+        i.request_id,
+        i.change_memo,
+      ),
+    );
   });
   app.get("/tasks/:id/occurrences", async (c) => {
     const id = idParam(c.req.param("id"));

@@ -1,7 +1,8 @@
+import { consistentEntities, entityContext, entitySelection, entitySelectionError } from "./entity-links.ts";
 // 할 일(Task)·반복 할 일 계약.
 // HTTP 입력 검증·MCP inputSchema·웹 폼이 이 정의를 함께 쓴다. zod만 가져온다.
 import { z } from "zod";
-import { editMeta, mutationMeta } from "./change.ts";
+import { businessMeta, mutationMeta } from "./change.ts";
 import {
   body,
   expectedVersion,
@@ -59,8 +60,8 @@ export type Recurrence = z.infer<typeof recurrence>;
 export const taskCreate = z.discriminatedUnion("kind", [
   z.strictObject({
     kind: z.literal("once"),
-    ...mutationMeta,
-    entity_id: id.nullable().optional(),
+    ...businessMeta,
+    ...entitySelection,
     tag_ids: tagIds.optional(),
     title,
     summary,
@@ -70,8 +71,8 @@ export const taskCreate = z.discriminatedUnion("kind", [
   }),
   z.strictObject({
     kind: z.literal("recurring"),
-    ...mutationMeta,
-    entity_id: id.nullable().optional(),
+    ...businessMeta,
+    ...entitySelection,
     tag_ids: tagIds.optional(),
     title,
     summary,
@@ -80,15 +81,15 @@ export const taskCreate = z.discriminatedUnion("kind", [
     timezone,
     request_id: requestId.optional(),
   }),
-]);
+]).refine(consistentEntities, entitySelectionError);
 export type TaskCreate = z.infer<typeof taskCreate>;
 
 /** 내용 필드만 고친다. `kind`·`status`·시각 등 서버 관리 필드는 strict로 거부된다. */
 export const taskUpdate = z
   .strictObject({
-    ...editMeta,
+    ...businessMeta,
     expected_version: expectedVersion,
-    entity_id: id.nullable().optional(),
+    ...entitySelection,
     tag_ids: tagIds.optional(),
     title: title.optional(),
     summary: summary.optional(),
@@ -97,12 +98,15 @@ export const taskUpdate = z
     recurrence: recurrence.optional(),
     timezone: timezone.optional(),
   })
-  .refine((v) => Object.keys(v).some((k) => !["expected_version", "change_note", "request_id"].includes(k)), {
-    message: "바꿀 필드가 없습니다",
-  });
+  .refine(
+    (v) => Object.keys(v).some((k) => !["expected_version", "change_note", "change_memo", "request_id"].includes(k)),
+    {
+      message: "바꿀 필드가 없습니다",
+    },
+  ).refine(consistentEntities, entitySelectionError);
 export type TaskUpdate = z.infer<typeof taskUpdate>;
 
-export const versionOnly = z.strictObject({ expected_version: expectedVersion, ...mutationMeta });
+export const versionOnly = z.strictObject({ expected_version: expectedVersion, ...businessMeta });
 
 /** 일회성 할 일 완료: 결과 기록 내용과 함께 한 트랜잭션으로 저장한다. */
 export const taskComplete = z.strictObject({
@@ -151,6 +155,8 @@ export const pause = z.object({ stopped_on: isoDate, resumed_on: isoDate.nullabl
 export const taskResult = z.object({
   id,
   entity_id: id.nullable(),
+  entity_ids: z.array(id),
+  entity_context: z.array(entityContext),
   tag_ids: z.array(id),
   kind: z.enum(TASK_KINDS),
   title: z.string(),
