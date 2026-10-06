@@ -12,7 +12,7 @@
 .tag-filter-chips legend { margin-bottom: 8px; }
 .workspace-conditions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
 .workspace-conditions .chip { overflow-wrap: anywhere; max-width: 100%; }
-.workspace-additional > summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; font-weight: 600; }
+.workspace-additional > summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; font-size: .875rem; line-height: 1.25rem; color: var(--muted-ink); font-weight: 400; }
 .workspace-additional > summary::after { content: " ▾"; }
 .workspace-additional[open] > summary::after { content: " ▴"; }
 .change-snapshot { display: grid; gap: var(--space-3); }

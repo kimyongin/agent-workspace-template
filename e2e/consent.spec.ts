@@ -52,6 +52,23 @@ async function session(page: Page, userId = userA) {
     if (error) throw new Error(`Synthetic session setup failed: ${error.name}`);
   }, access_token);
 }
+
+test("로그인·OAuth 동의의 긴 주소와 중요 안내는 320~1440px에서 읽힌다",async({page},info)=>{
+  const f=await authFixture(page,async()=>({...details("긴 에이전트 이름 ".repeat(8)),redirect_uri:"https://example.invalid/callback?query="+"longvalue".repeat(15)}));
+  await page.goto("/login");await expect(page.getByRole("heading",{name:"로그인",exact:true})).toBeVisible();
+  for(const width of [320,360,390,639,640,768,1024,1440]){
+    await page.setViewportSize({width,height:900});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+    const heading=page.locator(".page-title"),help=page.locator(".help");expect(await heading.evaluate(el=>parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThan(await help.evaluate(el=>parseFloat(getComputedStyle(el).fontSize)));
+  }
+  await session(page);await page.goto("/oauth/consent?authorization_id=layout");await expect(page.getByRole("button",{name:"승인",exact:true})).toBeVisible();
+  for(const width of [320,360,390,639,640,768,1024,1440]){
+    await page.setViewportSize({width,height:900});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+    await expect(page.getByText("직접 시작한 연결이 아니거나 돌아갈 주소를 모르면 거부하세요.",{exact:false})).toBeVisible();
+    for(const name of ["승인","거부"]){const box=(await page.getByRole("button",{name,exact:true}).boundingBox())!;expect(box.width).toBeGreaterThanOrEqual(44);expect(box.height).toBeGreaterThanOrEqual(44);}
+    if(width===390)await page.screenshot({path:info.outputPath("consent-hierarchy-390.png")});
+  }
+  expect(f.decisions).toHaveLength(0);
+});
 async function changeRequest(page: Page, id: string) {
   await page.evaluate(id => {
     history.pushState(null, "", `/oauth/consent?authorization_id=${id}`);

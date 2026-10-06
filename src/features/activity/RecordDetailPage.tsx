@@ -97,8 +97,8 @@ export function RecordDetailPage() {
     </div>;
   const startEdit=()=>navigate(editFromView(params));
   return <DetailSurface footer={<button type="button" className="btn btn-primary" onClick={startEdit}>편집</button>} title={record.title} onClose={()=>dialog==="edit"&&!editReady?closeEdit():navigate(back.path)} busy={busy}>
-      <section className="detail-section"><h2 className="section-title">요약</h2><p className="document-summary">{record.summary}</p></section>
-      <section className="detail-section"><h2 className="section-title">내용</h2><MarkdownContent text={record.body}/></section>
+      {record.summary!==record.title&&<section className="detail-section" aria-label="기록 개요"><p className="document-summary">{record.summary}</p></section>}
+      {record.body&&<section className="detail-section" aria-label="내용"><MarkdownContent text={record.body} className={record.record_kind==="change"?"memo-text":undefined}/></section>}
       {dialog!=="edit"&&<section className="detail-section"><h2 className="section-title">관련 정보</h2>{management}</section>}
       {dialog === "edit" && !editReady && loadError && <>
         <Notice kind="error">{loadError}</Notice>

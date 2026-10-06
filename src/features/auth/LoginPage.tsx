@@ -44,7 +44,7 @@ export function LoginPage() {
       {error && <Notice kind="error">{error}</Notice>}
       <button type="button" className="btn btn-primary" onClick={google}>Google로 로그인</button>
       {devLoginEnabled && (
-        <form className="form" onSubmit={devLogin} aria-labelledby="dev-login-title">
+        <form className="form auth-alternative" onSubmit={devLogin} aria-labelledby="dev-login-title">
           <h2 id="dev-login-title" className="section-title">개발용 로그인</h2>
           <p className="help" style={{ margin: 0 }}>로컬 Supabase에서만 보입니다. 계정은 .env.local에 있습니다.</p>
           <Field label="이메일" required>
