@@ -115,7 +115,7 @@ dbTest(
       const task = await a.createTask(
         ad,
         A,
-        taskCreate.parse({ kind: "once", title: "행동", summary: "계획", entity_id: entity.id }),
+        taskCreate.parse({ kind: "once", title: "행동", summary: "계획", entity_ids: [entity.id] }),
       );
       assertEquals(await count(), 3);
       const taskUpdated = await a.updateTask(

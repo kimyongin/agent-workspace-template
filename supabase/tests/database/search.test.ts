@@ -33,10 +33,8 @@ dbTest("검색: 한국어 본문·literal 와일드카드·상태·태그·기�
     await tx`insert into app.record_tags(owner_id,record_id,tag_id) values(${users.a},${sameId},${tagId})`;
     await tx`insert into app.task_tags(owner_id,task_id,tag_id) values(${users.a},${sameId},${scopeTag})`;
     await tx`insert into app.record_tags(owner_id,record_id,tag_id) values(${users.a},${sameId},${scopeTag})`;
-    await tx`insert into app.principles(owner_id,title,summary,body,status) values(${users.a},'과거','비활성',${token},'inactive')`;
-    await tx`update app.tasks set entity_id=${entity} where id=${sameId}`;
-    await tx`update app.records set entity_id=${entity} where id=${sameId}`;
-    await tx`update app.principles set entity_id=${entity} where id=${sameId}`;
+    await tx`update app.tasks set entity_ids=array[${entity}::uuid] where id=${sameId}`;
+    await tx`update app.records set entity_ids=array[${entity}::uuid] where id=${sameId}`;
   });
   await asUser(sql, users.b, async (tx) => {
     await tx`insert into app.records(owner_id,title,summary,body) values(${users.b},'비밀','보호',${token})`;
@@ -77,9 +75,7 @@ dbTest("검색: 한국어 본문·literal 와일드카드·상태·태그·기�
       { tag_id: tagId },
       { entity_id: crypto.randomUUID() },
       { entity_id: undefined },
-      {
-        status: "all" as const,
-      },
+      { kinds: ["record"] as ("record")[] },
     ]
   ) await assertRejects(() => search(d, A, { ...base, ...change, cursor: first.next_cursor! }), AppError);
   await assertRejects(() => search(d, B, { ...base, cursor: first.next_cursor! }), AppError);
@@ -93,17 +89,13 @@ dbTest("검색: 한국어 본문·literal 와일드카드·상태·태그·기�
   const foreign = await search(d, B, searchInput.parse({ query: token, tag_id: tagId }));
   assertEquals(foreign.semantic_coverage.pending, 0);
   assertEquals(foreign.items, []);
-  assertEquals((await search(d, A, searchInput.parse({ query: token, status: "all" }))).items.length, 4);
-  assertEquals(
-    (await search(d, A, searchInput.parse({ query: token, status: "inactive" }))).items.map((x) => x.kind).sort(),
-    ["principle", "record", "task"],
-  );
+  assertEquals((await search(d, A, searchInput.parse({ query: token }))).items.length, 3);
   assertEquals(
     (await search(d, A, searchInput.parse({ query: token, kinds: ["record"], from: "2026-10-04T00:00:00Z" }))).items,
     [],
   );
   assertEquals(
-    (await search(d, A, searchInput.parse({ query: token, entity_id: entity, status: "all" }))).items.length,
+    (await search(d, A, searchInput.parse({ query: token, entity_id: entity }))).items.length,
     2,
   );
   const noMatch = await search(d, A, searchInput.parse({ query: "없는 말", entity_id: entity }));

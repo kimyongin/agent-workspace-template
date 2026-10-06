@@ -51,7 +51,7 @@ dbTest("task preview uses live owner selections without changing tasks or record
       const updateError = await assertRejects(() => activity.updateTask(ad, f.actor, task.id, patch), AppError);
       assertEquals([createError.code, updateError.code], ["invalid_reference", "invalid_reference"]);
     }
-    for (const selection of [{}, { entity_ids: [] }, { entity_ids: [own.id] }, { entity_id: own.id }]) {
+    for (const selection of [{}, { entity_ids: [] }, { entity_ids: [own.id] }]) {
       assertEquals(
         (await activity.previewTaskChange(
           ad,

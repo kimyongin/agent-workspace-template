@@ -34,7 +34,7 @@ httpTest("HTTP and MCP task previews reject foreign, missing and deleted selecti
       assertEquals((await call(session, "POST", "/tasks", create)).body.code, "invalid_reference");
       assertEquals((await tool(client, "update_task", { id: task.id, ...patch })).error.code, "invalid_reference");
     }
-    for (const selection of [{}, { entity_ids: [] }, { entity_ids: [own.id] }, { entity_id: own.id }]) {
+    for (const selection of [{}, { entity_ids: [] }, { entity_ids: [own.id] }]) {
       const preview = {
         action: "update",
         id: task.id,

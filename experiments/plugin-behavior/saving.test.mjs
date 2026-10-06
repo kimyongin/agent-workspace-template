@@ -39,7 +39,7 @@ test('public entity related projections may change only to match the requested s
   const t0 = '2026-10-06T00:00:00.000Z', t1 = '2026-10-06T00:01:00.000Z', t2 = '2026-10-06T00:02:00.000Z';
   const source = { id: 'source', title: 'old', updated_at: t0, entity_ids: ['entity'] };
   const task = { id: 'task', title: 'review', updated_at: t0, entity_ids: ['entity'], status: 'open', version: 1, result_record_id: null, result_record: null };
-  const entity = { id: 'entity', prop1: 'customer', prop2: 11, version: 2, updated_at: t0, tasks: { count: 1, items: [{ id: 'task', title: 'review', updated_at: t0 }] }, records: { count: 1, items: [{ id: 'source', title: 'old', updated_at: t0 }] }, principles: { count: 0, items: [] } };
+  const entity = { id: 'entity', prop1: 'customer', prop2: 11, version: 2, updated_at: t0, tasks: { count: 1, items: [{ id: 'task', title: 'review', updated_at: t0 }] }, records: { count: 1, items: [{ id: 'source', title: 'old', updated_at: t0 }] } };
   const before = { current: null, entities: [entity], tasks: [task], records: [source], principles: [], tags: [] };
   const user = { id: 'new', title: 'result', summary: 'review', body: 'SOURCE-123 current 11', version: 1, updated_at: t1, record_kind: 'user', entity_ids: ['entity'] };
   const event = { id: 'event', title: 'creation', updated_at: t2, record_kind: 'change', entity_ids: ['entity'], change: { event_id: 'event-identity', target_id: 'new', target_kind: 'record', target_title: 'result', action: 'create', source: 'mcp', path: '/records/new', before: null, after: { ...user } } };

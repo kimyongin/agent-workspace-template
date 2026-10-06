@@ -79,15 +79,13 @@ dbTest("할 일: DB 컬럼(owner_id 제외)과 contracts 응답 필드가 같다
 dbTest("기록: DB 컬럼(owner_id 제외)과 contracts 응답 필드가 같다", async () => {
   assertEquals(
     (await columns("records")).map((k) => k === "change_metadata" ? "change" : k).sort(),
-    Object.keys(recordResult.shape).filter((k) =>
-      !["applied_principle_ids", "applied_principles", "tag_ids"].includes(k)
-    ).sort(),
+    Object.keys(recordResult.shape).filter((k) => k !== "tag_ids").sort(),
   );
 });
 
-dbTest("원칙: legacy fields rejected by current input and preserved DB/result columns", async () => {
+dbTest("원칙: legacy fields rejected by current input and retired DB aliases and current result columns", async () => {
   assertEquals(principleCreate.safeParse({ ...record, applies_when: "legacy" }).success, false);
   assertEquals(principleCreate.safeParse({ ...record, entity_id: crypto.randomUUID() }).success, false);
   assertEquals(principleCreate.safeParse({ ...record, tag_ids: [] }).success, false);
-  assertEquals(await columns("principles"), Object.keys(principleResult.shape).filter((k) => k !== "tag_ids").sort());
+  assertEquals(await columns("principles"), Object.keys(principleResult.shape).sort());
 });

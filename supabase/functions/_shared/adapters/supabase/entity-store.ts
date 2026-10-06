@@ -52,12 +52,10 @@ export class SqlEntityStore extends SqlActorStore implements EntityStore {
   }
   async delete(id: string) {
     await this
-      .tx`update app.tasks set entity_id=(select selected from unnest(entity_ids) selected where selected<>${id}::uuid order by selected limit 1),
-      entity_ids=array_remove(entity_ids,${id}::uuid),
+      .tx`update app.tasks set entity_ids=array_remove(entity_ids,${id}::uuid),
       entity_context=(select coalesce(jsonb_agg(context),'[]'::jsonb) from jsonb_array_elements(entity_context) context where context->>'id'<>${id}),
       version=version+1,updated_at=now() where entity_ids @> array[${id}::uuid]`;
     await this.tx`update app.records set version=version+1,updated_at=now() where entity_ids @> array[${id}::uuid]`;
-    await this.tx`update app.principles set entity_id=null,version=version+1,updated_at=now() where entity_id=${id}`;
     await this.tx`delete from app.entities where id=${id}`;
   }
   async list(q: EntityQuery, after?: Keyset) {
@@ -94,10 +92,10 @@ export class SqlEntityStore extends SqlActorStore implements EntityStore {
       result,
     );
   }
-  async related(id: string): Promise<Pick<EntityDetail, "tasks" | "records" | "principles">> {
-    const load = async (table: "tasks" | "records" | "principles") => {
+  async related(id: string): Promise<Pick<EntityDetail, "tasks" | "records">> {
+    const load = async (table: "tasks" | "records") => {
       const tx = this.tx;
-      const membership = table === "principles" ? tx`entity_id=${id}` : tx`entity_ids @> array[${id}::uuid]`;
+      const membership = tx`entity_ids @> array[${id}::uuid]`;
       const [count] = await tx`select count(*)::integer as count from app.${tx(table)} where ${membership}`;
       const rows = await tx`select id,title,updated_at from app.${
         tx(table)
@@ -111,7 +109,7 @@ export class SqlEntityStore extends SqlActorStore implements EntityStore {
         })),
       };
     };
-    return { tasks: await load("tasks"), records: await load("records"), principles: await load("principles") };
+    return { tasks: await load("tasks"), records: await load("records") };
   }
 }
 export class SqlEntityUnitOfWork {

@@ -58,7 +58,7 @@ const related = z.object({
   count: z.number().int().nonnegative(),
   items: z.array(z.object({ id, title: z.string(), updated_at: isoDateTime })),
 });
-export const entityDetail = entityResult.extend({ tasks: related, records: related, principles: related });
+export const entityDetail = entityResult.extend({ tasks: related, records: related });
 export const entityPage = page(entityResult);
 export type EntityCreate = z.infer<typeof entityCreate>;
 export type EntityUpdate = z.infer<typeof entityUpdate>;

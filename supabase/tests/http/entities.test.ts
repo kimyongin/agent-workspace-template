@@ -16,9 +16,9 @@ httpTest("Entity HTTP: CRUD·권한·입력·버전·참조·삭제 보존 실�
     assertEquals((await call(A, "POST", "/entities", bad)).status, 400);
   }
   const task =
-    (await call(A, "POST", "/tasks", { kind: "once", title: "HTTP 연결", summary: "요약", entity_id: e.id })).body;
+    (await call(A, "POST", "/tasks", { kind: "once", title: "HTTP 연결", summary: "요약", entity_ids: [e.id] })).body;
   assertEquals(
-    (await call(B, "POST", "/records", { title: "외부 연결", summary: "요약", entity_id: e.id })).body.code,
+    (await call(B, "POST", "/records", { title: "외부 연결", summary: "요약", entity_ids: [e.id] })).body.code,
     "invalid_reference",
   );
   const detail = (await call(A, "GET", `/entities/${e.id}`)).body;
@@ -41,7 +41,7 @@ httpTest("Entity HTTP: CRUD·권한·입력·버전·참조·삭제 보존 실�
   assertEquals((await call(A, "DELETE", `/entities/${e.id}?expected_version=1`)).status, 409);
   assertEquals((await call(A, "DELETE", `/entities/${e.id}?expected_version=2`)).status, 204);
   const current = (await call(A, "GET", `/tasks/${task.id}`)).body;
-  assertEquals(current.entity_id, null);
+  assertEquals(current.entity_ids, []);
   assertEquals(current.version, 2);
   assertEquals((await call(A, "POST", "/search", search)).body.items, []);
   assertEquals(

@@ -11,7 +11,7 @@ import type { ChangeMemo } from "../../contracts/change.ts";
 
 export interface EntityStore extends RequestStore, ChangeStore {
   get(id: string, lock?: boolean): Promise<EntityResult | null>;
-  related(id: string): Promise<Pick<EntityDetail, "tasks" | "records" | "principles">>;
+  related(id: string): Promise<Pick<EntityDetail, "tasks" | "records">>;
   insert(input: Omit<EntityCreate, "request_id" | "change_memo">): Promise<EntityResult>;
   update(
     id: string,

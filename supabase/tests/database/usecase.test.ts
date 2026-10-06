@@ -53,7 +53,6 @@ for (const step of ["insertRecord", "updateTask", "enqueueIndex"] as const) {
       activity.completeTask({ uow: failingAt(step), clock }, actor, task.id, {
         change_note: "테스트 변경 이유",
         expected_version: 1,
-        applied_principle_ids: [],
         title: "결과",
         summary: "결과 요약",
         body: "",
@@ -65,7 +64,6 @@ for (const step of ["insertRecord", "updateTask", "enqueueIndex"] as const) {
     const done = await activity.completeTask({ uow: real, clock }, actor, task.id, {
       change_note: "테스트 변경 이유",
       expected_version: 1,
-      applied_principle_ids: [],
       title: "결과",
       summary: "결과 요약",
       body: "",
