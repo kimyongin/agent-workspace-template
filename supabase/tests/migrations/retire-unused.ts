@@ -137,11 +137,16 @@ try {
       );
       await sql`call private.preserve_principle_sources(${f.owner}::uuid)`;
       assertEquals(await parts(), f.sources);
-      assertEquals(
-        await sql`select id,body from app.records where owner_id=${f.owner} and id in ${
-          sql(originalBodies.map((r) => r.id))
-        } order by id`,
-        originalBodies,
+      const afterBodies = await sql`select id,body from app.records where owner_id=${f.owner} and id in ${
+        sql(originalBodies.map((r) => r.id))
+      } order by id`;
+      // Result also carries query/connection metadata. Compare every original id/body exactly,
+      // including row count/order, without comparing unrelated query metadata or dumping bodies.
+      assert(
+        afterBodies.length === originalBodies.length && originalBodies.every((row, index) =>
+          row.id === afterBodies[index].id && row.body === afterBodies[index].body
+        ),
+        "Preserved record identity/order/body changed after current edit and archive rerun",
       );
       assertEquals(
         (await sql`select payload from private.retired_principle_sources where owner_id=${f.owner} and source_kind='principle'`)[
