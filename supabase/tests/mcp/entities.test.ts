@@ -51,7 +51,9 @@ httpTest("Entity MCP: 실제 SDK/OAuth CRUD·태그 scope·웹 parity·참조 �
     assertEquals((await tool(client, "get_entity", { id: "bad-id" })).error.code, "not_found");
     const marker = crypto.randomUUID();
     const r = await tool(client, "create_record", { title: "연결 기록", summary: marker, entity_ids: [e.id] });
-    assertEquals((await tool(client, "get_entity", { id: e.id })).principles.count, 0);
+    const detail = await tool(client, "get_entity", { id: e.id });
+    assertEquals("principles" in detail, false);
+    assertEquals(detail.records.items.some((record: { id: string }) => record.id === r.id), true);
     assertEquals(
       (await tool(client, "create_principle", { title: "연결 원칙", summary: "요약", entity_id: e.id })).error.code,
       "invalid_input",
