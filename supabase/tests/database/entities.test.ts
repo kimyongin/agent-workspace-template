@@ -32,7 +32,7 @@ dbTest("Entity DB: same owner 참조 거부·삭제 링크 해제·원문/버전
     A,
     recordCreate.parse({
       id: crypto.randomUUID(),
-      ...{ title: "기록", body: "기록 원문", entity_ids: [e.id] },
+      ...{ body: "기록 원문", entity_ids: [e.id] },
     }),
   );
   for (const ref of [foreign.id, crypto.randomUUID()]) {
@@ -62,7 +62,7 @@ dbTest("Entity DB: same owner 참조 거부·삭제 링크 해제·원문/버전
     a,
     A,
     task.id,
-    taskComplete.parse({ change_note: "테스트 변경 이유", expected_version: 1, title: "완료 결과" }),
+    taskComplete.parse({ expected_version: 1, body: "완료 결과" }),
   );
   assertEquals(completed.record.entity_ids, [e.id]);
   const detail = await entity.getEntity(d, A, e.id);

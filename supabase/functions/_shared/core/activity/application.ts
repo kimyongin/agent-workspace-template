@@ -89,7 +89,7 @@ export async function createTask(deps: ActivityDeps, actor: Actor, input: TaskCr
 export async function getTask(deps: ActivityDeps, actor: Actor, id: string): Promise<TaskDetail> {
   return await deps.uow.run(actor, async (store) => {
     const task = await requireTask(store, id);
-    const [result] = task.result_record_id ? await store.getRecordSummaries([task.result_record_id]) : [];
+    const [result] = task.result_record_id ? await store.getRecordBodies([task.result_record_id]) : [];
     return { ...toTaskResult(task), result_record: result ?? null };
   });
 }

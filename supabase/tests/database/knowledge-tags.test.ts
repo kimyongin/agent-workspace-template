@@ -87,7 +87,7 @@ dbTest(
         A,
         recordCreate.parse({
           id: crypto.randomUUID(),
-          ...{ title: "활동", body: "보존", tag_ids: [activityTag.id] },
+          ...{ body: "보존", tag_ids: [activityTag.id] },
         }),
       );
       assertEquals(

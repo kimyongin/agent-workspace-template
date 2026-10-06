@@ -73,7 +73,7 @@ dbTest("할 일 태그: 필터·부분 수정·삭제 후 원문·색인 보존"
   assertEquals(after.tag_ids, []);
   assertEquals(after.body, "정정");
   assertEquals(after.version, 5);
-  assertEquals((await admin`select msg_id from pgmq.q_search_index where message->>'id'=${task.id}`).length, 1);
+  assertEquals((await admin`select msg_id from pgmq.q_search_index where message->>'id'=${task.id}`).length, 0);
 });
 dbTest("할 일 태그: 다른 소유자·없는 태그·중복·10개 초과 거부와 롤백", async () => {
   const foreign = await createTag(

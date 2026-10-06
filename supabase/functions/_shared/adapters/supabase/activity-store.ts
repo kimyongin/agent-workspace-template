@@ -183,7 +183,7 @@ export class SqlActivityStore extends SqlActorStore implements ActivityStore {
     return row ? toRecord(row) : null;
   }
 
-  async getRecordSummaries(ids: string[]) {
+  async getRecordBodies(ids: string[]) {
     if (ids.length === 0) return [];
     return await this.tx<{ id: string; body: string }[]>`
       select id, body from app.records where id in ${this.tx(ids)}`;

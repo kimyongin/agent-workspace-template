@@ -102,7 +102,7 @@ httpTest(
       tasks.push(once.id);
       const completion = await call(session, "POST", `/tasks/${once.id}/complete`, {
         expected_version: once.version,
-        title: "실행 결과",
+        body: "실행 결과",
       });
       assertEquals(completion.status, 200);
       records.push(completion.body.record.id);

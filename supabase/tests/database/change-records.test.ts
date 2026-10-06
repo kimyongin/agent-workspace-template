@@ -137,7 +137,7 @@ dbTest(
         ad,
         A,
         task.id,
-        taskComplete.parse({ expected_version: taskUpdated.version, title: "실제 결과" }),
+        taskComplete.parse({ expected_version: taskUpdated.version, body: "실제 결과" }),
       );
       assertEquals(completion.record.record_kind, "result");
       assertEquals(await count(), 4);
@@ -236,7 +236,7 @@ dbTest(
         }),
         ri = recordUpdate.parse({
           expected_version: 1,
-          title: "새 관찰",
+          body: "새 관찰",
         });
       await assertRejects(() => e.updateEntity(badE, A, entity.id, ei));
       await assertRejects(() => a.updateTask(badA, A, task.id, ti));

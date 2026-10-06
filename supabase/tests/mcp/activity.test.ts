@@ -223,8 +223,7 @@ httpTest("활동 다중 태그 OR는 HTTP/MCP에서 페이지 전에 적용되�
     for (const tag of tags) {
       rows.push(
         await tool(mcpA, createTool, {
-          ...(kind === "tasks" ? { kind: "once" } : {}),
-          title: "다중 분류",
+          ...(kind === "tasks" ? { kind: "once", title: "다중 분류" } : { body: "다중 분류" }),
           tag_ids: [tag.id],
         }),
       );
@@ -245,7 +244,7 @@ httpTest("활동 다중 태그 OR는 HTTP/MCP에서 페이지 전에 적용되�
 
 httpTest("기록·원칙·완료·회차의 태그 HTTP/MCP 동등성", async () => {
   const tag = await tool(mcpA, "create_tag", { name: crypto.randomUUID().slice(0, 30) });
-  const refs = { title: "분류", tag_ids: [tag.id] };
+  const refs = { body: "분류", tag_ids: [tag.id] };
   assertEquals(
     (await tool(mcpA, "create_principle", refs)).error,
     (await call(sessionA, "POST", "/principles", refs)).body,
@@ -271,7 +270,6 @@ httpTest("기록·원칙·완료·회차의 태그 HTTP/MCP 동등성", async ()
   const foreign = await tool(mcpB, "create_tag", { name: crypto.randomUUID().slice(0, 30) });
   assertEquals(
     (await tool(mcpA, "update_record", {
-      change_note: "테스트 변경 이유",
       id: r.body.id,
       expected_version: 1,
       tag_ids: [foreign.id],
@@ -500,7 +498,7 @@ httpTest("웹(HTTP)에서 만든 할 일을 MCP로 조회·완료하고 웹에�
   const done = await tool(mcpA, "complete_task", {
     id: created.body.id,
     expected_version: 1,
-    title: "에이전트가 완료",
+    body: "에이전트가 완료",
   });
   assertEquals(done.task.status, "done");
   const web = await call(sessionA, "GET", `/tasks/${created.body.id}`);
@@ -523,7 +521,7 @@ httpTest("MCP에서 만든 기록과 반복 회차를 HTTP가 같게 본다", as
     task_id: t.id,
     id: crypto.randomUUID(),
     date: seoulDate(-1),
-    title: "함",
+    body: "함",
   });
   const range = { from: seoulDate(-2), to: seoulDate(1) };
   const viaMcp = await tool(mcpA, "list_occurrences", { id: t.id, ...range });
@@ -577,7 +575,7 @@ httpTest("오류 의미가 HTTP와 같다(code·retryable·fields)", async () =>
     task_id: t.id,
     id: crypto.randomUUID(),
     date: seoulDate(),
-    title: "a",
+    body: "a",
   });
   assertEquals(future.error.code, "conflict"); // 일회성 할 일에는 회차가 없다
 
@@ -593,10 +591,9 @@ httpTest("오류 의미가 HTTP와 같다(code·retryable·fields)", async () =>
 httpTest("같은 버전의 완료 요청은 한 번만 실행된다", async () => {
   const t = await tool(mcpA, "create_task", { kind: "once", title: "재시도" });
   const args = {
-    change_note: "테스트 변경 이유",
     id: t.id,
     expected_version: 1,
-    title: "완료",
+    body: "완료",
   };
   const [x, y] = await Promise.all([tool(mcpA, "complete_task", args), tool(mcpA, "complete_task", args)]);
   assertEquals([x, y].filter((r) => !r.error).length, 1);

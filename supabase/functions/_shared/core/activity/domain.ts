@@ -49,7 +49,7 @@ export function newTask(input: TaskCreate): NewTask {
   return { id: input.id, ...taskContent(input) };
 }
 
-/** The same business content is used by preview, before a storage identity exists. */
+/** Build business content before assigning a storage identity. */
 export function taskContent(
   input:
     | Omit<Extract<TaskCreate, { kind: "once" }>, "id">

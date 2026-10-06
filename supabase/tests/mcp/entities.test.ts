@@ -30,7 +30,6 @@ httpTest("Entity MCP: 실제 SDK/OAuth CRUD·태그 scope·웹 parity·참조 �
     assertEquals(createdHistory.change_metadata.action, "create");
     const edit = await call(token, "PATCH", `/records/${createdHistory.id}`, {
       expected_version: 1,
-      change_note: "自動記録の説明を補う",
     });
     assertEquals(edit.status, 200);
     assertEquals(edit.body.change_note, "自動記録の説明を補う");
@@ -49,7 +48,7 @@ httpTest("Entity MCP: 실제 SDK/OAuth CRUD·태그 scope·웹 parity·참조 �
     );
     assertEquals((await tool(client, "get_entity", { id: "bad-id" })).error.code, "not_found");
     const marker = crypto.randomUUID();
-    const r = await tool(client, "create_record", { body: "연결 기록", summary: marker, entity_ids: [e.id] });
+    const r = await tool(client, "create_record", { body: "연결 기록", entity_ids: [e.id] });
     const detail = await tool(client, "get_entity", { id: e.id });
     assertEquals("principles" in detail, false);
     assertEquals(detail.records.items.some((record: { id: string }) => record.id === r.id), true);

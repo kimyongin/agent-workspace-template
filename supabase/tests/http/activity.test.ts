@@ -281,7 +281,7 @@ httpTest("기록 목록: 커서 페이지와 다른 조건의 커서 거부", as
   assertEquals(stolen.status, 400);
 });
 
-httpTest("기록 수정: 제목·요약 변경은 재색인, 본문만 변경은 재색인하지 않음", async () => {
+httpTest("기록 수정: 본문 변경은 재색인하고 동일 본문 재저장은 무변경", async () => {
   const r = (await call(A, "POST", "/records", { body: "기록" })).body;
   const pending = () =>
     admin`select msg_id,message from pgmq.q_search_index where message->>'kind'='record' and message->>'id'=${r.id}`;
@@ -289,22 +289,22 @@ httpTest("기록 수정: 제목·요약 변경은 재색인, 본문만 변경은
   assertEquals(first.length, 1);
   assertEquals(
     (await call(A, "PATCH", `/records/${r.id}`, {
-      change_note: "테스트 변경 이유",
       expected_version: 1,
       body: "본문만",
     })).status,
     200,
   );
-  assertEquals((await pending())[0].msg_id, first[0].msg_id);
+  const changed = await pending();
+  assertNotEquals(changed[0].msg_id, first[0].msg_id);
   assertEquals(
     (await call(A, "PATCH", `/records/${r.id}`, {
-      change_note: "테스트 변경 이유",
       expected_version: 2,
+      body: "본문만",
     })).status,
     200,
   );
   const latest = await pending();
   assertEquals(latest.length, 1);
-  assertNotEquals(latest[0].msg_id, first[0].msg_id);
+  assertEquals(latest[0].msg_id, changed[0].msg_id);
   assertNotEquals(latest[0].message.input_hash, first[0].message.input_hash);
 });

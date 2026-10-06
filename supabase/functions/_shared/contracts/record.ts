@@ -22,7 +22,7 @@ export const recordUpdate = z
     tag_ids: tagIds.optional(),
     body: recordBody.optional(),
     occurred_at: isoDateTime.optional(),
-  }); // Automatic change records also allow editing only their note.
+  }); // Automatic change records allow editing their body.
 export type RecordUpdate = z.infer<typeof recordUpdate>;
 
 export const recordListQuery = z

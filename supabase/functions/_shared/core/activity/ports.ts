@@ -87,7 +87,7 @@ export interface ActivityStore extends ChangeStore {
   deleteTask(id: string): Promise<void>;
 
   getRecord(id: string, opts?: { forUpdate?: boolean }): Promise<ActivityRecord | null>;
-  getRecordSummaries(ids: string[]): Promise<Pick<ActivityRecord, "id" | "body">[]>;
+  getRecordBodies(ids: string[]): Promise<Pick<ActivityRecord, "id" | "body">[]>;
   listRecords(filter: RecordFilter): Promise<ActivityRecord[]>;
   occurrenceRecords(taskId: string, from: string, to: string): Promise<{ id: string; occurrence_on: string }[]>;
   insertRecord(record: NewRecord): Promise<ActivityRecord>;

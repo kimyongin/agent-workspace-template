@@ -84,7 +84,7 @@ function fixture(storageNow = () => now) {
       return Promise.resolve();
     },
     getRecord: unsupported,
-    getRecordSummaries: unsupported,
+    getRecordBodies: unsupported,
     listRecords: unsupported,
     occurrenceRecords: unsupported,
     updateRecord: unsupported,

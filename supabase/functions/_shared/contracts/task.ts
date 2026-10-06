@@ -163,7 +163,7 @@ export const occurrence = z.object({
 });
 export type Occurrence = z.infer<typeof occurrence>;
 
-/** 단건 조회: 결과 기록의 요약과 함께. 상세 경로는 웹이 `/records/:id`로 만든다. */
+/** 단건 조회: 결과 기록의 본문과 함께. 상세 경로는 웹이 `/records/:id`로 만든다. */
 export const taskDetail = taskResult.extend({
   result_record: z.object({ id, body: z.string() }).nullable(),
 });
