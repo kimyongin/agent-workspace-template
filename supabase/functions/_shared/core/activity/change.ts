@@ -2,7 +2,7 @@ import type { ChangeFacts, ChangeTarget } from "../shared/changes.ts";
 import type { NewTask, Task } from "./domain.ts";
 import type { ActivityRecord } from "./ports.ts";
 
-export function taskChangeFacts(task: NewTask): ChangeFacts {
+export function taskChangeFacts(task: Omit<NewTask, "id">): ChangeFacts {
   return {
     title: task.title,
     summary: task.summary,

@@ -17,7 +17,7 @@ export function EntityForm(
     details?: ReactNode;
     onClose: () => void;
     onRouteDiscard?: () => void;
-    onSave: (value: Omit<EntityCreate,"id"> & {tag_ids: string[]; change_note?: string}) => Promise<void>;
+    onSave: (value: Omit<EntityCreate,"id"> & {tag_ids: string[]; change_note?: string}, creationId: () => string) => Promise<void>;
   },
 ) {
   const baseline = {
@@ -54,7 +54,7 @@ export function EntityForm(
         const parsed = entityCreate.omit({id:true}).safeParse(fields);
         return parsed.success ? null : fieldErrors(parsed.error.issues);
       }}
-      onSubmit={(change_memo) => {const {tag_ids,change_note,...fields}=value(); return onSave({...entityCreate.omit({id:true}).parse(fields),tag_ids,change_note:change_note.trim()||undefined,change_memo});}}
+      onSubmit={(change_memo, creationId) => {const {tag_ids,change_note,...fields}=value(); return onSave({...entityCreate.omit({id:true}).parse(fields),tag_ids,change_note:change_note.trim()||undefined,change_memo}, creationId);}}
     >
       {(errors) => (
         <>

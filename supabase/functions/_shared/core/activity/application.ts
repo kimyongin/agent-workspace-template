@@ -28,6 +28,7 @@ import {
   resumeTask as decideResume,
   stopTask as decideStop,
   type Task,
+  taskContent,
   todayOf,
   updateTask as decideUpdate,
 } from "./domain.ts";
@@ -77,8 +78,8 @@ async function requireRecord(store: ActivityStore, id: string, forUpdate = false
 export async function previewTaskChange(deps: ActivityDeps, actor: Actor, input: TaskChangePreview) {
   return await deps.uow.run(actor, async (store) => {
     if (input.action === "create") {
-      const task = newTask(input.input as TaskCreate);
-      const ids = selectedEntities(input.input as TaskCreate) ?? [];
+      const task = taskContent(input.input);
+      const ids = selectedEntities(input.input) ?? [];
       if (ids.length) await store.validateEntitySelection(ids);
       return {
         memo: basicChangeMemo({

@@ -6,8 +6,8 @@ import { Field, Notice } from "../../components/Field.tsx";
 import { DeleteDialog } from "../../components/DeleteDialog.tsx";
 import { query } from "../../lib/api.ts";
 import { BusyNavigationGuard, ConfirmDialog, ModalShell } from "../../components/Modal.tsx";
-import { api, ApiError, isUncertain } from "../../lib/api.ts";
-import { useCreationId } from "../../lib/useCreationId.ts";
+import { api, ApiError } from "../../lib/api.ts";
+import { useWriteAttempt, writeErrorMessage } from "../../lib/write-attempt.ts";
 import "./tags.css";
 import { findTag } from "./resolve-tag.ts";
 type Page = { items: TagResult[]; next_cursor: string | null };
@@ -23,15 +23,16 @@ function ScopedTagsPage({scope}:{scope:"entity"|"activity"}) {
   const location=useLocation(),[params]=useSearchParams(),navigateAfterClose=useDeferredNavigation();
   const [page, setPage] = useState<Page | null>(null), [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null), [retry, setRetry] = useState(0), [loading, setLoading] = useState(false);
-  const [draft, setDraft] = useState<Draft | null>(null), [busy, setBusy] = useState(false);
+  const [draft, setDraft] = useState<Draft | null>(null), [deletingBusy, setDeletingBusy] = useState(false);
   const [failure, setFailure] = useState<string | null>(null), [fieldError, setFieldError] = useState<string | undefined>();
-  const [uncertain, setUncertain] = useState(false), [conflict, setConflict] = useState(false);
+  const [conflict, setConflict] = useState(false);
+  const {attempt, uncertain, busy: writing} = useWriteAttempt();
+  const busy = writing || deletingBusy;
   const [pending, setPending] = useState<(() => void) | null>(null), [deleting, setDeleting] = useState<TagResult | null>(null);
   const pageCount = useRef(1), focusId = useRef<string | null>(null), input = useRef<HTMLInputElement>(null), saving = useRef(false);
   const readEpoch = useRef(0), readAbort = useRef<AbortController | null>(null);
   const invalidateReads = () => { readEpoch.current++; readAbort.current?.abort(); };
   useEffect(() => () => { readEpoch.current++; readAbort.current?.abort(); }, []);
-  const creationId = useCreationId();
   const dirty = !!draft && (draft.name !== (draft.initial?.name ?? "") || uncertain);
   useEffect(() => {
     readAbort.current?.abort(); const controller = new AbortController(); readAbort.current = controller;
@@ -53,35 +54,36 @@ function ScopedTagsPage({scope}:{scope:"entity"|"activity"}) {
   } }, [page, loading]);
   const change = (action: () => void) => { if (busy) return; if (dirty) setPending(() => action); else action(); };
   const select = (tag: TagResult | null, read=false) => change(() => {
-    setDraft({ initial: tag, name: tag?.name ?? "" }); setFailure(null); setNotice(null); setFieldError(undefined); setUncertain(false); setConflict(false); creationId.renew();
+    setDraft({ initial: tag, name: tag?.name ?? "" }); setFailure(null); setNotice(null); setFieldError(undefined); attempt.reset(); setConflict(false);
     const p=new URLSearchParams(params);p.delete("view");p.delete("edit");p.delete("create");tag?p.set(read?"view":"edit",tag.id):p.set("create","1");navigateAfterClose(`?${p}`,true);
     requestAnimationFrame(() => input.current?.focus());
   });
   const dismiss = () => {const p=new URLSearchParams(params);p.delete("view");p.delete("edit");p.delete("create");navigateAfterClose(`?${p}`,true);};
   useEffect(()=>{let alive=true; const selected=params.get("edit")??params.get("view");
-    if(params.get("create")==="1"){if(!draft){creationId.renew();setDraft({initial:null,name:""});}return;}
-    if(selected&&draft?.initial?.id!==selected)findTag(selected,cursor=>api<Page>("GET",`/tags?scope=${scope}${cursor?`&cursor=${encodeURIComponent(cursor)}`:""}`)).then(tag=>{if(alive){if(tag){creationId.renew();setDraft({initial:tag,name:tag.name});}else setFailure("태그를 찾을 수 없습니다.");}}).catch(()=>{if(alive)setFailure("태그를 불러오지 못했습니다.");});
+    if(params.get("create")==="1"){if(!draft){setDraft({initial:null,name:""});}return;}
+    if(selected&&draft?.initial?.id!==selected)findTag(selected,cursor=>api<Page>("GET",`/tags?scope=${scope}${cursor?`&cursor=${encodeURIComponent(cursor)}`:""}`)).then(tag=>{if(alive){if(tag){setDraft({initial:tag,name:tag.name});}else setFailure("태그를 찾을 수 없습니다.");}}).catch(()=>{if(alive)setFailure("태그를 불러오지 못했습니다.");});
     return()=>{alive=false;};
   },[location.key]);
   const cancel = () => {
-    const id = draft?.initial?.id ?? "heading"; setDraft(null); setUncertain(false);
+    const id = draft?.initial?.id ?? "heading"; setDraft(null); attempt.reset();
     if (conflict) { focusId.current = id; setRetry(n => n + 1); }
     else requestAnimationFrame(() => (document.getElementById(`tag-${id}`) ?? document.getElementById("tags-title"))?.focus());
     dismiss();
   };
   const save = async () => {
-    if (!draft || saving.current || conflict) return;
+    if (!draft || attempt.snapshot().busy || conflict) return;
     const parsed = tagCreate.omit({id:true}).safeParse({ name: draft.name });
     if (!parsed.success) { setFieldError(parsed.error.issues[0]?.message); input.current?.focus(); return; }
-    saving.current = true; setBusy(true); setFailure(null); setFieldError(undefined);
+    setFailure(null); setFieldError(undefined);
     try {
+      await attempt.run(async () => {
       const saved = await api<TagResult>(draft.initial ? "PATCH" : "POST", draft.initial ? `/tags/${draft.initial.id}` : "/tags",
-        draft.initial ? { name: parsed.data.name, expected_version: draft.initial.version } : { ...parsed.data, scope, id: creationId.current });
+        draft.initial ? { name: parsed.data.name, expected_version: draft.initial.version } : { ...parsed.data, scope, id: attempt.creationId() });
       invalidateReads();
       setPage(p => p ? { ...p, items: p.items.some(t => t.id === saved.id) ? p.items.map(t => t.id === saved.id ? saved : t) : [saved, ...p.items] } : { items: [saved], next_cursor: null });
-      focusId.current = saved.id; setDraft(null); setUncertain(false); creationId.renew(); setNotice("태그를 저장했습니다."); dismiss(); setRetry(n => n + 1);
+      focusId.current = saved.id; setDraft(null); attempt.reset();  setNotice("태그를 저장했습니다."); dismiss(); setRetry(n => n + 1);
+      });
     } catch (e) {
-      setUncertain(isUncertain(e));
       if (e instanceof ApiError && e.code === "conflict") {
         let versionConflict = false, readFailure = false;
         if (draft.initial) {
@@ -92,9 +94,9 @@ function ScopedTagsPage({scope}:{scope:"entity"|"activity"}) {
         setFailure(versionConflict ? "다른 변경이 저장되었습니다. 초안을 유지합니다. 취소 후 최신 태그를 다시 선택하세요." : readFailure ? `${e.message} 최신 상태를 조회하지 못했습니다. 초안을 유지합니다.` : e.message);
         if (!versionConflict && !readFailure) setFieldError(e.message);
       }
-      else setFailure(isUncertain(e) ? "응답을 받지 못해 저장 여부를 알 수 없습니다. 같은 내용으로 다시 시도할 수 있습니다. 충돌하면 최신 상태를 확인하세요." : e instanceof ApiError ? e.message : "저장하지 못했습니다.");
+      else setFailure(writeErrorMessage(e));
       if (e instanceof ApiError && e.fields.some(f => f.path === "name")) setFieldError(e.fields.find(f => f.path === "name")?.message);
-    } finally { saving.current = false; setBusy(false); }
+    }
   };
   return <section className="panel" aria-labelledby="tags-title">
     <div className="panel-head"><h1 id="tags-title" tabIndex={-1} className="page-title">{scope==="entity"?"엔터티":"활동"} 태그 관리</h1><button className="btn btn-primary" disabled={busy} onClick={() => select(null)}>태그 추가</button></div>
@@ -105,9 +107,9 @@ function ScopedTagsPage({scope}:{scope:"entity"|"activity"}) {
     <div className="tag-management"><ul className="list">{page?.items.map(t => <li key={t.id} className="list-item"><span className="item-title">{t.name}</span><div className="actions">
       <button className="btn" disabled={busy} aria-label={`${t.name} 보기`} onClick={()=>select(t,true)}>보기</button>
       <button id={`tag-${t.id}`} className="btn" disabled={busy} aria-pressed={draft?.initial?.id === t.id} aria-label={`${t.name} 이름 변경`} onClick={() => select(t)}>이름 변경</button>
-      <button className="btn btn-danger" disabled={busy} aria-label={`${t.name} 삭제`} onClick={() => change(() => { setDraft(null); setUncertain(false);creationId.renew(); setDeleting(t); })}>삭제</button>
+      <button className="btn btn-danger" disabled={busy} aria-label={`${t.name} 삭제`} onClick={() => change(() => { setDraft(null); attempt.reset(); setDeleting(t); })}>삭제</button>
     </div></li>)}</ul>
-    {draft && <ModalShell open title={params.has("view")?draft.name:draft.initial?"태그 이름 변경":"태그 추가"} dirty={dirty} busy={busy} onClose={cancel} onRouteDiscard={()=>{setDraft(null);setUncertain(false);}} footer={requestClose=>params.has("view")?<button className="btn" onClick={()=>select(draft.initial)}>편집</button>:<><button type="button" className="btn" disabled={busy} onClick={requestClose}>취소</button><button form="tag-edit-form" type="submit" className="btn btn-primary" disabled={busy||conflict}>{busy?"저장 중…":uncertain?"같은 내용 다시 시도":"저장"}</button></>}><form id="tag-edit-form" className="form tag-editor" aria-label={draft.initial ? "태그 이름 변경" : "태그 추가"} onSubmit={e => { e.preventDefault(); void save(); }}>
+    {draft && <ModalShell open title={params.has("view")?draft.name:draft.initial?"태그 이름 변경":"태그 추가"} dirty={dirty} busy={busy} onClose={cancel} onRouteDiscard={()=>{setDraft(null);attempt.reset();}} footer={requestClose=>params.has("view")?<button className="btn" onClick={()=>select(draft.initial)}>편집</button>:<><button type="button" className="btn" disabled={busy} onClick={requestClose}>취소</button><button form="tag-edit-form" type="submit" className="btn btn-primary" disabled={busy||conflict}>{busy?"저장 중…":uncertain?"같은 내용 다시 시도":"저장"}</button></>}><form id="tag-edit-form" className="form tag-editor" aria-label={draft.initial ? "태그 이름 변경" : "태그 추가"} onSubmit={e => { e.preventDefault(); void save(); }}>
       {params.has("view")?<><h2 className="section-title">{draft.name}</h2><p className="help">{scope==="entity"?"엔터티":"할 일·기록"}에 사용하는 태그입니다.</p></>:<>
       {failure && <Notice kind="error">{failure}</Notice>}
       <Field label={tagLabels.name} required error={fieldError} help="1~30자, 같은 이름은 대소문자를 구분하지 않습니다.">{p => <input {...p} ref={input} className="input" value={draft.name} readOnly={busy || uncertain} onChange={e => setDraft(d => d && ({ ...d, name: e.target.value }))} />}</Field>
@@ -125,13 +127,13 @@ function ScopedTagsPage({scope}:{scope:"entity"|"activity"}) {
       onCancel={() => setPending(null)}
       onConfirm={() => {const action=pending;setPending(null);action?.();}} />
     {deleting && <><BusyNavigationGuard pending={saving}/><DeleteDialog title="태그를 삭제할까요?" busy={busy} message={`${deleting.name} 태그와 연결을 제거합니다. 항목의 원문은 보존합니다.`} onCancel={() => setDeleting(null)} onConfirm={async reason => {
-      if (saving.current) return; saving.current = true; setBusy(true); setFailure(null);
+      if (saving.current) return; saving.current = true; setDeletingBusy(true); setFailure(null);
       try { await api("DELETE", `/tags/${deleting.id}${query({expected_version:deleting.version,change_note:reason})}`);
         invalidateReads();
         const at = page?.items.findIndex(t => t.id === deleting.id) ?? -1; focusId.current = page?.items[at + 1]?.id ?? page?.items[at - 1]?.id ?? "heading";
-        setPage(p => p && ({ ...p, items: p.items.filter(t => t.id !== deleting.id) })); setNotice("태그를 삭제했습니다.");
-      } catch (e) { focusId.current = deleting.id; setNotice(null); setFailure(isUncertain(e) ? "삭제 응답을 받지 못했습니다. 최신 목록에서 삭제 여부를 확인하세요." : e instanceof ApiError ? e.message : "삭제하지 못했습니다."); }
-      finally { setDeleting(null); setRetry(n => n + 1); setBusy(false); saving.current = false; }
+        setPage(p => p && ({ ...p, items: p.items.filter(t => t.id !== deleting.id) })); setNotice("태그를 삭제했습니다."); setDeleting(null);
+      } catch (e) { focusId.current = deleting.id; setNotice(null); throw e; }
+      finally { setRetry(n => n + 1); setDeletingBusy(false); saving.current = false; }
     }} /></>}
     {!draft && failure && <Notice kind="error">{failure}</Notice>}
   </section>;

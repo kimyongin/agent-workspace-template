@@ -48,7 +48,7 @@ export function RecordFormModal(props: {
   editing?: boolean;
   onClose: () => void;
   onRouteDiscard?: () => void;
-  onSave: (value: { title: string; summary: string; body: string; change_note?: string; occurred_at?: string; tag_ids?:string[];entity_ids?:string[] }) => Promise<void>;
+  onSave: (value: { title: string; summary: string; body: string; change_note?: string; occurred_at?: string; tag_ids?:string[];entity_ids?:string[] }, creationId: () => string) => Promise<void>;
 }) {
   const [initial] = useState(props.initial);
   const [draft, setDraft] = useState(initial);
@@ -74,7 +74,7 @@ export function RecordFormModal(props: {
         const r = recordCreate.omit({id:true}).safeParse(value());
         return r.success ? null : fieldErrors(r.error.issues);
       }}
-      onSubmit={() => {const parsed=recordCreate.omit({id:true}).parse(value());return props.onSave({... (props.systemRecord?{title:parsed.title,summary:parsed.summary,body:parsed.body}:parsed),change_note:draft.change_note?.trim()||undefined});}}
+      onSubmit={(_memo, creationId) => {const parsed=recordCreate.omit({id:true}).parse(value());return props.onSave({... (props.systemRecord?{title:parsed.title,summary:parsed.summary,body:parsed.body}:parsed),change_note:draft.change_note?.trim()||undefined}, creationId);}}
     >
       {(errors) => (
         <>
@@ -208,7 +208,7 @@ export function TaskFormModal(props: {
   details?: ReactNode;
   onClose: () => void;
   onRouteDiscard?: () => void;
-  onSave: (draft: TaskDraft) => Promise<void>;
+  onSave: (draft: TaskDraft, creationId: () => string) => Promise<void>;
 }) {
   const [initial] = useState(props.initial);
   const [draft, setDraft] = useState(initial);
@@ -240,7 +240,7 @@ export function TaskFormModal(props: {
         for (const [k, v] of Object.entries(errs)) if (k.startsWith("recurrence.")) errs[k.slice(11)] ??= v;
         return errs;
       }}
-      onSubmit={(change_memo) => props.onSave({...draft,change_memo})}
+      onSubmit={(change_memo, creationId) => props.onSave({...draft,change_memo}, creationId)}
     >
       {(errors) => (
         <>

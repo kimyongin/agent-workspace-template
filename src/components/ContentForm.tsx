@@ -4,24 +4,14 @@ import { type FormEvent, type ReactNode, useContext, useId, useLayoutEffect, use
 import { createPortal } from "react-dom";
 import { Field, Notice } from "./Field.tsx";
 import { ModalShell, SurfaceContext } from "./Modal.tsx";
-import { ApiError, isUncertain } from "../lib/api.ts";
+import { ApiError } from "../lib/api-error.ts";
+import { useWriteAttempt, writeErrorMessage } from "../lib/write-attempt.ts";
 import { changeMemo, type ChangeMemo } from "@contracts/change.ts";
 
 export interface TextDraft {
   title: string;
   summary: string;
   body: string;
-}
-
-function saveErrorMessage(e: unknown): string {
-  if (isUncertain(e)) {
-    return "응답을 받지 못해 저장 여부를 알 수 없습니다. 같은 내용으로 다시 시도할 수 있습니다. 이미 반영됐다면 충돌하거나 대상이 없다고 응답하므로 최신 상태를 확인하세요.";
-  }
-  if (e instanceof ApiError) {
-    if (e.code === "conflict") return `${e.message} 화면을 닫고 다시 연 뒤 시도하세요.`;
-    return e.message;
-  }
-  return "저장하지 못했습니다.";
 }
 
 function serverFieldErrors(e: unknown): Record<string, string> {
@@ -60,7 +50,7 @@ interface FormModalProps {
   /** 경로 폐기는 이동 없이 편집만 닫는다. onClose가 이동하면 별도 콜백이 필요하다. */
   onRouteDiscard?: () => void;
   /** 검증·저장. 실패하면 throw하고 초안은 유지된다. */
-  onSubmit: (memo?: ChangeMemo) => Promise<void>;
+  onSubmit: (memo: ChangeMemo | undefined, creationId: () => string) => Promise<void>;
   prepare?: () => Promise<ChangeMemo>;
   previewKey?: string;
   validate: () => Record<string, string> | null;
@@ -68,13 +58,11 @@ interface FormModalProps {
 }
 
 export function FormModal({ title, open, submitLabel, dirty, onClose, onRouteDiscard, onSubmit, prepare, previewKey, validate, children }: FormModalProps) {
-  const [busy, setBusy] = useState(false);
+  const { attempt, busy, uncertain } = useWriteAttempt();
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [failure, setFailure] = useState<string | null>(null);
   const formId = useId();
   const surface = useContext(SurfaceContext);
-  const [uncertain, setUncertain] = useState(false);
-  const submitting = useRef(false);
   const [memo, setMemo] = useState<ChangeMemo | null>(null);
   const memoTitle = useRef<HTMLInputElement>(null);
   const memoEditable = !!memo && !busy && !uncertain;
@@ -84,22 +72,20 @@ export function FormModal({ title, open, submitLabel, dirty, onClose, onRouteDis
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
-    if (submitting.current) return;
+    if (busy) return;
     const local = validate();
     setErrors(local ?? {});
     if (local) return setFailure("입력을 확인하세요.");
-    submitting.current = true; setBusy(true);
     setFailure(null);
     try {
+      await attempt.run(async () => {
       if(prepare&&!memo){setMemo(changeMemo.parse(await prepare()));return;}
       if(memo){const parsed=changeMemo.safeParse(memo);if(!parsed.success){setFailure("기록 메모의 제목·요약과 길이를 확인하세요.");return;}}
-      await onSubmit(memo??undefined);
+      await onSubmit(memo??undefined, attempt.creationId);
+      }, !prepare || !!memo);
     } catch (err) {
-      setUncertain((!prepare||!!memo)&&isUncertain(err));
       setErrors(serverFieldErrors(err));
-      setFailure(prepare&&!memo ? `${err instanceof ApiError?err.message:"기본 메모를 불러오지 못했습니다."} 아직 저장하지 않았습니다.` : saveErrorMessage(err));
-    } finally {
-      submitting.current = false; setBusy(false);
+      setFailure(prepare&&!memo ? `${err instanceof ApiError?err.message:"기본 메모를 불러오지 못했습니다."} 아직 저장하지 않았습니다.` : writeErrorMessage(err));
     }
   };
 

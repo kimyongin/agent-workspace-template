@@ -5,7 +5,6 @@ import { PrincipleFormModal, emptyPrinciple } from "./forms.tsx";
 import { Notice } from "../../components/Field.tsx";
 import { MarkdownContent } from "../../components/MarkdownContent.tsx";
 import { api } from "../../lib/api.ts";
-import { useCreationId } from "../../lib/useCreationId.ts";
 import { formatDateTime } from "../../lib/format.ts";
 import type { WorkspacePrinciple } from "./model.ts";
 import "../activity/activity.css";
@@ -14,8 +13,7 @@ export function PrinciplesPage() {
   const create=useCreateMode();
   const location=useLocation();
   useEffect(()=>{if(location.hash==="#principles-title")document.getElementById("principles-title")?.focus();},[location.key]);
-  const [params]=useSearchParams(), creationId=useCreationId();
-  useEffect(()=>{if(create.open)creationId.renew();},[create.open,create.key]);
+  const [params]=useSearchParams();
   const [current,setCurrent]=useState<WorkspacePrinciple|null|undefined>(undefined),[error,setError]=useState<string|null>(null),[retry,setRetry]=useState(0);
   useEffect(()=>{const controller=new AbortController();setError(null);
     api<{current:WorkspacePrinciple|null}>("GET","/principles/current",undefined,controller.signal).then(p=>{if(!controller.signal.aborted)setCurrent(p.current);}).catch(()=>{if(!controller.signal.aborted)setError("현재 원칙을 불러오지 못했습니다.");});
@@ -32,8 +30,8 @@ export function PrinciplesPage() {
     {current&&<section className="panel current-document"><h2 className="section-title">{current.title}</h2><p className="secondary">{current.summary}</p><MarkdownContent text={current.body}/><p className="meta">저장 {formatDateTime(current.saved_at)}</p></section>}
     {["tag_id","entity_id","status"].some(k=>params.has(k))&&<Notice>원칙은 계정 전체의 문서입니다. 기존 태그·엔터티·활성 상태 조건은 적용하지 않습니다.</Notice>}
 
-    {create.open&&current===null&&<PrincipleFormModal key={create.key} initial={emptyPrinciple} onClose={create.close} onRouteDiscard={create.discard} onSave={async draft=>{
-      const saved=await api<WorkspacePrinciple>("POST","/principles",{...draft,id:creationId.current});creationId.renew();const p=new URLSearchParams(params);p.delete("create");create.finish(`/principles/${saved.id}?list=${encodeURIComponent(`/principles?${p}`)}`);
+    {create.open&&current===null&&<PrincipleFormModal key={create.key} initial={emptyPrinciple} onClose={create.close} onRouteDiscard={create.discard} onSave={async (draft, creationId)=>{
+      const saved=await api<WorkspacePrinciple>("POST","/principles",{...draft,id:creationId()});const p=new URLSearchParams(params);p.delete("create");create.finish(`/principles/${saved.id}?list=${encodeURIComponent(`/principles?${p}`)}`);
     }}/>}
   </section></>;
 }
