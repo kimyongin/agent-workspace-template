@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { runLocalChecks } from './local-runtime.mjs';
 
 function external(states = [{ state: 'ready' }]) {
-  const events = [], child = { pid: 41, startedAt: 100 };
+  const events = [], child = { pid: 41, startedAt: 100, ownershipToken: 'own' };
   return { events, child,
     now: () => 100,
     pause: async () => {},
@@ -16,6 +16,24 @@ function external(states = [{ state: 'ready' }]) {
     run: async label => { events.push(label); return { code: 0 }; },
   };
 }
+
+test('same-source runtime created during setup is foreign despite matching creation time', async () => {
+  const foreign = { id: 'foreign', source: '/owned/functions', createdAt: 101, ownershipToken: 'foreign' };
+  const adapter = external([{ state: 'absent' }, { state: 'ready', container: foreign }]);
+  adapter.prepare = async () => { adapter.events.push('prepare'); return { code: 0, startedAt: 100, createdContainer: foreign }; };
+  const result = await runLocalChecks(adapter, { checks: ['DB'], source: '/owned/functions' });
+  assert.equal(result.exitCode, 0);
+  assert.deepEqual(adapter.events, ['prepare', 'DB']);
+});
+
+test('same-source runtime created during serve with a foreign nonce is never cleaned', async () => {
+  const foreign = { id: 'foreign', source: '/owned/functions', createdAt: 101, ownershipToken: 'foreign' };
+  const adapter = external([{ state: 'absent' }, { state: 'absent' }, { state: 'ready', container: foreign }]);
+  adapter.child.ownershipToken = 'own';
+  const result = await runLocalChecks(adapter, { checks: ['DB'], source: '/owned/functions' });
+  assert.equal(result.exitCode, 1);
+  assert.deepEqual(adapter.events, ['prepare', 'start', 'stop-child']);
+});
 
 test('ready borrowed runtime is used without setup, spawning or cleanup', async () => {
   const adapter = external();
@@ -37,22 +55,12 @@ test('starting borrowed runtime waits for readiness, and a failed preparation ne
 });
 
 test('a new runtime is prepared, checked and cleaned by its exact creation identity', async () => {
-  const own = { id: 'new-id', createdAt: 101, source: '/owned/functions' };
+  const own = { id: 'new-id', createdAt: 101, source: '/owned/functions', ownershipToken: 'own' };
   const adapter = external([{ state: 'absent' }, { state: 'absent' }, { state: 'ready', container: own }, { state: 'ready', container: own }]);
   const result = await runLocalChecks(adapter, { checks: ['DB'], source: '/owned/functions' });
   assert.equal(result.exitCode, 0);
   assert.equal(result.runtime, 'owned');
   assert.deepEqual(adapter.events, ['prepare', 'start', 'DB', 'stop-child', 'stop-container:new-id']);
-});
-
-test('setup-created Edge runtime is replaced only by exact ID after completed environment preparation', async () => {
-  const setup = { id: 'setup-id', createdAt: 101, source: '/owned/functions' };
-  const serve = { id: 'serve-id', createdAt: 102, source: '/owned/functions' };
-  const adapter = external([{ state: 'absent' }, { state: 'starting', container: setup }, { state: 'absent' }, { state: 'ready', container: serve }, { state: 'ready', container: serve }]);
-  adapter.prepare = async () => { adapter.events.push('prepare'); return { code: 0, startedAt: 100, createdContainer: setup }; };
-  const result = await runLocalChecks(adapter, { checks: ['DB'], source: '/owned/functions' });
-  assert.equal(result.exitCode, 0);
-  assert.deepEqual(adapter.events, ['prepare', 'stop-container:setup-id', 'start', 'DB', 'stop-child', 'stop-container:serve-id']);
 });
 
 test('a runtime appearing independently during setup is borrowed rather than replaced', async () => {
@@ -84,8 +92,8 @@ test('readiness timeout never starts over or stops a borrowed runtime', async ()
 
 test('unproven source and changed identities cannot authorize container cleanup', async () => {
   for (const source of ['/another/functions', '/owned/functions']) {
-    const initial = { id: 'one', createdAt: 101, source };
-    const final = { id: 'replacement', createdAt: 102, source };
+    const initial = { id: 'one', createdAt: 101, source, ownershipToken: 'own' };
+    const final = { id: 'replacement', createdAt: 102, source, ownershipToken: 'own' };
     const adapter = external([{ state: 'absent' }, { state: 'absent' }, { state: 'ready', container: initial }, { state: 'ready', container: final }]);
     const result = await runLocalChecks(adapter, { checks: ['DB'], source: '/owned/functions' });
     assert.equal(result.exitCode, 1);
@@ -95,7 +103,7 @@ test('unproven source and changed identities cannot authorize container cleanup'
 });
 
 test('stage and cleanup failures survive together, and later independent checks still run', async () => {
-  const own = { id: 'new', createdAt: 101, source: '/owned/functions' };
+  const own = { id: 'new', createdAt: 101, source: '/owned/functions', ownershipToken: 'own' };
   const adapter = external([{ state: 'absent' }, { state: 'absent' }, { state: 'ready', container: own }, { state: 'ready', container: own }]);
   adapter.run = async label => ({ code: label === 'DB' ? 9 : 0 });
   const original = new Error('cleanup unavailable');
@@ -118,7 +126,7 @@ test('SIGINT and SIGTERM skip subsequent checks and never clean borrowed servers
 });
 
 test('interrupted owned execution cleans only its child/container and retains cleanup failures', async () => {
-  const own = { id: 'owned', createdAt: 101, source: '/owned/functions' };
+  const own = { id: 'owned', createdAt: 101, source: '/owned/functions', ownershipToken: 'own' };
   const adapter = external([{ state: 'absent' }, { state: 'absent' }, { state: 'ready', container: own }, { state: 'ready', container: own }]);
   const controller = new AbortController();
   adapter.run = async () => { controller.abort('SIGINT'); return { code: 130, interrupted: true }; };
@@ -130,17 +138,26 @@ test('interrupted owned execution cleans only its child/container and retains cl
   assert(adapter.events.includes('stop-container:owned'));
 });
 
-test('failed setup still removes its proven new runtime, while a failed child never respawns', async () => {
-  const own = { id: 'prepared', createdAt: 101, source: '/owned/functions' };
+test('failed setup preserves any appearing runtime, while a failed child never respawns', async () => {
+  const own = { id: 'prepared', createdAt: 101, source: '/owned/functions', ownershipToken: 'own' };
   const prepared = external([{ state: 'absent' }, { state: 'starting', container: own }]);
   prepared.prepare = async () => ({ code: 7, startedAt: 100, createdContainer: own });
   const failed = await runLocalChecks(prepared, { checks: ['DB'], source: '/owned/functions' });
   assert.equal(failed.exitCode, 1);
   assert.equal(failed.results[0].code, 7);
-  assert.deepEqual(prepared.events, ['stop-container:prepared']);
+  assert.deepEqual(prepared.events, []);
   const child = external([{ state: 'absent' }]);
   child.childRunning = () => false;
   const exit = await runLocalChecks(child, { checks: ['DB'], source: '/owned/functions' });
   assert.equal(exit.exitCode, 1);
   assert.deepEqual(child.events, ['prepare', 'start', 'stop-child']);
+});
+
+test('failed startup still cleans its nonce-proven container after its child has exited', async () => {
+  const own = { id: 'startup', source: '/owned/functions', ownershipToken: 'own' };
+  const adapter = external([{ state: 'absent' }, { state: 'absent' }, { state: 'ready', container: own }]);
+  adapter.childRunning = () => false;
+  const result = await runLocalChecks(adapter, { checks: ['DB'], source: '/owned/functions' });
+  assert.equal(result.exitCode, 1);
+  assert.deepEqual(adapter.events, ['prepare', 'start', 'stop-child', 'stop-container:startup']);
 });

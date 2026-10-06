@@ -1,11 +1,34 @@
 import { spawn, spawnSync } from 'node:child_process';
-import { existsSync, openSync, closeSync, realpathSync } from 'node:fs';
+import { existsSync, openSync, closeSync, realpathSync, mkdtempSync, readFileSync, writeFileSync, unlinkSync, rmdirSync, chmodSync } from 'node:fs';
+import { randomUUID, createHash } from 'node:crypto';
 import { dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { setTimeout as pause } from 'node:timers/promises';
+import { runLocalChecks } from './local-runtime.mjs';
 
 const interruptedCodes = new Set([130, 143, 3221225786, -1073741510]);
 const scripts = { setup: 'setup:local', core: 'test:core', DB: 'test:db', HTTP: 'test:http', MCP: 'test:mcp', E2E: 'test:e2e' };
+
+// Cooperating runners serialize acquisition; this is never container ownership evidence.
+export function acquireRuntimeLock(projectId, directory = tmpdir()) {
+  const name = createHash('sha256').update(projectId).digest('hex');
+  const path = join(directory, `workspace-runtime-${name}.lock`);
+  const handle = openSync(path, 'wx', 0o600);
+  const token = randomUUID();
+  try { writeFileSync(handle, token); }
+  catch (error) { closeSync(handle); throw error; }
+  return () => {
+    closeSync(handle);
+    if (readFileSync(path, 'utf8') !== token) throw new Error('Runtime lease identity changed; left untouched');
+    unlinkSync(path);
+  };
+}
+
+export async function runLeasedLocalChecks(config, options, adapter = createLocalRuntimeAdapter(config), directory) {
+  const release = acquireRuntimeLock(`${config.projectId}:${config.apiUrl}`, directory);
+  try { return await runLocalChecks(adapter, { ...options, source: adapter.source }); }
+  finally { release(); }
+}
 
 // Stop does not remove a Docker container. Remove only this proven runtime ID, never volumes/data.
 export async function removeOwnedContainer(id, command) {
@@ -36,7 +59,9 @@ export function createLocalRuntimeAdapter(config) {
       const killed = spawnSync('taskkill', ['/pid', String(child.pid), '/T', '/F'], { shell: false, stdio: 'ignore', timeout: 5000 });
       if (killed.status !== 0 && child.exitCode === null && child.signalCode === null) throw new Error('Owned child termination failed');
     } else {
-      try { process.kill(-child.pid, 'SIGTERM'); }
+      // CLI graceful teardown may act on a project name after another runtime replaces it.
+      // Kill our process group; the lifecycle module authorizes container cleanup by exact ID/nonce.
+      try { process.kill(-child.pid, 'SIGKILL'); }
       catch (error) { if (error.code !== 'ESRCH') throw error; }
     }
     let timer;
@@ -87,7 +112,12 @@ export function createLocalRuntimeAdapter(config) {
       try { return m.Type === 'bind' && realpathSync(m.Source) === source; }
       catch { return false; }
     });
-    return { id, createdAt: Date.parse(created), source: functions.length === 1 ? source : null, running };
+    // Emit only our non-secret marker; never inspect or log other environment values.
+    const marker = await command('docker', ['inspect', '--format', '{{range .Config.Env}}{{if eq (index (split . "=") 0) "WORKSPACE_RUNTIME_OWNER"}}{{println .}}{{end}}{{end}}', id]);
+    if (marker.code !== 0 || marker.oversized) throw new Error('Cannot inspect runtime ownership marker');
+    const entries = marker.output.trim().split('\n').filter(Boolean);
+    const ownershipToken = entries.length === 1 ? entries[0].trim().slice('WORKSPACE_RUNTIME_OWNER='.length) : null;
+    return { id, source: functions.length === 1 ? source : null, running, ownershipToken };
   }
 
   async function observe(signal) {
@@ -101,10 +131,10 @@ export function createLocalRuntimeAdapter(config) {
     return { state: 'absent' };
   }
 
-  async function run(label, signal) {
+  async function run(label, signal, extra = []) {
     console.log(`\n▶ ${label}`);
     const started = Date.now();
-    const result = await command(process.execPath, [npm, 'run', '-s', scripts[label]], { signal, stdio: 'inherit', timeoutMs: 0 });
+    const result = await command(process.execPath, [npm, 'run', '-s', scripts[label], ...extra], { signal, stdio: 'inherit', timeoutMs: 0 });
     return { code: result.code, signal: result.signal, interrupted: result.interrupted, stopFailed: result.stopFailed, seconds: Math.round((Date.now() - started) / 1000) };
   }
 
@@ -113,23 +143,31 @@ export function createLocalRuntimeAdapter(config) {
     pause: signal => pause(1000, undefined, { signal }),
     run,
     async prepare(signal) {
-      const startedAt = Date.now();
-      const result = await run('setup', signal);
-      const created = await container();
-      return { ...result, startedAt, createdContainer: created?.source === source && created.createdAt >= startedAt ? created : null };
+      return run('setup', signal, ['--', '--skip-functions']);
     },
     async start() {
-      const out = openSync(log, 'wx', 0o600);
-      const startedAt = Date.now();
-      let child;
-      try { child = launch(process.execPath, [npm, 'run', '-s', 'serve:functions'], ['ignore', out, out]); }
-      finally { closeSync(out); }
-      child.startedAt = startedAt;
+      if ((await observe()).state !== 'absent') throw new Error('Runtime appeared before owned launch; left untouched');
+      const contents = readFileSync('supabase/functions/.env', 'utf8');
+      const directory = mkdtempSync(join(tmpdir(), 'workspace-runtime-'));
+      const envFile = join(directory, 'functions.env');
+      const ownershipToken = randomUUID();
+      const removeEnv = () => { if (existsSync(envFile)) unlinkSync(envFile); rmdirSync(directory); };
+      let child, out;
+      try {
+        chmodSync(directory, 0o700);
+        writeFileSync(envFile, `${contents}\nWORKSPACE_RUNTIME_OWNER=${ownershipToken}\n`, { mode: 0o600, flag: 'wx' });
+        out = openSync(log, 'wx', 0o600);
+        child = launch(process.execPath, [npm, 'exec', '--', 'supabase', 'functions', 'serve', '--env-file', envFile], ['ignore', out, out]);
+      }
+      catch (error) { removeEnv(); throw error; }
+      finally { if (out !== undefined) closeSync(out); }
+      child.ownershipToken = ownershipToken;
+      child.removeEnv = removeEnv;
       console.log(`\n▶ Edge Functions 실행 (개인 로그: ${log})`);
       return child;
     },
     childRunning: child => Number.isInteger(child.pid) && !child.spawnFailed && child.exitCode === null && child.signalCode === null,
-    stopChild,
+    async stopChild(child) { try { await stopChild(child); } finally { child.removeEnv?.(); } },
     stopContainer: id => removeOwnedContainer(id, command),
   };
 }

@@ -11,6 +11,15 @@ import {
 } from "./list-state.ts";
 
 describe("activity list return", () => {
+  it("rejects the final requested page's repeated continuation before publishing its rows or metadata", async () => {
+    const publish = vi.fn();
+    const load = vi.fn().mockResolvedValueOnce({ items: [{ id: "kept" }], next_cursor: "next", search_state: "ok" })
+      .mockResolvedValueOnce({ items: [{ id: "rejected" }], next_cursor: "next", search_state: "keyword_fallback" });
+    await expect(restoreList({ load, pages: 2, current: () => true, publish })).rejects.toThrow("Repeated list cursor");
+    expect(publish.mock.calls.map(([page]) => page)).toEqual([
+      { items: [{ id: "kept" }], next_cursor: "next", search_state: "ok", pages: 1 },
+    ]);
+  });
   it("batches long restoration renders while retaining every page and ordered cursor", async () => {
     const published: number[] = [];
     const load = vi.fn(async (cursor?: string) => {

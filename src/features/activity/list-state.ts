@@ -103,6 +103,7 @@ export async function restoreList<T extends { id: string }>(options: {
       if (cursor) visited.add(cursor);
       const page = await options.load(cursor);
       if (!options.current()) return undefined;
+      if (page.next_cursor && visited.has(page.next_cursor)) throw new Error("Repeated list cursor");
       if(!result && options.anchor && page.anchor_page && Number.isSafeInteger(page.anchor_page)) {
         targetPages=Math.min(MAX_RESTORE_PAGES,Math.max(targetPages,page.anchor_page));
         budget=Math.min(MAX_RESTORE_PAGES,Math.max(budget,targetPages));
