@@ -22,7 +22,7 @@ export class SqlIndexQueue implements IndexQueue {
   ): Promise<boolean> {
     const [r] = await this.sql`select app.finish_search_index(${id}::bigint,${pipeline},${state},${reason},
       ${
-      chunks ? JSON.stringify(chunks.map(({ start, end, vector }) => ({ start, end, vector }))) : null
+      chunks ? this.sql.json(chunks.map(({ start, end, vector }) => ({ start, end, vector }))) : null
     }::jsonb,${delay}) as applied`;
     return r.applied as boolean;
   }
