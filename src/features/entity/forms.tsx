@@ -1,3 +1,4 @@
+import type { DeletionOptions } from "../../components/DeleteAction.tsx";
 import {
   type EntityCreate,
   entityCreate,
@@ -10,10 +11,10 @@ import { Field } from "../../components/Field.tsx";
 import { fieldErrors } from "../../lib/format.ts";
 import { TagPicker } from "../tags/TagPicker.tsx";
 export function EntityForm(
-  { initial, details, onDelete, onClose, onRouteDiscard, onSave }: {
+  { initial, details, deletion, onClose, onRouteDiscard, onSave }: {
     initial?: EntityResult;
     details?: ReactNode;
-    onDelete?: () => void;
+    deletion?: DeletionOptions;
     onClose: () => void;
     onRouteDiscard?: () => void;
     onSave: (value: Omit<EntityCreate,"id"> & {tag_ids: string[]; change_note?: string}, creationId: () => string) => Promise<void>;
@@ -38,7 +39,7 @@ export function EntityForm(
       open
       title={initial ? "엔터티 편집" : "엔터티 추가"}
       submitLabel="저장"
-      onDelete={onDelete}
+      deletion={deletion}
       onClose={onClose}
       onRouteDiscard={onRouteDiscard}
       dirty={JSON.stringify(draft) !== JSON.stringify(baseline)}

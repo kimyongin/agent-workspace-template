@@ -135,7 +135,7 @@ for (
       await link.click();
       await openDetailEditor(page);
       await page.getByRole("button", { name: "삭제", exact: true }).click();
-      await saveOnce(page,page.getByRole("dialog", { name: `${label}을 삭제할까요?`, exact: true }),"삭제");
+      await saveOnce(page,page.locator(".delete-action.is-armed"),"삭제 확인");
       await expect(link).toHaveCount(0);
       await expect(page.locator(`.${path} .list .item-title`)).toHaveCount(62);
       ids.delete(target.id);

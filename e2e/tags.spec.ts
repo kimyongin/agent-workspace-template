@@ -43,8 +43,8 @@ test("태그 실제 DELETE pending은 Back을 막고 응답 뒤 정상 복귀한
       deletes++;arrived();await hold;const response=await route.fetch();await route.fulfill({response});finished();
     });
     await page.getByRole("button",{name:`${tag.name} 삭제`,exact:true}).click();
-    const confirm=page.getByRole("dialog",{name:"태그를 삭제할까요?"});
-    await confirm.getByRole("button",{name:"삭제",exact:true}).click();await waiting;
+    const confirm=page.locator(".delete-action.is-armed");
+    await confirm.getByRole("button",{name:"삭제 확인",exact:true}).click();await waiting;
     await page.goBack();await expect(page).toHaveURL(/tags\/activity$/);await expect(confirm).toBeVisible();
     await expect(confirm.getByRole("button",{name:"처리 중…"})).toBeDisabled();
     await page.keyboard.press("Escape");await expect(confirm).toBeVisible();
@@ -92,7 +92,7 @@ test("웹 태그 생성→MCP 중복·이름 변경→웹 삭제",async({page})=
     const list=await mcp.call("list_tags",{limit:100});const tag=list.items.find((t:{name:string})=>t.name===title);
     const renamed=unique("정정").slice(0,30);await mcp.call("rename_tag",{id:tag.id,expected_version:1,name:renamed});
     await page.reload();await page.getByRole("button",{name:`${renamed} 삭제`,exact:true}).click();
-    await page.getByRole("dialog",{name:"태그를 삭제할까요?"}).getByRole("button",{name:"삭제",exact:true}).click();
+    await page.locator(".delete-action.is-armed").getByRole("button",{name:"삭제 확인",exact:true}).click();
     await expect(page.getByRole("button",{name:`${renamed} 삭제`,exact:true})).toHaveCount(0);
     await expect.poll(()=>page.evaluate(()=>document.activeElement?.id)).toMatch(/^(tag-|tags-title)/);
   }finally{await mcp.close();}

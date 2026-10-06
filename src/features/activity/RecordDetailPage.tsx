@@ -1,9 +1,7 @@
 import { DetailLink as Link, useDetailNavigate, useDetailOwnerReturn } from "../../lib/detail-exploration.tsx";
 import { editFromView } from "../../lib/detail-navigation.ts";
-import { DeleteDialog } from "../../components/DeleteDialog.tsx";
 import { ChangeContext, PrincipleSnapshots, type WorkspaceRecord } from "./ChangeContext.tsx";
 // 기록 상세: 원문 읽기, 편집, 삭제.
-import { recordLabels } from "@contracts/record.ts";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useSearchParams } from "react-router";
 import {useDeferredNavigation} from "../../lib/useDeferredNavigation.ts";
@@ -29,8 +27,7 @@ export function RecordDetailPage() {
   const [message, setMessage] = useState<string | null>(null);
   const directEdit = params.get("edit") === "1";
   const [dialog, setDialog] = useState<null | "edit" | "delete">(directEdit ? "edit" : null);
-  const [deleting, setDeleting] = useState(false);
-  const conflicted=useRef(false);
+    const conflicted=useRef(false);
   const closeEdit = () => { setDialog(null);if(conflicted.current){conflicted.current=false;void reload();} if(directEdit&&params.get("edit_from")!=="view")navigateAfterClose(back,true);else{const p=new URLSearchParams(params);p.delete("edit");p.delete("edit_from");navigateAfterClose(`?${p}`,true);} };
   const [editReady,setEditReady]=useState(false);
   const [busy, setBusy] = useState(false);
@@ -80,25 +77,19 @@ export function RecordDetailPage() {
       {error && <Notice kind="error">{error}</Notice>}
       <ChangeContext record={record}/>
       {loadError && <><Notice kind="error">{loadError}</Notice><button type="button" className="btn" onClick={reload}>조회 다시 시도</button></>}
-      {(dialog!=="edit"||record.record_kind==="change")&&<dl className="props">
-        <div>
-          <dt>{recordLabels.occurred_at}</dt>
-          <dd>{formatDateTime(record.occurred_at)}</dd>
-        </div>
-      </dl>}
       {record.task_id && <div><h2 className="section-title">관련 할 일</h2><Link to={`/tasks/${record.task_id}`}>{record.occurrence_on ? `${record.occurrence_on} 회차` : "결과로 연결된 할 일"}</Link></div>}
       {(dialog!=="edit"||record.record_kind==="change")&&<><TagNames ids={record.tag_ids}/>
       <EntityLinks ids={record.entity_ids} context={record.entity_context}/></>}
       <PrincipleSnapshots snapshots={record.applied_principle_snapshots??[]}/>
-      <p className="meta" style={{ margin: 0 }}>
+      <details className="record-audit"><summary>저장 정보</summary><p className="meta">
         만든 시각 {formatDateTime(record.created_at)} · 수정 {formatDateTime(record.updated_at)}
-      </p>
+      </p>{record.change&&<p className="help">이 기록의 정정·삭제는 대상의 업무 상태를 되돌리지 않습니다.</p>}</details>
     </div>;
   const startEdit=()=>navigate(editFromView(params));
   return <DetailSurface footer={<button type="button" className="btn btn-primary" onClick={startEdit}>편집</button>} title="기록" onClose={()=>dialog==="edit"&&!editReady?closeEdit():navigate(back)} busy={busy}>
 
-      {record.body&&<section className="detail-section" aria-label="내용"><MarkdownContent text={record.body} className={record.record_kind==="change"?"memo-text":undefined}/></section>}
-      {dialog!=="edit"&&<section className="detail-section"><h2 className="section-title">관련 정보</h2>{management}</section>}
+      {record.body&&<section className="detail-section record-content" aria-label="내용"><MarkdownContent text={record.body}/></section>}
+      {dialog!=="edit"&&<section className="detail-section" aria-label="기록 정보">{management}</section>}
       {dialog === "edit" && !editReady && loadError && <>
         <Notice kind="error">{loadError}</Notice>
         <button type="button" className="btn" onClick={reload}>조회 다시 시도</button>
@@ -111,7 +102,22 @@ export function RecordDetailPage() {
           open
           initial={recordDraftFrom(record)}
           details={<section className="detail-section"><h2 className="section-title">저장 정보 (읽기 전용)</h2>{management}</section>}
-          onDelete={()=>setDeleting(true)}
+          deletion={{note:false,message:<p style={{ margin: 0 }}>
+            이 기록을 삭제합니다. {record.record_kind==="change"?"대상의 업무 상태는 되돌리지 않습니다.":"일회성 할 일의 결과였다면 할 일은 완료 상태로 남고 결과 연결만 사라집니다."}
+          </p>,onConfirm:async () => {
+          setBusy(true);
+          setError(null);
+          try {
+            await api("DELETE", `/records/${record.id}${query({expected_version:record.version})}`);
+            setDialog(null);
+            navigateAfterClose(listPath,true);
+          } catch (e) {
+            setError(e instanceof ApiError ? e.message : "삭제하지 못했습니다.");
+            throw e;
+          } finally {
+            setBusy(false);
+          }
+        }}}
           onClose={closeEdit}
           onRouteDiscard={() => setDialog(null)}
           onSave={async (value) => {
@@ -127,29 +133,6 @@ export function RecordDetailPage() {
           }}
         />
       )}
-      {deleting&&<DeleteDialog note={false}
-        title="기록을 삭제할까요?"
-        message={
-          <p style={{ margin: 0 }}>
-            이 기록을 삭제합니다. {record.record_kind==="change"?"대상의 업무 상태는 되돌리지 않습니다.":"일회성 할 일의 결과였다면 할 일은 완료 상태로 남고 결과 연결만 사라집니다."}
-          </p>
-        }
-        busy={busy}
-        onCancel={() => setDeleting(false)}
-        onConfirm={async () => {
-          setBusy(true);
-          setError(null);
-          try {
-            await api("DELETE", `/records/${record.id}${query({expected_version:record.version})}`);
-            setDialog(null);
-            navigateAfterClose(listPath,true);
-          } catch (e) {
-            setError(e instanceof ApiError ? e.message : "삭제하지 못했습니다.");
-            throw e;
-          } finally {
-            setBusy(false);
-          }
-        }}
-      />}
+
     </DetailSurface>;
 }

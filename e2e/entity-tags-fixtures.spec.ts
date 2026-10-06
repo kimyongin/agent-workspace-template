@@ -174,8 +174,8 @@ test("이름 충돌 초안 보존과 삭제 실패·성공", async ({ page }) =>
   await page.goto(url); await page.getByRole("button", { name: "첫 태그 이름 변경" }).click(); await page.getByRole("textbox", { name: /태그 이름/ }).fill("초안 유지"); await saveOnce(page, page);
   await expect(page.getByText(/다른 변경이 저장되었습니다/)).toBeVisible(); await expect(page.getByRole("textbox", { name: /태그 이름/ })).toHaveValue("초안 유지");
   await page.getByRole("button", { name: "닫기", exact: true }).click(); await page.getByRole("dialog", { name: "변경을 버릴까요?" }).getByRole("button", { name: "변경 버리기" }).click();
-  await page.getByRole("button", { name: "첫 태그 삭제" }).click(); await page.getByRole("dialog", { name: "태그를 삭제할까요?" }).getByRole("button", { name: "삭제", exact: true }).click(); await expect(page.getByRole("dialog", { name: "태그를 삭제할까요?" }).getByText(/삭제 충돌/)).toBeVisible();
-  failedDelete = false; await page.getByRole("dialog", { name: "태그를 삭제할까요?" }).getByRole("button", { name: "삭제", exact: true }).click(); await expect(page.getByText("태그를 삭제했습니다.")).toBeVisible();
+  await page.getByRole("button", { name: "첫 태그 삭제" }).click(); await page.locator(".delete-action.is-armed").getByRole("button", { name: "삭제 확인", exact: true }).click(); await expect(page.locator(".delete-action.is-armed").getByText(/삭제 충돌/)).toBeVisible();
+  failedDelete = false; await page.locator(".delete-action.is-armed").getByRole("button", { name: "삭제 확인", exact: true }).click(); await expect(page.getByText("태그를 삭제했습니다.")).toBeVisible();
 });
 test("태그 삭제 응답 유실 후 창과 이유를 유지하고 같은 버전으로 재시도", async ({ page }) => {
   const deletions: string[] = [];
@@ -186,9 +186,9 @@ test("태그 삭제 응답 유실 후 창과 이유를 유지하고 같은 버�
   });
   await page.goto(url);
   await page.getByRole("button", { name: "첫 태그 삭제" }).click();
-  const dialog = page.getByRole("dialog", { name: "태그를 삭제할까요?" });
+  const dialog = page.locator(".delete-action.is-armed");
   await dialog.getByRole("textbox", { name: /이유/ }).fill("분류 통합");
-  await dialog.getByRole("button", { name: "삭제", exact: true }).click();
+  await dialog.getByRole("button", { name: "삭제 확인", exact: true }).click();
   await expect(dialog).toBeVisible();
   await expect(dialog.getByRole("textbox", { name: /이유/ })).toHaveValue("분류 통합");
   await expect(dialog.getByRole("textbox", { name: /이유/ })).toBeDisabled();

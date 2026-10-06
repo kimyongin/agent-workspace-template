@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from "react";
 import { useParams, useSearchParams } from "react-router";
 import { DetailSurface } from "../../components/Modal.tsx";
 import { Notice } from "../../components/Field.tsx";
-import { DeleteDialog } from "../../components/DeleteDialog.tsx";
 import { MarkdownContent } from "../../components/MarkdownContent.tsx";
 import { api, ApiError } from "../../lib/api.ts";
 import { useDeferredNavigation } from "../../lib/useDeferredNavigation.ts";
@@ -19,7 +18,7 @@ export function PrincipleDetailPage() {
   const confirmed=useRef<WorkspacePrinciple|null>(null), conflicted=useRef(false);
   const [message,setMessage]=useState<string|null>(null);
   const [item,setItem]=useState<WorkspacePrinciple|null>(null), [error,setError]=useState<string|null>(null),[retry,setRetry]=useState(0);
-  const [deleting,setDeleting]=useState(false),[busy,setBusy]=useState(false);
+  const [busy,setBusy]=useState(false);
   const [editReady,setEditReady]=useState(false);
   const [editing,setEditing]=useState(params.get("edit")==="1");
   const previousQuery=useRef(params.toString());
@@ -35,7 +34,7 @@ export function PrincipleDetailPage() {
     {item&&<section className="form">
       <section className="detail-section" aria-label="현재 원칙">{item.body&&<MarkdownContent text={item.body}/>}<p className="meta">수정 {formatDateTime(item.saved_at)}</p></section>
       {editing&&editReady&&item.is_current&&<PrincipleFormModal editing initial={{title:item.title,body:item.body}} onClose={closeEdit} onRouteDiscard={()=>setEditing(false)}
-        onDelete={()=>setDeleting(true)} details={<div className="detail-management">{message&&<Notice kind="success">{message}</Notice>}{error&&<Notice kind="error">{error}</Notice>}<p className="meta">현재 원칙 · {formatDateTime(item.saved_at)}</p>
+        deletion={{message:<p>삭제하면 현재 원칙이 없는 상태가 됩니다. 과거 원칙을 자동 승격하지 않습니다. 기록에 보존한 근거는 남습니다.</p>,onConfirm:async(reason)=>{setBusy(true);try{await api("POST",`/principles/${item.id}/delete`,{expected_version:item.version,change_note:reason||undefined});setEditing(false);afterClose(back,true);}catch(e){setError(e instanceof ApiError?e.message:"삭제하지 못했습니다.");throw e;}finally{setBusy(false);}}}} details={<div className="detail-management">{message&&<Notice kind="success">{message}</Notice>}{error&&<Notice kind="error">{error}</Notice>}<p className="meta">현재 원칙 · {formatDateTime(item.saved_at)}</p>
 
           </div>}
         onSave={async draft=>{
@@ -43,9 +42,7 @@ export function PrincipleDetailPage() {
         try {saved=await api<WorkspacePrinciple>("PATCH",`/principles/${item.id}`,{...draft,expected_version:item.version});}catch(e){if(e instanceof ApiError&&e.code==="conflict")conflicted.current=true;throw e;}
         confirmed.current=saved;setMessage("저장했습니다.");setEditing(false);setItem(saved);const p=new URLSearchParams(params);p.delete("edit");p.delete("edit_from");afterClose(params.get("edit_from")==="view"?`/principles/${saved.id}?${p}`:back,true);
       }}/>}
-      {deleting&&item.is_current&&<DeleteDialog title="원칙을 삭제할까요?" busy={busy}
-        message={<p>삭제하면 현재 원칙이 없는 상태가 됩니다. 과거 원칙을 자동 승격하지 않습니다. 기록에 보존한 근거는 남습니다.</p>}
-        onCancel={()=>setDeleting(false)} onConfirm={async(reason)=>{setBusy(true);try{await api("POST",`/principles/${item.id}/delete`,{expected_version:item.version,change_note:reason||undefined});setEditing(false);afterClose(back,true);}catch(e){setError(e instanceof ApiError?e.message:"삭제하지 못했습니다.");throw e;}finally{setBusy(false);}}}/>}
+
     </section>}
   </DetailSurface>;
 }

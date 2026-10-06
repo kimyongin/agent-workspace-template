@@ -73,11 +73,11 @@ test("Entity 웹 CRUD·초안 보호→MCP parity·활동 연결→삭제 원문
     await page.goto(`/entities/${id}`);
     await openDetailEditor(page);
     await page.getByRole("button", { name: "삭제", exact: true }).click();
-    const remove = page.getByRole("dialog", { name: "엔터티를 삭제할까요?" });
+    const remove = page.locator(".delete-action.is-armed");
     await remove.getByRole("button", { name: "취소", exact: true }).click();
     await expect(page.locator("dialog.modal:not(.modal-confirm)[open]").getByLabel("속성 1")).toHaveValue(name);
     await page.getByRole("button", { name: "삭제", exact: true }).click();
-    await saveOnce(page,page.getByRole("dialog", { name: "엔터티를 삭제할까요?" }),"삭제");
+    await saveOnce(page,page.locator(".delete-action.is-armed"),"삭제 확인");
     await expect(
       page.getByRole("heading", { name: "엔터티", level: 1, exact: true }),
     )

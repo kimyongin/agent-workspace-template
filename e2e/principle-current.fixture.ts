@@ -44,8 +44,8 @@ test("현재 원칙은 한 번에 저장해 같은 문서를 갱신하며 삭제
   expect(writes[0].change_note).toBe("판단 근거를 보충");expect(writes[0]).not.toHaveProperty("change_memo");
   expect(current?.id).toBe(id);expect(current?.body).toBe("새 본문");
   await page.goto(`/principles/${id}?edit=1&edit_from=view`);await form.getByRole("button",{name:"삭제",exact:true}).click();
-  const confirm=page.getByRole("dialog",{name:"원칙을 삭제할까요?",exact:true});await expect(confirm).toContainText("과거 원칙을 자동 승격하지 않습니다");
-  expect(writes).toHaveLength(1);await confirm.getByRole("button",{name:"삭제",exact:true}).click();
+  const confirm=page.locator(".delete-action.is-armed");await expect(confirm).toContainText("과거 원칙을 자동 승격하지 않습니다");
+  expect(writes).toHaveLength(1);await confirm.getByRole("button",{name:"삭제 확인",exact:true}).click();
   await expect(page.getByText("현재 원칙이 없습니다.",{exact:false})).toBeVisible();expect(current).toBeNull();expect(writes).toHaveLength(2);
 });
 
@@ -59,9 +59,9 @@ test("원칙 삭제 응답이 끊기면 입력 메모와 같은 버전으로 재
     return route.fulfill({json:path.endsWith("/current")?{current:writes.length>1?null:current}:path.endsWith(id)?current:{items:[],next_cursor:null}});
   });
   await page.goto(`/e2e/fixtures/workspace-screens.html?route=/principles/${id}?edit=1`);
-  await page.getByRole("button",{name:"삭제",exact:true}).click();const confirm=page.getByRole("dialog",{name:"원칙을 삭제할까요?"});
+  await page.getByRole("button",{name:"삭제",exact:true}).click();const confirm=page.locator(".delete-action.is-armed");
   await confirm.getByLabel("이유 (선택)").fill("확인한 최종 메모");
-  await confirm.getByRole("button",{name:"삭제",exact:true}).click();await expect(confirm.getByRole("button",{name:"같은 내용 다시 시도",exact:true})).toBeVisible();
+  await confirm.getByRole("button",{name:"삭제 확인",exact:true}).click();await expect(confirm.getByRole("button",{name:"같은 내용 다시 시도",exact:true})).toBeVisible();
   await expect(confirm.getByLabel("이유 (선택)")).toHaveValue("확인한 최종 메모");await expect(confirm.getByLabel("이유 (선택)")).toBeDisabled();
   await confirm.getByRole("button",{name:"같은 내용 다시 시도",exact:true}).click();await expect(confirm).not.toBeVisible();
   expect(writes).toHaveLength(2);expect(writes[1]).toEqual(writes[0]);expect(writes[0].expected_version).toBe(1);

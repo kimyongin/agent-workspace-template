@@ -1,3 +1,4 @@
+import type { DeletionOptions } from "../../components/DeleteAction.tsx";
 // 할 일·기록 작성/편집 폼. 검증은 서버와 같은 contracts로 하고, 저장 실패 시 초안을 유지한다.
 import { TagPicker } from "../tags/TagPicker.tsx";
 import { EntityMultiPicker } from "../entity/EntityPicker.tsx";
@@ -41,7 +42,7 @@ export function RecordFormModal(props: {
   initial: RecordDraft;
   intro?: ReactNode;
   details?: ReactNode;
-  onDelete?: () => void;
+  deletion?: DeletionOptions;
   entityEditable?:boolean;
   systemRecord?: boolean;
   editing?: boolean;
@@ -64,7 +65,7 @@ export function RecordFormModal(props: {
       submitLabel={props.submitLabel}
       open={props.open}
       dirty={dirty}
-      onDelete={props.onDelete}
+      deletion={props.deletion}
       onClose={props.onClose}
       onRouteDiscard={props.onRouteDiscard}
       validate={() => {
@@ -181,7 +182,7 @@ export function TaskFormModal(props: {
   open: boolean;
   initial: TaskDraft;
   details?: ReactNode;
-  onDelete?: () => void;
+  deletion?: DeletionOptions;
   onClose: () => void;
   onRouteDiscard?: () => void;
   onSave: (draft: TaskDraft, creationId: () => string) => Promise<void>;
@@ -198,7 +199,7 @@ export function TaskFormModal(props: {
       submitLabel={props.mode === "create" ? "추가" : "저장"}
       open={props.open}
       dirty={dirty}
-      onDelete={props.onDelete}
+      deletion={props.deletion}
       onClose={props.onClose}
       onRouteDiscard={props.onRouteDiscard}
       validate={() => {

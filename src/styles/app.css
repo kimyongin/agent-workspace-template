@@ -634,6 +634,25 @@ textarea.input {
 }
 .modal-head .dialog-title { overflow-wrap: anywhere; min-width: 0; }
 .modal-head .btn { flex-shrink: 0; }
+.modal-head .modal-icon { width: 44px; height: 44px; padding: 0; font-size: 1.5rem; text-decoration: none; display: inline-flex; justify-content: center; align-items: center; }
+.modal-foot { flex-wrap: wrap; }
+.delete-action { margin-right: auto; min-width: 0; }
+.delete-action.is-armed { flex: 1 0 100%; display: grid; gap: var(--space-3); }
+.delete-action-context { display: grid; gap: var(--space-3); max-height: min(12rem, 35dvh); overflow-y: auto; }
+.delete-action-context p { margin: 0; }
+.delete-action-context fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+.record-content .markdown { color: var(--ink); font-size: 1rem; line-height: 1.75; }
+.record-context { display: grid; gap: var(--space-2); }
+.record-context-meta { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); font-size: .8125rem; color: var(--muted-ink); }
+.record-event-row { display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--space-2) var(--space-4); }
+.record-event-row p { margin: 0; font-size: .875rem; }
+.record-target-link { display: inline-flex; align-items: center; gap: var(--space-1); min-height: 44px; font-size: .875rem; }
+.record-audit { border-top: 1px solid var(--line); padding-top: var(--space-2); color: var(--muted-ink); }
+.record-audit summary { display: flex; align-items: center; min-height: 44px; font-size: .8125rem; cursor: pointer; }
+.record-audit summary::before { content: "＋"; margin-right: var(--space-2); }
+.record-audit[open] summary::before { content: "−"; }
+.record-audit p { margin: var(--space-2) 0; }
+.record-content + .detail-section { margin-top: 0; padding-top: var(--space-4); }
 
 .modal-head .dialog-title {
   margin-right: auto;

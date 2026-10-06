@@ -18,8 +18,8 @@ test("현재 웹 메모 확인→MCP 같은 문서 갱신→삭제 후 현재 �
     const {current}=await mcp.call("get_current_principle",{});expect(current.id).toBe(first.id);expect(current.body).toBe("새 판단 원문");
     expect((await mcp.call("get_principle",{id:first.id})).body).toBe("새 판단 원문");
     await page.goto(`/principles/${current.id}?edit=1`);await page.getByRole("button",{name:"삭제",exact:true}).click();
-    const confirm=page.getByRole("dialog",{name:"원칙을 삭제할까요?"});await expect(confirm).toContainText("과거 원칙을 자동 승격하지 않습니다");
-    await saveOnce(page,confirm,"삭제");await expect(page).toHaveURL(/principles(?:[?#]|$)/);
+    const confirm=page.locator(".delete-action.is-armed");await expect(confirm).toContainText("과거 원칙을 자동 승격하지 않습니다");
+    await saveOnce(page,confirm,"삭제 확인");await expect(page).toHaveURL(/principles(?:[?#]|$)/);
     expect((await mcp.call("get_current_principle",{})).current).toBeNull();
   }finally{await mcp.close();}
 });
