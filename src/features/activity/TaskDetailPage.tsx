@@ -272,7 +272,7 @@ export function TaskDetailPage() {
               change_memo:draft.change_memo,
               request_id:requestId.current,
               tag_ids:draft.tag_ids,
-              entity_ids:draft.entity_ids??(draft.entity_id?[draft.entity_id]:[]),
+              entity_ids:draft.entity_ids??[],
             };
             if (task.kind === "once") patch.due_on = draft.due_on || null;
             else {

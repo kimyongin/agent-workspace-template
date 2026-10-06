@@ -17,19 +17,17 @@ const WEEKDAYS = ["월", "화", "수", "목", "금", "토", "일"];
 
 export interface RecordDraft extends TextDraft {
   change_note?: string;
-  entity_id?:string|null;
   entity_ids?:string[];
   entity_context?:EntityContext[];
   tag_ids:string[];
   occurred_at: string; // datetime-local
   original_occurred_at?: string;
-  applied_principle_ids: string[];
 }
 
-export const emptyRecord = (): RecordDraft => ({ title: "", summary: "", body: "", occurred_at: "", applied_principle_ids: [],tag_ids:[] });
+export const emptyRecord = (): RecordDraft => ({ title: "", summary: "", body: "", occurred_at: "", tag_ids:[] });
 
-export function recordDraftFrom(r: { title: string; summary: string; body: string; occurred_at: string; applied_principle_ids?: string[];tag_ids?:string[];entity_id?:string|null;entity_ids?:string[];entity_context?:EntityContext[] }): RecordDraft {
-  return { title: r.title, summary: r.summary, body: r.body, occurred_at: toLocalInput(r.occurred_at), original_occurred_at: r.occurred_at, applied_principle_ids:r.applied_principle_ids??[],tag_ids:r.tag_ids??[],entity_ids:r.entity_ids??(r.entity_id?[r.entity_id]:[]),entity_context:r.entity_context??[] };
+export function recordDraftFrom(r: { title: string; summary: string; body: string; occurred_at: string; tag_ids?:string[];entity_ids?:string[];entity_context?:EntityContext[] }): RecordDraft {
+  return { title: r.title, summary: r.summary, body: r.body, occurred_at: toLocalInput(r.occurred_at), original_occurred_at: r.occurred_at, tag_ids:r.tag_ids??[],entity_ids:r.entity_ids??[],entity_context:r.entity_context??[] };
 }
 
 /** The minute-only input must not truncate an untouched stored timestamp. */
@@ -50,7 +48,7 @@ export function RecordFormModal(props: {
   editing?: boolean;
   onClose: () => void;
   onRouteDiscard?: () => void;
-  onSave: (value: { title: string; summary: string; body: string; change_note?: string; occurred_at?: string; applied_principle_ids?:string[];tag_ids?:string[];entity_ids?:string[] }) => Promise<void>;
+  onSave: (value: { title: string; summary: string; body: string; change_note?: string; occurred_at?: string; tag_ids?:string[];entity_ids?:string[] }) => Promise<void>;
 }) {
   const [initial] = useState(props.initial);
   const [draft, setDraft] = useState(initial);
@@ -61,7 +59,7 @@ export function RecordFormModal(props: {
     body: draft.body,
     occurred_at: recordDraftTime(draft),
     tag_ids:draft.tag_ids,
-    ...(props.entityEditable===false?{}:{entity_ids:draft.entity_ids??(draft.entity_id?[draft.entity_id]:[])}),
+    ...(props.entityEditable===false?{}:{entity_ids:draft.entity_ids??[]}),
   });
   return (
     <FormModal
@@ -76,7 +74,7 @@ export function RecordFormModal(props: {
         const r = recordCreate.safeParse(value());
         return r.success ? null : fieldErrors(r.error.issues);
       }}
-      onSubmit={() => {const {applied_principle_ids:_legacy,...parsed}=recordCreate.parse(value());return props.onSave({... (props.systemRecord?{title:parsed.title,summary:parsed.summary,body:parsed.body}:parsed),change_note:draft.change_note?.trim()||undefined});}}
+      onSubmit={() => {const parsed=recordCreate.parse(value());return props.onSave({... (props.systemRecord?{title:parsed.title,summary:parsed.summary,body:parsed.body}:parsed),change_note:draft.change_note?.trim()||undefined});}}
     >
       {(errors) => (
         <>
@@ -84,7 +82,7 @@ export function RecordFormModal(props: {
           <TextFields draft={draft} set={(d) => setDraft((prev) => ({ ...prev, ...d }))} errors={errors} />
           {!props.systemRecord && <>
           <TagPicker value={draft.tag_ids} error={errors.tag_ids} onChange={tag_ids=>setDraft(d=>({...d,tag_ids}))}/>
-          {props.entityEditable!==false&&<EntityMultiPicker value={draft.entity_ids??(draft.entity_id?[draft.entity_id]:[])} context={draft.entity_context} error={errors.entity_ids} onChange={entity_ids=>setDraft(d=>({...d,entity_ids}))}/>}
+          {props.entityEditable!==false&&<EntityMultiPicker value={draft.entity_ids??[]} context={draft.entity_context} error={errors.entity_ids} onChange={entity_ids=>setDraft(d=>({...d,entity_ids}))}/>}
           <Field label={recordLabels.occurred_at} error={errors.occurred_at} help="비우면 저장한 시각">
             {(p) => (
               <input
@@ -125,7 +123,6 @@ export function TaskResultFormModal(props: Parameters<typeof RecordFormModal>[0]
 export interface TaskDraft extends TextDraft {
   change_memo?: ChangeMemo;
   change_note?: string;
-  entity_id?:string|null;
   entity_ids?:string[];
   entity_context?:EntityContext[];
   tag_ids: string[];
@@ -156,7 +153,6 @@ export function emptyTask(): TaskDraft {
 }
 
 export function taskDraftFrom(t: {
-  entity_id?:string|null;
   entity_ids?:string[];
   entity_context?:EntityContext[];
   tag_ids:string[];
@@ -172,7 +168,7 @@ export function taskDraftFrom(t: {
   const r = t.recurrence;
   return {
     ...base,
-    entity_ids:t.entity_ids??(t.entity_id?[t.entity_id]:[]),entity_context:t.entity_context??[],
+    entity_ids:t.entity_ids??[],entity_context:t.entity_context??[],
     kind: t.kind,
     tag_ids:t.tag_ids,
     title: t.title,
@@ -198,7 +194,7 @@ function recurrenceOf(d: TaskDraft): unknown {
 
 /** 생성 입력(contracts의 taskCreate 모양). */
 export function taskInput(d: TaskDraft): Record<string, unknown> {
-  const text = { title: d.title, summary: d.summary, body: d.body, tag_ids:d.tag_ids,entity_ids:d.entity_ids??(d.entity_id?[d.entity_id]:[]), change_note:d.change_note?.trim()||undefined,change_memo:d.change_memo };
+  const text = { title: d.title, summary: d.summary, body: d.body, tag_ids:d.tag_ids,entity_ids:d.entity_ids??[], change_note:d.change_note?.trim()||undefined,change_memo:d.change_memo };
   return d.kind === "once"
     ? { kind: "once", ...text, ...(d.due_on ? { due_on: d.due_on } : {}) }
     : { kind: "recurring", ...text, recurrence: recurrenceOf(d), timezone: d.timezone };
@@ -266,7 +262,7 @@ export function TaskFormModal(props: {
             </fieldset>
           )}
           <TextFields draft={draft} set={set} errors={errors} />
-          <EntityMultiPicker value={draft.entity_ids??(draft.entity_id?[draft.entity_id]:[])} context={draft.entity_context} error={errors.entity_ids} onChange={entity_ids=>set({entity_ids})}/>
+          <EntityMultiPicker value={draft.entity_ids??[]} context={draft.entity_context} error={errors.entity_ids} onChange={entity_ids=>set({entity_ids})}/>
           <TagPicker value={draft.tag_ids} error={errors.tag_ids} onChange={tag_ids=>set({tag_ids})}/>
           {draft.kind === "once"
             ? (

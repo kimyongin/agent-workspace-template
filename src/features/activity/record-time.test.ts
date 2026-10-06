@@ -14,3 +14,10 @@ it("an explicit user time change is saved; a new blank time still lets the serve
   expect(recordDraftTime({ ...draft, occurred_at: edited })).toBe(fromLocalInput(edited));
   expect(recordDraftTime({ ...draft, occurred_at: "" })).toBeUndefined();
 });
+
+it("record memo drafts retain multiple targets without any applied-principle editing input", () => {
+  const draft = recordDraftFrom({ title: "근거", summary: "메모", body: "과거 원칙은 본문 참고", occurred_at: "2026-10-05T20:58:48.277Z", entity_ids: ["customer-a", "customer-b"] });
+  expect(draft.entity_ids).toEqual(["customer-a", "customer-b"]);
+  expect(draft).not.toHaveProperty("applied_principle_ids");
+  expect(draft).not.toHaveProperty("entity_id");
+});
