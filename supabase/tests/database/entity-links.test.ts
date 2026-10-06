@@ -181,3 +181,57 @@ dbTest(
     }
   },
 );
+
+dbTest(
+  "entity deletion history failure restores selections and versions; same-key retry detaches exactly once",
+  async () => {
+    const f = await fixtureOwner(admin);
+    try {
+      const target = await entity.createEntity(ed, f.actor, entityCreate.parse({ prop1: "当時の対象" }));
+      const task = await activity.createTask(
+        ad,
+        f.actor,
+        taskCreate.parse({ kind: "once", title: "関連業務", summary: "現在の選択", entity_ids: [target.id] }),
+      );
+      const record = await activity.createRecord(
+        ad,
+        f.actor,
+        recordCreate.parse({ title: "過去の資料", summary: "当時の文脈", entity_ids: [target.id] }),
+      );
+      const before = await entity.getEntity(ed, f.actor, target.id);
+      const requestId = crypto.randomUUID();
+      const broken: entity.EntityDeps = {
+        uow: {
+          run: (actor, fn) =>
+            ed.uow.run(actor, (s) =>
+              fn(
+                new Proxy(s, {
+                  get: (target, key) =>
+                    key === "appendChange"
+                      ? () => Promise.reject(Error("deletion history failure"))
+                      : Reflect.get(target, key),
+                }),
+              )),
+        },
+      };
+      await assertRejects(() => entity.deleteEntity(broken, f.actor, target.id, target.version, undefined, requestId));
+      assertEquals(await entity.getEntity(ed, f.actor, target.id), before);
+      assertEquals(await activity.getTask(ad, f.actor, task.id), task);
+      assertEquals(await activity.getRecord(ad, f.actor, record.id), record);
+
+      await entity.deleteEntity(ed, f.actor, target.id, target.version, undefined, requestId);
+      await entity.deleteEntity(ed, f.actor, target.id, target.version, undefined, requestId);
+      const detached = await activity.getTask(ad, f.actor, task.id);
+      const historical = await activity.getRecord(ad, f.actor, record.id);
+      assertEquals([detached.entity_ids, detached.entity_context, detached.version], [[], task.entity_context, 2]);
+      assertEquals([historical.entity_ids, historical.entity_context, historical.version], [
+        [target.id],
+        record.entity_context,
+        2,
+      ]);
+      await assertRejects(() => entity.getEntity(ed, f.actor, target.id));
+    } finally {
+      await f.cleanup();
+    }
+  },
+);

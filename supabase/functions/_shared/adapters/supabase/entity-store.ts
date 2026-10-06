@@ -51,11 +51,7 @@ export class SqlEntityStore extends SqlActorStore implements EntityStore {
     return (await this.get(id))!;
   }
   async delete(id: string) {
-    await this
-      .tx`update app.tasks set entity_ids=array_remove(entity_ids,${id}::uuid),
-      version=version+1,updated_at=now() where entity_ids @> array[${id}::uuid]`;
-    await this.tx`update app.records set version=version+1,updated_at=now() where entity_ids @> array[${id}::uuid]`;
-    await this.tx`delete from app.entities where id=${id}`;
+    await this.entityLinks.deleteEntity(id);
   }
   async list(q: EntityQuery, after?: Keyset) {
     const tx = this.tx;
