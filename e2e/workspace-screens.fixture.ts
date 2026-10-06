@@ -752,7 +752,7 @@ for(const [kind,n] of [["entities",1],["tasks",2],["records",3],["principles",4]
   await expect(form(page).getByRole("button",{name:"저장",exact:true})).toBeDisabled();
   await confirm.getByRole("button",{name:"취소",exact:true}).click();await expect(confirm).toHaveCount(0);await expect(form(page).getByRole("button",{name:"삭제",exact:true})).toBeFocused();expect(state.writes).toHaveLength(before);
   await form(page).getByRole("button",{name:"삭제",exact:true}).click();await form(page).getByRole("button",{name:"삭제 확인",exact:true}).click();
-  await expect(page).toHaveURL(new RegExp(`/${kind}$`));expect(state.writes).toHaveLength(before+1);expect(state.errors).toEqual([]);
+  await expect.poll(()=>new URL(page.url()).pathname).toBe(`/${kind}`);expect(state.writes).toHaveLength(before+1);expect(state.errors).toEqual([]);
 });
 for(const width of [390,1440])test(`기록 정돈 ${width}px: 본문·변경 정보·연결·접힌 저장 정보`,async({page},info)=>{
   const state=await fixtures(page);await page.setViewportSize({width,height:850});
