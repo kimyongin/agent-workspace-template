@@ -1,3 +1,4 @@
+import { DetailNavigationProvider } from "../lib/detail-exploration.tsx";
 // 앱 조립: 경로·메뉴·브랜드. 새 도메인은 메뉴와 경로를 여기서 바꾼다.
 import { useState } from "react";
 import { createBrowserRouter, createRoutesFromElements, Navigate, Outlet, Route, RouterProvider, useLocation } from "react-router";
@@ -30,7 +31,7 @@ function Layout() {
         <span className="app-brand">{APP_NAME}</span>
       </header>}
       <main className="app-main" key={location.pathname === "/logout" ? "logout" : session?.user.id ?? "signed-out"}>
-        <Outlet />
+        <DetailNavigationProvider key={session?.user.id ?? "signed-out"}><Outlet /></DetailNavigationProvider>
       </main>
       {session && <Navigation />}
     </div>

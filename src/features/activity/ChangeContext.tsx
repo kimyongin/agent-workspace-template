@@ -1,6 +1,6 @@
 import type { RecordResult } from "@contracts/record.ts";
 import { useEffect, useState } from "react";
-import { Link } from "react-router";
+import { DetailLink as Link } from "../../lib/detail-exploration.tsx";
 import { api, ApiError } from "../../lib/api.ts";
 import { MarkdownContent } from "../../components/MarkdownContent.tsx";
 import { formatDateTime } from "../../lib/format.ts";

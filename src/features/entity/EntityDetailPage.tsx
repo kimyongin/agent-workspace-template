@@ -1,12 +1,12 @@
+import { DetailLink as Link, useDetailNavigate, useDetailOwnerReturn } from "../../lib/detail-exploration.tsx";
 import { editFromView } from "../../lib/detail-navigation.ts";
-import { safeListReturn } from "../activity/list-state.ts";
 import { DeleteDialog } from "../../components/DeleteDialog.tsx";
 import { useDeferredNavigation } from "../../lib/useDeferredNavigation.ts";
 import { TagNames } from "../tags/TagPicker.tsx";
 import { entityLabels } from "@contracts/entity.ts";
 import type { EntityDetail } from "@contracts/entity.ts";
 import { useEffect, useRef, useState } from "react";
-import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router";
+import { useLocation, useParams, useSearchParams } from "react-router";
 import { Notice } from "../../components/Field.tsx";
 import { DetailSurface } from "../../components/Modal.tsx";
 import { api, ApiError, query } from "../../lib/api.ts";
@@ -18,7 +18,7 @@ import { recordKindNames } from "../activity/ChangeContext.tsx";
 export function EntityDetailPage() {
   const { id } = useParams(),
     [params] = useSearchParams(),
-    navigate = useNavigate();
+    navigate = useDetailNavigate();
   const afterClose=useDeferredNavigation();
   const conflicted = useRef(false);
     const location=useLocation();
@@ -51,7 +51,7 @@ export function EntityDetailPage() {
   }, [id, retry]);
   useEffect(() => { setEntity(null); setSaved(null); setEditing(params.get("edit")==="1"); setDeleting(false); }, [id]);
   const returnParams=new URLSearchParams(params); ["edit","edit_from","create"].forEach(key=>returnParams.delete(key));
-  const back = safeListReturn(params.get("list"),"entities",`/entities?${returnParams}${id ? `#entity-${id}` : ""}`);
+  const back = useDetailOwnerReturn(`/entities?${returnParams}${id ? `#entity-${id}` : ""}`);
   const previousQuery=useRef(params.toString());
   useEffect(()=>{setEditing(params.get("edit")==="1");if(previousQuery.current!==params.toString()&&!params.has("create")){setEditReady(false);setRetry(n=>n+1);}previousQuery.current=params.toString();},[params.toString()]);
   useEffect(()=>{if(creating||!editReady||!returnCreateFocus.current)return;const frame=requestAnimationFrame(()=>{const label=returnCreateFocus.current==="task"?"관련 할 일 추가":"기록 작성";const button=Array.from(document.querySelectorAll<HTMLButtonElement>("dialog[open] .detail-management button")).find(el=>el.textContent===label);if(button){button.focus();returnCreateFocus.current=null;}});return()=>cancelAnimationFrame(frame);},[creating,editReady,entity]);

@@ -1,7 +1,7 @@
 import type { EntityContext } from "@contracts/entity-links.ts";
 import type { EntityResult } from "@contracts/entity.ts";
 import { useEffect, useState } from "react";
-import { Link } from "react-router";
+import { DetailLink as Link } from "../../lib/detail-exploration.tsx";
 import { Field, Notice } from "../../components/Field.tsx";
 import { api, query } from "../../lib/api.ts";
 export function EntityPicker(
