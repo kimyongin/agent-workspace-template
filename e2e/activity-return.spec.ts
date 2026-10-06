@@ -105,26 +105,14 @@ for (
       await link.focus();
       await page.keyboard.press("Enter");
       await expect(page.getByRole("heading", { name: title, exact: true })).toBeVisible();
-      await page.getByRole("button",{name:"닫기",exact:true}).click();
-      await page.getByRole("link",{name:`${title} 편집`,exact:true}).click();
-      const dialog = page.getByRole("dialog", { name: editLabel, exact: true });
-      const entityLink = dialog.getByRole("region", { name: "연결 엔터티" }).getByRole("link", { name: entity.prop1, exact: true });
-      await expect(entityLink).toHaveAttribute(
-        "href",
-        `/entities/${entity.id}`,
-      );
-      const editorUrl = page.url();
-      await dialog.getByLabel("요약").fill("엔터티 이동 취소 뒤 보존할 초안");
-      await entityLink.click();
-      const discard = page.getByRole("dialog", { name: "변경을 버릴까요?", exact: true });
-      await expect(discard).toBeVisible();
-      await discard.getByRole("button", { name: "취소", exact: true }).click();
-      await expect(page).toHaveURL(editorUrl);
-      await expect(dialog.getByLabel("요약")).toHaveValue("엔터티 이동 취소 뒤 보존할 초안");
-      expect((await mcp.call(`get_${kind}`, { id: target.id })).summary).toBe(target.summary);
-      await dialog.getByLabel("요약").fill(target.summary);
-      await dialog.getByRole("button", {name:"닫기",exact:true}).click();
-      await expect(dialog).not.toBeVisible();
+      const view=page.locator("dialog.modal:not(.modal-confirm)[open]");
+      const entityLink=view.getByRole("region",{name:"연결 엔터티"}).getByRole("link",{name:entity.prop1,exact:true});
+      await expect(entityLink).toHaveAttribute("href",`/entities/${entity.id}`);await entityLink.click();
+      await expect(page.getByRole("heading",{name:entity.prop1,exact:true})).toBeVisible();await page.goBack();
+      await openDetailEditor(page);const dialog=page.getByRole("dialog",{name:editLabel,exact:true});
+      await dialog.getByLabel("요약").fill("닫기 취소 뒤 보존할 초안");await dialog.getByRole("button",{name:"닫기",exact:true}).click();
+      const discard=page.getByRole("dialog",{name:"변경을 버릴까요?",exact:true});await discard.getByRole("button",{name:"취소",exact:true}).click();await expect(dialog.getByLabel("요약")).toHaveValue("닫기 취소 뒤 보존할 초안");
+      expect((await mcp.call(`get_${kind}`,{id:target.id})).summary).toBe(target.summary);await dialog.getByLabel("요약").fill(target.summary);await dialog.getByRole("button",{name:"닫기",exact:true}).click();await view.getByRole("button",{name:"닫기",exact:true}).click();
       await expect(link).toBeFocused();await link.click();
       for (let i = 0; i < 21; i++) await create(unique("상세 중 추가"));
       await page.goBack();

@@ -2,6 +2,7 @@ import { safeListReturn } from "../activity/list-state.ts";
 import { DeleteDialog } from "../../components/DeleteDialog.tsx";
 import { useDeferredNavigation } from "../../lib/useDeferredNavigation.ts";
 import { TagNames } from "../tags/TagPicker.tsx";
+import { entityLabels } from "@contracts/entity.ts";
 import type { EntityDetail } from "@contracts/entity.ts";
 import { useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router";
@@ -28,7 +29,7 @@ export function EntityDetailPage() {
   const [entity, setEntity] = useState<EntityDetail | null>(null),
     [error, setError] = useState<string | null>(null),
     [retry, setRetry] = useState(0),
-    [editing, setEditing] = useState(true),
+    [editing, setEditing] = useState(params.get("edit")==="1"),
     [deleting, setDeleting] = useState(false),
     [busy, setBusy] = useState(false);
   useEffect(() => {
@@ -46,13 +47,13 @@ export function EntityDetailPage() {
       });
     return () => controller.abort();
   }, [id, retry]);
-  useEffect(() => { setEntity(null); setSaved(null); setEditing(true); setDeleting(false); }, [id]);
+  useEffect(() => { setEntity(null); setSaved(null); setEditing(params.get("edit")==="1"); setDeleting(false); }, [id]);
   const returnParams=new URLSearchParams(params); ["edit","edit_from","create"].forEach(key=>returnParams.delete(key));
   const back = safeListReturn(params.get("list"),"entities",`/entities?${returnParams}${id ? `#entity-${id}` : ""}`);
   const previousQuery=useRef(params.toString());
-  useEffect(()=>{setEditing(true);if(previousQuery.current!==params.toString()&&!params.has("create")){setEditReady(false);setRetry(n=>n+1);}previousQuery.current=params.toString();},[params.toString()]);
+  useEffect(()=>{setEditing(params.get("edit")==="1");if(previousQuery.current!==params.toString()&&!params.has("create")){setEditReady(false);setRetry(n=>n+1);}previousQuery.current=params.toString();},[params.toString()]);
   useEffect(()=>{if(creating||!editReady||!returnCreateFocus.current)return;const frame=requestAnimationFrame(()=>{const label=returnCreateFocus.current==="task"?"관련 할 일 추가":"기록 작성";const button=Array.from(document.querySelectorAll<HTMLButtonElement>("dialog[open] .detail-management button")).find(el=>el.textContent===label);if(button){button.focus();returnCreateFocus.current=null;}});return()=>cancelAnimationFrame(frame);},[creating,editReady,entity]);
-  const closeEdit=()=>{setEditing(false);afterClose(back,true);if(conflicted.current){conflicted.current=false;setRetry(n=>n+1);}};
+  const closeEdit=()=>{setEditing(false);const p=new URLSearchParams(params);p.delete("edit");p.delete("edit_from");afterClose(params.get("edit_from")==="view"?`${location.pathname}?${p}`:back,true);if(conflicted.current){conflicted.current=false;setRetry(n=>n+1);}};
   const management = entity && <div className="detail-management">
       {saved && <Notice>{saved}</Notice>}
       {error && (
@@ -63,32 +64,18 @@ export function EntityDetailPage() {
           </button>
         </>
       )}
-          <div>
-            <div className="actions">
-              <button
-                type="button"
-                className="btn btn-danger"
-                onClick={() => {setDeleting(true);}}
-              >
-                삭제
-              </button>
-            </div>
-          </div>
           <TagNames scope="entity" ids={(entity as EntityDetail & {tag_ids?:string[]}).tag_ids??[]}/>
           <p className="meta">
             수정 {formatDateTime(entity.updated_at)}
           </p>
           {([["tasks", "할 일"], ["records", "기록"]] as const).map(([kind, label]) => (
-            <section className="entity-related" key={kind}>
-              <h2 className="section-title">
-                연결된 {label} ({entity[kind].count}개)
-              </h2>
-              <Link to={`/${kind}${query({ entity_id: id })}`}>
-                전체 {label} 보기
-              </Link>
-              {<button type="button" className="btn" onClick={() => {
-                const p=new URLSearchParams(params);p.set("create",kind==="tasks"?"task":"record");navigate(`?${p}`);
-              }}>{kind === "tasks" ? "관련 할 일 추가" : "기록 작성"}</button>}
+            <section className="detail-section entity-related" key={kind}>
+              <div className="detail-section-head"><h2 className="section-title">연결된 {label} ({entity[kind].count}개)</h2>
+                <button type="button" className="btn btn-text" onClick={() => {
+                  const p=new URLSearchParams(params);p.set("create",kind==="tasks"?"task":"record");navigate(`?${p}`);
+                }}>{kind === "tasks" ? "관련 할 일 추가" : "기록 작성"}</button>
+              </div>
+              <Link to={`/${kind}${query({ entity_id: id })}`}>전체 {label} 보기</Link>
               {entity[kind].count === 0
                 ? <p className="secondary">연결된 {label}이 없습니다.</p>
                 : (
@@ -105,10 +92,16 @@ export function EntityDetailPage() {
             </section>
           ))}
     </div>;
-  return <DetailSurface title={entity?.prop1??"엔터티"} onClose={()=>navigate(back)} busy={busy}>
+  const startEdit=()=>{const p=new URLSearchParams(params);p.set("edit","1");p.set("edit_from","view");navigate(`?${p}`);};
+  return <DetailSurface title={entity?.prop1??"엔터티"} onClose={()=>navigate(back)} busy={busy}
+    footer={entity&&<button type="button" className="btn btn-primary" onClick={startEdit}>편집</button>}>
       {error && !entity && <><Notice kind="error">{error}</Notice><button className="btn" onClick={()=>setRetry(n=>n+1)}>다시 시도</button></>}
       {!entity&&!error&&<p className="secondary" role="status">불러오는 중…</p>}
       {entity&&<>
+          <section className="detail-section"><h2 className="section-title">기본 정보</h2><dl className="props">
+            {(["prop1","prop2","prop3","prop4"] as const).map(key=><div key={key}><dt>{entityLabels[key]}</dt><dd>{entity[key]??"미지정"}</dd></div>)}
+          </dl></section>
+          {management}
           {creating === "task" && <TaskFormModal key={location.key} open mode="create" initial={{ ...emptyTask(), entity_ids: [entity.id] }}
             onClose={closeCreate} onRouteDiscard={()=>setCreating(null)} onSave={async (draft, creationId) => {
               await api("POST", "/tasks", { ...taskInput(draft), id: creationId() });
@@ -122,7 +115,7 @@ export function EntityDetailPage() {
           {editing && !creating && editReady && (
             <EntityForm
               initial={entity}
-              details={management}
+              onDelete={()=>setDeleting(true)}
               onClose={closeEdit}
               onRouteDiscard={()=>setEditing(false)}
               onSave={async (value) => {

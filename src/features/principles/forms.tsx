@@ -10,21 +10,22 @@ import { fieldErrors } from "../../lib/format.ts";
 export type PrincipleDraft = TextDraft & {change_note?: string;change_memo?:ChangeMemo};
 export const emptyPrinciple: PrincipleDraft = {title:"",summary:"",body:"",change_note:""};
 const content = z.object({title,summary,body});
-export function PrincipleFormModal({initial,editing=false,details,id,version,onClose,onRouteDiscard,onSave}: {
+export function PrincipleFormModal({initial,editing=false,details,onDelete,id,version,onClose,onRouteDiscard,onSave}: {
   initial: PrincipleDraft; editing?: boolean; onClose:()=>void; onRouteDiscard?:()=>void; onSave:(draft:PrincipleDraft, creationId: () => string)=>Promise<void>;
-  details?: ReactNode; id?:string; version?:number;
+  onDelete?: () => void; details?: ReactNode; id?:string; version?:number;
 }) {
   const [baseline] = useState({title:initial.title,summary:initial.summary,body:initial.body,change_note: ""});
   const [draft,setDraft]=useState(baseline);
   return <FormModal title={editing?"현재 원칙 편집":"현재 원칙 등록"} open submitLabel="저장"
+    onDelete={onDelete}
     dirty={JSON.stringify(draft)!==JSON.stringify(baseline)} onClose={onClose} onRouteDiscard={onRouteDiscard}
     previewKey={JSON.stringify(draft)} prepare={async()=> (await api<{memo:ChangeMemo}>("POST","/principles/preview",editing?{action:"update",id,input:{...content.parse(draft),expected_version:version,change_note:draft.change_note.trim()||undefined}}:{action:"create",input:{...content.parse(draft),change_note:draft.change_note.trim()||undefined}})).memo}
     validate={()=>{const noteErrors=changeNoteErrors(draft.change_note,false);if(noteErrors)return noteErrors; const r=content.safeParse(draft);return r.success?null:fieldErrors(r.error.issues);}}
     onSubmit={(change_memo, creationId)=>onSave({...content.parse(draft),change_note:draft.change_note.trim()||undefined,change_memo}, creationId)}>
     {errors=><>
-      {editing&&<p className="help">현재 문서를 갱신하고 확인한 메모를 통합 기록에 함께 저장합니다.</p>}
+
       <TextFields draft={draft} set={patch=>setDraft(d=>({...d,...patch}))} errors={errors}/>
-      <Field label="편집 메모" error={errors.change_note}>{props=><textarea {...props} className="input" value={draft.change_note} onChange={event=>setDraft(d=>({...d,change_note:event.target.value}))} maxLength={1000}/>}</Field>
+      <section className="detail-section form"><h2 className="section-title">메모</h2><Field label="편집 메모" error={errors.change_note}>{props=><textarea {...props} className="input" value={draft.change_note} onChange={event=>setDraft(d=>({...d,change_note:event.target.value}))} maxLength={1000}/>}</Field></section>
       {details}
     </>}
   </FormModal>;

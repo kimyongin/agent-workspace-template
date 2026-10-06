@@ -28,14 +28,15 @@ export function PrincipleDetailPage() {
     api<WorkspacePrinciple>("GET",`/principles/${id}`,undefined,controller.signal).then(p=>{if(!controller.signal.aborted){setItem(p);setError(null);setEditReady(true);}}).catch(e=>{if(!controller.signal.aborted)setError(e instanceof ApiError?e.message:"원칙을 불러오지 못했습니다.");});
     return()=>controller.abort();},[id,retry]);
   const closeEdit=()=>{setEditing(false);if(conflicted.current){conflicted.current=false;setRetry(n=>n+1);}if(params.get("edit_from")!=="view"){afterClose(back,true);return;}const p=new URLSearchParams(params);p.delete("edit");p.delete("edit_from");afterClose(`?${p}`,true);};
-  return <DetailSurface title={item?.title??"원칙"} onClose={()=>navigate(back)} busy={busy}>
+  const startEdit=()=>{const p=new URLSearchParams(params);p.set("edit","1");p.set("edit_from","view");navigate(`?${p}`);};
+  return <DetailSurface footer={item?.is_current&&<button type="button" className="btn btn-primary" onClick={startEdit}>편집</button>} title={item?.title??"원칙"} onClose={()=>navigate(back)} busy={busy}>
     {error&&<><Notice kind="error">{confirmed.current?.id===id?"저장은 완료했습니다. 최신 내용을 불러오지 못했습니다.":error}</Notice><button className="btn" onClick={()=>setRetry(n=>n+1)}>조회 다시 시도</button></>}
     {!item&&!error&&<p role="status">불러오는 중…</p>}
     {item&&<section className="form">
-      <MarkdownContent text={item.body}/>
+      <section className="detail-section"><h2 className="section-title">요약</h2><p className="document-summary">{item.summary}</p></section><section className="detail-section"><h2 className="section-title">현재 원칙</h2><MarkdownContent text={item.body}/><p className="meta">수정 {formatDateTime(item.saved_at)}</p></section>
       {editing&&editReady&&item.is_current&&<PrincipleFormModal id={item.id} version={item.version} editing initial={{...item,change_note:item.change_note??""}} onClose={closeEdit} onRouteDiscard={()=>setEditing(false)}
-        details={<div className="detail-management">{message&&<Notice kind="success">{message}</Notice>}{error&&<Notice kind="error">{error}</Notice>}<p className="meta">현재 원칙 · {formatDateTime(item.saved_at)}</p>
-          <button type="button" className="btn btn-danger" onClick={()=>{setDeleting(true);}}>삭제</button>
+        onDelete={()=>setDeleting(true)} details={<div className="detail-management">{message&&<Notice kind="success">{message}</Notice>}{error&&<Notice kind="error">{error}</Notice>}<p className="meta">현재 원칙 · {formatDateTime(item.saved_at)}</p>
+
           </div>}
         onSave={async draft=>{
         let saved:WorkspacePrinciple;

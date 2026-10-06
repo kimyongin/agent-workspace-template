@@ -30,7 +30,7 @@ export interface SurfaceEditor {
 export const SurfaceContext = createContext<{slot: HTMLDivElement | null; editor: RefObject<SurfaceEditor | null>; busy: RefObject<boolean>; register: (editor: SurfaceEditor | null) => void} | null>(null);
 
 /** URL detail and its editor share one native dialog, focus trap and scroll surface. */
-export function DetailSurface({title, onClose, children, busy = false}: {title: string; onClose: () => void; children: ReactNode; busy?: boolean}) {
+export function DetailSurface({title, onClose, children, busy = false, footer}: {title: string; onClose: () => void; children: ReactNode; busy?: boolean; footer?: ReactNode}) {
   const [editor, setEditor] = useState<SurfaceEditor | null>(null);
   const editorRef = useRef<SurfaceEditor | null>(null), busyRef = useRef(busy);
   const readFocus=useRef<HTMLElement|null>(null);
@@ -39,12 +39,12 @@ export function DetailSurface({title, onClose, children, busy = false}: {title: 
     if(value&&!readFocus.current)readFocus.current=document.activeElement as HTMLElement;
     editorRef.current=value; setEditor(value);
   }, []);
-  useEffect(()=>{if(!editor&&readFocus.current){if(readFocus.current.isConnected)readFocus.current.focus();readFocus.current=null;}},[editor]);
+  useEffect(()=>{if(!editor&&readFocus.current){if(readFocus.current.isConnected)readFocus.current.focus();else document.querySelector<HTMLElement>("dialog[open]:not(.modal-confirm) .modal-foot button")?.focus();readFocus.current=null;}},[editor]);
   const [slot, setSlot] = useState<HTMLDivElement | null>(null);
   return <SurfaceContext.Provider value={{slot, register, editor:editorRef, busy:busyRef}}>
     <ModalShell open title={editor?.title ?? title} headingLevel={editor?2:1} onClose={editor?.onClose ?? onClose}
       onRouteDiscard={editor?.onRouteDiscard} dirty={editor?.dirty} busy={busy || editor?.busy}
-      footer={editor?.footer}>
+      footer={editor?.footer ?? footer}>
       <div hidden={!!editor}>{children}</div>
       <div ref={setSlot} hidden={!editor} />
     </ModalShell>
@@ -201,8 +201,10 @@ export function ConfirmDialog({ open, title, message, confirmLabel, danger, busy
       }}
     >
       <div className="modal-inner">
-        <div className="modal-body form">
+        <div className="modal-head">
           <h2 id={titleId} className="dialog-title">{title}</h2>
+        </div>
+        <div className="modal-body form">
           <div>{message}</div>
         </div>
         <div className="modal-foot">

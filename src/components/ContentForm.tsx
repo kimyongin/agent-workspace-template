@@ -24,19 +24,22 @@ export function TextFields(
 ) {
   return (
     <>
-      <Field label={contentLabels.title} required error={errors.title} help="핵심 대상과 행동 또는 결론, 100자 이하">
-        {(p) => <input {...p} className="input" value={draft.title} onChange={(e) => set({ title: e.target.value })} />}
+      <section className="detail-section form"><h2 className="section-title">기본 정보</h2>
+      <Field label={contentLabels.title} required error={errors.title}>
+        {(p) => <input {...p} className="input" placeholder="대상과 행동 또는 결론" value={draft.title} onChange={(e) => set({ title: e.target.value })} />}
       </Field>
-      <Field label={contentLabels.summary} required error={errors.summary} help="나중에 검색할 때 쓰는 요약, 300자 이하">
+      <Field label={contentLabels.summary} required error={errors.summary}>
         {(p) => (
-          <textarea {...p} className="input" rows={3} value={draft.summary} onChange={(e) => set({ summary: e.target.value })} />
+          <textarea {...p} className="input" rows={3} placeholder="핵심 내용을 짧게 요약하세요" value={draft.summary} onChange={(e) => set({ summary: e.target.value })} />
         )}
       </Field>
-      <Field label={contentLabels.body} error={errors.body} help="상세 근거·결과(마크다운)">
+      </section><section className="detail-section form"><h2 className="section-title">내용</h2>
+      <Field label={contentLabels.body} error={errors.body}>
         {(p) => (
-          <textarea {...p} className="input" rows={8} value={draft.body} onChange={(e) => set({ body: e.target.value })} />
+          <textarea {...p} className="input" rows={8} placeholder="상세 내용과 근거를 작성하세요 (마크다운)" value={draft.body} onChange={(e) => set({ body: e.target.value })} />
         )}
       </Field>
+      </section>
     </>
   );
 }
@@ -55,9 +58,10 @@ interface FormModalProps {
   previewKey?: string;
   validate: () => Record<string, string> | null;
   children: (errors: Record<string, string>) => ReactNode;
+  onDelete?: () => void;
 }
 
-export function FormModal({ title, open, submitLabel, dirty, onClose, onRouteDiscard, onSubmit, prepare, previewKey, validate, children }: FormModalProps) {
+export function FormModal({ title, open, submitLabel, dirty, onClose, onRouteDiscard, onSubmit, prepare, previewKey, validate, children, onDelete }: FormModalProps) {
   const { attempt, busy, uncertain } = useWriteAttempt();
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [failure, setFailure] = useState<string | null>(null);
@@ -90,6 +94,7 @@ export function FormModal({ title, open, submitLabel, dirty, onClose, onRouteDis
   };
 
   const footer = <>
+    {onDelete && <button type="button" className="btn btn-danger modal-delete" disabled={busy || uncertain} onClick={onDelete}>삭제</button>}
     <button type="submit" form={formId} className="btn btn-primary" disabled={busy}>{busy ? "처리 중…" : uncertain ? "같은 내용 다시 시도" : prepare ? memo ? "확인하고 저장" : "기록 메모 확인" : submitLabel}</button>
   </>;
   const callbacks = useRef({onClose, onRouteDiscard}); callbacks.current = {onClose, onRouteDiscard};
@@ -99,12 +104,12 @@ export function FormModal({ title, open, submitLabel, dirty, onClose, onRouteDis
     register({title, dirty: dirty || uncertain || !!memo, busy, footer,
       onClose: () => callbacks.current.onClose(), onRouteDiscard: () => (callbacks.current.onRouteDiscard ?? callbacks.current.onClose)()});
     return () => register(null);
-  }, [register, open, title, dirty, uncertain, busy, formId, submitLabel, memo, prepare]);
+  }, [register, open, title, dirty, uncertain, busy, formId, submitLabel, memo, prepare, onDelete]);
   const form = <form id={formId} className="form" onSubmit={submit} noValidate>
     {failure && <Notice kind="error">{failure}</Notice>}
     <fieldset disabled={busy || uncertain} style={{border:0,padding:0,margin:0,minWidth:0}} className="form">{children(errors)}
-      {memo&&<section aria-label="저장할 기록 메모" className="panel">
-        <h2 className="section-title">저장할 기록 메모</h2><p className="help">아직 저장하지 않았습니다. 확인 가능한 사실로 작성한 기본 메모를 보충한 뒤 업무 변경과 함께 저장합니다.</p>
+      {memo&&<section aria-label="저장할 기록 메모" className="detail-section change-memo form">
+        <h2 className="section-title">변경 기록 메모</h2><p className="secondary">아직 저장하지 않았습니다. 메모를 확인한 뒤 변경과 함께 저장합니다.</p>
         <Field label="기록 제목" required>{p=><input {...p} ref={memoTitle} className="input" value={memo.title} onChange={e=>setMemo({...memo,title:e.target.value})}/>}</Field>
         <Field label="기록 요약" required>{p=><textarea {...p} className="input" rows={3} value={memo.summary} onChange={e=>setMemo({...memo,summary:e.target.value})}/>}</Field>
         <Field label="기록 본문">{p=><textarea {...p} className="input" rows={6} value={memo.body} onChange={e=>setMemo({...memo,body:e.target.value})}/>}</Field>
@@ -132,8 +137,8 @@ export function FormModal({ title, open, submitLabel, dirty, onClose, onRouteDis
 }
 
 export function ChangeNoteField({value, onChange, required = false, error, label}: {value: string; onChange: (value: string) => void; required?: boolean; error?: string;label?:string}) {
-  return <Field label={label??(required ? "편집 메모" : "이유 (선택)")} required={required} error={error} help="무엇을 왜 바꾸는지 남깁니다. 1,000자 이하">
-    {p => <textarea {...p} className="input" rows={3} value={value} onChange={e => onChange(e.target.value)} />}
+  return <Field label={label??(required ? "편집 메모" : "이유 (선택)")} required={required} error={error}>
+    {p => <textarea {...p} className="input" rows={3} placeholder="변경 이유나 보충할 내용" value={value} onChange={e => onChange(e.target.value)} />}
   </Field>;
 }
 

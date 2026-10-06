@@ -103,7 +103,7 @@ export function EntityMultiPicker({ value, context = [], onChange, error }: {
     }))];
   return <fieldset className="field" style={{ border: 0, padding: 0, margin: 0 }}>
     <legend className="label">엔터티</legend>
-    <p className="help" style={{ margin: 0 }}>선택 입력입니다. 여러 대상을 연결할 수 있습니다.</p>
+
     <div className="chips">
       {options.map((item) => <label key={item.id} className="chip" style={{ display: "inline-flex", alignItems: "center", gap: "0.5rem" }}>
         <input type="checkbox" checked={value.includes(item.id)} disabled={!items}
@@ -124,9 +124,9 @@ export function EntityLinks({ ids, context = [] }: { ids?: string[]; context?: E
   if (!ids?.length) return null;
   return <section aria-label="연결 엔터티">
     <p className="label">연결 엔터티</p>
-    <ul>{ids.map((id) => {
+    <ul className="related-list">{ids.map((id) => {
       const capture = context.find((item) => item.id === id);
-      return <li key={id}><Link className="btn" to={`/entities/${id}`}>{capture?.title ?? id}</Link>
+      return <li key={id}><Link className="item-title" to={`/entities/${id}`}>{capture?.title ?? id}</Link>
         {capture && <span className="secondary"> · {capture.source === "legacy_backfill" ? "기존 연결 전환 시 이름" : "연결 선택 시 이름"} ({new Date(capture.captured_at).toLocaleString()})</span>}
       </li>;
     })}</ul>

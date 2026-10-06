@@ -104,15 +104,14 @@ function ScopedTagsPage({scope}:{scope:"entity"|"activity"}) {
     {error && <><Notice kind="error">{error}</Notice><button className="btn" disabled={loading} onClick={() => setRetry(n => n + 1)}>목록 다시 시도</button></>}
     {loading && <p className="secondary" role="status">불러오는 중…</p>}
     {page?.items.length === 0 && <p className="secondary">아직 태그가 없습니다. 태그를 추가해 항목을 분류하세요.</p>}
-    <div className="tag-management"><ul className="list">{page?.items.map(t => <li key={t.id} className="list-item"><span className="item-title">{t.name}</span><div className="actions">
-      <button className="btn" disabled={busy} aria-label={`${t.name} 보기`} onClick={()=>select(t,true)}>보기</button>
+    <div className="tag-management"><ul className="list">{page?.items.map(t => <li key={t.id} className="list-item"><button className="btn btn-text item-title" disabled={busy} aria-label={`${t.name} 보기`} onClick={()=>select(t,true)}>{t.name}</button><div className="actions">
       <button id={`tag-${t.id}`} className="btn" disabled={busy} aria-pressed={draft?.initial?.id === t.id} aria-label={`${t.name} 이름 변경`} onClick={() => select(t)}>이름 변경</button>
       <button className="btn btn-danger" disabled={busy} aria-label={`${t.name} 삭제`} onClick={() => change(() => { setDraft(null); attempt.reset(); setDeleting(t); })}>삭제</button>
     </div></li>)}</ul>
-    {draft && <ModalShell open title={params.has("view")?draft.name:draft.initial?"태그 이름 변경":"태그 추가"} dirty={dirty} busy={busy} onClose={cancel} onRouteDiscard={()=>{setDraft(null);attempt.reset();}} footer={requestClose=>params.has("view")?<button className="btn" onClick={()=>select(draft.initial)}>편집</button>:<><button type="button" className="btn" disabled={busy} onClick={requestClose}>취소</button><button form="tag-edit-form" type="submit" className="btn btn-primary" disabled={busy||conflict}>{busy?"저장 중…":uncertain?"같은 내용 다시 시도":"저장"}</button></>}><form id="tag-edit-form" className="form tag-editor" aria-label={draft.initial ? "태그 이름 변경" : "태그 추가"} onSubmit={e => { e.preventDefault(); void save(); }}>
-      {params.has("view")?<><h2 className="section-title">{draft.name}</h2><p className="help">{scope==="entity"?"엔터티":"할 일·기록"}에 사용하는 태그입니다.</p></>:<>
+    {draft && <ModalShell open title={params.has("view")?draft.name:draft.initial?"태그 이름 변경":"태그 추가"} dirty={dirty} busy={busy} onClose={cancel} onRouteDiscard={()=>{setDraft(null);attempt.reset();}} footer={params.has("view")?<button className="btn btn-primary" onClick={()=>select(draft.initial)}>편집</button>:<><button form="tag-edit-form" type="submit" className="btn btn-primary" disabled={busy||conflict}>{busy?"저장 중…":uncertain?"같은 내용 다시 시도":"저장"}</button></>}><form id="tag-edit-form" className="form tag-editor" aria-label={draft.initial ? "태그 이름 변경" : "태그 추가"} onSubmit={e => { e.preventDefault(); void save(); }}>
+      {params.has("view")?<><p className="help">{scope==="entity"?"엔터티":"할 일·기록"}에 사용하는 태그입니다.</p></>:<>
       {failure && <Notice kind="error">{failure}</Notice>}
-      <Field label={tagLabels.name} required error={fieldError} help="1~30자, 같은 이름은 대소문자를 구분하지 않습니다.">{p => <input {...p} ref={input} className="input" value={draft.name} readOnly={busy || uncertain} onChange={e => setDraft(d => d && ({ ...d, name: e.target.value }))} />}</Field>
+      <section className="detail-section form"><h2 className="section-title">기본 정보</h2><Field label={tagLabels.name} required error={fieldError} >{p => <input {...p} ref={input} className="input" value={draft.name} readOnly={busy || uncertain} onChange={e => setDraft(d => d && ({ ...d, name: e.target.value }))} />}</Field></section>
     </>}
     </form></ModalShell>}</div>
     {page?.next_cursor && <button className="btn" disabled={loading || busy} onClick={async () => {

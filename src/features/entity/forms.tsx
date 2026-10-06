@@ -12,9 +12,10 @@ import { TagPicker } from "../tags/TagPicker.tsx";
 import { api } from "../../lib/api.ts";
 import type { ChangeMemo } from "@contracts/change.ts";
 export function EntityForm(
-  { initial, details, onClose, onRouteDiscard, onSave }: {
+  { initial, details, onDelete, onClose, onRouteDiscard, onSave }: {
     initial?: EntityResult;
     details?: ReactNode;
+    onDelete?: () => void;
     onClose: () => void;
     onRouteDiscard?: () => void;
     onSave: (value: Omit<EntityCreate,"id"> & {tag_ids: string[]; change_note?: string}, creationId: () => string) => Promise<void>;
@@ -39,6 +40,7 @@ export function EntityForm(
       open
       title={initial ? "엔터티 편집" : "엔터티 추가"}
       submitLabel="저장"
+      onDelete={onDelete}
       onClose={onClose}
       onRouteDiscard={onRouteDiscard}
       dirty={JSON.stringify(draft) !== JSON.stringify(baseline)}
@@ -58,11 +60,12 @@ export function EntityForm(
     >
       {(errors) => (
         <>
+          <section className="detail-section form"><h2 className="section-title">기본 정보</h2>
           <Field
             label={entityLabels.prop1}
             required
             error={errors.prop1}
-            help="1~100자"
+
           >
             {(p) => (
               <input
@@ -77,7 +80,7 @@ export function EntityForm(
           <Field
             label={entityLabels.prop2}
             error={errors.prop2}
-            help="0~1,000,000 정수, 비우면 미지정"
+
           >
             {(p) => (
               <input
@@ -121,8 +124,9 @@ export function EntityForm(
               </select>
             )}
           </Field>
+          </section><section className="detail-section form"><h2 className="section-title">관련 정보</h2>
           <TagPicker scope="entity" value={draft.tag_ids} error={errors.tag_ids} onChange={tag_ids=>setDraft(d=>({...d,tag_ids}))}/>
-          <ChangeNoteField label="편집 메모" value={draft.change_note} required={false} error={errors.change_note} onChange={change_note=>setDraft(d=>({...d,change_note}))}/>
+          </section><section className="detail-section form"><h2 className="section-title">메모</h2><ChangeNoteField label="편집 메모" value={draft.change_note} required={false} error={errors.change_note} onChange={change_note=>setDraft(d=>({...d,change_note}))}/></section>
           {details}
         </>
       )}

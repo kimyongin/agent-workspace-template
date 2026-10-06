@@ -71,6 +71,7 @@ test("Entity 웹 CRUD·초안 보호→MCP parity·활동 연결→삭제 원문
     await expect(edit).not.toBeVisible();
     expect((await mcp.call("get_entity", { id })).prop2).toBe(10);
     await page.goto(`/entities/${id}`);
+    await openDetailEditor(page);
     await page.getByRole("button", { name: "삭제", exact: true }).click();
     const remove = page.getByRole("dialog", { name: "엔터티를 삭제할까요?" });
     await remove.getByRole("button", { name: "취소", exact: true }).click();
