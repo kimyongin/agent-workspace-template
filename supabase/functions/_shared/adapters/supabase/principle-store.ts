@@ -14,11 +14,6 @@ function result(r: Record<string, unknown>): PrincipleResult {
     change_note: r.change_note as string | null,
     origin: r.origin as PrincipleResult["origin"],
     legacy_context: r.legacy_context as PrincipleResult["legacy_context"],
-    entity_id: null,
-    tag_ids: [],
-    applies_when: "",
-    status: r.is_current ? "active" : "inactive",
-    replaced_by_id: null,
     version: r.version as number,
     created_at: (r.created_at as Date).toISOString(),
     updated_at: (r.updated_at as Date).toISOString(),
@@ -47,36 +42,20 @@ class SqlPrincipleStore extends SqlActorStore implements PrincipleStore {
     return result(r);
   }
   async get(id: string, lock = false) {
-    const [r] = await this.tx`select * from app.principles where id=${id} ${lock ? this.tx`for update` : this.tx``}`;
+    const [r] = await this.tx`select * from app.principles where id=${id} and is_current ${
+      lock ? this.tx`for update` : this.tx``
+    }`;
     return r ? result(r) : null;
-  }
-  async retire(id: string) {
-    await this.tx`update app.principles set is_current=false where id=${id}`;
   }
   async update(id: string, i: Parameters<PrincipleStore["update"]>[1], version?: number) {
     const values = Object.fromEntries(Object.entries(i).filter(([, v]) => v !== undefined));
     const [r] = await this.tx`update app.principles set ${this.tx(values)},version=${
       version ?? this.tx`version+1`
-    },updated_at=now(),saved_at=case when is_current then clock_timestamp() else saved_at end where id=${id} returning *`;
+    },updated_at=now(),saved_at=case when is_current then clock_timestamp() else saved_at end where id=${id} and is_current returning *`;
     return result(r);
   }
   async delete(id: string) {
-    await this.tx`update app.principles set replaced_by_id=null where replaced_by_id=${id}`;
-    await this.tx`delete from app.principles where id=${id}`;
-  }
-  async promoteLatest(version: number) {
-    await this
-      .tx`update app.principles set is_current=true,version=${version} where id=(select id from app.principles order by saved_at desc,id desc limit 1)`;
-  }
-  async list(f: Parameters<PrincipleStore["list"]>[0]) {
-    const tx = this.tx;
-    return (await tx`select * from app.principles where true
-    ${f.view === "current" ? tx`and is_current` : f.view === "history" ? tx`and not is_current` : tx``}
-    ${
-      f.after
-        ? tx`and (saved_at,id)<(${f.after.at}::timestamptz,${f.after.id}::uuid)`
-        : tx``
-    } order by saved_at desc,id desc limit ${f.limit}`).map(result);
+    await this.tx`delete from app.principles where id=${id} and is_current`;
   }
 }
 export class SqlPrincipleUnitOfWork implements PrincipleUnitOfWork {

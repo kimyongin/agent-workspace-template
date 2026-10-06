@@ -1,6 +1,6 @@
 import type { PrincipleCreate, PrincipleResult, PrincipleUpdate } from "../../contracts/principle.ts";
 import type { Actor } from "../shared/actor.ts";
-import type { IndexJob, Keyset, RequestStore } from "../shared/store.ts";
+import type { IndexJob, RequestStore } from "../shared/store.ts";
 import type { ChangeStore } from "../shared/changes.ts";
 export interface PrincipleStore extends RequestStore, ChangeStore {
   lockCurrent(): Promise<void>;
@@ -13,10 +13,7 @@ export interface PrincipleStore extends RequestStore, ChangeStore {
     changes: Pick<PrincipleUpdate, "change_note"> & Partial<Pick<PrincipleResult, "title" | "summary" | "body">>,
     version?: number,
   ): Promise<PrincipleResult>;
-  retire(id: string): Promise<void>;
   delete(id: string): Promise<void>;
-  promoteLatest(version: number): Promise<void>;
-  list(filter: { view: "current" | "history" | "all"; limit: number; after?: Keyset }): Promise<PrincipleResult[]>;
   enqueueIndex(job: IndexJob): Promise<void>;
 }
 export interface PrincipleUnitOfWork {

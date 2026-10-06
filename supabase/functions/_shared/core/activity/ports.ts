@@ -12,7 +12,6 @@ export interface ActivityRecord {
   change_note?: string | null;
   change?: ChangeMetadata | null;
   applied_principle_snapshots?: AppliedPrincipleSnapshot[];
-  entity_id?: string | null;
   entity_ids?: string[];
   entity_context?: EntityContext[];
   tag_ids: string[];
@@ -23,14 +22,6 @@ export interface ActivityRecord {
   occurred_at: string;
   task_id: string | null;
   occurrence_on: string | null;
-  applied_principle_ids: string[];
-  applied_principles: {
-    id: string;
-    title: string;
-    status: "active" | "inactive";
-    updated_at: string;
-    version: number;
-  }[];
   version: number;
   created_at: string;
   updated_at: string;
@@ -39,11 +30,9 @@ export interface ActivityRecord {
 export interface NewRecord {
   record_kind?: "user" | "result";
   change_note?: string;
-  entity_id?: string | null;
   entity_ids?: string[];
   entity_context?: EntityContext[];
   tag_ids?: string[];
-  applied_principle_ids?: string[];
   title: string;
   summary: string;
   body: string;
@@ -57,7 +46,7 @@ export type RecordChanges =
   & Partial<
     Pick<
       ActivityRecord,
-      "title" | "summary" | "body" | "occurred_at" | "applied_principle_ids" | "tag_ids" | "entity_id" | "entity_ids"
+      "title" | "summary" | "body" | "occurred_at" | "tag_ids" | "entity_ids"
     >
   >;
 
