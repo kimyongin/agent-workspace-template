@@ -32,14 +32,17 @@ function CurrentTarget({change}: {change:NonNullable<WorkspaceRecord["change"]>}
 }
 export function ChangeContext({record,compact=false}: {record: WorkspaceRecord;compact?:boolean}) {
   const change=record.change;
+  const kind=`${recordKindNames[record.record_kind]??"기록"}${change?` · ${change.source==="http"?"웹":"에이전트"}`:""}`;
+  const target=change?`${targets[change.target_kind]} 「${change.target_title}」 · ${actions[change.action]}`:null;
+  if(compact)return <><span className="meta">{kind}</span>{target&&<p className="secondary record-change-target">{target}{change?.action==="delete"?" · 삭제된 대상":""}</p>}</>;
   return <div className="form">
-    <span className="meta">{recordKindNames[record.record_kind]??"기록"}{change?` · ${change.source==="http"?"웹":"에이전트"}`:""}</span>
-    {!compact&&record.change_note&&<p className="notice">편집 메모: {record.change_note}</p>}
+    <span className="meta">{kind}</span>
+    {record.change_note&&<p className="notice">편집 메모: {record.change_note}</p>}
     {change&&<>
-      <p className="secondary">{targets[change.target_kind]} 「{change.target_title}」 · {actions[change.action]}{compact&&change.action==="delete"?" · 삭제된 대상":""}</p>
-      {!compact&&<>{(change.before!==null||change.after!==null)&&<details className="workspace-additional"><summary>변경 전후 값</summary><div className="change-snapshot"><section><h3 className="section-title">변경 전</h3><pre>{change.before?JSON.stringify(change.before,null,2):"없음"}</pre></section><section><h3 className="section-title">변경 후</h3><pre>{change.after?JSON.stringify(change.after,null,2):"없음"}</pre></section></div></details>}
+      <p className="secondary">{target}</p>
+      {(change.before!==null||change.after!==null)&&<details className="workspace-additional"><summary>변경 전후 값</summary><div className="change-snapshot"><section><h3 className="section-title">변경 전</h3><pre>{change.before?JSON.stringify(change.before,null,2):"없음"}</pre></section><section><h3 className="section-title">변경 후</h3><pre>{change.after?JSON.stringify(change.after,null,2):"없음"}</pre></section></div></details>}
         <CurrentTarget key={`${change.target_kind}:${change.target_id}`} change={change}/>
-        <p className="help">이 기록의 정정·삭제는 대상의 업무 상태를 되돌리지 않습니다.</p></>}
+        <p className="help">이 기록의 정정·삭제는 대상의 업무 상태를 되돌리지 않습니다.</p>
     </>}
   </div>;
 }
