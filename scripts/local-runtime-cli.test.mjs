@@ -1,9 +1,26 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { acquireRuntimeLock, removeOwnedContainer, runLeasedLocalChecks } from './local-runtime-cli.mjs';
-import { mkdtempSync, rmdirSync, readdirSync, writeFileSync, unlinkSync } from 'node:fs';
+import { acquireRuntimeLock, realHostBindSource, removeOwnedContainer, runLeasedLocalChecks } from './local-runtime-cli.mjs';
+import { mkdtempSync, rmdirSync, readdirSync, writeFileSync, unlinkSync, realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+
+test('native host bind sources resolve to the existing host directory', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'runtime-bind-test-'));
+  try { assert.equal(realHostBindSource(directory), realpathSync(directory)); }
+  finally { rmdirSync(directory); }
+});
+
+test('Docker Desktop Windows bind bridge resolves the actual drive directory and rejects guessed traversal', { skip: process.platform !== 'win32' }, () => {
+  const directory = mkdtempSync(join(tmpdir(), 'runtime-bind-test-'));
+  const canonical = realpathSync(directory);
+  const bridge = `/run/desktop/mnt/host/${canonical[0].toLowerCase()}/${canonical.slice(3).replaceAll('\\', '/')}`;
+  try {
+    assert.equal(realHostBindSource(bridge), canonical);
+    assert.throws(() => realHostBindSource(`${bridge}/../${canonical.split('\\').at(-1)}`));
+    assert.throws(() => realHostBindSource(bridge.replace('/host/', '/guessed/')));
+  } finally { rmdirSync(directory); }
+});
 
 test('concurrent same-project runners cannot acquire while unrelated projects and a later run can', () => {
   const directory = mkdtempSync(join(tmpdir(), 'runtime-lock-test-'));

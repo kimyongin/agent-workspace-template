@@ -9,6 +9,19 @@ import { runLocalChecks } from './local-runtime.mjs';
 const interruptedCodes = new Set([130, 143, 3221225786, -1073741510]);
 const scripts = { setup: 'setup:local', core: 'test:core', DB: 'test:db', HTTP: 'test:http', MCP: 'test:mcp', E2E: 'test:e2e' };
 
+export function realHostBindSource(source) {
+  // Docker Desktop reports this host-drive bridge rather than a Windows path.
+  // Translate only that exact prefix; still require the resulting host path to exist.
+  if (process.platform === 'win32' && source.startsWith('/run/desktop/mnt/host/')) {
+    const bridge = /^\/run\/desktop\/mnt\/host\/([a-zA-Z])\/(.+)$/.exec(source);
+    if (!bridge || bridge[2].split('/').some(part => !part || part === '.' || part === '..' || /[\\:]/.test(part))) {
+      throw new Error('Invalid Docker Desktop host bind path');
+    }
+    source = `${bridge[1].toUpperCase()}:\\${bridge[2].replaceAll('/', '\\')}`;
+  }
+  return realpathSync(source);
+}
+
 // Cooperating runners serialize acquisition; this is never container ownership evidence.
 export function acquireRuntimeLock(projectId, directory = tmpdir()) {
   const name = createHash('sha256').update(projectId).digest('hex');
@@ -124,7 +137,7 @@ export function createLocalRuntimeAdapter(config) {
     if (id !== ids[0] || !Number.isFinite(Date.parse(created)) || !Array.isArray(mounts) || typeof running !== 'boolean') throw new Error('Invalid local runtime metadata');
     // CLI bind destinations vary across hosts; compare the real host source, not a guessed destination.
     const functions = mounts.filter(m => {
-      try { return m.Type === 'bind' && realpathSync(m.Source) === source; }
+      try { return m.Type === 'bind' && realHostBindSource(m.Source) === source; }
       catch { return false; }
     });
     // Emit only our non-secret marker; never inspect or log other environment values.
