@@ -13,7 +13,7 @@ import { DetailSurface } from "../../components/Modal.tsx";
 import { api, ApiError, query } from "../../lib/api.ts";
 import { addDays, formatDateTime, todayIn } from "../../lib/format.ts";
 import { emptyRecord, TaskResultFormModal, TaskFormModal, taskDraftFrom, taskInput } from "./forms.tsx";
-import { OccurrenceBadge, StatusBadge, useCreationId } from "./shared.tsx";
+import { OccurrenceBadge, StatusBadge } from "./shared.tsx";
 import {TagNames} from "../tags/TagPicker.tsx";
 import {EntityLinks} from "../entity/EntityPicker.tsx";
 import {useSearchReturn} from "../search/return.ts";
@@ -60,7 +60,6 @@ export function TaskDetailPage() {
   const [busy, setBusy] = useState(false);
   const [occurrences, setOccurrences] = useState<{ today: string; items: Occurrence[] } | null>(null);
   const [rangeEnd, setRangeEnd] = useState<string | null>(null);
-  const creationId = useCreationId();
 
   const previousQuery = useRef(params.toString());
   const loadGeneration = useRef(0);
@@ -125,7 +124,7 @@ export function TaskDetailPage() {
     if(previousQuery.current===query)return;
     previousQuery.current=query;
     setDialog(requestedDialog(params));
-    if(directEdit){creationId.renew();setEditReady(false);void reload();}
+    if(directEdit){setEditReady(false);void reload();}
   },[params.toString(),reload]);
 
   if (loadError && !task) {
@@ -155,7 +154,7 @@ export function TaskDetailPage() {
                 {task.status === "active" ? "중단" : "재개"}
               </button>
             )}
-            <button type="button" className="btn btn-danger" onClick={() => {creationId.renew();setDeleting(true);}}>삭제</button>
+            <button type="button" className="btn btn-danger" onClick={() => {setDeleting(true);}}>삭제</button>
           </div>
         </div>
         {message && <Notice kind="success">{message}</Notice>}
@@ -282,7 +281,7 @@ export function TaskDetailPage() {
             const saved = await api<TaskResult>("PATCH", `/tasks/${task.id}`, patch);
             setTask(current => current?.id === task.id ? {...current,...saved} : current);
             }catch(e){if(e instanceof ApiError&&e.code==="conflict")conflicted.current=true;throw e;}
-            creationId.renew(); closeEdit();
+            closeEdit();
             setMessage("저장했습니다.");
             await reload();
           }}
@@ -302,7 +301,6 @@ export function TaskDetailPage() {
           onRouteDiscard={() => setDialog(null)}
           onSave={async (value) => {
             await api("POST", `/tasks/${task.id}/complete`, { ...value, expected_version: task.version });
-            creationId.renew();
             closeManagement();
             setMessage("완료하고 결과 기록을 저장했습니다.");
             await reload();
@@ -318,12 +316,11 @@ export function TaskDetailPage() {
           initial={{...emptyRecord(),entity_ids:task.entity_ids,entity_context:task.entity_context}}
           onClose={closeManagement}
           onRouteDiscard={() => setDialog(null)}
-          onSave={async (value) => {
+          onSave={async (value, creationId) => {
             await api<RecordResult>("POST", `/tasks/${task.id}/occurrences/${dialog.occurrence}/records`, {
               ...value,
-              id: creationId.current,
+              id: creationId(),
             });
-            creationId.renew();
             closeManagement();
             setMessage(`${dialog.occurrence} 회차에 기록했습니다.`);
             await loadOccurrences(task, rangeEnd);

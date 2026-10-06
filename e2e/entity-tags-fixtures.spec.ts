@@ -176,9 +176,32 @@ test("이름 충돌 초안 보존과 삭제 실패·성공", async ({ page }) =>
   await page.goto(url); await page.getByRole("button", { name: "첫 태그 이름 변경" }).click(); await page.getByRole("textbox", { name: /태그 이름/ }).fill("초안 유지"); await saveWithMemo(page, page);
   await expect(page.getByText(/다른 변경이 저장되었습니다/)).toBeVisible(); await expect(page.getByRole("textbox", { name: /태그 이름/ })).toHaveValue("초안 유지");
   await page.getByRole("button", { name: "닫기", exact: true }).click(); await page.getByRole("dialog", { name: "변경을 버릴까요?" }).getByRole("button", { name: "변경 버리기" }).click();
-  await page.getByRole("button", { name: "첫 태그 삭제" }).click(); await page.getByRole("dialog", { name: "태그를 삭제할까요?" }).getByRole("button", { name: "삭제", exact: true }).click(); await expect(page.getByText("삭제 충돌")).toBeVisible();
-  failedDelete = false; await page.getByRole("button", { name: "첫 태그 삭제" }).click(); await page.getByRole("dialog", { name: "태그를 삭제할까요?" }).getByRole("button", { name: "삭제", exact: true }).click(); await expect(page.getByText("태그를 삭제했습니다.")).toBeVisible();
+  await page.getByRole("button", { name: "첫 태그 삭제" }).click(); await page.getByRole("dialog", { name: "태그를 삭제할까요?" }).getByRole("button", { name: "삭제", exact: true }).click(); await expect(page.getByRole("dialog", { name: "태그를 삭제할까요?" }).getByText(/삭제 충돌/)).toBeVisible();
+  failedDelete = false; await page.getByRole("dialog", { name: "태그를 삭제할까요?" }).getByRole("button", { name: "삭제", exact: true }).click(); await expect(page.getByText("태그를 삭제했습니다.")).toBeVisible();
 });
+test("태그 삭제 응답 유실 후 창과 이유를 유지하고 같은 버전으로 재시도", async ({ page }) => {
+  const deletions: string[] = [];
+  await page.route(/\/api\/tags(?:\?.*)?$/, route => route.fulfill({ json: { items: tags, next_cursor: null } }));
+  await page.route("**/api/tags/*", route => {
+    deletions.push(route.request().url());
+    return deletions.length === 1 ? route.abort() : route.fulfill({ status: 404, json: { code: "not_found", message: "이미 삭제된 태그" } });
+  });
+  await page.goto(url);
+  await page.getByRole("button", { name: "첫 태그 삭제" }).click();
+  const dialog = page.getByRole("dialog", { name: "태그를 삭제할까요?" });
+  await dialog.getByRole("textbox", { name: /이유/ }).fill("분류 통합");
+  await dialog.getByRole("button", { name: "삭제", exact: true }).click();
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole("textbox", { name: /이유/ })).toHaveValue("분류 통합");
+  await expect(dialog.getByRole("textbox", { name: /이유/ })).toBeDisabled();
+  await dialog.getByRole("button", { name: "같은 내용 다시 시도" }).click();
+  await expect(dialog.getByText("이미 삭제된 태그", { exact: true })).toBeVisible();
+  expect(deletions).toHaveLength(2);
+  expect(deletions[1]).toBe(deletions[0]);
+  expect(new URL(deletions[0]).searchParams.get("expected_version")).toBe("1");
+  expect(new URL(deletions[0]).searchParams.get("change_note")).toBe("분류 통합");
+});
+
 test("엔터티 연결 작성·실패 초안·성공 후 조회 실패와 모달 뒤로가기 보호", async ({ page }) => {
   const entity = { id: "10000000-0000-4000-8000-000000000000", prop1: "문맥 엔터티", prop2: 3, prop3: "2026-10-04", prop4: "b", version: 7, created_at: tags[0].created_at, updated_at: tags[0].updated_at,
     tasks: { count: 0, items: [] }, records: { count: 0, items: [] }, principles: { count: 0, items: [] } };

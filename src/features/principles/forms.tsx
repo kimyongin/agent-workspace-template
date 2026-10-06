@@ -11,7 +11,7 @@ export type PrincipleDraft = TextDraft & {change_note?: string;change_memo?:Chan
 export const emptyPrinciple: PrincipleDraft = {title:"",summary:"",body:"",change_note:""};
 const content = z.object({title,summary,body});
 export function PrincipleFormModal({initial,editing=false,details,id,version,onClose,onRouteDiscard,onSave}: {
-  initial: PrincipleDraft; editing?: boolean; onClose:()=>void; onRouteDiscard?:()=>void; onSave:(draft:PrincipleDraft)=>Promise<void>;
+  initial: PrincipleDraft; editing?: boolean; onClose:()=>void; onRouteDiscard?:()=>void; onSave:(draft:PrincipleDraft, creationId: () => string)=>Promise<void>;
   details?: ReactNode; id?:string; version?:number;
 }) {
   const [baseline] = useState({title:initial.title,summary:initial.summary,body:initial.body,change_note: ""});
@@ -20,7 +20,7 @@ export function PrincipleFormModal({initial,editing=false,details,id,version,onC
     dirty={JSON.stringify(draft)!==JSON.stringify(baseline)} onClose={onClose} onRouteDiscard={onRouteDiscard}
     previewKey={JSON.stringify(draft)} prepare={async()=> (await api<{memo:ChangeMemo}>("POST","/principles/preview",editing?{action:"update",id,input:{...content.parse(draft),expected_version:version,change_note:draft.change_note.trim()||undefined}}:{action:"create",input:{...content.parse(draft),change_note:draft.change_note.trim()||undefined}})).memo}
     validate={()=>{const noteErrors=changeNoteErrors(draft.change_note,false);if(noteErrors)return noteErrors; const r=content.safeParse(draft);return r.success?null:fieldErrors(r.error.issues);}}
-    onSubmit={change_memo=>onSave({...content.parse(draft),change_note:draft.change_note.trim()||undefined,change_memo})}>
+    onSubmit={(change_memo, creationId)=>onSave({...content.parse(draft),change_note:draft.change_note.trim()||undefined,change_memo}, creationId)}>
     {errors=><>
       {editing&&<p className="help">현재 문서를 갱신하고 확인한 메모를 통합 기록에 함께 저장합니다.</p>}
       <TextFields draft={draft} set={patch=>setDraft(d=>({...d,...patch}))} errors={errors}/>

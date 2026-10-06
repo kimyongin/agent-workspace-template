@@ -4,20 +4,8 @@ import { supabase } from "./supabase.ts";
 
 const base = import.meta.env.VITE_API_URL as string;
 
-export class ApiError extends Error {
-  constructor(
-    readonly status: number,
-    readonly code: ErrorBody["code"] | "network",
-    message: string,
-    readonly fields: { path: string; message: string }[] = [],
-    readonly retryable = false,
-  ) {
-    super(message);
-  }
-}
-
-/** 응답을 받지 못한 경우: 서버에서 실행됐는지 알 수 없다. 같은 데이터 id/버전으로 재시도하며 충돌 시 최신 데이터를 확인한다. */
-export const isUncertain = (e: unknown) => e instanceof ApiError && (e.code === "network" || e.status >= 500);
+import { ApiError } from "./api-error.ts";
+export { ApiError, isUncertain } from "./api-error.ts";
 
 export async function api<T>(method: string, path: string, body?: unknown, signal?:AbortSignal): Promise<T> {
   const { data } = await supabase.auth.getSession();
@@ -30,7 +18,7 @@ export async function api<T>(method: string, path: string, body?: unknown, signa
     res = await fetch(`${base}${path}`, { method, headers, body: body === undefined ? undefined : JSON.stringify(body), signal });
   } catch (e) {
     if(signal?.aborted)throw e;
-    throw new ApiError(0, "network", "서버에 연결하지 못했습니다. 저장 여부를 확인한 뒤 다시 시도하세요", [], true);
+    throw new ApiError(0, "network", "서버에 연결하지 못했습니다. 같은 내용으로 다시 시도할 수 있습니다.", [], true);
   }
   if (res.status === 204) return undefined as T;
   const text = await res.text();

@@ -48,8 +48,16 @@ export type NewTask = Pick<
 >;
 
 export function newTask(input: TaskCreate): NewTask {
+  return { id: input.id, ...taskContent(input) };
+}
+
+/** The same business content is used by preview, before a storage identity exists. */
+export function taskContent(
+  input:
+    | Omit<Extract<TaskCreate, { kind: "once" }>, "id">
+    | Omit<Extract<TaskCreate, { kind: "recurring" }>, "id">,
+): Omit<NewTask, "id"> {
   const common = {
-    id: input.id,
     ...entityChanges({ entity_ids: selectedEntities(input) ?? [] }),
     title: input.title,
     summary: input.summary,

@@ -7,7 +7,6 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router";
 import { Field, Notice } from "../../components/Field.tsx";
 import { api, ApiError, query } from "../../lib/api.ts";
-import { useCreationId } from "../../lib/useCreationId.ts";
 import { EntityForm } from "./forms.tsx";
 import { GuideLink } from "../../components/GuideLink.tsx";
 import { TabActions } from "../../components/TabActions.tsx";
@@ -17,9 +16,7 @@ export function EntitiesPage() {
   const dictionary=useTagDictionary(true,true,"entity");
   const [params] = useSearchParams(),
     { hash } = useLocation(),
-    navigate = useNavigate(),
-    creationId = useCreationId();
-  useEffect(()=>{if(create.open)creationId.renew();},[create.open,create.key]);
+    navigate = useNavigate();
   const requested = Number(params.get("pages") ?? 1);
   const pages = Number.isSafeInteger(requested) && requested > 0 ? Math.min(250, requested) : 1;
   const filter = {
@@ -239,12 +236,11 @@ export function EntitiesPage() {
           key={create.key}
           onClose={create.close}
           onRouteDiscard={create.discard}
-          onSave={async (value) => {
+          onSave={async (value, creationId) => {
             const e = await api<EntityResult>("POST", "/entities", {
               ...value,
-              id: creationId.current,
+              id: creationId(),
             });
-            creationId.renew();
             const p=new URLSearchParams(params);p.delete("create");create.finish(`/entities/${e.id}?list=${encodeURIComponent(`/entities?${p}`)}`);
           }}
         />

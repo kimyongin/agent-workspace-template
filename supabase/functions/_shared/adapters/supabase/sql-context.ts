@@ -1,5 +1,5 @@
 import { SqlEntityLinks } from "./entity-links.ts";
-// 실제 두 도메인이 공유하는 Actor 트랜잭션·요청 결과·색인 큐 저장 배선.
+// 실제 두 도메인이 공유하는 Actor 트랜잭션·변경 메모·색인 큐 저장 배선.
 import type postgres from "postgres";
 import type { Actor } from "../../core/shared/actor.ts";
 import type { IndexJob } from "../../core/shared/store.ts";
