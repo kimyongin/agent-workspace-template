@@ -1,5 +1,5 @@
 import { assert, assertEquals, assertRejects } from "@std/assert";
-import { asUser, connect, dbTest, fixtureOwner, urls } from "./_db.ts";
+import { asUser, connect, dbTest, fixtureOwner, urls } from "../database/_db.ts";
 import { appliedPrincipleSnapshot, recordResult, recordUpdate } from "../../functions/_shared/contracts/record.ts";
 import { entityCreate } from "../../functions/_shared/contracts/entity.ts";
 import { taskCreate } from "../../functions/_shared/contracts/task.ts";
@@ -15,6 +15,12 @@ import { SqlSearchUnitOfWork } from "../../functions/_shared/adapters/supabase/s
 import { searchInput } from "../../functions/_shared/contracts/search.ts";
 import { search } from "../../functions/_shared/core/search/application.ts";
 
+// Run only on the owned predecessor stack described in migrations/README.md.
+const migrationDb = new URL(Deno.env.get("LOCAL_DB_URL") ?? "");
+if (migrationDb.hostname !== "127.0.0.1" || !["56122", "56222"].includes(migrationDb.port)) {
+  throw Error("Requires owned isolated DB56122/56222");
+}
+const migrationFile = new URL("../../migrations/20261006210000_remove_legacy_principle_tables.sql", import.meta.url);
 const admin = connect(urls.admin, { max: 1 });
 const server = connect(urls.direct, { max: 1, prepare: false });
 const ed = { uow: new SqlEntityUnitOfWork(server) },
@@ -22,7 +28,7 @@ const ed = { uow: new SqlEntityUnitOfWork(server) },
   pd = { uow: new SqlPrincipleUnitOfWork(server) };
 
 dbTest(
-  "통합 보존 dry-run: 긴 원칙·적용 원문·옛 사건·단일/다중/삭제 대상과 컷오프 아카이브의 손실·중복·권한을 지킨다",
+  "과거 테이블 제거: 긴 원문을 기록으로 보존하고 사용자 편집·삭제를 존중한다",
   async () => {
     const f = await fixtureOwner(admin), other = await fixtureOwner(admin);
     try {
@@ -177,8 +183,68 @@ dbTest(
         body,
       );
       assertEquals(edited.body, "현재 원칙 변경");
+      await activity.updateRecord(
+        ad,
+        f.actor,
+        parts[1].id,
+        recordUpdate.parse({ expected_version: parts[1].version, body: "사용자가 편집한 보존 메모" }),
+      );
+      const stableRecords = Array.from(
+        await admin`select * from app.records where owner_id=${f.actor.userId} order by id`,
+      );
+      const stablePrinciples = Array.from(
+        await admin`select * from app.principles where owner_id=${f.actor.userId} order by id`,
+      );
+      // An archived source not yet copied into records is preserved by the final migration call.
+      const lateId = crypto.randomUUID();
+      const lateBody = "아직 이관되지 않은 근거 " + "😀".repeat(12000);
+      await admin`insert into private.retired_principle_sources(owner_id,source_kind,source_id,title,summary,payload)
+        values(${f.actor.userId},'principle',${lateId},'마지막 원본','이관 대기',${
+        admin.json({ principle: { id: lateId, body: lateBody } })
+      })`;
+      const rolledBack = new Error("migration verification rollback");
+      await assertRejects(
+        () =>
+          admin.begin(async (tx) => {
+            await tx.unsafe(await Deno.readTextFile(migrationFile));
+            for (
+              const table of [
+                "app.record_principles",
+                "app.principle_tags",
+                "app.legacy_principle_record_parts",
+                "private.retired_principle_sources",
+              ]
+            ) {
+              assertEquals((await tx`select to_regclass(${table}) as present`)[0].present, null);
+            }
+            assertEquals(
+              (await tx`select to_regprocedure('private.preserve_principle_sources(uuid)') as present`)[0].present,
+              null,
+            );
+            const afterRecords = Array.from(
+              await tx`select * from app.records where owner_id=${f.actor.userId} and id in ${
+                tx(stableRecords.map((r) => r.id))
+              } order by id`,
+            );
+            assertEquals(afterRecords, stableRecords);
+            assertEquals(
+              Array.from(await tx`select * from app.principles where owner_id=${f.actor.userId} order by id`),
+              stablePrinciples,
+            );
+            assertEquals((await tx`select id from app.records where id=${parts[0].id}`).length, 0);
+            const lateParts =
+              await tx`select body from app.records where owner_id=${f.actor.userId} and title like '원칙 보존 자료 · 마지막 원본%' order by title`;
+            assertEquals(
+              JSON.parse(lateParts.map((r) => r.body.split("\n\n").slice(1).join("\n\n")).join("")).principle.body,
+              lateBody,
+            );
+            throw rolledBack;
+          }),
+        Error,
+        rolledBack.message,
+      );
       assertEquals((await activity.getRecord(ad, f.actor, oldEvent.id)).change, legacyChange);
-      for (const part of parts.filter((r) => r.id !== parts[0].id)) {
+      for (const part of parts.filter((r) => r.id !== parts[0].id && r.id !== parts[1].id)) {
         assertEquals((await activity.getRecord(ad, f.actor, part.id)).body, part.body);
       }
     } finally {
