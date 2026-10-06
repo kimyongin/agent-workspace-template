@@ -13,6 +13,7 @@ test("general record selects two entities in web; MCP, both related views and de
     await beginTabAction(page, "기록 작성");
     const form = page.getByRole("dialog", { name: "기록 작성", exact: true });
     await form.getByRole("textbox", { name: /^본문/ }).fill(label + " 자료");
+    await form.getByRole("searchbox", { name: "엔터티 제목 검색", exact: true }).fill(label);
     await form.getByRole("checkbox", { name: first.prop1, exact: true }).check();
     await form.getByRole("checkbox", { name: second.prop1, exact: true }).check();
     await form.getByRole("button", { name: "저장", exact: true }).click();

@@ -1,3 +1,4 @@
+import type { EntityContext } from "@contracts/entity-links.ts";
 import { recordDisplayText } from "@contracts/record-display.ts";
 import { DetailLink as Link, useDetailNavigate, useDetailOwnerReturn } from "../../lib/detail-exploration.tsx";
 import { editFromView } from "../../lib/detail-navigation.ts";
@@ -9,7 +10,7 @@ import { useEffect, useRef, useState } from "react";
 import { useLocation, useParams, useSearchParams } from "react-router";
 import { Notice } from "../../components/Field.tsx";
 import { DetailSurface } from "../../components/Modal.tsx";
-import { api, ApiError, query } from "../../lib/api.ts";
+import { api, ApiError } from "../../lib/api.ts";
 import { formatDateTime } from "../../lib/format.ts";
 import { EntityForm } from "./forms.tsx";
 import { emptyRecord, emptyTask, RecordFormModal, TaskFormModal, taskInput } from "../activity/forms.tsx";
@@ -27,7 +28,6 @@ export function EntityDetailPage() {
   const closeCreate=()=>{returnCreateFocus.current=creating;setCreating(null);const p=new URLSearchParams(params);p.delete("create");afterClose(`${location.pathname}?${p}`,true);};
   useEffect(()=>{const value=params.get("create"),next=value==="task"||value==="record"?value:null;if(!next&&previousCreate.current)returnCreateFocus.current=previousCreate.current;previousCreate.current=next;setCreating(next);},[location.key]);
   const [editReady,setEditReady]=useState(false);
-  const [saved, setSaved] = useState<string | null>(null);
   const [entity, setEntity] = useState<EntityDetail | null>(null),
     [error, setError] = useState<string | null>(null),
     [retry, setRetry] = useState(0),
@@ -48,15 +48,15 @@ export function EntityDetailPage() {
       });
     return () => controller.abort();
   }, [id, retry]);
-  useEffect(() => { setEntity(null); setSaved(null); setEditing(params.get("edit")==="1"); }, [id]);
+  useEffect(() => { setEntity(null); setEditing(params.get("edit")==="1"); }, [id]);
   const returnParams=new URLSearchParams(params); ["edit","edit_from","create"].forEach(key=>returnParams.delete(key));
   const back = useDetailOwnerReturn(`/entities?${returnParams}${id ? `#entity-${id}` : ""}`);
   const previousQuery=useRef(params.toString());
   useEffect(()=>{setEditing(params.get("edit")==="1");if(previousQuery.current!==params.toString()&&!params.has("create")){setEditReady(false);setRetry(n=>n+1);}previousQuery.current=params.toString();},[params.toString()]);
-  useEffect(()=>{if(creating||!editReady||!returnCreateFocus.current)return;const frame=requestAnimationFrame(()=>{const label=returnCreateFocus.current==="task"?"관련 할 일 추가":"기록 작성";const button=Array.from(document.querySelectorAll<HTMLButtonElement>("dialog[open] .detail-management button")).find(el=>el.textContent===label);if(button){button.focus();returnCreateFocus.current=null;}});return()=>cancelAnimationFrame(frame);},[creating,editReady,entity]);
+  useEffect(()=>{if(creating||!editReady||!returnCreateFocus.current)return;const frame=requestAnimationFrame(()=>{const label=returnCreateFocus.current==="task"?"할 일 작성":"기록 작성";const button=Array.from(document.querySelectorAll<HTMLButtonElement>("dialog[open] .detail-management button")).find(el=>el.textContent===label);if(button){button.focus();returnCreateFocus.current=null;}});return()=>cancelAnimationFrame(frame);},[creating,editReady,entity]);
   const closeEdit=()=>{setEditing(false);const p=new URLSearchParams(params);p.delete("edit");p.delete("edit_from");afterClose(params.get("edit_from")==="view"?`${location.pathname}?${p}`:back,true);if(conflicted.current){conflicted.current=false;setRetry(n=>n+1);}};
+  const entityContext: EntityContext[] = entity ? [{id:entity.id,title:entity.prop1,source:"selection",captured_at:new Date().toISOString()}] : [];
   const management = entity && <div className="detail-management">
-      {saved && <Notice>{saved}</Notice>}
       {error && (
         <>
           <Notice kind="error">{error}</Notice>
@@ -66,15 +66,12 @@ export function EntityDetailPage() {
         </>
       )}
           <TagNames scope="entity" ids={(entity as EntityDetail & {tag_ids?:string[]}).tag_ids??[]}/>
-          <p className="meta">
-            수정 {formatDateTime(entity.updated_at)}
-          </p>
           {([["tasks", "할 일"], ["records", "기록"]] as const).map(([kind, label]) => (
             <section className="detail-section entity-related" key={kind}>
               <div className="detail-section-head"><h2 className="section-title">연결된 {label} ({entity[kind].count}개)</h2>
                 <button type="button" className="btn btn-text" onClick={() => {
                   const p=new URLSearchParams(params);p.set("create",kind==="tasks"?"task":"record");navigate(`?${p}`);
-                }}>{kind === "tasks" ? "관련 할 일 추가" : "기록 작성"}</button>
+                }}>{kind === "tasks" ? "할 일 작성" : "기록 작성"}</button>
               </div>
               {entity[kind].count === 0
                 ? <p className="secondary">연결된 {label}이 없습니다.</p>
@@ -90,7 +87,6 @@ export function EntityDetailPage() {
                     ))}
                   </ul>
                 )}
-              {entity[kind].count>0&&<Link className="entity-related-all" to={`/${kind}${query({ entity_id: id })}`}>전체 {label} 보기</Link>}
             </section>
           ))}
     </div>;
@@ -100,19 +96,19 @@ export function EntityDetailPage() {
       {error && !entity && <><Notice kind="error">{error}</Notice><button className="btn" onClick={()=>setRetry(n=>n+1)}>다시 시도</button></>}
       {!entity&&!error&&<p className="secondary" role="status">불러오는 중…</p>}
       {entity&&<>
-          <section className="detail-section"><h2 className="section-title">기본 정보</h2><dl className="props">
+          <section className="detail-section entity-detail-properties"><h2 className="section-title">기본 정보</h2><dl className="props">
             {(["prop1","prop2","prop3","prop4"] as const).map(key=><div key={key}><dt>{entityLabels[key]}</dt><dd>{entity[key]??"미지정"}</dd></div>)}
           </dl></section>
           {management}
-          {creating === "task" && <TaskFormModal key={location.key} open mode="create" initial={{ ...emptyTask(), entity_ids: [entity.id] }}
+          {creating === "task" && <TaskFormModal key={location.key} open mode="create" initial={{ ...emptyTask(), entity_ids: [entity.id], entity_context: entityContext }}
             onClose={closeCreate} onRouteDiscard={()=>setCreating(null)} onSave={async (draft, creationId) => {
               await api("POST", "/tasks", { ...taskInput(draft), id: creationId() });
-              closeCreate(); setSaved("할 일을 추가했습니다."); setRetry(n => n + 1);
+              closeCreate(); setRetry(n => n + 1);
             }} />}
-          {creating === "record" && <RecordFormModal key={location.key} open title="기록 작성" submitLabel="저장" initial={{ ...emptyRecord(), entity_ids: [entity.id] }}
+          {creating === "record" && <RecordFormModal key={location.key} open title="기록 작성" submitLabel="저장" initial={{ ...emptyRecord(), entity_ids: [entity.id], entity_context: entityContext }}
             onClose={closeCreate} onRouteDiscard={()=>setCreating(null)} onSave={async (value, creationId) => {
               await api("POST", "/records", { ...value, id: creationId() });
-              closeCreate(); setSaved("기록을 저장했습니다."); setRetry(n => n + 1);
+              closeCreate(); setRetry(n => n + 1);
             }} />}
           {editing && !creating && editReady && (
             <EntityForm
@@ -145,7 +141,7 @@ export function EntityDetailPage() {
                     expected_version: entity.version,
                   });
                   setEntity(current=>current?{...current,...savedEntity}:current);
-                  setSaved("저장했습니다.");closeEdit();
+                  closeEdit();
                   setRetry((n) => n + 1);
                 } catch (e) {
                   if (

@@ -52,7 +52,9 @@ test("Entity 웹 CRUD·초안 보호→MCP parity·활동 연결→삭제 원문
     await page.goto(`/entities/${id}`);
     await expect(page.getByRole("heading", { name: "연결된 할 일 (1개)" }))
       .toBeVisible();
-    await page.getByRole("link", { name: "전체 할 일 보기" }).click();
+    await expect(page.getByRole("link", { name: "전체 할 일 보기" })).toHaveCount(0);
+    await expect(page.getByRole("link", { name: task.title, exact: true })).toBeVisible();
+    await page.goto(`/tasks?entity_id=${id}`);
     await expect(page).toHaveURL(new RegExp(`/tasks\\?entity_id=${id}`));
     await expect(page.getByRole("link", { name: task.title, exact: true }))
       .toBeVisible();
