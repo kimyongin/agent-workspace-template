@@ -10,17 +10,18 @@ class SqlSearchStore implements SearchStore {
   sources() {
     const tx = this.tx;
     const originals =
-      tx`select owner_id,'task'::text as kind,id,title,summary,body,updated_at as at,status,entity_ids,kind as task_kind,null::text as record_kind,null::boolean as is_current,null::text as change_note,${
+      tx`select owner_id,'task'::text as kind,id,title,body,updated_at as at,status,entity_ids,kind as task_kind,null::text as record_kind,null::boolean as is_current,${
         tagIdsColumn(tx, "task")
       } from app.tasks
-      union all select owner_id,'record',id,title,summary,body,occurred_at,null::text,entity_ids,null::text,record_kind,null::boolean,change_note,${
+      union all select owner_id,'record',id,left(body,400),body,occurred_at,null::text,entity_ids,null::text,record_kind,null::boolean,${
         tagIdsColumn(tx, "record")
       } from app.records
-      union all select owner_id,'principle',id,title,summary,body,saved_at,null::text,'{}'::uuid[],null::text,null::text,is_current,change_note,'[]'::jsonb from app.principles where is_current`;
-    return tx`select s.*,i.embedding,case
-      when s.summary is null or btrim(s.summary)='' then 'excluded'
-      when i.input_hash=encode(extensions.digest(s.title||E'\n'||s.summary,'sha256'),'hex') and i.pipeline=${SEARCH_PIPELINE}
-        and (i.state='excluded' or (i.state='indexed' and i.embedding is not null)) then i.state else 'pending' end as index_state
+      union all select owner_id,'principle',id,title,body,saved_at,null::text,'{}'::uuid[],null::text,null::text,is_current,'[]'::jsonb from app.principles where is_current`;
+    return tx`select s.*,i.generation,case
+      when s.kind<>'record' then 'excluded'
+      when i.input_hash=encode(extensions.digest(s.body,'sha256'),'hex') and i.pipeline=${SEARCH_PIPELINE}
+        and (i.state='excluded' or (i.state='indexed' and exists(select 1 from app.search_chunks c
+          where c.owner_id=s.owner_id and c.record_id=s.id and c.generation=i.generation))) then i.state else 'pending' end as index_state
       from (${originals}) s left join app.search_index_state i on (i.owner_id,i.kind,i.id)=(s.owner_id,s.kind,s.id)`;
   }
   filters(q: SearchInput) {
@@ -40,22 +41,33 @@ class SqlSearchStore implements SearchStore {
   async coverage(q: SearchInput) {
     const tx = this.tx;
     const [r] = await tx`with sources as (${this.sources()}) select
-      count(*) filter(where index_state='pending')::int as pending,
-      count(*) filter(where index_state='excluded')::int as excluded from sources where ${this.filters(q)}`;
+      count(*) filter(where kind='record' and index_state='pending')::int as pending,
+      count(*) filter(where kind='record' and index_state='excluded')::int as excluded from sources where ${
+      this.filters(q)
+    }`;
     return { pending: r.pending as number, excluded: r.excluded as number };
   }
   matches(q: SearchInput) {
-    return this.tx`strpos(lower(title||E'\n'||coalesce(summary,'')||E'\n'||body),lower(${q.query}))>0`;
+    return this.tx`strpos(lower(title||E'\n'||body),lower(${q.query}))>0`;
   }
   ranked(q: SearchInput, vector: number[] | undefined) {
     const tx = this.tx;
-    const score = vector
-      ? tx`case when index_state='indexed' then greatest(0::float8,least(1::float8,1-(embedding operator(extensions.<=>) ${
+    const bestChunk = vector
+      ? tx`left join lateral (select c.start_offset,c.end_offset,
+        greatest(0::float8,least(1::float8,1-(c.embedding operator(extensions.<=>) ${
         JSON.stringify(vector)
-      }::extensions.vector))) else 0::float8 end`
-      : tx`0::float8`;
+      }::extensions.vector))) as score
+        from app.search_chunks c where s.kind='record' and s.index_state='indexed' and
+        c.owner_id=s.owner_id and c.record_id=s.id and c.generation=s.generation
+        order by c.embedding operator(extensions.<=>) ${
+        JSON.stringify(vector)
+      }::extensions.vector,c.start_offset limit 1) best on true`
+      : tx`left join lateral (select null::int as start_offset,null::int as end_offset,0::float8 as score) best on true`;
     return tx`with sources as (${this.sources()}),scored as (
-      select *,${this.matches(q)} as keyword_match,${score} as score from sources where ${this.filters(q)})
+      select s.*,${this.matches(q)} as keyword_match,coalesce(best.score,0::float8) as score,
+        case when best.score>=0.27 then best.start_offset else greatest(0,strpos(lower(s.body),lower(${q.query}))-81) end as snippet_start,
+        case when best.score>=0.27 then best.end_offset else least(char_length(s.body),greatest(0,strpos(lower(s.body),lower(${q.query}))-81)+240) end as snippet_end
+        from sources s ${bestChunk} where ${this.filters(q)})
       select *,case when keyword_match then 1::float8 else 0::float8 end + case when score>=0.27 then score else 0::float8 end as rank,
       case when keyword_match and score>=0.27 then 'both' when keyword_match then 'keyword' else 'semantic' end as match
       from scored where keyword_match or score>=0.27`;
@@ -77,7 +89,8 @@ class SqlSearchStore implements SearchStore {
     const tx = this.tx;
     const rows = await tx`with candidates as (${
       this.ranked(q, vector)
-    }) select kind,id,title,summary,at,tag_ids,index_state,match,rank,change_note,status,record_kind from candidates
+    }) select kind,id,title,substring(body from snippet_start+1 for snippet_end-snippet_start) as snippet,
+      snippet_start,snippet_end,at,tag_ids,index_state,match,rank,status,record_kind from candidates
       ${
       after
         ? tx`where (rank,at,kind,id)<(${after.rank}::float8,${after.at}::timestamptz,${after.kind}::text,${after.id}::uuid)`
@@ -87,19 +100,27 @@ class SqlSearchStore implements SearchStore {
     return rows.map((r) => ({
       kind: r.kind as SearchItem["kind"],
       id: r.id as string,
-      title: r.title as string,
-      summary: (r.summary ?? "") as string,
+      title: r.kind === "record" ? recordLabel(r.title as string) : r.title as string,
+      snippet: r.snippet as string,
+      snippet_start: r.snippet_start as number,
+      snippet_end: r.snippet_end as number,
       at: (r.at as Date).toISOString(),
       tag_ids: r.tag_ids as string[],
       match: r.match as SearchItem["match"],
       rank: r.rank as number,
       index_state: r.index_state as SearchItem["index_state"],
       path: `/${r.kind}s/${r.id}`,
-      change_note: (r.change_note as string | null) ?? null,
       task_status: r.kind === "task" ? r.status as SearchItem["task_status"] : null,
       record_kind: (r.record_kind as SearchItem["record_kind"]) ?? null,
     }));
   }
+}
+function recordLabel(body: string) {
+  const plain = body.replace(/!?\[([^\]]+)\]\([^)]*\)/g, "$1")
+    .replace(/^\s{0,3}(?:#{1,6}\s+|>\s*|[-*+]\s+|\d+\.\s+)/gm, "")
+    .replace(/[*_`~]/g, "").replace(/\s+/g, " ").trim();
+  const points = [...plain];
+  return points.slice(0, 100).join("") + (points.length > 100 ? "…" : "") || "기록";
 }
 export class SqlSearchUnitOfWork {
   constructor(private readonly sql: postgres.Sql) {}

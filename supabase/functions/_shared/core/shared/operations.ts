@@ -27,8 +27,7 @@ function canonical(value: unknown): string {
   return JSON.stringify(value);
 }
 
-export const searchInputHash = (item: { title: string; summary: string }) =>
-  sha256Hex(`${item.title}\n${item.summary}`);
+export const searchInputHash = (body: string) => sha256Hex(body);
 
 interface CursorBody {
   at: string;

@@ -10,8 +10,14 @@ export interface Embedder {
   embed(text: string, type: "passage" | "query"): Promise<number[]>;
 }
 export interface IndexSource {
-  title: string;
-  summary: string | null;
+  body: string;
+}
+export interface IndexedChunk {
+  /** Unicode code point offsets, end exclusive; text is transient and not stored. */
+  start: number;
+  end: number;
+  text: string;
+  vector: number[];
 }
 export interface IndexClaim {
   msg_id: string;
@@ -31,7 +37,7 @@ export interface IndexQueue {
     pipeline: string,
     state: "indexed" | "excluded" | "failed" | "retry",
     reason: string | null,
-    vector?: number[],
+    chunks?: IndexedChunk[],
     delay?: number,
   ): Promise<boolean>;
 }
@@ -43,23 +49,27 @@ export async function indexBatch(queue: IndexQueue, embedder: Embedder, scope: I
     const finish = async (
       state: "indexed" | "excluded" | "failed" | "retry",
       reason: string | null,
-      vector?: number[],
+      chunks?: IndexedChunk[],
       delay?: number,
-    ) => await queue.finish(job.msg_id, SEARCH_PIPELINE, state, reason, vector, delay) ? state : "stale";
-    if (
-      !source.title?.trim() || !source.summary?.trim() || [...source.title].length > 100 ||
-      [...source.summary].length > 300
-    ) {
+    ) => await queue.finish(job.msg_id, SEARCH_PIPELINE, state, reason, chunks, delay) ? state : "stale";
+    if (!source.body?.trim()) {
       return await finish("excluded", "invalid_input");
     }
     if (job.read_ct > 5) return await finish("failed", "retry_exhausted");
     try {
-      const vector = await embedder.embed(`${source.title}\n${source.summary}`, "passage");
-      return await finish("indexed", null, vector);
+      const points = [...source.body];
+      const chunks: IndexedChunk[] = [];
+      // UTF-8 bytes are a conservative upper bound for the byte-fallback model's
+      // text tokens, not a token count. Leave room below the 2048-token limit.
+      // Boundary preference and overlap preserve all characters, including markup.
+      for (const segment of passages(points)) chunks.push(...await embedSegment(points, segment, embedder));
+      return await finish("indexed", null, chunks);
     } catch (error) {
       // 알 수 없는 DB/코드 오류를 공급자 장애로 분류하지 않는다. visibility timeout으로 복구한다.
       if (!(error instanceof EmbeddingError)) throw error;
-      if (error.category === "input_limit") return await finish("excluded", "input_limit");
+      // Only a single code point can reach here: recursive splitting handles
+      // ordinary input limits without excluding a long record.
+      if (error.category === "input_limit") return await finish("failed", "input_limit");
       if (error.category === "configuration") return await finish("failed", "configuration");
       if (job.read_ct >= 5) return await finish("failed", "retry_exhausted");
       return await finish("retry", error.category, undefined, Math.min(900, 30 * 2 ** (job.read_ct - 1)));
@@ -73,4 +83,55 @@ export async function indexBatch(queue: IndexQueue, embedder: Embedder, scope: I
     retry: outcomes.filter((s) => s === "retry").length,
     stale: outcomes.filter((s) => s === "stale").length,
   };
+}
+
+function* passages(points: string[]) {
+  let start = 0;
+  while (start < points.length) {
+    let end = start, bytes = 0, paragraph = start, sentence = start, whitespace = start;
+    while (end < points.length) {
+      const size = new TextEncoder().encode(points[end]).length;
+      if (bytes + size > 1800) break;
+      bytes += size;
+      end++;
+      if (bytes >= 900) {
+        if (points[end - 1] === "\n" && points[end - 2] === "\n") paragraph = end;
+        if (/[.!?。！？]/u.test(points[end - 1])) sentence = end;
+        if (/\s/u.test(points[end - 1])) whitespace = end;
+      }
+    }
+    const boundary = paragraph > start ? paragraph : sentence > start ? sentence : whitespace;
+    if (end < points.length && boundary > start) end = boundary;
+    yield { start, end };
+    if (end === points.length) return;
+    // At most 180 UTF-8 bytes of overlap, always make forward progress.
+    let next = end, overlap = 0;
+    while (next > start + 1) {
+      const size = new TextEncoder().encode(points[next - 1]).length;
+      if (overlap + size > 180) break;
+      overlap += size;
+      next--;
+    }
+    start = next;
+  }
+}
+
+async function embedSegment(
+  points: string[],
+  segment: { start: number; end: number },
+  embedder: Embedder,
+): Promise<IndexedChunk[]> {
+  const text = points.slice(segment.start, segment.end).join("");
+  try {
+    return [{ ...segment, text, vector: await embedder.embed(text, "passage") }];
+  } catch (error) {
+    if (!(error instanceof EmbeddingError) || error.category !== "input_limit" || segment.end - segment.start < 2) {
+      throw error;
+    }
+    const middle = segment.start + Math.floor((segment.end - segment.start) / 2);
+    return [
+      ...await embedSegment(points, { start: segment.start, end: middle }, embedder),
+      ...await embedSegment(points, { start: middle, end: segment.end }, embedder),
+    ];
+  }
 }

@@ -1,5 +1,5 @@
 import type postgres from "postgres";
-import type { IndexClaim, IndexQueue, IndexScope, IndexSource } from "../../core/search/index-worker.ts";
+import type { IndexClaim, IndexedChunk, IndexQueue, IndexScope, IndexSource } from "../../core/search/index-worker.ts";
 
 export class SqlIndexQueue implements IndexQueue {
   constructor(private readonly sql: postgres.Sql) {}
@@ -17,11 +17,13 @@ export class SqlIndexQueue implements IndexQueue {
     pipeline: string,
     state: "indexed" | "excluded" | "failed" | "retry",
     reason: string | null,
-    vector?: number[],
+    chunks?: IndexedChunk[],
     delay = 0,
   ): Promise<boolean> {
     const [r] = await this.sql`select app.finish_search_index(${id}::bigint,${pipeline},${state},${reason},
-      ${vector ? JSON.stringify(vector) : null}::extensions.vector,${delay}) as applied`;
+      ${
+      chunks ? JSON.stringify(chunks.map(({ start, end, vector }) => ({ start, end, vector }))) : null
+    }::jsonb,${delay}) as applied`;
     return r.applied as boolean;
   }
 }

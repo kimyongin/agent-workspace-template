@@ -1,176 +1,83 @@
-import { assertEquals, assertRejects, assertStrictEquals } from "@std/assert";
-import {
-  type Embedder,
-  EmbeddingError,
-  indexBatch,
-  type IndexQueue,
-  type IndexScope,
-  type IndexSource,
-} from "./index-worker.ts";
-import { SEARCH_PIPELINE } from "./config.ts";
+import { assertEquals } from "@std/assert";
+import { EmbeddingError, indexBatch, type IndexQueue } from "./index-worker.ts";
 
-// Only outbound replies and calls are stubbed; indexBatch owns every state decision.
-function fixture(options: {
-  source?: IndexSource | null;
-  readCount?: number;
-  accepted?: boolean;
-  error?: Error;
-} = {}) {
-  const scope: IndexScope = { limit: 1, owner_id: "owner", kind: "record", id: "record" };
-  const vector = [0.25, -0.5];
-  const claims: IndexScope[] = [], preparations: [string, string][] = [];
+Deno.test("indexBatch sends the entire record body as bounded passages and publishes one generation", async () => {
+  const body = "# 첫 문단\n\n" + "긴한국어😀내용".repeat(500) + "\n\n마지막 검색 근거.";
+  const sent: string[] = [];
   const finishes: Parameters<IndexQueue["finish"]>[] = [];
-  const embeddings: Parameters<Embedder["embed"]>[] = [];
   const queue: IndexQueue = {
-    claim: (requested) => {
-      claims.push(requested);
-      return Promise.resolve([{ msg_id: "job", read_ct: options.readCount ?? 1 }]);
-    },
-    prepare: (...args) => {
-      assertEquals(args, ["job", SEARCH_PIPELINE]);
-      preparations.push(args);
-      return Promise.resolve(options.source === undefined ? { title: "제목", summary: "요약" } : options.source);
-    },
+    claim: () => Promise.resolve([{ msg_id: "1", read_ct: 1 }]),
+    prepare: () => Promise.resolve({ body }),
     finish: (...args) => {
-      assertEquals(args.slice(0, 2), ["job", SEARCH_PIPELINE]);
       finishes.push(args);
-      return Promise.resolve(options.accepted ?? true);
+      return Promise.resolve(true);
     },
   };
-  const embedder: Embedder = {
-    embed: (...args) => {
-      embeddings.push(args);
-      return options.error ? Promise.reject(options.error) : Promise.resolve(vector);
+  const result = await indexBatch(queue, {
+    embed: (text) => {
+      sent.push(text);
+      return Promise.resolve([1]);
     },
-  };
-  return { scope, vector, queue, embedder, claims, preparations, finishes, embeddings };
-}
-function result(state: "indexed" | "excluded" | "failed" | "retry" | "stale") {
-  return { claimed: 1, indexed: 0, excluded: 0, failed: 0, retry: 0, stale: 0, [state]: 1 };
-}
-
-Deno.test("indexBatch forwards scoped claim, pipeline and title+summary passage vector", async () => {
-  const f = fixture({ source: { title: "  제목 😀 ", summary: " 요약\n다음 줄 " } });
-  assertEquals(await indexBatch(f.queue, f.embedder, f.scope), result("indexed"));
-  assertEquals(f.claims, [f.scope]);
-  assertStrictEquals(f.claims[0], f.scope);
-  assertEquals(f.preparations, [["job", SEARCH_PIPELINE]]);
-  assertEquals(f.embeddings, [["  제목 😀 \n 요약\n다음 줄 ", "passage"]]);
-  assertEquals(f.finishes, [["job", SEARCH_PIPELINE, "indexed", null, f.vector, undefined]]);
-  assertStrictEquals(f.finishes[0][4], f.vector);
-});
-
-for (const category of ["transient", "invalid_response"] as const) {
-  for (const [readCount, delay] of [[1, 30], [2, 60], [3, 120], [4, 240]]) {
-    Deno.test(`indexBatch ${category} read ${readCount} schedules ${delay}s retry`, async () => {
-      const f = fixture({ readCount, error: new EmbeddingError(category) });
-      assertEquals(await indexBatch(f.queue, f.embedder, f.scope), result("retry"));
-      assertEquals(f.embeddings.length, 1);
-      assertEquals(f.finishes, [["job", SEARCH_PIPELINE, "retry", category, undefined, delay]]);
-    });
+  }, { limit: 1 });
+  assertEquals(result.indexed, 1);
+  assertEquals(sent.length > 1, true);
+  assertEquals(sent.at(-1)?.endsWith("마지막 검색 근거."), true);
+  assertEquals(finishes.length, 1);
+  const chunks = finishes[0][4]!;
+  const points = [...body];
+  const covered = new Set<number>();
+  for (const chunk of chunks) {
+    assertEquals(chunk.text, points.slice(chunk.start, chunk.end).join(""));
+    assertEquals(new TextEncoder().encode(chunk.text).length <= 1800, true);
+    for (let i = chunk.start; i < chunk.end; i++) covered.add(i);
   }
-  Deno.test(`indexBatch ${category} on fifth read fails after the embedding attempt`, async () => {
-    const f = fixture({ readCount: 5, error: new EmbeddingError(category) });
-    assertEquals(await indexBatch(f.queue, f.embedder, f.scope), result("failed"));
-    assertEquals(f.embeddings.length, 1);
-    assertEquals(f.finishes, [["job", SEARCH_PIPELINE, "failed", "retry_exhausted", undefined, undefined]]);
-  });
-}
-
-Deno.test("indexBatch fifth read may succeed, sixth read fails before embedding", async () => {
-  const fifth = fixture({ readCount: 5 });
-  assertEquals(await indexBatch(fifth.queue, fifth.embedder, fifth.scope), result("indexed"));
-  assertEquals(fifth.embeddings.length, 1);
-  const sixth = fixture({ readCount: 6 });
-  assertEquals(await indexBatch(sixth.queue, sixth.embedder, sixth.scope), result("failed"));
-  assertEquals(sixth.embeddings, []);
-  assertEquals(sixth.finishes, [["job", SEARCH_PIPELINE, "failed", "retry_exhausted", undefined, undefined]]);
+  assertEquals(covered.size, points.length);
 });
 
-for (const [category, state] of [["input_limit", "excluded"], ["configuration", "failed"]] as const) {
-  for (const readCount of [1, 5]) {
-    Deno.test(`indexBatch ${category} read ${readCount} finishes ${state} without retry`, async () => {
-      const f = fixture({ readCount, error: new EmbeddingError(category) });
-      assertEquals(await indexBatch(f.queue, f.embedder, f.scope), result(state));
-      assertEquals(f.embeddings.length, 1);
-      assertEquals(f.finishes, [["job", SEARCH_PIPELINE, state, category, undefined, undefined]]);
-    });
-  }
-}
-
-const invalidSources: [string, IndexSource][] = [
-  ["empty title", { title: "", summary: "요약" }],
-  ["blank title", { title: " \n\t", summary: "요약" }],
-  ["missing summary", { title: "제목", summary: null }],
-  ["empty summary", { title: "제목", summary: "" }],
-  ["blank summary", { title: "제목", summary: " \n\t" }],
-  ["101 code point title", { title: "😀".repeat(101), summary: "요약" }],
-  ["301 code point summary", { title: "제목", summary: "😀".repeat(301) }],
-];
-for (const [name, source] of invalidSources) {
-  Deno.test(`indexBatch excludes ${name} before embedding`, async () => {
-    const f = fixture({ source });
-    assertEquals(await indexBatch(f.queue, f.embedder, f.scope), result("excluded"));
-    assertEquals(f.embeddings, []);
-    assertEquals(f.finishes, [["job", SEARCH_PIPELINE, "excluded", "invalid_input", undefined, undefined]]);
-  });
-}
-Deno.test("indexBatch accepts exactly 100/300 Unicode code points without truncation", async () => {
-  const source = { title: "😀".repeat(100), summary: "😀".repeat(300) };
-  const f = fixture({ source });
-  assertEquals(await indexBatch(f.queue, f.embedder, f.scope), result("indexed"));
-  assertEquals(f.embeddings, [[`${source.title}\n${source.summary}`, "passage"]]);
-});
-
-Deno.test("indexBatch stale preparation neither embeds nor finishes", async () => {
-  const f = fixture({ source: null, readCount: 6 });
-  assertEquals(await indexBatch(f.queue, f.embedder, f.scope), result("stale"));
-  assertEquals(f.preparations.length, 1);
-  assertEquals(f.embeddings, []);
-  assertEquals(f.finishes, []);
-});
-for (const category of [undefined, "input_limit", "configuration", "transient", "invalid_response"] as const) {
-  Deno.test(`indexBatch rejected ${category ?? "successful"} finish counts stale with one finish call`, async () => {
-    const f = fixture({ accepted: false, error: category ? new EmbeddingError(category) : undefined });
-    assertEquals(await indexBatch(f.queue, f.embedder, f.scope), result("stale"));
-    assertEquals(f.embeddings.length, 1);
-    assertEquals(f.finishes.length, 1);
-  });
-}
-
-for (const boundary of ["claim", "prepare", "embed", "finish"] as const) {
-  Deno.test(`indexBatch unknown ${boundary} error propagates without provider retry`, async () => {
-    const error = new Error(`unexpected ${boundary}`), f = fixture(boundary === "embed" ? { error } : {});
-    if (boundary !== "embed") f.queue[boundary] = (): Promise<never> => Promise.reject(error);
-    assertStrictEquals(await assertRejects(() => indexBatch(f.queue, f.embedder, f.scope)), error);
-    assertEquals(f.finishes, []);
-    assertEquals(f.embeddings.length, boundary === "embed" || boundary === "finish" ? 1 : 0);
-  });
-}
-
-Deno.test("indexBatch summarizes mixed claims by accepted outcome", async () => {
-  const cases = [
-    fixture({ source: { title: "0", summary: "요약" } }),
-    fixture({ source: { title: "1", summary: "요약" }, error: new EmbeddingError("input_limit") }),
-    fixture({ source: { title: "2", summary: "요약" }, error: new EmbeddingError("configuration") }),
-    fixture({ source: { title: "3", summary: "요약" }, error: new EmbeddingError("transient") }),
-    fixture({ source: null }),
-    fixture({ source: { title: "5", summary: "요약" }, accepted: false }),
-  ];
+Deno.test("provider input limit splits automatically without losing either end of a record", async () => {
+  const body = "처음😀가운데끝";
+  const finishes: Parameters<IndexQueue["finish"]>[] = [];
   const queue: IndexQueue = {
-    claim: () => Promise.resolve(cases.map((_, i) => ({ msg_id: String(i), read_ct: 1 }))),
-    prepare: (id, pipeline) => cases[Number(id)].queue.prepare("job", pipeline),
-    finish: (id, ...args) => cases[Number(id)].queue.finish("job", ...args),
+    claim: () => Promise.resolve([{ msg_id: "1", read_ct: 1 }]),
+    prepare: () => Promise.resolve({ body }),
+    finish: (...args) => {
+      finishes.push(args);
+      return Promise.resolve(true);
+    },
   };
-  const embedder: Embedder = {
-    embed: (text, type) => cases[Number(text.split("\n")[0])].embedder.embed(text, type),
-  };
-  assertEquals(await indexBatch(queue, embedder, { limit: 6 }), {
-    claimed: 6,
-    indexed: 1,
-    excluded: 1,
-    failed: 1,
-    retry: 1,
-    stale: 2,
+  const result = await indexBatch(queue, {
+    embed: (text) => [...text].length > 3 ? Promise.reject(new EmbeddingError("input_limit")) : Promise.resolve([1]),
+  }, { limit: 1 });
+  assertEquals(result.indexed, 1);
+  assertEquals(finishes[0][4]!.map((c) => c.text).join(""), body);
+});
+
+for (const category of ["transient", "invalid_response", "configuration", "input_limit"] as const) {
+  Deno.test(`partial generation with ${category} failure never publishes generated chunks`, async () => {
+    const finishes: Parameters<IndexQueue["finish"]>[] = [];
+    let calls = 0;
+    const queue: IndexQueue = {
+      claim: () => Promise.resolve([{ msg_id: "1", read_ct: 1 }]),
+      prepare: () => Promise.resolve({ body: "가".repeat(900) }),
+      finish: (...args) => {
+        finishes.push(args);
+        return Promise.resolve(true);
+      },
+    };
+    const result = await indexBatch(queue, {
+      embed: () => ++calls === 1 ? Promise.resolve([1]) : Promise.reject(new EmbeddingError(category)),
+    }, { limit: 1 });
+    assertEquals(category === "configuration" || category === "input_limit" ? result.failed : result.retry, 1);
+    assertEquals(finishes.length, 1);
+    assertEquals(finishes[0][4], undefined);
   });
+}
+
+Deno.test("a generation finishing after a body edit is stale", async () => {
+  const queue: IndexQueue = {
+    claim: () => Promise.resolve([{ msg_id: "1", read_ct: 1 }]),
+    prepare: () => Promise.resolve({ body: "현재 원문" }),
+    finish: () => Promise.resolve(false),
+  };
+  assertEquals((await indexBatch(queue, { embed: () => Promise.resolve([1]) }, { limit: 1 })).stale, 1);
 });

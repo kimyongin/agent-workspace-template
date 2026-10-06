@@ -1,6 +1,6 @@
 import { type Embedder, EmbeddingError } from "../../core/search/index-worker.ts";
 
-/** 제목·요약 또는 질의 한 개만 보낸다. 절단·본문 전송·숨은 재시도는 하지 않는다. */
+/** 본문 구간 또는 질의 한 개만 보낸다. 공급자의 자동 절단은 금지한다. */
 export class PineconeEmbedder implements Embedder {
   constructor(private readonly key: string, private readonly send: typeof fetch = fetch) {}
   async embed(text: string, type: "passage" | "query"): Promise<number[]> {

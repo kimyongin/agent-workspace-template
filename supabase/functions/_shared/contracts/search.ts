@@ -29,13 +29,15 @@ export const searchItem = z.object({
   kind: searchKind,
   id,
   title: z.string(),
-  summary: z.string(),
+  snippet: z.string(),
+  /** Unicode code point offsets into body, end exclusive. */
+  snippet_start: z.number().int().min(0),
+  snippet_end: z.number().int().min(0),
   at: isoDateTime,
   tag_ids: z.array(id),
   match: z.enum(["keyword", "semantic", "both"]),
   index_state: z.enum(["indexed", "pending", "excluded"]),
   path: z.string(),
-  change_note: z.string().nullable().optional(),
   task_status: z.enum(["open", "done", "active", "stopped"]).nullable().optional(),
   record_kind: z.enum(["user", "result", "change"]).nullable().optional(),
 });

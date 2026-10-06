@@ -28,6 +28,7 @@ export interface SearchDeps {
   embedder?: Embedder;
 }
 export async function search(d: SearchDeps, a: Actor, q: SearchInput): Promise<SearchResult> {
+  const keywordOnly = q.mode === "keyword" || !q.kinds.includes("record");
   const { cursor: _cursor, limit: _limit, anchor: _anchor, ...filter } = q;
   const scope = await scopeOf(a, {
     search: { ...filter, kinds: [...q.kinds].sort() },
@@ -39,8 +40,8 @@ export async function search(d: SearchDeps, a: Actor, q: SearchInput): Promise<S
     try {
       const p = position.parse(JSON.parse(atob(q.cursor.replace(/-/g, "+").replace(/_/g, "/"))));
       if (
-        p.scope !== scope || (q.mode === "keyword" && p.ranking !== "keyword") ||
-        (q.mode === "auto" && p.ranking === "keyword") || (p.ranking === "hybrid") !== (p.vector_hash !== null)
+        p.scope !== scope || (keywordOnly && p.ranking !== "keyword") ||
+        (!keywordOnly && p.ranking === "keyword") || (p.ranking === "hybrid") !== (p.vector_hash !== null)
       ) throw new Error("scope");
       after = p;
     } catch {
@@ -52,7 +53,7 @@ export async function search(d: SearchDeps, a: Actor, q: SearchInput): Promise<S
   }
   // 먼저 커서를 검증하고 공급자 호출은 DB 트랜잭션 밖에서 수행한다.
   let vector: number[] | undefined;
-  if (q.mode === "auto" && after?.ranking !== "fallback" && d.embedder) {
+  if (!keywordOnly && after?.ranking !== "fallback" && d.embedder) {
     const allowed = await d.uow.run(a, (s) => s.reserveEmbedding());
     if (allowed) {
       try {
@@ -62,7 +63,7 @@ export async function search(d: SearchDeps, a: Actor, q: SearchInput): Promise<S
       }
     }
   }
-  const ranking = q.mode === "keyword" ? "keyword" : vector ? "hybrid" : "fallback";
+  const ranking = keywordOnly ? "keyword" : vector ? "hybrid" : "fallback";
   const vectorHash = vector ? await sha256Hex(JSON.stringify(vector)) : null;
   if (after?.ranking === "hybrid" && (ranking !== "hybrid" || after.vector_hash !== vectorHash)) {
     throw new AppError("unavailable", "의미 검색을 이어갈 수 없습니다. 다시 시도하거나 검색을 새로 시작하세요");
