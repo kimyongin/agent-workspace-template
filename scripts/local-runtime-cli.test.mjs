@@ -47,6 +47,78 @@ test('CLI lifecycle releases its actual lease after setup failure or interruptio
   } finally { release(); rmdirSync(directory); }
 });
 
+test('lease cleanup failure retains stage and owned cleanup failures plus interrupt status', async () => {
+  for (const signal of [undefined, 'SIGINT', 'SIGTERM']) {
+    const directory = mkdtempSync(join(tmpdir(), 'runtime-lock-test-'));
+    const controller = new AbortController();
+    const cleanupFailure = new Error('owned cleanup failed');
+    const own = { id: 'owned', source: '/source', ownershipToken: 'nonce' };
+    const states = [{ state: 'absent' }, { state: 'absent' }, { state: 'ready', container: own }];
+    const adapter = {
+      source: '/source', now: () => 0, childRunning: () => true,
+      observe: async () => states.length > 1 ? states.shift() : states[0],
+      prepare: async () => ({ code: 0 }), start: async () => ({ ownershipToken: 'nonce' }),
+      run: async () => {
+        writeFileSync(join(directory, readdirSync(directory)[0]), 'foreign-owner');
+        if (signal) controller.abort(signal);
+        return { code: 9 };
+      },
+      stopChild: async () => { throw cleanupFailure; }, stopContainer: async () => {},
+    };
+    try {
+      const result = await runLeasedLocalChecks({ projectId: 'project', apiUrl: 'http://127.0.0.1:12345' },
+        { checks: ['DB'], signal: controller.signal }, adapter, directory);
+      assert.deepEqual(result.results.map(stage => [stage.label, stage.code]), [['setup', 0], ['DB', 9]]);
+      assert.equal(result.errors[0].error, cleanupFailure);
+      assert.equal(result.errors.at(-1).phase, 'lease-cleanup');
+      assert.equal(result.exitCode, signal === 'SIGINT' ? 130 : signal === 'SIGTERM' ? 143 : 1);
+      assert.equal(readdirSync(directory).length, 1);
+    } finally {
+      for (const name of readdirSync(directory)) unlinkSync(join(directory, name));
+      rmdirSync(directory);
+    }
+  }
+});
+
+test('otherwise successful checks fail when their lease cannot be released', async () => {
+  const directory = mkdtempSync(join(tmpdir(), 'runtime-lock-test-'));
+  try {
+    const result = await runLeasedLocalChecks({ projectId: 'project', apiUrl: 'http://127.0.0.1:12345' }, { checks: ['DB'] }, {
+      now: () => 0, observe: async () => ({ state: 'ready' }), run: async () => {
+        writeFileSync(join(directory, readdirSync(directory)[0]), 'foreign-owner');
+        return { code: 0 };
+      },
+    }, directory);
+    assert.equal(result.results[0].code, 0);
+    assert.equal(result.exitCode, 1);
+    assert.equal(result.errors[0].phase, 'lease-cleanup');
+  } finally {
+    for (const name of readdirSync(directory)) unlinkSync(join(directory, name));
+    rmdirSync(directory);
+  }
+});
+
+test('failure before a run result and failed lease cleanup preserve both errors without inventing stages', async () => {
+  const directory = mkdtempSync(join(tmpdir(), 'runtime-lock-test-'));
+  const original = new Error('adapter configuration unavailable');
+  try {
+    await assert.rejects(runLeasedLocalChecks({ projectId: 'project', apiUrl: 'http://127.0.0.1:12345' }, { checks: [] }, {
+      get source() {
+        writeFileSync(join(directory, readdirSync(directory)[0]), 'foreign-owner');
+        throw original;
+      },
+    }, directory), error => {
+      assert(error instanceof AggregateError);
+      assert.equal(error.errors[0], original);
+      assert.match(error.errors[1].message, /lease identity changed/);
+      return true;
+    });
+  } finally {
+    for (const name of readdirSync(directory)) unlinkSync(join(directory, name));
+    rmdirSync(directory);
+  }
+});
+
 test('owned Docker stop retains the container, and exact-ID removal makes a subsequent acquisition possible', async () => {
   let exists = true, running = true;
   const calls = [];

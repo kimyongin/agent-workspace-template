@@ -26,8 +26,23 @@ export function acquireRuntimeLock(projectId, directory = tmpdir()) {
 
 export async function runLeasedLocalChecks(config, options, adapter = createLocalRuntimeAdapter(config), directory) {
   const release = acquireRuntimeLock(`${config.projectId}:${config.apiUrl}`, directory);
-  try { return await runLocalChecks(adapter, { ...options, source: adapter.source }); }
-  finally { release(); }
+  let result, failure, failed = false;
+  try { result = await runLocalChecks(adapter, { ...options, source: adapter.source }); }
+  catch (error) { failed = true; failure = error; }
+  finally {
+    try { release(); }
+    catch (error) {
+      if (result) {
+        result.errors.push({ phase: 'lease-cleanup', error });
+        if (![130, 143].includes(result.exitCode)) result.exitCode = 1;
+      } else {
+        failure = failed ? new AggregateError([failure, error], 'Local execution and lease cleanup failed') : error;
+        failed = true;
+      }
+    }
+  }
+  if (failed) throw failure;
+  return result;
 }
 
 // Stop does not remove a Docker container. Remove only this proven runtime ID, never volumes/data.
