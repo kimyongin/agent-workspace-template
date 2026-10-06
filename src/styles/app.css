@@ -6,6 +6,25 @@
 
 .modal-body .panel { border: 0; box-shadow: none; background: transparent; padding: 0; border-radius: 0; }
 .detail-management { display: grid; gap: var(--space-4); min-width: 0; }
+.detail-section { display: grid; grid-template-columns: minmax(0,1fr); gap: var(--space-4); min-width: 0; }
+.detail-section > * { min-width: 0; }
+.detail-section + .detail-section, .detail-section + .detail-management { border-top: 1px solid var(--line); padding-top: var(--space-6); margin-top: var(--space-6); }
+.detail-management + .detail-section { border-top: 1px solid var(--line); padding-top: var(--space-6); margin-top: var(--space-6); }
+.form .detail-section + .detail-section { margin-top: 0; }
+.detail-section > .section-title, .detail-section > p, .detail-section > .props { margin: 0; }
+.detail-section .markdown > :first-child { margin-top: 0; }
+.detail-section .markdown > :last-child { margin-bottom: 0; }
+.change-memo { border-left: 3px solid var(--accent); padding-left: var(--space-4); }
+.modal-foot .modal-delete { margin-right: auto; }
+.related-list { list-style: none; padding: 0; margin: 0; }
+.related-list > li { padding: var(--space-3) 0; border-bottom: 1px solid var(--line); }
+.related-list .item-title { display: inline-flex; align-items: center; min-width: 44px; min-height: 44px; }
+.related-list .secondary { display: block; margin-top: var(--space-1); }
+.props > div { min-width: 0; }
+.detail-section .props { grid-template-columns: minmax(0,1fr); }
+.detail-section .props > div { display: grid; grid-template-columns: 6rem minmax(0,1fr); gap: var(--space-4); align-items: baseline; }
+.detail-section-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); flex-wrap: wrap; }
+.detail-section-head .section-title { margin: 0; }
 
 :focus-visible {
   outline: 2px solid var(--accent);

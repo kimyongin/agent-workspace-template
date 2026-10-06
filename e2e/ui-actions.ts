@@ -32,7 +32,7 @@ export async function beginTabAction(page: Page, label: string) {
 /** Test existing edit_from=view deep links; ordinary list edit controls are tested separately. */
 export async function openDetailEditor(page: Page) {
   const next = new URL(page.url());
-  if (!next.pathname.startsWith("/entities/")) {
+  {
     next.searchParams.set("edit", "1"); next.searchParams.set("edit_from", "view");
     await page.goto(next.toString());
   }

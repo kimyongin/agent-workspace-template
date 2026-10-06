@@ -43,6 +43,7 @@ export function RecordFormModal(props: {
   initial: RecordDraft;
   intro?: ReactNode;
   details?: ReactNode;
+  onDelete?: () => void;
   entityEditable?:boolean;
   systemRecord?: boolean;
   editing?: boolean;
@@ -67,6 +68,7 @@ export function RecordFormModal(props: {
       submitLabel={props.submitLabel}
       open={props.open}
       dirty={dirty}
+      onDelete={props.onDelete}
       onClose={props.onClose}
       onRouteDiscard={props.onRouteDiscard}
       validate={() => {
@@ -80,10 +82,10 @@ export function RecordFormModal(props: {
         <>
           {props.intro}
           <TextFields draft={draft} set={(d) => setDraft((prev) => ({ ...prev, ...d }))} errors={errors} />
-          {!props.systemRecord && <>
+          {!props.systemRecord && <section className="detail-section form"><h2 className="section-title">관련 정보</h2>
           <TagPicker value={draft.tag_ids} error={errors.tag_ids} onChange={tag_ids=>setDraft(d=>({...d,tag_ids}))}/>
           {props.entityEditable!==false&&<EntityMultiPicker value={draft.entity_ids??[]} context={draft.entity_context} error={errors.entity_ids} onChange={entity_ids=>setDraft(d=>({...d,entity_ids}))}/>}
-          <Field label={recordLabels.occurred_at} error={errors.occurred_at} help="비우면 저장한 시각">
+          <Field label={recordLabels.occurred_at} error={errors.occurred_at} >
             {(p) => (
               <input
                 {...p}
@@ -93,9 +95,9 @@ export function RecordFormModal(props: {
                 onChange={(e) => setDraft((prev) => ({ ...prev, occurred_at: e.target.value }))}
               />
             )}
-          </Field></>}
-          <Field label="편집 메모" error={errors.change_note} help="선택 입력입니다. 기록을 고쳐도 추가 편집 로그는 남기지 않습니다.">
-            {p=><textarea {...p} className="input" rows={3} value={draft.change_note??""} onChange={e=>setDraft(d=>({...d,change_note:e.target.value}))}/>}</Field>
+          </Field></section>}
+          <section className="detail-section form"><h2 className="section-title">메모</h2><Field label="편집 메모" error={errors.change_note}>
+            {p=><textarea {...p} className="input" rows={3} value={draft.change_note??""} onChange={e=>setDraft(d=>({...d,change_note:e.target.value}))}/>}</Field></section>
           {props.details}
         </>
       )}
@@ -206,6 +208,7 @@ export function TaskFormModal(props: {
   initial: TaskDraft;
   target?: {id:string;version:number};
   details?: ReactNode;
+  onDelete?: () => void;
   onClose: () => void;
   onRouteDiscard?: () => void;
   onSave: (draft: TaskDraft, creationId: () => string) => Promise<void>;
@@ -228,6 +231,7 @@ export function TaskFormModal(props: {
         const result=await api<{memo:ChangeMemo}>("POST","/tasks/preview",props.mode==="edit"?{action:"update",id:props.target?.id,input:{...patch,expected_version:props.target?.version}}:{action:"create",input:{kind,...patch}});
         return result.memo;
       }}
+      onDelete={props.onDelete}
       onClose={props.onClose}
       onRouteDiscard={props.onRouteDiscard}
       validate={() => {
@@ -262,11 +266,13 @@ export function TaskFormModal(props: {
             </fieldset>
           )}
           <TextFields draft={draft} set={set} errors={errors} />
+          <section className="detail-section form"><h2 className="section-title">관련 정보</h2>
           <EntityMultiPicker value={draft.entity_ids??[]} context={draft.entity_context} error={errors.entity_ids} onChange={entity_ids=>set({entity_ids})}/>
           <TagPicker value={draft.tag_ids} error={errors.tag_ids} onChange={tag_ids=>set({tag_ids})}/>
+          </section><section className="detail-section form"><h2 className="section-title">일정</h2>
           {draft.kind === "once"
             ? (
-              <Field label={taskLabels.due_on} error={errors.due_on} help="알림은 없습니다">
+              <Field label={taskLabels.due_on} error={errors.due_on} >
                 {(p) => <input {...p} className="input" type="date" value={draft.due_on} onChange={(e) => set({ due_on: e.target.value })} />}
               </Field>
             )
@@ -309,9 +315,9 @@ export function TaskFormModal(props: {
                   </fieldset>
                 )}
                 {draft.freq === "monthly" && (
-                  <Field label={taskLabels.month_days} error={errors.month_days} help="1~31, 쉼표로 구분. 그 달에 없는 날짜는 말일로 계산합니다">
+                  <Field label={taskLabels.month_days} error={errors.month_days} >
                     {(p) => (
-                      <input {...p} className="input" inputMode="numeric" value={draft.month_days} onChange={(e) => set({ month_days: e.target.value })} />
+                      <input {...p} className="input" placeholder="예: 1, 15, 31" inputMode="numeric" value={draft.month_days} onChange={(e) => set({ month_days: e.target.value })} />
                     )}
                   </Field>
                 )}
@@ -321,13 +327,13 @@ export function TaskFormModal(props: {
                       <input {...p} className="input" type="date" value={draft.starts_on} onChange={(e) => set({ starts_on: e.target.value })} />
                     )}
                   </Field>
-                  <Field label={taskLabels.timezone} required error={errors.timezone} help="오늘과 회차 날짜의 기준">
+                  <Field label={taskLabels.timezone} required error={errors.timezone} >
                     {(p) => <input {...p} className="input" value={draft.timezone} onChange={(e) => set({ timezone: e.target.value })} />}
                   </Field>
                 </div>
               </>
             )}
-          <ChangeNoteField label="편집 메모" value={draft.change_note??""} required={false} error={errors.change_note} onChange={change_note=>set({change_note})}/>
+          </section><section className="detail-section form"><h2 className="section-title">메모</h2><ChangeNoteField label="편집 메모" value={draft.change_note??""} required={false} error={errors.change_note} onChange={change_note=>set({change_note})}/></section>
           {props.details}
         </>
       )}

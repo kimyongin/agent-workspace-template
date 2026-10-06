@@ -38,7 +38,6 @@ export function useTagDictionary(enabled = true, preserveListLayout = false, sco
 export function TagPicker({value,onChange,error,scope="activity"}:{value:string[];onChange:(ids:string[])=>void;error?:string;scope?:TagScope}) {
   const {tags,failed,retry}=useTagDictionary(true,false,scope);
   return <fieldset className="field" style={{border:0,padding:0,margin:0}}><legend className="label">{scope==="entity"?"엔터티 태그":"활동 태그"}</legend>
-    <p className="help">최대 10개까지 선택합니다.</p>
     {error&&<p className="error-text">{error}</p>}
     {failed?<><Notice kind="error">태그를 불러오지 못했습니다. 기존 선택은 유지합니다.</Notice><button type="button" className="btn" onClick={retry}>태그 다시 시도</button></>:
       !tags?<p className="secondary" role="status">태그를 불러오는 중…</p>:

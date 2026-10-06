@@ -1,3 +1,4 @@
+import { SearchMatch } from "../../components/SearchMatch.tsx";
 import { useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router";
 import { type SearchResult } from "@contracts/search.ts";
@@ -64,7 +65,7 @@ export function SearchPage(){
   return <section className="panel" aria-labelledby="search-title">
     <h1 id="search-title" className="page-title" tabIndex={-1}>검색</h1>
     <form onSubmit={e=>{e.preventDefault();if(composing.current)return;const value=draft.trim();if(value===q)setRetry(n=>n+1);else change("q",value);}}>
-      <Field label="검색어" required help="자동 검색은 제목·요약의 의미와 본문 키워드를 함께 찾습니다. 원문을 열어 확인하세요.">{p=><input {...p} className="input" value={draft} onCompositionStart={()=>{composing.current=true;}} onCompositionEnd={()=>{composing.current=false;}} onKeyDown={e=>{if(e.key==="Enter"&&(e.nativeEvent.isComposing||e.keyCode===229))e.preventDefault();}} onChange={e=>setDraft(e.target.value)} required/>}</Field>
+      <Field label="검색어" required>{p=><input {...p} className="input" placeholder="제목·요약·본문 검색" value={draft} onCompositionStart={()=>{composing.current=true;}} onCompositionEnd={()=>{composing.current=false;}} onKeyDown={e=>{if(e.key==="Enter"&&(e.nativeEvent.isComposing||e.keyCode===229))e.preventDefault();}} onChange={e=>setDraft(e.target.value)} required/>}</Field>
       <button className="btn btn-primary" type="submit" disabled={busy}>검색</button>
     </form>
     <div className="actions">
@@ -91,8 +92,8 @@ export function SearchPage(){
           if(e.button!==0||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey)return;
           e.preventDefault();back.set("scroll",String(window.scrollY));const at=`${back}#search-${r.kind}-${r.id}`;
           navigate(`/search?${at}`,{replace:true});navigate(`${r.path}?search=${encodeURIComponent(at)}`);
-        }}>{r.title}</Link><span className="secondary">{r.summary}</span>
-        <span className="meta">{kinds[r.kind]} · {formatDateTime(r.at)} · {r.match==="keyword"?"키워드":r.match==="both"?"키워드·의미":"의미"} · {r.index_state==="pending"?"색인 대기":r.index_state==="excluded"?"색인 제외":"색인 완료"}</span>
+        }}>{r.title}</Link><span className="secondary record-summary">{r.summary}</span>
+        <span className="meta">{kinds[r.kind]} · {formatDateTime(r.at)}</span><SearchMatch item={r}/>
       </div></li>;})}</ul>
       {result.next_cursor&&<button type="button" className="btn" disabled={busy} onClick={more}>더 보기</button>}
     </>}

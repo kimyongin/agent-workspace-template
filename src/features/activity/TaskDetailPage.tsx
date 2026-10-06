@@ -1,3 +1,4 @@
+import { editFromView } from "../../lib/detail-navigation.ts";
 import { ChangeNoteField, FormModal, changeNoteErrors } from "../../components/ContentForm.tsx";
 import { DeleteDialog } from "../../components/DeleteDialog.tsx";
 // 할 일 상세: 읽기, 편집, 일회성 완료, 반복 할 일의 회차·회차 기록·중단/재개, 삭제.
@@ -34,9 +35,9 @@ function describeRecurrence(t: TaskResult): string {
 
 type Dialog = null | "edit" | "complete" | "delete" | "transition" | { occurrence: string };
 function requestedDialog(params: URLSearchParams): Dialog {
-  if (params.get("edit") !== "1") return null;
+
   const action = params.get("action");
-  return action === "complete" || action === "transition" ? action : params.has("occurrence") ? { occurrence: params.get("occurrence")! } : "edit";
+  return action === "complete" || action === "transition" ? action : params.has("occurrence") ? { occurrence: params.get("occurrence")! } : params.get("edit")==="1" ? "edit" : null;
 }
 
 export function TaskDetailPage() {
@@ -138,25 +139,7 @@ export function TaskDetailPage() {
   if (!task) return <p className="secondary" role="status">불러오는 중…</p>;
 
   const management = <div className="detail-management">
-      <section className="panel">
-        <div className="panel-head">
-          <div className="actions">
-            {task.kind === "once" && task.status === "open" && (
-              <button type="button" className="btn btn-primary" onClick={() => manage("complete")}>완료</button>
-            )}
-            {task.kind === "recurring" && (
-              <button
-                type="button"
-                className="btn"
-                disabled={busy}
-                onClick={() => manage("transition")}
-              >
-                {task.status === "active" ? "중단" : "재개"}
-              </button>
-            )}
-            <button type="button" className="btn btn-danger" onClick={() => {setDeleting(true);}}>삭제</button>
-          </div>
-        </div>
+      <section className="detail-section"><h2 className="section-title">기본 정보</h2>
         {message && <Notice kind="success">{message}</Notice>}
         {actionError && <Notice kind="error">{actionError}</Notice>}
         {loadError && <><Notice kind="error">{message ? "저장은 완료했습니다. 최신 내용을 불러오지 못했습니다." : loadError}</Notice><button type="button" className="btn" onClick={reload}>조회 다시 시도</button></>}
@@ -190,15 +173,17 @@ export function TaskDetailPage() {
           )}
         </dl>
         {task.kind === "once" && task.status === "done" && <div><h2 className="section-title">결과 기록</h2>{task.result_record ? <Link to={`/records/${task.result_record.id}`}>{task.result_record.title}</Link> : <p className="secondary">결과 기록이 삭제되었습니다</p>}</div>}
-        <TagNames ids={task.tag_ids}/>
+      </section>
+
+    </div>;
+  const relatedInformation = <section className="detail-section"><h2 className="section-title">관련 정보</h2>        <TagNames ids={task.tag_ids}/>
         <EntityLinks ids={task.entity_ids} context={task.entity_context}/>
         <p className="meta" style={{ margin: 0 }}>
           만든 시각 {formatDateTime(task.created_at)} · 수정 {formatDateTime(task.updated_at)}
         </p>
-      </section>
-
-      {task.kind === "recurring" && (
-        <section className="panel" aria-labelledby="occ-title">
+</section>;
+  const occurrenceSection = <>{task.kind === "recurring" && (
+        <section className="detail-section" aria-labelledby="occ-title">
           <div className="panel-head">
             <h2 id="occ-title" className="section-title">회차</h2>
             {occurrences && (
@@ -245,18 +230,25 @@ export function TaskDetailPage() {
             </ul>
           )}
         </section>
-      )}
-    </div>;
-  return <DetailSurface title={task.title} onClose={()=>navigate(back.path)} busy={busy}>
-      {loadError&&<><Notice kind="error">{message ? "저장은 완료했습니다. 최신 내용을 불러오지 못했습니다." : loadError}</Notice><button type="button" className="btn" onClick={reload}>조회 다시 시도</button></>}
-      <MarkdownContent text={task.body}/>
+      )}</>;
+  const startEdit=()=>navigate(editFromView(params));
+  return <DetailSurface title={task.title} onClose={()=>navigate(back.path)} busy={busy} footer={<>
+    <button type="button" className="btn" disabled={busy} onClick={startEdit}>편집</button>
+    {task.kind==="once"&&task.status==="open"&&<button type="button" className="btn btn-primary" disabled={busy} onClick={()=>manage("complete")}>완료하고 기록</button>}
+    {task.kind==="recurring"&&<button type="button" className="btn btn-primary" disabled={busy} onClick={()=>manage("transition")}>{task.status==="active"?"중단":"재개"}</button>}
+  </>}>
+      {management}
+      <section className="detail-section"><h2 className="section-title">요약</h2><p className="document-summary">{task.summary}</p></section>
+      <section className="detail-section"><h2 className="section-title">내용</h2><MarkdownContent text={task.body}/></section>
+      {relatedInformation}
+      {occurrenceSection}
       {dialog === "edit" && editReady && (
         <TaskFormModal
           mode="edit"
           open
           initial={taskDraftFrom(task)}
           target={task}
-          details={management}
+          onDelete={()=>setDeleting(true)}
           onClose={closeEdit}
           onRouteDiscard={() => setDialog(null)}
           onSave={async (draft) => {

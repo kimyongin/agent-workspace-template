@@ -65,7 +65,7 @@ test("엔터티·활동 태그 같은 이름·웹 선택 정정·삭제 뒤 원�
       if(kind==="entity")await form.getByLabel("속성 1").fill(title);else{await form.getByLabel("제목").fill(title);await form.getByLabel("요약").fill("분류");await form.getByLabel("본문").fill("원문 보존");}
       await form.getByRole("button",{name,exact:true}).click();await saveWithMemo(page,form);
       await expect(form).not.toBeVisible();await expect(page).toHaveURL(/\/(entities|records)\/[0-9a-f-]{36}(?:\?|$)/);
-      if(kind==="entity")await expect(page.locator("dialog.modal:not(.modal-confirm)[open]").getByLabel("속성 1")).toHaveValue(title);else await expect(page.getByRole("heading",{name:title,level:1})).toBeVisible();const id=new URL(page.url()).pathname.split("/").at(-1)!;
+      if(kind==="entity")await expect(page.getByRole("heading",{name:title,level:1,exact:true})).toBeVisible();else await expect(page.getByRole("heading",{name:title,level:1})).toBeVisible();const id=new URL(page.url()).pathname.split("/").at(-1)!;
       expect((await mcp.call(`get_${kind}`,{id})).tag_ids).toEqual([tag.id]);
       await openDetailEditor(page);const edit=page.getByRole("dialog",{name:kind==="entity"?"엔터티 편집":"기록 편집"});
       await edit.getByRole("button",{name,exact:true}).click();await edit.getByLabel("편집 메모").fill("태그 분류 정정");await saveWithMemo(page,edit);
@@ -75,10 +75,10 @@ test("엔터티·활동 태그 같은 이름·웹 선택 정정·삭제 뒤 원�
       expect(filtered.items.map((x:{id:string})=>x.id)).toEqual([id]);
       await page.goto(`${path}?tag_id=${tag.id}`);await page.getByRole("link",{name:title,exact:true}).click();await openDetailEditor(page);
       const revisit=page.getByRole("dialog",{name:kind==="entity"?"엔터티 편집":"기록 편집"});await revisit.getByLabel(kind==="entity"?"속성 2":"요약").fill(kind==="entity"?"10":"수정 후 필터 보존");await revisit.getByLabel("편집 메모").fill("분류 상태에서 원문 정정");await saveWithMemo(page,revisit);await expect(revisit).not.toBeVisible();
-      if(kind!=="entity")await page.getByRole("button",{name:"닫기",exact:true}).click();await expect(page.getByRole("button",{name:tag.name,exact:true})).toHaveAttribute("aria-pressed","true");await expect(page.locator(kind==="entity"?".list .item-title":".records .list .item-title")).toHaveCount(1);
+      await page.getByRole("button",{name:"닫기",exact:true}).click();await expect(page.getByRole("button",{name:tag.name,exact:true})).toHaveAttribute("aria-pressed","true");await expect(page.locator(kind==="entity"?".list .item-title":".records .list .item-title")).toHaveCount(1);
       await mcp.call("delete_tag",{id:tag.id,expected_version:1});await page.goto(`${path}/${id}`);
       expect((await mcp.call(`get_${kind}`,{id})).tag_ids).toEqual([]);
-      if(kind==="entity")await expect(page.locator("dialog.modal:not(.modal-confirm)[open]").getByLabel("속성 1")).toHaveValue(title);else await expect(page.getByText("원문 보존",{exact:true})).toBeVisible();
+      if(kind==="entity")await expect(page.getByRole("heading",{name:title,level:1,exact:true})).toBeVisible();else await expect(page.getByText("원문 보존",{exact:true})).toBeVisible();
     }
   }finally{await mcp.close();}
 });

@@ -124,7 +124,7 @@ test("실제 App 공통 모달 생성·직접 편집 성공/취소·저장 중 P
   await page.getByRole("navigation", { name: "주 메뉴" }).getByRole("link", { name: "엔터티", exact: true }).click(); await beginTabAction(page,"엔터티 추가");
   await fixtureMemoPreview(page);
   const entityForm = page.getByRole("dialog", { name: "엔터티 추가", exact: true }); await entityForm.getByLabel("속성 1").fill(entity.prop1); await saveWithMemo(page, entityForm);
-  await expect(entityForm).not.toBeVisible(); await expect(page).toHaveURL(new RegExp(`/entities/${entity.id}`)); await expect(page.getByLabel("속성 1")).toHaveValue(entity.prop1);
+  await expect(entityForm).not.toBeVisible(); await expect(page).toHaveURL(new RegExp(`/entities/${entity.id}`)); await expect(page.getByRole("heading",{name:entity.prop1,level:1,exact:true})).toBeVisible();
 });
 test("실제 App 태그 폐기 승인 뒤에만 로그아웃 요청하고 로그인으로 종료", async ({ page }) => {
   let signOuts = 0;
@@ -221,7 +221,7 @@ test("엔터티 연결 작성·실패 초안·성공 후 조회 실패와 모달
   await saveWithMemo(page, form, "추가"); await expect(form.getByText("저장 실패", { exact: true })).toBeVisible();
   await expect(form.getByRole("textbox",{name:/^제목(?: \(필수\))?$/})).toHaveValue("연결된 초안"); failSave = false; await saveWithMemo(page, form, "추가");
   await expect(form).not.toBeVisible(); await expect(page.getByText("할 일을 추가했습니다.")).toBeVisible(); await expect(page.getByText("관련 자료 조회 실패")).toBeVisible();
-  expect(bodies[1].entity_ids).toEqual([entity.id]); await expect(page.getByLabel("속성 1")).toHaveValue(entity.prop1);
+  expect(bodies[1].entity_ids).toEqual([entity.id]); await expect(page.getByRole("heading",{name:entity.prop1,level:1,exact:true})).toBeVisible();
   await page.getByRole("button",{name:"기록 작성",exact:true}).click();
   const record = page.getByRole("dialog", { name: "기록 작성", exact: true }); await expect(record.getByRole("checkbox", { name: entity.prop1, exact: true })).toBeChecked();
   await record.getByRole("textbox",{name:/^제목(?: \(필수\))?$/}).fill("기록 초안"); await record.getByRole("button", { name: "닫기", exact: true }).click();

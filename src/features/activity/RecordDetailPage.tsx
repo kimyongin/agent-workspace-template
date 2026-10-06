@@ -1,3 +1,4 @@
+import { editFromView } from "../../lib/detail-navigation.ts";
 import { DeleteDialog } from "../../components/DeleteDialog.tsx";
 import { ChangeContext, PrincipleSnapshots, type WorkspaceRecord } from "./ChangeContext.tsx";
 // 기록 상세: 원문 읽기, 편집, 삭제.
@@ -75,27 +76,30 @@ export function RecordDetailPage() {
   if (!record) return <p className="secondary" role="status">불러오는 중…</p>;
 
   const management = <div className="detail-management">
-      <div className="actions"><button type="button" className="btn btn-danger" onClick={() => {setDeleting(true);}}>삭제</button></div>
+
       {message && <Notice kind="success">{message}</Notice>}
       {error && <Notice kind="error">{error}</Notice>}
       <ChangeContext record={record}/>
       {loadError && <><Notice kind="error">{loadError}</Notice><button type="button" className="btn" onClick={reload}>조회 다시 시도</button></>}
-      <dl className="props">
+      {(dialog!=="edit"||record.record_kind==="change")&&<dl className="props">
         <div>
           <dt>{recordLabels.occurred_at}</dt>
           <dd>{formatDateTime(record.occurred_at)}</dd>
         </div>
-      </dl>
+      </dl>}
       {record.task_id && <div><h2 className="section-title">관련 할 일</h2><Link to={`/tasks/${record.task_id}`}>{record.occurrence_on ? `${record.occurrence_on} 회차` : "결과로 연결된 할 일"}</Link></div>}
-      <TagNames ids={record.tag_ids}/>
-      <EntityLinks ids={record.entity_ids} context={record.entity_context}/>
+      {(dialog!=="edit"||record.record_kind==="change")&&<><TagNames ids={record.tag_ids}/>
+      <EntityLinks ids={record.entity_ids} context={record.entity_context}/></>}
       <PrincipleSnapshots snapshots={record.applied_principle_snapshots??[]}/>
       <p className="meta" style={{ margin: 0 }}>
         만든 시각 {formatDateTime(record.created_at)} · 수정 {formatDateTime(record.updated_at)}
       </p>
     </div>;
-  return <DetailSurface title={record.title} onClose={()=>dialog==="edit"&&!editReady?closeEdit():navigate(back.path)} busy={busy}>
-      <MarkdownContent text={record.body}/>
+  const startEdit=()=>navigate(editFromView(params));
+  return <DetailSurface footer={<button type="button" className="btn btn-primary" onClick={startEdit}>편집</button>} title={record.title} onClose={()=>dialog==="edit"&&!editReady?closeEdit():navigate(back.path)} busy={busy}>
+      <section className="detail-section"><h2 className="section-title">요약</h2><p className="document-summary">{record.summary}</p></section>
+      <section className="detail-section"><h2 className="section-title">내용</h2><MarkdownContent text={record.body}/></section>
+      {dialog!=="edit"&&<section className="detail-section"><h2 className="section-title">관련 정보</h2>{management}</section>}
       {dialog === "edit" && !editReady && loadError && <>
         <Notice kind="error">{loadError}</Notice>
         <button type="button" className="btn" onClick={reload}>조회 다시 시도</button>
@@ -107,7 +111,8 @@ export function RecordDetailPage() {
           submitLabel="저장"
           open
           initial={recordDraftFrom(record)}
-          details={management}
+          details={<section className="detail-section"><h2 className="section-title">저장 정보 (읽기 전용)</h2>{management}</section>}
+          onDelete={()=>setDeleting(true)}
           onClose={closeEdit}
           onRouteDiscard={() => setDialog(null)}
           onSave={async (value) => {
@@ -141,8 +146,7 @@ export function RecordDetailPage() {
             navigateAfterClose(listPath,true);
           } catch (e) {
             setError(e instanceof ApiError ? e.message : "삭제하지 못했습니다.");
-            setDeleting(false);
-            await reload();
+            throw e;
           } finally {
             setBusy(false);
           }
