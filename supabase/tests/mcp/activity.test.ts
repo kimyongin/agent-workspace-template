@@ -4,12 +4,7 @@ import { z } from "zod";
 import { businessMeta, mutationMeta } from "../../functions/_shared/contracts/change.ts";
 import { isoDate } from "../../functions/_shared/contracts/common.ts";
 import { recordCreate, recordListQuery, recordUpdate } from "../../functions/_shared/contracts/record.ts";
-import {
-  principleCreate,
-  principleDelete,
-  principleSave,
-  principleUpdate,
-} from "../../functions/_shared/contracts/principle.ts";
+import { principleCreate, principleDelete, principleUpdate } from "../../functions/_shared/contracts/principle.ts";
 import { tagCreate, tagListQuery, tagRename } from "../../functions/_shared/contracts/tag.ts";
 import { searchInput, searchResult } from "../../functions/_shared/contracts/search.ts";
 import {
@@ -35,10 +30,10 @@ httpTest("기록 HTTP 편집·MCP 재시도는 추가 로그 없이 최신 메�
   const event = historyBefore.items.find((r: { change?: { target_id: string } }) => r.change?.target_id === record.id);
   assert(event);
   for (const row of [record, event]) {
-    const patch = { expected_version: row.version, summary: "정정한 최신 메모", request_id: crypto.randomUUID() };
+    const patch = { expected_version: row.version, summary: "정정한 최신 메모" };
     const web = await call(sessionA, "PATCH", `/records/${row.id}`, patch);
     assertEquals(web.status, 200);
-    assertEquals(await tool(mcpA, "update_record", { id: row.id, ...patch }), web.body);
+    assertEquals((await tool(mcpA, "update_record", { id: row.id, ...patch })).error.code, "conflict");
     assertEquals(
       (await call(sessionA, "GET", `/records/${row.id}`)).body,
       await tool(mcpA, "get_record", { id: row.id }),
@@ -133,7 +128,6 @@ const EXPECTED_TOOLS = [
   "resume_task",
   "search",
   "get_current_principle",
-  "save_current_principle",
   "preview_principle_change",
   "stop_task",
   "update_principle",
@@ -276,7 +270,12 @@ httpTest("기록·원칙·완료·회차의 태그 HTTP/MCP 동등성", async ()
     recurrence: { freq: "daily", starts_on: "2020-01-01" },
     timezone: "Asia/Seoul",
   });
-  const occurrence = await tool(mcpA, "record_occurrence", { ...refs, id: repeat.id, date: "2020-01-01" });
+  const occurrence = await tool(mcpA, "record_occurrence", {
+    ...refs,
+    task_id: repeat.id,
+    id: crypto.randomUUID(),
+    date: "2020-01-01",
+  });
   assertEquals(occurrence.tag_ids, [tag.id]);
   const foreign = await tool(mcpB, "create_tag", { name: crypto.randomUUID().slice(0, 30) });
   assertEquals(
@@ -289,7 +288,7 @@ httpTest("기록·원칙·완료·회차의 태그 HTTP/MCP 동등성", async ()
     "invalid_reference",
   );
   assertEquals(
-    (await call(sessionA, "POST", "/principles/current", {
+    (await call(sessionA, "POST", "/principles", {
       change_note: "테스트 변경 이유",
       expected_version: 1,
       tag_ids: [foreign.id],
@@ -308,16 +307,16 @@ httpTest("원칙: HTTP/MCP 현재 수정·과거 접근 차단·재시도·삭�
   try {
     if (baseline) await admin`update app.principles set is_current=false where id=${baseline.id}`;
     const input = {
+      id: crypto.randomUUID(),
       title: "독서 원칙",
       summary: "긴 책 읽기",
       body: "# 근거",
-      request_id: crypto.randomUUID(),
     };
-    const created = await call(sessionA, "POST", "/principles/current", input);
+    const created = await call(sessionA, "POST", "/principles", input);
     assertEquals(created.status, 201);
     fixtureIds.push(created.body.id);
-    const retried = await tool(mcpA, "save_current_principle", input);
-    assertEquals(retried, created.body);
+    assertEquals((await tool(mcpA, "create_principle", input)).error.code, "conflict");
+    const retried = created.body;
     const second = await tool(mcpA, "update_principle", {
       id: retried.id,
       expected_version: retried.version,
@@ -368,21 +367,21 @@ httpTest("원칙: HTTP/MCP 현재 수정·과거 접근 차단·재시도·삭�
       404,
     );
     assertEquals(
-      (await tool(mcpA, "save_current_principle", {
+      (await tool(mcpA, "update_principle", {
         ...input,
-        request_id: crypto.randomUUID(),
+        id: second.id,
         expected_version: second.version,
       })).error.code,
-      "conflict",
+      "not_found",
     );
-    const recreated = await tool(mcpA, "save_current_principle", {
+    const recreated = await tool(mcpA, "create_principle", {
       title: "재생성한 원칙",
       summary: "새 현재 문서",
       body: "재생성 본문",
     });
     fixtureIds.push(recreated.id);
     assert(recreated.id !== second.id);
-    assert(recreated.version > second.version);
+    assertEquals(recreated.version, 1);
     assertEquals(
       (await tool(mcpA, "delete_principle", { id: recreated.id, expected_version: recreated.version })).deleted,
       recreated.id,
@@ -453,7 +452,6 @@ httpTest(
       list_tasks: json(taskListQuery).properties,
       list_records: json(recordListQuery).properties,
       create_principle: json(principleCreate).properties,
-      save_current_principle: json(principleSave).properties,
       get_current_principle: {},
       update_principle: { ...idOnly, ...json(principleUpdate).properties },
       delete_principle: { ...idOnly, ...json(principleDelete).properties },
@@ -476,7 +474,7 @@ httpTest(
       delete_record: { ...idOnly, ...mutationVersion },
       // 회차 기록: 기록 생성 입력 + id + date
       record_occurrence: {
-        ...idOnly,
+        task_id: json(z.object({ task_id: z.uuid() })).properties.task_id,
         date: json(z.object({ date: isoDate })).properties.date,
         ...json(recordCreate).properties,
       },
@@ -517,7 +515,6 @@ httpTest("웹(HTTP)에서 만든 할 일을 MCP로 조회·완료하고 웹에�
     expected_version: 1,
     title: "에이전트가 완료",
     summary: "MCP로 결과 저장",
-    request_id: crypto.randomUUID(),
   });
   assertEquals(done.task.status, "done");
   const web = await call(sessionA, "GET", `/tasks/${created.body.id}`);
@@ -537,7 +534,13 @@ httpTest("MCP에서 만든 기록과 반복 회차를 HTTP가 같게 본다", as
     timezone: "Asia/Seoul",
   });
   assertEquals(t.status, "active");
-  await tool(mcpA, "record_occurrence", { id: t.id, date: seoulDate(-1), title: "함", summary: "5분" });
+  await tool(mcpA, "record_occurrence", {
+    task_id: t.id,
+    id: crypto.randomUUID(),
+    date: seoulDate(-1),
+    title: "함",
+    summary: "5분",
+  });
   const range = { from: seoulDate(-2), to: seoulDate(1) };
   const viaMcp = await tool(mcpA, "list_occurrences", { id: t.id, ...range });
   const viaHttp = await call(sessionA, "GET", `/tasks/${t.id}/occurrences?from=${range.from}&to=${range.to}`);
@@ -586,7 +589,13 @@ httpTest("오류 의미가 HTTP와 같다(code·retryable·fields)", async () =>
   );
   assertEquals(stale.error.code, "conflict");
 
-  const future = await tool(mcpA, "record_occurrence", { id: t.id, date: seoulDate(), title: "a", summary: "b" });
+  const future = await tool(mcpA, "record_occurrence", {
+    task_id: t.id,
+    id: crypto.randomUUID(),
+    date: seoulDate(),
+    title: "a",
+    summary: "b",
+  });
   assertEquals(future.error.code, "conflict"); // 일회성 할 일에는 회차가 없다
 
   // 다른 사용자의 항목은 존재 여부를 드러내지 않는다.
@@ -598,19 +607,18 @@ httpTest("오류 의미가 HTTP와 같다(code·retryable·fields)", async () =>
   assertEquals(notUuid.error.code, "not_found");
 });
 
-httpTest("같은 request_id는 HTTP와 MCP에서 각자 한 번만 실행된다", async () => {
+httpTest("같은 버전의 완료 요청은 한 번만 실행된다", async () => {
   const t = await tool(mcpA, "create_task", { kind: "once", title: "재시도", summary: "s" });
-  const rid = crypto.randomUUID();
   const args = {
     change_note: "테스트 변경 이유",
     id: t.id,
     expected_version: 1,
     title: "완료",
     summary: "결과",
-    request_id: rid,
   };
   const [x, y] = await Promise.all([tool(mcpA, "complete_task", args), tool(mcpA, "complete_task", args)]);
-  assertEquals(x.record.id, y.record.id);
+  assertEquals([x, y].filter((r) => !r.error).length, 1);
+  assertEquals([x, y].find((r) => r.error).error.code, "conflict");
 });
 
 httpTest("제품 스킬이 안내하는 도구 이름이 모두 tools/list에 있다", async () => {

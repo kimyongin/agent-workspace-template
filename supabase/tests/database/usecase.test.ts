@@ -43,6 +43,7 @@ for (const step of ["insertRecord", "updateTask", "enqueueIndex"] as const) {
   dbTest(`완료 중 ${step} 뒤 실패하면 모두 롤백된다`, async () => {
     const actor = { userId: A };
     const task = await activity.createTask({ uow: real, clock }, actor, {
+      id: crypto.randomUUID(),
       kind: "once",
       title: "롤백 시험",
       summary: "부분 실패",

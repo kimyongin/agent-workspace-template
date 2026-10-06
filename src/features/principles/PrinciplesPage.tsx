@@ -5,7 +5,7 @@ import { PrincipleFormModal, emptyPrinciple } from "./forms.tsx";
 import { Notice } from "../../components/Field.tsx";
 import { MarkdownContent } from "../../components/MarkdownContent.tsx";
 import { api } from "../../lib/api.ts";
-import { useRequestId } from "../../lib/useRequestId.ts";
+import { useCreationId } from "../../lib/useCreationId.ts";
 import { formatDateTime } from "../../lib/format.ts";
 import type { WorkspacePrinciple } from "./model.ts";
 import "../activity/activity.css";
@@ -14,7 +14,7 @@ export function PrinciplesPage() {
   const create=useCreateMode();
   const location=useLocation();
   useEffect(()=>{if(location.hash==="#principles-title")document.getElementById("principles-title")?.focus();},[location.key]);
-  const [params]=useSearchParams(), request=useRequestId();
+  const [params]=useSearchParams(), request=useCreationId();
   useEffect(()=>{if(create.open)request.renew();},[create.open,create.key]);
   const [current,setCurrent]=useState<WorkspacePrinciple|null|undefined>(undefined),[error,setError]=useState<string|null>(null),[retry,setRetry]=useState(0);
   useEffect(()=>{const controller=new AbortController();setError(null);
@@ -33,7 +33,7 @@ export function PrinciplesPage() {
     {["tag_id","entity_id","status"].some(k=>params.has(k))&&<Notice>원칙은 계정 전체의 문서입니다. 기존 태그·엔터티·활성 상태 조건은 적용하지 않습니다.</Notice>}
 
     {create.open&&current===null&&<PrincipleFormModal key={create.key} initial={emptyPrinciple} onClose={create.close} onRouteDiscard={create.discard} onSave={async draft=>{
-      const saved=await api<WorkspacePrinciple>("POST","/principles/current",{...draft,request_id:request.current});request.renew();const p=new URLSearchParams(params);p.delete("create");create.finish(`/principles/${saved.id}?list=${encodeURIComponent(`/principles?${p}`)}`);
+      const saved=await api<WorkspacePrinciple>("POST","/principles",{...draft,id:request.current});request.renew();const p=new URLSearchParams(params);p.delete("create");create.finish(`/principles/${saved.id}?list=${encodeURIComponent(`/principles?${p}`)}`);
     }}/>}
   </section></>;
 }

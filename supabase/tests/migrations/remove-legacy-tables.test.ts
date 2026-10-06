@@ -4,7 +4,7 @@ import { appliedPrincipleSnapshot, recordResult, recordUpdate } from "../../func
 import { entityCreate } from "../../functions/_shared/contracts/entity.ts";
 import { taskCreate } from "../../functions/_shared/contracts/task.ts";
 import { recordCreate } from "../../functions/_shared/contracts/record.ts";
-import { principleSave } from "../../functions/_shared/contracts/principle.ts";
+import { principleUpdate } from "../../functions/_shared/contracts/principle.ts";
 import { SqlEntityUnitOfWork } from "../../functions/_shared/adapters/supabase/entity-store.ts";
 import { SqlUnitOfWork } from "../../functions/_shared/adapters/supabase/activity-store.ts";
 import { SqlPrincipleUnitOfWork } from "../../functions/_shared/adapters/supabase/principle-store.ts";
@@ -32,28 +32,45 @@ dbTest(
   async () => {
     const f = await fixtureOwner(admin), other = await fixtureOwner(admin);
     try {
-      const first = await entity.createEntity(ed, f.actor, entityCreate.parse({ prop1: "이전 단일 대상" }));
-      const second = await entity.createEntity(ed, f.actor, entityCreate.parse({ prop1: "삭제할 대상" }));
+      const first = await entity.createEntity(
+        ed,
+        f.actor,
+        entityCreate.parse({ id: crypto.randomUUID(), ...{ prop1: "이전 단일 대상" } }),
+      );
+      const second = await entity.createEntity(
+        ed,
+        f.actor,
+        entityCreate.parse({ id: crypto.randomUUID(), ...{ prop1: "삭제할 대상" } }),
+      );
       const ids = [first.id, second.id].sort();
       const legacyTask = await activity.createTask(
         ad,
         f.actor,
-        taskCreate.parse({ kind: "once", title: "옛 단일 업무", summary: "보존", entity_ids: [first.id] }),
+        taskCreate.parse({
+          id: crypto.randomUUID(),
+          ...{ kind: "once", title: "옛 단일 업무", summary: "보존", entity_ids: [first.id] },
+        }),
       );
       const multi = await activity.createTask(
         ad,
         f.actor,
-        taskCreate.parse({ kind: "once", title: "여러 대상", summary: "보존", entity_ids: ids }),
+        taskCreate.parse({
+          id: crypto.randomUUID(),
+          ...{ kind: "once", title: "여러 대상", summary: "보존", entity_ids: ids },
+        }),
       );
       const unlinked = await activity.createTask(
         ad,
         f.actor,
-        taskCreate.parse({ kind: "once", title: "대상 없음", summary: "선택 사항" }),
+        taskCreate.parse({ id: crypto.randomUUID(), ...{ kind: "once", title: "대상 없음", summary: "선택 사항" } }),
       );
       const linkedRecord = await activity.createRecord(
         ad,
         f.actor,
-        recordCreate.parse({ title: "당시 여러 대상", summary: "문맥", entity_ids: ids }),
+        recordCreate.parse({
+          id: crypto.randomUUID(),
+          ...{ title: "당시 여러 대상", summary: "문맥", entity_ids: ids },
+        }),
       );
       const legacyChange = {
         event_id: crypto.randomUUID(),
@@ -159,10 +176,11 @@ dbTest(
       assertEquals((await admin`select body from app.records where id=${decision.id}`)[0].body, "판단 내용");
       // Live edits after the cutoff cannot turn the exact archive into a truncated new source.
       const original = await principle.getPrinciple(pd, f.actor, source.id);
-      const edited = await principle.saveCurrentPrinciple(
+      const edited = await principle.updatePrinciple(
         pd,
         f.actor,
-        principleSave.parse({
+        original.id,
+        principleUpdate.parse({
           title: original.title,
           summary: original.summary,
           body: "현재 원칙 변경",

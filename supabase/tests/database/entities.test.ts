@@ -16,18 +16,24 @@ const A = { userId: users.a },
   d = { uow: new SqlEntityUnitOfWork(sql) },
   a = { uow: new SqlUnitOfWork(sql), clock: { now: () => new Date() } };
 const create = (name: string, actor = A, extra = {}) =>
-  entity.createEntity(d, actor, entityCreate.parse({ prop1: name, ...extra }));
+  entity.createEntity(d, actor, entityCreate.parse({ id: crypto.randomUUID(), ...{ prop1: name, ...extra } }));
 dbTest("Entity DB: same owner 참조 거부·삭제 링크 해제·원문/버전/태그/색인 보존", async () => {
   const e = await create("링크 보존"), foreign = await create("외부", B);
   const task = await activity.createTask(
     a,
     A,
-    taskCreate.parse({ kind: "once", title: "행동", summary: "요약", entity_ids: [e.id] }),
+    taskCreate.parse({
+      id: crypto.randomUUID(),
+      ...{ kind: "once", title: "행동", summary: "요약", entity_ids: [e.id] },
+    }),
   );
   const record = await activity.createRecord(
     a,
     A,
-    recordCreate.parse({ title: "기록", summary: "요약", body: "기록 원문", entity_ids: [e.id] }),
+    recordCreate.parse({
+      id: crypto.randomUUID(),
+      ...{ title: "기록", summary: "요약", body: "기록 원문", entity_ids: [e.id] },
+    }),
   );
   for (const ref of [foreign.id, crypto.randomUUID()]) {
     for (
@@ -82,11 +88,17 @@ dbTest("Entity DB: same owner 참조 거부·삭제 링크 해제·원문/버전
   await entity.deleteEntity(d, B, foreign.id, 1);
 });
 dbTest("Entity DB: RLS·직접 접근 차단·선택 검증·멱등성·버전 경쟁", async () => {
-  const request_id = crypto.randomUUID(), input = entityCreate.parse({ prop1: "멱등", request_id });
-  const results = await Promise.all([entity.createEntity(d, A, input), entity.createEntity(d, A, input)]);
-  assertEquals(results[0].id, results[1].id);
-  const e = results[0];
-  assertEquals((await asUser(sql, users.b, (tx) => tx`select id from app.entities where id=${e.id}`)).length, 0);
+  const input = entityCreate.parse({ id: crypto.randomUUID(), ...{ prop1: "멱등" } });
+  const results = await Promise.allSettled([entity.createEntity(d, A, input), entity.createEntity(d, A, input)]);
+  assertEquals(results.filter((r) => r.status === "fulfilled").length, 1);
+  const e = (results.find((r) =>
+    r.status === "fulfilled"
+  ) as PromiseFulfilledResult<Awaited<ReturnType<typeof entity.createEntity>>>).value;
+  assertEquals(
+    (await asUser(sql, users.b, (tx) =>
+      tx`select id from app.entities where id=${e.id}`)).length,
+    0,
+  );
   assertEquals((await assertRejects(() => entity.getEntity(d, B, e.id), AppError)).code, "not_found");
   assert((await outcome(admin.begin(async (tx) => {
     await tx`set local role authenticated`;

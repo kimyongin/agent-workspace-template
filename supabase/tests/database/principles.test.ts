@@ -1,6 +1,6 @@
 import { assert, assertEquals, assertMatch, assertRejects } from "@std/assert";
 import { SqlPrincipleUnitOfWork } from "../../functions/_shared/adapters/supabase/principle-store.ts";
-import { principleCreate, principleResult, principleSave } from "../../functions/_shared/contracts/principle.ts";
+import { principleCreate, principleResult, principleUpdate } from "../../functions/_shared/contracts/principle.ts";
 import * as p from "../../functions/_shared/core/principles/application.ts";
 import { AppError } from "../../functions/_shared/core/shared/errors.ts";
 import { asUser, connect, dbTest, fixtureOwner, outcome, urls } from "./_db.ts";
@@ -13,34 +13,38 @@ dbTest(
   async () => {
     const f = await fixtureOwner(admin), b = await fixtureOwner(admin);
     try {
-      const a = f.actor, i = principleCreate.parse({ ...content, request_id: crypto.randomUUID() });
-      const [first, retry] = await Promise.all([p.createPrinciple(d, a, i), p.createPrinciple(d, a, i)]);
-      assertEquals(first.id, retry.id);
+      const a = f.actor, i = principleCreate.parse({ id: crypto.randomUUID(), ...{ ...content } });
+      const creations = await Promise.allSettled([p.createPrinciple(d, a, i), p.createPrinciple(d, a, i)]);
+      assertEquals(creations.filter((r) => r.status === "fulfilled").length, 1);
+      const first = (creations.find((r) =>
+        r.status === "fulfilled"
+      ) as PromiseFulfilledResult<Awaited<ReturnType<typeof p.createPrinciple>>>).value;
       principleResult.parse(first);
-      await assertRejects(() => p.createPrinciple(d, a, principleCreate.parse(content)), AppError);
-      const nextInput = principleSave.parse({
+      await assertRejects(() =>
+        p.createPrinciple(d, a, principleCreate.parse({ id: crypto.randomUUID(), ...content })), AppError);
+      const nextInput = principleUpdate.parse({
         ...content,
         body: "두 번째",
         expected_version: first.version,
         change_note: "기준 갱신",
-        request_id: crypto.randomUUID(),
       });
-      const [next, dup] = await Promise.all([
-        p.saveCurrentPrinciple(d, a, nextInput),
-        p.saveCurrentPrinciple(d, a, nextInput),
-      ]);
-      assertEquals(next.id, dup.id);
+      const next = await p.updatePrinciple(d, a, first.id, nextInput);
+      await assertRejects(() =>
+        p.updatePrinciple(d, a, first.id, nextInput), AppError);
       assertEquals(next.id, first.id);
       assertEquals(next.version, first.version + 1);
       const races = await Promise.allSettled(["세 번째 A", "세 번째 B"].map((body) =>
-        p.saveCurrentPrinciple(
+        p.updatePrinciple(
           d,
           a,
-          principleSave.parse({ ...content, body, expected_version: next.version, change_note: "동시 편집" }),
+          first.id,
+          principleUpdate.parse({ ...content, body, expected_version: next.version, change_note: "동시 편집" }),
         )
       ));
       assertEquals(
-        races.filter((r) => r.status === "fulfilled").length,
+        races.filter((r) =>
+          r.status === "fulfilled"
+        ).length,
         1,
       );
       assertEquals(
@@ -81,11 +85,12 @@ dbTest(
       const [legacy] = await admin`insert into app.principles(owner_id,title,summary,body,is_current,origin,saved_at)
       values(${a.userId},'과거 자료','보존 요약','과거 원문',false,'legacy','2020-01-01T00:00:00Z') returning id`;
       const before = (await admin`select * from app.principles where id=${legacy.id}`)[0];
-      const first = await p.createPrinciple(d, a, principleCreate.parse(content));
-      const noop = await p.saveCurrentPrinciple(
+      const first = await p.createPrinciple(d, a, principleCreate.parse({ id: crypto.randomUUID(), ...content }));
+      const noop = await p.updatePrinciple(
         d,
         a,
-        principleSave.parse({
+        first.id,
+        principleUpdate.parse({
           ...content,
           expected_version: first.version,
           change_note: "동일 값",
@@ -95,10 +100,11 @@ dbTest(
       assertEquals(noop, first);
       const logs = () => admin`select count(*)::int n from app.records where owner_id=${a.userId}`;
       assertEquals((await logs())[0].n, 1);
-      const next = await p.saveCurrentPrinciple(
+      const next = await p.updatePrinciple(
         d,
         a,
-        principleSave.parse({
+        first.id,
+        principleUpdate.parse({
           ...content,
           body: "두 번째",
           expected_version: first.version,
@@ -112,7 +118,7 @@ dbTest(
       await assertRejects(() => p.getPrinciple(d, a, legacy.id), AppError);
       await assertRejects(() => p.deletePrinciple(d, a, legacy.id, before.version), AppError);
       assertEquals((await admin`select * from app.principles where id=${legacy.id}`)[0], before);
-      await p.deletePrinciple(d, a, next.id, next.version, "삭제", crypto.randomUUID(), {
+      await p.deletePrinciple(d, a, next.id, next.version, "삭제", {
         title: "삭제 근거",
         summary: "최종 확인",
         body: "삭제 메모",
@@ -121,19 +127,20 @@ dbTest(
       assertEquals((await admin`select * from app.principles where id=${legacy.id}`)[0], before);
       const count = (await logs())[0].n;
       await assertRejects(
-        () => p.saveCurrentPrinciple(d, a, principleSave.parse({ ...content, expected_version: next.version })),
+        () => p.updatePrinciple(d, a, first.id, principleUpdate.parse({ ...content, expected_version: next.version })),
         AppError,
       );
       assertEquals((await logs())[0].n, count);
-      const recreated = await p.createPrinciple(d, a, principleCreate.parse(content));
+      const recreated = await p.createPrinciple(d, a, principleCreate.parse({ id: crypto.randomUUID(), ...content }));
       assert(recreated.id !== first.id);
-      assert(recreated.version > next.version);
+      assertEquals(recreated.version, 1);
       await assertRejects(
         () =>
-          p.saveCurrentPrinciple(
+          p.updatePrinciple(
             d,
             a,
-            principleSave.parse({ ...content, body: "오래된 변경", expected_version: first.version }),
+            first.id,
+            principleUpdate.parse({ ...content, body: "오래된 변경", expected_version: first.version }),
           ),
         AppError,
       );
@@ -148,7 +155,7 @@ dbTest(
 dbTest("current principle concurrent patches keep omitted content and reject the stale loser", async () => {
   const f = await fixtureOwner(admin);
   try {
-    const first = await p.createPrinciple(d, f.actor, principleCreate.parse(content));
+    const first = await p.createPrinciple(d, f.actor, principleCreate.parse({ id: crypto.randomUUID(), ...content }));
     const patches = await Promise.allSettled(
       ["수정 A", "수정 B"].map((title) =>
         p.updatePrinciple(d, f.actor, first.id, { title, expected_version: first.version })

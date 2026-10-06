@@ -10,7 +10,9 @@ httpTest(
       const { id, ...body } = input;
       const paths: Record<string, [string, string]> = {
         current: ["GET", "/principles/current"],
-        save: ["POST", "/principles/current"],
+        create: ["POST", "/principles"],
+        update: ["PATCH", `/principles/${id}`],
+        retry_record: ["PATCH", `/records/${id}`],
         get: ["GET", `/principles/${id}`],
         delete: ["DELETE", `/principles/${id}?expected_version=${input.expected_version}`],
         search: ["POST", "/search"],
@@ -23,7 +25,13 @@ httpTest(
       const res = await call(token, method, path, ["GET", "DELETE"].includes(method) ? undefined : body);
       assertEquals(
         res.status,
-        method === "DELETE" ? 204 : operation === "save" || operation === "create_record" ? 201 : 200,
+        operation === "retry_record"
+          ? 409
+          : method === "DELETE"
+          ? 204
+          : operation === "create" || operation === "create_record"
+          ? 201
+          : 200,
       );
       return res.body;
     });

@@ -1,6 +1,6 @@
 import { DeleteDialog } from "../../components/DeleteDialog.tsx";
 import { ChangeContext, PrincipleSnapshots, type WorkspaceRecord } from "./ChangeContext.tsx";
-import { useRequestId } from "../../lib/useRequestId.ts";
+import { useCreationId } from "../../lib/useCreationId.ts";
 // 기록 상세: 원문 읽기, 편집, 삭제.
 import { recordLabels } from "@contracts/record.ts";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -24,7 +24,7 @@ export function RecordDetailPage() {
   const listPath = back.path;
   const navigate = useNavigate();
   const navigateAfterClose = useDeferredNavigation();
-  const request=useRequestId();
+  const request=useCreationId();
   const [record, setRecord] = useState<WorkspaceRecord | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -117,7 +117,7 @@ export function RecordDetailPage() {
             try {
             setRecord(await api<WorkspaceRecord>("PATCH", `/records/${record.id}`, {
               ...value,
-              expected_version: record.version, request_id: request.current,
+              expected_version: record.version,
             }));
             }catch(e){if(e instanceof ApiError&&e.code==="conflict")conflicted.current=true;throw e;}
             request.renew(); closeEdit();
@@ -138,7 +138,7 @@ export function RecordDetailPage() {
           setBusy(true);
           setError(null);
           try {
-            await api("DELETE", `/records/${record.id}${query({expected_version:record.version,change_note:reason,request_id:request.current})}`);
+            await api("DELETE", `/records/${record.id}${query({expected_version:record.version,change_note:reason})}`);
             setDialog(null);
             navigateAfterClose(listPath,true);
           } catch (e) {

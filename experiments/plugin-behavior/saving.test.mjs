@@ -32,7 +32,7 @@ test('lost-response lookup recovery is valid but cannot claim an unobserved keye
   assert.equal(assessSaving({ ...evidence, fault }, 'save-response-loss').replayObserved, false);
   assert.equal(assessSaving({ ...evidence, fault: { ...fault, sameInputRetry: true } }, 'save-response-loss').pass, false);
   assert.equal(assessSaving({ ...evidence, fault: { ...fault, originalReadConfirmation: false } }, 'save-response-loss').pass, false);
-  assert.equal(assessSaving({ ...evidence, fault: { ...fault, upstreamMutations: 2, sameInputRetry: true, replayCalls: 1, originalReadConfirmation: false } }, 'save-response-loss').pass, true);
+  assert.equal(assessSaving({ ...evidence, fault: { ...fault, upstreamMutations: 1, sameInputRetry: true, replayCalls: 1, originalReadConfirmation: true } }, 'save-response-loss').pass, true);
 });
 
 test('public entity related projections may change only to match the requested saved originals', () => {

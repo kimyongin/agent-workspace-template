@@ -6,13 +6,13 @@ httpTest("현재 원칙 HTTP: 같은 문서 갱신·선택 메모·미리보기�
   const baseline = (await call(a, "GET", "/principles/current")).body.current;
   let current;
   try {
-    const first = await call(a, "POST", "/principles/current", {
+    const first = await call(a, baseline ? "PATCH" : "POST", baseline ? `/principles/${baseline.id}` : "/principles", {
       title: "현재 기준",
       summary: "판단",
       body: "첫 원문",
       ...(baseline ? { expected_version: baseline.version } : {}),
     });
-    assertEquals(first.status, 201);
+    assertEquals(first.status, baseline ? 200 : 201);
     current = first.body;
     const preview = await call(a, "POST", "/principles/preview", {
       action: "update",
@@ -21,7 +21,7 @@ httpTest("현재 원칙 HTTP: 같은 문서 갱신·선택 메모·미리보기�
     });
     assertEquals(preview.status, 200);
     assertEquals((await call(a, "GET", "/principles/current")).body.current, current);
-    const unchanged = await call(a, "POST", "/principles/current", {
+    const unchanged = await call(a, "PATCH", `/principles/${current.id}`, {
       title: current.title,
       summary: current.summary,
       body: current.body,
@@ -37,11 +37,11 @@ httpTest("현재 원칙 HTTP: 같은 문서 갱신·선택 메모·미리보기�
       change_memo: { title: "최종 메모", summary: "확인한 요약", body: "추가 판단 근거" },
     };
     const raced = await Promise.all([
-      call(a, "POST", "/principles/current", input),
-      call(a, "POST", "/principles/current", input),
+      call(a, "PATCH", `/principles/${current.id}`, input),
+      call(a, "PATCH", `/principles/${current.id}`, input),
     ]);
-    assertEquals(raced.map((r) => r.status).sort(), [201, 409]);
-    const next = raced.find((r) => r.status === 201)!.body;
+    assertEquals(raced.map((r) => r.status).sort(), [200, 409]);
+    const next = raced.find((r) => r.status === 200)!.body;
     assertEquals(next.id, current.id);
     assertEquals(next.version, current.version + 1);
     current = next;
@@ -77,24 +77,24 @@ httpTest("현재 원칙 HTTP: 같은 문서 갱신·선택 메모·미리보기�
     current = null;
     assertEquals((await call(a, "GET", "/principles/current")).body.current, null);
     assertEquals(
-      (await call(a, "POST", "/principles/current", {
+      (await call(a, "PATCH", `/principles/${previous.id}`, {
         title: "오래된 변경",
         summary: "거부",
         expected_version: previous.version,
       })).status,
-      409,
+      404,
     );
   } finally {
     if (baseline) {
       const actual = (await call(a, "GET", "/principles/current")).body.current;
-      const restored = await call(a, "POST", "/principles/current", {
+      const restored = await call(a, actual ? "PATCH" : "POST", actual ? `/principles/${actual.id}` : "/principles", {
         title: baseline.title,
         summary: baseline.summary,
         body: baseline.body,
         ...(actual ? { expected_version: actual.version } : {}),
         change_note: "테스트 문서 복원",
       });
-      assertEquals(restored.status, 201);
+      assertEquals(restored.status, actual ? 200 : 201);
     } else if (current) {
       assertEquals(
         (await call(a, "DELETE", `/principles/${current.id}?expected_version=${current.version}`)).status,

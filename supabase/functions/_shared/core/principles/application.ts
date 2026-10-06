@@ -1,17 +1,11 @@
 import { principleChangeFacts, principleChangeTarget } from "./change.ts";
-import type {
-  PrincipleCreate,
-  PrinciplePreview,
-  PrincipleResult,
-  PrincipleSave,
-  PrincipleUpdate,
-} from "../../contracts/principle.ts";
+import type { PrincipleCreate, PrinciplePreview, PrincipleResult, PrincipleUpdate } from "../../contracts/principle.ts";
 import type { Actor } from "../shared/actor.ts";
 import { conflict, notFound } from "../shared/errors.ts";
 import { changed } from "../shared/changes.ts";
 import { basicChangeMemo } from "../shared/change-memo.ts";
 import type { ChangeMemo } from "../../contracts/change.ts";
-import { once, searchInputHash } from "../shared/operations.ts";
+import { searchInputHash } from "../shared/operations.ts";
 import type { PrincipleStore, PrincipleUnitOfWork } from "./ports.ts";
 export interface PrincipleDeps {
   uow: PrincipleUnitOfWork;
@@ -59,14 +53,10 @@ export function previewPrincipleChange(d: PrincipleDeps, a: Actor, command: Prin
     };
   });
 }
-async function save(s: PrincipleStore, i: PrincipleSave, old: PrincipleResult | null, firstOnly = false) {
-  if (firstOnly && old) throw conflict("현재 원칙이 있습니다. 현재 문서를 편집하세요.");
-  if (old) {
-    version(old, i.expected_version);
-  } else if (i.expected_version !== undefined) throw conflict("현재 원칙이 없습니다. 다시 조회하세요.");
-  const { expected_version: _v, request_id: _r, change_memo, ...content } = i;
+async function save(s: PrincipleStore, i: PrincipleCreate, old: PrincipleResult | null) {
   if (old && !changed(old, { title: i.title, summary: i.summary, body: i.body })) return old;
-  const result = old ? await s.update(old.id, content) : await s.insert(content);
+  const { id: _id, change_memo, ...content } = i;
+  const result = old ? await s.update(old.id, content) : await s.insert(i);
   await s.enqueueIndex({ kind: "principle", id: result.id, input_hash: await searchInputHash(result) });
   await s.appendChange({
     target_kind: "principle",
@@ -79,36 +69,28 @@ async function save(s: PrincipleStore, i: PrincipleSave, old: PrincipleResult | 
   });
   return result;
 }
-export function saveCurrentPrinciple(d: PrincipleDeps, a: Actor, i: PrincipleSave) {
-  return d.uow.run(
-    a,
-    (s) =>
-      once(s, "save_current_principle", i.request_id, i, async () => save(s, i, await s.current({ forUpdate: true }))),
-  );
-}
 export function createPrinciple(d: PrincipleDeps, a: Actor, i: PrincipleCreate) {
-  return d.uow.run(
-    a,
-    (s) =>
-      once(s, "create_principle", i.request_id, i, async () => save(s, i, await s.current({ forUpdate: true }), true)),
-  );
+  return d.uow.run(a, async (s) => {
+    if (await s.current({ forUpdate: true })) throw conflict("현재 원칙이 있습니다. 현재 문서를 편집하세요.");
+    return save(s, i, null);
+  });
 }
 export function currentPrinciple(d: PrincipleDeps, a: Actor) {
   return d.uow.run(a, async (s) => ({ current: await s.current() }));
 }
 export function updatePrinciple(d: PrincipleDeps, a: Actor, id: string, i: PrincipleUpdate) {
-  return d.uow.run(a, (s) =>
-    once(s, `update_principle:${id}`, i.request_id, i, async () => {
-      const old = requirePrinciple(await s.current({ forUpdate: true }), id);
-      return save(s, {
-        title: i.title ?? old.title,
-        summary: i.summary ?? old.summary,
-        body: i.body ?? old.body,
-        expected_version: i.expected_version,
-        change_note: i.change_note,
-        change_memo: i.change_memo,
-      }, old);
-    }));
+  return d.uow.run(a, async (s) => {
+    const old = requirePrinciple(await s.current({ forUpdate: true }), id);
+    version(old, i.expected_version);
+    return save(s, {
+      id,
+      title: i.title ?? old.title,
+      summary: i.summary ?? old.summary,
+      body: i.body ?? old.body,
+      change_note: i.change_note,
+      change_memo: i.change_memo,
+    }, old);
+  });
 }
 export function deletePrinciple(
   d: PrincipleDeps,
@@ -116,34 +98,24 @@ export function deletePrinciple(
   id: string,
   expected: number,
   change_note?: string,
-  request_id?: string,
   change_memo?: ChangeMemo,
 ) {
-  return d.uow.run(
-    a,
-    (s) =>
-      once(s, `delete_principle:${id}`, request_id, { expected, change_note, change_memo }, async () => {
-        const old = requirePrinciple(await s.current({ forUpdate: true }), id);
-        version(old, expected);
-        if (!old.is_current) throw conflict("과거 자료는 통합 기록에서 확인하세요. 현재 원칙만 삭제할 수 있습니다.");
-        await s.delete(id);
-        await s.appendChange({
-          target_kind: "principle",
-          target: principleChangeTarget(old),
-          action: "delete",
-          before: principleChangeFacts(old),
-          after: null,
-          change_note,
-          change_memo,
-        });
-        return { deleted: true };
-      }),
-  );
+  return d.uow.run(a, async (s) => {
+    const old = requirePrinciple(await s.current({ forUpdate: true }), id);
+    version(old, expected);
+    await s.delete(id);
+    await s.appendChange({
+      target_kind: "principle",
+      target: principleChangeTarget(old),
+      action: "delete",
+      before: principleChangeFacts(old),
+      after: null,
+      change_note,
+      change_memo,
+    });
+    return { deleted: true };
+  });
 }
 export function getPrinciple(d: PrincipleDeps, a: Actor, id: string) {
-  return d.uow.run(a, async (s) => {
-    const p = await s.get(id);
-    if (!p?.is_current) throw notFound();
-    return p;
-  });
+  return d.uow.run(a, async (s) => requirePrinciple(await s.get(id), id));
 }

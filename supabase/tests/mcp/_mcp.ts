@@ -127,6 +127,13 @@ type Json = any;
 
 /** 도구를 호출하고 구조화 결과를 돌려준다. 오류면 { error: {code,...} }. */
 export async function tool(client: Client, name: string, args: Record<string, unknown>): Promise<Json> {
+  if (
+    ["create_entity", "create_task", "create_record", "create_principle", "create_tag", "record_occurrence"].includes(
+      name,
+    ) && !("id" in args)
+  ) {
+    args = { id: crypto.randomUUID(), ...args };
+  }
   const res = await client.callTool({ name, arguments: args });
   const body = res.structuredContent ?? JSON.parse((res.content as { text: string }[])[0].text);
   return res.isError ? { error: body } : body;

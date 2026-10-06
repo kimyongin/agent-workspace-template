@@ -7,7 +7,7 @@ import { DeleteDialog } from "../../components/DeleteDialog.tsx";
 import { query } from "../../lib/api.ts";
 import { BusyNavigationGuard, ConfirmDialog, ModalShell } from "../../components/Modal.tsx";
 import { api, ApiError, isUncertain } from "../../lib/api.ts";
-import { useRequestId } from "../../lib/useRequestId.ts";
+import { useCreationId } from "../../lib/useCreationId.ts";
 import "./tags.css";
 import { findTag } from "./resolve-tag.ts";
 type Page = { items: TagResult[]; next_cursor: string | null };
@@ -31,7 +31,7 @@ function ScopedTagsPage({scope}:{scope:"entity"|"activity"}) {
   const readEpoch = useRef(0), readAbort = useRef<AbortController | null>(null);
   const invalidateReads = () => { readEpoch.current++; readAbort.current?.abort(); };
   useEffect(() => () => { readEpoch.current++; readAbort.current?.abort(); }, []);
-  const request = useRequestId();
+  const request = useCreationId();
   const dirty = !!draft && (draft.name !== (draft.initial?.name ?? "") || uncertain);
   useEffect(() => {
     readAbort.current?.abort(); const controller = new AbortController(); readAbort.current = controller;
@@ -71,7 +71,7 @@ function ScopedTagsPage({scope}:{scope:"entity"|"activity"}) {
   };
   const save = async () => {
     if (!draft || saving.current || conflict) return;
-    const parsed = tagCreate.safeParse({ name: draft.name });
+    const parsed = tagCreate.omit({id:true}).safeParse({ name: draft.name });
     if (!parsed.success) { setFieldError(parsed.error.issues[0]?.message); input.current?.focus(); return; }
     saving.current = true; setBusy(true); setFailure(null); setFieldError(undefined);
     try {
@@ -81,7 +81,7 @@ function ScopedTagsPage({scope}:{scope:"entity"|"activity"}) {
         if (current?.name === parsed.data.name && current.version > draft.initial.version) saved = current;
         else saved = await api<TagResult>("PATCH", `/tags/${draft.initial.id}`, { name: parsed.data.name, expected_version: draft.initial.version });
       } else saved = await api<TagResult>(draft.initial ? "PATCH" : "POST", draft.initial ? `/tags/${draft.initial.id}` : "/tags",
-        draft.initial ? { name: parsed.data.name, expected_version: draft.initial.version } : { ...parsed.data, scope, request_id: request.current });
+        draft.initial ? { name: parsed.data.name, expected_version: draft.initial.version } : { ...parsed.data, scope, id: request.current });
       invalidateReads();
       setPage(p => p ? { ...p, items: p.items.some(t => t.id === saved.id) ? p.items.map(t => t.id === saved.id ? saved : t) : [saved, ...p.items] } : { items: [saved], next_cursor: null });
       focusId.current = saved.id; setDraft(null); setUncertain(false); request.renew(); setNotice("태그를 저장했습니다."); dismiss(); setRetry(n => n + 1);
@@ -131,7 +131,7 @@ function ScopedTagsPage({scope}:{scope:"entity"|"activity"}) {
       onConfirm={() => {const action=pending;setPending(null);action?.();}} />
     {deleting && <><BusyNavigationGuard pending={saving}/><DeleteDialog title="태그를 삭제할까요?" busy={busy} message={`${deleting.name} 태그와 연결을 제거합니다. 항목의 원문은 보존합니다.`} onCancel={() => setDeleting(null)} onConfirm={async reason => {
       if (saving.current) return; saving.current = true; setBusy(true); setFailure(null);
-      try { await api("DELETE", `/tags/${deleting.id}${query({expected_version:deleting.version,change_note:reason,request_id:request.current})}`);
+      try { await api("DELETE", `/tags/${deleting.id}${query({expected_version:deleting.version,change_note:reason})}`);
         invalidateReads();
         const at = page?.items.findIndex(t => t.id === deleting.id) ?? -1; focusId.current = page?.items[at + 1]?.id ?? page?.items[at - 1]?.id ?? "heading";
         setPage(p => p && ({ ...p, items: p.items.filter(t => t.id !== deleting.id) })); setNotice("태그를 삭제했습니다.");

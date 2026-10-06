@@ -21,7 +21,6 @@ httpTest("Entity MCP: 실제 SDK/OAuth CRUD·태그 scope·웹 parity·참조 �
       prop2: 1,
       prop4: "b",
       tag_ids: [tag.id],
-      request_id: crypto.randomUUID(),
     });
     assertEquals((await call(token, "GET", `/entities/${e.id}`)).body.prop1, e.prop1);
     assertEquals(e.tag_ids, [tag.id]);
@@ -84,14 +83,13 @@ httpTest("Entity MCP: 실제 SDK/OAuth CRUD·태그 scope·웹 parity·참조 �
       change_note: "일자 정정",
     });
     assertEquals(changed.version, 3);
-    const deleteRequest = crypto.randomUUID();
     assertEquals(
-      (await call(token, "DELETE", `/tags/${tag.id}?expected_version=1&request_id=${deleteRequest}`)).status,
+      (await call(token, "DELETE", `/tags/${tag.id}?expected_version=1`)).status,
       204,
     );
     assertEquals(
-      (await tool(client, "delete_tag", { id: tag.id, expected_version: 1, request_id: deleteRequest })).deleted,
-      tag.id,
+      (await tool(client, "delete_tag", { id: tag.id, expected_version: 1 })).error.code,
+      "not_found",
     );
     const unlinked = await tool(client, "get_entity", { id: e.id });
     assertEquals(unlinked.version, 4);

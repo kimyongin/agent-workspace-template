@@ -10,7 +10,7 @@ import { Field, Notice } from "../../components/Field.tsx";
 import { useCreateMode } from "../../components/useCreateMode.ts";
 import { api } from "../../lib/api.ts";
 import { browserTimezone } from "../../lib/format.ts";
-import { useRequestId } from "../../lib/useRequestId.ts";
+import { useCreationId } from "../../lib/useCreationId.ts";
 import { TagDictionaryStatus, TagNames, TagReadProvider, useTagDictionary } from "../tags/TagPicker.tsx";
 import { ChangeContext, recordKindNames } from "./ChangeContext.tsx";
 import { emptyRecord, emptyTask, RecordFormModal, TaskFormModal, taskInput } from "./forms.tsx";
@@ -56,7 +56,7 @@ export function ActivityPage({ kind }: { kind: WorkspaceListKind }) {
     const next = new URLSearchParams(params);
     if (overLimit) { setTrimmedTags(true); next.delete("tag_id"); next.set("tag_ids", tags.join(",")); clearListPosition(next); }
     setParams(next, { replace: true }); }, [params, setParams]);
-  const create = useCreateMode("1"), request = useRequestId();
+  const create = useCreateMode("1"), request = useCreationId();
   useEffect(() => { if (create.open) request.renew(); }, [create.open, create.key]);
   const begin = () => { const next = new URLSearchParams(params); next.set("create", "1"); setParams(next); };
   const filter = (name: string, value: string) => { const next = clearListPosition(new URLSearchParams(params)); value ? next.set(name, value) : next.delete(name); setParams(next, { replace: true }); };
@@ -82,7 +82,7 @@ export function ActivityPage({ kind }: { kind: WorkspaceListKind }) {
       </div>
     </section>
     <ActivitySection kind={kind} tags={tags} bounds={bounds} dictionary={dictionary}/>
-    {create.open && (kind === "tasks" ? <TaskFormModal key={create.key} mode="create" open initial={emptyTask()} onClose={create.close} onRouteDiscard={create.discard} onSave={async draft => { const task = await api<TaskResult>("POST", "/tasks", { ...taskInput(draft), request_id: request.current }); saved("task", task.id); }}/>
-      : <RecordFormModal key={create.key} title="기록 작성" submitLabel="저장" open initial={emptyRecord()} onClose={create.close} onRouteDiscard={create.discard} onSave={async draft => { const record = await api<RecordResult>("POST", "/records", { ...draft, request_id: request.current }); saved("record", record.id); }}/>) }
+    {create.open && (kind === "tasks" ? <TaskFormModal key={create.key} mode="create" open initial={emptyTask()} onClose={create.close} onRouteDiscard={create.discard} onSave={async draft => { const task = await api<TaskResult>("POST", "/tasks", { ...taskInput(draft), id: request.current }); saved("task", task.id); }}/>
+      : <RecordFormModal key={create.key} title="기록 작성" submitLabel="저장" open initial={emptyRecord()} onClose={create.close} onRouteDiscard={create.discard} onSave={async draft => { const record = await api<RecordResult>("POST", "/records", { ...draft, id: request.current }); saved("record", record.id); }}/>) }
   </>;
 }

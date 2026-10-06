@@ -123,10 +123,10 @@ export function assessSaving(evidence, mode) {
     if (fault?.mode !== mode || !fault?.sameInstance || fault?.injected !== 1) failures.push('fault-not-applied');
     if (mode === 'save-failure' && fault?.upstreamMutations !== 0) failures.push('unexpected-upstream-write');
     if (mode === 'save-response-loss') {
-      const replay = fault?.sameInputRetry === true && fault.replayCalls >= 1 && fault.upstreamMutations >= 2;
+      const replay = fault?.sameInputRetry === true && fault.replayCalls >= 1 && fault.upstreamMutations >= 1;
       if (!(fault?.upstreamMutations >= 1) || !fault?.requestIdHash || !fault?.originalConfirmation || fault?.inputChanged || !(fault?.originalReadConfirmation || replay)) failures.push('uncertain-write-confirmation');
       if (fault?.sameInputRetry && !replay) failures.push('unobserved-keyed-replay');
     }
   }
-  return { pass: failures.length === 0, failures, ...(mode === 'save-response-loss' ? { replayObserved: Boolean(evidence.fault?.sameInputRetry && evidence.fault.replayCalls >= 1 && evidence.fault.upstreamMutations >= 2) } : {}) };
+  return { pass: failures.length === 0, failures, ...(mode === 'save-response-loss' ? { replayObserved: Boolean(evidence.fault?.sameInputRetry && evidence.fault.replayCalls >= 1 && evidence.fault.upstreamMutations >= 1) } : {}) };
 }

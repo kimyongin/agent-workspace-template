@@ -1,6 +1,6 @@
 // 할 일·기록 화면이 함께 쓰는 작은 표현과 요청 키.
 import { taskLabels } from "@contracts/task.ts";
-export { useRequestId } from "../../lib/useRequestId.ts";
+export { useCreationId } from "../../lib/useCreationId.ts";
 
 const STATUS_CLASS: Record<string, string> = {
   done: "badge badge-done",

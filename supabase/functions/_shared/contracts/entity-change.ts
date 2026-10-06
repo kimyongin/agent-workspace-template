@@ -3,7 +3,7 @@ import { entityCreate, entityUpdate } from "./entity.ts";
 import { expectedVersion, id } from "./common.ts";
 import { changeNote } from "./change.ts";
 export const entityChangePreview = z.discriminatedUnion("action", [
-  z.strictObject({ action: z.literal("create"), input: entityCreate }),
+  z.strictObject({ action: z.literal("create"), input: entityCreate.omit({ id: true }) }),
   z.strictObject({ action: z.literal("update"), id, input: entityUpdate }),
   z.strictObject({
     action: z.literal("delete"),

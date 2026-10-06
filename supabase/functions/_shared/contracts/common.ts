@@ -44,7 +44,6 @@ export const isoDate = z
 export const isoDateTime = z.iso.datetime({ offset: true });
 
 export const expectedVersion = z.number().int().min(1);
-export const requestId = z.uuid();
 
 export const pageInput = {
   limit: z.coerce.number().int().min(1).max(100).default(20),

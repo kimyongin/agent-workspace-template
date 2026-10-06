@@ -156,7 +156,7 @@ test("불확정 이름 변경을 최신 목록에서 확인하며 중복 PATCH �
   await page.goto(url); await page.getByRole("button", { name: "첫 태그 이름 변경" }).click(); await page.getByRole("textbox", { name: /태그 이름/ }).fill("정정 이름"); await saveWithMemo(page, page);
   await page.getByRole("button", { name: "같은 내용 다시 시도" }).click(); await expect(page.getByText("태그를 저장했습니다.")).toBeVisible(); expect(patches).toBe(1);
 });
-test("불확정 생성 같은 request_id 재시도와 성공 뒤 목록 실패 구분", async ({ page }) => {
+test("불확정 생성 같은 UUID 재시도와 성공 뒤 목록 실패 구분", async ({ page }) => {
   let calls = 0; const bodies: Record<string, unknown>[] = []; let saved = false;
   await page.route(/\/api\/tags(?:\?.*)?$/, async route => {
     if (route.request().method() === "POST") { bodies.push(route.request().postDataJSON()); calls++; if (calls === 1) await route.abort(); else { saved = true; await route.fulfill({ status: 201, json: { ...tags[0],id:"50000000-0000-4000-8000-000000000000", name: "새 태그" } }); } }

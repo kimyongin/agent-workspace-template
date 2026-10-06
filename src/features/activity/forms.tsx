@@ -71,10 +71,10 @@ export function RecordFormModal(props: {
       onRouteDiscard={props.onRouteDiscard}
       validate={() => {
         const noteErrors=changeNoteErrors(draft.change_note,false);if(noteErrors)return noteErrors;
-        const r = recordCreate.safeParse(value());
+        const r = recordCreate.omit({id:true}).safeParse(value());
         return r.success ? null : fieldErrors(r.error.issues);
       }}
-      onSubmit={() => {const parsed=recordCreate.parse(value());return props.onSave({... (props.systemRecord?{title:parsed.title,summary:parsed.summary,body:parsed.body}:parsed),change_note:draft.change_note?.trim()||undefined});}}
+      onSubmit={() => {const parsed=recordCreate.omit({id:true}).parse(value());return props.onSave({... (props.systemRecord?{title:parsed.title,summary:parsed.summary,body:parsed.body}:parsed),change_note:draft.change_note?.trim()||undefined});}}
     >
       {(errors) => (
         <>
@@ -233,7 +233,7 @@ export function TaskFormModal(props: {
       validate={() => {
         const noteErrors=changeNoteErrors(draft.change_note,false);if(noteErrors)return noteErrors;
         const {change_note, ...input}=taskInput(draft);
-        const r = taskCreate.safeParse(input);
+        const r = (draft.kind === "once" ? taskCreate.options[0].omit({ id: true }) : taskCreate.options[1].omit({ id: true })).safeParse(input);
         if (r.success) return null;
         const errs = fieldErrors(r.error.issues);
         // 반복 규칙 하위 오류는 해당 입력 옆에 보인다.

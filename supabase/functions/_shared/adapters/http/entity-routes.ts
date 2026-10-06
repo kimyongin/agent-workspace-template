@@ -22,7 +22,6 @@ export function entityRoutes(d: entity.EntityDeps) {
       idParam(c.req.param("id")),
       i.expected_version,
       i.change_note,
-      i.request_id,
       i.change_memo,
     );
     return c.body(null, 204);
@@ -56,7 +55,6 @@ export function entityRoutes(d: entity.EntityDeps) {
       idParam(c.req.param("id")),
       i.expected_version,
       i.change_note,
-      i.request_id,
     );
     return c.body(null, 204);
   });

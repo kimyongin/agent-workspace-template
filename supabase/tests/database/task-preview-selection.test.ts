@@ -17,30 +17,51 @@ const ed = { uow: new SqlEntityUnitOfWork(sql) },
 dbTest("task preview uses live owner selections without changing tasks or recording preview events", async () => {
   const f = await fixtureOwner(admin), other = await fixtureOwner(admin);
   try {
-    const own = await entity.createEntity(ed, f.actor, entityCreate.parse({ prop1: "현재 대상" }));
-    const foreign = await entity.createEntity(ed, other.actor, entityCreate.parse({ prop1: "타인 대상" }));
-    const deleted = await entity.createEntity(ed, f.actor, entityCreate.parse({ prop1: "삭제 대상" }));
+    const own = await entity.createEntity(
+      ed,
+      f.actor,
+      entityCreate.parse({ id: crypto.randomUUID(), ...{ prop1: "현재 대상" } }),
+    );
+    const foreign = await entity.createEntity(
+      ed,
+      other.actor,
+      entityCreate.parse({ id: crypto.randomUUID(), ...{ prop1: "타인 대상" } }),
+    );
+    const deleted = await entity.createEntity(
+      ed,
+      f.actor,
+      entityCreate.parse({ id: crypto.randomUUID(), ...{ prop1: "삭제 대상" } }),
+    );
     await entity.deleteEntity(ed, f.actor, deleted.id, deleted.version);
     const task = await activity.createTask(
       ad,
       f.actor,
-      taskCreate.parse({ kind: "once", title: "검증 업무", summary: "현재 값" }),
+      taskCreate.parse({ id: crypto.randomUUID(), ...{ kind: "once", title: "검증 업무", summary: "현재 값" } }),
     );
     const before = await activity.getTask(ad, f.actor, task.id);
     const records = await activity.listRecords(ad, f.actor, recordListQuery.parse({ limit: 100 }));
     for (const target of [foreign.id, deleted.id, crypto.randomUUID()]) {
       const create = taskCreate.parse({
-        kind: "once",
-        title: "거부 업무",
-        summary: "대상 검증",
-        entity_ids: [own.id, target],
+        id: crypto.randomUUID(),
+        ...{
+          kind: "once",
+          title: "거부 업무",
+          summary: "대상 검증",
+          entity_ids: [own.id, target],
+        },
       });
       const patch = taskUpdate.parse({
         expected_version: task.version,
         title: "거부 수정",
         entity_ids: [own.id, target],
       });
-      for (const input of [{ action: "create", input: create }, { action: "update", id: task.id, input: patch }]) {
+      for (
+        const input of [{ action: "create", input: (({ id: _id, ...content }) => content)(create) }, {
+          action: "update",
+          id: task.id,
+          input: patch,
+        }]
+      ) {
         const error = await assertRejects(
           () => activity.previewTaskChange(ad, f.actor, taskChangePreview.parse(input)),
           AppError,

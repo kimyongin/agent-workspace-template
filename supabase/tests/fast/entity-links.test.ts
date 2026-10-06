@@ -15,7 +15,6 @@ function fixture() {
     insertTask: (input: object) => {
       const row = {
         ...input,
-        id: crypto.randomUUID(),
         version: 1,
         created_at: now,
         updated_at: now,
@@ -62,6 +61,7 @@ Deno.test("HTTP task can select two entities and MCP independently reads both; b
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
+      id: crypto.randomUUID(),
       kind: "once",
       title: "공동 업무",
       summary: "두 대상",
@@ -81,6 +81,7 @@ Deno.test("HTTP task rejects conflicting legacy target alias on edit without cha
     selected = "00000000-0000-4000-8000-000000000001",
     other = "00000000-0000-4000-8000-000000000002";
   const created = await f.call("create_task", {
+    id: crypto.randomUUID(),
     kind: "once",
     title: "대상 유지",
     summary: "선택한 업무",

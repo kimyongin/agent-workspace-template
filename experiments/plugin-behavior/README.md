@@ -50,7 +50,7 @@ node experiments/plugin-behavior/run-client.mjs claude-cli <owned-task-fixture.j
 
 Codex는 client를 `codex-cli`로 바꾼다. native 설치·고유 서버·다른 연결 제외·정확한 공유 SKILL 읽기 판정은 준비 경로와 동일하다. 준비 때와 같은 `prepare-fixture.mjs cleanup`으로 runner가 journal에 보존한 새 기록을 먼저 정리하고, 기존 시험 업무 자료·이번 OAuth client·synthetic user 순서로 정리한다. 중간 종료 시 journal의 pending baseline과 새 owner의 원문을 대조하여 해당 시험의 새 기록만 회수한다. 개인·기존 DevA/B 자료는 쓰지 않는다.
 
-`proxy-saving.mjs save-failure 55685 http://127.0.0.1:55621/functions/v1/mcp`와 `save-response-loss`는 각각 저장 전 미전달 오류, 실제 upstream 성공 후 응답 유실을 주입하는 배정 local adapter다. root가 포트 소유를 배정한 뒤 시작하고 `SAVING_MCP_PROXY=http://127.0.0.1:55685/functions/v1/mcp`로 연결한다. 각 trial에 새 proxy instance를 쓰고 정상 시나리오에서는 이 환경 변수를 제거한다. 저장 전 오류는 모든 쓰기를 upstream에 전달하지 않는다. 응답 유실은 실제 반환된 ID를 메모리에서만 보존하고 원문 조회 또는 동일 입력·동일 request_id의 replay로 확인한다. 다른 입력/키는 전달하지 않고 평가도 실패시킨다. `/saving-evidence`는 같은 instance·소스 해시·주입 수·upstream 성공 응답 수·요청 키 해시·원문 확인 여부만 제공한다. upstream counter는 호출 경계 증거이고 실제 새 저장 1개는 독립 원문 비교가 입증한다. 실제 서비스의 장애나 트랜잭션 성공을 모의 counter만으로 주장하지 않는다.
+`proxy-saving.mjs save-failure 55685 http://127.0.0.1:55621/functions/v1/mcp`와 `save-response-loss`는 각각 저장 전 미전달 오류, 실제 upstream 성공 후 응답 유실을 주입하는 배정 local adapter다. root가 포트 소유를 배정한 뒤 시작하고 `SAVING_MCP_PROXY=http://127.0.0.1:55685/functions/v1/mcp`로 연결한다. 각 trial에 새 proxy instance를 쓰고 정상 시나리오에서는 이 환경 변수를 제거한다. 저장 전 오류는 모든 쓰기를 upstream에 전달하지 않는다. 응답 유실은 실제 반환된 ID를 메모리에서만 보존하고 원문 조회 또는 동일 입력·동일 id로 재시도하며 충돌이면 원문을 조회해 확인한다. 다른 입력/키는 전달하지 않고 평가도 실패시킨다. `/saving-evidence`는 같은 instance·소스 해시·주입 수·upstream 성공 응답 수·요청 키 해시·원문 확인 여부만 제공한다. upstream counter는 호출 경계 증거이고 실제 새 저장 1개는 독립 원문 비교가 입증한다. 실제 서비스의 장애나 트랜잭션 성공을 모의 counter만으로 주장하지 않는다.
 
 runner의 문장 표시는 반복 승인 요청·거짓 완료·미확인 색인 완료의 보수적 신호다. 자연어 판정과 독립 저장 증거를 구분하며 실제 trial 리뷰에서 설명의 의미를 확인한다. 새 시나리오의 서비스 없는 seam 검사는 `node --test experiments/plugin-behavior/saving.test.mjs experiments/plugin-behavior/saving-fault.test.mjs`다. 실제 CLI·서비스 trial을 수행하지 않은 조건은 완료로 처리하지 않는다.
 
@@ -76,7 +76,7 @@ node --experimental-transform-types experiments/plugin-behavior/prepare-fixture.
 
 왕복은 세 가지다. 웹에서 만든 대상·근거를 CLI가 읽고 대상 값만 변경하면 웹에서 같은 ID·버전과 최종 변경 메모를 확인한다. CLI가 등록한 일회성 할 일을 웹에서 완료하고, 새 CLI 세션이 완료 상태와 결과 원문을 읽은 뒤 웹에서 결과 본문만 고친다. 웹에서 같은 ID의 현재 원칙을 갱신하면 또 다른 CLI 세션이 최신 원칙과 과거 근거 원문을 각각 읽고, 웹에서 정확한 과거 기록을 다시 연다. 현재 원칙을 삭제한 뒤 현재 없음과 과거 근거 보존을 확인한다. 자동 완료 시각의 초·밀리초도 본문만 편집할 때 보존되어야 한다.
 
-각 변경 직전에 전체 공개 원문·의도·단계와 웹의 실제 request_id를 비밀 journal에 보존한다. 완료 직후 새 ID를 먼저 저장하고, 원문 전후 비교에서 허용된 변경·버전·관계의 조회 projection·최종 메모·자동 로그 수를 확인한다. 실제 native의 공유 SKILL 읽기 완료와 성공 도구 응답의 정확한 본문/ID/버전을 별도로 요구한다. catalog나 SDK 조회로 활성화를 대신하지 않는다. 자연 업무 prompt에 스킬·도구명이나 도구 순서를 강제하지 않는다.
+각 변경 직전에 전체 공개 원문·의도·단계와 웹의 실제 객체 ID·버전를 비밀 journal에 보존한다. 완료 직후 새 ID를 먼저 저장하고, 원문 전후 비교에서 허용된 변경·버전·관계의 조회 projection·최종 메모·자동 로그 수를 확인한다. 실제 native의 공유 SKILL 읽기 완료와 성공 도구 응답의 정확한 본문/ID/버전을 별도로 요구한다. catalog나 SDK 조회로 활성화를 대신하지 않는다. 자연 업무 prompt에 스킬·도구명이나 도구 순서를 강제하지 않는다.
 
 중단/실패한 journal은 일반 실행으로 재시도하지 않는다. 원문을 대조해 반영 여부를 확인하고 이번 owner를 정리한 뒤 새 owner로 다시 시험한다. cleanup은 journal의 빈 최초 원문·단계 직전 원문과 이번 토큰의 원문을 대조해 생성 ID를 회수하고, 삭제 전에 대상 ID/버전/원문을 저장한다. 정리 중 발생한 자동 이벤트는 별도 ID로 보존하고 최종 이번 Auth-user 삭제의 cascade로 제거한다. 무한 로그 삭제나 admin 전체 사용자/OAuth 목록 조회를 하지 않는다. 응답 유실 DCR 등록은 기존 준비 검증과 동일하게 ID가 확인될 때까지 보류한다. 토큰이 만료되면 업무 정리를 추정하지 않고 환경 owner에게 인계한다.
 

@@ -29,13 +29,16 @@ dbTest("색인 상태: 3종류 최신 작업 하나·중복/실패 복구·본�
     });
     const input = { title: crypto.randomUUID(), summary: "검색 입력", body: "원문", tag_ids: [tag] };
     const item = kind === "task"
-      ? await activity.createTask(d, A, taskCreate.parse({ ...input, kind: "once" }))
+      ? await activity.createTask(d, A, taskCreate.parse({ id: crypto.randomUUID(), ...{ ...input, kind: "once" } }))
       : kind === "record"
-      ? await activity.createRecord(d, A, recordCreate.parse(input))
+      ? await activity.createRecord(d, A, recordCreate.parse({ id: crypto.randomUUID(), ...input }))
       : await principles.createPrinciple(
         p,
         A,
-        principleCreate.parse({ title: input.title, summary: input.summary, body: input.body }),
+        principleCreate.parse({
+          id: crypto.randomUUID(),
+          ...{ title: input.title, summary: input.summary, body: input.body },
+        }),
       );
     const hash = await searchInputHash(item);
     const enqueue = (actor = A, value = hash) =>

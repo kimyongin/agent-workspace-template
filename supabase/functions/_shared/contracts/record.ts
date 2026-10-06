@@ -3,21 +3,11 @@ import { entityContext, entitySelection } from "./entity-links.ts";
 import { z } from "zod";
 import { changeMetadata, mutationMeta } from "./change.ts";
 import { tagFilterIds, tagIds } from "./tag.ts";
-import {
-  body,
-  expectedVersion,
-  id,
-  isoDate,
-  isoDateTime,
-  page,
-  pageInput,
-  requestId,
-  summary,
-  title,
-} from "./common.ts";
+import { body, expectedVersion, id, isoDate, isoDateTime, page, pageInput, summary, title } from "./common.ts";
 
 /** 직접 작성과 반복 할 일의 회차 기록이 같은 입력을 쓴다. */
 export const recordCreate = z.strictObject({
+  id,
   ...mutationMeta,
   ...entitySelection,
   tag_ids: tagIds.optional(),
@@ -25,7 +15,6 @@ export const recordCreate = z.strictObject({
   summary,
   body: body.default(""),
   occurred_at: isoDateTime.optional(),
-  request_id: requestId.optional(),
 });
 export type RecordCreate = z.infer<typeof recordCreate>;
 

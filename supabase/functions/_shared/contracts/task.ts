@@ -3,18 +3,7 @@ import { entityContext, entitySelection } from "./entity-links.ts";
 // HTTP 입력 검증·MCP inputSchema·웹 폼이 이 정의를 함께 쓴다. zod만 가져온다.
 import { z } from "zod";
 import { businessMeta, mutationMeta } from "./change.ts";
-import {
-  body,
-  expectedVersion,
-  id,
-  isoDate,
-  isoDateTime,
-  page,
-  pageInput,
-  requestId,
-  summary,
-  title,
-} from "./common.ts";
+import { body, expectedVersion, id, isoDate, isoDateTime, page, pageInput, summary, title } from "./common.ts";
 import { recordResult } from "./record.ts";
 import { tagFilterIds, tagIds } from "./tag.ts";
 
@@ -58,6 +47,7 @@ export type Recurrence = z.infer<typeof recurrence>;
 
 export const taskCreate = z.discriminatedUnion("kind", [
   z.strictObject({
+    id,
     kind: z.literal("once"),
     ...businessMeta,
     ...entitySelection,
@@ -66,9 +56,9 @@ export const taskCreate = z.discriminatedUnion("kind", [
     summary,
     body: body.default(""),
     due_on: isoDate.optional(),
-    request_id: requestId.optional(),
   }),
   z.strictObject({
+    id,
     kind: z.literal("recurring"),
     ...businessMeta,
     ...entitySelection,
@@ -78,7 +68,6 @@ export const taskCreate = z.discriminatedUnion("kind", [
     body: body.default(""),
     recurrence,
     timezone,
-    request_id: requestId.optional(),
   }),
 ]);
 export type TaskCreate = z.infer<typeof taskCreate>;
@@ -98,7 +87,7 @@ export const taskUpdate = z
     timezone: timezone.optional(),
   })
   .refine(
-    (v) => Object.keys(v).some((k) => !["expected_version", "change_note", "change_memo", "request_id"].includes(k)),
+    (v) => Object.keys(v).some((k) => !["expected_version", "change_note", "change_memo"].includes(k)),
     {
       message: "바꿀 필드가 없습니다",
     },
@@ -116,7 +105,6 @@ export const taskComplete = z.strictObject({
   summary,
   body: body.default(""),
   occurred_at: isoDateTime.optional(),
-  request_id: requestId.optional(),
 });
 export type TaskComplete = z.infer<typeof taskComplete>;
 

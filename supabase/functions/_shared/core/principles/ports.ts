@@ -1,14 +1,14 @@
 import type { PrincipleCreate, PrincipleResult, PrincipleUpdate } from "../../contracts/principle.ts";
 import type { Actor } from "../shared/actor.ts";
-import type { IndexJob, RequestStore } from "../shared/store.ts";
+import type { IndexJob } from "../shared/store.ts";
 import type { ChangeStore } from "../shared/changes.ts";
-export interface PrincipleStore extends RequestStore, ChangeStore {
+export interface PrincipleStore extends ChangeStore {
   /** Mutation reads serialize the owner even when current is absent, until the transaction ends.
-   * Acquire any request lock first; insert/update/delete follow this locked read in the same transaction.
-   * Writes allocate revisions, including deletion; reads and core no-ops allocate none.
+   * Insert/update/delete follow this locked read in the same transaction.
+   * Each document starts at version 1; actual updates increment only that document.
    */
   current(options?: { forUpdate?: boolean }): Promise<PrincipleResult | null>;
-  insert(input: Omit<PrincipleCreate, "request_id">): Promise<PrincipleResult>;
+  insert(input: PrincipleCreate): Promise<PrincipleResult>;
   get(id: string): Promise<PrincipleResult | null>;
   update(
     id: string,

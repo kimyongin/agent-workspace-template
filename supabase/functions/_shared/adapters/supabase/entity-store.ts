@@ -30,17 +30,19 @@ export class SqlEntityStore extends SqlActorStore implements EntityStore {
     } from app.entities where id=${id}`;
     return r ? result(r) : null;
   }
-  async insert(i: Omit<EntityCreate, "request_id">) {
+  async insert(i: EntityCreate) {
     const entity = result(
-      (await this.tx`insert into app.entities(owner_id,prop1,prop2,prop3,prop4)
-      values (${this.actor.userId},${i.prop1},${i.prop2},${i.prop3},${i.prop4}) returning ${this.tx.unsafe(columns)}`)[
+      (await this.tx`insert into app.entities(id,owner_id,prop1,prop2,prop3,prop4)
+      values (${i.id},${this.actor.userId},${i.prop1},${i.prop2},${i.prop3},${i.prop4}) returning ${
+        this.tx.unsafe(columns)
+      }`)[
         0
       ],
     );
     await setTagLinks(this.tx, this.actor, "entity", entity.id, i.tag_ids ?? []);
     return (await this.get(entity.id))!;
   }
-  async update(id: string, changes: Omit<EntityUpdate, "expected_version" | "change_note" | "request_id">) {
+  async update(id: string, changes: Omit<EntityUpdate, "expected_version" | "change_note">) {
     if (changes.tag_ids !== undefined) await setTagLinks(this.tx, this.actor, "entity", id, changes.tag_ids);
     const values = Object.fromEntries(
       Object.entries(changes).filter(([k, v]) => ["prop1", "prop2", "prop3", "prop4"].includes(k) && v !== undefined),

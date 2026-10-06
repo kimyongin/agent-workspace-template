@@ -14,7 +14,7 @@ for(const kind of ["entity","task","record","principle"] as const)test(`삭제�
     const historical=events.items.find((r:{change?:{target_kind:string;target_id:string;action:string}})=>r.change?.target_kind===kind&&r.change.target_id===target!.id&&r.change.action!=="delete");
     expect(historical).toBeTruthy();expect(historical.change.path).toBeTruthy();
     const metadata=structuredClone(historical.change);
-    await mcp.call(`delete_${kind}`,{id:target!.id,expected_version:target!.version,change_note:"삭제 문맥 검증",request_id:crypto.randomUUID()});deleted=true;
+    await mcp.call(`delete_${kind}`,{id:target!.id,expected_version:target!.version,change_note:"삭제 문맥 검증"});deleted=true;
     await page.goto(`/records/${historical.id}?edit=1`);
     const detail=page.locator("dialog.modal:not(.modal-confirm)[open]");
     await expect(detail).toContainText("삭제된 대상 또는 접근할 수 없는 대상");
@@ -22,7 +22,7 @@ for(const kind of ["entity","task","record","principle"] as const)test(`삭제�
     await expect(detail).toContainText(title);await expect(detail).toContainText("에이전트");
     expect((await mcp.call("get_record",{id:historical.id})).change).toEqual(metadata);
   }finally{
-    try{if(target&&!deleted)await mcp.call(`delete_${kind}`,{id:target.id,expected_version:target.version,request_id:crypto.randomUUID()});}
+    try{if(target&&!deleted)await mcp.call(`delete_${kind}`,{id:target.id,expected_version:target.version});}
     finally{await mcp.close();}
   }
 });

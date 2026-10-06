@@ -11,7 +11,7 @@ import { api, ApiError, query } from "../../lib/api.ts";
 import { formatDateTime } from "../../lib/format.ts";
 import { EntityForm } from "./forms.tsx";
 import { emptyRecord, emptyTask, RecordFormModal, TaskFormModal, taskInput } from "../activity/forms.tsx";
-import { useRequestId } from "../../lib/useRequestId.ts";
+import { useCreationId } from "../../lib/useCreationId.ts";
 import "./entity.css";
 export function EntityDetailPage() {
   const { id } = useParams(),
@@ -19,7 +19,7 @@ export function EntityDetailPage() {
     navigate = useNavigate();
   const afterClose=useDeferredNavigation();
   const conflicted = useRef(false);
-  const request = useRequestId();
+  const request = useCreationId();
   const location=useLocation();
   const [creating, setCreating] = useState<"task" | "record" | null>(null);
   const returnCreateFocus=useRef<"task"|"record"|null>(null),previousCreate=useRef<"task"|"record"|null>(null);
@@ -113,12 +113,12 @@ export function EntityDetailPage() {
       {entity&&<>
           {creating === "task" && <TaskFormModal key={location.key} open mode="create" initial={{ ...emptyTask(), entity_ids: [entity.id] }}
             onClose={closeCreate} onRouteDiscard={()=>setCreating(null)} onSave={async draft => {
-              await api("POST", "/tasks", { ...taskInput(draft), request_id: request.current });
+              await api("POST", "/tasks", { ...taskInput(draft), id: request.current });
               closeCreate(); setSaved("할 일을 추가했습니다."); setRetry(n => n + 1);
             }} />}
           {creating === "record" && <RecordFormModal key={location.key} open title="기록 작성" submitLabel="저장" initial={{ ...emptyRecord(), entity_ids: [entity.id] }}
             onClose={closeCreate} onRouteDiscard={()=>setCreating(null)} onSave={async value => {
-              await api("POST", "/records", { ...value, request_id: request.current });
+              await api("POST", "/records", { ...value, id: request.current });
               closeCreate(); setSaved("기록을 저장했습니다."); setRetry(n => n + 1);
             }} />}
           {editing && !creating && editReady && (
@@ -132,7 +132,6 @@ export function EntityDetailPage() {
                   const savedEntity=await api<EntityDetail>("PATCH", `/entities/${id}`, {
                     ...value,
                     expected_version: entity.version,
-                    request_id:request.current,
                   });
                   setEntity(current=>current?{...current,...savedEntity}:current);
                   setSaved("저장했습니다.");request.renew(); closeEdit();
@@ -159,7 +158,7 @@ export function EntityDetailPage() {
                   await api(
                     "POST",
                     `/entities/${id}/delete`,
-                    {expected_version:entity.version,change_note:reason||undefined,request_id:request.current,change_memo},
+                    {expected_version:entity.version,change_note:reason||undefined,change_memo},
                   );
                   setEditing(false);
                   afterClose(back,true);

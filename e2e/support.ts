@@ -95,6 +95,7 @@ export async function mcpClient(token: string) {
   );
   return {
     async call(name: string, args: Record<string, unknown>) {
+      if (["create_entity", "create_task", "create_record", "create_principle", "create_tag", "record_occurrence"].includes(name) && !("id" in args)) args = { id: crypto.randomUUID(), ...args };
       const res = await client.callTool({ name, arguments: args });
       if (res.isError) throw new Error(`${name} 실패: ${JSON.stringify(res.structuredContent)}`);
       return res.structuredContent as Record<string, any>;

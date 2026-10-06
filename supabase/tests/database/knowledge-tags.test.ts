@@ -21,12 +21,28 @@ dbTest(
     const f = await fixtureOwner(admin), b = await fixtureOwner(admin);
     try {
       const A = f.actor,
-        entityTag = await tags.createTag(td, A, tagCreate.parse({ scope: "entity", name: "분류" })),
-        activityTag = await tags.createTag(td, A, tagCreate.parse({ scope: "activity", name: "분류" }));
-      await assertRejects(() => tags.createTag(td, A, tagCreate.parse({ scope: "entity", name: "분류" })));
-      const foreign = await tags.createTag(td, b.actor, tagCreate.parse({ scope: "entity", name: "외부" }));
+        entityTag = await tags.createTag(
+          td,
+          A,
+          tagCreate.parse({ id: crypto.randomUUID(), ...{ scope: "entity", name: "분류" } }),
+        ),
+        activityTag = await tags.createTag(
+          td,
+          A,
+          tagCreate.parse({ id: crypto.randomUUID(), ...{ scope: "activity", name: "분류" } }),
+        );
+      await assertRejects(() =>
+        tags.createTag(td, A, tagCreate.parse({ id: crypto.randomUUID(), ...{ scope: "entity", name: "분류" } }))
+      );
+      const foreign = await tags.createTag(
+        td,
+        b.actor,
+        tagCreate.parse({ id: crypto.randomUUID(), ...{ scope: "entity", name: "외부" } }),
+      );
       for (const tag of [activityTag.id, foreign.id, crypto.randomUUID()]) {
-        await assertRejects(() => e.createEntity(ed, A, entityCreate.parse({ prop1: "거부", tag_ids: [tag] })));
+        await assertRejects(() =>
+          e.createEntity(ed, A, entityCreate.parse({ id: crypto.randomUUID(), ...{ prop1: "거부", tag_ids: [tag] } }))
+        );
       }
       for (
         const create of [
@@ -34,12 +50,27 @@ dbTest(
             a.createTask(
               ad,
               A,
-              taskCreate.parse({ kind: "once", title: "거부", summary: "요약", tag_ids: [entityTag.id] }),
+              taskCreate.parse({
+                id: crypto.randomUUID(),
+                ...{ kind: "once", title: "거부", summary: "요약", tag_ids: [entityTag.id] },
+              }),
             ),
-          () => a.createRecord(ad, A, recordCreate.parse({ title: "거부", summary: "요약", tag_ids: [entityTag.id] })),
+          () =>
+            a.createRecord(
+              ad,
+              A,
+              recordCreate.parse({
+                id: crypto.randomUUID(),
+                ...{ title: "거부", summary: "요약", tag_ids: [entityTag.id] },
+              }),
+            ),
         ]
       ) await assertRejects(create);
-      const entity = await e.createEntity(ed, A, entityCreate.parse({ prop1: "대상", tag_ids: [entityTag.id] }));
+      const entity = await e.createEntity(
+        ed,
+        A,
+        entityCreate.parse({ id: crypto.randomUUID(), ...{ prop1: "대상", tag_ids: [entityTag.id] } }),
+      );
       assertMatch(
         await outcome(
           asUser(
@@ -54,7 +85,10 @@ dbTest(
       const record = await a.createRecord(
         ad,
         A,
-        recordCreate.parse({ title: "활동", summary: "요약", body: "보존", tag_ids: [activityTag.id] }),
+        recordCreate.parse({
+          id: crypto.randomUUID(),
+          ...{ title: "활동", summary: "요약", body: "보존", tag_ids: [activityTag.id] },
+        }),
       );
       assertEquals(
         (await a.listRecords(ad, A, recordListQuery.parse({ tag_id: activityTag.id }))).items.map((r) => r.id),
@@ -72,7 +106,7 @@ dbTest(
         entity.id,
         entityUpdate.parse({ expected_version: entity.version, change_note: "속성 갱신", prop2: 20 }),
       );
-      await tags.createTag(td, A, tagCreate.parse({ scope: "entity", name: "둘째" }));
+      await tags.createTag(td, A, tagCreate.parse({ id: crypto.randomUUID(), ...{ scope: "entity", name: "둘째" } }));
       const page = await tags.listTags(td, A, tagListQuery.parse({ scope: "entity", limit: 1 }));
       await assertRejects(() =>
         tags.listTags(td, A, tagListQuery.parse({ scope: "activity", cursor: page.next_cursor! }))

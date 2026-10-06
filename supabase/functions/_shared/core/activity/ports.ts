@@ -28,6 +28,7 @@ export interface ActivityRecord {
 }
 
 export interface NewRecord {
+  id?: string;
   record_kind?: "user" | "result";
   change_note?: string;
   entity_ids?: string[];
@@ -82,17 +83,9 @@ export interface RecordFilter {
 
 export type { IndexJob } from "../shared/store.ts";
 
-export interface StoredRequest {
-  request_hash: string;
-  response: unknown;
-}
-
 /** 한 트랜잭션 안의 저장소. 모든 조회·쓰기·큐 등록이 같은 연결을 쓴다. */
 export interface ActivityStore extends ChangeStore {
   /** 같은 요청 키의 동시 처리를 직렬화한다(트랜잭션 끝까지). */
-  lockRequest(operation: string, requestId: string): Promise<void>;
-  findRequest(operation: string, requestId: string): Promise<StoredRequest | null>;
-  saveRequest(operation: string, requestId: string, requestHash: string, response: unknown): Promise<void>;
 
   getTask(id: string, opts?: { forUpdate?: boolean }): Promise<Task | null>;
   /** 새 선택은 현재 소유자의 살아 있는 엔터티여야 한다. 저장하지 않는다. */

@@ -1,12 +1,6 @@
 import { z } from "zod";
 import { id } from "../../contracts/common.ts";
-import {
-  principleCreate,
-  principleDelete,
-  principlePreview,
-  principleSave,
-  principleUpdate,
-} from "../../contracts/principle.ts";
+import { principleCreate, principleDelete, principlePreview, principleUpdate } from "../../contracts/principle.ts";
 import * as p from "../../core/principles/application.ts";
 import { parse } from "../errors.ts";
 import { notFound } from "../../core/shared/errors.ts";
@@ -37,14 +31,6 @@ export function principleTools(d: p.PrincipleDeps): ToolDef[] {
       handler: (_, a) => p.currentPrinciple(d, a),
     },
     {
-      name: "save_current_principle",
-      description:
-        "현재 원칙의 같은 문서를 갱신하고 최종 change_memo를 통합 기록에 함께 저장. 현재가 있으면 expected_version 필수. request_id 재시도.",
-      input: principleSave,
-      readOnly: false,
-      handler: (i, a) => p.saveCurrentPrinciple(d, a, parse(principleSave, i)),
-    },
-    {
       name: "create_principle",
       description: "최초 현재 원칙 등록. 현재 원칙이 있으면 conflict.",
       input: principleCreate,
@@ -71,7 +57,7 @@ export function principleTools(d: p.PrincipleDeps): ToolDef[] {
       handler: async (i, a) => {
         const v = parse(removeInput, i);
         const target = idParam(v.id);
-        await p.deletePrinciple(d, a, target, v.expected_version, v.change_note, v.request_id, v.change_memo);
+        await p.deletePrinciple(d, a, target, v.expected_version, v.change_note, v.change_memo);
         return { deleted: target };
       },
     },

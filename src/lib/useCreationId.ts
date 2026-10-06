@@ -1,7 +1,7 @@
 import { useRef } from "react";
 
-/** 폼의 재시도 키. 성공 응답 전까지 유지하고 성공하면 갱신한다. */
-export function useRequestId() {
+/** 새 데이터의 UUID. 생성 재시도에는 같은 id를 사용하고 다음 생성에는 새 id를 쓴다. */
+export function useCreationId() {
   const ref = useRef<string>(crypto.randomUUID());
   return {
     get current() { return ref.current; },

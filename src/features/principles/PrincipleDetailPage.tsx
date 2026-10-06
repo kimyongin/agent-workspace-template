@@ -6,7 +6,7 @@ import { DeleteDialog } from "../../components/DeleteDialog.tsx";
 import type { ChangeMemo } from "@contracts/change.ts";
 import { MarkdownContent } from "../../components/MarkdownContent.tsx";
 import { api, ApiError } from "../../lib/api.ts";
-import { useRequestId } from "../../lib/useRequestId.ts";
+import { useCreationId } from "../../lib/useCreationId.ts";
 import { useDeferredNavigation } from "../../lib/useDeferredNavigation.ts";
 import { formatDateTime } from "../../lib/format.ts";
 import { useSearchReturn } from "../search/return.ts";
@@ -15,7 +15,7 @@ import { PrincipleFormModal } from "./forms.tsx";
 import type { WorkspacePrinciple } from "./model.ts";
 
 export function PrincipleDetailPage() {
-  const {id=""}=useParams(), [params]=useSearchParams(), navigate=useNavigate(), afterClose=useDeferredNavigation(), request=useRequestId();
+  const {id=""}=useParams(), [params]=useSearchParams(), navigate=useNavigate(), afterClose=useDeferredNavigation(), request=useCreationId();
   const origin=useSearchReturn(safeListReturn(params.get("list"),"principles","/principles"),"← 원칙 목록"), back=origin.path;
   const confirmed=useRef<WorkspacePrinciple|null>(null), conflicted=useRef(false);
   const [message,setMessage]=useState<string|null>(null);
@@ -40,13 +40,13 @@ export function PrincipleDetailPage() {
           </div>}
         onSave={async draft=>{
         let saved:WorkspacePrinciple;
-        try {saved=await api<WorkspacePrinciple>("POST","/principles/current",{...draft,expected_version:item.version,request_id:request.current});}catch(e){if(e instanceof ApiError&&e.code==="conflict")conflicted.current=true;throw e;}
+        try {saved=await api<WorkspacePrinciple>("PATCH",`/principles/${item.id}`,{...draft,expected_version:item.version});}catch(e){if(e instanceof ApiError&&e.code==="conflict")conflicted.current=true;throw e;}
         confirmed.current=saved;setMessage("저장했습니다.");request.renew();setEditing(false);setItem(saved);const p=new URLSearchParams(params);p.delete("edit");p.delete("edit_from");afterClose(params.get("edit_from")==="view"?`/principles/${saved.id}?${p}`:back,true);
       }}/>}
       {deleting&&item.is_current&&<DeleteDialog title="원칙을 삭제할까요?" busy={busy}
         message={<p>삭제하면 현재 원칙이 없는 상태가 됩니다. 과거 원칙을 자동 승격하지 않습니다. 기록에 보존한 근거는 남습니다.</p>}
         prepare={async reason=> (await api<{memo:ChangeMemo}>("POST","/principles/preview",{action:"delete",id:item.id,input:{expected_version:item.version,change_note:reason||undefined}})).memo}
-        onCancel={()=>setDeleting(false)} onConfirm={async(reason,change_memo)=>{setBusy(true);try{await api("POST",`/principles/${item.id}/delete`,{expected_version:item.version,change_note:reason||undefined,request_id:request.current,change_memo});setEditing(false);afterClose(back,true);}catch(e){setError(e instanceof ApiError?e.message:"삭제하지 못했습니다.");throw e;}finally{setBusy(false);}}}/>}
+        onCancel={()=>setDeleting(false)} onConfirm={async(reason,change_memo)=>{setBusy(true);try{await api("POST",`/principles/${item.id}/delete`,{expected_version:item.version,change_note:reason||undefined,change_memo});setEditing(false);afterClose(back,true);}catch(e){setError(e instanceof ApiError?e.message:"삭제하지 못했습니다.");throw e;}finally{setBusy(false);}}}/>}
     </section>}
   </DetailSurface>;
 }

@@ -40,11 +40,17 @@ export async function readJournal(path, endpoint, clientName) {
 export async function createOwned(journal, save, call, kind, input) {
   if (journal[kind]) { await save(); return journal[kind]; }
   if (!journal.pendingCreate) {
-    journal.pendingCreate = { kind, input: { ...input, request_id: randomUUID() } };
+    journal.pendingCreate = { kind, input: { ...input, id: randomUUID() } };
   }
   if (journal.pendingCreate.kind !== kind) throw new Error('Unresolved fixture creation step');
   await save(); // Durable identity/input before every attempt, including a retry after disk failure.
-  const object = await call(`create_${kind}`, journal.pendingCreate.input);
+  let object;
+  try { object = await call(`create_${kind}`, journal.pendingCreate.input); }
+  catch (error) {
+    if (error?.code !== "conflict" && !/conflict/.test(error?.message ?? "")) throw error;
+    object = (await listAll(call, kind)).find(row => row.id === journal.pendingCreate.input.id);
+    if (!object || !ownedName(journal, kind, object)) throw error;
+  }
   if (!object?.id) throw new Error('Fixture create returned no ID');
   journal[kind] = object;
   delete journal.pendingCreate;
@@ -92,7 +98,7 @@ export async function setupOwned(journal, save, call, listTools) {
 
 export async function cleanupOwned(journal, save, call, deleteOAuth) {
   if (journal.state === 'cleaned') return;
-  // Lost create responses are reconciled with the exact persisted request_id.
+  // Retry with the persisted object UUID; a conflict is reconciled by reading the owned fixture.
   // This may create the intended fixture if the failed request never committed.
   if (journal.pendingCreate) {
     const { kind, input } = journal.pendingCreate;

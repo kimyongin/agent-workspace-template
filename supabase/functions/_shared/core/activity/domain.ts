@@ -33,6 +33,7 @@ export interface Task {
 
 export type NewTask = Pick<
   Task,
+  | "id"
   | "kind"
   | "title"
   | "summary"
@@ -48,6 +49,7 @@ export type NewTask = Pick<
 
 export function newTask(input: TaskCreate): NewTask {
   const common = {
+    id: input.id,
     ...entityChanges({ entity_ids: selectedEntities(input) ?? [] }),
     title: input.title,
     summary: input.summary,
@@ -84,7 +86,7 @@ export type TaskChanges = Partial<
 /** 내용 필드만 바꾼다. 완료된 할 일도 수정할 수 있다. 종류에 맞지 않는 필드는 거부한다. */
 export function updateTask(task: Task, patch: TaskUpdate): TaskChanges {
   assertVersion(task, patch.expected_version);
-  const { expected_version: _v, change_note: _note, change_memo: _memo, request_id: _request, ...changes } = patch;
+  const { expected_version: _v, change_note: _note, change_memo: _memo, ...changes } = patch;
   if (task.kind === "once" && (changes.recurrence !== undefined || changes.timezone !== undefined)) {
     throw invalidInput("일회성 할 일에는 반복 규칙과 시간대가 없습니다", [
       {

@@ -10,24 +10,14 @@ import type { ChangeInput } from "../../functions/_shared/core/shared/changes.ts
 import { AppError } from "../../functions/_shared/core/shared/errors.ts";
 const actor = { userId: crypto.randomUUID() }, now = "2026-10-04T01:00:00.000Z";
 function fixture() {
-  let revision = 0;
-  const rows = new Map<string, PrincipleResult>(),
-    events: ChangeInput[] = [],
-    requests = new Map<string, { request_hash: string; response: unknown }>();
-  const nextVersion = () => revision = Math.max(revision, ...[...rows.values()].map((r) => r.version)) + 1;
+  const rows = new Map<string, PrincipleResult>(), events: ChangeInput[] = [];
   const s: PrincipleStore = {
-    lockRequest: () => Promise.resolve(),
-    findRequest: (op, id) => Promise.resolve(requests.get(op + id) ?? null),
-    saveRequest: (op, id, request_hash, response) => {
-      requests.set(op + id, { request_hash, response });
-      return Promise.resolve();
-    },
     current: () => Promise.resolve([...rows.values()].find((r) => r.is_current) ?? null),
     insert: (i) => {
       const r: PrincipleResult = {
         ...i,
-        id: crypto.randomUUID(),
-        version: nextVersion(),
+        id: i.id,
+        version: 1,
         created_at: now,
         updated_at: now,
         saved_at: now,
@@ -41,13 +31,12 @@ function fixture() {
     },
     get: (id) => Promise.resolve(rows.get(id) ?? null),
     update: (id, i) => {
-      const r = { ...rows.get(id)!, ...i, version: nextVersion() };
+      const r = { ...rows.get(id)!, ...i, version: rows.get(id)!.version + 1 };
       rows.set(id, r);
       return Promise.resolve(r);
     },
     delete: (id) => {
       rows.delete(id);
-      nextVersion();
       return Promise.resolve();
     },
     enqueueIndex: () => Promise.resolve(),
@@ -68,7 +57,11 @@ function fixture() {
     return c.json(r.body, r.status as 400);
   });
   const tools = principleTools(d),
-    call = (name: string, i: Record<string, unknown>) => tools.find((t) => t.name === name)!.handler(i, actor);
+    call = (name: string, i: Record<string, unknown>) =>
+      tools.find((t) => t.name === name)!.handler(
+        name === "create_principle" ? { id: crypto.randomUUID(), ...i } : i,
+        actor,
+      );
   return {
     d,
     rows,
@@ -79,7 +72,13 @@ function fixture() {
       app.request(path, {
         method,
         headers: { "content-type": "application/json" },
-        body: input ? JSON.stringify(input) : undefined,
+        body: input
+          ? JSON.stringify(
+            method === "POST" && path === "/principles"
+              ? { id: crypto.randomUUID(), ...(input as Record<string, unknown>) }
+              : input,
+          )
+          : undefined,
       }),
   };
 }
@@ -120,14 +119,15 @@ Deno.test("principle preview is read-only and agrees across HTTP and MCP", async
 });
 Deno.test("HTTP current principle edited through MCP retains its document identity", async () => {
   const f = fixture();
-  const web = await f.http("POST", "/principles/current", {
+  const web = await f.http("POST", "/principles", {
     title: "현재 기준",
     summary: "초기 요약",
     body: "초기 본문",
   });
   assertEquals(web.status, 201);
   const first = await web.json();
-  const saved = await f.call("save_current_principle", {
+  const saved = await f.call("update_principle", {
+    id: first.id,
     title: "현재 기준",
     summary: "새 요약",
     body: "새 본문",
@@ -142,7 +142,8 @@ Deno.test("HTTP current principle edited through MCP retains its document identi
 Deno.test("current principle deletion leaves none and stale requests cannot overwrite its replacement", async () => {
   const f = fixture(),
     first = await f.call("create_principle", { title: "첫 기준", summary: "요약" }) as PrincipleResult;
-  const next = await f.call("save_current_principle", {
+  const next = await f.call("update_principle", {
+    id: first.id,
     title: "수정 기준",
     summary: "요약",
     expected_version: first.version,
@@ -152,25 +153,28 @@ Deno.test("current principle deletion leaves none and stale requests cannot over
   await f.call("delete_principle", { id: next.id, expected_version: next.version });
   assertEquals(await f.call("get_current_principle", {}), { current: null });
   const replacement = await f.call("create_principle", { title: "다시 등록", summary: "새 기준" }) as PrincipleResult;
-  assertEquals(replacement.version, 4);
-  const stale = await f.http("POST", "/principles/current", {
+  assertEquals(replacement.version, 1);
+  const stale = await f.http("PATCH", `/principles/${next.id}`, {
     title: "과거 요청",
     summary: "요약",
     expected_version: next.version,
   });
-  assertEquals(stale.status, 409);
+  assertEquals(stale.status, 404);
   assertEquals((await f.http("GET", `/principles/${next.id}`)).status, 404);
 });
 Deno.test("current principle HTTP/MCP input/result parity and removed activation rejected", async () => {
   const f = fixture();
-  const r = await f.http("POST", "/principles/current", { title: "기준", summary: "요약" });
+  const r = await f.http("POST", "/principles", { title: "기준", summary: "요약" });
   assertEquals(r.status, 201);
   const current = await r.json();
   assertEquals(await f.call("get_current_principle", {}), { current });
   const invalid = { title: "새", summary: "요약", expected_version: current.version, owner_id: crypto.randomUUID() };
-  const bad = await f.http("POST", "/principles/current", invalid);
+  const bad = await f.http("PATCH", `/principles/${current.id}`, invalid);
   assertEquals(bad.status, 400);
-  const error = await assertRejects(async () => await f.call("save_current_principle", invalid), AppError);
+  const error = await assertRejects(
+    async () => await f.call("update_principle", { id: current.id, ...invalid }),
+    AppError,
+  );
   assertEquals((await bad.json()).code, error.code);
   assertEquals((await f.http("POST", `/principles/${current.id}/activate`, { expected_version: 1 })).status, 404);
   const note = {
@@ -178,22 +182,22 @@ Deno.test("current principle HTTP/MCP input/result parity and removed activation
     summary: "요약",
     expected_version: 1,
     change_note: "이유",
-    request_id: crypto.randomUUID(),
   };
-  const saved = await f.http("POST", "/principles/current", note);
+  const saved = await f.http("PATCH", `/principles/${current.id}`, note);
   const next = await saved.json();
-  assertEquals(await f.call("save_current_principle", note), next);
+  await assertRejects(() => f.call("update_principle", { id: current.id, ...note }), AppError);
+  assertEquals((await f.call("get_current_principle", {}) as { current: PrincipleResult }).current, next);
   assertEquals(f.events.length, 2);
 });
 
 Deno.test("principle patch retains omitted content and no-op/retry/conflict leave the next revision unchanged", async () => {
   const f = fixture();
-  const input = { title: "기준", summary: "원래 요약", body: "원래 본문", request_id: crypto.randomUUID() };
+  const input = { title: "기준", summary: "원래 요약", body: "원래 본문" };
   const first = await f.call("create_principle", input) as PrincipleResult;
-  assertEquals(await f.call("create_principle", input), first);
+  await assertRejects(() => f.call("create_principle", input), AppError);
   const exists = await assertRejects(() => f.call("create_principle", { title: "새 기준", summary: "요약" }), AppError);
   assertEquals(exists.code, "conflict");
-  const patch = { id: first.id, title: "변경 기준", expected_version: first.version, request_id: crypto.randomUUID() };
+  const patch = { id: first.id, title: "변경 기준", expected_version: first.version };
   const next = await f.call("update_principle", patch) as PrincipleResult;
   assertEquals([next.id, next.title, next.summary, next.body, next.version], [
     first.id,
@@ -202,7 +206,7 @@ Deno.test("principle patch retains omitted content and no-op/retry/conflict leav
     "원래 본문",
     2,
   ]);
-  assertEquals(await f.call("update_principle", patch), next);
+  await assertRejects(() => f.call("update_principle", patch), AppError);
   const noop = { id: next.id, title: next.title, expected_version: next.version, change_note: "메모만 변경" };
   assertEquals(await f.call("update_principle", noop), next);
   const stale = await f.http("PATCH", `/principles/${next.id}`, { title: next.title, expected_version: first.version });

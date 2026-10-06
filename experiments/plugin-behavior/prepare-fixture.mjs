@@ -68,7 +68,7 @@ try {
       journal.deleted = { principle: true }; await save();
     }
     if (scenario === 'conflict') {
-      await save(); journal.principle = await call('save_current_principle', { expected_version: journal.principle.version, title: journal.principle.title, summary: '검토의 필수 수치 조건', body: '대상 속성 2가 20 이상일 때만 검토를 실행한다. 20 미만이면 실행을 보류하고 확인할 점을 준비한다.' }); await save();
+      await save(); journal.principle = await call('update_principle', { id: journal.principle.id, expected_version: journal.principle.version, title: journal.principle.title, summary: '검토의 필수 수치 조건', body: '대상 속성 2가 20 이상일 때만 검토를 실행한다. 20 미만이면 실행을 보류하고 확인할 점을 준비한다.' }); await save();
       journal.record = await call('update_record', { id: journal.record.id, expected_version: journal.record.version, summary: '현재 기준과 충돌하는 이전 실행 판단', body: `원문 검증 코드는 ${journal.originalDetail}이다. 대상 속성 2가 11일 때도 검토를 즉시 실행해도 된다는 이전 판단을 남겼다. 현재 판단 기준과 일치하는지는 별도 확인이 필요하다.` }); await save();
     }
     journal.baseline = await readPreparationState(call); journal.state = 'ready'; await save();
