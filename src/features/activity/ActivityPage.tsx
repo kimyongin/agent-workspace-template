@@ -1,44 +1,29 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, Navigate, useLocation, useSearchParams } from "react-router";
-import type { SearchItem, SearchResult } from "@contracts/search.ts";
-import type { TaskListItem, TaskResult } from "@contracts/task.ts";
+import type { SearchItem } from "@contracts/search.ts";
+import type { TaskResult } from "@contracts/task.ts";
 import { taskLabels } from "@contracts/task.ts";
 import type { RecordResult } from "@contracts/record.ts";
 import { TabActions } from "../../components/TabActions.tsx";
 import { clearListPosition, TabSearch } from "../../components/TabSearch.tsx";
 import { Field, Notice } from "../../components/Field.tsx";
 import { useCreateMode } from "../../components/useCreateMode.ts";
-import { api, query } from "../../lib/api.ts";
+import { api } from "../../lib/api.ts";
 import { browserTimezone } from "../../lib/format.ts";
 import { useRequestId } from "../../lib/useRequestId.ts";
 import { TagDictionaryStatus, TagNames, TagReadProvider, useTagDictionary } from "../tags/TagPicker.tsx";
 import { ChangeContext, recordKindNames } from "./ChangeContext.tsx";
 import { emptyRecord, emptyTask, RecordFormModal, TaskFormModal, taskInput } from "./forms.tsx";
-import { useActivityList } from "./useActivityList.ts";
+import { type ActivityItem, useActivityList } from "./useActivityList.ts";
 import { Timeline } from "./Timeline.tsx";
 import { ACTIVITY_TAG_LIMIT, activityTags, periodBounds } from "./activity-filters.ts";
 import { activityLocation, type WorkspaceListKind } from "./activity-location.ts";
-import { anchorId } from "./list-state.ts";
 import { EntityScope } from "../entity/EntityScope.tsx";
 import "./activity.css";
 
-type ActivityItem = TaskListItem | RecordResult | SearchItem;
 function ActivitySection({ kind, tags, bounds, dictionary }: { kind: WorkspaceListKind; tags: string[]; bounds: NonNullable<ReturnType<typeof periodBounds>>; dictionary: ReturnType<typeof useTagDictionary> }) {
-  const [params] = useSearchParams(), {hash}=useLocation(), q = params.get("q") ?? "";
-  const entity = params.get("entity_id") || undefined;
-  const [metadata, setMetadata] = useState<SearchResult | null>(null);
-  const filters = kind === "tasks" ? { kind: params.get("kind") || undefined, status: params.get("status") || undefined }
-    : { record_kind: params.get("record_kind") || undefined };
-  const filtered = !!(q || tags.length || entity || Object.values(filters).some(Boolean) || kind === "records" && (bounds.from || bounds.to));
-  const input = { query: q, kinds: [kind === "tasks" ? "task" : "record"], mode: "auto", limit: 20,
-    ...(kind === "tasks" ? { task_kind: filters.kind, task_status: filters.status } : filters),
-    ...(tags.length ? { tag_ids: tags } : {}), ...(entity ? {entity_id:entity} : {}), ...(kind === "records" ? bounds : {}) };
-  const path = q ? JSON.stringify(input) : `/${kind}${query({ limit: 20, entity_id: entity, tag_ids: tags.length ? tags.join(",") : undefined,
-    ...filters, ...(kind === "records" ? { occurred_from: bounds.from, occurred_to: bounds.to } : {}) })}`;
-  useEffect(() => setMetadata(null), [path]);
-  const list = useActivityList<ActivityItem>(kind, path, `${kind}-title`, `${kind === "tasks" ? "할 일" : "기록"}을 불러오지 못했습니다. 다시 시도하세요.`, !!dictionary.tags || dictionary.failed, true,
-    q ? async (cursor, signal) => { const anchor=anchorId(kind,hash);return await api<SearchResult>("POST", "/search", { ...input, ...(cursor ? { cursor } : anchor?{anchor:{kind:kind==="tasks"?"task":"record",id:anchor}}:{}) }, signal); } : undefined,
-    { route: `/${kind}`, keys: ["q", "tag_ids", "tag_id", "entity_id", "kind", "status", "record_kind", "mode"], pageKey: "pages" }, q ? page => setMetadata(page as SearchResult) : undefined);
+  const list = useActivityList(kind, { tags, bounds, layoutReady: !!dictionary.tags || dictionary.failed });
+  const { metadata, searching: q, filtered } = list;
   const heading = (item: ActivityItem) => <div className="activity-item-heading"><Link className="item-title" {...list.link(item.id)}>{item.title}</Link><span className="activity-item-actions"><Link {...list.link(item.id)} id={undefined} aria-label={`${item.title} 보기`}>보기</Link><span aria-hidden="true">·</span><Link {...list.link(item.id, true)} aria-label={`${item.title} 편집`}>편집</Link></span></div>;
   const summary = (item: ActivityItem) => <><span className="secondary">{item.summary}</span>{"change_note" in item && item.change_note && <p className="notice">편집 메모: {item.change_note}</p>}{"match" in item && <span className="meta">{item.match === "both" ? "키워드·의미" : item.match === "keyword" ? "키워드" : "의미"} · {item.index_state === "pending" ? "색인 대기" : item.index_state === "excluded" ? "색인 제외" : "색인 완료"}</span>}<TagNames ids={item.tag_ids} compact/></>;
   return <section className={`activity-section ${kind}`} aria-label={`${kind === "tasks" ? "할 일" : "기록"} 목록`}>
