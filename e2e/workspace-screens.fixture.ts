@@ -313,8 +313,8 @@ async function fixtures(page:Page, options:{long?:boolean;emptyPrinciple?:boolea
     if(options.hold){started();await new Promise<void>(r=>{release=r;});options.hold=false;}
     if(options.failWrite&&!failed){failed=true;return options.failWrite==="unknown"?route.abort("connectionreset"):reply({code:"conflict",message:"다른 곳에서 수정했습니다."},409);}
     if(method==="DELETE"||action==="delete"){rows[kind]=rows[kind].filter(r=>r.id!==key);return route.fulfill({status:204});}
-    if(kind==="principles"&&key==="current"){
-      const current=rows.principles.find(r=>r.is_current);if(current){Object.assign(current,body,{version:current.version+1});return reply(current,201);}const saved={...principle(sequence++),...body};rows.principles.unshift(saved);return reply(saved,201);
+    if(kind==="principles"&&method==="POST"&&!key){
+      const current=rows.principles.find(r=>r.is_current);if(current)return reply({code:"conflict",message:"현재 원칙이 있습니다"},409);const saved={...principle(sequence++),...body};rows.principles.unshift(saved);return reply(saved,201);
     }
     if(method==="POST"&&!key){const saved={...(kind==="entities"?entity(sequence++):kind==="tasks"?task(sequence++):kind==="records"?record(sequence++):base(sequence++,"")),...body};rows[kind].unshift(saved);return reply(saved,201);}
     const found=rows[kind].find(r=>r.id===key);if(!found)return reply({code:"not_found",message:"자료 없음"},404);
@@ -341,7 +341,7 @@ for(const [kind,label] of [["entities","엔터티"],["tasks","할 일"],["record
     await saveWithMemo(page, form(page));if(kind==="entities")await go(page,createdPath);else await compatibleEdit(page);await expect(form(page).getByRole("button",{name:"삭제",exact:true})).toBeVisible();
     const patch=state.writes.find(w=>w.method==="PATCH")!;expect(patch.body.change_note).toBe("실측 결과 반영");expect(patch.body.expected_version).toBe(1);expect(patch.body.tag_ids).toEqual([id(kind==="entities"?10:11)]);
     await form(page).getByRole("button",{name:"삭제",exact:true}).click();const confirm=page.getByRole("dialog",{name:kind==="entities"?"엔터티를 삭제할까요?":`${label}을 삭제할까요?`,exact:true});await confirm.getByLabel("이유 (선택)").fill("중복 자료 정리");await saveWithMemo(page,confirm,"삭제");
-    await expect(page).toHaveURL(`http://127.0.0.1:55580/${kind}${kind==="entities"?`#entity-${id(20)}`:""}`);expect(kind==="records"?state.writes.at(-1)?.params.get("change_note"):state.writes.at(-1)?.body.change_note).toBe("중복 자료 정리");expect(state.errors).toEqual([]);
+    await expect(page).toHaveURL(`http://127.0.0.1:55580/${kind}${kind==="entities"?`#entity-${createdPath.split("/").at(-1)}`:""}`);expect(kind==="records"?state.writes.at(-1)?.params.get("change_note"):state.writes.at(-1)?.body.change_note).toBe("중복 자료 정리");expect(state.errors).toEqual([]);
   });
 }
 test("원칙: 최초 등록·같은 ID 편집·삭제 뒤 없음·기록으로 과거 근거 조회",async({page})=>{
