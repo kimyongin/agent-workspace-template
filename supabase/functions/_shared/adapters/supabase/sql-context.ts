@@ -39,12 +39,9 @@ export class SqlActorStore {
         ? null
         : `/${input.target_kind === "entity" ? "entities" : `${input.target_kind}s`}/${target.id}`,
     };
-    const entity = input.target_kind === "entity"
-      ? (input.action === "delete" ? null : target.id)
-      : target.entity_id ?? null;
     const ids = input.target_kind === "entity"
       ? [target.id as string]
-      : (target.entity_ids as string[] | undefined) ?? (entity ? [entity as string] : []);
+      : (target.entity_ids as string[] | undefined) ?? [];
     const context = input.target_kind === "entity" && input.action === "delete"
       ? [{
         id: target.id as string,
@@ -54,8 +51,8 @@ export class SqlActorStore {
       }]
       : await captureEntities(this.tx, ids, (target.entity_context as EntityContext[] | undefined) ?? []);
     const [row] = await this
-      .tx`insert into app.records(owner_id,entity_id,entity_ids,entity_context,title,summary,body,record_kind,change_note,change_metadata)
-      values(${this.actor.userId},${entity as string | null},${this.tx.array(ids, 2950)},${
+      .tx`insert into app.records(owner_id,entity_ids,entity_context,title,summary,body,record_kind,change_note,change_metadata)
+      values(${this.actor.userId},${this.tx.array(ids, 2950)},${
       this.tx.json(context)
     },${title},${summary},${body}, 'change',${input.change_note ?? null},${
       this.tx.json(metadata as never)

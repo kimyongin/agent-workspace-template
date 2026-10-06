@@ -14,6 +14,7 @@ if (parsed.hostname !== "127.0.0.1" || parsed.port !== "55622") throw Error("Req
 const [stage, file] = Deno.args;
 if (!["prepare", "verify"].includes(stage) || !file) throw Error("prepare|verify <owned-fixture-json>");
 const sql = postgres(url, { max: 1, onnotice: () => {} });
+let direct: postgres.Sql | undefined;
 try {
   if (stage === "prepare") {
     const f = {
@@ -62,6 +63,12 @@ try {
     console.log("Prepared owned pre-DDL sources and existing preservation parts");
   } else {
     const f = JSON.parse(await Deno.readTextFile(file));
+    const password = Deno.env.get("APP_SERVER_PASSWORD");
+    if (!password) throw Error("APP_SERVER_PASSWORD is required for business-role verification");
+    direct = postgres(
+      `postgresql://app_server:${encodeURIComponent(password)}@${parsed.hostname}:${parsed.port}/postgres`,
+      { max: 1, onnotice: () => {} },
+    );
     try {
       const source =
         (await sql`select payload from private.retired_principle_sources where owner_id=${f.owner} and source_kind='principle'`)[
@@ -83,15 +90,15 @@ try {
       assertEquals(await parts(), f.sources);
       const originalBodies = await sql`select id,body from app.records where owner_id=${f.owner} order by id`;
       const asOwner = <T>(fn: (tx: postgres.TransactionSql) => Promise<T>) =>
-        sql.begin(async (tx) => {
+        direct!.begin(async (tx) => {
           await tx`select set_config('request.jwt.claims',${
             JSON.stringify({ sub: f.owner, role: "authenticated" })
           },true)`;
           await tx`set local role app_user`;
           return await fn(tx);
         });
-      const ad = { uow: new SqlUnitOfWork(sql), clock: { now: () => new Date() } },
-        pd = { uow: new SqlPrincipleUnitOfWork(sql) },
+      const ad = { uow: new SqlUnitOfWork(direct), clock: { now: () => new Date() } },
+        pd = { uow: new SqlPrincipleUnitOfWork(direct) },
         actor = { userId: f.owner };
       assertEquals((await activity.getTask(ad, actor, f.task)).entity_ids, [f.entity]);
       assertEquals((await activity.getRecord(ad, actor, f.record)).applied_principle_snapshots, f.snapshot);
@@ -151,5 +158,6 @@ try {
     }
   }
 } finally {
+  await direct?.end();
   await sql.end();
 }
