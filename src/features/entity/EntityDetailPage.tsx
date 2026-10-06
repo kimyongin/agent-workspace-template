@@ -82,8 +82,8 @@ export function EntityDetailPage() {
                   <ul className="entity-related-list">
                     {entity[kind].items.map((item) => (
                       <li key={item.id}>
-                        <Link className="entity-related-item" aria-label={"body" in item ? recordDisplayText(item.body) : item.title} to={`/${kind}/${item.id}`}>
-                          <div className="entity-related-title"><span className="item-title">{"body" in item ? recordDisplayText(item.body) : item.title}</span><span aria-hidden="true">›</span></div>
+                        <Link className="entity-related-item" aria-label={"record_kind" in item ? recordDisplayText(item.body) : item.title} to={`/${kind}/${item.id}`}>
+                          <div className="entity-related-title"><span className="item-title">{"record_kind" in item ? recordDisplayText(item.body) : item.title}</span><span aria-hidden="true">›</span></div>
                           <div className="entity-related-meta">{"record_kind" in item&&<span className="badge">{recordKindNames[item.record_kind]}</span>}<time className="meta" dateTime={"occurred_at" in item?item.occurred_at:item.updated_at}>{"occurred_at" in item?"":"수정 "}{formatDateTime("occurred_at" in item?item.occurred_at:item.updated_at)}</time></div>
                         </Link>
                       </li>

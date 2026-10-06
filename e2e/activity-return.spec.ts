@@ -100,7 +100,7 @@ for (
       await page.keyboard.press("Enter");
       expect(requests).toHaveLength(3);
       await page.unroute(`**/api/${path}?**`);
-      const link = page.getByRole("link", { name: title, exact: true });
+      let link = page.getByRole("link", { name: title, exact: true });
       await link.scrollIntoViewIfNeeded();
       await link.focus();
       await page.keyboard.press("Enter");
@@ -129,6 +129,7 @@ for (
       if(kind==="task")await dialog.getByLabel("편집 메모").fill("판단 근거 정정");
       await saveOnce(page, dialog);
       await expect(dialog).not.toBeVisible();
+      if(kind==="record")link=page.getByRole("link",{name:"수정한 근거",exact:true});
       await page.getByRole("button", { name: "닫기", exact: true }).click();
       await expect(link).toBeFocused();
       await expect(link).toBeInViewport();

@@ -121,7 +121,7 @@ function ScopedTagsPage({scope}:{scope:"entity"|"activity"}) {
       } catch (e) { focusId.current = target.id; setNotice(null); throw e; }
       finally { setDeletingBusy(false); saving.current = false; }
     };
-  const deleteAction=(target:TagResult,editor=false)=><DeleteAction key={target.id} disabled={busy||uncertain||conflict} label={editor?"삭제":`${target.name} 삭제`} message={`${target.name} 태그와 연결을 제거합니다. 원문은 보존합니다.`} onStateChange={editor?setDeletionState:undefined} onConfirm={reason=>deleteTag(target,reason)}/>;
+  const deleteAction=(target:TagResult,editor=false)=><DeleteAction key={target.id} disabled={busy||(editor&&(uncertain||conflict))} label={editor?"삭제":`${target.name} 삭제`} message={`${target.name} 태그와 연결을 제거합니다. 원문은 보존합니다.`} onStateChange={editor?setDeletionState:undefined} onConfirm={reason=>deleteTag(target,reason)}/>;
   return <section className="panel" aria-labelledby="tags-title">
     <div className="panel-head"><h1 id="tags-title" tabIndex={-1} className="page-title">{scope==="entity"?"엔터티":"활동"} 태그 관리</h1><button className="btn btn-primary" disabled={busy} onClick={() => select(null)}>태그 추가</button></div>
     {notice && <Notice>{notice}</Notice>}
