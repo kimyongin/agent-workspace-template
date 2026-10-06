@@ -15,7 +15,6 @@ import type { Actor } from "../../core/shared/actor.ts";
 import { runAsActor, SqlActorStore } from "./sql-context.ts";
 import { AppError } from "../../core/shared/errors.ts";
 import { hasAnyTag, hasTag, setTagLinks, tagIdsColumn } from "./tag-links.ts";
-import { captureEntities } from "./entity-links.ts";
 import { selectedEntities } from "../../core/activity/entity-selection.ts";
 
 type Tx = postgres.TransactionSql;
@@ -134,14 +133,12 @@ export class SqlActivityStore extends SqlActorStore implements ActivityStore {
 
   async insertTask(task: NewTask) {
     const tx = this.tx;
-    const ids = selectedEntities(task) ?? [];
-    const context = await captureEntities(tx, ids);
+    const selection = await this.entityLinks.taskSelection(selectedEntities(task) ?? []);
     const values = {
       owner_id: this.actor.userId,
       kind: task.kind,
       ...pick(tx, task, TASK_WRITABLE),
-      entity_ids: tx.array(ids, 2950),
-      entity_context: tx.json(context),
+      ...selection,
     };
     const [row] = await tx`insert into app.tasks ${tx(values)} returning id`;
     await this.setTaskTags(row.id as string, task.tag_ids);
@@ -149,7 +146,7 @@ export class SqlActivityStore extends SqlActorStore implements ActivityStore {
   }
 
   async validateEntitySelection(ids: string[]) {
-    await captureEntities(this.tx, ids);
+    await this.entityLinks.validateSelection(ids);
   }
 
   async setTaskTags(taskId: string, ids: string[]) {
@@ -158,15 +155,10 @@ export class SqlActivityStore extends SqlActorStore implements ActivityStore {
 
   async updateTask(id: string, changes: Partial<Task>) {
     const tx = this.tx;
-    const values = pick(tx, changes, TASK_WRITABLE);
-    const ids = selectedEntities(changes);
-    if (ids !== undefined) {
-      const context = await captureEntities(tx, ids);
-      Object.assign(values, {
-        entity_ids: tx.array(ids, 2950),
-        entity_context: tx.json(context),
-      });
-    }
+    const values = {
+      ...pick(tx, changes, TASK_WRITABLE),
+      ...await this.entityLinks.taskSelection(selectedEntities(changes)),
+    };
     if (changes.tag_ids !== undefined) await this.setTaskTags(id, changes.tag_ids);
     if (Object.keys(values).length === 0 && changes.tag_ids === undefined) {
       throw new AppError("invalid_input", "바꿀 필드가 없습니다");
@@ -230,12 +222,10 @@ export class SqlActivityStore extends SqlActorStore implements ActivityStore {
 
   async insertRecord(record: NewRecord) {
     const tx = this.tx;
-    const ids = selectedEntities(record) ?? [];
-    const context = await captureEntities(tx, ids);
+    const selection = await this.entityLinks.recordSelection(selectedEntities(record) ?? []);
     const values: Record<string, unknown> = {
       owner_id: this.actor.userId,
-      entity_ids: tx.array(ids, 2950),
-      entity_context: tx.json(context),
+      ...selection,
       title: record.title,
       summary: record.summary,
       body: record.body,
@@ -252,16 +242,10 @@ export class SqlActivityStore extends SqlActorStore implements ActivityStore {
 
   async updateRecord(id: string, changes: RecordChanges) {
     const tx = this.tx;
-    const values = pick(tx, changes, RECORD_WRITABLE);
-    const ids = selectedEntities(changes);
-    if (ids !== undefined) {
-      const prior = (await this.getRecord(id))?.entity_context ?? [];
-      const context = await captureEntities(tx, ids, prior);
-      Object.assign(values, {
-        entity_ids: tx.array(ids, 2950),
-        entity_context: tx.json(context),
-      });
-    }
+    const values = {
+      ...pick(tx, changes, RECORD_WRITABLE),
+      ...await this.entityLinks.recordSelection(selectedEntities(changes), id),
+    };
     if (changes.tag_ids !== undefined) await setTagLinks(tx, this.actor, "record", id, changes.tag_ids);
     if (
       Object.keys(values).length === 0 && changes.tag_ids === undefined
