@@ -20,42 +20,46 @@ function result(r: Record<string, unknown>): PrincipleResult {
   };
 }
 class SqlPrincipleStore extends SqlActorStore implements PrincipleStore {
-  async lockCurrent() {
+  private async lockCurrent() {
     await this.tx`select pg_advisory_xact_lock(hashtextextended(${`${this.actor.userId}:current_principle`},0))`;
   }
-  async nextVersion() {
+  private async nextVersion() {
     const [r] = await this.tx`insert into app.principle_versions(owner_id,version)
       values(${this.actor.userId},coalesce((select max(version) from app.principles),0)+1)
       on conflict(owner_id) do update set version=greatest(app.principle_versions.version,
         coalesce((select max(version) from app.principles),0))+1 returning version`;
     return r.version as number;
   }
-  async current() {
-    const [r] = await this.tx`select * from app.principles where is_current`;
+  async current(options?: { forUpdate?: boolean }) {
+    if (options?.forUpdate) await this.lockCurrent();
+    const [r] = await this.tx`select * from app.principles where is_current ${
+      options?.forUpdate ? this.tx`for update` : this.tx``
+    }`;
     return r ? result(r) : null;
   }
-  async insert(i: Omit<PrincipleCreate, "request_id">, version = 1) {
+  async insert(i: Omit<PrincipleCreate, "request_id">) {
+    const version = await this.nextVersion();
     const [r] = await this.tx`insert into app.principles(owner_id,title,summary,body,is_current,change_note,version)
     values(${this.actor.userId},${i.title},${i.summary},${i.body},true,${
       i.change_note ?? null
     },${version}) returning *`;
     return result(r);
   }
-  async get(id: string, lock = false) {
-    const [r] = await this.tx`select * from app.principles where id=${id} and is_current ${
-      lock ? this.tx`for update` : this.tx``
-    }`;
+  async get(id: string) {
+    const [r] = await this.tx`select * from app.principles where id=${id} and is_current`;
     return r ? result(r) : null;
   }
-  async update(id: string, i: Parameters<PrincipleStore["update"]>[1], version?: number) {
+  async update(id: string, i: Parameters<PrincipleStore["update"]>[1]) {
+    const version = await this.nextVersion();
     const values = Object.fromEntries(Object.entries(i).filter(([, v]) => v !== undefined));
-    const [r] = await this.tx`update app.principles set ${this.tx(values)},version=${
-      version ?? this.tx`version+1`
-    },updated_at=now(),saved_at=case when is_current then clock_timestamp() else saved_at end where id=${id} and is_current returning *`;
+    const [r] = await this.tx`update app.principles set ${
+      this.tx(values)
+    },version=${version},updated_at=now(),saved_at=case when is_current then clock_timestamp() else saved_at end where id=${id} and is_current returning *`;
     return result(r);
   }
   async delete(id: string) {
     await this.tx`delete from app.principles where id=${id} and is_current`;
+    await this.nextVersion();
   }
 }
 export class SqlPrincipleUnitOfWork implements PrincipleUnitOfWork {

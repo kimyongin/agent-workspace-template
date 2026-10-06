@@ -52,3 +52,37 @@ dbTest(
     }
   },
 );
+
+dbTest("principle deletion failure rolls back its revision and the same retry recreates at revision four", async () => {
+  const f = await fixtureOwner(admin);
+  try {
+    const first = await p.createPrinciple(d, f.actor, principleCreate.parse({ title: "기준", summary: "요약" }));
+    const next = await p.updatePrinciple(d, f.actor, first.id, { title: "갱신 기준", expected_version: first.version });
+    const request = crypto.randomUUID();
+    const broken = {
+      uow: {
+        run: <T>(actor: typeof f.actor, fn: Parameters<typeof d.uow.run<T>>[1]) =>
+          d.uow.run(actor, (s) =>
+            fn(
+              new Proxy(s, {
+                get: (target, key) =>
+                  key === "appendChange" ? () => Promise.reject(Error("record failure")) : Reflect.get(target, key),
+              }),
+            )),
+      },
+    };
+    await assertRejects(() => p.deletePrinciple(broken, f.actor, next.id, next.version, "삭제", request));
+    assertEquals((await p.currentPrinciple(d, f.actor)).current, next);
+    await p.deletePrinciple(d, f.actor, next.id, next.version, "삭제", request);
+    assertEquals(await p.deletePrinciple(d, f.actor, next.id, next.version, "삭제", request), { deleted: true });
+    assertEquals((await p.currentPrinciple(d, f.actor)).current, null);
+    const replacement = await p.createPrinciple(
+      d,
+      f.actor,
+      principleCreate.parse({ title: "새 기준", summary: "새 요약" }),
+    );
+    assertEquals(replacement.version, 4);
+  } finally {
+    await f.cleanup();
+  }
+});
