@@ -2,7 +2,7 @@
 
 ## 문서의 책임
 
-이 문서는 [코드 설계 원칙](principles.md)을 실행 구조에 적용한다. TypeScript 도메인 모델·유스케이스와 Supabase 어댑터를 사용하며, 호출 경계·저장·권한·비동기 처리·검색의 기술 책임을 정의한다. 할 일·기록·검색의 상세 API는 [Template-01](../tickets/template-01-task-record-search.md), 구현 순서와 미정 기술 선택은 [Template-02](../tickets/template-02-implementation-base.md)가 소유한다.
+이 문서는 [코드 설계 원칙](principles.md)을 실행 구조에 적용한다. TypeScript 도메인 모델·유스케이스와 Supabase 어댑터를 사용하며, 호출 경계·저장·권한·비동기 처리·검색의 기술 책임을 정의한다. 상세 API의 입력·출력은 `supabase/functions/_shared/contracts/`의 실제 계약이 소유한다.
 
 ## 기본 기술 구성
 
@@ -39,7 +39,7 @@ Storage와 Realtime은 실제 첨부·자동 갱신 요구가 생길 때 추가�
 
 플러그인의 MCP OAuth는 에이전트가 앱에 접근할 권한을 얻는 별도 흐름이다. 사용자 확인 단계에서 Google 로그인 기반 앱 계정을 사용할 수 있지만, MCP 토큰 발급·audience·scope·동의 화면과 클라이언트 callback은 별도 계약으로 확정한다. Google 로그인 성공만으로 MCP 연결을 검증했다고 하지 않는다.
 
-MCP OAuth는 Supabase Auth의 OAuth 2.1 서버를 권한 서버로 쓴다. 클라이언트는 동적 등록과 PKCE로 토큰을 받고, 사용자는 웹 앱의 `/oauth/consent` 화면에서 Google 로그인 세션으로 승인한다. Custom Access Token Hook은 `client_id`가 있는 토큰의 `aud`를 MCP 서버의 정식 URL로 바꾼다. MCP 서버는 그 audience만, 웹용 HTTP API는 `authenticated`만 받으므로 두 토큰은 서로의 진입점에서 거부된다. MCP 서버는 RFC 9728 metadata로 권한 서버를 알린다. 이 방식은 [T02-1 실험](../tickets/template-02-t02-1-contracts.md#실험-결과-작업-9)에서 로컬 Supabase와 Claude Code·Codex로 확인했다.
+MCP OAuth는 Supabase Auth의 OAuth 2.1 서버를 권한 서버로 쓴다. 클라이언트는 동적 등록과 PKCE로 토큰을 받고, 사용자는 웹 앱의 `/oauth/consent` 화면에서 Google 로그인 세션으로 승인한다. Custom Access Token Hook은 `client_id`가 있는 토큰의 `aud`를 MCP 서버의 정식 URL로 바꾼다. MCP 서버는 그 audience만, 웹용 HTTP API는 `authenticated`만 받으므로 두 토큰은 서로의 진입점에서 거부된다. MCP 서버는 RFC 9728 metadata로 권한 서버를 알린다. 이 방식은 [T02-1 실험](../../experiments/t02-1/README.md)에서 로컬 Supabase와 Claude Code·Codex로 확인했다.
 
 ## 호출과 의존성
 
@@ -72,7 +72,7 @@ DB 제약과 보안 정책, pgmq 같은 인프라 함수는 유지한다. SQL �
 
 ## 로컬 트랜잭션
 
-서버 Supabase 어댑터가 PostgreSQL 연결을 확보하고 하나의 트랜잭션으로 유스케이스의 저장을 실행하는 방식을 우선한다. Edge Functions에서 Postgres.js로 연결하며, 연결이 짧은 환경이므로 Supavisor 트랜잭션 모드와 `prepare: false`를 쓴다. 역할과 문맥 전달은 아래 '권한과 직접 접근'의 방식을 따른다([T02-1 실험](../tickets/template-02-t02-1-contracts.md#실험-결과-작업-9)). 여러 supabase-js HTTP 호출을 하나의 트랜잭션처럼 취급하지 않는다.
+서버 Supabase 어댑터가 PostgreSQL 연결을 확보하고 하나의 트랜잭션으로 유스케이스의 저장을 실행하는 방식을 우선한다. Edge Functions에서 Postgres.js로 연결하며, 연결이 짧은 환경이므로 Supavisor 트랜잭션 모드와 `prepare: false`를 쓴다. 역할과 문맥 전달은 아래 '권한과 직접 접근'의 방식을 따른다([T02-1 실험](../../experiments/t02-1/README.md)). 여러 supabase-js HTTP 호출을 하나의 트랜잭션처럼 취급하지 않는다.
 
 설명용 transaction 포트는 콜백 안의 모든 저장·큐 등록이 같은 연결을 사용한다는 계약을 가진다. 실제 범위는 첫 할 일 완료 기능에 한정하며 모든 시스템을 위한 Unit of Work 프레임워크를 만들지 않는다.
 
@@ -88,7 +88,7 @@ Read Committed에서 부모 행과 연결 집합을 함께 쓰는 편집은 먼�
 
 업무 로직을 DB 밖으로 옮기므로 일반 사용자에게 상태를 직접 쓰는 DB API를 열어두면 유스케이스를 우회할 수 있다. 제품 데이터 변경은 인증된 HTTP/MCP 경로를 통하게 하고 테이블/저장 함수 권한을 제한한다. RLS와 참조 제약은 유지한다.
 
-직접 Postgres 연결에는 사용자 JWT의 RLS 문맥이 자동 적용되지 않는다. 다음 역할 구성과 트랜잭션 한정 문맥 전달을 쓴다([T02-1 실험](../tickets/template-02-t02-1-contracts.md#실험-결과-작업-9)).
+직접 Postgres 연결에는 사용자 JWT의 RLS 문맥이 자동 적용되지 않는다. 다음 역할 구성과 트랜잭션 한정 문맥 전달을 쓴다([T02-1 실험](../../experiments/t02-1/README.md)).
 
 | 역할 | 권한 | 사용 |
 | --- | --- | --- |
@@ -130,7 +130,7 @@ Read Committed에서 부모 행과 연결 집합을 함께 쓰는 편집은 먼�
 
 검색 응답은 원본 종류·ID·제목·요약·날짜·태그·페이지 정보와 검색 상태다. 외부 에이전트가 상세를 읽고 추론하며, 사용자가 저장한 결과가 다시 지식으로 축적된다. 앱 내부의 임베딩 생성은 검색을 위한 수치 변환이고 사용자 업무를 판단하는 대화형 추론과 구분한다.
 
-검색 후보의 안정 ID로 권한을 적용한 원본 상세 조회와 웹 화면 연결을 제공한다. 검색 결과에도 원본과 같은 접근 범위를 적용한다. 검색 결과 없음·색인 지연·검색 실패를 구분하며 정확한 상태 schema는 첫 티켓에서 확정한다. 제목·요약만으로 필요한 내용을 회수할 수 있는지는 실제 검색 품질 평가로 판단한다.
+검색 후보의 안정 ID로 권한을 적용한 원본 상세 조회와 웹 화면 연결을 제공한다. 검색 결과에도 원본과 같은 접근 범위를 적용한다. 검색 결과 없음·색인 지연·검색 실패를 구분하며 정확한 상태 schema는 실제 검색 계약에서 확인한다. 제목·요약만으로 필요한 내용을 회수할 수 있는지는 실제 검색 품질 평가로 판단한다.
 
 ## 에이전트 연결 계약
 
@@ -155,11 +155,11 @@ Read Committed에서 부모 행과 연결 집합을 함께 쓰는 편집은 먼�
 
 ## 검증 게이트
 
-이 구조를 구현할 때 같은 연결의 트랜잭션, 업무 데이터+큐의 함께 롤백, 사용자 격리와 우회 차단, 응답 유실 재시도, 큐 중복/늦은 응답/삭제 경쟁, 실제 모델 품질을 검증한다. core는 DB 없는 테스트로 업무 규칙을 검증하고 adapter는 실제 격리 DB로 검사한다. 검사 항목은 [Template-01](../tickets/template-01-task-record-search.md), 런타임·SQL 드라이버·임베딩 모델의 선정과 실험은 [Template-02 T02-1](../tickets/template-02-implementation-base.md)이 소유한다.
+이 구조의 제품 검증 경계는 같은 연결의 트랜잭션, 업무 데이터+큐의 함께 롤백, 사용자 격리와 우회 차단, 응답 유실 재시도, 큐 중복/늦은 응답/삭제 경쟁, 실제 모델 품질이다. core는 DB 없는 테스트, adapter는 격리 DB 테스트가 각 계약을 검증한다. 기술 실험은 [트랜잭션·OAuth](../../experiments/t02-1/README.md), [임베딩 품질](../../experiments/t02-3-embedding/README.md)에 있다.
 
 폴더는 [폴더 구조](../design/template-structure.md)를 따른다. 방향 합의가 구현·배포 완료를 의미하지 않는다.
 
-포트 교체로 실행하는 빠른 검사는 실제 application·HTTP route·MCP ToolDef handler의 업무와 계약 증거다. 메모리 저장과 Actor fixture는 DB 원자성·권한·인증이나 MCP SDK 전송을 증명하지 않는다. 이 경계의 실제 통합 게이트는 유지하며 실행 배치는 [개발 방법](../development/verification.md#실행-검증)을 따른다.
+포트 교체로 실행하는 빠른 검사는 실제 application·HTTP route·MCP ToolDef handler의 업무와 계약 증거다. 메모리 저장과 Actor fixture는 DB 원자성·권한·인증이나 MCP SDK 전송을 증명하지 않는다. 실제 통합 검사의 실행 구성은 [CI](../../.github/workflows/ci.yml), 도구별 증거 범위는 [검사 도구의 한계](../development/verification.md#검사-도구의-한계)에 있다.
 
 ## 공식 참고
 

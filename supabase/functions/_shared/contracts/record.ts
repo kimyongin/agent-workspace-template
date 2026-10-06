@@ -1,4 +1,4 @@
-// 활동 기록(ActivityRecord) 계약. 정본: docs/tickets/template-02-t02-1-contracts.md "활동 기록".
+// 활동 기록(ActivityRecord) 계약.
 import { z } from "zod";
 import { changeMetadata, editMeta, mutationMeta } from "./change.ts";
 import { principleResult } from "./principle.ts";

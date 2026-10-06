@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vitest/config";
 
-// 웹은 서버 코드 중 contracts만 가져온다(docs/tickets/template-02-t02-1-contracts.md "공유 schema 정본").
+// 웹은 서버 코드 중 공유 contracts만 가져온다.
 export default defineConfig({
   base: process.env.VITE_BASE ?? "/",
   plugins: [

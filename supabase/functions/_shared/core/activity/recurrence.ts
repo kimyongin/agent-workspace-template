@@ -1,5 +1,4 @@
 // 반복 할 일의 회차 계산. 회차와 수행 여부는 저장하지 않고 규칙·중단 이력·기록으로 계산한다.
-// 정본: docs/tickets/template-02-t02-1-contracts.md "반복 할 일".
 import type { Occurrence, Recurrence } from "../../contracts/task.ts";
 import { addDays, daysInMonth, isoWeekday, toDayNumber } from "../shared/dates.ts";
 

@@ -24,7 +24,7 @@ test('native web consent refuses external issuer, missing PKCE, and external cal
     }
   } finally { await rm(root, { recursive: true, force: true }); }
 });
-test('native read refuses canonical product, external endpoint, and injected headers before assignment or CLI spawn', async () => {
+test('native read refuses canonical product, external endpoint, and injected headers before CLI spawn', async () => {
   const root = await mkdtemp(resolve(tmpdir(), 'native-guards-'));
   try {
     const plugin = resolve(root, 'plugin');
@@ -36,7 +36,7 @@ test('native read refuses canonical product, external endpoint, and injected hea
     ]) {
       await writeFile(resolve(plugin, '.claude-plugin/plugin.json'), JSON.stringify({ name }));
       await writeFile(resolve(plugin, '.mcp.json'), JSON.stringify({ mcpServers: { 'oauth-check-1234': config } }));
-      rejected('read-native-claude.mjs', [plugin, resolve(root, 'nonexistent-snapshot'), resolve(root, 'evidence')], message);
+      rejected('read-native-claude.mjs', [plugin, resolve(root, 'evidence')], message);
     }
   } finally { await rm(root, { recursive: true, force: true }); }
 });

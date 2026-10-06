@@ -1,12 +1,11 @@
 # 기술 실험
 
-앱 코드를 쓰기 전에 되돌리기 비싼 기술 가정을 작게 시험하는 폴더다. 여기 있는 코드는 앱이 가져오지 않고 배포하지 않는다. 규칙은 [개발 방법의 기술 실험](../docs/development/workflow.md#기술-실험)을 따른다.
+제품의 되돌리기 비싼 기술 가정을 격리해 확인하는 자료다. 앱이 이 폴더의 코드를 가져오거나 배포하지 않는다. 설계 질문을 시험하는 방법은 [prototype 스킬](../.agents/skills/prototype/SKILL.md)이 담당한다.
 
-| 폴더 | 목적 | 결과 | 상태 |
-| --- | --- | --- | --- |
-| [t02-1](t02-1/README.md) | 직접 Postgres 트랜잭션의 Actor 문맥·RLS·큐 원자성, MCP OAuth와 토큰 audience 구분 | [T02-1 실험 결과](../docs/tickets/template-02-t02-1-contracts.md#실험-결과-작업-9) | 로컬 실험 완료. 호스팅 동작은 운영 배포 후 확인, 외부 클라이언트는 T02-4에서 확인 |
-| [t02-3-embedding](t02-3-embedding/README.md) | 한국어 관련·무관·본문 전용 질문, 입력 경계·절단 거부, 모델·차원·cosine 임계값 | [Template-02 T02-3](../docs/tickets/template-02-implementation-base.md#t02-3--사용자-원칙rag지식-연결) | 실제 모델 평가 완료, 새 도메인은 자료 교체 후 재평가 |
-| [agent-model-evaluation](agent-model-evaluation/README.md) | 동일 offline 구현·권한/일관성 리뷰, native child·동일 설정 resume와 노출 사용량 | [Template-10-05](../docs/tickets/template-10-05-model-execution-evaluation.md) | 두 CLI balanced 대표 과제·부모 resume 확인; Codex custom child·backend effort·실제 청구액 미확인 |
-| [plugin-behavior](plugin-behavior/README.md) | 공유 제품 스킬의 두 CLI 선택·실제 MCP 조회/저장·업데이트 | [Template-10-07](../docs/tickets/template-10-07-plugin-behavior.md) | 승인 head로 두 CLI 저장/재조회/정리·Claude native 인증 확인, 이전 Codex native 증거 보존. 최신 main/최종 artifact 후속 |
+| 실험 | 제품의 검증 경계 | 채택 기준·근거 |
+| --- | --- | --- |
+| [t02-1](t02-1/README.md) | Postgres 트랜잭션의 Actor 문맥·RLS·큐 원자성, MCP OAuth와 audience 구분 | [아키텍처](../docs/architecture/hexagonal-review.md) |
+| [t02-3-embedding](t02-3-embedding/README.md) | 한국어 관련·무관·본문 전용 질문, 입력 경계, 모델·차원·cosine 임계값 | [검색 설계](../docs/architecture/search.md), 폴더의 실제 평가 결과 |
+| [plugin-behavior](plugin-behavior/README.md) | 제품 스킬의 두 CLI 선택·실제 MCP 조회/저장·업데이트 | [제품 플러그인](../plugins/workspace/README.md), [#122](https://github.com/kimyongin/agent-workspace-template/issues/122)의 현재 검증 |
 
-새 실험은 `experiments/<주제>/`를 만들고 README와 이 표의 행을 함께 추가한다. 실험은 지우지 않으며, 결과가 더 이상 맞지 않으면 상태를 `대체됨`으로 바꾸고 대체한 실험을 링크한다.
+실험 결과는 당시의 소스·환경에 한정된다. 제품의 현재 동작이나 운영 적용 완료는 해당 구현과 GitHub 증거에서 확인한다.
