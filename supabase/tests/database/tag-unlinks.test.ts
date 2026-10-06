@@ -73,10 +73,10 @@ dbTest(
       assertEquals(await count(), 6);
       assertEquals((await e.getEntity(ed, actor, entity.id)).tag_ids, []);
       const [entityChange] =
-        await admin`select change_metadata,change_note from app.records where owner_id=${actor.userId} and change_metadata->>'target_id'=${entity.id} and change_metadata->>'action'='update'`;
+        await admin`select change_metadata,body from app.records where owner_id=${actor.userId} and change_metadata->>'target_id'=${entity.id} and change_metadata->>'action'='update'`;
       assertEquals([entityChange.change_metadata.before, entityChange.change_metadata.after], [null, null]);
       assertEquals(entityChange.change_metadata.target_title, "対象");
-      assertEquals(entityChange.change_note, "対象分類の削除");
+      assertEquals(entityChange.body, "対象分類の削除");
     } finally {
       await f.cleanup();
     }

@@ -30,31 +30,35 @@ function contractAccepts(schema: z.ZodType, value: unknown): boolean {
   return schema.safeParse({ id: crypto.randomUUID(), ...(value as Record<string, unknown>) }).success;
 }
 
-const boundaries = (field: "title" | "summary" | "body", max: number, min: number) => [
+const boundaries = (field: "title" | "body", max: number, min: number) => [
   { name: `${field} ${max}자`, value: "가".repeat(max) },
   { name: `${field} ${max + 1}자`, value: "가".repeat(max + 1) },
   ...(min > 0 ? [{ name: `${field} 빈 값`, value: "" }] : []),
 ];
-
-const onceTask = { kind: "once", title: "제목", body: "" };
 const record = { title: "제목", body: "" };
-
-for (const [field, max, min] of [["title", 100, 1], ["summary", 300, 1], ["body", 20_000, 0]] as const) {
+const onceTask = { kind: "once", title: "제목", body: "" };
+for (const [field, max, min] of [["title", 100, 1], ["body", 22000, 0]] as const) {
   for (const b of boundaries(field, max, min)) {
     dbTest(`할 일 parity: ${b.name}`, async () => {
       const input = { ...onceTask, [field]: b.value };
       assertEquals(await dbAccepts("tasks", { ...input, status: "open" }), contractAccepts(taskCreate, input));
     });
-    dbTest(`기록 parity: ${b.name}`, async () => {
-      const input = { ...record, [field]: b.value };
-      assertEquals(await dbAccepts("records", input), contractAccepts(recordCreate, input));
-    });
     dbTest(`원칙 parity: ${b.name}`, async () => {
-      const input = { ...record, [field]: b.value };
+      const input = { title: "제목", body: "", [field]: b.value };
       assertEquals(await dbAccepts("principles", input), contractAccepts(principleCreate, input));
     });
+    if (field === "body") {
+      dbTest(`기록 parity: ${b.name}`, async () => {
+        const input = { body: b.value };
+        assertEquals(await dbAccepts("records", input), contractAccepts(recordCreate, input));
+      });
+    }
   }
 }
+dbTest("새 기록은 빈 본문을 거부하며 DB는 기존 빈 원문 보존을 허용한다", async () => {
+  assertEquals(contractAccepts(recordCreate, { body: "" }), false);
+  assertEquals(await dbAccepts("records", { body: "" }), true);
+});
 
 dbTest("할 일 parity: 선택지 밖의 종류", async () => {
   const input = { ...onceTask, kind: "someday" };

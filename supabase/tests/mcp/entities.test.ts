@@ -30,13 +30,14 @@ httpTest("Entity MCP: 실제 SDK/OAuth CRUD·태그 scope·웹 parity·참조 �
     assertEquals(createdHistory.change_metadata.action, "create");
     const edit = await call(token, "PATCH", `/records/${createdHistory.id}`, {
       expected_version: 1,
+      body: "自動記録の説明を補う",
     });
     assertEquals(edit.status, 200);
-    assertEquals(edit.body.change_note, "自動記録の説明を補う");
+    assertEquals(edit.body.body, "自動記録の説明を補う");
     assertEquals(edit.body.change, createdHistory.change_metadata);
     const readEdited = await tool(client, "get_record", { id: createdHistory.id });
     assertEquals(readEdited.change, createdHistory.change_metadata);
-    assertEquals(readEdited.change_note, "自動記録の説明を補う");
+    assertEquals(readEdited.body, "自動記録の説明を補う");
     assertEquals(
       (await admin`select count(*)::int n from app.records where change_metadata->>'target_id'=${createdHistory.id}`)[0]
         .n,
@@ -48,13 +49,13 @@ httpTest("Entity MCP: 실제 SDK/OAuth CRUD·태그 scope·웹 parity·참조 �
     );
     assertEquals((await tool(client, "get_entity", { id: "bad-id" })).error.code, "not_found");
     const marker = crypto.randomUUID();
-    const r = await tool(client, "create_record", { body: "연결 기록", entity_ids: [e.id] });
+    const r = await tool(client, "create_record", { body: marker, entity_ids: [e.id] });
     const detail = await tool(client, "get_entity", { id: e.id });
     assertEquals("principles" in detail, false);
     assertEquals(detail.records.items.some((record: { id: string }) => record.id === r.id), true);
     const relatedRecord = detail.records.items.find((record: { id: string }) => record.id === r.id);
     assertEquals(relatedRecord.record_kind, "user");
-    assertEquals(relatedRecord.summary, marker);
+    assertEquals(relatedRecord.body, marker);
     assertEquals(relatedRecord.occurred_at, r.occurred_at);
     assertEquals(detail, (await call(token, "GET", `/entities/${e.id}`)).body);
     assert(detail.records.items.some((record: { record_kind: string }) => record.record_kind === "change"));
@@ -113,7 +114,7 @@ httpTest("Entity MCP: 실제 SDK/OAuth CRUD·태그 scope·웹 parity·참조 �
       unlink.change.action,
       unlink.change.path,
     ], ["entity", e.id, "이유 없이 수정", "update", `/entities/${e.id}`]);
-    assertEquals(unlink.body, `태그: ["${tag.id}"] → []`);
+    assertEquals(unlink.body, "이유 없이 수정 수정 (태그)");
     assertEquals((await call(token, "GET", `/records/${unlinkRow.id}`)).body, unlink);
     assertEquals(
       (await tool(client, "list_tags", { scope: "entity" })).items.some((row: { id: string }) => row.id === tag.id),
@@ -143,7 +144,7 @@ httpTest("Entity MCP: 실제 SDK/OAuth CRUD·태그 scope·웹 parity·참조 �
         { id: e.id, title: e.prop1, source: "selection" },
       ],
     );
-    assertEquals(retained.summary, marker);
+    assertEquals(retained.body, marker);
     const preservedSearch = await tool(client, "search", search);
     assertEquals(preservedSearch.items.map((row: { id: string }) => row.id), [r.id]);
     assertEquals(preservedSearch, (await call(token, "POST", "/search", search)).body);

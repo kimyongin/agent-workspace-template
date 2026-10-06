@@ -112,7 +112,7 @@ dbTest(
       );
       assertEquals(next.id, first.id);
       const record =
-        (await admin`select title,body from app.records where owner_id=${a.userId} and title='확인한 기록'`)[0];
+        (await admin`select body from app.records where owner_id=${a.userId} and body='사용자가 편집한 근거'`)[0];
       assertEquals(record, { body: "사용자가 편집한 근거" });
       await assertRejects(() => p.getPrinciple(d, a, legacy.id), AppError);
       await assertRejects(() => p.deletePrinciple(d, a, legacy.id, before.version), AppError);
