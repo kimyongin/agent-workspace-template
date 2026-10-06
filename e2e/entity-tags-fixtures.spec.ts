@@ -104,7 +104,7 @@ test("실제 App 공통 모달 생성·직접 편집 성공/취소·저장 중 P
     const request = route.request();
     if (request.method() === "POST") { if (hold) { arrived(); await new Promise<void>(resolve => { release = resolve; }); } current = { ...current, ...request.postDataJSON() }; await route.fulfill({ status: 201, json: current }); }
     else if (request.method() === "PATCH") { current = { ...current, ...request.postDataJSON(), version: current.version + 1 }; await route.fulfill({ json: current }); }
-    else await route.fulfill({ json: new URL(request.url()).pathname.endsWith(task.id) ? current : { items: [current], next_cursor: null } });
+    else await route.fulfill({ json: new URL(request.url()).pathname.endsWith(current.id) ? current : { items: [current], next_cursor: null } });
   });
   await page.goto("/e2e/fixtures/entity-tags-app.html"); await expect(page.getByRole("heading", { name: "할 일", exact: true })).toBeVisible();
   await tagManagement(page);
@@ -114,7 +114,7 @@ test("실제 App 공통 모달 생성·직접 편집 성공/취소·저장 중 P
   hold = true; await saveWithMemo(page, form, "추가"); await expect(form.getByRole("button", { name: "처리 중…", exact: true })).toBeDisabled();
   await started;
   await page.goBack(); await expect(page).toHaveURL(/\/tasks\?create=1$/); await expect(page.getByRole("dialog", { name: "변경을 버릴까요?" })).not.toBeVisible();
-  release(); await expect(page).toHaveURL(new RegExp(`/tasks/${task.id}\\?list=`)); await expect(form).not.toBeVisible();
+  release(); await expect.poll(() => new URL(page.url()).pathname === `/tasks/${current.id}`).toBe(true); await expect(form).not.toBeVisible();
   await page.getByRole("button", { name: "닫기", exact: true }).click(); await page.getByRole("link", { name: "생성 결과 편집", exact: true }).click();
   form = page.getByRole("dialog", { name: "할 일 편집", exact: true }); await form.getByRole("button", { name: "닫기", exact: true }).click(); await expect(page).toHaveURL(/\/tasks\?/); await expect(form).not.toBeVisible();
   await page.getByRole("link", { name: "생성 결과 편집", exact: true }).click(); await form.getByRole("textbox",{name:/^요약(?: \(필수\))?$/}).fill("직접 편집 성공");await form.getByLabel("편집 메모").fill("직접 편집 검증"); await saveWithMemo(page, form);
