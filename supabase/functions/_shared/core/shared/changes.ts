@@ -1,10 +1,40 @@
 import type { ChangeMetadata } from "../../contracts/change.ts";
 import type { ChangeMemo } from "../../contracts/change.ts";
+import type { EntityContext } from "../../contracts/entity-links.ts";
+import type { Recurrence } from "../../contracts/task.ts";
+
+/** Facts used by the default memo, never a complete DTO or historical snapshot. */
+export interface ChangeFacts {
+  prop1?: string;
+  prop2?: number | null;
+  prop3?: string | null;
+  prop4?: "a" | "b" | "c";
+  title?: string;
+  summary?: string;
+  body?: string;
+  status?: "open" | "done" | "active" | "stopped";
+  kind?: "once" | "recurring";
+  due_on?: string | null;
+  recurrence?: Recurrence | null;
+  timezone?: string | null;
+  tag_ids?: string[];
+  entity_ids?: string[];
+  pauses?: { stopped_on: string; resumed_on: string | null }[];
+}
+
+/** Identity and selected entity context of the event, including a deleted target. */
+export interface ChangeTarget {
+  id: string;
+  title: string;
+  entity_ids: string[];
+  entity_context: EntityContext[];
+}
 export interface ChangeInput {
   target_kind: ChangeMetadata["target_kind"];
+  target: ChangeTarget;
   action: ChangeMetadata["action"];
-  before: object | null;
-  after: object | null;
+  before: ChangeFacts | null;
+  after: ChangeFacts | null;
   change_note?: string;
   change_memo?: ChangeMemo;
 }

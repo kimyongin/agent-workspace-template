@@ -8,6 +8,8 @@ import { runAsActor, SqlActorStore } from "./sql-context.ts";
 import { SqlEntityStore } from "./entity-store.ts";
 import { SqlActivityStore } from "./activity-store.ts";
 import type { ChangeInput } from "../../core/shared/changes.ts";
+import { entityChangeFacts, entityChangeTarget } from "../../core/entity/change.ts";
+import { activityChangeTarget, recordChangeFacts, taskChangeFacts } from "../../core/activity/change.ts";
 const toTag = (r: Record<string, unknown>): TagResult => ({
   scope: r.scope as TagResult["scope"],
   id: r.id as string,
@@ -47,19 +49,39 @@ class SqlTagStore extends SqlActorStore implements TagStore {
       const before = await entities.get(r.id as string, true);
       if (!before?.tag_ids.includes(id)) continue;
       const after = await entities.update(before.id, { tag_ids: before.tag_ids.filter((tag) => tag !== id) });
-      changes.push({ target_kind: "entity", action: "update", before, after });
+      changes.push({
+        target_kind: "entity",
+        target: entityChangeTarget(after),
+        action: "update",
+        before: entityChangeFacts(before),
+        after: entityChangeFacts(after),
+      });
     }
     for (const r of await this.tx`select task_id id from app.task_tags where tag_id=${id} order by task_id`) {
       const before = await activity.getTask(r.id as string, { forUpdate: true });
       if (!before?.tag_ids.includes(id)) continue;
       const after = await activity.updateTask(before.id, { tag_ids: before.tag_ids.filter((tag) => tag !== id) });
-      changes.push({ target_kind: "task", action: "update", before, after });
+      changes.push({
+        target_kind: "task",
+        target: activityChangeTarget(after),
+        action: "update",
+        before: taskChangeFacts(before),
+        after: taskChangeFacts(after),
+      });
     }
     for (const r of await this.tx`select record_id id from app.record_tags where tag_id=${id} order by record_id`) {
       const before = await activity.getRecord(r.id as string, { forUpdate: true });
       if (!before?.tag_ids.includes(id)) continue;
       const after = await activity.updateRecord(before.id, { tag_ids: before.tag_ids.filter((tag) => tag !== id) });
-      if (before.record_kind !== "change") changes.push({ target_kind: "record", action: "update", before, after });
+      if (before.record_kind !== "change") {
+        changes.push({
+          target_kind: "record",
+          target: activityChangeTarget(after),
+          action: "update",
+          before: recordChangeFacts(before),
+          after: recordChangeFacts(after),
+        });
+      }
     }
     return changes;
   }

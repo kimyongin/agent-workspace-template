@@ -21,10 +21,11 @@ dbTest("Entity/Task preview stores nothing; final memo is atomic/idempotent, no-
   const f = await fixtureOwner(admin), foreign = await fixtureOwner(admin);
   try {
     const e = await entity.createEntity(ed, f.actor, entityCreate.parse({ prop1: "고객", prop2: 10 }));
+    const second = await entity.createEntity(ed, f.actor, entityCreate.parse({ prop1: "다른 대상" }));
     const task = await activity.createTask(
       ad,
       f.actor,
-      taskCreate.parse({ kind: "once", title: "상담", summary: "준비" }),
+      taskCreate.parse({ kind: "once", title: "상담", summary: "준비", entity_ids: [e.id, second.id] }),
     );
     const records = () =>
       activity.listRecords(ad, f.actor, recordListQuery.parse({ record_kind: "change", limit: 100 }));
@@ -57,6 +58,18 @@ dbTest("Entity/Task preview stores nothing; final memo is atomic/idempotent, no-
     const record = changes.items.find((r) => r.change?.target_id === e.id && r.change.action === "update")!;
     assertEquals([record.title, record.summary, record.body], [memo.title, memo.summary, memo.body]);
     assertEquals([record.change!.before, record.change!.after], [null, null]);
+    assertEquals([
+      record.change!.target_kind,
+      record.change!.target_id,
+      record.change!.target_title,
+      record.change!.path,
+    ], ["entity", e.id, "고객", `/entities/${e.id}`]);
+    assertEquals(record.entity_ids, [e.id]);
+    assertEquals(record.entity_context.map((context) => [context.id, context.title, context.source]), [[
+      e.id,
+      "고객",
+      "selection",
+    ]]);
     assertEquals((await entity.getEntity(ed, f.actor, e.id)).prop2, 20);
     await entity.updateEntity(
       ed,
@@ -111,6 +124,13 @@ dbTest("Entity/Task preview stores nothing; final memo is atomic/idempotent, no-
       r.change?.target_id === task.id && r.change.action === "update"
     )!;
     assertEquals(taskEvent.body, memo.body);
+    assertEquals([taskEvent.change!.target_id, taskEvent.change!.target_title, taskEvent.change!.path], [
+      task.id,
+      "상담 준비",
+      `/tasks/${task.id}`,
+    ]);
+    assertEquals(taskEvent.entity_ids, task.entity_ids);
+    assertEquals(taskEvent.entity_context, task.entity_context);
     assertEquals([taskEvent.change!.before, taskEvent.change!.after], [null, null]);
     const [stored] = await admin`select change_metadata from app.records where id=${taskEvent.id}`;
     assertEquals(stored.change_metadata.before, null);
@@ -121,6 +141,20 @@ dbTest("Entity/Task preview stores nothing; final memo is atomic/idempotent, no-
       r.change?.target_id === task.id && r.change.action === "delete"
     )!;
     assertEquals([deleted.body, deleted.change!.target_title], [memo.body, "상담 준비"]);
+    assertEquals([deleted.change!.target_id, deleted.change!.path], [task.id, null]);
+    assertEquals(deleted.entity_ids, task.entity_ids);
+    assertEquals(deleted.entity_context, task.entity_context);
+    await entity.deleteEntity(ed, f.actor, e.id, saved.version, undefined, undefined, memo);
+    const entityDeletion = (await records()).items.find((r) =>
+      r.change?.target_id === e.id && r.change.action === "delete"
+    )!;
+    assertEquals([entityDeletion.change!.target_title, entityDeletion.change!.path], ["고객", null]);
+    assertEquals(entityDeletion.entity_context.map((context) => [context.id, context.title, context.source]), [[
+      e.id,
+      "고객",
+      "selection",
+    ]]);
+    await assertRejects(() => entity.getEntity(ed, f.actor, e.id));
   } finally {
     await f.cleanup();
     await foreign.cleanup();

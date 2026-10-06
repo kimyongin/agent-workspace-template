@@ -138,6 +138,40 @@ function fixture(storageNow = () => now) {
   });
   return { deps, app, config, unused, tasks, records, jobs, mutations };
 }
+Deno.test("task change previews retain current title/content and deletion facts without writes", async () => {
+  const f = fixture();
+  const task = await activity.createTask(
+    f.deps,
+    actor,
+    taskCreate.parse({ kind: "once", title: "준비", summary: "초기", body: "원문" }),
+  );
+  const update = await activity.previewTaskChange(f.deps, actor, {
+    action: "update",
+    id: task.id,
+    input: taskUpdate.parse({ expected_version: 1, title: "새 준비", body: "새 원문" }),
+  });
+  assertEquals(update, {
+    changed: true,
+    memo: {
+      title: "새 준비 수정",
+      summary: "새 준비 수정",
+      body: "제목: 준비 → 새 준비\n본문: 원문 → 새 원문",
+    },
+  });
+  const deletion = await activity.previewTaskChange(f.deps, actor, {
+    action: "delete",
+    id: task.id,
+    input: { expected_version: 1 },
+  });
+  assertEquals(deletion.memo, {
+    title: "준비 삭제",
+    summary: "준비 삭제",
+    body:
+      "제목: 준비\n요약: 초기\n본문: 원문\n상태: open\n종류: once\n기한: 없음\n반복 규칙: 없음\n시간대: 없음\n태그: []\n엔터티: []\n중단 기간: []",
+  });
+  assertEquals(f.mutations, []);
+  assertEquals(f.tasks.get(task.id)?.title, "준비");
+});
 
 function snapshot(f: ReturnType<typeof fixture>) {
   return structuredClone({ tasks: [...f.tasks], records: [...f.records], jobs: f.jobs, mutations: f.mutations });
