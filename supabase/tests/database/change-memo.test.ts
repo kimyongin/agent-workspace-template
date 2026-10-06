@@ -1,5 +1,6 @@
 import { assertEquals, assertRejects } from "@std/assert";
 import { entityCreate, entityUpdate } from "../../functions/_shared/contracts/entity.ts";
+import { taskCreate } from "../../functions/_shared/contracts/task.ts";
 import { recordListQuery } from "../../functions/_shared/contracts/record.ts";
 import * as entity from "../../functions/_shared/core/entity/application.ts";
 import * as activity from "../../functions/_shared/core/activity/application.ts";
@@ -20,6 +21,12 @@ dbTest("business save preserves exact entered memo, factual blank default, no-op
     const records = () =>
       activity.listRecords(ad, f.actor, recordListQuery.parse({ record_kind: "change", limit: 100 }));
     assertEquals((await records()).items.find((r) => r.change?.target_id === e.id)!.body, "대상 등록");
+    const task = await activity.createTask(
+      ad,
+      f.actor,
+      taskCreate.parse({ id: crypto.randomUUID(), kind: "once", title: "업무", change_note: "  업무 근거\n" }),
+    );
+    assertEquals((await records()).items.find((r) => r.change?.target_id === task.id)!.body, "  업무 근거\n");
     const memo = "  상세 근거\n" + "가".repeat(21000);
     const patch = entityUpdate.parse({ expected_version: e.version, prop2: 20, change_note: memo });
     const saved = await entity.updateEntity(ed, f.actor, e.id, patch);

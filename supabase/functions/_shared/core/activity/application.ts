@@ -81,6 +81,7 @@ export async function createTask(deps: ActivityDeps, actor: Actor, input: TaskCr
       action: "create",
       before: null,
       after: taskChangeFacts(task),
+      change_note: input.change_note,
     });
     return toTaskResult(task);
   });
