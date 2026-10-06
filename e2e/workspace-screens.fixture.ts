@@ -1,4 +1,4 @@
-import { recordDisplayText } from "../src/lib/record-display.ts";
+import { recordDisplayText } from "../supabase/functions/_shared/contracts/record-display.ts";
 import { saveOnce, beginTabAction } from "./ui-actions.ts";
 import { expect, test, type Page } from "@playwright/test";
 for(const kind of ["entities","records"] as const)test(`${kind}: 긴 복원 중 실패는 미표시 batch까지 유효한23행을 보존`,async({page})=>{
@@ -181,7 +181,7 @@ test("엔터티 관련 작성은 URL·뒤로가기 초안 보호·reload·같은
   await fillText(page,"연결 업무");await page.goBack();const confirm=page.getByRole("dialog",{name:"변경을 버릴까요?"});await confirm.getByRole("button",{name:"취소",exact:true}).click();
   await expect(form(page).getByRole("textbox",{name:/^제목(?: \(필수\))?$/})).toHaveValue("연결 업무");await saveOnce(page, form(page), "추가");
   await expect(page).not.toHaveURL(/create=/);expect(state.writes[0].body.entity_ids).toEqual([id(1)]);await expect(form(page)).toContainText("할 일을 추가했습니다.");
-  await form(page).getByRole("button",{name:"기록 작성",exact:true}).click();await page.reload();await expect(form(page).getByRole("textbox",{name:/^제목(?: \(필수\))?$/})).toHaveValue("");
+  await form(page).getByRole("button",{name:"기록 작성",exact:true}).click();await page.reload();await expect(form(page).getByLabel("본문")).toHaveValue("");
   expect(state.errors).toEqual([]);
 });
 
@@ -288,8 +288,8 @@ for(const width of [390,1440])test(`기록 편집 POP 재조회 실패 ${width}p
   await go(page,`/records/${id(3)}`);await expect(form(page).locator(".markdown")).toBeVisible();failed=true;
   await page.evaluate(()=>{history.pushState({...history.state,idx:(history.state?.idx??0)+1},"",location.pathname+"?edit=1&edit_from=view");dispatchEvent(new PopStateEvent("popstate",{state:history.state}));});
   await expect(form(page).getByRole("alert")).toHaveText("기록을 불러오지 못했습니다.");await expect(form(page).locator(".markdown")).toBeVisible();await expect(form(page).getByRole("button",{name:"조회 다시 시도",exact:true})).toBeVisible();await expect(form(page).getByRole("button",{name:"저장",exact:true})).toHaveCount(0);await expect(page).toHaveURL(/edit=1/);expect(reads).toBe(2);expect(state.writes).toHaveLength(0);
-  failed=false;state.rows.records[0].title="새 서버 원문";state.rows.records[0].version=2;await form(page).getByRole("button",{name:"조회 다시 시도",exact:true}).click();await expect(form(page).getByRole("alert")).toHaveCount(0);await expect(form(page).getByRole("textbox",{name:/^제목(?: \(필수\))?$/})).toHaveValue("새 서버 원문");await expect(form(page).getByRole("button",{name:"삭제",exact:true})).toBeVisible();expect(reads).toBe(3);
-  await form(page).getByRole("button",{name:"닫기",exact:true}).click();await expect(page).not.toHaveURL(/edit=1/);await expect(form(page).getByRole("heading",{name:"새 서버 원문",exact:true})).toBeVisible();await expect(form(page).getByRole("button",{name:"편집",exact:true})).toBeVisible();expect(state.writes).toHaveLength(0);expect(state.errors).toEqual([]);
+  failed=false;state.rows.records[0].body="새 서버 원문";state.rows.records[0].version=2;await form(page).getByRole("button",{name:"조회 다시 시도",exact:true}).click();await expect(form(page).getByRole("alert")).toHaveCount(0);await expect(form(page).getByLabel("본문")).toHaveValue("새 서버 원문");await expect(form(page).getByRole("button",{name:"삭제",exact:true})).toBeVisible();expect(reads).toBe(3);
+  await form(page).getByRole("button",{name:"닫기",exact:true}).click();await expect(page).not.toHaveURL(/edit=1/);await expect(form(page).locator(".markdown")).toHaveText("새 서버 원문");await expect(form(page).getByRole("button",{name:"편집",exact:true})).toBeVisible();expect(state.writes).toHaveLength(0);expect(state.errors).toEqual([]);
 });
 for(const width of [390,1440])test(`기능/목록 구획 ${width}px: 엔터티 편집만·독립 구획·할 일 여백`,async({page},info)=>{
   const state=await fixtures(page);await page.setViewportSize({width,height:900});await go(page,"/entities");

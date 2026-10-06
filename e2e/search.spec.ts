@@ -1,4 +1,3 @@
-import { openDetailEditor } from "./ui-actions.ts";
 import {expect,test} from "@playwright/test";
 import {devLogin,mcpClient,mcpTokenViaConsent,unique} from "./support.ts";
 import {savePrinciple} from "./principle-support.ts";
@@ -49,10 +48,10 @@ test("검색 대상 삭제·불일치 편집 후에는 저장한 페이지까지
     await page.getByRole("button",{name:"더 보기",exact:true}).click();await expect(page.locator(".list .item-title")).toHaveCount(40);
     let requests=0;page.on("request",r=>{if(r.url().endsWith("/api/search")&&r.method()==="POST")requests++;});
     await page.getByRole("link",{name:targets[0],exact:true}).click();
-    await openDetailEditor(page);await page.getByRole("button",{name:"삭제",exact:true}).click();requests=0;
+    await page.getByRole("button",{name:"편집",exact:true}).click();await expect(page.getByRole("dialog",{name:"기록 편집"})).toBeVisible();await page.getByRole("button",{name:"삭제",exact:true}).click();requests=0;
     await page.getByRole("dialog",{name:"기록을 삭제할까요?"}).getByRole("button",{name:"삭제",exact:true}).click();
-    await expect(page).toHaveURL(/\/records/);await page.goBack();await expect(page.locator(".list .item-title")).toHaveCount(40);await expect(page.getByRole("heading",{name:"검색",exact:true})).toBeFocused();expect(requests).toBe(2);
-    await page.getByRole("link",{name:targets[1],exact:true}).click();await openDetailEditor(page);
+    await expect(page).toHaveURL(/\/records(?:\?|$)/);await page.goBack();await expect(page.locator(".list .item-title")).toHaveCount(40);await expect(page.getByRole("heading",{name:"검색",exact:true})).toBeFocused();expect(requests).toBe(2);
+    await page.getByRole("link",{name:targets[1],exact:true}).click();await page.getByRole("button",{name:"편집",exact:true}).click();
     const form=page.getByRole("dialog",{name:"기록 편집"});await form.getByLabel("본문").fill("검색어 없음");await expect(form.getByLabel("편집 메모")).toHaveCount(0);await form.getByRole("button",{name:"저장",exact:true}).click();await expect(form).not.toBeVisible();
     requests=0;await page.getByRole("button",{name:/^이전: 검색/}).click();
     await expect(page.locator(".list .item-title")).toHaveCount(40);await expect(page.getByRole("heading",{name:"검색",exact:true})).toBeFocused();expect(requests).toBe(2);

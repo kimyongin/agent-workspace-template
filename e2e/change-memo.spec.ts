@@ -25,6 +25,7 @@ test("엔터티는 한 번에 저장하고 입력 메모만 기록 본문으로 
     await edit.getByLabel("속성 2").fill("30");await edit.getByRole("button",{name:"저장",exact:true}).click();
     await expect(edit).not.toBeVisible();expect((await mcp.call("get_entity",{id})).prop2).toBe(30);
     const updated=await mcp.call("list_records",{record_kind:"change",limit:100});
-    expect(updated.items.find((r:{change:{target_id:string;action:string}})=>r.change?.target_id===id&&r.change.action==="update").body).toContain("10 → 30");
+    const changed=updated.items.find((r:{change:{target_id:string;action:string}})=>r.change?.target_id===id&&r.change.action==="update");
+    expect(changed).toBeDefined();expect(changed.body).toContain(name);expect(changed.body).toContain("수정");expect(changed.body).toContain("속성 2");
   } finally { await mcp.close(); }
 });

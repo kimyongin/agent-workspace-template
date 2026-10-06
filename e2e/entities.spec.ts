@@ -39,7 +39,7 @@ test("Entity 웹 CRUD·초안 보호→MCP parity·활동 연결→삭제 원문
     await expect(page.locator(".list .item-title")).toHaveCount(1);
     expect(new URL(page.url()).searchParams.get("entity_id")).toBe(id);
     await page.getByRole("link", { name: task.title, exact: true }).click();
-    await page.getByRole("button",{name:"닫기",exact:true}).click();
+    await page.getByRole("button",{name:/^이전: 검색/}).click();
     await expect(page.getByRole("link", { name: task.title, exact: true })).toBeFocused();
     await page.reload();
     await expect(page.locator(".list .item-title")).toHaveCount(1);
@@ -103,7 +103,7 @@ test("엔터티 관련 기록 취소: 작성 URL·reload·메모와 변경 이�
     for(const dirty of [false,true]){
       await beginTabAction(page,"기록 작성");
       const editor=page.getByRole("dialog",{name:"기록 작성",exact:true});await expect(page).toHaveURL(/create=record/);
-      if(dirty){await editor.getByLabel("제목").fill("저장하지 않을 기록");await editor.getByLabel("본문").fill("취소할 설명");}
+      if(dirty){await editor.getByLabel("본문").fill("취소할 설명");}
       await editor.getByRole("button", {name:"닫기",exact:true}).click();
       if(dirty) await page.getByRole("dialog",{name:"변경을 버릴까요?"}).getByRole("button",{name:"변경 버리기"}).click();
       await expect(page).not.toHaveURL(/create=/);await expect(page).toHaveURL(/list=/);

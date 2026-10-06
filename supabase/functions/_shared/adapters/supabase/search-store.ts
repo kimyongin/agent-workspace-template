@@ -1,5 +1,6 @@
 import type postgres from "postgres";
 import type { SearchInput, SearchItem } from "../../contracts/search.ts";
+import { recordDisplayText } from "../../contracts/record-display.ts";
 import type { Actor } from "../../core/shared/actor.ts";
 import type { SearchPosition, SearchRow, SearchStore } from "../../core/search/application.ts";
 import { runAsActor } from "./sql-context.ts";
@@ -13,7 +14,7 @@ class SqlSearchStore implements SearchStore {
       tx`select owner_id,'task'::text as kind,id,title,body,updated_at as at,status,entity_ids,kind as task_kind,null::text as record_kind,null::boolean as is_current,${
         tagIdsColumn(tx, "task")
       } from app.tasks
-      union all select owner_id,'record',id,left(body,400),body,occurred_at,null::text,entity_ids,null::text,record_kind,null::boolean,${
+      union all select owner_id,'record',id,body,body,occurred_at,null::text,entity_ids,null::text,record_kind,null::boolean,${
         tagIdsColumn(tx, "record")
       } from app.records
       union all select owner_id,'principle',id,title,body,saved_at,null::text,'{}'::uuid[],null::text,null::text,is_current,'[]'::jsonb from app.principles where is_current`;
@@ -100,7 +101,7 @@ class SqlSearchStore implements SearchStore {
     return rows.map((r) => ({
       kind: r.kind as SearchItem["kind"],
       id: r.id as string,
-      title: r.kind === "record" ? recordLabel(r.title as string) : r.title as string,
+      title: r.kind === "record" ? recordDisplayText(r.title as string) : r.title as string,
       snippet: r.snippet as string,
       snippet_start: r.snippet_start as number,
       snippet_end: r.snippet_end as number,
@@ -114,13 +115,6 @@ class SqlSearchStore implements SearchStore {
       record_kind: (r.record_kind as SearchItem["record_kind"]) ?? null,
     }));
   }
-}
-function recordLabel(body: string) {
-  const plain = body.replace(/!?\[([^\]]+)\]\([^)]*\)/g, "$1")
-    .replace(/^\s{0,3}(?:#{1,6}\s+|>\s*|[-*+]\s+|\d+\.\s+)/gm, "")
-    .replace(/[*_`~]/g, "").replace(/\s+/g, " ").trim();
-  const points = [...plain];
-  return points.slice(0, 100).join("") + (points.length > 100 ? "…" : "") || "기록";
 }
 export class SqlSearchUnitOfWork {
   constructor(private readonly sql: postgres.Sql) {}

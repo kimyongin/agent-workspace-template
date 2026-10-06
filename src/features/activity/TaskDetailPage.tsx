@@ -1,4 +1,4 @@
-import { recordDisplayText } from "../../lib/record-display.ts";
+import { recordDisplayText } from "@contracts/record-display.ts";
 import { DetailLink as Link, useDetailNavigate, useDetailOwnerReturn } from "../../lib/detail-exploration.tsx";
 import { editFromView } from "../../lib/detail-navigation.ts";
 import { ChangeNoteField, FormModal, changeNoteErrors } from "../../components/ContentForm.tsx";

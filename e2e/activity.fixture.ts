@@ -1,4 +1,4 @@
-import { recordDisplayText } from "../src/lib/record-display.ts";
+import { recordDisplayText } from "../supabase/functions/_shared/contracts/record-display.ts";
 import { saveOnce } from "./ui-actions.ts";
 import { test, expect } from "@playwright/test";
 import { beginTabAction } from "./ui-actions.ts";

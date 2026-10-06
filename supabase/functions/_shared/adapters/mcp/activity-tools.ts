@@ -56,7 +56,7 @@ export function activityTools(deps: activity.ActivityDeps): ToolDef[] {
     },
     {
       name: "get_task",
-      description: "할 일 하나를 읽는다. 결과 기록의 요약과 중단 이력을 포함한다.",
+      description: "할 일 하나를 읽는다. 결과 기록의 본문과 중단 이력을 포함한다.",
       input: idOnly,
       readOnly: true,
       handler: (args, actor) => activity.getTask(deps, actor, byId(args)),
@@ -166,7 +166,7 @@ export function activityTools(deps: activity.ActivityDeps): ToolDef[] {
     {
       name: "create_record",
       description:
-        "할 일 없이 수행 기록을 직접 작성한다. 제목·요약은 검색에 쓰인다. 원칙을 참고했다면 필요한 경우 본문에 설명한다.",
+        "할 일 없이 기록 본문을 직접 작성한다. 본문은 구간별 의미 검색과 키워드 검색에 쓰인다. 원칙을 참고했다면 필요한 경우 본문에 설명한다.",
       input: recordCreate,
       readOnly: false,
       handler: (args, actor) => activity.createRecord(deps, actor, parse(recordCreate, args)),
@@ -189,7 +189,7 @@ export function activityTools(deps: activity.ActivityDeps): ToolDef[] {
     {
       name: "update_record",
       description:
-        "일반 기록·수행 결과·업무 사건의 메모를 추가 편집 로그 없이 고친다. change_note는 선택. 사건 정보는 변경할 수 없다. tag_ids 생략은 유지, 빈 배열은 태그 제거. 과거 적용 원문 캡처는 읽기 전용이다. expected_version이 다르면 conflict.",
+        "일반 기록·수행 결과·업무 사건의 본문을 추가 편집 로그 없이 고친다. 사건 정보는 변경할 수 없다. tag_ids 생략은 유지, 빈 배열은 태그 제거. 과거 적용 원문 캡처는 읽기 전용이다. expected_version이 다르면 conflict.",
       input: withId(recordUpdate),
       readOnly: false,
       handler: (args, actor) => {
