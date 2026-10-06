@@ -5,6 +5,21 @@ const id = (n:number) => `00000000-0000-4000-8000-${String(n).padStart(12,"0")}`
 test.beforeEach(async({page})=>{await page.route("http://127.0.0.1:55580/**",async route=>{if(route.request().isNavigationRequest()){const response=await route.fetch({url:"http://127.0.0.1:55580/e2e/fixtures/activity.html"});await route.fulfill({response});}else await route.continue();});});
 const record = (n:number, occurred_at="2026-10-03T16:00:00Z") => ({id:id(n),title:`기록 ${n}`,summary:"요약 먼저",body:"본문 근거",occurred_at,task_id:null,occurrence_on:null,tag_ids:[],entity_ids:[],entity_context:[],record_kind:"user",change_note:null,change:null,applied_principle_snapshots:[],version:1,created_at:occurred_at,updated_at:occurred_at});
 
+for(const width of [390,1024])test(`변경 기록 metadata ${width}px: 시각·종류는 같은 줄, 대상은 다음 줄 왼쪽 정렬`,async({page},info)=>{
+  const items=["수정","삭제"].map((action,i)=>({...record(i+1),title:`새 기준 ${action}`,record_kind:"change",change:{event_id:id(10+i),target_kind:"principle",target_id:id(20+i),target_title:i?"긴 기준 이름 ".repeat(20):"새 기준",action:i?"delete":"update",source:"mcp",before:null,after:null,path:"/principles/example"}}));
+  await page.route("http://127.0.0.1:55581/api/**",route=>route.fulfill({json:{items:new URL(route.request().url()).pathname.endsWith("/records")?items:[],next_cursor:null}}));
+  await page.setViewportSize({width,height:900});await page.goto("/e2e/fixtures/activity.html?route=/records");
+  const rows=page.locator(".record-timeline .list-item");await expect(rows).toHaveCount(2);
+  for(const row of await rows.all()){
+    const time=(await row.locator("time").boundingBox())!,kind=(await row.getByText("변경 기록 · 에이전트",{exact:true}).boundingBox())!,target=(await row.locator("p.secondary").filter({hasText:"원칙 「"}).boundingBox())!;
+    expect(Math.abs(time.y-kind.y)).toBeLessThanOrEqual(2);
+    expect(target.y).toBeGreaterThanOrEqual(Math.max(time.y+time.height,kind.y+kind.height));
+    expect(Math.abs(target.x-time.x)).toBeLessThanOrEqual(1);
+  }
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+  await page.screenshot({path:info.outputPath(`change-record-${width}.png`)});
+});
+
 for (const kind of ["tasks", "records"] as const) test(`${kind} 탭은 자기 목록만 조회하고 검색 필터를 같은 업무에 보낸다`, async ({page}) => {
   const reads:string[]=[],searches:Record<string,unknown>[]=[],writes:string[]=[];
   await page.route("http://127.0.0.1:55581/api/**", async route => {
