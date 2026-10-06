@@ -39,10 +39,18 @@ dbTest(
       assertEquals((await p.currentPrinciple(d, a)).current?.id, first.id);
       assertEquals((await p.currentPrinciple(d, a)).current, first);
       assertEquals((await admin`select id from app.principles where owner_id=${a.userId}`).length, 1);
-      assertEquals((await admin`select id from app.search_index_state where owner_id=${a.userId}`).length, 2);
+      // The failed save leaves only the creation change record indexed. Latest principles never enqueue embeddings.
+      const indexed = () => admin`select kind from app.search_index_state where owner_id=${a.userId}`;
+      assertEquals((await indexed()).map((row) => row.kind), ["record"]);
       const result = await p.updatePrinciple(d, a, first.id, i);
       assertEquals(result.id, first.id);
       assertEquals(result.version, 2);
+      assertEquals((await indexed()).map((row) => row.kind), ["record", "record"]);
+      assertEquals(
+        (await admin`select msg_id from pgmq.q_search_index where message->>'owner_id'=${a.userId} and message->>'kind'='principle'`)
+          .length,
+        0,
+      );
       await assertRejects(() => p.updatePrinciple(d, a, first.id, i));
     } finally {
       await f.cleanup();

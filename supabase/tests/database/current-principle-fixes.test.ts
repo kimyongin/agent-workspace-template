@@ -29,7 +29,18 @@ dbTest(
         searchInput.parse({ query: token, kinds: ["principle"], mode: "keyword" }),
       );
       assertEquals(found.items.map((r) => r.id), [current.id]);
-      assertEquals(found.semantic_coverage, { pending: 1, excluded: 0 });
+      // Keyword reads include the current principle, while semantic coverage tracks records only.
+      assertEquals(found.semantic_coverage, { pending: 0, excluded: 0 });
+      assertEquals(
+        (await admin`select id from app.search_index_state where owner_id=${f.actor.userId} and kind='principle'`)
+          .length,
+        0,
+      );
+      assertEquals(
+        (await admin`select msg_id from pgmq.q_search_index where message->>'owner_id'=${f.actor.userId} and message->>'kind'='principle'`)
+          .length,
+        0,
+      );
       assertEquals((await asUser(sql, f.actor.userId, (tx) => tx`select id from app.principles`)).map((r) => r.id), [
         current.id,
       ]);
