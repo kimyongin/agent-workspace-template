@@ -34,7 +34,7 @@ export function PrincipleDetailPage() {
     {error&&<><Notice kind="error">{confirmed.current?.id===id?"저장은 완료했습니다. 최신 내용을 불러오지 못했습니다.":error}</Notice><button className="btn" onClick={()=>setRetry(n=>n+1)}>조회 다시 시도</button></>}
     {!item&&!error&&<p role="status">불러오는 중…</p>}
     {item&&<section className="form">
-      <section className="detail-section"><h2 className="section-title">요약</h2><p className="document-summary">{item.summary}</p></section><section className="detail-section"><h2 className="section-title">현재 원칙</h2><MarkdownContent text={item.body}/><p className="meta">수정 {formatDateTime(item.saved_at)}</p></section>
+      {item.summary!==item.title&&<section className="detail-section" aria-label="원칙 개요"><p className="document-summary">{item.summary}</p></section>}<section className="detail-section" aria-label="현재 원칙">{item.body&&<MarkdownContent text={item.body}/>}<p className="meta">수정 {formatDateTime(item.saved_at)}</p></section>
       {editing&&editReady&&item.is_current&&<PrincipleFormModal id={item.id} version={item.version} editing initial={{...item,change_note:item.change_note??""}} onClose={closeEdit} onRouteDiscard={()=>setEditing(false)}
         onDelete={()=>setDeleting(true)} details={<div className="detail-management">{message&&<Notice kind="success">{message}</Notice>}{error&&<Notice kind="error">{error}</Notice>}<p className="meta">현재 원칙 · {formatDateTime(item.saved_at)}</p>
 

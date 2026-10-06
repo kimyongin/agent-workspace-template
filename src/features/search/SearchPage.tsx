@@ -64,11 +64,11 @@ export function SearchPage(){
   };
   return <section className="panel" aria-labelledby="search-title">
     <h1 id="search-title" className="page-title" tabIndex={-1}>검색</h1>
-    <form onSubmit={e=>{e.preventDefault();if(composing.current)return;const value=draft.trim();if(value===q)setRetry(n=>n+1);else change("q",value);}}>
+    <form className="search-form" onSubmit={e=>{e.preventDefault();if(composing.current)return;const value=draft.trim();if(value===q)setRetry(n=>n+1);else change("q",value);}}>
       <Field label="검색어" required>{p=><input {...p} className="input" placeholder="제목·요약·본문 검색" value={draft} onCompositionStart={()=>{composing.current=true;}} onCompositionEnd={()=>{composing.current=false;}} onKeyDown={e=>{if(e.key==="Enter"&&(e.nativeEvent.isComposing||e.keyCode===229))e.preventDefault();}} onChange={e=>setDraft(e.target.value)} required/>}</Field>
       <button className="btn btn-primary" type="submit" disabled={busy}>검색</button>
     </form>
-    <div className="actions">
+    <div className="search-filters">
       <Field label="검색 대상">{p=><select {...p} className="input" value={params.get("kind")??""} onChange={e=>change("kind",e.target.value)}><option value="">전체</option>{Object.entries(kinds).map(([k,v])=><option key={k} value={k}>{v}</option>)}</select>}</Field>
       <Field label="검색 방식">{p=><select {...p} className="input" value={params.get("mode")??"auto"} onChange={e=>change("mode",e.target.value)}><option value="auto">자동</option><option value="keyword">키워드</option></select>}</Field>
     </div>
@@ -77,7 +77,7 @@ export function SearchPage(){
     {params.has("tag_ids")&&<div className="form"><TagNames ids={activityTags(params)}/><button type="button" className="btn" onClick={()=>change("tag_ids","")}>저장된 태그 조건 해제</button></div>}
     <TagFilter value={tag} onChange={id=>{const next=new URLSearchParams(params);next.delete("tag_ids");next.delete("pages");next.delete("scroll");id?next.set("tag_id",id):next.delete("tag_id");setParams(next);}}/>
     <EntityPicker value={params.get("entity_id")??""} onChange={id=>change("entity_id",id??"")}/>
-    <div className="actions">{["from","to"].map(name=><Field key={name} label={name==="from"?"기간 시작":"기간 끝"}>{p=><input {...p} type="datetime-local" className="input" value={params.get(name)??""} onChange={e=>change(name,e.target.value)}/>}</Field>)}</div>
+    <div className="search-filters">{["from","to"].map(name=><Field key={name} label={name==="from"?"기간 시작":"기간 끝"}>{p=><input {...p} type="datetime-local" className="input" value={params.get(name)??""} onChange={e=>change(name,e.target.value)}/>}</Field>)}</div>
     {error&&<><Notice kind="error">{error}</Notice><button className="btn" type="button" onClick={()=>setRetry(n=>n+1)}>다시 시도</button></>}
     {busy&&<p role="status" className="secondary">검색 중…</p>}
     {result&&<>
@@ -92,7 +92,7 @@ export function SearchPage(){
           if(e.button!==0||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey)return;
           e.preventDefault();back.set("scroll",String(window.scrollY));const at=`${back}#search-${r.kind}-${r.id}`;
           navigate(`/search?${at}`,{replace:true});navigate(`${r.path}?search=${encodeURIComponent(at)}`);
-        }}>{r.title}</Link><span className="secondary record-summary">{r.summary}</span>
+        }}>{r.title}</Link>{r.summary!==r.title&&<span className="secondary record-summary">{r.summary}</span>}
         <span className="meta">{kinds[r.kind]} · {formatDateTime(r.at)}</span><SearchMatch item={r}/>
       </div></li>;})}</ul>
       {result.next_cursor&&<button type="button" className="btn" disabled={busy} onClick={more}>더 보기</button>}

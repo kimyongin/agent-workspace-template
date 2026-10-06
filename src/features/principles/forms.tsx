@@ -25,7 +25,7 @@ export function PrincipleFormModal({initial,editing=false,details,onDelete,id,ve
     {errors=><>
 
       <TextFields draft={draft} set={patch=>setDraft(d=>({...d,...patch}))} errors={errors}/>
-      <section className="detail-section form"><h2 className="section-title">메모</h2><Field label="편집 메모" error={errors.change_note}>{props=><textarea {...props} className="input" value={draft.change_note} onChange={event=>setDraft(d=>({...d,change_note:event.target.value}))} maxLength={1000}/>}</Field></section>
+      <section className="detail-section form"><Field label="편집 메모" error={errors.change_note}>{props=><textarea {...props} className="input" value={draft.change_note} onChange={event=>setDraft(d=>({...d,change_note:event.target.value}))} maxLength={1000}/>}</Field></section>
       {details}
     </>}
   </FormModal>;

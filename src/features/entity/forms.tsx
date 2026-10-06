@@ -126,7 +126,7 @@ export function EntityForm(
           </Field>
           </section><section className="detail-section form"><h2 className="section-title">관련 정보</h2>
           <TagPicker scope="entity" value={draft.tag_ids} error={errors.tag_ids} onChange={tag_ids=>setDraft(d=>({...d,tag_ids}))}/>
-          </section><section className="detail-section form"><h2 className="section-title">메모</h2><ChangeNoteField label="편집 메모" value={draft.change_note} required={false} error={errors.change_note} onChange={change_note=>setDraft(d=>({...d,change_note}))}/></section>
+          </section><section className="detail-section form"><ChangeNoteField label="편집 메모" value={draft.change_note} required={false} error={errors.change_note} onChange={change_note=>setDraft(d=>({...d,change_note}))}/></section>
           {details}
         </>
       )}

@@ -238,8 +238,8 @@ export function TaskDetailPage() {
     {task.kind==="recurring"&&<button type="button" className="btn btn-primary" disabled={busy} onClick={()=>manage("transition")}>{task.status==="active"?"중단":"재개"}</button>}
   </>}>
       {management}
-      <section className="detail-section"><h2 className="section-title">요약</h2><p className="document-summary">{task.summary}</p></section>
-      <section className="detail-section"><h2 className="section-title">내용</h2><MarkdownContent text={task.body}/></section>
+      {task.summary!==task.title&&<section className="detail-section" aria-label="할 일 개요"><p className="document-summary">{task.summary}</p></section>}
+      {task.body&&<section className="detail-section" aria-label="내용"><MarkdownContent text={task.body}/></section>}
       {relatedInformation}
       {occurrenceSection}
       {dialog === "edit" && editReady && (

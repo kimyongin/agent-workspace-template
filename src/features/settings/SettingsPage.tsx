@@ -38,7 +38,7 @@ function AccountSettings() {
   return <section className="panel settings" aria-labelledby="settings-title">
     <h1 className="page-title" id="settings-title">설정</h1>
     <section aria-labelledby="account-title"><h2 className="section-title" id="account-title">내 계정</h2>
-      <p>{typeof user.user_metadata?.full_name === "string" ? user.user_metadata.full_name : "내 계정"}</p><p className="secondary">{user.email}</p><p className="secondary">로그인됨</p></section>
+      <p className="account-name">{typeof user.user_metadata?.full_name === "string" ? user.user_metadata.full_name : "내 계정"}</p><p className="secondary">{user.email}</p></section>
     <form onSubmit={async event => {
       event.preventDefault(); if (pending.current || !dirty) return;
       pending.current = true; setBusy(true); setMessage(""); setError(false);
@@ -50,20 +50,20 @@ function AccountSettings() {
       finally { pending.current = false; if (mounted.current) setBusy(false); }
     }} aria-busy={busy}>
       <fieldset disabled={busy}><legend className="section-title">프로필 아이콘</legend>
-        <div className="profile-preview"><ProfileIcon id={draft} /><span>선택한 아이콘 미리보기</span></div>
+        <div className="profile-preview"><ProfileIcon id={draft} /><span className="secondary">선택한 아이콘 미리보기</span></div>
         <div className="profile-choices">{profileIcons.map(icon => <label key={icon.id} className="profile-choice">
           <input type="radio" name="profile-icon" value={icon.id} checked={draft === icon.id} onChange={() => select(icon.id)} /><ProfileIcon id={icon.id} /><span>{icon.label}</span>
         </label>)}</div>
-        <div className="actions"><button type="button" className="btn" onClick={() => select("person")}>기본값 선택</button>
-          <button type="button" className="btn" disabled={!dirty} onClick={() => select(saved)}>변경 취소</button>
+        <div className="actions"><button type="button" className="btn btn-text" onClick={() => select("person")}>기본값 선택</button>
+          <button type="button" className="btn btn-text" disabled={!dirty} onClick={() => select(saved)}>변경 취소</button>
           <button type="submit" className="btn btn-primary" disabled={!dirty || busy}>{busy ? "저장 중…" : "아이콘 저장"}</button></div>
       </fieldset><p className={error ? "error-text" : "secondary"} role={error ? "alert" : "status"}>{message}</p>
     </form>
     <section aria-labelledby="data-title"><h2 className="section-title" id="data-title">자료 관리</h2>
       <div className="actions"><Link className="btn" to="/tags/entity">엔터티 태그 관리</Link><Link className="btn" to="/tags/activity">활동 태그 관리</Link></div></section>
     <section aria-labelledby="connection-title"><h2 className="section-title" id="connection-title">에이전트 연결</h2>
-      <p>제품 플러그인 설치와 MCP OAuth 로그인 방법을 확인하세요.</p><Link className="btn" to="/guide">연결 안내 보기</Link></section>
-    <Link className="btn" to="/logout">로그아웃</Link>
+      <Link className="btn btn-text" to="/guide">연결 안내 보기</Link></section>
+    <Link className="btn btn-text" to="/logout">로그아웃</Link>
     <ConfirmDialog open={!busy && blocker.state === "blocked"} title="변경을 버릴까요?" message="저장하지 않은 아이콘 선택이 사라집니다." confirmLabel="변경 버리기"
       onConfirm={() => { if (blocker.state === "blocked") blocker.proceed(); }} onCancel={() => { if (blocker.state === "blocked") blocker.reset(); }} />
   </section>;

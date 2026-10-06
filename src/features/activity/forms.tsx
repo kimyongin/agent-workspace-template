@@ -96,7 +96,7 @@ export function RecordFormModal(props: {
               />
             )}
           </Field></section>}
-          <section className="detail-section form"><h2 className="section-title">메모</h2><Field label="편집 메모" error={errors.change_note}>
+          <section className="detail-section form"><Field label="편집 메모" error={errors.change_note}>
             {p=><textarea {...p} className="input" rows={3} value={draft.change_note??""} onChange={e=>setDraft(d=>({...d,change_note:e.target.value}))}/>}</Field></section>
           {props.details}
         </>
@@ -333,7 +333,7 @@ export function TaskFormModal(props: {
                 </div>
               </>
             )}
-          </section><section className="detail-section form"><h2 className="section-title">메모</h2><ChangeNoteField label="편집 메모" value={draft.change_note??""} required={false} error={errors.change_note} onChange={change_note=>set({change_note})}/></section>
+          </section><section className="detail-section form"><ChangeNoteField label="편집 메모" value={draft.change_note??""} required={false} error={errors.change_note} onChange={change_note=>set({change_note})}/></section>
           {props.details}
         </>
       )}

@@ -25,7 +25,7 @@ function CurrentTarget({change}: {change:NonNullable<WorkspaceRecord["change"]>}
     });
     return ()=>controller.abort();
   },[path,attempt]);
-  if(state==="exists")return <Link className="btn" to={path}>대상 원문 보기</Link>;
+  if(state==="exists")return <Link className="btn btn-text" to={path}>대상 원문 보기</Link>;
   if(state==="missing")return <p className="secondary">삭제된 대상 또는 접근할 수 없는 대상입니다. 당시의 기록은 그대로 보존됩니다.</p>;
   if(state==="failed")return <div className="form"><p className="notice" role="status">대상의 현재 상태를 확인하지 못했습니다.</p><button type="button" className="btn" onClick={()=>setAttempt(value=>value+1)}>대상 다시 조회</button></div>;
   return <p className="secondary" role="status">대상의 현재 상태 확인 중…</p>;
@@ -37,7 +37,7 @@ export function ChangeContext({record,compact=false}: {record: WorkspaceRecord;c
   if(compact)return <><span className="meta">{kind}</span>{target&&<p className="secondary record-change-target">{target}{change?.action==="delete"?" · 삭제된 대상":""}</p>}</>;
   return <div className="form">
     <span className="meta">{kind}</span>
-    {record.change_note&&<p className="notice">편집 메모: {record.change_note}</p>}
+    {record.change_note&&<p className="memo-text">편집 메모: {record.change_note}</p>}
     {change&&<>
       <p className="secondary">{target}</p>
       {(change.before!==null||change.after!==null)&&<details className="workspace-additional"><summary>변경 전후 값</summary><div className="change-snapshot"><section><h3 className="section-title">변경 전</h3><pre>{change.before?JSON.stringify(change.before,null,2):"없음"}</pre></section><section><h3 className="section-title">변경 후</h3><pre>{change.after?JSON.stringify(change.after,null,2):"없음"}</pre></section></div></details>}
@@ -50,7 +50,7 @@ export function PrincipleSnapshots({snapshots}: {snapshots:NonNullable<Workspace
   if (!snapshots.length) return null;
   return <section className="form"><h2 className="section-title">적용 당시 원칙</h2>
     {snapshots.map((p,index)=><section key={index} className="form">
-      <h3 className="section-title">{p.title}</h3>
+      <h3 className="item-title">{p.title}</h3>
       <p className="meta">원본 ID: {p.id} · 버전 {p.version} · 당시 상태: {p.status}</p>
       <p className="meta">저장 {formatDateTime(p.saved_at)}</p>
       <p className="secondary">{p.summary}</p><MarkdownContent text={p.body}/>

@@ -33,7 +33,7 @@ export function TextFields(
           <textarea {...p} className="input" rows={3} placeholder="핵심 내용을 짧게 요약하세요" value={draft.summary} onChange={(e) => set({ summary: e.target.value })} />
         )}
       </Field>
-      </section><section className="detail-section form"><h2 className="section-title">내용</h2>
+      </section><section className="detail-section form">
       <Field label={contentLabels.body} error={errors.body}>
         {(p) => (
           <textarea {...p} className="input" rows={8} placeholder="상세 내용과 근거를 작성하세요 (마크다운)" value={draft.body} onChange={(e) => set({ body: e.target.value })} />

@@ -204,6 +204,35 @@ test("반복 중단·재개 메모·결과 생성은 같은 surface",async({page
 
 const stamp="2026-10-04T03:00:00Z", id=(n:number)=>`00000000-0000-4000-8000-${String(n).padStart(12,"0")}`;
 
+for(const width of [320,360,390,639,640,768,1024,1440])test(`시각 위계 ${width}px: 제목·보조 정보·편집 정렬과 검색·가이드`,async({page},info)=>{
+  await page.setViewportSize({width,height:900});
+  const state=await fixtures(page);state.rows.tasks[0].title="긴 제목 ".repeat(8);state.rows.tasks[0].change_note="강조하지 않을 보충 메모";
+  const typography=async(selector:string)=>page.locator(selector).first().evaluate(el=>{const s=getComputedStyle(el);return {size:parseFloat(s.fontSize),weight:Number(s.fontWeight),color:s.color};});
+  for(const path of ["/entities","/tasks","/records","/principles","/tags/entity","/tags/activity","/search","/guide"]){
+    await go(page,path);await expect(page.locator(".page-title")).toBeVisible();
+    if(!["/search","/guide"].includes(path))await expect(page.locator(".item-title").first()).toBeVisible();
+    expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),path).toBe(true);
+    if(await page.locator(".item-title").count()){
+      const title=await typography(".item-title"),pageTitle=await typography(".page-title");expect(pageTitle.size).toBeGreaterThan(title.size);expect(title.weight).toBeGreaterThanOrEqual(600);
+      if(await page.locator(".secondary").count()){const secondary=await typography(".secondary");expect(title.size).toBeGreaterThan(secondary.size);expect(title.weight).toBeGreaterThan(secondary.weight);expect(title.color).not.toBe(secondary.color);}
+    }
+    if(path==="/tasks"){
+      const heading=page.locator(".activity-item-heading").first(),title=heading.locator(".item-title"),edit=heading.locator(".activity-item-actions a");
+      const t=(await title.boundingBox())!,e=(await edit.boundingBox())!;expect(e.x).toBeGreaterThanOrEqual(t.x+t.width);expect(e.height).toBeGreaterThanOrEqual(44);expect(e.width).toBeGreaterThanOrEqual(44);
+      const memo=page.locator(".memo-text");await expect(memo).toContainText("보충 메모");expect(await memo.evaluate(el=>el.classList.contains("notice"))).toBe(false);
+    }
+    if(width===390&&["/tasks","/guide","/tags/entity","/search"].includes(path))await page.screenshot({path:info.outputPath(`hierarchy-${path.slice(1).replaceAll("/","-")}-${width}.png`)});
+  }
+  Object.assign(state.rows.records[0],{summary:"기록",body:"",tag_ids:[]});await go(page,`/records/${id(3)}`);
+  await expect(form(page).locator(".document-summary,.markdown")).toHaveCount(0);await expect(form(page).getByRole("heading",{name:"태그",exact:true})).toHaveCount(0);await expect(form(page).getByRole("heading",{name:"기록",exact:true})).toHaveCount(1);
+  await form(page).getByRole("button",{name:"편집",exact:true}).click();await expect(form(page).getByRole("textbox",{name:/^요약/})).toHaveValue("기록");await expect(form(page).getByRole("heading",{name:"메모",exact:true})).toHaveCount(0);
+  const head=await form(page).locator(".modal-head").boundingBox(),body=await form(page).locator(":scope > .modal-inner > .modal-body").boundingBox(),foot=await form(page).locator(".modal-foot").boundingBox();expect(head!.y+head!.height).toBeLessThanOrEqual(body!.y);expect(body!.y+body!.height).toBeLessThanOrEqual(foot!.y+1);
+  await go(page,`/records/${id(3)}`);Object.assign(state.rows.records[0],{record_kind:"change",body:"변경에 대한 보충 메모",entity_ids:[id(1)],entity_context:[{id:id(1),title:"연결된 엔터티",source:"selection",captured_at:stamp}]});await page.reload();
+  const memo=form(page).locator(".memo-text.markdown");await expect(memo).toBeVisible();expect(await memo.evaluate(el=>parseFloat(getComputedStyle(el).fontSize))).toBeLessThan(await form(page).locator(".dialog-title").evaluate(el=>parseFloat(getComputedStyle(el).fontSize)));
+  const provenance=form(page).locator(".related-provenance");await expect(provenance).not.toHaveAttribute("open","");await provenance.locator("summary").click();await expect(provenance).toHaveAttribute("open","");await expect(provenance).toContainText("연결 선택 시 이름");
+  expect(state.writes).toHaveLength(0);expect(state.errors).toEqual([]);
+});
+
 for(const width of [320,390,1024])test(`엔터티 연결 목록 ${width}px: 종류·요약·시각·행 구획과 전체 보기 위치`,async({page},info)=>{
   const state=await fixtures(page),title="memo-edd743a2-2a0c-455b-b3ad-312e05d47d4e 등록";
   Object.assign(state.rows.entities[0],{records:{count:2,items:[{id:id(3),title:"상담 판단 정리",summary:"확인한 상담 내용을 정리했습니다.",record_kind:"user",occurred_at:stamp,updated_at:stamp},{id:id(30),title,summary:title,record_kind:"change",occurred_at:stamp,updated_at:stamp}]}});

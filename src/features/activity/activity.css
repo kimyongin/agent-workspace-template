@@ -6,7 +6,7 @@
   padding-bottom: var(--space-4);
 }
 .activity-filters > .chips, .activity-filters > .filter-reset { grid-column: 1 / -1; }
-.activity-item-heading { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-2); }
+.activity-item-heading { display: flex; align-items: baseline; gap: var(--space-3); min-width: 0; }
 .activity-item-heading > .item-title { min-width: 44px; flex: 1; overflow-wrap: anywhere; }
 .activity-item-actions { display: inline-flex; flex-shrink: 0; gap: var(--space-1); }
 .activity-item-actions { align-items: center; }
@@ -16,16 +16,16 @@
 .record-date-toggle::after { content: "접기"; font-size: .875rem; font-weight: normal; }
 .record-date-toggle[aria-expanded="false"]::after { content: "펼치기"; }
 .record-date-group > .list { margin-top: var(--space-2); }
-.document-summary { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.document-summary { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--muted-ink); font-size: .875rem; line-height: 1.5rem; }
 .tag-read { display: inline-block; border: 1px solid var(--line); border-radius: var(--radius-chip); padding: var(--space-1) var(--space-2); overflow-wrap: anywhere; max-width: 100%; }
 .tag-selection .chip { min-width: 44px; border-radius: var(--radius-chip); }
 .record-date-group > .list[hidden] { display: none; }
-.record-period { display: grid; gap: 8px; }
+.record-period { display: grid; gap: var(--space-2); }
 .record-period-inputs { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 8px; }
 .record-period-inputs .input { min-width: 0; padding: 10px 6px; }
 .activity-section { display: grid; gap: 12px; min-width: 0; }
 .tasks-list { padding: 16px; }
-.tasks-list > .list-item { padding-left: 12px; padding-right: 12px; }
+.tasks-list > .list-item { padding: var(--space-4) var(--space-3); }
 .entity-scope { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; overflow-wrap: anywhere; }
 .scope-clear { min-width: 44px; min-height: 44px; border: 0; background: transparent; color: var(--accent); cursor: pointer; font-size: 20px; }
 .tasks-list:empty { display: none; }
@@ -40,5 +40,6 @@
 .record-metadata { display: flex; align-items: baseline; gap: var(--space-2) var(--space-3); flex-wrap: wrap; }
 .record-change-target { flex-basis: 100%; min-width: 0; overflow-wrap: anywhere; }
 .record-metadata p { margin: 0; }
+.record-metadata .record-change-target { font-size: .75rem; line-height: 1.125rem; }
 .current-document .markdown > :first-child { margin-top: 0; }
 @media(min-width:640px) { .tasks-list { padding: 24px; } }

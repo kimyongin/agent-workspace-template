@@ -5,10 +5,10 @@ import remarkGfm from "remark-gfm";
 
 const SAFE = /^(https?:|mailto:|#|\/)/i;
 
-export function MarkdownContent({ text }: { text: string }) {
+export function MarkdownContent({ text, className = "" }: { text: string; className?: string }) {
   if (!text.trim()) return <p className="secondary">본문 없음</p>;
   return (
-    <div className="markdown">
+    <div className={`markdown ${className}`}>
       <Markdown
         remarkPlugins={[remarkGfm]}
         skipHtml

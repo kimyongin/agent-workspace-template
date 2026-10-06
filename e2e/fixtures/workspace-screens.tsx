@@ -10,6 +10,7 @@ import { PrinciplesPage } from "../../src/features/principles/PrinciplesPage.tsx
 import { PrincipleDetailPage } from "../../src/features/principles/PrincipleDetailPage.tsx";
 import { TagsPage } from "../../src/features/tags/TagsPage.tsx";
 import { SearchPage } from "../../src/features/search/SearchPage.tsx";
+import { GuidePage } from "../../src/features/settings/GuidePage.tsx";
 import "../../src/styles/tokens.css";
 import "../../src/styles/app.css";
 const target=new URLSearchParams(location.search).get("route")??"/entities";
@@ -19,6 +20,6 @@ const router=createBrowserRouter([{element:<main className="app-main"><nav aria-
   {path:"/tasks",element:<TasksPage/>},{path:"/tasks/:id",element:<TaskDetailPage/>},
   {path:"/records",element:<RecordsPage/>},{path:"/records/:id",element:<RecordDetailPage/>},
   {path:"/principles",element:<PrinciplesPage/>},{path:"/principles/:id",element:<PrincipleDetailPage/>},
-  {path:"/tags/:scope",element:<TagsPage/>},{path:"/tags/:scope/:id",element:<TagsPage/>},{path:"/search",element:<SearchPage/>},
+  {path:"/tags/:scope",element:<TagsPage/>},{path:"/tags/:scope/:id",element:<TagsPage/>},{path:"/search",element:<SearchPage/>},{path:"/guide",element:<GuidePage/>},
 ]}]);
 createRoot(document.getElementById("root")!).render(<RouterProvider router={router}/>);
