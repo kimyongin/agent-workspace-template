@@ -1112,3 +1112,14 @@ for(const side of ["tasks","entities"] as const)test(`#187 ${side}: 연결 저�
   await expect(form(page).getByRole("alert")).toContainText("연결은 저장했습니다. 최신 내용을 불러오지 못했습니다.");await expect(form(page).getByRole("button",{name:`${label} 연결 해제`})).toBeVisible();expect(state.writes).toHaveLength(1);
   fail=false;await form(page).getByRole("button",{name:side==="tasks"?"조회 다시 시도":"다시 시도",exact:true}).click();await expect(form(page).getByRole("alert")).toHaveCount(0);expect(state.writes).toHaveLength(1);expect(state.errors).toEqual([]);
 });
+
+test("#187 엔터티: 확인 취소 후 외부 연결·해제 결과가 검색 후보에도 반영된다",async({page})=>{
+  const state=await fixtures(page),taskRow=state.rows.tasks[0];
+  await page.route(`**/api/entities/${id(1)}`,route=>route.fulfill({json:{...state.rows.entities[0],tasks:{count:taskRow.entity_ids.length,items:taskRow.entity_ids.length?[taskRow]:[]}}}));
+  await go(page,`/entities/${id(1)}`);await form(page).getByRole("button",{name:"할 일 연결",exact:true}).click();await form(page).getByRole("searchbox",{name:"할 일 제목 검색"}).fill("할 일");
+  const results=form(page).getByRole("group",{name:"할 일 검색 결과"});await results.getByRole("button",{name:"할 일 연결",exact:true}).click();
+  taskRow.entity_ids=[id(1)];taskRow.version++;await form(page).getByRole("button",{name:"취소",exact:true}).click();
+  await expect(form(page).getByRole("button",{name:"할 일 연결 해제"})).toBeVisible();await expect(results.getByRole("button",{name:"할 일 연결",exact:true})).toHaveCount(0);
+  await form(page).getByRole("button",{name:"할 일 연결 해제"}).click();taskRow.entity_ids=[];taskRow.version++;await form(page).getByRole("button",{name:"취소",exact:true}).click();
+  await expect(form(page).getByRole("heading",{name:"연결된 할 일 (0개)",exact:true})).toBeVisible();await expect(results.getByRole("button",{name:"할 일 연결",exact:true})).toBeVisible();expect(state.writes).toHaveLength(0);expect(state.errors).toEqual([]);
+});

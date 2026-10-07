@@ -12,7 +12,7 @@ import { api, query } from "../../lib/api.ts";
 type Candidate = {id:string;title:string;entityIds?:string[]};
 type CandidatePage = {items:Candidate[];next_cursor:string|null};
 /** Current-title lookup, shared by the two directions of the same relationship. */
-function RelationSearch({kind,excluded,onChoose,disabled}: {kind:"entity"|"task";excluded:(item:Candidate)=>boolean;onChoose:(item:Candidate)=>void;disabled:boolean}) {
+function RelationSearch({kind,excluded,onChoose,disabled,revision}: {kind:"entity"|"task";excluded:(item:Candidate)=>boolean;onChoose:(item:Candidate)=>void;disabled:boolean;revision?:number|EntityDetail["tasks"]}) {
   const label=kind==="entity"?"엔터티":"할 일";
   const [view,setView]=useDetailViewState(`relation-search-${kind}`,{draft:"",pages:1});
   const draft=view.draft,setDraft=(draft:string)=>setView({draft,pages:1});
@@ -38,7 +38,7 @@ function RelationSearch({kind,excluded,onChoose,disabled}: {kind:"entity"|"task"
     if(!keyword||composing)return()=>controller.abort();
     const timer=setTimeout(()=>void (async()=>{let cursor:string|null|undefined;for(let page=0;page<Math.min(view.pages,250);page++){cursor=await load(controller,cursor);if(!cursor||controller.signal.aborted)break;}})(),delay);
     return()=>{clearTimeout(timer);controller.abort();request.current?.abort();};
-  },[keyword,composing,retry,kind]);
+  },[keyword,composing,retry,kind,revision]);
   const more=()=>{request.current?.abort();const controller=new AbortController();request.current=controller;void load(controller,result?.next_cursor).then(cursor=>{if(cursor!==undefined&&!controller.signal.aborted)setView(prior=>({...prior,pages:prior.pages+1}));});};
   return <div className="related-search">
     <Field label={`${label} 제목 검색`}>{props=><input {...props} autoFocus type="search" maxLength={100} className="input" placeholder="제목으로 검색" value={draft} disabled={disabled}
@@ -56,12 +56,11 @@ function RelationSearch({kind,excluded,onChoose,disabled}: {kind:"entity"|"task"
 
 type Mutation = {task:TaskResult;entity:Candidate;remove:boolean;ids:string[]};
 /** Both directions patch the task's single membership field; no mirrored entity state. */
-function RelationControls({task,entityId,entityTitle,children,onSaved}: {task?:TaskResult;entityId?:string;entityTitle?:string;children:(controls:{search:ReactNode;button:ReactNode;unlink:(item:Candidate)=>ReactNode})=>ReactNode;onSaved:(saved?:TaskResult,before?:TaskResult)=>void}) {
+function RelationControls({task,entityId,entityTitle,revision,children,onSaved}: {task?:TaskResult;entityId?:string;entityTitle?:string;revision?:EntityDetail["tasks"];children:(controls:{search:ReactNode;button:ReactNode;unlink:(item:Candidate)=>ReactNode})=>ReactNode;onSaved:(saved?:TaskResult,before?:TaskResult)=>void}) {
   const surface=useContext(SurfaceContext);
   const location=useLocation(),locationKey=useRef(location.key);locationKey.current=location.key;
   const [searching,setSearching]=useDetailViewState("relation-search-open",false);
   const [preparing,setPreparing]=useState(false),[error,setError]=useState<string|null>(null),[mutation,setMutation]=useState<Mutation|null>(null);
-  const [confirmedTasks,setConfirmedTasks]=useState(new Map<string,string[]>());
   const request=useRef<AbortController|null>(null);
   useEffect(()=>()=>request.current?.abort(),[]);
   const prepare=async(item:Candidate,remove:boolean)=>{
@@ -72,7 +71,6 @@ function RelationControls({task,entityId,entityTitle,children,onSaved}: {task?:T
       const latest=await api<TaskResult>("GET",`/tasks/${task?.id??item.id}`,undefined,controller.signal);
       if(controller.signal.aborted||locationKey.current!==startedKey||surface?.editor.current)return;
       const entity=task?item:{id:entityId!,title:entityTitle!},ids=latest.entity_ids;
-      setConfirmedTasks(prior=>new Map(prior).set(latest.id,ids));
       if(ids.includes(entity.id)===!remove){onSaved(latest);return;}
       setMutation({task:latest,entity,remove,ids:remove?ids.filter(id=>id!==entity.id):[...ids,entity.id]});
     }catch{if(!controller.signal.aborted)setError("최신 연결을 불러오지 못했습니다. 다시 시도하세요.");}
@@ -82,11 +80,11 @@ function RelationControls({task,entityId,entityTitle,children,onSaved}: {task?:T
   const unlink=(item:Candidate)=><button type="button" className="btn btn-text" aria-label={`${item.title} 연결 해제`} aria-disabled={preparing} onClick={()=>void prepare(item,true)}>연결 해제</button>;
   return <>
     {children({button:<button type="button" className="btn btn-text" aria-expanded={searching} disabled={preparing} onClick={()=>setSearching(value=>!value)}>{searching?"검색 닫기":`${label} 연결`}</button>,unlink,
-      search:<>{error&&<Notice kind="error">{error}</Notice>}{preparing&&<p className="secondary" role="status">연결 확인 중…</p>}{searching&&<RelationSearch kind={kind} disabled={preparing} excluded={item=>task?task.entity_ids.includes(item.id):!!(confirmedTasks.get(item.id)??item.entityIds)?.includes(entityId!)} onChoose={item=>void prepare(item,false)}/>}</>})}
+      search:<>{error&&<Notice kind="error">{error}</Notice>}{preparing&&<p className="secondary" role="status">연결 확인 중…</p>}{searching&&<RelationSearch kind={kind} revision={task?.version??revision} disabled={preparing} excluded={item=>task?task.entity_ids.includes(item.id):!!item.entityIds?.includes(entityId!)} onChoose={item=>void prepare(item,false)}/>}</>})}
     {mutation&&<FormModal open confirmationOnly title={mutation.remove?"연결 해제":"연결"} submitLabel="저장" dirty={false}
       mutation={{target:`${mutation.task.title} — ${mutation.entity.title}`,action:mutation.remove?"연결 해제":"연결",message:mutation.remove?"연결만 해제하며 원문과 과거 기록은 유지합니다.":undefined}}
       onClose={()=>{setMutation(null);onSaved();}} onRouteDiscard={()=>setMutation(null)} validate={()=>null}
-      onSubmit={async(_id,memo)=>{const saved=await api<TaskResult>("PATCH",`/tasks/${mutation.task.id}`,{expected_version:mutation.task.version,entity_ids:mutation.ids,...memo});setConfirmedTasks(prior=>new Map(prior).set(saved.id,saved.entity_ids));setMutation(null);onSaved(saved,mutation.task);}}>{()=>null}</FormModal>}
+      onSubmit={async(_id,memo)=>{const saved=await api<TaskResult>("PATCH",`/tasks/${mutation.task.id}`,{expected_version:mutation.task.version,entity_ids:mutation.ids,...memo});setMutation(null);onSaved(saved,mutation.task);}}>{()=>null}</FormModal>}
   </>;
 }
 
@@ -107,7 +105,7 @@ export function EntityTaskRelations({entity,onCreate,onSaved}: {entity:EntityDet
       if(!controller.signal.aborted){setItems(prior=>[...prior,...page.items.filter(item=>!prior.some(old=>old.id===item.id))]);setCursor(page.next_cursor);}}
     catch{if(!controller.signal.aborted)setFailed(true);}finally{if(!controller.signal.aborted)setLoading(false);}
   };
-  return <RelationControls key={entity.id} entityId={entity.id} entityTitle={entity.prop1} onSaved={onSaved}>{({search,button,unlink})=><RelatedSection title="연결된 할 일" count={entity.tasks.count} action={<div className="actions"><button type="button" className="btn btn-text" onClick={onCreate}>할 일 작성</button>{button}</div>}>
+  return <RelationControls key={entity.id} entityId={entity.id} entityTitle={entity.prop1} revision={entity.tasks} onSaved={onSaved}>{({search,button,unlink})=><RelatedSection title="연결된 할 일" count={entity.tasks.count} action={<div className="actions"><button type="button" className="btn btn-text" onClick={onCreate}>할 일 작성</button>{button}</div>}>
     {search}<ul className="related-items">{items.map(item=><li key={item.id}><RelatedItem to={`/tasks/${item.id}`} title={item.title} action={unlink(item)}/></li>)}</ul>
     {failed&&<Notice kind="error">연결된 할 일을 불러오지 못했습니다.</Notice>}
     {(failed||cursor||cursor===undefined&&entity.tasks.count>items.length)&&<button type="button" className="btn btn-text" disabled={loading} onClick={()=>void more()}>{loading?"불러오는 중…":failed?"할 일 다시 시도":"할 일 더 보기"}</button>}
