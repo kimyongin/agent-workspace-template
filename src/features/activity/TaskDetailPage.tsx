@@ -140,7 +140,7 @@ export function TaskDetailPage() {
   if (!task) return <p className="secondary" role="status">불러오는 중…</p>;
 
   const management = <div className="detail-management">
-      <section className="detail-section">
+      <section className="detail-section task-overview">
         {message && <Notice kind="success">{message}</Notice>}
         {actionError && <Notice kind="error">{actionError}</Notice>}
         {loadError && <><Notice kind="error">{relationSaved.current?"연결은 저장했습니다. 최신 내용을 불러오지 못했습니다.":message ? "저장은 완료했습니다. 최신 내용을 불러오지 못했습니다." : loadError}</Notice><button type="button" className="btn" onClick={reload}>조회 다시 시도</button></>}

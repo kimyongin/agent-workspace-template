@@ -1,18 +1,8 @@
-.activity-filters {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
-  gap: var(--space-3);
-  border-bottom: 1px solid var(--line);
-  padding-bottom: var(--space-4);
-}
-.activity-filters > .chips, .activity-filters > .filter-reset { grid-column: 1 / -1; }
 .record-timeline { display: flex; flex-direction: column; gap: var(--space-4); }
 .record-date-group > .list { margin-top: var(--space-2); }
 .tag-read { display: inline-block; border: 1px solid var(--line); border-radius: var(--radius-chip); padding: var(--space-1) var(--space-2); overflow-wrap: anywhere; max-width: 100%; }
 .record-date-group > .list[hidden] { display: none; }
 .record-period { display: grid; gap: var(--space-2); }
-.record-period-inputs { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 8px; }
-.record-period-inputs .input { min-width: 0; padding: 10px 6px; }
 .activity-section { display: grid; gap: 12px; min-width: 0; }
 .entity-scope { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; overflow-wrap: anywhere; }
 .scope-clear { min-width: 44px; min-height: 44px; border: 0; background: transparent; color: var(--accent); cursor: pointer; font-size: 20px; }

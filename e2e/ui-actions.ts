@@ -25,13 +25,12 @@ export async function fillChangeMemo(page: Page, scope: Page | Locator, value: s
   await memo.fill(value);
 }
 
-/** Exercise the visible top-level task menu; detail-page actions remain direct. */
+/** Exercise the primary creation action; detail-page actions remain direct. */
 export async function beginTabAction(page: Page, label: string) {
   const actions: Record<string, [string,string]> = {"할 일 추가":["할 일","할 일 등록"],"기록 작성":["기록","기록 작성"],"엔터티 추가":["엔터티","엔터티 등록"],"현재 원칙 등록":["원칙","원칙 작성"]};
   const action = actions[label];
   if (!action) { await page.getByRole("button",{name:label,exact:true}).click(); return; }
-  const trigger = page.getByRole("button",{name:`${action[0]} 작업 메뉴`,exact:true});
-  if (await trigger.count() || /^\/(entities|tasks|records|principles)\/?$/.test(new URL(page.url()).pathname)) { await trigger.click(); await page.getByRole("button",{name:action[1],exact:true}).click(); }
+  if (/^\/(entities|tasks|records|principles)\/?$/.test(new URL(page.url()).pathname)) { await page.getByRole("button",{name:action[1],exact:true}).click(); }
   else await page.getByRole("button",{name:label,exact:true}).click();
 }
 
