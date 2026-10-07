@@ -1,7 +1,7 @@
 import type { EntityContext } from "@contracts/entity-links.ts";
 import { RelatedSection } from "../../components/RelatedItems.tsx";
 import { RelatedRecordItem } from "../activity/RelatedRecords.tsx";
-import { useDetailNavigate, useDetailOwnerReturn } from "../../lib/detail-exploration.tsx";
+import { useDetailNavigate, useDetailOwnerReturn, useDetailEditReturn } from "../../lib/detail-exploration.tsx";
 import { editFromView } from "../../lib/detail-navigation.ts";
 import { useDeferredNavigation } from "../../lib/useDeferredNavigation.ts";
 import { TagNames } from "../tags/TagPicker.tsx";
@@ -52,6 +52,7 @@ export function EntityDetailPage() {
   useEffect(() => { setEntity(null); setEditing(params.get("edit")==="1"); relationSaved.current=false; }, [id]);
   const returnParams=new URLSearchParams(params); ["edit","edit_from","create"].forEach(key=>returnParams.delete(key));
   const back = useDetailOwnerReturn(`/entities?${returnParams}${id ? `#entity-${id}` : ""}`);
+  const editBack=useDetailEditReturn(back);
   const previousQuery=useRef(params.toString());
   useEffect(()=>{setEditing(params.get("edit")==="1");if(previousQuery.current!==params.toString()&&!params.has("create")){setEditReady(false);setRetry(n=>n+1);}previousQuery.current=params.toString();},[params.toString()]);
   useEffect(()=>{if(creating||!editReady||!returnCreateFocus.current)return;const frame=requestAnimationFrame(()=>{const label=returnCreateFocus.current==="task"?"할 일 작성":"기록 작성";const button=Array.from(document.querySelectorAll<HTMLButtonElement>("dialog[open] .detail-management button")).find(el=>el.getAttribute("aria-label")===label);if(button){button.focus();returnCreateFocus.current=null;}});return()=>cancelAnimationFrame(frame);},[creating,editReady,entity]);
@@ -116,7 +117,7 @@ export function EntityDetailPage() {
                     {expected_version:entity.version,change_note:reason||undefined, change_tag_ids:tags},
                   );
                   setEditing(false);
-                  afterClose(back,true);
+                  afterClose(editBack,true);
                 } catch (e) {
                   setError(
                     e instanceof ApiError ? e.message : "삭제하지 못했습니다.",

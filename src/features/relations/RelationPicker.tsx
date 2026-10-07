@@ -33,7 +33,7 @@ export function RelationPicker({kind,value,context=[],onChange,error}: {
       {error&&<p className="error-text" role="alert">{error}</p>}
       <RelationSearch draftMode kind={kind} disabled={false} excluded={item=>value.includes(item.id)} onChoose={choose}/>
       <ul className="related-items" aria-label={`선택한 ${label}`}>
-        {value.map(id=><li key={id}><RelatedItem title={names.get(id)??label} action={<button type="button" className="btn btn-text" data-selection={id} aria-label={`${names.get(id)??label} 연결 해제`} onClick={()=>{nextFocus.current="";onChange(value.filter(value=>value!==id));}}>연결 해제</button>}/></li>)}
+        {value.map(id=><li key={id}><RelatedItem title={names.get(id)??label} action={<button type="button" className="btn btn-text" data-selection={id} aria-label={`${names.get(id)??label} 해제`} onClick={()=>{nextFocus.current="";onChange(value.filter(value=>value!==id));}}>해제</button>}/></li>)}
       </ul>
     </RelatedSection>
   </div>;

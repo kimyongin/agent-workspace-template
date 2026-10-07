@@ -50,7 +50,7 @@ interface FormModalProps {
   validate: () => Record<string, string> | null;
   children: (errors: Record<string, string>) => ReactNode;
   deletion?: DeletionOptions;
-  mutation?: { target: string; action: "등록" | "수정" | "중단" | "재개" | "연결" | "연결 해제"; message?: ReactNode };
+  mutation?: { target: string; action: "등록" | "수정" | "중단" | "재개" | "연결" | "해제"; message?: ReactNode };
   confirmationOnly?: boolean;
 }
 interface Presentation { dirty: boolean; busy: boolean; footer: ModalProps["footer"] }

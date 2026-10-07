@@ -4,6 +4,7 @@ import { createContext, type ReactNode, type RefObject, useCallback, useContext,
 import { useBlocker } from "react-router";
 import { createPortal } from "react-dom";
 import { useDetailExploration } from "../lib/detail-exploration.tsx";
+import { RelatedExpansionProvider } from "./RelatedItems.tsx";
 
 export interface ModalProps {
   title: string;
@@ -65,14 +66,14 @@ export function DetailSurface({title, onClose, children, busy = false, footer}: 
   };
   // Remove the editor before navigating, so its dirty guard cannot ask a second time.
   useEffect(()=>{if(dismissing&&!editor){setDismissing(false);onClose();}},[dismissing,editor,onClose]);
-  return <SurfaceContext.Provider value={{slot, register, editor:editorRef, busy:busyRef}}>
-    <ModalShell open title={editor?.title ?? title} headingLevel={editor?2:1} onClose={dismiss} onCancelEdit={editor?.onClose}
+  return <RelatedExpansionProvider><SurfaceContext.Provider value={{slot, register, editor:editorRef, busy:busyRef}}>
+    <ModalShell open title={editor&&previous?.relatedEditor?`${previous.editorTitle??title} 편집`:editor?.title ?? title} headingLevel={editor?2:1} onClose={dismiss} onCancelEdit={editor?.onClose}
       onRouteDiscard={editor?.onRouteDiscard} dirty={editor?.dirty} busy={busy || editor?.busy}
-      previous={editor ? null : previous} footer={editor?.footer ?? footer}>
+      previous={editor&&previous?.relatedEditor?previous:editor ? null : previous} footer={editor?.footer ?? footer}>
       <div hidden={!!editor}>{children}</div>
       <div ref={setSlot} hidden={!editor} />
     </ModalShell>
-  </SurfaceContext.Provider>;
+  </SurfaceContext.Provider></RelatedExpansionProvider>;
 }
 
 export function ModalShell(props: ModalProps) {
@@ -173,7 +174,7 @@ function ActiveModalShell({ title, headingLevel=2, open, onClose, onCancelEdit, 
     >
       <div className="modal-inner">
         <div className="modal-head">
-          {previous && !action && <button type="button" className="btn btn-text modal-icon modal-back" aria-label={previous.label} title={previous.label} disabled={busy} onClick={previous.back}><span aria-hidden="true">←</span></button>}
+          {previous && !action && <button type="button" className="btn btn-text modal-icon modal-back" aria-label={previous.label} title={previous.label} disabled={busy} onClick={()=>requestLeave(previous.back)}><span aria-hidden="true">←</span></button>}
           {headingLevel===1?<h1 id={titleId} className="dialog-title" tabIndex={-1}>{action?.title ?? title}</h1>:<h2 id={titleId} className="dialog-title" tabIndex={-1}>{action?.title ?? title}</h2>}
           <button type="button" className="btn btn-text modal-icon" aria-label="닫기" title="닫기" onClick={requestClose} disabled={busy || action?.busy}>
             <span aria-hidden="true">×</span>

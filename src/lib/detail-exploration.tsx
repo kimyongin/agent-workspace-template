@@ -2,8 +2,9 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState, ty
 import { Link, useLocation, useNavigate, type LinkProps, type NavigateOptions, type To } from "react-router";
 
 type Frame = { key: string; path: string; title: string; scroll: number; focusKey: string };
-type TrailState = { detailScope: string; detailTrail: Frame[] };
-const Snapshots = createContext<{scope: string; frames: Map<string, Frame>; views: Map<string, unknown>} | null>(null);
+type TrailState = { detailScope: string; detailVersion:2; detailTrail: Frame[] };
+type SnapshotsState = {scope:string;frames:Map<string,Frame>;views:Map<string,unknown>;transition:{key:string;path:To;state?:unknown}|null};
+const Snapshots = createContext<SnapshotsState | null>(null);
 const detailPath = /^\/(?:(entities|tasks|records|principles)\/[^/?#]+|tags(?:\/(?:entity|task|record))?)$/;
 const tagOrigin = /^\/(entities|tasks|records|settings)$/;
 
@@ -11,21 +12,32 @@ const tagOrigin = /^\/(entities|tasks|records|settings)$/;
 export function useDetailOwnerReturn(fallback: string): string {
   const location = useLocation();
   const context = useContext(Snapshots);
-  const owner = `/${location.pathname.split("/")[1]}`;
-  const paths = [location.search, ...detailTrail(location.state, context?.scope).reverse().map(frame => new URL(frame.path, "https://detail.invalid").search)];
+  const trail=detailTrail(location.state,context?.scope);
+  const entry=trail.find(frame=>!detailPath.test(frame.path.split(/[?#]/)[0]));
+  if(entry)return entry.path;
+  const root=trail.find(frame=>detailPath.test(frame.path.split(/[?#]/)[0]));
+  const owner = `/${(root?.path??location.pathname).split("/")[1]}`;
+  const paths = [...(root?[new URL(root.path,"https://detail.invalid").search]:[]),location.search];
   for (const search of paths) {
     const candidate = new URLSearchParams(search).get("list");
     if (!candidate?.startsWith("/") || candidate.startsWith("//") || candidate.includes("\\")) continue;
     const url = new URL(candidate, "https://detail.invalid");
     if (url.origin === "https://detail.invalid" && url.pathname === owner) return `${url.pathname}${url.search}${url.hash}`;
   }
-  return fallback;
+  return root?owner:fallback;
+}
+
+/** Deleting a related editor target returns to its starting detail, not a different tab. */
+export function useDetailEditReturn(fallback:string):string {
+  const location=useLocation(),context=useContext(Snapshots);
+  const root=detailTrail(location.state,context?.scope).find(frame=>detailPath.test(frame.path.split(/[?#]/)[0]));
+  return location.state?.relatedEditor&&root?root.path:fallback;
 }
 
 /** Exploration metadata lives in browser history, never in domain data or rendered dialog stacks. */
 function detailTrail(state: unknown, scope: string | undefined): Frame[] {
   if (!scope || !state || typeof state !== "object" || !("detailScope" in state) || state.detailScope !== scope
-    || !("detailTrail" in state) || !Array.isArray(state.detailTrail)) return [];
+    || !("detailVersion" in state)||state.detailVersion!==2||!("detailTrail" in state) || !Array.isArray(state.detailTrail)) return [];
   return state.detailTrail.filter((frame: unknown): frame is Frame => {
     if (!frame || typeof frame !== "object") return false;
     const value = frame as Frame;
@@ -37,8 +49,15 @@ function detailTrail(state: unknown, scope: string | undefined): Frame[] {
 }
 
 export function DetailNavigationProvider({ children, scope = "app" }: { children: ReactNode; scope?: string }) {
-  const context = useRef({ scope, frames: new Map<string, Frame>(), views: new Map<string, unknown>() });
-  if (context.current.scope !== scope) context.current = {scope, frames: new Map<string, Frame>(), views: new Map<string, unknown>()};
+  const location=useLocation(),navigate=useNavigate();
+  const context = useRef<SnapshotsState>({ scope, frames: new Map(), views: new Map(),transition:null });
+  if (context.current.scope !== scope) context.current = {scope, frames: new Map(), views: new Map(),transition:null};
+  useEffect(()=>{
+    const transition=context.current.transition;
+    if(!transition||transition.key!==location.key)return;
+    context.current.transition=null;
+    void navigate(transition.path,{replace:true,state:transition.state??null});
+  },[location.key,navigate]);
   useRestoreFrame(context.current.frames);
   return <Snapshots.Provider value={context.current}>{children}</Snapshots.Provider>;
 }
@@ -54,13 +73,23 @@ export function useDetailViewState<T>(name: string, initial: T): [T, Dispatch<Se
 
 /** Same-detail mode changes replace the entry and retain its exploration context. Exits clear it. */
 export function useDetailNavigate() {
-  const location = useLocation(), navigate = useNavigate();
+  const location = useLocation(), navigate = useNavigate(),context=useContext(Snapshots);
   return useCallback((to: To, options: NavigateOptions = {}) => {
     const destination = typeof to === "string" ? to : to.pathname ?? location.pathname;
     const sameDetail = detailPath.test(location.pathname) && (destination.startsWith("?") || destination.split(/[?#]/)[0] === location.pathname);
     const exit = detailPath.test(location.pathname) && !sameDetail;
+    const root=detailTrail(location.state,context?.scope).find(frame=>detailPath.test(frame.path.split(/[?#]/)[0]));
+    if(root&&location.state?.relatedEditor&&sameDetail&&new URL(destination,"https://detail.invalid"+location.pathname).searchParams.get("edit")!=="1")return navigate(-1);
+    if(root&&exit){
+      if(destination.split(/[?#]/)[0]===root.path.split(/[?#]/)[0])return navigate(-1);
+      if(!detailPath.test(destination.split(/[?#]/)[0])&&context){
+        // Pop the one related entry, then replace the root, so Back cannot replay dismissed editors.
+        context.transition={key:root.key,path:to};
+        return navigate(-1);
+      }
+    }
     return navigate(to, { ...options, ...(sameDetail ? { replace: true, state: location.state } : exit ? { replace: true, state: null } : {}) });
-  }, [location.pathname, location.state, navigate]);
+  }, [location.pathname, location.state, navigate,context]);
 }
 
 /** Use for every link to a detail, including related items and search results. */
@@ -72,6 +101,7 @@ export function DetailLink({ onClick, state, restoreKey, ...props }: Omit<LinkPr
     if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey
       || props.target && props.target !== "_self" || props.reloadDocument) return;
     if (!detailPath.test(target.split(/[?#]/)[0]) || !(detailPath.test(location.pathname) || location.pathname === "/search" || target.startsWith("/tags") && tagOrigin.test(location.pathname))) return;
+    if(target.split(/[?#]/)[0]===location.pathname){event.preventDefault();void navigate(props.to,{replace:true,state:location.state});return;}
     const body = document.querySelector<HTMLElement>("dialog[open]:not(.modal-confirm) .modal-body");
     const searchOrigin = location.pathname === "/search" && props.id ? new URLSearchParams(location.search) : null;
     searchOrigin?.set("scroll", String(window.scrollY));
@@ -80,12 +110,17 @@ export function DetailLink({ onClick, state, restoreKey, ...props }: Omit<LinkPr
       title: document.querySelector(".dialog-title, .page-title")?.textContent ?? "이전 화면",
       scroll: body?.scrollTop ?? window.scrollY, focusKey: event.currentTarget.dataset.detailFocus ?? target };
     context?.frames.set(frame.key, frame);
-    const next: TrailState = { ...(state && typeof state === "object" ? state : {}), detailScope: context?.scope ?? "",
-      detailTrail: [...detailTrail(location.state, context?.scope), frame].slice(-64) };
+    const trail=detailTrail(location.state,context?.scope),root=trail.find(frame=>detailPath.test(frame.path.split(/[?#]/)[0]));
+    const next: TrailState = { ...(state && typeof state === "object" ? state : {}), detailScope: context?.scope ?? "",detailVersion:2,
+      detailTrail: root?trail:[...trail,frame] };
     event.preventDefault();
+    if(root&&target.split(/[?#]/)[0]===root.path.split(/[?#]/)[0]&&context){
+      context.transition={key:root.key,path:props.to,state:{detailScope:context.scope,detailVersion:2,detailTrail:trail.filter(value=>value.key!==root.key)}};
+      void navigate(-1);return;
+    }
     // The search route's existing anchor replay also restores deep results after reload or concurrent additions.
     const prepare = searchOrigin ? navigate(origin, {replace: true, state: location.state}) : undefined;
-    void Promise.resolve(prepare).then(() => navigate(props.to, { state: next }));
+    void Promise.resolve(prepare).then(() => navigate(props.to, { state: next,replace:!!root }));
   }} />;
 }
 
@@ -95,7 +130,7 @@ export function useDetailExploration() {
   const frames = context?.frames;
   const trail = detailTrail(location.state, context?.scope), previous = trail.at(-1);
   useEffect(() => { for (const frame of trail) if (!frames?.has(frame.key)) frames?.set(frame.key, frame); }, [location.key, frames]);
-  return previous ? { label: `이전: ${previous.title}`, back: () => { void navigate(-1); } } : null;
+  return previous ? { label: `이전: ${previous.title}`, relatedEditor:!!location.state?.relatedEditor,editorTitle:typeof location.state?.relatedTitle==="string"?location.state.relatedTitle:undefined, back: () => { void navigate(-1); } } : null;
 }
 
 function useRestoreFrame(frames: Map<string, Frame>) {
@@ -107,7 +142,7 @@ function useRestoreFrame(frames: Map<string, Frame>) {
     const restore = () => {
       const body = document.querySelector<HTMLElement>("dialog[open]:not(.modal-confirm) .modal-body");
       const scope = body ?? document;
-      const target = [...scope.querySelectorAll<HTMLAnchorElement>("a[data-detail-focus]")].find(link => link.dataset.detailFocus === frame.focusKey);
+      const target = [...scope.querySelectorAll<HTMLElement>("[data-detail-focus]")].find(link => link.dataset.detailFocus === frame.focusKey);
       const loading = [...scope.querySelectorAll('p.secondary[role="status"]')].some(node=>node.textContent?.trim()==="불러오는 중…");
       if (done || loading || !target && !scope.querySelector(".detail-section, .list, .tab-action-trigger, [role=alert]")) return;
       done = true;
