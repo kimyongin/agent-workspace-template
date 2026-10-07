@@ -465,7 +465,7 @@ function linkedFixture(state:Awaited<ReturnType<typeof fixtures>>) {
 for(const width of [320,1440])test(`#193 ${width}px: A 목록·한 항목 펼침·읽기만·원래 위치와 편집 복귀`,async({page},info)=>{
   const state=await fixtures(page);linkedFixture(state);await page.setViewportSize({width,height:900});await go(page,`/entities/${id(1)}?list=${encodeURIComponent('/entities?pages=1&scroll=0#entity-'+id(1))}`);
   const url=page.url(),toggle=form(page).getByRole("button",{name:"할 일",exact:true});
-  const edit=form(page).getByRole("link",{name:"할 일 편집",exact:true}),expand=form(page).getByRole("button",{name:"할 일 펼치기",exact:true});
+  const edit=form(page).getByRole("link",{name:"할 일 편집",exact:true}),expand=form(page).getByRole("button",{name:"할 일 열기",exact:true});
   await expect(edit).toBeVisible();await expect(expand).toHaveAttribute("aria-expanded","false");
   await edit.click();await expect(page).toHaveURL(new RegExp(`/tasks/${id(2)}\\?edit=1$`));await form(page).getByRole("button",{name:"취소",exact:true}).click();await expect(page).toHaveURL(url);await expect(edit).toBeFocused();await expect(toggle).toHaveAttribute("aria-expanded","false");
   const recordRow=form(page).locator(".related-item").filter({has:page.getByRole("button",{name:"기록",exact:true})});await expect(recordRow.locator(".related-item-meta, time, .badge")).toHaveCount(0);
