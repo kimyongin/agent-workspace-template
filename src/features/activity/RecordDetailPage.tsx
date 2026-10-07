@@ -27,7 +27,7 @@ export function RecordDetailPage() {
   const directEdit = params.get("edit") === "1";
   const [dialog, setDialog] = useState<null | "edit" | "delete">(directEdit ? "edit" : null);
     const conflicted=useRef(false);
-  const closeEdit = () => { setDialog(null);if(conflicted.current){conflicted.current=false;void reload();} if(directEdit&&params.get("edit_from")!=="view")navigateAfterClose(back,true);else{const p=new URLSearchParams(params);p.delete("edit");p.delete("edit_from");navigateAfterClose(`?${p}`,true);} };
+  const closeEdit = () => { setDialog(null);if(conflicted.current){conflicted.current=false;void reload();} const p=new URLSearchParams(params);p.delete("edit");p.delete("edit_from");navigateAfterClose(`?${p}`,true); };
   const [editReady,setEditReady]=useState(false);
   const [busy, setBusy] = useState(false);
 
@@ -81,7 +81,7 @@ export function RecordDetailPage() {
       <PrincipleSnapshots snapshots={record.applied_principle_snapshots??[]}/>
     </div>;
   const startEdit=()=>navigate(editFromView(params));
-  return <DetailSurface footer={<button type="button" className="btn btn-primary" onClick={startEdit}>편집</button>} title="기록" onClose={()=>dialog==="edit"&&!editReady?closeEdit():navigate(back)} busy={busy}>
+  return <DetailSurface footer={<button type="button" className="btn btn-primary" onClick={startEdit}>편집</button>} title="기록" onClose={()=>navigate(back)} busy={busy}>
 
       <div className="detail-stack">{record.body&&<section className="detail-section record-content" aria-label="내용"><MarkdownContent text={record.body}/></section>}
       {dialog!=="edit"&&management}</div>

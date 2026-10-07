@@ -54,7 +54,7 @@ export function TaskDetailPage() {
     const manage = (action: string, occurrence?: string) => { const next = new URLSearchParams(params); next.set("action", action); occurrence ? next.set("occurrence", occurrence) : next.delete("occurrence"); navigate(`?${next}`); };
   const closeManagement = () => { setDialog(null); const next = new URLSearchParams(params); next.delete("action"); next.delete("occurrence"); navigateAfterClose(`?${next}`, true); };
   const conflicted=useRef(false);
-  const closeEdit = () => { setDialog(null);if(conflicted.current){conflicted.current=false;void reload();} if(directEdit&&params.get("edit_from")!=="view")navigateAfterClose(back,true);else{const p=new URLSearchParams(params);p.delete("edit");p.delete("edit_from");navigateAfterClose(`?${p}`,true);} };
+  const closeEdit = () => { setDialog(null);if(conflicted.current){conflicted.current=false;void reload();} const p=new URLSearchParams(params);p.delete("edit");p.delete("edit_from");navigateAfterClose(`?${p}`,true); };
   const [editReady,setEditReady]=useState(false);
   const [busy, setBusy] = useState(false);
   const [occurrences, setOccurrences] = useState<{ today: string; items: Occurrence[] } | null>(null);
@@ -153,10 +153,10 @@ export function TaskDetailPage() {
             <dd>{taskLabels[task.kind]}</dd>
           </div>
           {task.kind === "once"
-            ? (
+            ? task.due_on && (
               <div>
                 <dt>{taskLabels.due_on}</dt>
-                <dd>{task.due_on ?? "없음"}</dd>
+                <dd>{task.due_on}</dd>
               </div>
             )
             : (

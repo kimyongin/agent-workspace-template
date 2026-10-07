@@ -35,12 +35,13 @@ export async function beginTabAction(page: Page, label: string) {
   else await page.getByRole("button",{name:label,exact:true}).click();
 }
 
-/** Test existing edit_from=view deep links; ordinary list edit controls are tested separately. */
+/** Enter editing through the viewer, keeping the dialog and navigation context. */
 export async function openDetailEditor(page: Page) {
-  const next = new URL(page.url());
-  {
-    next.searchParams.set("edit", "1"); next.searchParams.set("edit_from", "view");
-    await page.goto(next.toString());
-  }
-  await expect(page.locator("dialog.modal:not(.modal-confirm)[open]").getByRole("button", {name:/^저장$/})).toBeVisible();
+  await page.locator("dialog.modal:not(.modal-confirm)[open]").getByRole("button", {name:"편집",exact:true}).click();
+  await expect(page.locator("dialog.modal:not(.modal-confirm)[open]").getByRole("button", {name:"저장",exact:true})).toBeVisible();
+}
+
+export async function openListEditor(page: Page, title: string, scope: Page | Locator = page) {
+  await scope.getByRole("link",{name:title,exact:true}).click();
+  await openDetailEditor(page);
 }

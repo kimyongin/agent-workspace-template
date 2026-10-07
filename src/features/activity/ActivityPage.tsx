@@ -26,7 +26,7 @@ function ActivitySection({ kind, tags, bounds, dictionary }: { kind: WorkspaceLi
   const list = useActivityList(kind, { tags, bounds, layoutReady: !!dictionary.tags || dictionary.failed });
   const { metadata, searching: q, filtered } = list;
   const displayText = (item: ActivityItem) => kind === "records" && "body" in item ? recordDisplayText(item.body) : "title" in item ? item.title : "기록";
-  const heading = (item: ActivityItem) => <div className="activity-item-heading"><Link className="item-title" {...list.link(item.id)}>{displayText(item)}</Link><span className="activity-item-actions"><Link {...list.link(item.id, true)} aria-label={`${displayText(item)} 편집`}>편집</Link></span></div>;
+  const heading = (item: ActivityItem) => <div className="activity-item-heading"><Link className="item-title" {...list.link(item.id)}>{displayText(item)}</Link></div>;
   const metadataFor = (item: ActivityItem) => <>{"match" in item && <SearchMatch item={item}/>}<TagNames ids={item.tag_ids} compact/></>;
   return <section className={`activity-section ${kind}`} aria-label={`${kind === "tasks" ? "할 일" : "기록"} 목록`}>
     {q && <p className="help">관련도순으로 회수한 검색 결과{kind === "records" ? "를 날짜별로 표시합니다." : "입니다."}</p>}

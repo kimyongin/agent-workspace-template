@@ -492,7 +492,10 @@ textarea.input {
 
 /* 목록 제목은 상세로 가는 주 조작이므로 누름 영역을 44px 이상으로 둔다(글자 크기는 그대로). */
 .list-item a.item-title, .current-document a.item-title {
-  display: flex;
+  display: inline-flex;
+  width: fit-content;
+  max-width: 100%;
+  align-self: flex-start;
   align-items: center;
   min-height: 44px;
   min-width: 44px;
@@ -630,6 +633,7 @@ textarea.input {
 .modal-head .btn { flex-shrink: 0; }
 .modal-head .modal-icon { width: 44px; height: 44px; padding: 0; font-size: 1.5rem; text-decoration: none; display: inline-flex; justify-content: center; align-items: center; }
 .modal-foot { flex-wrap: wrap; }
+.modal-foot[hidden] { display: none; }
 .record-content .markdown { color: var(--ink); font-size: 1rem; line-height: 1.75; }
 .record-context { display: grid; gap: var(--space-6); }
 .record-context-meta { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); font-size: .8125rem; color: var(--muted-ink); }

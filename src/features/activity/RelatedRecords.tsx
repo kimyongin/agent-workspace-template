@@ -39,9 +39,8 @@ function TaskRecords({taskId}:{taskId:string}) {
   useEffect(()=>{void load(requested);return()=>request.current?.abort();},[]);
   // A background read must not navigate or interrupt a dirty management form.
   useEffect(()=>{if(!page||busy||error||params.has("edit")||params.has("action")||params.has("occurrence")||Math.min(page.pages,MAX_RESTORE_PAGES)===requested)return;const next=new URLSearchParams(params);next.set("related_record_pages",String(Math.min(page.pages,MAX_RESTORE_PAGES)));void navigate(`?${next}`);},[page,busy,error,params,requested,navigate]);
-  return <RelatedSection title="연결된 기록">
+  return <RelatedSection title="연결된 기록" count={page?.items.length} hasMore={!!page?.next_cursor}>
     {busy&&<p className="secondary" role="status">불러오는 중…</p>}
-    {page?.items.length===0&&<p className="secondary">연결된 기록이 없습니다.</p>}
     {!!page?.items.length&&<ul className="related-items">{page.items.map(record=><li key={record.id}><RelatedRecordItem record={record}/></li>)}</ul>}
     {error&&<Notice kind="error">연결된 기록을 불러오지 못했습니다.</Notice>}
     {(page?.next_cursor||error)&&<button type="button" className="btn" disabled={busy} onClick={()=>void load(error?failedTarget.current:(page?.pages??0)+1,error?failedManual.current:true)}>{busy?"불러오는 중…":error?"기록 다시 시도":"기록 더 보기"}</button>}

@@ -1,3 +1,4 @@
+import { openListEditor, openDetailEditor } from "./ui-actions.ts";
 import { fillChangeMemo } from "./ui-actions.ts";
 import { recordDisplayText } from "../supabase/functions/_shared/contracts/record-display.ts";
 import { saveOnce } from "./ui-actions.ts";
@@ -117,23 +118,24 @@ test("항상 펼친 날짜 병합과 직접 편집 취소/저장이 목록을 �
   await expect(page.locator(".record-date-group")).toHaveCount(2);
   await expect(page.getByRole("link",{name:"기록 1",exact:true})).toHaveCount(1);
   await expect(older).toBeVisible();await expect(older.getByRole("button")).toHaveCount(0);
-  await page.getByRole("link",{name:"기록 2 편집",exact:true}).click();
+  await openListEditor(page,"기록 2");
   await expect(page.getByRole("dialog",{name:"기록 편집",exact:true})).toBeVisible();
   await page.getByRole("button",{name:"닫기",exact:true}).click();
   await expect(page).toHaveURL(/\/records\?/);
   await expect(older).toBeVisible();await expect(older.getByRole("button")).toHaveCount(0);
   await expect(page.locator(`#activity-records-${id(2)}`)).toBeFocused();
-  await page.getByRole("link",{name:"기록 2 편집",exact:true}).click();
+  await openListEditor(page,"기록 2");
   await page.getByRole("textbox",{name:/^본문(?: \(필수\))?$/}).fill("정정 기록");
   await expect(page.getByLabel("편집 메모",{exact:false})).toHaveCount(0);
   await saveOnce(page, page);
+  await page.getByRole("button",{name:"닫기",exact:true}).click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await expect(page.getByRole("link",{name:"정정 기록",exact:true})).toBeFocused();
   await page.getByRole("link",{name:"정정 기록",exact:true}).click();
   await expect(page.locator(".markdown")).toHaveText("정정 기록");
   await expect(page.locator(".document-summary")).toHaveCount(0);
   await page.getByRole("button",{name:"닫기",exact:true}).click();
-  await page.getByRole("link",{name:"정정 기록 편집",exact:true}).click();
+  await openListEditor(page,"정정 기록");
   await page.getByRole("button",{name:"닫기",exact:true}).click();
   await expect(page.locator(`#activity-records-${id(2)}`)).toBeFocused();
   const overflow = await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth);
@@ -175,7 +177,7 @@ test("직접 편집의 실패·Escape·확인 취소는 초안을 유지한다",
     await route.fulfill({json:{items:[record(1)],next_cursor:null}});
   });
   await page.goto("/e2e/fixtures/activity.html");
-  await page.locator(".records").getByRole("link",{name:"기록 1 편집",exact:true}).click();
+  await openListEditor(page,"기록 1");
   const title=page.getByRole("textbox",{name:/^본문(?: \(필수\))?$/});
   await title.fill("보존할 초안");
   await expect(page.getByLabel("편집 메모",{exact:false})).toHaveCount(0);
@@ -199,7 +201,7 @@ test("현재 원칙 편집 취소는 원칙 화면·초점을 복원하고 과�
   const item={...record(1),title:"현재 기준",is_current:true,saved_at:"2026-10-04T00:00:00Z",origin:"saved",legacy_context:null};
   await page.route("http://127.0.0.1:55581/api/**",route=>route.fulfill({json:new URL(route.request().url()).pathname.endsWith("/principles/current")?{current:item}:item}));
   await page.goto("/e2e/fixtures/activity.html?route=/principles");
-  await page.getByRole("button",{name:"원칙 작업 메뉴"}).click();await page.getByRole("link",{name:"현재 원칙 편집",exact:true}).click();
+  await openListEditor(page,"현재 기준");
   await page.getByRole("button",{name:"닫기",exact:true}).click();
   await expect(page).toHaveURL(/principles#principles-title$/);await expect(page.locator("#principles-title")).toBeFocused();
   await expect(page.getByRole("link",{name:"과거 근거는 통합 기록에서 보기"})).toHaveAttribute("href","/records");
@@ -224,8 +226,9 @@ test("긴 제목·태그와 편집 조작은 대표 폭에서 읽기 순서와 �
     }
     if(width===390 || width===1440)await page.screenshot({path:testInfo.outputPath(`record-${width}.png`),fullPage:true});
   }
-  await page.getByRole("link",{name:`${recordDisplayText(r.body)} 편집`,exact:true}).focus();
+  await page.getByRole("link",{name:recordDisplayText(r.body),exact:true}).focus();
   await page.keyboard.press("Enter");
+  await openDetailEditor(page);
   await expect(page.getByRole("dialog",{name:"기록 편집",exact:true})).toBeVisible();
   const fieldOrder=await page.locator("form label").allTextContents();
   expect(fieldOrder[0]).toBe("본문*(필수)");expect(fieldOrder).not.toContain("제목*(필수)");expect(fieldOrder).not.toContain("요약*(필수)");
@@ -303,8 +306,7 @@ for (const kind of ["records","tasks","principles"]) {
     const item={...record(1),...(kind!=="records"?{title:"기록 1"}:{}),kind:kind==="records"?"general":"once",status:kind==="principles"?"active":"open",due_on:null,recurrence:null,timezone:null,result_record:null,is_current:true,saved_at:"2026-10-04T00:00:00Z",change_note:"과거 메모",origin:"saved",legacy_context:null};
     await page.route("http://127.0.0.1:55581/api/**",route=>route.fulfill({json:new URL(route.request().url()).pathname.endsWith("/principles/current")?{current:item}:new URL(route.request().url()).pathname.endsWith(`/${kind}/${id(1)}`)?item:{items:[item],next_cursor:null}}));
     await page.goto(`/e2e/fixtures/activity.html?route=/${kind}`);
-    if(kind==="principles") await page.getByRole("button",{name:"원칙 작업 메뉴"}).click();
-    await (kind==="principles"?page:page.locator(`.${kind}`)).getByRole("link",{name:kind==="principles"?"현재 원칙 편집":"기록 1 편집",exact:true}).click();
+    await openListEditor(page,"기록 1");
     const title=page.getByRole("textbox",{name:/^본문(?: \(필수\))?$/});
     await title.fill("상세 이동 초안");
     await page.getByRole("link",{name:"fixture 같은 화면 조건 이동"}).evaluate((el:HTMLAnchorElement)=>el.click());

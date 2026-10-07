@@ -112,9 +112,9 @@ export function EntitiesPage() {
     next.delete("pages");
     navigate({ pathname: "/entities", search: next.toString(), hash: "" }, { replace: true });
   };
-  const rowLink=(id:string,edit=false)=>{
+  const rowLink=(id:string)=>{
     const p=new URLSearchParams(params);p.delete("create");p.set("pages",String(page?.count??1));const back=listReturnPath("entities",p,id,0);
-    return {to:`/entities/${id}?list=${encodeURIComponent(back)}${edit?"&edit=1":""}`,onClick:(event:React.MouseEvent<HTMLAnchorElement>)=>{if(event.button!==0||event.metaKey||event.ctrlKey||event.shiftKey||event.altKey)return;event.preventDefault();const at=listReturnPath("entities",p,id,window.scrollY);navigate(at,{replace:true,preventScrollReset:true});navigate(`/entities/${id}?list=${encodeURIComponent(at)}${edit?"&edit=1":""}`);}};
+    return {to:`/entities/${id}?list=${encodeURIComponent(back)}`,onClick:(event:React.MouseEvent<HTMLAnchorElement>)=>{if(event.button!==0||event.metaKey||event.ctrlKey||event.shiftKey||event.altKey)return;event.preventDefault();const at=listReturnPath("entities",p,id,window.scrollY);navigate(at,{replace:true,preventScrollReset:true});navigate(`/entities/${id}?list=${encodeURIComponent(at)}`);}};
   };
   return (
     <><section className="panel" aria-labelledby="entities-title">
@@ -199,7 +199,7 @@ export function EntitiesPage() {
         {page?.items.map((e) => (
           <li className="list-item" key={e.id}>
             <div className="list-item-main">
-              <div className="activity-item-heading"><Link id={`entity-${e.id}`} className="item-title" {...rowLink(e.id)}>{e.prop1}</Link><span className="activity-item-actions"><Link {...rowLink(e.id,true)} aria-label={`${e.prop1} 편집`}>편집</Link></span></div>
+              <div className="activity-item-heading"><Link id={`entity-${e.id}`} className="item-title" {...rowLink(e.id)}>{e.prop1}</Link></div>
               <dl className="entity-list-properties">
                 {e.prop2!==null&&<div><dt>속성 2</dt><dd>{e.prop2}</dd></div>}
                 {e.prop3!==null&&<div><dt>속성 3</dt><dd>{e.prop3}</dd></div>}

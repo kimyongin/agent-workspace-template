@@ -166,12 +166,12 @@ export function useActivityList(kind: WorkspaceListKind, {
       if (current()) setBusy(false);
     }
   };
-  const open = (event: React.MouseEvent<HTMLAnchorElement>, id: string, edit: boolean) => {
+  const open = (event: React.MouseEvent<HTMLAnchorElement>, id: string) => {
     if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
     event.preventDefault();
     const back = listReturnPath(kind, params, id, window.scrollY, route);
     navigate(back, { replace: true });
-    navigate(`/${kind}/${id}?list=${encodeURIComponent(back)}${edit ? "&edit=1" : ""}`);
+    navigate(`/${kind}/${id}?list=${encodeURIComponent(back)}`);
   };
   return {
     searching: !!q,
@@ -193,10 +193,10 @@ export function useActivityList(kind: WorkspaceListKind, {
       focused.current = "";
       setRetry((n) => n + 1);
     },
-    link: (id: string, edit = false) => ({
-      id: edit ? undefined : listAnchor(kind, id),
-      to: `/${kind}/${id}?list=${encodeURIComponent(listReturnPath(kind, params, id, 0, route))}${edit ? "&edit=1" : ""}`,
-      onClick: (event: React.MouseEvent<HTMLAnchorElement>) => open(event, id, edit),
+    link: (id: string) => ({
+      id: listAnchor(kind, id),
+      to: `/${kind}/${id}?list=${encodeURIComponent(listReturnPath(kind, params, id, 0, route))}`,
+      onClick: (event: React.MouseEvent<HTMLAnchorElement>) => open(event, id),
     }),
   };
 }

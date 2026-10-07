@@ -227,18 +227,13 @@ export function TaskFormModal(props: {
                   </button>
                 ))}
               </div>
-              {draft.kind === "recurring" && (
-                <p className="help" style={{ margin: 0 }}>
-                  반복 할 일은 회차마다 기록을 남깁니다. 앱이 자동으로 실행하거나 알림을 보내지 않습니다.
-                </p>
-              )}
             </fieldset>
           )}
           <TextFields draft={draft} set={set} errors={errors} />
           <section className="detail-section form">
           <EntityMultiPicker value={draft.entity_ids??[]} context={draft.entity_context} error={errors.entity_ids} onChange={entity_ids=>set({entity_ids})}/>
           <TagPicker value={draft.tag_ids} error={errors.tag_ids} onChange={tag_ids=>set({tag_ids})}/>
-          </section><section className="detail-section form"><h2 className="section-title">일정</h2>
+          </section><section className="detail-section form">
           {draft.kind === "once"
             ? (
               <Field label={taskLabels.due_on} error={errors.due_on} >
