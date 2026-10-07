@@ -1,3 +1,4 @@
+import { openListDetail } from "./ui-actions.ts";
 import { createHash } from "node:crypto";
 import { expect, test } from "@playwright/test";
 import { devLogin, mcpClient, mcpTokenViaConsent, unique } from "./support.ts";
@@ -63,10 +64,10 @@ test("읽기·검색·네 탭 이동·상세 닫기는 계정 기록 원문과 �
     const searched = await search;expect(searched.ok()).toBe(true);
     expect(searched.request().postDataJSON().mode).toBe("auto");
     expect((await searched.json()).items.some((item: { id: string }) => item.id === fixtureId)).toBe(true);
-    await page.getByRole("link", { name: title, exact: true }).click();
+    await openListDetail(page,title);
     await expect(page.getByRole("heading", { name: "기록", level: 1, exact: true })).toBeVisible();
     await page.getByRole("button", { name: "닫기", exact: true }).click();
-    await expect(page.getByRole("link", { name: title, exact: true })).toBeFocused();
+    await expect(page.getByRole("button", { name: title, exact: true })).toBeFocused();
     const after = await snapshot();
     expect(writes).toEqual([]);
     expect(after).toEqual(before);

@@ -1,4 +1,4 @@
-import { saveOnce, beginTabAction, openDetailEditor } from "./ui-actions.ts";
+import { saveOnce, beginTabAction, openDetailEditor, openListDetail } from "./ui-actions.ts";
 // T02-2 완료 조건: 웹 작성 → MCP 조회·완료 → 웹 결과 확인, 그리고 반대 방향.
 import { expect, test } from "@playwright/test";
 import { devLogin, mcpClient, mcpTokenViaConsent, unique } from "./support.ts";
@@ -62,7 +62,7 @@ test("에이전트가 MCP로 만든 기록·반복 회차를 웹에서 보고 �
 
     // 웹: 기록 목록에서 찾아 편집
     await page.goto("/records");
-    await page.getByRole("link", { name: title, exact: true }).click();
+    await openListDetail(page,title);
     await openDetailEditor(page);
     const dialog = page.getByRole("dialog", { name: "기록 편집" });
     await dialog.getByLabel("본문").fill("웹에서 고친 본문");

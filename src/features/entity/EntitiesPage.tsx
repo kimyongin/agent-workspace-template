@@ -1,10 +1,11 @@
 import { useCreateMode } from "../../components/useCreateMode.ts";
-import { TabSearch, AppliedConditions, resetTabFilters } from "../../components/TabSearch.tsx";
-import { TagDictionaryStatus, TagFilter, TagNames, TagReadProvider, useTagDictionary } from "../tags/TagPicker.tsx";
-import { listReturnPath, shouldPublishRestoredPage } from "../activity/list-state.ts";
+import { TabSearch, TabFilters, resetTabFilters } from "../../components/TabSearch.tsx";
+import { TagDictionaryStatus, TagReadProvider, useTagDictionary } from "../tags/TagPicker.tsx";
+import { shouldPublishRestoredPage } from "../activity/list-state.ts";
 import type { EntityResult } from "@contracts/entity.ts";
 import { useEffect, useRef, useState } from "react";
-import { Link, useLocation, useNavigate, useSearchParams } from "react-router";
+import { useLocation, useNavigate, useSearchParams } from "react-router";
+import { ListExpansionProvider, ListPreviewItem, useRestoreListPosition } from "../relations/ListPreviewItem.tsx";
 import { Field, Notice } from "../../components/Field.tsx";
 import { api, ApiError, query } from "../../lib/api.ts";
 import { EntityForm } from "./forms.tsx";
@@ -36,7 +37,6 @@ export function EntitiesPage() {
   const creating=create.open;
   const context = `${key}|${hash}`;
   const loaded = useRef<{ context: string; page: Page; epoch: number } | null>(null),
-    focused = useRef(""),
     epoch = useRef(0);
   // Both the click state and URL navigation describe one target, so they must not restart the same fetch.
   const manualTarget =
@@ -58,7 +58,7 @@ export function EntitiesPage() {
       let result: Page = cached ?? { items: [], next_cursor: null, count: 0 };
       const anchor = /^#entity-[0-9a-f-]+$/.test(hash) ? hash.slice(8) : null;
       // A concurrent insertion may move the anchor one page. Never scan beyond this finite window.
-      const maximum = anchor && focused.current !== context ? Math.min(250, pages + 1) : pages;
+      const maximum = anchor && !result.items.some(item=>item.id===anchor) ? Math.min(250, pages + 1) : pages;
       while (
         !result.count || (result.next_cursor &&
           (result.count < target || (anchor && result.count < maximum && !result.items.some((e) => e.id === anchor))))
@@ -92,29 +92,14 @@ export function EntitiesPage() {
     });
     return () => controller.abort();
   }, [key, target, retry, hash]);
-  useEffect(() => {
-    if (
-      (dictionary.tags===null&&!dictionary.failed) || busy || error || loaded.current?.context !== context || focused.current === context || !page ||
-      !/^#entity-[0-9a-f-]+$/.test(hash)
-    ) return;
-    const node = document.getElementById(hash.slice(1));
-    if (node) {
-      node.focus({preventScroll:true});
-      const y=Number(params.get("scroll"));if(params.has("scroll")&&Number.isFinite(y)&&y>=0)window.scrollTo(0,y);
-      const rect=node.getBoundingClientRect();if(rect.top<0||rect.bottom>innerHeight)node.scrollIntoView({ block: "center" });
-    } else document.getElementById("entities-title")?.focus();
-    focused.current = context;
-  }, [page, busy, error, context, hash,dictionary.tags,dictionary.failed]);
+  useRestoreListPosition("entities", (dictionary.tags!==null||dictionary.failed)&&!busy&&loaded.current?.context===context&&!!page);
   const set = (name: string, value: string) => {
     const next = new URLSearchParams(params);
     if (value) next.set(name, value);
     else next.delete(name);
     next.delete("pages");
+    next.delete("open");
     navigate({ pathname: "/entities", search: next.toString(), hash: "" }, { replace: true });
-  };
-  const rowLink=(id:string)=>{
-    const p=new URLSearchParams(params);p.delete("create");p.set("pages",String(page?.count??1));const back=listReturnPath("entities",p,id,0);
-    return {to:`/entities/${id}?list=${encodeURIComponent(back)}`,onClick:(event:React.MouseEvent<HTMLAnchorElement>)=>{if(event.button!==0||event.metaKey||event.ctrlKey||event.shiftKey||event.altKey)return;event.preventDefault();const at=listReturnPath("entities",p,id,window.scrollY);navigate(at,{replace:true,preventScrollReset:true});navigate(`/entities/${id}?list=${encodeURIComponent(at)}`);}};
   };
   return (
     <><section className="panel" aria-labelledby="entities-title">
@@ -123,9 +108,10 @@ export function EntitiesPage() {
         <TabActions title="엔터티" actions={[{label:"엔터티 등록",run:create.begin},{label:"엔터티 태그 관리",to:"/tags/entity"}]}/>
       </div>
       <TabSearch entity/>
+      <TabFilters active={!!(filter.tag_id||filter.prop3_from||filter.prop3_to||filter.prop4||filter.sort!=="updated_at")} attention={dictionary.failed}>
       <TagDictionaryStatus dictionary={dictionary}/>
       <fieldset className="field tag-filter-chips"><legend className="label">엔터티 태그</legend><div className="chips">{dictionary.tags?.map(tag=><button type="button" className="chip" key={tag.id} aria-pressed={filter.tag_id===tag.id} onClick={()=>set("tag_id",filter.tag_id===tag.id?"":tag.id)}>{tag.name}</button>)}</div></fieldset>
-      <details className="workspace-additional"><summary>필터</summary><div className="form" role="group" aria-label="엔터티 필터">
+      <div className="form" role="group" aria-label="엔터티 필터">
         <div className="field-row">
           {(["prop3_from", "prop3_to"] as const).map((name) => (
             <Field
@@ -170,7 +156,7 @@ export function EntitiesPage() {
             </select>
           )}
         </Field>
-      </div></details><AppliedConditions namesForIds={Object.fromEntries(dictionary.tags?.map(t=>[t.id,t.name])??[])}/>
+      </div></TabFilters>
     </section><section className="activity-section" aria-label="엔터티 목록">
       {error && (
         <>
@@ -195,21 +181,15 @@ export function EntitiesPage() {
           </button>
         </>
       )}
-      <TagReadProvider dictionary={dictionary} enabled={!!page?.items.some(e=>(e as EntityResult & {tag_ids?:string[]}).tag_ids?.length)}><ul className="list panel">
+      <ListExpansionProvider><TagReadProvider dictionary={dictionary} enabled={!!page?.items.some(e=>(e as EntityResult & {tag_ids?:string[]}).tag_ids?.length)}><ul className="list disclosure-list panel">
         {page?.items.map((e) => (
           <li className="list-item" key={e.id}>
             <div className="list-item-main">
-              <div className="activity-item-heading"><Link id={`entity-${e.id}`} className="item-title" {...rowLink(e.id)}>{e.prop1}</Link></div>
-              <dl className="entity-list-properties">
-                {e.prop2!==null&&<div><dt>속성 2</dt><dd>{e.prop2}</dd></div>}
-                {e.prop3!==null&&<div><dt>속성 3</dt><dd>{e.prop3}</dd></div>}
-                <div><dt>속성 4</dt><dd>{e.prop4}</dd></div>
-              </dl>
-              <TagNames scope="entity" ids={(e as EntityResult & {tag_ids?:string[]}).tag_ids??[]} compact/>
+              <ListPreviewItem kind="entities" id={e.id} title={e.prop1}/>
             </div>
           </li>
         ))}
-      </ul></TagReadProvider>
+      </ul></TagReadProvider></ListExpansionProvider>
       {page && (page.next_cursor || page.count > 1) && (
         <button
           className="btn"

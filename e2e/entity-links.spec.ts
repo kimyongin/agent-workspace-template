@@ -25,7 +25,7 @@ test("general record selects two entities in web; MCP, both related views and de
       const related = await mcp.call("get_entity", { id: target.id });
       expect(related.records.items.some((item: { id: string }) => item.id === recordId)).toBe(true);
       await page.goto(`/records?entity_id=${target.id}`);
-      await expect(page.getByRole("link", { name: label + " 자료", exact: true })).toBeVisible();
+      await expect(page.getByRole("button", { name: label + " 자료", exact: true })).toBeVisible();
     }
     await mcp.call("delete_entity", { id: first.id, expected_version: first.version }); firstDeleted = true;
     await page.goto(`/records/${recordId}`); await openDetailEditor(page);

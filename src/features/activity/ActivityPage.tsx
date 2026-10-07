@@ -1,44 +1,43 @@
 import { recordDisplayText } from "@contracts/record-display.ts";
 import { SearchMatch } from "../../components/SearchMatch.tsx";
 import { useEffect, useRef, useState } from "react";
-import { Link, Navigate, useLocation, useSearchParams } from "react-router";
+import { Navigate, useLocation, useSearchParams } from "react-router";
 import type { SearchItem } from "@contracts/search.ts";
 import type { TaskResult } from "@contracts/task.ts";
 import { taskLabels } from "@contracts/task.ts";
 import type { RecordResult } from "@contracts/record.ts";
 import { TabActions } from "../../components/TabActions.tsx";
-import { clearListPosition, TabSearch } from "../../components/TabSearch.tsx";
+import { clearListPosition, TabSearch, TabFilters } from "../../components/TabSearch.tsx";
 import { Field, Notice } from "../../components/Field.tsx";
 import { useCreateMode } from "../../components/useCreateMode.ts";
 import { api } from "../../lib/api.ts";
 import { browserTimezone } from "../../lib/format.ts";
-import { TagDictionaryStatus, TagNames, TagReadProvider, useTagDictionary } from "../tags/TagPicker.tsx";
-import { ChangeContext, recordKindNames } from "./ChangeContext.tsx";
+import { TagDictionaryStatus, TagReadProvider, useTagDictionary } from "../tags/TagPicker.tsx";
+import { recordKindNames } from "./ChangeContext.tsx";
 import { emptyRecord, emptyTask, RecordFormModal, TaskFormModal, taskInput } from "./forms.tsx";
 import { type ActivityItem, useActivityList } from "./useActivityList.ts";
 import { Timeline } from "./Timeline.tsx";
 import { ACTIVITY_TAG_LIMIT, activityTags, periodBounds } from "./activity-filters.ts";
 import { activityLocation, type WorkspaceListKind } from "./activity-location.ts";
 import { EntityScope } from "../entity/EntityScope.tsx";
+import { ListExpansionProvider, ListPreviewItem } from "../relations/ListPreviewItem.tsx";
 import "./activity.css";
 
 function ActivitySection({ kind, tags, bounds, dictionary }: { kind: WorkspaceListKind; tags: string[]; bounds: NonNullable<ReturnType<typeof periodBounds>>; dictionary: ReturnType<typeof useTagDictionary> }) {
   const list = useActivityList(kind, { tags, bounds, layoutReady: !!dictionary.tags || dictionary.failed });
   const { metadata, searching: q, filtered } = list;
   const displayText = (item: ActivityItem) => kind === "records" && "body" in item ? recordDisplayText(item.body) : "title" in item ? item.title : "기록";
-  const heading = (item: ActivityItem) => <div className="activity-item-heading"><Link className="item-title" {...list.link(item.id)}><span className={kind === "records" ? "record-preview" : undefined}>{displayText(item)}</span></Link>{kind === "tasks" && <span className="meta task-list-status">{"status" in item ? taskLabels[item.status as keyof typeof taskLabels] as string : "task_status" in item && item.task_status ? taskLabels[item.task_status] : "할 일"}</span>}</div>;
-  const metadataFor = (item: ActivityItem) => <>{"match" in item && <SearchMatch item={item}/>}<TagNames ids={item.tag_ids} compact/></>;
+  const preview = (item: ActivityItem) => <ListPreviewItem kind={kind} id={item.id} title={displayText(item)} metadata={"match" in item?<SearchMatch item={item}/>:undefined}/>;
   return <section className={`activity-section ${kind}`} aria-label={`${kind === "tasks" ? "할 일" : "기록"} 목록`}>
     {q && <p className="help">관련도순으로 회수한 검색 결과{kind === "records" ? "를 날짜별로 표시합니다." : "입니다."}</p>}
     {metadata?.search_state === "keyword_fallback" && <Notice>의미 검색을 사용할 수 없어 키워드 검색 결과를 표시합니다.</Notice>}
     {metadata && metadata.semantic_coverage.pending + metadata.semantic_coverage.excluded > 0 && <p className="help">의미 색인 대기 {metadata.semantic_coverage.pending}개 · 제외 {metadata.semantic_coverage.excluded}개</p>}
     {list.busy && !list.items && <p role="status" className="secondary">불러오는 중…</p>}
     {list.items?.length === 0 && <p className="secondary">{filtered ? `조건에 맞는 ${kind === "tasks" ? "할 일" : "기록"}이 없습니다.` : `아직 ${kind === "tasks" ? "할 일" : "기록"}이 없습니다.`}</p>}
-    {list.items && <TagReadProvider dictionary={dictionary} enabled={list.items.some(item => item.tag_ids.length > 0)}>
-      {kind === "tasks" ? <ul className="list tasks-list panel">{list.items.map(item => <li key={item.id} className="list-item"><div className="list-item-main">{heading(item)}
-        {"due_on" in item && item.due_on && <span className="meta">기한 {item.due_on}</span>}{metadataFor(item)}</div></li>)}</ul>
-        : <Timeline items={list.items} kind="기록" at={item => "occurred_at" in item ? item.occurred_at : (item as SearchItem).at}>{(item,time) => <>{heading(item)}{"snippet" in item&&<p className="secondary record-snippet">{item.snippet}</p>}<div className="record-metadata">{time}{"change" in item ? <ChangeContext record={item as RecordResult} compact/> : "record_kind" in item && item.record_kind && <span className="meta">{recordKindNames[item.record_kind]}</span>}{"match" in item && <SearchMatch item={item}/>}<TagNames ids={item.tag_ids} compact/></div></>}</Timeline>}
-    </TagReadProvider>}
+    {list.items && <ListExpansionProvider><TagReadProvider dictionary={dictionary} enabled={list.items.some(item => item.tag_ids.length > 0)}>
+      {kind === "tasks" ? <ul className="list disclosure-list panel">{list.items.map(item => <li key={item.id} className="list-item"><div className="list-item-main">{preview(item)}</div></li>)}</ul>
+        : <Timeline items={list.items} kind="기록" at={item => "occurred_at" in item ? item.occurred_at : (item as SearchItem).at}>{item => preview(item)}</Timeline>}
+    </TagReadProvider></ListExpansionProvider>}
     {list.error && <Notice kind="error">{list.error}</Notice>}
     {list.showMoreControl && <button id={`activity-${kind}-page-control`} type="button" className="btn" aria-disabled={list.busy || !list.cursor && !list.error} onClick={list.error ? list.retry : list.more}>{list.busy ? "불러오는 중…" : list.error ? "다시 시도" : list.cursor ? `${kind === "tasks" ? "할 일" : "기록"} 더 보기` : "모두 불러왔습니다"}</button>}
   </section>;
@@ -61,15 +60,16 @@ export function ActivityPage({ kind }: { kind: WorkspaceListKind }) {
   const create = useCreateMode("1");
   const begin = () => { const next = new URLSearchParams(params); next.set("create", "1"); setParams(next); };
   const filter = (name: string, value: string) => { const next = clearListPosition(new URLSearchParams(params)); value ? next.set(name, value) : next.delete(name); setParams(next, { replace: true }); };
-  const setDate = (name: string, value: string) => { const next = new URLSearchParams(params); value ? next.set(name, value) : next.delete(name); if(periodBounds(next.get("from")??"",next.get("to")??"")){next.delete("records_pages");next.delete("pages");next.delete("scroll");} setParams(next, { replace: true }); };
+  const setDate = (name: string, value: string) => { const next = new URLSearchParams(params); value ? next.set(name, value) : next.delete(name); if(periodBounds(next.get("from")??"",next.get("to")??""))clearListPosition(next); setParams(next, { replace: true }); };
   const saved = (kind: string, id: string) => { const next = new URLSearchParams(params); next.delete("create"); create.finish(`/${kind}s/${id}?list=${encodeURIComponent(`${pathname}?${next}`)}`); };
   if (legacy.route !== pathname || legacy.params.toString() !== params.toString()) return <Navigate replace to={`${legacy.route}?${legacy.params}${legacy.hash}`} />;
   return <>
     <section className="panel" aria-labelledby={`${kind}-title`}><div className="panel-head"><h1 id={`${kind}-title`} className="page-title" tabIndex={-1}>{label}</h1><TabActions title={label} actions={[{ label: kind === "tasks" ? "할 일 등록" : "기록 작성", run: begin }, { label: `${label} 태그 관리`, to: kind === "tasks" ? "/tags/task" : "/tags/record" }]}/></div>
-      {params.get("entity_id")&&<EntityScope key={params.get("entity_id")} id={params.get("entity_id")!} onClear={()=>{const next=clearListPosition(new URLSearchParams(params));next.delete("entity_id");setParams(next,{replace:true});}}/>}
       <div className="panel-body">
         {params.has("legacy_activity") && <Notice>목록을 나누어 {label} 탭으로 이동했습니다. {kind === "tasks" ? "기록과 기록 기간은 기록 탭에서 확인하세요." : "할 일과 진행 상태는 할 일 탭에서 확인하세요."}</Notice>}
         <TabSearch/>
+        <TabFilters active={!!(tags.length||params.get("entity_id")||params.get("kind")||params.get("status")||params.get("record_kind")||from||to)} attention={!checked||dictionary.failed||trimmedTags}>
+      {params.get("entity_id")&&<EntityScope key={params.get("entity_id")} id={params.get("entity_id")!} onClear={()=>{const next=clearListPosition(new URLSearchParams(params));next.delete("entity_id");setParams(next,{replace:true});}}/>}
         <div className="activity-filters">
           {kind === "tasks" ? <>
             <Field label="할 일 종류">{props => <select {...props} className="input" value={params.get("kind") ?? ""} onChange={event => filter("kind", event.target.value)}><option value="">전체</option><option value="once">한 번</option><option value="recurring">반복</option></select>}</Field>
@@ -80,6 +80,7 @@ export function ActivityPage({ kind }: { kind: WorkspaceListKind }) {
         {!checked && <Notice kind="error">기록 시작일은 종료일보다 늦을 수 없습니다. 이전 유효 기간의 기록을 유지합니다.</Notice>}
         <p className="meta" style={{margin:0}}>날짜와 시각 기준: {browserTimezone()}</p></div>}
         <TagDictionaryStatus dictionary={dictionary}/><fieldset className="field tag-filter-chips"><legend className="label">{label} 태그</legend><div className="chips">{dictionary.tags?.map(tag => <button type="button" key={tag.id} className="chip" disabled={tags.length >= ACTIVITY_TAG_LIMIT && !tags.includes(tag.id)} aria-pressed={tags.includes(tag.id)} onClick={() => { setTrimmedTags(false); const selected = tags.includes(tag.id) ? tags.filter(id => id !== tag.id) : [...tags, tag.id]; const next = clearListPosition(new URLSearchParams(params)); next.delete("tag_id"); selected.length ? next.set("tag_ids", selected.sort().join(",")) : next.delete("tag_ids"); setParams(next, { replace: true }); }}>{tag.name}</button>)}</div>{(trimmedTags || tags.length === ACTIVITY_TAG_LIMIT) && <p className="help" role="status">{trimmedTags ? "태그는 최대 10개입니다. 기존 조건의 앞 10개만 적용했습니다." : "태그는 최대 10개까지 선택할 수 있습니다. 선택한 태그를 해제하면 바꿀 수 있습니다."}</p>}</fieldset>
+        </TabFilters>
       </div>
     </section>
     <ActivitySection kind={kind} tags={tags} bounds={bounds} dictionary={dictionary}/>

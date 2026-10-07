@@ -27,11 +27,11 @@ export function useDetailOwnerReturn(fallback: string): string {
   return root?owner:fallback;
 }
 
-/** Deleting a related editor target returns to its starting detail, not a different tab. */
-export function useDetailEditReturn(fallback:string):string {
+/** Deleting a related viewer target returns to its starting detail, not a different tab. */
+export function useDetailDeleteReturn(fallback:string):string {
   const location=useLocation(),context=useContext(Snapshots);
   const root=detailTrail(location.state,context?.scope).find(frame=>detailPath.test(frame.path.split(/[?#]/)[0]));
-  return location.state?.relatedEditor&&root?root.path:fallback;
+  return root?root.path:fallback;
 }
 
 /** Exploration metadata lives in browser history, never in domain data or rendered dialog stacks. */
@@ -79,7 +79,6 @@ export function useDetailNavigate() {
     const sameDetail = detailPath.test(location.pathname) && (destination.startsWith("?") || destination.split(/[?#]/)[0] === location.pathname);
     const exit = detailPath.test(location.pathname) && !sameDetail;
     const root=detailTrail(location.state,context?.scope).find(frame=>detailPath.test(frame.path.split(/[?#]/)[0]));
-    if(root&&location.state?.relatedEditor&&sameDetail&&new URL(destination,"https://detail.invalid"+location.pathname).searchParams.get("edit")!=="1")return navigate(-1);
     if(root&&exit){
       if(destination.split(/[?#]/)[0]===root.path.split(/[?#]/)[0])return navigate(-1);
       if(!detailPath.test(destination.split(/[?#]/)[0])&&context){
@@ -95,6 +94,7 @@ export function useDetailNavigate() {
 /** Use for every link to a detail, including related items and search results. */
 export function DetailLink({ onClick, state, restoreKey, ...props }: Omit<LinkProps, "replace"> & {restoreKey?: string}) {
   const location = useLocation(), navigate = useNavigate(), context = useContext(Snapshots);
+  const owner=useDetailOwnerReturn(`/${location.pathname.split("/")[1]}`);
   const target = typeof props.to === "string" ? props.to : props.to.pathname ?? "";
   return <Link {...props} data-detail-focus={restoreKey ?? props.id ?? target} state={state} onClick={event => {
     onClick?.(event);
@@ -115,8 +115,9 @@ export function DetailLink({ onClick, state, restoreKey, ...props }: Omit<LinkPr
       detailTrail: root?trail:[...trail,frame] };
     event.preventDefault();
     if(root&&target.split(/[?#]/)[0]===root.path.split(/[?#]/)[0]&&context){
-      context.transition={key:root.key,path:props.to,state:{detailScope:context.scope,detailVersion:2,detailTrail:trail.filter(value=>value.key!==root.key)}};
-      void navigate(-1);return;
+      context.transition={key:root.key,path:root.path,state:{detailScope:context.scope,detailVersion:2,detailTrail:trail.filter(value=>value.key!==root.key)}};
+      // End the replaced child too, so Forward cannot revive it after root Close.
+      void Promise.resolve(navigate(owner,{replace:true,state:null})).then(()=>navigate(-1));return;
     }
     // The search route's existing anchor replay also restores deep results after reload or concurrent additions.
     const prepare = searchOrigin ? navigate(origin, {replace: true, state: location.state}) : undefined;
@@ -130,7 +131,7 @@ export function useDetailExploration() {
   const frames = context?.frames;
   const trail = detailTrail(location.state, context?.scope), previous = trail.at(-1);
   useEffect(() => { for (const frame of trail) if (!frames?.has(frame.key)) frames?.set(frame.key, frame); }, [location.key, frames]);
-  return previous ? { label: `이전: ${previous.title}`, relatedEditor:!!location.state?.relatedEditor,editorTitle:typeof location.state?.relatedTitle==="string"?location.state.relatedTitle:undefined, back: () => { void navigate(-1); } } : null;
+  return previous ? { label: `이전: ${previous.title}`,back: () => { void navigate(-1); } } : null;
 }
 
 function useRestoreFrame(frames: Map<string, Frame>) {

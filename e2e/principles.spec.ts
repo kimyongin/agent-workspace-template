@@ -1,5 +1,5 @@
 import { fillChangeMemo } from "./ui-actions.ts";
-import { beginTabAction, openDetailEditor, saveOnce } from "./ui-actions.ts";
+import { beginTabAction, openDetailEditor, saveOnce, openListDetail } from "./ui-actions.ts";
 import { expect, test } from "@playwright/test";
 import { devLogin, mcpClient, mcpTokenViaConsent, unique } from "./support.ts";
 import { savePrinciple } from "./principle-support.ts";
@@ -43,7 +43,7 @@ test("현재 원칙이 바뀌어도 과거 근거는 기록 검색에서 원문�
     await savePrinciple(mcp,{title:unique("현재 다른 기준"),body:"현재 본문"});
     await page.goto("/principles");await page.getByRole("link",{name:"과거 근거는 통합 기록에서 보기"}).click();
     await page.getByLabel("검색어",{exact:true}).fill(marker);
-    const link=page.getByRole("link",{name:new RegExp(marker)}).first();await expect(link).toBeVisible();await link.click();
+    const item=page.locator(".records .related-item-heading").filter({hasText:marker}).first();await expect(item).toBeVisible();await openListDetail(page,await item.innerText());
     await expect(page.locator("dialog.modal:not(.modal-confirm)[open]")).toContainText("기록으로 보존할 최초 근거");
   }finally{await mcp.close();}
 });

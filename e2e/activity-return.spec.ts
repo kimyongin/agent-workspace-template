@@ -1,5 +1,5 @@
 import { fillChangeMemo } from "./ui-actions.ts";
-import { saveOnce, openDetailEditor } from "./ui-actions.ts";
+import { saveOnce, openDetailEditor, openListDetail, openTabFilters } from "./ui-actions.ts";
 import { expect, test } from "@playwright/test";
 import { devLogin, mcpClient, mcpTokenViaConsent, unique } from "./support.ts";
 
@@ -101,42 +101,43 @@ for (
       await page.keyboard.press("Enter");
       expect(requests).toHaveLength(3);
       await page.unroute(`**/api/${path}?**`);
-      let link = page.getByRole("link", { name: title, exact: true });
+      let link = page.getByRole("button", { name: title, exact: true });
       await link.scrollIntoViewIfNeeded();
       await link.focus();
       await page.keyboard.press("Enter");
+      await openListDetail(page,title);
       await expect(page.getByRole("heading", { name: kind === "record" ? "기록" : title, exact: true })).toBeVisible();
       const view=page.locator("dialog.modal:not(.modal-confirm)[open]");
       const initialDetail=page.url(),entityToggle=view.getByRole("region",{name:/^엔터티/}).getByRole("button",{name:entity.prop1,exact:true});
       await entityToggle.click();await expect(entityToggle).toHaveAttribute("aria-expanded","true");await expect(page).toHaveURL(initialDetail);
-      const entityEdit=view.getByRole("link",{name:entity.prop1+" 편집",exact:true});await entityEdit.click();
-      await expect(view.getByLabel("속성 1",{exact:false})).toHaveValue(entity.prop1);await view.getByRole("button",{name:"취소",exact:true}).click();
+      const entityEdit=view.getByRole("link",{name:entity.prop1+" 보기",exact:true});await entityEdit.click();await openDetailEditor(page);
+      await expect(view.getByLabel("속성 1",{exact:false})).toHaveValue(entity.prop1);await view.getByRole("button",{name:"취소",exact:true}).click();await view.getByRole("button",{name:/^이전:/}).click();
       await expect(page).toHaveURL(initialDetail);await expect(entityEdit).toBeFocused();
       await openDetailEditor(page);const dialog=page.getByRole("dialog",{name:editLabel,exact:true});
       await dialog.getByLabel("본문").fill("닫기 취소 뒤 보존할 초안");await dialog.getByRole("button",{name:"닫기",exact:true}).click();
       const discard=page.getByRole("dialog",{name:"변경을 버릴까요?",exact:true});await discard.getByRole("button",{name:"취소",exact:true}).click();await expect(dialog.getByLabel("본문")).toHaveValue("닫기 취소 뒤 보존할 초안");
       expect((await mcp.call(`get_${kind}`,{id:target.id})).body).toBe(target.body);await dialog.getByLabel("본문").fill(target.body);await dialog.getByRole("button",{name:"닫기",exact:true}).click();
-      await expect(link).toBeFocused();await link.click();
+      await expect(link).toBeFocused();await openListDetail(page,await link.innerText());
       for (let i = 0; i < 21; i++) await create(unique("상세 중 추가"));
       await page.goBack();
       await expect(page.locator(`.${path} .list .item-title`)).toHaveCount(63);
       await expect(link).toBeFocused();
       await expect(link).toBeInViewport();
-      await expect(page.getByRole("button",{name:tag.name,exact:true})).toHaveAttribute("aria-pressed","true");
+      await openTabFilters(page);await expect(page.getByRole("button",{name:tag.name,exact:true})).toHaveAttribute("aria-pressed","true");
       await page.reload();
       await expect(page.locator(`.${path} .list .item-title`)).toHaveCount(63);
       await expect(link).toBeFocused();
-      await link.click();
+      await openListDetail(page,await link.innerText());
       await openDetailEditor(page);
       await dialog.getByLabel("본문").fill("수정한 근거");
       if(kind==="task")await fillChangeMemo(page,dialog,"판단 근거 정정");
       await saveOnce(page, dialog);
       await expect(dialog).not.toBeVisible();
-      if(kind==="record")link=page.getByRole("link",{name:"수정한 근거",exact:true});
+      if(kind==="record")link=page.getByRole("button",{name:"수정한 근거",exact:true});
       await page.getByRole("button", { name: "닫기", exact: true }).click();
       await expect(link).toBeFocused();
       await expect(link).toBeInViewport();
-      await link.click();
+      await openListDetail(page,await link.innerText());
       await openDetailEditor(page);
       await page.getByRole("button", { name: "삭제", exact: true }).click();
       await saveOnce(page,page.locator("dialog.modal-action[open]"),"삭제 확인");
@@ -145,7 +146,7 @@ for (
       ids.delete(target.id);
       await expect(page.getByRole("heading", { name: label, exact: true })).toBeFocused();
       await expect(page.locator(`#activity-${path}-page-control`)).toHaveCount(0);
-      await page.getByRole("button",{name:tag.name,exact:true}).click();await page.getByRole("button",{name:emptyTag.name,exact:true}).click();
+      await openTabFilters(page);await page.getByRole("button",{name:tag.name,exact:true}).click();await page.getByRole("button",{name:emptyTag.name,exact:true}).click();
       await expect(page.locator(`.${path} .list .item-title`)).toHaveCount(0);
       expect(new URL(page.url()).hash).toBe("");
       expect(new URL(page.url()).searchParams.has("pages")).toBe(false);
@@ -154,13 +155,13 @@ for (
       // fallback focus, without widening the filter to include detached items.
       const leaving = await create(unique("연결 조건 이탈"));
       await page.goto(listPath);
-      const leavingLink = page.getByRole("link", { name: kind === "record" ? leaving.body : leaving.title, exact: true });
-      await leavingLink.click();
+      const leavingLink = page.getByRole("button", { name: kind === "record" ? leaving.body : leaving.title, exact: true });
+      await openListDetail(page,await leavingLink.innerText());
       await mcp.call(`update_${kind}`, { id: leaving.id, expected_version: leaving.version, tag_ids: [], ...(kind === "task" ? {change_note:"태그 해제"} : {}) });
       await page.goBack();
       await expect(leavingLink).toHaveCount(0);
       await expect(page.getByRole("heading", { name: label, exact: true })).toBeFocused();
-      await expect(page.getByRole("button",{name:tag.name,exact:true})).toHaveAttribute("aria-pressed","true");
+      await openTabFilters(page);await expect(page.getByRole("button",{name:tag.name,exact:true})).toHaveAttribute("aria-pressed","true");
     } finally {
       try {
         for (const id of ids) {
@@ -231,7 +232,7 @@ for (
     });
     await page.goto(`/${path}?pages=250`);
     await expectRestoredPages();
-    const first = page.getByRole("link", { name: `${label} 경계 0`, exact: true });
+    const first = page.getByRole("button", { name: `${label} 경계 0`, exact: true });
     await page.locator(`#activity-${path}-page-control`).click();
     await expect(page.getByRole("button", { name: "다시 시도", exact: true })).toBeVisible();
     await expect(page.locator(`.${path} .list .item-title`)).toHaveCount(250);
