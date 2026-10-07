@@ -416,7 +416,7 @@ for (const width of [320, 1440]) test(`상세 탐색 ${width}px: 한 surface·�
   const state = await fixtures(page);
   Object.assign(state.rows.entities[0], { tasks: { count: 1, items: [task()] } });
   Object.assign(state.rows.tasks[0], { status: "done", body:"긴 업무 내용\n\n".repeat(40), result_record: { id: id(3), body: "결과 문서" } });
-  Object.assign(state.rows.records[0], { entity_ids: [id(1)], entity_context: [{id:id(1),title:"연결 엔터티",source:"selection",captured_at:stamp}] });
+  Object.assign(state.rows.records[0], { body:"결과 문서",task_id:id(2),entity_ids: [id(1)], entity_context: [{id:id(1),title:"연결 엔터티",source:"selection",captured_at:stamp}] });
   await page.setViewportSize({width,height:800});
   await go(page, "/entities");
   await page.getByRole("link", {name:"엔터티",exact:true}).click();
@@ -858,7 +858,10 @@ test("할 일 연결 기록: 결과와 전체 기간 회차·페이지 오류 �
   await expect(related.getByRole("link",{name:first.body,exact:true})).toBeVisible();await related.getByRole("button",{name:"기록 더 보기"}).click();
   await expect(related.getByRole("alert")).toBeVisible();await expect(related.getByRole("link",{name:first.body,exact:true})).toBeVisible();
   await related.getByRole("button",{name:"기록 다시 시도"}).click();await expect(related.getByRole("link",{name:old.body,exact:true})).toBeVisible();await expect(related.locator("a.related-item")).toHaveCount(2);
-  expect(reads.map(p=>p.get("cursor"))).toEqual([null,"more","more"]);for(const params of reads){expect(params.get("task_id")).toBe(id(2));expect(params.get("limit")).toBe("20");expect(params.has("occurred_from")).toBe(false);}
+  state.rows.records.push(old);
+  await related.getByRole("link",{name:old.body,exact:true}).click();await form(page).getByRole("button",{name:/^이전: 할 일/}).click();
+  await expect(related.getByRole("link",{name:old.body,exact:true})).toBeFocused();await expect(page).toHaveURL(/related_record_pages=2/);
+  expect(reads.slice(0,3).map(p=>p.get("cursor"))).toEqual([null,"more","more"]);for(const params of reads){expect(params.get("task_id")).toBe(id(2));expect(params.get("limit")).toBe("20");expect(params.has("occurred_from")).toBe(false);}
   expect(state.errors).toEqual([]);
 });
 
@@ -868,4 +871,17 @@ test("기록 연결 할 일: 제목 조회 실패 재시도와 삭제 상태",as
   await go(page,`/records/${id(3)}`);const section=form(page).getByRole("region",{name:"연결된 할 일 (1개)"});
   await expect(section).toContainText("불러오지 못했습니다");failed=false;await section.getByRole("button",{name:"할 일 다시 조회"}).click();await expect(section.getByRole("link",{name:"할 일",exact:true})).toBeVisible();
   missing=true;await page.reload();await expect(section).toContainText("삭제된 할 일 또는 접근할 수 없는 할 일");await expect(section.getByRole("link")).toHaveCount(0);expect(state.errors).toEqual([]);
+});
+
+
+test("연결 조회 늦은 응답은 다음 할 일·기록에 섞이지 않는다",async({page})=>{
+  const state=await fixtures(page);state.rows.tasks.push({...task(40),title:"다음 할 일"});state.rows.records.push({...record(41),body:"다음 기록",task_id:id(40)});state.rows.records[0].task_id=id(2);
+  let release=()=>{},arrive=()=>{};const held=new Promise<void>(resolve=>release=resolve),started=new Promise<void>(resolve=>arrive=resolve);
+  await page.route("**/api/records?**",async route=>{if(new URL(route.request().url()).searchParams.get("task_id")==id(2)){arrive();await held;return route.fulfill({json:{items:[{...record(42),body:"오래된 조회"}],next_cursor:null}}).catch(()=>{});}return route.fulfill({json:{items:[],next_cursor:null}});});
+  await go(page,`/tasks/${id(2)}`);await started;await page.getByRole("link",{name:"할 일 fixture",exact:true}).evaluate((el:HTMLAnchorElement)=>el.click());
+  await page.getByRole("link",{name:"다음 할 일",exact:true}).click();await expect(form(page)).toContainText("연결된 기록이 없습니다");release();await expect(form(page)).not.toContainText("오래된 조회");
+  let releaseTask=()=>{},arriveTask=()=>{};const heldTask=new Promise<void>(resolve=>releaseTask=resolve),startedTask=new Promise<void>(resolve=>arriveTask=resolve);
+  await page.route(`**/api/tasks/${id(2)}`,async route=>{arriveTask();await heldTask;return route.fulfill({json:{...state.rows.tasks[0],title:"오래된 할 일"}}).catch(()=>{});});
+  await go(page,`/records/${id(3)}`);await startedTask;await page.getByRole("link",{name:"기록 fixture",exact:true}).evaluate((el:HTMLAnchorElement)=>el.click());await page.getByRole("link",{name:"다음 기록",exact:true}).click();
+  await expect(form(page).getByRole("link",{name:"다음 할 일",exact:true})).toBeVisible();releaseTask();await expect(form(page)).not.toContainText("오래된 할 일");expect(state.errors).toEqual([]);
 });
