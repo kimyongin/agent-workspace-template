@@ -9,11 +9,9 @@ import { RelatedSection } from "../../components/RelatedItems.tsx";
 import { RelatedPreviewItem } from "../relations/RelatedPreviewItem.tsx";
 import { Notice } from "../../components/Field.tsx";
 import { api, query } from "../../lib/api.ts";
-import { formatDateTime } from "../../lib/format.ts";
-import { recordKindNames } from "./ChangeContext.tsx";
 
-export function RelatedRecordItem({record}: {record:Pick<RecordResult,"id"|"body"|"record_kind"|"occurred_at">&{occurrence_on?:string|null}}) {
-  return <RelatedPreviewItem to={`/records/${record.id}`} title={recordDisplayText(record.body)} metadata={<><span className="badge">{recordKindNames[record.record_kind]}</span>{record.occurrence_on&&<span className="meta">{record.occurrence_on} 회차</span>}<time className="meta" dateTime={record.occurred_at}>{formatDateTime(record.occurred_at)}</time></>}/>;
+export function RelatedRecordItem({record}: {record:Pick<RecordResult,"id"|"body">}) {
+  return <RelatedPreviewItem to={`/records/${record.id}`} title={recordDisplayText(record.body)}/>;
 }
 
 export function RelatedRecords({taskId,revision,action}: {taskId:string;revision:number;action?:ReactNode}) {

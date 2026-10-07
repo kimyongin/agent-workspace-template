@@ -42,8 +42,8 @@ export function RelatedPreviewItem(props:ComponentProps<typeof RelatedItem>) {
       body.scrollTop+=target.getBoundingClientRect().top-top;
     });
   };
-  const editable=item&&(!("is_current" in item)||item.is_current);
-  return <RelatedItem {...props} to={undefined} disclosure={{expanded,toggle,content:<>
+  const editable=!error&&(!item||!("is_current" in item)||item.is_current);
+  return <RelatedItem {...props} to={undefined} action={<>{props.action}{editable&&<DetailLink className="btn btn-text" to={`${path}?edit=1`} state={{relatedEditor:true,relatedTitle:props.title}} restoreKey={`edit-related-${path}`} aria-label={`${props.title} 편집`}>편집</DetailLink>}</>} disclosure={{expanded,toggle,content:<>
     {!item&&!error&&<p className="secondary" role="status">불러오는 중…</p>}
     {error==="missing"&&<p className="secondary">삭제된 대상 또는 접근할 수 없는 대상입니다.</p>}
     {error==="failed"&&<><Notice kind="error">내용을 불러오지 못했습니다.</Notice><button type="button" className="btn" onClick={()=>setRetry(n=>n+1)}>다시 시도</button></>}
@@ -53,7 +53,6 @@ export function RelatedPreviewItem(props:ComponentProps<typeof RelatedItem>) {
         {"status" in item&&<div className="related-item-meta"><StatusBadge status={item.status}/>{item.due_on&&<span className="meta">{item.due_on}</span>}</div>}
         {"tag_ids" in item&&<TagNames compact scope={"status" in item?"task":"record"} ids={item.tag_ids}/>}
       </>}
-      {editable&&<div className="related-preview-actions"><DetailLink className="btn" to={`${path}?edit=1`} state={{relatedEditor:true,relatedTitle:props.title}} restoreKey={`edit-related-${path}`} aria-label={`${props.title} 편집`}>편집</DetailLink></div>}
     </>}
   </>}}/>;
 }
