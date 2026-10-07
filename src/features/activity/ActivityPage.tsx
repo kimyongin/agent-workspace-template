@@ -26,7 +26,7 @@ function ActivitySection({ kind, tags, bounds, dictionary }: { kind: WorkspaceLi
   const list = useActivityList(kind, { tags, bounds, layoutReady: !!dictionary.tags || dictionary.failed });
   const { metadata, searching: q, filtered } = list;
   const displayText = (item: ActivityItem) => kind === "records" && "body" in item ? recordDisplayText(item.body) : "title" in item ? item.title : "기록";
-  const heading = (item: ActivityItem) => <div className="activity-item-heading"><Link className="item-title" {...list.link(item.id)}>{displayText(item)}</Link></div>;
+  const heading = (item: ActivityItem) => <div className="activity-item-heading"><Link className="item-title" {...list.link(item.id)}><span className={kind === "records" ? "record-preview" : undefined}>{displayText(item)}</span></Link>{kind === "tasks" && <span className="meta task-list-status">{"status" in item ? taskLabels[item.status as keyof typeof taskLabels] as string : "task_status" in item && item.task_status ? taskLabels[item.task_status] : "할 일"}</span>}</div>;
   const metadataFor = (item: ActivityItem) => <>{"match" in item && <SearchMatch item={item}/>}<TagNames ids={item.tag_ids} compact/></>;
   return <section className={`activity-section ${kind}`} aria-label={`${kind === "tasks" ? "할 일" : "기록"} 목록`}>
     {q && <p className="help">관련도순으로 회수한 검색 결과{kind === "records" ? "를 날짜별로 표시합니다." : "입니다."}</p>}
@@ -36,7 +36,7 @@ function ActivitySection({ kind, tags, bounds, dictionary }: { kind: WorkspaceLi
     {list.items?.length === 0 && <p className="secondary">{filtered ? `조건에 맞는 ${kind === "tasks" ? "할 일" : "기록"}이 없습니다.` : `아직 ${kind === "tasks" ? "할 일" : "기록"}이 없습니다.`}</p>}
     {list.items && <TagReadProvider dictionary={dictionary} enabled={list.items.some(item => item.tag_ids.length > 0)}>
       {kind === "tasks" ? <ul className="list tasks-list panel">{list.items.map(item => <li key={item.id} className="list-item"><div className="list-item-main">{heading(item)}
-        <span className="meta">{"status" in item ? taskLabels[item.status as keyof typeof taskLabels] as string : "task_status" in item && item.task_status ? taskLabels[item.task_status] : "할 일"}{"due_on" in item && item.due_on ? ` · 기한 ${item.due_on}` : ""}</span>{metadataFor(item)}</div></li>)}</ul>
+        {"due_on" in item && item.due_on && <span className="meta">기한 {item.due_on}</span>}{metadataFor(item)}</div></li>)}</ul>
         : <Timeline items={list.items} kind="기록" at={item => "occurred_at" in item ? item.occurred_at : (item as SearchItem).at}>{(item,time) => <>{heading(item)}{"snippet" in item&&<p className="secondary record-snippet">{item.snippet}</p>}<div className="record-metadata">{time}{"change" in item ? <ChangeContext record={item as RecordResult} compact/> : "record_kind" in item && item.record_kind && <span className="meta">{recordKindNames[item.record_kind]}</span>}{"match" in item && <SearchMatch item={item}/>}<TagNames ids={item.tag_ids} compact/></div></>}</Timeline>}
     </TagReadProvider>}
     {list.error && <Notice kind="error">{list.error}</Notice>}
