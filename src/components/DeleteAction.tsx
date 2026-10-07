@@ -34,7 +34,7 @@ export function DeleteAction({message,onConfirm,note=true,onStateChange,label="�
     register({title:"정말 삭제하시겠습니까?",busy,
       body:<RecordConfirmation note={reason} tags={tags} onNote={setReason} onTags={setTags} errors={errors} failure={error}
         frozen={busy||uncertain} message={callbacks.current.message} record={note} excludeTag={excludeTag}/>,
-      footer:<><button type="button" className="btn btn-text" disabled={busy} onClick={cancel}>취소</button>
+      footer:<><button type="button" className="btn" disabled={busy} onClick={cancel}>취소</button>
         <button type="button" className="btn btn-danger" disabled={busy} onClick={()=>void confirm()}>{busy?"삭제 중…":uncertain?"같은 내용 다시 시도":"삭제하고 기록"}</button></>,onCancel:cancel});
     return()=>register(null);
   },[register,armed,reason,tags,error,errors,busy,uncertain,note,excludeTag]);
