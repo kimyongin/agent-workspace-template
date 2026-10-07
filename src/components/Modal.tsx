@@ -73,7 +73,8 @@ function ActiveModalShell({ title, headingLevel=2, open, onClose, previous, onRo
   const titleId = useId();
   const [confirmDiscard, setConfirmDiscard] = useState(false);
   const [action, setAction] = useState<SurfaceAction | null>(null);
-  const registerAction = useCallback((value: SurfaceAction | null) => setAction(value), []);
+  const actionRef = useRef<SurfaceAction | null>(null);
+  const registerAction = useCallback((value: SurfaceAction | null) => { actionRef.current=value; setAction(value); }, []);
   const actionFocus = useRef<HTMLElement | null>(null);
   const actionOpen = !!action;
   useEffect(() => {
@@ -92,7 +93,7 @@ function ActiveModalShell({ title, headingLevel=2, open, onClose, previous, onRo
   // The router keeps this callback; it reads the committed mode instead of a previous editor's boolean.
   const shouldBlock = useCallback(() => {
     const state=guard.current;
-    return state.open && (!!state.action || (state.surface ? !!state.surface.editor.current?.dirty || !!state.surface.editor.current?.busy || state.surface.busy.current : state.dirty || state.busy));
+    return state.open && (!!actionRef.current || (state.surface ? !!state.surface.editor.current?.dirty || !!state.surface.editor.current?.busy || state.surface.busy.current : state.dirty || state.busy));
   }, []);
   const blocker = useBlocker(shouldBlock);
   useEffect(() => { if ((busy || action?.busy) && blocker.state === "blocked") blocker.reset(); }, [busy, action?.busy, blocker]);
@@ -139,8 +140,15 @@ function ActiveModalShell({ title, headingLevel=2, open, onClose, previous, onRo
       ref={ref}
       className={`modal${action ? " modal-action" : ""}`}
       aria-labelledby={titleId}
+      onKeyDown={(e) => {
+        if (e.key === "Escape" && (e.target as HTMLElement).closest("dialog") === ref.current) {
+          e.preventDefault(); e.stopPropagation();
+          if (!confirmDiscard) requestClose();
+        }
+      }}
       onCancel={(e) => {
         e.preventDefault();
+        e.stopPropagation();
         if (!confirmDiscard) requestClose();
       }}
     >
@@ -221,8 +229,10 @@ export function ConfirmDialog({ open, title, message, confirmLabel, danger, busy
       ref={ref}
       className="modal modal-confirm"
       aria-labelledby={titleId}
+      onKeyDown={(e) => { if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); if (!busy) onCancel(); } }}
       onCancel={(e) => {
         e.preventDefault();
+        e.stopPropagation();
         if (!busy) onCancel();
       }}
     >

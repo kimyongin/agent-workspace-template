@@ -26,8 +26,9 @@ const mcpB = await connectMcp(tokenB);
 
 httpTest("기록 HTTP 편집·MCP 재시도는 추가 로그 없이 최신 메모·사건을 보존한다", async () => {
   const record = await tool(mcpA, "create_record", { body: crypto.randomUUID() });
+  const entity = await tool(mcpA, "create_entity", { prop1: "메모 편집 근거" });
   const historyBefore = await tool(mcpA, "list_records", { record_kind: "change", limit: 100 });
-  const event = historyBefore.items.find((r: { change?: { target_id: string } }) => r.change?.target_id === record.id);
+  const event = historyBefore.items.find((r: { change?: { target_id: string } }) => r.change?.target_id === entity.id);
   assert(event);
   for (const row of [record, event]) {
     const patch = { expected_version: row.version, body: `${row.body}\n정정 설명` };
@@ -80,11 +81,10 @@ httpTest("검색: HTTP/MCP 본문 키워드·원문 최소 응답·대체 상태
   const createdEvent = history.items.find((item: { change?: { target_id: string; action: string } }) =>
     item.change?.target_id === r.id && item.change?.action === "create"
   );
-  assert(createdEvent);
-  assert((await tool(mcpA, "get_record", { id: createdEvent.id })).body.includes(marker));
+  assertEquals(createdEvent, undefined);
   const found = searchResult.parse(await tool(mcpA, "search", q));
   assertEquals(found, (await call(sessionA, "POST", "/search", q)).body);
-  assertEquals(found.items.map((x) => x.id).sort(), [r.id, createdEvent.id].sort());
+  assertEquals(found.items.map((x) => x.id).sort(), [r.id]);
   assertEquals("body" in found.items[0], false);
   assertEquals((await tool(mcpB, "search", q)).items, []);
   const auto = searchResult.parse(await tool(mcpA, "search", { query: marker }));

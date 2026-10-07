@@ -49,7 +49,7 @@ test("검색 대상 삭제·불일치 편집 후에는 저장한 페이지까지
     let requests=0;page.on("request",r=>{if(r.url().endsWith("/api/search")&&r.method()==="POST")requests++;});
     await page.getByRole("link",{name:targets[0],exact:true}).click();
     await page.getByRole("button",{name:"편집",exact:true}).click();await expect(page.getByRole("dialog",{name:"기록 편집"})).toBeVisible();await page.getByRole("button",{name:"삭제",exact:true}).click();requests=0;
-    await page.locator(".delete-action.is-armed").getByRole("button",{name:"삭제 확인",exact:true}).click();
+    await page.locator("dialog.modal-action[open]").getByRole("button",{name:"삭제하고 기록",exact:true}).click();
     await expect(page).toHaveURL(/\/records(?:\?|$)/);await page.goBack();await expect(page.locator(".list .item-title")).toHaveCount(40);await expect(page.getByRole("heading",{name:"검색",exact:true})).toBeFocused();expect(requests).toBe(2);
     await page.getByRole("link",{name:targets[1],exact:true}).click();await page.getByRole("button",{name:"편집",exact:true}).click();
     const form=page.getByRole("dialog",{name:"기록 편집"});await form.getByLabel("본문").fill("검색어 없음");await expect(form.getByLabel("편집 메모")).toHaveCount(0);await form.getByRole("button",{name:"저장",exact:true}).click();await expect(form).not.toBeVisible();

@@ -1,4 +1,4 @@
-import { fillChangeMemo } from "./ui-actions.ts";
+import { fillChangeMemo, saveOnce } from "./ui-actions.ts";
 import { expect,test } from "@playwright/test";
 const id="00000000-0000-4000-8000-000000000131", stamp="2026-10-06T01:00:00Z";
 test("원칙 화면의 기록 이동 링크는 모든 대표 폭에서 44px 누름 영역을 유지한다",async({page})=>{
@@ -41,7 +41,7 @@ test("현재 원칙은 한 번에 저장해 같은 문서를 갱신하며 삭제
   await page.getByRole("button",{name:"원칙 작업 메뉴",exact:true}).click();await page.getByRole("link",{name:"현재 원칙 편집",exact:true}).click();
   const form=page.locator("dialog.modal:not(.modal-confirm)[open]");
   await form.getByRole("textbox",{name:/^본문$/}).fill("새 본문");
-  expect(writes).toHaveLength(0);await fillChangeMemo(page,form,"판단 근거를 보충");await form.getByRole("button",{name:"저장",exact:true}).click();
+  expect(writes).toHaveLength(0);await fillChangeMemo(page,form,"판단 근거를 보충");await saveOnce(page,form);
   expect(writes[0].change_note).toBe("판단 근거를 보충");expect(writes[0]).not.toHaveProperty("change_memo");
   expect(current?.id).toBe(id);expect(current?.body).toBe("새 본문");
   await page.goto(`/principles/${id}?edit=1&edit_from=view`);await form.getByRole("button",{name:"삭제",exact:true}).click();

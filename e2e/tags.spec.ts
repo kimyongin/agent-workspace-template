@@ -1,3 +1,4 @@
+import { fillChangeMemo } from "./ui-actions.ts";
 import { saveOnce, beginTabAction, openDetailEditor } from "./ui-actions.ts";
 import {expect,test} from "@playwright/test";
 import {devLogin,mcpClient,mcpTokenViaConsent,unique} from "./support.ts";
@@ -43,8 +44,8 @@ test("태그 실제 DELETE pending은 Back을 막고 응답 뒤 정상 복귀한
       deletes++;arrived();await hold;const response=await route.fetch();await route.fulfill({response});finished();
     });
     await page.getByRole("button",{name:`${tag.name} 삭제`,exact:true}).click();
-    const confirm=page.locator(".delete-action.is-armed");
-    await confirm.getByRole("button",{name:"삭제 확인",exact:true}).click();await waiting;
+    const confirm=page.locator("dialog.modal-action[open]");
+    await confirm.getByRole("button",{name:"삭제하고 기록",exact:true}).click();await waiting;
     await page.goBack();await expect(page).toHaveURL(/tags\/activity$/);await expect(confirm).toBeVisible();
     await expect(confirm.getByRole("button",{name:"삭제 중…"})).toBeDisabled();
     await page.keyboard.press("Escape");await expect(confirm).toBeVisible();
@@ -68,13 +69,13 @@ test("엔터티·활동 태그 같은 이름·웹 선택 정정·삭제 뒤 원�
       if(kind==="entity")await expect(page.getByRole("heading",{name:title,level:1,exact:true})).toBeVisible();else await expect(page.getByRole("heading",{name:"기록",level:1})).toBeVisible();const id=new URL(page.url()).pathname.split("/").at(-1)!;
       expect((await mcp.call(`get_${kind}`,{id})).tag_ids).toEqual([tag.id]);
       await openDetailEditor(page);const edit=page.getByRole("dialog",{name:kind==="entity"?"엔터티 편집":"기록 편집"});
-      await edit.getByRole("button",{name,exact:true}).click();if(kind==="entity")await edit.getByLabel("편집 메모").fill("태그 분류 정정");await saveOnce(page,edit);
+      await edit.getByRole("button",{name,exact:true}).click();if(kind==="entity")await fillChangeMemo(page,edit,"태그 분류 정정");await saveOnce(page,edit);
       await expect(edit).not.toBeVisible();expect((await mcp.call(`get_${kind}`,{id})).tag_ids).toEqual([]);
       await mcp.call(`update_${kind}`,{id,expected_version:2,tag_ids:[tag.id],...(kind==="entity"?{change_note:"분류 복구"}:{})});
       const filtered=await mcp.call(kind==="entity"?"list_entities":"list_records",{tag_id:tag.id});
       expect(filtered.items.map((x:{id:string})=>x.id)).toEqual([id]);
       await page.goto(`${path}?tag_id=${tag.id}`);await page.getByRole("link",{name:title,exact:true}).click();await openDetailEditor(page);
-      const revisit=page.getByRole("dialog",{name:kind==="entity"?"엔터티 편집":"기록 편집"});await revisit.getByLabel(kind==="entity"?"속성 2":"본문").fill(kind==="entity"?"10":"원문 보존");if(kind==="entity")await revisit.getByLabel("편집 메모").fill("분류 상태에서 원문 정정");await saveOnce(page,revisit);await expect(revisit).not.toBeVisible();
+      const revisit=page.getByRole("dialog",{name:kind==="entity"?"엔터티 편집":"기록 편집"});await revisit.getByLabel(kind==="entity"?"속성 2":"본문").fill(kind==="entity"?"10":"원문 보존");if(kind==="entity")await fillChangeMemo(page,revisit,"분류 상태에서 원문 정정");await saveOnce(page,revisit);await expect(revisit).not.toBeVisible();
       await page.getByRole("button",{name:"닫기",exact:true}).click();await expect(page.getByRole("button",{name:tag.name,exact:true})).toHaveAttribute("aria-pressed","true");await expect(page.locator(kind==="entity"?".list .item-title":".records .list .item-title")).toHaveCount(1);
       await mcp.call("delete_tag",{id:tag.id,expected_version:1});await page.goto(`${path}/${id}`);
       expect((await mcp.call(`get_${kind}`,{id})).tag_ids).toEqual([]);
@@ -92,7 +93,7 @@ test("웹 태그 생성→MCP 중복·이름 변경→웹 삭제",async({page})=
     const list=await mcp.call("list_tags",{limit:100});const tag=list.items.find((t:{name:string})=>t.name===title);
     const renamed=unique("정정").slice(0,30);await mcp.call("rename_tag",{id:tag.id,expected_version:1,name:renamed});
     await page.reload();await page.getByRole("button",{name:`${renamed} 삭제`,exact:true}).click();
-    await page.locator(".delete-action.is-armed").getByRole("button",{name:"삭제 확인",exact:true}).click();
+    await page.locator("dialog.modal-action[open]").getByRole("button",{name:"삭제하고 기록",exact:true}).click();
     await expect(page.getByRole("button",{name:`${renamed} 삭제`,exact:true})).toHaveCount(0);
     await expect.poll(()=>page.evaluate(()=>document.activeElement?.id)).toMatch(/^(tag-|tags-title)/);
   }finally{await mcp.close();}
@@ -107,7 +108,7 @@ test("웹 할 일 태그 선택→MCP 필터·정정→태그 삭제 후 본문 
     await form.getByRole("button",{name:tag.name,exact:true}).click();await saveOnce(page,form,"추가");
     await expect(form).not.toBeVisible();const id=new URL(page.url()).pathname.split("/").at(-1)!;expect((await mcp.call("get_task",{id})).tag_ids).toEqual([tag.id]);
     await openDetailEditor(page);const edit=page.getByRole("dialog",{name:"할 일 편집"});
-    await edit.getByRole("button",{name:tag.name,exact:true}).click();await edit.getByLabel("편집 메모").fill("분류 정정");await saveOnce(page,edit);
+    await edit.getByRole("button",{name:tag.name,exact:true}).click();await fillChangeMemo(page,edit,"분류 정정");await saveOnce(page,edit);
     await expect(edit).not.toBeVisible();expect((await mcp.call("get_task",{id})).tag_ids).toEqual([]);
     await mcp.call("update_task",{id,expected_version:2,tag_ids:[tag.id],change_note:"분류 복구"});
     const items=await mcp.call("list_tasks",{tag_id:tag.id});expect(items.items.map((t:{id:string})=>t.id)).toEqual([id]);

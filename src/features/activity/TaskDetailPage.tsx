@@ -269,7 +269,7 @@ export function TaskDetailPage() {
           }}
         />
       )}
-      {dialog==="transition"&&<TaskTransitionForm task={task} onClose={closeManagement} onSaved={async()=>{closeManagement();setMessage(task.status==="active"?"중단했습니다. 오늘부터 회차가 없습니다.":"재개했습니다.");await reload();}}/>}
+      {task.kind==="recurring"&&<TaskTransitionForm key={`${task.id}:${task.version}`} open={dialog==="transition"} task={task} onClose={closeManagement} onSaved={async()=>{closeManagement();setMessage(task.status==="active"?"중단했습니다. 오늘부터 회차가 없습니다.":"재개했습니다.");await reload();}}/>}
       {dialog === "complete" && (
         <RecordFormModal
           title="할 일 완료"
@@ -312,9 +312,9 @@ export function TaskDetailPage() {
     </DetailSurface>;
 }
 
-function TaskTransitionForm({task,onClose,onSaved}:{task:TaskResult;onClose:()=>void;onSaved:()=>Promise<void>}) {
+function TaskTransitionForm({task,open,onClose,onSaved}:{task:TaskResult;open:boolean;onClose:()=>void;onSaved:()=>Promise<void>}) {
   const action=task.status==="active"?"stop":"resume",label=action==="stop"?"중단":"재개";
-  return <FormModal open title={`반복 할 일 ${label}`} submitLabel={label} dirty={false} confirmationOnly
+  return <FormModal open={open} title={`반복 할 일 ${label}`} submitLabel={label} dirty={false} confirmationOnly
     mutation={{target:task.title,action:label,message:action==="stop"?"오늘부터 이후 회차가 생기지 않고 기존 기록은 남습니다.":"오늘부터 규칙에 따라 회차가 다시 생깁니다."}}
     onClose={onClose} onRouteDiscard={onClose} validate={()=>null} onSubmit={async(_id,memo)=>{
       await api("POST",`/tasks/${task.id}/${action}`,{expected_version:task.version,...memo});

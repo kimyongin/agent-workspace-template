@@ -65,7 +65,7 @@ httpTest(
       );
       const history = await tool(client, "list_records", { record_kind: "change", limit: 100 });
       const event = history.items.find((row: { change?: { target_id: string } }) =>
-        row.change?.target_id === record!.id
+        row.change?.target_id === targets[0].id
       );
       assert(event);
       assertEquals(

@@ -85,7 +85,7 @@ function FormContents({title, open, submitLabel, dirty, onClose, onRouteDiscard,
   };
   const write = async (kind: "save"|"delete") => {
     if (attempt.snapshot().busy) return;
-    const local = changeNoteErrors(note, false);
+    const local = mutation || kind === "delete" ? changeNoteErrors(note, false) : null;
     setErrors(local ?? {});
     if (local) return;
     setFailure(null);
@@ -146,6 +146,3 @@ function FormContents({title, open, submitLabel, dirty, onClose, onRouteDiscard,
   useLayoutEffect(() => { if(surface?.slot && open) surface.slot.querySelector<HTMLElement>("input,textarea,select,button")?.focus(); }, [surface?.slot,open]);
   return surface ? surface.slot && open ? createPortal(form, surface.slot) : null : form;
 }
-
-export { ChangeNoteField } from "./ChangeNoteField.tsx";
-export { changeNoteErrors } from "./change-note.ts";

@@ -11,7 +11,10 @@ export async function saveOnce(page: Page, scope: Page | Locator = page, label =
 }
 
 export async function discardEditor(page: Page) {
-  if (await page.locator("dialog.modal-action[open]").isVisible()) await page.keyboard.press("Escape");
+  if (await page.locator("dialog.modal-action[open]").isVisible()) {
+    await page.keyboard.press("Escape");
+    await expect(page.locator("dialog.modal-action[open]")).toHaveCount(0);
+  }
   await page.keyboard.press("Escape");
 }
 

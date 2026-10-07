@@ -491,10 +491,11 @@ textarea.input {
 }
 
 /* 목록 제목은 상세로 가는 주 조작이므로 누름 영역을 44px 이상으로 둔다(글자 크기는 그대로). */
-.list-item a.item-title {
+.list-item a.item-title, .current-document a.item-title {
   display: flex;
   align-items: center;
   min-height: 44px;
+  min-width: 44px;
   text-decoration: none;
 }
 
@@ -715,6 +716,7 @@ textarea.input {
 .modal.modal-action { width: min(30rem, calc(100% - 2 * var(--space-4))); height: fit-content; margin: auto; border-radius: var(--radius-card); max-height: calc(var(--surface-height,100dvh) - 2 * var(--space-4)); }
 .modal-action .modal-inner { height: auto; max-height: calc(var(--surface-height,100dvh) - 2 * var(--space-4)); }
 .modal-action .dialog-title { font-size: 1.125rem; line-height: 1.75rem; }
+.modal-action .dialog-title { max-height: min(5.25rem, calc(var(--surface-height,100dvh) * .2)); overflow: auto; }
 .modal-action .modal-head, .modal-action .modal-foot { padding: var(--space-3) var(--space-4); }
 .modal-action .modal-body { padding: var(--space-4); }
 .workspace-additional { min-width: 0; }
@@ -735,3 +737,7 @@ textarea.input {
 .auth-panel .props { margin: 0; }
 .auth-panel .props dd { overflow-wrap: anywhere; }
 .guide-steps > li > .btn, .guide-steps > li > .actions { justify-self: start; }
+
+.modal-action .modal-foot { flex-wrap: nowrap; gap: var(--space-1); padding: var(--space-2); }
+.modal-action .modal-foot .btn { min-width: 0; padding-inline: var(--space-2); }
+.modal-action .modal-body { padding-block: var(--space-2); }

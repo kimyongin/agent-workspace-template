@@ -1,3 +1,4 @@
+import { fillChangeMemo } from "./ui-actions.ts";
 import { saveOnce, openDetailEditor } from "./ui-actions.ts";
 import { expect, test } from "@playwright/test";
 import { devLogin, mcpClient, mcpTokenViaConsent, unique } from "./support.ts";
@@ -126,7 +127,7 @@ for (
       await link.click();
       await openDetailEditor(page);
       await dialog.getByLabel("본문").fill("수정한 근거");
-      if(kind==="task")await dialog.getByLabel("편집 메모").fill("판단 근거 정정");
+      if(kind==="task")await fillChangeMemo(page,dialog,"판단 근거 정정");
       await saveOnce(page, dialog);
       await expect(dialog).not.toBeVisible();
       if(kind==="record")link=page.getByRole("link",{name:"수정한 근거",exact:true});
@@ -136,7 +137,7 @@ for (
       await link.click();
       await openDetailEditor(page);
       await page.getByRole("button", { name: "삭제", exact: true }).click();
-      await saveOnce(page,page.locator(".delete-action.is-armed"),"삭제 확인");
+      await saveOnce(page,page.locator("dialog.modal-action[open]"),"삭제 확인");
       await expect(link).toHaveCount(0);
       await expect(page.locator(`.${path} .list .item-title`)).toHaveCount(62);
       ids.delete(target.id);

@@ -1,3 +1,4 @@
+import { fillChangeMemo } from "./ui-actions.ts";
 import { expect, test } from "@playwright/test";
 import { beginTabAction, openDetailEditor } from "./ui-actions.ts";
 import { devLogin, mcpClient, mcpTokenViaConsent, unique } from "./support.ts";
@@ -11,7 +12,7 @@ test("엔터티는 한 번에 저장하고 입력 메모만 기록 본문으로 
     await page.goto("/entities");await beginTabAction(page,"엔터티 추가");
     const form = page.getByRole("dialog",{name:"엔터티 추가",exact:true});
     await form.getByLabel("속성 1").fill(name);await form.getByLabel("속성 2").fill("10");
-    await form.getByLabel("편집 메모").fill(note);
+    await fillChangeMemo(page,form,note);
     await expect(form.getByLabel("요약")).toHaveCount(0);await expect(form.getByLabel("기록 제목")).toHaveCount(0);
     await form.getByRole("button",{name:"저장",exact:true}).click();
     await expect(page).toHaveURL(/\/entities\/[0-9a-f-]{36}/);
