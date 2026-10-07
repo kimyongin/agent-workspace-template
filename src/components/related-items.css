@@ -4,13 +4,13 @@
 .related-item::before { content: ""; position: absolute; left: var(--space-1); top: var(--space-2); bottom: var(--space-2); width: 3px; border-radius: 3px; background: var(--control-border); pointer-events: none; }
 .related-item[data-expanded] { background: color-mix(in srgb,var(--panel) 70%,transparent); }
 .related-item[data-expanded]::before { background: var(--accent); }
-.related-item-title { display: flex; align-items: flex-start; gap: var(--space-2); }
-.related-item-heading { flex: 1 1 0; min-width: 0; }
+.related-item-title { display: flex; align-items: flex-start; flex-wrap: wrap; gap: var(--space-2); }
+.related-item-heading { flex: 1 1 5rem; min-width: min(100%,44px); }
 .related-item-title .item-title { min-width: 0; max-width: 100%; overflow-wrap: anywhere; font-size: 1.125rem; line-height: 1.75rem; font-weight: 600; }
 .related-item-title a.item-title, .related-item-title .related-toggle { display: inline-flex; align-items: center; min-width: 44px; min-height: 44px; max-width: 100%; color: var(--ink); text-decoration: none; }
 .related-item-title a.item-title:hover, .related-toggle:hover { text-decoration: underline; }
 .related-toggle { padding: 0; border: 0; background: transparent; text-align: left; cursor: pointer; gap: var(--space-2); }
-.related-item-actions { display: flex; align-items: center; justify-content: flex-end; gap: 0; margin-left: auto; flex-shrink: 0; max-width: 100%; }
+.related-item-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 0; margin-left: auto; flex-shrink: 0; max-width: 100%; }
 .related-search { display: grid; gap: var(--space-2); margin-bottom: var(--space-3); }
 .related-search-results { display: grid; gap: 0; max-height: 16rem; overflow-y: auto; }
 .related-item-actions .btn { font-size: .8125rem; font-weight: 400; color: var(--muted-ink); }

@@ -1,3 +1,4 @@
+import { useRestoreListPosition } from "../relations/ListPreviewItem.tsx";
 import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router";
 import type { SearchItem, SearchResult } from "@contracts/search.ts";
@@ -37,7 +38,6 @@ export function useActivityList(kind: WorkspaceListKind, {
   const path = `/${kind}${query({ limit: 20, entity_id: entity, tag_ids: tags.length ? tags.join(",") : undefined,
     ...filters, ...(kind === "records" ? { occurred_from: bounds.from, occurred_to: bounds.to } : {}) })}`;
   const scope = q ? `${kind}|${JSON.stringify(input)}` : path;
-  const titleId = `${kind}-title`;
   const errorMessage = `${kind === "tasks" ? "할 일" : "기록"}을 불러오지 못했습니다. 다시 시도하세요.`;
   const navigate = useNavigate();
   const publishPages = (count: number) => {
@@ -52,7 +52,6 @@ export function useActivityList(kind: WorkspaceListKind, {
   scopeNow.current = scope;
   const loaded = useRef<{ scope: string; value: LoadedList<ActivityItem> } | null>(null);
   const generation = useRef(0);
-  const focused = useRef("");
   const failedMore = useRef<{ scope: string; cursor: string } | null>(null);
   const [accepted, setAccepted] = useState<{ scope: string; page: ActivityPage } | null>(null);
   const visible = accepted?.scope === scope ? accepted.page : null;
@@ -122,19 +121,7 @@ export function useActivityList(kind: WorkspaceListKind, {
     };
   }, [scope, pages, hash, retry]);
 
-  useEffect(() => {
-    if (!layoutReady || busy || items === null && !error || focused.current === hash || !anchorId(kind, hash)) return;
-    const target = document.getElementById(hash.slice(1));
-    const focus = target ?? document.getElementById(titleId);
-    focus?.focus({ preventScroll: true });
-    const y = Number(params.get("scroll"));
-    if (params.has("scroll") && Number.isFinite(y) && y >= 0) window.scrollTo(0, y);
-    if (focus) {
-      const rect = focus.getBoundingClientRect();
-      if (rect.top < 0 || rect.bottom > window.innerHeight) focus.scrollIntoView({ block: "center" });
-    }
-    focused.current = hash;
-  }, [items, busy, hash, titleId, error, layoutReady]);
+  useRestoreListPosition(kind,layoutReady&&!busy&&(items!==null||!!error));
 
   const more = async () => {
     if (!cursor || busy) return;
@@ -181,7 +168,6 @@ export function useActivityList(kind: WorkspaceListKind, {
         return;
       }
       loaded.current = null;
-      focused.current = "";
       setRetry((n) => n + 1);
     },
   };

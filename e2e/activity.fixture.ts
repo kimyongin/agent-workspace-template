@@ -262,6 +262,7 @@ for (const name of ["활동 왕복 태그", "한".repeat(30)]) {
     if(name.length===30)expect((await page.locator(".tag-read").last().boundingBox())!.height).toBeGreaterThan(30);
     await row.scrollIntoViewIfNeeded();
     await row.focus();
+    await page.getByRole("link",{name:"기록 20 상세",exact:true}).scrollIntoViewIfNeeded();
     const before=(await row.boundingBox())!.y;
     const scroll=await page.evaluate(()=>scrollY);
     await openListDetail(page,"기록 20");
@@ -336,12 +337,12 @@ for(const kind of ["records","tasks"]){
         if(!attempts++){await route.fulfill({status:503,json:{code:"internal",message:"태그 사전 실패"}});return;}
         await held;await route.fulfill({json:{items:[{id:id(99),name:"한".repeat(30)}],next_cursor:null}});return;
       }
-      await route.fulfill({json:new URL(route.request().url()).pathname.endsWith("/principles/current")?{current:null}:{items,next_cursor:null}});
+      const path=new URL(route.request().url()).pathname;await route.fulfill({json:path.endsWith("/principles/current")?{current:null}:items.find(item=>path.endsWith("/"+item.id))??{items,next_cursor:null}});
     });
     await page.goto(`/e2e/fixtures/activity.html?route=/${kind}`);
     const section=page.locator(`.${kind}`);
     const title=section.getByRole("button",{name:"기록 20",exact:true});
-    await expect(title).toBeVisible();
+    await expect(title).toBeVisible();await title.click();
     await title.focus();await title.evaluate(el=>el.scrollIntoView({block:"center"}));
     const y=await title.evaluate(el=>el.getBoundingClientRect().top);
     await page.getByRole("button",{name:"태그 다시 시도",exact:true}).first().evaluate((el:HTMLButtonElement)=>el.click());

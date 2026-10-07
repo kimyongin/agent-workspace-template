@@ -5,7 +5,7 @@ import { shouldPublishRestoredPage } from "../activity/list-state.ts";
 import type { EntityResult } from "@contracts/entity.ts";
 import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router";
-import { ListExpansionProvider, ListPreviewItem } from "../relations/ListPreviewItem.tsx";
+import { ListExpansionProvider, ListPreviewItem, useRestoreListPosition } from "../relations/ListPreviewItem.tsx";
 import { Field, Notice } from "../../components/Field.tsx";
 import { api, ApiError, query } from "../../lib/api.ts";
 import { EntityForm } from "./forms.tsx";
@@ -37,7 +37,6 @@ export function EntitiesPage() {
   const creating=create.open;
   const context = `${key}|${hash}`;
   const loaded = useRef<{ context: string; page: Page; epoch: number } | null>(null),
-    focused = useRef(""),
     epoch = useRef(0);
   // Both the click state and URL navigation describe one target, so they must not restart the same fetch.
   const manualTarget =
@@ -59,7 +58,7 @@ export function EntitiesPage() {
       let result: Page = cached ?? { items: [], next_cursor: null, count: 0 };
       const anchor = /^#entity-[0-9a-f-]+$/.test(hash) ? hash.slice(8) : null;
       // A concurrent insertion may move the anchor one page. Never scan beyond this finite window.
-      const maximum = anchor && focused.current !== context ? Math.min(250, pages + 1) : pages;
+      const maximum = anchor && !result.items.some(item=>item.id===anchor) ? Math.min(250, pages + 1) : pages;
       while (
         !result.count || (result.next_cursor &&
           (result.count < target || (anchor && result.count < maximum && !result.items.some((e) => e.id === anchor))))
@@ -93,19 +92,7 @@ export function EntitiesPage() {
     });
     return () => controller.abort();
   }, [key, target, retry, hash]);
-  useEffect(() => {
-    if (
-      (dictionary.tags===null&&!dictionary.failed) || busy || error || loaded.current?.context !== context || focused.current === context || !page ||
-      !/^#entity-[0-9a-f-]+$/.test(hash)
-    ) return;
-    const node = document.getElementById(hash.slice(1));
-    if (node) {
-      node.focus({preventScroll:true});
-      const y=Number(params.get("scroll"));if(params.has("scroll")&&Number.isFinite(y)&&y>=0)window.scrollTo(0,y);
-      const rect=node.getBoundingClientRect();if(rect.top<0||rect.bottom>innerHeight)node.scrollIntoView({ block: "center" });
-    } else document.getElementById("entities-title")?.focus();
-    focused.current = context;
-  }, [page, busy, error, context, hash,dictionary.tags,dictionary.failed]);
+  useRestoreListPosition("entities", (dictionary.tags!==null||dictionary.failed)&&!busy&&loaded.current?.context===context&&!!page);
   const set = (name: string, value: string) => {
     const next = new URLSearchParams(params);
     if (value) next.set(name, value);

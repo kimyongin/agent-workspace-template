@@ -503,6 +503,15 @@ test("#203 목록 펼침은 한 항목·필터 변경은 초기화·실패 GET�
   await page.route(`**/api/tasks/${id(50)}`,route=>route.fulfill({status:503,json:{code:"internal",message:"조회 실패"}}));await second.click();await expect(page.getByText("내용을 불러오지 못했습니다.")).toBeVisible();await expect(page.getByRole("link",{name:"두 번째 할 일 편집",exact:true})).toHaveCount(0);expect(state.writes).toHaveLength(0);expect(state.errors).toEqual([]);
 });
 
+test("#203 긴 펼침 GET 뒤에 목록 scroll·초점을 복원",async({page})=>{
+  const state=await fixtures(page);state.rows.tasks[0].body="긴 본문 문단\n\n".repeat(180);await page.setViewportSize({width:390,height:800});await go(page,"/tasks");const toggle=page.getByRole("button",{name:"할 일",exact:true});await toggle.click();await expect(page.getByRole("link",{name:"할 일 편집",exact:true})).toBeVisible();await toggle.evaluate(el=>window.scrollTo(0,el.getBoundingClientRect().top+scrollY-20));const scroll=await page.evaluate(()=>scrollY);expect(scroll).toBeGreaterThan(100);
+  await page.getByRole("link",{name:"할 일 편집",exact:true}).click();let release=()=>{};const held=new Promise<void>(resolve=>release=resolve);await page.route(`**/api/tasks/${id(2)}`,async route=>{await held;return route.fulfill({json:state.rows.tasks[0]});});await form(page).getByRole("button",{name:"취소",exact:true}).click();await expect(toggle).toHaveAttribute("aria-expanded","true");release();await expect.poll(()=>page.evaluate(()=>scrollY)).toBe(scroll);await expect(toggle).toBeFocused();expect(state.errors).toEqual([]);expect(state.writes).toHaveLength(0);
+});
+test("#203 320px·200% 펼친 연결 조작과 메인 목록이 넘치지 않음",async({page},info)=>{
+  const state=await fixtures(page);linkedFixture(state);await page.setViewportSize({width:320,height:900});await go(page,`/entities/${id(1)}`);await page.evaluate(()=>document.documentElement.style.zoom="2");await form(page).getByRole("button",{name:"할 일",exact:true}).click();await expect(form(page).getByRole("link",{name:"할 일 편집",exact:true})).toBeVisible();expect(await form(page).locator(".modal-body").evaluate(el=>el.scrollWidth<=el.clientWidth)).toBe(true);for(const button of await form(page).locator(".related-item-actions .btn").all()){const rect=(await button.boundingBox())!;expect(rect.x).toBeGreaterThanOrEqual(0);expect(rect.x+rect.width).toBeLessThanOrEqual(320);}
+  await page.screenshot({path:info.outputPath("expanded-zoom-200.png")});await go(page,"/tasks");await page.evaluate(()=>document.documentElement.style.zoom="2");await page.getByRole("button",{name:"할 일",exact:true}).click();await expect(page.getByRole("link",{name:"할 일 편집",exact:true})).toBeVisible();expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);expect(state.errors).toEqual([]);expect(state.writes).toHaveLength(0);
+});
+
 function linkedFixture(state:Awaited<ReturnType<typeof fixtures>>) {
   Object.assign(state.rows.entities[0],{tasks:{count:1,items:[{id:id(2),title:"할 일",updated_at:stamp}]},records:{count:1,items:[record()]}});
   Object.assign(state.rows.tasks[0],{entity_ids:[id(1)],entity_context:[{id:id(1),title:"엔터티",source:"selection",captured_at:stamp}]});
@@ -910,7 +919,7 @@ test("검색의 반복 cursor 실패는 기존 행·coverage를 보존하고 같
 test("목록 페이지·조건·scroll/focus 왕복과 검색 anchor 재조회",async({page})=>{
   const state=await fixtures(page);const many=Array.from({length:21},(_,i)=>({...task(100+i),title:`행 ${i}`}));
   await page.route("**/api/tasks**",route=>{const url=new URL(route.request().url()),key=url.pathname.split("/").at(-1);if(key!=="tasks")return route.fulfill({json:many.find(t=>t.id===key)??state.rows.tasks.find(t=>t.id===key)});return route.fulfill({json:url.searchParams.get("cursor")?{items:many.slice(20),next_cursor:null}:{items:many.slice(0,20),next_cursor:"page2"}});});
-  await go(page,"/tasks?kind=once");await page.locator("#activity-tasks-page-control").click();await openListEditor(page,"행 20");await form(page).getByRole("button",{name:"닫기",exact:true}).click();await expect(page).toHaveURL(/pages=2&scroll=/);await expect(page.locator(`#activity-tasks-${many[20].id}`)).toBeFocused();expect(await page.evaluate(()=>scrollY)).toBeGreaterThan(0);await page.reload();await expect(page.locator(`#activity-tasks-${many[20].id}`)).toBeFocused();
+  await go(page,"/tasks?kind=once");await page.locator("#activity-tasks-page-control").click();await openListEditor(page,"행 20");await form(page).getByRole("button",{name:"닫기",exact:true}).click();expect(new URL(page.url()).searchParams.get("pages")).toBe("2");expect(new URL(page.url()).searchParams.has("scroll")).toBe(true);await expect(page.locator(`#activity-tasks-${many[20].id}`)).toBeFocused();expect(await page.evaluate(()=>scrollY)).toBeGreaterThan(0);await page.reload();await expect(page.locator(`#activity-tasks-${many[20].id}`)).toBeFocused();
   await go(page,"/tasks?q=행&kind=once");await openListDetail(page,"할 일");await form(page).getByRole("button",{name:"닫기",exact:true}).click();await expect(page).toHaveURL(/q=행|q=%ED%96%89/);await expect(page.locator(`#activity-tasks-${id(2)}`)).toBeFocused();expect(state.searches.filter(s=>(s.kinds as string[])[0]==="task").at(-1)?.anchor).toEqual({kind:"task",id:id(2)});expect(state.errors).toEqual([]);
 });
 
@@ -1022,7 +1031,7 @@ for(const [kind,n,title] of [["entities",1,"엔터티"],["tasks",2,"할 일"],["
   await expect(page.getByRole("link",{name:/ 편집$/})).toHaveCount(0);
   const titleLink=page.getByRole(kind==="principles"?"link":"button",{name:title,exact:true}),row=titleLink.locator("xpath=ancestor::section[contains(@class,'current-document')] | ancestor::li[contains(@class,'list-item')]").first();
   const t=(await titleLink.boundingBox())!,r=(await row.boundingBox())!;expect(t.width).toBeLessThan(r.width-40);
-  await page.mouse.click(r.x+r.width-24,t.y+t.height/2);await expect(form(page)).toHaveCount(0);
+  await page.mouse.click(t.x+t.width+12,t.y+t.height/2);await expect(form(page)).toHaveCount(0);
   await titleLink.click();if(kind!=="principles")await page.getByRole("link",{name:title+" 상세",exact:true}).click();await expect(form(page)).toHaveCount(1);await form(page).evaluate(el=>el.setAttribute("data-same-dialog","yes"));
   await openDetailEditor(page);await expect(form(page)).toHaveAttribute("data-same-dialog","yes");await expect(page.locator("dialog[open]")).toHaveCount(1);
   await form(page).getByRole("button",{name:"취소",exact:true}).click();await expect(form(page).getByRole("button",{name:"편집",exact:true})).toBeVisible();await expect(form(page)).toHaveAttribute("data-same-dialog","yes");
