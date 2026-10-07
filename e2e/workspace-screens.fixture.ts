@@ -76,7 +76,7 @@ for(const kind of ["entities","records"] as const)test(`${kind}: 긴 복원 중 
   expect(reads).toEqual(Array.from({length:24},(_,index)=>index));expect(state.writes).toHaveLength(0);expect(state.errors).toEqual([]);
 });
 const targetCases=[["entity","entities",1],["task","tasks",2],["record","records",31],["principle","principles",4]] as const;
-const connectedTarget=(page:Page,kind:string)=>form(page).getByRole("region",{name:`연결된 ${{entity:"엔터티",task:"할 일",record:"기록",principle:"원칙"}[kind]} (1개)`,exact:true});
+const connectedTarget=(page:Page,kind:typeof targetCases[number][0])=>form(page).getByRole("region",{name:`연결된 ${{entity:"엔터티",task:"할 일",record:"기록",principle:"원칙"}[kind]} (1개)`,exact:true});
 for(const kind of ["entity","task"] as const)for(const deleted of [false,true])test(`#183 ${kind}: 사건 대상·기존 연결을 한 카드로 통합${deleted?"·삭제된 대상":""}`,async({page},info)=>{
   const state=await fixtures(page),r=state.rows.records[0],targetId=id(kind==="entity"?1:2);
   state.rows.entities.push({...entity(5),prop1:"다른 연결 엔터티"});
@@ -218,7 +218,7 @@ test("태그 DELETE pending: Back·경로 이동·reload 보호와 응답 뒤 �
   await page.getByRole("link",{name:"활동 태그 fixture",exact:true}).click();
   await page.getByRole("button",{name:"같은 이름 삭제",exact:true}).click();
   const confirm=page.locator("dialog.modal-action[open]");await saveOnce(page,confirm,"삭제 확인",false);await state.pending;
-  await expect(confirm.getByRole("button",{name:"처리 중…"})).toBeDisabled();await expect(confirm.getByRole("button",{name:"취소",exact:true})).toBeDisabled();
+  await expect(confirm.getByRole("button",{name:"삭제 중…"})).toBeDisabled();await expect(confirm.getByRole("button",{name:"취소",exact:true})).toBeDisabled();
   await page.goBack();await expect(page).toHaveURL(/tags\/activity$/);await expect(confirm).toBeVisible();
   await page.getByRole("link",{name:"엔터티 fixture",exact:true}).evaluate(el=>el.dispatchEvent(new MouseEvent("click",{bubbles:true,cancelable:true})));
   await expect(page).toHaveURL(/tags\/activity$/);await expect(page.getByRole("dialog",{name:"변경을 버릴까요?"})).toHaveCount(0);
