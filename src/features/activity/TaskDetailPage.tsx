@@ -1,7 +1,7 @@
 import { RelatedRecords } from "./RelatedRecords.tsx";
 import { useDetailNavigate, useDetailOwnerReturn } from "../../lib/detail-exploration.tsx";
 import { editFromView } from "../../lib/detail-navigation.ts";
-import { ChangeNoteField, FormModal, changeNoteErrors } from "../../components/ContentForm.tsx";
+import { FormModal } from "../../components/ContentForm.tsx";
 // 할 일 상세: 읽기, 편집, 일회성 완료, 반복 할 일의 회차·회차 기록·중단/재개, 삭제.
 import type { RecordResult } from "@contracts/record.ts";
 import type { Occurrence, TaskDetail, TaskResult } from "@contracts/task.ts";
@@ -138,10 +138,11 @@ export function TaskDetailPage() {
   if (!task) return <p className="secondary" role="status">불러오는 중…</p>;
 
   const management = <div className="detail-management">
-      <section className="detail-section"><h2 className="section-title">기본 정보</h2>
+      <section className="detail-section">
         {message && <Notice kind="success">{message}</Notice>}
         {actionError && <Notice kind="error">{actionError}</Notice>}
         {loadError && <><Notice kind="error">{message ? "저장은 완료했습니다. 최신 내용을 불러오지 못했습니다." : loadError}</Notice><button type="button" className="btn" onClick={reload}>조회 다시 시도</button></>}
+        {task.body&&<MarkdownContent text={task.body}/>}
         <dl className="props">
           <div>
             <dt>{taskLabels.status}</dt>
@@ -171,6 +172,7 @@ export function TaskDetailPage() {
             </div>
           )}
         </dl>
+        <TagNames compact ids={task.tag_ids}/>
         {task.kind==="once"&&task.status==="done"&&!task.result_record&&<p className="secondary">결과 기록이 삭제되었습니다.</p>}
       </section>
 
@@ -221,13 +223,10 @@ export function TaskDetailPage() {
     {task.kind==="once"&&task.status==="open"&&<button type="button" className="btn btn-primary" disabled={busy} onClick={()=>manage("complete")}>완료하고 기록</button>}
     {task.kind==="recurring"&&<button type="button" className="btn btn-primary" disabled={busy} onClick={()=>manage("transition")}>{task.status==="active"?"중단":"재개"}</button>}
   </>}>
-      {management}
-
-      {task.body&&<section className="detail-section" aria-label="내용"><MarkdownContent text={task.body}/></section>}
-      <TagNames ids={task.tag_ids}/>
+      <div className="detail-stack">{management}
       <EntityLinks ids={task.entity_ids} context={task.entity_context}/>
       <RelatedRecords taskId={task.id} revision={task.version+recordRefresh}/>
-      {occurrenceSection}
+      {occurrenceSection}</div>
       {dialog === "edit" && editReady && (
         <TaskFormModal
           mode="edit"
@@ -235,9 +234,9 @@ export function TaskDetailPage() {
           initial={taskDraftFrom(task)}
           deletion={{message:<p style={{ margin: 0 }}>
             「{task.title}」을(를) 삭제합니다. 연결된 결과·회차 기록은 남고 이 할 일과의 연결만 사라집니다.
-          </p>,onConfirm:(reason) =>
+          </p>,onConfirm:(reason,tags) =>
           run(async () => {
-            await api("POST", `/tasks/${task.id}/delete`, {expected_version:task.version,change_note:reason||undefined});
+            await api("POST", `/tasks/${task.id}/delete`, {expected_version:task.version,change_note:reason||undefined, change_tag_ids:tags});
             setDialog(null);
             navigateAfterClose(back,true);
           }, "삭제했습니다.")}}
@@ -251,6 +250,7 @@ export function TaskDetailPage() {
               title: draft.title,
               body: draft.body,
               change_note:draft.change_note,
+              change_tag_ids:draft.change_tag_ids,
               tag_ids:draft.tag_ids,
               entity_ids:draft.entity_ids??[],
             };
@@ -313,13 +313,11 @@ export function TaskDetailPage() {
 }
 
 function TaskTransitionForm({task,onClose,onSaved}:{task:TaskResult;onClose:()=>void;onSaved:()=>Promise<void>}) {
-  const [note,setNote]=useState("");
   const action=task.status==="active"?"stop":"resume",label=action==="stop"?"중단":"재개";
-  return <FormModal open title={`반복 할 일 ${label}`} submitLabel={label} dirty={!!note} onClose={onClose} onRouteDiscard={onClose}
-    validate={()=>changeNoteErrors(note,false)} onSubmit={async()=>{
-      await api("POST",`/tasks/${task.id}/${action}`,{expected_version:task.version,change_note:note.trim()?note:undefined});
+  return <FormModal open title={`반복 할 일 ${label}`} submitLabel={label} dirty={false} confirmationOnly
+    mutation={{target:task.title,action:label,message:action==="stop"?"오늘부터 이후 회차가 생기지 않고 기존 기록은 남습니다.":"오늘부터 규칙에 따라 회차가 다시 생깁니다."}}
+    onClose={onClose} onRouteDiscard={onClose} validate={()=>null} onSubmit={async(_id,memo)=>{
+      await api("POST",`/tasks/${task.id}/${action}`,{expected_version:task.version,...memo});
       await onSaved();
-    }}>
-    {errors=><><p className="help">{action==="stop"?"오늘부터 이후 회차가 생기지 않고 기존 기록은 남습니다.":"오늘부터 규칙에 따라 회차가 다시 생깁니다."}</p><ChangeNoteField label="편집 메모" value={note} onChange={setNote} error={errors.change_note}/></>}
-  </FormModal>;
+    }}>{()=>null}</FormModal>;
 }

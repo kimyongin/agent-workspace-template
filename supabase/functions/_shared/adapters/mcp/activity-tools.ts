@@ -105,6 +105,7 @@ export function activityTools(deps: activity.ActivityDeps): ToolDef[] {
           input.id,
           input.expected_version,
           input.change_note,
+          input.change_tag_ids,
         );
         return { deleted: input.id };
       },
@@ -144,6 +145,7 @@ export function activityTools(deps: activity.ActivityDeps): ToolDef[] {
           input.id,
           input.expected_version,
           input.change_note,
+          input.change_tag_ids,
         );
       },
     },
@@ -160,6 +162,7 @@ export function activityTools(deps: activity.ActivityDeps): ToolDef[] {
           input.id,
           input.expected_version,
           input.change_note,
+          input.change_tag_ids,
         );
       },
     },
@@ -206,7 +209,14 @@ export function activityTools(deps: activity.ActivityDeps): ToolDef[] {
       destructive: true,
       handler: async (args, actor) => {
         const input = parse(recordDeleteInput, args);
-        await activity.deleteRecord(deps, actor, input.id, input.expected_version, input.change_note);
+        await activity.deleteRecord(
+          deps,
+          actor,
+          input.id,
+          input.expected_version,
+          input.change_note,
+          input.change_tag_ids,
+        );
         return { deleted: input.id };
       },
     },

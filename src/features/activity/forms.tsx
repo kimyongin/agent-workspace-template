@@ -6,7 +6,7 @@ import { recordCreate, recordLabels } from "@contracts/record.ts";
 import { type Recurrence, taskCreate, taskLabels } from "@contracts/task.ts";
 import { type ReactNode, useState } from "react";
 import { Field } from "../../components/Field.tsx";
-import { changeNoteErrors, ChangeNoteField, FormModal, TextFields, type TextDraft } from "../../components/ContentForm.tsx";
+import { FormModal, TextFields, type TextDraft } from "../../components/ContentForm.tsx";
 import { browserTimezone, fieldErrors, fromLocalInput, todayIn, toLocalInput } from "../../lib/format.ts";
 import type { EntityContext } from "@contracts/entity-links.ts";
 
@@ -78,7 +78,7 @@ export function RecordFormModal(props: {
         <>
           {props.intro}
           <section className="detail-section form"><Field label="본문" required error={errors.body}>{p=><textarea {...p} className="input" rows={8} placeholder="내용과 근거를 작성하세요 (마크다운)" value={draft.body} onChange={e=>setDraft(d=>({...d,body:e.target.value}))}/>}</Field></section>
-          {!props.systemRecord && <section className="detail-section form"><h2 className="section-title">관련 정보</h2>
+          {!props.systemRecord && <section className="detail-section form">
           <TagPicker value={draft.tag_ids} error={errors.tag_ids} onChange={tag_ids=>setDraft(d=>({...d,tag_ids}))}/>
           {props.entityEditable!==false&&<EntityMultiPicker value={draft.entity_ids??[]} context={draft.entity_context} error={errors.entity_ids} onChange={entity_ids=>setDraft(d=>({...d,entity_ids}))}/>}
           <Field label={recordLabels.occurred_at} error={errors.occurred_at} >
@@ -103,6 +103,7 @@ export function RecordFormModal(props: {
 
 export interface TaskDraft extends TextDraft {
   change_note?: string;
+  change_tag_ids?: string[];
   entity_ids?:string[];
   entity_context?:EntityContext[];
   tag_ids: string[];
@@ -171,7 +172,7 @@ function recurrenceOf(d: TaskDraft): unknown {
 
 /** 생성 입력(contracts의 taskCreate 모양). */
 export function taskInput(d: TaskDraft): Record<string, unknown> {
-  const text = { title: d.title, body: d.body, tag_ids:d.tag_ids,entity_ids:d.entity_ids??[], change_note:d.change_note?.trim()?d.change_note:undefined };
+  const text = { title: d.title, body: d.body, tag_ids:d.tag_ids,entity_ids:d.entity_ids??[], change_note:d.change_note?.trim()?d.change_note:undefined, change_tag_ids:d.change_tag_ids };
   return d.kind === "once"
     ? { kind: "once", ...text, ...(d.due_on ? { due_on: d.due_on } : {}) }
     : { kind: "recurring", ...text, recurrence: recurrenceOf(d), timezone: d.timezone };
@@ -196,6 +197,7 @@ export function TaskFormModal(props: {
   return (
     <FormModal
       title={props.mode === "create" ? "할 일 추가" : "할 일 편집"}
+      mutation={{target:draft.title, action:props.mode === "create" ? "등록" : "수정"}}
       submitLabel={props.mode === "create" ? "추가" : "저장"}
       open={props.open}
       dirty={dirty}
@@ -203,8 +205,7 @@ export function TaskFormModal(props: {
       onClose={props.onClose}
       onRouteDiscard={props.onRouteDiscard}
       validate={() => {
-        const noteErrors=changeNoteErrors(draft.change_note,false);if(noteErrors)return noteErrors;
-        const {change_note, ...input}=taskInput(draft);
+        const {change_note, change_tag_ids, ...input}=taskInput(draft);
         const r = (draft.kind === "once" ? taskCreate.options[0].omit({ id: true }) : taskCreate.options[1].omit({ id: true })).safeParse(input);
         if (r.success) return null;
         const errs = fieldErrors(r.error.issues);
@@ -212,7 +213,7 @@ export function TaskFormModal(props: {
         for (const [k, v] of Object.entries(errs)) if (k.startsWith("recurrence.")) errs[k.slice(11)] ??= v;
         return errs;
       }}
-      onSubmit={(creationId) => props.onSave({...draft}, creationId)}
+      onSubmit={(creationId, memo) => props.onSave({...draft,...memo}, creationId)}
     >
       {(errors) => (
         <>
@@ -234,7 +235,7 @@ export function TaskFormModal(props: {
             </fieldset>
           )}
           <TextFields draft={draft} set={set} errors={errors} />
-          <section className="detail-section form"><h2 className="section-title">관련 정보</h2>
+          <section className="detail-section form">
           <EntityMultiPicker value={draft.entity_ids??[]} context={draft.entity_context} error={errors.entity_ids} onChange={entity_ids=>set({entity_ids})}/>
           <TagPicker value={draft.tag_ids} error={errors.tag_ids} onChange={tag_ids=>set({tag_ids})}/>
           </section><section className="detail-section form"><h2 className="section-title">일정</h2>
@@ -301,7 +302,7 @@ export function TaskFormModal(props: {
                 </div>
               </>
             )}
-          </section><section className="detail-section form"><ChangeNoteField label="편집 메모" value={draft.change_note??""} required={false} error={errors.change_note} onChange={change_note=>set({change_note})}/></section>
+          </section>
           {props.details}
         </>
       )}

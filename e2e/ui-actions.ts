@@ -1,8 +1,24 @@
 import { expect, type Page, type Locator } from "@playwright/test";
 
-/** 저장 버튼 한 번으로 제출한다. 불확실한 응답은 같은 입력으로 재시도한다. */
+/** Complete a save through its public confirmation stage when the domain requires a change record. */
 export async function saveOnce(page: Page, scope: Page | Locator = page, label = "저장") {
-  await scope.getByRole("button", {name:label,exact:true}).click();
+  const final = scope.getByRole("button", {name:/^(등록|수정|중단|재개)하고 저장$|^삭제하고 기록$/});
+  const requested = scope.getByRole("button", {name:label === "삭제 확인" ? "삭제하고 기록" : label,exact:true});
+  if (await requested.isVisible()) {
+    await requested.click();
+    if ((label === "저장" || label === "추가") && await final.isVisible()) await final.click();
+  } else await final.click();
+}
+
+export async function discardEditor(page: Page) {
+  if (await page.locator("dialog.modal-action[open]").isVisible()) await page.keyboard.press("Escape");
+  await page.keyboard.press("Escape");
+}
+
+export async function fillChangeMemo(page: Page, scope: Page | Locator, value: string) {
+  const memo=scope.getByLabel("기록 메모",{exact:true});
+  if (!await memo.isVisible()) await scope.getByRole("button",{name:/^저장$|^추가$/}).click();
+  await memo.fill(value);
 }
 
 /** Exercise the visible top-level task menu; detail-page actions remain direct. */

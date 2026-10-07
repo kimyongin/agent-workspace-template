@@ -42,7 +42,7 @@ export class SqlEntityStore extends SqlActorStore implements EntityStore {
     await setTagLinks(this.tx, this.actor, "entity", entity.id, i.tag_ids ?? []);
     return (await this.get(entity.id))!;
   }
-  async update(id: string, changes: Omit<EntityUpdate, "expected_version" | "change_note">) {
+  async update(id: string, changes: Omit<EntityUpdate, "expected_version" | "change_note" | "change_tag_ids">) {
     if (changes.tag_ids !== undefined) await setTagLinks(this.tx, this.actor, "entity", id, changes.tag_ids);
     const values = Object.fromEntries(
       Object.entries(changes).filter(([k, v]) => ["prop1", "prop2", "prop3", "prop4"].includes(k) && v !== undefined),

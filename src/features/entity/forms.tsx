@@ -6,7 +6,7 @@ import {
   type EntityResult,
 } from "@contracts/entity.ts";
 import { type ReactNode, useState } from "react";
-import { changeNoteErrors, ChangeNoteField, FormModal } from "../../components/ContentForm.tsx";
+import { FormModal } from "../../components/ContentForm.tsx";
 import { Field } from "../../components/Field.tsx";
 import { fieldErrors } from "../../lib/format.ts";
 import { TagPicker } from "../tags/TagPicker.tsx";
@@ -17,7 +17,7 @@ export function EntityForm(
     deletion?: DeletionOptions;
     onClose: () => void;
     onRouteDiscard?: () => void;
-    onSave: (value: Omit<EntityCreate,"id"> & {tag_ids: string[]; change_note?: string}, creationId: () => string) => Promise<void>;
+    onSave: (value: Omit<EntityCreate,"id"> & {tag_ids: string[]; change_note?: string; change_tag_ids?: string[]}, creationId: () => string) => Promise<void>;
   },
 ) {
   const baseline = {
@@ -26,7 +26,6 @@ export function EntityForm(
     prop3: initial?.prop3 ?? "",
     prop4: initial?.prop4 ?? "a",
     tag_ids: (initial as EntityResult & {tag_ids?: string[]})?.tag_ids ?? [],
-    change_note: "",
   };
   const [draft, setDraft] = useState(baseline);
   const value = () => ({
@@ -39,21 +38,21 @@ export function EntityForm(
       open
       title={initial ? "엔터티 편집" : "엔터티 추가"}
       submitLabel="저장"
+      mutation={{target: draft.prop1, action: initial ? "수정" : "등록"}}
       deletion={deletion}
       onClose={onClose}
       onRouteDiscard={onRouteDiscard}
       dirty={JSON.stringify(draft) !== JSON.stringify(baseline)}
       validate={() => {
-        const noteErrors=changeNoteErrors(draft.change_note,false);if(noteErrors)return noteErrors;
-        const {tag_ids, change_note, ...fields} = value();
+        const {tag_ids, ...fields} = value();
         const parsed = entityCreate.omit({id:true}).safeParse(fields);
         return parsed.success ? null : fieldErrors(parsed.error.issues);
       }}
-      onSubmit={(creationId) => {const {tag_ids,change_note,...fields}=value(); return onSave({...entityCreate.omit({id:true}).parse(fields),tag_ids,change_note:change_note.trim()?change_note:undefined}, creationId);}}
+      onSubmit={(creationId, memo) => {const {tag_ids,...fields}=value(); return onSave({...entityCreate.omit({id:true}).parse(fields),tag_ids,...memo}, creationId);}}
     >
       {(errors) => (
         <>
-          <section className="detail-section form"><h2 className="section-title">기본 정보</h2>
+          <section className="detail-section form">
           <Field
             label={entityLabels.prop1}
             required
@@ -117,9 +116,9 @@ export function EntityForm(
               </select>
             )}
           </Field>
-          </section><section className="detail-section form"><h2 className="section-title">관련 정보</h2>
+          </section><section className="detail-section form">
           <TagPicker scope="entity" value={draft.tag_ids} error={errors.tag_ids} onChange={tag_ids=>setDraft(d=>({...d,tag_ids}))}/>
-          </section><section className="detail-section form"><ChangeNoteField label="편집 메모" value={draft.change_note} required={false} error={errors.change_note} onChange={change_note=>setDraft(d=>({...d,change_note}))}/></section>
+          </section>
           {details}
         </>
       )}

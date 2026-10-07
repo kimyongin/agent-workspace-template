@@ -2,7 +2,7 @@ import type { z } from "zod";
 import type { tagCreate, tagListQuery, tagRename, TagResult } from "../../contracts/tag.ts";
 import type { Actor } from "../shared/actor.ts";
 import type { Keyset } from "../shared/store.ts";
-import { conflict, notFound } from "../shared/errors.ts";
+import { conflict, invalidInput, notFound } from "../shared/errors.ts";
 import { decodeCursor, paginate, scopeOf } from "../shared/operations.ts";
 import type { ChangeInput, ChangeStore } from "../shared/changes.ts";
 import type { EntityResult } from "../../contracts/entity.ts";
@@ -59,14 +59,22 @@ export function renameTag(d: TagDeps, a: Actor, id: string, i: z.infer<typeof ta
     return s.rename(id, i.name);
   });
 }
-export function deleteTag(d: TagDeps, a: Actor, id: string, v: number, change_note?: string) {
+export function deleteTag(
+  d: TagDeps,
+  a: Actor,
+  id: string,
+  v: number,
+  change_note?: string,
+  change_tag_ids?: string[],
+) {
   return d.uow.run(a, async (s) => {
     await requireVersion(s, id, v);
+    if (change_tag_ids?.includes(id)) throw invalidInput("삭제할 태그는 기록에 붙일 수 없습니다");
     for await (const before of s.uses(id)) {
       if (!before.value.tag_ids.includes(id)) continue;
       const after = await s.setTags(before, before.value.tag_ids.filter((tag) => tag !== id));
       // Editing an automatic change record must never generate another automatic change record.
-      if (before.kind === "record" && before.value.record_kind === "change") continue;
+      if (before.kind === "record") continue;
       const change: ChangeInput = {
         target_kind: before.kind,
         target: target(after),
@@ -74,6 +82,7 @@ export function deleteTag(d: TagDeps, a: Actor, id: string, v: number, change_no
         before: facts(before),
         after: facts(after),
         change_note,
+        change_tag_ids,
       };
       await s.appendChange(change);
     }

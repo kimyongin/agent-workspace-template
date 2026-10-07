@@ -201,8 +201,8 @@ export function EntitiesPage() {
             <div className="list-item-main">
               <div className="activity-item-heading"><Link id={`entity-${e.id}`} className="item-title" {...rowLink(e.id)}>{e.prop1}</Link><span className="activity-item-actions"><Link {...rowLink(e.id,true)} aria-label={`${e.prop1} 편집`}>편집</Link></span></div>
               <dl className="entity-list-properties">
-                <div><dt>속성 2</dt><dd>{e.prop2 ?? "미지정"}</dd></div>
-                <div><dt>속성 3</dt><dd>{e.prop3 ?? "미지정"}</dd></div>
+                {e.prop2!==null&&<div><dt>속성 2</dt><dd>{e.prop2}</dd></div>}
+                {e.prop3!==null&&<div><dt>속성 3</dt><dd>{e.prop3}</dd></div>}
                 <div><dt>속성 4</dt><dd>{e.prop4}</dd></div>
               </dl>
               <TagNames scope="entity" ids={(e as EntityResult & {tag_ids?:string[]}).tag_ids??[]} compact/>

@@ -31,6 +31,16 @@ export interface SurfaceEditor {
 }
 export const SurfaceContext = createContext<{slot: HTMLDivElement | null; editor: RefObject<SurfaceEditor | null>; busy: RefObject<boolean>; register: (editor: SurfaceEditor | null) => void} | null>(null);
 
+export interface SurfaceAction {
+  title: string;
+  body: ReactNode;
+  footer: ReactNode;
+  busy: boolean;
+  onCancel: () => void;
+}
+/** Short actions replace this dialog's content instead of opening nested dialogs. */
+export const SurfaceActionContext = createContext<((action: SurfaceAction | null) => void) | null>(null);
+
 /** URL detail and its editor share one native dialog, focus trap and scroll surface. */
 export function DetailSurface({title, onClose, children, busy = false, footer}: {title: string; onClose: () => void; children: ReactNode; busy?: boolean; footer?: ReactNode}) {
   const previous = useDetailExploration();
@@ -62,22 +72,35 @@ function ActiveModalShell({ title, headingLevel=2, open, onClose, previous, onRo
   const ref = useRef<HTMLDialogElement>(null);
   const titleId = useId();
   const [confirmDiscard, setConfirmDiscard] = useState(false);
+  const [action, setAction] = useState<SurfaceAction | null>(null);
+  const registerAction = useCallback((value: SurfaceAction | null) => setAction(value), []);
+  const actionFocus = useRef<HTMLElement | null>(null);
+  const actionOpen = !!action;
+  useEffect(() => {
+    if (actionOpen) {
+      actionFocus.current = document.activeElement as HTMLElement;
+      ref.current?.querySelector<HTMLElement>(".surface-action textarea, .surface-action input, .surface-action button")?.focus();
+    } else if (actionFocus.current) {
+      if (actionFocus.current.isConnected) actionFocus.current.focus();
+      actionFocus.current = null;
+    }
+  }, [actionOpen]);
   const surface = useContext(SurfaceContext);
   const returnFocus = useRef<Element | null>(null);
-  const guard = useRef({open,dirty,busy,surface});
-  guard.current = {open,dirty,busy,surface};
+  const guard = useRef({open,dirty,busy,surface,action});
+  guard.current = {open,dirty,busy,surface,action};
   // The router keeps this callback; it reads the committed mode instead of a previous editor's boolean.
   const shouldBlock = useCallback(() => {
     const state=guard.current;
-    return state.open && (state.surface ? !!state.surface.editor.current?.dirty || !!state.surface.editor.current?.busy || state.surface.busy.current : state.dirty || state.busy);
+    return state.open && (!!state.action || (state.surface ? !!state.surface.editor.current?.dirty || !!state.surface.editor.current?.busy || state.surface.busy.current : state.dirty || state.busy));
   }, []);
   const blocker = useBlocker(shouldBlock);
-  useEffect(() => { if (busy && blocker.state === "blocked") blocker.reset(); }, [busy, blocker]);
+  useEffect(() => { if ((busy || action?.busy) && blocker.state === "blocked") blocker.reset(); }, [busy, action?.busy, blocker]);
   useEffect(() => {
-    const unload = (e: BeforeUnloadEvent) => { if (open && (dirty || busy)) { e.preventDefault(); e.returnValue = ""; } };
+    const unload = (e: BeforeUnloadEvent) => { if (open && (dirty || busy || actionOpen)) { e.preventDefault(); e.returnValue = ""; } };
     window.addEventListener("beforeunload", unload);
     return () => window.removeEventListener("beforeunload", unload);
-  }, [open, dirty, busy]);
+  }, [open, dirty, busy, actionOpen]);
 
   useEffect(() => {
     const d = ref.current;
@@ -106,15 +129,15 @@ function ActiveModalShell({ title, headingLevel=2, open, onClose, previous, onRo
 
   useSurfaceViewport(ref);
   const requestClose = () => {
-    if (busy) return;
+    if (busy || action?.busy) return;
+    if (action) return action.onCancel();
     if (dirty) setConfirmDiscard(true);
     else onClose();
   };
 
-  return (
-    <dialog
+  return <SurfaceActionContext.Provider value={registerAction}><dialog
       ref={ref}
-      className="modal"
+      className={`modal${action ? " modal-action" : ""}`}
       aria-labelledby={titleId}
       onCancel={(e) => {
         e.preventDefault();
@@ -123,18 +146,18 @@ function ActiveModalShell({ title, headingLevel=2, open, onClose, previous, onRo
     >
       <div className="modal-inner">
         <div className="modal-head">
-          {previous && <button type="button" className="btn btn-text modal-icon modal-back" aria-label={previous.label} title={previous.label} disabled={busy} onClick={previous.back}><span aria-hidden="true">←</span></button>}
-          {headingLevel===1?<h1 id={titleId} className="dialog-title" tabIndex={-1}>{title}</h1>:<h2 id={titleId} className="dialog-title" tabIndex={-1}>{title}</h2>}
-          <button type="button" className="btn btn-text modal-icon" aria-label="닫기" title="닫기" onClick={requestClose} disabled={busy}>
+          {previous && !action && <button type="button" className="btn btn-text modal-icon modal-back" aria-label={previous.label} title={previous.label} disabled={busy} onClick={previous.back}><span aria-hidden="true">←</span></button>}
+          {headingLevel===1?<h1 id={titleId} className="dialog-title" tabIndex={-1}>{action?.title ?? title}</h1>:<h2 id={titleId} className="dialog-title" tabIndex={-1}>{action?.title ?? title}</h2>}
+          <button type="button" className="btn btn-text modal-icon" aria-label="닫기" title="닫기" onClick={requestClose} disabled={busy || action?.busy}>
             <span aria-hidden="true">×</span>
           </button>
         </div>
-        <div className="modal-body" tabIndex={0}>{children}</div>
-        {footer && <div className="modal-foot">{typeof footer === "function" ? footer(requestClose) : footer}</div>}
+        <div className="modal-body" tabIndex={0}><div hidden={!!action}>{children}</div>{action && <div className="surface-action">{action.body}</div>}</div>
+        {(action?.footer ?? footer) && <div className="modal-foot">{action ? action.footer : typeof footer === "function" ? footer(requestClose) : footer}</div>}
       </div>
       <ConfirmDialog
         open={confirmDiscard || blocker.state === "blocked"}
-        busy={busy}
+        busy={busy || action?.busy}
         title="변경을 버릴까요?"
         message="저장하지 않은 내용이 사라집니다."
         confirmLabel="변경 버리기"
@@ -145,8 +168,7 @@ function ActiveModalShell({ title, headingLevel=2, open, onClose, previous, onRo
         }}
         onCancel={() => { setConfirmDiscard(false); if (blocker.state === "blocked") blocker.reset(); }}
       />
-    </dialog>
-  );
+    </dialog></SurfaceActionContext.Provider>;
 }
 
 /** Standalone pending mutation guard; general surfaces already own their router guard. */

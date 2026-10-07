@@ -50,7 +50,7 @@ export function principleTools(d: p.PrincipleDeps): ToolDef[] {
       handler: async (i, a) => {
         const v = parse(removeInput, i);
         const target = idParam(v.id);
-        await p.deletePrinciple(d, a, target, v.expected_version, v.change_note);
+        await p.deletePrinciple(d, a, target, v.expected_version, v.change_note, v.change_tag_ids);
         return { deleted: target };
       },
     },

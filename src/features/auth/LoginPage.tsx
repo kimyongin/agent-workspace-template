@@ -39,14 +39,14 @@ export function LoginPage() {
   };
 
   return (
-    <section className="panel" aria-labelledby="login-title" style={{ maxWidth: "28rem", margin: "0 auto", width: "100%" }}>
+    <section className="panel auth-panel" aria-labelledby="login-title" style={{ maxWidth: "28rem", margin: "0 auto", width: "100%" }}>
       <h1 id="login-title" className="page-title">로그인</h1>
       {error && <Notice kind="error">{error}</Notice>}
       <button type="button" className="btn btn-primary" onClick={google}>Google로 로그인</button>
       {devLoginEnabled && (
         <form className="form auth-alternative" onSubmit={devLogin} aria-labelledby="dev-login-title">
           <h2 id="dev-login-title" className="section-title">개발용 로그인</h2>
-          <p className="help" style={{ margin: 0 }}>로컬 Supabase에서만 보입니다. 계정은 .env.local에 있습니다.</p>
+          <p className="help" style={{ margin: 0 }}>로컬 개발 환경에서 사용하는 계정으로 로그인하세요.</p>
           <Field label="이메일" required>
             {(p) => (
               <input {...p} className="input" type="email" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} required />

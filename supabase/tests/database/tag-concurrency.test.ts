@@ -156,10 +156,12 @@ for (
               : (final as { title: string }).title,
             "edited parent",
           );
-          assertEquals(events.length, kind === "record" ? 1 : 2);
-          const unlink = events.find((r) => r.body === "delete dictionary entry")!;
-          assertEquals([unlink.change_metadata.before, unlink.change_metadata.after], [null, null]);
-          assertEquals(unlink.change_metadata.target_title, "edited parent");
+          assertEquals(events.length, kind === "record" ? 0 : 2);
+          if (kind !== "record") {
+            const unlink = events.find((r) => r.body === "delete dictionary entry")!;
+            assertEquals([unlink.change_metadata.before, unlink.change_metadata.after], [null, null]);
+            assertEquals(unlink.change_metadata.target_title, "edited parent");
+          }
         } else {
           assertEquals(final.tag_ids, []);
           assertEquals(final.version, parent.version + 1);

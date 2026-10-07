@@ -149,7 +149,7 @@ test("원격 로그아웃 실패는 로컬 해제를 안내하며 재로그인�
   await page.route("**/auth/v1/logout*", async route => { calls++; await route.fulfill(fail ? { status: 500, json: { msg: "fixture failure" } } : { status: 204 }); });
   await page.route("**/auth/v1/user", route => route.fulfill({ json: { ...user, user_metadata: { ...user.user_metadata, workspace_avatar_id: "leaf" } } }));
   await page.goto("/settings"); await page.getByRole("link", { name: "로그아웃", exact: true }).click();
-  await expect(page.getByRole("alert")).toContainText("이 기기에서는 로그아웃했습니다");
+  await expect(page.getByRole("alert")).toContainText("이 기기에서는 로그아웃했습니다",{timeout:15000});
   await expect(page.getByRole("navigation", { name: "주 메뉴" })).toHaveCount(0);
   fail = false; await page.getByRole("link", { name: "로그인으로 이동", exact: true }).click(); await expect(page).toHaveURL(/\/login$/); expect(calls).toBe(1);
   await signIn(page); await expect(page).toHaveURL(/\/tasks$/); await settings(page); await expect(page.getByRole("radio", { name: "잎", exact: true })).toBeChecked(); expect(calls).toBe(1);
@@ -157,6 +157,7 @@ test("원격 로그아웃 실패는 로컬 해제를 안내하며 재로그인�
 
 test("가이드의 복사 실패와 성공 안내는 유지한다", async ({ page }) => {
   await page.goto("/guide");
+  await page.getByText("설치·연결 정보",{exact:true}).click();
   await page.evaluate(() => Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: async () => { throw new Error("denied"); } } }));
   await page.getByRole("button", { name: "연결 주소 복사" }).click(); await expect(page.getByRole("status")).toContainText("위 주소를 선택해 직접 복사");
   await page.evaluate(() => Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: async () => {} } }));

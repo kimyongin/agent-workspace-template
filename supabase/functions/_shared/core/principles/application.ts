@@ -16,7 +16,7 @@ function version(p: { version: number }, v: number | undefined) {
 }
 async function save(s: PrincipleStore, i: PrincipleCreate, old: PrincipleResult | null) {
   if (old && !changed(old, { title: i.title, body: i.body })) return old;
-  const { id: _id, change_note: _note, ...content } = i;
+  const { id: _id, change_note: _note, change_tag_ids: _tags, ...content } = i;
   const result = old ? await s.update(old.id, content) : await s.insert(i);
 
   await s.appendChange({
@@ -26,6 +26,7 @@ async function save(s: PrincipleStore, i: PrincipleCreate, old: PrincipleResult 
     before: old && principleChangeFacts(old),
     after: principleChangeFacts(result),
     change_note: i.change_note,
+    change_tag_ids: i.change_tag_ids,
   });
   return result;
 }
@@ -47,6 +48,7 @@ export function updatePrinciple(d: PrincipleDeps, a: Actor, id: string, i: Princ
       title: i.title ?? old.title,
       body: i.body ?? old.body,
       change_note: i.change_note,
+      change_tag_ids: i.change_tag_ids,
     }, old);
   });
 }
@@ -56,6 +58,7 @@ export function deletePrinciple(
   id: string,
   expected: number,
   change_note?: string,
+  change_tag_ids?: string[],
 ) {
   return d.uow.run(a, async (s) => {
     const old = requirePrinciple(await s.current({ forUpdate: true }), id);
@@ -68,6 +71,7 @@ export function deletePrinciple(
       before: principleChangeFacts(old),
       after: null,
       change_note,
+      change_tag_ids,
     });
     return { deleted: true };
   });

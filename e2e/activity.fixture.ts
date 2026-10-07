@@ -1,3 +1,4 @@
+import { fillChangeMemo } from "./ui-actions.ts";
 import { recordDisplayText } from "../supabase/functions/_shared/contracts/record-display.ts";
 import { saveOnce } from "./ui-actions.ts";
 import { test, expect } from "@playwright/test";
@@ -84,6 +85,7 @@ test("다중 대상의 label 전체는44px 누름 영역이고 클릭·키보드
   const entity={id:id(8),prop1:"함",prop2:null,prop3:null,prop4:"a",version:1};
   await page.route("http://127.0.0.1:55581/api/**",route=>route.fulfill({json:{items:new URL(route.request().url()).pathname.endsWith("/entities")?[entity]:[],next_cursor:null}}));
   await page.goto("/e2e/fixtures/activity.html?route=/records?create=1");
+  await page.getByRole("searchbox",{name:"엔터티 제목 검색",exact:true}).fill("함");
   const checkbox=page.getByRole("checkbox",{name:"함",exact:true});
   const label=checkbox.locator("..");
   for(const width of [320,360,390,639,640,768,1024,1440]){
@@ -152,9 +154,9 @@ test("할 일 저장 성공 후 조회 실패는 초안 재저장을 요구하�
   });
   await page.goto(`/e2e/fixtures/activity.html?route=${encodeURIComponent(`/tasks/${id(1)}?edit=1&edit_from=view`)}`);
   await page.getByRole("textbox",{name:"제목 (필수)",exact:true}).fill("정정한 할 일");
-  await page.getByLabel("편집 메모",{exact:false}).fill("검증 정정 이유");
+  await fillChangeMemo(page,page,"검증 정정 이유");
   expect(patches).toBe(0);
-  await page.getByRole("button",{name:"저장",exact:true}).click();
+  await saveOnce(page,page);
   await expect(page.getByText("저장은 완료했습니다. 최신 내용을 불러오지 못했습니다.")).toBeVisible();
   await expect(page.locator("dialog.modal:not(.modal-confirm)[open]")).toHaveCount(1);
   fail=false;
@@ -301,7 +303,6 @@ for (const kind of ["records","tasks","principles"]) {
     const item={...record(1),...(kind!=="records"?{title:"기록 1"}:{}),kind:"once",status:kind==="principles"?"active":"open",due_on:null,recurrence:null,timezone:null,result_record:null,is_current:true,saved_at:"2026-10-04T00:00:00Z",change_note:"과거 메모",origin:"saved",legacy_context:null};
     await page.route("http://127.0.0.1:55581/api/**",route=>route.fulfill({json:new URL(route.request().url()).pathname.endsWith("/principles/current")?{current:item}:new URL(route.request().url()).pathname.endsWith(`/${kind}/${id(1)}`)?item:{items:[item],next_cursor:null}}));
     await page.goto(`/e2e/fixtures/activity.html?route=/${kind}`);
-    if(kind==="principles")await page.getByRole("button",{name:"원칙 작업 메뉴"}).click();
     await (kind==="principles"?page:page.locator(`.${kind}`)).getByRole("link",{name:kind==="principles"?"현재 원칙 편집":"기록 1 편집",exact:true}).click();
     const title=page.getByRole("textbox",{name:/^본문(?: \(필수\))?$/});
     await title.fill("상세 이동 초안");
@@ -358,8 +359,7 @@ for(const kind of ["records","tasks","principles"]){
     const item={...record(1),is_current:true,origin:"saved",legacy_context:null,saved_at:"2026-10-03T16:00:00Z",...(kind!=="records"?{title:"함"}:{}),body:"함",kind:"once",status:kind==="principles"?"active":"open",due_on:null,recurrence:null,timezone:null,result_record:null,applies_when:"판단할 때",replaced_by_id:null};
     await page.route("http://127.0.0.1:55581/api/**",route=>route.fulfill({json:new URL(route.request().url()).pathname.endsWith("/principles/current")?{current:item}:{items:[item],next_cursor:null}}));
     await page.goto(`/e2e/fixtures/activity.html?route=/${kind}`);
-    if(kind==="principles")await page.getByRole("button",{name:"원칙 작업 메뉴"}).click();
-    const title=(kind==="principles"?page:page.locator(`.${kind}`)).getByRole("link",{name:kind==="principles"?"현재 원칙 보기":"함",exact:true});
+    const title=(kind==="principles"?page:page.locator(`.${kind}`)).getByRole("link",{name:"함",exact:true});
     await expect(title).toBeVisible();
     for(const width of [320,360,390,639,640,768,1024,1440]){
       await page.setViewportSize({width,height:900});

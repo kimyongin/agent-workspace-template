@@ -52,14 +52,13 @@ export function ChangeContext({record,compact=false}: {record: WorkspaceRecord;c
 }
 export function PrincipleSnapshots({snapshots}: {snapshots:NonNullable<WorkspaceRecord["applied_principle_snapshots"]>}) {
   if (!snapshots.length) return null;
-  return <section className="form"><h2 className="section-title">적용 당시 원칙</h2>
-    {snapshots.map((p,index)=><section key={index} className="form">
-      <h3 className="item-title">{p.title}</h3>
-      <p className="meta">원본 ID: {p.id} · 버전 {p.version} · 당시 상태: {p.status}</p>
+  return <section className="detail-section"><h2 className="section-title">적용 당시 원칙</h2>
+    {snapshots.map((p,index)=><details key={index} className="workspace-additional">
+      <summary>{p.title}</summary><div className="historical-document">
       <p className="meta">저장 {formatDateTime(p.saved_at)}</p>
       <p className="secondary">{p.summary}</p><MarkdownContent text={p.body}/>
       {p.captured_at==="migration"?<p className="help">기존 자료 이관 때 보존한 본문입니다. 실제 판단 당시의 본문을 보증하지 않습니다.</p>:<p className="help">업무 적용 시 보존한 본문입니다.</p>}
-    </section>)}
+    </div></details>)}
     <p className="help">기록에 보존한 본문입니다. 이후 원칙 변경·삭제와 별도로 보존됩니다.</p>
   </section>;
 }

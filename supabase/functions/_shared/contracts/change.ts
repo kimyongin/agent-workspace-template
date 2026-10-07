@@ -1,10 +1,11 @@
 import { z } from "zod";
+import { tagIds } from "./tag.ts";
 import { codePointLength, id, TEXT_LIMITS } from "./common.ts";
 
 export const changeNote = z.string().refine((value) => codePointLength(value) <= TEXT_LIMITS.body.max, {
   message: `${TEXT_LIMITS.body.max}자 이하여야 합니다`,
 });
-export const mutationMeta = { change_note: changeNote.optional() };
+export const mutationMeta = { change_note: changeNote.optional(), change_tag_ids: tagIds.optional() };
 export const businessMeta = mutationMeta;
 export const changeMetadata = z.object({
   event_id: id,
