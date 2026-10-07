@@ -1,6 +1,6 @@
 import type { RecordResult } from "@contracts/record.ts";
 import { useEffect, useState } from "react";
-import { DetailLink as Link } from "../../lib/detail-exploration.tsx";
+import { RelatedItem, RelatedSection } from "../../components/RelatedItems.tsx";
 import { api, ApiError } from "../../lib/api.ts";
 import { MarkdownContent } from "../../components/MarkdownContent.tsx";
 import { formatDateTime } from "../../lib/format.ts";
@@ -25,10 +25,17 @@ function CurrentTarget({change}: {change:NonNullable<WorkspaceRecord["change"]>}
     });
     return ()=>controller.abort();
   },[path,attempt]);
-  if(state==="exists")return <Link restoreKey="change-target" className="record-target-link" to={path}>대상 원문 보기 <span aria-hidden="true">↗</span></Link>;
-  if(state==="missing")return <p className="secondary">삭제된 대상 또는 접근할 수 없는 대상입니다. 당시의 기록은 그대로 보존됩니다.</p>;
-  if(state==="failed")return <div className="form"><p className="notice" role="status">대상의 현재 상태를 확인하지 못했습니다.</p><button type="button" className="btn" onClick={()=>setAttempt(value=>value+1)}>대상 다시 조회</button></div>;
-  return <p className="secondary" role="status">대상의 현재 상태 확인 중…</p>;
+  return <RelatedSection title="변경 대상" count={1}>
+    <ul className="related-items"><li><RelatedItem
+      to={state==="exists"?path:undefined}
+      restoreKey="change-target"
+      title={change.target_title}
+      metadata={<span className="meta">{targets[change.target_kind]} · {actions[change.action]}</span>}
+    /></li></ul>
+    {state==="missing"&&<p className="secondary">삭제된 대상 또는 접근할 수 없는 대상입니다. 당시의 기록은 그대로 보존됩니다.</p>}
+    {state==="failed"&&<div className="form"><p className="notice" role="status">대상의 현재 상태를 확인하지 못했습니다.</p><button type="button" className="btn" onClick={()=>setAttempt(value=>value+1)}>대상 다시 조회</button></div>}
+    {state==="loading"&&<p className="secondary" role="status" aria-label="변경 대상 조회">불러오는 중…</p>}
+  </RelatedSection>;
 }
 export function ChangeContext({record,compact=false}: {record: WorkspaceRecord;compact?:boolean}) {
   const change=record.change;
@@ -38,7 +45,7 @@ export function ChangeContext({record,compact=false}: {record: WorkspaceRecord;c
   return <div className="record-context">
     <div className="record-context-meta"><span>{kind}</span><time dateTime={record.occurred_at}>{formatDateTime(record.occurred_at)}</time></div>
     {change&&<>
-      <div className="record-event-row"><p>{target}</p><CurrentTarget key={`${change.target_kind}:${change.target_id}`} change={change}/></div>
+      <CurrentTarget key={`${change.target_kind}:${change.target_id}`} change={change}/>
       {(change.before!==null||change.after!==null)&&<details className="workspace-additional"><summary>변경 전후 값</summary><div className="change-snapshot"><section><h3 className="section-title">변경 전</h3><pre>{change.before?JSON.stringify(change.before,null,2):"없음"}</pre></section><section><h3 className="section-title">변경 후</h3><pre>{change.after?JSON.stringify(change.after,null,2):"없음"}</pre></section></div></details>}
     </>}
   </div>;
