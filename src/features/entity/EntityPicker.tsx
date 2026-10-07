@@ -1,3 +1,4 @@
+import { RelatedItem, RelatedSection } from "../../components/RelatedItems.tsx";
 import type { EntityContext } from "@contracts/entity-links.ts";
 import type { EntityResult } from "@contracts/entity.ts";
 import { useEffect, useRef, useState } from "react";
@@ -326,20 +327,13 @@ export function EntityLinks(
 ) {
   if (!ids?.length) return null;
   return (
-    <section className="read-context" aria-label="연결 엔터티">
-      <p className="label">연결 엔터티</p>
-      <ul className="related-list">
+    <RelatedSection title="연결된 엔터티" count={ids.length}>
+      <ul className="related-items">
         {ids.map((id) => {
           const capture = context.find((item) => item.id === id);
           return (
             <li key={id}>
-              <Link
-                restoreKey={`linked-entity-${id}`}
-                className="item-title"
-                to={`/entities/${id}`}
-              >
-                {capture?.title ?? id}
-              </Link>
+              <RelatedItem to={`/entities/${id}`} title={capture?.title??"연결된 엔터티"} restoreKey={`linked-entity-${id}`}/>
               {capture && (
                 <details className="related-provenance">
                   <summary className="meta">연결 당시 정보</summary>
@@ -355,6 +349,6 @@ export function EntityLinks(
           );
         })}
       </ul>
-    </section>
+    </RelatedSection>
   );
 }

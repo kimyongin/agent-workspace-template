@@ -1,5 +1,5 @@
-import { recordDisplayText } from "@contracts/record-display.ts";
-import { DetailLink as Link, useDetailNavigate, useDetailOwnerReturn } from "../../lib/detail-exploration.tsx";
+import { RelatedRecords } from "./RelatedRecords.tsx";
+import { useDetailNavigate, useDetailOwnerReturn } from "../../lib/detail-exploration.tsx";
 import { editFromView } from "../../lib/detail-navigation.ts";
 import { ChangeNoteField, FormModal, changeNoteErrors } from "../../components/ContentForm.tsx";
 // 할 일 상세: 읽기, 편집, 일회성 완료, 반복 할 일의 회차·회차 기록·중단/재개, 삭제.
@@ -58,6 +58,7 @@ export function TaskDetailPage() {
   const [editReady,setEditReady]=useState(false);
   const [busy, setBusy] = useState(false);
   const [occurrences, setOccurrences] = useState<{ today: string; items: Occurrence[] } | null>(null);
+  const [recordRefresh,setRecordRefresh]=useState(0);
   const [rangeEnd, setRangeEnd] = useState<string | null>(null);
 
   const previousQuery = useRef(params.toString());
@@ -170,7 +171,7 @@ export function TaskDetailPage() {
             </div>
           )}
         </dl>
-        {task.kind === "once" && task.status === "done" && <div><h2 className="section-title">결과 기록</h2>{task.result_record ? <Link to={`/records/${task.result_record.id}`}>{recordDisplayText(task.result_record.body)}</Link> : <p className="secondary">결과 기록이 삭제되었습니다</p>}</div>}
+        {task.kind==="once"&&task.status==="done"&&!task.result_record&&<p className="secondary">결과 기록이 삭제되었습니다.</p>}
       </section>
 
     </div>;
@@ -206,16 +207,7 @@ export function TaskDetailPage() {
                       {o.date === occurrences.today ? " (오늘)" : ""}
                     </span>
                     {!o.in_rule && <span className="secondary">규칙 밖 기록(규칙이 바뀌기 전에 남긴 기록)</span>}
-                    {o.record_ids.length > 0 && (
-                      <span className="secondary">
-                        {o.record_ids.map((rid, i) => (
-                          <span key={rid}>
-                            {i > 0 && ", "}
-                            <Link to={`/records/${rid}`}>기록 {i + 1}</Link>
-                          </span>
-                        ))}
-                      </span>
-                    )}
+                    {o.record_ids.length>0&&<span className="secondary">기록 {o.record_ids.length}개</span>}
                   </div>
                   <OccurrenceBadge status={o.status} />
                   {o.in_rule && o.status !== "upcoming" && (
@@ -239,6 +231,7 @@ export function TaskDetailPage() {
 
       {task.body&&<section className="detail-section" aria-label="내용"><MarkdownContent text={task.body}/></section>}
       {relatedInformation}
+      <RelatedRecords taskId={task.id} revision={task.version+recordRefresh}/>
       {occurrenceSection}
       {dialog === "edit" && editReady && (
         <TaskFormModal
@@ -315,6 +308,7 @@ export function TaskDetailPage() {
             });
             closeManagement();
             setMessage(`${dialog.occurrence} 회차에 기록했습니다.`);
+            setRecordRefresh(n=>n+1);
             await loadOccurrences(task, rangeEnd);
           }}
         />
