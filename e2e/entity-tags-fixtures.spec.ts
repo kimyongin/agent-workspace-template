@@ -226,9 +226,9 @@ test("엔터티 연결 작성·실패 초안·성공 후 조회 실패와 모달
   expect(bodies[1].entity_ids).toEqual([entity.id]); await expect(page.getByRole("heading",{name:entity.prop1,level:1,exact:true})).toBeVisible();
   await page.getByRole("button",{name:"기록 작성",exact:true}).click();
   const record = page.getByRole("dialog", { name: "기록 작성", exact: true }); await expect(record.getByRole("checkbox", { name: entity.prop1, exact: true })).toBeChecked();
-  await record.getByLabel("본문").fill("기록 초안"); await record.getByRole("button", { name: "닫기", exact: true }).click();
+  await record.getByLabel("본문").fill("기록 초안"); await record.getByRole("button", { name: "취소", exact: true }).click();
   await page.getByRole("dialog", { name: "변경을 버릴까요?" }).getByRole("button", { name: "취소", exact: true }).click(); await expect(record.getByLabel("본문")).toHaveValue("기록 초안");
-  await record.getByRole("button", { name: "닫기", exact: true }).click(); await page.getByRole("dialog", { name: "변경을 버릴까요?" }).getByRole("button", { name: "변경 버리기" }).click();
+  await record.getByRole("button", { name: "취소", exact: true }).click(); await page.getByRole("dialog", { name: "변경을 버릴까요?" }).getByRole("button", { name: "변경 버리기" }).click();
   await expect(page.getByRole("button", { name: "기록 작성", exact: true })).toBeFocused();
   await page.getByRole("button",{name:"기록 작성",exact:true}).click();
   await record.getByLabel("본문").fill("연결 기록\n엔터티 문맥"); await saveOnce(page, record);

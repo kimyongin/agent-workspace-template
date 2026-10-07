@@ -112,9 +112,9 @@ export function EntitiesPage() {
     next.delete("pages");
     navigate({ pathname: "/entities", search: next.toString(), hash: "" }, { replace: true });
   };
-  const rowLink=(id:string,edit=false)=>{
+  const rowLink=(id:string)=>{
     const p=new URLSearchParams(params);p.delete("create");p.set("pages",String(page?.count??1));const back=listReturnPath("entities",p,id,0);
-    return {to:`/entities/${id}?list=${encodeURIComponent(back)}${edit?"&edit=1":""}`,onClick:(event:React.MouseEvent<HTMLAnchorElement>)=>{if(event.button!==0||event.metaKey||event.ctrlKey||event.shiftKey||event.altKey)return;event.preventDefault();const at=listReturnPath("entities",p,id,window.scrollY);navigate(at,{replace:true,preventScrollReset:true});navigate(`/entities/${id}?list=${encodeURIComponent(at)}${edit?"&edit=1":""}`);}};
+    return {to:`/entities/${id}?list=${encodeURIComponent(back)}`,onClick:(event:React.MouseEvent<HTMLAnchorElement>)=>{if(event.button!==0||event.metaKey||event.ctrlKey||event.shiftKey||event.altKey)return;event.preventDefault();const at=listReturnPath("entities",p,id,window.scrollY);navigate(at,{replace:true,preventScrollReset:true});navigate(`/entities/${id}?list=${encodeURIComponent(at)}`);}};
   };
   return (
     <><section className="panel" aria-labelledby="entities-title">

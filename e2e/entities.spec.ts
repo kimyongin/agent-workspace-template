@@ -107,7 +107,7 @@ test("엔터티 관련 기록 취소: 작성 URL·reload·메모와 변경 이�
       await beginTabAction(page,"기록 작성");
       const editor=page.getByRole("dialog",{name:"기록 작성",exact:true});await expect(page).toHaveURL(/create=record/);
       if(dirty){await editor.getByLabel("본문").fill("취소할 설명");}
-      await editor.getByRole("button", {name:"닫기",exact:true}).click();
+      await editor.getByRole("button", {name:"취소",exact:true}).click();
       if(dirty) await page.getByRole("dialog",{name:"변경을 버릴까요?"}).getByRole("button",{name:"변경 버리기"}).click();
       await expect(page).not.toHaveURL(/create=/);await expect(page).toHaveURL(/list=/);
       await expect(page.getByRole("button",{name:"기록 작성",exact:true})).toBeFocused();

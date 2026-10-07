@@ -306,7 +306,6 @@ for (const kind of ["records","tasks","principles"]) {
     const item={...record(1),...(kind!=="records"?{title:"기록 1"}:{}),kind:kind==="records"?"general":"once",status:kind==="principles"?"active":"open",due_on:null,recurrence:null,timezone:null,result_record:null,is_current:true,saved_at:"2026-10-04T00:00:00Z",change_note:"과거 메모",origin:"saved",legacy_context:null};
     await page.route("http://127.0.0.1:55581/api/**",route=>route.fulfill({json:new URL(route.request().url()).pathname.endsWith("/principles/current")?{current:item}:new URL(route.request().url()).pathname.endsWith(`/${kind}/${id(1)}`)?item:{items:[item],next_cursor:null}}));
     await page.goto(`/e2e/fixtures/activity.html?route=/${kind}`);
-    if(kind==="principles") await page.getByRole("button",{name:"원칙 작업 메뉴"}).click();
     await openListEditor(page,"기록 1");
     const title=page.getByRole("textbox",{name:/^본문(?: \(필수\))?$/});
     await title.fill("상세 이동 초안");

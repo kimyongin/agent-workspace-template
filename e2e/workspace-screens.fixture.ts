@@ -184,7 +184,7 @@ for(const [kind,label,submit] of [["task","할 일 작성","추가"],["record","
   const state=await fixtures(page,{failWrite:"unknown"});await go(page,`/entities/${id(1)}`);
   await form(page).getByRole("button",{name:label,exact:true}).click();await fillText(page,"첫 연결 작성");await saveOnce(page, form(page), submit);
   await expect(form(page).getByRole("button",{name:"같은 내용 다시 시도"})).toBeVisible();await discardEditor(page);
-  await page.getByRole("dialog",{name:"변경을 버릴까요?"}).getByRole("button",{name:"변경 버리기"}).click();await expect(page).not.toHaveURL(/create=/);
+  await page.getByRole("dialog",{name:"변경을 버릴까요?"}).getByRole("button",{name:"변경 버리기"}).click();await expect(page).not.toHaveURL(/create=/);await go(page,`/entities/${id(1)}`);
   await form(page).getByRole("button",{name:label,exact:true}).click();await fillText(page,"새 연결 작성");await saveOnce(page, form(page), submit);
   await expect.poll(()=>state.writes.length).toBe(2);expect(state.writes[1].body.id).not.toBe(state.writes[0].body.id);expect(state.errors).toEqual([]);
 });
@@ -200,11 +200,11 @@ for(const [kind,label] of [["task","할 일 작성"],["record","기록 작성"]]
   for(const dirty of [false,true]){
     await form(page).getByRole("button",{name:label,exact:true}).click();await expect(page).toHaveURL(new RegExp(`create=${kind}`));
     if(dirty) await fillText(page,"폐기할 연결 작성");
-    await form(page).getByRole("button",{name:"닫기",exact:true}).click();
+    await form(page).getByRole("button",{name:"취소",exact:true}).click();
     if(dirty){
       const confirm=page.getByRole("dialog",{name:"변경을 버릴까요?"});await confirm.getByRole("button",{name:"취소",exact:true}).click();
       await expect(form(page).getByRole("textbox",{name:kind==="record"?/^본문/:/^제목/})).toHaveValue("폐기할 연결 작성");
-      await form(page).getByRole("button",{name:"닫기",exact:true}).click();await confirm.getByRole("button",{name:"변경 버리기"}).click();
+      await form(page).getByRole("button",{name:"취소",exact:true}).click();await confirm.getByRole("button",{name:"변경 버리기"}).click();
     }
     await expect(page).not.toHaveURL(/create=/);await expect(page).toHaveURL(/list=/);
     await expect(form(page).getByRole("button",{name:label,exact:true})).toBeFocused();
@@ -345,7 +345,7 @@ for(const width of [320,390,1024])test(`엔터티 연결 목록 ${width}px: 종�
   for(const row of await rows.all())expect((await row.boundingBox())!.height).toBeGreaterThanOrEqual(44);
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
   await section.screenshot({path:info.outputPath(`entity-related-${width}.png`)});
-  await rows.first().click();await expect(page).toHaveURL(new RegExp(`/records/${id(3)}$`));expect(state.writes).toHaveLength(0);expect(state.errors).toEqual([]);
+  await rows.first().getByRole("link").click();await expect(page).toHaveURL(new RegExp(`/records/${id(3)}$`));expect(state.writes).toHaveLength(0);expect(state.errors).toEqual([]);
 });
 test("연결 엔터티 범위: 각 탭 조회·검색 조건·본문 왕복·해제",async({page})=>{
   const state=await fixtures(page);for(const kind of ["tasks","records"]){state.rows[kind][0].entity_ids=[id(1)];state.rows[kind][0].entity_context=[{id:id(1),title:"엔터티",source:"selection",captured_at:stamp}];}
@@ -761,7 +761,7 @@ for(const failure of ["unknown","conflict"] as const)test(`편집 ${failure}: �
   if(failure==="unknown"){await expect(form(page).getByRole("textbox",{name:/^제목(?: \(필수\))?$/})).toBeDisabled();await form(page).getByRole("button",{name:"같은 내용 다시 시도"}).click();await saveOnce(page,form(page));expect(state.writes[1].body).toEqual(state.writes[0].body);}expect(state.errors).toEqual([]);
 });
 test("busy POP·dirty back/forward·reload·직접 링크",async({page})=>{
-  const state=await fixtures(page,{hold:true});await go(page,"/tasks");await openListEditor(page,"할 일");await fillChangeMemo(page,form(page),"저장 이유");await saveOnce(page, form(page),"저장",false);await state.pending;await page.goBack();await expect(page).toHaveURL(/edit=1/);await expect(page.getByRole("dialog",{name:"변경을 버릴까요?"})).not.toBeVisible();state.release();await expect(page).toHaveURL(/\/tasks\?/);
+  const state=await fixtures(page,{hold:true});await go(page,"/tasks");await openListEditor(page,"할 일");await fillChangeMemo(page,form(page),"저장 이유");await saveOnce(page, form(page),"저장",false);await state.pending;await page.goBack();await expect(page).toHaveURL(/edit=1/);await expect(page.getByRole("dialog",{name:"변경을 버릴까요?"})).not.toBeVisible();state.release();await expect(form(page).getByRole("button",{name:"편집",exact:true})).toBeVisible();await form(page).getByRole("button",{name:"닫기",exact:true}).click();
   await openListEditor(page,"할 일");await form(page).getByRole("textbox",{name:/^제목(?: \(필수\))?$/}).fill("버리지 않을 초안");await page.goBack();const confirm=page.getByRole("dialog",{name:"변경을 버릴까요?"});await confirm.getByRole("button",{name:"취소",exact:true}).click();await expect(form(page).getByRole("textbox",{name:/^제목(?: \(필수\))?$/})).toHaveValue("버리지 않을 초안");await page.goBack();await confirm.getByRole("button",{name:"변경 버리기"}).click();await expect(page).toHaveURL(/\/tasks\?/);await page.goForward();await expect(form(page).getByRole("textbox",{name:/^제목(?: \(필수\))?$/})).toHaveValue("할 일");await page.reload();await expect(form(page).getByRole("textbox",{name:/^제목(?: \(필수\))?$/})).toHaveValue("할 일");expect(state.errors).toEqual([]);
 });
 for(const width of [320,360,390,639,640,768,1024,1440])test(`shell ${width}px: 긴 제목·본문 스크롤·키보드·단일 surface`,async({page},info)=>{
@@ -1032,4 +1032,11 @@ test("#185 빈 연결 개수만 표시·관계 카드 빈 공간은 이동하지
   Object.assign(state.rows.tasks[0],{entity_ids:[id(1)],entity_context:[{id:id(1),title:"엔터티",source:"selection",captured_at:stamp}]});await page.reload();
   const link=form(page).getByRole("link",{name:"엔터티",exact:true}),card=link.locator("xpath=ancestor::div[contains(@class,'related-item')][last()]");
   const t=(await link.boundingBox())!,r=(await card.boundingBox())!;await page.mouse.click(r.x+r.width-24,t.y+t.height/2);await expect(page).toHaveURL(new RegExp(`/tasks/${id(2)}$`));await link.click();await expect(page).toHaveURL(new RegExp(`/entities/${id(1)}$`));expect(state.errors).toEqual([]);
+});
+
+for(const [kind,n] of [["entities",1],["tasks",2],["records",3],["principles",4]] as const)test(`#185 ${kind}: 직접 편집 취소의 폐기 확인은 같은 보기로 복귀`,async({page})=>{
+  const state=await fixtures(page);await go(page,`/${kind}/${id(n)}?edit=1`);const input=form(page).getByRole("textbox",{name:kind==="entities"?/^속성 1/:kind==="records"?/^본문/:/^제목/});
+  await input.fill("취소할 편집");await form(page).getByRole("button",{name:"취소",exact:true}).click();const discard=page.getByRole("dialog",{name:"변경을 버릴까요?"});
+  await discard.getByRole("button",{name:"변경 버리기",exact:true}).click();await expect(form(page).getByRole("button",{name:"편집",exact:true})).toBeVisible();await expect(page).toHaveURL(new RegExp(`/${kind}/${id(n)}\\?$`));
+  await expect(page.locator("dialog[open]")).toHaveCount(1);await expect(form(page).getByRole("textbox")).toHaveCount(0);expect(state.writes).toHaveLength(0);expect(state.errors).toEqual([]);
 });
