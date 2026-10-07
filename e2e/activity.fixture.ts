@@ -1,4 +1,4 @@
-import { openListEditor, openDetailEditor, openListDetail } from "./ui-actions.ts";
+import { openListEditor, openDetailEditor, openListDetail, openTabFilters } from "./ui-actions.ts";
 import { fillChangeMemo } from "./ui-actions.ts";
 import { recordDisplayText } from "../supabase/functions/_shared/contracts/record-display.ts";
 import { saveOnce } from "./ui-actions.ts";
@@ -38,7 +38,7 @@ for (const kind of ["tasks", "records"] as const) test(`${kind} 탭은 자기 �
   await expect.poll(()=>reads).toEqual([`/api/${kind}`]);
   await expect(page.locator(kind==="tasks"?".records":".tasks")).toHaveCount(0);
   await expect(page.getByText(`아직 ${kind==="tasks"?"할 일":"기록"}이 없습니다.`,{exact:true})).toBeVisible();
-  await page.getByLabel(kind==="tasks"?"할 일 상태":"기록 종류",{exact:true}).selectOption(kind==="tasks"?"stopped":"change");
+  await openTabFilters(page);await page.getByLabel(kind==="tasks"?"할 일 상태":"기록 종류",{exact:true}).selectOption(kind==="tasks"?"stopped":"change");
   await page.getByLabel("검색어",{exact:true}).fill("과거 근거");
   await expect.poll(()=>searches.length).toBe(1);
   expect(searches[0].kinds).toEqual([kind==="tasks"?"task":"record"]);
@@ -254,7 +254,7 @@ for (const name of ["활동 왕복 태그", "한".repeat(30)]) {
     await page.setViewportSize({width:360,height:900});
     await page.goto("/e2e/fixtures/activity.html");
     const row=page.locator(`#activity-records-${id(20)}`);
-    await expect(page.getByText("태그 이름을 불러오는 중…",{exact:true})).toBeVisible();
+    await openTabFilters(page);await expect(page.getByText("태그 이름을 불러오는 중…",{exact:true})).toBeVisible();
     await expect(row).toHaveCount(0);
     release();
     await row.click();
@@ -340,7 +340,7 @@ for(const kind of ["records","tasks"]){
       const path=new URL(route.request().url()).pathname;await route.fulfill({json:path.endsWith("/principles/current")?{current:null}:items.find(item=>path.endsWith("/"+item.id))??{items,next_cursor:null}});
     });
     await page.goto(`/e2e/fixtures/activity.html?route=/${kind}`);
-    const section=page.locator(`.${kind}`);
+    await openTabFilters(page);const section=page.locator(`.${kind}`);
     const title=section.getByRole("button",{name:"기록 20",exact:true});
     await expect(title).toBeVisible();await title.click();
     await title.focus();await title.evaluate(el=>el.scrollIntoView({block:"center"}));

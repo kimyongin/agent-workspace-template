@@ -1,5 +1,5 @@
 import { fillChangeMemo } from "./ui-actions.ts";
-import { saveOnce, openDetailEditor, openListDetail } from "./ui-actions.ts";
+import { saveOnce, openDetailEditor, openListDetail, openTabFilters } from "./ui-actions.ts";
 import { expect, test } from "@playwright/test";
 import { devLogin, mcpClient, mcpTokenViaConsent, unique } from "./support.ts";
 
@@ -123,7 +123,7 @@ for (
       await expect(page.locator(`.${path} .list .item-title`)).toHaveCount(63);
       await expect(link).toBeFocused();
       await expect(link).toBeInViewport();
-      await expect(page.getByRole("button",{name:tag.name,exact:true})).toHaveAttribute("aria-pressed","true");
+      await openTabFilters(page);await expect(page.getByRole("button",{name:tag.name,exact:true})).toHaveAttribute("aria-pressed","true");
       await page.reload();
       await expect(page.locator(`.${path} .list .item-title`)).toHaveCount(63);
       await expect(link).toBeFocused();
@@ -146,7 +146,7 @@ for (
       ids.delete(target.id);
       await expect(page.getByRole("heading", { name: label, exact: true })).toBeFocused();
       await expect(page.locator(`#activity-${path}-page-control`)).toHaveCount(0);
-      await page.getByRole("button",{name:tag.name,exact:true}).click();await page.getByRole("button",{name:emptyTag.name,exact:true}).click();
+      await openTabFilters(page);await page.getByRole("button",{name:tag.name,exact:true}).click();await page.getByRole("button",{name:emptyTag.name,exact:true}).click();
       await expect(page.locator(`.${path} .list .item-title`)).toHaveCount(0);
       expect(new URL(page.url()).hash).toBe("");
       expect(new URL(page.url()).searchParams.has("pages")).toBe(false);
@@ -161,7 +161,7 @@ for (
       await page.goBack();
       await expect(leavingLink).toHaveCount(0);
       await expect(page.getByRole("heading", { name: label, exact: true })).toBeFocused();
-      await expect(page.getByRole("button",{name:tag.name,exact:true})).toHaveAttribute("aria-pressed","true");
+      await openTabFilters(page);await expect(page.getByRole("button",{name:tag.name,exact:true})).toHaveAttribute("aria-pressed","true");
     } finally {
       try {
         for (const id of ids) {

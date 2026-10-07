@@ -1,5 +1,5 @@
 import { fillChangeMemo } from "./ui-actions.ts";
-import { saveOnce, beginTabAction, openDetailEditor, openListDetail } from "./ui-actions.ts";
+import { saveOnce, beginTabAction, openDetailEditor, openListDetail, openTabFilters } from "./ui-actions.ts";
 import {expect,test} from "@playwright/test";
 import {devLogin,mcpClient,mcpTokenViaConsent,unique} from "./support.ts";
 
@@ -19,7 +19,7 @@ test("더 보기 응답이 늦어도 새 태그 필터 목록에 섞이지 않�
         const response=await route.fetch();arrived();await hold;await route.fulfill({response});finished();
       });
       await page.locator(`#activity-${path}-page-control`).click();await waiting;
-      await page.getByRole("button",{name:tag.name,exact:true}).click();await expect(page.getByRole("button",{name:title,exact:true})).toBeVisible();
+      await openTabFilters(page);await page.getByRole("button",{name:tag.name,exact:true}).click();await expect(page.getByRole("button",{name:title,exact:true})).toBeVisible();
       const delivered=page.waitForResponse(r=>new URL(r.url()).pathname.endsWith(`/api/${path}`)&&new URL(r.url()).searchParams.has("cursor"));
       release();await done;await (await delivered).finished();
       await page.evaluate(()=>new Promise<void>(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>resolve()))));
@@ -76,7 +76,7 @@ test("엔터티·기록 태그 같은 이름·웹 선택 정정·삭제 뒤 원�
       expect(filtered.items.map((x:{id:string})=>x.id)).toEqual([id]);
       await page.goto(`${path}?tag_id=${tag.id}`);await openListDetail(page,title);await openDetailEditor(page);
       const revisit=page.getByRole("dialog",{name:kind==="entity"?"엔터티 편집":"기록 편집"});await revisit.getByLabel(kind==="entity"?"속성 2":"본문").fill(kind==="entity"?"10":"원문 보존");if(kind==="entity")await fillChangeMemo(page,revisit,"분류 상태에서 원문 정정");await saveOnce(page,revisit);await expect(revisit).not.toBeVisible();
-      await page.getByRole("button",{name:"닫기",exact:true}).click();await expect(page.getByRole("button",{name:tag.name,exact:true})).toHaveAttribute("aria-pressed","true");await expect(page.locator(kind==="entity"?".list .item-title":".records .list .item-title")).toHaveCount(1);
+      await page.getByRole("button",{name:"닫기",exact:true}).click();await openTabFilters(page);await expect(page.getByRole("button",{name:tag.name,exact:true})).toHaveAttribute("aria-pressed","true");await expect(page.locator(kind==="entity"?".list .item-title":".records .list .item-title")).toHaveCount(1);
       await mcp.call("delete_tag",{id:tag.id,expected_version:1});await page.goto(`${path}/${id}`);
       expect((await mcp.call(`get_${kind}`,{id})).tag_ids).toEqual([]);
       if(kind==="entity")await expect(page.getByRole("heading",{name:title,level:1,exact:true})).toBeVisible();else await expect(page.getByText("원문 보존",{exact:true})).toBeVisible();
@@ -112,7 +112,7 @@ test("웹 할 일 태그 선택→MCP 필터·정정→태그 삭제 후 본문 
     await expect(edit).not.toBeVisible();expect((await mcp.call("get_task",{id})).tag_ids).toEqual([]);
     await mcp.call("update_task",{id,expected_version:2,tag_ids:[tag.id],change_note:"분류 복구"});
     const items=await mcp.call("list_tasks",{tag_id:tag.id});expect(items.items.map((t:{id:string})=>t.id)).toEqual([id]);
-    await page.goto(`/tasks?tag_id=${tag.id}`);await expect(page.getByRole("button",{name:tag.name,exact:true})).toHaveAttribute("aria-pressed","true");
+    await page.goto(`/tasks?tag_id=${tag.id}`);await openTabFilters(page);await expect(page.getByRole("button",{name:tag.name,exact:true})).toHaveAttribute("aria-pressed","true");
     await mcp.call("delete_tag",{id:tag.id,expected_version:1});await page.goto(`/tasks/${id}`);
     await expect(page.getByText("삭제 후에도 보존",{exact:true})).toBeVisible();expect((await mcp.call("get_task",{id})).tag_ids).toEqual([]);
   }finally{await mcp.close();}

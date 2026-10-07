@@ -1,5 +1,5 @@
 import { useCreateMode } from "../../components/useCreateMode.ts";
-import { TabSearch, AppliedConditions, resetTabFilters } from "../../components/TabSearch.tsx";
+import { TabSearch, TabFilters, resetTabFilters } from "../../components/TabSearch.tsx";
 import { TagDictionaryStatus, TagReadProvider, useTagDictionary } from "../tags/TagPicker.tsx";
 import { shouldPublishRestoredPage } from "../activity/list-state.ts";
 import type { EntityResult } from "@contracts/entity.ts";
@@ -108,9 +108,10 @@ export function EntitiesPage() {
         <TabActions title="엔터티" actions={[{label:"엔터티 등록",run:create.begin},{label:"엔터티 태그 관리",to:"/tags/entity"}]}/>
       </div>
       <TabSearch entity/>
+      <TabFilters active={!!(filter.tag_id||filter.prop3_from||filter.prop3_to||filter.prop4||filter.sort!=="updated_at")} attention={dictionary.failed}>
       <TagDictionaryStatus dictionary={dictionary}/>
       <fieldset className="field tag-filter-chips"><legend className="label">엔터티 태그</legend><div className="chips">{dictionary.tags?.map(tag=><button type="button" className="chip" key={tag.id} aria-pressed={filter.tag_id===tag.id} onClick={()=>set("tag_id",filter.tag_id===tag.id?"":tag.id)}>{tag.name}</button>)}</div></fieldset>
-      <details className="workspace-additional"><summary>필터</summary><div className="form" role="group" aria-label="엔터티 필터">
+      <div className="form" role="group" aria-label="엔터티 필터">
         <div className="field-row">
           {(["prop3_from", "prop3_to"] as const).map((name) => (
             <Field
@@ -155,7 +156,7 @@ export function EntitiesPage() {
             </select>
           )}
         </Field>
-      </div></details><AppliedConditions namesForIds={Object.fromEntries(dictionary.tags?.map(t=>[t.id,t.name])??[])}/>
+      </div></TabFilters>
     </section><section className="activity-section" aria-label="엔터티 목록">
       {error && (
         <>

@@ -56,3 +56,9 @@ export async function openListDetail(page: Page, title: string) {
   if(await toggle.getAttribute("aria-expanded")!=="true")await toggle.click();
   await page.getByRole("link",{name:title+" 보기",exact:true}).click();
 }
+
+/** Open the visible common conditions group without toggling an already-open group. */
+export async function openTabFilters(page: Page) {
+  const group=page.locator("details.workspace-additional");
+  if(await group.count()&&await group.getAttribute("open")===null)await group.locator("summary").click();
+}

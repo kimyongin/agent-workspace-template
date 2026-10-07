@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from "react";
-import { useSearchParams } from "react-router";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useLocation, useNavigate, useSearchParams } from "react-router";
 import { Field } from "./Field.tsx";
 import "./workspace.css";
 
@@ -40,4 +40,16 @@ export function TabSearch({ entity = false }: { entity?: boolean }) {
 export function resetTabFilters(params: URLSearchParams) {
   return new URLSearchParams([...params].filter(([key]) => ["q", "keyword"].includes(key)));
 }
-export function AppliedConditions(_props: { namesForIds?: Record<string, string>; excluded?: string[] } = {}) { return null; }
+/** Keep text search visible; every optional condition shares one collapsed group. */
+export function TabFilters({active=false,attention=false,children}:{active?:boolean;attention?:boolean;children:ReactNode}) {
+  const [params]=useSearchParams(),location=useLocation(),navigate=useNavigate();
+  const open=params.get("filters")==="1";
+  return <details className="workspace-additional" open={open} onToggle={event=>{
+    const expanded=event.currentTarget.open;if(expanded===open)return;
+    const next=new URLSearchParams(params);expanded?next.set("filters","1"):next.delete("filters");
+    void navigate({pathname:location.pathname,search:next.toString(),hash:location.hash},{replace:true,preventScrollReset:true});
+  }}>
+    <summary aria-expanded={open}>필터 {open?"닫기":"열기"}{attention?" · 확인 필요":active?" · 적용 중":""}</summary>
+    <div className="form">{children}</div>
+  </details>;
+}

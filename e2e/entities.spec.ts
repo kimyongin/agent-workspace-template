@@ -1,5 +1,5 @@
 import { fillChangeMemo } from "./ui-actions.ts";
-import { saveOnce, beginTabAction, openDetailEditor, openListDetail } from "./ui-actions.ts";
+import { saveOnce, beginTabAction, openDetailEditor, openListDetail, openTabFilters } from "./ui-actions.ts";
 import { expect, test } from "@playwright/test";
 import { devLogin, mcpClient, mcpTokenViaConsent, unique } from "./support.ts";
 
@@ -202,7 +202,7 @@ test("Entity 복원: 대상 없음 조회 한도·제목 초점·필터 hash 제
   await page.goto(`/entities?pages=1#entity-${crypto.randomUUID()}`);
   await expect(page.getByRole("heading", { name: "엔터티", exact: true })).toBeFocused();
   expect(requests).toBe(2);
-  await page.getByText("필터",{exact:true}).click();
+  await openTabFilters(page);
   await page.getByLabel("속성 4 필터").selectOption("b");
   await expect(page).not.toHaveURL(/#entity-/);
   expect(new URL(page.url()).searchParams.has("pages")).toBe(false);
@@ -329,7 +329,7 @@ test("Entity 자동 복원 250 상한 뒤 수동 251페이지·같은 cursor 재
   expect(cursors).toHaveLength(252);
   expect(cursors.slice(-2)).toEqual(["page-250", "page-250"]);
   const beforeFilter = cursors.length;
-  await page.getByText("필터",{exact:true}).click();
+  await openTabFilters(page);
   await page.getByLabel("속성 4 필터").selectOption("b");
   await expect(page.locator(".list .item-title")).toHaveCount(1);
   await page.getByLabel("속성 4 필터").selectOption("");
