@@ -9,9 +9,7 @@ import type { periodBounds } from "./activity-filters.ts";
 import {
   anchorId,
   appendItems,
-  listAnchor,
   type ListPage,
-  listReturnPath,
   type LoadedList,
   MAX_RESTORE_PAGES,
   requestedPages,
@@ -39,7 +37,7 @@ export function useActivityList(kind: WorkspaceListKind, {
   const path = `/${kind}${query({ limit: 20, entity_id: entity, tag_ids: tags.length ? tags.join(",") : undefined,
     ...filters, ...(kind === "records" ? { occurred_from: bounds.from, occurred_to: bounds.to } : {}) })}`;
   const scope = q ? `${kind}|${JSON.stringify(input)}` : path;
-  const titleId = `${kind}-title`, route = `/${kind}`;
+  const titleId = `${kind}-title`;
   const errorMessage = `${kind === "tasks" ? "할 일" : "기록"}을 불러오지 못했습니다. 다시 시도하세요.`;
   const navigate = useNavigate();
   const publishPages = (count: number) => {
@@ -166,13 +164,6 @@ export function useActivityList(kind: WorkspaceListKind, {
       if (current()) setBusy(false);
     }
   };
-  const open = (event: React.MouseEvent<HTMLAnchorElement>, id: string) => {
-    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-    event.preventDefault();
-    const back = listReturnPath(kind, params, id, window.scrollY, route);
-    navigate(back, { replace: true });
-    navigate(`/${kind}/${id}?list=${encodeURIComponent(back)}`);
-  };
   return {
     searching: !!q,
     filtered,
@@ -193,10 +184,5 @@ export function useActivityList(kind: WorkspaceListKind, {
       focused.current = "";
       setRetry((n) => n + 1);
     },
-    link: (id: string) => ({
-      id: listAnchor(kind, id),
-      to: `/${kind}/${id}?list=${encodeURIComponent(listReturnPath(kind, params, id, 0, route))}`,
-      onClick: (event: React.MouseEvent<HTMLAnchorElement>) => open(event, id),
-    }),
   };
 }

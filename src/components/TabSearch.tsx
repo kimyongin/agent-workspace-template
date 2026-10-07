@@ -4,6 +4,7 @@ import { Field } from "./Field.tsx";
 import "./workspace.css";
 
 export function clearListPosition(params: URLSearchParams) {
+  params.delete("open");
   ["pages", "tasks_pages", "records_pages", "scroll", "collapsed"].forEach(key => params.delete(key));
   return params;
 }

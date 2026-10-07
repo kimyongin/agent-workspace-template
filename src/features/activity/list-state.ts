@@ -22,6 +22,7 @@ export function listScope(params: URLSearchParams): string {
   scope.delete("scroll");
   scope.delete("collapsed");
   scope.delete("create");
+  scope.delete("open");
   scope.sort();
   return scope.toString();
 }

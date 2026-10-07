@@ -1,7 +1,7 @@
 import { recordDisplayText } from "@contracts/record-display.ts";
 import { SearchMatch } from "../../components/SearchMatch.tsx";
 import { useEffect, useRef, useState } from "react";
-import { Link, Navigate, useLocation, useSearchParams } from "react-router";
+import { Navigate, useLocation, useSearchParams } from "react-router";
 import type { SearchItem } from "@contracts/search.ts";
 import type { TaskResult } from "@contracts/task.ts";
 import { taskLabels } from "@contracts/task.ts";
@@ -12,33 +12,32 @@ import { Field, Notice } from "../../components/Field.tsx";
 import { useCreateMode } from "../../components/useCreateMode.ts";
 import { api } from "../../lib/api.ts";
 import { browserTimezone } from "../../lib/format.ts";
-import { TagDictionaryStatus, TagNames, TagReadProvider, useTagDictionary } from "../tags/TagPicker.tsx";
-import { ChangeContext, recordKindNames } from "./ChangeContext.tsx";
+import { TagDictionaryStatus, TagReadProvider, useTagDictionary } from "../tags/TagPicker.tsx";
+import { recordKindNames } from "./ChangeContext.tsx";
 import { emptyRecord, emptyTask, RecordFormModal, TaskFormModal, taskInput } from "./forms.tsx";
 import { type ActivityItem, useActivityList } from "./useActivityList.ts";
 import { Timeline } from "./Timeline.tsx";
 import { ACTIVITY_TAG_LIMIT, activityTags, periodBounds } from "./activity-filters.ts";
 import { activityLocation, type WorkspaceListKind } from "./activity-location.ts";
 import { EntityScope } from "../entity/EntityScope.tsx";
+import { ListExpansionProvider, ListPreviewItem } from "../relations/ListPreviewItem.tsx";
 import "./activity.css";
 
 function ActivitySection({ kind, tags, bounds, dictionary }: { kind: WorkspaceListKind; tags: string[]; bounds: NonNullable<ReturnType<typeof periodBounds>>; dictionary: ReturnType<typeof useTagDictionary> }) {
   const list = useActivityList(kind, { tags, bounds, layoutReady: !!dictionary.tags || dictionary.failed });
   const { metadata, searching: q, filtered } = list;
   const displayText = (item: ActivityItem) => kind === "records" && "body" in item ? recordDisplayText(item.body) : "title" in item ? item.title : "기록";
-  const heading = (item: ActivityItem) => <div className="activity-item-heading"><Link className="item-title" {...list.link(item.id)}><span className={kind === "records" ? "record-preview" : undefined}>{displayText(item)}</span></Link>{kind === "tasks" && <span className="meta task-list-status">{"status" in item ? taskLabels[item.status as keyof typeof taskLabels] as string : "task_status" in item && item.task_status ? taskLabels[item.task_status] : "할 일"}</span>}</div>;
-  const metadataFor = (item: ActivityItem) => <>{"match" in item && <SearchMatch item={item}/>}<TagNames ids={item.tag_ids} compact/></>;
+  const preview = (item: ActivityItem) => <ListPreviewItem kind={kind} id={item.id} title={displayText(item)} metadata={"match" in item?<SearchMatch item={item}/>:undefined}/>;
   return <section className={`activity-section ${kind}`} aria-label={`${kind === "tasks" ? "할 일" : "기록"} 목록`}>
     {q && <p className="help">관련도순으로 회수한 검색 결과{kind === "records" ? "를 날짜별로 표시합니다." : "입니다."}</p>}
     {metadata?.search_state === "keyword_fallback" && <Notice>의미 검색을 사용할 수 없어 키워드 검색 결과를 표시합니다.</Notice>}
     {metadata && metadata.semantic_coverage.pending + metadata.semantic_coverage.excluded > 0 && <p className="help">의미 색인 대기 {metadata.semantic_coverage.pending}개 · 제외 {metadata.semantic_coverage.excluded}개</p>}
     {list.busy && !list.items && <p role="status" className="secondary">불러오는 중…</p>}
     {list.items?.length === 0 && <p className="secondary">{filtered ? `조건에 맞는 ${kind === "tasks" ? "할 일" : "기록"}이 없습니다.` : `아직 ${kind === "tasks" ? "할 일" : "기록"}이 없습니다.`}</p>}
-    {list.items && <TagReadProvider dictionary={dictionary} enabled={list.items.some(item => item.tag_ids.length > 0)}>
-      {kind === "tasks" ? <ul className="list tasks-list panel">{list.items.map(item => <li key={item.id} className="list-item"><div className="list-item-main">{heading(item)}
-        {"due_on" in item && item.due_on && <span className="meta">기한 {item.due_on}</span>}{metadataFor(item)}</div></li>)}</ul>
-        : <Timeline items={list.items} kind="기록" at={item => "occurred_at" in item ? item.occurred_at : (item as SearchItem).at}>{(item,time) => <>{heading(item)}{"snippet" in item&&<p className="secondary record-snippet">{item.snippet}</p>}<div className="record-metadata">{time}{"change" in item ? <ChangeContext record={item as RecordResult} compact/> : "record_kind" in item && item.record_kind && <span className="meta">{recordKindNames[item.record_kind]}</span>}{"match" in item && <SearchMatch item={item}/>}<TagNames ids={item.tag_ids} compact/></div></>}</Timeline>}
-    </TagReadProvider>}
+    {list.items && <ListExpansionProvider><TagReadProvider dictionary={dictionary} enabled={list.items.some(item => item.tag_ids.length > 0)}>
+      {kind === "tasks" ? <ul className="list disclosure-list panel">{list.items.map(item => <li key={item.id} className="list-item"><div className="list-item-main">{preview(item)}</div></li>)}</ul>
+        : <Timeline items={list.items} kind="기록" at={item => "occurred_at" in item ? item.occurred_at : (item as SearchItem).at}>{item => preview(item)}</Timeline>}
+    </TagReadProvider></ListExpansionProvider>}
     {list.error && <Notice kind="error">{list.error}</Notice>}
     {list.showMoreControl && <button id={`activity-${kind}-page-control`} type="button" className="btn" aria-disabled={list.busy || !list.cursor && !list.error} onClick={list.error ? list.retry : list.more}>{list.busy ? "불러오는 중…" : list.error ? "다시 시도" : list.cursor ? `${kind === "tasks" ? "할 일" : "기록"} 더 보기` : "모두 불러왔습니다"}</button>}
   </section>;
@@ -61,7 +60,7 @@ export function ActivityPage({ kind }: { kind: WorkspaceListKind }) {
   const create = useCreateMode("1");
   const begin = () => { const next = new URLSearchParams(params); next.set("create", "1"); setParams(next); };
   const filter = (name: string, value: string) => { const next = clearListPosition(new URLSearchParams(params)); value ? next.set(name, value) : next.delete(name); setParams(next, { replace: true }); };
-  const setDate = (name: string, value: string) => { const next = new URLSearchParams(params); value ? next.set(name, value) : next.delete(name); if(periodBounds(next.get("from")??"",next.get("to")??"")){next.delete("records_pages");next.delete("pages");next.delete("scroll");} setParams(next, { replace: true }); };
+  const setDate = (name: string, value: string) => { const next = new URLSearchParams(params); value ? next.set(name, value) : next.delete(name); if(periodBounds(next.get("from")??"",next.get("to")??""))clearListPosition(next); setParams(next, { replace: true }); };
   const saved = (kind: string, id: string) => { const next = new URLSearchParams(params); next.delete("create"); create.finish(`/${kind}s/${id}?list=${encodeURIComponent(`${pathname}?${next}`)}`); };
   if (legacy.route !== pathname || legacy.params.toString() !== params.toString()) return <Navigate replace to={`${legacy.route}?${legacy.params}${legacy.hash}`} />;
   return <>

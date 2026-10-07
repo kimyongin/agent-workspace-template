@@ -69,7 +69,7 @@ export function DetailSurface({title, onClose, children, busy = false, footer}: 
   return <RelatedExpansionProvider><SurfaceContext.Provider value={{slot, register, editor:editorRef, busy:busyRef}}>
     <ModalShell open title={editor&&previous?.relatedEditor?`${previous.editorTitle??title} 편집`:editor?.title ?? title} headingLevel={editor?2:1} onClose={dismiss} onCancelEdit={editor?.onClose}
       onRouteDiscard={editor?.onRouteDiscard} dirty={editor?.dirty} busy={busy || editor?.busy}
-      previous={editor&&previous?.relatedEditor?{...previous,back:editor.onClose}:editor ? null : previous} footer={editor?.footer ?? footer}>
+      previous={editor&&(previous?.relatedEditor||previous?.listEditor)?{...previous,back:editor.onClose}:editor ? null : previous} footer={editor?.footer ?? footer}>
       <div hidden={!!editor}>{children}</div>
       <div ref={setSlot} hidden={!editor} />
     </ModalShell>
