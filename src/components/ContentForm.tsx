@@ -117,12 +117,12 @@ function FormContents({title, open, submitLabel, dirty, onClose, onRouteDiscard,
   const register = surface?.register;
   useLayoutEffect(() => {
     if (!open) return;
-    const presentation = {dirty: dirty || uncertain || !!stage, busy, footer};
+    const presentation = {dirty: dirty || uncertain || !!stage || memoTouched.current || !!tags.length, busy, footer};
     if (register) register({title, ...presentation,
       onClose: ()=>callbacks.current.onClose(), onRouteDiscard: ()=>(callbacks.current.onRouteDiscard ?? callbacks.current.onClose)()});
     else present?.(presentation);
     return () => { register?.(null); };
-  }, [register,present,open,title,dirty,uncertain,busy,stage,formId,submitLabel,!!deletion]);
+  }, [register,present,open,title,dirty,uncertain,busy,stage,formId,submitLabel,!!deletion,note,tags]);
   useLayoutEffect(() => {
     if (!registerAction || !open || !stage) return;
     const action = stage === "delete" ? "삭제" : mutation?.action ?? "저장";

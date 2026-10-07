@@ -1,13 +1,14 @@
 import { expect, type Page, type Locator } from "@playwright/test";
 
 /** Complete a save through its public confirmation stage when the domain requires a change record. */
-export async function saveOnce(page: Page, scope: Page | Locator = page, label = "저장") {
+export async function saveOnce(page: Page, scope: Page | Locator = page, label = "저장", waitForWrite = true) {
   const final = page.locator("dialog.modal-action[open]").getByRole("button", {name:/^(등록|수정|중단|재개)하고 저장$|^삭제하고 기록$|^같은 내용 다시 시도$/});
   const requested = scope.getByRole("button", {name:label === "삭제 확인" ? "삭제하고 기록" : label,exact:true});
   if (await requested.isVisible()) {
     await requested.click();
     if ((label === "저장" || label === "추가") && await final.isVisible()) await final.click();
   } else await final.click();
+  if (waitForWrite) await expect(page.locator("dialog.modal-action[open] .modal-foot button:disabled")).toHaveCount(0);
 }
 
 export async function discardEditor(page: Page) {

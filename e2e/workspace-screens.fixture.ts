@@ -736,10 +736,10 @@ test("기록 기간 변경과 잘못된 범위는 할 일을 재조회하지 않
 for(const failure of ["unknown","conflict"] as const)test(`편집 ${failure}: 초안·중복 요청키·Escape 확인 취소`,async({page})=>{
   const state=await fixtures(page,{failWrite:failure});await go(page,`/tasks/${id(2)}?edit=1`);await form(page).getByRole("textbox",{name:/^제목(?: \(필수\))?$/}).fill("보존할 초안");await fillChangeMemo(page,form(page),"정정 이유");await saveOnce(page, form(page));await expect(form(page).getByRole("alert")).toBeVisible();
   await discardEditor(page);const confirm=page.getByRole("dialog",{name:"변경을 버릴까요?"});await confirm.getByRole("button",{name:"취소",exact:true}).click();await expect(form(page).getByRole("textbox",{name:/^제목(?: \(필수\))?$/})).toHaveValue("보존할 초안");
-  if(failure==="unknown"){await expect(form(page).getByRole("textbox",{name:/^제목(?: \(필수\))?$/})).toBeDisabled();await form(page).getByRole("button",{name:"같은 내용 다시 시도"}).click();expect(state.writes[1].body).toEqual(state.writes[0].body);}expect(state.errors).toEqual([]);
+  if(failure==="unknown"){await expect(form(page).getByRole("textbox",{name:/^제목(?: \(필수\))?$/})).toBeDisabled();await form(page).getByRole("button",{name:"같은 내용 다시 시도"}).click();await saveOnce(page,form(page));expect(state.writes[1].body).toEqual(state.writes[0].body);}expect(state.errors).toEqual([]);
 });
 test("busy POP·dirty back/forward·reload·직접 링크",async({page})=>{
-  const state=await fixtures(page,{hold:true});await go(page,"/tasks");await page.getByRole("link",{name:"할 일 편집",exact:true}).click();await fillChangeMemo(page,form(page),"저장 이유");await saveOnce(page, form(page));await state.pending;await page.goBack();await expect(page).toHaveURL(/edit=1/);await expect(page.getByRole("dialog",{name:"변경을 버릴까요?"})).not.toBeVisible();state.release();await expect(page).toHaveURL(/\/tasks\?/);
+  const state=await fixtures(page,{hold:true});await go(page,"/tasks");await page.getByRole("link",{name:"할 일 편집",exact:true}).click();await fillChangeMemo(page,form(page),"저장 이유");await saveOnce(page, form(page),"저장",false);await state.pending;await page.goBack();await expect(page).toHaveURL(/edit=1/);await expect(page.getByRole("dialog",{name:"변경을 버릴까요?"})).not.toBeVisible();state.release();await expect(page).toHaveURL(/\/tasks\?/);
   await page.getByRole("link",{name:"할 일 편집",exact:true}).click();await form(page).getByRole("textbox",{name:/^제목(?: \(필수\))?$/}).fill("버리지 않을 초안");await page.goBack();const confirm=page.getByRole("dialog",{name:"변경을 버릴까요?"});await confirm.getByRole("button",{name:"취소",exact:true}).click();await expect(form(page).getByRole("textbox",{name:/^제목(?: \(필수\))?$/})).toHaveValue("버리지 않을 초안");await page.goBack();await confirm.getByRole("button",{name:"변경 버리기"}).click();await expect(page).toHaveURL(/\/tasks\?/);await page.goForward();await expect(form(page).getByRole("textbox",{name:/^제목(?: \(필수\))?$/})).toHaveValue("할 일");await page.reload();await expect(form(page).getByRole("textbox",{name:/^제목(?: \(필수\))?$/})).toHaveValue("할 일");expect(state.errors).toEqual([]);
 });
 for(const width of [320,360,390,639,640,768,1024,1440])test(`shell ${width}px: 긴 제목·본문 스크롤·키보드·단일 surface`,async({page},info)=>{
@@ -880,9 +880,9 @@ for(const [kind,n] of [["entities",1],["tasks",2],["records",3],["principles",4]
   const state=await fixtures(page);await go(page,`/${kind}/${id(n)}?edit=1`);
   const before=state.writes.length;
   await form(page).getByRole("button",{name:"삭제",exact:true}).click();
-  const confirm=form(page).locator(".delete-action.is-armed");await expect(confirm.getByRole("button",{name:"삭제하고 기록",exact:true})).toBeVisible();
+  const confirm=page.locator("dialog.modal-action[open]");await expect(confirm.getByRole("button",{name:"삭제하고 기록",exact:true})).toBeVisible();
   await expect(page.locator("dialog[open]")).toHaveCount(1);expect(state.writes).toHaveLength(before);
-  await expect(form(page).getByRole("button",{name:"저장",exact:true})).toBeDisabled();
+  await expect(form(page).getByRole("button",{name:"저장",exact:true})).toHaveCount(0);
   await confirm.getByRole("button",{name:"취소",exact:true}).click();await expect(confirm).toHaveCount(0);await expect(form(page).getByRole("button",{name:"삭제",exact:true})).toBeFocused();expect(state.writes).toHaveLength(before);
   await form(page).getByRole("button",{name:"삭제",exact:true}).click();await form(page).getByRole("button",{name:"삭제하고 기록",exact:true}).click();
   await expect.poll(()=>new URL(page.url()).pathname).toBe(`/${kind}`);expect(state.writes).toHaveLength(before+1);expect(state.errors).toEqual([]);
