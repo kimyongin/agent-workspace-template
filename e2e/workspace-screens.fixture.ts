@@ -410,7 +410,7 @@ for(const width of [390,1440])test(`숨긴 scrollbar ${width}px: wheel·PageDown
 const base=(n:number,title:string)=>({id:id(n),title,body:"상세 본문",version:1,created_at:stamp,updated_at:stamp});
 test("할 일 보기에서 완료, 편집 초안은 닫기 확인으로 보호",async({page})=>{
   const state=await fixtures(page);await go(page,"/tasks");await page.getByRole("link",{name:"할 일",exact:true}).click();
-  await form(page).getByRole("button",{name:"완료하고 기록",exact:true}).click();await expect(form(page).getByRole("heading",{name:"할 일 완료",exact:true})).toBeVisible();await form(page).getByRole("button",{name:"닫기",exact:true}).click();await expect(page).not.toHaveURL(/action=/);
+  await form(page).getByRole("button",{name:"완료하고 기록",exact:true}).click();await expect(form(page).getByRole("heading",{name:"할 일 완료",exact:true})).toBeVisible();await form(page).getByRole("button",{name:"취소",exact:true}).click();await expect(page).not.toHaveURL(/action=/);
   await form(page).getByRole("button",{name:"편집",exact:true}).click();await form(page).getByLabel("본문").fill("보존할 초안");await expect(form(page).getByRole("button",{name:"완료하고 기록",exact:true})).toHaveCount(0);
   await form(page).getByRole("button",{name:"닫기",exact:true}).click();const discard=page.getByRole("dialog",{name:"변경을 버릴까요?",exact:true});await discard.getByRole("button",{name:"취소",exact:true}).click();await expect(form(page).getByLabel("본문")).toHaveValue("보존할 초안");
   await form(page).getByRole("button",{name:"닫기",exact:true}).click();await discard.getByRole("button",{name:"변경 버리기",exact:true}).click();await expect(form(page)).toHaveCount(0);await expect(page.locator(`#activity-tasks-${id(2)}`)).toBeFocused();expect(state.writes).toHaveLength(0);expect(state.errors).toEqual([]);
@@ -643,7 +643,7 @@ for(const [kind,title] of [["entities","엔터티"],["tasks","할 일"],["record
   await form(page).getByRole("button",{name:"닫기",exact:true}).click();await expect(page.getByRole("link",{name:"수정한 제목",exact:true})).toBeFocused();
   expect(state.writes.filter(w=>w.method==="PATCH")).toHaveLength(1);expect(state.errors).toEqual([]);
 });
-async function compatibleEdit(page:Page) {await openDetailEditor(page);}
+async function compatibleEdit(page:Page) {if(await form(page).getByRole("button",{name:"편집",exact:true}).isVisible())await openDetailEditor(page);else await expect(form(page).getByRole("button",{name:"저장",exact:true})).toBeVisible();}
 async function fillText(page:Page,title="새 자료") {await expect(form(page).locator("form")).toBeVisible();const input=form(page).getByRole("textbox",{name:/^제목(?: \(필수\))?$/});if(await input.count())await input.fill(title);await form(page).getByRole("textbox",{name:/^본문(?: \(필수\))?$/}).fill(title);}
 
 for(const [kind,label] of [["entities","엔터티"],["tasks","할 일"],["records","기록"]]) {

@@ -1,4 +1,4 @@
-import { openListEditor, openDetailEditor } from "./ui-actions.ts";
+import { openListEditor } from "./ui-actions.ts";
 import { fillChangeMemo, saveOnce } from "./ui-actions.ts";
 import { expect,test } from "@playwright/test";
 const id="00000000-0000-4000-8000-000000000131", stamp="2026-10-06T01:00:00Z";
