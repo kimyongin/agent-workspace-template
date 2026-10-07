@@ -10,10 +10,10 @@ import { changeActionNames } from "./ChangeContext.tsx";
 
 type Change = NonNullable<RecordResult["change"]>;
 const groups = [
-  {kind:"task",title:"연결된 할 일",route:"tasks"},
-  {kind:"entity",title:"연결된 엔터티",route:"entities"},
-  {kind:"principle",title:"연결된 원칙",route:"principles"},
-  {kind:"record",title:"연결된 기록",route:"records"},
+  {kind:"task",title:"할 일",route:"tasks"},
+  {kind:"entity",title:"엔터티",route:"entities"},
+  {kind:"principle",title:"원칙",route:"principles"},
+  {kind:"record",title:"기록",route:"records"},
 ] as const;
 
 /** Event targets and explicit relationships share one section and one card per kind/ID. */

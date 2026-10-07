@@ -28,7 +28,7 @@ for (
       const ready = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
       let editing: Promise<unknown> | undefined, deleting: Promise<unknown> | undefined;
       try {
-        const scope = kind === "entity" ? "entity" : "activity";
+        const scope = kind;
         const first = await t.createTag(
           td,
           f.actor,

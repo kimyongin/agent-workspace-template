@@ -6,7 +6,7 @@ import { type SearchResult } from "@contracts/search.ts";
 import { Field, Notice } from "../../components/Field.tsx";
 import { api } from "../../lib/api.ts";
 import { formatDateTime } from "../../lib/format.ts";
-import { TagFilter, TagNames } from "../tags/TagPicker.tsx";
+import { TagFilter, TagNames, TagReadProvider, useTagDictionary } from "../tags/TagPicker.tsx";
 import { EntityPicker } from "../entity/EntityPicker.tsx";
 import { workspaceSearchScope } from "./search-scope.ts";
 import { activityTags } from "../activity/activity-filters.ts";
@@ -23,6 +23,9 @@ export function SearchPage(){
   const searchParams=new URLSearchParams(params);searchParams.delete("pages");searchParams.delete("scroll");
   const key=searchParams.toString(),q=params.get("q")??"",tag=params.get("tag_id")??"";
   const requested=Number(params.get("pages")??1),pages=Number.isSafeInteger(requested)&&requested>0?Math.min(requested,1000):1;
+  const selectedKind=params.get("kind");
+  const tasks=useTagDictionary(selectedKind!=="record",false,"task"),records=useTagDictionary(selectedKind!=="task",false,"record");
+  const dictionary=selectedKind==="task"?tasks:selectedKind==="record"?records:{tags:tasks.tags&&records.tags?[...tasks.tags.map(tag=>({...tag,name:`할 일: ${tag.name}`})),...records.tags.map(tag=>({...tag,name:`기록: ${tag.name}`}))]:null,failed:tasks.failed||records.failed,retry:()=>{tasks.retry();records.retry();}};
   const input=()=>workspaceSearchScope(params);
   useEffect(()=>{
     let alive=true;const current=++generation.current;setDraft(q);setError(null);focused.current="";
@@ -54,7 +57,8 @@ export function SearchPage(){
     const rect=target.getBoundingClientRect();if(rect.top<0||rect.bottom>window.innerHeight)target.scrollIntoView({block:"center"});
     focused.current=hash;
   },[hash,result,busy]);
-  const change=(name:string,value:string)=>{const p=new URLSearchParams(params);p.delete("pages");p.delete("scroll");value?p.set(name,value):p.delete(name);setParams(p);};
+  const change=(name:string,value:string)=>{const p=new URLSearchParams(params);p.delete("pages");p.delete("scroll");if(name==="kind"){p.delete("tag_id");p.delete("tag_ids");}value?p.set(name,value):p.delete(name);setParams(p);};
+  const clearTags=()=>{const next=new URLSearchParams(params);for(const name of ["tag_id","tag_ids","pages","scroll"])next.delete(name);setParams(next);};
   const more=async()=>{
     if(!result?.next_cursor)return;const current=generation.current;setBusy(true);setError(null);
     try{const next=await api<SearchResult>("POST","/search",{...input(),cursor:result.next_cursor},pending.current?.signal);if(current===generation.current){
@@ -77,8 +81,8 @@ export function SearchPage(){
       <Field label="검색 방식">{p=><select {...p} className="input" value={params.get("mode")??"auto"} onChange={e=>change("mode",e.target.value)}><option value="auto">자동</option><option value="keyword">키워드</option></select>}</Field>
     </div>
     <p className="help">현재 원칙은 원칙 탭에서 확인하고, 과거 변경과 근거는 기록을 검색해 원문을 읽으세요.</p>
-    {params.has("tag_ids")&&<div className="form"><TagNames ids={activityTags(params)}/><button type="button" className="btn" onClick={()=>change("tag_ids","")}>저장된 태그 조건 해제</button></div>}
-    <TagFilter value={tag} onChange={id=>{const next=new URLSearchParams(params);next.delete("tag_ids");next.delete("pages");next.delete("scroll");id?next.set("tag_id",id):next.delete("tag_id");setParams(next);}}/>
+    {(params.has("tag_ids")||selectedKind==="principle"&&!!tag)&&<div className="form"><TagReadProvider dictionary={dictionary}><TagNames ids={activityTags(params)}/></TagReadProvider><button type="button" className="btn" onClick={clearTags}>저장된 태그 조건 해제</button></div>}
+    {selectedKind!=="principle"&&<TagFilter dictionary={dictionary} value={tag} onChange={id=>{const next=new URLSearchParams(params);next.delete("tag_ids");next.delete("pages");next.delete("scroll");id?next.set("tag_id",id):next.delete("tag_id");setParams(next);}}/>}
     <EntityPicker value={params.get("entity_id")??""} onChange={id=>change("entity_id",id??"")}/>
     <div className="search-filters">{["from","to"].map(name=><Field key={name} label={name==="from"?"기간 시작":"기간 끝"}>{p=><input {...p} type="datetime-local" className="input" value={params.get(name)??""} onChange={e=>change(name,e.target.value)}/>}</Field>)}</div>
     </div></details>

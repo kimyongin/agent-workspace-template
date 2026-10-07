@@ -1,4 +1,4 @@
-import { assertEquals, assertMatch, assertRejects } from "@std/assert";
+import { assertEquals, assertMatch, assertRejects, assertThrows } from "@std/assert";
 import { SqlTagUnitOfWork } from "../../functions/_shared/adapters/supabase/tag-store.ts";
 import { SqlEntityUnitOfWork } from "../../functions/_shared/adapters/supabase/entity-store.ts";
 import { SqlUnitOfWork } from "../../functions/_shared/adapters/supabase/activity-store.ts";
@@ -29,8 +29,46 @@ dbTest(
         activityTag = await tags.createTag(
           td,
           A,
-          tagCreate.parse({ id: crypto.randomUUID(), ...{ scope: "activity", name: "분류" } }),
+          tagCreate.parse({ id: crypto.randomUUID(), ...{ scope: "record", name: "분류" } }),
         );
+      const taskTag = await tags.createTag(
+        td,
+        A,
+        tagCreate.parse({ id: crypto.randomUUID(), scope: "task", name: "분류" }),
+      );
+      for (const tag of [entityTag, activityTag]) {
+        await assertRejects(() =>
+          a.createTask(
+            ad,
+            A,
+            taskCreate.parse({ id: crypto.randomUUID(), kind: "once", title: "scope 거부", tag_ids: [tag.id] }),
+          )
+        );
+      }
+      await assertRejects(() =>
+        a.createRecord(
+          ad,
+          A,
+          recordCreate.parse({ id: crypto.randomUUID(), body: "task scope 거부", tag_ids: [taskTag.id] }),
+        )
+      );
+      const task = await a.createTask(
+        ad,
+        A,
+        taskCreate.parse({ id: crypto.randomUUID(), kind: "once", title: "독립 분류", tag_ids: [taskTag.id] }),
+      );
+      assertMatch(
+        await outcome(
+          asUser(
+            sql,
+            A.userId,
+            (tx) =>
+              tx`insert into app.task_tags(owner_id,task_id,tag_id) values(${A.userId},${task.id},${activityTag.id})`,
+          ),
+        ),
+        /^23503/,
+      );
+      assertThrows(() => tagListQuery.parse({ scope: "activity" }));
       await assertRejects(() =>
         tags.createTag(td, A, tagCreate.parse({ id: crypto.randomUUID(), ...{ scope: "entity", name: "분류" } }))
       );
@@ -90,6 +128,21 @@ dbTest(
           ...{ body: "보존", tag_ids: [activityTag.id] },
         }),
       );
+      assertMatch(
+        await outcome(
+          asUser(
+            sql,
+            A.userId,
+            (tx) =>
+              tx`insert into app.record_tags(owner_id,record_id,tag_id) values(${A.userId},${record.id},${taskTag.id})`,
+          ),
+        ),
+        /^23503/,
+      );
+      await tags.renameTag(td, A, taskTag.id, { name: "할 일만 정정", expected_version: taskTag.version });
+      assertEquals((await tags.listTags(td, A, tagListQuery.parse({ scope: "record" }))).items.map((tag) => tag.name), [
+        "분류",
+      ]);
       assertEquals(
         (await a.listRecords(ad, A, recordListQuery.parse({ tag_id: activityTag.id }))).items.map((r) => r.id),
         [record.id],
@@ -109,7 +162,7 @@ dbTest(
       await tags.createTag(td, A, tagCreate.parse({ id: crypto.randomUUID(), ...{ scope: "entity", name: "둘째" } }));
       const page = await tags.listTags(td, A, tagListQuery.parse({ scope: "entity", limit: 1 }));
       await assertRejects(() =>
-        tags.listTags(td, A, tagListQuery.parse({ scope: "activity", cursor: page.next_cursor! }))
+        tags.listTags(td, A, tagListQuery.parse({ scope: "record", cursor: page.next_cursor! }))
       );
       await tags.deleteTag(td, A, entityTag.id, entityTag.version);
       assertEquals((await e.getEntity(ed, A, entity.id)).tag_ids, []);

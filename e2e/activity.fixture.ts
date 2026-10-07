@@ -82,19 +82,16 @@ test("옛 반대 목록 anchor는 같은 기록 ID와 초점으로 명시 변환
   expect(reads).toEqual(["/api/records"]);expect(writes).toEqual([]);
 });
 
-test("다중 대상의 label 전체는44px 누름 영역이고 클릭·키보드로 선택한다",async({page})=>{
+test("연결 카드 행동은44px 누름 영역이고 클릭·키보드로 연결/해제한다",async({page})=>{
   const entity={id:id(8),prop1:"함",prop2:null,prop3:null,prop4:"a",version:1};
   await page.route("http://127.0.0.1:55581/api/**",route=>route.fulfill({json:{items:new URL(route.request().url()).pathname.endsWith("/entities")?[entity]:[],next_cursor:null}}));
   await page.goto("/e2e/fixtures/activity.html?route=/records?create=1");
   await page.getByRole("searchbox",{name:"엔터티 제목 검색",exact:true}).fill("함");
-  const checkbox=page.getByRole("checkbox",{name:"함",exact:true});
-  const label=checkbox.locator("..");
   for(const width of [320,360,390,639,640,768,1024,1440]){
-    await page.setViewportSize({width,height:900});await expect(checkbox).toBeEnabled();
-    const box=(await label.boundingBox())!;
-    expect(box.width).toBeGreaterThanOrEqual(44);expect(box.height).toBeGreaterThanOrEqual(44);
-    await label.click({position:{x:box.width-6,y:box.height/2}});await expect(checkbox).toBeChecked();
-    await expect(checkbox).toBeFocused();await page.keyboard.press("Space");await expect(checkbox).not.toBeChecked();
+    await page.setViewportSize({width,height:900});const connect=page.getByRole("button",{name:"함 연결",exact:true});await expect(connect).toBeEnabled();
+    const box=(await connect.boundingBox())!;expect(box.width).toBeGreaterThanOrEqual(44);expect(box.height).toBeGreaterThanOrEqual(44);
+    await connect.click();const unlink=page.getByRole("button",{name:"함 연결 해제",exact:true});await expect(unlink).toBeFocused();
+    await page.keyboard.press("Space");await expect(unlink).toHaveCount(0);await expect(page.getByRole("searchbox",{name:"엔터티 제목 검색"})).toBeFocused();
     expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
   }
 });

@@ -22,8 +22,8 @@ dbTest("change record tags are separate, owner-scoped, atomic and carried throug
   const f = await fixtureOwner(admin), other = await fixtureOwner(admin);
   try {
     const tags = await admin`insert into app.tags(owner_id,name,scope) values
-      (${f.actor.userId},'원본','entity'),(${f.actor.userId},'기록','activity'),(${other.actor.userId},'다른 사용자','activity') returning id,owner_id,scope`;
-    const own = tags.find((t) => t.scope === "activity" && t.owner_id === f.actor.userId)!.id as string;
+      (${f.actor.userId},'원본','entity'),(${f.actor.userId},'기록','record'),(${other.actor.userId},'다른 사용자','record') returning id,owner_id,scope`;
+    const own = tags.find((t) => t.scope === "record" && t.owner_id === f.actor.userId)!.id as string;
     const entityTag = tags.find((t) => t.scope === "entity")!.id as string;
     const foreign = tags.find((t) => t.owner_id === other.actor.userId)!.id as string;
     const events = () =>

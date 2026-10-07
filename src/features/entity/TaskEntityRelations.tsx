@@ -2,57 +2,13 @@ import { useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { SurfaceContext } from "../../components/Modal.tsx";
 import { useLocation } from "react-router";
 import { useDetailViewState } from "../../lib/detail-exploration.tsx";
-import type { EntityDetail, EntityResult } from "@contracts/entity.ts";
+import type { EntityDetail } from "@contracts/entity.ts";
 import type { TaskResult } from "@contracts/task.ts";
 import { FormModal } from "../../components/ContentForm.tsx";
-import { Field, Notice } from "../../components/Field.tsx";
+import { Notice } from "../../components/Field.tsx";
 import { RelatedItem, RelatedSection } from "../../components/RelatedItems.tsx";
 import { api, query } from "../../lib/api.ts";
-
-type Candidate = {id:string;title:string;entityIds?:string[]};
-type CandidatePage = {items:Candidate[];next_cursor:string|null};
-/** Current-title lookup, shared by the two directions of the same relationship. */
-function RelationSearch({kind,excluded,onChoose,disabled,revision}: {kind:"entity"|"task";excluded:(item:Candidate)=>boolean;onChoose:(item:Candidate)=>void;disabled:boolean;revision?:number|EntityDetail["tasks"]}) {
-  const label=kind==="entity"?"엔터티":"할 일";
-  const [view,setView]=useDetailViewState(`relation-search-${kind}`,{draft:"",pages:1});
-  const draft=view.draft,setDraft=(draft:string)=>setView({draft,pages:1});
-  const [composing,setComposing]=useState(false),[retry,setRetry]=useState(0);
-  const [result,setResult]=useState<CandidatePage|null>(null),[pending,setPending]=useState(!!draft.trim()),[failed,setFailed]=useState(false);
-  const request=useRef<AbortController|null>(null),immediate=useRef(false),keyword=draft.trim();
-  const load=async(controller:AbortController,cursor?:string|null)=>{
-    setPending(true);setFailed(false);
-    try {
-      const page=kind==="entity"
-        ? await api<{items:EntityResult[];next_cursor:string|null}>("GET",`/entities${query({keyword,limit:20,cursor})}`,undefined,controller.signal)
-        : await api<{items:TaskResult[];next_cursor:string|null}>("GET",`/tasks${query({keyword,limit:20,cursor})}`,undefined,controller.signal);
-      if(controller.signal.aborted)return;
-      const items=page.items.map(item=>({id:item.id,title:"prop1" in item?item.prop1:item.title,...("entity_ids" in item?{entityIds:item.entity_ids}:{})}));
-      setResult(prior=>({next_cursor:page.next_cursor,items:cursor?[...(prior?.items??[]),...items.filter(item=>!prior?.items.some(old=>old.id===item.id))]:items}));
-      return page.next_cursor;
-    } catch {if(!controller.signal.aborted)setFailed(true);}
-    finally {if(!controller.signal.aborted)setPending(false);}
-  };
-  useEffect(()=>{
-    const controller=new AbortController();request.current=controller;setResult(null);setPending(!!keyword&&!composing);setFailed(false);
-    const delay=immediate.current?0:300;immediate.current=false;
-    if(!keyword||composing)return()=>controller.abort();
-    const timer=setTimeout(()=>void (async()=>{let cursor:string|null|undefined;for(let page=0;page<Math.min(view.pages,250);page++){cursor=await load(controller,cursor);if(!cursor||controller.signal.aborted)break;}})(),delay);
-    return()=>{clearTimeout(timer);controller.abort();request.current?.abort();};
-  },[keyword,composing,retry,kind,revision]);
-  const more=()=>{request.current?.abort();const controller=new AbortController();request.current=controller;void load(controller,result?.next_cursor).then(cursor=>{if(cursor!==undefined&&!controller.signal.aborted)setView(prior=>({...prior,pages:prior.pages+1}));});};
-  return <div className="related-search">
-    <Field label={`${label} 제목 검색`}>{props=><input {...props} autoFocus type="search" maxLength={100} className="input" placeholder="제목으로 검색" value={draft} disabled={disabled}
-      onChange={e=>setDraft(e.target.value)} onCompositionStart={()=>setComposing(true)} onCompositionEnd={()=>setComposing(false)}
-      onKeyDown={e=>{if(e.key!=="Enter")return;e.preventDefault();if(composing||e.nativeEvent.isComposing||e.nativeEvent.keyCode===229)return;immediate.current=true;setRetry(n=>n+1);}}/>}</Field>
-    {pending&&<p className="secondary" role="status" aria-label="후보 검색">불러오는 중…</p>}
-    {failed&&<><Notice kind="error">검색하지 못했습니다.</Notice><button className="btn" type="button" disabled={pending||disabled} onClick={()=>result?.next_cursor?more():setRetry(n=>n+1)}>검색 다시 시도</button></>}
-    {result&&<div className="related-search-results" role="group" aria-label={`${label} 검색 결과`}>
-      {result.items.filter(item=>!excluded(item)).map(item=><RelatedItem key={item.id} to={`/${kind==="entity"?"entities":"tasks"}/${item.id}`} restoreKey={`relation-candidate-${kind}-${item.id}`} title={item.title} action={<button className="btn btn-text" type="button" aria-disabled={disabled} aria-label={`${item.title} 연결`} onClick={()=>{if(!disabled)onChoose(item);}}>연결</button>}/>)}
-      {!result.items.length&&!pending&&<p className="secondary">검색 결과가 없습니다.</p>}
-      {result.next_cursor&&<button type="button" className="btn btn-text" disabled={pending||disabled} onClick={more}>검색 결과 더 보기</button>}
-    </div>}
-  </div>;
-}
+import { RelationSearch, type Candidate } from "../relations/RelationSearch.tsx";
 
 type Mutation = {task:TaskResult;entity:Candidate;remove:boolean;ids:string[]};
 /** Both directions patch the task's single membership field; no mirrored entity state. */
@@ -79,7 +35,7 @@ function RelationControls({task,entityId,entityTitle,revision,children,onSaved}:
   const kind=task?"entity":"task",label=task?"엔터티":"할 일";
   const unlink=(item:Candidate)=><button type="button" className="btn btn-text" aria-label={`${item.title} 연결 해제`} aria-disabled={preparing} onClick={()=>void prepare(item,true)}>연결 해제</button>;
   return <>
-    {children({button:<button type="button" className="btn btn-text" aria-expanded={searching} disabled={preparing} onClick={()=>setSearching(value=>!value)}>{searching?"검색 닫기":`${label} 연결`}</button>,unlink,
+    {children({button:<button type="button" className="btn btn-text" aria-label={searching?`${label} 검색 닫기`:`${label} 연결`} aria-expanded={searching} disabled={preparing} onClick={()=>setSearching(value=>!value)}>{searching?"검색 닫기":"연결"}</button>,unlink,
       search:<>{error&&<Notice kind="error">{error}</Notice>}{preparing&&<p className="secondary" role="status">연결 확인 중…</p>}{searching&&<RelationSearch kind={kind} revision={task?.version??revision} disabled={preparing} excluded={item=>task?task.entity_ids.includes(item.id):!!item.entityIds?.includes(entityId!)} onChoose={item=>void prepare(item,false)}/>}</>})}
     {mutation&&<FormModal open confirmationOnly title={mutation.remove?"연결 해제":"연결"} submitLabel="저장" dirty={false}
       mutation={{target:`${mutation.task.title} — ${mutation.entity.title}`,action:mutation.remove?"연결 해제":"연결",message:mutation.remove?"연결만 해제하며 원문과 과거 기록은 유지합니다.":undefined}}
@@ -89,7 +45,7 @@ function RelationControls({task,entityId,entityTitle,revision,children,onSaved}:
 }
 
 export function TaskEntityRelations({task,onSaved}: {task:TaskResult;onSaved:(saved?:TaskResult,before?:TaskResult)=>void}) {
-  return <RelationControls key={task.id} task={task} onSaved={onSaved}>{({search,button,unlink})=><RelatedSection title="연결된 엔터티" count={task.entity_ids.length} action={button}>
+  return <RelationControls key={task.id} task={task} onSaved={onSaved}>{({search,button,unlink})=><RelatedSection title="엔터티" count={task.entity_ids.length} action={button}>
     {search}<ul className="related-items">{task.entity_ids.map(id=>{const item={id,title:task.entity_context.find(item=>item.id===id)?.title??"엔터티"};return <li key={id}><RelatedItem to={`/entities/${id}`} title={item.title} action={unlink(item)}/></li>;})}</ul>
   </RelatedSection>}</RelationControls>;
 }
@@ -105,7 +61,7 @@ export function EntityTaskRelations({entity,onCreate,onSaved}: {entity:EntityDet
       if(!controller.signal.aborted){setItems(prior=>[...prior,...page.items.filter(item=>!prior.some(old=>old.id===item.id))]);setCursor(page.next_cursor);}}
     catch{if(!controller.signal.aborted)setFailed(true);}finally{if(!controller.signal.aborted)setLoading(false);}
   };
-  return <RelationControls key={entity.id} entityId={entity.id} entityTitle={entity.prop1} revision={entity.tasks} onSaved={onSaved}>{({search,button,unlink})=><RelatedSection title="연결된 할 일" count={entity.tasks.count} action={<div className="actions"><button type="button" className="btn btn-text" onClick={onCreate}>할 일 작성</button>{button}</div>}>
+  return <RelationControls key={entity.id} entityId={entity.id} entityTitle={entity.prop1} revision={entity.tasks} onSaved={onSaved}>{({search,button,unlink})=><RelatedSection title="할 일" count={entity.tasks.count} action={<div className="actions"><button type="button" className="btn btn-text" aria-label="할 일 작성" onClick={onCreate}>작성</button>{button}</div>}>
     {search}<ul className="related-items">{items.map(item=><li key={item.id}><RelatedItem to={`/tasks/${item.id}`} title={item.title} action={unlink(item)}/></li>)}</ul>
     {failed&&<Notice kind="error">연결된 할 일을 불러오지 못했습니다.</Notice>}
     {(failed||cursor||cursor===undefined&&entity.tasks.count>items.length)&&<button type="button" className="btn btn-text" disabled={loading} onClick={()=>void more()}>{loading?"불러오는 중…":failed?"할 일 다시 시도":"할 일 더 보기"}</button>}

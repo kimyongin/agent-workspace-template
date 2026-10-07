@@ -1,6 +1,7 @@
 import type { DeletionOptions } from "../../components/DeleteAction.tsx";
 // 할 일·기록 작성/편집 폼. 검증은 서버와 같은 contracts로 하고, 저장 실패 시 초안을 유지한다.
 import { TagPicker } from "../tags/TagPicker.tsx";
+import { RelationPicker } from "../relations/RelationPicker.tsx";
 import { EntityMultiPicker } from "../entity/EntityPicker.tsx";
 import { recordCreate, recordLabels } from "@contracts/record.ts";
 import { type Recurrence, taskCreate, taskLabels } from "@contracts/task.ts";
@@ -16,6 +17,7 @@ const WEEKDAYS = ["월", "화", "수", "목", "금", "토", "일"];
 
 export interface RecordDraft {
   body: string;
+  task_id?:string;
   entity_ids?:string[];
   entity_context?:EntityContext[];
   tag_ids:string[];
@@ -44,17 +46,19 @@ export function RecordFormModal(props: {
   details?: ReactNode;
   deletion?: DeletionOptions;
   entityEditable?:boolean;
+  taskEditable?:boolean;
   systemRecord?: boolean;
   editing?: boolean;
   onClose: () => void;
   onRouteDiscard?: () => void;
-  onSave: (value: { body: string; occurred_at?: string; tag_ids?:string[];entity_ids?:string[] }, creationId: () => string) => Promise<void>;
+  onSave: (value: { body: string; occurred_at?: string; tag_ids?:string[];entity_ids?:string[];task_id?:string }, creationId: () => string) => Promise<void>;
 }) {
   const [initial] = useState(props.initial);
   const [draft, setDraft] = useState(initial);
   const dirty = JSON.stringify(draft) !== JSON.stringify(initial);
   const value = () => ({
     body: draft.body,
+    ...(!props.editing&&props.taskEditable!==false&&props.entityEditable!==false?{task_id:draft.task_id}:{}),
     occurred_at: recordDraftTime(draft),
     tag_ids:draft.tag_ids,
     ...(props.entityEditable===false?{}:{entity_ids:draft.entity_ids??[]}),
@@ -80,6 +84,7 @@ export function RecordFormModal(props: {
           <section className="detail-section form"><Field label="본문" required error={errors.body}>{p=><textarea {...p} className="input" rows={8} placeholder="내용과 근거를 작성하세요 (마크다운)" value={draft.body} onChange={e=>setDraft(d=>({...d,body:e.target.value}))}/>}</Field></section>
           {!props.systemRecord && <section className="detail-section form">
           <TagPicker value={draft.tag_ids} error={errors.tag_ids} onChange={tag_ids=>setDraft(d=>({...d,tag_ids}))}/>
+          {!props.editing&&props.taskEditable!==false&&props.entityEditable!==false&&<RelationPicker kind="task" value={draft.task_id?[draft.task_id]:[]} error={errors.task_id} onChange={ids=>setDraft(d=>({...d,task_id:ids[0]}))}/>}
           {props.entityEditable!==false&&<EntityMultiPicker value={draft.entity_ids??[]} context={draft.entity_context} error={errors.entity_ids} onChange={entity_ids=>setDraft(d=>({...d,entity_ids}))}/>}
           <Field label={recordLabels.occurred_at} error={errors.occurred_at} >
             {(p) => (
@@ -232,7 +237,7 @@ export function TaskFormModal(props: {
           <TextFields draft={draft} set={set} errors={errors} />
           <section className="detail-section form">
           {props.mode === "create" && <EntityMultiPicker value={draft.entity_ids??[]} context={draft.entity_context} error={errors.entity_ids} onChange={entity_ids=>set({entity_ids})}/>}
-          <TagPicker value={draft.tag_ids} error={errors.tag_ids} onChange={tag_ids=>set({tag_ids})}/>
+          <TagPicker scope="task" value={draft.tag_ids} error={errors.tag_ids} onChange={tag_ids=>set({tag_ids})}/>
           </section><section className="detail-section form">
           {draft.kind === "once"
             ? (

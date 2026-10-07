@@ -13,8 +13,8 @@ httpTest("Entity MCP: 실제 SDK/OAuth CRUD·태그 scope·웹 parity·참조 �
       scope: "entity",
     });
     const activityTag = await tool(client, "create_tag", {
-      name: "activity" + crypto.randomUUID().slice(0, 20),
-      scope: "activity",
+      name: "record" + crypto.randomUUID().slice(0, 20),
+      scope: "record",
     });
     const e = await tool(client, "create_entity", {
       prop1: "MCP 엔터티",

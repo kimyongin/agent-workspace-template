@@ -173,7 +173,7 @@ export function TaskDetailPage() {
             </div>
           )}
         </dl>
-        <TagNames compact ids={task.tag_ids}/>
+        <TagNames scope="task" compact ids={task.tag_ids}/>
         {task.kind==="once"&&task.status==="done"&&!task.result_record&&<p className="secondary">결과 기록이 삭제되었습니다.</p>}
       </section>
 
@@ -226,7 +226,7 @@ export function TaskDetailPage() {
   </>}>
       <div className="detail-stack">{management}
       <TaskEntityRelations task={task} onSaved={(saved,before)=>{if(before)relationSaved.current=true;if(saved)setTask(current=>current?{...current,...saved}:current);setRecordRefresh(n=>n+1);void reload();}}/>
-      <RelatedRecords taskId={task.id} revision={task.version+recordRefresh} action={<button type="button" className="btn btn-text" onClick={()=>manage("record")}>기록 작성</button>}/>
+      <RelatedRecords taskId={task.id} revision={task.version+recordRefresh} action={<button type="button" className="btn btn-text" aria-label="기록 작성" onClick={()=>manage("record")}>작성</button>}/>
       {occurrenceSection}</div>
       {dialog === "edit" && editReady && (
         <TaskFormModal
@@ -270,9 +270,9 @@ export function TaskDetailPage() {
         />
       )}
       {dialog === "record" && <RecordFormModal title="기록 작성" submitLabel="저장" open
-        initial={{...emptyRecord(),entity_ids:task.entity_ids,entity_context:task.entity_context}}
+        initial={{...emptyRecord(),task_id:task.id,entity_ids:task.entity_ids,entity_context:task.entity_context}}
         onClose={closeManagement} onRouteDiscard={()=>setDialog(null)}
-        onSave={async(value,creationId)=>{await api("POST","/records",{...value,id:creationId(),task_id:task.id});closeManagement();setRecordRefresh(n=>n+1);}}/>}
+        onSave={async(value,creationId)=>{await api("POST","/records",{...value,id:creationId()});closeManagement();setRecordRefresh(n=>n+1);}}/>}
       {task.kind==="recurring"&&<TaskTransitionForm key={`${task.id}:${task.version}`} open={dialog==="transition"} task={task} onClose={closeManagement} onSaved={async()=>{closeManagement();setMessage(task.status==="active"?"중단했습니다. 오늘부터 회차가 없습니다.":"재개했습니다.");await reload();}}/>}
       {dialog === "complete" && (
         <RecordFormModal
@@ -295,6 +295,7 @@ export function TaskDetailPage() {
       {dialog && typeof dialog === "object" && (
         <RecordFormModal
           title={`${dialog.occurrence} 회차 기록`}
+          taskEditable={false}
           submitLabel="기록 저장"
           open
           initial={{...emptyRecord(),entity_ids:task.entity_ids,entity_context:task.entity_context}}

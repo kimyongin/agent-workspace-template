@@ -16,7 +16,7 @@ dbTest("no-op recurring rule object order and tag set order preserve version/ind
   const f = await fixtureOwner(admin);
   try {
     const tags =
-      await admin`insert into app.tags(owner_id,name,scope) values(${f.actor.userId},'one','activity'),(${f.actor.userId},'two','activity') returning id`;
+      await admin`insert into app.tags(owner_id,name,scope) values(${f.actor.userId},'one','task'),(${f.actor.userId},'two','task') returning id`;
     const tag_ids = tags.map((t) => t.id as string),
       recurrence = { freq: "daily", starts_on: "2020-01-01" };
     const task = await a.createTask(

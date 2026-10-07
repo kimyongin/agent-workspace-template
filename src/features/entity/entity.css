@@ -5,11 +5,3 @@
 .entity-list-properties > div { display: flex; gap: var(--space-2); min-width: 0; }
 .entity-list-properties dt { color: var(--muted-ink); }
 .entity-list-properties dd { margin: 0; overflow-wrap: anywhere; }
-.entity-picker { display: grid; gap: var(--space-3); min-width: 0; }
-.entity-choice { display: flex; align-items: center; gap: var(--space-2); min-height: 44px; padding: var(--space-2); overflow-wrap: anywhere; cursor: pointer; }
-.entity-candidates { display: grid; gap: var(--space-1); }
-
-.entity-choice .item-title { min-width: 0; overflow-wrap: anywhere; }
-.entity-choice input { flex: 0 0 auto; }
-.entity-candidates { gap: var(--space-2); }
-.entity-picker [aria-label="엔터티 검색 결과"] { max-height: 16rem; overflow-y: auto; }

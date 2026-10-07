@@ -14,8 +14,8 @@ test("general record selects two entities in web; MCP, both related views and de
     const form = page.getByRole("dialog", { name: "기록 작성", exact: true });
     await form.getByRole("textbox", { name: /^본문/ }).fill(label + " 자료");
     await form.getByRole("searchbox", { name: "엔터티 제목 검색", exact: true }).fill(label);
-    await form.getByRole("checkbox", { name: first.prop1, exact: true }).check();
-    await form.getByRole("checkbox", { name: second.prop1, exact: true }).check();
+    await form.getByRole("button", { name: first.prop1+" 연결", exact: true }).click();
+    await form.getByRole("button", { name: second.prop1+" 연결", exact: true }).click();
     await form.getByRole("button", { name: "저장", exact: true }).click();
     await expect(page).toHaveURL(/\/records\/[0-9a-f-]{36}/);
     recordId = new URL(page.url()).pathname.split("/").at(-1)!;
@@ -30,7 +30,7 @@ test("general record selects two entities in web; MCP, both related views and de
     await mcp.call("delete_entity", { id: first.id, expected_version: first.version }); firstDeleted = true;
     await page.goto(`/records/${recordId}`); await openDetailEditor(page);
     const edit = page.getByRole("dialog", { name: "기록 편집", exact: true });
-    await expect(edit.getByRole("checkbox", { name: first.prop1, exact: true })).toBeChecked();
+    await expect(edit.getByRole("button", { name: first.prop1+" 연결 해제", exact: true })).toBeVisible();
     await edit.getByRole("textbox", { name: /^본문/ }).fill("대상 삭제 후에도 자료를 보존");
     await edit.getByRole("button", { name: "저장", exact: true }).click();
     await expect(edit).not.toBeVisible();
@@ -58,7 +58,7 @@ test("web occurrence defaults preserve both task targets rather than the legacy 
     await page.goto(`/tasks/${task.id}`);
     await page.getByRole("button", { name: `${date} 회차 기록`, exact: true }).click();
     const form = page.getByRole("dialog", { name: `${date} 회차 기록`, exact: true });
-    for (const target of targets) await expect(form.getByRole("checkbox", { name: target.prop1, exact: true })).toBeChecked();
+    for (const target of targets) await expect(form.getByRole("button", { name: target.prop1+" 연결 해제", exact: true })).toBeVisible();
     await form.getByLabel("본문",{exact:false}).fill("두 대상의 회차 수행 결과");
     await form.getByRole("button", { name: "기록 저장", exact: true }).click();
     await expect(form).not.toBeVisible();

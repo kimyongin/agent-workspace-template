@@ -4,7 +4,7 @@ import { Link, useLocation, useNavigate, type LinkProps, type NavigateOptions, t
 type Frame = { key: string; path: string; title: string; scroll: number; focusKey: string };
 type TrailState = { detailScope: string; detailTrail: Frame[] };
 const Snapshots = createContext<{scope: string; frames: Map<string, Frame>; views: Map<string, unknown>} | null>(null);
-const detailPath = /^\/(?:(entities|tasks|records|principles)\/[^/?#]+|tags(?:\/(?:entity|activity))?)$/;
+const detailPath = /^\/(?:(entities|tasks|records|principles)\/[^/?#]+|tags(?:\/(?:entity|task|record))?)$/;
 const tagOrigin = /^\/(entities|tasks|records|settings)$/;
 
 /** Recover only this owner's list context, even after crossing several detail kinds. */

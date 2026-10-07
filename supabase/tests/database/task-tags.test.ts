@@ -16,7 +16,7 @@ dbTest("할 일 태그: 회차 날짜와 태그 결합 필터", async () => {
   const tag = await createTag(
     tags,
     A,
-    tagCreate.parse({ id: crypto.randomUUID(), ...{ name: crypto.randomUUID().slice(0, 30) } }),
+    tagCreate.parse({ id: crypto.randomUUID(), ...{ scope: "task", name: crypto.randomUUID().slice(0, 30) } }),
   );
   const base = {
     kind: "recurring",
@@ -37,7 +37,7 @@ dbTest("할 일 태그: 필터·부분 수정·삭제 후 원문·색인 보존"
   const tag = await createTag(
     tags,
     A,
-    tagCreate.parse({ id: crypto.randomUUID(), ...{ name: crypto.randomUUID().slice(0, 30) } }),
+    tagCreate.parse({ id: crypto.randomUUID(), ...{ scope: "task", name: crypto.randomUUID().slice(0, 30) } }),
   );
   const task = await createTask(
     deps,
@@ -79,7 +79,7 @@ dbTest("할 일 태그: 다른 소유자·없는 태그·중복·10개 초과 �
   const foreign = await createTag(
     tags,
     B,
-    tagCreate.parse({ id: crypto.randomUUID(), ...{ name: crypto.randomUUID().slice(0, 30) } }),
+    tagCreate.parse({ id: crypto.randomUUID(), ...{ scope: "task", name: crypto.randomUUID().slice(0, 30) } }),
   );
   for (const id of [foreign.id, crypto.randomUUID()]) {
     await assertRejects(

@@ -16,11 +16,13 @@ dbTest("검색: 한국어 본문·literal 와일드카드·상태·태그·기�
     tagId = crypto.randomUUID(),
     entity = crypto.randomUUID(),
     scopeTag = crypto.randomUUID(),
+    taskTag = crypto.randomUUID(),
     at = "2001-03-04T00:00:00.000Z";
   await asUser(sql, users.a, async (tx) => {
     await tx`insert into app.entities(id,owner_id,prop1) values(${entity},${users.a},'검색 범위')`;
     await tx`insert into app.tags(id,owner_id,name) values(${tagId},${users.a},${token.slice(0, 30)})`;
     await tx`insert into app.tags(id,owner_id,name) values(${scopeTag},${users.a},${scopeTag.slice(0, 30)})`;
+    await tx`insert into app.tags(id,owner_id,name,scope) values(${taskTag},${users.a},${taskTag.slice(0, 30)},'task')`;
     await tx`insert into app.tasks(id,owner_id,kind,status,title,body,updated_at) values(${sameId},${users.a},'once','open','업무',${
       token + " 재활용 %_"
     },${at})`;
@@ -31,7 +33,7 @@ dbTest("검색: 한국어 본문·literal 와일드카드·상태·태그·기�
       token + " 재활용 %_"
     },${at},${at},true)`;
     await tx`insert into app.record_tags(owner_id,record_id,tag_id) values(${users.a},${sameId},${tagId})`;
-    await tx`insert into app.task_tags(owner_id,task_id,tag_id) values(${users.a},${sameId},${scopeTag})`;
+    await tx`insert into app.task_tags(owner_id,task_id,tag_id) values(${users.a},${sameId},${taskTag})`;
     await tx`insert into app.record_tags(owner_id,record_id,tag_id) values(${users.a},${sameId},${scopeTag})`;
     await tx`update app.tasks set entity_ids=array[${entity}::uuid] where id=${sameId}`;
     await tx`update app.records set entity_ids=array[${entity}::uuid] where id=${sameId}`;
@@ -43,7 +45,7 @@ dbTest("검색: 한국어 본문·literal 와일드카드·상태·태그·기�
       query: token,
       mode: "keyword",
       limit: 1,
-      tag_id: scopeTag,
+      tag_ids: [scopeTag, taskTag],
       entity_id: entity,
       from: at,
       to: at,
@@ -61,7 +63,7 @@ dbTest("검색: 한국어 본문·literal 와일드카드·상태·태그·기�
   const second = await search(d, A, { ...base, cursor: first.next_cursor });
   assertEquals(second.items[0].kind, "record");
   assertEquals(second.next_cursor, null);
-  const multi = searchInput.parse({ query: token, mode: "keyword", tag_ids: [tagId, scopeTag], limit: 1 });
+  const multi = searchInput.parse({ query: token, mode: "keyword", tag_ids: [tagId, scopeTag, taskTag], limit: 1 });
   const multiFirst = await search(d, A, multi);
   assertEquals(multiFirst.items[0].kind, "task");
   assertEquals((await search(d, A, { ...multi, cursor: multiFirst.next_cursor! })).items[0].kind, "record");

@@ -4,7 +4,8 @@ import {api} from "../../lib/api.ts";
 import {Field,Notice} from "../../components/Field.tsx";
 import "./tag-picker.css";
 
-export type TagScope = "entity" | "activity";
+export type TagScope = TagResult["scope"];
+export const tagScopeLabels: Record<TagScope,string> = {entity:"엔터티",task:"할 일",record:"기록"};
 async function loadTags(scope: TagScope) {
     const all: TagResult[] = []; let cursor: string | null = null;
     do {
@@ -13,7 +14,7 @@ async function loadTags(scope: TagScope) {
     } while (cursor);
     return all;
 }
-export function useTagDictionary(enabled = true, preserveListLayout = false, scope: TagScope = "activity") {
+export function useTagDictionary(enabled = true, preserveListLayout = false, scope: TagScope = "record") {
   const [tags,setTags]=useState<TagResult[]|null>(null),[failed,setFailed]=useState(false),[retry,setRetry]=useState(0);
   const position = useRef<{target:HTMLElement;y:number;focus:boolean}|null>(null);
   useLayoutEffect(()=>{const saved=position.current;if(!saved||!saved.target.isConnected)return;
@@ -35,9 +36,9 @@ export function useTagDictionary(enabled = true, preserveListLayout = false, sco
     loadTags(scope).then(all=>{if(alive){capturePosition();setTags(all);setFailed(false);}}).catch(()=>{if(alive)setFailed(true);});return()=>{alive=false;};},[retry,enabled,scope]);
   return {tags,failed,retry:retryLookup};
 }
-export function TagPicker({value,onChange,error,scope="activity",label,excludeId}:{value:string[];onChange:(ids:string[])=>void;error?:string;scope?:TagScope;label?:string;excludeId?:string}) {
+export function TagPicker({value,onChange,error,scope="record",label,excludeId}:{value:string[];onChange:(ids:string[])=>void;error?:string;scope?:TagScope;label?:string;excludeId?:string}) {
   const {tags,failed,retry}=useTagDictionary(true,false,scope);
-  return <fieldset className="tag-picker"><legend className="label">{label ?? (scope==="entity"?"엔터티 태그":"활동 태그")}</legend><div className="field">
+  return <fieldset className="tag-picker"><legend className="label">{label ?? `${tagScopeLabels[scope]} 태그`}</legend><div className="field">
     {error&&<p className="error-text">{error}</p>}
     {failed?<><Notice kind="error">태그를 불러오지 못했습니다. 기존 선택은 유지합니다.</Notice><button type="button" className="btn" onClick={retry}>태그 다시 시도</button></>:
       !tags?<p className="secondary" role="status">태그를 불러오는 중…</p>:null}
@@ -68,7 +69,7 @@ export function TagReadProvider({children,enabled=true,dictionary}:{children:Rea
   if(enabled && !state.tags && !state.failed)return <p className="secondary" role="status">태그 이름을 불러오는 중…</p>;
   return <TagReadContext.Provider value={state}>{children}</TagReadContext.Provider>;
 }
-export function TagNames({ids, compact=false, scope="activity"}:{ids:string[];compact?:boolean;scope?:TagScope}) {
+export function TagNames({ids, compact=false, scope="record"}:{ids:string[];compact?:boolean;scope?:TagScope}) {
   const shared = useContext(TagReadContext);
   const local = useTagDictionary(ids.length > 0 && !shared,false,scope);
   const {tags,failed,retry}=shared ?? local;

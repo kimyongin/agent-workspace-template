@@ -7,8 +7,8 @@ test("더 보기 응답이 늦어도 새 태그 필터 목록에 섞이지 않�
   await devLogin(page);const mcp=await mcpClient(await mcpTokenViaConsent(page));
   let release=()=>{};
   try{
-    const tag=await mcp.call("create_tag",{name:unique("동시 필터").slice(0,30)});
     for(const [kind,path] of [["task","tasks"],["record","records"]]){
+      const tag=await mcp.call("create_tag",{scope:kind,name:unique("동시 필터").slice(0,30)});
       const title=unique("태그 결과");await mcp.call(`create_${kind}`,{...(kind==="task"?{kind:"once",title}:{}),body:title,tag_ids:[tag.id]});
       for(let i=0;i<21;i++)await mcp.call(`create_${kind}`,{...(kind==="task"?{kind:"once",title:unique("다른 항목")}:{}),body:unique("필터 밖")});
       await page.goto(`/${path}`);await expect(page.locator(`#activity-${path}-page-control`)).toBeVisible();
@@ -32,11 +32,11 @@ test("더 보기 응답이 늦어도 새 태그 필터 목록에 섞이지 않�
 test("태그 실제 DELETE pending은 Back을 막고 응답 뒤 정상 복귀한다",async({page})=>{
   await devLogin(page);const mcp=await mcpClient(await mcpTokenViaConsent(page));let release=()=>{};
   try{
-    const tag=await mcp.call("create_tag",{scope:"activity",name:unique("지연 삭제").slice(0,30)});
+    const tag=await mcp.call("create_tag",{scope:"record",name:unique("지연 삭제").slice(0,30)});
     await page.goto("/entities");
     await page.getByRole("button",{name:"메뉴",exact:true}).click();
     await page.getByRole("link",{name:"설정",exact:true}).click();
-    await page.getByRole("link",{name:"활동 태그 관리",exact:true}).click();
+    await page.getByRole("link",{name:"기록 태그 관리",exact:true}).click();
     let arrived!:()=>void,finished!:()=>void,deletes=0;
     const waiting=new Promise<void>(resolve=>{arrived=resolve;}),done=new Promise<void>(resolve=>{finished=resolve;}),hold=new Promise<void>(resolve=>{release=resolve;});
     await page.route(`**/api/tags/${tag.id}?**`,async route=>{
@@ -46,19 +46,19 @@ test("태그 실제 DELETE pending은 Back을 막고 응답 뒤 정상 복귀한
     await page.getByRole("button",{name:`${tag.name} 삭제`,exact:true}).click();
     const confirm=page.locator("dialog.modal-action[open]");
     await confirm.getByRole("button",{name:"삭제하고 기록",exact:true}).click();await waiting;
-    await page.goBack();await expect(page).toHaveURL(/tags\/activity$/);await expect(confirm).toBeVisible();
+    await page.goBack();await expect(page).toHaveURL(/tags\/record$/);await expect(confirm).toBeVisible();
     await expect(confirm.getByRole("button",{name:"삭제 중…"})).toBeDisabled();
     await page.keyboard.press("Escape");await expect(confirm).toBeVisible();
     release();await done;await expect(confirm).toHaveCount(0);
     await expect(page.getByRole("button",{name:`${tag.name} 삭제`,exact:true})).toHaveCount(0);
-    expect(deletes).toBe(1);expect((await mcp.call("list_tags",{scope:"activity",limit:100})).items.some((value:{id:string})=>value.id===tag.id)).toBe(false);
+    expect(deletes).toBe(1);expect((await mcp.call("list_tags",{scope:"record",limit:100})).items.some((value:{id:string})=>value.id===tag.id)).toBe(false);
     await page.goBack();await expect(page).toHaveURL(/settings$/);
   }finally{release();await mcp.close();}
 });
-test("엔터티·활동 태그 같은 이름·웹 선택 정정·삭제 뒤 원문 보존",async({page})=>{
+test("엔터티·기록 태그 같은 이름·웹 선택 정정·삭제 뒤 원문 보존",async({page})=>{
   await devLogin(page);const mcp=await mcpClient(await mcpTokenViaConsent(page));
   try{
-    const name=unique("범위 태그").slice(0,30),activity=await mcp.call("create_tag",{scope:"activity",name}),entity=await mcp.call("create_tag",{scope:"entity",name});
+    const name=unique("범위 태그").slice(0,30),activity=await mcp.call("create_tag",{scope:"record",name}),entity=await mcp.call("create_tag",{scope:"entity",name});
     expect(activity.id).not.toBe(entity.id);
     for(const [path,action,kind,tag] of [["/records","기록 작성","record",activity],["/entities","엔터티 추가","entity",entity]] as const){
       await page.goto(path);await beginTabAction(page,action);
@@ -86,7 +86,7 @@ test("엔터티·활동 태그 같은 이름·웹 선택 정정·삭제 뒤 원�
 test("웹 태그 생성→MCP 중복·이름 변경→웹 삭제",async({page})=>{
   await devLogin(page);const mcp=await mcpClient(await mcpTokenViaConsent(page));
   try{
-    await page.goto("/tags/activity");
+    await page.goto("/tags/record");
     const title=unique("태그").slice(0,30),form=page.getByRole("form",{name:"태그 추가"});
     await form.getByRole("textbox",{name:/태그 이름/}).fill(title);await form.getByRole("button",{name:"추가",exact:true}).click();
     await expect(page.getByRole("button",{name:`${title} 이름 변경`,exact:true})).toBeVisible();
@@ -102,7 +102,7 @@ test("웹 태그 생성→MCP 중복·이름 변경→웹 삭제",async({page})=
 test("웹 할 일 태그 선택→MCP 필터·정정→태그 삭제 후 본문 유지",async({page})=>{
   await devLogin(page);const mcp=await mcpClient(await mcpTokenViaConsent(page));
   try{
-    const tag=await mcp.call("create_tag",{name:unique("업무 태그").slice(0,30)});
+    const tag=await mcp.call("create_tag",{scope:"task",name:unique("업무 태그").slice(0,30)});
     await page.goto("/tasks");await beginTabAction(page,"할 일 추가");
     const form=page.getByRole("dialog",{name:"할 일 추가"});await form.getByRole("textbox",{name:/^제목(?: \(필수\))?$/}).fill(unique("태그 업무"));await form.getByLabel("본문").fill("분류 검증");await form.getByLabel("본문").fill("삭제 후에도 보존");
     await form.getByRole("button",{name:tag.name,exact:true}).click();await saveOnce(page,form,"추가");
@@ -123,7 +123,7 @@ test("추가 페이지 태그의 편집 취소·충돌·저장 뒤 목록과 초
   try{
     const tags=[];
     for(let i=0;i<21;i++)tags.push(await mcp.call("create_tag",{name:unique(`보존 ${i}`).slice(0,30)}));
-    const oldest=tags[0];await page.goto("/tags/activity");
+    const oldest=tags[0];await page.goto("/tags/record");
     const trigger=page.getByRole("button",{name:`${oldest.name} 이름 변경`,exact:true});
     await expect(page.locator(".tag-management .list-item").first()).toBeVisible();
     while(await trigger.count()===0){

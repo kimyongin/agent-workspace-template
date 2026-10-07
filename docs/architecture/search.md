@@ -28,7 +28,7 @@ Pinecone Inference에서 본문 구간의 임베딩을 생성하고 PostgreSQL/p
 
 같은 기록의 구간 결과를 하나로 합치고 기록 단위로 정렬·페이지 처리한다. 결과는 종류·ID·표시용 title·일치 snippet·Unicode 코드 포인트 구간 위치 snippet_start/snippet_end·날짜·태그·path·검색 상태를 반환한다. 상세 조회에서 본문 전체를 읽는다. 원문의 저장 title/summary/change_note나 편집용 chunk 필드를 제공하지 않는다.
 
-task_kind/task_status, record_kind(user/result/change), entity_id와 활동 태그 조건은 후보와 coverage·anchor에 같은 범위로 적용한다. 커서는 소유자·질의·필터에 묶이고 조건 변경 시 첫 페이지부터 조회한다. 원칙의 키워드 조회는 현재 문서만 대상으로 하며 과거 근거는 보존된 기록에서 검색한다.
+task_kind/task_status, record_kind(user/result/change), entity_id와 대상 종류에 해당하는 태그 조건은 후보와 coverage·anchor에 같은 범위로 적용한다. 커서는 소유자·질의·필터에 묶이고 조건 변경 시 첫 페이지부터 조회한다. 원칙의 키워드 조회는 현재 문서만 대상으로 하며 과거 근거는 보존된 기록에서 검색한다.
 
 semantic_coverage.pending/excluded와 index_state는 색인 상태를 알린다. 결과 0건·색인 지연·검색 장애를 구분한다. 원본 저장 성공은 의미 검색 준비 완료를 뜻하지 않는다. 원문·일치 구간·개수·커서에도 같은 소유자 권한을 적용한다.
 

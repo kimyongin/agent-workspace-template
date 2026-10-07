@@ -10,17 +10,18 @@ import { api, ApiError } from "../../lib/api.ts";
 import { useWriteAttempt, writeErrorMessage } from "../../lib/write-attempt.ts";
 import "./tags.css";
 import { useDetailExploration, useDetailNavigate } from "../../lib/detail-exploration.tsx";
+import { tagScopeLabels, type TagScope } from "./TagPicker.tsx";
 import { findTag } from "./resolve-tag.ts";
 type Page = { items: TagResult[]; next_cursor: string | null };
 type Draft = { initial: TagResult | null; name: string };
 export function TagsPage() {
   const {pathname}=useLocation(),route=useParams(),[params]=useSearchParams();
-  const scope=route.scope==="entity"||pathname.endsWith("/entity")?"entity":"activity";
+  const scope=route.scope==="entity"||pathname.endsWith("/entity")?"entity":route.scope==="task"||pathname.endsWith("/task")?"task":"record";
   const id=route.id??(route.scope&&/^[0-9a-f-]{36}$/i.test(route.scope)?route.scope:null);
   if(id){const next=new URLSearchParams(params);if(next.get("edit")==="1"){next.set("edit",id);next.delete("view");}else if(!next.has("edit"))next.set("edit",id);return <Navigate to={`/tags/${scope}?${next}`} replace/>;}
   return <ScopedTagsPage key={scope} scope={scope}/>;
 }
-function ScopedTagsPage({scope}:{scope:"entity"|"activity"}) {
+function ScopedTagsPage({scope}:{scope:TagScope}) {
   const location=useLocation(),[params]=useSearchParams(),navigateAfterClose=useDeferredNavigation();
   const previous=useDetailExploration(),navigate=useDetailNavigate();
   const [closing,setClosing]=useState(false);
@@ -35,7 +36,7 @@ function ScopedTagsPage({scope}:{scope:"entity"|"activity"}) {
   const [deletions,setDeletions]=useState<Record<string,DeletionState>>({});
   const deletionDirty=Object.values(deletions).some(state=>state.armed||state.uncertain);
   const busy = writing || deletingBusy;
-  useEffect(()=>{if(closing&&!busy){setClosing(false);if(previous)previous.back();else void navigate(scope==="entity"?"/entities":"/tasks");}},[closing,busy,previous,navigate,scope]);
+  useEffect(()=>{if(closing&&!busy){setClosing(false);if(previous)previous.back();else void navigate(scope==="entity"?"/entities":scope==="task"?"/tasks":"/records");}},[closing,busy,previous,navigate,scope]);
   const [pending, setPending] = useState<(() => void) | null>(null);
   useEffect(()=>{setDeletionState({armed:false,busy:false,uncertain:false});},[draft?.initial?.id,!!draft]);
   const pageCount = useRef(1), focusId = useRef<string | null>(null), input = useRef<HTMLInputElement>(null), saving = useRef(false);
@@ -139,7 +140,7 @@ function ScopedTagsPage({scope}:{scope:"entity"|"activity"}) {
     </div>
     {failure&&<Notice kind="error">{failure}</Notice>}
   </form>;
-  return <ModalShell open title={`${scope==="entity"?"엔터티":"활동"} 태그 관리`} headingLevel={1} previous={previous} dirty={dirty} busy={busy} onClose={close} onRouteDiscard={()=>{setDraft(null);setDeletions({});attempt.reset();}}>
+  return <ModalShell open title={`${tagScopeLabels[scope]} 태그 관리`} headingLevel={1} previous={previous} dirty={dirty} busy={busy} onClose={close} onRouteDiscard={()=>{setDraft(null);setDeletions({});attempt.reset();}}>
     <div className="tag-management">
     {!draft?.initial&&editor(null)}
     {notice && <Notice>{notice}</Notice>}
