@@ -1,5 +1,6 @@
+import { DetailLink as Link } from "../lib/detail-exploration.tsx";
 import { useEffect, useId, useRef, useState } from "react";
-import { Link, useLocation } from "react-router";
+import { useLocation } from "react-router";
 type Action = { label: string; run?: () => void; to?: string; onClick?: React.MouseEventHandler<HTMLAnchorElement>; disabled?: boolean };
 export function TabActions({ title, actions }: { title: string; actions: Action[] }) {
   const [open, setOpen] = useState(false), id = useId(), location = useLocation();
