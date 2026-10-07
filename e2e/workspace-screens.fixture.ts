@@ -778,7 +778,7 @@ test("태그 인라인 편집: 취소는 목록으로 복귀·삭제 실패는 �
   await expect(deletion.getByRole("button",{name:"같은 내용 다시 시도",exact:true})).toBeVisible();
   await expect(deletion.getByLabel("기록 메모",{exact:true})).toHaveValue("분류 정리");
   await deletion.getByRole("button",{name:"같은 내용 다시 시도",exact:true}).click();
-  await expect(deletion).toHaveCount(0);await expect(form(page)).toHaveCount(1);await expect(form(page).getByRole("form",{name:"태그 추가"})).toBeVisible();
+  await expect(deletion).toHaveCount(0);await expect(form(page)).toHaveCount(1);await expect(form(page).getByRole("form",{name:"태그 추가"})).toBeVisible();await expect(form(page).getByRole("heading",{name:"엔터티 태그 관리",exact:true})).toBeFocused();
   expect(attempts).toHaveLength(2);expect(attempts[1]).toBe(attempts[0]);
   expect(state.errors).toEqual([]);
 });

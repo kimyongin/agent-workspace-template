@@ -58,9 +58,15 @@ function ScopedTagsPage({scope}:{scope:"entity"|"activity"}) {
       .finally(() => { if (current()) setLoading(false); });
     return () => controller.abort();
   }, [retry,scope]);
-  useEffect(() => { if (focusId.current && !loading) {
-    (document.getElementById(`tag-${focusId.current}`) ?? document.querySelector<HTMLElement>("dialog[open] .dialog-title"))?.focus(); focusId.current = null;
-  } }, [page, loading]);
+  useEffect(() => {
+    if (!focusId.current || loading) return;
+    // Restore focus after the confirmation stage has revealed the refreshed management list.
+    const frame = requestAnimationFrame(() => {
+      (document.getElementById(`tag-${focusId.current}`) ?? document.querySelector<HTMLElement>("dialog[open] .dialog-title"))?.focus();
+      focusId.current = null;
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [page, loading]);
   const change = (action: () => void) => { if (busy) return; if (dirty) setPending(() => action); else action(); };
   const select = (tag: TagResult) => change(() => {
     setDraft({initial:tag,name:tag.name});setFailure(null);setNotice(null);setFieldError(undefined);attempt.reset();setConflict(false);
