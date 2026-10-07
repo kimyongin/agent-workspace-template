@@ -506,6 +506,16 @@ textarea.input {
   text-decoration: underline;
 }
 
+/* Keep full record content for reading; only its list preview is clamped. */
+.record-preview, .related-record .related-item-text {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+
 .empty {
   display: flex;
   flex-direction: column;

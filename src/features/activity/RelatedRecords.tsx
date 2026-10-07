@@ -11,7 +11,7 @@ import { Notice } from "../../components/Field.tsx";
 import { api, query } from "../../lib/api.ts";
 
 export function RelatedRecordItem({record}: {record:Pick<RecordResult,"id"|"body">}) {
-  return <RelatedPreviewItem to={`/records/${record.id}`} title={recordDisplayText(record.body)}/>;
+  return <div className="related-record"><RelatedPreviewItem to={`/records/${record.id}`} title={recordDisplayText(record.body)}/></div>;
 }
 
 export function RelatedRecords({taskId,revision,action}: {taskId:string;revision:number;action?:ReactNode}) {
