@@ -330,7 +330,7 @@ for(const width of [320,390,1024])test(`엔터티 연결 목록 ${width}px: 종�
   await page.setViewportSize({width,height:900});await go(page,`/entities/${id(1)}`);
   const section=form(page).locator(".related-section").filter({has:page.getByRole("heading",{name:"기록 (2개)",exact:true})}),rows=section.locator(".related-item");
   await expect(rows).toHaveCount(2);await expect(rows.first()).toContainText("직접 작성");await expect(rows.first()).toContainText("상담 판단 정리");
-  await expect(rows.last()).toContainText("변경 기록");await expect(rows.last().getByText(title,{exact:true})).toHaveCount(1);
+  await expect(rows.last()).toContainText("변경 기록");await expect(rows.last().getByRole("button",{name:title,exact:true})).toHaveCount(1);
   await expect(rows.locator("time")).toHaveCount(2);await expect(form(page).getByRole("link",{name:"전체 할 일 보기",exact:true})).toHaveCount(0);
   await expect(section.getByRole("link",{name:"전체 기록 보기",exact:true})).toHaveCount(0);
   await expect(form(page).getByRole("button",{name:"할 일 작성",exact:true})).toBeVisible();
@@ -338,7 +338,7 @@ for(const width of [320,390,1024])test(`엔터티 연결 목록 ${width}px: 종�
   for(const row of await rows.all())expect((await row.boundingBox())!.height).toBeGreaterThanOrEqual(44);
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
   await section.screenshot({path:info.outputPath(`entity-related-${width}.png`)});
-  await rows.first().getByRole("button",{name:recordDisplayText(state.rows.records[0].body)}).click();await expect(page).toHaveURL(new RegExp(`/entities/${id(1)}$`));expect(state.writes).toHaveLength(0);expect(state.errors).toEqual([]);
+  await rows.first().getByRole("button",{name:"상담 판단 정리",exact:true}).click();await expect(page).toHaveURL(new RegExp(`/entities/${id(1)}$`));expect(state.writes).toHaveLength(0);expect(state.errors).toEqual([]);
 });
 test("연결 엔터티 범위: 각 탭 조회·검색 조건·본문 왕복·해제",async({page})=>{
   const state=await fixtures(page);for(const kind of ["tasks","records"]){state.rows[kind][0].entity_ids=[id(1)];state.rows[kind][0].entity_context=[{id:id(1),title:"엔터티",source:"selection",captured_at:stamp}];}
@@ -351,12 +351,12 @@ test("연결 엔터티 범위: 각 탭 조회·검색 조건·본문 왕복·해
   await page.getByRole("button",{name:"엔터티 범위 해제",exact:true}).click();await expect(page).not.toHaveURL(/entity_id=/);await expect.poll(()=>state.searches.length).toBe(3);expect(state.searches.at(-1)).not.toHaveProperty("entity_id");expect(new URL(page.url()).searchParams.get("q")).toBe("할");
   await go(page,`/records?entity_id=${id(1)}&from=2026-10-01&q=기록`);await expect(page.locator(".records .list .item-title")).toBeVisible();expect(state.searches.at(-1)?.kinds).toEqual(["record"]);expect(state.searches.at(-1)?.from).toBeTruthy();expect(state.searches.at(-1)?.entity_id).toBe(id(1));expect(state.errors).toEqual([]);
 });
-for(const kind of ["tasks","records"] as const) test(`${kind} 보기의 연결 대상은44px 링크로 엔터티 보기를 연다`,async({page})=>{
+for(const kind of ["tasks","records"] as const) test(`${kind} 보기의 연결 대상은44px 펼침으로 엔터티 내용을 읽는다`,async({page})=>{
   const state=await fixtures(page),row=state.rows[kind][0];row.entity_ids=[id(1)];row.entity_context=[{id:id(1),title:"함",source:"selection",captured_at:stamp}];
   for(const width of [320,390,1440]){
     await page.setViewportSize({width,height:900});await go(page,`/${kind}/${row.id}`);
     const link=form(page).getByRole("region",{name:/^엔터티/}).getByRole("button",{name:"함",exact:true});const box=(await link.boundingBox())!;expect(box.width).toBeGreaterThanOrEqual(44);expect(box.height).toBeGreaterThanOrEqual(44);
-    await link.focus();await page.keyboard.press("Enter");await expect(page).toHaveURL(new RegExp(`/entities/${id(1)}$`));await expect(form(page).getByLabel("속성 1",{exact:false})).toHaveCount(0);await expect(form(page).getByRole("button",{name:"편집",exact:true})).toBeVisible();
+    await link.focus();await page.keyboard.press("Enter");await expect(link).toHaveAttribute("aria-expanded","true");expect(new URL(page.url()).pathname).toBe(`/${kind}/${row.id}`);await expect(form(page).getByLabel("속성 1",{exact:false})).toHaveCount(0);await expect(form(page).getByRole("link",{name:"함 편집",exact:true})).toBeVisible();
   }expect(state.writes).toHaveLength(0);expect(state.errors).toEqual([]);
 });
 test("연결 범위 해제 뒤 늦은 scoped 페이지는 전체 행·cursor를 덮지 않는다",async({page})=>{

@@ -3,7 +3,7 @@
 .related-item { display: grid; gap: var(--space-1); padding: var(--space-1) 0; color: var(--ink); min-width: 0; min-height: 44px; }
 .related-item-title { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
 .related-item-title .item-title { min-width: 0; max-width: 100%; overflow-wrap: anywhere; font-size: .9375rem; line-height: 1.5rem; font-weight: 500; }
-.related-item-title a.item-title, .related-toggle { display: inline-flex; align-items: center; min-width: 44px; min-height: 44px; max-width: 100%; color: var(--ink); text-decoration: none; }
+.related-item-title a.item-title, .related-item-title .related-toggle { display: inline-flex; align-items: center; min-width: 44px; min-height: 44px; max-width: 100%; color: var(--ink); text-decoration: none; }
 .related-item-title a.item-title:hover, .related-toggle:hover { text-decoration: underline; }
 .related-toggle { padding: 0; border: 0; background: transparent; text-align: left; cursor: pointer; gap: var(--space-2); }
 .related-toggle-mark { color: var(--muted-ink); flex-shrink: 0; font-size: .875rem; width: 1rem; }

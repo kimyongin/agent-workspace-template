@@ -216,7 +216,7 @@ test("엔터티 연결 작성·실패 초안·성공 후 조회 실패와 모달
   await page.goto(url); await page.getByRole("link", { name: "엔터티", exact: true }).evaluate((el:HTMLAnchorElement)=>el.click());
   await expect(page.getByText("버전 7")).toHaveCount(0); await page.getByRole("button", { name: "할 일 작성" }).click();
   const form = page.getByRole("dialog", { name: "할 일 추가", exact: true });
-  await expect(form.getByRole("button", { name: entity.prop1+" 연결 해제", exact: true })).toBeVisible();
+  await expect(form.getByRole("button", { name: entity.prop1+" 해제", exact: true })).toBeVisible();
   await form.getByRole("textbox",{name:/^제목(?: \(필수\))?$/}).fill("연결된 초안"); await form.getByLabel("본문").fill("문맥 유지");
   await page.goBack(); const confirm = page.getByRole("dialog", { name: "변경을 버릴까요?" }); await expect(confirm).toBeVisible(); await confirm.getByRole("button", { name: "취소", exact: true }).click();
   await expect(form.getByRole("textbox",{name:/^제목(?: \(필수\))?$/})).toHaveValue("연결된 초안");
@@ -225,7 +225,7 @@ test("엔터티 연결 작성·실패 초안·성공 후 조회 실패와 모달
   await expect(form).not.toBeVisible(); await expect(page.getByText("할 일을 추가했습니다.")).toHaveCount(0); await expect(page.getByText("관련 자료 조회 실패")).toBeVisible();
   expect(bodies[1].entity_ids).toEqual([entity.id]); await expect(page.getByRole("heading",{name:entity.prop1,level:1,exact:true})).toBeVisible();
   await page.getByRole("button",{name:"기록 작성",exact:true}).click();
-  const record = page.getByRole("dialog", { name: "기록 작성", exact: true }); await expect(record.getByRole("button", { name: entity.prop1+" 연결 해제", exact: true })).toBeVisible();
+  const record = page.getByRole("dialog", { name: "기록 작성", exact: true }); await expect(record.getByRole("button", { name: entity.prop1+" 해제", exact: true })).toBeVisible();
   await record.getByLabel("본문").fill("기록 초안"); await record.getByRole("button", { name: "취소", exact: true }).click();
   await page.getByRole("dialog", { name: "변경을 버릴까요?" }).getByRole("button", { name: "취소", exact: true }).click(); await expect(record.getByLabel("본문")).toHaveValue("기록 초안");
   await record.getByRole("button", { name: "취소", exact: true }).click(); await page.getByRole("dialog", { name: "변경을 버릴까요?" }).getByRole("button", { name: "변경 버리기" }).click();
