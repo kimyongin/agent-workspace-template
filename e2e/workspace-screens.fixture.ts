@@ -1037,6 +1037,6 @@ test("#185 빈 연결 개수만 표시·관계 카드 빈 공간은 이동하지
 for(const [kind,n] of [["entities",1],["tasks",2],["records",3],["principles",4]] as const)test(`#185 ${kind}: 직접 편집 취소의 폐기 확인은 같은 보기로 복귀`,async({page})=>{
   const state=await fixtures(page);await go(page,`/${kind}/${id(n)}?edit=1`);const input=form(page).getByRole("textbox",{name:kind==="entities"?/^속성 1/:kind==="records"?/^본문/:/^제목/});
   await input.fill("취소할 편집");await form(page).getByRole("button",{name:"취소",exact:true}).click();const discard=page.getByRole("dialog",{name:"변경을 버릴까요?"});
-  await discard.getByRole("button",{name:"변경 버리기",exact:true}).click();await expect(form(page).getByRole("button",{name:"편집",exact:true})).toBeVisible();await expect(page).toHaveURL(new RegExp(`/${kind}/${id(n)}\\?$`));
+  await discard.getByRole("button",{name:"변경 버리기",exact:true}).click();await expect(form(page).getByRole("button",{name:"편집",exact:true})).toBeVisible();await expect(page).not.toHaveURL(/[?&]edit=/);expect(new URL(page.url()).pathname).toBe(`/${kind}/${id(n)}`);
   await expect(page.locator("dialog[open]")).toHaveCount(1);await expect(form(page).getByRole("textbox")).toHaveCount(0);expect(state.writes).toHaveLength(0);expect(state.errors).toEqual([]);
 });
