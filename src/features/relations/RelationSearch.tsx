@@ -8,6 +8,11 @@ import { api, query } from "../../lib/api.ts";
 
 export type Candidate = {id:string;title:string;entityIds?:string[]};
 type CandidatePage = {items:Candidate[];next_cursor:string|null};
+/** Saved relationships and draft selection expose the same search action. */
+export function RelationSearchAction({kind,expanded,controls,disabled=false,onToggle}: {kind:"entity"|"task";expanded:boolean;controls:string;disabled?:boolean;onToggle:()=>void}) {
+  const label=kind==="entity"?"엔터티":"할 일";
+  return <button type="button" className="btn btn-text" data-relation-search-toggle={kind} aria-label={expanded?`${label} 검색 닫기`:`${label} 연결`} aria-expanded={expanded} aria-controls={controls} disabled={disabled} onClick={onToggle}>{expanded?"검색 닫기":"연결"}</button>;
+}
 /** Current-title lookup, shared by the two directions of the same relationship. */
 export function RelationSearch({kind,excluded,onChoose,disabled,revision, draftMode=false}: {kind:"entity"|"task";excluded:(item:Candidate)=>boolean;onChoose:(item:Candidate)=>void;disabled:boolean;revision?:number|EntityDetail["tasks"];draftMode?:boolean}) {
   const label=kind==="entity"?"엔터티":"할 일";
