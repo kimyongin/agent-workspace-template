@@ -104,7 +104,7 @@ test("웹 할 일 태그 선택→MCP 필터·정정→태그 삭제 후 본문 
   try{
     const tag=await mcp.call("create_tag",{name:unique("업무 태그").slice(0,30)});
     await page.goto("/tasks");await beginTabAction(page,"할 일 추가");
-    const form=page.getByRole("dialog",{name:"할 일 추가"});await form.getByLabel("제목").fill(unique("태그 업무"));await form.getByLabel("본문").fill("분류 검증");await form.getByLabel("본문").fill("삭제 후에도 보존");
+    const form=page.getByRole("dialog",{name:"할 일 추가"});await form.getByRole("textbox",{name:/^제목(?: \(필수\))?$/}).fill(unique("태그 업무"));await form.getByLabel("본문").fill("분류 검증");await form.getByLabel("본문").fill("삭제 후에도 보존");
     await form.getByRole("button",{name:tag.name,exact:true}).click();await saveOnce(page,form,"추가");
     await expect(form).not.toBeVisible();const id=new URL(page.url()).pathname.split("/").at(-1)!;expect((await mcp.call("get_task",{id})).tag_ids).toEqual([tag.id]);
     await openDetailEditor(page);const edit=page.getByRole("dialog",{name:"할 일 편집"});

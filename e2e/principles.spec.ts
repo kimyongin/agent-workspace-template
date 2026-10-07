@@ -12,7 +12,7 @@ test("현재 웹 메모 확인→MCP 같은 문서 갱신→삭제 후 현재 �
     await page.goto(`/principles/${first.id}`);await openDetailEditor(page);
     const form=page.getByRole("dialog",{name:"현재 원칙 편집",exact:true});
     await expect(form.getByLabel("태그")).toHaveCount(0);await expect(form.getByLabel("적용 조건")).toHaveCount(0);
-    const title=unique("새 판단 기준");await form.getByLabel("제목").fill(title);await form.getByLabel("본문").fill("새 판단 원문");
+    const title=unique("새 판단 기준");await form.getByRole("textbox",{name:/^제목(?: \(필수\))?$/}).fill(title);await form.getByLabel("본문").fill("새 판단 원문");
     expect((await mcp.call("get_current_principle",{})).current.body).toBe("첫 원문");
     await fillChangeMemo(page,form,"사용자가 확인한 근거");await saveOnce(page,form);
     await expect(page.getByRole("heading",{name:title,level:1})).toBeVisible();

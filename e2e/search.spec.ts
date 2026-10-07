@@ -9,12 +9,12 @@ test("웹 검색→태그 범위→MCP 결과 비교→본문 원문 확인",asy
     await mcp.call("create_record",{body:marker});
     await page.goto("/search?record_kind=user");await page.getByLabel("검색어").fill(marker);await page.getByRole("button",{name:"검색",exact:true}).click();
     await expect(page.locator(".list .item-title")).toHaveCount(2);
-    await page.getByLabel("태그 필터").selectOption(tag.id);await expect(page.locator(".list .item-title")).toHaveCount(1);
+    await page.locator("summary").filter({hasText:"검색 조건"}).click();await page.getByLabel("태그 필터").selectOption(tag.id);await expect(page.locator(".list .item-title")).toHaveCount(1);
     await page.getByLabel("검색 방식").selectOption("keyword");await expect(page.getByText("현재 키워드 검색 결과를 표시합니다.",{exact:false})).toHaveCount(0);
     expect((await mcp.call("search",{query:marker,tag_id:tag.id,mode:"keyword"})).items[0].title).toBe(title);
     await page.getByRole("link",{name:title,exact:true}).click();await expect(page.getByText(marker,{exact:true})).toBeVisible();
     await page.getByRole("button",{name:/^이전: 검색/}).click();
-    await expect(page.getByLabel("태그 필터")).toHaveValue(tag.id);await expect(page.getByLabel("검색 방식")).toHaveValue("keyword");
+    await page.locator("summary").filter({hasText:"검색 조건"}).click();await expect(page.getByLabel("태그 필터")).toHaveValue(tag.id);await expect(page.getByLabel("검색 방식")).toHaveValue("keyword");
     await expect(page.getByRole("link",{name:title,exact:true})).toBeFocused();
   }finally{await mcp.close();}
 });

@@ -10,7 +10,7 @@ test("웹에서 만든 할 일을 에이전트가 MCP로 완료하고 웹에서 
   // 1. 웹에서 일회성 할 일 작성
   await beginTabAction(page,"할 일 추가");
   const dialog = page.getByRole("dialog", { name: "할 일 추가" });
-  await dialog.getByLabel("제목").fill(title);
+  await dialog.getByRole("textbox",{name:/^제목(?: \(필수\))?$/}).fill(title);
   await dialog.getByLabel("본문").fill("다음 주 회의용 초안 3쪽");
   await saveOnce(page,dialog,"추가");
   await expect(page.getByRole("heading", { name: title, level: 1 })).toBeVisible();
@@ -90,7 +90,7 @@ test("다른 사용자는 URL을 알아도 남의 할 일을 볼 수 없다", as
   await beginTabAction(page,"할 일 추가");
   const dialog = page.getByRole("dialog", { name: "할 일 추가" });
   const title = unique("A의 비밀 할 일");
-  await dialog.getByLabel("제목").fill(title);
+  await dialog.getByRole("textbox",{name:/^제목(?: \(필수\))?$/}).fill(title);
   await dialog.getByLabel("본문").fill("B에게 보이면 안 됨");
   await saveOnce(page,dialog,"추가");
   await expect(page.getByRole("heading", { name: title, level: 1 })).toBeVisible();

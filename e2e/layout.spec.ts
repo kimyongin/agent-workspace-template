@@ -52,7 +52,7 @@ test.describe("화면 폭별 배치", () => {
     await beginTabAction(page,"할 일 추가");
     const dialog = page.getByRole("dialog", { name: "할 일 추가" });
     const longTitle = unique("가".repeat(40) + "공백없는긴제목");
-    await dialog.getByLabel("제목").fill(longTitle);
+    await dialog.getByRole("textbox",{name:/^제목(?: \(필수\))?$/}).fill(longTitle);
     await dialog.getByLabel("본문").fill("https://example.com/" + "a".repeat(120));
     await saveOnce(page, dialog, "추가");
     // 목록의 h1이 아니라 만든 할 일의 상세 화면이 뜰 때까지 기다린다(모달 뒤 목록 h1도 보이는 것으로 판정됨).
@@ -78,7 +78,7 @@ test.describe("화면 폭별 배치", () => {
       await page.setViewportSize({ width, height: 900 });
       for (const path of ["/tasks", taskDetail, "/records", recordDetail, "/principles", principleDetail,"/tags",`/search?q=${encodeURIComponent(longTitle)}&mode=keyword`]) {
         await page.goto(path);
-        await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+        await expect(page.getByRole("heading", path==="/tags"?{name:"활동 태그 관리",exact:true}:{level:1})).toBeVisible();
         expect(await layoutProblems(page), `${width}px ${path}`).toEqual([]);
       }
       await page.goto("/tasks");
@@ -135,20 +135,21 @@ test("키보드만으로 할 일을 만들고, 미저장 내용이 있으면 닫
   expect(inDialog).toBeGreaterThan(15);
 
   // 미저장 내용이 있을 때 Escape → 확인창, 취소하면 초안이 남는다.
-  await dialog.getByLabel("제목").focus();
+  await dialog.getByRole("textbox",{name:/^제목(?: \(필수\))?$/}).focus();
   await page.keyboard.type("키보드 할 일");
   await page.keyboard.press("Escape");
   const confirm = page.getByRole("dialog", { name: "변경을 버릴까요?" });
   await expect(confirm).toBeVisible();
   await expect(confirm.getByRole("button", { name: "취소" })).toBeFocused();
   await page.keyboard.press("Enter");
-  await expect(dialog.getByLabel("제목")).toHaveValue("키보드 할 일");
+  await expect(dialog.getByRole("textbox",{name:/^제목(?: \(필수\))?$/})).toHaveValue("키보드 할 일");
 
-  // 제목 칸의 Enter 한 번으로 바로 저장한다.
+  // 제목 칸의 Enter로 확인 단계를 열고 최종 확인 후 저장한다.
   const title = unique("키보드 할 일");
-  await dialog.getByLabel("제목").fill(title);
+  await dialog.getByRole("textbox",{name:/^제목(?: \(필수\))?$/}).fill(title);
   await dialog.getByLabel("본문").fill("키보드로 만든 할 일");
-  await dialog.getByLabel("제목").focus();await page.keyboard.press("Enter");
+  await dialog.getByRole("textbox",{name:/^제목(?: \(필수\))?$/}).focus();await page.keyboard.press("Enter");
+  await page.locator("dialog.modal-action[open]").getByRole("button",{name:"등록하고 저장",exact:true}).click();
   await expect(page.getByRole("heading", { name: title, level: 1 })).toBeVisible();
 
 });
