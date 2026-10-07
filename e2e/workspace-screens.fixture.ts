@@ -37,7 +37,13 @@ for(const [kind,route,n] of targetCases) for(const outcome of ["exists","deleted
     await page.unroute(`**/api/${route}/${id(n)}`);await go(page,`/records/${r.id}`);
     const card=form(page).getByRole("region",{name:"변경 대상 (1개)",exact:true}).getByRole("link",{name:change.target_title,exact:true});
     await card.click();await expect(page).toHaveURL(new RegExp(`/tasks/${id(n)}$`));
-    await form(page).getByRole("button",{name:"이전: 기록",exact:true}).click();await expect(card).toBeFocused();
+    await expect(form(page).getByRole("button",{name:"이전: 기록",exact:true})).toBeVisible();
+    let release=()=>{};const held=new Promise<void>(resolve=>{release=resolve;});
+    await page.route(`**/api/tasks/${id(n)}`,async endpoint=>{await held;await endpoint.fallback();});
+    await form(page).getByRole("button",{name:"이전: 기록",exact:true}).click();
+    await expect(form(page).getByRole("status",{name:"변경 대상 조회"})).toBeVisible();await expect(card).toHaveCount(0);
+    await page.evaluate(()=>new Promise<void>(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>resolve()))));
+    release();await expect(card).toBeFocused();
     expect(state.writes).toHaveLength(0);expect(state.errors).toEqual([]);
   }
 });
@@ -56,7 +62,7 @@ test("변경 대상 목록은 추가 조회 없이 당시 행동만 표시·늦�
   let reads=0,release=()=>{};const held=new Promise<void>(resolve=>{release=resolve;});
   await page.route(`**/api/entities/${id(1)}`,async endpoint=>{reads++;await held;await endpoint.fulfill({json:state.rows.entities[0]}).catch(()=>{});});
   await go(page,"/records");await expect(page.locator(".records .list")).toContainText("첫 대상");expect(reads).toBe(0);await expect(page.locator(".records .list")).not.toContainText("삭제된 대상");
-  await go(page,`/records/${r.id}?edit=1&edit_from=view`);await expect(form(page)).toContainText("대상의 현재 상태 확인 중");await expect.poll(()=>reads).toBe(1);
+  await go(page,`/records/${r.id}?edit=1&edit_from=view`);await expect(form(page).getByRole("status",{name:"변경 대상 조회"})).toBeVisible();await expect.poll(()=>reads).toBe(1);
   await go(page,`/records/${second.id}?edit=1&edit_from=view`);await expect(form(page)).toContainText("삭제된 대상 또는 접근할 수 없는 대상");release();
   await expect(form(page)).toContainText("다음 대상");await expect(form(page).getByRole("region",{name:"변경 대상 (1개)",exact:true}).getByRole("link")).toHaveCount(0);expect(state.writes).toHaveLength(0);expect(state.errors).toEqual([]);
 });
