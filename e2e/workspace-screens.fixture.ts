@@ -228,7 +228,7 @@ for(const width of [320,360,390,639,640,768,1024,1440])test(`시각 위계 ${wid
   const head=await form(page).locator(".modal-head").boundingBox(),body=await form(page).locator(":scope > .modal-inner > .modal-body").boundingBox(),foot=await form(page).locator(".modal-foot").boundingBox();expect(head!.y+head!.height).toBeLessThanOrEqual(body!.y);expect(body!.y+body!.height).toBeLessThanOrEqual(foot!.y+1);
   await go(page,`/records/${id(3)}`);Object.assign(state.rows.records[0],{record_kind:"change",body:"변경에 대한 보충 메모",entity_ids:[id(1)],entity_context:[{id:id(1),title:"연결된 엔터티",source:"selection",captured_at:stamp}]});await page.reload();
   const memo=form(page).locator(".record-content .markdown");await expect(memo).toBeVisible();expect(await memo.evaluate(el=>parseFloat(getComputedStyle(el).fontSize))).toBeLessThan(await form(page).locator(".dialog-title").evaluate(el=>parseFloat(getComputedStyle(el).fontSize)));
-  const provenance=form(page).locator(".related-provenance");await expect(provenance).not.toHaveAttribute("open","");await provenance.locator("summary").click();await expect(provenance).toHaveAttribute("open","");await expect(provenance).toContainText("연결 선택 시 이름");
+  await expect(form(page).getByRole("link",{name:"연결된 엔터티",exact:true})).toBeVisible();await expect(form(page).getByText("연결 당시 정보",{exact:true})).toHaveCount(0);
   expect(state.writes).toHaveLength(0);expect(state.errors).toEqual([]);
 });
 
@@ -810,14 +810,14 @@ for(const [kind,n] of [["entities",1],["tasks",2],["records",3],["principles",4]
   await form(page).getByRole("button",{name:"삭제",exact:true}).click();await form(page).getByRole("button",{name:"삭제 확인",exact:true}).click();
   await expect.poll(()=>new URL(page.url()).pathname).toBe(`/${kind}`);expect(state.writes).toHaveLength(before+1);expect(state.errors).toEqual([]);
 });
-for(const width of [390,1440])test(`기록 정돈 ${width}px: 본문·변경 정보·연결·접힌 저장 정보`,async({page},info)=>{
+for(const width of [390,1440])test(`기록 정돈 ${width}px: 본문·변경 정보·연결 중심의 간결한 상세`,async({page},info)=>{
   const state=await fixtures(page);await page.setViewportSize({width,height:850});
   Object.assign(state.rows.records[0],{body:"테스트 속성1222 수정 (속성 1, 속성 2)",record_kind:"change",entity_ids:[id(1)],entity_context:[{id:id(1),title:"테스트 속성1222",source:"selection",captured_at:stamp}],change:{event_id:id(30),target_kind:"entity",target_id:id(1),target_title:"테스트 속성1222",action:"update",source:"http",before:{prop1:"기존 이름"},after:{prop1:"테스트 속성1222"},path:`/entities/${id(1)}`}});
   await go(page,`/records/${id(3)}`);await expect(form(page).getByRole("link",{name:"대상 원문 보기",exact:true})).toBeVisible();
   const text=form(page).locator(".record-content .markdown"),meta=form(page).locator(".record-context-meta");
   const style=async(el:ReturnType<typeof form>)=>el.evaluate(n=>({size:parseFloat(getComputedStyle(n).fontSize),color:getComputedStyle(n).color}));
   expect((await style(text)).size).toBeGreaterThan((await style(meta)).size);expect((await style(text)).color).not.toBe((await style(meta)).color);
-  await expect(form(page).locator(".record-audit")).not.toHaveAttribute("open","");await expect(form(page).getByRole("button",{name:"닫기",exact:true})).toHaveText("×");
+  await expect(form(page).getByText("저장 정보",{exact:true})).toHaveCount(0);await expect(form(page)).not.toContainText("만든 시각");await expect(form(page).getByRole("button",{name:"닫기",exact:true})).toHaveText("×");
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
   await page.screenshot({path:info.outputPath(`record-layout-${width}.png`)});expect(state.errors).toEqual([]);
 });
@@ -826,7 +826,7 @@ for(const width of [390,1440])test(`기록 정돈 ${width}px: 본문·변경 정
 for(const width of [320,360,390,639,640,768,1024,1440])test(`공통 연결 목록 ${width}px: 엔터티·할 일·기록 카드 위계와 탐색`,async({page},info)=>{
   const state=await fixtures(page),r=state.rows.records[0],t=state.rows.tasks[0];
   Object.assign(r,{body:"상담 결과 "+"긴본문대표문구".repeat(18),record_kind:"result",task_id:t.id,entity_ids:[id(1)],entity_context:[{id:id(1),title:"고객 "+"긴이름".repeat(25),source:"selection",captured_at:stamp}]});
-  Object.assign(t,{entity_ids:r.entity_ids,entity_context:r.entity_context,status:"done",result_record_id:r.id,result_record:{id:r.id,body:r.body}});
+  Object.assign(t,{entity_ids:r.entity_ids,entity_context:r.entity_context,status:"done",completed_at:stamp,result_record_id:r.id,result_record:{id:r.id,body:r.body}});
   Object.assign(state.rows.entities[0],{tasks:{count:1,items:[t]},records:{count:1,items:[r]}});
   await page.setViewportSize({width,height:900});
   const styles:string[]=[];
@@ -834,6 +834,8 @@ for(const width of [320,360,390,639,640,768,1024,1440])test(`공통 연결 목�
     await go(page,path);const links=form(page).locator("a.related-item");await expect(links).toHaveCount(2);
     const first=links.first();styles.push(await first.evaluate(el=>{const c=getComputedStyle(el);return [c.padding,c.borderRadius,c.backgroundColor,c.borderWidth].join("|");}));
     for(const link of await links.all()){const box=(await link.boundingBox())!;expect(box.height).toBeGreaterThanOrEqual(44);expect(box.width).toBeGreaterThanOrEqual(44);}
+    await expect(form(page).getByText("연결 당시 정보",{exact:true})).toHaveCount(0);await expect(form(page).getByText("저장 정보",{exact:true})).toHaveCount(0);await expect(form(page)).not.toContainText("만든 시각");
+    if(path.startsWith("/tasks/")){await expect(form(page).getByRole("heading",{name:"관련 정보",exact:true})).toHaveCount(0);await expect(form(page)).toContainText("완료 시각");}
     expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),path).toBe(true);
     if(width===390)await page.screenshot({path:info.outputPath(`related-${path.split("/")[1]}.png`)});
   }

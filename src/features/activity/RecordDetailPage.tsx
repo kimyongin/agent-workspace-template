@@ -10,7 +10,6 @@ import { Notice } from "../../components/Field.tsx";
 import { MarkdownContent } from "../../components/MarkdownContent.tsx";
 import { DetailSurface } from "../../components/Modal.tsx";
 import { api, ApiError, query } from "../../lib/api.ts";
-import { formatDateTime } from "../../lib/format.ts";
 import { RecordFormModal, recordDraftFrom } from "./forms.tsx";
 import {TagNames} from "../tags/TagPicker.tsx";
 import {EntityLinks} from "../entity/EntityPicker.tsx";
@@ -82,9 +81,6 @@ export function RecordDetailPage() {
       {(dialog!=="edit"||record.record_kind==="change")&&<><TagNames ids={record.tag_ids}/>
       <EntityLinks ids={record.entity_ids} context={record.entity_context}/></>}
       <PrincipleSnapshots snapshots={record.applied_principle_snapshots??[]}/>
-      <details className="record-audit"><summary>저장 정보</summary><p className="meta">
-        만든 시각 {formatDateTime(record.created_at)} · 수정 {formatDateTime(record.updated_at)}
-      </p>{record.change&&<p className="help">이 기록의 정정·삭제는 대상의 업무 상태를 되돌리지 않습니다.</p>}</details>
     </div>;
   const startEdit=()=>navigate(editFromView(params));
   return <DetailSurface footer={<button type="button" className="btn btn-primary" onClick={startEdit}>편집</button>} title="기록" onClose={()=>dialog==="edit"&&!editReady?closeEdit():navigate(back)} busy={busy}>
@@ -102,7 +98,7 @@ export function RecordDetailPage() {
           submitLabel="저장"
           open
           initial={recordDraftFrom(record)}
-          details={<section className="detail-section"><h2 className="section-title">저장 정보 (읽기 전용)</h2>{management}</section>}
+          details={<section className="detail-section"><h2 className="section-title">기록 정보 (읽기 전용)</h2>{management}</section>}
           deletion={{note:false,message:<p style={{ margin: 0 }}>
             이 기록을 삭제합니다. {record.record_kind==="change"?"대상의 업무 상태는 되돌리지 않습니다.":"일회성 할 일의 결과였다면 할 일은 완료 상태로 남고 결과 연결만 사라집니다."}
           </p>,onConfirm:async () => {
