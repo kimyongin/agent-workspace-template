@@ -1,4 +1,5 @@
-import { RelatedItem, RelatedSection } from "../../components/RelatedItems.tsx";
+import { RelatedSection } from "../../components/RelatedItems.tsx";
+import { RelatedPreviewItem } from "../relations/RelatedPreviewItem.tsx";
 import type { EntityContext } from "@contracts/entity-links.ts";
 import type { EntityResult } from "@contracts/entity.ts";
 import { useEffect, useState } from "react";
@@ -119,5 +120,5 @@ export function EntityLinks(
 
 export function EntityLinkItem({id,context=[]}: {id:string;context?:EntityContext[]}) {
   const capture=context.find(item=>item.id===id);
-  return <RelatedItem to={`/entities/${id}`} title={capture?.title??"연결된 엔터티"} restoreKey={`linked-entity-${id}`}/>;
+  return <RelatedPreviewItem to={`/entities/${id}`} title={capture?.title??"연결된 엔터티"} restoreKey={`linked-entity-${id}`}/>;
 }

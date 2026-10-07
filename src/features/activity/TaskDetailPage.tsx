@@ -1,5 +1,5 @@
 import { RelatedRecords } from "./RelatedRecords.tsx";
-import { useDetailNavigate, useDetailOwnerReturn } from "../../lib/detail-exploration.tsx";
+import { useDetailNavigate, useDetailOwnerReturn, useDetailEditReturn } from "../../lib/detail-exploration.tsx";
 import { editFromView } from "../../lib/detail-navigation.ts";
 import { FormModal } from "../../components/ContentForm.tsx";
 // 할 일 상세: 읽기, 편집, 일회성 완료, 반복 할 일의 회차·회차 기록·중단/재개, 삭제.
@@ -43,6 +43,7 @@ export function TaskDetailPage() {
   const { id = "" } = useParams();
   const [params] = useSearchParams();
   const back=useDetailOwnerReturn(`/tasks${query({kind:params.get("kind"),status:params.get("status"),tag_id:params.get("tag_id"),entity_id:params.get("entity_id")})}`);
+  const editBack=useDetailEditReturn(back);
   const navigate = useDetailNavigate();
   const navigateAfterClose = useDeferredNavigation();
   const [task, setTask] = useState<TaskDetail | null>(null);
@@ -239,7 +240,7 @@ export function TaskDetailPage() {
           run(async () => {
             await api("POST", `/tasks/${task.id}/delete`, {expected_version:task.version,change_note:reason||undefined, change_tag_ids:tags});
             setDialog(null);
-            navigateAfterClose(back,true);
+            navigateAfterClose(editBack,true);
           }, "삭제했습니다.")}}
           onClose={closeEdit}
           onRouteDiscard={() => setDialog(null)}

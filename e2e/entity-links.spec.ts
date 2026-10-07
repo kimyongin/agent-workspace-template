@@ -30,7 +30,7 @@ test("general record selects two entities in web; MCP, both related views and de
     await mcp.call("delete_entity", { id: first.id, expected_version: first.version }); firstDeleted = true;
     await page.goto(`/records/${recordId}`); await openDetailEditor(page);
     const edit = page.getByRole("dialog", { name: "기록 편집", exact: true });
-    await expect(edit.getByRole("button", { name: first.prop1+" 연결 해제", exact: true })).toBeVisible();
+    await expect(edit.getByRole("button", { name: first.prop1+" 해제", exact: true })).toBeVisible();
     await edit.getByRole("textbox", { name: /^본문/ }).fill("대상 삭제 후에도 자료를 보존");
     await edit.getByRole("button", { name: "저장", exact: true }).click();
     await expect(edit).not.toBeVisible();
@@ -58,7 +58,7 @@ test("web occurrence defaults preserve both task targets rather than the legacy 
     await page.goto(`/tasks/${task.id}`);
     await page.getByRole("button", { name: `${date} 회차 기록`, exact: true }).click();
     const form = page.getByRole("dialog", { name: `${date} 회차 기록`, exact: true });
-    for (const target of targets) await expect(form.getByRole("button", { name: target.prop1+" 연결 해제", exact: true })).toBeVisible();
+    for (const target of targets) await expect(form.getByRole("button", { name: target.prop1+" 해제", exact: true })).toBeVisible();
     await form.getByLabel("본문",{exact:false}).fill("두 대상의 회차 수행 결과");
     await form.getByRole("button", { name: "기록 저장", exact: true }).click();
     await expect(form).not.toBeVisible();

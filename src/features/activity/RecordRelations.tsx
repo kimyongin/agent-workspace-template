@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import type { RecordResult } from "@contracts/record.ts";
 import type { TaskResult } from "@contracts/task.ts";
-import { RelatedItem, RelatedSection } from "../../components/RelatedItems.tsx";
+import { RelatedSection } from "../../components/RelatedItems.tsx";
+import { RelatedPreviewItem } from "../relations/RelatedPreviewItem.tsx";
 import { api, ApiError } from "../../lib/api.ts";
 import { EntityLinkItem } from "../entity/EntityPicker.tsx";
 import { RelatedTaskItem } from "./RelatedTask.tsx";
@@ -50,7 +51,7 @@ function ChangedRelation({change,path,occurrence}: {change:Change;path:string;oc
     return ()=>controller.abort();
   },[path,attempt,change.target_kind]);
   return <>
-    <RelatedItem to={state==="exists"?path:undefined} restoreKey="change-target" title={change.target_title}
+    <RelatedPreviewItem to={state==="exists"?path:undefined} restoreKey="change-target" title={change.target_title}
       metadata={<><span className="meta">{changeActionNames[change.action]}</span>{status&&<StatusBadge status={status}/>} {occurrence&&<span className="meta">{occurrence} 회차</span>}</>}/>
     {state==="missing"&&<p className="secondary">삭제된 대상 또는 접근할 수 없는 대상입니다. 당시의 기록은 그대로 보존됩니다.</p>}
     {state==="failed"&&<div className="form"><p className="notice" role="status">대상의 현재 상태를 확인하지 못했습니다.</p><button type="button" className="btn" onClick={()=>setAttempt(value=>value+1)}>대상 다시 조회</button></div>}
