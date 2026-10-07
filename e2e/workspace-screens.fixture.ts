@@ -217,8 +217,8 @@ test("태그 DELETE pending: Back·경로 이동·reload 보호와 응답 뒤 �
   const state=await fixtures(page,{hold:true});await go(page,"/entities");
   await page.getByRole("link",{name:"활동 태그 fixture",exact:true}).click();
   await page.getByRole("button",{name:"같은 이름 삭제",exact:true}).click();
-  const confirm=page.locator("dialog.modal-action[open]");await saveOnce(page,confirm,"삭제 확인");await state.pending;
-  await expect(confirm.getByRole("button",{name:"삭제 중…"})).toBeDisabled();await expect(confirm.getByRole("button",{name:"취소",exact:true})).toBeDisabled();
+  const confirm=page.locator("dialog.modal-action[open]");await saveOnce(page,confirm,"삭제 확인",false);await state.pending;
+  await expect(confirm.getByRole("button",{name:"처리 중…"})).toBeDisabled();await expect(confirm.getByRole("button",{name:"취소",exact:true})).toBeDisabled();
   await page.goBack();await expect(page).toHaveURL(/tags\/activity$/);await expect(confirm).toBeVisible();
   await page.getByRole("link",{name:"엔터티 fixture",exact:true}).evaluate(el=>el.dispatchEvent(new MouseEvent("click",{bubbles:true,cancelable:true})));
   await expect(page).toHaveURL(/tags\/activity$/);await expect(page.getByRole("dialog",{name:"변경을 버릴까요?"})).toHaveCount(0);
