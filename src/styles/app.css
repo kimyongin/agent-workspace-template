@@ -536,9 +536,6 @@ textarea.input {
 .detail-section .props dd { margin: 0; }
 .read-context { display: grid; gap: var(--space-2); min-width: 0; }
 .read-context > .label, .read-context > .section-title { margin: 0; }
-.related-provenance { margin-top: var(--space-2); }
-.related-provenance > summary { cursor: pointer; display: inline-flex; align-items: center; min-height: 44px; }
-.related-provenance p { margin: 0; }
 .current-document > .item-title { margin: 0; }
 .current-document > .secondary, .current-document > .meta { margin: 0; }
 .search-form { display: grid; gap: var(--space-3); }
@@ -643,11 +640,6 @@ textarea.input {
 .record-event-row { display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--space-2) var(--space-4); }
 .record-event-row p { margin: 0; font-size: .875rem; }
 .record-target-link { display: inline-flex; align-items: center; gap: var(--space-1); min-height: 44px; font-size: .875rem; }
-.record-audit { border-top: 1px solid var(--line); padding-top: var(--space-2); color: var(--muted-ink); }
-.record-audit summary { display: flex; align-items: center; min-height: 44px; font-size: .8125rem; cursor: pointer; }
-.record-audit summary::before { content: "＋"; margin-right: var(--space-2); }
-.record-audit[open] summary::before { content: "−"; }
-.record-audit p { margin: var(--space-2) 0; }
 .record-content + .detail-section { margin-top: 0; padding-top: var(--space-4); }
 
 .modal-head .dialog-title {

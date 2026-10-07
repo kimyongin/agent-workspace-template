@@ -175,12 +175,6 @@ export function TaskDetailPage() {
       </section>
 
     </div>;
-  const relatedInformation = <section className="detail-section"><h2 className="section-title">관련 정보</h2>        <TagNames ids={task.tag_ids}/>
-        <EntityLinks ids={task.entity_ids} context={task.entity_context}/>
-        <p className="meta" style={{ margin: 0 }}>
-          만든 시각 {formatDateTime(task.created_at)} · 수정 {formatDateTime(task.updated_at)}
-        </p>
-</section>;
   const occurrenceSection = <>{task.kind === "recurring" && (
         <section className="detail-section" aria-labelledby="occ-title">
           <div className="panel-head">
@@ -230,7 +224,8 @@ export function TaskDetailPage() {
       {management}
 
       {task.body&&<section className="detail-section" aria-label="내용"><MarkdownContent text={task.body}/></section>}
-      {relatedInformation}
+      <TagNames ids={task.tag_ids}/>
+      <EntityLinks ids={task.entity_ids} context={task.entity_context}/>
       <RelatedRecords taskId={task.id} revision={task.version+recordRefresh}/>
       {occurrenceSection}
       {dialog === "edit" && editReady && (

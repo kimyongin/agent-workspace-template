@@ -334,17 +334,6 @@ export function EntityLinks(
           return (
             <li key={id}>
               <RelatedItem to={`/entities/${id}`} title={capture?.title??"연결된 엔터티"} restoreKey={`linked-entity-${id}`}/>
-              {capture && (
-                <details className="related-provenance">
-                  <summary className="meta">연결 당시 정보</summary>
-                  <p className="meta">
-                    {capture.source === "legacy_backfill"
-                      ? "기존 연결 전환 시 이름"
-                      : "연결 선택 시 이름"} ·{" "}
-                    {new Date(capture.captured_at).toLocaleString()}
-                  </p>
-                </details>
-              )}
             </li>
           );
         })}
