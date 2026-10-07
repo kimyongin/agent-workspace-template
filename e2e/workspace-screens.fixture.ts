@@ -324,14 +324,14 @@ for(const width of [320,360,390,639,640,768,1024,1440])test(`시각 위계 ${wid
   expect(state.writes).toHaveLength(0);expect(state.errors).toEqual([]);
 });
 
-for(const width of [320,390,1024])test(`엔터티 연결 목록 ${width}px: 종류·본문 대표 문구·시각·행 구획과 간결한 상세`,async({page},info)=>{
+for(const width of [320,390,1024])test(`엔터티 연결 목록 ${width}px: 본문 대표 문구·오른쪽 행동과 간결한 상세`,async({page},info)=>{
   const state=await fixtures(page),title="memo-edd743a2-2a0c-455b-b3ad-312e05d47d4e 등록";
   Object.assign(state.rows.entities[0],{records:{count:2,items:[{id:id(3),body:"상담 판단 정리",record_kind:"user",occurred_at:stamp,updated_at:stamp},{id:id(30),body:title,record_kind:"change",occurred_at:stamp,updated_at:stamp}]}});
   await page.setViewportSize({width,height:900});await go(page,`/entities/${id(1)}`);
   const section=form(page).locator(".related-section").filter({has:page.getByRole("heading",{name:"기록 (2개)",exact:true})}),rows=section.locator(".related-item");
-  await expect(rows).toHaveCount(2);await expect(rows.first()).toContainText("직접 작성");await expect(rows.first()).toContainText("상담 판단 정리");
-  await expect(rows.last()).toContainText("변경 기록");await expect(rows.last().getByRole("button",{name:title,exact:true})).toHaveCount(1);
-  await expect(rows.locator("time")).toHaveCount(2);await expect(form(page).getByRole("link",{name:"전체 할 일 보기",exact:true})).toHaveCount(0);
+  await expect(rows).toHaveCount(2);await expect(rows.first()).toContainText("상담 판단 정리");
+  await expect(rows.last().getByRole("button",{name:title,exact:true})).toHaveCount(1);
+  await expect(rows.locator(".related-item-meta, time, .badge")).toHaveCount(0);await expect(form(page).getByRole("link",{name:"전체 할 일 보기",exact:true})).toHaveCount(0);
   await expect(section.getByRole("link",{name:"전체 기록 보기",exact:true})).toHaveCount(0);
   await expect(form(page).getByRole("button",{name:"할 일 작성",exact:true})).toBeVisible();
   for(const section of await form(page).locator(".detail-management > .related-section").all())expect(await section.evaluate(el=>getComputedStyle(el).borderTopWidth)).toBe("0px");
