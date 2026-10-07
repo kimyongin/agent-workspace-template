@@ -1,5 +1,6 @@
 import { useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { SurfaceContext } from "../../components/Modal.tsx";
+import { useLocation } from "react-router";
 import type { EntityDetail, EntityResult } from "@contracts/entity.ts";
 import type { TaskResult } from "@contracts/task.ts";
 import { FormModal } from "../../components/ContentForm.tsx";
@@ -53,15 +54,17 @@ type Mutation = {task:TaskResult;entity:Candidate;remove:boolean;ids:string[]};
 /** Both directions patch the task's single membership field; no mirrored entity state. */
 function RelationControls({task,entityId,entityTitle,children,onSaved}: {task?:TaskResult;entityId?:string;entityTitle?:string;children:(controls:{search:ReactNode;button:ReactNode;unlink:(item:Candidate)=>ReactNode})=>ReactNode;onSaved:(saved?:TaskResult)=>void}) {
   const surface=useContext(SurfaceContext);
+  const location=useLocation(),locationKey=useRef(location.key);locationKey.current=location.key;
   const [searching,setSearching]=useState(false),[preparing,setPreparing]=useState(false),[error,setError]=useState<string|null>(null),[mutation,setMutation]=useState<Mutation|null>(null);
   const request=useRef<AbortController|null>(null);
   useEffect(()=>()=>request.current?.abort(),[]);
   const prepare=async(item:Candidate,remove:boolean)=>{
     if(preparing)return;
+    const startedKey=locationKey.current;
     request.current?.abort();const controller=new AbortController();request.current=controller;setPreparing(true);setError(null);
     try {
       const latest=await api<TaskResult>("GET",`/tasks/${task?.id??item.id}`,undefined,controller.signal);
-      if(controller.signal.aborted||surface?.editor.current)return;
+      if(controller.signal.aborted||locationKey.current!==startedKey||surface?.editor.current)return;
       const entity=task?item:{id:entityId!,title:entityTitle!},ids=latest.entity_ids;
       if(ids.includes(entity.id)===!remove){onSaved(latest);return;}
       setMutation({task:latest,entity,remove,ids:remove?ids.filter(id=>id!==entity.id):[...ids,entity.id]});
