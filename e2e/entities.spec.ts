@@ -1,5 +1,5 @@
 import { fillChangeMemo } from "./ui-actions.ts";
-import { saveOnce, beginTabAction, openDetailEditor } from "./ui-actions.ts";
+import { saveOnce, beginTabAction, openDetailEditor, openListDetail } from "./ui-actions.ts";
 import { expect, test } from "@playwright/test";
 import { devLogin, mcpClient, mcpTokenViaConsent, unique } from "./support.ts";
 
@@ -57,7 +57,7 @@ test("Entity 웹 CRUD·초안 보호→MCP parity·활동 연결→삭제 원문
     await expect(page.getByRole("button", { name: task.title, exact: true })).toBeVisible();
     await page.goto(`/tasks?entity_id=${id}`);
     await expect(page).toHaveURL(new RegExp(`/tasks\\?entity_id=${id}`));
-    await expect(page.getByRole("link", { name: task.title, exact: true }))
+    await expect(page.getByRole("button", { name: task.title, exact: true }))
       .toBeVisible();
     expect(new URL(page.url()).searchParams.get("entity_id")).toBe(id);
     await page.goto(`/tasks/${task.id}`);
@@ -137,13 +137,13 @@ test("Entity 목록: 키워드/선택/정렬·추가 페이지·상세 복귀/�
     await page.goto(
       `/entities?keyword=${encodeURIComponent(marker)}&prop4=c&sort=prop2`,
     );
-    await expect(page.getByRole("link", { name: `${marker} 00`, exact: true }))
+    await expect(page.getByRole("button", { name: `${marker} 00`, exact: true }))
       .toBeVisible();
     await page.getByRole("button", { name: "더 보기", exact: true }).click();
-    const last = page.getByRole("link", { name: `${marker} 20`, exact: true });
+    const last = page.getByRole("button", { name: `${marker} 20`, exact: true });
     await expect(last).toBeVisible();
     const before = page.url();
-    await last.click();
+    await openListDetail(page, `${marker} 20`);
     await page.getByRole("button",{name:"닫기",exact:true}).click();
     const restored=new URL(page.url()),original=new URL(before);
     for(const [key,value] of original.searchParams)expect(restored.searchParams.get(key)).toBe(value);
@@ -158,11 +158,11 @@ test("Entity 목록: 키워드/선택/정렬·추가 페이지·상세 복귀/�
       ).toBe(true);
     }
     await page.goto(`/entities?keyword=${encodeURIComponent(marker)}&prop4=c&sort=prop2`);
-    await page.getByRole("link", { name: `${marker} 19`, exact: true }).click();
+    await openListDetail(page, `${marker} 19`);
     const concurrent = await mcp.call("create_entity", { prop1: `${marker} 새 항목`, prop2: 0, prop4: "c" });
     ids.push(concurrent.id);
     await page.getByRole("button",{name:"닫기",exact:true}).click();
-    await expect(page.getByRole("link", { name: `${marker} 19`, exact: true })).toBeFocused();
+    await expect(page.getByRole("button", { name: `${marker} 19`, exact: true })).toBeFocused();
     await mcp.call("delete_entity", { id: ids[19], expected_version: 1 });
     ids.splice(19, 1);
     await page.reload();
@@ -209,10 +209,10 @@ test("Entity 복원: 대상 없음 조회 한도·제목 초점·필터 hash 제
   await page.getByLabel("속성 1 키워드",{exact:true}).fill("느림");
   await arrived;
   await page.getByLabel("속성 1 키워드",{exact:true}).fill("최신");
-  await expect(page.getByRole("link", { name: "최신", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "최신", exact: true })).toBeVisible();
   release();
-  await expect(page.getByRole("link", { name: "느림", exact: true })).toHaveCount(0);
-  await expect(page.getByRole("link", { name: "최신", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "느림", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "최신", exact: true })).toBeVisible();
 });
 
 test("Entity lookahead 뒤 더 보기: 현재 커서 append·실패 retry·행과 버튼 초점 보존", async ({ page }) => {
@@ -223,8 +223,8 @@ test("Entity lookahead 뒤 더 보기: 현재 커서 append·실패 retry·행�
       ids.push((await mcp.call("create_entity", { prop1: `${marker} ${String(i).padStart(2, "0")}`, prop2: i })).id);
     }
     await page.goto(`/entities?keyword=${encodeURIComponent(marker)}&sort=prop2`);
-    const anchor = page.getByRole("link", { name: `${marker} 19`, exact: true });
-    await anchor.click();
+    const anchor = page.getByRole("button", { name: `${marker} 19`, exact: true });
+    await openListDetail(page, `${marker} 19`);
     ids.push((await mcp.call("create_entity", { prop1: `${marker} 동시 추가`, prop2: 0 })).id);
     await page.getByRole("button",{name:"닫기",exact:true}).click();
     await expect(anchor).toBeFocused();

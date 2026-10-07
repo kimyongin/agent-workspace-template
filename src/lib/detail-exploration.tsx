@@ -8,8 +8,6 @@ const Snapshots = createContext<SnapshotsState | null>(null);
 const detailPath = /^\/(?:(entities|tasks|records|principles)\/[^/?#]+|tags(?:\/(?:entity|task|record))?)$/;
 const tagOrigin = /^\/(entities|tasks|records|settings)$/;
 
-export function useDetailNavigationScope() { return useContext(Snapshots)?.scope; }
-
 /** Recover only this owner's list context, even after crossing several detail kinds. */
 export function useDetailOwnerReturn(fallback: string): string {
   const location = useLocation();
@@ -29,11 +27,11 @@ export function useDetailOwnerReturn(fallback: string): string {
   return root?owner:fallback;
 }
 
-/** Deleting a related editor target returns to its starting detail, not a different tab. */
-export function useDetailEditReturn(fallback:string):string {
+/** Deleting a related viewer target returns to its starting detail, not a different tab. */
+export function useDetailDeleteReturn(fallback:string):string {
   const location=useLocation(),context=useContext(Snapshots);
   const root=detailTrail(location.state,context?.scope).find(frame=>detailPath.test(frame.path.split(/[?#]/)[0]));
-  return location.state?.relatedEditor&&root?root.path:fallback;
+  return root?root.path:fallback;
 }
 
 /** Exploration metadata lives in browser history, never in domain data or rendered dialog stacks. */
@@ -81,11 +79,6 @@ export function useDetailNavigate() {
     const sameDetail = detailPath.test(location.pathname) && (destination.startsWith("?") || destination.split(/[?#]/)[0] === location.pathname);
     const exit = detailPath.test(location.pathname) && !sameDetail;
     const root=detailTrail(location.state,context?.scope).find(frame=>detailPath.test(frame.path.split(/[?#]/)[0]));
-    if(location.state?.listEditor&&location.state.detailScope===context?.scope&&((sameDetail&&new URL(destination,"https://detail.invalid"+location.pathname).searchParams.get("edit")!=="1")||exit)) {
-      // End the editor entry too: Forward must not reopen a dismissed editor.
-      return Promise.resolve(navigate(to,{replace:true,state:null})).then(()=>navigate(-1));
-    }
-    if(root&&location.state?.relatedEditor&&sameDetail&&new URL(destination,"https://detail.invalid"+location.pathname).searchParams.get("edit")!=="1")return navigate(-1);
     if(root&&exit){
       if(destination.split(/[?#]/)[0]===root.path.split(/[?#]/)[0])return navigate(-1);
       if(!detailPath.test(destination.split(/[?#]/)[0])&&context){
@@ -133,12 +126,10 @@ export function DetailLink({ onClick, state, restoreKey, ...props }: Omit<LinkPr
 /** Only a known in-app predecessor enables Back; direct entry never guesses browser history. */
 export function useDetailExploration() {
   const location = useLocation(), navigate = useNavigate(), context = useContext(Snapshots);
-  const owner=useDetailOwnerReturn(`/${location.pathname.split("/")[1]}`);
   const frames = context?.frames;
   const trail = detailTrail(location.state, context?.scope), previous = trail.at(-1);
   useEffect(() => { for (const frame of trail) if (!frames?.has(frame.key)) frames?.set(frame.key, frame); }, [location.key, frames]);
-  if(location.state?.listEditor&&location.state.detailScope===context?.scope)return {label:"이전: 목록",listEditor:true,relatedEditor:false,editorTitle:undefined,back:()=>{void Promise.resolve(navigate(owner,{replace:true,state:null})).then(()=>navigate(-1));}};
-  return previous ? { label: `이전: ${previous.title}`,listEditor:false, relatedEditor:!!location.state?.relatedEditor,editorTitle:typeof location.state?.relatedTitle==="string"?location.state.relatedTitle:undefined, back: () => { void navigate(-1); } } : null;
+  return previous ? { label: `이전: ${previous.title}`,back: () => { void navigate(-1); } } : null;
 }
 
 function useRestoreFrame(frames: Map<string, Frame>) {

@@ -1,5 +1,5 @@
 import { RecordRelations } from "./RecordRelations.tsx";
-import { useDetailNavigate, useDetailOwnerReturn, useDetailEditReturn } from "../../lib/detail-exploration.tsx";
+import { useDetailNavigate, useDetailOwnerReturn, useDetailDeleteReturn } from "../../lib/detail-exploration.tsx";
 import { editFromView } from "../../lib/detail-navigation.ts";
 import { ChangeContext, PrincipleSnapshots, type WorkspaceRecord } from "./ChangeContext.tsx";
 // 기록 상세: 원문 읽기, 편집, 삭제.
@@ -17,7 +17,7 @@ export function RecordDetailPage() {
   const { id = "" } = useParams();
   const [params] = useSearchParams();
   const back=useDetailOwnerReturn(`/records${query({tag_id:params.get("tag_id")??"",entity_id:params.get("entity_id")??""})}`);
-  const editBack=useDetailEditReturn(back);
+  const deleteBack=useDetailDeleteReturn(back);
   const navigate = useDetailNavigate();
   const navigateAfterClose = useDeferredNavigation();
   const [record, setRecord] = useState<WorkspaceRecord | null>(null);
@@ -105,7 +105,7 @@ export function RecordDetailPage() {
           try {
             await api("DELETE", `/records/${record.id}${query({expected_version:record.version, change_note:reason || undefined, change_tag_ids:tags?.length ? tags.join(",") : undefined})}`);
             setDialog(null);
-            navigateAfterClose(editBack,true);
+            navigateAfterClose(deleteBack,true);
           } catch (e) {
             setError(e instanceof ApiError ? e.message : "삭제하지 못했습니다.");
             throw e;

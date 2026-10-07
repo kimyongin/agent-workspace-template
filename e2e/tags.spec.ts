@@ -1,5 +1,5 @@
 import { fillChangeMemo } from "./ui-actions.ts";
-import { saveOnce, beginTabAction, openDetailEditor } from "./ui-actions.ts";
+import { saveOnce, beginTabAction, openDetailEditor, openListDetail } from "./ui-actions.ts";
 import {expect,test} from "@playwright/test";
 import {devLogin,mcpClient,mcpTokenViaConsent,unique} from "./support.ts";
 
@@ -19,7 +19,7 @@ test("더 보기 응답이 늦어도 새 태그 필터 목록에 섞이지 않�
         const response=await route.fetch();arrived();await hold;await route.fulfill({response});finished();
       });
       await page.locator(`#activity-${path}-page-control`).click();await waiting;
-      await page.getByRole("button",{name:tag.name,exact:true}).click();await expect(page.getByRole("link",{name:title,exact:true})).toBeVisible();
+      await page.getByRole("button",{name:tag.name,exact:true}).click();await expect(page.getByRole("button",{name:title,exact:true})).toBeVisible();
       const delivered=page.waitForResponse(r=>new URL(r.url()).pathname.endsWith(`/api/${path}`)&&new URL(r.url()).searchParams.has("cursor"));
       release();await done;await (await delivered).finished();
       await page.evaluate(()=>new Promise<void>(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>resolve()))));
@@ -74,7 +74,7 @@ test("엔터티·기록 태그 같은 이름·웹 선택 정정·삭제 뒤 원�
       await mcp.call(`update_${kind}`,{id,expected_version:2,tag_ids:[tag.id],...(kind==="entity"?{change_note:"분류 복구"}:{})});
       const filtered=await mcp.call(kind==="entity"?"list_entities":"list_records",{tag_id:tag.id});
       expect(filtered.items.map((x:{id:string})=>x.id)).toEqual([id]);
-      await page.goto(`${path}?tag_id=${tag.id}`);await page.getByRole("link",{name:title,exact:true}).click();await openDetailEditor(page);
+      await page.goto(`${path}?tag_id=${tag.id}`);await openListDetail(page,title);await openDetailEditor(page);
       const revisit=page.getByRole("dialog",{name:kind==="entity"?"엔터티 편집":"기록 편집"});await revisit.getByLabel(kind==="entity"?"속성 2":"본문").fill(kind==="entity"?"10":"원문 보존");if(kind==="entity")await fillChangeMemo(page,revisit,"분류 상태에서 원문 정정");await saveOnce(page,revisit);await expect(revisit).not.toBeVisible();
       await page.getByRole("button",{name:"닫기",exact:true}).click();await expect(page.getByRole("button",{name:tag.name,exact:true})).toHaveAttribute("aria-pressed","true");await expect(page.locator(kind==="entity"?".list .item-title":".records .list .item-title")).toHaveCount(1);
       await mcp.call("delete_tag",{id:tag.id,expected_version:1});await page.goto(`${path}/${id}`);

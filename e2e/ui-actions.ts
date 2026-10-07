@@ -54,5 +54,5 @@ export async function openListEditor(page: Page, title: string, scope: Page | Lo
 export async function openListDetail(page: Page, title: string) {
   const toggle=page.getByRole("button",{name:title,exact:true});
   if(await toggle.getAttribute("aria-expanded")!=="true")await toggle.click();
-  await page.getByRole("link",{name:title+" 상세",exact:true}).click();
+  await page.getByRole("link",{name:title+" 보기",exact:true}).click();
 }

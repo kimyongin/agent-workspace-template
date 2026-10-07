@@ -18,7 +18,7 @@ import { formatDateTime } from "../../lib/format.ts";
 
 type Preview = EntityResult | TaskResult | RecordResult | WorkspacePrinciple;
 /** Current content only, never another relationship graph or a write during disclosure. */
-export function RelatedPreviewItem({list,...props}:ComponentProps<typeof RelatedItem>&{list?:{link:(editing:boolean)=>LinkProps;metadata?:ReactNode}}) {
+export function RelatedPreviewItem({list,...props}:ComponentProps<typeof RelatedItem>&{list?:{link:()=>LinkProps;metadata?:ReactNode}}) {
   const selection=useRelatedExpansion(),surface=useContext(SurfaceContext),button=useRef<HTMLElement|null>(null);
   const [item,setItem]=useState<Preview|null>(null),[error,setError]=useState<"missing"|"failed"|null>(null),[retry,setRetry]=useState(0);
   const path=props.to?.split(/[?#]/)[0];
@@ -46,9 +46,9 @@ export function RelatedPreviewItem({list,...props}:ComponentProps<typeof Related
       if(body)body.scrollTop+=shift;else window.scrollBy(0,shift);
     });
   };
-  const editable=!!item&&!error&&(!("is_current" in item)||item.is_current);
-  const editProps={className:"btn btn-text item-icon",title:"편집","aria-label":`${props.title} 편집`};
-  return <RelatedItem {...props} to={undefined} action={<>{props.action}{editable&&(list?<Link {...list.link(true)} {...editProps}><ItemIcon kind="edit"/></Link>:<DetailLink {...editProps} to={`${path}?edit=1`} state={{relatedEditor:true,relatedTitle:props.title}} restoreKey={`edit-related-${path}`}><ItemIcon kind="edit"/></DetailLink>)}</>} disclosure={{expanded,toggle,content:<>
+  const viewable=!!item&&!error&&(!("is_current" in item)||item.is_current);
+  const viewProps={className:"btn btn-text item-icon",title:"보기","aria-label":`${props.title} 보기`};
+  return <RelatedItem {...props} to={undefined} action={<>{props.action}{viewable&&(list?<Link {...list.link()} {...viewProps}><ItemIcon kind="view"/></Link>:<DetailLink {...viewProps} to={path} restoreKey={`view-related-${path}`}><ItemIcon kind="view"/></DetailLink>)}</>} disclosure={{expanded,toggle,content:<>
     {!item&&!error&&<p className="secondary" role="status">불러오는 중…</p>}
     {error==="missing"&&<p className="secondary">삭제된 대상 또는 접근할 수 없는 대상입니다.</p>}
     {error==="failed"&&<><Notice kind="error">내용을 불러오지 못했습니다.</Notice><button type="button" className="btn" onClick={()=>setRetry(n=>n+1)}>다시 시도</button></>}
@@ -60,7 +60,6 @@ export function RelatedPreviewItem({list,...props}:ComponentProps<typeof Related
         {"tag_ids" in item&&<TagNames compact scope={"status" in item?"task":"record"} ids={item.tag_ids}/>}
       </>}
       {list?.metadata}
-      {list&&<Link className="btn btn-text" {...list.link(false)} aria-label={`${props.title} 상세`}>상세</Link>}
     </>}
   </>}}/>;
 }
