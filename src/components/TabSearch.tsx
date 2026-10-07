@@ -44,12 +44,12 @@ export function resetTabFilters(params: URLSearchParams) {
 export function TabFilters({active=false,attention=false,children}:{active?:boolean;attention?:boolean;children:ReactNode}) {
   const [params]=useSearchParams(),location=useLocation(),navigate=useNavigate();
   const open=params.get("filters")==="1";
-  return <details className="workspace-additional" open={open} onToggle={event=>{
-    const expanded=event.currentTarget.open;if(expanded===open)return;
-    const next=new URLSearchParams(params);expanded?next.set("filters","1"):next.delete("filters");
-    void navigate({pathname:location.pathname,search:next.toString(),hash:location.hash},{replace:true,preventScrollReset:true});
-  }}>
-    <summary aria-expanded={open}>필터 {open?"닫기":"열기"}{attention?" · 확인 필요":active?" · 적용 중":""}</summary>
+  return <details className="workspace-additional" open={open}>
+    <summary aria-expanded={open} onClick={event=>{
+      event.preventDefault();
+      const next=new URLSearchParams(params);open?next.delete("filters"):next.set("filters","1");
+      void navigate({pathname:location.pathname,search:next.toString(),hash:location.hash},{replace:true,preventScrollReset:true});
+    }}>필터 {open?"닫기":"열기"}{attention?" · 확인 필요":active?" · 적용 중":""}</summary>
     <div className="form">{children}</div>
   </details>;
 }
