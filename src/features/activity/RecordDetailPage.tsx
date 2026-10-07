@@ -1,4 +1,4 @@
-import { RelatedTask } from "./RelatedTask.tsx";
+import { RecordRelations } from "./RecordRelations.tsx";
 import { useDetailNavigate, useDetailOwnerReturn } from "../../lib/detail-exploration.tsx";
 import { editFromView } from "../../lib/detail-navigation.ts";
 import { ChangeContext, PrincipleSnapshots, type WorkspaceRecord } from "./ChangeContext.tsx";
@@ -12,7 +12,6 @@ import { DetailSurface } from "../../components/Modal.tsx";
 import { api, ApiError, query } from "../../lib/api.ts";
 import { RecordFormModal, recordDraftFrom } from "./forms.tsx";
 import {TagNames} from "../tags/TagPicker.tsx";
-import {EntityLinks} from "../entity/EntityPicker.tsx";
 
 export function RecordDetailPage() {
   const { id = "" } = useParams();
@@ -77,9 +76,8 @@ export function RecordDetailPage() {
       {error && <Notice kind="error">{error}</Notice>}
       <ChangeContext record={record}/>
       {loadError && <><Notice kind="error">{loadError}</Notice><button type="button" className="btn" onClick={reload}>조회 다시 시도</button></>}
-      {record.task_id && <RelatedTask id={record.task_id} occurrence={record.occurrence_on}/> }
-      {(dialog!=="edit"||record.record_kind==="change")&&<><TagNames compact ids={record.tag_ids}/>
-      <EntityLinks ids={record.entity_ids} context={record.entity_context}/></>}
+      {(dialog!=="edit"||record.record_kind==="change")&&<TagNames compact ids={record.tag_ids}/>}
+      <RecordRelations record={record} includeEntities={dialog!=="edit"||record.record_kind==="change"}/>
       <PrincipleSnapshots snapshots={record.applied_principle_snapshots??[]}/>
     </div>;
   const startEdit=()=>navigate(editFromView(params));

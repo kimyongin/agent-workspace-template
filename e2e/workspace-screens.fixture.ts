@@ -76,6 +76,28 @@ for(const kind of ["entities","records"] as const)test(`${kind}: 긴 복원 중 
   expect(reads).toEqual(Array.from({length:24},(_,index)=>index));expect(state.writes).toHaveLength(0);expect(state.errors).toEqual([]);
 });
 const targetCases=[["entity","entities",1],["task","tasks",2],["record","records",31],["principle","principles",4]] as const;
+const connectedTarget=(page:Page,kind:string)=>form(page).getByRole("region",{name:`연결된 ${{entity:"엔터티",task:"할 일",record:"기록",principle:"원칙"}[kind]} (1개)`,exact:true});
+for(const kind of ["entity","task"] as const)for(const deleted of [false,true])test(`#183 ${kind}: 사건 대상·기존 연결을 한 카드로 통합${deleted?"·삭제된 대상":""}`,async({page},info)=>{
+  const state=await fixtures(page),r=state.rows.records[0],targetId=id(kind==="entity"?1:2);
+  state.rows.entities.push({...entity(5),prop1:"다른 연결 엔터티"});
+  Object.assign(r,{record_kind:"change",task_id:id(2),occurrence_on:"2026-10-04",entity_ids:[id(1),id(1),id(5)],entity_context:[{id:id(1),title:"중복된 연결 제목",source:"selection",captured_at:stamp},{id:id(5),title:"다른 연결 엔터티",source:"selection",captured_at:stamp}],change:{event_id:id(30),target_kind:kind,target_id:targetId,target_title:"당시 대상",action:deleted?"delete":"update",source:"http",before:null,after:null,path:null}});
+  const original=JSON.stringify(r);
+  if(deleted)await page.route(`**/api/${kind==="entity"?"entities":"tasks"}/${targetId}`,route=>route.fulfill({status:404,json:{code:"not_found",message:"항목을 찾을 수 없습니다"}}));
+  await page.setViewportSize({width:390,height:844});await go(page,`/records/${r.id}`);
+  const entities=form(page).getByRole("region",{name:"연결된 엔터티 (2개)",exact:true}),tasks=connectedTarget(page,"task");
+  await expect(entities).toHaveCount(1);await expect(entities.locator(".related-item")).toHaveCount(2);await expect(tasks.locator(".related-item")).toHaveCount(1);
+  await expect(form(page).getByRole("heading",{name:/^변경 대상/})).toHaveCount(0);
+  const changed=kind==="entity"?entities:tasks;
+  await expect(changed.locator(".related-item").filter({hasText:"당시 대상"})).toHaveCount(1);
+  await expect(changed).toContainText(deleted?"삭제":"수정");
+  await expect(entities.getByRole("link",{name:"다른 연결 엔터티",exact:true})).toHaveAttribute("href",`/entities/${id(5)}`);
+  if(deleted){await expect(changed).toContainText("삭제된 대상 또는 접근할 수 없는 대상");await expect(changed.getByRole("link",{name:"당시 대상",exact:true})).toHaveCount(0);}
+  else await expect(changed.getByRole("link",{name:"당시 대상",exact:true})).toHaveAttribute("href",`/${kind==="entity"?"entities":"tasks"}/${targetId}`);
+  if(kind==="task"){await expect(tasks).toContainText("2026-10-04 회차");if(!deleted)await expect(tasks).toContainText("진행 중");}
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+  await page.screenshot({path:info.outputPath(`record-relations-${kind}-${deleted}.png`)});
+  expect(JSON.stringify(r)).toBe(original);expect(state.writes).toHaveLength(0);expect(state.errors).toEqual([]);
+});
 for(const [kind,route,n] of targetCases) for(const outcome of ["exists","deleted","foreign","failed"] as const)test(`변경 대상 ${kind}: ${outcome} 현재 조회와 역사 metadata 분리`,async({page})=>{
   const state=await fixtures(page),r=state.rows.records[0];
   const change={event_id:id(30),target_kind:kind,target_id:id(n),target_title:"당시 대상 이름",action:"update",source:"mcp",before:{title:"수정 전"},after:{title:"수정 후"},path:`/${route}/${id(n)}`};
@@ -83,7 +105,7 @@ for(const [kind,route,n] of targetCases) for(const outcome of ["exists","deleted
   const original=JSON.stringify(r);let reads=0,fail=outcome==="failed";
   await page.route(`**/api/${route}/${id(n)}`,endpoint=>{reads++;return outcome==="deleted"||outcome==="foreign"?endpoint.fulfill({status:404,json:{code:"not_found",message:"항목을 찾을 수 없습니다"}}):fail?endpoint.fulfill({status:503,json:{code:"internal",message:"조회 실패"}}):endpoint.fulfill({json:{id:id(n)}});});
   await go(page,`/records/${r.id}?edit=1&edit_from=view`);
-  const target=form(page).getByRole("region",{name:"변경 대상 (1개)",exact:true});
+  const target=connectedTarget(page,kind);
   await expect(target.locator(".related-item .item-title")).toHaveText(change.target_title);
   const link=target.getByRole("link",{name:change.target_title,exact:true});
   if(outcome==="exists")await expect(link).toHaveAttribute("href",change.path);
@@ -97,7 +119,7 @@ for(const [kind,route,n] of targetCases) for(const outcome of ["exists","deleted
   expect(JSON.stringify(r)).toBe(original);expect(state.writes).toHaveLength(0);expect(state.errors).toEqual([]);
   if(kind==="task"&&outcome==="exists"){
     await page.unroute(`**/api/${route}/${id(n)}`);await go(page,`/records/${r.id}`);
-    const card=form(page).getByRole("region",{name:"변경 대상 (1개)",exact:true}).getByRole("link",{name:change.target_title,exact:true});
+    const card=connectedTarget(page,kind).getByRole("link",{name:change.target_title,exact:true});
     await card.click();await expect(page).toHaveURL(new RegExp(`/tasks/${id(n)}$`));
     await expect(form(page).getByRole("button",{name:"이전: 기록",exact:true})).toBeVisible();
     let release=()=>{};const held=new Promise<void>(resolve=>{release=resolve;});
@@ -113,7 +135,7 @@ for(const [kind,route,n] of targetCases) for(const outcome of ["exists","deleted
 for(const failure of [401,403,500,"network","other404"] as const)test(`변경 대상 조회 ${failure}: 삭제로 오인하지 않고 GET 재시도`,async({page})=>{
   const state=await fixtures(page),r=state.rows.records[0];Object.assign(r,{record_kind:"change",change:{event_id:id(30),target_kind:"entity",target_id:id(1),target_title:"당시 이름",action:"create",source:"http",before:null,after:{prop1:"당시 이름"},path:`/entities/${id(1)}`}});
   await page.route(`**/api/entities/${id(1)}`,endpoint=>failure==="network"?endpoint.abort("connectionreset"):endpoint.fulfill({status:failure==="other404"?404:failure,json:{code:failure===401?"unauthenticated":failure===403?"forbidden":"internal",message:"조회 실패"}}));
-  await go(page,`/records/${r.id}?edit=1&edit_from=view`);await expect(form(page)).toContainText("대상의 현재 상태를 확인하지 못했습니다.");await expect(form(page)).not.toContainText("삭제된 대상");await expect(form(page).getByRole("region",{name:"변경 대상 (1개)",exact:true}).getByRole("link")).toHaveCount(0);
+  await go(page,`/records/${r.id}?edit=1&edit_from=view`);await expect(form(page)).toContainText("대상의 현재 상태를 확인하지 못했습니다.");await expect(form(page)).not.toContainText("삭제된 대상");await expect(connectedTarget(page,"entity").getByRole("link")).toHaveCount(0);
   await expect(form(page).getByRole("button",{name:"대상 다시 조회",exact:true})).toBeEnabled();expect(state.writes).toHaveLength(0);expect(state.errors).toEqual([]);
 });
 
@@ -126,7 +148,7 @@ test("변경 대상 목록은 추가 조회 없이 당시 행동만 표시·늦�
   await go(page,"/records");await expect(page.locator(".records .list")).toContainText("첫 대상");expect(reads).toBe(0);await expect(page.locator(".records .list")).not.toContainText("삭제된 대상");
   await go(page,`/records/${r.id}?edit=1&edit_from=view`);await expect(form(page).getByRole("status",{name:"변경 대상 조회"})).toBeVisible();await expect.poll(()=>reads).toBe(1);
   await go(page,`/records/${second.id}?edit=1&edit_from=view`);await expect(form(page)).toContainText("삭제된 대상 또는 접근할 수 없는 대상");release();
-  await expect(form(page)).toContainText("다음 대상");await expect(form(page).getByRole("region",{name:"변경 대상 (1개)",exact:true}).getByRole("link")).toHaveCount(0);expect(state.writes).toHaveLength(0);expect(state.errors).toEqual([]);
+  await expect(form(page)).toContainText("다음 대상");await expect(connectedTarget(page,"entity").getByRole("link")).toHaveCount(0);expect(state.writes).toHaveLength(0);expect(state.errors).toEqual([]);
 });
 
 for(const [kind,label] of [["entities","엔터티"],["tasks","할 일"],["records","기록"],["principles","원칙"]])test(`${kind}: uncertain 생성 폐기 후 새 작성은 새로운 요청키`,async({page})=>{
@@ -533,14 +555,15 @@ for (const width of [320, 1440]) test(`상세 탐색 ${width}px: 한 surface·�
   await expect(page).toHaveURL(new RegExp(`/tasks/${id(2)}$`));
   expect(state.writes).toHaveLength(0);expect(state.errors).toEqual([]);
 });
-test("상세 탐색: 같은 대상의 두 링크는 실제 진입한 링크로 복귀",async({page})=>{
+test("상세 탐색: 같은 엔터티는 한 카드로 합치고 그 카드로 초점 복귀",async({page})=>{
   const state=await fixtures(page);
   Object.assign(state.rows.records[0],{record_kind:"change",entity_ids:[id(1)],entity_context:[{id:id(1),title:"연결 제목",source:"selection",captured_at:stamp}],change:{event_id:id(30),target_kind:"entity",target_id:id(1),target_title:"당시 엔터티",action:"update",source:"web",before:{prop2:0},after:{prop2:1},path:`/entities/${id(1)}`}});
   await go(page,`/records/${id(3)}`);
-  await expect(form(page).getByRole("region",{name:"변경 대상 (1개)",exact:true}).getByRole("link")).toBeVisible();
-  await form(page).getByRole("link",{name:"연결 제목",exact:true}).click();
+  await expect(connectedTarget(page,"entity").getByRole("link")).toBeVisible();
+  await expect(form(page).getByRole("link",{name:"연결 제목",exact:true})).toHaveCount(0);
+  await form(page).getByRole("link",{name:"당시 엔터티",exact:true}).click();
   await form(page).getByRole("button",{name:/^이전: 기록/}).click();
-  await expect(form(page).getByRole("link",{name:"연결 제목",exact:true})).toBeFocused();
+  await expect(form(page).getByRole("link",{name:"당시 엔터티",exact:true})).toBeFocused();
   expect(state.errors).toEqual([]);
 });
 test("상세 탐색: 계정 전환 뒤 이전 계정의 history를 무시",async({page})=>{
@@ -699,7 +722,7 @@ for (const capture of ["application","migration"] as const) test(`기록: ${capt
 
 test("기록: 자동 변경 문맥·원칙 snapshot·정정 시스템 필드 제외",async({page})=>{
   const state=await fixtures(page);const r=state.rows.records[0];Object.assign(r,{record_kind:"change",body:"실측 반영",change:{event_id:id(30),target_kind:"entity",target_id:id(99),target_title:"삭제된 엔터티",action:"delete",source:"mcp",before:{prop2:10},after:null,path:null},applied_principle_snapshots:[{id:id(4),version:1,status:"active",title:"당시 기준",body:"당시 본문",saved_at:stamp,summary:"당시 요약",captured_at:"migration"}]});
-  await go(page,`/records/${r.id}?edit=1&edit_from=view`);await expect(form(page)).toContainText("에이전트");await expect(form(page)).toContainText("삭제된 대상");await expect(form(page)).toContainText("당시 본문");await expect(form(page)).toContainText("실제 판단 당시의 본문을 보증하지 않습니다.");await expect(form(page).getByRole("region",{name:"변경 대상 (1개)",exact:true}).getByRole("link")).toHaveCount(0);
+  await go(page,`/records/${r.id}?edit=1&edit_from=view`);await expect(form(page)).toContainText("에이전트");await expect(form(page)).toContainText("삭제된 대상");await expect(form(page)).toContainText("당시 본문");await expect(form(page)).toContainText("실제 판단 당시의 본문을 보증하지 않습니다.");await expect(connectedTarget(page,"entity").getByRole("link")).toHaveCount(0);
   await compatibleEdit(page);await expect(form(page).getByLabel("수행 시각")).toHaveCount(0);await expect(form(page).getByText("활동 태그",{exact:true})).toHaveCount(0);await form(page).getByLabel("본문",{exact:false}).fill("설명 정정");await saveOnce(page, form(page));
   expect(Object.keys(state.writes[0].body).sort()).toEqual(["body","expected_version"].sort());expect(state.rows.entities[0].prop2).toBe(0);
   await expect(form(page).getByRole("heading",{name:"기록",exact:true})).toBeVisible();await compatibleEdit(page);await form(page).getByRole("button",{name:"삭제",exact:true}).click();const confirm=page.locator("dialog.modal-action[open]");await expect(confirm).toContainText("대상의 업무 상태는 되돌리지 않습니다.");await saveOnce(page,confirm,"삭제 확인");await expect(page).toHaveURL(/\/records$/);expect(state.rows.entities[0].prop2).toBe(0);expect(state.rows.records).toHaveLength(0);expect(state.errors).toEqual([]);
@@ -890,13 +913,13 @@ for(const [kind,n] of [["entities",1],["tasks",2],["records",3],["principles",4]
 for(const width of [320,360,390,639,640,768,1024,1440])test(`기록 정돈 ${width}px: 본문·변경 정보·연결 중심의 간결한 상세`,async({page},info)=>{
   const state=await fixtures(page);await page.setViewportSize({width,height:850});
   Object.assign(state.rows.records[0],{body:"상담 준비 수정 (일정, 내용)",record_kind:"change",entity_ids:[id(1)],entity_context:[{id:id(1),title:"테스트 속성1222",source:"selection",captured_at:stamp}],change:{event_id:id(30),target_kind:"task",target_id:id(2),target_title:"상담 준비 "+"긴제목".repeat(14),action:"update",source:"http",before:{title:"기존 할 일"},after:{title:"상담 준비"},path:`/tasks/${id(2)}`}});
-  await go(page,`/records/${id(3)}`);await expect(form(page).getByRole("region",{name:"변경 대상 (1개)",exact:true}).getByRole("link")).toBeVisible();
+  await go(page,`/records/${id(3)}`);await expect(connectedTarget(page,"task").getByRole("link")).toBeVisible();
   const text=form(page).locator(".record-content .markdown"),meta=form(page).locator(".record-context-meta");
   const style=async(el:ReturnType<typeof form>)=>el.evaluate(n=>({size:parseFloat(getComputedStyle(n).fontSize),color:getComputedStyle(n).color}));
   expect((await style(text)).size).toBeGreaterThan((await style(meta)).size);expect((await style(text)).color).not.toBe((await style(meta)).color);
   await expect(form(page).getByText("저장 정보",{exact:true})).toHaveCount(0);await expect(form(page)).not.toContainText("만든 시각");await expect(form(page).getByRole("button",{name:"닫기",exact:true})).toHaveText("×");
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
-  const card=form(page).getByRole("region",{name:"변경 대상 (1개)",exact:true}).locator(".related-item");
+  const card=connectedTarget(page,"task").locator(".related-item");
   const entityCard=form(page).getByRole("region",{name:"연결된 엔터티 (1개)",exact:true}).locator(".related-item");
   const cardStyle=async(el:ReturnType<typeof form>)=>el.evaluate(n=>{const c=getComputedStyle(n);return [c.padding,c.borderRadius,c.backgroundColor,c.borderWidth].join("|");});
   expect(await cardStyle(card)).toBe(await cardStyle(entityCard));expect((await card.boundingBox())!.height).toBeGreaterThanOrEqual(44);

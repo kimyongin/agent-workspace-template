@@ -330,14 +330,18 @@ export function EntityLinks(
     <RelatedSection title="연결된 엔터티" count={ids.length}>
       <ul className="related-items">
         {ids.map((id) => {
-          const capture = context.find((item) => item.id === id);
           return (
             <li key={id}>
-              <RelatedItem to={`/entities/${id}`} title={capture?.title??"연결된 엔터티"} restoreKey={`linked-entity-${id}`}/>
+              <EntityLinkItem id={id} context={context}/>
             </li>
           );
         })}
       </ul>
     </RelatedSection>
   );
+}
+
+export function EntityLinkItem({id,context=[]}: {id:string;context?:EntityContext[]}) {
+  const capture=context.find(item=>item.id===id);
+  return <RelatedItem to={`/entities/${id}`} title={capture?.title??"연결된 엔터티"} restoreKey={`linked-entity-${id}`}/>;
 }
