@@ -180,7 +180,8 @@ function ActiveModalShell({ title, headingLevel=2, open, onClose, onCancelEdit, 
           </button>
         </div>
         <div className="modal-body" tabIndex={0}><div hidden={!!action}>{children}</div>{action && <div className="surface-action">{action.body}</div>}</div>
-        {(action?.footer ?? footer) && <div className="modal-foot">{action ? action.footer : typeof footer === "function" ? footer(requestCancelEdit) : footer}</div>}
+        {footer && <div className="modal-foot" hidden={!!action}>{typeof footer === "function" ? footer(requestCancelEdit) : footer}</div>}
+        {action?.footer && <div className="modal-foot">{action.footer}</div>}
       </div>
       <ConfirmDialog
         open={confirmDiscard || blocker.state === "blocked"}

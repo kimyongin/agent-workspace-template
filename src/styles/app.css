@@ -633,6 +633,7 @@ textarea.input {
 .modal-head .btn { flex-shrink: 0; }
 .modal-head .modal-icon { width: 44px; height: 44px; padding: 0; font-size: 1.5rem; text-decoration: none; display: inline-flex; justify-content: center; align-items: center; }
 .modal-foot { flex-wrap: wrap; }
+.modal-foot[hidden] { display: none; }
 .record-content .markdown { color: var(--ink); font-size: 1rem; line-height: 1.75; }
 .record-context { display: grid; gap: var(--space-6); }
 .record-context-meta { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); font-size: .8125rem; color: var(--muted-ink); }

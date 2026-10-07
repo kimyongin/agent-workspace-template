@@ -934,7 +934,7 @@ for(const width of [320,360,390,639,640,768,1024,1440])test(`공통 연결 목�
   await page.setViewportSize({width,height:900});
   const styles:string[]=[];
   for(const path of [`/entities/${id(1)}`,`/tasks/${t.id}`,`/records/${r.id}`]){
-    await go(page,path);const links=form(page).locator("a.related-item");await expect(links).toHaveCount(2);
+    await go(page,path);const links=form(page).locator(".related-item");await expect(links).toHaveCount(2);
     const first=links.first();styles.push(await first.evaluate(el=>{const c=getComputedStyle(el);return [c.padding,c.borderRadius,c.backgroundColor,c.borderWidth].join("|");}));
     for(const link of await links.all()){const box=(await link.boundingBox())!;expect(box.height).toBeGreaterThanOrEqual(44);expect(box.width).toBeGreaterThanOrEqual(44);}
     await expect(form(page).getByText("연결 당시 정보",{exact:true})).toHaveCount(0);await expect(form(page).getByText("저장 정보",{exact:true})).toHaveCount(0);await expect(form(page)).not.toContainText("만든 시각");
@@ -962,7 +962,7 @@ test("할 일 연결 기록: 결과와 전체 기간 회차·페이지 오류 �
   await go(page,`/tasks/${id(2)}`);const related=form(page).getByRole("region",{name:/^연결된 기록 \(/});
   await expect(related.getByRole("link",{name:first.body,exact:true})).toBeVisible();await related.getByRole("button",{name:"기록 더 보기"}).click();
   await expect(related.getByRole("alert")).toBeVisible();await expect(related.getByRole("link",{name:first.body,exact:true})).toBeVisible();
-  await related.getByRole("button",{name:"기록 다시 시도"}).click();await expect(related.getByRole("link",{name:old.body,exact:true})).toBeVisible();await expect(related.locator("a.related-item")).toHaveCount(2);
+  await related.getByRole("button",{name:"기록 다시 시도"}).click();await expect(related.getByRole("link",{name:old.body,exact:true})).toBeVisible();await expect(related.locator(".related-item")).toHaveCount(2);
   state.rows.records.push(old);
   await related.getByRole("link",{name:old.body,exact:true}).click();await form(page).getByRole("button",{name:/^이전: 할 일/}).click();
   await expect(related.getByRole("link",{name:old.body,exact:true})).toBeFocused();await expect(page).toHaveURL(/related_record_pages=2/);
