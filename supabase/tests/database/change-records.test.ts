@@ -152,18 +152,18 @@ dbTest(
           ...{ body: "직접 기록" },
         }),
       );
-      assertEquals(await count(), 6);
+      assertEquals(await count(), 5);
       const recordUpdated = await a.updateRecord(
         ad,
         A,
         record.id,
         recordUpdate.parse({ expected_version: record.version, body: "정정 본문" }),
       );
-      assertEquals(await count(), 6);
+      assertEquals(await count(), 5);
       await a.deleteRecord(ad, A, record.id, recordUpdated.version);
-      assertEquals(await count(), 7);
+      assertEquals(await count(), 6);
       await e.deleteEntity(ed, A, entity.id, updated.version, "불필요");
-      assertEquals(await count(), 8);
+      assertEquals(await count(), 7);
       const deleted = (await a.listRecords(ad, A, recordListQuery.parse({ record_kind: "change" }))).items.find((r) =>
         r.change?.target_kind === "entity" && r.change.action === "delete"
       )!;
@@ -246,14 +246,14 @@ dbTest(
       assertEquals((await a.getRecord(ad, A, record.id)).body, record.body);
       assertEquals(
         (await admin`select id from app.records where owner_id=${A.userId} and record_kind='change'`).length,
-        3,
+        2,
       );
       await e.updateEntity(ed, A, entity.id, ei);
       await a.updateTask(ad, A, task.id, ti);
       await a.updateRecord(ad, A, record.id, ri);
       assertEquals(
         (await admin`select id from app.records where owner_id=${A.userId} and record_kind='change'`).length,
-        5,
+        4,
       );
     } finally {
       await f.cleanup();

@@ -1,10 +1,7 @@
-.modal-body .related-section.detail-section { margin-top: 0; padding-top: 0; border-top: 0; }
 .related-items { display: grid; gap: var(--space-2); list-style: none; padding: 0; margin: 0; }
-.related-item { display: grid; gap: var(--space-2); padding: var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-input); background: var(--surface); color: var(--ink); text-decoration: none; min-width: 0; min-height: 44px; }
+.related-item { display: grid; gap: var(--space-2); padding: var(--space-3); border: 1px solid color-mix(in srgb, var(--line) 65%, transparent); border-radius: var(--radius-input); background: var(--surface); color: var(--ink); text-decoration: none; min-width: 0; min-height: 44px; }
 a.related-item:hover { border-color: var(--control-border); }
 .related-item-title { display: flex; align-items: baseline; gap: var(--space-3); }
 .related-item-title .item-title { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .related-item-meta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
 .related-item p { margin: 0; }
-
-.modal-body > .related-section.detail-section { margin-top: var(--space-4); }

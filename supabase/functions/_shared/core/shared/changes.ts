@@ -34,6 +34,7 @@ export interface ChangeInput {
   before: ChangeFacts | null;
   after: ChangeFacts | null;
   change_note?: string;
+  change_tag_ids?: string[];
 }
 export interface ChangeStore {
   appendChange(input: ChangeInput): Promise<void>;

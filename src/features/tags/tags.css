@@ -7,3 +7,8 @@
 .tag-management .list-item { align-items: center; flex-wrap: wrap; gap: var(--space-3); }
 .tag-management .list-item > .item-title { flex: 1; min-width: 0; }
 .tag-management .actions { flex-wrap: wrap; }
+
+.tag-editor { display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: end; }
+.tag-editor .actions { align-items: center; }
+.tag-editor .notice { grid-column: 1 / -1; }
+@media(max-width:479px) { .tag-editor { grid-template-columns: minmax(0,1fr); } .tag-editor .actions { justify-content: flex-end; } }

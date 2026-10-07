@@ -66,11 +66,11 @@ dbTest("Entity DB: same owner 참조 거부·삭제 링크 해제·원문/버전
   );
   assertEquals(completed.record.entity_ids, [e.id]);
   const detail = await entity.getEntity(d, A, e.id);
-  assertEquals([detail.tasks.count, detail.records.count], [1, 5]);
+  assertEquals([detail.tasks.count, detail.records.count], [1, 4]);
   assertEquals((await activity.listTasks(a, A, taskListQuery.parse({ entity_id: e.id }))).items.map((t) => t.id), [
     task.id,
   ]);
-  assertEquals((await activity.listRecords(a, A, recordListQuery.parse({ entity_id: e.id }))).items.length, 5);
+  assertEquals((await activity.listRecords(a, A, recordListQuery.parse({ entity_id: e.id }))).items.length, 4);
   await entity.deleteEntity(d, A, e.id, 1);
   const detached = await activity.getTask(a, A, task.id);
   assertEquals(detached.entity_ids, []);

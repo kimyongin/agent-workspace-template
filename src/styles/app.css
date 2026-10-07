@@ -5,12 +5,12 @@
 *::-webkit-scrollbar { display: none; }
 
 .modal-body .panel { border: 0; box-shadow: none; background: transparent; padding: 0; border-radius: 0; }
-.detail-management { display: grid; gap: var(--space-4); min-width: 0; }
+.detail-stack, .detail-management { display: grid; gap: var(--space-6); min-width: 0; }
 .detail-section { display: grid; grid-template-columns: minmax(0,1fr); gap: var(--space-4); min-width: 0; }
 .detail-section > * { min-width: 0; }
-.detail-section + .detail-section, .detail-section + .detail-management { border-top: 1px solid var(--line); padding-top: var(--space-6); margin-top: var(--space-6); }
-.detail-management + .detail-section { border-top: 1px solid var(--line); padding-top: var(--space-6); margin-top: var(--space-6); }
-.form .detail-section + .detail-section { margin-top: 0; }
+
+
+
 .detail-section > .section-title, .detail-section > p, .detail-section > .props { margin: 0; }
 .detail-section .markdown > :first-child { margin-top: 0; }
 .detail-section .markdown > :last-child { margin-bottom: 0; }
@@ -132,7 +132,7 @@ html { scroll-padding-bottom: calc(var(--navigation-height) + env(safe-area-inse
 .nav-more-options p { margin: 0; overflow-wrap: anywhere; }
 .settings { display: grid; gap: var(--space-6); }
 .settings p { overflow-wrap: anywhere; }
-.settings > section, .settings > form { display: grid; gap: var(--space-3); padding-top: var(--space-5); border-top: 1px solid var(--line); }
+.settings > section, .settings > form { display: grid; gap: var(--space-3); }
 .settings section p, .settings form > p { margin: 0; }
 .settings .account-name { font-size: 1.125rem; line-height: 1.75rem; font-weight: 600; color: var(--ink); }
 .settings > .btn { justify-self: start; }
@@ -491,10 +491,11 @@ textarea.input {
 }
 
 /* 목록 제목은 상세로 가는 주 조작이므로 누름 영역을 44px 이상으로 둔다(글자 크기는 그대로). */
-.list-item a.item-title {
+.list-item a.item-title, .current-document a.item-title {
   display: flex;
   align-items: center;
   min-height: 44px;
+  min-width: 44px;
   text-decoration: none;
 }
 
@@ -629,15 +630,10 @@ textarea.input {
 .modal-head .btn { flex-shrink: 0; }
 .modal-head .modal-icon { width: 44px; height: 44px; padding: 0; font-size: 1.5rem; text-decoration: none; display: inline-flex; justify-content: center; align-items: center; }
 .modal-foot { flex-wrap: wrap; }
-.delete-action { margin-right: auto; min-width: 0; }
-.delete-action.is-armed { flex: 1 0 100%; display: grid; gap: var(--space-3); }
-.delete-action-context { display: grid; gap: var(--space-3); max-height: min(12rem, 35dvh); overflow-y: auto; }
-.delete-action-context p { margin: 0; }
-.delete-action-context fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
 .record-content .markdown { color: var(--ink); font-size: 1rem; line-height: 1.75; }
-.record-context { display: grid; gap: var(--space-2); }
+.record-context { display: grid; gap: var(--space-6); }
 .record-context-meta { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); font-size: .8125rem; color: var(--muted-ink); }
-.record-content + .detail-section { margin-top: 0; padding-top: var(--space-4); }
+
 
 .modal-head .dialog-title {
   margin-right: auto;
@@ -707,3 +703,41 @@ textarea.input {
     animation: none !important;
   }
 }
+
+/* Information groups own their spacing; borders are reserved for controls and navigation. */
+.plain-fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+.form { gap: var(--space-6); }
+.detail-section.form, .surface-action .form { gap: var(--space-4); }
+.detail-stack > *, .detail-management > * { min-width: 0; margin: 0; }
+.detail-stack .markdown > :first-child { margin-top: 0; }
+.detail-stack .markdown > :last-child { margin-bottom: 0; }
+.delete-trigger { margin-right: auto; }
+.action-explanation p { margin: 0; }
+.modal.modal-action { width: min(30rem, calc(100% - 2 * var(--space-4))); height: fit-content; margin: auto; border-radius: var(--radius-card); max-height: calc(var(--surface-height,100dvh) - 2 * var(--space-4)); }
+.modal-action .modal-inner { height: auto; max-height: calc(var(--surface-height,100dvh) - 2 * var(--space-4)); }
+.modal-action .dialog-title { font-size: 1.125rem; line-height: 1.75rem; }
+.modal-action .dialog-title { max-height: min(5.25rem, calc(var(--surface-height,100dvh) * .2)); overflow: auto; }
+.modal-action .modal-head, .modal-action .modal-foot { padding: var(--space-3) var(--space-4); }
+.modal-action .modal-body { padding: var(--space-4); }
+.workspace-additional { min-width: 0; }
+.workspace-additional > summary { color: var(--muted-ink); font-size: .875rem; font-weight: 400; min-height: 44px; align-content: center; }
+.historical-document { display: grid; gap: var(--space-3); padding-top: var(--space-3); }
+.settings .actions { justify-content: flex-end; }
+.settings > a[href="/logout"] { margin-top: var(--space-2); color: var(--muted-ink); }
+.search-page { display: grid; gap: var(--space-6); }
+.search-page .search-form { grid-template-columns: minmax(0,1fr) auto; align-items: end; }
+.search-page .search-form > .btn { justify-self: end; }
+.search-advanced { display: grid; gap: var(--space-4); padding-top: var(--space-3); }
+.search-result-meta { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: baseline; }
+.guide .guide-step { display: grid; gap: var(--space-3); }
+.guide .guide-step > p { margin: 0; }
+
+.auth-panel { display: grid; gap: var(--space-6); }
+.auth-panel .actions { justify-content: flex-end; }
+.auth-panel .props { margin: 0; }
+.auth-panel .props dd { overflow-wrap: anywhere; }
+.guide-steps > li > .btn, .guide-steps > li > .actions { justify-self: start; }
+
+.modal-action .modal-foot { flex-wrap: nowrap; gap: var(--space-1); padding: var(--space-2); }
+.modal-action .modal-foot .btn { min-width: 0; padding-inline: var(--space-2); }
+.modal-action .modal-body { padding-block: var(--space-2); }

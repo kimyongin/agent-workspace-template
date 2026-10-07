@@ -1,3 +1,4 @@
+import { fillChangeMemo } from "./ui-actions.ts";
 import { beginTabAction, openDetailEditor, saveOnce } from "./ui-actions.ts";
 import { expect, test } from "@playwright/test";
 import { devLogin, mcpClient, mcpTokenViaConsent, unique } from "./support.ts";
@@ -11,14 +12,14 @@ test("현재 웹 메모 확인→MCP 같은 문서 갱신→삭제 후 현재 �
     await page.goto(`/principles/${first.id}`);await openDetailEditor(page);
     const form=page.getByRole("dialog",{name:"현재 원칙 편집",exact:true});
     await expect(form.getByLabel("태그")).toHaveCount(0);await expect(form.getByLabel("적용 조건")).toHaveCount(0);
-    const title=unique("새 판단 기준");await form.getByLabel("제목").fill(title);await form.getByLabel("본문").fill("새 판단 원문");
+    const title=unique("새 판단 기준");await form.getByRole("textbox",{name:/^제목(?: \(필수\))?$/}).fill(title);await form.getByLabel("본문").fill("새 판단 원문");
     expect((await mcp.call("get_current_principle",{})).current.body).toBe("첫 원문");
-    await form.getByLabel("편집 메모").fill("사용자가 확인한 근거");await form.getByRole("button",{name:"저장",exact:true}).click();
+    await fillChangeMemo(page,form,"사용자가 확인한 근거");await saveOnce(page,form);
     await expect(page.getByRole("heading",{name:title,level:1})).toBeVisible();
     const {current}=await mcp.call("get_current_principle",{});expect(current.id).toBe(first.id);expect(current.body).toBe("새 판단 원문");
     expect((await mcp.call("get_principle",{id:first.id})).body).toBe("새 판단 원문");
     await page.goto(`/principles/${current.id}?edit=1`);await page.getByRole("button",{name:"삭제",exact:true}).click();
-    const confirm=page.locator(".delete-action.is-armed");await expect(confirm).toContainText("과거 원칙을 자동 승격하지 않습니다");
+    const confirm=page.locator("dialog.modal-action[open]");await expect(confirm).toContainText("과거 원칙을 자동 승격하지 않습니다");
     await saveOnce(page,confirm,"삭제 확인");await expect(page).toHaveURL(/principles(?:[?#]|$)/);
     expect((await mcp.call("get_current_principle",{})).current).toBeNull();
   }finally{await mcp.close();}
@@ -28,9 +29,9 @@ test("내용 폼 취소는 초안·초점을 보호한다",async({page})=>{
   await devLogin(page);
   for(const [path,action] of [["/tasks","할 일 추가"],["/records","기록 작성"]]){
     await page.goto(path);const trigger=page.getByRole("button",{name:path==="/tasks"?"할 일 작업 메뉴":"기록 작업 메뉴",exact:true});await beginTabAction(page,action);
-    const dialog=page.getByRole("dialog",{name:action,exact:true});await dialog.getByLabel(path==="/records"?"본문":"제목").fill("보존할 초안");await dialog.getByRole("button", {name:"닫기",exact:true}).click();
+    const dialog=page.getByRole("dialog",{name:action,exact:true});await dialog.getByRole("textbox",{name:path==="/records"?/^본문(?: \(필수\))?$/:/^제목(?: \(필수\))?$/}).fill("보존할 초안");await dialog.getByRole("button", {name:"닫기",exact:true}).click();
     const discard=page.getByRole("dialog",{name:"변경을 버릴까요?"});await discard.getByRole("button",{name:"취소",exact:true}).click();
-    await expect(dialog.getByLabel(path==="/records"?"본문":"제목")).toHaveValue("보존할 초안");await dialog.getByRole("button", {name:"닫기",exact:true}).click();
+    await expect(dialog.getByRole("textbox",{name:path==="/records"?/^본문(?: \(필수\))?$/:/^제목(?: \(필수\))?$/})).toHaveValue("보존할 초안");await dialog.getByRole("button", {name:"닫기",exact:true}).click();
     await discard.getByRole("button",{name:"변경 버리기"}).click();await expect(dialog).not.toBeVisible();await expect(trigger).toBeFocused();
   }
 });
@@ -52,9 +53,9 @@ test("현재 문서 편집 충돌은 초안 유지·폐기 뒤 최신 원문 재
   try{
     const old=await savePrinciple(mcp,{title:unique("충돌 과거본"),body:"원래 요약"});
     await page.goto(`/principles/${old.id}`);await openDetailEditor(page);
-    const form=page.getByRole("dialog",{name:"현재 원칙 편집"});await form.getByLabel("본문").fill("보호할 초안");await form.getByLabel("편집 메모").fill("정정 이유");
+    const form=page.getByRole("dialog",{name:"현재 원칙 편집"});await form.getByLabel("본문").fill("보호할 초안");await fillChangeMemo(page,form,"정정 이유");
     await mcp.call("update_principle",{id:old.id,expected_version:old.version,body:"최신 본문",change_note:"동시 편집"});
-    await form.getByRole("button",{name:"저장",exact:true}).click();await expect(form.getByRole("alert")).toContainText("다른 변경");
+    await saveOnce(page,form);const action=page.locator("dialog.modal-action[open]");await expect(action.getByRole("alert")).toContainText("다른 변경");await action.getByRole("button",{name:"취소",exact:true}).click();
     await expect(form.getByLabel("본문")).toHaveValue("보호할 초안");await form.getByRole("button", {name:"닫기",exact:true}).click();
     await page.getByRole("dialog",{name:"변경을 버릴까요?"}).getByRole("button",{name:"변경 버리기",exact:true}).click();await expect(page.getByRole("heading",{name:old.title,exact:true})).toBeVisible();await openDetailEditor(page);await expect(page.getByLabel("본문")).toHaveValue("최신 본문");
   }finally{await mcp.close();}

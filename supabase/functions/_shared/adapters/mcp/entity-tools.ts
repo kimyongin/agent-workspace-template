@@ -59,7 +59,7 @@ export function entityTools(d: entity.EntityDeps): ToolDef[] {
       handler: async (i, a) => {
         idParam(i.id);
         const p = parse(remove, i);
-        await entity.deleteEntity(d, a, idParam(p.id), p.expected_version, p.change_note);
+        await entity.deleteEntity(d, a, idParam(p.id), p.expected_version, p.change_note, p.change_tag_ids);
         return { deleted: idParam(p.id) };
       },
     },

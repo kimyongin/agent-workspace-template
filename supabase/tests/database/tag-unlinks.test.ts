@@ -55,22 +55,22 @@ dbTest(
         (await admin`select count(*)::int n from app.records where owner_id=${actor.userId} and record_kind='change'`)[
           0
         ].n;
-      assertEquals(await count(), 3);
+      assertEquals(await count(), 2);
       await t.deleteTag(td, actor, tag.id, tag.version, undefined);
       await assertRejects(() => t.deleteTag(td, actor, tag.id, tag.version, undefined));
-      assertEquals(await count(), 5);
+      assertEquals(await count(), 3);
       assertEquals((await a.getTask(ad, actor, task.id)).tag_ids, []);
       assertEquals((await a.getRecord(ad, actor, record.id)).tag_ids, []);
       assertEquals((await a.getRecord(ad, actor, automatic.id)).tag_ids, []);
       const changes =
         await admin`select change_metadata from app.records where owner_id=${actor.userId} and change_metadata->>'action'='update' order by id`;
-      assertEquals(changes.length, 2);
+      assertEquals(changes.length, 1);
       for (const change of changes) {
         assertEquals([change.change_metadata.before, change.change_metadata.after], [null, null]);
         assertEquals(change.change_metadata.source, "mcp");
       }
       await t.deleteTag(td, actor, entityTag.id, entityTag.version, "対象分類の削除");
-      assertEquals(await count(), 6);
+      assertEquals(await count(), 4);
       assertEquals((await e.getEntity(ed, actor, entity.id)).tag_ids, []);
       const [entityChange] =
         await admin`select change_metadata,body from app.records where owner_id=${actor.userId} and change_metadata->>'target_id'=${entity.id} and change_metadata->>'action'='update'`;
@@ -117,7 +117,7 @@ dbTest(
                     get: (target, key) =>
                       key === "appendChange"
                         ? async (input: Parameters<typeof s.appendChange>[0]) => {
-                          if (++n === 2) throw Error("second required parent history failed");
+                          if (++n === 1) throw Error("required business history failed");
                           return await s.appendChange(input);
                         }
                         : Reflect.get(target, key),
@@ -136,7 +136,7 @@ dbTest(
       );
       await t.deleteTag(td, actor, tag.id, tag.version, undefined);
       await assertRejects(() => t.deleteTag(td, actor, tag.id, tag.version, undefined));
-      assertEquals((await admin`select count(*)::int n from app.records where owner_id=${actor.userId}`)[0].n, 5);
+      assertEquals((await admin`select count(*)::int n from app.records where owner_id=${actor.userId}`)[0].n, 3);
     } finally {
       await f.cleanup();
     }

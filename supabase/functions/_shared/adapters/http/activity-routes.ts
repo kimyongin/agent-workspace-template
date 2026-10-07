@@ -21,6 +21,7 @@ export function activityRoutes(deps: activity.ActivityDeps) {
       idParam(c.req.param("id")),
       i.expected_version,
       i.change_note,
+      i.change_tag_ids,
     );
     return c.body(null, 204);
   });
@@ -48,7 +49,7 @@ export function activityRoutes(deps: activity.ActivityDeps) {
   app.delete("/tasks/:id", async (c) => {
     const id = idParam(c.req.param("id"));
     const i = parse(versionQuery, c.req.query());
-    await activity.deleteTask(deps, c.get("actor"), id, i.expected_version, i.change_note);
+    await activity.deleteTask(deps, c.get("actor"), id, i.expected_version, i.change_note, i.change_tag_ids);
     return c.body(null, 204);
   });
   app.post("/tasks/:id/complete", async (c) => {
@@ -60,7 +61,7 @@ export function activityRoutes(deps: activity.ActivityDeps) {
     const id = idParam(c.req.param("id"));
     const i = parse(versionBody, await json(c.req.raw));
     return c.json(
-      await activity.stopTask(deps, c.get("actor"), id, i.expected_version, i.change_note),
+      await activity.stopTask(deps, c.get("actor"), id, i.expected_version, i.change_note, i.change_tag_ids),
     );
   });
   app.post("/tasks/:id/resume", async (c) => {
@@ -73,6 +74,7 @@ export function activityRoutes(deps: activity.ActivityDeps) {
         id,
         i.expected_version,
         i.change_note,
+        i.change_tag_ids,
       ),
     );
   });
@@ -111,7 +113,7 @@ export function activityRoutes(deps: activity.ActivityDeps) {
   app.delete("/records/:id", async (c) => {
     const id = idParam(c.req.param("id"));
     const i = parse(versionQuery, c.req.query());
-    await activity.deleteRecord(deps, c.get("actor"), id, i.expected_version, i.change_note);
+    await activity.deleteRecord(deps, c.get("actor"), id, i.expected_version, i.change_note, i.change_tag_ids);
     return c.body(null, 204);
   });
 

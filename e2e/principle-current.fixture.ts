@@ -1,3 +1,4 @@
+import { fillChangeMemo, saveOnce } from "./ui-actions.ts";
 import { expect,test } from "@playwright/test";
 const id="00000000-0000-4000-8000-000000000131", stamp="2026-10-06T01:00:00Z";
 test("원칙 화면의 기록 이동 링크는 모든 대표 폭에서 44px 누름 영역을 유지한다",async({page})=>{
@@ -10,7 +11,7 @@ test("원칙 화면의 기록 이동 링크는 모든 대표 폭에서 44px 누�
   }
 });
 
-test("키보드 Enter는 할 일을 미리보기 없이 한 번 저장한다",async({page})=>{
+test("키보드 Enter는 할 일 확인 단계를 열고 확인 뒤 한 번 저장한다",async({page})=>{
   const writes:Record<string,unknown>[]=[];
   await page.route("**/api/**",route=>{
     const request=route.request();
@@ -21,10 +22,11 @@ test("키보드 Enter는 할 일을 미리보기 없이 한 번 저장한다",as
   const form=page.locator("dialog.modal:not(.modal-confirm)[open]");
   await form.getByLabel(/^제목/).fill("키보드 할 일");await form.getByLabel(/^본문/).fill("할 일 근거");
   await form.getByLabel(/^제목/).focus();await page.keyboard.press("Enter");
+  expect(writes).toHaveLength(0);await form.getByRole("button",{name:"등록하고 저장"}).click();
   await expect(form.getByRole("alert")).toContainText("검증용 저장 충돌");
   expect(writes).toHaveLength(1);expect(writes[0].body).toBe("할 일 근거");
   expect(writes[0]).not.toHaveProperty("summary");expect(writes[0]).not.toHaveProperty("change_memo");
-  await expect(form.getByLabel(/^본문/)).toHaveValue("할 일 근거");
+  await form.getByRole("button",{name:"취소",exact:true}).click();await expect(form.getByLabel(/^본문/)).toHaveValue("할 일 근거");
 });
 test("현재 원칙은 한 번에 저장해 같은 문서를 갱신하며 삭제 뒤 과거를 승격하지 않는다",async({page})=>{
   let current:Record<string,unknown>|null={id,title:"현재 기준",body:"원문",is_current:true,version:1,saved_at:stamp,created_at:stamp,updated_at:stamp,origin:"saved"};
@@ -40,12 +42,12 @@ test("현재 원칙은 한 번에 저장해 같은 문서를 갱신하며 삭제
   await page.getByRole("button",{name:"원칙 작업 메뉴",exact:true}).click();await page.getByRole("link",{name:"현재 원칙 편집",exact:true}).click();
   const form=page.locator("dialog.modal:not(.modal-confirm)[open]");
   await form.getByRole("textbox",{name:/^본문$/}).fill("새 본문");
-  expect(writes).toHaveLength(0);await form.getByLabel("편집 메모",{exact:false}).fill("판단 근거를 보충");await form.getByRole("button",{name:"저장",exact:true}).click();
+  expect(writes).toHaveLength(0);await fillChangeMemo(page,form,"판단 근거를 보충");await saveOnce(page,form);
   expect(writes[0].change_note).toBe("판단 근거를 보충");expect(writes[0]).not.toHaveProperty("change_memo");
   expect(current?.id).toBe(id);expect(current?.body).toBe("새 본문");
   await page.goto(`/principles/${id}?edit=1&edit_from=view`);await form.getByRole("button",{name:"삭제",exact:true}).click();
-  const confirm=page.locator(".delete-action.is-armed");await expect(confirm).toContainText("과거 원칙을 자동 승격하지 않습니다");
-  expect(writes).toHaveLength(1);await confirm.getByRole("button",{name:"삭제 확인",exact:true}).click();
+  const confirm=page.locator("dialog.modal-action[open]");await expect(confirm).toContainText("과거 원칙을 자동 승격하지 않습니다");
+  expect(writes).toHaveLength(1);await confirm.getByRole("button",{name:"삭제하고 기록",exact:true}).click();
   await expect(page.getByText("현재 원칙이 없습니다.",{exact:false})).toBeVisible();expect(current).toBeNull();expect(writes).toHaveLength(2);
 });
 
@@ -59,10 +61,10 @@ test("원칙 삭제 응답이 끊기면 입력 메모와 같은 버전으로 재
     return route.fulfill({json:path.endsWith("/current")?{current:writes.length>1?null:current}:path.endsWith(id)?current:{items:[],next_cursor:null}});
   });
   await page.goto(`/e2e/fixtures/workspace-screens.html?route=/principles/${id}?edit=1`);
-  await page.getByRole("button",{name:"삭제",exact:true}).click();const confirm=page.locator(".delete-action.is-armed");
-  await confirm.getByLabel("이유 (선택)").fill("확인한 최종 메모");
-  await confirm.getByRole("button",{name:"삭제 확인",exact:true}).click();await expect(confirm.getByRole("button",{name:"같은 내용 다시 시도",exact:true})).toBeVisible();
-  await expect(confirm.getByLabel("이유 (선택)")).toHaveValue("확인한 최종 메모");await expect(confirm.getByLabel("이유 (선택)")).toBeDisabled();
+  await page.getByRole("button",{name:"삭제",exact:true}).click();const confirm=page.locator("dialog.modal-action[open]");
+  await confirm.getByLabel("기록 메모").fill("확인한 최종 메모");
+  await confirm.getByRole("button",{name:"삭제하고 기록",exact:true}).click();await expect(confirm.getByRole("button",{name:"같은 내용 다시 시도",exact:true})).toBeVisible();
+  await expect(confirm.getByLabel("기록 메모")).toHaveValue("확인한 최종 메모");await expect(confirm.getByLabel("기록 메모")).toBeDisabled();
   await confirm.getByRole("button",{name:"같은 내용 다시 시도",exact:true}).click();await expect(confirm).not.toBeVisible();
   expect(writes).toHaveLength(2);expect(writes[1]).toEqual(writes[0]);expect(writes[0].expected_version).toBe(1);
 });

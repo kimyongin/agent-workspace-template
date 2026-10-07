@@ -1,3 +1,4 @@
+import { setTagLinks } from "./tag-links.ts";
 import { SqlEntityLinks } from "./entity-links.ts";
 // 실제 두 도메인이 공유하는 Actor 트랜잭션·변경 메모·색인 큐 저장 배선.
 import type postgres from "postgres";
@@ -43,6 +44,7 @@ export class SqlActorStore {
       change_metadata: this.tx.json(metadata as never),
     };
     const [row] = await this.tx`insert into app.records ${this.tx(values)} returning id`;
+    await setTagLinks(this.tx, this.actor, "record", row.id as string, input.change_tag_ids ?? []);
     await this.enqueueIndex({
       kind: "record",
       id: row.id as string,

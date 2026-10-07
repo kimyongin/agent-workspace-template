@@ -43,7 +43,7 @@ export function tagTools(d: tags.TagDeps): ToolDef[] {
       destructive: true,
       handler: async (i, a) => {
         const p = parse(remove, i);
-        await tags.deleteTag(d, a, p.id, p.expected_version, p.change_note);
+        await tags.deleteTag(d, a, p.id, p.expected_version, p.change_note, p.change_tag_ids);
         return { deleted: p.id };
       },
     },

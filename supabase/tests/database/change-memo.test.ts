@@ -1,6 +1,14 @@
 import { assertEquals, assertRejects } from "@std/assert";
 import { entityCreate, entityUpdate } from "../../functions/_shared/contracts/entity.ts";
 import { taskCreate } from "../../functions/_shared/contracts/task.ts";
+import { principleCreate, principleUpdate } from "../../functions/_shared/contracts/principle.ts";
+import { recordCreate } from "../../functions/_shared/contracts/record.ts";
+import { SqlPrincipleUnitOfWork } from "../../functions/_shared/adapters/supabase/principle-store.ts";
+import * as principles from "../../functions/_shared/core/principles/application.ts";
+import { activityRoutes } from "../../functions/_shared/adapters/http/activity-routes.ts";
+import { activityTools } from "../../functions/_shared/adapters/mcp/activity-tools.ts";
+import { Hono } from "hono";
+import type { HttpEnv } from "../../functions/_shared/adapters/http/input.ts";
 import { recordListQuery } from "../../functions/_shared/contracts/record.ts";
 import * as entity from "../../functions/_shared/core/entity/application.ts";
 import * as activity from "../../functions/_shared/core/activity/application.ts";
@@ -10,6 +18,99 @@ import { connect, dbTest, fixtureOwner, urls } from "./_db.ts";
 const admin = connect(urls.admin, { max: 1 }), sql = connect(urls.direct, { max: 3, prepare: false });
 const ed = { uow: new SqlEntityUnitOfWork(sql) },
   ad = { uow: new SqlUnitOfWork(sql), clock: { now: () => new Date() } };
+dbTest("change record tags are separate, owner-scoped, atomic and carried through HTTP/MCP transitions", async () => {
+  const f = await fixtureOwner(admin), other = await fixtureOwner(admin);
+  try {
+    const tags = await admin`insert into app.tags(owner_id,name,scope) values
+      (${f.actor.userId},'원본','entity'),(${f.actor.userId},'기록','activity'),(${other.actor.userId},'다른 사용자','activity') returning id,owner_id,scope`;
+    const own = tags.find((t) => t.scope === "activity" && t.owner_id === f.actor.userId)!.id as string;
+    const entityTag = tags.find((t) => t.scope === "entity")!.id as string;
+    const foreign = tags.find((t) => t.owner_id === other.actor.userId)!.id as string;
+    const events = () =>
+      activity.listRecords(ad, f.actor, recordListQuery.parse({ record_kind: "change", limit: 100 }));
+    const target = await entity.createEntity(
+      ed,
+      f.actor,
+      entityCreate.parse({ id: crypto.randomUUID(), prop1: "원본", tag_ids: [entityTag], change_tag_ids: [own] }),
+    );
+    assertEquals(target.tag_ids, [entityTag]);
+    assertEquals((await events()).items[0].tag_ids, [own]);
+    for (const invalid of [foreign, entityTag]) {
+      await assertRejects(() =>
+        entity.updateEntity(
+          ed,
+          f.actor,
+          target.id,
+          entityUpdate.parse({ expected_version: target.version, prop2: 99, change_tag_ids: [invalid] }),
+        )
+      );
+      assertEquals((await entity.getEntity(ed, f.actor, target.id)).prop2, null);
+      assertEquals((await events()).items.length, 1);
+    }
+    const recurring = await activity.createTask(
+      ad,
+      f.actor,
+      taskCreate.parse({
+        id: crypto.randomUUID(),
+        kind: "recurring",
+        title: "반복",
+        recurrence: { freq: "daily", starts_on: "2020-01-01" },
+        timezone: "UTC",
+        change_tag_ids: [own],
+      }),
+    );
+    const app = new Hono<HttpEnv>();
+    app.use("*", async (c, next) => {
+      c.set("actor", f.actor);
+      await next();
+    });
+    app.route("/", activityRoutes(ad));
+    const stopped = await app.request(`/tasks/${recurring.id}/stop`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ expected_version: recurring.version, change_note: "중단 메모", change_tag_ids: [own] }),
+    });
+    assertEquals(stopped.status, 200);
+    const current = await stopped.json();
+    await activityTools(ad).find((t) => t.name === "resume_task")!.handler({
+      id: recurring.id,
+      expected_version: current.version,
+      change_note: "재개 메모",
+      change_tag_ids: [own],
+    }, f.actor);
+    for (const memo of ["중단 메모", "재개 메모"]) {
+      assertEquals((await events()).items.find((r) => r.body === memo)!.tag_ids, [own]);
+    }
+    const pd = { uow: new SqlPrincipleUnitOfWork(sql) };
+    const p = await principles.createPrinciple(
+      pd,
+      f.actor,
+      principleCreate.parse({ id: crypto.randomUUID(), title: "기준", change_tag_ids: [own] }),
+    );
+    const updated = await principles.updatePrinciple(
+      pd,
+      f.actor,
+      p.id,
+      principleUpdate.parse({ expected_version: p.version, body: "수정", change_tag_ids: [own] }),
+    );
+    await principles.deletePrinciple(pd, f.actor, p.id, updated.version, "기준 삭제", [own]);
+    assertEquals((await events()).items.filter((r) => r.change?.target_id === p.id).map((r) => r.tag_ids), [[own], [
+      own,
+    ], [own]]);
+    await entity.deleteEntity(ed, f.actor, target.id, target.version, "원본 삭제", [own]);
+    assertEquals((await events()).items.find((r) => r.body === "원본 삭제")!.tag_ids, [own]);
+    const before = (await events()).items.length;
+    await activity.createRecord(
+      ad,
+      f.actor,
+      recordCreate.parse({ id: crypto.randomUUID(), body: "직접 작성", tag_ids: [own] }),
+    );
+    assertEquals((await events()).items.length, before);
+  } finally {
+    await f.cleanup();
+    await other.cleanup();
+  }
+});
 dbTest("business save preserves exact entered memo, factual blank default, no-op, retry and rollback", async () => {
   const f = await fixtureOwner(admin), other = await fixtureOwner(admin);
   try {

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { expectedVersion } from "../../contracts/common.ts";
+import { tagIds } from "../../contracts/tag.ts";
 import { mutationMeta } from "../../contracts/change.ts";
 import type { Actor } from "../../core/shared/actor.ts";
 import { notFound } from "../../core/shared/errors.ts";
@@ -21,4 +22,5 @@ export async function json(req: Request): Promise<unknown> {
 export const versionQuery = z.strictObject({
   expected_version: z.coerce.number().pipe(expectedVersion),
   ...mutationMeta,
+  change_tag_ids: z.preprocess((v) => typeof v === "string" ? v.split(",") : v, tagIds.optional()),
 });

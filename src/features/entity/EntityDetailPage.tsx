@@ -12,7 +12,6 @@ import { useLocation, useParams, useSearchParams } from "react-router";
 import { Notice } from "../../components/Field.tsx";
 import { DetailSurface } from "../../components/Modal.tsx";
 import { api, ApiError } from "../../lib/api.ts";
-import { formatDateTime } from "../../lib/format.ts";
 import { EntityForm } from "./forms.tsx";
 import { emptyRecord, emptyTask, RecordFormModal, TaskFormModal, taskInput } from "../activity/forms.tsx";
 import "./entity.css";
@@ -65,10 +64,9 @@ export function EntityDetailPage() {
           </button>
         </>
       )}
-          <TagNames scope="entity" ids={(entity as EntityDetail & {tag_ids?:string[]}).tag_ids??[]}/>
           {([["tasks", "할 일"], ["records", "기록"]] as const).map(([kind, label]) => (
             <RelatedSection key={kind} title={`연결된 ${label}`} count={entity[kind].count} action={<button type="button" className="btn btn-text" onClick={()=>{const p=new URLSearchParams(params);p.set("create",kind==="tasks"?"task":"record");navigate(`?${p}`);}}>{kind==="tasks"?"할 일 작성":"기록 작성"}</button>}>
-              {entity[kind].count===0?<p className="secondary">연결된 {label}이 없습니다.</p>:<ul className="related-items">{entity[kind].items.map(item=><li key={item.id}>{"record_kind" in item?<RelatedRecordItem record={item}/>:<RelatedItem to={`/tasks/${item.id}`} title={item.title} metadata={<time className="meta" dateTime={item.updated_at}>수정 {formatDateTime(item.updated_at)}</time>}/>}</li>)}</ul>}
+              {entity[kind].count>0&&<ul className="related-items">{entity[kind].items.map(item=><li key={item.id}>{"record_kind" in item?<RelatedRecordItem record={item}/>:<RelatedItem to={`/tasks/${item.id}`} title={item.title}/>}</li>)}</ul>}
             </RelatedSection>
           ))}
     </div>;
@@ -77,10 +75,10 @@ export function EntityDetailPage() {
     footer={entity&&<button type="button" className="btn btn-primary" onClick={startEdit}>편집</button>}>
       {error && !entity && <><Notice kind="error">{error}</Notice><button className="btn" onClick={()=>setRetry(n=>n+1)}>다시 시도</button></>}
       {!entity&&!error&&<p className="secondary" role="status">불러오는 중…</p>}
-      {entity&&<>
-          <section className="detail-section entity-detail-properties"><h2 className="section-title">기본 정보</h2><dl className="props">
-            {(["prop1","prop2","prop3","prop4"] as const).map(key=><div key={key}><dt>{entityLabels[key]}</dt><dd>{entity[key]??"미지정"}</dd></div>)}
-          </dl></section>
+      {entity&&<div className="detail-stack">
+          <section className="detail-section entity-detail-properties"><dl className="props">
+            {(["prop2","prop3","prop4"] as const).map(key=><div key={key}><dt>{entityLabels[key]}</dt><dd>{entity[key]??"미지정"}</dd></div>)}
+          </dl><TagNames scope="entity" compact ids={entity.tag_ids}/></section>
           {management}
           {creating === "task" && <TaskFormModal key={location.key} open mode="create" initial={{ ...emptyTask(), entity_ids: [entity.id], entity_context: entityContext }}
             onClose={closeCreate} onRouteDiscard={()=>setCreating(null)} onSave={async (draft, creationId) => {
@@ -95,13 +93,13 @@ export function EntityDetailPage() {
           {editing && !creating && editReady && (
             <EntityForm
               initial={entity}
-              deletion={{message:`${entity.prop1}을 삭제하고 연결을 해제합니다. 할 일·기록 원문은 보존합니다.`,onConfirm:async (reason) => {
+              deletion={{message:`${entity.prop1}을 삭제하고 연결을 해제합니다. 할 일·기록 원문은 보존합니다.`,onConfirm:async (reason, tags) => {
                 setBusy(true);
                 try {
                   await api(
                     "POST",
                     `/entities/${id}/delete`,
-                    {expected_version:entity.version,change_note:reason||undefined},
+                    {expected_version:entity.version,change_note:reason||undefined, change_tag_ids:tags},
                   );
                   setEditing(false);
                   afterClose(back,true);
@@ -135,6 +133,6 @@ export function EntityDetailPage() {
             />
           )}
 
-        </>}
+        </div>}
     </DetailSurface>;
 }

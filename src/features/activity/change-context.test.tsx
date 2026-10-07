@@ -12,9 +12,9 @@ it("does not display an applied-principle panel for records without historical c
 it("reads captured principle text and provenance without linking to a retired historical detail", () => {
   const html = renderToStaticMarkup(<PrincipleSnapshots snapshots={[{ id: "historical-principle", title: "당시 기준", summary: "당시 요약", body: "원래 본문을 그대로 보존", version: 3, saved_at: "2026-10-01T02:03:04Z", status: "inactive", captured_at: "migration" }]}/>);
   expect(html).toContain("원래 본문을 그대로 보존");
-  expect(html).toContain("historical-principle");
-  expect(html).toContain("버전 3");
-  expect(html).toContain("당시 상태: inactive");
+  expect(html).not.toContain("historical-principle");
+  expect(html).toContain("<summary>당시 기준</summary>");
+  expect(html).not.toContain("당시 상태: inactive");
   expect(html).toContain("실제 판단 당시의 본문을 보증하지 않습니다");
   expect(html).not.toContain("href=");
 });

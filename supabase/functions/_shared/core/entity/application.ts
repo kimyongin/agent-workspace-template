@@ -13,7 +13,7 @@ export interface EntityStore extends ChangeStore {
   insert(input: EntityCreate): Promise<EntityResult>;
   update(
     id: string,
-    changes: Omit<EntityUpdate, "expected_version" | "change_note">,
+    changes: Omit<EntityUpdate, "expected_version" | "change_note" | "change_tag_ids">,
   ): Promise<EntityResult>;
   delete(id: string): Promise<void>;
   list(query: EntityQuery, after?: Keyset): Promise<EntityResult[]>;
@@ -23,7 +23,7 @@ export interface EntityDeps {
 }
 export function createEntity(d: EntityDeps, a: Actor, i: EntityCreate) {
   return d.uow.run(a, async (s) => {
-    const { change_note, ...props } = i;
+    const { change_note, change_tag_ids, ...props } = i;
     const result = await s.insert(props);
     await s.appendChange({
       target_kind: "entity",
@@ -32,6 +32,7 @@ export function createEntity(d: EntityDeps, a: Actor, i: EntityCreate) {
       before: null,
       after: entityChangeFacts(result),
       change_note,
+      change_tag_ids,
     });
     return result;
   });
@@ -52,7 +53,7 @@ async function requireVersion(s: EntityStore, id: string, expected: number) {
 export function updateEntity(d: EntityDeps, a: Actor, id: string, i: EntityUpdate) {
   return d.uow.run(a, async (s) => {
     const old = await requireVersion(s, id, i.expected_version);
-    const { expected_version: _v, change_note, ...props } = i;
+    const { expected_version: _v, change_note, change_tag_ids, ...props } = i;
     if (!changed(old, props)) return old;
     const result = await s.update(id, props);
     await s.appendChange({
@@ -62,6 +63,7 @@ export function updateEntity(d: EntityDeps, a: Actor, id: string, i: EntityUpdat
       before: entityChangeFacts(old),
       after: entityChangeFacts(result),
       change_note,
+      change_tag_ids,
     });
     return result;
   });
@@ -72,6 +74,7 @@ export function deleteEntity(
   id: string,
   expected: number,
   change_note?: string,
+  change_tag_ids?: string[],
 ) {
   return d.uow.run(
     a,
@@ -85,6 +88,7 @@ export function deleteEntity(
         before: entityChangeFacts(old),
         after: null,
         change_note,
+        change_tag_ids,
       });
       return { deleted: true };
     },

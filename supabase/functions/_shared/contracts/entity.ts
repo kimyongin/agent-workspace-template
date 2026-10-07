@@ -29,7 +29,7 @@ export const entityUpdate = z.strictObject({
   prop4: properties.prop4.optional(),
   expected_version: expectedVersion,
 }).refine(
-  (v) => Object.keys(v).some((k) => !["expected_version", "change_note"].includes(k)),
+  (v) => Object.keys(v).some((k) => !["expected_version", "change_note", "change_tag_ids"].includes(k)),
   {
     message: "바꿀 필드가 없습니다",
   },

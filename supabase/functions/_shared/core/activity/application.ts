@@ -82,6 +82,7 @@ export async function createTask(deps: ActivityDeps, actor: Actor, input: TaskCr
       before: null,
       after: taskChangeFacts(task),
       change_note: input.change_note,
+      change_tag_ids: input.change_tag_ids,
     });
     return toTaskResult(task);
   });
@@ -153,6 +154,7 @@ export async function updateTask(deps: ActivityDeps, actor: Actor, id: string, p
       before: taskChangeFacts(task),
       after: taskChangeFacts(updated),
       change_note: patch.change_note,
+      change_tag_ids: patch.change_tag_ids,
     });
     return toTaskResult(updated);
   });
@@ -191,6 +193,7 @@ export async function deleteTask(
   id: string,
   expectedVersion: number,
   change_note?: string,
+  change_tag_ids?: string[],
 ): Promise<void> {
   await deps.uow.run(
     actor,
@@ -206,6 +209,7 @@ export async function deleteTask(
         before: taskChangeFacts(task),
         after: null,
         change_note,
+        change_tag_ids,
       });
       return { deleted: true };
     },
@@ -218,6 +222,7 @@ export async function stopTask(
   id: string,
   expectedVersion: number,
   change_note?: string,
+  change_tag_ids?: string[],
 ) {
   return await deps.uow.run(
     actor,
@@ -231,6 +236,7 @@ export async function stopTask(
         before: taskChangeFacts(task),
         after: taskChangeFacts(result),
         change_note,
+        change_tag_ids,
       });
       return toTaskResult(result);
     },
@@ -243,6 +249,7 @@ export async function resumeTask(
   id: string,
   expectedVersion: number,
   change_note?: string,
+  change_tag_ids?: string[],
 ) {
   return await deps.uow.run(
     actor,
@@ -256,6 +263,7 @@ export async function resumeTask(
         before: taskChangeFacts(task),
         after: taskChangeFacts(result),
         change_note,
+        change_tag_ids,
       });
       return toTaskResult(result);
     },
@@ -322,13 +330,6 @@ export async function createRecord(deps: ActivityDeps, actor: Actor, input: Reco
       tag_ids: input.tag_ids,
     });
     await store.enqueueIndex({ kind: "record", id: record.id, input_hash: await searchInputHash(record.body) });
-    await store.appendChange({
-      target_kind: "record",
-      target: activityChangeTarget(record),
-      action: "create",
-      before: null,
-      after: recordChangeFacts(record),
-    });
     return toRecordResult(record);
   });
 }
@@ -395,6 +396,7 @@ export async function deleteRecord(
   id: string,
   expectedVersion: number,
   change_note?: string,
+  change_tag_ids?: string[],
 ) {
   await deps.uow.run(
     actor,
@@ -411,6 +413,7 @@ export async function deleteRecord(
         before: recordChangeFacts(record),
         after: null,
         change_note,
+        change_tag_ids,
       });
       return { deleted: true };
     },
