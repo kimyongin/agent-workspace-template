@@ -224,7 +224,7 @@ test("긴 제목·태그와 편집 조작은 대표 폭에서 읽기 순서와 �
     }
     if(width===390 || width===1440)await page.screenshot({path:testInfo.outputPath(`record-${width}.png`),fullPage:true});
   }
-  await page.getByRole("link",{name:recordDisplayText(r.body)+" 상세",exact:true}).focus();
+  await page.getByRole("link",{name:recordDisplayText(r.body)+" 보기",exact:true}).focus();
   await page.keyboard.press("Enter");
   await openDetailEditor(page);
   await expect(page.getByRole("dialog",{name:"기록 편집",exact:true})).toBeVisible();
@@ -262,7 +262,7 @@ for (const name of ["활동 왕복 태그", "한".repeat(30)]) {
     if(name.length===30)expect((await page.locator(".tag-read").last().boundingBox())!.height).toBeGreaterThan(30);
     await row.scrollIntoViewIfNeeded();
     await row.focus();
-    await page.getByRole("link",{name:"기록 20 상세",exact:true}).scrollIntoViewIfNeeded();
+    await page.getByRole("link",{name:"기록 20 보기",exact:true}).scrollIntoViewIfNeeded();
     const before=(await row.boundingBox())!.y;
     const scroll=await page.evaluate(()=>scrollY);
     await openListDetail(page,"기록 20");

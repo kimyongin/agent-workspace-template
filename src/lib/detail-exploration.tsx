@@ -94,6 +94,7 @@ export function useDetailNavigate() {
 /** Use for every link to a detail, including related items and search results. */
 export function DetailLink({ onClick, state, restoreKey, ...props }: Omit<LinkProps, "replace"> & {restoreKey?: string}) {
   const location = useLocation(), navigate = useNavigate(), context = useContext(Snapshots);
+  const owner=useDetailOwnerReturn(`/${location.pathname.split("/")[1]}`);
   const target = typeof props.to === "string" ? props.to : props.to.pathname ?? "";
   return <Link {...props} data-detail-focus={restoreKey ?? props.id ?? target} state={state} onClick={event => {
     onClick?.(event);
@@ -114,8 +115,9 @@ export function DetailLink({ onClick, state, restoreKey, ...props }: Omit<LinkPr
       detailTrail: root?trail:[...trail,frame] };
     event.preventDefault();
     if(root&&target.split(/[?#]/)[0]===root.path.split(/[?#]/)[0]&&context){
-      context.transition={key:root.key,path:props.to,state:{detailScope:context.scope,detailVersion:2,detailTrail:trail.filter(value=>value.key!==root.key)}};
-      void navigate(-1);return;
+      context.transition={key:root.key,path:root.path,state:{detailScope:context.scope,detailVersion:2,detailTrail:trail.filter(value=>value.key!==root.key)}};
+      // End the replaced child too, so Forward cannot revive it after root Close.
+      void Promise.resolve(navigate(owner,{replace:true,state:null})).then(()=>navigate(-1));return;
     }
     // The search route's existing anchor replay also restores deep results after reload or concurrent additions.
     const prepare = searchOrigin ? navigate(origin, {replace: true, state: location.state}) : undefined;
