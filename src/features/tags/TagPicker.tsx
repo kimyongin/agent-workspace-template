@@ -2,7 +2,7 @@ import type {TagResult} from "@contracts/tag.ts";
 import {createContext,useContext,useEffect,useLayoutEffect,useRef,useState,type ReactNode} from "react";
 import {api} from "../../lib/api.ts";
 import {Field,Notice} from "../../components/Field.tsx";
-import "../activity/activity.css";
+import "./tag-picker.css";
 
 export type TagScope = "entity" | "activity";
 async function loadTags(scope: TagScope) {
@@ -37,16 +37,16 @@ export function useTagDictionary(enabled = true, preserveListLayout = false, sco
 }
 export function TagPicker({value,onChange,error,scope="activity",label,excludeId}:{value:string[];onChange:(ids:string[])=>void;error?:string;scope?:TagScope;label?:string;excludeId?:string}) {
   const {tags,failed,retry}=useTagDictionary(true,false,scope);
-  return <fieldset className="field" style={{border:0,padding:0,margin:0}}><legend className="label">{label ?? (scope==="entity"?"엔터티 태그":"활동 태그")}</legend>
+  return <fieldset className="tag-picker"><legend className="label">{label ?? (scope==="entity"?"엔터티 태그":"활동 태그")}</legend><div className="field">
     {error&&<p className="error-text">{error}</p>}
     {failed?<><Notice kind="error">태그를 불러오지 못했습니다. 기존 선택은 유지합니다.</Notice><button type="button" className="btn" onClick={retry}>태그 다시 시도</button></>:
-      !tags?<p className="secondary" role="status">태그를 불러오는 중…</p>:
-      <div className="chips tag-selection">{tags.filter(t=>t.id!==excludeId).map(t=><button type="button" className="chip" key={t.id} aria-pressed={value.includes(t.id)} disabled={!value.includes(t.id)&&value.length>=10}
+      !tags?<p className="secondary" role="status">태그를 불러오는 중…</p>:null}
+      <div className="chips tag-selection"><button type="button" className="chip" aria-label="태그 선택 해제" disabled={!value.length} onClick={()=>onChange([])}>선택 해제</button>
+        {tags?.filter(t=>t.id!==excludeId).map(t=><button type="button" className="chip" key={t.id} aria-pressed={value.includes(t.id)} disabled={!value.includes(t.id)&&value.length>=10}
         onClick={()=>onChange(value.includes(t.id)?value.filter(id=>id!==t.id):[...value,t.id])}>{t.name}</button>)}
-        {value.filter(id=>!tags.some(t=>t.id===id)).map(id=><button type="button" className="chip" key={id} aria-pressed onClick={()=>onChange(value.filter(v=>v!==id))}>삭제된 태그 (선택 해제)</button>)}
-        {!tags.length&&!value.length&&<span className="secondary">태그 관리에서 태그를 먼저 추가하세요.</span>}</div>}
-    <button type="button" className="btn btn-text" disabled={!value.length} onClick={()=>onChange([])}>태그 선택 해제</button>
-  </fieldset>;
+        {tags&&value.filter(id=>!tags.some(t=>t.id===id)).map(id=><button type="button" className="chip" key={id} aria-pressed onClick={()=>onChange(value.filter(v=>v!==id))}>삭제된 태그 (선택 해제)</button>)}
+        {tags&&!tags.length&&!value.length&&<span className="secondary">태그 관리에서 태그를 먼저 추가하세요.</span>}</div>
+  </div></fieldset>;
 }
 export function TagFilter({value,onChange,dictionary,showFailure=true}:{value:string;onChange:(id:string)=>void;dictionary?:ReturnType<typeof useTagDictionary>;showFailure?:boolean}) {
   const local = useTagDictionary(!dictionary);

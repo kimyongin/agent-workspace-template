@@ -111,8 +111,8 @@ function FormContents({title, open, submitLabel, dirty, onClose, onRouteDiscard,
     if (mutation) begin("save"); else await write("save");
   };
   const footer = (requestCancel:()=>void) => <>
-    {deletion && !uncertain && <button type="button" key="delete" className="btn btn-text delete-trigger" disabled={busy} onClick={()=>begin("delete")}>삭제</button>}
-    <button key="cancel" type="button" className="btn btn-text" disabled={busy} onClick={requestCancel}>취소</button>
+    {deletion && !uncertain && <button type="button" key="delete" className="btn btn-danger delete-trigger" disabled={busy} onClick={()=>begin("delete")}>삭제</button>}
+    <button key="cancel" type="button" className="btn" disabled={busy} onClick={requestCancel}>취소</button>
     <button key="save" type="submit" form={formId} className="btn btn-primary" disabled={busy}>{busy ? "처리 중…" : uncertain ? "같은 내용 다시 시도" : submitLabel}</button>
   </>;
   const register = surface?.register;
@@ -131,7 +131,7 @@ function FormContents({title, open, submitLabel, dirty, onClose, onRouteDiscard,
       body: <RecordConfirmation note={note} tags={tags} onNote={value=>{memoTouched.current=true;setNote(value);}} onTags={setTags}
         errors={errors} failure={failure} frozen={busy || uncertain} record={stage !== "delete" || deletion?.note !== false}
         message={stage === "delete" ? deletion?.message : mutation?.message}/>,
-      footer: <><button key="cancel" type="button" className="btn btn-text" disabled={busy} onClick={cancel}>취소</button>
+      footer: <><button key="cancel" type="button" className="btn" disabled={busy} onClick={cancel}>취소</button>
         <button key="save" type="button" className={stage === "delete" ? "btn btn-danger" : "btn btn-primary"} disabled={busy} onClick={()=>void write(stage)}>
           {busy ? "처리 중…" : uncertain ? "같은 내용 다시 시도" : stage === "delete" ? "삭제하고 기록" : `${action}하고 저장`}
         </button></>, onCancel: cancel});
