@@ -21,9 +21,9 @@ export function useRelatedExpansion() { return useContext(Expansion); }
 
 export function RelatedItem({to,title,metadata,restoreKey,action,disclosure}: {to?:string;title:string;metadata?:ReactNode;restoreKey?:string;action?:ReactNode;disclosure?:{expanded:boolean;toggle:()=>void;content:ReactNode}}) {
   const panel=useId(),heading=useId();
-  return <div className="related-item"><div className="related-item-title">{disclosure
-    ?<button id={heading} type="button" className="item-title related-toggle" aria-expanded={disclosure.expanded} aria-controls={panel} onClick={disclosure.toggle}><span aria-hidden="true" className="related-toggle-mark">{disclosure.expanded?"−":"＋"}</span>{title}</button>
+  return <div className="related-item"><div className="related-item-title"><div className="related-item-heading">{disclosure
+    ?<button id={heading} type="button" className="item-title related-toggle" aria-expanded={disclosure.expanded} aria-controls={panel} onClick={disclosure.toggle}>{title}</button>
     :to
     ?<DetailLink className="item-title" to={to} aria-label={title} restoreKey={restoreKey}>{title}</DetailLink>
-    :<span className="item-title">{title}</span>}{action&&<div className="related-item-actions">{action}</div>}</div>{metadata&&<div className="related-item-meta">{metadata}</div>}{disclosure&&<div id={panel} hidden={!disclosure.expanded} aria-labelledby={heading} className="related-preview">{disclosure.expanded&&disclosure.content}</div>}</div>;
+    :<span className="item-title">{title}</span>}</div>{(action||disclosure)&&<div className="related-item-actions">{action}{disclosure&&<button type="button" className="btn btn-text" aria-label={`${title} ${disclosure.expanded?"접기":"펼치기"}`} aria-expanded={disclosure.expanded} aria-controls={panel} onClick={disclosure.toggle}>{disclosure.expanded?"접기":"펼치기"}</button>}</div>}</div>{metadata&&<div className="related-item-meta">{metadata}</div>}{disclosure&&<div id={panel} hidden={!disclosure.expanded} aria-labelledby={heading} className="related-preview">{disclosure.expanded&&disclosure.content}</div>}</div>;
 }

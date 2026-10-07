@@ -464,10 +464,17 @@ function linkedFixture(state:Awaited<ReturnType<typeof fixtures>>) {
 }
 for(const width of [320,1440])test(`#193 ${width}px: A 목록·한 항목 펼침·읽기만·원래 위치와 편집 복귀`,async({page},info)=>{
   const state=await fixtures(page);linkedFixture(state);await page.setViewportSize({width,height:900});await go(page,`/entities/${id(1)}?list=${encodeURIComponent('/entities?pages=1&scroll=0#entity-'+id(1))}`);
-  const url=page.url(),toggle=form(page).getByRole("button",{name:"할 일",exact:true});await toggle.focus();await toggle.press("Space");
+  const url=page.url(),toggle=form(page).getByRole("button",{name:"할 일",exact:true});
+  const edit=form(page).getByRole("link",{name:"할 일 편집",exact:true}),expand=form(page).getByRole("button",{name:"할 일 펼치기",exact:true});
+  await expect(edit).toBeVisible();await expect(expand).toHaveAttribute("aria-expanded","false");
+  await edit.click();await expect(page).toHaveURL(new RegExp(`/tasks/${id(2)}\\?edit=1$`));await form(page).getByRole("button",{name:"취소",exact:true}).click();await expect(page).toHaveURL(url);await expect(edit).toBeFocused();await expect(toggle).toHaveAttribute("aria-expanded","false");
+  const recordRow=form(page).locator(".related-item").filter({has:page.getByRole("button",{name:"기록",exact:true})});await expect(recordRow.locator(".related-item-meta, time, .badge")).toHaveCount(0);
+  await expand.focus();await expand.press("Space");await expect(form(page).getByRole("button",{name:"할 일 접기",exact:true})).toHaveAttribute("aria-expanded","true");
+  await form(page).getByRole("button",{name:"할 일 접기",exact:true}).click();await expect(toggle).toHaveAttribute("aria-expanded","false");await toggle.focus();await toggle.press("Space");
   await expect(toggle).toHaveAttribute("aria-expanded","true");await expect(form(page).locator(".related-preview").filter({visible:true})).toHaveCount(1);await expect(form(page).getByText("상세 본문",{exact:true})).toBeVisible();await expect(page).toHaveURL(url);
   const recordToggle=form(page).getByRole("button",{name:"기록",exact:true});await recordToggle.click();await expect(toggle).toHaveAttribute("aria-expanded","false");await expect(recordToggle).toHaveAttribute("aria-expanded","true");await toggle.click();
-  const edit=form(page).getByRole("link",{name:"할 일 편집",exact:true});await edit.click();await expect(page).toHaveURL(new RegExp(`/tasks/${id(2)}\\?edit=1$`));await expect(form(page).getByRole("heading",{name:"할 일 편집",exact:true})).toBeVisible();await expect(page.locator("dialog[open]")).toHaveCount(1);
+  const editBox=await edit.boundingBox(),expandBox=await form(page).getByRole("button",{name:"할 일 접기",exact:true}).boundingBox();expect(editBox&&expandBox&&editBox.x+editBox.width<=expandBox.x).toBe(true);
+  await edit.click();await expect(page).toHaveURL(new RegExp(`/tasks/${id(2)}\\?edit=1$`));await expect(form(page).getByRole("heading",{name:"할 일 편집",exact:true})).toBeVisible();await expect(page.locator("dialog[open]")).toHaveCount(1);
   await form(page).getByRole("button",{name:"취소",exact:true}).click();await expect(page).toHaveURL(url);await expect(toggle).toHaveAttribute("aria-expanded","true");await expect(edit).toBeFocused();
   expect(state.writes).toHaveLength(0);expect(state.errors).toEqual([]);expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);await page.screenshot({path:info.outputPath(`inline-relations-${width}.png`)});
 });
