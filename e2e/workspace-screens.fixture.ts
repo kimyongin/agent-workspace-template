@@ -1025,7 +1025,7 @@ for(const kind of ["tasks","records"] as const)test(`#185 ${kind}: 검색 Enter�
   const search=form(page).getByRole("searchbox",{name:"엔터티 제목 검색",exact:true});await search.dispatchEvent("compositionstart");await search.fill("검");await search.press("Enter");
   await expect(page.locator("dialog.modal-action[open]")).toHaveCount(0);expect(state.writes).toHaveLength(0);await search.fill("검색");await search.dispatchEvent("compositionend");await search.press("Enter");
   const result=form(page).getByRole("group",{name:"엔터티 검색 결과"});await result.getByRole("button",{name:"검색 대상 연결",exact:true}).click();
-  const selected=form(page).getByRole("region",{name:"엔터티 (1개)",exact:true});await expect(selected.locator(".related-item")).toHaveCount(1);expect((await selected.boundingBox())!.y).toBeGreaterThan((await search.boundingBox())!.y);
+  const selected=form(page).getByRole("list",{name:"선택한 엔터티",exact:true});await expect(selected.locator(".related-item")).toHaveCount(1);expect((await selected.boundingBox())!.y).toBeGreaterThan((await search.boundingBox())!.y);
   await expect(page.locator("dialog.modal-action[open]")).toHaveCount(0);expect(state.writes).toHaveLength(0);
   if(kind==="tasks"){await expect(form(page).getByRole("heading",{name:"일정",exact:true})).toHaveCount(0);await expect(form(page).getByLabel("기한",{exact:true})).toHaveCount(1);}
   await page.screenshot({path:info.outputPath(`entity-picker-${kind}.png`)});expect(state.errors).toEqual([]);
