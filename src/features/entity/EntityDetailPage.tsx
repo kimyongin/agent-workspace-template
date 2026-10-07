@@ -1,5 +1,5 @@
 import type { EntityContext } from "@contracts/entity-links.ts";
-import { RelatedItem, RelatedSection } from "../../components/RelatedItems.tsx";
+import { RelatedSection } from "../../components/RelatedItems.tsx";
 import { RelatedRecordItem } from "../activity/RelatedRecords.tsx";
 import { useDetailNavigate, useDetailOwnerReturn } from "../../lib/detail-exploration.tsx";
 import { editFromView } from "../../lib/detail-navigation.ts";
@@ -15,6 +15,7 @@ import { api, ApiError } from "../../lib/api.ts";
 import { EntityForm } from "./forms.tsx";
 import { emptyRecord, emptyTask, RecordFormModal, TaskFormModal, taskInput } from "../activity/forms.tsx";
 import "./entity.css";
+import { EntityTaskRelations } from "./TaskEntityRelations.tsx";
 export function EntityDetailPage() {
   const { id } = useParams(),
     [params] = useSearchParams(),
@@ -64,9 +65,10 @@ export function EntityDetailPage() {
           </button>
         </>
       )}
-          {([["tasks", "할 일"], ["records", "기록"]] as const).map(([kind, label]) => (
-            <RelatedSection key={kind} title={`연결된 ${label}`} count={entity[kind].count} action={<button type="button" className="btn btn-text" onClick={()=>{const p=new URLSearchParams(params);p.set("create",kind==="tasks"?"task":"record");navigate(`?${p}`);}}>{kind==="tasks"?"할 일 작성":"기록 작성"}</button>}>
-              {entity[kind].count>0&&<ul className="related-items">{entity[kind].items.map(item=><li key={item.id}>{"record_kind" in item?<RelatedRecordItem record={item}/>:<RelatedItem to={`/tasks/${item.id}`} title={item.title}/>}</li>)}</ul>}
+          <EntityTaskRelations entity={entity} onSaved={()=>setRetry(n=>n+1)} onCreate={()=>{const p=new URLSearchParams(params);p.set("create","task");navigate(`?${p}`);}}/>
+          {([["records", "기록"]] as const).map(([kind, label]) => (
+            <RelatedSection key={kind} title={`연결된 ${label}`} count={entity[kind].count} action={<button type="button" className="btn btn-text" onClick={()=>{const p=new URLSearchParams(params);p.set("create","record");navigate(`?${p}`);}}>기록 작성</button>}>
+              {entity[kind].count>0&&<ul className="related-items">{entity[kind].items.map(item=><li key={item.id}><RelatedRecordItem record={item}/></li>)}</ul>}
             </RelatedSection>
           ))}
     </div>;

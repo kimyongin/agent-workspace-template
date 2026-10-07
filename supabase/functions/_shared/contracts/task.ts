@@ -105,6 +105,7 @@ export type TaskComplete = z.infer<typeof taskComplete>;
 export const taskListQuery = z
   .strictObject({
     kind: z.enum(TASK_KINDS).optional(),
+    keyword: title.optional(),
     status: z.enum(TASK_STATUSES).optional(),
     due_from: isoDate.optional(),
     due_to: isoDate.optional(),

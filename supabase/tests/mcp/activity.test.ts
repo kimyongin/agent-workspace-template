@@ -3,7 +3,12 @@ import { assert, assertEquals } from "@std/assert";
 import { z } from "zod";
 import { businessMeta, mutationMeta } from "../../functions/_shared/contracts/change.ts";
 import { isoDate } from "../../functions/_shared/contracts/common.ts";
-import { recordCreate, recordListQuery, recordUpdate } from "../../functions/_shared/contracts/record.ts";
+import {
+  occurrenceRecordCreate,
+  recordCreate,
+  recordListQuery,
+  recordUpdate,
+} from "../../functions/_shared/contracts/record.ts";
 import { principleCreate, principleDelete, principleUpdate } from "../../functions/_shared/contracts/principle.ts";
 import { tagCreate, tagListQuery, tagRename } from "../../functions/_shared/contracts/tag.ts";
 import { searchInput, searchResult } from "../../functions/_shared/contracts/search.ts";
@@ -23,6 +28,25 @@ const tokenA = await mcpToken(sessionA);
 const tokenB = await mcpToken(sessionB);
 const mcpA = await connectMcp(tokenA);
 const mcpB = await connectMcp(tokenB);
+
+httpTest("일반 할 일 메모와 제목 검색은 HTTP/MCP에서 같고 다른 사용자의 연결은 거부한다", async () => {
+  const title = `상담 ${crypto.randomUUID()}%_`;
+  const task = await tool(mcpA, "create_task", { kind: "once", title });
+  const record = await tool(mcpA, "create_record", { body: "진행 중 상담", task_id: task.id });
+  assertEquals(record.record_kind, "user");
+  assertEquals(record.task_id, task.id);
+  assertEquals(
+    await tool(mcpA, "get_record", { id: record.id }),
+    (await call(sessionA, "GET", `/records/${record.id}`)).body,
+  );
+  assertEquals((await tool(mcpA, "get_task", { id: task.id })).status, "open");
+  const query = { keyword: title, limit: 20 };
+  assertEquals(
+    await tool(mcpA, "list_tasks", query),
+    (await call(sessionA, "GET", `/tasks?keyword=${encodeURIComponent(title)}&limit=20`)).body,
+  );
+  assertEquals((await tool(mcpB, "create_record", { body: "금지", task_id: task.id })).error.code, "not_found");
+});
 
 httpTest("기록 HTTP 편집·MCP 재시도는 추가 로그 없이 최신 메모·사건을 보존한다", async () => {
   const record = await tool(mcpA, "create_record", { body: crypto.randomUUID() });
@@ -467,7 +491,7 @@ httpTest(
       record_occurrence: {
         task_id: json(z.object({ task_id: z.uuid() })).properties.task_id,
         date: json(z.object({ date: isoDate })).properties.date,
-        ...json(recordCreate).properties,
+        ...json(occurrenceRecordCreate).properties,
       },
     };
     for (const [name, props] of Object.entries(expected)) {

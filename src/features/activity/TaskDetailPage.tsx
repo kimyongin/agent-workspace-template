@@ -17,7 +17,7 @@ import { addDays, formatDateTime, todayIn } from "../../lib/format.ts";
 import { emptyRecord, RecordFormModal, TaskFormModal, taskDraftFrom, taskInput } from "./forms.tsx";
 import { OccurrenceBadge, StatusBadge } from "./shared.tsx";
 import {TagNames} from "../tags/TagPicker.tsx";
-import {EntityLinks} from "../entity/EntityPicker.tsx";
+import {TaskEntityRelations} from "../entity/TaskEntityRelations.tsx";
 
 const WEEKDAY_NAMES = ["", "월", "화", "수", "목", "금", "토", "일"];
 
@@ -32,11 +32,11 @@ function describeRecurrence(t: TaskResult): string {
   return `${rule}, ${r.starts_on}부터 (${t.timezone})`;
 }
 
-type Dialog = null | "edit" | "complete" | "delete" | "transition" | { occurrence: string };
+type Dialog = null | "edit" | "complete" | "record" | "delete" | "transition" | { occurrence: string };
 function requestedDialog(params: URLSearchParams): Dialog {
 
   const action = params.get("action");
-  return action === "complete" || action === "transition" ? action : params.has("occurrence") ? { occurrence: params.get("occurrence")! } : params.get("edit")==="1" ? "edit" : null;
+  return action === "complete" || action === "transition" || action === "record" ? action : params.has("occurrence") ? { occurrence: params.get("occurrence")! } : params.get("edit")==="1" ? "edit" : null;
 }
 
 export function TaskDetailPage() {
@@ -224,8 +224,8 @@ export function TaskDetailPage() {
     {task.kind==="recurring"&&<button type="button" className="btn btn-primary" disabled={busy} onClick={()=>manage("transition")}>{task.status==="active"?"중단":"재개"}</button>}
   </>}>
       <div className="detail-stack">{management}
-      <EntityLinks ids={task.entity_ids} context={task.entity_context}/>
-      <RelatedRecords taskId={task.id} revision={task.version+recordRefresh}/>
+      <TaskEntityRelations task={task} onSaved={saved=>{if(saved)setTask(current=>current?{...current,...saved}:current);setRecordRefresh(n=>n+1);void reload();}}/>
+      <RelatedRecords taskId={task.id} revision={task.version+recordRefresh} action={<button type="button" className="btn btn-text" onClick={()=>manage("record")}>기록 작성</button>}/>
       {occurrenceSection}</div>
       {dialog === "edit" && editReady && (
         <TaskFormModal
@@ -252,7 +252,6 @@ export function TaskDetailPage() {
               change_note:draft.change_note,
               change_tag_ids:draft.change_tag_ids,
               tag_ids:draft.tag_ids,
-              entity_ids:draft.entity_ids??[],
             };
             if (task.kind === "once") patch.due_on = draft.due_on || null;
             else {
@@ -269,6 +268,10 @@ export function TaskDetailPage() {
           }}
         />
       )}
+      {dialog === "record" && <RecordFormModal title="기록 작성" submitLabel="저장" open
+        initial={{...emptyRecord(),entity_ids:task.entity_ids,entity_context:task.entity_context}}
+        onClose={closeManagement} onRouteDiscard={()=>setDialog(null)}
+        onSave={async(value,creationId)=>{await api("POST","/records",{...value,id:creationId(),task_id:task.id});closeManagement();setRecordRefresh(n=>n+1);}}/>}
       {task.kind==="recurring"&&<TaskTransitionForm key={`${task.id}:${task.version}`} open={dialog==="transition"} task={task} onClose={closeManagement} onSaved={async()=>{closeManagement();setMessage(task.status==="active"?"중단했습니다. 오늘부터 회차가 없습니다.":"재개했습니다.");await reload();}}/>}
       {dialog === "complete" && (
         <RecordFormModal

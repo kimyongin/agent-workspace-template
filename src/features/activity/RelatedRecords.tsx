@@ -1,7 +1,8 @@
 import { useSearchParams } from "react-router";
 import { useDetailNavigate } from "../../lib/detail-exploration.tsx";
 import { appendItems, MAX_RESTORE_PAGES, requestedPages, restoreList, type ListPage, type LoadedList } from "./list-state.ts";
-import { useEffect, useRef, useState } from "react";
+import { useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import { SurfaceContext } from "../../components/Modal.tsx";
 import type { RecordResult } from "@contracts/record.ts";
 import { recordDisplayText } from "@contracts/record-display.ts";
 import { RelatedItem, RelatedSection } from "../../components/RelatedItems.tsx";
@@ -14,11 +15,12 @@ export function RelatedRecordItem({record}: {record:Pick<RecordResult,"id"|"body
   return <RelatedItem to={`/records/${record.id}`} title={recordDisplayText(record.body)} metadata={<><span className="badge">{recordKindNames[record.record_kind]}</span>{record.occurrence_on&&<span className="meta">{record.occurrence_on} 회차</span>}<time className="meta" dateTime={record.occurred_at}>{formatDateTime(record.occurred_at)}</time></>}/>;
 }
 
-export function RelatedRecords({taskId,revision}: {taskId:string;revision:number}) {
+export function RelatedRecords({taskId,revision,action}: {taskId:string;revision:number;action?:ReactNode}) {
   // Each task/revision starts a fresh cursor; a request never publishes into another owner's list.
-  return <TaskRecords key={`${taskId}:${revision}`} taskId={taskId}/>;
+  return <TaskRecords key={`${taskId}:${revision}`} taskId={taskId} action={action}/>;
 }
-function TaskRecords({taskId}:{taskId:string}) {
+function TaskRecords({taskId,action}:{taskId:string;action?:ReactNode}) {
+  const surface=useContext(SurfaceContext);
   const [params]=useSearchParams(),navigate=useDetailNavigate();
   const requested=requestedPages(new URLSearchParams({pages:params.get("related_record_pages")??"1"}));
   const [page,setPage]=useState<LoadedList<RecordResult>|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState(false);
@@ -38,8 +40,8 @@ function TaskRecords({taskId}:{taskId:string}) {
   };
   useEffect(()=>{void load(requested);return()=>request.current?.abort();},[]);
   // A background read must not navigate or interrupt a dirty management form.
-  useEffect(()=>{if(!page||busy||error||params.has("edit")||params.has("action")||params.has("occurrence")||Math.min(page.pages,MAX_RESTORE_PAGES)===requested)return;const next=new URLSearchParams(params);next.set("related_record_pages",String(Math.min(page.pages,MAX_RESTORE_PAGES)));void navigate(`?${next}`);},[page,busy,error,params,requested,navigate]);
-  return <RelatedSection title="연결된 기록" count={page?.items.length} hasMore={!!page?.next_cursor}>
+  useEffect(()=>{if(!page||busy||error||surface?.editor.current||params.has("edit")||params.has("action")||params.has("occurrence")||Math.min(page.pages,MAX_RESTORE_PAGES)===requested)return;const next=new URLSearchParams(params);next.set("related_record_pages",String(Math.min(page.pages,MAX_RESTORE_PAGES)));void navigate(`?${next}`);},[page,busy,error,params,requested,navigate,surface]);
+  return <RelatedSection title="연결된 기록" count={page?.items.length} hasMore={!!page?.next_cursor} action={action}>
     {busy&&<p className="secondary" role="status">불러오는 중…</p>}
     {!!page?.items.length&&<ul className="related-items">{page.items.map(record=><li key={record.id}><RelatedRecordItem record={record}/></li>)}</ul>}
     {error&&<Notice kind="error">연결된 기록을 불러오지 못했습니다.</Notice>}

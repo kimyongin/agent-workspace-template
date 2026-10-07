@@ -231,7 +231,7 @@ export function TaskFormModal(props: {
           )}
           <TextFields draft={draft} set={set} errors={errors} />
           <section className="detail-section form">
-          <EntityMultiPicker value={draft.entity_ids??[]} context={draft.entity_context} error={errors.entity_ids} onChange={entity_ids=>set({entity_ids})}/>
+          {props.mode === "create" && <EntityMultiPicker value={draft.entity_ids??[]} context={draft.entity_context} error={errors.entity_ids} onChange={entity_ids=>set({entity_ids})}/>}
           <TagPicker value={draft.tag_ids} error={errors.tag_ids} onChange={tag_ids=>set({tag_ids})}/>
           </section><section className="detail-section form">
           {draft.kind === "once"

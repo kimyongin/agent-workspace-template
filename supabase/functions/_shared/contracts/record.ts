@@ -12,8 +12,11 @@ export const recordCreate = z.strictObject({
   tag_ids: tagIds.optional(),
   body: recordBody,
   occurred_at: isoDateTime.optional(),
+  task_id: id.optional(),
 });
 export type RecordCreate = z.infer<typeof recordCreate>;
+/** The occurrence route owns the task and date; content cannot override them. */
+export const occurrenceRecordCreate = recordCreate.omit({ task_id: true });
 
 export const recordUpdate = z
   .strictObject({

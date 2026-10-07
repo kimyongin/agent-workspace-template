@@ -4,7 +4,7 @@ import type { ToolDef } from "./tools.ts";
 import { z } from "zod";
 import { businessMeta, mutationMeta } from "../../contracts/change.ts";
 import { expectedVersion, id, isoDate } from "../../contracts/common.ts";
-import { recordCreate, recordListQuery, recordUpdate } from "../../contracts/record.ts";
+import { occurrenceRecordCreate, recordCreate, recordListQuery, recordUpdate } from "../../contracts/record.ts";
 import { occurrenceRange, taskComplete, taskCreate, taskListQuery, taskUpdate } from "../../contracts/task.ts";
 import * as activity from "../../core/activity/application.ts";
 import { notFound } from "../../core/shared/errors.ts";
@@ -124,12 +124,12 @@ export function activityTools(deps: activity.ActivityDeps): ToolDef[] {
       name: "record_occurrence",
       description:
         "반복 할 일의 회차(date)에 수행 결과 기록을 남긴다. 규칙상 회차·시작일 이후·중단 기간 밖·오늘(할 일 시간대) 이전만 가능. 한 회차에 여러 번 가능.",
-      input: recordCreate.extend({ task_id: id, date: isoDate }),
+      input: occurrenceRecordCreate.extend({ task_id: id, date: isoDate }),
       readOnly: false,
       handler: (args, actor) => {
-        const { task_id, date, ...input } = parse(recordCreate.extend({ task_id: id, date: isoDate }), args);
+        const { task_id, date, ...input } = parse(occurrenceRecordCreate.extend({ task_id: id, date: isoDate }), args);
         const day = parse(z.object({ date: isoDate }), { date }).date;
-        return activity.recordOccurrence(deps, actor, task_id, day, parse(recordCreate, input));
+        return activity.recordOccurrence(deps, actor, task_id, day, parse(occurrenceRecordCreate, input));
       },
     },
     {
@@ -169,7 +169,7 @@ export function activityTools(deps: activity.ActivityDeps): ToolDef[] {
     {
       name: "create_record",
       description:
-        "할 일 없이 기록 본문을 직접 작성한다. 본문은 구간별 의미 검색과 키워드 검색에 쓰인다. 원칙을 참고했다면 필요한 경우 본문에 설명한다.",
+        "일반 기록을 작성한다. 선택적 task_id로 할 일에 연결해도 완료·회차 상태는 바뀌지 않는다. 엔터티 선택 생략 시 해당 할 일의 현재 연결을 담는다. 본문은 검색에 쓰이며 필요한 원칙 근거는 본문에 설명한다.",
       input: recordCreate,
       readOnly: false,
       handler: (args, actor) => activity.createRecord(deps, actor, parse(recordCreate, args)),
