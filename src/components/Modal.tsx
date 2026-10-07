@@ -11,6 +11,8 @@ export interface ModalProps {
   open: boolean;
   /** 닫기 요청. dirty면 변경 버리기 확인을 먼저 묻는다. */
   onClose: () => void;
+  /** Footer cancellation returns to the viewer; header dismissal exits the detail. */
+  onCancelEdit?: () => void;
   previous?: { label: string; back: () => void } | null;
   /** 경로 폐기 확인 후 편집 영역만 닫거나 초기화한다. 이동하는 onClose는 별도 콜백을 반드시 제공한다. */
   onRouteDiscard?: () => void;
@@ -45,6 +47,7 @@ export const SurfaceActionContext = createContext<((action: SurfaceAction | null
 export function DetailSurface({title, onClose, children, busy = false, footer}: {title: string; onClose: () => void; children: ReactNode; busy?: boolean; footer?: ReactNode}) {
   const previous = useDetailExploration();
   const [editor, setEditor] = useState<SurfaceEditor | null>(null);
+  const [dismissing,setDismissing]=useState(false);
   const editorRef = useRef<SurfaceEditor | null>(null), busyRef = useRef(busy);
   const readFocus=useRef<HTMLElement|null>(null);
   busyRef.current = busy;
@@ -54,8 +57,16 @@ export function DetailSurface({title, onClose, children, busy = false, footer}: 
   }, []);
   useEffect(()=>{if(!editor&&readFocus.current){if(readFocus.current.isConnected)readFocus.current.focus();else document.querySelector<HTMLElement>("dialog[open]:not(.modal-confirm) .modal-foot button")?.focus();readFocus.current=null;}},[editor]);
   const [slot, setSlot] = useState<HTMLDivElement | null>(null);
+  const dismiss=()=>{
+    const active=editorRef.current;
+    if(!active)return onClose();
+    (active.onRouteDiscard??active.onClose)();
+    setDismissing(true);
+  };
+  // Remove the editor before navigating, so its dirty guard cannot ask a second time.
+  useEffect(()=>{if(dismissing&&!editor){setDismissing(false);onClose();}},[dismissing,editor,onClose]);
   return <SurfaceContext.Provider value={{slot, register, editor:editorRef, busy:busyRef}}>
-    <ModalShell open title={editor?.title ?? title} headingLevel={editor?2:1} onClose={editor?.onClose ?? onClose}
+    <ModalShell open title={editor?.title ?? title} headingLevel={editor?2:1} onClose={dismiss} onCancelEdit={editor?.onClose}
       onRouteDiscard={editor?.onRouteDiscard} dirty={editor?.dirty} busy={busy || editor?.busy}
       previous={editor ? null : previous} footer={editor?.footer ?? footer}>
       <div hidden={!!editor}>{children}</div>
@@ -68,10 +79,11 @@ export function ModalShell(props: ModalProps) {
   return props.open ? <ActiveModalShell {...props} /> : null;
 }
 
-function ActiveModalShell({ title, headingLevel=2, open, onClose, previous, onRouteDiscard = onClose, dirty = false, busy = false, footer, children }: ModalProps) {
+function ActiveModalShell({ title, headingLevel=2, open, onClose, onCancelEdit, previous, onRouteDiscard = onClose, dirty = false, busy = false, footer, children }: ModalProps) {
   const ref = useRef<HTMLDialogElement>(null);
   const titleId = useId();
   const [confirmDiscard, setConfirmDiscard] = useState(false);
+  const discardDestination=useRef(onClose);
   const [action, setAction] = useState<SurfaceAction | null>(null);
   const actionRef = useRef<SurfaceAction | null>(null);
   const registerAction = useCallback((value: SurfaceAction | null) => { actionRef.current=value; setAction(value); }, []);
@@ -129,12 +141,14 @@ function ActiveModalShell({ title, headingLevel=2, open, onClose, previous, onRo
   }, []);
 
   useSurfaceViewport(ref);
-  const requestClose = () => {
+  const requestLeave = (destination:()=>void) => {
     if (busy || action?.busy) return;
     if (action) return action.onCancel();
-    if (dirty) setConfirmDiscard(true);
-    else onClose();
+    if (dirty) {discardDestination.current=destination;setConfirmDiscard(true);}
+    else destination();
   };
+  const requestClose=()=>requestLeave(onClose);
+  const requestCancelEdit=()=>requestLeave(onCancelEdit??onClose);
   // Capture Escape even if cancelling a stage temporarily leaves focus outside the dialog.
   useEffect(() => {
     const escape = (event: KeyboardEvent) => {
@@ -166,7 +180,7 @@ function ActiveModalShell({ title, headingLevel=2, open, onClose, previous, onRo
           </button>
         </div>
         <div className="modal-body" tabIndex={0}><div hidden={!!action}>{children}</div>{action && <div className="surface-action">{action.body}</div>}</div>
-        {(action?.footer ?? footer) && <div className="modal-foot">{action ? action.footer : typeof footer === "function" ? footer(requestClose) : footer}</div>}
+        {(action?.footer ?? footer) && <div className="modal-foot">{action ? action.footer : typeof footer === "function" ? footer(requestCancelEdit) : footer}</div>}
       </div>
       <ConfirmDialog
         open={confirmDiscard || blocker.state === "blocked"}
@@ -177,7 +191,7 @@ function ActiveModalShell({ title, headingLevel=2, open, onClose, previous, onRo
         onConfirm={() => {
           setConfirmDiscard(false);
           if (blocker.state === "blocked") { onRouteDiscard(); blocker.proceed(); }
-          else onClose();
+          else discardDestination.current();
         }}
         onCancel={() => { setConfirmDiscard(false); if (blocker.state === "blocked") blocker.reset(); }}
       />
@@ -232,7 +246,7 @@ export function ConfirmDialog({ open, title, message, confirmLabel, danger, busy
   return createPortal(
     <dialog
       ref={ref}
-      className="modal modal-confirm"
+      className="modal modal-confirm modal-action"
       aria-labelledby={titleId}
       onKeyDown={(e) => { if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); if (!busy) onCancel(); } }}
       onCancel={(e) => {

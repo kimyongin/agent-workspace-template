@@ -26,7 +26,7 @@ export function PrincipleDetailPage() {
   useEffect(()=>{const controller=new AbortController();setItem(current=>current?.id===id?current:confirmed.current?.id===id?confirmed.current:null);setError(null);
     api<WorkspacePrinciple>("GET",`/principles/${id}`,undefined,controller.signal).then(p=>{if(!controller.signal.aborted){setItem(p);setError(null);setEditReady(true);}}).catch(e=>{if(!controller.signal.aborted)setError(e instanceof ApiError?e.message:"원칙을 불러오지 못했습니다.");});
     return()=>controller.abort();},[id,retry]);
-  const closeEdit=()=>{setEditing(false);if(conflicted.current){conflicted.current=false;setRetry(n=>n+1);}if(params.get("edit_from")!=="view"){afterClose(back,true);return;}const p=new URLSearchParams(params);p.delete("edit");p.delete("edit_from");afterClose(`?${p}`,true);};
+  const closeEdit=()=>{setEditing(false);if(conflicted.current){conflicted.current=false;setRetry(n=>n+1);}const p=new URLSearchParams(params);p.delete("edit");p.delete("edit_from");afterClose(`?${p}`,true);};
   const startEdit=()=>navigate(editFromView(params));
   return <DetailSurface footer={item?.is_current&&<button type="button" className="btn btn-primary" onClick={startEdit}>편집</button>} title={item?.title??"원칙"} onClose={()=>navigate(back)} busy={busy}>
     {error&&<><Notice kind="error">{confirmed.current?.id===id?"저장은 완료했습니다. 최신 내용을 불러오지 못했습니다.":error}</Notice><button className="btn" onClick={()=>setRetry(n=>n+1)}>조회 다시 시도</button></>}
@@ -40,7 +40,7 @@ export function PrincipleDetailPage() {
         onSave={async draft=>{
         let saved:WorkspacePrinciple;
         try {saved=await api<WorkspacePrinciple>("PATCH",`/principles/${item.id}`,{...draft,expected_version:item.version});}catch(e){if(e instanceof ApiError&&e.code==="conflict")conflicted.current=true;throw e;}
-        confirmed.current=saved;setMessage("저장했습니다.");setEditing(false);setItem(saved);const p=new URLSearchParams(params);p.delete("edit");p.delete("edit_from");afterClose(params.get("edit_from")==="view"?`/principles/${saved.id}?${p}`:back,true);
+        confirmed.current=saved;setMessage("저장했습니다.");setEditing(false);setItem(saved);const p=new URLSearchParams(params);p.delete("edit");p.delete("edit_from");afterClose(`/principles/${saved.id}?${p}`,true);
       }}/>}
 
     </section>}

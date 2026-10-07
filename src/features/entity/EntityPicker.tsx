@@ -117,6 +117,7 @@ export function EntityMultiPicker({ value, context = [], onChange, error }: {
   const picker = useRef<HTMLFieldSetElement>(null);
   const searchInput = useRef<HTMLInputElement>(null);
   const nextFocus = useRef<string | null>(null);
+  const searchImmediately = useRef(false);
   const keyword = draft.trim();
   // Resolve only unknown selected IDs; a saved name remains usable even if the target is unavailable.
   const selectionKey = value.join(",");
@@ -155,6 +156,8 @@ export function EntityMultiPicker({ value, context = [], onChange, error }: {
     setFailed(false);
     setPending(!!keyword && !composing);
     if (!keyword || composing) return () => controller.abort();
+    const delay = searchImmediately.current ? 0 : 300;
+    searchImmediately.current = false;
     const timer = setTimeout(() => {
       void api<{ items: EntityResult[]; next_cursor: string | null }>(
         "GET",
@@ -168,7 +171,7 @@ export function EntityMultiPicker({ value, context = [], onChange, error }: {
       }).finally(() => {
         if (!controller.signal.aborted) setPending(false);
       });
-    }, 300);
+    }, delay);
     return () => {
       clearTimeout(timer);
       controller.abort();
@@ -233,22 +236,7 @@ export function EntityMultiPicker({ value, context = [], onChange, error }: {
       className="field entity-picker"
       style={{ border: 0, padding: 0, margin: 0 }}
     >
-      <legend className="label">엔터티</legend>
-      {!!value.length && (
-        <div className="chips" role="group" aria-label="연결된 엔터티">
-          {value.map((id) => (
-            <label key={id} className="chip entity-choice">
-              <input
-                data-entity-id={id}
-                type="checkbox"
-                checked
-                onChange={() => remove(id)}
-              />
-              {names.get(id) ?? `현재 연결 (${id})`}
-            </label>
-          ))}
-        </div>
-      )}
+      <legend className="visually-hidden">엔터티 연결</legend>
       <Field label="엔터티 제목 검색" error={error}>
         {(p) => (
           <input
@@ -260,6 +248,13 @@ export function EntityMultiPicker({ value, context = [], onChange, error }: {
             maxLength={100}
             placeholder="제목을 입력해 연결할 엔터티 찾기"
             onChange={(event) => setDraft(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key !== "Enter") return;
+              event.preventDefault();
+              if (composing || event.nativeEvent.isComposing || event.keyCode === 229) return;
+              searchImmediately.current = true;
+              setRetry((value) => value + 1);
+            }}
             onCompositionStart={() => setComposing(true)}
             onCompositionEnd={(event) => {
               setDraft(event.currentTarget.value);
@@ -293,13 +288,13 @@ export function EntityMultiPicker({ value, context = [], onChange, error }: {
         >
           {current.items.filter((item) => !value.includes(item.id)).map(
             (item) => (
-              <label key={item.id} className="entity-choice">
+              <label key={item.id} className="related-item entity-choice">
                 <input
                   type="checkbox"
                   checked={false}
                   onChange={() => select(item)}
                 />
-                {item.prop1}
+                <span className="item-title">{item.prop1}</span>
               </label>
             ),
           )}
@@ -317,6 +312,23 @@ export function EntityMultiPicker({ value, context = [], onChange, error }: {
             </button>
           )}
         </div>
+      )}
+      {!!value.length && (
+        <RelatedSection title="연결된 엔터티" count={value.length}>
+        <div className="entity-candidates" role="group" aria-label="연결된 엔터티">
+          {value.map((id) => (
+            <label key={id} className="related-item entity-choice">
+              <input
+                data-entity-id={id}
+                type="checkbox"
+                checked
+                onChange={() => remove(id)}
+              />
+              <span className="item-title">{names.get(id) ?? `현재 연결 (${id})`}</span>
+            </label>
+          ))}
+        </div>
+        </RelatedSection>
       )}
     </fieldset>
   );

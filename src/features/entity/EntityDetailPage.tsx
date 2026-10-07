@@ -53,7 +53,7 @@ export function EntityDetailPage() {
   const previousQuery=useRef(params.toString());
   useEffect(()=>{setEditing(params.get("edit")==="1");if(previousQuery.current!==params.toString()&&!params.has("create")){setEditReady(false);setRetry(n=>n+1);}previousQuery.current=params.toString();},[params.toString()]);
   useEffect(()=>{if(creating||!editReady||!returnCreateFocus.current)return;const frame=requestAnimationFrame(()=>{const label=returnCreateFocus.current==="task"?"할 일 작성":"기록 작성";const button=Array.from(document.querySelectorAll<HTMLButtonElement>("dialog[open] .detail-management button")).find(el=>el.textContent===label);if(button){button.focus();returnCreateFocus.current=null;}});return()=>cancelAnimationFrame(frame);},[creating,editReady,entity]);
-  const closeEdit=()=>{setEditing(false);const p=new URLSearchParams(params);p.delete("edit");p.delete("edit_from");afterClose(params.get("edit_from")==="view"?`${location.pathname}?${p}`:back,true);if(conflicted.current){conflicted.current=false;setRetry(n=>n+1);}};
+  const closeEdit=()=>{setEditing(false);const p=new URLSearchParams(params);p.delete("edit");p.delete("edit_from");afterClose(`${location.pathname}?${p}`,true);if(conflicted.current){conflicted.current=false;setRetry(n=>n+1);}};
   const entityContext: EntityContext[] = entity ? [{id:entity.id,title:entity.prop1,source:"selection",captured_at:new Date().toISOString()}] : [];
   const management = entity && <div className="detail-management">
       {error && (

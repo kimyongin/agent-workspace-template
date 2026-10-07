@@ -1,3 +1,4 @@
+import { openListEditor, openDetailEditor } from "./ui-actions.ts";
 import { fillChangeMemo, saveOnce } from "./ui-actions.ts";
 import { expect,test } from "@playwright/test";
 const id="00000000-0000-4000-8000-000000000131", stamp="2026-10-06T01:00:00Z";
@@ -39,7 +40,7 @@ test("현재 원칙은 한 번에 저장해 같은 문서를 갱신하며 삭제
   });
   await page.goto("/e2e/fixtures/workspace-screens.html?route=/principles");
   await expect(page.getByRole("link",{name:"과거 근거는 통합 기록에서 보기",exact:true})).toHaveAttribute("href","/records");
-  await page.getByRole("button",{name:"원칙 작업 메뉴",exact:true}).click();await page.getByRole("link",{name:"현재 원칙 편집",exact:true}).click();
+  await openListEditor(page,"현재 기준");
   const form=page.locator("dialog.modal:not(.modal-confirm)[open]");
   await form.getByRole("textbox",{name:/^본문$/}).fill("새 본문");
   expect(writes).toHaveLength(0);await fillChangeMemo(page,form,"판단 근거를 보충");await saveOnce(page,form);

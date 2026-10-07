@@ -113,7 +113,7 @@ for (
       await openDetailEditor(page);const dialog=page.getByRole("dialog",{name:editLabel,exact:true});
       await dialog.getByLabel("본문").fill("닫기 취소 뒤 보존할 초안");await dialog.getByRole("button",{name:"닫기",exact:true}).click();
       const discard=page.getByRole("dialog",{name:"변경을 버릴까요?",exact:true});await discard.getByRole("button",{name:"취소",exact:true}).click();await expect(dialog.getByLabel("본문")).toHaveValue("닫기 취소 뒤 보존할 초안");
-      expect((await mcp.call(`get_${kind}`,{id:target.id})).body).toBe(target.body);await dialog.getByLabel("본문").fill(target.body);await dialog.getByRole("button",{name:"닫기",exact:true}).click();await view.getByRole("button",{name:"닫기",exact:true}).click();
+      expect((await mcp.call(`get_${kind}`,{id:target.id})).body).toBe(target.body);await dialog.getByLabel("본문").fill(target.body);await dialog.getByRole("button",{name:"닫기",exact:true}).click();
       await expect(link).toBeFocused();await link.click();
       for (let i = 0; i < 21; i++) await create(unique("상세 중 추가"));
       await page.goBack();

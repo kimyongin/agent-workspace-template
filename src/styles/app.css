@@ -492,7 +492,10 @@ textarea.input {
 
 /* 목록 제목은 상세로 가는 주 조작이므로 누름 영역을 44px 이상으로 둔다(글자 크기는 그대로). */
 .list-item a.item-title, .current-document a.item-title {
-  display: flex;
+  display: inline-flex;
+  width: fit-content;
+  max-width: 100%;
+  align-self: flex-start;
   align-items: center;
   min-height: 44px;
   min-width: 44px;
