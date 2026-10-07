@@ -175,5 +175,12 @@ for(const width of [390,1440])test(`#205 ${width}px: 설정·가이드 구획과
   await page.keyboard.press("Escape");await expect(page.getByRole("button",{name:"메뉴",exact:true})).toBeFocused();
   await page.goto("/guide");await expect(page.locator(".guide-step")).toHaveCount(5);await page.screenshot({path:info.outputPath(`compact-guide-${width}.png`)});
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
-  if(width>=1024){await page.setViewportSize({width,height:320});for(const node of await page.locator(".bottom-nav-inner > a,.nav-more-trigger").all())await expect(node).toBeInViewport();}
+  if(width>=1024){
+    for(const height of [320,280]){
+      await page.setViewportSize({width,height});
+      for(const node of await page.locator(".bottom-nav-inner > a,.nav-more-trigger").all())await expect(node).toBeInViewport();
+    }
+    const nav=(await page.locator(".bottom-nav").boundingBox())!;expect(nav.y).toBeGreaterThan(0);expect(nav.y+nav.height).toBeCloseTo(280);
+    await page.getByRole("button",{name:"메뉴",exact:true}).click();const short=(await page.locator("#nav-more-options").boundingBox())!;expect(short.y).toBeGreaterThanOrEqual(0);expect(short.y+short.height).toBeLessThanOrEqual(280);
+  }
 });

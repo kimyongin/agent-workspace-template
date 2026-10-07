@@ -955,6 +955,7 @@ for(const width of [320,360,390,639,640,768,1024,1440])test(`공통 연결 목�
   const styles:string[]=[];
   for(const path of [`/entities/${id(1)}`,`/tasks/${t.id}`,`/records/${r.id}`]){
     await go(page,path);const links=form(page).locator(".related-item");await expect(links).toHaveCount(2);
+    for(const last of await form(page).locator(".related-items > li:last-child .related-item").all())expect(await last.evaluate(el=>getComputedStyle(el).borderBottomWidth)).toBe("0px");
     const first=links.first();styles.push(await first.evaluate(el=>{const c=getComputedStyle(el);return [c.padding,c.borderRadius,c.backgroundColor,c.borderWidth].join("|");}));
     for(const link of await links.all()){const box=(await link.boundingBox())!;expect(box.height).toBeGreaterThanOrEqual(44);expect(box.width).toBeGreaterThanOrEqual(44);}
     await expect(form(page).getByText("연결 당시 정보",{exact:true})).toHaveCount(0);await expect(form(page).getByText("저장 정보",{exact:true})).toHaveCount(0);await expect(form(page)).not.toContainText("만든 시각");
