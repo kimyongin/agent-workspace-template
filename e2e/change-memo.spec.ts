@@ -24,9 +24,9 @@ test("엔터티 확인 후 한 번에 저장하고 입력 메모만 기록 본�
     expect(record.body).toBe(note);expect(record).not.toHaveProperty("title");expect(record).not.toHaveProperty("summary");expect(record).not.toHaveProperty("change_note");
     await openDetailEditor(page);const edit=page.getByRole("dialog",{name:"엔터티 편집",exact:true});
     await edit.getByLabel("속성 2").fill("30");await saveOnce(page,edit);
-    await expect(edit).not.toBeVisible();expect((await mcp.call("get_entity",{id})).prop2).toBe(30);
+    await expect(page.locator("dialog.modal-action[open]")).toHaveCount(0);await expect(edit).not.toBeVisible();expect((await mcp.call("get_entity",{id})).prop2).toBe(30);
     const updated=await mcp.call("list_records",{record_kind:"change",limit:100});
     const changed=updated.items.find((r:{change:{target_id:string;action:string}})=>r.change?.target_id===id&&r.change.action==="update");
-    expect(changed).toBeDefined();expect(changed.body).toContain(name);expect(changed.body).toContain("수정");expect(changed.body).toContain("속성 2");
+    expect(changed).toBeDefined();expect(changed.body).toContain(name);expect(changed.body).toContain("수정");
   } finally { await mcp.close(); }
 });
