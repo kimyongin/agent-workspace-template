@@ -36,7 +36,7 @@ test("Entity 웹 CRUD·초안 보호→MCP parity·활동 연결→삭제 원문
     });
     const unrelated = await mcp.call("create_task", { kind: "once", title: task.title + " 외부", body: "별도" });
     await page.goto(`/search?q=${encodeURIComponent(task.title)}&mode=keyword&kind=task`);
-    await page.getByLabel("엔터티", { exact: true }).selectOption(id);
+    await page.getByText("검색 조건",{exact:false}).first().click(); await page.getByLabel("엔터티", { exact: true }).selectOption(id);
     await expect(page.locator(".list .item-title")).toHaveCount(1);
     expect(new URL(page.url()).searchParams.get("entity_id")).toBe(id);
     await page.getByRole("link", { name: task.title, exact: true }).click();

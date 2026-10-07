@@ -135,17 +135,22 @@ function ActiveModalShell({ title, headingLevel=2, open, onClose, previous, onRo
     if (dirty) setConfirmDiscard(true);
     else onClose();
   };
+  // Capture Escape even if cancelling a stage temporarily leaves focus outside the dialog.
+  useEffect(() => {
+    const escape = (event: KeyboardEvent) => {
+      const top = Array.from(document.querySelectorAll<HTMLDialogElement>("dialog[open]")).at(-1);
+      if (event.key !== "Escape" || top !== ref.current) return;
+      event.preventDefault(); event.stopPropagation();
+      if (!confirmDiscard) requestClose();
+    };
+    document.addEventListener("keydown", escape, true);
+    return () => document.removeEventListener("keydown", escape, true);
+  });
 
   return <SurfaceActionContext.Provider value={registerAction}><dialog
       ref={ref}
       className={`modal${action ? " modal-action" : ""}`}
       aria-labelledby={titleId}
-      onKeyDown={(e) => {
-        if (e.key === "Escape" && (e.target as HTMLElement).closest("dialog") === ref.current) {
-          e.preventDefault(); e.stopPropagation();
-          if (!confirmDiscard) requestClose();
-        }
-      }}
       onCancel={(e) => {
         e.preventDefault();
         e.stopPropagation();

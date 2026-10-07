@@ -5,4 +5,3 @@ a.related-item:hover { border-color: var(--control-border); }
 .related-item-title .item-title { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .related-item-meta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
 .related-item p { margin: 0; }
-
