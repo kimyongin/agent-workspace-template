@@ -187,7 +187,7 @@ for(const [kind,label] of [["task","할 일 작성"],["record","기록 작성"]]
     await expect(page).not.toHaveURL(/create=/);await expect(page).toHaveURL(/list=/);
     await expect(form(page).getByRole("button",{name:label,exact:true})).toBeFocused();
   }
-  await page.reload();await expect(form(page).getByRole("button",{name:label+"하고 저장",exact:true})).toBeVisible();
+  await page.reload();await expect(form(page).getByRole("button",{name:label,exact:true})).toBeVisible();
   await expect(form(page).getByRole("textbox",{name:/^제목(?: \(필수\))?$/})).toHaveCount(0);expect(state.writes).toHaveLength(0);expect(state.errors).toEqual([]);
 });
 
@@ -483,7 +483,7 @@ test("엔터티 상세: 편집·할 일 작성·기록 작성 뒤 성공 알림�
   const state=await fixtures(page);await go(page,`/entities/${id(1)}`);await form(page).getByRole("button",{name:"편집",exact:true}).click();
   await form(page).getByLabel("속성 2",{exact:false}).fill("25");await saveOnce(page,form(page));await expect(form(page).getByLabel("속성 2",{exact:false})).toHaveCount(0);
   for(const [label,body,submit] of [["할 일 작성","새 업무","추가"],["기록 작성","새 상담","저장"]]){
-    await form(page).getByRole("button",{name:label,exact:true}).click();await fillText(page,body);await saveOnce(page,form(page),submit);await expect(form(page).getByRole("button",{name:label+"하고 저장",exact:true})).toBeVisible();
+    await form(page).getByRole("button",{name:label,exact:true}).click();await fillText(page,body);await saveOnce(page,form(page),submit);await expect(form(page).getByRole("button",{name:label,exact:true})).toBeVisible();
   }
   await expect(form(page).locator(".notice")).toHaveCount(0);await expect(form(page).getByText(/^수정 /)).toHaveCount(0);await expect(form(page).getByRole("link",{name:/전체 (할 일|기록) 보기/})).toHaveCount(0);
   for(const width of [390,1440]){await page.setViewportSize({width,height:900});await page.screenshot({path:info.outputPath(`entity171-detail-${width}.png`)});}

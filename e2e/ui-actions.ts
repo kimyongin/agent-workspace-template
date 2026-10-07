@@ -2,7 +2,7 @@ import { expect, type Page, type Locator } from "@playwright/test";
 
 /** Complete a save through its public confirmation stage when the domain requires a change record. */
 export async function saveOnce(page: Page, scope: Page | Locator = page, label = "저장") {
-  const final = scope.getByRole("button", {name:/^(등록|수정|중단|재개)하고 저장$|^삭제하고 기록$/});
+  const final = page.locator("dialog.modal-action[open]").getByRole("button", {name:/^(등록|수정|중단|재개)하고 저장$|^삭제하고 기록$|^같은 내용 다시 시도$/});
   const requested = scope.getByRole("button", {name:label === "삭제 확인" ? "삭제하고 기록" : label,exact:true});
   if (await requested.isVisible()) {
     await requested.click();
@@ -19,7 +19,7 @@ export async function discardEditor(page: Page) {
 }
 
 export async function fillChangeMemo(page: Page, scope: Page | Locator, value: string) {
-  const memo=scope.getByLabel("기록 메모",{exact:true});
+  const memo=page.locator("dialog.modal-action[open]").getByLabel("기록 메모",{exact:true});
   if (!await memo.isVisible()) await scope.getByRole("button",{name:/^저장$|^추가$/}).click();
   await memo.fill(value);
 }
