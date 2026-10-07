@@ -105,14 +105,11 @@ export function EntitiesPage() {
     <><section className="panel" aria-labelledby="entities-title">
       <div className="panel-head">
         <h1 id="entities-title" className="page-title" tabIndex={-1}>엔터티</h1>
-        <TabActions title="엔터티" actions={[{label:"엔터티 등록",run:create.begin},{label:"엔터티 태그 관리",to:"/tags/entity"}]}/>
+        <TabActions title="엔터티" primary={{label:"엔터티 등록",run:create.begin}} actions={[{label:"엔터티 태그 관리",to:"/tags/entity"}]}/>
       </div>
       <TabSearch entity/>
       <TabFilters active={!!(filter.tag_id||filter.prop3_from||filter.prop3_to||filter.prop4||filter.sort!=="updated_at")} attention={dictionary.failed}>
-      <TagDictionaryStatus dictionary={dictionary}/>
-      <fieldset className="field tag-filter-chips"><legend className="label">엔터티 태그</legend><div className="chips">{dictionary.tags?.map(tag=><button type="button" className="chip" key={tag.id} aria-pressed={filter.tag_id===tag.id} onClick={()=>set("tag_id",filter.tag_id===tag.id?"":tag.id)}>{tag.name}</button>)}</div></fieldset>
-      <div className="form" role="group" aria-label="엔터티 필터">
-        <div className="field-row">
+      <div className="filter-grid" role="group" aria-label="엔터티 필터">
           {(["prop3_from", "prop3_to"] as const).map((name) => (
             <Field
               key={name}
@@ -129,7 +126,6 @@ export function EntitiesPage() {
               )}
             </Field>
           ))}
-        </div>
         <Field label="속성 4 필터">
           {(p) => (
             <select
@@ -156,7 +152,10 @@ export function EntitiesPage() {
             </select>
           )}
         </Field>
-      </div></TabFilters>
+      </div>
+      <TagDictionaryStatus dictionary={dictionary}/>
+      <fieldset className="field tag-filter-chips"><legend className="label">엔터티 태그</legend><div className="chips">{dictionary.tags?.map(tag=><button type="button" className="chip" key={tag.id} aria-pressed={filter.tag_id===tag.id} onClick={()=>set("tag_id",filter.tag_id===tag.id?"":tag.id)}>{tag.name}</button>)}</div></fieldset>
+      </TabFilters>
     </section><section className="activity-section" aria-label="엔터티 목록">
       {error && (
         <>

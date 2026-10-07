@@ -43,7 +43,8 @@ test("네 탭과 프로필·메뉴는 320~1440px와 200%에서 조작 가능하�
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await page.getByRole("link", { name: "로그아웃", exact: true }).focus();
     const action = await page.getByRole("link", { name: "로그아웃", exact: true }).boundingBox(); const bottom = await nav.boundingBox();
-    expect(action!.y + action!.height).toBeLessThanOrEqual(bottom!.y);
+    if(width<1024)expect(action!.y + action!.height).toBeLessThanOrEqual(bottom!.y);
+    else { expect(action!.x).toBeGreaterThanOrEqual(bottom!.x+bottom!.width); expect(bottom!.y).toBe(0); }
     await page.screenshot({ path: info.outputPath(`settings-${width}.png`) });
   }
   await page.setViewportSize({ width: 320, height: 844 });
@@ -162,4 +163,24 @@ test("가이드의 복사 실패와 성공 안내는 유지한다", async ({ pag
   await page.getByRole("button", { name: "연결 주소 복사" }).click(); await expect(page.getByRole("status")).toContainText("위 주소를 선택해 직접 복사");
   await page.evaluate(() => Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: async () => {} } }));
   await page.getByRole("button", { name: "연결 주소 복사" }).click(); await expect(page.getByRole("status")).toHaveText("연결 주소를 복사했습니다.");
+});
+
+for(const width of [390,1440])test(`#205 ${width}px: 설정·가이드 구획과 탐색 팝오버`,async({page},info)=>{
+  await page.setViewportSize({width,height:900});await page.goto("/settings");
+  const groups=page.locator(".settings > section,.settings > form");await expect(groups).toHaveCount(4);
+  expect((await page.locator(".settings").boundingBox())!.width).toBeLessThanOrEqual(768);
+  await page.screenshot({path:info.outputPath(`compact-settings-${width}.png`)});
+  await page.getByRole("button",{name:"메뉴",exact:true}).click();const menu=page.locator("#nav-more-options"),box=(await menu.boundingBox())!;
+  expect(box.x).toBeGreaterThanOrEqual(0);expect(box.x+box.width).toBeLessThanOrEqual(width);expect(box.y).toBeGreaterThanOrEqual(0);
+  await page.keyboard.press("Escape");await expect(page.getByRole("button",{name:"메뉴",exact:true})).toBeFocused();
+  await page.goto("/guide");await expect(page.locator(".guide-step")).toHaveCount(5);await page.screenshot({path:info.outputPath(`compact-guide-${width}.png`)});
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+  if(width>=1024){
+    for(const height of [320,280]){
+      await page.setViewportSize({width,height});
+      for(const node of await page.locator(".bottom-nav-inner > a,.nav-more-trigger").all())await expect(node).toBeInViewport();
+    }
+    const nav=(await page.locator(".bottom-nav").boundingBox())!;expect(nav.y).toBeGreaterThan(0);expect(nav.y+nav.height).toBeCloseTo(280);
+    await page.getByRole("button",{name:"메뉴",exact:true}).click();const short=(await page.locator("#nav-more-options").boundingBox())!;expect(short.y).toBeGreaterThanOrEqual(0);expect(short.y+short.height).toBeLessThanOrEqual(280);
+  }
 });

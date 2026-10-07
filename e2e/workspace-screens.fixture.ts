@@ -388,8 +388,8 @@ for(const width of [390,1440])test(`기능/목록 구획 ${width}px: 엔터티 �
   const state=await fixtures(page);await page.setViewportSize({width,height:900});await go(page,"/entities");
   await page.screenshot({path:info.outputPath(`tab-entities-${width}.png`)});
   const top=page.locator(".app-main > .panel"),bottom=page.getByRole("region",{name:"엔터티 목록",exact:true});expect((await bottom.boundingBox())!.y).toBeGreaterThanOrEqual((await top.boundingBox())!.y+(await top.boundingBox())!.height);
-  const inset=width<640?16:24,topBox=(await top.boundingBox())!,listBox=(await bottom.locator(".list.panel").boundingBox())!;
-  expect((await top.getByRole("heading",{name:"엔터티",exact:true}).boundingBox())!.x-topBox.x).toBeGreaterThanOrEqual(inset);expect((await top.getByLabel("속성 1 키워드",{exact:false}).boundingBox())!.x-topBox.x).toBeGreaterThanOrEqual(inset);expect((await bottom.locator(".item-title").first().boundingBox())!.x-listBox.x).toBeGreaterThanOrEqual(inset);
+  const inset=24,topBox=(await top.boundingBox())!,listBox=(await bottom.locator(".list.panel").boundingBox())!;
+  expect((await top.getByRole("heading",{name:"엔터티",exact:true}).boundingBox())!.x-topBox.x).toBeCloseTo(0);expect((await top.getByLabel("속성 1 키워드",{exact:false}).boundingBox())!.x-topBox.x).toBeCloseTo(0);expect((await bottom.locator(".item-title").first().boundingBox())!.x-listBox.x).toBeGreaterThanOrEqual(inset);
   await expect(bottom.getByRole("link",{name:"엔터티 보기",exact:true})).toHaveCount(0);await openListEditor(page,"엔터티",bottom);await expect(form(page).getByLabel("속성 1",{exact:false})).toHaveValue("엔터티");await expect(form(page).getByRole("button",{name:"할 일 작성",exact:true})).toHaveCount(0);await expect(form(page).getByRole("link",{name:/목록/})).toHaveCount(0);await expect(form(page).getByRole("button",{name:"취소",exact:true})).toHaveCount(1);await form(page).getByRole("button",{name:"닫기",exact:true}).click();await expect(page.locator(`#entity-${id(1)}`)).toBeFocused();
   await go(page,"/principles");const current=page.getByRole("region",{name:"현재 원칙",exact:true});expect((await current.boundingBox())!.y).toBeGreaterThanOrEqual((await top.boundingBox())!.y+(await top.boundingBox())!.height);await expect(top.getByRole("link",{name:"과거 근거는 통합 기록에서 보기"})).toHaveAttribute("href","/records");await expect(top.getByLabel("검색어",{exact:true})).toHaveCount(0);await expect(top.locator(".current-document,.record-date-group")).toHaveCount(0);await page.screenshot({path:info.outputPath(`principles-sections-${width}.png`)});
   await go(page,"/tasks");expect(await page.locator(".disclosure-list .related-item").first().evaluate(el=>parseFloat(getComputedStyle(el).paddingLeft))).toBeGreaterThanOrEqual(12);await page.screenshot({path:info.outputPath(`tab-activity-${width}.png`)});await openListEditor(page,"할 일");await expect(form(page).getByRole("textbox",{name:/^제목(?: \(필수\))?$/})).toHaveValue("할 일");await page.screenshot({path:info.outputPath(`edit-task-${width}.png`)});const head=form(page).locator(".modal-head"),body=form(page).locator(":scope > .modal-inner > .modal-body");expect(await head.evaluate(el=>getComputedStyle(el).paddingLeft)).toBe(width<640?"16px":"24px");expect(await body.evaluate(el=>getComputedStyle(el).paddingLeft)).toBe(width<640?"16px":"24px");expect(state.errors).toEqual([]);
@@ -689,7 +689,7 @@ test("원칙: 최초 등록·같은 ID 편집·삭제 뒤 없음·기록으로 �
   await expect(page).toHaveURL(new RegExp(first));expect(state.rows.principles.filter(p=>p.is_current)).toHaveLength(1);
   await compatibleEdit(page);await form(page).getByRole("button",{name:"삭제",exact:true}).click();
   const confirm=page.locator("dialog.modal-action[open]");await expect(confirm).toContainText("과거 원칙을 자동 승격하지 않습니다");
-  await saveOnce(page,confirm,"삭제 확인");await page.getByRole("button",{name:"원칙 작업 메뉴"}).click();await expect(page.getByRole("button",{name:"원칙 작성"})).toBeVisible();
+  await saveOnce(page,confirm,"삭제 확인");await expect(page.getByRole("button",{name:"원칙 작성"})).toBeVisible();
   await expect(page.getByRole("link",{name:"과거 근거는 통합 기록에서 보기"})).toHaveAttribute("href","/records");expect(state.errors).toEqual([]);
 });
 
@@ -796,7 +796,7 @@ for(const width of [320,360,390,639,640,768,1024,1440])test(`소비 화면 ${wid
   await go(page,`/tags/entity?edit=${id(10)}`);await expect(form(page).getByRole("form",{name:"태그 이름 변경"})).toBeVisible();await expect(form(page)).toHaveCount(1);expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);await page.screenshot({path:info.outputPath(`tags-${width}.png`)});expect(state.errors).toEqual([]);
 });
 test("200% reflow·축소 visual viewport·한 글자 제목",async({page},info)=>{
-  const state=await fixtures(page);state.rows.tasks[0].title="일";await page.setViewportSize({width:768,height:800});await go(page,`/tasks/${id(2)}?edit=1`);await page.evaluate(()=>{document.documentElement.style.zoom="2";});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);await fillChangeMemo(page,form(page),"확대 확인");await page.setViewportSize({width:390,height:360});await expect(form(page).getByRole("button",{name:"수정하고 저장",exact:true})).toBeInViewport();await page.screenshot({path:info.outputPath("zoom-keyboard-viewport.png")});expect(state.errors).toEqual([]);
+  const state=await fixtures(page);state.rows.tasks[0].title="일";await page.setViewportSize({width:768,height:800});await go(page,`/tasks/${id(2)}?edit=1`);await page.evaluate(()=>{document.documentElement.style.zoom="2";});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);await expect(form(page).getByRole("button",{name:"닫기",exact:true})).toBeInViewport();await expect(form(page).getByRole("button",{name:"저장",exact:true})).toBeInViewport();await fillChangeMemo(page,form(page),"확대 확인");await page.setViewportSize({width:390,height:360});await expect(form(page).getByRole("button",{name:"수정하고 저장",exact:true})).toBeInViewport();await page.screenshot({path:info.outputPath("zoom-keyboard-viewport.png")});expect(state.errors).toEqual([]);
 });
 
 test("태그 인라인 편집: 취소는 목록으로 복귀·삭제 실패는 동일 입력과 버전으로 재시도",async({page})=>{
@@ -955,6 +955,7 @@ for(const width of [320,360,390,639,640,768,1024,1440])test(`공통 연결 목�
   const styles:string[]=[];
   for(const path of [`/entities/${id(1)}`,`/tasks/${t.id}`,`/records/${r.id}`]){
     await go(page,path);const links=form(page).locator(".related-item");await expect(links).toHaveCount(2);
+    for(const last of await form(page).locator(".related-items > li:last-child .related-item").all())expect(await last.evaluate(el=>getComputedStyle(el).borderBottomWidth)).toBe("0px");
     const first=links.first();styles.push(await first.evaluate(el=>{const c=getComputedStyle(el);return [c.padding,c.borderRadius,c.backgroundColor,c.borderWidth].join("|");}));
     for(const link of await links.all()){const box=(await link.boundingBox())!;expect(box.height).toBeGreaterThanOrEqual(44);expect(box.width).toBeGreaterThanOrEqual(44);}
     await expect(form(page).getByText("연결 당시 정보",{exact:true})).toHaveCount(0);await expect(form(page).getByText("저장 정보",{exact:true})).toHaveCount(0);await expect(form(page)).not.toContainText("만든 시각");
@@ -1181,4 +1182,38 @@ test("#191 원칙 검색 전환은 태그 조건 해제·직접 링크의 조건
   await page.getByRole("combobox",{name:"검색 대상",exact:true}).selectOption("principle");await expect(page).not.toHaveURL(/tag_id=/);await expect.poll(()=>state.searches.at(-1)?.kinds).toEqual(["principle"]);expect(state.searches.at(-1)?.tag_ids).toBeUndefined();
   await go(page,`/search?q=기준&kind=principle&tag_id=${id(12)}`);await page.getByText("검색 조건 · 조건 적용 중",{exact:true}).click();await page.getByRole("button",{name:"저장된 태그 조건 해제",exact:true}).click();
   await expect(page).not.toHaveURL(/tag_id=/);expect(state.errors).toEqual([]);
+});
+
+// #205 verifies density without shrinking interaction targets, and catches layout drift across consumers.
+for(const width of [320,360,390,639,640,768,1024,1440])test(`#205 ${width}px: 컴팩트 목록·정렬된 필터·초기화 문맥`,async({page},info)=>{
+  const state=await fixtures(page);await page.setViewportSize({width,height:900});
+  for(const [kind,label,value]of [["entities","속성 4 필터","a"],["tasks","할 일 종류","once"],["records","기록 종류","user"]]){
+    await go(page,"/"+kind);const row=page.locator(".list .related-item").first();await expect(row).toBeVisible();
+    const box=(await row.boundingBox())!;expect(box.height).toBeGreaterThanOrEqual(44);expect(box.height).toBeLessThanOrEqual(48);
+    await expect(page.getByRole("button",{name:kind==="entities"?"엔터티 등록":kind==="tasks"?"할 일 등록":"기록 작성",exact:true})).toBeVisible();
+    await openTabFilters(page);const grid=page.locator(".filter-grid");
+    const inputs=await grid.locator("input,select").evaluateAll(nodes=>nodes.map(el=>{const b=el.getBoundingClientRect();return {x:b.x,y:b.y,right:b.right,h:b.height};}));
+    for(const field of inputs){expect(field.h).toBeGreaterThanOrEqual(44);expect(field.right).toBeLessThanOrEqual(width);}
+    expect(inputs[0].y).toBeCloseTo(inputs[1].y);if(kind==="entities"&&width>=768)expect(inputs[0].y).toBeCloseTo(inputs[3].y);
+    const filterBottom=(await grid.boundingBox())!;expect((await page.locator(".tag-filter-chips").boundingBox())!.y).toBeGreaterThanOrEqual(filterBottom.y+filterBottom.height);
+    await page.getByLabel(label,{exact:true}).selectOption(value);
+    const search=page.getByLabel(kind==="entities"?"속성 1 키워드":"검색어",{exact:true});await search.fill("조건 유지");
+    await expect.poll(()=>new URL(page.url()).searchParams.get(kind==="entities"?"keyword":"q")).toBe("조건 유지");
+    await page.getByRole("button",{name:"조건 초기화",exact:true}).click();const params=new URL(page.url()).searchParams;
+    expect(params.get("filters")).toBe("1");expect(params.get(kind==="entities"?"keyword":"q")).toBe("조건 유지");expect(params.has(kind==="entities"?"prop4":kind==="tasks"?"kind":"record_kind")).toBe(false);
+    await expect(search).toHaveValue("조건 유지");expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+    if(width===390||width===1440)await page.screenshot({path:info.outputPath(`compact-filter-${kind}-${width}.png`)});
+  }
+  expect(state.writes).toHaveLength(0);expect(state.errors).toEqual([]);
+});
+for(const width of [320,1440])test(`#205 ${width}px: 태그 입력·본문 정렬과 확대된 열린 필터`,async({page},info)=>{
+  const state=await fixtures(page);await page.setViewportSize({width,height:900});await go(page,"/tags/entity");
+  const body=form(page).locator(".modal-body"),editor=form(page).getByRole("form",{name:"태그 추가",exact:true}),input=editor.getByRole("textbox"),box=(await input.boundingBox())!,parent=(await editor.boundingBox())!;
+  if(width>=640)expect((await form(page).boundingBox())!.height).toBeLessThan(500);
+  expect(box.x).toBeCloseTo(parent.x);expect(box.width).toBeGreaterThan(100);expect(box.x+box.width).toBeLessThanOrEqual(parent.x+parent.width+1);
+  expect(await body.evaluate(el=>el.scrollWidth<=el.clientWidth)).toBe(true);await page.screenshot({path:info.outputPath(`compact-tags-${width}.png`)});
+  await go(page,"/entities?filters=1");await page.evaluate(()=>document.documentElement.style.fontSize="200%");
+  const reset=page.getByRole("button",{name:"조건 초기화",exact:true}),summary=page.locator("details.workspace-additional summary"),r=(await reset.boundingBox())!,s=(await summary.boundingBox())!;
+  expect(r.y>=s.y+s.height||r.x>=s.x+s.width||r.x+r.width<=s.x).toBe(true);expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+  await page.evaluate(()=>document.documentElement.style.fontSize="");expect(state.errors).toEqual([]);
 });

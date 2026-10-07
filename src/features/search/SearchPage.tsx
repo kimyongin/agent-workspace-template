@@ -71,7 +71,7 @@ export function SearchPage(){
   return <section className="panel search-page" aria-labelledby="search-title">
     <h1 id="search-title" className="page-title" tabIndex={-1}>검색</h1>
     <form className="search-form" onSubmit={e=>{e.preventDefault();if(composing.current)return;const value=draft.trim();if(value===q)setRetry(n=>n+1);else change("q",value);}}>
-      <Field label="검색어" required>{p=><input {...p} className="input" placeholder="제목·본문 검색" value={draft} onCompositionStart={()=>{composing.current=true;}} onCompositionEnd={()=>{composing.current=false;}} onKeyDown={e=>{if(e.key==="Enter"&&(e.nativeEvent.isComposing||e.keyCode===229))e.preventDefault();}} onChange={e=>setDraft(e.target.value)} required/>}</Field>
+      <Field label="검색어" required>{p=><input {...p} className="input" placeholder="검색어 입력" value={draft} onCompositionStart={()=>{composing.current=true;}} onCompositionEnd={()=>{composing.current=false;}} onKeyDown={e=>{if(e.key==="Enter"&&(e.nativeEvent.isComposing||e.keyCode===229))e.preventDefault();}} onChange={e=>setDraft(e.target.value)} required/>}</Field>
       <button className="btn btn-primary" type="submit" disabled={busy}>검색</button>
     </form>
     {(params.has("status")||params.has("principle_view"))&&<Notice kind="error">이 링크에는 지원하지 않는 검색 조건이 있습니다. 조건을 지운 뒤 현재 원칙이나 통합 기록을 검색하세요. <button type="button" className="btn" onClick={()=>{const next=new URLSearchParams(params);for(const key of ["status","principle_view","pages","scroll"])next.delete(key);setParams(next);}}>지원하지 않는 검색 조건 지우기</button></Notice>}

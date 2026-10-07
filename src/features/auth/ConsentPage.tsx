@@ -70,7 +70,7 @@ export function ConsentPage() {
 
   const name = details?.client?.name || details?.client?.id || "알 수 없는 클라이언트";
   return (
-    <section className="panel auth-panel" aria-labelledby="consent-title" style={{ maxWidth: "32rem", margin: "0 auto", width: "100%" }}>
+    <section className="panel auth-panel" aria-labelledby="consent-title">
       <h1 id="consent-title" className="page-title">에이전트 연결 승인</h1>
       {error && <Notice kind="error">{error}</Notice>}
       {!details && !error && <p className="secondary" role="status">요청을 확인하는 중…</p>}

@@ -2,18 +2,18 @@
 @font-face { font-family: Pretendard; src: url('/fonts/Pretendard-Regular.woff2') format('woff2'); font-style: normal; font-weight: 400; font-display: swap; }
 @font-face { font-family: Pretendard; src: url('/fonts/Pretendard-SemiBold.woff2') format('woff2'); font-style: normal; font-weight: 600; font-display: swap; }
 :root {
-  --background: #0d0e12;
-  --panel: rgba(24, 25, 31, 0.94);
-  --surface: rgba(19, 20, 26, 0.9);
-  --input-surface: rgba(15, 16, 20, 0.96);
-  --ink: #ececef;
-  --muted-ink: #a0a4ad;
-  --line: rgba(255, 255, 255, 0.1);
-  --shadow-soft: 0 28px 60px rgba(0, 0, 0, 0.32);
-  --control-border: #747985;
-  --accent: #ff8a00;
-  --accent-ink: #15120d;
-  --accent-soft: rgba(255, 138, 0, 0.16);
+  --background: #111318;
+  --panel: #181b21;
+  --surface: #1c2027;
+  --input-surface: #14171d;
+  --ink: #dde2ea;
+  --muted-ink: #9ca6b6;
+  --line: #2c323c;
+  --shadow-soft: 0 8px 24px rgba(0, 0, 0, 0.24);
+  --control-border: #626c7b;
+  --accent: #7c9eff;
+  --accent-ink: #111318;
+  --accent-soft: rgba(124, 158, 255, 0.12);
   --danger: #ff8c96;
   --success: #78dba9;
   --warning: #f5c969;
@@ -26,9 +26,17 @@
   --space-6: 24px;
   --space-8: 32px;
 
-  --radius-card: 16px;
-  --radius-input: 12px;
-  --radius-chip: 10px;
+  --radius-card: 8px;
+  --radius-input: 6px;
+  --radius-chip: 6px;
+
+  --marker-muted: #626c7b;
+  --text-title: 1.375rem;
+  --text-dialog: 1.25rem;
+  --text-item: .875rem;
+  --text-body: .875rem;
+  --text-label: .8125rem;
+  --text-meta: .75rem;
 
   --font-sans: "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", system-ui, sans-serif;
   --font-mono: ui-monospace, "SFMono-Regular", Consolas, monospace;
@@ -41,10 +49,9 @@
 
 body {
   margin: 0;
-  background: radial-gradient(circle at top left, rgba(255, 138, 0, 0.14), transparent 24%), radial-gradient(circle at top right, rgba(38, 198, 218, 0.1), transparent 24%), linear-gradient(180deg, #0d0e12 0%, #14151a 100%);
-  background-attachment: fixed;
+  background: var(--background);
   color: var(--ink);
   font-family: var(--font-sans);
-  font-size: 1rem;
-  line-height: 1.5;
+  font-size: var(--text-body);
+  line-height: 1.5rem;
 }

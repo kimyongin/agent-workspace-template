@@ -27,7 +27,7 @@ export function TabSearch({ entity = false }: { entity?: boolean }) {
   }, [draft, composing, applied, name, setParams]);
   return <div className="workspace-search"><Field label={entity ? "속성 1 키워드" : "검색어"}>
     {props => <div className="workspace-search-input"><input {...props} ref={input} className="input" value={draft}
-      maxLength={entity ? 100 : 200} placeholder={entity ? "속성 1 부분 일치" : "제목·본문 검색"}
+      maxLength={entity ? 100 : 200} placeholder={entity ? "엔터티 제목 검색" : "검색어 입력"}
       onChange={event => setDraft(event.target.value)} onCompositionStart={() => setComposing(true)}
       onCompositionEnd={event => { setDraft(event.currentTarget.value); setComposing(false); }}/>
       {!!draft && <button type="button" className="search-clear" aria-label="검색어 지우기" onClick={() => {
@@ -38,7 +38,7 @@ export function TabSearch({ entity = false }: { entity?: boolean }) {
   </Field></div>;
 }
 export function resetTabFilters(params: URLSearchParams) {
-  return new URLSearchParams([...params].filter(([key]) => ["q", "keyword"].includes(key)));
+  return new URLSearchParams([...params].filter(([key]) => ["q", "keyword", "filters"].includes(key)));
 }
 /** Keep text search visible; every optional condition shares one collapsed group. */
 export function TabFilters({active=false,attention=false,children}:{active?:boolean;attention?:boolean;children:ReactNode}) {
@@ -50,6 +50,11 @@ export function TabFilters({active=false,attention=false,children}:{active?:bool
       const next=new URLSearchParams(params);open?next.delete("filters"):next.set("filters","1");
       void navigate({pathname:location.pathname,search:next.toString(),hash:location.hash},{replace:true,preventScrollReset:true});
     }}>필터 {open?"닫기":"열기"}{attention?" · 확인 필요":active?" · 적용 중":""}</summary>
-    <div className="form">{children}</div>
+    <div className="form">
+      {open && <button type="button" className="btn btn-text filter-reset" onClick={()=>{
+        void navigate({pathname:location.pathname,search:resetTabFilters(params).toString(),hash:""},{replace:true});
+      }}>조건 초기화</button>}
+      {children}
+    </div>
   </details>;
 }

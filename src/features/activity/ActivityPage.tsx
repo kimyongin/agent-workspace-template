@@ -53,6 +53,7 @@ export function ActivityPage({ kind }: { kind: WorkspaceListKind }) {
   if (checked) prior.current = checked;
   const bounds = checked ?? prior.current;
   useEffect(() => { const overLimit = allTags.length > ACTIVITY_TAG_LIMIT;
+    if (!allTags.length) setTrimmedTags(false);
     if (!overLimit) return;
     const next = new URLSearchParams(params);
     if (overLimit) { setTrimmedTags(true); next.delete("tag_id"); next.set("tag_ids", tags.join(",")); clearListPosition(next); }
@@ -64,19 +65,20 @@ export function ActivityPage({ kind }: { kind: WorkspaceListKind }) {
   const saved = (kind: string, id: string) => { const next = new URLSearchParams(params); next.delete("create"); create.finish(`/${kind}s/${id}?list=${encodeURIComponent(`${pathname}?${next}`)}`); };
   if (legacy.route !== pathname || legacy.params.toString() !== params.toString()) return <Navigate replace to={`${legacy.route}?${legacy.params}${legacy.hash}`} />;
   return <>
-    <section className="panel" aria-labelledby={`${kind}-title`}><div className="panel-head"><h1 id={`${kind}-title`} className="page-title" tabIndex={-1}>{label}</h1><TabActions title={label} actions={[{ label: kind === "tasks" ? "할 일 등록" : "기록 작성", run: begin }, { label: `${label} 태그 관리`, to: kind === "tasks" ? "/tags/task" : "/tags/record" }]}/></div>
+    <section className="panel" aria-labelledby={`${kind}-title`}><div className="panel-head"><h1 id={`${kind}-title`} className="page-title" tabIndex={-1}>{label}</h1><TabActions title={label} primary={{ label: kind === "tasks" ? "할 일 등록" : "기록 작성", run: begin }} actions={[{ label: `${label} 태그 관리`, to: kind === "tasks" ? "/tags/task" : "/tags/record" }]}/></div>
       <div className="panel-body">
         {params.has("legacy_activity") && <Notice>목록을 나누어 {label} 탭으로 이동했습니다. {kind === "tasks" ? "기록과 기록 기간은 기록 탭에서 확인하세요." : "할 일과 진행 상태는 할 일 탭에서 확인하세요."}</Notice>}
         <TabSearch/>
         <TabFilters active={!!(tags.length||params.get("entity_id")||params.get("kind")||params.get("status")||params.get("record_kind")||from||to)} attention={!checked||dictionary.failed||trimmedTags}>
       {params.get("entity_id")&&<EntityScope key={params.get("entity_id")} id={params.get("entity_id")!} onClear={()=>{const next=clearListPosition(new URLSearchParams(params));next.delete("entity_id");setParams(next,{replace:true});}}/>}
-        <div className="activity-filters">
+        <div className="filter-grid">
           {kind === "tasks" ? <>
             <Field label="할 일 종류">{props => <select {...props} className="input" value={params.get("kind") ?? ""} onChange={event => filter("kind", event.target.value)}><option value="">전체</option><option value="once">한 번</option><option value="recurring">반복</option></select>}</Field>
             <Field label="할 일 상태">{props => <select {...props} className="input" value={params.get("status") ?? ""} onChange={event => filter("status", event.target.value)}><option value="">전체</option>{["open", "done", "active", "stopped"].map(status => <option key={status} value={status}>{taskLabels[status as keyof typeof taskLabels] as string}</option>)}</select>}</Field>
           </> : <Field label="기록 종류">{props => <select {...props} className="input" value={params.get("record_kind") ?? ""} onChange={event => filter("record_kind", event.target.value)}><option value="">전체</option>{Object.entries(recordKindNames).map(([value, text]) => <option key={value} value={value}>{text}</option>)}</select>}</Field>}
+        {kind === "records" && <>{[["from", "기록 시작일", from], ["to", "기록 종료일", to]].map(([name, label, value]) => <Field key={name} label={label}>{props => <input {...props} type="date" className="input" value={value} aria-invalid={!checked || undefined} onChange={event => setDate(name, event.target.value)}/>}</Field>)} </>}
         </div>
-        {kind === "records" && <div className="record-period"><div className="record-period-inputs">{[["from", "기록 시작일", from], ["to", "기록 종료일", to]].map(([name, label, value]) => <Field key={name} label={label}>{props => <input {...props} type="date" className="input" value={value} aria-invalid={!checked || undefined} onChange={event => setDate(name, event.target.value)}/>}</Field>)}</div>
+        {kind === "records" && <div className="record-period">
         {!checked && <Notice kind="error">기록 시작일은 종료일보다 늦을 수 없습니다. 이전 유효 기간의 기록을 유지합니다.</Notice>}
         <p className="meta" style={{margin:0}}>날짜와 시각 기준: {browserTimezone()}</p></div>}
         <TagDictionaryStatus dictionary={dictionary}/><fieldset className="field tag-filter-chips"><legend className="label">{label} 태그</legend><div className="chips">{dictionary.tags?.map(tag => <button type="button" key={tag.id} className="chip" disabled={tags.length >= ACTIVITY_TAG_LIMIT && !tags.includes(tag.id)} aria-pressed={tags.includes(tag.id)} onClick={() => { setTrimmedTags(false); const selected = tags.includes(tag.id) ? tags.filter(id => id !== tag.id) : [...tags, tag.id]; const next = clearListPosition(new URLSearchParams(params)); next.delete("tag_id"); selected.length ? next.set("tag_ids", selected.sort().join(",")) : next.delete("tag_ids"); setParams(next, { replace: true }); }}>{tag.name}</button>)}</div>{(trimmedTags || tags.length === ACTIVITY_TAG_LIMIT) && <p className="help" role="status">{trimmedTags ? "태그는 최대 10개입니다. 기존 조건의 앞 10개만 적용했습니다." : "태그는 최대 10개까지 선택할 수 있습니다. 선택한 태그를 해제하면 바꿀 수 있습니다."}</p>}</fieldset>

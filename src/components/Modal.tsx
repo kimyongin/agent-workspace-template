@@ -290,7 +290,10 @@ function useSurfaceViewport(ref: RefObject<HTMLDialogElement|null>) {
       ref.current?.style.setProperty("--surface-height", `${(viewport?.height ?? window.innerHeight)/zoom}px`);
       ref.current?.style.setProperty("--surface-top", `${(viewport?.offsetTop ?? 0)/zoom}px`);
     };
-    resize(); viewport?.addEventListener("resize", resize); viewport?.addEventListener("scroll", resize);
-    return () => { viewport?.removeEventListener("resize", resize); viewport?.removeEventListener("scroll", resize); };
+    // Root CSS zoom can change without a visualViewport resize; keep the same visible surface bound.
+    const rootStyle = new MutationObserver(resize);
+    rootStyle.observe(document.documentElement, { attributes: true, attributeFilter: ["style"] });
+    resize(); window.addEventListener("resize", resize); viewport?.addEventListener("resize", resize); viewport?.addEventListener("scroll", resize);
+    return () => { rootStyle.disconnect(); window.removeEventListener("resize", resize); viewport?.removeEventListener("resize", resize); viewport?.removeEventListener("scroll", resize); };
   },[ref]);
 }

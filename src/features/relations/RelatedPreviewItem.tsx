@@ -56,7 +56,7 @@ export function RelatedPreviewItem({list,...props}:ComponentProps<typeof Related
       {"prop1" in item?<><dl className="props">{(["prop2","prop3","prop4"] as const).map(key=>item[key]!==null&&<div key={key}><dt>{entityLabels[key]}</dt><dd>{item[key]}</dd></div>)}</dl><TagNames compact scope="entity" ids={item.tag_ids}/></>:<>
         {item.body&&<MarkdownContent text={item.body}/>}
         {"status" in item&&<div className="related-item-meta"><StatusBadge status={item.status}/>{item.due_on&&<span className="meta">{item.due_on}</span>}</div>}
-        {list&&"record_kind" in item&&<div className="related-item-meta"><time dateTime={item.occurred_at}>{formatDateTime(item.occurred_at)}</time><ChangeContext record={item} compact/></div>}
+        {list&&"record_kind" in item&&<div className="related-item-meta"><time className="meta" dateTime={item.occurred_at}>{formatDateTime(item.occurred_at)}</time><ChangeContext record={item} compact/></div>}
         {"tag_ids" in item&&<TagNames compact scope={"status" in item?"task":"record"} ids={item.tag_ids}/>}
       </>}
       {list?.metadata}

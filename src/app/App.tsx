@@ -33,7 +33,7 @@ function Layout() {
       <main className="app-main" key={location.pathname === "/logout" ? "logout" : session?.user.id ?? "signed-out"}>
         <DetailNavigationProvider key={location.pathname === "/logout" ? "logout" : session?.user.id ?? "signed-out"} scope={session?.user.id ?? "signed-out"}><Outlet /></DetailNavigationProvider>
       </main>
-      {session && <Navigation />}
+      {session && <Navigation brand={APP_NAME} />}
     </div>
   );
 }

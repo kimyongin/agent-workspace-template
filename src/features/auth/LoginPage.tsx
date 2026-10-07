@@ -39,7 +39,7 @@ export function LoginPage() {
   };
 
   return (
-    <section className="panel auth-panel" aria-labelledby="login-title" style={{ maxWidth: "28rem", margin: "0 auto", width: "100%" }}>
+    <section className="panel auth-panel" aria-labelledby="login-title">
       <h1 id="login-title" className="page-title">로그인</h1>
       {error && <Notice kind="error">{error}</Notice>}
       <button type="button" className="btn btn-primary" onClick={google}>Google로 로그인</button>
