@@ -637,9 +637,6 @@ textarea.input {
 .record-content .markdown { color: var(--ink); font-size: 1rem; line-height: 1.75; }
 .record-context { display: grid; gap: var(--space-2); }
 .record-context-meta { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); font-size: .8125rem; color: var(--muted-ink); }
-.record-event-row { display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--space-2) var(--space-4); }
-.record-event-row p { margin: 0; font-size: .875rem; }
-.record-target-link { display: inline-flex; align-items: center; gap: var(--space-1); min-height: 44px; font-size: .875rem; }
 .record-content + .detail-section { margin-top: 0; padding-top: var(--space-4); }
 
 .modal-head .dialog-title {
