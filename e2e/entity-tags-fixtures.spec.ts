@@ -112,7 +112,7 @@ test("실제 App 공통 모달 생성·직접 편집 성공/취소·저장 중 P
   await page.getByRole("button",{name:"닫기",exact:true}).click();
   await page.getByRole("navigation", { name: "주 메뉴" }).getByRole("link", { name: "할 일", exact: true }).click();
   await beginTabAction(page,"할 일 추가"); let form = page.getByRole("dialog", { name: "할 일 추가", exact: true }); await form.getByRole("textbox",{name:/^제목(?: \(필수\))?$/}).fill("생성 결과"); await form.getByLabel("본문").fill("생성 본문");
-  hold = true; await saveOnce(page, form, "추가"); await expect(page.locator("dialog.modal-action[open]").getByRole("button", { name: "처리 중…", exact: true })).toBeDisabled();
+  hold = true; await saveOnce(page, form, "추가", false); await expect(page.locator("dialog.modal-action[open]").getByRole("button", { name: "처리 중…", exact: true })).toBeDisabled();
   await started;
   await page.goBack(); await expect(page).toHaveURL(/\/tasks\?create=1$/); await expect(page.getByRole("dialog", { name: "변경을 버릴까요?" })).not.toBeVisible();
   release(); await expect.poll(() => new URL(page.url()).pathname === `/tasks/${current.id}`).toBe(true); await expect(form).not.toBeVisible();
