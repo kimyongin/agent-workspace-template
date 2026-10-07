@@ -877,7 +877,7 @@ test("기록 연결 할 일: 제목 조회 실패 재시도와 삭제 상태",as
 test("연결 조회 늦은 응답은 다음 할 일·기록에 섞이지 않는다",async({page})=>{
   const state=await fixtures(page);state.rows.tasks.push({...task(40),title:"다음 할 일"});state.rows.records.push({...record(41),body:"다음 기록",task_id:id(40)});state.rows.records[0].task_id=id(2);
   let release=()=>{},arrive=()=>{};const held=new Promise<void>(resolve=>release=resolve),started=new Promise<void>(resolve=>arrive=resolve);
-  await page.route("**/api/records?**",async route=>{if(new URL(route.request().url()).searchParams.get("task_id")==id(2)){arrive();await held;return route.fulfill({json:{items:[{...record(42),body:"오래된 조회"}],next_cursor:null}}).catch(()=>{});}return route.fulfill({json:{items:[],next_cursor:null}});});
+  await page.route("**/api/records?**",async route=>{if(!new URL(route.request().url()).searchParams.has("task_id"))return route.fallback();if(new URL(route.request().url()).searchParams.get("task_id")==id(2)){arrive();await held;return route.fulfill({json:{items:[{...record(42),body:"오래된 조회"}],next_cursor:null}}).catch(()=>{});}return route.fulfill({json:{items:[],next_cursor:null}});});
   await go(page,`/tasks/${id(2)}`);await started;await page.getByRole("link",{name:"할 일 fixture",exact:true}).evaluate((el:HTMLAnchorElement)=>el.click());
   await page.getByRole("link",{name:"다음 할 일",exact:true}).click();await expect(form(page)).toContainText("연결된 기록이 없습니다");release();await expect(form(page)).not.toContainText("오래된 조회");
   let releaseTask=()=>{},arriveTask=()=>{};const heldTask=new Promise<void>(resolve=>releaseTask=resolve),startedTask=new Promise<void>(resolve=>arriveTask=resolve);
