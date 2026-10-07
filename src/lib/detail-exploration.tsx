@@ -83,9 +83,9 @@ export function useDetailNavigate() {
     if(root&&exit){
       if(destination.split(/[?#]/)[0]===root.path.split(/[?#]/)[0])return navigate(-1);
       if(!detailPath.test(destination.split(/[?#]/)[0])&&context){
-        // Pop the one related entry, then replace the root, so Back cannot replay dismissed editors.
+        // Replace the dismissed editor too: Forward must not revive an ended detail session.
         context.transition={key:root.key,path:to};
-        return navigate(-1);
+        return Promise.resolve(navigate(to,{replace:true,state:null})).then(()=>navigate(-1));
       }
     }
     return navigate(to, { ...options, ...(sameDetail ? { replace: true, state: location.state } : exit ? { replace: true, state: null } : {}) });

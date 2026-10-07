@@ -90,7 +90,7 @@ test("연결 카드 행동은44px 누름 영역이고 클릭·키보드로 연�
   for(const width of [320,360,390,639,640,768,1024,1440]){
     await page.setViewportSize({width,height:900});const connect=page.getByRole("button",{name:"함 연결",exact:true});await expect(connect).toBeEnabled();
     const box=(await connect.boundingBox())!;expect(box.width).toBeGreaterThanOrEqual(44);expect(box.height).toBeGreaterThanOrEqual(44);
-    await connect.click();const unlink=page.getByRole("button",{name:"함 연결 해제",exact:true});await expect(unlink).toBeFocused();
+    await connect.click();const unlink=page.getByRole("button",{name:"함 해제",exact:true});await expect(unlink).toBeFocused();
     await page.keyboard.press("Space");await expect(unlink).toHaveCount(0);await expect(page.getByRole("searchbox",{name:"엔터티 제목 검색"})).toBeFocused();
     expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
   }
