@@ -23,7 +23,8 @@ export function TagsPage() {
 function ScopedTagsPage({scope}:{scope:"entity"|"activity"}) {
   const location=useLocation(),[params]=useSearchParams(),navigateAfterClose=useDeferredNavigation();
   const previous=useDetailExploration(),navigate=useDetailNavigate();
-  const close=()=>previous?previous.back():void navigate(scope==="entity"?"/entities":"/tasks");
+  const [closing,setClosing]=useState(false);
+  const close=()=>{setDraft(null);attempt.reset();setClosing(true);};
   const [page, setPage] = useState<Page | null>(null), [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null), [retry, setRetry] = useState(0), [loading, setLoading] = useState(false);
   const [draft, setDraft] = useState<Draft | null>(null), [deletingBusy, setDeletingBusy] = useState(false);
@@ -34,13 +35,14 @@ function ScopedTagsPage({scope}:{scope:"entity"|"activity"}) {
   const [deletions,setDeletions]=useState<Record<string,DeletionState>>({});
   const deletionDirty=Object.values(deletions).some(state=>state.armed||state.uncertain);
   const busy = writing || deletingBusy;
+  useEffect(()=>{if(closing&&!busy){setClosing(false);if(previous)previous.back();else void navigate(scope==="entity"?"/entities":"/tasks");}},[closing,busy,previous,navigate,scope]);
   const [pending, setPending] = useState<(() => void) | null>(null);
   useEffect(()=>{setDeletionState({armed:false,busy:false,uncertain:false});},[draft?.initial?.id,!!draft]);
   const pageCount = useRef(1), focusId = useRef<string | null>(null), input = useRef<HTMLInputElement>(null), saving = useRef(false);
   const readEpoch = useRef(0), readAbort = useRef<AbortController | null>(null);
   const invalidateReads = () => { readEpoch.current++; readAbort.current?.abort(); };
   useEffect(() => () => { readEpoch.current++; readAbort.current?.abort(); }, []);
-  const dirty = deletionDirty || !!draft && (draft.name !== (draft.initial?.name ?? "") || uncertain);
+  const dirty = !closing && (deletionDirty || !!draft && (draft.name !== (draft.initial?.name ?? "") || uncertain));
   useEffect(() => {
     readAbort.current?.abort(); const controller = new AbortController(); readAbort.current = controller;
     const epoch = ++readEpoch.current; const current = () => !controller.signal.aborted && epoch === readEpoch.current;
@@ -138,7 +140,7 @@ function ScopedTagsPage({scope}:{scope:"entity"|"activity"}) {
     {error && <><Notice kind="error">{error}</Notice><button className="btn" disabled={loading} onClick={() => setRetry(n => n + 1)}>목록 다시 시도</button></>}
     {loading && <p className="secondary" role="status">불러오는 중…</p>}
     {page?.items.length === 0 && <p className="secondary">아직 태그가 없습니다.</p>}
-    <ul className="list">{page?.items.map(t=><li key={t.id} className="list-item">
+    <ul className="list">{(draft?.initial&&!page?.items.some(t=>t.id===draft.initial?.id)?[draft.initial,...(page?.items??[])]:page?.items??[]).map(t=><li key={t.id} className="list-item">
       {draft?.initial?.id===t.id?editor(t):<><span className="item-title">{t.name}</span><div className="actions">
         <button id={`tag-${t.id}`} className="btn btn-text" disabled={busy} aria-label={`${t.name} 이름 변경`} onClick={()=>select(t)}>이름 변경</button>
         {deleteAction(t)}

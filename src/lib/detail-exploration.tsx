@@ -99,10 +99,10 @@ function useRestoreFrame(frames: Map<string, Frame>) {
       const body = document.querySelector<HTMLElement>("dialog[open]:not(.modal-confirm) .modal-body");
       const scope = body ?? document;
       const target = [...scope.querySelectorAll<HTMLAnchorElement>("a[data-detail-focus]")].find(link => link.dataset.detailFocus === frame.focusKey);
-      const loading = scope.querySelector('p.secondary[role="status"]');
-      if (done || loading || !target && !scope.querySelector(".detail-section, .list, [role=alert]")) return;
+      const loading = [...scope.querySelectorAll('p.secondary[role="status"]')].some(node=>node.textContent?.trim()==="불러오는 중…");
+      if (done || loading || !target && !scope.querySelector(".detail-section, .list, .tab-action-trigger, [role=alert]")) return;
       done = true;
-      (target ?? document.querySelector<HTMLElement>(".tab-action-trigger, .dialog-title, .page-title"))?.focus({ preventScroll: true });
+      (target ?? (!body ? document.querySelector<HTMLElement>(".tab-action-trigger") : null) ?? document.querySelector<HTMLElement>(".dialog-title, .page-title"))?.focus({ preventScroll: true });
       if (body) body.scrollTop = frame.scroll; else window.scrollTo(0, frame.scroll);
     };
     let animation = 0;

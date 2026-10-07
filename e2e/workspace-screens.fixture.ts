@@ -208,7 +208,7 @@ for(const width of [320,360,390,639,640,768,1024,1440])test(`시각 위계 ${wid
   const state=await fixtures(page);state.rows.tasks[0].title="긴 제목 ".repeat(8);state.rows.tasks[0].change_note="강조하지 않을 보충 메모";
   const typography=async(selector:string)=>page.locator(selector).first().evaluate(el=>{const s=getComputedStyle(el);return {size:parseFloat(s.fontSize),weight:Number(s.fontWeight),color:s.color};});
   for(const path of ["/entities","/tasks","/records","/principles","/tags/entity","/tags/activity","/search","/guide"]){
-    await go(page,path);await expect(page.locator(path.startsWith("/tags")?".dialog-title":".page-title")).toBeVisible();
+    await go(page,path);await expect(page.locator(path.startsWith("/tags")?"dialog[open]:not(.modal-confirm) .dialog-title":".page-title")).toBeVisible();
     if(!["/search","/guide"].includes(path))await expect(page.locator(".item-title").first()).toBeVisible();
     expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),path).toBe(true);
     if(await page.locator(".item-title").count()){
