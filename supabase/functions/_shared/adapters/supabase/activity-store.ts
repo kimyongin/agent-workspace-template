@@ -113,6 +113,7 @@ export class SqlActivityStore extends SqlActorStore implements ActivityStore {
     const rows = await tx`
       select ${taskColumns(tx)} from app.tasks
       where true
+        ${f.keyword ? tx`and position(lower(${f.keyword}) in lower(title))>0` : tx``}
         ${f.kind ? tx`and kind = ${f.kind}` : tx``}
         ${f.entity_id ? tx`and entity_ids @> ${tx.array([f.entity_id])}::uuid[]` : tx``}
         ${f.status ? tx`and status = ${f.status}` : tx``}

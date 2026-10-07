@@ -6,5 +6,9 @@
 .related-item-title a.item-title { display: inline-flex; align-items: center; min-width: 44px; min-height: 44px; max-width: 100%; color: var(--ink); text-decoration: none; }
 .related-item-title a.item-title:hover { text-decoration: underline; }
 .related-item-title > [aria-hidden] { margin-left: auto; }
+.related-item-actions { margin-left: auto; flex-shrink: 0; }
+.related-search { display: grid; gap: var(--space-2); margin-bottom: var(--space-3); }
+.related-search-results { display: grid; gap: var(--space-2); max-height: 16rem; overflow-y: auto; }
+.related-item-title { flex-wrap: wrap; }
 .related-item-meta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
 .related-item p { margin: 0; }

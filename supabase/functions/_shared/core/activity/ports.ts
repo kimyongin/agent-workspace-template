@@ -50,6 +50,7 @@ export interface Keyset {
 }
 
 export interface TaskFilter {
+  keyword?: string;
   tag_ids?: string[];
   entity_id?: string;
   tag_id?: string;

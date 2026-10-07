@@ -11,8 +11,8 @@ export function RelatedSection({title,count,hasMore=false,action,children}: {tit
   </section>;
 }
 
-export function RelatedItem({to,title,metadata,restoreKey}: {to?:string;title:string;metadata?:ReactNode;restoreKey?:string}) {
+export function RelatedItem({to,title,metadata,restoreKey,action}: {to?:string;title:string;metadata?:ReactNode;restoreKey?:string;action?:ReactNode}) {
   return <div className="related-item"><div className="related-item-title">{to
     ?<DetailLink className="item-title" to={to} aria-label={title} restoreKey={restoreKey}>{title}</DetailLink>
-    :<span className="item-title">{title}</span>}{to&&<span aria-hidden="true">›</span>}</div>{metadata&&<div className="related-item-meta">{metadata}</div>}</div>;
+    :<span className="item-title">{title}</span>}{action?<div className="related-item-actions">{action}</div>:to&&<span aria-hidden="true">›</span>}</div>{metadata&&<div className="related-item-meta">{metadata}</div>}</div>;
 }
