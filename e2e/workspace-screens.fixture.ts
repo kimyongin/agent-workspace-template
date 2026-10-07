@@ -882,7 +882,7 @@ for(const [kind,n] of [["entities",1],["tasks",2],["records",3],["principles",4]
 for(const width of [320,360,390,639,640,768,1024,1440])test(`기록 정돈 ${width}px: 본문·변경 정보·연결 중심의 간결한 상세`,async({page},info)=>{
   const state=await fixtures(page);await page.setViewportSize({width,height:850});
   Object.assign(state.rows.records[0],{body:"상담 준비 수정 (일정, 내용)",record_kind:"change",entity_ids:[id(1)],entity_context:[{id:id(1),title:"테스트 속성1222",source:"selection",captured_at:stamp}],change:{event_id:id(30),target_kind:"task",target_id:id(2),target_title:"상담 준비 "+"긴제목".repeat(14),action:"update",source:"http",before:{title:"기존 할 일"},after:{title:"상담 준비"},path:`/tasks/${id(2)}`}});
-  await go(page,`/records/${id(3)}`);await expect(connectedTarget(page,"task").getByRole("button")).toBeVisible();
+  await go(page,`/records/${id(3)}`);await expect(connectedTarget(page,"task").getByRole("button",{name:state.rows.records[0].change.target_title,exact:true})).toBeVisible();
   const text=form(page).locator(".record-content .markdown"),meta=form(page).locator(".record-context-meta");
   const style=async(el:ReturnType<typeof form>)=>el.evaluate(n=>({size:parseFloat(getComputedStyle(n).fontSize),color:getComputedStyle(n).color}));
   expect((await style(text)).size).toBeGreaterThan((await style(meta)).size);expect((await style(text)).color).not.toBe((await style(meta)).color);
