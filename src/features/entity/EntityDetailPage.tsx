@@ -22,6 +22,7 @@ export function EntityDetailPage() {
     navigate = useDetailNavigate();
   const afterClose=useDeferredNavigation();
   const conflicted = useRef(false);
+  const relationSaved = useRef(false);
     const location=useLocation();
   const [creating, setCreating] = useState<"task" | "record" | null>(null);
   const returnCreateFocus=useRef<"task"|"record"|null>(null),previousCreate=useRef<"task"|"record"|null>(null);
@@ -37,7 +38,7 @@ export function EntityDetailPage() {
     const controller = new AbortController();
     setError(null);
     api<EntityDetail>("GET", `/entities/${id}`, undefined, controller.signal)
-      .then(value => { if (!controller.signal.aborted){setEntity(value);setEditReady(true);} }).catch((e) => {
+      .then(value => { if (!controller.signal.aborted){setEntity(value);setEditReady(true);relationSaved.current=false;} }).catch((e) => {
         if (!controller.signal.aborted) {
           // Keep confirmed entity fields/actions available when a follow-up GET fails.
           setEditReady(true);
@@ -48,7 +49,7 @@ export function EntityDetailPage() {
       });
     return () => controller.abort();
   }, [id, retry]);
-  useEffect(() => { setEntity(null); setEditing(params.get("edit")==="1"); }, [id]);
+  useEffect(() => { setEntity(null); setEditing(params.get("edit")==="1"); relationSaved.current=false; }, [id]);
   const returnParams=new URLSearchParams(params); ["edit","edit_from","create"].forEach(key=>returnParams.delete(key));
   const back = useDetailOwnerReturn(`/entities?${returnParams}${id ? `#entity-${id}` : ""}`);
   const previousQuery=useRef(params.toString());
@@ -59,13 +60,24 @@ export function EntityDetailPage() {
   const management = entity && <div className="detail-management">
       {error && (
         <>
-          <Notice kind="error">{error}</Notice>
+          <Notice kind="error">{relationSaved.current?"연결은 저장했습니다. 최신 내용을 불러오지 못했습니다.":error}</Notice>
           <button type="button" className="btn" onClick={() => setRetry((n) => n + 1)}>
             다시 시도
           </button>
         </>
       )}
-          <EntityTaskRelations entity={entity} onSaved={()=>setRetry(n=>n+1)} onCreate={()=>{const p=new URLSearchParams(params);p.set("create","task");navigate(`?${p}`);}}/>
+          <EntityTaskRelations entity={entity} onSaved={(saved,before)=>{
+            if(saved&&before){
+              relationSaved.current=true;
+              setEntity(current=>{if(!current)return current;const linked=saved.entity_ids.includes(current.id),wasLinked=before.entity_ids.includes(current.id);
+                const items=current.tasks.items.filter(item=>item.id!==saved.id);
+                if(linked)items.push({id:saved.id,title:saved.title,updated_at:saved.updated_at});
+                items.sort((a,b)=>b.updated_at.localeCompare(a.updated_at)||b.id.localeCompare(a.id));
+                return {...current,tasks:{count:Math.max(0,current.tasks.count+Number(linked)-Number(wasLinked)),items:items.slice(0,5)}};
+              });
+            }
+            setRetry(n=>n+1);
+          }} onCreate={()=>{const p=new URLSearchParams(params);p.set("create","task");navigate(`?${p}`);}}/>
           {([["records", "기록"]] as const).map(([kind, label]) => (
             <RelatedSection key={kind} title={`연결된 ${label}`} count={entity[kind].count} action={<button type="button" className="btn btn-text" onClick={()=>{const p=new URLSearchParams(params);p.set("create","record");navigate(`?${p}`);}}>기록 작성</button>}>
               {entity[kind].count>0&&<ul className="related-items">{entity[kind].items.map(item=><li key={item.id}><RelatedRecordItem record={item}/></li>)}</ul>}

@@ -46,6 +46,25 @@ httpTest("일반 할 일 메모와 제목 검색은 HTTP/MCP에서 같고 다른
     (await call(sessionA, "GET", `/tasks?keyword=${encodeURIComponent(title)}&limit=20`)).body,
   );
   assertEquals((await tool(mcpB, "create_record", { body: "금지", task_id: task.id })).error.code, "not_found");
+  const date = seoulDate();
+  const recurring = await tool(mcpA, "create_task", {
+    kind: "recurring",
+    title,
+    timezone: "Asia/Seoul",
+    recurrence: { freq: "daily", starts_on: date },
+  });
+  await tool(mcpA, "create_task", {
+    kind: "recurring",
+    title: "다른 반복 업무",
+    timezone: "Asia/Seoul",
+    recurrence: { freq: "daily", starts_on: date },
+  });
+  const occurrences = await tool(mcpA, "list_tasks", { keyword: title, occurrence_on: date });
+  assertEquals(occurrences.items.map((item: { id: string }) => item.id), [recurring.id]);
+  assertEquals(
+    occurrences,
+    (await call(sessionA, "GET", `/tasks?keyword=${encodeURIComponent(title)}&occurrence_on=${date}`)).body,
+  );
 });
 
 httpTest("기록 HTTP 편집·MCP 재시도는 추가 로그 없이 최신 메모·사건을 보존한다", async () => {

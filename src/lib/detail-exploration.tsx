@@ -1,9 +1,9 @@
-import { createContext, useCallback, useContext, useEffect, useRef, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode, type Dispatch, type SetStateAction } from "react";
 import { Link, useLocation, useNavigate, type LinkProps, type NavigateOptions, type To } from "react-router";
 
 type Frame = { key: string; path: string; title: string; scroll: number; focusKey: string };
 type TrailState = { detailScope: string; detailTrail: Frame[] };
-const Snapshots = createContext<{scope: string; frames: Map<string, Frame>} | null>(null);
+const Snapshots = createContext<{scope: string; frames: Map<string, Frame>; views: Map<string, unknown>} | null>(null);
 const detailPath = /^\/(?:(entities|tasks|records|principles)\/[^/?#]+|tags(?:\/(?:entity|activity))?)$/;
 const tagOrigin = /^\/(entities|tasks|records|settings)$/;
 
@@ -37,10 +37,19 @@ function detailTrail(state: unknown, scope: string | undefined): Frame[] {
 }
 
 export function DetailNavigationProvider({ children, scope = "app" }: { children: ReactNode; scope?: string }) {
-  const context = useRef({ scope, frames: new Map<string, Frame>() });
-  if (context.current.scope !== scope) context.current = {scope, frames: new Map<string, Frame>()};
+  const context = useRef({ scope, frames: new Map<string, Frame>(), views: new Map<string, unknown>() });
+  if (context.current.scope !== scope) context.current = {scope, frames: new Map<string, Frame>(), views: new Map<string, unknown>()};
   useRestoreFrame(context.current.frames);
   return <Snapshots.Provider value={context.current}>{children}</Snapshots.Provider>;
+}
+
+/** Ephemeral view choices follow a history entry and disappear on account scope changes. */
+export function useDetailViewState<T>(name: string, initial: T): [T, Dispatch<SetStateAction<T>>] {
+  const context = useContext(Snapshots), location = useLocation();
+  const key = `${location.key}:${name}`;
+  const [value, setValue] = useState<T>(() => context?.views.has(key) ? context.views.get(key) as T : initial);
+  useEffect(() => { context?.views.set(key, value); }, [context, key, value]);
+  return [value, setValue];
 }
 
 /** Same-detail mode changes replace the entry and retain its exploration context. Exits clear it. */

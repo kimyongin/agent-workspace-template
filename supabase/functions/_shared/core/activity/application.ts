@@ -118,6 +118,7 @@ export async function listTasks(deps: ActivityDeps, actor: Actor, query: TaskLis
       tag_id: filter.tag_id,
       tag_ids: filter.tag_ids,
       entity_id: filter.entity_id,
+      keyword: filter.keyword,
       limit: 5000,
     });
     const items: TaskListItem[] = [];

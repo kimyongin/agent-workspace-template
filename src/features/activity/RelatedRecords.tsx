@@ -16,10 +16,10 @@ export function RelatedRecordItem({record}: {record:Pick<RecordResult,"id"|"body
 }
 
 export function RelatedRecords({taskId,revision,action}: {taskId:string;revision:number;action?:ReactNode}) {
-  // Each task/revision starts a fresh cursor; a request never publishes into another owner's list.
-  return <TaskRecords key={`${taskId}:${revision}`} taskId={taskId} action={action}/>;
+  // Refresh data without replacing the record creation trigger or its focus.
+  return <TaskRecords taskId={taskId} revision={revision} action={action}/>;
 }
-function TaskRecords({taskId,action}:{taskId:string;action?:ReactNode}) {
+function TaskRecords({taskId,revision,action}:{taskId:string;revision:number;action?:ReactNode}) {
   const surface=useContext(SurfaceContext);
   const [params]=useSearchParams(),navigate=useDetailNavigate();
   const requested=requestedPages(new URLSearchParams({pages:params.get("related_record_pages")??"1"}));
@@ -38,7 +38,7 @@ function TaskRecords({taskId,action}:{taskId:string;action?:ReactNode}) {
     } catch {if(!controller.signal.aborted)setError(true);}
     finally {if(!controller.signal.aborted){setBusy(false);request.current=null;}}
   };
-  useEffect(()=>{void load(requested);return()=>request.current?.abort();},[]);
+  useEffect(()=>{loaded.current=undefined;setPage(null);void load(requested);return()=>{request.current?.abort();request.current=null;};},[taskId,revision]);
   // A background read must not navigate or interrupt a dirty management form.
   useEffect(()=>{if(!page||busy||error||surface?.editor.current||params.has("edit")||params.has("action")||params.has("occurrence")||Math.min(page.pages,MAX_RESTORE_PAGES)===requested)return;const next=new URLSearchParams(params);next.set("related_record_pages",String(Math.min(page.pages,MAX_RESTORE_PAGES)));void navigate(`?${next}`);},[page,busy,error,params,requested,navigate,surface]);
   return <RelatedSection title="연결된 기록" count={page?.items.length} hasMore={!!page?.next_cursor} action={action}>

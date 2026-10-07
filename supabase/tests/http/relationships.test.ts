@@ -56,4 +56,23 @@ httpTest("할 일 제목 검색은 부분 일치와 문자 그대로의 %/_ 및 
     (await call(A, "GET", `/tasks?keyword=다른검색&limit=1&cursor=${encodeURIComponent(first.next_cursor)}`)).status,
     400,
   );
+  const date = "2026-10-07";
+  const recurring = (await call(A, "POST", "/tasks", {
+    kind: "recurring",
+    title: keyword,
+    timezone: "Asia/Seoul",
+    recurrence: { freq: "daily", starts_on: date },
+  })).body;
+  await call(A, "POST", "/tasks", {
+    kind: "recurring",
+    title: "검색과 무관한 반복 할 일",
+    timezone: "Asia/Seoul",
+    recurrence: { freq: "daily", starts_on: date },
+  });
+  assertEquals(
+    (await call(A, "GET", `/tasks?keyword=${encodeURIComponent(keyword)}&occurrence_on=${date}`)).body.items.map((
+      item: { id: string },
+    ) => item.id),
+    [recurring.id],
+  );
 });
