@@ -885,3 +885,12 @@ test("연결 조회 늦은 응답은 다음 할 일·기록에 섞이지 않는�
   await go(page,`/records/${id(3)}`);await startedTask;await page.getByRole("link",{name:"기록 fixture",exact:true}).evaluate((el:HTMLAnchorElement)=>el.click());await page.getByRole("link",{name:"다음 기록",exact:true}).click();
   await expect(form(page).getByRole("link",{name:"다음 할 일",exact:true})).toBeVisible();releaseTask();await expect(form(page)).not.toContainText("오래된 할 일");expect(state.errors).toEqual([]);
 });
+
+
+test("연결 기록 자동 복원 상한 뒤에도 수동 더 보기는 다음 cursor를 읽는다",async({page})=>{
+  const state=await fixtures(page),cursors:number[]=[];
+  await page.route("**/api/records?**",route=>{const n=Number(new URL(route.request().url()).searchParams.get("cursor")??0);cursors.push(n);return route.fulfill({json:{items:[{...record(1000+n),body:`기록 ${n}`,task_id:id(2)}],next_cursor:n<250?String(n+1):null}});});
+  await go(page,`/tasks/${id(2)}?related_record_pages=250`);
+  const section=form(page).getByRole("region",{name:"연결된 기록",exact:true});await expect(section.getByRole("button",{name:"기록 더 보기"})).toBeEnabled();
+  expect(cursors).toHaveLength(250);await section.getByRole("button",{name:"기록 더 보기"}).click();await expect(section.getByRole("link",{name:"기록 250",exact:true})).toBeVisible();expect(cursors.at(-1)).toBe(250);expect(cursors).toHaveLength(251);expect(state.errors).toEqual([]);
+});
