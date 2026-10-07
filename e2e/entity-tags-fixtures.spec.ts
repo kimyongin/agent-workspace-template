@@ -241,7 +241,7 @@ test("태그 관리는 모달 하나와 인라인 입력을 사용하고 닫기�
   await page.route("**/api/entities**",route=>route.fulfill({json:{items:[],next_cursor:null}}));
   await page.goto("/e2e/fixtures/entity-tags-app.html");
   await page.getByRole("button",{name:"할 일 작업 메뉴"}).click();
-  await page.getByRole("link",{name:"기록 태그 관리",exact:true}).click();
+  await page.getByRole("link",{name:"할 일 태그 관리",exact:true}).click();
   const manager=page.locator("dialog.modal:not(.modal-confirm)[open]");
   await expect(manager).toBeVisible();
   await expect(manager.getByRole("form",{name:"태그 추가",exact:true})).toBeVisible();
