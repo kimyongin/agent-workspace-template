@@ -86,7 +86,7 @@ test("연결 카드 행동은44px 누름 영역이고 클릭·키보드로 연�
   const entity={id:id(8),prop1:"함",prop2:null,prop3:null,prop4:"a",version:1};
   await page.route("http://127.0.0.1:55581/api/**",route=>route.fulfill({json:{items:new URL(route.request().url()).pathname.endsWith("/entities")?[entity]:[],next_cursor:null}}));
   await page.goto("/e2e/fixtures/activity.html?route=/records?create=1");
-  await page.getByRole("searchbox",{name:"엔터티 제목 검색",exact:true}).fill("함");
+  await page.getByRole("button",{name:"엔터티 연결",exact:true}).click();await page.getByRole("searchbox",{name:"엔터티 제목 검색",exact:true}).fill("함");
   for(const width of [320,360,390,639,640,768,1024,1440]){
     await page.setViewportSize({width,height:900});const connect=page.getByRole("button",{name:"함 연결",exact:true});await expect(connect).toBeEnabled();
     const box=(await connect.boundingBox())!;expect(box.width).toBeGreaterThanOrEqual(44);expect(box.height).toBeGreaterThanOrEqual(44);

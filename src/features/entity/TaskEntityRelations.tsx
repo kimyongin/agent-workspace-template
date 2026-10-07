@@ -1,4 +1,4 @@
-import { useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import { useContext, useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { SurfaceContext } from "../../components/Modal.tsx";
 import { useLocation } from "react-router";
 import { useDetailViewState } from "../../lib/detail-exploration.tsx";
@@ -9,7 +9,7 @@ import { Notice } from "../../components/Field.tsx";
 import { RelatedSection } from "../../components/RelatedItems.tsx";
 import { RelatedPreviewItem } from "../relations/RelatedPreviewItem.tsx";
 import { api, query } from "../../lib/api.ts";
-import { RelationSearch, type Candidate } from "../relations/RelationSearch.tsx";
+import { RelationSearch, RelationSearchAction, type Candidate } from "../relations/RelationSearch.tsx";
 
 type Mutation = {task:TaskResult;entity:Candidate;remove:boolean;ids:string[]};
 /** Both directions patch the task's single membership field; no mirrored entity state. */
@@ -17,6 +17,7 @@ function RelationControls({task,entityId,entityTitle,revision,children,onSaved}:
   const surface=useContext(SurfaceContext);
   const location=useLocation(),locationKey=useRef(location.key);locationKey.current=location.key;
   const [searching,setSearching]=useDetailViewState("relation-search-open",false);
+  const searchId=useId();
   const [preparing,setPreparing]=useState(false),[error,setError]=useState<string|null>(null),[mutation,setMutation]=useState<Mutation|null>(null);
   const request=useRef<AbortController|null>(null);
   useEffect(()=>()=>request.current?.abort(),[]);
@@ -33,11 +34,11 @@ function RelationControls({task,entityId,entityTitle,revision,children,onSaved}:
     }catch{if(!controller.signal.aborted)setError("최신 연결을 불러오지 못했습니다. 다시 시도하세요.");}
     finally{if(!controller.signal.aborted)setPreparing(false);}
   };
-  const kind=task?"entity":"task",label=task?"엔터티":"할 일";
+  const kind=task?"entity":"task";
   const unlink=(item:Candidate)=><button type="button" className="btn btn-text" aria-label={`${item.title} 해제`} aria-disabled={preparing} onClick={()=>void prepare(item,true)}>해제</button>;
   return <>
-    {children({button:<button type="button" className="btn btn-text" aria-label={searching?`${label} 검색 닫기`:`${label} 연결`} aria-expanded={searching} disabled={preparing} onClick={()=>setSearching(value=>!value)}>{searching?"검색 닫기":"연결"}</button>,unlink,
-      search:<>{error&&<Notice kind="error">{error}</Notice>}{preparing&&<p className="secondary" role="status">연결 확인 중…</p>}{searching&&<RelationSearch kind={kind} revision={task?.version??revision} disabled={preparing} excluded={item=>task?task.entity_ids.includes(item.id):!!item.entityIds?.includes(entityId!)} onChoose={item=>void prepare(item,false)}/>}</>})}
+    {children({button:<RelationSearchAction kind={kind} expanded={searching} controls={searchId} disabled={preparing} onToggle={()=>setSearching(value=>!value)}/>,unlink,
+      search:<>{error&&<Notice kind="error">{error}</Notice>}{preparing&&<p className="secondary" role="status">연결 확인 중…</p>}<div id={searchId} hidden={!searching}>{searching&&<RelationSearch kind={kind} revision={task?.version??revision} disabled={preparing} excluded={item=>task?task.entity_ids.includes(item.id):!!item.entityIds?.includes(entityId!)} onChoose={item=>void prepare(item,false)}/>}</div></>})}
     {mutation&&<FormModal open confirmationOnly title={mutation.remove?"해제":"연결"} submitLabel="저장" dirty={false}
       mutation={{target:`${mutation.task.title} — ${mutation.entity.title}`,action:mutation.remove?"해제":"연결",message:mutation.remove?"연결만 해제하며 원문과 과거 기록은 유지합니다.":undefined}}
       onClose={()=>{setMutation(null);onSaved();}} onRouteDiscard={()=>setMutation(null)} validate={()=>null}

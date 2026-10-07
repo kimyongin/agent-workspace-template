@@ -512,7 +512,7 @@ for(const kind of ["tasks","records"] as const)test(`엔터티 제목 연결 검
   });
   await go(page,kind==="tasks"?"/tasks?create=1":`/records/${state.rows.records[0].id}?edit=1`);
   if(kind==="tasks")await form(page).getByRole("textbox",{name:"제목 (필수)",exact:true}).fill("새 관계 업무");
-  const search=form(page).getByRole("searchbox",{name:"엔터티 제목 검색",exact:true});await expect(search).toBeVisible();expect(reads).toHaveLength(0);
+  await form(page).getByRole("button",{name:"엔터티 연결",exact:true}).click();const search=form(page).getByRole("searchbox",{name:"엔터티 제목 검색",exact:true});await expect(search).toBeVisible();expect(reads).toHaveLength(0);
   await search.fill("aLpHa");await form(page).getByRole("button",{name:"Alpha 고객 연결",exact:true}).focus();await page.keyboard.press("Space");await expect(form(page).getByRole("button",{name:"Alpha 고객 해제",exact:true})).toBeFocused();
   expect(reads[0].get("keyword")).toBe("aLpHa");expect(reads[0].get("limit")).toBe("20");
   await search.fill("Beta");await form(page).getByRole("button",{name:"Beta 고객 연결",exact:true}).click();
@@ -532,7 +532,7 @@ test("엔터티 제목 연결 검색: IME·늦은 응답 격리·페이지 실�
     }
     return route.fulfill({json:{items:[{...entity(92),prop1:"최신 결과"}],next_cursor:"page-two"}});
   });
-  await go(page,"/tasks?create=1");const search=form(page).getByRole("searchbox",{name:"엔터티 제목 검색",exact:true});await expect(search).toBeVisible();
+  await go(page,"/tasks?create=1");await form(page).getByRole("button",{name:"엔터티 연결",exact:true}).click();const search=form(page).getByRole("searchbox",{name:"엔터티 제목 검색",exact:true});await expect(search).toBeVisible();
   await search.dispatchEvent("compositionstart");await search.fill("느");await page.waitForTimeout(350);expect(reads).toHaveLength(0);
   await search.fill("느림");await search.dispatchEvent("compositionend");await started;
   await search.fill("최신%_");await expect(form(page).getByRole("button",{name:"최신 결과 연결",exact:true})).toBeVisible();release();
@@ -990,7 +990,7 @@ for(const [kind,n,title] of [["entities",1,"엔터티"],["tasks",2,"할 일"],["
 });
 for(const kind of ["tasks","records"] as const)test(`#185 ${kind}: 검색 Enter는 저장하지 않고 검색·선택은 아래 표준 카드`,async({page},info)=>{
   const state=await fixtures(page);state.rows.entities[0].prop1="검색 대상";if(kind==="tasks")await go(page,"/tasks?create=1");else{await go(page,`/records/${state.rows.records[0].id}`);await openDetailEditor(page);}
-  const search=form(page).getByRole("searchbox",{name:"엔터티 제목 검색",exact:true});await search.dispatchEvent("compositionstart");await search.fill("검");await search.press("Enter");
+  await form(page).getByRole("button",{name:"엔터티 연결",exact:true}).click();const search=form(page).getByRole("searchbox",{name:"엔터티 제목 검색",exact:true});await search.dispatchEvent("compositionstart");await search.fill("검");await search.press("Enter");
   await expect(page.locator("dialog.modal-action[open]")).toHaveCount(0);expect(state.writes).toHaveLength(0);await search.fill("검색");await search.dispatchEvent("compositionend");await search.press("Enter");
   const result=form(page).getByRole("group",{name:"엔터티 검색 결과"});await result.getByRole("button",{name:"검색 대상 연결",exact:true}).click();
   const selected=form(page).getByRole("list",{name:"선택한 엔터티",exact:true});await expect(selected.locator(".related-item")).toHaveCount(1);expect((await selected.boundingBox())!.y).toBeGreaterThan((await search.boundingBox())!.y);
@@ -1097,15 +1097,18 @@ for (const width of [320,1440]) test(`#191 기록 작성 ${width}px: 할 일·�
   const draft=form(page);await draft.getByRole("textbox",{name:/^본문/}).fill("상담 내역");
   await expect(draft.getByRole("group",{name:"태그",exact:true})).toHaveCount(0);
   const tags=draft.locator(".tag-picker");await expect(tags).toContainText("기록 태그");await tags.getByRole("button",{name:"같은 이름",exact:true}).click();
-  const taskSearch=draft.getByRole("searchbox",{name:"할 일 제목 검색"});await taskSearch.fill("할");await taskSearch.press("Enter");
+  await expect(draft.getByRole("searchbox")).toHaveCount(0);await draft.getByRole("button",{name:"할 일 연결",exact:true}).click();const taskSearch=draft.getByRole("searchbox",{name:"할 일 제목 검색"});await expect(taskSearch).toBeFocused();await taskSearch.fill("할");await taskSearch.press("Enter");
   await draft.getByRole("group",{name:"할 일 검색 결과"}).getByRole("button",{name:"할 일 연결",exact:true}).click();
-  const entitySearch=draft.getByRole("searchbox",{name:"엔터티 제목 검색"});await entitySearch.fill("엔터");await entitySearch.press("Enter");
+  await draft.getByRole("button",{name:"엔터티 연결",exact:true}).click();const entitySearch=draft.getByRole("searchbox",{name:"엔터티 제목 검색"});await entitySearch.fill("엔터");await entitySearch.press("Enter");
   await draft.getByRole("group",{name:"엔터티 검색 결과"}).getByRole("button",{name:"엔터티 연결",exact:true}).click();
   expect(state.writes).toHaveLength(0);await expect(draft.getByRole("list",{name:"선택한 할 일"}).locator(".related-item")).toHaveCount(1);
   await expect(draft.getByRole("list",{name:"선택한 엔터티"}).locator(".related-item")).toHaveCount(1);await expect(draft.locator(".entity-choice")).toHaveCount(0);
   await draft.getByRole("button",{name:"엔터티 해제",exact:true}).click();await expect(entitySearch).toBeFocused();
   await draft.getByRole("group",{name:"엔터티 검색 결과"}).getByRole("button",{name:"엔터티 연결",exact:true}).click();
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+  await draft.getByRole("button",{name:"할 일 검색 닫기",exact:true}).click();await expect(taskSearch).toHaveCount(0);await expect(draft.getByRole("list",{name:"선택한 할 일"})).toContainText("할 일");
+  await draft.getByRole("button",{name:"엔터티 검색 닫기",exact:true}).click();await expect(entitySearch).toHaveCount(0);await draft.getByRole("button",{name:"엔터티 해제",exact:true}).click();await expect(draft.getByRole("button",{name:"엔터티 연결",exact:true})).toBeFocused();
+  await draft.getByRole("button",{name:"엔터티 연결",exact:true}).click();await expect(entitySearch).toHaveValue("엔터");await draft.getByRole("group",{name:"엔터티 검색 결과"}).getByRole("button",{name:"엔터티 연결",exact:true}).click();await draft.getByRole("button",{name:"엔터티 검색 닫기",exact:true}).click();
   await page.screenshot({path:info.outputPath(`record-relationships-${width}.png`)});await draft.getByRole("button",{name:"저장",exact:true}).click();
   await expect.poll(()=>state.writes.length).toBe(1);expect(state.writes[0].body).toMatchObject({task_id:id(2),entity_ids:[id(1)],tag_ids:[id(11)],body:"상담 내역"});expect(state.errors).toEqual([]);
 });
@@ -1113,7 +1116,7 @@ test("#191 할 일에서 일반 기록 작성: 귀속 미리 선택·변경·엔
   const state=await fixtures(page),t=state.rows.tasks[0];Object.assign(t,{entity_ids:[id(1)],entity_context:[{id:id(1),title:"엔터티",source:"selection",captured_at:stamp}]});state.rows.tasks.push({...task(82),title:"다른 할 일"});
   await go(page,`/tasks/${id(2)}`);await form(page).getByRole("button",{name:"기록 작성",exact:true}).click();
   const draft=form(page);await draft.getByRole("textbox",{name:/^본문/}).fill("추가 관찰");await expect(draft.getByRole("list",{name:"선택한 할 일"})).toContainText("할 일");
-  await draft.getByRole("searchbox",{name:"할 일 제목 검색"}).fill("다른");await draft.getByRole("group",{name:"할 일 검색 결과"}).getByRole("button",{name:"다른 할 일 연결",exact:true}).click();
+  await draft.getByRole("button",{name:"할 일 연결",exact:true}).click();await draft.getByRole("searchbox",{name:"할 일 제목 검색"}).fill("다른");await draft.getByRole("group",{name:"할 일 검색 결과"}).getByRole("button",{name:"다른 할 일 연결",exact:true}).click();
   await expect(draft.getByRole("list",{name:"선택한 할 일"}).locator(".related-item")).toHaveCount(1);await expect(draft.getByRole("list",{name:"선택한 엔터티"})).toContainText("엔터티");
   await draft.getByRole("button",{name:"저장",exact:true}).click();await expect.poll(()=>state.writes.length).toBe(1);expect(state.writes[0].body).toMatchObject({task_id:id(82),entity_ids:[id(1)]});expect(t.status).toBe("open");expect(state.errors).toEqual([]);
 });
