@@ -1,4 +1,5 @@
-import { DetailLink as Link, useDetailNavigate, useDetailOwnerReturn } from "../../lib/detail-exploration.tsx";
+import { RelatedTask } from "./RelatedTask.tsx";
+import { useDetailNavigate, useDetailOwnerReturn } from "../../lib/detail-exploration.tsx";
 import { editFromView } from "../../lib/detail-navigation.ts";
 import { ChangeContext, PrincipleSnapshots, type WorkspaceRecord } from "./ChangeContext.tsx";
 // 기록 상세: 원문 읽기, 편집, 삭제.
@@ -77,7 +78,7 @@ export function RecordDetailPage() {
       {error && <Notice kind="error">{error}</Notice>}
       <ChangeContext record={record}/>
       {loadError && <><Notice kind="error">{loadError}</Notice><button type="button" className="btn" onClick={reload}>조회 다시 시도</button></>}
-      {record.task_id && <div><h2 className="section-title">관련 할 일</h2><Link to={`/tasks/${record.task_id}`}>{record.occurrence_on ? `${record.occurrence_on} 회차` : "결과로 연결된 할 일"}</Link></div>}
+      {record.task_id && <RelatedTask id={record.task_id} occurrence={record.occurrence_on}/> }
       {(dialog!=="edit"||record.record_kind==="change")&&<><TagNames ids={record.tag_ids}/>
       <EntityLinks ids={record.entity_ids} context={record.entity_context}/></>}
       <PrincipleSnapshots snapshots={record.applied_principle_snapshots??[]}/>

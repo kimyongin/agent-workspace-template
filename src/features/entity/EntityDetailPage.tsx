@@ -1,6 +1,7 @@
 import type { EntityContext } from "@contracts/entity-links.ts";
-import { recordDisplayText } from "@contracts/record-display.ts";
-import { DetailLink as Link, useDetailNavigate, useDetailOwnerReturn } from "../../lib/detail-exploration.tsx";
+import { RelatedItem, RelatedSection } from "../../components/RelatedItems.tsx";
+import { RelatedRecordItem } from "../activity/RelatedRecords.tsx";
+import { useDetailNavigate, useDetailOwnerReturn } from "../../lib/detail-exploration.tsx";
 import { editFromView } from "../../lib/detail-navigation.ts";
 import { useDeferredNavigation } from "../../lib/useDeferredNavigation.ts";
 import { TagNames } from "../tags/TagPicker.tsx";
@@ -15,7 +16,6 @@ import { formatDateTime } from "../../lib/format.ts";
 import { EntityForm } from "./forms.tsx";
 import { emptyRecord, emptyTask, RecordFormModal, TaskFormModal, taskInput } from "../activity/forms.tsx";
 import "./entity.css";
-import { recordKindNames } from "../activity/ChangeContext.tsx";
 export function EntityDetailPage() {
   const { id } = useParams(),
     [params] = useSearchParams(),
@@ -67,27 +67,9 @@ export function EntityDetailPage() {
       )}
           <TagNames scope="entity" ids={(entity as EntityDetail & {tag_ids?:string[]}).tag_ids??[]}/>
           {([["tasks", "할 일"], ["records", "기록"]] as const).map(([kind, label]) => (
-            <section className="detail-section entity-related" key={kind}>
-              <div className="detail-section-head"><h2 className="section-title">연결된 {label} ({entity[kind].count}개)</h2>
-                <button type="button" className="btn btn-text" onClick={() => {
-                  const p=new URLSearchParams(params);p.set("create",kind==="tasks"?"task":"record");navigate(`?${p}`);
-                }}>{kind === "tasks" ? "할 일 작성" : "기록 작성"}</button>
-              </div>
-              {entity[kind].count === 0
-                ? <p className="secondary">연결된 {label}이 없습니다.</p>
-                : (
-                  <ul className="entity-related-list">
-                    {entity[kind].items.map((item) => (
-                      <li key={item.id}>
-                        <Link className="entity-related-item" aria-label={"record_kind" in item ? recordDisplayText(item.body) : item.title} to={`/${kind}/${item.id}`}>
-                          <div className="entity-related-title"><span className="item-title">{"record_kind" in item ? recordDisplayText(item.body) : item.title}</span><span aria-hidden="true">›</span></div>
-                          <div className="entity-related-meta">{"record_kind" in item&&<span className="badge">{recordKindNames[item.record_kind]}</span>}<time className="meta" dateTime={"occurred_at" in item?item.occurred_at:item.updated_at}>{"occurred_at" in item?"":"수정 "}{formatDateTime("occurred_at" in item?item.occurred_at:item.updated_at)}</time></div>
-                        </Link>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-            </section>
+            <RelatedSection key={kind} title={`연결된 ${label}`} count={entity[kind].count} action={<button type="button" className="btn btn-text" onClick={()=>{const p=new URLSearchParams(params);p.set("create",kind==="tasks"?"task":"record");navigate(`?${p}`);}}>{kind==="tasks"?"할 일 작성":"기록 작성"}</button>}>
+              {entity[kind].count===0?<p className="secondary">연결된 {label}이 없습니다.</p>:<ul className="related-items">{entity[kind].items.map(item=><li key={item.id}>{"record_kind" in item?<RelatedRecordItem record={item}/>:<RelatedItem to={`/tasks/${item.id}`} title={item.title} metadata={<time className="meta" dateTime={item.updated_at}>수정 {formatDateTime(item.updated_at)}</time>}/>}</li>)}</ul>}
+            </RelatedSection>
           ))}
     </div>;
   const startEdit=()=>navigate(editFromView(params));
