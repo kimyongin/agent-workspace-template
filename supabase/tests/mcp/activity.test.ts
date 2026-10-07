@@ -256,9 +256,6 @@ httpTest("태그: HTTP/MCP 왕복·중복 이름·버전 충돌·소유자 격�
 });
 
 httpTest("활동 다중 태그 OR는 HTTP/MCP에서 페이지 전에 적용되고 다른 소유자에게 숨겨진다", async () => {
-  const tags = await Promise.all(
-    [0, 1].map(() => tool(mcpA, "create_tag", { name: crypto.randomUUID().slice(0, 30) })),
-  );
   for (
     const [kind, listTool, createTool] of [["tasks", "list_tasks", "create_task"], [
       "records",
@@ -266,6 +263,14 @@ httpTest("활동 다중 태그 OR는 HTTP/MCP에서 페이지 전에 적용되�
       "create_record",
     ]]
   ) {
+    const tags = await Promise.all(
+      [0, 1].map(() =>
+        tool(mcpA, "create_tag", {
+          scope: kind === "tasks" ? "task" : "record",
+          name: crypto.randomUUID().slice(0, 30),
+        })
+      ),
+    );
     const rows = [];
     for (const tag of tags) {
       rows.push(

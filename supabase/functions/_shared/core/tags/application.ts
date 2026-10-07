@@ -26,13 +26,13 @@ function target(use: TagUse) {
 }
 export interface TagStore extends ChangeStore {
   get(id: string, lock?: boolean): Promise<TagResult | null>;
-  insert(id: string, name: string, scope: "entity" | "activity"): Promise<TagResult>;
+  insert(id: string, name: string, scope: TagResult["scope"]): Promise<TagResult>;
   rename(id: string, name: string): Promise<TagResult>;
   delete(id: string): Promise<void>;
   /** Each use is locked and freshly read; the transaction retains that lock while the caller writes. */
   uses(id: string): AsyncIterable<TagUse>;
   setTags(use: TagUse, ids: string[]): Promise<TagUse>;
-  list(limit: number, after?: Keyset, scope?: "entity" | "activity"): Promise<TagResult[]>;
+  list(limit: number, after?: Keyset, scope?: TagResult["scope"]): Promise<TagResult[]>;
 }
 export interface TagDeps {
   uow: { run<T>(actor: Actor, fn: (store: TagStore) => Promise<T>): Promise<T> };

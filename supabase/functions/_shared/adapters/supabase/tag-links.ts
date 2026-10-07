@@ -19,9 +19,7 @@ export function hasAnyTag(tx: Tx, kind: Kind, ids: string[]) {
 }
 export async function setTagLinks(tx: Tx, actor: Actor, kind: Kind, itemId: string, ids: string[]) {
   if (ids.length) {
-    const rows = await tx`select id from app.tags where id in ${tx(ids)} and scope=${
-      kind === "entity" ? "entity" : "activity"
-    } order by id for key share`;
+    const rows = await tx`select id from app.tags where id in ${tx(ids)} and scope=${kind} order by id for key share`;
     if (rows.length !== ids.length) throw new AppError("invalid_reference", "태그가 없거나 접근할 수 없습니다");
   }
   await tx`delete from ${tx(`app.${kind}_tags`)} where ${tx(`${kind}_id`)}=${itemId}`;

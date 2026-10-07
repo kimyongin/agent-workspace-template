@@ -11,7 +11,7 @@ export function tagTools(d: tags.TagDeps): ToolDef[] {
   return [
     {
       name: "list_tags",
-      description: "scope entity/activity 별 내 태그 목록. 생략은 activity, next_cursor가 없을 때까지 조회한다.",
+      description: "scope entity/task/record 별 내 태그 목록. 생략은 record, next_cursor가 없을 때까지 조회한다.",
       input: tagListQuery,
       readOnly: true,
       handler: (i, a) => tags.listTags(d, a, parse(tagListQuery, i)),
@@ -19,7 +19,7 @@ export function tagTools(d: tags.TagDeps): ToolDef[] {
     {
       name: "create_tag",
       description:
-        "태그 생성. 이름 1~30자, 소유자와 scope 안에서 대소문자 무시 고유. 클라이언트 UUID id 필수. 같은 id 재시도는 충돌로 거부한다.",
+        "태그 생성. scope entity/task/record, 생략은 record. 이름 1~30자, 소유자와 scope 안에서 대소문자 무시 고유. 클라이언트 UUID id 필수. 같은 id 재시도는 충돌로 거부한다.",
       input: tagCreate,
       readOnly: false,
       handler: (i, a) => tags.createTag(d, a, parse(tagCreate, i)),

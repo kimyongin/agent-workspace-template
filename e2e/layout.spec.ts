@@ -78,7 +78,7 @@ test.describe("화면 폭별 배치", () => {
       await page.setViewportSize({ width, height: 900 });
       for (const path of ["/tasks", taskDetail, "/records", recordDetail, "/principles", principleDetail,"/tags",`/search?q=${encodeURIComponent(longTitle)}&mode=keyword`]) {
         await page.goto(path);
-        await expect(page.getByRole("heading", path==="/tags"?{name:"활동 태그 관리",exact:true}:{level:1})).toBeVisible();
+        await expect(page.getByRole("heading", path==="/tags"?{name:"기록 태그 관리",exact:true}:{level:1})).toBeVisible();
         expect(await layoutProblems(page), `${width}px ${path}`).toEqual([]);
       }
       await page.goto("/tasks");

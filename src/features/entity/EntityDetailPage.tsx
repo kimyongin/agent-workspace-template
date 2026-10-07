@@ -54,7 +54,7 @@ export function EntityDetailPage() {
   const back = useDetailOwnerReturn(`/entities?${returnParams}${id ? `#entity-${id}` : ""}`);
   const previousQuery=useRef(params.toString());
   useEffect(()=>{setEditing(params.get("edit")==="1");if(previousQuery.current!==params.toString()&&!params.has("create")){setEditReady(false);setRetry(n=>n+1);}previousQuery.current=params.toString();},[params.toString()]);
-  useEffect(()=>{if(creating||!editReady||!returnCreateFocus.current)return;const frame=requestAnimationFrame(()=>{const label=returnCreateFocus.current==="task"?"할 일 작성":"기록 작성";const button=Array.from(document.querySelectorAll<HTMLButtonElement>("dialog[open] .detail-management button")).find(el=>el.textContent===label);if(button){button.focus();returnCreateFocus.current=null;}});return()=>cancelAnimationFrame(frame);},[creating,editReady,entity]);
+  useEffect(()=>{if(creating||!editReady||!returnCreateFocus.current)return;const frame=requestAnimationFrame(()=>{const label=returnCreateFocus.current==="task"?"할 일 작성":"기록 작성";const button=Array.from(document.querySelectorAll<HTMLButtonElement>("dialog[open] .detail-management button")).find(el=>el.getAttribute("aria-label")===label);if(button){button.focus();returnCreateFocus.current=null;}});return()=>cancelAnimationFrame(frame);},[creating,editReady,entity]);
   const closeEdit=()=>{setEditing(false);const p=new URLSearchParams(params);p.delete("edit");p.delete("edit_from");afterClose(`${location.pathname}?${p}`,true);if(conflicted.current){conflicted.current=false;setRetry(n=>n+1);}};
   const entityContext: EntityContext[] = entity ? [{id:entity.id,title:entity.prop1,source:"selection",captured_at:new Date().toISOString()}] : [];
   const management = entity && <div className="detail-management">
@@ -79,7 +79,7 @@ export function EntityDetailPage() {
             setRetry(n=>n+1);
           }} onCreate={()=>{const p=new URLSearchParams(params);p.set("create","task");navigate(`?${p}`);}}/>
           {([["records", "기록"]] as const).map(([kind, label]) => (
-            <RelatedSection key={kind} title={`연결된 ${label}`} count={entity[kind].count} action={<button type="button" className="btn btn-text" onClick={()=>{const p=new URLSearchParams(params);p.set("create","record");navigate(`?${p}`);}}>기록 작성</button>}>
+            <RelatedSection key={kind} title={label} count={entity[kind].count} action={<button type="button" className="btn btn-text" aria-label="기록 작성" onClick={()=>{const p=new URLSearchParams(params);p.set("create","record");navigate(`?${p}`);}}>작성</button>}>
               {entity[kind].count>0&&<ul className="related-items">{entity[kind].items.map(item=><li key={item.id}><RelatedRecordItem record={item}/></li>)}</ul>}
             </RelatedSection>
           ))}

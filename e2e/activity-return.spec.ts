@@ -107,7 +107,7 @@ for (
       await page.keyboard.press("Enter");
       await expect(page.getByRole("heading", { name: kind === "record" ? "기록" : title, exact: true })).toBeVisible();
       const view=page.locator("dialog.modal:not(.modal-confirm)[open]");
-      const entityLink=view.getByRole("region",{name:/^연결된 엔터티/}).getByRole("link",{name:entity.prop1,exact:true});
+      const entityLink=view.getByRole("region",{name:/^엔터티/}).getByRole("link",{name:entity.prop1,exact:true});
       await expect(entityLink).toHaveAttribute("href",`/entities/${entity.id}`);await entityLink.click();
       await expect(page.getByRole("heading",{name:entity.prop1,exact:true})).toBeVisible();await page.goBack();
       await openDetailEditor(page);const dialog=page.getByRole("dialog",{name:editLabel,exact:true});

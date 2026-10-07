@@ -61,7 +61,7 @@ function AccountSettings() {
       </fieldset><p className={error ? "error-text" : "secondary"} role={error ? "alert" : "status"}>{message}</p>
     </form>
     <section aria-labelledby="data-title"><h2 className="section-title" id="data-title">자료 관리</h2>
-      <div className="actions"><DetailLink className="btn" to="/tags/entity">엔터티 태그 관리</DetailLink><DetailLink className="btn" to="/tags/activity">활동 태그 관리</DetailLink></div></section>
+      <div className="actions"><DetailLink className="btn" to="/tags/entity">엔터티 태그 관리</DetailLink><DetailLink className="btn" to="/tags/task">할 일 태그 관리</DetailLink><DetailLink className="btn" to="/tags/record">기록 태그 관리</DetailLink></div></section>
     <section aria-labelledby="connection-title"><h2 className="section-title" id="connection-title">에이전트 연결</h2>
       <Link className="btn btn-text" to="/guide">연결 안내 보기</Link></section>
     <Link className="btn btn-text" to="/logout">로그아웃</Link>

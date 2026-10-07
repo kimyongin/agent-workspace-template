@@ -23,7 +23,7 @@ dbTest(
       const tag = await t.createTag(
         td,
         actor,
-        tagCreate.parse({ id: crypto.randomUUID(), ...{ scope: "activity", name: "活動分類" } }),
+        tagCreate.parse({ id: crypto.randomUUID(), ...{ scope: "record", name: "活動分類" } }),
       );
       const entityTag = await t.createTag(
         td,
@@ -35,12 +35,17 @@ dbTest(
         actor,
         entityCreate.parse({ id: crypto.randomUUID(), ...{ prop1: "対象", tag_ids: [entityTag.id] } }),
       );
+      const taskTag = await t.createTag(
+        td,
+        actor,
+        tagCreate.parse({ id: crypto.randomUUID(), name: "計画分類", scope: "task" }),
+      );
       const task = await a.createTask(
         ad,
         actor,
         taskCreate.parse({
           id: crypto.randomUUID(),
-          ...{ kind: "once", title: "計画", tag_ids: [tag.id] },
+          ...{ kind: "once", title: "計画", tag_ids: [taskTag.id] },
         }),
       );
       const record = await a.createRecord(
@@ -56,11 +61,13 @@ dbTest(
           0
         ].n;
       assertEquals(await count(), 2);
-      await t.deleteTag(td, actor, tag.id, tag.version, undefined);
-      await assertRejects(() => t.deleteTag(td, actor, tag.id, tag.version, undefined));
+      await t.deleteTag(td, actor, taskTag.id, taskTag.version, undefined);
+      await assertRejects(() => t.deleteTag(td, actor, taskTag.id, taskTag.version, undefined));
       assertEquals(await count(), 3);
       assertEquals((await a.getTask(ad, actor, task.id)).tag_ids, []);
-      assertEquals((await a.getRecord(ad, actor, record.id)).tag_ids, []);
+      assertEquals((await a.getRecord(ad, actor, record.id)).tag_ids, [tag.id]);
+      await t.deleteTag(td, actor, tag.id, tag.version);
+      assertEquals(await count(), 3);
       assertEquals((await a.getRecord(ad, actor, automatic.id)).tag_ids, []);
       const changes =
         await admin`select change_metadata from app.records where owner_id=${actor.userId} and change_metadata->>'action'='update' order by id`;
@@ -89,12 +96,17 @@ dbTest(
     try {
       const actor = f.actor,
         tag = await t.createTag(td, actor, tagCreate.parse({ id: crypto.randomUUID(), ...{ name: "分類" } }));
+      const taskTag = await t.createTag(
+        td,
+        actor,
+        tagCreate.parse({ id: crypto.randomUUID(), name: "計画分類", scope: "task" }),
+      );
       const task = await a.createTask(
         ad,
         actor,
         taskCreate.parse({
           id: crypto.randomUUID(),
-          ...{ kind: "once", title: "計画", tag_ids: [tag.id] },
+          ...{ kind: "once", title: "計画", tag_ids: [taskTag.id] },
         }),
       );
       const record = await a.createRecord(
@@ -126,7 +138,7 @@ dbTest(
             ),
         },
       };
-      await assertRejects(() => t.deleteTag(bad, actor, tag.id, tag.version, undefined));
+      await assertRejects(() => t.deleteTag(bad, actor, taskTag.id, taskTag.version, undefined));
       assertEquals(await a.getTask(ad, actor, task.id), beforeTask);
       assertEquals(await a.getRecord(ad, actor, record.id), beforeRecord);
       assertEquals((await admin`select id from app.tags where id=${tag.id}`).length, 1);
@@ -134,8 +146,8 @@ dbTest(
         await admin`select message from pgmq.q_search_index where message->>'owner_id'=${actor.userId} order by msg_id`,
         queue,
       );
-      await t.deleteTag(td, actor, tag.id, tag.version, undefined);
-      await assertRejects(() => t.deleteTag(td, actor, tag.id, tag.version, undefined));
+      await t.deleteTag(td, actor, taskTag.id, taskTag.version, undefined);
+      await assertRejects(() => t.deleteTag(td, actor, taskTag.id, taskTag.version, undefined));
       assertEquals((await admin`select count(*)::int n from app.records where owner_id=${actor.userId}`)[0].n, 3);
     } finally {
       await f.cleanup();

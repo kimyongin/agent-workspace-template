@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { devLogin, mcpClient, mcpTokenViaConsent, unique } from "./support.ts";
-import { openDetailEditor, saveOnce } from "./ui-actions.ts";
+import { beginTabAction, openDetailEditor, saveOnce } from "./ui-actions.ts";
 
 test("상세 보기의 양방향 연결·해제와 일반 메모가 웹/MCP에서 일치한다",async({page})=>{
   await devLogin(page);const mcp=await mcpClient(await mcpTokenViaConsent(page));
@@ -22,5 +22,23 @@ test("상세 보기의 양방향 연결·해제와 일반 메모가 웹/MCP에�
   } finally {
     if(recordId){const row=await mcp.call("get_record",{id:recordId});await mcp.call("delete_record",{id:recordId,expected_version:row.version});}
     const row=await mcp.call("get_task",{id:task.id});await mcp.call("delete_task",{id:task.id,expected_version:row.version});await mcp.call("delete_entity",{id:entity.id,expected_version:entity.version});await mcp.close();
+  }
+});
+
+test("일반 기록 작성에서 할 일과 엔터티를 검색·연결하면 웹/MCP에서 같은 관계를 읽는다",async({page})=>{
+  await devLogin(page);const mcp=await mcpClient(await mcpTokenViaConsent(page));
+  const marker=unique("기록 관계"),entity=await mcp.call("create_entity",{prop1:marker+" 대상"}),task=await mcp.call("create_task",{kind:"once",title:marker+" 업무"});let recordId="";
+  try {
+    await page.goto("/records");await beginTabAction(page,"기록 작성");const draft=page.locator("dialog.modal[open]");
+    await draft.getByLabel("본문",{exact:false}).fill(marker+" 메모");await draft.getByRole("searchbox",{name:"할 일 제목 검색"}).fill(marker);
+    await draft.getByRole("group",{name:"할 일 검색 결과"}).getByRole("button",{name:task.title+" 연결",exact:true}).click();
+    await draft.getByRole("searchbox",{name:"엔터티 제목 검색"}).fill(marker);await draft.getByRole("group",{name:"엔터티 검색 결과"}).getByRole("button",{name:entity.prop1+" 연결",exact:true}).click();
+    await draft.getByRole("button",{name:"저장",exact:true}).click();await expect(page).toHaveURL(/\/records\/[0-9a-f-]{36}/);recordId=new URL(page.url()).pathname.split("/").at(-1)!;
+    const saved=await mcp.call("get_record",{id:recordId});expect(saved).toMatchObject({record_kind:"user",task_id:task.id,entity_ids:[entity.id],occurrence_on:null});
+    expect((await mcp.call("get_task",{id:task.id})).status).toBe("open");await expect(page.getByRole("region",{name:"할 일 (1개)",exact:true}).getByRole("link",{name:task.title,exact:true})).toBeVisible();
+    await expect(page.getByRole("region",{name:"엔터티 (1개)",exact:true}).getByRole("link",{name:entity.prop1,exact:true})).toBeVisible();
+  } finally {
+    if(recordId){const row=await mcp.call("get_record",{id:recordId});await mcp.call("delete_record",{id:recordId,expected_version:row.version});}
+    await mcp.call("delete_task",{id:task.id,expected_version:task.version});await mcp.call("delete_entity",{id:entity.id,expected_version:entity.version});await mcp.close();
   }
 });
