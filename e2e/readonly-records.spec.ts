@@ -29,9 +29,11 @@ test("읽기·검색·네 탭 이동·상세 닫기는 계정 기록 원문과 �
       listed.sort((a, b) => String(a.id).localeCompare(String(b.id)));
       const ids = listed.map(row => String(row.id));
       expect(new Set(ids).size).toBe(ids.length);
-      const full = [];
-      for (const id of ids) full.push(await mcp.call("get_record", { id }));
-      return { ids, count: ids.length, digest: createHash("sha256").update(JSON.stringify({ listed, full })).digest("hex") };
+      // list_records returns the complete RecordResult, including body and historical metadata.
+      // Check detail parity for the fixture without repeating every full row as an individual request.
+      const fixtureDetail = await mcp.call("get_record", { id: fixtureId });
+      expect(listed.find(row => row.id === fixtureId)).toEqual(fixtureDetail);
+      return { ids, count: ids.length, digest: createHash("sha256").update(JSON.stringify({ listed, fixtureDetail })).digest("hex") };
     };
     // Fixture creation precedes the baseline; only our fixture is deleted afterwards.
     const before = await snapshot();
