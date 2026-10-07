@@ -2,3 +2,8 @@
 .tag-editor { min-width: 0; }
 .tag-management .item-title { overflow-wrap: anywhere; }
 .tag-management .btn[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
+
+.tag-editor { width: 100%; gap: var(--space-3); }
+.tag-management .list-item { align-items: center; flex-wrap: wrap; gap: var(--space-3); }
+.tag-management .list-item > .item-title { flex: 1; min-width: 0; }
+.tag-management .actions { flex-wrap: wrap; }

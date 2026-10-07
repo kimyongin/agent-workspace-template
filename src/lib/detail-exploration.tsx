@@ -4,7 +4,8 @@ import { Link, useLocation, useNavigate, type LinkProps, type NavigateOptions, t
 type Frame = { key: string; path: string; title: string; scroll: number; focusKey: string };
 type TrailState = { detailScope: string; detailTrail: Frame[] };
 const Snapshots = createContext<{scope: string; frames: Map<string, Frame>} | null>(null);
-const detailPath = /^\/(entities|tasks|records|principles)\/[^/?#]+$/;
+const detailPath = /^\/(?:(entities|tasks|records|principles)\/[^/?#]+|tags(?:\/(?:entity|activity))?)$/;
+const tagOrigin = /^\/(entities|tasks|records|settings)$/;
 
 /** Recover only this owner's list context, even after crossing several detail kinds. */
 export function useDetailOwnerReturn(fallback: string): string {
@@ -29,7 +30,7 @@ function detailTrail(state: unknown, scope: string | undefined): Frame[] {
     if (!frame || typeof frame !== "object") return false;
     const value = frame as Frame;
     return typeof value.key === "string" && typeof value.path === "string" && !value.path.includes("\\")
-      && (detailPath.test(value.path.split(/[?#]/)[0]) || value.path.startsWith("/search?"))
+      && (detailPath.test(value.path.split(/[?#]/)[0]) || value.path.startsWith("/search?") || tagOrigin.test(value.path.split(/[?#]/)[0]))
       && typeof value.title === "string" && Number.isFinite(value.scroll) && value.scroll >= 0
       && typeof value.focusKey === "string";
   });
@@ -38,6 +39,7 @@ function detailTrail(state: unknown, scope: string | undefined): Frame[] {
 export function DetailNavigationProvider({ children, scope = "app" }: { children: ReactNode; scope?: string }) {
   const context = useRef({ scope, frames: new Map<string, Frame>() });
   if (context.current.scope !== scope) context.current = {scope, frames: new Map<string, Frame>()};
+  useRestoreFrame(context.current.frames);
   return <Snapshots.Provider value={context.current}>{children}</Snapshots.Provider>;
 }
 
@@ -60,7 +62,7 @@ export function DetailLink({ onClick, state, restoreKey, ...props }: Omit<LinkPr
     onClick?.(event);
     if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey
       || props.target && props.target !== "_self" || props.reloadDocument) return;
-    if (!detailPath.test(target.split(/[?#]/)[0]) || !(detailPath.test(location.pathname) || location.pathname === "/search")) return;
+    if (!detailPath.test(target.split(/[?#]/)[0]) || !(detailPath.test(location.pathname) || location.pathname === "/search" || target.startsWith("/tags") && tagOrigin.test(location.pathname))) return;
     const body = document.querySelector<HTMLElement>("dialog[open]:not(.modal-confirm) .modal-body");
     const searchOrigin = location.pathname === "/search" && props.id ? new URLSearchParams(location.search) : null;
     searchOrigin?.set("scroll", String(window.scrollY));
@@ -84,6 +86,11 @@ export function useDetailExploration() {
   const frames = context?.frames;
   const trail = detailTrail(location.state, context?.scope), previous = trail.at(-1);
   useEffect(() => { for (const frame of trail) if (!frames?.has(frame.key)) frames?.set(frame.key, frame); }, [location.key, frames]);
+  return previous ? { label: `이전: ${previous.title}`, back: () => { void navigate(-1); } } : null;
+}
+
+function useRestoreFrame(frames: Map<string, Frame>) {
+  const location=useLocation();
   useEffect(() => {
     const frame = frames?.get(location.key);
     if (!frame) return;
@@ -92,10 +99,10 @@ export function useDetailExploration() {
       const body = document.querySelector<HTMLElement>("dialog[open]:not(.modal-confirm) .modal-body");
       const scope = body ?? document;
       const target = [...scope.querySelectorAll<HTMLAnchorElement>("a[data-detail-focus]")].find(link => link.dataset.detailFocus === frame.focusKey);
-      const loading = scope.querySelector('p.secondary[role="status"]');
-      if (done || loading || !target && !scope.querySelector(".detail-section, .list, [role=alert]")) return;
+      const loading = [...scope.querySelectorAll('p.secondary[role="status"]')].some(node=>node.textContent?.trim()==="불러오는 중…");
+      if (done || loading || !target && !scope.querySelector(".detail-section, .list, .tab-action-trigger, [role=alert]")) return;
       done = true;
-      (target ?? document.querySelector<HTMLElement>(".dialog-title, .page-title"))?.focus({ preventScroll: true });
+      (target ?? (!body ? document.querySelector<HTMLElement>(".tab-action-trigger") : null) ?? document.querySelector<HTMLElement>(".dialog-title, .page-title"))?.focus({ preventScroll: true });
       if (body) body.scrollTop = frame.scroll; else window.scrollTo(0, frame.scroll);
     };
     let animation = 0;
@@ -105,5 +112,4 @@ export function useDetailExploration() {
     schedule();
     return () => { cancelAnimationFrame(animation); observer.disconnect(); };
   }, [location.key, frames]);
-  return previous ? { label: `이전: ${previous.title}`, back: () => { void navigate(-1); } } : null;
 }
