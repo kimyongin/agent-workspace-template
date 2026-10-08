@@ -6,7 +6,7 @@ import type { SearchItem } from "@contracts/search.ts";
 import type { TaskResult } from "@contracts/task.ts";
 import { taskLabels } from "@contracts/task.ts";
 import type { RecordResult } from "@contracts/record.ts";
-import { TabActions } from "../../components/TabActions.tsx";
+import { TabCreateButton } from "../../components/TabCreateButton.tsx";
 import { clearListPosition, TabSearch, TabFilters } from "../../components/TabSearch.tsx";
 import { Field, Notice } from "../../components/Field.tsx";
 import { useCreateMode } from "../../components/useCreateMode.ts";
@@ -65,7 +65,7 @@ export function ActivityPage({ kind }: { kind: WorkspaceListKind }) {
   const saved = (kind: string, id: string) => { const next = new URLSearchParams(params); next.delete("create"); create.finish(`/${kind}s/${id}?list=${encodeURIComponent(`${pathname}?${next}`)}`); };
   if (legacy.route !== pathname || legacy.params.toString() !== params.toString()) return <Navigate replace to={`${legacy.route}?${legacy.params}${legacy.hash}`} />;
   return <>
-    <section className="panel" aria-labelledby={`${kind}-title`}><div className="panel-head"><h1 id={`${kind}-title`} className="page-title" tabIndex={-1}>{label}</h1><TabActions title={label} primary={{ label: kind === "tasks" ? "할 일 등록" : "기록 작성", run: begin }} actions={[{ label: `${label} 태그 관리`, to: kind === "tasks" ? "/tags/task" : "/tags/record" }]}/></div>
+    <section className="panel" aria-labelledby={`${kind}-title`}><div className="panel-head"><h1 id={`${kind}-title`} className="page-title" tabIndex={-1}>{label}</h1><TabCreateButton label={kind === "tasks" ? "할 일 등록" : "기록 작성"} onClick={begin}/></div>
       <div className="panel-body">
         {params.has("legacy_activity") && <Notice>목록을 나누어 {label} 탭으로 이동했습니다. {kind === "tasks" ? "기록과 기록 기간은 기록 탭에서 확인하세요." : "할 일과 진행 상태는 할 일 탭에서 확인하세요."}</Notice>}
         <TabSearch/>

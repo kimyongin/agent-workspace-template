@@ -2,11 +2,6 @@
 .workspace-search-input { position: relative; min-width: 0; }
 .workspace-search-input .input { padding-right: 48px; }
 .search-clear { position: absolute; top: 2px; right: 2px; width: 44px; height: 44px; border: 0; background: transparent; color: var(--muted-ink); font: inherit; font-size: 20px; cursor: pointer; }
-.tab-actions { position: relative; flex-shrink: 0; margin-left: auto; }
-.tab-action-trigger { display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; border: 0; border-radius: var(--radius-input); background: transparent; color: var(--ink); cursor: pointer; }
-.tab-action-options { position: absolute; z-index: 15; right: 0; top: calc(100% + 8px); width: min(18rem, calc(100vw - 64px)); display: grid; gap: 4px; padding: 8px; background: var(--input-surface); border: 1px solid var(--control-border); border-radius: var(--radius-card); box-shadow: var(--shadow-soft); }
-.tab-action-options a,.tab-action-options button { display: flex; align-items: center; text-align: left; min-height: 44px; padding: 12px; color: var(--ink); border: 0; border-radius: var(--radius-input); background: transparent; font: inherit; font-size: 14px; text-decoration: none; cursor: pointer; }
-.tab-action-options a:hover,.tab-action-options button:hover { background: var(--surface); }
 .panel-body { display: grid; gap: var(--space-3); border: 0; padding: 0; }
 .tag-filter-chips { border: 0; padding: 0; margin: 0; min-width: 0; }
 .tag-filter-chips legend { margin-bottom: 8px; }
@@ -21,9 +16,6 @@
 /* Dense controls share columns; the conditions group has no internal dividers. */
 .workspace-search .label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .search-clear { top: 0; right: 0; }
-.tab-actions { display: flex; align-items: center; gap: var(--space-2); }
-.tab-actions > .btn { gap: var(--space-1); }
-.tab-action-menu { position: relative; }
 .workspace-additional { position: relative; }
 .workspace-additional[open] > summary { width: calc(100% - 7rem); }
 .workspace-additional > .form { gap: var(--space-3); }
@@ -34,3 +26,5 @@
 @media(max-width:319px) { .filter-grid { grid-template-columns: minmax(0,1fr); } }
 
 @media(max-width:479px) { .filter-reset { position: static; align-self: flex-end; } .workspace-additional[open] > summary { width: 100%; } }
+
+.tab-create-button { flex-shrink: 0; gap: var(--space-1); }

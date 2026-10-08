@@ -145,9 +145,9 @@ function useRestoreFrame(frames: Map<string, Frame>) {
       const scope = body ?? document;
       const target = [...scope.querySelectorAll<HTMLElement>("[data-detail-focus]")].find(link => link.dataset.detailFocus === frame.focusKey);
       const loading = [...scope.querySelectorAll('p.secondary[role="status"]')].some(node=>node.textContent?.trim()==="불러오는 중…");
-      if (done || loading || !target && !scope.querySelector(".detail-section, .list, .tab-action-trigger, [role=alert]")) return;
+      if (done || loading || !target && !scope.querySelector(".detail-section, .list, .tab-create-button, [role=alert]")) return;
       done = true;
-      (target ?? (!body ? document.querySelector<HTMLElement>(".tab-action-trigger") : null) ?? document.querySelector<HTMLElement>(".dialog-title, .page-title"))?.focus({ preventScroll: true });
+      (target ?? (!body ? document.querySelector<HTMLElement>(".tab-create-button") : null) ?? document.querySelector<HTMLElement>(".dialog-title, .page-title"))?.focus({ preventScroll: true });
       if (body) body.scrollTop = frame.scroll; else window.scrollTo(0, frame.scroll);
     };
     let animation = 0;

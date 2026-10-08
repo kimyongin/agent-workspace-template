@@ -8,7 +8,7 @@ import { api } from "../../lib/api.ts";
 import { formatDateTime } from "../../lib/format.ts";
 import type { WorkspacePrinciple } from "./model.ts";
 import "../activity/activity.css";
-import { TabActions } from "../../components/TabActions.tsx";
+import { TabCreateButton } from "../../components/TabCreateButton.tsx";
 export function PrinciplesPage() {
   const create=useCreateMode();
   const location=useLocation();
@@ -20,7 +20,7 @@ export function PrinciplesPage() {
     return()=>controller.abort();},[retry]);
   return <><section className="panel" aria-labelledby="principles-title">
     <div className="panel-head"><h1 id="principles-title" className="page-title" tabIndex={-1}>원칙</h1>
-      {current===null&&!error&&<TabActions title="원칙" primary={{label:"원칙 작성",run:create.begin}}/>}
+      {current===null&&!error&&<TabCreateButton label="원칙 작성" onClick={create.begin}/>}
     </div>
     <Link className="btn btn-text secondary" to="/records">과거 근거는 통합 기록에서 보기</Link>
     </section><section className="activity-section" aria-label="현재 원칙">

@@ -240,7 +240,7 @@ test("태그 관리는 모달 하나와 인라인 입력을 사용하고 닫기�
   await page.route("**/api/tasks**",route=>route.fulfill({json:{items:[task],next_cursor:null}}));
   await page.route("**/api/entities**",route=>route.fulfill({json:{items:[],next_cursor:null}}));
   await page.goto("/e2e/fixtures/entity-tags-app.html");
-  await page.getByRole("button",{name:"할 일 작업 메뉴"}).click();
+  await settings(page);
   await page.getByRole("link",{name:"할 일 태그 관리",exact:true}).click();
   const manager=page.locator("dialog.modal:not(.modal-confirm)[open]");
   await expect(manager).toBeVisible();
@@ -250,10 +250,10 @@ test("태그 관리는 모달 하나와 인라인 입력을 사용하고 닫기�
   await expect(page.locator("dialog[open]:not(.modal-confirm)")).toHaveCount(1);
   await page.screenshot({path:info.outputPath("tag-management-inline.png")});
   await manager.getByRole("button",{name:"취소",exact:true}).click();
-  await page.keyboard.press("Escape");await expect(page).toHaveURL(/\/tasks$/);
-  await expect(page.getByRole("button",{name:"할 일 작업 메뉴"})).toBeFocused();
+  await page.keyboard.press("Escape");await expect(page).toHaveURL(/\/settings$/);
+  await expect(page.getByRole("link",{name:"할 일 태그 관리",exact:true})).toBeFocused();
   await page.goForward();await expect(manager).toBeVisible();
-  await manager.getByRole("button",{name:"닫기",exact:true}).click();await expect(page).toHaveURL(/\/tasks$/);
+  await manager.getByRole("button",{name:"닫기",exact:true}).click();await expect(page).toHaveURL(/\/settings$/);
   await tagManagement(page);await expect(manager).toBeVisible();
   await page.reload();await expect(manager).toBeVisible();
   await manager.getByRole("textbox",{name:/태그 이름/}).fill("닫기 폐기 초안");
@@ -288,15 +288,15 @@ test("후속 페이지 태그 URL은 이름 변경 행을 복원하고 삭제 �
 });
 
 
-for(const [path,label,scope] of [["entities","엔터티","entity"],["records","기록","record"]] as const)test(`${label} 빈 목록 태그 관리도 조건·초점을 복원`,async({page})=>{
+for(const [path,label,scope] of [["entities","엔터티","entity"],["records","기록","record"]] as const)test(`${label} 태그 관리는 설정에서 열고 닫기·초점 복원`,async({page})=>{
   await page.route("**/api/tasks**",route=>route.fulfill({json:{items:[],next_cursor:null}}));
   await page.route("**/api/entities**",route=>route.fulfill({json:{items:[],next_cursor:null}}));
   await page.route("**/api/records**",route=>route.fulfill({json:{items:[],next_cursor:null}}));
   await page.goto("/e2e/fixtures/entity-tags-app.html");
   await page.goto(`/${path}?pages=1`);
-  await page.getByRole("button",{name:`${label} 작업 메뉴`}).click();
+  await expect(page.getByRole("button",{name:`${label} 작업 메뉴`})).toHaveCount(0);await settings(page);
   await page.getByRole("link",{name:scope==="entity"?"엔터티 태그 관리":"기록 태그 관리",exact:true}).click();
   await page.getByRole("button",{name:"닫기",exact:true}).click();
-  await expect(page).toHaveURL(new RegExp(`/${path}\\?pages=1$`));
-  await expect(page.getByRole("button",{name:`${label} 작업 메뉴`})).toBeFocused();
+  await expect(page).toHaveURL(/\/settings$/);
+  await expect(page.getByRole("link",{name:`${label} 태그 관리`,exact:true})).toBeFocused();
 });

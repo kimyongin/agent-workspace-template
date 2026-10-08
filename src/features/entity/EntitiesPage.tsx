@@ -10,7 +10,7 @@ import { Field, Notice } from "../../components/Field.tsx";
 import { api, ApiError, query } from "../../lib/api.ts";
 import { EntityForm } from "./forms.tsx";
 import { GuideLink } from "../../components/GuideLink.tsx";
-import { TabActions } from "../../components/TabActions.tsx";
+import { TabCreateButton } from "../../components/TabCreateButton.tsx";
 type Page = { items: EntityResult[]; next_cursor: string | null; count: number };
 export function EntitiesPage() {
   const create=useCreateMode();
@@ -105,7 +105,7 @@ export function EntitiesPage() {
     <><section className="panel" aria-labelledby="entities-title">
       <div className="panel-head">
         <h1 id="entities-title" className="page-title" tabIndex={-1}>엔터티</h1>
-        <TabActions title="엔터티" primary={{label:"엔터티 등록",run:create.begin}} actions={[{label:"엔터티 태그 관리",to:"/tags/entity"}]}/>
+        <TabCreateButton label="엔터티 등록" onClick={create.begin}/>
       </div>
       <TabSearch entity/>
       <TabFilters active={!!(filter.tag_id||filter.prop3_from||filter.prop3_to||filter.prop4||filter.sort!=="updated_at")} attention={dictionary.failed}>
