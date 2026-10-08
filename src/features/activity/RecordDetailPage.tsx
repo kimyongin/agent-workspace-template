@@ -1,10 +1,11 @@
+import { useDetailResource } from "../details/useDetailResource.ts";
 import { useDisplayTime } from "../../lib/useDisplayTime.ts";
 import { RecordRelations } from "./RecordRelations.tsx";
 import { useDetailNavigate, useDetailOwnerReturn, useDetailDeleteReturn } from "../../lib/detail-exploration.tsx";
 import { editFromView } from "../../lib/detail-navigation.ts";
 import { ChangeContext, PrincipleSnapshots, type WorkspaceRecord } from "./ChangeContext.tsx";
 // 기록 상세: 원문 읽기, 편집, 삭제.
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams, useSearchParams } from "react-router";
 import {useDeferredNavigation} from "../../lib/useDeferredNavigation.ts";
 import { Notice } from "../../components/Field.tsx";
@@ -22,45 +23,22 @@ export function RecordDetailPage() {
   const deleteBack=useDetailDeleteReturn(back);
   const navigate = useDetailNavigate();
   const navigateAfterClose = useDeferredNavigation();
-  const [record, setRecord] = useState<WorkspaceRecord | null>(null);
-  const [loadError, setLoadError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const directEdit = params.get("edit") === "1";
   const [dialog, setDialog] = useState<null | "edit" | "delete">(directEdit ? "edit" : null);
-    const conflicted=useRef(false);
-  const closeEdit = () => { setDialog(null);if(conflicted.current){conflicted.current=false;void reload();} const p=new URLSearchParams(params);p.delete("edit");p.delete("edit_from");navigateAfterClose(`?${p}`,true); };
-  const [editReady,setEditReady]=useState(false);
+  const closeEdit = () => { setDialog(null);detail.editClosed(); const p=new URLSearchParams(params);p.delete("edit");p.delete("edit_from");navigateAfterClose(`?${p}`,true); };
   const [busy, setBusy] = useState(false);
 
-  const previousQuery = useRef(params.toString());
-  const loadGeneration = useRef(0);
-  const reload = useCallback(async () => {
-    const started = ++loadGeneration.current;
-    try {
-      const loaded = await api<WorkspaceRecord>("GET", `/records/${id}`);
-      if(started !== loadGeneration.current)return;
-      setRecord(loaded);
-      setLoadError(null);setEditReady(true);
-    } catch (e) {
-      if(started !== loadGeneration.current)return;
-      setLoadError(e instanceof ApiError && e.code === "not_found" ? "기록을 찾을 수 없습니다." : "기록을 불러오지 못했습니다.");
-    }
-  }, [id]);
+  const detail = useDetailResource<WorkspaceRecord>({
+    id, query: params.toString(), refreshOnQuery: directEdit,
+    load: (id, signal) => api("GET", `/records/${id}`, undefined, signal),
+  });
+  const { value: record, editReady } = detail;
+  const loadError = detail.error ? detail.error instanceof ApiError && detail.error.code === "not_found" ? "기록을 찾을 수 없습니다." : "기록을 불러오지 못했습니다." : null;
+  const reload = detail.reload;
 
-  useEffect(() => {
-    setRecord(null); setLoadError(null); setDialog(directEdit ? "edit" : null);
-    reload();
-    return () => {loadGeneration.current++;};
-  }, [reload]);
-
-  useEffect(()=>{
-    const query=params.toString();
-    if(previousQuery.current===query)return;
-    previousQuery.current=query;
-    setDialog(directEdit?"edit":null);
-    if(directEdit){setEditReady(false);void reload();}
-  },[params.toString(),reload]);
+  useEffect(() => { setDialog(directEdit ? "edit" : null); }, [id, params.toString()]);
 
   if (loadError && !record) {
     return (
@@ -118,13 +96,9 @@ export function RecordDetailPage() {
           onClose={closeEdit}
           onRouteDiscard={() => setDialog(null)}
           onSave={async (value) => {
-            loadGeneration.current++;
-            try {
-            setRecord(await api<WorkspaceRecord>("PATCH", `/records/${record.id}`, {
-              ...value,
-              expected_version: record.version,
+            await detail.save(() => api<WorkspaceRecord>("PATCH", `/records/${record.id}`, {
+              ...value, expected_version: record.version,
             }));
-            }catch(e){if(e instanceof ApiError&&e.code==="conflict")conflicted.current=true;throw e;}
              closeEdit();
             setMessage("저장했습니다.");
           }}

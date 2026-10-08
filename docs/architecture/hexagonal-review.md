@@ -72,6 +72,8 @@ core는 SDK, React, Request/Response, Deno.env, 직접 SQL·네트워크에 의�
 
 DB 제약과 보안 정책, pgmq 같은 인프라 함수는 유지한다. SQL 함수나 트리거 자체를 금지하는 규칙이 아니다. 업무 규칙의 두 번째 구현을 DB에 만들지 않는 것이 기준이다.
 
+날짜별 반복 할 일 목록은 같은 트랜잭션에서 후보를 읽고, 후보들의 회차 기록을 저장 포트로 한 번에 읽는다. 저장 어댑터는 소유자 격리와 할 일별 기록 순서만 담당한다. 날짜 한 건과 기간 조회 모두 core의 `recurrence.listOccurrences`로 규칙·중단·시간대·규칙 밖 과거 기록을 계산한다. 후보 최대 5000건과 결과의 정렬·cursor 계약은 유지한다. 업무 판단을 SQL에 복제하거나 회차 저장 테이블을 만들지 않는다.
+
 ## 로컬 트랜잭션
 
 서버 Supabase 어댑터가 PostgreSQL 연결을 확보하고 하나의 트랜잭션으로 유스케이스의 저장을 실행하는 방식을 우선한다. Edge Functions에서 Postgres.js로 연결하며, 연결이 짧은 환경이므로 Supavisor 트랜잭션 모드와 `prepare: false`를 쓴다. 역할과 문맥 전달은 아래 '권한과 직접 접근'의 방식을 따른다([T02-1 실험](../../experiments/t02-1/README.md)). 여러 supabase-js HTTP 호출을 하나의 트랜잭션처럼 취급하지 않는다.

@@ -210,11 +210,13 @@ export class SqlActivityStore extends SqlActorStore implements ActivityStore {
     return rows.map(toRecord);
   }
 
-  async occurrenceRecords(taskId: string, from: string, to: string) {
-    return await this.tx<{ id: string; occurrence_on: string }[]>`
-      select id, occurrence_on::text as occurrence_on from app.records
-      where task_id = ${taskId} and occurrence_on between ${from} and ${to}
-      order by occurrence_on, occurred_at, id`;
+  async occurrenceRecords(taskIds: string[], from: string, to: string) {
+    if (!taskIds.length) return [];
+    const tx = this.tx;
+    return await tx<{ task_id: string; id: string; occurrence_on: string }[]>`
+      select task_id, id, occurrence_on::text as occurrence_on from app.records
+      where task_id in ${tx(taskIds)} and occurrence_on between ${from} and ${to}
+      order by task_id, occurrence_on, occurred_at, id`;
   }
 
   async insertRecord(record: NewRecord) {

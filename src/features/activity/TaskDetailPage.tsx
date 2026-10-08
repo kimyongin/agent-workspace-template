@@ -1,3 +1,4 @@
+import { useDetailResource } from "../details/useDetailResource.ts";
 import { BodyAction } from "../../components/BodyAction.tsx";
 import { RelatedRecords } from "./RelatedRecords.tsx";
 import { useDetailNavigate, useDetailOwnerReturn, useDetailDeleteReturn } from "../../lib/detail-exploration.tsx";
@@ -49,8 +50,6 @@ export function TaskDetailPage() {
   const deleteBack=useDetailDeleteReturn(back);
   const navigate = useDetailNavigate();
   const navigateAfterClose = useDeferredNavigation();
-  const [task, setTask] = useState<TaskDetail | null>(null);
-  const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const relationSaved=useRef(false);
@@ -58,34 +57,20 @@ export function TaskDetailPage() {
   const [dialog, setDialog] = useState<Dialog>(requestedDialog(params));
     const manage = (action: string, occurrence?: string) => { const next = new URLSearchParams(params); next.set("action", action); occurrence ? next.set("occurrence", occurrence) : next.delete("occurrence"); navigate(`?${next}`); };
   const closeManagement = () => { setDialog(null); const next = new URLSearchParams(params); next.delete("action"); next.delete("occurrence"); navigateAfterClose(`?${next}`, true); };
-  const conflicted=useRef(false);
-  const closeEdit = () => { setDialog(null);if(conflicted.current){conflicted.current=false;void reload();} const p=new URLSearchParams(params);p.delete("edit");p.delete("edit_from");navigateAfterClose(`?${p}`,true); };
-  const [editReady,setEditReady]=useState(false);
+  const closeEdit = () => { setDialog(null);detail.editClosed(); const p=new URLSearchParams(params);p.delete("edit");p.delete("edit_from");navigateAfterClose(`?${p}`,true); };
   const [busy, setBusy] = useState(false);
   const [occurrences, setOccurrences] = useState<{ today: string; items: Occurrence[] } | null>(null);
   const [recordRefresh,setRecordRefresh]=useState(0);
   const [rangeEnd, setRangeEnd] = useState<string | null>(null);
 
-  const previousQuery = useRef(params.toString());
-  const loadGeneration = useRef(0);
-  const reload = useCallback(async () => {
-    const started = ++loadGeneration.current;
-    try {
-      const loaded = await api<TaskDetail>("GET", `/tasks/${id}`);
-      if(started !== loadGeneration.current)return;
-      setTask(loaded);
-      setLoadError(null);setEditReady(true);relationSaved.current=false;
-    } catch (e) {
-      if(started !== loadGeneration.current)return;
-      setLoadError(e instanceof ApiError && e.code === "not_found" ? "할 일을 찾을 수 없습니다." : "할 일을 불러오지 못했습니다.");
-    }
-  }, [id]);
-
-  useEffect(() => {
-    setTask(null); setLoadError(null); setDialog(requestedDialog(params));relationSaved.current=false;
-    reload();
-    return () => {loadGeneration.current++;};
-  }, [reload]);
+  const detail = useDetailResource<TaskDetail>({
+    id, query: params.toString(), refreshOnQuery: directEdit,
+    load: (id, signal) => api("GET", `/tasks/${id}`, undefined, signal),
+  });
+  const { value: task, editReady } = detail;
+  const loadError = detail.error ? detail.error instanceof ApiError && detail.error.code === "not_found" ? "할 일을 찾을 수 없습니다." : "할 일을 불러오지 못했습니다." : null;
+  const reload = detail.reload;
+  useEffect(() => { if (!detail.confirmed && detail.value) relationSaved.current = false; }, [detail.value, detail.confirmed]);
 
   const occurrenceGeneration=useRef(0);
   useEffect(()=>()=>{occurrenceGeneration.current++;},[id]);
@@ -124,13 +109,7 @@ export function TaskDetailPage() {
     }
   };
 
-  useEffect(()=>{
-    const query=params.toString();
-    if(previousQuery.current===query)return;
-    previousQuery.current=query;
-    setDialog(requestedDialog(params));
-    if(directEdit){setEditReady(false);void reload();}
-  },[params.toString(),reload]);
+  useEffect(() => { setDialog(requestedDialog(params)); }, [id, params.toString()]);
 
   if (loadError && !task) {
     return (
@@ -229,7 +208,7 @@ export function TaskDetailPage() {
     {task.kind==="recurring"&&<button type="button" className="btn btn-primary" disabled={busy} onClick={()=>manage("transition")}>{task.status==="active"?"중단":"재개"}</button>}
   </>}>
       <div className="detail-stack">{management}
-      <TaskEntityRelations task={task} onSaved={(saved,before)=>{if(before)relationSaved.current=true;if(saved)setTask(current=>current?{...current,...saved}:current);setRecordRefresh(n=>n+1);void reload();}}/>
+      <TaskEntityRelations task={task} onSaved={(saved,before)=>{if(before)relationSaved.current=true;if(saved)detail.confirm(current=>current?{...current,...saved}:current);setRecordRefresh(n=>n+1);void reload();}}/>
       <RelatedRecords taskId={task.id} revision={task.version+recordRefresh} action={<BodyAction icon="create" aria-label="기록 작성" onClick={()=>manage("record")}>작성</BodyAction>}/>
       {occurrenceSection}</div>
       {dialog === "edit" && editReady && (
@@ -248,8 +227,7 @@ export function TaskDetailPage() {
           onClose={closeEdit}
           onRouteDiscard={() => setDialog(null)}
           onSave={async (draft) => {
-            try {
-            loadGeneration.current++;
+            await detail.save(async current => {
             const patch: Record<string, unknown> = {
               expected_version: task.version,
               title: draft.title,
@@ -265,8 +243,8 @@ export function TaskDetailPage() {
               patch.timezone = input.timezone;
             }
             const saved = await api<TaskResult>("PATCH", `/tasks/${task.id}`, patch);
-            setTask(current => current?.id === task.id ? {...current,...saved} : current);
-            }catch(e){if(e instanceof ApiError&&e.code==="conflict")conflicted.current=true;throw e;}
+            return {...current, ...saved};
+            });
             closeEdit();
             setMessage("저장했습니다.");
             await reload();
