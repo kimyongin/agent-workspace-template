@@ -16,6 +16,84 @@ const ed = { uow: new SqlEntityUnitOfWork(sql) },
   sd = { uow: new SqlBusinessSettingsUnitOfWork(sql), clock: { now: () => new Date("2026-10-09T00:00:00Z") } };
 const ad = { uow: new SqlUnitOfWork(sql), clock: { now: () => new Date() } };
 
+dbTest("발급처 소프트 삭제는 새 식별만 막고 기존 값·관계를 보존하며 복원 후 같은 엔터티를 되살린다", async () => {
+  const f = await fixtureOwner(admin);
+  try {
+    const sources = [{ code: "app", label: "앱" }, { code: "crm", label: "고객 시스템" }];
+    const value = { generation: "manual" as const, default_source: "crm", sources };
+    await updateBusinessSettings(sd, f.actor, { id: "entity_identity", expected_version: 0, value });
+    const entity = await entities.createEntity(
+      ed,
+      f.actor,
+      entityCreate.parse({ source: "crm", external_id: "보존", prop1: "발급처 보존" }),
+    );
+    const task = await activity.createTask(
+      ad,
+      f.actor,
+      taskCreate.parse({ id: crypto.randomUUID(), kind: "once", title: "연결", entity_ids: [entity.id] }),
+    );
+    await updateBusinessSettings(sd, f.actor, {
+      id: "entity_identity",
+      expected_version: 1,
+      value: {
+        ...value,
+        default_source: "app",
+        sources: sources.map((source) => source.code === "crm" ? { ...source, deleted: true } : source),
+      },
+    });
+    assertEquals((await activity.getTask(ad, f.actor, task.id)).entity_ids, [entity.id]);
+    await assertRejects(
+      () =>
+        entities.createEntity(ed, f.actor, entityCreate.parse({ source: "crm", external_id: "새 ID", prop1: "금지" })),
+      AppError,
+    );
+    await assertRejects(
+      () =>
+        entities.rekeyEntity(
+          ed,
+          f.actor,
+          entity.id,
+          entityRekey.parse({ source: "crm", external_id: "변경 ID", expected_version: 1 }),
+        ),
+      AppError,
+    );
+    const edited = await entities.updateEntity(
+      ed,
+      f.actor,
+      entity.id,
+      entityUpdate.parse({ expected_version: 1, prop1: "기존 값 편집 가능" }),
+    );
+    await entities.deleteEntity(ed, f.actor, entity.id, edited.version);
+    const restore = () =>
+      entities.createEntity(
+        ed,
+        f.actor,
+        entityCreate.parse({ source: "crm", external_id: "보존", expected_version: 3 }),
+      );
+    await assertRejects(restore, AppError);
+    await updateBusinessSettings(sd, f.actor, { id: "entity_identity", expected_version: 2, value });
+    const restored = await restore();
+    assertEquals([restored.id, restored.prop1, restored.version, restored.deleted_at], [
+      entity.id,
+      "기존 값 편집 가능",
+      4,
+      null,
+    ]);
+    assertEquals((await activity.getTask(ad, f.actor, task.id)).entity_ids, [entity.id]);
+    await assertRejects(
+      () =>
+        updateBusinessSettings(sd, f.actor, {
+          id: "entity_identity",
+          expected_version: 3,
+          value: { ...value, default_source: "app", sources: [sources[0]] },
+        }),
+      AppError,
+    );
+  } finally {
+    await f.cleanup();
+  }
+});
+
 dbTest(
   "namespaced identity isolates owners, preserves exact IDs, restores retained links, and rekeys atomically",
   async () => {
@@ -24,13 +102,12 @@ dbTest(
       for (const actor of [f.actor, other.actor]) {
         const saved = await getBusinessSettings(sd, actor);
         await updateBusinessSettings(sd, actor, {
-          expected_version: saved.version,
-          sections: {
-            entity_identity: {
-              generation: "manual",
-              default_source: "crm",
-              sources: [{ code: "app", label: "앱" }, { code: "crm", label: "고객 시스템" }],
-            },
+          expected_version: saved.versions.entity_identity,
+          id: "entity_identity",
+          value: {
+            generation: "manual",
+            default_source: "crm",
+            sources: [{ code: "app", label: "앱" }, { code: "crm", label: "고객 시스템" }],
           },
         });
       }

@@ -86,7 +86,7 @@ export function EntityForm(
         <>
           <section className="detail-section form">
           {initial ? <p className="secondary">{entityIdentityLabel(initial)}{initial.deleted_at ? " · 삭제됨 · 보관값을 확인하고 복원하세요" : ""}</p> : <>
-            <Field label="발급처" required error={errors.source}>{p => <select {...p} className="input" value={draft.source} disabled={!identitySettings || !!archived} onChange={e => setDraft(d => ({...d, source:e.target.value}))}>{identitySettings?.sources.map(source => <option key={source.code} value={source.code}>{source.label} ({source.code})</option>)}</select>}</Field>
+            <Field label="발급처" required error={errors.source}>{p => <select {...p} className="input" value={draft.source} disabled={!identitySettings || !!archived} onChange={e => setDraft(d => ({...d, source:e.target.value}))}>{identitySettings?.sources.filter(source => !source.deleted).map(source => <option key={source.code} value={source.code}>{source.label} ({source.code})</option>)}</select>}</Field>
             <Field label="외부 식별자" required error={errors.external_id}>{p => <input {...p} className="input" value={draft.external_id} maxLength={400} disabled={!identitySettings || !!archived || identitySettings.generation === "uuid"} onChange={e => setDraft(d => ({...d, external_id:e.target.value}))}/>}</Field>
             {!archived && <button type="button" className="btn" disabled={!identitySettings} onClick={() => { void checkExisting().catch(cause => setIdentityMessage(cause instanceof Error ? cause.message : "조회하지 못했습니다.")); }}>기존 대상 확인</button>}
             {identityMessage && <p role="status" className="secondary">{identityMessage}</p>}

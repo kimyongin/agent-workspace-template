@@ -48,7 +48,7 @@ export async function installWorkspaceApi(page:Page,apiOrigin:string,rows:Worksp
         if (!req.failure()) throw error;
       } finally { held?.finish(); }
     };
-    if(kind==="settings"&&key==="business")return reply({version:0,settings:{entity_identity:defaultEntityIdentitySettings,record_templates:{}}});
+    if(kind==="settings"&&key==="business")return reply({versions:{record_templates:0,entity_identity:0},settings:{entity_identity:defaultEntityIdentitySettings,record_templates:{}}});
     if(kind==="records"&&key==="prepare"){
       const model=String(body.model),target=(storage[model==="entity"?"entities":`${model}s`]??[]).find(row=>row.id===body.target_id);
       const input=body.input as Record<string,unknown>??{}, facts={...target,...input};

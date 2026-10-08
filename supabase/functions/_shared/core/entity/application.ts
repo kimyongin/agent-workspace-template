@@ -5,6 +5,7 @@ import {
   entityId,
   type EntityIdentitySettings,
   entityReferenceId,
+  isActiveEntitySource,
 } from "../../contracts/entity-identity.ts";
 import type {
   EntityCreate,
@@ -52,7 +53,7 @@ export function prepareEntityRegistration(d: EntityDeps, a: Actor, i: Pick<Entit
   return d.uow.run(a, async (s) => {
     const settings = (await s.getBusinessSettings()).settings.entity_identity ?? defaultEntityIdentitySettings;
     const source = i.source ?? settings.default_source;
-    if (!settings.sources.some((s) => s.code === source)) throw invalidInput("등록된 발급처를 선택하세요");
+    if (!isActiveEntitySource(settings, source)) throw invalidInput("삭제되지 않은 발급처를 선택하세요");
     if (!i.external_id && settings.generation === "manual") throw invalidInput("식별자를 입력하세요");
     const external_id = i.external_id ?? crypto.randomUUID(), id = entityId(source, external_id);
     const existing = await s.get(id);
@@ -70,7 +71,7 @@ export function createEntity(d: EntityDeps, a: Actor, i: EntityCreate) {
   return d.uow.run(a, async (s) => {
     const settings = (await s.getBusinessSettings()).settings.entity_identity ?? defaultEntityIdentitySettings;
     const source = i.source ?? settings.default_source;
-    if (!settings.sources.some((s) => s.code === source)) throw invalidInput("등록된 발급처를 선택하세요");
+    if (!isActiveEntitySource(settings, source)) throw invalidInput("삭제되지 않은 발급처를 선택하세요");
     if (!i.external_id) throw invalidInput("등록 준비로 식별자를 발급한 뒤 external_id를 고정하여 저장하세요");
     const external_id = i.external_id, id = entityId(source, external_id);
     const { change_note, change_tag_ids, expected_version, ...props } = i;
@@ -121,7 +122,7 @@ export function rekeyEntity(d: EntityDeps, a: Actor, id: string, i: EntityRekey)
   return d.uow.run(a, async (s) => {
     const old = await requireVersion(s, id, i.expected_version);
     const settings = (await s.getBusinessSettings()).settings.entity_identity ?? defaultEntityIdentitySettings;
-    if (!settings.sources.some((s) => s.code === i.source)) throw invalidInput("등록된 발급처를 선택하세요");
+    if (!isActiveEntitySource(settings, i.source)) throw invalidInput("삭제되지 않은 발급처를 선택하세요");
     const next = entityId(i.source, i.external_id);
     if (next === id) return old;
     if (await s.get(next, true)) {

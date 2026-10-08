@@ -21,7 +21,7 @@ export function EntityIdentityForm({ entity, onClose, onSaved }: {
     {errors => <section className="detail-section form">
       <p className="secondary">모든 할 일·기록·태그와 사건의 연결이 함께 바뀝니다. 과거 본문은 보존합니다.</p>
       <Field label="발급처" required error={errors.source}>{p => <select {...p} className="input" value={draft.source} onChange={e => setDraft(d => ({ ...d, source: e.target.value }))}>
-        {settings ? settings.sources.map(s => <option key={s.code} value={s.code}>{s.label} ({s.code})</option>) : <option value={entity.source}>{entity.source_label}</option>}
+        {settings ? settings.sources.filter(s => !s.deleted || s.code === entity.source).map(s => <option key={s.code} value={s.code} disabled={s.deleted}>{s.label} ({s.code}){s.deleted ? " · 삭제됨" : ""}</option>) : <option value={entity.source}>{entity.source_label}</option>}
       </select>}</Field>
       <Field label="외부 식별자" required error={errors.external_id}>{p => <input {...p} className="input" value={draft.external_id} onChange={e => setDraft(d => ({ ...d, external_id: e.target.value }))}/>}</Field>
     </section>}

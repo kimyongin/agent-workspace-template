@@ -4,7 +4,8 @@ const user = { id: "00000000-0000-0000-0000-000000000001", aud: "authenticated",
 test.beforeEach(async ({ page, baseURL }) => {
   await page.route("**/*", async route => {
     const url = new URL(route.request().url());
-    if (/\/(?:functions\/v1\/)?api\//.test(url.pathname)) await route.fulfill({ json: { items: [], next_cursor: null } });
+    if(url.pathname.endsWith("/settings/business")) await route.fulfill({json:{versions:{record_templates:0,entity_identity:0},settings:{record_templates:{},entity_identity:{generation:"uuid",default_source:"app",sources:[{code:"app",label:"앱"}]}}}});
+    else if (/\/(?:functions\/v1\/)?api\//.test(url.pathname)) await route.fulfill({ json: { items: [], next_cursor: null } });
     else if (url.origin === new URL(baseURL!).origin) await route.continue();
     else await route.abort();
   });
@@ -99,14 +100,14 @@ test("저장 실패의 초안을 보존하고 서버 성공 응답·재조회·�
   });
   await page.goto("/settings"); await page.getByRole("radio", { name: "잎", exact: true }).check();
   const originalPath = await page.locator(".nav-profile .profile-icon").textContent();
-  await page.getByRole("button", { name: "저장", exact: true }).click(); await expect(page.getByRole("alert")).toContainText("입력한 설정을 유지"); await expect(page.getByRole("radio", { name: "잎", exact: true })).toBeChecked();
+  await page.getByRole("button",{name:"프로필 저장", exact: true }).click(); await expect(page.getByRole("form",{name:"프로필 설정"}).getByRole("alert")).toContainText("입력한 설정을 유지"); await expect(page.getByRole("radio", { name: "잎", exact: true })).toBeChecked();
   await expect(page.locator(".nav-profile .profile-icon")).toHaveText(originalPath!);
-  fail = false; await page.getByRole("button", { name: "저장", exact: true }).click(); await expect(page.getByRole("status")).toContainText("저장했습니다"); expect(calls).toBe(2);
+  fail = false; await page.getByRole("button",{name:"프로필 저장", exact: true }).click(); await expect(page.getByRole("form",{name:"프로필 설정"}).getByRole("status")).toContainText("저장했습니다"); expect(calls).toBe(2);
   const savedPath = await page.locator(".nav-profile .profile-icon").textContent();
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem("sb-127-auth-token")!).user.user_metadata.provider_value)).toBe("preserved");
   await page.reload(); await expect(page.getByRole("radio", { name: "잎", exact: true })).toBeChecked(); await expect(page.locator(".nav-profile .profile-icon")).toHaveText(savedPath!);
   await page.getByRole("radio", { name: "기본", exact: true }).check(); await expect(page.getByRole("radio", { name: "기본", exact: true })).toBeChecked();
-  await page.getByRole("button", { name: "변경 취소" }).click(); await expect(page.getByRole("radio", { name: "잎", exact: true })).toBeChecked();
+  await page.getByRole("form",{name:"프로필 설정"}).getByRole("button",{name:"변경 취소" }).click(); await expect(page.getByRole("radio", { name: "잎", exact: true })).toBeChecked();
 });
 
 test("저장 중 중복 요청과 탭·로그아웃 이동을 막고 응답 뒤 이동할 수 있다", async ({ page }) => {
@@ -114,11 +115,11 @@ test("저장 중 중복 요청과 탭·로그아웃 이동을 막고 응답 뒤 
   await refreshedProfile(page, () => saved ? "sun" : "person");
   let finish!: () => void; const waiting = new Promise<void>(resolve => { finish = resolve; }); let calls = 0;
   await page.route("**/auth/v1/user", async route => { if (route.request().method() !== "PUT") return route.fallback(); calls++; await waiting; saved = true; await route.fulfill({ json: { ...user, user_metadata: { ...user.user_metadata, workspace_avatar_id: "sun" } } }); });
-  await page.goto("/settings"); await page.getByRole("radio", { name: "해바라기", exact: true }).check(); await page.getByRole("button", { name: "저장", exact: true }).click();
-  await expect(page.getByRole("button", { name: "저장 중…" })).toBeDisabled(); await page.getByRole("navigation", { name: "주 메뉴" }).getByRole("link", { name: "엔터티", exact: true }).click();
+  await page.goto("/settings"); await page.getByRole("radio", { name: "해바라기", exact: true }).check(); await page.getByRole("button",{name:"프로필 저장", exact: true }).click();
+  await expect(page.getByRole("button",{name:"프로필 저장" })).toBeDisabled(); await page.getByRole("navigation", { name: "주 메뉴" }).getByRole("link", { name: "엔터티", exact: true }).click();
   await expect(page).toHaveURL(/\/settings$/); await expect(page.getByRole("dialog")).toHaveCount(0);
   await requestLogout(page); await expect(page).toHaveURL(/\/settings$/); expect(calls).toBe(1);
-  finish(); await expect(page.getByRole("status")).toContainText("저장했습니다"); await page.getByRole("navigation", { name: "주 메뉴" }).getByRole("link", { name: "엔터티", exact: true }).click(); await expect(page).toHaveURL(/\/entities$/);
+  finish(); await expect(page.getByRole("form",{name:"프로필 설정"}).getByRole("status")).toContainText("저장했습니다"); await page.getByRole("navigation", { name: "주 메뉴" }).getByRole("link", { name: "엔터티", exact: true }).click(); await expect(page).toHaveURL(/\/entities$/);
 });
 
 test("알 수 없는 아이콘은 기본값이며 계정 전환과 세션 만료는 이전 초안을 지운다", async ({ page }) => {
@@ -164,7 +165,7 @@ test("원격 로그아웃 실패는 로컬 해제를 안내하며 재로그인�
   await page.route("**/auth/v1/logout*", async route => { calls++; await route.fulfill(fail ? { status: 500, json: { msg: "fixture failure" } } : { status: 204 }); });
   await page.route("**/auth/v1/user", route => route.fulfill({ json: { ...user, user_metadata: { ...user.user_metadata, workspace_avatar_id: "leaf" } } }));
   await page.goto("/settings"); await requestLogout(page);
-  await expect(page.getByRole("alert")).toContainText("이 기기에서는 로그아웃했습니다",{timeout:15000});
+  await expect(page.getByRole("form",{name:"프로필 설정"}).getByRole("alert")).toContainText("이 기기에서는 로그아웃했습니다",{timeout:15000});
   await expect(page.getByRole("navigation", { name: "주 메뉴" })).toHaveCount(0);
   fail = false; await page.getByRole("link", { name: "로그인으로 이동", exact: true }).click(); await expect(page).toHaveURL(/\/login$/); expect(calls).toBe(1);
   await signIn(page); await expect(page).toHaveURL(/\/tasks$/); await settings(page); await expect(page.getByRole("radio", { name: "잎", exact: true })).toBeChecked(); expect(calls).toBe(1);
@@ -174,14 +175,14 @@ test("가이드의 복사 실패와 성공 안내는 유지한다", async ({ pag
   await page.goto("/guide");
   await page.getByText("설치·연결 정보",{exact:true}).click();
   await page.evaluate(() => Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: async () => { throw new Error("denied"); } } }));
-  await page.getByRole("button", { name: "연결 주소 복사" }).click(); await expect(page.getByRole("status")).toContainText("위 주소를 선택해 직접 복사");
+  await page.getByRole("button", { name: "연결 주소 복사" }).click(); await expect(page.getByRole("form",{name:"프로필 설정"}).getByRole("status")).toContainText("위 주소를 선택해 직접 복사");
   await page.evaluate(() => Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: async () => {} } }));
-  await page.getByRole("button", { name: "연결 주소 복사" }).click(); await expect(page.getByRole("status")).toHaveText("연결 주소를 복사했습니다.");
+  await page.getByRole("button", { name: "연결 주소 복사" }).click(); await expect(page.getByRole("form",{name:"프로필 설정"}).getByRole("status")).toHaveText("연결 주소를 복사했습니다.");
 });
 
 for(const width of [390,1440])test(`#205 ${width}px: 설정·가이드 구획과 탐색 팝오버`,async({page},info)=>{
   await page.setViewportSize({width,height:900});await page.goto("/settings");
-  const groups=page.locator(".settings .settings-group");await expect(groups).toHaveCount(4);
+  const groups=page.locator(".settings .settings-section");await expect(groups).toHaveCount(4);
   expect((await page.locator(".settings").boundingBox())!.width).toBeLessThanOrEqual(768);
   await page.screenshot({path:info.outputPath(`compact-settings-${width}.png`)});
   await page.getByRole("button",{name:"내 프로필",exact:true}).click();const popup=page.locator("#nav-profile-options"),box=(await popup.boundingBox())!;
