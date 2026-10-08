@@ -69,10 +69,11 @@ export function TagReadProvider({children,enabled=true,dictionary}:{children:Rea
   if(enabled && !state.tags && !state.failed)return <p className="secondary" role="status">태그 이름을 불러오는 중…</p>;
   return <TagReadContext.Provider value={state}>{children}</TagReadContext.Provider>;
 }
-export function TagNames({ids, compact=false, scope="record"}:{ids:string[];compact?:boolean;scope?:TagScope}) {
+export function TagNames({ids, compact=false, scope="record",onReadyChange}:{ids:string[];compact?:boolean;scope?:TagScope;onReadyChange?:(ready:boolean)=>void}) {
   const shared = useContext(TagReadContext);
   const local = useTagDictionary(ids.length > 0 && !shared,false,scope);
   const {tags,failed,retry}=shared ?? local;
+  useLayoutEffect(()=>onReadyChange?.(!ids.length||!!tags||failed),[ids.length,tags,failed,onReadyChange]);
   if(!ids.length)return null;
   // The shared filter owns retry; repeating an error card/button in every row destabilizes reading geometry.
   if(compact && failed && shared)return <div className="chips" role="status"><span className="meta tag-read">태그 이름 조회 실패</span></div>;

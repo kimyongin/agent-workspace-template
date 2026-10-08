@@ -1,31 +1,34 @@
-import { useContext, useEffect, useRef, useState, type ComponentProps, type ReactNode } from "react";
+import { useCallback, useContext, useEffect, useLayoutEffect, useRef, useState, type ComponentProps, type ReactNode } from "react";
 import { Link, type LinkProps } from "react-router";
-import type { EntityResult } from "@contracts/entity.ts";
-import { entityLabels } from "@contracts/entity.ts";
-import type { TaskResult } from "@contracts/task.ts";
-import type { RecordResult } from "@contracts/record.ts";
-import type { WorkspacePrinciple } from "../principles/model.ts";
 import { RelatedItem, useRelatedExpansion } from "../../components/RelatedItems.tsx";
 import { BodyAction, BodyActionFace } from "../../components/BodyAction.tsx";
-import { MarkdownContent } from "../../components/MarkdownContent.tsx";
 import { Notice } from "../../components/Field.tsx";
 import { SurfaceContext } from "../../components/Modal.tsx";
 import { DetailLink } from "../../lib/detail-exploration.tsx";
 import { api, ApiError } from "../../lib/api.ts";
-import { StatusBadge } from "../activity/shared.tsx";
-import { TagNames } from "../tags/TagPicker.tsx";
-import { ChangeContext } from "../activity/ChangeContext.tsx";
-import { useDisplayTime } from "../../lib/useDisplayTime.ts";
 
-type Preview = EntityResult | TaskResult | RecordResult | WorkspacePrinciple;
+import { PreviewContents, previewKind, previewViewable, type Preview } from "./PreviewContents.tsx";
+import { ListPreviewReadiness } from "./preview-readiness.ts";
+
 /** Current content only, never another relationship graph or a write during disclosure. */
 export function RelatedPreviewItem({list,...props}:ComponentProps<typeof RelatedItem>&{list?:{link:()=>LinkProps;metadata?:ReactNode}}) {
-  const { formatDateTime } = useDisplayTime();
+  const readiness = useContext(ListPreviewReadiness);
   const selection=useRelatedExpansion(),surface=useContext(SurfaceContext),button=useRef<HTMLElement|null>(null);
   const [item,setItem]=useState<Preview|null>(null),[error,setError]=useState<"missing"|"failed"|null>(null),[retry,setRetry]=useState(0);
-  const path=props.to?.split(/[?#]/)[0];
+  const path=props.to?.split(/[?#]/)[0],kind=path?previewKind(path):undefined;
   const enabled=!surface?.editor.current;
   const expanded=enabled&&!!path&&selection?.value===path;
+  const readKey=expanded?path:null;
+  const [ownedKey,setOwnedKey]=useState(readKey),[tagsReady,setTagsReady]=useState(false);
+  if(ownedKey!==readKey){setOwnedKey(readKey);setItem(null);setError(null);setTagsReady(false);}
+  const report=useRef<ReturnType<NonNullable<typeof readiness>["track"]>|null>(null);
+  useLayoutEffect(()=>{
+    if(!expanded||!path||!readiness)return;
+    const tracked=readiness.track(path);report.current=tracked;
+    return()=>{tracked.dispose();report.current=null;};
+  },[readiness,path,expanded]);
+  const onTagsReady=useCallback((ready:boolean)=>setTagsReady(ready),[]);
+  useLayoutEffect(()=>{report.current?.settle(!!error||!!item&&(kind==="principles"||tagsReady));},[item,error,tagsReady,kind,readiness,expanded]);
   useEffect(()=>{
     if(!expanded||!path){setItem(null);setError(null);return;}
     const controller=new AbortController();setItem(null);setError(null);
@@ -34,7 +37,7 @@ export function RelatedPreviewItem({list,...props}:ComponentProps<typeof Related
     });
     return()=>controller.abort();
   },[path,expanded,retry]);
-  if(!selection||!path)return <RelatedItem {...props}/>;
+  if(!selection||!path||!kind)return <RelatedItem {...props}/>;
   if(!enabled)return <RelatedItem {...props} to={undefined}/>;
   const toggle=()=>{
     button.current=document.activeElement as HTMLElement;
@@ -48,19 +51,14 @@ export function RelatedPreviewItem({list,...props}:ComponentProps<typeof Related
       if(body)body.scrollTop+=shift;else window.scrollBy(0,shift);
     });
   };
-  const viewable=!!item&&!error&&(!("is_current" in item)||item.is_current);
+  const viewable=!!item&&!error&&previewViewable(kind,item);
   const viewProps={className:"body-action",title:"상세","aria-label":`${props.title} 상세`};
   return <RelatedItem {...props} to={undefined} action={<>{props.action}{viewable&&(list?<Link {...list.link()} {...viewProps}><BodyActionFace icon="view">상세</BodyActionFace></Link>:<DetailLink {...viewProps} to={path} restoreKey={`view-related-${path}`}><BodyActionFace icon="view">상세</BodyActionFace></DetailLink>)}</>} disclosure={{expanded,toggle,content:<>
     {!item&&!error&&<p className="secondary" role="status">불러오는 중…</p>}
     {error==="missing"&&<p className="secondary">삭제된 대상 또는 접근할 수 없는 대상입니다.</p>}
     {error==="failed"&&<><Notice kind="error">내용을 불러오지 못했습니다.</Notice><BodyAction onClick={()=>setRetry(n=>n+1)}>다시 시도</BodyAction></>}
     {item&&<>
-      {"prop1" in item?<><dl className="props">{(["prop2","prop3","prop4"] as const).map(key=>item[key]!==null&&<div key={key}><dt>{entityLabels[key]}</dt><dd>{item[key]}</dd></div>)}</dl><TagNames compact scope="entity" ids={item.tag_ids}/></>:<>
-        {item.body&&<MarkdownContent text={item.body}/>}
-        {"status" in item&&<div className="related-item-meta"><StatusBadge status={item.status}/>{item.due_on&&<span className="meta">{item.due_on}</span>}</div>}
-        {list&&"record_kind" in item&&<div className="related-item-meta"><time className="meta" dateTime={item.occurred_at}>{formatDateTime(item.occurred_at)}</time><ChangeContext record={item} compact/></div>}
-        {"tag_ids" in item&&<TagNames compact scope={"status" in item?"task":"record"} ids={item.tag_ids}/>}
-      </>}
+      <PreviewContents kind={kind} item={item} main={!!list} onTagsReady={onTagsReady}/>
       {list?.metadata}
     </>}
   </>}}/>;

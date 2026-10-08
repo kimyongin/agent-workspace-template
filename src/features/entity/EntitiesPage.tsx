@@ -2,9 +2,10 @@ import { CollectionHeading, CollectionList, useMainCollectionView } from "../../
 import { useCreateMode } from "../../components/useCreateMode.ts";
 import { TabSearch, TabFilters, resetTabFilters } from "../../components/TabSearch.tsx";
 import { TagDictionaryStatus, TagReadProvider, useTagDictionary } from "../tags/TagPicker.tsx";
-import { shouldPublishRestoredPage } from "../activity/list-state.ts";
+import { anchorId, requestedPages } from "../activity/list-state.ts";
+import { usePagedList } from "../collections/usePagedList.ts";
+import type { ListPage } from "../collections/paged-list.ts";
 import type { EntityResult } from "@contracts/entity.ts";
-import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router";
 import { ListExpansionProvider, ListPreviewItem, useRestoreListPosition } from "../relations/ListPreviewItem.tsx";
 import { Field, Notice } from "../../components/Field.tsx";
@@ -12,7 +13,7 @@ import { api, ApiError, query } from "../../lib/api.ts";
 import { EntityForm } from "./forms.tsx";
 import { GuideLink } from "../../components/GuideLink.tsx";
 import { TabCreateButton } from "../../components/TabCreateButton.tsx";
-type Page = { items: EntityResult[]; next_cursor: string | null; count: number };
+
 export function EntitiesPage() {
   const create=useCreateMode();
   const [view,changeView]=useMainCollectionView();
@@ -20,8 +21,7 @@ export function EntitiesPage() {
   const [params] = useSearchParams(),
     { hash } = useLocation(),
     navigate = useNavigate();
-  const requested = Number(params.get("pages") ?? 1);
-  const pages = Number.isSafeInteger(requested) && requested > 0 ? Math.min(250, requested) : 1;
+  const pages = requestedPages(params);
   const filter = {
     keyword: params.get("keyword"),
     tag_id: params.get("tag_id"),
@@ -30,71 +30,16 @@ export function EntitiesPage() {
     prop4: params.get("prop4"),
     sort: params.get("sort") ?? "updated_at",
   };
-  const key = query(filter),
-    [page, setPage] = useState<Page | null>(null),
-    [error, setError] = useState<string | null>(null),
-    [busy, setBusy] = useState(false),
-    [manualPage, setManualPage] = useState<{ context: string; count: number; epoch: number } | null>(null),
-    [retry, setRetry] = useState(0);
+  const key = query(filter), context = `${key}|${hash}`;
   const creating=create.open;
-  const context = `${key}|${hash}`;
-  const loaded = useRef<{ context: string; page: Page; epoch: number } | null>(null),
-    epoch = useRef(0);
-  // Both the click state and URL navigation describe one target, so they must not restart the same fetch.
-  const manualTarget =
-    loaded.current?.context === context && manualPage?.context === context && manualPage.epoch === loaded.current.epoch
-      ? manualPage.count
-      : 0;
-  const target = Math.max(pages, manualTarget);
-  useEffect(() => {
-    const controller = new AbortController();
-    setError(null);
-    setBusy(true);
-    const cachedEntry = loaded.current?.context === context ? loaded.current : null;
-    const cached = cachedEntry?.page ?? null, loadEpoch = cachedEntry?.epoch ?? ++epoch.current;
-    if (!cached) {
-      setPage(null);
-      loaded.current = null;
-    }
-    (async () => {
-      let result: Page = cached ?? { items: [], next_cursor: null, count: 0 };
-      const anchor = /^#entity-[0-9a-f-]+$/.test(hash) ? hash.slice(8) : null;
-      // A concurrent insertion may move the anchor one page. Never scan beyond this finite window.
-      const maximum = anchor && !result.items.some(item=>item.id===anchor) ? Math.min(250, pages + 1) : pages;
-      while (
-        !result.count || (result.next_cursor &&
-          (result.count < target || (anchor && result.count < maximum && !result.items.some((e) => e.id === anchor))))
-      ) {
-        const next: Omit<Page, "count"> = await api(
-          "GET",
-          `/entities${query({ ...filter, cursor: result.next_cursor })}`,
-          undefined,
-          controller.signal,
-        );
-        if (controller.signal.aborted) return;
-        result = {
-          items: [...result.items, ...next.items],
-          next_cursor: next.next_cursor,
-          count: result.count + 1,
-        };
-        loaded.current = { context, page: result, epoch: loadEpoch };
-        if (shouldPublishRestoredPage(result.count, target)) setPage(result);
-        if (!next.next_cursor) break;
-      }
-      if (!controller.signal.aborted) setPage(result);
-    })().catch((e) => {
-      if (!controller.signal.aborted) {
-        if (loaded.current?.context === context) setPage(loaded.current.page);
-        setError(
-          e instanceof ApiError ? e.message : "엔터티를 불러오지 못했습니다.",
-        );
-      }
-    }).finally(() => {
-      if (!controller.signal.aborted) setBusy(false);
-    });
-    return () => controller.abort();
-  }, [key, target, retry, hash]);
-  useRestoreListPosition("entities", (dictionary.tags!==null||dictionary.failed)&&!busy&&loaded.current?.context===context&&!!page);
+  const list = usePagedList<EntityResult, ListPage<EntityResult>>({
+    scope: context, pages, anchor: anchorId("entities", hash), anchorLookahead: 1,
+    restoreRetry: "resume", retainOnDecrease: true,
+    load: (cursor, signal) => api("GET", `/entities${query({ ...filter, cursor })}`, undefined, signal),
+  });
+  const { page, busy } = list;
+  const error = list.error ? list.error instanceof ApiError ? list.error.message : "엔터티를 불러오지 못했습니다." : null;
+  const readiness = useRestoreListPosition("entities", (dictionary.tags!==null||dictionary.failed)&&!busy&&!!page);
   const set = (name: string, value: string) => {
     const next = new URLSearchParams(params);
     if (value) next.set(name, value);
@@ -165,7 +110,7 @@ export function EntitiesPage() {
           <Notice kind="error">{error}</Notice>
           {!page &&
             (
-              <button className="btn" onClick={() => setRetry((n) => n + 1)}>
+              <button className="btn" onClick={() => void list.retry()}>
                 다시 시도
               </button>
             )}
@@ -183,7 +128,7 @@ export function EntitiesPage() {
           </button>
         </>
       )}
-      <ListExpansionProvider><TagReadProvider dictionary={dictionary} enabled={!!page?.items.some(e=>(e as EntityResult & {tag_ids?:string[]}).tag_ids?.length)}><CollectionList view={view==="calendar"?"list":view} label="엔터티 목록" columns={["엔터티","속성 2","속성 3"]} numericColumns={[1,2]}>
+      <ListExpansionProvider readiness={readiness}><TagReadProvider dictionary={dictionary} enabled={!!page?.items.some(e=>(e as EntityResult & {tag_ids?:string[]}).tag_ids?.length)}><CollectionList view={view==="calendar"?"list":view} label="엔터티 목록" columns={["엔터티","속성 2","속성 3"]} numericColumns={[1,2]}>
         {page?.items.map((e) => (
           <li className="list-item" key={e.id}>
             <div className="list-item-main">
@@ -192,23 +137,19 @@ export function EntitiesPage() {
           </li>
         ))}
       </CollectionList></TagReadProvider></ListExpansionProvider>
-      {page && (page.next_cursor || page.count > 1) && (
+      {page && (page.next_cursor || page.pages > 1) && (
         <button
           className="btn"
           aria-disabled={busy || !page.next_cursor}
           onClick={() => {
-            const current = loaded.current;
-            if (busy || !page.next_cursor || current?.context !== context) return;
-            if (error) {
-              setRetry((n) => n + 1);
-              return;
-            }
+            if (busy || !page.next_cursor) return;
+            if (error) { void list.retry(); return; }
+            const target = list.more();
+            if (!target) return;
             const next = new URLSearchParams(params);
-            setManualPage({ context, count: page.count + 1, epoch: current.epoch });
-            next.set("pages", String(page.count + 1));
+            next.set("pages", String(target));
             navigate({ pathname: "/entities", search: next.toString(), hash }, {
-              replace: true,
-              preventScrollReset: true,
+              replace: true, preventScrollReset: true,
             });
           }}
         >

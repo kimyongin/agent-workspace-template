@@ -1,34 +1,23 @@
 // Actual App and routing; remote Auth/API are isolated, with no DB or real-account writes.
 import { expect, test, type Page } from "@playwright/test";
-const id = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
-const stamp = "2026-10-08T03:00:00Z";
-const base = (n: number) => ({ id: id(n), version: 1, created_at: stamp, updated_at: stamp, tag_ids: [] });
-const task = { ...base(2), title: "다음 상담 준비", body: "필요한 자료를 준비합니다.", kind: "once", status: "open", due_on: "2026-10-12", timezone: null, recurrence: null, completed_at: null, result_record_id: null, pauses: [], occurrence: null, result_record: null, entity_ids: [id(1)], entity_context: [{ id: id(1), title: "김민수", source: "selection", captured_at: stamp }] };
-const record = { ...base(3), body: "상담 내용을 정리하고 다음 방문 일정을 확인했습니다.", occurred_at: stamp, record_kind: "user", task_id: id(2), entity_ids: [id(1)], entity_context: task.entity_context, task_occurrence_on: null, change: null, source: "web" };
-const entity = { ...base(1), prop1: "김민수", prop2: 0, prop3: "2026-10-08", prop4: "a", tasks: { count: 1, items: [task] }, records: { count: 1, items: [record] } };
+import {id,stamp,identity as base,entity as makeEntity,task as makeTask,record as makeRecord} from "./support/workspace-data.ts";
+import {installWorkspaceApi} from "./support/workspace-api.ts";
+const task={...makeTask(),title:"다음 상담 준비",body:"필요한 자료를 준비합니다.",due_on:"2026-10-12",entity_ids:[id(1)],entity_context:[{id:id(1),title:"김민수",source:"selection" as const,captured_at:stamp}]};
+const record={...makeRecord(),body:"상담 내용을 정리하고 다음 방문 일정을 확인했습니다.",task_id:id(2),entity_ids:[id(1)],entity_context:task.entity_context};
+const entity={...makeEntity(),prop1:"김민수",prop3:"2026-10-08",tasks:{count:1,items:[task]},records:{count:1,items:[record]}};
 const user = { id: id(100), aud: "authenticated", email: "fixture@example.test", app_metadata: {}, user_metadata: { workspace_timezone: "Asia/Seoul" } };
 
 async function fixture(page: Page, records = [record]) {
-  const reads: string[] = [], errors: string[] = [], writes: string[] = [];
-  page.on("pageerror", error => errors.push(error.message));
+  const state=await installWorkspaceApi(page,"http://127.0.0.1:55587",{entities:[entity],tasks:[task],records,principles:[],tags:[]},{pageSize:20});
   await page.addInitScript(user => localStorage.setItem("sb-127-auth-token", JSON.stringify({ access_token: "fixture", refresh_token: "fixture", expires_at: Math.floor(Date.now() / 1000) + 3600, user })), user);
-  await page.route("**/*", async route => {
-    const request = route.request(), url = new URL(request.url()), path = url.pathname.replace(/^\/api/, "");
-    if (url.pathname.startsWith("/api/")) {
-      reads.push(request.url()); if (request.method() !== "GET") writes.push(request.method());
-      if (path.startsWith("/tags")) return route.fulfill({ json: { items: [], next_cursor: null } });
-      if (path === `/entities/${entity.id}`) return route.fulfill({ json: entity });
-      if (path === `/tasks/${task.id}`) return route.fulfill({ json: task });
-      if (path.startsWith("/records/")) return route.fulfill({ json: records.find(item => path.endsWith(item.id)) ?? record });
-      const items = path === "/entities" ? [entity] : path === "/tasks" ? [task] : path === "/records" ? records : [];
-      const offset = Number(url.searchParams.get("cursor") ?? 0);
-      return route.fulfill({ json: { items: items.slice(offset, offset + 20), next_cursor: items.length > offset + 20 ? String(offset + 20) : null } });
-    }
-    if (url.pathname === "/auth/v1/user") return route.fulfill({ json: user });
-    if (url.port === "55586") return route.continue();
+  await page.route("**/*",async route=>{
+    const url=new URL(route.request().url());
+    if(url.origin==="http://127.0.0.1:55587"&&url.pathname.startsWith("/api/"))return route.fallback();
+    if(url.origin==="http://127.0.0.1:55587"&&url.pathname==="/auth/v1/user")return route.fulfill({json:user});
+    if(url.origin==="http://127.0.0.1:55586")return route.continue();
     return route.abort();
   });
-  return { reads, errors, writes };
+  return state;
 }
 
 for (const [kind, label, title] of [["entities", "엔터티", entity.prop1], ["tasks", "할 일", task.title], ["records", "기록", record.body]] as const) test(`${kind}: views keep filters, list reads and disclosure/detail return`, async ({ page }) => {

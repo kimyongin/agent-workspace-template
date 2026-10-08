@@ -2,8 +2,10 @@ import { CollectionList } from "../../components/Collection.tsx";
 import { BodyAction } from "../../components/BodyAction.tsx";
 import { useSearchParams } from "react-router";
 import { useDetailNavigate } from "../../lib/detail-exploration.tsx";
-import { appendItems, MAX_RESTORE_PAGES, requestedPages, restoreList, type ListPage, type LoadedList } from "./list-state.ts";
-import { useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import { requestedPages } from "./list-state.ts";
+import { MAX_RESTORE_PAGES, type ListPage } from "../collections/paged-list.ts";
+import { usePagedList } from "../collections/usePagedList.ts";
+import { useContext, useEffect, useRef, type ReactNode } from "react";
 import { SurfaceContext } from "../../components/Modal.tsx";
 import type { RecordResult } from "@contracts/record.ts";
 import { recordDisplayText } from "@contracts/record-display.ts";
@@ -24,28 +26,20 @@ function TaskRecords({taskId,revision,action}:{taskId:string;revision:number;act
   const surface=useContext(SurfaceContext);
   const [params]=useSearchParams(),navigate=useDetailNavigate();
   const requested=requestedPages(new URLSearchParams({pages:params.get("related_record_pages")??"1"}));
-  const [page,setPage]=useState<LoadedList<RecordResult>|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState(false);
-  const loaded=useRef<LoadedList<RecordResult>|undefined>(undefined),request=useRef<AbortController|null>(null),failedTarget=useRef(requested),failedManual=useRef(false);
-  const load=async(target:number,manual=false)=>{
-    if(request.current&&!request.current.signal.aborted)return;
-    const controller=new AbortController();request.current=controller;failedTarget.current=target;failedManual.current=manual;setBusy(true);setError(false);
-    try {
-      if(manual&&loaded.current?.next_cursor){
-        const prior=loaded.current,next=await api<ListPage<RecordResult>>("GET",`/records${query({task_id:taskId,limit:20,cursor:prior.next_cursor})}`,undefined,controller.signal);
-        if(!controller.signal.aborted){const value={...next,items:appendItems(prior.items,next.items),pages:prior.pages+1};loaded.current=value;setPage(value);}
-      }else await restoreList<RecordResult>({pages:target,prior:loaded.current,current:()=>!controller.signal.aborted,
-        load:cursor=>api("GET",`/records${query({task_id:taskId,limit:20,cursor})}`,undefined,controller.signal),
-        publish:value=>{loaded.current=value;setPage(value);}});
-    } catch {if(!controller.signal.aborted)setError(true);}
-    finally {if(!controller.signal.aborted){setBusy(false);request.current=null;}}
-  };
-  useEffect(()=>{loaded.current=undefined;setPage(null);void load(requested);return()=>{request.current?.abort();request.current=null;};},[taskId,revision]);
+  const scope = `${taskId}|${revision}`;
+  const initial = useRef({scope, pages: requested});
+  if (initial.current.scope !== scope) initial.current = {scope, pages: requested};
+  const list = usePagedList<RecordResult, ListPage<RecordResult>>({
+    scope, pages: initial.current.pages, restoreRetry: "resume", retainOnDecrease: true,
+    load: (cursor, signal) => api("GET", `/records${query({task_id:taskId,limit:20,cursor})}`, undefined, signal),
+  });
+  const {page,busy,error}=list;
   // A background read must not navigate or interrupt a dirty management form.
   useEffect(()=>{if(!page||busy||error||surface?.editor.current||params.has("edit")||params.has("action")||params.has("occurrence")||Math.min(page.pages,MAX_RESTORE_PAGES)===requested)return;const next=new URLSearchParams(params);next.set("related_record_pages",String(Math.min(page.pages,MAX_RESTORE_PAGES)));void navigate(`?${next}`);},[page,busy,error,params,requested,navigate,surface]);
   return <RelatedSection title="기록" count={page?.items.length} hasMore={!!page?.next_cursor} action={action}>
     {busy&&<p className="secondary" role="status">불러오는 중…</p>}
     {!!page?.items.length&&<CollectionList>{page.items.map(record=><li key={record.id}><RelatedRecordItem record={record}/></li>)}</CollectionList>}
-    {error&&<Notice kind="error">연결된 기록을 불러오지 못했습니다.</Notice>}
-    {(page?.next_cursor||error)&&<BodyAction disabled={busy} onClick={()=>void load(error?failedTarget.current:(page?.pages??0)+1,error?failedManual.current:true)}>{busy?"불러오는 중…":error?"기록 다시 시도":"기록 더 보기"}</BodyAction>}
+    {!!error&&<Notice kind="error">연결된 기록을 불러오지 못했습니다.</Notice>}
+    {(page?.next_cursor||!!error)&&<BodyAction disabled={busy} onClick={()=>error?void list.retry():list.more()}>{busy?"불러오는 중…":error?"기록 다시 시도":"기록 더 보기"}</BodyAction>}
   </RelatedSection>;
 }
