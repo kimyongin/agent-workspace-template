@@ -56,7 +56,7 @@ a {
 }
 
 .workspace-header { border: 0; padding-bottom: 0; padding-top: calc(var(--space-4) + env(safe-area-inset-top, 0px)); }
-.workspace-header .app-brand { font-size: var(--text-meta); line-height: 1.125rem; letter-spacing: .04em; color: var(--muted-ink); }
+.workspace-header .app-brand { font-size: var(--text-meta); line-height: 1.125rem; color: var(--muted-ink); }
 .has-navigation .app-main { padding-top: var(--space-3); }
 @media(min-width:640px) { .workspace-header { padding-inline: var(--space-6); } }
 
@@ -211,7 +211,7 @@ html { scroll-padding-bottom: calc(var(--navigation-height) + env(safe-area-inse
 }
 
 .app-main > .panel:not(.auth-panel) { padding: 0; }
-.app-main > .main-tab-header { padding-bottom: var(--space-4); border-bottom: 1px solid var(--line); border-radius: 0; gap: var(--space-3); }
+.app-main > .panel.main-tab-header { padding-bottom: var(--space-4); border-bottom: 1px solid var(--line); border-radius: 0; gap: var(--space-3); }
 
 .panel-head {
   display: flex;
