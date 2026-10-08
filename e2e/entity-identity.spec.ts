@@ -21,8 +21,22 @@ test("manual tuple registration previews stored data, restores links, and rekeys
     taskId = task.id;
     await api("POST", `/entities/${encodeURIComponent(target.id)}/delete`, { expected_version: 1 });
     await page.goto("/entities");
+    // Hold the settings response to verify identity inputs cannot race loaded defaults.
+    let releaseSettings!: () => void;
+    const settingsReady = new Promise<void>(resolve => { releaseSettings = resolve; });
+    await page.route("**/settings/business", async route => {
+      if (route.request().method() !== "GET") return route.continue();
+      await settingsReady;
+      await route.continue();
+    });
     await beginTabAction(page, "엔터티 추가");
     const form = page.getByRole("dialog", { name: "엔터티 추가", exact: true });
+    await expect(form.getByLabel("외부 식별자")).toBeDisabled();
+    await expect(form.getByRole("button", { name: "기존 대상 확인", exact: true })).toBeDisabled();
+    releaseSettings();
+    await expect(form.getByLabel("외부 식별자")).toBeEnabled();
+    await form.getByRole("button", { name: "기존 대상 확인", exact: true }).click();
+    await expect(form.getByRole("status")).toHaveText("식별자는 1~200자입니다");
     await form.getByLabel("외부 식별자").fill(external_id);
     await form.getByRole("button", { name: "기존 대상 확인", exact: true }).click();
     const restore = page.getByRole("dialog", { name: "엔터티 복원", exact: true });
@@ -49,4 +63,30 @@ test("manual tuple registration previews stored data, restores links, and rekeys
     const latest = await api("GET", "/settings/business");
     await api("PATCH", "/settings/business", { expected_version: latest.version, sections: { entity_identity: original.settings.entity_identity } });
   }
+});
+
+
+test("identity settings recovers from an initial read failure and preserves edits on refresh", async ({page}) => {
+  await devLogin(page);
+  let failSettings = true;
+  await page.route("**/settings/business", async route => {
+    if (route.request().method() === "GET" && failSettings) return route.abort("failed");
+    await route.continue();
+  });
+  await page.goto("/settings");
+  const section = page.locator('section[aria-labelledby="entity-identity-title"]');
+  await expect(section).toContainText("식별자 설정을 불러오지 못했습니다.");
+  await expect(section.getByRole("form", {name:"엔터티 식별자 설정"})).toHaveCount(0);
+  failSettings = false;
+  await section.getByRole("button", {name:"최신 설정 조회",exact:true}).click();
+  const generation = section.getByLabel("새 엔터티 식별자 발급 방식");
+  await expect(generation).toBeVisible();
+  const previous = await generation.inputValue();
+  const changed = previous === "uuid" ? "manual" : "uuid";
+  await generation.selectOption(changed);
+  await section.getByRole("button", {name:"최신 설정 조회",exact:true}).click();
+  await expect(section).toContainText("최신 버전을 불러왔습니다. 입력은 유지했습니다.");
+  await expect(generation).toHaveValue(changed);
+  await section.getByRole("button", {name:"변경 취소",exact:true}).click();
+  await expect(generation).toHaveValue(previous);
 });
