@@ -1,5 +1,5 @@
 import { useRestoreListPosition } from "../relations/ListPreviewItem.tsx";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router";
 import type { SearchItem, SearchResult } from "@contracts/search.ts";
 import type { TaskListItem } from "@contracts/task.ts";
@@ -7,15 +7,9 @@ import type { RecordResult } from "@contracts/record.ts";
 import { api, query } from "../../lib/api.ts";
 import type { WorkspaceListKind } from "./activity-location.ts";
 import type { periodBounds } from "./activity-filters.ts";
-import {
-  anchorId,
-  appendItems,
-  type ListPage,
-  type LoadedList,
-  MAX_RESTORE_PAGES,
-  requestedPages,
-  restoreList,
-} from "./list-state.ts";
+import { anchorId, requestedPages } from "./list-state.ts";
+import { usePagedList } from "../collections/usePagedList.ts";
+import type { ListPage } from "../collections/paged-list.ts";
 
 export type ActivityItem = TaskListItem | RecordResult | SearchItem;
 type ActivityPage = ListPage<ActivityItem> & Partial<Pick<SearchResult, "search_state" | "semantic_coverage">>;
@@ -47,128 +41,25 @@ export function useActivityList(kind: WorkspaceListKind, {
     latestLocation.current = { ...latest, search: `?${next}` };
     navigate({ pathname: latest.pathname, search: `?${next}`, hash: latest.hash }, { replace: true });
   };
-  const pages = requestedPages(params);
-  const scopeNow = useRef(scope);
-  scopeNow.current = scope;
-  const loaded = useRef<{ scope: string; value: LoadedList<ActivityItem> } | null>(null);
-  const generation = useRef(0);
-  const failedMore = useRef<{ scope: string; cursor: string } | null>(null);
-  const [accepted, setAccepted] = useState<{ scope: string; page: ActivityPage } | null>(null);
-  const visible = accepted?.scope === scope ? accepted.page : null;
-  const items = visible?.items ?? null, cursor = visible?.next_cursor ?? null;
-  const metadata = q && visible?.search_state && visible.semantic_coverage ? {
-    search_state: visible.search_state, semantic_coverage: visible.semantic_coverage,
-  } : null;
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [controlScope, setControlScope] = useState<string | null>(null);
-  const [retry, setRetry] = useState(0);
-  const load = (after?: string, signal?: AbortSignal): Promise<ActivityPage> => {
-    if (!q) return api<ActivityPage>("GET", `${path}${after ? `&cursor=${encodeURIComponent(after)}` : ""}`, undefined, signal);
-    const anchor = anchorId(kind, hash);
-    return api<SearchResult>("POST", "/search", { ...input, ...(after ? { cursor: after } : anchor ? {
-      anchor: { kind: kind === "tasks" ? "task" : "record", id: anchor },
-    } : {}) }, signal);
-  };
-
+  const pages = requestedPages(params), anchor = anchorId(kind, hash);
+  const list = usePagedList<ActivityItem, ActivityPage>({
+    scope, pages, anchor, restoreRetry: "restart",
+    load: (after, signal) => !q
+      ? api<ActivityPage>("GET", `${path}${after ? `&cursor=${encodeURIComponent(after)}` : ""}`, undefined, signal)
+      : api<SearchResult>("POST", "/search", { ...input, ...(after ? { cursor: after } : anchor ? {
+        anchor: { kind: kind === "tasks" ? "task" : "record", id: anchor },
+      } : {}) }, signal),
+  });
+  const { page, completion } = list;
+  const items = page?.items ?? null, cursor = page?.next_cursor ?? null;
+  const metadata = q && page?.search_state && page.semantic_coverage
+    ? { search_state: page.search_state, semantic_coverage: page.semantic_coverage } : null;
   useEffect(() => {
-    const controller = new AbortController();
-    failedMore.current = null;
-    const started = ++generation.current;
-    const current = () => !controller.signal.aborted && generation.current === started && scopeNow.current === scope;
-    const prior = loaded.current?.scope === scope && Math.min(loaded.current.value.pages, MAX_RESTORE_PAGES) <= pages
-      ? loaded.current.value
-      : undefined;
-    if (!prior) {
-      loaded.current = null;
-      setAccepted(null);
-    }
-    setError(null);
-    setBusy(true);
-    restoreList<ActivityItem>({
-      load: (after) => load(after, controller.signal),
-      pages,
-      anchor: anchorId(kind, hash),
-      prior,
-      current,
-      publish: (value) => {
-        loaded.current = { scope, value };
-        setAccepted({ scope, page: value });
-        if (value.next_cursor) setControlScope(scope);
-      },
-    })
-      .then((value) => {
-        // A fresh completed restoration has no paging action; manual append
-        // keeps its existing control so the user's button focus survives.
-        if (current() && value && !prior && !value.next_cursor) setControlScope(null);
-        const target = anchorId(kind, hash);
-        if (current() && value && value.pages > pages && (!target || value.items.some((item) => item.id === target))) {
-          publishPages(value.pages);
-        }
-      })
-      .catch(() => {
-        if (current()) {
-          setControlScope(scope);
-          setError(errorMessage);
-        }
-      })
-      .finally(() => {
-        if (current()) setBusy(false);
-      });
-    return () => {
-      controller.abort();
-      generation.current++;
-    };
-  }, [scope, pages, hash, retry]);
-
-  useRestoreListPosition(kind,layoutReady&&!busy&&(items!==null||!!error));
-
-  const more = async () => {
-    if (!cursor || busy) return;
-    const started = generation.current;
-    const current = () => started === generation.current && scopeNow.current === scope;
-    setBusy(true);
-    try {
-      const page = await load(cursor);
-      if (!current()) return;
-      if (page.next_cursor === cursor) throw new Error("Repeated list cursor");
-      const value = {
-        ...page,
-        items: appendItems(items ?? [], page.items),
-        pages: (loaded.current?.value.pages ?? 1) + 1,
-      };
-      loaded.current = { scope, value };
-      failedMore.current = null;
-      setAccepted({ scope, page: value });
-      setError(null);
-      publishPages(value.pages);
-    } catch {
-      if (current()) {
-        failedMore.current = { scope, cursor };
-        setError(errorMessage);
-      }
-    } finally {
-      if (current()) setBusy(false);
-    }
-  };
-  return {
-    searching: !!q,
-    filtered,
-    metadata,
-    items,
-    cursor,
-    error,
-    busy,
-    showMoreControl: controlScope === scope,
-    more,
-    retry: () => {
-      if (busy) return;
-      if (failedMore.current?.scope === scope && failedMore.current.cursor === cursor) {
-        void more();
-        return;
-      }
-      loaded.current = null;
-      setRetry((n) => n + 1);
-    },
-  };
+    if (completion && (completion.source === "more" ||
+      completion.pages > pages && completion.anchorFound)) publishPages(completion.pages);
+  }, [completion]);
+  const readiness = useRestoreListPosition(kind, layoutReady&&!list.busy&&(items!==null||!!list.error));
+  return { searching: !!q, filtered, metadata, items, cursor, readiness,
+    error: list.error ? errorMessage : null, busy: list.busy,
+    showMoreControl: list.showMoreControl, more: list.more, retry: list.retry };
 }
