@@ -11,6 +11,12 @@ import { SqlSearchUnitOfWork } from "./adapters/supabase/search-store.ts";
 import { PineconeEmbedder } from "./adapters/pinecone/embedder.ts";
 import { SqlEntityUnitOfWork } from "./adapters/supabase/entity-store.ts";
 import type { EntityDeps } from "./core/entity/application.ts";
+import { SqlBusinessSettingsUnitOfWork } from "./adapters/supabase/business-settings-store.ts";
+import type { BusinessSettingsDeps } from "./core/settings/application.ts";
+let settings: BusinessSettingsDeps | undefined;
+export function businessSettingsDeps(): BusinessSettingsDeps {
+  return settings ??= { uow: new SqlBusinessSettingsUnitOfWork(database()) };
+}
 
 function required(name: string): string {
   const v = Deno.env.get(name);

@@ -17,6 +17,8 @@
 | [0012](0012-current-state-and-unified-records.md) | 최신 상태와 메모 기반 통합 기록 | 채택 |
 | [0013](0013-retire-unused-contracts.md) | 실제 사용처를 기준으로 미사용 계약 제거 | 채택 |
 | [0014](0014-minimal-content-model.md) | 요약 제거와 본문 하나로 쓰는 기록 | 채택, 구현 전 |
+| [0015](0015-change-record-templates.md) | 공통 변경 기록 템플릿과 사용자 업무 설정 | 채택 |
+| [0016](0016-entity-source-identity-and-restoration.md) | 발급처별 엔터티 식별과 소프트 삭제·복원 | 채택 |
 
 ## 문서의 책임
 
