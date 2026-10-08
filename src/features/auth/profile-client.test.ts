@@ -37,7 +37,7 @@ test("명시적 JWT 서버 조회는 만료 임박한 snapshot도 refresh 없이
     return new Response(JSON.stringify({ ...session.user, user_metadata: { workspace_avatar_id: "leaf" } }), { headers: { "Content-Type": "application/json" } });
   });
   vi.stubGlobal("fetch", network);
-  expect(await readProfile(session)).toBe("leaf");
+  expect(await readProfile(session)).toEqual({ icon: "leaf", timezone: null });
   expect(network).toHaveBeenCalledTimes(1);
   expect(JSON.stringify(session)).toBe(original);
 });

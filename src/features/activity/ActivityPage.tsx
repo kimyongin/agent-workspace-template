@@ -11,7 +11,7 @@ import { clearListPosition, TabSearch, TabFilters } from "../../components/TabSe
 import { Field, Notice } from "../../components/Field.tsx";
 import { useCreateMode } from "../../components/useCreateMode.ts";
 import { api } from "../../lib/api.ts";
-import { browserTimezone } from "../../lib/format.ts";
+import { useDisplayTime } from "../../lib/useDisplayTime.ts";
 import { TagDictionaryStatus, TagReadProvider, useTagDictionary } from "../tags/TagPicker.tsx";
 import { recordKindNames } from "./ChangeContext.tsx";
 import { emptyRecord, emptyTask, RecordFormModal, TaskFormModal, taskInput } from "./forms.tsx";
@@ -44,14 +44,15 @@ function ActivitySection({ kind, tags, bounds, dictionary }: { kind: WorkspaceLi
 }
 
 export function ActivityPage({ kind }: { kind: WorkspaceListKind }) {
+  const { timezone } = useDisplayTime();
   const [params, setParams] = useSearchParams(), location = useLocation(), { pathname } = location, dictionary = useTagDictionary(true, true, kind === "tasks" ? "task" : "record");
   const label = kind === "tasks" ? "할 일" : "기록";
   const legacy = activityLocation(kind, params, location.hash);
   const allTags = activityTags(params), tags = allTags.slice(0, ACTIVITY_TAG_LIMIT), from = params.get("from") ?? "", to = params.get("to") ?? "";
   const [trimmedTags, setTrimmedTags] = useState(false);
-  const checked = periodBounds(from, to), prior = useRef<NonNullable<ReturnType<typeof periodBounds>>>({from:undefined,to:undefined});
-  if (checked) prior.current = checked;
-  const bounds = checked ?? prior.current;
+  const checked = periodBounds(from, to, timezone), prior = useRef({from:"",to:""});
+  if (checked) prior.current = {from, to};
+  const bounds = checked ?? periodBounds(prior.current.from, prior.current.to, timezone)!;
   useEffect(() => { const overLimit = allTags.length > ACTIVITY_TAG_LIMIT;
     if (!allTags.length) setTrimmedTags(false);
     if (!overLimit) return;
@@ -61,7 +62,7 @@ export function ActivityPage({ kind }: { kind: WorkspaceListKind }) {
   const create = useCreateMode("1");
   const begin = () => { const next = new URLSearchParams(params); next.set("create", "1"); setParams(next); };
   const filter = (name: string, value: string) => { const next = clearListPosition(new URLSearchParams(params)); value ? next.set(name, value) : next.delete(name); setParams(next, { replace: true }); };
-  const setDate = (name: string, value: string) => { const next = new URLSearchParams(params); value ? next.set(name, value) : next.delete(name); if(periodBounds(next.get("from")??"",next.get("to")??""))clearListPosition(next); setParams(next, { replace: true }); };
+  const setDate = (name: string, value: string) => { const next = new URLSearchParams(params); value ? next.set(name, value) : next.delete(name); if(periodBounds(next.get("from")??"",next.get("to")??"", timezone))clearListPosition(next); setParams(next, { replace: true }); };
   const saved = (kind: string, id: string) => { const next = new URLSearchParams(params); next.delete("create"); create.finish(`/${kind}s/${id}?list=${encodeURIComponent(`${pathname}?${next}`)}`); };
   if (legacy.route !== pathname || legacy.params.toString() !== params.toString()) return <Navigate replace to={`${legacy.route}?${legacy.params}${legacy.hash}`} />;
   return <>
@@ -78,15 +79,13 @@ export function ActivityPage({ kind }: { kind: WorkspaceListKind }) {
           </> : <Field label="기록 종류">{props => <select {...props} className="input" value={params.get("record_kind") ?? ""} onChange={event => filter("record_kind", event.target.value)}><option value="">전체</option>{Object.entries(recordKindNames).map(([value, text]) => <option key={value} value={value}>{text}</option>)}</select>}</Field>}
         {kind === "records" && <>{[["from", "기록 시작일", from], ["to", "기록 종료일", to]].map(([name, label, value]) => <Field key={name} label={label}>{props => <input {...props} type="date" className="input" value={value} aria-invalid={!checked || undefined} onChange={event => setDate(name, event.target.value)}/>}</Field>)} </>}
         </div>
-        {kind === "records" && <div className="record-period">
-        {!checked && <Notice kind="error">기록 시작일은 종료일보다 늦을 수 없습니다. 이전 유효 기간의 기록을 유지합니다.</Notice>}
-        <p className="meta" style={{margin:0}}>날짜와 시각 기준: {browserTimezone()}</p></div>}
+        {kind === "records" && !checked && <Notice kind="error">기록 시작일은 종료일보다 늦을 수 없습니다. 이전 유효 기간의 기록을 유지합니다.</Notice>}
         <TagDictionaryStatus dictionary={dictionary}/><fieldset className="field tag-filter-chips"><legend className="label">{label} 태그</legend><div className="chips">{dictionary.tags?.map(tag => <button type="button" key={tag.id} className="chip" disabled={tags.length >= ACTIVITY_TAG_LIMIT && !tags.includes(tag.id)} aria-pressed={tags.includes(tag.id)} onClick={() => { setTrimmedTags(false); const selected = tags.includes(tag.id) ? tags.filter(id => id !== tag.id) : [...tags, tag.id]; const next = clearListPosition(new URLSearchParams(params)); next.delete("tag_id"); selected.length ? next.set("tag_ids", selected.sort().join(",")) : next.delete("tag_ids"); setParams(next, { replace: true }); }}>{tag.name}</button>)}</div>{(trimmedTags || tags.length === ACTIVITY_TAG_LIMIT) && <p className="help" role="status">{trimmedTags ? "태그는 최대 10개입니다. 기존 조건의 앞 10개만 적용했습니다." : "태그는 최대 10개까지 선택할 수 있습니다. 선택한 태그를 해제하면 바꿀 수 있습니다."}</p>}</fieldset>
         </TabFilters>
       </div>
     </section>
     <ActivitySection kind={kind} tags={tags} bounds={bounds} dictionary={dictionary}/>
-    {create.open && (kind === "tasks" ? <TaskFormModal key={create.key} mode="create" open initial={emptyTask()} onClose={create.close} onRouteDiscard={create.discard} onSave={async (draft, creationId) => { const task = await api<TaskResult>("POST", "/tasks", { ...taskInput(draft), id: creationId() }); saved("task", task.id); }}/>
+    {create.open && (kind === "tasks" ? <TaskFormModal key={create.key} mode="create" open initial={emptyTask(timezone)} onClose={create.close} onRouteDiscard={create.discard} onSave={async (draft, creationId) => { const task = await api<TaskResult>("POST", "/tasks", { ...taskInput(draft), id: creationId() }); saved("task", task.id); }}/>
       : <RecordFormModal key={create.key} title="기록 작성" submitLabel="저장" open initial={emptyRecord()} onClose={create.close} onRouteDiscard={create.discard} onSave={async (draft, creationId) => { const record = await api<RecordResult>("POST", "/records", { ...draft, id: creationId() }); saved("record", record.id); }}/>) }
   </>;
 }

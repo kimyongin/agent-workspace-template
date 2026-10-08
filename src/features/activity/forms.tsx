@@ -1,3 +1,4 @@
+import { useDisplayTime } from "../../lib/useDisplayTime.ts";
 import type { DeletionOptions } from "../../components/DeleteAction.tsx";
 // 할 일·기록 작성/편집 폼. 검증은 서버와 같은 contracts로 하고, 저장 실패 시 초안을 유지한다.
 import { TagPicker } from "../tags/TagPicker.tsx";
@@ -27,14 +28,14 @@ export interface RecordDraft {
 
 export const emptyRecord = (): RecordDraft => ({ body: "", occurred_at: "", tag_ids:[] });
 
-export function recordDraftFrom(r: { body: string; occurred_at: string; tag_ids?:string[];entity_ids?:string[];entity_context?:EntityContext[] }): RecordDraft {
-  return { body: r.body, occurred_at: toLocalInput(r.occurred_at), original_occurred_at: r.occurred_at, tag_ids:r.tag_ids??[],entity_ids:r.entity_ids??[],entity_context:r.entity_context??[] };
+export function recordDraftFrom(r: { body: string; occurred_at: string; tag_ids?:string[];entity_ids?:string[];entity_context?:EntityContext[] }, timezone = browserTimezone()): RecordDraft {
+  return { body: r.body, occurred_at: toLocalInput(r.occurred_at, timezone), original_occurred_at: r.occurred_at, tag_ids:r.tag_ids??[],entity_ids:r.entity_ids??[],entity_context:r.entity_context??[] };
 }
 
 /** The minute-only input must not truncate an untouched stored timestamp. */
-export function recordDraftTime(draft: RecordDraft): string | undefined {
-  return draft.original_occurred_at && draft.occurred_at === toLocalInput(draft.original_occurred_at)
-    ? draft.original_occurred_at : fromLocalInput(draft.occurred_at);
+export function recordDraftTime(draft: RecordDraft, timezone = browserTimezone()): string | undefined {
+  return draft.original_occurred_at && draft.occurred_at === toLocalInput(draft.original_occurred_at, timezone)
+    ? draft.original_occurred_at : fromLocalInput(draft.occurred_at, timezone);
 }
 
 export function RecordFormModal(props: {
@@ -53,13 +54,15 @@ export function RecordFormModal(props: {
   onRouteDiscard?: () => void;
   onSave: (value: { body: string; occurred_at?: string; tag_ids?:string[];entity_ids?:string[];task_id?:string }, creationId: () => string) => Promise<void>;
 }) {
+  const displayTime = useDisplayTime();
+  const [timezone] = useState(displayTime.timezone);
   const [initial] = useState(props.initial);
   const [draft, setDraft] = useState(initial);
   const dirty = JSON.stringify(draft) !== JSON.stringify(initial);
   const value = () => ({
     body: draft.body,
     ...(!props.editing&&props.taskEditable!==false&&props.entityEditable!==false?{task_id:draft.task_id}:{}),
-    occurred_at: recordDraftTime(draft),
+    occurred_at: recordDraftTime(draft, timezone),
     tag_ids:draft.tag_ids,
     ...(props.entityEditable===false?{}:{entity_ids:draft.entity_ids??[]}),
   });
@@ -73,6 +76,7 @@ export function RecordFormModal(props: {
       onClose={props.onClose}
       onRouteDiscard={props.onRouteDiscard}
       validate={() => {
+        if (draft.occurred_at && !recordDraftTime(draft, timezone)) return { occurred_at: "선택한 시간대에서 존재하지 않는 시각입니다. 다른 시각을 입력하세요." };
         const r = recordCreate.omit({id:true}).safeParse(value());
         return r.success ? null : fieldErrors(r.error.issues);
       }}
@@ -121,8 +125,7 @@ export interface TaskDraft extends TextDraft {
   timezone: string;
 }
 
-export function emptyTask(): TaskDraft {
-  const tz = browserTimezone();
+export function emptyTask(tz = browserTimezone()): TaskDraft {
   return {
     kind: "once",
     tag_ids:[],
@@ -147,8 +150,8 @@ export function taskDraftFrom(t: {
   due_on: string | null;
   recurrence: Recurrence | null;
   timezone: string | null;
-}): TaskDraft {
-  const base = emptyTask();
+}, timezone = browserTimezone()): TaskDraft {
+  const base = emptyTask(timezone);
   const r = t.recurrence;
   return {
     ...base,

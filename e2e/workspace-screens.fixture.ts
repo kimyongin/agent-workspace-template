@@ -1214,3 +1214,25 @@ for(const width of [320,1440])test(`#205 ${width}px: 태그 입력·본문 정�
   expect(r.y>=s.y+s.height||r.x>=s.x+s.width||r.x+r.width<=s.x).toBe(true);expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
   await page.evaluate(()=>document.documentElement.style.fontSize="");expect(state.errors).toEqual([]);
 });
+
+
+test("#211 기록 필터·날짜 그룹·표시·편집은 계정 시간대로 일치하고 필터 안내는 없다",async({page})=>{
+  const state=await fixtures(page),reads:URL[]=[];
+  const user={id:id(77),aud:"authenticated",email:"timezone@example.test",app_metadata:{},user_metadata:{workspace_timezone:"America/New_York"}};
+  await page.addInitScript(user=>localStorage.setItem("sb-127-auth-token",JSON.stringify({access_token:"fixture-access",refresh_token:"fixture-refresh",expires_at:Math.floor(Date.now()/1000)+3600,token_type:"bearer",user})),user);
+  await page.route("**/auth/v1/user",route=>route.fulfill({json:user}));
+  Object.assign(state.rows.records[0],{occurred_at:"2026-10-07T23:15:22.123Z"});
+  page.on("request",request=>{const url=new URL(request.url());if(url.pathname==="/api/records")reads.push(url);});
+  await go(page,"/records?filters=1&from=2026-10-07&to=2026-10-07");
+  await expect(page.getByText("날짜와 시각 기준:",{exact:false})).toHaveCount(0);
+  await expect.poll(()=>reads.some(url=>url.searchParams.get("occurred_from")==="2026-10-07T04:00:00.000Z"&&url.searchParams.get("occurred_to")==="2026-10-08T03:59:59.999Z")).toBe(true);
+  await expect(page.getByRole("region",{name:"2026-10-07 기록",exact:true})).toBeVisible();
+  await openListDetail(page,"기록");
+  const displayed=await page.evaluate(()=>new Intl.DateTimeFormat("ko-KR",{dateStyle:"medium",timeStyle:"short",timeZone:"America/New_York"}).format(new Date("2026-10-07T23:15:22.123Z")));
+  await expect(form(page).locator("time")).toHaveText(displayed);
+  await openDetailEditor(page);await expect(form(page).locator('input[type="datetime-local"]')).toHaveValue("2026-10-07T19:15");
+  await form(page).getByLabel("본문",{exact:false}).fill("시각을 유지하는 편집");await saveOnce(page,form(page));
+  expect(state.writes[0].body.occurred_at).toBe("2026-10-07T23:15:22.123Z");
+  await go(page,"/tasks");await expect(page.locator(".list .item-title").first()).toBeVisible();await page.getByRole("button",{name:"할 일 등록",exact:true}).click();await form(page).getByRole("button",{name:"반복",exact:true}).click();
+  await expect(form(page).getByLabel("시간대",{exact:false})).toHaveValue("America/New_York");expect(state.errors).toEqual([]);
+});

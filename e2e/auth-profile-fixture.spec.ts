@@ -109,7 +109,7 @@ test("다른 탭의 같은 계정 프로필 갱신은 미저장 선택·이동 �
   await page.getByRole("link", { name: "엔터티", exact: true }).click();
   await page.getByRole("dialog", { name: "변경을 버릴까요?" }).getByRole("button", { name: "취소", exact: true }).click();
   await expect(page.getByRole("radio", { name: "별", exact: true })).toBeChecked();
-  await page.getByRole("button", { name: "변경 취소" }).click();
+  await page.getByRole("button", { name: "변경 취소", exact: true }).click();
   await expect(page.getByRole("radio", { name: "잎", exact: true })).toBeChecked();
   await expect(page.getByRole("button", { name: "아이콘 저장" })).toBeDisabled();
 });
@@ -127,7 +127,7 @@ test("외부 갱신 뒤 로컬 저장은 응답 정본을 채택하고 다른 �
   await expect(page.getByRole("radio", { name: "별", exact: true })).toBeChecked();
   // 서버가 정규화하거나 다른 쓰기가 뒤따른 경우에도 확인한 최신 응답이 정본이다.
   icon = "sun"; await page.getByRole("button", { name: "아이콘 저장" }).click();
-  await expect(page.getByRole("region", { name: "설정", exact: true }).getByRole("status")).toContainText("저장했습니다");
+  await expect(page.getByRole("form", { name: "프로필 아이콘 설정" }).getByRole("status")).toContainText("저장했습니다");
   for (const tab of [page, second]) {
     await expect(tab.getByTestId("provider-icon")).toHaveText("sun");
     await expect(tab.getByRole("radio", { name: "해", exact: true })).toBeChecked();
@@ -157,11 +157,11 @@ test("프로필 저장 성공·표시 재조회 실패를 구분하고 초안으
     return route.fulfill(fail ? { status: 400, json: { msg: "fixture read failure" } } : { json: updated });
   });
   await page.goto(fixture); await page.getByRole("radio", { name: "별", exact: true }).check(); await page.getByRole("button", { name: "아이콘 저장" }).click();
-  await expect(page.getByRole("alert")).toContainText("아이콘은 저장했지만 계정 표시를 새로 불러오지 못했습니다");
+  await expect(page.getByRole("alert")).toContainText("설정은 저장했지만 계정 표시를 새로 불러오지 못했습니다");
   await expect(page.getByRole("radio", { name: "별", exact: true })).toBeChecked();
   expect(await sdkState(page)).toMatchObject({ sdk: user.id, stored: user.id, icon: "person" });
   fail = false; await page.getByRole("button", { name: "아이콘 저장" }).click();
-  await expect(page.getByRole("region", { name: "설정", exact: true }).getByRole("status")).toContainText("저장했습니다");
+  await expect(page.getByRole("form", { name: "프로필 아이콘 설정" }).getByRole("status")).toContainText("저장했습니다");
   await expect(page.getByRole("button", { name: "아이콘 저장" })).toBeDisabled();
   await expect(page.getByTestId("provider-icon")).toHaveText("star");
   expect(await sdkState(page)).toMatchObject({ icon: "person" });
@@ -202,7 +202,7 @@ for (const hydration of ["completed", "pending"] as const) for (const writer of 
     } else {
       await second.getByRole("radio", { name: "잎", exact: true }).check();
       await second.getByRole("button", { name: "아이콘 저장" }).click();
-      await expect(second.getByRole("region", { name: "설정", exact: true }).getByRole("status")).toContainText("저장했습니다");
+      await expect(second.getByRole("form", { name: "프로필 아이콘 설정" }).getByRole("status")).toContainText("저장했습니다");
     }
     await newStarted;
     if (hydration === "completed") await expect(page.getByTestId("provider-icon")).toHaveText("leaf");
@@ -225,16 +225,64 @@ for (const hydration of ["completed", "pending"] as const) for (const writer of 
       await expect(page.getByRole("radio", { name: "별", exact: true })).toBeChecked();
       releaseNew();
     }
-    await expect(page.getByRole("region", { name: "설정", exact: true }).getByRole("status")).toContainText("저장했습니다");
+    await expect(page.getByRole("form", { name: "프로필 아이콘 설정" }).getByRole("status")).toContainText("저장했습니다");
     await expect(page.getByTestId("provider-icon")).toHaveText("leaf");
     await expect(page.getByRole("radio", { name: "잎", exact: true })).toBeChecked();
     await expect(page.getByRole("button", { name: "아이콘 저장" })).toBeDisabled();
     expect(icon).toBe("leaf"); expect(refreshes).toBe(0);
     expect((await sdkState(page)).serialized).toBe(before);
     await page.getByRole("radio", { name: "해", exact: true }).check();
-    await page.getByRole("button", { name: "변경 취소" }).click();
+    await page.getByRole("button", { name: "변경 취소", exact: true }).click();
     await expect(page.getByRole("radio", { name: "잎", exact: true })).toBeChecked();
     await page.reload(); await expect(page.getByTestId("provider-icon")).toHaveText("leaf");
     await info.attach("canonical-read-order", { contentType: "application/json", body: JSON.stringify({ hydration, writer, server: icon, provider: await page.getByTestId("provider-icon").textContent(), ...await sdkState(page), refreshes }) });
   });
 }
+
+
+test("계정 시간대 저장: 실패 초안·폐기 보호·기존 metadata·다른 탭·새로고침·기기 기본값", async ({ page, context }, info) => {
+  let timezone: string | null = null, fail = true;
+  const writes: unknown[] = [];
+  const responseUser = () => ({...user,user_metadata:{...user.user_metadata,workspace_timezone:timezone}});
+  await context.route("**/auth/v1/user", async route => {
+    if (route.request().method() === "PUT") {
+      writes.push(route.request().postDataJSON().data);
+      if (fail) return route.fulfill({status:503,json:{msg:"fixture failure"}});
+      timezone = route.request().postDataJSON().data.workspace_timezone;
+    }
+    return route.fulfill({json:responseUser()});
+  });
+  await page.setViewportSize({width:390,height:844});
+  await page.goto(fixture);
+  const setting = page.getByRole("form", {name:"날짜와 시각 설정"});
+  await setting.getByLabel("표시 시간대").selectOption("America/New_York");
+  await page.getByRole("link", {name:"기록",exact:true}).click();
+  await page.getByRole("dialog", {name:"변경을 버릴까요?"}).getByRole("button",{name:"취소",exact:true}).click();
+  await expect(setting.getByLabel("표시 시간대")).toHaveValue("America/New_York");
+  await setting.getByRole("button", {name:"시간대 저장",exact:true}).click();
+  await expect(setting.getByRole("alert")).toContainText("선택한 시간대를 유지");
+  await expect(setting.getByLabel("표시 시간대")).toHaveValue("America/New_York");
+  const otherTab = await context.newPage(); await otherTab.goto(fixture);
+  await otherTab.getByLabel("표시 시간대").selectOption("Asia/Tokyo");
+  fail = false;
+  const before = (await sdkState(page)).serialized;
+  await setting.getByRole("button", {name:"시간대 저장",exact:true}).click();
+  await expect(setting.getByRole("status")).toContainText("표시 시간대를 저장했습니다");
+  await expect(page.getByTestId("display-timezone")).toHaveText("America/New_York");
+  await expect(otherTab.getByTestId("display-timezone")).toHaveText("America/New_York");
+  await expect(otherTab.getByLabel("표시 시간대")).toHaveValue("Asia/Tokyo");
+  await otherTab.getByRole("button",{name:"시간대 변경 취소"}).click();
+  await expect(otherTab.getByLabel("표시 시간대")).toHaveValue("America/New_York");
+  expect((await sdkState(page)).serialized).toBe(before);
+  expect(writes).toEqual([{workspace_timezone:"America/New_York"},{workspace_timezone:"America/New_York"}]);
+  await expect(page.getByTestId("display-date")).toContainText("2026. 10. 7.");
+  await page.screenshot({path:info.outputPath("timezone-settings-390.png"),fullPage:true});
+  await page.reload(); await expect(page.getByLabel("표시 시간대")).toHaveValue("America/New_York");
+  await expect(page.getByRole("radio",{name:"기본",exact:true})).toBeChecked();
+  expect(responseUser().user_metadata.provider_value).toBe("preserved");
+  await page.getByLabel("표시 시간대").selectOption("");
+  await page.getByRole("button",{name:"시간대 저장",exact:true}).click();
+  await expect(otherTab.getByLabel("표시 시간대")).toHaveValue("");
+  expect(timezone).toBeNull();
+  await expect(page.getByTestId("display-timezone")).toHaveText(await page.evaluate(()=>Intl.DateTimeFormat().resolvedOptions().timeZone));
+});

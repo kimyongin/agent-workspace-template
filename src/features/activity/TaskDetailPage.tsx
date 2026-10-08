@@ -14,7 +14,8 @@ import { Notice } from "../../components/Field.tsx";
 import { MarkdownContent } from "../../components/MarkdownContent.tsx";
 import { DetailSurface } from "../../components/Modal.tsx";
 import { api, ApiError, query } from "../../lib/api.ts";
-import { addDays, formatDateTime, todayIn } from "../../lib/format.ts";
+import { useDisplayTime } from "../../lib/useDisplayTime.ts";
+import { addDays, todayIn } from "../../lib/format.ts";
 import { emptyRecord, RecordFormModal, TaskFormModal, taskDraftFrom, taskInput } from "./forms.tsx";
 import { OccurrenceBadge, StatusBadge } from "./shared.tsx";
 import {TagNames} from "../tags/TagPicker.tsx";
@@ -41,6 +42,7 @@ function requestedDialog(params: URLSearchParams): Dialog {
 }
 
 export function TaskDetailPage() {
+  const { formatDateTime, timezone } = useDisplayTime();
   const { id = "" } = useParams();
   const [params] = useSearchParams();
   const back=useDetailOwnerReturn(`/tasks${query({kind:params.get("kind"),status:params.get("status"),tag_id:params.get("tag_id"),entity_id:params.get("entity_id")})}`);
@@ -234,7 +236,7 @@ export function TaskDetailPage() {
         <TaskFormModal
           mode="edit"
           open
-          initial={taskDraftFrom(task)}
+          initial={taskDraftFrom(task, timezone)}
           deletion={{message:<p style={{ margin: 0 }}>
             「{task.title}」을(를) 삭제합니다. 연결된 결과·회차 기록은 남고 이 할 일과의 연결만 사라집니다.
           </p>,onConfirm:(reason,tags) =>

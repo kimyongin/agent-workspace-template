@@ -1,3 +1,4 @@
+import { useDisplayTime } from "../../lib/useDisplayTime.ts";
 import { BodyAction } from "../../components/BodyAction.tsx";
 import type { EntityContext } from "@contracts/entity-links.ts";
 import { RelatedSection } from "../../components/RelatedItems.tsx";
@@ -18,6 +19,7 @@ import { emptyRecord, emptyTask, RecordFormModal, TaskFormModal, taskInput } fro
 import "./entity.css";
 import { EntityTaskRelations } from "./TaskEntityRelations.tsx";
 export function EntityDetailPage() {
+  const { timezone } = useDisplayTime();
   const { id } = useParams(),
     [params] = useSearchParams(),
     navigate = useDetailNavigate();
@@ -96,7 +98,7 @@ export function EntityDetailPage() {
             {(["prop2","prop3","prop4"] as const).map(key=><div key={key}><dt>{entityLabels[key]}</dt><dd>{entity[key]??"미지정"}</dd></div>)}
           </dl><TagNames scope="entity" compact ids={entity.tag_ids}/></section>
           {management}
-          {creating === "task" && <TaskFormModal key={location.key} open mode="create" initial={{ ...emptyTask(), entity_ids: [entity.id], entity_context: entityContext }}
+          {creating === "task" && <TaskFormModal key={location.key} open mode="create" initial={{ ...emptyTask(timezone), entity_ids: [entity.id], entity_context: entityContext }}
             onClose={closeCreate} onRouteDiscard={()=>setCreating(null)} onSave={async (draft, creationId) => {
               await api("POST", "/tasks", { ...taskInput(draft), id: creationId() });
               closeCreate(); setRetry(n => n + 1);

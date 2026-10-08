@@ -1,10 +1,12 @@
-// 표시 유틸. 시각은 브라우저 시간대로, 날짜만 쓰는 값은 그대로 보여 준다.
+// 표시 유틸. 시각은 지정한 표시 시간대로, 날짜만 쓰는 값은 그대로 보여 준다.
 
-export const browserTimezone = () => Intl.DateTimeFormat().resolvedOptions().timeZone;
+import { Temporal } from "@js-temporal/polyfill";
+import { browserTimezone } from "./timezone.ts";
+export { browserTimezone } from "./timezone.ts";
 
-export function formatDateTime(iso: string | null | undefined): string {
+export function formatDateTime(iso: string | null | undefined, timezone = browserTimezone()): string {
   if (!iso) return "—";
-  return new Intl.DateTimeFormat("ko-KR", { dateStyle: "medium", timeStyle: "short" }).format(new Date(iso));
+  return new Intl.DateTimeFormat("ko-KR", { dateStyle: "medium", timeStyle: "short", timeZone: timezone }).format(new Date(iso));
 }
 
 export function todayIn(timezone: string): string {
@@ -18,20 +20,31 @@ export function addDays(date: string, days: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-/** datetime-local 입력값(브라우저 시간대) ↔ ISO. */
-export function toLocalInput(iso: string): string {
-  const d = new Date(iso);
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+/** datetime-local 입력값(지정한 표시 시간대) ↔ ISO. */
+export function toLocalInput(iso: string, timezone = browserTimezone()): string {
+  return Temporal.Instant.from(iso).toZonedDateTimeISO(timezone).toPlainDateTime().toString({ smallestUnit: "minute" });
 }
 
-export function fromLocalInput(value: string): string | undefined {
+export function fromLocalInput(value: string, timezone = browserTimezone()): string | undefined {
   if (!value) return undefined;
-  const d = new Date(value);
-  return Number.isNaN(d.getTime()) ? undefined : d.toISOString();
+  try {
+    const local = Temporal.PlainDateTime.from(value);
+    // Compatible chooses the earlier repeated time. Reject gaps instead of silently moving input.
+    const zoned = local.toZonedDateTime(timezone, { disambiguation: "compatible" });
+    if (!local.equals(zoned.toPlainDateTime())) return undefined;
+    return new Date(zoned.epochMilliseconds).toISOString();
+  } catch { return undefined; }
 }
 
-/** zod 오류를 필드별 첫 메시지로. */
+/** Inclusive UTC bounds of real civil days, which can have 23 or 25 hours. */
+export function civilDayBounds(from: string, to: string, timezone: string) {
+  const start = (date: string) => Temporal.PlainDate.from(date).toZonedDateTime(timezone);
+  return {
+    from: from ? new Date(start(from).epochMilliseconds).toISOString() : undefined,
+    to: to ? new Date(start(to).add({ days: 1 }).startOfDay().epochMilliseconds - 1).toISOString() : undefined,
+  };
+}
+
 export function fieldErrors(issues: { path: PropertyKey[]; message: string }[]): Record<string, string> {
   const out: Record<string, string> = {};
   for (const i of issues) {

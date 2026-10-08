@@ -1,3 +1,4 @@
+import { AuthProvider } from "../../src/features/auth/AuthProvider.tsx";
 import { useState } from "react";
 import { DetailNavigationProvider } from "../../src/lib/detail-exploration.tsx";
 import { createRoot } from "react-dom/client";
@@ -25,4 +26,4 @@ const router=createBrowserRouter([{element:<FixtureLayout/>,children:[
   {path:"/principles",element:<PrinciplesPage/>},{path:"/principles/:id",element:<PrincipleDetailPage/>},
   {path:"/tags/:scope",element:<TagsPage/>},{path:"/tags/:scope/:id",element:<TagsPage/>},{path:"/search",element:<SearchPage/>},{path:"/guide",element:<GuidePage/>},
 ]}]);
-createRoot(document.getElementById("root")!).render(<RouterProvider router={router}/>);
+createRoot(document.getElementById("root")!).render(<AuthProvider><RouterProvider router={router}/></AuthProvider>);

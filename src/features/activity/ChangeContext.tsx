@@ -1,12 +1,13 @@
 import type { RecordResult } from "@contracts/record.ts";
 import { MarkdownContent } from "../../components/MarkdownContent.tsx";
-import { formatDateTime } from "../../lib/format.ts";
+import { useDisplayTime } from "../../lib/useDisplayTime.ts";
 
 export type WorkspaceRecord = RecordResult;
 export const recordKindNames = {user:"직접 작성",result:"수행 결과",change:"변경 기록"};
 export const changeActionNames = {create:"등록",update:"수정",delete:"삭제",stop:"중단",resume:"재개"};
 const targets = {entity:"엔터티",task:"할 일",record:"기록",principle:"원칙"};
 export function ChangeContext({record,compact=false}: {record: WorkspaceRecord;compact?:boolean}) {
+  const { formatDateTime } = useDisplayTime();
   const change=record.change;
   const kind=`${recordKindNames[record.record_kind]??"기록"}${change?` · ${change.source==="http"?"웹":"에이전트"}`:""}`;
   const target=change?`${targets[change.target_kind]} 「${change.target_title}」 · ${changeActionNames[change.action]}`:null;
@@ -19,6 +20,7 @@ export function ChangeContext({record,compact=false}: {record: WorkspaceRecord;c
   </div>;
 }
 export function PrincipleSnapshots({snapshots}: {snapshots:NonNullable<WorkspaceRecord["applied_principle_snapshots"]>}) {
+  const { formatDateTime } = useDisplayTime();
   if (!snapshots.length) return null;
   return <section className="detail-section"><h2 className="section-title">적용 당시 원칙</h2>
     {snapshots.map((p,index)=><details key={index} className="workspace-additional">
