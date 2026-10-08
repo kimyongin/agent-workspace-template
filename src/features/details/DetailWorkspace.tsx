@@ -173,14 +173,19 @@ export function DetailWorkspace({ children, render, enabled }: { children: React
   useEffect(() => {
     if (!desktop || !visible) return;
     const frame = requestAnimationFrame(() => {
-      const button = tabFocus.current === "list" ? listRef.current?.querySelector<HTMLElement>("h1") : document.getElementById(`tab-${active}`);
+      let anchor:HTMLElement|null = null;
+      try {
+        const candidate = base.hash ? document.getElementById(decodeURIComponent(base.hash.slice(1))) : null;
+        if (candidate && listRef.current?.contains(candidate) && candidate.matches(".item-title")) anchor = candidate;
+      } catch { /* A malformed external fragment falls back to the list heading. */ }
+      const button = tabFocus.current === "list" ? anchor ?? listRef.current?.querySelector<HTMLElement>("h1") : document.getElementById(`tab-${active}`);
       if (tabFocus.current === "list") button?.setAttribute("tabindex", "-1");
       if (tabFocus.current) button?.focus({ preventScroll: true });
       if (tabFocus.current !== "list") button?.scrollIntoView({ block: "nearest", inline: "nearest" });
       tabFocus.current = null;
     });
     return () => cancelAnimationFrame(frame);
-  }, [active, visible, desktop, tabs.length, tabs.find(tab => tab.id === active)?.title, listRef]);
+  }, [active, visible, desktop, tabs.length, tabs.find(tab => tab.id === active)?.title, listRef, base.hash]);
   if (!started || !eligible) return children;
   return <WorkspaceContext.Provider value={{ revision, saved, open, registerGuard }}><div ref={split.ref} style={split.style} className={`detail-workspace${desktop && shown ? " has-detail-panel" : ""}${split.dragging ? " is-resizing" : ""}`}>
     <div className="workspace-list" ref={listRef}>{render(base)}
