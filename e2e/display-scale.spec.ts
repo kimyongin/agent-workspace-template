@@ -47,7 +47,7 @@ test("display scale: failed save keeps selection; retry persists only changed me
   await expect(page.getByRole("alert")).toContainText("입력한 설정을 유지");
   await expect(scale).toHaveValue("150"); expect(await rootSize(page)).toBe(24);
   state.fail = false; await page.getByRole("button", { name: "저장", exact: true }).click();
-  await expect(page.getByRole("status")).toContainText("저장했습니다");
+  await expect(page.getByRole("form", { name: "계정 설정" }).getByRole("status")).toContainText("저장했습니다");
   expect(state.writes).toEqual([{ workspace_display_scale: "150" }, { workspace_display_scale: "150" }]);
   expect(state.metadata.provider_value).toBe("preserved");
   await page.reload(); await expect(scale).toHaveValue("150"); await expect.poll(() => rootSize(page)).toBe(24);
@@ -169,7 +169,7 @@ test("display scale: mobile and desktop preview, save and cancel independently a
   await page.setViewportSize({ width: 1023, height: 900 }); await expect.poll(() => rootSize(page)).toBe(24);
   await page.setViewportSize({ width: 1024, height: 900 }); await expect.poll(() => rootSize(page)).toBe(20);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-  await page.getByRole("button", { name: "저장", exact: true }).click(); await expect(page.getByRole("status")).toContainText("저장했습니다");
+  await page.getByRole("button", { name: "저장", exact: true }).click(); await expect(page.getByRole("form", { name: "계정 설정" }).getByRole("status")).toContainText("저장했습니다");
   expect(state.writes).toEqual([{ workspace_display_scale: "125", workspace_mobile_display_scale: "150" }]);
   await page.reload(); await expect(desktop).toHaveValue("125"); await expect(mobile).toHaveValue("150");
   await page.setViewportSize({ width: 390, height: 844 }); await expect.poll(() => rootSize(page)).toBe(24);
@@ -187,7 +187,7 @@ test("display scale: existing saved scale is preserved for desktop; mobile-only 
   await expect(page.getByLabel("모바일 화면 배율", { exact: true })).toHaveValue("100");
   await page.setViewportSize({ width: 390, height: 844 }); await expect.poll(() => rootSize(page)).toBe(16);
   await page.getByLabel("모바일 화면 배율", { exact: true }).selectOption("150");
-  await page.getByRole("button", { name: "저장", exact: true }).click(); await expect(page.getByRole("status")).toContainText("저장했습니다");
+  await page.getByRole("button", { name: "저장", exact: true }).click(); await expect(page.getByRole("form", { name: "계정 설정" }).getByRole("status")).toContainText("저장했습니다");
   expect(state.writes).toEqual([{ workspace_mobile_display_scale: "150" }]);
   expect(state.metadata.workspace_display_scale).toBe("125");
   await page.reload(); await expect.poll(() => rootSize(page)).toBe(24);

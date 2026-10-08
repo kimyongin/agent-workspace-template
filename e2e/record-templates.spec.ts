@@ -71,7 +71,7 @@ test("설정 템플릿 오류·변수 삽입·이전/이후 미리보기와 확�
     const current=await api("GET","/settings/business");
     await api("PATCH","/settings/business",{expected_version:current.version,sections:{record_templates:{task:{create:{memo:"나중에 바뀐 기본값",tag_ids:[]}}}}});
     await confirmation.getByRole("button",{name:"같은 내용 다시 시도",exact:true}).click();
-    await expect(page.getByRole("heading",{name:title,level:1})).toBeVisible();
+    await expect(page.getByRole("heading",{name:title,exact:true})).toBeVisible();
     expect(requests).toHaveLength(2); expect(requests[1]).toEqual(requests[0]);
     taskId=(requests[0] as {id:string}).id;
     expect(preparedIds.length).toBeGreaterThan(0);expect(new Set(preparedIds)).toEqual(new Set([taskId]));
@@ -81,6 +81,6 @@ test("설정 템플릿 오류·변수 삽입·이전/이후 미리보기와 확�
   } finally {
     if(taskId){const task=await api("GET",`/tasks/${taskId}`);await api("POST",`/tasks/${taskId}/delete`,{expected_version:task.version,change_tag_ids:[]});}
     const current=await api("GET","/settings/business");await api("PATCH","/settings/business",{expected_version:current.version,sections:{record_templates:saved.settings.record_templates??{}}});
-    await api("POST",`/tags/${tag.id}/delete`,{expected_version:tag.version,change_tag_ids:[]});
+    await api("DELETE",`/tags/${tag.id}?expected_version=${tag.version}`);
   }
 });

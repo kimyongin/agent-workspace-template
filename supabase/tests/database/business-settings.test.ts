@@ -17,7 +17,10 @@ import { AppError } from "../../functions/_shared/core/shared/errors.ts";
 dbTest("업무 설정 DB: 소유자 격리·섹션 병합·경합·고정 메모·명시 빈 태그·삭제 태그·과거 기록 보존", async () => {
   const admin = connect(urls.admin), sql = connect(urls.direct);
   const own = await fixtureOwner(admin), other = await fixtureOwner(admin);
-  const settings = { uow: new SqlBusinessSettingsUnitOfWork(sql) };
+  const settings = {
+    uow: new SqlBusinessSettingsUnitOfWork(sql),
+    clock: { now: () => new Date("2026-10-09T00:00:00Z") },
+  };
   const activity = { uow: new SqlUnitOfWork(sql), clock: { now: () => new Date() } };
   const tags = { uow: new SqlTagUnitOfWork(sql) };
   const actor = own.actor;
