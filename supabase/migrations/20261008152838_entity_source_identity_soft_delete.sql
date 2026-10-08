@@ -1,3 +1,4 @@
+begin;
 -- The tuple is the actual ID; every owner may independently use the same tuple.
 -- No UUID alias remains. Old UUIDs become exact external IDs of the app source.
 lock table app.entities,app.entity_tags,app.tasks,app.records in access exclusive mode;
@@ -109,3 +110,5 @@ revoke all on function app.rekey_entity(text,text,text),app.entity_path_segment(
 grant execute on function app.rekey_entity(text,text,text),app.entity_path_segment(text) to app_user;
 -- Entity deletion is a reversible domain command; only account deletion/admin cleanup is physical.
 revoke delete on app.entities from app_user;
+
+commit;
