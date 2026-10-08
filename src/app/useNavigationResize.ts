@@ -35,7 +35,7 @@ export function useNavigationResize(account: string | null) {
     return () => { observer.disconnect(); window.removeEventListener("resize", measure); };
   }, [enabled, scale, account]);
   const resize = useCallback((value: number) => setPreferred({ account, rem: value / geometry.rem }), [account, geometry.rem]);
-  const handle = useResizeHandle({ enabled, label: "탐색 메뉴 너비 조절", controls: "workspace-navigation", direction: 1,
+  const handle = useResizeHandle({ enabled, owner: account, label: "탐색 메뉴 너비 조절", controls: "workspace-navigation", direction: 1,
     size: { value: width, min: geometry.min, max: geometry.max }, resize, reset: () => setPreferred({ account, rem: 13 }) });
   return { ref, ...handle, style: { "--sidebar-width": `${width / geometry.rem}rem` } as CSSProperties };
 }

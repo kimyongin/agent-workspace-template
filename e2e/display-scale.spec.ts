@@ -137,6 +137,10 @@ test("display scale: switching accounts removes the previous account's unsaved p
   await page.getByLabel("모바일 화면 배율", { exact: true }).selectOption("150");
   await page.getByRole("separator", { name: "탐색 메뉴 너비 조절" }).press("End");
   await expect.poll(async () => (await page.getByRole("navigation", { name: "주 메뉴" }).boundingBox())!.width).toBe(480);
+  const handle = (await page.getByRole("separator", { name: "탐색 메뉴 너비 조절" }).boundingBox())!;
+  await page.mouse.move(handle.x + 6, handle.y + handle.height / 2); await page.mouse.down();
+  await page.mouse.move(handle.x - 14, handle.y + handle.height / 2);
+  await expect(page.locator(".app-shell")).toHaveClass(/is-resizing/);
   state.metadata.workspace_display_scale = "125";
   for (const account of [id(101), id(100)]) {
     state.account = account;
@@ -148,8 +152,12 @@ test("display scale: switching accounts removes the previous account's unsaved p
   }, state.account);
   await expect(scale).toHaveValue("125"); await expect.poll(() => rootSize(page)).toBe(20);
   await expect.poll(async () => (await page.getByRole("navigation", { name: "주 메뉴" }).boundingBox())!.width).toBe(260);
+    await page.mouse.move(handle.x - 44, handle.y + handle.height / 2);
+    await expect(page.locator(".app-shell")).not.toHaveClass(/is-resizing/);
+    expect((await page.getByRole("navigation", { name: "주 메뉴" }).boundingBox())!.width).toBe(260);
     await expect(page.getByRole("button", { name: "저장", exact: true })).toBeDisabled();
   }
+  await page.mouse.up();
   await page.setViewportSize({ width: 390, height: 844 }); await expect.poll(() => rootSize(page)).toBe(16);
   expect(state.writes).toEqual([]);
 });

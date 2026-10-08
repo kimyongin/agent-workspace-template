@@ -1,14 +1,14 @@
-import { useEffect, useRef, useState, type HTMLAttributes } from "react";
+import { useLayoutEffect, useRef, useState, type HTMLAttributes } from "react";
 import "./resize-handle.css";
 
 type ResizeOptions = {
-  enabled: boolean; label: string; controls: string; direction: 1 | -1;
+  enabled: boolean; owner?: string | null; label: string; controls: string; direction: 1 | -1;
   size: { value: number; min: number; max: number };
   resize: (width: number) => void; reset: () => void;
 };
 
 /** Shared pointer ownership and keyboard operation for both desktop dividers. */
-export function useResizeHandle({ enabled, label, controls, direction, size, resize, reset }: ResizeOptions) {
+export function useResizeHandle({ enabled, owner, label, controls, direction, size, resize, reset }: ResizeOptions) {
   const handle = useRef<HTMLDivElement | null>(null);
   const drag = useRef<{ pointer: number; x: number; width: number } | null>(null);
   const [dragging, setDragging] = useState(false);
@@ -18,14 +18,14 @@ export function useResizeHandle({ enabled, label, controls, direction, size, res
     if (pointer !== undefined && handle.current?.hasPointerCapture(pointer)) handle.current.releasePointerCapture(pointer);
     setDragging(false);
   };
-  useEffect(() => {
-    if (!enabled) stop();
+  useLayoutEffect(() => {
+    stop();
     return () => {
       const pointer = drag.current?.pointer;
       drag.current = null;
       if (pointer !== undefined && handle.current?.hasPointerCapture(pointer)) handle.current.releasePointerCapture(pointer);
     };
-  }, [enabled]);
+  }, [enabled, owner]);
   const change = (width: number) => resize(Math.min(size.max, Math.max(size.min, width)));
   const separator: HTMLAttributes<HTMLDivElement> & { ref: (element: HTMLDivElement | null) => void } = {
     ref: element => { handle.current = element; }, role: "separator", "aria-label": label, "aria-orientation": "vertical",
