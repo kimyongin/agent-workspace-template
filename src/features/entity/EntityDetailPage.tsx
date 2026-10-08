@@ -99,7 +99,7 @@ export function EntityDetailPage() {
               await api("POST", "/records", { ...value, id: creationId() });
               closeCreate(); void reload();
             }} />}
-          {rekeying && <EntityIdentityForm entity={entity} onClose={() => setRekeying(false)} onSaved={saved => { setRekeying(false); navigate(`${entityPath(saved.id)}?${params}`, {replace:true}); }}/>}
+          {rekeying && <EntityIdentityForm entity={entity} onClose={() => setRekeying(false)} onSaved={saved => { setRekeying(false); afterClose(`${entityPath(saved.id)}?${params}`, {replace:true,state:{rekeyedDetail:location.pathname}}); }}/>}
           {editor.active && !creating && editReady && (
             <EntityForm
               initial={entity}
@@ -109,7 +109,7 @@ export function EntityDetailPage() {
                   await api(
                     "POST",
                     `${entityPath(id)}/delete`,
-                    {expected_version:entity.version,change_note:reason||undefined, change_tag_ids:tags},
+                    {expected_version:entity.version,change_note:reason, change_tag_ids:tags},
                   );
                   editor.leave(deleteBack);
                 } catch (e) {
