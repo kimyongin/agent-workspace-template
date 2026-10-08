@@ -612,7 +612,7 @@ test("desktop: closing a search detail restores the originating result and reloa
   const result=page.locator(".workspace-list").getByRole("link",{name:"등심 구매하기",exact:true});
   await result.click();await expect(page.getByRole("tab",{name:"등심 구매하기",exact:true})).toHaveAttribute("aria-selected","true");
   await page.getByRole("button",{name:"등심 구매하기 탭 닫기",exact:true}).click();
-  await expect(result).toBeFocused();expect(new URL(page.url()).hash).toBe(`#search-task-${id(2)}`);
+  await expect(result).toBeFocused();expect(await result.evaluate(element=>element.tabIndex)).toBe(0);expect(new URL(page.url()).hash).toBe(`#search-task-${id(2)}`);
   await page.reload();await expect(result).toBeFocused();expect(state.errors).toEqual([]);
 });
 
@@ -623,6 +623,6 @@ test("desktop: entity list focus round trips a Unicode and percent identity thro
   await page.goto("/entities");await openEntity(page);
   await page.getByRole("button",{name:"등심 탭 닫기",exact:true}).click();
   const target=page.locator(".workspace-list").getByRole("button",{name:"등심",exact:true});
-  await expect(target).toBeFocused();expect(new URL(page.url()).hash).toBe(`#${encodeURIComponent(`entity-${canonical}`)}`);
+  await expect(target).toBeFocused();expect(await target.evaluate(element=>element.tabIndex)).toBe(0);expect(new URL(page.url()).hash).toBe(`#${encodeURIComponent(`entity-${canonical}`)}`);
   await page.reload();await expect(target).toBeFocused();expect(state.errors).toEqual([]);
 });
