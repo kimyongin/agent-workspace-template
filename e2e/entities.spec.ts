@@ -40,7 +40,7 @@ test("Entity 웹 CRUD·초안 보호→MCP parity·활동 연결→삭제 원문
     await expect(page.locator(".list .item-title")).toHaveCount(1);
     expect(new URL(page.url()).searchParams.get("entity_id")).toBe(id);
     await page.getByRole("link", { name: task.title, exact: true }).click();
-    await page.getByRole("button",{name:/^이전: 검색/}).click();
+    await closeDetail(page);
     await expect(page.getByRole("link", { name: task.title, exact: true })).toBeFocused();
     await page.reload();
     await expect(page.locator(".list .item-title")).toHaveCount(1);
