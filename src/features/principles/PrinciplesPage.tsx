@@ -5,11 +5,12 @@ import { PrincipleFormModal, emptyPrinciple } from "./forms.tsx";
 import { Notice } from "../../components/Field.tsx";
 import { MarkdownContent } from "../../components/MarkdownContent.tsx";
 import { api } from "../../lib/api.ts";
-import { formatDateTime } from "../../lib/format.ts";
+import { useDisplayTime } from "../../lib/useDisplayTime.ts";
 import type { WorkspacePrinciple } from "./model.ts";
 import "../activity/activity.css";
 import { TabCreateButton } from "../../components/TabCreateButton.tsx";
 export function PrinciplesPage() {
+  const { formatDateTime } = useDisplayTime();
   const create=useCreateMode();
   const location=useLocation();
   useEffect(()=>{if(location.hash==="#principles-title")document.getElementById("principles-title")?.focus();},[location.key]);

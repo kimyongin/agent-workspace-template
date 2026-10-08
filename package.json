@@ -26,6 +26,7 @@
     "test:all": "node scripts/test-all.mjs"
   },
   "dependencies": {
+    "@js-temporal/polyfill": "0.5.1",
     "@supabase/supabase-js": "2.117.2",
     "react": "19.3.0",
     "react-dom": "19.3.0",

@@ -1,4 +1,5 @@
 import { AuthClient, type Session } from "@supabase/supabase-js";
+import { timezonePreference } from "../../lib/timezone.ts";
 import { profileIconId } from "../settings/profile.tsx";
 
 /** updateUser는 캡처한 세션을 응답 뒤 저장한다. 프로필 쓰기는 공유 세션과 격리한다. */
@@ -34,10 +35,10 @@ export async function readProfile(session: Session) {
     const { data, error } = await client.getUser(session.access_token);
     if (error) throw error;
     if (data.user?.id !== session.user.id) throw new Error("로그인 계정이 변경되었습니다.");
-    return profileIconId(data.user.user_metadata.workspace_avatar_id);
+    return { icon: profileIconId(data.user.user_metadata.workspace_avatar_id), timezone: timezonePreference(data.user.user_metadata.workspace_timezone) };
   } finally { await client.dispose(); }
 }
 
 export class ProfileDisplayRefreshError extends Error {
-  constructor() { super("아이콘은 저장했지만 계정 표시를 새로 불러오지 못했습니다. 잠시 후 다시 시도하세요."); }
+  constructor() { super("설정은 저장했지만 계정 표시를 새로 불러오지 못했습니다. 잠시 후 다시 시도하세요."); }
 }

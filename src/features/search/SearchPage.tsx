@@ -5,13 +5,14 @@ import { useLocation, useSearchParams } from "react-router";
 import { type SearchResult } from "@contracts/search.ts";
 import { Field, Notice } from "../../components/Field.tsx";
 import { api } from "../../lib/api.ts";
-import { formatDateTime } from "../../lib/format.ts";
+import { useDisplayTime } from "../../lib/useDisplayTime.ts";
 import { TagFilter, TagNames, TagReadProvider, useTagDictionary } from "../tags/TagPicker.tsx";
 import { EntityPicker } from "../entity/EntityPicker.tsx";
 import { workspaceSearchScope } from "./search-scope.ts";
 import { activityTags } from "../activity/activity-filters.ts";
 const kinds={task:"할 일",record:"기록",principle:"원칙"} as const;
 export function SearchPage(){
+  const { formatDateTime } = useDisplayTime();
   useDetailExploration();
   const composing=useRef(false);
   const [params,setParams]=useSearchParams(), [draft,setDraft]=useState(params.get("q")??"");

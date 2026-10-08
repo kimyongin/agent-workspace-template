@@ -1,3 +1,4 @@
+import { useDisplayTime } from "../../lib/useDisplayTime.ts";
 import { RecordRelations } from "./RecordRelations.tsx";
 import { useDetailNavigate, useDetailOwnerReturn, useDetailDeleteReturn } from "../../lib/detail-exploration.tsx";
 import { editFromView } from "../../lib/detail-navigation.ts";
@@ -14,6 +15,7 @@ import { RecordFormModal, recordDraftFrom } from "./forms.tsx";
 import {TagNames} from "../tags/TagPicker.tsx";
 
 export function RecordDetailPage() {
+  const { timezone } = useDisplayTime();
   const { id = "" } = useParams();
   const [params] = useSearchParams();
   const back=useDetailOwnerReturn(`/records${query({tag_id:params.get("tag_id")??"",entity_id:params.get("entity_id")??""})}`);
@@ -95,7 +97,7 @@ export function RecordDetailPage() {
           title="기록 편집"
           submitLabel="저장"
           open
-          initial={recordDraftFrom(record)}
+          initial={recordDraftFrom(record, timezone)}
           details={<section className="detail-section">{management}</section>}
           deletion={{message:<p style={{ margin: 0 }}>
             이 기록을 삭제합니다. {record.record_kind==="change"?"대상의 업무 상태는 되돌리지 않습니다.":"일회성 할 일의 결과였다면 할 일은 완료 상태로 남고 결과 연결만 사라집니다."}

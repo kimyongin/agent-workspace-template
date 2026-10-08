@@ -7,12 +7,13 @@ import { Notice } from "../../components/Field.tsx";
 import { MarkdownContent } from "../../components/MarkdownContent.tsx";
 import { api, ApiError } from "../../lib/api.ts";
 import { useDeferredNavigation } from "../../lib/useDeferredNavigation.ts";
-import { formatDateTime } from "../../lib/format.ts";
+import { useDisplayTime } from "../../lib/useDisplayTime.ts";
 
 import { PrincipleFormModal } from "./forms.tsx";
 import type { WorkspacePrinciple } from "./model.ts";
 
 export function PrincipleDetailPage() {
+  const { formatDateTime } = useDisplayTime();
   const {id=""}=useParams(), [params]=useSearchParams(), navigate=useDetailNavigate(), afterClose=useDeferredNavigation();
   const back=useDetailOwnerReturn("/principles");
   const deleteBack=useDetailDeleteReturn(back);

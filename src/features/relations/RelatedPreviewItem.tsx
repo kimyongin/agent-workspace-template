@@ -15,11 +15,12 @@ import { api, ApiError } from "../../lib/api.ts";
 import { StatusBadge } from "../activity/shared.tsx";
 import { TagNames } from "../tags/TagPicker.tsx";
 import { ChangeContext } from "../activity/ChangeContext.tsx";
-import { formatDateTime } from "../../lib/format.ts";
+import { useDisplayTime } from "../../lib/useDisplayTime.ts";
 
 type Preview = EntityResult | TaskResult | RecordResult | WorkspacePrinciple;
 /** Current content only, never another relationship graph or a write during disclosure. */
 export function RelatedPreviewItem({list,...props}:ComponentProps<typeof RelatedItem>&{list?:{link:()=>LinkProps;metadata?:ReactNode}}) {
+  const { formatDateTime } = useDisplayTime();
   const selection=useRelatedExpansion(),surface=useContext(SurfaceContext),button=useRef<HTMLElement|null>(null);
   const [item,setItem]=useState<Preview|null>(null),[error,setError]=useState<"missing"|"failed"|null>(null),[retry,setRetry]=useState(0);
   const path=props.to?.split(/[?#]/)[0];

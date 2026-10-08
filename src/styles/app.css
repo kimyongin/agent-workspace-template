@@ -814,3 +814,6 @@ textarea.input {
 .search-page .list { background: var(--panel); border-radius: var(--radius-card); padding-inline: var(--space-3); }
 .search-page .list-item { gap: var(--space-2); padding-block: var(--space-2); }
 .search-page .list-item-main { gap: var(--space-2); }
+
+.settings .timezone-settings .field { margin-top: var(--space-3); }
+.settings .timezone-settings .actions { margin-top: var(--space-3); }
