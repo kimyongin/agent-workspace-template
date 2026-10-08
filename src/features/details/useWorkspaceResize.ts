@@ -24,8 +24,9 @@ export function useWorkspaceResize(enabled: boolean) {
     const measure = () => {
       const available = Math.max(0, container.clientWidth - handleWidth);
       const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
-      const min = Math.min(27 * rem, available / 2);
-      const listMin = Math.min(28 * rem, available / 2);
+      const fits = available >= 55 * rem;
+      const min = fits ? 27 * rem : available / 2;
+      const listMin = fits ? 28 * rem : available / 2;
       setGeometry({ available, min, max: available - listMin });
     };
     measure();

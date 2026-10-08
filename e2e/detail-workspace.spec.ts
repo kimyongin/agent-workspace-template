@@ -106,6 +106,27 @@ test("desktop: pointer cancellation ends resizing without consuming later mouse 
   await expect.poll(() => detailWidth(page)).toBeCloseTo(width - 20, 0);
   expect(state.writes).toEqual([]);
 });
+test("desktop: separator target leaves tab icons clickable and adapts to large text", async ({ page }) => {
+  await fixture(page); await page.goto(`/entities/${id(1)}`); await openTask(page);
+  const first = page.getByRole("tab", { name: "등심", exact: true });
+  await first.locator("svg").click({ position: { x: 2, y: 8 } });
+  await expect(first).toHaveAttribute("aria-selected", "true");
+  await expect(page.locator(".detail-workspace")).not.toHaveClass(/is-resizing/);
+  const separator = page.getByRole("separator", { name: "상세 패널 너비 조절" });
+  const box = (await separator.boundingBox())!;
+  const before = await detailWidth(page);
+  // The central grip has a 44x44 target, but does not steal header/footer clicks.
+  await page.mouse.move(box.x - 10, box.y + box.height / 2); await page.mouse.down();
+  await page.mouse.move(box.x - 30, box.y + box.height / 2); await page.mouse.up();
+  await expect.poll(() => detailWidth(page)).toBeCloseTo(before + 20, 0);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.addStyleTag({ content: ":root { font-size: 21px; }" });
+  const available = (await page.locator(".detail-workspace").boundingBox())!.width - 12;
+  await expect.poll(() => detailWidth(page)).toBeCloseTo(available / 2, 0);
+  expect((await page.locator(".workspace-list").boundingBox())!.width).toBeCloseTo(available / 2, 0);
+  await separator.press("End");
+  expect(await detailWidth(page)).toBeCloseTo(available / 2, 0);
+});
 test("desktop: list stays usable, related details become unique tabs and close restores list", async ({ page }, info) => {
   const state = await fixture(page); await page.goto("/entities?view=table");
   await openEntity(page); await expect(page.getByRole("tab", { name: "등심", exact: true })).toHaveAttribute("aria-selected", "true");
