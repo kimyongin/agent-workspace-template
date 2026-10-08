@@ -104,7 +104,14 @@ export function DetailLink({ onClick, state, restoreKey, ...props }: Omit<LinkPr
     onClick?.(event);
     if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey
       || props.target && props.target !== "_self" || props.reloadDocument) return;
-    if (workspace && detailIdentity(target)) { event.preventDefault(); workspace.open(props.to, location); return; }
+    if (workspace && detailIdentity(target)) {
+      event.preventDefault();
+      const source = location.pathname === "/search" && props.id ? new URLSearchParams(location.search) : null;
+      const list = event.currentTarget.closest<HTMLElement>(".workspace-list");
+      source?.set("scroll", String(list?.scrollTop ?? window.scrollY));
+      workspace.open(props.to, source ? {...location,search:`?${source}`,hash:`#${encodeURIComponent(props.id!)}`} : location);
+      return;
+    }
     if (!detailPath.test(target.split(/[?#]/)[0]) || !(detailPath.test(location.pathname) || location.pathname === "/search" || target.startsWith("/tags") && tagOrigin.test(location.pathname))) return;
     if(target.split(/[?#]/)[0]===location.pathname){event.preventDefault();void navigate(props.to,{replace:true,state:location.state});return;}
     const body = document.querySelector<HTMLElement>("dialog[open]:not(.modal-confirm) .modal-body");

@@ -1,3 +1,4 @@
+import { entityReferenceId } from "./entity-identity.ts";
 import { entityContext, entitySelection } from "./entity-links.ts";
 // 할 일(Task)·반복 할 일 계약.
 // HTTP 입력 검증·MCP inputSchema·웹 폼이 이 정의를 함께 쓴다. zod만 가져온다.
@@ -113,7 +114,7 @@ export const taskListQuery = z
     occurrence_on: isoDate.optional(),
     tag_id: id.optional(),
     tag_ids: tagFilterIds.optional(),
-    entity_id: id.optional(),
+    entity_id: entityReferenceId.optional(),
     ...pageInput,
   })
   .refine((q) => !(q.due_from && q.due_to) || q.due_from <= q.due_to, {
@@ -135,7 +136,7 @@ export const pause = z.object({ stopped_on: isoDate, resumed_on: isoDate.nullabl
 
 export const taskResult = z.object({
   id,
-  entity_ids: z.array(id),
+  entity_ids: z.array(entityReferenceId),
   entity_context: z.array(entityContext),
   tag_ids: z.array(id),
   kind: z.enum(TASK_KINDS),

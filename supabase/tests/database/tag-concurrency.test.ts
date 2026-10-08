@@ -44,7 +44,7 @@ for (
           ? await e.createEntity(
             ed,
             f.actor,
-            entityCreate.parse({ id: crypto.randomUUID(), ...{ prop1: "parent", tag_ids } }),
+            entityCreate.parse({ source: "app", external_id: crypto.randomUUID(), ...{ prop1: "parent", tag_ids } }),
           )
           : kind === "task"
           ? await a.createTask(
@@ -131,10 +131,16 @@ for (
         const events = await admin`select body,change_metadata from app.records where owner_id=${f.actor.userId}
         and change_metadata->>'target_id'=${parent.id} and change_metadata->>'action'='update' order by occurred_at`;
         if (scenario === "delete parent") {
+          if (kind === "entity") {
+            const retained = await e.getEntity(ed, f.actor, parent.id);
+            assert(retained.deleted_at);
+            assertEquals(retained.tag_ids, [other.id]);
+            assertEquals(retained.version, parent.version + 2);
+            assertEquals(events.length, 1);
+            return;
+          }
           assertEquals(
-            (await admin`select id from ${
-              admin(`app.${kind === "entity" ? "entities" : `${kind}s`}`)
-            } where id=${parent.id}`).length,
+            (await admin`select id from ${admin(`app.${kind}s`)} where id=${parent.id}`).length,
             0,
           );
           assertEquals(events.length, 0);

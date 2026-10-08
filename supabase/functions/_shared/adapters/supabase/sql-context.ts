@@ -8,7 +8,8 @@ import { AppError } from "../../core/shared/errors.ts";
 import { SEARCH_PIPELINE } from "../../core/search/config.ts";
 import type { ChangeInput } from "../../core/shared/changes.ts";
 import { searchInputHash } from "../../core/shared/operations.ts";
-import { changeBody } from "../../core/shared/change-memo.ts";
+import { SqlBusinessSettingsStore } from "./business-settings-store.ts";
+import { changeDefaults } from "../../core/settings/change-defaults.ts";
 
 export class SqlActorStore {
   protected readonly entityLinks: SqlEntityLinks;
@@ -16,11 +17,19 @@ export class SqlActorStore {
   constructor(protected readonly tx: postgres.TransactionSql, protected readonly actor: Actor) {
     this.entityLinks = new SqlEntityLinks(tx);
   }
+  getBusinessSettings() {
+    return new SqlBusinessSettingsStore(this.tx, this.actor).get();
+  }
 
   /** Explicit user commands call this once, never the internal insert itself. */
   async appendChange(input: ChangeInput) {
     const target = input.target, target_title = target.title;
-    const body = changeBody(input);
+    const settingsStore = new SqlBusinessSettingsStore(this.tx, this.actor);
+    const settings = (await settingsStore.get()).settings;
+    const ids =
+      settings.record_templates?.[input.target_kind as "entity" | "task" | "principle"]?.[input.action]?.tag_ids ?? [];
+    const memo = changeDefaults(input, settings, await settingsStore.recordTags(ids));
+    const body = memo.change_note;
     // New events retain facts and the final memo, not an extra full domain capture.
     // Nullable keys remain compatible with old stored snapshots and readers.
     const metadata = {
@@ -34,7 +43,7 @@ export class SqlActorStore {
       after: null,
       path: input.action === "delete"
         ? null
-        : `/${input.target_kind === "entity" ? "entities" : `${input.target_kind}s`}/${target.id}`,
+        : `/${input.target_kind === "entity" ? "entities" : `${input.target_kind}s`}/${encodeURIComponent(target.id)}`,
     };
     const values = {
       owner_id: this.actor.userId,
@@ -44,7 +53,7 @@ export class SqlActorStore {
       change_metadata: this.tx.json(metadata as never),
     };
     const [row] = await this.tx`insert into app.records ${this.tx(values)} returning id`;
-    await setTagLinks(this.tx, this.actor, "record", row.id as string, input.change_tag_ids ?? []);
+    await setTagLinks(this.tx, this.actor, "record", row.id as string, memo.change_tag_ids);
     await this.enqueueIndex({
       kind: "record",
       id: row.id as string,

@@ -11,21 +11,27 @@ export class SqlEntityLinks {
     await this.capture(ids);
   }
 
-  async taskSelection(ids?: string[]) {
+  async taskSelection(ids?: string[], existingTaskId?: string) {
     if (ids === undefined) return {};
-    return this.fields(ids, await this.capture(ids));
+    const [prior] = existingTaskId === undefined ? [] : await this.tx<
+      { entity_context: EntityContext[] }[]
+    >`select entity_context from app.tasks where id=${existingTaskId}`;
+    return this.fields(ids, await this.capture(ids, prior?.entity_context ?? []));
   }
 
-  async recordSelection(ids?: string[], existingRecordId?: string) {
+  async recordSelection(ids?: string[], existingRecordId?: string, inheritedTaskId?: string) {
     if (ids === undefined) return {};
     const [prior] = existingRecordId === undefined ? [] : await this.tx<{ entity_context: EntityContext[] }[]>`
         select entity_context from app.records where id=${existingRecordId}`;
-    return this.fields(ids, await this.capture(ids, prior?.entity_context ?? []));
+    const [task] = inheritedTaskId === undefined ? [] : await this.tx<
+      { entity_context: EntityContext[] }[]
+    >`select entity_context from app.tasks where id=${inheritedTaskId}`;
+    return this.fields(ids, await this.capture(ids, prior?.entity_context ?? task?.entity_context ?? []));
   }
 
   async changeSelection(input: Pick<ChangeInput, "target_kind" | "target" | "action">) {
     const target = input.target;
-    const context = input.target_kind === "entity" && input.action === "delete"
+    const context = input.target_kind === "entity"
       ? [{
         id: target.id,
         title: target.title,
@@ -36,17 +42,8 @@ export class SqlEntityLinks {
     return this.fields(target.entity_ids, context);
   }
 
-  async deleteEntity(id: string) {
-    // Remove live task membership first so the direct-delete fallback does not bump it twice.
-    // Historical task context and both record selection columns remain intact.
-    await this.tx`update app.tasks set entity_ids=array_remove(entity_ids,${id}::uuid),
-      version=version+1,updated_at=now() where entity_ids @> array[${id}::uuid]`;
-    await this.tx`update app.records set version=version+1,updated_at=now() where entity_ids @> array[${id}::uuid]`;
-    await this.tx`delete from app.entities where id=${id}`;
-  }
-
   private fields(ids: string[], context: EntityContext[]) {
-    return { entity_ids: this.tx.array(ids, 2950), entity_context: this.tx.json(context) };
+    return { entity_ids: this.tx.array(ids, 25), entity_context: this.tx.json(context) };
   }
 
   /** Only trusted prior context loaded from a record/event may retain a deleted target. */
@@ -54,7 +51,9 @@ export class SqlEntityLinks {
     if (!ids.length) return [];
     const live = await this.tx<
       { id: string; prop1: string; captured_at: Date }[]
-    >`select id,prop1,now() as captured_at from app.entities where id in ${this.tx(ids)} order by id for key share`;
+    >`select id,prop1,now() as captured_at from app.entities where deleted_at is null and id in ${
+      this.tx(ids)
+    } order by id for key share`;
     return ids.map((id) => {
       const captured = prior.find((entity) => entity.id === id);
       const entity = live.find((entity) => entity.id === id);

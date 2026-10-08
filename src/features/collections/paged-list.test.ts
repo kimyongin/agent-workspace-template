@@ -67,6 +67,17 @@ describe("paged list lifecycle", () => {
     await vi.waitFor(()=>expect(list.snapshot().busy).toBe(false));
     expect(list.snapshot().page?.items).toEqual([{id:"first"},{id:"second"}]);expect(list.snapshot().completion?.source).toBe("more");
   });
+  it("keeps a fast failed append visible when its URL acknowledgement arrives after the response",async()=>{
+    const load=vi.fn().mockResolvedValueOnce({items:[{id:"first"}],next_cursor:"next"}).mockRejectedValueOnce(Error("network"))
+      .mockResolvedValueOnce({items:[{id:"second"}],next_cursor:null});
+    const list=createPagedList({load,retainOnDecrease:true});await list.restore(1,"first");
+    expect(list.more()).toBe(2);await vi.waitFor(()=>expect(list.snapshot().busy).toBe(false));
+    await list.restore(2,"first");
+    expect(load).toHaveBeenCalledTimes(2);expect(list.snapshot().error).not.toBeNull();
+    expect(list.snapshot().page?.items).toEqual([{id:"first"}]);
+    await list.retry();expect(load.mock.calls.map(([cursor])=>cursor)).toEqual([undefined,"next","next"]);
+    expect(list.snapshot().page?.items).toEqual([{id:"first"},{id:"second"}]);
+  });
   it("retries a failed append at its cursor while retaining the accepted prefix",async()=>{
     const load=vi.fn().mockResolvedValueOnce({items:[{id:"first"}],next_cursor:"next"}).mockRejectedValueOnce(Error("network"))
       .mockResolvedValueOnce({items:[{id:"second"}],next_cursor:null});

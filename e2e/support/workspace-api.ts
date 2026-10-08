@@ -1,3 +1,4 @@
+import { defaultEntityIdentitySettings, entityId } from "../../supabase/functions/_shared/contracts/entity-identity.ts";
 import type { Page } from "@playwright/test";
 import { recordDisplayText } from "../../supabase/functions/_shared/contracts/record-display.ts";
 import {base,entity,task,record,principle,stamp,type WorkspaceRows} from "./workspace-data.ts";
@@ -25,7 +26,7 @@ export async function installWorkspaceApi(page:Page,apiOrigin:string,rows:Worksp
   page.on("console",e=>{if(/one blocker|Maximum update depth/.test(e.text()))errors.push(e.text());});
   page.on("request",request=>{if(request.url().startsWith(apiOrigin+"/api/"))reads.push(request.url());});
   await page.route(apiOrigin+"/api/**",async route=>{
-    const req=route.request(),url=new URL(req.url()),parts=url.pathname.replace("/api/","").split("/"),[kind,key,action]=parts,method=req.method();
+    const req=route.request(),url=new URL(req.url()),parts=url.pathname.replace("/api/","").split("/"),[kind,encodedKey,action]=parts, key=encodedKey ? decodeURIComponent(encodedKey) : undefined, method=req.method();
     const body=(req.postDataJSON()??{}) as Record<string,unknown>;
     const scope = { entityId: url.searchParams.get("entity_id") ?? undefined, taskId: url.searchParams.get("task_id") ?? undefined };
     const plan = plans.get(scopeKey(kind, scope)) ?? plans.get(scopeKey(kind, {}));
@@ -47,13 +48,25 @@ export async function installWorkspaceApi(page:Page,apiOrigin:string,rows:Worksp
         if (!req.failure()) throw error;
       } finally { held?.finish(); }
     };
-    if(kind==="search"){searches.push(body);const selected=String((body.kinds as string[])[0])+"s";return reply({items:(storage[selected]??[]).filter(r=>selected!=="principles"||r.is_current).map(r=>({id:r.id,kind:selected.slice(0,-1),title:selected==="records"?recordDisplayText(String(r.body??"")):r.title,snippet:r.body,snippet_start:0,snippet_end:Array.from(String(r.body??"")).length,at:stamp,tag_ids:r.tag_ids??[],path:`/${selected}/${r.id}`,match:"keyword",index_state:"pending"})),next_cursor:null,anchor_page:null,search_state:body.mode==="auto"?"keyword_fallback":"ok",semantic_coverage:{pending:1,excluded:0}});}
+    if(kind==="settings"&&key==="business")return reply({version:0,settings:{entity_identity:defaultEntityIdentitySettings,record_templates:{}}});
+    if(kind==="records"&&key==="prepare"){
+      const model=String(body.model),target=(storage[model==="entity"?"entities":`${model}s`]??[]).find(row=>row.id===body.target_id);
+      const input=body.input as Record<string,unknown>??{}, facts={...target,...input};
+      const labels:Record<string,string>={create:"등록",update:"수정",delete:"삭제",restore:"복원",stop:"중단",resume:"재개"};
+      return reply({change_note:body.change_note??`${facts.prop1??facts.title??"항목"} ${labels[String(body.action)]}`,change_tag_ids:body.change_tag_ids??[],missing_tag_ids:[],settings_version:0,prepared_input:input});
+    }
+    if(kind==="entities"&&key==="prepare"){
+      const source=String(body.source??"app"),external_id=String(body.external_id??crypto.randomUUID()),id=entityId(source,external_id);
+      const existing=storage.entities.find(row=>row.id===id);
+      return reply({source,external_id,id,action:existing?existing.deleted_at?"restore":"duplicate":"create",expected_version:existing?.version,existing:existing??null});
+    }
+    if(kind==="search"){searches.push(body);const selected=String((body.kinds as string[])[0])+"s";return reply({items:(storage[selected]??[]).filter(r=>selected!=="principles"||r.is_current).map(r=>({id:r.id,kind:selected.slice(0,-1),title:selected==="records"?recordDisplayText(String(r.body??"")):r.title,snippet:r.body,snippet_start:0,snippet_end:Array.from(String(r.body??"")).length,at:stamp,tag_ids:r.tag_ids??[],path:`/${selected}/${encodeURIComponent(r.id)}`,match:"keyword",index_state:"pending"})),next_cursor:null,anchor_page:null,search_state:body.mode==="auto"?"keyword_fallback":"ok",semantic_coverage:{pending:1,excluded:0}});}
     if(!storage[kind])return reply({code:"invalid_input",message:`Unexpected fixture endpoint ${url.pathname}`},400);
     if(method==="GET") {
       if(kind==="principles"&&key==="current")return reply({current:storage.principles.find(r=>r.is_current)??null});
       if(key){const found=storage[kind].find(r=>r.id===key&&(kind!=="principles"||r.is_current));return found?reply(found):reply({code:"not_found",message:"삭제된 자료"},404);}
       if (plan) return reply({ items: plan[pageNumber - 1] ?? [], next_cursor: pageNumber < plan.length ? "page:" + (pageNumber + 1) : null });
-      let items=storage[kind];if(kind==="tags")items=items.filter(r=>r.scope===(url.searchParams.get("scope")??"record"));
+      let items=storage[kind];if(kind==="entities")items=items.filter(row=>!row.deleted_at);if(kind==="tags")items=items.filter(r=>r.scope===(url.searchParams.get("scope")??"record"));
       if(kind==="principles")return reply({code:"not_found",message:"지원하지 않는 원칙 목록"},404);
       if(kind==="records"&&url.searchParams.get("task_id"))items=items.filter(r=>r.task_id===url.searchParams.get("task_id"));
       if(kind==="records"&&url.searchParams.get("record_kind"))items=items.filter(r=>r.record_kind===url.searchParams.get("record_kind"));
@@ -63,11 +76,11 @@ export async function installWorkspaceApi(page:Page,apiOrigin:string,rows:Worksp
     writes.push({method,path:url.pathname,body,params:url.searchParams});
     if(options.hold){started();await new Promise<void>(r=>{release=r;});options.hold=false;}
     if(options.failWrite&&!failed){failed=true;return options.failWrite==="unknown"?route.abort("connectionreset"):reply({code:"conflict",message:"다른 곳에서 수정했습니다."},409);}
-    if(method==="DELETE"||action==="delete"){storage[kind]=storage[kind].filter(r=>r.id!==key);return route.fulfill({status:204});}
+    if(method==="DELETE"||action==="delete"){if(kind==="entities"){const found=storage.entities.find(row=>row.id===key);if(found)Object.assign(found,{deleted_at:stamp,version:found.version+1});}else storage[kind]=storage[kind].filter(r=>r.id!==key);return route.fulfill({status:204});}
     if(kind==="principles"&&method==="POST"&&!key){
       const current=storage.principles.find(r=>r.is_current);if(current)return reply({code:"conflict",message:"현재 원칙이 있습니다"},409);const saved={...principle(sequence++),...body};storage.principles.unshift(saved);return reply(saved,201);
     }
-    if(method==="POST"&&!key){const saved={...(kind==="entities"?entity(sequence++):kind==="tasks"?task(sequence++):kind==="records"?record(sequence++):base(sequence++,"")),...body};storage[kind].unshift(saved);return reply(saved,201);}
+    if(method==="POST"&&!key){const saved={...(kind==="entities"?entity(sequence++):kind==="tasks"?task(sequence++):kind==="records"?record(sequence++):base(sequence++,"")),...body};if(kind==="entities"){const source=String(body.source??"app"),external_id=String(body.external_id??crypto.randomUUID());Object.assign(saved,{source,external_id,id:entityId(source,external_id)});}storage[kind].unshift(saved);return reply(saved,201);}
     const found=storage[kind].find(r=>r.id===key);if(!found)return reply({code:"not_found",message:"자료 없음"},404);
     Object.assign(found,body,{version:found.version+1});
     if(kind==="tasks"&&body.entity_ids)found.entity_context=(body.entity_ids as string[]).map(id=>({id,title:storage.entities.find(e=>e.id===id)?.prop1??"엔터티",source:"selection",captured_at:stamp}));

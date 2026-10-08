@@ -183,6 +183,7 @@ export async function completeTask(
     const decided = decideComplete(task, input.expected_version, now);
     const record = await store.insertRecord({
       record_kind: "result",
+      inherit_task_entities: true,
       ...entityChanges({ entity_ids: selectedEntities(task) ?? [] }),
       body: input.body,
       occurred_at: input.occurred_at ?? null,
@@ -313,6 +314,7 @@ export async function recordOccurrence(
       const record = await store.insertRecord({
         id: input.id,
         record_kind: "result",
+        inherit_task_entities: selectedEntities(input) === undefined,
         ...entityChanges({ entity_ids: selectedEntities(input) ?? selectedEntities(task) ?? [] }),
         body: input.body,
         occurred_at: input.occurred_at ?? null,
@@ -333,6 +335,7 @@ export async function createRecord(deps: ActivityDeps, actor: Actor, input: Reco
     const task = input.task_id ? await requireTask(store, input.task_id, true) : null;
     const record = await store.insertRecord({
       id: input.id,
+      inherit_task_entities: selectedEntities(input) === undefined,
       ...entityChanges({ entity_ids: selectedEntities(input) ?? (task ? selectedEntities(task) : []) ?? [] }),
       body: input.body,
       occurred_at: input.occurred_at ?? null,

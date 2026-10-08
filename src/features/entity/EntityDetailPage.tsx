@@ -1,3 +1,5 @@
+import { entityPath, entityIdentityLabel } from "@contracts/entity-identity.ts";
+import { EntityIdentityForm } from "./identity-form.tsx";
 import { useDetailResource } from "../details/useDetailResource.ts";
 import { CollectionList } from "../../components/Collection.tsx";
 import { useDisplayTime } from "../../lib/useDisplayTime.ts";
@@ -34,7 +36,7 @@ export function EntityDetailPage() {
   useEffect(()=>{const value=params.get("create"),next=value==="task"||value==="record"?value:null;if(!next&&previousCreate.current)returnCreateFocus.current=previousCreate.current;previousCreate.current=next;setCreating(next);},[location.key]);
   const detail = useDetailResource<EntityDetail>({
     id, query: params.toString(), refreshOnQuery: !params.has("create"), readyAfterFailedRefresh: true,
-    load: (id, signal) => api("GET", `/entities/${id}`, undefined, signal),
+    load: (id, signal) => api("GET", entityPath(id), undefined, signal),
   });
   const { value: entity, editReady } = detail;
   const [actionError, setError] = useState<string | null>(null);
@@ -42,14 +44,15 @@ export function EntityDetailPage() {
   const error = actionError ?? (detail.error ? detail.error instanceof ApiError ? detail.error.message : "엔터티를 불러오지 못했습니다." : null);
   const reload = detail.reload;
   const editor = useDetailEditor(detail.editClosed);
+  const [rekeying, setRekeying] = useState(false);
   const [busy, setBusy] = useState(false);
   useEffect(() => { if (!detail.confirmed && entity) relationSaved.current = false; }, [entity, detail.confirmed]);
   const returnParams=new URLSearchParams(params); ["edit","edit_from","create"].forEach(key=>returnParams.delete(key));
-  const back = useDetailOwnerReturn(`/entities?${returnParams}${id ? `#entity-${id}` : ""}`);
+  const back = useDetailOwnerReturn(`/entities?${returnParams}${id ? `#${encodeURIComponent(`entity-${id}`)}` : ""}`);
   const deleteBack=useDetailDeleteReturn(back);
   useEffect(()=>{if(creating||!editReady||!returnCreateFocus.current)return;const frame=requestAnimationFrame(()=>{const label=returnCreateFocus.current==="task"?"할 일 작성":"기록 작성";const button=Array.from(document.querySelectorAll<HTMLButtonElement>("dialog[open] .detail-management button")).find(el=>el.getAttribute("aria-label")===label);if(button){button.focus();returnCreateFocus.current=null;}});return()=>cancelAnimationFrame(frame);},[creating,editReady,entity]);
   const entityContext: EntityContext[] = entity ? [{id:entity.id,title:entity.prop1,source:"selection",captured_at:new Date().toISOString()}] : [];
-  const management = entity && <div className="detail-management">
+  const management = entity && !entity.deleted_at && <div className="detail-management">
       {error && (
         <>
           <Notice kind="error">{relationSaved.current?"연결은 저장했습니다. 최신 내용을 불러오지 못했습니다.":error}</Notice>
@@ -58,6 +61,7 @@ export function EntityDetailPage() {
           </button>
         </>
       )}
+          <button type="button" className="btn" onClick={() => setRekeying(true)}>식별 정보 변경</button>
           <EntityTaskRelations entity={entity} onSaved={(saved,before)=>{
             if(saved&&before){
               relationSaved.current=true;
@@ -77,34 +81,35 @@ export function EntityDetailPage() {
           ))}
     </div>;
   return <DetailSurface title="엔터티" tabTitle={entity?.prop1??"엔터티"} onClose={()=>navigate(back)} busy={busy}
-    footer={entity&&<button type="button" className="btn btn-primary" onClick={editor.start}>편집</button>}>
+    footer={entity&&<button type="button" className="btn btn-primary" onClick={editor.start}>{entity.deleted_at ? "복원" : "편집"}</button>}>
       {error && !entity && <><Notice kind="error">{error}</Notice><button className="btn" onClick={()=>void reload()}>다시 시도</button></>}
       {!entity&&!error&&<p className="secondary" role="status">불러오는 중…</p>}
       {entity&&<div className="detail-stack">
           <section className="detail-section entity-detail-properties"><DetailTitle>{entity.prop1}</DetailTitle><dl className="props">
             {(["prop2","prop3","prop4"] as const).map(key=><div key={key}><dt>{entityLabels[key]}</dt><dd>{entity[key]??"미지정"}</dd></div>)}
           </dl><TagNames scope="entity" compact ids={entity.tag_ids}/></section>
-          <div className="detail-relations">{management}</div>
-          {creating === "task" && <TaskFormModal key={location.key} open mode="create" initial={{ ...emptyTask(timezone), entity_ids: [entity.id], entity_context: entityContext }}
+          <div className="detail-relations">{entity.deleted_at && <><RelatedSection title="할 일" count={entity.tasks.count}><CollectionList>{entity.tasks.items.map(item=><li key={item.id}><a href={`/tasks/${item.id}`}>{item.title}</a></li>)}</CollectionList></RelatedSection><RelatedSection title="기록" count={entity.records.count}><CollectionList>{entity.records.items.map(item=><li key={item.id}><RelatedRecordItem record={item}/></li>)}</CollectionList></RelatedSection></>}<p className="secondary">{entity && entityIdentityLabel(entity)}{entity?.deleted_at ? " · 삭제됨" : ""}</p>{management}</div>
+          {creating === "task" && !entity.deleted_at && <TaskFormModal key={location.key} open mode="create" initial={{ ...emptyTask(timezone), entity_ids: [entity.id], entity_context: entityContext }}
             onClose={closeCreate} onRouteDiscard={()=>setCreating(null)} onSave={async (draft, creationId) => {
               await api("POST", "/tasks", { ...taskInput(draft), id: creationId() });
               closeCreate(); void reload();
             }} />}
-          {creating === "record" && <RecordFormModal key={location.key} open title="기록 작성" submitLabel="저장" initial={{ ...emptyRecord(), entity_ids: [entity.id], entity_context: entityContext }}
+          {creating === "record" && !entity.deleted_at && <RecordFormModal key={location.key} open title="기록 작성" submitLabel="저장" initial={{ ...emptyRecord(), entity_ids: [entity.id], entity_context: entityContext }}
             onClose={closeCreate} onRouteDiscard={()=>setCreating(null)} onSave={async (value, creationId) => {
               await api("POST", "/records", { ...value, id: creationId() });
               closeCreate(); void reload();
             }} />}
+          {rekeying && <EntityIdentityForm entity={entity} onClose={() => setRekeying(false)} onSaved={saved => { setRekeying(false); afterClose(`${entityPath(saved.id)}?${params}`, {replace:true,state:{rekeyedDetail:location.pathname}}); }}/>}
           {editor.active && !creating && editReady && (
             <EntityForm
               initial={entity}
-              deletion={{message:`${entity.prop1}을 삭제하고 연결을 해제합니다. 할 일·기록 원문은 보존합니다.`,onConfirm:async (reason, tags) => {
+              deletion={entity.deleted_at ? undefined : {preparation:()=>({model:"entity",action:"delete",target_id:entity.id,expected_version:entity.version,input:{}}),message:`${entity.prop1}을 삭제 상태로 보관합니다. 속성·태그·할 일/기록 연결과 원문은 보존합니다.`,onConfirm:async (reason, tags) => {
                 setBusy(true);
                 try {
                   await api(
                     "POST",
-                    `/entities/${id}/delete`,
-                    {expected_version:entity.version,change_note:reason||undefined, change_tag_ids:tags},
+                    `${entityPath(id)}/delete`,
+                    {expected_version:entity.version,change_note:reason, change_tag_ids:tags},
                   );
                   editor.leave(deleteBack);
                 } catch (e) {
@@ -117,10 +122,10 @@ export function EntityDetailPage() {
                 }
               }}}
               {...editor.formProps}
-              onSave={async (value) => {
+              onSave={async ({source,external_id,expected_version,...value}) => {
                 await detail.save(async current => {
-                  const savedEntity = await api<EntityDetail>("PATCH", `/entities/${id}`, {
-                    ...value, expected_version: entity.version,
+                  const savedEntity = await api<EntityDetail>(entity.deleted_at ? "POST" : "PATCH", entity.deleted_at ? "/entities" : entityPath(id), {
+                    ...value, ...(entity.deleted_at ? {source,external_id,expected_version:expected_version ?? entity.version} : {expected_version:entity.version}),
                   });
                   return { ...current, ...savedEntity };
                 });

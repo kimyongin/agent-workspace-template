@@ -147,6 +147,11 @@ httpTest("검색: HTTP/MCP 본문 키워드·원문 최소 응답·대체 상태
 });
 
 const EXPECTED_TOOLS = [
+  "get_business_settings",
+  "update_business_settings",
+  "prepare_record_memo",
+  "prepare_entity_registration",
+  "rekey_entity",
   "create_entity",
   "delete_entity",
   "get_entity",
@@ -376,7 +381,7 @@ httpTest("원칙: HTTP/MCP 현재 수정·과거 접근 차단·재시도·삭�
     const bad = {
       expected_version: second.version,
       title: "틀린 참조",
-      entity_id: crypto.randomUUID(),
+      entity_id: `app:${crypto.randomUUID()}`,
       change_note: "수정",
     };
     assertEquals(

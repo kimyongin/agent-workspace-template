@@ -1,3 +1,4 @@
+import { entityIdentityLabel } from "@contracts/entity-identity.ts";
 import { CollectionList } from "../../components/Collection.tsx";
 import { RelatedSection } from "../../components/RelatedItems.tsx";
 import { RelatedPreviewItem } from "../relations/RelatedPreviewItem.tsx";
@@ -34,7 +35,7 @@ export function EntityPicker(
               <option value={value}>현재 연결 ({value})</option>
             )}
             {items?.map((e) => (
-              <option key={e.id} value={e.id}>{e.prop1}</option>
+              <option key={e.id} value={e.id}>{e.prop1} · {entityIdentityLabel(e)}</option>
             ))}
           </select>
         )}
@@ -58,7 +59,7 @@ export function EntityLink({ id }: { id: string | null | undefined }) {
   return id
     ? (
       <p className="secondary">
-        연결 엔터티: <Link to={`/entities/${id}`}>엔터티 편집</Link>
+        연결 엔터티: <Link to={`/entities/${encodeURIComponent(id)}`}>엔터티 편집</Link>
       </p>
     )
     : null;
@@ -121,5 +122,5 @@ export function EntityLinks(
 
 export function EntityLinkItem({id,context=[]}: {id:string;context?:EntityContext[]}) {
   const capture=context.find(item=>item.id===id);
-  return <RelatedPreviewItem to={`/entities/${id}`} title={capture?.title??"연결된 엔터티"} restoreKey={`linked-entity-${id}`}/>;
+  return <RelatedPreviewItem to={`/entities/${encodeURIComponent(id)}`} title={capture?.title??"연결된 엔터티"} metadata={<span>{id}</span>} restoreKey={`linked-entity-${id}`}/>;
 }

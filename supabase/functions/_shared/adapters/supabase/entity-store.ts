@@ -5,11 +5,15 @@ import type { Actor } from "../../core/shared/actor.ts";
 import type { Keyset } from "../../core/shared/store.ts";
 import { runAsActor, SqlActorStore } from "./sql-context.ts";
 import { hasTag, setTagLinks, tagIdsColumn } from "./tag-links.ts";
-const columns = "id,prop1,prop2,prop3,prop4,version,created_at,updated_at";
+const columns = "id,source,external_id,deleted_at,prop1,prop2,prop3,prop4,version,created_at,updated_at";
 function result(r: Record<string, unknown>): EntityResult {
   return {
     tag_ids: (r.tag_ids as string[]) ?? [],
     id: r.id as string,
+    source: r.source as string,
+    external_id: r.external_id as string,
+    source_label: r.source as string,
+    deleted_at: r.deleted_at instanceof Date ? r.deleted_at.toISOString() : null,
     prop1: r.prop1 as string,
     prop2: r.prop2 as number | null,
     prop3: r.prop3 instanceof Date ? r.prop3.toISOString().slice(0, 10) : r.prop3 as string | null,
@@ -28,12 +32,17 @@ export class SqlEntityStore extends SqlActorStore implements EntityStore {
     const [r] = await this.tx`select ${this.tx.unsafe(columns)},${
       tagIdsColumn(this.tx, "entity")
     } from app.entities where id=${id}`;
-    return r ? result(r) : null;
+    if (!r) return null;
+    return this.label(result(r));
   }
-  async insert(i: EntityCreate) {
+  private async label(row: EntityResult) {
+    const settings = (await this.getBusinessSettings()).settings.entity_identity;
+    return { ...row, source_label: settings?.sources.find((s) => s.code === row.source)?.label ?? row.source };
+  }
+  async insert(i: Parameters<EntityStore["insert"]>[0]) {
     const entity = result(
-      (await this.tx`insert into app.entities(id,owner_id,prop1,prop2,prop3,prop4)
-      values (${i.id},${this.actor.userId},${i.prop1},${i.prop2},${i.prop3},${i.prop4}) returning ${
+      (await this.tx`insert into app.entities(id,owner_id,source,external_id,prop1,prop2,prop3,prop4)
+      values (${i.id},${this.actor.userId},${i.source},${i.external_id},${i.prop1},${i.prop2},${i.prop3},${i.prop4}) returning ${
         this.tx.unsafe(columns)
       }`)[
         0
@@ -53,7 +62,17 @@ export class SqlEntityStore extends SqlActorStore implements EntityStore {
     return (await this.get(id))!;
   }
   async delete(id: string) {
-    await this.entityLinks.deleteEntity(id);
+    await this.tx`update app.entities set deleted_at=now(),version=version+1,updated_at=now() where id=${id}`;
+  }
+  async restore(id: string, changes: EntityCreate) {
+    const { source: _source, external_id: _external, expected_version: _version, ...props } = changes;
+    await this.tx`update app.entities set deleted_at=null where id=${id}`;
+    return this.update(id, props);
+  }
+  async rekey(id: string, identity: { source: string; external_id: string }) {
+    const next = `${identity.source}:${identity.external_id}`;
+    await this.tx`select app.rekey_entity(${id},${identity.source},${identity.external_id})`;
+    return (await this.get(next))!;
   }
   async list(q: EntityQuery, after?: Keyset) {
     const tx = this.tx;
@@ -74,25 +93,31 @@ export class SqlEntityStore extends SqlActorStore implements EntityStore {
         : tx`${after.at}`
       : tx``;
     const descending = q.sort === "updated_at";
-    return (await tx`select ${tx.unsafe(columns)},${tagIdsColumn(tx, "entity")} from app.entities where true
+    const rows =
+      (await tx`select ${tx.unsafe(columns)},${tagIdsColumn(tx, "entity")} from app.entities where deleted_at is null
       ${q.tag_id ? tx`and ${hasTag(tx, "entity", q.tag_id)}` : tx``}
-      ${q.keyword ? tx`and position(lower(${q.keyword}) in lower(prop1))>0` : tx``}
+      ${
+        q.keyword
+          ? tx`and (position(lower(${q.keyword}) in lower(prop1))>0 or position(lower(${q.keyword}) in lower(external_id))>0 or position(lower(${q.keyword}) in lower(source))>0)`
+          : tx``
+      }
       ${q.prop4 ? tx`and prop4=${q.prop4}` : tx``}
       ${q.prop3_from ? tx`and prop3>=${q.prop3_from}::date` : tx``}
       ${q.prop3_to ? tx`and prop3<=${q.prop3_to}::date` : tx``}
       ${
-      after
-        ? descending ? tx`and (${key},id)<(${at},${after.id}::uuid)` : tx`and (${key},id)>(${at},${after.id}::uuid)`
-        : tx``
-    }
+        after
+          ? descending ? tx`and (${key},id)<(${at},${after.id}::text)` : tx`and (${key},id)>(${at},${after.id}::text)`
+          : tx``
+      }
       order by ${key} ${descending ? tx`desc` : tx`asc`}, id ${descending ? tx`desc` : tx`asc`} limit ${q.limit}`).map(
-      result,
-    );
+        result,
+      );
+    return Promise.all(rows.map((row) => this.label(row)));
   }
   async related(id: string): Promise<Pick<EntityDetail, "tasks" | "records">> {
     const load = async (table: "tasks" | "records") => {
       const tx = this.tx;
-      const membership = tx`entity_ids @> array[${id}::uuid]`;
+      const membership = tx`entity_ids @> array[${id}::text]`;
       const [count] = await tx`select count(*)::integer as count from app.${tx(table)} where ${membership}`;
       const rows = await tx`select id,updated_at ${
         table === "records" ? tx`,body,record_kind,occurred_at` : tx`,title`

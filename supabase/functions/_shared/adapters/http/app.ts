@@ -15,6 +15,8 @@ import type { SearchDeps } from "../../core/search/application.ts";
 import { searchRoutes } from "./search-routes.ts";
 import type { EntityDeps } from "../../core/entity/application.ts";
 import { entityRoutes } from "./entity-routes.ts";
+import { settingsRoutes } from "./settings-routes.ts";
+import type { BusinessSettingsDeps } from "../../core/settings/application.ts";
 
 export interface HttpConfig {
   /** 함수 이름에 해당하는 경로 접두어(Supabase Edge는 `/api/...`로 전달한다). */
@@ -33,6 +35,7 @@ export function createHttpApp(
   // Test assembly can inject an Actor verifier; production always defaults to token verification.
   authenticate: typeof verifyActor = verifyActor,
   entities?: EntityDeps,
+  settings?: BusinessSettingsDeps,
 ) {
   const app = new Hono<HttpEnv>().basePath(config.basePath);
 
@@ -55,6 +58,7 @@ export function createHttpApp(
   app.route("/", tagRoutes(tags));
   app.route("/", searchRoutes(search));
   if (entities) app.route("/", entityRoutes(entities));
+  if (settings) app.route("/", settingsRoutes(settings));
 
   app.notFound(() => {
     throw new AppError("not_found", "경로를 찾을 수 없습니다");

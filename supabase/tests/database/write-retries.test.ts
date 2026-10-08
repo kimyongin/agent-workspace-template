@@ -7,17 +7,21 @@ import { connect, dbTest, fixtureOwner, urls } from "./_db.ts";
 const admin = connect(urls.admin, { max: 1 });
 const sql = connect(urls.pooler, { max: 3, prepare: false });
 const deps = { uow: new SqlEntityUnitOfWork(sql) };
-dbTest("same creation UUID and stale version never repeat a business change", async () => {
+dbTest("same creation identity and stale version never repeat a business change", async () => {
   const f = await fixtureOwner(admin), other = await fixtureOwner(admin);
   try {
-    const input = entityCreate.parse({ id: crypto.randomUUID(), prop1: "원본" });
+    const input = entityCreate.parse({ source: "app", external_id: crypto.randomUUID(), prop1: "원본" });
     const created = await createEntity(deps, f.actor, input);
-    assertEquals(created.id, input.id);
+    assertEquals(created.id, `app:${input.external_id}`);
     await assertRejects(() => createEntity(deps, f.actor, input), AppError);
-    const collision = await assertRejects(() => createEntity(deps, other.actor, input), AppError);
+    const collision = await assertRejects(() => createEntity(deps, f.actor, input), AppError);
     assertEquals(collision.code, "conflict");
-    assertEquals(collision.message.includes(input.prop1), false);
-    assertEquals((await assertRejects(() => getEntity(deps, other.actor, input.id), AppError)).code, "not_found");
+    assertEquals(collision.message.includes(input.prop1!), false);
+    await assertRejects(() => getEntity(deps, other.actor, created.id), AppError);
+    const foreign = await createEntity(deps, other.actor, { ...input, prop1: "다른 소유자" });
+    assertEquals(foreign.id, created.id);
+    assertEquals((await getEntity(deps, other.actor, foreign.id)).prop1, "다른 소유자");
+    assertEquals((await getEntity(deps, f.actor, created.id)).prop1, "원본");
     const patch = { prop1: "수정", expected_version: created.version };
     const updated = await updateEntity(deps, f.actor, created.id, patch);
     await assertRejects(() => updateEntity(deps, f.actor, created.id, patch), AppError);

@@ -25,6 +25,8 @@ export interface ActivityRecord {
 }
 
 export interface NewRecord {
+  /** Trusted inheritance from an actor-scoped task, never accepted from client input. */
+  inherit_task_entities?: boolean;
   id?: string;
   record_kind?: "user" | "result";
   entity_ids?: string[];

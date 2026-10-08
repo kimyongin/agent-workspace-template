@@ -22,7 +22,7 @@ httpTest("Entity MCP: 실제 SDK/OAuth CRUD·태그 scope·웹 parity·참조 �
       prop4: "b",
       tag_ids: [tag.id],
     });
-    assertEquals((await call(token, "GET", `/entities/${e.id}`)).body.prop1, e.prop1);
+    assertEquals((await call(token, "GET", `/entities/${encodeURIComponent(e.id)}`)).body.prop1, e.prop1);
     assertEquals(e.tag_ids, [tag.id]);
     const [createdHistory] =
       await admin`select id,change_metadata from app.records where record_kind='change' and change_metadata->>'target_id'=${e.id}`;
@@ -57,7 +57,7 @@ httpTest("Entity MCP: 실제 SDK/OAuth CRUD·태그 scope·웹 parity·참조 �
     assertEquals(relatedRecord.record_kind, "user");
     assertEquals(relatedRecord.body, marker);
     assertEquals(relatedRecord.occurred_at, r.occurred_at);
-    assertEquals(detail, (await call(token, "GET", `/entities/${e.id}`)).body);
+    assertEquals(detail, (await call(token, "GET", `/entities/${encodeURIComponent(e.id)}`)).body);
     assert(detail.records.items.some((record: { record_kind: string }) => record.record_kind === "change"));
     assertEquals(
       (await tool(client, "create_principle", { title: "연결 원칙", entity_id: e.id })).error.code,
@@ -67,7 +67,7 @@ httpTest("Entity MCP: 실제 SDK/OAuth CRUD·태그 scope·웹 parity·참조 �
     const found = await tool(client, "search", search);
     assertEquals(found.items.map((x: { id: string }) => x.id), [r.id]);
     assertEquals(found, (await call(token, "POST", "/search", search)).body);
-    assertEquals((await tool(client, "search", { ...search, entity_id: crypto.randomUUID() })).items, []);
+    assertEquals((await tool(client, "search", { ...search, entity_id: `app:${crypto.randomUUID()}` })).items, []);
     assertEquals((await tool(client, "search", { ...search, entity_id: "bad" })).error.code, "invalid_input");
     assertEquals(
       (await tool(client, "update_entity", { id: e.id, expected_version: 2, prop1: "경쟁", change_note: "수정" })).error
@@ -81,7 +81,7 @@ httpTest("Entity MCP: 실제 SDK/OAuth CRUD·태그 scope·웹 parity·참조 �
     });
     assertEquals(withoutReason.version, 2);
     assertEquals(withoutReason.prop1, "이유 없이 수정");
-    assertEquals((await call(token, "GET", `/entities/${e.id}`)).body.prop1, withoutReason.prop1);
+    assertEquals((await call(token, "GET", `/entities/${encodeURIComponent(e.id)}`)).body.prop1, withoutReason.prop1);
     const changed = await tool(client, "update_entity", {
       id: e.id,
       expected_version: 2,
@@ -113,7 +113,7 @@ httpTest("Entity MCP: 실제 SDK/OAuth CRUD·태그 scope·웹 parity·참조 �
       unlink.change.target_title,
       unlink.change.action,
       unlink.change.path,
-    ], ["entity", e.id, "이유 없이 수정", "update", `/entities/${e.id}`]);
+    ], ["entity", e.id, "이유 없이 수정", "update", `/entities/${encodeURIComponent(e.id)}`]);
     assertEquals(unlink.body, "이유 없이 수정 수정 (태그)");
     assertEquals((await call(token, "GET", `/records/${unlinkRow.id}`)).body, unlink);
     assertEquals(
@@ -128,8 +128,10 @@ httpTest("Entity MCP: 실제 SDK/OAuth CRUD·태그 scope·웹 parity·참조 �
     await tool(client, "delete_entity", { id: e.id, expected_version: 4 });
     const liveTask = await tool(client, "get_task", { id: task.id });
     assertEquals("entity_id" in liveTask, false);
-    assertEquals(liveTask.entity_ids, []);
-    assertEquals((await tool(client, "list_tasks", { entity_id: e.id })).items, []);
+    assertEquals(liveTask.entity_ids, [e.id]);
+    assertEquals((await tool(client, "list_tasks", { entity_id: e.id })).items.map((t: { id: string }) => t.id), [
+      task.id,
+    ]);
     const retained = await tool(client, "get_record", { id: r.id });
     assertEquals("entity_id" in retained, false);
     assertEquals(retained.entity_ids, [e.id]);

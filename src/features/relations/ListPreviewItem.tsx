@@ -15,7 +15,7 @@ export function useRestoreListPosition(kind:ActivityListKind,ready:boolean) {
   const previewReady = useSyncExternalStore(readiness.subscribe,readiness.snapshot);
   useEffect(()=>{
     if(!ready||restored.current===key||!anchorId(kind,location.hash))return;
-    const target=document.getElementById(location.hash.slice(1));
+    const target=document.getElementById(listAnchor(kind,anchorId(kind,location.hash)!));
     if(target&&path&&!previewReady)return;
     const frame=requestAnimationFrame(()=>{
       const focus=target??document.getElementById(kind+"-title");
@@ -45,7 +45,7 @@ export function ListExpansionProvider({children,readiness}:{children:ReactNode;r
 export function ListPreviewItem({kind,id,title,metadata,cells}:{kind:ActivityListKind;id:string;title:string;metadata?:ReactNode;cells?:ReactNode[]}) {
   const [params]=useSearchParams(),location=useLocation(),navigate=useNavigate();
   const workspace=useContext(WorkspaceContext);
-  const path=`/${kind}/${id}`;
+  const path=`/${kind}/${encodeURIComponent(id)}`;
   const link=()=>{
     const back=listReturnPath(kind,params,id,0,location.pathname);
     return {to:`${path}?list=${encodeURIComponent(back)}`,onClick:(event:MouseEvent<HTMLAnchorElement>)=>{

@@ -44,7 +44,9 @@ export async function call<T = Json>(
     /^\/(entities|tasks|records|principles|tags)$|^\/tasks\/[^/]+\/occurrences\/[^/]+\/records$/.test(path) && body &&
     typeof body === "object" && !("id" in body)
   ) {
-    body = { id: crypto.randomUUID(), ...body };
+    body = path === "/entities"
+      ? { source: "app", external_id: crypto.randomUUID(), ...body }
+      : { id: crypto.randomUUID(), ...body };
   }
   const headers: Record<string, string> = {};
   if (token) headers.authorization = `Bearer ${token}`;

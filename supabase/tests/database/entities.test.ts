@@ -16,8 +16,12 @@ const A = { userId: users.a },
   d = { uow: new SqlEntityUnitOfWork(sql) },
   a = { uow: new SqlUnitOfWork(sql), clock: { now: () => new Date() } };
 const create = (name: string, actor = A, extra = {}) =>
-  entity.createEntity(d, actor, entityCreate.parse({ id: crypto.randomUUID(), ...{ prop1: name, ...extra } }));
-dbTest("Entity DB: same owner 참조 거부·삭제 링크 해제·원문/버전/태그/색인 보존", async () => {
+  entity.createEntity(
+    d,
+    actor,
+    entityCreate.parse({ source: "app", external_id: crypto.randomUUID(), ...{ prop1: name, ...extra } }),
+  );
+dbTest("Entity DB: same owner 참조 거부·삭제 링크 보존·원문/버전/태그/색인 보존", async () => {
   const e = await create("링크 보존"), foreign = await create("외부", B);
   const task = await activity.createTask(
     a,
@@ -35,7 +39,7 @@ dbTest("Entity DB: same owner 참조 거부·삭제 링크 해제·원문/버전
       ...{ body: "기록 원문", entity_ids: [e.id] },
     }),
   );
-  for (const ref of [foreign.id, crypto.randomUUID()]) {
+  for (const ref of [foreign.id, `app:${crypto.randomUUID()}`]) {
     for (
       const run of [
         () =>
@@ -73,14 +77,16 @@ dbTest("Entity DB: same owner 참조 거부·삭제 링크 해제·원문/버전
   assertEquals((await activity.listRecords(a, A, recordListQuery.parse({ entity_id: e.id }))).items.length, 4);
   await entity.deleteEntity(d, A, e.id, 1);
   const detached = await activity.getTask(a, A, task.id);
-  assertEquals(detached.entity_ids, []);
+  assertEquals(detached.entity_ids, [e.id]);
   assertEquals(detached.entity_context, task.entity_context);
-  assertEquals(detached.version, completed.task.version + 1);
-  assertEquals((await activity.listTasks(a, A, taskListQuery.parse({ entity_id: e.id }))).items, []);
+  assertEquals(detached.version, completed.task.version);
+  assertEquals((await activity.listTasks(a, A, taskListQuery.parse({ entity_id: e.id }))).items.map((t) => t.id), [
+    task.id,
+  ]);
   const current = await activity.getRecord(a, A, record.id);
-  assertEquals([current.body, current.entity_ids, current.version], ["기록 원문", [e.id], 2]);
+  assertEquals([current.body, current.entity_ids, current.version], ["기록 원문", [e.id], 1]);
   assertEquals(
-    (await admin`select count(*)::integer as n from app.search_index_state where id=${e.id}`)[0].n,
+    (await admin`select count(*)::integer as n from app.search_index_state where id::text=${e.id}`)[0].n,
     0,
   );
   await admin`delete from app.tasks where id=${task.id}`;
@@ -88,7 +94,7 @@ dbTest("Entity DB: same owner 참조 거부·삭제 링크 해제·원문/버전
   await entity.deleteEntity(d, B, foreign.id, 1);
 });
 dbTest("Entity DB: RLS·직접 접근 차단·선택 검증·멱등성·버전 경쟁", async () => {
-  const input = entityCreate.parse({ id: crypto.randomUUID(), ...{ prop1: "멱등" } });
+  const input = entityCreate.parse({ source: "app", external_id: crypto.randomUUID(), ...{ prop1: "멱등" } });
   const results = await Promise.allSettled([entity.createEntity(d, A, input), entity.createEntity(d, A, input)]);
   assertEquals(results.filter((r) => r.status === "fulfilled").length, 1);
   const e = (results.find((r) =>

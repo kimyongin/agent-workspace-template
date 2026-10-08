@@ -24,7 +24,7 @@ test("general record selects two entities in web; MCP, both related views and de
     for (const target of [first, second]) {
       const related = await mcp.call("get_entity", { id: target.id });
       expect(related.records.items.some((item: { id: string }) => item.id === recordId)).toBe(true);
-      await page.goto(`/records?entity_id=${target.id}`);
+      await page.goto(`/records?entity_id=${encodeURIComponent(target.id)}`);
       await expect(page.getByRole("button", { name: label + " 자료", exact: true })).toBeVisible();
     }
     await mcp.call("delete_entity", { id: first.id, expected_version: first.version }); firstDeleted = true;
@@ -38,7 +38,7 @@ test("general record selects two entities in web; MCP, both related views and de
     const edited = await mcp.call("get_record", { id: recordId });
     expect(edited.body).toBe("대상 삭제 후에도 자료를 보존");
     expect(edited.entity_context).toEqual(read.entity_context);
-    expect(edited.entity_ids).toEqual([second.id]);
+    expect(edited.entity_ids).toEqual([first.id, second.id].sort());
     expect(edited.task_id).toBeNull();
   } finally {
     if (recordId) { const row = await mcp.call("get_record", { id: recordId }); await mcp.call("delete_record", { id: recordId, expected_version: row.version }); }

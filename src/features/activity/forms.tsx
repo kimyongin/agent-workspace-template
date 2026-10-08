@@ -180,7 +180,7 @@ function recurrenceOf(d: TaskDraft): unknown {
 
 /** 생성 입력(contracts의 taskCreate 모양). */
 export function taskInput(d: TaskDraft): Record<string, unknown> {
-  const text = { title: d.title, body: d.body, tag_ids:d.tag_ids,entity_ids:d.entity_ids??[], change_note:d.change_note?.trim()?d.change_note:undefined, change_tag_ids:d.change_tag_ids };
+  const text = { title: d.title, body: d.body, tag_ids:d.tag_ids,entity_ids:d.entity_ids??[], change_note:d.change_note, change_tag_ids:d.change_tag_ids };
   return d.kind === "once"
     ? { kind: "once", ...text, ...(d.due_on ? { due_on: d.due_on } : {}) }
     : { kind: "recurring", ...text, recurrence: recurrenceOf(d), timezone: d.timezone };
@@ -188,6 +188,7 @@ export function taskInput(d: TaskDraft): Record<string, unknown> {
 
 export function TaskFormModal(props: {
   mode: "create" | "edit";
+  target?: { id: string; version: number };
   open: boolean;
   initial: TaskDraft;
   details?: ReactNode;
@@ -206,6 +207,7 @@ export function TaskFormModal(props: {
     <FormModal
       domain="할 일" title={props.mode === "create" ? "할 일 추가" : "할 일 편집"}
       mutation={{target:draft.title, action:props.mode === "create" ? "등록" : "수정"}}
+      preparation={() => { const {change_note, change_tag_ids, kind, entity_ids, ...input} = taskInput(draft); return {model:"task", action:props.mode === "create" ? "create" : "update", target_id:props.target?.id, expected_version:props.target?.version, input:props.mode === "edit" ? {...input,...(draft.kind === "once" ? {due_on:draft.due_on || null} : {})} : {...input,kind,entity_ids}}; }}
       submitLabel={props.mode === "create" ? "추가" : "저장"}
       open={props.open}
       dirty={dirty}

@@ -19,7 +19,7 @@ export function RelationPicker({kind,value,context=[],onChange,error}: {
   useEffect(()=>{
     const controller=new AbortController();
     for(const id of value.filter(id=>!names.has(id))) {
-      void api<EntityResult|TaskResult>("GET",`/${kind==="entity"?"entities":"tasks"}/${id}`,undefined,controller.signal)
+      void api<EntityResult|TaskResult>("GET",`/${kind==="entity"?"entities":"tasks"}/${encodeURIComponent(id)}`,undefined,controller.signal)
         .then(item=>{if(!controller.signal.aborted)setNames(prior=>new Map(prior).set(id,"prop1" in item?item.prop1:item.title));}).catch(()=>{});
     }
     return()=>controller.abort();
@@ -35,7 +35,7 @@ export function RelationPicker({kind,value,context=[],onChange,error}: {
       {error&&<p className="error-text" role="alert">{error}</p>}
       <div id={searchId} hidden={!searching}>{searching&&<RelationSearch draftMode kind={kind} disabled={false} excluded={item=>value.includes(item.id)} onChoose={choose}/>}</div>
       <ul className="related-items" aria-label={`선택한 ${label}`}>
-        {value.map(id=><li key={id}><RelatedItem title={names.get(id)??label} action={<BodyAction icon="unlink" data-selection={id} aria-label={`${names.get(id)??label} 해제`} onClick={()=>{nextFocus.current="";onChange(value.filter(value=>value!==id));}}>해제</BodyAction>}/></li>)}
+        {value.map(id=><li key={id}><RelatedItem title={names.get(id)??label} metadata={kind==="entity" ? <span>{id}</span> : undefined} action={<BodyAction icon="unlink" data-selection={id} aria-label={`${names.get(id)??label} 해제`} onClick={()=>{nextFocus.current="";onChange(value.filter(value=>value!==id));}}>해제</BodyAction>}/></li>)}
       </ul>
     </RelatedSection>
   </div>;
