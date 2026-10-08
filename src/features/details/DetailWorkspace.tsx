@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExter
 import { useBlocker, useLocation, useNavigate, type Location, type To } from "react-router";
 import { ConfirmDialog } from "../../components/Modal.tsx";
 import { DetailTabContext, WorkspaceContext, detailIdentity, workspaceList, type WorkspaceGuard } from "./workspace-context.ts";
+import { useWorkspaceResize } from "./useWorkspaceResize.ts";
 import "./workspace.css";
 
 const desktopQuery = "(min-width: 1280px) and (min-height: 480px)";
@@ -49,6 +50,7 @@ export function DetailWorkspace({ children, render, enabled }: { children: React
   const saved = useCallback(() => setRevision(value => value + 1), []);
   const [discard, setDiscard] = useState<(() => void) | null>(null);
   const shown = visible && !!active;
+  const split = useWorkspaceResize(desktop && shown && started && eligible);
   const listRef = useWorkspaceScroll(started && eligible, desktop && shown, base);
   useEffect(() => {
     const unload = (event: BeforeUnloadEvent) => {
@@ -134,11 +136,12 @@ export function DetailWorkspace({ children, render, enabled }: { children: React
     return () => cancelAnimationFrame(frame);
   }, [active, visible, desktop, tabs.length, tabs.find(tab => tab.id === active)?.title, listRef]);
   if (!started || !eligible) return children;
-  return <WorkspaceContext.Provider value={{ revision, saved, open, registerGuard }}><div className={`detail-workspace${desktop && shown ? " has-detail-panel" : ""}`}>
+  return <WorkspaceContext.Provider value={{ revision, saved, open, registerGuard }}><div ref={split.ref} style={split.style} className={`detail-workspace${desktop && shown ? " has-detail-panel" : ""}${split.dragging ? " is-resizing" : ""}`}>
     <div className="workspace-list" ref={listRef}>{render(base)}
       {desktop && !visible && tabs.length > 0 && <button className="btn workspace-reopen" onClick={() => setVisible(true)}>상세 탭 보기 ({tabs.length}개)</button>}
     </div>
-    <aside className="workspace-details" hidden={!shown} aria-label="상세 작업 영역">
+    <div className="workspace-resize-handle" {...split.separator}/>
+    <aside className="workspace-details" id="workspace-details" hidden={!shown} aria-label="상세 작업 영역">
       <div className="workspace-tab-bar" hidden={!desktop}>
         <div className="workspace-tabs" role="tablist" aria-label="열린 상세" onKeyDown={event => {
           if (!(event.target instanceof Element) || !event.target.closest("[role=tab]")) return;

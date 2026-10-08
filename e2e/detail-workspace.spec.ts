@@ -14,6 +14,16 @@ async function fixture(page: Page, options: FakeOptions = {}) {
   return state;
 }
 const panel = (page: Page) => page.getByRole("tabpanel").filter({ visible: true });
+async function detailWidth(page: Page) {
+  return (await page.locator(".workspace-details").boundingBox())!.width;
+}
+async function dragSplit(page: Page, distance: number) {
+  const box = (await page.getByRole("separator", { name: "상세 패널 너비 조절" }).boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2 + distance, box.y + box.height / 2, { steps: 8 });
+  await page.mouse.up();
+}
 async function openEntity(page: Page, title = "등심") {
   const list = page.locator(".workspace-list").getByRole("region", { name: "엔터티 목록", exact: true });
   await list.getByRole("button", { name: title, exact: true }).click();
@@ -25,6 +35,98 @@ async function openTask(page: Page) {
   await section.getByRole("link", { name: "등심 구매하기 상세", exact: true }).click();
   await expect(page.getByRole("tab", { name: "등심 구매하기", exact: true })).toHaveAttribute("aria-selected", "true");
 }
+test("desktop: split dragging, keyboard limits and reset keep both panes readable", async ({ page }, info) => {
+  const state = await fixture(page); await page.goto(`/entities/${id(1)}`);
+  const separator = page.getByRole("separator", { name: "상세 패널 너비 조절" });
+  await expect(separator).toBeVisible();
+  const original = await detailWidth(page);
+  await dragSplit(page, -100);
+  await expect.poll(() => detailWidth(page)).toBeCloseTo(original + 100, 0);
+  await expect(page.locator(".detail-workspace")).not.toHaveClass(/is-resizing/);
+  await separator.press("ArrowRight");
+  await expect.poll(() => detailWidth(page)).toBeCloseTo(original + 84, 0);
+  await separator.press("Home");
+  await expect.poll(() => detailWidth(page)).toBeCloseTo(432, 0);
+  await separator.press("End");
+  expect((await page.locator(".workspace-list").boundingBox())!.width).toBeCloseTo(448, 0);
+  expect(Number(await separator.getAttribute("aria-valuenow"))).toBe(Number(await separator.getAttribute("aria-valuemax")));
+  await dragSplit(page, -2000);
+  expect((await page.locator(".workspace-list").boundingBox())!.width).toBeCloseTo(448, 0);
+  await dragSplit(page, 2000);
+  expect(await detailWidth(page)).toBeCloseTo(432, 0);
+  await separator.dblclick();
+  await expect.poll(() => detailWidth(page)).toBeCloseTo(original, 0);
+  await dragSplit(page, -80);
+  await page.screenshot({ path: info.outputPath("resizable-detail-panel.png") });
+  expect(state.errors).toEqual([]); expect(state.writes).toEqual([]);
+});
+test("desktop: resized split preserves draft, tabs, hide/reopen and responsive proportions", async ({ page }) => {
+  const state = await fixture(page); await page.goto(`/entities/${id(1)}`); await openTask(page);
+  await panel(page).getByRole("button", { name: "편집", exact: true }).click();
+  await panel(page).getByLabel("본문", { exact: true }).fill("너비를 바꿔도 보존할 초안");
+  await dragSplit(page, -60);
+  const width = await detailWidth(page);
+  const originalAvailable = (await page.locator(".detail-workspace").boundingBox())!.width - 12;
+  await page.getByRole("tab", { name: "등심", exact: true }).click();
+  expect(await detailWidth(page)).toBeCloseTo(width, 0);
+  await page.getByRole("button", { name: "상세 패널 숨기기" }).click();
+  await expect(page.getByRole("separator")).toHaveCount(0);
+  await page.getByRole("button", { name: "상세 탭 보기 (2개)" }).click();
+  await expect.poll(() => detailWidth(page)).toBeCloseTo(width, 0);
+  await page.getByRole("tab", { name: "등심 구매하기", exact: true }).click();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.getByRole("separator")).toHaveCount(0);
+  await expect(page.locator("dialog.modal:not(.modal-confirm)[open]").getByLabel("본문", { exact: true })).toHaveValue("너비를 바꿔도 보존할 초안");
+  await page.setViewportSize({ width: 1600, height: 900 });
+  await expect(page.getByRole("separator")).toBeVisible();
+  const available = (await page.locator(".detail-workspace").boundingBox())!.width - 12;
+  await expect.poll(async () => await detailWidth(page) / available).toBeCloseTo(width / originalAvailable, 2);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await expect.poll(async () => (await page.locator(".workspace-list").boundingBox())!.width).toBeGreaterThanOrEqual(448);
+  expect(await detailWidth(page)).toBeGreaterThanOrEqual(432);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await expect.poll(() => detailWidth(page)).toBeCloseTo(width, 0);
+  await expect(panel(page).getByLabel("본문", { exact: true })).toHaveValue("너비를 바꿔도 보존할 초안");
+  expect(state.errors).toEqual([]); expect(state.writes).toEqual([]);
+});
+test("desktop: pointer cancellation ends resizing without consuming later mouse moves", async ({ page }) => {
+  const state = await fixture(page); await page.goto(`/entities/${id(1)}`);
+  const separator = page.getByRole("separator", { name: "상세 패널 너비 조절" });
+  const box = (await separator.boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + 100); await page.mouse.down();
+  await page.mouse.move(box.x - 50, box.y + 100);
+  await expect(page.locator(".detail-workspace")).toHaveClass(/is-resizing/);
+  await separator.dispatchEvent("pointercancel", { pointerId: 1 });
+  await expect(page.locator(".detail-workspace")).not.toHaveClass(/is-resizing/);
+  const width = await detailWidth(page);
+  await page.mouse.move(box.x - 100, box.y + 100); await page.mouse.up();
+  expect(await detailWidth(page)).toBeCloseTo(width, 0);
+  await dragSplit(page, 20);
+  await expect.poll(() => detailWidth(page)).toBeCloseTo(width - 20, 0);
+  expect(state.writes).toEqual([]);
+});
+test("desktop: separator target leaves tab icons clickable and adapts to large text", async ({ page }) => {
+  await fixture(page); await page.goto(`/entities/${id(1)}`); await openTask(page);
+  const first = page.getByRole("tab", { name: "등심", exact: true });
+  await first.locator("svg").click({ position: { x: 2, y: 8 } });
+  await expect(first).toHaveAttribute("aria-selected", "true");
+  await expect(page.locator(".detail-workspace")).not.toHaveClass(/is-resizing/);
+  const separator = page.getByRole("separator", { name: "상세 패널 너비 조절" });
+  const box = (await separator.boundingBox())!;
+  const before = await detailWidth(page);
+  // The central grip has a 44x44 target, but does not steal header/footer clicks.
+  await page.mouse.move(box.x - 10, box.y + box.height / 2); await page.mouse.down();
+  await page.mouse.move(box.x - 30, box.y + box.height / 2); await page.mouse.up();
+  await expect.poll(() => detailWidth(page)).toBeCloseTo(before + 20, 0);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.addStyleTag({ content: ":root { font-size: 21px; }" });
+  const available = (await page.locator(".detail-workspace").boundingBox())!.width - 12;
+  await expect.poll(() => detailWidth(page)).toBeCloseTo(available / 2, 0);
+  expect((await page.locator(".workspace-list").boundingBox())!.width).toBeCloseTo(available / 2, 0);
+  await separator.press("End");
+  expect(await detailWidth(page)).toBeCloseTo(available / 2, 0);
+});
 test("desktop: list stays usable, related details become unique tabs and close restores list", async ({ page }, info) => {
   const state = await fixture(page); await page.goto("/entities?view=table");
   await openEntity(page); await expect(page.getByRole("tab", { name: "등심", exact: true })).toHaveAttribute("aria-selected", "true");
