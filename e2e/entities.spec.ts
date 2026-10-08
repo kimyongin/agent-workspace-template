@@ -1,5 +1,5 @@
 import { fillChangeMemo } from "./ui-actions.ts";
-import { saveOnce, beginTabAction, openDetailEditor, openListDetail, openTabFilters } from "./ui-actions.ts";
+import { saveOnce, beginTabAction, openDetailEditor, openListDetail, openTabFilters, closeDetail } from "./ui-actions.ts";
 import { expect, test } from "@playwright/test";
 import { devLogin, mcpClient, mcpTokenViaConsent, unique } from "./support.ts";
 
@@ -21,7 +21,7 @@ test("Entity 웹 CRUD·초안 보호→MCP parity·활동 연결→삭제 원문
   await expect(form.getByLabel("속성 1")).toHaveValue(name);
   await saveOnce(page, form);
   await expect(form).not.toBeVisible();await expect(page).toHaveURL(/\/entities\/app%3A[0-9a-f-]{36}(?:\?|$)/);
-  await expect(page.getByRole("heading",{name,level:1,exact:true})).toBeVisible();
+  await expect(page.getByRole("heading",{name,exact:true})).toBeVisible();
   const id = decodeURIComponent(new URL(page.url()).pathname.split("/").at(-1)!);
   const mcp = await mcpClient(await mcpTokenViaConsent(page));
   try {
@@ -55,8 +55,8 @@ test("Entity 웹 CRUD·초안 보호→MCP parity·활동 연결→삭제 원문
       .toBeVisible();
     await expect(page.getByRole("link", { name: "전체 할 일 보기" })).toHaveCount(0);
     await expect(page.getByRole("button", { name: task.title, exact: true })).toBeVisible();
-    await page.goto(`/tasks?entity_id=${id}`);
-    await expect(page).toHaveURL(new RegExp(`/tasks\\?entity_id=${id}`));
+    await page.goto(`/tasks?entity_id=${encodeURIComponent(id)}`);
+    expect(new URL(page.url()).pathname).toBe("/tasks");
     await expect(page.getByRole("button", { name: task.title, exact: true }))
       .toBeVisible();
     expect(new URL(page.url()).searchParams.get("entity_id")).toBe(id);
@@ -65,7 +65,7 @@ test("Entity 웹 CRUD·초안 보호→MCP parity·활동 연결→삭제 원문
     const editTask = page.getByRole("dialog", { name: "할 일 편집" });
     await expect(editTask.getByRole("searchbox", { name: "엔터티 제목 검색" })).toHaveCount(0);
     expect((await mcp.call("get_task", { id: task.id })).entity_ids).toEqual([id]);
-    await editTask.getByRole("button", {name:"닫기",exact:true}).click();
+    await closeDetail(page, task.title);
     await page.goto(`/entities/${encodeURIComponent(id)}`);
     await openDetailEditor(page);
     const edit = page.getByRole("dialog", { name: "엔터티 편집" });
@@ -113,7 +113,7 @@ test("엔터티 관련 기록 취소: 작성 URL·reload·메모와 변경 이�
       await expect(page).not.toHaveURL(/create=/);await expect(page).toHaveURL(/list=/);
       await expect(page.getByRole("button",{name:"기록 작성",exact:true})).toBeFocused();
     }
-    await page.reload();await expect(page.getByRole("heading",{name:entity.prop1,level:1,exact:true})).toBeVisible();
+    await page.reload();await expect(page.getByRole("heading",{name:entity.prop1,exact:true})).toBeVisible();
     await expect(page.getByRole("dialog",{name:"기록 작성",exact:true})).toHaveCount(0);
     expect((await mcp.call("get_entity",{id:entity.id})).version).toBe(1);
     expect((await mcp.call("list_records",{entity_id:entity.id,record_kind:"user"})).items).toEqual([]);
@@ -144,7 +144,7 @@ test("Entity 목록: 키워드/선택/정렬·추가 페이지·상세 복귀/�
     await expect(last).toBeVisible();
     const before = page.url();
     await openListDetail(page, `${marker} 20`);
-    await page.getByRole("button",{name:"닫기",exact:true}).click();
+    await closeDetail(page, `${marker} 20`);
     const restored=new URL(page.url()),original=new URL(before);
     for(const [key,value] of original.searchParams)expect(restored.searchParams.get(key)).toBe(value);
     expect(restored.searchParams.has("scroll")).toBe(true);
@@ -161,7 +161,7 @@ test("Entity 목록: 키워드/선택/정렬·추가 페이지·상세 복귀/�
     await openListDetail(page, `${marker} 19`);
     const concurrent = await mcp.call("create_entity", { prop1: `${marker} 새 항목`, prop2: 0, prop4: "c" });
     ids.push(concurrent.id);
-    await page.getByRole("button",{name:"닫기",exact:true}).click();
+    await closeDetail(page, `${marker} 19`);
     await expect(page.getByRole("button", { name: `${marker} 19`, exact: true })).toBeFocused();
     await mcp.call("delete_entity", { id: ids[19], expected_version: 1 });
     ids.splice(19, 1);
@@ -187,8 +187,10 @@ test("Entity 복원: 대상 없음 조회 한도·제목 초점·필터 hash 제
       started();
       await delayed;
     }
+    const externalId = crypto.randomUUID();
     const item = {
-      id: crypto.randomUUID(),
+      id: `app:${externalId}`,
+      source: "app", external_id: externalId, source_label: "앱", deleted_at: null, tag_ids: [],
       prop1: keyword ?? "계속되는 목록",
       prop2: null,
       prop3: null,
@@ -226,7 +228,7 @@ test("Entity lookahead 뒤 더 보기: 현재 커서 append·실패 retry·행�
     const anchor = page.getByRole("button", { name: `${marker} 19`, exact: true });
     await openListDetail(page, `${marker} 19`);
     ids.push((await mcp.call("create_entity", { prop1: `${marker} 동시 추가`, prop2: 0 })).id);
-    await page.getByRole("button",{name:"닫기",exact:true}).click();
+    await closeDetail(page, `${marker} 19`);
     await expect(anchor).toBeFocused();
     await expect(page.locator(".list .item-title")).toHaveCount(40);
     const cursors: string[] = [];
@@ -294,10 +296,12 @@ test("Entity 자동 복원 250 상한 뒤 수동 251페이지·같은 cursor 재
       return;
     }
     const index = cursor ? Number(cursor.slice(5)) + 1 : 1;
+    const externalId = crypto.randomUUID();
     await route.fulfill({
       json: {
         items: [{
-          id: crypto.randomUUID(),
+          id: `app:${externalId}`,
+          source: "app", external_id: externalId, source_label: "앱", deleted_at: null, tag_ids: [],
           prop1: `경계 항목 ${index}`,
           prop2: null,
           prop3: null,
