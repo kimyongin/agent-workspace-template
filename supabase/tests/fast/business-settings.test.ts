@@ -175,3 +175,52 @@ Deno.test("기록 준비: 해석 후 메모가 본문 제한을 넘으면 쓰기
     AppError,
   );
 });
+
+Deno.test("복원 기록 준비: 보관한 0·태그·식별 정보를 보존하고 생략한 등록 입력을 고정", async () => {
+  const d: BusinessSettingsDeps = {
+    uow: {
+      run: (_actor, fn) =>
+        fn({
+          get: () =>
+            Promise.resolve({
+              version: 1,
+              settings: {
+                record_templates: {
+                  entity: {
+                    restore: {
+                      memo: "${엔터티.이전.속성2$} → ${엔터티.이후.속성2$} / ${엔터티.이후.식별자$}",
+                      tag_ids: [],
+                    },
+                  },
+                },
+              },
+            }),
+          update: () => Promise.reject(new Error("읽기만")),
+          recordTags: () => Promise.resolve([]),
+          target: () =>
+            Promise.resolve({
+              version: 3,
+              deleted_at: "2026-10-09T00:00:00Z",
+              facts: {
+                source: "app",
+                external_id: "001",
+                prop1: "보관값",
+                prop2: 0,
+                prop3: null,
+                prop4: "a",
+                tag_ids: [],
+              },
+            }),
+        }),
+    },
+  };
+  const prepared = await prepareBusinessRecord(d, { userId: crypto.randomUUID() }, {
+    model: "entity",
+    action: "restore",
+    target_id: "app:001",
+    expected_version: 3,
+    input: {},
+  });
+  assertEquals(prepared.change_note, "0 → 0 / 001");
+  assertEquals(prepared.prepared_input, { source: "app", external_id: "001", expected_version: 3 });
+});

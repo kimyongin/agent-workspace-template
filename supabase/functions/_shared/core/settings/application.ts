@@ -143,6 +143,10 @@ export function prepareBusinessRecord(
       ...content,
       ...(input.action === "stop" ? { status: "stopped" } : input.action === "resume" ? { status: "active" } : {}),
     } as ChangeFacts;
+    if (input.action === "restore") {
+      prepared_input = { ...prepared_input, source: before?.source, external_id: before?.external_id };
+    }
+    if (input.action !== "create") prepared_input = { ...prepared_input, expected_version: input.expected_version };
     const title = String((after ?? before)?.[input.model === "entity" ? "prop1" : "title"] ?? "");
     const ids = saved.settings.record_templates?.[input.model]?.[input.action]?.tag_ids ?? [];
     const result = changeDefaults(
