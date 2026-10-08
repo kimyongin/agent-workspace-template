@@ -13,6 +13,7 @@ export const prepareRecordMemo = z.strictObject({
 });
 export type PrepareRecordMemo = z.infer<typeof prepareRecordMemo>;
 export interface PreparedRecordMemo {
+  prepared_input: Record<string, unknown>;
   change_note: string;
   change_tag_ids: string[];
   missing_tag_ids: string[];

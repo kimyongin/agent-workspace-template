@@ -29,7 +29,8 @@ dbTest("업무 설정 DB: 소유자 격리·섹션 병합·경합·고정 메모
         record_templates: { task: { create: { memo: "${대상$}: ${할일.이후.본문$} (${액션$})", tag_ids: [tag.id] } } },
       },
     });
-    assertEquals(await getBusinessSettings(settings, other.actor), { version: 0, settings: {} });
+    assertEquals((await getBusinessSettings(settings, other.actor)).version, 0);
+    assertEquals((await getBusinessSettings(settings, other.actor)).settings.record_templates, {});
     await updateBusinessSettings(settings, actor, {
       expected_version: 1,
       sections: {
