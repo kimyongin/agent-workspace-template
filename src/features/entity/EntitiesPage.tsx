@@ -1,3 +1,4 @@
+import { CollectionHeading, CollectionList, useMainCollectionView } from "../../components/Collection.tsx";
 import { useCreateMode } from "../../components/useCreateMode.ts";
 import { TabSearch, TabFilters, resetTabFilters } from "../../components/TabSearch.tsx";
 import { TagDictionaryStatus, TagReadProvider, useTagDictionary } from "../tags/TagPicker.tsx";
@@ -14,6 +15,7 @@ import { TabCreateButton } from "../../components/TabCreateButton.tsx";
 type Page = { items: EntityResult[]; next_cursor: string | null; count: number };
 export function EntitiesPage() {
   const create=useCreateMode();
+  const [view,changeView]=useMainCollectionView();
   const dictionary=useTagDictionary(true,true,"entity");
   const [params] = useSearchParams(),
     { hash } = useLocation(),
@@ -157,6 +159,7 @@ export function EntitiesPage() {
       <fieldset className="field tag-filter-chips"><legend className="label">엔터티 태그</legend><div className="chips">{dictionary.tags?.map(tag=><button type="button" className="chip" key={tag.id} aria-pressed={filter.tag_id===tag.id} onClick={()=>set("tag_id",filter.tag_id===tag.id?"":tag.id)}>{tag.name}</button>)}</div></fieldset>
       </TabFilters>
     </section><section className="activity-section" aria-label="엔터티 목록">
+      <CollectionHeading label="엔터티" count={page?.items.length} hasMore={!!page?.next_cursor} view={view} onChange={changeView}/>
       {error && (
         <>
           <Notice kind="error">{error}</Notice>
@@ -180,15 +183,15 @@ export function EntitiesPage() {
           </button>
         </>
       )}
-      <ListExpansionProvider><TagReadProvider dictionary={dictionary} enabled={!!page?.items.some(e=>(e as EntityResult & {tag_ids?:string[]}).tag_ids?.length)}><ul className="list disclosure-list panel">
+      <ListExpansionProvider><TagReadProvider dictionary={dictionary} enabled={!!page?.items.some(e=>(e as EntityResult & {tag_ids?:string[]}).tag_ids?.length)}><CollectionList view={view==="calendar"?"list":view} label="엔터티 목록" columns={["엔터티","속성 2","속성 3"]}>
         {page?.items.map((e) => (
           <li className="list-item" key={e.id}>
             <div className="list-item-main">
-              <ListPreviewItem kind="entities" id={e.id} title={e.prop1}/>
+              <ListPreviewItem kind="entities" id={e.id} title={e.prop1} cells={[e.prop2,e.prop3]}/>
             </div>
           </li>
         ))}
-      </ul></TagReadProvider></ListExpansionProvider>
+      </CollectionList></TagReadProvider></ListExpansionProvider>
       {page && (page.next_cursor || page.count > 1) && (
         <button
           className="btn"

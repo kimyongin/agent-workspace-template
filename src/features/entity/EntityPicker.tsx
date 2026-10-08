@@ -1,3 +1,4 @@
+import { CollectionList } from "../../components/Collection.tsx";
 import { RelatedSection } from "../../components/RelatedItems.tsx";
 import { RelatedPreviewItem } from "../relations/RelatedPreviewItem.tsx";
 import type { EntityContext } from "@contracts/entity-links.ts";
@@ -105,7 +106,7 @@ export function EntityLinks(
   if (!ids?.length) return null;
   return (
     <RelatedSection title="엔터티" count={ids.length}>
-      <ul className="related-items">
+      <CollectionList>
         {ids.map((id) => {
           return (
             <li key={id}>
@@ -113,7 +114,7 @@ export function EntityLinks(
             </li>
           );
         })}
-      </ul>
+      </CollectionList>
     </RelatedSection>
   );
 }

@@ -31,7 +31,7 @@ export function RelationPicker({kind,value,context=[],onChange,error}: {
   },[selection]);
   const choose=(item:Candidate)=>{setNames(prior=>new Map(prior).set(item.id,item.title));nextFocus.current=item.id;onChange(kind==="task"?[item.id]:[...value,item.id].sort());};
   return <div ref={root} className="form">
-    <RelatedSection title={label} count={value.length} action={<RelationSearchAction kind={kind} expanded={searching} controls={searchId} onToggle={()=>setSearching(value=>!value)}/>}>
+    <RelatedSection views={false} title={label} count={value.length} action={<RelationSearchAction kind={kind} expanded={searching} controls={searchId} onToggle={()=>setSearching(value=>!value)}/>}>
       {error&&<p className="error-text" role="alert">{error}</p>}
       <div id={searchId} hidden={!searching}>{searching&&<RelationSearch draftMode kind={kind} disabled={false} excluded={item=>value.includes(item.id)} onChoose={choose}/>}</div>
       <ul className="related-items" aria-label={`선택한 ${label}`}>
