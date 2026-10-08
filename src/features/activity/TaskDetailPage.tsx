@@ -214,13 +214,14 @@ export function TaskDetailPage() {
       {editor.active && !dialog && editReady && (
         <TaskFormModal
           mode="edit"
+          target={task}
           open
           initial={taskDraftFrom(task, timezone)}
-          deletion={{message:<p style={{ margin: 0 }}>
+          deletion={{preparation:()=>({model:"task",action:"delete",target_id:task.id,expected_version:task.version,input:{}}),message:<p style={{ margin: 0 }}>
             「{task.title}」을(를) 삭제합니다. 연결된 결과·회차 기록은 남고 이 할 일과의 연결만 사라집니다.
           </p>,onConfirm:(reason,tags) =>
           run(async () => {
-            await api("POST", `/tasks/${task.id}/delete`, {expected_version:task.version,change_note:reason||undefined, change_tag_ids:tags});
+            await api("POST", `/tasks/${task.id}/delete`, {expected_version:task.version,change_note:reason, change_tag_ids:tags});
             editor.leave(deleteBack);
           }, "삭제했습니다.")}}
           {...editor.formProps}
@@ -300,6 +301,7 @@ export function TaskDetailPage() {
 function TaskTransitionForm({task,open,onClose,onSaved}:{task:TaskResult;open:boolean;onClose:()=>void;onSaved:()=>Promise<void>}) {
   const action=task.status==="active"?"stop":"resume",label=action==="stop"?"중단":"재개";
   return <FormModal open={open} title={`반복 할 일 ${label}`} submitLabel={label} dirty={false} confirmationOnly
+    preparation={()=>({model:"task",action,target_id:task.id,expected_version:task.version,input:{}})}
     mutation={{target:task.title,action:label,message:action==="stop"?"오늘부터 이후 회차가 생기지 않고 기존 기록은 남습니다.":"오늘부터 규칙에 따라 회차가 다시 생깁니다."}}
     onClose={onClose} onRouteDiscard={onClose} validate={()=>null} onSubmit={async(_id,memo)=>{
       await api("POST",`/tasks/${task.id}/${action}`,{expected_version:task.version,...memo});

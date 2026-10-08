@@ -188,6 +188,7 @@ export function taskInput(d: TaskDraft): Record<string, unknown> {
 
 export function TaskFormModal(props: {
   mode: "create" | "edit";
+  target?: { id: string; version: number };
   open: boolean;
   initial: TaskDraft;
   details?: ReactNode;
@@ -206,6 +207,7 @@ export function TaskFormModal(props: {
     <FormModal
       domain="할 일" title={props.mode === "create" ? "할 일 추가" : "할 일 편집"}
       mutation={{target:draft.title, action:props.mode === "create" ? "등록" : "수정"}}
+      preparation={() => { const {change_note, change_tag_ids, ...input} = taskInput(draft); return {model:"task", action:props.mode === "create" ? "create" : "update", target_id:props.target?.id, expected_version:props.target?.version, input:props.mode === "edit" ? {...input,due_on:draft.kind === "once" ? draft.due_on || null : null} : input}; }}
       submitLabel={props.mode === "create" ? "추가" : "저장"}
       open={props.open}
       dirty={dirty}

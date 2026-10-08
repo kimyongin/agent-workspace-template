@@ -4,7 +4,7 @@ import { useDisplayTime } from "../../lib/useDisplayTime.ts";
 
 export type WorkspaceRecord = RecordResult;
 export const recordKindNames = {user:"직접 작성",result:"수행 결과",change:"변경 기록"};
-export const changeActionNames = {create:"등록",update:"수정",delete:"삭제",stop:"중단",resume:"재개"};
+export const changeActionNames = {create:"등록",update:"수정",delete:"삭제",restore:"복원",stop:"중단",resume:"재개"};
 const targets = {entity:"엔터티",task:"할 일",record:"기록",principle:"원칙"};
 export function ChangeContext({record,compact=false}: {record: WorkspaceRecord;compact?:boolean}) {
   const { formatDateTime } = useDisplayTime();
