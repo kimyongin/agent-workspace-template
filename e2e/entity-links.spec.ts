@@ -30,13 +30,15 @@ test("general record selects two entities in web; MCP, both related views and de
     await mcp.call("delete_entity", { id: first.id, expected_version: first.version }); firstDeleted = true;
     await page.goto(`/records/${recordId}`); await openDetailEditor(page);
     const edit = page.getByRole("dialog", { name: "기록 편집", exact: true });
-    await expect(edit.getByRole("button", { name: first.prop1+" 해제", exact: true })).toBeVisible();
+    await expect(edit.getByRole("region", { name: /^엔터티/ })).toHaveCount(0);
+    await expect(edit.getByRole("button", { name: "엔터티 연결", exact: true })).toHaveCount(0);
     await edit.getByRole("textbox", { name: /^본문/ }).fill("대상 삭제 후에도 자료를 보존");
     await edit.getByRole("button", { name: "저장", exact: true }).click();
     await expect(edit).not.toBeVisible();
     const edited = await mcp.call("get_record", { id: recordId });
     expect(edited.body).toBe("대상 삭제 후에도 자료를 보존");
     expect(edited.entity_context).toEqual(read.entity_context);
+    expect(edited.entity_ids).toEqual([second.id]);
     expect(edited.task_id).toBeNull();
   } finally {
     if (recordId) { const row = await mcp.call("get_record", { id: recordId }); await mcp.call("delete_record", { id: recordId, expected_version: row.version }); }

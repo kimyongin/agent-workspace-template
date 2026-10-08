@@ -19,10 +19,10 @@ const groups = [
 ] as const;
 
 /** Event targets and explicit relationships share one section and one card per kind/ID. */
-export function RecordRelations({record,includeEntities=true}: {record:RecordResult;includeEntities?:boolean}) {
+export function RecordRelations({record}: {record:RecordResult}) {
   return <>{groups.map(group=>{
     const change=record.change?.target_kind===group.kind?record.change:null;
-    const selected=group.kind==="entity"?(includeEntities?record.entity_ids:[]):group.kind==="task"&&record.task_id?[record.task_id]:[];
+    const selected=group.kind==="entity"?record.entity_ids:group.kind==="task"&&record.task_id?[record.task_id]:[];
     const ids=[...new Set([...(change?[change.target_id]:[]),...selected])];
     if(!ids.length)return null;
     return <RelatedSection key={group.kind} title={group.title} count={ids.length}>

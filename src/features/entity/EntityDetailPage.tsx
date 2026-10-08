@@ -14,7 +14,7 @@ import type { EntityDetail } from "@contracts/entity.ts";
 import { useEffect, useRef, useState } from "react";
 import { useLocation, useParams, useSearchParams } from "react-router";
 import { Notice } from "../../components/Field.tsx";
-import { DetailSurface } from "../../components/Modal.tsx";
+import { DetailSurface, DetailTitle } from "../../components/Modal.tsx";
 import { api, ApiError } from "../../lib/api.ts";
 import { EntityForm } from "./forms.tsx";
 import { emptyRecord, emptyTask, RecordFormModal, TaskFormModal, taskInput } from "../activity/forms.tsx";
@@ -76,15 +76,15 @@ export function EntityDetailPage() {
             </RelatedSection>
           ))}
     </div>;
-  return <DetailSurface title={entity?.prop1??"엔터티"} onClose={()=>navigate(back)} busy={busy}
+  return <DetailSurface title="엔터티" tabTitle={entity?.prop1??"엔터티"} onClose={()=>navigate(back)} busy={busy}
     footer={entity&&<button type="button" className="btn btn-primary" onClick={editor.start}>편집</button>}>
       {error && !entity && <><Notice kind="error">{error}</Notice><button className="btn" onClick={()=>void reload()}>다시 시도</button></>}
       {!entity&&!error&&<p className="secondary" role="status">불러오는 중…</p>}
       {entity&&<div className="detail-stack">
-          <section className="detail-section entity-detail-properties"><dl className="props">
+          <section className="detail-section entity-detail-properties"><DetailTitle>{entity.prop1}</DetailTitle><dl className="props">
             {(["prop2","prop3","prop4"] as const).map(key=><div key={key}><dt>{entityLabels[key]}</dt><dd>{entity[key]??"미지정"}</dd></div>)}
           </dl><TagNames scope="entity" compact ids={entity.tag_ids}/></section>
-          {management}
+          <div className="detail-relations">{management}</div>
           {creating === "task" && <TaskFormModal key={location.key} open mode="create" initial={{ ...emptyTask(timezone), entity_ids: [entity.id], entity_context: entityContext }}
             onClose={closeCreate} onRouteDiscard={()=>setCreating(null)} onSave={async (draft, creationId) => {
               await api("POST", "/tasks", { ...taskInput(draft), id: creationId() });

@@ -9,6 +9,8 @@ import { DetailTabContext, WorkspaceContext, type WorkspaceGuard } from "../feat
 
 export interface ModalProps {
   title: string;
+  /** Stable visible domain heading; the accessible name retains the current operation. */
+  domain?: string;
   headingLevel?: 1 | 2;
   open: boolean;
   /** 닫기 요청. dirty면 변경 버리기 확인을 먼저 묻는다. */
@@ -27,6 +29,7 @@ export interface ModalProps {
 
 export interface SurfaceEditor {
   title: string;
+  domain?: string;
   dirty: boolean;
   busy: boolean;
   onClose: () => void;
@@ -70,20 +73,25 @@ export function DetailSurface({title, tabTitle = title, onClose, children, busy 
   // Remove the editor before navigating, so its dirty guard cannot ask a second time.
   useEffect(()=>{if(dismissing&&!editor){setDismissing(false);if(tab)tab.close();else onClose();}},[dismissing,editor,onClose,tab]);
   return <RelatedExpansionProvider><SurfaceContext.Provider value={{slot, register, editor:editorRef, busy:busyRef}}>
-    <ModalShell open title={editor?.title ?? title} headingLevel={editor || tab ? 2 : 1} onClose={dismiss} onCancelEdit={editor?.onClose}
+    <ModalShell open title={editor?.title ?? title} domain={editor?.domain} headingLevel={editor || tab ? 2 : 1} onClose={dismiss} onCancelEdit={editor?.onClose}
       onRouteDiscard={editor?.onRouteDiscard} dirty={editor?.dirty} busy={busy || editor?.busy}
-      previous={editor ? null : previous} footer={editor?.footer ?? footer}>
+      previous={tab?.previous ?? (editor ? null : previous)} footer={editor?.footer ?? footer}>
       <div hidden={!!editor}>{children}</div>
       <div ref={setSlot} hidden={!editor} />
     </ModalShell>
   </SurfaceContext.Provider></RelatedExpansionProvider>;
 }
 
+export function DetailTitle({children}: {children: ReactNode}) {
+  const tab = useContext(DetailTabContext);
+  return tab ? <h3 className="detail-title">{children}</h3> : <h2 className="detail-title">{children}</h2>;
+}
+
 export function ModalShell(props: ModalProps) {
   return props.open ? <ActiveModalShell {...props} /> : null;
 }
 
-function ActiveModalShell({ title, headingLevel=2, open, onClose, onCancelEdit, previous, onRouteDiscard = onClose, dirty = false, busy = false, footer, children }: ModalProps) {
+function ActiveModalShell({ title, domain, headingLevel=2, open, onClose, onCancelEdit, previous, onRouteDiscard = onClose, dirty = false, busy = false, footer, children }: ModalProps) {
   const tab = useContext(DetailTabContext);
   const workspace = useContext(WorkspaceContext);
   const active = tab?.active ?? true;
@@ -176,7 +184,8 @@ function ActiveModalShell({ title, headingLevel=2, open, onClose, onCancelEdit, 
   return <SurfaceActionContext.Provider value={registerAction}><dialog
       ref={ref}
       className={`modal${action ? " modal-action" : ""}${docked ? " detail-docked" : ""}`}
-      aria-labelledby={titleId}
+      aria-label={!action && domain ? title : undefined}
+      aria-labelledby={!action && domain ? undefined : titleId}
       onCancel={(e) => {
         e.preventDefault();
         e.stopPropagation();
@@ -185,8 +194,8 @@ function ActiveModalShell({ title, headingLevel=2, open, onClose, onCancelEdit, 
     >
       <div className="modal-inner">
         <div className="modal-head">
-          {previous && !tab && !action && <button type="button" className="btn btn-text modal-icon modal-back" aria-label={previous.label} title={previous.label} disabled={busy} onClick={()=>requestLeave(previous.back)}><span aria-hidden="true">←</span></button>}
-          {headingLevel===1?<h1 id={titleId} className="dialog-title" tabIndex={-1}>{action?.title ?? title}</h1>:<h2 id={titleId} className="dialog-title" tabIndex={-1}>{action?.title ?? title}</h2>}
+          {previous && !action && <button type="button" className="btn btn-text modal-icon modal-back" aria-label={previous.label} title={previous.label} disabled={busy} onClick={()=>tab ? previous.back() : requestLeave(previous.back)}><span aria-hidden="true">←</span></button>}
+          {headingLevel===1?<h1 id={titleId} className="dialog-title" tabIndex={-1}>{action?.title ?? domain ?? title}</h1>:<h2 id={titleId} className="dialog-title" tabIndex={-1}>{action?.title ?? domain ?? title}</h2>}
           {!docked && <button type="button" className="btn btn-text modal-icon" aria-label="닫기" title="닫기" onClick={requestClose} disabled={busy || action?.busy}>
             <span aria-hidden="true">×</span>
           </button>}

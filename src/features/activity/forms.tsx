@@ -64,11 +64,11 @@ export function RecordFormModal(props: {
     ...(!props.editing&&props.taskEditable!==false&&props.entityEditable!==false?{task_id:draft.task_id}:{}),
     occurred_at: recordDraftTime(draft, timezone),
     tag_ids:draft.tag_ids,
-    ...(props.entityEditable===false?{}:{entity_ids:draft.entity_ids??[]}),
+    ...(!props.editing&&props.entityEditable!==false?{entity_ids:draft.entity_ids??[]}:{}),
   });
   return (
     <FormModal
-      title={props.title}
+      domain="기록" title={props.title}
       submitLabel={props.submitLabel}
       open={props.open}
       dirty={dirty}
@@ -89,7 +89,7 @@ export function RecordFormModal(props: {
           {!props.systemRecord && <section className="detail-section form">
           <TagPicker value={draft.tag_ids} error={errors.tag_ids} onChange={tag_ids=>setDraft(d=>({...d,tag_ids}))}/>
           {!props.editing&&props.taskEditable!==false&&props.entityEditable!==false&&<RelationPicker kind="task" value={draft.task_id?[draft.task_id]:[]} error={errors.task_id} onChange={ids=>setDraft(d=>({...d,task_id:ids[0]}))}/>}
-          {props.entityEditable!==false&&<EntityMultiPicker value={draft.entity_ids??[]} context={draft.entity_context} error={errors.entity_ids} onChange={entity_ids=>setDraft(d=>({...d,entity_ids}))}/>}
+          {!props.editing&&props.entityEditable!==false&&<EntityMultiPicker value={draft.entity_ids??[]} context={draft.entity_context} error={errors.entity_ids} onChange={entity_ids=>setDraft(d=>({...d,entity_ids}))}/>}
           <Field label={recordLabels.occurred_at} error={errors.occurred_at} >
             {(p) => (
               <input
@@ -204,7 +204,7 @@ export function TaskFormModal(props: {
     setDraft((prev) => ({ ...prev, ...(typeof patch === "function" ? patch(prev) : patch) }));
   return (
     <FormModal
-      title={props.mode === "create" ? "할 일 추가" : "할 일 편집"}
+      domain="할 일" title={props.mode === "create" ? "할 일 추가" : "할 일 편집"}
       mutation={{target:draft.title, action:props.mode === "create" ? "등록" : "수정"}}
       submitLabel={props.mode === "create" ? "추가" : "저장"}
       open={props.open}
