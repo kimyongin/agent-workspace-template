@@ -29,8 +29,9 @@ async function loadSource(path, bindings, tail) {
 }
 
 async function loadProvider(hook, client, profile) {
+  const { preferenceMetadata } = await loadSource("src/features/settings/account-preferences.ts", { timezonePreference }, "\nreturn {preferenceMetadata};");
   const { AuthContext } = await loadSource("src/features/auth/auth-context.ts", hook, "\nreturn {AuthContext};");
-  return loadSource("src/features/auth/AuthProvider.tsx", { ...hook, supabase: client, ...profile, timezonePreference, AuthContext }, "\nreturn AuthProvider;");
+  return loadSource("src/features/auth/AuthProvider.tsx", { ...hook, supabase: client, ...profile, preferenceMetadata, AuthContext }, "\nreturn AuthProvider;");
 }
 
 const { timezonePreference } = await loadSource("src/lib/timezone.ts", {}, "\nreturn {timezonePreference};");
@@ -50,8 +51,8 @@ test("canonical display after local save, real profile broadcast, reload and rel
     const client = createClient("http://fixture.invalid", "fixture-public", { auth: { storage, storageKey: "canonical-session", autoRefreshToken: false, detectSessionInUrl: false } });
     clients.push(client);
     const hook = hooks(); allHooks.push(hook);
-    const { profileIconId } = await loadSource("src/features/settings/profile.tsx", hook, "\nreturn {profileIconId};");
-    const profile = await loadSource("src/features/auth/profile-client.ts", { AuthClient, profileIconId, timezonePreference }, "\nreturn {profileClient, readProfile, ProfileDisplayRefreshError};");
+    const { accountPreferences } = await loadSource("src/features/settings/account-preferences.ts", { ...hook, timezonePreference }, "\nreturn {accountPreferences};");
+    const profile = await loadSource("src/features/auth/profile-client.ts", { AuthClient, accountPreferences }, "\nreturn {profileClient, readProfile, ProfileDisplayRefreshError};");
     const provider = await loadProvider(hook, client, profile);
     const render = () => hook.render(provider); renders.push(render); render();
     await eventually(() => render().session?.user.id === first.id);
@@ -63,7 +64,7 @@ test("canonical display after local save, real profile broadcast, reload and rel
     const a = await mount(), b = await mount();
     await new Promise(r => setTimeout(r, 10));
     const before = values.get("canonical-session");
-    assert.equal(await a.render().saveProfileIcon("star"), "leaf");
+    assert.equal(await a.render().savePreferences({ icon: "star" }).then(value => value.icon), "leaf");
     await eventually(() => b.render().session?.user.user_metadata.workspace_avatar_id === "leaf");
     for (const render of renders) {
       assert.equal(render().session.user.user_metadata.workspace_avatar_id, "leaf");
@@ -121,19 +122,19 @@ for (const order of ["older-save-fails", "newer-hydration-fails", "older-hydrati
     const hook = hooks(), updates = new BroadcastChannel("workspace-decorative-profile");
     try {
       await client.auth.setSession({ access_token: jwt(first.id), refresh_token: "refresh-a" });
-      const { profileIconId } = await loadSource("src/features/settings/profile.tsx", hook, "\nreturn {profileIconId};");
-      const profile = await loadSource("src/features/auth/profile-client.ts", { AuthClient, profileIconId, timezonePreference }, "\nreturn {profileClient, readProfile, ProfileDisplayRefreshError};");
+      const { accountPreferences } = await loadSource("src/features/settings/account-preferences.ts", { ...hook, timezonePreference }, "\nreturn {accountPreferences};");
+      const profile = await loadSource("src/features/auth/profile-client.ts", { AuthClient, accountPreferences }, "\nreturn {profileClient, readProfile, ProfileDisplayRefreshError};");
       const provider = await loadProvider(hook, client, profile);
       const render = () => hook.render(provider);
       render(); await new Promise(r => setTimeout(r, 10));
       const before = values.get("canonical-order-" + order);
       if (order === "older-hydration") {
         holdNext = true; updates.postMessage(first.id); await arrived.promise;
-        assert.equal(await render().saveProfileIcon("star"), "star");
+        assert.equal(await render().savePreferences({ icon: "star" }).then(value => value.icon), "star");
         gate.resolve(); await new Promise(r => setTimeout(r, 10));
         assert.equal(render().session.user.user_metadata.workspace_avatar_id, "star");
       } else {
-        const outcome = render().saveProfileIcon("star").then(value => ({ value }), error => ({ error: error.message }));
+        const outcome = render().savePreferences({ icon: "star" }).then(value => value.icon).then(value => ({ value }), error => ({ error: error.message }));
         await arrived.promise;
         icon = "leaf"; updates.postMessage(first.id); await newerArrived.promise;
         if (order === "older-save-fails") await eventually(() => render().session.user.user_metadata.workspace_avatar_id === "leaf");
@@ -214,12 +215,12 @@ for (const phase of ["profile-response", "explicit-read-response", "private-read
         actor = createClient("http://fixture.invalid", "fixture-public", { auth: { storage, storageKey: key, autoRefreshToken: false, detectSessionInUrl: false } });
         await actor.auth.getSession();
       }
-      const { profileIconId } = await loadSource("src/features/settings/profile.tsx", hook, "\nreturn {profileIconId};");
-      const profile = await loadSource("src/features/auth/profile-client.ts", { AuthClient: InstrumentedAuthClient, profileIconId, timezonePreference }, "\nreturn {profileClient, readProfile, ProfileDisplayRefreshError};");
+      const { accountPreferences } = await loadSource("src/features/settings/account-preferences.ts", { ...hook, timezonePreference }, "\nreturn {accountPreferences};");
+      const profile = await loadSource("src/features/auth/profile-client.ts", { AuthClient: InstrumentedAuthClient, accountPreferences }, "\nreturn {profileClient, readProfile, ProfileDisplayRefreshError};");
       const provider = await loadProvider(hook, client, profile);
       const render = () => hook.render(provider);
       render(); await new Promise(r => setTimeout(r, 10));
-      const outcome = render().saveProfileIcon("leaf").then(value => ({ value }), error => ({ error: error.message }));
+      const outcome = render().savePreferences({ icon: "leaf" }).then(value => value.icon).then(value => ({ value }), error => ({ error: error.message }));
       await arrived.promise;
       // No primary initialization/getSession/refresh path has been entered by the save.
       assert.equal(sharedReads, 0);
@@ -254,8 +255,8 @@ for (const fail of [false,true]) test('initial account display readiness '+(fail
   globalThis.fetch=async()=>{if(block){arrived.resolve();await gate.promise;if(fail)return json({msg:'read failed'},503);}return json({...first,user_metadata:{...first.user_metadata,workspace_timezone:'America/New_York'}});};
   try{
     await client.auth.setSession({access_token:jwt(first.id),refresh_token:'refresh-a'});
-    const {profileIconId}=await loadSource('src/features/settings/profile.tsx',hook,'\nreturn {profileIconId};');
-    const profile=await loadSource('src/features/auth/profile-client.ts',{AuthClient,profileIconId,timezonePreference},'\nreturn {profileClient,readProfile,ProfileDisplayRefreshError};');
+    const {accountPreferences}=await loadSource('src/features/settings/account-preferences.ts',{...hook,timezonePreference},'\nreturn {accountPreferences};');
+    const profile=await loadSource('src/features/auth/profile-client.ts',{AuthClient,accountPreferences},'\nreturn {profileClient,readProfile,ProfileDisplayRefreshError};');
     const provider=await loadProvider(hook,client,profile);
     block=true;const render=()=>hook.render(provider);render();await arrived.promise;
     assert.equal(render().loading,true);gate.resolve();await eventually(()=>render().loading===false);

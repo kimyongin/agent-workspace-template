@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "react-router";
 import { useAuth } from "../features/auth/AuthProvider.tsx";
 import { ProfileIcon } from "../features/settings/profile.tsx";
+import { profileName } from "../features/settings/account-preferences.ts";
 
 import { navigationSection } from "./navigation-section.ts";
 const entries = [
@@ -50,10 +51,11 @@ export function Navigation({ brand }: { brand: string }) {
         items[next].focus();
       }
     }}>
-      <div className="nav-more nav-profile"><button className="nav-more-trigger" type="button" ref={profileTrigger} aria-label="내 프로필 · 로그인됨" aria-expanded={open === "profile"} aria-controls="nav-profile-options"
+      <div className="nav-more nav-profile"><button className="nav-more-trigger" type="button" ref={profileTrigger} aria-label="내 프로필" aria-expanded={open === "profile"} aria-controls="nav-profile-options"
         onClick={() => setOpen(value => value === "profile" ? null : "profile")}><ProfileIcon id={session?.user.user_metadata?.workspace_avatar_id} /><span className="nav-control-label">내 계정</span></button>
         {open === "profile" && <div className="nav-more-options" id="nav-profile-options" ref={popover}>
-          <p>{typeof session?.user.user_metadata?.full_name === "string" ? session.user.user_metadata.full_name : "내 계정"}</p><p className="secondary">{session?.user.email}</p><p className="secondary">로그인됨</p><Link to="/settings">설정</Link>
+          <div className="nav-profile-identity"><ProfileIcon id={session?.user.user_metadata?.workspace_avatar_id} /><p>{profileName(session?.user.user_metadata)}</p></div>
+          <Link to="/settings"><svg className="navigation-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="m12 3 2 2 3-.2 1 3 3 2-1 3 .2 3-3 1-2 3-3-1-3 .2-1-3-3-2 1-3L5 7l3-1Z" /><circle cx="12" cy="12" r="3" /></svg>설정</Link>
         </div>}</div>
       {entries.map(([key, to, label, path]) => <Link key={key} to={to} aria-current={current === key ? "page" : undefined}>
         <svg className="navigation-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={path} /></svg><span>{label}</span></Link>)}

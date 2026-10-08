@@ -10,10 +10,10 @@ import "../../src/styles/tokens.css";
 import "../../src/styles/app.css";
 
 function Probe() {
-  const { session, loading, saveProfileIcon } = useAuth();
+  const { session, loading, savePreferences } = useAuth();
   const display = useDisplayTime();
   const [result, setResult] = useState("idle");
-  return <><main className="app-main">
+  return <div className="has-navigation"><main className="app-main">
     <output data-testid="provider-account">{loading ? "loading" : session?.user.id ?? "signed-out"}</output>
     <output data-testid="provider-icon">{session?.user.user_metadata.workspace_avatar_id ?? "none"}</output>
     <output data-testid="display-timezone">{display.timezone}</output>
@@ -21,11 +21,11 @@ function Probe() {
     <output data-testid="save-result">{result}</output>
     <button onClick={async () => {
       setResult("pending");
-      try { await saveProfileIcon("sun"); setResult("saved"); }
+      try { await savePreferences({ icon: "sun" }); setResult("saved"); }
       catch { setResult("rejected"); }
     }}>지연 저장 검사</button>
-    <SettingsPage /></main><Navigation />
-  </>;
+    <SettingsPage /></main><Navigation brand="Workspace" />
+  </div>;
 }
 const router = createMemoryRouter([{ path: "*", element: <Probe /> }], { initialEntries: ["/settings"] });
 createRoot(document.getElementById("root")!).render(<AuthProvider><RouterProvider router={router} /></AuthProvider>);
