@@ -48,7 +48,7 @@ export function EntityDetailPage() {
   const [busy, setBusy] = useState(false);
   useEffect(() => { if (!detail.confirmed && entity) relationSaved.current = false; }, [entity, detail.confirmed]);
   const returnParams=new URLSearchParams(params); ["edit","edit_from","create"].forEach(key=>returnParams.delete(key));
-  const back = useDetailOwnerReturn(`/entities?${returnParams}${id ? `#entity-${id}` : ""}`);
+  const back = useDetailOwnerReturn(`/entities?${returnParams}${id ? `#${encodeURIComponent(`entity-${id}`)}` : ""}`);
   const deleteBack=useDetailDeleteReturn(back);
   useEffect(()=>{if(creating||!editReady||!returnCreateFocus.current)return;const frame=requestAnimationFrame(()=>{const label=returnCreateFocus.current==="task"?"할 일 작성":"기록 작성";const button=Array.from(document.querySelectorAll<HTMLButtonElement>("dialog[open] .detail-management button")).find(el=>el.getAttribute("aria-label")===label);if(button){button.focus();returnCreateFocus.current=null;}});return()=>cancelAnimationFrame(frame);},[creating,editReady,entity]);
   const entityContext: EntityContext[] = entity ? [{id:entity.id,title:entity.prop1,source:"selection",captured_at:new Date().toISOString()}] : [];

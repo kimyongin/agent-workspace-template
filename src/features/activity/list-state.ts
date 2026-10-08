@@ -1,3 +1,4 @@
+import { entityReferenceId } from "@contracts/entity-identity.ts";
 import { activityLocation } from "./activity-location.ts";
 export type ActivityListKind = "tasks" | "records" | "principles" | "entities";
 import { MAX_RESTORE_PAGES } from "../collections/paged-list.ts";
@@ -26,14 +27,19 @@ export function listAnchor(kind: ActivityListKind, id: string): string {
 
 export function anchorId(kind: ActivityListKind, hash: string): string | undefined {
   const prefix = kind === "principles" ? "principle" : kind === "entities" ? "entity" : `activity-${kind}`;
-  const match = new RegExp(`^#${prefix}-([0-9a-f-]{36})$`).exec(hash);
-  return match?.[1];
+  if (!hash.startsWith(`#${prefix}-`)) return undefined;
+  try {
+    const id = decodeURIComponent(hash.slice(prefix.length + 2));
+    return kind === "entities"
+      ? entityReferenceId.safeParse(id).success ? id : undefined
+      : /^[0-9a-f-]{36}$/.test(id) ? id : undefined;
+  } catch { return undefined; }
 }
 
 export function listReturnPath(kind: ActivityListKind, params: URLSearchParams, id: string, scroll: number, route = `/${kind}`): string {
   const next = new URLSearchParams(params);
   next.set("scroll", String(Math.max(0, Math.round(scroll))));
-  return `${route}?${next}#${listAnchor(kind, id)}`;
+  return `${route}?${next}#${encodeURIComponent(listAnchor(kind, id))}`;
 }
 
 /** Only a matching internal list can override the normal detail fallback. */
