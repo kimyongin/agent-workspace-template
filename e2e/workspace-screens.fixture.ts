@@ -1172,11 +1172,6 @@ test("#191 할 일에서 일반 기록 작성: 귀속 미리 선택·변경·엔
   await draft.getByRole("button",{name:"저장",exact:true}).click();await expect.poll(()=>state.writes.length).toBe(1);expect(state.writes[0].body).toMatchObject({task_id:id(82),entity_ids:[id(1)]});expect(t.status).toBe("open");expect(state.errors).toEqual([]);
 });
 
-for (const [kind,label,scope] of [["tasks","할 일","task"],["records","기록","record"]]) test(`#191 ${label} 태그 닫기는 원래 조건과 메뉴 초점을 복원`,async({page})=>{
-  const state=await fixtures(page);await go(page,`/${kind}?pages=1&scroll=0`);await page.getByRole("button",{name:`${label} 작업 메뉴`}).click();
-  await page.getByRole("link",{name:`${label} 태그 관리`,exact:true}).click();await expect(page).toHaveURL(new RegExp(`/tags/${scope}$`));await form(page).getByRole("button",{name:"닫기",exact:true}).click();
-  await expect(page).toHaveURL(new RegExp(`/${kind}\\?pages=1&scroll=0$`));await expect(page.getByRole("button",{name:`${label} 작업 메뉴`})).toBeFocused();expect(state.errors).toEqual([]);
-});
 test("#191 원칙 검색 전환은 태그 조건 해제·직접 링크의 조건은 명시 해제 가능",async({page})=>{
   const state=await fixtures(page);await go(page,`/search?q=기준&kind=task&tag_id=${id(12)}`);await page.getByText("검색 조건 · 조건 적용 중",{exact:true}).click();
   await page.getByRole("combobox",{name:"검색 대상",exact:true}).selectOption("principle");await expect(page).not.toHaveURL(/tag_id=/);await expect.poll(()=>state.searches.at(-1)?.kinds).toEqual(["principle"]);expect(state.searches.at(-1)?.tag_ids).toBeUndefined();

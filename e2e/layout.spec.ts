@@ -109,10 +109,9 @@ test.describe("화면 폭별 배치", () => {
 test("키보드만으로 할 일을 만들고, 미저장 내용이 있으면 닫기 전에 확인한다", async ({ page, isMobile }) => {
   test.skip(isMobile, "키보드 흐름은 데스크톱에서 본다");
   await devLogin(page);
-  const add = page.getByRole("button", { name: "할 일 작업 메뉴" });
+  const add = page.getByRole("button", { name: "할 일 등록" });
   await add.focus();
   await page.keyboard.press("Enter");
-  await page.keyboard.press("ArrowDown");await page.keyboard.press("Enter");
   const dialog = page.getByRole("dialog", { name: "할 일 추가" });
   await expect(dialog).toBeVisible();
   // 열리면 초점이 대화상자 안에 있다.
