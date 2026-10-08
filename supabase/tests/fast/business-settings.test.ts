@@ -11,6 +11,7 @@ import type { BusinessSettingsResult } from "../../functions/_shared/contracts/b
 Deno.test("업무 설정: 모델 템플릿 저장 후 읽기, 다른 섹션 유지, 오래된 버전 거부", async () => {
   let value: BusinessSettingsResult = { version: 0, settings: {} };
   const d: BusinessSettingsDeps = {
+    clock: { now: () => new Date("2026-10-09T00:00:00Z") },
     uow: {
       run: (_actor, fn) =>
         fn({
@@ -51,6 +52,7 @@ Deno.test("업무 설정: 모델 템플릿 저장 후 읽기, 다른 섹션 유�
 
 Deno.test("기록 준비: 생성 할 일의 실제 기본 상태·빈 본문·미지정 기한을 해석", async () => {
   const d: BusinessSettingsDeps = {
+    clock: { now: () => new Date("2026-10-09T00:00:00Z") },
     uow: {
       run: (_a, fn) =>
         fn({
@@ -88,6 +90,7 @@ Deno.test("업무 설정: 발급처 표시 이름은 바꾸지만 저장된 코�
     },
   };
   const d: BusinessSettingsDeps = {
+    clock: { now: () => new Date("2026-10-09T00:00:00Z") },
     uow: {
       run: (_actor, fn) =>
         fn({
@@ -123,6 +126,7 @@ Deno.test("업무 설정: 발급처 표시 이름은 바꾸지만 저장된 코�
 
 Deno.test("기록 준비: 실제 수정 계약에서 거부할 입력을 미리보기에서도 거부", async () => {
   const d: BusinessSettingsDeps = {
+    clock: { now: () => new Date("2026-10-09T00:00:00Z") },
     uow: {
       run: (_actor, fn) =>
         fn({
@@ -152,6 +156,7 @@ Deno.test("기록 준비: 실제 수정 계약에서 거부할 입력을 미리�
 
 Deno.test("기록 준비: 해석 후 메모가 본문 제한을 넘으면 쓰기 전에 안내", async () => {
   const d: BusinessSettingsDeps = {
+    clock: { now: () => new Date("2026-10-09T00:00:00Z") },
     uow: {
       run: (_actor, fn) =>
         fn({
@@ -178,6 +183,7 @@ Deno.test("기록 준비: 해석 후 메모가 본문 제한을 넘으면 쓰기
 
 Deno.test("복원 기록 준비: 보관한 0·태그·식별 정보를 보존하고 생략한 등록 입력을 고정", async () => {
   const d: BusinessSettingsDeps = {
+    clock: { now: () => new Date("2026-10-09T00:00:00Z") },
     uow: {
       run: (_actor, fn) =>
         fn({

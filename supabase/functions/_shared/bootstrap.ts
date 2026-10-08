@@ -15,7 +15,7 @@ import { SqlBusinessSettingsUnitOfWork } from "./adapters/supabase/business-sett
 import type { BusinessSettingsDeps } from "./core/settings/application.ts";
 let settings: BusinessSettingsDeps | undefined;
 export function businessSettingsDeps(): BusinessSettingsDeps {
-  return settings ??= { uow: new SqlBusinessSettingsUnitOfWork(database()) };
+  return settings ??= { uow: new SqlBusinessSettingsUnitOfWork(database()), clock: { now: () => new Date() } };
 }
 
 function required(name: string): string {

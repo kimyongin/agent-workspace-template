@@ -155,7 +155,7 @@ export function prepareBusinessRecord(
       content = (input.action === "stop" ? stopTask : resumeTask)(
         task,
         input.expected_version!,
-        d.clock?.now() ?? new Date(),
+        d.clock.now(),
       );
     }
     const after = input.action === "delete" ? null : {
@@ -185,7 +185,7 @@ export function prepareBusinessRecord(
   });
 }
 export interface BusinessSettingsDeps {
-  clock?: { now(): Date };
+  clock: { now(): Date };
   uow: { run<T>(actor: Actor, fn: (store: BusinessSettingsStore) => Promise<T>): Promise<T> };
 }
 export function getBusinessSettings(d: BusinessSettingsDeps, actor: Actor) {

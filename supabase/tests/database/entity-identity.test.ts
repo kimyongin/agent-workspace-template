@@ -12,7 +12,8 @@ import { AppError } from "../../functions/_shared/core/shared/errors.ts";
 import { connect, dbTest, fixtureOwner, urls } from "./_db.ts";
 
 const admin = connect(urls.admin, { max: 1 }), sql = connect(urls.pooler, { prepare: false, max: 3 });
-const ed = { uow: new SqlEntityUnitOfWork(sql) }, sd = { uow: new SqlBusinessSettingsUnitOfWork(sql) };
+const ed = { uow: new SqlEntityUnitOfWork(sql) },
+  sd = { uow: new SqlBusinessSettingsUnitOfWork(sql), clock: { now: () => new Date("2026-10-09T00:00:00Z") } };
 const ad = { uow: new SqlUnitOfWork(sql), clock: { now: () => new Date() } };
 
 dbTest(
