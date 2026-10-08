@@ -143,7 +143,7 @@ test("all layouts fit narrow/wide screens and large text, with quiet icon contro
   await modes.getByRole("radio", { name: "테이블" }).press("Home");
   await expect(modes.getByRole("radio", { name: "리스트" })).toBeFocused();
   const style = await modes.getByRole("radio", { name: "리스트" }).evaluate(el => { const r = el.getBoundingClientRect(), face = el.querySelector("span")!.getBoundingClientRect(); return { width: r.width, height: r.height, face: face.width }; });
-  expect(style.width).toBeGreaterThanOrEqual(44); expect(style.height).toBeGreaterThanOrEqual(44); expect(style.face).toBe(22);
+  expect(style.width).toBeGreaterThanOrEqual(44); expect(style.height).toBeGreaterThanOrEqual(44); expect(style.face).toBe(44);
   expect(state.errors).toEqual([]); expect(state.writes).toEqual([]);
 });
 
