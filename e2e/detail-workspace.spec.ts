@@ -576,3 +576,31 @@ test("desktop: rekey replaces the retained entity tab and URL after a completed 
   await expect(panel(page).getByText("앱 · 새:/ID%", {exact:true})).toBeVisible();
   expect(state.errors).toEqual([]);
 });
+
+
+for (const entered of [false,true]) test(`manual identity defaults preserve cancel state: entered=${entered}`, async ({page}) => {
+  await fixture(page);
+  let releaseSettings!: () => void;
+  const ready = new Promise<void>(resolve => {releaseSettings=resolve;});
+  await page.route("**/api/settings/business", async route => {
+    await ready;
+    await route.fulfill({json:{version:0,settings:{entity_identity:{generation:"manual",default_source:"crm",sources:[{code:"app",label:"앱"},{code:"crm",label:"고객"}]},record_templates:{}}}});
+  });
+  await page.goto("/entities");
+  await page.getByRole("button", {name:"엔터티 등록",exact:true}).click();
+  const form = page.getByRole("dialog", {name:"엔터티 추가",exact:true});
+  await expect(form.getByLabel("외부 식별자")).toBeDisabled();
+  if (entered) await form.getByLabel("속성 1").fill("설정 도착 전 입력");
+  releaseSettings();
+  await expect(form.getByLabel("외부 식별자")).toBeEnabled();
+  await expect(form.getByLabel("외부 식별자")).toHaveValue("");
+  await expect(form.getByLabel("발급처")).toHaveValue("crm");
+  if (entered) await expect(form.getByLabel("속성 1")).toHaveValue("설정 도착 전 입력");
+  await form.getByRole("button", {name:"취소",exact:true}).click();
+  const discard = page.getByRole("dialog", {name:"변경을 버릴까요?",exact:true});
+  if (entered) {
+    await expect(discard).toBeVisible();
+    await discard.getByRole("button", {name:"변경 버리기",exact:true}).click();
+  } else await expect(discard).toHaveCount(0);
+  await expect(form).toHaveCount(0);
+});
