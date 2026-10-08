@@ -28,8 +28,8 @@ export function EntityForm(
   const generated = useRef(crypto.randomUUID());
   useEffect(() => { const controller = new AbortController(); void api<{ settings: { entity_identity: EntityIdentitySettings } }>("GET", "/settings/business", undefined, controller.signal).then(result => { setIdentitySettings(result.settings.entity_identity ?? defaultEntityIdentitySettings); setDraft(d => ({ ...d, source: initial?.source ?? (result.settings.entity_identity ?? defaultEntityIdentitySettings).default_source, external_id: initial?.external_id ?? ((result.settings.entity_identity ?? defaultEntityIdentitySettings).generation === "uuid" ? generated.current : "") })); }).catch(() => { if (!controller.signal.aborted) setIdentityMessage("식별자 설정을 불러오지 못했습니다. 다시 열어 주세요."); }); return () => controller.abort(); }, []);
   const baseline = {
-    source: initial?.source ?? defaultEntityIdentitySettings.default_source,
-    external_id: initial?.external_id ?? generated.current,
+    source: initial?.source ?? (identitySettings ?? defaultEntityIdentitySettings).default_source,
+    external_id: initial?.external_id ?? ((identitySettings ?? defaultEntityIdentitySettings).generation === "uuid" ? generated.current : ""),
     prop1: initial?.prop1 ?? "",
     prop2: initial?.prop2 == null ? "" : String(initial.prop2),
     prop3: initial?.prop3 ?? "",
