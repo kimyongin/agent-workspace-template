@@ -60,7 +60,7 @@ test("display scale: failed save keeps selection; retry persists only changed me
 });
 test("display scale: 150% keeps main filters, details, confirmation and resize usable on desktop/mobile", async ({ page }, info) => {
   await page.setViewportSize({ width: 2160, height: 1080 });
-  await fixture(page, "150"); await page.goto("/entities");
+  const state = await fixture(page, "150"); await page.goto("/entities");
   await expect(page.getByRole("heading", { name: "엔터티", exact: true, level: 1 })).toBeVisible();
   await expect.poll(() => rootSize(page)).toBe(24);
   await page.getByRole("button", { name: "필터 열기" }).click();
@@ -82,6 +82,14 @@ test("display scale: 150% keeps main filters, details, confirmation and resize u
   await modal.getByRole("button", { name: "취소", exact: true }).click();
   await page.setViewportSize({ width: 1440, height: 900 });
   await expect(page.getByLabel("본문", { exact: true })).toHaveValue("크기를 바꾸어도 보존할 입력");
+  const notify = () => page.evaluate(id => { const channel = new BroadcastChannel("workspace-decorative-profile"); channel.postMessage(id); channel.close(); }, id(100));
+  state.metadata.workspace_display_scale = "100"; await notify();
+  await expect(page.getByRole("separator", { name: "상세 패널 너비 조절" })).toBeVisible();
+  await expect(page.getByLabel("본문", { exact: true })).toHaveValue("크기를 바꾸어도 보존할 입력");
+  state.metadata.workspace_display_scale = "150"; await notify();
+  await expect.poll(() => rootSize(page)).toBe(24);
+  await expect(modal.getByLabel("본문", { exact: true })).toHaveValue("크기를 바꾸어도 보존할 입력");
+  expect(state.writes).toEqual([]);
 });
 test("display scale: 150% settings, menus and lists reflow at compact widths", async ({ page }, info) => {
   await fixture(page, "150"); await page.goto("/settings");
@@ -91,6 +99,12 @@ test("display scale: 150% settings, menus and lists reflow at compact widths", a
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `settings ${width}`).toBe(true);
   }
   await page.screenshot({ path: info.outputPath("display-scale-settings150.png") });
+  await page.locator(".settings-group").filter({ has: page.getByLabel("화면 배율", { exact: true }) }).screenshot({ path: info.outputPath("display-scale-setting-control.png") });
+  const smallFont = await page.addStyleTag({ content: ":root { font-size: 12px; }" });
+  for (const option of await page.locator(".profile-choice").all()) {
+    const box = (await option.boundingBox())!; expect(box.width).toBeGreaterThanOrEqual(44); expect(box.height).toBeGreaterThanOrEqual(44);
+  }
+  await smallFont.evaluate(node => node.remove());
   await page.setViewportSize({ width: 320, height: 844 });
   for (const path of ["/entities", "/tasks", "/records", "/principles", "/guide"]) {
     await page.goto(path);

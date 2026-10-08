@@ -181,7 +181,7 @@ test("가이드의 복사 실패와 성공 안내는 유지한다", async ({ pag
 
 for(const width of [390,1440])test(`#205 ${width}px: 설정·가이드 구획과 탐색 팝오버`,async({page},info)=>{
   await page.setViewportSize({width,height:900});await page.goto("/settings");
-  const groups=page.locator(".settings .settings-group");await expect(groups).toHaveCount(3);
+  const groups=page.locator(".settings .settings-group");await expect(groups).toHaveCount(4);
   expect((await page.locator(".settings").boundingBox())!.width).toBeLessThanOrEqual(768);
   await page.screenshot({path:info.outputPath(`compact-settings-${width}.png`)});
   await page.getByRole("button",{name:"내 프로필",exact:true}).click();const popup=page.locator("#nav-profile-options"),box=(await popup.boundingBox())!;
