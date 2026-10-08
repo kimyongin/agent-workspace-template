@@ -1,5 +1,6 @@
 // 할 일·기록·원칙에서 함께 쓰는 내용 입력과 저장 실패·미저장 보호.
 import { useRecordConfirmation, type RecordMemo } from "./RecordConfirmation.tsx";
+import type { PrepareRecordMemo } from "@contracts/record-preparation.ts";
 import { contentLabels } from "@contracts/common.ts";
 import { type FormEvent, type ReactNode, useCallback, useContext, useId, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -44,6 +45,7 @@ interface FormModalProps {
   validate: () => Record<string, string> | null;
   children: (errors: Record<string, string>) => ReactNode;
   deletion?: DeletionOptions;
+  preparation?: () => PrepareRecordMemo;
   mutation?: { target: string; action: "등록" | "수정" | "중단" | "재개" | "연결" | "해제" | "복원" | "식별 정보 변경"; message?: ReactNode };
   confirmationOnly?: boolean;
 }
@@ -60,11 +62,11 @@ export function FormModal(props: FormModalProps) {
   </ModalShell>;
 }
 
-function FormContents({title, domain, open, submitLabel, dirty, onClose, onRouteDiscard, onSubmit, validate, children, deletion, mutation, confirmationOnly, present}: FormModalProps & {present?: (value: Presentation)=>void}) {
+function FormContents({title, domain, open, submitLabel, dirty, onClose, onRouteDiscard, onSubmit, validate, children, deletion, mutation, preparation, confirmationOnly, present}: FormModalProps & {present?: (value: Presentation)=>void}) {
   const formId = useId();
   const surface = useContext(SurfaceContext);
-  const callbacks = useRef({onClose,onRouteDiscard,onSubmit,validate,deletion,mutation});
-  callbacks.current = {onClose,onRouteDiscard,onSubmit,validate,deletion,mutation};
+  const callbacks = useRef({onClose,onRouteDiscard,onSubmit,validate,deletion,mutation,preparation});
+  callbacks.current = {onClose,onRouteDiscard,onSubmit,validate,deletion,mutation,preparation};
   const confirmation = useRecordConfirmation({
     open, initial: confirmationOnly ? "save" : undefined,
     onCancel: confirmationOnly ? () => callbacks.current.onClose() : undefined,
@@ -75,6 +77,7 @@ function FormContents({title, domain, open, submitLabel, dirty, onClose, onRoute
         title: `‘${current.mutation?.target ?? title}’을 ${action}하시겠습니까?`,
         label: kind === "delete" ? "삭제하고 기록" : `${action}하고 저장`,
         defaultNote: `${current.mutation?.target ?? title} ${kind === "delete" ? "삭제" : current.mutation?.action ?? "수정"}`,
+        preparation: kind === "delete" ? current.deletion?.preparation : current.preparation,
         danger: kind === "delete",
         record: kind === "delete" ? current.deletion?.note !== false : !!current.mutation,
         message: kind === "delete" ? current.deletion?.message : current.mutation?.message,

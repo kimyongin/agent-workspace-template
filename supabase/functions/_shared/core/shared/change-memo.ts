@@ -1,6 +1,6 @@
 import type { ChangeInput } from "./changes.ts";
 import { changed } from "./changes.ts";
-const actions = { create: "등록", update: "수정", delete: "삭제", stop: "중단", resume: "재개", restore: "복원" };
+const actions = { create: "등록", update: "수정", delete: "삭제", restore: "복원", stop: "중단", resume: "재개" };
 const labels: Record<string, string> = {
   source: "발급처",
   external_id: "식별자",
