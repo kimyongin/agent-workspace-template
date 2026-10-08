@@ -8,7 +8,10 @@ test("다른 창의 발급처 추가 충돌을 읽고 사용자 이름 편집과
   let version=1;
   let value={generation:"uuid",default_source:"app",sources:[{code:"app",label:"앱"}]};
   const writes:{expected_version:number;value:typeof value}[]=[];
-  await context.route("**/settings/business",route=>{
+  let hold=false,release!:()=>void;
+  const wait=new Promise<void>(resolve=>{release=resolve;});
+  await context.route("**/settings/business",async route=>{
+    if(route.request().method()==="GET"&&hold)await wait;
     if(route.request().method()==="PATCH") {
       const input=route.request().postDataJSON();writes.push(input);
       if(input.expected_version!==version)return route.fulfill({status:409,json:{error:{code:"conflict",message:"같은 설정에 다른 변경이 저장되어 있습니다.",fields:[]}}});
@@ -22,7 +25,13 @@ test("다른 창의 발급처 추가 충돌을 읽고 사용자 이름 편집과
   await identity.getByLabel("발급처 1 표시 이름").fill("내가 편집한 이름");
   value={generation:"manual",default_source:"crm",sources:[{code:"app",label:"앱"},{code:"crm",label:"다른 창에서 추가"}]};version=2;
   await identity.getByRole("button",{name:"식별자 설정 저장",exact:true}).click();
+  hold=true;
   await identity.getByRole("button",{name:"최신값 확인",exact:true}).click();
+  await expect(identity.getByLabel("발급처 1 표시 이름")).toBeDisabled();
+  await expect(identity.getByRole("button",{name:"추가",exact:true})).toBeDisabled();
+  await expect(identity.getByRole("button",{name:"확인 중…",exact:true})).toBeDisabled();
+  release();
+  await expect(identity.getByLabel("발급처 1 표시 이름")).toBeEditable();
   await expect(identity.getByLabel("발급처 1 표시 이름")).toHaveValue("내가 편집한 이름");
   await expect(identity.getByLabel("발급처 2 표시 이름")).toHaveValue("다른 창에서 추가");
   await expect(identity.getByLabel("식별자 발급 방식")).toHaveValue("manual");

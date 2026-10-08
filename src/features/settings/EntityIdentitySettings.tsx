@@ -11,7 +11,9 @@ export function EntityIdentitySettings({onStateChange}: {onStateChange?: (state:
   const [persistedSourceCount, setPersistedSourceCount] = useState(0);
   const [message, setMessage] = useState(""), [busy, setBusy] = useState(false), [conflict, setConflict] = useState(false);
   const [error, setError] = useState(false);
+  const [reading, setReading] = useState(false);
   const read = async (signal?: AbortSignal) => {
+    setReading(true);
     try {
       const value = await api<BusinessSettingsResult>("GET", "/settings/business", undefined, signal);
       if (signal?.aborted) return;
@@ -35,11 +37,12 @@ export function EntityIdentitySettings({onStateChange}: {onStateChange?: (state:
       setPersistedSourceCount(latest.sources.length); setSaved(value);
       setConflict(false); setMessage(draft ? "최신 설정을 확인했습니다. 입력은 유지했습니다." : ""); setError(false);
     } catch { if (!signal?.aborted) { setMessage("식별자 설정을 불러오지 못했습니다."); setError(true); } }
+    finally {if(!signal?.aborted) setReading(false);}
   };
   useEffect(() => { const controller = new AbortController(); void read(controller.signal); return () => controller.abort(); }, []);
   const savedIdentity = saved?.settings.entity_identity ?? defaultEntityIdentitySettings;
   const dirty = !!saved && JSON.stringify(draft) !== JSON.stringify(savedIdentity);
-  useEffect(() => { onStateChange?.({dirty,busy}); }, [dirty,busy,onStateChange]);
+  useEffect(() => { onStateChange?.({dirty,busy:busy||reading}); }, [dirty,busy,reading,onStateChange]);
   const active = draft?.sources.filter(source => !source.deleted) ?? [];
   const retired = draft?.sources.filter(source => source.deleted) ?? [];
   const isSavedSource = (index: number) => index < persistedSourceCount;
@@ -57,9 +60,9 @@ export function EntityIdentitySettings({onStateChange}: {onStateChange?: (state:
   return <section className="settings-section" aria-labelledby="entity-identity-title">
     <h2 className="settings-section-title" id="entity-identity-title">엔터티 식별자</h2>
     {message && <p className={error ? "error-text" : "secondary"} role={error ? "alert" : "status"}>{message}</p>}
-    {!saved && <><p role="status">{message ? "" : "설정을 읽는 중…"}</p>{message && <button type="button" className="btn" onClick={() => void read()}>다시 시도</button>}</>}
-    {draft && saved && <form className="form" aria-label="엔터티 식별자 설정" aria-busy={busy} onSubmit={async event => {
-      event.preventDefault(); if (busy || !dirty) return;
+    {!saved && <><p role="status">{message ? "" : "설정을 읽는 중…"}</p>{message && <button type="button" className="btn" disabled={reading} onClick={() => void read()}>다시 시도</button>}</>}
+    {draft && saved && <form className="form" aria-label="엔터티 식별자 설정" aria-busy={busy||reading} onSubmit={async event => {
+      event.preventDefault(); if (busy || reading || !dirty) return;
       const parsed = entityIdentitySettings.safeParse(draft);
       if (!parsed.success) { setMessage(parsed.error.issues.map(issue => issue.message).join(" · ")); setError(true); return; }
       setBusy(true); setMessage("");
@@ -71,7 +74,7 @@ export function EntityIdentitySettings({onStateChange}: {onStateChange?: (state:
       } catch (cause) { setConflict(cause instanceof ApiError && cause.status === 409); setMessage(cause instanceof Error ? cause.message : "저장하지 못했습니다. 입력은 유지했습니다."); setError(true); }
       finally { setBusy(false); }
     }}>
-      <fieldset disabled={busy} className="form plain-fieldset">
+      <fieldset disabled={busy||reading} className="form plain-fieldset">
         <div className="field-row">
           <Field label="식별자 발급 방식">{props => <select {...props} className="input" value={draft.generation} onChange={event => setDraft(current => current && ({ ...current, generation:event.target.value as IdentitySettings["generation"] }))}><option value="uuid">UUID 자동 발급</option><option value="manual">직접 입력</option></select>}</Field>
           <Field label="기본 발급처">{props => <select {...props} className="input" value={draft.default_source} onChange={event => setDraft(current => current && ({ ...current, default_source:event.target.value }))}>{active.map(source => <option key={source.code} value={source.code}>{source.label || source.code} ({source.code})</option>)}</select>}</Field>
@@ -87,7 +90,7 @@ export function EntityIdentitySettings({onStateChange}: {onStateChange?: (state:
         {retired.length > 0 && <details className="settings-source-retired"><summary>삭제된 발급처 ({retired.length}개)</summary>{draft.sources.map((source, index) => source.deleted && <div className="settings-source-row" key={source.code}>
           <div className="settings-source-fields"><span>{source.label}</span><span className="settings-source-code">{source.code}</span></div><BodyAction aria-label={`${source.label} 복원`} onClick={() => changeSource(index,{deleted:false})}>복원</BodyAction>
         </div>)}</details>}
-        {conflict && <button type="button" className="btn" onClick={() => void read()}>최신값 확인</button>}
+        {conflict && <button type="button" className="btn" onClick={() => void read()}>{reading ? "확인 중…" : "최신값 확인"}</button>}
         <div className="settings-section-footer"><div className="actions"><button type="button" className="btn" disabled={!dirty} onClick={() => {setDraft(savedIdentity);setPersistedSourceCount(savedIdentity.sources.length);setConflict(false);setMessage("");}}>변경 취소</button><button type="submit" className="btn btn-primary" disabled={!dirty}>{busy ? "저장 중…" : "식별자 설정 저장"}</button></div></div>
       </fieldset>
     </form>}
