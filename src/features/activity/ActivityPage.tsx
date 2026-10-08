@@ -48,7 +48,7 @@ function ActivitySection({ kind, tags, bounds, dictionary }: { kind: WorkspaceLi
     {list.busy && !list.items && <p role="status" className="secondary">불러오는 중…</p>}
     {list.items?.length === 0 && <p className="secondary">{filtered ? `조건에 맞는 ${kind === "tasks" ? "할 일" : "기록"}이 없습니다.` : `아직 ${kind === "tasks" ? "할 일" : "기록"}이 없습니다.`}</p>}
     {list.items && <ListExpansionProvider><TagReadProvider dictionary={dictionary} enabled={list.items.some(item => item.tag_ids.length > 0)}>
-      {kind === "tasks" ? <CollectionList view={view==="calendar"?"list":view} label="할 일 목록" columns={["할 일","상태","기한"]}>{list.items.map(item => <li key={item.id}>{preview(item)}</li>)}</CollectionList>
+      {kind === "tasks" ? <CollectionList view={view==="calendar"?"list":view} label="할 일 목록" columns={["할 일","상태","기한"]} numericColumns={[2]}>{list.items.map(item => <li key={item.id}>{preview(item)}</li>)}</CollectionList>
         : view==="calendar"?<RecordCalendar items={list.items} at={item=>"occurred_at" in item?item.occurred_at:(item as SearchItem).at} partial={!!list.cursor}>{item=>preview(item)}</RecordCalendar>
         : <Timeline items={list.items} kind="기록" view={view} at={item => "occurred_at" in item ? item.occurred_at : (item as SearchItem).at}>{item => preview(item)}</Timeline>}
     </TagReadProvider></ListExpansionProvider>}

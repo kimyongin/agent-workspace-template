@@ -44,15 +44,15 @@ export function useMainCollectionView(calendar = false) {
 }
 
 export const RelatedCollectionView = createContext<ItemView>("list");
-const ItemLayout = createContext<{ view: ItemView; columns: string[] } | null>(null);
+const ItemLayout = createContext<{ view: ItemView; columns: string[]; numericColumns: number[] } | null>(null);
 export function useItemLayout() { return useContext(ItemLayout); }
 
 /** Existing disclosure rows keep their identity while only their layout changes. */
-export function CollectionList({ children, view: explicit, columns = ["내용"], label = "목록" }: { children: ReactNode; view?: ItemView; columns?: string[]; label?: string }) {
+export function CollectionList({ children, view: explicit, columns = ["내용"], numericColumns = [], label = "목록" }: { children: ReactNode; view?: ItemView; columns?: string[]; numericColumns?: number[]; label?: string }) {
   const inherited = useContext(RelatedCollectionView), view = explicit ?? inherited;
   const table = view === "table";
-  return <ItemLayout.Provider value={{ view, columns }}><div className={`collection collection-${view}`} role={table ? "table" : undefined} aria-label={table ? label : undefined} style={{ "--collection-columns": `minmax(0, 1fr)${columns.slice(1).map(() => " minmax(0, .45fr)").join("")}` } as CSSProperties}>
-    {table && <div className="collection-table-head" role="row">{columns.map(column => <span key={column} role="columnheader">{column}</span>)}</div>}
+  return <ItemLayout.Provider value={{ view, columns, numericColumns }}><div className={`collection collection-${view}`} role={table ? "table" : undefined} aria-label={table ? label : undefined} style={{ "--collection-columns": `minmax(0, 1fr)${columns.slice(1).map(() => " minmax(0, .45fr)").join("")}` } as CSSProperties}>
+    {table && <div className="collection-table-head" role="row">{columns.map((column,index) => <span key={column} role="columnheader" className={numericColumns.includes(index) ? "collection-numeric" : undefined}>{column}</span>)}</div>}
     <ul className="list related-items" role={table ? "rowgroup" : "list"} aria-label={table ? undefined : label}>{Children.map(children, child => isValidElement<{ role?: string; className?: string }>(child) && child.type === "li" ? cloneElement(child, { role: table ? "none" : undefined, className: `list-item ${child.props.className ?? ""}` }) : child)}</ul>
   </div></ItemLayout.Provider>;
 }

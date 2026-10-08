@@ -14,9 +14,10 @@ export function RecordCalendar<T extends { id: string }>({ items, at, children, 
   const dates = useRef<HTMLDivElement>(null), focusDay = useRef<string | null>(null);
   const today = todayIn(timezone), groups = groupRecords(items.map(item => ({ ...item, occurred_at: at(item) })), timezone).sort((a, b) => b.date.localeCompare(a.date));
   const opened = params.get("open")?.split("/").pop();
-  const defaultDay = groups.find(group => group.records.some(item => item.id === opened))?.date ?? groups[0]?.date ?? today;
-  const month = calendarMonth(params.get("calendar_month"), defaultDay.slice(0, 7));
-  const selected = calendarDay(params.get("calendar_day"), month) ?? groups.find(group => group.date.startsWith(month))?.date ?? `${month}-01`;
+  const openedDay = groups.find(group => group.records.some(item => item.id === opened))?.date;
+  const defaultDay = groups[0]?.date ?? today;
+  const month = openedDay?.slice(0, 7) ?? calendarMonth(params.get("calendar_month"), defaultDay.slice(0, 7));
+  const selected = openedDay ?? calendarDay(params.get("calendar_day"), month) ?? groups.find(group => group.date.startsWith(month))?.date ?? `${month}-01`;
   const records = groups.find(group => group.date === selected)?.records ?? [];
   const choose = (month: string, day: string) => {
     const next = new URLSearchParams(params);

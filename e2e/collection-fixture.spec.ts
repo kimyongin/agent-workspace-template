@@ -116,6 +116,14 @@ test("calendar uses display dates, keyboard month edges, partial pages and saved
   await page.getByRole("dialog").getByRole("button", { name: "닫기", exact: true }).click();
   await expect(page).toHaveURL(/calendar_day=2026-10-08/);
   await expect(day).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("button", { name: "2026-10-01, 불러온 기록 20개", exact: true }).click();
+  await page.getByRole("radio", { name: "리스트", exact: true }).click();
+  await page.getByRole("button", { name: "기록 0", exact: true }).click();
+  await page.getByRole("radio", { name: "캘린더", exact: true }).click();
+  await expect(day).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("button", { name: "기록 0", exact: true })).toHaveAttribute("aria-expanded", "true");
+  await page.getByRole("button", { name: "2026-10-01, 불러온 기록 20개", exact: true }).click();
+  await expect(page).not.toHaveURL(/open=/);
   expect(state.writes).toEqual([]); expect(state.errors).toEqual([]);
 });
 
@@ -126,6 +134,14 @@ test("all layouts fit narrow/wide screens and large text, with quiet icon contro
     for (const view of ["list", "cards", "table", ...(kind === "records" ? ["calendar"] : [])]) {
       await page.goto(`/${kind}?view=${view}`); await expect(page.locator(".collection-heading h2")).toContainText("1개");
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+      if (view === "calendar") {
+        const target = await page.locator(".calendar-days button").first().boundingBox();
+        expect(target!.width).toBeGreaterThanOrEqual(44); expect(target!.height).toBeGreaterThanOrEqual(44);
+      }
+      if (view === "table") for (const cell of await page.locator(".collection-numeric").all()) {
+        expect(await cell.evaluate(el => getComputedStyle(el).textAlign)).toBe("right");
+        expect(await cell.evaluate(el => getComputedStyle(el).fontVariantNumeric)).toBe("tabular-nums");
+      }
       await page.screenshot({ path: info.outputPath(`${kind}-${view}-${width}.png`) });
     }
   }

@@ -29,6 +29,7 @@
 .collection-table .related-item-heading { display: flex; align-items: center; min-width: 0; padding-left: var(--space-3); }
 .collection-table .related-item-heading .related-item-actions { margin-left: auto; flex-shrink: 0; }
 .collection-table-cell { padding: var(--space-2) var(--space-3); font-size: var(--text-secondary); color: var(--muted-ink); min-width: 0; overflow-wrap: anywhere; }
+.collection-numeric { font-variant-numeric: tabular-nums; text-align: right; }
 .collection-table .related-preview:not([hidden]), .collection-table .related-item-meta { padding-inline: var(--space-3); }
 .collection-table .related-item-heading > .related-toggle, .collection-table .related-item-heading > .item-title { flex: 0 1 auto; }
 .collection-table .related-item-heading { gap: var(--space-2); }

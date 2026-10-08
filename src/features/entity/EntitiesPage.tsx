@@ -183,7 +183,7 @@ export function EntitiesPage() {
           </button>
         </>
       )}
-      <ListExpansionProvider><TagReadProvider dictionary={dictionary} enabled={!!page?.items.some(e=>(e as EntityResult & {tag_ids?:string[]}).tag_ids?.length)}><CollectionList view={view==="calendar"?"list":view} label="엔터티 목록" columns={["엔터티","속성 2","속성 3"]}>
+      <ListExpansionProvider><TagReadProvider dictionary={dictionary} enabled={!!page?.items.some(e=>(e as EntityResult & {tag_ids?:string[]}).tag_ids?.length)}><CollectionList view={view==="calendar"?"list":view} label="엔터티 목록" columns={["엔터티","속성 2","속성 3"]} numericColumns={[1,2]}>
         {page?.items.map((e) => (
           <li className="list-item" key={e.id}>
             <div className="list-item-main">

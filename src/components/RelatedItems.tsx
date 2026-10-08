@@ -37,7 +37,7 @@ export function RelatedItem({id,to,title,metadata,restoreKey,action,disclosure,c
   return <div className="related-item" data-expanded={disclosure?.expanded||undefined}>
     <div className="related-item-title" role={table?"row":undefined}>
       <div className="related-item-heading" role={table?"cell":undefined}>{titleContent}{table&&actions}</div>
-      {table?layout.columns.slice(1).map((column,index)=><div className="collection-table-cell" role="cell" key={column}>{cells[index]??"—"}</div>):actions}
+      {table?layout.columns.slice(1).map((column,index)=><div className={`collection-table-cell${layout.numericColumns.includes(index+1)?" collection-numeric":""}`} role="cell" key={column}>{cells[index]??"—"}</div>):actions}
     </div>
     {layout?.view==="cards"&&cells.length>0&&<dl className="collection-card-data">{layout.columns.slice(1).map((column,index)=>cells[index]!=null&&<div key={column}><dt>{column}</dt><dd>{cells[index]}</dd></div>)}</dl>}
     {table?<div role="row" hidden={!disclosure?.expanded&&!(metadata&&!disclosure)}><div role="cell" aria-colspan={layout.columns.length}>{details}</div></div>:details}
