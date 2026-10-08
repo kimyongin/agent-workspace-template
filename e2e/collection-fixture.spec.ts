@@ -1,10 +1,11 @@
 // Actual App and routing; remote Auth/API are isolated, with no DB or real-account writes.
+import { entityKey } from "./support/workspace-data.ts";
 import { expect, test, type Page } from "@playwright/test";
 import {id,stamp,identity as base,entity as makeEntity,task as makeTask,record as makeRecord} from "./support/workspace-data.ts";
 import {installWorkspaceApi} from "./support/workspace-api.ts";
 import {closeDetail} from "./ui-actions.ts";
-const task={...makeTask(),title:"다음 상담 준비",body:"필요한 자료를 준비합니다.",due_on:"2026-10-12",entity_ids:[id(1)],entity_context:[{id:id(1),title:"김민수",source:"selection" as const,captured_at:stamp}]};
-const record={...makeRecord(),body:"상담 내용을 정리하고 다음 방문 일정을 확인했습니다.",task_id:id(2),entity_ids:[id(1)],entity_context:task.entity_context};
+const task={...makeTask(),title:"다음 상담 준비",body:"필요한 자료를 준비합니다.",due_on:"2026-10-12",entity_ids:[entityKey(1)],entity_context:[{id:entityKey(1),title:"김민수",source:"selection" as const,captured_at:stamp}]};
+const record={...makeRecord(),body:"상담 내용을 정리하고 다음 방문 일정을 확인했습니다.",task_id:id(2),entity_ids:[entityKey(1)],entity_context:task.entity_context};
 const entity={...makeEntity(),prop1:"김민수",prop3:"2026-10-08",tasks:{count:1,items:[task]},records:{count:1,items:[record]}};
 const user = { id: id(100), aud: "authenticated", email: "fixture@example.test", app_metadata: {}, user_metadata: { workspace_timezone: "Asia/Seoul" } };
 
