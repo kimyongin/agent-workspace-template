@@ -86,7 +86,7 @@ dbTest("Entity DB: same owner 참조 거부·삭제 링크 보존·원문/버전
   const current = await activity.getRecord(a, A, record.id);
   assertEquals([current.body, current.entity_ids, current.version], ["기록 원문", [e.id], 1]);
   assertEquals(
-    (await admin`select count(*)::integer as n from app.search_index_state where id=${e.id}`)[0].n,
+    (await admin`select count(*)::integer as n from app.search_index_state where id::text=${e.id}`)[0].n,
     0,
   );
   await admin`delete from app.tasks where id=${task.id}`;
