@@ -9,7 +9,7 @@ httpTest("HTTP and MCP save body memo once and remove preview interfaces", async
     const tools = await client.listTools();
     assertEquals(tools.tools.some((t) => t.name.startsWith("preview_")), false);
     const memo = "  저장한 근거\n" + "가".repeat(1200);
-    const saved = await call(a, "PATCH", `/entities/${e.id}`, {
+    const saved = await call(a, "PATCH", `/entities/${encodeURIComponent(e.id)}`, {
       expected_version: e.version,
       prop2: 20,
       change_note: memo,

@@ -44,7 +44,7 @@ for (
           ? await e.createEntity(
             ed,
             f.actor,
-            entityCreate.parse({ id: crypto.randomUUID(), ...{ prop1: "parent", tag_ids } }),
+            entityCreate.parse({ source: "app", external_id: crypto.randomUUID(), ...{ prop1: "parent", tag_ids } }),
           )
           : kind === "task"
           ? await a.createTask(

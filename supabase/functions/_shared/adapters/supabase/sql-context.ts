@@ -17,14 +17,17 @@ export class SqlActorStore {
   constructor(protected readonly tx: postgres.TransactionSql, protected readonly actor: Actor) {
     this.entityLinks = new SqlEntityLinks(tx);
   }
-  getBusinessSettings() { return new SqlBusinessSettingsStore(this.tx, this.actor).get(); }
+  getBusinessSettings() {
+    return new SqlBusinessSettingsStore(this.tx, this.actor).get();
+  }
 
   /** Explicit user commands call this once, never the internal insert itself. */
   async appendChange(input: ChangeInput) {
     const target = input.target, target_title = target.title;
     const settingsStore = new SqlBusinessSettingsStore(this.tx, this.actor);
     const settings = (await settingsStore.get()).settings;
-    const ids = settings.record_templates?.[input.target_kind as "entity" | "task" | "principle"]?.[input.action]?.tag_ids ?? [];
+    const ids =
+      settings.record_templates?.[input.target_kind as "entity" | "task" | "principle"]?.[input.action]?.tag_ids ?? [];
     const memo = changeDefaults(input, settings, await settingsStore.recordTags(ids));
     const body = memo.change_note;
     // New events retain facts and the final memo, not an extra full domain capture.

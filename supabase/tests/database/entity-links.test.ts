@@ -1,5 +1,5 @@
 import { recordCreate, recordUpdate } from "../../functions/_shared/contracts/record.ts";
-import { assertEquals, assertRejects } from "@std/assert";
+import { assert, assertEquals, assertRejects } from "@std/assert";
 import { SqlEntityUnitOfWork } from "../../functions/_shared/adapters/supabase/entity-store.ts";
 import { SqlUnitOfWork } from "../../functions/_shared/adapters/supabase/activity-store.ts";
 import { entityCreate } from "../../functions/_shared/contracts/entity.ts";
@@ -20,12 +20,12 @@ dbTest(
       const first = await entity.createEntity(
         ed,
         f.actor,
-        entityCreate.parse({ id: crypto.randomUUID(), ...{ prop1: "공동 대상 1" } }),
+        entityCreate.parse({ source: "app", external_id: crypto.randomUUID(), ...{ prop1: "공동 대상 1" } }),
       );
       const second = await entity.createEntity(
         ed,
         f.actor,
-        entityCreate.parse({ id: crypto.randomUUID(), ...{ prop1: "공동 대상 2" } }),
+        entityCreate.parse({ source: "app", external_id: crypto.randomUUID(), ...{ prop1: "공동 대상 2" } }),
       );
       const ids = [first.id, second.id].sort();
       const task = await activity.createTask(
@@ -67,19 +67,19 @@ dbTest(
 );
 
 dbTest(
-  "direct target deletion removes live membership once and preserves exact task/record captured context",
+  "soft target deletion preserves live membership and preserves exact task/record captured context",
   async () => {
     const f = await fixtureOwner(admin);
     try {
       const first = await entity.createEntity(
         ed,
         f.actor,
-        entityCreate.parse({ id: crypto.randomUUID(), ...{ prop1: "삭제 전 첫 대상" } }),
+        entityCreate.parse({ source: "app", external_id: crypto.randomUUID(), ...{ prop1: "삭제 전 첫 대상" } }),
       );
       const second = await entity.createEntity(
         ed,
         f.actor,
-        entityCreate.parse({ id: crypto.randomUUID(), ...{ prop1: "삭제 전 둘째 대상" } }),
+        entityCreate.parse({ source: "app", external_id: crypto.randomUUID(), ...{ prop1: "삭제 전 둘째 대상" } }),
       );
       const ids = [first.id, second.id].sort();
       const task = await activity.createTask(
@@ -95,19 +95,22 @@ dbTest(
         f.actor,
         recordCreate.parse({ id: crypto.randomUUID(), ...{ body: "당시 자료", entity_ids: ids } }),
       );
-      await admin`delete from app.entities where id=${ids[1]}`;
+      await entity.deleteEntity(ed, f.actor, ids[1], 1);
       const remaining = await activity.getTask(ad, f.actor, task.id);
       assertEquals([remaining.entity_ids, remaining.entity_context], [
-        [ids[0]],
+        ids,
         task.entity_context,
       ]);
-      assertEquals(remaining.version, task.version + 1);
-      await admin`delete from app.entities where id=${ids[0]}`;
+      assertEquals(remaining.version, task.version);
+      await entity.deleteEntity(ed, f.actor, ids[0], 1);
       const detached = await activity.getTask(ad, f.actor, task.id);
-      assertEquals(detached.entity_ids, []);
+      assertEquals(detached.entity_ids, ids);
       assertEquals(detached.entity_context, task.entity_context);
-      assertEquals(detached.version, task.version + 2);
-      assertEquals((await activity.listTasks(ad, f.actor, taskListQuery.parse({ entity_id: ids[0] }))).items, []);
+      assertEquals(detached.version, task.version);
+      assertEquals(
+        (await activity.listTasks(ad, f.actor, taskListQuery.parse({ entity_id: ids[0] }))).items.map((t) => t.id),
+        [task.id],
+      );
       const read = await activity.getRecord(ad, f.actor, record.id);
       assertEquals(read.entity_ids, ids);
       assertEquals(read.entity_context, record.entity_context);
@@ -133,12 +136,12 @@ dbTest(
       const target = await entity.createEntity(
         ed,
         f.actor,
-        entityCreate.parse({ id: crypto.randomUUID(), ...{ prop1: "기록의 대상" } }),
+        entityCreate.parse({ source: "app", external_id: crypto.randomUUID(), ...{ prop1: "기록의 대상" } }),
       );
       const foreign = await entity.createEntity(
         ed,
         other.actor,
-        entityCreate.parse({ id: crypto.randomUUID(), ...{ prop1: "다른 소유자" } }),
+        entityCreate.parse({ source: "app", external_id: crypto.randomUUID(), ...{ prop1: "다른 소유자" } }),
       );
       let record = await activity.createRecord(
         ad,
@@ -221,14 +224,14 @@ dbTest(
 );
 
 dbTest(
-  "entity deletion history failure restores selections and versions; same-key retry detaches exactly once",
+  "entity deletion history failure restores selections and versions; same-key retry preserves connections",
   async () => {
     const f = await fixtureOwner(admin);
     try {
       const target = await entity.createEntity(
         ed,
         f.actor,
-        entityCreate.parse({ id: crypto.randomUUID(), ...{ prop1: "당시 대상" } }),
+        entityCreate.parse({ source: "app", external_id: crypto.randomUUID(), ...{ prop1: "당시 대상" } }),
       );
       const task = await activity.createTask(
         ad,
@@ -272,13 +275,17 @@ dbTest(
       await assertRejects(() => entity.deleteEntity(ed, f.actor, target.id, target.version));
       const detached = await activity.getTask(ad, f.actor, task.id);
       const historical = await activity.getRecord(ad, f.actor, record.id);
-      assertEquals([detached.entity_ids, detached.entity_context, detached.version], [[], task.entity_context, 2]);
+      assertEquals([detached.entity_ids, detached.entity_context, detached.version], [
+        [target.id],
+        task.entity_context,
+        1,
+      ]);
       assertEquals([historical.entity_ids, historical.entity_context, historical.version], [
         [target.id],
         record.entity_context,
-        2,
+        1,
       ]);
-      await assertRejects(() => entity.getEntity(ed, f.actor, target.id));
+      assert((await entity.getEntity(ed, f.actor, target.id)).deleted_at);
     } finally {
       await f.cleanup();
     }

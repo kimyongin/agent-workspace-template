@@ -33,7 +33,11 @@ dbTest(
       const entity = await e.createEntity(
         ed,
         actor,
-        entityCreate.parse({ id: crypto.randomUUID(), ...{ prop1: "対象", tag_ids: [entityTag.id] } }),
+        entityCreate.parse({
+          source: "app",
+          external_id: crypto.randomUUID(),
+          ...{ prop1: "対象", tag_ids: [entityTag.id] },
+        }),
       );
       const taskTag = await t.createTag(
         td,

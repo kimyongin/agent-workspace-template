@@ -57,8 +57,9 @@ function fixture(storageNow = () => now) {
     },
     insertRecord: (input) => {
       if (input.id && records.has(input.id)) throw new AppError("conflict", "중복 ID");
+      const { inherit_task_entities: _inherit, ...stored } = input;
       const record: ActivityRecord = {
-        ...input,
+        ...stored,
         record_kind: input.record_kind ?? "user",
         entity_context: [],
         change: null,

@@ -13,7 +13,9 @@ export class SqlEntityLinks {
 
   async taskSelection(ids?: string[], existingTaskId?: string) {
     if (ids === undefined) return {};
-    const [prior] = existingTaskId === undefined ? [] : await this.tx<{ entity_context: EntityContext[] }[]>`select entity_context from app.tasks where id=${existingTaskId}`;
+    const [prior] = existingTaskId === undefined ? [] : await this.tx<
+      { entity_context: EntityContext[] }[]
+    >`select entity_context from app.tasks where id=${existingTaskId}`;
     return this.fields(ids, await this.capture(ids, prior?.entity_context ?? []));
   }
 
@@ -21,7 +23,9 @@ export class SqlEntityLinks {
     if (ids === undefined) return {};
     const [prior] = existingRecordId === undefined ? [] : await this.tx<{ entity_context: EntityContext[] }[]>`
         select entity_context from app.records where id=${existingRecordId}`;
-    const [task] = inheritedTaskId === undefined ? [] : await this.tx<{ entity_context: EntityContext[] }[]>`select entity_context from app.tasks where id=${inheritedTaskId}`;
+    const [task] = inheritedTaskId === undefined ? [] : await this.tx<
+      { entity_context: EntityContext[] }[]
+    >`select entity_context from app.tasks where id=${inheritedTaskId}`;
     return this.fields(ids, await this.capture(ids, prior?.entity_context ?? task?.entity_context ?? []));
   }
 
@@ -47,7 +51,9 @@ export class SqlEntityLinks {
     if (!ids.length) return [];
     const live = await this.tx<
       { id: string; prop1: string; captured_at: Date }[]
-    >`select id,prop1,now() as captured_at from app.entities where deleted_at is null and id in ${this.tx(ids)} order by id for key share`;
+    >`select id,prop1,now() as captured_at from app.entities where deleted_at is null and id in ${
+      this.tx(ids)
+    } order by id for key share`;
     return ids.map((id) => {
       const captured = prior.find((entity) => entity.id === id);
       const entity = live.find((entity) => entity.id === id);

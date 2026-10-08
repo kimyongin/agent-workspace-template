@@ -3,7 +3,7 @@ import { recordCreate, recordListQuery, recordUpdate } from "./record.ts";
 import { taskComplete, taskCreate, taskListQuery, taskUpdate } from "./task.ts";
 import { searchInput } from "./search.ts";
 
-const entity = "00000000-0000-4000-8000-000000000001";
+const entity = "app:00000000-0000-4000-8000-000000000001";
 
 Deno.test("단일 대상 쓰기 별칭은 거부하고 선택 배열과 목록 필터는 유지한다", () => {
   const content = { id: crypto.randomUUID(), body: "여러 대상 선택" };
