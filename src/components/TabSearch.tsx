@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router";
 import { Field } from "./Field.tsx";
+import { BodyAction } from "./BodyAction.tsx";
 import "./workspace.css";
 
 export function clearListPosition(params: URLSearchParams) {
@@ -40,21 +41,21 @@ export function TabSearch({ entity = false }: { entity?: boolean }) {
 export function resetTabFilters(params: URLSearchParams) {
   return new URLSearchParams([...params].filter(([key]) => ["q", "keyword", "filters"].includes(key)));
 }
-/** Keep text search visible; every optional condition shares one collapsed group. */
-export function TabFilters({active=false,attention=false,children}:{active?:boolean;attention?:boolean;children:ReactNode}) {
-  const [params]=useSearchParams(),location=useLocation(),navigate=useNavigate();
-  const open=params.get("filters")==="1";
-  return <details className="workspace-additional" open={open}>
-    <summary aria-expanded={open} onClick={event=>{
-      event.preventDefault();
-      const next=new URLSearchParams(params);open?next.delete("filters"):next.set("filters","1");
-      void navigate({pathname:location.pathname,search:next.toString(),hash:location.hash},{replace:true,preventScrollReset:true});
-    }}>필터 {open?"닫기":"열기"}{attention?" · 확인 필요":active?" · 적용 중":""}</summary>
-    <div className="form">
-      {open && <button type="button" className="btn btn-text filter-reset" onClick={()=>{
-        void navigate({pathname:location.pathname,search:resetTabFilters(params).toString(),hash:""},{replace:true});
-      }}>조건 초기화</button>}
-      {children}
+/** URL owns disclosure state; optional conditions remain mounted while hidden. */
+export function TabFilters({ active = false, attention = false, children }: { active?: boolean; attention?: boolean; children: ReactNode }) {
+  const [params] = useSearchParams(), location = useLocation(), navigate = useNavigate();
+  const open = params.get("filters") === "1", controls = useId();
+  return <div className="tab-filters">
+    <div className="tab-filter-toolbar">
+      <BodyAction icon="filter" aria-expanded={open} aria-controls={controls} onClick={() => {
+        const next = new URLSearchParams(params);
+        open ? next.delete("filters") : next.set("filters", "1");
+        void navigate({ pathname: location.pathname, search: next.toString(), hash: location.hash }, { replace: true, preventScrollReset: true });
+      }}>필터 {open ? "닫기" : "열기"}{attention ? " · 확인 필요" : active ? " · 적용 중" : ""}</BodyAction>
+      {open && <BodyAction icon="reset" className="filter-reset" onClick={() => {
+        void navigate({ pathname: location.pathname, search: resetTabFilters(params).toString(), hash: "" }, { replace: true });
+      }}>조건 초기화</BodyAction>}
     </div>
-  </details>;
+    <div className="form" id={controls} hidden={!open}>{children}</div>
+  </div>;
 }

@@ -102,7 +102,7 @@ export function EntitiesPage() {
     navigate({ pathname: "/entities", search: next.toString(), hash: "" }, { replace: true });
   };
   return (
-    <><section className="panel" aria-labelledby="entities-title">
+    <><section className="panel main-tab-header" aria-labelledby="entities-title">
       <div className="panel-head">
         <h1 id="entities-title" className="page-title" tabIndex={-1}>엔터티</h1>
         <TabCreateButton label="엔터티 등록" onClick={create.begin}/>

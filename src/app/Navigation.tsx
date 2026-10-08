@@ -11,6 +11,11 @@ const entries = [
   ["principles", "/principles", "원칙", "M5 3h14v18H5ZM8 7h8M8 11h8M8 15h5"],
   ["records", "/records", "기록", "M5 3h14v18H5ZM8 7h8M8 11h8M8 15h5"],
 ] as const;
+function PopoverLink({ to, label }: { to: "/guide" | "/settings"; label: string }) {
+  return <Link to={to}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    {to === "/guide" ? <path d="M4 4h6l2 2 2-2h6v16h-6l-2 2-2-2H4ZM12 6v16"/> : <><path d="m12 3 2 2 3-.2 1 3 3 2-1 3 .2 3-3 1-2 3-3-1-3 .2-1-3-3-2 1-3L5 7l3-1Z"/><circle cx="12" cy="12" r="3"/></>}
+  </svg><span>{label}</span></Link>;
+}
 export function Navigation({ brand }: { brand: string }) {
   const location = useLocation();
   const { session } = useAuth();
@@ -55,13 +60,13 @@ export function Navigation({ brand }: { brand: string }) {
         onClick={() => setOpen(value => value === "profile" ? null : "profile")}><ProfileIcon id={session?.user.user_metadata?.workspace_avatar_id} /><span className="nav-control-label">내 계정</span></button>
         {open === "profile" && <div className="nav-more-options" id="nav-profile-options" ref={popover}>
           <div className="nav-profile-identity"><ProfileIcon id={session?.user.user_metadata?.workspace_avatar_id} /><p>{profileName(session?.user.user_metadata)}</p></div>
-          <Link to="/settings"><svg className="navigation-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="m12 3 2 2 3-.2 1 3 3 2-1 3 .2 3-3 1-2 3-3-1-3 .2-1-3-3-2 1-3L5 7l3-1Z" /><circle cx="12" cy="12" r="3" /></svg>설정</Link>
+          <PopoverLink to="/settings" label="설정"/>
         </div>}</div>
       {entries.map(([key, to, label, path]) => <Link key={key} to={to} aria-current={current === key ? "page" : undefined}>
         <svg className="navigation-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={path} /></svg><span>{label}</span></Link>)}
       <div className="nav-more"><button className="nav-more-trigger" type="button" ref={menuTrigger} aria-label="메뉴" aria-expanded={open === "menu"} aria-controls="nav-more-options" data-current={current === "more" || undefined}
         onClick={() => setOpen(value => value === "menu" ? null : "menu")}><svg className="navigation-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16" /></svg><span className="nav-control-label">메뉴</span></button>
-        {open === "menu" && <div className="nav-more-options" id="nav-more-options" ref={popover}><Link to="/guide">사용 가이드</Link><Link to="/settings">설정</Link></div>}</div>
+        {open === "menu" && <div className="nav-more-options" id="nav-more-options" ref={popover}><PopoverLink to="/guide" label="사용 가이드"/><PopoverLink to="/settings" label="설정"/></div>}</div>
     </div>
   </nav>;
 }

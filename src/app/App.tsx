@@ -27,9 +27,9 @@ function Layout() {
   const location = useLocation();
   return (
     <div className={`app-shell${session ? " has-navigation" : ""}`}>
-      {!session && <header className="app-header">
+      <header className={`app-header${session ? " workspace-header" : ""}`}>
         <span className="app-brand">{APP_NAME}</span>
-      </header>}
+      </header>
       <main className="app-main" key={location.pathname === "/logout" ? "logout" : session?.user.id ?? "signed-out"}>
         <DetailNavigationProvider key={location.pathname === "/logout" ? "logout" : session?.user.id ?? "signed-out"} scope={session?.user.id ?? "signed-out"}><Outlet /></DetailNavigationProvider>
       </main>

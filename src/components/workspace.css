@@ -16,15 +16,16 @@
 /* Dense controls share columns; the conditions group has no internal dividers. */
 .workspace-search .label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .search-clear { top: 0; right: 0; }
-.workspace-additional { position: relative; }
-.workspace-additional[open] > summary { width: calc(100% - 7rem); }
-.workspace-additional > .form { gap: var(--space-3); }
-.filter-reset { position: absolute; top: 0; right: 0; text-decoration: none; }
+.tab-filters { min-width: 0; }
+.tab-filter-toolbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0 var(--space-2); }
+.tab-filter-toolbar .body-action { padding: 0; }
+.tab-filter-toolbar .body-action-face { flex-wrap: wrap; text-align: left; }
+.tab-filter-toolbar .filter-reset { margin-left: auto; flex-shrink: 0; }
+.tab-filters > .form { gap: var(--space-3); padding-top: var(--space-2); }
+.tab-filters > .form[hidden] { display: none; }
 .filter-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: var(--space-3); min-width: 0; }
 .filter-grid .input { min-width: 0; padding-inline: var(--space-2); }
 @media(min-width:768px) { .filter-grid { grid-template-columns: repeat(4,minmax(0,1fr)); } }
 @media(max-width:319px) { .filter-grid { grid-template-columns: minmax(0,1fr); } }
-
-@media(max-width:479px) { .filter-reset { position: static; align-self: flex-end; } .workspace-additional[open] > summary { width: 100%; } }
 
 .tab-create-button { flex-shrink: 0; gap: var(--space-1); }
