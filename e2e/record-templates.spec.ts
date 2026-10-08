@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 import { devLogin, env, unique } from "./support.ts";
 import { beginTabAction } from "./ui-actions.ts";
 
-test("설정 템플릿 오류·변수 삽입·이전/이후 미리보기와 확인 취소·재적용·고정 재시도", async ({page}) => {
+test("설정 템플릿 오류·변수 삽입과 실제 변경 확인·취소·재적용·고정 재시도", async ({page}) => {
   await devLogin(page);
   const login = await page.request.post(`${env.VITE_SUPABASE_URL}/auth/v1/token?grant_type=password`, {headers:{apikey:env.VITE_SUPABASE_PUBLISHABLE_KEY},data:{email:env.DEV_USER_A_EMAIL,password:env.DEV_USER_A_PASSWORD}});
   const token = (await login.json()).access_token;
@@ -26,10 +26,8 @@ test("설정 템플릿 오류·변수 삽입·이전/이후 미리보기와 확�
     await form.getByLabel("메모 템플릿").fill("");
     await form.getByLabel("변수 삽입").selectOption("엔터티.이전.속성2");
     await form.getByLabel("메모 템플릿").fill("${엔터티.이전.속성2$} → ${엔터티.이후.속성2$}");
-    await form.getByText("미리보기 예시 값 편집",{exact:true}).click();
-    await form.getByLabel("이전 속성2",{exact:true}).fill("34");
-    await form.getByLabel("이후 속성2",{exact:true}).fill("52");
-    await expect(form.locator("output")).toHaveText("34 → 52");
+    await expect(form.getByText("미리보기 예시 값 편집",{exact:true})).toHaveCount(0);
+    await expect(form.locator("output")).toHaveCount(0);
     // Clear the invalid create slot before saving another action.
     await form.getByLabel("액션",{exact:true}).selectOption("create");
     await form.getByLabel("메모 템플릿").fill("");
@@ -69,7 +67,7 @@ test("설정 템플릿 오류·변수 삽입·이전/이후 미리보기와 확�
     await expect(confirmation.getByLabel("기록 메모",{exact:true})).toBeDisabled();
     await expect(confirmation.getByRole("button",{name:"템플릿 다시 적용",exact:true})).toBeDisabled();
     const current=await api("GET","/settings/business");
-    await api("PATCH","/settings/business",{expected_version:current.version,sections:{record_templates:{task:{create:{memo:"나중에 바뀐 기본값",tag_ids:[]}}}}});
+    await api("PATCH","/settings/business",{expected_version:current.versions.record_templates,id: "record_templates", value: {task:{create:{memo:"나중에 바뀐 기본값",tag_ids:[]}}}});
     await confirmation.getByRole("button",{name:"같은 내용 다시 시도",exact:true}).click();
     await expect(page.getByRole("heading",{name:title,exact:true})).toBeVisible();
     expect(requests).toHaveLength(2); expect(requests[1]).toEqual(requests[0]);
@@ -80,7 +78,7 @@ test("설정 템플릿 오류·변수 삽입·이전/이후 미리보기와 확�
     expect(record.body).toBe(`${title} 준비 등록`); expect(record.tag_ids).toEqual([tag.id]);
   } finally {
     if(taskId){const task=await api("GET",`/tasks/${taskId}`);await api("POST",`/tasks/${taskId}/delete`,{expected_version:task.version,change_tag_ids:[]});}
-    const current=await api("GET","/settings/business");await api("PATCH","/settings/business",{expected_version:current.version,sections:{record_templates:saved.settings.record_templates??{}}});
+    const current=await api("GET","/settings/business");await api("PATCH","/settings/business",{expected_version:current.versions.record_templates,id: "record_templates", value: saved.settings.record_templates??{}});
     await api("DELETE",`/tags/${tag.id}?expected_version=${tag.version}`);
   }
 });

@@ -14,7 +14,8 @@ test("manual tuple registration previews stored data, restores links, and rekeys
   const external_id = `000Ab:/한글%${unique("식별자")}`, name = unique("보관 엔터티");
   let entityId: string | undefined, taskId: string | undefined;
   try {
-    await api("PATCH", "/settings/business", { expected_version: original.version, sections: { entity_identity: { ...original.settings.entity_identity, generation: "manual", default_source: "app" }, record_templates:{...original.settings.record_templates,entity:{...original.settings.record_templates?.entity,delete:{memo:"삭제 템플릿",tag_ids:[]}}} } });
+    await api("PATCH", "/settings/business", { id:"entity_identity", expected_version:original.versions.entity_identity, value:{ ...original.settings.entity_identity, generation:"manual", default_source:"app" } });
+    await api("PATCH", "/settings/business", { id:"record_templates", expected_version:original.versions.record_templates, value:{...original.settings.record_templates,entity:{...original.settings.record_templates?.entity,delete:{memo:"삭제 템플릿",tag_ids:[]}}} });
     const target = await api("POST", "/entities", { source: "app", external_id, prop1: name, prop2: 0, prop4: "c" });
     entityId = target.id;
     const task = await api("POST", "/tasks", { id: crypto.randomUUID(), kind: "once", title: unique("연결 보존"), entity_ids: [target.id] });
@@ -78,7 +79,8 @@ test("manual tuple registration previews stored data, restores links, and rekeys
     if (taskId) { const task = await api("GET", `/tasks/${taskId}`); await api("DELETE", `/tasks/${taskId}?expected_version=${task.version}`); }
     if (entityId) { const target = await api("GET", `/entities/${encodeURIComponent(entityId)}`); if (!target.deleted_at) await api("POST", `/entities/${encodeURIComponent(entityId)}/delete`, { expected_version: target.version }); }
     const latest = await api("GET", "/settings/business");
-    await api("PATCH", "/settings/business", { expected_version: latest.version, sections: { entity_identity: original.settings.entity_identity,record_templates:original.settings.record_templates??{} } });
+    await api("PATCH", "/settings/business", { id:"entity_identity", expected_version:latest.versions.entity_identity, value:original.settings.entity_identity });
+    await api("PATCH", "/settings/business", { id:"record_templates", expected_version:latest.versions.record_templates, value:original.settings.record_templates??{} });
   }
 });
 
@@ -95,14 +97,20 @@ test("identity settings recovers from an initial read failure and preserves edit
   await expect(section).toContainText("식별자 설정을 불러오지 못했습니다.");
   await expect(section.getByRole("form", {name:"엔터티 식별자 설정"})).toHaveCount(0);
   failSettings = false;
-  await section.getByRole("button", {name:"최신 설정 조회",exact:true}).click();
-  const generation = section.getByLabel("새 엔터티 식별자 발급 방식");
+  await section.getByRole("button", {name:"다시 시도",exact:true}).click();
+  const generation = section.getByLabel("식별자 발급 방식");
   await expect(generation).toBeVisible();
   const previous = await generation.inputValue();
   const changed = previous === "uuid" ? "manual" : "uuid";
   await generation.selectOption(changed);
-  await section.getByRole("button", {name:"최신 설정 조회",exact:true}).click();
-  await expect(section).toContainText("최신 버전을 불러왔습니다. 입력은 유지했습니다.");
+  await expect(section.getByRole("button", {name:"최신값 확인",exact:true})).toHaveCount(0);
+  await page.route("**/settings/business", async route => {
+    if(route.request().method()==="PATCH") return route.fulfill({status:409,json:{error:{code:"conflict",message:"같은 설정에 다른 변경이 저장되어 있습니다.",fields:[]}}});
+    return route.continue();
+  });
+  await section.getByRole("button", {name:"식별자 설정 저장",exact:true}).click();
+  await section.getByRole("button", {name:"최신값 확인",exact:true}).click();
+  await expect(section).toContainText("최신 설정을 확인했습니다. 입력은 유지했습니다.");
   await expect(generation).toHaveValue(changed);
   await section.getByRole("button", {name:"변경 취소",exact:true}).click();
   await expect(generation).toHaveValue(previous);

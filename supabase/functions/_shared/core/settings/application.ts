@@ -2,6 +2,7 @@ import {
   BUSINESS_SETTINGS_MAX_BYTES,
   type BusinessSettings,
   type BusinessSettingsResult,
+  type BusinessSettingsUpdate,
   businessSettingsUpdate,
   resolvedBusinessSettings,
 } from "../../contracts/business-settings.ts";
@@ -16,10 +17,10 @@ import { taskCreate, taskUpdate } from "../../contracts/task.ts";
 import { resumeTask, stopTask, taskContent, updateTask } from "../activity/domain.ts";
 import { entityCreate, entityRekey, entityUpdate } from "../../contracts/entity.ts";
 import { principleCreate, principleUpdate } from "../../contracts/principle.ts";
-import { defaultEntityIdentitySettings, entityId } from "../../contracts/entity-identity.ts";
+import { defaultEntityIdentitySettings, entityId, isActiveEntitySource } from "../../contracts/entity-identity.ts";
 export interface BusinessSettingsStore {
   get(): Promise<BusinessSettingsResult>;
-  update(expected: number, sections: BusinessSettings): Promise<BusinessSettingsResult>;
+  update(input: BusinessSettingsUpdate): Promise<BusinessSettingsResult>;
   recordTags(ids: string[]): Promise<string[]>;
   target?(
     model: TemplateModel,
@@ -90,8 +91,8 @@ export function prepareBusinessRecord(
       prepared_input = content;
       if (input.operation === "identity") {
         const settings = saved.settings.entity_identity ?? defaultEntityIdentitySettings;
-        if (!settings.sources.some((source) => source.code === content.source)) {
-          throw invalidInput("등록된 발급처를 선택하세요");
+        if (!isActiveEntitySource(settings, content.source)) {
+          throw invalidInput("삭제되지 않은 발급처를 선택하세요");
         }
         const nextId = entityId(String(content.source), String(content.external_id));
         if (nextId !== input.target_id && await store.target?.("entity", nextId)) {
@@ -103,6 +104,12 @@ export function prepareBusinessRecord(
         ((content.source !== undefined && content.source !== before?.source) ||
           (content.external_id !== undefined && content.external_id !== before?.external_id))
       ) throw invalidInput("복원은 같은 발급처·식별자로 준비하세요");
+      if (
+        input.action === "restore" &&
+        !isActiveEntitySource(saved.settings.entity_identity ?? defaultEntityIdentitySettings, before?.source)
+      ) {
+        throw invalidInput("삭제된 발급처를 먼저 복원하세요");
+      }
     }
     if (input.action === "create") {
       const schema = input.model === "task" ? taskCreate : input.model === "entity" ? entityCreate : principleCreate;
@@ -119,7 +126,7 @@ export function prepareBusinessRecord(
       if (input.model === "entity") {
         const settings = saved.settings.entity_identity ?? defaultEntityIdentitySettings;
         const source = String(content.source ?? settings.default_source);
-        if (!settings.sources.some((value) => value.code === source)) throw invalidInput("등록된 발급처를 선택하세요");
+        if (!isActiveEntitySource(settings, source)) throw invalidInput("삭제되지 않은 발급처를 선택하세요");
         if (!content.external_id && settings.generation === "manual") throw invalidInput("식별자를 입력하세요");
         const external_id = String(content.external_id ?? crypto.randomUUID());
         const existing = await store.target?.("entity", entityId(source, external_id));
@@ -181,7 +188,7 @@ export function prepareBusinessRecord(
       saved.settings,
       await store.recordTags(ids),
     );
-    return { ...result, prepared_input, settings_version: saved.version };
+    return { ...result, prepared_input, settings_version: saved.versions.record_templates };
   });
 }
 export interface BusinessSettingsDeps {
@@ -203,19 +210,22 @@ export function updateBusinessSettings(d: BusinessSettingsDeps, actor: Actor, in
     );
   }
   return d.uow.run(actor, async (store) => {
-    const { expected_version, sections } = parsed.data;
+    const sections: BusinessSettings = { [parsed.data.id]: parsed.data.value };
     const current = await store.get();
+    if (current.versions[parsed.data.id] !== parsed.data.expected_version) {
+      throw conflict("같은 설정에 다른 변경이 저장되어 있습니다. 최신값을 확인한 뒤 다시 저장하세요.");
+    }
     if (sections.entity_identity) {
       const nextCodes = new Set(sections.entity_identity.sources.map((source) => source.code));
       if (current.settings.entity_identity?.sources.some((source) => !nextCodes.has(source.code))) {
-        throw invalidInput("발급처 코드는 유지해야 합니다. 표시 이름만 바꾸거나 발급처를 추가하세요.", [{
-          path: "sections.entity_identity.sources",
+        throw invalidInput("발급처 코드는 보존해야 합니다. 삭제 상태로 바꾸거나 복원하세요.", [{
+          path: "value.sources",
           message: "기존 발급처 코드를 제거하거나 변경할 수 없습니다",
         }]);
       }
     }
     if (
-      new TextEncoder().encode(JSON.stringify({ ...current.settings, ...sections })).length >
+      new TextEncoder().encode(JSON.stringify(parsed.data.value)).length >
         BUSINESS_SETTINGS_MAX_BYTES
     ) throw invalidInput(`업무 설정은 ${BUSINESS_SETTINGS_MAX_BYTES}바이트 이하입니다`);
     const ids = [
@@ -227,10 +237,10 @@ export function updateBusinessSettings(d: BusinessSettingsDeps, actor: Actor, in
     ];
     if ((await store.recordTags(ids)).length !== ids.length) {
       throw invalidInput("기록 범위에서 존재하는 태그만 기본값으로 사용할 수 있습니다", [{
-        path: "sections.record_templates",
+        path: "value",
         message: "삭제되었거나 다른 범위의 태그를 제거하세요",
       }]);
     }
-    return store.update(expected_version, sections);
+    return store.update(parsed.data);
   });
 }

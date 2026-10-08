@@ -40,7 +40,8 @@ export const entityReferenceIds = z.array(entityReferenceId).max(100).refine(
 export const entityIdentitySettings = z.strictObject({
   generation: z.enum(["manual", "uuid"]),
   default_source: entitySourceCode,
-  sources: z.array(z.strictObject({ code: entitySourceCode, label: text(1, 100) })).min(1).max(32),
+  sources: z.array(z.strictObject({ code: entitySourceCode, label: text(1, 100), deleted: z.boolean().optional() }))
+    .min(1).max(32),
 }).superRefine((v, ctx) => {
   if (new Set(v.sources.map((s) => s.code)).size !== v.sources.length) {
     ctx.addIssue({ code: "custom", path: ["sources"], message: "발급처 코드가 중복되었습니다" });
@@ -48,11 +49,14 @@ export const entityIdentitySettings = z.strictObject({
   if (!v.sources.some((s) => s.code === "app")) {
     ctx.addIssue({ code: "custom", path: ["sources"], message: "앱 발급처는 유지해야 합니다" });
   }
-  if (!v.sources.some((s) => s.code === v.default_source)) {
-    ctx.addIssue({ code: "custom", path: ["default_source"], message: "등록된 발급처를 선택하세요" });
+  if (!v.sources.some((s) => s.code === v.default_source && !s.deleted)) {
+    ctx.addIssue({ code: "custom", path: ["default_source"], message: "삭제되지 않은 발급처를 선택하세요" });
   }
 });
 export type EntityIdentitySettings = z.infer<typeof entityIdentitySettings>;
+export function isActiveEntitySource(settings: EntityIdentitySettings, code: unknown): boolean {
+  return settings.sources.some((source) => source.code === code && !source.deleted);
+}
 export const defaultEntityIdentitySettings: EntityIdentitySettings = {
   generation: "uuid",
   default_source: "app",

@@ -1,5 +1,9 @@
 import type postgres from "postgres";
-import type { BusinessSettings, BusinessSettingsResult } from "../../contracts/business-settings.ts";
+import type {
+  BusinessSettings,
+  BusinessSettingsResult,
+  BusinessSettingsUpdate,
+} from "../../contracts/business-settings.ts";
 import { resolvedBusinessSettings } from "../../contracts/business-settings.ts";
 import type { Actor } from "../../core/shared/actor.ts";
 import type { BusinessSettingsStore } from "../../core/settings/application.ts";
@@ -11,27 +15,34 @@ import type { ChangeFacts } from "../../core/shared/changes.ts";
 export class SqlBusinessSettingsStore implements BusinessSettingsStore {
   constructor(private readonly tx: postgres.TransactionSql, private readonly actor: Actor) {}
   async get(): Promise<BusinessSettingsResult> {
-    const [row] = await this
-      .tx`select version,settings from app.user_business_settings where owner_id=${this.actor.userId}`;
+    const rows = await this
+      .tx`select id,version,settings from app.user_business_settings where owner_id=${this.actor.userId}`;
+    const versions = { record_templates: 0, entity_identity: 0 };
+    const settings: BusinessSettings = {};
+    for (const row of rows) {
+      const id = row.id as keyof BusinessSettings;
+      versions[id] = Number(row.version);
+      Object.assign(settings, { [id]: row.settings });
+    }
     return {
-      version: row ? Number(row.version) : 0,
-      settings: resolvedBusinessSettings(row ? row.settings as BusinessSettings : {}),
+      versions,
+      settings: resolvedBusinessSettings(settings),
     };
   }
-  async update(expected: number, sections: BusinessSettings): Promise<BusinessSettingsResult> {
+  async update({ id, expected_version: expected, value }: BusinessSettingsUpdate): Promise<BusinessSettingsResult> {
     // Lock even the absent initial row; concurrent first saves cannot silently overwrite.
-    await this.tx`select pg_advisory_xact_lock(hashtextextended(${this.actor.userId},0))`;
+    await this.tx`select pg_advisory_xact_lock(hashtextextended(${`${this.actor.userId}:${id}`},0))`;
     const current = await this.get();
-    if (current.version !== expected) {
-      throw conflict("다른 설정이 저장되어 있습니다. 다시 조회한 뒤 변경을 적용하세요.");
+    if (current.versions[id] !== expected) {
+      throw conflict("같은 설정에 다른 변경이 저장되어 있습니다. 최신값을 확인한 뒤 다시 저장하세요.");
     }
-    const settings = { ...current.settings, ...sections };
-    await this.tx`insert into app.user_business_settings(owner_id,version,settings) values (${this.actor.userId},${
+    await this
+      .tx`insert into app.user_business_settings(owner_id,id,version,settings) values (${this.actor.userId},${id},${
       expected + 1
     },${
-      this.tx.json(settings as never)
-    }) on conflict(owner_id) do update set version=excluded.version,settings=excluded.settings,updated_at=now()`;
-    return { version: expected + 1, settings };
+      this.tx.json(value as never)
+    }) on conflict(owner_id,id) do update set version=excluded.version,settings=excluded.settings,updated_at=now()`;
+    return this.get();
   }
   async recordTags(ids: string[]): Promise<string[]> {
     if (!ids.length) return [];

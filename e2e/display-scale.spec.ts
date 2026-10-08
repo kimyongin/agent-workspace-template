@@ -31,7 +31,7 @@ test("display scale: preview, cancel and approved leaving restore confirmed size
   const scale = page.getByLabel("데스크톱 화면 배율", { exact: true });
   await expect(scale).toHaveValue("100"); await expect.poll(() => rootSize(page)).toBe(16);
   await scale.selectOption("125"); await expect.poll(() => rootSize(page)).toBe(20);
-  await page.getByRole("form", { name: "계정 설정" }).getByRole("button", { name: "변경 취소" }).click(); await expect.poll(() => rootSize(page)).toBe(16);
+  await page.getByRole("form", { name: "화면 표시 설정" }).getByRole("button", { name: "변경 취소" }).click(); await expect.poll(() => rootSize(page)).toBe(16);
   await scale.selectOption("150"); await navigate(page, "할 일");
   const confirm = page.getByRole("dialog", { name: "변경을 버릴까요?" });
   await confirm.getByRole("button", { name: "취소", exact: true }).click(); await expect.poll(() => rootSize(page)).toBe(24);
@@ -43,16 +43,16 @@ test("display scale: failed save keeps selection; retry persists only changed me
   const state = await fixture(page); await page.goto("/settings");
   const scale = page.getByLabel("데스크톱 화면 배율", { exact: true });
   await scale.selectOption("150"); state.fail = true;
-  await page.getByRole("button", { name: "저장", exact: true }).click();
-  await expect(page.getByRole("alert")).toContainText("입력한 설정을 유지");
+  await page.getByRole("button",{name:"화면 표시 저장", exact: true }).click();
+  await expect(page.getByRole("form",{name:"화면 표시 설정"}).getByRole("alert")).toContainText("입력한 설정을 유지");
   await expect(scale).toHaveValue("150"); expect(await rootSize(page)).toBe(24);
-  state.fail = false; await page.getByRole("button", { name: "저장", exact: true }).click();
-  await expect(page.getByRole("form", { name: "계정 설정" }).getByRole("status")).toContainText("저장했습니다");
+  state.fail = false; await page.getByRole("button",{name:"화면 표시 저장", exact: true }).click();
+  await expect(page.getByRole("form", { name: "화면 표시 설정" }).getByRole("status")).toContainText("저장했습니다");
   expect(state.writes).toEqual([{ workspace_display_scale: "150" }, { workspace_display_scale: "150" }]);
   expect(state.metadata.provider_value).toBe("preserved");
   await page.reload(); await expect(scale).toHaveValue("150"); await expect.poll(() => rootSize(page)).toBe(24);
   await scale.selectOption("110"); await expect.poll(() => rootSize(page)).toBeCloseTo(17.6, 1);
-  await page.getByRole("form", { name: "계정 설정" }).getByRole("button", { name: "변경 취소" }).click(); await expect.poll(() => rootSize(page)).toBe(24);
+  await page.getByRole("form", { name: "화면 표시 설정" }).getByRole("button", { name: "변경 취소" }).click(); await expect.poll(() => rootSize(page)).toBe(24);
   await navigate(page, "엔터티"); await expect(page.getByRole("heading", { name: "엔터티", exact: true, level: 1 })).toBeVisible();
   expect(await rootSize(page)).toBe(24);
   await page.getByRole("button", { name: "내 프로필" }).click(); await page.getByRole("link", { name: "로그아웃", exact: true }).click();
@@ -99,7 +99,7 @@ test("display scale: 150% settings, menus and lists reflow at compact widths", a
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `settings ${width}`).toBe(true);
   }
   await page.screenshot({ path: info.outputPath("display-scale-settings150.png") });
-  await page.locator(".settings-group").filter({ has: page.getByLabel("데스크톱 화면 배율", { exact: true }) }).screenshot({ path: info.outputPath("display-scale-setting-control.png") });
+  await page.locator(".settings-section").filter({ has: page.getByLabel("데스크톱 화면 배율", { exact: true }) }).screenshot({ path: info.outputPath("display-scale-setting-control.png") });
   const smallFont = await page.addStyleTag({ content: ":root { font-size: 12px; }" });
   for (const option of await page.locator(".profile-choice").all()) {
     const box = (await option.boundingBox())!; expect(box.width).toBeGreaterThanOrEqual(44); expect(box.height).toBeGreaterThanOrEqual(44);
@@ -126,7 +126,7 @@ test("display scale: external profile updates preserve dirty preview and cancel 
   state.metadata.workspace_display_scale = "110";
   await Promise.all([page.waitForResponse(response => response.url().endsWith("/auth/v1/user") && response.request().method() === "GET"), notify()]);
   await expect(scale).toHaveValue("150"); expect(await rootSize(page)).toBe(24);
-  await page.getByRole("form", { name: "계정 설정" }).getByRole("button", { name: "변경 취소" }).click();
+  await page.getByRole("form", { name: "화면 표시 설정" }).getByRole("button", { name: "변경 취소" }).click();
   await expect(scale).toHaveValue("110"); await expect.poll(() => rootSize(page)).toBeCloseTo(17.6, 1);
   expect(state.writes).toEqual([]);
 });
@@ -155,7 +155,7 @@ test("display scale: switching accounts removes the previous account's unsaved p
     await page.mouse.move(handle.x - 44, handle.y + handle.height / 2);
     await expect(page.locator(".app-shell")).not.toHaveClass(/is-resizing/);
     expect((await page.getByRole("navigation", { name: "주 메뉴" }).boundingBox())!.width).toBe(260);
-    await expect(page.getByRole("button", { name: "저장", exact: true })).toBeDisabled();
+    await expect(page.getByRole("button",{name:"화면 표시 저장", exact: true })).toBeDisabled();
   }
   await page.mouse.up();
   await page.setViewportSize({ width: 390, height: 844 }); await expect.poll(() => rootSize(page)).toBe(16);
@@ -169,15 +169,15 @@ test("display scale: mobile and desktop preview, save and cancel independently a
   await page.setViewportSize({ width: 1023, height: 900 }); await expect.poll(() => rootSize(page)).toBe(24);
   await page.setViewportSize({ width: 1024, height: 900 }); await expect.poll(() => rootSize(page)).toBe(20);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-  await page.getByRole("button", { name: "저장", exact: true }).click(); await expect(page.getByRole("form", { name: "계정 설정" }).getByRole("status")).toContainText("저장했습니다");
+  await page.getByRole("button",{name:"화면 표시 저장", exact: true }).click(); await expect(page.getByRole("form", { name: "화면 표시 설정" }).getByRole("status")).toContainText("저장했습니다");
   expect(state.writes).toEqual([{ workspace_display_scale: "125", workspace_mobile_display_scale: "150" }]);
   await page.reload(); await expect(desktop).toHaveValue("125"); await expect(mobile).toHaveValue("150");
   await page.setViewportSize({ width: 390, height: 844 }); await expect.poll(() => rootSize(page)).toBe(24);
   await mobile.selectOption("110"); await desktop.selectOption("150"); await expect.poll(() => rootSize(page)).toBeCloseTo(17.6, 1);
-  await page.getByRole("form", { name: "계정 설정" }).getByRole("button", { name: "변경 취소" }).click(); await expect.poll(() => rootSize(page)).toBe(24);
+  await page.getByRole("form", { name: "화면 표시 설정" }).getByRole("button", { name: "변경 취소" }).click(); await expect.poll(() => rootSize(page)).toBe(24);
   await expect(desktop).toHaveValue("125"); await expect(mobile).toHaveValue("150");
   await page.setViewportSize({ width: 1440, height: 900 }); await expect.poll(() => rootSize(page)).toBe(20);
-  await page.locator(".settings-group").filter({ has: mobile }).screenshot({ path: info.outputPath("mobile-desktop-display-scales.png") });
+  await page.locator(".settings-section").filter({ has: mobile }).screenshot({ path: info.outputPath("mobile-desktop-display-scales.png") });
   expect(state.writes).toHaveLength(1); expect(state.metadata.provider_value).toBe("preserved");
 });
 
@@ -187,7 +187,7 @@ test("display scale: existing saved scale is preserved for desktop; mobile-only 
   await expect(page.getByLabel("모바일 화면 배율", { exact: true })).toHaveValue("100");
   await page.setViewportSize({ width: 390, height: 844 }); await expect.poll(() => rootSize(page)).toBe(16);
   await page.getByLabel("모바일 화면 배율", { exact: true }).selectOption("150");
-  await page.getByRole("button", { name: "저장", exact: true }).click(); await expect(page.getByRole("form", { name: "계정 설정" }).getByRole("status")).toContainText("저장했습니다");
+  await page.getByRole("button",{name:"화면 표시 저장", exact: true }).click(); await expect(page.getByRole("form", { name: "화면 표시 설정" }).getByRole("status")).toContainText("저장했습니다");
   expect(state.writes).toEqual([{ workspace_mobile_display_scale: "150" }]);
   expect(state.metadata.workspace_display_scale).toBe("125");
   await page.reload(); await expect.poll(() => rootSize(page)).toBe(24);

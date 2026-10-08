@@ -10,20 +10,20 @@ httpTest("업무 설정 HTTP/MCP: 인증·같은 준비 결과·전체 이전/�
   try {
     assertEquals((await call(null, "GET", "/settings/business")).status, 401);
     const invalid = await call(a, "PATCH", "/settings/business", {
-      expected_version: saved.version,
-      sections: { record_templates: { task: { create: { memo: "앞 ${할일.이전.제목$}", tag_ids: [] } } } },
+      expected_version: saved.versions.record_templates,
+      id: "record_templates",
+      value: { task: { create: { memo: "앞 ${할일.이전.제목$}", tag_ids: [] } } },
     });
     assertEquals(invalid.status, 400);
     assertEquals(invalid.body.fields[0].message.startsWith("3번째 문자:"), true);
     const changed = await tool(client, "update_business_settings", {
-      expected_version: saved.version,
-      sections: {
-        record_templates: {
-          task: { update: { memo: "${할일.이전.제목$} → ${할일.이후.제목$} / ${할일.이후.본문$}", tag_ids: [] } },
-        },
+      expected_version: saved.versions.record_templates,
+      id: "record_templates",
+      value: {
+        task: { update: { memo: "${할일.이전.제목$} → ${할일.이후.제목$} / ${할일.이후.본문$}", tag_ids: [] } },
       },
     });
-    assertEquals(changed.version, saved.version + 1);
+    assertEquals(changed.versions.record_templates, saved.versions.record_templates + 1);
     assertEquals((await call(b, "GET", "/settings/business")).body, other);
     task = await tool(client, "create_task", { kind: "once", title: "이전 제목", body: "유지 본문" });
     const request = {
@@ -51,8 +51,9 @@ httpTest("업무 설정 HTTP/MCP: 인증·같은 준비 결과·전체 이전/�
     if (task) await tool(client, "delete_task", { id: task.id, expected_version: task.version, change_tag_ids: [] });
     const latest = (await call(a, "GET", "/settings/business")).body;
     await call(a, "PATCH", "/settings/business", {
-      expected_version: latest.version,
-      sections: { record_templates: saved.settings.record_templates ?? {} },
+      expected_version: latest.versions.record_templates,
+      id: "record_templates",
+      value: saved.settings.record_templates ?? {},
     });
     await client.close();
   }

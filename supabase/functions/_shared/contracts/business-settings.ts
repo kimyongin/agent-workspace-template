@@ -11,9 +11,18 @@ export type BusinessSettings = z.infer<typeof businessSettings>;
 export function resolvedBusinessSettings(settings: BusinessSettings): BusinessSettings {
   return { record_templates: {}, entity_identity: defaultEntityIdentitySettings, ...settings };
 }
-export const businessSettingsResult = z.object({ version: z.number().int().nonnegative(), settings: businessSettings });
+const settingsVersion = z.number().int().nonnegative();
+export const businessSettingsResult = z.object({
+  versions: z.object({ record_templates: settingsVersion, entity_identity: settingsVersion }),
+  settings: businessSettings,
+});
 export type BusinessSettingsResult = z.infer<typeof businessSettingsResult>;
-export const businessSettingsUpdate = z.strictObject({
-  expected_version: z.number().int().nonnegative(),
-  sections: businessSettings,
-}).refine((value) => Object.keys(value.sections).length > 0, { message: "저장할 설정 섹션이 없습니다" });
+export const businessSettingsUpdate = z.discriminatedUnion("id", [
+  z.strictObject({ id: z.literal("record_templates"), expected_version: settingsVersion, value: recordTemplates }),
+  z.strictObject({
+    id: z.literal("entity_identity"),
+    expected_version: settingsVersion,
+    value: entityIdentitySettings,
+  }),
+]);
+export type BusinessSettingsUpdate = z.infer<typeof businessSettingsUpdate>;
