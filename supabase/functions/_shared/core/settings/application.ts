@@ -212,6 +212,9 @@ export function updateBusinessSettings(d: BusinessSettingsDeps, actor: Actor, in
   return d.uow.run(actor, async (store) => {
     const sections: BusinessSettings = { [parsed.data.id]: parsed.data.value };
     const current = await store.get();
+    if (current.versions[parsed.data.id] !== parsed.data.expected_version) {
+      throw conflict("같은 설정에 다른 변경이 저장되어 있습니다. 최신값을 확인한 뒤 다시 저장하세요.");
+    }
     if (sections.entity_identity) {
       const nextCodes = new Set(sections.entity_identity.sources.map((source) => source.code));
       if (current.settings.entity_identity?.sources.some((source) => !nextCodes.has(source.code))) {

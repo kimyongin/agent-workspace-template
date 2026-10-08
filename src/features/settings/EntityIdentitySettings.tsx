@@ -15,8 +15,24 @@ export function EntityIdentitySettings({onStateChange}: {onStateChange?: (state:
     try {
       const value = await api<BusinessSettingsResult>("GET", "/settings/business", undefined, signal);
       if (signal?.aborted) return;
-      if (!draft) setPersistedSourceCount((value.settings.entity_identity ?? defaultEntityIdentitySettings).sources.length);
-      setSaved(value); setDraft(current => current ?? value.settings.entity_identity ?? defaultEntityIdentitySettings);
+      const latest = value.settings.entity_identity ?? defaultEntityIdentitySettings;
+      if (draft) {
+        const previous = saved?.settings.entity_identity ?? defaultEntityIdentitySettings;
+        const sources = latest.sources.map(source => {
+          const before = previous.sources.find(value => value.code === source.code);
+          const edited = draft.sources.slice(0,persistedSourceCount).find(value => value.code === source.code);
+          return before && edited ? {...source,
+            label:edited.label === before.label ? source.label : edited.label,
+            deleted:!!edited.deleted === !!before.deleted ? source.deleted : edited.deleted,
+          } : source;
+        });
+        setDraft({...draft,
+          generation:draft.generation === previous.generation ? latest.generation : draft.generation,
+          default_source:draft.default_source === previous.default_source ? latest.default_source : draft.default_source,
+          sources:[...sources,...draft.sources.slice(persistedSourceCount)],
+        });
+      } else setDraft(latest);
+      setPersistedSourceCount(latest.sources.length); setSaved(value);
       setConflict(false); setMessage(draft ? "최신 설정을 확인했습니다. 입력은 유지했습니다." : ""); setError(false);
     } catch { if (!signal?.aborted) { setMessage("식별자 설정을 불러오지 못했습니다."); setError(true); } }
   };

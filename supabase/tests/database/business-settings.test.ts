@@ -42,6 +42,24 @@ dbTest("설정 ID별 첫 저장·버전 격리와 같은 ID의 동시 저장 충
       value: saved.settings.entity_identity!,
     });
     assertEquals(identity.versions, { record_templates: 2, entity_identity: 2 });
+    await updateBusinessSettings(settings, own.actor, {
+      id: "entity_identity",
+      expected_version: 2,
+      value: {
+        ...saved.settings.entity_identity!,
+        sources: [...saved.settings.entity_identity!.sources, { code: "crm", label: "다른 창에서 추가" }],
+      },
+    });
+    const addedSourceConflict = await assertRejects(
+      () =>
+        updateBusinessSettings(settings, own.actor, {
+          id: "entity_identity",
+          expected_version: 2,
+          value: saved.settings.entity_identity!,
+        }),
+      AppError,
+    );
+    assertEquals(addedSourceConflict.code, "conflict");
     await assertRejects(
       () =>
         updateBusinessSettings(settings, own.actor, {

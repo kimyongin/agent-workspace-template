@@ -165,7 +165,7 @@ test("원격 로그아웃 실패는 로컬 해제를 안내하며 재로그인�
   await page.route("**/auth/v1/logout*", async route => { calls++; await route.fulfill(fail ? { status: 500, json: { msg: "fixture failure" } } : { status: 204 }); });
   await page.route("**/auth/v1/user", route => route.fulfill({ json: { ...user, user_metadata: { ...user.user_metadata, workspace_avatar_id: "leaf" } } }));
   await page.goto("/settings"); await requestLogout(page);
-  await expect(page.getByRole("form",{name:"프로필 설정"}).getByRole("alert")).toContainText("이 기기에서는 로그아웃했습니다",{timeout:15000});
+  await expect(page.getByRole("alert")).toContainText("이 기기에서는 로그아웃했습니다",{timeout:15000});
   await expect(page.getByRole("navigation", { name: "주 메뉴" })).toHaveCount(0);
   fail = false; await page.getByRole("link", { name: "로그인으로 이동", exact: true }).click(); await expect(page).toHaveURL(/\/login$/); expect(calls).toBe(1);
   await signIn(page); await expect(page).toHaveURL(/\/tasks$/); await settings(page); await expect(page.getByRole("radio", { name: "잎", exact: true })).toBeChecked(); expect(calls).toBe(1);
@@ -175,14 +175,14 @@ test("가이드의 복사 실패와 성공 안내는 유지한다", async ({ pag
   await page.goto("/guide");
   await page.getByText("설치·연결 정보",{exact:true}).click();
   await page.evaluate(() => Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: async () => { throw new Error("denied"); } } }));
-  await page.getByRole("button", { name: "연결 주소 복사" }).click(); await expect(page.getByRole("form",{name:"프로필 설정"}).getByRole("status")).toContainText("위 주소를 선택해 직접 복사");
+  await page.getByRole("button", { name: "연결 주소 복사" }).click(); await expect(page.getByRole("status")).toContainText("위 주소를 선택해 직접 복사");
   await page.evaluate(() => Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: async () => {} } }));
-  await page.getByRole("button", { name: "연결 주소 복사" }).click(); await expect(page.getByRole("form",{name:"프로필 설정"}).getByRole("status")).toHaveText("연결 주소를 복사했습니다.");
+  await page.getByRole("button", { name: "연결 주소 복사" }).click(); await expect(page.getByRole("status")).toHaveText("연결 주소를 복사했습니다.");
 });
 
 for(const width of [390,1440])test(`#205 ${width}px: 설정·가이드 구획과 탐색 팝오버`,async({page},info)=>{
   await page.setViewportSize({width,height:900});await page.goto("/settings");
-  const groups=page.locator(".settings .settings-section");await expect(groups).toHaveCount(4);
+  const groups=page.locator(".settings .settings-section");await expect(groups).toHaveCount(6);
   expect((await page.locator(".settings").boundingBox())!.width).toBeLessThanOrEqual(768);
   await page.screenshot({path:info.outputPath(`compact-settings-${width}.png`)});
   await page.getByRole("button",{name:"내 프로필",exact:true}).click();const popup=page.locator("#nav-profile-options"),box=(await popup.boundingBox())!;

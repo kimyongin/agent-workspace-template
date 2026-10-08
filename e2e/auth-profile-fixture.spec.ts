@@ -4,6 +4,35 @@ const user = { id: "00000000-0000-0000-0000-000000000001", aud: "authenticated",
 const other = { ...user, id: "00000000-0000-0000-0000-000000000002", email: "other@example.test", user_metadata: { workspace_avatar_id: "leaf", provider_value: "other" } };
 const fixture = "/e2e/fixtures/auth-profile.html";
 
+test("다른 창의 발급처 추가 충돌을 읽고 사용자 이름 편집과 새 발급처를 함께 저장한다",async({page,context})=>{
+  let version=1;
+  let value={generation:"uuid",default_source:"app",sources:[{code:"app",label:"앱"}]};
+  const writes:{expected_version:number;value:typeof value}[]=[];
+  await context.route("**/settings/business",route=>{
+    if(route.request().method()==="PATCH") {
+      const input=route.request().postDataJSON();writes.push(input);
+      if(input.expected_version!==version)return route.fulfill({status:409,json:{error:{code:"conflict",message:"같은 설정에 다른 변경이 저장되어 있습니다.",fields:[]}}});
+      value=input.value;version++;
+    }
+    return route.fulfill({json:{versions:{record_templates:0,entity_identity:version},settings:{record_templates:{},entity_identity:value}}});
+  });
+  await context.route("**/tags?**",route=>route.fulfill({json:{items:[],next_cursor:null}}));
+  await page.goto(fixture);
+  const identity=page.locator('section[aria-labelledby="entity-identity-title"]');
+  await identity.getByLabel("발급처 1 표시 이름").fill("내가 편집한 이름");
+  value={generation:"manual",default_source:"crm",sources:[{code:"app",label:"앱"},{code:"crm",label:"다른 창에서 추가"}]};version=2;
+  await identity.getByRole("button",{name:"식별자 설정 저장",exact:true}).click();
+  await identity.getByRole("button",{name:"최신값 확인",exact:true}).click();
+  await expect(identity.getByLabel("발급처 1 표시 이름")).toHaveValue("내가 편집한 이름");
+  await expect(identity.getByLabel("발급처 2 표시 이름")).toHaveValue("다른 창에서 추가");
+  await expect(identity.getByLabel("식별자 발급 방식")).toHaveValue("manual");
+  await expect(identity.getByLabel("기본 발급처")).toHaveValue("crm");
+  await identity.getByRole("button",{name:"식별자 설정 저장",exact:true}).click();
+  await expect(identity).toContainText("식별자 설정을 저장했습니다");
+  expect(writes.map(input=>input.expected_version)).toEqual([1,2]);
+  expect(value.sources).toEqual([{code:"app",label:"내가 편집한 이름"},{code:"crm",label:"다른 창에서 추가"}]);
+});
+
 for (const width of [390,1440]) test(`업무 설정 ${width}px: 독립 저장·초안 보존·발급처 삭제/복원·초안 코드 수정`, async ({page,context}, info)=>{
   const versions = {record_templates:0,entity_identity:0};
   const settings = {record_templates:{},entity_identity:{generation:"uuid",default_source:"app",sources:[{code:"app",label:"앱"},{code:"crm",label:"고객"}]}};
