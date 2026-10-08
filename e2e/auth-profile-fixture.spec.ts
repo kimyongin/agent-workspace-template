@@ -311,6 +311,8 @@ for (const width of [320, 390, 1440]) test(`프로필 ${width}px: 두 줄 스크
   for(let i=0;i<19;i++)await page.keyboard.press("ArrowRight");
   await expect(page.getByRole("radio",{name:"과녁",exact:true})).toBeChecked();
   expect(await choices.evaluate(node=>node.scrollTop)).toBeGreaterThan(0);
+  await page.getByLabel("닉네임", {exact:true}).fill("긴".repeat(40));
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.getByLabel("닉네임", {exact:true}).fill("새 닉네임");
   await page.getByLabel("표시 시간대").selectOption("UTC");
   const otherTab=await context.newPage();await otherTab.goto(fixture);

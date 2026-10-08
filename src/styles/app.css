@@ -134,7 +134,7 @@ html { scroll-padding-bottom: calc(var(--navigation-height) + env(safe-area-inse
 .settings p { overflow-wrap: anywhere; }
 .settings > section, .settings > form { display: grid; gap: var(--space-3); }
 .settings section p, .settings form > p { margin: 0; }
-.settings .account-name { font-size: 1.125rem; line-height: 1.75rem; font-weight: 600; color: var(--ink); }
+.settings .account-name { min-width: 0; overflow-wrap: anywhere; font-size: 1.125rem; line-height: 1.75rem; font-weight: 600; color: var(--ink); }
 .settings > .btn { justify-self: start; }
 .settings section > .btn { justify-self: start; }
 .settings fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
