@@ -77,7 +77,7 @@ test("저장 뒤 재조회가 이전 더 보기 응답을 무시하고 새 경�
 test("실제 App에서 태그 dirty 주 탐색·뒤로가기·앞으로가기 취소", async ({ page }) => {
   await page.route("**/api/tasks**", route => route.fulfill({ json: { items: [task], next_cursor: null } }));
   await page.route("**/api/entities**", route => route.fulfill({ json: { items: [], next_cursor: null } }));
-  await page.goto("/e2e/fixtures/entity-tags-app.html"); await expect(page.getByRole("heading", { name: "할 일", exact: true })).toBeVisible();
+  await page.goto("/e2e/fixtures/entity-tags-app.html"); await expect(page.getByRole("heading", { name: "할 일", level: 1, exact: true })).toBeVisible();
   await tagManagement(page);
   await page.getByRole("textbox", { name: /태그 이름/ }).fill("앱 초안");
   await page.getByRole("navigation", { name: "주 메뉴" }).getByRole("link", { name: "할 일", exact: true }).evaluate((el:HTMLAnchorElement)=>el.click());
@@ -108,7 +108,7 @@ test("실제 App 공통 모달 생성·직접 편집 성공/취소·저장 중 P
     else if (request.method() === "PATCH") { current = { ...current, ...request.postDataJSON(), version: current.version + 1 }; await route.fulfill({ json: current }); }
     else await route.fulfill({ json: new URL(request.url()).pathname.endsWith(current.id) ? current : { items: [current], next_cursor: null } });
   });
-  await page.goto("/e2e/fixtures/entity-tags-app.html"); await expect(page.getByRole("heading", { name: "할 일", exact: true })).toBeVisible();
+  await page.goto("/e2e/fixtures/entity-tags-app.html"); await expect(page.getByRole("heading", { name: "할 일", level: 1, exact: true })).toBeVisible();
   await tagManagement(page);
   await page.getByRole("button",{name:"닫기",exact:true}).click();
   await page.getByRole("navigation", { name: "주 메뉴" }).getByRole("link", { name: "할 일", exact: true }).click();
@@ -132,7 +132,7 @@ test("실제 App 태그 폐기 승인 뒤에만 로그아웃 요청하고 로그
   await page.route("**/api/tasks**", route => route.fulfill({ json: { items: [], next_cursor: null } }));
   await page.route("**/api/entities**", route => route.fulfill({ json: { items: [], next_cursor: null } }));
   await page.route("**/auth/v1/logout**", route => { signOuts++; return route.fulfill({ status: 200, json: {} }); });
-  await page.goto("/e2e/fixtures/entity-tags-app.html"); await expect(page.getByRole("heading", { name: "할 일", exact: true })).toBeVisible();
+  await page.goto("/e2e/fixtures/entity-tags-app.html"); await expect(page.getByRole("heading", { name: "할 일", level: 1, exact: true })).toBeVisible();
   await tagManagement(page); await page.getByRole("textbox", { name: /태그 이름/ }).fill("로그아웃 초안");
   await settings(page);
   await expect(page.getByRole("dialog", { name: "변경을 버릴까요?" })).toBeVisible(); expect(signOuts).toBe(0);
