@@ -3,8 +3,8 @@
 .view-picker { display: inline-flex; align-items: center; flex-shrink: 0; gap: 0; }
 .view-picker button { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; padding: 0; border: 0; background: transparent; color: var(--muted-ink); cursor: pointer; border-radius: var(--radius-input); }
 .view-picker button > span { display: grid; place-items: center; width: 1.375rem; height: 1.375rem; border: 1px solid transparent; border-radius: var(--radius-body-action); }
-.view-picker button[aria-checked=true] > span { background: var(--surface); color: var(--ink); }
 .view-picker button:hover > span { background: var(--surface); color: var(--ink); }
+.view-picker button[aria-checked=true] > span { background: var(--surface); color: var(--accent); }
 .view-picker svg { width: .8125rem; height: .8125rem; }
 @media (pointer: fine) { .view-picker button { width: 1.75rem; height: 1.75rem; min-width: 24px; min-height: 24px; } }
 .collection { --collection-secondary-width: clamp(80px, 18vw, 128px); min-width: 0; }
