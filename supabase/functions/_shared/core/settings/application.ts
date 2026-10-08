@@ -12,10 +12,10 @@ import { type PreparedRecordMemo, prepareRecordMemo } from "../../contracts/reco
 import { modelActions, type TemplateModel } from "../../contracts/record-template.ts";
 import { changeDefaults } from "./change-defaults.ts";
 import type { ChangeFacts } from "../shared/changes.ts";
-import { taskCreate } from "../../contracts/task.ts";
+import { taskCreate, taskUpdate } from "../../contracts/task.ts";
 import { taskContent } from "../activity/domain.ts";
-import { entityCreate } from "../../contracts/entity.ts";
-import { principleCreate } from "../../contracts/principle.ts";
+import { entityCreate, entityUpdate } from "../../contracts/entity.ts";
+import { principleCreate, principleUpdate } from "../../contracts/principle.ts";
 import { defaultEntityIdentitySettings, entityId } from "../../contracts/entity-identity.ts";
 export interface BusinessSettingsStore {
   get(): Promise<BusinessSettingsResult>;
@@ -59,20 +59,43 @@ export function prepareBusinessRecord(
       before = target.facts;
     }
     let content = input.input;
+    let prepared_input = content;
+    if (input.action === "update" || input.action === "restore") {
+      const schema = input.action === "restore"
+        ? entityCreate
+        : input.model === "task"
+        ? taskUpdate
+        : input.model === "entity"
+        ? entityUpdate
+        : principleUpdate;
+      const mutation = schema.safeParse({ ...content, expected_version: input.expected_version });
+      if (!mutation.success) {
+        throw invalidInput(
+          "업무 입력을 확인하세요",
+          mutation.error.issues.map((issue) => ({ path: `input.${issue.path.join(".")}`, message: issue.message })),
+        );
+      }
+      const { expected_version: _version, ...fields } = mutation.data;
+      content = fields;
+      prepared_input = fields;
+      if (
+        input.action === "restore" &&
+        ((content.source !== undefined && content.source !== before?.source) ||
+          (content.external_id !== undefined && content.external_id !== before?.external_id))
+      ) throw invalidInput("복원은 같은 발급처·식별자로 준비하세요");
+    }
     if (input.action === "create") {
       const schema = input.model === "task" ? taskCreate : input.model === "entity" ? entityCreate : principleCreate;
-      const creation = schema.safeParse(
-        input.model === "entity" ? content : { id: "00000000-0000-4000-8000-000000000001", ...content },
-      );
+      const creationInput = input.model === "entity" ? content : { id: content.id ?? crypto.randomUUID(), ...content };
+      const creation = schema.safeParse(creationInput);
       if (!creation.success) {
         throw invalidInput(
           "업무 입력을 확인하세요",
           creation.error.issues.map((issue) => ({ path: `input.${issue.path.join(".")}`, message: issue.message })),
         );
       }
-      content = input.model === "task"
-        ? taskContent(taskCreate.parse({ id: "00000000-0000-4000-8000-000000000001", ...content }))
-        : creation.data;
+      prepared_input = creation.data;
+      content = input.model === "task" ? taskContent(taskCreate.parse(creationInput)) : creation.data;
       if (input.model === "entity") {
         const settings = saved.settings.entity_identity ?? defaultEntityIdentitySettings;
         const source = String(content.source ?? settings.default_source);
@@ -97,6 +120,7 @@ export function prepareBusinessRecord(
           prop4: content.prop4 ?? "a",
           tag_ids: content.tag_ids ?? [],
         };
+        prepared_input = content;
       }
     }
     const after = input.action === "delete" ? null : {
@@ -119,7 +143,6 @@ export function prepareBusinessRecord(
       saved.settings,
       await store.recordTags(ids),
     );
-    const prepared_input = input.action === "create" && input.model === "entity" ? content : input.input;
     return { ...result, prepared_input, settings_version: saved.version };
   });
 }
