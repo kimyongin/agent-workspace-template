@@ -1,3 +1,4 @@
+import { CollectionList } from "../../components/Collection.tsx";
 import { useEffect, useState } from "react";
 import type { RecordResult } from "@contracts/record.ts";
 import type { TaskResult } from "@contracts/task.ts";
@@ -25,12 +26,12 @@ export function RecordRelations({record,includeEntities=true}: {record:RecordRes
     const ids=[...new Set([...(change?[change.target_id]:[]),...selected])];
     if(!ids.length)return null;
     return <RelatedSection key={group.kind} title={group.title} count={ids.length}>
-      <ul className="related-items">{ids.map(id=><li key={id}>
+      <CollectionList>{ids.map(id=><li key={id}>
         {change?.target_id===id
           ?<ChangedRelation change={change} path={`/${group.route}/${encodeURIComponent(id)}`} occurrence={group.kind==="task"&&record.task_id===id?record.occurrence_on:null}/>
           :group.kind==="entity"?<EntityLinkItem id={id} context={record.entity_context}/>
           :group.kind==="task"?<RelatedTaskItem id={id} occurrence={record.occurrence_on}/>:null}
-      </li>)}</ul>
+      </li>)}</CollectionList>
     </RelatedSection>;
   })}</>;
 }

@@ -24,6 +24,7 @@ export function listScope(params: URLSearchParams): string {
   scope.delete("create");
   scope.delete("open");
   scope.delete("filters");
+  ["view", "calendar_month", "calendar_day"].forEach(key => scope.delete(key));
   scope.sort();
   return scope.toString();
 }

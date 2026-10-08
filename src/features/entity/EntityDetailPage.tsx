@@ -1,3 +1,4 @@
+import { CollectionList } from "../../components/Collection.tsx";
 import { useDisplayTime } from "../../lib/useDisplayTime.ts";
 import { BodyAction } from "../../components/BodyAction.tsx";
 import type { EntityContext } from "@contracts/entity-links.ts";
@@ -84,7 +85,7 @@ export function EntityDetailPage() {
           }} onCreate={()=>{const p=new URLSearchParams(params);p.set("create","task");navigate(`?${p}`);}}/>
           {([["records", "기록"]] as const).map(([kind, label]) => (
             <RelatedSection key={kind} title={label} count={entity[kind].count} action={<BodyAction icon="create" aria-label="기록 작성" onClick={()=>{const p=new URLSearchParams(params);p.set("create","record");navigate(`?${p}`);}}>작성</BodyAction>}>
-              {entity[kind].count>0&&<ul className="related-items">{entity[kind].items.map(item=><li key={item.id}><RelatedRecordItem record={item}/></li>)}</ul>}
+              {entity[kind].count>0&&<CollectionList>{entity[kind].items.map(item=><li key={item.id}><RelatedRecordItem record={item}/></li>)}</CollectionList>}
             </RelatedSection>
           ))}
     </div>;

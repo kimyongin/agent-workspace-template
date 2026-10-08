@@ -39,7 +39,7 @@ export function TabSearch({ entity = false }: { entity?: boolean }) {
   </Field></div>;
 }
 export function resetTabFilters(params: URLSearchParams) {
-  return new URLSearchParams([...params].filter(([key]) => ["q", "keyword", "filters"].includes(key)));
+  return new URLSearchParams([...params].filter(([key]) => ["q", "keyword", "filters", "view"].includes(key)));
 }
 /** URL owns disclosure state; optional conditions remain mounted while hidden. */
 export function TabFilters({ active = false, attention = false, children }: { active?: boolean; attention?: boolean; children: ReactNode }) {

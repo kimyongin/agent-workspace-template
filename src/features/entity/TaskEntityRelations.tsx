@@ -1,3 +1,4 @@
+import { CollectionList } from "../../components/Collection.tsx";
 import { BodyAction } from "../../components/BodyAction.tsx";
 import { useContext, useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { SurfaceContext } from "../../components/Modal.tsx";
@@ -49,7 +50,7 @@ function RelationControls({task,entityId,entityTitle,revision,children,onSaved}:
 
 export function TaskEntityRelations({task,onSaved}: {task:TaskResult;onSaved:(saved?:TaskResult,before?:TaskResult)=>void}) {
   return <RelationControls key={task.id} task={task} onSaved={onSaved}>{({search,button,unlink})=><RelatedSection title="엔터티" count={task.entity_ids.length} action={button}>
-    {search}<ul className="related-items">{task.entity_ids.map(id=>{const item={id,title:task.entity_context.find(item=>item.id===id)?.title??"엔터티"};return <li key={id}><RelatedPreviewItem to={`/entities/${id}`} title={item.title} action={unlink(item)}/></li>;})}</ul>
+    {search}<CollectionList>{task.entity_ids.map(id=>{const item={id,title:task.entity_context.find(item=>item.id===id)?.title??"엔터티"};return <li key={id}><RelatedPreviewItem to={`/entities/${id}`} title={item.title} action={unlink(item)}/></li>;})}</CollectionList>
   </RelatedSection>}</RelationControls>;
 }
 
@@ -65,7 +66,7 @@ export function EntityTaskRelations({entity,onCreate,onSaved}: {entity:EntityDet
     catch{if(!controller.signal.aborted)setFailed(true);}finally{if(!controller.signal.aborted)setLoading(false);}
   };
   return <RelationControls key={entity.id} entityId={entity.id} entityTitle={entity.prop1} revision={entity.tasks} onSaved={onSaved}>{({search,button,unlink})=><RelatedSection title="할 일" count={entity.tasks.count} action={<div className="actions"><BodyAction icon="create" aria-label="할 일 작성" onClick={onCreate}>작성</BodyAction>{button}</div>}>
-    {search}<ul className="related-items">{items.map(item=><li key={item.id}><RelatedPreviewItem to={`/tasks/${item.id}`} title={item.title} action={unlink(item)}/></li>)}</ul>
+    {search}<CollectionList>{items.map(item=><li key={item.id}><RelatedPreviewItem to={`/tasks/${item.id}`} title={item.title} action={unlink(item)}/></li>)}</CollectionList>
     {failed&&<Notice kind="error">연결된 할 일을 불러오지 못했습니다.</Notice>}
     {(failed||cursor||cursor===undefined&&entity.tasks.count>items.length)&&<BodyAction disabled={loading} onClick={()=>void more()}>{loading?"불러오는 중…":failed?"할 일 다시 시도":"할 일 더 보기"}</BodyAction>}
   </RelatedSection>}</RelationControls>;

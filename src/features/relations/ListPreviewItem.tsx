@@ -39,7 +39,7 @@ export function ListExpansionProvider({children}:{children:ReactNode}) {
   }}>{children}</ItemExpansionProvider>;
 }
 
-export function ListPreviewItem({kind,id,title,metadata}:{kind:ActivityListKind;id:string;title:string;metadata?:ReactNode}) {
+export function ListPreviewItem({kind,id,title,metadata,cells}:{kind:ActivityListKind;id:string;title:string;metadata?:ReactNode;cells?:ReactNode[]}) {
   const [params]=useSearchParams(),location=useLocation(),navigate=useNavigate();
   const path=`/${kind}/${id}`;
   const link=()=>{
@@ -51,5 +51,5 @@ export function ListPreviewItem({kind,id,title,metadata}:{kind:ActivityListKind;
       void Promise.resolve(navigate(at,{replace:true,preventScrollReset:true})).then(()=>navigate(`${path}?list=${encodeURIComponent(at)}`,{state:null}));
     }};
   };
-  return <div className={kind==="records"?"related-record":undefined}><RelatedPreviewItem id={listAnchor(kind,id)} to={path} title={title} list={{link,metadata}}/></div>;
+  return <div className={kind==="records"?"related-record":undefined}><RelatedPreviewItem id={listAnchor(kind,id)} to={path} title={title} cells={cells} list={{link,metadata}}/></div>;
 }

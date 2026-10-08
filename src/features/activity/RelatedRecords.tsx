@@ -1,3 +1,4 @@
+import { CollectionList } from "../../components/Collection.tsx";
 import { BodyAction } from "../../components/BodyAction.tsx";
 import { useSearchParams } from "react-router";
 import { useDetailNavigate } from "../../lib/detail-exploration.tsx";
@@ -43,7 +44,7 @@ function TaskRecords({taskId,revision,action}:{taskId:string;revision:number;act
   useEffect(()=>{if(!page||busy||error||surface?.editor.current||params.has("edit")||params.has("action")||params.has("occurrence")||Math.min(page.pages,MAX_RESTORE_PAGES)===requested)return;const next=new URLSearchParams(params);next.set("related_record_pages",String(Math.min(page.pages,MAX_RESTORE_PAGES)));void navigate(`?${next}`);},[page,busy,error,params,requested,navigate,surface]);
   return <RelatedSection title="기록" count={page?.items.length} hasMore={!!page?.next_cursor} action={action}>
     {busy&&<p className="secondary" role="status">불러오는 중…</p>}
-    {!!page?.items.length&&<ul className="related-items">{page.items.map(record=><li key={record.id}><RelatedRecordItem record={record}/></li>)}</ul>}
+    {!!page?.items.length&&<CollectionList>{page.items.map(record=><li key={record.id}><RelatedRecordItem record={record}/></li>)}</CollectionList>}
     {error&&<Notice kind="error">연결된 기록을 불러오지 못했습니다.</Notice>}
     {(page?.next_cursor||error)&&<BodyAction disabled={busy} onClick={()=>void load(error?failedTarget.current:(page?.pages??0)+1,error?failedManual.current:true)}>{busy?"불러오는 중…":error?"기록 다시 시도":"기록 더 보기"}</BodyAction>}
   </RelatedSection>;

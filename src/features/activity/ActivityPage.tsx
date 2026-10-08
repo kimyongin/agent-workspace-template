@@ -1,3 +1,6 @@
+import { CollectionHeading, CollectionList, useMainCollectionView } from "../../components/Collection.tsx";
+import { RecordCalendar } from "./RecordCalendar.tsx";
+import { StatusBadge } from "./shared.tsx";
 import { recordDisplayText } from "@contracts/record-display.ts";
 import { SearchMatch } from "../../components/SearchMatch.tsx";
 import { useEffect, useRef, useState } from "react";
@@ -24,19 +27,30 @@ import { ListExpansionProvider, ListPreviewItem } from "../relations/ListPreview
 import "./activity.css";
 
 function ActivitySection({ kind, tags, bounds, dictionary }: { kind: WorkspaceListKind; tags: string[]; bounds: NonNullable<ReturnType<typeof periodBounds>>; dictionary: ReturnType<typeof useTagDictionary> }) {
+  const [view,changeView]=useMainCollectionView(kind==="records");
+  const {formatDateTime,timezone}=useDisplayTime();
   const list = useActivityList(kind, { tags, bounds, layoutReady: !!dictionary.tags || dictionary.failed });
   const { metadata, searching: q, filtered } = list;
   const displayText = (item: ActivityItem) => kind === "records" && "body" in item ? recordDisplayText(item.body) : "title" in item ? item.title : "기록";
-  const preview = (item: ActivityItem) => <ListPreviewItem kind={kind} id={item.id} title={displayText(item)} metadata={"match" in item?<SearchMatch item={item}/>:undefined}/>;
+  const preview = (item: ActivityItem) => {
+    const time = "occurred_at" in item ? item.occurred_at : (item as SearchItem).at;
+    const cells = kind === "tasks"
+      ? ["status" in item ? <StatusBadge status={item.status}/> : null, "due_on" in item ? item.due_on : null]
+      : ["record_kind" in item && item.record_kind ? recordKindNames[item.record_kind] : null,
+        <time dateTime={time} title={formatDateTime(time)}>{new Intl.DateTimeFormat("ko-KR", { dateStyle: "short", timeZone: timezone }).format(new Date(time))}</time>];
+    return <ListPreviewItem kind={kind} id={item.id} title={displayText(item)} cells={cells} metadata={"match" in item ? <SearchMatch item={item}/> : undefined}/>;
+  };
   return <section className={`activity-section ${kind}`} aria-label={`${kind === "tasks" ? "할 일" : "기록"} 목록`}>
+    <CollectionHeading label={kind==="tasks"?"할 일":"기록"} count={list.items?.length} hasMore={!!list.cursor} view={view} onChange={changeView} calendar={kind==="records"}/>
     {q && <p className="help">관련도순으로 회수한 검색 결과{kind === "records" ? "를 날짜별로 표시합니다." : "입니다."}</p>}
     {metadata?.search_state === "keyword_fallback" && <Notice>의미 검색을 사용할 수 없어 키워드 검색 결과를 표시합니다.</Notice>}
     {metadata && metadata.semantic_coverage.pending + metadata.semantic_coverage.excluded > 0 && <p className="help">의미 색인 대기 {metadata.semantic_coverage.pending}개 · 제외 {metadata.semantic_coverage.excluded}개</p>}
     {list.busy && !list.items && <p role="status" className="secondary">불러오는 중…</p>}
     {list.items?.length === 0 && <p className="secondary">{filtered ? `조건에 맞는 ${kind === "tasks" ? "할 일" : "기록"}이 없습니다.` : `아직 ${kind === "tasks" ? "할 일" : "기록"}이 없습니다.`}</p>}
     {list.items && <ListExpansionProvider><TagReadProvider dictionary={dictionary} enabled={list.items.some(item => item.tag_ids.length > 0)}>
-      {kind === "tasks" ? <ul className="list disclosure-list panel">{list.items.map(item => <li key={item.id} className="list-item"><div className="list-item-main">{preview(item)}</div></li>)}</ul>
-        : <Timeline items={list.items} kind="기록" at={item => "occurred_at" in item ? item.occurred_at : (item as SearchItem).at}>{item => preview(item)}</Timeline>}
+      {kind === "tasks" ? <CollectionList view={view==="calendar"?"list":view} label="할 일 목록" columns={["할 일","상태","기한"]} numericColumns={[2]}>{list.items.map(item => <li key={item.id}>{preview(item)}</li>)}</CollectionList>
+        : view==="calendar"?<RecordCalendar items={list.items} at={item=>"occurred_at" in item?item.occurred_at:(item as SearchItem).at} partial={!!list.cursor}>{item=>preview(item)}</RecordCalendar>
+        : <Timeline items={list.items} kind="기록" view={view} at={item => "occurred_at" in item ? item.occurred_at : (item as SearchItem).at}>{item => preview(item)}</Timeline>}
     </TagReadProvider></ListExpansionProvider>}
     {list.error && <Notice kind="error">{list.error}</Notice>}
     {list.showMoreControl && <button id={`activity-${kind}-page-control`} type="button" className="btn" aria-disabled={list.busy || !list.cursor && !list.error} onClick={list.error ? list.retry : list.more}>{list.busy ? "불러오는 중…" : list.error ? "다시 시도" : list.cursor ? `${kind === "tasks" ? "할 일" : "기록"} 더 보기` : "모두 불러왔습니다"}</button>}
