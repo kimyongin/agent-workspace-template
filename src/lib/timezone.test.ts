@@ -1,8 +1,10 @@
-import { expect, test } from "vitest";
+import { expect, test, vi } from "vitest";
 import { timezoneOptions, timezonePreference } from "./timezone.ts";
 import { fromLocalInput, toLocalInput, formatDateTime } from "./format.ts";
 import { periodBounds } from "../features/activity/activity-filters.ts";
 import { recordDraftFrom, recordDraftTime, taskDraftFrom, emptyTask } from "../features/activity/forms.tsx";
+
+vi.mock("./api.ts", () => ({ api: vi.fn() }));
 
 test("account preferences accept named zones, retain aliases in options and fall back for unknown metadata", () => {
   expect(timezonePreference("Asia/Seoul")).toBe("Asia/Seoul");
