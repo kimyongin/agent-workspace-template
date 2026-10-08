@@ -83,7 +83,7 @@ dbTest("업무 설정 DB: 소유자 격리·섹션 병합·경합·고정 메모
     });
     assertEquals(next.change_tag_ids, []);
     assertEquals(next.missing_tag_ids, [tag.id]);
-    const latestRecord = await getRecord(activity,actor,frozen.id);
+    const latestRecord = await getRecord(activity, actor, frozen.id);
     await updateRecord(activity, actor, frozen.id, { expected_version: latestRecord.version, body: "기록 정정" });
     records = (await listRecords(activity, actor, recordListQuery.parse({ record_kind: "change", limit: 100 }))).items;
     assertEquals(records.filter((record) => record.change?.target_id === first.id).length, 1);

@@ -14,7 +14,7 @@ import { changeDefaults } from "./change-defaults.ts";
 import type { ChangeFacts } from "../shared/changes.ts";
 import { taskCreate, taskUpdate } from "../../contracts/task.ts";
 import { taskContent } from "../activity/domain.ts";
-import { entityCreate, entityUpdate } from "../../contracts/entity.ts";
+import { entityCreate, entityRekey, entityUpdate } from "../../contracts/entity.ts";
 import { principleCreate, principleUpdate } from "../../contracts/principle.ts";
 import { defaultEntityIdentitySettings, entityId } from "../../contracts/entity-identity.ts";
 export interface BusinessSettingsStore {
@@ -39,6 +39,9 @@ export function prepareBusinessRecord(
     );
   }
   const input = parsed.data;
+  if (input.operation && (input.model !== "entity" || input.action !== "update")) {
+    throw invalidInput("식별 정보 변경은 엔터티 수정에만 사용할 수 있습니다");
+  }
   if (!modelActions(input.model).includes(input.action)) throw invalidInput("이 모델에서 사용할 수 없는 액션입니다");
   if (new TextEncoder().encode(JSON.stringify(input.input)).length > BUSINESS_SETTINGS_MAX_BYTES) {
     throw invalidInput("입력 크기가 너무 큽니다");
@@ -61,7 +64,9 @@ export function prepareBusinessRecord(
     let content = input.input;
     let prepared_input = content;
     if (input.action === "update" || input.action === "restore") {
-      const schema = input.action === "restore"
+      const schema = input.operation === "identity"
+        ? entityRekey
+        : input.action === "restore"
         ? entityCreate
         : input.model === "task"
         ? taskUpdate
@@ -78,6 +83,16 @@ export function prepareBusinessRecord(
       const { expected_version: _version, ...fields } = mutation.data;
       content = fields;
       prepared_input = fields;
+      if (input.operation === "identity") {
+        const settings = saved.settings.entity_identity ?? defaultEntityIdentitySettings;
+        if (!settings.sources.some((source) => source.code === content.source)) {
+          throw invalidInput("등록된 발급처를 선택하세요");
+        }
+        const nextId = entityId(String(content.source), String(content.external_id));
+        if (nextId !== input.target_id && await store.target?.("entity", nextId)) {
+          throw conflict("같은 발급처·식별자의 엔터티가 있습니다");
+        }
+      }
       if (
         input.action === "restore" &&
         ((content.source !== undefined && content.source !== before?.source) ||
