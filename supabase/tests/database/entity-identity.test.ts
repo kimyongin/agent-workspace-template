@@ -84,11 +84,22 @@ dbTest(
         taskComplete.parse({ expected_version: edited.version, body: "보관된 문맥을 상속한 결과" }),
       );
       assertEquals(completed.record.entity_ids, [created.id]);
-      const restored = await entities.createEntity(
-        ed,
-        f.actor,
-        entityCreate.parse({ source: "crm", external_id: input.external_id, expected_version: 2, prop3: "2026-10-09" }),
-      );
+      const restore = () =>
+        entities.createEntity(
+          ed,
+          f.actor,
+          entityCreate.parse({
+            source: "crm",
+            external_id: input.external_id,
+            expected_version: 2,
+            prop3: "2026-10-09",
+          }),
+        );
+      const competing = await Promise.allSettled([restore(), restore()]);
+      assertEquals(competing.filter((r) => r.status === "fulfilled").length, 1);
+      const restored = (competing.find((r) =>
+        r.status === "fulfilled"
+      ) as PromiseFulfilledResult<Awaited<ReturnType<typeof restore>>>).value;
       assertEquals([restored.prop1, restored.prop2, restored.prop4, restored.version], ["보관 고객", 0, "c", 3]);
       await assertRejects(() =>
         entities.updateEntity(
@@ -110,6 +121,23 @@ dbTest(
           restored.id,
           entityRekey.parse({ source: "app", external_id: input.external_id, expected_version: 3 }),
         ), AppError);
+      assertEquals((await activity.getRecord(ad, f.actor, record.id)).entity_ids, [restored.id]);
+      await assertRejects(
+        () =>
+          entities.rekeyEntity(
+            ed,
+            f.actor,
+            restored.id,
+            entityRekey.parse({
+              source: "crm",
+              external_id: "failed:/ID",
+              expected_version: 3,
+              change_tag_ids: [crypto.randomUUID()],
+            }),
+          ),
+        AppError,
+      );
+      assertEquals((await entities.getEntity(ed, f.actor, restored.id)).version, 3);
       assertEquals((await activity.getRecord(ad, f.actor, record.id)).entity_ids, [restored.id]);
       const rekeyed = await entities.rekeyEntity(
         ed,

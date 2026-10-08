@@ -20,9 +20,9 @@ test("Entity 웹 CRUD·초안 보호→MCP parity·활동 연결→삭제 원문
   ).click();
   await expect(form.getByLabel("속성 1")).toHaveValue(name);
   await saveOnce(page, form);
-  await expect(form).not.toBeVisible();await expect(page).toHaveURL(/\/entities\/[0-9a-f-]{36}(?:\?|$)/);
+  await expect(form).not.toBeVisible();await expect(page).toHaveURL(/\/entities\/app%3A[0-9a-f-]{36}(?:\?|$)/);
   await expect(page.getByRole("heading",{name,level:1,exact:true})).toBeVisible();
-  const id = new URL(page.url()).pathname.split("/").at(-1)!;
+  const id = decodeURIComponent(new URL(page.url()).pathname.split("/").at(-1)!);
   const mcp = await mcpClient(await mcpTokenViaConsent(page));
   try {
     const e = await mcp.call("get_entity", { id });
@@ -87,11 +87,11 @@ test("Entity 웹 CRUD·초안 보호→MCP parity·활동 연결→삭제 원문
     )
       .toBeVisible();
     const current = await mcp.call("get_task", { id: task.id });
-    expect(current.entity_ids).toEqual([]);
+    expect(current.entity_ids).toEqual([id]);
     expect(current.entity_context).toContainEqual(expect.objectContaining({id,title:name}));
     expect(current).not.toHaveProperty("entity_id");
-    expect(current.version).toBe(2);
-    await mcp.call("delete_task", { id: task.id, expected_version: 2 });
+    expect(current.version).toBe(1);
+    await mcp.call("delete_task", { id: task.id, expected_version: 1 });
   } finally {
     await mcp.close();
   }
