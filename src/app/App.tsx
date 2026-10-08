@@ -4,6 +4,7 @@ import { useState } from "react";
 import { createBrowserRouter, createRoutesFromElements, Navigate, Outlet, Route, RouterProvider, Routes, useLocation, type Location } from "react-router";
 import { DetailWorkspace } from "../features/details/DetailWorkspace.tsx";
 import { Navigation } from "./Navigation.tsx";
+import { useNavigationResize } from "./useNavigationResize.ts";
 import { GuidePage } from "../features/settings/GuidePage.tsx";
 import { SettingsPage } from "../features/settings/SettingsPage.tsx";
 import { DisplayScaleProvider } from "../features/settings/display-scale.tsx";
@@ -27,8 +28,9 @@ export const APP_NAME = "Workspace";
 function Layout() {
   const { session } = useAuth();
   const location = useLocation();
+  const navigation = useNavigationResize(session?.user.id ?? null);
   return (
-    <div className={`app-shell${session ? " has-navigation" : ""}`}>
+    <div style={navigation.style} className={`app-shell${session ? " has-navigation" : ""}${navigation.dragging ? " is-resizing" : ""}`}>
       <header className={`app-header${session ? " workspace-header" : ""}`}>
         <span className="app-brand">{APP_NAME}</span>
       </header>
@@ -37,7 +39,8 @@ function Layout() {
           <DetailWorkspace enabled={!!session} render={location => <WorkspaceRoutes location={location}/>}><Outlet/></DetailWorkspace>
         </DetailNavigationProvider>
       </main>
-      {session && <Navigation brand={APP_NAME} />}
+      {session && <Navigation brand={APP_NAME} navigationRef={navigation.ref} />}
+      <div className="pane-resize-handle navigation-resize-handle" {...navigation.separator}/>
     </div>
   );
 }

@@ -3,12 +3,12 @@ import { installWorkspaceApi, type FakeOptions } from "./support/workspace-api.t
 import { entity, task, record, principle, id, stamp } from "./support/workspace-data.ts";
 import { saveOnce } from "./ui-actions.ts";
 
-async function fixture(page: Page, options: FakeOptions = {}) {
+async function fixture(page: Page, options: FakeOptions = {}, metadata: Record<string, unknown> = {}) {
   const t = { ...task(), title: "등심 구매하기", entity_ids: [id(1)], entity_context: [{ id: id(1), title: "등심", source: "selection" as const, captured_at: stamp }] };
   const r = { ...record(), body: "구매 기준을 정리했습니다.", task_id: id(2), entity_ids: [id(1)], entity_context: t.entity_context };
   const e = { ...entity(), prop1: "등심", tasks: { count: 1, items: [t] }, records: { count: 1, items: [r] } };
   const state = await installWorkspaceApi(page, "http://127.0.0.1:55591", { entities: [e, { ...entity(6), prop1: "버섯" }], tasks: [t], records: [r], principles: [principle()], tags: [] }, options);
-  const user = { id: id(100), aud: "authenticated", email: "fixture@example.test", app_metadata: {}, user_metadata: {} };
+  const user = { id: id(100), aud: "authenticated", email: "fixture@example.test", app_metadata: {}, user_metadata: metadata };
   await page.addInitScript(user => localStorage.setItem("sb-127-auth-token", JSON.stringify({ access_token: "fixture", refresh_token: "fixture", expires_at: Math.floor(Date.now() / 1000) + 3600, user })), user);
   await page.route("**/auth/v1/user", route => route.fulfill({ json: user }));
   return state;
@@ -35,6 +35,103 @@ async function openTask(page: Page) {
   await section.getByRole("link", { name: "등심 구매하기 상세", exact: true }).click();
   await expect(page.getByRole("tab", { name: "등심 구매하기", exact: true })).toHaveAttribute("aria-selected", "true");
 }
+
+const tabNames = (page: Page) => page.getByRole("tab").allTextContents();
+async function dragTab(page: Page, source: string, targetId: string, after = true) {
+  const target = page.locator(`.workspace-tab[data-tab-id="${targetId}"]`);
+  const box = (await target.boundingBox())!;
+  await page.getByRole("tab", { name: source, exact: true }).dragTo(target, { targetPosition: { x: after ? box.width - 2 : 2, y: 20 } });
+}
+
+test("desktop: tab drag and keyboard reorder preserve the selected URL, draft and scroll", async ({ page }, info) => {
+  await page.setViewportSize({ width: 1440, height: 600 });
+  const state = await fixture(page); await page.goto(`/entities/${id(1)}`); await openTask(page); await openEntity(page, "버섯");
+  await page.getByRole("tab", { name: "등심 구매하기", exact: true }).click();
+  await expect(page.getByRole("tab", { name: "등심 구매하기", exact: true })).toHaveAttribute("aria-selected", "true");
+  await panel(page).getByRole("button", { name: "편집", exact: true }).click();
+  await panel(page).getByLabel("본문", { exact: true }).fill("순서를 바꿔도 보존할 초안");
+  await panel(page).locator(".modal-body").evaluate(el => { el.scrollTop = 40; });
+  const scroll = await panel(page).locator(".modal-body").evaluate(el => el.scrollTop), url = page.url();
+  expect(scroll).toBeGreaterThan(0);
+  await dragTab(page, "등심", `/entities/${id(6)}`);
+  await expect.poll(() => tabNames(page)).toEqual(["등심 구매하기", "버섯", "등심"]);
+  expect(page.url()).toBe(url);
+  await expect(panel(page).getByLabel("본문", { exact: true })).toHaveValue("순서를 바꿔도 보존할 초안");
+  expect(await panel(page).locator(".modal-body").evaluate(el => el.scrollTop)).toBe(scroll);
+  const selected = page.getByRole("tab", { name: "등심 구매하기", exact: true });
+  await selected.press("Control+Shift+ArrowRight");
+  await expect.poll(() => tabNames(page)).toEqual(["버섯", "등심 구매하기", "등심"]); await expect(selected).toBeFocused();
+  expect(page.url()).toBe(url); await page.screenshot({ path: info.outputPath("reordered-tabs-and-navigation-divider.png") });
+  await page.getByRole("tab", { name: "등심", exact: true }).click();
+  await page.getByRole("button", { name: "등심 탭 닫기", exact: true }).click();
+  await expect(selected).toHaveAttribute("aria-selected", "true");
+  await expect(panel(page).getByLabel("본문", { exact: true })).toHaveValue("순서를 바꿔도 보존할 초안");
+  expect(state.writes).toEqual([]); expect(state.errors).toEqual([]);
+});
+
+test("desktop: canceled or external tab drops leave order unchanged; overflow keyboard moves stay visible", async ({ page }) => {
+  const state = await fixture(page);
+  const titles = Array.from({ length: 7 }, (_, i) => `순서 조절을 검증할 긴 엔터티 제목 ${i}`);
+  state.rows.entities.push(...titles.map((prop1, i) => ({ ...entity(200 + i), prop1 })));
+  await page.goto("/entities");
+  for (const title of titles) await openEntity(page, title);
+  const original = await tabNames(page), last = page.getByRole("tab", { name: titles[6], exact: true });
+  await last.dragTo(page.locator(".workspace-list h1"));
+  expect(await tabNames(page)).toEqual(original); await expect(page.locator(".workspace-tab[data-dragging]")).toHaveCount(0);
+  const box = (await last.boundingBox())!;
+  await page.mouse.move(box.x + 20, box.y + 20); await page.mouse.down(); await page.mouse.move(box.x + 35, box.y + 20, { steps: 4 });
+  await page.keyboard.press("Escape"); await page.mouse.up();
+  expect(await tabNames(page)).toEqual(original); await expect(page.locator(".workspace-tab[data-drop]")).toHaveCount(0);
+  await last.press("Control+Shift+ArrowLeft");
+  await expect.poll(() => tabNames(page)).toEqual([...titles.slice(0, 5), titles[6], titles[5]]);
+  await expect(last).toBeFocused();
+  const moved = (await last.boundingBox())!, strip = (await page.getByRole("tablist").boundingBox())!;
+  expect(moved.x).toBeGreaterThanOrEqual(strip.x); expect(moved.x + moved.width).toBeLessThanOrEqual(strip.x + strip.width + 1);
+  await expect(page.getByRole("button", { name: `${titles[6]} 탭 닫기`, exact: true })).not.toHaveAttribute("draggable", "true");
+  expect(state.writes).toEqual([]); expect(state.errors).toEqual([]);
+});
+
+test("desktop: navigation drag, keyboard limits, cancellation and reset reserve working pane widths", async ({ page }) => {
+  const state = await fixture(page); await page.goto(`/entities/${id(1)}`);
+  const handle = page.getByRole("separator", { name: "탐색 메뉴 너비 조절" }), nav = page.getByRole("navigation", { name: "주 메뉴" });
+  const navWidth = async () => (await nav.boundingBox())!.width;
+  await expect(handle).toBeVisible(); expect(await navWidth()).toBe(208);
+  const box = (await handle.boundingBox())!;
+  await page.mouse.move(box.x + 6, box.y + box.height / 2); await page.mouse.down(); await page.mouse.move(box.x + 66, box.y + box.height / 2, { steps: 8 }); await page.mouse.up();
+  await expect.poll(navWidth).toBe(268); await handle.press("ArrowLeft"); await expect.poll(navWidth).toBe(252);
+  await handle.press("Home"); await expect.poll(navWidth).toBe(160);
+  await handle.press("End"); await expect.poll(navWidth).toBe(320);
+  expect((await page.locator(".workspace-list").boundingBox())!.width).toBeGreaterThanOrEqual(448);
+  expect(await detailWidth(page)).toBeGreaterThanOrEqual(432);
+  const end = (await handle.boundingBox())!;
+  await page.mouse.move(end.x + 6, end.y + end.height / 2); await page.mouse.down();
+  await handle.dispatchEvent("pointercancel", { pointerId: 1 }); await page.mouse.move(end.x - 80, end.y + end.height / 2); await page.mouse.up();
+  expect(await navWidth()).toBe(320); await handle.dblclick(); await expect.poll(navWidth).toBe(208);
+  await page.getByRole("button", { name: "상세 패널 숨기기" }).click();
+  await page.setViewportSize({ width: 1024, height: 320 });
+  const tasks = nav.getByRole("link", { name: "할 일", exact: true }); const menu = (await tasks.boundingBox())!;
+  await tasks.click({ position: { x: menu.width - 2, y: menu.height / 2 } }); await expect(page).toHaveURL(/\/tasks$/);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  expect(state.writes).toEqual([]); expect(state.errors).toEqual([]);
+});
+
+test("desktop: both dividers at 150% preserve tabs and draft through hiding and mobile", async ({ page }) => {
+  const state = await fixture(page, {}, { workspace_display_scale: "150", workspace_mobile_display_scale: "150" }); await page.setViewportSize({ width: 2160, height: 1080 });
+  await page.goto(`/entities/${id(1)}`); await openTask(page);
+  await panel(page).getByRole("button", { name: "편집", exact: true }).click(); await panel(page).getByLabel("본문", { exact: true }).fill("양쪽 폭을 바꿔도 유지할 초안");
+  const handle = page.getByRole("separator", { name: "탐색 메뉴 너비 조절" }), nav = page.getByRole("navigation", { name: "주 메뉴" });
+  await handle.press("End"); await expect.poll(async () => (await nav.boundingBox())!.width).toBe(480);
+  await dragSplit(page, -50); const width = await detailWidth(page);
+  await page.getByRole("button", { name: "상세 패널 숨기기" }).click();
+  await expect(handle).toBeVisible(); await page.getByRole("button", { name: "상세 탭 보기 (2개)" }).click();
+  await expect.poll(() => detailWidth(page)).toBeCloseTo(width, 0);
+  await page.setViewportSize({ width: 390, height: 844 }); await expect(page.getByRole("separator")).toHaveCount(0);
+  await expect(page.locator("dialog.modal[open]").getByLabel("본문", { exact: true })).toHaveValue("양쪽 폭을 바꿔도 유지할 초안");
+  await page.setViewportSize({ width: 2160, height: 1080 }); await expect(handle).toBeVisible();
+  expect((await nav.boundingBox())!.width).toBe(480); await expect(panel(page).getByLabel("본문", { exact: true })).toHaveValue("양쪽 폭을 바꿔도 유지할 초안");
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  expect(state.writes).toEqual([]); expect(state.errors).toEqual([]);
+});
 test("desktop: split dragging, keyboard limits and reset keep both panes readable", async ({ page }, info) => {
   const state = await fixture(page); await page.goto(`/entities/${id(1)}`);
   const separator = page.getByRole("separator", { name: "상세 패널 너비 조절" });
@@ -70,15 +167,15 @@ test("desktop: resized split preserves draft, tabs, hide/reopen and responsive p
   await page.getByRole("tab", { name: "등심", exact: true }).click();
   expect(await detailWidth(page)).toBeCloseTo(width, 0);
   await page.getByRole("button", { name: "상세 패널 숨기기" }).click();
-  await expect(page.getByRole("separator")).toHaveCount(0);
+  await expect(page.getByRole("separator", { name: "상세 패널 너비 조절" })).toHaveCount(0);
   await page.getByRole("button", { name: "상세 탭 보기 (2개)" }).click();
   await expect.poll(() => detailWidth(page)).toBeCloseTo(width, 0);
   await page.getByRole("tab", { name: "등심 구매하기", exact: true }).click();
   await page.setViewportSize({ width: 390, height: 844 });
-  await expect(page.getByRole("separator")).toHaveCount(0);
+  await expect(page.getByRole("separator", { name: "상세 패널 너비 조절" })).toHaveCount(0);
   await expect(page.locator("dialog.modal:not(.modal-confirm)[open]").getByLabel("본문", { exact: true })).toHaveValue("너비를 바꿔도 보존할 초안");
   await page.setViewportSize({ width: 1600, height: 900 });
-  await expect(page.getByRole("separator")).toBeVisible();
+  await expect(page.getByRole("separator", { name: "상세 패널 너비 조절" })).toBeVisible();
   const available = (await page.locator(".detail-workspace").boundingBox())!.width - 12;
   await expect.poll(async () => await detailWidth(page) / available).toBeCloseTo(width / originalAvailable, 2);
   await page.setViewportSize({ width: 1280, height: 900 });
@@ -204,6 +301,8 @@ test("desktop: pending writes block tab switching, close, hide and navigation", 
   const state = await fixture(page, { hold: true }); await page.goto(`/entities/${id(1)}`); await openTask(page);
   await panel(page).getByRole("button", { name: "편집", exact: true }).click(); await panel(page).getByLabel("본문", { exact: true }).fill("새 내용"); await panel(page).getByRole("button", { name: "저장", exact: true }).click();
   await page.locator("dialog.modal-action[open]").getByRole("button", { name: "수정하고 저장" }).click(); await state.pending;
+  await page.getByRole("tab", { name: "등심 구매하기", exact: true }).dispatchEvent("keydown", { key: "ArrowLeft", ctrlKey: true, shiftKey: true, bubbles: true });
+  expect(await tabNames(page)).toEqual(["등심", "등심 구매하기"]);
   for (const label of ["등심 탭 닫기", "등심 구매하기 탭 닫기", "상세 패널 숨기기"]) await page.getByRole("button", { name: label, exact: true }).evaluate((el: HTMLButtonElement) => el.click());
   await page.getByRole("tab", { name: "등심", exact: true }).evaluate((el: HTMLButtonElement) => el.click());
   await page.getByRole("navigation", { name: "주 메뉴" }).getByRole("link", { name: "엔터티", exact: true }).evaluate((el: HTMLAnchorElement) => el.click());

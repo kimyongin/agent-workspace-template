@@ -4,11 +4,11 @@ import { ConfirmDialog } from "../../components/Modal.tsx";
 import { DetailTabContext, WorkspaceContext, detailIdentity, workspaceList, type WorkspaceGuard } from "./workspace-context.ts";
 import { useWorkspaceResize } from "./useWorkspaceResize.ts";
 import { useDisplayScale } from "../settings/display-scale.tsx";
+import { DetailTabs } from "./DetailTabs.tsx";
 import "./workspace.css";
 
 type Tab = { id: string; location: Location; title: string };
 const kindLabels: Record<string, string> = { entities: "엔터티", tasks: "할 일", records: "기록", principles: "원칙" };
-const icons: Record<string, string> = { entities: "M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z", tasks: "m3 12 3 3 5-6M14 6h7M14 12h7M14 18h7", records: "M5 3h14v18H5zM8 7h8M8 11h8M8 15h5", principles: "M5 3h14v18H5zM8 7h8M8 11h8M8 15h5" };
 const href = (location: Location) => `${location.pathname}${location.search}${location.hash}`;
 function destination(to: To, from: Location): string {
   if (typeof to !== "string") return `${to.pathname ?? from.pathname}${to.search ? (to.search.startsWith("?") ? to.search : `?${to.search}`) : ""}${to.hash ?? ""}`;
@@ -43,6 +43,7 @@ export function DetailWorkspace({ children, render, enabled }: { children: React
   current.current = { tabs, active, base, visible };
   const guards = useRef(new Map<string, () => WorkspaceGuard>());
   const tabFocus = useRef<string | null>(null);
+  const openedLocation = useRef<Location | null>(null);
   const registerGuard = useCallback((key: string, guard: () => WorkspaceGuard) => {
     guards.current.set(key, guard);
     return () => { guards.current.delete(key); };
@@ -74,7 +75,8 @@ export function DetailWorkspace({ children, render, enabled }: { children: React
       setBase({ ...current.current.base, search: `?${search}`, key: crypto.randomUUID() });
       setRevision(value => value + 1);
     }
-    setVisible(true); setActive(id);
+    if (openedLocation.current !== location) setVisible(true);
+    openedLocation.current = location; setActive(id);
     setTabs(previous => previous.some(tab => tab.id === id)
       ? previous.map(tab => tab.id === id && href(tab.location) !== href(location) ? { ...tab, location } : tab)
       : [...previous, { id, location, title: kindLabels[id.split("/")[1]] }]);
@@ -125,6 +127,17 @@ export function DetailWorkspace({ children, render, enabled }: { children: React
     open(href(tab.location), base);
     document.getElementById(`tab-${tab.id}`)?.focus();
   };
+  const reorder = (id: string, target: string, before: boolean) => {
+    if (anyBusy() || id === target) return null;
+    const state = current.current.tabs;
+    const tab = state.find(tab => tab.id === id);
+    if (!tab || !state.some(tab => tab.id === target)) return null;
+    const next = state.filter(tab => tab.id !== id);
+    const index = next.findIndex(tab => tab.id === target) + (before ? 0 : 1);
+    if (state.findIndex(tab => tab.id === id) === index) return null;
+    next.splice(index, 0, tab); setTabs(next);
+    return index;
+  };
   useEffect(() => {
     if (!desktop || !visible) return;
     const frame = requestAnimationFrame(() => {
@@ -141,23 +154,11 @@ export function DetailWorkspace({ children, render, enabled }: { children: React
     <div className="workspace-list" ref={listRef}>{render(base)}
       {desktop && !visible && tabs.length > 0 && <button className="btn workspace-reopen" onClick={() => setVisible(true)}>상세 탭 보기 ({tabs.length}개)</button>}
     </div>
-    <div className="workspace-resize-handle" {...split.separator}/>
+    <div className="pane-resize-handle workspace-resize-handle" {...split.separator}/>
     <aside className="workspace-details" id="workspace-details" hidden={!shown} aria-label="상세 작업 영역">
       <div className="workspace-tab-bar" hidden={!desktop}>
-        <div className="workspace-tabs" role="tablist" aria-label="열린 상세" onKeyDown={event => {
-          if (!(event.target instanceof Element) || !event.target.closest("[role=tab]")) return;
-          if (!["ArrowLeft", "ArrowRight", "Home", "End", "Delete"].includes(event.key)) return;
-          const index = tabs.findIndex(tab => tab.id === active);
-          event.preventDefault();
-          if (event.key === "Delete") { if (active) requestClose(active); return; }
-          if (anyBusy()) return;
-          const next = event.key === "Home" ? 0 : event.key === "End" ? tabs.length - 1 : (index + (event.key === "ArrowRight" ? 1 : -1) + tabs.length) % tabs.length;
-          select(tabs[next]);
-        }}>{tabs.map(tab => <div className="workspace-tab" key={tab.id} data-selected={active === tab.id || undefined}>
-          <button role="tab" id={`tab-${tab.id}`} aria-selected={active === tab.id} aria-controls={`panel-${tab.id}`} tabIndex={active === tab.id ? 0 : -1} title={tab.title} onClick={() => select(tab)}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><path d={icons[tab.id.split("/")[1]]}/></svg><span>{tab.title}</span>
-          </button><button className="workspace-tab-close" tabIndex={active === tab.id ? 0 : -1} aria-label={`${tab.title} 탭 닫기`} onClick={() => requestClose(tab.id)}>×</button>
-        </div>)}</div>
+        <DetailTabs tabs={tabs} active={active} enabled={desktop && shown} isBusy={anyBusy}
+          select={id => { const tab = current.current.tabs.find(tab => tab.id === id); if (tab) select(tab); }} close={requestClose} reorder={reorder}/>
         <button className="workspace-hide" aria-label="상세 패널 숨기기" title="패널 닫기" onClick={() => { if (!anyBusy()) setVisible(false); }}>×</button>
       </div>
       {tabs.map(tab => <TabContent key={tab.id} tab={tab} active={shown && active === tab.id} docked={desktop}

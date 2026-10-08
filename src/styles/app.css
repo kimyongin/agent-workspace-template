@@ -791,6 +791,7 @@ textarea.input {
 
 /* Flat page surfaces and one responsive navigation, using the same DOM order. */
 .navigation-brand, .nav-control-label { display: none; }
+.navigation-resize-handle { display: none; }
 .btn:hover:not(:disabled):not(.btn-primary), .chip:hover:not(:disabled) { background: var(--surface); }
 .btn-primary:hover:not(:disabled) { background: color-mix(in srgb,var(--accent) 88%,white); }
 .btn:active:not(:disabled), .chip:active:not(:disabled) { transform: translateY(1px); }
@@ -805,8 +806,10 @@ textarea.input {
 @media(min-width:1024px) and (min-height:320px) {
   .workspace-header { display: none; }
   :root { --navigation-height: 0px; --sidebar-width: 13rem; }
-  .has-navigation .app-main { width: calc(100% - var(--sidebar-width)); margin-left: var(--sidebar-width); padding: var(--space-8); }
+  .has-navigation .app-main { width: calc(100% - var(--sidebar-width) - 12px); margin-left: calc(var(--sidebar-width) + 12px); padding: var(--space-8); }
+  .navigation-resize-handle:not([hidden]) { display: block; position: fixed; inset: 0 auto 0 var(--sidebar-width); width: 12px; z-index: 21; }
   .bottom-nav { inset: 0 auto 0 0; width: var(--sidebar-width); max-width: none; transform: none; border-top: 0; border-right: 1px solid var(--line); background: var(--panel); padding: var(--space-3); display: flex; flex-direction: column; }
+  .bottom-nav { padding-right: max(28px, var(--space-3)); }
   .navigation-brand { display: block; padding: var(--space-2) var(--space-3); margin-bottom: var(--space-3); font-size: 1rem; font-weight: 600; }
   .bottom-nav-inner { display: flex; flex-direction: column; gap: var(--space-1); width: 100%; flex: 1; min-height: 0; }
   .bottom-nav-inner > a, .nav-profile-trigger { flex-direction: row; justify-content: flex-start; gap: var(--space-3); padding-inline: var(--space-3); min-height: 44px; }

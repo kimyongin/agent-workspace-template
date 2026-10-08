@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type Ref } from "react";
 import { Link, useLocation } from "react-router";
 import { useAuth } from "../features/auth/AuthProvider.tsx";
 import { ProfileIcon } from "../features/settings/profile.tsx";
@@ -21,7 +21,7 @@ function PopoverLink({ to, label }: { to: keyof typeof popoverIcons; label: stri
     {popoverIcons[to]}
   </svg><span>{label}</span></Link>;
 }
-export function Navigation({ brand }: { brand: string }) {
+export function Navigation({ brand, navigationRef }: { brand: string; navigationRef?: Ref<HTMLElement> }) {
   const location = useLocation();
   const { session } = useAuth();
   const owner = location.state?.workspaceOwner;
@@ -43,7 +43,7 @@ export function Navigation({ brand }: { brand: string }) {
     document.addEventListener("pointerdown", outside);
     return () => document.removeEventListener("pointerdown", outside);
   }, [open]);
-  return <nav className="bottom-nav" aria-label="주 메뉴">
+  return <nav className="bottom-nav" aria-label="주 메뉴" id="workspace-navigation" ref={navigationRef}>
     <div className="navigation-brand">{brand}</div>
     <div className="bottom-nav-inner" ref={root} onBlur={event => {
       if (event.relatedTarget instanceof Element && event.relatedTarget.closest("dialog[open]")) return;
