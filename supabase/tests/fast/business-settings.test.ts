@@ -149,3 +149,29 @@ Deno.test("기록 준비: 실제 수정 계약에서 거부할 입력을 미리�
     AppError,
   );
 });
+
+Deno.test("기록 준비: 해석 후 메모가 본문 제한을 넘으면 쓰기 전에 안내", async () => {
+  const d: BusinessSettingsDeps = {
+    uow: {
+      run: (_actor, fn) =>
+        fn({
+          get: () =>
+            Promise.resolve({
+              version: 1,
+              settings: { record_templates: { task: { create: { memo: "추가 ${할일.이후.본문$}", tag_ids: [] } } } },
+            }),
+          update: () => Promise.reject(new Error("읽기만")),
+          recordTags: () => Promise.resolve([]),
+        }),
+    },
+  };
+  await assertRejects(
+    () =>
+      prepareBusinessRecord(d, { userId: crypto.randomUUID() }, {
+        model: "task",
+        action: "create",
+        input: { kind: "once", title: "긴 결과", body: "가".repeat(22000) },
+      }),
+    AppError,
+  );
+});
