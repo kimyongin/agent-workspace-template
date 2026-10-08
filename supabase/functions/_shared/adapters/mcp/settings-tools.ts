@@ -20,7 +20,7 @@ export function settingsTools(deps: BusinessSettingsDeps): ToolDef[] {
     {
       name: "update_business_settings",
       description:
-        "expected_version으로 변경한 섹션만 저장. 기록 템플릿은 ${변수$}, 메모 최대 20000자·설정 131072바이트. 기존 record 태그만 사용. 구문·변수 오류는 위치와 이유 반환.",
+        "expected_version으로 변경한 섹션만 저장. 기록 템플릿은 ${변수$}, 메모 최대 22000자·설정 131072바이트. 기존 record 태그만 사용. 구문·변수 오류는 위치와 이유 반환.",
       input: businessSettingsUpdate,
       readOnly: false,
       handler: (i, a) => updateBusinessSettings(deps, a, i),
@@ -28,7 +28,7 @@ export function settingsTools(deps: BusinessSettingsDeps): ToolDef[] {
     {
       name: "prepare_record_memo",
       description:
-        "저장 전 사용자 템플릿의 기록 메모·태그 준비. 수정/삭제/복원/중단/재개는 대상 id·현재 expected_version 필요. input은 실제 저장할 업무 필드이며 서버의 전체 이전 값과 병합한다. 반환한 change_note/change_tag_ids를 실제 쓰기에 명시하고 응답 불명 재시도에는 같은 ID/version/업무 입력/메모/태그를 그대로 사용한다. 명시 빈 태그 배열은 비움이다. 템플릿 변경 후에도 이미 준비한 값을 재계산하지 않는다.",
+        "저장 전 사용자 템플릿의 기록 메모·태그 준비. 수정/삭제/복원/중단/재개는 대상 id·현재 expected_version 필요. input은 실제 저장할 업무 필드이며 서버의 전체 이전 값과 병합한다. 반환한 prepared_input(발급처·식별자 또는 생성 ID 포함)과 change_note/change_tag_ids를 실제 쓰기에 명시하고 응답 불명 재시도에는 같은 ID/version/업무 입력/메모/태그를 그대로 사용한다. 명시 빈 태그 배열은 비움이다. 템플릿 변경 후에도 이미 준비한 값을 재계산하지 않는다.",
       input: prepareRecordMemo,
       readOnly: true,
       handler: (i, a) => prepareBusinessRecord(deps, a, i),

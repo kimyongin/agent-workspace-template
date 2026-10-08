@@ -207,7 +207,7 @@ export function TaskFormModal(props: {
     <FormModal
       domain="할 일" title={props.mode === "create" ? "할 일 추가" : "할 일 편집"}
       mutation={{target:draft.title, action:props.mode === "create" ? "등록" : "수정"}}
-      preparation={() => { const {change_note, change_tag_ids, ...input} = taskInput(draft); return {model:"task", action:props.mode === "create" ? "create" : "update", target_id:props.target?.id, expected_version:props.target?.version, input:props.mode === "edit" ? {...input,due_on:draft.kind === "once" ? draft.due_on || null : null} : input}; }}
+      preparation={() => { const {change_note, change_tag_ids, kind, entity_ids, ...input} = taskInput(draft); return {model:"task", action:props.mode === "create" ? "create" : "update", target_id:props.target?.id, expected_version:props.target?.version, input:props.mode === "edit" ? {...input,...(draft.kind === "once" ? {due_on:draft.due_on || null} : {})} : {...input,kind,entity_ids}}; }}
       submitLabel={props.mode === "create" ? "추가" : "저장"}
       open={props.open}
       dirty={dirty}

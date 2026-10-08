@@ -8,7 +8,7 @@ import {
   prepareBusinessRecord,
   updateBusinessSettings,
 } from "../../functions/_shared/core/settings/application.ts";
-import { createTask, listRecords, updateRecord } from "../../functions/_shared/core/activity/application.ts";
+import { createTask, getRecord, listRecords, updateRecord } from "../../functions/_shared/core/activity/application.ts";
 import { createTag, deleteTag } from "../../functions/_shared/core/tags/application.ts";
 import { recordListQuery } from "../../functions/_shared/contracts/record.ts";
 import { taskCreate } from "../../functions/_shared/contracts/task.ts";
@@ -29,7 +29,8 @@ dbTest("업무 설정 DB: 소유자 격리·섹션 병합·경합·고정 메모
         record_templates: { task: { create: { memo: "${대상$}: ${할일.이후.본문$} (${액션$})", tag_ids: [tag.id] } } },
       },
     });
-    assertEquals(await getBusinessSettings(settings, other.actor), { version: 0, settings: {} });
+    assertEquals((await getBusinessSettings(settings, other.actor)).version, 0);
+    assertEquals((await getBusinessSettings(settings, other.actor)).settings.record_templates, {});
     await updateBusinessSettings(settings, actor, {
       expected_version: 1,
       sections: {
@@ -82,7 +83,8 @@ dbTest("업무 설정 DB: 소유자 격리·섹션 병합·경합·고정 메모
     });
     assertEquals(next.change_tag_ids, []);
     assertEquals(next.missing_tag_ids, [tag.id]);
-    await updateRecord(activity, actor, frozen.id, { expected_version: frozen.version, body: "기록 정정" });
+    const latestRecord = await getRecord(activity, actor, frozen.id);
+    await updateRecord(activity, actor, frozen.id, { expected_version: latestRecord.version, body: "기록 정정" });
     records = (await listRecords(activity, actor, recordListQuery.parse({ record_kind: "change", limit: 100 }))).items;
     assertEquals(records.filter((record) => record.change?.target_id === first.id).length, 1);
     assertEquals(records.find((record) => record.id === frozen.id)?.body, "기록 정정");

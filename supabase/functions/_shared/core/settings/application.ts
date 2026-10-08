@@ -3,6 +3,7 @@ import {
   type BusinessSettings,
   type BusinessSettingsResult,
   businessSettingsUpdate,
+  resolvedBusinessSettings,
 } from "../../contracts/business-settings.ts";
 import type { Actor } from "../shared/actor.ts";
 import { invalidInput } from "../shared/errors.ts";
@@ -11,15 +12,19 @@ import { type PreparedRecordMemo, prepareRecordMemo } from "../../contracts/reco
 import { modelActions, type TemplateModel } from "../../contracts/record-template.ts";
 import { changeDefaults } from "./change-defaults.ts";
 import type { ChangeFacts } from "../shared/changes.ts";
-import { taskCreate } from "../../contracts/task.ts";
+import { taskCreate, taskUpdate } from "../../contracts/task.ts";
 import { taskContent } from "../activity/domain.ts";
-import { entityCreate } from "../../contracts/entity.ts";
-import { principleCreate } from "../../contracts/principle.ts";
+import { entityCreate, entityRekey, entityUpdate } from "../../contracts/entity.ts";
+import { principleCreate, principleUpdate } from "../../contracts/principle.ts";
+import { defaultEntityIdentitySettings, entityId } from "../../contracts/entity-identity.ts";
 export interface BusinessSettingsStore {
   get(): Promise<BusinessSettingsResult>;
   update(expected: number, sections: BusinessSettings): Promise<BusinessSettingsResult>;
   recordTags(ids: string[]): Promise<string[]>;
-  target?(model: TemplateModel, id: string): Promise<{ version: number; facts: ChangeFacts } | null>;
+  target?(
+    model: TemplateModel,
+    id: string,
+  ): Promise<{ version: number; facts: ChangeFacts; deleted_at?: unknown } | null>;
 }
 export function prepareBusinessRecord(
   d: BusinessSettingsDeps,
@@ -34,6 +39,9 @@ export function prepareBusinessRecord(
     );
   }
   const input = parsed.data;
+  if (input.operation && (input.model !== "entity" || input.action !== "update")) {
+    throw invalidInput("식별 정보 변경은 엔터티 수정에만 사용할 수 있습니다");
+  }
   if (!modelActions(input.model).includes(input.action)) throw invalidInput("이 모델에서 사용할 수 없는 액션입니다");
   if (new TextEncoder().encode(JSON.stringify(input.input)).length > BUSINESS_SETTINGS_MAX_BYTES) {
     throw invalidInput("입력 크기가 너무 큽니다");
@@ -46,21 +54,89 @@ export function prepareBusinessRecord(
       const target = await store.target?.(input.model, input.target_id);
       if (!target) throw notFound();
       if (target.version !== input.expected_version) throw conflict("다른 변경이 저장되어 있습니다. 다시 조회하세요.");
+      if (input.model === "entity" && !!target.deleted_at !== (input.action === "restore")) {
+        throw conflict(
+          input.action === "restore" ? "삭제된 대상만 복원할 수 있습니다" : "삭제된 대상입니다. 복원을 먼저 확인하세요",
+        );
+      }
       before = target.facts;
     }
     let content = input.input;
+    let prepared_input = content;
+    if (input.action === "update" || input.action === "restore") {
+      const schema = input.operation === "identity"
+        ? entityRekey
+        : input.action === "restore"
+        ? entityCreate
+        : input.model === "task"
+        ? taskUpdate
+        : input.model === "entity"
+        ? entityUpdate
+        : principleUpdate;
+      const mutation = schema.safeParse({ ...content, expected_version: input.expected_version });
+      if (!mutation.success) {
+        throw invalidInput(
+          "업무 입력을 확인하세요",
+          mutation.error.issues.map((issue) => ({ path: `input.${issue.path.join(".")}`, message: issue.message })),
+        );
+      }
+      const { expected_version: _version, ...fields } = mutation.data;
+      content = fields;
+      prepared_input = fields;
+      if (input.operation === "identity") {
+        const settings = saved.settings.entity_identity ?? defaultEntityIdentitySettings;
+        if (!settings.sources.some((source) => source.code === content.source)) {
+          throw invalidInput("등록된 발급처를 선택하세요");
+        }
+        const nextId = entityId(String(content.source), String(content.external_id));
+        if (nextId !== input.target_id && await store.target?.("entity", nextId)) {
+          throw conflict("같은 발급처·식별자의 엔터티가 있습니다");
+        }
+      }
+      if (
+        input.action === "restore" &&
+        ((content.source !== undefined && content.source !== before?.source) ||
+          (content.external_id !== undefined && content.external_id !== before?.external_id))
+      ) throw invalidInput("복원은 같은 발급처·식별자로 준비하세요");
+    }
     if (input.action === "create") {
       const schema = input.model === "task" ? taskCreate : input.model === "entity" ? entityCreate : principleCreate;
-      const creation = schema.safeParse({ id: "00000000-0000-4000-8000-000000000001", ...content });
+      const creationInput = input.model === "entity" ? content : { id: content.id ?? crypto.randomUUID(), ...content };
+      const creation = schema.safeParse(creationInput);
       if (!creation.success) {
         throw invalidInput(
           "업무 입력을 확인하세요",
           creation.error.issues.map((issue) => ({ path: `input.${issue.path.join(".")}`, message: issue.message })),
         );
       }
-      content = input.model === "task"
-        ? taskContent(taskCreate.parse({ id: "00000000-0000-4000-8000-000000000001", ...content }))
-        : creation.data;
+      prepared_input = creation.data;
+      content = input.model === "task" ? taskContent(taskCreate.parse(creationInput)) : creation.data;
+      if (input.model === "entity") {
+        const settings = saved.settings.entity_identity ?? defaultEntityIdentitySettings;
+        const source = String(content.source ?? settings.default_source);
+        if (!settings.sources.some((value) => value.code === source)) throw invalidInput("등록된 발급처를 선택하세요");
+        if (!content.external_id && settings.generation === "manual") throw invalidInput("식별자를 입력하세요");
+        const external_id = String(content.external_id ?? crypto.randomUUID());
+        const existing = await store.target?.("entity", entityId(source, external_id));
+        if (existing) {
+          throw conflict(
+            existing.deleted_at
+              ? "삭제된 기존 대상을 조회한 뒤 restore 액션과 현재 버전으로 준비하세요"
+              : "같은 발급처·식별자의 활성 엔터티가 있습니다",
+          );
+        }
+        if (!content.prop1) throw invalidInput("속성 1은 필수입니다");
+        content = {
+          ...content,
+          source,
+          external_id,
+          prop2: content.prop2 ?? null,
+          prop3: content.prop3 ?? null,
+          prop4: content.prop4 ?? "a",
+          tag_ids: content.tag_ids ?? [],
+        };
+        prepared_input = content;
+      }
     }
     const after = input.action === "delete" ? null : {
       ...before,
@@ -82,14 +158,17 @@ export function prepareBusinessRecord(
       saved.settings,
       await store.recordTags(ids),
     );
-    return { ...result, settings_version: saved.version };
+    return { ...result, prepared_input, settings_version: saved.version };
   });
 }
 export interface BusinessSettingsDeps {
   uow: { run<T>(actor: Actor, fn: (store: BusinessSettingsStore) => Promise<T>): Promise<T> };
 }
 export function getBusinessSettings(d: BusinessSettingsDeps, actor: Actor) {
-  return d.uow.run(actor, (store) => store.get());
+  return d.uow.run(actor, async (store) => {
+    const saved = await store.get();
+    return { ...saved, settings: resolvedBusinessSettings(saved.settings) };
+  });
 }
 export function updateBusinessSettings(d: BusinessSettingsDeps, actor: Actor, input: unknown) {
   const parsed = businessSettingsUpdate.safeParse(input);

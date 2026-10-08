@@ -55,7 +55,7 @@ export function useRecordConfirmation(options: {
   const { attempt, busy, uncertain } = useWriteAttempt();
   const register = useContext(SurfaceActionContext);
   const workspace = useContext(WorkspaceContext);
-  const [stage, setStage] = useState<ConfirmationKind | null>(options.initial ?? null);
+  const [stage, setStage] = useState<ConfirmationKind | null>(options.open === false ? null : options.initial ?? null);
   const [note, setNote] = useState(() => options.initial ? options.describe(options.initial).defaultNote : "");
   const [tags, setTags] = useState<string[]>([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -93,7 +93,7 @@ export function useRecordConfirmation(options: {
       if (run === preparationRun.current) reject({}, writeErrorMessage(error));
     } finally { if (run === preparationRun.current) setPreparing(false); }
   };
-  useEffect(() => { if (options.initial) void begin(options.initial); return () => { preparationRun.current++; }; }, []);
+  useEffect(() => { if (options.initial && options.open !== false) void begin(options.initial); if(options.open===false){setStage(null);setPreparing(false);} return () => { preparationRun.current++; }; }, [options.initial, options.open]);
   const cancel = () => {
     if (attempt.snapshot().busy) return;
     if (latest.current.clearOnCancel) reject({}, null);
