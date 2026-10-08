@@ -14,7 +14,7 @@ export function EntityIdentityForm({ entity, onClose, onSaved }: {
   const [settings, setSettings] = useState<EntityIdentitySettings | null>(null);
   useEffect(() => { const c = new AbortController(); void api<{ settings: { entity_identity: EntityIdentitySettings } }>("GET", "/settings/business", undefined, c.signal).then(value => setSettings(value.settings.entity_identity ?? defaultEntityIdentitySettings)).catch(() => {}); return () => c.abort(); }, []);
   return <FormModal open domain="엔터티" title="식별 정보 변경" submitLabel="변경" dirty={draft.source !== entity.source || draft.external_id !== entity.external_id}
-    preparation={() => ({model:"entity",action:"update",target_id:entity.id,expected_version:entity.version,input:draft})}
+    preparation={() => ({model:"entity",action:"update",operation:"identity",target_id:entity.id,expected_version:entity.version,input:draft})}
     mutation={{ target: entity.prop1, action: "식별 정보 변경" }} onClose={onClose}
     validate={() => { const result = entityRekey.safeParse({ ...draft, expected_version: entity.version }); return result.success ? null : fieldErrors(result.error.issues); }}
     onSubmit={async (_id, memo) => { const saved = await api<EntityResult>("POST", `${entityPath(entity.id)}/identity`, { ...draft, expected_version: entity.version, ...memo }); onSaved(saved); }}>

@@ -64,7 +64,7 @@ export function EntityForm(
         const existing = archived ?? (initial?.deleted_at ? initial : null) ?? await checkExisting();
         const target = existing ?? initial;
         const preparedInput = existing && !archived ? { source:existing.source,external_id:existing.external_id,prop1:existing.prop1,prop2:existing.prop2,prop3:existing.prop3,prop4:existing.prop4,tag_ids:existing.tag_ids } : value();
-        return { model:"entity", action:existing ? "restore" : initial ? "update" : "create", target_id:target?.id,expected_version:target?.version,input:preparedInput };
+        return { model:"entity", action:existing ? "restore" : initial ? "update" : "create", target_id:target?.id,expected_version:target?.version,input:existing || !initial ? preparedInput : (() => { const {source:_s,external_id:_e,expected_version:_v,...attrs}=value(); return attrs; })() };
       }}
       deletion={deletion}
       onClose={onClose}
