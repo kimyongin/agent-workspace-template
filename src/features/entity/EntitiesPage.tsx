@@ -133,7 +133,7 @@ export function EntitiesPage() {
         {page?.items.map((e) => (
           <li className="list-item" key={e.id}>
             <div className="list-item-main">
-              <ListPreviewItem kind="entities" id={e.id} title={`${e.prop1} · ${entityIdentityLabel(e)}`} cells={[e.prop2,e.prop3]}/>
+              <ListPreviewItem kind="entities" id={e.id} title={e.prop1} cells={[e.prop2,e.prop3]}/><p className="secondary">{entityIdentityLabel(e)}</p>
             </div>
           </li>
         ))}
