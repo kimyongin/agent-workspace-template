@@ -350,7 +350,8 @@ test("desktop: list position survives panel hide, reopen and last close", async 
   await page.getByRole("button", { name: "상세 패널 숨기기" }).click(); await expect.poll(() => page.evaluate(() => scrollY)).toBe(750);
   await page.getByRole("button", { name: "상세 탭 보기 (1개)" }).click(); await expect.poll(() => list.evaluate(el => el.scrollTop)).toBe(750);
   await page.getByRole("button", { name: "등심 탭 닫기", exact: true }).click(); await expect.poll(() => page.evaluate(() => scrollY)).toBe(750);
-  await expect(list.getByRole("heading", { name: "엔터티", level: 1, exact: true })).toBeFocused(); expect(state.errors).toEqual([]);
+  const origin = list.getByRole("button", { name: "등심", exact: true });
+  await expect(origin).toBeFocused(); expect(await origin.evaluate(element => element.tabIndex)).toBe(0); expect(state.errors).toEqual([]);
 });
 
 test("desktop: each detail retains its own body scroll and reopening a dirty target reuses its editor", async ({ page }) => {
