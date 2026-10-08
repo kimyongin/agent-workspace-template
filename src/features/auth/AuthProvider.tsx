@@ -20,11 +20,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const profileRevision = useRef(0);
   const latestRead = useRef<CanonicalRead | null>(null);
   const channel = useRef<BroadcastChannel | null>(null);
-  const applyProfile = ({ icon, nickname, timezone }: AccountPreferences) => {
+  const applyProfile = (preferences: AccountPreferences) => {
     const session = activeSession.current;
     if (!session) return;
     // 표시용 필드만 복사한다. 토큰·권한·SDK 세션 저장소는 프로필 흐름이 변경하지 않는다.
-    const display = { ...session, user: { ...session.user, user_metadata: { ...session.user.user_metadata, ...preferenceMetadata({ icon, nickname, timezone }) } } };
+    const display = { ...session, user: { ...session.user, user_metadata: { ...session.user.user_metadata, ...preferenceMetadata(preferences) } } };
     activeSession.current = display;
     setState({ session: display, loading: false });
   };

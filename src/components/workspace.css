@@ -1,7 +1,7 @@
 .workspace-search { display: grid; gap: var(--space-3); min-width: 0; }
 .workspace-search-input { position: relative; min-width: 0; }
-.workspace-search-input .input { padding-left: 40px; padding-right: 48px; }
-.search-glyph { position: absolute; left: var(--space-3); top: 50%; transform: translateY(-50%); width: 16px; height: 16px; color: var(--muted-ink); pointer-events: none; }
+.workspace-search-input .input { padding-left: 2.5rem; padding-right: 3rem; }
+.search-glyph { position: absolute; left: var(--space-3); top: 50%; transform: translateY(-50%); width: 1rem; height: 1rem; color: var(--muted-ink); pointer-events: none; }
 .search-clear { position: absolute; top: 2px; right: 2px; width: 44px; height: 44px; border: 0; background: transparent; color: var(--muted-ink); font: inherit; font-size: 20px; cursor: pointer; }
 .panel-body { display: grid; gap: var(--space-3); border: 0; padding: 0; }
 .tag-filter-chips { border: 0; padding: 0; margin: 0; min-width: 0; }

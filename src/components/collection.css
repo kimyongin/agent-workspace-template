@@ -2,10 +2,10 @@
 .collection-heading .section-title { margin: 0; font-variant-numeric: tabular-nums; }
 .view-picker { display: inline-flex; align-items: center; flex-shrink: 0; background: var(--input-surface); border: 1px solid var(--line); border-radius: var(--radius-input); }
 .view-picker button { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; padding: 0; border: 0; background: transparent; color: var(--muted-ink); cursor: pointer; border-radius: var(--radius-input); }
-.view-picker button > span { display: grid; place-items: center; width: 22px; height: 22px; border: 1px solid transparent; border-radius: var(--radius-body-action); }
+.view-picker button > span { display: grid; place-items: center; width: 1.375rem; height: 1.375rem; border: 1px solid transparent; border-radius: var(--radius-body-action); }
 .view-picker button[aria-checked=true] > span { background: var(--surface); border-color: var(--control-border); color: var(--ink); }
 .view-picker button:hover > span { background: var(--surface); color: var(--ink); }
-.view-picker svg { width: 13px; height: 13px; }
+.view-picker svg { width: .8125rem; height: .8125rem; }
 .collection { --collection-secondary-width: clamp(80px, 18vw, 128px); min-width: 0; }
 .collection .related-items { display: grid; padding: 0; margin: 0; gap: 0; list-style: none; }
 /* The feature may wrap a row in a record div; li must fill its track, never shrink-wrap it. */
