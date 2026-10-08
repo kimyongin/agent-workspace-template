@@ -45,7 +45,7 @@ interface FormModalProps {
   validate: () => Record<string, string> | null;
   children: (errors: Record<string, string>) => ReactNode;
   deletion?: DeletionOptions;
-  preparation?: () => PrepareRecordMemo;
+  preparation?: () => PrepareRecordMemo | Promise<PrepareRecordMemo>;
   mutation?: { target: string; action: "등록" | "수정" | "중단" | "재개" | "연결" | "해제" | "복원" | "식별 정보 변경"; message?: ReactNode };
   confirmationOnly?: boolean;
 }
