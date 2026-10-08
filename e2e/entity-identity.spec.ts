@@ -14,7 +14,7 @@ test("manual tuple registration previews stored data, restores links, and rekeys
   const external_id = `000Ab:/한글%${unique("식별자")}`, name = unique("보관 엔터티");
   let entityId: string | undefined, taskId: string | undefined;
   try {
-    await api("PATCH", "/settings/business", { expected_version: original.version, sections: { entity_identity: { ...original.settings.entity_identity, generation: "manual", default_source: "app" } } });
+    await api("PATCH", "/settings/business", { expected_version: original.version, sections: { entity_identity: { ...original.settings.entity_identity, generation: "manual", default_source: "app" }, record_templates:{...original.settings.record_templates,entity:{...original.settings.record_templates?.entity,delete:{memo:"삭제 템플릿",tag_ids:[]}}} } });
     const target = await api("POST", "/entities", { source: "app", external_id, prop1: name, prop2: 0, prop4: "c" });
     entityId = target.id;
     const task = await api("POST", "/tasks", { id: crypto.randomUUID(), kind: "once", title: unique("연결 보존"), entity_ids: [target.id] });
@@ -57,11 +57,28 @@ test("manual tuple registration previews stored data, restores links, and rekeys
     entityId = `app:${next}`;
     await expect(page).toHaveURL(new RegExp(encodeURIComponent(entityId).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
     expect((await api("GET", `/tasks/${task.id}`)).entity_ids).toEqual([entityId]);
+    await expect(page.locator(`[id="tab-${`/entities/${encodeURIComponent(target.id)}`}"]`)).toHaveCount(0);
+    await expect(page.getByRole("heading", {name,exact:true})).toBeVisible();
+    await page.reload();
+    await expect(page.getByRole("heading", {name,exact:true})).toBeVisible();
+    await page.getByRole("button", {name:"편집",exact:true}).click();
+    await page.getByRole("button", {name:"삭제",exact:true}).click();
+    const deletion = page.locator("dialog.modal-action[open]");
+    await expect(deletion.getByLabel("기록 메모", {exact:true})).toHaveValue("삭제 템플릿");
+    await deletion.getByLabel("기록 메모", {exact:true}).fill("");
+    const request = page.waitForRequest(value => value.method() === "POST" && value.url().endsWith("/delete"));
+    await deletion.getByRole("button", {name:"삭제하고 기록",exact:true}).click();
+    expect((await request).postDataJSON().change_note).toBe("");
+    await expect(deletion).toHaveCount(0);
+    const events = await api("GET", "/records?record_kind=change&limit=100");
+    const deletionEvent = events.items.find((event:{change?:{target_id:string;action:string}}) => event.change?.target_id === entityId && event.change.action === "delete");
+    expect(deletionEvent.body).not.toBe("삭제 템플릿");
+    expect(deletionEvent.body).toContain(name);
   } finally {
     if (taskId) { const task = await api("GET", `/tasks/${taskId}`); await api("DELETE", `/tasks/${taskId}?expected_version=${task.version}`); }
     if (entityId) { const target = await api("GET", `/entities/${encodeURIComponent(entityId)}`); if (!target.deleted_at) await api("POST", `/entities/${encodeURIComponent(entityId)}/delete`, { expected_version: target.version }); }
     const latest = await api("GET", "/settings/business");
-    await api("PATCH", "/settings/business", { expected_version: latest.version, sections: { entity_identity: original.settings.entity_identity } });
+    await api("PATCH", "/settings/business", { expected_version: latest.version, sections: { entity_identity: original.settings.entity_identity,record_templates:original.settings.record_templates??{} } });
   }
 });
 
