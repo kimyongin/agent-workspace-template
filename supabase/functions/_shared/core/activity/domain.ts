@@ -89,7 +89,7 @@ export type TaskChanges = Partial<
 >;
 
 /** 내용 필드만 바꾼다. 완료된 할 일도 수정할 수 있다. 종류에 맞지 않는 필드는 거부한다. */
-export function updateTask(task: Task, patch: TaskUpdate): TaskChanges {
+export function updateTask(task: Pick<Task, "kind" | "version">, patch: TaskUpdate): TaskChanges {
   assertVersion(task, patch.expected_version);
   const { expected_version: _v, change_note: _note, change_tag_ids: _tags, ...changes } = patch;
   if (task.kind === "once" && (changes.recurrence !== undefined || changes.timezone !== undefined)) {

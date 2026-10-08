@@ -13,7 +13,7 @@ import { modelActions, type TemplateModel } from "../../contracts/record-templat
 import { changeDefaults } from "./change-defaults.ts";
 import type { ChangeFacts } from "../shared/changes.ts";
 import { taskCreate, taskUpdate } from "../../contracts/task.ts";
-import { resumeTask, stopTask, taskContent } from "../activity/domain.ts";
+import { resumeTask, stopTask, taskContent, updateTask } from "../activity/domain.ts";
 import { entityCreate, entityRekey, entityUpdate } from "../../contracts/entity.ts";
 import { principleCreate, principleUpdate } from "../../contracts/principle.ts";
 import { defaultEntityIdentitySettings, entityId } from "../../contracts/entity-identity.ts";
@@ -81,8 +81,13 @@ export function prepareBusinessRecord(
         );
       }
       const { expected_version: _version, ...fields } = mutation.data;
-      content = fields;
-      prepared_input = fields;
+      content = input.model === "task"
+        ? updateTask(
+          { kind: before?.kind ?? "once", version: input.expected_version! },
+          taskUpdate.parse({ ...fields, expected_version: input.expected_version }),
+        )
+        : fields;
+      prepared_input = content;
       if (input.operation === "identity") {
         const settings = saved.settings.entity_identity ?? defaultEntityIdentitySettings;
         if (!settings.sources.some((source) => source.code === content.source)) {

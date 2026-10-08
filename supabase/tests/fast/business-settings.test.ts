@@ -259,6 +259,11 @@ Deno.test("기록 준비: 반복 중단·재개의 기간은 실제 상태 전�
   };
   const actor = { userId: crypto.randomUUID() },
     input = { model: "task", target_id: crypto.randomUUID(), expected_version: 1, input: {} };
+  await assertRejects(
+    () => prepareBusinessRecord(d, actor, { ...input, action: "update", input: { due_on: "2026-10-10" } }),
+    AppError,
+    "반복 할 일에는 기한",
+  );
   const stopped = await prepareBusinessRecord(d, actor, { ...input, action: "stop" });
   assertEquals(stopped.change_note, JSON.stringify([{ stopped_on: "2026-10-09", resumed_on: null }]));
   facts = { ...facts, status: "stopped", pauses: [{ stopped_on: "2026-10-08", resumed_on: null }] };

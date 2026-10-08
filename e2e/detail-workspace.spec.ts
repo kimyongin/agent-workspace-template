@@ -433,7 +433,7 @@ test("desktop: relation saves refresh retained filtered lists without leaving th
   await page.route(url => url.origin === "http://127.0.0.1:55591" && url.pathname === "/api/tasks" && url.searchParams.has("entity_id"), route => {
     return route.fulfill({ json: { items: state.rows.tasks.filter(task => task.entity_ids.includes(entityKey(1))), next_cursor: null } });
   });
-  await page.goto(`/tasks?entity_id=${entityKey(1)}`);
+  await page.goto(`/tasks?entity_id=${encodeURIComponent(entityKey(1))}`);
   const list = page.locator(".workspace-list"); await list.getByRole("button", { name: "등심 구매하기", exact: true }).click(); await list.getByRole("link", { name: "등심 구매하기 상세", exact: true }).click();
   const entities = panel(page).getByRole("region", { name: "엔터티 (1개)", exact: true });
   await entities.getByRole("button", { name: "등심", exact: true }).click(); await entities.getByRole("button", { name: "등심 해제", exact: true }).click();
