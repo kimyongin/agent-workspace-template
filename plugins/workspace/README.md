@@ -1,6 +1,8 @@
 # Workspace 제품 플러그인
 
-`workspace` 0.2.0는 현재 상태·현재 원칙·기록 원문을 근거로 다음 업무를 준비하는 제품 스킬의 소스 후보다. Claude Code와 Codex가 같은 `skills/workspace/`를 사용하며 개발 스킬은 포함하지 않는다. 기존 운영 MCP `https://ayzcluvdppsppwszzaqx.supabase.co/functions/v1/mcp`에 연결하며 OAuth 로그인이 필요하다. 새 앱에서 이 패키지를 재사용할 때는 두 MCP 설정의 주소를 해당 앱의 검증한 주소로 함께 바꾼다. 토큰이나 서버 비밀을 파일에 넣지 않는다. 후보 소스 변경은 기존 설치 갱신이나 운영 서버 배포를 뜻하지 않는다.
+`workspace` 0.4.0는 현재 상태·현재 원칙·기록 원문을 근거로 다음 업무를 준비하는 제품 스킬의 소스 후보다. Claude Code와 Codex가 같은 `skills/workspace/`를 사용하며 개발 스킬은 포함하지 않는다. 기존 운영 MCP `https://ayzcluvdppsppwszzaqx.supabase.co/functions/v1/mcp`에 연결하며 OAuth 로그인이 필요하다. 새 앱에서 이 패키지를 재사용할 때는 두 MCP 설정의 주소를 해당 앱의 검증한 주소로 함께 바꾼다. 토큰이나 서버 비밀을 파일에 넣지 않는다. 후보 소스 변경은 기존 설치 갱신이나 운영 서버 배포를 뜻하지 않는다.
+
+0.4.0은 업무 설정·기록 템플릿 준비와 발급처별 엔터티 식별자·소프트 삭제·복원·식별 정보 변경 계약을 사용한다. 같은 서버 revision을 먼저 배포·검증한 뒤 클라이언트를 갱신한다. [기록 템플릿](../../docs/adr/0015-change-record-templates.md)과 [엔터티 식별자](../../docs/adr/0016-entity-source-identity.md)의 이관 기준을 따른다.
 
 “준비만” 요청은 원문 식별자와 가능한 순서·필요한 확인을 제안한 뒤 끝낸다. 현재 원칙 부재, 자료 충돌, 검색 장애와 색인 지연을 구분한다. 다중 대상·메모·현재 원칙의 서버 계약을 안내하고 과거 캡처의 해석은 `skills/workspace/references/preservation.md`를 필요한 경우에만 읽는다. 실제 클라이언트 검증 절차와 원시 출력 없는 증거 범위는 [행동 실험](../../experiments/plugin-behavior/README.md)에 있다.
 
@@ -41,7 +43,7 @@ Git source로 등록한 marketplace만 `codex plugin marketplace upgrade workspa
 ```powershell
 node scripts/check-plugin.mjs
 node --test scripts/check-plugin.test.mjs
-node scripts/package-plugin.mjs C:/release-artifacts/workspace-0.2.0.zip
+node scripts/package-plugin.mjs C:/release-artifacts/workspace-0.4.0.zip
 ```
 
 명령은 저장소 루트에서 실행한다. ZIP과 옆의 `.json` 증거는 저장소 밖에 쓴다. 파일 순서·ZIP 시각을 고정해 같은 원본은 같은 SHA-256을 만든다. 증거에 버전, endpoint, 도구 목록, 서버 도구 원본 해시와 각 패키지 파일 해시가 들어간다. 서버 원본의 해시는 실제 운영 revision 확인을 대신하지 않는다. 운영에서 아직 배포하지 않은 도구는 연결된 서버에서 사용할 수 없다.
