@@ -21,8 +21,7 @@ async function openProfile(page: Page) {
 }
 async function settings(page: Page) { await openProfile(page); await page.locator("#nav-profile-options").getByRole("link", { name:"설정", exact:true }).click(); }
 async function requestLogout(page: Page) {
-  const profile = page.getByRole("button", { name: "내 프로필", exact: true });
-  if (await profile.getAttribute("aria-expanded") !== "true") await profile.click();
+  await openProfile(page);
   await page.locator("#nav-profile-options").getByRole("link", { name: "로그아웃", exact: true }).click();
 }
 async function refreshedProfile(page: Page, icon: () => string) {
