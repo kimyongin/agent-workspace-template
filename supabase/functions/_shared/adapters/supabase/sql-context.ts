@@ -40,7 +40,7 @@ export class SqlActorStore {
       after: null,
       path: input.action === "delete"
         ? null
-        : `/${input.target_kind === "entity" ? "entities" : `${input.target_kind}s`}/${target.id}`,
+        : `/${input.target_kind === "entity" ? "entities" : `${input.target_kind}s`}/${encodeURIComponent(target.id)}`,
     };
     const values = {
       owner_id: this.actor.userId,

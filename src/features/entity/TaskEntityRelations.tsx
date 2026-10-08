@@ -52,7 +52,7 @@ function RelationControls({task,entityId,entityTitle,revision,children,onSaved}:
 
 export function TaskEntityRelations({task,onSaved}: {task:TaskResult;onSaved:(saved?:TaskResult,before?:TaskResult)=>void}) {
   return <RelationControls key={task.id} task={task} onSaved={onSaved}>{({search,button,unlink})=><RelatedSection title="엔터티" count={task.entity_ids.length} action={button}>
-    {search}<CollectionList>{task.entity_ids.map(id=>{const item={id,title:task.entity_context.find(item=>item.id===id)?.title??"엔터티"};return <li key={id}><RelatedPreviewItem to={`/entities/${id}`} title={item.title} action={unlink(item)}/></li>;})}</CollectionList>
+    {search}<CollectionList>{task.entity_ids.map(id=>{const item={id,title:task.entity_context.find(item=>item.id===id)?.title??"엔터티"};return <li key={id}><RelatedPreviewItem to={`/entities/${encodeURIComponent(id)}`} title={item.title} action={unlink(item)}/></li>;})}</CollectionList>
   </RelatedSection>}</RelationControls>;
 }
 

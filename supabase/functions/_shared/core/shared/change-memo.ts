@@ -2,6 +2,8 @@ import type { ChangeInput } from "./changes.ts";
 import { changed } from "./changes.ts";
 const actions = { create: "등록", update: "수정", delete: "삭제", restore: "복원", stop: "중단", resume: "재개" };
 const labels: Record<string, string> = {
+  source: "발급처",
+  external_id: "식별자",
   prop1: "속성 1",
   prop2: "속성 2",
   prop3: "속성 3",

@@ -1,7 +1,8 @@
+import { entityReferenceId as id } from "../../contracts/entity-identity.ts";
 import { z } from "zod";
 import { businessMeta } from "../../contracts/change.ts";
-import { expectedVersion, id } from "../../contracts/common.ts";
-import { entityCreate, entityListQuery, entityUpdate } from "../../contracts/entity.ts";
+import { expectedVersion } from "../../contracts/common.ts";
+import { entityCreate, entityListQuery, entityUpdate, entityRekey } from "../../contracts/entity.ts";
 import * as entity from "../../core/entity/application.ts";
 import { parse } from "../errors.ts";
 import { notFound } from "../../core/shared/errors.ts";
@@ -15,6 +16,7 @@ export function entityTools(d: entity.EntityDeps): ToolDef[] {
     update = entityUpdate.extend({ id: z.unknown() }),
     remove = z.strictObject({ id: z.unknown(), expected_version: expectedVersion, ...businessMeta });
   return [
+    { name: "rekey_entity", description: "별도 식별 정보 변경. 현재 expected_version 필수. 삭제된 대상을 포함한 동일 조합 충돌은 거부한다. 모든 현재 연결·사건 참조를 원자적으로 전환하고 과거 본문은 그대로 보존한다.", input: entityRekey.extend({ id }), readOnly: false, handler: (i, a) => { const { id: target, ...rest } = parse(entityRekey.extend({ id }), i); return entity.rekeyEntity(d, a, target, rest); } },
     {
       name: "list_entities",
       description:
@@ -34,7 +36,7 @@ export function entityTools(d: entity.EntityDeps): ToolDef[] {
     {
       name: "create_entity",
       description:
-        "예제 엔터티 생성. prop1 1~100자 필수, prop2 정수 0~1000000, prop3 날짜, prop4 a/b/c 기본 a. 클라이언트 UUID id 필수. 같은 id 재시도는 충돌로 거부한다.",
+        "예제 엔터티 생성. prop1 1~100자 필수, prop2 정수 0~1000000, prop3 날짜, prop4 a/b/c 기본 a. 발급처 source와 외부 식별자 external_id는 정확하게 보존한다. 생략 시 사용자 설정을 적용한다. 자동 UUID도 첫 요청에서 external_id로 고정하여 재시도한다. 활성 중복은 충돌. 삭제된 조합은 get_entity로 보관값·version을 확인하고 expected_version으로 명시적으로 복원하며 생략 속성은 유지한다.",
       input: entityCreate,
       readOnly: false,
       handler: (i, a) => entity.createEntity(d, a, parse(entityCreate, i)),
@@ -52,7 +54,7 @@ export function entityTools(d: entity.EntityDeps): ToolDef[] {
     },
     {
       name: "delete_entity",
-      description: "엔터티 삭제. 할 일의 해당 선택을 제거하고 기록의 캡처 문맥과 원문을 보존한다.",
+      description: "엔터티 소프트 삭제. 속성·태그·할 일/기록 연결은 보존하고 활성 후보에서 제외한다. 같은 조합·현재 버전으로 등록하면 복원한다.",
       input: z.strictObject({ id, expected_version: expectedVersion, ...businessMeta }),
       readOnly: false,
       destructive: true,

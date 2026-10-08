@@ -1,10 +1,12 @@
-import type { EntityCreate, EntityResult } from "../../contracts/entity.ts";
+import type { EntityResult } from "../../contracts/entity.ts";
 import type { ChangeFacts, ChangeTarget } from "../shared/changes.ts";
 
 export function entityChangeFacts(
-  entity: Pick<EntityCreate, "prop1" | "prop2" | "prop3" | "prop4" | "tag_ids">,
+  entity: Pick<EntityResult, "prop1" | "prop2" | "prop3" | "prop4" | "tag_ids" | "source" | "external_id">,
 ): ChangeFacts {
   return {
+    source: entity.source,
+    external_id: entity.external_id,
     prop1: entity.prop1,
     prop2: entity.prop2,
     prop3: entity.prop3,
