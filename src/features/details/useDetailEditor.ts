@@ -13,6 +13,9 @@ export function useDetailEditor(onClosed: () => void) {
   const [destination, setDestination] = useState<{ key: string; path: string } | null>(null);
   const active = params.get("edit") === "1" && endedEntry !== location.key;
 
+  // Suppression belongs to this visit, not to a history entry revisited by Back/Forward.
+  useEffect(() => { setEndedEntry(null); }, [location.key]);
+
   // Form layout cleanup has removed the editor and its dirty guard before this effect runs.
   useEffect(() => {
     if (!destination) return;
