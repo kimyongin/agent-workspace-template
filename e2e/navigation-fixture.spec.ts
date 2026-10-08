@@ -4,7 +4,7 @@ const user = { id: "00000000-0000-0000-0000-000000000001", aud: "authenticated",
 test.beforeEach(async ({ page, baseURL }) => {
   await page.route("**/*", async route => {
     const url = new URL(route.request().url());
-    if (url.pathname.includes("/functions/v1/api/")) await route.fulfill({ json: { items: [], next_cursor: null } });
+    if (/\/(?:functions\/v1\/)?api\//.test(url.pathname)) await route.fulfill({ json: { items: [], next_cursor: null } });
     else if (url.origin === new URL(baseURL!).origin) await route.continue();
     else await route.abort();
   });
@@ -36,7 +36,8 @@ test("네 탭과 프로필·메뉴는 320~1440px와 200%에서 조작 가능하�
     await page.setViewportSize({ width, height: 844 }); await page.goto("/settings");
     const nav = page.getByRole("navigation", { name: "주 메뉴" });
     await expect(nav.getByRole("link")).toHaveCount(4);
-    await expect(page.locator(".app-header")).toHaveCount(0);
+    await expect(page.locator(".workspace-header")).toHaveCount(1);
+    if(width<1024)await expect(page.locator(".workspace-header")).toBeVisible();else await expect(page.locator(".workspace-header")).toBeHidden();
     for (const size of await nav.locator(".bottom-nav-inner > a, .nav-more-trigger").evaluateAll(nodes => nodes.map(node => { const r = node.getBoundingClientRect(); return [r.width, r.height]; }))) {
       expect(size[0]).toBeGreaterThanOrEqual(44); expect(size[1]).toBeGreaterThanOrEqual(44);
     }
@@ -183,4 +184,50 @@ for(const width of [390,1440])test(`#205 ${width}px: 설정·가이드 구획과
     const nav=(await page.locator(".bottom-nav").boundingBox())!;expect(nav.y).toBeGreaterThan(0);expect(nav.y+nav.height).toBeCloseTo(280);
     await page.getByRole("button",{name:"메뉴",exact:true}).click();const short=(await page.locator("#nav-more-options").boundingBox())!;expect(short.y).toBeGreaterThanOrEqual(0);expect(short.y+short.height).toBeLessThanOrEqual(280);
   }
+});
+
+// #215 exercises the real App shell and URL filters without writing user data.
+test("#215 메인 네 탭의 상단 구획·브랜드·필터 조작은 좁은 화면에서도 정렬된다", async ({ page }, info) => {
+  test.setTimeout(90_000);
+  await page.route(/\/(?:functions\/v1\/)?api\/principles\/current$/, route => route.fulfill({ json: { current: null } }));
+  for (const width of [320, 360, 390, 479, 480, 639, 640, 768, 1024, 1440]) {
+    await page.setViewportSize({ width, height: 844 });
+    for (const [path, title] of [["entities", "엔터티"], ["tasks", "할 일"], ["records", "기록"], ["principles", "원칙"]]) {
+      await page.goto(`/${path}`);
+      const header = page.getByRole("region", { name: title, exact: true });
+      await expect(header.getByRole("heading", { level: 1, name: title, exact: true })).toBeVisible();
+      const border = await header.evaluate(el => getComputedStyle(el).borderBottomWidth);
+      expect(border).toBe("1px");
+      expect(await header.evaluate(el => getComputedStyle(el).paddingBottom)).toBe("16px");
+      await expect(page.locator(width < 1024 ? ".workspace-header" : ".navigation-brand")).toBeVisible();
+      await expect(page.locator(width < 1024 ? ".navigation-brand" : ".workspace-header")).toBeHidden();
+      if (path === "principles") {
+        await expect(page.getByRole("button", { name: /^필터/ })).toHaveCount(0);
+        continue;
+      }
+      const search = header.getByRole("textbox", { name: path === "entities" ? "속성 1 키워드" : "검색어", exact: true }), toggle = header.getByRole("button", { name: /^필터 (열기|닫기)/ });
+      await toggle.press("Enter");
+      await expect(toggle).toHaveAttribute("aria-expanded", "true");
+      const reset = header.getByRole("button", { name: "조건 초기화", exact: true });
+      const s = (await search.boundingBox())!, t = (await toggle.boundingBox())!, r = (await reset.boundingBox())!;
+      expect(t.y).toBeCloseTo(r.y);
+      expect(t.x + t.width).toBeLessThanOrEqual(r.x);
+      expect(s.y + s.height).toBeLessThanOrEqual(t.y);
+      for (const button of [toggle, reset]) { const b = (await button.boundingBox())!; expect(b.height).toBeGreaterThanOrEqual(44); expect(b.width).toBeGreaterThanOrEqual(44); }
+      await reset.click(); expect(new URL(page.url()).searchParams.get("filters")).toBe("1");
+      await page.reload(); await expect(page.getByRole("button", { name: "필터 닫기", exact: true })).toHaveAttribute("aria-expanded", "true");
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+      if (width === 390 || width === 1440) await page.screenshot({ path: info.outputPath(`main-${path}-${width}.png`) });
+    }
+  }
+  await page.setViewportSize({ width: 320, height: 844 }); await page.goto("/entities?filters=1&prop4=a");
+  await page.evaluate(() => document.documentElement.style.fontSize = "200%");
+  const toggle = page.getByRole("button", { name: /필터 닫기/ }), reset = page.getByRole("button", { name: "조건 초기화" });
+  const t = (await toggle.boundingBox())!, r = (await reset.boundingBox())!;
+  expect(r.y >= t.y + t.height || r.x >= t.x + t.width).toBe(true);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.evaluate(() => document.documentElement.style.fontSize = "");
+  await page.setViewportSize({ width: 1440, height: 280 });
+  await expect(page.locator(".workspace-header")).toBeVisible();
+  await expect(page.locator(".navigation-brand")).toBeHidden();
 });

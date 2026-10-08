@@ -19,7 +19,7 @@ export function PrinciplesPage() {
   useEffect(()=>{const controller=new AbortController();setError(null);
     api<{current:WorkspacePrinciple|null}>("GET","/principles/current",undefined,controller.signal).then(p=>{if(!controller.signal.aborted)setCurrent(p.current);}).catch(()=>{if(!controller.signal.aborted)setError("현재 원칙을 불러오지 못했습니다.");});
     return()=>controller.abort();},[retry]);
-  return <><section className="panel" aria-labelledby="principles-title">
+  return <><section className="panel main-tab-header" aria-labelledby="principles-title">
     <div className="panel-head"><h1 id="principles-title" className="page-title" tabIndex={-1}>원칙</h1>
       {current===null&&!error&&<TabCreateButton label="원칙 작성" onClick={create.begin}/>}
     </div>

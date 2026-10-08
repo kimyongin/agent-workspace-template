@@ -1,8 +1,10 @@
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 import "./body-action.css";
 
-type ActionIcon = "create" | "link" | "unlink" | "close" | "view";
+type ActionIcon = "create" | "link" | "unlink" | "close" | "view" | "filter" | "reset";
 const paths: Record<ActionIcon, ReactNode> = {
+  filter: <><path d="M4 7h16M4 17h16"/><circle cx="9" cy="7" r="2"/><circle cx="15" cy="17" r="2"/></>,
+  reset: <path d="M3 10a9 9 0 1 1 1 8M3 4v6h6"/>,
   create: <path d="M12 5v14M5 12h14"/>,
   link: <path d="M10 13a5 5 0 0 0 7.07 0l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71M14 11a5 5 0 0 0-7.07 0l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>,
   unlink: <path d="m18.84 12.25 1.23-1.23a5 5 0 0 0-7.07-7.07l-1.23 1.23M5.16 11.75l-1.23 1.23a5 5 0 0 0 7.07 7.07l1.23-1.23M8 2v3M2 8h3M16 19v3M19 16h3"/>,
