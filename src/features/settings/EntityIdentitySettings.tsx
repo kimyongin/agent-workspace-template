@@ -1,16 +1,18 @@
 import { useEffect, useState } from "react";
-import { entityIdentitySettings, type EntityIdentitySettings as IdentitySettings } from "@contracts/entity-identity.ts";
+import { defaultEntityIdentitySettings, entityIdentitySettings, type EntityIdentitySettings as IdentitySettings } from "@contracts/entity-identity.ts";
 import { api, ApiError } from "../../lib/api.ts";
 import { Field, Notice } from "../../components/Field.tsx";
 
-export function EntityIdentitySettings() {
+export function EntityIdentitySettings({onStateChange}: {onStateChange?:(state:{dirty:boolean;busy:boolean})=>void}) {
   const [saved, setSaved] = useState<{ version: number; settings: { entity_identity: IdentitySettings } } | null>(null);
   const [draft, setDraft] = useState<IdentitySettings | null>(null), [message, setMessage] = useState(""), [busy, setBusy] = useState(false);
-  useEffect(() => { const c = new AbortController(); void api<typeof saved>("GET", "/settings/business", undefined, c.signal).then(value => { if (value) { setSaved(value); setDraft(value.settings.entity_identity); } }).catch(() => { if (!c.signal.aborted) setMessage("식별자 설정을 불러오지 못했습니다."); }); return () => c.abort(); }, []);
+  useEffect(() => { const c = new AbortController(); void api<typeof saved>("GET", "/settings/business", undefined, c.signal).then(value => { if (value) { setSaved({...value,settings:{entity_identity:value.settings.entity_identity ?? defaultEntityIdentitySettings}}); setDraft(value.settings.entity_identity ?? defaultEntityIdentitySettings); } }).catch(() => { if (!c.signal.aborted) setMessage("식별자 설정을 불러오지 못했습니다."); }); return () => c.abort(); }, []);
   const dirty = !!saved && JSON.stringify(draft) !== JSON.stringify(saved.settings.entity_identity);
+  useEffect(() => { onStateChange?.({dirty,busy}); }, [dirty,busy,onStateChange]);
+  const readLatest = async () => { try { const value = await api<NonNullable<typeof saved>>("GET", "/settings/business"); setSaved({...value,settings:{entity_identity:value.settings.entity_identity ?? defaultEntityIdentitySettings}}); setMessage("최신 버전을 불러왔습니다. 입력은 유지했습니다."); } catch { setMessage("최신 설정을 불러오지 못했습니다."); } };
   return <section className="settings-group" aria-labelledby="entity-identity-title">
     <h2 className="section-title" id="entity-identity-title">엔터티 식별자</h2>
-    {message && <Notice>{message}</Notice>}
+    {message && <Notice>{message}</Notice>}<button type="button" className="btn" disabled={busy} onClick={() => void readLatest()}>최신 설정 조회</button>
     {draft && <form className="form" aria-label="엔터티 식별자 설정" onSubmit={async event => {
       event.preventDefault(); if (!saved || busy) return;
       const parsed = entityIdentitySettings.safeParse(draft);

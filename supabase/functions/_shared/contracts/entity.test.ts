@@ -1,17 +1,16 @@
 import { assertEquals } from "@std/assert";
 import { entityCreate, entityListQuery, entityUpdate } from "./entity.ts";
 Deno.test("Entity 입력: 코드 포인트·숫자 0·날짜·선택·부분 수정과 서버 필드 거부", () => {
-  const id = crypto.randomUUID();
-  assertEquals(entityCreate.parse({ id, prop1: "  예제  " }), {
-    id,
+  const external_id = crypto.randomUUID();
+  assertEquals(entityCreate.parse({ source: "app", external_id, prop1: "  예제  " }), {
+    source: "app",
+    external_id,
     prop1: "예제",
-    prop2: null,
-    prop3: null,
-    prop4: "a",
   });
   assertEquals(
     entityCreate.parse({
-      id: crypto.randomUUID(),
+      source: "app",
+      external_id: crypto.randomUUID(),
       ...{ prop1: "😀".repeat(100), prop2: 0, prop3: "2024-02-29", prop4: "c" },
     }).prop2,
     0,
@@ -26,7 +25,7 @@ Deno.test("Entity 입력: 코드 포인트·숫자 0·날짜·선택·부분 수
       { prop1: "예제", prop4: "d" },
       { prop1: "예제", owner_id: crypto.randomUUID() },
     ]
-  ) assertEquals(entityCreate.safeParse({ id: crypto.randomUUID(), ...input }).success, false);
+  ) assertEquals(entityCreate.safeParse({ source: "app", external_id: crypto.randomUUID(), ...input }).success, false);
   assertEquals(entityUpdate.safeParse({ change_note: "테스트 변경 이유", expected_version: 1 }).success, false);
   assertEquals(entityUpdate.parse({ change_note: "테스트 변경 이유", expected_version: 1, prop2: null }), {
     change_note: "테스트 변경 이유",

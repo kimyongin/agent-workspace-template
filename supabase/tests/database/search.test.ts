@@ -75,7 +75,7 @@ dbTest("검색: 한국어 본문·literal 와일드카드·상태·태그·기�
       { query: token + "changed" },
       { mode: "auto" as const },
       { tag_id: tagId },
-      { entity_id: crypto.randomUUID() },
+      { entity_id: `app:${crypto.randomUUID()}` },
       { entity_id: undefined },
       { kinds: ["record"] as ("record")[] },
     ]

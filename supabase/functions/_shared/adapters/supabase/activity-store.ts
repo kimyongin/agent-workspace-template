@@ -221,7 +221,11 @@ export class SqlActivityStore extends SqlActorStore implements ActivityStore {
 
   async insertRecord(record: NewRecord) {
     const tx = this.tx;
-    const selection = await this.entityLinks.recordSelection(selectedEntities(record) ?? [], undefined, record.inherit_task_entities ? record.task_id ?? undefined : undefined);
+    const selection = await this.entityLinks.recordSelection(
+      selectedEntities(record) ?? [],
+      undefined,
+      record.inherit_task_entities ? record.task_id ?? undefined : undefined,
+    );
     const values: Record<string, unknown> = {
       id: record.id ?? crypto.randomUUID(),
       owner_id: this.actor.userId,

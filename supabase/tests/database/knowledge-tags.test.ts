@@ -79,7 +79,15 @@ dbTest(
       );
       for (const tag of [activityTag.id, foreign.id, crypto.randomUUID()]) {
         await assertRejects(() =>
-          e.createEntity(ed, A, entityCreate.parse({ id: crypto.randomUUID(), ...{ prop1: "거부", tag_ids: [tag] } }))
+          e.createEntity(
+            ed,
+            A,
+            entityCreate.parse({
+              source: "app",
+              external_id: crypto.randomUUID(),
+              ...{ prop1: "거부", tag_ids: [tag] },
+            }),
+          )
         );
       }
       for (
@@ -107,7 +115,11 @@ dbTest(
       const entity = await e.createEntity(
         ed,
         A,
-        entityCreate.parse({ id: crypto.randomUUID(), ...{ prop1: "대상", tag_ids: [entityTag.id] } }),
+        entityCreate.parse({
+          source: "app",
+          external_id: crypto.randomUUID(),
+          ...{ prop1: "대상", tag_ids: [entityTag.id] },
+        }),
       );
       assertMatch(
         await outcome(

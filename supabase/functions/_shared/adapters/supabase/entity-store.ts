@@ -37,7 +37,7 @@ export class SqlEntityStore extends SqlActorStore implements EntityStore {
   }
   private async label(row: EntityResult) {
     const settings = (await this.getBusinessSettings()).settings.entity_identity;
-    return { ...row, source_label: settings.sources.find((s) => s.code === row.source)?.label ?? row.source };
+    return { ...row, source_label: settings?.sources.find((s) => s.code === row.source)?.label ?? row.source };
   }
   async insert(i: Parameters<EntityStore["insert"]>[0]) {
     const entity = result(
@@ -93,20 +93,25 @@ export class SqlEntityStore extends SqlActorStore implements EntityStore {
         : tx`${after.at}`
       : tx``;
     const descending = q.sort === "updated_at";
-    const rows = (await tx`select ${tx.unsafe(columns)},${tagIdsColumn(tx, "entity")} from app.entities where deleted_at is null
+    const rows =
+      (await tx`select ${tx.unsafe(columns)},${tagIdsColumn(tx, "entity")} from app.entities where deleted_at is null
       ${q.tag_id ? tx`and ${hasTag(tx, "entity", q.tag_id)}` : tx``}
-      ${q.keyword ? tx`and (position(lower(${q.keyword}) in lower(prop1))>0 or position(lower(${q.keyword}) in lower(external_id))>0 or position(lower(${q.keyword}) in lower(source))>0)` : tx``}
+      ${
+        q.keyword
+          ? tx`and (position(lower(${q.keyword}) in lower(prop1))>0 or position(lower(${q.keyword}) in lower(external_id))>0 or position(lower(${q.keyword}) in lower(source))>0)`
+          : tx``
+      }
       ${q.prop4 ? tx`and prop4=${q.prop4}` : tx``}
       ${q.prop3_from ? tx`and prop3>=${q.prop3_from}::date` : tx``}
       ${q.prop3_to ? tx`and prop3<=${q.prop3_to}::date` : tx``}
       ${
-      after
-        ? descending ? tx`and (${key},id)<(${at},${after.id}::text)` : tx`and (${key},id)>(${at},${after.id}::text)`
-        : tx``
-    }
+        after
+          ? descending ? tx`and (${key},id)<(${at},${after.id}::text)` : tx`and (${key},id)>(${at},${after.id}::text)`
+          : tx``
+      }
       order by ${key} ${descending ? tx`desc` : tx`asc`}, id ${descending ? tx`desc` : tx`asc`} limit ${q.limit}`).map(
-      result,
-    );
+        result,
+      );
     return Promise.all(rows.map((row) => this.label(row)));
   }
   async related(id: string): Promise<Pick<EntityDetail, "tasks" | "records">> {

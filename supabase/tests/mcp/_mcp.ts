@@ -132,7 +132,9 @@ export async function tool(client: Client, name: string, args: Record<string, un
       name,
     ) && !("id" in args)
   ) {
-    args = { id: crypto.randomUUID(), ...args };
+    args = name === "create_entity"
+      ? { source: "app", external_id: crypto.randomUUID(), ...args }
+      : { id: crypto.randomUUID(), ...args };
   }
   const res = await client.callTool({ name, arguments: args });
   const body = res.structuredContent ?? JSON.parse((res.content as { text: string }[])[0].text);

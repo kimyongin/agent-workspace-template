@@ -56,7 +56,7 @@ function fixture() {
 }
 
 Deno.test("HTTP task can select two entities and MCP independently reads both; body mentions do not create links", async () => {
-  const f = fixture(), ids = ["00000000-0000-4000-8000-000000000002", "00000000-0000-4000-8000-000000000001"];
+  const f = fixture(), ids = ["app:00000000-0000-4000-8000-000000000002", "app:00000000-0000-4000-8000-000000000001"];
   const response = await f.app.request("/tasks", {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -77,8 +77,8 @@ Deno.test("HTTP task can select two entities and MCP independently reads both; b
 
 Deno.test("HTTP task rejects conflicting legacy target alias on edit without changing selected targets", async () => {
   const f = fixture(),
-    selected = "00000000-0000-4000-8000-000000000001",
-    other = "00000000-0000-4000-8000-000000000002";
+    selected = "app:00000000-0000-4000-8000-000000000001",
+    other = "app:00000000-0000-4000-8000-000000000002";
   const created = await f.call("create_task", {
     id: crypto.randomUUID(),
     kind: "once",

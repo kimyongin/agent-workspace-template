@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { EntityResult } from "@contracts/entity.ts";
 import { entityRekey } from "@contracts/entity.ts";
-import { entityPath, type EntityIdentitySettings } from "@contracts/entity-identity.ts";
+import { defaultEntityIdentitySettings, entityPath, type EntityIdentitySettings } from "@contracts/entity-identity.ts";
 import { FormModal } from "../../components/ContentForm.tsx";
 import { Field } from "../../components/Field.tsx";
 import { api } from "../../lib/api.ts";
@@ -12,7 +12,7 @@ export function EntityIdentityForm({ entity, onClose, onSaved }: {
 }) {
   const [draft, setDraft] = useState({ source: entity.source, external_id: entity.external_id });
   const [settings, setSettings] = useState<EntityIdentitySettings | null>(null);
-  useEffect(() => { const c = new AbortController(); void api<{ settings: { entity_identity: EntityIdentitySettings } }>("GET", "/settings/business", undefined, c.signal).then(value => setSettings(value.settings.entity_identity)).catch(() => {}); return () => c.abort(); }, []);
+  useEffect(() => { const c = new AbortController(); void api<{ settings: { entity_identity: EntityIdentitySettings } }>("GET", "/settings/business", undefined, c.signal).then(value => setSettings(value.settings.entity_identity ?? defaultEntityIdentitySettings)).catch(() => {}); return () => c.abort(); }, []);
   return <FormModal open domain="엔터티" title="식별 정보 변경" submitLabel="변경" dirty={draft.source !== entity.source || draft.external_id !== entity.external_id}
     mutation={{ target: entity.prop1, action: "식별 정보 변경" }} onClose={onClose}
     validate={() => { const result = entityRekey.safeParse({ ...draft, expected_version: entity.version }); return result.success ? null : fieldErrors(result.error.issues); }}

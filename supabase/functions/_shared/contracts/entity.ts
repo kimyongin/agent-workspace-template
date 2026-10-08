@@ -84,5 +84,10 @@ export type EntityResult = z.infer<typeof entityResult>;
 export type EntityDetail = z.infer<typeof entityDetail>;
 export const entityLabels = { prop1: "속성 1", prop2: "속성 2", prop3: "속성 3", prop4: "속성 4" };
 
-export const entityRekey = z.strictObject({ source: entitySourceCode, external_id: entityExternalId, expected_version: expectedVersion, ...businessMeta });
+export const entityRekey = z.strictObject({
+  source: entitySourceCode,
+  external_id: entityExternalId,
+  expected_version: expectedVersion,
+  ...businessMeta,
+});
 export type EntityRekey = z.infer<typeof entityRekey>;
