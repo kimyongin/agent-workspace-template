@@ -66,16 +66,13 @@ test("#181 일반 기록은 바로 저장하고 삭제만 작은 메모·태그 
   await expect.poll(()=>state.writes.length).toBe(2);expect(state.writes[1].params.get("change_note")).toBe("중복 자료 삭제");expect(state.errors).toEqual([]);
 });
 for(const kind of ["entities","records"] as const)test(`${kind}: 긴 복원 중 실패는 미표시 batch까지 유효한23행을 보존`,async({page})=>{
-  const state=await fixtures(page),reads:number[]=[];
-  await page.route(`**/api/${kind}?**`,route=>{
-    const index=Number(new URL(route.request().url()).searchParams.get("cursor")??0);reads.push(index);
-    if(index===23)return route.fulfill({status:503,json:{code:"internal",message:"partial restoration failure"}});
-    const item=kind==="entities"?{...entity(100+index),prop1:`부분 행 ${index}`}:{...record(100+index),body:`부분 행 ${index}`};
-    return route.fulfill({json:{items:[item],next_cursor:String(index+1)}});
-  });
+  const state=await fixtures(page);
+  if(kind==="entities")state.listPages(kind,Array.from({length:250},(_,index)=>[{...entity(100+index),prop1:"부분 행 "+index}]));
+  else state.listPages(kind,Array.from({length:250},(_,index)=>[{...record(100+index),body:"부분 행 "+index}]));
+  state.failRead({kind,page:24},{message:"partial restoration failure"});
   await go(page,`/${kind}?pages=250`);await expect(page.getByRole("alert")).toBeVisible();
   await expect(page.locator(kind==="entities"?".list .item-title":`.${kind} .list .item-title`)).toHaveCount(23);await expect(page.locator(kind==="entities"?".list .item-title":`.${kind} .list .item-title`).last()).toHaveText("부분 행 22");
-  expect(reads).toEqual(Array.from({length:24},(_,index)=>index));expect(state.writes).toHaveLength(0);expect(state.errors).toEqual([]);
+  expect(state.reads.filter(url=>new URL(url).pathname==="/api/"+kind)).toHaveLength(24);expect(state.writes).toHaveLength(0);expect(state.errors).toEqual([]);
 });
 const targetCases=[["entity","entities",1],["task","tasks",2],["record","records",31],["principle","principles",4]] as const;
 const connectedTarget=(page:Page,kind:typeof targetCases[number][0])=>form(page).getByRole("region",{name:`${{entity:"엔터티",task:"할 일",record:"기록",principle:"원칙"}[kind]} (1개)`,exact:true});
@@ -362,9 +359,11 @@ for(const kind of ["tasks","records"] as const) test(`${kind} 보기의 연결 �
   }expect(state.writes).toHaveLength(0);expect(state.errors).toEqual([]);
 });
 test("연결 범위 해제 뒤 늦은 scoped 페이지는 전체 행·cursor를 덮지 않는다",async({page})=>{
-  const state=await fixtures(page);let release=()=>{},arrived=()=>{};const held=new Promise<void>(resolve=>release=resolve),started=new Promise<void>(resolve=>arrived=resolve);
-  await page.route("**/api/tasks?**",async route=>{const params=new URL(route.request().url()).searchParams;if(params.has("cursor")){arrived();await held;return route.fulfill({json:{items:[{...task(60),title:"오래된 범위 추가"}],next_cursor:null}}).catch(()=>{});}return route.fulfill({json:{items:params.has("entity_id")?Array.from({length:20},(_,i)=>({...task(100+i),title:`연결 업무 ${i}`})):[{...task(),title:"전체 업무"}],next_cursor:params.has("entity_id")?"next":null}});});
-  await go(page,`/tasks?entity_id=${id(1)}`);await openTabFilters(page);await page.locator(".tasks").getByRole("button",{name:"할 일 더 보기",exact:true}).click();await started;await page.getByRole("button",{name:"엔터티 범위 해제",exact:true}).click();await expect(page.locator(".tasks .item-title")).toHaveText(["전체 업무"]);release();await expect(page.locator(".tasks .item-title")).toHaveText(["전체 업무"]);await expect(page.locator(".tasks").getByText("오래된 범위 추가",{exact:true})).toHaveCount(0);await expect(page).not.toHaveURL(/entity_id=|tasks_pages=/);expect(state.errors).toEqual([]);
+  const state=await fixtures(page);
+  state.listPages("tasks",[Array.from({length:20},(_,i)=>({...task(100+i),title:"연결 업무 "+i})),[{...task(60),title:"오래된 범위 추가"}]],{entityId:id(1)});
+  state.listPages("tasks",[[{...task(),title:"전체 업무"}]]);
+  const held=state.holdRead({kind:"tasks",page:2,entityId:id(1)});
+  await go(page,`/tasks?entity_id=${id(1)}`);await openTabFilters(page);await page.locator(".tasks").getByRole("button",{name:"할 일 더 보기",exact:true}).click();await held.started;await page.getByRole("button",{name:"엔터티 범위 해제",exact:true}).click();await expect(page.locator(".tasks .item-title")).toHaveText(["전체 업무"]);held.release();await held.finished;await expect(page.locator(".tasks .item-title")).toHaveText(["전체 업무"]);await expect(page.locator(".tasks").getByText("오래된 범위 추가",{exact:true})).toHaveCount(0);await expect(page).not.toHaveURL(/entity_id=|tasks_pages=/);expect(state.errors).toEqual([]);
 });
 for(const scope of ["invalid",id(99)])test(`연결 범위 ${scope}: owner 조회 실패·URL 이름 불신·명시 해제`,async({page})=>{
   const state=await fixtures(page);let reads=0;await page.route("**/api/entities/*",route=>{reads++;return route.fulfill({status:404,json:{code:"not_found",message:"항목을 찾을 수 없습니다"}});});await go(page,`/tasks?entity_id=${scope}&entity_name=믿지않을이름`);await openTabFilters(page);await expect(page.getByText(scope==="invalid"?"엔터티 범위 ID가 올바르지 않습니다.":"연결된 엔터티를 조회할 수 없습니다.",{exact:true})).toBeVisible();expect(reads).toBe(scope==="invalid"?0:1);await expect(page.getByText("연결된 엔터티: 믿지않을이름",{exact:true})).toHaveCount(0);expect(new URL(page.url()).searchParams.get("entity_id")).toBe(scope);await page.getByRole("button",{name:"엔터티 범위 해제",exact:true}).click();await expect(page).not.toHaveURL(/entity_id=/);expect(state.errors).toEqual([]);
@@ -843,10 +842,11 @@ for(const overLimit of [false,true])test(`할 일 태그 10개 한도: ${overLim
 for(const kind of ["tasks"] as const)test(`${kind}: 무시한 이전 검색 페이지는 최신 행·대체 상태·coverage를 덮지 않는다`,async({page})=>{
   const state=await fixtures(page);let release=()=>{},started=()=>{};const held=new Promise<void>(r=>release=r),pending=new Promise<void>(r=>started=r);
   await page.route("**/api/search",async route=>{const input=route.request().postDataJSON(),target=(input.kinds as string[])[0];const stale=input.query==="old"&&input.cursor&&target===kind.slice(0,-1);if(stale){started();await held;}
-    await route.fulfill({json:{items:[{id:id(input.query==="old"?101:102),kind:target,title:input.query==="old"?"old hit":"new hit",snippet:"본문",snippet_start:0,snippet_end:2,at:stamp,tag_ids:[],path:`/${target}s/${id(102)}`,match:"keyword",index_state:"pending"}],next_cursor:input.query==="old"&&!input.cursor?"next":null,search_state:stale?"keyword_fallback":"ok",semantic_coverage:{pending:stale?99:1,excluded:0}}});});
+    await route.fulfill({json:{items:[{id:id(input.query==="old"?101:102),kind:target,title:input.query==="old"?"old hit":"new hit",snippet:"본문",snippet_start:0,snippet_end:2,at:stamp,tag_ids:[],path:`/${target}s/${id(102)}`,match:"keyword",index_state:"pending"}],next_cursor:input.query==="old"&&!input.cursor?"next":null,search_state:stale?"keyword_fallback":"ok",semantic_coverage:{pending:stale?99:1,excluded:0}}}).catch(error=>{if(!route.request().failure())throw error;});});
   await go(page,`/${kind}?q=old`);const section=kind==="tasks"?page.locator(".tasks"):page.locator("main");await section.getByRole("button",{name:kind==="tasks"?"할 일 더 보기":"더 보기",exact:true}).click();await pending;
+  const canceled=page.waitForEvent("requestfailed",request=>request.url().endsWith("/api/search")&&request.postDataJSON().query==="old"&&!!request.postDataJSON().cursor);
   await page.getByLabel("검색어",{exact:true}).fill("new");await expect(section.getByRole("button",{name:"new hit",exact:true})).toBeVisible();
-  const oldResponse=page.waitForResponse(response=>{const request=response.request();return request.url().endsWith("/api/search")&&request.postDataJSON().query==="old"&&!!request.postDataJSON().cursor;});release();await (await oldResponse).finished();await page.evaluate(()=>new Promise<void>(resolve=>requestAnimationFrame(()=>resolve())));
+  await canceled;release();await page.evaluate(()=>new Promise<void>(resolve=>requestAnimationFrame(()=>resolve())));
   await expect(section.getByText(/색인 대기 1개/)).toBeVisible();await expect(section.getByText(/의미 검색을 사용할 수 없어/)).toHaveCount(0);await expect(section.getByText(/대기 99개/)).toHaveCount(0);await expect(section.getByRole("button",{name:"old hit",exact:true})).toHaveCount(0);expect(state.errors).toEqual([]);
 });
 test("검색 복원의 마지막 요청 페이지가 cursor를 반복하면 이전 행·coverage만 보존한다",async({page})=>{
@@ -946,13 +946,10 @@ for(const width of [320,360,390,639,640,768,1024,1440])test(`공통 연결 목�
 });
 
 test("할 일 연결 기록: 결과와 전체 기간 회차·페이지 오류 동일 cursor 재시도",async({page})=>{
-  const state=await fixtures(page),reads:URLSearchParams[]=[];let fail=true;
-  const first={...record(20),body:"최근 수행 결과",record_kind:"result",task_id:id(2)},old={...record(21),body:"오래된 회차 기록",task_id:id(2),occurrence_on:"2025-01-01"};
-  await page.route("**/api/records?**",route=>{
-    const params=new URL(route.request().url()).searchParams;reads.push(params);
-    if(params.has("cursor")&&fail){fail=false;return route.fulfill({status:503,json:{code:"internal",message:"페이지 실패"}});}
-    return route.fulfill({json:params.has("cursor")?{items:[first,old],next_cursor:null}:{items:[first],next_cursor:"more"}});
-  });
+  const state=await fixtures(page);
+  const first={...record(20),body:"최근 수행 결과",record_kind:"result" as const,task_id:id(2)},old={...record(21),body:"오래된 회차 기록",task_id:id(2),occurrence_on:"2025-01-01"};
+  state.listPages("records",[[first],[first,old]]);
+  state.failRead({kind:"records",page:2},{message:"페이지 실패"});
   Object.assign(state.rows.tasks[0],{kind:"recurring",status:"active",timezone:"Asia/Seoul",recurrence:{freq:"daily",starts_on:"2026-10-01",ends_on:null}});
   await page.route("**/api/tasks/*/occurrences?**",route=>route.fulfill({json:{today:"2026-10-07",items:[]}}));
   await go(page,`/tasks/${id(2)}`);const related=form(page).getByRole("region",{name:/^기록 \(/});
@@ -962,7 +959,8 @@ test("할 일 연결 기록: 결과와 전체 기간 회차·페이지 오류 �
   state.rows.records.push(old);
   await related.getByRole("button",{name:old.body,exact:true}).click();await form(page).getByRole("link",{name:old.body+" 상세",exact:true}).click();await form(page).getByRole("button",{name:/^이전: 할 일/}).click();
   await expect(related.getByRole("link",{name:old.body+" 상세",exact:true})).toBeFocused();await expect(page).toHaveURL(/related_record_pages=2/);
-  expect(reads.slice(0,3).map(p=>p.get("cursor"))).toEqual([null,"more","more"]);for(const params of reads){expect(params.get("task_id")).toBe(id(2));expect(params.get("limit")).toBe("20");expect(params.has("occurred_from")).toBe(false);}
+  const reads=state.reads.filter(url=>new URL(url).pathname==="/api/records").map(url=>new URL(url).searchParams);
+  expect(reads[0].get("cursor")).toBeNull();expect(reads[1].get("cursor")).toBeTruthy();expect(reads[2].get("cursor")).toBe(reads[1].get("cursor"));for(const params of reads){expect(params.get("task_id")).toBe(id(2));expect(params.get("limit")).toBe("20");expect(params.has("occurred_from")).toBe(false);}
   expect(state.errors).toEqual([]);
 });
 

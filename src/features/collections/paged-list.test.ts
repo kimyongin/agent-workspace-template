@@ -12,6 +12,19 @@ describe("paged list lifecycle", () => {
     expect(list.snapshot().error).toBeInstanceOf(Error);
     expect(list.snapshot().completion).toBeNull();
   });
+  it("rejects a cursor cycle across manual appends and retries the rejected page", async () => {
+    const load = vi.fn().mockResolvedValueOnce({items:[{id:"first"}],next_cursor:"a"})
+      .mockResolvedValueOnce({items:[{id:"second"}],next_cursor:"b"})
+      .mockResolvedValueOnce({items:[{id:"rejected"}],next_cursor:"a"})
+      .mockResolvedValueOnce({items:[{id:"third"}],next_cursor:null});
+    const list = createPagedList({load}); await list.restore(1);
+    list.more(); await vi.waitFor(()=>expect(list.snapshot().busy).toBe(false));
+    list.more(); await vi.waitFor(()=>expect(list.snapshot().error).toBeInstanceOf(Error));
+    expect(list.snapshot().page).toEqual({items:[{id:"first"},{id:"second"}],next_cursor:"b",pages:2});
+    await list.retry();
+    expect(load.mock.calls.map(([cursor])=>cursor)).toEqual([undefined,"a","b","b"]);
+    expect(list.snapshot().page?.items).toEqual([{id:"first"},{id:"second"},{id:"third"}]);
+  });
   it("caps restoration, batches publication, and flushes a partial batch on failure", async () => {
     for (const failAt of [23, null]) {
       const published:number[]=[];

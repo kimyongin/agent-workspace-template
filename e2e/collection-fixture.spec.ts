@@ -64,10 +64,8 @@ test("related sections switch independently and return from a linked detail", as
 
 test("empty and failed lists keep truthful counts and retry in every view", async ({ page }) => {
   const state = await fixture(page);
-  let failed = true;
-  await page.route("**/api/records?**", route => failed
-    ? route.fulfill({ status: 503, json: { code: "internal", message: "fixture read failed" } })
-    : route.fulfill({ json: { items: [], next_cursor: null } }));
+  state.rows.records.length = 0;
+  const clearFailure = state.failRead({ kind: "records", page: 1 }, { once: false });
   await page.goto("/records");
   await expect(page.getByRole("alert")).toContainText("기록을 불러오지 못했습니다");
   await expect(page.locator(".collection-heading h2")).toHaveText("기록");
@@ -77,7 +75,7 @@ test("empty and failed lists keep truthful counts and retry in every view", asyn
     await expect(page.getByRole("alert")).toBeVisible();
   }
   expect(state.reads.length).toBe(before);
-  failed = false; await page.getByRole("button", { name: "다시 시도", exact: true }).click();
+  clearFailure(); await page.getByRole("button", { name: "다시 시도", exact: true }).click();
   await expect(page.locator(".collection-heading h2")).toHaveText("기록 (0개)");
   await expect(page.getByRole("alert")).toHaveCount(0);
   expect(state.writes).toEqual([]); expect(state.errors).toEqual([]);
@@ -186,4 +184,21 @@ test("calendar reflows at enlarged text without shrinking day targets", async ({
     expect(selected.y).toBeGreaterThanOrEqual(month.y + month.height);
   }
   expect(state.errors).toEqual([]); expect(state.writes).toEqual([]);
+});
+
+
+test("restored preview waits for its read and settles even when tag lookup fails", async ({ page }) => {
+  const row = { ...record, body: "태그 조회 실패에도 돌아올 기록", tag_ids: [id(11)] };
+  const state = await fixture(page, [row]);
+  state.failRead({ kind: "tags", page: 1 }, { once: false });
+  const held = state.holdRead({ kind: "records", id: row.id });
+  await page.goto("/records?open=" + encodeURIComponent("/records/" + row.id) + "&scroll=0#activity-records-" + row.id);
+  await held.started;
+  const title = page.getByRole("button", { name: row.body, exact: true });
+  await expect(title).not.toBeFocused();
+  held.release(); await held.finished;
+  await expect(title).toBeFocused();
+  await expect(title).toHaveAttribute("aria-expanded", "true");
+  await expect(page.getByText("태그 이름 조회 실패", { exact: true })).toBeVisible();
+  expect(state.writes).toEqual([]); expect(state.errors).toEqual([]);
 });

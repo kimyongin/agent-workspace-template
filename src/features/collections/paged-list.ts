@@ -19,6 +19,7 @@ export function createPagedList<T extends { id: string }, P extends ListPage<T>>
 }) {
   let state: ListSnapshot<P> = { page: null, busy: false, error: null, completion: null, showMoreControl: false };
   const listeners = new Set<() => void>();
+  let acceptedCursors = new Set<string>();
   let controller: AbortController | null = null;
   let intent = { pages: 1, anchor: undefined as string | undefined };
   let active: { pages: number; anchor?: string } | null = null;
@@ -40,10 +41,15 @@ export function createPagedList<T extends { id: string }, P extends ListPage<T>>
     const hadPrior = !!result;
     let targetPages = source === "more" ? target : Math.min(MAX_RESTORE_PAGES, target);
     let budget = source === "more" ? target : Math.min(MAX_RESTORE_PAGES, targetPages + (anchor ? options.anchorLookahead ?? 5 : 0));
-    const visited = new Set<string>();
+    const visited = new Set(restart ? [] : acceptedCursors);
+    let validCursors = new Set(visited);
     const publish = () => {
-      if (current() && result && state.page !== result) emit({ page: result, showMoreControl: state.showMoreControl || !!result.next_cursor });
+      if (current() && result && state.page !== result) {
+        acceptedCursors = new Set(validCursors);
+        emit({ page: result, showMoreControl: state.showMoreControl || !!result.next_cursor });
+      }
     };
+    if (restart) acceptedCursors.clear();
     emit({ busy: true, error: null, completion: null, ...(restart ? { page: null } : {}) });
     try {
       while ((!result || result.pages < targetPages || !!anchor && !result.items.some(item => item.id === anchor)) &&
@@ -63,6 +69,7 @@ export function createPagedList<T extends { id: string }, P extends ListPage<T>>
           if (ids.has(item.id)) return false;
           ids.add(item.id); return true;
         })], pages: (result?.pages ?? 0) + 1 } as LoadedPage<P>;
+        validCursors = new Set(visited);
         if (targetPages <= 20 || result.pages === 1 || result.pages % 20 === 0 || result.pages >= targetPages) publish();
       }
       publish();
