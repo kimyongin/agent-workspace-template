@@ -12,7 +12,7 @@ export const changeMetadata = z.object({
   target_kind: z.enum(["entity", "task", "record", "principle"]),
   target_id: id,
   target_title: z.string(),
-  action: z.enum(["create", "update", "delete", "stop", "resume"]),
+  action: z.enum(["create", "update", "delete", "restore", "stop", "resume"]),
   source: z.enum(["http", "mcp"]),
   before: z.record(z.string(), z.unknown()).nullable(),
   after: z.record(z.string(), z.unknown()).nullable(),
