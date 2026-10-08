@@ -83,7 +83,10 @@ export function useRecordConfirmation(options: {
     preparationReady.current = false;
     setPreparing(true);
     try {
-      const result = await api<PreparedRecordMemo>("POST", "/records/prepare", await description.preparation());
+      const request = await description.preparation();
+      // The same WriteAttempt owns the creation UUID before preparation and the final write.
+      if (request.action === "create" && request.model !== "entity") request.input = {...request.input, id:attempt.creationId()};
+      const result = await api<PreparedRecordMemo>("POST", "/records/prepare", request);
       if (run !== preparationRun.current) return;
       if (!touched.current.note) setNote(result.change_note);
       if (!touched.current.tags) setTags(result.change_tag_ids);

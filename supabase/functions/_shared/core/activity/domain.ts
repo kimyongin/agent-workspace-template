@@ -117,7 +117,10 @@ export function completeTask(task: Task, expectedVersion: number, now: Date): Pi
   return { status: "done", completed_at: now.toISOString() };
 }
 
-function requireRecurring(task: Task): asserts task is Task & { recurrence: Recurrence; timezone: string } {
+type RecurringTransitionTarget = Pick<Task, "kind" | "status" | "version" | "recurrence" | "timezone" | "pauses">;
+function requireRecurring(
+  task: RecurringTransitionTarget,
+): asserts task is RecurringTransitionTarget & { recurrence: Recurrence; timezone: string } {
   if (task.kind !== "recurring" || !task.recurrence || !task.timezone) {
     throw conflict("반복 할 일에만 할 수 있습니다");
   }
@@ -129,7 +132,11 @@ export function todayOf(task: Task, now: Date): string {
 }
 
 /** 중단: active에서만. 오늘(할 일의 시간대)부터 회차가 없다. 기존 기록은 유지한다. */
-export function stopTask(task: Task, expectedVersion: number, now: Date): Pick<Task, "status" | "pauses"> {
+export function stopTask(
+  task: RecurringTransitionTarget,
+  expectedVersion: number,
+  now: Date,
+): Pick<Task, "status" | "pauses"> {
   requireRecurring(task);
   assertVersion(task, expectedVersion);
   if (task.status !== "active") throw conflict("반복 중인 할 일만 중단할 수 있습니다");
@@ -146,7 +153,11 @@ export function stopTask(task: Task, expectedVersion: number, now: Date): Pick<T
 }
 
 /** 재개: stopped에서만. 재개일부터 회차가 다시 생긴다. */
-export function resumeTask(task: Task, expectedVersion: number, now: Date): Pick<Task, "status" | "pauses"> {
+export function resumeTask(
+  task: RecurringTransitionTarget,
+  expectedVersion: number,
+  now: Date,
+): Pick<Task, "status" | "pauses"> {
   requireRecurring(task);
   assertVersion(task, expectedVersion);
   if (task.status !== "stopped") throw conflict("중단된 할 일만 재개할 수 있습니다");

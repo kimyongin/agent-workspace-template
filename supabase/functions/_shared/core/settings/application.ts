@@ -13,7 +13,7 @@ import { modelActions, type TemplateModel } from "../../contracts/record-templat
 import { changeDefaults } from "./change-defaults.ts";
 import type { ChangeFacts } from "../shared/changes.ts";
 import { taskCreate, taskUpdate } from "../../contracts/task.ts";
-import { taskContent } from "../activity/domain.ts";
+import { resumeTask, stopTask, taskContent } from "../activity/domain.ts";
 import { entityCreate, entityRekey, entityUpdate } from "../../contracts/entity.ts";
 import { principleCreate, principleUpdate } from "../../contracts/principle.ts";
 import { defaultEntityIdentitySettings, entityId } from "../../contracts/entity-identity.ts";
@@ -138,10 +138,24 @@ export function prepareBusinessRecord(
         prepared_input = content;
       }
     }
+    if (input.action === "stop" || input.action === "resume") {
+      const task = {
+        kind: before?.kind ?? "once",
+        status: before?.status ?? "open",
+        version: input.expected_version!,
+        recurrence: before?.recurrence ?? null,
+        timezone: before?.timezone ?? null,
+        pauses: before?.pauses ?? [],
+      };
+      content = (input.action === "stop" ? stopTask : resumeTask)(
+        task,
+        input.expected_version!,
+        d.clock?.now() ?? new Date(),
+      );
+    }
     const after = input.action === "delete" ? null : {
       ...before,
       ...content,
-      ...(input.action === "stop" ? { status: "stopped" } : input.action === "resume" ? { status: "active" } : {}),
     } as ChangeFacts;
     if (input.action === "restore") {
       prepared_input = { ...prepared_input, source: before?.source, external_id: before?.external_id };
@@ -166,6 +180,7 @@ export function prepareBusinessRecord(
   });
 }
 export interface BusinessSettingsDeps {
+  clock?: { now(): Date };
   uow: { run<T>(actor: Actor, fn: (store: BusinessSettingsStore) => Promise<T>): Promise<T> };
 }
 export function getBusinessSettings(d: BusinessSettingsDeps, actor: Actor) {
