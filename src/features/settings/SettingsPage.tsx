@@ -79,7 +79,7 @@ function AccountSettings() {
       </fieldset>
     <section className="settings-group" aria-labelledby="data-title"><h2 className="section-title" id="data-title">자료 관리</h2>
       <div className="settings-links"><DetailLink to="/tags/entity">엔터티 태그</DetailLink><DetailLink to="/tags/task">할 일 태그</DetailLink><DetailLink to="/tags/record">기록 태그</DetailLink></div></section>
-    <section className="settings-group settings-links" aria-label="안내와 계정"><Link to="/guide">사용 가이드</Link><Link className="settings-logout" to="/logout">로그아웃</Link></section>
+    <section className="settings-group settings-links" aria-label="안내"><Link to="/guide">사용 가이드</Link></section>
       <div className="settings-save"><p className={error ? "error-text" : "secondary"} role={error ? "alert" : "status"}>{message}</p>
         <div className="actions"><button type="button" className="btn" disabled={!dirty || busy} onClick={() => { setDraft(saved); clearMessage(); }}>변경 취소</button>
           <button type="submit" className="btn btn-primary" disabled={!dirty || busy}>{busy ? "저장 중…" : "저장"}</button></div>
