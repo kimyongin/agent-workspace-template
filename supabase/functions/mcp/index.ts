@@ -1,6 +1,14 @@
 // 외부 에이전트용 MCP 진입점(Streamable HTTP). 토큰은 aud=MCP URL만 받는다.
 import { createMcpApp } from "../_shared/adapters/mcp/app.ts";
-import { activityDeps, entityDeps, env, principleDeps, searchDeps, tagDeps } from "../_shared/bootstrap.ts";
+import {
+  activityDeps,
+  businessSettingsDeps,
+  entityDeps,
+  env,
+  principleDeps,
+  searchDeps,
+  tagDeps,
+} from "../_shared/bootstrap.ts";
 
 const resource = env.mcpUrl();
 Deno.serve(
@@ -11,5 +19,6 @@ Deno.serve(
     tagDeps(),
     searchDeps(),
     entityDeps(),
+    businessSettingsDeps(),
   ),
 );
