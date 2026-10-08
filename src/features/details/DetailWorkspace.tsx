@@ -179,7 +179,7 @@ export function DetailWorkspace({ children, render, enabled }: { children: React
         if (candidate && listRef.current?.contains(candidate) && candidate.matches(".item-title")) anchor = candidate;
       } catch { /* A malformed external fragment falls back to the list heading. */ }
       const button = tabFocus.current === "list" ? anchor ?? listRef.current?.querySelector<HTMLElement>("h1") : document.getElementById(`tab-${active}`);
-      if (tabFocus.current === "list") button?.setAttribute("tabindex", "-1");
+      if (tabFocus.current === "list" && !anchor) button?.setAttribute("tabindex", "-1");
       if (tabFocus.current) button?.focus({ preventScroll: true });
       if (tabFocus.current !== "list") button?.scrollIntoView({ block: "nearest", inline: "nearest" });
       tabFocus.current = null;

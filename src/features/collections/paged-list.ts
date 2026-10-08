@@ -23,6 +23,7 @@ export function createPagedList<T extends { id: string }, P extends ListPage<T>>
   let controller: AbortController | null = null;
   let intent = { pages: 1, anchor: undefined as string | undefined };
   let active: { pages: number; anchor?: string } | null = null;
+  let reservedAppend: { pages: number; anchor?: string } | null = null;
   let failed: "restore" | "more" | "refresh" | null = null;
   const emit = (patch: Partial<ListSnapshot<P>>) => {
     state = { ...state, ...patch };
@@ -90,6 +91,10 @@ export function createPagedList<T extends { id: string }, P extends ListPage<T>>
     restore: (pages: number, anchor?: string) => {
       pages = Math.min(MAX_RESTORE_PAGES, Math.max(1, pages));
       intent = { pages, anchor };
+      // An append's URL can commit after a fast success or failure response.
+      const acknowledged = reservedAppend?.pages === pages && reservedAppend.anchor === anchor;
+      reservedAppend = null;
+      if (acknowledged) return Promise.resolve();
       // URL acknowledgement of a reserved append must not cancel and repeat its request.
       if (active?.pages === pages && active.anchor === anchor) return Promise.resolve();
       if (!state.busy && state.completion && state.page && state.page.pages >= pages &&
@@ -102,6 +107,7 @@ export function createPagedList<T extends { id: string }, P extends ListPage<T>>
       if (state.busy || !state.page?.next_cursor) return undefined;
       const target = state.page.pages + 1;
       void run(target, intent.anchor, "more");
+      reservedAppend = {pages:target,anchor:intent.anchor};
       return target;
     },
     retry: () => {
