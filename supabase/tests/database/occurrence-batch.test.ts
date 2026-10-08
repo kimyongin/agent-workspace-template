@@ -30,8 +30,10 @@ dbTest("batch occurrence facts preserve owner isolation, empty selection and rec
         (store) => store.insertRecord({ id, body: "fact", task_id: task.id, occurrence_on: "2026-10-08", occurred_at }),
       );
     }
-    const read = (actor: typeof a.actor, ids: string[]) =>
-      uow.run(actor, (store) => store.occurrenceRecords(ids, "2026-10-08", "2026-10-08"));
+    const read = async (
+      actor: typeof a.actor,
+      ids: string[],
+    ) => [...await uow.run(actor, (store) => store.occurrenceRecords(ids, "2026-10-08", "2026-10-08"))];
     assertEquals(await read(a.actor, [taskB.id, taskA.id]), [
       { task_id: taskA.id, id: first, occurrence_on: "2026-10-08" },
       { task_id: taskA.id, id: second, occurrence_on: "2026-10-08" },
