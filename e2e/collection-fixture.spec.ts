@@ -183,3 +183,18 @@ test("table rows and headers share the same columns across wrapper types and vie
   expect(Math.abs(widths[0] - widths[1])).toBeLessThan(1);
   expect(state.errors).toEqual([]); expect(state.writes).toEqual([]);
 });
+
+test("calendar reflows at enlarged text without shrinking day targets", async ({ page }) => {
+  const state = await fixture(page);
+  for (const width of [320, 390, 1024, 1440]) {
+    await page.setViewportSize({ width, height: 900 }); await page.goto("/records?view=calendar");
+    await expect(page.locator(".calendar-days button").first()).toBeVisible();
+    await page.evaluate(() => document.documentElement.style.fontSize = "200%");
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    const box = await page.locator(".calendar-days button").first().boundingBox();
+    expect(box!.width).toBeGreaterThanOrEqual(44); expect(box!.height).toBeGreaterThanOrEqual(44);
+    const month = (await page.locator(".calendar-month-panel").boundingBox())!, selected = (await page.locator(".calendar-selection").boundingBox())!;
+    expect(selected.y).toBeGreaterThanOrEqual(month.y + month.height);
+  }
+  expect(state.errors).toEqual([]); expect(state.writes).toEqual([]);
+});
