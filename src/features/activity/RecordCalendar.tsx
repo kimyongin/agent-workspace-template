@@ -32,10 +32,11 @@ export function RecordCalendar<T extends { id: string }>({ items, at, children, 
     if (target) { target.focus(); focusDay.current = null; }
   }, [month, selected]);
   return <div className="record-calendar">
+    <div className="calendar-month-panel">
     <div className="calendar-toolbar"><div className="actions">
-      <BodyAction aria-label="이전 달" disabled={!before} onClick={() => before && choose(before, `${before}-01`)}>‹</BodyAction>
-      <h3 className="section-title">{Number(month.slice(0, 4))}년 {Number(month.slice(5))}월</h3>
-      <BodyAction aria-label="다음 달" disabled={!after} onClick={() => after && choose(after, `${after}-01`)}>›</BodyAction>
+      <BodyAction aria-label="이전 달" disabled={!before} onClick={() => before && choose(before, `${before}-01`)}><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><path d="m15 6-6 6 6 6"/></svg></BodyAction>
+      <h3 className="calendar-month-title">{Number(month.slice(0, 4))}년 {Number(month.slice(5))}월</h3>
+      <BodyAction aria-label="다음 달" disabled={!after} onClick={() => after && choose(after, `${after}-01`)}><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></BodyAction>
     </div><BodyAction onClick={() => choose(today.slice(0, 7), today)}>오늘</BodyAction></div>
     {partial && <p className="help calendar-coverage" role="status">불러온 기록만 표시합니다. 더 보기로 나머지 기록을 불러올 수 있습니다.</p>}
     <div className="calendar-week" aria-hidden="true">{"일월화수목금토".split("").map(day => <span key={day}>{day}</span>)}</div>
@@ -53,6 +54,7 @@ export function RecordCalendar<T extends { id: string }>({ items, at, children, 
         <span>{Number(day.slice(8))}</span>{count > 0 && <small aria-hidden="true">{count}</small>}
       </button>;
     })}</div>
+    </div>
     <section className="calendar-selection" aria-label={`${selected} 기록`}><h3 className="section-title">{Number(selected.slice(5, 7))}월 {Number(selected.slice(8))}일 · 기록 {records.length}개</h3>
       {records.length > 0 ? <CollectionList label={`${selected} 기록`}>{records.map(item => <li key={item.id}>{children(item)}</li>)}</CollectionList> : <p className="secondary">이 날짜에 불러온 기록이 없습니다.</p>}
     </section>

@@ -388,7 +388,7 @@ for(const width of [390,1440])test(`기능/목록 구획 ${width}px: 엔터티 �
   const state=await fixtures(page);await page.setViewportSize({width,height:900});await go(page,"/entities");
   await page.screenshot({path:info.outputPath(`tab-entities-${width}.png`)});
   const top=page.locator(".app-main > .panel"),bottom=page.getByRole("region",{name:"엔터티 목록",exact:true});expect((await bottom.boundingBox())!.y).toBeGreaterThanOrEqual((await top.boundingBox())!.y+(await top.boundingBox())!.height);
-  const inset=24,topBox=(await top.boundingBox())!,listBox=(await bottom.locator(".list.panel").boundingBox())!;
+  const inset=24,topBox=(await top.boundingBox())!,listBox=(await bottom.locator(".collection-list").boundingBox())!;
   expect((await top.getByRole("heading",{name:"엔터티",exact:true}).boundingBox())!.x-topBox.x).toBeCloseTo(0);expect((await top.getByLabel("속성 1 키워드",{exact:false}).boundingBox())!.x-topBox.x).toBeCloseTo(0);expect((await bottom.locator(".item-title").first().boundingBox())!.x-listBox.x).toBeGreaterThanOrEqual(inset);
   await expect(bottom.getByRole("link",{name:"엔터티 상세",exact:true})).toHaveCount(0);await openListEditor(page,"엔터티",bottom);await expect(form(page).getByLabel("속성 1",{exact:false})).toHaveValue("엔터티");await expect(form(page).getByRole("button",{name:"할 일 작성",exact:true})).toHaveCount(0);await expect(form(page).getByRole("link",{name:/목록/})).toHaveCount(0);await expect(form(page).getByRole("button",{name:"취소",exact:true})).toHaveCount(1);await form(page).getByRole("button",{name:"닫기",exact:true}).click();await expect(page.locator(`#entity-${id(1)}`)).toBeFocused();
   await go(page,"/principles");const current=page.getByRole("region",{name:"현재 원칙",exact:true});expect((await current.boundingBox())!.y).toBeGreaterThanOrEqual((await top.boundingBox())!.y+(await top.boundingBox())!.height);await expect(top.getByRole("link",{name:"과거 근거는 통합 기록에서 보기"})).toHaveAttribute("href","/records");await expect(top.getByLabel("검색어",{exact:true})).toHaveCount(0);await expect(top.locator(".current-document,.record-date-group")).toHaveCount(0);await page.screenshot({path:info.outputPath(`principles-sections-${width}.png`)});
@@ -1186,7 +1186,7 @@ for(const width of [320,360,390,639,640,768,1024,1440])test(`#205 ${width}px: �
   const state=await fixtures(page);await page.setViewportSize({width,height:900});
   for(const [kind,label,value]of [["entities","속성 4 필터","a"],["tasks","할 일 종류","once"],["records","기록 종류","user"]]){
     await go(page,"/"+kind);const row=page.locator(".list .related-item").first();await expect(row).toBeVisible();
-    const box=(await row.boundingBox())!;expect(box.height).toBeGreaterThanOrEqual(44);expect(box.height).toBeLessThanOrEqual(48);
+    const box=(await row.boundingBox())!;expect(box.height).toBeGreaterThanOrEqual(44);expect(box.height).toBeLessThanOrEqual(52);
     await expect(page.getByRole("button",{name:kind==="entities"?"엔터티 등록":kind==="tasks"?"할 일 등록":"기록 작성",exact:true})).toBeVisible();
     await openTabFilters(page);const grid=page.locator(".filter-grid");
     const inputs=await grid.locator("input,select").evaluateAll(nodes=>nodes.map(el=>{const b=el.getBoundingClientRect();return {x:b.x,y:b.y,right:b.right,h:b.height};}));

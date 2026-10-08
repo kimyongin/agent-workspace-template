@@ -27,7 +27,7 @@ export function TabSearch({ entity = false }: { entity?: boolean }) {
     return () => clearTimeout(timer);
   }, [draft, composing, applied, name, setParams]);
   return <div className="workspace-search"><Field label={entity ? "속성 1 키워드" : "검색어"}>
-    {props => <div className="workspace-search-input"><input {...props} ref={input} className="input" value={draft}
+    {props => <div className="workspace-search-input"><svg className="search-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4.5 4.5"/></svg><input {...props} ref={input} className="input" value={draft}
       maxLength={entity ? 100 : 200} placeholder={entity ? "엔터티 제목 검색" : "검색어 입력"}
       onChange={event => setDraft(event.target.value)} onCompositionStart={() => setComposing(true)}
       onCompositionEnd={event => { setDraft(event.currentTarget.value); setComposing(false); }}/>

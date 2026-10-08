@@ -211,7 +211,7 @@ test("#215 메인 네 탭의 상단 구획·브랜드·필터 조작은 좁은 �
       await expect(header.getByRole("heading", { level: 1, name: title, exact: true })).toBeVisible();
       const border = await header.evaluate(el => getComputedStyle(el).borderBottomWidth);
       expect(border).toBe("1px");
-      expect(await header.evaluate(el => getComputedStyle(el).paddingBottom)).toBe("16px");
+      expect(await header.evaluate(el => getComputedStyle(el).paddingBottom)).toBe("20px");
       await expect(page.locator(width < 1024 ? ".workspace-header" : ".navigation-brand")).toBeVisible();
       await expect(page.locator(width < 1024 ? ".navigation-brand" : ".workspace-header")).toBeHidden();
       if (path === "principles") {

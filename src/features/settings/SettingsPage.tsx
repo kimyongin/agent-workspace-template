@@ -63,6 +63,7 @@ function AccountSettings() {
       } finally { pending.current = false; if (mounted.current) setBusy(false); }
     }} aria-busy={busy}>
       <fieldset disabled={busy} className="settings-group"><legend className="section-title">프로필</legend>
+        <div className="settings-fields">
         <div className="profile-preview"><ProfileIcon id={draft.icon} /><span className="account-name">{profileName({ ...metadata, workspace_nickname: draft.nickname })}</span></div>
         <Field label="닉네임">{props => <input {...props} className="input" type="text" maxLength={40} autoComplete="nickname" value={draft.nickname} placeholder={profileName({ ...metadata, workspace_nickname: null })} onChange={event => { setDraft(value => ({ ...value, nickname: event.target.value })); clearMessage(); }} />}</Field>
         <fieldset className="profile-icon-field"><legend className="label">프로필 아이콘</legend>
@@ -70,12 +71,15 @@ function AccountSettings() {
             <input type="radio" name="profile-icon" value={icon.id} aria-label={icon.label} checked={draft.icon === icon.id} onChange={() => { setDraft(value => ({ ...value, icon: icon.id })); clearMessage(); }} /><ProfileIcon id={icon.id} />
           </label>)}</div>
         </fieldset>
+        </div>
       </fieldset>
       <fieldset disabled={busy} className="settings-group"><legend className="section-title">날짜와 시각</legend>
+        <div className="settings-fields">
         <Field label="표시 시간대">{props => <select {...props} className="input" value={draft.timezone ?? ""} onChange={event => { setDraft(value => ({ ...value, timezone: event.target.value || null })); clearMessage(); }}>
           <option value="">기기 시간대 사용 ({browserTimezone()})</option>
           {timezoneOptions(draft.timezone).map(zone => <option key={zone} value={zone}>{zone}</option>)}
         </select>}</Field>
+        </div>
       </fieldset>
     <section className="settings-group" aria-labelledby="data-title"><h2 className="section-title" id="data-title">자료 관리</h2>
       <div className="settings-links"><DetailLink to="/tags/entity">엔터티 태그</DetailLink><DetailLink to="/tags/task">할 일 태그</DetailLink><DetailLink to="/tags/record">기록 태그</DetailLink></div></section>
