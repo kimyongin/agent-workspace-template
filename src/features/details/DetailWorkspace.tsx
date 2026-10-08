@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode, type RefObject } from "react";
-import { useBlocker, useLocation, useNavigate, type Location, type To } from "react-router";
+import { useBlocker, useLocation, useNavigate, type Location, type NavigateOptions, type To } from "react-router";
 import { ConfirmDialog } from "../../components/Modal.tsx";
 import { DetailTabContext, WorkspaceContext, detailIdentity, workspaceList, type WorkspaceGuard } from "./workspace-context.ts";
 import { useWorkspaceResize } from "./useWorkspaceResize.ts";
@@ -91,7 +91,7 @@ export function DetailWorkspace({ children, render, enabled }: { children: React
   const rememberReturn = (target: string | null, returnTo: string | undefined) => {
     if (target && returnTo) setTabs(previous => previous.map(tab => tab.id === target ? {...tab, returnTo} : tab));
   };
-  const navigateTab = useCallback((id: string, to: To) => {
+  const navigateTab = useCallback((id: string, to: To, options: NavigateOptions = {}) => {
     const state = current.current, tab = state.tabs.find(tab => tab.id === id);
     if (!tab) return;
     const path = destination(to, tab.location), identity = detailIdentity(path);
@@ -102,6 +102,16 @@ export function DetailWorkspace({ children, render, enabled }: { children: React
       // A mode transition is a new visit even when its URL matches; selecting a retained tab is not.
       setTabs(previous => previous.map(value => value.id === id ? { ...value, location: { ...value.location, pathname: url.pathname, search: url.search, hash: url.hash, key: crypto.randomUUID() } } : value));
       if (state.active === id) void navigate(path, { replace: true, state: { workspaceOwner: state.base.pathname } });
+    } else if (identity && options.state?.rekeyedDetail === id) {
+      // A successful identity change replaces this visit and every tab return pointer.
+      const url = new URL(path, "https://workspace.invalid");
+      setTabs(previous => previous.filter(value => value.id !== identity).map(value => ({
+        ...value,
+        ...(value.id === id ? {id:identity,location:{...value.location,pathname:url.pathname,search:url.search,hash:url.hash,key:crypto.randomUUID()}} : {}),
+        ...(value.returnTo === id ? {returnTo:identity} : {}),
+      })));
+      if (state.active === id) setActive(identity);
+      void navigate(path, {replace:true,state:{workspaceOwner:state.base.pathname}});
     } else if (identity) {
       const returnTo = returnTarget(tab.location, identity);
       rememberReturn(identity, returnTo);
@@ -181,7 +191,7 @@ export function DetailWorkspace({ children, render, enabled }: { children: React
           label: `이전: ${tabs.find(value => value.id === tab.returnTo)!.title}`,
           back: () => { const root = current.current.tabs.find(value => value.id === tab.returnTo); if (root) select(root); },
         } : null}
-        navigate={to => navigateTab(tab.id, to)} close={() => requestClose(tab.id)} registerGuard={registerGuard}
+        navigate={(to, options) => navigateTab(tab.id, to, options)} close={() => requestClose(tab.id)} registerGuard={registerGuard}
         title={title => setTabs(previous => previous.map(value => value.id === tab.id && value.title !== title ? { ...value, title } : value))}>
         {render(tab.location)}
       </TabContent>)}
@@ -228,7 +238,7 @@ function WorkspaceRouteProtection({ guards }: { guards: RefObject<Map<string, ()
     onConfirm={() => { if (blocker.state === "blocked") { blocked.current.forEach(guard => guard.discard()); blocker.proceed(); } }}/>
 }
 
-function TabContent({ tab, active, docked, previous, navigate, close, title, registerGuard, children }: { tab: Tab; active: boolean; docked: boolean; previous: {label: string; back: () => void} | null; navigate: (to: To) => void; close: () => void; title: (value: string) => void; registerGuard: (id: string, read: () => WorkspaceGuard) => () => void; children: ReactNode }) {
+function TabContent({ tab, active, docked, previous, navigate, close, title, registerGuard, children }: { tab: Tab; active: boolean; docked: boolean; previous: {label: string; back: () => void} | null; navigate: (to: To, options?: NavigateOptions) => void; close: () => void; title: (value: string) => void; registerGuard: (id: string, read: () => WorkspaceGuard) => () => void; children: ReactNode }) {
   const guard = useRef<WorkspaceGuard>({ dirty: false, busy: false, retained: true, discard: () => {} });
   useLayoutEffect(() => registerGuard(tab.id, () => guard.current), [tab.id, registerGuard]);
   // A stable title publisher prevents resource renders from feeding back into the workspace.
