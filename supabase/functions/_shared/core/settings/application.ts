@@ -13,7 +13,7 @@ import { modelActions, type TemplateModel } from "../../contracts/record-templat
 import { changeDefaults } from "./change-defaults.ts";
 import type { ChangeFacts } from "../shared/changes.ts";
 import { taskCreate, taskUpdate } from "../../contracts/task.ts";
-import { taskContent } from "../activity/domain.ts";
+import { resumeTask, stopTask, taskContent, updateTask } from "../activity/domain.ts";
 import { entityCreate, entityRekey, entityUpdate } from "../../contracts/entity.ts";
 import { principleCreate, principleUpdate } from "../../contracts/principle.ts";
 import { defaultEntityIdentitySettings, entityId } from "../../contracts/entity-identity.ts";
@@ -81,8 +81,13 @@ export function prepareBusinessRecord(
         );
       }
       const { expected_version: _version, ...fields } = mutation.data;
-      content = fields;
-      prepared_input = fields;
+      content = input.model === "task"
+        ? updateTask(
+          { kind: before?.kind ?? "once", version: input.expected_version! },
+          taskUpdate.parse({ ...fields, expected_version: input.expected_version }),
+        )
+        : fields;
+      prepared_input = content;
       if (input.operation === "identity") {
         const settings = saved.settings.entity_identity ?? defaultEntityIdentitySettings;
         if (!settings.sources.some((source) => source.code === content.source)) {
@@ -138,11 +143,29 @@ export function prepareBusinessRecord(
         prepared_input = content;
       }
     }
+    if (input.action === "stop" || input.action === "resume") {
+      const task = {
+        kind: before?.kind ?? "once",
+        status: before?.status ?? "open",
+        version: input.expected_version!,
+        recurrence: before?.recurrence ?? null,
+        timezone: before?.timezone ?? null,
+        pauses: before?.pauses ?? [],
+      };
+      content = (input.action === "stop" ? stopTask : resumeTask)(
+        task,
+        input.expected_version!,
+        d.clock?.now() ?? new Date(),
+      );
+    }
     const after = input.action === "delete" ? null : {
       ...before,
       ...content,
-      ...(input.action === "stop" ? { status: "stopped" } : input.action === "resume" ? { status: "active" } : {}),
     } as ChangeFacts;
+    if (input.action === "restore") {
+      prepared_input = { ...prepared_input, source: before?.source, external_id: before?.external_id };
+    }
+    if (input.action !== "create") prepared_input = { ...prepared_input, expected_version: input.expected_version };
     const title = String((after ?? before)?.[input.model === "entity" ? "prop1" : "title"] ?? "");
     const ids = saved.settings.record_templates?.[input.model]?.[input.action]?.tag_ids ?? [];
     const result = changeDefaults(
@@ -162,6 +185,7 @@ export function prepareBusinessRecord(
   });
 }
 export interface BusinessSettingsDeps {
+  clock?: { now(): Date };
   uow: { run<T>(actor: Actor, fn: (store: BusinessSettingsStore) => Promise<T>): Promise<T> };
 }
 export function getBusinessSettings(d: BusinessSettingsDeps, actor: Actor) {

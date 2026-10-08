@@ -8,7 +8,8 @@ test("설정 템플릿 오류·변수 삽입·이전/이후 미리보기와 확�
   const token = (await login.json()).access_token;
   const api = async(method:string,path:string,data?:unknown) => {
     const response = await page.request.fetch(`${env.VITE_API_URL}${path}`,{method,headers:{authorization:`Bearer ${token}`},data});
-    expect(response.ok()).toBeTruthy(); return response.status() === 204 ? null : response.json();
+    const text = await response.text();
+    expect(response.ok(), `${method} ${path}: ${response.status()} ${text}`).toBeTruthy(); return response.status() === 204 ? null : JSON.parse(text);
   };
   const saved = await api("GET","/settings/business");
   const tag = await api("POST","/tags",{id:crypto.randomUUID(),scope:"record",name:unique("템플릿")});
@@ -38,6 +39,8 @@ test("설정 템플릿 오류·변수 삽입·이전/이후 미리보기와 확�
     await form.getByRole("button",{name:"기록 기본값 저장"}).click();
     await expect(form).toContainText("기록 기본값을 저장했습니다.");
     await page.goto("/tasks");
+    const preparedIds:string[]=[];
+    page.on("request", request => {if(request.url().endsWith("/records/prepare") && request.method()==="POST"){const input=request.postDataJSON();if(input.model==="task"&&input.action==="create")preparedIds.push(input.input.id);}});
     await beginTabAction(page,"할 일 추가");
     const dialog=page.getByRole("dialog",{name:"할 일 추가",exact:true});
     const title=unique("재시도 템플릿");
@@ -71,12 +74,13 @@ test("설정 템플릿 오류·변수 삽입·이전/이후 미리보기와 확�
     await expect(page.getByRole("heading",{name:title,level:1})).toBeVisible();
     expect(requests).toHaveLength(2); expect(requests[1]).toEqual(requests[0]);
     taskId=(requests[0] as {id:string}).id;
+    expect(preparedIds.length).toBeGreaterThan(0);expect(new Set(preparedIds)).toEqual(new Set([taskId]));
     const records=await api("GET","/records?record_kind=change&limit=100");
     const record=records.items.find((value:{change?:{target_id:string;action:string}})=>value.change?.target_id===taskId&&value.change.action==="create");
     expect(record.body).toBe(`${title} 준비 등록`); expect(record.tag_ids).toEqual([tag.id]);
   } finally {
     if(taskId){const task=await api("GET",`/tasks/${taskId}`);await api("POST",`/tasks/${taskId}/delete`,{expected_version:task.version,change_tag_ids:[]});}
     const current=await api("GET","/settings/business");await api("PATCH","/settings/business",{expected_version:current.version,sections:{record_templates:saved.settings.record_templates??{}}});
-    await api("DELETE",`/tags/${tag.id}?expected_version=${tag.version}&change_tag_ids=`);
+    await api("POST",`/tags/${tag.id}/delete`,{expected_version:tag.version,change_tag_ids:[]});
   }
 });

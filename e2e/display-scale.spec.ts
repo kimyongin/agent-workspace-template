@@ -31,7 +31,7 @@ test("display scale: preview, cancel and approved leaving restore confirmed size
   const scale = page.getByLabel("데스크톱 화면 배율", { exact: true });
   await expect(scale).toHaveValue("100"); await expect.poll(() => rootSize(page)).toBe(16);
   await scale.selectOption("125"); await expect.poll(() => rootSize(page)).toBe(20);
-  await page.getByRole("button", { name: "변경 취소" }).click(); await expect.poll(() => rootSize(page)).toBe(16);
+  await page.getByRole("form", { name: "계정 설정" }).getByRole("button", { name: "변경 취소" }).click(); await expect.poll(() => rootSize(page)).toBe(16);
   await scale.selectOption("150"); await navigate(page, "할 일");
   const confirm = page.getByRole("dialog", { name: "변경을 버릴까요?" });
   await confirm.getByRole("button", { name: "취소", exact: true }).click(); await expect.poll(() => rootSize(page)).toBe(24);
@@ -52,7 +52,7 @@ test("display scale: failed save keeps selection; retry persists only changed me
   expect(state.metadata.provider_value).toBe("preserved");
   await page.reload(); await expect(scale).toHaveValue("150"); await expect.poll(() => rootSize(page)).toBe(24);
   await scale.selectOption("110"); await expect.poll(() => rootSize(page)).toBeCloseTo(17.6, 1);
-  await page.getByRole("button", { name: "변경 취소" }).click(); await expect.poll(() => rootSize(page)).toBe(24);
+  await page.getByRole("form", { name: "계정 설정" }).getByRole("button", { name: "변경 취소" }).click(); await expect.poll(() => rootSize(page)).toBe(24);
   await navigate(page, "엔터티"); await expect(page.getByRole("heading", { name: "엔터티", exact: true, level: 1 })).toBeVisible();
   expect(await rootSize(page)).toBe(24);
   await page.getByRole("button", { name: "내 프로필" }).click(); await page.getByRole("link", { name: "로그아웃", exact: true }).click();
@@ -126,7 +126,7 @@ test("display scale: external profile updates preserve dirty preview and cancel 
   state.metadata.workspace_display_scale = "110";
   await Promise.all([page.waitForResponse(response => response.url().endsWith("/auth/v1/user") && response.request().method() === "GET"), notify()]);
   await expect(scale).toHaveValue("150"); expect(await rootSize(page)).toBe(24);
-  await page.getByRole("button", { name: "변경 취소" }).click();
+  await page.getByRole("form", { name: "계정 설정" }).getByRole("button", { name: "변경 취소" }).click();
   await expect(scale).toHaveValue("110"); await expect.poll(() => rootSize(page)).toBeCloseTo(17.6, 1);
   expect(state.writes).toEqual([]);
 });
@@ -174,7 +174,7 @@ test("display scale: mobile and desktop preview, save and cancel independently a
   await page.reload(); await expect(desktop).toHaveValue("125"); await expect(mobile).toHaveValue("150");
   await page.setViewportSize({ width: 390, height: 844 }); await expect.poll(() => rootSize(page)).toBe(24);
   await mobile.selectOption("110"); await desktop.selectOption("150"); await expect.poll(() => rootSize(page)).toBeCloseTo(17.6, 1);
-  await page.getByRole("button", { name: "변경 취소" }).click(); await expect.poll(() => rootSize(page)).toBe(24);
+  await page.getByRole("form", { name: "계정 설정" }).getByRole("button", { name: "변경 취소" }).click(); await expect.poll(() => rootSize(page)).toBe(24);
   await expect(desktop).toHaveValue("125"); await expect(mobile).toHaveValue("150");
   await page.setViewportSize({ width: 1440, height: 900 }); await expect.poll(() => rootSize(page)).toBe(20);
   await page.locator(".settings-group").filter({ has: mobile }).screenshot({ path: info.outputPath("mobile-desktop-display-scales.png") });

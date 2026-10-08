@@ -175,3 +175,100 @@ Deno.test("기록 준비: 해석 후 메모가 본문 제한을 넘으면 쓰기
     AppError,
   );
 });
+
+Deno.test("복원 기록 준비: 보관한 0·태그·식별 정보를 보존하고 생략한 등록 입력을 고정", async () => {
+  const d: BusinessSettingsDeps = {
+    uow: {
+      run: (_actor, fn) =>
+        fn({
+          get: () =>
+            Promise.resolve({
+              version: 1,
+              settings: {
+                record_templates: {
+                  entity: {
+                    restore: {
+                      memo: "${엔터티.이전.속성2$} → ${엔터티.이후.속성2$} / ${엔터티.이후.식별자$}",
+                      tag_ids: [],
+                    },
+                  },
+                },
+              },
+            }),
+          update: () => Promise.reject(new Error("읽기만")),
+          recordTags: () => Promise.resolve([]),
+          target: () =>
+            Promise.resolve({
+              version: 3,
+              deleted_at: "2026-10-09T00:00:00Z",
+              facts: {
+                source: "app",
+                external_id: "001",
+                prop1: "보관값",
+                prop2: 0,
+                prop3: null,
+                prop4: "a",
+                tag_ids: [],
+              },
+            }),
+        }),
+    },
+  };
+  const prepared = await prepareBusinessRecord(d, { userId: crypto.randomUUID() }, {
+    model: "entity",
+    action: "restore",
+    target_id: "app:001",
+    expected_version: 3,
+    input: {},
+  });
+  assertEquals(prepared.change_note, "0 → 0 / 001");
+  assertEquals(prepared.prepared_input, { source: "app", external_id: "001", expected_version: 3 });
+});
+
+Deno.test("기록 준비: 반복 중단·재개의 기간은 실제 상태 전환과 같고 일회성 중단은 거부", async () => {
+  let facts = {
+    kind: "recurring",
+    status: "active",
+    title: "매일",
+    timezone: "Asia/Seoul",
+    recurrence: { freq: "daily", starts_on: "2026-01-01" },
+    pauses: [],
+  } as import("../../functions/_shared/core/shared/changes.ts").ChangeFacts;
+  const d: BusinessSettingsDeps = {
+    clock: { now: () => new Date("2026-10-09T00:00:00Z") },
+    uow: {
+      run: (_actor, fn) =>
+        fn({
+          get: () =>
+            Promise.resolve({
+              version: 1,
+              settings: {
+                record_templates: {
+                  task: {
+                    stop: { memo: "${할일.이후.중단기간$}", tag_ids: [] },
+                    resume: { memo: "${할일.이후.중단기간$}", tag_ids: [] },
+                  },
+                },
+              },
+            }),
+          update: () => Promise.reject(new Error("읽기만")),
+          recordTags: () => Promise.resolve([]),
+          target: () => Promise.resolve({ version: 1, facts }),
+        }),
+    },
+  };
+  const actor = { userId: crypto.randomUUID() },
+    input = { model: "task", target_id: crypto.randomUUID(), expected_version: 1, input: {} };
+  await assertRejects(
+    () => prepareBusinessRecord(d, actor, { ...input, action: "update", input: { due_on: "2026-10-10" } }),
+    AppError,
+    "반복 할 일에는 기한",
+  );
+  const stopped = await prepareBusinessRecord(d, actor, { ...input, action: "stop" });
+  assertEquals(stopped.change_note, JSON.stringify([{ stopped_on: "2026-10-09", resumed_on: null }]));
+  facts = { ...facts, status: "stopped", pauses: [{ stopped_on: "2026-10-08", resumed_on: null }] };
+  const resumed = await prepareBusinessRecord(d, actor, { ...input, action: "resume" });
+  assertEquals(resumed.change_note, JSON.stringify([{ stopped_on: "2026-10-08", resumed_on: "2026-10-09" }]));
+  facts = { ...facts, kind: "once", status: "open", recurrence: null, timezone: null, pauses: [] };
+  await assertRejects(() => prepareBusinessRecord(d, actor, { ...input, action: "stop" }), AppError, "반복 할 일에만");
+});

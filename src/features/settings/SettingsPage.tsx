@@ -44,14 +44,16 @@ function AccountSettings() {
       mobileDisplayScale: value.mobileDisplayScale === previous.mobileDisplayScale ? saved.mobileDisplayScale : value.mobileDisplayScale,
     }));
   }, [saved.icon, saved.nickname, saved.timezone, saved.desktopDisplayScale, saved.mobileDisplayScale]);
-  const blocker = useBlocker(dirty || busy || businessState.dirty || businessState.busy || identityState.dirty || identityState.busy);
-  useEffect(() => { if (busy && blocker.state === "blocked") blocker.reset(); }, [busy, blocker]);
+  const anyBusy = busy || businessState.busy || identityState.busy;
+  const anyDirty = dirty || businessState.dirty || identityState.dirty;
+  const blocker = useBlocker(anyDirty || anyBusy);
+  useEffect(() => { if (anyBusy && blocker.state === "blocked") blocker.reset(); }, [anyBusy, blocker]);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   useEffect(() => {
-    const unload = (event: BeforeUnloadEvent) => { if (dirty || busy) { event.preventDefault(); event.returnValue = ""; } };
+    const unload = (event: BeforeUnloadEvent) => { if (anyDirty || anyBusy) { event.preventDefault(); event.returnValue = ""; } };
     window.addEventListener("beforeunload", unload);
     return () => window.removeEventListener("beforeunload", unload);
-  }, [dirty, busy]);
+  }, [anyDirty, anyBusy]);
   const clearMessage = () => { setMessage(""); setError(false); };
   return <section className="panel settings" aria-labelledby="settings-title">
     <h1 className="page-title" id="settings-title">설정</h1>
@@ -109,7 +111,7 @@ function AccountSettings() {
     </form>
     <RecordTemplateSettings onStateChange={setBusinessState} />
     <EntityIdentitySettings onStateChange={setIdentityState} />
-    <ConfirmDialog open={!busy && blocker.state === "blocked"} title="변경을 버릴까요?" message="저장하지 않은 설정이 사라집니다." confirmLabel="변경 버리기"
+    <ConfirmDialog open={!anyBusy && blocker.state === "blocked"} title="변경을 버릴까요?" message="저장하지 않은 설정이 사라집니다." confirmLabel="변경 버리기"
       onConfirm={() => { if (blocker.state === "blocked") blocker.proceed(); }} onCancel={() => { if (blocker.state === "blocked") blocker.reset(); }} />
   </section>;
 }
