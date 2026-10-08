@@ -3,9 +3,8 @@ import type { Session } from "@supabase/supabase-js";
 import { type ReactNode, useContext, useEffect, useRef, useState } from "react";
 import { Navigate, useLocation } from "react-router";
 import { supabase } from "../../lib/supabase.ts";
-import { timezonePreference } from "../../lib/timezone.ts";
 import { AuthContext } from "./auth-context.ts";
-import type { ProfileIconId } from "../settings/profile.tsx";
+import { preferenceMetadata, type AccountPreferences } from "../settings/account-preferences.ts";
 import { profileClient, readProfile, ProfileDisplayRefreshError } from "./profile-client.ts";
 
 interface CanonicalRead {
@@ -21,11 +20,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const profileRevision = useRef(0);
   const latestRead = useRef<CanonicalRead | null>(null);
   const channel = useRef<BroadcastChannel | null>(null);
-  const applyProfile = ({ icon, timezone }: Awaited<ReturnType<typeof readProfile>>) => {
+  const applyProfile = ({ icon, nickname, timezone }: AccountPreferences) => {
     const session = activeSession.current;
     if (!session) return;
     // 표시용 필드만 복사한다. 토큰·권한·SDK 세션 저장소는 프로필 흐름이 변경하지 않는다.
-    const display = { ...session, user: { ...session.user, user_metadata: { ...session.user.user_metadata, workspace_avatar_id: icon, workspace_timezone: timezone } } };
+    const display = { ...session, user: { ...session.user, user_metadata: { ...session.user.user_metadata, ...preferenceMetadata({ icon, nickname, timezone }) } } };
     activeSession.current = display;
     setState({ session: display, loading: false });
   };
@@ -113,12 +112,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try { return await confirmLatest(readCanonical(), assertAccount); }
     catch { assertAccount(); throw new ProfileDisplayRefreshError(); }
   };
-  const saveProfileIcon = async (id: ProfileIconId) => (await saveProfile({ workspace_avatar_id: id })).icon;
-  const saveTimezone = async (timezone: string | null) => {
-    if (timezone !== null && timezonePreference(timezone) === null) throw new Error("올바른 시간대를 선택하세요.");
-    return (await saveProfile({ workspace_timezone: timezone })).timezone;
-  };
-  return <AuthContext.Provider value={{ ...state, saveProfileIcon, saveTimezone }}>{children}</AuthContext.Provider>;
+  const savePreferences = (changes: Partial<AccountPreferences>) => saveProfile(preferenceMetadata(changes));
+  return <AuthContext.Provider value={{ ...state, savePreferences }}>{children}</AuthContext.Provider>;
 }
 
 export const useAuth = () => useContext(AuthContext);

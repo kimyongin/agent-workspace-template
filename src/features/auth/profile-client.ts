@@ -1,6 +1,5 @@
 import { AuthClient, type Session } from "@supabase/supabase-js";
-import { timezonePreference } from "../../lib/timezone.ts";
-import { profileIconId } from "../settings/profile.tsx";
+import { accountPreferences } from "../settings/account-preferences.ts";
 
 /** updateUser는 캡처한 세션을 응답 뒤 저장한다. 프로필 쓰기는 공유 세션과 격리한다. */
 export function profileClient(session?: Session) {
@@ -35,7 +34,7 @@ export async function readProfile(session: Session) {
     const { data, error } = await client.getUser(session.access_token);
     if (error) throw error;
     if (data.user?.id !== session.user.id) throw new Error("로그인 계정이 변경되었습니다.");
-    return { icon: profileIconId(data.user.user_metadata.workspace_avatar_id), timezone: timezonePreference(data.user.user_metadata.workspace_timezone) };
+    return accountPreferences(data.user.user_metadata);
   } finally { await client.dispose(); }
 }
 

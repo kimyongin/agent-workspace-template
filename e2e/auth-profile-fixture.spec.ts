@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 
-const user = { id: "00000000-0000-0000-0000-000000000001", aud: "authenticated", email: "fixture@example.test", app_metadata: {}, user_metadata: { workspace_avatar_id: "person", provider_value: "preserved" } };
+const user = { id: "00000000-0000-0000-0000-000000000001", aud: "authenticated", email: "fixture@example.test", app_metadata: {}, user_metadata: { full_name: "기존 계정 이름", workspace_avatar_id: "person", provider_value: "preserved" } };
 const other = { ...user, id: "00000000-0000-0000-0000-000000000002", email: "other@example.test", user_metadata: { workspace_avatar_id: "leaf", provider_value: "other" } };
 const fixture = "/e2e/fixtures/auth-profile.html";
 function token(id: string) {
@@ -105,13 +105,13 @@ test("다른 탭의 같은 계정 프로필 갱신은 미저장 선택·이동 �
   await expect(page.getByTestId("provider-icon")).toHaveText("leaf");
   await expect(second.getByRole("radio", { name: "잎", exact: true })).toBeChecked();
   await expect(page.getByRole("radio", { name: "별", exact: true })).toBeChecked();
-  await expect(page.getByRole("button", { name: "아이콘 저장" })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "저장", exact: true })).toBeEnabled();
   await page.getByRole("link", { name: "엔터티", exact: true }).click();
   await page.getByRole("dialog", { name: "변경을 버릴까요?" }).getByRole("button", { name: "취소", exact: true }).click();
   await expect(page.getByRole("radio", { name: "별", exact: true })).toBeChecked();
   await page.getByRole("button", { name: "변경 취소", exact: true }).click();
   await expect(page.getByRole("radio", { name: "잎", exact: true })).toBeChecked();
-  await expect(page.getByRole("button", { name: "아이콘 저장" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "저장", exact: true })).toBeDisabled();
 });
 
 test("외부 갱신 뒤 로컬 저장은 응답 정본을 채택하고 다른 탭의 깨끗한 선택도 갱신한다", async ({ page, context }) => {
@@ -126,18 +126,18 @@ test("외부 갱신 뒤 로컬 저장은 응답 정본을 채택하고 다른 �
   await expect(page.getByTestId("provider-icon")).toHaveText("leaf");
   await expect(page.getByRole("radio", { name: "별", exact: true })).toBeChecked();
   // 서버가 정규화하거나 다른 쓰기가 뒤따른 경우에도 확인한 최신 응답이 정본이다.
-  icon = "sun"; await page.getByRole("button", { name: "아이콘 저장" }).click();
-  await expect(page.getByRole("form", { name: "프로필 아이콘 설정" }).getByRole("status")).toContainText("저장했습니다");
+  icon = "sun"; await page.getByRole("button", { name: "저장", exact: true }).click();
+  await expect(page.getByRole("form", { name: "계정 설정" }).getByRole("status")).toContainText("저장했습니다");
   for (const tab of [page, second]) {
     await expect(tab.getByTestId("provider-icon")).toHaveText("sun");
-    await expect(tab.getByRole("radio", { name: "해", exact: true })).toBeChecked();
-    await expect(tab.getByRole("button", { name: "아이콘 저장" })).toBeDisabled();
+    await expect(tab.getByRole("radio", { name: "해바라기", exact: true })).toBeChecked();
+    await expect(tab.getByRole("button", { name: "저장", exact: true })).toBeDisabled();
     // 프로필 표시와 달리 SDK 세션은 마지막 Auth 이벤트 값 그대로다.
     expect(await sdkState(tab)).toMatchObject({ sdk: user.id, stored: user.id, icon: "leaf" });
   }
   await page.reload();
   await expect(page.getByTestId("provider-icon")).toHaveText("sun");
-  await expect(page.getByRole("radio", { name: "해", exact: true })).toBeChecked();
+  await expect(page.getByRole("radio", { name: "해바라기", exact: true })).toBeChecked();
   expect(await sdkState(page)).toMatchObject({ icon: "leaf" });
   await logout(page);
   await page.evaluate(async access_token => {
@@ -145,7 +145,7 @@ test("외부 갱신 뒤 로컬 저장은 응답 정본을 채택하고 다른 �
     const { error } = await supabase.auth.setSession({ access_token, refresh_token: "relogin-refresh" }); if (error) throw error;
   }, token(user.id));
   await expect(page.getByTestId("provider-icon")).toHaveText("sun");
-  await expect(page.getByRole("radio", { name: "해", exact: true })).toBeChecked();
+  await expect(page.getByRole("radio", { name: "해바라기", exact: true })).toBeChecked();
 });
 
 test("프로필 저장 성공·표시 재조회 실패를 구분하고 초안으로 재시도한다", async ({ page }) => {
@@ -156,13 +156,13 @@ test("프로필 저장 성공·표시 재조회 실패를 구분하고 초안으
     if (!written) return route.fallback();
     return route.fulfill(fail ? { status: 400, json: { msg: "fixture read failure" } } : { json: updated });
   });
-  await page.goto(fixture); await page.getByRole("radio", { name: "별", exact: true }).check(); await page.getByRole("button", { name: "아이콘 저장" }).click();
+  await page.goto(fixture); await page.getByRole("radio", { name: "별", exact: true }).check(); await page.getByRole("button", { name: "저장", exact: true }).click();
   await expect(page.getByRole("alert")).toContainText("설정은 저장했지만 계정 표시를 새로 불러오지 못했습니다");
   await expect(page.getByRole("radio", { name: "별", exact: true })).toBeChecked();
   expect(await sdkState(page)).toMatchObject({ sdk: user.id, stored: user.id, icon: "person" });
-  fail = false; await page.getByRole("button", { name: "아이콘 저장" }).click();
-  await expect(page.getByRole("form", { name: "프로필 아이콘 설정" }).getByRole("status")).toContainText("저장했습니다");
-  await expect(page.getByRole("button", { name: "아이콘 저장" })).toBeDisabled();
+  fail = false; await page.getByRole("button", { name: "저장", exact: true }).click();
+  await expect(page.getByRole("form", { name: "계정 설정" }).getByRole("status")).toContainText("저장했습니다");
+  await expect(page.getByRole("button", { name: "저장", exact: true })).toBeDisabled();
   await expect(page.getByTestId("provider-icon")).toHaveText("star");
   expect(await sdkState(page)).toMatchObject({ icon: "person" });
 });
@@ -193,7 +193,7 @@ for (const hydration of ["completed", "pending"] as const) for (const writer of 
     const second = await context.newPage(); await second.goto(fixture);
     for (const tab of [page, second]) await expect(tab.getByTestId("provider-icon")).toHaveText("person");
     await page.getByRole("radio", { name: "별", exact: true }).check();
-    await page.getByRole("button", { name: "아이콘 저장" }).click(); await oldStarted;
+    await page.getByRole("button", { name: "저장", exact: true }).click(); await oldStarted;
     if (writer === "sdk-event") {
       await second.evaluate(async () => {
         const path = "/src/lib/supabase.ts"; const { supabase } = await import(path);
@@ -201,8 +201,8 @@ for (const hydration of ["completed", "pending"] as const) for (const writer of 
       });
     } else {
       await second.getByRole("radio", { name: "잎", exact: true }).check();
-      await second.getByRole("button", { name: "아이콘 저장" }).click();
-      await expect(second.getByRole("form", { name: "프로필 아이콘 설정" }).getByRole("status")).toContainText("저장했습니다");
+      await second.getByRole("button", { name: "저장", exact: true }).click();
+      await expect(second.getByRole("form", { name: "계정 설정" }).getByRole("status")).toContainText("저장했습니다");
     }
     await newStarted;
     if (hydration === "completed") await expect(page.getByTestId("provider-icon")).toHaveText("leaf");
@@ -225,13 +225,13 @@ for (const hydration of ["completed", "pending"] as const) for (const writer of 
       await expect(page.getByRole("radio", { name: "별", exact: true })).toBeChecked();
       releaseNew();
     }
-    await expect(page.getByRole("form", { name: "프로필 아이콘 설정" }).getByRole("status")).toContainText("저장했습니다");
+    await expect(page.getByRole("form", { name: "계정 설정" }).getByRole("status")).toContainText("저장했습니다");
     await expect(page.getByTestId("provider-icon")).toHaveText("leaf");
     await expect(page.getByRole("radio", { name: "잎", exact: true })).toBeChecked();
-    await expect(page.getByRole("button", { name: "아이콘 저장" })).toBeDisabled();
+    await expect(page.getByRole("button", { name: "저장", exact: true })).toBeDisabled();
     expect(icon).toBe("leaf"); expect(refreshes).toBe(0);
     expect((await sdkState(page)).serialized).toBe(before);
-    await page.getByRole("radio", { name: "해", exact: true }).check();
+    await page.getByRole("radio", { name: "해바라기", exact: true }).check();
     await page.getByRole("button", { name: "변경 취소", exact: true }).click();
     await expect(page.getByRole("radio", { name: "잎", exact: true })).toBeChecked();
     await page.reload(); await expect(page.getByTestId("provider-icon")).toHaveText("leaf");
@@ -240,7 +240,7 @@ for (const hydration of ["completed", "pending"] as const) for (const writer of 
 }
 
 
-test("계정 시간대 저장: 실패 초안·폐기 보호·기존 metadata·다른 탭·새로고침·기기 기본값", async ({ page, context }, info) => {
+test("계정 저장: 실패 초안·폐기 보호·기존 metadata·다른 탭·새로고침·기기 기본값", async ({ page, context }, info) => {
   let timezone: string | null = null, fail = true;
   const writes: unknown[] = [];
   const responseUser = () => ({...user,user_metadata:{...user.user_metadata,workspace_timezone:timezone}});
@@ -254,24 +254,24 @@ test("계정 시간대 저장: 실패 초안·폐기 보호·기존 metadata·�
   });
   await page.setViewportSize({width:390,height:844});
   await page.goto(fixture);
-  const setting = page.getByRole("form", {name:"날짜와 시각 설정"});
+  const setting = page.getByRole("form", {name:"계정 설정"});
   await setting.getByLabel("표시 시간대").selectOption("America/New_York");
   await page.getByRole("link", {name:"기록",exact:true}).click();
   await page.getByRole("dialog", {name:"변경을 버릴까요?"}).getByRole("button",{name:"취소",exact:true}).click();
   await expect(setting.getByLabel("표시 시간대")).toHaveValue("America/New_York");
-  await setting.getByRole("button", {name:"시간대 저장",exact:true}).click();
-  await expect(setting.getByRole("alert")).toContainText("선택한 시간대를 유지");
+  await setting.getByRole("button", {name:"저장",exact:true}).click();
+  await expect(setting.getByRole("alert")).toContainText("입력한 설정을 유지");
   await expect(setting.getByLabel("표시 시간대")).toHaveValue("America/New_York");
   const otherTab = await context.newPage(); await otherTab.goto(fixture);
   await otherTab.getByLabel("표시 시간대").selectOption("Asia/Tokyo");
   fail = false;
   const before = (await sdkState(page)).serialized;
-  await setting.getByRole("button", {name:"시간대 저장",exact:true}).click();
-  await expect(setting.getByRole("status")).toContainText("표시 시간대를 저장했습니다");
+  await setting.getByRole("button", {name:"저장",exact:true}).click();
+  await expect(setting.getByRole("status")).toContainText("설정을 저장했습니다");
   await expect(page.getByTestId("display-timezone")).toHaveText("America/New_York");
   await expect(otherTab.getByTestId("display-timezone")).toHaveText("America/New_York");
   await expect(otherTab.getByLabel("표시 시간대")).toHaveValue("Asia/Tokyo");
-  await otherTab.getByRole("button",{name:"시간대 변경 취소"}).click();
+  await otherTab.getByRole("button",{name:"변경 취소"}).click();
   await expect(otherTab.getByLabel("표시 시간대")).toHaveValue("America/New_York");
   expect((await sdkState(page)).serialized).toBe(before);
   expect(writes).toEqual([{workspace_timezone:"America/New_York"},{workspace_timezone:"America/New_York"}]);
@@ -281,8 +281,60 @@ test("계정 시간대 저장: 실패 초안·폐기 보호·기존 metadata·�
   await expect(page.getByRole("radio",{name:"기본",exact:true})).toBeChecked();
   expect(responseUser().user_metadata.provider_value).toBe("preserved");
   await page.getByLabel("표시 시간대").selectOption("");
-  await page.getByRole("button",{name:"시간대 저장",exact:true}).click();
+  await page.getByRole("button",{name:"저장",exact:true}).click();
   await expect(otherTab.getByLabel("표시 시간대")).toHaveValue("");
   expect(timezone).toBeNull();
   await expect(page.getByTestId("display-timezone")).toHaveText(await page.evaluate(()=>Intl.DateTimeFormat().resolvedOptions().timeZone));
+});
+
+for (const width of [320, 390, 1440]) test(`프로필 ${width}px: 두 줄 스크롤·20개 선택·키보드·닉네임·팝오버·통합 저장`, async ({ page, context }, info) => {
+  let metadata: Record<string, unknown> = { ...user.user_metadata, full_name: "기존 계정 이름", workspace_nickname: "별빛고양이", workspace_avatar_id: "cat", workspace_timezone: "Asia/Seoul" };
+  let fail = true;
+  const writes: Record<string, unknown>[] = [];
+  await context.route("**/auth/v1/user", route => {
+    if (route.request().method() === "PUT") {
+      const changes = route.request().postDataJSON().data; writes.push(changes);
+      if (fail) return route.fulfill({ status: 503, json: { msg: "fixture failure" } });
+      metadata = { ...metadata, ...changes };
+    }
+    return route.fulfill({ json: { ...user, user_metadata: metadata } });
+  });
+  await page.setViewportSize({ width, height: 900 }); await page.goto(fixture);
+  await expect(page.getByLabel("닉네임", {exact:true})).toHaveValue("별빛고양이");
+  await expect(page.getByRole("radio")).toHaveCount(20);
+  const choices = page.locator(".profile-choices");
+  expect(await choices.evaluate(node => node.clientHeight)).toBe(128);
+  expect(await choices.evaluate(node => node.scrollHeight > node.clientHeight)).toBe(true);
+  for (const box of await page.locator(".profile-choice").evaluateAll(nodes => nodes.map(node => { const r=node.getBoundingClientRect();return {w:r.width,h:r.height}; }))) { expect(box.w).toBeGreaterThanOrEqual(44);expect(box.h).toBeGreaterThanOrEqual(44); }
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.getByRole("radio", {name:"기본",exact:true}).focus();
+  for(let i=0;i<19;i++)await page.keyboard.press("ArrowRight");
+  await expect(page.getByRole("radio",{name:"과녁",exact:true})).toBeChecked();
+  expect(await choices.evaluate(node=>node.scrollTop)).toBeGreaterThan(0);
+  await page.getByLabel("닉네임", {exact:true}).fill("긴".repeat(40));
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.getByLabel("닉네임", {exact:true}).fill("새 닉네임");
+  await page.getByLabel("표시 시간대").selectOption("UTC");
+  const otherTab=await context.newPage();await otherTab.goto(fixture);
+  await otherTab.getByLabel("닉네임",{exact:true}).fill("다른 탭 초안");
+  await page.getByRole("button",{name:"저장",exact:true}).click();
+  await expect(page.getByRole("alert")).toContainText("입력한 설정을 유지");
+  await expect(page.getByLabel("닉네임",{exact:true})).toHaveValue("새 닉네임");
+  await expect(page.getByRole("radio",{name:"과녁",exact:true})).toBeChecked();
+  fail=false; await page.getByRole("button",{name:"저장",exact:true}).click();
+  await expect(page.getByRole("form",{name:"계정 설정"}).getByRole("status")).toContainText("설정을 저장했습니다");
+  expect(writes).toEqual(Array(2).fill({workspace_avatar_id:"target",workspace_nickname:"새 닉네임",workspace_timezone:"UTC"}));
+  expect(metadata.provider_value).toBe("preserved");
+  await expect(otherTab.getByLabel("닉네임",{exact:true})).toHaveValue("다른 탭 초안");
+  await expect(otherTab.getByRole("radio",{name:"과녁",exact:true})).toBeChecked();
+  await otherTab.getByRole("button",{name:"변경 취소",exact:true}).click();
+  await expect(otherTab.getByLabel("닉네임",{exact:true})).toHaveValue("새 닉네임");
+  await page.reload(); await expect(page.getByLabel("닉네임",{exact:true})).toHaveValue("새 닉네임");
+  await page.getByRole("button",{name:"내 프로필",exact:true}).click();
+  const popup=page.locator("#nav-profile-options");await expect(popup).toContainText("새 닉네임");await expect(popup).not.toContainText(user.email);await expect(popup.locator(".profile-icon")).toHaveText("🎯");
+  await page.screenshot({path:info.outputPath(`profile-popup-${width}.png`)});
+  await page.keyboard.press("Escape");
+  await page.getByLabel("닉네임",{exact:true}).fill(" ");await page.getByRole("button",{name:"저장",exact:true}).click();await expect(page.getByRole("form",{name:"계정 설정"}).getByRole("status")).toContainText("설정을 저장했습니다");
+  expect(writes.at(-1)).toEqual({workspace_nickname:null});
+  await page.getByRole("button",{name:"내 프로필",exact:true}).click();await expect(popup).toContainText("기존 계정 이름");
 });

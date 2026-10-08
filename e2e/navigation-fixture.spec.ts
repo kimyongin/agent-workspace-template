@@ -51,7 +51,7 @@ test("네 탭과 프로필·메뉴는 320~1440px와 200%에서 조작 가능하�
   await page.evaluate(() => document.documentElement.style.fontSize = "200%");
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: info.outputPath("settings-320-text200.png") });
-  await page.getByRole("button", { name: "메뉴", exact: true }).click(); await expect(page.getByRole("link", { name: "사용 가이드", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "메뉴", exact: true }).click(); await expect(page.locator("#nav-more-options").getByRole("link", { name: "사용 가이드", exact: true })).toBeVisible();
   await page.keyboard.press("Escape"); await expect(page.getByRole("button", { name: "메뉴", exact: true })).toBeFocused();
   await page.evaluate(() => document.documentElement.style.fontSize = "");
   // 1440px 화면의 200% 브라우저 확대에 대응하는 CSS reflow 크기.
@@ -63,18 +63,18 @@ test("네 탭과 프로필·메뉴는 320~1440px와 200%에서 조작 가능하�
 });
 
 test("팝오버는 하나만 열리며 키보드·외부 클릭·경로 이동에 초점을 유지한다", async ({ page }) => {
-  await page.goto("/settings"); const menu = page.getByRole("button", { name: "메뉴", exact: true }); const profile = page.getByRole("button", { name: "내 프로필 · 로그인됨" });
-  await profile.click(); await expect(page.locator("#nav-profile-options")).toContainText(user.email);
+  await page.goto("/settings"); const menu = page.getByRole("button", { name: "메뉴", exact: true }); const profile = page.getByRole("button", { name: "내 프로필" });
+  await profile.click(); await expect(page.locator("#nav-profile-options")).toContainText(user.user_metadata.full_name); await expect(page.locator("#nav-profile-options")).not.toContainText(user.email);
   await menu.click(); await expect(page.locator("#nav-profile-options")).toHaveCount(0);
-  await menu.press("ArrowDown"); await expect(page.getByRole("link", { name: "사용 가이드", exact: true })).toBeFocused();
+  await menu.press("ArrowDown"); await expect(page.locator("#nav-more-options").getByRole("link", { name: "사용 가이드", exact: true })).toBeFocused();
   await page.keyboard.press("ArrowDown"); await expect(page.locator("#nav-more-options").getByRole("link", { name: "설정", exact: true })).toBeFocused();
   await page.keyboard.press("Escape"); await expect(menu).toBeFocused();
   await menu.click();
   await page.getByRole("heading", { name: "설정", exact: true }).click(); await expect(menu).toHaveAttribute("aria-expanded", "false");
-  await menu.click(); await page.getByRole("link", { name: "사용 가이드", exact: true }).click(); await expect(page).toHaveURL(/\/guide$/); await expect(menu).toHaveAttribute("aria-expanded", "false");
+  await menu.click(); await page.locator("#nav-more-options").getByRole("link", { name: "사용 가이드", exact: true }).click(); await expect(page).toHaveURL(/\/guide$/); await expect(menu).toHaveAttribute("aria-expanded", "false");
 });
 
-test("아이콘 저장 실패의 초안을 보존하고 서버 성공 응답·재조회·기본 복원을 반영한다", async ({ page }) => {
+test("저장 실패의 초안을 보존하고 서버 성공 응답·재조회·기본 복원을 반영한다", async ({ page }) => {
   let fail = true; let calls = 0;
   await refreshedProfile(page, () => fail ? "person" : "leaf");
   await page.route("**/auth/v1/user", async route => {
@@ -84,14 +84,14 @@ test("아이콘 저장 실패의 초안을 보존하고 서버 성공 응답·�
     else await route.fulfill({ json: { ...user, user_metadata: { ...user.user_metadata, workspace_avatar_id: "leaf" } } });
   });
   await page.goto("/settings"); await page.getByRole("radio", { name: "잎", exact: true }).check();
-  const originalPath = await page.locator(".nav-profile path").getAttribute("d");
-  await page.getByRole("button", { name: "아이콘 저장" }).click(); await expect(page.getByRole("alert")).toContainText("선택한 아이콘을 유지"); await expect(page.getByRole("radio", { name: "잎", exact: true })).toBeChecked();
-  await expect(page.locator(".nav-profile path")).toHaveAttribute("d", originalPath!);
-  fail = false; await page.getByRole("button", { name: "아이콘 저장" }).click(); await expect(page.getByRole("status")).toContainText("저장했습니다"); expect(calls).toBe(2);
-  const savedPath = await page.locator(".nav-profile path").getAttribute("d");
+  const originalPath = await page.locator(".nav-profile .profile-icon").textContent();
+  await page.getByRole("button", { name: "저장", exact: true }).click(); await expect(page.getByRole("alert")).toContainText("입력한 설정을 유지"); await expect(page.getByRole("radio", { name: "잎", exact: true })).toBeChecked();
+  await expect(page.locator(".nav-profile .profile-icon")).toHaveText(originalPath!);
+  fail = false; await page.getByRole("button", { name: "저장", exact: true }).click(); await expect(page.getByRole("status")).toContainText("저장했습니다"); expect(calls).toBe(2);
+  const savedPath = await page.locator(".nav-profile .profile-icon").textContent();
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem("sb-127-auth-token")!).user.user_metadata.provider_value)).toBe("preserved");
-  await page.reload(); await expect(page.getByRole("radio", { name: "잎", exact: true })).toBeChecked(); await expect(page.locator(".nav-profile path")).toHaveAttribute("d", savedPath!);
-  await page.getByRole("button", { name: "기본값 선택" }).click(); await expect(page.getByRole("radio", { name: "기본", exact: true })).toBeChecked();
+  await page.reload(); await expect(page.getByRole("radio", { name: "잎", exact: true })).toBeChecked(); await expect(page.locator(".nav-profile .profile-icon")).toHaveText(savedPath!);
+  await page.getByRole("radio", { name: "기본", exact: true }).check(); await expect(page.getByRole("radio", { name: "기본", exact: true })).toBeChecked();
   await page.getByRole("button", { name: "변경 취소" }).click(); await expect(page.getByRole("radio", { name: "잎", exact: true })).toBeChecked();
 });
 
@@ -100,7 +100,7 @@ test("저장 중 중복 요청과 탭·로그아웃 이동을 막고 응답 뒤 
   await refreshedProfile(page, () => saved ? "sun" : "person");
   let finish!: () => void; const waiting = new Promise<void>(resolve => { finish = resolve; }); let calls = 0;
   await page.route("**/auth/v1/user", async route => { if (route.request().method() !== "PUT") return route.fallback(); calls++; await waiting; saved = true; await route.fulfill({ json: { ...user, user_metadata: { ...user.user_metadata, workspace_avatar_id: "sun" } } }); });
-  await page.goto("/settings"); await page.getByRole("radio", { name: "해", exact: true }).check(); await page.getByRole("button", { name: "아이콘 저장" }).click();
+  await page.goto("/settings"); await page.getByRole("radio", { name: "해바라기", exact: true }).check(); await page.getByRole("button", { name: "저장", exact: true }).click();
   await expect(page.getByRole("button", { name: "저장 중…" })).toBeDisabled(); await page.getByRole("navigation", { name: "주 메뉴" }).getByRole("link", { name: "엔터티", exact: true }).click();
   await expect(page).toHaveURL(/\/settings$/); await expect(page.getByRole("dialog")).toHaveCount(0);
   await page.getByRole("link", { name: "로그아웃", exact: true }).click(); await expect(page).toHaveURL(/\/settings$/); expect(calls).toBe(1);
@@ -119,7 +119,7 @@ test("알 수 없는 아이콘은 기본값이며 계정 전환과 세션 만료
     const token = `${encode({ alg: "HS256", typ: "JWT" })}.${encode({ exp: Math.floor(Date.now() / 1000) + 3600, sub: user.id })}.fixture`;
     const { error } = await supabase.auth.setSession({ access_token: token, refresh_token: "fixture-other" }); if (error) throw error;
   }, alternate);
-  await expect(page.getByRole("radio", { name: "잎", exact: true })).toBeChecked(); await expect(page.getByText("other@example.test", { exact: true })).toBeVisible(); await expect(page.getByText(user.email, { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("radio", { name: "잎", exact: true })).toBeChecked(); await expect(page.locator(".profile-preview")).toContainText("Other"); await expect(page.getByText(user.email, { exact: true })).toHaveCount(0);
   await page.route("**/auth/v1/logout*", route => route.fulfill({ status: 204 }));
   await page.evaluate(async () => { const path = "/src/lib/supabase.ts"; const { supabase } = await import(path); await supabase.auth.signOut(); });
   await expect(page).toHaveURL(/\/login\?next=/); await expect(page.getByRole("navigation", { name: "주 메뉴" })).toHaveCount(0); await expect(page.getByRole("heading", { name: "로그인", exact: true })).toBeVisible();
@@ -130,7 +130,7 @@ test("미저장 설정의 탭·메뉴·뒤로가기·로그아웃은 같은 폐�
   await page.goto("/guide"); await settings(page); await page.getByRole("radio", { name: "별", exact: true }).check();
   const confirm = page.getByRole("dialog", { name: "변경을 버릴까요?" });
   let step = 0;
-  for (const action of [async () => page.getByRole("navigation", { name: "주 메뉴" }).getByRole("link", { name: "할 일", exact: true }).click(), async () => { await page.getByRole("button", { name: "메뉴", exact: true }).click(); await page.getByRole("link", { name: "사용 가이드", exact: true }).click(); }, async () => { await page.goBack(); }, async () => {
+  for (const action of [async () => page.getByRole("navigation", { name: "주 메뉴" }).getByRole("link", { name: "할 일", exact: true }).click(), async () => { await page.getByRole("button", { name: "메뉴", exact: true }).click(); await page.locator("#nav-more-options").getByRole("link", { name: "사용 가이드", exact: true }).click(); }, async () => { await page.goBack(); }, async () => {
     // 취소 뒤 유지된 메뉴는 작은 화면에서 본문의 로그아웃 위에 열린다.
     const menu = page.getByRole("button", { name: "메뉴", exact: true });
     if (await menu.getAttribute("aria-expanded") === "true") await menu.click();
@@ -138,7 +138,7 @@ test("미저장 설정의 탭·메뉴·뒤로가기·로그아웃은 같은 폐�
     await page.getByRole("link", { name: "로그아웃", exact: true }).click();
   }]) {
     await action(); await expect(confirm).toBeVisible(); await confirm.getByRole("button", { name: "취소", exact: true }).click(); await expect(page.getByRole("radio", { name: "별", exact: true })).toBeChecked();
-    if (step === 1) { await expect(page.getByRole("link", { name: "사용 가이드", exact: true })).toBeFocused(); await expect(page.getByRole("button", { name: "메뉴", exact: true })).toHaveAttribute("aria-expanded", "true"); }
+    if (step === 1) { await expect(page.locator("#nav-more-options").getByRole("link", { name: "사용 가이드", exact: true })).toBeFocused(); await expect(page.getByRole("button", { name: "메뉴", exact: true })).toHaveAttribute("aria-expanded", "true"); }
     step++;
   }
   expect(logoutCalls).toBe(0); await page.getByRole("link", { name: "로그아웃", exact: true }).click(); await confirm.getByRole("button", { name: "변경 버리기", exact: true }).click();
@@ -167,7 +167,7 @@ test("가이드의 복사 실패와 성공 안내는 유지한다", async ({ pag
 
 for(const width of [390,1440])test(`#205 ${width}px: 설정·가이드 구획과 탐색 팝오버`,async({page},info)=>{
   await page.setViewportSize({width,height:900});await page.goto("/settings");
-  const groups=page.locator(".settings > section,.settings > form");await expect(groups).toHaveCount(4);
+  const groups=page.locator(".settings .settings-group");await expect(groups).toHaveCount(4);
   expect((await page.locator(".settings").boundingBox())!.width).toBeLessThanOrEqual(768);
   await page.screenshot({path:info.outputPath(`compact-settings-${width}.png`)});
   await page.getByRole("button",{name:"메뉴",exact:true}).click();const menu=page.locator("#nav-more-options"),box=(await menu.boundingBox())!;
