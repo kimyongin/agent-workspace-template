@@ -52,8 +52,15 @@ export function prepareBusinessRecord(
     if (input.action === "create") {
       const schema = input.model === "task" ? taskCreate : input.model === "entity" ? entityCreate : principleCreate;
       const creation = schema.safeParse({ id: "00000000-0000-4000-8000-000000000001", ...content });
-      if (!creation.success) throw invalidInput("업무 입력을 확인하세요", creation.error.issues.map(issue => ({path: `input.${issue.path.join(".")}`, message: issue.message})));
-      content = input.model === "task" ? taskContent(taskCreate.parse({ id: "00000000-0000-4000-8000-000000000001", ...content })) : creation.data;
+      if (!creation.success) {
+        throw invalidInput(
+          "업무 입력을 확인하세요",
+          creation.error.issues.map((issue) => ({ path: `input.${issue.path.join(".")}`, message: issue.message })),
+        );
+      }
+      content = input.model === "task"
+        ? taskContent(taskCreate.parse({ id: "00000000-0000-4000-8000-000000000001", ...content }))
+        : creation.data;
     }
     const after = input.action === "delete" ? null : {
       ...before,
@@ -95,6 +102,15 @@ export function updateBusinessSettings(d: BusinessSettingsDeps, actor: Actor, in
   return d.uow.run(actor, async (store) => {
     const { expected_version, sections } = parsed.data;
     const current = await store.get();
+    if (sections.entity_identity) {
+      const nextCodes = new Set(sections.entity_identity.sources.map((source) => source.code));
+      if (current.settings.entity_identity?.sources.some((source) => !nextCodes.has(source.code))) {
+        throw invalidInput("발급처 코드는 유지해야 합니다. 표시 이름만 바꾸거나 발급처를 추가하세요.", [{
+          path: "sections.entity_identity.sources",
+          message: "기존 발급처 코드를 제거하거나 변경할 수 없습니다",
+        }]);
+      }
+    }
     if (
       new TextEncoder().encode(JSON.stringify({ ...current.settings, ...sections })).length >
         BUSINESS_SETTINGS_MAX_BYTES

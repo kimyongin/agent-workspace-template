@@ -75,3 +75,48 @@ Deno.test("기록 준비: 생성 할 일의 실제 기본 상태·빈 본문·�
   });
   assertEquals(result.change_note, "open/없음/미지정");
 });
+
+Deno.test("업무 설정: 발급처 표시 이름은 바꾸지만 저장된 코드를 제거하거나 바꾸지 않는다", async () => {
+  const value: BusinessSettingsResult = {
+    version: 1,
+    settings: {
+      entity_identity: {
+        generation: "manual",
+        default_source: "crm",
+        sources: [{ code: "app", label: "앱" }, { code: "crm", label: "고객 관리" }],
+      },
+    },
+  };
+  const d: BusinessSettingsDeps = {
+    uow: {
+      run: (_actor, fn) =>
+        fn({
+          get: () => Promise.resolve(value),
+          recordTags: () => Promise.resolve([]),
+          update: (_expected, sections) => Promise.resolve({ version: 2, settings: sections }),
+        }),
+    },
+  };
+  const actor = { userId: crypto.randomUUID() };
+  await assertRejects(
+    () =>
+      updateBusinessSettings(d, actor, {
+        expected_version: 1,
+        sections: {
+          entity_identity: { generation: "uuid", default_source: "app", sources: [{ code: "app", label: "앱" }] },
+        },
+      }),
+    AppError,
+  );
+  const renamed = await updateBusinessSettings(d, actor, {
+    expected_version: 1,
+    sections: {
+      entity_identity: {
+        generation: "manual",
+        default_source: "crm",
+        sources: [{ code: "app", label: "앱" }, { code: "crm", label: "고객" }],
+      },
+    },
+  });
+  assertEquals(renamed.settings.entity_identity?.sources[1], { code: "crm", label: "고객" });
+});
