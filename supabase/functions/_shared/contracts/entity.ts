@@ -4,6 +4,8 @@ import { tagIds } from "./tag.ts";
 import { recordResult } from "./record.ts";
 import { expectedVersion, id, isoDate, isoDateTime, page, pageInput, text } from "./common.ts";
 
+import { entityExternalId, entityReferenceId, entitySourceCode } from "./entity-identity.ts";
+
 const date = isoDate.refine((v) => v >= "0001-01-01", { message: "1년 이후의 날짜를 쓰세요" });
 const properties = {
   prop1: text(1, 100),
@@ -12,13 +14,15 @@ const properties = {
   prop4: z.enum(["a", "b", "c"]),
 };
 export const entityCreate = z.strictObject({
-  id,
+  source: entitySourceCode.optional(),
+  external_id: entityExternalId.optional(),
+  expected_version: expectedVersion.optional(),
   ...businessMeta,
   tag_ids: tagIds.optional(),
-  ...properties,
-  prop2: properties.prop2.default(null),
-  prop3: properties.prop3.default(null),
-  prop4: properties.prop4.default("a"),
+  prop1: properties.prop1.optional(),
+  prop2: properties.prop2.optional(),
+  prop3: properties.prop3.optional(),
+  prop4: properties.prop4.optional(),
 });
 export const entityUpdate = z.strictObject({
   ...businessMeta,
@@ -49,7 +53,11 @@ export const entityListQuery = z.strictObject({
 });
 export const entityResult = z.object({
   tag_ids: z.array(id),
-  id,
+  id: entityReferenceId,
+  source: entitySourceCode,
+  external_id: entityExternalId,
+  source_label: z.string(),
+  deleted_at: isoDateTime.nullable(),
   ...properties,
   version: z.number().int(),
   created_at: isoDateTime,
@@ -75,3 +83,6 @@ export type EntityQuery = z.infer<typeof entityListQuery>;
 export type EntityResult = z.infer<typeof entityResult>;
 export type EntityDetail = z.infer<typeof entityDetail>;
 export const entityLabels = { prop1: "속성 1", prop2: "속성 2", prop3: "속성 3", prop4: "속성 4" };
+
+export const entityRekey = z.strictObject({ source: entitySourceCode, external_id: entityExternalId, expected_version: expectedVersion, ...businessMeta });
+export type EntityRekey = z.infer<typeof entityRekey>;

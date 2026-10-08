@@ -1,3 +1,4 @@
+import { entityReferenceId } from "./entity-identity.ts";
 import { z } from "zod";
 import { id, isoDateTime, pageInput, text } from "./common.ts";
 import { tagFilterIds } from "./tag.ts";
@@ -14,7 +15,7 @@ export const searchInput = z.strictObject({
   ]),
   tag_id: id.optional(),
   tag_ids: tagFilterIds.optional(),
-  entity_id: id.optional(),
+  entity_id: entityReferenceId.optional(),
   from: isoDateTime.optional(),
   to: isoDateTime.optional(),
   mode: z.enum(["auto", "keyword"]).default("auto"),

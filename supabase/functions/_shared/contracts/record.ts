@@ -1,3 +1,4 @@
+import { entityReferenceId } from "./entity-identity.ts";
 import { entityContext, entitySelection } from "./entity-links.ts";
 // 활동 기록(ActivityRecord) 계약.
 import { z } from "zod";
@@ -36,7 +37,7 @@ export const recordListQuery = z
     record_kind: z.enum(["user", "result", "change"]).optional(),
     tag_id: id.optional(),
     tag_ids: tagFilterIds.optional(),
-    entity_id: id.optional(),
+    entity_id: entityReferenceId.optional(),
     ...pageInput,
   })
   .refine((q) => !(q.occurred_from && q.occurred_to) || Date.parse(q.occurred_from) <= Date.parse(q.occurred_to), {
@@ -61,7 +62,7 @@ export const recordResult = z.object({
   change: changeMetadata.nullable(),
   applied_principle_snapshots: z.array(appliedPrincipleSnapshot),
   id,
-  entity_ids: z.array(id),
+  entity_ids: z.array(entityReferenceId),
   entity_context: z.array(entityContext),
   tag_ids: z.array(id),
   body: z.string(),

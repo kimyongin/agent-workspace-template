@@ -1,3 +1,4 @@
+import { entityPath, entityIdentityLabel } from "@contracts/entity-identity.ts";
 import { CollectionHeading, CollectionList, useMainCollectionView } from "../../components/Collection.tsx";
 import { useCreateMode } from "../../components/useCreateMode.ts";
 import { TabSearch, TabFilters, resetTabFilters } from "../../components/TabSearch.tsx";
@@ -132,7 +133,7 @@ export function EntitiesPage() {
         {page?.items.map((e) => (
           <li className="list-item" key={e.id}>
             <div className="list-item-main">
-              <ListPreviewItem kind="entities" id={e.id} title={e.prop1} cells={[e.prop2,e.prop3]}/>
+              <ListPreviewItem kind="entities" id={e.id} title={`${e.prop1} · ${entityIdentityLabel(e)}`} cells={[e.prop2,e.prop3]}/>
             </div>
           </li>
         ))}
@@ -161,12 +162,12 @@ export function EntitiesPage() {
           key={create.key}
           onClose={create.close}
           onRouteDiscard={create.discard}
-          onSave={async (value, creationId) => {
+          onSave={async (value) => {
             const e = await api<EntityResult>("POST", "/entities", {
               ...value,
-              id: creationId(),
+
             });
-            const p=new URLSearchParams(params);p.delete("create");create.finish(`/entities/${e.id}?list=${encodeURIComponent(`/entities?${p}`)}`);
+            const p=new URLSearchParams(params);p.delete("create");create.finish(`${entityPath(e.id)}?list=${encodeURIComponent(`/entities?${p}`)}`);
           }}
         />
       )}

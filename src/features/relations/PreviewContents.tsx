@@ -1,3 +1,4 @@
+import { entityIdentityLabel } from "@contracts/entity-identity.ts";
 import type { EntityResult } from "@contracts/entity.ts";
 import { entityLabels } from "@contracts/entity.ts";
 import type { TaskResult } from "@contracts/task.ts";
@@ -25,7 +26,7 @@ export function PreviewContents({kind,item,main,onTagsReady}: {
   const { formatDateTime } = useDisplayTime();
   if (kind === "entities") {
     const entity = item as EntityResult;
-    return <><dl className="props">{(["prop2","prop3","prop4"] as const).map(key=>entity[key]!==null&&<div key={key}><dt>{entityLabels[key]}</dt><dd>{entity[key]}</dd></div>)}</dl><TagNames compact scope="entity" ids={entity.tag_ids} onReadyChange={onTagsReady}/></>;
+    return <><p className="secondary">{entityIdentityLabel(entity)}{entity.deleted_at ? " · 삭제됨" : ""}</p><dl className="props">{(["prop2","prop3","prop4"] as const).map(key=>entity[key]!==null&&<div key={key}><dt>{entityLabels[key]}</dt><dd>{entity[key]}</dd></div>)}</dl><TagNames compact scope="entity" ids={entity.tag_ids} onReadyChange={onTagsReady}/></>;
   }
   if (kind === "tasks") {
     const task = item as TaskResult;

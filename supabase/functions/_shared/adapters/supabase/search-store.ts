@@ -17,7 +17,7 @@ class SqlSearchStore implements SearchStore {
       union all select owner_id,'record',id,body,body,occurred_at,null::text,entity_ids,null::text,record_kind,null::boolean,${
         tagIdsColumn(tx, "record")
       } from app.records
-      union all select owner_id,'principle',id,title,body,saved_at,null::text,'{}'::uuid[],null::text,null::text,is_current,'[]'::jsonb from app.principles where is_current`;
+      union all select owner_id,'principle',id,title,body,saved_at,null::text,'{}'::text[],null::text,null::text,is_current,'[]'::jsonb from app.principles where is_current`;
     return tx`select s.*,i.generation,case
       when s.kind<>'record' then 'excluded'
       when i.input_hash=encode(extensions.digest(s.body,'sha256'),'hex') and i.pipeline=${SEARCH_PIPELINE}
@@ -36,7 +36,7 @@ class SqlSearchStore implements SearchStore {
       ${
       q.tag_ids?.length ? tx`and tag_ids ?| ${tx.array([...q.tag_ids, ...(q.tag_id ? [q.tag_id] : [])])}::text[]` : tx``
     }
-      ${q.entity_id ? tx`and entity_ids @> array[${q.entity_id}::uuid]` : tx``}
+      ${q.entity_id ? tx`and entity_ids @> array[${q.entity_id}::text]` : tx``}
       ${q.from ? tx`and at>=${q.from}::timestamptz` : tx``} ${q.to ? tx`and at<=${q.to}::timestamptz` : tx``}`;
   }
   async coverage(q: SearchInput) {
