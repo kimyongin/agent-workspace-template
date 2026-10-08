@@ -44,6 +44,7 @@ export function EntityIdentitySettings({onStateChange}: {onStateChange?: (state:
   const dirty = !!saved && JSON.stringify(draft) !== JSON.stringify(savedIdentity);
   useEffect(() => { onStateChange?.({dirty,busy:busy||reading}); }, [dirty,busy,reading,onStateChange]);
   const active = draft?.sources.filter(source => !source.deleted) ?? [];
+  const selectableSources = active.filter((source,index) => source.code && active.findIndex(value => value.code === source.code) === index);
   const retired = draft?.sources.filter(source => source.deleted) ?? [];
   const isSavedSource = (index: number) => index < persistedSourceCount;
   const changeSource = (index: number, patch: Partial<IdentitySettings["sources"][number]>) => {
@@ -77,7 +78,7 @@ export function EntityIdentitySettings({onStateChange}: {onStateChange?: (state:
       <fieldset disabled={busy||reading} className="form plain-fieldset">
         <div className="field-row">
           <Field label="식별자 발급 방식">{props => <select {...props} className="input" value={draft.generation} onChange={event => setDraft(current => current && ({ ...current, generation:event.target.value as IdentitySettings["generation"] }))}><option value="uuid">UUID 자동 발급</option><option value="manual">직접 입력</option></select>}</Field>
-          <Field label="기본 발급처">{props => <select {...props} className="input" value={draft.default_source} onChange={event => setDraft(current => current && ({ ...current, default_source:event.target.value }))}>{active.map(source => <option key={source.code} value={source.code}>{source.label || source.code} ({source.code})</option>)}</select>}</Field>
+          <Field label="기본 발급처">{props => <select {...props} className="input" value={draft.default_source} onChange={event => setDraft(current => current && ({ ...current, default_source:event.target.value }))}>{selectableSources.map(source => <option key={source.code} value={source.code}>{source.label || source.code} ({source.code})</option>)}</select>}</Field>
         </div>
         <div className="settings-source-heading"><h3>발급처 ({active.length}개)</h3><BodyAction icon="create" disabled={draft.sources.length >= 32} onClick={() => setDraft(current => current && ({ ...current, sources:[...current.sources, {code:"",label:""}] }))}>추가</BodyAction></div>
         <div className="settings-source-list">{draft.sources.map((source, index) => !source.deleted && <div className="settings-source-row" key={index}>

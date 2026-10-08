@@ -80,6 +80,7 @@ for (const width of [390,1440]) test(`업무 설정 ${width}px: 독립 저장·�
   await identity.getByRole("button",{name:"추가",exact:true}).click();
   await identity.getByLabel("발급처 3 표시 이름").fill("임시");
   await identity.getByLabel("발급처 3 코드").fill("app");
+  await expect(identity.getByLabel("기본 발급처").locator('option[value="app"]')).toHaveCount(1);
   await identity.getByRole("button",{name:"식별자 설정 저장",exact:true}).click();
   await expect(identity.getByRole("alert")).toContainText("중복");
   await expect(identity.getByLabel("발급처 3 코드")).toBeEditable();
