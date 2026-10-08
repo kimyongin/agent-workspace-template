@@ -10,22 +10,24 @@ const examples: Record<TemplateModel, Record<string, unknown>> = {
   task: { title: "예시 할 일", body: "", kind: "once", status: "open", due_on: null, recurrence: null, timezone: null, tag_ids: [], entity_ids: [], pauses: [] },
   principle: { title: "예시 원칙", body: "" },
 };
-export function RecordTemplateSettings() {
+export function RecordTemplateSettings({onStateChange}: {onStateChange?: (state: {dirty:boolean;busy:boolean})=>void}) {
   const [saved, setSaved] = useState<BusinessSettingsResult | null>(null);
   const [draft, setDraft] = useState<RecordTemplates>({});
   const [model, setModel] = useState<TemplateModel>("entity");
   const [action, setAction] = useState<TemplateAction>("create");
+  const [beforeSample, setBeforeSample] = useState(examples.entity);
   const [sample, setSample] = useState(examples.entity);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [fields, setFields] = useState<Record<string, string>>({});
+  const [conflict, setConflict] = useState(false);
   const [missing, setMissing] = useState<string[]>([]);
   const text = useRef<HTMLTextAreaElement>(null);
   useEffect(() => {
     const controller = new AbortController();
     void Promise.all([
       api<BusinessSettingsResult>("GET", "/settings/business", undefined, controller.signal),
-      api<{ items: { id: string }[] }>("GET", "/tags?scope=record&limit=100", undefined, controller.signal),
+      (async()=>{const items:{id:string}[]=[];let cursor:string|null=null;do{const result: {items:{id:string}[];next_cursor:string|null}=await api("GET",`/tags?scope=record&limit=100${cursor?`&cursor=${encodeURIComponent(cursor)}`:""}`,undefined,controller.signal);items.push(...result.items);cursor=result.next_cursor;}while(cursor);return {items};})(),
     ]).then(([settings, tags]) => {
       setSaved(settings); setDraft(settings.settings.record_templates ?? {});
       const available = new Set(tags.items.map(tag => tag.id));
@@ -36,13 +38,14 @@ export function RecordTemplateSettings() {
   const value = draft[model]?.[action] ?? { memo: "", tag_ids: [] };
   const setValue = (patch: Partial<typeof value>) => { setDraft(current => ({ ...current, [model]: { ...current[model], [action]: { ...value, ...patch } } })); setMessage(""); setFields({}); };
   const dirty = JSON.stringify(draft) !== JSON.stringify(saved?.settings.record_templates ?? {});
+  useEffect(()=>{onStateChange?.({dirty,busy});},[dirty,busy,onStateChange]);
   useEffect(() => {
     const unload = (event: BeforeUnloadEvent) => { if (dirty) { event.preventDefault(); event.returnValue = ""; } };
     window.addEventListener("beforeunload", unload); return () => window.removeEventListener("beforeunload", unload);
   }, [dirty]);
   const parse = recordTemplates.safeParse(draft);
   const currentError = parse.success ? null : parse.error.issues.find(issue => issue.path[0] === model && issue.path[1] === action)?.message;
-  const preview = currentError ? "" : renderTemplate(value.memo, { model, action, target: String(sample.prop1 ?? sample.title), changes: `${String(sample.prop1 ?? sample.title)} ${templateActionNames[action]}`, before: action === "create" ? null : sample, after: action === "delete" ? null : sample });
+  const preview = currentError ? "" : renderTemplate(value.memo, { model, action, target: String(sample.prop1 ?? sample.title), changes: `${String(sample.prop1 ?? sample.title)} ${templateActionNames[action]}`, before: action === "create" ? null : beforeSample, after: action === "delete" ? null : sample });
   return <section className="settings-group" aria-labelledby="record-template-title">
     <h2 className="section-title" id="record-template-title">변경 기록 기본값</h2>
     <p className="secondary">엔터티·할 일·원칙의 메모와 기록 태그를 정합니다. 이미 저장한 기록은 바뀌지 않습니다. 빈 메모는 변경 내용을 설명합니다.</p>
@@ -54,13 +57,13 @@ export function RecordTemplateSettings() {
       try {
         const result = await api<BusinessSettingsResult>("PATCH", "/settings/business", { expected_version: saved.version, sections: { record_templates: parse.data } });
         setSaved(result); setDraft(result.settings.record_templates ?? {}); setMessage("기록 기본값을 저장했습니다."); setMissing([]);
-      } catch (error) { setMessage(error instanceof Error ? error.message : "저장하지 못했습니다."); if (error instanceof ApiError) setFields(Object.fromEntries(error.fields.map(field => [field.path.replace(/^sections.record_templates\./, ""), field.message]))); }
+      } catch (error) { setMessage(error instanceof Error ? error.message : "저장하지 못했습니다."); if (error instanceof ApiError) {setConflict(error.status===409); setFields(Object.fromEntries(error.fields.map(field => [field.path.replace(/^sections.record_templates\./, ""), field.message]))); } }
       finally { setBusy(false); }
     }}>
       {missing.length > 0 && <Notice kind="error">삭제된 기본 기록 태그 {missing.length}개를 정리해야 합니다. <button type="button" className="btn" onClick={() => { setDraft(current => Object.fromEntries(Object.entries(current).map(([key, group]) => [key, Object.fromEntries(Object.entries(group).map(([name, template]) => [name, template && { ...template, tag_ids: template.tag_ids.filter(id => !missing.includes(id)) }]))]))); setMissing([]); }}>삭제된 태그 정리</button></Notice>}
       <fieldset disabled={busy} className="form plain-fieldset">
         <div className="field-row">
-          <Field label="모델">{props => <select {...props} className="input" value={model} onChange={event => { const next = event.target.value as TemplateModel; setModel(next); setSample(examples[next]); if (!modelActions(next).includes(action)) setAction("create"); }}>{TEMPLATE_MODELS.map(key => <option key={key} value={key}>{templateModelNames[key]}</option>)}</select>}</Field>
+          <Field label="모델">{props => <select {...props} className="input" value={model} onChange={event => { const next = event.target.value as TemplateModel; setModel(next); setBeforeSample(examples[next]); setSample(examples[next]); if (!modelActions(next).includes(action)) setAction("create"); }}>{TEMPLATE_MODELS.map(key => <option key={key} value={key}>{templateModelNames[key]}</option>)}</select>}</Field>
           <Field label="액션">{props => <select {...props} className="input" value={action} onChange={event => setAction(event.target.value as TemplateAction)}>{modelActions(model).map(key => <option key={key} value={key}>{templateActionNames[key]}</option>)}</select>}</Field>
         </div>
         <Field label="메모 템플릿" error={fields[`${model}.${action}.memo`] ?? currentError ?? undefined}>{props => <textarea {...props} ref={text} className="input" rows={4} value={value.memo} onChange={event => setValue({ memo: event.target.value })} />}</Field>
@@ -70,10 +73,11 @@ export function RecordTemplateSettings() {
           setValue({ memo: value.memo.slice(0, start) + variable + value.memo.slice(end) }); text.current?.focus();
         }}><option value="" disabled>변수를 선택하세요</option>{templateVariables(model, action).map(variable => <option key={variable}>{variable}</option>)}</select>}</Field>
         <TagPicker label="기본 기록 태그" scope="record" value={value.tag_ids} onChange={tag_ids => setValue({ tag_ids })} />
-        <details><summary>미리보기 예시 값 편집</summary><div className="form">{Object.entries(templateFields[model]).filter(([, key]) => !Array.isArray(sample[key]) && typeof sample[key] !== "object" || sample[key] === null).map(([label, key]) => <Field key={key} label={label}>{props => <input {...props} className="input" value={sample[key] == null ? "" : String(sample[key])} onChange={event => setSample(current => ({ ...current, [key]: key === "prop2" ? event.target.value === "" ? null : Number(event.target.value) : event.target.value || null }))} />}</Field>)}</div></details>
+        <details><summary>미리보기 예시 값 편집</summary><div className="form">{(["before", "after"] as const).filter(phase=>action!==(phase==="before"?"create":"delete")).map(phase=><fieldset key={phase} className="settings-group"><legend>{phase==="before"?"이전 예시 값":"이후 예시 값"}</legend>{Object.entries(templateFields[model]).filter(([, key]) => !Array.isArray(sample[key]) && (typeof sample[key] !== "object" || sample[key] === null)).map(([label, key]) => <Field key={key} label={`${phase==="before"?"이전":"이후"} ${label}`}>{props => <input {...props} className="input" value={(phase==="before"?beforeSample:sample)[key] == null ? "" : String((phase==="before"?beforeSample:sample)[key])} onChange={event => (phase==="before"?setBeforeSample:setSample)(current => ({ ...current, [key]: key === "prop2" ? event.target.value === "" ? null : Number(event.target.value) : event.target.value || null }))} />}</Field>)}</fieldset>)}</div></details>
         <div className="field"><span className="label">생성 결과 미리보기 (예시 값)</span><output className="secondary" style={{ whiteSpace: "pre-wrap" }}>{preview || `${String(sample.prop1 ?? sample.title)} ${templateActionNames[action]}`}</output></div>
-        {Object.entries(fields).filter(([key]) => key !== `${model}.${action}.memo`).map(([key, error]) => <p className="error-text" key={key}>{key}: {error}</p>)}
+        {Object.entries(fields).filter(([key]) => key !== `${model}.${action}.memo`).map(([key, error]) => <p className="error-text" key={key}>{templateModelNames[key.split(".")[0] as TemplateModel] ?? "설정"} {templateActionNames[key.split(".")[1] as TemplateAction] ?? ""}: {error} <button type="button" className="btn" onClick={()=>{const [nextModel,nextAction]=key.split(".");if(TEMPLATE_MODELS.includes(nextModel as TemplateModel)){setModel(nextModel as TemplateModel);setAction(nextAction as TemplateAction);}}}>오류 항목 보기</button></p>)}
         <p role="status">{message}</p>
+        {conflict&&<button type="button" className="btn" onClick={async()=>{try{setSaved(await api<BusinessSettingsResult>("GET","/settings/business"));setConflict(false);setMessage("최신 설정을 읽었습니다. 입력한 템플릿은 유지했습니다. 확인한 뒤 다시 저장하세요.");}catch{setMessage("최신 설정을 읽지 못했습니다. 다시 시도하세요.");}}}>최신 설정 다시 조회</button>}
         <div className="actions"><button type="button" className="btn" disabled={!dirty} onClick={() => { setDraft(saved.settings.record_templates ?? {}); setFields({}); setMessage(""); }}>변경 취소</button><button type="submit" className="btn btn-primary" disabled={!dirty}>{busy ? "저장 중…" : "기록 기본값 저장"}</button></div>
       </fieldset>
     </form>}
