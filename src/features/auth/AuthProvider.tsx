@@ -1,26 +1,18 @@
 // 앱 세션 상태. Supabase Auth 세션만 다루며 권한 판단은 서버가 한다.
 import type { Session } from "@supabase/supabase-js";
-import { createContext, type ReactNode, useContext, useEffect, useRef, useState } from "react";
+import { type ReactNode, useContext, useEffect, useRef, useState } from "react";
 import { Navigate, useLocation } from "react-router";
 import { supabase } from "../../lib/supabase.ts";
 import { timezonePreference } from "../../lib/timezone.ts";
+import { AuthContext } from "./auth-context.ts";
 import type { ProfileIconId } from "../settings/profile.tsx";
 import { profileClient, readProfile, ProfileDisplayRefreshError } from "./profile-client.ts";
-
-interface AuthState {
-  session: Session | null;
-  loading: boolean;
-  saveProfileIcon: (id: ProfileIconId) => Promise<ProfileIconId>;
-  saveTimezone: (timezone: string | null) => Promise<string | null>;
-}
 
 interface CanonicalRead {
   revision: number;
   token: string;
   promise: ReturnType<typeof readProfile>;
 }
-
-const AuthContext = createContext<AuthState>({ session: null, loading: true, saveProfileIcon: async () => { throw new Error("로그인이 필요합니다."); }, saveTimezone: async () => { throw new Error("로그인이 필요합니다."); } });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<{ session: Session | null; loading: boolean }>({ session: null, loading: true });

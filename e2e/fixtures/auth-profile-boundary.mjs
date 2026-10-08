@@ -28,6 +28,11 @@ async function loadSource(path, bindings, tail) {
   return new Function(...Object.keys(bindings), code.replace(/\bexport /g, "") + tail)(...Object.values(bindings));
 }
 
+async function loadProvider(hook, client, profile) {
+  const { AuthContext } = await loadSource("src/features/auth/auth-context.ts", hook, "\nreturn {AuthContext};");
+  return loadSource("src/features/auth/AuthProvider.tsx", { ...hook, supabase: client, ...profile, timezonePreference, AuthContext }, "\nreturn AuthProvider;");
+}
+
 const { timezonePreference } = await loadSource("src/lib/timezone.ts", {}, "\nreturn {timezonePreference};");
 
 test("canonical display after local save, real profile broadcast, reload and relogin; SDK storage stays unchanged by profile", { timeout: 5000 }, async () => {
@@ -47,7 +52,7 @@ test("canonical display after local save, real profile broadcast, reload and rel
     const hook = hooks(); allHooks.push(hook);
     const { profileIconId } = await loadSource("src/features/settings/profile.tsx", hook, "\nreturn {profileIconId};");
     const profile = await loadSource("src/features/auth/profile-client.ts", { AuthClient, profileIconId, timezonePreference }, "\nreturn {profileClient, readProfile, ProfileDisplayRefreshError};");
-    const provider = await loadSource("src/features/auth/AuthProvider.tsx", { ...hook, supabase: client, ...profile, timezonePreference }, "\nreturn AuthProvider;");
+    const provider = await loadProvider(hook, client, profile);
     const render = () => hook.render(provider); renders.push(render); render();
     await eventually(() => render().session?.user.id === first.id);
     return { client, render, hook };
@@ -118,7 +123,7 @@ for (const order of ["older-save-fails", "newer-hydration-fails", "older-hydrati
       await client.auth.setSession({ access_token: jwt(first.id), refresh_token: "refresh-a" });
       const { profileIconId } = await loadSource("src/features/settings/profile.tsx", hook, "\nreturn {profileIconId};");
       const profile = await loadSource("src/features/auth/profile-client.ts", { AuthClient, profileIconId, timezonePreference }, "\nreturn {profileClient, readProfile, ProfileDisplayRefreshError};");
-      const provider = await loadSource("src/features/auth/AuthProvider.tsx", { ...hook, supabase: client, ...profile, timezonePreference }, "\nreturn AuthProvider;");
+      const provider = await loadProvider(hook, client, profile);
       const render = () => hook.render(provider);
       render(); await new Promise(r => setTimeout(r, 10));
       const before = values.get("canonical-order-" + order);
@@ -211,7 +216,7 @@ for (const phase of ["profile-response", "explicit-read-response", "private-read
       }
       const { profileIconId } = await loadSource("src/features/settings/profile.tsx", hook, "\nreturn {profileIconId};");
       const profile = await loadSource("src/features/auth/profile-client.ts", { AuthClient: InstrumentedAuthClient, profileIconId, timezonePreference }, "\nreturn {profileClient, readProfile, ProfileDisplayRefreshError};");
-      const provider = await loadSource("src/features/auth/AuthProvider.tsx", { ...hook, supabase: client, ...profile, timezonePreference }, "\nreturn AuthProvider;");
+      const provider = await loadProvider(hook, client, profile);
       const render = () => hook.render(provider);
       render(); await new Promise(r => setTimeout(r, 10));
       const outcome = render().saveProfileIcon("leaf").then(value => ({ value }), error => ({ error: error.message }));
@@ -251,7 +256,7 @@ for (const fail of [false,true]) test('initial account display readiness '+(fail
     await client.auth.setSession({access_token:jwt(first.id),refresh_token:'refresh-a'});
     const {profileIconId}=await loadSource('src/features/settings/profile.tsx',hook,'\nreturn {profileIconId};');
     const profile=await loadSource('src/features/auth/profile-client.ts',{AuthClient,profileIconId,timezonePreference},'\nreturn {profileClient,readProfile,ProfileDisplayRefreshError};');
-    const provider=await loadSource('src/features/auth/AuthProvider.tsx',{...hook,supabase:client,...profile,timezonePreference},'\nreturn AuthProvider;');
+    const provider=await loadProvider(hook,client,profile);
     block=true;const render=()=>hook.render(provider);render();await arrived.promise;
     assert.equal(render().loading,true);gate.resolve();await eventually(()=>render().loading===false);
     assert.equal(render().session.user.id,first.id);
