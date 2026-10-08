@@ -15,7 +15,7 @@ export function useRestoreListPosition(kind:ActivityListKind,ready:boolean) {
   const previewReady = useSyncExternalStore(readiness.subscribe,readiness.snapshot);
   useEffect(()=>{
     if(!ready||restored.current===key||!anchorId(kind,location.hash))return;
-    const target=document.getElementById(location.hash.slice(1));
+    const target=document.getElementById(listAnchor(kind,anchorId(kind,location.hash)!));
     if(target&&path&&!previewReady)return;
     const frame=requestAnimationFrame(()=>{
       const focus=target??document.getElementById(kind+"-title");

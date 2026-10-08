@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { anchorId,listReturnPath,listScope,requestedPages,safeListReturn } from "./list-state.ts";
+import { anchorId,listAnchor,listReturnPath,listScope,requestedPages,safeListReturn } from "./list-state.ts";
 
 describe("list return paths",()=>{
   it("preserves all URL filters, loaded extent and the focus target while constraining return paths", () => {
@@ -25,6 +25,17 @@ describe("list return paths",()=>{
       .toBe(`/records?pages=2&legacy_activity=1#activity-records-${id}`);
     for (const pages of ["0", "-1", "1.5", "oops"]) expect(requestedPages(new URLSearchParams({ pages }))).toBe(1);
     expect(requestedPages(new URLSearchParams({ pages: "10000000" }))).toBe(250);
+  });
+  it("restores namespaced entity anchors including exact Unicode, separators and percent text",()=>{
+    for(const id of ["app:00000000-0000-4000-8000-000000000001","crm:고객 / # ? % : 7","app:%3A"]){
+      const returned=new URL(listReturnPath("entities",new URLSearchParams("pages=2"),id,42),"https://activity.invalid");
+      expect(anchorId("entities",returned.hash)).toBe(id);
+      expect(decodeURIComponent(returned.hash.slice(1))).toBe(listAnchor("entities",id));
+      expect(returned.hash).not.toContain("# ?");
+      expect(anchorId("tasks",returned.hash)).toBeUndefined();
+    }
+    expect(anchorId("entities","#entity-not-a-tuple")).toBeUndefined();
+    expect(anchorId("entities","#entity-app%3A%ZZ")).toBeUndefined();
   });
 
 });

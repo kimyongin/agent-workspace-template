@@ -166,7 +166,7 @@ test("Entity 목록: 키워드/선택/정렬·추가 페이지·상세 복귀/�
     await mcp.call("delete_entity", { id: ids[19], expected_version: 1 });
     ids.splice(19, 1);
     await page.reload();
-    await expect(page.getByRole("heading", { name: "엔터티", exact: true })).toBeFocused();
+    await expect(page.getByRole("heading", { name: "엔터티", level: 1, exact: true })).toBeFocused();
   } finally {
     for (const id of ids) {
       await mcp.call("delete_entity", { id, expected_version: 1 });
@@ -202,7 +202,7 @@ test("Entity 복원: 대상 없음 조회 한도·제목 초점·필터 hash 제
     await route.fulfill({ json: { items: [item], next_cursor: keyword ? null : "more" } }).catch(() => {});
   });
   await page.goto(`/entities?pages=1#entity-${crypto.randomUUID()}`);
-  await expect(page.getByRole("heading", { name: "엔터티", exact: true })).toBeFocused();
+  await expect(page.getByRole("heading", { name: "엔터티", level: 1, exact: true })).toBeFocused();
   expect(requests).toBe(2);
   await openTabFilters(page);
   await page.getByLabel("속성 4 필터").selectOption("b");
