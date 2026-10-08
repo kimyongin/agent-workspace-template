@@ -14,12 +14,13 @@ dbTest("검색: 한국어 본문·literal 와일드카드·상태·태그·기�
   const token = crypto.randomUUID(),
     sameId = crypto.randomUUID(),
     tagId = crypto.randomUUID(),
-    entity = crypto.randomUUID(),
+    externalId = crypto.randomUUID(),
+    entity = `app:${externalId}`,
     scopeTag = crypto.randomUUID(),
     taskTag = crypto.randomUUID(),
     at = "2001-03-04T00:00:00.000Z";
   await asUser(sql, users.a, async (tx) => {
-    await tx`insert into app.entities(id,owner_id,prop1) values(${entity},${users.a},'검색 범위')`;
+    await tx`insert into app.entities(id,owner_id,source,external_id,prop1) values(${entity},${users.a},'app',${externalId},'검색 범위')`;
     await tx`insert into app.tags(id,owner_id,name) values(${tagId},${users.a},${token.slice(0, 30)})`;
     await tx`insert into app.tags(id,owner_id,name) values(${scopeTag},${users.a},${scopeTag.slice(0, 30)})`;
     await tx`insert into app.tags(id,owner_id,name,scope) values(${taskTag},${users.a},${taskTag.slice(0, 30)},'task')`;
@@ -35,8 +36,8 @@ dbTest("검색: 한국어 본문·literal 와일드카드·상태·태그·기�
     await tx`insert into app.record_tags(owner_id,record_id,tag_id) values(${users.a},${sameId},${tagId})`;
     await tx`insert into app.task_tags(owner_id,task_id,tag_id) values(${users.a},${sameId},${taskTag})`;
     await tx`insert into app.record_tags(owner_id,record_id,tag_id) values(${users.a},${sameId},${scopeTag})`;
-    await tx`update app.tasks set entity_ids=array[${entity}::uuid] where id=${sameId}`;
-    await tx`update app.records set entity_ids=array[${entity}::uuid] where id=${sameId}`;
+    await tx`update app.tasks set entity_ids=array[${entity}::text] where id=${sameId}`;
+    await tx`update app.records set entity_ids=array[${entity}::text] where id=${sameId}`;
   });
   await asUser(sql, users.b, async (tx) => {
     await tx`insert into app.records(owner_id,body) values(${users.b},${token})`;
