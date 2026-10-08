@@ -25,16 +25,14 @@ export function Navigation({ brand }: { brand: string }) {
   const location = useLocation();
   const { session } = useAuth();
   const current = navigationSection(location.pathname);
-  const [open, setOpen] = useState<"profile" | "menu" | null>(null);
+  const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
   const profileTrigger = useRef<HTMLButtonElement>(null);
-  const menuTrigger = useRef<HTMLButtonElement>(null);
   const popover = useRef<HTMLDivElement>(null);
   const close = (restore = false) => {
-    const trigger = open === "profile" ? profileTrigger : menuTrigger;
-    setOpen(null); if (restore) trigger.current?.focus();
+    setOpen(false); if (restore) profileTrigger.current?.focus();
   };
-  useEffect(() => { setOpen(null); }, [location, session?.user.id]);
+  useEffect(() => { setOpen(false); }, [location, session?.user.id]);
   useEffect(() => {
     if (!open) return;
     const outside = (event: PointerEvent) => {
@@ -48,7 +46,7 @@ export function Navigation({ brand }: { brand: string }) {
     <div className="navigation-brand">{brand}</div>
     <div className="bottom-nav-inner" ref={root} onBlur={event => {
       if (event.relatedTarget instanceof Element && event.relatedTarget.closest("dialog[open]")) return;
-      if (event.relatedTarget && !event.currentTarget.contains(event.relatedTarget as Node)) setOpen(null);
+      if (event.relatedTarget && !event.currentTarget.contains(event.relatedTarget as Node)) setOpen(false);
     }} onKeyDown={event => {
       if (event.key === "Escape" && open) { event.preventDefault(); close(true); }
       if (open && ["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
@@ -61,18 +59,16 @@ export function Navigation({ brand }: { brand: string }) {
         items[next].focus();
       }
     }}>
-      <div className="nav-more nav-profile"><button className="nav-more-trigger" type="button" ref={profileTrigger} aria-label="내 프로필" aria-expanded={open === "profile"} aria-controls="nav-profile-options"
-        onClick={() => setOpen(value => value === "profile" ? null : "profile")}><ProfileIcon id={session?.user.user_metadata?.workspace_avatar_id} /><span className="nav-control-label">내 계정</span></button>
-        {open === "profile" && <div className="nav-more-options" id="nav-profile-options" ref={popover}>
+      <div className="nav-profile"><button className="nav-profile-trigger" type="button" ref={profileTrigger} aria-label="내 프로필" aria-expanded={open} aria-controls="nav-profile-options" data-current={current === "more" || undefined}
+        onClick={() => setOpen(value => !value)}><ProfileIcon id={session?.user.user_metadata?.workspace_avatar_id} /><span className="nav-control-label">내 계정</span></button>
+        {open && <div className="nav-profile-options" id="nav-profile-options" ref={popover}>
           <div className="nav-profile-identity"><ProfileIcon id={session?.user.user_metadata?.workspace_avatar_id} /><p>{profileName(session?.user.user_metadata)}</p></div>
           <PopoverLink to="/settings" label="설정"/>
+          <PopoverLink to="/guide" label="사용 가이드"/>
           <PopoverLink to="/logout" label="로그아웃"/>
         </div>}</div>
       {entries.map(([key, to, label, path]) => <Link key={key} to={to} aria-current={current === key ? "page" : undefined}>
         <svg className="navigation-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={path} /></svg><span>{label}</span></Link>)}
-      <div className="nav-more"><button className="nav-more-trigger" type="button" ref={menuTrigger} aria-label="메뉴" aria-expanded={open === "menu"} aria-controls="nav-more-options" data-current={current === "more" || undefined}
-        onClick={() => setOpen(value => value === "menu" ? null : "menu")}><svg className="navigation-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16" /></svg><span className="nav-control-label">메뉴</span></button>
-        {open === "menu" && <div className="nav-more-options" id="nav-more-options" ref={popover}><PopoverLink to="/guide" label="사용 가이드"/><PopoverLink to="/settings" label="설정"/></div>}</div>
     </div>
   </nav>;
 }

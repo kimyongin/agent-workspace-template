@@ -61,7 +61,7 @@ a {
 @media(min-width:640px) { .workspace-header { padding-inline: var(--space-6); } }
 
 .bottom-nav a,
-.nav-more-trigger,
+.nav-profile-trigger,
 .activity-tabs a {
   display: inline-flex;
   align-items: center;
@@ -76,7 +76,7 @@ a {
 }
 
 .bottom-nav a[aria-current="page"],
-.nav-more-trigger[data-current],
+.nav-profile-trigger[data-current],
 .activity-tabs a[aria-current="page"] {
   color: var(--accent);
   background: var(--accent-soft);
@@ -102,19 +102,19 @@ html { scroll-padding-bottom: calc(var(--navigation-height) + env(safe-area-inse
   max-width: 72rem;
   margin: 0 auto;
   display: grid;
-  grid-template-columns: 44px repeat(4, minmax(44px, 1fr)) 44px;
+  grid-template-columns: 44px repeat(4, minmax(44px, 1fr));
   gap: var(--space-1);
 }
-.bottom-nav-inner > a, .nav-more-trigger { justify-content: center; padding: 0 var(--space-1); }
-.nav-more { position: relative; min-width: 0; }
-.nav-more-trigger {
+.bottom-nav-inner > a, .nav-profile-trigger { justify-content: center; padding: 0 var(--space-1); }
+.nav-profile { position: relative; min-width: 0; }
+.nav-profile-trigger {
   width: 100%;
   border: 0;
   background: transparent;
   font-family: inherit;
   cursor: pointer;
 }
-.nav-more-options {
+.nav-profile-options {
   position: absolute;
   bottom: calc(100% + var(--space-4));
   right: 0;
@@ -130,12 +130,12 @@ html { scroll-padding-bottom: calc(var(--navigation-height) + env(safe-area-inse
   gap: var(--space-2);
   box-shadow: var(--shadow-soft);
 }
-.nav-more-options .btn { justify-content: flex-start; }
+.nav-profile-options .btn { justify-content: flex-start; }
 .bottom-nav-inner > a { flex-direction: column; gap: var(--space-1); min-height: 56px; }
-.nav-more-trigger { min-width: 44px; min-height: 56px; }
+.nav-profile-trigger { min-width: 44px; min-height: 56px; }
 .navigation-icon, .profile-icon { width: 24px; height: 24px; flex-shrink: 0; }
-.nav-profile .nav-more-options { left: 0; right: auto; }
-.nav-more-options p { margin: 0; overflow-wrap: anywhere; }
+.nav-profile .nav-profile-options { left: 0; right: auto; }
+.nav-profile-options p { margin: 0; overflow-wrap: anywhere; }
 .settings { display: grid; gap: var(--space-6); }
 .settings p { overflow-wrap: anywhere; }
 .settings > section, .settings > form { display: grid; gap: var(--space-3); }
@@ -160,10 +160,10 @@ html { scroll-padding-bottom: calc(var(--navigation-height) + env(safe-area-inse
 .profile-choice:has(input:disabled) { opacity: .65; cursor: default; }
 .nav-profile-identity { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-2); border-bottom: 1px solid var(--line); }
 .nav-profile-identity p { min-width: 0; font-weight: 600; color: var(--ink); }
-.nav-more-options a { gap: var(--space-2); border-radius: var(--radius-input); }
-.nav-more-options a:hover { background: var(--surface); color: var(--ink); }
-.nav-more-options a { padding: var(--space-2) var(--space-3); font-weight: 400; }
-.nav-more-options a svg { width: 16px; height: 16px; flex-shrink: 0; color: var(--muted-ink); }
+.nav-profile-options a { gap: var(--space-2); border-radius: var(--radius-input); }
+.nav-profile-options a:hover { background: var(--surface); color: var(--ink); }
+.nav-profile-options a { padding: var(--space-2) var(--space-3); font-weight: 400; }
+.nav-profile-options a svg { width: 16px; height: 16px; flex-shrink: 0; color: var(--muted-ink); }
 .activity-tabs { display: flex; gap: var(--space-2); border-bottom: 1px solid var(--line); padding-bottom: var(--space-2); }
 .guide > p { margin: 0; }
 .guide-steps { margin: 0; padding-left: var(--space-6); display: grid; gap: var(--space-6); }
@@ -805,14 +805,13 @@ textarea.input {
   .bottom-nav { inset: 0 auto 0 0; width: var(--sidebar-width); max-width: none; transform: none; border-top: 0; border-right: 1px solid var(--line); background: var(--panel); padding: var(--space-3); display: flex; flex-direction: column; }
   .navigation-brand { display: block; padding: var(--space-2) var(--space-3); margin-bottom: var(--space-3); font-size: 1rem; font-weight: 600; }
   .bottom-nav-inner { display: flex; flex-direction: column; gap: var(--space-1); width: 100%; flex: 1; min-height: 0; }
-  .bottom-nav-inner > a, .nav-more-trigger { flex-direction: row; justify-content: flex-start; gap: var(--space-3); padding-inline: var(--space-3); min-height: 44px; }
+  .bottom-nav-inner > a, .nav-profile-trigger { flex-direction: row; justify-content: flex-start; gap: var(--space-3); padding-inline: var(--space-3); min-height: 44px; }
   .navigation-icon, .profile-icon { width: 20px; height: 20px; }
   .nav-control-label { display: inline; }
   .nav-profile { margin-bottom: var(--space-2); }
-  .bottom-nav-inner > .nav-more:last-child { margin-top: auto; }
   .bottom-nav a[aria-current=page] { box-shadow: inset 2px 0 var(--accent); }
-  .nav-more-options, .nav-profile .nav-more-options { left: calc(100% + var(--space-6)); right: auto; bottom: 0; width: 18rem; max-height: calc(100dvh - var(--space-8)); box-shadow: var(--shadow-soft); }
-  .nav-profile .nav-more-options { top: 0; bottom: auto; }
+  .nav-profile .nav-profile-options { left: calc(100% + var(--space-6)); right: auto; bottom: 0; width: 18rem; max-height: calc(100dvh - var(--space-8)); box-shadow: var(--shadow-soft); }
+  .nav-profile .nav-profile-options { top: 0; bottom: auto; }
 }
 @media(min-width:1024px) and (min-height:320px) and (max-height:480px) {
   .navigation-brand { display: none; }
@@ -840,7 +839,7 @@ textarea.input {
 .settings-links a::after { content: ""; width: 6px; height: 6px; margin-right: var(--space-1); border-top: 1px solid var(--muted-ink); border-right: 1px solid var(--muted-ink); transform: rotate(45deg); flex-shrink: 0; }
 .settings-links a:last-child { border-bottom: 0; }
 .settings-links a:hover { color: var(--accent); }
-.nav-more-options a.nav-logout { color: var(--danger); border-top: 1px solid var(--line); border-radius: 0; }
+.nav-profile-options a.nav-logout { color: var(--danger); border-top: 1px solid var(--line); border-radius: 0; }
 .profile-choice:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
 .profile-choice input { accent-color: var(--accent); }
 .settings .actions .btn-text { text-decoration: none; }
