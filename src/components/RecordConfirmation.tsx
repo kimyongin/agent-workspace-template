@@ -5,6 +5,7 @@ import { ApiError } from "../lib/api-error.ts";
 import { useWriteAttempt, writeErrorMessage } from "../lib/write-attempt.ts";
 import { Field, Notice } from "./Field.tsx";
 import { TagPicker } from "../features/tags/TagPicker.tsx";
+import { WorkspaceContext } from "../features/details/workspace-context.ts";
 
 export interface RecordMemo { change_note?: string; change_tag_ids?: string[] }
 function RecordMemoFields({note, tags, onNote, onTags, errors, failure, frozen, message, record=true, excludeTag}: {
@@ -48,6 +49,7 @@ export function useRecordConfirmation(options: {
   latest.current = options;
   const { attempt, busy, uncertain } = useWriteAttempt();
   const register = useContext(SurfaceActionContext);
+  const workspace = useContext(WorkspaceContext);
   const [stage, setStage] = useState<ConfirmationKind | null>(options.initial ?? null);
   const [note, setNote] = useState(() => options.initial ? options.describe(options.initial).defaultNote : "");
   const [tags, setTags] = useState<string[]>([]);
@@ -81,6 +83,7 @@ export function useRecordConfirmation(options: {
     try {
       // Capture the actual operation and memo. WriteAttempt retains this closure on uncertainty.
       await attempt.run(async () => { await execute(attempt.creationId, memo); });
+      workspace?.saved();
       if (latest.current.closeOnSuccess) setStage(null);
     } catch (error) {
       reject(error instanceof ApiError ? Object.fromEntries(error.fields.map(field => [field.path, field.message])) : {}, writeErrorMessage(error));

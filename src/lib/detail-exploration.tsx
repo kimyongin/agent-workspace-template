@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode, type Dispatch, type SetStateAction } from "react";
 import { Link, useLocation, useNavigate, type LinkProps, type NavigateOptions, type To } from "react-router";
+import { DetailTabContext, WorkspaceContext, detailIdentity } from "../features/details/workspace-context.ts";
 
 type Frame = { key: string; path: string; title: string; scroll: number; focusKey: string };
 type TrailState = { detailScope: string; detailVersion:2; detailTrail: Frame[] };
@@ -74,7 +75,9 @@ export function useDetailViewState<T>(name: string, initial: T): [T, Dispatch<Se
 /** Same-detail mode changes replace the entry and retain its exploration context. Exits clear it. */
 export function useDetailNavigate() {
   const location = useLocation(), navigate = useNavigate(),context=useContext(Snapshots);
+  const tab = useContext(DetailTabContext);
   return useCallback((to: To, options: NavigateOptions = {}) => {
+    if (tab) return tab.navigate(to, options);
     const destination = typeof to === "string" ? to : to.pathname ?? location.pathname;
     const sameDetail = detailPath.test(location.pathname) && (destination.startsWith("?") || destination.split(/[?#]/)[0] === location.pathname);
     const exit = detailPath.test(location.pathname) && !sameDetail;
@@ -88,18 +91,20 @@ export function useDetailNavigate() {
       }
     }
     return navigate(to, { ...options, ...(sameDetail ? { replace: true, state: location.state } : exit ? { replace: true, state: null } : {}) });
-  }, [location.pathname, location.state, navigate,context]);
+  }, [location.pathname, location.state, navigate,context,tab]);
 }
 
 /** Use for every link to a detail, including related items and search results. */
 export function DetailLink({ onClick, state, restoreKey, ...props }: Omit<LinkProps, "replace"> & {restoreKey?: string}) {
   const location = useLocation(), navigate = useNavigate(), context = useContext(Snapshots);
+  const workspace = useContext(WorkspaceContext);
   const owner=useDetailOwnerReturn(`/${location.pathname.split("/")[1]}`);
   const target = typeof props.to === "string" ? props.to : props.to.pathname ?? "";
   return <Link {...props} data-detail-focus={restoreKey ?? props.id ?? target} state={state} onClick={event => {
     onClick?.(event);
     if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey
       || props.target && props.target !== "_self" || props.reloadDocument) return;
+    if (workspace && detailIdentity(target)) { event.preventDefault(); workspace.open(props.to, location); return; }
     if (!detailPath.test(target.split(/[?#]/)[0]) || !(detailPath.test(location.pathname) || location.pathname === "/search" || target.startsWith("/tags") && tagOrigin.test(location.pathname))) return;
     if(target.split(/[?#]/)[0]===location.pathname){event.preventDefault();void navigate(props.to,{replace:true,state:location.state});return;}
     const body = document.querySelector<HTMLElement>("dialog[open]:not(.modal-confirm) .modal-body");

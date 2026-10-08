@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useSyncExternalStore, type MouseEvent, type ReactNode } from "react";
+import { useContext, useEffect, useMemo, useRef, useSyncExternalStore, type MouseEvent, type ReactNode } from "react";
+import { WorkspaceContext } from "../details/workspace-context.ts";
 import { useLocation, useNavigate, useSearchParams } from "react-router";
 import { ItemExpansionProvider } from "../../components/RelatedItems.tsx";
 import { anchorId, listAnchor, listReturnPath, listScope, type ActivityListKind } from "../activity/list-state.ts";
@@ -20,7 +21,8 @@ export function useRestoreListPosition(kind:ActivityListKind,ready:boolean) {
       const focus=target??document.getElementById(kind+"-title");
       focus?.focus({preventScroll:true});
       const y=Number(params.get("scroll"));
-      if(params.has("scroll")&&Number.isFinite(y)&&y>=0)window.scrollTo(0,y);
+      const container=target?.closest<HTMLElement>(".has-detail-panel .workspace-list");
+      if(params.has("scroll")&&Number.isFinite(y)&&y>=0){if(container)container.scrollTop=y;else window.scrollTo(0,y);}
       const rect=focus?.getBoundingClientRect();
       if(rect&&(rect.top<0||rect.bottom>innerHeight))focus?.scrollIntoView({block:"center"});
       restored.current=key;
@@ -42,13 +44,16 @@ export function ListExpansionProvider({children,readiness}:{children:ReactNode;r
 
 export function ListPreviewItem({kind,id,title,metadata,cells}:{kind:ActivityListKind;id:string;title:string;metadata?:ReactNode;cells?:ReactNode[]}) {
   const [params]=useSearchParams(),location=useLocation(),navigate=useNavigate();
+  const workspace=useContext(WorkspaceContext);
   const path=`/${kind}/${id}`;
   const link=()=>{
     const back=listReturnPath(kind,params,id,0,location.pathname);
     return {to:`${path}?list=${encodeURIComponent(back)}`,onClick:(event:MouseEvent<HTMLAnchorElement>)=>{
       if(event.button!==0||event.metaKey||event.ctrlKey||event.shiftKey||event.altKey)return;
       event.preventDefault();
-      const at=listReturnPath(kind,params,id,window.scrollY,location.pathname);
+      const container=event.currentTarget.closest<HTMLElement>(".has-detail-panel .workspace-list");
+      const at=listReturnPath(kind,params,id,container?.scrollTop??window.scrollY,location.pathname);
+      if(workspace){const url=new URL(at,"https://workspace.invalid");workspace.open(`${path}?list=${encodeURIComponent(at)}`,{...location,search:url.search,hash:url.hash});return;}
       void Promise.resolve(navigate(at,{replace:true,preventScrollReset:true})).then(()=>navigate(`${path}?list=${encodeURIComponent(at)}`,{state:null}));
     }};
   };

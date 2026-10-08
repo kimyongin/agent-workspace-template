@@ -211,8 +211,8 @@ html { scroll-padding-bottom: calc(var(--navigation-height) + env(safe-area-inse
   }
 }
 
-.app-main > .panel:not(.auth-panel) { padding: 0; }
-.app-main > .panel.main-tab-header { padding-bottom: var(--space-5); border-bottom: 1px solid var(--line); border-radius: 0; gap: var(--space-4); }
+:is(.app-main, .workspace-list) > .panel:not(.auth-panel) { padding: 0; }
+:is(.app-main, .workspace-list) > .panel.main-tab-header { padding-bottom: var(--space-5); border-bottom: 1px solid var(--line); border-radius: 0; gap: var(--space-4); }
 
 .panel-head {
   display: flex;

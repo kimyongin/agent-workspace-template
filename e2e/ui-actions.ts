@@ -1,5 +1,14 @@
 import { expect, type Page, type Locator } from "@playwright/test";
 
+/** A desktop visit closes through its tab; narrow screens keep the native dialog close control. */
+export async function closeDetail(page: Page, title: string) {
+  const dialog = page.locator("dialog.modal:not(.modal-confirm)[open]");
+  await expect(dialog).toBeVisible();
+  const tabClose = page.getByRole("button", { name: `${title} 탭 닫기`, exact: true });
+  if (await dialog.evaluate(el => el.classList.contains("detail-docked"))) await tabClose.click();
+  else await dialog.getByRole("button", { name: "닫기", exact: true }).click();
+}
+
 /** Complete a save through its public confirmation stage when the domain requires a change record. */
 export async function saveOnce(page: Page, scope: Page | Locator = page, label = "저장", waitForWrite = true) {
   const final = page.locator("dialog.modal-action[open]").getByRole("button", {name:/^(등록|수정|중단|재개)하고 저장$|^삭제하고 기록$|^같은 내용 다시 시도$/});

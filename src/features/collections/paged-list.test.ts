@@ -4,6 +4,20 @@ type Row = { id: string };
 function deferred<T>() { let resolve!: (value: T) => void; const promise = new Promise<T>(done => { resolve = done; }); return { promise, resolve }; }
 
 describe("paged list lifecycle", () => {
+  it("refreshes accepted pages atomically and retains them on failure until retry succeeds", async () => {
+    const held = deferred<ListPage<Row>>();
+    const load = vi.fn().mockResolvedValueOnce({items:[{id:"old"}],next_cursor:null})
+      .mockImplementationOnce(()=>held.promise)
+      .mockRejectedValueOnce(new Error("refresh unavailable"))
+      .mockResolvedValueOnce({items:[{id:"latest"}],next_cursor:null});
+    const list = createPagedList({load}); await list.restore(1);
+    const refresh = list.refresh(); expect(list.snapshot().page?.items).toEqual([{id:"old"}]);
+    held.resolve({items:[{id:"updated"}],next_cursor:null}); await refresh;
+    expect(list.snapshot().page?.items).toEqual([{id:"updated"}]);
+    await list.refresh(); expect(list.snapshot().page?.items).toEqual([{id:"updated"}]);
+    expect(list.snapshot().error).toBeInstanceOf(Error);
+    await list.retry(); expect(list.snapshot().page?.items).toEqual([{id:"latest"}]);
+  });
   it("keeps accepted rows and metadata when a repeated continuation fails", async () => {
     const load = vi.fn().mockResolvedValueOnce({items:[{id:"kept"}],next_cursor:"next",search_state:"ok"})
       .mockResolvedValueOnce({items:[{id:"rejected"}],next_cursor:"next",search_state:"fallback"});

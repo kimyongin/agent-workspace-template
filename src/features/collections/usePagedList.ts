@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useSyncExternalStore } from "react";
+import { useContext, useEffect, useMemo, useRef, useSyncExternalStore } from "react";
+import { WorkspaceContext } from "../details/workspace-context.ts";
 import { createPagedList, type ListPage } from "./paged-list.ts";
 
 /** Callback identity is not query identity. Each scope owns one cancellable list session. */
@@ -11,6 +12,8 @@ export function usePagedList<T extends { id: string }, P extends ListPage<T>>(in
   retainOnDecrease?: boolean;
   load: (cursor: string | undefined, signal: AbortSignal) => Promise<P>;
 }) {
+  const revision = useContext(WorkspaceContext)?.revision;
+  const previousRevision = useRef(revision);
   const latest = useRef(input);
   latest.current = input;
   const session = useMemo(() => {
@@ -21,6 +24,9 @@ export function usePagedList<T extends { id: string }, P extends ListPage<T>>(in
   }, [input.scope]);
   const state = useSyncExternalStore(session.subscribe, session.snapshot);
   useEffect(() => { void session.restore(input.pages, input.anchor); }, [session, input.pages, input.anchor]);
+  useEffect(() => {
+    if (previousRevision.current !== revision) { previousRevision.current = revision; void session.refresh(); }
+  }, [session, revision]);
   useEffect(() => () => session.cancel(), [session]);
   return { ...state, more: session.more, retry: session.retry };
 }

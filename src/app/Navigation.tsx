@@ -24,7 +24,8 @@ function PopoverLink({ to, label }: { to: keyof typeof popoverIcons; label: stri
 export function Navigation({ brand }: { brand: string }) {
   const location = useLocation();
   const { session } = useAuth();
-  const current = navigationSection(location.pathname);
+  const owner = location.state?.workspaceOwner;
+  const current = navigationSection(typeof owner === "string" && /^\/(entities|tasks|records|principles|search)$/.test(owner) ? owner : location.pathname);
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
   const profileTrigger = useRef<HTMLButtonElement>(null);
