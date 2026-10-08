@@ -604,3 +604,25 @@ for (const entered of [false,true]) test(`manual identity defaults preserve canc
   } else await expect(discard).toHaveCount(0);
   await expect(form).toHaveCount(0);
 });
+
+
+test("desktop: closing a search detail restores the originating result and reload focus",async({page})=>{
+  const state=await fixture(page);await page.setViewportSize({width:1440,height:900});
+  await page.goto("/search?q=등심&mode=keyword&kind=task");
+  const result=page.locator(".workspace-list").getByRole("link",{name:"등심 구매하기",exact:true});
+  await result.click();await expect(page.getByRole("tab",{name:"등심 구매하기",exact:true})).toHaveAttribute("aria-selected","true");
+  await page.getByRole("button",{name:"등심 구매하기 탭 닫기",exact:true}).click();
+  await expect(result).toBeFocused();expect(new URL(page.url()).hash).toBe(`#search-task-${id(2)}`);
+  await page.reload();await expect(result).toBeFocused();expect(state.errors).toEqual([]);
+});
+
+test("desktop: entity list focus round trips a Unicode and percent identity through its encoded hash",async({page})=>{
+  const state=await fixture(page);await page.setViewportSize({width:1440,height:900});
+  const external="고객 / # ? % : 7",canonical=`crm:${external}`;
+  Object.assign(state.rows.entities[0],{id:canonical,source:"crm",external_id:external,source_label:"고객 관리"});
+  await page.goto("/entities");await openEntity(page);
+  await page.getByRole("button",{name:"등심 탭 닫기",exact:true}).click();
+  const target=page.locator(".workspace-list").getByRole("button",{name:"등심",exact:true});
+  await expect(target).toBeFocused();expect(new URL(page.url()).hash).toBe(`#${encodeURIComponent(`entity-${canonical}`)}`);
+  await page.reload();await expect(target).toBeFocused();expect(state.errors).toEqual([]);
+});
