@@ -300,3 +300,27 @@ for(const [path,label,scope] of [["entities","엔터티","entity"],["records","�
   await expect(page).toHaveURL(/\/settings$/);
   await expect(page.getByRole("link",{name:`${label} 태그`,exact:true})).toBeFocused();
 });
+
+
+test("#229 태그 삭제 확인도 서버 메모 오류를 입력에 표시하고 수정 가능", async ({page}) => {
+  const submitted: URL[] = [];
+  await page.route("**/api/tags/*", route => {
+    submitted.push(new URL(route.request().url()));
+    return submitted.length === 1
+      ? route.fulfill({status:422,json:{code:"invalid_input",message:"기록 메모를 확인하세요",fields:[{path:"change_note",message:"삭제 근거를 보완하세요"}]}})
+      : route.fulfill({status:204});
+  });
+  await page.goto(url);
+  await page.getByRole("button", {name:"첫 태그 삭제",exact:true}).click();
+  const dialog = page.locator("dialog.modal-action[open]");
+  await dialog.getByLabel("기록 메모",{exact:true}).fill("초안 메모");
+  await dialog.getByRole("button", {name:"삭제하고 기록",exact:true}).click();
+  await expect(dialog.getByLabel("기록 메모",{exact:true})).toHaveAttribute("aria-invalid","true");
+  await expect(dialog.getByText("삭제 근거를 보완하세요",{exact:true})).toBeVisible();
+  await expect(dialog.getByLabel("기록 메모",{exact:true})).toBeEnabled();
+  await dialog.getByLabel("기록 메모",{exact:true}).fill("보완한 근거");
+  await dialog.getByRole("button", {name:"삭제하고 기록",exact:true}).click();
+  await expect(page.getByText("태그를 삭제했습니다.",{exact:true})).toBeVisible();
+  expect(submitted.map(url => url.searchParams.get("change_note"))).toEqual(["초안 메모","보완한 근거"]);
+  expect(submitted[1].searchParams.get("expected_version")).toBe(submitted[0].searchParams.get("expected_version"));
+});

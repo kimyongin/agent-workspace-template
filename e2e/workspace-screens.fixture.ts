@@ -1246,3 +1246,62 @@ for(const side of ["tasks","entities"] as const) test(`#227 ${side}: 관계 검�
   await form(page).getByRole("button",{name:"검색 다시 시도",exact:true}).click(); await expect(form(page).getByRole("button",{name:"재시도 후보 연결",exact:true})).toBeVisible();
   expect(reads).toEqual([null,"repeat","repeat"]); expect(state.writes).toHaveLength(0); expect(state.errors).toEqual([]);
 });
+
+
+test("#229 할 일의 업무 단계가 직접 편집보다 우선하고 취소 후 편집으로 복귀", async ({page}) => {
+  const state = await fixtures(page);
+  await go(page, `/tasks/${id(2)}?edit=1&action=record&tag_id=${id(9)}`);
+  await expect(form(page).getByRole("heading", {name:"기록 작성",exact:true})).toBeVisible();
+  await expect(form(page).getByRole("textbox", {name:"제목 (필수)",exact:true})).toHaveCount(0);
+  await form(page).getByRole("button", {name:"취소",exact:true}).click();
+  await expect(form(page).getByRole("textbox", {name:"제목 (필수)",exact:true})).toBeVisible();
+  await expect(page).not.toHaveURL(/[?&]action=/);
+  await form(page).getByRole("button", {name:"취소",exact:true}).click();
+  await expect(form(page).getByRole("button", {name:"편집",exact:true})).toBeVisible();
+  const url = new URL(page.url());
+  expect(url.searchParams.get("tag_id")).toBe(id(9));
+  expect(url.searchParams.has("edit")).toBe(false);
+  await expect(page.locator("dialog[open]")).toHaveCount(1);
+  expect(state.writes).toHaveLength(0); expect(state.errors).toEqual([]);
+});
+
+test("#229 엔터티 관련 작성 취소는 직접 편집 의도와 목록 문맥을 보존", async ({page}) => {
+  const state = await fixtures(page);
+  const list = `/entities?pages=2&scroll=83#entity-${id(1)}`;
+  await go(page, `/entities/${id(1)}?edit=1&edit_from=view&create=record&list=${encodeURIComponent(list)}`);
+  await expect(form(page).getByRole("heading", {name:"기록 작성",exact:true})).toBeVisible();
+  await form(page).getByRole("button", {name:"취소",exact:true}).click();
+  await expect(form(page).getByRole("textbox", {name:"속성 1 (필수)",exact:true})).toBeVisible();
+  await form(page).getByRole("button", {name:"취소",exact:true}).click();
+  await expect(form(page).getByRole("button", {name:"편집",exact:true})).toBeVisible();
+  const url = new URL(page.url());
+  expect(url.searchParams.get("list")).toBe(list);
+  for (const key of ["edit","edit_from","create"]) expect(url.searchParams.has(key)).toBe(false);
+  await expect(page.locator("dialog[open]")).toHaveCount(1);
+  expect(state.writes).toHaveLength(0); expect(state.errors).toEqual([]);
+});
+
+test("#229 업무 확인의 서버 메모 오류는 해당 입력에 표시하고 수정 후 저장", async ({page}) => {
+  const state = await fixtures(page), submitted: Record<string,unknown>[] = [];
+  await page.route("**/api/tasks/*", route => {
+    if (route.request().method() !== "PATCH") return route.fallback();
+    submitted.push(route.request().postDataJSON());
+    return submitted.length === 1
+      ? route.fulfill({status:422,json:{code:"invalid_input",message:"기록 메모를 확인하세요",fields:[{path:"change_note",message:"근거를 보완하세요"}]}})
+      : route.fallback();
+  });
+  await go(page, `/tasks/${id(2)}?edit=1`);
+  await form(page).getByRole("textbox", {name:"제목 (필수)",exact:true}).fill("변경한 할 일");
+  await form(page).getByRole("button", {name:"저장",exact:true}).click();
+  await form(page).getByLabel("기록 메모",{exact:true}).fill("초안 메모");
+  await form(page).getByRole("button", {name:"수정하고 저장",exact:true}).click();
+  await expect(form(page).getByLabel("기록 메모",{exact:true})).toHaveAttribute("aria-invalid","true");
+  await expect(form(page).getByText("근거를 보완하세요",{exact:true})).toBeVisible();
+  await expect(form(page).getByLabel("기록 메모",{exact:true})).toBeEnabled();
+  await form(page).getByLabel("기록 메모",{exact:true}).fill("보완한 근거");
+  await form(page).getByRole("button", {name:"수정하고 저장",exact:true}).click();
+  await expect(form(page).getByRole("button", {name:"편집",exact:true})).toBeVisible();
+  expect(submitted.map(body => body.change_note)).toEqual(["초안 메모","보완한 근거"]);
+  expect(submitted[1].expected_version).toBe(submitted[0].expected_version);
+  expect(state.errors).toEqual([]);
+});

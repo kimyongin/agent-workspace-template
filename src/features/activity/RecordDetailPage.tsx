@@ -2,12 +2,11 @@ import { useDetailResource } from "../details/useDetailResource.ts";
 import { useDisplayTime } from "../../lib/useDisplayTime.ts";
 import { RecordRelations } from "./RecordRelations.tsx";
 import { useDetailNavigate, useDetailOwnerReturn, useDetailDeleteReturn } from "../../lib/detail-exploration.tsx";
-import { editFromView } from "../../lib/detail-navigation.ts";
+import { useDetailEditor } from "../details/useDetailEditor.ts";
 import { ChangeContext, PrincipleSnapshots, type WorkspaceRecord } from "./ChangeContext.tsx";
 // 기록 상세: 원문 읽기, 편집, 삭제.
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useParams, useSearchParams } from "react-router";
-import {useDeferredNavigation} from "../../lib/useDeferredNavigation.ts";
 import { Notice } from "../../components/Field.tsx";
 import { MarkdownContent } from "../../components/MarkdownContent.tsx";
 import { DetailSurface } from "../../components/Modal.tsx";
@@ -22,23 +21,20 @@ export function RecordDetailPage() {
   const back=useDetailOwnerReturn(`/records${query({tag_id:params.get("tag_id")??"",entity_id:params.get("entity_id")??""})}`);
   const deleteBack=useDetailDeleteReturn(back);
   const navigate = useDetailNavigate();
-  const navigateAfterClose = useDeferredNavigation();
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const directEdit = params.get("edit") === "1";
-  const [dialog, setDialog] = useState<null | "edit" | "delete">(directEdit ? "edit" : null);
-  const closeEdit = () => { setDialog(null);detail.editClosed(); const p=new URLSearchParams(params);p.delete("edit");p.delete("edit_from");navigateAfterClose(`?${p}`,true); };
   const [busy, setBusy] = useState(false);
 
   const detail = useDetailResource<WorkspaceRecord>({
     id, query: params.toString(), refreshOnQuery: directEdit,
     load: (id, signal) => api("GET", `/records/${id}`, undefined, signal),
   });
+  const editor = useDetailEditor(detail.editClosed);
   const { value: record, editReady } = detail;
   const loadError = detail.error ? detail.error instanceof ApiError && detail.error.code === "not_found" ? "기록을 찾을 수 없습니다." : "기록을 불러오지 못했습니다." : null;
   const reload = detail.reload;
 
-  useEffect(() => { setDialog(directEdit ? "edit" : null); }, [id, params.toString()]);
 
   if (loadError && !record) {
     return (
@@ -56,20 +52,19 @@ export function RecordDetailPage() {
       {error && <Notice kind="error">{error}</Notice>}
       <ChangeContext record={record}/>
       {loadError && <><Notice kind="error">{loadError}</Notice><button type="button" className="btn" onClick={reload}>조회 다시 시도</button></>}
-      {(dialog!=="edit"||record.record_kind==="change")&&<TagNames compact ids={record.tag_ids}/>}
-      <RecordRelations record={record} includeEntities={dialog!=="edit"||record.record_kind==="change"}/>
+      {(!editor.active||record.record_kind==="change")&&<TagNames compact ids={record.tag_ids}/>}
+      <RecordRelations record={record} includeEntities={!editor.active||record.record_kind==="change"}/>
       <PrincipleSnapshots snapshots={record.applied_principle_snapshots??[]}/>
     </div>;
-  const startEdit=()=>navigate(editFromView(params));
-  return <DetailSurface footer={<button type="button" className="btn btn-primary" onClick={startEdit}>편집</button>} title="기록" onClose={()=>navigate(back)} busy={busy}>
+  return <DetailSurface footer={<button type="button" className="btn btn-primary" onClick={editor.start}>편집</button>} title="기록" onClose={()=>navigate(back)} busy={busy}>
 
       <div className="detail-stack">{record.body&&<section className="detail-section record-content" aria-label="내용"><MarkdownContent text={record.body}/></section>}
-      {dialog!=="edit"&&management}</div>
-      {dialog === "edit" && !editReady && loadError && <>
+      {!editor.active&&management}</div>
+      {editor.active && !editReady && loadError && <>
         <Notice kind="error">{loadError}</Notice>
         <button type="button" className="btn" onClick={reload}>조회 다시 시도</button>
       </>}
-      {dialog === "edit" && editReady && (
+      {editor.active && editReady && (
         <RecordFormModal
           editing systemRecord={record.record_kind==="change"}
           title="기록 편집"
@@ -84,8 +79,7 @@ export function RecordDetailPage() {
           setError(null);
           try {
             await api("DELETE", `/records/${record.id}${query({expected_version:record.version, change_note:reason || undefined, change_tag_ids:tags?.length ? tags.join(",") : undefined})}`);
-            setDialog(null);
-            navigateAfterClose(deleteBack,true);
+            editor.leave(deleteBack);
           } catch (e) {
             setError(e instanceof ApiError ? e.message : "삭제하지 못했습니다.");
             throw e;
@@ -93,13 +87,12 @@ export function RecordDetailPage() {
             setBusy(false);
           }
         }}}
-          onClose={closeEdit}
-          onRouteDiscard={() => setDialog(null)}
+          {...editor.formProps}
           onSave={async (value) => {
             await detail.save(() => api<WorkspaceRecord>("PATCH", `/records/${record.id}`, {
               ...value, expected_version: record.version,
             }));
-             closeEdit();
+             editor.close();
             setMessage("저장했습니다.");
           }}
         />
