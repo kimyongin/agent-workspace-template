@@ -140,9 +140,7 @@ for (
             return;
           }
           assertEquals(
-            (await admin`select id from ${
-              admin(`app.${kind === "entity" ? "entities" : `${kind}s`}`)
-            } where id=${parent.id}`).length,
+            (await admin`select id from ${admin(`app.${kind}s`)} where id=${parent.id}`).length,
             0,
           );
           assertEquals(events.length, 0);

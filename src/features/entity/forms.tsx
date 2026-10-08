@@ -1,4 +1,4 @@
-import { defaultEntityIdentitySettings, entityIdentityLabel, entityId, entityPath, type EntityIdentitySettings } from "@contracts/entity-identity.ts";
+import { defaultEntityIdentitySettings, entityIdentityLabel, entityIdentity, entityId, entityPath, type EntityIdentitySettings } from "@contracts/entity-identity.ts";
 import { api, ApiError } from "../../lib/api.ts";
 import type { DeletionOptions } from "../../components/DeleteAction.tsx";
 import {
@@ -45,6 +45,9 @@ export function EntityForm(
   });
   const checkExisting = async () => {
     if (initial || archived) return archived;
+    if (!identitySettings) throw new Error("식별자 설정을 불러오는 중입니다.");
+    const identity = entityIdentity.safeParse({source:draft.source,external_id:draft.external_id});
+    if (!identity.success) throw new Error(identity.error.issues.map(issue => issue.message).join(" · "));
     try {
       const stored = await api<EntityResult>("GET", entityPath(entityId(draft.source, draft.external_id)));
       if (!stored.deleted_at) throw new Error("같은 발급처·식별자의 활성 엔터티가 있습니다.");
@@ -83,9 +86,9 @@ export function EntityForm(
         <>
           <section className="detail-section form">
           {initial ? <p className="secondary">{entityIdentityLabel(initial)}{initial.deleted_at ? " · 삭제됨 · 보관값을 확인하고 복원하세요" : ""}</p> : <>
-            <Field label="발급처" required error={errors.source}>{p => <select {...p} className="input" value={draft.source} disabled={!!archived} onChange={e => setDraft(d => ({...d, source:e.target.value}))}>{identitySettings?.sources.map(source => <option key={source.code} value={source.code}>{source.label} ({source.code})</option>)}</select>}</Field>
-            <Field label="외부 식별자" required error={errors.external_id}>{p => <input {...p} className="input" value={draft.external_id} maxLength={400} disabled={!!archived || identitySettings?.generation === "uuid"} onChange={e => setDraft(d => ({...d, external_id:e.target.value}))}/>}</Field>
-            {!archived && <button type="button" className="btn" onClick={() => { void checkExisting().catch(cause => setIdentityMessage(cause instanceof Error ? cause.message : "조회하지 못했습니다.")); }}>기존 대상 확인</button>}
+            <Field label="발급처" required error={errors.source}>{p => <select {...p} className="input" value={draft.source} disabled={!identitySettings || !!archived} onChange={e => setDraft(d => ({...d, source:e.target.value}))}>{identitySettings?.sources.map(source => <option key={source.code} value={source.code}>{source.label} ({source.code})</option>)}</select>}</Field>
+            <Field label="외부 식별자" required error={errors.external_id}>{p => <input {...p} className="input" value={draft.external_id} maxLength={400} disabled={!identitySettings || !!archived || identitySettings.generation === "uuid"} onChange={e => setDraft(d => ({...d, external_id:e.target.value}))}/>}</Field>
+            {!archived && <button type="button" className="btn" disabled={!identitySettings} onClick={() => { void checkExisting().catch(cause => setIdentityMessage(cause instanceof Error ? cause.message : "조회하지 못했습니다.")); }}>기존 대상 확인</button>}
             {identityMessage && <p role="status" className="secondary">{identityMessage}</p>}
             {archived && <p className="secondary">보관된 속성·태그와 연결을 복원합니다. 입력한 변경만 반영합니다. 현재 버전 {archived.version}</p>}
           </>}
