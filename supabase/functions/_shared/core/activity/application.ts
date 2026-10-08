@@ -4,7 +4,6 @@ import { entityChanges, selectedEntities } from "./entity-selection.ts";
 // 읽기 → 도메인 판단 → 저장 순서와 트랜잭션 경계, 색인 작업 등록, 요청 재전송 처리를 맡는다.
 import type { RecordCreate, RecordListQuery, RecordResult, RecordUpdate } from "../../contracts/record.ts";
 import type {
-  Occurrence,
   TaskComplete,
   TaskCreate,
   TaskDetail,
@@ -29,7 +28,7 @@ import {
   updateTask as decideUpdate,
 } from "./domain.ts";
 import type { ActivityRecord, ActivityStore, Clock, UnitOfWork } from "./ports.ts";
-import { isOccurrence, listOccurrences as computeOccurrences, occurrenceStatus } from "./recurrence.ts";
+import { listOccurrences as computeOccurrences } from "./recurrence.ts";
 
 export interface ActivityDeps {
   uow: UnitOfWork;
@@ -121,19 +120,29 @@ export async function listTasks(deps: ActivityDeps, actor: Actor, query: TaskLis
       keyword: filter.keyword,
       limit: 5000,
     });
+    const records = await store.occurrenceRecords(
+      candidates.filter((task) => task.recurrence).map((task) => task.id),
+      date,
+      date,
+    );
+    const byTask = new Map<string, typeof records>();
+    for (const record of records) {
+      const group = byTask.get(record.task_id);
+      if (group) group.push(record);
+      else byTask.set(record.task_id, [record]);
+    }
     const items: TaskListItem[] = [];
     for (const task of candidates) {
       if (!task.recurrence) continue;
-      const records = await store.occurrenceRecords(task.id, date, date);
-      const inRule = isOccurrence(task.recurrence, task.pauses, date);
-      if (!inRule && records.length === 0) continue;
-      const occurrence: Occurrence = {
+      const [occurrence] = computeOccurrences(
+        task.recurrence,
+        task.pauses,
+        byTask.get(task.id) ?? [],
         date,
-        status: occurrenceStatus(date, todayOf(task, now), records.length),
-        record_ids: records.map((r) => r.id),
-        in_rule: inRule,
-      };
-      items.push({ ...toTaskResult(task), occurrence });
+        date,
+        todayOf(task, now),
+      );
+      if (occurrence) items.push({ ...toTaskResult(task), occurrence });
     }
     const sorted = items
       .filter((t) => !after || t.updated_at < after.at || (t.updated_at === after.at && t.id < after.id))
@@ -281,7 +290,7 @@ export async function listOccurrences(
     const task = await requireTask(store, id);
     if (task.kind !== "recurring" || !task.recurrence) throw conflict("반복 할 일에만 회차가 있습니다");
     const today = todayOf(task, deps.clock.now());
-    const records = await store.occurrenceRecords(id, range.from, range.to);
+    const records = await store.occurrenceRecords([id], range.from, range.to);
     const items = computeOccurrences(task.recurrence, task.pauses, records, range.from, range.to, today);
     return { task_id: id, from: range.from, to: range.to, today, items };
   });

@@ -1,6 +1,7 @@
+import { createPagedList } from "../collections/paged-list.ts";
 import { CollectionList } from "../../components/Collection.tsx";
 import { BodyAction } from "../../components/BodyAction.tsx";
-import { useContext, useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { useContext, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { SurfaceContext } from "../../components/Modal.tsx";
 import { useLocation } from "react-router";
 import { useDetailViewState } from "../../lib/detail-exploration.tsx";
@@ -55,19 +56,19 @@ export function TaskEntityRelations({task,onSaved}: {task:TaskResult;onSaved:(sa
 }
 
 export function EntityTaskRelations({entity,onCreate,onSaved}: {entity:EntityDetail;onCreate:()=>void;onSaved:(saved?:TaskResult,before?:TaskResult)=>void}) {
-  const [items,setItems]=useState(entity.tasks.items),[cursor,setCursor]=useState<string|null|undefined>(undefined),[loading,setLoading]=useState(false),[failed,setFailed]=useState(false);
-  const request=useRef<AbortController|null>(null);
-  useEffect(()=>{request.current?.abort();setItems(entity.tasks.items);setCursor(undefined);setLoading(false);setFailed(false);},[entity.tasks]);
-  useEffect(()=>()=>request.current?.abort(),[]);
-  const more=async()=>{
-    const controller=new AbortController();request.current=controller;setLoading(true);setFailed(false);
-    try{const page=await api<{items:TaskResult[];next_cursor:string|null}>("GET",`/tasks${query({entity_id:entity.id,limit:20,cursor})}`,undefined,controller.signal);
-      if(!controller.signal.aborted){setItems(prior=>[...prior,...page.items.filter(item=>!prior.some(old=>old.id===item.id))]);setCursor(page.next_cursor);}}
-    catch{if(!controller.signal.aborted)setFailed(true);}finally{if(!controller.signal.aborted)setLoading(false);}
-  };
+  // The detail's five-row preview is not a cursor page: fetch page one only on expansion.
+  const session = useMemo(() => createPagedList<TaskResult, {items:TaskResult[];next_cursor:string|null}>({
+    load: (cursor, signal) => api("GET", `/tasks${query({entity_id:entity.id,limit:20,cursor})}`, undefined, signal),
+  }), [entity.id, entity.tasks]);
+  const state = useSyncExternalStore(session.subscribe, session.snapshot);
+  useEffect(() => () => session.cancel(), [session]);
+  const previewIds = new Set(entity.tasks.items.map(item => item.id));
+  const items = [...entity.tasks.items, ...state.page?.items.filter(item => !previewIds.has(item.id)) ?? []];
+  const loading = state.busy, failed = !!state.error;
+  const more = () => { if (failed) void session.retry(); else if (!state.page) void session.restore(1); else session.more(); };
   return <RelationControls key={entity.id} entityId={entity.id} entityTitle={entity.prop1} revision={entity.tasks} onSaved={onSaved}>{({search,button,unlink})=><RelatedSection title="할 일" count={entity.tasks.count} action={<div className="actions"><BodyAction icon="create" aria-label="할 일 작성" onClick={onCreate}>작성</BodyAction>{button}</div>}>
     {search}<CollectionList>{items.map(item=><li key={item.id}><RelatedPreviewItem to={`/tasks/${item.id}`} title={item.title} action={unlink(item)}/></li>)}</CollectionList>
     {failed&&<Notice kind="error">연결된 할 일을 불러오지 못했습니다.</Notice>}
-    {(failed||cursor||cursor===undefined&&entity.tasks.count>items.length)&&<BodyAction disabled={loading} onClick={()=>void more()}>{loading?"불러오는 중…":failed?"할 일 다시 시도":"할 일 더 보기"}</BodyAction>}
+    {(failed||state.page?.next_cursor||!state.page&&entity.tasks.count>items.length)&&<BodyAction disabled={loading} onClick={()=>void more()}>{loading?"불러오는 중…":failed?"할 일 다시 시도":"할 일 더 보기"}</BodyAction>}
   </RelatedSection>}</RelationControls>;
 }

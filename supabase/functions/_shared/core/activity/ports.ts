@@ -90,7 +90,12 @@ export interface ActivityStore extends ChangeStore {
   getRecord(id: string, opts?: { forUpdate?: boolean }): Promise<ActivityRecord | null>;
   getRecordBodies(ids: string[]): Promise<Pick<ActivityRecord, "id" | "body">[]>;
   listRecords(filter: RecordFilter): Promise<ActivityRecord[]>;
-  occurrenceRecords(taskId: string, from: string, to: string): Promise<{ id: string; occurrence_on: string }[]>;
+  /** Batch facts in task/date/occurred-at/id order, inside this transaction. Empty ids read nothing. */
+  occurrenceRecords(
+    taskIds: string[],
+    from: string,
+    to: string,
+  ): Promise<{ task_id: string; id: string; occurrence_on: string }[]>;
   insertRecord(record: NewRecord): Promise<ActivityRecord>;
   updateRecord(id: string, changes: RecordChanges): Promise<ActivityRecord>;
   deleteRecord(id: string): Promise<void>;

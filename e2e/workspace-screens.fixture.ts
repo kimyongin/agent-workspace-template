@@ -1206,3 +1206,43 @@ test("#211 기록 필터·날짜 그룹·표시·편집은 계정 시간대로 �
   await go(page,"/tasks");await expect(page.locator(".list .item-title").first()).toBeVisible();await page.getByRole("button",{name:"할 일 등록",exact:true}).click();await form(page).getByRole("button",{name:"반복",exact:true}).click();
   await expect(form(page).getByLabel("시간대",{exact:false})).toHaveValue("America/New_York");expect(state.errors).toEqual([]);
 });
+
+
+test("#227 엔터티 할 일: 5건 미리보기 뒤 첫 페이지·중복 제거·같은 cursor 재시도", async ({page}) => {
+  const state = await fixtures(page), rows = Array.from({length:25}, (_,i) => ({...task(100+i), title:`배치 업무 ${i}`}));
+  const reads:(string|null)[] = []; let failed = false;
+  await page.route(`**/api/entities/${id(1)}`, route => route.fulfill({json:{...state.rows.entities[0],tasks:{count:25,items:rows.slice(0,5)}}}));
+  await page.route("**/api/tasks?**", route => {
+    const cursor = new URL(route.request().url()).searchParams.get("cursor"); reads.push(cursor);
+    if(cursor && !failed) { failed = true; return route.fulfill({status:503,json:{code:"internal",message:"retry"}}); }
+    return route.fulfill({json:cursor ? {items:rows.slice(20),next_cursor:null} : {items:rows.slice(0,20),next_cursor:"next"}});
+  });
+  await go(page,`/entities/${id(1)}`);
+  const section = form(page).getByRole("heading",{name:"할 일 (25개)",exact:true}).locator("xpath=ancestor::section[1]");
+  await expect(section.locator(".related-item")).toHaveCount(5); expect(reads).toEqual([]);
+  await section.getByRole("button",{name:"할 일 더 보기",exact:true}).click(); await expect(section.locator(".related-item")).toHaveCount(20);
+  await section.getByRole("button",{name:"할 일 더 보기",exact:true}).click(); await expect(section.getByRole("alert")).toBeVisible();
+  await expect(section.locator(".related-item")).toHaveCount(20);
+  await section.getByRole("button",{name:"할 일 다시 시도",exact:true}).click(); await expect(section.locator(".related-item")).toHaveCount(25);
+  expect(reads).toEqual([null,"next","next"]); expect(state.writes).toHaveLength(0); expect(state.errors).toEqual([]);
+});
+
+for(const side of ["tasks","entities"] as const) test(`#227 ${side}: 관계 검색의 반복 cursor 거부는 이미 읽은 후보를 보존`, async ({page}) => {
+  const state = await fixtures(page), kind = side === "tasks" ? "entities" : "tasks", label = side === "tasks" ? "엔터티" : "할 일";
+  const a = kind === "entities" ? {...entity(181),prop1:"첫 후보"} : {...task(181),title:"첫 후보"};
+  const b = kind === "entities" ? {...entity(182),prop1:"거부 후보"} : {...task(182),title:"거부 후보"};
+  const c = kind === "entities" ? {...entity(183),prop1:"재시도 후보"} : {...task(183),title:"재시도 후보"};
+  let repeats = 0; const reads:(string|null)[] = [];
+  await page.route(`**/api/${kind}?**`, route => {
+    const cursor = new URL(route.request().url()).searchParams.get("cursor"); reads.push(cursor);
+    return route.fulfill({json:!cursor ? {items:[a],next_cursor:"repeat"} : ++repeats === 1 ? {items:[b],next_cursor:"repeat"} : {items:[c],next_cursor:null}});
+  });
+  await go(page,`/${side}/${id(side === "tasks" ? 2 : 1)}`);
+  await form(page).getByRole("button",{name:`${label} 연결`,exact:true}).click();
+  await form(page).getByRole("searchbox",{name:`${label} 제목 검색`}).fill("후보");
+  await form(page).getByRole("button",{name:"검색 결과 더 보기",exact:true}).click(); await expect(form(page).getByRole("alert")).toBeVisible();
+  await expect(form(page).getByRole("button",{name:"첫 후보 연결",exact:true})).toBeVisible();
+  await expect(form(page).getByRole("button",{name:"거부 후보 연결",exact:true})).toHaveCount(0);
+  await form(page).getByRole("button",{name:"검색 다시 시도",exact:true}).click(); await expect(form(page).getByRole("button",{name:"재시도 후보 연결",exact:true})).toBeVisible();
+  expect(reads).toEqual([null,"repeat","repeat"]); expect(state.writes).toHaveLength(0); expect(state.errors).toEqual([]);
+});
