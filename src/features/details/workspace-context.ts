@@ -6,6 +6,7 @@ export const workspaceList = (path: string) => /^\/(entities|tasks|records|princ
 export type WorkspaceGuard = { dirty: boolean; busy: boolean; discard: () => void; retained: boolean };
 export const WorkspaceContext = createContext<{
   revision: number;
+  saved: () => void;
   open: (to: To, origin: Location) => void;
   registerGuard: (key: string, guard: () => WorkspaceGuard) => () => void;
 } | null>(null);

@@ -33,7 +33,7 @@ function Layout() {
       </header>
       <main className="app-main" key={location.pathname === "/logout" ? "logout" : session?.user.id ?? "signed-out"}>
         <DetailNavigationProvider key={location.pathname === "/logout" ? "logout" : session?.user.id ?? "signed-out"} scope={session?.user.id ?? "signed-out"}>
-          {session ? <DetailWorkspace render={location => <WorkspaceRoutes location={location}/>}><Outlet/></DetailWorkspace> : <Outlet/>}
+          <DetailWorkspace enabled={!!session} render={location => <WorkspaceRoutes location={location}/>}><Outlet/></DetailWorkspace>
         </DetailNavigationProvider>
       </main>
       {session && <Navigation brand={APP_NAME} />}

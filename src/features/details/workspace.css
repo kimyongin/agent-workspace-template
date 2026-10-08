@@ -27,5 +27,4 @@
   .detail-docked .modal-body { padding: var(--space-5); }
   .detail-docked.modal-action .modal-inner { height: 100%; max-height: none; }
   .detail-docked .modal-foot { padding-inline: var(--space-5); }
-  .workspace-list > .panel { padding: 0; background: transparent; border: 0; }
 }

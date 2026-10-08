@@ -31,9 +31,11 @@ test("desktop: list stays usable, related details become unique tabs and close r
   await expect(page.locator(".workspace-list")).not.toHaveAttribute("inert");
   expect(await panel(page).locator("dialog").evaluate(el => el.matches(":modal"))).toBe(false);
   await openTask(page); await expect(page.getByRole("tab")).toHaveCount(2);
+  const historyLength = await page.evaluate(() => history.length);
   await page.getByRole("tab", { name: "등심", exact: true }).click();
   await panel(page).getByRole("region", { name: "할 일 (1개)" }).getByRole("link", { name: "등심 구매하기 상세", exact: true }).click();
   await expect(page.getByRole("tab")).toHaveCount(2);
+  expect(await page.evaluate(() => history.length)).toBe(historyLength);
   await page.getByRole("button", { name: "등심 구매하기 탭 닫기", exact: true }).click();
   await expect(page.getByRole("tab", { name: "등심", exact: true })).toHaveAttribute("aria-selected", "true");
   await page.screenshot({ path: info.outputPath("desktop-panel.png") });
@@ -174,7 +176,15 @@ test("desktop: many long titles scroll inside the tab strip and keyboard selecti
   const titles = Array.from({ length: 7 }, (_, i) => `긴 상품 설명과 조건을 담은 엔터티 제목 ${i}`);
   state.rows.entities.push(...titles.map((prop1, i) => ({ ...entity(200 + i), prop1 })));
   await page.goto("/entities");
-  for (const title of titles) { await openEntity(page, title); await expect(page.getByRole("tab", { name: title, exact: true })).toHaveAttribute("aria-selected", "true"); }
+  for (const title of titles) {
+    await openEntity(page, title);
+    const selected = page.getByRole("tab", { name: title, exact: true });
+    await expect(selected).toHaveAttribute("aria-selected", "true");
+    await expect.poll(async () => {
+      const tab = await selected.boundingBox(), strip = await page.getByRole("tablist").boundingBox();
+      return !!tab && !!strip && tab.x >= strip.x && tab.x + tab.width <= strip.x + strip.width + 1;
+    }).toBe(true);
+  }
   const strip = page.getByRole("tablist"); expect(await strip.evaluate(el => el.scrollWidth > el.clientWidth)).toBe(true);
   await page.getByRole("tab", { name: titles[6], exact: true }).focus(); await page.keyboard.press("Home");
   await expect(page.getByRole("tab", { name: titles[0], exact: true })).toBeFocused();
@@ -210,4 +220,21 @@ test("mobile: expanding an unfinished native editor never reparents or loses its
   await page.setViewportSize({ width: 1440, height: 900 }); await expect(modal.getByLabel("본문", { exact: true })).toHaveValue("모바일 초안"); await expect(page.getByRole("tab")).toHaveCount(0);
   await modal.getByRole("button", { name: "취소", exact: true }).click(); await page.getByRole("dialog", { name: "변경을 버릴까요?" }).getByRole("button", { name: "변경 버리기" }).click();
   await modal.getByRole("button", { name: "닫기", exact: true }).click(); await expect(page.locator(".workspace-list")).toBeVisible(); expect(state.errors).toEqual([]);
+  await expect(page.getByRole("tab")).toHaveCount(0); await expect(page.locator(".workspace-details")).toBeHidden();
+});
+
+test("desktop: relation saves refresh retained filtered lists without leaving the viewer", async ({ page }) => {
+  const state = await fixture(page);
+  await page.route(url => url.origin === "http://127.0.0.1:55591" && url.pathname === "/api/tasks" && url.searchParams.has("entity_id"), route => {
+    return route.fulfill({ json: { items: state.rows.tasks.filter(task => task.entity_ids.includes(id(1))), next_cursor: null } });
+  });
+  await page.goto(`/tasks?entity_id=${id(1)}`);
+  const list = page.locator(".workspace-list"); await list.getByRole("button", { name: "등심 구매하기", exact: true }).click(); await list.getByRole("link", { name: "등심 구매하기 상세", exact: true }).click();
+  const entities = panel(page).getByRole("region", { name: "엔터티 (1개)", exact: true });
+  await entities.getByRole("button", { name: "등심", exact: true }).click(); await entities.getByRole("button", { name: "등심 해제", exact: true }).click();
+  await page.locator("dialog.modal-action[open]").getByRole("button", { name: "해제하고 저장", exact: true }).click();
+  await expect(panel(page).getByRole("heading", { name: "엔터티 (0개)", exact: true })).toBeVisible();
+  await expect(list.getByRole("button", { name: "등심 구매하기", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("tab", { name: "등심 구매하기", exact: true })).toHaveAttribute("aria-selected", "true");
+  expect(state.writes).toHaveLength(1); expect(state.errors).toEqual([]);
 });

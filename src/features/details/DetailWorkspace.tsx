@@ -27,10 +27,10 @@ function ownerList(location: Location): Location {
 }
 
 /** One owner for retained detail visits, their URLs and all guards within the desktop workspace. */
-export function DetailWorkspace({ children, render }: { children: ReactNode; render: (location: Location) => ReactNode }) {
+export function DetailWorkspace({ children, render, enabled }: { children: ReactNode; render: (location: Location) => ReactNode; enabled: boolean }) {
   const location = useLocation(), navigate = useNavigate();
   const desktop = useSyncExternalStore(subscribeDesktop, () => window.matchMedia(desktopQuery).matches, () => false);
-  const eligible = workspaceList(location.pathname) || !!detailIdentity(location.pathname);
+  const eligible = enabled && (workspaceList(location.pathname) || !!detailIdentity(location.pathname));
   const [started, setStarted] = useState(desktop && eligible);
   const [tabs, setTabs] = useState<Tab[]>([]);
   const [active, setActive] = useState<string | null>(null);
@@ -45,6 +45,8 @@ export function DetailWorkspace({ children, render }: { children: ReactNode; ren
     guards.current.set(key, guard);
     return () => { guards.current.delete(key); };
   }, []);
+  const anyBusy = useCallback(() => [...guards.current.values()].some(read => read().busy), []);
+  const saved = useCallback(() => setRevision(value => value + 1), []);
   const [discard, setDiscard] = useState<(() => void) | null>(null);
   const shown = visible && !!active;
   const listRef = useWorkspaceScroll(started && eligible, desktop && shown, base);
@@ -58,8 +60,10 @@ export function DetailWorkspace({ children, render }: { children: ReactNode; ren
   useLayoutEffect(() => {
     if (!eligible) { setTabs([]); setActive(null); setStarted(false); return; }
     // Do not reparent a mobile form while its native dialog owns an unfinished visit.
-    if (desktop && (started || !document.querySelector("dialog.modal[open]"))) setStarted(true);
-    if (!started && !desktop) return;
+    if (!started) {
+      if (!desktop || document.querySelector("dialog.modal[open]")) return;
+      setStarted(true);
+    }
     const id = detailIdentity(location.pathname);
     if (!id) { setBase(location); return; }
     if (new URLSearchParams(current.current.base.search).has("create")) {
@@ -99,21 +103,19 @@ export function DetailWorkspace({ children, render }: { children: ReactNode; ren
     void navigate(next ? href(next.location) : href(state.base), { replace: true, state: next ? { workspaceOwner: state.base.pathname } : null });
   };
   const requestClose = (id: string) => {
-    if ([...guards.current.values()].some(read => read().busy)) return;
+    if (anyBusy()) return;
     const guard = guards.current.get(id)?.();
-    if (guard?.busy) return;
     if (guard?.dirty) setDiscard(() => () => closeTab(id)); else closeTab(id);
   };
-  const anyBusy = () => [...guards.current.values()].some(read => read().busy);
   const open = useCallback((to: To, origin: Location) => {
-    if ([...guards.current.values()].some(read => read().busy)) return;
+    if (anyBusy()) return;
     const state = current.current, path = destination(to, origin), identity = detailIdentity(path);
     const existing = state.tabs.find(tab => tab.id === identity);
     if (workspaceList(origin.pathname)) setBase(origin);
     setVisible(true);
     if (existing && state.active === identity && href(location) === href(existing.location)) return;
-    void navigate(existing ? href(existing.location) : path, { state: { workspaceOwner: workspaceList(origin.pathname) ? origin.pathname : state.base.pathname } });
-  }, [navigate, location]);
+    void navigate(existing ? href(existing.location) : path, { replace: !!existing, state: { workspaceOwner: workspaceList(origin.pathname) ? origin.pathname : state.base.pathname } });
+  }, [navigate, location, anyBusy]);
   const select = (tab: Tab) => {
     if (anyBusy()) return;
     tabFocus.current = tab.id;
@@ -121,24 +123,25 @@ export function DetailWorkspace({ children, render }: { children: ReactNode; ren
     document.getElementById(`tab-${tab.id}`)?.focus();
   };
   useEffect(() => {
-    if (!desktop || !visible || !tabFocus.current || tabFocus.current !== active && tabFocus.current !== "list") return;
+    if (!desktop || !visible) return;
     const frame = requestAnimationFrame(() => {
       const button = tabFocus.current === "list" ? listRef.current?.querySelector<HTMLElement>("h1") : document.getElementById(`tab-${active}`);
       if (tabFocus.current === "list") button?.setAttribute("tabindex", "-1");
-      button?.focus({ preventScroll: true });
+      if (tabFocus.current) button?.focus({ preventScroll: true });
       if (tabFocus.current !== "list") button?.scrollIntoView({ block: "nearest", inline: "nearest" });
       tabFocus.current = null;
     });
     return () => cancelAnimationFrame(frame);
-  }, [active, visible, desktop, tabs.length, listRef]);
+  }, [active, visible, desktop, tabs.length, tabs.find(tab => tab.id === active)?.title, listRef]);
   if (!started || !eligible) return children;
-  return <WorkspaceContext.Provider value={{ revision, open, registerGuard }}><div className={`detail-workspace${desktop && shown ? " has-detail-panel" : ""}`}>
+  return <WorkspaceContext.Provider value={{ revision, saved, open, registerGuard }}><div className={`detail-workspace${desktop && shown ? " has-detail-panel" : ""}`}>
     <div className="workspace-list" ref={listRef}>{render(base)}
       {desktop && !visible && tabs.length > 0 && <button className="btn workspace-reopen" onClick={() => setVisible(true)}>상세 탭 보기 ({tabs.length}개)</button>}
     </div>
     <aside className="workspace-details" hidden={!shown} aria-label="상세 작업 영역">
       <div className="workspace-tab-bar" hidden={!desktop}>
         <div className="workspace-tabs" role="tablist" aria-label="열린 상세" onKeyDown={event => {
+          if (!(event.target instanceof Element) || !event.target.closest("[role=tab]")) return;
           if (!["ArrowLeft", "ArrowRight", "Home", "End", "Delete"].includes(event.key)) return;
           const index = tabs.findIndex(tab => tab.id === active);
           event.preventDefault();
@@ -149,7 +152,7 @@ export function DetailWorkspace({ children, render }: { children: ReactNode; ren
         }}>{tabs.map(tab => <div className="workspace-tab" key={tab.id} data-selected={active === tab.id || undefined}>
           <button role="tab" id={`tab-${tab.id}`} aria-selected={active === tab.id} aria-controls={`panel-${tab.id}`} tabIndex={active === tab.id ? 0 : -1} title={tab.title} onClick={() => select(tab)}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><path d={icons[tab.id.split("/")[1]]}/></svg><span>{tab.title}</span>
-          </button><button className="workspace-tab-close" aria-label={`${tab.title} 탭 닫기`} onClick={() => requestClose(tab.id)}>×</button>
+          </button><button className="workspace-tab-close" tabIndex={active === tab.id ? 0 : -1} aria-label={`${tab.title} 탭 닫기`} onClick={() => requestClose(tab.id)}>×</button>
         </div>)}</div>
         <button className="workspace-hide" aria-label="상세 패널 숨기기" title="패널 닫기" onClick={() => { if (!anyBusy()) setVisible(false); }}>×</button>
       </div>
