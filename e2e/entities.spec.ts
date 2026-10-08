@@ -201,7 +201,7 @@ test("Entity 복원: 대상 없음 조회 한도·제목 초점·필터 hash 제
     };
     await route.fulfill({ json: { items: [item], next_cursor: keyword ? null : "more" } }).catch(() => {});
   });
-  await page.goto(`/entities?pages=1#entity-${crypto.randomUUID()}`);
+  await page.goto(`/entities?pages=1#entity-${encodeURIComponent(`app:${crypto.randomUUID()}`)}`);
   await expect(page.getByRole("heading", { name: "엔터티", level: 1, exact: true })).toBeFocused();
   expect(requests).toBe(2);
   await openTabFilters(page);
