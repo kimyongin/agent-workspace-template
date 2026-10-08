@@ -2,7 +2,7 @@ import { entityReferenceId as id } from "../../contracts/entity-identity.ts";
 import { z } from "zod";
 import { businessMeta } from "../../contracts/change.ts";
 import { expectedVersion } from "../../contracts/common.ts";
-import { entityCreate, entityListQuery, entityUpdate, entityRekey } from "../../contracts/entity.ts";
+import { entityCreate, entityListQuery, entityRekey, entityUpdate } from "../../contracts/entity.ts";
 import * as entity from "../../core/entity/application.ts";
 import { parse } from "../errors.ts";
 import { notFound } from "../../core/shared/errors.ts";
@@ -16,7 +16,26 @@ export function entityTools(d: entity.EntityDeps): ToolDef[] {
     update = entityUpdate.extend({ id: z.unknown() }),
     remove = z.strictObject({ id: z.unknown(), expected_version: expectedVersion, ...businessMeta });
   return [
-    { name: "rekey_entity", description: "별도 식별 정보 변경. 현재 expected_version 필수. 삭제된 대상을 포함한 동일 조합 충돌은 거부한다. 모든 현재 연결·사건 참조를 원자적으로 전환하고 과거 본문은 그대로 보존한다.", input: entityRekey.extend({ id }), readOnly: false, handler: (i, a) => { const { id: target, ...rest } = parse(entityRekey.extend({ id }), i); return entity.rekeyEntity(d, a, target, rest); } },
+    {
+      name: "prepare_entity_registration",
+      description:
+        "등록 전에 발급처 기본값과 자동 UUID를 한 번 고정하고 동일 조합의 저장값을 조회한다. create이면 반환된 source/external_id를 그대로 저장·재시도한다. restore이면 existing 보관값과 expected_version을 확인하고 등록으로 복원한다. duplicate이면 활성 중복을 거부한다.",
+      input: entityCreate.pick({ source: true, external_id: true }),
+      readOnly: true,
+      handler: (i, a) =>
+        entity.prepareEntityRegistration(d, a, parse(entityCreate.pick({ source: true, external_id: true }), i)),
+    },
+    {
+      name: "rekey_entity",
+      description:
+        "별도 식별 정보 변경. 현재 expected_version 필수. 삭제된 대상을 포함한 동일 조합 충돌은 거부한다. 모든 현재 연결·사건 참조를 원자적으로 전환하고 과거 본문은 그대로 보존한다.",
+      input: entityRekey.extend({ id }),
+      readOnly: false,
+      handler: (i, a) => {
+        const { id: target, ...rest } = parse(entityRekey.extend({ id }), i);
+        return entity.rekeyEntity(d, a, target, rest);
+      },
+    },
     {
       name: "list_entities",
       description:
@@ -36,7 +55,7 @@ export function entityTools(d: entity.EntityDeps): ToolDef[] {
     {
       name: "create_entity",
       description:
-        "예제 엔터티 생성. prop1 1~100자 필수, prop2 정수 0~1000000, prop3 날짜, prop4 a/b/c 기본 a. 발급처 source와 외부 식별자 external_id는 정확하게 보존한다. 생략 시 사용자 설정을 적용한다. 자동 UUID도 첫 요청에서 external_id로 고정하여 재시도한다. 활성 중복은 충돌. 삭제된 조합은 get_entity로 보관값·version을 확인하고 expected_version으로 명시적으로 복원하며 생략 속성은 유지한다.",
+        "예제 엔터티 생성. prop1 1~100자 필수, prop2 정수 0~1000000, prop3 날짜, prop4 a/b/c 기본 a. 발급처 source와 외부 식별자 external_id는 정확하게 보존한다. 먼저 prepare_entity_registration으로 사용자 설정에 따른 발급처/자동 UUID를 준비하고 source/external_id를 고정하여 저장·재시도한다. 활성 중복은 충돌. 삭제된 조합은 get_entity로 보관값·version을 확인하고 expected_version으로 명시적으로 복원하며 생략 속성은 유지한다.",
       input: entityCreate,
       readOnly: false,
       handler: (i, a) => entity.createEntity(d, a, parse(entityCreate, i)),
@@ -54,7 +73,8 @@ export function entityTools(d: entity.EntityDeps): ToolDef[] {
     },
     {
       name: "delete_entity",
-      description: "엔터티 소프트 삭제. 속성·태그·할 일/기록 연결은 보존하고 활성 후보에서 제외한다. 같은 조합·현재 버전으로 등록하면 복원한다.",
+      description:
+        "엔터티 소프트 삭제. 속성·태그·할 일/기록 연결은 보존하고 활성 후보에서 제외한다. 같은 조합·현재 버전으로 등록하면 복원한다.",
       input: z.strictObject({ id, expected_version: expectedVersion, ...businessMeta }),
       readOnly: false,
       destructive: true,

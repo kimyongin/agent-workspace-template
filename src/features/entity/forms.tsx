@@ -26,7 +26,7 @@ export function EntityForm(
   const [archived, setArchived] = useState<EntityResult | null>(null);
   const [identityMessage, setIdentityMessage] = useState("");
   const generated = useRef(crypto.randomUUID());
-  useEffect(() => { const controller = new AbortController(); void api<{ settings: { entity_identity: EntityIdentitySettings } }>("GET", "/settings/business", undefined, controller.signal).then(result => { setIdentitySettings(result.settings.entity_identity); setDraft(d => ({ ...d, source: initial?.source ?? result.settings.entity_identity.default_source, external_id: initial?.external_id ?? (result.settings.entity_identity.generation === "uuid" ? generated.current : "") })); }).catch(() => { if (!controller.signal.aborted) setIdentityMessage("식별자 설정을 불러오지 못했습니다. 다시 열어 주세요."); }); return () => controller.abort(); }, []);
+  useEffect(() => { const controller = new AbortController(); void api<{ settings: { entity_identity: EntityIdentitySettings } }>("GET", "/settings/business", undefined, controller.signal).then(result => { setIdentitySettings(result.settings.entity_identity ?? defaultEntityIdentitySettings); setDraft(d => ({ ...d, source: initial?.source ?? (result.settings.entity_identity ?? defaultEntityIdentitySettings).default_source, external_id: initial?.external_id ?? ((result.settings.entity_identity ?? defaultEntityIdentitySettings).generation === "uuid" ? generated.current : "") })); }).catch(() => { if (!controller.signal.aborted) setIdentityMessage("식별자 설정을 불러오지 못했습니다. 다시 열어 주세요."); }); return () => controller.abort(); }, []);
   const baseline = {
     source: initial?.source ?? defaultEntityIdentitySettings.default_source,
     external_id: initial?.external_id ?? generated.current,

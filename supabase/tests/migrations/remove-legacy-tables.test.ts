@@ -35,12 +35,12 @@ dbTest(
       const first = await entity.createEntity(
         ed,
         f.actor,
-        entityCreate.parse({ id: crypto.randomUUID(), ...{ prop1: "이전 단일 대상" } }),
+        entityCreate.parse({ source: "app", external_id: crypto.randomUUID(), ...{ prop1: "이전 단일 대상" } }),
       );
       const second = await entity.createEntity(
         ed,
         f.actor,
-        entityCreate.parse({ id: crypto.randomUUID(), ...{ prop1: "삭제할 대상" } }),
+        entityCreate.parse({ source: "app", external_id: crypto.randomUUID(), ...{ prop1: "삭제할 대상" } }),
       );
       const ids = [first.id, second.id].sort();
       const legacyTask = await activity.createTask(
@@ -79,7 +79,7 @@ dbTest(
         target_title: "당시 이름",
         action: "update" as const,
         source: "http" as const,
-        path: `/entities/${first.id}`,
+        path: `/entities/${encodeURIComponent(first.id)}`,
         before: { prop1: "이전", body: "옛 전체 원문" },
         after: { prop1: "당시 이름", prop2: 42 },
       };

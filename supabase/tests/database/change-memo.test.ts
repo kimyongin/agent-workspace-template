@@ -31,7 +31,13 @@ dbTest("change record tags are separate, owner-scoped, atomic and carried throug
     const target = await entity.createEntity(
       ed,
       f.actor,
-      entityCreate.parse({ id: crypto.randomUUID(), prop1: "원본", tag_ids: [entityTag], change_tag_ids: [own] }),
+      entityCreate.parse({
+        source: "app",
+        external_id: crypto.randomUUID(),
+        prop1: "원본",
+        tag_ids: [entityTag],
+        change_tag_ids: [own],
+      }),
     );
     assertEquals(target.tag_ids, [entityTag]);
     assertEquals((await events()).items[0].tag_ids, [own]);
@@ -117,7 +123,13 @@ dbTest("business save preserves exact entered memo, factual blank default, no-op
     const e = await entity.createEntity(
       ed,
       f.actor,
-      entityCreate.parse({ id: crypto.randomUUID(), prop1: "대상", prop2: 10, change_note: "" }),
+      entityCreate.parse({
+        source: "app",
+        external_id: crypto.randomUUID(),
+        prop1: "대상",
+        prop2: 10,
+        change_note: "",
+      }),
     );
     const records = () =>
       activity.listRecords(ad, f.actor, recordListQuery.parse({ record_kind: "change", limit: 100 }));

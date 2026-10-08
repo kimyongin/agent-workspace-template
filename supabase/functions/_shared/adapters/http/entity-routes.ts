@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { entityCreate, entityListQuery, entityUpdate, entityRekey } from "../../contracts/entity.ts";
+import { entityCreate, entityListQuery, entityRekey, entityUpdate } from "../../contracts/entity.ts";
 import { businessMeta } from "../../contracts/change.ts";
 import { expectedVersion } from "../../contracts/common.ts";
 import { z } from "zod";
@@ -15,7 +15,29 @@ function idParam(value: string) {
 }
 export function entityRoutes(d: entity.EntityDeps) {
   const app = new Hono<HttpEnv>();
-  app.post("/entities/:id/identity", async (c) => c.json(await entity.rekeyEntity(d, c.get("actor"), idParam(c.req.param("id")), parse(entityRekey, await json(c.req.raw)))));
+  app.post(
+    "/entities/prepare",
+    async (c) =>
+      c.json(
+        await entity.prepareEntityRegistration(
+          d,
+          c.get("actor"),
+          parse(entityCreate.pick({ source: true, external_id: true }), await json(c.req.raw)),
+        ),
+      ),
+  );
+  app.post(
+    "/entities/:id/identity",
+    async (c) =>
+      c.json(
+        await entity.rekeyEntity(
+          d,
+          c.get("actor"),
+          idParam(c.req.param("id")),
+          parse(entityRekey, await json(c.req.raw)),
+        ),
+      ),
+  );
   app.post("/entities/:id/delete", async (c) => {
     const i = parse(z.strictObject({ expected_version: expectedVersion, ...businessMeta }), await json(c.req.raw));
     await entity.deleteEntity(

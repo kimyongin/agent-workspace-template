@@ -67,7 +67,7 @@ dbTest(
       const entity = await e.createEntity(
         ed,
         A,
-        entityCreate.parse({ id: crypto.randomUUID(), ...{ prop1: "대상", prop2: 10 } }),
+        entityCreate.parse({ source: "app", external_id: crypto.randomUUID(), ...{ prop1: "대상", prop2: 10 } }),
       );
       const count = async () =>
         Number(
@@ -97,7 +97,7 @@ dbTest(
       assertEquals(event.body, "실측");
       assertEquals([event.change!.before, event.change!.after], [null, null]);
       assertEquals(event.change!.source, "mcp");
-      assertEquals(event.change!.path, `/entities/${entity.id}`);
+      assertEquals(event.change!.path, `/entities/${encodeURIComponent(entity.id)}`);
       const immutable = {
         expected_version: event.version,
         body: "설명",
@@ -182,7 +182,11 @@ dbTest(
     const f = await fixtureOwner(admin);
     try {
       const A = f.actor,
-        entity = await e.createEntity(ed, A, entityCreate.parse({ id: crypto.randomUUID(), ...{ prop1: "대상" } })),
+        entity = await e.createEntity(
+          ed,
+          A,
+          entityCreate.parse({ source: "app", external_id: crypto.randomUUID(), ...{ prop1: "대상" } }),
+        ),
         task = await a.createTask(
           ad,
           A,

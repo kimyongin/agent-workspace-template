@@ -50,7 +50,7 @@ test("Entity 웹 CRUD·초안 보호→MCP parity·활동 연결→삭제 원문
       ),
     ).toEqual([task.id]);
     await mcp.call("delete_task", { id: unrelated.id, expected_version: 1 });
-    await page.goto(`/entities/${id}`);
+    await page.goto(`/entities/${encodeURIComponent(id)}`);
     await expect(page.getByRole("heading", { name: "할 일 (1개)" }))
       .toBeVisible();
     await expect(page.getByRole("link", { name: "전체 할 일 보기" })).toHaveCount(0);
@@ -66,7 +66,7 @@ test("Entity 웹 CRUD·초안 보호→MCP parity·활동 연결→삭제 원문
     await expect(editTask.getByRole("searchbox", { name: "엔터티 제목 검색" })).toHaveCount(0);
     expect((await mcp.call("get_task", { id: task.id })).entity_ids).toEqual([id]);
     await editTask.getByRole("button", {name:"닫기",exact:true}).click();
-    await page.goto(`/entities/${id}`);
+    await page.goto(`/entities/${encodeURIComponent(id)}`);
     await openDetailEditor(page);
     const edit = page.getByRole("dialog", { name: "엔터티 편집" });
     await edit.getByLabel("속성 2").fill("10");
@@ -74,7 +74,7 @@ test("Entity 웹 CRUD·초안 보호→MCP parity·활동 연결→삭제 원문
     await saveOnce(page, edit);
     await expect(edit).not.toBeVisible();
     expect((await mcp.call("get_entity", { id })).prop2).toBe(10);
-    await page.goto(`/entities/${id}`);
+    await page.goto(`/entities/${encodeURIComponent(id)}`);
     await openDetailEditor(page);
     await page.getByRole("button", { name: "삭제", exact: true }).click();
     const remove = page.locator("dialog.modal-action[open]");
@@ -103,7 +103,7 @@ test("엔터티 관련 기록 취소: 작성 URL·reload·메모와 변경 이�
   try{
     const entity=await mcp.call("create_entity",{prop1:unique("연결 취소"),prop2:0,prop4:"a"});
     const before=await mcp.call("list_records",{entity_id:entity.id,record_kind:"change",limit:100});
-    await page.goto(`/entities/${entity.id}?list=%2Fentities`);
+    await page.goto(`/entities/${encodeURIComponent(entity.id)}?list=%2Fentities`);
     for(const dirty of [false,true]){
       await beginTabAction(page,"기록 작성");
       const editor=page.getByRole("dialog",{name:"기록 작성",exact:true});await expect(page).toHaveURL(/create=record/);

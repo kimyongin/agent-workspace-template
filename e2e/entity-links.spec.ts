@@ -38,7 +38,7 @@ test("general record selects two entities in web; MCP, both related views and de
     const edited = await mcp.call("get_record", { id: recordId });
     expect(edited.body).toBe("대상 삭제 후에도 자료를 보존");
     expect(edited.entity_context).toEqual(read.entity_context);
-    expect(edited.entity_ids).toEqual([second.id]);
+    expect(edited.entity_ids).toEqual([first.id, second.id].sort());
     expect(edited.task_id).toBeNull();
   } finally {
     if (recordId) { const row = await mcp.call("get_record", { id: recordId }); await mcp.call("delete_record", { id: recordId, expected_version: row.version }); }

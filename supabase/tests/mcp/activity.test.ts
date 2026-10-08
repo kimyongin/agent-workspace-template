@@ -376,7 +376,7 @@ httpTest("원칙: HTTP/MCP 현재 수정·과거 접근 차단·재시도·삭�
     const bad = {
       expected_version: second.version,
       title: "틀린 참조",
-      entity_id: crypto.randomUUID(),
+      entity_id: `app:${crypto.randomUUID()}`,
       change_note: "수정",
     };
     assertEquals(

@@ -93,7 +93,8 @@ dbTest("원칙: legacy fields rejected by current input and retired DB aliases a
     false,
   );
   assertEquals(
-    principleCreate.safeParse({ id: crypto.randomUUID(), ...{ ...record, entity_id: crypto.randomUUID() } }).success,
+    principleCreate.safeParse({ id: crypto.randomUUID(), ...{ ...record, entity_id: `app:${crypto.randomUUID()}` } })
+      .success,
     false,
   );
   assertEquals(principleCreate.safeParse({ id: crypto.randomUUID(), ...{ ...record, tag_ids: [] } }).success, false);
