@@ -14,7 +14,7 @@ export function PrincipleFormModal({initial,editing=false,details,deletion,onClo
 }) {
   const [baseline] = useState({title:initial.title,body:initial.body});
   const [draft,setDraft]=useState(baseline);
-  return <FormModal title={editing?"현재 원칙 편집":"현재 원칙 등록"} open submitLabel="저장"
+  return <FormModal domain="원칙" title={editing?"현재 원칙 편집":"현재 원칙 등록"} open submitLabel="저장"
     deletion={deletion}
     mutation={{target:draft.title, action:editing ? "수정" : "등록"}}
     dirty={JSON.stringify(draft)!==JSON.stringify(baseline)} onClose={onClose} onRouteDiscard={onRouteDiscard}

@@ -1,6 +1,5 @@
 .entity-properties { display: grid; grid-template-columns: minmax(5rem, 1fr) minmax(0, 3fr); gap: .75rem 1rem; margin: 1.5rem 0; }
 .entity-properties dd { margin: 0; overflow-wrap: anywhere; }
-.detail-section.entity-detail-properties + .detail-management { margin-top: var(--space-4); padding-top: 0; border-top: 0; }
 .entity-list-properties { display: flex; flex-wrap: wrap; gap: var(--space-3) var(--space-6); margin: 0; font-size: .875rem; }
 .entity-list-properties > div { display: flex; gap: var(--space-2); min-width: 0; }
 .entity-list-properties dt { color: var(--muted-ink); }

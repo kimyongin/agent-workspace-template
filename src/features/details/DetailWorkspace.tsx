@@ -7,7 +7,7 @@ import { useDisplayScale } from "../settings/display-scale.tsx";
 import { DetailTabs } from "./DetailTabs.tsx";
 import "./workspace.css";
 
-type Tab = { id: string; location: Location; title: string };
+type Tab = { id: string; location: Location; title: string; returnTo?: string };
 const kindLabels: Record<string, string> = { entities: "엔터티", tasks: "할 일", records: "기록", principles: "원칙" };
 const href = (location: Location) => `${location.pathname}${location.search}${location.hash}`;
 function destination(to: To, from: Location): string {
@@ -79,9 +79,18 @@ export function DetailWorkspace({ children, render, enabled }: { children: React
     openedLocation.current = location; setActive(id);
     setTabs(previous => previous.some(tab => tab.id === id)
       ? previous.map(tab => tab.id === id && href(tab.location) !== href(location) ? { ...tab, location } : tab)
-      : [...previous, { id, location, title: kindLabels[id.split("/")[1]] }]);
+      : [...previous, { id, location, title: kindLabels[id.split("/")[1]], returnTo: typeof location.state?.workspaceReturnTo === "string" && previous.some(value => value.id === location.state.workspaceReturnTo) ? location.state.workspaceReturnTo : undefined }]);
   }, [location, eligible, desktop, started]);
 
+  // Related visits remember only their starting tab, never a growing history of cross-links.
+  const returnTarget = (origin: Location, target: string | null) => {
+    const source = current.current.tabs.find(tab => tab.id === detailIdentity(origin.pathname));
+    const root = source?.returnTo ?? source?.id;
+    return root && root !== target && current.current.tabs.some(tab => tab.id === root) ? root : undefined;
+  };
+  const rememberReturn = (target: string | null, returnTo: string | undefined) => {
+    if (target && returnTo) setTabs(previous => previous.map(tab => tab.id === target ? {...tab, returnTo} : tab));
+  };
   const navigateTab = useCallback((id: string, to: To) => {
     const state = current.current, tab = state.tabs.find(tab => tab.id === id);
     if (!tab) return;
@@ -93,12 +102,16 @@ export function DetailWorkspace({ children, render, enabled }: { children: React
       // A mode transition is a new visit even when its URL matches; selecting a retained tab is not.
       setTabs(previous => previous.map(value => value.id === id ? { ...value, location: { ...value.location, pathname: url.pathname, search: url.search, hash: url.hash, key: crypto.randomUUID() } } : value));
       if (state.active === id) void navigate(path, { replace: true, state: { workspaceOwner: state.base.pathname } });
-    } else if (identity) void navigate(path, { state: { workspaceOwner: state.base.pathname } });
+    } else if (identity) {
+      const returnTo = returnTarget(tab.location, identity);
+      rememberReturn(identity, returnTo);
+      void navigate(path, { state: { workspaceOwner: state.base.pathname, workspaceReturnTo: returnTo } });
+    }
     else closeTab(id);
   }, [navigate]);
   const closeTab = (id: string) => {
     const state = current.current, index = state.tabs.findIndex(tab => tab.id === id);
-    const remaining = state.tabs.filter(tab => tab.id !== id);
+    const remaining = state.tabs.filter(tab => tab.id !== id).map(tab => tab.returnTo === id ? {...tab, returnTo: undefined} : tab);
     setTabs(remaining);
     setRevision(value => value + 1);
     if (state.active !== id) { tabFocus.current = state.active; return; }
@@ -119,7 +132,9 @@ export function DetailWorkspace({ children, render, enabled }: { children: React
     if (workspaceList(origin.pathname)) setBase(origin);
     setVisible(true);
     if (existing && state.active === identity && href(location) === href(existing.location)) return;
-    void navigate(existing ? href(existing.location) : path, { replace: !!existing, state: { workspaceOwner: workspaceList(origin.pathname) ? origin.pathname : state.base.pathname } });
+    const returnTo = returnTarget(origin, identity);
+    rememberReturn(identity, returnTo);
+    void navigate(existing ? href(existing.location) : path, { replace: !!existing, state: { workspaceOwner: workspaceList(origin.pathname) ? origin.pathname : state.base.pathname, workspaceReturnTo: returnTo } });
   }, [navigate, location, anyBusy]);
   const select = (tab: Tab) => {
     if (anyBusy()) return;
@@ -162,6 +177,10 @@ export function DetailWorkspace({ children, render, enabled }: { children: React
         <button className="workspace-hide" aria-label="상세 패널 숨기기" title="패널 닫기" onClick={() => { if (!anyBusy()) setVisible(false); }}>×</button>
       </div>
       {tabs.map(tab => <TabContent key={tab.id} tab={tab} active={shown && active === tab.id} docked={desktop}
+        previous={tab.returnTo && tabs.some(value => value.id === tab.returnTo) ? {
+          label: `이전: ${tabs.find(value => value.id === tab.returnTo)!.title}`,
+          back: () => { const root = current.current.tabs.find(value => value.id === tab.returnTo); if (root) select(root); },
+        } : null}
         navigate={to => navigateTab(tab.id, to)} close={() => requestClose(tab.id)} registerGuard={registerGuard}
         title={title => setTabs(previous => previous.map(value => value.id === tab.id && value.title !== title ? { ...value, title } : value))}>
         {render(tab.location)}
@@ -209,13 +228,13 @@ function WorkspaceRouteProtection({ guards }: { guards: RefObject<Map<string, ()
     onConfirm={() => { if (blocker.state === "blocked") { blocked.current.forEach(guard => guard.discard()); blocker.proceed(); } }}/>
 }
 
-function TabContent({ tab, active, docked, navigate, close, title, registerGuard, children }: { tab: Tab; active: boolean; docked: boolean; navigate: (to: To) => void; close: () => void; title: (value: string) => void; registerGuard: (id: string, read: () => WorkspaceGuard) => () => void; children: ReactNode }) {
+function TabContent({ tab, active, docked, previous, navigate, close, title, registerGuard, children }: { tab: Tab; active: boolean; docked: boolean; previous: {label: string; back: () => void} | null; navigate: (to: To) => void; close: () => void; title: (value: string) => void; registerGuard: (id: string, read: () => WorkspaceGuard) => () => void; children: ReactNode }) {
   const guard = useRef<WorkspaceGuard>({ dirty: false, busy: false, retained: true, discard: () => {} });
   useLayoutEffect(() => registerGuard(tab.id, () => guard.current), [tab.id, registerGuard]);
   // A stable title publisher prevents resource renders from feeding back into the workspace.
   const publish = useRef(title); publish.current = title;
   const updateTitle = useCallback((value: string) => publish.current(value), []);
-  return <DetailTabContext.Provider value={{ id: tab.id, active, docked, navigate, close, title: updateTitle, guard: value => { guard.current = value; } }}>
+  return <DetailTabContext.Provider value={{ id: tab.id, active, docked, previous, navigate, close, title: updateTitle, guard: value => { guard.current = value; } }}>
     <div role="tabpanel" id={`panel-${tab.id}`} aria-labelledby={`tab-${tab.id}`} hidden={!active}>{children}</div>
   </DetailTabContext.Provider>;
 }

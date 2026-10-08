@@ -31,7 +31,8 @@ async function openEntity(page: Page, title = "등심") {
 }
 async function openTask(page: Page) {
   const section = panel(page).getByRole("region", { name: "할 일 (1개)" });
-  await section.getByRole("button", { name: "등심 구매하기", exact: true }).click();
+  const toggle = section.getByRole("button", { name: "등심 구매하기", exact: true });
+  if (await toggle.getAttribute("aria-expanded") !== "true") await toggle.click();
   await section.getByRole("link", { name: "등심 구매하기 상세", exact: true }).click();
   await expect(page.getByRole("tab", { name: "등심 구매하기", exact: true })).toHaveAttribute("aria-selected", "true");
 }
@@ -438,4 +439,95 @@ test("desktop: relation saves refresh retained filtered lists without leaving th
   await expect(list.getByRole("button", { name: "등심 구매하기", exact: true })).toHaveCount(0);
   await expect(page.getByRole("tab", { name: "등심 구매하기", exact: true })).toHaveAttribute("aria-selected", "true");
   expect(state.writes).toHaveLength(1); expect(state.errors).toEqual([]);
+});
+
+for (const width of [390, 1440]) test(`detail hierarchy ${width}: domain headings, content first and value-only editing`, async ({page}, info) => {
+  await page.setViewportSize({width,height:900});
+  const state=await fixture(page);
+  for (const item of [
+    {path:`/entities/${id(1)}`,domain:"엔터티",title:"등심"},
+    {path:`/tasks/${id(2)}`,domain:"할 일",title:"등심 구매하기"},
+    {path:`/records/${id(3)}`,domain:"기록",title:null},
+    {path:`/principles/${id(4)}`,domain:"원칙",title:"현재 기준"},
+  ]) {
+    await page.goto(item.path);
+    const view=page.locator("dialog.modal[open]:not(.modal-confirm)");
+    await expect(view.locator(".modal-head .dialog-title")).toHaveText(item.domain);
+    if(item.title) await expect(view.locator(".modal-body .detail-title")).toHaveText(item.title);
+    else await expect(view.locator(".record-content")).toHaveText("구매 기준을 정리했습니다.");
+    const relation=view.locator(".detail-relations");
+    if(item.domain!=="원칙") {
+      await expect(relation).toBeVisible();
+      expect(await relation.evaluate(el=>getComputedStyle(el).borderTopWidth)).toBe("1px");
+      expect(await relation.evaluate(el=>parseFloat(getComputedStyle(el).paddingTop))).toBeGreaterThanOrEqual(24);
+    } else await expect(relation).toHaveCount(0);
+    expect(await view.evaluate(el=>el.scrollWidth<=el.clientWidth)).toBe(true);
+    if(item.domain==="할 일") await view.screenshot({path:info.outputPath(`detail-hierarchy-${width}.png`)});
+    await view.getByRole("button",{name:"편집",exact:true}).click();
+    await expect(view.locator(".modal-head .dialog-title")).toHaveText(item.domain);
+    await expect(view.getByRole("region",{name:/^(엔터티|할 일|기록) \(\d+개\)$/})).toHaveCount(0);
+    await expect(view.getByRole("button",{name:/^(엔터티|할 일|기록).* (연결|해제)$/})).toHaveCount(0);
+    if(item.domain==="기록") {
+      await view.getByLabel("본문",{exact:false}).fill("관계를 보존하는 본문 정정");
+      await view.getByRole("button",{name:"저장",exact:true}).click();
+      await expect(view.locator(".record-content")).toHaveText("관계를 보존하는 본문 정정");
+      const write=state.writes.find(row=>row.method==="PATCH"&&row.path===`/records/${id(3)}`)!;
+      expect(write.body).not.toHaveProperty("entity_ids"); expect(write.body).not.toHaveProperty("task_id");
+      await expect(view.getByRole("region",{name:"엔터티 (1개)",exact:true})).toBeVisible();
+      await expect(view.getByRole("region",{name:"할 일 (1개)",exact:true})).toBeVisible();
+    } else await view.getByRole("button",{name:"취소",exact:true}).click();
+  }
+  expect(state.errors).toEqual([]);
+});
+
+test("related previous: one starting tab survives cross-links, dirty drafts, resize and root close",async({page})=>{
+  const state=await fixture(page); await page.goto(`/entities/${id(1)}`); await openTask(page);
+  await expect(panel(page).getByRole("button",{name:"이전: 등심",exact:true})).toBeVisible();
+  const entities=panel(page).getByRole("region",{name:"엔터티 (1개)",exact:true});
+  await entities.getByRole("button",{name:"등심",exact:true}).click();
+  await entities.getByRole("link",{name:"등심 상세",exact:true}).click();
+  await expect(page.getByRole("tab",{name:"등심",exact:true})).toHaveAttribute("aria-selected","true");
+  await expect(panel(page).getByRole("button",{name:/^이전:/})).toHaveCount(0);
+  await openTask(page);
+  const records=panel(page).getByRole("region",{name:"기록 (1개)",exact:true});
+  await records.getByRole("button",{name:"구매 기준을 정리했습니다.",exact:true}).click();
+  await records.getByRole("link",{name:"구매 기준을 정리했습니다. 상세",exact:true}).click();
+  await expect(panel(page).getByRole("button",{name:"이전: 등심",exact:true})).toBeVisible();
+  await panel(page).getByRole("button",{name:"이전: 등심",exact:true}).click();
+  await expect(page.getByRole("tab",{name:"등심",exact:true})).toHaveAttribute("aria-selected","true");
+  await expect(page.getByRole("tab")).toHaveCount(3);
+  await page.getByRole("tab",{name:"등심 구매하기",exact:true}).click();
+  await panel(page).getByRole("button",{name:"편집",exact:true}).click();
+  await panel(page).getByLabel("본문",{exact:true}).fill("이전 이동해도 보존할 초안");
+  await panel(page).getByRole("button",{name:"이전: 등심",exact:true}).click();
+  await expect(page.getByRole("tab",{name:"등심",exact:true})).toHaveAttribute("aria-selected","true");
+  await expect(page.getByRole("dialog",{name:"변경을 버릴까요?"})).not.toBeVisible();
+  await page.getByRole("tab",{name:"등심 구매하기",exact:true}).click();
+  await expect(panel(page).getByLabel("본문",{exact:true})).toHaveValue("이전 이동해도 보존할 초안");
+  await page.setViewportSize({width:390,height:844});
+  const modal=page.locator("dialog.modal[open]:not(.modal-confirm)");
+  await modal.getByRole("button",{name:"이전: 등심",exact:true}).click();
+  await expect(modal.locator(".detail-title")).toHaveText("등심");
+  await page.setViewportSize({width:1440,height:900});
+  await page.getByRole("button",{name:"등심 탭 닫기",exact:true}).click();
+  await page.getByRole("tab",{name:"등심 구매하기",exact:true}).click();
+  await expect(panel(page).getByRole("button",{name:/^이전:/})).toHaveCount(0);
+  await expect(panel(page).getByLabel("본문",{exact:true})).toHaveValue("이전 이동해도 보존할 초안");
+  expect(state.writes).toEqual([]); expect(state.errors).toEqual([]);
+});
+
+test("mobile direct visit: related previous restores its source without stacked dialogs",async({page})=>{
+  await page.setViewportSize({width:390,height:844}); const state=await fixture(page);
+  await page.goto(`/entities/${id(1)}`);
+  const modal=page.locator("dialog.modal[open]:not(.modal-confirm)");
+  await expect(modal.getByRole("button",{name:/^이전:/})).toHaveCount(0);
+  const tasks=modal.getByRole("region",{name:"할 일 (1개)",exact:true});
+  await tasks.getByRole("button",{name:"등심 구매하기",exact:true}).click();
+  await tasks.getByRole("link",{name:"등심 구매하기 상세",exact:true}).click();
+  await expect(modal.locator(".modal-head .dialog-title")).toHaveText("할 일");
+  await expect(modal).toHaveCount(1);
+  await modal.getByRole("button",{name:/^이전:/}).click();
+  await expect(modal.locator(".modal-head .dialog-title")).toHaveText("엔터티");
+  await expect(modal.locator(".detail-title")).toHaveText("등심");
+  expect(state.errors).toEqual([]); expect(state.writes).toEqual([]);
 });

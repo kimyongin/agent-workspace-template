@@ -36,7 +36,7 @@ export function EntityForm(
   return (
     <FormModal
       open
-      title={initial ? "엔터티 편집" : "엔터티 추가"}
+      domain="엔터티" title={initial ? "엔터티 편집" : "엔터티 추가"}
       submitLabel="저장"
       mutation={{target: draft.prop1, action: initial ? "수정" : "등록"}}
       deletion={deletion}

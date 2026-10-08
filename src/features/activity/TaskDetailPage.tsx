@@ -13,7 +13,7 @@ import { useParams, useSearchParams } from "react-router";
 import {useDeferredNavigation} from "../../lib/useDeferredNavigation.ts";
 import { Notice } from "../../components/Field.tsx";
 import { MarkdownContent } from "../../components/MarkdownContent.tsx";
-import { DetailSurface } from "../../components/Modal.tsx";
+import { DetailSurface, DetailTitle } from "../../components/Modal.tsx";
 import { api, ApiError, query } from "../../lib/api.ts";
 import { useDisplayTime } from "../../lib/useDisplayTime.ts";
 import { addDays, todayIn } from "../../lib/format.ts";
@@ -126,6 +126,7 @@ export function TaskDetailPage() {
         {message && <Notice kind="success">{message}</Notice>}
         {actionError && <Notice kind="error">{actionError}</Notice>}
         {loadError && <><Notice kind="error">{relationSaved.current?"연결은 저장했습니다. 최신 내용을 불러오지 못했습니다.":message ? "저장은 완료했습니다. 최신 내용을 불러오지 못했습니다." : loadError}</Notice><button type="button" className="btn" onClick={reload}>조회 다시 시도</button></>}
+        <DetailTitle>{task.title}</DetailTitle>
         {task.body&&<MarkdownContent text={task.body}/>}
         <dl className="props">
           <div>
@@ -201,15 +202,15 @@ export function TaskDetailPage() {
           )}
         </section>
       )}</>;
-  return <DetailSurface title={task.title} onClose={()=>navigate(back)} busy={busy} footer={<>
+  return <DetailSurface title="할 일" tabTitle={task.title} onClose={()=>navigate(back)} busy={busy} footer={<>
     <button type="button" className="btn" disabled={busy} onClick={editor.start}>편집</button>
     {task.kind==="once"&&task.status==="open"&&<button type="button" className="btn btn-primary" disabled={busy} onClick={()=>manage("complete")}>완료하고 기록</button>}
     {task.kind==="recurring"&&<button type="button" className="btn btn-primary" disabled={busy} onClick={()=>manage("transition")}>{task.status==="active"?"중단":"재개"}</button>}
   </>}>
       <div className="detail-stack">{management}
-      <TaskEntityRelations task={task} onSaved={(saved,before)=>{if(before)relationSaved.current=true;if(saved)detail.confirm(current=>current?{...current,...saved}:current);setRecordRefresh(n=>n+1);void reload();}}/>
+      <div className="detail-relations"><TaskEntityRelations task={task} onSaved={(saved,before)=>{if(before)relationSaved.current=true;if(saved)detail.confirm(current=>current?{...current,...saved}:current);setRecordRefresh(n=>n+1);void reload();}}/>
       <RelatedRecords taskId={task.id} revision={task.version+recordRefresh} action={<BodyAction icon="create" aria-label="기록 작성" onClick={()=>manage("record")}>작성</BodyAction>}/>
-      {occurrenceSection}</div>
+      {occurrenceSection}</div></div>
       {editor.active && !dialog && editReady && (
         <TaskFormModal
           mode="edit"

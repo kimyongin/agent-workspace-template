@@ -54,13 +54,13 @@ export function RecordDetailPage() {
       <ChangeContext record={record}/>
       {loadError && <><Notice kind="error">{loadError}</Notice><button type="button" className="btn" onClick={reload}>조회 다시 시도</button></>}
       {(!editor.active||record.record_kind==="change")&&<TagNames compact ids={record.tag_ids}/>}
-      <RecordRelations record={record} includeEntities={!editor.active||record.record_kind==="change"}/>
-      <PrincipleSnapshots snapshots={record.applied_principle_snapshots??[]}/>
+
     </div>;
   return <DetailSurface footer={<button type="button" className="btn btn-primary" onClick={editor.start}>편집</button>} title="기록" tabTitle={recordDisplayText(record.body)} onClose={()=>navigate(back)} busy={busy}>
 
       <div className="detail-stack">{record.body&&<section className="detail-section record-content" aria-label="내용"><MarkdownContent text={record.body}/></section>}
-      {!editor.active&&management}</div>
+      {management}
+      <div className="detail-relations"><RecordRelations record={record}/><PrincipleSnapshots snapshots={record.applied_principle_snapshots??[]}/></div></div>
       {editor.active && !editReady && loadError && <>
         <Notice kind="error">{loadError}</Notice>
         <button type="button" className="btn" onClick={reload}>조회 다시 시도</button>
@@ -72,7 +72,6 @@ export function RecordDetailPage() {
           submitLabel="저장"
           open
           initial={recordDraftFrom(record, timezone)}
-          details={<section className="detail-section">{management}</section>}
           deletion={{message:<p style={{ margin: 0 }}>
             이 기록을 삭제합니다. {record.record_kind==="change"?"대상의 업무 상태는 되돌리지 않습니다.":"일회성 할 일의 결과였다면 할 일은 완료 상태로 남고 결과 연결만 사라집니다."}
           </p>,onConfirm:async (reason,tags) => {

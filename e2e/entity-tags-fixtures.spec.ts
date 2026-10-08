@@ -223,7 +223,7 @@ test("엔터티 연결 작성·실패 초안·성공 후 조회 실패와 모달
   await saveOnce(page, form, "추가"); const action=page.locator("dialog.modal-action[open]"); await expect(action.getByText("저장 실패", { exact: true })).toBeVisible(); await action.getByRole("button",{name:"취소",exact:true}).click();
   await expect(form.getByRole("textbox",{name:/^제목(?: \(필수\))?$/})).toHaveValue("연결된 초안"); failSave = false; await saveOnce(page, form, "추가");
   await expect(form).not.toBeVisible(); await expect(page.getByText("할 일을 추가했습니다.")).toHaveCount(0); await expect(page.getByText("관련 자료 조회 실패")).toBeVisible();
-  expect(bodies[1].entity_ids).toEqual([entity.id]); await expect(page.getByRole("heading",{name:entity.prop1,level:1,exact:true})).toBeVisible();
+  expect(bodies[1].entity_ids).toEqual([entity.id]); await expect(page.getByRole("heading",{name:entity.prop1,level:2,exact:true})).toBeVisible();
   await page.getByRole("button",{name:"기록 작성",exact:true}).click();
   const record = page.getByRole("dialog", { name: "기록 작성", exact: true }); await expect(record.getByRole("button", { name: entity.prop1+" 해제", exact: true })).toBeVisible();
   await record.getByLabel("본문").fill("기록 초안"); await record.getByRole("button", { name: "취소", exact: true }).click();

@@ -8,6 +8,9 @@
 .detail-stack, .detail-management { display: grid; gap: var(--space-5); min-width: 0; }
 .detail-section { display: grid; grid-template-columns: minmax(0,1fr); gap: var(--space-3); min-width: 0; }
 .detail-section > * { min-width: 0; }
+.detail-title { margin: 0; color: var(--ink); font-size: 1.25rem; font-weight: 600; line-height: 1.75rem; overflow-wrap: anywhere; }
+.detail-relations { display: grid; gap: var(--space-5); min-width: 0; padding-top: var(--space-6); border-top: 1px solid var(--line); }
+.detail-relations:empty { display: none; }
 
 
 

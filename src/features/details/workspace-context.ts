@@ -14,6 +14,7 @@ export const DetailTabContext = createContext<{
   id: string;
   active: boolean;
   docked: boolean;
+  previous: {label: string; back: () => void} | null;
   navigate: (to: To, options?: NavigateOptions) => void;
   close: () => void;
   title: (value: string) => void;
