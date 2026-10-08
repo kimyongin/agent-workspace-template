@@ -1,3 +1,4 @@
+import { entityReferenceId } from "./entity-identity.ts";
 import { z } from "zod";
 import { tagIds } from "./tag.ts";
 import { codePointLength, id, TEXT_LIMITS } from "./common.ts";
@@ -10,9 +11,9 @@ export const businessMeta = mutationMeta;
 export const changeMetadata = z.object({
   event_id: id,
   target_kind: z.enum(["entity", "task", "record", "principle"]),
-  target_id: id,
+  target_id: z.union([id, entityReferenceId]),
   target_title: z.string(),
-  action: z.enum(["create", "update", "delete", "stop", "resume"]),
+  action: z.enum(["create", "update", "delete", "stop", "resume", "restore"]),
   source: z.enum(["http", "mcp"]),
   before: z.record(z.string(), z.unknown()).nullable(),
   after: z.record(z.string(), z.unknown()).nullable(),

@@ -19,7 +19,7 @@ export function RelationPicker({kind,value,context=[],onChange,error}: {
   useEffect(()=>{
     const controller=new AbortController();
     for(const id of value.filter(id=>!names.has(id))) {
-      void api<EntityResult|TaskResult>("GET",`/${kind==="entity"?"entities":"tasks"}/${id}`,undefined,controller.signal)
+      void api<EntityResult|TaskResult>("GET",`/${kind==="entity"?"entities":"tasks"}/${encodeURIComponent(id)}`,undefined,controller.signal)
         .then(item=>{if(!controller.signal.aborted)setNames(prior=>new Map(prior).set(id,"prop1" in item?item.prop1:item.title));}).catch(()=>{});
     }
     return()=>controller.abort();

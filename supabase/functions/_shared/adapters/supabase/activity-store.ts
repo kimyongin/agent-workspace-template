@@ -115,7 +115,7 @@ export class SqlActivityStore extends SqlActorStore implements ActivityStore {
       where true
         ${f.keyword ? tx`and position(lower(${f.keyword}) in lower(title))>0` : tx``}
         ${f.kind ? tx`and kind = ${f.kind}` : tx``}
-        ${f.entity_id ? tx`and entity_ids @> ${tx.array([f.entity_id])}::uuid[]` : tx``}
+        ${f.entity_id ? tx`and entity_ids @> ${tx.array([f.entity_id])}::text[]` : tx``}
         ${f.status ? tx`and status = ${f.status}` : tx``}
         ${f.tag_id && !f.tag_ids?.length ? tx`and ${hasTag(tx, "task", f.tag_id)}` : tx``}
         ${f.tag_ids?.length ? tx`and ${hasAnyTag(tx, "task", [...f.tag_ids, ...(f.tag_id ? [f.tag_id] : [])])}` : tx``}
@@ -154,7 +154,7 @@ export class SqlActivityStore extends SqlActorStore implements ActivityStore {
     const tx = this.tx;
     const values = {
       ...pick(tx, changes, TASK_WRITABLE),
-      ...await this.entityLinks.taskSelection(selectedEntities(changes)),
+      ...await this.entityLinks.taskSelection(selectedEntities(changes), id),
     };
     if (changes.tag_ids !== undefined) await this.setTaskTags(id, changes.tag_ids);
     if (Object.keys(values).length === 0 && changes.tag_ids === undefined) {
@@ -197,7 +197,7 @@ export class SqlActivityStore extends SqlActorStore implements ActivityStore {
       where true
         ${f.task_id ? tx`and task_id = ${f.task_id}` : tx``}
         ${f.record_kind ? tx`and record_kind=${f.record_kind}` : tx``}
-        ${f.entity_id ? tx`and entity_ids @> ${tx.array([f.entity_id])}::uuid[]` : tx``}
+        ${f.entity_id ? tx`and entity_ids @> ${tx.array([f.entity_id])}::text[]` : tx``}
         ${f.tag_id && !f.tag_ids?.length ? tx`and ${hasTag(tx, "record", f.tag_id)}` : tx``}
         ${
       f.tag_ids?.length ? tx`and ${hasAnyTag(tx, "record", [...f.tag_ids, ...(f.tag_id ? [f.tag_id] : [])])}` : tx``
@@ -221,7 +221,7 @@ export class SqlActivityStore extends SqlActorStore implements ActivityStore {
 
   async insertRecord(record: NewRecord) {
     const tx = this.tx;
-    const selection = await this.entityLinks.recordSelection(selectedEntities(record) ?? []);
+    const selection = await this.entityLinks.recordSelection(selectedEntities(record) ?? [], undefined, record.inherit_task_entities ? record.task_id ?? undefined : undefined);
     const values: Record<string, unknown> = {
       id: record.id ?? crypto.randomUUID(),
       owner_id: this.actor.userId,
