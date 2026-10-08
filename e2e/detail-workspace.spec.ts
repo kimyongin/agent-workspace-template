@@ -553,3 +553,26 @@ test("related previous: an explicit new source replaces the single return target
   await expect(page.getByRole("tab",{name:"버섯",exact:true})).toHaveAttribute("aria-selected","true");
   await expect(page.getByRole("tab")).toHaveCount(3); expect(state.writes).toEqual([]); expect(state.errors).toEqual([]);
 });
+
+
+test("desktop: rekey replaces the retained entity tab and URL after a completed save", async ({page}) => {
+  await page.setViewportSize({width:1440,height:900});
+  const state = await fixture(page);
+  const oldId = entityKey(1), nextId = "app:새:/ID%";
+  await page.route("**/api/entities/*/identity", async route => {
+    const input = route.request().postDataJSON();
+    const target = state.rows.entities.find(value => value.id === oldId)!;
+    Object.assign(target,input,{id:nextId,version:target.version+1});
+    await route.fulfill({json:target});
+  });
+  await page.goto(`/entities/${encodeURIComponent(oldId)}`);
+  await expect(page.getByRole("tab", {name:"등심",exact:true})).toHaveAttribute("aria-selected","true");
+  await panel(page).getByRole("button", {name:"식별 정보 변경",exact:true}).click();
+  await panel(page).getByLabel("외부 식별자").fill("새:/ID%");
+  await saveOnce(page,panel(page),"변경");
+  await expect(page).toHaveURL(new RegExp(encodeURIComponent(nextId)));
+  await expect(page.locator(`[id="tab-/entities/${encodeURIComponent(oldId)}"]`)).toHaveCount(0);
+  await expect(page.getByRole("tab", {name:"등심",exact:true})).toHaveCount(1);
+  await expect(panel(page).getByText("앱 · 새:/ID%", {exact:true})).toBeVisible();
+  expect(state.errors).toEqual([]);
+});
