@@ -6,6 +6,7 @@ import { DetailWorkspace } from "../features/details/DetailWorkspace.tsx";
 import { Navigation } from "./Navigation.tsx";
 import { GuidePage } from "../features/settings/GuidePage.tsx";
 import { SettingsPage } from "../features/settings/SettingsPage.tsx";
+import { DisplayScaleProvider } from "../features/settings/display-scale.tsx";
 import { LogoutPage } from "../features/auth/LogoutPage.tsx";
 import { ConsentPage } from "../features/auth/ConsentPage.tsx";
 import { AuthProvider, RequireAuth, useAuth } from "../features/auth/AuthProvider.tsx";
@@ -72,5 +73,5 @@ export function App() {
             <Route path="*" element={<p className="secondary">페이지를 찾을 수 없습니다.</p>} />
           </Route>
   ), { basename: import.meta.env.BASE_URL.replace(/\/$/, "") }));
-  return <AuthProvider><RouterProvider router={router} /></AuthProvider>;
+  return <AuthProvider><DisplayScaleProvider><RouterProvider router={router} /></DisplayScaleProvider></AuthProvider>;
 }

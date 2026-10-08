@@ -7,7 +7,8 @@ import { ConfirmDialog } from "../../components/Modal.tsx";
 import { useAuth } from "../auth/AuthProvider.tsx";
 import { ProfileDisplayRefreshError } from "../auth/profile-client.ts";
 import { ProfileIcon } from "./profile.tsx";
-import { accountPreferences, profileIcons, profileName, type AccountPreferences } from "./account-preferences.ts";
+import { accountPreferences, displayScales, displayScalePreference, profileIcons, profileName, type AccountPreferences } from "./account-preferences.ts";
+import { useDisplayScalePreview } from "./display-scale.tsx";
 
 export function SettingsPage() {
   const { session } = useAuth();
@@ -19,13 +20,14 @@ function AccountSettings() {
   const preferences = accountPreferences(metadata);
   const saved = { ...preferences, nickname: preferences.nickname ?? "" };
   const [draft, setDraft] = useState(saved);
+  useDisplayScalePreview(draft.displayScale);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState(false);
   const pending = useRef(false);
   const mounted = useRef(true);
   const previousSaved = useRef(saved);
-  const dirty = draft.icon !== saved.icon || draft.nickname !== saved.nickname || draft.timezone !== saved.timezone;
+  const dirty = draft.icon !== saved.icon || draft.nickname !== saved.nickname || draft.timezone !== saved.timezone || draft.displayScale !== saved.displayScale;
   useEffect(() => {
     const previous = previousSaved.current;
     previousSaved.current = saved;
@@ -34,8 +36,9 @@ function AccountSettings() {
       icon: value.icon === previous.icon ? saved.icon : value.icon,
       nickname: value.nickname === previous.nickname ? saved.nickname : value.nickname,
       timezone: value.timezone === previous.timezone ? saved.timezone : value.timezone,
+      displayScale: value.displayScale === previous.displayScale ? saved.displayScale : value.displayScale,
     }));
-  }, [saved.icon, saved.nickname, saved.timezone]);
+  }, [saved.icon, saved.nickname, saved.timezone, saved.displayScale]);
   const blocker = useBlocker(dirty || busy);
   useEffect(() => { if (busy && blocker.state === "blocked") blocker.reset(); }, [busy, blocker]);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
@@ -55,6 +58,7 @@ function AccountSettings() {
       if (draft.icon !== saved.icon) changes.icon = draft.icon;
       if (draft.nickname !== saved.nickname) changes.nickname = draft.nickname;
       if (draft.timezone !== saved.timezone) changes.timezone = draft.timezone;
+      if (draft.displayScale !== saved.displayScale) changes.displayScale = draft.displayScale;
       try {
         const confirmed = await savePreferences(changes);
         if (mounted.current) { setDraft({ ...confirmed, nickname: confirmed.nickname ?? "" }); setMessage("설정을 저장했습니다."); }
@@ -79,6 +83,14 @@ function AccountSettings() {
           <option value="">기기 시간대 사용 ({browserTimezone()})</option>
           {timezoneOptions(draft.timezone).map(zone => <option key={zone} value={zone}>{zone}</option>)}
         </select>}</Field>
+        </div>
+      </fieldset>
+      <fieldset disabled={busy} className="settings-group"><legend className="section-title">화면 표시</legend>
+        <div className="settings-fields">
+          <Field label="화면 배율">{props => <select {...props} className="input" value={draft.displayScale} onChange={event => { setDraft(value => ({ ...value, displayScale: displayScalePreference(event.target.value) })); clearMessage(); }}>
+            {displayScales.map(scale => <option key={scale} value={scale}>{scale}%{scale === 100 ? " (기본)" : ""}</option>)}
+          </select>}</Field>
+          <p className="secondary">글자와 UI 크기를 미리 봅니다. 저장하면 다음 로그인에도 적용됩니다.</p>
         </div>
       </fieldset>
     <section className="settings-group" aria-labelledby="data-title"><h2 className="section-title" id="data-title">자료 관리</h2>

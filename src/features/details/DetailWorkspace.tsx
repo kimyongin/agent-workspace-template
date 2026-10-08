@@ -1,16 +1,11 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type ReactNode, type RefObject } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode, type RefObject } from "react";
 import { useBlocker, useLocation, useNavigate, type Location, type To } from "react-router";
 import { ConfirmDialog } from "../../components/Modal.tsx";
 import { DetailTabContext, WorkspaceContext, detailIdentity, workspaceList, type WorkspaceGuard } from "./workspace-context.ts";
 import { useWorkspaceResize } from "./useWorkspaceResize.ts";
+import { useDisplayScale } from "../settings/display-scale.tsx";
 import "./workspace.css";
 
-const desktopQuery = "(min-width: 1280px) and (min-height: 480px)";
-const subscribeDesktop = (notify: () => void) => {
-  const query = window.matchMedia(desktopQuery);
-  query.addEventListener("change", notify);
-  return () => query.removeEventListener("change", notify);
-};
 type Tab = { id: string; location: Location; title: string };
 const kindLabels: Record<string, string> = { entities: "엔터티", tasks: "할 일", records: "기록", principles: "원칙" };
 const icons: Record<string, string> = { entities: "M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z", tasks: "m3 12 3 3 5-6M14 6h7M14 12h7M14 18h7", records: "M5 3h14v18H5zM8 7h8M8 11h8M8 15h5", principles: "M5 3h14v18H5zM8 7h8M8 11h8M8 15h5" };
@@ -30,7 +25,13 @@ function ownerList(location: Location): Location {
 /** One owner for retained detail visits, their URLs and all guards within the desktop workspace. */
 export function DetailWorkspace({ children, render, enabled }: { children: ReactNode; render: (location: Location) => ReactNode; enabled: boolean }) {
   const location = useLocation(), navigate = useNavigate();
-  const desktop = useSyncExternalStore(subscribeDesktop, () => window.matchMedia(desktopQuery).matches, () => false);
+  const scale = useDisplayScale();
+  const desktopQuery = useMemo(() => window.matchMedia(`(min-width: ${1280 * scale / 100}px) and (min-height: ${480 * scale / 100}px)`), [scale]);
+  const subscribeDesktop = useCallback((notify: () => void) => {
+    desktopQuery.addEventListener("change", notify);
+    return () => desktopQuery.removeEventListener("change", notify);
+  }, [desktopQuery]);
+  const desktop = useSyncExternalStore(subscribeDesktop, () => desktopQuery.matches, () => false);
   const eligible = enabled && (workspaceList(location.pathname) || !!detailIdentity(location.pathname));
   const [started, setStarted] = useState(desktop && eligible);
   const [tabs, setTabs] = useState<Tab[]>([]);

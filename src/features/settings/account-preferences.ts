@@ -23,7 +23,12 @@ export const profileIcons = [
   { id: "target", label: "과녁", emoji: "🎯" },
 ] as const;
 export type ProfileIconId = typeof profileIcons[number]["id"];
-export interface AccountPreferences { icon: ProfileIconId; nickname: string | null; timezone: string | null }
+export const displayScales = [100, 110, 125, 150] as const;
+export type DisplayScale = typeof displayScales[number];
+export function displayScalePreference(value: unknown): DisplayScale {
+  return displayScales.find(scale => value === scale || value === String(scale)) ?? 100;
+}
+export interface AccountPreferences { icon: ProfileIconId; nickname: string | null; timezone: string | null; displayScale: DisplayScale }
 export function profileIconId(value: unknown): ProfileIconId {
   return profileIcons.find(icon => icon.id === value)?.id ?? "person";
 }
@@ -37,10 +42,10 @@ export function profileName(metadata: Record<string, unknown> | undefined): stri
     ?? (typeof metadata?.full_name === "string" && metadata.full_name.trim() ? metadata.full_name.trim() : "내 계정");
 }
 
-const preferenceKeys = { icon: "workspace_avatar_id", nickname: "workspace_nickname", timezone: "workspace_timezone" } as const;
+const preferenceKeys = { icon: "workspace_avatar_id", nickname: "workspace_nickname", timezone: "workspace_timezone", displayScale: "workspace_display_scale" } as const;
 /** 개인 표시 설정의 JSON 저장 계약. 권한·비밀값·업무 데이터는 포함하지 않는다. */
 export function accountPreferences(metadata: Record<string, unknown>): AccountPreferences {
-  return { icon: profileIconId(metadata[preferenceKeys.icon]), nickname: nicknamePreference(metadata[preferenceKeys.nickname]), timezone: timezonePreference(metadata[preferenceKeys.timezone]) };
+  return { icon: profileIconId(metadata[preferenceKeys.icon]), nickname: nicknamePreference(metadata[preferenceKeys.nickname]), timezone: timezonePreference(metadata[preferenceKeys.timezone]), displayScale: displayScalePreference(metadata[preferenceKeys.displayScale]) };
 }
 export function preferenceMetadata(changes: Partial<AccountPreferences>): Record<string, string | null> {
   const metadata: Record<string, string | null> = {};
@@ -56,6 +61,10 @@ export function preferenceMetadata(changes: Partial<AccountPreferences>): Record
   if (changes.timezone !== undefined) {
     if (changes.timezone !== null && timezonePreference(changes.timezone) === null) throw new Error("올바른 시간대를 선택하세요.");
     metadata[preferenceKeys.timezone] = changes.timezone;
+  }
+  if (changes.displayScale !== undefined) {
+    if (!displayScales.includes(changes.displayScale)) throw new Error("화면 배율을 선택하세요.");
+    metadata[preferenceKeys.displayScale] = String(changes.displayScale);
   }
   return metadata;
 }
