@@ -1,3 +1,4 @@
+import { BodyAction } from "../../components/BodyAction.tsx";
 import { useEffect, useId, useRef, useState } from "react";
 import type { EntityResult } from "@contracts/entity.ts";
 import type { TaskResult } from "@contracts/task.ts";
@@ -34,7 +35,7 @@ export function RelationPicker({kind,value,context=[],onChange,error}: {
       {error&&<p className="error-text" role="alert">{error}</p>}
       <div id={searchId} hidden={!searching}>{searching&&<RelationSearch draftMode kind={kind} disabled={false} excluded={item=>value.includes(item.id)} onChoose={choose}/>}</div>
       <ul className="related-items" aria-label={`선택한 ${label}`}>
-        {value.map(id=><li key={id}><RelatedItem title={names.get(id)??label} action={<button type="button" className="btn btn-text" data-selection={id} aria-label={`${names.get(id)??label} 해제`} onClick={()=>{nextFocus.current="";onChange(value.filter(value=>value!==id));}}>해제</button>}/></li>)}
+        {value.map(id=><li key={id}><RelatedItem title={names.get(id)??label} action={<BodyAction icon="unlink" data-selection={id} aria-label={`${names.get(id)??label} 해제`} onClick={()=>{nextFocus.current="";onChange(value.filter(value=>value!==id));}}>해제</BodyAction>}/></li>)}
       </ul>
     </RelatedSection>
   </div>;

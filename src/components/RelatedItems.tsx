@@ -31,6 +31,6 @@ export function RelatedItem({id,to,title,metadata,restoreKey,action,disclosure}:
     :<span className="item-title"><span className="related-item-text">{title}</span></span>}</div>{(action||disclosure)&&<div className="related-item-actions">{(!disclosure||disclosure.expanded)&&action}{disclosure&&<button type="button" className="btn btn-text item-icon" aria-label={`${title} ${disclosure.expanded?"접기":"열기"}`} title={disclosure.expanded?"접기":"열기"} aria-expanded={disclosure.expanded} aria-controls={panel} onClick={disclosure.toggle}><ItemIcon kind={disclosure.expanded?"up":"down"}/></button>}</div>}</div>{metadata&&(!disclosure||disclosure.expanded)&&<div className="related-item-meta">{metadata}</div>}{disclosure&&<div id={panel} hidden={!disclosure.expanded} aria-labelledby={heading} className="related-preview">{disclosure.expanded&&disclosure.content}</div>}</div>;
 }
 
-export function ItemIcon({kind}:{kind:"view"|"up"|"down"}) {
-  return <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{kind==="view"?<><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5"/></>:<path d={kind==="down"?"m6 9 6 6 6-6":"m6 15 6-6 6 6"}/>}</svg>;
+function ItemIcon({kind}:{kind:"up"|"down"}) {
+  return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={kind==="down"?"m6 9 6 6 6-6":"m6 15 6-6 6 6"}/></svg>;
 }
