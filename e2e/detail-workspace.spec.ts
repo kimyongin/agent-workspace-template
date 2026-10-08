@@ -28,6 +28,7 @@ async function openEntity(page: Page, title = "등심") {
   const list = page.locator(".workspace-list").getByRole("region", { name: "엔터티 목록", exact: true });
   await list.getByRole("button", { name: title, exact: true }).click();
   await list.getByRole("link", { name: `${title} 상세`, exact: true }).click();
+  await expect(page.getByRole("tab", {name:title,exact:true})).toHaveAttribute("aria-selected","true");
 }
 async function openTask(page: Page) {
   const section = panel(page).getByRole("region", { name: "할 일 (1개)" });
@@ -410,6 +411,7 @@ test("desktop: record tabs use distinct body previews and logout removes the ret
   const list = page.locator(".workspace-list");
   for (const title of ["구매 기준을 정리했습니다.", "다음 상담 때 확인할 내용"]) {
     await list.getByRole("button", { name: title, exact: true }).click(); await list.getByRole("link", { name: `${title} 상세`, exact: true }).click();
+  await expect(page.getByRole("tab", {name:title,exact:true})).toHaveAttribute("aria-selected","true");
     await expect(page.getByRole("tab", { name: title, exact: true })).toHaveAttribute("aria-selected", "true");
   }
   await expect(page.getByRole("tab")).toHaveCount(2); await page.getByRole("button", { name: "내 프로필" }).click(); await page.getByRole("link", { name: "로그아웃", exact: true }).click();
@@ -471,7 +473,7 @@ for (const width of [390, 1440]) test(`detail hierarchy ${width}: domain heading
       await view.getByLabel("본문",{exact:false}).fill("관계를 보존하는 본문 정정");
       await view.getByRole("button",{name:"저장",exact:true}).click();
       await expect(view.locator(".record-content")).toHaveText("관계를 보존하는 본문 정정");
-      const write=state.writes.find(row=>row.method==="PATCH"&&row.path===`/records/${id(3)}`)!;
+      const write=state.writes.find(row=>row.method==="PATCH"&&row.path===`/api/records/${id(3)}`)!;
       expect(write.body).not.toHaveProperty("entity_ids"); expect(write.body).not.toHaveProperty("task_id");
       await expect(view.getByRole("region",{name:"엔터티 (1개)",exact:true})).toBeVisible();
       await expect(view.getByRole("region",{name:"할 일 (1개)",exact:true})).toBeVisible();
@@ -497,12 +499,14 @@ test("related previous: one starting tab survives cross-links, dirty drafts, res
   await expect(page.getByRole("tab",{name:"등심",exact:true})).toHaveAttribute("aria-selected","true");
   await expect(page.getByRole("tab")).toHaveCount(3);
   await page.getByRole("tab",{name:"등심 구매하기",exact:true}).click();
+  await expect(page.getByRole("tab",{name:"등심 구매하기",exact:true})).toHaveAttribute("aria-selected","true");
   await panel(page).getByRole("button",{name:"편집",exact:true}).click();
   await panel(page).getByLabel("본문",{exact:true}).fill("이전 이동해도 보존할 초안");
   await panel(page).getByRole("button",{name:"이전: 등심",exact:true}).click();
   await expect(page.getByRole("tab",{name:"등심",exact:true})).toHaveAttribute("aria-selected","true");
   await expect(page.getByRole("dialog",{name:"변경을 버릴까요?"})).not.toBeVisible();
   await page.getByRole("tab",{name:"등심 구매하기",exact:true}).click();
+  await expect(page.getByRole("tab",{name:"등심 구매하기",exact:true})).toHaveAttribute("aria-selected","true");
   await expect(panel(page).getByLabel("본문",{exact:true})).toHaveValue("이전 이동해도 보존할 초안");
   await page.setViewportSize({width:390,height:844});
   const modal=page.locator("dialog.modal[open]:not(.modal-confirm)");
@@ -511,6 +515,7 @@ test("related previous: one starting tab survives cross-links, dirty drafts, res
   await page.setViewportSize({width:1440,height:900});
   await page.getByRole("button",{name:"등심 탭 닫기",exact:true}).click();
   await page.getByRole("tab",{name:"등심 구매하기",exact:true}).click();
+  await expect(page.getByRole("tab",{name:"등심 구매하기",exact:true})).toHaveAttribute("aria-selected","true");
   await expect(panel(page).getByRole("button",{name:/^이전:/})).toHaveCount(0);
   await expect(panel(page).getByLabel("본문",{exact:true})).toHaveValue("이전 이동해도 보존할 초안");
   expect(state.writes).toEqual([]); expect(state.errors).toEqual([]);
@@ -530,4 +535,20 @@ test("mobile direct visit: related previous restores its source without stacked 
   await expect(modal.locator(".modal-head .dialog-title")).toHaveText("엔터티");
   await expect(modal.locator(".detail-title")).toHaveText("등심");
   expect(state.errors).toEqual([]); expect(state.writes).toEqual([]);
+});
+
+
+test("related previous: an explicit new source replaces the single return target; selecting tabs does not",async({page})=>{
+  const state=await fixture(page);
+  state.rows.entities[1].tasks={count:1,items:[state.rows.tasks[0]]};
+  await page.goto(`/entities/${id(1)}`); await openTask(page);
+  await expect(panel(page).getByRole("button",{name:"이전: 등심",exact:true})).toBeVisible();
+  await openEntity(page,"버섯"); await openTask(page);
+  await expect(panel(page).getByRole("button",{name:"이전: 버섯",exact:true})).toBeVisible();
+  await page.getByRole("tab",{name:"등심",exact:true}).click();
+  await page.getByRole("tab",{name:"등심 구매하기",exact:true}).click();
+  await expect(page.getByRole("tab",{name:"등심 구매하기",exact:true})).toHaveAttribute("aria-selected","true");
+  await panel(page).getByRole("button",{name:"이전: 버섯",exact:true}).click();
+  await expect(page.getByRole("tab",{name:"버섯",exact:true})).toHaveAttribute("aria-selected","true");
+  await expect(page.getByRole("tab")).toHaveCount(3); expect(state.writes).toEqual([]); expect(state.errors).toEqual([]);
 });

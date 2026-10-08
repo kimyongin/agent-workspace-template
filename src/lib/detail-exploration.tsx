@@ -112,7 +112,7 @@ export function DetailLink({ onClick, state, restoreKey, ...props }: Omit<LinkPr
     searchOrigin?.set("scroll", String(window.scrollY));
     const origin = searchOrigin ? `/search?${searchOrigin}#${props.id}` : `${location.pathname}${location.search}${location.hash}`;
     const frame: Frame = { key: location.key, path: origin,
-      title: document.querySelector(".dialog-title, .page-title")?.textContent ?? "이전 화면",
+      title: document.querySelector("dialog[open] .detail-title")?.textContent ?? document.querySelector(".dialog-title, .page-title")?.textContent ?? "이전 화면",
       scroll: body?.scrollTop ?? window.scrollY, focusKey: event.currentTarget.dataset.detailFocus ?? target };
     context?.frames.set(frame.key, frame);
     const trail=detailTrail(location.state,context?.scope),root=trail.find(frame=>detailPath.test(frame.path.split(/[?#]/)[0]));
