@@ -1,5 +1,6 @@
 import type postgres from "postgres";
 import type { BusinessSettings, BusinessSettingsResult } from "../../contracts/business-settings.ts";
+import { resolvedBusinessSettings } from "../../contracts/business-settings.ts";
 import type { Actor } from "../../core/shared/actor.ts";
 import type { BusinessSettingsStore } from "../../core/settings/application.ts";
 import { conflict } from "../../core/shared/errors.ts";
@@ -12,9 +13,10 @@ export class SqlBusinessSettingsStore implements BusinessSettingsStore {
   async get(): Promise<BusinessSettingsResult> {
     const [row] = await this
       .tx`select version,settings from app.user_business_settings where owner_id=${this.actor.userId}`;
-    return row
-      ? { version: Number(row.version), settings: row.settings as BusinessSettings }
-      : { version: 0, settings: {} };
+    return {
+      version: row ? Number(row.version) : 0,
+      settings: resolvedBusinessSettings(row ? row.settings as BusinessSettings : {}),
+    };
   }
   async update(expected: number, sections: BusinessSettings): Promise<BusinessSettingsResult> {
     // Lock even the absent initial row; concurrent first saves cannot silently overwrite.
@@ -40,6 +42,7 @@ export class SqlBusinessSettingsStore implements BusinessSettingsStore {
     const table = model === "entity" ? "entities" : model === "task" ? "tasks" : "principles";
     const [row] = await this.tx`select * from app.${this.tx(table)} where id=${id}`;
     if (!row) return null;
+    if (model === "principle" && !row.is_current) return null;
     const facts = Object.fromEntries(
       Object.values(templateFields[model]).map(
         (field) => [field, row[field] instanceof Date ? row[field].toISOString().slice(0, 10) : row[field]],
@@ -51,7 +54,7 @@ export class SqlBusinessSettingsStore implements BusinessSettingsStore {
       }=${id}`;
       facts.tag_ids = tags.map((tag) => tag.tag_id);
     }
-    return { version: Number(row.version), facts: facts as ChangeFacts };
+    return { version: Number(row.version), facts: facts as ChangeFacts, deleted_at: row.deleted_at };
   }
 }
 export class SqlBusinessSettingsUnitOfWork {

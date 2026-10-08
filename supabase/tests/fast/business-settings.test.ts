@@ -120,3 +120,32 @@ Deno.test("업무 설정: 발급처 표시 이름은 바꾸지만 저장된 코�
   });
   assertEquals(renamed.settings.entity_identity?.sources[1], { code: "crm", label: "고객" });
 });
+
+Deno.test("기록 준비: 실제 수정 계약에서 거부할 입력을 미리보기에서도 거부", async () => {
+  const d: BusinessSettingsDeps = {
+    uow: {
+      run: (_actor, fn) =>
+        fn({
+          get: () => Promise.resolve({ version: 0, settings: {} }),
+          update: () => Promise.reject(new Error("읽기만")),
+          recordTags: () => Promise.resolve([]),
+          target: () =>
+            Promise.resolve({
+              version: 1,
+              facts: { title: "기존", body: "유지", kind: "once", status: "open", due_on: null },
+            }),
+        }),
+    },
+  };
+  await assertRejects(
+    () =>
+      prepareBusinessRecord(d, { userId: crypto.randomUUID() }, {
+        model: "task",
+        action: "update",
+        target_id: crypto.randomUUID(),
+        expected_version: 1,
+        input: { due_on: "2026-02-30" },
+      }),
+    AppError,
+  );
+});
