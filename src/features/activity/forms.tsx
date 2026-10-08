@@ -180,7 +180,7 @@ function recurrenceOf(d: TaskDraft): unknown {
 
 /** 생성 입력(contracts의 taskCreate 모양). */
 export function taskInput(d: TaskDraft): Record<string, unknown> {
-  const text = { title: d.title, body: d.body, tag_ids:d.tag_ids,entity_ids:d.entity_ids??[], change_note:d.change_note?.trim()?d.change_note:undefined, change_tag_ids:d.change_tag_ids };
+  const text = { title: d.title, body: d.body, tag_ids:d.tag_ids,entity_ids:d.entity_ids??[], change_note:d.change_note, change_tag_ids:d.change_tag_ids };
   return d.kind === "once"
     ? { kind: "once", ...text, ...(d.due_on ? { due_on: d.due_on } : {}) }
     : { kind: "recurring", ...text, recurrence: recurrenceOf(d), timezone: d.timezone };

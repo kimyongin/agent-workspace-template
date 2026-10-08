@@ -50,10 +50,28 @@ Deno.test("업무 설정: 모델 템플릿 저장 후 읽기, 다른 섹션 유�
 });
 
 Deno.test("기록 준비: 생성 할 일의 실제 기본 상태·빈 본문·미지정 기한을 해석", async () => {
-  const d: BusinessSettingsDeps = { uow: { run: (_a, fn) => fn({
-    get: () => Promise.resolve({version:1,settings:{record_templates:{task:{create:{memo:"${할일.이후.상태$}/${할일.이후.본문$}/${할일.이후.기한$}",tag_ids:[]}}}}}),
-    update: () => Promise.reject(new Error("읽기 전용")), recordTags: () => Promise.resolve([]),
-  }) } };
-  const result = await prepareBusinessRecord(d, {userId:crypto.randomUUID()}, {model:"task",action:"create",input:{kind:"once",title:"오늘 할 일"}});
+  const d: BusinessSettingsDeps = {
+    uow: {
+      run: (_a, fn) =>
+        fn({
+          get: () =>
+            Promise.resolve({
+              version: 1,
+              settings: {
+                record_templates: {
+                  task: { create: { memo: "${할일.이후.상태$}/${할일.이후.본문$}/${할일.이후.기한$}", tag_ids: [] } },
+                },
+              },
+            }),
+          update: () => Promise.reject(new Error("읽기 전용")),
+          recordTags: () => Promise.resolve([]),
+        }),
+    },
+  };
+  const result = await prepareBusinessRecord(d, { userId: crypto.randomUUID() }, {
+    model: "task",
+    action: "create",
+    input: { kind: "once", title: "오늘 할 일" },
+  });
   assertEquals(result.change_note, "open/없음/미지정");
 });
