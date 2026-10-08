@@ -8,7 +8,7 @@ export function RelatedSection({title,count,hasMore=false,action,children,views=
   const heading=useId();
   const [view,setView]=useDetailViewState<ItemView>(`collection-view-${title}`,"list");
   return <RelatedCollectionView.Provider value={view}><section className="detail-section related-section" aria-labelledby={heading}>
-    <div className="detail-section-head"><div id={heading}>{views?<CollectionHeading label={title} count={count} hasMore={hasMore} view={view} onChange={next=>setView(next as ItemView)}/>:<h2 className="section-title">{title}{count!==undefined?` (${count}개${hasMore?"+":""})`:""}</h2>}</div>{action}</div>
+    <div className="detail-section-head"><div>{views?<CollectionHeading id={heading} label={title} count={count} hasMore={hasMore} view={view} onChange={next=>setView(next as ItemView)}/>:<h2 id={heading} className="section-title">{title}{count!==undefined?` (${count}개${hasMore?"+":""})`:""}</h2>}</div>{action}</div>
     {children}
   </section></RelatedCollectionView.Provider>;
 }

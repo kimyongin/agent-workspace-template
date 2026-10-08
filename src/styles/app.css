@@ -21,7 +21,8 @@
 .props > div { min-width: 0; }
 .detail-section .props { grid-template-columns: minmax(0,1fr); }
 .detail-section .props > div { display: grid; grid-template-columns: 6rem minmax(0,1fr); gap: var(--space-4); align-items: baseline; }
-.detail-section-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); flex-wrap: wrap; }
+.detail-section-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2) var(--space-3); flex-wrap: wrap; }
+.detail-section-head > .actions { margin-left: auto; }
 .detail-section-head .section-title { margin: 0; }
 
 :focus-visible {
@@ -211,7 +212,7 @@ html { scroll-padding-bottom: calc(var(--navigation-height) + env(safe-area-inse
 }
 
 .app-main > .panel:not(.auth-panel) { padding: 0; }
-.app-main > .panel.main-tab-header { padding-bottom: var(--space-4); border-bottom: 1px solid var(--line); border-radius: 0; gap: var(--space-3); }
+.app-main > .panel.main-tab-header { padding-bottom: var(--space-5); border-bottom: 1px solid var(--line); border-radius: 0; gap: var(--space-4); }
 
 .panel-head {
   display: flex;
@@ -664,6 +665,7 @@ textarea.input {
 
 .modal-head {
   border-bottom: 1px solid var(--line);
+  background: var(--panel);
   padding-top: calc(var(--space-2) + env(safe-area-inset-top, 0px));
   min-width: 0;
 }
@@ -691,10 +693,12 @@ textarea.input {
 
 .modal-foot {
   border-top: 1px solid var(--line);
+  background: var(--input-surface);
   justify-content: flex-end;
   flex-wrap: wrap;
   padding-bottom: calc(var(--space-2) + env(safe-area-inset-bottom, 0px));
 }
+.modal-foot > .btn { min-width: 88px; }
 
 @media (min-width: 640px) {
   .modal {
@@ -827,15 +831,16 @@ textarea.input {
 /* Supporting pages use the same bounded groups rather than a full-width form. */
 .settings { width: min(100%,48rem); gap: var(--space-5); padding: 0; }
 .settings .account-settings-form { display: grid; gap: var(--space-5); }
-.settings .settings-group { display: grid; gap: var(--space-3); padding: 0 0 var(--space-4); border: 0; border-bottom: 1px solid var(--line); }
+.settings .settings-group { display: grid; gap: var(--space-3); padding: 0; border: 0; }
 .settings-group > legend { margin-bottom: var(--space-3); }
+.settings .settings-fields { display: grid; gap: var(--space-4); min-width: 0; padding: var(--space-4); background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius-card); }
 .settings .profile-preview { margin: 0; }
 .settings-save { display: grid; gap: var(--space-2); }
 .settings-save > p { margin: 0; }
 .settings-save > p:empty { display: none; }
 .settings-save .actions { flex-wrap: nowrap; }
-.settings-links { display: grid; gap: 0; }
-.settings-links a { display: flex; align-items: center; justify-content: space-between; min-height: 44px; padding: var(--space-2) 0; text-decoration: none; color: var(--ink); border-bottom: 1px solid var(--line); }
+.settings-links { display: grid; gap: 0; border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--panel); }
+.settings-links a { display: flex; align-items: center; justify-content: space-between; min-height: 48px; padding: var(--space-2) var(--space-4); text-decoration: none; color: var(--ink); border-bottom: 1px solid var(--line); }
 .settings-links a::after { content: ""; width: 6px; height: 6px; margin-right: var(--space-1); border-top: 1px solid var(--muted-ink); border-right: 1px solid var(--muted-ink); transform: rotate(45deg); flex-shrink: 0; }
 .settings-links a:last-child { border-bottom: 0; }
 .settings-links a:hover { color: var(--accent); }

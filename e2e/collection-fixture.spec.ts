@@ -155,3 +155,46 @@ test("all layouts fit narrow/wide screens and large text, with quiet icon contro
   expect(style.width).toBeGreaterThanOrEqual(44); expect(style.height).toBeGreaterThanOrEqual(44); expect(style.face).toBe(22);
   expect(state.errors).toEqual([]); expect(state.writes).toEqual([]);
 });
+
+test("table rows and headers share the same columns across wrapper types and viewports", async ({ page }) => {
+  const rows = [record, { ...record, ...base(4), body: "짧은 기록" }, { ...record, ...base(5), body: "아주 긴 한국어 기록을 제목처럼 표시할 때에도 날짜와 종류의 열은 흔들리지 않아야 합니다." }];
+  const state = await fixture(page, rows);
+  for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) for (const kind of ["entities", "tasks", "records"]) {
+    await page.setViewportSize({ width, height: 900 }); await page.goto(`/${kind}?view=table`);
+    await expect(page.locator(".collection-table-head")).toBeVisible();
+    const geometry = await page.locator(".collection-table").evaluate(table => {
+      const header = table.querySelector(".collection-table-head")!;
+      const box = (el: Element) => ({ left: el.getBoundingClientRect().left, width: el.getBoundingClientRect().width });
+      return { head: box(header), columns: Array.from(header.children).map(box), rows: Array.from(table.querySelectorAll(".related-item-title")).map(row => ({ box: box(row), columns: Array.from(row.children).map(box) })) };
+    });
+    for (const row of geometry.rows) {
+      expect(Math.abs(row.box.width - geometry.head.width)).toBeLessThan(1);
+      for (const [index, cell] of row.columns.entries()) {
+        expect(Math.abs(cell.left - geometry.columns[index].left)).toBeLessThan(1);
+        expect(Math.abs(cell.width - geometry.columns[index].width)).toBeLessThan(1);
+      }
+    }
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  }
+  await page.goto(`/entities/${entity.id}`);
+  const section = page.getByRole("dialog").getByRole("region", { name: "기록 (1개)", exact: true });
+  await section.getByRole("radio", { name: "테이블", exact: true }).click();
+  const widths = await section.evaluate(el => [el.querySelector(".collection-table-head")!.getBoundingClientRect().width, el.querySelector(".related-item-title")!.getBoundingClientRect().width]);
+  expect(Math.abs(widths[0] - widths[1])).toBeLessThan(1);
+  expect(state.errors).toEqual([]); expect(state.writes).toEqual([]);
+});
+
+test("calendar reflows at enlarged text without shrinking day targets", async ({ page }) => {
+  const state = await fixture(page);
+  for (const width of [320, 390, 1024, 1440]) {
+    await page.setViewportSize({ width, height: 900 }); await page.goto("/records?view=calendar");
+    await expect(page.locator(".calendar-days button").first()).toBeVisible();
+    await page.evaluate(() => document.documentElement.style.fontSize = "200%");
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    const box = await page.locator(".calendar-days button").first().boundingBox();
+    expect(box!.width).toBeGreaterThanOrEqual(44); expect(box!.height).toBeGreaterThanOrEqual(44);
+    const month = (await page.locator(".calendar-month-panel").boundingBox())!, selected = (await page.locator(".calendar-selection").boundingBox())!;
+    expect(selected.y).toBeGreaterThanOrEqual(month.y + month.height);
+  }
+  expect(state.errors).toEqual([]); expect(state.writes).toEqual([]);
+});

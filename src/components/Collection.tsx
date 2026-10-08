@@ -28,8 +28,8 @@ export function ViewPicker({ label, value, onChange, calendar = false }: { label
   </button>)}</div>;
 }
 
-export function CollectionHeading({ label, count, hasMore = false, view, onChange, calendar }: { label: string; count?: number; hasMore?: boolean; view: CollectionView; onChange: (view: CollectionView) => void; calendar?: boolean }) {
-  return <div className="collection-heading"><h2 className="section-title">{label}{count === undefined ? "" : ` (${count}개${hasMore ? "+" : ""})`}</h2><ViewPicker label={label} value={view} onChange={onChange} calendar={calendar}/></div>;
+export function CollectionHeading({ id, label, count, hasMore = false, view, onChange, calendar }: { id?: string; label: string; count?: number; hasMore?: boolean; view: CollectionView; onChange: (view: CollectionView) => void; calendar?: boolean }) {
+  return <div className="collection-heading"><h2 id={id} className="section-title">{label}{count === undefined ? "" : ` (${count}개${hasMore ? "+" : ""})`}</h2><ViewPicker label={label} value={view} onChange={onChange} calendar={calendar}/></div>;
 }
 
 export function useMainCollectionView(calendar = false) {
@@ -51,7 +51,7 @@ export function useItemLayout() { return useContext(ItemLayout); }
 export function CollectionList({ children, view: explicit, columns = ["내용"], numericColumns = [], label = "목록" }: { children: ReactNode; view?: ItemView; columns?: string[]; numericColumns?: number[]; label?: string }) {
   const inherited = useContext(RelatedCollectionView), view = explicit ?? inherited;
   const table = view === "table";
-  return <ItemLayout.Provider value={{ view, columns, numericColumns }}><div className={`collection collection-${view}`} role={table ? "table" : undefined} aria-label={table ? label : undefined} style={{ "--collection-columns": `minmax(0, 1fr)${columns.slice(1).map(() => " minmax(0, .45fr)").join("")}` } as CSSProperties}>
+  return <ItemLayout.Provider value={{ view, columns, numericColumns }}><div className={`collection collection-${view}`} role={table ? "table" : undefined} aria-label={table ? label : undefined} style={{ "--collection-columns": `minmax(0, 1fr)${columns.slice(1).map(() => " minmax(0, var(--collection-secondary-width))").join("")}` } as CSSProperties}>
     {table && <div className="collection-table-head" role="row">{columns.map((column,index) => <span key={column} role="columnheader" className={numericColumns.includes(index) ? "collection-numeric" : undefined}>{column}</span>)}</div>}
     <ul className="list related-items" role={table ? "rowgroup" : "list"} aria-label={table ? undefined : label}>{Children.map(children, child => isValidElement<{ role?: string; className?: string }>(child) && child.type === "li" ? cloneElement(child, { role: table ? "none" : undefined, className: `list-item ${child.props.className ?? ""}` }) : child)}</ul>
   </div></ItemLayout.Provider>;

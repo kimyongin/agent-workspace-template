@@ -109,7 +109,7 @@ export function EntitiesPage() {
         <h1 id="entities-title" className="page-title" tabIndex={-1}>엔터티</h1>
         <TabCreateButton label="엔터티 등록" onClick={create.begin}/>
       </div>
-      <TabSearch entity/>
+      <div className="query-bar"><TabSearch entity/>
       <TabFilters active={!!(filter.tag_id||filter.prop3_from||filter.prop3_to||filter.prop4||filter.sort!=="updated_at")} attention={dictionary.failed}>
       <div className="filter-grid" role="group" aria-label="엔터티 필터">
           {(["prop3_from", "prop3_to"] as const).map((name) => (
@@ -157,7 +157,7 @@ export function EntitiesPage() {
       </div>
       <TagDictionaryStatus dictionary={dictionary}/>
       <fieldset className="field tag-filter-chips"><legend className="label">엔터티 태그</legend><div className="chips">{dictionary.tags?.map(tag=><button type="button" className="chip" key={tag.id} aria-pressed={filter.tag_id===tag.id} onClick={()=>set("tag_id",filter.tag_id===tag.id?"":tag.id)}>{tag.name}</button>)}</div></fieldset>
-      </TabFilters>
+      </TabFilters></div>
     </section><section className="activity-section" aria-label="엔터티 목록">
       <CollectionHeading label="엔터티" count={page?.items.length} hasMore={!!page?.next_cursor} view={view} onChange={changeView}/>
       {error && (
