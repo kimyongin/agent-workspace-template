@@ -11,6 +11,10 @@ import { type PreparedRecordMemo, prepareRecordMemo } from "../../contracts/reco
 import { modelActions, type TemplateModel } from "../../contracts/record-template.ts";
 import { changeDefaults } from "./change-defaults.ts";
 import type { ChangeFacts } from "../shared/changes.ts";
+import { taskCreate } from "../../contracts/task.ts";
+import { taskContent } from "../activity/domain.ts";
+import { entityCreate } from "../../contracts/entity.ts";
+import { principleCreate } from "../../contracts/principle.ts";
 export interface BusinessSettingsStore {
   get(): Promise<BusinessSettingsResult>;
   update(expected: number, sections: BusinessSettings): Promise<BusinessSettingsResult>;
@@ -44,9 +48,16 @@ export function prepareBusinessRecord(
       if (target.version !== input.expected_version) throw conflict("다른 변경이 저장되어 있습니다. 다시 조회하세요.");
       before = target.facts;
     }
+    let content = input.input;
+    if (input.action === "create") {
+      const schema = input.model === "task" ? taskCreate : input.model === "entity" ? entityCreate : principleCreate;
+      const creation = schema.safeParse({ id: "00000000-0000-4000-8000-000000000001", ...content });
+      if (!creation.success) throw invalidInput("업무 입력을 확인하세요", creation.error.issues.map(issue => ({path: `input.${issue.path.join(".")}`, message: issue.message})));
+      content = input.model === "task" ? taskContent(taskCreate.parse({ id: "00000000-0000-4000-8000-000000000001", ...content })) : creation.data;
+    }
     const after = input.action === "delete" ? null : {
       ...before,
-      ...input.input,
+      ...content,
       ...(input.action === "stop" ? { status: "stopped" } : input.action === "resume" ? { status: "active" } : {}),
     } as ChangeFacts;
     const title = String((after ?? before)?.[input.model === "entity" ? "prop1" : "title"] ?? "");

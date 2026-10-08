@@ -1,3 +1,4 @@
+import { RecordTemplateSettings } from "./RecordTemplateSettings.tsx";
 import { Field } from "../../components/Field.tsx";
 import { browserTimezone, timezoneOptions } from "../../lib/timezone.ts";
 import { DetailLink } from "../../lib/detail-exploration.tsx";
@@ -103,6 +104,7 @@ function AccountSettings() {
           <button type="submit" className="btn btn-primary" disabled={!dirty || busy}>{busy ? "저장 중…" : "저장"}</button></div>
       </div>
     </form>
+    <RecordTemplateSettings />
     <ConfirmDialog open={!busy && blocker.state === "blocked"} title="변경을 버릴까요?" message="저장하지 않은 설정이 사라집니다." confirmLabel="변경 버리기"
       onConfirm={() => { if (blocker.state === "blocked") blocker.proceed(); }} onCancel={() => { if (blocker.state === "blocked") blocker.reset(); }} />
   </section>;

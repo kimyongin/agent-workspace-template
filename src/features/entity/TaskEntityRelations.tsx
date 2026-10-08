@@ -43,6 +43,7 @@ function RelationControls({task,entityId,entityTitle,revision,children,onSaved}:
     {children({button:<RelationSearchAction kind={kind} expanded={searching} controls={searchId} disabled={preparing} onToggle={()=>setSearching(value=>!value)}/>,unlink,
       search:<>{error&&<Notice kind="error">{error}</Notice>}{preparing&&<p className="secondary" role="status">연결 확인 중…</p>}<div id={searchId} hidden={!searching}>{searching&&<RelationSearch kind={kind} revision={task?.version??revision} disabled={preparing} excluded={item=>task?task.entity_ids.includes(item.id):!!item.entityIds?.includes(entityId!)} onChoose={item=>void prepare(item,false)}/>}</div></>})}
     {mutation&&<FormModal open confirmationOnly title={mutation.remove?"해제":"연결"} submitLabel="저장" dirty={false}
+      preparation={()=>({model:"task",action:"update",target_id:mutation.task.id,expected_version:mutation.task.version,input:{entity_ids:mutation.ids}})}
       mutation={{target:`${mutation.task.title} — ${mutation.entity.title}`,action:mutation.remove?"해제":"연결",message:mutation.remove?"연결만 해제하며 원문과 과거 기록은 유지합니다.":undefined}}
       onClose={()=>{setMutation(null);onSaved();}} onRouteDiscard={()=>setMutation(null)} validate={()=>null}
       onSubmit={async(_id,memo)=>{const saved=await api<TaskResult>("PATCH",`/tasks/${mutation.task.id}`,{expected_version:mutation.task.version,entity_ids:mutation.ids,...memo});setMutation(null);onSaved(saved,mutation.task);}}>{()=>null}</FormModal>}
