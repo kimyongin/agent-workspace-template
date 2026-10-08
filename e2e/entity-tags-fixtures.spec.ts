@@ -77,7 +77,7 @@ test("저장 뒤 재조회가 이전 더 보기 응답을 무시하고 새 경�
 test("실제 App에서 태그 dirty 주 탐색·뒤로가기·앞으로가기 취소", async ({ page }) => {
   await page.route("**/api/tasks**", route => route.fulfill({ json: { items: [task], next_cursor: null } }));
   await page.route("**/api/entities**", route => route.fulfill({ json: { items: [], next_cursor: null } }));
-  await page.goto("/e2e/fixtures/entity-tags-app.html"); await expect(page.getByRole("heading", { name: "할 일", exact: true })).toBeVisible();
+  await page.goto("/e2e/fixtures/entity-tags-app.html"); await expect(page.getByRole("heading", { name: "할 일", level: 1, exact: true })).toBeVisible();
   await tagManagement(page);
   await page.getByRole("textbox", { name: /태그 이름/ }).fill("앱 초안");
   await page.getByRole("navigation", { name: "주 메뉴" }).getByRole("link", { name: "할 일", exact: true }).evaluate((el:HTMLAnchorElement)=>el.click());
@@ -108,7 +108,7 @@ test("실제 App 공통 모달 생성·직접 편집 성공/취소·저장 중 P
     else if (request.method() === "PATCH") { current = { ...current, ...request.postDataJSON(), version: current.version + 1 }; await route.fulfill({ json: current }); }
     else await route.fulfill({ json: new URL(request.url()).pathname.endsWith(current.id) ? current : { items: [current], next_cursor: null } });
   });
-  await page.goto("/e2e/fixtures/entity-tags-app.html"); await expect(page.getByRole("heading", { name: "할 일", exact: true })).toBeVisible();
+  await page.goto("/e2e/fixtures/entity-tags-app.html"); await expect(page.getByRole("heading", { name: "할 일", level: 1, exact: true })).toBeVisible();
   await tagManagement(page);
   await page.getByRole("button",{name:"닫기",exact:true}).click();
   await page.getByRole("navigation", { name: "주 메뉴" }).getByRole("link", { name: "할 일", exact: true }).click();
@@ -132,7 +132,7 @@ test("실제 App 태그 폐기 승인 뒤에만 로그아웃 요청하고 로그
   await page.route("**/api/tasks**", route => route.fulfill({ json: { items: [], next_cursor: null } }));
   await page.route("**/api/entities**", route => route.fulfill({ json: { items: [], next_cursor: null } }));
   await page.route("**/auth/v1/logout**", route => { signOuts++; return route.fulfill({ status: 200, json: {} }); });
-  await page.goto("/e2e/fixtures/entity-tags-app.html"); await expect(page.getByRole("heading", { name: "할 일", exact: true })).toBeVisible();
+  await page.goto("/e2e/fixtures/entity-tags-app.html"); await expect(page.getByRole("heading", { name: "할 일", level: 1, exact: true })).toBeVisible();
   await tagManagement(page); await page.getByRole("textbox", { name: /태그 이름/ }).fill("로그아웃 초안");
   await settings(page);
   await expect(page.getByRole("dialog", { name: "변경을 버릴까요?" })).toBeVisible(); expect(signOuts).toBe(0);
@@ -299,4 +299,28 @@ for(const [path,label,scope] of [["entities","엔터티","entity"],["records","�
   await page.getByRole("button",{name:"닫기",exact:true}).click();
   await expect(page).toHaveURL(/\/settings$/);
   await expect(page.getByRole("link",{name:`${label} 태그`,exact:true})).toBeFocused();
+});
+
+
+test("#229 태그 삭제 확인도 서버 메모 오류를 입력에 표시하고 수정 가능", async ({page}) => {
+  const submitted: URL[] = [];
+  await page.route("**/api/tags/*", route => {
+    submitted.push(new URL(route.request().url()));
+    return submitted.length === 1
+      ? route.fulfill({status:422,json:{code:"invalid_input",message:"기록 메모를 확인하세요",fields:[{path:"change_note",message:"삭제 근거를 보완하세요"}]}})
+      : route.fulfill({status:204});
+  });
+  await page.goto(url);
+  await page.getByRole("button", {name:"첫 태그 삭제",exact:true}).click();
+  const dialog = page.locator("dialog.modal-action[open]");
+  await dialog.getByLabel("기록 메모",{exact:true}).fill("초안 메모");
+  await dialog.getByRole("button", {name:"삭제하고 기록",exact:true}).click();
+  await expect(dialog.getByLabel("기록 메모",{exact:true})).toHaveAttribute("aria-invalid","true");
+  await expect(dialog.getByText("삭제 근거를 보완하세요",{exact:true})).toBeVisible();
+  await expect(dialog.getByLabel("기록 메모",{exact:true})).toBeEnabled();
+  await dialog.getByLabel("기록 메모",{exact:true}).fill("보완한 근거");
+  await dialog.getByRole("button", {name:"삭제하고 기록",exact:true}).click();
+  await expect(page.getByText("태그를 삭제했습니다.",{exact:true})).toBeVisible();
+  expect(submitted.map(url => url.searchParams.get("change_note"))).toEqual(["초안 메모","보완한 근거"]);
+  expect(submitted[1].searchParams.get("expected_version")).toBe(submitted[0].searchParams.get("expected_version"));
 });

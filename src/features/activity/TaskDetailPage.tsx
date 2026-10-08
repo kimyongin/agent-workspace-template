@@ -2,7 +2,7 @@ import { useDetailResource } from "../details/useDetailResource.ts";
 import { BodyAction } from "../../components/BodyAction.tsx";
 import { RelatedRecords } from "./RelatedRecords.tsx";
 import { useDetailNavigate, useDetailOwnerReturn, useDetailDeleteReturn } from "../../lib/detail-exploration.tsx";
-import { editFromView } from "../../lib/detail-navigation.ts";
+import { useDetailEditor } from "../details/useDetailEditor.ts";
 import { FormModal } from "../../components/ContentForm.tsx";
 // 할 일 상세: 읽기, 편집, 일회성 완료, 반복 할 일의 회차·회차 기록·중단/재개, 삭제.
 import type { RecordResult } from "@contracts/record.ts";
@@ -35,11 +35,11 @@ function describeRecurrence(t: TaskResult): string {
   return `${rule}, ${r.starts_on}부터 (${t.timezone})`;
 }
 
-type Dialog = null | "edit" | "complete" | "record" | "delete" | "transition" | { occurrence: string };
+type Dialog = null | "complete" | "record" | "transition" | { occurrence: string };
 function requestedDialog(params: URLSearchParams): Dialog {
 
   const action = params.get("action");
-  return action === "complete" || action === "transition" || action === "record" ? action : params.has("occurrence") ? { occurrence: params.get("occurrence")! } : params.get("edit")==="1" ? "edit" : null;
+  return action === "complete" || action === "transition" || action === "record" ? action : params.has("occurrence") ? { occurrence: params.get("occurrence")! } : null;
 }
 
 export function TaskDetailPage() {
@@ -57,7 +57,6 @@ export function TaskDetailPage() {
   const [dialog, setDialog] = useState<Dialog>(requestedDialog(params));
     const manage = (action: string, occurrence?: string) => { const next = new URLSearchParams(params); next.set("action", action); occurrence ? next.set("occurrence", occurrence) : next.delete("occurrence"); navigate(`?${next}`); };
   const closeManagement = () => { setDialog(null); const next = new URLSearchParams(params); next.delete("action"); next.delete("occurrence"); navigateAfterClose(`?${next}`, true); };
-  const closeEdit = () => { setDialog(null);detail.editClosed(); const p=new URLSearchParams(params);p.delete("edit");p.delete("edit_from");navigateAfterClose(`?${p}`,true); };
   const [busy, setBusy] = useState(false);
   const [occurrences, setOccurrences] = useState<{ today: string; items: Occurrence[] } | null>(null);
   const [recordRefresh,setRecordRefresh]=useState(0);
@@ -67,6 +66,7 @@ export function TaskDetailPage() {
     id, query: params.toString(), refreshOnQuery: directEdit,
     load: (id, signal) => api("GET", `/tasks/${id}`, undefined, signal),
   });
+  const editor = useDetailEditor(detail.editClosed);
   const { value: task, editReady } = detail;
   const loadError = detail.error ? detail.error instanceof ApiError && detail.error.code === "not_found" ? "할 일을 찾을 수 없습니다." : "할 일을 불러오지 못했습니다." : null;
   const reload = detail.reload;
@@ -201,9 +201,8 @@ export function TaskDetailPage() {
           )}
         </section>
       )}</>;
-  const startEdit=()=>navigate(editFromView(params));
   return <DetailSurface title={task.title} onClose={()=>navigate(back)} busy={busy} footer={<>
-    <button type="button" className="btn" disabled={busy} onClick={startEdit}>편집</button>
+    <button type="button" className="btn" disabled={busy} onClick={editor.start}>편집</button>
     {task.kind==="once"&&task.status==="open"&&<button type="button" className="btn btn-primary" disabled={busy} onClick={()=>manage("complete")}>완료하고 기록</button>}
     {task.kind==="recurring"&&<button type="button" className="btn btn-primary" disabled={busy} onClick={()=>manage("transition")}>{task.status==="active"?"중단":"재개"}</button>}
   </>}>
@@ -211,7 +210,7 @@ export function TaskDetailPage() {
       <TaskEntityRelations task={task} onSaved={(saved,before)=>{if(before)relationSaved.current=true;if(saved)detail.confirm(current=>current?{...current,...saved}:current);setRecordRefresh(n=>n+1);void reload();}}/>
       <RelatedRecords taskId={task.id} revision={task.version+recordRefresh} action={<BodyAction icon="create" aria-label="기록 작성" onClick={()=>manage("record")}>작성</BodyAction>}/>
       {occurrenceSection}</div>
-      {dialog === "edit" && editReady && (
+      {editor.active && !dialog && editReady && (
         <TaskFormModal
           mode="edit"
           open
@@ -221,11 +220,9 @@ export function TaskDetailPage() {
           </p>,onConfirm:(reason,tags) =>
           run(async () => {
             await api("POST", `/tasks/${task.id}/delete`, {expected_version:task.version,change_note:reason||undefined, change_tag_ids:tags});
-            setDialog(null);
-            navigateAfterClose(deleteBack,true);
+            editor.leave(deleteBack);
           }, "삭제했습니다.")}}
-          onClose={closeEdit}
-          onRouteDiscard={() => setDialog(null)}
+          {...editor.formProps}
           onSave={async (draft) => {
             await detail.save(async current => {
             const patch: Record<string, unknown> = {
@@ -245,7 +242,7 @@ export function TaskDetailPage() {
             const saved = await api<TaskResult>("PATCH", `/tasks/${task.id}`, patch);
             return {...current, ...saved};
             });
-            closeEdit();
+            editor.close();
             setMessage("저장했습니다.");
             await reload();
           }}

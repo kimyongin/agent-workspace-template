@@ -115,6 +115,8 @@ test("calendar uses display dates, keyboard month edges, partial pages and saved
 });
 
 test("all layouts fit narrow/wide screens and large text, with quiet icon controls", async ({ page }, info) => {
+  // Forty viewport/layout combinations include screenshots; keep their full assertions.
+  test.setTimeout(60_000);
   const state = await fixture(page);
   for (const width of [320, 390, 640, 1440]) for (const kind of ["entities", "tasks", "records"]) {
     await page.setViewportSize({ width, height: 844 });

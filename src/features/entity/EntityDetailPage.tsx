@@ -6,7 +6,7 @@ import type { EntityContext } from "@contracts/entity-links.ts";
 import { RelatedSection } from "../../components/RelatedItems.tsx";
 import { RelatedRecordItem } from "../activity/RelatedRecords.tsx";
 import { useDetailNavigate, useDetailOwnerReturn, useDetailDeleteReturn } from "../../lib/detail-exploration.tsx";
-import { editFromView } from "../../lib/detail-navigation.ts";
+import { useDetailEditor } from "../details/useDetailEditor.ts";
 import { useDeferredNavigation } from "../../lib/useDeferredNavigation.ts";
 import { TagNames } from "../tags/TagPicker.tsx";
 import { entityLabels } from "@contracts/entity.ts";
@@ -41,14 +41,13 @@ export function EntityDetailPage() {
   useEffect(() => { if (detail.loading) setError(null); }, [detail.loading]);
   const error = actionError ?? (detail.error ? detail.error instanceof ApiError ? detail.error.message : "엔터티를 불러오지 못했습니다." : null);
   const reload = detail.reload;
-  const [editing, setEditing] = useState(params.get("edit") === "1"), [busy, setBusy] = useState(false);
+  const editor = useDetailEditor(detail.editClosed);
+  const [busy, setBusy] = useState(false);
   useEffect(() => { if (!detail.confirmed && entity) relationSaved.current = false; }, [entity, detail.confirmed]);
   const returnParams=new URLSearchParams(params); ["edit","edit_from","create"].forEach(key=>returnParams.delete(key));
   const back = useDetailOwnerReturn(`/entities?${returnParams}${id ? `#entity-${id}` : ""}`);
   const deleteBack=useDetailDeleteReturn(back);
-  useEffect(() => { setEditing(params.get("edit") === "1"); }, [id, params.toString()]);
   useEffect(()=>{if(creating||!editReady||!returnCreateFocus.current)return;const frame=requestAnimationFrame(()=>{const label=returnCreateFocus.current==="task"?"할 일 작성":"기록 작성";const button=Array.from(document.querySelectorAll<HTMLButtonElement>("dialog[open] .detail-management button")).find(el=>el.getAttribute("aria-label")===label);if(button){button.focus();returnCreateFocus.current=null;}});return()=>cancelAnimationFrame(frame);},[creating,editReady,entity]);
-  const closeEdit=()=>{setEditing(false);const p=new URLSearchParams(params);p.delete("edit");p.delete("edit_from");afterClose(`${location.pathname}?${p}`,true);detail.editClosed();};
   const entityContext: EntityContext[] = entity ? [{id:entity.id,title:entity.prop1,source:"selection",captured_at:new Date().toISOString()}] : [];
   const management = entity && <div className="detail-management">
       {error && (
@@ -77,9 +76,8 @@ export function EntityDetailPage() {
             </RelatedSection>
           ))}
     </div>;
-  const startEdit=()=>navigate(editFromView(params));
   return <DetailSurface title={entity?.prop1??"엔터티"} onClose={()=>navigate(back)} busy={busy}
-    footer={entity&&<button type="button" className="btn btn-primary" onClick={startEdit}>편집</button>}>
+    footer={entity&&<button type="button" className="btn btn-primary" onClick={editor.start}>편집</button>}>
       {error && !entity && <><Notice kind="error">{error}</Notice><button className="btn" onClick={()=>void reload()}>다시 시도</button></>}
       {!entity&&!error&&<p className="secondary" role="status">불러오는 중…</p>}
       {entity&&<div className="detail-stack">
@@ -97,7 +95,7 @@ export function EntityDetailPage() {
               await api("POST", "/records", { ...value, id: creationId() });
               closeCreate(); void reload();
             }} />}
-          {editing && !creating && editReady && (
+          {editor.active && !creating && editReady && (
             <EntityForm
               initial={entity}
               deletion={{message:`${entity.prop1}을 삭제하고 연결을 해제합니다. 할 일·기록 원문은 보존합니다.`,onConfirm:async (reason, tags) => {
@@ -108,8 +106,7 @@ export function EntityDetailPage() {
                     `/entities/${id}/delete`,
                     {expected_version:entity.version,change_note:reason||undefined, change_tag_ids:tags},
                   );
-                  setEditing(false);
-                  afterClose(deleteBack,true);
+                  editor.leave(deleteBack);
                 } catch (e) {
                   setError(
                     e instanceof ApiError ? e.message : "삭제하지 못했습니다.",
@@ -119,8 +116,7 @@ export function EntityDetailPage() {
                   setBusy(false);
                 }
               }}}
-              onClose={closeEdit}
-              onRouteDiscard={()=>setEditing(false)}
+              {...editor.formProps}
               onSave={async (value) => {
                 await detail.save(async current => {
                   const savedEntity = await api<EntityDetail>("PATCH", `/entities/${id}`, {
@@ -128,7 +124,7 @@ export function EntityDetailPage() {
                   });
                   return { ...current, ...savedEntity };
                 });
-                closeEdit();
+                editor.close();
                 void reload();
               }}
             />
