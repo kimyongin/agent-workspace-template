@@ -1,3 +1,4 @@
+import { BodyAction } from "../../components/BodyAction.tsx";
 import { useSearchParams } from "react-router";
 import { useDetailNavigate } from "../../lib/detail-exploration.tsx";
 import { appendItems, MAX_RESTORE_PAGES, requestedPages, restoreList, type ListPage, type LoadedList } from "./list-state.ts";
@@ -44,6 +45,6 @@ function TaskRecords({taskId,revision,action}:{taskId:string;revision:number;act
     {busy&&<p className="secondary" role="status">불러오는 중…</p>}
     {!!page?.items.length&&<ul className="related-items">{page.items.map(record=><li key={record.id}><RelatedRecordItem record={record}/></li>)}</ul>}
     {error&&<Notice kind="error">연결된 기록을 불러오지 못했습니다.</Notice>}
-    {(page?.next_cursor||error)&&<button type="button" className="btn" disabled={busy} onClick={()=>void load(error?failedTarget.current:(page?.pages??0)+1,error?failedManual.current:true)}>{busy?"불러오는 중…":error?"기록 다시 시도":"기록 더 보기"}</button>}
+    {(page?.next_cursor||error)&&<BodyAction disabled={busy} onClick={()=>void load(error?failedTarget.current:(page?.pages??0)+1,error?failedManual.current:true)}>{busy?"불러오는 중…":error?"기록 다시 시도":"기록 더 보기"}</BodyAction>}
   </RelatedSection>;
 }

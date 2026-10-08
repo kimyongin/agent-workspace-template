@@ -1,3 +1,4 @@
+import { BodyAction } from "../../components/BodyAction.tsx";
 import { RelatedRecords } from "./RelatedRecords.tsx";
 import { useDetailNavigate, useDetailOwnerReturn, useDetailDeleteReturn } from "../../lib/detail-exploration.tsx";
 import { editFromView } from "../../lib/detail-navigation.ts";
@@ -227,7 +228,7 @@ export function TaskDetailPage() {
   </>}>
       <div className="detail-stack">{management}
       <TaskEntityRelations task={task} onSaved={(saved,before)=>{if(before)relationSaved.current=true;if(saved)setTask(current=>current?{...current,...saved}:current);setRecordRefresh(n=>n+1);void reload();}}/>
-      <RelatedRecords taskId={task.id} revision={task.version+recordRefresh} action={<button type="button" className="btn btn-text" aria-label="기록 작성" onClick={()=>manage("record")}>작성</button>}/>
+      <RelatedRecords taskId={task.id} revision={task.version+recordRefresh} action={<BodyAction icon="create" aria-label="기록 작성" onClick={()=>manage("record")}>작성</BodyAction>}/>
       {occurrenceSection}</div>
       {dialog === "edit" && editReady && (
         <TaskFormModal

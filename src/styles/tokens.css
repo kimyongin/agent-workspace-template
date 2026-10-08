@@ -14,6 +14,7 @@
   --accent: #7c9eff;
   --accent-ink: #111318;
   --accent-soft: rgba(124, 158, 255, 0.12);
+  --neutral-action-soft: rgba(156, 166, 182, 0.08);
   --danger: #ff8c96;
   --success: #78dba9;
   --warning: #f5c969;
@@ -29,6 +30,7 @@
   --radius-card: 8px;
   --radius-input: 6px;
   --radius-chip: 6px;
+  --radius-body-action: 4px;
 
   --marker-muted: #626c7b;
   --text-title: 1.375rem;

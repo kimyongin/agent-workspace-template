@@ -1,3 +1,4 @@
+import { BodyAction } from "../../components/BodyAction.tsx";
 import { useEffect, useRef, useState } from "react";
 import type { EntityDetail, EntityResult } from "@contracts/entity.ts";
 import type { TaskResult } from "@contracts/task.ts";
@@ -11,7 +12,7 @@ type CandidatePage = {items:Candidate[];next_cursor:string|null};
 /** Saved relationships and draft selection expose the same search action. */
 export function RelationSearchAction({kind,expanded,controls,disabled=false,onToggle}: {kind:"entity"|"task";expanded:boolean;controls:string;disabled?:boolean;onToggle:()=>void}) {
   const label=kind==="entity"?"엔터티":"할 일";
-  return <button type="button" className="btn btn-text" data-relation-search-toggle={kind} aria-label={expanded?`${label} 검색 닫기`:`${label} 연결`} aria-expanded={expanded} aria-controls={controls} disabled={disabled} onClick={onToggle}>{expanded?"검색 닫기":"연결"}</button>;
+  return <BodyAction icon={expanded?"close":"link"} data-relation-search-toggle={kind} aria-label={expanded?`${label} 검색 닫기`:`${label} 연결`} aria-expanded={expanded} aria-controls={controls} disabled={disabled} onClick={onToggle}>{expanded?"닫기":"연결"}</BodyAction>;
 }
 /** Current-title lookup, shared by the two directions of the same relationship. */
 export function RelationSearch({kind,excluded,onChoose,disabled,revision, draftMode=false}: {kind:"entity"|"task";excluded:(item:Candidate)=>boolean;onChoose:(item:Candidate)=>void;disabled:boolean;revision?:number|EntityDetail["tasks"];draftMode?:boolean}) {
@@ -47,11 +48,11 @@ export function RelationSearch({kind,excluded,onChoose,disabled,revision, draftM
       onChange={e=>setDraft(e.target.value)} onCompositionStart={()=>setComposing(true)} onCompositionEnd={()=>setComposing(false)}
       onKeyDown={e=>{if(e.key!=="Enter")return;e.preventDefault();if(composing||e.nativeEvent.isComposing||e.nativeEvent.keyCode===229)return;immediate.current=true;setRetry(n=>n+1);}}/>}</Field>
     {pending&&<p className="secondary" role="status" aria-label="후보 검색">불러오는 중…</p>}
-    {failed&&<><Notice kind="error">검색하지 못했습니다.</Notice><button className="btn" type="button" disabled={pending||disabled} onClick={()=>result?.next_cursor?more():setRetry(n=>n+1)}>검색 다시 시도</button></>}
+    {failed&&<><Notice kind="error">검색하지 못했습니다.</Notice><BodyAction disabled={pending||disabled} onClick={()=>result?.next_cursor?more():setRetry(n=>n+1)}>검색 다시 시도</BodyAction></>}
     {result&&<div className="related-search-results" role="group" aria-label={`${label} 검색 결과`}>
-      {result.items.filter(item=>!excluded(item)).map(item=><RelatedItem key={item.id} to={draftMode?undefined:`/${kind==="entity"?"entities":"tasks"}/${item.id}`} restoreKey={`relation-candidate-${kind}-${item.id}`} title={item.title} action={<button className="btn btn-text" type="button" aria-disabled={disabled} aria-label={`${item.title} 연결`} onClick={()=>{if(!disabled)onChoose(item);}}>연결</button>}/>)}
+      {result.items.filter(item=>!excluded(item)).map(item=><RelatedItem key={item.id} to={draftMode?undefined:`/${kind==="entity"?"entities":"tasks"}/${item.id}`} restoreKey={`relation-candidate-${kind}-${item.id}`} title={item.title} action={<BodyAction icon="link" aria-disabled={disabled} aria-label={`${item.title} 연결`} onClick={()=>{if(!disabled)onChoose(item);}}>연결</BodyAction>}/>)}
       {!result.items.length&&!pending&&<p className="secondary">검색 결과가 없습니다.</p>}
-      {result.next_cursor&&<button type="button" className="btn btn-text" disabled={pending||disabled} onClick={more}>검색 결과 더 보기</button>}
+      {result.next_cursor&&<BodyAction disabled={pending||disabled} onClick={more}>검색 결과 더 보기</BodyAction>}
     </div>}
   </div>;
 }

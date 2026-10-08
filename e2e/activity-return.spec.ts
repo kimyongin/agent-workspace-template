@@ -110,7 +110,7 @@ for (
       const view=page.locator("dialog.modal:not(.modal-confirm)[open]");
       const initialDetail=page.url(),entityToggle=view.getByRole("region",{name:/^엔터티/}).getByRole("button",{name:entity.prop1,exact:true});
       await entityToggle.click();await expect(entityToggle).toHaveAttribute("aria-expanded","true");await expect(page).toHaveURL(initialDetail);
-      const entityEdit=view.getByRole("link",{name:entity.prop1+" 보기",exact:true});await entityEdit.click();await openDetailEditor(page);
+      const entityEdit=view.getByRole("link",{name:entity.prop1+" 상세",exact:true});await entityEdit.click();await openDetailEditor(page);
       await expect(view.getByLabel("속성 1",{exact:false})).toHaveValue(entity.prop1);await view.getByRole("button",{name:"취소",exact:true}).click();await view.getByRole("button",{name:/^이전:/}).click();
       await expect(page).toHaveURL(initialDetail);await expect(entityEdit).toBeFocused();
       await openDetailEditor(page);const dialog=page.getByRole("dialog",{name:editLabel,exact:true});

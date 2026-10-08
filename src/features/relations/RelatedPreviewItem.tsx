@@ -5,7 +5,8 @@ import { entityLabels } from "@contracts/entity.ts";
 import type { TaskResult } from "@contracts/task.ts";
 import type { RecordResult } from "@contracts/record.ts";
 import type { WorkspacePrinciple } from "../principles/model.ts";
-import { ItemIcon, RelatedItem, useRelatedExpansion } from "../../components/RelatedItems.tsx";
+import { RelatedItem, useRelatedExpansion } from "../../components/RelatedItems.tsx";
+import { BodyAction, BodyActionFace } from "../../components/BodyAction.tsx";
 import { MarkdownContent } from "../../components/MarkdownContent.tsx";
 import { Notice } from "../../components/Field.tsx";
 import { SurfaceContext } from "../../components/Modal.tsx";
@@ -47,11 +48,11 @@ export function RelatedPreviewItem({list,...props}:ComponentProps<typeof Related
     });
   };
   const viewable=!!item&&!error&&(!("is_current" in item)||item.is_current);
-  const viewProps={className:"btn btn-text item-icon",title:"보기","aria-label":`${props.title} 보기`};
-  return <RelatedItem {...props} to={undefined} action={<>{props.action}{viewable&&(list?<Link {...list.link()} {...viewProps}><ItemIcon kind="view"/></Link>:<DetailLink {...viewProps} to={path} restoreKey={`view-related-${path}`}><ItemIcon kind="view"/></DetailLink>)}</>} disclosure={{expanded,toggle,content:<>
+  const viewProps={className:"body-action",title:"상세","aria-label":`${props.title} 상세`};
+  return <RelatedItem {...props} to={undefined} action={<>{props.action}{viewable&&(list?<Link {...list.link()} {...viewProps}><BodyActionFace icon="view">상세</BodyActionFace></Link>:<DetailLink {...viewProps} to={path} restoreKey={`view-related-${path}`}><BodyActionFace icon="view">상세</BodyActionFace></DetailLink>)}</>} disclosure={{expanded,toggle,content:<>
     {!item&&!error&&<p className="secondary" role="status">불러오는 중…</p>}
     {error==="missing"&&<p className="secondary">삭제된 대상 또는 접근할 수 없는 대상입니다.</p>}
-    {error==="failed"&&<><Notice kind="error">내용을 불러오지 못했습니다.</Notice><button type="button" className="btn" onClick={()=>setRetry(n=>n+1)}>다시 시도</button></>}
+    {error==="failed"&&<><Notice kind="error">내용을 불러오지 못했습니다.</Notice><BodyAction onClick={()=>setRetry(n=>n+1)}>다시 시도</BodyAction></>}
     {item&&<>
       {"prop1" in item?<><dl className="props">{(["prop2","prop3","prop4"] as const).map(key=>item[key]!==null&&<div key={key}><dt>{entityLabels[key]}</dt><dd>{item[key]}</dd></div>)}</dl><TagNames compact scope="entity" ids={item.tag_ids}/></>:<>
         {item.body&&<MarkdownContent text={item.body}/>}

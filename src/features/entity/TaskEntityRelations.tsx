@@ -1,3 +1,4 @@
+import { BodyAction } from "../../components/BodyAction.tsx";
 import { useContext, useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { SurfaceContext } from "../../components/Modal.tsx";
 import { useLocation } from "react-router";
@@ -35,7 +36,7 @@ function RelationControls({task,entityId,entityTitle,revision,children,onSaved}:
     finally{if(!controller.signal.aborted)setPreparing(false);}
   };
   const kind=task?"entity":"task";
-  const unlink=(item:Candidate)=><button type="button" className="btn btn-text" aria-label={`${item.title} 해제`} aria-disabled={preparing} onClick={()=>void prepare(item,true)}>해제</button>;
+  const unlink=(item:Candidate)=><BodyAction icon="unlink" aria-label={`${item.title} 해제`} aria-disabled={preparing} onClick={()=>void prepare(item,true)}>해제</BodyAction>;
   return <>
     {children({button:<RelationSearchAction kind={kind} expanded={searching} controls={searchId} disabled={preparing} onToggle={()=>setSearching(value=>!value)}/>,unlink,
       search:<>{error&&<Notice kind="error">{error}</Notice>}{preparing&&<p className="secondary" role="status">연결 확인 중…</p>}<div id={searchId} hidden={!searching}>{searching&&<RelationSearch kind={kind} revision={task?.version??revision} disabled={preparing} excluded={item=>task?task.entity_ids.includes(item.id):!!item.entityIds?.includes(entityId!)} onChoose={item=>void prepare(item,false)}/>}</div></>})}
@@ -63,9 +64,9 @@ export function EntityTaskRelations({entity,onCreate,onSaved}: {entity:EntityDet
       if(!controller.signal.aborted){setItems(prior=>[...prior,...page.items.filter(item=>!prior.some(old=>old.id===item.id))]);setCursor(page.next_cursor);}}
     catch{if(!controller.signal.aborted)setFailed(true);}finally{if(!controller.signal.aborted)setLoading(false);}
   };
-  return <RelationControls key={entity.id} entityId={entity.id} entityTitle={entity.prop1} revision={entity.tasks} onSaved={onSaved}>{({search,button,unlink})=><RelatedSection title="할 일" count={entity.tasks.count} action={<div className="actions"><button type="button" className="btn btn-text" aria-label="할 일 작성" onClick={onCreate}>작성</button>{button}</div>}>
+  return <RelationControls key={entity.id} entityId={entity.id} entityTitle={entity.prop1} revision={entity.tasks} onSaved={onSaved}>{({search,button,unlink})=><RelatedSection title="할 일" count={entity.tasks.count} action={<div className="actions"><BodyAction icon="create" aria-label="할 일 작성" onClick={onCreate}>작성</BodyAction>{button}</div>}>
     {search}<ul className="related-items">{items.map(item=><li key={item.id}><RelatedPreviewItem to={`/tasks/${item.id}`} title={item.title} action={unlink(item)}/></li>)}</ul>
     {failed&&<Notice kind="error">연결된 할 일을 불러오지 못했습니다.</Notice>}
-    {(failed||cursor||cursor===undefined&&entity.tasks.count>items.length)&&<button type="button" className="btn btn-text" disabled={loading} onClick={()=>void more()}>{loading?"불러오는 중…":failed?"할 일 다시 시도":"할 일 더 보기"}</button>}
+    {(failed||cursor||cursor===undefined&&entity.tasks.count>items.length)&&<BodyAction disabled={loading} onClick={()=>void more()}>{loading?"불러오는 중…":failed?"할 일 다시 시도":"할 일 더 보기"}</BodyAction>}
   </RelatedSection>}</RelationControls>;
 }
