@@ -1,0 +1,31 @@
+.detail-workspace { min-width: 0; }
+.workspace-list { display: flex; flex-direction: column; gap: var(--space-5); min-width: 0; }
+.workspace-details[hidden], .workspace-details [role=tabpanel][hidden], .workspace-tab-bar[hidden] { display: none; }
+.workspace-tabs { display: flex; overflow-x: auto; min-width: 0; flex: 1; scroll-padding-inline: 8px; }
+.workspace-tab-bar { display: flex; min-width: 0; flex-shrink: 0; background: var(--input-surface); border-bottom: 1px solid var(--line); }
+.workspace-tab { display: flex; align-items: center; flex: 0 0 auto; max-width: 15rem; border-right: 1px solid var(--line); border-bottom: 2px solid transparent; color: var(--muted-ink); }
+.workspace-tab[data-selected] { background: var(--panel); border-bottom-color: var(--accent); color: var(--ink); }
+.workspace-tab button { background: none; color: inherit; border: 0; font: inherit; cursor: pointer; }
+.workspace-tab [role=tab] { display: flex; align-items: center; gap: var(--space-2); min-width: 0; min-height: 44px; padding: 0 0 0 var(--space-3); font-size: var(--text-label); }
+.workspace-tab [role=tab] span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.workspace-tab svg { width: 16px; height: 16px; flex-shrink: 0; }
+.workspace-tab-close, .workspace-hide { width: 44px; height: 44px; flex: 0 0 44px; font-size: 1.25rem !important; }
+.workspace-hide { border: 0; border-left: 1px solid var(--line); color: var(--muted-ink); background: var(--input-surface); cursor: pointer; }
+.workspace-tab button:hover, .workspace-hide:hover { color: var(--ink); background: var(--panel); }
+.workspace-tab button:focus-visible, .workspace-hide:focus-visible { outline: 2px solid var(--accent); outline-offset: -3px; }
+.workspace-reopen { align-self: flex-end; }
+@media(min-width:1280px) and (min-height:480px) {
+  .app-main:has(.detail-workspace) { max-width: none; }
+  .has-navigation .app-main:has(.detail-workspace.has-detail-panel) { padding: 0; }
+  .has-detail-panel { display: grid; grid-template-columns: minmax(0, 1fr) minmax(27rem, 46%); height: 100dvh; overflow: hidden; }
+  .has-detail-panel .workspace-list { padding: var(--space-6); overflow-y: auto; overscroll-behavior: contain; }
+  .workspace-details { min-width: 0; min-height: 0; display: flex; flex-direction: column; background: var(--panel); border-left: 1px solid var(--line); }
+  .workspace-details > [role=tabpanel] { flex: 1; min-height: 0; }
+  .modal.detail-docked { position: static; width: 100%; max-width: none; height: 100%; max-height: none; margin: 0; border: 0; border-radius: 0; box-shadow: none; }
+  .detail-docked .modal-inner { height: 100%; max-height: none; }
+  .detail-docked .modal-head { padding: var(--space-4) var(--space-5); }
+  .detail-docked .modal-body { padding: var(--space-5); }
+  .detail-docked.modal-action .modal-inner { height: 100%; max-height: none; }
+  .detail-docked .modal-foot { padding-inline: var(--space-5); }
+  .workspace-list > .panel { padding: 0; background: transparent; border: 0; }
+}

@@ -1,6 +1,6 @@
 import { openListEditor, openDetailEditor } from "./ui-actions.ts";
 import { fillChangeMemo } from "./ui-actions.ts";
-import { saveOnce, beginTabAction } from "./ui-actions.ts";
+import { saveOnce, beginTabAction, closeDetail } from "./ui-actions.ts";
 import { expect, test, type Page } from "@playwright/test";
 const url = "/e2e/fixtures/entity-tags.html";
 const tags = ["첫 태그", "다른 태그"].map((name, i) => ({ id: `00000000-0000-4000-8000-00000000000${i}`, name, version: 1, created_at: "2026-10-04T00:00:00Z", updated_at: "2026-10-04T00:00:00Z" }));
@@ -117,15 +117,15 @@ test("실제 App 공통 모달 생성·직접 편집 성공/취소·저장 중 P
   await started;
   await page.goBack(); await expect(page).toHaveURL(/\/tasks\?create=1$/); await expect(page.getByRole("dialog", { name: "변경을 버릴까요?" })).not.toBeVisible();
   release(); await expect.poll(() => new URL(page.url()).pathname === `/tasks/${current.id}`).toBe(true); await expect(form).not.toBeVisible();
-  await page.getByRole("button", { name: "닫기", exact: true }).click(); await openListEditor(page,"생성 결과");
-  form = page.getByRole("dialog", { name: "할 일 편집", exact: true }); await form.getByRole("button", { name: "닫기", exact: true }).click(); await expect(page).toHaveURL(/\/tasks\?/); await expect(form).not.toBeVisible();
+  await closeDetail(page,"생성 결과"); await openListEditor(page,"생성 결과");
+  form = page.getByRole("dialog", { name: "할 일 편집", exact: true }); await closeDetail(page,"생성 결과"); await expect(page).toHaveURL(/\/tasks\?/); await expect(form).not.toBeVisible();
   await openListEditor(page,"생성 결과"); await form.getByLabel("본문").fill("직접 편집 성공");await fillChangeMemo(page,form,"직접 편집 검증"); await saveOnce(page, form);
-  await expect(form).not.toBeVisible(); await openDetailEditor(page); await expect(form.getByLabel("본문")).toHaveValue("직접 편집 성공"); await form.getByRole("button", {name:"닫기",exact:true}).click(); expect(warnings).toEqual([]);
+  await expect(form).not.toBeVisible(); await openDetailEditor(page); await expect(form.getByLabel("본문")).toHaveValue("직접 편집 성공"); await closeDetail(page,"생성 결과"); expect(warnings).toEqual([]);
   const entity = { id: "30000000-0000-4000-8000-000000000000", prop1: "App 엔터티", tag_ids: [], prop2: null, prop3: null, prop4: "a", version: 1, created_at: task.created_at, updated_at: task.updated_at, tasks: { count: 0, items: [] }, records: { count: 0, items: [] }, principles: { count: 0, items: [] } };
   await page.route("**/api/entities**", route => route.fulfill({ json: route.request().method() === "POST" || new URL(route.request().url()).pathname.endsWith(entity.id) ? entity : { items: [], next_cursor: null } }));
   await page.getByRole("navigation", { name: "주 메뉴" }).getByRole("link", { name: "엔터티", exact: true }).click(); await beginTabAction(page,"엔터티 추가");
   const entityForm = page.getByRole("dialog", { name: "엔터티 추가", exact: true }); await entityForm.getByLabel("속성 1").fill(entity.prop1); await saveOnce(page, entityForm);
-  await expect(entityForm).not.toBeVisible(); await expect(page).toHaveURL(new RegExp(`/entities/${entity.id}`)); await expect(page.getByRole("heading",{name:entity.prop1,level:1,exact:true})).toBeVisible();
+  await expect(entityForm).not.toBeVisible(); await expect(page).toHaveURL(new RegExp(`/entities/${entity.id}`)); await expect(page.getByRole("heading",{name:entity.prop1,exact:true})).toBeVisible();
 });
 test("실제 App 태그 폐기 승인 뒤에만 로그아웃 요청하고 로그인으로 종료", async ({ page }) => {
   let signOuts = 0;

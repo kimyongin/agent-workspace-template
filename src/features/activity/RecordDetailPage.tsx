@@ -13,6 +13,7 @@ import { DetailSurface } from "../../components/Modal.tsx";
 import { api, ApiError, query } from "../../lib/api.ts";
 import { RecordFormModal, recordDraftFrom } from "./forms.tsx";
 import {TagNames} from "../tags/TagPicker.tsx";
+import { recordDisplayText } from "@contracts/record-display.ts";
 
 export function RecordDetailPage() {
   const { timezone } = useDisplayTime();
@@ -56,7 +57,7 @@ export function RecordDetailPage() {
       <RecordRelations record={record} includeEntities={!editor.active||record.record_kind==="change"}/>
       <PrincipleSnapshots snapshots={record.applied_principle_snapshots??[]}/>
     </div>;
-  return <DetailSurface footer={<button type="button" className="btn btn-primary" onClick={editor.start}>편집</button>} title="기록" onClose={()=>navigate(back)} busy={busy}>
+  return <DetailSurface footer={<button type="button" className="btn btn-primary" onClick={editor.start}>편집</button>} title="기록" tabTitle={recordDisplayText(record.body)} onClose={()=>navigate(back)} busy={busy}>
 
       <div className="detail-stack">{record.body&&<section className="detail-section record-content" aria-label="내용"><MarkdownContent text={record.body}/></section>}
       {!editor.active&&management}</div>

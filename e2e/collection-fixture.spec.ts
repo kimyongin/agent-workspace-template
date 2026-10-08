@@ -2,6 +2,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import {id,stamp,identity as base,entity as makeEntity,task as makeTask,record as makeRecord} from "./support/workspace-data.ts";
 import {installWorkspaceApi} from "./support/workspace-api.ts";
+import {closeDetail} from "./ui-actions.ts";
 const task={...makeTask(),title:"다음 상담 준비",body:"필요한 자료를 준비합니다.",due_on:"2026-10-12",entity_ids:[id(1)],entity_context:[{id:id(1),title:"김민수",source:"selection" as const,captured_at:stamp}]};
 const record={...makeRecord(),body:"상담 내용을 정리하고 다음 방문 일정을 확인했습니다.",task_id:id(2),entity_ids:[id(1)],entity_context:task.entity_context};
 const entity={...makeEntity(),prop1:"김민수",prop3:"2026-10-08",tasks:{count:1,items:[task]},records:{count:1,items:[record]}};
@@ -36,7 +37,7 @@ for (const [kind, label, title] of [["entities", "엔터티", entity.prop1], ["t
   await modes.getByRole("radio", { name: "테이블", exact: true }).click();
   await list.getByRole("button", { name: title, exact: true }).click();
   await list.getByRole("link", { name: `${title} 상세`, exact: true }).click();
-  await page.getByRole("dialog").getByRole("button", { name: "닫기", exact: true }).click();
+  await closeDetail(page, title);
   await expect(page).toHaveURL(/view=table/);
   await expect(list.getByRole("button", { name: title, exact: true })).toHaveAttribute("aria-expanded", "true");
   await page.getByRole("button", { name: "필터 열기" }).click();
@@ -53,7 +54,7 @@ test("related sections switch independently and return from a linked detail", as
   await records.getByRole("radio", { name: "테이블", exact: true }).click();
   await tasks.getByRole("button", { name: task.title, exact: true }).click();
   await tasks.getByRole("link", { name: `${task.title} 상세`, exact: true }).click();
-  await dialog.getByRole("button", { name: /^이전:/ }).click();
+  await closeDetail(page, task.title);
   await expect(tasks.getByRole("radio", { name: "카드", exact: true })).toHaveAttribute("aria-checked", "true");
   await expect(records.getByRole("radio", { name: "테이블", exact: true })).toHaveAttribute("aria-checked", "true");
   await page.goto(`/records/${record.id}`);
@@ -100,7 +101,7 @@ test("calendar uses display dates, keyboard month edges, partial pages and saved
   await expect(page.getByRole("button", { name: "2026-10-01, 불러온 기록 20개", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "기록 0", exact: true }).click();
   await page.getByRole("link", { name: "기록 0 상세", exact: true }).click();
-  await page.getByRole("dialog").getByRole("button", { name: "닫기", exact: true }).click();
+  await closeDetail(page, "기록 0");
   await expect(page).toHaveURL(/calendar_day=2026-10-08/);
   await expect(day).toHaveAttribute("aria-pressed", "true");
   await page.getByRole("button", { name: "2026-10-01, 불러온 기록 20개", exact: true }).click();

@@ -23,13 +23,13 @@ export function createPagedList<T extends { id: string }, P extends ListPage<T>>
   let controller: AbortController | null = null;
   let intent = { pages: 1, anchor: undefined as string | undefined };
   let active: { pages: number; anchor?: string } | null = null;
-  let failed: "restore" | "more" | null = null;
+  let failed: "restore" | "more" | "refresh" | null = null;
   const emit = (patch: Partial<ListSnapshot<P>>) => {
     state = { ...state, ...patch };
     for (const listener of listeners) listener();
   };
   const cancel = () => { controller?.abort(); controller = null; active = null; };
-  const run = async (target: number, anchor: string | undefined, source: "restore" | "more", restart = false) => {
+  const run = async (target: number, anchor: string | undefined, source: "restore" | "more", restart = false, atomic = false) => {
     cancel();
     const request = new AbortController();
     controller = request;
@@ -49,8 +49,8 @@ export function createPagedList<T extends { id: string }, P extends ListPage<T>>
         emit({ page: result, showMoreControl: state.showMoreControl || !!result.next_cursor });
       }
     };
-    if (restart) acceptedCursors.clear();
-    emit({ busy: true, error: null, completion: null, ...(restart ? { page: null } : {}) });
+    if (restart && !atomic) acceptedCursors.clear();
+    emit({ busy: true, error: null, completion: null, ...(restart && !atomic ? { page: null } : {}) });
     try {
       while ((!result || result.pages < targetPages || !!anchor && !result.items.some(item => item.id === anchor)) &&
         (!result || result.next_cursor) && (result?.pages ?? 0) < budget) {
@@ -70,7 +70,7 @@ export function createPagedList<T extends { id: string }, P extends ListPage<T>>
           ids.add(item.id); return true;
         })], pages: (result?.pages ?? 0) + 1 } as LoadedPage<P>;
         validCursors = new Set(visited);
-        if (targetPages <= 20 || result.pages === 1 || result.pages % 20 === 0 || result.pages >= targetPages) publish();
+        if (!atomic && (targetPages <= 20 || result.pages === 1 || result.pages % 20 === 0 || result.pages >= targetPages)) publish();
       }
       publish();
       if (current()) {
@@ -79,7 +79,7 @@ export function createPagedList<T extends { id: string }, P extends ListPage<T>>
           ...(!hadPrior && source === "restore" && !result?.next_cursor ? { showMoreControl: false } : {}) });
       }
     } catch (error) {
-      if (current()) { publish(); failed = source; emit({ error, showMoreControl: true }); }
+      if (current()) { if(!atomic)publish(); failed = atomic ? "refresh" : source; emit({ error, showMoreControl: true }); }
     } finally {
       if (current()) { active = null; controller = null; emit({ busy: false }); }
     }
@@ -106,10 +106,12 @@ export function createPagedList<T extends { id: string }, P extends ListPage<T>>
     },
     retry: () => {
       if (state.busy) return Promise.resolve();
+      if (failed === "refresh") return run(intent.pages, intent.anchor, "restore", true, true);
       return failed === "more" && state.page?.next_cursor
         ? run(state.page.pages + 1, intent.anchor, "more")
         : run(intent.pages, intent.anchor, "restore", options.restoreRetry === "restart");
     },
+    refresh: () => run(intent.pages, intent.anchor, "restore", true, true),
     cancel,
   };
 }

@@ -1,7 +1,8 @@
 import { DetailNavigationProvider } from "../lib/detail-exploration.tsx";
 // 앱 조립: 경로·메뉴·브랜드. 새 도메인은 메뉴와 경로를 여기서 바꾼다.
 import { useState } from "react";
-import { createBrowserRouter, createRoutesFromElements, Navigate, Outlet, Route, RouterProvider, useLocation } from "react-router";
+import { createBrowserRouter, createRoutesFromElements, Navigate, Outlet, Route, RouterProvider, Routes, useLocation, type Location } from "react-router";
+import { DetailWorkspace } from "../features/details/DetailWorkspace.tsx";
 import { Navigation } from "./Navigation.tsx";
 import { GuidePage } from "../features/settings/GuidePage.tsx";
 import { SettingsPage } from "../features/settings/SettingsPage.tsx";
@@ -31,7 +32,9 @@ function Layout() {
         <span className="app-brand">{APP_NAME}</span>
       </header>
       <main className="app-main" key={location.pathname === "/logout" ? "logout" : session?.user.id ?? "signed-out"}>
-        <DetailNavigationProvider key={location.pathname === "/logout" ? "logout" : session?.user.id ?? "signed-out"} scope={session?.user.id ?? "signed-out"}><Outlet /></DetailNavigationProvider>
+        <DetailNavigationProvider key={location.pathname === "/logout" ? "logout" : session?.user.id ?? "signed-out"} scope={session?.user.id ?? "signed-out"}>
+          {session ? <DetailWorkspace render={location => <WorkspaceRoutes location={location}/>}><Outlet/></DetailWorkspace> : <Outlet/>}
+        </DetailNavigationProvider>
       </main>
       {session && <Navigation brand={APP_NAME} />}
     </div>
@@ -39,28 +42,31 @@ function Layout() {
 }
 
 const guarded = (el: React.ReactNode) => <RequireAuth>{el}</RequireAuth>;
+const workspaceRoutes = [
+  { path: "entities", element: <EntitiesPage/> }, { path: "entities/:id", element: <EntityDetailPage/> },
+  { path: "tasks", element: <TasksPage/> }, { path: "tasks/:id", element: <TaskDetailPage/> },
+  { path: "records", element: <RecordsPage/> }, { path: "records/:id", element: <RecordDetailPage/> },
+  { path: "principles", element: <PrinciplesPage/> }, { path: "principles/:id", element: <PrincipleDetailPage/> },
+  { path: "search", element: <SearchPage/> },
+];
+
+function WorkspaceRoutes({ location }: { location: Location }) {
+  return <Routes location={location}>{workspaceRoutes.map(route => <Route key={route.path} {...route}/>)}</Routes>;
+}
 
 export function App() {
   // Data router는 기존 URL을 유지하고 편집 초안의 useBlocker 경로를 지원한다.
   const [router] = useState(() => createBrowserRouter(createRoutesFromElements(
-          <Route element={<Layout />}>
+          <Route path="/*" element={<Layout />}>
             <Route index element={<Navigate to="/tasks" replace />} />
             <Route path="login" element={<LoginPage />} />
             {/* 세션 해제 뒤 next=/logout으로 재로그인하는 루프를 만들지 않는다. */}
             <Route path="logout" element={<LogoutPage />} />
             <Route path="oauth/consent" element={guarded(<ConsentPage />)} />
-            <Route path="tasks" element={guarded(<TasksPage />)} />
-            <Route path="tasks/:id" element={guarded(<TaskDetailPage />)} />
-            <Route path="records" element={guarded(<RecordsPage />)} />
-            <Route path="records/:id" element={guarded(<RecordDetailPage />)} />
-            <Route path="principles" element={guarded(<PrinciplesPage />)} />
-            <Route path="principles/:id" element={guarded(<PrincipleDetailPage />)} />
+            {workspaceRoutes.map(route => <Route key={route.path} path={route.path} element={guarded(route.element)}/>)}
             <Route path="tags" element={guarded(<TagsPage />)} />
             <Route path="tags/:scope" element={guarded(<TagsPage />)} />
             <Route path="tags/:scope/:id" element={guarded(<TagsPage />)} />
-            <Route path="search" element={guarded(<SearchPage />)} />
-            <Route path="entities" element={guarded(<EntitiesPage />)} />
-            <Route path="entities/:id" element={guarded(<EntityDetailPage />)} />
             <Route path="guide" element={guarded(<GuidePage />)} />
             <Route path="settings" element={guarded(<SettingsPage />)} />
             <Route path="*" element={<p className="secondary">페이지를 찾을 수 없습니다.</p>} />

@@ -34,7 +34,7 @@ agent-workspace-template/
 │  │  ├─ activity/                 # 할 일·기록·활동 목록
 │  │  ├─ principles/               # 사용자 원칙
 │  │  ├─ entity/                   # 단일 예제 엔터티(도메인 교체 대상)
-│  │  ├─ details/                  # 상세 조회·확정 값·편집 준비의 수명
+│  │  ├─ details/                  # 상세 조회·편집 준비, 작업 영역의 탭·URL·이동 보호
 │  │  ├─ collections/              # 목록 페이지 수명·복원·재시도
 │  │  ├─ relations/                # 관계 검색과 읽기 미리보기
 │  │  ├─ search/                   # 검색 화면과 API 호출
