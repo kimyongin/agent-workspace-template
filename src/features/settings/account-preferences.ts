@@ -28,7 +28,7 @@ export type DisplayScale = typeof displayScales[number];
 export function displayScalePreference(value: unknown): DisplayScale {
   return displayScales.find(scale => value === scale || value === String(scale)) ?? 100;
 }
-export interface AccountPreferences { icon: ProfileIconId; nickname: string | null; timezone: string | null; displayScale: DisplayScale }
+export interface AccountPreferences { icon: ProfileIconId; nickname: string | null; timezone: string | null; desktopDisplayScale: DisplayScale; mobileDisplayScale: DisplayScale }
 export function profileIconId(value: unknown): ProfileIconId {
   return profileIcons.find(icon => icon.id === value)?.id ?? "person";
 }
@@ -42,10 +42,10 @@ export function profileName(metadata: Record<string, unknown> | undefined): stri
     ?? (typeof metadata?.full_name === "string" && metadata.full_name.trim() ? metadata.full_name.trim() : "내 계정");
 }
 
-const preferenceKeys = { icon: "workspace_avatar_id", nickname: "workspace_nickname", timezone: "workspace_timezone", displayScale: "workspace_display_scale" } as const;
+const preferenceKeys = { icon: "workspace_avatar_id", nickname: "workspace_nickname", timezone: "workspace_timezone", desktopDisplayScale: "workspace_display_scale", mobileDisplayScale: "workspace_mobile_display_scale" } as const;
 /** 개인 표시 설정의 JSON 저장 계약. 권한·비밀값·업무 데이터는 포함하지 않는다. */
 export function accountPreferences(metadata: Record<string, unknown>): AccountPreferences {
-  return { icon: profileIconId(metadata[preferenceKeys.icon]), nickname: nicknamePreference(metadata[preferenceKeys.nickname]), timezone: timezonePreference(metadata[preferenceKeys.timezone]), displayScale: displayScalePreference(metadata[preferenceKeys.displayScale]) };
+  return { icon: profileIconId(metadata[preferenceKeys.icon]), nickname: nicknamePreference(metadata[preferenceKeys.nickname]), timezone: timezonePreference(metadata[preferenceKeys.timezone]), desktopDisplayScale: displayScalePreference(metadata[preferenceKeys.desktopDisplayScale]), mobileDisplayScale: displayScalePreference(metadata[preferenceKeys.mobileDisplayScale]) };
 }
 export function preferenceMetadata(changes: Partial<AccountPreferences>): Record<string, string | null> {
   const metadata: Record<string, string | null> = {};
@@ -62,9 +62,12 @@ export function preferenceMetadata(changes: Partial<AccountPreferences>): Record
     if (changes.timezone !== null && timezonePreference(changes.timezone) === null) throw new Error("올바른 시간대를 선택하세요.");
     metadata[preferenceKeys.timezone] = changes.timezone;
   }
-  if (changes.displayScale !== undefined) {
-    if (!displayScales.includes(changes.displayScale)) throw new Error("화면 배율을 선택하세요.");
-    metadata[preferenceKeys.displayScale] = String(changes.displayScale);
+  for (const field of ["desktopDisplayScale", "mobileDisplayScale"] as const) {
+    const scale = changes[field];
+    if (scale !== undefined) {
+      if (!displayScales.includes(scale)) throw new Error("화면 배율을 선택하세요.");
+      metadata[preferenceKeys[field]] = String(scale);
+    }
   }
   return metadata;
 }

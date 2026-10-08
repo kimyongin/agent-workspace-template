@@ -20,14 +20,14 @@ function AccountSettings() {
   const preferences = accountPreferences(metadata);
   const saved = { ...preferences, nickname: preferences.nickname ?? "" };
   const [draft, setDraft] = useState(saved);
-  useDisplayScalePreview(draft.displayScale);
+  useDisplayScalePreview(draft.desktopDisplayScale, draft.mobileDisplayScale);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState(false);
   const pending = useRef(false);
   const mounted = useRef(true);
   const previousSaved = useRef(saved);
-  const dirty = draft.icon !== saved.icon || draft.nickname !== saved.nickname || draft.timezone !== saved.timezone || draft.displayScale !== saved.displayScale;
+  const dirty = draft.icon !== saved.icon || draft.nickname !== saved.nickname || draft.timezone !== saved.timezone || draft.desktopDisplayScale !== saved.desktopDisplayScale || draft.mobileDisplayScale !== saved.mobileDisplayScale;
   useEffect(() => {
     const previous = previousSaved.current;
     previousSaved.current = saved;
@@ -36,9 +36,10 @@ function AccountSettings() {
       icon: value.icon === previous.icon ? saved.icon : value.icon,
       nickname: value.nickname === previous.nickname ? saved.nickname : value.nickname,
       timezone: value.timezone === previous.timezone ? saved.timezone : value.timezone,
-      displayScale: value.displayScale === previous.displayScale ? saved.displayScale : value.displayScale,
+      desktopDisplayScale: value.desktopDisplayScale === previous.desktopDisplayScale ? saved.desktopDisplayScale : value.desktopDisplayScale,
+      mobileDisplayScale: value.mobileDisplayScale === previous.mobileDisplayScale ? saved.mobileDisplayScale : value.mobileDisplayScale,
     }));
-  }, [saved.icon, saved.nickname, saved.timezone, saved.displayScale]);
+  }, [saved.icon, saved.nickname, saved.timezone, saved.desktopDisplayScale, saved.mobileDisplayScale]);
   const blocker = useBlocker(dirty || busy);
   useEffect(() => { if (busy && blocker.state === "blocked") blocker.reset(); }, [busy, blocker]);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
@@ -58,7 +59,8 @@ function AccountSettings() {
       if (draft.icon !== saved.icon) changes.icon = draft.icon;
       if (draft.nickname !== saved.nickname) changes.nickname = draft.nickname;
       if (draft.timezone !== saved.timezone) changes.timezone = draft.timezone;
-      if (draft.displayScale !== saved.displayScale) changes.displayScale = draft.displayScale;
+      if (draft.desktopDisplayScale !== saved.desktopDisplayScale) changes.desktopDisplayScale = draft.desktopDisplayScale;
+      if (draft.mobileDisplayScale !== saved.mobileDisplayScale) changes.mobileDisplayScale = draft.mobileDisplayScale;
       try {
         const confirmed = await savePreferences(changes);
         if (mounted.current) { setDraft({ ...confirmed, nickname: confirmed.nickname ?? "" }); setMessage("설정을 저장했습니다."); }
@@ -87,10 +89,11 @@ function AccountSettings() {
       </fieldset>
       <fieldset disabled={busy} className="settings-group"><legend className="section-title">화면 표시</legend>
         <div className="settings-fields">
-          <Field label="화면 배율">{props => <select {...props} className="input" value={draft.displayScale} onChange={event => { setDraft(value => ({ ...value, displayScale: displayScalePreference(event.target.value) })); clearMessage(); }}>
-            {displayScales.map(scale => <option key={scale} value={scale}>{scale}%{scale === 100 ? " (기본)" : ""}</option>)}
-          </select>}</Field>
-          <p className="secondary">글자와 UI 크기를 미리 봅니다. 저장하면 다음 로그인에도 적용됩니다.</p>
+          {([{ key: "mobileDisplayScale", label: "모바일 화면 배율" }, { key: "desktopDisplayScale", label: "데스크톱 화면 배율" }] as const).map(({ key, label }) =>
+            <Field key={key} label={label}>{props => <select {...props} className="input" value={draft[key]} onChange={event => { setDraft(value => ({ ...value, [key]: displayScalePreference(event.target.value) })); clearMessage(); }}>
+              {displayScales.map(scale => <option key={scale} value={scale}>{scale}%{scale === 100 ? " (기본)" : ""}</option>)}
+            </select>}</Field>)}
+          <p className="secondary">현재 화면 크기의 배율을 미리 봅니다. 저장하면 다음 로그인에도 적용됩니다.</p>
         </div>
       </fieldset>
     <section className="settings-group" aria-labelledby="data-title"><h2 className="section-title" id="data-title">자료 관리</h2>
