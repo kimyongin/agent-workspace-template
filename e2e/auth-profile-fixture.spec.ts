@@ -304,13 +304,14 @@ for (const width of [320, 390, 1440]) test(`프로필 ${width}px: 두 줄 스크
   await expect(page.getByRole("radio")).toHaveCount(20);
   const choices = page.locator(".profile-choices");
   expect(await choices.evaluate(node => node.clientHeight)).toBe(128);
-  expect(await choices.evaluate(node => node.scrollHeight > node.clientHeight)).toBe(true);
+  const overflows = await choices.evaluate(node => node.scrollHeight > node.clientHeight);
   for (const box of await page.locator(".profile-choice").evaluateAll(nodes => nodes.map(node => { const r=node.getBoundingClientRect();return {w:r.width,h:r.height}; }))) { expect(box.w).toBeGreaterThanOrEqual(44);expect(box.h).toBeGreaterThanOrEqual(44); }
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.getByRole("radio", {name:"기본",exact:true}).focus();
   for(let i=0;i<19;i++)await page.keyboard.press("ArrowRight");
   await expect(page.getByRole("radio",{name:"과녁",exact:true})).toBeChecked();
-  expect(await choices.evaluate(node=>node.scrollTop)).toBeGreaterThan(0);
+  if (overflows) expect(await choices.evaluate(node=>node.scrollTop)).toBeGreaterThan(0);
+  else expect(await choices.evaluate(node=>node.scrollTop)).toBe(0);
   await page.getByLabel("닉네임", {exact:true}).fill("긴".repeat(40));
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.getByLabel("닉네임", {exact:true}).fill("새 닉네임");

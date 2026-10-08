@@ -16,6 +16,11 @@ test.beforeEach(async ({ page, baseURL }) => {
   }, user);
 });
 async function settings(page: Page) { await page.getByRole("button", { name: "메뉴", exact: true }).click(); await page.getByRole("link", { name: "설정", exact: true }).click(); }
+async function requestLogout(page: Page) {
+  const profile = page.getByRole("button", { name: "내 프로필", exact: true });
+  if (await profile.getAttribute("aria-expanded") !== "true") await profile.click();
+  await page.locator("#nav-profile-options").getByRole("link", { name: "로그아웃", exact: true }).click();
+}
 async function refreshedProfile(page: Page, icon: () => string) {
   await page.route("**/auth/v1/user", route => {
     if (route.request().method() === "PUT") return route.fallback();
@@ -42,6 +47,7 @@ test("네 탭과 프로필·메뉴는 320~1440px와 200%에서 조작 가능하�
       expect(size[0]).toBeGreaterThanOrEqual(44); expect(size[1]).toBeGreaterThanOrEqual(44);
     }
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.getByRole("button", { name: "내 프로필", exact: true }).click();
     await page.getByRole("link", { name: "로그아웃", exact: true }).focus();
     const action = await page.getByRole("link", { name: "로그아웃", exact: true }).boundingBox(); const bottom = await nav.boundingBox();
     if(width<1024)expect(action!.y + action!.height).toBeLessThanOrEqual(bottom!.y);
@@ -58,7 +64,8 @@ test("네 탭과 프로필·메뉴는 320~1440px와 200%에서 조작 가능하�
   // 1440px 화면의 200% 브라우저 확대에 대응하는 CSS reflow 크기.
   await page.setViewportSize({ width: 720, height: 450 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-  await page.getByRole("link", { name: "로그아웃", exact: true }).focus();
+  await page.getByRole("button", { name: "내 프로필", exact: true }).click();
+    await page.getByRole("link", { name: "로그아웃", exact: true }).focus();
   const action = await page.getByRole("link", { name: "로그아웃", exact: true }).boundingBox(); const nav = await page.getByRole("navigation", { name: "주 메뉴" }).boundingBox();
   expect(action!.y + action!.height).toBeLessThanOrEqual(nav!.y);
 });
@@ -104,7 +111,7 @@ test("저장 중 중복 요청과 탭·로그아웃 이동을 막고 응답 뒤 
   await page.goto("/settings"); await page.getByRole("radio", { name: "해바라기", exact: true }).check(); await page.getByRole("button", { name: "저장", exact: true }).click();
   await expect(page.getByRole("button", { name: "저장 중…" })).toBeDisabled(); await page.getByRole("navigation", { name: "주 메뉴" }).getByRole("link", { name: "엔터티", exact: true }).click();
   await expect(page).toHaveURL(/\/settings$/); await expect(page.getByRole("dialog")).toHaveCount(0);
-  await page.getByRole("link", { name: "로그아웃", exact: true }).click(); await expect(page).toHaveURL(/\/settings$/); expect(calls).toBe(1);
+  await requestLogout(page); await expect(page).toHaveURL(/\/settings$/); expect(calls).toBe(1);
   finish(); await expect(page.getByRole("status")).toContainText("저장했습니다"); await page.getByRole("navigation", { name: "주 메뉴" }).getByRole("link", { name: "엔터티", exact: true }).click(); await expect(page).toHaveURL(/\/entities$/);
 });
 
@@ -132,17 +139,17 @@ test("미저장 설정의 탭·메뉴·뒤로가기·로그아웃은 같은 폐�
   const confirm = page.getByRole("dialog", { name: "변경을 버릴까요?" });
   let step = 0;
   for (const action of [async () => page.getByRole("navigation", { name: "주 메뉴" }).getByRole("link", { name: "할 일", exact: true }).click(), async () => { await page.getByRole("button", { name: "메뉴", exact: true }).click(); await page.locator("#nav-more-options").getByRole("link", { name: "사용 가이드", exact: true }).click(); }, async () => { await page.goBack(); }, async () => {
-    // 취소 뒤 유지된 메뉴는 작은 화면에서 본문의 로그아웃 위에 열린다.
-    const menu = page.getByRole("button", { name: "메뉴", exact: true });
-    if (await menu.getAttribute("aria-expanded") === "true") await menu.click();
-    await expect(menu).toHaveAttribute("aria-expanded", "false");
-    await page.getByRole("link", { name: "로그아웃", exact: true }).click();
+    await requestLogout(page);
   }]) {
     await action(); await expect(confirm).toBeVisible(); await confirm.getByRole("button", { name: "취소", exact: true }).click(); await expect(page.getByRole("radio", { name: "별", exact: true })).toBeChecked();
     if (step === 1) { await expect(page.locator("#nav-more-options").getByRole("link", { name: "사용 가이드", exact: true })).toBeFocused(); await expect(page.getByRole("button", { name: "메뉴", exact: true })).toHaveAttribute("aria-expanded", "true"); }
+    if (step === 3) {
+      await expect(page.locator("#nav-profile-options").getByRole("link", { name:"로그아웃", exact:true })).toBeFocused();
+      await expect(page.getByRole("button", { name:"내 프로필", exact:true })).toHaveAttribute("aria-expanded", "true");
+    }
     step++;
   }
-  expect(logoutCalls).toBe(0); await page.getByRole("link", { name: "로그아웃", exact: true }).click(); await confirm.getByRole("button", { name: "변경 버리기", exact: true }).click();
+  expect(logoutCalls).toBe(0); await requestLogout(page); await confirm.getByRole("button", { name: "변경 버리기", exact: true }).click();
   await expect(page).toHaveURL(/\/login$/); expect(logoutCalls).toBe(1); await expect(page.getByRole("navigation", { name: "주 메뉴" })).toHaveCount(0);
 });
 
@@ -150,7 +157,7 @@ test("원격 로그아웃 실패는 로컬 해제를 안내하며 재로그인�
   let fail = true; let calls = 0;
   await page.route("**/auth/v1/logout*", async route => { calls++; await route.fulfill(fail ? { status: 500, json: { msg: "fixture failure" } } : { status: 204 }); });
   await page.route("**/auth/v1/user", route => route.fulfill({ json: { ...user, user_metadata: { ...user.user_metadata, workspace_avatar_id: "leaf" } } }));
-  await page.goto("/settings"); await page.getByRole("link", { name: "로그아웃", exact: true }).click();
+  await page.goto("/settings"); await requestLogout(page);
   await expect(page.getByRole("alert")).toContainText("이 기기에서는 로그아웃했습니다",{timeout:15000});
   await expect(page.getByRole("navigation", { name: "주 메뉴" })).toHaveCount(0);
   fail = false; await page.getByRole("link", { name: "로그인으로 이동", exact: true }).click(); await expect(page).toHaveURL(/\/login$/); expect(calls).toBe(1);
@@ -230,4 +237,41 @@ test("#215 메인 네 탭의 상단 구획·브랜드·필터 조작은 좁은 �
   await page.setViewportSize({ width: 1440, height: 280 });
   await expect(page.locator(".workspace-header")).toBeVisible();
   await expect(page.locator(".navigation-brand")).toBeHidden();
+});
+
+// #217 checks the real settings/sidebar/footer consumers of profile presentation.
+test("#217 아이콘 선택은 가용 폭을 채우고 팝오버 이모지는 탐색과 같은 크기다", async ({ page }, info) => {
+  const columns: number[] = [];
+  for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
+    await page.setViewportSize({ width, height: 900 }); await page.goto("/settings");
+    const settings = page.getByRole("region", { name: "설정", exact: true });
+    await expect(settings.getByRole("link", { name: "로그아웃", exact: true })).toHaveCount(0);
+    const grid = page.locator(".profile-choices"), nickname = page.getByLabel("닉네임", { exact: true });
+    const g = (await grid.boundingBox())!, n = (await nickname.boundingBox())!;
+    expect(g.x).toBeCloseTo(n.x); expect(g.width).toBeCloseTo(n.width);
+    expect(await grid.evaluate(el => el.clientHeight)).toBe(128);
+    const tiles = await grid.locator(".profile-choice").evaluateAll(nodes => nodes.map(el => { const r = el.getBoundingClientRect(); return { x:r.x, y:r.y, right:r.right, width:r.width, height:r.height }; }));
+    const row = tiles.filter(tile => Math.abs(tile.y - tiles[0].y) < 1); columns.push(row.length);
+    expect(g.x + g.width - row.at(-1)!.right).toBeLessThanOrEqual(16);
+    for (const tile of tiles) { expect(tile.width).toBeGreaterThanOrEqual(44); expect(tile.height).toBeGreaterThanOrEqual(44); }
+    const profile = page.getByRole("button", { name: "내 프로필", exact: true }); await profile.click();
+    const popup = page.locator("#nav-profile-options");
+    await expect(popup.getByRole("link")).toHaveCount(2);
+    await profile.press("ArrowDown"); await expect(popup.getByRole("link", { name: "설정", exact:true })).toBeFocused();
+    await page.keyboard.press("ArrowDown"); await expect(popup.getByRole("link", { name: "로그아웃", exact:true })).toBeFocused();
+    const iconStyle = (selector: string) => page.locator(selector).evaluate(el => { const s = getComputedStyle(el), b = el.getBoundingClientRect(); return { width:b.width, height:b.height, font:s.fontSize, border:s.borderWidth }; });
+    expect(await iconStyle(".nav-profile-identity .profile-icon")).toEqual(await iconStyle(".nav-profile > button .profile-icon"));
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    if (width === 390 || width === 1440) await page.screenshot({ path:info.outputPath(`profile-polish-${width}.png`) });
+    await page.keyboard.press("Escape"); await expect(profile).toBeFocused();
+  }
+  expect(new Set(columns).size).toBeGreaterThan(1); expect(Math.max(...columns)).toBeGreaterThan(5);
+  for (const height of [320, 280]) {
+    await page.setViewportSize({ width:1440, height });
+    const trigger = page.getByRole("button", { name:"내 프로필", exact:true }); await trigger.click(); await trigger.press("End");
+    const popup = page.locator("#nav-profile-options"), b = (await popup.boundingBox())!;
+    expect(b.y).toBeGreaterThanOrEqual(0); expect(b.y + b.height).toBeLessThanOrEqual(height);
+    await expect(popup.getByRole("link", { name:"로그아웃", exact:true })).toBeInViewport();
+    await page.keyboard.press("Escape");
+  }
 });

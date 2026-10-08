@@ -146,9 +146,9 @@ html { scroll-padding-bottom: calc(var(--navigation-height) + env(safe-area-inse
 .settings fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
 .profile-icon { display: inline-flex; align-items: center; justify-content: center; font-size: 1.25rem; line-height: 1; }
 .profile-preview { display: flex; align-items: center; gap: var(--space-3); margin: var(--space-3) 0; min-width: 0; }
-.profile-preview .profile-icon, .nav-profile-identity .profile-icon { width: 44px; height: 44px; font-size: 1.75rem; border: 1px solid var(--control-border); border-radius: 50%; background: var(--surface); }
+.profile-preview .profile-icon { width: 44px; height: 44px; font-size: 1.75rem; border: 1px solid var(--control-border); border-radius: 50%; background: var(--surface); }
 .profile-icon-field { margin-top: var(--space-4) !important; }
-.profile-choices { --choice-height: 56px; display: grid; grid-template-columns: repeat(5,minmax(44px,1fr)); grid-auto-rows: var(--choice-height); gap: var(--space-2); height: calc(2 * var(--choice-height) + var(--space-2) + 8px); max-width: 22rem; padding: 4px; margin-top: var(--space-2); overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--control-border) var(--input-surface); scrollbar-gutter: stable; overscroll-behavior-y: contain; }
+.profile-choices { --choice-height: 56px; display: grid; grid-template-columns: repeat(auto-fill,minmax(56px,1fr)); grid-auto-rows: var(--choice-height); gap: var(--space-2); height: calc(2 * var(--choice-height) + var(--space-2) + 8px); width: 100%; padding: 4px; margin-top: var(--space-2); overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--control-border) var(--input-surface); scrollbar-gutter: stable; overscroll-behavior-y: contain; }
 .profile-choices::-webkit-scrollbar { display: block; width: 6px; }
 .profile-choices::-webkit-scrollbar-thumb { background: var(--control-border); border-radius: var(--radius-chip); }
 .profile-choices::-webkit-scrollbar-track { background: var(--input-surface); }
@@ -840,7 +840,7 @@ textarea.input {
 .settings-links a::after { content: ""; width: 6px; height: 6px; margin-right: var(--space-1); border-top: 1px solid var(--muted-ink); border-right: 1px solid var(--muted-ink); transform: rotate(45deg); flex-shrink: 0; }
 .settings-links a:last-child { border-bottom: 0; }
 .settings-links a:hover { color: var(--accent); }
-.settings-links .settings-logout { color: var(--danger); }
+.nav-more-options a.nav-logout { color: var(--danger); border-top: 1px solid var(--line); border-radius: 0; }
 .profile-choice:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
 .profile-choice input { accent-color: var(--accent); }
 .settings .actions .btn-text { text-decoration: none; }
