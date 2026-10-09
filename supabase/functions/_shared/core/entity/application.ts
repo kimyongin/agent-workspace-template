@@ -5,6 +5,8 @@ import {
   entityId,
   type EntityIdentitySettings,
   entityReferenceId,
+  entitySourceGeneration,
+  generateEntityExternalId,
   isActiveEntitySource,
 } from "../../contracts/entity-identity.ts";
 import type {
@@ -22,6 +24,7 @@ import type { Keyset } from "../shared/store.ts";
 import { changed, type ChangeStore } from "../shared/changes.ts";
 
 export interface EntityStore extends ChangeStore {
+  issueDataId?(): Promise<string>;
   getBusinessSettings(): Promise<{ settings: { entity_identity?: EntityIdentitySettings } }>;
   get(id: string, lock?: boolean): Promise<EntityResult | null>;
   related(id: string): Promise<Pick<EntityDetail, "tasks" | "records">>;
@@ -54,8 +57,11 @@ export function prepareEntityRegistration(d: EntityDeps, a: Actor, i: Pick<Entit
     const settings = (await s.getBusinessSettings()).settings.entity_identity ?? defaultEntityIdentitySettings;
     const source = i.source ?? settings.default_source;
     if (!isActiveEntitySource(settings, source)) throw invalidInput("삭제되지 않은 발급처를 선택하세요");
-    if (!i.external_id && settings.generation === "manual") throw invalidInput("식별자를 입력하세요");
-    const external_id = i.external_id ?? crypto.randomUUID(), id = entityId(source, external_id);
+    if (!i.external_id && entitySourceGeneration(settings, source) === "manual") {
+      throw invalidInput("식별자를 입력하세요");
+    }
+    const external_id = i.external_id ?? (s.issueDataId ? await s.issueDataId() : generateEntityExternalId()),
+      id = entityId(source, external_id);
     const existing = await s.get(id);
     return {
       source,
@@ -144,9 +150,19 @@ export function rekeyEntity(d: EntityDeps, a: Actor, id: string, i: EntityRekey)
 export function updateEntity(d: EntityDeps, a: Actor, id: string, i: EntityUpdate) {
   return d.uow.run(a, async (s) => {
     const old = await requireVersion(s, id, i.expected_version);
-    const { expected_version: _v, change_note, change_tag_ids, ...props } = i;
-    if (!changed(old, props)) return old;
-    const result = await s.update(id, props);
+    const { expected_version: _v, change_note, change_tag_ids, source, external_id, ...props } = i;
+    const identity = { source: source ?? old.source, external_id: external_id ?? old.external_id };
+    const next = entityId(identity.source, identity.external_id);
+    if (next !== id) {
+      const settings = (await s.getBusinessSettings()).settings.entity_identity ?? defaultEntityIdentitySettings;
+      if (!isActiveEntitySource(settings, identity.source)) throw invalidInput("삭제되지 않은 발급처를 선택하세요");
+      if (await s.get(next, true)) {
+        throw conflict("같은 발급처·식별자의 엔터티가 있습니다. 삭제된 대상도 별도 복원해야 합니다");
+      }
+    }
+    if (next === id && !changed(old, props)) return old;
+    let result = next === id ? old : await s.rekey(id, identity);
+    if (changed(old, props)) result = await s.update(result.id, props);
     await s.appendChange({
       target_kind: "entity",
       target: entityChangeTarget(result),

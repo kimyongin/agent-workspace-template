@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 import { devLogin, env, unique } from "./support.ts";
 import { beginTabAction } from "./ui-actions.ts";
 
-test("설정 템플릿 오류·변수 삽입과 실제 변경 확인·취소·재적용·고정 재시도", async ({page}) => {
+test("설정 템플릿 오류·변수 삽입과 실제 변경 확인·취소·수정 메모 보존·고정 재시도", async ({page}) => {
   await devLogin(page);
   const login = await page.request.post(`${env.VITE_SUPABASE_URL}/auth/v1/token?grant_type=password`, {headers:{apikey:env.VITE_SUPABASE_PUBLISHABLE_KEY},data:{email:env.DEV_USER_A_EMAIL,password:env.DEV_USER_A_PASSWORD}});
   const token = (await login.json()).access_token;
@@ -25,6 +25,7 @@ test("설정 템플릿 오류·변수 삽입과 실제 변경 확인·취소·�
     await form.getByLabel("액션",{exact:true}).selectOption("update");
     await form.getByLabel("메모 템플릿").fill("");
     await form.getByLabel("변수 삽입").selectOption("엔터티.이전.속성2");
+    await expect(form.getByLabel("메모 템플릿")).toHaveValue("$엔터티.이전.속성2$");
     await form.getByLabel("메모 템플릿").fill("${엔터티.이전.속성2$} → ${엔터티.이후.속성2$}");
     await expect(form.getByText("미리보기 예시 값 편집",{exact:true})).toHaveCount(0);
     await expect(form.locator("output")).toHaveCount(0);
@@ -53,8 +54,7 @@ test("설정 템플릿 오류·변수 삽입과 실제 변경 확인·취소·�
     await dialog.getByRole("button",{name:"추가",exact:true}).click();
     await expect(confirmation.getByLabel("기록 메모",{exact:true})).toHaveValue("  내 메모\n");
     await expect(confirmation.getByRole("button",{name:tag.name,exact:true})).toHaveAttribute("aria-pressed","false");
-    await confirmation.getByRole("button",{name:"템플릿 다시 적용",exact:true}).click();
-    await expect(confirmation.getByLabel("기록 메모",{exact:true})).toHaveValue(`${title} 준비 등록`);
+    await expect(confirmation.getByRole("button",{name:"템플릿 다시 적용",exact:true})).toHaveCount(0);
     const requests:unknown[]=[];
     await page.route("**/api/tasks",async route=>{
       if(route.request().method()!=="POST") return route.continue();
@@ -65,7 +65,7 @@ test("설정 템플릿 오류·변수 삽입과 실제 변경 확인·취소·�
     await confirmation.getByRole("button",{name:"등록하고 저장",exact:true}).click();
     await expect(confirmation.getByRole("button",{name:"같은 내용 다시 시도",exact:true})).toBeVisible();
     await expect(confirmation.getByLabel("기록 메모",{exact:true})).toBeDisabled();
-    await expect(confirmation.getByRole("button",{name:"템플릿 다시 적용",exact:true})).toBeDisabled();
+    await expect(confirmation.getByRole("button",{name:"템플릿 다시 적용",exact:true})).toHaveCount(0);
     const current=await api("GET","/settings/business");
     await api("PATCH","/settings/business",{expected_version:current.versions.record_templates,id: "record_templates", value: {task:{create:{memo:"나중에 바뀐 기본값",tag_ids:[]}}}});
     await confirmation.getByRole("button",{name:"같은 내용 다시 시도",exact:true}).click();
@@ -75,7 +75,7 @@ test("설정 템플릿 오류·변수 삽입과 실제 변경 확인·취소·�
     expect(preparedIds.length).toBeGreaterThan(0);expect(new Set(preparedIds)).toEqual(new Set([taskId]));
     const records=await api("GET","/records?record_kind=change&limit=100");
     const record=records.items.find((value:{change?:{target_id:string;action:string}})=>value.change?.target_id===taskId&&value.change.action==="create");
-    expect(record.body).toBe(`${title} 준비 등록`); expect(record.tag_ids).toEqual([tag.id]);
+    expect(record.body).toBe("  내 메모\n"); expect(record.tag_ids).toEqual([]);
   } finally {
     if(taskId){const task=await api("GET",`/tasks/${taskId}`);await api("POST",`/tasks/${taskId}/delete`,{expected_version:task.version,change_tag_ids:[]});}
     const current=await api("GET","/settings/business");await api("PATCH","/settings/business",{expected_version:current.versions.record_templates,id: "record_templates", value: saved.settings.record_templates??{}});

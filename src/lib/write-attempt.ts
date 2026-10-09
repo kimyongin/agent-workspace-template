@@ -1,3 +1,5 @@
+import { api } from "./api.ts";
+import { generateDataId } from "@contracts/data-id.ts";
 import { useState, useSyncExternalStore } from "react";
 import { ApiError, isUncertain } from "./api-error.ts";
 
@@ -7,7 +9,14 @@ export class WriteAttempt {
   private retained: (() => Promise<void>) | null = null;
   private id: string | null = null;
   private listeners = new Set<() => void>();
-  creationId = () => this.id ??= crypto.randomUUID();
+  private allocation:Promise<string>|null=null;
+  constructor(private allocate:()=>Promise<{id:string}>=async()=>({id:generateDataId()})) {}
+  prepareCreationId = async () => {
+    if(this.id)return this.id;
+    this.allocation ??= this.allocate().then(result=>this.id=result.id).finally(()=>{this.allocation=null;});
+    return this.allocation;
+  };
+  creationId = () => { if(!this.id)throw new Error("ID 발급 준비가 필요합니다");return this.id; };
   /** Closing/discarding an attempt ends its retry lifetime. Never discard an in-flight write. */
   reset() {
     if (this.state.busy) return;
@@ -29,6 +38,7 @@ export class WriteAttempt {
     const execute = this.retained ?? operation;
     this.publish(true, this.state.uncertain);
     try {
+      await this.prepareCreationId();
       await execute();
       this.retained = null;
       this.id = null;
@@ -43,7 +53,7 @@ export class WriteAttempt {
 }
 
 export function useWriteAttempt() {
-  const [attempt] = useState(() => new WriteAttempt());
+  const [attempt] = useState(() => new WriteAttempt(()=>api<{id:string}>("POST","/ids/allocate",{})));
   return { attempt, ...useSyncExternalStore(attempt.subscribe, attempt.snapshot, attempt.snapshot) };
 }
 

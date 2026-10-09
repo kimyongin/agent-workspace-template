@@ -94,7 +94,7 @@ class SqlSearchStore implements SearchStore {
       snippet_start,snippet_end,at,tag_ids,index_state,match,rank,status,record_kind from candidates
       ${
       after
-        ? tx`where (rank,at,kind,id)<(${after.rank}::float8,${after.at}::timestamptz,${after.kind}::text,${after.id}::uuid)`
+        ? tx`where (rank,at,kind,id)<(${after.rank}::float8,${after.at}::timestamptz,${after.kind}::text,${after.id}::text)`
         : tx``
     }
       order by rank desc,at desc,kind desc,id desc limit ${q.limit + 1}`;

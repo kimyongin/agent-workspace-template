@@ -121,7 +121,10 @@ Deno.test("업무 설정: 발급처 표시 이름은 바꾸지만 저장된 코�
       sources: [{ code: "app", label: "앱" }, { code: "crm", label: "고객" }],
     },
   });
-  assertEquals(renamed.settings.entity_identity?.sources[1], { code: "crm", label: "고객" });
+  assertEquals(renamed.settings.entity_identity?.sources.find((source) => source.code === "crm"), {
+    code: "crm",
+    label: "고객",
+  });
 });
 
 Deno.test("기록 준비: 실제 수정 계약에서 거부할 입력을 미리보기에서도 거부", async () => {

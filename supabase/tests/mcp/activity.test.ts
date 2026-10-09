@@ -2,7 +2,7 @@
 import { assert, assertEquals } from "@std/assert";
 import { z } from "zod";
 import { businessMeta, mutationMeta } from "../../functions/_shared/contracts/change.ts";
-import { isoDate } from "../../functions/_shared/contracts/common.ts";
+import { id, isoDate } from "../../functions/_shared/contracts/common.ts";
 import {
   occurrenceRecordCreate,
   recordCreate,
@@ -147,6 +147,7 @@ httpTest("검색: HTTP/MCP 본문 키워드·원문 최소 응답·대체 상태
 });
 
 const EXPECTED_TOOLS = [
+  "allocate_data_id",
   "get_business_settings",
   "update_business_settings",
   "prepare_record_memo",
@@ -487,12 +488,13 @@ httpTest(
   async () => {
     const { tools } = await mcpA.listTools();
     const byName = Object.fromEntries(tools.map((t) => [t.name, t.inputSchema as JsonSchema]));
-    const idOnly = { id: json(z.uuid()) };
+    const idOnly = { id: json(id) };
     const mutationVersion =
       json(z.strictObject({ expected_version: z.number().int().min(1), ...mutationMeta })).properties;
     const businessVersion =
       json(z.strictObject({ expected_version: z.number().int().min(1), ...businessMeta })).properties;
     const expected: Record<string, Record<string, unknown>> = {
+      allocate_data_id: {},
       list_tasks: json(taskListQuery).properties,
       list_records: json(recordListQuery).properties,
       create_principle: json(principleCreate).properties,
@@ -518,7 +520,7 @@ httpTest(
       delete_record: { ...idOnly, ...mutationVersion },
       // 회차 기록: 기록 생성 입력 + id + date
       record_occurrence: {
-        task_id: json(z.object({ task_id: z.uuid() })).properties.task_id,
+        task_id: json(z.object({ task_id: id })).properties.task_id,
         date: json(z.object({ date: isoDate })).properties.date,
         ...json(occurrenceRecordCreate).properties,
       },
@@ -526,7 +528,7 @@ httpTest(
     for (const [name, props] of Object.entries(expected)) {
       assertEquals(Object.keys(byName[name].properties).sort(), Object.keys(props).sort(), `${name} 속성 이름`);
       for (const [key, schema] of Object.entries(props)) {
-        if (key === "id") continue; // id는 어댑터가 더한 UUID(date는 contracts의 isoDate와 비교)
+        if (key === "id") continue; // id는 어댑터가 더한 데이터 ID(date는 contracts의 isoDate와 비교)
         assertEquals(byName[name].properties[key], schema, `${name}.${key}`);
       }
       assertEquals(byName[name].additionalProperties, false, `${name}는 허용 필드만`);

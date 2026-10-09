@@ -24,9 +24,15 @@ export function changeBody(input: ChangeInput): string {
   if (input.change_note?.trim()) return input.change_note;
   const base = `${input.target.title} ${actions[input.action]}`;
   if (!input.before || !input.after || input.action !== "update") return base;
+  const fields = changedFieldNames(input);
+  return fields.length ? `${base} (${fields.join(", ")})` : base;
+}
+
+/** Field names are separate from the target and action for editable default templates. */
+export function changedFieldNames(input: ChangeInput): string[] {
+  if (!input.before || !input.after) return [];
   const before = input.before;
-  const fields = Object.entries(input.after).filter(([key, value]) =>
+  return Object.entries(input.after).filter(([key, value]) =>
     changed({ [key]: before[key as keyof typeof before] }, { [key]: value })
   ).map(([key]) => labels[key] ?? key);
-  return fields.length ? `${base} (${fields.join(", ")})` : base;
 }

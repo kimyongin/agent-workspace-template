@@ -17,6 +17,10 @@ export class SqlActorStore {
   constructor(protected readonly tx: postgres.TransactionSql, protected readonly actor: Actor) {
     this.entityLinks = new SqlEntityLinks(tx);
   }
+  async issueDataId(): Promise<string> {
+    const [row] = await this.tx`select app.issue_data_id() as id`;
+    return row.id as string;
+  }
   getBusinessSettings() {
     return new SqlBusinessSettingsStore(this.tx, this.actor).get();
   }
@@ -33,7 +37,7 @@ export class SqlActorStore {
     // New events retain facts and the final memo, not an extra full domain capture.
     // Nullable keys remain compatible with old stored snapshots and readers.
     const metadata = {
-      event_id: crypto.randomUUID(),
+      event_id: await this.issueDataId(),
       target_kind: input.target_kind,
       target_id: target.id,
       target_title,
