@@ -55,7 +55,11 @@ export function EntitiesPage() {
         <h1 id="entities-title" className="page-title" tabIndex={-1}>엔터티</h1>
       </div>
       <div className="query-bar"><TabSearch entity/>
-      <TabFilters active={!!(filter.tag_id||filter.prop3_from||filter.prop3_to||filter.prop4||filter.sort!=="updated_at")} attention={dictionary.failed}>
+      <TabFilters active={!!(filter.tag_id||filter.prop3_from||filter.prop3_to||filter.prop4||filter.sort!=="updated_at")} attention={dictionary.failed} summary={[
+        filter.tag_id ? `태그: ${dictionary.tags?.find(tag => tag.id === filter.tag_id)?.name ?? "선택됨"}` : "",
+        filter.prop3_from ? `속성 3 시작: ${filter.prop3_from}` : "", filter.prop3_to ? `속성 3 종료: ${filter.prop3_to}` : "",
+        filter.prop4 ? `속성 4: ${filter.prop4}` : "", filter.sort !== "updated_at" ? `정렬: ${`속성 ${filter.sort.slice(-1)} 오름차순`}` : "",
+      ].filter(Boolean)}>
       <div className="filter-grid" role="group" aria-label="엔터티 필터">
           {(["prop3_from", "prop3_to"] as const).map((name) => (
             <Field

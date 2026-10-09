@@ -135,7 +135,7 @@ test("all layouts fit narrow/wide screens and large text, with quiet icon contro
     await page.setViewportSize({ width, height: 844 });
     for (const view of ["list", "cards", "table", ...(kind === "records" ? ["calendar"] : [])]) {
       await page.goto(`/${kind}?view=${view}`); await expect(page.locator(".collection-heading h2")).toContainText("1개");
-      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${await page.evaluate(() => innerWidth)}px ${await page.evaluate(() => [...document.querySelectorAll("body *")].filter(el => el.getBoundingClientRect().right > innerWidth + 1).slice(0, 8).map(el => `${el.className}:${Math.round(el.getBoundingClientRect().left)}-${Math.round(el.getBoundingClientRect().right)}`).join(", "))}`).toBe(true);
       if (view === "calendar") {
         const target = await page.locator(".calendar-days button").first().boundingBox();
         expect(target!.width).toBeGreaterThanOrEqual(44); expect(target!.height).toBeGreaterThanOrEqual(44);
@@ -149,7 +149,7 @@ test("all layouts fit narrow/wide screens and large text, with quiet icon contro
   }
   await page.setViewportSize({ width: 390, height: 844 }); await page.goto("/tasks?view=table");
   await page.evaluate(() => document.documentElement.style.fontSize = "200%");
-  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${await page.evaluate(() => innerWidth)}px ${await page.evaluate(() => [...document.querySelectorAll("body *")].filter(el => el.getBoundingClientRect().right > innerWidth + 1).slice(0, 8).map(el => `${el.className}:${Math.round(el.getBoundingClientRect().left)}-${Math.round(el.getBoundingClientRect().right)}`).join(", "))}`).toBe(true);
   const modes = page.getByRole("radiogroup", { name: "할 일 보기 방식" });
   await modes.getByRole("radio", { name: "테이블" }).press("Home");
   await expect(modes.getByRole("radio", { name: "리스트" })).toBeFocused();
@@ -176,7 +176,7 @@ test("table rows and headers share the same columns across wrapper types and vie
         expect(Math.abs(cell.width - geometry.columns[index].width)).toBeLessThan(1);
       }
     }
-    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${await page.evaluate(() => innerWidth)}px ${await page.evaluate(() => [...document.querySelectorAll("body *")].filter(el => el.getBoundingClientRect().right > innerWidth + 1).slice(0, 8).map(el => `${el.className}:${Math.round(el.getBoundingClientRect().left)}-${Math.round(el.getBoundingClientRect().right)}`).join(", "))}`).toBe(true);
   }
   await page.goto(`/entities/${entity.id}`);
   const section = page.getByRole("dialog").getByRole("region", { name: "기록 (1개)", exact: true });
@@ -192,7 +192,7 @@ test("calendar reflows at enlarged text without shrinking day targets", async ({
     await page.setViewportSize({ width, height: 900 }); await page.goto("/records?view=calendar");
     await expect(page.locator(".calendar-days button").first()).toBeVisible();
     await page.evaluate(() => document.documentElement.style.fontSize = "200%");
-    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${await page.evaluate(() => innerWidth)}px ${await page.evaluate(() => [...document.querySelectorAll("body *")].filter(el => el.getBoundingClientRect().right > innerWidth + 1).slice(0, 8).map(el => `${el.className}:${Math.round(el.getBoundingClientRect().left)}-${Math.round(el.getBoundingClientRect().right)}`).join(", "))}`).toBe(true);
     const box = await page.locator(".calendar-days button").first().boundingBox();
     expect(box!.width).toBeGreaterThanOrEqual(44); expect(box!.height).toBeGreaterThanOrEqual(44);
     const month = (await page.locator(".calendar-month-panel").boundingBox())!, selected = (await page.locator(".calendar-selection").boundingBox())!;
@@ -278,5 +278,18 @@ test("responsive brand aligns desktop title and menu/search gaps, with icon-only
       expect(geometry.mobileIcon).not.toBe("none");
     }
     if (width === 390 || width === 1440) await page.screenshot({ path: test.info().outputPath(`header-${width}.png`) });
+  }
+});
+
+test("closed filters show conditions below search and opening hides the summary", async ({ page }) => {
+  await fixture(page);
+  for (const [path, condition] of [["/entities?prop4=a", "속성 4: a"], ["/tasks?status=done", "상태: 완료"], ["/records?record_kind=change", "종류: 변경 기록"]]) {
+    await page.goto(path);
+    const summary = page.getByLabel("적용된 필터", {exact:true});
+    await expect(summary).toContainText(condition);
+    await page.getByRole("button", {name:/필터 열기/}).click();
+    await expect(summary).toHaveCount(0);
+    await page.getByRole("button", {name:/필터 닫기/}).click();
+    await expect(summary).toContainText(condition);
   }
 });

@@ -84,7 +84,14 @@ export function ActivityPage({ kind }: { kind: WorkspaceListKind }) {
       <div className="panel-body">
         {params.has("legacy_activity") && <Notice>목록을 나누어 {label} 탭으로 이동했습니다. {kind === "tasks" ? "기록과 기록 기간은 기록 탭에서 확인하세요." : "할 일과 진행 상태는 할 일 탭에서 확인하세요."}</Notice>}
         <div className="query-bar"><TabSearch/>
-        <TabFilters active={!!(tags.length||params.get("entity_id")||params.get("kind")||params.get("status")||params.get("record_kind")||from||to)} attention={!checked||dictionary.failed||trimmedTags}>
+        <TabFilters active={!!(tags.length||params.get("entity_id")||params.get("kind")||params.get("status")||params.get("record_kind")||from||to)} attention={!checked||dictionary.failed||trimmedTags} summary={[
+          ...tags.map(id => `태그: ${dictionary.tags?.find(tag => tag.id === id)?.name ?? "선택됨"}`),
+          params.get("entity_id") ? "선택한 엔터티" : "",
+          params.get("kind") ? `종류: ${params.get("kind") === "once" ? "한 번" : "반복"}` : "",
+          params.get("status") ? `상태: ${taskLabels[params.get("status") as keyof typeof taskLabels] ?? params.get("status")}` : "",
+          params.get("record_kind") ? `종류: ${recordKindNames[params.get("record_kind") as keyof typeof recordKindNames] ?? params.get("record_kind")}` : "",
+          from ? `시작: ${from}` : "", to ? `종료: ${to}` : "",
+        ].filter(Boolean)}>
       {params.get("entity_id")&&<EntityScope key={params.get("entity_id")} id={params.get("entity_id")!} onClear={()=>{const next=clearListPosition(new URLSearchParams(params));next.delete("entity_id");setParams(next,{replace:true});}}/>}
         <div className="filter-grid">
           {kind === "tasks" ? <>
