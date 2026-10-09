@@ -20,6 +20,8 @@
 | [0015](0015-change-record-templates.md) | 공통 변경 기록 템플릿과 사용자 업무 설정 | 채택 |
 | [0016](0016-entity-source-identity-and-restoration.md) | 발급처별 엔터티 식별과 소프트 삭제·복원 | 채택 |
 
+| [0017](0017-dated-data-id-allocation.md) | 날짜 기반 앱 ID 예약과 기존 UUID 보존 | 채택 |
+
 ## 문서의 책임
 
 ADR에는 결정·이유·대가를 담는다. 제품의 의미와 범위는 [PRD](../product/concept.md), 설계·개발 방법은 [Matt 스킬](../development/matt-skills.md)이 담당한다. 번호는 재사용하지 않는다. 합의한 변경과 과거 근거는 Git/GitHub에서 추적한다.
