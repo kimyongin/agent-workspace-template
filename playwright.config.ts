@@ -6,6 +6,8 @@ const { webUrl } = readLocalConfig();
 
 export default defineConfig({
   testDir: "e2e",
+  // Isolated feature fixtures run with their own API origins via test:e2e:all.
+  testIgnore: ["**/*fixture*", "**/detail-workspace.spec.ts", "**/display-scale.spec.ts"],
   timeout: 60_000,
   fullyParallel: false,
   // Both projects share DEV_USER_A: account-wide current/history and dictionary fixtures require one writer.

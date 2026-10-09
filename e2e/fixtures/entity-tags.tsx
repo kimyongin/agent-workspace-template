@@ -6,7 +6,7 @@ import { TagsPage } from "../../src/features/tags/TagsPage.tsx";
 import { EntityDetailPage } from "../../src/features/entity/EntityDetailPage.tsx";
 import "../../src/styles/tokens.css";
 import "../../src/styles/app.css";
-const router = createBrowserRouter([{ element: <main className="app-main"><Link to="/e2e/fixtures/entity-tags.html?fixture=other">다른 화면</Link><Link to="/entities/10000000-0000-4000-8000-000000000000">엔터티</Link><Link to="/modal-guard">모달 회귀</Link><Outlet /></main>, children: [
+const router = createBrowserRouter([{ element: <main className="app-main"><Link to="/e2e/fixtures/entity-tags.html?fixture=other">다른 화면</Link><Link to="/entities/app%3A10000000-0000-4000-8000-000000000000">엔터티</Link><Link to="/modal-guard">모달 회귀</Link><Outlet /></main>, children: [
   { path: "/e2e/fixtures/entity-tags.html", element: <TagsPage /> },
   { path: "/entities/:id", element: <EntityDetailPage /> },
   { path: "/modal-guard", element: <ModalDiscardFixture /> },

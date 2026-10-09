@@ -2,6 +2,8 @@ import { fillChangeMemo } from "./ui-actions.ts";
 import { saveOnce, beginTabAction, openDetailEditor, openListDetail, openTabFilters } from "./ui-actions.ts";
 import {expect,test} from "@playwright/test";
 import {devLogin,mcpClient,mcpTokenViaConsent,unique} from "./support.ts";
+// Exercise native-dialog history; retained desktop tabs have a dedicated suite.
+test.beforeEach(async({page,isMobile})=>{if(!isMobile)await page.setViewportSize({width:1024,height:720});});
 
 test("더 보기 응답이 늦어도 새 태그 필터 목록에 섞이지 않는다",async({page})=>{
   await devLogin(page);const mcp=await mcpClient(await mcpTokenViaConsent(page));
@@ -20,8 +22,8 @@ test("더 보기 응답이 늦어도 새 태그 필터 목록에 섞이지 않�
       });
       await page.locator(`#activity-${path}-page-control`).click();await waiting;
       await openTabFilters(page);await page.getByRole("button",{name:tag.name,exact:true}).click();await expect(page.getByRole("button",{name:title,exact:true})).toBeVisible();
-      const delivered=page.waitForResponse(r=>new URL(r.url()).pathname.endsWith(`/api/${path}`)&&new URL(r.url()).searchParams.has("cursor"));
-      release();await done;await (await delivered).finished();
+      // Changing the filter aborts the superseded read, so no browser response event is required.
+      release();await done;
       await page.evaluate(()=>new Promise<void>(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>resolve()))));
       await expect(page.locator(`.${path} .list .item-title`)).toHaveCount(1);await page.unroute(`**/api/${path}?**`);
     }
@@ -36,7 +38,9 @@ test("태그 실제 DELETE pending은 Back을 막고 응답 뒤 정상 복귀한
     await page.goto("/entities");
     await page.getByRole("button",{name:"내 프로필",exact:true}).click();
     await page.getByRole("link",{name:"설정",exact:true}).click();
+    await expect(page.getByLabel("발급처 1 이름",{exact:true})).toBeEditable();
     await page.getByRole("link",{name:"기록 태그",exact:true}).click();
+    await expect(page).toHaveURL(/tags\/record$/);
     let arrived!:()=>void,finished!:()=>void,deletes=0;
     const waiting=new Promise<void>(resolve=>{arrived=resolve;}),done=new Promise<void>(resolve=>{finished=resolve;}),hold=new Promise<void>(resolve=>{release=resolve;});
     await page.route(`**/api/tags/${tag.id}?**`,async route=>{
@@ -65,8 +69,8 @@ test("엔터티·기록 태그 같은 이름·웹 선택 정정·삭제 뒤 원�
       const form=page.getByRole("dialog",{name:action,exact:true}),title=unique("분류 원문");
       if(kind==="entity")await form.getByLabel("속성 1").fill(title);else{await form.getByLabel("본문").fill(title);}
       await form.getByRole("button",{name,exact:true}).click();await saveOnce(page,form);
-      await expect(form).not.toBeVisible();await expect(page).toHaveURL(/\/(entities|records)\/[0-9a-f-]{36}(?:\?|$)/);
-      if(kind==="entity")await expect(page.getByRole("heading",{name:title,level:1,exact:true})).toBeVisible();else await expect(page.getByRole("heading",{name:"기록",level:1})).toBeVisible();const id=new URL(page.url()).pathname.split("/").at(-1)!;
+      await expect(form).not.toBeVisible();await expect(page).toHaveURL(/\/(?:entities\/[^/?]+%3A|records\/)[0-9]{8}-[0-9A-Z]{8}(?:\?|$)/);
+      if(kind==="entity")await expect(page.locator("dialog.modal:not(.modal-confirm)[open]").getByRole("heading",{name:title,exact:true})).toBeVisible();else await expect(page.getByRole("heading",{name:"기록",level:1})).toBeVisible();const id=decodeURIComponent(new URL(page.url()).pathname.split("/").at(-1)!);
       expect((await mcp.call(`get_${kind}`,{id})).tag_ids).toEqual([tag.id]);
       await openDetailEditor(page);const edit=page.getByRole("dialog",{name:kind==="entity"?"엔터티 편집":"기록 편집"});
       await edit.getByRole("button",{name,exact:true}).click();if(kind==="entity")await fillChangeMemo(page,edit,"태그 분류 정정");await saveOnce(page,edit);
@@ -79,7 +83,7 @@ test("엔터티·기록 태그 같은 이름·웹 선택 정정·삭제 뒤 원�
       await page.getByRole("button",{name:"닫기",exact:true}).click();await openTabFilters(page);await expect(page.getByRole("button",{name:tag.name,exact:true})).toHaveAttribute("aria-pressed","true");await expect(page.locator(kind==="entity"?".list .item-title":".records .list .item-title")).toHaveCount(1);
       await mcp.call("delete_tag",{id:tag.id,expected_version:1});await page.goto(`${path}/${id}`);
       expect((await mcp.call(`get_${kind}`,{id})).tag_ids).toEqual([]);
-      if(kind==="entity")await expect(page.getByRole("heading",{name:title,level:1,exact:true})).toBeVisible();else await expect(page.getByText("원문 보존",{exact:true})).toBeVisible();
+      if(kind==="entity")await expect(page.locator("dialog.modal:not(.modal-confirm)[open]").getByRole("heading",{name:title,exact:true})).toBeVisible();else await expect(page.getByText("원문 보존",{exact:true})).toBeVisible();
     }
   }finally{await mcp.close();}
 });
@@ -106,7 +110,7 @@ test("웹 할 일 태그 선택→MCP 필터·정정→태그 삭제 후 본문 
     await page.goto("/tasks");await beginTabAction(page,"할 일 추가");
     const form=page.getByRole("dialog",{name:"할 일 추가"});await form.getByRole("textbox",{name:/^제목(?: \(필수\))?$/}).fill(unique("태그 업무"));await form.getByLabel("본문").fill("분류 검증");await form.getByLabel("본문").fill("삭제 후에도 보존");
     await form.getByRole("button",{name:tag.name,exact:true}).click();await saveOnce(page,form,"추가");
-    await expect(form).not.toBeVisible();const id=new URL(page.url()).pathname.split("/").at(-1)!;expect((await mcp.call("get_task",{id})).tag_ids).toEqual([tag.id]);
+    await expect(form).not.toBeVisible();const id=decodeURIComponent(new URL(page.url()).pathname.split("/").at(-1)!);expect((await mcp.call("get_task",{id})).tag_ids).toEqual([tag.id]);
     await openDetailEditor(page);const edit=page.getByRole("dialog",{name:"할 일 편집"});
     await edit.getByRole("button",{name:tag.name,exact:true}).click();await fillChangeMemo(page,edit,"분류 정정");await saveOnce(page,edit);
     await expect(edit).not.toBeVisible();expect((await mcp.call("get_task",{id})).tag_ids).toEqual([]);

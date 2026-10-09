@@ -1,3 +1,4 @@
+import { fulfillPreparation } from "./support/preparation-api.ts";
 import { openListEditor } from "./ui-actions.ts";
 import { fillChangeMemo, saveOnce } from "./ui-actions.ts";
 import { expect,test } from "@playwright/test";
@@ -14,7 +15,7 @@ test("원칙 화면의 기록 이동 링크는 모든 대표 폭에서 44px 누�
 
 test("키보드 Enter는 할 일 확인 단계를 열고 확인 뒤 한 번 저장한다",async({page})=>{
   const writes:Record<string,unknown>[]=[];
-  await page.route("**/api/**",route=>{
+  await page.route("**/api/**",async route => {if(await fulfillPreparation(route))return;
     const request=route.request();
     if(request.method()!=="GET"){writes.push(request.postDataJSON());return route.fulfill({status:409,json:{code:"conflict",message:"검증용 저장 충돌"}});}
     return route.fulfill({json:{items:[],next_cursor:null}});
@@ -33,7 +34,7 @@ test("현재 원칙은 한 번에 저장해 같은 문서를 갱신하며 삭제
   let current:Record<string,unknown>|null={id,title:"현재 기준",body:"원문",is_current:true,version:1,saved_at:stamp,created_at:stamp,updated_at:stamp,origin:"saved"};
   const writes:Record<string,unknown>[]=[];
   await page.route("http://127.0.0.1:55586/**",async route=>{if(route.request().isNavigationRequest()){const response=await route.fetch({url:"http://127.0.0.1:55586/e2e/fixtures/workspace-screens.html"});return route.fulfill({response});}return route.continue();});
-  await page.route("**/api/**",route=>{
+  await page.route("**/api/**",async route => {if(await fulfillPreparation(route))return;
     const req=route.request(),path=new URL(req.url()).pathname;
     if(["POST","PATCH"].includes(req.method())){const input=req.postDataJSON();writes.push(input);current=path.endsWith("/delete")?null:{...current,...input,version:2};return path.endsWith("/delete")?route.fulfill({status:204}):route.fulfill({json:current});}
     return route.fulfill({json:path.endsWith("/current")?{current}:path.endsWith(id)?current:{items:[],next_cursor:null}});
@@ -56,7 +57,7 @@ test("원칙 삭제 응답이 끊기면 입력 메모와 같은 버전으로 재
   const current={id,title:"현재 기준",body:"원문",is_current:true,version:1,saved_at:stamp,created_at:stamp,updated_at:stamp,origin:"saved"};
   const writes:Record<string,unknown>[]=[];
   await page.route("http://127.0.0.1:55586/**",async route=>{if(route.request().isNavigationRequest()){const response=await route.fetch({url:"http://127.0.0.1:55586/e2e/fixtures/workspace-screens.html"});return route.fulfill({response});}return route.continue();});
-  await page.route("**/api/**",route=>{
+  await page.route("**/api/**",async route => {if(await fulfillPreparation(route))return;
     const path=new URL(route.request().url()).pathname;
     if(path.endsWith("/delete")){writes.push(route.request().postDataJSON());return writes.length===1?route.abort("connectionreset"):route.fulfill({status:204});}
     return route.fulfill({json:path.endsWith("/current")?{current:writes.length>1?null:current}:path.endsWith(id)?current:{items:[],next_cursor:null}});

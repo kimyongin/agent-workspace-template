@@ -35,7 +35,9 @@ async function layoutProblems(page: Page) {
         });
         if (label) r = label.getBoundingClientRect();
       }
-      if (r.height < 43.5 || (el.tagName !== "INPUT" && el.tagName !== "TEXTAREA" && r.width < 43.5)) {
+      // The documented contiguous view selector uses 24px minimum only with a fine pointer.
+      const minimum=matchMedia("(pointer: fine)").matches&&el.matches(".view-picker button, .collection-expand-toggle")?24:43.5;
+      if (r.height < minimum || (el.tagName !== "INPUT" && el.tagName !== "TEXTAREA" && r.width < minimum)) {
         problems.push(`작은 조작 영역 ${el.tagName} "${(el.textContent || el.getAttribute("aria-label") || "").trim().slice(0, 20)}" ${Math.round(r.width)}x${Math.round(r.height)}`);
       }
     }
@@ -56,7 +58,7 @@ test.describe("화면 폭별 배치", () => {
     await dialog.getByLabel("본문").fill("https://example.com/" + "a".repeat(120));
     await saveOnce(page, dialog, "추가");
     // 목록의 h1이 아니라 만든 할 일의 상세 화면이 뜰 때까지 기다린다(모달 뒤 목록 h1도 보이는 것으로 판정됨).
-    await expect(page.getByRole("heading", { name: longTitle, level: 1 })).toBeVisible();
+    await expect(page.locator("dialog.modal:not(.modal-confirm)[open]").getByRole("heading", { name: longTitle, exact: true })).toBeVisible();
     const taskDetail = page.url();
 
     // 기록 상세도 함께 본다.
@@ -66,19 +68,22 @@ test.describe("화면 폭별 배치", () => {
     const recordTitle = unique("긴기록" + "나".repeat(40));
     await recordDialog.getByLabel("본문").fill(recordTitle+"\n"+"b".repeat(150));
     await recordDialog.locator('button[type="submit"]').click();
-    await expect(page.getByRole("heading", { name: "기록", level: 1 })).toBeVisible();
+    await expect(page).toHaveURL(/\/records\/[^/?]+/);
+    await expect(page.locator("dialog.modal:not(.modal-confirm)[open] .dialog-title")).toHaveText("기록");
     const recordDetail = page.url();
 
     const mcp=await mcpClient(await mcpTokenViaConsent(page));
     const principleTitle=unique("긴원칙"+"다".repeat(40));
     try{const p=await savePrinciple(mcp,{title:principleTitle,body:"조건 "+"c".repeat(150)+"d".repeat(300)});await page.goto(`/principles/${p.id}`);}finally{await mcp.close();}
-    await expect(page.getByRole("heading",{name:principleTitle,level:1})).toBeVisible();
+    await expect(page.locator("dialog.modal:not(.modal-confirm)[open]").getByRole("heading",{name:principleTitle,exact:true})).toBeVisible();
     const principleDetail = page.url();
 
       await page.setViewportSize({ width, height: 900 });
       for (const path of ["/tasks", taskDetail, "/records", recordDetail, "/principles", principleDetail,"/tags",`/search?q=${encodeURIComponent(longTitle)}&mode=keyword`]) {
         await page.goto(path);
-        await expect(page.getByRole("heading", path==="/tags"?{name:"기록 태그 관리",exact:true}:{level:1})).toBeVisible();
+        const detail=page.locator("dialog.modal:not(.modal-confirm)[open]");
+        if(/\/(tasks|records|principles)\/[^/?]+/.test(new URL(path,"http://fixture.invalid").pathname))await expect(detail.locator(".dialog-title")).toBeVisible();
+        else await expect(page.getByRole("heading",{level:1})).toBeVisible();
         expect(await layoutProblems(page), `${width}px ${path}`).toEqual([]);
       }
       await page.goto("/tasks");
@@ -149,7 +154,7 @@ test("키보드만으로 할 일을 만들고, 미저장 내용이 있으면 닫
   await dialog.getByLabel("본문").fill("키보드로 만든 할 일");
   await dialog.getByRole("textbox",{name:/^제목(?: \(필수\))?$/}).focus();await page.keyboard.press("Enter");
   await page.locator("dialog.modal-action[open]").getByRole("button",{name:"등록하고 저장",exact:true}).click();
-  await expect(page.getByRole("heading", { name: title, level: 1 })).toBeVisible();
+  await expect(page.locator("dialog.modal:not(.modal-confirm)[open]").getByRole("heading", { name: title, exact: true })).toBeVisible();
 
 });
 

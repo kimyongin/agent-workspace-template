@@ -1,6 +1,8 @@
 import {expect,test} from "@playwright/test";
 import {devLogin,mcpClient,mcpTokenViaConsent,unique} from "./support.ts";
 import {savePrinciple} from "./principle-support.ts";
+// This suite checks native-dialog history restoration; retained wide panels are covered separately.
+test.beforeEach(async({page,isMobile})=>{if(!isMobile)await page.setViewportSize({width:1024,height:720});});
 test("웹 검색→태그 범위→MCP 결과 비교→본문 원문 확인",async({page})=>{
   await devLogin(page);const mcp=await mcpClient(await mcpTokenViaConsent(page));
   try{
