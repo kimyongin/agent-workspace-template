@@ -8,27 +8,36 @@ import { createPreviewReadiness, ListPreviewReadiness, type PreviewReadiness } f
 
 /** Restore after both the list and reopened content settle; loading height can clamp scroll. */
 export function useRestoreListPosition(kind:ActivityListKind,ready:boolean) {
-  const location=useLocation(),[params]=useSearchParams(),restored=useRef("");
-  const key = [location.pathname, location.hash, listScope(params), params.get("open")].join("|");
+  const workspace=useContext(WorkspaceContext);
+  const location=useLocation(),[params]=useSearchParams(),restored=useRef({key:"",positionKey:""});
+  // A workspace return restores focus again only after the refreshed list and preview settle.
+  const positionKey = [location.pathname, location.hash, listScope(params), params.get("open")].join("|");
+  const key = `${positionKey}|${workspace?.listReturnRevision ?? 0}`;
   const path = params.get("open");
   const readiness = useMemo(()=>createPreviewReadiness(path),[key]);
   const previewReady = useSyncExternalStore(readiness.subscribe,readiness.snapshot);
   useEffect(()=>{
-    if(!ready||restored.current===key||!anchorId(kind,location.hash))return;
+    if(!ready||restored.current.key===key||!anchorId(kind,location.hash))return;
     const target=document.getElementById(listAnchor(kind,anchorId(kind,location.hash)!));
     if(target&&path&&!previewReady)return;
     const frame=requestAnimationFrame(()=>{
       const focus=target??document.getElementById(kind+"-title");
       focus?.focus({preventScroll:true});
-      const y=Number(params.get("scroll"));
-      const container=target?.closest<HTMLElement>(".has-detail-panel .workspace-list");
-      if(params.has("scroll")&&Number.isFinite(y)&&y>=0){if(container)container.scrollTop=y;else window.scrollTo(0,y);}
-      const rect=focus?.getBoundingClientRect();
-      if(rect&&(rect.top<0||rect.bottom>innerHeight))focus?.scrollIntoView({block:"center"});
-      restored.current=key;
+      // The workspace already transfers the reader's live scroll when the pane closes.
+      if(restored.current.positionKey!==positionKey){
+        const y=Number(params.get("scroll"));
+        const container=target?.closest<HTMLElement>(".has-detail-panel .workspace-list");
+        if(params.has("scroll")&&Number.isFinite(y)&&y>=0){if(container)container.scrollTop=y;else window.scrollTo(0,y);}
+      }
+      // A removed or filtered row returns to a visible heading instead.
+      if(restored.current.positionKey!==positionKey||!target){
+        const rect=focus?.getBoundingClientRect();
+        if(rect&&(rect.top<0||rect.bottom>innerHeight))focus?.scrollIntoView({block:"center"});
+      }
+      restored.current={key,positionKey};
     });
     return()=>cancelAnimationFrame(frame);
-  },[ready,previewReady,key,kind,location.hash]);
+  },[ready,previewReady,key,positionKey,kind,location.hash]);
   return readiness;
 }
 

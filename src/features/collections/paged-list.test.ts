@@ -79,9 +79,13 @@ describe("paged list lifecycle", () => {
     expect(list.snapshot().page?.items).toEqual([{id:"first"},{id:"second"}]);
   });
   it("retries a failed append at its cursor while retaining the accepted prefix",async()=>{
-    const load=vi.fn().mockResolvedValueOnce({items:[{id:"first"}],next_cursor:"next"}).mockRejectedValueOnce(Error("network"))
-      .mockResolvedValueOnce({items:[{id:"second"}],next_cursor:null});
-    const list=createPagedList({load});await list.restore(1);list.more();await vi.waitFor(()=>expect(list.snapshot().error).not.toBeNull());await list.retry();
+    const next=deferred<ListPage<Row>>(),error=Error("network");
+    const load=vi.fn().mockResolvedValueOnce({items:[{id:"first"}],next_cursor:"next"}).mockRejectedValueOnce(error)
+      .mockReturnValueOnce(next.promise);
+    const list=createPagedList({load});await list.restore(1);list.more();await vi.waitFor(()=>expect(list.snapshot().error).not.toBeNull());
+    const retry=list.retry();expect(list.snapshot().busy).toBe(true);expect(list.snapshot().error).toBe(error);
+    expect(list.snapshot().page?.items).toEqual([{id:"first"}]);
+    next.resolve({items:[{id:"second"}],next_cursor:null});await retry;expect(list.snapshot().error).toBeNull();
     expect(load.mock.calls.map(([cursor])=>cursor)).toEqual([undefined,"next","next"]);expect(list.snapshot().page?.items).toEqual([{id:"first"},{id:"second"}]);
   });
   it("preserves restart versus resume restoration retry",async()=>{

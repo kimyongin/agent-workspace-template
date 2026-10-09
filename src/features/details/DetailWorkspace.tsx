@@ -38,6 +38,7 @@ export function DetailWorkspace({ children, render, enabled }: { children: React
   const [active, setActive] = useState<string | null>(null);
   const [visible, setVisible] = useState(true);
   const [revision, setRevision] = useState(0);
+  const [listReturnRevision, setListReturnRevision] = useState(0);
   const [identityDestination, setIdentityDestination] = useState<{path:string;owner:string} | null>(null);
   const [base, setBase] = useState<Location>(() => detailIdentity(location.pathname) ? ownerList(location) : location);
   const current = useRef({ tabs, active, base, visible });
@@ -76,7 +77,16 @@ export function DetailWorkspace({ children, render, enabled }: { children: React
       setStarted(true);
     }
     const id = detailIdentity(location.pathname);
-    if (!id) { setBase(location); return; }
+    if (!id) {
+      // History can return while the retained list has changed through another client.
+      if (current.current.active && detailIdentity(openedLocation.current?.pathname ?? "")) {
+        setRevision(value => value + 1);
+        setListReturnRevision(value => value + 1);
+        tabFocus.current = "list";
+      }
+      openedLocation.current = location;
+      setBase(location); return;
+    }
     if (new URLSearchParams(current.current.base.search).has("create")) {
       const search = new URLSearchParams(current.current.base.search); search.delete("create");
       setBase({ ...current.current.base, search: `?${search}`, key: crypto.randomUUID() });
@@ -133,6 +143,7 @@ export function DetailWorkspace({ children, render, enabled }: { children: React
     setRevision(value => value + 1);
     if (state.active !== id) { tabFocus.current = state.active; return; }
     const next = remaining[Math.min(index, remaining.length - 1)];
+    if (!next) setListReturnRevision(value => value + 1);
     tabFocus.current = next?.id ?? "list";
     setActive(next?.id ?? null);
     void navigate(next ? href(next.location) : href(state.base), { replace: true, state: next ? { workspaceOwner: state.base.pathname } : null });
@@ -151,7 +162,11 @@ export function DetailWorkspace({ children, render, enabled }: { children: React
     if (existing && state.active === identity && href(location) === href(existing.location)) return;
     const returnTo = returnTarget(origin, identity);
     rememberReturn(identity, returnTo);
-    void navigate(existing ? href(existing.location) : path, { replace: !!existing, state: { workspaceOwner: workspaceList(origin.pathname) ? origin.pathname : state.base.pathname, workspaceReturnTo: returnTo } });
+    const visit = () => navigate(existing ? href(existing.location) : path, { replace: !!existing, state: { workspaceOwner: workspaceList(origin.pathname) ? origin.pathname : state.base.pathname, workspaceReturnTo: returnTo } });
+    // Persist the list anchor in its history entry too, not only in the retained pane.
+    if (workspaceList(location.pathname) && workspaceList(origin.pathname) && href(origin) !== href(location)) {
+      void Promise.resolve(navigate(href(origin), { replace: true, state: location.state, preventScrollReset: true })).then(visit);
+    } else void visit();
   }, [navigate, location, anyBusy]);
   const select = (tab: Tab) => {
     if (anyBusy()) return;
@@ -185,9 +200,9 @@ export function DetailWorkspace({ children, render, enabled }: { children: React
       tabFocus.current = null;
     });
     return () => cancelAnimationFrame(frame);
-  }, [active, visible, desktop, tabs.length, tabs.find(tab => tab.id === active)?.title, listRef, base.hash]);
+  }, [active, visible, desktop, tabs.length, tabs.find(tab => tab.id === active)?.title, listRef, base.hash, base.key]);
   if (!started || !eligible) return children;
-  return <WorkspaceContext.Provider value={{ revision, saved, open, registerGuard }}><div ref={split.ref} style={split.style} className={`detail-workspace${desktop && shown ? " has-detail-panel" : ""}${split.dragging ? " is-resizing" : ""}`}>
+  return <WorkspaceContext.Provider value={{ revision, listReturnRevision, saved, open, registerGuard }}><div ref={split.ref} style={split.style} className={`detail-workspace${desktop && shown ? " has-detail-panel" : ""}${split.dragging ? " is-resizing" : ""}`}>
     <div className="workspace-list" ref={listRef}>{render(base)}
       {desktop && !visible && tabs.length > 0 && <button className="btn workspace-reopen" onClick={() => setVisible(true)}>상세 탭 보기 ({tabs.length}개)</button>}
     </div>
