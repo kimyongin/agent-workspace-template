@@ -1,4 +1,3 @@
-import { api } from "./api.ts";
 import { generateDataId } from "@contracts/data-id.ts";
 import { useState, useSyncExternalStore } from "react";
 import { ApiError, isUncertain } from "./api-error.ts";
@@ -53,7 +52,7 @@ export class WriteAttempt {
 }
 
 export function useWriteAttempt() {
-  const [attempt] = useState(() => new WriteAttempt(()=>api<{id:string}>("POST","/ids/allocate",{})));
+  const [attempt] = useState(() => new WriteAttempt(async () => { const {api} = await import("./api.ts"); return api<{id:string}>("POST","/ids/allocate",{}); }));
   return { attempt, ...useSyncExternalStore(attempt.subscribe, attempt.snapshot, attempt.snapshot) };
 }
 
