@@ -2,9 +2,11 @@ import { useEffect, useRef, useState } from "react";
 import { DEFAULT_RECORD_MEMO_TEMPLATES, effectiveRecordTemplate, modelActions, recordTemplates, TEMPLATE_MODELS, templateActionNames, templateModelNames, templateVariables, type TemplateAction, type TemplateModel } from "@contracts/record-template.ts";
 import { Field, Notice } from "../../components/Field.tsx";
 import { TagPicker } from "../tags/TagPicker.tsx";
-import { ApiError } from "../../lib/api.ts";
+import { api, ApiError } from "../../lib/api.ts";
 import { useSettingsDraft } from "./useSettingsDraft.ts";
-import { recordTemplatesDraft, unavailableTemplateTags } from "./business-settings-drafts.ts";
+import { createRecordTemplatesDraft, unavailableTemplateTags } from "./business-settings-drafts.ts";
+
+const recordTemplatesDraft = createRecordTemplatesDraft(api);
 
 export function RecordTemplateSettings({onStateChange}: {onStateChange?: (state: {dirty:boolean;busy:boolean})=>void}) {
   const editor = useSettingsDraft(recordTemplatesDraft,onStateChange);

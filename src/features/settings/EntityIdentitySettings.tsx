@@ -1,8 +1,11 @@
+import { api } from "../../lib/api.ts";
 import { useState } from "react";
 import { entityIdentitySettings, type EntityIdentitySettings as IdentitySettings } from "@contracts/entity-identity.ts";
 import { useSettingsDraft } from "./useSettingsDraft.ts";
-import { identitySettingsDraft, orderedSources as ordered } from "./business-settings-drafts.ts";
+import { createIdentitySettingsDraft, orderedSources as ordered } from "./business-settings-drafts.ts";
 import { BodyAction } from "../../components/BodyAction.tsx";
+
+const identitySettingsDraft = createIdentitySettingsDraft(api);
 
 export function EntityIdentitySettings({onStateChange}: {onStateChange?: (state: {dirty:boolean;busy:boolean})=>void}) {
   const editor = useSettingsDraft(identitySettingsDraft,onStateChange);
