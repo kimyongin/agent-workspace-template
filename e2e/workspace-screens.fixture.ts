@@ -1268,7 +1268,8 @@ for(const side of ["tasks","entities"] as const) test(`#227 ${side}: 관계 검�
 test("#229 할 일의 업무 단계가 직접 편집보다 우선하고 취소 후 편집으로 복귀", async ({page}) => {
   const state = await fixtures(page);
   await go(page, `/tasks/${id(2)}?edit=1&action=record&tag_id=${id(9)}`);
-  await expect(form(page).getByRole("heading", {name:"기록 작성",exact:true})).toBeVisible();
+  await expect(page.getByRole("dialog", {name:"기록 작성",exact:true})).toBeVisible();
+  await expect(form(page).getByRole("heading", {name:"기록",level:2,exact:true})).toBeVisible();
   await expect(form(page).getByRole("textbox", {name:"제목 (필수)",exact:true})).toHaveCount(0);
   await form(page).getByRole("button", {name:"취소",exact:true}).click();
   await expect(form(page).getByRole("textbox", {name:"제목 (필수)",exact:true})).toBeVisible();
@@ -1286,7 +1287,8 @@ test("#229 엔터티 관련 작성 취소는 직접 편집 의도와 목록 문�
   const state = await fixtures(page);
   const list = `/entities?pages=2&scroll=83#entity-${encodeURIComponent(entityKey(1))}`;
   await go(page, `/entities/${encodeURIComponent(entityKey(1))}?edit=1&edit_from=view&create=record&list=${encodeURIComponent(list)}`);
-  await expect(form(page).getByRole("heading", {name:"기록 작성",exact:true})).toBeVisible();
+  await expect(page.getByRole("dialog", {name:"기록 작성",exact:true})).toBeVisible();
+  await expect(form(page).getByRole("heading", {name:"기록",level:2,exact:true})).toBeVisible();
   await form(page).getByRole("button", {name:"취소",exact:true}).click();
   await expect(form(page).getByRole("textbox", {name:"속성 1 (필수)",exact:true})).toBeVisible();
   await form(page).getByRole("button", {name:"취소",exact:true}).click();
