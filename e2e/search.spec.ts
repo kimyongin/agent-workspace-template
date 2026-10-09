@@ -59,3 +59,23 @@ test("검색 대상 삭제·불일치 편집 후에는 저장한 페이지까지
     await expect(page.locator(".list .item-title")).toHaveCount(40);await expect(page.getByRole("heading",{name:"검색",exact:true})).toBeFocused();expect(requests).toBe(2);
   }finally{await mcp.close();}
 });
+
+test("날짜 ID 검색 결과도 상세 왕복 후 새로고침하면 원문 링크 초점을 복원한다", async ({page}) => {
+  await devLogin(page);
+  const mcp = await mcpClient(await mcpTokenViaConsent(page));
+  let created: {id:string;version:number} | undefined;
+  try {
+    const marker = unique("날짜 ID 검색 복귀");
+    const code = "G" + crypto.randomUUID().replaceAll("-", "").slice(0,7).toUpperCase();
+    created = await mcp.call("create_record", {id:`20261010-${code}`,body:marker});
+    await page.goto(`/search?q=${encodeURIComponent(marker)}&mode=keyword&record_kind=user`);
+    const link = page.getByRole("link", {name:marker,exact:true});
+    await expect(link).toBeVisible(); await link.click();
+    await page.getByRole("button", {name:/^이전: 검색/}).click();
+    await expect(link).toBeVisible(); await page.reload();
+    await expect(link).toBeFocused();
+  } finally {
+    if(created)await mcp.call("delete_record", {id:created.id,expected_version:created.version});
+    await mcp.close();
+  }
+});

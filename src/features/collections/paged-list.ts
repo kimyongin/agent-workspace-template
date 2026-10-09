@@ -14,9 +14,13 @@ export type ListSnapshot<P> = {
 export function createPagedList<T extends { id: string }, P extends ListPage<T>>(options: {
   load: (cursor: string | undefined, signal: AbortSignal) => Promise<P>;
   anchorLookahead?: number;
+  maxRestorePages?: number;
+  itemKey?: (item: T) => string;
   restoreRetry?: "restart" | "resume";
   retainOnDecrease?: boolean;
 }) {
+  const maxRestorePages = options.maxRestorePages ?? MAX_RESTORE_PAGES;
+  const itemKey = options.itemKey ?? ((item: T) => item.id);
   let state: ListSnapshot<P> = { page: null, busy: false, error: null, completion: null, showMoreControl: false };
   const listeners = new Set<() => void>();
   let acceptedCursors = new Set<string>();
@@ -40,8 +44,8 @@ export function createPagedList<T extends { id: string }, P extends ListPage<T>>
     const load = options.load;
     let result = restart ? null : state.page;
     const hadPrior = !!result;
-    let targetPages = source === "more" ? target : Math.min(MAX_RESTORE_PAGES, target);
-    let budget = source === "more" ? target : Math.min(MAX_RESTORE_PAGES, targetPages + (anchor ? options.anchorLookahead ?? 5 : 0));
+    let targetPages = source === "more" ? target : Math.min(maxRestorePages, target);
+    let budget = source === "more" ? target : Math.min(maxRestorePages, targetPages + (anchor ? options.anchorLookahead ?? 5 : 0));
     const visited = new Set(restart ? [] : acceptedCursors);
     let validCursors = new Set(visited);
     const publish = () => {
@@ -54,7 +58,7 @@ export function createPagedList<T extends { id: string }, P extends ListPage<T>>
     // Retain an append error until its replacement rows arrive, so retry does not shrink the page beneath the focused control.
     emit({ busy: true, error: source === "more" ? state.error : null, completion: null, ...(restart && !atomic ? { page: null } : {}) });
     try {
-      while ((!result || result.pages < targetPages || !!anchor && !result.items.some(item => item.id === anchor)) &&
+      while ((!result || result.pages < targetPages || !!anchor && !result.items.some(item => itemKey(item) === anchor)) &&
         (!result || result.next_cursor) && (result?.pages ?? 0) < budget) {
         const cursor = result?.next_cursor ?? undefined;
         if (cursor && visited.has(cursor)) throw new Error("Repeated list cursor");
@@ -63,13 +67,13 @@ export function createPagedList<T extends { id: string }, P extends ListPage<T>>
         if (!current()) return;
         if (page.next_cursor && visited.has(page.next_cursor)) throw new Error("Repeated list cursor");
         if (!result && anchor && page.anchor_page && Number.isSafeInteger(page.anchor_page)) {
-          targetPages = Math.min(MAX_RESTORE_PAGES, Math.max(targetPages, page.anchor_page));
-          budget = Math.min(MAX_RESTORE_PAGES, Math.max(budget, targetPages));
+          targetPages = Math.min(maxRestorePages, Math.max(targetPages, page.anchor_page));
+          budget = Math.min(maxRestorePages, Math.max(budget, targetPages));
         }
-        const ids = new Set(result?.items.map(item => item.id));
+        const ids = new Set(result?.items.map(itemKey));
         result = { ...page, items: [...result?.items ?? [], ...page.items.filter(item => {
-          if (ids.has(item.id)) return false;
-          ids.add(item.id); return true;
+          if (ids.has(itemKey(item))) return false;
+          ids.add(itemKey(item)); return true;
         })], pages: (result?.pages ?? 0) + 1 } as LoadedPage<P>;
         validCursors = new Set(visited);
         if (!atomic && (targetPages <= 20 || result.pages === 1 || result.pages % 20 === 0 || result.pages >= targetPages)) publish();
@@ -77,7 +81,7 @@ export function createPagedList<T extends { id: string }, P extends ListPage<T>>
       publish();
       if (current()) {
         failed = null;
-        emit({ error: null, completion: result ? { pages: result.pages, anchorFound: !anchor || result.items.some(item => item.id === anchor), source } : null,
+        emit({ error: null, completion: result ? { pages: result.pages, anchorFound: !anchor || result.items.some(item => itemKey(item) === anchor), source } : null,
           ...(!hadPrior && source === "restore" && !result?.next_cursor ? { showMoreControl: false } : {}) });
       }
     } catch (error) {
@@ -90,7 +94,7 @@ export function createPagedList<T extends { id: string }, P extends ListPage<T>>
     snapshot: () => state,
     subscribe: (listener: () => void) => { listeners.add(listener); return () => { listeners.delete(listener); }; },
     restore: (pages: number, anchor?: string) => {
-      pages = Math.min(MAX_RESTORE_PAGES, Math.max(1, pages));
+      pages = Math.min(maxRestorePages, Math.max(1, pages));
       intent = { pages, anchor };
       // An append's URL can commit after a fast success or failure response.
       const acknowledged = reservedAppend?.pages === pages && reservedAppend.anchor === anchor;
@@ -99,7 +103,7 @@ export function createPagedList<T extends { id: string }, P extends ListPage<T>>
       // URL acknowledgement of a reserved append must not cancel and repeat its request.
       if (active?.pages === pages && active.anchor === anchor) return Promise.resolve();
       if (!state.busy && state.completion && state.page && state.page.pages >= pages &&
-        (!anchor || state.page.items.some(item => item.id === anchor)) &&
+        (!anchor || state.page.items.some(item => itemKey(item) === anchor)) &&
         (options.retainOnDecrease || state.page.pages === pages)) return Promise.resolve();
       const restart = !options.retainOnDecrease && !!state.page && Math.min(state.page.pages, MAX_RESTORE_PAGES) > pages;
       return run(pages, anchor, "restore", restart);
