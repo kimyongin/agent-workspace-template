@@ -58,6 +58,9 @@ test("검색 복귀는 공통 목록의 250페이지 제한과 별도로 저장�
   await read.restore(10000, "");
   expect(load).toHaveBeenCalledTimes(1000);
   expect(read.snapshot().page?.pages).toBe(1000);
+  await read.restore(275, "");
+  expect(read.snapshot().page?.pages).toBe(275);
+  expect(read.snapshot().page?.items).toHaveLength(275);
 });
 
 test("검색 복귀 대상을 바꾸면 이전 읽기를 취소하고 늦은 결과를 무시", async () => {
