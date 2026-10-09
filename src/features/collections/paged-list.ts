@@ -105,7 +105,7 @@ export function createPagedList<T extends { id: string }, P extends ListPage<T>>
       if (!state.busy && state.completion && state.page && state.page.pages >= pages &&
         (!anchor || state.page.items.some(item => itemKey(item) === anchor)) &&
         (options.retainOnDecrease || state.page.pages === pages)) return Promise.resolve();
-      const restart = !options.retainOnDecrease && !!state.page && Math.min(state.page.pages, MAX_RESTORE_PAGES) > pages;
+      const restart = !options.retainOnDecrease && !!state.page && Math.min(state.page.pages, maxRestorePages) > pages;
       return run(pages, anchor, "restore", restart);
     },
     more: () => {
