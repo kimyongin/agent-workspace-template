@@ -103,12 +103,19 @@ for(const [kind,route,n] of targetCases) for(const outcome of ["exists","deleted
   const change={event_id:id(30),target_kind:kind,target_id:kind==="entity"?entityKey(n):id(n),target_title:"당시 대상 이름",action:"update",source:"mcp",before:{title:"수정 전"},after:{title:"수정 후"},path:`/${route}/${kind==="entity"?encodeURIComponent(entityKey(n)):id(n)}`};
   Object.assign(r,{record_kind:"change",body:"당시 편집 근거",change});
   const original=JSON.stringify(r);let reads=0,fail=outcome==="failed";
-  await page.route(`**/api/${route}/${kind==="entity"?encodeURIComponent(entityKey(n)):id(n)}`,endpoint=>{reads++;return outcome==="deleted"||outcome==="foreign"?endpoint.fulfill({status:404,json:{code:"not_found",message:"항목을 찾을 수 없습니다"}}):fail?endpoint.fulfill({status:503,json:{code:"internal",message:"조회 실패"}}):endpoint.fulfill({json:{id:kind==="entity"?entityKey(n):id(n)}});});
+  await page.route(`**/api/${route}/${kind==="entity"?encodeURIComponent(entityKey(n)):id(n)}`,endpoint=>{reads++;return kind==="entity"&&outcome==="deleted"?endpoint.fulfill({json:{...entity(n),deleted_at:stamp}}):outcome==="deleted"||outcome==="foreign"?endpoint.fulfill({status:404,json:{code:"not_found",message:"항목을 찾을 수 없습니다"}}):fail?endpoint.fulfill({status:503,json:{code:"internal",message:"조회 실패"}}):endpoint.fulfill({json:{id:kind==="entity"?entityKey(n):id(n)}});});
   await go(page,`/records/${r.id}`);
   const target=connectedTarget(page,kind);
   await expect(target.locator(".related-item .item-title")).toContainText(change.target_title);
   const link=target.getByRole("button",{name:change.target_title,exact:true});
   if(outcome==="exists")await expect(link).toHaveAttribute("aria-expanded","false");
+  else if(kind==="entity"&&outcome==="deleted"){
+    await expect(target).toContainText("삭제된 엔터티입니다. 당시의 기록은 그대로 보존됩니다.");
+    await expect(link).toHaveAttribute("aria-expanded","false");
+    await link.click();
+    await expect(target).toContainText("삭제됨");
+    await expect(target.getByRole("link",{name:change.target_title+" 상세",exact:true})).toHaveAttribute("href",change.path);
+  }
   else if(outcome==="failed"){
     await expect(form(page)).toContainText("대상의 현재 상태를 확인하지 못했습니다.");
     await expect(form(page)).not.toContainText("삭제된 대상");await expect(link).toHaveCount(0);

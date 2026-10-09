@@ -37,24 +37,25 @@ export function RecordRelations({record}: {record:RecordResult}) {
 }
 
 function ChangedRelation({change,path,occurrence}: {change:Change;path:string;occurrence:string|null}) {
-  const [state,setState]=useState<"loading"|"exists"|"missing"|"failed">("loading");
+  const [state,setState]=useState<"loading"|"exists"|"deleted"|"missing"|"failed">("loading");
   const [status,setStatus]=useState<TaskResult["status"]|null>(null);
   const [attempt,setAttempt]=useState(0);
   useEffect(()=>{
     const controller=new AbortController();
     setState("loading");setStatus(null);
     // The captured title describes the event; only a successful current GET enables navigation.
-    void api<{status?:TaskResult["status"]}>("GET",path,undefined,controller.signal).then(value=>{
-      if(!controller.signal.aborted){setState("exists");if(change.target_kind==="task")setStatus(value.status??null);}
+    void api<{status?:TaskResult["status"];deleted_at?:string|null}>("GET",path,undefined,controller.signal).then(value=>{
+      if(!controller.signal.aborted){setState(change.target_kind==="entity"&&value.deleted_at?"deleted":"exists");if(change.target_kind==="task")setStatus(value.status??null);}
     },error=>{
       if(!controller.signal.aborted)setState(error instanceof ApiError&&error.status===404&&error.code==="not_found"?"missing":"failed");
     });
     return ()=>controller.abort();
   },[path,attempt,change.target_kind]);
   return <>
-    <RelatedPreviewItem to={state==="exists"?path:undefined} restoreKey="change-target" title={change.target_title}
+    <RelatedPreviewItem to={state==="exists"||state==="deleted"?path:undefined} restoreKey="change-target" title={change.target_title}
       metadata={<><span className="meta">{changeActionNames[change.action]}</span>{status&&<StatusBadge status={status}/>} {occurrence&&<span className="meta">{occurrence} 회차</span>}</>}/>
     {state==="missing"&&<p className="secondary">삭제된 대상 또는 접근할 수 없는 대상입니다. 당시의 기록은 그대로 보존됩니다.</p>}
+    {state==="deleted"&&<p className="secondary">삭제된 엔터티입니다. 당시의 기록은 그대로 보존됩니다.</p>}
     {state==="failed"&&<div className="form"><p className="notice" role="status">대상의 현재 상태를 확인하지 못했습니다.</p><button type="button" className="btn" onClick={()=>setAttempt(value=>value+1)}>대상 다시 조회</button></div>}
     {state==="loading"&&<p className="secondary" role="status" aria-label="변경 대상 조회">불러오는 중…</p>}
   </>;
