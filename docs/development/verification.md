@@ -28,8 +28,25 @@ Node·Deno·Supabase CLI 버전과 설치 명령은 package.json·lockfile을 �
 
 Draft PR은 `check`·`integration`을 생략하고 관련 로컬 검사로 개발한다. 리뷰 준비 완료로 전환하면 CI가 실행되며, 이후 새 커밋에도 최신 변경을 검증한다. 같은 PR의 이전 실행은 자동 취소하고, Draft로 되돌릴 때도 진행 중 검사를 취소한다. main 푸시와 수동 실행은 유지한다. Draft의 skipped 결과와 취소된 실행은 머지 검증 증거가 아니며, 머지할 최신 변경의 실제 CI 성공을 확인한다.
 
-브라우저 E2E는 로컬에서 필요할 때 실행한다. 화면·탐색·로그인·OAuth 동의·웹/MCP 왕복처럼 브라우저 동작을 확인할 변경에는 관련 파일과 프로젝트를 선택할 수 있다. 로컬 Supabase·함수 서버를 준비하고 Chromium을 설치한 뒤 `npm run test:e2e -- e2e/web-mcp.spec.ts --project=desktop`처럼 실행한다. 전체 브라우저 검사는 `npm run test:e2e:all`로 실제 API와 각 격리 화면 설정을 순서대로 실행한다. 전체 로컬 통합 검사는 `npm run test:all`로 실행하며 실제 API E2E도 포함한다. 실제 Pinecone 검사는 API 키가 있는 환경에서 `RUN_PINECONE_E2E=1`로 별도 실행한다. CI 성공은 브라우저 검증을 뜻하지 않으며, 실제 실행한 revision·범위·결과는 이슈·PR에 남긴다.
+브라우저 E2E는 로컬에서 필요할 때 실행한다. 화면·탐색·로그인·OAuth 동의·웹/MCP 왕복처럼 브라우저 동작을 확인할 변경에는 관련 파일과 프로젝트를 선택할 수 있다. 로컬 Supabase·함수 서버를 준비하고 Chromium을 설치한 뒤 `npm run test:e2e -- e2e/web-mcp.spec.ts --project=desktop`처럼 실행한다. 전체 브라우저 검사는 `npm run test:e2e:all`로 실제 API와 각 격리 화면 설정을 순서대로 실행한다. 설정별 소요 시간도 마지막 표에 표시한다. 전체 로컬 통합 검사는 `npm run test:all`로 실행하며 실제 API E2E도 포함한다. 실제 Pinecone 검사는 API 키가 있는 환경에서 `RUN_PINECONE_E2E=1`로 별도 실행한다. CI 성공은 브라우저 검증을 뜻하지 않으며, 실제 실행한 revision·범위·결과는 이슈·PR에 남긴다.
 
 빠른 core·웹·어댑터 검사는 실제 DB·OAuth·브라우저 연결의 증거를 대신하지 않는다. 제품의 권한·일관성·웹/MCP 행동은 관련 [계약](../../supabase/functions/_shared/contracts/search.ts)과 실제 진입점의 테스트에서 확인한다. 제품 플러그인의 정적 패키지 검사는 실제 Claude·Codex 사용과 구분한다([제품 행동 검증 도구](../../experiments/plugin-behavior/README.md)).
 
 Playwright 결과·trace와 서비스 로그는 다음 실행으로 덮어써질 수 있다. 필요한 실패 증거는 저장소 밖의 실행별 위치에 보존한다. 검증 결과와 실행할 수 없었던 범위는 해당 GitHub 이슈·PR에서 확인한다.
+
+
+### 격리 브라우저 검사의 실행 범위
+
+실제 계정·DB를 쓰는 `playwright.config.ts`는 worker 1개로 실행한다. 페이지/브라우저 context별로 Auth·API 응답과 자료를 격리한 설정은 `fullyParallel`과 worker 3개를 사용한다. 설정 사이의 실행은 계속 순차적이다. collection과 principle, activity와 screens처럼 Vite 포트를 공유하는 설정을 동시에 시작하지 않는다.
+
+| 설정 | 소유하는 검사와 변이 |
+| --- | --- |
+| collection-fixture | 목록 화면 + pagination의 desktop/mobile 연결 검사; 실제 250페이지 복원 상한은 desktop에서 한 번 확인 |
+| detail-workspace | 상세 작업 공간과 표시 배율 |
+| entity-tags-fixtures | 엔터티·태그 desktop/mobile |
+| principle-current | 현재 원칙 desktop/mobile |
+| activity | 활동 desktop/mobile 서울 시간대 + desktop UTC 날짜 변이 |
+| navigation-fixture | 탐색·프로필 desktop, OAuth 동의 desktop/mobile |
+| workspace-screens | workspace-screens의 화면 검사만 실행 |
+
+페이지 읽기의 상한·취소·실패 규칙은 `paged-list.test.ts`에서 검증한다. `pagination-fixture.spec.ts`는 실제 앱에서 URL 복원·누적 행·재시도 cursor·초점·읽던 위치·필터 초기화를 확인한다. 대량 모의 목록 때문에 실제 로그인 검사를 반복하지 않는다. 실제 API의 로그인·저장·웹/MCP 왕복 검사는 기본 설정에 남긴다.
