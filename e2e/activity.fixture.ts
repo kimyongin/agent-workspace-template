@@ -4,6 +4,8 @@ import { recordDisplayText } from "../supabase/functions/_shared/contracts/recor
 import { saveOnce } from "./ui-actions.ts";
 import { test, expect } from "@playwright/test";
 import { beginTabAction } from "./ui-actions.ts";
+// These timeline fixtures cross midnight in Seoul; do not inherit the host timezone.
+test.use({ timezoneId: "Asia/Seoul" });
 const id = (n:number) => `00000000-0000-4000-8000-${String(n).padStart(12,"0")}`;
 test.beforeEach(async({page})=>{await page.route("http://127.0.0.1:55580/**",async route=>{if(route.request().isNavigationRequest()){const response=await route.fetch({url:"http://127.0.0.1:55580/e2e/fixtures/activity.html"});await route.fulfill({response});}else await route.continue();});});
 const record = (n:number, occurred_at="2026-10-03T16:00:00Z") => ({id:id(n),body:`기록 ${n}`,occurred_at,task_id:null,occurrence_on:null,tag_ids:[],entity_ids:[],entity_context:[],record_kind:"user",change:null,applied_principle_snapshots:[],version:1,created_at:occurred_at,updated_at:occurred_at});
@@ -142,9 +144,14 @@ test("항상 펼친 날짜 병합과 직접 편집 취소/저장이 목록을 �
 
 test("할 일 저장 성공 후 조회 실패는 초안 재저장을 요구하지 않는다", async ({page}) => {
   let version=1, fail=false, patches=0;
+  const preparations: Record<string, unknown>[] = [];
   const task = () => ({...record(1),title:"할 일",kind:"once",status:"open",due_on:null,recurrence:null,timezone:null,result_record:null,version});
   await page.route("http://127.0.0.1:55581/api/**",async route=>{
     const path=new URL(route.request().url()).pathname;
+    if(path.endsWith("/records/prepare")) {
+      const request = route.request().postDataJSON(); preparations.push(request);
+      await route.fulfill({json:{change_note:request.change_note ?? "할 일 수정",change_tag_ids:request.change_tag_ids ?? [],missing_tag_ids:[],settings_version:0,prepared_input:request.input}});return;
+    }
     if(path.endsWith(`/tasks/${id(1)}`)) {
       if(route.request().method()==="PATCH"){patches++;version++;fail=true;await route.fulfill({json:task()});return;}
       if(fail){await route.fulfill({status:503,json:{code:"internal",message:"fixture read failure"}});return;}
@@ -163,6 +170,8 @@ test("할 일 저장 성공 후 조회 실패는 초안 재저장을 요구하�
   await page.getByRole("button",{name:"조회 다시 시도",exact:true}).click();
   await expect(page.getByText("저장은 완료했습니다. 최신 내용을 불러오지 못했습니다.")).toHaveCount(0);
   expect(patches).toBe(1);
+  expect(preparations).toHaveLength(1);
+  expect(preparations[0]).toMatchObject({model:"task",action:"update",target_id:id(1),input:{title:"정정한 할 일"}});
 });
 
 test("직접 편집의 실패·Escape·확인 취소는 초안을 유지한다", async ({page}) => {
