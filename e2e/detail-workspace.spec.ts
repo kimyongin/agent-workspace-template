@@ -560,8 +560,7 @@ test("desktop: rekey replaces the retained entity tab and URL after a completed 
   await page.setViewportSize({width:1440,height:900});
   const state = await fixture(page);
   const oldId = entityKey(1), nextId = "app:새:/ID%";
-  await page.route("**/api/entities/*", async route => {
-    if(route.request().method()!=="PATCH") return route.fallback();
+  await page.route("**/api/entities/*/identity", async route => {
     const input = route.request().postDataJSON();
     const target = state.rows.entities.find(value => value.id === oldId)!;
     Object.assign(target,input,{id:nextId,version:target.version+1});
@@ -569,13 +568,13 @@ test("desktop: rekey replaces the retained entity tab and URL after a completed 
   });
   await page.goto(`/entities/${encodeURIComponent(oldId)}`);
   await expect(page.getByRole("tab", {name:"등심",exact:true})).toHaveAttribute("aria-selected","true");
-  await panel(page).getByRole("button", {name:"편집",exact:true}).click();
-  await panel(page).getByLabel("식별자").fill("새:/ID%");
-  await saveOnce(page,panel(page));
+  await panel(page).getByRole("button", {name:"식별 정보 변경",exact:true}).click();
+  await panel(page).getByLabel("외부 식별자").fill("새:/ID%");
+  await saveOnce(page,panel(page),"변경");
   await expect(page).toHaveURL(new RegExp(encodeURIComponent(nextId)));
   await expect(page.locator(`[id="tab-/entities/${encodeURIComponent(oldId)}"]`)).toHaveCount(0);
   await expect(page.getByRole("tab", {name:"등심",exact:true})).toHaveCount(1);
-  await expect(panel(page).getByText("새:/ID%", {exact:true})).toBeVisible();
+  await expect(panel(page).getByText("앱 · 새:/ID%", {exact:true})).toBeVisible();
   expect(state.errors).toEqual([]);
 });
 
@@ -591,11 +590,11 @@ for (const entered of [false,true]) test(`manual identity defaults preserve canc
   await page.goto("/entities");
   await page.getByRole("button", {name:"엔터티 등록",exact:true}).click();
   const form = page.getByRole("dialog", {name:"엔터티 추가",exact:true});
-  await expect(form.getByLabel("식별자")).toBeDisabled();
+  await expect(form.getByLabel("외부 식별자")).toBeDisabled();
   if (entered) await form.getByLabel("속성 1").fill("설정 도착 전 입력");
   releaseSettings();
-  await expect(form.getByLabel("식별자")).toBeEnabled();
-  await expect(form.getByLabel("식별자")).toHaveValue("");
+  await expect(form.getByLabel("외부 식별자")).toBeEnabled();
+  await expect(form.getByLabel("외부 식별자")).toHaveValue("");
   await expect(form.getByLabel("발급처")).toHaveValue("crm");
   if (entered) await expect(form.getByLabel("속성 1")).toHaveValue("설정 도착 전 입력");
   await form.getByRole("button", {name:"취소",exact:true}).click();
