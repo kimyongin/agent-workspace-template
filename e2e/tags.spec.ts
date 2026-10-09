@@ -38,7 +38,9 @@ test("태그 실제 DELETE pending은 Back을 막고 응답 뒤 정상 복귀한
     await page.goto("/entities");
     await page.getByRole("button",{name:"내 프로필",exact:true}).click();
     await page.getByRole("link",{name:"설정",exact:true}).click();
+    await expect(page.getByRole("form",{name:"엔터티 식별자 설정",exact:true})).toHaveAttribute("aria-busy","false");
     await page.getByRole("link",{name:"기록 태그",exact:true}).click();
+    await expect(page).toHaveURL(/tags\/record$/);
     let arrived!:()=>void,finished!:()=>void,deletes=0;
     const waiting=new Promise<void>(resolve=>{arrived=resolve;}),done=new Promise<void>(resolve=>{finished=resolve;}),hold=new Promise<void>(resolve=>{release=resolve;});
     await page.route(`**/api/tags/${tag.id}?**`,async route=>{
