@@ -13,7 +13,22 @@ export type EntityContent = Pick<
   "source" | "external_id" | "prop1" | "prop2" | "prop3" | "prop4" | "tag_ids"
 >;
 
+/** Both snapshots and locked write reads classify the same registration target. */
+export function registrationState(existing: { deleted_at?: string | null } | null) {
+  return existing ? existing.deleted_at ? "restore" : "duplicate" : "create";
+}
+
 /** Preparation may request allocation; writes require the already frozen identity. */
+export function registrationIdentity(
+  settings: EntityIdentitySettings,
+  input: Pick<EntityCreate, "source" | "external_id">,
+  phase: "write",
+): Pick<EntityContent, "source" | "external_id">;
+export function registrationIdentity(
+  settings: EntityIdentitySettings,
+  input: Pick<EntityCreate, "source" | "external_id">,
+  phase: "prepare",
+): { source: string; external_id?: string };
 export function registrationIdentity(
   settings: EntityIdentitySettings,
   input: Pick<EntityCreate, "source" | "external_id">,
@@ -33,21 +48,22 @@ export function registrationIdentity(
 /** Shared after-values: creation has defaults; restoration retains every omitted property. */
 export function registrationContent(
   input: EntityCreate,
-  identity: { source: string; external_id?: string },
+  identity: Pick<EntityContent, "source" | "external_id">,
   before: ChangeFacts | null = null,
 ): EntityContent {
   const { expected_version: _version, change_note: _note, change_tag_ids: _tags, ...fields } = input;
-  if (!before && !fields.prop1) throw invalidInput("속성 1은 필수입니다");
-  if (before) return { ...before, ...fields, ...identity } as EntityContent;
+  const prop1 = fields.prop1 ?? before?.prop1;
+  if (!prop1) throw invalidInput("속성 1은 필수입니다");
   return {
+    ...before,
     ...fields,
     ...identity,
-    prop1: fields.prop1!,
-    prop2: fields.prop2 ?? null,
-    prop3: fields.prop3 ?? null,
-    prop4: fields.prop4 ?? "a",
-    tag_ids: fields.tag_ids ?? [],
-  } as EntityContent;
+    prop1,
+    prop2: fields.prop2 === undefined ? before?.prop2 ?? null : fields.prop2,
+    prop3: fields.prop3 === undefined ? before?.prop3 ?? null : fields.prop3,
+    prop4: fields.prop4 ?? before?.prop4 ?? "a",
+    tag_ids: fields.tag_ids ?? before?.tag_ids ?? [],
+  };
 }
 
 /** Partial identity updates and ordinary properties share the same change decision. */

@@ -17,6 +17,7 @@ import {
   entityUpdateDecision,
   registrationContent,
   registrationIdentity,
+  registrationState,
   restorationContent,
 } from "../entity/domain.ts";
 import type { ChangeFacts } from "../shared/changes.ts";
@@ -33,7 +34,7 @@ export interface BusinessSettingsStore {
   target?(
     model: TemplateModel,
     id: string,
-  ): Promise<{ version: number; facts: ChangeFacts; deleted_at?: unknown } | null>;
+  ): Promise<{ version: number; facts: ChangeFacts; deleted_at?: string | null } | null>;
 }
 export function prepareBusinessRecord(
   d: BusinessSettingsDeps,
@@ -132,9 +133,10 @@ export function prepareBusinessRecord(
           content.external_id ?? (store.issueDataId ? await store.issueDataId() : generateEntityExternalId()),
         );
         const existing = await store.target?.("entity", entityId(source, external_id));
-        if (existing) {
+        const registration = registrationState(existing ?? null);
+        if (registration !== "create") {
           throw conflict(
-            existing.deleted_at
+            registration === "restore"
               ? "삭제된 기존 대상을 조회한 뒤 restore 액션과 현재 버전으로 준비하세요"
               : "같은 발급처·식별자의 활성 엔터티가 있습니다",
           );
