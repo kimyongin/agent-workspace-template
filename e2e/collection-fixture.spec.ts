@@ -116,11 +116,11 @@ test("calendar uses display dates, keyboard month edges, partial pages and saved
   expect(state.writes).toEqual([]); expect(state.errors).toEqual([]);
 });
 
-test("all layouts fit narrow/wide screens and large text, with quiet icon controls", async ({ page }, info) => {
-  // Forty viewport/layout combinations include screenshots; keep their full assertions.
+for (const width of [320, 390, 640, 1440]) test(`all layouts fit ${width}px, with quiet icon controls`, async ({ page }, info) => {
+  // Keep all ten layout combinations and screenshots within each viewport case.
   test.setTimeout(60_000);
   const state = await fixture(page);
-  for (const width of [320, 390, 640, 1440]) for (const kind of ["entities", "tasks", "records"]) {
+  for (const kind of ["entities", "tasks", "records"]) {
     await page.setViewportSize({ width, height: 844 });
     for (const view of ["list", "cards", "table", ...(kind === "records" ? ["calendar"] : [])]) {
       await page.goto(`/${kind}?view=${view}`); await expect(page.locator(".collection-heading h2")).toContainText("1개");
@@ -136,6 +136,11 @@ test("all layouts fit narrow/wide screens and large text, with quiet icon contro
       await page.screenshot({ path: info.outputPath(`${kind}-${view}-${width}.png`) });
     }
   }
+  expect(state.errors).toEqual([]); expect(state.writes).toEqual([]);
+});
+
+test("large text keeps quiet icon controls and keyboard view selection", async ({ page }) => {
+  const state = await fixture(page);
   await page.setViewportSize({ width: 390, height: 844 }); await page.goto("/tasks?view=table");
   await page.evaluate(() => document.documentElement.style.fontSize = "200%");
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
@@ -147,10 +152,11 @@ test("all layouts fit narrow/wide screens and large text, with quiet icon contro
   expect(state.errors).toEqual([]); expect(state.writes).toEqual([]);
 });
 
-test("table rows and headers share the same columns across wrapper types and viewports", async ({ page }) => {
-  const rows = [record, { ...record, ...base(4), body: "짧은 기록" }, { ...record, ...base(5), body: "아주 긴 한국어 기록을 제목처럼 표시할 때에도 날짜와 종류의 열은 흔들리지 않아야 합니다." }];
+const tableRows = () => [record, { ...record, ...base(4), body: "짧은 기록" }, { ...record, ...base(5), body: "아주 긴 한국어 기록을 제목처럼 표시할 때에도 날짜와 종류의 열은 흔들리지 않아야 합니다." }];
+for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) test(`table rows and headers share columns at ${width}px across wrapper types`, async ({ page }) => {
+  const rows = tableRows();
   const state = await fixture(page, rows);
-  for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) for (const kind of ["entities", "tasks", "records"]) {
+  for (const kind of ["entities", "tasks", "records"]) {
     await page.setViewportSize({ width, height: 900 }); await page.goto(`/${kind}?view=table`);
     await expect(page.locator(".collection-table-head")).toBeVisible();
     const geometry = await page.locator(".collection-table").evaluate(table => {
@@ -167,6 +173,12 @@ test("table rows and headers share the same columns across wrapper types and vie
     }
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   }
+  expect(state.errors).toEqual([]); expect(state.writes).toEqual([]);
+});
+
+test("related table rows and headers share columns inside the detail wrapper", async ({ page }) => {
+  const state = await fixture(page, tableRows());
+  await page.setViewportSize({width:1440,height:900});
   await page.goto(`/entities/${entity.id}`);
   const section = page.getByRole("dialog").getByRole("region", { name: "기록 (1개)", exact: true });
   await section.getByRole("radio", { name: "테이블", exact: true }).click();
