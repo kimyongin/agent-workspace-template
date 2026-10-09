@@ -3,17 +3,11 @@ import {createContext,useContext,useEffect,useLayoutEffect,useRef,useState,type 
 import {api} from "../../lib/api.ts";
 import {Field,Notice} from "../../components/Field.tsx";
 import "./tag-picker.css";
+import { createTagRead } from "./tag-read.ts";
+const tagRead = createTagRead(api);
 
 export type TagScope = TagResult["scope"];
 export const tagScopeLabels: Record<TagScope,string> = {entity:"엔터티",task:"할 일",record:"기록"};
-async function loadTags(scope: TagScope) {
-    const all: TagResult[] = []; let cursor: string | null = null;
-    do {
-      const page: {items:TagResult[];next_cursor:string|null} = await api("GET", `/tags?scope=${scope}&limit=100${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`);
-      all.push(...page.items); cursor = page.next_cursor;
-    } while (cursor);
-    return all;
-}
 export function useTagDictionary(enabled = true, preserveListLayout = false, scope: TagScope = "record") {
   const [tags,setTags]=useState<TagResult[]|null>(null),[failed,setFailed]=useState(false),[retry,setRetry]=useState(0);
   const position = useRef<{target:HTMLElement;y:number;focus:boolean}|null>(null);
@@ -32,8 +26,8 @@ export function useTagDictionary(enabled = true, preserveListLayout = false, sco
     }
   };
   const retryLookup=()=>{capturePosition();setRetry(n=>n+1);};
-  useEffect(()=>{if(!enabled)return;let alive=true;
-    loadTags(scope).then(all=>{if(alive){capturePosition();setTags(all);setFailed(false);}}).catch(()=>{if(alive)setFailed(true);});return()=>{alive=false;};},[retry,enabled,scope]);
+  useEffect(()=>{if(!enabled)return;const controller=new AbortController();
+    tagRead.all(scope,controller.signal).then(all=>{if(!controller.signal.aborted){capturePosition();setTags(all);setFailed(false);}}).catch(()=>{if(!controller.signal.aborted)setFailed(true);});return()=>controller.abort();},[retry,enabled,scope]);
   return {tags,failed,retry:retryLookup};
 }
 export function TagPicker({value,onChange,error,scope="record",label,excludeId}:{value:string[];onChange:(ids:string[])=>void;error?:string;scope?:TagScope;label?:string;excludeId?:string}) {

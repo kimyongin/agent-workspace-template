@@ -115,3 +115,118 @@ test("identity settings recovers from an initial read failure and preserves edit
   await section.getByRole("button", {name:"변경 취소",exact:true}).click();
   await expect(generation).toHaveValue(previous);
 });
+
+test("late archived lookup preserves newer identity and same-identity property edits", async ({ page }) => {
+  await devLogin(page);
+  await page.goto("/entities");
+  await beginTabAction(page, "엔터티 추가");
+  const form = () => page.getByRole("dialog", { name: "엔터티 추가", exact: true });
+  await expect(form().getByLabel("식별자")).toBeEnabled();
+  const source = await form().getByLabel("발급처").inputValue();
+  const identity = unique("지연 식별자");
+  const held: (() => Promise<void>)[] = [];
+  let lookupNumber = 0;
+  await page.route("**/entities/*", async route => {
+    if (route.request().method() !== "GET") return route.continue();
+    const number = ++lookupNumber;
+    let release!: () => void;
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    let delivered!: () => void;
+    const done = new Promise<void>(resolve => { delivered = resolve; });
+    held.push(async () => { release(); await done; });
+    await gate;
+    await route.fulfill({ json: {
+      id: `${source}:${identity}`, source, external_id: identity, prop1: `보관된 값 ${number}`, prop2: 0,
+      prop3: null, prop4: "a", tag_ids: [], version: 2, deleted_at: "2026-10-10T00:00:00Z",
+      created_at: "2026-10-10T00:00:00Z", updated_at: "2026-10-10T00:00:00Z",
+    } });
+    delivered();
+  });
+  const start = async () => {
+    const requested = page.waitForRequest(value => value.method() === "GET" && value.url().includes("/entities/"));
+    await form().getByRole("button", { name: "기존 대상 확인", exact: true }).click();
+    await requested;
+    await expect.poll(() => held.length).toBeGreaterThan(0);
+  };
+  const settle = async (index = 0) => {
+    await held.splice(index, 1)[0]();
+    // Let React commit the response before checking the still-current input.
+    await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+  };
+  await form().getByLabel("식별자").fill(identity);
+  await start();
+  await form().getByLabel("식별자").fill("다른 식별자");
+  await form().getByLabel("속성 1").fill("새 입력");
+  await settle();
+  await expect(form().getByLabel("식별자")).toHaveValue("다른 식별자");
+  await expect(form().getByLabel("속성 1")).toHaveValue("새 입력");
+
+  await form().getByLabel("식별자").fill(identity);
+  await start();
+  await form().getByLabel("속성 1").fill("같은 식별자에서 수정");
+  await settle();
+  await expect(form().getByLabel("속성 1")).toHaveValue("같은 식별자에서 수정");
+  await start();
+  await start();
+  await settle(1);
+  const restore = page.getByRole("dialog", { name: "엔터티 복원", exact: true });
+  await expect(restore.getByLabel("속성 1")).toHaveValue("보관된 값 4");
+  await settle();
+  await expect(restore.getByLabel("속성 1")).toHaveValue("보관된 값 4");
+  await restore.getByRole("button", { name: "취소", exact: true }).click();
+  const discard = page.getByRole("dialog", { name: "변경을 버릴까요?" });
+  if (await discard.isVisible()) await discard.getByRole("button", { name: "변경 버리기", exact: true }).click();
+  await beginTabAction(page, "엔터티 추가");
+  await expect(form().getByLabel("식별자")).toBeEnabled();
+  await form().getByLabel("식별자").fill(identity);
+  await start();
+  await form().getByRole("button", { name: "취소", exact: true }).click();
+  if (await discard.isVisible()) await discard.getByRole("button", { name: "변경 버리기", exact: true }).click();
+  await beginTabAction(page, "엔터티 추가");
+  await expect(form().getByLabel("식별자")).toBeEnabled();
+  const newIdentity = await form().getByLabel("식별자").inputValue();
+  await settle();
+  await expect(form().getByLabel("식별자")).toHaveValue(newIdentity);
+  await expect(form().getByLabel("속성 1")).toHaveValue("");
+});
+
+test("manual lookup pending before confirmation cannot replace the prepared entity", async ({ page }) => {
+  await devLogin(page);
+  await page.goto("/entities");
+  await beginTabAction(page, "엔터티 추가");
+  const form = page.getByRole("dialog", { name: "엔터티 추가", exact: true });
+  await expect(form.getByLabel("식별자")).toBeEnabled();
+  const source = await form.getByLabel("발급처").inputValue();
+  const identity = unique("확인 중 조회"), title = unique("지킬 입력");
+  await form.getByLabel("식별자").fill(identity);
+  await form.getByLabel("속성 1").fill(title);
+  let release!: () => void, delivered!: () => void, reads = 0;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  const done = new Promise<void>(resolve => { delivered = resolve; });
+  await page.route("**/entities/*", async route => {
+    if (route.request().method() !== "GET" || ++reads !== 1) return route.continue();
+    await gate;
+    await route.fulfill({ json: {
+      id: `${source}:${identity}`, source, external_id: identity, prop1: "옛 보관값", prop2: 0,
+      prop3: null, prop4: "a", tag_ids: [], version: 2, deleted_at: "2026-10-10T00:00:00Z",
+      created_at: "2026-10-10T00:00:00Z", updated_at: "2026-10-10T00:00:00Z",
+    } });
+    delivered();
+  });
+  const started = page.waitForRequest(value => value.method() === "GET" && value.url().includes("/entities/"));
+  await form.getByRole("button", { name: "기존 대상 확인", exact: true }).click();
+  await started;
+  const prepared = page.waitForResponse(value => value.request().method() === "POST" && value.url().endsWith("/records/prepare"));
+  await form.getByRole("button", { name: "저장", exact: true }).click();
+  const defaults = await (await prepared).json();
+  const confirmation = page.locator("dialog.modal-action[open]");
+  await expect(confirmation.getByLabel("기록 메모", { exact: true })).toHaveValue(defaults.change_note);
+  release();
+  await done;
+  await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+  await expect(confirmation.getByRole("button", { name: "등록하고 저장", exact: true })).toBeEnabled();
+  await expect(confirmation.getByRole("heading")).toContainText(title);
+  await expect(confirmation.getByLabel("기록 메모", { exact: true })).toHaveValue(defaults.change_note);
+  await confirmation.getByRole("button", { name: "취소", exact: true }).click();
+  await expect(form.getByLabel("속성 1")).toHaveValue(title);
+});
