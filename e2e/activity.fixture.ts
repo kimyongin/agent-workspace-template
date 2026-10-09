@@ -21,7 +21,7 @@ for(const width of [390,1024])test(`변경 기록 metadata ${width}px: 종류·�
     await expect(properties.locator("dd").nth(0)).toHaveText("변경 기록");
     await expect(properties.locator("dd").nth(1)).toHaveText("에이전트");
     await expect(properties.locator("time")).toHaveAttribute("datetime", items[0].occurred_at);
-    await expect(properties.locator("dd").last()).toContainText(items[index].change.target_title);
+    await expect(properties.locator("dd").last()).toContainText(`원칙 「${items[index].change.target_title}」`);
     for (const property of await properties.locator(":scope > div").all()) {
       const name = (await property.locator("dt").boundingBox())!, value = (await property.locator("dd").boundingBox())!;
       expect(value.x).toBeGreaterThan(name.x + name.width);
