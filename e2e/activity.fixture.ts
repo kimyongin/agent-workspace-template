@@ -9,17 +9,25 @@ const id = (n:number) => `00000000-0000-4000-8000-${String(n).padStart(12,"0")}`
 test.beforeEach(async({page})=>{await page.route("http://127.0.0.1:55580/**",async route=>{if(route.request().isNavigationRequest()){const response=await route.fetch({url:"http://127.0.0.1:55580/e2e/fixtures/activity.html"});await route.fulfill({response});}else await route.continue();});});
 const record = (n:number, occurred_at="2026-10-03T16:00:00Z") => ({id:id(n),body:`기록 ${n}`,occurred_at,task_id:null,occurrence_on:null,tag_ids:[],entity_ids:[],entity_context:[],record_kind:"user",change:null,applied_principle_snapshots:[],version:1,created_at:occurred_at,updated_at:occurred_at});
 
-for(const width of [390,1024])test(`변경 기록 metadata ${width}px: 시각·종류는 같은 줄, 대상은 다음 줄 왼쪽 정렬`,async({page},info)=>{
+for(const width of [390,1024])test(`변경 기록 metadata ${width}px: 종류·출처·시각·대상은 이름과 값으로 정렬되고 긴 값도 읽힌다`,async({page},info)=>{
   const items=["수정","삭제"].map((action,i)=>({...record(i+1),body:`새 기준 ${action}`,record_kind:"change",change:{event_id:id(10+i),target_kind:"principle",target_id:id(20+i),target_title:i?"긴 기준 이름 ".repeat(20):"새 기준",action:i?"delete":"update",source:"mcp",before:null,after:null,path:"/principles/example"}}));
   await page.route("http://127.0.0.1:55581/api/**",async route => {if(await fulfillPreparation(route))return;const path=new URL(route.request().url()).pathname;return route.fulfill({json:path.endsWith("/records")?{items,next_cursor:null}:items.find(item=>path.endsWith("/"+item.id))??{items:[],next_cursor:null}});});
   await page.setViewportSize({width,height:900});await page.goto("/e2e/fixtures/activity.html?route=/records");
   const rows=page.locator(".record-timeline .list-item");await expect(rows).toHaveCount(2);
-  for(const row of await rows.all()){
+  for(const [index, row] of (await rows.all()).entries()){
     await row.getByRole("button",{name:/^새 기준 (수정|삭제)$/,exact:true}).click();
-    const time=(await row.locator("time").boundingBox())!,kind=(await row.getByText("변경 기록 · 에이전트",{exact:true}).boundingBox())!,target=(await row.locator("p.secondary").filter({hasText:"원칙 「"}).boundingBox())!;
-    expect(Math.abs(time.y-kind.y)).toBeLessThanOrEqual(2);
-    expect(target.y).toBeGreaterThanOrEqual(Math.max(time.y+time.height,kind.y+kind.height));
-    expect(Math.abs(target.x-time.x)).toBeLessThanOrEqual(1);
+    const properties = row.locator(".props");
+    await expect(properties.locator("dt")).toHaveText(["종류", "출처", "수행 시각", "변경 대상"]);
+    await expect(properties.locator("dd").nth(0)).toHaveText("변경 기록");
+    await expect(properties.locator("dd").nth(1)).toHaveText("에이전트");
+    await expect(properties.locator("time")).toHaveAttribute("datetime", items[0].occurred_at);
+    await expect(properties.locator("dd").last()).toContainText(items[index].change.target_title);
+    for (const property of await properties.locator(":scope > div").all()) {
+      const name = (await property.locator("dt").boundingBox())!, value = (await property.locator("dd").boundingBox())!;
+      expect(value.x).toBeGreaterThan(name.x + name.width);
+      expect(value.y).toBeLessThan(name.y + name.height);
+      expect(name.y).toBeLessThan(value.y + value.height);
+    }
   }
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
   await page.screenshot({path:info.outputPath(`change-record-${width}.png`)});
@@ -98,7 +106,7 @@ test("연결 카드 행동은44px 누름 영역이고 클릭·키보드로 연�
   }
 });
 
-test("항상 펼친 날짜 병합과 직접 편집 취소/저장이 목록을 복원한다", async ({page}) => {
+test("항상 펼친 날짜 병합과 직접 편집 취소/저장이 목록을 복원한다", async ({page}, info) => {
   let changed = record(2);
   await page.route("http://127.0.0.1:55581/api/**",async route => {if(await fulfillPreparation(route))return;
     const path = new URL(route.request().url()).pathname;
@@ -114,7 +122,10 @@ test("항상 펼친 날짜 병합과 직접 편집 취소/저장이 목록을 �
   const older = page.getByRole("region",{name:"2026-10-03 기록",exact:true});
   await expect(page.getByRole("button",{name:"기록 3",exact:true})).toBeVisible();
   await page.locator("#activity-records-page-control").click();
-  await expect(page.locator(".record-date-group")).toHaveCount(2);
+  // 14:00Z and 16:00Z share a UTC day; only Seoul crosses midnight.
+  const utc = info.project.use.timezoneId === "UTC";
+  await expect(page.locator(".record-date-group")).toHaveCount(utc ? 1 : 2);
+  await expect(older.locator(".list-item")).toHaveCount(utc ? 3 : 1);
   await expect(page.getByRole("button",{name:"기록 1",exact:true})).toHaveCount(1);
   await expect(older).toBeVisible();await expect(older.locator(".timeline-day button")).toHaveCount(0);
   await openListEditor(page,"기록 2");
