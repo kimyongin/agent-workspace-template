@@ -1,11 +1,17 @@
 import { expect, test, vi } from "vitest";
 import { createSettingsDraft } from "./settings-draft.ts";
 import {
-  identitySettingsDraft,
+  createIdentitySettingsDraft,
+  createRecordTemplatesDraft,
   orderedSources,
-  recordTemplatesDraft,
   unavailableTemplateTags,
 } from "./business-settings-drafts.ts";
+const request = vi.fn(async () => {
+  throw new Error("Unexpected HTTP request in draft policy test");
+});
+const identitySettingsDraft = createIdentitySettingsDraft(request);
+const recordTemplatesDraft = createRecordTemplatesDraft(request);
+
 function held<T>() {
   let resolve!: (value: T) => void;
   const promise = new Promise<T>((done) => {
