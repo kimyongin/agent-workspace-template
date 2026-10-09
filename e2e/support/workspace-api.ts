@@ -1,3 +1,4 @@
+import { generateDataId } from "../../supabase/functions/_shared/contracts/data-id.ts";
 import { defaultEntityIdentitySettings, entityId } from "../../supabase/functions/_shared/contracts/entity-identity.ts";
 import type { Page } from "@playwright/test";
 import { recordDisplayText } from "../../supabase/functions/_shared/contracts/record-display.ts";
@@ -28,6 +29,7 @@ export async function installWorkspaceApi(page:Page,apiOrigin:string,rows:Worksp
   await page.route(apiOrigin+"/api/**",async route=>{
     const req=route.request(),url=new URL(req.url()),parts=url.pathname.replace("/api/","").split("/"),[kind,encodedKey,action]=parts, key=encodedKey ? decodeURIComponent(encodedKey) : undefined, method=req.method();
     const body=(req.postDataJSON()??{}) as Record<string,unknown>;
+    if(kind==="ids"&&encodedKey==="allocate")return route.fulfill({json:{id:generateDataId()}});
     const scope = { entityId: url.searchParams.get("entity_id") ?? undefined, taskId: url.searchParams.get("task_id") ?? undefined };
     const plan = plans.get(scopeKey(kind, scope)) ?? plans.get(scopeKey(kind, {}));
     const cursor = url.searchParams.get("cursor");

@@ -1,6 +1,7 @@
 // 모든 기능이 공유하는 입력 규칙·오류·페이지 계약.
 // zod만 가져온다. 웹과 서버가 같은 계약을 사용한다.
 import { z } from "zod";
+import { dataId } from "./data-id.ts";
 
 /** 길이는 Unicode 코드 포인트로 센다. 앞뒤 공백을 제거한 뒤 검사한다. */
 export function codePointLength(value: string): number {
@@ -27,7 +28,7 @@ export const body = z.string().refine((value) => codePointLength(value) <= TEXT_
 export const recordBody = body.refine((value) => value.trim().length > 0, { message: "필수 입력입니다" });
 export const contentLabels = { title: "제목", body: "본문" } as const;
 
-export const id = z.uuid();
+export const id = dataId;
 export const referenceIds = z.array(id).max(100).refine((v) => new Set(v).size === v.length, {
   message: "중복된 참조 ID가 있습니다",
 });

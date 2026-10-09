@@ -25,6 +25,8 @@ export const entityCreate = z.strictObject({
   prop4: properties.prop4.optional(),
 });
 export const entityUpdate = z.strictObject({
+  source: entitySourceCode.optional(),
+  external_id: entityExternalId.optional(),
   ...businessMeta,
   tag_ids: tagIds.optional(),
   prop1: properties.prop1.optional(),

@@ -14,6 +14,10 @@ import type { ChangeFacts } from "../../core/shared/changes.ts";
 
 export class SqlBusinessSettingsStore implements BusinessSettingsStore {
   constructor(private readonly tx: postgres.TransactionSql, private readonly actor: Actor) {}
+  async issueDataId(): Promise<string> {
+    const [row] = await this.tx`select app.issue_data_id() as id`;
+    return row.id as string;
+  }
   async get(): Promise<BusinessSettingsResult> {
     const rows = await this
       .tx`select id,version,settings from app.user_business_settings where owner_id=${this.actor.userId}`;
@@ -46,7 +50,7 @@ export class SqlBusinessSettingsStore implements BusinessSettingsStore {
   }
   async recordTags(ids: string[]): Promise<string[]> {
     if (!ids.length) return [];
-    const rows = await this.tx`select id from app.tags where scope='record' and id=any(${ids}::uuid[])`;
+    const rows = await this.tx`select id from app.tags where scope='record' and id=any(${ids}::text[])`;
     return rows.map((row) => row.id as string);
   }
   async target(model: TemplateModel, id: string) {

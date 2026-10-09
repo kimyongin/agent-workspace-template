@@ -10,15 +10,15 @@ import { api } from "../lib/api.ts";
 import { WorkspaceContext } from "../features/details/workspace-context.ts";
 
 export interface RecordMemo { change_note?: string; change_tag_ids?: string[] }
-function RecordMemoFields({note, tags, onNote, onTags, errors, failure, frozen, message, record=true, excludeTag, onReapply, preparing}: {
-  onReapply?: () => void; preparing?: boolean;
+function RecordMemoFields({note, tags, onNote, onTags, errors, failure, frozen, message, record=true, excludeTag, preparing}: {
+  preparing?: boolean;
   note: string; tags: string[]; onNote: (value: string) => void; onTags: (value: string[]) => void;
   errors: Record<string,string>; failure?: string | null; frozen: boolean; message?: ReactNode; record?: boolean; excludeTag?: string;
 }) {
   return <div className="form">
     {message && <div className="secondary action-explanation">{message}</div>}
     {failure && <Notice kind="error">{failure}</Notice>}
-    {record && onReapply && <button type="button" className="btn" disabled={frozen || preparing} onClick={onReapply}>{preparing ? "템플릿 준비 중…" : "템플릿 다시 적용"}</button>}
+    {record && preparing && <p role="status" className="secondary">기록 메모 준비 중…</p>}
     {record && <fieldset disabled={frozen} className="form plain-fieldset">
       <Field label="기록 메모" error={errors.change_note}>{p => <textarea {...p} className="input" rows={4} value={note} onChange={e=>onNote(e.target.value)} placeholder="변경 내용과 이유를 작성하세요"/>}</Field>
       <TagPicker label="기록 태그" value={tags} error={errors.change_tag_ids} onChange={onTags} excludeId={excludeTag}/>
@@ -68,12 +68,11 @@ export function useRecordConfirmation(options: {
     setErrors(fields);
     setFailure(message);
   };
-  const begin = async (kind: ConfirmationKind, reapply = false) => {
+  const begin = async (kind: ConfirmationKind) => {
     if (attempt.snapshot().busy || attempt.snapshot().uncertain) { setStage(kind); return; }
     setStage(kind);
     reject({}, null);
     const description = latest.current.describe(kind);
-    if (reapply) touched.current = { note: false, tags: false };
     if (!description.preparation || !description.record) {
       if (!touched.current.note) setNote(description.defaultNote);
       preparationReady.current = true;
@@ -84,8 +83,8 @@ export function useRecordConfirmation(options: {
     setPreparing(true);
     try {
       const request = await description.preparation();
-      // The same WriteAttempt owns the creation UUID before preparation and the final write.
-      if (request.action === "create" && request.model !== "entity") request.input = {...request.input, id:attempt.creationId()};
+      // The same WriteAttempt owns the creation ID before preparation and the final write.
+      if (request.action === "create" && request.model !== "entity") request.input = {...request.input, id:await attempt.prepareCreationId()};
       const result = await api<PreparedRecordMemo>("POST", "/records/prepare", request);
       if (run !== preparationRun.current) return;
       if (!touched.current.note) setNote(result.change_note);
@@ -127,7 +126,7 @@ export function useRecordConfirmation(options: {
     register({
       title: description.title, busy,
       body: <RecordMemoFields note={note} tags={tags} onNote={value => { touched.current.note = true; setNote(value); }} onTags={value => { touched.current.tags = true; setTags(value); }}
-        preparing={preparing} onReapply={description.preparation ? () => void begin(stage, true) : undefined}
+        preparing={preparing}
         errors={errors} failure={failure} frozen={busy || uncertain || preparing} record={description.record}
         message={description.message} excludeTag={description.excludeTag}/>,
       footer: <><button type="button" className="btn" disabled={busy} onClick={cancel}>취소</button>

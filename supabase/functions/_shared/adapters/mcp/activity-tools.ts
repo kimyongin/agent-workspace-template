@@ -25,10 +25,10 @@ const idOnly = z.strictObject({ id });
 const deleteInput = z.strictObject({ id, expected_version: expectedVersion, ...businessMeta });
 const recordDeleteInput = z.strictObject({ id, expected_version: expectedVersion, ...mutationMeta });
 
-/** 경로 ID와 같은 규칙: UUID가 아니면 존재 여부를 드러내지 않고 not_found(HTTP와 같음). */
+/** 경로 ID와 같은 규칙: 유효한 데이터 ID가 아니면 존재 여부를 드러내지 않고 not_found(HTTP와 같음). */
 function split(args: Record<string, unknown>) {
   const { id: rawId, ...rest } = args;
-  if (!z.uuid().safeParse(rawId).success) throw notFound();
+  if (!id.safeParse(rawId).success) throw notFound();
   return { id: rawId as string, rest };
 }
 

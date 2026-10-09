@@ -121,7 +121,7 @@ export class SqlActivityStore extends SqlActorStore implements ActivityStore {
         ${f.tag_ids?.length ? tx`and ${hasAnyTag(tx, "task", [...f.tag_ids, ...(f.tag_id ? [f.tag_id] : [])])}` : tx``}
         ${f.due_from ? tx`and due_on >= ${f.due_from}` : tx``}
         ${f.due_to ? tx`and due_on <= ${f.due_to}` : tx``}
-        ${f.after ? tx`and (updated_at, id) < (${f.after.at}::timestamptz, ${f.after.id}::uuid)` : tx``}
+        ${f.after ? tx`and (updated_at, id) < (${f.after.at}::timestamptz, ${f.after.id}::text)` : tx``}
       order by updated_at desc, id desc
       limit ${f.limit}`;
     return rows.map(toTask);
@@ -204,7 +204,7 @@ export class SqlActivityStore extends SqlActorStore implements ActivityStore {
     }
         ${f.occurred_from ? tx`and occurred_at >= ${f.occurred_from}::timestamptz` : tx``}
         ${f.occurred_to ? tx`and occurred_at <= ${f.occurred_to}::timestamptz` : tx``}
-        ${f.after ? tx`and (occurred_at, id) < (${f.after.at}::timestamptz, ${f.after.id}::uuid)` : tx``}
+        ${f.after ? tx`and (occurred_at, id) < (${f.after.at}::timestamptz, ${f.after.id}::text)` : tx``}
       order by occurred_at desc, id desc
       limit ${f.limit}`;
     return rows.map(toRecord);
@@ -227,7 +227,7 @@ export class SqlActivityStore extends SqlActorStore implements ActivityStore {
       record.inherit_task_entities ? record.task_id ?? undefined : undefined,
     );
     const values: Record<string, unknown> = {
-      id: record.id ?? crypto.randomUUID(),
+      id: record.id ?? await this.issueDataId(),
       owner_id: this.actor.userId,
       ...selection,
       body: record.body,

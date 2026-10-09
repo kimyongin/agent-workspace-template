@@ -51,6 +51,7 @@ export function templateVariables(model: TemplateModel, action: TemplateAction):
     "대상",
     "액션",
     "변경내용",
+    ...(action === "update" ? ["변경항목"] : []),
     ...["이전", "이후"].filter((phase) => action !== (phase === "이전" ? "create" : "delete")).flatMap((phase) =>
       Object.keys(templateFields[model]).map((field) => `${templateModelNames[model]}.${phase}.${field}`)
     ),
@@ -65,29 +66,27 @@ export function templateIssues(memo: string, model: TemplateModel, action: Templ
   const issues: TemplateIssue[] = [];
   let position = 0;
   while (position < memo.length) {
-    const open = memo.indexOf("${", position), close = memo.indexOf("$}", position);
-    if (open < 0) {
-      if (close >= 0) issues.push({ position: close + 1, reason: "시작 구문 ${가 없습니다" });
-      break;
-    }
-    if (close >= 0 && close < open) {
-      issues.push({ position: close + 1, reason: "시작 구문 ${가 없습니다" });
-      position = close + 2;
+    const open = memo.indexOf("$", position);
+    if (open < 0) break;
+    if (memo.startsWith("$$", open)) {
+      position = open + 2;
       continue;
     }
-    const end = memo.indexOf("$}", open + 2);
+    const legacy = memo.startsWith("${", open);
+    const start = open + (legacy ? 2 : 1);
+    const end = memo.indexOf(legacy ? "$}" : "$", start);
     if (end < 0) {
-      issues.push({ position: open + 1, reason: "닫는 구문 $}가 없습니다" });
+      issues.push({ position: open + 1, reason: "닫는 구분자 $가 없습니다" });
       break;
     }
-    const variable = memo.slice(open + 2, end);
+    const variable = memo.slice(start, end);
     if (!allowed.has(variable)) {
       issues.push({
         position: open + 1,
         reason: `사용할 수 없는 변수: ${variable || "(빈 변수)"}. 모델·속성·이전/이후를 확인하세요`,
       });
     }
-    position = end + 2;
+    position = end + (legacy ? 2 : 1);
   }
   return issues;
 }
@@ -128,11 +127,49 @@ export const recordTemplates = z.strictObject({
   }
 });
 export type RecordTemplates = z.infer<typeof recordTemplates>;
+/** The same visible template is used by settings and business record preparation. */
+export const DEFAULT_RECORD_MEMO_TEMPLATES: Record<TemplateAction, string> = {
+  create: "$대상$ $액션$",
+  update: "$대상$ $액션$ ($변경항목$)",
+  delete: "$대상$ $액션$",
+  restore: "$대상$ $액션$",
+  stop: "$대상$ $액션$",
+  resume: "$대상$ $액션$",
+};
+/** Saved legacy templates remain readable; settings edits use the simpler notation. */
+export function simplifyTemplateSyntax(memo: string): string {
+  return memo.replace(/\$\{([^$]*?)\$\}/g, (_match, variable: string) => `$${variable}$`);
+}
+export function effectiveRecordTemplate(
+  templates: RecordTemplates | undefined,
+  model: TemplateModel,
+  action: TemplateAction,
+) {
+  const value = templates?.[model]?.[action];
+  return {
+    memo: value?.memo.trim() ? simplifyTemplateSyntax(value.memo) : DEFAULT_RECORD_MEMO_TEMPLATES[action],
+    tag_ids: value?.tag_ids ?? [],
+  };
+}
+/** Keep unset overrides unset; only display legacy empty memos as the default. */
+export function editableRecordTemplates(templates: RecordTemplates = {}): RecordTemplates {
+  const result = { ...templates };
+  for (const model of TEMPLATE_MODELS) {
+    const group = templates[model];
+    if (!group) continue;
+    result[model] = { ...group };
+    for (const action of modelActions(model)) {
+      if (group[action]) result[model]![action] = effectiveRecordTemplate(templates, model, action);
+    }
+  }
+  return result;
+}
 export interface TemplateContext {
   target: string;
   action: TemplateAction;
   model: TemplateModel;
   changes: string;
+  changed_fields?: string[];
   before: Record<string, unknown> | null;
   after: Record<string, unknown> | null;
 }
@@ -142,11 +179,17 @@ function display(value: unknown): string {
   return typeof value === "object" ? JSON.stringify(value) : String(value);
 }
 export function renderTemplate(memo: string, context: TemplateContext): string {
-  return memo.replace(/\$\{(.*?)\$\}/g, (_match, variable: string) => {
-    if (variable === "대상") return context.target;
-    if (variable === "액션") return templateActionNames[context.action];
-    if (variable === "변경내용") return context.changes;
-    const [, phase, name] = variable.split(".");
-    return display((phase === "이전" ? context.before : context.after)?.[templateFields[context.model][name]]);
-  });
+  return memo.replace(
+    /\$\{([^$]*?)\$\}|\$\$|\$([^$]*?)\$/g,
+    (match, legacy: string | undefined, current: string | undefined) => {
+      if (match === "$$") return "$";
+      const variable = legacy ?? current!;
+      if (variable === "대상") return context.target;
+      if (variable === "액션") return templateActionNames[context.action];
+      if (variable === "변경내용") return context.changes;
+      if (variable === "변경항목") return context.changed_fields?.join(", ") || "변경 없음";
+      const [, phase, name] = variable.split(".");
+      return display((phase === "이전" ? context.before : context.after)?.[templateFields[context.model][name]]);
+    },
+  );
 }

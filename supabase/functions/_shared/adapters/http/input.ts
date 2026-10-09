@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { expectedVersion } from "../../contracts/common.ts";
+import { expectedVersion, id } from "../../contracts/common.ts";
 import { tagIds } from "../../contracts/tag.ts";
 import { mutationMeta } from "../../contracts/change.ts";
 import type { Actor } from "../../core/shared/actor.ts";
@@ -7,7 +7,7 @@ import { notFound } from "../../core/shared/errors.ts";
 
 export type HttpEnv = { Variables: { actor: Actor } };
 export function idParam(value: string): string {
-  if (!z.uuid().safeParse(value).success) throw notFound();
+  if (!id.safeParse(value).success) throw notFound();
   return value;
 }
 export async function json(req: Request): Promise<unknown> {

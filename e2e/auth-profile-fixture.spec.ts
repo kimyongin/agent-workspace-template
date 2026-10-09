@@ -6,7 +6,7 @@ const fixture = "/e2e/fixtures/auth-profile.html";
 
 test("다른 창의 발급처 추가 충돌을 읽고 사용자 이름 편집과 새 발급처를 함께 저장한다",async({page,context})=>{
   let version=1;
-  let value={generation:"uuid",default_source:"app",sources:[{code:"app",label:"앱"}]};
+  let value={generation:"short",default_source:"app",sources:[{code:"app",label:"앱"}]};
   const writes:{expected_version:number;value:typeof value}[]=[];
   let hold=false,release!:()=>void;
   const wait=new Promise<void>(resolve=>{release=resolve;});
@@ -22,29 +22,29 @@ test("다른 창의 발급처 추가 충돌을 읽고 사용자 이름 편집과
   await context.route("**/tags?**",route=>route.fulfill({json:{items:[],next_cursor:null}}));
   await page.goto(fixture);
   const identity=page.locator('section[aria-labelledby="entity-identity-title"]');
-  await identity.getByLabel("발급처 1 표시 이름").fill("내가 편집한 이름");
+  await identity.getByLabel("발급처 1 이름").fill("내가 편집한 이름");
   value={generation:"manual",default_source:"crm",sources:[{code:"app",label:"앱"},{code:"crm",label:"다른 창에서 추가"}]};version=2;
   await identity.getByRole("button",{name:"식별자 설정 저장",exact:true}).click();
   hold=true;
   await identity.getByRole("button",{name:"최신값 확인",exact:true}).click();
-  await expect(identity.getByLabel("발급처 1 표시 이름")).toBeDisabled();
+  await expect(identity.getByLabel("발급처 1 이름")).toBeDisabled();
   await expect(identity.getByRole("button",{name:"추가",exact:true})).toBeDisabled();
-  await expect(identity.getByRole("button",{name:"확인 중…",exact:true})).toBeDisabled();
+  await expect(identity.getByRole("button",{name:"최신값 확인",exact:true})).toBeDisabled();
   release();
-  await expect(identity.getByLabel("발급처 1 표시 이름")).toBeEditable();
-  await expect(identity.getByLabel("발급처 1 표시 이름")).toHaveValue("내가 편집한 이름");
-  await expect(identity.getByLabel("발급처 2 표시 이름")).toHaveValue("다른 창에서 추가");
-  await expect(identity.getByLabel("식별자 발급 방식")).toHaveValue("manual");
-  await expect(identity.getByLabel("기본 발급처")).toHaveValue("crm");
+  await expect(identity.getByLabel("발급처 1 이름")).toBeEditable();
+  await expect(identity.getByLabel("발급처 1 이름")).toHaveValue("내가 편집한 이름");
+  await expect(identity.getByLabel("발급처 2 이름")).toHaveValue("다른 창에서 추가");
+  await expect(identity.getByLabel("발급처 1 방식")).toHaveValue("manual");
+  await expect(identity.getByLabel("기본 발급처")).toHaveCount(0);
   await identity.getByRole("button",{name:"식별자 설정 저장",exact:true}).click();
   await expect(identity).toContainText("식별자 설정을 저장했습니다");
   expect(writes.map(input=>input.expected_version)).toEqual([1,2]);
-  expect(value.sources).toEqual([{code:"app",label:"내가 편집한 이름"},{code:"crm",label:"다른 창에서 추가"}]);
+  expect(value.sources.map(({code,label})=>({code,label}))).toEqual([{code:"app",label:"내가 편집한 이름"},{code:"crm",label:"다른 창에서 추가"}]);
 });
 
-for (const width of [390,1440]) test(`업무 설정 ${width}px: 독립 저장·초안 보존·발급처 삭제/복원·초안 코드 수정`, async ({page,context}, info)=>{
+for (const width of [390,1440]) test(`업무 설정 ${width}px: 독립 저장·초안 보존·발급처 삭제/복원·행 추가·순서 변경`, async ({page,context}, info)=>{
   const versions = {record_templates:0,entity_identity:0};
-  const settings = {record_templates:{},entity_identity:{generation:"uuid",default_source:"app",sources:[{code:"app",label:"앱"},{code:"crm",label:"고객"}]}};
+  const settings = {record_templates:{},entity_identity:{generation:"short",default_source:"app",sources:[{code:"app",label:"앱"},{code:"crm",label:"고객"}]}};
   const writes: {id:keyof typeof settings;expected_version:number;value:unknown}[]=[];
   await context.route("**/settings/business",route=>{
     if(route.request().method()==="PATCH") {
@@ -58,11 +58,18 @@ for (const width of [390,1440]) test(`업무 설정 ${width}px: 독립 저장·�
   await page.setViewportSize({width,height:1000});await page.goto(fixture);
   const templates=page.getByRole("form",{name:"변경 기록 기본값"});
   const identity=page.locator('section[aria-labelledby="entity-identity-title"]');
+  await expect(templates.getByLabel("메모 템플릿")).toHaveValue("$대상$ $액션$");
+  await expect(templates.getByRole("button",{name:"기록 기본값 저장",exact:true})).toBeDisabled();
+  expect(writes).toHaveLength(0);
+  await templates.getByLabel("액션",{exact:true}).selectOption("update");
+  await expect(templates.getByLabel("메모 템플릿")).toHaveValue("$대상$ $액션$ ($변경항목$)");
+  await expect(templates.getByRole("button",{name:"기록 기본값 저장",exact:true})).toBeDisabled();
+  await templates.getByLabel("액션",{exact:true}).selectOption("create");
   await templates.getByLabel("메모 템플릿").fill("기본 ${액션$}");
-  await identity.getByLabel("식별자 발급 방식").selectOption("manual");
+  await identity.getByLabel("발급처 1 방식").selectOption("manual");
   await templates.getByRole("button",{name:"기록 기본값 저장",exact:true}).click();
   await expect(templates).toContainText("기록 기본값을 저장했습니다");
-  await expect(identity.getByLabel("식별자 발급 방식")).toHaveValue("manual");
+  await expect(identity.getByLabel("발급처 1 방식")).toHaveValue("manual");
   await identity.getByRole("button",{name:"식별자 설정 저장",exact:true}).click();
   await expect(identity).toContainText("식별자 설정을 저장했습니다");
   expect(writes.map(({id,expected_version})=>({id,expected_version}))).toEqual([{id:"record_templates",expected_version:0},{id:"entity_identity",expected_version:0}]);
@@ -78,13 +85,15 @@ for (const width of [390,1440]) test(`업무 설정 ${width}px: 독립 저장·�
   await expect(identity).toContainText("식별자 설정을 저장했습니다");
   expect(settings.entity_identity.sources.find(source=>source.code==="crm")).toMatchObject({deleted:false});
   await identity.getByRole("button",{name:"추가",exact:true}).click();
-  await identity.getByLabel("발급처 3 표시 이름").fill("임시");
-  await identity.getByLabel("발급처 3 코드").fill("app");
-  await expect(identity.getByLabel("기본 발급처").locator('option[value="app"]')).toHaveCount(1);
-  await identity.getByRole("button",{name:"식별자 설정 저장",exact:true}).click();
-  await expect(identity.getByRole("alert")).toContainText("중복");
-  await expect(identity.getByLabel("발급처 3 코드")).toBeEditable();
-  await identity.getByLabel("발급처 3 코드").fill("external");
+  await identity.getByLabel("발급처 3 이름").fill("임시");
+  await expect(identity.getByLabel("발급처 3 방식")).toHaveValue("short");
+  await identity.getByLabel("발급처 3 방식").selectOption("manual");
+  await identity.getByRole("button",{name:"임시 위로 이동",exact:true}).click();
+  await identity.getByRole("button",{name:"임시 위로 이동",exact:true}).click();
+  await expect(identity.getByLabel("발급처 1 이름")).toHaveValue("임시");
+  await expect(identity.getByRole("button",{name:"임시 위로 이동",exact:true})).toBeDisabled();
+  await identity.getByRole("button",{name:"임시 아래로 이동",exact:true}).click();
+  await identity.getByRole("button",{name:"임시 아래로 이동",exact:true}).click();
   await identity.getByRole("button",{name:"임시 삭제",exact:true}).click();
   await expect(identity.getByRole("button",{name:"식별자 설정 저장",exact:true})).toBeDisabled();
   expect(writes).toHaveLength(4);
@@ -431,4 +440,26 @@ for (const width of [320, 390, 1440]) test(`프로필 ${width}px: 두 줄 스크
   await page.getByLabel("닉네임",{exact:true}).fill(" ");await page.getByRole("button",{name:"프로필 저장",exact:true}).click();await expect(page.getByRole("form",{name:"프로필 설정"}).getByRole("status")).toContainText("설정을 저장했습니다");
   expect(writes.at(-1)).toEqual({workspace_nickname:null});
   await page.getByRole("button",{name:"내 프로필",exact:true}).click();await expect(popup).toContainText("기존 계정 이름");
+});
+
+test("발급처 순서 저장 후 다시 읽어도 첫 행 기본값과 개별 방식을 유지한다",async({page,context})=>{
+  let value={generation:"short",default_source:"app",sources:[{code:"app",label:"앱",generation:"short"},{code:"crm",label:"고객",generation:"manual"}]};
+  let version=0;
+  await context.route("**/settings/business",route=>{
+    if(route.request().method()==="PATCH"){value=route.request().postDataJSON().value;version++;}
+    return route.fulfill({json:{versions:{record_templates:0,entity_identity:version},settings:{record_templates:{},entity_identity:value}}});
+  });
+  await context.route("**/tags?**",route=>route.fulfill({json:{items:[],next_cursor:null}}));
+  await page.goto(fixture);
+  const section=page.locator('section[aria-labelledby="entity-identity-title"]');
+  await section.getByRole("button",{name:"고객 위로 이동",exact:true}).click();
+  await section.getByRole("button",{name:"식별자 설정 저장",exact:true}).click();
+  await expect(section).toContainText("식별자 설정을 저장했습니다");
+  expect(value.default_source).toBe("crm");
+  await page.reload();
+  await expect(section.getByLabel("발급처 1 이름")).toHaveValue("고객");
+  await expect(section.getByLabel("발급처 1 방식")).toHaveValue("manual");
+  await expect(section.getByLabel("발급처 2 방식")).toHaveValue("short");
+  await section.getByRole("button",{name:"추가",exact:true}).click();
+  await expect(section.getByLabel("발급처 3 이름")).toBeFocused();
 });

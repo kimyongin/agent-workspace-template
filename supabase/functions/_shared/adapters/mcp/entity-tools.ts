@@ -19,7 +19,7 @@ export function entityTools(d: entity.EntityDeps): ToolDef[] {
     {
       name: "prepare_entity_registration",
       description:
-        "등록 전에 발급처 기본값과 자동 UUID를 한 번 고정하고 동일 조합의 저장값을 조회한다. create이면 반환된 source/external_id를 그대로 저장·재시도한다. restore이면 existing 보관값과 expected_version을 확인하고 등록으로 복원한다. duplicate이면 활성 중복을 거부한다.",
+        "등록 전에 발급처 기본값과 18자 자동 식별자를 한 번 고정하고 동일 조합의 저장값을 조회한다. create이면 반환된 source/external_id를 그대로 저장·재시도한다. restore이면 existing 보관값과 expected_version을 확인하고 등록으로 복원한다. duplicate이면 활성 중복을 거부한다.",
       input: entityCreate.pick({ source: true, external_id: true }),
       readOnly: true,
       handler: (i, a) =>
@@ -55,14 +55,15 @@ export function entityTools(d: entity.EntityDeps): ToolDef[] {
     {
       name: "create_entity",
       description:
-        "예제 엔터티 생성. prop1 1~100자 필수, prop2 정수 0~1000000, prop3 날짜, prop4 a/b/c 기본 a. 발급처 source와 외부 식별자 external_id는 정확하게 보존한다. 먼저 prepare_entity_registration으로 사용자 설정에 따른 발급처/자동 UUID를 준비하고 source/external_id를 고정하여 저장·재시도한다. 활성 중복은 충돌. 삭제된 조합은 get_entity로 보관값·version을 확인하고 expected_version으로 명시적으로 복원하며 생략 속성은 유지한다.",
+        "예제 엔터티 생성. prop1 1~100자 필수, prop2 정수 0~1000000, prop3 날짜, prop4 a/b/c 기본 a. 발급처 source와 외부 식별자 external_id는 정확하게 보존한다. 먼저 prepare_entity_registration으로 사용자 설정에 따른 발급처/18자 자동 식별자를 준비하고 source/external_id를 고정하여 저장·재시도한다. 활성 중복은 충돌. 삭제된 조합은 get_entity로 보관값·version을 확인하고 expected_version으로 명시적으로 복원하며 생략 속성은 유지한다.",
       input: entityCreate,
       readOnly: false,
       handler: (i, a) => entity.createEntity(d, a, parse(entityCreate, i)),
     },
     {
       name: "update_entity",
-      description: "현재 expected_version으로 속성 정정. 생략은 유지, prop2/3 null은 비우기.",
+      description:
+        "현재 expected_version으로 속성과 발급처·식별자를 함께 정정한다. 식별 변경은 연결·사건 참조도 원자적으로 전환한다. 생략은 유지, prop2/3 null은 비우기.",
       input: entityUpdate.extend({ id }),
       readOnly: false,
       handler: (i, a) => {
