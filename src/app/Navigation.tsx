@@ -5,6 +5,7 @@ import { ProfileIcon } from "../features/settings/profile.tsx";
 import { profileName } from "../features/settings/account-preferences.ts";
 
 import { navigationSection } from "./navigation-section.ts";
+import appIcon from "./app-icon.svg";
 const entries = [
   ["entities", "/entities", "엔터티", "M3 3h7v7H3ZM14 3h7v7h-7ZM3 14h7v7H3ZM14 14h7v7h-7Z"],
   ["tasks", "/tasks", "할 일", "m3 12 3 3 5-6M14 6h7M14 12h7M14 18h7"],
@@ -44,7 +45,7 @@ export function Navigation({ brand, navigationRef }: { brand: string; navigation
     return () => document.removeEventListener("pointerdown", outside);
   }, [open]);
   return <nav className="bottom-nav" aria-label="주 메뉴" id="workspace-navigation" ref={navigationRef}>
-    <div className="navigation-brand">{brand}</div>
+    <div className="navigation-brand"><img src={appIcon} alt=""/><span>{brand}</span></div>
     <div className="bottom-nav-inner" ref={root} onBlur={event => {
       if (event.relatedTarget instanceof Element && event.relatedTarget.closest("dialog[open]")) return;
       if (event.relatedTarget && !event.currentTarget.contains(event.relatedTarget as Node)) setOpen(false);

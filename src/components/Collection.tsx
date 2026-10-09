@@ -1,6 +1,7 @@
 import { Children, cloneElement, createContext, isValidElement, useContext, useRef, type CSSProperties, type ReactNode } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router";
 import "./collection.css";
+import { useCollectionExpansion } from "./item-expansion.tsx";
 
 export type CollectionView = "list" | "cards" | "table" | "calendar";
 export type ItemView = Exclude<CollectionView, "calendar">;
@@ -29,7 +30,8 @@ export function ViewPicker({ label, value, onChange, calendar = false }: { label
 }
 
 export function CollectionHeading({ id, label, count, hasMore = false, view, onChange, calendar }: { id?: string; label: string; count?: number; hasMore?: boolean; view: CollectionView; onChange: (view: CollectionView) => void; calendar?: boolean }) {
-  return <div className="collection-heading"><h2 id={id} className="section-title">{label}{count === undefined ? "" : ` (${count}개${hasMore ? "+" : ""})`}</h2><ViewPicker label={label} value={view} onChange={onChange} calendar={calendar}/></div>;
+  const expansion=useCollectionExpansion();
+  return <div className="collection-heading"><h2 id={id} className="section-title">{label}{count === undefined ? "" : ` (${count}개${hasMore ? "+" : ""})`}</h2><div className="collection-controls">{expansion&&<button type="button" className="collection-expand-toggle" aria-label={`${label} ${expansion.allOpen?"전체 닫기":"전체 열기"}`} title={expansion.allOpen?"전체 닫기":"전체 열기"} aria-expanded={expansion.allOpen} onClick={expansion.toggle}><span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={expansion.allOpen?"m6 14 6-6 6 6m-12 6 6-6 6 6":"m6 4 6 6 6-6m-12 6 6 6 6-6"}/></svg></span></button>}<ViewPicker label={label} value={view} onChange={onChange} calendar={calendar}/></div></div>;
 }
 
 export function useMainCollectionView(calendar = false) {

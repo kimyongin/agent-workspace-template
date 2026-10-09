@@ -3,7 +3,7 @@ import "./body-action.css";
 
 type ActionIcon = "create" | "link" | "unlink" | "close" | "view" | "filter" | "reset";
 const paths: Record<ActionIcon, ReactNode> = {
-  filter: <><path d="M4 7h16M4 17h16"/><circle cx="9" cy="7" r="2"/><circle cx="15" cy="17" r="2"/></>,
+  filter: <><path d="M4 5h3m4 0h9M4 12h9m4 0h3M4 19h3m4 0h9"/><circle cx="9" cy="5" r="2"/><circle cx="15" cy="12" r="2"/><circle cx="9" cy="19" r="2"/></>,
   reset: <path d="M3 10a9 9 0 1 1 1 8M3 4v6h6"/>,
   create: <path d="M12 5v14M5 12h14"/>,
   link: <path d="M10 13a5 5 0 0 0 7.07 0l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71M14 11a5 5 0 0 0-7.07 0l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>,

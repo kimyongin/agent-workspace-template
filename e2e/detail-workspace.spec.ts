@@ -102,7 +102,7 @@ test("desktop: navigation drag, keyboard limits, cancellation and reset reserve 
   const box = (await handle.boundingBox())!;
   await page.mouse.move(box.x + 6, box.y + box.height / 2); await page.mouse.down(); await page.mouse.move(box.x + 66, box.y + box.height / 2, { steps: 8 }); await page.mouse.up();
   await expect.poll(navWidth).toBe(268); await handle.press("ArrowLeft"); await expect.poll(navWidth).toBe(252);
-  await handle.press("Home"); await expect.poll(navWidth).toBe(160);
+  await handle.press("Home"); await expect.poll(navWidth).toBe(208);
   await handle.press("End"); await expect.poll(navWidth).toBe(320);
   expect((await page.locator(".workspace-list").boundingBox())!.width).toBeGreaterThanOrEqual(448);
   expect(await detailWidth(page)).toBeGreaterThanOrEqual(432);
@@ -560,7 +560,8 @@ test("desktop: rekey replaces the retained entity tab and URL after a completed 
   await page.setViewportSize({width:1440,height:900});
   const state = await fixture(page);
   const oldId = entityKey(1), nextId = "app:새:/ID%";
-  await page.route("**/api/entities/*/identity", async route => {
+  await page.route("**/api/entities/*", async route => {
+    if(route.request().method()!=="PATCH") return route.fallback();
     const input = route.request().postDataJSON();
     const target = state.rows.entities.find(value => value.id === oldId)!;
     Object.assign(target,input,{id:nextId,version:target.version+1});
@@ -568,13 +569,13 @@ test("desktop: rekey replaces the retained entity tab and URL after a completed 
   });
   await page.goto(`/entities/${encodeURIComponent(oldId)}`);
   await expect(page.getByRole("tab", {name:"등심",exact:true})).toHaveAttribute("aria-selected","true");
-  await panel(page).getByRole("button", {name:"식별 정보 변경",exact:true}).click();
-  await panel(page).getByLabel("외부 식별자").fill("새:/ID%");
-  await saveOnce(page,panel(page),"변경");
+  await panel(page).getByRole("button", {name:"편집",exact:true}).click();
+  await panel(page).getByLabel("식별자").fill("새:/ID%");
+  await saveOnce(page,panel(page));
   await expect(page).toHaveURL(new RegExp(encodeURIComponent(nextId)));
   await expect(page.locator(`[id="tab-/entities/${encodeURIComponent(oldId)}"]`)).toHaveCount(0);
   await expect(page.getByRole("tab", {name:"등심",exact:true})).toHaveCount(1);
-  await expect(panel(page).getByText("앱 · 새:/ID%", {exact:true})).toBeVisible();
+  await expect(panel(page).getByText("새:/ID%", {exact:true})).toBeVisible();
   expect(state.errors).toEqual([]);
 });
 
@@ -590,11 +591,11 @@ for (const entered of [false,true]) test(`manual identity defaults preserve canc
   await page.goto("/entities");
   await page.getByRole("button", {name:"엔터티 등록",exact:true}).click();
   const form = page.getByRole("dialog", {name:"엔터티 추가",exact:true});
-  await expect(form.getByLabel("외부 식별자")).toBeDisabled();
+  await expect(form.getByLabel("식별자")).toBeDisabled();
   if (entered) await form.getByLabel("속성 1").fill("설정 도착 전 입력");
   releaseSettings();
-  await expect(form.getByLabel("외부 식별자")).toBeEnabled();
-  await expect(form.getByLabel("외부 식별자")).toHaveValue("");
+  await expect(form.getByLabel("식별자")).toBeEnabled();
+  await expect(form.getByLabel("식별자")).toHaveValue("");
   await expect(form.getByLabel("발급처")).toHaveValue("crm");
   if (entered) await expect(form.getByLabel("속성 1")).toHaveValue("설정 도착 전 입력");
   await form.getByRole("button", {name:"취소",exact:true}).click();
@@ -626,4 +627,32 @@ test("desktop: entity list focus round trips a Unicode and percent identity thro
   const target=page.locator(".workspace-list").getByRole("button",{name:"등심",exact:true});
   await expect(target).toBeFocused();expect(await target.evaluate(element=>element.tabIndex)).toBe(0);expect(new URL(page.url()).hash).toBe(`#${encodeURIComponent(`entity-${canonical}`)}`);
   await page.reload();await expect(target).toBeFocused();expect(state.errors).toEqual([]);
+});
+
+for(const width of [390,1440]) test(`전체 펼침 ${width}px 토글은 표시된 목록을 함께 열고 모달 구획은 독립적으로 유지한다`, async ({page}) => {
+  await page.setViewportSize({width,height:900});
+  const state=await fixture(page);
+  await page.goto('/entities');
+  const main=page.getByRole('region',{name:'엔터티 목록',exact:true});
+  await main.getByRole('button',{name:'등심',exact:true}).click();
+  await main.getByRole('button',{name:'엔터티 전체 열기',exact:true}).click();
+  for(const name of ['등심','버섯']) await expect(main.getByRole('button',{name,exact:true})).toHaveAttribute('aria-expanded','true');
+  expect(new URL(page.url()).searchParams.getAll('open')).toHaveLength(2);
+  await page.reload();
+  await main.getByRole('button',{name:'엔터티 전체 닫기',exact:true}).click();
+  for(const name of ['등심','버섯']) await expect(main.getByRole('button',{name,exact:true})).toHaveAttribute('aria-expanded','false');
+  expect(new URL(page.url()).searchParams.getAll('open')).toHaveLength(0);
+  await main.getByRole("button",{name:"등심",exact:true}).click();
+  await main.getByRole("link",{name:"등심 상세",exact:true}).click();
+  const detail=page.getByRole("dialog",{name:"엔터티",exact:true});
+  const tasks=detail.getByRole('region',{name:'할 일 (1개)',exact:true});
+  const records=detail.getByRole('region',{name:'기록 (1개)',exact:true});
+  await tasks.getByRole('button',{name:'할 일 전체 열기',exact:true}).click();
+  await expect(tasks.getByRole('button',{name:'등심 구매하기',exact:true})).toHaveAttribute('aria-expanded','true');
+  await expect(records.getByRole('button',{name:'기록 전체 열기',exact:true})).toBeVisible();
+  await records.getByRole('button',{name:'기록 전체 열기',exact:true}).click();
+  await tasks.getByRole('button',{name:'할 일 전체 닫기',exact:true}).click();
+  await expect(tasks.getByRole('button',{name:'등심 구매하기',exact:true})).toHaveAttribute('aria-expanded','false');
+  await expect(records.getByRole('button',{name:'기록 전체 닫기',exact:true})).toBeVisible();
+  expect(state.writes).toEqual([]);expect(state.errors).toEqual([]);
 });

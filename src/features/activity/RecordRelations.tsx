@@ -1,14 +1,12 @@
 import { CollectionList } from "../../components/Collection.tsx";
 import { useEffect, useState } from "react";
 import type { RecordResult } from "@contracts/record.ts";
-import type { TaskResult } from "@contracts/task.ts";
 import { RelatedSection } from "../../components/RelatedItems.tsx";
 import { RelatedPreviewItem } from "../relations/RelatedPreviewItem.tsx";
 import { api, ApiError } from "../../lib/api.ts";
 import { EntityLinkItem } from "../entity/EntityPicker.tsx";
 import { RelatedTaskItem } from "./RelatedTask.tsx";
-import { StatusBadge } from "./shared.tsx";
-import { changeActionNames } from "./ChangeContext.tsx";
+
 
 type Change = NonNullable<RecordResult["change"]>;
 const groups = [
@@ -38,24 +36,27 @@ export function RecordRelations({record}: {record:RecordResult}) {
 
 function ChangedRelation({change,path,occurrence}: {change:Change;path:string;occurrence:string|null}) {
   const [state,setState]=useState<"loading"|"exists"|"missing"|"failed">("loading");
-  const [status,setStatus]=useState<TaskResult["status"]|null>(null);
   const [attempt,setAttempt]=useState(0);
   useEffect(()=>{
     const controller=new AbortController();
-    setState("loading");setStatus(null);
+    setState("loading");
     // The captured title describes the event; only a successful current GET enables navigation.
-    void api<{status?:TaskResult["status"]}>("GET",path,undefined,controller.signal).then(value=>{
-      if(!controller.signal.aborted){setState("exists");if(change.target_kind==="task")setStatus(value.status??null);}
+    void api<unknown>("GET",path,undefined,controller.signal).then(()=>{
+      if(!controller.signal.aborted)setState("exists");
     },error=>{
       if(!controller.signal.aborted)setState(error instanceof ApiError&&error.status===404&&error.code==="not_found"?"missing":"failed");
     });
     return ()=>controller.abort();
   },[path,attempt,change.target_kind]);
-  return <>
-    <RelatedPreviewItem to={state==="exists"?path:undefined} restoreKey="change-target" title={change.target_title}
-      metadata={<><span className="meta">{changeActionNames[change.action]}</span>{status&&<StatusBadge status={status}/>} {occurrence&&<span className="meta">{occurrence} 회차</span>}</>}/>
-    {state==="missing"&&<p className="secondary">삭제된 대상 또는 접근할 수 없는 대상입니다. 당시의 기록은 그대로 보존됩니다.</p>}
-    {state==="failed"&&<div className="form"><p className="notice" role="status">대상의 현재 상태를 확인하지 못했습니다.</p><button type="button" className="btn" onClick={()=>setAttempt(value=>value+1)}>대상 다시 조회</button></div>}
-    {state==="loading"&&<p className="secondary" role="status" aria-label="변경 대상 조회">불러오는 중…</p>}
-  </>;
+  const missing=state==="missing";
+  const deleted=missing&&change.action==="delete";
+  const fallback=missing
+    ?<p className="secondary">{deleted?"삭제된 항목입니다. 기록에 저장된 당시 제목을 표시합니다.":"현재 항목을 조회할 수 없습니다. 기록에 저장된 당시 제목을 표시합니다."}</p>
+    :state==="failed"
+    ?<><p className="secondary">현재 항목을 불러오지 못했습니다.</p><button type="button" className="btn" onClick={()=>setAttempt(value=>value+1)}>다시 시도</button></>
+    :state==="loading"?<p className="secondary" role="status">불러오는 중…</p>:undefined;
+  return <RelatedPreviewItem to={path} restoreKey="change-target" title={change.target_title}
+    titleBadge={missing?<span className="badge">{deleted?"삭제됨":"조회 불가"}</span>:undefined}
+    metadata={occurrence?<span className="meta">{occurrence} 회차</span>:undefined}
+    fallback={fallback}/>;
 }

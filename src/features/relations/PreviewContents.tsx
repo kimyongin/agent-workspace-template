@@ -26,11 +26,11 @@ export function PreviewContents({kind,item,main,onTagsReady}: {
   const { formatDateTime } = useDisplayTime();
   if (kind === "entities") {
     const entity = item as EntityResult;
-    return <><p className="secondary">{entityIdentityLabel(entity)}{entity.deleted_at ? " · 삭제됨" : ""}</p><dl className="props">{(["prop2","prop3","prop4"] as const).map(key=>entity[key]!==null&&<div key={key}><dt>{entityLabels[key]}</dt><dd>{entity[key]}</dd></div>)}</dl><TagNames compact scope="entity" ids={entity.tag_ids} onReadyChange={onTagsReady}/></>;
+    return <><p className="secondary">{entityIdentityLabel(entity)}{entity.deleted_at ? " · 삭제됨" : ""}</p><dl className="props entity-preview-properties">{(["prop2","prop3","prop4"] as const).map(key=>entity[key]!==null&&<div key={key}><dt>{entityLabels[key]}</dt><dd>{entity[key]}</dd></div>)}</dl><TagNames compact scope="entity" ids={entity.tag_ids} onReadyChange={onTagsReady}/></>;
   }
   if (kind === "tasks") {
     const task = item as TaskResult;
-    return <>{task.body&&<MarkdownContent text={task.body}/>}<div className="related-item-meta"><StatusBadge status={task.status}/>{task.due_on&&<span className="meta">{task.due_on}</span>}</div><TagNames compact scope="task" ids={task.tag_ids} onReadyChange={onTagsReady}/></>;
+    return <>{task.body&&<MarkdownContent text={task.body}/>}{(!main||task.due_on)&&<div className="related-item-meta">{!main&&<StatusBadge status={task.status}/>}{task.due_on&&<span className="meta">{task.due_on}</span>}</div>}<TagNames compact scope="task" ids={task.tag_ids} onReadyChange={onTagsReady}/></>;
   }
   if (kind === "records") {
     const record = item as RecordResult;

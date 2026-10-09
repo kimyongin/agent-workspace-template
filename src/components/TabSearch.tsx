@@ -45,17 +45,20 @@ export function resetTabFilters(params: URLSearchParams) {
 export function TabFilters({ active = false, attention = false, children }: { active?: boolean; attention?: boolean; children: ReactNode }) {
   const [params] = useSearchParams(), location = useLocation(), navigate = useNavigate();
   const open = params.get("filters") === "1", controls = useId();
+  const label = `필터 ${open ? "닫기" : "열기"}${attention ? " · 확인 필요" : active ? " · 적용 중" : ""}`;
   return <div className="tab-filters">
     <div className="tab-filter-toolbar">
-      <BodyAction icon="filter" aria-expanded={open} aria-controls={controls} onClick={() => {
+      <BodyAction icon="filter" className="tab-filter-toggle" aria-label={label} title={label} aria-expanded={open} aria-controls={controls} onClick={() => {
         const next = new URLSearchParams(params);
         open ? next.delete("filters") : next.set("filters", "1");
         void navigate({ pathname: location.pathname, search: next.toString(), hash: location.hash }, { replace: true, preventScrollReset: true });
-      }}>필터 {open ? "닫기" : "열기"}{attention ? " · 확인 필요" : active ? " · 적용 중" : ""}</BodyAction>
-      {open && <BodyAction icon="reset" className="filter-reset" onClick={() => {
-        void navigate({ pathname: location.pathname, search: resetTabFilters(params).toString(), hash: "" }, { replace: true });
-      }}>조건 초기화</BodyAction>}
+      }}>{null}</BodyAction>
     </div>
-    <div className="form" id={controls} hidden={!open}>{children}</div>
+    <div className="form" id={controls} hidden={!open}>
+      <div className="tab-filter-panel-head"><span className="label">필터</span><BodyAction icon="reset" className="filter-reset" onClick={() => {
+        void navigate({ pathname: location.pathname, search: resetTabFilters(params).toString(), hash: "" }, { replace: true });
+      }}>조건 초기화</BodyAction></div>
+      {children}
+    </div>
   </div>;
 }

@@ -6,6 +6,7 @@
 .related-item[data-expanded]::before { background: var(--accent); }
 .related-item-title { display: flex; align-items: center; flex-wrap: nowrap; gap: 0 var(--space-2); min-width: 0; }
 .related-item-heading { flex: 1 1 0; min-width: 0; }
+.related-item-summary { display: flex; align-items: center; flex-shrink: 0; }
 .related-item-title .item-title { min-width: 0; max-width: 100%; overflow-wrap: anywhere; font-size: var(--text-item); line-height: 1.25rem; font-weight: 600; }
 .related-item-title a.item-title, .related-item-title .related-toggle { display: inline-flex; align-items: center; min-width: 44px; min-height: 44px; max-width: 100%; color: var(--ink); text-decoration: none; }
 .related-item-title a.item-title:hover, .related-toggle:hover { color: var(--accent); }
@@ -21,8 +22,10 @@
 .related-preview .markdown > :first-child, .related-preview .props { margin-top: 0; }
 .related-preview .markdown > :last-child, .related-preview .props { margin-bottom: 0; }
 .related-preview .props { display: grid; gap: var(--space-2); font-size: .875rem; color: var(--muted-ink); }
-.related-preview .props > div { display: grid; grid-template-columns: 5rem minmax(0,1fr); gap: var(--space-2); }
+.related-preview .props > div { display: grid; grid-template-columns: 5rem minmax(0,1fr); gap: var(--space-2); align-items: baseline; }
 .related-preview .props dd { margin: 0; }
+.related-preview .entity-preview-properties dt { font-weight: 400; color: var(--muted-ink); }
+.related-preview .entity-preview-properties dd { font-size: var(--text-body); color: var(--ink); }
 .related-item-actions .item-icon { width: 44px; height: 44px; min-width: 44px; padding: 0; display: inline-flex; align-items: center; justify-content: center; text-decoration: none; }
 .disclosure-list.panel { background: var(--panel); border: 0; border-radius: var(--radius-card); box-shadow: none; padding: var(--space-1) 0; gap: 0; overflow: visible; }
 .disclosure-list > .list-item, .record-date-group .fin-entry { border: 0; padding: 0; }
@@ -30,3 +33,5 @@
 .related-items > li:last-child .related-item, .disclosure-list > .list-item:last-child .related-item, .record-date-group .fin-entry:last-child .related-item { border-bottom: 0; }
 .related-item-actions .btn-text { text-decoration: none; }
 .related-item-actions .item-icon:hover { color: var(--accent); }
+
+.related-item-title-content { display: flex; align-items: center; flex-wrap: wrap; gap: 0 var(--space-2); min-width: 0; }
