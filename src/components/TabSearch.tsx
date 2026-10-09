@@ -42,7 +42,7 @@ export function resetTabFilters(params: URLSearchParams) {
   return new URLSearchParams([...params].filter(([key]) => ["q", "keyword", "filters", "view"].includes(key)));
 }
 /** URL owns disclosure state; optional conditions remain mounted while hidden. */
-export function TabFilters({ active = false, attention = false, children }: { active?: boolean; attention?: boolean; children: ReactNode }) {
+export function TabFilters({ active = false, attention = false, summary = [], children }: { active?: boolean; attention?: boolean; summary?: string[]; children: ReactNode }) {
   const [params] = useSearchParams(), location = useLocation(), navigate = useNavigate();
   const open = params.get("filters") === "1", controls = useId();
   const label = `필터 ${open ? "닫기" : "열기"}${attention ? " · 확인 필요" : active ? " · 적용 중" : ""}`;
@@ -54,6 +54,7 @@ export function TabFilters({ active = false, attention = false, children }: { ac
         void navigate({ pathname: location.pathname, search: next.toString(), hash: location.hash }, { replace: true, preventScrollReset: true });
       }}>{null}</BodyAction>
     </div>
+    {!open && (summary.length > 0 || attention) && <p className="applied-filter-summary" aria-label="적용된 필터">{summary.join(" · ")}{attention && `${summary.length ? " · " : ""}조건 확인 필요`}</p>}
     <div className="form" id={controls} hidden={!open}>
       <div className="tab-filter-panel-head"><span className="label">필터</span><BodyAction icon="reset" className="filter-reset" onClick={() => {
         void navigate({ pathname: location.pathname, search: resetTabFilters(params).toString(), hash: "" }, { replace: true });

@@ -3,7 +3,7 @@
 .tag-read { display: inline-block; border: 1px solid var(--line); border-radius: var(--radius-chip); padding: var(--space-1) var(--space-2); overflow-wrap: anywhere; max-width: 100%; }
 .record-date-group > .list[hidden] { display: none; }
 .record-period { display: grid; gap: var(--space-2); }
-.activity-section { display: grid; gap: 12px; min-width: 0; }
+.activity-section { display: grid; grid-template-columns: minmax(0,1fr); gap: 12px; min-width: 0; }
 .entity-scope { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; overflow-wrap: anywhere; }
 .scope-clear { min-width: 44px; min-height: 44px; border: 0; background: transparent; color: var(--accent); cursor: pointer; font-size: 20px; }
 .timeline-day { margin: 0; }
