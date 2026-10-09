@@ -11,6 +11,8 @@ export async function closeDetail(page: Page, title: string) {
 
 /** Complete a save through its public confirmation stage when the domain requires a change record. */
 export async function saveOnce(page: Page, scope: Page | Locator = page, label = "저장", waitForWrite = true) {
+  const issuer = scope.getByLabel("발급처",{exact:false});
+  if(await issuer.isVisible() && !await page.getByRole("dialog",{name:"엔터티 복원",exact:true}).isVisible())await expect(issuer).toBeEnabled();
   const final = page.locator("dialog.modal-action[open]").getByRole("button", {name:/^(등록|수정|중단|재개|복원|식별 정보 변경)하고 저장$|^삭제하고 기록$|^같은 내용 다시 시도$/});
   const requested = scope.getByRole("button", {name:label === "삭제 확인" ? "삭제하고 기록" : label,exact:true});
   if (await requested.isVisible()) {
@@ -68,8 +70,7 @@ export async function openListDetail(page: Page, title: string) {
 /** Open the visible common conditions group without toggling an already-open group. */
 export async function openTabFilters(page: Page) {
   const toggle=page.getByRole("button",{name:/^필터 (열기|닫기)/});
-  if(await toggle.count()) {
-    if(await toggle.getAttribute("aria-expanded")==="false")await toggle.click();
-    await expect(toggle).toHaveAttribute("aria-expanded","true");
-  }
+  await expect(toggle).toBeVisible();
+  if(await toggle.getAttribute("aria-expanded")==="false")await toggle.click();
+  await expect(toggle).toHaveAttribute("aria-expanded","true");
 }

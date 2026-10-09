@@ -6,5 +6,7 @@ export default defineConfig({
   testMatch: ["navigation-fixture.spec.ts", "auth-profile-fixture.spec.ts"],
   workers: 1,
   outputDir: "test-results/navigation-fixtures",
+  webServer: {command:"npm run dev -- --host 127.0.0.1 --port 56580 --strictPort",url:"http://127.0.0.1:56580",reuseExistingServer:true,
+    env:{VITE_SUPABASE_URL:"http://127.0.0.1:56581",VITE_SUPABASE_PUBLISHABLE_KEY:"fixture-public-key",VITE_API_URL:"http://127.0.0.1:56581/api"}},
   use: { baseURL: "http://127.0.0.1:56580", trace: "retain-on-failure" },
 });

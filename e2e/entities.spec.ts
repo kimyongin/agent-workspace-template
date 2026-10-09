@@ -20,7 +20,7 @@ test("Entity 웹 CRUD·초안 보호→MCP parity·활동 연결→삭제 원문
   ).click();
   await expect(form.getByLabel("속성 1")).toHaveValue(name);
   await saveOnce(page, form);
-  await expect(form).not.toBeVisible();await expect(page).toHaveURL(/\/entities\/app%3A[0-9a-f-]{36}(?:\?|$)/);
+  await expect(form).not.toBeVisible();await expect(page).toHaveURL(/\/entities\/[^/?]+%3A[0-9]{8}-[0-9A-Z]{8}(?:\?|$)/);
   await expect(page.getByRole("heading",{name,exact:true})).toBeVisible();
   const id = decodeURIComponent(new URL(page.url()).pathname.split("/").at(-1)!);
   const mcp = await mcpClient(await mcpTokenViaConsent(page));

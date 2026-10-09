@@ -9,7 +9,9 @@ for (
     ["record", "records", "기록", "기록 편집"],
   ] as const
 ) {
-  test(`${label} 추가 페이지의 상세·편집·뒤로가기·새로고침·삭제가 목록 문맥과 초점을 복원한다`, async ({ page }) => {
+  test(`${label} 추가 페이지의 상세·편집·뒤로가기·새로고침·삭제가 목록 문맥과 초점을 복원한다`, async ({ page, isMobile }) => {
+    // Native-dialog list restoration; retained desktop panels have their own workspace suite.
+    if (!isMobile) await page.setViewportSize({width:1024,height:720});
     await devLogin(page);
     const mcp = await mcpClient(await mcpTokenViaConsent(page));
     const ids = new Set<string>();
@@ -105,6 +107,7 @@ for (
       await link.scrollIntoViewIfNeeded();
       await link.focus();
       await page.keyboard.press("Enter");
+      await expect(link).toHaveAttribute("aria-expanded","true");
       await openListDetail(page,title);
       await expect(page.getByRole("heading", { name: kind === "record" ? "기록" : title, exact: true })).toBeVisible();
       const view=page.locator("dialog.modal:not(.modal-confirm)[open]");
@@ -144,7 +147,7 @@ for (
       await expect(link).toHaveCount(0);
       await expect(page.locator(`.${path} .list .item-title`)).toHaveCount(62);
       ids.delete(target.id);
-      await expect(page.getByRole("heading", { name: label, exact: true })).toBeFocused();
+      await expect(page.getByRole("heading", { name: label, level:1, exact: true })).toBeFocused();
       await expect(page.locator(`#activity-${path}-page-control`)).toHaveCount(0);
       await openTabFilters(page);await page.getByRole("button",{name:tag.name,exact:true}).click();await page.getByRole("button",{name:emptyTag.name,exact:true}).click();
       await expect(page.locator(`.${path} .list .item-title`)).toHaveCount(0);
@@ -160,7 +163,7 @@ for (
       await mcp.call(`update_${kind}`, { id: leaving.id, expected_version: leaving.version, tag_ids: [], ...(kind === "task" ? {change_note:"태그 해제"} : {}) });
       await page.goBack();
       await expect(leavingLink).toHaveCount(0);
-      await expect(page.getByRole("heading", { name: label, exact: true })).toBeFocused();
+      await expect(page.getByRole("heading", { name: label, level:1, exact: true })).toBeFocused();
       await openTabFilters(page);await expect(page.getByRole("button",{name:tag.name,exact:true})).toHaveAttribute("aria-pressed","true");
     } finally {
       try {
