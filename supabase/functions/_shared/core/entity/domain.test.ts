@@ -1,7 +1,7 @@
 import { assertEquals, assertThrows } from "@std/assert";
 import { defaultEntityIdentitySettings } from "../../contracts/entity-identity.ts";
 import { AppError } from "../shared/errors.ts";
-import { entityUpdateDecision, registrationContent, registrationIdentity } from "./domain.ts";
+import { entityUpdateDecision, registrationContent, registrationIdentity, registrationState } from "./domain.ts";
 
 Deno.test("엔터티 판단: 등록 기본값과 복원의 생략·명시 값은 준비와 저장에 함께 쓰인다", () => {
   const identity = registrationIdentity(defaultEntityIdentitySettings, { external_id: "000Ab:/한글%" }, "write");
@@ -28,6 +28,13 @@ Deno.test("엔터티 판단: 등록 기본값과 복원의 생략·명시 값은
     prop3: "2026-10-10",
     tag_ids: [],
   });
+  assertEquals(registrationContent({ prop2: null }, identity, stored).prop2, null);
+});
+
+Deno.test("엔터티 판단: 준비 스냅샷과 저장 조회는 부재·활성 중복·복원을 같은 상태로 분류", () => {
+  assertEquals(registrationState(null), "create");
+  assertEquals(registrationState({ deleted_at: null }), "duplicate");
+  assertEquals(registrationState({ deleted_at: "2026-10-10T00:00:00Z" }), "restore");
 });
 
 Deno.test("엔터티 판단: 삭제된 발급처의 기존 속성 편집은 유지하지만 새 식별은 거부한다", () => {

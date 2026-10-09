@@ -1,5 +1,5 @@
 import { entityChangeFacts, entityChangeTarget } from "./change.ts";
-import { entityUpdateDecision, registrationContent, registrationIdentity } from "./domain.ts";
+import { entityUpdateDecision, registrationContent, registrationIdentity, registrationState } from "./domain.ts";
 import { isoDate, isoDateTime, text } from "../../contracts/common.ts";
 import {
   defaultEntityIdentitySettings,
@@ -62,7 +62,7 @@ export function prepareEntityRegistration(d: EntityDeps, a: Actor, i: Pick<Entit
       source,
       external_id,
       id,
-      action: existing ? existing.deleted_at ? "restore" : "duplicate" : "create",
+      action: registrationState(existing),
       expected_version: existing?.version,
       existing: existing ? { ...existing, ...await s.related(id) } : null,
     };
@@ -71,11 +71,12 @@ export function prepareEntityRegistration(d: EntityDeps, a: Actor, i: Pick<Entit
 export function createEntity(d: EntityDeps, a: Actor, i: EntityCreate) {
   return d.uow.run(a, async (s) => {
     const settings = (await s.getBusinessSettings()).settings.entity_identity ?? defaultEntityIdentitySettings;
-    const { source } = registrationIdentity(settings, i, "write");
-    const external_id = i.external_id!, id = entityId(source, external_id);
+    const { source, external_id } = registrationIdentity(settings, i, "write");
+    const id = entityId(source, external_id);
     const { change_note, change_tag_ids, expected_version, ...props } = i;
     const old = await s.get(id, true);
-    if (old && !old.deleted_at) throw conflict("같은 발급처·식별자의 활성 엔터티가 있습니다");
+    const registration = registrationState(old);
+    if (registration === "duplicate") throw conflict("같은 발급처·식별자의 활성 엔터티가 있습니다");
     if (old && old.version !== expected_version) {
       throw conflict("삭제된 기존 엔터티를 조회하고 현재 버전으로 복원을 확인하세요");
     }
