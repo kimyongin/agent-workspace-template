@@ -1,3 +1,4 @@
+import { defaultEntityIdentitySettings, entityId } from "../supabase/functions/_shared/contracts/entity-identity.ts";
 import { openListEditor, openDetailEditor } from "./ui-actions.ts";
 import { fillChangeMemo } from "./ui-actions.ts";
 import { saveOnce, beginTabAction, closeDetail } from "./ui-actions.ts";
@@ -5,7 +6,14 @@ import { expect, test, type Page } from "@playwright/test";
 const url = "/e2e/fixtures/entity-tags.html";
 const tags = ["첫 태그", "다른 태그"].map((name, i) => ({ id: `00000000-0000-4000-8000-00000000000${i}`, name, version: 1, created_at: "2026-10-04T00:00:00Z", updated_at: "2026-10-04T00:00:00Z" }));
 const task = { id: "20000000-0000-4000-8000-000000000000", entity_ids: [], entity_context: [], tag_ids: [], kind: "once", title: "App 할 일", body: "본문", due_on: null, recurrence: null, timezone: null, status: "open", completed_at: null, result_record_id: null, pauses: [], version: 1, created_at: tags[0].created_at, updated_at: tags[0].updated_at, occurrence: null, result_record: null };
-test.beforeEach(async ({ page }) => { await page.route("**/api/tags**", route => route.fulfill({ json: { items: tags, next_cursor: null } })); });
+test.beforeEach(async ({ page }) => {
+  await page.route("**/api/tags**", route => route.fulfill({ json: { items: tags, next_cursor: null } }));
+  await page.route("**/api/settings/business", route => route.fulfill({json:{versions:{record_templates:0,entity_identity:0},settings:{record_templates:{},entity_identity:defaultEntityIdentitySettings}}}));
+  await page.route("**/api/records/prepare", route => {
+    const request=route.request().postDataJSON(),input=request.input??{};
+    return route.fulfill({json:{change_note:request.change_note??`${input.prop1??input.title??"항목"} ${request.action==="create"?"등록":"수정"}`,change_tag_ids:request.change_tag_ids??[],missing_tag_ids:[],settings_version:0,prepared_input:input}});
+  });
+});
 async function settings(page: Page) {
   const inert=await page.locator("dialog.modal:not(.modal-confirm)[open]").count()>0;
   const profile=page.getByRole("button",{name:"내 프로필",exact:true});
@@ -94,7 +102,7 @@ test("실제 App에서 태그 dirty 주 탐색·뒤로가기·앞으로가기 �
   await beginTabAction(page,"할 일 추가");
   // Keep a real forward entry before editing the URL-aware creation form.
   await expect(page.getByRole("dialog",{name:"할 일 추가",exact:true})).toBeVisible();
-  await settings(page);await expect(page).toHaveURL(/\/settings$/);await page.goBack();
+  await expect(page).toHaveURL(/\/tasks\?create=1$/);await settings(page);await expect(page).toHaveURL(/\/settings$/);await expect(page.getByRole("heading",{name:"설정",level:1,exact:true})).toBeVisible();await expect(page.getByRole("form",{name:"엔터티 식별자 설정",exact:true})).toHaveAttribute("aria-busy","false");await page.goBack();await expect(page).toHaveURL(/\/tasks\?create=1$/);
   const form = page.getByRole("dialog", { name: "할 일 추가", exact: true });await form.getByRole("textbox",{name:/^제목(?: \(필수\))?$/}).fill("새 초안");
   await page.goForward(); await discard.getByRole("button", { name: "취소", exact: true }).click(); await expect(page).toHaveURL(/\/tasks\?create=1$/); await expect(form.getByRole("textbox",{name:/^제목(?: \(필수\))?$/})).toHaveValue("새 초안");
 });
@@ -121,11 +129,16 @@ test("실제 App 공통 모달 생성·직접 편집 성공/취소·저장 중 P
   form = page.getByRole("dialog", { name: "할 일 편집", exact: true }); await closeDetail(page,"생성 결과"); await expect(page).toHaveURL(/\/tasks\?/); await expect(form).not.toBeVisible();
   await openListEditor(page,"생성 결과"); await form.getByLabel("본문").fill("직접 편집 성공");await fillChangeMemo(page,form,"직접 편집 검증"); await saveOnce(page, form);
   await expect(form).not.toBeVisible(); await openDetailEditor(page); await expect(form.getByLabel("본문")).toHaveValue("직접 편집 성공"); await closeDetail(page,"생성 결과"); expect(warnings).toEqual([]);
-  const entity = { id: "30000000-0000-4000-8000-000000000000", prop1: "App 엔터티", tag_ids: [], prop2: null, prop3: null, prop4: "a", version: 1, created_at: task.created_at, updated_at: task.updated_at, tasks: { count: 0, items: [] }, records: { count: 0, items: [] }, principles: { count: 0, items: [] } };
-  await page.route("**/api/entities**", route => route.fulfill({ json: route.request().method() === "POST" || new URL(route.request().url()).pathname.endsWith(entity.id) ? entity : { items: [], next_cursor: null } }));
+  let entity = { id: entityId("app","30000000-0000-4000-8000-000000000000"),source:"app",external_id:"30000000-0000-4000-8000-000000000000", prop1: "App 엔터티", tag_ids: [], prop2: null, prop3: null, prop4: "a", version: 1, created_at: task.created_at, updated_at: task.updated_at, tasks: { count: 0, items: [] }, records: { count: 0, items: [] }, principles: { count: 0, items: [] } };
+  await page.route("**/api/entities**", route => {
+    const request=route.request();
+    if(request.method()==="POST") { const input=request.postDataJSON();entity={...entity,...input,id:entityId(input.source,input.external_id)};return route.fulfill({status:201,json:entity}); }
+    const path=decodeURIComponent(new URL(request.url()).pathname);
+    return route.fulfill(path==="/api/entities"?{json:{items:[],next_cursor:null}}:path.endsWith(entity.id)?{json:entity}:{status:404,json:{code:"not_found",message:"항목을 찾을 수 없습니다"}});
+  });
   await page.getByRole("navigation", { name: "주 메뉴" }).getByRole("link", { name: "엔터티", exact: true }).click(); await beginTabAction(page,"엔터티 추가");
   const entityForm = page.getByRole("dialog", { name: "엔터티 추가", exact: true }); await entityForm.getByLabel("속성 1").fill(entity.prop1); await saveOnce(page, entityForm);
-  await expect(entityForm).not.toBeVisible(); await expect(page).toHaveURL(new RegExp(`/entities/${entity.id}`)); await expect(page.getByRole("heading",{name:entity.prop1,exact:true})).toBeVisible();
+  await expect(entityForm).not.toBeVisible(); await expect(page).toHaveURL(new RegExp(`/entities/${encodeURIComponent(entity.id)}`)); await expect(page.getByRole("heading",{name:entity.prop1,exact:true})).toBeVisible();
 });
 test("실제 App 태그 폐기 승인 뒤에만 로그아웃 요청하고 로그인으로 종료", async ({ page }) => {
   let signOuts = 0;
@@ -206,10 +219,10 @@ test("태그 목록 삭제 반영 후 응답 유실도 이유·같은 버전 재
 });
 
 test("엔터티 연결 작성·실패 초안·성공 후 조회 실패와 모달 뒤로가기 보호", async ({ page }) => {
-  const entity = { id: "10000000-0000-4000-8000-000000000000", prop1: "문맥 엔터티", prop2: 3, prop3: "2026-10-04", prop4: "b", version: 7, created_at: tags[0].created_at, updated_at: tags[0].updated_at,
+  const entity = { id: entityId("app","10000000-0000-4000-8000-000000000000"), source:"app",external_id:"10000000-0000-4000-8000-000000000000", prop1: "문맥 엔터티", prop2: 3, prop3: "2026-10-04", prop4: "b", version: 7, created_at: tags[0].created_at, updated_at: tags[0].updated_at,
     tag_ids: [], tasks: { count: 0, items: [] }, records: { count: 0, items: [] }, principles: { count: 0, items: [] } };
   let saved = false, failSave = true; const bodies: Record<string, unknown>[] = [];
-  await page.route("**/api/entities**", route => route.fulfill(route.request().url().endsWith(entity.id) ? saved ? { status: 503, json: { code: "internal", message: "관련 자료 조회 실패" } } : { json: entity } : { json: { items: [entity], next_cursor: null } }));
+  await page.route("**/api/entities**", route => route.fulfill(decodeURIComponent(new URL(route.request().url()).pathname).endsWith(entity.id) ? saved ? { status: 503, json: { code: "internal", message: "관련 자료 조회 실패" } } : { json: entity } : { json: { items: [entity], next_cursor: null } }));
   await page.route("**/api/principles**", route => route.fulfill({ json: { items: [], next_cursor: null } }));
   await page.route("**/api/tasks", route => { bodies.push(route.request().postDataJSON()); if (failSave) return route.fulfill({ status: 400, json: { code: "validation", message: "저장 실패" } }); saved = true; return route.fulfill({ status: 201, json: { id: "created" } }); });
   await page.route("**/api/records", route => { bodies.push(route.request().postDataJSON()); return route.fulfill({ status: 201, json: { id: "record-created" } }); });
