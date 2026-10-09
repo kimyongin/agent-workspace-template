@@ -1,7 +1,16 @@
 import { fillChangeMemo } from "./ui-actions.ts";
 import { closeDetail, saveOnce, openDetailEditor, openListDetail, openTabFilters } from "./ui-actions.ts";
-import { expect, test } from "@playwright/test";
+import { expect, test as base } from "@playwright/test";
 import { devLogin, mcpClient, mcpTokenViaConsent, unique } from "./support.ts";
+
+const test = base.extend<{ cleanupActivity: (cleanup: () => Promise<void>) => void }>({
+  // Playwright gives teardown its own default timeout; UI assertions keep the test deadline.
+  cleanupActivity: async ({}, use) => {
+    let cleanup: (() => Promise<void>) | undefined;
+    try { await use(callback => { cleanup = callback; }); }
+    finally { await cleanup?.(); }
+  },
+});
 
 for (
   const [kind, path, label, editLabel] of [
@@ -9,7 +18,7 @@ for (
     ["record", "records", "기록", "기록 편집"],
   ] as const
 ) {
-  test(`${label} 추가 페이지의 상세·편집·뒤로가기·새로고침·삭제가 목록 문맥과 초점을 복원한다`, async ({ page }) => {
+  test(`${label} 추가 페이지의 상세·편집·뒤로가기·새로고침·삭제가 목록 문맥과 초점을 복원한다`, async ({ page, cleanupActivity }) => {
     await devLogin(page);
     const mcp = await mcpClient(await mcpTokenViaConsent(page));
     const ids = new Set<string>();
@@ -28,7 +37,24 @@ for (
       ids.add(item.id);
       return item;
     };
-    try {
+    cleanupActivity(async () => {
+      try {
+        for (const id of ids) {
+          try {
+            const item = await mcp.call(`get_${kind}`, { id });
+            await mcp.call(`delete_${kind}`, { id, expected_version: item.version });
+          } catch (error) {
+            if (!String(error).includes('"code":"not_found"')) throw error;
+          }
+        }
+        await mcp.call("delete_tag", { id: tag.id, expected_version: 1 });
+        await mcp.call("delete_tag", { id: emptyTag.id, expected_version: 1 });
+        await mcp.call("delete_entity", { id: entity.id, expected_version: 1 });
+      } finally {
+        await mcp.close();
+      }
+    });
+    {
       const target = await create(title);
       for (let i = 0; i < 41; i++) await create(unique("앞선 항목"));
       const listPath = `/${path}?tag_id=${tag.id}`;
@@ -174,22 +200,7 @@ for (
       await expect(page.getByRole("heading", { name: label, level: 1, exact: true })).toBeFocused();
       await expect(page.getByRole("heading", { name: label, level: 1, exact: true })).toBeInViewport();
       await openTabFilters(page);await expect(page.getByRole("button",{name:tag.name,exact:true})).toHaveAttribute("aria-pressed","true");
-    } finally {
-      try {
-        for (const id of ids) {
-          try {
-            const item = await mcp.call(`get_${kind}`, { id });
-            await mcp.call(`delete_${kind}`, { id, expected_version: item.version });
-          } catch (error) {
-            if (!String(error).includes('"code":"not_found"')) throw error;
-          }
-        }
-        await mcp.call("delete_tag", { id: tag.id, expected_version: 1 });
-        await mcp.call("delete_tag", { id: emptyTag.id, expected_version: 1 });
-        await mcp.call("delete_entity", { id: entity.id, expected_version: 1 });
-      } finally {
-        await mcp.close();
-      }
+
     }
   });
   test(`${label} 수동 250→251페이지는 누적 행을 보존하고 자동 복원만 250페이지로 제한한다`, async ({ page }) => {

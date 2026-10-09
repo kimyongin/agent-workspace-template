@@ -7,18 +7,37 @@ import { devLogin, mcpClient, mcpTokenViaConsent, unique } from "./support.ts";
 
 const WIDTHS = [320,360,390,639,640,768,1024,1440];
 
+test("보기 선택기는 정밀 포인터의 작은 규격과 터치의 44px 조작 영역을 유지한다",async({page,isMobile})=>{
+  await devLogin(page);
+  const fine=await page.evaluate(()=>matchMedia("(pointer: fine)").matches);
+  expect(fine).toBe(!isMobile);
+  for(const width of WIDTHS){
+    await page.setViewportSize({width,height:900});
+    const choices=page.getByRole("radiogroup",{name:"할 일 보기 방식",exact:true}).getByRole("radio");
+    await expect(choices).toHaveCount(3);
+    const rootFont=await page.evaluate(()=>parseFloat(getComputedStyle(document.documentElement).fontSize));
+    const expected=fine?Math.max(24,1.75*rootFont):44;
+    for(const choice of await choices.all()){
+      const box=(await choice.boundingBox())!;
+      expect(box.width,`${width}px 보기 선택기 너비`).toBeCloseTo(expected,1);
+      expect(box.height,`${width}px 보기 선택기 높이`).toBeCloseTo(expected,1);
+    }
+  }
+});
+
 test("하단 메뉴는 엔터티·할 일·원칙·기록 순서",async({page})=>{
   await devLogin(page);await page.goto("/entities");
   await expect(page.getByRole("navigation",{name:"주 메뉴"}).getByRole("link")).toHaveText(["엔터티","할 일","원칙","기록"]);
 });
 
-/** 가로 넘침과 44px보다 작은 조작 영역(보이는 버튼·링크·입력)을 찾는다. */
+/** 가로 넘침과 디자인 규격보다 작은 조작 영역(보이는 버튼·링크·입력)을 찾는다. */
 async function layoutProblems(page: Page) {
   return await page.evaluate(() => {
     const problems: string[] = [];
     if (document.documentElement.scrollWidth > window.innerWidth + 1) {
       problems.push(`가로 넘침 ${document.documentElement.scrollWidth} > ${window.innerWidth}`);
     }
+    const fineViewSize = matchMedia("(pointer: fine)").matches ? Math.max(24,1.75*parseFloat(getComputedStyle(document.documentElement).fontSize)) : 44;
     const targets = document.querySelectorAll<HTMLElement>("button, a, input, textarea, select");
     for (const el of targets) {
       let r = el.getBoundingClientRect();
@@ -35,7 +54,8 @@ async function layoutProblems(page: Page) {
         });
         if (label) r = label.getBoundingClientRect();
       }
-      if (r.height < 43.5 || (el.tagName !== "INPUT" && el.tagName !== "TEXTAREA" && r.width < 43.5)) {
+      const minimum=el.matches('.view-picker > button[role="radio"]')?fineViewSize:44;
+      if (r.height < minimum-0.5 || (el.tagName !== "INPUT" && el.tagName !== "TEXTAREA" && r.width < minimum-0.5)) {
         problems.push(`작은 조작 영역 ${el.tagName} "${(el.textContent || el.getAttribute("aria-label") || "").trim().slice(0, 20)}" ${Math.round(r.width)}x${Math.round(r.height)}`);
       }
     }
@@ -55,8 +75,8 @@ test.describe("화면 폭별 배치", () => {
     await dialog.getByRole("textbox",{name:/^제목(?: \(필수\))?$/}).fill(longTitle);
     await dialog.getByLabel("본문").fill("https://example.com/" + "a".repeat(120));
     await saveOnce(page, dialog, "추가");
-    // 목록의 h1이 아니라 만든 할 일의 상세 화면이 뜰 때까지 기다린다(모달 뒤 목록 h1도 보이는 것으로 판정됨).
-    await expect(page.getByRole("heading", { name: longTitle, level: 1 })).toBeVisible();
+    // 데스크톱 상세 탭의 도메인 h2 아래 항목 h3로 만든 할 일을 확인한다.
+    await expect(page.getByRole("heading", { name: longTitle, level: 3, exact:true })).toBeVisible();
     const taskDetail = page.url();
 
     // 기록 상세도 함께 본다.
@@ -66,13 +86,14 @@ test.describe("화면 폭별 배치", () => {
     const recordTitle = unique("긴기록" + "나".repeat(40));
     await recordDialog.getByLabel("본문").fill(recordTitle+"\n"+"b".repeat(150));
     await recordDialog.locator('button[type="submit"]').click();
-    await expect(page.getByRole("heading", { name: "기록", level: 1 })).toBeVisible();
+    await expect(page).toHaveURL(/\/records\/[0-9a-f-]{36}(?:\?|$)/);
+    await expect(page.locator("dialog.modal:not(.modal-confirm)[open]").getByRole("heading", { name: "기록", level: 2, exact:true })).toBeVisible();
     const recordDetail = page.url();
 
     const mcp=await mcpClient(await mcpTokenViaConsent(page));
     const principleTitle=unique("긴원칙"+"다".repeat(40));
     try{const p=await savePrinciple(mcp,{title:principleTitle,body:"조건 "+"c".repeat(150)+"d".repeat(300)});await page.goto(`/principles/${p.id}`);}finally{await mcp.close();}
-    await expect(page.getByRole("heading",{name:principleTitle,level:1})).toBeVisible();
+    await expect(page.getByRole("heading",{name:principleTitle,level:3,exact:true})).toBeVisible();
     const principleDetail = page.url();
 
       await page.setViewportSize({ width, height: 900 });
@@ -149,7 +170,7 @@ test("키보드만으로 할 일을 만들고, 미저장 내용이 있으면 닫
   await dialog.getByLabel("본문").fill("키보드로 만든 할 일");
   await dialog.getByRole("textbox",{name:/^제목(?: \(필수\))?$/}).focus();await page.keyboard.press("Enter");
   await page.locator("dialog.modal-action[open]").getByRole("button",{name:"등록하고 저장",exact:true}).click();
-  await expect(page.getByRole("heading", { name: title, level: 1 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: title, level: 3, exact:true })).toBeVisible();
 
 });
 

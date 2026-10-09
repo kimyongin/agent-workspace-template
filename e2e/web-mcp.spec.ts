@@ -3,7 +3,7 @@ import { saveOnce, beginTabAction, openDetailEditor, openListDetail } from "./ui
 import { expect, test } from "@playwright/test";
 import { devLogin, mcpClient, mcpTokenViaConsent, unique } from "./support.ts";
 
-test("웹에서 만든 할 일을 에이전트가 MCP로 완료하고 웹에서 결과를 본다", async ({ page }) => {
+test("웹에서 만든 할 일을 에이전트가 MCP로 완료하고 웹에서 결과를 본다", async ({ page, isMobile }) => {
   await devLogin(page);
   const title = unique("보고서 초안");
 
@@ -13,7 +13,7 @@ test("웹에서 만든 할 일을 에이전트가 MCP로 완료하고 웹에서 
   await dialog.getByRole("textbox",{name:/^제목(?: \(필수\))?$/}).fill(title);
   await dialog.getByLabel("본문").fill("다음 주 회의용 초안 3쪽");
   await saveOnce(page,dialog,"추가");
-  await expect(page.getByRole("heading", { name: title, level: 1 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: title, level: isMobile ? 2 : 3, exact: true })).toBeVisible();
   const taskUrl = page.url();
 
   // 2. 에이전트 연결: 브라우저 동의 화면에서 승인
@@ -35,7 +35,7 @@ test("웹에서 만든 할 일을 에이전트가 MCP로 완료하고 웹에서 
 
   // 4. 웹에서 결과 확인
   await page.goto(taskUrl);
-  await expect(page.getByText("완료", { exact: true }).first()).toBeVisible();
+  await expect(page.locator("dialog.modal:not(.modal-confirm)[open]").getByText("완료", { exact: true })).toBeVisible();
   const result=page.getByRole("button", { name: "초안 공유 완료", exact:true });await result.click();
   await expect(result).toHaveAttribute("aria-expanded","true");await expect(page).toHaveURL(taskUrl);
   await expect(page.locator(".related-preview .markdown")).toContainText("초안 공유 완료");
@@ -68,7 +68,7 @@ test("에이전트가 MCP로 만든 기록·반복 회차를 웹에서 보고 �
     await dialog.getByLabel("본문").fill("웹에서 고친 본문");
     await expect(dialog.getByLabel("편집 메모")).toHaveCount(0);
     await dialog.getByRole("button", { name: "저장" }).click();
-    await expect(page.getByRole("heading",{name:"기록",exact:true})).toBeVisible();
+    await expect(page.locator("dialog.modal:not(.modal-confirm)[open]").getByRole("heading",{name:"기록",exact:true})).toBeVisible();
 
     // 웹: 반복 할 일의 오늘 회차가 기록함
     await page.goto(`/tasks/${task.id}`);
@@ -85,7 +85,7 @@ test("에이전트가 MCP로 만든 기록·반복 회차를 웹에서 보고 �
   }
 });
 
-test("다른 사용자는 URL을 알아도 남의 할 일을 볼 수 없다", async ({ page, browser }) => {
+test("다른 사용자는 URL을 알아도 남의 할 일을 볼 수 없다", async ({ page, browser, isMobile }) => {
   await devLogin(page, "A");
   await beginTabAction(page,"할 일 추가");
   const dialog = page.getByRole("dialog", { name: "할 일 추가" });
@@ -93,7 +93,7 @@ test("다른 사용자는 URL을 알아도 남의 할 일을 볼 수 없다", as
   await dialog.getByRole("textbox",{name:/^제목(?: \(필수\))?$/}).fill(title);
   await dialog.getByLabel("본문").fill("B에게 보이면 안 됨");
   await saveOnce(page,dialog,"추가");
-  await expect(page.getByRole("heading", { name: title, level: 1 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: title, level: isMobile ? 2 : 3, exact: true })).toBeVisible();
   const path = new URL(page.url()).pathname;
 
   const other = await browser.newContext();

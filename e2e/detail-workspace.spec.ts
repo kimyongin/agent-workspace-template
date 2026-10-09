@@ -335,7 +335,7 @@ test("desktop: creation opens a viewer tab, deletion closes it and refreshes the
   await expect(page.locator(".workspace-list").getByRole("button", { name: "새 할 일", exact: true })).toBeVisible();
   await panel(page).getByRole("button", { name: "편집", exact: true }).click(); await panel(page).getByRole("button", { name: "삭제", exact: true }).click();
   await page.locator("dialog.modal-action[open]").getByRole("button", { name: "삭제하고 기록", exact: true }).click();
-  await expect(page.getByRole("tab")).toHaveCount(0); await expect(page).not.toHaveURL(/create=/);
+  await expect(page.getByRole("tab")).toHaveCount(0); await expect(page).toHaveURL(/\/tasks(?:[?#]|$)/); await expect(page).not.toHaveURL(/create=/);
   await expect(page.locator(".workspace-list").getByRole("button", { name: "새 할 일", exact: true })).toHaveCount(0);
   await expect(page.locator(".workspace-list").getByRole("button", { name: "등심 구매하기", exact: true })).toBeVisible();
   expect(state.writes.map(write => write.method)).toEqual(["POST", "POST"]); expect(state.errors).toEqual([]);
@@ -651,4 +651,37 @@ for (const width of [390, 1440]) test(`${width}px: editing an existing entity do
     expect(state.writes.filter(write => write.method === "PATCH")).toHaveLength(1);
     expect(state.errors).toEqual([]);
   } finally { release(); }
+});
+
+
+test("desktop: returning to a retained search refreshes another client's additions and restores focus",async({page})=>{
+  const state=await fixture(page);await page.goto("/search?q=등심&mode=keyword&kind=task");
+  const result=page.locator(".workspace-list").getByRole("link",{name:"등심 구매하기",exact:true});
+  await expect(page.locator(".workspace-list .item-title")).toHaveCount(1);
+  await page.getByRole("textbox",{name:"검색어 (필수)",exact:true}).fill("아직 제출하지 않은 검색어");
+  await result.click();await expect(page.getByRole("tab",{name:"등심 구매하기",exact:true})).toHaveAttribute("aria-selected","true");
+  state.rows.tasks.push({...task(7),title:"등심 추가 결과"});
+  const before=state.searches.length;
+  await page.goBack();await expect(page.locator(".workspace-list .item-title")).toHaveCount(2);
+  await expect(result).toBeFocused();expect(state.searches.length).toBe(before+1);
+  await expect(page.getByRole("textbox",{name:"검색어 (필수)",exact:true})).toHaveValue("아직 제출하지 않은 검색어");
+  await page.reload();await expect(page.locator(".workspace-list .item-title")).toHaveCount(2);await expect(result).toBeFocused();
+  expect(state.writes).toEqual([]);expect(state.errors).toEqual([]);
+});
+
+
+test("desktop: closing an inactive search tab keeps the selected detail focused and the pending query",async({page})=>{
+  const state=await fixture(page);state.rows.tasks.push({...task(7),title:"등심 추가 결과"});
+  await page.goto("/search?q=등심&mode=keyword&kind=task");
+  const list=page.locator(".workspace-list");
+  await list.getByRole("link",{name:"등심 구매하기",exact:true}).click();
+  await list.getByRole("link",{name:"등심 추가 결과",exact:true}).click();
+  const selected=page.getByRole("tab",{name:"등심 추가 결과",exact:true});
+  await expect(selected).toHaveAttribute("aria-selected","true");
+  await page.getByRole("textbox",{name:"검색어 (필수)",exact:true}).fill("보존할 검색 초안");
+  const before=state.searches.length;
+  await page.getByRole("button",{name:"등심 구매하기 탭 닫기",exact:true}).click();
+  await expect(page.getByRole("tab")).toHaveCount(1);await expect(selected).toBeFocused();
+  await expect(page.getByRole("textbox",{name:"검색어 (필수)",exact:true})).toHaveValue("보존할 검색 초안");
+  expect(state.searches.length).toBe(before);expect(state.writes).toEqual([]);expect(state.errors).toEqual([]);
 });

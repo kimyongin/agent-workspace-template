@@ -1,3 +1,4 @@
+import {closeDetail} from "./ui-actions.ts";
 import {expect,test} from "@playwright/test";
 import {devLogin,mcpClient,mcpTokenViaConsent,unique} from "./support.ts";
 import {savePrinciple} from "./principle-support.ts";
@@ -13,8 +14,8 @@ test("웹 검색→태그 범위→MCP 결과 비교→본문 원문 확인",asy
     await page.getByLabel("검색 방식").selectOption("keyword");await expect(page.getByText("현재 키워드 검색 결과를 표시합니다.",{exact:false})).toHaveCount(0);
     expect((await mcp.call("search",{query:marker,tag_id:tag.id,mode:"keyword"})).items[0].title).toBe(title);
     await page.getByRole("link",{name:title,exact:true}).click();await expect(page.getByText(marker,{exact:true})).toBeVisible();
-    await page.getByRole("button",{name:/^이전: 검색/}).click();
-    await page.locator("summary").filter({hasText:"검색 조건"}).click();await expect(page.getByLabel("태그 필터")).toHaveValue(tag.id);await expect(page.getByLabel("검색 방식")).toHaveValue("keyword");
+    await closeDetail(page,title);
+    if(!await page.locator("details.workspace-additional").evaluate(el=>(el as HTMLDetailsElement).open))await page.locator("summary").filter({hasText:"검색 조건"}).click();await expect(page.getByLabel("태그 필터")).toHaveValue(tag.id);await expect(page.getByLabel("검색 방식")).toHaveValue("keyword");
     await expect(page.getByRole("link",{name:title,exact:true})).toBeFocused();
   }finally{await mcp.close();}
 });
@@ -29,9 +30,9 @@ test("세 원문 종류의 검색 상세 왕복·뒤로 가기·새로고침이 
     await page.getByRole("button",{name:"더 보기",exact:true}).click();await expect(page.locator(".list .item-title")).toHaveCount(24);
     for(const [index,title] of titles.entries()){
       const link=page.getByRole("link",{name:title,exact:true});await link.scrollIntoViewIfNeeded();await link.click();
-      await expect(page.getByRole("heading",{name:index===0?"기록":title,exact:true})).toBeVisible();
+      await expect(page.locator("dialog.modal:not(.modal-confirm)[open]").getByRole("heading",{name:index===0?"기록":title,exact:true})).toBeVisible();
       if(index===0)for(let i=0;i<21;i++)await mcp.call("create_record",{body:`${unique("동시 추가")} ${marker}`});
-      if(index===0)await page.goBack();else await page.getByRole("button",{name:/^이전: 검색/}).click();
+      if(index===0)await page.goBack();else await closeDetail(page,title);
       await expect(page.locator(".list .item-title")).toHaveCount(45);await expect(link).toBeFocused();
       await page.reload();await expect(page.locator(".list .item-title")).toHaveCount(45);await expect(link).toBeFocused();
       await expect(link).toBeInViewport();expect(new URL(page.url()).searchParams.get("pages")).toBe("2");
@@ -53,7 +54,7 @@ test("검색 대상 삭제·불일치 편집 후에는 저장한 페이지까지
     await expect(page).toHaveURL(/\/search\?/);await expect(page.locator(".list .item-title")).toHaveCount(40);await expect(page.getByRole("heading",{name:"검색",exact:true})).toBeFocused();expect(requests).toBe(2);
     await page.getByRole("link",{name:targets[1],exact:true}).click();await page.getByRole("button",{name:"편집",exact:true}).click();
     const form=page.getByRole("dialog",{name:"기록 편집"});await form.getByLabel("본문").fill("검색어 없음");await expect(form.getByLabel("편집 메모")).toHaveCount(0);await form.getByRole("button",{name:"저장",exact:true}).click();await expect(form).not.toBeVisible();
-    requests=0;await page.getByRole("button",{name:/^이전: 검색/}).click();
+    requests=0;await closeDetail(page,"검색어 없음");
     await expect(page.locator(".list .item-title")).toHaveCount(40);await expect(page.getByRole("heading",{name:"검색",exact:true})).toBeFocused();expect(requests).toBe(2);
   }finally{await mcp.close();}
 });

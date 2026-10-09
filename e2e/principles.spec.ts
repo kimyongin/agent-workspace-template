@@ -5,7 +5,7 @@ import { devLogin, mcpClient, mcpTokenViaConsent, unique } from "./support.ts";
 import { savePrinciple } from "./principle-support.ts";
 
 // Account-wide current requires an exclusive integration account (parent owns allocation).
-test("현재 웹 메모 확인→MCP 같은 문서 갱신→삭제 후 현재 없음",async({page})=>{
+test("현재 웹 메모 확인→MCP 같은 문서 갱신→삭제 후 현재 없음",async({page,isMobile})=>{
   await devLogin(page);const mcp=await mcpClient(await mcpTokenViaConsent(page));
   try{
     const first=await savePrinciple(mcp,{title:unique("첫 판단 기준"),body:"첫 원문"});
@@ -15,7 +15,7 @@ test("현재 웹 메모 확인→MCP 같은 문서 갱신→삭제 후 현재 �
     const title=unique("새 판단 기준");await form.getByRole("textbox",{name:/^제목(?: \(필수\))?$/}).fill(title);await form.getByLabel("본문").fill("새 판단 원문");
     expect((await mcp.call("get_current_principle",{})).current.body).toBe("첫 원문");
     await fillChangeMemo(page,form,"사용자가 확인한 근거");await saveOnce(page,form);
-    await expect(page.getByRole("heading",{name:title,level:1})).toBeVisible();
+    await expect(page.getByRole("heading",{name:title,level:isMobile?2:3,exact:true})).toBeVisible();
     const {current}=await mcp.call("get_current_principle",{});expect(current.id).toBe(first.id);expect(current.body).toBe("새 판단 원문");
     expect((await mcp.call("get_principle",{id:first.id})).body).toBe("새 판단 원문");
     await page.goto(`/principles/${current.id}?edit=1`);await page.getByRole("button",{name:"삭제",exact:true}).click();
@@ -42,13 +42,15 @@ test("현재 원칙이 바뀌어도 과거 근거는 기록 검색에서 원문�
     await savePrinciple(mcp,{title:marker,body:"기록으로 보존할 최초 근거",change_note:`${marker} 기록으로 보존할 최초 근거`});
     await savePrinciple(mcp,{title:unique("현재 다른 기준"),body:"현재 본문"});
     await page.goto("/principles");await page.getByRole("link",{name:"과거 근거는 통합 기록에서 보기"}).click();
+    const searched=page.waitForResponse(response=>response.request().method()==="POST"&&new URL(response.url()).pathname.endsWith("/search")&&response.request().postDataJSON().query===marker);
     await page.getByLabel("검색어",{exact:true}).fill(marker);
-    const item=page.locator(".records .related-item-heading").filter({hasText:marker}).first();await expect(item).toBeVisible();await openListDetail(page,await item.innerText());
+    const response=await searched;expect(response.ok()).toBe(true);expect((await response.json()).items.some((item:{title:string})=>item.title.includes(marker))).toBe(true);
+    const item=page.locator(".records").getByRole("button",{name:new RegExp(marker)}).first();await expect(item).toBeVisible();await openListDetail(page,await item.innerText());
     await expect(page.locator("dialog.modal:not(.modal-confirm)[open]")).toContainText("기록으로 보존할 최초 근거");
   }finally{await mcp.close();}
 });
 
-test("현재 문서 편집 충돌은 초안 유지·폐기 뒤 최신 원문 재조회",async({page})=>{
+test("현재 문서 편집 충돌은 초안 유지·폐기 뒤 최신 원문 재조회",async({page,isMobile})=>{
   await devLogin(page);const mcp=await mcpClient(await mcpTokenViaConsent(page));
   try{
     const old=await savePrinciple(mcp,{title:unique("충돌 과거본"),body:"원래 요약"});
@@ -57,7 +59,7 @@ test("현재 문서 편집 충돌은 초안 유지·폐기 뒤 최신 원문 재
     await mcp.call("update_principle",{id:old.id,expected_version:old.version,body:"최신 본문",change_note:"동시 편집"});
     await saveOnce(page,form);const action=page.locator("dialog.modal-action[open]");await expect(action.getByRole("alert")).toContainText("다른 변경");await action.getByRole("button",{name:"취소",exact:true}).click();
     await expect(form.getByLabel("본문")).toHaveValue("보호할 초안");await form.getByRole("button", {name:"취소",exact:true}).click();
-    await page.getByRole("dialog",{name:"변경을 버릴까요?"}).getByRole("button",{name:"변경 버리기",exact:true}).click();await expect(page.getByRole("heading",{name:old.title,exact:true})).toBeVisible();await openDetailEditor(page);await expect(page.getByLabel("본문")).toHaveValue("최신 본문");
+    await page.getByRole("dialog",{name:"변경을 버릴까요?"}).getByRole("button",{name:"변경 버리기",exact:true}).click();await expect(page.getByRole("heading",{name:old.title,level:isMobile?2:3,exact:true})).toBeVisible();await openDetailEditor(page);await expect(page.getByLabel("본문")).toHaveValue("최신 본문");
   }finally{await mcp.close();}
 });
 

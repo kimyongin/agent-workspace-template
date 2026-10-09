@@ -1,10 +1,10 @@
-import { openListDetail } from "./ui-actions.ts";
+import { closeDetail, openListDetail } from "./ui-actions.ts";
 import { createHash } from "node:crypto";
 import { expect, test } from "@playwright/test";
 import { devLogin, mcpClient, mcpTokenViaConsent, unique } from "./support.ts";
 
 // Actual OAuth/owner API evidence. Run serially with the other DEV_USER_A tests.
-test("읽기·검색·네 탭 이동·상세 닫기는 계정 기록 원문과 개수를 바꾸지 않는다", async ({ page }, info) => {
+test("읽기·검색·네 탭 이동·상세 닫기는 계정 기록 원문과 개수를 바꾸지 않는다", async ({ page, isMobile }, info) => {
   test.setTimeout(300_000);
   await devLogin(page);
   const mcp = await mcpClient(await mcpTokenViaConsent(page));
@@ -65,8 +65,8 @@ test("읽기·검색·네 탭 이동·상세 닫기는 계정 기록 원문과 �
     expect(searched.request().postDataJSON().mode).toBe("auto");
     expect((await searched.json()).items.some((item: { id: string }) => item.id === fixtureId)).toBe(true);
     await openListDetail(page,title);
-    await expect(page.getByRole("heading", { name: "기록", level: 1, exact: true })).toBeVisible();
-    await page.getByRole("button", { name: "닫기", exact: true }).click();
+    await expect(page.locator("dialog.modal:not(.modal-confirm)[open]").getByRole("heading", { name: "기록", level: isMobile ? 1 : 2, exact: true })).toBeVisible();
+    await closeDetail(page, title);
     await expect(page.getByRole("button", { name: title, exact: true })).toBeFocused();
     const after = await snapshot();
     expect(writes).toEqual([]);

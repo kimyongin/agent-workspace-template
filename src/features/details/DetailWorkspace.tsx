@@ -39,7 +39,7 @@ export function DetailWorkspace({ children, render, enabled }: { children: React
   const [visible, setVisible] = useState(true);
   const [revision, setRevision] = useState(0);
   const [listReturnRevision, setListReturnRevision] = useState(0);
-  const [identityDestination, setIdentityDestination] = useState<{path:string;owner:string} | null>(null);
+  const [routeDestination, setRouteDestination] = useState<{path:string;state:NavigateOptions["state"]} | null>(null);
   const [base, setBase] = useState<Location>(() => detailIdentity(location.pathname) ? ownerList(location) : location);
   const current = useRef({ tabs, active, base, visible });
   current.current = { tabs, active, base, visible };
@@ -52,12 +52,12 @@ export function DetailWorkspace({ children, render, enabled }: { children: React
   }, []);
   const anyBusy = useCallback(() => [...guards.current.values()].some(read => read().busy), []);
   const saved = useCallback(() => setRevision(value => value + 1), []);
-  // Replaced TabContent has unmounted and removed its busy guard before route transfer.
+  // Removed or replaced TabContent releases its busy guard before route transfer.
   useEffect(() => {
-    if (!identityDestination) return;
-    setIdentityDestination(null);
-    void navigate(identityDestination.path, {replace:true,state:{workspaceOwner:identityDestination.owner}});
-  }, [identityDestination,navigate]);
+    if (!routeDestination) return;
+    setRouteDestination(null);
+    void navigate(routeDestination.path, {replace:true,state:routeDestination.state});
+  }, [routeDestination,navigate]);
   const [discard, setDiscard] = useState<(() => void) | null>(null);
   const shown = visible && !!active;
   const split = useWorkspaceResize(desktop && shown && started && eligible);
@@ -128,7 +128,7 @@ export function DetailWorkspace({ children, render, enabled }: { children: React
         ...(value.returnTo === id ? {returnTo:identity} : {}),
       })));
       if (state.active === id) setActive(identity);
-      setIdentityDestination({path,owner:state.base.pathname});
+      setRouteDestination({path,state:{workspaceOwner:state.base.pathname}});
     } else if (identity) {
       const returnTo = returnTarget(tab.location, identity);
       rememberReturn(identity, returnTo);
@@ -146,7 +146,7 @@ export function DetailWorkspace({ children, render, enabled }: { children: React
     if (!next) setListReturnRevision(value => value + 1);
     tabFocus.current = next?.id ?? "list";
     setActive(next?.id ?? null);
-    void navigate(next ? href(next.location) : href(state.base), { replace: true, state: next ? { workspaceOwner: state.base.pathname } : null });
+    setRouteDestination({path:next ? href(next.location) : href(state.base),state:next ? { workspaceOwner: state.base.pathname } : null});
   };
   const requestClose = (id: string) => {
     if (anyBusy()) return;
