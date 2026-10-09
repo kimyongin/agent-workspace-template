@@ -1,8 +1,9 @@
+import { browserLaunchOptions } from "./e2e/browser-options.ts";
 import { defineConfig, devices } from "@playwright/test";
 export default defineConfig({
   testDir:"e2e", testMatch:"activity.fixture.ts", workers:1, retries:0,
   outputDir:"test-results/activity-fixture",
-  use:{baseURL:"http://127.0.0.1:55483",trace:"retain-on-failure",timezoneId:"Asia/Seoul"},
+  use:{ launchOptions: browserLaunchOptions,baseURL:"http://127.0.0.1:55483",trace:"retain-on-failure",timezoneId:"Asia/Seoul"},
   projects:[{name:"desktop",use:{...devices["Desktop Chrome"]}},{name:"mobile",use:{...devices["Pixel 7"]}}],
   webServer:{command:"npm run dev -- --port 55483",url:"http://127.0.0.1:55483",reuseExistingServer:false,
     env:{VITE_API_URL:"http://127.0.0.1:55483/fixture-api",VITE_SUPABASE_URL:"http://127.0.0.1:55483",VITE_SUPABASE_PUBLISHABLE_KEY:"fixture-public-key"}},

@@ -1,3 +1,4 @@
+import { browserLaunchOptions } from "./e2e/browser-options.ts";
 // 웹↔MCP 실제 사용자 흐름 E2E. 로컬 Supabase·Edge Functions가 떠 있어야 한다(npm run setup:local, npm run serve:functions).
 import { defineConfig, devices } from "@playwright/test";
 import { readLocalConfig } from "./scripts/local-config.mjs";
@@ -12,7 +13,7 @@ export default defineConfig({
   workers: 1,
   retries: 0,
   reporter: [["list"]],
-  use: { baseURL: webUrl, trace: "retain-on-failure" },
+  use: { launchOptions: browserLaunchOptions, baseURL: webUrl, trace: "retain-on-failure" },
   projects: [
     { name: "desktop", use: { ...devices["Desktop Chrome"] } },
     { name: "mobile", use: { ...devices["Pixel 7"] } },
