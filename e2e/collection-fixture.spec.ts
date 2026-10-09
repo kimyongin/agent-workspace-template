@@ -293,3 +293,16 @@ test("closed filters show conditions below search and opening hides the summary"
     await expect(summary).toContainText(condition);
   }
 });
+
+test("soft-deleted entity returned by GET keeps historical relation without a detail link", async ({page}) => {
+  const history={...record,record_kind:"change" as const,change:{target_kind:"entity" as const,target_id:entity.id,target_title:entity.prop1,action:"delete" as const,source:"http" as const,event_id:id(90),path:null,before:null,after:null}};
+  const state=await fixture(page,[history]);
+  state.rows.entities[0].deleted_at="2026-10-10T00:00:00Z";
+  await page.goto(`/records/${history.id}`);
+  const section=page.getByRole("dialog").getByRole("region",{name:"엔터티 (1개)",exact:true});
+  await expect(section.getByText("삭제됨",{exact:true})).toBeVisible();
+  await section.getByRole("button",{name:entity.prop1,exact:true}).click();
+  await expect(section).toContainText("기록에 저장된 당시 제목");
+  await expect(section.getByRole("link",{name:entity.prop1+" 상세",exact:true})).toHaveCount(0);
+  expect(state.writes).toEqual([]);
+});

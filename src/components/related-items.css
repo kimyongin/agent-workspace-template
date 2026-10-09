@@ -4,8 +4,8 @@
 .related-item::before { content: ""; position: absolute; left: var(--space-2); top: var(--space-2); bottom: var(--space-2); width: 2px; border-radius: 2px; background: var(--marker-muted); pointer-events: none; }
 .related-item[data-expanded] { background: var(--surface); }
 .related-item[data-expanded]::before { background: var(--accent); }
-.related-item-title { display: flex; align-items: center; flex-wrap: nowrap; gap: 0 var(--space-2); min-width: 0; }
-.related-item-heading { flex: 1 1 0; min-width: 0; }
+.related-item-title { display: flex; align-items: center; flex-wrap: wrap; gap: 0 var(--space-2); min-width: 0; }
+.related-item-heading { flex: 1 1 44px; min-width: 0; }
 .related-item-summary { display: flex; align-items: center; flex-shrink: 0; }
 .related-item-title .item-title { min-width: 0; max-width: 100%; overflow-wrap: anywhere; font-size: var(--text-item); line-height: 1.25rem; font-weight: 600; }
 .related-item-title a.item-title, .related-item-title .related-toggle { display: inline-flex; align-items: center; min-width: 44px; min-height: 44px; max-width: 100%; color: var(--ink); text-decoration: none; }
