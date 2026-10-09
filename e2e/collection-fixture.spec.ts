@@ -306,3 +306,27 @@ test("soft-deleted entity returned by GET keeps historical relation without a de
   await expect(section.getByRole("link",{name:entity.prop1+" 상세",exact:true})).toHaveCount(0);
   expect(state.writes).toEqual([]);
 });
+
+for (const kind of ["entities","tasks","records"] as const) test(`${kind}: read properties use aligned horizontal key/value rows at every width`, async ({page}) => {
+  const state=await fixture(page);
+  const key=kind==="entities"?entity.id:kind==="tasks"?task.id:record.id;
+  for(const width of [320,360,390,639,640,768,1024,1440]) {
+    await page.setViewportSize({width,height:900});
+    await page.goto(`/${kind}/${encodeURIComponent(key)}`);
+    const properties=page.locator("dialog.modal:not(.modal-confirm)[open] .detail-section .props").first();
+    await expect(properties.locator("dt").first()).toBeVisible();
+    const rows=await properties.locator(":scope > div").evaluateAll(nodes=>nodes.map(node=>{
+      const key=node.querySelector("dt")!,value=node.querySelector("dd")!;
+      const k=key.getBoundingClientRect(),v=value.getBoundingClientRect();
+      return {keyX:k.x,keyRight:k.right,valueX:v.x,keyColor:getComputedStyle(key).color,valueColor:getComputedStyle(value).color};
+    }));
+    for(const row of rows) {
+      expect(row.valueX).toBeGreaterThan(row.keyRight);
+      expect(Math.abs(row.keyX-rows[0].keyX)).toBeLessThan(1);
+      expect(Math.abs(row.valueX-rows[0].valueX)).toBeLessThan(1);
+      expect(row.keyColor).not.toBe(row.valueColor);
+    }
+    expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+  }
+  expect(state.writes).toEqual([]);
+});

@@ -23,7 +23,7 @@
 .modal-foot .modal-delete { margin-right: auto; }
 .props > div { min-width: 0; }
 .detail-section .props { grid-template-columns: minmax(0,1fr); }
-.detail-section .props > div { display: grid; grid-template-columns: 6rem minmax(0,1fr); gap: var(--space-4); align-items: baseline; }
+.detail-section .props > div { display: grid; grid-template-columns: min(6rem,35%) minmax(0,1fr); gap: var(--space-4); align-items: baseline; }
 .detail-section-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2) var(--space-3); flex-wrap: wrap; }
 .detail-section-head > .actions { margin-left: auto; }
 .detail-section-head .section-title { margin: 0; }
@@ -705,7 +705,6 @@ textarea.input {
 .modal-foot[hidden] { display: none; }
 .record-content .markdown { color: var(--ink); font-size: var(--text-body); line-height: 1.5rem; }
 .record-context { display: grid; gap: var(--space-5); }
-.record-context-meta { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); font-size: .8125rem; color: var(--muted-ink); }
 
 
 .modal-head .dialog-title {
@@ -854,11 +853,6 @@ textarea.input {
   .bottom-nav { padding-bottom: var(--space-2); }
   .nav-profile { margin-bottom: 0; }
 }
-
-.task-overview .props { grid-template-columns: repeat(3,minmax(0,1fr)); gap: var(--space-3); }
-.task-overview .props > div { display: flex; flex-direction: column; gap: var(--space-1); }
-.task-overview .props dt { font-size: var(--text-label); font-weight: 400; }
-@media(max-width:359px) { .task-overview .props { grid-template-columns: repeat(2,minmax(0,1fr)); } }
 
 /* Supporting pages use the same bounded groups rather than a full-width form. */
 .settings { width: min(100%,48rem); gap: var(--space-5); padding: 0; }
