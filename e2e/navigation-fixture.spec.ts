@@ -254,7 +254,7 @@ test("#215 메인 네 탭의 상단 구획·브랜드·필터 조작은 좁은 �
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.evaluate(() => document.documentElement.style.fontSize = "");
   await page.setViewportSize({ width: 1440, height: 280 });
-  await expect(page.locator(".workspace-header")).toBeVisible();
+  await expect(page.locator(".workspace-header")).toBeHidden();
   await expect(page.locator(".navigation-brand")).toBeHidden();
 });
 
