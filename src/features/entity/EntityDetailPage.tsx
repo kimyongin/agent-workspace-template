@@ -7,6 +7,7 @@ import type { EntityContext } from "@contracts/entity-links.ts";
 import { RelatedSection } from "../../components/RelatedItems.tsx";
 import { RelatedRecordItem } from "../activity/RelatedRecords.tsx";
 import { useDetailNavigate, useDetailOwnerReturn, useDetailDeleteReturn } from "../../lib/detail-exploration.tsx";
+import { useEntityIdentityChange } from "../details/useEntityIdentityChange.ts";
 import { useDetailEditor } from "../details/useDetailEditor.ts";
 import { useDeferredNavigation } from "../../lib/useDeferredNavigation.ts";
 import { TagNames } from "../tags/TagPicker.tsx";
@@ -43,6 +44,7 @@ export function EntityDetailPage() {
   const error = actionError ?? (detail.error ? detail.error instanceof ApiError ? detail.error.message : "엔터티를 불러오지 못했습니다." : null);
   const reload = detail.reload;
   const editor = useDetailEditor(detail.editClosed);
+  const replaceIdentityVisit = useEntityIdentityChange(editor.formProps.onRouteDiscard);
   const [busy, setBusy] = useState(false);
   useEffect(() => { if (!detail.confirmed && entity) relationSaved.current = false; }, [entity, detail.confirmed]);
   const returnParams=new URLSearchParams(params); ["edit","edit_from","create"].forEach(key=>returnParams.delete(key));
@@ -131,18 +133,7 @@ export function EntityDetailPage() {
                   return { ...current, ...savedEntity };
                 });
                 if (savedId !== entity.id) {
-                  editor.formProps.onRouteDiscard();
-                  const viewer = new URLSearchParams(params); viewer.delete("edit"); viewer.delete("edit_from");
-                  const list = viewer.get("list");
-                  if (list?.startsWith("/entities?")) {
-                    const destination = new URL(list, "https://workspace.invalid");
-                    const opened = destination.searchParams.getAll("open");
-                    destination.searchParams.delete("open");
-                    opened.forEach(path => destination.searchParams.append("open", path === entityPath(entity.id) ? entityPath(savedId) : path));
-                    if (destination.hash === `#${encodeURIComponent(`entity-${entity.id}`)}`) destination.hash = encodeURIComponent(`entity-${savedId}`);
-                    viewer.set("list", `${destination.pathname}${destination.search}${destination.hash}`);
-                  }
-                  afterClose(`${entityPath(savedId)}?${viewer}`, {replace:true,state:{rekeyedDetail:location.pathname}});
+                  replaceIdentityVisit(entity.id, savedId);
                 } else { editor.close(); void reload(); }
               }}
             />
