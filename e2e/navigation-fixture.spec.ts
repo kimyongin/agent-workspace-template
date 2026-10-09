@@ -47,7 +47,9 @@ test("네 탭과 프로필은 320~1440px와 200%에서 조작 가능하다", asy
     await expect(nav.getByRole("link")).toHaveCount(4);
     await expect(nav.getByRole("button", { name:"메뉴", exact:true })).toHaveCount(0);
     await expect(page.locator(".workspace-header")).toHaveCount(1);
-    if(width<1024)await expect(page.locator(".workspace-header")).toBeVisible();else await expect(page.locator(".workspace-header")).toBeHidden();
+    await expect(page.locator(".workspace-header")).toBeHidden();
+    if(width>=1024)await expect(page.locator(".navigation-brand")).toBeVisible();
+    else expect(await page.locator("#settings-title").evaluate(el => getComputedStyle(el,"::before").backgroundImage)).not.toBe("none");
     for (const size of await nav.locator(".bottom-nav-inner > a, .nav-profile-trigger").evaluateAll(nodes => nodes.map(node => { const r = node.getBoundingClientRect(); return [r.width, r.height]; }))) {
       expect(size[0]).toBeGreaterThanOrEqual(44); expect(size[1]).toBeGreaterThanOrEqual(44);
     }
@@ -213,8 +215,12 @@ test("#215 메인 네 탭의 상단 구획·브랜드·필터 조작은 좁은 �
       const border = await header.evaluate(el => getComputedStyle(el).borderBottomWidth);
       expect(border).toBe("1px");
       expect(await header.evaluate(el => getComputedStyle(el).paddingBottom)).toBe("20px");
-      await expect(page.locator(width < 1024 ? ".workspace-header" : ".navigation-brand")).toBeVisible();
-      await expect(page.locator(width < 1024 ? ".navigation-brand" : ".workspace-header")).toBeHidden();
+      await expect(page.locator(".workspace-header")).toBeHidden();
+      if(width>=1024)await expect(page.locator(".navigation-brand")).toBeVisible();
+      else {
+        await expect(page.locator(".navigation-brand")).toBeHidden();
+        expect(await header.getByRole("heading", {level:1}).evaluate(el => getComputedStyle(el,"::before").backgroundImage)).not.toBe("none");
+      }
       if (path === "principles") {
         await expect(page.getByRole("button", { name: /^필터/ })).toHaveCount(0);
         continue;
