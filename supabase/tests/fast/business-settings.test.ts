@@ -79,6 +79,38 @@ Deno.test("기록 준비: 생성 할 일의 실제 기본 상태·빈 본문·�
   assertEquals(result.change_note, "open/없음/미지정");
 });
 
+Deno.test("엔터티 등록 준비: 고정 입력은 등록 기본값과 기존 기록 입력을 함께 보존", async () => {
+  const d: BusinessSettingsDeps = {
+    clock: { now: () => new Date("2026-10-10T00:00:00Z") },
+    uow: {
+      run: (_actor, fn) =>
+        fn({
+          get: () => Promise.resolve({ versions: { record_templates: 0, entity_identity: 0 }, settings: {} }),
+          target: () => Promise.resolve(null),
+          update: () => Promise.reject(new Error("읽기 전용")),
+          recordTags: () => Promise.resolve([]),
+        }),
+    },
+  };
+  const prepared = await prepareBusinessRecord(d, { userId: crypto.randomUUID() }, {
+    model: "entity",
+    action: "create",
+    input: { external_id: "001", prop1: "새 대상", expected_version: 2, change_note: "입력 기록", change_tag_ids: [] },
+  });
+  assertEquals(prepared.prepared_input, {
+    source: "app",
+    external_id: "001",
+    prop1: "새 대상",
+    prop2: null,
+    prop3: null,
+    prop4: "a",
+    tag_ids: [],
+    expected_version: 2,
+    change_note: "입력 기록",
+    change_tag_ids: [],
+  });
+});
+
 Deno.test("업무 설정: 발급처 표시 이름은 바꾸지만 저장된 코드를 제거하거나 바꾸지 않는다", async () => {
   const value: BusinessSettingsResult = {
     versions: { record_templates: 1, entity_identity: 1 },
