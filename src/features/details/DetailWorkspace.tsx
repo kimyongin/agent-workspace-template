@@ -51,7 +51,7 @@ export function DetailWorkspace({ children, render, enabled }: { children: React
   }, []);
   const anyBusy = useCallback(() => [...guards.current.values()].some(read => read().busy), []);
   const saved = useCallback(() => setRevision(value => value + 1), []);
-  // Replaced TabContent has unmounted and removed its busy guard before route transfer.
+  // Replaced or closed TabContent removes its busy guard before the route transfer.
   useEffect(() => {
     if (!identityDestination) return;
     setIdentityDestination(null);
@@ -135,7 +135,7 @@ export function DetailWorkspace({ children, render, enabled }: { children: React
     const next = remaining[Math.min(index, remaining.length - 1)];
     tabFocus.current = next?.id ?? "list";
     setActive(next?.id ?? null);
-    void navigate(next ? href(next.location) : href(state.base), { replace: true, state: next ? { workspaceOwner: state.base.pathname } : null });
+    setIdentityDestination({path:next ? href(next.location) : href(state.base),owner:state.base.pathname});
   };
   const requestClose = (id: string) => {
     if (anyBusy()) return;

@@ -41,8 +41,8 @@ function ChangedRelation({change,path,occurrence}: {change:Change;path:string;oc
     const controller=new AbortController();
     setState("loading");
     // The captured title describes the event; only a successful current GET enables navigation.
-    void api<unknown>("GET",path,undefined,controller.signal).then(()=>{
-      if(!controller.signal.aborted)setState("exists");
+    void api<{deleted_at?:string|null}>("GET",path,undefined,controller.signal).then(value=>{
+      if(!controller.signal.aborted)setState(value.deleted_at ? "missing" : "exists");
     },error=>{
       if(!controller.signal.aborted)setState(error instanceof ApiError&&error.status===404&&error.code==="not_found"?"missing":"failed");
     });

@@ -61,10 +61,6 @@ export function RecordDetailPage() {
       <div className="detail-stack">{record.body&&<section className="detail-section record-content" aria-label="내용"><MarkdownContent text={record.body}/></section>}
       {management}
       <div className="detail-relations"><RecordRelations record={record}/><PrincipleSnapshots snapshots={record.applied_principle_snapshots??[]}/></div></div>
-      {editor.active && !editReady && loadError && <>
-        <Notice kind="error">{loadError}</Notice>
-        <button type="button" className="btn" onClick={reload}>조회 다시 시도</button>
-      </>}
       {editor.active && editReady && (
         <RecordFormModal
           editing systemRecord={record.record_kind==="change"}

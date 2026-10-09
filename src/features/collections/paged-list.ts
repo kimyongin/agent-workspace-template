@@ -51,7 +51,8 @@ export function createPagedList<T extends { id: string }, P extends ListPage<T>>
       }
     };
     if (restart && !atomic) acceptedCursors.clear();
-    emit({ busy: true, error: null, completion: null, ...(restart && !atomic ? { page: null } : {}) });
+    // Retain an append error until its replacement rows arrive, so retry does not shrink the page beneath the focused control.
+    emit({ busy: true, error: source === "more" ? state.error : null, completion: null, ...(restart && !atomic ? { page: null } : {}) });
     try {
       while ((!result || result.pages < targetPages || !!anchor && !result.items.some(item => item.id === anchor)) &&
         (!result || result.next_cursor) && (result?.pages ?? 0) < budget) {
@@ -76,7 +77,7 @@ export function createPagedList<T extends { id: string }, P extends ListPage<T>>
       publish();
       if (current()) {
         failed = null;
-        emit({ completion: result ? { pages: result.pages, anchorFound: !anchor || result.items.some(item => item.id === anchor), source } : null,
+        emit({ error: null, completion: result ? { pages: result.pages, anchorFound: !anchor || result.items.some(item => item.id === anchor), source } : null,
           ...(!hadPrior && source === "restore" && !result?.next_cursor ? { showMoreControl: false } : {}) });
       }
     } catch (error) {

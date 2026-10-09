@@ -4,6 +4,19 @@ type Row = { id: string };
 function deferred<T>() { let resolve!: (value: T) => void; const promise = new Promise<T>(done => { resolve = done; }); return { promise, resolve }; }
 
 describe("paged list lifecycle", () => {
+  it("retains an append failure during retry until replacement rows arrive", async () => {
+    const held=deferred<ListPage<Row>>(), failure=new Error("unavailable");
+    const load=vi.fn().mockResolvedValueOnce({items:[{id:"first"}],next_cursor:"next"})
+      .mockRejectedValueOnce(failure).mockImplementationOnce(()=>held.promise);
+    const list=createPagedList({load});await list.restore(1);list.more();
+    await vi.waitFor(()=>expect(list.snapshot().busy).toBe(false));
+    const retry=list.retry();
+    expect(list.snapshot().error).toBe(failure);
+    expect(list.snapshot().page?.items).toEqual([{id:"first"}]);
+    held.resolve({items:[{id:"second"}],next_cursor:null});await retry;
+    expect(list.snapshot().error).toBeNull();
+    expect(list.snapshot().page?.items).toEqual([{id:"first"},{id:"second"}]);
+  });
   it("refreshes accepted pages atomically and retains them on failure until retry succeeds", async () => {
     const held = deferred<ListPage<Row>>();
     const load = vi.fn().mockResolvedValueOnce({items:[{id:"old"}],next_cursor:null})
