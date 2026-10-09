@@ -76,7 +76,7 @@ export function EntityForm(
       validate={() => {
         const {tag_ids, ...fields} = value();
         const parsed = entityCreate.safeParse(fields);
-        if (!identitySettings) return { external_id: "식별자 설정을 불러오는 중입니다" };
+        if (!initial && !identitySettings) return { external_id: "식별자 설정을 불러오는 중입니다" };
         if (!fields.prop1.trim()) return { prop1: "필수 입력입니다" };
         return parsed.success ? null : fieldErrors(parsed.error.issues);
       }}

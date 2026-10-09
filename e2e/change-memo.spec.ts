@@ -15,8 +15,8 @@ test("엔터티 확인 후 한 번에 저장하고 입력 메모만 기록 본�
     await fillChangeMemo(page,form,note);
     await expect(form.getByLabel("요약")).toHaveCount(0);await expect(form.getByLabel("기록 제목")).toHaveCount(0);
     await saveOnce(page,form);
-    await expect(page).toHaveURL(/\/entities\/[0-9a-f-]{36}/);
-    const id = new URL(page.url()).pathname.split("/").at(-1)!;
+    await expect(page).toHaveURL(/\/entities\/app%3A[0-9a-f-]{36}(?:\?|$)/);
+    const id = decodeURIComponent(new URL(page.url()).pathname.split("/").at(-1)!);
     expect(requests.filter(path=>path.endsWith("/entities"))).toHaveLength(1);
     expect(requests.some(path=>path.endsWith("/preview"))).toBe(false);
     const records = await mcp.call("list_records",{record_kind:"change",limit:100});

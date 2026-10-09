@@ -2,7 +2,7 @@ import { expect, test, type Page } from "@playwright/test";
 import { entityKey } from "./support/workspace-data.ts";
 import { installWorkspaceApi, type FakeOptions } from "./support/workspace-api.ts";
 import { entity, task, record, principle, id, stamp } from "./support/workspace-data.ts";
-import { saveOnce } from "./ui-actions.ts";
+import { openDetailEditor, saveOnce } from "./ui-actions.ts";
 
 async function fixture(page: Page, options: FakeOptions = {}, metadata: Record<string, unknown> = {}) {
   const t = { ...task(), title: "등심 구매하기", entity_ids: [entityKey(1)], entity_context: [{ id: entityKey(1), title: "등심", source: "selection" as const, captured_at: stamp }] };
@@ -626,4 +626,29 @@ test("desktop: entity list focus round trips a Unicode and percent identity thro
   const target=page.locator(".workspace-list").getByRole("button",{name:"등심",exact:true});
   await expect(target).toBeFocused();expect(await target.evaluate(element=>element.tabIndex)).toBe(0);expect(new URL(page.url()).hash).toBe(`#${encodeURIComponent(`entity-${canonical}`)}`);
   await page.reload();await expect(target).toBeFocused();expect(state.errors).toEqual([]);
+});
+
+for (const width of [390, 1440]) test(`${width}px: editing an existing entity does not wait for creation identity settings`, async ({ page }) => {
+  await page.setViewportSize({ width, height: 900 });
+  const state = await fixture(page);
+  await page.goto(`/entities/${encodeURIComponent(entityKey(1))}`);
+  await expect(page.locator("dialog.modal[open]").getByRole("button", { name: "편집", exact: true })).toBeVisible();
+  let release = () => {}, arrived = () => {};
+  const held = new Promise<void>(resolve => { release = resolve; });
+  const started = new Promise<void>(resolve => { arrived = resolve; });
+  await page.route("**/api/settings/business", async route => {
+    arrived(); await held;
+    if (!route.request().failure()) await route.continue();
+  });
+  try {
+    await openDetailEditor(page); await started;
+    const editor = page.getByRole("dialog", { name: "엔터티 편집", exact: true });
+    await editor.getByLabel("속성 2", { exact: true }).fill("42");
+    await saveOnce(page, editor);
+    await expect(editor).not.toBeVisible();
+    await expect(page.locator("dialog.modal[open]").getByRole("definition").filter({ hasText: /^42$/ })).toBeVisible();
+    expect(state.rows.entities.find(item => item.id === entityKey(1))?.prop2).toBe(42);
+    expect(state.writes.filter(write => write.method === "PATCH")).toHaveLength(1);
+    expect(state.errors).toEqual([]);
+  } finally { release(); }
 });

@@ -68,8 +68,7 @@ export async function openListDetail(page: Page, title: string) {
 /** Open the visible common conditions group without toggling an already-open group. */
 export async function openTabFilters(page: Page) {
   const toggle=page.getByRole("button",{name:/^필터 (열기|닫기)/});
-  if(await toggle.count()) {
-    if(await toggle.getAttribute("aria-expanded")==="false")await toggle.click();
-    await expect(toggle).toHaveAttribute("aria-expanded","true");
-  }
+  await expect(toggle).toBeVisible();
+  if(await toggle.getAttribute("aria-expanded")==="false")await toggle.click();
+  await expect(toggle).toHaveAttribute("aria-expanded","true");
 }
