@@ -1,4 +1,4 @@
-import type { RecordResult } from "@contracts/record.ts";
+import { recordLabels, type RecordResult } from "@contracts/record.ts";
 import { MarkdownContent } from "../../components/MarkdownContent.tsx";
 import { useDisplayTime } from "../../lib/useDisplayTime.ts";
 
@@ -9,11 +9,16 @@ const targets = {entity:"엔터티",task:"할 일",record:"기록",principle:"�
 export function ChangeContext({record,compact=false}: {record: WorkspaceRecord;compact?:boolean}) {
   const { formatDateTime } = useDisplayTime();
   const change=record.change;
-  const kind=`${recordKindNames[record.record_kind]??"기록"}${change?` · ${change.source==="http"?"웹":"에이전트"}`:""}`;
   const target=change?`${targets[change.target_kind]} 「${change.target_title}」 · ${changeActionNames[change.action]}`:null;
-  if(compact)return <><span className="meta">{kind}</span>{target&&<p className="secondary record-change-target">{target}{change?.action==="delete"?" · 삭제된 대상":""}</p>}</>;
-  return <div className="record-context">
-    <div className="record-context-meta"><span>{kind}</span><time dateTime={record.occurred_at}>{formatDateTime(record.occurred_at)}</time></div>
+  const properties=<dl className="props">
+    <div><dt>종류</dt><dd>{recordKindNames[record.record_kind]??"기록"}</dd></div>
+    {change&&<div><dt>출처</dt><dd>{change.source==="http"?"웹":"에이전트"}</dd></div>}
+    <div><dt>{recordLabels.occurred_at}</dt><dd><time dateTime={record.occurred_at}>{formatDateTime(record.occurred_at)}</time></dd></div>
+    {compact&&target&&<div><dt>변경 대상</dt><dd>{target}{change?.action==="delete"?" · 삭제된 대상":""}</dd></div>}
+  </dl>;
+  if(compact)return properties;
+  return <div className="detail-section record-context">
+    {properties}
     {change&&<>
       {(change.before!==null||change.after!==null)&&<details className="workspace-additional"><summary>변경 전후 값</summary><div className="change-snapshot"><section><h3 className="section-title">변경 전</h3><pre>{change.before?JSON.stringify(change.before,null,2):"없음"}</pre></section><section><h3 className="section-title">변경 후</h3><pre>{change.after?JSON.stringify(change.after,null,2):"없음"}</pre></section></div></details>}
     </>}
