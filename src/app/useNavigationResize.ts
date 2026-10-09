@@ -16,7 +16,7 @@ export function useNavigationResize(account: string | null) {
   const enabled = !!account && desktop;
   const [preferred, setPreferred] = useState({ account, rem: 13 });
   useLayoutEffect(() => { setPreferred({ account, rem: 13 }); }, [account]);
-  const [geometry, setGeometry] = useState({ rem: 16, min: 160, max: 320 });
+  const [geometry, setGeometry] = useState({ rem: 16, min: 208, max: 320 });
   const chosen = preferred.account === account ? preferred.rem : 13;
   const width = Math.min(geometry.max, Math.max(geometry.min, chosen * geometry.rem));
   useLayoutEffect(() => {
@@ -25,7 +25,7 @@ export function useNavigationResize(account: string | null) {
       const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
       const detail = innerWidth >= 1280 * scale / 100 && innerHeight >= 480 * scale / 100;
       const reserve = (detail ? 55 : 28) * rem + (detail ? 12 : 0);
-      const min = 10 * rem, max = Math.max(min, Math.min(20 * rem, document.documentElement.clientWidth - reserve - 12));
+      const min = 13 * rem, max = Math.max(min, Math.min(20 * rem, document.documentElement.clientWidth - reserve - 12));
       setGeometry({ rem, min, max });
     };
     measure();

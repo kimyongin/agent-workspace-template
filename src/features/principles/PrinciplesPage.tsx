@@ -24,10 +24,10 @@ export function PrinciplesPage() {
     return()=>controller.abort();},[retry,workspace?.revision]);
   return <><section className="panel main-tab-header" aria-labelledby="principles-title">
     <div className="panel-head"><h1 id="principles-title" className="page-title" tabIndex={-1}>원칙</h1>
-      {current===null&&!error&&<TabCreateButton label="원칙 작성" onClick={create.begin}/>}
     </div>
     <Link className="btn btn-text secondary" to="/records">과거 근거는 통합 기록에서 보기</Link>
     </section><section className="activity-section" aria-label="현재 원칙">
+    {current===null&&!error&&<div className="detail-section-head"><h2 className="section-title">현재 원칙</h2><TabCreateButton label="원칙 작성" onClick={create.begin}/></div>}
     {error&&<><Notice kind="error">{error}</Notice><button className="btn" onClick={()=>setRetry(n=>n+1)}>다시 시도</button></>}
     {current===undefined&&!error&&<p role="status">현재 원칙을 불러오는 중…</p>}
     {current===null&&<p className="secondary">현재 원칙이 없습니다. 계정 전체에서 사용할 판단 기준을 등록하세요.</p>}

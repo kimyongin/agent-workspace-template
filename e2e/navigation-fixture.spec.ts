@@ -4,7 +4,7 @@ const user = { id: "00000000-0000-0000-0000-000000000001", aud: "authenticated",
 test.beforeEach(async ({ page, baseURL }) => {
   await page.route("**/*", async route => {
     const url = new URL(route.request().url());
-    if(url.pathname.endsWith("/settings/business")) await route.fulfill({json:{versions:{record_templates:0,entity_identity:0},settings:{record_templates:{},entity_identity:{generation:"uuid",default_source:"app",sources:[{code:"app",label:"앱"}]}}}});
+    if(url.pathname.endsWith("/settings/business")) await route.fulfill({json:{versions:{record_templates:0,entity_identity:0},settings:{record_templates:{},entity_identity:{generation:"short",default_source:"app",sources:[{code:"app",label:"앱"}]}}}});
     else if (/\/(?:functions\/v1\/)?api\//.test(url.pathname)) await route.fulfill({ json: { items: [], next_cursor: null } });
     else if (url.origin === new URL(baseURL!).origin) await route.continue();
     else await route.abort();
@@ -220,13 +220,19 @@ test("#215 메인 네 탭의 상단 구획·브랜드·필터 조작은 좁은 �
         continue;
       }
       const search = header.getByRole("textbox", { name: path === "entities" ? "속성 1 키워드" : "검색어", exact: true }), toggle = header.getByRole("button", { name: /^필터 (열기|닫기)/ });
+      const closedToggle = (await toggle.boundingBox())!;
+      await expect(toggle).toHaveText("");
       await toggle.press("Enter");
       await expect(toggle).toHaveAttribute("aria-expanded", "true");
       const reset = header.getByRole("button", { name: "조건 초기화", exact: true });
       const s = (await search.boundingBox())!, t = (await toggle.boundingBox())!, r = (await reset.boundingBox())!;
-      expect(t.y).toBeCloseTo(r.y);
-      expect(t.x + t.width).toBeLessThanOrEqual(r.x);
-      expect(s.y + s.height).toBeLessThanOrEqual(t.y);
+      expect(t.x).toBeCloseTo(closedToggle.x);
+      expect(t.y).toBeCloseTo(closedToggle.y);
+      expect(t.y + t.height / 2).toBeCloseTo(s.y + s.height / 2);
+      expect(t.height).toBeCloseTo(s.height);
+      expect(s.x + s.width).toBeLessThanOrEqual(t.x);
+      expect(r.y).toBeGreaterThanOrEqual(t.y + t.height);
+      await expect(header.locator(".tab-filters > .form").getByRole("button", {name:"조건 초기화"})).toBeVisible();
       for (const button of [toggle, reset]) { const b = (await button.boundingBox())!; expect(b.height).toBeGreaterThanOrEqual(44); expect(b.width).toBeGreaterThanOrEqual(44); }
       await reset.click(); expect(new URL(page.url()).searchParams.get("filters")).toBe("1");
       await page.reload(); await expect(page.getByRole("button", { name: "필터 닫기", exact: true })).toHaveAttribute("aria-expanded", "true");

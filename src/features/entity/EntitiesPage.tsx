@@ -1,4 +1,4 @@
-import { entityPath, entityIdentityLabel } from "@contracts/entity-identity.ts";
+import { entityPath } from "@contracts/entity-identity.ts";
 import { CollectionHeading, CollectionList, useMainCollectionView } from "../../components/Collection.tsx";
 import { useCreateMode } from "../../components/useCreateMode.ts";
 import { TabSearch, TabFilters, resetTabFilters } from "../../components/TabSearch.tsx";
@@ -53,7 +53,6 @@ export function EntitiesPage() {
     <><section className="panel main-tab-header" aria-labelledby="entities-title">
       <div className="panel-head">
         <h1 id="entities-title" className="page-title" tabIndex={-1}>엔터티</h1>
-        <TabCreateButton label="엔터티 등록" onClick={create.begin}/>
       </div>
       <div className="query-bar"><TabSearch entity/>
       <TabFilters active={!!(filter.tag_id||filter.prop3_from||filter.prop3_to||filter.prop4||filter.sort!=="updated_at")} attention={dictionary.failed}>
@@ -104,8 +103,8 @@ export function EntitiesPage() {
       <TagDictionaryStatus dictionary={dictionary}/>
       <fieldset className="field tag-filter-chips"><legend className="label">엔터티 태그</legend><div className="chips">{dictionary.tags?.map(tag=><button type="button" className="chip" key={tag.id} aria-pressed={filter.tag_id===tag.id} onClick={()=>set("tag_id",filter.tag_id===tag.id?"":tag.id)}>{tag.name}</button>)}</div></fieldset>
       </TabFilters></div>
-    </section><section className="activity-section" aria-label="엔터티 목록">
-      <CollectionHeading label="엔터티" count={page?.items.length} hasMore={!!page?.next_cursor} view={view} onChange={changeView}/>
+    </section><ListExpansionProvider readiness={readiness}><section className="activity-section" aria-label="엔터티 목록">
+      <div className="detail-section-head"><CollectionHeading label="엔터티" count={page?.items.length} hasMore={!!page?.next_cursor} view={view} onChange={changeView}/><TabCreateButton label="엔터티 등록" onClick={create.begin}/></div>
       {error && (
         <>
           <Notice kind="error">{error}</Notice>
@@ -129,15 +128,15 @@ export function EntitiesPage() {
           </button>
         </>
       )}
-      <ListExpansionProvider readiness={readiness}><TagReadProvider dictionary={dictionary} enabled={!!page?.items.some(e=>(e as EntityResult & {tag_ids?:string[]}).tag_ids?.length)}><CollectionList view={view==="calendar"?"list":view} label="엔터티 목록" columns={["엔터티","속성 2","속성 3"]} numericColumns={[1,2]}>
+      <TagReadProvider dictionary={dictionary} enabled={!!page?.items.some(e=>(e as EntityResult & {tag_ids?:string[]}).tag_ids?.length)}><CollectionList view={view==="calendar"?"list":view} label="엔터티 목록" columns={["엔터티","속성 2","속성 3"]} numericColumns={[1,2]}>
         {page?.items.map((e) => (
           <li className="list-item" key={e.id}>
             <div className="list-item-main">
-              <ListPreviewItem kind="entities" id={e.id} title={e.prop1} cells={[e.prop2,e.prop3]}/><p className="secondary">{entityIdentityLabel(e)}</p>
+              <ListPreviewItem kind="entities" id={e.id} title={e.prop1} cells={[e.prop2,e.prop3]}/>
             </div>
           </li>
         ))}
-      </CollectionList></TagReadProvider></ListExpansionProvider>
+      </CollectionList></TagReadProvider>
       {page && (page.next_cursor || page.pages > 1) && (
         <button
           className="btn"
@@ -171,6 +170,6 @@ export function EntitiesPage() {
           }}
         />
       )}
-    </section></>
+    </section></ListExpansionProvider></>
   );
 }

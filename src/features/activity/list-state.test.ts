@@ -2,6 +2,13 @@ import { describe, expect, it } from "vitest";
 import { anchorId,listAnchor,listReturnPath,listScope,requestedPages,safeListReturn } from "./list-state.ts";
 
 describe("list return paths",()=>{
+  it("preserves every expanded item when returning from a detail",()=>{
+    const params=new URLSearchParams("open=%2Ftasks%2Fa&open=%2Ftasks%2Fb&pages=2");
+    const path=listReturnPath("tasks",params,"00000000-0000-4000-8000-000000000001",200);
+    const returned=new URL(safeListReturn(path,"tasks","/tasks"),"https://activity.invalid");
+    expect(returned.searchParams.getAll("open")).toEqual(["/tasks/a","/tasks/b"]);
+    expect(listScope(returned.searchParams)).toBe("");
+  });
   it("preserves all URL filters, loaded extent and the focus target while constraining return paths", () => {
     const params = new URLSearchParams("kind=once&status=open&tag_id=tag&entity_id=entity&pages=3&scroll=9");
     const id = "00000000-0000-4000-8000-000000000001";

@@ -1,6 +1,7 @@
 import { useContext, useEffect, useMemo, useRef, useSyncExternalStore, type MouseEvent, type ReactNode } from "react";
 import { WorkspaceContext } from "../details/workspace-context.ts";
 import { useLocation, useNavigate, useSearchParams } from "react-router";
+import { ExpansionGroupProvider } from "../../components/item-expansion.tsx";
 import { ItemExpansionProvider } from "../../components/RelatedItems.tsx";
 import { anchorId, listAnchor, listReturnPath, listScope, type ActivityListKind } from "../activity/list-state.ts";
 import { RelatedPreviewItem } from "./RelatedPreviewItem.tsx";
@@ -9,14 +10,14 @@ import { createPreviewReadiness, ListPreviewReadiness, type PreviewReadiness } f
 /** Restore after both the list and reopened content settle; loading height can clamp scroll. */
 export function useRestoreListPosition(kind:ActivityListKind,ready:boolean) {
   const location=useLocation(),[params]=useSearchParams(),restored=useRef("");
-  const key = [location.pathname, location.hash, listScope(params), params.get("open")].join("|");
-  const path = params.get("open");
-  const readiness = useMemo(()=>createPreviewReadiness(path),[key]);
+  const paths = params.getAll("open");
+  const key = JSON.stringify([location.pathname, location.hash, listScope(params), paths]);
+  const readiness = useMemo(()=>createPreviewReadiness(paths),[key]);
   const previewReady = useSyncExternalStore(readiness.subscribe,readiness.snapshot);
   useEffect(()=>{
     if(!ready||restored.current===key||!anchorId(kind,location.hash))return;
     const target=document.getElementById(listAnchor(kind,anchorId(kind,location.hash)!));
-    if(target&&path&&!previewReady)return;
+    if(target&&paths.length&&!previewReady)return;
     const frame=requestAnimationFrame(()=>{
       const focus=target??document.getElementById(kind+"-title");
       focus?.focus({preventScroll:true});
@@ -35,11 +36,17 @@ export function useRestoreListPosition(kind:ActivityListKind,ready:boolean) {
 /** List expansion belongs to its URL, so edit/save/back restores the same item. */
 export function ListExpansionProvider({children,readiness}:{children:ReactNode;readiness?:PreviewReadiness}) {
   const [params,setParams]=useSearchParams();
-  return <ListPreviewReadiness.Provider value={readiness??null}><ItemExpansionProvider value={params.get("open")} toggle={path=>{
+  return <ListPreviewReadiness.Provider value={readiness??null}><ItemExpansionProvider value={params.getAll("open")} toggle={path=>{
     const next=new URLSearchParams(params);
-    next.get("open")===path?next.delete("open"):next.set("open",path);
+    if(next.getAll("open").includes(path))next.delete("open",path);else next.append("open",path);
     setParams(next,{replace:true,preventScrollReset:true});
-  }}>{children}</ItemExpansionProvider></ListPreviewReadiness.Provider>;
+  }} setMany={(paths,open)=>{
+    const next=new URLSearchParams(params);
+    const selected=next.getAll("open");next.delete("open");
+    const result=open?[...new Set([...selected,...paths])]:selected.filter(path=>!paths.includes(path));
+    result.forEach(path=>next.append("open",path));
+    setParams(next,{replace:true,preventScrollReset:true});
+  }}><ExpansionGroupProvider>{children}</ExpansionGroupProvider></ItemExpansionProvider></ListPreviewReadiness.Provider>;
 }
 
 export function ListPreviewItem({kind,id,title,metadata,cells}:{kind:ActivityListKind;id:string;title:string;metadata?:ReactNode;cells?:ReactNode[]}) {
@@ -57,5 +64,5 @@ export function ListPreviewItem({kind,id,title,metadata,cells}:{kind:ActivityLis
       void Promise.resolve(navigate(at,{replace:true,preventScrollReset:true})).then(()=>navigate(`${path}?list=${encodeURIComponent(at)}`,{state:null}));
     }};
   };
-  return <div className={kind==="records"?"related-record":undefined}><RelatedPreviewItem id={listAnchor(kind,id)} to={path} title={title} cells={cells} list={{link,metadata}}/></div>;
+  return <div className={kind==="records"?"related-record":undefined}><RelatedPreviewItem id={listAnchor(kind,id)} to={path} title={title} cells={cells} summary={kind==="tasks"?cells?.[0]:undefined} list={{link,metadata}}/></div>;
 }

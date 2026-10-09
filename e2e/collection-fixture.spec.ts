@@ -33,6 +33,17 @@ for (const [kind, label, title] of [["entities", "엔터티", entity.prop1], ["t
     await modes.getByRole("radio", { name: mode, exact: true }).click();
     await expect(modes.getByRole("radio", { name: mode, exact: true })).toHaveAttribute("aria-checked", "true");
     await expect(list.getByRole("button", { name: title, exact: true })).toBeVisible();
+    if (kind === "tasks") {
+      const toggle = list.getByRole("button", { name: title, exact: true });
+      await expect(list.locator(".badge")).toHaveCount(1);
+      await expect(list.locator(".badge")).toBeVisible();
+      await toggle.click();
+      await expect(list.getByText(task.body, { exact: true })).toBeVisible();
+      await expect(list.locator(".badge")).toHaveCount(1);
+      await expect(list.locator(".related-preview .badge")).toHaveCount(0);
+      await toggle.click();
+      await expect(list.locator(".badge")).toHaveCount(1);
+    }
   }
   expect(state.reads.filter(url => new URL(url).pathname === `/api/${kind}`).length).toBe(readCount);
   await modes.getByRole("radio", { name: "테이블", exact: true }).click();
@@ -205,4 +216,67 @@ test("restored preview waits for its read and settles even when tag lookup fails
   await expect(title).toHaveAttribute("aria-expanded", "true");
   await expect(page.getByText("태그 이름 조회 실패", { exact: true })).toBeVisible();
   expect(state.writes).toEqual([]); expect(state.errors).toEqual([]);
+});
+
+for (const action of ["delete", "create"] as const) test(`unavailable change target ${action} keeps the same disclosure row and entity links`, async ({page}) => {
+  const history={...record,record_kind:"change" as const,change:{target_kind:"task" as const,target_id:task.id,target_title:task.title,action,source:"http" as const,event_id:id(88),path:null,before:null,after:null}};
+  const state=await fixture(page,[history]);
+  state.rows.tasks.length=0;
+  await page.goto(`/records/${history.id}`);
+  const detail=page.getByRole("dialog");
+  const tasks=detail.getByRole("region",{name:"할 일 (1개)"});
+  const badge=action==="delete"?"삭제됨":"조회 불가";
+  await expect(tasks.getByText(badge,{exact:true})).toBeVisible();
+  await expect(detail.getByRole("region",{name:"엔터티 (1개)"})).toBeVisible();
+  for(const view of ["리스트","카드","테이블"]){
+    await tasks.getByRole("radio",{name:view,exact:true}).click();
+    await expect(tasks.getByText(badge,{exact:true})).toBeVisible();
+    const toggle=tasks.getByRole("button",{name:task.title,exact:true});
+    await expect(toggle).toHaveAttribute("aria-expanded","false");
+    await expect(tasks.getByText(/기록에 저장된 당시 제목/)).toBeHidden();
+    await toggle.click();
+    await expect(tasks.locator(".related-preview")).toContainText("기록에 저장된 당시 제목");
+    await expect(tasks.getByRole("link",{name:`${task.title} 상세`,exact:true})).toHaveCount(0);
+    await toggle.click();
+    await expect(tasks.locator(".related-preview")).toBeHidden();
+  }
+  expect(state.writes).toEqual([]);
+});
+
+test("responsive brand aligns desktop title and menu/search gaps, with icon-only mobile brand", async ({ page }) => {
+  await fixture(page);
+  await page.goto("/entities");
+  await expect(page.locator("#entities-title")).toBeVisible();
+  for (const width of [320,360,390,639,640,768,1024,1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    const geometry = await page.evaluate(() => {
+      const title = document.querySelector<HTMLElement>("#entities-title")!;
+      const brand = document.querySelector<HTMLElement>(".navigation-brand")!;
+      const rect = (el: Element) => el.getBoundingClientRect();
+      const ts = getComputedStyle(title), bs = getComputedStyle(brand);
+      return {
+        overflow: document.documentElement.scrollWidth > innerWidth,
+        brandShown: rect(brand).height > 0,
+        headerShown: rect(document.querySelector(".workspace-header")!).height > 0,
+        titleTop: rect(title).top, brandTop: rect(brand).top,
+        searchGap: rect(document.querySelector(".query-bar")!).top - rect(title).bottom,
+        menuGap: rect(document.querySelector(".nav-profile-trigger")!).top - rect(brand).bottom,
+        titleFont: ts.fontSize, brandFont: bs.fontSize,
+        mobileIcon: getComputedStyle(title, "::before").backgroundImage,
+      };
+    });
+    expect(geometry.overflow, `${width}px`).toBe(false);
+    expect(geometry.headerShown).toBe(false);
+    if (width >= 1024) {
+      expect(geometry.brandShown).toBe(true);
+      expect(geometry.titleFont).toBe(geometry.brandFont);
+      expect(geometry.titleTop).toBe(geometry.brandTop);
+      expect(geometry.searchGap).toBe(16);
+      expect(geometry.menuGap).toBe(geometry.searchGap);
+    } else {
+      expect(geometry.brandShown).toBe(false);
+      expect(geometry.mobileIcon).not.toBe("none");
+    }
+    if (width === 390 || width === 1440) await page.screenshot({ path: test.info().outputPath(`header-${width}.png`) });
+  }
 });

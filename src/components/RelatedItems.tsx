@@ -1,30 +1,31 @@
-import { createContext, useContext, useId, type ReactNode } from "react";
+import { useId, type ReactNode } from "react";
 import { DetailLink, useDetailViewState } from "../lib/detail-exploration.tsx";
 import { CollectionHeading, RelatedCollectionView, useItemLayout, type ItemView } from "./Collection.tsx";
 import "./related-items.css";
+import { ItemExpansion, ExpansionGroupProvider } from "./item-expansion.tsx";
+import { useContext } from "react";
 
 /** A related section owns presentation; its feature supplies data, loading and actions. */
 export function RelatedSection({title,count,hasMore=false,action,children,views=true}: {title:string;count?:number;hasMore?:boolean;action?:ReactNode;children:ReactNode;views?:boolean}) {
   const heading=useId();
   const [view,setView]=useDetailViewState<ItemView>(`collection-view-${title}`,"list");
-  return <RelatedCollectionView.Provider value={view}><section className="detail-section related-section" aria-labelledby={heading}>
+  return <RelatedCollectionView.Provider value={view}><ExpansionGroupProvider><section className="detail-section related-section" aria-labelledby={heading}>
     <div className="detail-section-head"><div>{views?<CollectionHeading id={heading} label={title} count={count} hasMore={hasMore} view={view} onChange={next=>setView(next as ItemView)}/>:<h2 id={heading} className="section-title">{title}{count!==undefined?` (${count}개${hasMore?"+":""})`:""}</h2>}</div>{action}</div>
     {children}
-  </section></RelatedCollectionView.Provider>;
+  </section></ExpansionGroupProvider></RelatedCollectionView.Provider>;
 }
 
-const Expansion = createContext<{value:string|null;toggle:(key:string)=>void}|null>(null);
-export function ItemExpansionProvider({value,toggle,children}:{value:string|null;toggle:(key:string)=>void;children:ReactNode}) {
-  return <Expansion.Provider value={{value,toggle}}>{children}</Expansion.Provider>;
+export function ItemExpansionProvider({value,toggle,setMany,children}:{value:readonly string[];toggle:(key:string)=>void;setMany:(keys:readonly string[],open:boolean)=>void;children:ReactNode}) {
+  return <ItemExpansion.Provider value={{value,toggle,setMany}}>{children}</ItemExpansion.Provider>;
 }
-/** One disclosure across a detail; returning from a related viewer restores its previous selection. */
+/** Each disclosure is independent; returning from a related viewer restores all open items. */
 export function RelatedExpansionProvider({children}:{children:ReactNode}) {
-  const [value,setValue]=useDetailViewState<string|null>("related-expanded",null);
-  return <ItemExpansionProvider value={value} toggle={key=>setValue(prior=>prior===key?null:key)}>{children}</ItemExpansionProvider>;
+  const [value,setValue]=useDetailViewState<string[]>("related-expanded",[]);
+  return <ItemExpansionProvider value={value} toggle={key=>setValue(prior=>prior.includes(key)?prior.filter(path=>path!==key):[...prior,key])} setMany={(keys,open)=>setValue(prior=>open?[...new Set([...prior,...keys])]:prior.filter(path=>!keys.includes(path)))}>{children}</ItemExpansionProvider>;
 }
-export function useRelatedExpansion() { return useContext(Expansion); }
+export function useRelatedExpansion() { return useContext(ItemExpansion); }
 
-export function RelatedItem({id,to,title,metadata,restoreKey,action,disclosure,cells=[]}: {id?:string;to?:string;title:string;metadata?:ReactNode;restoreKey?:string;action?:ReactNode;cells?:ReactNode[];disclosure?:{expanded:boolean;toggle:()=>void;content:ReactNode}}) {
+export function RelatedItem({id,to,title,metadata,summary,titleBadge,restoreKey,action,disclosure,cells=[]}: {id?:string;to?:string;title:string;metadata?:ReactNode;summary?:ReactNode;titleBadge?:ReactNode;restoreKey?:string;action?:ReactNode;cells?:ReactNode[];disclosure?:{expanded:boolean;toggle:()=>void;content:ReactNode}}) {
   const panel=useId(),generatedHeading=useId(),heading=id??generatedHeading;
   const layout=useItemLayout(),table=layout?.view==="table";
   const titleContent=disclosure
@@ -36,7 +37,8 @@ export function RelatedItem({id,to,title,metadata,restoreKey,action,disclosure,c
   const details=<>{metadata&&(!disclosure||disclosure.expanded)&&<div className="related-item-meta">{metadata}</div>}{disclosure&&<div id={panel} hidden={!disclosure.expanded} aria-labelledby={heading} className="related-preview">{disclosure.expanded&&disclosure.content}</div>}</>;
   return <div className="related-item" data-expanded={disclosure?.expanded||undefined}>
     <div className="related-item-title" role={table?"row":undefined}>
-      <div className="related-item-heading" role={table?"cell":undefined}>{titleContent}{table&&actions}</div>
+      <div className="related-item-heading" role={table?"cell":undefined}><div className="related-item-title-content">{titleContent}{titleBadge}</div>{table&&actions}</div>
+      {!table&&layout?.view!=="cards"&&summary&&<div className="related-item-summary">{summary}</div>}
       {table?layout.columns.slice(1).map((column,index)=><div className={`collection-table-cell${layout.numericColumns.includes(index+1)?" collection-numeric":""}`} role="cell" key={column}>{cells[index]??"—"}</div>):actions}
     </div>
     {layout?.view==="cards"&&cells.length>0&&<dl className="collection-card-data">{layout.columns.slice(1).map((column,index)=>cells[index]!=null&&<div key={column}><dt>{column}</dt><dd>{cells[index]}</dd></div>)}</dl>}

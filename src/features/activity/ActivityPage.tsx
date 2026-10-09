@@ -26,7 +26,7 @@ import { EntityScope } from "../entity/EntityScope.tsx";
 import { ListExpansionProvider, ListPreviewItem } from "../relations/ListPreviewItem.tsx";
 import "./activity.css";
 
-function ActivitySection({ kind, tags, bounds, dictionary }: { kind: WorkspaceListKind; tags: string[]; bounds: NonNullable<ReturnType<typeof periodBounds>>; dictionary: ReturnType<typeof useTagDictionary> }) {
+function ActivitySection({ kind, tags, bounds, dictionary, onCreate }: { onCreate: () => void; kind: WorkspaceListKind; tags: string[]; bounds: NonNullable<ReturnType<typeof periodBounds>>; dictionary: ReturnType<typeof useTagDictionary> }) {
   const [view,changeView]=useMainCollectionView(kind==="records");
   const {formatDateTime,timezone}=useDisplayTime();
   const list = useActivityList(kind, { tags, bounds, layoutReady: !!dictionary.tags || dictionary.failed });
@@ -40,21 +40,21 @@ function ActivitySection({ kind, tags, bounds, dictionary }: { kind: WorkspaceLi
         <time dateTime={time} title={formatDateTime(time)}>{new Intl.DateTimeFormat("ko-KR", { dateStyle: "short", timeZone: timezone }).format(new Date(time))}</time>];
     return <ListPreviewItem kind={kind} id={item.id} title={displayText(item)} cells={cells} metadata={"match" in item ? <SearchMatch item={item}/> : undefined}/>;
   };
-  return <section className={`activity-section ${kind}`} aria-label={`${kind === "tasks" ? "할 일" : "기록"} 목록`}>
-    <CollectionHeading label={kind==="tasks"?"할 일":"기록"} count={list.items?.length} hasMore={!!list.cursor} view={view} onChange={changeView} calendar={kind==="records"}/>
+  return <ListExpansionProvider readiness={list.readiness}><section className={`activity-section ${kind}`} aria-label={`${kind === "tasks" ? "할 일" : "기록"} 목록`}>
+    <div className="detail-section-head"><CollectionHeading label={kind==="tasks"?"할 일":"기록"} count={list.items?.length} hasMore={!!list.cursor} view={view} onChange={changeView} calendar={kind==="records"}/><TabCreateButton label={kind === "tasks" ? "할 일 등록" : "기록 작성"} onClick={onCreate}/></div>
     {q && <p className="help">관련도순으로 회수한 검색 결과{kind === "records" ? "를 날짜별로 표시합니다." : "입니다."}</p>}
     {metadata?.search_state === "keyword_fallback" && <Notice>의미 검색을 사용할 수 없어 키워드 검색 결과를 표시합니다.</Notice>}
     {metadata && metadata.semantic_coverage.pending + metadata.semantic_coverage.excluded > 0 && <p className="help">의미 색인 대기 {metadata.semantic_coverage.pending}개 · 제외 {metadata.semantic_coverage.excluded}개</p>}
     {list.busy && !list.items && <p role="status" className="secondary">불러오는 중…</p>}
     {list.items?.length === 0 && <p className="secondary">{filtered ? `조건에 맞는 ${kind === "tasks" ? "할 일" : "기록"}이 없습니다.` : `아직 ${kind === "tasks" ? "할 일" : "기록"}이 없습니다.`}</p>}
-    {list.items && <ListExpansionProvider readiness={list.readiness}><TagReadProvider dictionary={dictionary} enabled={list.items.some(item => item.tag_ids.length > 0)}>
+    {list.items && <TagReadProvider dictionary={dictionary} enabled={list.items.some(item => item.tag_ids.length > 0)}>
       {kind === "tasks" ? <CollectionList view={view==="calendar"?"list":view} label="할 일 목록" columns={["할 일","상태","기한"]} numericColumns={[2]}>{list.items.map(item => <li key={item.id}>{preview(item)}</li>)}</CollectionList>
         : view==="calendar"?<RecordCalendar items={list.items} at={item=>"occurred_at" in item?item.occurred_at:(item as SearchItem).at} partial={!!list.cursor}>{item=>preview(item)}</RecordCalendar>
         : <Timeline items={list.items} kind="기록" view={view} at={item => "occurred_at" in item ? item.occurred_at : (item as SearchItem).at}>{item => preview(item)}</Timeline>}
-    </TagReadProvider></ListExpansionProvider>}
+    </TagReadProvider>}
     {list.error && <Notice kind="error">{list.error}</Notice>}
     {list.showMoreControl && <button id={`activity-${kind}-page-control`} type="button" className="btn" aria-disabled={list.busy || !list.cursor && !list.error} onClick={list.error ? list.retry : list.more}>{list.busy ? "불러오는 중…" : list.error ? "다시 시도" : list.cursor ? `${kind === "tasks" ? "할 일" : "기록"} 더 보기` : "모두 불러왔습니다"}</button>}
-  </section>;
+  </section></ListExpansionProvider>;
 }
 
 export function ActivityPage({ kind }: { kind: WorkspaceListKind }) {
@@ -80,7 +80,7 @@ export function ActivityPage({ kind }: { kind: WorkspaceListKind }) {
   const saved = (kind: string, id: string) => { const next = new URLSearchParams(params); next.delete("create"); create.finish(`/${kind}s/${id}?list=${encodeURIComponent(`${pathname}?${next}`)}`); };
   if (legacy.route !== pathname || legacy.params.toString() !== params.toString()) return <Navigate replace to={`${legacy.route}?${legacy.params}${legacy.hash}`} />;
   return <>
-    <section className="panel main-tab-header" aria-labelledby={`${kind}-title`}><div className="panel-head"><h1 id={`${kind}-title`} className="page-title" tabIndex={-1}>{label}</h1><TabCreateButton label={kind === "tasks" ? "할 일 등록" : "기록 작성"} onClick={begin}/></div>
+    <section className="panel main-tab-header" aria-labelledby={`${kind}-title`}><div className="panel-head"><h1 id={`${kind}-title`} className="page-title" tabIndex={-1}>{label}</h1></div>
       <div className="panel-body">
         {params.has("legacy_activity") && <Notice>목록을 나누어 {label} 탭으로 이동했습니다. {kind === "tasks" ? "기록과 기록 기간은 기록 탭에서 확인하세요." : "할 일과 진행 상태는 할 일 탭에서 확인하세요."}</Notice>}
         <div className="query-bar"><TabSearch/>
@@ -98,7 +98,7 @@ export function ActivityPage({ kind }: { kind: WorkspaceListKind }) {
         </TabFilters></div>
       </div>
     </section>
-    <ActivitySection kind={kind} tags={tags} bounds={bounds} dictionary={dictionary}/>
+    <ActivitySection kind={kind} tags={tags} bounds={bounds} dictionary={dictionary} onCreate={begin}/>
     {create.open && (kind === "tasks" ? <TaskFormModal key={create.key} mode="create" open initial={emptyTask(timezone)} onClose={create.close} onRouteDiscard={create.discard} onSave={async (draft, creationId) => { const task = await api<TaskResult>("POST", "/tasks", { ...taskInput(draft), id: creationId() }); saved("task", task.id); }}/>
       : <RecordFormModal key={create.key} title="기록 작성" submitLabel="저장" open initial={emptyRecord()} onClose={create.close} onRouteDiscard={create.discard} onSave={async (draft, creationId) => { const record = await api<RecordResult>("POST", "/records", { ...draft, id: creationId() }); saved("record", record.id); }}/>) }
   </>;
