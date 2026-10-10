@@ -46,6 +46,19 @@ Draft PR은 `check`·`integration`을 생략하고 관련 로컬 검사로 개�
 
 개발 중에는 관련 단일 검사부터 실행한다. 개별 PR의 변경에 맞는 로컬 검사와 CI, 스펙 통합 후 브라우저 범위 판단은 서로 구분한다. `test:integration:local`에는 기본 E2E가 포함되므로 개별 PR마다 관행적으로 실행하는 명령으로 사용하지 않는다. E2E를 제외한 실제 계약 검사가 필요하면 DB·HTTP·MCP 명령을 선택한다. 검사 로그에는 실제 실행한 명령과 포함 범위를 기록한다.
 
+## 웹·E2E 코드의 국소 포맷팅
+
+웹 TS/TSX와 브라우저 검사는 package.json·lockfile에 고정된 Deno formatter를 사용한다. `--no-config --line-width 120`으로 서버 설정·사용자 설정의 자동 탐색과 구분하고, 기본 2칸 들여쓰기·큰따옴표·세미콜론 스타일을 따른다. formatter는 한 import 안의 이름 순서를 정렬하고 필요한 제어문 중괄호도 배치한다. 별도 formatter 의존성이나 저장소 전체 재포맷을 추가할 필요는 없다.
+
+바꾸는 파일을 명시해 실행하고 같은 인자에 `--check`를 더해 재검사한다. 예를 들어 목록 표현과 관련 화면 검사만 고르면 다음과 같다.
+
+```sh
+npm exec -- deno fmt --no-config --line-width 120 src/components/Collection.tsx e2e/workspace-screens.responsive-layout.fixture.ts
+npm exec -- deno fmt --no-config --line-width 120 --check src/components/Collection.tsx e2e/workspace-screens.responsive-layout.fixture.ts
+```
+
+포맷팅은 필요한 구역으로 제한하고 동작 수정과 다른 변경으로 검토한다. 문자열·JSX 표시 내용·테스트 의미를 보존하며, 대상 코드의 타입·빌드·관련 단위 검사와 E2E 발견 목록을 확인한다. 브라우저 실행은 아래의 스펙 통합 기준을 따른다. 검색 결과와 변경 hunk에서 필요한 조작을 찾아 읽기 쉬워졌는지 확인하며, 줄 수나 텍스트 크기의 변화는 실제 토큰 절감 측정과 구분한다.
+
 ## 로컬 E2E 실행 기준
 
 브라우저 E2E의 기본 판단 단위는 스펙이다. 개별 PR에서는 변경에 맞는 로컬 검사와 CI를 수행하며, E2E는 스펙의 전체 변경이 통합된 상태에서 검토한다. 통합은 모든 구현 변경이 한 checkout에 합쳐진 상태를 뜻하며 개별 PR의 머지 여부만으로 판단하지 않는다. 스펙 없이 진행하는 단독 PR은 하나의 완료 단위로 취급한다.
