@@ -77,6 +77,6 @@ Playwright 결과·trace와 서비스 로그는 다음 실행으로 덮어써질
 | principle-current | 현재 원칙 desktop/mobile |
 | activity | 활동 desktop/mobile 서울 시간대 + desktop UTC 날짜 변이 |
 | navigation-fixture | 탐색·프로필 desktop, OAuth 동의 desktop/mobile |
-| workspace-screens | workspace-screens의 화면 검사만 실행 |
+| workspace-screens | [사용자 흐름별 작업 공간 화면 검사](../../e2e/workspace-screens.md)만 실행 |
 
 페이지 읽기의 상한·취소·실패 규칙은 `paged-list.test.ts`에서 검증한다. `pagination-fixture.spec.ts`는 실제 앱에서 URL 복원·누적 행·재시도 cursor·초점·읽던 위치·필터 초기화를 확인한다. 대량 모의 목록 때문에 실제 로그인 검사를 반복하지 않는다. 실제 API의 로그인·저장·웹/MCP 왕복 검사는 기본 설정에 남긴다.
