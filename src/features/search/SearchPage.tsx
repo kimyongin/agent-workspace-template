@@ -1,14 +1,12 @@
 import { DetailLink as Link, useDetailExploration } from "../../lib/detail-exploration.tsx";
 import { SearchMatch } from "../../components/SearchMatch.tsx";
 import { useEffect, useRef, useState } from "react";
-import { useLocation, useSearchParams } from "react-router";
-import { type SearchResult } from "@contracts/search.ts";
+import { useSearchParams } from "react-router";
 import { Field, Notice } from "../../components/Field.tsx";
-import { api } from "../../lib/api.ts";
 import { useDisplayTime } from "../../lib/useDisplayTime.ts";
 import { TagFilter, TagNames, TagReadProvider, useTagDictionary } from "../tags/TagPicker.tsx";
 import { EntityPicker } from "../entity/EntityPicker.tsx";
-import { workspaceSearchScope } from "./search-scope.ts";
+import { useSearchRead } from "./useSearchRead.ts";
 import { activityTags } from "../activity/activity-filters.ts";
 const kinds={task:"할 일",record:"기록",principle:"원칙"} as const;
 export function SearchPage(){
@@ -16,59 +14,15 @@ export function SearchPage(){
   useDetailExploration();
   const composing=useRef(false);
   const [params,setParams]=useSearchParams(), [draft,setDraft]=useState(params.get("q")??"");
-  const [result,setResult]=useState<SearchResult|null>(null), [error,setError]=useState<string|null>(null), [busy,setBusy]=useState(false);
-  const generation=useRef(0), [retry,setRetry]=useState(0);
-  const loaded=useRef<{key:string;retry:number;count:number;result:SearchResult}|null>(null);
-  const pending=useRef<AbortController|null>(null);
-  const {hash}=useLocation(),focused=useRef("");
-  const searchParams=new URLSearchParams(params);searchParams.delete("pages");searchParams.delete("scroll");
-  const key=searchParams.toString(),q=params.get("q")??"",tag=params.get("tag_id")??"";
-  const requested=Number(params.get("pages")??1),pages=Number.isSafeInteger(requested)&&requested>0?Math.min(requested,1000):1;
+  const [retry,setRetry]=useState(0);
+  const q=params.get("q")??"",tag=params.get("tag_id")??"";
+  const {result,error,busy,more}=useSearchRead(params,retry);
+  useEffect(()=>setDraft(q),[q]);
   const selectedKind=params.get("kind");
   const tasks=useTagDictionary(selectedKind!=="record",false,"task"),records=useTagDictionary(selectedKind!=="task",false,"record");
   const dictionary=selectedKind==="task"?tasks:selectedKind==="record"?records:{tags:tasks.tags&&records.tags?[...tasks.tags.map(tag=>({...tag,name:`할 일: ${tag.name}`})),...records.tags.map(tag=>({...tag,name:`기록: ${tag.name}`}))]:null,failed:tasks.failed||records.failed,retry:()=>{tasks.retry();records.retry();}};
-  const input=()=>workspaceSearchScope(params);
-  useEffect(()=>{
-    let alive=true;const current=++generation.current;setDraft(q);setError(null);focused.current="";
-    const controller=new AbortController();pending.current=controller;
-    const prior=loaded.current,cached=prior?.key===key&&prior.retry===retry&&prior.count<=pages?prior:null;
-    if(!cached){loaded.current=null;setResult(null);}setBusy(!!q);
-    if(q){
-      try{const value=input(),restore=async()=>{
-        let result=cached?.result??null,count=cached?.count??0;
-        const anchor=/^#search-(task|record|principle)-([0-9a-f-]+)$/.exec(hash);
-        let targetPages=pages;
-        while(count<targetPages&&(!result||result.next_cursor)){
-          const next:SearchResult=await api<SearchResult>("POST","/search",{...value,...(!count&&anchor?{anchor:{kind:anchor[1],id:anchor[2]}}:{}),...(result?.next_cursor?{cursor:result.next_cursor}:{})},controller.signal);
-          if(!count)targetPages=Math.max(pages,next.anchor_page??0);
-          if(!alive)return;result={...next,items:[...(result?.items??[]),...next.items]};count++;
-          loaded.current={key,retry,count,result};setResult(result);
-        }
-      };restore()
-        .catch(()=>{if(alive)setError("검색하지 못했습니다. 다시 시도하세요.");}).finally(()=>{if(alive&&current===generation.current)setBusy(false);});
-      }catch{setBusy(false);setError("검색어와 필터를 확인하세요. 검색어는 1~200자입니다.");}
-    }
-    return()=>{alive=false;generation.current++;controller.abort();};
-  },[key,pages,retry,hash]);
-  useEffect(()=>{
-    if(busy||focused.current===hash||!/^#search-(task|record|principle)-[0-9a-f-]+$/.test(hash))return;
-    const target=document.getElementById(hash.slice(1));if(!target){if(result){document.getElementById("search-title")?.focus();focused.current=hash;}return;}
-    target.focus({preventScroll:true});const y=Number(params.get("scroll"));
-    if(params.has("scroll")&&Number.isFinite(y)&&y>=0)window.scrollTo(0,y);
-    const rect=target.getBoundingClientRect();if(rect.top<0||rect.bottom>window.innerHeight)target.scrollIntoView({block:"center"});
-    focused.current=hash;
-  },[hash,result,busy]);
   const change=(name:string,value:string)=>{const p=new URLSearchParams(params);p.delete("pages");p.delete("scroll");if(name==="kind"){p.delete("tag_id");p.delete("tag_ids");}value?p.set(name,value):p.delete(name);setParams(p);};
   const clearTags=()=>{const next=new URLSearchParams(params);for(const name of ["tag_id","tag_ids","pages","scroll"])next.delete(name);setParams(next);};
-  const more=async()=>{
-    if(!result?.next_cursor)return;const current=generation.current;setBusy(true);setError(null);
-    try{const next=await api<SearchResult>("POST","/search",{...input(),cursor:result.next_cursor},pending.current?.signal);if(current===generation.current){
-      const combined={...next,items:[...result.items,...next.items]},count=(loaded.current?.count??1)+1;
-      loaded.current={key,retry,count,result:combined};setResult(combined);const p=new URLSearchParams(params);p.set("pages",String(count));setParams(p,{replace:true});
-    }}
-    catch{if(current===generation.current)setError("다음 결과를 불러오지 못했습니다. 다시 시도하세요.");}
-    finally{if(current===generation.current)setBusy(false);}
-  };
   return <section className="panel search-page" aria-labelledby="search-title">
     <h1 id="search-title" className="page-title" tabIndex={-1}>검색</h1>
     <form className="search-form" onSubmit={e=>{e.preventDefault();if(composing.current)return;const value=draft.trim();if(value===q)setRetry(n=>n+1);else change("q",value);}}>
@@ -98,7 +52,7 @@ export function SearchPage(){
         <Link id={`search-${r.kind}-${r.id}`} className="item-title" to={r.path}><span className={r.kind==="record"?"record-preview":undefined}>{r.title}</span></Link>{r.snippet!==r.title&&<span className="secondary record-snippet">{r.snippet}</span>}
         <div className="search-result-meta"><span className="meta">{kinds[r.kind]} · {formatDateTime(r.at)}</span><SearchMatch item={r}/></div>
       </div></li>;})}</ul>
-      {result.next_cursor&&<button type="button" className="btn" disabled={busy} onClick={more}>더 보기</button>}
+      {result.next_cursor&&<button type="button" className="btn" disabled={busy} onClick={()=>more?.()}>더 보기</button>}
     </>}
   </section>;
 }

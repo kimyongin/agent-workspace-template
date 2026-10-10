@@ -39,6 +39,7 @@
 | 일반 기록 | 사용자가 자료·상담 내용 등을 직접 작성한 기록. 화면에서는 직접 작성으로 표시한다. | [기록 규칙](docs/adr/0014-minimal-content-model.md) |
 | 변경 기록 | 업무 대상·할 일·원칙 등의 등록·수정·삭제·상태 변경에 함께 남기는 메모. 사건 정보와 메모를 구분한다. | [기록 규칙](docs/adr/0014-minimal-content-model.md) |
 | 기록 템플릿 | 업무 변경 시 기본 메모를 채우는 문구와 변수. 모델·행동별로 기본 기록 태그도 함께 정한다. | [템플릿 결정](docs/adr/0015-change-record-templates.md) |
+| 업무 설정 초안 | 발급처나 기록 템플릿 설정에서 편집 중인 값. 저장한 기준값과 구분하며, 최신값을 확인할 때도 입력한 내용을 유지한다. 저장 전에는 실제 업무 설정을 바꾸지 않는다. | [설정 결정](docs/adr/0015-change-record-templates.md), [화면 규칙](docs/design/ui-patterns.md) |
 | 발급처 | 엔터티 식별자를 발급한 곳 또는 직접 관리하는 식별자의 구분. 같은 코드라도 발급처가 다르면 다른 대상이다. | [식별 결정](docs/adr/0016-entity-source-identity-and-restoration.md) |
 | 엔터티 식별자 | 발급처와 입력한 코드의 조합으로 같은 대상을 구분하는 값. 제목이나 설명이 바뀌어도 같은 대상을 가리킨다. | [식별 결정](docs/adr/0016-entity-source-identity-and-restoration.md) |
 | 복원 | 삭제 상태로 보관한 엔터티를 같은 식별자로 다시 사용하며 이전 속성과 연결을 이어가는 행동. | [복원 결정](docs/adr/0016-entity-source-identity-and-restoration.md) |
