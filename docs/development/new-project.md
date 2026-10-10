@@ -25,7 +25,7 @@ Supabase의 프로젝트 식별과 설정 적용 조건은 [공식 CLI 설정](h
 
 1. `npm run setup:local`을 실행한다. 로컬 서명 키·비밀번호·사용자 A/B와 함수 환경이 생성된다. 출력에서 준비 완료를 확인하되 환경 파일의 키·비밀번호를 로그나 티켓에 붙이지 않는다.
 2. 같은 명령을 다시 실행한다. 생성 키·비밀번호와 사용자 설정·주석이 유지되고 내용이 같은 `.env.local`, `supabase/functions/.env`의 byte·수정 시각이 유지되는지 값 공개 없이 비교한다.
-3. `npm run serve:functions`와 `npm run dev`로 해당 복사본의 서버와 웹을 실행한다. 로컬 개발용 이메일 로그인으로 기본 화면을 확인한다. `npm run test:all`은 해당 설정의 DB·HTTP·MCP·브라우저 공개 계약을 확인한다. 테스트가 새로 시작한 함수 서버는 해당 프로젝트 안에서 정리하며 다른 프로젝트의 서버를 정지하지 않는다.
+3. `npm run serve:functions`와 `npm run dev`로 해당 복사본의 서버와 웹을 실행한다. 로컬 개발용 이메일 로그인으로 기본 화면을 확인한다. `npm run test:integration:local`은 해당 설정의 DB·HTTP·MCP·브라우저 공개 계약을 확인한다. 테스트가 새로 시작한 함수 서버는 해당 프로젝트 안에서 정리하며 다른 프로젝트의 서버를 정지하지 않는다.
 4. `node scripts/check-plugin.mjs`, 문서·경계·서버·웹 검사와 빌드를 실행한다. 두 manifest의 이름·버전, 두 MCP 설정의 endpoint, 공유 제품 스킬의 도구 안내가 일치하는지 기존 검사 도구로 확인한다. 기본 브랜드·`workspace` 식별자는 도메인 미정일 때 유지한다. 로컬 MCP 시험은 SDK/OAuth 증거이며 실제 Claude·Codex 제품 스킬 선택·행동 검증을 대신하지 않는다.
 
 새 앱의 이름을 정하면 웹 브랜드·package 이름·제품 manifest와 marketplace·공유 제품 스킬·README를 함께 검토한다. 운영 MCP endpoint와 공개 저장소 주소는 새 서비스 대상이 확정된 뒤 바꾸며 원본 endpoint로 로컬 쓰기를 시험하지 않는다. 로컬 설정 파일과 secrets는 제품 패키지에 포함하지 않는다.
