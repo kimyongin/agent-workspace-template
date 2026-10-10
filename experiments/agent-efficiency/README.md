@@ -1,21 +1,23 @@
 # 에이전트 작업 비용 비교
 
-[#277](https://github.com/kimyongin/agent-workspace-template/issues/277)의 네 요청을 재실행할 때만 읽는다. 요청·완료 조건의 정본은 [protocol.json](protocol.json)이다. 실행 증거와 비교 결론은 GitHub 이슈에 남긴다.
+[#277](https://github.com/kimyongin/agent-workspace-template/issues/277)의 네 요청을 재실행할 때만 읽는다. 요청·완료 조건의 정본은 [protocol.json](protocol.json)이다. 측정 정의와 결과는 이 폴더, 실제 실행 증거·리뷰·완료 상태는 GitHub 이슈와 연결 PR에 남긴다.
 
 ## 고정한 기준
 
 기준 revision은 `39e0f63ab8355cafbbbe716eff2adf0817c8c46a`, 모델은 GPT-6.1 Sol medium이다. 당시 미커밋 E2E 문서 변경은 **기준선에서 제외**했다. 개선 revision에 그 변경이 들어 있으면 저장소 차이로 포함하고 별도 표시한다. [baseline-inventory.json](baseline-inventory.json)은 이 revision의 파일 내용·SHA-256·UTF-8 바이트·Unicode code point 수를 고정한다. inventoryPaths는 비교용 자료 목록, seedPaths는 대상 확인용 위치이며 에이전트에게 강제로 읽힐 자료 목록이 아니다.
 
-이 파일은 **정적 자료 기준선**이다. 이전 에이전트 실행 로그가 없어 네 작업의 첫 수정 전 문맥, 토큰, 호출, 재작업, 완료·검증 결과는 모두 미측정이다. `null`은 0이 아니다. 파일 크기나 이 자료를 모은 호출을 실제 작업 읽기량·도구 호출로 집계하지 않는다. 실제 작업 기준선과 실제 토큰 절감은 미검증이며, 아래 paired replay가 끝나야 작업 비용을 비교할 수 있다.
+[baseline-inventory.json](baseline-inventory.json)은 **정적 자료 기준선**이며 실행 비용이 아니다. 2026-10-10에 네 요청을 세 쌍씩 실행한 24개 관측 결과는 [통합 평가](results-2026-10-10.md), 안전한 수치·해시는 [machine summary](results-2026-10-10.summary.json)에 있다. 국소 작업 18개는 필수 동작 검증을 충족했고 공개 API 계획 6개는 기존 원격 스펙 확인이 부분 완료다. 일관된 비용 감소는 확인되지 않았다.
+
+CLI turn.completed의 input/cached/output과 직접 command event, raw recorded output 문자는 관측했지만 전체 주입 문맥·실제 전달된 출력과 bucket별 읽기량·batch 내부 명령/조회 수는 미측정이다. `null`은 0이 아니다. 파일 크기를 읽기량으로, 기록된 출력을 실제 전달 문맥으로, 문자 수를 토큰으로 대체하지 않는다. 캐시·선택한 검증 폭·환경 복구가 달라 순수 지침 효과나 절감률을 주장하지 않는다. 최종 리뷰·CI·머지 상태는 [PR #288](https://github.com/kimyongin/agent-workspace-template/pull/288)이 소유한다.
 
 ## 재실행
 
 1. 기준 revision과 비교 revision을 각각 깨끗한 일회용 checkout으로 준비한다. 새 Codex 채팅마다 해당 checkout의 루트 `AGENTS.md`, 같은 사용자 AGENTS 지침·환경 정보와 protocol의 요청문 하나만 시작 문맥으로 제공한다. 이 README·inventory·seedPaths·예상 진입 답안을 채팅에 미리 넣지 않는다. 이전 채팅, 실행 결과, diff, 계획을 넘기지 않는다. 네 요청은 독립 실행한다.
-2. GPT-6.1 Sol medium을 명시한다. 양쪽의 Codex 버전, 호스트 OS, 실행 도구 이름·버전과 설치/연결 플러그인 ID 목록, 권한(sandbox·network·writable roots·approval), 시작 지침의 원문 또는 해시를 실행 증거에 먼저 저장한다. 전역 플러그인 설정을 그대로 유지하고 같은 도구 구성을 쓴다. 현재 baseline에 실행 환경 snapshot이 없으므로 이 단계에서 양쪽 snapshot을 확보하기 전에는 환경이 같다고 주장하지 않는다. 경로 차이는 대응 checkout 경로로 표준화한다.
+2. GPT-6.1 Sol medium을 명시한다. 양쪽의 Codex 버전, 호스트 OS, 실행 도구 이름·버전과 설치/연결 플러그인 ID 목록, 권한(sandbox·network·writable roots·approval), 시작 지침의 원문 또는 해시를 실행 증거에 먼저 저장한다. 전역 플러그인 설정을 그대로 유지하고 같은 도구 구성을 쓴다. 2026-10-10 replay의 observable 환경·요청 해시는 일치했지만 전체 주입 문맥은 미관측이다. 새 비교에서도 양쪽 snapshot을 확보하고 일치 범위와 미관측 범위를 구분한다. 경로 차이는 대응 checkout 경로로 표준화한다.
 3. 요청별 완료·검증 조건을 양쪽에 동일하게 적용한다. 필요한 문서·보안·접근성·검증을 생략해서 얻은 감소는 개선에서 제외한다. public-api는 계획을 제시하고 제품 수정 전에 종료한다. 합의된 계약 검증 interface를 재승인받는 단계는 추가하지 않는다.
 4. 첫 제품 수정(계획 전용 요청은 첫 계획 산출물) 직전까지 읽힌 원문/검색 결과와 전체 실행 이벤트를 저장소 밖의 실행별 위치에 보존한다. 시작 지침, 저장소 문서·코드, 호출된 스킬, 외부/전역 지침·도구 설명, 사용자 요청을 별도 bucket으로 기록한다. 동일 자료 재읽기는 전달된 문맥 비용에 반복 포함하며, unique 자료 수도 따로 기록한다. 잘린 출력은 실제 전달 부분만 세고 원본 전체 크기를 대신 쓰지 않는다.
 5. 기준→비교와 비교→기준 순서를 번갈아 요청별 최소 3쌍 실행한다. cold/warm cache, 새 채팅 여부와 provider의 cached-token 의미를 기록한다. 실패·중단·재작업 실행을 원자료에 모두 보존한다. 환경·검증 조건이 다른 실행은 이유와 함께 비교 불가로 표시한다. 실행을 늘려 실패를 덮거나 성공만 선택하지 않는다.
-6. GitHub에 paired 결과와 원자료 위치/해시, 검증 revision·명령·범위·종료 결과·생략 근거를 남긴다. 호출/문자 수 분포·범위와 완료율을 나란히 보고하고 표본 3쌍으로 일반적 성능을 확정하지 않는다. provider의 실제 task telemetry가 없으면 토큰·cache는 unavailable로 남긴다. 계정 전체 사용량·추정 tokenizer 값·문자 수를 task 토큰으로 대체하거나 절감률로 환산하지 않는다.
+6. GitHub에 paired 결과와 원자료 위치/해시, 검증 revision·명령·범위·종료 결과·생략 근거를 남긴다. 호출/문자 수 분포·범위와 완료율을 나란히 보고하고 표본 3쌍으로 일반적 성능을 확정하지 않는다. 실제 task telemetry가 없으면 토큰·cache는 unavailable로 남긴다. CLI turn.completed 필드가 있으면 그 scope의 원시 값으로 기록하고 unique 문맥·billing·자식 usage 의미를 추정하지 않는다. 계정 전체 사용량·추정 tokenizer 값·문자 수를 task 토큰으로 대체하거나 절감률로 환산하지 않는다.
 
 자료 inventory는 현재 checkout의 작업 트리를 읽지 않고 지정한 Git revision만 읽는다. 다음 두 실행의 기준 출력이 같으면 정적 자료를 재수집할 수 있다. 비교 revision에서 경로가 이동·삭제되면 실패를 보존하고 대응 자료를 이슈에 기록한다. 옛 파일 경로를 소리 없이 빼지 않는다.
 
