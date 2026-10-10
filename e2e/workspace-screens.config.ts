@@ -1,5 +1,5 @@
 import { defineConfig, devices } from "@playwright/test";
-export default defineConfig({testDir:".",testMatch:"workspace-screens.fixture.ts",fullyParallel:true,workers:3,retries:0,
+export default defineConfig({testDir:".",testMatch:"workspace-screens.*.fixture.ts",fullyParallel:true,workers:3,retries:0,
   timeout:60_000,reporter:"list",outputDir:"test-results/workspace-screens",
   use:{baseURL:"http://127.0.0.1:55580",trace:"retain-on-failure",screenshot:"only-on-failure"},
   projects:[{name:"screens",use:{...devices["Desktop Chrome"]}}],

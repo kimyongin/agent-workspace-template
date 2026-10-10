@@ -24,7 +24,7 @@
     "test:e2e": "playwright test",
     "test:e2e:all": "node scripts/test-e2e-all.mjs",
     "check:boundaries": "node scripts/check-boundaries.mjs",
-    "test:all": "node scripts/test-all.mjs"
+    "test:integration:local": "node scripts/test-local-integration.mjs"
   },
   "dependencies": {
     "@js-temporal/polyfill": "0.5.1",

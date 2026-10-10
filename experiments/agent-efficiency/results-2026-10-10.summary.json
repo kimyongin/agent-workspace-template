@@ -1,0 +1,2411 @@
+{
+  "status": "completed-observation-with-limitations",
+  "expectedRuns": 24,
+  "completedRuns": 24,
+  "baselineRevision": "39e0f63ab8355cafbbbe716eff2adf0817c8c46a",
+  "comparisonRevision": "f73ecf8e8072e0a11a06cec38517206bed725a85",
+  "model": "gpt-6.1-sol",
+  "reasoningEffort": "medium",
+  "cliVersion": "0.162.1",
+  "evidenceRoot": "/private/tmp/agent-efficiency-20261010/paired-runs",
+  "globalEnvironmentSha256": "cfbcea22c9813151a872937a4e2d486271ee15fa8e770147cec3ba8ac1ac2c1f",
+  "comparability": "partially-controlled-observational-comparison",
+  "limits": [
+    "Full injected start instructions/tool/skill catalogs not observable.",
+    "Saved config/plugin cache inventory is not proof of all enabled or injected plugins; first two snapshots collected after launch, recorded mtimes predate launch.",
+    "Provider cache uncontrolled; no cold/warm randomization.",
+    "Raw CLI recorded output differs from model-delivered truncated context; strict read-context buckets unavailable.",
+    "CLI turn usage is not unique static context and is not attributed to catalog/body/repo cost.",
+    "Two concurrent host lanes confound duration; elapsed speed comparison not used.",
+    "Same required verification conditions, varying selected command breadth and recovered environment failures.",
+    "Nested agents counted separately where visible; no inferred child tokens."
+  ],
+  "runs": [
+    {
+      "run": "copy-1-baseline",
+      "task": "copy",
+      "pair": 1,
+      "arm": "baseline",
+      "revision": "39e0f63ab8355cafbbbe716eff2adf0817c8c46a",
+      "exitCode": 0,
+      "quality": "passed",
+      "planningArtifactQuality": "not-applicable",
+      "requiredCompletionVerification": "passed",
+      "comparability": "quality-eligible / partially-controlled-observational-comparison",
+      "qualityEvidence": "Product change confined to CollectionHeading button label computation and title/aria-label binding; toggle handler, expanded state, icon and remaining product code preserved. Collapse action wording remains 전체 닫기; title now includes section prefix to match existing accessible-name convention. Docs, tsc/build pass; 3 collection and 2 detail fixture checks pass including 390/1440px toggling and independent sections.",
+      "firstOutputObserver": {
+        "eventLine": 14,
+        "kind": "product-edit",
+        "paths": [
+          "src/components/Collection.tsx"
+        ]
+      },
+      "firstOutput": {
+        "eventLine": 16,
+        "kind": "product-edit",
+        "paths": [
+          "src/components/Collection.tsx"
+        ],
+        "manualEvidence": "Reviewed item.completed file_change; original observer result falsely matched a preceding read command."
+      },
+      "tokens": {
+        "status": "observed-cli-turn-aggregate",
+        "scope": "CLI turn.completed aggregate; nested agents not assumed included",
+        "input": 656775,
+        "cachedInput": 613248,
+        "output": 5555,
+        "reasoningOutput": 878,
+        "cacheWriteInput": 0,
+        "semantics": "Raw CLI turn.completed fields; no verified billing interpretation or inferred child usage."
+      },
+      "beforeFirstOutput": {
+        "deliveredUnicodeCodePointsByBucket": null,
+        "readEvents": null,
+        "uniqueSources": null
+      },
+      "proxies": {
+        "directCLICompletedItemCounts": {
+          "agent_message": 5,
+          "command_execution": 18,
+          "file_change": 1
+        },
+        "batchInternalCommandOrQueryCounts": null,
+        "directCLICommands": 18,
+        "directCLICommandsBeforeFirstOutput": 5,
+        "rawCLIRecordedOutputChars": 83639,
+        "rawCLIRecordedOutputCharsBeforeFirstOutput": 63249,
+        "strictReadContextUnknownMixedOutputChars": 63249
+      },
+      "observedCheckProblemEventCountIncludingRepeatedLogReads": 4,
+      "failureClasses": {
+        "unexpected-command-failure": 2,
+        "environment-failure": 1
+      },
+      "reworkNotes": [
+        "Initial build/E2E config bundle symlink EPERM; native loader isolated cache recovered.",
+        "Localhost listen EPERM; permitted rerun passed.",
+        "E2E failure logs redirected to files can be hidden by later cat exit success; inspected recorded log output."
+      ],
+      "evidenceSha256": {
+        "final.diff": "8a6df4bd793c99e6c2bf23f7087f86e052d284fc901ebb43c4b3210a56c94b65",
+        "result.json": "a8be6965d58bd809ef368d59b60dacee1973dc191cf601f51986f0c59f513f94",
+        "prompt.txt": "9f9b5775a5c794da58d3ec921f93451c564b8ecd4c3b7b61fca7c4025342ba69",
+        "events.jsonl": "f2e5c3b472b55d4ee31216c4ad117baa63c9201769b4b209d352aeb33b3aa903",
+        "status.txt": "78a81b8821d66ecf19053dcb58d8b7d4162f1a0b1e4671c303a81d9a098b784c",
+        "environment.json": "dc26944fd9046741b4ab1f2164d10f16eb69f09c229ac0b70b105c333f9ef493"
+      },
+      "createdFilesCount": 14,
+      "createdFilesManifestSha256": "19e642062875b26d1bbf8889434b96dabf281a860163e2aaea86ff1defb48901",
+      "environmentProvenance": {
+        "globalSnapshot": {
+          "path": "/private/tmp/agent-efficiency-20261010/paired-global-environment.json",
+          "sha256": "cfbcea22c9813151a872937a4e2d486271ee15fa8e770147cec3ba8ac1ac2c1f"
+        },
+        "injectedContextLimitation": "Full provider-injected system/developer/tool/catalog context opaque. Cached manifests do not prove enabled or injected plugins; first two launches predate inventory capture."
+      }
+    },
+    {
+      "run": "copy-1-improved",
+      "task": "copy",
+      "pair": 1,
+      "arm": "improved",
+      "revision": "f73ecf8e8072e0a11a06cec38517206bed725a85",
+      "exitCode": 0,
+      "quality": "passed",
+      "planningArtifactQuality": "not-applicable",
+      "requiredCompletionVerification": "passed",
+      "comparability": "quality-eligible / partially-controlled-observational-comparison",
+      "qualityEvidence": "Only title/aria-label product lines changed; open wording updated and collapse wording preserved; toggle/icon/expanded state untouched. Docs, tsc/build pass; 18 collection + 2 detail fixture checks pass with 390/1440px toggling and independent sections.",
+      "firstOutputObserver": {
+        "eventLine": 15,
+        "kind": "product-edit",
+        "paths": [
+          "src/components/Collection.tsx"
+        ]
+      },
+      "firstOutput": {
+        "eventLine": 17,
+        "kind": "product-edit",
+        "paths": [
+          "src/components/Collection.tsx"
+        ],
+        "manualEvidence": "Reviewed item.completed file_change; original observer result falsely matched a preceding read command."
+      },
+      "tokens": {
+        "status": "observed-cli-turn-aggregate",
+        "scope": "CLI turn.completed aggregate; nested agents not assumed included",
+        "input": 603450,
+        "cachedInput": 562432,
+        "output": 4425,
+        "reasoningOutput": 531,
+        "cacheWriteInput": 0,
+        "semantics": "Raw CLI turn.completed fields; no verified billing interpretation or inferred child usage."
+      },
+      "beforeFirstOutput": {
+        "deliveredUnicodeCodePointsByBucket": null,
+        "readEvents": null,
+        "uniqueSources": null
+      },
+      "proxies": {
+        "directCLICompletedItemCounts": {
+          "agent_message": 5,
+          "command_execution": 15,
+          "file_change": 1
+        },
+        "batchInternalCommandOrQueryCounts": null,
+        "directCLICommands": 15,
+        "directCLICommandsBeforeFirstOutput": 6,
+        "rawCLIRecordedOutputChars": 94163,
+        "rawCLIRecordedOutputCharsBeforeFirstOutput": 80036,
+        "strictReadContextUnknownMixedOutputChars": 80036
+      },
+      "observedCheckProblemEventCountIncludingRepeatedLogReads": 2,
+      "failureClasses": {
+        "environment-failure": 1
+      },
+      "reworkNotes": [
+        "Localhost listen EPERM recovered by permitted rerun.",
+        "Broader collection fixture scope than baseline (18 vs 3 collection cases); both cover requested behavior, but verification work cost is not identical."
+      ],
+      "evidenceSha256": {
+        "final.diff": "bfc24a0ef326adb59fc1430a638db754e6665feb4d301defdcb96c7d0cc7ee98",
+        "result.json": "0a79afa173397fd79cf296ad4b954ce3594f0b7d3219cfaa3954c1944645e613",
+        "prompt.txt": "9f9b5775a5c794da58d3ec921f93451c564b8ecd4c3b7b61fca7c4025342ba69",
+        "events.jsonl": "23e01175ab51a4686f48203d2905275573ffbc2261ff57df013ca3800eed3c7f",
+        "status.txt": "f63a77e9cf7fab258cdac725e8cdf6e06bf13bcc60bc61523f2c332eb6a44986",
+        "environment.json": "b498d64140f5c77f3bfba59de4756ee6c89c532f30919fa650eff3716f82be23"
+      },
+      "createdFilesCount": 53,
+      "createdFilesManifestSha256": "3c2d808586b8892705f1e377b8dee6af25a65c856da04fdcafa81bf5572b861b",
+      "environmentProvenance": {
+        "globalSnapshot": {
+          "path": "/private/tmp/agent-efficiency-20261010/paired-global-environment.json",
+          "sha256": "cfbcea22c9813151a872937a4e2d486271ee15fa8e770147cec3ba8ac1ac2c1f"
+        },
+        "injectedContextLimitation": "Full provider-injected system/developer/tool/catalog context opaque. Cached manifests do not prove enabled or injected plugins; first two launches predate inventory capture."
+      }
+    },
+    {
+      "run": "copy-2-baseline",
+      "task": "copy",
+      "pair": 2,
+      "arm": "baseline",
+      "revision": "39e0f63ab8355cafbbbe716eff2adf0817c8c46a",
+      "exitCode": 0,
+      "quality": "passed",
+      "planningArtifactQuality": "not-applicable",
+      "requiredCompletionVerification": "passed",
+      "comparability": "quality-eligible / partially-controlled-observational-comparison",
+      "qualityEvidence": "Only CollectionHeading labels/title binding changed in product; docs aligned. Docs, tsc/build, 91 web tests, 18 collection + 2 detail fixture checks pass. Test-only localhost isolation added; no other product-control behavior changed.",
+      "firstOutputObserver": {
+        "eventLine": 16,
+        "kind": "product-edit",
+        "paths": [
+          "src/components/Collection.tsx"
+        ]
+      },
+      "firstOutput": {
+        "eventLine": 16,
+        "kind": "product-edit",
+        "paths": [
+          "src/components/Collection.tsx"
+        ]
+      },
+      "tokens": {
+        "status": "observed-cli-turn-aggregate",
+        "scope": "CLI turn.completed aggregate; nested agents not assumed included",
+        "input": 518318,
+        "cachedInput": 477312,
+        "output": 4847,
+        "reasoningOutput": 484,
+        "cacheWriteInput": 0,
+        "semantics": "Raw CLI turn.completed fields; no verified billing interpretation or inferred child usage."
+      },
+      "beforeFirstOutput": {
+        "deliveredUnicodeCodePointsByBucket": null,
+        "readEvents": null,
+        "uniqueSources": null
+      },
+      "proxies": {
+        "directCLICompletedItemCounts": {
+          "agent_message": 5,
+          "command_execution": 19
+        },
+        "batchInternalCommandOrQueryCounts": null,
+        "directCLICommands": 19,
+        "directCLICommandsBeforeFirstOutput": 5,
+        "rawCLIRecordedOutputChars": 88463,
+        "rawCLIRecordedOutputCharsBeforeFirstOutput": 60937,
+        "strictReadContextUnknownMixedOutputChars": 60937
+      },
+      "observedCheckProblemEventCountIncludingRepeatedLogReads": 5,
+      "failureClasses": {
+        "environment-failure": 3
+      },
+      "reworkNotes": [
+        "Symlink EPERM in build/web and localhost listen EPERM recovered."
+      ],
+      "evidenceSha256": {
+        "final.diff": "73c144b467fb62a59f76c5371607caebfddc6b4d45497a2b4002a3689555a060",
+        "result.json": "5174eb2e9f86516a7e13cbdef0811a2f6aa800835166a94150721734b24320fb",
+        "prompt.txt": "9f9b5775a5c794da58d3ec921f93451c564b8ecd4c3b7b61fca7c4025342ba69",
+        "events.jsonl": "f6cd2455e4e350a59041c2285b0e504135f438337da5f4770bea9791c9628403",
+        "status.txt": "cdd1631e546d0affcd212831134ed89668693e72203a16cc902896043dfd8e6b",
+        "environment.json": "4e6b84cf5f4075dc66825f9469ff1a0143d70d230e084a99dd72dd04c60b345a"
+      },
+      "createdFilesCount": 56,
+      "createdFilesManifestSha256": "cedde94fec8bf875428dce84220ddbdbd155b8b1d3f77a8577110e00b742799b",
+      "environmentProvenance": {
+        "globalSnapshot": {
+          "path": "/private/tmp/agent-efficiency-20261010/paired-global-environment.json",
+          "sha256": "cfbcea22c9813151a872937a4e2d486271ee15fa8e770147cec3ba8ac1ac2c1f"
+        },
+        "injectedContextLimitation": "Full provider-injected system/developer/tool/catalog context opaque. Cached manifests do not prove enabled or injected plugins; first two launches predate inventory capture."
+      }
+    },
+    {
+      "run": "copy-2-improved",
+      "task": "copy",
+      "pair": 2,
+      "arm": "improved",
+      "revision": "f73ecf8e8072e0a11a06cec38517206bed725a85",
+      "exitCode": 0,
+      "quality": "passed",
+      "planningArtifactQuality": "not-applicable",
+      "requiredCompletionVerification": "passed",
+      "comparability": "quality-eligible / partially-controlled-observational-comparison",
+      "qualityEvidence": "Product open wording/title aligned with accessible name; toggle/icon behavior unchanged. Collapse title retained original unprefixed wording as requested scope excludes close wording. Docs, tsc/build, 91 web tests, 3 collection + 2 detail checks pass.",
+      "firstOutputObserver": {
+        "eventLine": 16,
+        "kind": "product-edit",
+        "paths": [
+          "src/components/Collection.tsx"
+        ]
+      },
+      "firstOutput": {
+        "eventLine": 16,
+        "kind": "product-edit",
+        "paths": [
+          "src/components/Collection.tsx"
+        ]
+      },
+      "tokens": {
+        "status": "observed-cli-turn-aggregate",
+        "scope": "CLI turn.completed aggregate; nested agents not assumed included",
+        "input": 538455,
+        "cachedInput": 499456,
+        "output": 4963,
+        "reasoningOutput": 689,
+        "cacheWriteInput": 0,
+        "semantics": "Raw CLI turn.completed fields; no verified billing interpretation or inferred child usage."
+      },
+      "beforeFirstOutput": {
+        "deliveredUnicodeCodePointsByBucket": null,
+        "readEvents": null,
+        "uniqueSources": null
+      },
+      "proxies": {
+        "directCLICompletedItemCounts": {
+          "agent_message": 5,
+          "command_execution": 18
+        },
+        "batchInternalCommandOrQueryCounts": null,
+        "directCLICommands": 18,
+        "directCLICommandsBeforeFirstOutput": 5,
+        "rawCLIRecordedOutputChars": 75532,
+        "rawCLIRecordedOutputCharsBeforeFirstOutput": 61883,
+        "strictReadContextUnknownMixedOutputChars": 61883
+      },
+      "observedCheckProblemEventCountIncludingRepeatedLogReads": 3,
+      "failureClasses": {
+        "unexpected-command-failure": 1,
+        "environment-failure": 2
+      },
+      "reworkNotes": [
+        "Localhost listen and web config-loader EPERM recovered.",
+        "Narrower collection selection than paired baseline, 3 vs 18."
+      ],
+      "evidenceSha256": {
+        "final.diff": "364fb9b6c6f44ff1d171a37fe65b21f742075e7e92dc86a48ca06aa990db33d0",
+        "result.json": "5ae3b463b98b02a9ec785ed3239796e97673e63ede87584aeebc223fb3cb1fb1",
+        "prompt.txt": "9f9b5775a5c794da58d3ec921f93451c564b8ecd4c3b7b61fca7c4025342ba69",
+        "events.jsonl": "80f0484af27655b8b5e2e78786b7fbfd55c906cca5c07719997e3cbad25a380b",
+        "status.txt": "618fe5b15bd3abe809fdb5c32845cec7b8d1232b4c35e5b7823771a4f325bd79",
+        "environment.json": "f58a8e984b12587ab9cdd7f66ff74d6b759f7309c1a8e3ad5e0882796b6931da"
+      },
+      "createdFilesCount": 14,
+      "createdFilesManifestSha256": "6174f3504130145f7b5eea5d57c3853bc0f55382c6645b810c2d96f060bedee5",
+      "environmentProvenance": {
+        "globalSnapshot": {
+          "path": "/private/tmp/agent-efficiency-20261010/paired-global-environment.json",
+          "sha256": "cfbcea22c9813151a872937a4e2d486271ee15fa8e770147cec3ba8ac1ac2c1f"
+        },
+        "injectedContextLimitation": "Full provider-injected system/developer/tool/catalog context opaque. Cached manifests do not prove enabled or injected plugins; first two launches predate inventory capture."
+      }
+    },
+    {
+      "run": "copy-3-baseline",
+      "task": "copy",
+      "pair": 3,
+      "arm": "baseline",
+      "revision": "39e0f63ab8355cafbbbe716eff2adf0817c8c46a",
+      "exitCode": 0,
+      "quality": "passed",
+      "planningArtifactQuality": "not-applicable",
+      "requiredCompletionVerification": "passed",
+      "comparability": "quality-eligible / partially-controlled-observational-comparison",
+      "qualityEvidence": "Only CollectionHeading labels/title binding changed in product; docs aligned. Docs, tsc/build, 91 web tests, 18 collection + 2 detail fixture checks pass with 390/1440px toggling and independent sections.",
+      "firstOutputObserver": {
+        "eventLine": 14,
+        "kind": "product-edit",
+        "paths": [
+          "src/components/Collection.tsx"
+        ]
+      },
+      "firstOutput": {
+        "eventLine": 14,
+        "kind": "product-edit",
+        "paths": [
+          "src/components/Collection.tsx"
+        ]
+      },
+      "tokens": {
+        "status": "observed-cli-turn-aggregate",
+        "scope": "CLI turn.completed aggregate; nested agents not assumed included",
+        "input": 546216,
+        "cachedInput": 497536,
+        "output": 4691,
+        "reasoningOutput": 534,
+        "cacheWriteInput": 0,
+        "semantics": "Raw CLI turn.completed fields; no verified billing interpretation or inferred child usage."
+      },
+      "beforeFirstOutput": {
+        "deliveredUnicodeCodePointsByBucket": null,
+        "readEvents": null,
+        "uniqueSources": null
+      },
+      "proxies": {
+        "directCLICompletedItemCounts": {
+          "agent_message": 5,
+          "command_execution": 16
+        },
+        "batchInternalCommandOrQueryCounts": null,
+        "directCLICommands": 16,
+        "directCLICommandsBeforeFirstOutput": 4,
+        "rawCLIRecordedOutputChars": 77869,
+        "rawCLIRecordedOutputCharsBeforeFirstOutput": 47906,
+        "strictReadContextUnknownMixedOutputChars": 47906
+      },
+      "observedCheckProblemEventCountIncludingRepeatedLogReads": 3,
+      "failureClasses": {},
+      "reworkNotes": [
+        "Symlink/cache and localhost listen EPERM recovered."
+      ],
+      "evidenceSha256": {
+        "final.diff": "83164cf33fe9be8b28e7232d3ebca8c8665fca7a266545538b79c9c22e2725a3",
+        "result.json": "9792c6a6301be9a934d00bff1a5df7fdd1f3f946c5869cd736dbf348d74c204d",
+        "prompt.txt": "9f9b5775a5c794da58d3ec921f93451c564b8ecd4c3b7b61fca7c4025342ba69",
+        "events.jsonl": "40401977ed47b1300ba8347b11850c1b0aa4b52160784ebe9ce7c9a6166b70c0",
+        "status.txt": "78a81b8821d66ecf19053dcb58d8b7d4162f1a0b1e4671c303a81d9a098b784c",
+        "environment.json": "d43cf1229775821b29fd5a44390c496834b0d0fe1cdf91cd87912887e0294f27"
+      },
+      "createdFilesCount": 63,
+      "createdFilesManifestSha256": "c5f8a5477956e6f4d166c317b5df0ac9ae1e20c2fea94f69c611299ec3d300fe",
+      "environmentProvenance": {
+        "globalSnapshot": {
+          "path": "/private/tmp/agent-efficiency-20261010/paired-global-environment.json",
+          "sha256": "cfbcea22c9813151a872937a4e2d486271ee15fa8e770147cec3ba8ac1ac2c1f"
+        },
+        "injectedContextLimitation": "Full provider-injected system/developer/tool/catalog context opaque. Cached manifests do not prove enabled or injected plugins; first two launches predate inventory capture."
+      }
+    },
+    {
+      "run": "copy-3-improved",
+      "task": "copy",
+      "pair": 3,
+      "arm": "improved",
+      "revision": "f73ecf8e8072e0a11a06cec38517206bed725a85",
+      "exitCode": 0,
+      "quality": "passed",
+      "planningArtifactQuality": "not-applicable",
+      "requiredCompletionVerification": "passed",
+      "comparability": "quality-eligible / partially-controlled-observational-comparison",
+      "qualityEvidence": "Product open wording/title aligned; collapse wording/title and toggle/icon preserved. Docs and tsc/build pass; 2 detail fixture cases at 390/1440px exercise main list open/close/title, URL and related-section independence. Unlike baseline, collection suite and web-unit suite not selected; required copy behavior covered.",
+      "firstOutputObserver": {
+        "eventLine": 14,
+        "kind": "product-edit",
+        "paths": [
+          "src/components/Collection.tsx"
+        ]
+      },
+      "firstOutput": {
+        "eventLine": 14,
+        "kind": "product-edit",
+        "paths": [
+          "src/components/Collection.tsx"
+        ]
+      },
+      "tokens": {
+        "status": "observed-cli-turn-aggregate",
+        "scope": "CLI turn.completed aggregate; nested agents not assumed included",
+        "input": 478205,
+        "cachedInput": 440960,
+        "output": 4187,
+        "reasoningOutput": 662,
+        "cacheWriteInput": 0,
+        "semantics": "Raw CLI turn.completed fields; no verified billing interpretation or inferred child usage."
+      },
+      "beforeFirstOutput": {
+        "deliveredUnicodeCodePointsByBucket": null,
+        "readEvents": null,
+        "uniqueSources": null
+      },
+      "proxies": {
+        "directCLICompletedItemCounts": {
+          "agent_message": 5,
+          "command_execution": 18
+        },
+        "batchInternalCommandOrQueryCounts": null,
+        "directCLICommands": 18,
+        "directCLICommandsBeforeFirstOutput": 4,
+        "rawCLIRecordedOutputChars": 71846,
+        "rawCLIRecordedOutputCharsBeforeFirstOutput": 57154,
+        "strictReadContextUnknownMixedOutputChars": 57154
+      },
+      "observedCheckProblemEventCountIncludingRepeatedLogReads": 3,
+      "failureClasses": {
+        "unexpected-command-failure": 3
+      },
+      "reworkNotes": [
+        "Initial config-bundle symlink EPERM recovered via isolated cache/runner config.",
+        "Narrower validation selection than baseline: 2 detail cases vs 18 collection + 2 detail plus 91 web-unit tests."
+      ],
+      "evidenceSha256": {
+        "final.diff": "cdf7ad204dd10a883ec37c5b89e6e43ea1b6d2a46febe9f437945b5b207c5c11",
+        "result.json": "0a67a37945a1d435def36290a686a7cc2e41bd9ad5ac1c5d9e107317e89d285f",
+        "prompt.txt": "9f9b5775a5c794da58d3ec921f93451c564b8ecd4c3b7b61fca7c4025342ba69",
+        "events.jsonl": "85ec0942ecca7f18297a380a94b3eebfb7545fc20e72e49930cce70c9e021765",
+        "status.txt": "d30214e6849c9efeca6c0935e6e4be3865b65811036e0b96c2a0779384da5daa",
+        "environment.json": "28f6b752add1c16d103e166cfe52f2813cab191b8e281bba5247588e6f427fc9"
+      },
+      "createdFilesCount": 13,
+      "createdFilesManifestSha256": "aec61ec355850ae3b843dca76955716af50ea554138f76e62f9c1c74b08d644a",
+      "environmentProvenance": {
+        "globalSnapshot": {
+          "path": "/private/tmp/agent-efficiency-20261010/paired-global-environment.json",
+          "sha256": "cfbcea22c9813151a872937a4e2d486271ee15fa8e770147cec3ba8ac1ac2c1f"
+        },
+        "injectedContextLimitation": "Full provider-injected system/developer/tool/catalog context opaque. Cached manifests do not prove enabled or injected plugins; first two launches predate inventory capture."
+      }
+    },
+    {
+      "run": "public-api-1-baseline",
+      "task": "public-api",
+      "pair": 1,
+      "arm": "baseline",
+      "revision": "39e0f63ab8355cafbbbe716eff2adf0817c8c46a",
+      "exitCode": 0,
+      "quality": "verification-incomplete",
+      "planningArtifactQuality": "passed-with-disclosed-remote-spec-lookup-gap",
+      "requiredCompletionVerification": "partial",
+      "comparability": "not-comparable-missing-verification",
+      "qualityEvidence": "Substantive spec/plan plus dependent tickets; all requested contract/caller/security/cursor/failure and real API/MCP/E2E locations covered; no product diff or GH writes. Existing remote spec lookup failed network and duplication is explicitly unknown. Local plan requirement passed, remote existing-spec verification incomplete; not eligible for fully verified matched savings.",
+      "firstOutputObserver": null,
+      "firstOutput": {
+        "eventLine": 37,
+        "kind": "complete-planning-artifact",
+        "paths": [
+          ".scratch/public-page-size/spec.md",
+          ".scratch/public-page-size/plan.md",
+          ".scratch/public-page-size/issues/01-public-page-size.md",
+          ".scratch/public-page-size/issues/02-verify-retirement.md"
+        ],
+        "manualEvidence": "item.completed file_change creates spec, plan and two tickets together; progress messages excluded."
+      },
+      "tokens": {
+        "status": "observed-cli-turn-aggregate",
+        "scope": "CLI turn.completed aggregate; nested agents not assumed included",
+        "input": 940620,
+        "cachedInput": 861440,
+        "output": 10097,
+        "reasoningOutput": 692,
+        "cacheWriteInput": 0,
+        "semantics": "Raw CLI turn.completed fields; no verified billing interpretation or inferred child usage."
+      },
+      "beforeFirstOutput": {
+        "deliveredUnicodeCodePointsByBucket": null,
+        "readEvents": null,
+        "uniqueSources": null
+      },
+      "proxies": {
+        "directCLICompletedItemCounts": {
+          "agent_message": 5,
+          "command_execution": 20,
+          "file_change": 3
+        },
+        "batchInternalCommandOrQueryCounts": null,
+        "directCLICommands": 20,
+        "directCLICommandsBeforeFirstOutput": 15,
+        "rawCLIRecordedOutputChars": 244800,
+        "rawCLIRecordedOutputCharsBeforeFirstOutput": 224211,
+        "strictReadContextUnknownMixedOutputChars": 224211
+      },
+      "observedCheckProblemEventCountIncludingRepeatedLogReads": 7,
+      "failureClasses": {
+        "unexpected-command-failure": 5
+      },
+      "reworkNotes": [
+        "GitHub read network failure; no inference that existing spec absent.",
+        "Multiple incorrect predicted paths/globs recovered through actual repository path discovery."
+      ],
+      "evidenceSha256": {
+        "final.diff": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "result.json": "60efafe96e4af34c07c150ad03026530625a7202169bd4eba0b9f2addb4c652c",
+        "prompt.txt": "7b9749c87d03736011254b47693fa98967d78457488932bb6e0c6e894ad25c52",
+        "events.jsonl": "f35c026f8e2d79a4311d243efc702d581c35a1042bb13b7b89e70d1c05a15bc6",
+        "status.txt": "451282f64c067c15b47e6c1c2c2e68b37780c459197412e8d7afb8f30c154ee5",
+        "environment.json": "c1f00f692469461755b35068bb127b163f9d9e3996f06cb4983737a86a64c37f"
+      },
+      "createdFilesCount": 4,
+      "createdFilesManifestSha256": "87b116d87b08a1ac013ce0f274be40bbf0eec62afc28bbc9bf2976d526ac33a3",
+      "environmentProvenance": {
+        "globalSnapshot": {
+          "path": "/private/tmp/agent-efficiency-20261010/paired-global-environment.json",
+          "sha256": "cfbcea22c9813151a872937a4e2d486271ee15fa8e770147cec3ba8ac1ac2c1f"
+        },
+        "injectedContextLimitation": "Full provider-injected system/developer/tool/catalog context opaque. Cached manifests do not prove enabled or injected plugins; first two launches predate inventory capture."
+      }
+    },
+    {
+      "run": "public-api-1-improved",
+      "task": "public-api",
+      "pair": 1,
+      "arm": "improved",
+      "revision": "f73ecf8e8072e0a11a06cec38517206bed725a85",
+      "exitCode": 0,
+      "quality": "verification-incomplete",
+      "planningArtifactQuality": "passed-with-disclosed-remote-spec-lookup-gap",
+      "requiredCompletionVerification": "partial",
+      "comparability": "not-comparable-missing-verification",
+      "qualityEvidence": "Substantive spec plus 3 dependent tickets; requested contract/caller/security/cursor/failure and actual API/MCP/E2E scope covered; no product diff or GH writes. Existing remote spec lookup omitted under interpretation of checkout-only instruction; remote duplication unknown. Plan quality passes with disclosed gap, required verification partial.",
+      "firstOutputObserver": null,
+      "firstOutput": {
+        "eventLine": 36,
+        "kind": "complete-planning-artifact",
+        "paths": [
+          ".scratch/public-pagination-page-size/spec.md",
+          ".scratch/public-pagination-page-size/issues/01-contract-baseline.md",
+          ".scratch/public-pagination-page-size/issues/02-atomic-migration.md",
+          ".scratch/public-pagination-page-size/issues/03-retirement-verification.md"
+        ],
+        "manualEvidence": "item.completed file_change creates spec and 3 dependent tickets together; progress messages excluded. Evidence file follows at event40."
+      },
+      "tokens": {
+        "status": "observed-cli-turn-aggregate",
+        "scope": "CLI turn.completed aggregate; nested agents not assumed included",
+        "input": 1396935,
+        "cachedInput": 1292288,
+        "output": 11713,
+        "reasoningOutput": 831,
+        "cacheWriteInput": 0,
+        "semantics": "Raw CLI turn.completed fields; no verified billing interpretation or inferred child usage."
+      },
+      "beforeFirstOutput": {
+        "deliveredUnicodeCodePointsByBucket": null,
+        "readEvents": null,
+        "uniqueSources": null
+      },
+      "proxies": {
+        "directCLICompletedItemCounts": {
+          "agent_message": 6,
+          "command_execution": 20,
+          "file_change": 4
+        },
+        "batchInternalCommandOrQueryCounts": null,
+        "directCLICommands": 20,
+        "directCLICommandsBeforeFirstOutput": 14,
+        "rawCLIRecordedOutputChars": 264640,
+        "rawCLIRecordedOutputCharsBeforeFirstOutput": 248683,
+        "strictReadContextUnknownMixedOutputChars": 248683
+      },
+      "observedCheckProblemEventCountIncludingRepeatedLogReads": 7,
+      "failureClasses": {
+        "unexpected-command-failure": 2
+      },
+      "reworkNotes": [
+        "Remote existing-spec lookup not performed; comparison instruction forbids external writes but does not prove remote-spec absence."
+      ],
+      "evidenceSha256": {
+        "final.diff": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "result.json": "5768735752afedbfdb990c2db9dca27993caf3a4b904064037f3c8bb2659de6b",
+        "prompt.txt": "7b9749c87d03736011254b47693fa98967d78457488932bb6e0c6e894ad25c52",
+        "events.jsonl": "e96547777c006c9fd029976b3652ca985a29808ad7f7e873e4ac5324a47a4b22",
+        "status.txt": "451282f64c067c15b47e6c1c2c2e68b37780c459197412e8d7afb8f30c154ee5",
+        "environment.json": "b41bc87836a3c6606bd8670125b9ba3595e8f725cb8a3f0b3e8bc0dc3782b6d6"
+      },
+      "createdFilesCount": 5,
+      "createdFilesManifestSha256": "959df5c166e8a14dabcfd1503eeceb34913a7d202cc3455b3bbd56c715c68c55",
+      "environmentProvenance": {
+        "globalSnapshot": {
+          "path": "/private/tmp/agent-efficiency-20261010/paired-global-environment.json",
+          "sha256": "cfbcea22c9813151a872937a4e2d486271ee15fa8e770147cec3ba8ac1ac2c1f"
+        },
+        "injectedContextLimitation": "Full provider-injected system/developer/tool/catalog context opaque. Cached manifests do not prove enabled or injected plugins; first two launches predate inventory capture."
+      }
+    },
+    {
+      "run": "public-api-2-baseline",
+      "task": "public-api",
+      "pair": 2,
+      "arm": "baseline",
+      "revision": "39e0f63ab8355cafbbbe716eff2adf0817c8c46a",
+      "exitCode": 0,
+      "quality": "verification-incomplete",
+      "planningArtifactQuality": "passed-with-disclosed-remote-spec-lookup-gap",
+      "requiredCompletionVerification": "partial",
+      "comparability": "not-comparable-missing-verification",
+      "qualityEvidence": "Substantive spec+3dependenttickets andcaller/contract/security/cursor/error/actualAPI-MCP-E2E scope. GHread attempted networkfailed, explicit reconcile-spec prerequisite. No trackedproductdiff orGHwrites. Planqualitypassed, existingremotespec verificationpartial.",
+      "firstOutputObserver": null,
+      "firstOutput": {
+        "eventLine": 25,
+        "kind": "complete-planning-artifact",
+        "paths": [
+          ".scratch/public-pagination-page-size/spec.md",
+          ".scratch/public-pagination-page-size/README.md",
+          ".scratch/public-pagination-page-size/issues/01-reconcile-spec.md",
+          ".scratch/public-pagination-page-size/issues/02-atomic-transition.md",
+          ".scratch/public-pagination-page-size/issues/03-retirement-verification.md"
+        ],
+        "manualEvidence": "Completedfilechange creates spec,planmap,3dependenttickets; progress excluded. Verification follows34."
+      },
+      "tokens": {
+        "status": "observed-cli-turn-aggregate",
+        "scope": "CLI turn.completed aggregate; nested agents not assumed included",
+        "input": 703300,
+        "cachedInput": 629504,
+        "output": 10239,
+        "reasoningOutput": 366,
+        "cacheWriteInput": 0,
+        "semantics": "Raw CLI turn.completed fields; no verified billing interpretation or inferred child usage."
+      },
+      "beforeFirstOutput": {
+        "deliveredUnicodeCodePointsByBucket": null,
+        "readEvents": null,
+        "uniqueSources": null
+      },
+      "proxies": {
+        "directCLICompletedItemCounts": {
+          "agent_message": 5,
+          "command_execution": 13,
+          "file_change": 3
+        },
+        "batchInternalCommandOrQueryCounts": null,
+        "directCLICommands": 13,
+        "directCLICommandsBeforeFirstOutput": 9,
+        "rawCLIRecordedOutputChars": 194927,
+        "rawCLIRecordedOutputCharsBeforeFirstOutput": 188766,
+        "strictReadContextUnknownMixedOutputChars": 188766
+      },
+      "observedCheckProblemEventCountIncludingRepeatedLogReads": 1,
+      "failureClasses": {
+        "unexpected-command-failure": 2
+      },
+      "reworkNotes": [
+        "Authorized GHread networkfailure; existingagreement/duplicate unverified."
+      ],
+      "evidenceSha256": {
+        "final.diff": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "result.json": "893656a8e2763e0cf6289efc608835d836976d184cc98d21f3ea2b0bd370cae7",
+        "prompt.txt": "7b9749c87d03736011254b47693fa98967d78457488932bb6e0c6e894ad25c52",
+        "events.jsonl": "b8ca4b9babd49082e48234e07e771094142a73fc0a78a6fe05e9fe013a391713",
+        "status.txt": "451282f64c067c15b47e6c1c2c2e68b37780c459197412e8d7afb8f30c154ee5",
+        "environment.json": "45f0876eb3748213101f57edc5caf4be53f39830e16fc349a0e8099c86627068"
+      },
+      "createdFilesCount": 6,
+      "createdFilesManifestSha256": "f85642223934b48c4e1116c213d72273c0ea12802e9e00995b73d00497ac9d31",
+      "environmentProvenance": {
+        "globalSnapshot": {
+          "path": "/private/tmp/agent-efficiency-20261010/paired-global-environment.json",
+          "sha256": "cfbcea22c9813151a872937a4e2d486271ee15fa8e770147cec3ba8ac1ac2c1f"
+        },
+        "injectedContextLimitation": "Full provider-injected system/developer/tool/catalog context opaque. Cached manifests do not prove enabled or injected plugins; first two launches predate inventory capture."
+      }
+    },
+    {
+      "run": "public-api-2-improved",
+      "task": "public-api",
+      "pair": 2,
+      "arm": "improved",
+      "revision": "f73ecf8e8072e0a11a06cec38517206bed725a85",
+      "exitCode": 0,
+      "quality": "verification-incomplete",
+      "planningArtifactQuality": "passed-with-disclosed-remote-spec-lookup-gap",
+      "requiredCompletionVerification": "partial",
+      "comparability": "not-comparable-missing-verification",
+      "qualityEvidence": "Substantive spec plus2dependent tickets; all five inputs/callers/security/cursor/errors and actual API/MCP/E2E locations covered; no product diff or GH writes. Remote existing-spec read omitted under erroneous checkout-only reading; required verification partial.",
+      "firstOutputObserver": null,
+      "firstOutput": {
+        "eventLine": 25,
+        "kind": "complete-planning-artifact",
+        "paths": [
+          ".scratch/public-page-size/spec.md",
+          ".scratch/public-page-size/issues/01-atomic-page-size.md",
+          ".scratch/public-page-size/issues/02-verify-retirement.md"
+        ],
+        "manualEvidence": "item.completed file_change creates spec and2dependent tickets together; progress excluded. Evidence follows event31."
+      },
+      "tokens": {
+        "status": "observed-cli-turn-aggregate",
+        "scope": "CLI turn.completed aggregate; nested agents not assumed included",
+        "input": 904002,
+        "cachedInput": 823936,
+        "output": 9072,
+        "reasoningOutput": 441,
+        "cacheWriteInput": 0,
+        "semantics": "Raw CLI turn.completed fields; no verified billing interpretation or inferred child usage."
+      },
+      "beforeFirstOutput": {
+        "deliveredUnicodeCodePointsByBucket": null,
+        "readEvents": null,
+        "uniqueSources": null
+      },
+      "proxies": {
+        "directCLICompletedItemCounts": {
+          "agent_message": 5,
+          "command_execution": 15,
+          "file_change": 4
+        },
+        "batchInternalCommandOrQueryCounts": null,
+        "directCLICommands": 15,
+        "directCLICommandsBeforeFirstOutput": 9,
+        "rawCLIRecordedOutputChars": 178645,
+        "rawCLIRecordedOutputCharsBeforeFirstOutput": 155799,
+        "strictReadContextUnknownMixedOutputChars": 155799
+      },
+      "observedCheckProblemEventCountIncludingRepeatedLogReads": 2,
+      "failureClasses": {},
+      "reworkNotes": [
+        "Agent scope interpretation error: write restriction does not prohibit GitHub reads; existing agreement/duplicate status unverified."
+      ],
+      "evidenceSha256": {
+        "final.diff": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "result.json": "e4198b3940086d548b76b46ffad4134242998cd1bf5f79fcd3214222e0515919",
+        "prompt.txt": "7b9749c87d03736011254b47693fa98967d78457488932bb6e0c6e894ad25c52",
+        "events.jsonl": "44d317e8cf5a960cb4949cc82df3990e1afb0107aa420764fb9600146613566b",
+        "status.txt": "451282f64c067c15b47e6c1c2c2e68b37780c459197412e8d7afb8f30c154ee5",
+        "environment.json": "c8cc6a91ac938ebc8ac33a362040b5d797c92a760b57cf460af771630119baa9"
+      },
+      "createdFilesCount": 4,
+      "createdFilesManifestSha256": "bdb3c9e828ab46db856d284507ccc038b9e6c79b96885813ec5bbc2837d14317",
+      "environmentProvenance": {
+        "globalSnapshot": {
+          "path": "/private/tmp/agent-efficiency-20261010/paired-global-environment.json",
+          "sha256": "cfbcea22c9813151a872937a4e2d486271ee15fa8e770147cec3ba8ac1ac2c1f"
+        },
+        "injectedContextLimitation": "Full provider-injected system/developer/tool/catalog context opaque. Cached manifests do not prove enabled or injected plugins; first two launches predate inventory capture."
+      }
+    },
+    {
+      "run": "public-api-3-baseline",
+      "task": "public-api",
+      "pair": 3,
+      "arm": "baseline",
+      "revision": "39e0f63ab8355cafbbbe716eff2adf0817c8c46a",
+      "exitCode": 0,
+      "quality": "verification-incomplete",
+      "planningArtifactQuality": "passed-with-disclosed-remote-spec-lookup-gap",
+      "requiredCompletionVerification": "partial",
+      "comparability": "not-comparable-missing-verification",
+      "qualityEvidence": "Substantive spec/plan+3dependenttickets;5inputs/default20max100,callers/authority/cursor/failures/actualAPI-MCP-E2E covered; noproductiondiff/GHwrites. GHreadnetworkfailed, existingagreementpartial. Temporaryexpand-migrate-contract alias onlyinsideintegratedwork andmandatoryremoval beforefinalcompletion is stated.",
+      "firstOutputObserver": null,
+      "firstOutput": {
+        "eventLine": 33,
+        "kind": "complete-planning-artifact",
+        "paths": [
+          ".scratch/page-size/spec.md",
+          ".scratch/page-size/plan.md",
+          ".scratch/page-size/issues/01-expand.md",
+          ".scratch/page-size/issues/02-migrate.md",
+          ".scratch/page-size/issues/03-contract.md"
+        ],
+        "manualEvidence": "Completedfilechange creates spec/plan/3dependenttickets together; progress excluded."
+      },
+      "tokens": {
+        "status": "observed-cli-turn-aggregate",
+        "scope": "CLI turn.completed aggregate; nested agents not assumed included",
+        "input": 698586,
+        "cachedInput": 626048,
+        "output": 8861,
+        "reasoningOutput": 429,
+        "cacheWriteInput": 0,
+        "semantics": "Raw CLI turn.completed fields; no verified billing interpretation or inferred child usage."
+      },
+      "beforeFirstOutput": {
+        "deliveredUnicodeCodePointsByBucket": null,
+        "readEvents": null,
+        "uniqueSources": null
+      },
+      "proxies": {
+        "directCLICompletedItemCounts": {
+          "agent_message": 5,
+          "command_execution": 16,
+          "file_change": 2
+        },
+        "batchInternalCommandOrQueryCounts": null,
+        "directCLICommands": 16,
+        "directCLICommandsBeforeFirstOutput": 13,
+        "rawCLIRecordedOutputChars": 204396,
+        "rawCLIRecordedOutputCharsBeforeFirstOutput": 203999,
+        "strictReadContextUnknownMixedOutputChars": 203999
+      },
+      "observedCheckProblemEventCountIncludingRepeatedLogReads": 2,
+      "failureClasses": {
+        "unexpected-command-failure": 3
+      },
+      "reworkNotes": [
+        "GHnetworkfailure, wrongsearchpaths recovered.",
+        "Planning scope uses3stagedtickets withtemporarycompatibility versus atomicrename alternatives; finaloldcontractremoval required."
+      ],
+      "evidenceSha256": {
+        "final.diff": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "result.json": "42b93b1a7ca19b26b1fcf9fdf9c7e3b39b508b56508598603f55f7d3966267ef",
+        "prompt.txt": "7b9749c87d03736011254b47693fa98967d78457488932bb6e0c6e894ad25c52",
+        "events.jsonl": "382312c2d946a82391b87d9350c7524b7352db094f7b8efc70a44bc8b4ab0a87",
+        "status.txt": "451282f64c067c15b47e6c1c2c2e68b37780c459197412e8d7afb8f30c154ee5",
+        "environment.json": "a206a113f05549ffa879ea75803944bf14daecbd65470810dd72bde32b40007e"
+      },
+      "createdFilesCount": 5,
+      "createdFilesManifestSha256": "ed04d42c506fd6e0e8aa7f4281ba4d15d3c769d478f1ff85192e965470e0db1c",
+      "environmentProvenance": {
+        "globalSnapshot": {
+          "path": "/private/tmp/agent-efficiency-20261010/paired-global-environment.json",
+          "sha256": "cfbcea22c9813151a872937a4e2d486271ee15fa8e770147cec3ba8ac1ac2c1f"
+        },
+        "injectedContextLimitation": "Full provider-injected system/developer/tool/catalog context opaque. Cached manifests do not prove enabled or injected plugins; first two launches predate inventory capture."
+      }
+    },
+    {
+      "run": "public-api-3-improved",
+      "task": "public-api",
+      "pair": 3,
+      "arm": "improved",
+      "revision": "f73ecf8e8072e0a11a06cec38517206bed725a85",
+      "exitCode": 0,
+      "quality": "verification-incomplete",
+      "planningArtifactQuality": "passed-with-disclosed-remote-spec-lookup-gap",
+      "requiredCompletionVerification": "partial",
+      "comparability": "not-comparable-missing-verification",
+      "qualityEvidence": "Substantive spec+3dependenttickets;actualcaller/security/cursor/errors/API-MCP-E2E scope inclordinary250/search1000restoration distinctions. No productdiff/GHwrites. GHreadnetworkfailed, requiredexistingagreementverificationpartial.",
+      "firstOutputObserver": null,
+      "firstOutput": {
+        "eventLine": 31,
+        "kind": "complete-planning-artifact",
+        "paths": [
+          "docs/plans/public-pagination-page-size/spec.md",
+          "docs/plans/public-pagination-page-size/issues/01-contract-baseline.md",
+          "docs/plans/public-pagination-page-size/issues/02-integrated-transition.md",
+          "docs/plans/public-pagination-page-size/issues/03-retirement-verification.md"
+        ],
+        "manualEvidence": "Completedfilechange creates spec/3dependenttickets; evidence follows37."
+      },
+      "tokens": {
+        "status": "observed-cli-turn-aggregate",
+        "scope": "CLI turn.completed aggregate; nested agents not assumed included",
+        "input": 875098,
+        "cachedInput": 801920,
+        "output": 11194,
+        "reasoningOutput": 556,
+        "cacheWriteInput": 0,
+        "semantics": "Raw CLI turn.completed fields; no verified billing interpretation or inferred child usage."
+      },
+      "beforeFirstOutput": {
+        "deliveredUnicodeCodePointsByBucket": null,
+        "readEvents": null,
+        "uniqueSources": null
+      },
+      "proxies": {
+        "directCLICompletedItemCounts": {
+          "agent_message": 5,
+          "command_execution": 18,
+          "file_change": 4
+        },
+        "batchInternalCommandOrQueryCounts": null,
+        "directCLICommands": 18,
+        "directCLICommandsBeforeFirstOutput": 12,
+        "rawCLIRecordedOutputChars": 213900,
+        "rawCLIRecordedOutputCharsBeforeFirstOutput": 193824,
+        "strictReadContextUnknownMixedOutputChars": 193824
+      },
+      "observedCheckProblemEventCountIncludingRepeatedLogReads": 2,
+      "failureClasses": {
+        "unexpected-command-failure": 3
+      },
+      "reworkNotes": [
+        "GHnetworkfailure; evidencewrongactivityconfigpath corrected."
+      ],
+      "evidenceSha256": {
+        "final.diff": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "result.json": "347fe49e16c53214ecece0e66b4d483fff90efb017198c1725ca96a88defdff0",
+        "prompt.txt": "7b9749c87d03736011254b47693fa98967d78457488932bb6e0c6e894ad25c52",
+        "events.jsonl": "398a167a84dfd9cc69bafc0339faef6fd1c0476a156f795b178d050de714fc7b",
+        "status.txt": "6866bb616b2c98d902f1eec6c55e8fcaccb7aa98534d3e633a536b3b799a89c2",
+        "environment.json": "905455698f7eac92b901dfa64abd309914742d502e0b5f54546b26bf921f8318"
+      },
+      "createdFilesCount": 5,
+      "createdFilesManifestSha256": "79c1fff8a7fd1717545b589b9fbb0ee8bfa97c5b5b7e2af1c58796482fb297b6",
+      "environmentProvenance": {
+        "globalSnapshot": {
+          "path": "/private/tmp/agent-efficiency-20261010/paired-global-environment.json",
+          "sha256": "cfbcea22c9813151a872937a4e2d486271ee15fa8e770147cec3ba8ac1ac2c1f"
+        },
+        "injectedContextLimitation": "Full provider-injected system/developer/tool/catalog context opaque. Cached manifests do not prove enabled or injected plugins; first two launches predate inventory capture."
+      }
+    },
+    {
+      "run": "pure-function-1-baseline",
+      "task": "pure-function",
+      "pair": 1,
+      "arm": "baseline",
+      "revision": "39e0f63ab8355cafbbbe716eff2adf0817c8c46a",
+      "exitCode": 0,
+      "quality": "passed",
+      "planningArtifactQuality": "not-applicable",
+      "requiredCompletionVerification": "passed",
+      "comparability": "quality-eligible / partially-controlled-observational-comparison",
+      "qualityEvidence": "Correct assignment; archived public-interface tests cover duplicate, empty and independent paths; 28 files / 94 tests pass; tsc/build pass; browser omission reason recorded.",
+      "firstOutputObserver": {
+        "eventLine": 23,
+        "kind": "product-edit",
+        "paths": [
+          "src/lib/format.ts"
+        ]
+      },
+      "firstOutput": {
+        "eventLine": 23,
+        "kind": "product-edit",
+        "paths": [
+          "src/lib/format.ts"
+        ]
+      },
+      "tokens": {
+        "status": "observed-cli-turn-aggregate",
+        "scope": "CLI turn.completed aggregate; nested agents not assumed included",
+        "input": 189183,
+        "cachedInput": 162304,
+        "output": 1435,
+        "reasoningOutput": 51,
+        "cacheWriteInput": 0,
+        "semantics": "Raw CLI turn.completed fields; no verified billing interpretation or inferred child usage."
+      },
+      "beforeFirstOutput": {
+        "deliveredUnicodeCodePointsByBucket": null,
+        "readEvents": null,
+        "uniqueSources": null
+      },
+      "proxies": {
+        "directCLICompletedItemCounts": {
+          "agent_message": 4,
+          "command_execution": 10,
+          "file_change": 2
+        },
+        "batchInternalCommandOrQueryCounts": null,
+        "directCLICommands": 10,
+        "directCLICommandsBeforeFirstOutput": 7,
+        "rawCLIRecordedOutputChars": 53273,
+        "rawCLIRecordedOutputCharsBeforeFirstOutput": 51454,
+        "strictReadContextUnknownMixedOutputChars": 51454
+      },
+      "observedCheckProblemEventCountIncludingRepeatedLogReads": 3,
+      "failureClasses": {
+        "environment-failure": 1,
+        "expected-pre-fix-regression-red": 1
+      },
+      "reworkNotes": [
+        "Initial Vitest config bundle symlink EPERM, native-loader retry recovered.",
+        "Intentional pre-fix regression failure is diagnosis, not product rework."
+      ],
+      "evidenceSha256": {
+        "final.diff": "31fc5597b2c78593ae702f9a442ae846fb38ccce7f572708fc0edf84d7728195",
+        "result.json": "9a1451563cd4803a0aec6ae56dd38e846dc64c4bd1d2cb12989f6cea59590eee",
+        "prompt.txt": "487b3f65275c08842f31ac2007d27baabd67cb5070fe4063adab668b4f95375d",
+        "events.jsonl": "3b32bd49e6710065d7676ddb3c5f5fd26a4b591b9c0295f139b6bea1876f3dd6",
+        "status.txt": "c5b3f2cd1aad8a206fef488c96340bed9dfd0dcc637d18fa53573bc3d9937ae1",
+        "environment.json": "57fbfa965719f039bdc1b5a08b746c0bbb3d42509ce7346e6b3ecae7f1c38de6"
+      },
+      "createdFilesCount": 1,
+      "createdFilesManifestSha256": "c9c63ff8d6e0ea23dca409b459a856edeaef30389853b06aed73e63160fb39b6",
+      "environmentProvenance": {
+        "globalSnapshot": {
+          "path": "/private/tmp/agent-efficiency-20261010/paired-global-environment.json",
+          "sha256": "cfbcea22c9813151a872937a4e2d486271ee15fa8e770147cec3ba8ac1ac2c1f"
+        },
+        "injectedContextLimitation": "Full provider-injected system/developer/tool/catalog context opaque. Cached manifests do not prove enabled or injected plugins; first two launches predate inventory capture."
+      }
+    },
+    {
+      "run": "pure-function-1-improved",
+      "task": "pure-function",
+      "pair": 1,
+      "arm": "improved",
+      "revision": "f73ecf8e8072e0a11a06cec38517206bed725a85",
+      "exitCode": 0,
+      "quality": "passed",
+      "planningArtifactQuality": "not-applicable",
+      "requiredCompletionVerification": "passed",
+      "comparability": "quality-eligible / partially-controlled-observational-comparison",
+      "qualityEvidence": "Correct assignment; archived public-interface tests cover name:last with _:root, empty and independent paths; 28 files / 95 tests pass; tsc/build pass; browser omission reason recorded.",
+      "firstOutputObserver": {
+        "eventLine": 21,
+        "kind": "product-edit",
+        "paths": [
+          "src/lib/format.ts"
+        ]
+      },
+      "firstOutput": {
+        "eventLine": 21,
+        "kind": "product-edit",
+        "paths": [
+          "src/lib/format.ts"
+        ]
+      },
+      "tokens": {
+        "status": "observed-cli-turn-aggregate",
+        "scope": "CLI turn.completed aggregate; nested agents not assumed included",
+        "input": 218233,
+        "cachedInput": 192128,
+        "output": 1562,
+        "reasoningOutput": 126,
+        "cacheWriteInput": 0,
+        "semantics": "Raw CLI turn.completed fields; no verified billing interpretation or inferred child usage."
+      },
+      "beforeFirstOutput": {
+        "deliveredUnicodeCodePointsByBucket": null,
+        "readEvents": null,
+        "uniqueSources": null
+      },
+      "proxies": {
+        "directCLICompletedItemCounts": {
+          "agent_message": 4,
+          "command_execution": 10,
+          "file_change": 2
+        },
+        "batchInternalCommandOrQueryCounts": null,
+        "directCLICommands": 10,
+        "directCLICommandsBeforeFirstOutput": 6,
+        "rawCLIRecordedOutputChars": 64281,
+        "rawCLIRecordedOutputCharsBeforeFirstOutput": 54641,
+        "strictReadContextUnknownMixedOutputChars": 54641
+      },
+      "observedCheckProblemEventCountIncludingRepeatedLogReads": 3,
+      "failureClasses": {
+        "unexpected-command-failure": 1,
+        "expected-pre-fix-regression-red": 1
+      },
+      "reworkNotes": [
+        "Read of missing vitest.config.ts and docs/GLOSSARY.md generated command errors.",
+        "Intentional pre-fix regression failure is diagnosis, not product rework."
+      ],
+      "evidenceSha256": {
+        "final.diff": "31fc5597b2c78593ae702f9a442ae846fb38ccce7f572708fc0edf84d7728195",
+        "result.json": "fcfd4f16f186255cb991f39a59e5895f689d224dfeaa478cab0c93ccfa176865",
+        "prompt.txt": "487b3f65275c08842f31ac2007d27baabd67cb5070fe4063adab668b4f95375d",
+        "events.jsonl": "8d4697d46d0a2eef33836a25cbbd4e2bfdc9042be97f613543fa1c0fc197a151",
+        "status.txt": "c5b3f2cd1aad8a206fef488c96340bed9dfd0dcc637d18fa53573bc3d9937ae1",
+        "environment.json": "9dd762cf51af45971f06149769ad52f706f9f013575b407bb3a7ec6cd5fb4e06"
+      },
+      "createdFilesCount": 1,
+      "createdFilesManifestSha256": "57c490922102b962a89c820446b97106598614bcfceea3cff2c8256675ff9fa6",
+      "environmentProvenance": {
+        "globalSnapshot": {
+          "path": "/private/tmp/agent-efficiency-20261010/paired-global-environment.json",
+          "sha256": "cfbcea22c9813151a872937a4e2d486271ee15fa8e770147cec3ba8ac1ac2c1f"
+        },
+        "injectedContextLimitation": "Full provider-injected system/developer/tool/catalog context opaque. Cached manifests do not prove enabled or injected plugins; first two launches predate inventory capture."
+      }
+    },
+    {
+      "run": "pure-function-2-baseline",
+      "task": "pure-function",
+      "pair": 2,
+      "arm": "baseline",
+      "revision": "39e0f63ab8355cafbbbe716eff2adf0817c8c46a",
+      "exitCode": 0,
+      "quality": "passed",
+      "planningArtifactQuality": "not-applicable",
+      "requiredCompletionVerification": "passed",
+      "comparability": "quality-eligible / partially-controlled-observational-comparison",
+      "qualityEvidence": "Correct assignment; archived public-interface tests cover duplicate, empty and independent paths; 28 files / 94 tests pass; tsc/build pass; browser omission reason recorded.",
+      "firstOutputObserver": {
+        "eventLine": 21,
+        "kind": "product-edit",
+        "paths": [
+          "src/lib/format.ts"
+        ]
+      },
+      "firstOutput": {
+        "eventLine": 21,
+        "kind": "product-edit",
+        "paths": [
+          "src/lib/format.ts"
+        ]
+      },
+      "tokens": {
+        "status": "observed-cli-turn-aggregate",
+        "scope": "CLI turn.completed aggregate; nested agents not assumed included",
+        "input": 246045,
+        "cachedInput": 220288,
+        "output": 1458,
+        "reasoningOutput": 69,
+        "cacheWriteInput": 0,
+        "semantics": "Raw CLI turn.completed fields; no verified billing interpretation or inferred child usage."
+      },
+      "beforeFirstOutput": {
+        "deliveredUnicodeCodePointsByBucket": null,
+        "readEvents": null,
+        "uniqueSources": null
+      },
+      "proxies": {
+        "directCLICompletedItemCounts": {
+          "agent_message": 4,
+          "command_execution": 9,
+          "file_change": 2
+        },
+        "batchInternalCommandOrQueryCounts": null,
+        "directCLICommands": 9,
+        "directCLICommandsBeforeFirstOutput": 6,
+        "rawCLIRecordedOutputChars": 58863,
+        "rawCLIRecordedOutputCharsBeforeFirstOutput": 55686,
+        "strictReadContextUnknownMixedOutputChars": 55686
+      },
+      "observedCheckProblemEventCountIncludingRepeatedLogReads": 2,
+      "failureClasses": {
+        "environment-failure": 1,
+        "expected-pre-fix-regression-red": 1
+      },
+      "reworkNotes": [
+        "Initial symlink EPERM recovered with runner loader."
+      ],
+      "evidenceSha256": {
+        "final.diff": "31fc5597b2c78593ae702f9a442ae846fb38ccce7f572708fc0edf84d7728195",
+        "result.json": "26d130744bda460187607e1c27d0a0e48175664fe34a83b6dcdd40276564ae7f",
+        "prompt.txt": "487b3f65275c08842f31ac2007d27baabd67cb5070fe4063adab668b4f95375d",
+        "events.jsonl": "20a923ab39e182b16c98e7b8596ad6523ef58ddd99004abb36325ccb0d6ae86f",
+        "status.txt": "c5b3f2cd1aad8a206fef488c96340bed9dfd0dcc637d18fa53573bc3d9937ae1",
+        "environment.json": "e080ab27d457cf34fbed362be8bffd0af10fb5d5ae2fc482d3b0e89df9e648d5"
+      },
+      "createdFilesCount": 1,
+      "createdFilesManifestSha256": "63ddc544b3b1fa6e6b17bcf7dab621178688d9bf4aa89ef18602babe5a43ba9a",
+      "environmentProvenance": {
+        "globalSnapshot": {
+          "path": "/private/tmp/agent-efficiency-20261010/paired-global-environment.json",
+          "sha256": "cfbcea22c9813151a872937a4e2d486271ee15fa8e770147cec3ba8ac1ac2c1f"
+        },
+        "injectedContextLimitation": "Full provider-injected system/developer/tool/catalog context opaque. Cached manifests do not prove enabled or injected plugins; first two launches predate inventory capture."
+      }
+    },
+    {
+      "run": "pure-function-2-improved",
+      "task": "pure-function",
+      "pair": 2,
+      "arm": "improved",
+      "revision": "f73ecf8e8072e0a11a06cec38517206bed725a85",
+      "exitCode": 0,
+      "quality": "passed",
+      "planningArtifactQuality": "not-applicable",
+      "requiredCompletionVerification": "passed",
+      "comparability": "quality-eligible / partially-controlled-observational-comparison",
+      "qualityEvidence": "Correct assignment; archived public-interface tests cover duplicate, empty and independent paths; 28 files / 94 tests pass; tsc/build pass; browser omission reason recorded.",
+      "firstOutputObserver": {
+        "eventLine": 26,
+        "kind": "product-edit",
+        "paths": [
+          "src/lib/format.ts"
+        ]
+      },
+      "firstOutput": {
+        "eventLine": 26,
+        "kind": "product-edit",
+        "paths": [
+          "src/lib/format.ts"
+        ]
+      },
+      "tokens": {
+        "status": "observed-cli-turn-aggregate",
+        "scope": "CLI turn.completed aggregate; nested agents not assumed included",
+        "input": 251262,
+        "cachedInput": 214784,
+        "output": 1652,
+        "reasoningOutput": 114,
+        "cacheWriteInput": 0,
+        "semantics": "Raw CLI turn.completed fields; no verified billing interpretation or inferred child usage."
+      },
+      "beforeFirstOutput": {
+        "deliveredUnicodeCodePointsByBucket": null,
+        "readEvents": null,
+        "uniqueSources": null
+      },
+      "proxies": {
+        "directCLICompletedItemCounts": {
+          "agent_message": 5,
+          "command_execution": 11,
+          "file_change": 2
+        },
+        "batchInternalCommandOrQueryCounts": null,
+        "directCLICommands": 11,
+        "directCLICommandsBeforeFirstOutput": 8,
+        "rawCLIRecordedOutputChars": 56171,
+        "rawCLIRecordedOutputCharsBeforeFirstOutput": 53861,
+        "strictReadContextUnknownMixedOutputChars": 53861
+      },
+      "observedCheckProblemEventCountIncludingRepeatedLogReads": 2,
+      "failureClasses": {
+        "environment-failure": 1,
+        "expected-pre-fix-regression-red": 1
+      },
+      "reworkNotes": [
+        "Initial Vitest config bundle symlink EPERM; runner-loader retry recovered.",
+        "Intentional pre-fix regression failure is diagnosis, not product rework."
+      ],
+      "evidenceSha256": {
+        "final.diff": "31fc5597b2c78593ae702f9a442ae846fb38ccce7f572708fc0edf84d7728195",
+        "result.json": "1c312927113fe09849c94ab39e23f44a0377b9bd335f41187d1586f2ce713247",
+        "prompt.txt": "487b3f65275c08842f31ac2007d27baabd67cb5070fe4063adab668b4f95375d",
+        "events.jsonl": "a25c2c509f8e0a69fb232d065b0cb9dc74d682beeea805bf5b1b0718a45a892f",
+        "status.txt": "c5b3f2cd1aad8a206fef488c96340bed9dfd0dcc637d18fa53573bc3d9937ae1",
+        "environment.json": "ac888116285bebc47becdc88f8247ab92d3001c716ecf6bd9bb76c5652a7c122"
+      },
+      "createdFilesCount": 1,
+      "createdFilesManifestSha256": "cbc3b636b21976c60da7fa014330c604c8e0c0315ebe77d45efd76d584396966",
+      "environmentProvenance": {
+        "globalSnapshot": {
+          "path": "/private/tmp/agent-efficiency-20261010/paired-global-environment.json",
+          "sha256": "cfbcea22c9813151a872937a4e2d486271ee15fa8e770147cec3ba8ac1ac2c1f"
+        },
+        "injectedContextLimitation": "Full provider-injected system/developer/tool/catalog context opaque. Cached manifests do not prove enabled or injected plugins; first two launches predate inventory capture."
+      }
+    },
+    {
+      "run": "pure-function-3-baseline",
+      "task": "pure-function",
+      "pair": 3,
+      "arm": "baseline",
+      "revision": "39e0f63ab8355cafbbbe716eff2adf0817c8c46a",
+      "exitCode": 0,
+      "quality": "passed",
+      "planningArtifactQuality": "not-applicable",
+      "requiredCompletionVerification": "passed",
+      "comparability": "quality-eligible / partially-controlled-observational-comparison",
+      "qualityEvidence": "Correct assignment; archived public-interface tests cover duplicate, empty and independent paths; 28 files / 94 tests pass; tsc/build pass; browser omission reason recorded.",
+      "firstOutputObserver": {
+        "eventLine": 22,
+        "kind": "product-edit",
+        "paths": [
+          "src/lib/format.ts"
+        ]
+      },
+      "firstOutput": {
+        "eventLine": 22,
+        "kind": "product-edit",
+        "paths": [
+          "src/lib/format.ts"
+        ]
+      },
+      "tokens": {
+        "status": "observed-cli-turn-aggregate",
+        "scope": "CLI turn.completed aggregate; nested agents not assumed included",
+        "input": 244514,
+        "cachedInput": 219392,
+        "output": 1527,
+        "reasoningOutput": 70,
+        "cacheWriteInput": 0,
+        "semantics": "Raw CLI turn.completed fields; no verified billing interpretation or inferred child usage."
+      },
+      "beforeFirstOutput": {
+        "deliveredUnicodeCodePointsByBucket": null,
+        "readEvents": null,
+        "uniqueSources": null
+      },
+      "proxies": {
+        "directCLICompletedItemCounts": {
+          "agent_message": 5,
+          "command_execution": 9,
+          "file_change": 2
+        },
+        "batchInternalCommandOrQueryCounts": null,
+        "directCLICommands": 9,
+        "directCLICommandsBeforeFirstOutput": 6,
+        "rawCLIRecordedOutputChars": 55378,
+        "rawCLIRecordedOutputCharsBeforeFirstOutput": 53185,
+        "strictReadContextUnknownMixedOutputChars": 53185
+      },
+      "observedCheckProblemEventCountIncludingRepeatedLogReads": 2,
+      "failureClasses": {
+        "environment-failure": 1,
+        "expected-pre-fix-regression-red": 1
+      },
+      "reworkNotes": [
+        "Initial symlink EPERM recovered with runner loader."
+      ],
+      "evidenceSha256": {
+        "final.diff": "31fc5597b2c78593ae702f9a442ae846fb38ccce7f572708fc0edf84d7728195",
+        "result.json": "b1f8f8540b027ee852d1edf6a3d67d11f9257c4d2f91f4622e577f5195addfa5",
+        "prompt.txt": "487b3f65275c08842f31ac2007d27baabd67cb5070fe4063adab668b4f95375d",
+        "events.jsonl": "c76027629d8c2d217f938927492be1cafe07c2cb50d908f43ae1039cbb403215",
+        "status.txt": "c5b3f2cd1aad8a206fef488c96340bed9dfd0dcc637d18fa53573bc3d9937ae1",
+        "environment.json": "74f06e92e987ec643d06025db5402fd76a2ad7cb0d97698895fac95ed51f288e"
+      },
+      "createdFilesCount": 1,
+      "createdFilesManifestSha256": "0943555f42d73a651ad950b758ec56258fbd4476470ee3d6d7e3269b94250752",
+      "environmentProvenance": {
+        "globalSnapshot": {
+          "path": "/private/tmp/agent-efficiency-20261010/paired-global-environment.json",
+          "sha256": "cfbcea22c9813151a872937a4e2d486271ee15fa8e770147cec3ba8ac1ac2c1f"
+        },
+        "injectedContextLimitation": "Full provider-injected system/developer/tool/catalog context opaque. Cached manifests do not prove enabled or injected plugins; first two launches predate inventory capture."
+      }
+    },
+    {
+      "run": "pure-function-3-improved",
+      "task": "pure-function",
+      "pair": 3,
+      "arm": "improved",
+      "revision": "f73ecf8e8072e0a11a06cec38517206bed725a85",
+      "exitCode": 0,
+      "quality": "passed",
+      "planningArtifactQuality": "not-applicable",
+      "requiredCompletionVerification": "passed",
+      "comparability": "quality-eligible / partially-controlled-observational-comparison",
+      "qualityEvidence": "Correct assignment; archived public-interface tests cover duplicate, empty and independent paths; 28 files / 94 tests pass; tsc/build pass; browser omission reason recorded.",
+      "firstOutputObserver": {
+        "eventLine": 21,
+        "kind": "product-edit",
+        "paths": [
+          "src/lib/format.ts"
+        ]
+      },
+      "firstOutput": {
+        "eventLine": 21,
+        "kind": "product-edit",
+        "paths": [
+          "src/lib/format.ts"
+        ]
+      },
+      "tokens": {
+        "status": "observed-cli-turn-aggregate",
+        "scope": "CLI turn.completed aggregate; nested agents not assumed included",
+        "input": 262389,
+        "cachedInput": 235136,
+        "output": 1395,
+        "reasoningOutput": 86,
+        "cacheWriteInput": 0,
+        "semantics": "Raw CLI turn.completed fields; no verified billing interpretation or inferred child usage."
+      },
+      "beforeFirstOutput": {
+        "deliveredUnicodeCodePointsByBucket": null,
+        "readEvents": null,
+        "uniqueSources": null
+      },
+      "proxies": {
+        "directCLICompletedItemCounts": {
+          "agent_message": 4,
+          "command_execution": 9,
+          "file_change": 2
+        },
+        "batchInternalCommandOrQueryCounts": null,
+        "directCLICommands": 9,
+        "directCLICommandsBeforeFirstOutput": 6,
+        "rawCLIRecordedOutputChars": 52058,
+        "rawCLIRecordedOutputCharsBeforeFirstOutput": 49879,
+        "strictReadContextUnknownMixedOutputChars": 49879
+      },
+      "observedCheckProblemEventCountIncludingRepeatedLogReads": 2,
+      "failureClasses": {
+        "environment-failure": 1,
+        "expected-pre-fix-regression-red": 1
+      },
+      "reworkNotes": [
+        "Initial symlink EPERM recovered with runner loader."
+      ],
+      "evidenceSha256": {
+        "final.diff": "31fc5597b2c78593ae702f9a442ae846fb38ccce7f572708fc0edf84d7728195",
+        "result.json": "3a8d25420458cea9a5c5b26bf6abf15ccda095252032d154762dcbe0ab6bb41f",
+        "prompt.txt": "487b3f65275c08842f31ac2007d27baabd67cb5070fe4063adab668b4f95375d",
+        "events.jsonl": "b39bbb9af93e2de2924efcc9320bfcfb1ac2a252d379357ddcb7102819127040",
+        "status.txt": "c5b3f2cd1aad8a206fef488c96340bed9dfd0dcc637d18fa53573bc3d9937ae1",
+        "environment.json": "4292ea452a5940386bfc1383db40110fc28cdefe81e829a490aaa7e4f5bf3d88"
+      },
+      "createdFilesCount": 1,
+      "createdFilesManifestSha256": "504f41ccb3ff6c9c24160425f528427e1eb28ea9f391e2d13a17f6327d9778ce",
+      "environmentProvenance": {
+        "globalSnapshot": {
+          "path": "/private/tmp/agent-efficiency-20261010/paired-global-environment.json",
+          "sha256": "cfbcea22c9813151a872937a4e2d486271ee15fa8e770147cec3ba8ac1ac2c1f"
+        },
+        "injectedContextLimitation": "Full provider-injected system/developer/tool/catalog context opaque. Cached manifests do not prove enabled or injected plugins; first two launches predate inventory capture."
+      }
+    },
+    {
+      "run": "style-1-baseline",
+      "task": "style",
+      "pair": 1,
+      "arm": "baseline",
+      "revision": "39e0f63ab8355cafbbbe716eff2adf0817c8c46a",
+      "exitCode": 0,
+      "quality": "passed",
+      "planningArtifactQuality": "not-applicable",
+      "requiredCompletionVerification": "passed",
+      "comparability": "quality-eligible / partially-controlled-observational-comparison",
+      "qualityEvidence": "View-only SVG selector 1rem, expand SVG .8125rem, all other product controls untouched; visual-spec aligned. Actual custom harness asserts 16/13px, desktop28/touch44, keyboard/2px outline in Desktop Chrome and Pixel7. Required render/view tests and tsc/build pass. Supplementary mobile related-detail return fails identically with original CSS; not counted as required task failure.",
+      "firstOutputObserver": {
+        "eventLine": 16,
+        "kind": "product-edit",
+        "paths": [
+          "src/components/collection.css"
+        ]
+      },
+      "firstOutput": {
+        "eventLine": 16,
+        "kind": "product-edit",
+        "paths": [
+          "src/components/collection.css"
+        ]
+      },
+      "tokens": {
+        "status": "observed-cli-turn-aggregate",
+        "scope": "CLI turn.completed aggregate; nested agents not assumed included",
+        "input": 1181760,
+        "cachedInput": 1088512,
+        "output": 6484,
+        "reasoningOutput": 806,
+        "cacheWriteInput": 0,
+        "semantics": "Raw CLI turn.completed fields; no verified billing interpretation or inferred child usage."
+      },
+      "beforeFirstOutput": {
+        "deliveredUnicodeCodePointsByBucket": null,
+        "readEvents": null,
+        "uniqueSources": null
+      },
+      "proxies": {
+        "directCLICompletedItemCounts": {
+          "agent_message": 6,
+          "command_execution": 24
+        },
+        "batchInternalCommandOrQueryCounts": null,
+        "directCLICommands": 24,
+        "directCLICommandsBeforeFirstOutput": 5,
+        "rawCLIRecordedOutputChars": 94391,
+        "rawCLIRecordedOutputCharsBeforeFirstOutput": 57066,
+        "strictReadContextUnknownMixedOutputChars": 57066
+      },
+      "observedCheckProblemEventCountIncludingRepeatedLogReads": 7,
+      "failureClasses": {
+        "unexpected-command-failure": 6
+      },
+      "reworkNotes": [
+        "Initial Vite EPERM, missing npx, localhost EPERM recovered.",
+        "Two custom harness locator failures corrected and rerun (2 pass); corrective verification rework retained.",
+        "Supplementary related-detail mobile failure reproduced on original CSS; unresolved pre-existing check failure retained."
+      ],
+      "evidenceSha256": {
+        "final.diff": "f4ec4f2b1a1567f902daeeed8328d778966c3edeb8f7b33e6adca3447ec974fc",
+        "result.json": "bb82b8ab0c24df814c43f348bba40e1a54009579e52c059675eb4707664b5a96",
+        "prompt.txt": "3aaecae34d9f7188dceae00e3e2ca8035f4106d21bf5c9f3e7f47222021bd52b",
+        "events.jsonl": "26f1fb0f4c08192e2b5ea5013424a055a21a043f8dd5ae69975e8d2fde3659a5",
+        "status.txt": "833525d131b9f6e247f8b6c375fd4a24402e9ad4381086e5183f76fd049345a6",
+        "environment.json": "48a87a391241e0e8a38377d0a72343e88c277e636f6acbc73181ba27c0a8656c"
+      },
+      "createdFilesCount": 105,
+      "createdFilesManifestSha256": "d5614a3021533a260e2b782e55d87b440a61611cd29a040d02c9611e79818b01",
+      "environmentProvenance": {
+        "globalSnapshot": {
+          "path": "/private/tmp/agent-efficiency-20261010/paired-global-environment.json",
+          "sha256": "cfbcea22c9813151a872937a4e2d486271ee15fa8e770147cec3ba8ac1ac2c1f"
+        },
+        "injectedContextLimitation": "Full provider-injected system/developer/tool/catalog context opaque. Cached manifests do not prove enabled or injected plugins; first two launches predate inventory capture."
+      }
+    },
+    {
+      "run": "style-1-improved",
+      "task": "style",
+      "pair": 1,
+      "arm": "improved",
+      "revision": "f73ecf8e8072e0a11a06cec38517206bed725a85",
+      "exitCode": 0,
+      "quality": "passed",
+      "planningArtifactQuality": "not-applicable",
+      "requiredCompletionVerification": "passed",
+      "comparability": "quality-eligible / partially-controlled-observational-comparison",
+      "qualityEvidence": "Only view SVG selector 1rem, expand .8125rem and control/focus/touch CSS unchanged. Tsc/build and 10 desktop/mobile custom+existing fixture cases pass. Actual harness checks 16/13px,28/44px, keyboard roving tabindex and2px outline.",
+      "firstOutputObserver": {
+        "eventLine": 13,
+        "kind": "product-edit",
+        "paths": [
+          "src/components/collection.css"
+        ]
+      },
+      "firstOutput": {
+        "eventLine": 15,
+        "kind": "product-edit",
+        "paths": [
+          "src/components/collection.css"
+        ],
+        "manualEvidence": "Reviewed item.completed file_change; original observer result falsely matched a preceding read command."
+      },
+      "tokens": {
+        "status": "observed-cli-turn-aggregate",
+        "scope": "CLI turn.completed aggregate; nested agents not assumed included",
+        "input": 521796,
+        "cachedInput": 481792,
+        "output": 4606,
+        "reasoningOutput": 564,
+        "cacheWriteInput": 0,
+        "semantics": "Raw CLI turn.completed fields; no verified billing interpretation or inferred child usage."
+      },
+      "beforeFirstOutput": {
+        "deliveredUnicodeCodePointsByBucket": null,
+        "readEvents": null,
+        "uniqueSources": null
+      },
+      "proxies": {
+        "directCLICompletedItemCounts": {
+          "agent_message": 4,
+          "command_execution": 16,
+          "file_change": 2
+        },
+        "batchInternalCommandOrQueryCounts": null,
+        "directCLICommands": 16,
+        "directCLICommandsBeforeFirstOutput": 5,
+        "rawCLIRecordedOutputChars": 63924,
+        "rawCLIRecordedOutputCharsBeforeFirstOutput": 53008,
+        "strictReadContextUnknownMixedOutputChars": 53008
+      },
+      "observedCheckProblemEventCountIncludingRepeatedLogReads": 5,
+      "failureClasses": {
+        "environment-failure": 2
+      },
+      "reworkNotes": [
+        "Vite symlink and localhost EPERM recovered; no product corrective edits."
+      ],
+      "evidenceSha256": {
+        "final.diff": "12a4bede5b7637532cf6a373b3c9e7013143a30729765f032a0fc1809d832e73",
+        "result.json": "964f64ba80d1d96d5938e7af7b26b403ba1a9b3c58cf630058f84c7f3a851431",
+        "prompt.txt": "3aaecae34d9f7188dceae00e3e2ca8035f4106d21bf5c9f3e7f47222021bd52b",
+        "events.jsonl": "e97d065d6c53293e738302c6d8a1299101a2f61d53a2b95fd63120d963a914a1",
+        "status.txt": "e54e296102c034c795a6f064611684749d48b0b2bae6f4995d8dfff5dc2a9612",
+        "environment.json": "2ef9a99907c930591b6cf0025e0e361345384718e7713d3f2731528da951d4a8"
+      },
+      "createdFilesCount": 91,
+      "createdFilesManifestSha256": "e827ed42b203b6980d9598c00eb35847f57035287c0a47589d853a5c8f5eca6c",
+      "environmentProvenance": {
+        "globalSnapshot": {
+          "path": "/private/tmp/agent-efficiency-20261010/paired-global-environment.json",
+          "sha256": "cfbcea22c9813151a872937a4e2d486271ee15fa8e770147cec3ba8ac1ac2c1f"
+        },
+        "injectedContextLimitation": "Full provider-injected system/developer/tool/catalog context opaque. Cached manifests do not prove enabled or injected plugins; first two launches predate inventory capture."
+      }
+    },
+    {
+      "run": "style-2-baseline",
+      "task": "style",
+      "pair": 2,
+      "arm": "baseline",
+      "revision": "39e0f63ab8355cafbbbe716eff2adf0817c8c46a",
+      "exitCode": 0,
+      "quality": "passed",
+      "planningArtifactQuality": "not-applicable",
+      "requiredCompletionVerification": "passed",
+      "comparability": "quality-eligible / partially-controlled-observational-comparison",
+      "qualityEvidence": "Only view SVG1rem; expand13px and touch/focus controls preserved. Actual custom assertions16/13,28/44,2pxoutline/keyboard and14selected desktop/mobile cases:13pass,1supplementary linked-detail mobile fail reproduced original13pxCSS. Required icon/render/view/focus and tsc/build pass.",
+      "firstOutputObserver": {
+        "eventLine": 14,
+        "kind": "product-edit",
+        "paths": [
+          "src/components/collection.css"
+        ]
+      },
+      "firstOutput": {
+        "eventLine": 14,
+        "kind": "product-edit",
+        "paths": [
+          "src/components/collection.css"
+        ]
+      },
+      "tokens": {
+        "status": "observed-cli-turn-aggregate",
+        "scope": "CLI turn.completed aggregate; nested agents not assumed included",
+        "input": 945559,
+        "cachedInput": 852480,
+        "output": 6164,
+        "reasoningOutput": 717,
+        "cacheWriteInput": 0,
+        "semantics": "Raw CLI turn.completed fields; no verified billing interpretation or inferred child usage."
+      },
+      "beforeFirstOutput": {
+        "deliveredUnicodeCodePointsByBucket": null,
+        "readEvents": null,
+        "uniqueSources": null
+      },
+      "proxies": {
+        "directCLICompletedItemCounts": {
+          "agent_message": 5,
+          "command_execution": 24,
+          "file_change": 1
+        },
+        "batchInternalCommandOrQueryCounts": null,
+        "directCLICommands": 24,
+        "directCLICommandsBeforeFirstOutput": 4,
+        "rawCLIRecordedOutputChars": 139242,
+        "rawCLIRecordedOutputCharsBeforeFirstOutput": 87405,
+        "strictReadContextUnknownMixedOutputChars": 87405
+      },
+      "observedCheckProblemEventCountIncludingRepeatedLogReads": 6,
+      "failureClasses": {
+        "unexpected-command-failure": 6
+      },
+      "reworkNotes": [
+        "Vite symlink/localhostEPERM recovered.",
+        "Supplementary existing mobile linked-detail return failure retained; originalCSS control reproduces."
+      ],
+      "evidenceSha256": {
+        "final.diff": "12a4bede5b7637532cf6a373b3c9e7013143a30729765f032a0fc1809d832e73",
+        "result.json": "eca7b5e18fff6aecae7b86d704e8b2e3e030e3a25b4c331d37430a794a2e54e3",
+        "prompt.txt": "3aaecae34d9f7188dceae00e3e2ca8035f4106d21bf5c9f3e7f47222021bd52b",
+        "events.jsonl": "a23454aa0b744030e9a48eb16919a18e5ce47c4db74e43a116982e06caa8381e",
+        "status.txt": "ec9fe630db3525d9e807a2f5681b5f6f44cfae94aae680962e722b9f582318a2",
+        "environment.json": "aeef07aef0f3f3fe65640fdd5e2bd98d40da6fe6b5b0db26dca489bf41f09eb5"
+      },
+      "createdFilesCount": 105,
+      "createdFilesManifestSha256": "b2f52bc3d5bc7ae39936abed387b13da4b716f8f78bbba62d31c77ca64e95b58",
+      "environmentProvenance": {
+        "globalSnapshot": {
+          "path": "/private/tmp/agent-efficiency-20261010/paired-global-environment.json",
+          "sha256": "cfbcea22c9813151a872937a4e2d486271ee15fa8e770147cec3ba8ac1ac2c1f"
+        },
+        "injectedContextLimitation": "Full provider-injected system/developer/tool/catalog context opaque. Cached manifests do not prove enabled or injected plugins; first two launches predate inventory capture."
+      }
+    },
+    {
+      "run": "style-2-improved",
+      "task": "style",
+      "pair": 2,
+      "arm": "improved",
+      "revision": "f73ecf8e8072e0a11a06cec38517206bed725a85",
+      "exitCode": 0,
+      "quality": "passed",
+      "planningArtifactQuality": "not-applicable",
+      "requiredCompletionVerification": "passed",
+      "comparability": "quality-eligible / partially-controlled-observational-comparison",
+      "qualityEvidence": "Only view SVG1rem; expand/control/focus preserved. Actual custom geometry/keyboard asserts16/13,28/44,2pxoutline pass after harness correction. Existing collection desktop18/18/mobile17/18 pass; mobile linked-detail return reproduced originalCSS. Requiredrender/view/keyboard and tsc/build pass.",
+      "firstOutputObserver": {
+        "eventLine": 11,
+        "kind": "product-edit",
+        "paths": [
+          "src/components/collection.css"
+        ]
+      },
+      "firstOutput": {
+        "eventLine": 13,
+        "kind": "product-edit",
+        "paths": [
+          "src/components/collection.css"
+        ],
+        "manualEvidence": "Reviewed item.completed file_change; original observer result falsely matched a preceding read command."
+      },
+      "tokens": {
+        "status": "observed-cli-turn-aggregate",
+        "scope": "CLI turn.completed aggregate; nested agents not assumed included",
+        "input": 1132574,
+        "cachedInput": 1074176,
+        "output": 7052,
+        "reasoningOutput": 992,
+        "cacheWriteInput": 0,
+        "semantics": "Raw CLI turn.completed fields; no verified billing interpretation or inferred child usage."
+      },
+      "beforeFirstOutput": {
+        "deliveredUnicodeCodePointsByBucket": null,
+        "readEvents": null,
+        "uniqueSources": null
+      },
+      "proxies": {
+        "directCLICompletedItemCounts": {
+          "agent_message": 6,
+          "command_execution": 22,
+          "file_change": 1
+        },
+        "batchInternalCommandOrQueryCounts": null,
+        "directCLICommands": 22,
+        "directCLICommandsBeforeFirstOutput": 4,
+        "rawCLIRecordedOutputChars": 118769,
+        "rawCLIRecordedOutputCharsBeforeFirstOutput": 76087,
+        "strictReadContextUnknownMixedOutputChars": 76087
+      },
+      "observedCheckProblemEventCountIncludingRepeatedLogReads": 5,
+      "failureClasses": {},
+      "reworkNotes": [
+        "Vite/config andlocalhostEPERM recovered.",
+        "Two custom locator failures corrected (2pass rerun); verification rework retained.",
+        "Supplementary existing mobile linked-detail return failure retained; originalCSS control reproduces."
+      ],
+      "evidenceSha256": {
+        "final.diff": "12a4bede5b7637532cf6a373b3c9e7013143a30729765f032a0fc1809d832e73",
+        "result.json": "c8e83d29f7cba37a497053de166450db6c9919672621e40600c5c180de03f3ff",
+        "prompt.txt": "3aaecae34d9f7188dceae00e3e2ca8035f4106d21bf5c9f3e7f47222021bd52b",
+        "events.jsonl": "17b8c587682104c6ac7967f87d3a7f5cf6e2b7edd248c69124832e97ec067dfd",
+        "status.txt": "ec9fe630db3525d9e807a2f5681b5f6f44cfae94aae680962e722b9f582318a2",
+        "environment.json": "543f30c098fd22471fc3769f4555076514d8b4a861a7f7cd78a4a5cbb81ccfac"
+      },
+      "createdFilesCount": 108,
+      "createdFilesManifestSha256": "6cb492c62f0d19ff85802ac56159f9b1857fa1b7f0bda2ad2d3fa19c25114cdd",
+      "environmentProvenance": {
+        "globalSnapshot": {
+          "path": "/private/tmp/agent-efficiency-20261010/paired-global-environment.json",
+          "sha256": "cfbcea22c9813151a872937a4e2d486271ee15fa8e770147cec3ba8ac1ac2c1f"
+        },
+        "injectedContextLimitation": "Full provider-injected system/developer/tool/catalog context opaque. Cached manifests do not prove enabled or injected plugins; first two launches predate inventory capture."
+      }
+    },
+    {
+      "run": "style-3-baseline",
+      "task": "style",
+      "pair": 3,
+      "arm": "baseline",
+      "revision": "39e0f63ab8355cafbbbe716eff2adf0817c8c46a",
+      "exitCode": 0,
+      "quality": "passed",
+      "planningArtifactQuality": "not-applicable",
+      "requiredCompletionVerification": "passed",
+      "comparability": "quality-eligible / partially-controlled-observational-comparison",
+      "qualityEvidence": "ViewSVG1rem only productchange plusvisualspec alignment. Actual harness16/13px,28/44px,2pxoutline/keyboard passes after waits fixed; tsc/build91webtests and35initialfixturecasespass. Supplementary mobileparentreturn passes after temporary mobileprevious-title locator correction; originalmobilevariant remains unmodified/full38notrerun.",
+      "firstOutputObserver": {
+        "eventLine": 13,
+        "kind": "product-edit",
+        "paths": [
+          "src/components/collection.css"
+        ]
+      },
+      "firstOutput": {
+        "eventLine": 13,
+        "kind": "product-edit",
+        "paths": [
+          "src/components/collection.css"
+        ]
+      },
+      "tokens": {
+        "status": "observed-cli-turn-aggregate",
+        "scope": "CLI turn.completed aggregate; nested agents not assumed included",
+        "input": 1378170,
+        "cachedInput": 1321728,
+        "output": 7598,
+        "reasoningOutput": 976,
+        "cacheWriteInput": 0,
+        "semantics": "Raw CLI turn.completed fields; no verified billing interpretation or inferred child usage."
+      },
+      "beforeFirstOutput": {
+        "deliveredUnicodeCodePointsByBucket": null,
+        "readEvents": null,
+        "uniqueSources": null
+      },
+      "proxies": {
+        "directCLICompletedItemCounts": {
+          "agent_message": 6,
+          "command_execution": 28,
+          "file_change": 1
+        },
+        "batchInternalCommandOrQueryCounts": null,
+        "directCLICommands": 28,
+        "directCLICommandsBeforeFirstOutput": 4,
+        "rawCLIRecordedOutputChars": 113641,
+        "rawCLIRecordedOutputCharsBeforeFirstOutput": 44779,
+        "strictReadContextUnknownMixedOutputChars": 44779
+      },
+      "observedCheckProblemEventCountIncludingRepeatedLogReads": 8,
+      "failureClasses": {
+        "unexpected-command-failure": 1
+      },
+      "reworkNotes": [
+        "npxmissing,config/symlinkEPERM,servercwd,localhostEPERM recovered.",
+        "Custom2Reactwait failures corrected; mobiletemporarybacklabel corrected; targeted3+1then1reruns retained."
+      ],
+      "evidenceSha256": {
+        "final.diff": "f4ec4f2b1a1567f902daeeed8328d778966c3edeb8f7b33e6adca3447ec974fc",
+        "result.json": "7c411099416bbc3c0988fd171b4272aaa8de5c0a0a89e1b3a5511297a43d6e14",
+        "prompt.txt": "3aaecae34d9f7188dceae00e3e2ca8035f4106d21bf5c9f3e7f47222021bd52b",
+        "events.jsonl": "44760e9fdb2de3610b06673c579a4a389bf01115bcbc490c576a8e9cc6715f30",
+        "status.txt": "833525d131b9f6e247f8b6c375fd4a24402e9ad4381086e5183f76fd049345a6",
+        "environment.json": "063b865d85d1cb46e2f7ff75293da1245f4cd846578feecd26462ef12075b71c"
+      },
+      "createdFilesCount": 116,
+      "createdFilesManifestSha256": "1ba25b1e1f9b51944bde67f404d09cfde677c09beaf266f29d94b3151d655081",
+      "environmentProvenance": {
+        "globalSnapshot": {
+          "path": "/private/tmp/agent-efficiency-20261010/paired-global-environment.json",
+          "sha256": "cfbcea22c9813151a872937a4e2d486271ee15fa8e770147cec3ba8ac1ac2c1f"
+        },
+        "injectedContextLimitation": "Full provider-injected system/developer/tool/catalog context opaque. Cached manifests do not prove enabled or injected plugins; first two launches predate inventory capture."
+      }
+    },
+    {
+      "run": "style-3-improved",
+      "task": "style",
+      "pair": 3,
+      "arm": "improved",
+      "revision": "f73ecf8e8072e0a11a06cec38517206bed725a85",
+      "exitCode": 0,
+      "quality": "passed",
+      "planningArtifactQuality": "not-applicable",
+      "requiredCompletionVerification": "passed",
+      "comparability": "quality-eligible / partially-controlled-observational-comparison",
+      "qualityEvidence": "OnlyviewSVG1rem; expand13px/touch/focus unchanged. Actualharnessloggedchecks beforeCSS2pass(afterconfigrecovery),afterCSS10pass desktop/mobile; geometry16/13,28/44,2pxoutline,rovingtabindex,keyboardandtoggle. Tsc/buildpass. Finalharness originaltext preservedinverificationharness.log.",
+      "firstOutputObserver": {
+        "eventLine": 27,
+        "kind": "product-edit",
+        "paths": [
+          "src/components/collection.css"
+        ]
+      },
+      "firstOutput": {
+        "eventLine": 27,
+        "kind": "product-edit",
+        "paths": [
+          "src/components/collection.css"
+        ]
+      },
+      "tokens": {
+        "status": "observed-cli-turn-aggregate",
+        "scope": "CLI turn.completed aggregate; nested agents not assumed included",
+        "input": 862343,
+        "cachedInput": 817664,
+        "output": 5408,
+        "reasoningOutput": 614,
+        "cacheWriteInput": 0,
+        "semantics": "Raw CLI turn.completed fields; no verified billing interpretation or inferred child usage."
+      },
+      "beforeFirstOutput": {
+        "deliveredUnicodeCodePointsByBucket": null,
+        "readEvents": null,
+        "uniqueSources": null
+      },
+      "proxies": {
+        "directCLICompletedItemCounts": {
+          "agent_message": 5,
+          "command_execution": 19,
+          "file_change": 1
+        },
+        "batchInternalCommandOrQueryCounts": null,
+        "directCLICommands": 19,
+        "directCLICommandsBeforeFirstOutput": 10,
+        "rawCLIRecordedOutputChars": 74389,
+        "rawCLIRecordedOutputCharsBeforeFirstOutput": 66665,
+        "strictReadContextUnknownMixedOutputChars": 66665
+      },
+      "observedCheckProblemEventCountIncludingRepeatedLogReads": 3,
+      "failureClasses": {
+        "unexpected-command-failure": 3
+      },
+      "reworkNotes": [
+        "Pre-editViteconfig/symlink andlocalhostEPERM recovered; two baselineharnesspass includedinthecutoff, which differs fromotherstyleworkflows."
+      ],
+      "evidenceSha256": {
+        "final.diff": "12a4bede5b7637532cf6a373b3c9e7013143a30729765f032a0fc1809d832e73",
+        "result.json": "8cc5c134d64bca9698a050e6714f16271d0125ae73a1af4d3cd4d7a4bfe629ad",
+        "prompt.txt": "3aaecae34d9f7188dceae00e3e2ca8035f4106d21bf5c9f3e7f47222021bd52b",
+        "events.jsonl": "d144e3ebe76dc79f8055018220b638e2ebe3de6eeb2e938e29ce5d620506fcb1",
+        "status.txt": "12888406e97261ab6a0ea4563ad37c5b2e9b0cf7854cffa0032bdd4c3da04c41",
+        "environment.json": "654d518f107bc61e3c943a01d832d2b6de599deb5a0bece2176ca0c18c565abd"
+      },
+      "createdFilesCount": 109,
+      "createdFilesManifestSha256": "9390923ddb73a0e8ecc74ce794f26bbafab3afaf541463a0ce8b962f4280e1ab",
+      "environmentProvenance": {
+        "globalSnapshot": {
+          "path": "/private/tmp/agent-efficiency-20261010/paired-global-environment.json",
+          "sha256": "cfbcea22c9813151a872937a4e2d486271ee15fa8e770147cec3ba8ac1ac2c1f"
+        },
+        "injectedContextLimitation": "Full provider-injected system/developer/tool/catalog context opaque. Cached manifests do not prove enabled or injected plugins; first two launches predate inventory capture."
+      }
+    }
+  ],
+  "qualityCounts": {
+    "passed": 18,
+    "verification-incomplete": 6
+  },
+  "qualityMatchedPairs": {
+    "localTasks": 9,
+    "publicAPIWithIncompleteRemoteSpecVerification": 3,
+    "excludedFromFullyVerifiedMatchedSavings": [
+      "public-api/1",
+      "public-api/2",
+      "public-api/3"
+    ]
+  },
+  "environmentAudit": {
+    "path": "/private/tmp/agent-efficiency-20261010/paired-environment-audit.json",
+    "sha256": "82876055059e4d8b4acc7a86a216606e2653fadbf363cc69fed4ad3164404b24",
+    "observableFieldsMatched": true,
+    "fullyInjectedContextMatched": null
+  },
+  "ownerPullRequest": "https://github.com/kimyongin/agent-workspace-template/pull/288",
+  "ownerPullRequestBase": "Open prerequisite PR #275 branch; not merged to main.",
+  "aggregates": {
+    "copy": {
+      "baseline": {
+        "input": {
+          "median": 546216,
+          "min": 518318,
+          "max": 656775
+        },
+        "cachedInput": {
+          "median": 497536,
+          "min": 477312,
+          "max": 613248
+        },
+        "output": {
+          "median": 4847,
+          "min": 4691,
+          "max": 5555
+        },
+        "directCLICommands": {
+          "median": 18,
+          "min": 16,
+          "max": 19
+        },
+        "directCLICommandsBeforeFirstOutput": {
+          "median": 5,
+          "min": 4,
+          "max": 5
+        },
+        "rawCLIRecordedOutputChars": {
+          "median": 83639,
+          "min": 77869,
+          "max": 88463
+        },
+        "rawCLIRecordedOutputCharsBeforeFirstOutput": {
+          "median": 60937,
+          "min": 47906,
+          "max": 63249
+        }
+      },
+      "improved": {
+        "input": {
+          "median": 538455,
+          "min": 478205,
+          "max": 603450
+        },
+        "cachedInput": {
+          "median": 499456,
+          "min": 440960,
+          "max": 562432
+        },
+        "output": {
+          "median": 4425,
+          "min": 4187,
+          "max": 4963
+        },
+        "directCLICommands": {
+          "median": 18,
+          "min": 15,
+          "max": 18
+        },
+        "directCLICommandsBeforeFirstOutput": {
+          "median": 5,
+          "min": 4,
+          "max": 6
+        },
+        "rawCLIRecordedOutputChars": {
+          "median": 75532,
+          "min": 71846,
+          "max": 94163
+        },
+        "rawCLIRecordedOutputCharsBeforeFirstOutput": {
+          "median": 61883,
+          "min": 57154,
+          "max": 80036
+        }
+      },
+      "pairedImprovedMinusBaseline": {
+        "input": [
+          -53325,
+          20137,
+          -68011
+        ],
+        "cachedInput": [
+          -50816,
+          22144,
+          -56576
+        ],
+        "output": [
+          -1130,
+          116,
+          -504
+        ],
+        "directCLICommands": [
+          -3,
+          -1,
+          2
+        ],
+        "directCLICommandsBeforeFirstOutput": [
+          1,
+          0,
+          0
+        ],
+        "rawCLIRecordedOutputChars": [
+          10524,
+          -12931,
+          -6023
+        ],
+        "rawCLIRecordedOutputCharsBeforeFirstOutput": [
+          16787,
+          946,
+          9248
+        ]
+      }
+    },
+    "style": {
+      "baseline": {
+        "input": {
+          "median": 1181760,
+          "min": 945559,
+          "max": 1378170
+        },
+        "cachedInput": {
+          "median": 1088512,
+          "min": 852480,
+          "max": 1321728
+        },
+        "output": {
+          "median": 6484,
+          "min": 6164,
+          "max": 7598
+        },
+        "directCLICommands": {
+          "median": 24,
+          "min": 24,
+          "max": 28
+        },
+        "directCLICommandsBeforeFirstOutput": {
+          "median": 4,
+          "min": 4,
+          "max": 5
+        },
+        "rawCLIRecordedOutputChars": {
+          "median": 113641,
+          "min": 94391,
+          "max": 139242
+        },
+        "rawCLIRecordedOutputCharsBeforeFirstOutput": {
+          "median": 57066,
+          "min": 44779,
+          "max": 87405
+        }
+      },
+      "improved": {
+        "input": {
+          "median": 862343,
+          "min": 521796,
+          "max": 1132574
+        },
+        "cachedInput": {
+          "median": 817664,
+          "min": 481792,
+          "max": 1074176
+        },
+        "output": {
+          "median": 5408,
+          "min": 4606,
+          "max": 7052
+        },
+        "directCLICommands": {
+          "median": 19,
+          "min": 16,
+          "max": 22
+        },
+        "directCLICommandsBeforeFirstOutput": {
+          "median": 5,
+          "min": 4,
+          "max": 10
+        },
+        "rawCLIRecordedOutputChars": {
+          "median": 74389,
+          "min": 63924,
+          "max": 118769
+        },
+        "rawCLIRecordedOutputCharsBeforeFirstOutput": {
+          "median": 66665,
+          "min": 53008,
+          "max": 76087
+        }
+      },
+      "pairedImprovedMinusBaseline": {
+        "input": [
+          -659964,
+          187015,
+          -515827
+        ],
+        "cachedInput": [
+          -606720,
+          221696,
+          -504064
+        ],
+        "output": [
+          -1878,
+          888,
+          -2190
+        ],
+        "directCLICommands": [
+          -8,
+          -2,
+          -9
+        ],
+        "directCLICommandsBeforeFirstOutput": [
+          0,
+          0,
+          6
+        ],
+        "rawCLIRecordedOutputChars": [
+          -30467,
+          -20473,
+          -39252
+        ],
+        "rawCLIRecordedOutputCharsBeforeFirstOutput": [
+          -4058,
+          -11318,
+          21886
+        ]
+      }
+    },
+    "pure-function": {
+      "baseline": {
+        "input": {
+          "median": 244514,
+          "min": 189183,
+          "max": 246045
+        },
+        "cachedInput": {
+          "median": 219392,
+          "min": 162304,
+          "max": 220288
+        },
+        "output": {
+          "median": 1458,
+          "min": 1435,
+          "max": 1527
+        },
+        "directCLICommands": {
+          "median": 9,
+          "min": 9,
+          "max": 10
+        },
+        "directCLICommandsBeforeFirstOutput": {
+          "median": 6,
+          "min": 6,
+          "max": 7
+        },
+        "rawCLIRecordedOutputChars": {
+          "median": 55378,
+          "min": 53273,
+          "max": 58863
+        },
+        "rawCLIRecordedOutputCharsBeforeFirstOutput": {
+          "median": 53185,
+          "min": 51454,
+          "max": 55686
+        }
+      },
+      "improved": {
+        "input": {
+          "median": 251262,
+          "min": 218233,
+          "max": 262389
+        },
+        "cachedInput": {
+          "median": 214784,
+          "min": 192128,
+          "max": 235136
+        },
+        "output": {
+          "median": 1562,
+          "min": 1395,
+          "max": 1652
+        },
+        "directCLICommands": {
+          "median": 10,
+          "min": 9,
+          "max": 11
+        },
+        "directCLICommandsBeforeFirstOutput": {
+          "median": 6,
+          "min": 6,
+          "max": 8
+        },
+        "rawCLIRecordedOutputChars": {
+          "median": 56171,
+          "min": 52058,
+          "max": 64281
+        },
+        "rawCLIRecordedOutputCharsBeforeFirstOutput": {
+          "median": 53861,
+          "min": 49879,
+          "max": 54641
+        }
+      },
+      "pairedImprovedMinusBaseline": {
+        "input": [
+          29050,
+          5217,
+          17875
+        ],
+        "cachedInput": [
+          29824,
+          -5504,
+          15744
+        ],
+        "output": [
+          127,
+          194,
+          -132
+        ],
+        "directCLICommands": [
+          0,
+          2,
+          0
+        ],
+        "directCLICommandsBeforeFirstOutput": [
+          -1,
+          2,
+          0
+        ],
+        "rawCLIRecordedOutputChars": [
+          11008,
+          -2692,
+          -3320
+        ],
+        "rawCLIRecordedOutputCharsBeforeFirstOutput": [
+          3187,
+          -1825,
+          -3306
+        ]
+      }
+    },
+    "public-api": {
+      "baseline": {
+        "input": {
+          "median": 703300,
+          "min": 698586,
+          "max": 940620
+        },
+        "cachedInput": {
+          "median": 629504,
+          "min": 626048,
+          "max": 861440
+        },
+        "output": {
+          "median": 10097,
+          "min": 8861,
+          "max": 10239
+        },
+        "directCLICommands": {
+          "median": 16,
+          "min": 13,
+          "max": 20
+        },
+        "directCLICommandsBeforeFirstOutput": {
+          "median": 13,
+          "min": 9,
+          "max": 15
+        },
+        "rawCLIRecordedOutputChars": {
+          "median": 204396,
+          "min": 194927,
+          "max": 244800
+        },
+        "rawCLIRecordedOutputCharsBeforeFirstOutput": {
+          "median": 203999,
+          "min": 188766,
+          "max": 224211
+        }
+      },
+      "improved": {
+        "input": {
+          "median": 904002,
+          "min": 875098,
+          "max": 1396935
+        },
+        "cachedInput": {
+          "median": 823936,
+          "min": 801920,
+          "max": 1292288
+        },
+        "output": {
+          "median": 11194,
+          "min": 9072,
+          "max": 11713
+        },
+        "directCLICommands": {
+          "median": 18,
+          "min": 15,
+          "max": 20
+        },
+        "directCLICommandsBeforeFirstOutput": {
+          "median": 12,
+          "min": 9,
+          "max": 14
+        },
+        "rawCLIRecordedOutputChars": {
+          "median": 213900,
+          "min": 178645,
+          "max": 264640
+        },
+        "rawCLIRecordedOutputCharsBeforeFirstOutput": {
+          "median": 193824,
+          "min": 155799,
+          "max": 248683
+        }
+      },
+      "pairedImprovedMinusBaseline": {
+        "input": [
+          456315,
+          200702,
+          176512
+        ],
+        "cachedInput": [
+          430848,
+          194432,
+          175872
+        ],
+        "output": [
+          1616,
+          -1167,
+          2333
+        ],
+        "directCLICommands": [
+          0,
+          2,
+          2
+        ],
+        "directCLICommandsBeforeFirstOutput": [
+          -1,
+          0,
+          -1
+        ],
+        "rawCLIRecordedOutputChars": [
+          19840,
+          -16282,
+          9504
+        ],
+        "rawCLIRecordedOutputCharsBeforeFirstOutput": [
+          24472,
+          -32967,
+          -10175
+        ]
+      }
+    }
+  },
+  "directCLICompletedItemCounts": {
+    "agent_message": 119,
+    "command_execution": 397,
+    "file_change": 40
+  },
+  "nestedAgentEvents": {
+    "observedCount": 0,
+    "scope": "No nested-agent event type observed in the 24 direct CLI event streams; child usage is not inferred."
+  }
+}
