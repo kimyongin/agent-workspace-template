@@ -6,7 +6,7 @@
 
 Node·Deno·Supabase CLI 버전과 설치 명령은 package.json·lockfile을 따른다. 로컬 Supabase에는 Docker가 필요하다. 함수 서버와 웹 서버의 실행 대상은 환경 파일에서 확인한다. 웹을 로컬에서 열었다고 DB도 로컬인 것은 아니다.
 
-`setup:local`은 키·개발 계정·환경 파일을 준비하며 기존 생성 값과 사용자 설정을 보존한다. `test:all`은 설정된 함수 서버를 먼저 관찰한다. 준비된 기존 실행은 재사용하고, 준비 중이면 최대 2분 기다리며 준비 실패 시 중단한다. 기존 실행에서는 setup·migration·환경 파일 갱신을 하지 않으므로 검사에 필요한 로컬 환경은 먼저 준비되어 있어야 한다. 명령의 실제 동작은 [검사 실행](../../scripts/test-all.mjs)과 [수명주기 module](../../scripts/local-runtime.mjs)이 소유한다.
+`setup:local`은 키·개발 계정·환경 파일을 준비하며 기존 생성 값과 사용자 설정을 보존한다. `test:integration:local`은 설정된 함수 서버를 먼저 관찰한다. 준비된 기존 실행은 재사용하고, 준비 중이면 최대 2분 기다리며 준비 실패 시 중단한다. 기존 실행에서는 setup·migration·환경 파일 갱신을 하지 않으므로 검사에 필요한 로컬 환경은 먼저 준비되어 있어야 한다. 명령의 실제 동작은 [검사 실행](../../scripts/test-local-integration.mjs)과 [수명주기 module](../../scripts/local-runtime.mjs)이 소유한다.
 
 함수 실행이 없을 때만 Edge runtime을 제외한 setup 후 다시 관찰하고 직접 함수를 실행한다. setup 중 독립적으로 나타난 실행은 빌려 쓰며 제거하지 않는다. 직접 실행할 때는 기본 환경 파일을 수정하지 않고 개인 임시 환경 파일에 실행별 nonce를 추가한다. 정확한 컨테이너 ID·실제 functions bind source·Docker 환경의 nonce가 모두 일치해야 정리를 허용한다. 생성 시각이나 동일 source만으로 소유권을 추정하지 않는다. 실행 직전에도 다시 관찰하며, nonce가 없거나 ID가 바뀌면 중단하고 컨테이너를 보존한다. 검사 종료·실패·SIGINT/SIGTERM에는 직접 만든 자식 프로세스 트리를 강제 종료하고 증명한 컨테이너 ID만 정리하며 DB·volume과 기존 실행을 정리하지 않는다. project 이름만으로 정리하지 않는다. 다른 터미널이 같은 project의 Supabase CLI를 직접 실행하는 경우 CLI 자체의 이름 기반 교체와 시작 시점 경쟁까지 원자적으로 막지는 못하므로 같은 project에서 동시에 시작하지 않는다.
 
@@ -28,6 +28,24 @@ Node·Deno·Supabase CLI 버전과 설치 명령은 package.json·lockfile을 �
 
 Draft PR은 `check`·`integration`을 생략하고 관련 로컬 검사로 개발한다. 리뷰 준비 완료로 전환하면 CI가 실행되며, 이후 새 커밋에도 최신 변경을 검증한다. 같은 PR의 이전 실행은 자동 취소하고, Draft로 되돌릴 때도 진행 중 검사를 취소한다. main 푸시와 수동 실행은 유지한다. Draft의 skipped 결과와 취소된 실행은 머지 검증 증거가 아니며, 머지할 최신 변경의 실제 CI 성공을 확인한다.
 
+## 검사 명령의 범위와 선택
+
+명령은 검사 종류별로 선택한다. 원본 스킬의 구현 종료 시 전체 테스트는 프로젝트의 검사 범위를 확인한 뒤 적용하며, 이름에 `all`이 있다고 모든 종류의 검사를 포함하는 것으로 해석하지 않는다.
+
+| 명령 | 실제 포함 범위 | 선택 시점 |
+| --- | --- | --- |
+| `npm run check:docs` | 문서·링크·텍스트 형식과 스크립트 단위 검사 | 문서·개발 도구 변경 |
+| `npm run check:boundaries` | contracts·core·웹의 의존 경계 | 코드 의존성 변경 |
+| `npm run check:deno` | 서버 타입·lint·format | 서버 코드 변경 |
+| `npm run build` | 웹 타입 검사와 빌드 | 웹·공유 계약 변경 |
+| `npm run test:fast` | core·빠른 어댑터·웹 단위 검사 전체; 실제 서비스 없음 | 구현 종료 시 빠른 회귀 검사 |
+| `npm run test:db` / `test:http` / `test:mcp` | 각각 실제 DB·HTTP·MCP 계약 | 관련 저장·권한·진입점 변경 |
+| `npm run test:integration:local` | core·실제 DB·HTTP·MCP·기본 실제 API E2E; 웹 단위·격리 화면 설정 전체는 제외 | 준비된 로컬 환경에서 이 범위 전체가 필요할 때 |
+| `npm run test:e2e -- <spec> --project=<project>` | 기본 Playwright 설정의 선택한 파일·프로젝트; fixture는 해당 `--config` 필요 | 관련 사용자 흐름의 개발·회귀 확인 |
+| `npm run test:e2e:all` | 기본 실제 API와 각 격리 화면 설정; DB·HTTP·MCP·웹 단위 검사는 제외 | 스펙 통합 뒤 브라우저 영향이 넓거나 불확실할 때 |
+
+개발 중에는 관련 단일 검사부터 실행한다. 개별 PR의 변경에 맞는 로컬 검사와 CI, 스펙 통합 후 브라우저 범위 판단은 서로 구분한다. `test:integration:local`에는 기본 E2E가 포함되므로 개별 PR마다 관행적으로 실행하는 명령으로 사용하지 않는다. E2E를 제외한 실제 계약 검사가 필요하면 DB·HTTP·MCP 명령을 선택한다. 검사 로그에는 실제 실행한 명령과 포함 범위를 기록한다.
+
 ## 로컬 E2E 실행 기준
 
 브라우저 E2E의 기본 판단 단위는 스펙이다. 개별 PR에서는 변경에 맞는 로컬 검사와 CI를 수행하며, E2E는 스펙의 전체 변경이 통합된 상태에서 검토한다. 통합은 모든 구현 변경이 한 checkout에 합쳐진 상태를 뜻하며 개별 PR의 머지 여부만으로 판단하지 않는다. 스펙 없이 진행하는 단독 PR은 하나의 완료 단위로 취급한다.
@@ -40,7 +58,7 @@ Draft PR은 `check`·`integration`을 생략하고 관련 로컬 검사로 개�
 
 검토 근거·실행 revision·명령·범위·결과·미검증 범위는 스펙 이슈에 기록한다. 단독 PR은 연결된 이슈에 기록하며 이슈가 없으면 PR에 남긴다. 검증 이후 관련 변경이 추가되면 기존 검증에 미치는 영향을 검토해 재실행 여부와 범위를 결정한다. CI 성공은 브라우저 검증을 뜻하지 않는다.
 
-로컬 Supabase·함수 서버를 준비하고 Chromium을 설치한 뒤 `npm run test:e2e -- e2e/web-mcp.spec.ts --project=desktop`처럼 실행한다. 전체 브라우저 검사는 `npm run test:e2e:all`로 실제 API와 각 격리 화면 설정을 순서대로 실행한다. 설정별 소요 시간도 마지막 표에 표시한다. 전체 로컬 통합 검사는 `npm run test:all`로 실행하며 실제 API E2E도 포함한다. 실제 Pinecone 검사는 API 키가 있는 환경에서 `RUN_PINECONE_E2E=1`로 별도 실행한다.
+로컬 Supabase·함수 서버를 준비하고 Chromium을 설치한 뒤 `npm run test:e2e -- e2e/web-mcp.spec.ts --project=desktop`처럼 실행한다. 전체 브라우저 검사는 `npm run test:e2e:all`로 실제 API와 각 격리 화면 설정을 순서대로 실행한다. 설정별 소요 시간도 마지막 표에 표시한다. 로컬 통합 묶음 `npm run test:integration:local`은 실제 API E2E도 포함하며, 웹 단위·격리 화면 전체 검사를 대신하지 않는다. 실제 Pinecone 검사는 API 키가 있는 환경에서 `RUN_PINECONE_E2E=1`로 별도 실행한다.
 
 빠른 core·웹·어댑터 검사는 실제 DB·OAuth·브라우저 연결의 증거를 대신하지 않는다. 제품의 권한·일관성·웹/MCP 행동은 관련 [계약](../../supabase/functions/_shared/contracts/search.ts)과 실제 진입점의 테스트에서 확인한다. 제품 플러그인의 정적 패키지 검사는 실제 Claude·Codex 사용과 구분한다([제품 행동 검증 도구](../../experiments/plugin-behavior/README.md)).
 
