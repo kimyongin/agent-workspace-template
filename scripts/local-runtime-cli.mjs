@@ -75,7 +75,7 @@ export async function removeOwnedContainer(id, command) {
 export function createLocalRuntimeAdapter(config) {
   const source = realpathSync('supabase/functions');
   const npm = process.env.npm_execpath ?? join(dirname(process.execPath), 'node_modules/npm/bin/npm-cli.js');
-  if (!existsSync(npm)) throw new Error('Run through npm run test:all to resolve the npm CLI');
+  if (!existsSync(npm)) throw new Error('Run through npm run test:integration:local to resolve the npm CLI');
   const api = `${config.apiUrl}/functions/v1/api/tasks`;
   const containerName = `supabase_edge_runtime_${config.projectId}`;
   const log = join(tmpdir(), `workspace-functions-${process.pid}-${Date.now()}.log`);
