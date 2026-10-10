@@ -15,3 +15,12 @@
 .settings-source-retired summary { color: var(--muted-ink); font-size: var(--text-label); cursor: pointer; }
 .settings-source-retired .settings-source-fields { display: flex; justify-content: space-between; flex-wrap: wrap; }
 @media (max-width: 400px) { .settings-source-fields { grid-template-columns: minmax(0,1fr); gap: var(--space-1); } }
+.settings-source-name { position: relative; min-width: 0; }
+.settings-source-name .input { width: 100%; }
+.settings-source-name.is-default .input { padding-left: 4.5rem; }
+.settings-source-default { position: absolute; left: .75rem; top: 50%; transform: translateY(-50%); pointer-events: none; }
+.settings-source-list .settings-source-row { border: 0; }
+section[aria-labelledby="entity-identity-title"] .settings-section-footer { border-top: 0; }
+.settings-source-actions { display: flex; align-items: center; gap: 0; }
+.settings-source-actions .item-icon { width: 44px; height: 44px; padding: 0; display: inline-flex; align-items: center; justify-content: center; }
+@media (max-width: 639px) { .settings-source-row { grid-template-columns: minmax(0,1fr); } .settings-source-actions { justify-content: flex-end; } }

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { generateDataId } from "./data-id.ts";
 import { codePointLength, text } from "./common.ts";
 
 export const entitySourceCode = z.string().regex(/^[a-z][a-z0-9_-]{0,31}$/, {
@@ -38,9 +39,16 @@ export const entityReferenceIds = z.array(entityReferenceId).max(100).refine(
   },
 );
 export const entityIdentitySettings = z.strictObject({
-  generation: z.enum(["manual", "uuid"]),
+  generation: z.enum(["manual", "short", "uuid"]).transform((value) => value === "uuid" ? "short" as const : value),
   default_source: entitySourceCode,
-  sources: z.array(z.strictObject({ code: entitySourceCode, label: text(1, 100), deleted: z.boolean().optional() }))
+  sources: z.array(
+    z.strictObject({
+      code: entitySourceCode,
+      label: text(1, 100),
+      generation: z.enum(["manual", "short"]).optional(),
+      deleted: z.boolean().optional(),
+    }),
+  )
     .min(1).max(32),
 }).superRefine((v, ctx) => {
   if (new Set(v.sources.map((s) => s.code)).size !== v.sources.length) {
@@ -52,16 +60,33 @@ export const entityIdentitySettings = z.strictObject({
   if (!v.sources.some((s) => s.code === v.default_source && !s.deleted)) {
     ctx.addIssue({ code: "custom", path: ["default_source"], message: "삭제되지 않은 발급처를 선택하세요" });
   }
+}).transform((v) => {
+  // Old settings placed the default separately; preserve that choice when first converting.
+  const sources = v.sources.every((source) => source.generation === undefined)
+    ? [
+      ...v.sources.filter((source) => source.code === v.default_source),
+      ...v.sources.filter((source) => source.code !== v.default_source),
+    ]
+    : v.sources;
+  const first = sources.find((source) => !source.deleted)!;
+  return { ...v, sources, default_source: first.code, generation: first.generation ?? v.generation };
 });
 export type EntityIdentitySettings = z.infer<typeof entityIdentitySettings>;
 export function isActiveEntitySource(settings: EntityIdentitySettings, code: unknown): boolean {
   return settings.sources.some((source) => source.code === code && !source.deleted);
 }
+export function entitySourceGeneration(settings: EntityIdentitySettings, source: string) {
+  return settings.sources.find((value) => value.code === source)?.generation ?? settings.generation;
+}
 export const defaultEntityIdentitySettings: EntityIdentitySettings = {
-  generation: "uuid",
+  generation: "short",
   default_source: "app",
   sources: [{ code: "app", label: "앱" }],
 };
+/** Candidate only; production creation reserves the ID before confirmation. */
+export function generateEntityExternalId(): string {
+  return generateDataId();
+}
 export function entityPath(id: string): string {
   return `/entities/${encodeURIComponent(id)}`;
 }

@@ -9,7 +9,7 @@ export const businessSettings = z.strictObject({
 });
 export type BusinessSettings = z.infer<typeof businessSettings>;
 export function resolvedBusinessSettings(settings: BusinessSettings): BusinessSettings {
-  return { record_templates: {}, entity_identity: defaultEntityIdentitySettings, ...settings };
+  return { record_templates: {}, entity_identity: defaultEntityIdentitySettings, ...businessSettings.parse(settings) };
 }
 const settingsVersion = z.number().int().nonnegative();
 export const businessSettingsResult = z.object({

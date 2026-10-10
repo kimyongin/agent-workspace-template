@@ -14,7 +14,7 @@ test("manual tuple registration previews stored data, restores links, and rekeys
   const external_id = `000Ab:/한글%${unique("식별자")}`, name = unique("보관 엔터티");
   let entityId: string | undefined, taskId: string | undefined;
   try {
-    await api("PATCH", "/settings/business", { id:"entity_identity", expected_version:original.versions.entity_identity, value:{ ...original.settings.entity_identity, generation:"manual", default_source:"app" } });
+    await api("PATCH", "/settings/business", { id:"entity_identity", expected_version:original.versions.entity_identity, value:{ ...original.settings.entity_identity, generation:"manual", default_source:"app", sources:original.settings.entity_identity.sources.map((source:{code:string})=>({...source,generation:"manual"})) } });
     await api("PATCH", "/settings/business", { id:"record_templates", expected_version:original.versions.record_templates, value:{...original.settings.record_templates,entity:{...original.settings.record_templates?.entity,delete:{memo:"삭제 템플릿",tag_ids:[]}}} });
     const target = await api("POST", "/entities", { source: "app", external_id, prop1: name, prop2: 0, prop4: "c" });
     entityId = target.id;
@@ -32,13 +32,13 @@ test("manual tuple registration previews stored data, restores links, and rekeys
     });
     await beginTabAction(page, "엔터티 추가");
     const form = page.getByRole("dialog", { name: "엔터티 추가", exact: true });
-    await expect(form.getByLabel("외부 식별자")).toBeDisabled();
+    await expect(form.getByLabel("식별자")).toBeDisabled();
     await expect(form.getByRole("button", { name: "기존 대상 확인", exact: true })).toBeDisabled();
     releaseSettings();
-    await expect(form.getByLabel("외부 식별자")).toBeEnabled();
+    await expect(form.getByLabel("식별자")).toBeEnabled();
     await form.getByRole("button", { name: "기존 대상 확인", exact: true }).click();
     await expect(form.getByRole("status")).toHaveText("식별자는 1~200자입니다");
-    await form.getByLabel("외부 식별자").fill(external_id);
+    await form.getByLabel("식별자").fill(external_id);
     await form.getByRole("button", { name: "기존 대상 확인", exact: true }).click();
     const restore = page.getByRole("dialog", { name: "엔터티 복원", exact: true });
     await expect(restore.getByLabel("속성 1")).toHaveValue(name);
@@ -50,11 +50,11 @@ test("manual tuple registration previews stored data, restores links, and rekeys
     const restored = await api("GET", `/entities/${encodeURIComponent(target.id)}`);
     expect([restored.deleted_at, restored.version, restored.prop2, restored.prop4]).toEqual([null, 3, 0, "c"]);
     expect((await api("GET", `/tasks/${task.id}`)).entity_ids).toEqual([target.id]);
-    await page.getByRole("button", { name: "식별 정보 변경", exact: true }).click();
-    const rekey = page.getByRole("dialog", { name: "식별 정보 변경", exact: true });
+    await page.getByRole("button", { name: "편집", exact: true }).click();
+    const rekey = page.getByRole("dialog", { name: "엔터티 편집", exact: true });
     const next = `새:/ID%${unique("변경")}`;
-    await rekey.getByLabel("외부 식별자").fill(next);
-    await saveOnce(page, rekey, "변경");
+    await rekey.getByLabel("식별자").fill(next);
+    await saveOnce(page, rekey);
     entityId = `app:${next}`;
     await expect(page).toHaveURL(new RegExp(encodeURIComponent(entityId).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
     expect((await api("GET", `/tasks/${task.id}`)).entity_ids).toEqual([entityId]);
@@ -98,10 +98,10 @@ test("identity settings recovers from an initial read failure and preserves edit
   await expect(section.getByRole("form", {name:"엔터티 식별자 설정"})).toHaveCount(0);
   failSettings = false;
   await section.getByRole("button", {name:"다시 시도",exact:true}).click();
-  const generation = section.getByLabel("식별자 발급 방식");
+  const generation = section.getByLabel("발급처 1 방식");
   await expect(generation).toBeVisible();
   const previous = await generation.inputValue();
-  const changed = previous === "uuid" ? "manual" : "uuid";
+  const changed = previous === "short" ? "manual" : "short";
   await generation.selectOption(changed);
   await expect(section.getByRole("button", {name:"최신값 확인",exact:true})).toHaveCount(0);
   await page.route("**/settings/business", async route => {
@@ -110,7 +110,7 @@ test("identity settings recovers from an initial read failure and preserves edit
   });
   await section.getByRole("button", {name:"식별자 설정 저장",exact:true}).click();
   await section.getByRole("button", {name:"최신값 확인",exact:true}).click();
-  await expect(section).toContainText("최신 설정을 확인했습니다. 입력은 유지했습니다.");
+  await expect(section).toContainText("최신 설정을 확인했습니다. 입력과 순서는 유지했습니다.");
   await expect(generation).toHaveValue(changed);
   await section.getByRole("button", {name:"변경 취소",exact:true}).click();
   await expect(generation).toHaveValue(previous);

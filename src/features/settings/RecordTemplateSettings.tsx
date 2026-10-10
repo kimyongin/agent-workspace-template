@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { BusinessSettingsResult } from "@contracts/business-settings.ts";
-import { modelActions, recordTemplates, TEMPLATE_MODELS, templateActionNames, templateModelNames, templateVariables, type RecordTemplates, type TemplateAction, type TemplateModel } from "@contracts/record-template.ts";
+import { DEFAULT_RECORD_MEMO_TEMPLATES, editableRecordTemplates, effectiveRecordTemplate, modelActions, recordTemplates, TEMPLATE_MODELS, templateActionNames, templateModelNames, templateVariables, type RecordTemplates, type TemplateAction, type TemplateModel } from "@contracts/record-template.ts";
 import { Field, Notice } from "../../components/Field.tsx";
 import { TagPicker } from "../tags/TagPicker.tsx";
 import { api, ApiError } from "../../lib/api.ts";
@@ -21,7 +21,7 @@ export function RecordTemplateSettings({onStateChange}: {onStateChange?: (state:
       (async()=>{const items:{id:string}[]=[];let cursor:string|null=null;do{const result: {items:{id:string}[];next_cursor:string|null}=await api("GET",`/tags?scope=record&limit=100${cursor?`&cursor=${encodeURIComponent(cursor)}`:""}`,undefined,signal);items.push(...result.items);cursor=result.next_cursor;}while(cursor);return {items};})(),
     ]).then(([settings, tags]) => {
       if(signal?.aborted) return;
-      setSaved(settings); setDraft(settings.settings.record_templates ?? {});
+      setSaved(settings); setDraft(editableRecordTemplates(settings.settings.record_templates));
       setMessage("");
       const available = new Set(tags.items.map(tag => tag.id));
       setMissing([...new Set(Object.values(settings.settings.record_templates ?? {}).flatMap(group => Object.values(group).flatMap(value => value?.tag_ids ?? [])))].filter(id => !available.has(id)));
@@ -31,9 +31,9 @@ export function RecordTemplateSettings({onStateChange}: {onStateChange?: (state:
     void read(controller.signal);
     return () => controller.abort();
   }, []);
-  const value = draft[model]?.[action] ?? { memo: "", tag_ids: [] };
+  const value = draft[model]?.[action] ?? effectiveRecordTemplate(undefined, model, action);
   const setValue = (patch: Partial<typeof value>) => { setDraft(current => ({ ...current, [model]: { ...current[model], [action]: { ...value, ...patch } } })); setMessage(""); setFields({}); };
-  const dirty = JSON.stringify(draft) !== JSON.stringify(saved?.settings.record_templates ?? {});
+  const dirty = JSON.stringify(draft) !== JSON.stringify(editableRecordTemplates(saved?.settings.record_templates));
   useEffect(()=>{onStateChange?.({dirty,busy});},[dirty,busy,onStateChange]);
   const parse = recordTemplates.safeParse(draft);
   const currentError = parse.success ? null : parse.error.issues.find(issue => issue.path[0] === model && issue.path[1] === action)?.message;
@@ -46,7 +46,7 @@ export function RecordTemplateSettings({onStateChange}: {onStateChange?: (state:
       setBusy(true); setMessage("");
       try {
         const result = await api<BusinessSettingsResult>("PATCH", "/settings/business", { id: "record_templates", expected_version: saved.versions.record_templates, value: parse.data });
-        setSaved(result); setDraft(result.settings.record_templates ?? {}); setMessage("기록 기본값을 저장했습니다."); setMissing([]); setConflict(false);
+        setSaved(result); setDraft(editableRecordTemplates(result.settings.record_templates)); setMessage("기록 기본값을 저장했습니다."); setMissing([]); setConflict(false);
       } catch (error) { setMessage(error instanceof Error ? error.message : "저장하지 못했습니다."); if (error instanceof ApiError) {setConflict(error.status===409); setFields(Object.fromEntries(error.fields.map(field => [field.path.replace(/^value\./, ""), field.message]))); } }
       finally { setBusy(false); }
     }}>
@@ -56,9 +56,9 @@ export function RecordTemplateSettings({onStateChange}: {onStateChange?: (state:
           <Field label="모델">{props => <select {...props} className="input" value={model} onChange={event => { const next = event.target.value as TemplateModel; setModel(next); if (!modelActions(next).includes(action)) setAction("create"); }}>{TEMPLATE_MODELS.map(key => <option key={key} value={key}>{templateModelNames[key]}</option>)}</select>}</Field>
           <Field label="액션">{props => <select {...props} className="input" value={action} onChange={event => setAction(event.target.value as TemplateAction)}>{modelActions(model).map(key => <option key={key} value={key}>{templateActionNames[key]}</option>)}</select>}</Field>
         </div>
-        <Field label="메모 템플릿" error={fields[`${model}.${action}.memo`] ?? currentError ?? undefined}>{props => <textarea {...props} ref={text} className="input" rows={3} placeholder="비우면 기본 변경 설명을 사용합니다" value={value.memo} onChange={event => setValue({ memo: event.target.value })} />}</Field>
+        <Field label="메모 템플릿" help={`사용자 설정이 없거나 비어 있으면 기본 템플릿 ${DEFAULT_RECORD_MEMO_TEMPLATES[action]}을 사용합니다. 달러 기호 자체는 $$로 입력하세요.`} error={fields[`${model}.${action}.memo`] ?? currentError ?? undefined}>{props => <textarea {...props} ref={text} className="input" rows={3} value={value.memo} onChange={event => setValue({ memo: event.target.value })} />}</Field>
         <Field label="변수 삽입">{props => <select {...props} className="input" value="" onChange={event => {
-          const variable = `\${${event.target.value}$}`;
+          const variable = `$${event.target.value}$`;
           const start = text.current?.selectionStart ?? value.memo.length, end = text.current?.selectionEnd ?? start;
           setValue({ memo: value.memo.slice(0, start) + variable + value.memo.slice(end) }); text.current?.focus();
         }}><option value="" disabled>변수를 선택하세요</option>{templateVariables(model, action).map(variable => <option key={variable}>{variable}</option>)}</select>}</Field>
@@ -66,7 +66,7 @@ export function RecordTemplateSettings({onStateChange}: {onStateChange?: (state:
         {Object.entries(fields).filter(([key]) => key !== `${model}.${action}.memo`).map(([key, error]) => <p className="error-text" key={key}>{templateModelNames[key.split(".")[0] as TemplateModel] ?? "설정"} {templateActionNames[key.split(".")[1] as TemplateAction] ?? ""}: {error} <button type="button" className="btn" onClick={()=>{const [nextModel,nextAction]=key.split(".");if(TEMPLATE_MODELS.includes(nextModel as TemplateModel)){setModel(nextModel as TemplateModel);setAction(nextAction as TemplateAction);}}}>오류 항목 보기</button></p>)}
         <p role="status">{message}</p>
         {conflict&&<button type="button" className="btn" onClick={async()=>{try{setSaved(await api<BusinessSettingsResult>("GET","/settings/business"));setConflict(false);setMessage("최신 설정을 읽었습니다. 입력한 템플릿은 유지했습니다. 확인한 뒤 다시 저장하세요.");}catch{setMessage("최신 설정을 읽지 못했습니다. 다시 시도하세요.");}}}>최신값 확인</button>}
-        <div className="settings-section-footer"><div className="actions"><button type="button" className="btn" disabled={!dirty} onClick={() => { setDraft(saved.settings.record_templates ?? {}); setFields({}); setMessage(""); setConflict(false); }}>변경 취소</button><button type="submit" className="btn btn-primary" disabled={!dirty}>{busy ? "저장 중…" : "기록 기본값 저장"}</button></div></div>
+        <div className="settings-section-footer"><div className="actions"><button type="button" className="btn" disabled={!dirty} onClick={() => { setDraft(editableRecordTemplates(saved.settings.record_templates)); setFields({}); setMessage(""); setConflict(false); }}>변경 취소</button><button type="submit" className="btn btn-primary" disabled={!dirty}>{busy ? "저장 중…" : "기록 기본값 저장"}</button></div></div>
       </fieldset>
     </form>}
   </section>;

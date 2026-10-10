@@ -3,7 +3,7 @@ import { expect, test } from "@playwright/test";
 import { devLogin, mcpClient, mcpTokenViaConsent, unique } from "./support.ts";
 import { savePrinciple } from "./principle-support.ts";
 
-for(const kind of ["entity","task","principle"] as const)test(`삭제된 ${kind}: 이전 변경 기록은 원문 링크 없이 당시 metadata 보존`,async({page})=>{
+for(const kind of ["entity","task","principle"] as const)test(`삭제된 ${kind}: 이전 변경 기록은 연결 행에서 당시 metadata 보존`,async({page})=>{
   await devLogin(page);
   const mcp=await mcpClient(await mcpTokenViaConsent(page));
   let target:{id:string;version:number}|undefined,deleted=false;
@@ -15,11 +15,11 @@ for(const kind of ["entity","task","principle"] as const)test(`삭제된 ${kind}
     expect(historical).toBeTruthy();expect(historical.change.path).toBeTruthy();
     const metadata=structuredClone(historical.change);
     await mcp.call(`delete_${kind}`,{id:target!.id,expected_version:target!.version,change_note:"삭제 문맥 검증"});deleted=true;
-    await page.goto(`/records/${historical.id}?edit=1`);
+    await page.goto(`/records/${historical.id}`);
     const detail=page.locator("dialog.modal:not(.modal-confirm)[open]");
     await expect(detail).toContainText("조회 불가");
     await detail.getByRole("button",{name:title,exact:true}).click();
-    await expect(detail).toContainText("현재 항목을 조회할 수 없습니다");
+    await expect(detail).toContainText("현재 항목을 조회할 수 없습니다.");
     await expect(detail.getByRole("link",{name:"대상 원문 보기",exact:true})).toHaveCount(0);
     await expect(detail).toContainText(title);await expect(detail).toContainText("에이전트");
     expect((await mcp.call("get_record",{id:historical.id})).change).toEqual(metadata);

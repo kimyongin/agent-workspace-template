@@ -1,3 +1,4 @@
+import { generateDataId } from "../../contracts/data-id.ts";
 import {
   BUSINESS_SETTINGS_MAX_BYTES,
   type BusinessSettings,
@@ -17,8 +18,15 @@ import { taskCreate, taskUpdate } from "../../contracts/task.ts";
 import { resumeTask, stopTask, taskContent, updateTask } from "../activity/domain.ts";
 import { entityCreate, entityRekey, entityUpdate } from "../../contracts/entity.ts";
 import { principleCreate, principleUpdate } from "../../contracts/principle.ts";
-import { defaultEntityIdentitySettings, entityId, isActiveEntitySource } from "../../contracts/entity-identity.ts";
+import {
+  defaultEntityIdentitySettings,
+  entityId,
+  entitySourceGeneration,
+  generateEntityExternalId,
+  isActiveEntitySource,
+} from "../../contracts/entity-identity.ts";
 export interface BusinessSettingsStore {
+  issueDataId?(): Promise<string>;
   get(): Promise<BusinessSettingsResult>;
   update(input: BusinessSettingsUpdate): Promise<BusinessSettingsResult>;
   recordTags(ids: string[]): Promise<string[]>;
@@ -89,12 +97,17 @@ export function prepareBusinessRecord(
         )
         : fields;
       prepared_input = content;
-      if (input.operation === "identity") {
+      if (
+        input.model === "entity" && input.action === "update" &&
+        (content.source !== undefined || content.external_id !== undefined)
+      ) {
         const settings = saved.settings.entity_identity ?? defaultEntityIdentitySettings;
-        if (!isActiveEntitySource(settings, content.source)) {
+        const source = String(content.source ?? before?.source);
+        const external_id = String(content.external_id ?? before?.external_id);
+        const nextId = entityId(source, external_id);
+        if (nextId !== input.target_id && !isActiveEntitySource(settings, source)) {
           throw invalidInput("삭제되지 않은 발급처를 선택하세요");
         }
-        const nextId = entityId(String(content.source), String(content.external_id));
         if (nextId !== input.target_id && await store.target?.("entity", nextId)) {
           throw conflict("같은 발급처·식별자의 엔터티가 있습니다");
         }
@@ -113,7 +126,9 @@ export function prepareBusinessRecord(
     }
     if (input.action === "create") {
       const schema = input.model === "task" ? taskCreate : input.model === "entity" ? entityCreate : principleCreate;
-      const creationInput = input.model === "entity" ? content : { id: content.id ?? crypto.randomUUID(), ...content };
+      const creationInput = input.model === "entity"
+        ? content
+        : { id: content.id ?? (store.issueDataId ? await store.issueDataId() : generateDataId()), ...content };
       const creation = schema.safeParse(creationInput);
       if (!creation.success) {
         throw invalidInput(
@@ -127,8 +142,12 @@ export function prepareBusinessRecord(
         const settings = saved.settings.entity_identity ?? defaultEntityIdentitySettings;
         const source = String(content.source ?? settings.default_source);
         if (!isActiveEntitySource(settings, source)) throw invalidInput("삭제되지 않은 발급처를 선택하세요");
-        if (!content.external_id && settings.generation === "manual") throw invalidInput("식별자를 입력하세요");
-        const external_id = String(content.external_id ?? crypto.randomUUID());
+        if (!content.external_id && entitySourceGeneration(settings, source) === "manual") {
+          throw invalidInput("식별자를 입력하세요");
+        }
+        const external_id = String(
+          content.external_id ?? (store.issueDataId ? await store.issueDataId() : generateEntityExternalId()),
+        );
         const existing = await store.target?.("entity", entityId(source, external_id));
         if (existing) {
           throw conflict(
@@ -242,5 +261,12 @@ export function updateBusinessSettings(d: BusinessSettingsDeps, actor: Actor, in
       }]);
     }
     return store.update(parsed.data);
+  });
+}
+
+export function allocateDataId(d: BusinessSettingsDeps, a: Actor) {
+  return d.uow.run(a, async (store) => {
+    if (!store.issueDataId) throw invalidInput("ID 발급 저장소가 필요합니다");
+    return { id: await store.issueDataId() };
   });
 }

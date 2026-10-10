@@ -1,4 +1,4 @@
-import { defaultEntityIdentitySettings, entityIdentityLabel, entityIdentity, entityId, entityPath, type EntityIdentitySettings } from "@contracts/entity-identity.ts";
+import { defaultEntityIdentitySettings, generateEntityExternalId, entitySourceGeneration, entityIdentity, entityId, entityPath, type EntityIdentitySettings } from "@contracts/entity-identity.ts";
 import { api, ApiError } from "../../lib/api.ts";
 import type { DeletionOptions } from "../../components/DeleteAction.tsx";
 import {
@@ -25,11 +25,23 @@ export function EntityForm(
   const [identitySettings, setIdentitySettings] = useState<EntityIdentitySettings | null>(null);
   const [archived, setArchived] = useState<EntityResult | null>(initial?.deleted_at ? initial : null);
   const [identityMessage, setIdentityMessage] = useState("");
-  const generated = useRef(crypto.randomUUID());
-  useEffect(() => { const controller = new AbortController(); void api<{ settings: { entity_identity: EntityIdentitySettings } }>("GET", "/settings/business", undefined, controller.signal).then(result => { setIdentitySettings(result.settings.entity_identity ?? defaultEntityIdentitySettings); setDraft(d => ({ ...d, source: initial?.source ?? (result.settings.entity_identity ?? defaultEntityIdentitySettings).default_source, external_id: initial?.external_id ?? ((result.settings.entity_identity ?? defaultEntityIdentitySettings).generation === "uuid" ? generated.current : "") })); }).catch(() => { if (!controller.signal.aborted) setIdentityMessage("식별자 설정을 불러오지 못했습니다. 다시 열어 주세요."); }); return () => controller.abort(); }, []);
+  const generated = useRef(generateEntityExternalId());
+  useEffect(()=>{
+    const controller=new AbortController();
+    void Promise.all([
+      api<{settings:{entity_identity:EntityIdentitySettings}}>("GET","/settings/business",undefined,controller.signal),
+      initial?Promise.resolve({id:initial.external_id}):api<{id:string}>("POST","/ids/allocate",{},controller.signal),
+    ]).then(([result,allocation])=>{
+      if(controller.signal.aborted)return;
+      const settings=result.settings.entity_identity??defaultEntityIdentitySettings;
+      generated.current=allocation.id;setIdentitySettings(settings);
+      setDraft(d=>({...d,source:initial?.source??settings.default_source,external_id:initial?.external_id??(entitySourceGeneration(settings,settings.default_source)==="manual"?"":allocation.id)}));
+    }).catch(()=>{if(!controller.signal.aborted)setIdentityMessage("식별자 설정을 불러오지 못했습니다. 다시 열어 주세요.");});
+    return()=>controller.abort();
+  },[]);
   const baseline = {
     source: initial?.source ?? (identitySettings ?? defaultEntityIdentitySettings).default_source,
-    external_id: initial?.external_id ?? ((identitySettings ?? defaultEntityIdentitySettings).generation === "uuid" ? generated.current : ""),
+    external_id: initial?.external_id ?? (entitySourceGeneration(identitySettings ?? defaultEntityIdentitySettings, (identitySettings ?? defaultEntityIdentitySettings).default_source) !== "manual" ? generated.current : ""),
     prop1: initial?.prop1 ?? "",
     prop2: initial?.prop2 == null ? "" : String(initial.prop2),
     prop3: initial?.prop3 ?? "",
@@ -67,7 +79,7 @@ export function EntityForm(
         const existing = archived ?? (initial?.deleted_at ? initial : null) ?? await checkExisting();
         const target = existing ?? initial;
         const preparedInput = existing && !archived ? { source:existing.source,external_id:existing.external_id,prop1:existing.prop1,prop2:existing.prop2,prop3:existing.prop3,prop4:existing.prop4,tag_ids:existing.tag_ids } : value();
-        return { model:"entity", action:existing ? "restore" : initial ? "update" : "create", target_id:target?.id,expected_version:target?.version,input:existing || !initial ? preparedInput : (() => { const {source:_s,external_id:_e,expected_version:_v,...attrs}=value(); return attrs; })() };
+        return { model:"entity", action:existing ? "restore" : initial ? "update" : "create", target_id:target?.id,expected_version:target?.version,input:preparedInput };
       }}
       deletion={deletion}
       onClose={onClose}
@@ -85,13 +97,13 @@ export function EntityForm(
       {(errors) => (
         <>
           <section className="detail-section form">
-          {initial ? <p className="secondary">{entityIdentityLabel(initial)}{initial.deleted_at ? " · 삭제됨 · 보관값을 확인하고 복원하세요" : ""}</p> : <>
-            <Field label="발급처" required error={errors.source}>{p => <select {...p} className="input" value={draft.source} disabled={!identitySettings || !!archived} onChange={e => setDraft(d => ({...d, source:e.target.value}))}>{identitySettings?.sources.filter(source => !source.deleted).map(source => <option key={source.code} value={source.code}>{source.label} ({source.code})</option>)}</select>}</Field>
-            <Field label="외부 식별자" required error={errors.external_id}>{p => <input {...p} className="input" value={draft.external_id} maxLength={400} disabled={!identitySettings || !!archived || identitySettings.generation === "uuid"} onChange={e => setDraft(d => ({...d, external_id:e.target.value}))}/>}</Field>
-            {!archived && <button type="button" className="btn" disabled={!identitySettings} onClick={() => { void checkExisting().catch(cause => setIdentityMessage(cause instanceof Error ? cause.message : "조회하지 못했습니다.")); }}>기존 대상 확인</button>}
+          <>
+            <Field label="발급처" required error={errors.source}>{p => <select {...p} className="input" value={draft.source} disabled={!identitySettings || !!archived} onChange={e => setDraft(d => ({...d, source:e.target.value, external_id:initial ? d.external_id : entitySourceGeneration(identitySettings!,e.target.value)==="manual" ? "" : generated.current}))}>{identitySettings?.sources.filter(source => !source.deleted || source.code === initial?.source).map(source => <option key={source.code} value={source.code} disabled={source.deleted}>{source.label}{source.deleted ? " · 삭제됨" : ""}</option>)}</select>}</Field>
+            <Field label="식별자" required error={errors.external_id}>{p => <input {...p} className="input" value={draft.external_id} maxLength={200} disabled={!identitySettings || !!archived} onChange={e => setDraft(d => ({...d, external_id:e.target.value}))}/>}</Field>
+            {!initial && !archived && <button type="button" className="btn" disabled={!identitySettings} onClick={() => { void checkExisting().catch(cause => setIdentityMessage(cause instanceof Error ? cause.message : "조회하지 못했습니다.")); }}>기존 대상 확인</button>}
             {identityMessage && <p role="status" className="secondary">{identityMessage}</p>}
             {archived && <p className="secondary">보관된 속성·태그와 연결을 복원합니다. 입력한 변경만 반영합니다. 현재 버전 {archived.version}</p>}
-          </>}
+          </>
           <Field
             label={entityLabels.prop1}
             required

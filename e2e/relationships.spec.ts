@@ -33,7 +33,7 @@ test("일반 기록 작성에서 할 일과 엔터티를 검색·연결하면 �
     await draft.getByLabel("본문",{exact:false}).fill(marker+" 메모");await draft.getByRole("button",{name:"할 일 연결",exact:true}).click();await draft.getByRole("searchbox",{name:"할 일 제목 검색"}).fill(marker);
     await draft.getByRole("group",{name:"할 일 검색 결과"}).getByRole("button",{name:task.title+" 연결",exact:true}).click();
     await draft.getByRole("button",{name:"엔터티 연결",exact:true}).click();await draft.getByRole("searchbox",{name:"엔터티 제목 검색"}).fill(marker);await draft.getByRole("group",{name:"엔터티 검색 결과"}).getByRole("button",{name:entity.prop1+" 연결",exact:true}).click();
-    await draft.getByRole("button",{name:"저장",exact:true}).click();await expect(page).toHaveURL(/\/records\/[0-9a-f-]{36}/);recordId=new URL(page.url()).pathname.split("/").at(-1)!;
+    await draft.getByRole("button",{name:"저장",exact:true}).click();await expect(page).toHaveURL(/\/records\/[0-9]{8}-[0-9A-Z]{8}(?:\?|$)/);recordId=new URL(page.url()).pathname.split("/").at(-1)!;
     const saved=await mcp.call("get_record",{id:recordId});expect(saved).toMatchObject({record_kind:"user",task_id:task.id,entity_ids:[entity.id],occurrence_on:null});
     expect((await mcp.call("get_task",{id:task.id})).status).toBe("open");await expect(page.getByRole("region",{name:"할 일 (1개)",exact:true}).getByRole("button",{name:task.title,exact:true})).toBeVisible();
     await expect(page.getByRole("region",{name:"엔터티 (1개)",exact:true}).getByRole("button",{name:entity.prop1,exact:true})).toBeVisible();

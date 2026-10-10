@@ -1,99 +1,95 @@
 import { useEffect, useState } from "react";
-import { defaultEntityIdentitySettings, entityIdentitySettings, type EntityIdentitySettings as IdentitySettings } from "@contracts/entity-identity.ts";
+import { defaultEntityIdentitySettings, entityIdentitySettings, entitySourceGeneration, type EntityIdentitySettings as IdentitySettings } from "@contracts/entity-identity.ts";
 import type { BusinessSettingsResult } from "@contracts/business-settings.ts";
 import { api, ApiError } from "../../lib/api.ts";
-import { Field } from "../../components/Field.tsx";
 import { BodyAction } from "../../components/BodyAction.tsx";
 
+function editable(value:IdentitySettings) {
+  const parsed=entityIdentitySettings.parse(value);
+  return {...parsed,sources:parsed.sources.map(source=>({...source,generation:entitySourceGeneration(parsed,source.code)}))};
+}
+function ordered(sources:IdentitySettings["sources"], current:IdentitySettings):IdentitySettings {
+  const first=sources.find(source=>!source.deleted)!;
+  return {...current,sources,default_source:first.code,generation:first.generation??current.generation};
+}
 export function EntityIdentitySettings({onStateChange}: {onStateChange?: (state: {dirty:boolean;busy:boolean})=>void}) {
-  const [saved, setSaved] = useState<BusinessSettingsResult | null>(null);
-  const [draft, setDraft] = useState<IdentitySettings | null>(null);
-  const [persistedSourceCount, setPersistedSourceCount] = useState(0);
-  const [message, setMessage] = useState(""), [busy, setBusy] = useState(false), [conflict, setConflict] = useState(false);
-  const [error, setError] = useState(false);
-  const [reading, setReading] = useState(false);
-  const read = async (signal?: AbortSignal) => {
+  const [saved,setSaved]=useState<BusinessSettingsResult|null>(null),[draft,setDraft]=useState<IdentitySettings|null>(null);
+  const [message,setMessage]=useState(""),[busy,setBusy]=useState(false),[reading,setReading]=useState(false),[conflict,setConflict]=useState(false),[error,setError]=useState(false);
+  const [focusCode,setFocusCode]=useState("");
+  const savedIdentity=editable(saved?.settings.entity_identity??defaultEntityIdentitySettings);
+  const read=async(signal?:AbortSignal)=>{
     setReading(true);
     try {
-      const value = await api<BusinessSettingsResult>("GET", "/settings/business", undefined, signal);
-      if (signal?.aborted) return;
-      const latest = value.settings.entity_identity ?? defaultEntityIdentitySettings;
-      if (draft) {
-        const previous = saved?.settings.entity_identity ?? defaultEntityIdentitySettings;
-        const sources = latest.sources.map(source => {
-          const before = previous.sources.find(value => value.code === source.code);
-          const edited = draft.sources.slice(0,persistedSourceCount).find(value => value.code === source.code);
-          return before && edited ? {...source,
-            label:edited.label === before.label ? source.label : edited.label,
-            deleted:!!edited.deleted === !!before.deleted ? source.deleted : edited.deleted,
-          } : source;
+      const result=await api<BusinessSettingsResult>("GET","/settings/business",undefined,signal);
+      if(signal?.aborted)return;
+      const latest=editable(result.settings.entity_identity??defaultEntityIdentitySettings);
+      if(draft&&saved){
+        const sources=draft.sources.map(local=>{
+          const previous=savedIdentity.sources.find(source=>source.code===local.code),remote=latest.sources.find(source=>source.code===local.code);
+          if(!previous||!remote)return local;
+          return {...remote,label:local.label===previous.label?remote.label:local.label,generation:local.generation===previous.generation?remote.generation:local.generation,deleted:!!local.deleted===!!previous.deleted?remote.deleted:local.deleted};
         });
-        setDraft({...draft,
-          generation:draft.generation === previous.generation ? latest.generation : draft.generation,
-          default_source:draft.default_source === previous.default_source ? latest.default_source : draft.default_source,
-          sources:[...sources,...draft.sources.slice(persistedSourceCount)],
-        });
-      } else setDraft(latest);
-      setPersistedSourceCount(latest.sources.length); setSaved(value);
-      setConflict(false); setMessage(draft ? "최신 설정을 확인했습니다. 입력은 유지했습니다." : ""); setError(false);
-    } catch { if (!signal?.aborted) { setMessage("식별자 설정을 불러오지 못했습니다."); setError(true); } }
-    finally {if(!signal?.aborted) setReading(false);}
+        latest.sources.forEach(source=>{if(!sources.some(local=>local.code===source.code))sources.push(source);});
+        setDraft(ordered(sources,latest));
+      }else setDraft(latest);
+      setSaved(result);setConflict(false);setError(false);setMessage(draft?"최신 설정을 확인했습니다. 입력과 순서는 유지했습니다.":"");
+    }catch{if(!signal?.aborted){setMessage("식별자 설정을 불러오지 못했습니다.");setError(true);}}
+    finally{if(!signal?.aborted)setReading(false);}
   };
-  useEffect(() => { const controller = new AbortController(); void read(controller.signal); return () => controller.abort(); }, []);
-  const savedIdentity = saved?.settings.entity_identity ?? defaultEntityIdentitySettings;
-  const dirty = !!saved && JSON.stringify(draft) !== JSON.stringify(savedIdentity);
-  useEffect(() => { onStateChange?.({dirty,busy:busy||reading}); }, [dirty,busy,reading,onStateChange]);
-  const active = draft?.sources.filter(source => !source.deleted) ?? [];
-  const selectableSources = active.filter((source,index) => source.code && active.findIndex(value => value.code === source.code) === index);
-  const retired = draft?.sources.filter(source => source.deleted) ?? [];
-  const isSavedSource = (index: number) => index < persistedSourceCount;
-  const changeSource = (index: number, patch: Partial<IdentitySettings["sources"][number]>) => {
-    setDraft(current => current && ({ ...current, sources: current.sources.map((source, i) => i === index ? { ...source, ...patch } : source) })); setMessage("");
-  };
-  const removeSource = (index: number) => setDraft(current => {
-    if (!current) return current;
-    const source = current.sources[index];
-    if (current.sources.filter(value => !value.deleted).length <= 1) return current;
-    const existing = isSavedSource(index);
-    const sources = existing ? current.sources.map((value, i) => i === index ? {...value, deleted:true} : value) : current.sources.filter((_, i) => i !== index);
-    return {...current, sources, default_source: current.default_source === source.code ? sources.find(value => !value.deleted)!.code : current.default_source};
+  useEffect(()=>{const controller=new AbortController();void read(controller.signal);return()=>controller.abort();},[]);
+  const dirty=!!saved&&JSON.stringify(draft)!==JSON.stringify(savedIdentity);
+  useEffect(()=>{onStateChange?.({dirty,busy:busy||reading});},[dirty,busy,reading,onStateChange]);
+  const active=draft?.sources.filter(source=>!source.deleted)??[];
+  const update=(code:string,patch:Partial<IdentitySettings["sources"][number]>)=>{setDraft(current=>current&&ordered(current.sources.map(source=>source.code===code?{...source,...patch}:source),current));setMessage("");};
+  const move=(code:string,direction:number)=>setDraft(current=>{
+    if(!current)return current;
+    const sources=[...current.sources],indices=sources.map((source,index)=>source.deleted?-1:index).filter(index=>index>=0);
+    const at=indices.findIndex(index=>sources[index].code===code),next=at+direction;
+    if(next<0||next>=indices.length)return current;
+    [sources[indices[at]],sources[indices[next]]]=[sources[indices[next]],sources[indices[at]]];
+    return ordered(sources,current);
+  });
+  const remove=(code:string)=>setDraft(current=>{
+    if(!current||active.length<=1)return current;
+    const persisted=savedIdentity.sources.some(source=>source.code===code);
+    const sources=persisted?current.sources.map(source=>source.code===code?{...source,deleted:true}:source):current.sources.filter(source=>source.code!==code);
+    return ordered(sources,current);
   });
   return <section className="settings-section" aria-labelledby="entity-identity-title">
     <h2 className="settings-section-title" id="entity-identity-title">엔터티 식별자</h2>
-    {message && <p className={error ? "error-text" : "secondary"} role={error ? "alert" : "status"}>{message}</p>}
-    {!saved && <><p role="status">{message ? "" : "설정을 읽는 중…"}</p>{message && <button type="button" className="btn" disabled={reading} onClick={() => void read()}>다시 시도</button>}</>}
-    {draft && saved && <form className="form" aria-label="엔터티 식별자 설정" aria-busy={busy||reading} onSubmit={async event => {
-      event.preventDefault(); if (busy || reading || !dirty) return;
-      const parsed = entityIdentitySettings.safeParse(draft);
-      if (!parsed.success) { setMessage(parsed.error.issues.map(issue => issue.message).join(" · ")); setError(true); return; }
-      setBusy(true); setMessage("");
-      try {
-        const result = await api<BusinessSettingsResult>("PATCH", "/settings/business", { id:"entity_identity", expected_version:saved.versions.entity_identity, value:parsed.data });
-        setSaved(result); setDraft(result.settings.entity_identity ?? defaultEntityIdentitySettings); setConflict(false);
-        setPersistedSourceCount((result.settings.entity_identity ?? defaultEntityIdentitySettings).sources.length);
-        setMessage("식별자 설정을 저장했습니다."); setError(false);
-      } catch (cause) { setConflict(cause instanceof ApiError && cause.status === 409); setMessage(cause instanceof Error ? cause.message : "저장하지 못했습니다. 입력은 유지했습니다."); setError(true); }
-      finally { setBusy(false); }
-    }}>
-      <fieldset disabled={busy||reading} className="form plain-fieldset">
-        <div className="field-row">
-          <Field label="식별자 발급 방식">{props => <select {...props} className="input" value={draft.generation} onChange={event => setDraft(current => current && ({ ...current, generation:event.target.value as IdentitySettings["generation"] }))}><option value="uuid">UUID 자동 발급</option><option value="manual">직접 입력</option></select>}</Field>
-          <Field label="기본 발급처">{props => <select {...props} className="input" value={draft.default_source} onChange={event => setDraft(current => current && ({ ...current, default_source:event.target.value }))}>{selectableSources.map(source => <option key={source.code} value={source.code}>{source.label || source.code} ({source.code})</option>)}</select>}</Field>
+    {message&&<p className={error?"error-text":"secondary"} role={error?"alert":"status"}>{message}</p>}
+    {!saved&&<><p role="status">{message?"":"설정을 읽는 중…"}</p>{message&&<button className="btn" disabled={reading} onClick={()=>void read()}>다시 시도</button>}</>}
+    {draft&&saved&&<form className="form" aria-label="엔터티 식별자 설정" aria-busy={busy||reading} onSubmit={async event=>{
+      event.preventDefault();if(busy||reading||!dirty)return;
+      const parsed=entityIdentitySettings.safeParse(draft);
+      if(!parsed.success){setMessage(parsed.error.issues.map(issue=>issue.message).join(" · "));setError(true);return;}
+      setBusy(true);setMessage("");
+      try{
+        const result=await api<BusinessSettingsResult>("PATCH","/settings/business",{id:"entity_identity",expected_version:saved.versions.entity_identity,value:parsed.data});
+        setSaved(result);setDraft(editable(result.settings.entity_identity??defaultEntityIdentitySettings));setConflict(false);setMessage("식별자 설정을 저장했습니다.");setError(false);
+      }catch(cause){setConflict(cause instanceof ApiError&&cause.status===409);setMessage(cause instanceof Error?cause.message:"저장하지 못했습니다. 입력은 유지했습니다.");setError(true);}
+      finally{setBusy(false);}
+    }}><fieldset disabled={busy||reading} className="form plain-fieldset">
+      <div className="settings-source-heading"><h3>발급처 목록 ({active.length}개)</h3><BodyAction icon="create" disabled={draft.sources.length>=32} onClick={()=>{
+        const code=`issuer_${crypto.randomUUID().replaceAll("-","").slice(0,16)}`;
+        setDraft(current=>current&&ordered([...current.sources,{code,label:"",generation:"short"}],current));setFocusCode(code);setMessage("");
+      }}>추가</BodyAction></div>
+      <div className="settings-source-list">{active.map((source,index)=><div className="settings-source-row" key={source.code}>
+        <div className="settings-source-fields">
+          <div className={`settings-source-name${index===0?" is-default":""}`}><input ref={input=>{if(input&&focusCode===source.code){input.focus();setFocusCode("");}}} aria-label={`발급처 ${index+1} 이름`} className="input" placeholder="발급처 이름 입력" value={source.label} onChange={event=>update(source.code,{label:event.target.value})}/>{index===0&&<span className="badge settings-source-default">기본</span>}</div>
+          <select aria-label={`발급처 ${index+1} 방식`} className="input" value={source.generation} onChange={event=>update(source.code,{generation:event.target.value as "short"|"manual"})}><option value="short">자동 발급</option><option value="manual">직접 입력</option></select>
         </div>
-        <div className="settings-source-heading"><h3>발급처 ({active.length}개)</h3><BodyAction icon="create" disabled={draft.sources.length >= 32} onClick={() => setDraft(current => current && ({ ...current, sources:[...current.sources, {code:"",label:""}] }))}>추가</BodyAction></div>
-        <div className="settings-source-list">{draft.sources.map((source, index) => !source.deleted && <div className="settings-source-row" key={index}>
-          <div className="settings-source-fields">
-            <input aria-label={`발급처 ${index + 1} 표시 이름`} className="input" placeholder="표시 이름" value={source.label} onChange={event => changeSource(index, {label:event.target.value})} />
-            {isSavedSource(index) ? <span className="settings-source-code">{source.code}{draft.default_source === source.code ? " · 기본" : ""}</span> : <input aria-label={`발급처 ${index + 1} 코드`} className="input" placeholder="코드 (crm)" value={source.code} onChange={event => changeSource(index, {code:event.target.value})} />}
-          </div>
-          <BodyAction aria-label={`${source.label || "새 발급처"} 삭제`} disabled={active.length <= 1} title={active.length <= 1 ? "활성 발급처는 하나 이상 필요합니다" : undefined} onClick={() => removeSource(index)}>삭제</BodyAction>
-        </div>)}</div>
-        {retired.length > 0 && <details className="settings-source-retired"><summary>삭제된 발급처 ({retired.length}개)</summary>{draft.sources.map((source, index) => source.deleted && <div className="settings-source-row" key={source.code}>
-          <div className="settings-source-fields"><span>{source.label}</span><span className="settings-source-code">{source.code}</span></div><BodyAction aria-label={`${source.label} 복원`} onClick={() => changeSource(index,{deleted:false})}>복원</BodyAction>
-        </div>)}</details>}
-        {conflict && <button type="button" className="btn" onClick={() => void read()}>{reading ? "확인 중…" : "최신값 확인"}</button>}
-        <div className="settings-section-footer"><div className="actions"><button type="button" className="btn" disabled={!dirty} onClick={() => {setDraft(savedIdentity);setPersistedSourceCount(savedIdentity.sources.length);setConflict(false);setMessage("");}}>변경 취소</button><button type="submit" className="btn btn-primary" disabled={!dirty}>{busy ? "저장 중…" : "식별자 설정 저장"}</button></div></div>
-      </fieldset>
-    </form>}
+        <div className="settings-source-actions">
+          <button type="button" className="btn btn-text item-icon" aria-label={`${source.label||"새 발급처"} 위로 이동`} title="위로 이동" disabled={index===0} onClick={()=>move(source.code,-1)}><MoveIcon up/></button>
+          <button type="button" className="btn btn-text item-icon" aria-label={`${source.label||"새 발급처"} 아래로 이동`} title="아래로 이동" disabled={index===active.length-1} onClick={()=>move(source.code,1)}><MoveIcon/></button>
+          <BodyAction aria-label={`${source.label||"새 발급처"} 삭제`} disabled={active.length<=1} onClick={()=>remove(source.code)}>삭제</BodyAction>
+        </div>
+      </div>)}</div>
+      <p className="help">자동 발급은 날짜와 랜덤 8자로 구성된 식별자를 만들고, 직접 입력은 사용자가 식별자를 입력합니다.</p>
+      {draft.sources.some(source=>source.deleted)&&<details className="settings-source-retired"><summary>삭제된 발급처 ({draft.sources.filter(source=>source.deleted).length}개)</summary>{draft.sources.filter(source=>source.deleted).map(source=><div className="settings-source-row" key={source.code}><span>{source.label}</span><BodyAction aria-label={`${source.label} 복원`} onClick={()=>{setDraft(current=>current&&ordered([...current.sources.filter(value=>value.code!==source.code),{...source,deleted:false}],current));}}>복원</BodyAction></div>)}</details>}
+      {conflict&&<button type="button" className="btn" onClick={()=>void read()}>최신값 확인</button>}
+      <div className="settings-section-footer"><div className="actions"><button type="button" className="btn" disabled={!dirty} onClick={()=>{setDraft(savedIdentity);setConflict(false);setMessage("");}}>변경 취소</button><button type="submit" className="btn btn-primary" disabled={!dirty}>{busy?"저장 중…":"식별자 설정 저장"}</button></div></div>
+    </fieldset></form>}
   </section>;
 }
+function MoveIcon({up=false}:{up?:boolean}) {return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={up?"M12 19V5m-6 6 6-6 6 6":"M12 5v14m-6-6 6 6 6-6"}/></svg>;}

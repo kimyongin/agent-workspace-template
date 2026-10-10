@@ -17,7 +17,7 @@ test("general record selects two entities in web; MCP, both related views and de
     await form.getByRole("button", { name: first.prop1+" 연결", exact: true }).click();
     await form.getByRole("button", { name: second.prop1+" 연결", exact: true }).click();
     await form.getByRole("button", { name: "저장", exact: true }).click();
-    await expect(page).toHaveURL(/\/records\/[0-9a-f-]{36}/);
+    await expect(page).toHaveURL(/\/records\/[0-9]{8}-[0-9A-Z]{8}(?:\?|$)/);
     recordId = new URL(page.url()).pathname.split("/").at(-1)!;
     const read = await mcp.call("get_record", { id: recordId });
     expect(read.entity_ids).toEqual([first.id, second.id].sort());

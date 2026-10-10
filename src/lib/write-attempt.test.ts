@@ -4,6 +4,7 @@ import { ApiError } from "./api-error.ts";
 
 it("retries the original creation input and UUID after an uncertain response", async () => {
   const attempt = new WriteAttempt();
+  await attempt.prepareCreationId();
   const writes: { id: string; title: string }[] = [];
   let lost = true;
   const original = { id: attempt.creationId(), title: "상담" };
@@ -16,11 +17,13 @@ it("retries the original creation input and UUID after an uncertain response", a
   await attempt.run(async () => { writes.push({ id: "다른 ID", title: "다른 내용" }); });
   expect(writes).toEqual([original, original]);
   expect(attempt.snapshot().uncertain).toBe(false);
+  await attempt.prepareCreationId();
   expect(attempt.creationId()).not.toBe(original.id);
 });
 
 it("keeps the expected version on retry and exposes a conflict without rebasing", async () => {
   const attempt = new WriteAttempt();
+  await attempt.prepareCreationId();
   const accepted: number[] = [];
   let version = 4;
   const save = async () => {
@@ -38,15 +41,18 @@ it("keeps the expected version on retry and exposes a conflict without rebasing"
 
 it("discarding an uncertain creation starts a new UUID and prevents concurrent duplicate writes", async () => {
   const attempt = new WriteAttempt();
+  await attempt.prepareCreationId();
   const id = attempt.creationId();
   await expect(attempt.run(async () => { throw new ApiError(0, "network", "응답 유실"); })).rejects.toThrow();
   attempt.reset();
+  await attempt.prepareCreationId();
   expect(attempt.creationId()).not.toBe(id);
   let release!: () => void;
   let completed = false;
   const pending = attempt.run(async () => { await new Promise<void>(resolve => { release = resolve; }); completed = true; });
   await attempt.run(async () => { throw Error("중복 저장"); });
   expect(attempt.snapshot().busy).toBe(true);
+  await Promise.resolve();
   release();
   await pending;
   expect(completed).toBe(true);

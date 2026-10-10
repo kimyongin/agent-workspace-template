@@ -16,6 +16,28 @@ const ed = { uow: new SqlEntityUnitOfWork(sql) },
   sd = { uow: new SqlBusinessSettingsUnitOfWork(sql), clock: { now: () => new Date("2026-10-09T00:00:00Z") } };
 const ad = { uow: new SqlUnitOfWork(sql), clock: { now: () => new Date() } };
 
+dbTest("자동 식별자는 날짜와 랜덤 8자로 준비되며 준비된 값을 그대로 저장한다", async () => {
+  const f = await fixtureOwner(admin);
+  try {
+    const prepared = await entities.prepareEntityRegistration(ed, f.actor, {});
+    assert(/^\d{8}-[A-Z0-9]{8}$/.test(prepared.external_id));
+    assertEquals(prepared.action, "create");
+    const saved = await entities.createEntity(
+      ed,
+      f.actor,
+      entityCreate.parse({
+        source: prepared.source,
+        external_id: prepared.external_id,
+        prop1: "짧은 자동 식별자",
+      }),
+    );
+    assertEquals(saved.external_id, prepared.external_id);
+    assertEquals(saved.id, prepared.id);
+  } finally {
+    await f.cleanup();
+  }
+});
+
 dbTest("발급처 소프트 삭제는 새 식별만 막고 기존 값·관계를 보존하며 복원 후 같은 엔터티를 되살린다", async () => {
   const f = await fixtureOwner(admin);
   try {
@@ -202,11 +224,12 @@ dbTest(
       assertEquals((await activity.getRecord(ad, f.actor, record.id)).entity_ids, [restored.id]);
       await assertRejects(
         () =>
-          entities.rekeyEntity(
+          entities.updateEntity(
             ed,
             f.actor,
             restored.id,
-            entityRekey.parse({
+            entityUpdate.parse({
+              prop1: "실패한 속성 변경",
               source: "crm",
               external_id: "failed:/ID",
               expected_version: 3,
@@ -217,13 +240,14 @@ dbTest(
       );
       assertEquals((await entities.getEntity(ed, f.actor, restored.id)).version, 3);
       assertEquals((await activity.getRecord(ad, f.actor, record.id)).entity_ids, [restored.id]);
-      const rekeyed = await entities.rekeyEntity(
+      const rekeyed = await entities.updateEntity(
         ed,
         f.actor,
         restored.id,
-        entityRekey.parse({ source: "crm", external_id: "새:/ID%", expected_version: 3 }),
+        entityUpdate.parse({ source: "crm", external_id: "새:/ID%", prop1: "식별자와 함께 변경", expected_version: 3 }),
       );
       assertEquals(rekeyed.id, "crm:새:/ID%");
+      assertEquals(rekeyed.prop1, "식별자와 함께 변경");
       const readRecord = await activity.getRecord(ad, f.actor, record.id);
       assertEquals(readRecord.entity_ids, [rekeyed.id]);
       assertEquals(

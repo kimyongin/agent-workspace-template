@@ -1,5 +1,4 @@
-import { entityPath, entityIdentityLabel } from "@contracts/entity-identity.ts";
-import { EntityIdentityForm } from "./identity-form.tsx";
+import { entityPath } from "@contracts/entity-identity.ts";
 import { useDetailResource } from "../details/useDetailResource.ts";
 import { CollectionList } from "../../components/Collection.tsx";
 import { useDisplayTime } from "../../lib/useDisplayTime.ts";
@@ -44,7 +43,6 @@ export function EntityDetailPage() {
   const error = actionError ?? (detail.error ? detail.error instanceof ApiError ? detail.error.message : "엔터티를 불러오지 못했습니다." : null);
   const reload = detail.reload;
   const editor = useDetailEditor(detail.editClosed);
-  const [rekeying, setRekeying] = useState(false);
   const [busy, setBusy] = useState(false);
   useEffect(() => { if (!detail.confirmed && entity) relationSaved.current = false; }, [entity, detail.confirmed]);
   const returnParams=new URLSearchParams(params); ["edit","edit_from","create"].forEach(key=>returnParams.delete(key));
@@ -61,7 +59,6 @@ export function EntityDetailPage() {
           </button>
         </>
       )}
-          <button type="button" className="btn" onClick={() => setRekeying(true)}>식별 정보 변경</button>
           <EntityTaskRelations entity={entity} onSaved={(saved,before)=>{
             if(saved&&before){
               relationSaved.current=true;
@@ -85,10 +82,13 @@ export function EntityDetailPage() {
       {error && !entity && <><Notice kind="error">{error}</Notice><button className="btn" onClick={()=>void reload()}>다시 시도</button></>}
       {!entity&&!error&&<p className="secondary" role="status">불러오는 중…</p>}
       {entity&&<div className="detail-stack">
-          <section className="detail-section entity-detail-properties"><DetailTitle>{entity.prop1}</DetailTitle><dl className="props">
+          <section className="detail-section entity-detail-properties"><dl className="props">
+            <div><dt>발급처</dt><dd>{entity.source_label} ({entity.source})</dd></div>
+            <div><dt>식별자</dt><dd className="entity-identity-value">{entity.external_id}</dd></div>
+            <div><dt>{entityLabels.prop1}</dt><dd><DetailTitle>{entity.prop1}</DetailTitle></dd></div>
             {(["prop2","prop3","prop4"] as const).map(key=><div key={key}><dt>{entityLabels[key]}</dt><dd>{entity[key]??"미지정"}</dd></div>)}
           </dl><TagNames scope="entity" compact ids={entity.tag_ids}/></section>
-          <div className="detail-relations">{entity.deleted_at && <><RelatedSection title="할 일" count={entity.tasks.count}><CollectionList>{entity.tasks.items.map(item=><li key={item.id}><a href={`/tasks/${item.id}`}>{item.title}</a></li>)}</CollectionList></RelatedSection><RelatedSection title="기록" count={entity.records.count}><CollectionList>{entity.records.items.map(item=><li key={item.id}><RelatedRecordItem record={item}/></li>)}</CollectionList></RelatedSection></>}<p className="secondary">{entity && entityIdentityLabel(entity)}{entity?.deleted_at ? " · 삭제됨" : ""}</p>{management}</div>
+          <div className="detail-relations">{entity.deleted_at && <><RelatedSection title="할 일" count={entity.tasks.count}><CollectionList>{entity.tasks.items.map(item=><li key={item.id}><a href={`/tasks/${item.id}`}>{item.title}</a></li>)}</CollectionList></RelatedSection><RelatedSection title="기록" count={entity.records.count}><CollectionList>{entity.records.items.map(item=><li key={item.id}><RelatedRecordItem record={item}/></li>)}</CollectionList></RelatedSection></>}{entity.deleted_at && <p className="secondary">삭제됨</p>}{management}</div>
           {creating === "task" && !entity.deleted_at && <TaskFormModal key={location.key} open mode="create" initial={{ ...emptyTask(timezone), entity_ids: [entity.id], entity_context: entityContext }}
             onClose={closeCreate} onRouteDiscard={()=>setCreating(null)} onSave={async (draft, creationId) => {
               await api("POST", "/tasks", { ...taskInput(draft), id: creationId() });
@@ -99,7 +99,6 @@ export function EntityDetailPage() {
               await api("POST", "/records", { ...value, id: creationId() });
               closeCreate(); void reload();
             }} />}
-          {rekeying && <EntityIdentityForm entity={entity} onClose={() => setRekeying(false)} onSaved={saved => { setRekeying(false); afterClose(`${entityPath(saved.id)}?${params}`, {replace:true,state:{rekeyedDetail:location.pathname}}); }}/>}
           {editor.active && !creating && editReady && (
             <EntityForm
               initial={entity}
@@ -123,14 +122,28 @@ export function EntityDetailPage() {
               }}}
               {...editor.formProps}
               onSave={async ({source,external_id,expected_version,...value}) => {
+                let savedId = entity.id;
                 await detail.save(async current => {
                   const savedEntity = await api<EntityDetail>(entity.deleted_at ? "POST" : "PATCH", entity.deleted_at ? "/entities" : entityPath(id), {
-                    ...value, ...(entity.deleted_at ? {source,external_id,expected_version:expected_version ?? entity.version} : {expected_version:entity.version}),
+                    ...value, source, external_id, expected_version:expected_version ?? entity.version,
                   });
+                  savedId = savedEntity.id;
                   return { ...current, ...savedEntity };
                 });
-                editor.close();
-                void reload();
+                if (savedId !== entity.id) {
+                  editor.formProps.onRouteDiscard();
+                  const viewer = new URLSearchParams(params); viewer.delete("edit"); viewer.delete("edit_from");
+                  const list = viewer.get("list");
+                  if (list?.startsWith("/entities?")) {
+                    const destination = new URL(list, "https://workspace.invalid");
+                    const opened = destination.searchParams.getAll("open");
+                    destination.searchParams.delete("open");
+                    opened.forEach(path => destination.searchParams.append("open", path === entityPath(entity.id) ? entityPath(savedId) : path));
+                    if (destination.hash === `#${encodeURIComponent(`entity-${entity.id}`)}`) destination.hash = encodeURIComponent(`entity-${savedId}`);
+                    viewer.set("list", `${destination.pathname}${destination.search}${destination.hash}`);
+                  }
+                  afterClose(`${entityPath(savedId)}?${viewer}`, {replace:true,state:{rekeyedDetail:location.pathname}});
+                } else { editor.close(); void reload(); }
               }}
             />
           )}

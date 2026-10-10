@@ -68,7 +68,7 @@ class SqlTagStore extends SqlActorStore implements TagStore {
   async list(limit: number, after?: Keyset, scope: TagResult["scope"] = "record") {
     const tx = this.tx;
     return (await tx`select * from app.tags where scope=${scope} ${
-      after ? tx`and (updated_at,id)<(${after.at}::timestamptz,${after.id}::uuid)` : tx``
+      after ? tx`and (updated_at,id)<(${after.at}::timestamptz,${after.id}::text)` : tx``
     } order by updated_at desc,id desc limit ${limit}`).map(toTag);
   }
 }
