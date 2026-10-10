@@ -11,7 +11,8 @@ import { useWriteAttempt, writeErrorMessage } from "../../lib/write-attempt.ts";
 import "./tags.css";
 import { useDetailExploration, useDetailNavigate } from "../../lib/detail-exploration.tsx";
 import { tagScopeLabels, type TagScope } from "./TagPicker.tsx";
-import { findTag } from "./resolve-tag.ts";
+import { createTagRead } from "./tag-read.ts";
+const tagRead = createTagRead(api);
 type Page = { items: TagResult[]; next_cursor: string | null };
 type Draft = { initial: TagResult | null; name: string };
 export function TagsPage() {
@@ -75,10 +76,10 @@ function ScopedTagsPage({scope}:{scope:TagScope}) {
     requestAnimationFrame(()=>input.current?.focus());
   });
   const dismiss = () => {const p=new URLSearchParams(params);for(const key of ["view","edit","create","edit_from"])p.delete(key);navigateAfterClose(`?${p}`,true);};
-  useEffect(()=>{let alive=true; const selected=params.get("edit")??params.get("view");
+  useEffect(()=>{const controller=new AbortController(); const selected=params.get("edit")??params.get("view");
     if(params.get("create")==="1"){if(!draft){setDraft({initial:null,name:""});}return;}
-    if(selected&&draft?.initial?.id!==selected)findTag(selected,cursor=>api<Page>("GET",`/tags?scope=${scope}${cursor?`&cursor=${encodeURIComponent(cursor)}`:""}`)).then(tag=>{if(alive){if(tag){setDraft({initial:tag,name:tag.name});}else setFailure("태그를 찾을 수 없습니다.");}}).catch(()=>{if(alive)setFailure("태그를 불러오지 못했습니다.");});
-    return()=>{alive=false;};
+    if(selected&&draft?.initial?.id!==selected)tagRead.find(scope,selected,controller.signal).then(tag=>{if(!controller.signal.aborted){if(tag){setDraft({initial:tag,name:tag.name});}else setFailure("태그를 찾을 수 없습니다.");}}).catch(()=>{if(!controller.signal.aborted)setFailure("태그를 불러오지 못했습니다.");});
+    return()=>controller.abort();
   },[location.key]);
   const cancel = () => {
     const id = draft?.initial?.id ?? "heading"; setDraft(null); attempt.reset();setFailure(null);setFieldError(undefined);setConflict(false);
@@ -106,7 +107,7 @@ function ScopedTagsPage({scope}:{scope:TagScope}) {
       if (e instanceof ApiError && e.code === "conflict") {
         let versionConflict = false, readFailure = false;
         if (currentDraft.initial) {
-          try { const current = await findTag(currentDraft.initial.id, cursor => api<Page>("GET", `/tags?scope=${scope}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`)); versionConflict = !current || current.version !== currentDraft.initial.version; }
+          try { const current = await tagRead.find(scope,currentDraft.initial.id); versionConflict = !current || current.version !== currentDraft.initial.version; }
           catch { readFailure = true; }
         }
         setConflict(versionConflict);

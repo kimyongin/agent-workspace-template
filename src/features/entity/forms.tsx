@@ -7,7 +7,7 @@ import {
   entityLabels,
   type EntityResult,
 } from "@contracts/entity.ts";
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { type ReactNode, type SetStateAction, useEffect, useRef, useState } from "react";
 import { FormModal } from "../../components/ContentForm.tsx";
 import { Field } from "../../components/Field.tsx";
 import { fieldErrors } from "../../lib/format.ts";
@@ -49,6 +49,14 @@ export function EntityForm(
     tag_ids: (initial as EntityResult & {tag_ids?: string[]})?.tag_ids ?? [],
   };
   const [draft, setDraft] = useState(baseline);
+  const lookup = useRef<AbortController | null>(null);
+  const invalidateLookup = () => { lookup.current?.abort(); lookup.current = null; };
+  useEffect(() => invalidateLookup, []);
+  const editDraft = (update: SetStateAction<typeof draft>) => {
+    invalidateLookup();
+    setIdentityMessage("");
+    setDraft(update);
+  };
   const value = () => ({
     ...draft,
     ...(archived ? { expected_version: archived.version } : {}),
@@ -60,14 +68,19 @@ export function EntityForm(
     if (!identitySettings) throw new Error("식별자 설정을 불러오는 중입니다.");
     const identity = entityIdentity.safeParse({source:draft.source,external_id:draft.external_id});
     if (!identity.success) throw new Error(identity.error.issues.map(issue => issue.message).join(" · "));
+    invalidateLookup();
+    const controller = new AbortController();
+    lookup.current = controller;
     try {
-      const stored = await api<EntityResult>("GET", entityPath(entityId(draft.source, draft.external_id)));
+      const stored = await api<EntityResult>("GET", entityPath(entityId(draft.source, draft.external_id)), undefined, controller.signal);
+      controller.signal.throwIfAborted();
       if (!stored.deleted_at) throw new Error("같은 발급처·식별자의 활성 엔터티가 있습니다.");
       setArchived(stored);
       setDraft({ source: stored.source, external_id: stored.external_id, prop1: stored.prop1, prop2: stored.prop2 == null ? "" : String(stored.prop2), prop3: stored.prop3 ?? "", prop4: stored.prop4, tag_ids: stored.tag_ids });
       setIdentityMessage("삭제된 기존 데이터를 불러왔습니다. 보관값을 확인하고 복원을 저장하세요.");
       return stored;
-    } catch (cause) { if (cause instanceof ApiError && cause.status === 404) { setIdentityMessage("새로운 식별자입니다."); return null; } throw cause; }
+    } catch (cause) { controller.signal.throwIfAborted(); if (cause instanceof ApiError && cause.status === 404) { setIdentityMessage("새로운 식별자입니다."); return null; } throw cause; }
+    finally { if (lookup.current === controller) lookup.current = null; }
   };
   return (
     <FormModal
@@ -98,9 +111,9 @@ export function EntityForm(
         <>
           <section className="detail-section form">
           <>
-            <Field label="발급처" required error={errors.source}>{p => <select {...p} className="input" value={draft.source} disabled={!identitySettings || !!archived} onChange={e => setDraft(d => ({...d, source:e.target.value, external_id:initial ? d.external_id : entitySourceGeneration(identitySettings!,e.target.value)==="manual" ? "" : generated.current}))}>{identitySettings?.sources.filter(source => !source.deleted || source.code === initial?.source).map(source => <option key={source.code} value={source.code} disabled={source.deleted}>{source.label}{source.deleted ? " · 삭제됨" : ""}</option>)}</select>}</Field>
-            <Field label="식별자" required error={errors.external_id}>{p => <input {...p} className="input" value={draft.external_id} maxLength={200} disabled={!identitySettings || !!archived} onChange={e => setDraft(d => ({...d, external_id:e.target.value}))}/>}</Field>
-            {!initial && !archived && <button type="button" className="btn" disabled={!identitySettings} onClick={() => { void checkExisting().catch(cause => setIdentityMessage(cause instanceof Error ? cause.message : "조회하지 못했습니다.")); }}>기존 대상 확인</button>}
+            <Field label="발급처" required error={errors.source}>{p => <select {...p} className="input" value={draft.source} disabled={!identitySettings || !!archived} onChange={e => editDraft(d => ({...d, source:e.target.value, external_id:initial ? d.external_id : entitySourceGeneration(identitySettings!,e.target.value)==="manual" ? "" : generated.current}))}>{identitySettings?.sources.filter(source => !source.deleted || source.code === initial?.source).map(source => <option key={source.code} value={source.code} disabled={source.deleted}>{source.label}{source.deleted ? " · 삭제됨" : ""}</option>)}</select>}</Field>
+            <Field label="식별자" required error={errors.external_id}>{p => <input {...p} className="input" value={draft.external_id} maxLength={200} disabled={!identitySettings || !!archived} onChange={e => editDraft(d => ({...d, external_id:e.target.value}))}/>}</Field>
+            {!initial && !archived && <button type="button" className="btn" disabled={!identitySettings} onClick={() => { void checkExisting().catch(cause => { if (!(cause instanceof DOMException && cause.name === "AbortError")) setIdentityMessage(cause instanceof Error ? cause.message : "조회하지 못했습니다."); }); }}>기존 대상 확인</button>}
             {identityMessage && <p role="status" className="secondary">{identityMessage}</p>}
             {archived && <p className="secondary">보관된 속성·태그와 연결을 복원합니다. 입력한 변경만 반영합니다. 현재 버전 {archived.version}</p>}
           </>
@@ -116,7 +129,7 @@ export function EntityForm(
                 className="input"
                 value={draft.prop1}
                 onChange={(e) =>
-                  setDraft((d) => ({ ...d, prop1: e.target.value }))}
+                  editDraft((d) => ({ ...d, prop1: e.target.value }))}
               />
             )}
           </Field>
@@ -135,7 +148,7 @@ export function EntityForm(
                 step="1"
                 value={draft.prop2}
                 onChange={(e) =>
-                  setDraft((d) => ({ ...d, prop2: e.target.value }))}
+                  editDraft((d) => ({ ...d, prop2: e.target.value }))}
               />
             )}
           </Field>
@@ -147,7 +160,7 @@ export function EntityForm(
                 type="date"
                 value={draft.prop3}
                 onChange={(e) =>
-                  setDraft((d) => ({ ...d, prop3: e.target.value }))}
+                  editDraft((d) => ({ ...d, prop3: e.target.value }))}
               />
             )}
           </Field>
@@ -158,7 +171,7 @@ export function EntityForm(
                 className="input"
                 value={draft.prop4}
                 onChange={(e) =>
-                  setDraft((d) => ({
+                  editDraft((d) => ({
                     ...d,
                     prop4: e.target.value as EntityResult["prop4"],
                   }))}
@@ -168,7 +181,7 @@ export function EntityForm(
             )}
           </Field>
           </section><section className="detail-section form">
-          <TagPicker scope="entity" value={draft.tag_ids} error={errors.tag_ids} onChange={tag_ids=>setDraft(d=>({...d,tag_ids}))}/>
+          <TagPicker scope="entity" value={draft.tag_ids} error={errors.tag_ids} onChange={tag_ids=>editDraft(d=>({...d,tag_ids}))}/>
           </section>
           {details}
         </>

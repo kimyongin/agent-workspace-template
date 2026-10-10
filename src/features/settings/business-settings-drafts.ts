@@ -8,6 +8,7 @@ import type { BusinessSettingsResult } from "@contracts/business-settings.ts";
 import { editableRecordTemplates, type RecordTemplates, recordTemplates } from "@contracts/record-template.ts";
 import type { api as request } from "../../lib/api.ts";
 import { ApiError } from "../../lib/api-error.ts";
+import { createTagRead } from "../tags/tag-read.ts";
 import type { SettingsDraftAdapter } from "./settings-draft.ts";
 
 const isConflict = (error: unknown) => error instanceof ApiError && error.status === 409;
@@ -71,29 +72,16 @@ export function unavailableTemplateTags(saved: TemplatesSaved | null, draft: Rec
   return [...new Set(selectedRecordTags(draft))].filter((id) => missing.has(id));
 }
 export function createRecordTemplatesDraft(api: typeof request): SettingsDraftAdapter<RecordTemplates, TemplatesSaved> {
+  const tagRead = createTagRead(api);
   return {
     initial: editableRecordTemplates(undefined),
     isConflict,
     read: async (signal) => {
       const [settings, tags] = await Promise.all([
         api<BusinessSettingsResult>("GET", "/settings/business", undefined, signal),
-        (async () => {
-          const ids = new Set<string>();
-          let cursor: string | null = null;
-          do {
-            const result: { items: { id: string }[]; next_cursor: string | null } = await api(
-              "GET",
-              `/tags?scope=record&limit=100${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`,
-              undefined,
-              signal,
-            );
-            result.items.forEach((tag) => ids.add(tag.id));
-            cursor = result.next_cursor;
-          } while (cursor);
-          return ids;
-        })(),
+        tagRead.all("record", signal),
       ]);
-      return { settings, availableTags: [...tags] };
+      return { settings, availableTags: tags.map((tag) => tag.id) };
     },
     save: async (value, before, signal) => ({
       settings: await api("PATCH", "/settings/business", {
