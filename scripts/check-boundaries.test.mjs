@@ -173,3 +173,23 @@ test("CLI retains detection of fetch calls through the global object", () => {
   assert.equal(result.status, 1);
   assert.match(result.output, /core에서 네트워크 호출/);
 });
+
+test("CLI retains Deno, environment and product-data bans through globalThis", () => {
+  const cases = [
+    [core, 'globalThis.Deno.env.get("KEY");', /core에서 Deno API/],
+    [core, 'globalThis?.Deno?.env.get("KEY");', /core에서 Deno API/],
+    [core, 'globalThis["Deno"]["env"].get("KEY");', /core에서 Deno API/],
+    ["supabase/functions/_shared/contracts/sample.ts", 'globalThis.Deno.env.get("KEY");', /contracts에서 Deno API/],
+    [core, "globalThis.process.env.KEY;", /core에서 환경변수 사용/],
+    [core, "globalThis?.process?.env?.KEY;", /core에서 환경변수 사용/],
+    [core, 'globalThis["process"]["env"].KEY;', /core에서 환경변수 사용/],
+    ["src/sample.ts", 'globalThis.supabase.from("entities");', /웹에서 제품 데이터/],
+    ["src/sample.ts", 'globalThis?.supabase?.rpc("save");', /웹에서 제품 데이터/],
+    ["src/sample.ts", 'globalThis["supabase"]["schema"]("public");', /웹에서 제품 데이터/],
+  ];
+  for (const [file, source, reason] of cases) {
+    const result = check({ [file]: source });
+    assert.equal(result.status, 1, source);
+    assert.match(result.output, reason);
+  }
+});
