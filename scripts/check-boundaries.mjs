@@ -64,9 +64,11 @@ const insideDir = (spec, file, dir) => spec.startsWith(".") && resolve(file, "..
 const isIdentifier = (node, name) => node?.type === "Identifier" && node.name === name;
 const memberName = (node) => ["MemberExpression", "OptionalMemberExpression"].includes(node?.type)
   ? node.computed ? node.property.value : node.property.name : null;
+const isRuntimeRoot = (node, name) => isIdentifier(node, name) ||
+  (isIdentifier(node?.object, "globalThis") && memberName(node) === name);
 const isMember = (node, object, properties) =>
-  isIdentifier(node.object, object) && properties.includes(memberName(node));
-const denoApi = (node) => ["MemberExpression", "OptionalMemberExpression"].includes(node.type) && isIdentifier(node.object, "Deno");
+  isRuntimeRoot(node.object, object) && properties.includes(memberName(node));
+const denoApi = (node) => ["MemberExpression", "OptionalMemberExpression"].includes(node.type) && isRuntimeRoot(node.object, "Deno");
 
 // contracts
 for (const file of walk(join(shared, "contracts"))) {
