@@ -13,18 +13,19 @@ import { conflict, notFound } from "../shared/errors.ts";
 import { type PreparedRecordMemo, prepareRecordMemo } from "../../contracts/record-preparation.ts";
 import { modelActions, type TemplateModel } from "../../contracts/record-template.ts";
 import { changeDefaults } from "./change-defaults.ts";
+import {
+  entityUpdateDecision,
+  registrationContent,
+  registrationIdentity,
+  registrationState,
+  restorationContent,
+} from "../entity/domain.ts";
 import type { ChangeFacts } from "../shared/changes.ts";
 import { taskCreate, taskUpdate } from "../../contracts/task.ts";
 import { resumeTask, stopTask, taskContent, updateTask } from "../activity/domain.ts";
 import { entityCreate, entityRekey, entityUpdate } from "../../contracts/entity.ts";
 import { principleCreate, principleUpdate } from "../../contracts/principle.ts";
-import {
-  defaultEntityIdentitySettings,
-  entityId,
-  entitySourceGeneration,
-  generateEntityExternalId,
-  isActiveEntitySource,
-} from "../../contracts/entity-identity.ts";
+import { defaultEntityIdentitySettings, entityId, generateEntityExternalId } from "../../contracts/entity-identity.ts";
 export interface BusinessSettingsStore {
   issueDataId?(): Promise<string>;
   get(): Promise<BusinessSettingsResult>;
@@ -33,7 +34,7 @@ export interface BusinessSettingsStore {
   target?(
     model: TemplateModel,
     id: string,
-  ): Promise<{ version: number; facts: ChangeFacts; deleted_at?: unknown } | null>;
+  ): Promise<{ version: number; facts: ChangeFacts; deleted_at?: string | null } | null>;
 }
 export function prepareBusinessRecord(
   d: BusinessSettingsDeps,
@@ -102,26 +103,13 @@ export function prepareBusinessRecord(
         (content.source !== undefined || content.external_id !== undefined)
       ) {
         const settings = saved.settings.entity_identity ?? defaultEntityIdentitySettings;
-        const source = String(content.source ?? before?.source);
-        const external_id = String(content.external_id ?? before?.external_id);
-        const nextId = entityId(source, external_id);
-        if (nextId !== input.target_id && !isActiveEntitySource(settings, source)) {
-          throw invalidInput("삭제되지 않은 발급처를 선택하세요");
-        }
-        if (nextId !== input.target_id && await store.target?.("entity", nextId)) {
+        const decision = entityUpdateDecision(settings, { id: input.target_id!, facts: before! }, content);
+        if (decision.rekey && await store.target?.("entity", decision.id)) {
           throw conflict("같은 발급처·식별자의 엔터티가 있습니다");
         }
       }
-      if (
-        input.action === "restore" &&
-        ((content.source !== undefined && content.source !== before?.source) ||
-          (content.external_id !== undefined && content.external_id !== before?.external_id))
-      ) throw invalidInput("복원은 같은 발급처·식별자로 준비하세요");
-      if (
-        input.action === "restore" &&
-        !isActiveEntitySource(saved.settings.entity_identity ?? defaultEntityIdentitySettings, before?.source)
-      ) {
-        throw invalidInput("삭제된 발급처를 먼저 복원하세요");
+      if (input.action === "restore") {
+        content = restorationContent(saved.settings.entity_identity ?? defaultEntityIdentitySettings, before!, content);
       }
     }
     if (input.action === "create") {
@@ -140,33 +128,21 @@ export function prepareBusinessRecord(
       content = input.model === "task" ? taskContent(taskCreate.parse(creationInput)) : creation.data;
       if (input.model === "entity") {
         const settings = saved.settings.entity_identity ?? defaultEntityIdentitySettings;
-        const source = String(content.source ?? settings.default_source);
-        if (!isActiveEntitySource(settings, source)) throw invalidInput("삭제되지 않은 발급처를 선택하세요");
-        if (!content.external_id && entitySourceGeneration(settings, source) === "manual") {
-          throw invalidInput("식별자를 입력하세요");
-        }
+        const { source } = registrationIdentity(settings, content, "prepare");
         const external_id = String(
           content.external_id ?? (store.issueDataId ? await store.issueDataId() : generateEntityExternalId()),
         );
         const existing = await store.target?.("entity", entityId(source, external_id));
-        if (existing) {
+        const registration = registrationState(existing ?? null);
+        if (registration !== "create") {
           throw conflict(
-            existing.deleted_at
+            registration === "restore"
               ? "삭제된 기존 대상을 조회한 뒤 restore 액션과 현재 버전으로 준비하세요"
               : "같은 발급처·식별자의 활성 엔터티가 있습니다",
           );
         }
-        if (!content.prop1) throw invalidInput("속성 1은 필수입니다");
-        content = {
-          ...content,
-          source,
-          external_id,
-          prop2: content.prop2 ?? null,
-          prop3: content.prop3 ?? null,
-          prop4: content.prop4 ?? "a",
-          tag_ids: content.tag_ids ?? [],
-        };
-        prepared_input = content;
+        content = registrationContent(content, { source, external_id });
+        prepared_input = { ...creation.data, ...content };
       }
     }
     if (input.action === "stop" || input.action === "resume") {

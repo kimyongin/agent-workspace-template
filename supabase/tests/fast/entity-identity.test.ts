@@ -9,6 +9,8 @@ import {
   getEntity,
   updateEntity,
 } from "../../functions/_shared/core/entity/application.ts";
+import { type BusinessSettingsDeps, prepareBusinessRecord } from "../../functions/_shared/core/settings/application.ts";
+import { entityChangeFacts } from "../../functions/_shared/core/entity/change.ts";
 import { AppError } from "../../functions/_shared/core/shared/errors.ts";
 
 Deno.test("Entity registration uses exact namespaced identity and rejects active duplicate", async () => {
@@ -85,10 +87,47 @@ Deno.test("Deleted entity registration preserves omitted values and rejects stal
     () => createEntity(d, actor, entityCreate.parse({ source: "app", external_id: "001" })),
     AppError,
   );
+  const settingsDeps: BusinessSettingsDeps = {
+    clock: { now: () => new Date("2026-10-10T00:00:00Z") },
+    uow: {
+      run: (_actor, fn) =>
+        fn({
+          get: () =>
+            Promise.resolve({
+              versions: { record_templates: 1, entity_identity: 0 },
+              settings: {
+                record_templates: {
+                  entity: {
+                    restore: { memo: "$엔터티.이후.속성1$ / $엔터티.이후.속성2$ / $엔터티.이후.속성4$", tag_ids: [] },
+                  },
+                },
+              },
+            }),
+          target: () =>
+            Promise.resolve(
+              row ? { version: row.version, deleted_at: row.deleted_at, facts: entityChangeFacts(row) } : null,
+            ),
+          recordTags: () => Promise.resolve([]),
+          update: () => Promise.reject(new Error("읽기 전용")),
+        }),
+    },
+  };
+  const prepared = await prepareBusinessRecord(settingsDeps, actor, {
+    model: "entity",
+    action: "restore",
+    target_id: created.id,
+    expected_version: 2,
+    input: { prop3: "2026-10-09" },
+  });
+  assertEquals(prepared.change_note, "보관 대상 / 0 / c");
   const restored = await createEntity(
     d,
     actor,
-    entityCreate.parse({ source: "app", external_id: "001", expected_version: 2, prop3: "2026-10-09" }),
+    entityCreate.parse({
+      ...prepared.prepared_input,
+      change_note: prepared.change_note,
+      change_tag_ids: prepared.change_tag_ids,
+    }),
   );
   assertEquals([restored.prop1, restored.prop2, restored.prop4, restored.version, restored.deleted_at], [
     "보관 대상",
@@ -98,6 +137,8 @@ Deno.test("Deleted entity registration preserves omitted values and rejects stal
     null,
   ]);
   assertEquals(events, ["create", "delete", "restore"]);
+  await assertRejects(() => createEntity(d, actor, entityCreate.parse(prepared.prepared_input)), AppError);
+
   await assertRejects(
     () => updateEntity(d, actor, created.id, { expected_version: 1, prop1: "오래된 요청" }),
     AppError,

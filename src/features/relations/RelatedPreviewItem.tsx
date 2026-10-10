@@ -6,23 +6,28 @@ import { useExpansionRegistration } from "../../components/item-expansion.tsx";
 import { Notice } from "../../components/Field.tsx";
 import { SurfaceContext } from "../../components/Modal.tsx";
 import { DetailLink } from "../../lib/detail-exploration.tsx";
-import { api, ApiError } from "../../lib/api.ts";
+import { useRelatedRead } from "./useRelatedRead.ts";
+import type { RelatedRead } from "./related-read.ts";
+import { ApiError } from "../../lib/api.ts";
 
 import { PreviewContents, previewKind, previewViewable, type Preview } from "./PreviewContents.tsx";
 import { ListPreviewReadiness } from "./preview-readiness.ts";
 
 /** Current content only, never another relationship graph or a write during disclosure. */
-export function RelatedPreviewItem({list,fallback,...props}:ComponentProps<typeof RelatedItem>&{list?:{link:()=>LinkProps;metadata?:ReactNode};fallback?:ReactNode}) {
+export function RelatedPreviewItem({list,fallback,resource,...props}:ComponentProps<typeof RelatedItem>&{list?:{link:()=>LinkProps;metadata?:ReactNode};fallback?:ReactNode;resource?:RelatedRead<Preview>}) {
   const readiness = useContext(ListPreviewReadiness);
   const selection=useRelatedExpansion(),surface=useContext(SurfaceContext),button=useRef<HTMLElement|null>(null);
-  const [item,setItem]=useState<Preview|null>(null),[error,setError]=useState<"missing"|"failed"|null>(null),[retry,setRetry]=useState(0);
   const path=props.to?.split(/[?#]/)[0],kind=path?previewKind(path):undefined;
+  const read = useRelatedRead<Preview>(path, { resource });
+  const item = read.preview.value;
+  const cause = read.preview.error;
+  const error = cause ? cause instanceof ApiError && cause.status === 404 && cause.code === "not_found" ? "missing" : "failed" : null;
   const enabled=!surface?.editor.current;
   useExpansionRegistration(kind ? path : undefined,enabled);
   const expanded=enabled&&!!path&&!!selection?.value.includes(path);
   const readKey=expanded?path:null;
   const [ownedKey,setOwnedKey]=useState(readKey),[tagsReady,setTagsReady]=useState(false);
-  if(ownedKey!==readKey){setOwnedKey(readKey);setItem(null);setError(null);setTagsReady(false);}
+  if(ownedKey!==readKey){setOwnedKey(readKey);setTagsReady(false);}
   const report=useRef<ReturnType<NonNullable<typeof readiness>["track"]>|null>(null);
   useLayoutEffect(()=>{
     if(!expanded||!path||!readiness)return;
@@ -31,14 +36,12 @@ export function RelatedPreviewItem({list,fallback,...props}:ComponentProps<typeo
   },[readiness,path,expanded]);
   const onTagsReady=useCallback((ready:boolean)=>setTagsReady(ready),[]);
   useLayoutEffect(()=>{report.current?.settle(!!fallback||!!error||!!item&&(kind==="principles"||tagsReady));},[item,error,tagsReady,kind,readiness,expanded,fallback]);
-  useEffect(()=>{
-    if(!expanded||!path||fallback){setItem(null);setError(null);return;}
-    const controller=new AbortController();setItem(null);setError(null);
-    void api<Preview>("GET",path,undefined,controller.signal).then(value=>{if(!controller.signal.aborted)setItem(value);},cause=>{
-      if(!controller.signal.aborted)setError(cause instanceof ApiError&&cause.status===404&&cause.code==="not_found"?"missing":"failed");
-    });
-    return()=>controller.abort();
-  },[path,expanded,retry,fallback]);
+  const hasFallback = !!fallback;
+  useEffect(() => {
+    if (!expanded || !path || hasFallback) { read.resource.closePreview(); return; }
+    void read.resource.read("preview");
+    return () => read.resource.closePreview();
+  }, [read.resource, path, expanded, hasFallback]);
   if(!selection||!path||!kind)return <RelatedItem {...props}/>;
   if(!enabled)return <RelatedItem {...props} to={undefined}/>;
   const toggle=()=>{
@@ -58,7 +61,7 @@ export function RelatedPreviewItem({list,fallback,...props}:ComponentProps<typeo
   return <RelatedItem {...props} to={undefined} action={<>{props.action}{viewable&&(list?<Link {...list.link()} {...viewProps}><BodyActionFace icon="view">상세</BodyActionFace></Link>:<DetailLink {...viewProps} to={path} restoreKey={`view-related-${path}`}><BodyActionFace icon="view">상세</BodyActionFace></DetailLink>)}</>} disclosure={{expanded,toggle,content:<>{fallback}
     {!fallback&&!item&&!error&&<p className="secondary" role="status">불러오는 중…</p>}
     {!fallback&&error==="missing"&&<p className="secondary">삭제된 대상 또는 접근할 수 없는 대상입니다.</p>}
-    {!fallback&&error==="failed"&&<><Notice kind="error">내용을 불러오지 못했습니다.</Notice><BodyAction onClick={()=>setRetry(n=>n+1)}>다시 시도</BodyAction></>}
+    {!fallback&&error==="failed"&&<><Notice kind="error">내용을 불러오지 못했습니다.</Notice><BodyAction onClick={()=>void read.resource.read("preview")}>다시 시도</BodyAction></>}
     {!fallback&&item&&<>
       <PreviewContents kind={kind} item={item} main={!!list} onTagsReady={onTagsReady}/>
       {list?.metadata}
