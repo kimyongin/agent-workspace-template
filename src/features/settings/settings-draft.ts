@@ -81,6 +81,7 @@ export function createSettingsDraft<T, Saved>(adapter: SettingsDraftAdapter<T, S
     read: () => run("read"),
     save: () => run("save"),
     cancel,
+    dispose:()=>{cancel();attempt.abandon();},
     edit: (update: (value: T) => T) => {
       if (!state.busy && !state.uncertain) emit({ draft: update(state.draft), error: null });
     },

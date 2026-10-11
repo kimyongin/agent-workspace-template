@@ -28,6 +28,9 @@ export async function api<T>(method: string, path: string, body?: unknown, signa
     if(signal?.aborted && !writing)throw e;
     throw new ApiError(0, "network", "서버에 연결하지 못했습니다. 같은 내용으로 다시 시도할 수 있습니다.", [], true);
   }
+  if(res.ok && res.headers.get("Idempotency-Replayed") === "true" && typeof window !== "undefined") {
+    window.dispatchEvent(new Event("workspace:write-replayed"));
+  }
   if (res.status === 204) return undefined as T;
   let text:string;
   try {text=await res.text();} catch {throw new ApiError(0,"network","응답을 읽지 못했습니다.",[],true);}

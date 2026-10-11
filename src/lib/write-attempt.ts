@@ -23,8 +23,8 @@ export class WriteAttempt {
     this.frozen ??= request;
     const parts=this.frozen.path.split("?")[0].split("/").filter(Boolean);
     const model=parts[0] === "settings" ? "settings" : parts[0].replace(/s$/, "");
-    const action=this.frozen.method === "DELETE" ? "delete" : parts[2] ?? (this.frozen.method === "PATCH" ? "update" : "create");
-    this.track(`${model}.${action}`,parts.slice(1).join("/"));
+    const action=this.frozen.method === "DELETE" ? "delete" : parts[2] === "identity" ? "rekey" : parts[2] === "occurrences" ? "record" : parts[2] ?? (this.frozen.method === "PATCH" ? model === "tag" ? "rename" : "update" : "create");
+    this.track(`${parts[2] === "occurrences" ? "occurrence" : model}.${action}`,parts.slice(1).join("/"));
     return this.frozen;
   }
   private metadata: {operation: string; target: string} | null = null;

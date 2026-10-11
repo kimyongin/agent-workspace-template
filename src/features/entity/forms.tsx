@@ -25,6 +25,7 @@ export function EntityForm(
   const [identitySettings, setIdentitySettings] = useState<EntityIdentitySettings | null>(null);
   const [archived, setArchived] = useState<EntityResult | null>(initial?.deleted_at ? initial : null);
   const [identityMessage, setIdentityMessage] = useState("");
+  const prepared = useRef<Record<string,unknown> | null>(null);
   const settingsVersion = useRef<number | undefined>(undefined);
   useEffect(()=>{
     const controller=new AbortController();
@@ -95,6 +96,7 @@ export function EntityForm(
         const preparedInput = existing && !archived ? { source:existing.source,external_id:existing.external_id,prop1:existing.prop1,prop2:existing.prop2,prop3:existing.prop3,prop4:existing.prop4,tag_ids:existing.tag_ids } : value();
         return { model:"entity", action:existing ? "restore" : initial ? "update" : "create", target_id:target?.id,expected_version:target?.version,input:preparedInput };
       }}
+      onPrepared={result=>{prepared.current=result.prepared_input;}}
       deletion={deletion}
       onClose={onClose}
       onRouteDiscard={onRouteDiscard}
@@ -107,7 +109,7 @@ export function EntityForm(
         if (!fields.prop1.trim()) return { prop1: "필수 입력입니다" };
         return parsed.success ? null : fieldErrors(parsed.error.issues);
       }}
-      onSubmit={async (requestKey, memo) => { const {tag_ids,...fields}=value(); return onSave({...entityCreate.parse(fields),tag_ids,...memo}, requestKey);}}
+      onSubmit={async (requestKey, memo) => { const {tag_ids,...fields}=value(); return onSave({...entityCreate.parse(prepared.current ?? fields),tag_ids,...memo}, requestKey);}}
     >
       {(errors) => (
         <>

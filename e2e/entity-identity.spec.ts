@@ -7,7 +7,7 @@ test("manual tuple registration previews stored data, restores links, and rekeys
   const login = await page.request.post(`${env.VITE_SUPABASE_URL}/auth/v1/token?grant_type=password`, { headers: { apikey: env.VITE_SUPABASE_PUBLISHABLE_KEY }, data: { email: env.DEV_USER_A_EMAIL, password: env.DEV_USER_A_PASSWORD } });
   const token = (await login.json()).access_token;
   const api = async (method: string, path: string, data?: unknown) => {
-    const response = await page.request.fetch(`${env.VITE_API_URL}${path}`, { method, headers: { authorization: `Bearer ${token}` }, data });
+    const response = await page.request.fetch(`${env.VITE_API_URL}${path}`, { method, headers: { authorization: `Bearer ${token}`,...(method!=="GET"?{"Idempotency-Key":crypto.randomUUID()}:{}) }, data });
     expect(response.ok()).toBeTruthy(); return response.status() === 204 ? null : response.json();
   };
   const original = await api("GET", "/settings/business");
@@ -18,7 +18,7 @@ test("manual tuple registration previews stored data, restores links, and rekeys
     await api("PATCH", "/settings/business", { id:"record_templates", expected_version:original.versions.record_templates, value:{...original.settings.record_templates,entity:{...original.settings.record_templates?.entity,delete:{memo:"삭제 템플릿",tag_ids:[]}}} });
     const target = await api("POST", "/entities", { source: "app", external_id, prop1: name, prop2: 0, prop4: "c" });
     entityId = target.id;
-    const task = await api("POST", "/tasks", { id: crypto.randomUUID(), kind: "once", title: unique("연결 보존"), entity_ids: [target.id] });
+    const task = await api("POST", "/tasks", { kind: "once", title: unique("연결 보존"), entity_ids: [target.id] });
     taskId = task.id;
     await api("POST", `/entities/${encodeURIComponent(target.id)}/delete`, { expected_version: 1 });
     await page.goto("/entities");

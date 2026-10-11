@@ -33,6 +33,7 @@ interface ConfirmationDescription {
   label: string;
   defaultNote: string;
   preparation?: () => PrepareRecordMemo | Promise<PrepareRecordMemo>;
+  onPrepared?: (result:PreparedRecordMemo) => void;
   message?: ReactNode;
   record: boolean;
   danger?: boolean;
@@ -85,6 +86,7 @@ export function useRecordConfirmation(options: {
       const request = await description.preparation();
       const result = await api<PreparedRecordMemo>("POST", "/records/prepare", request);
       if (run !== preparationRun.current) return;
+      description.onPrepared?.(result);
       if (!touched.current.note) setNote(result.change_note);
       if (!touched.current.tags) setTags(result.change_tag_ids);
       preparationReady.current = true;

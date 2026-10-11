@@ -10,7 +10,7 @@ export type FakeOptions={failWrite?:"unknown"|"conflict";hold?:boolean;pageSize?
 /** Shared browser adapter only: real consistency, authorization and workflow rules are integration-tested. */
 export async function installWorkspaceApi(page:Page,apiOrigin:string,rows:WorkspaceRows,options:FakeOptions={}) {
   const storage=rows as unknown as Record<string,FakeRow[]>;
-  const writes:{method:string;path:string;body:Record<string,unknown>;requestKey:string|undefined;params:URLSearchParams}[]=[],searches:Record<string,unknown>[]=[],reads:string[]=[],errors:string[]=[];
+  const writes:{method:string;path:string;body:Record<string,unknown>;requestKey?:string;params:URLSearchParams}[]=[],searches:Record<string,unknown>[]=[],reads:string[]=[],errors:string[]=[];
   const plans = new Map<string, unknown[][]>();
   const failures: { target: ReadTarget; options: ReadFailure }[] = [];
   const holds: { target: ReadTarget; start: () => void; wait: Promise<void>; finish: () => void }[] = [];
