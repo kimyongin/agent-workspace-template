@@ -8,7 +8,7 @@ export const dataId = z.union([
     return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === date;
   }),
 ]);
-/** Candidate generation for isolated adapters; production allocation reserves IDs in PostgreSQL. */
+/** Candidate generation for isolated adapters; production candidates are generated in PostgreSQL and checked by table PKs. */
 export function generateDataId(now = new Date()): string {
   const prefix = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Seoul",

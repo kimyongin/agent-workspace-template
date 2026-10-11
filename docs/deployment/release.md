@@ -39,13 +39,13 @@
 
 [ADR-0018](../adr/0018-server-ids-and-request-idempotency.md)의 구현은 서버 생성 트랜잭션에서 내부 ID를 발급하며 HTTP `Idempotency-Key`와 MCP `request_key`를 모든 업무 쓰기에 요구한다. 공개 ID 예약 경로/도구와 준비 단계 ID 발급은 제거됐다. 이전 키 없는 웹·플러그인은 새 서버에서 쓰기가 거절되므로 같은 릴리스의 서버·웹·제품 플러그인을 함께 전환한다. 0.6.0 플러그인은 이 계약의 소스 후보이며 운영 서버나 기존 설치의 적용 완료를 뜻하지 않는다.
 
-1. 쓰기·worker 중지 범위, 적용 revision·패키지 해시와 복구 revision을 기록한다. 기존 UUID·예약 행·참조를 가진 격리 DB의 전진 이관과 빈 DB의 전체 migration을 검증한다.
-2. 요청 결과·외부 effect·worker 복구와 1 MiB 응답 보관 한도의 전진 migration을 먼저 적용한다. 응답 한도 확대는 기존 결과·tombstone·counter를 보존하며 업무 설정 입력의 128 KiB 한도를 바꾸지 않는다. private ACL, owner 격리, 30일 본문 정리 Cron과 계정 cascade를 확인한다. 과거 migration과 내부 allocator는 보존한다.
+1. 쓰기·worker 중지 범위, 적용 revision·패키지 해시와 복구 revision을 기록한다. 기존 UUID·업무·참조를 가진 격리 DB의 전진 이관과 빈 DB의 전체 migration을 검증한다.
+2. 요청 결과·외부 effect·worker 복구와 1 MiB 응답 보관 한도의 전진 migration을 먼저 적용한다. 응답 한도 확대는 기존 결과·tombstone·counter를 보존하며 업무 설정 입력의 128 KiB 한도를 바꾸지 않는다. private ACL, owner 격리, 30일 본문 정리 Cron과 계정 cascade를 확인한다. 과거 migration은 보존한다. [ADR-0019](../adr/0019-pk-based-data-id-generation.md)의 PK 기반 생성으로 전환할 때는 쓰기를 중지하고 새 writer와 순방향 migration을 함께 적용한다. migration은 ID 기본값을 순수 후보 함수로 바꾸고 미사용 예약 allocator·발급 원장을 제거한다. 기존 업무·참조·요청 결과는 수정하지 않는다.
 3. 함수 환경에 안정적인 `PINECONE_ACCOUNT_SCOPE`를 설정한다. 값은 공급자 account/project를 식별하며 API 키 회전에도 유지한다. 누락 상태의 새 worker는 claim 전에 실패한다. 값이나 비밀은 배포 기록에 출력하지 않는다.
 4. 같은 계약의 HTTP·MCP·worker와 웹을 적용하고 제품 플러그인 후보를 검증·갱신한다. 오래 열린 웹과 이전 플러그인에는 갱신을 안내한다. 준비는 읽기이며 생성 결과로 정본 ID를 받는지 확인한다.
 5. 실제 HTTP↔OAuth MCP의 명시 키 재현·충돌·204, 웹 응답 유실 재시도와 scoped worker를 확인한 뒤 쓰기·소비를 단계적으로 재개한다. 지원 호스트의 키 유지와 유료 공급자 결과는 별도 증거로 남긴다.
 
-부분 실패에서는 해당 쓰기/소비를 멈추고 호환 revision으로 복구한다. ledger·tombstone·effect 횟수·fence·예약 자료를 지우거나 구 writer를 되살리는 롤백은 하지 않는다. 복구된 큐가 이미 보낸 외부 작업을 다시 보내지 않도록 현재 원본과 성공 cache·unknown·전송 상한을 대조한다. 이 절차는 운영 적용 지시를 대신하지 않는다.
+부분 실패에서는 해당 쓰기/소비를 멈추고 호환 revision으로 복구한다. 요청 ledger·tombstone·effect 횟수·fence를 지우거나 구 writer를 되살리는 롤백은 하지 않는다. 복구된 큐가 이미 보낸 외부 작업을 다시 보내지 않도록 현재 원본과 성공 cache·unknown·전송 상한을 대조한다. 이 절차는 운영 적용 지시를 대신하지 않는다.
 
 ## 최초 설치
 

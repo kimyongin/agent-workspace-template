@@ -19,8 +19,10 @@
 | [0014](0014-minimal-content-model.md) | 요약 제거와 본문 하나로 쓰는 기록 | 채택 |
 | [0015](0015-change-record-templates.md) | 공통 변경 기록 템플릿과 사용자 업무 설정 | 채택 |
 | [0016](0016-entity-source-identity-and-restoration.md) | 발급처별 엔터티 식별과 소프트 삭제·복원 | 채택 |
-| [0017](0017-dated-data-id-allocation.md) | 날짜 기반 앱 ID 예약과 기존 UUID 보존 | 예약·재시도 계약은 ADR-0018로 일부 대체 |
+| [0017](0017-dated-data-id-allocation.md) | 날짜 기반 앱 ID 예약과 기존 UUID 보존 | 예약·재시도는 ADR-0018, 발급 원장은 ADR-0019로 대체 |
 | [0018](0018-server-ids-and-request-idempotency.md) | 서버 내부 ID 발급과 요청·외부 작업 멱등성 | 설계 채택, 구현 전환은 #289 |
+
+| [0019](0019-pk-based-data-id-generation.md) | 테이블 PK 기반 서버 ID 생성 | 채택 |
 
 ## 문서의 책임
 

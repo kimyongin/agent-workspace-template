@@ -40,6 +40,7 @@ export interface EntityStore extends ChangeStore {
       prop3: string | null;
       prop4: "a" | "b" | "c";
     },
+    generatedIdentity?: boolean,
   ): Promise<EntityResult>;
   update(
     id: string,
@@ -95,13 +96,12 @@ export function createEntity(d: EntityDeps, a: Actor, i: EntityCreate) {
       let external_id = i.external_id;
       if (external_id === undefined) {
         if (!s.issueDataId) throw invalidInput("ID 발급 저장소가 필요합니다");
-        do {
-          external_id = await s.issueDataId();
-        } while (await s.get(entityId(source, external_id), true));
+        external_id = await s.issueDataId();
       }
       const id = entityId(source, external_id);
       const { change_note, change_tag_ids, expected_version, settings_version: _settings, ...props } = i;
-      const old = await s.get(id, true);
+      const generated = i.external_id === undefined;
+      const old = generated ? null : await s.get(id, true);
       const registration = registrationState(old);
       if (registration === "duplicate") throw conflict("같은 발급처·식별자의 활성 엔터티가 있습니다");
       if (old && old.version !== expected_version) {
@@ -109,7 +109,7 @@ export function createEntity(d: EntityDeps, a: Actor, i: EntityCreate) {
       }
       if (!old && expected_version !== undefined) throw conflict("복원할 엔터티가 없습니다");
       const content = registrationContent(props, { source, external_id }, old ? entityChangeFacts(old) : null);
-      const result = old ? await s.restore(id, props) : await s.insert({ ...props, ...content, id });
+      const result = old ? await s.restore(id, props) : await s.insert({ ...props, ...content, id }, generated);
       await s.appendChange({
         target_kind: "entity",
         target: entityChangeTarget(result),

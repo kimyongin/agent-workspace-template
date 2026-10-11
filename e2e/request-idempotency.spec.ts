@@ -37,7 +37,7 @@ async function evidence(page: Page) {
     },
     async preparationState() {
       const [row] = await db`select
-        (select count(*)::int from private.data_id_reservations) reservations,
+        (select count(*)::int from pgmq.q_search_index where message->>'owner_id'=${owner}) jobs,
         (select count(*)::int from private.request_results where owner_id=${owner}) receipts,
         (select count(*)::int from app.tasks where owner_id=${owner}) tasks,
         (select count(*)::int from app.entities where owner_id=${owner}) entities,
