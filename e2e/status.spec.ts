@@ -35,7 +35,9 @@ test("상태: 실제 인증 HTTP·OAuth MCP 집계와 lazy 기본 접힘, 키보
         ["대상 제외", day.indexing.excluded],
       ]
     ) {
-      await expect(values.getByRole("term", { name: label, exact: true }).locator("..").getByRole("definition"))
+      await expect(
+        values.getByRole("term").filter({ hasText: new RegExp(`^${label}$`) }).locator("..").getByRole("definition"),
+      )
         .toHaveText(String(value));
     }
     const originalViewport = page.viewportSize()!;
