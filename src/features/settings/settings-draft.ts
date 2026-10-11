@@ -53,7 +53,7 @@ export function createSettingsDraft<T, Saved>(adapter: SettingsDraftAdapter<T, S
       }
       if (current.signal.aborted || request !== current) return null;
       const latest = adapter.toDraft(saved);
-      const draft = operation === "read" && state.dirty ? state.draft : latest;
+      const draft = operation === "read" && (state.conflict || state.dirty) ? state.draft : latest;
       emit({ saved, draft, conflict: operation === "read" ? state.conflict : false, latestReady: operation === "read" && state.conflict });
       return saved;
     } catch (error) {

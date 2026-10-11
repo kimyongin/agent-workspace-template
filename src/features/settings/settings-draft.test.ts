@@ -63,6 +63,27 @@ test("최신값 조회 실패 후 초안을 편집해도 이전 기준값으로 
   expect(save).toHaveBeenCalledTimes(1);
 });
 
+test("충돌 중 연속 최신값 조회는 초안과 기준값이 같아져도 명시적 채택 전까지 초안을 보존한다", async () => {
+  const settings = createSettingsDraft({
+    initial: { memo: "" },
+    read: vi.fn().mockResolvedValueOnce({ version: 1, value: { memo: "기준" } })
+      .mockResolvedValueOnce({ version: 2, value: { memo: "내 초안" } })
+      .mockResolvedValueOnce({ version: 3, value: { memo: "새 원격 변경" } }),
+    save: vi.fn().mockRejectedValue(new Error("충돌")),
+    toDraft: (saved: { version: number; value: { memo: string } }) => saved.value,
+    isConflict: () => true,
+  });
+  await settings.read();
+  settings.edit(() => ({ memo: "내 초안" }));
+  await settings.save();
+  await settings.read();
+  expect(settings.snapshot()).toMatchObject({ conflict: true, dirty: false, draft: { memo: "내 초안" } });
+  await settings.read();
+  expect(settings.snapshot()).toMatchObject({ conflict: true, dirty: true, draft: { memo: "내 초안" }, saved: { version: 3 } });
+  settings.reset();
+  expect(settings.snapshot()).toMatchObject({ conflict: false, dirty: false, draft: { memo: "새 원격 변경" } });
+});
+
 function held<T>() {
   let resolve!: (value: T) => void;
   const promise = new Promise<T>((done) => {
