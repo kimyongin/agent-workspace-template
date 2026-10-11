@@ -31,7 +31,6 @@ export class DurablePassageEmbedder implements Embedder {
         input_hash: await hashPassage(text),
       },
       text,
-      true,
     );
     if (result.state === "succeeded") return result.vector;
     if (result.state === "failed" && result.reason === "input_limit") throw new EmbeddingError("input_limit");

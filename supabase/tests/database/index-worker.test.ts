@@ -35,7 +35,6 @@ function runBatch(q: IndexQueue, embedder: Embedder, input: IndexScope) {
   return indexBatch(
     q,
     new DurablePassageEmbedder(ledger, {
-      capabilities: { idempotency: null, lookup: false },
       async send(text) {
         try {
           return { state: "succeeded", vector: await embedder.embed(text, "passage") };
@@ -53,8 +52,8 @@ function runBatch(q: IndexQueue, embedder: Embedder, input: IndexScope) {
 async function retryReady(id: string) {
   await admin`update pgmq.q_search_index set vt=now()-interval '1 second' where msg_id=${id}`;
   await admin`update private.passage_effects e set next_attempt_at=now()-interval '1 second',lease_until=now()-interval '1 second'
-    from private.search_effect_intents i where i.id=e.intent_id and i.owner_id=${A.userId}::uuid
-      and i.record_id=(select message->>'id' from pgmq.q_search_index where msg_id=${id}::bigint)`;
+    where e.owner_id=${A.userId}::uuid
+      and e.record_id=(select message->>'id' from pgmq.q_search_index where msg_id=${id}::bigint)`;
 }
 
 dbTest("record worker: complete generation, duplicate delivery, body edit/delete during embedding", async () => {

@@ -33,8 +33,6 @@ const deps = {
   effectStatus: new SqlEffectStatusReader(user),
 };
 const vector = Array.from({ length: 1024 }, (_, n) => n === 0 ? 1 : 0);
-const supported = { idempotency: { valid_for_seconds: 3600 }, lookup: false };
-const unsupported = { idempotency: null, lookup: false };
 async function job(text = "원문은 비밀이며 effect에는 저장하지 않는다", who = actor) {
   const record = await activity.createRecord(deps, requestActor(who), recordCreate.parse({ body: text }));
   const [claim] = await queue.claim({ limit: 1, owner_id: who.userId, kind: "record", id: record.id });
@@ -52,23 +50,21 @@ async function job(text = "원문은 비밀이며 effect에는 저장하지 않�
 }
 const status = (id: string) => activity.getRecordIndexEffects(deps, actor, id);
 // Fault injection only: move the durable lease/backoff clock; assertions use public use cases.
-async function release(effectId: string, expireKey = false) {
-  await admin`update private.passage_effects set lease_until=now()-interval '1 second',next_attempt_at=now()-interval '1 second',
-    key_expires_at=case when ${expireKey} then now()-interval '1 second' else key_expires_at end where id=${effectId}::uuid`;
+async function release(effectId: string) {
+  await admin`update private.passage_effects set lease_until=now()-interval '1 second',next_attempt_at=now()-interval '1 second' where id=${effectId}::uuid`;
 }
 function active(claim: Awaited<ReturnType<typeof ledger.claim>>): ActiveEffectClaim {
   if (!("fence" in claim)) throw Error("expected active claim");
   return claim;
 }
 
-dbTest("external effects: competing workers, stable keys, saved success survives queue ack failure", async () => {
+dbTest("external effects: competing workers, saved success survives queue ack failure", async () => {
   const a = await job();
   const started = Promise.withResolvers<void>(), finish = Promise.withResolvers<void>();
-  const keys: string[] = [];
+  const sentTexts: string[] = [];
   const provider: PassageProvider = {
-    capabilities: supported,
-    send: async (_text, key) => {
-      keys.push(key);
+    send: async (text) => {
+      sentTexts.push(text);
       started.resolve();
       await finish.promise;
       return { state: "succeeded", vector };
@@ -98,7 +94,7 @@ dbTest("external effects: competing workers, stable keys, saved success survives
       }])
     );
     assertEquals(await executePassageEffect(ledger, provider, a.input, a.text), { state: "succeeded", vector });
-    assertEquals(keys.length, 1);
+    assertEquals(sentTexts.length, 1);
   } finally {
     await admin.unsafe(`drop trigger ${functionName} on pgmq.q_search_index`);
     await admin.unsafe(`drop function private.${functionName}()`);
@@ -114,30 +110,27 @@ dbTest("external effects: competing workers, stable keys, saved success survives
   );
   const b = await job();
   await executePassageEffect(ledger, provider, b.input, b.text);
-  assertEquals(keys.length, 2);
-  assertEquals(keys[0] === keys[1], false);
+  assertEquals(sentTexts.length, 2);
 });
 
 dbTest(
-  "external effects: death before/after call, lease recovery fences old worker and reuses provider key",
+  "external effects: death before/after call, lease recovery fences old worker and preserves attempts",
   async () => {
     const a = await job();
-    const first = active(await ledger.claim(a.input, supported, false));
+    const first = active(await ledger.claim(a.input));
     // Death before send still consumes the reserved send budget; recovery cannot prove no call occurred.
     await release(first.effect_id);
-    const second = active(await ledger.claim(a.input, supported, false));
-    assertEquals(second.key, first.key);
+    const second = active(await ledger.claim(a.input));
     assertEquals(second.attempts, 2);
     assertEquals(await ledger.complete(first, { state: "succeeded", vector }), false);
-    // Death after the provider accepts: no success was recorded. Same key recovers safely.
+    // Death after the provider accepts: no success was recorded. Recovery consumes the remaining bounded sends.
     await release(second.effect_id);
-    const keys: string[] = [];
+    const sentTexts: string[] = [];
     const result = await executePassageEffect(
       ledger,
       {
-        capabilities: supported,
-        send: (_text, key) => {
-          keys.push(key);
+        send: (text) => {
+          sentTexts.push(text);
           return Promise.resolve({ state: "succeeded", vector });
         },
       },
@@ -145,66 +138,41 @@ dbTest(
       a.text,
     );
     assertEquals(result.state, "succeeded");
-    assertEquals(keys, [first.key]);
+    assertEquals(sentTexts, [a.text]);
     assertEquals((await status(a.record.id))[0].attempts, 3);
   },
 );
 
 dbTest(
-  "external effects: lost success/timeout stays unknown; unsupported or expired keys never resend by default",
+  "external effects: timeout stays unknown, backoff blocks immediate resend and status excludes secrets",
   async () => {
-    for (const capabilities of [unsupported, supported]) {
-      const a = await job();
-      let sends = 0;
-      const provider: PassageProvider = {
-        capabilities,
-        send: () => {
-          sends++;
-          throw Error(`secret credential ${a.text}`);
-        },
-      };
-      assertEquals((await executePassageEffect(ledger, provider, a.input, a.text)).state, "unknown");
-      const [effect] = await status(a.record.id);
-      await release(effect.effect_id, capabilities === supported);
-      const held = await executePassageEffect(ledger, provider, a.input, a.text);
-      assertEquals(held, {
-        state: "unknown",
-        reason: capabilities === supported ? "key_expired" : "unsupported_recovery",
-        attempts: 1,
-      });
-      assertEquals(sends, 1);
-      const visible = JSON.stringify(await status(a.record.id));
-      assertEquals(visible.includes("secret"), false);
-      assertEquals(visible.includes(a.text), false);
-      assertEquals(visible.includes("provider_key"), false);
-    }
+    const a = await job();
+    let sends = 0;
+    const provider: PassageProvider = {
+      send: () => {
+        sends++;
+        throw Error(`secret credential ${a.text}`);
+      },
+    };
+    assertEquals(await executePassageEffect(ledger, provider, a.input, a.text), {
+      state: "unknown",
+      reason: "provider_unknown",
+      attempts: 1,
+    });
+    const [effect] = await status(a.record.id);
+    assertEquals(await executePassageEffect(ledger, provider, a.input, a.text), { state: "busy" });
+    assertEquals(sends, 1);
+    await release(effect.effect_id);
+    assertEquals(await executePassageEffect(ledger, provider, a.input, a.text), {
+      state: "unknown",
+      reason: "provider_unknown",
+      attempts: 2,
+    });
+    const visible = JSON.stringify(await status(a.record.id));
+    assertEquals(visible.includes("secret"), false);
+    assertEquals(visible.includes(a.text), false);
   },
 );
-
-dbTest("external effects: durable accepted job is queried even after key expiry, without a new send", async () => {
-  const a = await job();
-  let sends = 0, lookups = 0;
-  let sendKey = "";
-  const provider: PassageProvider = {
-    capabilities: { ...supported, lookup: true },
-    send: (_text, key) => {
-      sends++;
-      sendKey = key;
-      return Promise.resolve({ state: "accepted", job_id: "job-1" });
-    },
-    lookup: (jobId, key) => {
-      lookups++;
-      assertEquals(jobId, "job-1");
-      assertEquals(key, sendKey);
-      return Promise.resolve({ state: "succeeded", vector });
-    },
-  };
-  assertEquals((await executePassageEffect(ledger, provider, a.input, a.text)).state, "unknown");
-  await release((await status(a.record.id))[0].effect_id, true);
-  assertEquals(await executePassageEffect(ledger, provider, a.input, a.text), { state: "succeeded", vector });
-  assertEquals([sends, lookups], [1, 1]);
-  assertEquals((await status(a.record.id))[0].attempts, 1);
-});
 
 dbTest(
   "external effects: success storage failure remains uncertain; bounded recomputation exhausts at five",
@@ -212,7 +180,6 @@ dbTest(
     const a = await job();
     let sends = 0;
     const provider: PassageProvider = {
-      capabilities: unsupported,
       send: () => {
         sends++;
         return Promise.resolve({ state: "succeeded", vector });
@@ -235,11 +202,11 @@ dbTest(
       return Promise.resolve({ state: "unknown", reason: "provider_unknown" });
     };
     for (let attempt = 2; attempt <= 5; attempt++) {
-      const r = await executePassageEffect(ledger, provider, a.input, a.text, true);
+      const r = await executePassageEffect(ledger, provider, a.input, a.text);
       assertEquals(r, { state: "unknown", reason: "provider_unknown", attempts: attempt });
       await release(id);
     }
-    assertEquals(await executePassageEffect(ledger, provider, a.input, a.text, true), {
+    assertEquals(await executePassageEffect(ledger, provider, a.input, a.text), {
       state: "unknown",
       reason: "retry_exhausted",
       attempts: 5,
@@ -253,7 +220,6 @@ dbTest(
   async () => {
     const a = await job();
     const provider: PassageProvider = {
-      capabilities: unsupported,
       send: () => Promise.resolve({ state: "failed", reason: "configuration" }),
     };
     assertEquals((await executePassageEffect(ledger, provider, a.input, a.text)).state, "failed");
@@ -274,22 +240,22 @@ dbTest(
     assertEquals(
       (await executePassageEffect(
         ledger,
-        { capabilities: supported, send: () => Promise.resolve({ state: "succeeded", vector }) },
+        { send: () => Promise.resolve({ state: "succeeded", vector }) },
         a.input,
         a.text,
       )).state,
       "succeeded",
     );
     const b = await job();
-    const claimed = active(await ledger.claim(b.input, unsupported, false));
+    const claimed = active(await ledger.claim(b.input));
     await activity.deleteRecord(deps, requestActor(actor), b.record.id, 1);
     assertEquals(await ledger.complete(claimed, { state: "succeeded", vector }), false);
-    assertEquals((await ledger.claim(b.input, unsupported, true)).action, "stale");
+    assertEquals((await ledger.claim(b.input)).action, "stale");
     // Retention is checked at the DB storage boundary: pending/running/unknown never age out with the source.
     assertEquals((await admin`select id from private.passage_effects where id=${claimed.effect_id}::uuid`).length, 1);
     await activity.deleteRecord(deps, requestActor(actor), a.record.id, 2);
     assertEquals(
-      (await admin`select e.id from private.passage_effects e join private.search_effect_intents i on i.id=e.intent_id where i.record_id=${a.record.id}`)
+      (await admin`select e.id from private.passage_effects e where e.record_id=${a.record.id}`)
         .length,
       0,
     );
@@ -307,7 +273,7 @@ dbTest(
         asUser(
           user,
           actor.userId,
-          (tx) => tx`select app.claim_passage_effect(1,'p','s','m',1024,0,1,'h',null,false,false)`,
+          (tx) => tx`select app.claim_passage_effect(1,'p','s','m',1024,0,1,'h')`,
         ),
       ),
       /^42501/,
@@ -315,13 +281,12 @@ dbTest(
   },
 );
 
-dbTest("external effects: definite transient failures retry with the same key and stop after five sends", async () => {
+dbTest("external effects: definite transient failures retain backoff and stop after five sends", async () => {
   const a = await job();
-  const keys: string[] = [];
+  const sentTexts: string[] = [];
   const provider: PassageProvider = {
-    capabilities: unsupported,
-    send: (_text, key) => {
-      keys.push(key);
+    send: (text) => {
+      sentTexts.push(text);
       return Promise.resolve({ state: "failed", reason: "transient" });
     },
   };
@@ -338,11 +303,10 @@ dbTest("external effects: definite transient failures retry with the same key an
     reason: "retry_exhausted",
     attempts: 5,
   });
-  assertEquals(keys.length, 5);
-  assertEquals(new Set(keys).size, 1);
+  assertEquals(sentTexts.length, 5);
 });
 
-dbTest("external effects: local record, request result, queue and external intent roll back together", async () => {
+dbTest("external effects: local record, request result, queue roll back together", async () => {
   let recordId = "";
   const failingDeps = {
     ...deps,
@@ -359,7 +323,7 @@ dbTest("external effects: local record, request result, queue and external inten
     activity.createRecord(failingDeps, requestActor(actor), recordCreate.parse({ body: "rolled back" }))
   );
   assertEquals(
-    (await admin`select id from private.search_effect_intents where owner_id=${actor.userId} and record_id=${recordId}`)
+    (await admin`select id from private.passage_effects where owner_id=${actor.userId} and record_id=${recordId}`)
       .length,
     0,
   );
@@ -368,15 +332,15 @@ dbTest("external effects: local record, request result, queue and external inten
   assertEquals(await queue.claim({ limit: 1, owner_id: actor.userId, kind: "record", id: recordId }), []);
 });
 
-dbTest("external effects: account cascade removes intents/results and rejects remaining actor", async () => {
+dbTest("external effects: account cascade removes effects/results and rejects remaining actor", async () => {
   const owned = await fixtureOwner(admin);
   const ownedJob = await job("cascade", owned.actor);
-  const ownedClaim = active(await ledger.claim(ownedJob.input, supported, false));
+  const ownedClaim = active(await ledger.claim(ownedJob.input));
   await ledger.complete(ownedClaim, { state: "succeeded", vector });
   await owned.cleanup();
   assertEquals((await admin`select id from private.passage_effects where id=${ownedClaim.effect_id}::uuid`).length, 0);
   assertEquals(
-    (await admin`select id from private.search_effect_intents where owner_id=${owned.actor.userId}`).length,
+    (await admin`select id from private.passage_effects where owner_id=${owned.actor.userId}`).length,
     0,
   );
   const error = await assertRejects(
