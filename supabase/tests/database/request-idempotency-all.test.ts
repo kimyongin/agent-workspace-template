@@ -320,3 +320,126 @@ dbTest("a request waiting on a task row does not block unrelated same-owner writ
     await f.cleanup();
   }
 });
+
+dbTest(
+  "maximum modern completion bodies and 100 entity contexts commit and replay without duplicate effects",
+  async () => {
+    const f = await fixtureOwner(admin);
+    try {
+      const entityIds: string[] = [];
+      for (let n = 0; n < 100; n++) {
+        const created = await entity.createEntity(
+          ed,
+          keyed(f.actor),
+          entityCreate.parse({
+            source: "app",
+            external_id: `${n.toString().padStart(3, "0")}${"😀".repeat(197)}`,
+            prop1: "\u0001".repeat(100),
+          }),
+        );
+        entityIds.push(created.id);
+      }
+      // Each escaped control is six UTF-8 JSON bytes, larger than an emoji's four.
+      const maximumBody = "\u0001".repeat(22_000);
+      const task = await activity.createTask(
+        ad,
+        keyed(f.actor),
+        taskCreate.parse({
+          kind: "once",
+          title: "\u0001".repeat(100),
+          body: maximumBody,
+          entity_ids: entityIds,
+        }),
+      );
+      const attempt = keyed(f.actor),
+        completion = { expected_version: 1, body: maximumBody };
+      const done = await activity.completeTask(
+        ad,
+        attempt,
+        task.id,
+        completion,
+      );
+      assertEquals(done.task.body, maximumBody);
+      assertEquals(done.record.body, maximumBody);
+      assertEquals(done.task.entity_ids.length, 100);
+      assertEquals(done.record.entity_context.length, 100);
+      assertEquals(
+        await activity.completeTask(ad, attempt, task.id, completion),
+        done,
+      );
+      const [proof] = await admin`select
+      (select count(*)::int from app.records where owner_id=${f.actor.userId} and task_id=${task.id} and record_kind='result') results,
+      (select count(*)::int from pgmq.q_search_index where message->>'owner_id'=${f.actor.userId} and message->>'id'=${done.record.id}) jobs,
+      (select count(*)::int from private.request_results where owner_id=${f.actor.userId} and request_key=${
+        attempt.request!.key
+      }::uuid) receipts`;
+      assertEquals(proof, { results: 1, jobs: 1, receipts: 1 });
+    } finally {
+      await f.cleanup();
+    }
+  },
+);
+
+dbTest(
+  "legacy results above 1 MiB roll back business, ledger, change and queue and the same key can retry",
+  async () => {
+    const f = await fixtureOwner(admin);
+    try {
+      const task = await activity.createTask(
+        ad,
+        keyed(f.actor),
+        taskCreate.parse({
+          kind: "recurring",
+          title: "legacy history",
+          timezone: "Asia/Seoul",
+          recurrence: { freq: "daily", starts_on: "2026-10-01" },
+        }),
+      );
+      const pauses = Array.from(
+        { length: 25_000 },
+        () => ({ stopped_on: "2026-10-01", resumed_on: "2026-10-02" }),
+      );
+      pauses.at(-1)!.resumed_on = null as unknown as string;
+      await admin`update app.tasks set status='stopped',pauses=${
+        admin.json(pauses)
+      } where owner_id=${f.actor.userId} and id=${task.id}`;
+      const before = await activity.getTask(ad, f.actor, task.id);
+      const [counts] = await admin`select
+      (select count(*)::int from app.records where owner_id=${f.actor.userId}) records,
+      (select count(*)::int from pgmq.q_search_index where message->>'owner_id'=${f.actor.userId}) jobs,
+      (select count(*)::int from private.request_results where owner_id=${f.actor.userId}) receipts,
+      (select used from private.request_capacity where owner_id=${f.actor.userId}) used,
+      (select count(*)::int from private.data_id_reservations) reservations`;
+      const attempt = keyed(f.actor);
+      await code(
+        () => activity.resumeTask(ad, attempt, task.id, task.version),
+        "invalid_input",
+      );
+      assertEquals(await activity.getTask(ad, f.actor, task.id), before);
+      const [after] = await admin`select
+      (select count(*)::int from app.records where owner_id=${f.actor.userId}) records,
+      (select count(*)::int from pgmq.q_search_index where message->>'owner_id'=${f.actor.userId}) jobs,
+      (select count(*)::int from private.request_results where owner_id=${f.actor.userId}) receipts,
+      (select used from private.request_capacity where owner_id=${f.actor.userId}) used,
+      (select count(*)::int from private.data_id_reservations) reservations`;
+      assertEquals(after, counts);
+      // Fixture repair only: production recovery must preserve the original historical data.
+      await admin`update app.tasks set pauses=${
+        admin.json([pauses.at(-1)!])
+      } where owner_id=${f.actor.userId} and id=${task.id}`;
+      const resumed = await activity.resumeTask(
+        ad,
+        attempt,
+        task.id,
+        task.version,
+      );
+      assertEquals(resumed.status, "active");
+      assertEquals(
+        await activity.resumeTask(ad, attempt, task.id, task.version),
+        resumed,
+      );
+    } finally {
+      await f.cleanup();
+    }
+  },
+);
