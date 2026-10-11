@@ -1,5 +1,7 @@
+import { createHttpApp } from "../../functions/_shared/adapters/http/app.ts";
+import { searchTools } from "../../functions/_shared/adapters/mcp/search-tools.ts";
 import { requestActor } from "../_request.ts";
-import { assertEquals, assertMatch, assertRejects } from "@std/assert";
+import { assertEquals, assertRejects } from "@std/assert";
 import { SqlSearchUnitOfWork } from "../../functions/_shared/adapters/supabase/search-store.ts";
 import { SqlIndexQueue } from "../../functions/_shared/adapters/supabase/index-queue.ts";
 import { SqlUnitOfWork } from "../../functions/_shared/adapters/supabase/activity-store.ts";
@@ -9,7 +11,7 @@ import * as activity from "../../functions/_shared/core/activity/application.ts"
 import { search } from "../../functions/_shared/core/search/application.ts";
 import { EmbeddingError, indexBatch } from "../../functions/_shared/core/search/index-worker.ts";
 import { AppError } from "../../functions/_shared/core/shared/errors.ts";
-import { asUser, connect, dbTest, fixtureOwner, outcome, urls } from "./_db.ts";
+import { asUser, connect, dbTest, fixtureOwner, urls } from "./_db.ts";
 const admin = connect(urls.admin, { max: 1 }), sql = connect(urls.pooler, { max: 3, prepare: false });
 const fixture = await fixtureOwner(admin), foreign = await fixtureOwner(admin), A = fixture.actor;
 const workerUrl = new URL(urls.pooler);
@@ -87,57 +89,84 @@ dbTest(
     );
   },
 );
-dbTest("query budget: concurrent reservations isolate owners and fallback occurs before external call", async () => {
-  // Production budgets use DB calendar minutes; retry only when this entire probe crosses a boundary.
-  let observedSingleWindow = false;
-  for (let attempt = 0; attempt < 3; attempt++) {
-    await admin`delete from private.search_embedding_budget where owner_id in (${A.userId},${foreign.actor.userId})`;
-    const minuteBefore = (await admin`select date_trunc('minute', clock_timestamp())::text as minute`)[0].minute;
-    const results = await Promise.all(
-      Array.from(
-        { length: 21 },
-        () =>
-          asUser(sql, A.userId, async (tx) => (await tx`select app.reserve_search_embedding() as allowed`)[0].allowed),
-      ),
-    );
-    const foreignAllowed = await asUser(
-      sql,
-      foreign.actor.userId,
-      async (tx) => (await tx`select app.reserve_search_embedding() as allowed`)[0].allowed,
-    );
-    let calls = 0;
-    const fallback = await search(
-      {
-        ...d,
-        embedder: {
-          embed: () => {
-            calls++;
-            return Promise.resolve(vector(1));
-          },
-        },
+dbTest("HTTP/MCP semantic queries beyond twenty use one send and preserve provider fallback", async () => {
+  let calls = 0, fail = false;
+  const q = searchInput.parse({ query: "없는 질의" });
+  const injected = {
+    ...d,
+    embedder: {
+      embed: () => {
+        calls++;
+        return fail ? Promise.reject(new EmbeddingError("transient")) : Promise.resolve(vector(1));
       },
-      A,
-      searchInput.parse({ query: "없는 질의" }),
-    );
-    const minuteAfter = (await admin`select date_trunc('minute', clock_timestamp())::text as minute`)[0].minute;
-    if (minuteBefore !== minuteAfter) continue;
-    assertEquals(results.filter(Boolean).length, 20);
-    assertEquals(foreignAllowed, true);
-    assertEquals(fallback.search_state, "keyword_fallback");
-    assertEquals(calls, 0);
-    observedSingleWindow = true;
-    break;
+    },
+  };
+  const unused = {
+    uow: {
+      run: () => {
+        throw new Error("unused");
+      },
+    },
+  };
+  const app = createHttpApp(
+    { ...unused, clock: { now: () => new Date() } },
+    {
+      basePath: "/api",
+      token: { audience: "authenticated", issuer: "https://auth.invalid" },
+      allowedOrigins: [],
+    },
+    unused,
+    unused,
+    injected,
+    () => Promise.resolve(A),
+  );
+  const http = async () => {
+    const response = await app.request("/api/search", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(q),
+    });
+    assertEquals(response.status, 200);
+    return await response.json();
+  };
+  const tool = searchTools(injected)[0];
+  for (let i = 0; i < 21; i++) {
+    assertEquals((await http()).search_state, "ok");
+    assertEquals((await tool.handler(q, A) as { search_state: string }).search_state, "ok");
   }
-  assertEquals(
-    observedSingleWindow,
-    true,
-    "query budget probe must complete inside one DB minute within three attempts",
-  );
-  assertMatch(
-    await outcome(asUser(sql, A.userId, (tx) => tx`select * from private.search_embedding_budget`)),
-    /^42501/,
-  );
+  assertEquals(calls, 42);
+  fail = true;
+  assertEquals((await http()).search_state, "keyword_fallback");
+  assertEquals((await tool.handler(q, A) as { search_state: string }).search_state, "keyword_fallback");
+  assertEquals(calls, 44);
 });
+
+dbTest("deleted search owner cannot send an external query", async () => {
+  const deleted = await fixtureOwner(admin);
+  await deleted.cleanup();
+  let calls = 0;
+  const injected = {
+    ...d,
+    embedder: {
+      embed: () => {
+        calls++;
+        return Promise.resolve(vector(1));
+      },
+    },
+  };
+  const error = await assertRejects(
+    () => search(injected, deleted.actor, searchInput.parse({ query: "잔여 토큰" })),
+    AppError,
+  );
+  assertEquals((error as AppError).code, "unauthenticated");
+  assertEquals(calls, 0);
+  await assertRejects(
+    () => search(injected, deleted.actor, searchInput.parse({ query: "잔여 토큰", mode: "keyword" })),
+    AppError,
+  );
+  assertEquals(calls, 0);
+});
+
 dbTest("hybrid-search fixture cleanup", async () => {
   await fixture.cleanup();
   await foreign.cleanup();

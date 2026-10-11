@@ -24,7 +24,6 @@ const fixtures = [
 ];
 const items: { id: string; version: number }[] = [];
 try {
-  await admin`delete from private.search_embedding_budget where owner_id=${user}`;
   for (const fixture of fixtures) {
     const item = await tool(mcp, "create_record", { body: fixture.body, tag_ids: [tag.id] });
     items.push(item);

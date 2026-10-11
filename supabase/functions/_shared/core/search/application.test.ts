@@ -17,8 +17,8 @@ const item: SearchItem = {
   index_state: "indexed",
   path: "/records/id",
 };
-function deps(embedder: SearchDeps["embedder"], allowed = true) {
-  let reservations = 0, calls = 0;
+function deps(embedder: SearchDeps["embedder"]) {
+  let calls = 0;
   const store: SearchStore = {
     candidates: (_q, _vector, after) =>
       Promise.resolve(
@@ -26,10 +26,6 @@ function deps(embedder: SearchDeps["embedder"], allowed = true) {
       ),
     coverage: () => Promise.resolve({ pending: 0, excluded: 0 }),
     anchorPage: () => Promise.resolve(null),
-    reserveEmbedding: () => {
-      reservations++;
-      return Promise.resolve(allowed);
-    },
   };
   return {
     d: {
@@ -45,7 +41,7 @@ function deps(embedder: SearchDeps["embedder"], allowed = true) {
         }
         : {}),
     },
-    counts: () => ({ reservations, calls }),
+    counts: () => ({ calls }),
   };
 }
 Deno.test("검색 실패 경계: 첫 페이지 대체·대체 커서 고정·진행 중 실패/벡터 변경 거부", async () => {
@@ -61,7 +57,7 @@ Deno.test("검색 실패 경계: 첫 페이지 대체·대체 커서 고정·진
     },
   });
   assertEquals((await search(up.d, actor, { ...q, cursor: first.next_cursor! })).search_state, "keyword_fallback");
-  assertEquals(up.counts(), { reservations: 0, calls: 0 });
+  assertEquals(up.counts(), { calls: 0 });
   const semantic = await search(up.d, actor, q);
   assertEquals(semantic.search_state, "ok");
   await assertRejects(
@@ -72,21 +68,18 @@ Deno.test("검색 실패 경계: 첫 페이지 대체·대체 커서 고정·진
   const changed = deps({ embed: () => Promise.resolve(vector.map((x) => x ? 0 : 1)) });
   await assertRejects(() => search(changed.d, actor, { ...q, cursor: semantic.next_cursor! }), AppError);
 });
-Deno.test("검색 호출 경계: 잘못된 커서·키워드·예산 초과는 외부 호출 없음", async () => {
+Deno.test("검색 호출 경계: 잘못된 커서·키워드는 외부 호출 없음", async () => {
   const state = deps({ embed: () => Promise.resolve(vector) }), q = searchInput.parse({ query: "질의" });
   await assertRejects(() => search(state.d, actor, { ...q, cursor: "invalid" }), AppError);
   await search(state.d, actor, { ...q, mode: "keyword" });
-  assertEquals(state.counts(), { reservations: 0, calls: 0 });
-  const blocked = deps({ embed: () => Promise.resolve(vector) }, false);
-  assertEquals((await search(blocked.d, actor, q)).search_state, "keyword_fallback");
-  assertEquals(blocked.counts(), { reservations: 1, calls: 0 });
+  assertEquals(state.counts(), { calls: 0 });
 });
 
-Deno.test("current task/principle searches use keyword lookup without embedding or query budget", async () => {
+Deno.test("current task/principle searches use keyword lookup without embedding", async () => {
   const state = deps({ embed: () => Promise.resolve(vector) });
   const q = searchInput.parse({ query: "질의", kinds: ["task", "principle"], limit: 1 });
   const first = await search(state.d, actor, q);
   await search(state.d, actor, { ...q, cursor: first.next_cursor! });
-  assertEquals(state.counts(), { reservations: 0, calls: 0 });
+  assertEquals(state.counts(), { calls: 0 });
   assertEquals(first.search_state, "ok");
 });
