@@ -149,9 +149,10 @@ dbTest("HTTP and MCP use the same owner/key/payload and preserve creation and de
       }, f.actor),
       { deleted: created.id },
     );
-    const deletionReplay = await app.request(`/tasks/${created.id}?expected_version=1`, {
-      method: "DELETE",
-      headers: { "Idempotency-Key": deleteKey },
+    const deletionReplay = await app.request(`/tasks/${created.id}/delete`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Idempotency-Key": deleteKey },
+      body: JSON.stringify({ expected_version: 1 }),
     });
     assertEquals(deletionReplay.status, 204);
     assertEquals(deletionReplay.headers.get("Idempotency-Replayed"), "true");

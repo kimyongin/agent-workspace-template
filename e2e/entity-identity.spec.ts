@@ -76,7 +76,7 @@ test("manual tuple registration previews stored data, restores links, and rekeys
     expect(deletionEvent.body).not.toBe("삭제 템플릿");
     expect(deletionEvent.body).toContain(name);
   } finally {
-    if (taskId) { const task = await api("GET", `/tasks/${taskId}`); await api("DELETE", `/tasks/${taskId}?expected_version=${task.version}`); }
+    if (taskId) { const task = await api("GET", `/tasks/${taskId}`); await api("POST", `/tasks/${taskId}/delete`, { expected_version: task.version }); }
     if (entityId) { const target = await api("GET", `/entities/${encodeURIComponent(entityId)}`); if (!target.deleted_at) await api("POST", `/entities/${encodeURIComponent(entityId)}/delete`, { expected_version: target.version }); }
     const latest = await api("GET", "/settings/business");
     await api("PATCH", "/settings/business", { id:"entity_identity", expected_version:latest.versions.entity_identity, value:original.settings.entity_identity });

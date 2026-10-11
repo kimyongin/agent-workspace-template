@@ -1,11 +1,11 @@
 import { Hono } from "hono";
-import { entityCreate, entityListQuery, entityRekey, entityUpdate } from "../../contracts/entity.ts";
+import { entityCreate, entityListQuery, entityUpdate } from "../../contracts/entity.ts";
 import { businessMeta } from "../../contracts/change.ts";
 import { expectedVersion } from "../../contracts/common.ts";
 import { z } from "zod";
 import * as entity from "../../core/entity/application.ts";
 import { parse } from "../errors.ts";
-import { type HttpEnv, json, versionQuery } from "./input.ts";
+import { type HttpEnv, json } from "./input.ts";
 import { entityReferenceId } from "../../contracts/entity-identity.ts";
 import { notFound } from "../../core/shared/errors.ts";
 function idParam(value: string) {
@@ -15,18 +15,6 @@ function idParam(value: string) {
 }
 export function entityRoutes(d: entity.EntityDeps) {
   const app = new Hono<HttpEnv>();
-  app.post(
-    "/entities/:id/identity",
-    async (c) =>
-      c.json(
-        await entity.rekeyEntity(
-          d,
-          c.get("actor"),
-          idParam(c.req.param("id")),
-          parse(entityRekey, await json(c.req.raw)),
-        ),
-      ),
-  );
   app.post("/entities/:id/delete", async (c) => {
     const i = parse(z.strictObject({ expected_version: expectedVersion, ...businessMeta }), await json(c.req.raw));
     await entity.deleteEntity(
@@ -60,17 +48,5 @@ export function entityRoutes(d: entity.EntityDeps) {
         ),
       ),
   );
-  app.delete("/entities/:id", async (c) => {
-    const i = parse(versionQuery, c.req.query());
-    await entity.deleteEntity(
-      d,
-      c.get("actor"),
-      idParam(c.req.param("id")),
-      i.expected_version,
-      i.change_note,
-      i.change_tag_ids,
-    );
-    return c.body(null, 204);
-  });
   return app;
 }

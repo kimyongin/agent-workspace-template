@@ -16,7 +16,8 @@ const sql = postgres(env.LOCAL_DB_URL, { max: 1, onnotice: () => {} });
 const originals = [];
 async function api(method, path, body) {
   const res = await fetch(`${endpoint.origin}/functions/v1/api${path}`, {
-    method, headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+    method, headers: { authorization: `Bearer ${token}`, "content-type": "application/json",
+      ...(method === "GET" ? {} : { "Idempotency-Key": crypto.randomUUID() }) },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   if (!res.ok) throw new Error(`로컬 API ${method} ${path}: ${res.status}`);
@@ -57,6 +58,9 @@ try {
     console.log(`${kind}: 원문 보존·기록 본문 구간 재색인·최신 업무 벡터 없음 통과`);
   }
 } finally {
-  for (const { kind, id, version } of originals) await api("DELETE", `/${kind}s/${id}?expected_version=${version}`);
+  for (const { kind, id, version } of originals) {
+    if (kind === "record") await api("DELETE", `/records/${id}?expected_version=${version}`);
+    else await api("POST", `/${kind}s/${id}/delete`, { expected_version: version });
+  }
   await sql.end();
 }

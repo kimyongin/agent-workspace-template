@@ -362,7 +362,7 @@ Deno.test("HTTP routes and MCP ToolDef schema/handler share task outcomes and in
   assertEquals(f.jobs.length, 1);
 });
 
-Deno.test("HTTP PATCH/DELETE and MCP task mutation schema/handler share validation and no-write errors", async () => {
+Deno.test("HTTP PATCH/POST delete and MCP task mutation schema/handler share validation and no-write errors", async () => {
   const f = fixture();
   const tools = activityTools(f.deps);
   const update = tools.find((tool) => tool.name === "update_task")!;
@@ -430,9 +430,9 @@ Deno.test("HTTP PATCH/DELETE and MCP task mutation schema/handler share validati
     const isDelete = tool === remove;
     const http = await post(
       f.app,
-      isDelete ? `${path}?expected_version=${input.expected_version}` : path,
-      isDelete ? undefined : input,
-      isDelete ? "DELETE" : "PATCH",
+      isDelete ? `${path}/delete` : path,
+      input,
+      isDelete ? "POST" : "PATCH",
     );
     assertEquals(http.status, status);
     const error = await assertRejects(
@@ -466,7 +466,7 @@ Deno.test("HTTP PATCH/DELETE and MCP task mutation schema/handler share validati
     }).success,
     true,
   );
-  const deleted = await post(f.app, `${path}?expected_version=3`, undefined, "DELETE");
+  const deleted = await post(f.app, `${path}/delete`, { expected_version: 3 });
   assertEquals(deleted.status, 204);
   assertEquals(await deleted.text(), "");
   const another = await activity.createTask(
@@ -492,9 +492,9 @@ Deno.test("HTTP PATCH/DELETE and MCP task mutation schema/handler share validati
         : { change_note: "테스트 변경 이유", expected_version: 1 };
       const http = await post(
         f.app,
-        `/tasks/${id}${tool === remove ? "?expected_version=1" : ""}`,
-        tool === remove ? undefined : input,
-        tool === remove ? "DELETE" : "PATCH",
+        `/tasks/${id}${tool === remove ? "/delete" : ""}`,
+        input,
+        tool === remove ? "POST" : "PATCH",
       );
       assertEquals(http.status, 404);
       const error = await assertRejects(

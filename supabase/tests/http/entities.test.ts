@@ -55,8 +55,14 @@ httpTest("Entity HTTP: CRUD·권한·입력·버전·참조·삭제 보존 실�
   });
   assertEquals(updated.status, 200);
   assertEquals(updated.body.prop2, null);
-  assertEquals((await call(A, "DELETE", `/entities/${encodeURIComponent(e.id)}?expected_version=1`)).status, 409);
-  assertEquals((await call(A, "DELETE", `/entities/${encodeURIComponent(e.id)}?expected_version=2`)).status, 204);
+  assertEquals(
+    (await call(A, "POST", `/entities/${encodeURIComponent(e.id)}/delete`, { expected_version: 1 })).status,
+    409,
+  );
+  assertEquals(
+    (await call(A, "POST", `/entities/${encodeURIComponent(e.id)}/delete`, { expected_version: 2 })).status,
+    204,
+  );
   const current = (await call(A, "GET", `/tasks/${task.id}`)).body;
   assertEquals(current.entity_ids, [e.id]);
   assertEquals(current.version, 1);
@@ -90,6 +96,6 @@ httpTest("Entity HTTP: CRUD·권한·입력·버전·참조·삭제 보존 실�
     restored.body.version,
     restored.body.deleted_at,
   ], [e.id, "실제 엔터티", null, "c", 4, null]);
-  await call(A, "DELETE", `/entities/${encodeURIComponent(e.id)}?expected_version=4`);
-  await call(A, "DELETE", `/tasks/${task.id}?expected_version=1`);
+  await call(A, "POST", `/entities/${encodeURIComponent(e.id)}/delete`, { expected_version: 4 });
+  await call(A, "POST", `/tasks/${task.id}/delete`, { expected_version: 1 });
 });

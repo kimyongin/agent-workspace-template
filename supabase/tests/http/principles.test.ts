@@ -92,7 +92,7 @@ httpTest("현재 원칙 HTTP: 같은 문서 갱신·선택 메모·미리보기�
       assertEquals(restored.status, actual ? 200 : 201);
     } else if (current) {
       assertEquals(
-        (await call(a, "DELETE", `/principles/${current.id}?expected_version=${current.version}`)).status,
+        (await call(a, "POST", `/principles/${current.id}/delete`, { expected_version: current.version })).status,
         204,
       );
     }

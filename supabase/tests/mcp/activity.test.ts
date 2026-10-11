@@ -31,7 +31,7 @@ const tokenB = await mcpToken(sessionB);
 const mcpA = await connectMcp(tokenA);
 const mcpB = await connectMcp(tokenB);
 
-httpTest("색인 effect 조회: 실제 OAuth MCP 객체 envelope와 HTTP 배열은 같고 다른 소유자는 거절한다", async () => {
+httpTest("색인 effect 조회: 실제 OAuth MCP 객체 envelope·다른 소유자 거절·삭제 후 조회 불가", async () => {
   const record = await tool(mcpA, "create_record", { body: `status-protocol-${crypto.randomUUID()}` });
   try {
     // Read-only invocation supplies no logical write key. Official SDK validates structuredContent as an object.
@@ -41,9 +41,7 @@ httpTest("색인 effect 조회: 실제 OAuth MCP 객체 envelope와 HTTP 배열�
     assertEquals(Array.isArray(response.structuredContent), false);
     const mcpStatus = response.structuredContent as { items: EffectStatus[] };
     assertEquals(mcpStatus, { items: [] });
-    const httpStatus = await call<EffectStatus[]>(sessionA, "GET", `/records/${record.id}/index-effects`);
-    assertEquals(httpStatus.status, 200);
-    assertEquals(mcpStatus.items, httpStatus.body);
+    assertEquals((await call(sessionA, "GET", `/records/${record.id}/index-effects`)).status, 404);
     assertEquals((await tool(mcpB, "get_record_index_effects", { id: record.id })).error.code, "not_found");
     assertEquals((await call(sessionB, "GET", `/records/${record.id}/index-effects`)).status, 404);
     assertEquals((await call(null, "GET", `/records/${record.id}/index-effects`)).status, 401);
@@ -430,7 +428,7 @@ httpTest("원칙: HTTP/MCP 현재 수정·과거 접근 차단·재시도·삭�
     );
     assertEquals((await tool(mcpA, "get_current_principle", {})).current, null);
     assertEquals(
-      (await call(sessionA, "DELETE", `/principles/${legacy.id}?expected_version=1`)).status,
+      (await call(sessionA, "POST", `/principles/${legacy.id}/delete`, { expected_version: 1 })).status,
       404,
     );
     assertEquals(

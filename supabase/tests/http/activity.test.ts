@@ -71,7 +71,7 @@ httpTest("사용자 격리: B는 A의 할 일을 조회·수정·완료·삭제�
     404,
   );
   assertEquals((await call(B, "POST", `/tasks/${t.id}/complete`, completion(1))).status, 404);
-  assertEquals((await call(B, "DELETE", `/tasks/${t.id}?expected_version=1`)).status, 404);
+  assertEquals((await call(B, "POST", `/tasks/${t.id}/delete`, { expected_version: 1 })).status, 404);
   const list = await call(B, "GET", "/tasks?limit=100");
   assert(!list.body.items.some((x: { id: string }) => x.id === t.id));
   assertEquals((await call(A, "GET", `/tasks/${t.id}`)).body.title, "A만의 할 일");
@@ -162,8 +162,8 @@ httpTest("기록 삭제: 일회성 할 일은 done을 유지하고 result_record
 httpTest("할 일 삭제: 결과 기록은 보존하고 task_id를 비운다", async () => {
   const t = (await call(A, "POST", "/tasks", newOnce())).body;
   const done = (await call(A, "POST", `/tasks/${t.id}/complete`, completion(1))).body;
-  assertEquals((await call(A, "DELETE", `/tasks/${t.id}?expected_version=1`)).status, 409);
-  assertEquals((await call(A, "DELETE", `/tasks/${t.id}?expected_version=2`)).status, 204);
+  assertEquals((await call(A, "POST", `/tasks/${t.id}/delete`, { expected_version: 1 })).status, 409);
+  assertEquals((await call(A, "POST", `/tasks/${t.id}/delete`, { expected_version: 2 })).status, 204);
   assertEquals((await call(A, "GET", `/tasks/${t.id}`)).status, 404);
   const rec = await call(A, "GET", `/records/${done.record.id}`);
   assertEquals(rec.status, 200);

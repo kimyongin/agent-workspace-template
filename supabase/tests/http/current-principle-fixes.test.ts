@@ -14,7 +14,7 @@ httpTest(
         update: ["PATCH", `/principles/${id}`],
         retry_record: ["PATCH", `/records/${id}`],
         get: ["GET", `/principles/${id}`],
-        delete: ["DELETE", `/principles/${id}?expected_version=${input.expected_version}`],
+        delete: ["POST", `/principles/${id}/delete`],
         search: ["POST", "/search"],
         create_record: ["POST", "/records"],
         update_record: ["PATCH", `/records/${id}`],
@@ -27,7 +27,7 @@ httpTest(
         res.status,
         operation === "retry_record"
           ? 409
-          : method === "DELETE"
+          : operation === "delete" || operation === "delete_record"
           ? 204
           : operation === "create" || operation === "create_record"
           ? 201

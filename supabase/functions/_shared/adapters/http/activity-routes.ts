@@ -46,12 +46,6 @@ export function activityRoutes(deps: activity.ActivityDeps) {
     const patch = parse(taskUpdate, await json(c.req.raw));
     return c.json(await activity.updateTask(deps, c.get("actor"), id, patch));
   });
-  app.delete("/tasks/:id", async (c) => {
-    const id = idParam(c.req.param("id"));
-    const i = parse(versionQuery, c.req.query());
-    await activity.deleteTask(deps, c.get("actor"), id, i.expected_version, i.change_note, i.change_tag_ids);
-    return c.body(null, 204);
-  });
   app.post("/tasks/:id/complete", async (c) => {
     const id = idParam(c.req.param("id"));
     const input = parse(taskComplete, await json(c.req.raw));
@@ -101,9 +95,6 @@ export function activityRoutes(deps: activity.ActivityDeps) {
       ...(raw.tag_ids !== undefined ? { tag_ids: raw.tag_ids.split(",") } : {}),
     });
     return c.json(await activity.listRecords(deps, c.get("actor"), query));
-  });
-  app.get("/records/:id/index-effects", async (c) => {
-    return c.json(await activity.getRecordIndexEffects(deps, c.get("actor"), idParam(c.req.param("id"))));
   });
   app.get("/records/:id", async (c) => {
     return c.json(await activity.getRecord(deps, c.get("actor"), idParam(c.req.param("id"))));
