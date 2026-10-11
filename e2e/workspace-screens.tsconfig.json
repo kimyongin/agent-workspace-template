@@ -3,7 +3,8 @@
   "include": [
     "../src",
     "./activity.fixture.ts",
-    "./workspace-screens.fixture.ts",
+    "./workspace-screens.*.fixture.ts",
+    "./support/workspace-screens.ts",
     "./workspace-screens.config.ts",
     "./fixtures/activity.tsx",
     "./fixtures/entity-tags.tsx",

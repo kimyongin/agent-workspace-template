@@ -1,0 +1,55 @@
+{
+  "version": 1,
+  "baselineRevision": "39e0f63ab8355cafbbbe716eff2adf0817c8c46a",
+  "model": "GPT-6.1 Sol",
+  "reasoningEffort": "medium",
+  "inventoryPaths": [
+    "AGENTS.md",
+    "docs/START-HERE.md",
+    "docs/agents/issue-tracker.md",
+    "docs/design/guide.md",
+    "docs/security/guide.md",
+    "docs/development/verification.md",
+    ".agents/skills/implement/SKILL.md",
+    ".agents/skills/tdd/SKILL.md",
+    ".agents/skills/code-review/SKILL.md"
+  ],
+  "tasks": [
+    {
+      "id": "copy",
+      "class": "문구 수정",
+      "prompt": "목록 섹션의 전체 펼치기 버튼에서 '전체 열기'를 '모두 펼치기'로 바꿔 주세요. title과 접근성 이름이 일치해야 합니다. 닫기 문구, 펼치기 동작, 다른 화면은 유지해 주세요.",
+      "expectedEntry": "direct-local-change",
+      "seedPaths": ["src/components/Collection.tsx"],
+      "completion": "대상 버튼의 title·aria-label에서 열린 상태로 전환하는 문구만 일치하게 변경; 토글 동작·키보드·초점 보존",
+      "verification": "문서 검사, 웹 타입·빌드, 관련 목록 fixture의 버튼 이름·펼치기 동작 확인; 실행 명령·프로젝트를 로그에 기록"
+    },
+    {
+      "id": "style",
+      "class": "국소 스타일 수정",
+      "prompt": "목록 보기 선택 버튼의 아이콘만 .8125rem에서 1rem으로 키워 주세요. 전체 펼치기 버튼 아이콘 크기와 버튼의 터치 영역, 키보드·초점 동작은 유지해 주세요.",
+      "expectedEntry": "direct-local-change",
+      "seedPaths": ["src/components/collection.css", "src/components/Collection.tsx"],
+      "completion": "보기 선택 아이콘만 1rem; 펼치기 아이콘 .8125rem과 pointer별 버튼 크기·초점·대비 보존",
+      "verification": "웹 타입·빌드, 관련 목록 fixture의 desktop/mobile 렌더·보기 선택·키보드 확인; 실행 명령·프로젝트를 로그에 기록"
+    },
+    {
+      "id": "pure-function",
+      "class": "순수 함수의 국소 버그 수정",
+      "prompt": "fieldErrors가 같은 경로의 오류를 여러 번 받으면 마지막 메시지를 보여줘야 하는데 현재 첫 메시지를 유지합니다. 마지막 메시지를 쓰도록 고쳐 주세요. 빈 경로의 '_' 처리와 서로 다른 경로의 메시지는 유지해 주세요.",
+      "expectedEntry": "diagnose-then-direct-local-change",
+      "seedPaths": ["src/lib/format.ts", "src/lib/timezone.test.ts"],
+      "completion": "공개 fieldErrors 호출에서 [{path:['name'],message:'first'},{path:['name'],message:'last'},{path:[],message:'root'}] → {name:'last',_:'root'}; 다른 경로 독립성 보존",
+      "verification": "기존 Vitest interface에서 중복·빈·서로 다른 경로 회귀 확인, 웹 타입·빌드; DOM·API 영향 없으면 브라우저 생략 근거 기록"
+    },
+    {
+      "id": "public-api",
+      "class": "공개 API 계약 변경",
+      "prompt": "공개 목록 API와 MCP의 pagination limit을 page_size로 바꾸고 웹 호출자와 제품 플러그인 안내까지 맞춰 주세요. 기본값 20, 최댓값 100과 cursor·권한·실패 처리 의미를 보존하고 실제 사용처를 확인한 뒤 구 limit 계약을 제거해 주세요. 먼저 기존 스펙을 확인하고 없으면 스펙과 선행 관계가 있는 티켓을 정리해 주세요. 이 비교 실행에서는 계획 산출물을 제시한 뒤 구현 전에 멈춰 주세요.",
+      "expectedEntry": "spec-and-tickets-before-implementation",
+      "seedPaths": ["supabase/functions/_shared/contracts/common.ts"],
+      "completion": "구현 전에 기존 합의 재사용 또는 스펙·티켓 제시; 웹·API·MCP·플러그인 호출자와 보안·검증 범위 포함. 제품 수정 없이 종료",
+      "verification": "계획에서 기존 계약·권한·cursor·실패 의미 및 실제 API/MCP/E2E 검증 위치가 보존됐는지 검토; 제품 구현 검증은 not-applicable(planning-only)"
+    }
+  ]
+}
