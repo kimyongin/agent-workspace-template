@@ -5,7 +5,6 @@ Deno.test("passage effect: durable success skips provider and provider errors re
   let sends = 0;
   const vector = [1, 0];
   const provider: PassageProvider = {
-    capabilities: { idempotency: null, lookup: false },
     send: () => {
       sends++;
       return Promise.reject(new Error("secret provider body"));
@@ -31,7 +30,7 @@ Deno.test("passage effect: durable success skips provider and provider errors re
   };
   assertEquals(await executePassageEffect(ledger, provider, input, "body"), { state: "succeeded", vector });
   assertEquals(sends, 0);
-  ledger.claim = () => Promise.resolve({ action: "send", effect_id: "effect", fence: 1, key: "stable", attempts: 1 });
+  ledger.claim = () => Promise.resolve({ action: "send", effect_id: "effect", fence: 1, attempts: 1 });
   assertEquals(await executePassageEffect(ledger, provider, input, "body"), {
     state: "unknown",
     reason: "provider_unknown",

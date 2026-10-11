@@ -6,7 +6,7 @@ export async function hashPassage(value: string): Promise<string> {
   const bytes = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value)));
   return [...bytes].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
-/** Passage-only orchestration; query calls retain their single-call budget policy. */
+/** Passage-only orchestration; query calls retain their single-call policy. */
 export class DurablePassageEmbedder implements Embedder {
   constructor(
     private readonly ledger: PassageEffectLedger,
@@ -31,7 +31,6 @@ export class DurablePassageEmbedder implements Embedder {
         input_hash: await hashPassage(text),
       },
       text,
-      true,
     );
     if (result.state === "succeeded") return result.vector;
     if (result.state === "failed" && result.reason === "input_limit") throw new EmbeddingError("input_limit");

@@ -155,6 +155,39 @@ dbTest("HTTP and MCP use the same owner/key/payload and preserve creation and de
     });
     assertEquals(deletionReplay.status, 204);
     assertEquals(deletionReplay.headers.get("Idempotency-Replayed"), "true");
+    await admin`update private.request_results set completed_at=clock_timestamp()-interval '30 days' where owner_id=${f.actor.userId} and request_key=${key}::uuid`;
+    const expired = await app.request("/tasks", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Idempotency-Key": key },
+      body: JSON.stringify(input),
+    });
+    assertEquals(expired.status, 410);
+    assertEquals((await expired.json()).code, "result_expired");
+    await code(
+      () => tools.find((t) => t.name === "create_task")!.handler({ ...input, request_key: key }, f.actor),
+      "result_expired",
+    );
+    await code(
+      () =>
+        tools.find((t) => t.name === "create_task")!.handler(
+          { ...input, title: "다른 입력", request_key: key },
+          f.actor,
+        ),
+      "idempotency_key_reused",
+    );
+    await admin`select private.expire_request_results()`;
+    const renewed = await tools.find((t) => t.name === "create_task")!.handler(
+      { ...input, request_key: key },
+      f.actor,
+    ) as { id: string };
+    assert(renewed.id !== created.id);
+    const renewedReplay = await app.request("/tasks", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Idempotency-Key": key },
+      body: JSON.stringify(input),
+    });
+    assertEquals(renewedReplay.headers.get("Idempotency-Replayed"), "true");
+    assertEquals(await renewedReplay.json(), renewed);
   } finally {
     await f.cleanup();
   }
@@ -174,11 +207,6 @@ dbTest("owners have isolated keys and deleted owners cannot replay with an old A
     assert(
       (await outcome(asUser(sql, actor.userId, (tx) => tx`select * from private.request_results`))).startsWith("42501"),
     );
-    assert(
-      (await outcome(asUser(sql, actor.userId, (tx) => tx`select * from private.request_capacity`))).startsWith(
-        "42501",
-      ),
-    );
     await f.cleanup();
     await code(() => activity.createTask(deps, actor, input), "unauthenticated");
   } finally {
@@ -187,23 +215,27 @@ dbTest("owners have isolated keys and deleted owners cannot replay with an old A
   }
 });
 
-dbTest("expired results remain tombstones and full owners can replay but cannot commit new keys", async () => {
+dbTest("30-day results expire before cleanup and cleaned keys can create a new request", async () => {
   const f = await fixtureOwner(admin);
   try {
-    const actor = keyed(f.actor), fresh = keyed(f.actor);
+    const actor = keyed(f.actor);
     const created = await activity.createTask(deps, actor, input);
-    await admin`update private.request_capacity set used=100000 where owner_id=${actor.userId}`;
+    await admin`update private.request_results set completed_at=clock_timestamp()-interval '30 days'+interval '1 minute' where owner_id=${actor.userId}`;
     assertEquals(await activity.createTask(deps, actor, input), created);
-    await code(() => activity.createTask(deps, fresh, input), "idempotency_capacity_exceeded");
+    await code(() => activity.createTask(deps, actor, { ...input, title: "다른 입력" }), "idempotency_key_reused");
+    await admin`update private.request_results set completed_at=clock_timestamp()-interval '30 days' where owner_id=${actor.userId}`;
+    await code(() => activity.createTask(deps, actor, input), "result_expired");
     await admin`update private.request_results set completed_at=clock_timestamp()-interval '31 days' where owner_id=${actor.userId}`;
     await code(() => activity.createTask(deps, actor, input), "result_expired");
     await admin`select private.expire_request_results()`;
-    await code(() => activity.createTask(deps, actor, input), "result_expired");
-    const [{ result, used }] =
-      await admin`select r.result,c.used from private.request_results r join private.request_capacity c using(owner_id) where owner_id=${actor.userId}`;
-    assertEquals(result, null);
-    assertEquals(used, 100000);
+    assertEquals(
+      (await admin`select count(*)::int n from private.request_results where owner_id=${actor.userId}`)[0].n,
+      0,
+    );
+    const fresh = await activity.createTask(deps, keyed(f.actor, actor.request!.key), input);
+    assert(fresh.id !== created.id);
     assertEquals((await activity.getTask(deps, f.actor, created.id)).id, created.id);
+    assertEquals((await activity.getTask(deps, f.actor, fresh.id)).id, fresh.id);
   } finally {
     await f.cleanup();
   }
@@ -259,49 +291,15 @@ dbTest("a competing request waits at most two seconds and never executes a secon
   }
 });
 
-dbTest("the last owner capacity slot is atomic under different-key competition", async () => {
+dbTest("different keys for the same owner commit independent business events", async () => {
   const f = await fixtureOwner(admin);
   try {
-    const actor = keyed(f.actor);
-    await activity.createTask(deps, actor, input);
-    await admin`update private.request_capacity set used=99999 where owner_id=${actor.userId}`;
-    const results = await Promise.allSettled([
+    const results = await Promise.all([
       activity.createTask(deps, keyed(f.actor), input),
       activity.createTask(deps, keyed(f.actor), input),
     ]);
-    assertEquals(results.filter((r) => r.status === "fulfilled").length, 1);
-    const failed = results.find((r) => r.status === "rejected") as PromiseRejectedResult;
-    assertEquals((failed.reason as AppError).code, "idempotency_capacity_exceeded");
-    assertEquals(await effects(actor.userId), { tasks: 2, changes: 2, jobs: 2, receipts: 2 });
-  } finally {
-    await f.cleanup();
-  }
-});
-
-dbTest("lifetime quota counts committed requests once and excludes replays and rolled-back writes", async () => {
-  const f = await fixtureOwner(admin);
-  try {
-    const actor = keyed(f.actor);
-    const created = await activity.createTask(deps, actor, input);
-    const used = async () => {
-      const [row] = await admin`select used from private.request_capacity where owner_id=${f.actor.userId}`;
-      return row?.used;
-    };
-    assertEquals(await used(), 1);
-    assertEquals(await activity.createTask(deps, actor, input), created);
-    assertEquals(await used(), 1);
-    await code(
-      () => activity.updateTask(deps, keyed(f.actor), created.id, { expected_version: 99, title: "rejected" }),
-      "conflict",
-    );
-    assertEquals(await used(), 1);
-    const changed = await activity.updateTask(deps, keyed(f.actor), created.id, {
-      expected_version: 1,
-      title: "committed",
-    });
-    assertEquals(changed.version, 2);
-    assertEquals(await used(), 2);
-    assertEquals(await effects(f.actor.userId), { tasks: 1, changes: 2, jobs: 2, receipts: 2 });
+    assert(results[0].id !== results[1].id);
+    assertEquals(await effects(f.actor.userId), { tasks: 2, changes: 2, jobs: 2, receipts: 2 });
   } finally {
     await f.cleanup();
   }

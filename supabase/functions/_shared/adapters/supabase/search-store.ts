@@ -73,10 +73,6 @@ class SqlSearchStore implements SearchStore {
       case when keyword_match and score>=0.27 then 'both' when keyword_match then 'keyword' else 'semantic' end as match
       from scored where keyword_match or score>=0.27`;
   }
-  async reserveEmbedding() {
-    const [r] = await this.tx`select app.reserve_search_embedding() as allowed`;
-    return r.allowed as boolean;
-  }
   async anchorPage(q: SearchInput, vector: number[] | undefined) {
     if (!q.anchor) return null;
     const tx = this.tx;
@@ -119,6 +115,9 @@ class SqlSearchStore implements SearchStore {
 export class SqlSearchUnitOfWork {
   constructor(private readonly sql: postgres.Sql) {}
   run<T>(a: Actor, fn: (s: SearchStore) => Promise<T>): Promise<T> {
-    return runAsActor(this.sql, a, (tx) => fn(new SqlSearchStore(tx)));
+    return runAsActor(this.sql, a, async (tx) => {
+      await tx`select app.require_search_owner()`;
+      return fn(new SqlSearchStore(tx));
+    });
   }
 }
