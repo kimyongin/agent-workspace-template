@@ -5,7 +5,8 @@ import { TagPicker } from "../tags/TagPicker.tsx";
 import { RelationPicker } from "../relations/RelationPicker.tsx";
 import { EntityMultiPicker } from "../entity/EntityPicker.tsx";
 import { recordCreate, recordLabels } from "@contracts/record.ts";
-import { type Recurrence, taskCreate, taskLabels } from "@contracts/task.ts";
+import { type Recurrence, taskCreate, taskLabels, type TaskResult } from "@contracts/task.ts";
+import { api } from "../../lib/api.ts";
 import { type ReactNode, useState } from "react";
 import { Field } from "../../components/Field.tsx";
 import { FormModal, TextFields, type TextDraft } from "../../components/ContentForm.tsx";
@@ -111,8 +112,6 @@ export function RecordFormModal(props: {
 // ---------- 할 일 폼(작성·편집) ----------
 
 export interface TaskDraft extends TextDraft {
-  change_note?: string;
-  change_tag_ids?: string[];
   entity_ids?:string[];
   entity_context?:EntityContext[];
   tag_ids: string[];
@@ -178,25 +177,25 @@ function recurrenceOf(d: TaskDraft): unknown {
   return { freq: "daily", starts_on: d.starts_on };
 }
 
-/** 생성 입력(contracts의 taskCreate 모양). */
-export function taskInput(d: TaskDraft): Record<string, unknown> {
-  const text = { title: d.title, body: d.body, tag_ids:d.tag_ids,entity_ids:d.entity_ids??[], change_note:d.change_note, change_tag_ids:d.change_tag_ids };
-  return d.kind === "once"
-    ? { kind: "once", ...text, ...(d.due_on ? { due_on: d.due_on } : {}) }
-    : { kind: "recurring", ...text, recurrence: recurrenceOf(d), timezone: d.timezone };
+// Both memo preparation and the write use the same business input. Relations are edited separately.
+function taskInput(draft: TaskDraft, mode: "create" | "edit"): Record<string, unknown> {
+  const text = { title: draft.title, body: draft.body, tag_ids: draft.tag_ids };
+  const input = draft.kind === "once"
+    ? { ...text, ...(draft.due_on ? { due_on: draft.due_on } : mode === "edit" ? { due_on: null } : {}) }
+    : { ...text, recurrence: recurrenceOf(draft), timezone: draft.timezone };
+  return mode === "create" ? { ...input, kind: draft.kind, entity_ids: draft.entity_ids ?? [] } : input;
 }
 
 export function TaskFormModal(props: {
-  mode: "create" | "edit";
-  target?: { id: string; version: number };
   open: boolean;
   initial: TaskDraft;
   details?: ReactNode;
   deletion?: DeletionOptions;
   onClose: () => void;
   onRouteDiscard?: () => void;
-  onSave: (draft: TaskDraft, requestKey: () => string) => Promise<void>;
-}) {
+  // The caller wraps this operation to retain its read cancellation and confirmed-value lifetime.
+  onSave: (save: () => Promise<TaskResult>) => Promise<void>;
+} & ({ mode: "create"; target?: never } | { mode: "edit"; target: { id: string; version: number } })) {
   const [initial] = useState(props.initial);
   const [draft, setDraft] = useState(initial);
   const dirty = JSON.stringify(draft) !== JSON.stringify(initial);
@@ -207,7 +206,13 @@ export function TaskFormModal(props: {
     <FormModal
       domain="할 일" title={props.mode === "create" ? "할 일 추가" : "할 일 편집"}
       mutation={{target:draft.title, action:props.mode === "create" ? "등록" : "수정"}}
-      preparation={() => { const {change_note, change_tag_ids, kind, entity_ids, ...input} = taskInput(draft); return {model:"task", action:props.mode === "create" ? "create" : "update", target_id:props.target?.id, expected_version:props.target?.version, input:props.mode === "edit" ? {...input,...(draft.kind === "once" ? {due_on:draft.due_on || null} : {})} : {...input,kind,entity_ids}}; }}
+      preparation={() => ({
+        model: "task",
+        action: props.mode === "create" ? "create" : "update",
+        target_id: props.target?.id,
+        expected_version: props.target?.version,
+        input: taskInput(draft, props.mode),
+      })}
       submitLabel={props.mode === "create" ? "추가" : "저장"}
       open={props.open}
       dirty={dirty}
@@ -215,7 +220,7 @@ export function TaskFormModal(props: {
       onClose={props.onClose}
       onRouteDiscard={props.onRouteDiscard}
       validate={() => {
-        const {change_note, change_tag_ids, ...input}=taskInput(draft);
+        const input = taskInput(draft, "create");
         const r = (draft.kind === "once" ? taskCreate.options[0] : taskCreate.options[1]).safeParse(input);
         if (r.success) return null;
         const errs = fieldErrors(r.error.issues);
@@ -223,7 +228,19 @@ export function TaskFormModal(props: {
         for (const [k, v] of Object.entries(errs)) if (k.startsWith("recurrence.")) errs[k.slice(11)] ??= v;
         return errs;
       }}
-      onSubmit={(requestKey, memo) => props.onSave({...draft,...memo}, requestKey)}
+      onSubmit={(requestKey, memo) => {
+        const input = { ...taskInput(draft, props.mode), ...memo };
+        const save = props.mode === "create"
+          ? () => api<TaskResult>("POST", "/tasks", input, undefined, requestKey())
+          : () => api<TaskResult>(
+            "PATCH",
+            `/tasks/${props.target.id}`,
+            { ...input, expected_version: props.target.version },
+            undefined,
+            requestKey(),
+          );
+        return props.onSave(save);
+      }}
     >
       {(errors) => (
         <>

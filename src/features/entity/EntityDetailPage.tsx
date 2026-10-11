@@ -19,7 +19,7 @@ import { Notice } from "../../components/Field.tsx";
 import { DetailSurface, DetailTitle } from "../../components/Modal.tsx";
 import { api, ApiError } from "../../lib/api.ts";
 import { EntityForm } from "./forms.tsx";
-import { emptyRecord, emptyTask, RecordFormModal, TaskFormModal, taskInput } from "../activity/forms.tsx";
+import { emptyRecord, emptyTask, RecordFormModal, TaskFormModal } from "../activity/forms.tsx";
 import "./entity.css";
 import { EntityTaskRelations } from "./TaskEntityRelations.tsx";
 export function EntityDetailPage() {
@@ -92,8 +92,8 @@ export function EntityDetailPage() {
           </dl><TagNames scope="entity" compact ids={entity.tag_ids}/></section>
           <div className="detail-relations">{entity.deleted_at && <><RelatedSection title="할 일" count={entity.tasks.count}><CollectionList>{entity.tasks.items.map(item=><li key={item.id}><a href={`/tasks/${item.id}`}>{item.title}</a></li>)}</CollectionList></RelatedSection><RelatedSection title="기록" count={entity.records.count}><CollectionList>{entity.records.items.map(item=><li key={item.id}><RelatedRecordItem record={item}/></li>)}</CollectionList></RelatedSection></>}{entity.deleted_at && <p className="secondary">삭제됨</p>}{management}</div>
           {creating === "task" && !entity.deleted_at && <TaskFormModal key={location.key} open mode="create" initial={{ ...emptyTask(timezone), entity_ids: [entity.id], entity_context: entityContext }}
-            onClose={closeCreate} onRouteDiscard={()=>setCreating(null)} onSave={async (draft, requestKey) => {
-              await api("POST", "/tasks", { ...taskInput(draft) }, undefined, requestKey());
+            onClose={closeCreate} onRouteDiscard={()=>setCreating(null)} onSave={async save => {
+              await save();
               closeCreate(); void reload();
             }} />}
           {creating === "record" && !entity.deleted_at && <RecordFormModal key={location.key} open title="기록 작성" submitLabel="저장" initial={{ ...emptyRecord(), entity_ids: [entity.id], entity_context: entityContext }}
