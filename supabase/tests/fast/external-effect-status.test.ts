@@ -7,7 +7,7 @@ import type { ActivityDeps } from "../../functions/_shared/core/activity/applica
 import { toErrorBody } from "../../functions/_shared/adapters/errors.ts";
 import { notFound } from "../../functions/_shared/core/shared/errors.ts";
 
-Deno.test("HTTP/MCP external status: readonly current-owner use case exposes stable references with no write key", async () => {
+Deno.test("MCP external status: readonly current-owner use case exposes stable references with no write key", async () => {
   const actor = { userId: crypto.randomUUID() }, id = "20261011-ABCDEF12", effect_id = crypto.randomUUID();
   const effects = [{
     effect_id,
@@ -43,8 +43,7 @@ Deno.test("HTTP/MCP external status: readonly current-owner use case exposes sta
     return c.json(r.body, r.status as 400);
   });
   const response = await app.request(`/records/${id}/index-effects`);
-  assertEquals(response.status, 200);
-  assertEquals(await response.json(), effects);
+  assertEquals(response.status, 404);
   const tool = activityTools(deps).find((t) => t.name === "get_record_index_effects")!;
   assertEquals(tool.readOnly, true);
   assertEquals(await tool.handler({ id }, actor), { items: effects });

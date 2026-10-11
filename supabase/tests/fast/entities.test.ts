@@ -179,7 +179,10 @@ Deno.test("Entity HTTP/MCP 실제 handler: CRUD parity·엄격 입력·존재 �
     })).status,
     400,
   );
-  assertEquals((await request("DELETE", `/entities/${encodeURIComponent(e.id)}?expected_version=2`)).status, 409);
+  assertEquals(
+    (await request("POST", `/entities/${encodeURIComponent(e.id)}/delete`, { expected_version: 2 })).status,
+    409,
+  );
   assertEquals(writes(), before);
   assertEquals((await request("GET", "/entities/not-id")).status, 404);
   assertEquals(

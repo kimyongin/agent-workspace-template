@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { principleCreate, principleDelete, principleUpdate } from "../../contracts/principle.ts";
 import * as principles from "../../core/principles/application.ts";
 import { parse } from "../errors.ts";
-import { type HttpEnv, idParam, json, versionQuery } from "./input.ts";
+import { type HttpEnv, idParam, json } from "./input.ts";
 export function principleRoutes(d: principles.PrincipleDeps) {
   const app = new Hono<HttpEnv>();
   app.post("/principles/:id/delete", async (c) => {
@@ -39,17 +39,5 @@ export function principleRoutes(d: principles.PrincipleDeps) {
         ),
       ),
   );
-  app.delete("/principles/:id", async (c) => {
-    const i = parse(versionQuery, c.req.query());
-    await principles.deletePrinciple(
-      d,
-      c.get("actor"),
-      idParam(c.req.param("id")),
-      i.expected_version,
-      i.change_note,
-      i.change_tag_ids,
-    );
-    return c.body(null, 204);
-  });
   return app;
 }

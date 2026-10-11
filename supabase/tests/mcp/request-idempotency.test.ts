@@ -38,7 +38,7 @@ httpTest("HTTP→OAuth MCP creation replay preserves the explicit key across ind
   } finally {
     await secondClient?.close();
     await firstClient.close();
-    await call(session, "DELETE", `/tasks/${created.body.id}?expected_version=${created.body.version}`);
+    await call(session, "POST", `/tasks/${created.body.id}/delete`, { expected_version: created.body.version });
   }
 });
 
@@ -74,7 +74,7 @@ httpTest(
       assertEquals(freshKey.body.code, "conflict");
     } finally {
       await client.close();
-      await call(session, "DELETE", `/tasks/${created.body.id}?expected_version=${version}`);
+      await call(session, "POST", `/tasks/${created.body.id}/delete`, { expected_version: version });
     }
   },
 );
@@ -123,8 +123,8 @@ httpTest(
       assertEquals((await call(session, "GET", `/tasks/${second.body.id}`)).body.title, second.body.title);
     } finally {
       await client.close();
-      await call(session, "DELETE", `/tasks/${first.body.id}?expected_version=${firstVersion}`);
-      await call(session, "DELETE", `/tasks/${second.body.id}?expected_version=${second.body.version}`);
+      await call(session, "POST", `/tasks/${first.body.id}/delete`, { expected_version: firstVersion });
+      await call(session, "POST", `/tasks/${second.body.id}/delete`, { expected_version: second.body.version });
     }
   },
 );
@@ -162,14 +162,14 @@ httpTest(
       assertEquals((await call(sessionA, "GET", `/tasks/${b.id}`)).status, 404);
     } finally {
       await clientB.close();
-      await call(sessionA, "DELETE", `/tasks/${a.body.id}?expected_version=${a.body.version}`);
-      if (b) await call(sessionB, "DELETE", `/tasks/${b.id}?expected_version=${b.version}`);
+      await call(sessionA, "POST", `/tasks/${a.body.id}/delete`, { expected_version: a.body.version });
+      if (b) await call(sessionB, "POST", `/tasks/${b.id}/delete`, { expected_version: b.version });
     }
   },
 );
 
 httpTest(
-  "OAuth MCP deletion replays as HTTP 204 with marker through both delete aliases after target removal",
+  "OAuth MCP deletion replays as HTTP 204 with marker through the canonical POST after target removal",
   async () => {
     const session = await signIn("A");
     const client = await connectMcp(await mcpToken(session));
@@ -184,21 +184,17 @@ httpTest(
       assertEquals(replay.body, null);
       assertEquals(replay.headers.get("Idempotency-Replayed"), "true");
       assert(replay.headers.get("Idempotency-Completed-At"));
-      const query = new URLSearchParams({
-        expected_version: String(input.expected_version),
-        change_note: input.change_note,
-      });
-      const aliasReplay = await call(session, "DELETE", `/tasks/${created.body.id}?${query}`, undefined, key);
-      assertEquals(aliasReplay.status, 204);
-      assertEquals(aliasReplay.body, null);
-      assertEquals(aliasReplay.headers.get("Idempotency-Replayed"), "true");
-      assertEquals(aliasReplay.headers.get("Idempotency-Completed-At"), replay.headers.get("Idempotency-Completed-At"));
+      const repeated = await call(session, "POST", `/tasks/${created.body.id}/delete`, input, key);
+      assertEquals(repeated.status, 204);
+      assertEquals(repeated.body, null);
+      assertEquals(repeated.headers.get("Idempotency-Replayed"), "true");
+      assertEquals(repeated.headers.get("Idempotency-Completed-At"), replay.headers.get("Idempotency-Completed-At"));
       assertEquals(await write(client, "delete_task", args), { deleted: created.body.id });
       assertEquals((await call(session, "GET", `/tasks/${created.body.id}`)).status, 404);
       assertEquals((await call(session, "POST", `/tasks/${created.body.id}/delete`, input)).status, 404);
     } finally {
       await client.close();
-      await call(session, "DELETE", `/tasks/${created.body.id}?expected_version=${created.body.version}`);
+      await call(session, "POST", `/tasks/${created.body.id}/delete`, { expected_version: created.body.version });
     }
   },
 );
