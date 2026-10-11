@@ -8,7 +8,6 @@ Deno.test("date and period occurrence reads agree across timezones and historica
   const actor = { userId: crypto.randomUUID() }, date = "2026-10-08";
   const tasks: Task[] = ["Asia/Seoul", "America/New_York", "Asia/Seoul"].map((timezone, i) => ({
     ...newTask(taskCreate.parse({
-      id: `00000000-0000-4000-8000-00000000000${i + 1}`,
       kind: "recurring",
       title: timezone,
       timezone,
@@ -16,6 +15,7 @@ Deno.test("date and period occurrence reads agree across timezones and historica
         ? { freq: "weekly", weekdays: [1], starts_on: "2020-01-01" }
         : { freq: "daily", starts_on: "2020-01-01" },
     })),
+    id: `00000000-0000-4000-8000-00000000000${i + 1}`,
     version: 1,
     created_at: "2026-10-01T00:00:00Z",
     updated_at: "2026-10-01T00:00:00Z",
@@ -29,6 +29,7 @@ Deno.test("date and period occurrence reads agree across timezones and historica
     occurrence_on: date,
   }));
   const store = new Proxy({
+    executeRequest: <T>(_request: unknown, execute: () => Promise<T>) => execute(),
     listTasks: () => Promise.resolve(tasks),
     getTask: (id: string) => Promise.resolve(tasks.find((task) => task.id === id) ?? null),
     occurrenceRecords: (ids: string[]) => {

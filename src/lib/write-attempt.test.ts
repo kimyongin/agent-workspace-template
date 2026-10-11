@@ -2,58 +2,54 @@ import { expect, it } from "vitest";
 import { WriteAttempt } from "./write-attempt.ts";
 import { ApiError } from "./api-error.ts";
 
-it("retries the original creation input and UUID after an uncertain response", async () => {
+it("retries the original payload and request key after an uncertain response", async () => {
   const attempt = new WriteAttempt();
-  await attempt.prepareCreationId();
-  const writes: { id: string; title: string }[] = [];
+  const writes: { key: string; title: string; version: number }[] = [];
   let lost = true;
-  const original = { id: attempt.creationId(), title: "상담" };
-  const save = async () => {
-    writes.push(original);
-    if (lost) { lost = false; throw new ApiError(0, "network", "응답 유실"); }
-  };
-  await expect(attempt.run(save)).rejects.toThrow("응답 유실");
-  expect(attempt.snapshot().uncertain).toBe(true);
-  await attempt.run(async () => { writes.push({ id: "다른 ID", title: "다른 내용" }); });
-  expect(writes).toEqual([original, original]);
-  expect(attempt.snapshot().uncertain).toBe(false);
-  await attempt.prepareCreationId();
-  expect(attempt.creationId()).not.toBe(original.id);
-});
-
-it("keeps the expected version on retry and exposes a conflict without rebasing", async () => {
-  const attempt = new WriteAttempt();
-  await attempt.prepareCreationId();
-  const accepted: number[] = [];
-  let version = 4;
-  const save = async () => {
-    const expected = 4;
-    if (expected !== version) throw new ApiError(409, "conflict", "버전 충돌");
-    accepted.push(expected);
-    version++;
-    throw new ApiError(0, "network", "응답 유실");
-  };
-  await expect(attempt.run(save)).rejects.toThrow("응답 유실");
-  await expect(attempt.run(async () => { accepted.push(5); })).rejects.toThrow("버전 충돌");
-  expect(accepted).toEqual([4]);
-  expect(attempt.snapshot()).toEqual({ busy: false, uncertain: false });
-});
-
-it("discarding an uncertain creation starts a new UUID and prevents concurrent duplicate writes", async () => {
-  const attempt = new WriteAttempt();
-  await attempt.prepareCreationId();
-  const id = attempt.creationId();
-  await expect(attempt.run(async () => { throw new ApiError(0, "network", "응답 유실"); })).rejects.toThrow();
+  await expect(attempt.run(async () => {
+    writes.push({key:attempt.requestKey(),title:"상담",version:4});
+    if (lost) { lost=false; throw new ApiError(0,"network","응답 유실"); }
+  })).rejects.toThrow("응답 유실");
   attempt.reset();
-  await attempt.prepareCreationId();
-  expect(attempt.creationId()).not.toBe(id);
-  let release!: () => void;
-  let completed = false;
-  const pending = attempt.run(async () => { await new Promise<void>(resolve => { release = resolve; }); completed = true; });
-  await attempt.run(async () => { throw Error("중복 저장"); });
-  expect(attempt.snapshot().busy).toBe(true);
-  await Promise.resolve();
-  release();
-  await pending;
-  expect(completed).toBe(true);
+  await attempt.run(async () => { writes.push({key:attempt.requestKey(),title:"바뀐 입력",version:5}); });
+  expect(writes).toHaveLength(2);
+  expect(writes[1]).toEqual(writes[0]);
+  expect(writes[0].key).toMatch(/^[0-9a-f-]{36}$/);
+  await attempt.run(async()=>{writes.push({key:attempt.requestKey(),title:"다음 의도",version:5});});
+  expect(writes[2].key).not.toBe(writes[0].key);
+});
+
+it("keeps an in-progress attempt and ends it only after a definite failure", async () => {
+  const attempt=new WriteAttempt(); let first=true; const keys:string[]=[];
+  const save=async()=>{keys.push(attempt.requestKey());if(first){first=false;throw new ApiError(409,"request_in_progress" as never,"진행 중");}throw new ApiError(409,"conflict","버전 충돌");};
+  await expect(attempt.run(save)).rejects.toThrow("진행 중");
+  expect(attempt.snapshot().uncertain).toBe(true);
+  await expect(attempt.run(async()=>{})).rejects.toThrow("버전 충돌");
+  expect(keys[1]).toBe(keys[0]);
+  expect(attempt.snapshot()).toEqual({busy:false,uncertain:false});
+});
+
+it("persists only unresolved request metadata and never stores the payload",async()=>{
+  const entries=new Map<string,string>();
+  const storage={setItem:(k:string,v:string)=>entries.set(k,v),removeItem:(k:string)=>entries.delete(k)};
+  const attempt=new WriteAttempt(storage);
+  let lost=true;
+  await expect(attempt.run(async()=>{attempt.track("task.update","task-1");if(lost){lost=false;throw new ApiError(503,"unavailable","private memo");}})).rejects.toThrow();
+  expect([...entries.values()].map(v=>JSON.parse(v))).toEqual([{request_key:attempt.requestKey(),operation:"task.update",target:"task-1",status:"unknown"}]);
+  await attempt.run(async()=>{});
+  expect(entries.size).toBe(0);
+});
+
+it("an explicit new intent after cancel preserves unknown metadata and never runs the old closure",async()=>{
+  const entries=new Map<string,string>();
+  const attempt=new WriteAttempt({setItem:(k,v)=>entries.set(k,v),removeItem:k=>entries.delete(k)});
+  let oldCalls=0;
+  await expect(attempt.run(async()=>{oldCalls++;attempt.track("tag.create","");throw new ApiError(0,"network","lost");})).rejects.toThrow();
+  const oldKey=attempt.requestKey();
+  attempt.startNewIntent();
+  let newKey="";
+  await attempt.run(async()=>{newKey=attempt.requestKey();});
+  expect(newKey).not.toBe(oldKey);
+  expect(oldCalls).toBe(1);
+  expect([...entries.values()].map(v=>JSON.parse(v).request_key)).toEqual([oldKey]);
 });

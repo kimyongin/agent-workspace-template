@@ -7,12 +7,12 @@ test("설정 템플릿 오류·변수 삽입과 실제 변경 확인·취소·�
   const login = await page.request.post(`${env.VITE_SUPABASE_URL}/auth/v1/token?grant_type=password`, {headers:{apikey:env.VITE_SUPABASE_PUBLISHABLE_KEY},data:{email:env.DEV_USER_A_EMAIL,password:env.DEV_USER_A_PASSWORD}});
   const token = (await login.json()).access_token;
   const api = async(method:string,path:string,data?:unknown) => {
-    const response = await page.request.fetch(`${env.VITE_API_URL}${path}`,{method,headers:{authorization:`Bearer ${token}`},data});
+    const response = await page.request.fetch(`${env.VITE_API_URL}${path}`,{method,headers:{authorization:`Bearer ${token}`,...(method!=="GET"?{"Idempotency-Key":crypto.randomUUID()}:{})},data});
     const text = await response.text();
     expect(response.ok(), `${method} ${path}: ${response.status()} ${text}`).toBeTruthy(); return response.status() === 204 ? null : JSON.parse(text);
   };
   const saved = await api("GET","/settings/business");
-  const tag = await api("POST","/tags",{id:crypto.randomUUID(),scope:"record",name:unique("템플릿")});
+  const tag = await api("POST","/tags",{scope:"record",name:unique("템플릿")});
   let taskId:string|undefined;
   try {
     await page.goto("/settings");
@@ -38,8 +38,8 @@ test("설정 템플릿 오류·변수 삽입과 실제 변경 확인·취소·�
     await form.getByRole("button",{name:"기록 기본값 저장"}).click();
     await expect(form).toContainText("기록 기본값을 저장했습니다.");
     await page.goto("/tasks");
-    const preparedIds:string[]=[];
-    page.on("request", request => {if(request.url().endsWith("/records/prepare") && request.method()==="POST"){const input=request.postDataJSON();if(input.model==="task"&&input.action==="create")preparedIds.push(input.input.id);}});
+    const preparedInputs:Record<string,unknown>[]=[];
+    page.on("request", request => {if(request.url().endsWith("/records/prepare") && request.method()==="POST"){const input=request.postDataJSON();if(input.model==="task"&&input.action==="create")preparedInputs.push(input.input);}});
     await beginTabAction(page,"할 일 추가");
     const dialog=page.getByRole("dialog",{name:"할 일 추가",exact:true});
     const title=unique("재시도 템플릿");
@@ -55,10 +55,10 @@ test("설정 템플릿 오류·변수 삽입과 실제 변경 확인·취소·�
     await expect(confirmation.getByLabel("기록 메모",{exact:true})).toHaveValue("  내 메모\n");
     await expect(confirmation.getByRole("button",{name:tag.name,exact:true})).toHaveAttribute("aria-pressed","false");
     await expect(confirmation.getByRole("button",{name:"템플릿 다시 적용",exact:true})).toHaveCount(0);
-    const requests:unknown[]=[];
+    const requests:unknown[]=[], keys:(string|undefined)[]=[];
     await page.route("**/api/tasks",async route=>{
       if(route.request().method()!=="POST") return route.continue();
-      requests.push(route.request().postDataJSON());
+      requests.push(route.request().postDataJSON());keys.push(route.request().headers()["idempotency-key"]);
       if(requests.length===1) return route.abort("failed");
       return route.continue();
     });
@@ -71,8 +71,9 @@ test("설정 템플릿 오류·변수 삽입과 실제 변경 확인·취소·�
     await confirmation.getByRole("button",{name:"같은 내용 다시 시도",exact:true}).click();
     await expect(page.getByRole("heading",{name:title,exact:true})).toBeVisible();
     expect(requests).toHaveLength(2); expect(requests[1]).toEqual(requests[0]);
-    taskId=(requests[0] as {id:string}).id;
-    expect(preparedIds.length).toBeGreaterThan(0);expect(new Set(preparedIds)).toEqual(new Set([taskId]));
+    taskId=decodeURIComponent(new URL(page.url()).pathname.split("/").at(-1)!);
+    expect(keys[1]).toBe(keys[0]);expect(keys[0]).toMatch(/^[0-9a-f-]{36}$/);
+    expect(preparedInputs.length).toBeGreaterThan(0);for(const input of preparedInputs)expect(input).not.toHaveProperty("id");
     const records=await api("GET","/records?record_kind=change&limit=100");
     const record=records.items.find((value:{change?:{target_id:string;action:string}})=>value.change?.target_id===taskId&&value.change.action==="create");
     expect(record.body).toBe("  내 메모\n"); expect(record.tag_ids).toEqual([]);

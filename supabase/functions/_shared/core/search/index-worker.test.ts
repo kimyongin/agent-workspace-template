@@ -81,3 +81,12 @@ Deno.test("a generation finishing after a body edit is stale", async () => {
   };
   assertEquals((await indexBatch(queue, { embed: () => Promise.resolve([1]) }, { limit: 1 })).stale, 1);
 });
+
+Deno.test("queue redelivery count cannot exhaust the durable passage send budget", async () => {
+  const queue: IndexQueue = {
+    claim: () => Promise.resolve([{ msg_id: "1", read_ct: 100 }]),
+    prepare: () => Promise.resolve({ body: "cached source" }),
+    finish: () => Promise.resolve(true),
+  };
+  assertEquals((await indexBatch(queue, { embed: () => Promise.resolve([1]) }, { limit: 1 })).indexed, 1);
+});

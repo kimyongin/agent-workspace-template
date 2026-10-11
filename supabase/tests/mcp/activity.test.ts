@@ -1,3 +1,5 @@
+import type { EffectStatus } from "../../functions/_shared/core/search/external-effect.ts";
+import { requestKey } from "../../functions/_shared/contracts/request.ts";
 // MCP 계약 테스트: 실제 OAuth 토큰과 공식 MCP 클라이언트로 도구를 호출하고, HTTP와 결과·오류 의미가 같은지 본다.
 import { assert, assertEquals } from "@std/assert";
 import { z } from "zod";
@@ -28,6 +30,28 @@ const tokenA = await mcpToken(sessionA);
 const tokenB = await mcpToken(sessionB);
 const mcpA = await connectMcp(tokenA);
 const mcpB = await connectMcp(tokenB);
+
+httpTest("색인 effect 조회: 실제 OAuth MCP 객체 envelope와 HTTP 배열은 같고 다른 소유자는 거절한다", async () => {
+  const record = await tool(mcpA, "create_record", { body: `status-protocol-${crypto.randomUUID()}` });
+  try {
+    // Read-only invocation supplies no logical write key. Official SDK validates structuredContent as an object.
+    const response = await mcpA.callTool({ name: "get_record_index_effects", arguments: { id: record.id } });
+    assertEquals(response.isError ?? false, false);
+    assert(response.structuredContent);
+    assertEquals(Array.isArray(response.structuredContent), false);
+    const mcpStatus = response.structuredContent as { items: EffectStatus[] };
+    assertEquals(mcpStatus, { items: [] });
+    const httpStatus = await call<EffectStatus[]>(sessionA, "GET", `/records/${record.id}/index-effects`);
+    assertEquals(httpStatus.status, 200);
+    assertEquals(mcpStatus.items, httpStatus.body);
+    assertEquals((await tool(mcpB, "get_record_index_effects", { id: record.id })).error.code, "not_found");
+    assertEquals((await call(sessionB, "GET", `/records/${record.id}/index-effects`)).status, 404);
+    assertEquals((await call(null, "GET", `/records/${record.id}/index-effects`)).status, 401);
+  } finally {
+    await tool(mcpA, "delete_record", { id: record.id, expected_version: record.version });
+  }
+  assertEquals((await tool(mcpA, "get_record_index_effects", { id: record.id })).error.code, "not_found");
+});
 
 httpTest("일반 할 일 메모와 제목 검색은 HTTP/MCP에서 같고 다른 사용자의 연결은 거부한다", async () => {
   const title = `상담 ${crypto.randomUUID()}%_`;
@@ -147,7 +171,6 @@ httpTest("검색: HTTP/MCP 본문 키워드·원문 최소 응답·대체 상태
 });
 
 const EXPECTED_TOOLS = [
-  "allocate_data_id",
   "get_business_settings",
   "update_business_settings",
   "prepare_record_memo",
@@ -169,6 +192,7 @@ const EXPECTED_TOOLS = [
   "delete_task",
   "get_principle",
   "get_record",
+  "get_record_index_effects",
   "get_task",
   "list_occurrences",
   "list_records",
@@ -321,7 +345,6 @@ httpTest("기록·원칙·완료·회차의 태그 HTTP/MCP 동등성", async ()
   const occurrence = await tool(mcpA, "record_occurrence", {
     ...refs,
     task_id: repeat.id,
-    id: crypto.randomUUID(),
     date: "2020-01-01",
   });
   assertEquals(occurrence.tag_ids, [tag.id]);
@@ -354,7 +377,6 @@ httpTest("원칙: HTTP/MCP 현재 수정·과거 접근 차단·재시도·삭�
   try {
     if (baseline) await admin`update app.principles set is_current=false where id=${baseline.id}`;
     const input = {
-      id: crypto.randomUUID(),
       title: "독서 원칙",
       body: "# 근거",
     };
@@ -472,7 +494,7 @@ httpTest("tools/list: 계약의 도구 이름과 contracts JSON Schema", async (
   );
   assertEquals(
     byName.create_record.inputSchema as unknown,
-    z.toJSONSchema(recordCreate, { target: "draft-2020-12", io: "input" }),
+    z.toJSONSchema(recordCreate.extend({ request_key: requestKey }), { target: "draft-2020-12", io: "input" }),
   );
   for (const t of tools) assertEquals(t.inputSchema.type, "object", t.name);
   assertEquals(byName.get_task.annotations?.readOnlyHint, true);
@@ -484,7 +506,7 @@ type JsonSchema = Record<string, any>;
 const json = (schema: z.ZodType) => z.toJSONSchema(schema, { target: "draft-2020-12", io: "input" }) as JsonSchema;
 
 httpTest(
-  "tools/list: 대상 도구는 contracts 속성에 id(회차 기록은 date)만 더하고, 할 일 생성은 두 종류 입력의 합집합",
+  "tools/list: 업무 쓰기는 contracts 속성에 대상과 필수 요청 키를 더하고, 할 일 생성은 두 종류 입력의 합집합",
   async () => {
     const { tools } = await mcpA.listTools();
     const byName = Object.fromEntries(tools.map((t) => [t.name, t.inputSchema as JsonSchema]));
@@ -494,7 +516,6 @@ httpTest(
     const businessVersion =
       json(z.strictObject({ expected_version: z.number().int().min(1), ...businessMeta })).properties;
     const expected: Record<string, Record<string, unknown>> = {
-      allocate_data_id: {},
       list_tasks: json(taskListQuery).properties,
       list_records: json(recordListQuery).properties,
       create_principle: json(principleCreate).properties,
@@ -510,6 +531,7 @@ httpTest(
       create_record: json(recordCreate).properties,
       get_task: idOnly,
       get_record: idOnly,
+      get_record_index_effects: idOnly,
       update_task: { ...idOnly, ...json(taskUpdate).properties },
       update_record: { ...idOnly, ...json(recordUpdate).properties },
       complete_task: { ...idOnly, ...json(taskComplete).properties },
@@ -525,7 +547,10 @@ httpTest(
         ...json(occurrenceRecordCreate).properties,
       },
     };
-    for (const [name, props] of Object.entries(expected)) {
+    for (const [name, properties] of Object.entries(expected)) {
+      const props = /^(create_|update_|delete_|rename_|complete_|stop_|resume_|record_occurrence$)/.test(name)
+        ? { ...properties, request_key: json(z.strictObject({ request_key: requestKey })).properties.request_key }
+        : properties;
       assertEquals(Object.keys(byName[name].properties).sort(), Object.keys(props).sort(), `${name} 속성 이름`);
       for (const [key, schema] of Object.entries(props)) {
         if (key === "id") continue; // id는 어댑터가 더한 데이터 ID(date는 contracts의 isoDate와 비교)
@@ -535,10 +560,11 @@ httpTest(
     }
     // 할 일 생성: MCP는 최상위 object로 펼쳐 알리므로 두 종류(once·recurring) 입력 필드의 합집합과 같아야 한다.
     const branches = (json(taskCreate).oneOf ?? json(taskCreate).anyOf) as JsonSchema[];
-    const union = new Set(branches.flatMap((b) => Object.keys(b.properties)));
+    const union = new Set([...branches.flatMap((b) => Object.keys(b.properties)), "request_key"]);
     assertEquals(Object.keys(byName.create_task.properties).sort(), [...union].sort());
     const requiredEverywhere = branches.map((b) => new Set(b.required as string[]))
       .reduce((a, b) => new Set([...a].filter((k) => b.has(k))));
+    requiredEverywhere.add("request_key");
     assertEquals([...(byName.create_task.required as string[])].sort(), [...requiredEverywhere].sort());
   },
 );
@@ -578,7 +604,6 @@ httpTest("MCP에서 만든 기록과 반복 회차를 HTTP가 같게 본다", as
   assertEquals(t.status, "active");
   await tool(mcpA, "record_occurrence", {
     task_id: t.id,
-    id: crypto.randomUUID(),
     date: seoulDate(-1),
     body: "함",
   });
@@ -632,7 +657,6 @@ httpTest("오류 의미가 HTTP와 같다(code·retryable·fields)", async () =>
 
   const future = await tool(mcpA, "record_occurrence", {
     task_id: t.id,
-    id: crypto.randomUUID(),
     date: seoulDate(),
     body: "a",
   });

@@ -165,11 +165,11 @@ export function EntitiesPage() {
           key={create.key}
           onClose={create.close}
           onRouteDiscard={create.discard}
-          onSave={async (value) => {
+          onSave={async (value,requestKey) => {
             const e = await api<EntityResult>("POST", "/entities", {
               ...value,
 
-            });
+            }, undefined, requestKey());
             const p=new URLSearchParams(params);p.delete("create");create.finish(`${entityPath(e.id)}?list=${encodeURIComponent(`/entities?${p}`)}`);
           }}
         />

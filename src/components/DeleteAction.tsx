@@ -4,7 +4,7 @@ import { useRecordConfirmation } from "./RecordConfirmation.tsx";
 
 export interface DeletionOptions {
   message: ReactNode;
-  onConfirm: (reason: string, tags?: string[]) => void | Promise<void>;
+  onConfirm: (reason: string, tags: string[] | undefined, requestKey: () => string) => void | Promise<void>;
   note?: boolean;
   preparation?: () => PrepareRecordMemo;
 }
@@ -19,7 +19,7 @@ export function DeleteAction({message,onConfirm,note=true,onStateChange,label="�
       title: "정말 삭제하시겠습니까?", label: "삭제하고 기록", pendingLabel: "삭제 중…",
       defaultNote: label === "삭제" ? "항목 삭제" : label,
       preparation, message, record: note, danger: true, excludeTag,
-      execute: (_id, memo) => onConfirm(memo.change_note ?? "", memo.change_tag_ids),
+      execute: (requestKey, memo) => onConfirm(memo.change_note ?? "", memo.change_tag_ids, requestKey),
     }),
   });
   const { active: armed, busy, uncertain } = confirmation;

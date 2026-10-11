@@ -1,3 +1,7 @@
+import { SqlExternalEffectLedger } from "../../functions/_shared/adapters/supabase/external-effect.ts";
+import { DurablePassageEmbedder } from "../../functions/_shared/core/search/passage-embedder.ts";
+import type { Embedder, IndexQueue, IndexScope } from "../../functions/_shared/core/search/index-worker.ts";
+import { requestActor } from "../_request.ts";
 import { assertEquals, assertMatch, assertRejects } from "@std/assert";
 import { SqlIndexQueue } from "../../functions/_shared/adapters/supabase/index-queue.ts";
 import { SqlUnitOfWork } from "../../functions/_shared/adapters/supabase/activity-store.ts";
@@ -20,16 +24,44 @@ const fixture = await fixtureOwner(admin), foreign = await fixtureOwner(admin), 
 const deps = { uow: new SqlUnitOfWork(user), clock: { now: () => new Date() } };
 const vector = Array.from({ length: 1024 }, (_, i) => i === 0 ? 1 : 0);
 const state = async (id: string) => (await admin`select * from app.search_index_state where id=${id}`)[0];
-const create = (body: string) => activity.createRecord(deps, A, recordCreate.parse({ id: crypto.randomUUID(), body }));
+const create = (body: string) => activity.createRecord(deps, requestActor(A), recordCreate.parse({ body }));
 const update = (id: string, version: number, body: string) =>
-  activity.updateRecord(deps, A, id, recordUpdate.parse({ expected_version: version, body }));
+  activity.updateRecord(deps, requestActor(A), id, recordUpdate.parse({ expected_version: version, body }));
 const scope = (id: string) => ({ limit: 1, owner_id: A.userId, kind: "record", id });
+
+const ledger = new SqlExternalEffectLedger(worker);
+const providerScope = "a".repeat(64);
+function runBatch(q: IndexQueue, embedder: Embedder, input: IndexScope) {
+  return indexBatch(
+    q,
+    new DurablePassageEmbedder(ledger, {
+      capabilities: { idempotency: null, lookup: false },
+      async send(text) {
+        try {
+          return { state: "succeeded", vector: await embedder.embed(text, "passage") };
+        } catch (error) {
+          if (!(error instanceof EmbeddingError)) throw error;
+          return error.category === "invalid_response"
+            ? { state: "unknown", reason: "invalid_response" }
+            : { state: "failed", reason: error.category };
+        }
+      },
+    }, providerScope),
+    input,
+  );
+}
+async function retryReady(id: string) {
+  await admin`update pgmq.q_search_index set vt=now()-interval '1 second' where msg_id=${id}`;
+  await admin`update private.passage_effects e set next_attempt_at=now()-interval '1 second',lease_until=now()-interval '1 second'
+    from private.search_effect_intents i where i.id=e.intent_id and i.owner_id=${A.userId}::uuid
+      and i.record_id=(select message->>'id' from pgmq.q_search_index where msg_id=${id}::bigint)`;
+}
 
 dbTest("record worker: complete generation, duplicate delivery, body edit/delete during embedding", async () => {
   const item = await create("처음😀본문".repeat(400) + "마지막 근거");
-  assertEquals((await indexBatch(queue, { embed: () => Promise.resolve(vector) }, scope(item.id))).indexed, 1);
+  assertEquals((await runBatch(queue, { embed: () => Promise.resolve(vector) }, scope(item.id))).indexed, 1);
   assertEquals((await state(item.id)).state, "indexed");
-  assertEquals((await indexBatch(queue, { embed: () => Promise.resolve(vector) }, scope(item.id))).claimed, 0);
+  assertEquals((await runBatch(queue, { embed: () => Promise.resolve(vector) }, scope(item.id))).claimed, 0);
   await update(item.id, 1, "이전 본문");
   let started = Promise.withResolvers<void>(), released = Promise.withResolvers<number[]>();
   const delayed = {
@@ -38,7 +70,7 @@ dbTest("record worker: complete generation, duplicate delivery, body edit/delete
       return released.promise;
     },
   };
-  const old = indexBatch(queue, delayed, scope(item.id));
+  const old = runBatch(queue, delayed, scope(item.id));
   await started.promise;
   await update(item.id, 2, "최신 본문");
   released.resolve(vector);
@@ -53,9 +85,9 @@ dbTest("record worker: complete generation, duplicate delivery, body edit/delete
   await update(item.id, 3, "삭제 전 본문");
   started = Promise.withResolvers<void>();
   released = Promise.withResolvers<number[]>();
-  const late = indexBatch(queue, delayed, scope(item.id));
+  const late = runBatch(queue, delayed, scope(item.id));
   await started.promise;
-  await activity.deleteRecord(deps, A, item.id, 4);
+  await activity.deleteRecord(deps, requestActor(A), item.id, 4);
   released.resolve(vector);
   assertEquals((await late).stale, 1);
   assertEquals(await state(item.id), undefined);
@@ -68,7 +100,7 @@ dbTest(
     const item = await create("가".repeat(900));
     let calls = 0;
     assertEquals(
-      (await indexBatch(queue, {
+      (await runBatch(queue, {
         embed: () => ++calls === 1 ? Promise.resolve(vector) : Promise.reject(new EmbeddingError("transient")),
       }, scope(item.id))).retry,
       1,
@@ -77,8 +109,8 @@ dbTest(
     assertEquals(first.state, "pending");
     assertEquals((await admin`select * from app.search_chunks where record_id=${item.id}`).length, 0);
     for (let count = 2; count <= 5; count++) {
-      await admin`update pgmq.q_search_index set vt=now()-interval '1 second' where msg_id=${first.message_id}`;
-      const result = await indexBatch(queue, {
+      await retryReady(String(first.message_id));
+      const result = await runBatch(queue, {
         embed: () => Promise.reject(new EmbeddingError("transient")),
       }, scope(item.id));
       assertEquals(count === 5 ? result.failed : result.retry, 1);
@@ -127,20 +159,140 @@ dbTest(
         /^42501/,
       );
     }
-    await activity.deleteRecord(deps, A, item.id, 2);
+    await activity.deleteRecord(deps, requestActor(A), item.id, 2);
   },
 );
+
+dbTest("durable worker reuses successful sibling after partial failure and finish response loss", async () => {
+  const item = await create("가".repeat(900));
+  let sends = 0;
+  const embedder: Embedder = {
+    embed: () => ++sends === 2 ? Promise.reject(new EmbeddingError("transient")) : Promise.resolve(vector),
+  };
+  assertEquals((await runBatch(queue, embedder, scope(item.id))).retry, 1);
+  const current = await state(item.id);
+  await retryReady(String(current.message_id));
+  let failFinish = true;
+  const faulty: IndexQueue = {
+    claim: (s) => queue.claim(s),
+    prepare: (id, p) => queue.prepare(id, p),
+    finish: async (...args) => {
+      if (failFinish) {
+        failFinish = false;
+        throw new Error("injected final apply failure");
+      }
+      return await queue.finish(...args);
+    },
+  };
+  await assertRejects(() => runBatch(faulty, embedder, scope(item.id)));
+  assertEquals(sends, 3);
+  await retryReady(String(current.message_id));
+  assertEquals((await runBatch(queue, embedder, scope(item.id))).indexed, 1);
+  assertEquals(sends, 3);
+  await activity.deleteRecord(deps, requestActor(A), item.id, 1);
+});
+
+dbTest("recursive input limit children reuse successful sibling and failed parent", async () => {
+  const item = await create("abcdefgh");
+  const sent: string[] = [];
+  let rightFailed = false;
+  const embedder: Embedder = {
+    embed: (text) => {
+      sent.push(text);
+      if (text.length > 4) return Promise.reject(new EmbeddingError("input_limit"));
+      if (text === "efgh" && !rightFailed) {
+        rightFailed = true;
+        return Promise.reject(new EmbeddingError("transient"));
+      }
+      return Promise.resolve(vector);
+    },
+  };
+  assertEquals((await runBatch(queue, embedder, scope(item.id))).retry, 1);
+  await retryReady(String((await state(item.id)).message_id));
+  assertEquals((await runBatch(queue, embedder, scope(item.id))).indexed, 1);
+  assertEquals(sent, ["abcdefgh", "abcd", "efgh", "efgh"]);
+  await activity.deleteRecord(deps, requestActor(A), item.id, 1);
+});
+
+dbTest("competing worker cannot send active passage and lost committed finish response stays indexed", async () => {
+  const item = await create("경쟁 검증");
+  const started = Promise.withResolvers<void>(), release = Promise.withResolvers<number[]>();
+  let sends = 0;
+  const embedder: Embedder = {
+    embed: () => {
+      sends++;
+      started.resolve();
+      return release.promise;
+    },
+  };
+  const first = runBatch(queue, embedder, scope(item.id));
+  await started.promise;
+  const current = await state(item.id);
+  const competing: IndexQueue = {
+    claim: () => Promise.resolve([{ msg_id: String(current.message_id), read_ct: 100 }]),
+    prepare: (id, p) => queue.prepare(id, p),
+    finish: (...a) => queue.finish(...a),
+  };
+  assertEquals((await runBatch(competing, embedder, scope(item.id))).retry, 1);
+  assertEquals(sends, 1);
+  release.resolve(vector);
+  assertEquals((await first).indexed, 1);
+  await update(item.id, 1, "응답 유실 검증");
+  const lost: IndexQueue = {
+    claim: (input) => queue.claim(input),
+    prepare: (id, p) => queue.prepare(id, p),
+    finish: async (...a) => {
+      await queue.finish(...a);
+      throw new Error("lost committed response");
+    },
+  };
+  await assertRejects(() => runBatch(lost, { embed: () => Promise.resolve(vector) }, scope(item.id)));
+  assertEquals((await state(item.id)).state, "indexed");
+  assertEquals((await runBatch(queue, embedder, scope(item.id))).claimed, 0);
+  await activity.deleteRecord(deps, requestActor(A), item.id, 2);
+});
+
+dbTest("unknown passage exhausts five durable sends and fresh queue delivery cannot reset it", async () => {
+  const item = await create("불명 응답");
+  let sends = 0;
+  const embedder: Embedder = {
+    embed: () => {
+      sends++;
+      return Promise.reject(new EmbeddingError("invalid_response"));
+    },
+  };
+  for (let n = 1; n <= 5; n++) {
+    const current = await state(item.id);
+    await retryReady(String(current.message_id));
+    const result = await runBatch(queue, embedder, scope(item.id));
+    assertEquals(n === 5 ? result.held : result.retry, 1);
+  }
+  assertEquals(sends, 5);
+  assertEquals((await state(item.id)).state, "pending");
+  assertEquals((await state(item.id)).reason, "retry_exhausted");
+  const heldSource = await state(item.id);
+  await asUser(
+    user,
+    A.userId,
+    (tx) => tx`select app.enqueue_search_index('record',${item.id},${heldSource.input_hash},${SEARCH_PIPELINE})`,
+  );
+  await retryReady(String((await state(item.id)).message_id));
+  assertEquals((await runBatch(queue, embedder, scope(item.id))).held, 1);
+  assertEquals(sends, 5);
+  assertEquals((await state(item.id)).reason, "retry_exhausted");
+  await activity.deleteRecord(deps, requestActor(A), item.id, 1);
+});
 
 dbTest("latest task content creates no task vector job and remains keyword searchable", async () => {
   const token = crypto.randomUUID();
   const task = await activity.createTask(
     deps,
-    A,
-    taskCreate.parse({ id: crypto.randomUUID(), title: token, body: "현재 본문", kind: "once" }),
+    requestActor(A),
+    taskCreate.parse({ title: token, body: "현재 본문", kind: "once" }),
   );
   assertEquals(await state(task.id), undefined);
   assertEquals(
-    (await indexBatch(queue, {
+    (await runBatch(queue, {
       embed: () => {
         throw new Error("must not embed task");
       },

@@ -30,6 +30,7 @@ type Json = any;
 export interface Res<T = Json> {
   status: number;
   body: T;
+  headers: Headers;
 }
 
 export async function call<T = Json>(
@@ -37,18 +38,10 @@ export async function call<T = Json>(
   method: string,
   path: string,
   body?: unknown,
+  requestKey: string | null = crypto.randomUUID(),
 ): Promise<Res<T>> {
-  // Fixture convenience: allocate identities for new objects, preserving explicit IDs for retry tests.
-  if (
-    method === "POST" &&
-    /^\/(entities|tasks|records|principles|tags)$|^\/tasks\/[^/]+\/occurrences\/[^/]+\/records$/.test(path) && body &&
-    typeof body === "object" && !("id" in body)
-  ) {
-    body = path === "/entities"
-      ? { source: "app", external_id: crypto.randomUUID(), ...body }
-      : { id: crypto.randomUUID(), ...body };
-  }
   const headers: Record<string, string> = {};
+  if (requestKey && ["POST", "PATCH", "DELETE"].includes(method)) headers["Idempotency-Key"] = requestKey;
   if (token) headers.authorization = `Bearer ${token}`;
   if (body !== undefined) headers["content-type"] = "application/json";
   const res = await fetch(`${API}${path}`, {
@@ -57,7 +50,7 @@ export async function call<T = Json>(
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   const text = await res.text();
-  return { status: res.status, body: text ? JSON.parse(text) : null };
+  return { status: res.status, body: text ? JSON.parse(text) : null, headers: res.headers };
 }
 
 /** 판정용 관리 연결(로컬 전용). 큐·행 개수를 센다. */

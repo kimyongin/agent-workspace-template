@@ -92,26 +92,25 @@ export function EntityDetailPage() {
           </dl><TagNames scope="entity" compact ids={entity.tag_ids}/></section>
           <div className="detail-relations">{entity.deleted_at && <><RelatedSection title="할 일" count={entity.tasks.count}><CollectionList>{entity.tasks.items.map(item=><li key={item.id}><a href={`/tasks/${item.id}`}>{item.title}</a></li>)}</CollectionList></RelatedSection><RelatedSection title="기록" count={entity.records.count}><CollectionList>{entity.records.items.map(item=><li key={item.id}><RelatedRecordItem record={item}/></li>)}</CollectionList></RelatedSection></>}{entity.deleted_at && <p className="secondary">삭제됨</p>}{management}</div>
           {creating === "task" && !entity.deleted_at && <TaskFormModal key={location.key} open mode="create" initial={{ ...emptyTask(timezone), entity_ids: [entity.id], entity_context: entityContext }}
-            onClose={closeCreate} onRouteDiscard={()=>setCreating(null)} onSave={async (draft, creationId) => {
-              await api("POST", "/tasks", { ...taskInput(draft), id: creationId() });
+            onClose={closeCreate} onRouteDiscard={()=>setCreating(null)} onSave={async (draft, requestKey) => {
+              await api("POST", "/tasks", { ...taskInput(draft) }, undefined, requestKey());
               closeCreate(); void reload();
             }} />}
           {creating === "record" && !entity.deleted_at && <RecordFormModal key={location.key} open title="기록 작성" submitLabel="저장" initial={{ ...emptyRecord(), entity_ids: [entity.id], entity_context: entityContext }}
-            onClose={closeCreate} onRouteDiscard={()=>setCreating(null)} onSave={async (value, creationId) => {
-              await api("POST", "/records", { ...value, id: creationId() });
+            onClose={closeCreate} onRouteDiscard={()=>setCreating(null)} onSave={async (value, requestKey) => {
+              await api("POST", "/records", { ...value }, undefined, requestKey());
               closeCreate(); void reload();
             }} />}
           {editor.active && !creating && editReady && (
             <EntityForm
               initial={entity}
-              deletion={entity.deleted_at ? undefined : {preparation:()=>({model:"entity",action:"delete",target_id:entity.id,expected_version:entity.version,input:{}}),message:`${entity.prop1}을 삭제 상태로 보관합니다. 속성·태그·할 일/기록 연결과 원문은 보존합니다.`,onConfirm:async (reason, tags) => {
+              deletion={entity.deleted_at ? undefined : {preparation:()=>({model:"entity",action:"delete",target_id:entity.id,expected_version:entity.version,input:{}}),message:`${entity.prop1}을 삭제 상태로 보관합니다. 속성·태그·할 일/기록 연결과 원문은 보존합니다.`,onConfirm:async (reason, tags, requestKey) => {
                 setBusy(true);
                 try {
                   await api(
                     "POST",
                     `${entityPath(id)}/delete`,
-                    {expected_version:entity.version,change_note:reason, change_tag_ids:tags},
-                  );
+                    {expected_version:entity.version,change_note:reason, change_tag_ids:tags}, undefined, requestKey());
                   editor.leave(deleteBack);
                 } catch (e) {
                   setError(
@@ -123,12 +122,12 @@ export function EntityDetailPage() {
                 }
               }}}
               {...editor.formProps}
-              onSave={async ({source,external_id,expected_version,...value}) => {
+              onSave={async ({source,external_id,expected_version,...value},requestKey) => {
                 let savedId = entity.id;
                 await detail.save(async current => {
                   const savedEntity = await api<EntityDetail>(entity.deleted_at ? "POST" : "PATCH", entity.deleted_at ? "/entities" : entityPath(id), {
                     ...value, source, external_id, expected_version:expected_version ?? entity.version,
-                  });
+                  }, undefined, requestKey());
                   savedId = savedEntity.id;
                   return { ...current, ...savedEntity };
                 });

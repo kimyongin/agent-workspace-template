@@ -1,3 +1,4 @@
+import { requestActor } from "../_request.ts";
 import { assertEquals, assertRejects } from "@std/assert";
 import { entityCreate, entityUpdate } from "../../functions/_shared/contracts/entity.ts";
 import { taskCreate } from "../../functions/_shared/contracts/task.ts";
@@ -30,7 +31,7 @@ dbTest("change record tags are separate, owner-scoped, atomic and carried throug
       activity.listRecords(ad, f.actor, recordListQuery.parse({ record_kind: "change", limit: 100 }));
     const target = await entity.createEntity(
       ed,
-      f.actor,
+      requestActor(f.actor),
       entityCreate.parse({
         source: "app",
         external_id: crypto.randomUUID(),
@@ -45,7 +46,7 @@ dbTest("change record tags are separate, owner-scoped, atomic and carried throug
       await assertRejects(() =>
         entity.updateEntity(
           ed,
-          f.actor,
+          requestActor(f.actor),
           target.id,
           entityUpdate.parse({ expected_version: target.version, prop2: 99, change_tag_ids: [invalid] }),
         )
@@ -55,9 +56,8 @@ dbTest("change record tags are separate, owner-scoped, atomic and carried throug
     }
     const recurring = await activity.createTask(
       ad,
-      f.actor,
+      requestActor(f.actor),
       taskCreate.parse({
-        id: crypto.randomUUID(),
         kind: "recurring",
         title: "반복",
         recurrence: { freq: "daily", starts_on: "2020-01-01" },
@@ -67,18 +67,19 @@ dbTest("change record tags are separate, owner-scoped, atomic and carried throug
     );
     const app = new Hono<HttpEnv>();
     app.use("*", async (c, next) => {
-      c.set("actor", f.actor);
+      c.set("actor", { ...f.actor, request: { key: c.req.header("Idempotency-Key") ?? "" } });
       await next();
     });
     app.route("/", activityRoutes(ad));
     const stopped = await app.request(`/tasks/${recurring.id}/stop`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", "Idempotency-Key": crypto.randomUUID() },
       body: JSON.stringify({ expected_version: recurring.version, change_note: "중단 메모", change_tag_ids: [own] }),
     });
     assertEquals(stopped.status, 200);
     const current = await stopped.json();
     await activityTools(ad).find((t) => t.name === "resume_task")!.handler({
+      request_key: crypto.randomUUID(),
       id: recurring.id,
       expected_version: current.version,
       change_note: "재개 메모",
@@ -90,26 +91,26 @@ dbTest("change record tags are separate, owner-scoped, atomic and carried throug
     const pd = { uow: new SqlPrincipleUnitOfWork(sql) };
     const p = await principles.createPrinciple(
       pd,
-      f.actor,
-      principleCreate.parse({ id: crypto.randomUUID(), title: "기준", change_tag_ids: [own] }),
+      requestActor(f.actor),
+      principleCreate.parse({ title: "기준", change_tag_ids: [own] }),
     );
     const updated = await principles.updatePrinciple(
       pd,
-      f.actor,
+      requestActor(f.actor),
       p.id,
       principleUpdate.parse({ expected_version: p.version, body: "수정", change_tag_ids: [own] }),
     );
-    await principles.deletePrinciple(pd, f.actor, p.id, updated.version, "기준 삭제", [own]);
+    await principles.deletePrinciple(pd, requestActor(f.actor), p.id, updated.version, "기준 삭제", [own]);
     assertEquals((await events()).items.filter((r) => r.change?.target_id === p.id).map((r) => r.tag_ids), [[own], [
       own,
     ], [own]]);
-    await entity.deleteEntity(ed, f.actor, target.id, target.version, "원본 삭제", [own]);
+    await entity.deleteEntity(ed, requestActor(f.actor), target.id, target.version, "원본 삭제", [own]);
     assertEquals((await events()).items.find((r) => r.body === "원본 삭제")!.tag_ids, [own]);
     const before = (await events()).items.length;
     await activity.createRecord(
       ad,
-      f.actor,
-      recordCreate.parse({ id: crypto.randomUUID(), body: "직접 작성", tag_ids: [own] }),
+      requestActor(f.actor),
+      recordCreate.parse({ body: "직접 작성", tag_ids: [own] }),
     );
     assertEquals((await events()).items.length, before);
   } finally {
@@ -122,7 +123,7 @@ dbTest("business save preserves exact entered memo, factual blank default, no-op
   try {
     const e = await entity.createEntity(
       ed,
-      f.actor,
+      requestActor(f.actor),
       entityCreate.parse({
         source: "app",
         external_id: crypto.randomUUID(),
@@ -136,16 +137,16 @@ dbTest("business save preserves exact entered memo, factual blank default, no-op
     assertEquals((await records()).items.find((r) => r.change?.target_id === e.id)!.body, "대상 등록");
     const task = await activity.createTask(
       ad,
-      f.actor,
-      taskCreate.parse({ id: crypto.randomUUID(), kind: "once", title: "업무", change_note: "  업무 근거\n" }),
+      requestActor(f.actor),
+      taskCreate.parse({ kind: "once", title: "업무", change_note: "  업무 근거\n" }),
     );
     assertEquals((await records()).items.find((r) => r.change?.target_id === task.id)!.body, "  업무 근거\n");
     const memo = "  상세 근거\n" + "가".repeat(21000);
     const patch = entityUpdate.parse({ expected_version: e.version, prop2: 20, change_note: memo });
-    const saved = await entity.updateEntity(ed, f.actor, e.id, patch);
-    await assertRejects(() => entity.updateEntity(ed, f.actor, e.id, patch));
+    const saved = await entity.updateEntity(ed, requestActor(f.actor), e.id, patch);
+    await assertRejects(() => entity.updateEntity(ed, requestActor(f.actor), e.id, patch));
     await assertRejects(() =>
-      entity.updateEntity(ed, other.actor, e.id, { ...patch, expected_version: saved.version })
+      entity.updateEntity(ed, requestActor(other.actor), e.id, { ...patch, expected_version: saved.version })
     );
     const events = await records(), change = events.items.find((r) => r.change?.action === "update")!;
     assertEquals(change.body, memo);
@@ -153,7 +154,7 @@ dbTest("business save preserves exact entered memo, factual blank default, no-op
     assertEquals(["title", "summary", "change_note"].some((key) => key in change), false);
     await entity.updateEntity(
       ed,
-      f.actor,
+      requestActor(f.actor),
       e.id,
       entityUpdate.parse({ expected_version: saved.version, prop2: 20, change_note: "다른 메모" }),
     );
@@ -171,18 +172,23 @@ dbTest("business save preserves exact entered memo, factual blank default, no-op
       },
     };
     await assertRejects(() =>
-      entity.updateEntity(failing, f.actor, e.id, entityUpdate.parse({ expected_version: saved.version, prop2: 30 }))
+      entity.updateEntity(
+        failing,
+        requestActor(f.actor),
+        e.id,
+        entityUpdate.parse({ expected_version: saved.version, prop2: 30 }),
+      )
     );
     assertEquals((await entity.getEntity(ed, f.actor, e.id)).prop2, 20);
     assertEquals(await records(), events);
     const updated = await entity.updateEntity(
       ed,
-      f.actor,
+      requestActor(f.actor),
       e.id,
       entityUpdate.parse({ expected_version: saved.version, prop2: 30, change_note: "   " }),
     );
     assertEquals((await records()).items.find((r) => r.body === "대상 수정 (속성 2)")!.change!.target_id, e.id);
-    await entity.deleteEntity(ed, f.actor, e.id, updated.version, "삭제 근거");
+    await entity.deleteEntity(ed, requestActor(f.actor), e.id, updated.version, "삭제 근거");
     assertEquals((await records()).items.find((r) => r.change?.action === "delete")!.body, "삭제 근거");
   } finally {
     await f.cleanup();

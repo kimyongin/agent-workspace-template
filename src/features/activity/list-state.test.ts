@@ -33,6 +33,17 @@ describe("list return paths",()=>{
     for (const pages of ["0", "-1", "1.5", "oops"]) expect(requestedPages(new URLSearchParams({ pages }))).toBe(1);
     expect(requestedPages(new URLSearchParams({ pages: "10000000" }))).toBe(250);
   });
+  it("restores dated server IDs and legacy UUIDs for task, record and principle list focus",()=>{
+    for(const kind of ["tasks","records","principles"] as const){
+      for(const id of ["20261011-OGL83YTE","00000000-0000-4000-8000-000000000001"]){
+        const returned=new URL(listReturnPath(kind,new URLSearchParams("pages=3"),id,200),"https://activity.invalid");
+        expect(anchorId(kind,returned.hash)).toBe(id);
+      }
+      for(const invalid of ["20260230-OGL83YTE","20261011-ogl83yte","not-an-id"]){
+        expect(anchorId(kind,`#${listAnchor(kind,invalid)}`)).toBeUndefined();
+      }
+    }
+  });
   it("restores namespaced entity anchors including exact Unicode, separators and percent text",()=>{
     for(const id of ["app:00000000-0000-4000-8000-000000000001","crm:고객 / # ? % : 7","app:%3A"]){
       const returned=new URL(listReturnPath("entities",new URLSearchParams("pages=2"),id,42),"https://activity.invalid");

@@ -106,7 +106,7 @@ export function ActivityPage({ kind }: { kind: WorkspaceListKind }) {
       </div>
     </section>
     <ActivitySection kind={kind} tags={tags} bounds={bounds} dictionary={dictionary} onCreate={begin}/>
-    {create.open && (kind === "tasks" ? <TaskFormModal key={create.key} mode="create" open initial={emptyTask(timezone)} onClose={create.close} onRouteDiscard={create.discard} onSave={async (draft, creationId) => { const task = await api<TaskResult>("POST", "/tasks", { ...taskInput(draft), id: creationId() }); saved("task", task.id); }}/>
-      : <RecordFormModal key={create.key} title="기록 작성" submitLabel="저장" open initial={emptyRecord()} onClose={create.close} onRouteDiscard={create.discard} onSave={async (draft, creationId) => { const record = await api<RecordResult>("POST", "/records", { ...draft, id: creationId() }); saved("record", record.id); }}/>) }
+    {create.open && (kind === "tasks" ? <TaskFormModal key={create.key} mode="create" open initial={emptyTask(timezone)} onClose={create.close} onRouteDiscard={create.discard} onSave={async (draft, requestKey) => { const task = await api<TaskResult>("POST", "/tasks", { ...taskInput(draft) }, undefined, requestKey()); saved("task", task.id); }}/>
+      : <RecordFormModal key={create.key} title="기록 작성" submitLabel="저장" open initial={emptyRecord()} onClose={create.close} onRouteDiscard={create.discard} onSave={async (draft, requestKey) => { const record = await api<RecordResult>("POST", "/records", { ...draft }, undefined, requestKey()); saved("record", record.id); }}/>) }
   </>;
 }

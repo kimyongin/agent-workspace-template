@@ -12,11 +12,12 @@ const actor = { userId: crypto.randomUUID() }, now = "2026-10-04T01:00:00.000Z";
 function fixture() {
   const rows = new Map<string, PrincipleResult>(), events: ChangeInput[] = [];
   const s: PrincipleStore = {
+    executeRequest: <T>(_request: unknown, execute: () => Promise<T>) => execute(),
     current: () => Promise.resolve([...rows.values()].find((r) => r.is_current) ?? null),
     insert: (i) => {
       const r: PrincipleResult = {
         ...i,
-        id: i.id,
+        id: crypto.randomUUID(),
         version: 1,
         created_at: now,
         updated_at: now,
@@ -46,7 +47,7 @@ function fixture() {
   const d = { uow: { run: <T>(_a: typeof actor, fn: (s: PrincipleStore) => Promise<T>) => fn(s) } };
   const app = new Hono<HttpEnv>();
   app.use("*", async (c, next) => {
-    c.set("actor", actor);
+    c.set("actor", { ...actor, request: { key: c.req.header("Idempotency-Key") ?? crypto.randomUUID() } });
     await next();
   });
   app.route("/", principleRoutes(d));
@@ -57,7 +58,7 @@ function fixture() {
   const tools = principleTools(d),
     call = (name: string, i: Record<string, unknown>) =>
       tools.find((t) => t.name === name)!.handler(
-        name === "create_principle" ? { id: crypto.randomUUID(), ...i } : i,
+        { .../^(create_|update_|delete_)/.test(name) ? { request_key: crypto.randomUUID() } : {}, ...i },
         actor,
       );
   return {
@@ -69,12 +70,10 @@ function fixture() {
     http: (method: string, path: string, input?: unknown) =>
       app.request(path, {
         method,
-        headers: { "content-type": "application/json" },
+        headers: { "Idempotency-Key": crypto.randomUUID(), "content-type": "application/json" },
         body: input
           ? JSON.stringify(
-            method === "POST" && path === "/principles"
-              ? { id: crypto.randomUUID(), ...(input as Record<string, unknown>) }
-              : input,
+            method === "POST" && path === "/principles" ? { ...(input as Record<string, unknown>) } : input,
           )
           : undefined,
       }),

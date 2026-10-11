@@ -1,3 +1,4 @@
+import { requestActor } from "../_request.ts";
 import { assert, assertEquals, assertRejects } from "@std/assert";
 import { SqlEntityUnitOfWork } from "../../functions/_shared/adapters/supabase/entity-store.ts";
 import { SqlUnitOfWork } from "../../functions/_shared/adapters/supabase/activity-store.ts";
@@ -18,24 +19,22 @@ const A = { userId: users.a },
 const create = (name: string, actor = A, extra = {}) =>
   entity.createEntity(
     d,
-    actor,
+    requestActor(actor),
     entityCreate.parse({ source: "app", external_id: crypto.randomUUID(), ...{ prop1: name, ...extra } }),
   );
 dbTest("Entity DB: same owner 참조 거부·삭제 링크 보존·원문/버전/태그/색인 보존", async () => {
   const e = await create("링크 보존"), foreign = await create("외부", B);
   const task = await activity.createTask(
     a,
-    A,
+    requestActor(A),
     taskCreate.parse({
-      id: crypto.randomUUID(),
       ...{ kind: "once", title: "행동", entity_ids: [e.id] },
     }),
   );
   const record = await activity.createRecord(
     a,
-    A,
+    requestActor(A),
     recordCreate.parse({
-      id: crypto.randomUUID(),
       ...{ body: "기록 원문", entity_ids: [e.id] },
     }),
   );
@@ -45,14 +44,14 @@ dbTest("Entity DB: same owner 참조 거부·삭제 링크 보존·원문/버전
         () =>
           activity.updateTask(
             a,
-            A,
+            requestActor(A),
             task.id,
             taskUpdate.parse({ change_note: "테스트 변경 이유", expected_version: 1, entity_ids: [ref] }),
           ),
         () =>
           activity.updateRecord(
             a,
-            A,
+            requestActor(A),
             record.id,
             recordUpdate.parse({ expected_version: 1, entity_ids: [ref] }),
           ),
@@ -64,7 +63,7 @@ dbTest("Entity DB: same owner 참조 거부·삭제 링크 보존·원문/버전
   }
   const completed = await activity.completeTask(
     a,
-    A,
+    requestActor(A),
     task.id,
     taskComplete.parse({ expected_version: 1, body: "완료 결과" }),
   );
@@ -75,7 +74,7 @@ dbTest("Entity DB: same owner 참조 거부·삭제 링크 보존·원문/버전
     task.id,
   ]);
   assertEquals((await activity.listRecords(a, A, recordListQuery.parse({ entity_id: e.id }))).items.length, 4);
-  await entity.deleteEntity(d, A, e.id, 1);
+  await entity.deleteEntity(d, requestActor(A), e.id, 1);
   const detached = await activity.getTask(a, A, task.id);
   assertEquals(detached.entity_ids, [e.id]);
   assertEquals(detached.entity_context, task.entity_context);
@@ -91,11 +90,14 @@ dbTest("Entity DB: same owner 참조 거부·삭제 링크 보존·원문/버전
   );
   await admin`delete from app.tasks where id=${task.id}`;
   await admin`delete from app.records where id in (${record.id},${completed.record.id})`;
-  await entity.deleteEntity(d, B, foreign.id, 1);
+  await entity.deleteEntity(d, requestActor(B), foreign.id, 1);
 });
 dbTest("Entity DB: RLS·직접 접근 차단·선택 검증·멱등성·버전 경쟁", async () => {
   const input = entityCreate.parse({ source: "app", external_id: crypto.randomUUID(), ...{ prop1: "멱등" } });
-  const results = await Promise.allSettled([entity.createEntity(d, A, input), entity.createEntity(d, A, input)]);
+  const results = await Promise.allSettled([
+    entity.createEntity(d, requestActor(A), input),
+    entity.createEntity(d, requestActor(A), input),
+  ]);
   assertEquals(results.filter((r) => r.status === "fulfilled").length, 1);
   const e = (results.find((r) =>
     r.status === "fulfilled"
@@ -114,15 +116,15 @@ dbTest("Entity DB: RLS·직접 접근 차단·선택 검증·멱등성·버전 �
     ["정정1", "정정2"].map((prop1) =>
       entity.updateEntity(
         d,
-        A,
+        requestActor(A),
         e.id,
         entityUpdate.parse({ change_note: "테스트 변경 이유", expected_version: 1, prop1 }),
       )
     ),
   );
   assertEquals(writes.filter((v) => v.status === "fulfilled").length, 1);
-  await assertRejects(() => entity.deleteEntity(d, A, e.id, 1), AppError);
-  await entity.deleteEntity(d, A, e.id, 2);
+  await assertRejects(() => entity.deleteEntity(d, requestActor(A), e.id, 1), AppError);
+  await entity.deleteEntity(d, requestActor(A), e.id, 2);
 });
 dbTest("Entity DB: Unicode 키워드·0/null·날짜 범위·선택·모든 정렬 커서와 다른 owner/filter 거부", async () => {
   const marker = crypto.randomUUID(), items = [];
@@ -154,5 +156,5 @@ dbTest("Entity DB: Unicode 키워드·0/null·날짜 범위·선택·모든 정�
     )).items.map((e) => e.id),
     [items[1].id],
   );
-  for (const e of items) await entity.deleteEntity(d, A, e.id, 1);
+  for (const e of items) await entity.deleteEntity(d, requestActor(A), e.id, 1);
 });

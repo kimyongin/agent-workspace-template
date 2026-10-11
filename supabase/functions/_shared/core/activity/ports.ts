@@ -1,5 +1,6 @@
 import type { EntityContext } from "../../contracts/entity-links.ts";
 // 할 일·기록 유스케이스가 쓰는 저장 계약. SQL·SDK 타입을 노출하지 않는다.
+import type { RequestStore } from "../shared/request.ts";
 import type { Actor } from "../shared/actor.ts";
 import type { ChangeStore } from "../shared/changes.ts";
 import type { ChangeMetadata } from "../../contracts/change.ts";
@@ -27,7 +28,6 @@ export interface ActivityRecord {
 export interface NewRecord {
   /** Trusted inheritance from an actor-scoped task, never accepted from client input. */
   inherit_task_entities?: boolean;
-  id?: string;
   record_kind?: "user" | "result";
   entity_ids?: string[];
   entity_context?: EntityContext[];
@@ -79,7 +79,7 @@ export interface RecordFilter {
 export type { IndexJob } from "../shared/store.ts";
 
 /** 한 트랜잭션 안의 저장소. 모든 조회·쓰기·큐 등록이 같은 연결을 쓴다. */
-export interface ActivityStore extends ChangeStore {
+export interface ActivityStore extends ChangeStore, RequestStore {
   getTask(id: string, opts?: { forUpdate?: boolean }): Promise<Task | null>;
   /** 새 선택은 현재 소유자의 살아 있는 엔터티여야 한다. 저장하지 않는다. */
   validateEntitySelection(ids: string[]): Promise<void>;

@@ -2,7 +2,6 @@ import { openListEditor, openDetailEditor } from "./ui-actions.ts";
 import { fillChangeMemo } from "./ui-actions.ts";
 import { saveOnce, beginTabAction, closeDetail } from "./ui-actions.ts";
 import { defaultEntityIdentitySettings } from "../supabase/functions/_shared/contracts/entity-identity.ts";
-import { generateDataId } from "../supabase/functions/_shared/contracts/data-id.ts";
 import { expect, test, type Page } from "@playwright/test";
 const url = "/e2e/fixtures/entity-tags.html";
 const tags = ["첫 태그", "다른 태그"].map((name, i) => ({ id: `00000000-0000-4000-8000-00000000000${i}`, name, version: 1, created_at: "2026-10-04T00:00:00Z", updated_at: "2026-10-04T00:00:00Z" }));
@@ -13,7 +12,6 @@ test.beforeEach(async ({ page, isMobile }) => {
   await page.route("**/auth/v1/user", route => route.fulfill({json:{id:"90000000-0000-4000-8000-000000000000",aud:"authenticated",app_metadata:{},user_metadata:{}}}));
   await page.route("**/api/tags**", route => route.fulfill({ json: { items: tags, next_cursor: null } }));
   await page.route("**/api/settings/business", route => route.fulfill({json:{settings:{entity_identity:defaultEntityIdentitySettings,record_templates:{}},versions:{entity_identity:0,record_templates:0}}}));
-  await page.route("**/api/ids/allocate", route => route.fulfill({json:{id:generateDataId()}}));
   await page.route("**/api/records/prepare", route => {
     const body=route.request().postDataJSON();
     return route.fulfill({json:{change_note:body.change_note??"변경 기록",change_tag_ids:[],missing_tag_ids:[],settings_version:0,prepared_input:body.input??{}}});
@@ -169,17 +167,17 @@ test("실제 App 태그 폐기 승인 뒤에만 로그아웃 요청하고 로그
   await page.getByRole("dialog", { name: "변경을 버릴까요?" }).getByRole("button", { name: "변경 버리기" }).click(); await expect(page).toHaveURL(/\/login$/); expect(signOuts).toBe(1);
   expect(await page.evaluate(() => !!localStorage.getItem("sb-127-auth-token"))).toBe(false); await expect(page.getByRole("navigation", { name: "주 메뉴" })).toHaveCount(0);
 });
-test("불확정 이름 변경은 조회 없이 같은 버전 PATCH 후 충돌을 확인", async ({ page }) => {
+test("불확정 이름 변경은 같은 요청 키·버전으로 당시 성공 결과를 확인", async ({ page }) => {
   let patches = 0, updated = false; const bodies: Record<string, unknown>[] = [];
   await page.route("**/api/tags**", route => {
-    if (route.request().method() === "PATCH") { patches++; bodies.push(route.request().postDataJSON()); updated = true; return patches === 1 ? route.abort() : route.fulfill({ status: 409, json: { code: "conflict", message: "버전 충돌" } }); }
+    if (route.request().method() === "PATCH") { patches++; bodies.push(route.request().postDataJSON()); updated = true; return patches === 1 ? route.abort() : route.fulfill({headers:{"Idempotency-Replayed":"true"},json:{...tags[0],name:"정정 이름",version:2}}); }
     if (updated && patches === 1) return route.fulfill({ status: 503, json: { code: "internal", message: "조회 장애" } });
     return route.fulfill({ json: { items: tags.map(t => updated && t.id === tags[0].id ? { ...t, name: "정정 이름", version: 2 } : t), next_cursor: null } });
   });
   await page.goto(url); await page.getByRole("button", { name: "첫 태그 이름 변경" }).click(); await page.getByRole("textbox", { name: /태그 이름/ }).fill("정정 이름"); await saveOnce(page, page);
-  await page.getByRole("button", { name: "같은 내용 다시 시도" }).click(); await expect(page.getByText(/다른 변경이 저장되었습니다/)).toBeVisible(); expect(patches).toBe(2); expect(bodies[1]).toEqual(bodies[0]); expect(bodies[0].expected_version).toBe(1);
+  await page.getByRole("button", { name: "같은 내용 다시 시도" }).click(); await expect(page.getByText("태그를 저장했습니다.")).toBeVisible(); expect(patches).toBe(2); expect(bodies[1]).toEqual(bodies[0]); expect(bodies[0].expected_version).toBe(1);
 });
-test("불확정 생성 같은 발급 ID 재시도와 성공 뒤 목록 실패 구분", async ({ page }) => {
+test("불확정 생성 같은 요청 키 재시도와 성공 뒤 목록 실패 구분", async ({ page }) => {
   let calls = 0; const bodies: Record<string, unknown>[] = []; let saved = false;
   await page.route(/\/api\/tags(?:\?.*)?$/, async route => {
     if (route.request().method() === "POST") { bodies.push(route.request().postDataJSON()); calls++; if (calls === 1) await route.abort(); else { saved = true; await route.fulfill({ status: 201, json: { ...tags[0],id:"50000000-0000-4000-8000-000000000000", name: "새 태그" } }); } }
@@ -202,12 +200,12 @@ test("이름 충돌 초안 보존과 삭제 실패·성공", async ({ page }) =>
   failedDelete = false; await page.locator("dialog.modal-action[open]").getByRole("button", { name: "삭제하고 기록", exact: true }).click(); await expect(page.getByText("태그를 삭제했습니다.")).toBeVisible();
 });
 test("태그 목록 삭제 반영 후 응답 유실도 이유·같은 버전 재시도를 유지", async ({ page }) => {
-  const deletions: string[] = [];
+  const deletions: string[] = [],keys:(string|undefined)[]=[];
   let reads=0;
   await page.route(/\/api\/tags(?:\?.*)?$/, route => {reads++;return route.fulfill({ json: { items: deletions.length?tags.slice(1):tags, next_cursor: null } });});
   await page.route("**/api/tags/*", route => {
-    deletions.push(route.request().url());
-    return deletions.length === 1 ? route.abort() : route.fulfill({ status: 404, json: { code: "not_found", message: "이미 삭제된 태그" } });
+    deletions.push(route.request().url());keys.push(route.request().headers()["idempotency-key"]);
+    return deletions.length === 1 ? route.abort() : route.fulfill({ status:204,headers:{"Idempotency-Replayed":"true"} });
   });
   await page.goto(url);
   await page.getByRole("button", { name: "첫 태그 삭제" }).click();
@@ -218,12 +216,12 @@ test("태그 목록 삭제 반영 후 응답 유실도 이유·같은 버전 재
   await expect(dialog.getByRole("textbox", { name: /기록 메모/ })).toHaveValue("분류 통합");
   await expect(dialog.getByRole("textbox", { name: /기록 메모/ })).toBeDisabled();
   await dialog.getByRole("button", { name: "같은 내용 다시 시도" }).click();
-  await expect(dialog.getByText("이미 삭제된 태그", { exact: true })).toBeVisible();
+  await expect(dialog).toHaveCount(0);await expect(page.getByText("태그를 삭제했습니다.")).toBeVisible();
   expect(deletions).toHaveLength(2);
-  expect(deletions[1]).toBe(deletions[0]);
+  expect(deletions[1]).toBe(deletions[0]);expect(keys[1]).toBe(keys[0]);expect(keys[0]).toMatch(/^[0-9a-f-]{36}$/);
   expect(new URL(deletions[0]).searchParams.get("expected_version")).toBe("1");
   expect(new URL(deletions[0]).searchParams.get("change_note")).toBe("분류 통합");
-  expect(reads).toBe(2);
+  await expect(page.getByRole("button",{name:"첫 태그 삭제",exact:true})).toHaveCount(0);
 });
 
 test("엔터티 연결 작성·실패 초안·성공 후 조회 실패와 모달 뒤로가기 보호", async ({ page }) => {

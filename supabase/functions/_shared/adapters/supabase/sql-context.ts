@@ -1,7 +1,9 @@
+import { executeSqlRequest } from "./request-ledger.ts";
 import { setTagLinks } from "./tag-links.ts";
 import { SqlEntityLinks } from "./entity-links.ts";
 // 실제 두 도메인이 공유하는 Actor 트랜잭션·변경 메모·색인 큐 저장 배선.
 import type postgres from "postgres";
+import type { RequestIdentity } from "../../core/shared/request.ts";
 import type { Actor } from "../../core/shared/actor.ts";
 import type { IndexJob } from "../../core/shared/store.ts";
 import { AppError } from "../../core/shared/errors.ts";
@@ -17,11 +19,17 @@ export class SqlActorStore {
   constructor(protected readonly tx: postgres.TransactionSql, protected readonly actor: Actor) {
     this.entityLinks = new SqlEntityLinks(tx);
   }
+  executeRequest<T>(request: RequestIdentity, execute: () => Promise<T>): Promise<T> {
+    return executeSqlRequest(this.tx, this.actor, request, execute);
+  }
   async issueDataId(): Promise<string> {
     const [row] = await this.tx`select app.issue_data_id() as id`;
     return row.id as string;
   }
-  getBusinessSettings() {
+  async getBusinessSettings(lockIdentity = false) {
+    if (lockIdentity) {
+      await this.tx`select pg_advisory_xact_lock(hashtextextended(${`${this.actor.userId}:entity_identity`},0))`;
+    }
     return new SqlBusinessSettingsStore(this.tx, this.actor).get();
   }
 
@@ -75,8 +83,17 @@ export class SqlActorStore {
 function translate(e: unknown): unknown {
   if (e instanceof AppError) return e;
   const code = (e as { code?: string }).code ?? "";
+  if (code === "42501" && (e as { message?: string }).message === "request_owner_missing") {
+    return new AppError("unauthenticated", "계정을 확인할 수 없습니다");
+  }
+  if (code === "P0001" && (e as { message?: string }).message === "request_capacity_exceeded") {
+    return new AppError("idempotency_capacity_exceeded", "요청 보관 한도에 도달했습니다");
+  }
   if (code === "40001" || code === "40P01" || code === "55P03" || code === "57014") {
     return new AppError("unavailable", "잠시 후 다시 시도하세요");
+  }
+  if (code === "22023" && (e as { message?: string }).message === "request_result_too_large") {
+    return new AppError("invalid_input", "응답이 1 MiB 요청 보관 한도를 넘었습니다. 변경은 저장되지 않았습니다");
   }
   if (code === "23505") return new AppError("conflict", "이미 존재하는 항목입니다. 최신 데이터를 확인하세요");
   if (code === "23503") return new AppError("invalid_reference", "참조한 항목이 없거나 접근할 수 없습니다");

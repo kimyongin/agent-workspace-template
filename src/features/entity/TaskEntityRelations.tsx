@@ -46,7 +46,7 @@ function RelationControls({task,entityId,entityTitle,revision,children,onSaved}:
       preparation={()=>({model:"task",action:"update",target_id:mutation.task.id,expected_version:mutation.task.version,input:{entity_ids:mutation.ids}})}
       mutation={{target:`${mutation.task.title} — ${mutation.entity.title}`,action:mutation.remove?"해제":"연결",message:mutation.remove?"연결만 해제하며 원문과 과거 기록은 유지합니다.":undefined}}
       onClose={()=>{setMutation(null);onSaved();}} onRouteDiscard={()=>setMutation(null)} validate={()=>null}
-      onSubmit={async(_id,memo)=>{const saved=await api<TaskResult>("PATCH",`/tasks/${mutation.task.id}`,{expected_version:mutation.task.version,entity_ids:mutation.ids,...memo});setMutation(null);onSaved(saved,mutation.task);}}>{()=>null}</FormModal>}
+      onSubmit={async(requestKey,memo)=>{const saved=await api<TaskResult>("PATCH",`/tasks/${mutation.task.id}`,{expected_version:mutation.task.version,entity_ids:mutation.ids,...memo}, undefined, requestKey());setMutation(null);onSaved(saved,mutation.task);}}>{()=>null}</FormModal>}
   </>;
 }
 

@@ -48,7 +48,6 @@ export type Recurrence = z.infer<typeof recurrence>;
 
 export const taskCreate = z.discriminatedUnion("kind", [
   z.strictObject({
-    id,
     kind: z.literal("once"),
     ...businessMeta,
     ...entitySelection,
@@ -58,7 +57,6 @@ export const taskCreate = z.discriminatedUnion("kind", [
     due_on: isoDate.optional(),
   }),
   z.strictObject({
-    id,
     kind: z.literal("recurring"),
     ...businessMeta,
     ...entitySelection,

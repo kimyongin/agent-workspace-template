@@ -2,7 +2,6 @@ import { z } from "zod";
 import { body, expectedVersion, id, isoDateTime, title } from "./common.ts";
 import { mutationMeta } from "./change.ts";
 export const principleCreate = z.strictObject({
-  id,
   title,
   body: body.default(""),
   ...mutationMeta,

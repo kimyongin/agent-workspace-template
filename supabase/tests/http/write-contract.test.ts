@@ -1,7 +1,7 @@
 import { assertEquals } from "@std/assert";
 import { call, httpTest, signIn } from "./_client.ts";
 
-httpTest("writes require object UUIDs and reject retired request metadata/current upsert", async () => {
+httpTest("writes require request keys and reject client IDs and retired metadata/current upsert", async () => {
   const token = await signIn("A");
   for (
     const [path, content] of [
@@ -12,8 +12,7 @@ httpTest("writes require object UUIDs and reject retired request metadata/curren
       ["/tags", { name: "입력 거부" }],
     ] as const
   ) {
-    // An explicit undefined id bypasses the fixture helper's convenience UUID.
-    assertEquals((await call(token, "POST", path, { id: undefined, ...content })).status, 400);
+    assertEquals((await call(token, "POST", path, content, null)).status, 400);
     assertEquals(
       (await call(token, "POST", path, {
         id: crypto.randomUUID(),

@@ -82,6 +82,7 @@ for (const [kind, route, n] of targetCases) {
   for (const outcome of ["exists", "deleted", "foreign", "failed"] as const) {
     test(`변경 대상 ${kind}: ${outcome} 현재 조회와 역사 metadata 분리`, async ({ page }) => {
       const state = await fixtures(page), r = state.rows.records[0];
+      const routeId = kind === "entity" ? encodeURIComponent(entityKey(n)) : id(n);
       const change = {
         event_id: id(30),
         target_kind: kind,
@@ -91,13 +92,13 @@ for (const [kind, route, n] of targetCases) {
         source: "mcp",
         before: { title: "수정 전" },
         after: { title: "수정 후" },
-        path: `/${route}/${kind === "entity" ? encodeURIComponent(entityKey(n)) : id(n)}`,
+        path: `/${route}/${routeId}`,
       };
       Object.assign(r, { record_kind: "change", body: "당시 편집 근거", change });
       const original = JSON.stringify(r);
       let reads = 0, fail = outcome === "failed";
       await page.route(
-        `**/api/${route}/${kind === "entity" ? encodeURIComponent(entityKey(n)) : id(n)}`,
+        `**/api/${route}/${routeId}`,
         (endpoint) => {
           reads++;
           return outcome === "deleted" || outcome === "foreign"
@@ -135,7 +136,7 @@ for (const [kind, route, n] of targetCases) {
       expect(state.writes).toHaveLength(0);
       expect(state.errors).toEqual([]);
       if (kind === "task" && outcome === "exists") {
-        await page.unroute(`**/api/${route}/${kind === "entity" ? encodeURIComponent(entityKey(n)) : id(n)}`);
+        await page.unroute(`**/api/${route}/${routeId}`);
         await go(page, `/records/${r.id}`);
         const card = connectedTarget(page, kind).getByRole("button", { name: change.target_title, exact: true });
         await card.click();

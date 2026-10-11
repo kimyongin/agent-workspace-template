@@ -112,6 +112,8 @@ writeEnv(path("supabase/functions/.env"), "로컬 전용. scripts/local-setup.mj
   APP_DB_URL: `postgresql://app_server.pooler-dev:${local.APP_SERVER_PASSWORD}@pooler:6543/postgres`,
   WORKER_DB_URL: `postgresql://app_worker.pooler-dev:${local.APP_WORKER_PASSWORD}@pooler:6543/postgres`,
   INDEX_WORKER_TOKEN: local.INDEX_WORKER_TOKEN,
+  ...(functionEnv.PINECONE_ACCOUNT_SCOPE || prev.PINECONE_ACCOUNT_SCOPE
+    ? { PINECONE_ACCOUNT_SCOPE: functionEnv.PINECONE_ACCOUNT_SCOPE ?? prev.PINECONE_ACCOUNT_SCOPE } : {}),
   ...(functionEnv.PINECONE_API_KEY || prev.PINECONE_API_KEY
     ? { PINECONE_API_KEY: functionEnv.PINECONE_API_KEY ?? prev.PINECONE_API_KEY } : {}),
   AUTH_ISSUER: `${apiUrl}/auth/v1`,

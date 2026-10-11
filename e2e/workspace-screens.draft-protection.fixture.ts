@@ -30,8 +30,8 @@ for (const [kind, label] of [["entities", "엔터티"], ["tasks", "할 일"], ["
     await fill("새 작성");
     await submit();
     await expect.poll(() => state.writes.length).toBe(2);
-    const key = kind === "entities" ? "external_id" : "id";
-    expect(state.writes[1].body[key]).not.toBe(state.writes[0].body[key]);
+    expect(state.writes[1].requestKey).not.toBe(state.writes[0].requestKey);
+    expect(state.writes[1].body).not.toHaveProperty("id");
     expect(state.errors).toEqual([]);
   });
 }
@@ -90,8 +90,8 @@ for (const [kind, label, submit] of [["task", "할 일 작성", "추가"], ["rec
     await fillText(page, "새 연결 작성");
     await saveOnce(page, form(page), submit);
     await expect.poll(() => state.writes.length).toBe(2);
-    const key = kind === "entities" ? "external_id" : "id";
-    expect(state.writes[1].body[key]).not.toBe(state.writes[0].body[key]);
+    expect(state.writes[1].requestKey).not.toBe(state.writes[0].requestKey);
+    expect(state.writes[1].body).not.toHaveProperty("id");
     expect(state.errors).toEqual([]);
   });
 }
@@ -225,6 +225,8 @@ for (const failure of ["unknown", "conflict"] as const) {
       await form(page).getByRole("button", { name: "같은 내용 다시 시도" }).click();
       await saveOnce(page, form(page));
       expect(state.writes[1].body).toEqual(state.writes[0].body);
+      expect(state.writes[1].requestKey).toBe(state.writes[0].requestKey);
+      expect(state.writes[0].requestKey).toMatch(/^[0-9a-f-]{36}$/);
     }
     expect(state.errors).toEqual([]);
   });
@@ -309,5 +311,26 @@ test("#229 엔터티 관련 작성 취소는 직접 편집 의도와 목록 문�
   for (const key of ["edit", "edit_from", "create"]) expect(url.searchParams.has(key)).toBe(false);
   await expect(page.locator("dialog[open]")).toHaveCount(1);
   expect(state.writes).toHaveLength(0);
+  expect(state.errors).toEqual([]);
+});
+
+test("미확정 저장 새로고침: 최소 메타데이터만 보관하고 자동 재전송하지 않는다", async ({ page }) => {
+  const state = await fixtures(page, { failWrite: "unknown" });
+  await go(page, "/tasks");
+  await beginTabAction(page, "할 일 추가");
+  await fillText(page, "비공개 초안 본문");
+  await saveOnce(page, form(page), "추가");
+  await expect(form(page).getByRole("button", { name: "같은 내용 다시 시도" })).toBeVisible();
+  const stored = await page.evaluate(() =>
+    Object.entries(sessionStorage).filter(([key]) => key.startsWith("workspace:unresolved-write:")).map(([, value]) =>
+      JSON.parse(value)
+    )
+  );
+  expect(stored).toHaveLength(1);
+  expect(Object.keys(stored[0]).sort()).toEqual(["operation", "request_key", "status", "target"]);
+  expect(JSON.stringify(stored)).not.toContain("비공개 초안 본문");
+  await page.reload();
+  await expect(page.getByRole("alert").filter({ hasText: "이전 저장 결과" })).toBeVisible();
+  expect(state.writes).toHaveLength(1);
   expect(state.errors).toEqual([]);
 });

@@ -132,7 +132,6 @@ httpTest(
         ]], ["2020-01-03", { entity_ids: [] }, []]] as const
       ) {
         const row = await tool(client, "record_occurrence", {
-          id: crypto.randomUUID(),
           task_id: repeat.id,
           date,
 

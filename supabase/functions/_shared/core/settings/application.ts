@@ -1,4 +1,5 @@
-import { generateDataId } from "../../contracts/data-id.ts";
+import type { RequestStore } from "../shared/request.ts";
+import { runWrite } from "../shared/request.ts";
 import {
   BUSINESS_SETTINGS_MAX_BYTES,
   type BusinessSettings,
@@ -25,9 +26,8 @@ import { taskCreate, taskUpdate } from "../../contracts/task.ts";
 import { resumeTask, stopTask, taskContent, updateTask } from "../activity/domain.ts";
 import { entityCreate, entityRekey, entityUpdate } from "../../contracts/entity.ts";
 import { principleCreate, principleUpdate } from "../../contracts/principle.ts";
-import { defaultEntityIdentitySettings, entityId, generateEntityExternalId } from "../../contracts/entity-identity.ts";
-export interface BusinessSettingsStore {
-  issueDataId?(): Promise<string>;
+import { defaultEntityIdentitySettings, entityId } from "../../contracts/entity-identity.ts";
+export interface BusinessSettingsStore extends RequestStore {
   get(): Promise<BusinessSettingsResult>;
   update(input: BusinessSettingsUpdate): Promise<BusinessSettingsResult>;
   recordTags(ids: string[]): Promise<string[]>;
@@ -114,9 +114,7 @@ export function prepareBusinessRecord(
     }
     if (input.action === "create") {
       const schema = input.model === "task" ? taskCreate : input.model === "entity" ? entityCreate : principleCreate;
-      const creationInput = input.model === "entity"
-        ? content
-        : { id: content.id ?? (store.issueDataId ? await store.issueDataId() : generateDataId()), ...content };
+      const creationInput = content;
       const creation = schema.safeParse(creationInput);
       if (!creation.success) {
         throw invalidInput(
@@ -128,21 +126,23 @@ export function prepareBusinessRecord(
       content = input.model === "task" ? taskContent(taskCreate.parse(creationInput)) : creation.data;
       if (input.model === "entity") {
         const settings = saved.settings.entity_identity ?? defaultEntityIdentitySettings;
-        const { source } = registrationIdentity(settings, content, "prepare");
-        const external_id = String(
-          content.external_id ?? (store.issueDataId ? await store.issueDataId() : generateEntityExternalId()),
-        );
-        const existing = await store.target?.("entity", entityId(source, external_id));
-        const registration = registrationState(existing ?? null);
-        if (registration !== "create") {
-          throw conflict(
-            registration === "restore"
-              ? "삭제된 기존 대상을 조회한 뒤 restore 액션과 현재 버전으로 준비하세요"
-              : "같은 발급처·식별자의 활성 엔터티가 있습니다",
-          );
+        const { source } = registrationIdentity(settings, content);
+        const external_id = content.external_id as string | undefined;
+        if (external_id !== undefined) {
+          const existing = await store.target?.("entity", entityId(source, external_id));
+          const registration = registrationState(existing ?? null);
+          if (registration !== "create") {
+            throw conflict(
+              registration === "restore"
+                ? "삭제된 기존 대상을 restore 액션과 현재 버전으로 준비하세요"
+                : "같은 발급처·식별자의 활성 엔터티가 있습니다",
+            );
+          }
+          content = registrationContent(content, { source, external_id });
+        } else {
+          content = { ...content, source };
         }
-        content = registrationContent(content, { source, external_id });
-        prepared_input = { ...creation.data, ...content };
+        prepared_input = { ...creation.data, ...content, settings_version: saved.versions.entity_identity };
       }
     }
     if (input.action === "stop" || input.action === "resume") {
@@ -165,7 +165,12 @@ export function prepareBusinessRecord(
       ...content,
     } as ChangeFacts;
     if (input.action === "restore") {
-      prepared_input = { ...prepared_input, source: before?.source, external_id: before?.external_id };
+      prepared_input = {
+        ...prepared_input,
+        source: before?.source,
+        external_id: before?.external_id,
+        settings_version: saved.versions.entity_identity,
+      };
     }
     if (input.action !== "create") prepared_input = { ...prepared_input, expected_version: input.expected_version };
     const title = String((after ?? before)?.[input.model === "entity" ? "prop1" : "title"] ?? "");
@@ -204,7 +209,7 @@ export function updateBusinessSettings(d: BusinessSettingsDeps, actor: Actor, in
       parsed.error.issues.map((issue) => ({ path: issue.path.join("."), message: issue.message })),
     );
   }
-  return d.uow.run(actor, async (store) => {
+  return runWrite(d.uow, actor, "settings.update", parsed.data.id, parsed.data, async (store) => {
     const sections: BusinessSettings = { [parsed.data.id]: parsed.data.value };
     const current = await store.get();
     if (current.versions[parsed.data.id] !== parsed.data.expected_version) {
@@ -237,12 +242,5 @@ export function updateBusinessSettings(d: BusinessSettingsDeps, actor: Actor, in
       }]);
     }
     return store.update(parsed.data);
-  });
-}
-
-export function allocateDataId(d: BusinessSettingsDeps, a: Actor) {
-  return d.uow.run(a, async (store) => {
-    if (!store.issueDataId) throw invalidInput("ID 발급 저장소가 필요합니다");
-    return { id: await store.issueDataId() };
   });
 }

@@ -1,6 +1,5 @@
-import { entityKey } from "./support/workspace-data.ts";
 import { expect, test } from "@playwright/test";
-import { id, stamp } from "./support/workspace-data.ts";
+import { entityKey, id, stamp } from "./support/workspace-data.ts";
 import { connectedTarget, fixtures, form, go } from "./support/workspace-screens.ts";
 
 for (const width of [390, 1440]) {
@@ -15,7 +14,7 @@ for (const width of [390, 1440]) {
         if (r.url().includes("never-load.png")) images.push(r.url());
       });
       await page.setViewportSize({ width, height: 800 });
-      await go(page, `/${kind}/${kind === "entities" ? encodeURIComponent(entityKey(n)) : id(n)}`);
+      await go(page, `/${kind}/${id(n)}`);
       await expect(
         form(page).locator(kind === "records" ? ".dialog-title" : ".detail-title").filter({
           hasText: "title" in item ? item.title : "기록",

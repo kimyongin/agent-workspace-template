@@ -32,7 +32,6 @@ export interface Task {
 
 export type NewTask = Pick<
   Task,
-  | "id"
   | "kind"
   | "title"
   | "body"
@@ -46,7 +45,7 @@ export type NewTask = Pick<
 >;
 
 export function newTask(input: TaskCreate): NewTask {
-  return { id: input.id, ...taskContent(input) };
+  return taskContent(input);
 }
 
 /** Build business content before assigning a storage identity. */

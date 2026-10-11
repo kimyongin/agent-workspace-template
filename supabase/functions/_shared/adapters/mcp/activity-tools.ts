@@ -1,6 +1,6 @@
 // MCP 도구: HTTP와 같은 유스케이스를 호출한다(ADR-0001). 입력은 contracts로 검사하고,
 // 실패는 HTTP와 같은 오류 본문 {code, message, retryable, fields}를 isError 결과로 돌려준다.
-import type { ToolDef } from "./tools.ts";
+import { keyedTool, type ToolDef } from "./tools.ts";
 import { z } from "zod";
 import { businessMeta, mutationMeta } from "../../contracts/change.ts";
 import { expectedVersion, id, isoDate } from "../../contracts/common.ts";
@@ -45,7 +45,7 @@ const byIdAndVersion = (args: Record<string, unknown>) => {
 const byIdDelete = (args: Record<string, unknown>) => parse(deleteInput, args);
 
 export function activityTools(deps: activity.ActivityDeps): ToolDef[] {
-  return [
+  const tools: ToolDef[] = [
     {
       name: "create_task",
       description:
@@ -175,6 +175,14 @@ export function activityTools(deps: activity.ActivityDeps): ToolDef[] {
       handler: (args, actor) => activity.createRecord(deps, actor, parse(recordCreate, args)),
     },
     {
+      name: "get_record_index_effects",
+      description:
+        "기록의 현재 색인 구간 effect ID·상태·시도 수를 조회한다. 기록 저장 성공과 외부 색인 완료는 별개이며 unknown은 실패 확정이 아니다.",
+      input: idOnly,
+      readOnly: true,
+      handler: async (args, actor) => ({ items: await activity.getRecordIndexEffects(deps, actor, byId(args)) }),
+    },
+    {
       name: "get_record",
       description:
         "기록 원문과 연결 시점의 적용 원칙 캡처를 읽는다. captured_at=migration은 이관 당시 자료이며 과거 실제 적용 시점의 사본을 보증하지 않는다.",
@@ -221,4 +229,5 @@ export function activityTools(deps: activity.ActivityDeps): ToolDef[] {
       },
     },
   ];
+  return tools.map((tool) => !tool.readOnly ? keyedTool(tool) : tool);
 }
