@@ -63,6 +63,15 @@ export class WriteAttempt {
     this.retained=null;
     this.frozen=null;
   }
+  /** Called only for an explicit new intention; unresolved metadata remains for current-state review. */
+  startNewIntent() {
+    if (this.state.busy) return;
+    if (!this.state.uncertain) { this.reset(); return; }
+    this.abandon();
+    this.key=null;
+    this.metadata=null;
+    this.publish(false,false);
+  }
   snapshot = () => this.state;
   subscribe = (listener: () => void) => {
     this.listeners.add(listener);
