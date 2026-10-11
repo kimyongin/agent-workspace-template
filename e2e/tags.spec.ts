@@ -5,6 +5,17 @@ import {devLogin,mcpClient,mcpTokenViaConsent,unique} from "./support.ts";
 // Exercise native-dialog history; retained desktop tabs have a dedicated suite.
 test.beforeEach(async({page,isMobile})=>{if(!isMobile)await page.setViewportSize({width:1024,height:720});});
 
+test("서버 날짜 ID의 태그 단축 URL은 해당 태그 편집기를 연다",async({page})=>{
+  await devLogin(page);const mcp=await mcpClient(await mcpTokenViaConsent(page));
+  try{
+    const tag=await mcp.call("create_tag",{scope:"record",name:unique("단축 경로").slice(0,30)});
+    expect(tag.id).toMatch(/^[0-9]{8}-[0-9A-Z]{8}$/);
+    await page.goto(`/tags/${tag.id}?edit=1&view=${tag.id}`);
+    await expect(page).toHaveURL(new RegExp(`/tags/record\\?edit=${tag.id}$`));
+    await expect(page.getByRole("textbox",{name:/태그 이름/})).toHaveValue(tag.name);
+  }finally{await mcp.close();}
+});
+
 test("더 보기 응답이 늦어도 새 태그 필터 목록에 섞이지 않는다",async({page})=>{
   await devLogin(page);const mcp=await mcpClient(await mcpTokenViaConsent(page));
   let release=()=>{};
