@@ -3,21 +3,21 @@ import { occurrenceRange, recurrence, taskCreate, taskUpdate } from "./task.ts";
 
 Deno.test("생성: 서버 관리 필드와 종류에 없는 필드는 거부", () => {
   assertEquals(
-    taskCreate.safeParse({ id: crypto.randomUUID(), ...{ kind: "once", title: "a" } }).success,
+    taskCreate.safeParse({ ...{ kind: "once", title: "a" } }).success,
     true,
   );
   assertEquals(
-    taskCreate.safeParse({ id: crypto.randomUUID(), ...{ kind: "once", title: "a", status: "done" } })
+    taskCreate.safeParse({ ...{ kind: "once", title: "a", status: "done" } })
       .success,
     false,
   );
   assertEquals(
-    taskCreate.safeParse({ id: crypto.randomUUID(), ...{ kind: "once", title: "a", timezone: "UTC" } })
+    taskCreate.safeParse({ ...{ kind: "once", title: "a", timezone: "UTC" } })
       .success,
     false,
   );
   assertEquals(
-    taskCreate.safeParse({ id: crypto.randomUUID(), ...{ kind: "recurring", title: "a" } }).success,
+    taskCreate.safeParse({ ...{ kind: "recurring", title: "a" } }).success,
     false,
   );
 });
@@ -28,7 +28,6 @@ Deno.test("반복 규칙과 시간대 검증", () => {
   const monthly = recurrence.parse({ freq: "monthly", month_days: [31, 1, 31], starts_on: "2026-10-01" });
   assertEquals(monthly.freq === "monthly" && monthly.month_days, [1, 31]);
   const t = taskCreate.safeParse({
-    id: crypto.randomUUID(),
     ...{
       kind: "recurring",
       title: "a",
@@ -56,4 +55,8 @@ Deno.test("회차 기간은 최대 366일", () => {
   assertEquals(occurrenceRange.safeParse({ from: "2026-01-01", to: "2027-01-01" }).success, true);
   assertEquals(occurrenceRange.safeParse({ from: "2026-01-01", to: "2027-01-02" }).success, false);
   assertEquals(occurrenceRange.safeParse({ from: "2026-01-02", to: "2026-01-01" }).success, false);
+});
+
+Deno.test("creation never accepts a caller-chosen internal id", () => {
+  assertEquals(taskCreate.safeParse({ id: crypto.randomUUID(), kind: "once", title: "a" }).success, false);
 });

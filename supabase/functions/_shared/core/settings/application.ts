@@ -114,7 +114,7 @@ export function prepareBusinessRecord(
     }
     if (input.action === "create") {
       const schema = input.model === "task" ? taskCreate : input.model === "entity" ? entityCreate : principleCreate;
-      const creationInput = input.model === "entity"
+      const creationInput = input.model === "entity" || input.model === "task"
         ? content
         : { id: content.id ?? (store.issueDataId ? await store.issueDataId() : generateDataId()), ...content };
       const creation = schema.safeParse(creationInput);

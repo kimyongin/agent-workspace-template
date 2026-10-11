@@ -43,14 +43,28 @@ export function createHttpApp(
     "*",
     cors({
       origin: (origin) => (config.allowedOrigins.includes(origin) ? origin : null),
-      allowHeaders: ["authorization", "content-type"],
+      allowHeaders: ["authorization", "content-type", "Idempotency-Key"],
+      exposeHeaders: ["Idempotency-Replayed", "Idempotency-Completed-At", "Retry-After"],
       allowMethods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
       maxAge: 600,
     }),
   );
   app.use("*", async (c, next) => {
-    c.set("actor", { ...await authenticate(c.req.raw, config.token), source: "http" });
+    const actor = {
+      ...await authenticate(c.req.raw, config.token),
+      source: "http" as const,
+      request: {
+        key: c.req.header("Idempotency-Key") ?? "",
+        replayed: false,
+        completed_at: undefined as string | undefined,
+      },
+    };
+    c.set("actor", actor);
     await next();
+    if (actor.request.replayed) {
+      c.header("Idempotency-Replayed", "true");
+      if (actor.request.completed_at) c.header("Idempotency-Completed-At", actor.request.completed_at);
+    }
   });
 
   app.route("/", activityRoutes(deps));
@@ -66,6 +80,7 @@ export function createHttpApp(
   app.onError((e, c) => {
     const { status, body } = toErrorBody(e);
     const res = c.json(body, status as 400);
+    if (body.code === "request_in_progress") res.headers.set("Retry-After", "1");
     if (status === 401) res.headers.set("WWW-Authenticate", 'Bearer error="invalid_token"');
     return res;
   });

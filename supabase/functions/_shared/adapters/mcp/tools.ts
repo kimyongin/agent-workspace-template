@@ -1,7 +1,9 @@
 // 기능별 도구가 함께 쓰는 schema 안내·응답과 오류 변환. 업무 규칙은 유스케이스에 있다.
 import type { McpServer, StandardSchemaWithJSON } from "@modelcontextprotocol/server";
-import type { z } from "zod";
+import { z } from "zod";
 import type { Actor } from "../../core/shared/actor.ts";
+import { requestKey } from "../../contracts/request.ts";
+import { parse } from "../errors.ts";
 import { toErrorBody } from "../errors.ts";
 
 type Handler = (args: Record<string, unknown>, actor: Actor) => Promise<unknown>;
@@ -62,4 +64,20 @@ export function registerTools(server: McpServer, tools: ToolDef[], actor: Actor)
       },
     );
   }
+}
+
+/** Explicit logical key is transport metadata and never reaches business payload schemas. */
+export function keyedTool(tool: ToolDef): ToolDef {
+  const object = tool.input as z.ZodObject;
+  return {
+    ...tool,
+    description:
+      `${tool.description} request_key는 논리 요청의 UUID입니다. 재시도는 같은 키와 입력을 유지하며 성공 재현은 당시 결과입니다.`,
+    input: z.strictObject({ ...object.shape, request_key: requestKey }),
+    handler: (args, actor) => {
+      const { request_key, ...input } = args;
+      const key = parse(requestKey, request_key);
+      return tool.handler(input, { ...actor, request: { key } });
+    },
+  };
 }

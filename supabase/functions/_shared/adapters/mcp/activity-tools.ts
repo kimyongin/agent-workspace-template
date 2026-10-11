@@ -1,6 +1,6 @@
 // MCP 도구: HTTP와 같은 유스케이스를 호출한다(ADR-0001). 입력은 contracts로 검사하고,
 // 실패는 HTTP와 같은 오류 본문 {code, message, retryable, fields}를 isError 결과로 돌려준다.
-import type { ToolDef } from "./tools.ts";
+import { keyedTool, type ToolDef } from "./tools.ts";
 import { z } from "zod";
 import { businessMeta, mutationMeta } from "../../contracts/change.ts";
 import { expectedVersion, id, isoDate } from "../../contracts/common.ts";
@@ -45,7 +45,7 @@ const byIdAndVersion = (args: Record<string, unknown>) => {
 const byIdDelete = (args: Record<string, unknown>) => parse(deleteInput, args);
 
 export function activityTools(deps: activity.ActivityDeps): ToolDef[] {
-  return [
+  const tools: ToolDef[] = [
     {
       name: "create_task",
       description:
@@ -221,4 +221,7 @@ export function activityTools(deps: activity.ActivityDeps): ToolDef[] {
       },
     },
   ];
+  return tools.map((tool) =>
+    ["create_task", "update_task", "delete_task"].includes(tool.name) ? keyedTool(tool) : tool
+  );
 }
