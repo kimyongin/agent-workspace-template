@@ -11,7 +11,7 @@ Deno.test("body-only records and title/body tasks and principles reject retired 
     assertEquals(recordCreate.safeParse({ id, body: "내용", [field]: "옛 입력" }).success, false);
   }
   for (
-    const [schema, input] of [[taskCreate, { id, kind: "once", title: "할 일" }], [principleCreate, {
+    const [schema, input] of [[taskCreate, { kind: "once", title: "할 일" }], [principleCreate, {
       id,
       title: "원칙",
     }]] as const

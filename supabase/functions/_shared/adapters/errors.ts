@@ -29,6 +29,7 @@ export function toErrorBody(e: unknown): { status: number; body: ErrorBody } {
     return { status: 500, body: { code: "internal", message: "서버 오류가 발생했습니다", retryable: true } };
   }
   const body: ErrorBody = { code: err.code, message: err.message, retryable: RETRYABLE[err.code] };
+  if (err.code === "request_in_progress") body.retry_after_seconds = 1;
   if (err.fields?.length) body.fields = err.fields;
   return { status: ERROR_HTTP_STATUS[err.code], body };
 }

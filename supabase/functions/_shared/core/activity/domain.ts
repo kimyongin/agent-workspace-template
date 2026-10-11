@@ -30,23 +30,24 @@ export interface Task {
   updated_at: string;
 }
 
-export type NewTask = Pick<
-  Task,
-  | "id"
-  | "kind"
-  | "title"
-  | "body"
-  | "due_on"
-  | "recurrence"
-  | "timezone"
-  | "status"
-  | "pauses"
-  | "tag_ids"
-  | "entity_ids"
->;
+export type NewTask =
+  & { id?: string }
+  & Pick<
+    Task,
+    | "kind"
+    | "title"
+    | "body"
+    | "due_on"
+    | "recurrence"
+    | "timezone"
+    | "status"
+    | "pauses"
+    | "tag_ids"
+    | "entity_ids"
+  >;
 
 export function newTask(input: TaskCreate): NewTask {
-  return { id: input.id, ...taskContent(input) };
+  return taskContent(input);
 }
 
 /** Build business content before assigning a storage identity. */
