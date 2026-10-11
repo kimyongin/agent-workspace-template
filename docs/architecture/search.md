@@ -41,3 +41,11 @@ semantic_coverage.pending/excluded와 index_state는 색인 상태를 알린다.
 - 웹·HTTP·MCP·제품 스킬은 같은 snippet→원문 조회 계약을 사용한다.
 
 실제 공급자 품질과 통합 검증을 fixture·정적 검사 결과와 구분해 해당 티켓에 기록한다.
+
+## 외부 구간 재시도
+
+색인 worker는 원본 owner·record version·본문 hash·pipeline과 공급자 account scope·model·dimension·구간·입력 hash로 passage effect를 구분한다. 큐 message ID는 검증 경로이며 effect identity가 아니다. 각 성공 벡터를 다음 구간 호출 전에 저장하고 부분 실패·final apply 실패·재전달에서 재사용한다. input_limit 부모는 같은 입력을 재전송하지 않고 별도 자식 구간으로 분할한다. 원본 변경·삭제 이후의 결과는 적용하지 않는다.
+
+Pinecone 2026-07의 [문서화된 embed 계약](https://docs.pinecone.io/reference/api/2026-07/inference/generate-vectors)에는 사용 가능한 멱등 키·job ID·결과 조회 계약이 없다. 내부 키를 가상의 공급자 헤더로 전송하지 않는다. 정확한 구간별 실제 전송은 첫 호출 포함 최대 5회이며 보내기 전에 내구 횟수를 증가시킨다. timeout·invalid response·결과 저장 불명은 unknown을 유지하며 제한 재계산에 따른 중복 과금 가능성이 있다. 다섯 번째 unknown은 unknown/retry_exhausted로 남기고 큐를 보류·archive한다. 검색 coverage는 pending으로 남으며 record passage effect 조회에서 이유를 확인한다. 수동 재등록도 같은 원본·pipeline의 비용 상한을 초기화하지 않는다.
+
+동기 질의는 public search 호출당 embed 한 번, 자동 재시도 없이 owner별 분당 20회 예산을 사용한다. 실패해도 예약 비용을 돌려주지 않으며 질의 원장·장기 cache를 만들지 않는다. 공급자 timeout 30초·응답 128000 bytes·최대 5개 jobs는 유지한다. 실제 공급자 호출·과금·품질 검증은 장애 주입 DB 검사와 별도다.

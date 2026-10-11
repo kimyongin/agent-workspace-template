@@ -82,7 +82,7 @@ export async function indexBatch(queue: IndexQueue, embedder: Embedder, scope: I
         if (error.state === "busy") return await finish("retry", "provider_unknown", undefined, 30);
         if (error.state === "unknown" && error.attempts >= 5) return await finish("held", "retry_exhausted");
         if (error.state === "failed" && (error.reason !== "transient" || error.attempts >= 5)) {
-          return await finish("failed", error.reason);
+          return await finish("failed", error.attempts >= 5 ? "retry_exhausted" : error.reason);
         }
         return await finish("retry", error.reason, undefined, Math.min(900, 30 * 2 ** Math.max(0, error.attempts - 1)));
       }

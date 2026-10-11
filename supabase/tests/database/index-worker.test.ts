@@ -190,6 +190,66 @@ dbTest("durable worker reuses successful sibling after partial failure and finis
   await activity.deleteRecord(deps, requestActor(A), item.id, 1);
 });
 
+dbTest("recursive input limit children reuse successful sibling and failed parent", async () => {
+  const item = await create("abcdefgh");
+  const sent: string[] = [];
+  let rightFailed = false;
+  const embedder: Embedder = {
+    embed: (text) => {
+      sent.push(text);
+      if (text.length > 4) return Promise.reject(new EmbeddingError("input_limit"));
+      if (text === "efgh" && !rightFailed) {
+        rightFailed = true;
+        return Promise.reject(new EmbeddingError("transient"));
+      }
+      return Promise.resolve(vector);
+    },
+  };
+  assertEquals((await runBatch(queue, embedder, scope(item.id))).retry, 1);
+  await retryReady(String((await state(item.id)).message_id));
+  assertEquals((await runBatch(queue, embedder, scope(item.id))).indexed, 1);
+  assertEquals(sent, ["abcdefgh", "abcd", "efgh", "efgh"]);
+  await activity.deleteRecord(deps, requestActor(A), item.id, 1);
+});
+
+dbTest("competing worker cannot send active passage and lost committed finish response stays indexed", async () => {
+  const item = await create("경쟁 검증");
+  const started = Promise.withResolvers<void>(), release = Promise.withResolvers<number[]>();
+  let sends = 0;
+  const embedder: Embedder = {
+    embed: () => {
+      sends++;
+      started.resolve();
+      return release.promise;
+    },
+  };
+  const first = runBatch(queue, embedder, scope(item.id));
+  await started.promise;
+  const current = await state(item.id);
+  const competing: IndexQueue = {
+    claim: () => Promise.resolve([{ msg_id: String(current.message_id), read_ct: 100 }]),
+    prepare: (id, p) => queue.prepare(id, p),
+    finish: (...a) => queue.finish(...a),
+  };
+  assertEquals((await runBatch(competing, embedder, scope(item.id))).retry, 1);
+  assertEquals(sends, 1);
+  release.resolve(vector);
+  assertEquals((await first).indexed, 1);
+  await update(item.id, 1, "응답 유실 검증");
+  const lost: IndexQueue = {
+    claim: (input) => queue.claim(input),
+    prepare: (id, p) => queue.prepare(id, p),
+    finish: async (...a) => {
+      await queue.finish(...a);
+      throw new Error("lost committed response");
+    },
+  };
+  await assertRejects(() => runBatch(lost, { embed: () => Promise.resolve(vector) }, scope(item.id)));
+  assertEquals((await state(item.id)).state, "indexed");
+  assertEquals((await runBatch(queue, embedder, scope(item.id))).claimed, 0);
+  await activity.deleteRecord(deps, requestActor(A), item.id, 2);
+});
+
 dbTest("unknown passage exhausts five durable sends and fresh queue delivery cannot reset it", async () => {
   const item = await create("불명 응답");
   let sends = 0;
