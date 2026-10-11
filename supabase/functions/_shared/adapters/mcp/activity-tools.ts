@@ -180,7 +180,7 @@ export function activityTools(deps: activity.ActivityDeps): ToolDef[] {
         "기록의 현재 색인 구간 effect ID·상태·시도 수를 조회한다. 기록 저장 성공과 외부 색인 완료는 별개이며 unknown은 실패 확정이 아니다.",
       input: idOnly,
       readOnly: true,
-      handler: (args, actor) => activity.getRecordIndexEffects(deps, actor, byId(args)),
+      handler: async (args, actor) => ({ items: await activity.getRecordIndexEffects(deps, actor, byId(args)) }),
     },
     {
       name: "get_record",
