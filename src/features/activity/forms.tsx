@@ -52,7 +52,7 @@ export function RecordFormModal(props: {
   editing?: boolean;
   onClose: () => void;
   onRouteDiscard?: () => void;
-  onSave: (value: { body: string; occurred_at?: string; tag_ids?:string[];entity_ids?:string[];task_id?:string }, creationId: () => string) => Promise<void>;
+  onSave: (value: { body: string; occurred_at?: string; tag_ids?:string[];entity_ids?:string[];task_id?:string }, requestKey: () => string) => Promise<void>;
 }) {
   const displayTime = useDisplayTime();
   const [timezone] = useState(displayTime.timezone);
@@ -77,10 +77,10 @@ export function RecordFormModal(props: {
       onRouteDiscard={props.onRouteDiscard}
       validate={() => {
         if (draft.occurred_at && !recordDraftTime(draft, timezone)) return { occurred_at: "선택한 시간대에서 존재하지 않는 시각입니다. 다른 시각을 입력하세요." };
-        const r = recordCreate.omit({id:true}).safeParse(value());
+        const r = recordCreate.safeParse(value());
         return r.success ? null : fieldErrors(r.error.issues);
       }}
-      onSubmit={(creationId) => {const parsed=recordCreate.omit({id:true}).parse(value());return props.onSave(props.systemRecord?{body:parsed.body}:parsed, creationId);}}
+      onSubmit={(requestKey) => {const parsed=recordCreate.parse(value());return props.onSave(props.systemRecord?{body:parsed.body}:parsed, requestKey);}}
     >
       {(errors) => (
         <>
@@ -195,7 +195,7 @@ export function TaskFormModal(props: {
   deletion?: DeletionOptions;
   onClose: () => void;
   onRouteDiscard?: () => void;
-  onSave: (draft: TaskDraft, creationId: () => string) => Promise<void>;
+  onSave: (draft: TaskDraft, requestKey: () => string) => Promise<void>;
 }) {
   const [initial] = useState(props.initial);
   const [draft, setDraft] = useState(initial);
@@ -216,14 +216,14 @@ export function TaskFormModal(props: {
       onRouteDiscard={props.onRouteDiscard}
       validate={() => {
         const {change_note, change_tag_ids, ...input}=taskInput(draft);
-        const r = (draft.kind === "once" ? taskCreate.options[0].omit({ id: true }) : taskCreate.options[1].omit({ id: true })).safeParse(input);
+        const r = (draft.kind === "once" ? taskCreate.options[0] : taskCreate.options[1]).safeParse(input);
         if (r.success) return null;
         const errs = fieldErrors(r.error.issues);
         // 반복 규칙 하위 오류는 해당 입력 옆에 보인다.
         for (const [k, v] of Object.entries(errs)) if (k.startsWith("recurrence.")) errs[k.slice(11)] ??= v;
         return errs;
       }}
-      onSubmit={(creationId, memo) => props.onSave({...draft,...memo}, creationId)}
+      onSubmit={(requestKey, memo) => props.onSave({...draft,...memo}, requestKey)}
     >
       {(errors) => (
         <>

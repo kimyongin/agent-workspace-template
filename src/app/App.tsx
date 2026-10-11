@@ -1,3 +1,4 @@
+import { hasUnresolvedWrites } from "../lib/write-attempt.ts";
 import { DetailNavigationProvider } from "../lib/detail-exploration.tsx";
 // 앱 조립: 경로·메뉴·브랜드. 새 도메인은 메뉴와 경로를 여기서 바꾼다.
 import { useState } from "react";
@@ -27,6 +28,7 @@ export const APP_NAME = "Workspace";
 
 function Layout() {
   const { session } = useAuth();
+  const [unresolved]=useState(hasUnresolvedWrites);
   const location = useLocation();
   const navigation = useNavigationResize(session?.user.id ?? null);
   return (
@@ -35,6 +37,7 @@ function Layout() {
         <span className="app-brand">{APP_NAME}</span>
       </header>
       <main className="app-main" key={location.pathname === "/logout" ? "logout" : session?.user.id ?? "signed-out"}>
+        {session && unresolved && <p role="alert">이전 저장 결과를 확인하지 못했습니다. 현재 자료를 조회해 반영 여부를 확인하세요. 입력을 복원해 자동 재전송하지 않습니다. 확인 후 새 작업을 시작하세요.</p>}
         <DetailNavigationProvider key={location.pathname === "/logout" ? "logout" : session?.user.id ?? "signed-out"} scope={session?.user.id ?? "signed-out"}>
           <DetailWorkspace enabled={!!session} render={location => <WorkspaceRoutes location={location}/>}><Outlet/></DetailWorkspace>
         </DetailNavigationProvider>

@@ -1,4 +1,3 @@
-import { generateDataId } from "../../supabase/functions/_shared/contracts/data-id.ts";
 import { defaultEntityIdentitySettings, entityId } from "../../supabase/functions/_shared/contracts/entity-identity.ts";
 import type { Page } from "@playwright/test";
 import { recordDisplayText } from "../../supabase/functions/_shared/contracts/record-display.ts";
@@ -11,7 +10,7 @@ export type FakeOptions={failWrite?:"unknown"|"conflict";hold?:boolean;pageSize?
 /** Shared browser adapter only: real consistency, authorization and workflow rules are integration-tested. */
 export async function installWorkspaceApi(page:Page,apiOrigin:string,rows:WorkspaceRows,options:FakeOptions={}) {
   const storage=rows as unknown as Record<string,FakeRow[]>;
-  const writes:{method:string;path:string;body:Record<string,unknown>;params:URLSearchParams}[]=[],searches:Record<string,unknown>[]=[],reads:string[]=[],errors:string[]=[];
+  const writes:{method:string;path:string;body:Record<string,unknown>;requestKey:string|undefined;params:URLSearchParams}[]=[],searches:Record<string,unknown>[]=[],reads:string[]=[],errors:string[]=[];
   const plans = new Map<string, unknown[][]>();
   const failures: { target: ReadTarget; options: ReadFailure }[] = [];
   const holds: { target: ReadTarget; start: () => void; wait: Promise<void>; finish: () => void }[] = [];
@@ -29,7 +28,6 @@ export async function installWorkspaceApi(page:Page,apiOrigin:string,rows:Worksp
   await page.route(apiOrigin+"/api/**",async route=>{
     const req=route.request(),url=new URL(req.url()),parts=url.pathname.replace("/api/","").split("/"),[kind,encodedKey,action]=parts, key=encodedKey ? decodeURIComponent(encodedKey) : undefined, method=req.method();
     const body=(req.postDataJSON()??{}) as Record<string,unknown>;
-    if(kind==="ids"&&encodedKey==="allocate")return route.fulfill({json:{id:generateDataId()}});
     const scope = { entityId: url.searchParams.get("entity_id") ?? undefined, taskId: url.searchParams.get("task_id") ?? undefined };
     const plan = plans.get(scopeKey(kind, scope)) ?? plans.get(scopeKey(kind, {}));
     const cursor = url.searchParams.get("cursor");
@@ -58,9 +56,9 @@ export async function installWorkspaceApi(page:Page,apiOrigin:string,rows:Worksp
       return reply({change_note:body.change_note??`${facts.prop1??facts.title??"항목"} ${labels[String(body.action)]}`,change_tag_ids:body.change_tag_ids??[],missing_tag_ids:[],settings_version:0,prepared_input:input});
     }
     if(kind==="entities"&&key==="prepare"){
-      const source=String(body.source??"app"),external_id=String(body.external_id??crypto.randomUUID()),id=entityId(source,external_id);
+      const source=String(body.source??"app"),external_id=body.external_id as string|undefined,id=external_id?entityId(source,external_id):undefined;
       const existing=storage.entities.find(row=>row.id===id);
-      return reply({source,external_id,id,action:existing?existing.deleted_at?"restore":"duplicate":"create",expected_version:existing?.version,existing:existing??null});
+      return reply({source,generation:"short",settings_version:0,external_id,id,action:existing?existing.deleted_at?"restore":"duplicate":"create",expected_version:existing?.version,existing:existing??null});
     }
     if(kind==="search"){searches.push(body);const selected=String((body.kinds as string[])[0])+"s";return reply({items:(storage[selected]??[]).filter(r=>selected!=="principles"||r.is_current).map(r=>({id:r.id,kind:selected.slice(0,-1),title:selected==="records"?recordDisplayText(String(r.body??"")):r.title,snippet:r.body,snippet_start:0,snippet_end:Array.from(String(r.body??"")).length,at:stamp,tag_ids:r.tag_ids??[],path:`/${selected}/${encodeURIComponent(r.id)}`,match:"keyword",index_state:"pending"})),next_cursor:null,anchor_page:null,search_state:body.mode==="auto"?"keyword_fallback":"ok",semantic_coverage:{pending:1,excluded:0}});}
     if(!storage[kind])return reply({code:"invalid_input",message:`Unexpected fixture endpoint ${url.pathname}`},400);
@@ -75,7 +73,7 @@ export async function installWorkspaceApi(page:Page,apiOrigin:string,rows:Worksp
       const offset=Number(url.searchParams.get("cursor")??0),size=options.pageSize??Math.max(1,items.length);
       return reply({items:items.slice(offset,offset+size),next_cursor:items.length>offset+size?String(offset+size):null});
     }
-    writes.push({method,path:url.pathname,body,params:url.searchParams});
+    writes.push({method,path:url.pathname,body,requestKey:req.headers()["idempotency-key"],params:url.searchParams});
     if(options.hold){started();await new Promise<void>(r=>{release=r;});options.hold=false;}
     if(options.failWrite&&!failed){failed=true;return options.failWrite==="unknown"?route.abort("connectionreset"):reply({code:"conflict",message:"다른 곳에서 수정했습니다."},409);}
     if(method==="DELETE"||action==="delete"){if(kind==="entities"){const found=storage.entities.find(row=>row.id===key);if(found)Object.assign(found,{deleted_at:stamp,version:found.version+1});}else storage[kind]=storage[kind].filter(r=>r.id!==key);return route.fulfill({status:204});}

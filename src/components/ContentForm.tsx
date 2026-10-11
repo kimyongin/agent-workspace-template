@@ -41,7 +41,7 @@ interface FormModalProps {
   dirty: boolean;
   onClose: () => void;
   onRouteDiscard?: () => void;
-  onSubmit: (creationId: () => string, memo: RecordMemo) => Promise<void>;
+  onSubmit: (requestKey: () => string, memo: RecordMemo) => Promise<void>;
   validate: () => Record<string, string> | null;
   children: (errors: Record<string, string>) => ReactNode;
   deletion?: DeletionOptions;
@@ -82,7 +82,7 @@ function FormContents({title, domain, open, submitLabel, dirty, onClose, onRoute
         record: kind === "delete" ? current.deletion?.note !== false : !!current.mutation,
         message: kind === "delete" ? current.deletion?.message : current.mutation?.message,
         execute: kind === "delete"
-          ? (_id, memo) => current.deletion!.onConfirm(memo.change_note ?? "", memo.change_tag_ids)
+          ? (requestKey, memo) => current.deletion!.onConfirm(memo.change_note ?? "", memo.change_tag_ids, requestKey)
           : current.onSubmit,
       };
     },

@@ -1,7 +1,8 @@
+import { WriteAttempt } from "../../lib/write-attempt.ts";
 export interface SettingsDraftAdapter<T, Saved> {
   initial: T;
   read: (signal: AbortSignal) => Promise<Saved>;
-  save: (draft: T, before: Saved, signal: AbortSignal) => Promise<Saved>;
+  save: (draft: T, before: Saved, signal: AbortSignal, requestKey: string) => Promise<Saved>;
   toDraft: (saved: Saved) => T;
   refreshDraft: (before: T, local: T, latest: T) => T;
   isConflict: (error: unknown) => boolean;
@@ -17,7 +18,10 @@ export function createSettingsDraft<T, Saved>(adapter: SettingsDraftAdapter<T, S
     operation: null as "read" | "save" | null,
     error: null as unknown,
     conflict: false,
+    uncertain: false,
   };
+  const attempt=new WriteAttempt();
+  let retainedSaved:Saved | undefined;
   let request: AbortController | null = null;
   const listeners = new Set<() => void>();
   const emit = (patch: Partial<typeof state>) => {
@@ -26,6 +30,7 @@ export function createSettingsDraft<T, Saved>(adapter: SettingsDraftAdapter<T, S
     for (const listener of listeners) listener();
   };
   const cancel = () => {
+    if(state.operation === "save" && state.busy) return;
     request?.abort();
     request = null;
   };
@@ -33,14 +38,19 @@ export function createSettingsDraft<T, Saved>(adapter: SettingsDraftAdapter<T, S
     if (
       state.operation === "save" && state.busy || operation === "save" && (state.busy || !state.saved || !state.dirty)
     ) return null;
+    if(operation === "read" && attempt.snapshot().uncertain) return null;
+    const frozenDraft=structuredClone(state.draft), frozenSaved=state.saved;
     cancel();
     const current = new AbortController();
     request = current;
     emit({ busy: true, operation, error: null });
     try {
-      const saved = operation === "read"
-        ? await adapter.read(current.signal)
-        : await adapter.save(state.draft, state.saved!, current.signal);
+      let saved:Saved;
+      if(operation === "read") saved=await adapter.read(current.signal);
+      else {
+        await attempt.run(async()=>{retainedSaved=await adapter.save(frozenDraft,frozenSaved!,current.signal,attempt.requestKey());});
+        saved=retainedSaved!;
+      }
       if (current.signal.aborted || request !== current) return null;
       const latest = adapter.toDraft(saved);
       const draft = operation === "read" && state.saved
@@ -56,7 +66,7 @@ export function createSettingsDraft<T, Saved>(adapter: SettingsDraftAdapter<T, S
     } finally {
       if (!current.signal.aborted && request === current) {
         request = null;
-        emit({ busy: false });
+        emit({ busy: false, uncertain:attempt.snapshot().uncertain });
       }
     }
   };
@@ -72,10 +82,10 @@ export function createSettingsDraft<T, Saved>(adapter: SettingsDraftAdapter<T, S
     save: () => run("save"),
     cancel,
     edit: (update: (value: T) => T) => {
-      if (!state.busy) emit({ draft: update(state.draft), error: null });
+      if (!state.busy && !state.uncertain) emit({ draft: update(state.draft), error: null });
     },
     reset: () => {
-      if (!state.busy && state.saved) emit({ draft: adapter.toDraft(state.saved), error: null, conflict: false });
+      if (!state.busy && !state.uncertain && state.saved) emit({ draft: adapter.toDraft(state.saved), error: null, conflict: false });
     },
   };
 }

@@ -152,7 +152,7 @@ for(const [kind,label] of [["entities","엔터티"],["tasks","할 일"],["record
   await begin();await fill("첫 작성");await submit();await expect(form(page).getByRole("button",{name:"같은 내용 다시 시도"})).toBeVisible();
   await discardEditor(page);await page.getByRole("dialog",{name:"변경을 버릴까요?"}).getByRole("button",{name:"변경 버리기"}).click();
   await expect(form(page)).toHaveCount(0);await begin();await fill("새 작성");await submit();await expect.poll(()=>state.writes.length).toBe(2);
-  const key=kind==="entities"?"external_id":"id";expect(state.writes[1].body[key]).not.toBe(state.writes[0].body[key]);expect(state.errors).toEqual([]);
+  expect(state.writes[1].requestKey).not.toBe(state.writes[0].requestKey);expect(state.writes[1].body).not.toHaveProperty("id");expect(state.errors).toEqual([]);
 });
 
 for(const [kind,n] of [["entities",1],["tasks",2],["records",3],["principles",4]] as const)test(`${kind}: uncertain 편집 폐기 후 새 편집은 같은 버전에 새 메모`,async({page})=>{
@@ -179,7 +179,7 @@ for(const [kind,label,submit] of [["task","할 일 작성","추가"],["record","
   await expect(form(page).getByRole("button",{name:"같은 내용 다시 시도"})).toBeVisible();await discardEditor(page);
   await page.getByRole("dialog",{name:"변경을 버릴까요?"}).getByRole("button",{name:"변경 버리기"}).click();await expect(page).not.toHaveURL(/create=/);await go(page,`/entities/${encodeURIComponent(entityKey(1))}`);
   await form(page).getByRole("button",{name:label,exact:true}).click();await fillText(page,"새 연결 작성");await saveOnce(page, form(page), submit);
-  await expect.poll(()=>state.writes.length).toBe(2);const key=kind==="entities"?"external_id":"id";expect(state.writes[1].body[key]).not.toBe(state.writes[0].body[key]);expect(state.errors).toEqual([]);
+  await expect.poll(()=>state.writes.length).toBe(2);expect(state.writes[1].requestKey).not.toBe(state.writes[0].requestKey);expect(state.writes[1].body).not.toHaveProperty("id");expect(state.errors).toEqual([]);
 });
 
 test("엔터티 create/edit 복합 직접 링크는 연결 작성 한 폼만 연다",async({page})=>{
@@ -755,7 +755,7 @@ test("기록 기간 변경과 잘못된 범위는 할 일을 재조회하지 않
 for(const failure of ["unknown","conflict"] as const)test(`편집 ${failure}: 초안·중복 요청키·Escape 확인 취소`,async({page})=>{
   const state=await fixtures(page,{failWrite:failure});await go(page,`/tasks/${id(2)}?edit=1`);await form(page).getByRole("textbox",{name:/^제목(?: \(필수\))?$/}).fill("보존할 초안");await fillChangeMemo(page,form(page),"정정 이유");await saveOnce(page, form(page));await expect(form(page).getByRole("alert")).toBeVisible();
   await discardEditor(page);const confirm=page.getByRole("dialog",{name:"변경을 버릴까요?"});await confirm.getByRole("button",{name:"취소",exact:true}).click();await expect(form(page).getByRole("textbox",{name:/^제목(?: \(필수\))?$/})).toHaveValue("보존할 초안");
-  if(failure==="unknown"){await expect(form(page).getByRole("textbox",{name:/^제목(?: \(필수\))?$/})).toBeDisabled();await form(page).getByRole("button",{name:"같은 내용 다시 시도"}).click();await saveOnce(page,form(page));expect(state.writes[1].body).toEqual(state.writes[0].body);}expect(state.errors).toEqual([]);
+  if(failure==="unknown"){await expect(form(page).getByRole("textbox",{name:/^제목(?: \(필수\))?$/})).toBeDisabled();await form(page).getByRole("button",{name:"같은 내용 다시 시도"}).click();await saveOnce(page,form(page));expect(state.writes[1].body).toEqual(state.writes[0].body);expect(state.writes[1].requestKey).toBe(state.writes[0].requestKey);expect(state.writes[0].requestKey).toMatch(/^[0-9a-f-]{36}$/);}expect(state.errors).toEqual([]);
 });
 test("busy POP·dirty back/forward·reload·직접 링크",async({page})=>{
   const state=await fixtures(page,{hold:true});await go(page,"/tasks");await openListEditor(page,"할 일");await fillChangeMemo(page,form(page),"저장 이유");await saveOnce(page, form(page),"저장",false);await state.pending;await page.goBack();await expect(page).toHaveURL(/edit=1/);await expect(page.getByRole("dialog",{name:"변경을 버릴까요?"})).not.toBeVisible();state.release();await expect(form(page).getByRole("button",{name:"편집",exact:true})).toBeVisible();await form(page).getByRole("button",{name:"닫기",exact:true}).click();

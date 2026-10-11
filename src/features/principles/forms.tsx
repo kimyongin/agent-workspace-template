@@ -10,7 +10,7 @@ export const emptyPrinciple: PrincipleDraft = {title:"",body:"",change_note:""};
 const content = z.object({title,body});
 export function PrincipleFormModal({initial,editing=false,target,details,deletion,onClose,onRouteDiscard,onSave}: {
   target?: { id: string; version: number };
-  initial: PrincipleDraft; editing?: boolean; onClose:()=>void; onRouteDiscard?:()=>void; onSave:(draft:PrincipleDraft, creationId: () => string)=>Promise<void>;
+  initial: PrincipleDraft; editing?: boolean; onClose:()=>void; onRouteDiscard?:()=>void; onSave:(draft:PrincipleDraft, requestKey: () => string)=>Promise<void>;
   deletion?: DeletionOptions; details?: ReactNode;
 }) {
   const [baseline] = useState({title:initial.title,body:initial.body});
@@ -21,7 +21,7 @@ export function PrincipleFormModal({initial,editing=false,target,details,deletio
     mutation={{target:draft.title, action:editing ? "수정" : "등록"}}
     dirty={JSON.stringify(draft)!==JSON.stringify(baseline)} onClose={onClose} onRouteDiscard={onRouteDiscard}
     validate={()=>{const r=content.safeParse(draft);return r.success?null:fieldErrors(r.error.issues);}}
-    onSubmit={(creationId,memo)=>onSave({...content.parse(draft),...memo}, creationId)}>
+    onSubmit={(requestKey,memo)=>onSave({...content.parse(draft),...memo}, requestKey)}>
     {errors=><>
 
       <TextFields draft={draft} set={patch=>setDraft(d=>({...d,...patch}))} errors={errors}/>
