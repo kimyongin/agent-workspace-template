@@ -1,4 +1,4 @@
-import { defaultEntityIdentitySettings, generateEntityExternalId, entitySourceGeneration, entityIdentity, entityId, entityPath, type EntityIdentitySettings } from "@contracts/entity-identity.ts";
+import { defaultEntityIdentitySettings, entitySourceGeneration, entityIdentity, entityId, entityPath, type EntityIdentitySettings } from "@contracts/entity-identity.ts";
 import { api, ApiError } from "../../lib/api.ts";
 import type { DeletionOptions } from "../../components/DeleteAction.tsx";
 import {
@@ -19,29 +19,28 @@ export function EntityForm(
     deletion?: DeletionOptions;
     onClose: () => void;
     onRouteDiscard?: () => void;
-    onSave: (value: EntityCreate & {tag_ids: string[]; change_note?: string; change_tag_ids?: string[]}, creationId: () => string) => Promise<void>;
+    onSave: (value: EntityCreate & {tag_ids: string[]; change_note?: string; change_tag_ids?: string[]}, requestKey: () => string) => Promise<void>;
   },
 ) {
   const [identitySettings, setIdentitySettings] = useState<EntityIdentitySettings | null>(null);
   const [archived, setArchived] = useState<EntityResult | null>(initial?.deleted_at ? initial : null);
   const [identityMessage, setIdentityMessage] = useState("");
-  const generated = useRef(generateEntityExternalId());
+  const prepared = useRef<Record<string,unknown> | null>(null);
+  const settingsVersion = useRef<number | undefined>(undefined);
   useEffect(()=>{
     const controller=new AbortController();
-    void Promise.all([
-      api<{settings:{entity_identity:EntityIdentitySettings}}>("GET","/settings/business",undefined,controller.signal),
-      initial?Promise.resolve({id:initial.external_id}):api<{id:string}>("POST","/ids/allocate",{},controller.signal),
-    ]).then(([result,allocation])=>{
+    void api<{settings:{entity_identity:EntityIdentitySettings};versions:{entity_identity:number}}>("GET","/settings/business",undefined,controller.signal).then(result=>{
       if(controller.signal.aborted)return;
       const settings=result.settings.entity_identity??defaultEntityIdentitySettings;
-      generated.current=allocation.id;setIdentitySettings(settings);
-      setDraft(d=>({...d,source:initial?.source??settings.default_source,external_id:initial?.external_id??(entitySourceGeneration(settings,settings.default_source)==="manual"?"":allocation.id)}));
+      settingsVersion.current=result.versions.entity_identity;
+      setIdentitySettings(settings);
+      setDraft(d=>({...d,source:initial?.source??settings.default_source,external_id:initial?.external_id??""}));
     }).catch(()=>{if(!controller.signal.aborted)setIdentityMessage("식별자 설정을 불러오지 못했습니다. 다시 열어 주세요.");});
     return()=>controller.abort();
   },[]);
   const baseline = {
     source: initial?.source ?? (identitySettings ?? defaultEntityIdentitySettings).default_source,
-    external_id: initial?.external_id ?? (entitySourceGeneration(identitySettings ?? defaultEntityIdentitySettings, (identitySettings ?? defaultEntityIdentitySettings).default_source) !== "manual" ? generated.current : ""),
+    external_id: initial?.external_id ?? "",
     prop1: initial?.prop1 ?? "",
     prop2: initial?.prop2 == null ? "" : String(initial.prop2),
     prop3: initial?.prop3 ?? "",
@@ -59,6 +58,8 @@ export function EntityForm(
   };
   const value = () => ({
     ...draft,
+    external_id:draft.external_id || undefined,
+    ...(!initial ? {settings_version:settingsVersion.current} : {}),
     ...(archived ? { expected_version: archived.version } : {}),
     prop2: draft.prop2 === "" ? null : Number(draft.prop2),
     prop3: draft.prop3 || null,
@@ -66,6 +67,7 @@ export function EntityForm(
   const checkExisting = async () => {
     if (initial || archived) return archived;
     if (!identitySettings) throw new Error("식별자 설정을 불러오는 중입니다.");
+    if (!draft.external_id && entitySourceGeneration(identitySettings,draft.source) === "short") return null;
     const identity = entityIdentity.safeParse({source:draft.source,external_id:draft.external_id});
     if (!identity.success) throw new Error(identity.error.issues.map(issue => issue.message).join(" · "));
     invalidateLookup();
@@ -94,6 +96,7 @@ export function EntityForm(
         const preparedInput = existing && !archived ? { source:existing.source,external_id:existing.external_id,prop1:existing.prop1,prop2:existing.prop2,prop3:existing.prop3,prop4:existing.prop4,tag_ids:existing.tag_ids } : value();
         return { model:"entity", action:existing ? "restore" : initial ? "update" : "create", target_id:target?.id,expected_version:target?.version,input:preparedInput };
       }}
+      onPrepared={result=>{prepared.current=result.prepared_input;}}
       deletion={deletion}
       onClose={onClose}
       onRouteDiscard={onRouteDiscard}
@@ -102,17 +105,18 @@ export function EntityForm(
         const {tag_ids, ...fields} = value();
         const parsed = entityCreate.safeParse(fields);
         if (!identitySettings) return { external_id: "식별자 설정을 불러오는 중입니다" };
+        if (entitySourceGeneration(identitySettings, fields.source) === "manual" && !fields.external_id) return {external_id:"식별자를 입력하세요"};
         if (!fields.prop1.trim()) return { prop1: "필수 입력입니다" };
         return parsed.success ? null : fieldErrors(parsed.error.issues);
       }}
-      onSubmit={async (creationId, memo) => { if (!initial && !archived && await checkExisting()) throw new Error("보관된 데이터를 확인하고 복원을 다시 저장하세요."); const {tag_ids,...fields}=value(); return onSave({...entityCreate.parse(fields),tag_ids,...memo}, creationId);}}
+      onSubmit={async (requestKey, memo) => { const {tag_ids,...fields}=value(); return onSave({...entityCreate.parse(prepared.current ?? fields),tag_ids,...memo}, requestKey);}}
     >
       {(errors) => (
         <>
           <section className="detail-section form">
           <>
-            <Field label="발급처" required error={errors.source}>{p => <select {...p} className="input" value={draft.source} disabled={!identitySettings || !!archived} onChange={e => editDraft(d => ({...d, source:e.target.value, external_id:initial ? d.external_id : entitySourceGeneration(identitySettings!,e.target.value)==="manual" ? "" : generated.current}))}>{identitySettings?.sources.filter(source => !source.deleted || source.code === initial?.source).map(source => <option key={source.code} value={source.code} disabled={source.deleted}>{source.label}{source.deleted ? " · 삭제됨" : ""}</option>)}</select>}</Field>
-            <Field label="식별자" required error={errors.external_id}>{p => <input {...p} className="input" value={draft.external_id} maxLength={200} disabled={!identitySettings || !!archived} onChange={e => editDraft(d => ({...d, external_id:e.target.value}))}/>}</Field>
+            <Field label="발급처" required error={errors.source}>{p => <select {...p} className="input" value={draft.source} disabled={!identitySettings || !!archived} onChange={e => editDraft(d => ({...d, source:e.target.value, external_id:initial ? d.external_id : ""}))}>{identitySettings?.sources.filter(source => !source.deleted || source.code === initial?.source).map(source => <option key={source.code} value={source.code} disabled={source.deleted}>{source.label}{source.deleted ? " · 삭제됨" : ""}</option>)}</select>}</Field>
+            <Field label="식별자" required={!!identitySettings && entitySourceGeneration(identitySettings,draft.source)==="manual"} error={errors.external_id}>{p => <input {...p} className="input" value={draft.external_id} maxLength={200} placeholder={identitySettings && entitySourceGeneration(identitySettings,draft.source)==="short" ? "비워 두면 저장 시 자동 발급" : undefined} disabled={!identitySettings || !!archived} onChange={e => editDraft(d => ({...d, external_id:e.target.value}))}/>}</Field>
             {!initial && !archived && <button type="button" className="btn" disabled={!identitySettings} onClick={() => { void checkExisting().catch(cause => { if (!(cause instanceof DOMException && cause.name === "AbortError")) setIdentityMessage(cause instanceof Error ? cause.message : "조회하지 못했습니다."); }); }}>기존 대상 확인</button>}
             {identityMessage && <p role="status" className="secondary">{identityMessage}</p>}
             {archived && <p className="secondary">보관된 속성·태그와 연결을 복원합니다. 입력한 변경만 반영합니다. 현재 버전 {archived.version}</p>}

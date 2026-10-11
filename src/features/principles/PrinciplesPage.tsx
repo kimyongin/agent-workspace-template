@@ -34,8 +34,8 @@ export function PrinciplesPage() {
     {current&&<section className="panel current-document"><h2><DetailLink className="item-title" to={`/principles/${current.id}?list=${encodeURIComponent("/principles#principles-title")}`}>{current.title}</DetailLink></h2>{current.body&&<MarkdownContent text={current.body}/>}<p className="meta">저장 {formatDateTime(current.saved_at)}</p></section>}
     {["tag_id","entity_id","status"].some(k=>params.has(k))&&<Notice>원칙은 계정 전체의 문서입니다. 기존 태그·엔터티·활성 상태 조건은 적용하지 않습니다.</Notice>}
 
-    {create.open&&current===null&&<PrincipleFormModal key={create.key} initial={emptyPrinciple} onClose={create.close} onRouteDiscard={create.discard} onSave={async (draft, creationId)=>{
-      const saved=await api<WorkspacePrinciple>("POST","/principles",{...draft,id:creationId()});const p=new URLSearchParams(params);p.delete("create");create.finish(`/principles/${saved.id}?list=${encodeURIComponent(`/principles?${p}`)}`);
+    {create.open&&current===null&&<PrincipleFormModal key={create.key} initial={emptyPrinciple} onClose={create.close} onRouteDiscard={create.discard} onSave={async (draft, requestKey)=>{
+      const saved=await api<WorkspacePrinciple>("POST","/principles",{...draft}, undefined, requestKey());const p=new URLSearchParams(params);p.delete("create");create.finish(`/principles/${saved.id}?list=${encodeURIComponent(`/principles?${p}`)}`);
     }}/>}
   </section></>;
 }

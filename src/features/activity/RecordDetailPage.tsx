@@ -70,11 +70,11 @@ export function RecordDetailPage() {
           initial={recordDraftFrom(record, timezone)}
           deletion={{message:<p style={{ margin: 0 }}>
             이 기록을 삭제합니다. {record.record_kind==="change"?"대상의 업무 상태는 되돌리지 않습니다.":"일회성 할 일의 결과였다면 할 일은 완료 상태로 남고 결과 연결만 사라집니다."}
-          </p>,onConfirm:async (reason,tags) => {
+          </p>,onConfirm:async (reason,tags,requestKey) => {
           setBusy(true);
           setError(null);
           try {
-            await api("DELETE", `/records/${record.id}${query({expected_version:record.version, change_note:reason || undefined, change_tag_ids:tags?.length ? tags.join(",") : undefined})}`);
+            await api("DELETE", `/records/${record.id}${query({expected_version:record.version, change_note:reason || undefined, change_tag_ids:tags?.length ? tags.join(",") : undefined})}`, undefined, undefined, requestKey());
             editor.leave(deleteBack);
           } catch (e) {
             setError(e instanceof ApiError ? e.message : "삭제하지 못했습니다.");
@@ -84,10 +84,10 @@ export function RecordDetailPage() {
           }
         }}}
           {...editor.formProps}
-          onSave={async (value) => {
+          onSave={async (value,requestKey) => {
             await detail.save(() => api<WorkspaceRecord>("PATCH", `/records/${record.id}`, {
               ...value, expected_version: record.version,
-            }));
+            }, undefined, requestKey()));
              editor.close();
             setMessage("저장했습니다.");
           }}

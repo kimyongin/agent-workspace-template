@@ -33,12 +33,12 @@ export function createIdentitySettingsDraft(
     initial: editable(defaultEntityIdentitySettings),
     isConflict,
     read: (signal) => api("GET", "/settings/business", undefined, signal),
-    save: (value, before, signal) =>
+    save: (value, before, signal, requestKey) =>
       api("PATCH", "/settings/business", {
         id: "entity_identity",
         expected_version: before.versions.entity_identity,
         value: entityIdentitySettings.parse(value),
-      }, signal),
+      }, signal, requestKey),
     toDraft: (saved) => editable(saved.settings.entity_identity ?? defaultEntityIdentitySettings),
     refreshDraft: (before, local, latest) => {
       const sources = local.sources.map((value) => {
@@ -83,12 +83,12 @@ export function createRecordTemplatesDraft(api: typeof request): SettingsDraftAd
       ]);
       return { settings, availableTags: tags.map((tag) => tag.id) };
     },
-    save: async (value, before, signal) => ({
+    save: async (value, before, signal, requestKey) => ({
       settings: await api("PATCH", "/settings/business", {
         id: "record_templates",
         expected_version: before.settings.versions.record_templates,
         value: recordTemplates.parse(value),
-      }, signal),
+      }, signal, requestKey),
       availableTags: [...new Set([...before.availableTags, ...selectedRecordTags(value)])],
     }),
     toDraft: (saved) => editableRecordTemplates(saved.settings.settings.record_templates),

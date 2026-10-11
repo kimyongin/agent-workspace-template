@@ -194,3 +194,18 @@ test("템플릿의 누락 태그 안내는 새 로컬 선택을 삭제된 태그
   );
   expect(unavailableTemplateTags(saved, { entity: { create: { memo: "입력", tag_ids: ["new"] } } })).toEqual([]);
 });
+
+test("업무 설정 응답 불명은 같은 키·입력·기준 버전으로 재시도한다",async()=>{
+  const { ApiError }=await import("../../lib/api-error.ts");
+  const calls:{value:string;version:number;key:string}[]=[];
+  let lost=true;
+  const settings=createSettingsDraft({initial:{memo:""},read:async()=>({version:2,value:{memo:"기준"}}),save:async(value,before:Saved,_signal,key)=>{
+    calls.push({value:value.memo,version:before.version,key});
+    if(lost){lost=false;throw new ApiError(503,"unavailable","응답 불명");}
+    return {version:3,value};
+  },toDraft:(saved:Saved)=>saved.value,refreshDraft:(_before,local)=>local,isConflict:()=>false});
+  await settings.read();settings.edit(()=>({memo:"저장할 내용"}));await settings.save();
+  expect(settings.snapshot().uncertain).toBe(true);
+  settings.edit(()=>({memo:"다른 내용"}));await settings.read();await settings.save();
+  expect(calls).toHaveLength(2);expect(calls[1]).toEqual(calls[0]);expect(settings.snapshot().uncertain).toBe(false);
+});

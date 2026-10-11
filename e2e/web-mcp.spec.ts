@@ -58,7 +58,7 @@ test("에이전트가 MCP로 만든 기록·반복 회차를 웹에서 보고 �
       recurrence: { freq: "daily", starts_on: today },
       timezone,
     });
-    await mcp.call("record_occurrence", { task_id: task.id, id: crypto.randomUUID(), date: today, body: "스트레칭 함 5분" });
+    await mcp.call("record_occurrence", { task_id: task.id, date: today, body: "스트레칭 함 5분" });
 
     // 웹: 기록 목록에서 찾아 편집
     await page.goto("/records");
