@@ -200,6 +200,18 @@ export function StatusContent({ data, children }: { data: StatusOverview; childr
             </div>
           ))}
         </dl>
+        {!!indexing.waiting?.long_waiting && (
+          <p className="help" role="status">
+            준비 상태 갱신이 {indexing.waiting.threshold_minutes}분 이상 없는 기록{" "}
+            {indexing.waiting.long_waiting}개가 있습니다. 가장 오래된 갱신: {new Intl.DateTimeFormat("ko-KR", {
+              timeZone: data.timezone,
+              dateStyle: "medium",
+              timeStyle: "short",
+            }).format(new Date(indexing.waiting.oldest_waiting_since!))}{" "}
+            ({data.timezone}). 처리 실패로 확정된 상태는 아닙니다. 새로고침 후에도 계속되면 관리자에게 색인 서비스
+            점검을 요청하세요.
+          </p>
+        )}
         <DailyChart title="작성일별 현재 색인 상태" days={daily} series={indexSeries} stacked />
         <p className="help">
           최근 30일 작성한 기록을 작성일로 묶은 현재 상태입니다. 과거 대기량·실패량이나 당일 처리량의 이력이 아닙니다.

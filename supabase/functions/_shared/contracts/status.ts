@@ -20,6 +20,11 @@ export interface IndexingCounts {
   attention: number;
   excluded: number;
 }
+export interface IndexingWait {
+  long_waiting: number;
+  oldest_waiting_since: string | null;
+  threshold_minutes: number;
+}
 export interface StatusDay {
   date: string;
   entities_created: number;
@@ -33,7 +38,7 @@ export interface StatusData {
   entities: { total: number; active: number; deleted: number };
   tasks: { total: number; open: number; done: number; active: number; stopped: number };
   records: { total: number; user: number; result: number; change: number };
-  indexing: IndexingCounts & { total: number };
+  indexing: IndexingCounts & { total: number; waiting: IndexingWait };
   daily: StatusDay[];
 }
 export interface StatusOverview extends StatusData {

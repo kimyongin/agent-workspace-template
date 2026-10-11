@@ -36,6 +36,6 @@ httpTest("worker HTTP: 인증·메서드·입력 거부가 큐 claim/공급자 �
   if (empty.status === 200) assertEquals((await empty.json()).claimed, 0);
   else {
     assertEquals(empty.status, 503);
-    assertEquals((await empty.json()).error, "worker_not_configured");
+    assertEquals(await empty.json(), { error: "worker_not_configured" });
   }
 });

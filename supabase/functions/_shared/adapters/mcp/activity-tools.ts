@@ -10,7 +10,7 @@ import * as activity from "../../core/activity/application.ts";
 import { notFound } from "../../core/shared/errors.ts";
 import { parse } from "../errors.ts";
 
-/** MCP inputSchema는 최상위가 object여야 하므로, 종류별 생성 입력을 펼친 모양으로 알린다(검증은 taskCreate). */
+/** 최상위 object의 필드 안내와 함께 taskCreate의 oneOf로 종류별 제약을 알린다. */
 const createTaskShape: Record<string, z.ZodType> = Object.assign({}, ...taskCreate.options.map((s) => s.shape));
 for (const [key, schema] of Object.entries(createTaskShape)) {
   if (!taskCreate.options.every((s) => key in s.shape)) createTaskShape[key] = schema.optional();
@@ -49,8 +49,9 @@ export function activityTools(deps: activity.ActivityDeps): ToolDef[] {
     {
       name: "create_task",
       description:
-        "할 일을 만든다. 일회성은 open, 반복은 active. tag_ids는 내 태그 ID 최대 10개. 반복 할 일은 앱이 자동 실행·알림하지 않는다.",
+        "할 일을 만든다. kind=once는 due_on만 선택 가능하며 timezone·recurrence를 보내지 않는다. kind=recurring은 timezone·recurrence 필수이며 due_on을 보내지 않는다. 일회성은 open, 반복은 active. tag_ids는 내 태그 ID 최대 10개. 반복 할 일은 앱이 자동 실행·알림하지 않는다.",
       input: createTaskInput,
+      inputVariants: taskCreate.options,
       readOnly: false,
       handler: (args, actor) => activity.createTask(deps, actor, parse(taskCreate, args)),
     },

@@ -1,6 +1,29 @@
 import { expect, test } from "@playwright/test";
 import { devLogin, env, mcpClient, mcpTokenViaConsent } from "./support.ts";
 
+test("색인 대기: 문제 목록이 비어도 오래 갱신되지 않은 준비 상태와 점검 안내를 표시하고 새로고침으로 해제한다", async ({ page }) => {
+  await devLogin(page);
+  let prolonged = true;
+  await page.route(`${env.VITE_API_URL}/status`, async (route) => {
+    const response = await route.fetch(), data = await response.json();
+    data.indexing.waiting = {
+      long_waiting: prolonged ? 23 : 0,
+      oldest_waiting_since: prolonged ? "2026-10-10T14:00:00.000Z" : null,
+      threshold_minutes: 15,
+    };
+    await route.fulfill({ response, json: data });
+  });
+  await page.goto("/status");
+  const waiting = page.getByRole("status").filter({ hasText: "준비 상태 갱신" });
+  await expect(waiting).toContainText("15분 이상 없는 기록 23개");
+  await expect(waiting).toContainText("실패로 확정된 상태는 아닙니다");
+  await expect(waiting).toContainText("관리자에게 색인 서비스 점검");
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  prolonged = false;
+  await page.getByRole("button", { name: "새로고침", exact: true }).click();
+  await expect(waiting).toHaveCount(0);
+});
+
 test("상태: 실제 인증 HTTP·OAuth MCP 집계와 lazy 기본 접힘, 그래프 클릭·터치·키보드 선택 및 설정 디자인", async ({ page, isMobile }) => {
   await devLogin(page);
   const mcp = await mcpClient(await mcpTokenViaConsent(page));

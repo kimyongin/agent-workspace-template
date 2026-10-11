@@ -6,6 +6,7 @@ import { z } from "zod";
 import { SqlIndexQueue } from "../_shared/adapters/supabase/index-queue.ts";
 import { PineconeEmbedder } from "../_shared/adapters/pinecone/embedder.ts";
 import { indexBatch } from "../_shared/core/search/index-worker.ts";
+import { invalidWorkerSettings } from "../_shared/adapters/worker-configuration.ts";
 
 const input = z.strictObject({
   limit: z.number().int().min(1).max(5).default(5),
@@ -17,7 +18,10 @@ let sql: postgres.Sql | undefined;
 Deno.serve(async (request) => {
   const token = Deno.env.get("INDEX_WORKER_TOKEN");
   // 인증 전에 DB 연결·큐 claim·외부 호출을 하지 않는다. 사용자 HTTP/MCP 토큰은 받지 않는다.
-  if (!token || token.length < 43) return Response.json({ error: "worker_not_configured" }, { status: 503 });
+  if (!token || token.length < 43) {
+    console.error(JSON.stringify({ event: "worker_not_configured", invalid_settings: ["INDEX_WORKER_TOKEN"] }));
+    return Response.json({ error: "worker_not_configured" }, { status: 503 });
+  }
   if (request.headers.get("Authorization") !== `Bearer ${token}`) {
     return Response.json({ error: "unauthorized" }, { status: 401 });
   }
@@ -53,7 +57,14 @@ Deno.serve(async (request) => {
   }
   const key = Deno.env.get("PINECONE_API_KEY"), url = Deno.env.get("WORKER_DB_URL");
   const accountScope = Deno.env.get("PINECONE_ACCOUNT_SCOPE");
-  if (!key || !url || !accountScope?.trim() || accountScope.length > 120) {
+  const invalidSettings = invalidWorkerSettings({
+    INDEX_WORKER_TOKEN: token,
+    PINECONE_API_KEY: key,
+    WORKER_DB_URL: url,
+    PINECONE_ACCOUNT_SCOPE: accountScope,
+  });
+  if (!key || !url || !accountScope || invalidSettings.length) {
+    console.error(JSON.stringify({ event: "worker_not_configured", invalid_settings: invalidSettings }));
     return Response.json({ error: "worker_not_configured" }, { status: 503 });
   }
   try {

@@ -24,7 +24,14 @@ Deno.test("status HTTP and readonly MCP share owner, server time, validated time
           entities: { total: 0, active: 0, deleted: 0 },
           tasks: { total: 0, open: 0, done: 0, active: 0, stopped: 0 },
           records: { total: 0, user: 0, result: 0, change: 0 },
-          indexing: { total: 0, indexed: 0, preparing: 0, attention: 0, excluded: 0 },
+          indexing: {
+            total: 0,
+            indexed: 0,
+            preparing: 0,
+            attention: 0,
+            excluded: 0,
+            waiting: { long_waiting: 0, oldest_waiting_since: null, threshold_minutes: 15 },
+          },
           daily: [],
         });
       },
