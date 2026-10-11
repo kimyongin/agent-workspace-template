@@ -18,21 +18,18 @@ export function registrationState(existing: { deleted_at?: string | null } | nul
   return existing ? existing.deleted_at ? "restore" : "duplicate" : "create";
 }
 
-/** Preparation may request allocation; writes require the already frozen identity. */
+/** Validate an issuer and optional explicit identity; automatic allocation belongs to the write transaction. */
 export function registrationIdentity(
   settings: EntityIdentitySettings,
-  input: Pick<EntityCreate, "source" | "external_id">,
-  phase: "write",
+  input: Pick<EntityCreate, "source"> & { external_id: string },
 ): Pick<EntityContent, "source" | "external_id">;
 export function registrationIdentity(
   settings: EntityIdentitySettings,
   input: Pick<EntityCreate, "source" | "external_id">,
-  phase: "prepare",
 ): { source: string; external_id?: string };
 export function registrationIdentity(
   settings: EntityIdentitySettings,
   input: Pick<EntityCreate, "source" | "external_id">,
-  _phase: "prepare" | "write",
 ) {
   const source = input.source ?? settings.default_source;
   if (!isActiveEntitySource(settings, source)) throw invalidInput("삭제되지 않은 발급처를 선택하세요");

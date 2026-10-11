@@ -4,7 +4,7 @@ import { AppError } from "../shared/errors.ts";
 import { entityUpdateDecision, registrationContent, registrationIdentity, registrationState } from "./domain.ts";
 
 Deno.test("엔터티 판단: 등록 기본값과 복원의 생략·명시 값은 준비와 저장에 함께 쓰인다", () => {
-  const identity = registrationIdentity(defaultEntityIdentitySettings, { external_id: "000Ab:/한글%" }, "write");
+  const identity = registrationIdentity(defaultEntityIdentitySettings, { external_id: "000Ab:/한글%" });
   assertEquals(registrationContent({ prop1: "새 대상" }, identity), {
     source: "app",
     external_id: "000Ab:/한글%",
@@ -44,7 +44,7 @@ Deno.test("엔터티 판단: 삭제된 발급처의 기존 속성 편집은 유�
   assertEquals(entityUpdateDecision(settings, current, { external_id: "001" }).rekey, false);
   assertThrows(() => entityUpdateDecision(settings, current, { external_id: "002" }), AppError);
   assertThrows(() => entityUpdateDecision(settings, current, { external_id: "001" }, true), AppError);
-  assertThrows(() => registrationIdentity(settings, { external_id: "001" }, "write"), AppError);
+  assertThrows(() => registrationIdentity(settings, { external_id: "001" }), AppError);
 });
 
 Deno.test("엔터티 판단: 같은 식별·태그 순서만 변경하면 업무 변경이 아니다", () => {
