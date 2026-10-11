@@ -252,6 +252,7 @@ test("기록: 자동 변경 문맥·원칙 snapshot·정정 시스템 필드 제
   await expect.poll(() => state.writes.length).toBe(1);
   expect(Object.keys(state.writes[0].body).sort()).toEqual(["body", "expected_version"].sort());
   expect(state.rows.entities[0].prop2).toBe(0);
+  await expect(page).not.toHaveURL(/[?&]edit=/);
   await expect(form(page).getByRole("heading", { name: "기록", exact: true })).toBeVisible();
   await compatibleEdit(page);
   await form(page).getByRole("button", { name: "삭제", exact: true }).click();
