@@ -113,16 +113,14 @@ dbTest("tag and current principle writes replay without reapplying changed or de
 });
 
 dbTest(
-  "entity preparation reserves nothing; first write validates settings while replay survives settings, rekey and restore",
+  "issuer settings lookup allocates nothing; first write validates settings while replay survives settings, rekey and restore",
   async () => {
     const f = await fixtureOwner(admin);
     try {
-      const prepared = await entity.prepareEntityRegistration(ed, f.actor, {});
-      assertEquals(prepared.external_id, undefined);
-      assertEquals(prepared.id, undefined);
+      const savedSettings = await settings.getBusinessSettings(sd, f.actor, { id: "entity_identity" });
       const input = entityCreate.parse({
-        source: prepared.source,
-        settings_version: prepared.settings_version,
+        source: savedSettings.settings.entity_identity!.default_source,
+        settings_version: savedSettings.versions.entity_identity,
         prop1: "auto",
       });
       const createAttempt = keyed(f.actor);

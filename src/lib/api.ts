@@ -9,7 +9,7 @@ import { ApiError } from "./api-error.ts";
 export { ApiError, isUncertain } from "./api-error.ts";
 
 export async function api<T>(method: string, path: string, body?: unknown, signal?:AbortSignal, requestKey?:string): Promise<T> {
-  const writing = method !== "GET" && !["/search", "/records/prepare", "/entities/prepare"].includes(path);
+  const writing = method !== "GET" && !["/search", "/records/prepare"].includes(path);
   let serialized=body === undefined ? undefined : JSON.stringify(body);
   if(writing) {
     if(!requestKey) throw new Error("업무 쓰기는 요청 키가 필요합니다");

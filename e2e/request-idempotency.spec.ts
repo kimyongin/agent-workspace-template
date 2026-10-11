@@ -162,14 +162,14 @@ test("committed task create, edit and delete survive a lost reply with one event
   }
 });
 
-test("external entity restore retries the committed tuple and preparation allocates nothing", async ({ page }) => {
+test("external entity restore retries the committed tuple and settings lookup allocates nothing", async ({ page }) => {
   await devLogin(page);
   const proof = await evidence(page), external_id = `000Ab:/한글%${unique("복원 식별자")}`, title = unique("응답 유실 복원");
   let id: string | undefined;
   try {
-    const settings = await proof.api("GET", "/settings/business");
+    const settings = await proof.api("GET", "/settings/business?id=entity_identity");
     const source = settings.settings.entity_identity.default_source;
-    const entity = await proof.api("POST", "/entities", { source, external_id, prop1: title, prop2: 0, prop4: "a" });
+    const entity = await proof.api("POST", "/entities", { source, external_id, settings_version: settings.versions.entity_identity, prop1: title, prop2: 0, prop4: "a" });
     id = entity.id;
     await proof.api("POST", `/entities/${encodeURIComponent(id!)}/delete`, { expected_version: entity.version });
     const before = await proof.preparationState();
@@ -177,14 +177,11 @@ test("external entity restore retries the committed tuple and preparation alloca
       model: "task", action: "create", input: { kind: "once", title: unique("준비만 하는 할 일") },
     });
     expect(taskPreparation.prepared_input).not.toHaveProperty("id");
-    const autoSource = settings.settings.entity_identity.sources.find((item: { generation?: string; deleted?: boolean }) => (item.generation ?? settings.settings.entity_identity.generation) === "short" && !item.deleted);
-    expect(autoSource).toBeTruthy();
-    const autoPreparation = await proof.api("POST", "/entities/prepare", { source: autoSource.code });
-    expect(autoPreparation).not.toHaveProperty("id");
-    expect(autoPreparation).not.toHaveProperty("external_id");
-    const prepared = await proof.api("POST", "/entities/prepare", { source, external_id });
-    expect(prepared.action).toBe("restore");
-    expect(prepared.expected_version).toBe(2);
+    const identitySettings = await proof.api("GET", "/settings/business?id=entity_identity");
+    expect(identitySettings).toEqual(settings);
+    const retained = await proof.api("GET", `/entities/${encodeURIComponent(id!)}`);
+    expect(retained.version).toBe(2);
+    expect(retained.deleted_at).toBeTruthy();
     expect(await proof.preparationState()).toEqual(before);
     await page.goto("/entities");
     await beginTabAction(page, "엔터티 추가");
@@ -200,7 +197,7 @@ test("external entity restore retries the committed tuple and preparation alloca
     await saveOnce(page, restore);
     await lostRestore.retry();
     const payload = JSON.parse(lostRestore.requests[0].body!);
-    expect([payload.source, payload.external_id, payload.expected_version]).toEqual([source, external_id, 2]);
+    expect([payload.source, payload.external_id, payload.settings_version, payload.expected_version]).toEqual([source, external_id, settings.versions.entity_identity, 2]);
     expect(lostRestore.requests[0].result.id).toBe(id);
     const current = await proof.api("GET", `/entities/${encodeURIComponent(id!)}`);
     expect([current.version, current.deleted_at]).toEqual([3, null]);

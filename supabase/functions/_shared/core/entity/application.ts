@@ -7,7 +7,6 @@ import {
   entityId,
   type EntityIdentitySettings,
   entityReferenceId,
-  entitySourceGeneration,
 } from "../../contracts/entity-identity.ts";
 import type {
   EntityCreate,
@@ -54,26 +53,6 @@ export interface EntityStore extends ChangeStore {
 export interface EntityDeps {
   uow: { run<T>(actor: Actor, fn: (store: EntityStore) => Promise<T>): Promise<T> };
 }
-/** Read-only preparation freezes issuer, mode and settings revision, never reserves an ID. */
-export function prepareEntityRegistration(d: EntityDeps, a: Actor, i: Pick<EntityCreate, "source" | "external_id">) {
-  return d.uow.run(a, async (s) => {
-    const saved = await s.getBusinessSettings();
-    const settings = saved.settings.entity_identity ?? defaultEntityIdentitySettings;
-    const { source, external_id } = registrationIdentity(settings, i);
-    const id = external_id === undefined ? undefined : entityId(source, external_id);
-    const existing = id === undefined ? null : await s.get(id);
-    return {
-      source,
-      generation: entitySourceGeneration(settings, source),
-      settings_version: saved.versions?.entity_identity ?? 0,
-      external_id,
-      id,
-      action: registrationState(existing),
-      expected_version: existing?.version,
-      existing: existing && id ? { ...existing, ...await s.related(id) } : null,
-    };
-  });
-}
 export function createEntity(d: EntityDeps, a: Actor, i: EntityCreate) {
   return runWrite(
     d.uow,
@@ -84,7 +63,7 @@ export function createEntity(d: EntityDeps, a: Actor, i: EntityCreate) {
     async (s) => {
       const saved = await s.getBusinessSettings(true);
       if (i.settings_version !== undefined && i.settings_version !== (saved.versions?.entity_identity ?? 0)) {
-        throw new AppError("settings_changed", "발급처 설정이 변경되었습니다. 다시 준비하세요");
+        throw new AppError("settings_changed", "발급처 설정이 변경되었습니다. 설정을 다시 조회하세요");
       }
       const settings = saved.settings.entity_identity ?? defaultEntityIdentitySettings;
       const { source } = registrationIdentity(settings, i);
