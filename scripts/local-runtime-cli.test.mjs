@@ -22,6 +22,17 @@ test('Docker Desktop Windows bind bridge resolves the actual drive directory and
   } finally { rmdirSync(directory); }
 });
 
+test('Docker Desktop macOS Users bridge resolves the actual directory and rejects guessed traversal', { skip: process.platform !== 'darwin' }, () => {
+  const canonical = realpathSync(process.cwd());
+  assert.ok(canonical.startsWith('/Users/'), 'fixture must use a real macOS Users checkout');
+  const bridge = `/host_mnt${canonical}`;
+  assert.equal(realHostBindSource(bridge), canonical);
+  assert.throws(() => realHostBindSource(`${bridge}/../${canonical.split('/').at(-1)}`));
+  assert.throws(() => realHostBindSource(bridge.replace('/host_mnt/', '/guessed/')));
+  assert.throws(() => realHostBindSource(bridge.replace('/Users/', '/Users//')));
+  assert.throws(() => realHostBindSource(`${bridge}/missing-runtime-bind-directory`));
+});
+
 test('concurrent same-project runners cannot acquire while unrelated projects and a later run can', () => {
   const directory = mkdtempSync(join(tmpdir(), 'runtime-lock-test-'));
   const release = acquireRuntimeLock('same', directory);
