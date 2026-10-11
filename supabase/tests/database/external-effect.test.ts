@@ -1,3 +1,4 @@
+import type postgres from "postgres";
 import { assertEquals, assertMatch, assertRejects } from "@std/assert";
 import {
   SqlEffectStatusReader,
@@ -34,9 +35,9 @@ const deps = {
 const vector = Array.from({ length: 1024 }, (_, n) => n === 0 ? 1 : 0);
 const supported = { idempotency: { valid_for_seconds: 3600 }, lookup: false };
 const unsupported = { idempotency: null, lookup: false };
-async function job(text = "원문은 비밀이며 effect에는 저장하지 않는다") {
-  const record = await activity.createRecord(deps, requestActor(actor), recordCreate.parse({ body: text }));
-  const [claim] = await queue.claim({ limit: 1, owner_id: actor.userId, kind: "record", id: record.id });
+async function job(text = "원문은 비밀이며 effect에는 저장하지 않는다", who = actor) {
+  const record = await activity.createRecord(deps, requestActor(who), recordCreate.parse({ body: text }));
+  const [claim] = await queue.claim({ limit: 1, owner_id: who.userId, kind: "record", id: record.id });
   const input: PassageEffectInput = {
     message_id: claim.msg_id,
     pipeline: SEARCH_PIPELINE,
@@ -219,7 +220,11 @@ dbTest(
     };
     const failingSave = {
       claim: ledger.claim.bind(ledger),
-      complete: () => Promise.reject(Error("injected_storage_failure")),
+      complete: (claim: ActiveEffectClaim, result: Parameters<typeof ledger.complete>[1]) =>
+        worker.begin(async (tx) => {
+          await new SqlExternalEffectLedger(tx as unknown as postgres.Sql).complete(claim, result);
+          throw Error("injected_storage_failure_before_commit");
+        }),
     };
     await assertRejects(() => executePassageEffect(failingSave, provider, a.input, a.text));
     const id = (await status(a.record.id))[0].effect_id;
@@ -262,7 +267,7 @@ dbTest(
       deps,
       requestActor(actor),
       a.record.id,
-      recordUpdate.parse({ expected_version: 1, body: a.text }),
+      recordUpdate.parse({ expected_version: 1, body: a.text, occurred_at: "2025-01-01T00:00:00.000Z" }),
     );
     assertEquals(await status(a.record.id), []);
     // The same pending message now binds to the new record revision.
@@ -310,15 +315,47 @@ dbTest(
   },
 );
 
+dbTest("external effects: local record, request result, queue and external intent roll back together", async () => {
+  let recordId = "";
+  const failingDeps = {
+    ...deps,
+    uow: {
+      run: <T>(who: typeof actor, fn: Parameters<typeof deps.uow.run<T>>[1]) =>
+        deps.uow.run(who, async (store) => {
+          const result = await fn(store);
+          recordId = (result as { id: string }).id;
+          throw Error("injected_local_transaction_failure");
+        }),
+    },
+  };
+  await assertRejects(() =>
+    activity.createRecord(failingDeps, requestActor(actor), recordCreate.parse({ body: "rolled back" }))
+  );
+  assertEquals(
+    (await admin`select id from private.search_effect_intents where owner_id=${actor.userId} and record_id=${recordId}`)
+      .length,
+    0,
+  );
+  const missing = await assertRejects(() => activity.getRecord(deps, actor, recordId), AppError);
+  assertEquals(missing.code, "not_found");
+  assertEquals(await queue.claim({ limit: 1, owner_id: actor.userId, kind: "record", id: recordId }), []);
+});
+
 dbTest("external effects: account cascade removes intents/results and rejects remaining actor", async () => {
   const owned = await fixtureOwner(admin);
-  const record = await activity.createRecord(deps, requestActor(owned.actor), recordCreate.parse({ body: "cascade" }));
+  const ownedJob = await job("cascade", owned.actor);
+  const ownedClaim = active(await ledger.claim(ownedJob.input, supported, false));
+  await ledger.complete(ownedClaim, { state: "succeeded", vector });
   await owned.cleanup();
+  assertEquals((await admin`select id from private.passage_effects where id=${ownedClaim.effect_id}::uuid`).length, 0);
   assertEquals(
     (await admin`select id from private.search_effect_intents where owner_id=${owned.actor.userId}`).length,
     0,
   );
-  const error = await assertRejects(() => activity.getRecordIndexEffects(deps, owned.actor, record.id), AppError);
+  const error = await assertRejects(
+    () => activity.getRecordIndexEffects(deps, owned.actor, ownedJob.record.id),
+    AppError,
+  );
   assertEquals(error.code, "unauthenticated");
 });
 
