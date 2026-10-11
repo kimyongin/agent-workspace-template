@@ -24,14 +24,19 @@ export const timezone = z.string().min(1).max(64).refine((tz) => {
 }, { message: "알 수 없는 시간대입니다" });
 
 const uniqueSorted = (values: number[]) => [...new Set(values)].sort((a, b) => a - b);
+const weekdayMessage = "요일은 1~7 사이 정수로 쓰세요(1=월, 2=화, 3=수, 4=목, 5=금, 6=토, 7=일)";
 
 export const recurrence = z.discriminatedUnion("freq", [
   z.strictObject({ freq: z.literal("daily"), starts_on: isoDate }),
   z.strictObject({
     freq: z.literal("weekly"),
     /** ISO 요일: 1=월 … 7=일 */
-    weekdays: z.array(z.number().int().min(1).max(7)).min(1, { message: "요일을 하나 이상 고르세요" }).max(7)
-      .transform(uniqueSorted),
+    weekdays: z.array(
+      z.number({ error: weekdayMessage }).int({ message: weekdayMessage })
+        .min(1, { message: weekdayMessage }).max(7, { message: weekdayMessage }),
+    )
+      .min(1, { message: "요일을 하나 이상 고르세요" }).max(7).transform(uniqueSorted)
+      .describe("ISO 요일: 1=월, 2=화, 3=수, 4=목, 5=금, 6=토, 7=일. 여러 요일 선택 가능."),
     starts_on: isoDate,
   }),
   z.strictObject({
@@ -40,7 +45,8 @@ export const recurrence = z.discriminatedUnion("freq", [
     month_days: z.array(
       z.number().int().min(1, { message: "1~31 사이 날짜를 쓰세요" }).max(31, { message: "1~31 사이 날짜를 쓰세요" }),
     )
-      .min(1, { message: "날짜를 하나 이상 쓰세요" }).max(31).transform(uniqueSorted),
+      .min(1, { message: "날짜를 하나 이상 쓰세요" }).max(31).transform(uniqueSorted)
+      .describe("매월 1~31일. 해당 달에 없는 날짜는 그 달 마지막 날로 보정하며, 같은 날로 겹치면 회차 하나."),
     starts_on: isoDate,
   }),
 ]);

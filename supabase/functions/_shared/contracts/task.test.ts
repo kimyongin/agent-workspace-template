@@ -1,4 +1,4 @@
-import { assertEquals } from "@std/assert";
+import { assertEquals, assertStringIncludes } from "@std/assert";
 import { occurrenceRange, recurrence, taskCreate, taskUpdate } from "./task.ts";
 
 Deno.test("생성: 서버 관리 필드와 종류에 없는 필드는 거부", () => {
@@ -48,6 +48,19 @@ Deno.test("수정: 바꿀 필드가 있어야 하고 kind·status는 거부", ()
     taskUpdate.safeParse({ change_note: "테스트 변경 이유", expected_version: 1, due_on: null }).success,
     true,
   );
+});
+
+Deno.test("잘못된 ISO 요일은 유효 범위와 요일 대응을 안내한다", () => {
+  for (const day of [0, 8, 1.5, "월"]) {
+    const result = recurrence.safeParse({ freq: "weekly", weekdays: [day], starts_on: "2026-10-01" });
+    assertEquals(result.success, false);
+    if (!result.success) {
+      assertEquals(result.error.issues[0].path, ["weekdays", 0]);
+      assertStringIncludes(result.error.issues[0].message, "1~7 사이 정수");
+      assertStringIncludes(result.error.issues[0].message, "1=월");
+      assertStringIncludes(result.error.issues[0].message, "7=일");
+    }
+  }
 });
 
 Deno.test("회차 기간은 최대 366일", () => {

@@ -124,8 +124,11 @@ export function activityTools(deps: activity.ActivityDeps): ToolDef[] {
     {
       name: "record_occurrence",
       description:
-        "반복 할 일의 회차(date)에 수행 결과 기록을 남긴다. 규칙상 회차·시작일 이후·중단 기간 밖·오늘(할 일 시간대) 이전만 가능. 한 회차에 여러 번 가능.",
-      input: occurrenceRecordCreate.extend({ task_id: id, date: isoDate }),
+        "반복 할 일의 회차(date)에 수행 결과 기록을 남긴다. 규칙상 회차·시작일 이후·중단 기간 밖·오늘(할 일 시간대)까지 가능하며 미래 날짜는 불가. 한 회차에 여러 번 가능.",
+      input: occurrenceRecordCreate.extend({
+        task_id: id,
+        date: isoDate.describe("실제로 수행한 회차 날짜. 할 일의 시간대 기준 오늘까지 가능하며 미래 날짜는 불가."),
+      }),
       readOnly: false,
       handler: (args, actor) => {
         const { task_id, date, ...input } = parse(occurrenceRecordCreate.extend({ task_id: id, date: isoDate }), args);

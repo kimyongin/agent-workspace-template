@@ -147,7 +147,7 @@ export function TaskDetailPage() {
             : (
               <div>
                 <dt>{taskLabels.recurrence}</dt>
-                <dd>{describeRecurrence(task)}</dd>
+                <dd>{describeRecurrence(task)}{task.recurrence?.freq === "monthly" && <p className="help">해당 달에 없는 날짜는 그 달 마지막 날로 옮깁니다. 같은 날로 겹치면 회차 하나입니다.</p>}</dd>
               </div>
             )}
           {task.completed_at && (
