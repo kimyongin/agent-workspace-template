@@ -251,11 +251,18 @@ dbTest("HTTP and MCP share canonical creation and settings payloads and reject r
     const removed = await app.request("/api/ids/allocate", { method: "POST" });
     assertEquals(removed.status, 404);
     await removed.body?.cancel();
-    for (const path of ["/records", "/tags", "/principles", "/tasks"]) {
+    for (
+      const [path, validInput] of [
+        ["/records", { body: "old" }],
+        ["/tags", { name: "old" }],
+        ["/principles", { title: "old" }],
+        ["/tasks", { kind: "once", title: "old" }],
+      ] as const
+    ) {
       const rejected = await app.request(`/api${path}`, {
         method: "POST",
         headers: { "content-type": "application/json", "Idempotency-Key": crypto.randomUUID() },
-        body: JSON.stringify({ id: "20261011-ABCDEFGH", body: "old", title: "old", name: "old", kind: "once" }),
+        body: JSON.stringify({ ...validInput, id: "20261011-ABCDEFGH" }),
       });
       assertEquals(rejected.status, 400);
       await rejected.body?.cancel();
