@@ -31,7 +31,7 @@ httpTest("worker HTTP: 인증·메서드·입력 거부가 큐 claim/공급자 �
   const empty = await fetch(url, {
     method: "POST",
     headers: { authorization: `Bearer ${internal}`, "content-type": "application/json" },
-    body: JSON.stringify({ limit: 1, id: crypto.randomUUID() }),
+    body: JSON.stringify({ limit: 1, id: "20261011ZZZZZZZZ" }),
   });
   if (empty.status === 200) assertEquals((await empty.json()).claimed, 0);
   else {
