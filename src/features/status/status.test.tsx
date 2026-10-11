@@ -9,7 +9,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { StatusContent } from "./StatusContent.tsx";
 import type { StatusOverview } from "@contracts/status.ts";
 
-it("상태 화면은 네 그래프, 실제 개수와 날짜별 값, 집계 한계를 제공한다", () => {
+it("상태 화면은 네 그래프에서 날짜와 실제 값을 제공하며 중복 날짜별 목록을 표시하지 않는다", () => {
   const data: StatusOverview = {
     timezone: "Asia/Seoul",
     queried_at: "2026-10-10T15:00:00.000Z",
@@ -33,25 +33,13 @@ it("상태 화면은 네 그래프, 실제 개수와 날짜별 값, 집계 한�
   expect(html).toContain("일회성 완료");
   expect(html).toContain("작성일별 현재 색인 상태");
   expect(html).toContain("과거 대기량");
-  expect(html).toContain("삭제된 할 일·기록");
-  expect(html).toContain("날짜별 값");
+  expect(html).not.toContain("집계 기준과 날짜별 값");
   expect(html).not.toContain('type="range"');
   expect(html).toContain("2026-10-11");
-  expect(html).toContain('aria-label="2026-10-11 날짜별 값"');
-  for (
-    const [label, value] of [
-      ["등록", 2],
-      ["할 일 생성", 3],
-      ["일회성 완료", 1],
-      ["기록 작성", 4],
-      ["색인 완료", 1],
-      ["준비 중", 1],
-      ["확인 필요", 1],
-      ["대상 제외", 1],
-    ]
-  ) {
-    expect(html).toContain(`<dt>${label}</dt><dd>${value}</dd>`);
-  }
+  expect(html).toContain("등록 2건");
+  expect(html).toContain("생성 3건 · 일회성 완료 1건");
+  expect(html).toContain("작성 4건");
+  expect(html).toContain("완료 1건 · 준비 중 1건 · 확인 필요 1건 · 대상 제외 1건");
 });
 
 it("색인 문제는 기본 접힘이며 펼치기 전에 문제 제목이나 페이지 조작을 렌더하지 않는다", () => {

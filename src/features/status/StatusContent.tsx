@@ -16,16 +16,6 @@ const indexSeries: Series[] = [
   { label: "대상 제외", tone: "muted-ink", value: (d) => d.indexing.excluded },
 ];
 
-// Exact daily values reuse the same metric readers as the four charts.
-const dailyValues = [
-  entitySeries[0],
-  { ...taskSeries[0], label: "할 일 생성" },
-  taskSeries[1],
-  { ...recordSeries[0], label: "기록 작성" },
-  { ...indexSeries[0], label: "색인 완료" },
-  ...indexSeries.slice(1),
-];
-
 function DailyChart(
   { title, days, series, stacked = false }: { title: string; days: StatusDay[]; series: Series[]; stacked?: boolean },
 ) {
@@ -216,34 +206,6 @@ export function StatusContent({ data, children }: { data: StatusOverview; childr
         </p>
         {children}
       </section>
-      <details className="status-explanation">
-        <summary>집계 기준과 날짜별 값</summary>
-        <p className="help">
-          서버 조회 시각과 {data.timezone}{" "}
-          시간대를 기준으로 오늘을 포함한 30개 날짜를 표시합니다. 현재 보관 중인 자료만 집계하며 삭제 보관 엔터티의
-          등록도 포함합니다. 실제 삭제된 할 일·기록은 과거 활동 집계에서도 빠질 수 있습니다. 기록은 수정 가능한 발생
-          시각 대신 작성 시각을 사용합니다. 반복 수행은 수행 결과 기록이며 일회성 완료에 합산하지 않습니다. 준비 중은
-          대기·처리·재시도 상태, 확인 필요는 응답 확인 불가·서비스 설정 오류·자동 재시도 중단 등입니다.
-        </p>
-        <h2 className="status-daily-values-title">날짜별 값 (건)</h2>
-        <div className="status-daily-values">
-          {daily.map((day) => (
-            <section key={day.date} aria-label={`${day.date} 날짜별 값`}>
-              <h3>
-                <time dateTime={day.date}>{day.date}</time>
-              </h3>
-              <dl>
-                {dailyValues.map((metric) => (
-                  <div key={metric.label}>
-                    <dt>{metric.label}</dt>
-                    <dd>{metric.value(day)}</dd>
-                  </div>
-                ))}
-              </dl>
-            </section>
-          ))}
-        </div>
-      </details>
     </>
   );
 }

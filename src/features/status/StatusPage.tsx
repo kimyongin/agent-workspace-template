@@ -30,33 +30,34 @@ export function StatusPage() {
     void refresh();
     return () => controller.current?.abort();
   }, []);
-  const viewedAt = data
-    ? new Intl.DateTimeFormat("ko-KR", { timeZone: data.timezone, dateStyle: "short", timeStyle: "medium" }).format(
-      new Date(data.queried_at),
-    )
-    : null;
   return (
     <section className="panel status-page" aria-labelledby="status-title" aria-busy={busy}>
       <header className="panel-head">
         <h1 className="page-title" id="status-title">상태</h1>
-        <button className="btn" type="button" onClick={() => void refresh()} disabled={busy}>
-          {busy ? "조회 중…" : "새로고침"}
+        <button
+          className="btn btn-text"
+          type="button"
+          aria-label="새로고침"
+          title={busy ? "조회 중…" : "새로고침"}
+          onClick={() => void refresh()}
+          disabled={busy}
+        >
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.75"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M20 11a8 8 0 0 0-14-5L3 9m0-6v6h6m-5 4a8 8 0 0 0 14 5l3-3m0 6v-6h-6" />
+          </svg>
         </button>
       </header>
-      <div className="status-view-info">
-        <div className="status-view-meta">
-          <span className="meta">{data?.timezone ?? "Asia/Seoul"} · 서버 집계</span>
-          <span className="meta" role="status">
-            {busy ? "서버에서 상태를 조회하고 있습니다." : error ? "이번 조회 실패" : "이번 조회 연결 성공"}
-          </span>
-        </div>
-        {error && <p className="error" role="alert">{error}</p>}
-        {data && (
-          <p className="status-view-time meta">
-            {busy || error ? "이전 조회" : "조회 시각"}: <time dateTime={data.queried_at}>{viewedAt}</time> 기준
-          </p>
-        )}
-      </div>
+      {error && <p className="error" role="alert">{error}</p>}
       {data && (
         <StatusContent data={data}>
           <IndexingIssues key={issuesRevision} count={data.indexing.attention} disabled={busy || !!error} />

@@ -1,24 +1,10 @@
-.status-page h3:not(.section-title) {
-  margin: 0;
-  font-size: var(--text-label);
-  font-weight: 600;
-  line-height: 1.25rem;
-}
 .status-section-heading,
-.status-chart-heading,
-.status-view-meta {
+.status-chart-heading {
   display: flex;
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
   gap: var(--space-2);
-}
-.status-view-info {
-  display: grid;
-  gap: var(--space-1);
-}
-.status-view-time {
-  margin: 0;
 }
 .status-section-heading {
   margin-bottom: var(--space-2);
@@ -132,52 +118,6 @@
   gap: var(--space-2);
   margin-block: var(--space-3);
   font-size: var(--text-meta);
-}
-.status-explanation > summary {
-  min-height: 44px;
-  display: flex;
-  align-items: center;
-  cursor: pointer;
-  color: var(--accent);
-  font-size: var(--text-label);
-}
-.status-explanation > summary::before {
-  content: '›';
-  margin-right: var(--space-2);
-}
-.status-explanation[open] > summary::before {
-  content: '⌄';
-}
-.status-page .status-daily-values-title {
-  margin-block: var(--space-3) var(--space-2);
-}
-.status-daily-values {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
-  gap: var(--space-4);
-}
-.status-daily-values section {
-  min-width: 0;
-  padding-block: var(--space-2);
-  border-top: 1px solid var(--line);
-}
-.status-daily-values dl {
-  margin: var(--space-2) 0 0;
-  font-size: var(--text-meta);
-}
-.status-daily-values dl div {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: var(--space-2);
-  padding-block: var(--space-1);
-}
-.status-daily-values dt {
-  color: var(--muted-ink);
-  overflow-wrap: anywhere;
-}
-.status-daily-values dd {
-  margin: 0;
-  font-variant-numeric: tabular-nums;
 }
 @media (max-width: 639px) {
   .status-domain {
