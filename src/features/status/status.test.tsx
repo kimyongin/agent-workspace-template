@@ -1,4 +1,6 @@
-import { expect, it } from "vitest";
+import { IndexingIssues } from "./IndexingIssues.tsx";
+import { expect, it, vi } from "vitest";
+vi.mock("../../lib/api.ts", () => ({ api: () => { throw new Error("collapsed list must not fetch"); } }));
 import { renderToStaticMarkup } from "react-dom/server";
 import { StatusContent } from "./StatusContent.tsx";
 import type { StatusOverview } from "@contracts/status.ts";
@@ -31,4 +33,10 @@ it("상태 화면은 네 그래프, 실제 개수와 날짜별 값, 집계 한�
   expect(html).toContain("날짜별 값");
   expect(html).toContain('type="range"');
   expect(html).toContain("2026-10-11");
+});
+
+it("색인 문제는 기본 접힘이며 펼치기 전에 문제 제목이나 페이지 조작을 렌더하지 않는다", () => {
+ const html=renderToStaticMarkup(<IndexingIssues count={23}/>);
+ expect(html).toContain("색인 문제 23개"); expect(html).toContain('aria-expanded="false"');
+ expect(html).not.toContain("본문 구간"); expect(html).not.toContain("다음");
 });

@@ -4,7 +4,7 @@ import { SqlEntityUnitOfWork } from "../../functions/_shared/adapters/supabase/e
 import { SqlUnitOfWork } from "../../functions/_shared/adapters/supabase/activity-store.ts";
 import { SqlBusinessSettingsUnitOfWork } from "../../functions/_shared/adapters/supabase/business-settings-store.ts";
 import { getBusinessSettings, updateBusinessSettings } from "../../functions/_shared/core/settings/application.ts";
-import { entityCreate, entityListQuery, entityRekey, entityUpdate } from "../../functions/_shared/contracts/entity.ts";
+import { entityCreate, entityListQuery, entityUpdate } from "../../functions/_shared/contracts/entity.ts";
 import { recordCreate } from "../../functions/_shared/contracts/record.ts";
 import { taskComplete, taskCreate, taskUpdate } from "../../functions/_shared/contracts/task.ts";
 import * as entities from "../../functions/_shared/core/entity/application.ts";
@@ -75,11 +75,11 @@ dbTest("발급처 소프트 삭제는 새 식별만 막고 기존 값·관계를
     );
     await assertRejects(
       () =>
-        entities.rekeyEntity(
+        entities.updateEntity(
           ed,
           requestActor(f.actor),
           entity.id,
-          entityRekey.parse({ source: "crm", external_id: "변경 ID", expected_version: 1 }),
+          entityUpdate.parse({ source: "crm", external_id: "변경 ID", expected_version: 1 }),
         ),
       AppError,
     );
@@ -218,11 +218,11 @@ dbTest(
       );
       await entities.deleteEntity(ed, requestActor(f.actor), collision.id, 1);
       await assertRejects(() =>
-        entities.rekeyEntity(
+        entities.updateEntity(
           ed,
           requestActor(f.actor),
           restored.id,
-          entityRekey.parse({ source: "app", external_id: input.external_id, expected_version: 3 }),
+          entityUpdate.parse({ source: "app", external_id: input.external_id, expected_version: 3 }),
         ), AppError);
       assertEquals((await activity.getRecord(ad, f.actor, record.id)).entity_ids, [restored.id]);
       await assertRejects(

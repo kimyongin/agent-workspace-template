@@ -3,16 +3,19 @@ import type { StatusOverview } from "@contracts/status.ts";
 import { api } from "../../lib/api.ts";
 import { StatusContent } from "./StatusContent.tsx";
 import "./status.css";
+import { IndexingIssues } from "./IndexingIssues.tsx";
 
 export function StatusPage() {
   const [data, setData] = useState<StatusOverview | null>(null);
   const [busy, setBusy] = useState(true), [error, setError] = useState("");
+  const [issuesRevision, setIssuesRevision] = useState(0);
   const controller = useRef<AbortController | null>(null);
   async function refresh() {
     controller.current?.abort();
     const request = new AbortController();
     controller.current = request;
     setBusy(true);
+    setIssuesRevision((revision) => revision + 1);
     setError("");
     try {
       const next = await api<StatusOverview>("GET", "/status", undefined, request.signal);
@@ -52,7 +55,9 @@ export function StatusPage() {
           <p className="status-view-time meta">
             {busy || error ? "이전 조회" : "조회 시각"}: <time dateTime={data.queried_at}>{viewedAt}</time> 기준
           </p>
-          <StatusContent data={data} />
+          <StatusContent data={data}>
+            <IndexingIssues key={issuesRevision} count={data.indexing.attention} disabled={busy || !!error} />
+          </StatusContent>
         </>
       )}
     </div>

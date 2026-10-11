@@ -1,9 +1,7 @@
+import { AppError } from "../../functions/_shared/core/shared/errors.ts";
 import type postgres from "postgres";
 import { assertEquals, assertMatch, assertRejects } from "@std/assert";
-import {
-  SqlEffectStatusReader,
-  SqlExternalEffectLedger,
-} from "../../functions/_shared/adapters/supabase/external-effect.ts";
+import { SqlExternalEffectLedger } from "../../functions/_shared/adapters/supabase/external-effect.ts";
 import { SqlIndexQueue } from "../../functions/_shared/adapters/supabase/index-queue.ts";
 import { SqlUnitOfWork } from "../../functions/_shared/adapters/supabase/activity-store.ts";
 import { recordCreate, recordUpdate } from "../../functions/_shared/contracts/record.ts";
@@ -16,7 +14,6 @@ import {
   type PassageProvider,
 } from "../../functions/_shared/core/search/external-effect.ts";
 import { searchInputHash } from "../../functions/_shared/core/shared/operations.ts";
-import { AppError } from "../../functions/_shared/core/shared/errors.ts";
 import { requestActor } from "../_request.ts";
 import { asUser, connect, dbTest, fixtureOwner, outcome, urls } from "./_db.ts";
 
@@ -30,7 +27,6 @@ const fixture = await fixtureOwner(admin), foreign = await fixtureOwner(admin), 
 const deps = {
   uow: new SqlUnitOfWork(user),
   clock: { now: () => new Date() },
-  effectStatus: new SqlEffectStatusReader(user),
 };
 const vector = Array.from({ length: 1024 }, (_, n) => n === 0 ? 1 : 0);
 async function job(text = "원문은 비밀이며 effect에는 저장하지 않는다", who = actor) {
@@ -48,7 +44,15 @@ async function job(text = "원문은 비밀이며 effect에는 저장하지 않�
   };
   return { record, input, text };
 }
-const status = (id: string) => activity.getRecordIndexEffects(deps, actor, id);
+const status = async (id: string) => [
+  ...await admin`select e.id::text as effect_id,
+  case when e.state='running' and e.lease_until<=now() then 'unknown' else e.state end as state,
+  e.attempts,e.reason,e.start_offset as start,e.end_offset as end
+  from private.passage_effects e join app.records r on r.owner_id=e.owner_id and r.id=e.record_id
+  join app.search_index_state s on s.owner_id=e.owner_id and s.id=e.record_id and s.kind='record'
+    and s.input_hash=e.source_hash and s.pipeline=e.pipeline
+  where e.owner_id=${actor.userId} and e.record_id=${id} and e.source_version=r.version`,
+];
 // Fault injection only: move the durable lease/backoff clock; assertions use public use cases.
 async function release(effectId: string) {
   await admin`update private.passage_effects set lease_until=now()-interval '1 second',next_attempt_at=now()-interval '1 second' where id=${effectId}::uuid`;
@@ -224,11 +228,6 @@ dbTest(
     };
     assertEquals((await executePassageEffect(ledger, provider, a.input, a.text)).state, "failed");
     assertEquals((await executePassageEffect(ledger, provider, a.input, a.text)).state, "failed");
-    const foreignError = await assertRejects(
-      () => activity.getRecordIndexEffects(deps, foreign.actor, a.record.id),
-      AppError,
-    );
-    assertEquals(foreignError.code, "not_found");
     await activity.updateRecord(
       deps,
       requestActor(actor),
@@ -343,11 +342,6 @@ dbTest("external effects: account cascade removes effects/results and rejects re
     (await admin`select id from private.passage_effects where owner_id=${owned.actor.userId}`).length,
     0,
   );
-  const error = await assertRejects(
-    () => activity.getRecordIndexEffects(deps, owned.actor, ownedJob.record.id),
-    AppError,
-  );
-  assertEquals(error.code, "unauthenticated");
 });
 
 dbTest("external-effect fixture cleanup", async () => {

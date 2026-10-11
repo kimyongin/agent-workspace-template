@@ -1,6 +1,5 @@
 import { SqlStatusReader } from "./adapters/supabase/status-reader.ts";
 import type { StatusDeps } from "./core/status/application.ts";
-import { SqlEffectStatusReader } from "./adapters/supabase/external-effect.ts";
 // 실행 환경에서 실제 구현을 조립한다. 요청마다 Actor는 진입점이 검증해 유스케이스에 넘긴다.
 import postgres from "postgres";
 import { SqlUnitOfWork } from "./adapters/supabase/activity-store.ts";
@@ -69,7 +68,6 @@ export function activityDeps(): ActivityDeps {
     const sql = database();
     deps = {
       uow: new SqlUnitOfWork(sql),
-      effectStatus: new SqlEffectStatusReader(sql),
       clock: { now: () => new Date() },
     };
   }

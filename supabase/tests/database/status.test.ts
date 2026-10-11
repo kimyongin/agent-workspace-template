@@ -193,6 +193,24 @@ dbTest(
       const c = client(own.actor.userId), overview = await c.status();
       assertEquals(overview.indexing, { total: 13, indexed: 1, excluded: 1, preparing: 7, attention: 4 });
       assertEquals(overview.daily[29].indexing, { indexed: 1, excluded: 1, preparing: 7, attention: 4 });
+      const issuesResponse = await c.app.request("/status/indexing/issues");
+      assertEquals(issuesResponse.status, 200);
+      const issues = await issuesResponse.json();
+      assertEquals(
+        issues.items.map((item: { id: string }) => item.id).sort(),
+        [records.unknown, records.expired, records.configuration, records.held].sort(),
+      );
+      assertEquals(issues.next_cursor, null);
+      assertEquals(issues.items.find((item: { id: string }) => item.id === records.unknown).chunks, {
+        total: 1,
+        succeeded: 0,
+        preparing: 0,
+        unknown: 1,
+        failed: 0,
+      });
+      for (const secret of ["effect_id", "provider_scope", "private-model", "vector", "input_hash"]) {
+        assertEquals(JSON.stringify(issues).includes(secret), false);
+      }
       const serialized = JSON.stringify(overview);
       for (const secret of ["private-model", "provider_scope", "effect_id", "known body", ...Object.values(records)]) {
         assertEquals(serialized.includes(secret), false);
@@ -204,6 +222,67 @@ dbTest(
       await assertRejects(() => asUser(user, own.actor.userId, (tx) => tx`select * from private.passage_effects`));
     } finally {
       await own.cleanup();
+    }
+  },
+);
+
+dbTest(
+  "indexing issues: owner-bound stable five-row pages, equal timestamps, last page and removed SQL getter",
+  async () => {
+    const own = await fixtureOwner(admin), foreign = await fixtureOwner(admin);
+    try {
+      const ids: string[] = [];
+      for (let n = 0; n < 11; n++) {
+        const record = id();
+        ids.push(record);
+        await admin`insert into app.records(owner_id,id,body,created_at,occurred_at) values(${own.actor.userId},${record},'problem',${at},${at})`;
+        await admin`insert into app.search_index_state(owner_id,kind,id,pipeline,input_hash,state,reason,generation)
+        values(${own.actor.userId},'record',${record},${SEARCH_PIPELINE},encode(extensions.digest('problem','sha256'),'hex'),'failed','configuration',1)`;
+      }
+      const c = client(own.actor.userId);
+      const first = await (await c.app.request("/status/indexing/issues")).json();
+      assertEquals(first.items.map((r: { id: string }) => r.id), ids.sort().reverse().slice(0, 5));
+      const second =
+        await (await c.app.request(`/status/indexing/issues?cursor=${encodeURIComponent(first.next_cursor)}`)).json();
+      assertEquals(second.items.map((r: { id: string }) => r.id), ids.slice(5, 10));
+      const last =
+        await (await c.app.request(`/status/indexing/issues?cursor=${encodeURIComponent(second.next_cursor)}`)).json();
+      assertEquals(last.items.map((r: { id: string }) => r.id), ids.slice(10));
+      assertEquals(last.next_cursor, null);
+      assertEquals(
+        (await client(foreign.actor.userId).app.request(
+          `/status/indexing/issues?cursor=${encodeURIComponent(first.next_cursor)}`,
+        )).status,
+        400,
+      );
+      assertEquals(await (await client(foreign.actor.userId).app.request("/status/indexing/issues")).json(), {
+        items: [],
+        next_cursor: null,
+      });
+      assertEquals(
+        await statusTools({ reader: new SqlStatusReader(user), clock: { now: () => new Date(at) } })[1].handler({
+          cursor: first.next_cursor,
+        }, c.actor),
+        second,
+      );
+      const getter = await admin`select to_regprocedure('app.record_passage_effect_status(text)') as name`;
+      assertEquals(getter[0].name, null);
+      const emoji = id(), body = "😀".repeat(110);
+      await admin`insert into app.records(owner_id,id,body,created_at,occurred_at)
+      values(${own.actor.userId},${emoji},${body},'2026-10-11T00:00:00Z',${at})`;
+      await admin`insert into app.search_index_state(owner_id,kind,id,pipeline,input_hash,state,reason,generation)
+      values(${own.actor.userId},'record',${emoji},${SEARCH_PIPELINE},encode(extensions.digest(${body},'sha256'),'hex'),'failed','configuration',1)`;
+      const unicode = await c.app.request("/status/indexing/issues");
+      assertEquals(unicode.status, 200);
+      assertEquals((await unicode.json()).items[0].title, "😀".repeat(100));
+      const grants =
+        await admin`select has_function_privilege('app_user','app.status_indexing_issues(text,timestamptz,timestamptz,text)','EXECUTE') as own,
+      has_function_privilege('app_worker','app.status_indexing_issues(text,timestamptz,timestamptz,text)','EXECUTE') as worker,
+      has_function_privilege('authenticated','app.status_indexing_issues(text,timestamptz,timestamptz,text)','EXECUTE') as direct`;
+      assertEquals(grants[0], { own: true, worker: false, direct: false });
+    } finally {
+      await own.cleanup();
+      await foreign.cleanup();
     }
   },
 );

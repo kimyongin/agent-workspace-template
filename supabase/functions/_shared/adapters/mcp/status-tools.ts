@@ -1,5 +1,5 @@
-import { statusInput } from "../../contracts/status.ts";
-import { getStatus, type StatusDeps } from "../../core/status/application.ts";
+import { indexingIssuesInput, statusInput } from "../../contracts/status.ts";
+import { getStatus, listIndexingIssues, type StatusDeps } from "../../core/status/application.ts";
 import { parse } from "../errors.ts";
 import type { ToolDef } from "./tools.ts";
 export function statusTools(d: StatusDeps): ToolDef[] {
@@ -10,5 +10,12 @@ export function statusTools(d: StatusDeps): ToolDef[] {
     input: statusInput,
     readOnly: true,
     handler: (i, a) => getStatus(d, a, parse(statusInput, i)),
+  }, {
+    name: "list_indexing_issues",
+    description:
+      "내 현재 색인 확인 필요 기록을 최근 작성 순으로 최대 5개 조회한다. next_cursor로 다음 페이지를 조회한다. 이유·시도 수·본문 구간 진행만 반환하며 응답 확인 불가는 확정 실패가 아니다. 외부 호출·쓰기를 수행하지 않는다.",
+    input: indexingIssuesInput,
+    readOnly: true,
+    handler: (i, a) => listIndexingIssues(d, a, parse(indexingIssuesInput, i)),
   }];
 }

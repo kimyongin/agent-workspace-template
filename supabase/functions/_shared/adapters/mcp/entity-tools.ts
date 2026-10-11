@@ -2,7 +2,7 @@ import { entityReferenceId as id } from "../../contracts/entity-identity.ts";
 import { z } from "zod";
 import { businessMeta } from "../../contracts/change.ts";
 import { expectedVersion } from "../../contracts/common.ts";
-import { entityCreate, entityListQuery, entityRekey, entityUpdate } from "../../contracts/entity.ts";
+import { entityCreate, entityListQuery, entityUpdate } from "../../contracts/entity.ts";
 import * as entity from "../../core/entity/application.ts";
 import { parse } from "../errors.ts";
 import { notFound } from "../../core/shared/errors.ts";
@@ -16,17 +16,6 @@ export function entityTools(d: entity.EntityDeps): ToolDef[] {
     update = entityUpdate.extend({ id: z.unknown() }),
     remove = z.strictObject({ id: z.unknown(), expected_version: expectedVersion, ...businessMeta });
   const tools: ToolDef[] = [
-    {
-      name: "rekey_entity",
-      description:
-        "별도 식별 정보 변경. 현재 expected_version 필수. 삭제된 대상을 포함한 동일 조합 충돌은 거부한다. 모든 현재 연결·사건 참조를 원자적으로 전환하고 과거 본문은 그대로 보존한다.",
-      input: entityRekey.extend({ id }),
-      readOnly: false,
-      handler: (i, a) => {
-        const { id: target, ...rest } = parse(entityRekey.extend({ id }), i);
-        return entity.rekeyEntity(d, a, target, rest);
-      },
-    },
     {
       name: "list_entities",
       description:

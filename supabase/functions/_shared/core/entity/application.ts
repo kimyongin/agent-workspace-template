@@ -8,14 +8,7 @@ import {
   type EntityIdentitySettings,
   entityReferenceId,
 } from "../../contracts/entity-identity.ts";
-import type {
-  EntityCreate,
-  EntityDetail,
-  EntityQuery,
-  EntityRekey,
-  EntityResult,
-  EntityUpdate,
-} from "../../contracts/entity.ts";
+import type { EntityCreate, EntityDetail, EntityQuery, EntityResult, EntityUpdate } from "../../contracts/entity.ts";
 import type { Actor } from "../shared/actor.ts";
 import { AppError, conflict, invalidInput, notFound } from "../shared/errors.ts";
 import { scopeOf } from "../shared/operations.ts";
@@ -115,28 +108,6 @@ async function requireVersion(s: EntityStore, id: string, expected: number) {
   if (entity.deleted_at) throw conflict("삭제된 엔터티입니다. 복원을 먼저 확인하세요");
   if (entity.version !== expected) throw conflict("다른 변경이 저장되어 있습니다. 다시 조회하세요.");
   return entity;
-}
-export function rekeyEntity(d: EntityDeps, a: Actor, id: string, i: EntityRekey) {
-  return runWrite(d.uow, a, "entity.rekey", id, i, async (s) => {
-    const old = await requireVersion(s, id, i.expected_version);
-    const settings = (await s.getBusinessSettings()).settings.entity_identity ?? defaultEntityIdentitySettings;
-    const decision = entityUpdateDecision(settings, { id, facts: entityChangeFacts(old) }, i, true);
-    if (!decision.rekey) return old;
-    if (await s.get(decision.id, true)) {
-      throw conflict("같은 발급처·식별자의 엔터티가 있습니다. 삭제된 대상도 별도 복원해야 합니다");
-    }
-    const result = await s.rekey(id, i);
-    await s.appendChange({
-      target_kind: "entity",
-      target: entityChangeTarget(result),
-      action: "update",
-      before: entityChangeFacts(old),
-      after: entityChangeFacts(result),
-      change_note: i.change_note,
-      change_tag_ids: i.change_tag_ids,
-    });
-    return result;
-  });
 }
 export function updateEntity(d: EntityDeps, a: Actor, id: string, i: EntityUpdate) {
   return runWrite(d.uow, a, "entity.update", id, i, async (s) => {

@@ -65,7 +65,7 @@ httpTest(
         3,
         null,
       ]);
-      const rekeyed = await tool(client, "rekey_entity", {
+      const rekeyed = await tool(client, "update_entity", {
         id: restored.id,
         source: "app",
         external_id: `새:/ID%${external_id}`,
