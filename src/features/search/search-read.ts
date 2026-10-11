@@ -2,7 +2,7 @@ import { type SearchInput, searchInput, type SearchItem, type SearchResult } fro
 import { createPagedList } from "../collections/paged-list.ts";
 import { workspaceSearchScope } from "./search-scope.ts";
 
-/** The public search contract accepts both existing UUIDs and reserved dated IDs. */
+/** The public search contract accepts both existing UUIDs and server-issued dated IDs. */
 export function searchAnchor(hash: string) {
   try {
     const match = /^#search-(task|record|principle)-(.+)$/.exec(decodeURIComponent(hash));
