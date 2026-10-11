@@ -24,7 +24,6 @@ export async function executeSqlRequest<T>(
       "idempotency_key_reused",
       "request_in_progress",
       "result_expired",
-      "idempotency_capacity_exceeded",
     ] as const;
     const code = codes.find((code) => code === receipt.state);
     if (!code) throw new AppError("internal", "요청 결과를 확인할 수 없습니다");
@@ -33,8 +32,7 @@ export async function executeSqlRequest<T>(
       {
         idempotency_key_reused: "같은 요청 키에 다른 입력을 사용할 수 없습니다",
         request_in_progress: "동일 요청이 처리 중입니다. 같은 키와 입력으로 다시 시도하세요",
-        result_expired: "보관 기간이 지난 요청입니다. 현재 상태를 확인하세요",
-        idempotency_capacity_exceeded: "요청 보관 한도에 도달했습니다",
+        result_expired: "요청 키와 결과의 30일 보관 기간이 지났습니다. 현재 상태를 확인하세요",
       }[code],
     );
   }
