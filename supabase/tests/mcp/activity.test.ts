@@ -1,3 +1,4 @@
+import type { EffectStatus } from "../../functions/_shared/core/search/external-effect.ts";
 import { requestKey } from "../../functions/_shared/contracts/request.ts";
 // MCP 계약 테스트: 실제 OAuth 토큰과 공식 MCP 클라이언트로 도구를 호출하고, HTTP와 결과·오류 의미가 같은지 본다.
 import { assert, assertEquals } from "@std/assert";
@@ -29,6 +30,28 @@ const tokenA = await mcpToken(sessionA);
 const tokenB = await mcpToken(sessionB);
 const mcpA = await connectMcp(tokenA);
 const mcpB = await connectMcp(tokenB);
+
+httpTest("색인 effect 조회: 실제 OAuth MCP 객체 envelope와 HTTP 배열은 같고 다른 소유자는 거절한다", async () => {
+  const record = await tool(mcpA, "create_record", { body: `status-protocol-${crypto.randomUUID()}` });
+  try {
+    // Read-only invocation supplies no logical write key. Official SDK validates structuredContent as an object.
+    const response = await mcpA.callTool({ name: "get_record_index_effects", arguments: { id: record.id } });
+    assertEquals(response.isError ?? false, false);
+    assert(response.structuredContent);
+    assertEquals(Array.isArray(response.structuredContent), false);
+    const mcpStatus = response.structuredContent as { items: EffectStatus[] };
+    assertEquals(mcpStatus, { items: [] });
+    const httpStatus = await call<EffectStatus[]>(sessionA, "GET", `/records/${record.id}/index-effects`);
+    assertEquals(httpStatus.status, 200);
+    assertEquals(mcpStatus.items, httpStatus.body);
+    assertEquals((await tool(mcpB, "get_record_index_effects", { id: record.id })).error.code, "not_found");
+    assertEquals((await call(sessionB, "GET", `/records/${record.id}/index-effects`)).status, 404);
+    assertEquals((await call(null, "GET", `/records/${record.id}/index-effects`)).status, 401);
+  } finally {
+    await tool(mcpA, "delete_record", { id: record.id, expected_version: record.version });
+  }
+  assertEquals((await tool(mcpA, "get_record_index_effects", { id: record.id })).error.code, "not_found");
+});
 
 httpTest("일반 할 일 메모와 제목 검색은 HTTP/MCP에서 같고 다른 사용자의 연결은 거부한다", async () => {
   const title = `상담 ${crypto.randomUUID()}%_`;

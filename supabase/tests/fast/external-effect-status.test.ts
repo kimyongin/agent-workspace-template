@@ -47,7 +47,7 @@ Deno.test("HTTP/MCP external status: readonly current-owner use case exposes sta
   assertEquals(await response.json(), effects);
   const tool = activityTools(deps).find((t) => t.name === "get_record_index_effects")!;
   assertEquals(tool.readOnly, true);
-  assertEquals(await tool.handler({ id }, actor), effects);
+  assertEquals(await tool.handler({ id }, actor), { items: effects });
   assertEquals(tool.input.safeParse({ id, request_key: crypto.randomUUID() }).success, false);
   assertEquals((await app.request(`/records/${crypto.randomUUID()}/index-effects`)).status, 404);
 });
