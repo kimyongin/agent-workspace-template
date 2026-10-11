@@ -1,3 +1,4 @@
+import { insertWithIdRetry } from "./data-id.ts";
 // Postgres 직접 연결 저장 어댑터. 트랜잭션마다 검증된 Actor 문맥을 넣고 app_user로 전환한다.
 // 방식: docs/architecture/hexagonal-review.md "권한과 직접 접근"(T02-1 실험 1에서 채택).
 import type postgres from "postgres";
@@ -136,7 +137,9 @@ export class SqlActivityStore extends SqlActorStore implements ActivityStore {
       ...pick(tx, task, TASK_WRITABLE),
       ...selection,
     };
-    const [row] = await tx`insert into app.tasks ${tx(values)} returning id`;
+    const row = await insertWithIdRetry(() =>
+      tx`insert into app.tasks ${tx(values)} on conflict (id) do nothing returning id`
+    );
     await this.setTaskTags(row.id as string, task.tag_ids);
     return (await this.getTask(row.id as string))!;
   }
@@ -234,7 +237,9 @@ export class SqlActivityStore extends SqlActorStore implements ActivityStore {
       record_kind: record.record_kind ?? "user",
     };
     if (record.occurred_at) values.occurred_at = record.occurred_at;
-    const [row] = await tx`insert into app.records ${tx(values)} returning id`;
+    const row = await insertWithIdRetry(() =>
+      tx`insert into app.records ${tx(values)} on conflict (id) do nothing returning id`
+    );
     await setTagLinks(tx, this.actor, "record", row.id as string, record.tag_ids ?? []);
     return (await this.getRecord(row.id as string))!;
   }

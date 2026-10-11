@@ -58,7 +58,7 @@ dbTest("same key concurrent task creation and lost-response retry commit one bus
   }
 });
 
-dbTest("failed write leaves neither ledger nor reservations and the same key can retry", async () => {
+dbTest("failed write rolls back business effects and ledger and the same key can retry", async () => {
   const f = await fixtureOwner(admin);
   try {
     const actor = keyed(f.actor);
@@ -86,11 +86,8 @@ dbTest("failed write leaves neither ledger nor reservations and the same key can
             )),
       },
     };
-    const [{ n: before }] = await admin`select count(*)::int n from private.data_id_reservations`;
     await assertRejects(() => activity.createTask(failing, actor, input));
     assertEquals(await effects(actor.userId), { tasks: 0, changes: 0, jobs: 0, receipts: 0 });
-    const [{ n: after }] = await admin`select count(*)::int n from private.data_id_reservations`;
-    assertEquals(after, before);
     const result = await activity.createTask(deps, actor, input);
     assertEquals((await activity.getTask(deps, actor, result.id)).id, result.id);
   } finally {

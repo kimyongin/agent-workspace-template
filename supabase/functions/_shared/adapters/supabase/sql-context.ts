@@ -1,3 +1,4 @@
+import { insertWithIdRetry } from "./data-id.ts";
 import { executeSqlRequest } from "./request-ledger.ts";
 import { setTagLinks } from "./tag-links.ts";
 import { SqlEntityLinks } from "./entity-links.ts";
@@ -23,7 +24,7 @@ export class SqlActorStore {
     return executeSqlRequest(this.tx, this.actor, request, execute);
   }
   async issueDataId(): Promise<string> {
-    const [row] = await this.tx`select app.issue_data_id() as id`;
+    const [row] = await this.tx`select app.data_id_candidate() as id`;
     return row.id as string;
   }
   async getBusinessSettings(lockIdentity = false) {
@@ -45,7 +46,6 @@ export class SqlActorStore {
     // New events retain facts and the final memo, not an extra full domain capture.
     // Nullable keys remain compatible with old stored snapshots and readers.
     const metadata = {
-      event_id: await this.issueDataId(),
       target_kind: input.target_kind,
       target_id: target.id,
       target_title,
@@ -62,9 +62,17 @@ export class SqlActorStore {
       ...await this.entityLinks.changeSelection(input),
       body,
       record_kind: "change",
-      change_metadata: this.tx.json(metadata as never),
     };
-    const [row] = await this.tx`insert into app.records ${this.tx(values)} returning id`;
+    const row = await insertWithIdRetry(async () => {
+      const id = await this.issueDataId();
+      return await this.tx`insert into app.records ${
+        this.tx({
+          ...values,
+          id,
+          change_metadata: this.tx.json({ ...metadata, event_id: id } as never),
+        })
+      } on conflict (id) do nothing returning id`;
+    });
     await setTagLinks(this.tx, this.actor, "record", row.id as string, memo.change_tag_ids);
     await this.enqueueIndex({
       kind: "record",

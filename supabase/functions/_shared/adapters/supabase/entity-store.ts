@@ -1,3 +1,4 @@
+import { insertWithIdRetry } from "./data-id.ts";
 import type postgres from "postgres";
 import type { EntityCreate, EntityDetail, EntityQuery, EntityResult, EntityUpdate } from "../../contracts/entity.ts";
 import type { EntityStore } from "../../core/entity/application.ts";
@@ -39,15 +40,23 @@ export class SqlEntityStore extends SqlActorStore implements EntityStore {
     const settings = (await this.getBusinessSettings()).settings.entity_identity;
     return { ...row, source_label: settings?.sources.find((s) => s.code === row.source)?.label ?? row.source };
   }
-  async insert(i: Parameters<EntityStore["insert"]>[0]) {
-    const entity = result(
-      (await this.tx`insert into app.entities(id,owner_id,source,external_id,prop1,prop2,prop3,prop4)
-      values (${i.id},${this.actor.userId},${i.source},${i.external_id},${i.prop1},${i.prop2},${i.prop3},${i.prop4}) returning ${
+  async insert(i: Parameters<EntityStore["insert"]>[0], generatedIdentity = false) {
+    let external_id = i.external_id;
+    const insert = () =>
+      this.tx`insert into app.entities(id,owner_id,source,external_id,prop1,prop2,prop3,prop4)
+      values (${`${i.source}:${external_id}`},${this.actor.userId},${i.source},${external_id},${i.prop1},${i.prop2},${i.prop3},${i.prop4})
+      ${generatedIdentity ? this.tx`on conflict (owner_id,id) do nothing` : this.tx``} returning ${
         this.tx.unsafe(columns)
-      }`)[
-        0
-      ],
-    );
+      }`;
+    let first = true;
+    const row = generatedIdentity
+      ? await insertWithIdRetry(async () => {
+        if (!first) external_id = await this.issueDataId();
+        first = false;
+        return await insert();
+      })
+      : (await insert())[0];
+    const entity = result(row);
     await setTagLinks(this.tx, this.actor, "entity", entity.id, i.tag_ids ?? []);
     return (await this.get(entity.id))!;
   }

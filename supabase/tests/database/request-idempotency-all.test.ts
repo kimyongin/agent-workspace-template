@@ -409,8 +409,7 @@ dbTest(
       (select count(*)::int from app.records where owner_id=${f.actor.userId}) records,
       (select count(*)::int from pgmq.q_search_index where message->>'owner_id'=${f.actor.userId}) jobs,
       (select count(*)::int from private.request_results where owner_id=${f.actor.userId}) receipts,
-      (select used from private.request_capacity where owner_id=${f.actor.userId}) used,
-      (select count(*)::int from private.data_id_reservations) reservations`;
+      (select used from private.request_capacity where owner_id=${f.actor.userId}) used`;
       const attempt = keyed(f.actor);
       await code(
         () => activity.resumeTask(ad, attempt, task.id, task.version),
@@ -421,8 +420,7 @@ dbTest(
       (select count(*)::int from app.records where owner_id=${f.actor.userId}) records,
       (select count(*)::int from pgmq.q_search_index where message->>'owner_id'=${f.actor.userId}) jobs,
       (select count(*)::int from private.request_results where owner_id=${f.actor.userId}) receipts,
-      (select used from private.request_capacity where owner_id=${f.actor.userId}) used,
-      (select count(*)::int from private.data_id_reservations) reservations`;
+      (select used from private.request_capacity where owner_id=${f.actor.userId}) used`;
       assertEquals(after, counts);
       // Fixture repair only: production recovery must preserve the original historical data.
       await admin`update app.tasks set pauses=${

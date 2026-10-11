@@ -1,3 +1,4 @@
+import { insertWithIdRetry } from "./data-id.ts";
 import type postgres from "postgres";
 import type { PrincipleCreate, PrincipleResult } from "../../contracts/principle.ts";
 import type { PrincipleStore, PrincipleUnitOfWork } from "../../core/principles/ports.ts";
@@ -29,8 +30,10 @@ class SqlPrincipleStore extends SqlActorStore implements PrincipleStore {
     return r ? result(r) : null;
   }
   async insert(i: PrincipleCreate) {
-    const [r] = await this.tx`insert into app.principles(owner_id,title,body,is_current,version)
-    values(${this.actor.userId},${i.title},${i.body},true,1) returning *`;
+    const r = await insertWithIdRetry(() =>
+      this.tx`insert into app.principles(owner_id,title,body,is_current,version)
+    values(${this.actor.userId},${i.title},${i.body},true,1) on conflict (id) do nothing returning *`
+    );
     return result(r);
   }
   async get(id: string) {
