@@ -518,7 +518,9 @@ httpTest(
       // 회차 기록: 기록 생성 입력 + id + date
       record_occurrence: {
         task_id: json(z.object({ task_id: id })).properties.task_id,
-        date: json(z.object({ date: isoDate })).properties.date,
+        date: json(z.object({
+          date: isoDate.describe("실제로 수행한 회차 날짜. 할 일의 시간대 기준 오늘까지 가능하며 미래 날짜는 불가."),
+        })).properties.date,
         ...json(occurrenceRecordCreate).properties,
       },
     };

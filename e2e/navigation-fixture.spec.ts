@@ -83,7 +83,8 @@ test("프로필 팝오버는 키보드·외부 클릭·경로 이동에 초점�
   await expect(page.getByRole("button", { name:"메뉴", exact:true })).toHaveCount(0);
   await expect(page.locator(".settings").getByRole("link", { name:"사용 가이드", exact:true })).toHaveCount(0);
   await profile.click(); await expect(popup).toContainText(user.user_metadata.full_name); await expect(popup).not.toContainText(user.email);
-  await profile.press("ArrowDown"); await expect(popup.getByRole("link", { name:"설정", exact:true })).toBeFocused();
+  await profile.press("ArrowDown"); await expect(popup.getByRole("link", { name:"상태", exact:true })).toBeFocused();
+  await page.keyboard.press("ArrowDown"); await expect(popup.getByRole("link", { name:"설정", exact:true })).toBeFocused();
   await page.keyboard.press("ArrowDown"); await expect(popup.getByRole("link", { name:"사용 가이드", exact:true })).toBeFocused();
   await page.keyboard.press("End"); await expect(popup.getByRole("link", { name:"로그아웃", exact:true })).toBeFocused();
   await page.keyboard.press("Escape"); await expect(profile).toBeFocused();
@@ -276,8 +277,9 @@ test("#217 아이콘 선택은 가용 폭을 채우고 팝오버 이모지는 �
     for (const tile of tiles) { expect(tile.width).toBeGreaterThanOrEqual(44); expect(tile.height).toBeGreaterThanOrEqual(44); }
     const profile = page.getByRole("button", { name: "내 프로필", exact: true }); await profile.click();
     const popup = page.locator("#nav-profile-options");
-    await expect(popup.getByRole("link")).toHaveCount(3);
-    await profile.press("ArrowDown"); await expect(popup.getByRole("link", { name: "설정", exact:true })).toBeFocused();
+    await expect(popup.getByRole("link")).toHaveCount(4);
+    await profile.press("ArrowDown"); await expect(popup.getByRole("link", { name: "상태", exact:true })).toBeFocused();
+    await page.keyboard.press("ArrowDown"); await expect(popup.getByRole("link", { name: "설정", exact:true })).toBeFocused();
     await page.keyboard.press("End"); await expect(popup.getByRole("link", { name: "로그아웃", exact:true })).toBeFocused();
     const iconStyle = (selector: string) => page.locator(selector).evaluate(el => { const s = getComputedStyle(el), b = el.getBoundingClientRect(); return { width:b.width, height:b.height, font:s.fontSize, border:s.borderWidth }; });
     expect(await iconStyle(".nav-profile-identity .profile-icon")).toEqual(await iconStyle(".nav-profile > button .profile-icon"));

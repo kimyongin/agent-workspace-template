@@ -1,5 +1,5 @@
 import { useContext, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
-import { SurfaceActionContext } from "./Modal.tsx";
+import { SurfaceActionContext, SurfaceContext } from "./Modal.tsx";
 import { changeNoteErrors } from "./change-note.ts";
 import { ApiError } from "../lib/api-error.ts";
 import { useWriteAttempt, writeErrorMessage } from "../lib/write-attempt.ts";
@@ -55,6 +55,7 @@ export function useRecordConfirmation(options: {
   latest.current = options;
   const { attempt, busy, uncertain } = useWriteAttempt();
   const register = useContext(SurfaceActionContext);
+  const surface = useContext(SurfaceContext);
   const workspace = useContext(WorkspaceContext);
   const [stage, setStage] = useState<ConfirmationKind | null>(options.open === false ? null : options.initial ?? null);
   const [note, setNote] = useState(() => options.initial ? options.describe(options.initial).defaultNote : "");
@@ -92,8 +93,17 @@ export function useRecordConfirmation(options: {
       preparationReady.current = true;
       if (result.missing_tag_ids.length) setFailure("삭제된 기본 기록 태그를 제외했습니다. 설정에서 정리하세요.");
     } catch (error) {
-      if (run === preparationRun.current) reject({}, writeErrorMessage(error));
+      if (run === preparationRun.current) {
+        surface?.onError?.(error);
+        reject({}, failureMessage(error));
+      }
     } finally { if (run === preparationRun.current) setPreparing(false); }
+  };
+  const failureMessage = (error: unknown) => {
+    if (error instanceof ApiError && error.code === "conflict" && surface?.editor.current) {
+      return `${error.message} 확인창을 취소한 뒤 편집을 취소하고 ‘변경 버리기’를 선택하면 최신 내용을 다시 조회합니다. 상세 패널 숨기기는 초안을 유지합니다. 탭 닫기에서 ‘변경 버리기’를 선택하면 초안을 버리며, 다시 열면 최신 내용을 조회합니다.`;
+    }
+    return writeErrorMessage(error);
   };
   useEffect(() => { if (options.initial && options.open !== false) void begin(options.initial); if(options.open===false){setStage(null);setPreparing(false);} return () => { preparationRun.current++; }; }, [options.initial, options.open]);
   const cancel = () => {
@@ -117,7 +127,8 @@ export function useRecordConfirmation(options: {
       workspace?.saved();
       if (latest.current.closeOnSuccess) setStage(null);
     } catch (error) {
-      reject(error instanceof ApiError ? Object.fromEntries(error.fields.map(field => [field.path, field.message])) : {}, writeErrorMessage(error));
+      surface?.onError?.(error);
+      reject(error instanceof ApiError ? Object.fromEntries(error.fields.map(field => [field.path, field.message])) : {}, failureMessage(error));
     }
   };
   const description = stage ? options.describe(stage) : null;

@@ -147,7 +147,7 @@ export function TaskDetailPage() {
             : (
               <div>
                 <dt>{taskLabels.recurrence}</dt>
-                <dd>{describeRecurrence(task)}</dd>
+                <dd>{describeRecurrence(task)}{task.recurrence?.freq === "monthly" && <p className="help">해당 달에 없는 날짜는 그 달 마지막 날로 옮깁니다. 같은 날로 겹치면 회차 하나입니다.</p>}</dd>
               </div>
             )}
           {task.completed_at && (
@@ -202,7 +202,7 @@ export function TaskDetailPage() {
           )}
         </section>
       )}</>;
-  return <DetailSurface title="할 일" tabTitle={task.title} onClose={()=>navigate(back)} busy={busy} footer={<>
+  return <DetailSurface title="할 일" tabTitle={task.title} onClose={()=>navigate(back)} onError={detail.failed} busy={busy} footer={<>
     <button type="button" className="btn" disabled={busy} onClick={editor.start}>편집</button>
     {task.kind==="once"&&task.status==="open"&&<button type="button" className="btn btn-primary" disabled={busy} onClick={()=>manage("complete")}>완료하고 기록</button>}
     {task.kind==="recurring"&&<button type="button" className="btn btn-primary" disabled={busy} onClick={()=>manage("transition")}>{task.status==="active"?"중단":"재개"}</button>}

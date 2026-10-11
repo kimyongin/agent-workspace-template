@@ -1,4 +1,4 @@
-import { assertEquals } from "@std/assert";
+import { assertEquals, assertStringIncludes } from "@std/assert";
 import { z } from "zod";
 import { activityTools } from "../../functions/_shared/adapters/mcp/activity-tools.ts";
 import { registerTools } from "../../functions/_shared/adapters/mcp/tools.ts";
@@ -52,4 +52,19 @@ Deno.test("registered MCP task schema preserves once/recurring constraints under
   ) {
     assertEquals(branches.filter((branch) => branch.safeParse(input).success).length, accepts ? 1 : 0);
   }
+});
+
+Deno.test("MCP 공개 입력은 ISO 요일·월말 보정·오늘까지 기록 정책을 설명한다", () => {
+  const tools = activityTools({} as never);
+  for (const name of ["create_task", "update_task"]) {
+    const schema = z.toJSONSchema(tools.find((tool) => tool.name === name)!.input, { io: "input" });
+    const publicSchema = JSON.stringify(schema);
+    assertStringIncludes(publicSchema, "1=월");
+    assertStringIncludes(publicSchema, "7=일");
+    assertStringIncludes(publicSchema, "그 달 마지막 날");
+    assertStringIncludes(publicSchema, "회차 하나");
+  }
+  const result = tools.find((tool) => tool.name === "record_occurrence")!;
+  assertStringIncludes(result.description, "오늘(할 일 시간대)까지 가능");
+  assertStringIncludes(JSON.stringify(z.toJSONSchema(result.input, { io: "input" })), "시간대 기준 오늘까지");
 });

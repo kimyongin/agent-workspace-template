@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "workspace",
-  "version": "0.6.1",
+  "version": "0.6.2",
   "description": "Workspace의 최신 상태·현재 원칙·통합 기록을 찾아 요청한 업무를 준비하고 수행합니다.",
   "author": { "name": "Workspace" },
   "extensions": {

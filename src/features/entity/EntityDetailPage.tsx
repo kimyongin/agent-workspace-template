@@ -79,7 +79,7 @@ export function EntityDetailPage() {
             </RelatedSection>
           ))}
     </div>;
-  return <DetailSurface title="엔터티" tabTitle={entity?.prop1??"엔터티"} onClose={()=>navigate(back)} busy={busy}
+  return <DetailSurface title="엔터티" tabTitle={entity?.prop1??"엔터티"} onClose={()=>navigate(back)} onError={detail.failed} busy={busy}
     footer={entity&&<button type="button" className="btn btn-primary" onClick={editor.start}>{entity.deleted_at ? "복원" : "편집"}</button>}>
       {error && !entity && <><Notice kind="error">{error}</Notice><button className="btn" onClick={()=>void reload()}>다시 시도</button></>}
       {!entity&&!error&&<p className="secondary" role="status">불러오는 중…</p>}

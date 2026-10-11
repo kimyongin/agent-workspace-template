@@ -44,18 +44,20 @@ export function createDetailResource<T>(options: {
     const value = typeof update === "function" ? (update as (current: T | null) => T | null)(state.value) : update;
     emit({ value, error: null, loading: false, editReady: true, confirmed: true });
   };
+  const failed = (error: unknown) => { if (options.isConflict(error)) conflicted = true; };
   return {
     snapshot: () => state,
     subscribe: (listener: () => void) => { listeners.add(listener); return () => { listeners.delete(listener); }; },
     reload,
     confirm,
+    failed,
     save: async (operation: (current: T) => Promise<T>) => {
       if (!state.value) throw new Error("Detail has not loaded");
       const current = state.value;
       cancel();
       emit({ loading: false });
       try { confirm(await operation(current)); conflicted = false; }
-      catch (error) { if (options.isConflict(error)) conflicted = true; throw error; }
+      catch (error) { failed(error); throw error; }
     },
     editClosed: () => { if (conflicted) { conflicted = false; void reload(); } },
     cancel,

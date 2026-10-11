@@ -28,7 +28,7 @@ export function PrincipleDetailPage() {
   const error = actionError ?? (detail.error ? detail.error instanceof ApiError ? detail.error.message : "원칙을 불러오지 못했습니다." : null);
   const [busy,setBusy]=useState(false);
   const editor = useDetailEditor(detail.editClosed);
-  return <DetailSurface footer={item?.is_current&&<button type="button" className="btn btn-primary" onClick={editor.start}>편집</button>} title="원칙" tabTitle={item?.title??"원칙"} onClose={()=>navigate(back)} busy={busy}>
+  return <DetailSurface footer={item?.is_current&&<button type="button" className="btn btn-primary" onClick={editor.start}>편집</button>} title="원칙" tabTitle={item?.title??"원칙"} onClose={()=>navigate(back)} onError={detail.failed} busy={busy}>
     {error&&<><Notice kind="error">{detail.confirmed?"저장은 완료했습니다. 최신 내용을 불러오지 못했습니다.":error}</Notice><button className="btn" onClick={()=>void detail.reload()}>조회 다시 시도</button></>}
     {!item&&!error&&<p role="status">불러오는 중…</p>}
     {item&&<section className="form">

@@ -747,3 +747,32 @@ for(const width of [390,1440]) test(`전체 펼침 ${width}px 토글은 표시�
   await expect(records.getByRole('button',{name:'기록 전체 닫기',exact:true})).toBeVisible();
   expect(state.writes).toEqual([]);expect(state.errors).toEqual([]);
 });
+
+test("#335 준비 충돌: 패널 숨김은 초안 보존, 탭 닫기 승인 뒤 재열기는 최신 내용", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const state = await fixture(page);
+  await page.goto( `/tasks/${id(2)}?edit=1`);
+  await panel(page).getByLabel("제목", { exact: false }).fill("숨겨도 보존할 초안");
+  Object.assign(state.rows.tasks[0], { title: "외부 최신 이름", body: "외부 최신 본문", version: 2 });
+  await page.route("**/records/prepare", route => route.fulfill({ status: 409,
+    json: { code: "conflict", message: "다른 변경이 저장되어 있습니다.", retryable: false } }));
+  await panel(page).getByRole("button", { name: "저장", exact: true }).click();
+  const confirmation = page.locator("dialog.modal-action[open]");
+  await expect(confirmation).toContainText("탭 닫기");
+  await confirmation.getByRole("button", { name: "취소", exact: true }).click();
+  await page.getByRole("button", { name: "상세 패널 숨기기", exact: true }).click();
+  await page.getByRole("button", { name: "상세 탭 보기 (1개)", exact: true }).click();
+  await expect(panel(page).getByLabel("제목", { exact: false })).toHaveValue("숨겨도 보존할 초안");
+  await page.getByRole("button", { name: /탭 닫기$/ }).click();
+  const discard = page.getByRole("dialog", { name: "변경을 버릴까요?" });
+  await discard.getByRole("button", { name: "취소", exact: true }).click();
+  await expect(panel(page).getByLabel("제목", { exact: false })).toHaveValue("숨겨도 보존할 초안");
+  await page.getByRole("button", { name: /탭 닫기$/ }).click();
+  await discard.getByRole("button", { name: "변경 버리기", exact: true }).click();
+  await expect(page.getByRole("tab")).toHaveCount(0);
+  await page.goto( `/tasks/${id(2)}`);
+  await expect(panel(page)).toContainText("외부 최신 이름");
+  await expect(panel(page)).toContainText("외부 최신 본문");
+  expect(state.writes).toHaveLength(0);
+  expect(state.errors).toEqual([]);
+});
