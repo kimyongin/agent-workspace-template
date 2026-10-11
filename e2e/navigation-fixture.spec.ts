@@ -297,3 +297,20 @@ test("#217 아이콘 선택은 가용 폭을 채우고 팝오버 이모지는 �
     await page.keyboard.press("Escape");
   }
 });
+
+test("#340 열린 메뉴가 화면 높이·확대·긴 닉네임 변경에도 화면 안에 유지된다", async ({ page }) => {
+  await page.route("**/auth/v1/user", route => route.fulfill({json:{...user,user_metadata:{...user.user_metadata,full_name:"긴 닉네임 ".repeat(15)}}}));
+  await page.goto("/settings"); await openProfile(page);
+  const popup = page.locator("#nav-profile-options");
+  for (const height of [900, 481, 480, 321, 320, 280, 900]) {
+    await page.setViewportSize({width:1440,height});
+    await expect.poll(async()=>{const box=(await popup.boundingBox())!;return box.y>=0 && box.y+box.height<=height;}).toBe(true);
+    await popup.getByRole("link",{name:"로그아웃",exact:true}).focus();
+    await expect(popup.getByRole("link",{name:"로그아웃",exact:true})).toBeInViewport();
+  }
+  await page.evaluate(()=>document.documentElement.style.fontSize="200%");
+  await page.setViewportSize({width:1440,height:320});
+  await expect.poll(async()=>{const box=(await popup.boundingBox())!;return box.y>=0 && box.y+box.height<=320;}).toBe(true);
+  await popup.getByRole("link",{name:"로그아웃",exact:true}).focus();
+  await expect(popup.getByRole("link",{name:"로그아웃",exact:true})).toBeInViewport();
+});
