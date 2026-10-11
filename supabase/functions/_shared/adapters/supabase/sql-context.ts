@@ -26,7 +26,10 @@ export class SqlActorStore {
     const [row] = await this.tx`select app.issue_data_id() as id`;
     return row.id as string;
   }
-  getBusinessSettings() {
+  async getBusinessSettings(lockIdentity = false) {
+    if (lockIdentity) {
+      await this.tx`select pg_advisory_xact_lock(hashtextextended(${`${this.actor.userId}:entity_identity`},0))`;
+    }
     return new SqlBusinessSettingsStore(this.tx, this.actor).get();
   }
 

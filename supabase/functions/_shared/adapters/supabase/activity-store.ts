@@ -132,7 +132,6 @@ export class SqlActivityStore extends SqlActorStore implements ActivityStore {
     const selection = await this.entityLinks.taskSelection(selectedEntities(task) ?? []);
     const values = {
       owner_id: this.actor.userId,
-      ...(task.id !== undefined ? { id: task.id } : {}),
       kind: task.kind,
       ...pick(tx, task, TASK_WRITABLE),
       ...selection,

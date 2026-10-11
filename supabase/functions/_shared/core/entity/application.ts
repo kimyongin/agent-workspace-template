@@ -25,7 +25,7 @@ import { type ChangeStore } from "../shared/changes.ts";
 
 export interface EntityStore extends ChangeStore {
   issueDataId?(): Promise<string>;
-  getBusinessSettings(): Promise<
+  getBusinessSettings(lockIdentity?: boolean): Promise<
     { versions?: { entity_identity: number }; settings: { entity_identity?: EntityIdentitySettings } }
   >;
   get(id: string, lock?: boolean): Promise<EntityResult | null>;
@@ -81,7 +81,7 @@ export function createEntity(d: EntityDeps, a: Actor, i: EntityCreate) {
     null,
     i,
     async (s) => {
-      const saved = await s.getBusinessSettings();
+      const saved = await s.getBusinessSettings(true);
       if (i.settings_version !== undefined && i.settings_version !== (saved.versions?.entity_identity ?? 0)) {
         throw new AppError("settings_changed", "발급처 설정이 변경되었습니다. 다시 준비하세요");
       }
