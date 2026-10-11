@@ -102,6 +102,9 @@ export function activityRoutes(deps: activity.ActivityDeps) {
     });
     return c.json(await activity.listRecords(deps, c.get("actor"), query));
   });
+  app.get("/records/:id/index-effects", async (c) => {
+    return c.json(await activity.getRecordIndexEffects(deps, c.get("actor"), idParam(c.req.param("id"))));
+  });
   app.get("/records/:id", async (c) => {
     return c.json(await activity.getRecord(deps, c.get("actor"), idParam(c.req.param("id"))));
   });
