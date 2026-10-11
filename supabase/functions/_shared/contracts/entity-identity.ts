@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { generateDataId } from "./data-id.ts";
 import { codePointLength, text } from "./common.ts";
 
 export const entitySourceCode = z.string().regex(/^[a-z][a-z0-9_-]{0,31}$/, {
@@ -83,10 +82,6 @@ export const defaultEntityIdentitySettings: EntityIdentitySettings = {
   default_source: "app",
   sources: [{ code: "app", label: "앱" }],
 };
-/** Candidate only; production creation reserves the ID before confirmation. */
-export function generateEntityExternalId(): string {
-  return generateDataId();
-}
 export function entityPath(id: string): string {
   return `/entities/${encodeURIComponent(id)}`;
 }
