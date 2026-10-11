@@ -47,7 +47,7 @@ worker 소비를 멈춰도 생산이 계속되면 대기량이 늘어난다. 장
 
 `POST /functions/v1/index-worker`는 사용자 HTTP/MCP 토큰 대신 `Authorization: Bearer <INDEX_WORKER_TOKEN>`을 요구한다. 본문은 `{ "limit": 5 }`이며 최대 5개를 병렬 처리한다. 제한된 확인에는 `owner_id`·`kind`·`id`를 추가해 범위를 좁힌다. 범위를 생략하면 현재 보이는 전체 큐에서 읽으므로 비용 검증에는 반드시 시험 항목을 지정한다. 키/DB 미설정은 claim 전 503, 인증 실패는 401, 잘못된 입력은 400이다. 반환은 claimed·indexed·excluded·failed·retry·stale 개수이며 원문/비밀은 포함하지 않는다.
 
-서버 Secrets는 `WORKER_DB_URL`(app_worker의 트랜잭션 풀러), `INDEX_WORKER_TOKEN`(32 byte 이상 무작위 값의 base64url), `PINECONE_API_KEY`다. 로컬 `setup:local`은 역할 비밀번호·내부 토큰을 생성/보존하고 풀러 준비 실패를 숨기지 않는다. 함수 env의 기존 Pinecone 키를 우선하며 기존 `.env.local` 실험 키가 있을 때만 초기 설정으로 복사한다. 함수 설정을 바꾸면 실행 중인 함수 서버를 다시 시작한다.
+서버 Secrets는 `WORKER_DB_URL`(app_worker의 트랜잭션 풀러), `INDEX_WORKER_TOKEN`(32 byte 이상 무작위 값의 base64url), `PINECONE_API_KEY`, `PINECONE_ACCOUNT_SCOPE`다. account scope는 비밀이 아닌 안정적인 공급자 account/project 식별값으로, API key 교체 시에도 유지한다. 누락·공백·120자 초과면 worker는 claim 전에 설정 오류로 중단한다. 로컬 `setup:local`은 역할 비밀번호·내부 토큰을 생성/보존하고 풀러 준비 실패를 숨기지 않는다. 함수 env의 기존 Pinecone 키를 우선하며 기존 `.env.local` 실험 키가 있을 때만 초기 설정으로 복사한다. 함수 설정을 바꾸면 실행 중인 함수 서버를 다시 시작한다.
 
 공급자 호출 제한은 30초·응답 128KB, batch 최대 5, 큐 visibility 90초다. 일시 장애/잘못된 응답은 30·60·120·240초 후 재전달하고 다섯 번째 실패는 `failed/retry_exhausted`로 보관한다. 다섯 번을 넘겨 중단된 작업도 추가 호출 없이 실패 처리한다. 인증/구성 오류는 즉시 `failed/configuration`, 입력 누락/상한 초과는 `excluded`이며 원문을 변경하지 않는다. 실패는 검색 범위의 대기로 표시하고 제외는 별도로 센다. 완료 벡터가 없는 indexed 상태도 대기로 취급한다. 장애 원인을 해결한 뒤 현재 소유자 문맥에서 `app.enqueue_search_index(kind,id,current_hash,current_pipeline)`을 호출하면 실패 작업을 새 메시지로 등록한다. 제외·실패 자료는 원인을 확인하고 현재 본문과 pipeline으로 재등록한다. 구간 입력은 공급자 제한 이내로 분할하며 기록 전체를 조용히 절단하지 않는다. 큐를 비우거나 보관 메시지만 되돌리는 방법을 쓰지 않는다.
 
