@@ -12,8 +12,9 @@ import { asUser, connect, dbTest, fixtureOwner, outcome, urls } from "./_db.ts";
 const admin = connect(urls.admin, { max: 1 }), user = connect(urls.pooler, { max: 2, prepare: false });
 const at = "2026-10-10T15:00:00.000Z";
 const id = () => `20261011-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
-function client(owner: string) {
-  const actor = { userId: owner }, deps = { reader: new SqlStatusReader(user), clock: { now: () => new Date(at) } };
+function client(owner: string, queriedAt = at) {
+  const actor = { userId: owner },
+    deps = { reader: new SqlStatusReader(user), clock: { now: () => new Date(queriedAt) } };
   const app = new Hono<HttpEnv>();
   app.use("*", async (c, next) => {
     c.set("actor", actor);
@@ -286,3 +287,25 @@ dbTest(
     }
   },
 );
+
+dbTest("status timezone: canonical alias shares IANA DST dates and numeric offsets are rejected", async () => {
+  const own = await fixtureOwner(admin);
+  try {
+    const boundary = "2026-10-10T05:00:00.000Z";
+    await admin`insert into app.records(owner_id,id,body,created_at,occurred_at)
+      values(${own.actor.userId},${id()},'Chicago midnight',${boundary},${boundary})`;
+    const c = client(own.actor.userId, boundary);
+    const aliasResponse = await c.app.request("/status?timezone=CST");
+    assertEquals(aliasResponse.status, 200);
+    const alias = await aliasResponse.json();
+    assertEquals(alias.timezone, "America/Chicago");
+    assertEquals(alias.period.to, "2026-10-10");
+    assertEquals(alias.daily.at(-1).date, "2026-10-10");
+    assertEquals(alias.daily.at(-1).records_created, 1);
+    assertEquals(await (await c.app.request("/status?timezone=America%2FChicago")).json(), alias);
+    assertEquals(await c.tool.handler({ timezone: "CST" }, c.actor), alias);
+    assertEquals((await c.app.request("/status?timezone=%2B05%3A30")).status, 400);
+  } finally {
+    await own.cleanup();
+  }
+});

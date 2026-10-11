@@ -52,6 +52,6 @@ Pinecone 2026-07의 [문서화된 embed 계약](https://docs.pinecone.io/referen
 
 ## 사용자 상태 조회
 
-HTTP `GET /status`와 read-only MCP `get_status`는 현재 보관 자료의 개수·최근 30일 활동·작성일별 현재 색인 분포를 공유한다. `GET /status/indexing/issues`와 `list_indexing_issues`는 같은 확인 필요 분류에서 최근 작성일·ID 내림차순으로 최대 5개를 반환한다. 커서는 소유자·목록에 묶이며 웹은 기본 접힘에서 펼칠 때만 조회하고 새로고침 때 페이지를 초기화한다.
+HTTP `GET /status`와 read-only MCP `get_status`는 현재 보관 자료의 개수·최근 30일 활동·작성일별 현재 색인 분포를 공유한다. 집계 시간대는 UTC/IANA 이름으로 받고 별칭은 Intl의 정본 이름으로 변환해 SQL과 응답에 함께 사용한다. 숫자 고정 offset은 거부한다. `GET /status/indexing/issues`와 `list_indexing_issues`는 같은 확인 필요 분류에서 최근 작성일·ID 내림차순으로 최대 5개를 반환한다. 커서는 소유자·목록에 묶이며 웹은 기본 접힘에서 펼칠 때만 조회하고 새로고침 때 페이지를 초기화한다.
 
 문제 응답은 기록의 파생 제목·이유·현재 leaf 구간의 전송 시도 합계·구간 진행 개수만 제공한다. 자동 분할된 input_limit 부모는 진행·현재 구간 시도 집계에서 제외한다. 최신 원문 hash·pipeline·revision과 맞는 작업만 사용한다. private effect ID·공급자 응답·벡터·비밀·구간 원장 전체를 공개하지 않으며 조회로 외부 호출이나 쓰기를 수행하지 않는다. 응답 확인 불가는 성공·실패 확정이 아니며 자동 재시도 중단과 구별한다.

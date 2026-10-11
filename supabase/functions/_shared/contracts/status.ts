@@ -4,12 +4,14 @@ import { codePointLength } from "./common.ts";
 export const statusInput = z.strictObject({
   timezone: z.string().min(1).max(64).refine((value) => {
     try {
-      new Intl.DateTimeFormat("en", { timeZone: value });
-      return true;
+      const canonical = new Intl.DateTimeFormat("en", { timeZone: value }).resolvedOptions().timeZone;
+      return canonical === "UTC" || canonical.includes("/");
     } catch {
       return false;
     }
-  }, "지원하는 시간대를 입력하세요").default("Asia/Seoul"),
+  }, "UTC 또는 IANA 시간대 이름을 입력하세요").transform((value) =>
+    new Intl.DateTimeFormat("en", { timeZone: value }).resolvedOptions().timeZone
+  ).default("Asia/Seoul"),
 });
 export type StatusInput = z.infer<typeof statusInput>;
 export interface IndexingCounts {

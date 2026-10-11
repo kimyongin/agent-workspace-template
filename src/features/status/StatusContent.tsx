@@ -16,6 +16,16 @@ const indexSeries: Series[] = [
   { label: "대상 제외", tone: "muted-ink", value: (d) => d.indexing.excluded },
 ];
 
+// Exact daily values reuse the same metric readers as the four charts.
+const dailyValues = [
+  entitySeries[0],
+  { ...taskSeries[0], label: "할 일 생성" },
+  taskSeries[1],
+  { ...recordSeries[0], label: "기록 작성" },
+  { ...indexSeries[0], label: "색인 완료" },
+  ...indexSeries.slice(1),
+];
+
 function DailyChart(
   { title, days, series, stacked = false }: { title: string; days: StatusDay[]; series: Series[]; stacked?: boolean },
 ) {
@@ -48,7 +58,7 @@ function DailyChart(
         className="status-chart"
         viewBox="0 0 600 105"
         role="img"
-        aria-label={`${title} 그래프. 아래 날짜 선택과 날짜별 값 표에서 정확한 건수를 확인할 수 있습니다.`}
+        aria-label={`${title} 그래프. 아래 날짜 선택과 날짜별 값에서 정확한 건수를 확인할 수 있습니다.`}
         preserveAspectRatio="none"
       >
         {[0, .5, 1].map((n) => (
@@ -205,42 +215,23 @@ export function StatusContent({ data, children }: { data: StatusOverview; childr
           시각 대신 작성 시각을 사용합니다. 반복 수행은 수행 결과 기록이며 일회성 완료에 합산하지 않습니다. 준비 중은
           대기·처리·재시도 상태, 확인 필요는 응답 확인 불가·서비스 설정 오류·자동 재시도 중단 등입니다.
         </p>
-        <div className="status-table-scroll">
-          <table>
-            <caption>날짜별 값 (건)</caption>
-            <thead>
-              <tr>
-                {[
-                  "날짜",
-                  "등록",
-                  "할 일 생성",
-                  "일회성 완료",
-                  "기록 작성",
-                  "색인 완료",
-                  "준비 중",
-                  "확인 필요",
-                  "대상 제외",
-                ].map((label) => <th scope="col" key={label}>{label}</th>)}
-              </tr>
-            </thead>
-            <tbody>
-              {daily.map((d) => (
-                <tr key={d.date}>
-                  <th scope="row">{d.date}</th>
-                  {[
-                    d.entities_created,
-                    d.tasks_created,
-                    d.once_completed,
-                    d.records_created,
-                    d.indexing.indexed,
-                    d.indexing.preparing,
-                    d.indexing.attention,
-                    d.indexing.excluded,
-                  ].map((value, i) => <td key={i}>{value}</td>)}
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <h2 className="status-daily-values-title">날짜별 값 (건)</h2>
+        <div className="status-daily-values">
+          {daily.map((day) => (
+            <section key={day.date} aria-label={`${day.date} 날짜별 값`}>
+              <h3>
+                <time dateTime={day.date}>{day.date}</time>
+              </h3>
+              <dl>
+                {dailyValues.map((metric) => (
+                  <div key={metric.label}>
+                    <dt>{metric.label}</dt>
+                    <dd>{metric.value(day)}</dd>
+                  </div>
+                ))}
+              </dl>
+            </section>
+          ))}
         </div>
       </details>
     </>

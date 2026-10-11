@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { assertEquals } from "@std/assert";
 import { Hono } from "hono";
 import { statusRoutes } from "../../functions/_shared/adapters/http/status-routes.ts";
@@ -7,6 +8,7 @@ import { toErrorBody } from "../../functions/_shared/adapters/errors.ts";
 import type { StatusDeps } from "../../functions/_shared/core/status/application.ts";
 
 Deno.test("status HTTP and readonly MCP share owner, server time, validated timezone and the same overview", async () => {
+  let expectedTimezone = "Asia/Seoul";
   const actor = { userId: "status-owner" };
   const queried_at = "2026-10-10T15:00:00.000Z";
   const deps: StatusDeps = {
@@ -15,7 +17,7 @@ Deno.test("status HTTP and readonly MCP share owner, server time, validated time
       issues: () => Promise.resolve([]),
       overview: (who, timezone, at) => {
         assertEquals(who.userId, "status-owner");
-        assertEquals(timezone, "Asia/Seoul");
+        assertEquals(timezone, expectedTimezone);
         assertEquals(at.toISOString(), queried_at);
         return Promise.resolve({
           period: { from: "2026-09-12", to: "2026-10-11", days: 30 },
@@ -50,6 +52,17 @@ Deno.test("status HTTP and readonly MCP share owner, server time, validated time
   assertEquals((await app.request("/status?timezone=not-a-timezone")).status, 400);
   assertEquals((await app.request("/status?owner_id=someone-else")).status, 400);
   assertEquals(tool.input.safeParse({ request_key: crypto.randomUUID() }).success, false);
+  for (const offset of ["+05:30", "-06:00"]) {
+    assertEquals((await app.request(`/status?timezone=${encodeURIComponent(offset)}`)).status, 400);
+    assertEquals(tool.input.safeParse({ timezone: offset }).success, false);
+  }
+  expectedTimezone = "America/Chicago";
+  const canonical = await (await app.request("/status?timezone=CST")).json();
+  assertEquals(canonical.timezone, "America/Chicago");
+  assertEquals(await tool.handler({ timezone: "CST" }, actor), canonical);
+  // Input transforms remain representable in the actual tools/list JSON Schema.
+  const schema = z.toJSONSchema(tool.input, { io: "input", target: "draft-2020-12" });
+  assertEquals((schema.properties?.timezone as { type: string }).type, "string");
 });
 
 Deno.test("indexing issues HTTP/MCP: fixed five-row page, same readonly result and strict input", async () => {
