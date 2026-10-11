@@ -33,3 +33,41 @@ Deno.test("record write without request key never starts a transaction", async (
   );
   assertEquals(error.code, "invalid_input");
 });
+
+import { z } from "zod";
+import { activityTools } from "../../functions/_shared/adapters/mcp/activity-tools.ts";
+import { entityTools } from "../../functions/_shared/adapters/mcp/entity-tools.ts";
+import { principleTools } from "../../functions/_shared/adapters/mcp/principle-tools.ts";
+import { tagTools } from "../../functions/_shared/adapters/mcp/tag-tools.ts";
+import { settingsTools } from "../../functions/_shared/adapters/mcp/settings-tools.ts";
+Deno.test("every public MCP business write requires UUID request_key before execution, preparation stays read-only", async () => {
+  const deps = {
+    uow: {
+      run: () => {
+        throw new Error("transaction started");
+      },
+    },
+    clock: { now: () => new Date() },
+  };
+  const tools = [
+    ...activityTools(deps),
+    ...entityTools(deps),
+    ...principleTools(deps),
+    ...tagTools(deps),
+    ...settingsTools(deps),
+  ];
+  const writes = tools.filter((tool) => !tool.readOnly);
+  assertEquals(writes.length, 21);
+  for (const tool of writes) {
+    const schema = z.toJSONSchema(tool.input);
+    assertEquals(schema.required?.includes("request_key"), true, tool.name);
+    const error = await assertRejects(async () => await tool.handler({}, { userId: crypto.randomUUID() }), AppError);
+    assertEquals(error.code, "invalid_input", tool.name);
+  }
+  for (const name of ["prepare_entity_registration", "prepare_record_memo"]) {
+    const tool = tools.find((tool) => tool.name === name)!;
+    assertEquals(tool.readOnly, true);
+    assertEquals(z.toJSONSchema(tool.input).required?.includes("request_key") ?? false, false);
+  }
+  assertEquals(tools.some((tool) => tool.name === "allocate_data_id"), false);
+});
