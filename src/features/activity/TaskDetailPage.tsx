@@ -17,7 +17,7 @@ import { DetailSurface, DetailTitle } from "../../components/Modal.tsx";
 import { api, ApiError, query } from "../../lib/api.ts";
 import { useDisplayTime } from "../../lib/useDisplayTime.ts";
 import { addDays, todayIn } from "../../lib/format.ts";
-import { emptyRecord, RecordFormModal, TaskFormModal, taskDraftFrom, taskInput } from "./forms.tsx";
+import { emptyRecord, RecordFormModal, TaskFormModal, taskDraftFrom } from "./forms.tsx";
 import { OccurrenceBadge, StatusBadge } from "./shared.tsx";
 import {TagNames} from "../tags/TagPicker.tsx";
 import {TaskEntityRelations} from "../entity/TaskEntityRelations.tsx";
@@ -225,25 +225,8 @@ export function TaskDetailPage() {
             editor.leave(deleteBack);
           }, "삭제했습니다.")}}
           {...editor.formProps}
-          onSave={async (draft,requestKey) => {
-            await detail.save(async current => {
-            const patch: Record<string, unknown> = {
-              expected_version: task.version,
-              title: draft.title,
-              body: draft.body,
-              change_note:draft.change_note,
-              change_tag_ids:draft.change_tag_ids,
-              tag_ids:draft.tag_ids,
-            };
-            if (task.kind === "once") patch.due_on = draft.due_on || null;
-            else {
-              const input = taskInput(draft);
-              patch.recurrence = input.recurrence;
-              patch.timezone = input.timezone;
-            }
-            const saved = await api<TaskResult>("PATCH", `/tasks/${task.id}`, patch, undefined, requestKey());
-            return {...current, ...saved};
-            });
+          onSave={async save => {
+            await detail.save(async current => ({...current, ...await save()}));
             editor.close();
             setMessage("저장했습니다.");
             await reload();

@@ -299,8 +299,97 @@ test("desktop: saving updates the retained list; confirmation remains small and 
   await confirmation.getByRole("button", { name: "수정하고 저장" }).click(); await confirmation.getByRole("button", { name: "같은 내용 다시 시도" }).click();
   await expect(page.getByRole("tab", { name: "새 구매 계획" })).toHaveAttribute("aria-selected", "true");
   await expect(list.getByRole("button", { name: "새 구매 계획", exact: true })).toBeVisible();
-  expect(state.writes).toHaveLength(2); expect(state.writes[1].body).toEqual(state.writes[0].body); expect(state.errors).toEqual([]);
+  expect(state.writes).toHaveLength(2);
+  expect(state.writes[0]).toMatchObject({ method: "PATCH", path: `/api/tasks/${id(2)}`, body: {
+    title: "새 구매 계획", body: "상세 본문", tag_ids: [], due_on: null, expected_version: 1,
+    change_note: "새 구매 계획 수정", change_tag_ids: [],
+  } });
+  expect(state.writes[0].body).not.toHaveProperty("entity_ids");
+  expect(state.writes[1].body).toEqual(state.writes[0].body);
+  expect(state.writes[0].requestKey).toMatch(/^[0-9a-f-]{36}$/);
+  expect(state.writes[1].requestKey).toBe(state.writes[0].requestKey);
+  expect(state.errors).toEqual([]);
 });
+
+test("desktop: recurring task confirmation cancellation prepares and saves the changed draft", async ({ page }) => {
+  const state = await fixture(page);
+  Object.assign(state.rows.tasks[0], {
+    kind: "recurring",
+    status: "active",
+    recurrence: { freq: "daily", starts_on: "2026-10-04" },
+    timezone: "Asia/Seoul",
+  });
+  await page.route(/\/api\/tasks\/[^/]+\/occurrences\?/, route => route.fulfill({ json: { today: "2026-10-11", items: [] } }));
+  const preparations: Record<string, unknown>[] = [];
+  page.on("request", (request) => {
+    if (request.url().endsWith("/records/prepare")) preparations.push(request.postDataJSON());
+  });
+  await page.goto(`/tasks/${id(2)}`);
+  await panel(page).getByRole("button", { name: "편집", exact: true }).click();
+  await panel(page).getByLabel("제목").fill("처음 계획");
+  await panel(page).getByRole("button", { name: "저장", exact: true }).click();
+  const confirmation = page.locator("dialog.modal-action[open]");
+  await expect(confirmation.getByLabel("기록 메모")).toHaveValue("처음 계획 수정");
+  await confirmation.getByRole("button", { name: "취소", exact: true }).click();
+  await panel(page).getByLabel("제목").fill("월간 계획");
+  await panel(page).getByRole("button", { name: "매월", exact: true }).click();
+  await panel(page).getByLabel("날짜", { exact: true }).fill("1, 15");
+  await panel(page).getByLabel("시간대").fill("America/New_York");
+  await panel(page).getByRole("button", { name: "저장", exact: true }).click();
+  await expect(confirmation.getByLabel("기록 메모")).toHaveValue("월간 계획 수정");
+  await confirmation.getByLabel("기록 메모").fill("월간 검토로 변경");
+  await confirmation.getByRole("button", { name: "수정하고 저장" }).click();
+  await expect(panel(page).getByRole("button", { name: "편집", exact: true })).toBeVisible();
+  const input = {
+    title: "월간 계획",
+    body: "상세 본문",
+    tag_ids: [],
+    recurrence: { freq: "monthly", month_days: [1, 15], starts_on: "2026-10-04" },
+    timezone: "America/New_York",
+  };
+  expect(preparations).toHaveLength(2);
+  expect(preparations[1]).toEqual({ model: "task", action: "update", target_id: id(2), expected_version: 1, input });
+  expect(state.writes).toHaveLength(1);
+  expect(state.writes[0]).toMatchObject({ method: "PATCH", path: `/api/tasks/${id(2)}` });
+  expect(state.writes[0].body).toEqual({
+    ...input,
+    change_note: "월간 검토로 변경",
+    change_tag_ids: [],
+    expected_version: 1,
+  });
+  expect(state.errors).toEqual([]);
+});
+
+test("desktop: creating a task from an entity prepares and saves its selected relationship", async ({ page }) => {
+  const state = await fixture(page);
+  const preparations: Record<string, unknown>[] = [];
+  page.on("request", (request) => {
+    if (request.url().endsWith("/records/prepare")) preparations.push(request.postDataJSON());
+  });
+  await page.goto(`/entities/${encodeURIComponent(entityKey(1))}?create=task`);
+  await panel(page).getByLabel("제목").fill("다음 구매");
+  await panel(page).getByLabel("기한").fill("2026-11-01");
+  await saveOnce(page, panel(page), "추가");
+  await expect(panel(page).getByLabel("제목")).toHaveCount(0);
+  const input = {
+    title: "다음 구매",
+    body: "",
+    tag_ids: [],
+    due_on: "2026-11-01",
+    kind: "once",
+    entity_ids: [entityKey(1)],
+  };
+  expect(preparations).toEqual([{ model: "task", action: "create", input }]);
+  expect(state.writes).toHaveLength(1);
+  expect(state.writes[0]).toMatchObject({
+    method: "POST",
+    path: "/api/tasks",
+    body: { ...input, change_note: "다음 구매 등록", change_tag_ids: [] },
+  });
+  expect(state.writes[0].body).not.toHaveProperty("expected_version");
+  expect(state.errors).toEqual([]);
+});
+
 test("desktop: pending writes block tab switching, close, hide and navigation", async ({ page }) => {
   const state = await fixture(page, { hold: true }); await page.goto(`/entities/${encodeURIComponent(entityKey(1))}`); await openTask(page);
   await panel(page).getByRole("button", { name: "편집", exact: true }).click(); await panel(page).getByLabel("본문", { exact: true }).fill("새 내용"); await panel(page).getByRole("button", { name: "저장", exact: true }).click();
