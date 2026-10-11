@@ -1,3 +1,4 @@
+import { type EffectStatusReader, passageEffectStatus } from "../search/external-effect.ts";
 import { runWrite } from "../shared/request.ts";
 import { requireRequestKey, runRequest } from "../shared/request.ts";
 import { activityChangeTarget, recordChangeFacts, taskChangeFacts } from "./change.ts";
@@ -15,7 +16,7 @@ import type {
   TaskUpdate,
 } from "../../contracts/task.ts";
 import type { Actor } from "../shared/actor.ts";
-import { conflict, invalidInput, notFound } from "../shared/errors.ts";
+import { AppError, conflict, invalidInput, notFound } from "../shared/errors.ts";
 import { changed } from "../shared/changes.ts";
 import { decodeCursor, type Page, paginate, scopeOf, searchInputHash } from "../shared/operations.ts";
 import {
@@ -35,6 +36,7 @@ import { listOccurrences as computeOccurrences } from "./recurrence.ts";
 export interface ActivityDeps {
   uow: UnitOfWork;
   clock: Clock;
+  effectStatus?: EffectStatusReader;
 }
 
 export type { Page } from "../shared/operations.ts";
@@ -445,4 +447,10 @@ export async function deleteRecord(
     });
     return { deleted: true };
   });
+}
+
+/** Saving a record and completing its external passage work are separate facts. */
+export function getRecordIndexEffects(deps: ActivityDeps, actor: Actor, id: string) {
+  if (!deps.effectStatus) throw new AppError("unavailable", "색인 상태를 확인할 수 없습니다");
+  return passageEffectStatus(deps.effectStatus, actor, id);
 }

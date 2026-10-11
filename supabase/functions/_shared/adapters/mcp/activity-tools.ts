@@ -175,6 +175,14 @@ export function activityTools(deps: activity.ActivityDeps): ToolDef[] {
       handler: (args, actor) => activity.createRecord(deps, actor, parse(recordCreate, args)),
     },
     {
+      name: "get_record_index_effects",
+      description:
+        "기록의 현재 색인 구간 effect ID·상태·시도 수를 조회한다. 기록 저장 성공과 외부 색인 완료는 별개이며 unknown은 실패 확정이 아니다.",
+      input: idOnly,
+      readOnly: true,
+      handler: (args, actor) => activity.getRecordIndexEffects(deps, actor, byId(args)),
+    },
+    {
       name: "get_record",
       description:
         "기록 원문과 연결 시점의 적용 원칙 캡처를 읽는다. captured_at=migration은 이관 당시 자료이며 과거 실제 적용 시점의 사본을 보증하지 않는다.",
