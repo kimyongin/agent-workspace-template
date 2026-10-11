@@ -1,3 +1,4 @@
+import { dataId } from "@contracts/data-id.ts";
 import { entityReferenceId } from "@contracts/entity-identity.ts";
 import { activityLocation } from "./activity-location.ts";
 export type ActivityListKind = "tasks" | "records" | "principles" | "entities";
@@ -32,7 +33,7 @@ export function anchorId(kind: ActivityListKind, hash: string): string | undefin
     const id = decodeURIComponent(hash.slice(prefix.length + 2));
     return kind === "entities"
       ? entityReferenceId.safeParse(id).success ? id : undefined
-      : /^[0-9a-f-]{36}$/.test(id) ? id : undefined;
+      : dataId.safeParse(id).success ? id : undefined;
   } catch { return undefined; }
 }
 
