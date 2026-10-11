@@ -10,15 +10,15 @@ const identitySettingsDraft = createIdentitySettingsDraft(api);
 
 export function EntityIdentitySettings({onStateChange}: {onStateChange?: (state: {dirty:boolean;busy:boolean})=>void}) {
   const editor = useSettingsDraft(identitySettingsDraft,onStateChange);
-  const {saved,draft,dirty,busy,conflict,uncertain}=editor;
+  const {saved,draft,dirty,busy,conflict,uncertain,latestReady}=editor;
   const [notice,setMessage]=useState("");
   const [localError,setError]=useState(false);
   const [focusCode,setFocusCode]=useState("");
   const savedIdentity=saved?identitySettingsDraft.toDraft(saved):identitySettingsDraft.initial;
   const error=localError||!!editor.error;
-  const message=editor.error?(editor.operation==="read"?"식별자 설정을 불러오지 못했습니다.":writeErrorMessage(editor.error)):notice;
+  const message=editor.error?(editor.operation==="read"?"식별자 설정을 불러오지 못했습니다.":conflict?"같은 설정에 다른 변경이 저장되어 있습니다. 초안을 보존했습니다. 최신값을 확인한 뒤 다시 편집하세요.":writeErrorMessage(editor.error)):notice;
   const setDraft=(update:(current:IdentitySettings)=>IdentitySettings)=>editor.resource.edit(update);
-  const read=async()=>{const refreshing=!!saved;setMessage("");setError(false);if(await editor.resource.read())setMessage(refreshing?"최신 설정을 확인했습니다. 입력과 순서는 유지했습니다.":"");};
+  const read=async()=>{const refreshing=!!saved;setMessage("");setError(false);if(await editor.resource.read())setMessage(refreshing?"최신 설정을 읽었습니다. 초안을 보존했습니다. 최신값으로 다시 편집하면 읽어온 설정을 적용합니다.":"");};
   const active=draft?.sources.filter(source=>!source.deleted)??[];
   const update=(code:string,patch:Partial<IdentitySettings["sources"][number]>)=>{setDraft(current=>current&&ordered(current.sources.map(source=>source.code===code?{...source,...patch}:source),current));setMessage("");};
   const move=(code:string,direction:number)=>setDraft(current=>{
@@ -40,7 +40,7 @@ export function EntityIdentitySettings({onStateChange}: {onStateChange?: (state:
     {message&&<p className={error?"error-text":"secondary"} role={error?"alert":"status"}>{message}</p>}
     {!saved&&<><p role="status">{message?"":"설정을 읽는 중…"}</p>{message&&<button className="btn" disabled={busy} onClick={()=>void read()}>다시 시도</button>}</>}
     {draft&&saved&&<form className="form" aria-label="엔터티 식별자 설정" aria-busy={busy} onSubmit={async event=>{
-      event.preventDefault();if(busy||!dirty)return;
+      event.preventDefault();if(busy||conflict||!dirty)return;
       const parsed=entityIdentitySettings.safeParse(draft);
       if(!parsed.success){setMessage(parsed.error.issues.map(issue=>issue.message).join(" · "));setError(true);return;}
       setMessage("");setError(false);
@@ -64,7 +64,7 @@ export function EntityIdentitySettings({onStateChange}: {onStateChange?: (state:
       <p className="help">자동 발급은 날짜와 랜덤 8자로 구성된 식별자를 만들고, 직접 입력은 사용자가 식별자를 입력합니다.</p>
       {draft.sources.some(source=>source.deleted)&&<details className="settings-source-retired"><summary>삭제된 발급처 ({draft.sources.filter(source=>source.deleted).length}개)</summary>{draft.sources.filter(source=>source.deleted).map(source=><div className="settings-source-row" key={source.code}><span>{source.label}</span><BodyAction aria-label={`${source.label} 복원`} onClick={()=>{setDraft(current=>current&&ordered([...current.sources.filter(value=>value.code!==source.code),{...source,deleted:false}],current));}}>복원</BodyAction></div>)}</details>}
       {conflict&&<button type="button" className="btn" onClick={()=>void read()}>최신값 확인</button>}
-      <div className="settings-section-footer"><div className="actions"><button type="button" className="btn" disabled={!dirty} onClick={()=>{editor.resource.reset();setMessage("");setError(false);}}>변경 취소</button><button type="submit" className="btn btn-primary" disabled={!dirty}>{busy?"저장 중…":uncertain?"같은 내용 다시 시도":"식별자 설정 저장"}</button></div></div>
+      <div className="settings-section-footer"><div className="actions"><button type="button" className="btn" disabled={conflict?!latestReady:!dirty} onClick={()=>{editor.resource.reset();setMessage("");setError(false);}}>{conflict?"최신값으로 다시 편집":"변경 취소"}</button><button type="submit" className="btn btn-primary" disabled={!dirty||conflict}>{busy?"저장 중…":uncertain?"같은 내용 다시 시도":"식별자 설정 저장"}</button></div></div>
     </fieldset></form>}
   </section>;
 }

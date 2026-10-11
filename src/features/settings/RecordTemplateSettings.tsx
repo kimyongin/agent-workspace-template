@@ -11,7 +11,7 @@ const recordTemplatesDraft = createRecordTemplatesDraft(api);
 
 export function RecordTemplateSettings({onStateChange}: {onStateChange?: (state: {dirty:boolean;busy:boolean})=>void}) {
   const editor = useSettingsDraft(recordTemplatesDraft,onStateChange);
-  const {draft,dirty,busy,conflict,uncertain}=editor;
+  const {draft,dirty,busy,conflict,uncertain,latestReady}=editor;
   const saved=editor.saved?.settings;
   const setDraft=editor.resource.edit;
   const [model, setModel] = useState<TemplateModel>("entity");
@@ -20,8 +20,8 @@ export function RecordTemplateSettings({onStateChange}: {onStateChange?: (state:
   const [fields, setFields] = useState<Record<string, string>>({});
   const missing = unavailableTemplateTags(editor.saved,draft);
   const text = useRef<HTMLTextAreaElement>(null);
-  const read=async()=>{const refreshing=!!saved;setMessage("");if(await editor.resource.read())setMessage(refreshing?"최신 설정을 읽었습니다. 입력한 템플릿은 유지했습니다. 확인한 뒤 다시 저장하세요.":"");};
-  useEffect(()=>{if(editor.error){setMessage(writeErrorMessage(editor.error));if(editor.error instanceof ApiError)setFields(Object.fromEntries(editor.error.fields.map(field=>[field.path.replace(/^value\./,""),field.message])));}},[editor.error]);
+  const read=async()=>{const refreshing=!!saved;setMessage("");if(await editor.resource.read())setMessage(refreshing?"최신 설정을 읽었습니다. 초안을 보존했습니다. 최신값으로 다시 편집하면 읽어온 설정을 적용합니다.":"");};
+  useEffect(()=>{if(editor.error){setMessage(conflict&&editor.operation==="save"?"같은 설정에 다른 변경이 저장되어 있습니다. 초안을 보존했습니다. 최신값을 확인한 뒤 다시 편집하세요.":writeErrorMessage(editor.error));if(editor.error instanceof ApiError)setFields(Object.fromEntries(editor.error.fields.map(field=>[field.path.replace(/^value\./,""),field.message])));}},[editor.error]);
   const value = draft[model]?.[action] ?? effectiveRecordTemplate(undefined, model, action);
   const setValue = (patch: Partial<typeof value>) => { setDraft(current => ({ ...current, [model]: { ...current[model], [action]: { ...value, ...patch } } })); setMessage(""); setFields({}); };
   const parse = recordTemplates.safeParse(draft);
@@ -30,7 +30,7 @@ export function RecordTemplateSettings({onStateChange}: {onStateChange?: (state:
     <h2 className="settings-section-title" id="record-template-title">변경 기록 기본값</h2>
     {!saved && <><p role={message ? "alert" : "status"}>{message || "설정을 읽는 중…"}</p>{message && <button type="button" className="btn" disabled={busy} onClick={()=>void read()}>다시 시도</button>}</>}
     {saved && <form className="form" aria-label="변경 기록 기본값" aria-busy={busy} onSubmit={async event => {
-      event.preventDefault(); if (busy || !dirty) return;
+      event.preventDefault(); if (busy || conflict || !dirty) return;
       if (!parse.success) { setFields(Object.fromEntries(parse.error.issues.map(issue => [issue.path.join("."), issue.message]))); setMessage("템플릿 오류를 확인하세요."); return; }
       setMessage("");
       if(await editor.resource.save()){setMessage("기록 기본값을 저장했습니다.");setFields({});}
@@ -51,7 +51,7 @@ export function RecordTemplateSettings({onStateChange}: {onStateChange?: (state:
         {Object.entries(fields).filter(([key]) => key !== `${model}.${action}.memo`).map(([key, error]) => <p className="error-text" key={key}>{templateModelNames[key.split(".")[0] as TemplateModel] ?? "설정"} {templateActionNames[key.split(".")[1] as TemplateAction] ?? ""}: {error} <button type="button" className="btn" onClick={()=>{const [nextModel,nextAction]=key.split(".");if(TEMPLATE_MODELS.includes(nextModel as TemplateModel)){setModel(nextModel as TemplateModel);setAction(nextAction as TemplateAction);}}}>오류 항목 보기</button></p>)}
         <p role="status">{message}</p>
         {conflict&&<button type="button" className="btn" onClick={()=>void read()}>최신값 확인</button>}
-        <div className="settings-section-footer"><div className="actions"><button type="button" className="btn" disabled={!dirty} onClick={() => { editor.resource.reset(); setFields({}); setMessage(""); }}>변경 취소</button><button type="submit" className="btn btn-primary" disabled={!dirty}>{busy ? "저장 중…" : uncertain ? "같은 내용 다시 시도" : "기록 기본값 저장"}</button></div></div>
+        <div className="settings-section-footer"><div className="actions"><button type="button" className="btn" disabled={conflict?!latestReady:!dirty} onClick={() => { editor.resource.reset(); setFields({}); setMessage(""); }}>{conflict?"최신값으로 다시 편집":"변경 취소"}</button><button type="submit" className="btn btn-primary" disabled={!dirty||conflict}>{busy ? "저장 중…" : uncertain ? "같은 내용 다시 시도" : "기록 기본값 저장"}</button></div></div>
       </fieldset>
     </form>}
   </section>;
