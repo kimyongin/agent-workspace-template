@@ -52,7 +52,9 @@ function runBatch(q: IndexQueue, embedder: Embedder, input: IndexScope) {
 }
 async function retryReady(id: string) {
   await admin`update pgmq.q_search_index set vt=now()-interval '1 second' where msg_id=${id}`;
-  await admin`update private.passage_effects set next_attempt_at=now()-interval '1 second',lease_until=now()-interval '1 second'`;
+  await admin`update private.passage_effects e set next_attempt_at=now()-interval '1 second',lease_until=now()-interval '1 second'
+    from private.search_effect_intents i where i.id=e.intent_id and i.owner_id=${A.userId}::uuid
+      and i.record_id=(select message->>'id' from pgmq.q_search_index where msg_id=${id}::bigint)`;
 }
 
 dbTest("record worker: complete generation, duplicate delivery, body edit/delete during embedding", async () => {
@@ -268,10 +270,11 @@ dbTest("unknown passage exhausts five durable sends and fresh queue delivery can
   assertEquals(sends, 5);
   assertEquals((await state(item.id)).state, "pending");
   assertEquals((await state(item.id)).reason, "retry_exhausted");
+  const heldSource = await state(item.id);
   await asUser(
     user,
     A.userId,
-    (tx) => tx`select app.enqueue_search_index('record',${item.id},${SEARCH_PIPELINE},'manual')`,
+    (tx) => tx`select app.enqueue_search_index('record',${item.id},${heldSource.input_hash},${SEARCH_PIPELINE})`,
   );
   await retryReady(String((await state(item.id)).message_id));
   assertEquals((await runBatch(queue, embedder, scope(item.id))).held, 1);
