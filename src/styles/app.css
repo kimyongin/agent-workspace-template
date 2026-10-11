@@ -853,6 +853,8 @@ textarea.input {
 
 /* Supporting pages use the same bounded groups rather than a full-width form. */
 .settings, .status-page { width: min(100%,48rem); gap: var(--space-5); padding: 0; }
+.has-navigation :is(.app-main, .workspace-list) > :is(.settings, .status-page) > :is(.page-title, .panel-head),
+.has-navigation :is(.app-main, .workspace-list) > .status-page > .panel-head > .page-title { min-height: max(44px, var(--space-8)); }
 .settings .settings-section, .status-page .status-section { min-width: 0; display: grid; gap: var(--space-4); padding: var(--space-4); border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--panel); }
 .settings-section-title, .status-section-title { margin: 0; font-size: .9375rem; line-height: 1.5; font-weight: 600; color: var(--ink); }
 .settings .profile-preview { margin: 0; }

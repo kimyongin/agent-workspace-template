@@ -76,7 +76,16 @@ test("상태: 실제 인증 HTTP·OAuth MCP 집계와 lazy 기본 접힘, 그래
           const style = getComputedStyle(document.querySelector(selector)!);
           return properties.map((property) => style.getPropertyValue(property));
         };
+        const pageBox = document.querySelector(".app-main > .panel")!.getBoundingClientRect();
+        const titleBox = document.querySelector(".page-title")!.getBoundingClientRect();
+        const firstSectionBox = document.querySelector(section)!.getBoundingClientRect();
         return {
+          layout: {
+            titleHeight: titleBox.height,
+            titleOffset: titleBox.top - pageBox.top,
+            firstSectionOffset: firstSectionBox.top - pageBox.top,
+            titleToSectionGap: firstSectionBox.top - titleBox.bottom,
+          },
           page: pick(".app-main > .panel", ["width", "gap", "padding"]),
           heading: pick(".page-title", ["font-size", "line-height", "font-weight", "color"]),
           section: pick(section, [
