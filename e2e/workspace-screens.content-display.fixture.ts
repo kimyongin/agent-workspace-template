@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { id, stamp } from "./support/workspace-data.ts";
+import { entityKey, id, stamp } from "./support/workspace-data.ts";
 import { connectedTarget, fixtures, form, go } from "./support/workspace-screens.ts";
 
 for (const width of [390, 1440]) {
