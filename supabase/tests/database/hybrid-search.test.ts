@@ -88,26 +88,25 @@ dbTest(
   },
 );
 dbTest("query budget: concurrent reservations isolate owners and fallback occurs before external call", async () => {
-  await admin`delete from private.search_embedding_budget where owner_id in (${A.userId},${foreign.actor.userId})`;
-  const results = await Promise.all(
-    Array.from(
-      { length: 21 },
-      () =>
-        asUser(sql, A.userId, async (tx) => (await tx`select app.reserve_search_embedding() as allowed`)[0].allowed),
-    ),
-  );
-  assertEquals(results.filter(Boolean).length, 20);
-  assertEquals(
-    await asUser(
+  // Production budgets use DB calendar minutes; retry only when this entire probe crosses a boundary.
+  let observedSingleWindow = false;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    await admin`delete from private.search_embedding_budget where owner_id in (${A.userId},${foreign.actor.userId})`;
+    const minuteBefore = (await admin`select date_trunc('minute', clock_timestamp())::text as minute`)[0].minute;
+    const results = await Promise.all(
+      Array.from(
+        { length: 21 },
+        () =>
+          asUser(sql, A.userId, async (tx) => (await tx`select app.reserve_search_embedding() as allowed`)[0].allowed),
+      ),
+    );
+    const foreignAllowed = await asUser(
       sql,
       foreign.actor.userId,
       async (tx) => (await tx`select app.reserve_search_embedding() as allowed`)[0].allowed,
-    ),
-    true,
-  );
-  let calls = 0;
-  assertEquals(
-    (await search(
+    );
+    let calls = 0;
+    const fallback = await search(
       {
         ...d,
         embedder: {
@@ -119,10 +118,21 @@ dbTest("query budget: concurrent reservations isolate owners and fallback occurs
       },
       A,
       searchInput.parse({ query: "없는 질의" }),
-    )).search_state,
-    "keyword_fallback",
+    );
+    const minuteAfter = (await admin`select date_trunc('minute', clock_timestamp())::text as minute`)[0].minute;
+    if (minuteBefore !== minuteAfter) continue;
+    assertEquals(results.filter(Boolean).length, 20);
+    assertEquals(foreignAllowed, true);
+    assertEquals(fallback.search_state, "keyword_fallback");
+    assertEquals(calls, 0);
+    observedSingleWindow = true;
+    break;
+  }
+  assertEquals(
+    observedSingleWindow,
+    true,
+    "query budget probe must complete inside one DB minute within three attempts",
   );
-  assertEquals(calls, 0);
   assertMatch(
     await outcome(asUser(sql, A.userId, (tx) => tx`select * from private.search_embedding_budget`)),
     /^42501/,
