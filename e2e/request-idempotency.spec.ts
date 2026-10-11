@@ -49,7 +49,7 @@ async function evidence(page: Page) {
 }
 
 /** route.fetch commits against the real API before the first reply is aborted. */
-async function loseCommittedReply(page: Page, method: string, path: string, status: number) {
+async function loseCommittedReply(page: Page, method: string, path: string, status: number, loss: "abort" | "empty" | "malformed" = "abort") {
   const requests: { key: string; body: string | null; result: any; replay: string | undefined }[] = [];
   const url = `${env.VITE_API_URL}${path}`;
   const handler: Parameters<Page["route"]>[1] = async route => {
@@ -63,8 +63,14 @@ async function loseCommittedReply(page: Page, method: string, path: string, stat
     };
     expect(captured.key).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
     requests.push(captured);
-    if (requests.length === 1) await route.abort("failed");
-    else await route.fulfill({ response: reply });
+    if (requests.length === 1) {
+      if (loss === "abort") await route.abort("failed");
+      else {
+        const headers = reply.headers();
+        delete headers["content-length"];
+        await route.fulfill({ status, headers, body: loss === "empty" ? "" : "{invalid-json" });
+      }
+    } else await route.fulfill({ response: reply });
   };
   await page.route(url, handler);
   return {
@@ -202,3 +208,26 @@ test("external entity restore retries the committed tuple and preparation alloca
     await proof.close();
   }
 });
+
+for (const loss of ["empty", "malformed"] as const) {
+  test(`committed create with a ${loss} success reply retains the original attempt`, async ({ page }) => {
+    await devLogin(page);
+    const proof = await evidence(page), title = unique(`${loss} 응답 할 일`);
+    let id: string | undefined;
+    try {
+      await beginTabAction(page, "할 일 추가");
+      const form = page.getByRole("dialog", { name: "할 일 추가", exact: true });
+      await form.getByRole("textbox", { name: /^제목(?: \(필수\))?$/ }).fill(title);
+      await form.getByLabel("본문").fill(unique("불완전 응답 본문"));
+      const lost = await loseCommittedReply(page, "POST", "/tasks", 201, loss);
+      await saveOnce(page, form, "추가");
+      await lost.retry();
+      id = lost.requests[0].result.id;
+      expect(await proof.taskCount(title)).toBe(1);
+      await proof.assertEvent(id!, "create");
+    } finally {
+      if (id) await proof.api("POST", `/tasks/${id}/delete`, { expected_version: 1 });
+      await proof.close();
+    }
+  });
+}
