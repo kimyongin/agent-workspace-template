@@ -254,7 +254,8 @@ test("desktop: drafts survive tab switch, panel hiding and responsive modal tran
   await page.getByRole("button", { name: "상세 탭 보기 (2개)" }).click(); await expect(panel(page).getByLabel("본문", { exact: true })).toHaveValue("보존할 편집 초안");
   await page.setViewportSize({ width: 390, height: 844 });
   const modal = page.locator("dialog.modal:not(.modal-confirm)[open]"); await expect(modal.getByLabel("본문", { exact: true })).toHaveValue("보존할 편집 초안");
-  expect(await modal.evaluate(el => el.matches(":modal"))).toBe(true);
+  // The media-query update and effect must finish closing the docked dialog and calling showModal.
+  await expect.poll(() => modal.evaluate(el => el.matches(":modal"))).toBe(true);
   await page.setViewportSize({ width: 1440, height: 900 }); await expect(panel(page).getByLabel("본문", { exact: true })).toHaveValue("보존할 편집 초안");
   await page.screenshot({ path: info.outputPath("desktop-tabs-edit.png") });
   expect(state.errors).toEqual([]); expect(state.writes).toEqual([]);
