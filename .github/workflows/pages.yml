@@ -45,6 +45,7 @@ jobs:
           VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.PROD_SUPABASE_PUBLISHABLE_KEY }}
           VITE_API_URL: ${{ vars.PROD_API_URL }}
           VITE_REPOSITORY_URL: ${{ vars.PROD_REPOSITORY_URL }}
+          VITE_PLUGIN_URL: ${{ vars.PROD_PLUGIN_URL }}
       - name: 운영 빌드가 로컬 Supabase를 가리키지 않는지 확인
         # 개발용 로그인 코드 자체를 번들에서 빼는 일은 T02-6의 운영 빌드 검사에서 한다(지금은 표시만 막힘).
         run: |

@@ -7,7 +7,7 @@ function publicUrl(value: string | undefined) {
   } catch { return null; }
 }
 
-export function guideConfig(apiUrl?: string, repositoryUrl?: string) {
+export function guideConfig(apiUrl?: string, repositoryUrl?: string, pluginUrl?: string) {
   const api = publicUrl(apiUrl);
   let mcp: string | null = null;
   if (api && /\/api\/?$/.test(api.pathname)) {
@@ -16,8 +16,10 @@ export function guideConfig(apiUrl?: string, repositoryUrl?: string) {
   }
   const repository = publicUrl(repositoryUrl);
   const base = repository?.href.replace(/\/$/, "");
+  const plugin = publicUrl(pluginUrl);
   return {
     mcp,
+    pluginApp: plugin?.protocol === "https:" ? plugin.href : null,
     pluginDocs: base ? `${base}/blob/HEAD/plugins/workspace/README.md` : null,
     releaseDocs: base ? `${base}/blob/HEAD/docs/deployment/release.md#플러그인-패키징과-배포` : null,
   };
