@@ -15,7 +15,7 @@ export class SqlIndexQueue implements IndexQueue {
   async finish(
     id: string,
     pipeline: string,
-    state: "indexed" | "excluded" | "failed" | "retry",
+    state: "indexed" | "excluded" | "failed" | "retry" | "held",
     reason: string | null,
     chunks?: IndexedChunk[],
     delay = 0,

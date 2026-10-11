@@ -1,3 +1,6 @@
+import { dataId } from "../_shared/contracts/data-id.ts";
+import { SqlExternalEffectLedger } from "../_shared/adapters/supabase/external-effect.ts";
+import { DurablePassageEmbedder, hashPassage } from "../_shared/core/search/passage-embedder.ts";
 import postgres from "postgres";
 import { z } from "zod";
 import { SqlIndexQueue } from "../_shared/adapters/supabase/index-queue.ts";
@@ -6,9 +9,9 @@ import { indexBatch } from "../_shared/core/search/index-worker.ts";
 
 const input = z.strictObject({
   limit: z.number().int().min(1).max(5).default(5),
-  owner_id: z.uuid().optional(),
+  owner_id: dataId.optional(),
   kind: z.enum(["task", "record", "principle"]).optional(),
-  id: z.uuid().optional(),
+  id: dataId.optional(),
 });
 let sql: postgres.Sql | undefined;
 Deno.serve(async (request) => {
@@ -49,7 +52,10 @@ Deno.serve(async (request) => {
     return Response.json({ error: "invalid_input" }, { status: 400 });
   }
   const key = Deno.env.get("PINECONE_API_KEY"), url = Deno.env.get("WORKER_DB_URL");
-  if (!key || !url) return Response.json({ error: "worker_not_configured" }, { status: 503 });
+  const accountScope = Deno.env.get("PINECONE_ACCOUNT_SCOPE");
+  if (!key || !url || !accountScope?.trim() || accountScope.length > 120) {
+    return Response.json({ error: "worker_not_configured" }, { status: 503 });
+  }
   try {
     sql ??= postgres(url, {
       prepare: false,
@@ -58,7 +64,17 @@ Deno.serve(async (request) => {
       connection: { statement_timeout: 15_000, lock_timeout: 5_000 },
       onnotice: () => {},
     });
-    return Response.json(await indexBatch(new SqlIndexQueue(sql), new PineconeEmbedder(key), scope));
+    return Response.json(
+      await indexBatch(
+        new SqlIndexQueue(sql),
+        new DurablePassageEmbedder(
+          new SqlExternalEffectLedger(sql),
+          new PineconeEmbedder(key),
+          await hashPassage(accountScope),
+        ),
+        scope,
+      ),
+    );
   } catch {
     // 상세 원문·DB 오류·비밀을 공개하지 않는다. claim된 작업은 visibility timeout 이후 다시 읽힌다.
     return Response.json({ error: "worker_failed" }, { status: 503 });
