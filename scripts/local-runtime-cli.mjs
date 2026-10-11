@@ -19,6 +19,15 @@ export function realHostBindSource(source) {
     }
     source = `${bridge[1].toUpperCase()}:\\${bridge[2].replaceAll('/', '\\')}`;
   }
+  // macOS Docker Desktop exposes only this exact Users bridge for these checkouts.
+  // Reject traversal/ambiguous components before resolving the real host directory.
+  if (process.platform === 'darwin' && source.startsWith('/host_mnt/Users/')) {
+    const hostSource = source.slice('/host_mnt'.length);
+    if (hostSource.slice(1).split('/').some(part => !part || part === '.' || part === '..' || /[\\:\0]/.test(part))) {
+      throw new Error('Invalid Docker Desktop host bind path');
+    }
+    source = hostSource;
+  }
   return realpathSync(source);
 }
 
