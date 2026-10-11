@@ -7,6 +7,7 @@ import {
   env,
   principleDeps,
   searchDeps,
+  statusDeps,
   tagDeps,
 } from "../_shared/bootstrap.ts";
 
@@ -20,5 +21,6 @@ Deno.serve(
     searchDeps(),
     entityDeps(),
     businessSettingsDeps(),
+    statusDeps(),
   ),
 );

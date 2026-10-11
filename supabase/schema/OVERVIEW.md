@@ -29,3 +29,5 @@
 업무 테이블은 PostgREST에 노출하지 않는 `app` 스키마에 둔다. `app_server`는 요청별 Actor를 트랜잭션 안에서 전달하고 `app_user`로 전환하며, 복합 FK·RLS로 같은 소유자 접근을 보장한다. 색인 큐 `search_index`는 `pgmq`가 담당한다. 권한 구성은 [아키텍처](../../docs/architecture/hexagonal-review.md#권한과-직접-접근)를 참고한다.
 
 형식 한도는 contracts와 같고 [`tests/database/parity.test.ts`](../tests/database/parity.test.ts)가 확인한다. 업무 규칙은 core에 있다.
+
+`20261011120713_workspace_status_overview.sql`의 `app.status_overview`는 기존 소유자 RLS 아래 현재 개수와 30일 일별 값을 한 조회 snapshot에서 집계한다. `app.status_record_indexing`은 현재 소유자·본문 hash·pipeline·기록 revision에 맞는 상태만 분류하는 읽기 전용 함수다. 비공개 구간 원장 조회 권한을 넓히지 않고 기록 ID·작성 시각·상태·안전한 이유만 내부 서버 조회에 제공한다. 새 테이블이나 이력 snapshot은 만들지 않는다.

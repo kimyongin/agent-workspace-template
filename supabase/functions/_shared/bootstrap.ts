@@ -1,3 +1,5 @@
+import { SqlStatusReader } from "./adapters/supabase/status-reader.ts";
+import type { StatusDeps } from "./core/status/application.ts";
 import { SqlEffectStatusReader } from "./adapters/supabase/external-effect.ts";
 // 실행 환경에서 실제 구현을 조립한다. 요청마다 Actor는 진입점이 검증해 유스케이스에 넘긴다.
 import postgres from "postgres";
@@ -14,6 +16,11 @@ import { SqlEntityUnitOfWork } from "./adapters/supabase/entity-store.ts";
 import type { EntityDeps } from "./core/entity/application.ts";
 import { SqlBusinessSettingsUnitOfWork } from "./adapters/supabase/business-settings-store.ts";
 import type { BusinessSettingsDeps } from "./core/settings/application.ts";
+let status: StatusDeps | undefined;
+export function statusDeps(): StatusDeps {
+  return status ??= { reader: new SqlStatusReader(database()), clock: { now: () => new Date() } };
+}
+
 let settings: BusinessSettingsDeps | undefined;
 export function businessSettingsDeps(): BusinessSettingsDeps {
   return settings ??= { uow: new SqlBusinessSettingsUnitOfWork(database()), clock: { now: () => new Date() } };

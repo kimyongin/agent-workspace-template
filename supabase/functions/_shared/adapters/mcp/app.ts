@@ -1,3 +1,5 @@
+import type { StatusDeps } from "../../core/status/application.ts";
+import { statusTools } from "./status-tools.ts";
 // MCP 진입점 조립: 보호 자원 metadata(RFC 9728) → 토큰 검증(aud=MCP URL) → 요청별 무상태 MCP 서버.
 import { createMcpHandler, McpServer } from "@modelcontextprotocol/server";
 import { withOAuthProtectedResource } from "@supabase/server";
@@ -42,6 +44,7 @@ export function createMcpApp(
   search: SearchDeps,
   entities?: EntityDeps,
   settings?: BusinessSettingsDeps,
+  status?: StatusDeps,
 ) {
   const tools = [
     ...activityTools(deps),
@@ -50,6 +53,7 @@ export function createMcpApp(
     ...searchTools(search),
     ...(entities ? entityTools(entities) : []),
     ...(settings ? settingsTools(settings) : []),
+    ...(status ? statusTools(status) : []),
   ];
   const handler = async (req: Request): Promise<Response> => {
     let actor;

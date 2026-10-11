@@ -1,3 +1,4 @@
+import { StatusPage } from "../features/status/StatusPage.tsx";
 import { WriteOutcomeNotice } from "../components/WriteOutcomeNotice.tsx";
 import { DetailNavigationProvider } from "../lib/detail-exploration.tsx";
 // 앱 조립: 경로·메뉴·브랜드. 새 도메인은 메뉴와 경로를 여기서 바꾼다.
@@ -54,6 +55,7 @@ const workspaceRoutes = [
   { path: "records", element: <RecordsPage/> }, { path: "records/:id", element: <RecordDetailPage/> },
   { path: "principles", element: <PrinciplesPage/> }, { path: "principles/:id", element: <PrincipleDetailPage/> },
   { path: "search", element: <SearchPage/> },
+  { path: "status", element: <StatusPage/> },
 ];
 
 function WorkspaceRoutes({ location }: { location: Location }) {

@@ -3,6 +3,6 @@ export function navigationSection(path: string) {
   if (/^\/tasks(?:\/|$)/.test(path)) return "tasks";
   if (/^\/records(?:\/|$)/.test(path)) return "records";
   if (/^\/principles(?:\/|$)/.test(path)) return "principles";
-  if (/^\/(tags|guide|settings|search)(?:\/|$)/.test(path)) return "more";
+  if (/^\/(tags|guide|settings|search|status)(?:\/|$)/.test(path)) return "more";
   return null;
 }
