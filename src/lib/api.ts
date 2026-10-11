@@ -34,6 +34,7 @@ export async function api<T>(method: string, path: string, body?: unknown, signa
   if (res.status === 204) return undefined as T;
   let text:string;
   try {text=await res.text();} catch {throw new ApiError(0,"network","응답을 읽지 못했습니다.",[],true);}
+  if (res.ok && writing && !text) throw new ApiError(0,"network","성공 응답을 확인하지 못했습니다.",[],true);
   let parsed: unknown = null;
   try {
     parsed = text ? JSON.parse(text) : null;
@@ -50,6 +51,7 @@ export async function api<T>(method: string, path: string, body?: unknown, signa
       err?.retryable ?? res.status >= 500,
     );
   }
+  if (writing && parsed === null) throw new ApiError(0,"network","성공 응답을 확인하지 못했습니다.",[],true);
   return parsed as T;
 }
 
