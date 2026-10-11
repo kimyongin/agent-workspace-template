@@ -101,7 +101,7 @@ export function useRecordConfirmation(options: {
   };
   const failureMessage = (error: unknown) => {
     if (error instanceof ApiError && error.code === "conflict" && surface?.editor.current) {
-      return `${error.message} 확인창을 취소한 뒤 편집을 취소하고 ‘변경 버리기’를 선택하면 최신 내용을 다시 조회합니다. 상세 패널 숨기기는 초안을 유지합니다.`;
+      return `${error.message} 확인창을 취소한 뒤 편집을 취소하고 ‘변경 버리기’를 선택하면 최신 내용을 다시 조회합니다. 상세 패널 숨기기는 초안을 유지합니다. 탭 닫기에서 ‘변경 버리기’를 선택하면 초안을 버리며, 다시 열면 최신 내용을 조회합니다.`;
     }
     return writeErrorMessage(error);
   };
