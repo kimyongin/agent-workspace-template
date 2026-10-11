@@ -19,9 +19,9 @@ it("HTTP retry sends the original key, target and serialized input after a lost 
   } finally {vi.unstubAllGlobals();}
 });
 
-it.each([201, 200])("empty %s write replies retain the request for an exact retry", async status => {
+it.each([[201, ""], [200, ""], [201, "null"], [200, "null"]] as const)("%s write replies with body %j retain the request for an exact retry", async (status, responseBody) => {
   const fetch = vi.fn()
-    .mockResolvedValueOnce(new Response("", { status }))
+    .mockResolvedValueOnce(new Response(responseBody, { status }))
     .mockResolvedValueOnce(new Response(JSON.stringify({ id: "server-issued", version: 2 }), { status }));
   vi.stubGlobal("fetch", fetch);
   const attempt = new WriteAttempt();
@@ -38,8 +38,9 @@ it.each([201, 200])("empty %s write replies retain the request for an exact retr
 });
 
 it("nullable reads and successful 204 writes keep their existing empty response behavior", async () => {
-  vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce(new Response("", { status: 200 })).mockResolvedValueOnce(new Response(null, { status: 204 })));
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce(new Response("", { status: 200 })).mockResolvedValueOnce(new Response("null", { status: 200 })).mockResolvedValueOnce(new Response(null, { status: 204 })));
   try {
+    expect(await api("GET", "/tasks/task-1")).toBeNull();
     expect(await api("GET", "/tasks/task-1")).toBeNull();
     const attempt = new WriteAttempt();
     await attempt.run(async () => { expect(await api("POST", "/tasks/task-1/delete", { expected_version: 1 }, undefined, attempt.requestKey())).toBeUndefined(); });

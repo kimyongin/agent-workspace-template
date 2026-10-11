@@ -51,6 +51,7 @@ export async function api<T>(method: string, path: string, body?: unknown, signa
       err?.retryable ?? res.status >= 500,
     );
   }
+  if (writing && parsed === null) throw new ApiError(0,"network","성공 응답을 확인하지 못했습니다.",[],true);
   return parsed as T;
 }
 
