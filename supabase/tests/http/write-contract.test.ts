@@ -36,6 +36,8 @@ httpTest("retired HTTP paths return 404 and preserve their target values", async
   })).body;
   const baseline = (await call(token, "GET", "/principles/current")).body.current;
   const principle = baseline ?? (await call(token, "POST", "/principles", { title: "retired-route-proof" })).body;
+  const taskBefore = (await call(token, "GET", `/tasks/${task.id}`)).body;
+  const recordBefore = (await call(token, "GET", `/records/${record.id}`)).body;
   try {
     for (
       const [method, path] of [
@@ -56,8 +58,8 @@ httpTest("retired HTTP paths return 404 and preserve their target values", async
       );
       assertEquals(response.status, 404);
     }
-    assertEquals((await call(token, "GET", `/tasks/${task.id}`)).body, task);
-    assertEquals((await call(token, "GET", `/records/${record.id}`)).body, record);
+    assertEquals((await call(token, "GET", `/tasks/${task.id}`)).body, taskBefore);
+    assertEquals((await call(token, "GET", `/records/${record.id}`)).body, recordBefore);
     assertEquals((await call(token, "GET", `/principles/${principle.id}`)).body, principle);
     const retained = (await call(token, "GET", `/entities/${encodeURIComponent(entity.id)}`)).body;
     assertEquals([retained.id, retained.version, retained.deleted_at], [entity.id, entity.version, null]);
