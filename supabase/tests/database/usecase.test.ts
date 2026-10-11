@@ -1,3 +1,4 @@
+import { requestActor } from "../_request.ts";
 // 유스케이스 + 실제 저장 어댑터: 완료 중 일부가 실패하면 할 일·결과 기록·큐가 모두 롤백된다.
 import { assertEquals, assertRejects } from "@std/assert";
 import * as activity from "../../functions/_shared/core/activity/application.ts";
@@ -42,15 +43,15 @@ async function counts(taskId: string) {
 for (const step of ["insertRecord", "updateTask", "enqueueIndex"] as const) {
   dbTest(`완료 중 ${step} 뒤 실패하면 모두 롤백된다`, async () => {
     const actor = { userId: A };
-    const task = await activity.createTask({ uow: real, clock }, actor, {
-      id: crypto.randomUUID(),
+    const task = await activity.createTask({ uow: real, clock }, requestActor(actor), {
       kind: "once",
       title: "롤백 시험",
       body: "",
     });
     const before = await counts(task.id);
+    const completionActor = requestActor(actor);
     await assertRejects(() =>
-      activity.completeTask({ uow: failingAt(step), clock }, actor, task.id, {
+      activity.completeTask({ uow: failingAt(step), clock }, completionActor, task.id, {
         expected_version: 1,
         body: "결과 본문",
       })
@@ -58,7 +59,7 @@ for (const step of ["insertRecord", "updateTask", "enqueueIndex"] as const) {
     assertEquals(await counts(task.id), before);
     assertEquals(before.status, "open");
     // 실패 뒤 같은 완료가 정상 경로로 다시 성공한다.
-    const done = await activity.completeTask({ uow: real, clock }, actor, task.id, {
+    const done = await activity.completeTask({ uow: real, clock }, completionActor, task.id, {
       expected_version: 1,
       body: "결과 본문",
     });

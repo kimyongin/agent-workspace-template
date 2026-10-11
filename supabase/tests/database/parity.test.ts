@@ -27,7 +27,7 @@ async function dbAccepts(table: "tasks" | "records" | "principles", row: Record<
 }
 
 function contractAccepts(schema: z.ZodType, value: unknown): boolean {
-  return schema.safeParse({ id: crypto.randomUUID(), ...(value as Record<string, unknown>) }).success;
+  return schema.safeParse({ ...(value as Record<string, unknown>) }).success;
 }
 
 const boundaries = (field: "title" | "body", max: number, min: number) => [
@@ -89,14 +89,14 @@ dbTest("기록: DB 컬럼(owner_id 제외)과 contracts 응답 필드가 같다"
 
 dbTest("원칙: legacy fields rejected by current input and retired DB aliases and current result columns", async () => {
   assertEquals(
-    principleCreate.safeParse({ id: crypto.randomUUID(), ...{ ...record, applies_when: "legacy" } }).success,
+    principleCreate.safeParse({ ...{ ...record, applies_when: "legacy" } }).success,
     false,
   );
   assertEquals(
-    principleCreate.safeParse({ id: crypto.randomUUID(), ...{ ...record, entity_id: `app:${crypto.randomUUID()}` } })
+    principleCreate.safeParse({ ...{ ...record, entity_id: `app:${crypto.randomUUID()}` } })
       .success,
     false,
   );
-  assertEquals(principleCreate.safeParse({ id: crypto.randomUUID(), ...{ ...record, tag_ids: [] } }).success, false);
+  assertEquals(principleCreate.safeParse({ ...{ ...record, tag_ids: [] } }).success, false);
   assertEquals(await columns("principles"), Object.keys(principleResult.shape).sort());
 });

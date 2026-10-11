@@ -1,3 +1,4 @@
+import { requestActor } from "../_request.ts";
 import { assert, assertEquals, assertRejects } from "@std/assert";
 import { asUser, connect, dbTest, fixtureOwner, urls } from "../database/_db.ts";
 import { appliedPrincipleSnapshot, recordResult, recordUpdate } from "../../functions/_shared/contracts/record.ts";
@@ -34,41 +35,38 @@ dbTest(
     try {
       const first = await entity.createEntity(
         ed,
-        f.actor,
+        requestActor(f.actor),
         entityCreate.parse({ source: "app", external_id: crypto.randomUUID(), ...{ prop1: "이전 단일 대상" } }),
       );
       const second = await entity.createEntity(
         ed,
-        f.actor,
+        requestActor(f.actor),
         entityCreate.parse({ source: "app", external_id: crypto.randomUUID(), ...{ prop1: "삭제할 대상" } }),
       );
       const ids = [first.id, second.id].sort();
       const legacyTask = await activity.createTask(
         ad,
-        f.actor,
+        requestActor(f.actor),
         taskCreate.parse({
-          id: crypto.randomUUID(),
           ...{ kind: "once", title: "옛 단일 업무", summary: "보존", entity_ids: [first.id] },
         }),
       );
       const multi = await activity.createTask(
         ad,
-        f.actor,
+        requestActor(f.actor),
         taskCreate.parse({
-          id: crypto.randomUUID(),
           ...{ kind: "once", title: "여러 대상", summary: "보존", entity_ids: ids },
         }),
       );
       const unlinked = await activity.createTask(
         ad,
-        f.actor,
-        taskCreate.parse({ id: crypto.randomUUID(), ...{ kind: "once", title: "대상 없음", summary: "선택 사항" } }),
+        requestActor(f.actor),
+        taskCreate.parse({ ...{ kind: "once", title: "대상 없음", summary: "선택 사항" } }),
       );
       const linkedRecord = await activity.createRecord(
         ad,
-        f.actor,
+        requestActor(f.actor),
         recordCreate.parse({
-          id: crypto.randomUUID(),
           ...{ title: "당시 여러 대상", summary: "문맥", entity_ids: ids },
         }),
       );
@@ -147,7 +145,7 @@ dbTest(
       assertEquals((await activity.getRecord(ad, f.actor, decision.id)).entity_ids, [first.id]);
       assertEquals((await activity.getTask(ad, f.actor, legacyTask.id)).entity_ids, [first.id]);
       assertEquals((await activity.getTask(ad, f.actor, unlinked.id)).entity_ids, []);
-      await entity.deleteEntity(ed, f.actor, second.id, second.version);
+      await entity.deleteEntity(ed, requestActor(f.actor), second.id, second.version);
       assertEquals((await activity.getTask(ad, f.actor, multi.id)).entity_ids, [first.id]);
       const retained = await activity.getRecord(ad, f.actor, linkedRecord.id);
       assertEquals(retained.entity_ids, ids);
@@ -178,7 +176,7 @@ dbTest(
       const original = await principle.getPrinciple(pd, f.actor, source.id);
       const edited = await principle.updatePrinciple(
         pd,
-        f.actor,
+        requestActor(f.actor),
         original.id,
         principleUpdate.parse({
           title: original.title,
@@ -203,7 +201,7 @@ dbTest(
       assertEquals(edited.body, "현재 원칙 변경");
       await activity.updateRecord(
         ad,
-        f.actor,
+        requestActor(f.actor),
         parts[1].id,
         recordUpdate.parse({ expected_version: parts[1].version, body: "사용자가 편집한 보존 메모" }),
       );

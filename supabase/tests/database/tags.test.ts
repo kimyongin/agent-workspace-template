@@ -1,3 +1,4 @@
+import { requestActor } from "../_request.ts";
 import { assertEquals, assertRejects } from "@std/assert";
 import { SqlTagUnitOfWork } from "../../functions/_shared/adapters/supabase/tag-store.ts";
 import { tagCreate, tagListQuery, tagRename } from "../../functions/_shared/contracts/tag.ts";
@@ -9,20 +10,20 @@ const users = await devUsers(admin), A = { userId: users.a }, B = { userId: user
 const deps = { uow: new SqlTagUnitOfWork(sql) };
 dbTest("태그: 대소문자 중복·경쟁·버전·소유자 격리·멱등", async () => {
   const name = "Test" + crypto.randomUUID().slice(0, 20),
-    input = tagCreate.parse({ id: crypto.randomUUID(), ...{ name } });
-  const p = await createTag(deps, A, input);
-  await assertRejects(() => createTag(deps, A, input), AppError);
+    input = tagCreate.parse({ ...{ name } });
+  const p = await createTag(deps, requestActor(A), input);
+  await assertRejects(() => createTag(deps, requestActor(A), input), AppError);
   await assertRejects(
-    () => createTag(deps, A, tagCreate.parse({ id: crypto.randomUUID(), ...{ name: name.toLowerCase() } })),
+    () => createTag(deps, requestActor(A), tagCreate.parse({ ...{ name: name.toLowerCase() } })),
     AppError,
   );
-  await createTag(deps, B, tagCreate.parse({ id: crypto.randomUUID(), ...{ name } }));
-  await assertRejects(() => deleteTag(deps, B, p.id, 1), AppError);
+  await createTag(deps, requestActor(B), tagCreate.parse({ ...{ name } }));
+  await assertRejects(() => deleteTag(deps, requestActor(B), p.id, 1), AppError);
   const q = tagListQuery.parse({ limit: 1 }), page = await listTags(deps, A, q);
   if (page.next_cursor) await assertRejects(() => listTags(deps, B, { ...q, cursor: page.next_cursor! }), AppError);
   const renamed = await renameTag(
     deps,
-    A,
+    requestActor(A),
     p.id,
     tagRename.parse({
       name: "정정" + crypto.randomUUID().slice(0, 20),
@@ -30,11 +31,11 @@ dbTest("태그: 대소문자 중복·경쟁·버전·소유자 격리·멱등", 
     }),
   );
   assertEquals(renamed.version, 2);
-  await assertRejects(() => deleteTag(deps, A, p.id, 1), AppError);
-  await deleteTag(deps, A, p.id, 2);
+  await assertRejects(() => deleteTag(deps, requestActor(A), p.id, 1), AppError);
+  await deleteTag(deps, requestActor(A), p.id, 2);
   const concurrentName = "경쟁" + crypto.randomUUID().slice(0, 20);
   const results = await Promise.allSettled(
-    [1, 2].map(() => createTag(deps, A, tagCreate.parse({ id: crypto.randomUUID(), ...{ name: concurrentName } }))),
+    [1, 2].map(() => createTag(deps, requestActor(A), tagCreate.parse({ ...{ name: concurrentName } }))),
   );
   assertEquals(results.filter((r) => r.status === "fulfilled").length, 1);
 });
@@ -49,7 +50,7 @@ dbTest("태그 parity: 빈 값·Unicode 30/31자와 trim", async () => {
     } catch (e) {
       if ((e as Error).message !== "rollback") accepted = false;
     }
-    assertEquals(accepted, tagCreate.safeParse({ id: crypto.randomUUID(), ...{ name } }).success);
+    assertEquals(accepted, tagCreate.safeParse({ ...{ name } }).success);
   }
-  assertEquals(tagCreate.parse({ id: crypto.randomUUID(), ...{ name: " 태그 " } }).name, "태그");
+  assertEquals(tagCreate.parse({ ...{ name: " 태그 " } }).name, "태그");
 });

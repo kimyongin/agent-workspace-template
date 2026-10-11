@@ -48,6 +48,7 @@ function fixture(kind: "user" | "result" | "change") {
   };
   const jobs: IndexJob[] = [];
   const store = new Proxy({
+    executeRequest: <T>(_request: unknown, execute: () => Promise<T>) => execute(),
     getRecord: () => Promise.resolve(structuredClone(row)),
     updateRecord: (_id: string, patch: object) => {
       row = { ...row, ...patch, version: row.version + 1 };
@@ -72,7 +73,7 @@ function fixture(kind: "user" | "result" | "change") {
   };
   const app = new Hono<HttpEnv>();
   app.use("*", async (c, next) => {
-    c.set("actor", actor);
+    c.set("actor", { ...actor, request: { key: c.req.header("Idempotency-Key") ?? crypto.randomUUID() } });
     await next();
   });
   app.route("/", activityRoutes(deps));
@@ -87,10 +88,14 @@ function fixture(kind: "user" | "result" | "change") {
     http: (input: unknown) =>
       app.request(`/records/${row.id}`, {
         method: "PATCH",
-        headers: { "content-type": "application/json" },
+        headers: { "Idempotency-Key": crypto.randomUUID(), "content-type": "application/json" },
         body: JSON.stringify(input),
       }),
-    call: (input: object) => tools.find((t) => t.name === "update_record")!.handler({ id: row.id, ...input }, actor),
+    call: (input: object) =>
+      tools.find((t) => t.name === "update_record")!.handler({
+        request_key: crypto.randomUUID(),
+        ...{ id: row.id, ...input },
+      }, actor),
     read: async () =>
       await tools.find((t) => t.name === "get_record")!.handler({ id: row.id }, actor) as ActivityRecord,
   };
