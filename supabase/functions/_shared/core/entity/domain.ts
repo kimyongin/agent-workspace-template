@@ -32,14 +32,11 @@ export function registrationIdentity(
 export function registrationIdentity(
   settings: EntityIdentitySettings,
   input: Pick<EntityCreate, "source" | "external_id">,
-  phase: "prepare" | "write",
+  _phase: "prepare" | "write",
 ) {
   const source = input.source ?? settings.default_source;
   if (!isActiveEntitySource(settings, source)) throw invalidInput("삭제되지 않은 발급처를 선택하세요");
   if (!input.external_id) {
-    if (phase === "write") {
-      throw invalidInput("등록 준비로 식별자를 발급한 뒤 external_id를 고정하여 저장하세요");
-    }
     if (entitySourceGeneration(settings, source) === "manual") throw invalidInput("식별자를 입력하세요");
   }
   return { source, external_id: input.external_id };
@@ -51,7 +48,13 @@ export function registrationContent(
   identity: Pick<EntityContent, "source" | "external_id">,
   before: ChangeFacts | null = null,
 ): EntityContent {
-  const { expected_version: _version, change_note: _note, change_tag_ids: _tags, ...fields } = input;
+  const {
+    settings_version: _settings,
+    expected_version: _version,
+    change_note: _note,
+    change_tag_ids: _tags,
+    ...fields
+  } = input;
   const prop1 = fields.prop1 ?? before?.prop1;
   if (!prop1) throw invalidInput("속성 1은 필수입니다");
   return {

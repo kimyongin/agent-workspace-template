@@ -1,6 +1,5 @@
 import { Hono } from "hono";
 import {
-  allocateDataId,
   type BusinessSettingsDeps,
   getBusinessSettings,
   prepareBusinessRecord,
@@ -9,7 +8,6 @@ import {
 import { type HttpEnv, json } from "./input.ts";
 export function settingsRoutes(deps: BusinessSettingsDeps) {
   const app = new Hono<HttpEnv>();
-  app.post("/ids/allocate", async (c) => c.json(await allocateDataId(deps, c.get("actor"))));
   app.get("/settings/business", async (c) => c.json(await getBusinessSettings(deps, c.get("actor"))));
   app.patch(
     "/settings/business",

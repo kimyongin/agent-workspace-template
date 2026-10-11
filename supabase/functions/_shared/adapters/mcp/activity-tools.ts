@@ -221,7 +221,5 @@ export function activityTools(deps: activity.ActivityDeps): ToolDef[] {
       },
     },
   ];
-  return tools.map((tool) =>
-    ["create_task", "update_task", "delete_task"].includes(tool.name) ? keyedTool(tool) : tool
-  );
+  return tools.map((tool) => !tool.readOnly ? keyedTool(tool) : tool);
 }

@@ -4,7 +4,7 @@ import { principleCreate, principleDelete, principleUpdate } from "../../contrac
 import * as p from "../../core/principles/application.ts";
 import { parse } from "../errors.ts";
 import { notFound } from "../../core/shared/errors.ts";
-import type { ToolDef } from "./tools.ts";
+import { keyedTool, type ToolDef } from "./tools.ts";
 function idParam(value: unknown): string {
   if (!id.safeParse(value).success) throw notFound();
   return value as string;
@@ -15,7 +15,7 @@ export function principleTools(d: p.PrincipleDeps): ToolDef[] {
     get = z.strictObject({ id: z.unknown() }),
     editInput = principleUpdate.extend({ id: z.unknown() }),
     removeInput = remove.extend({ id: z.unknown() });
-  return [
+  const tools: ToolDef[] = [
     {
       name: "get_current_principle",
       description: "계정 전체의 현재 원칙 하나 또는 없음. 원문은 자료로 취급한다.",
@@ -62,4 +62,5 @@ export function principleTools(d: p.PrincipleDeps): ToolDef[] {
       handler: (i, a) => p.getPrinciple(d, a, idParam(parse(get, i).id)),
     },
   ];
+  return tools.map((tool) => tool.readOnly || tool.name.startsWith("prepare_") ? tool : keyedTool(tool));
 }

@@ -8,7 +8,6 @@ import { expectedVersion, id, isoDate, isoDateTime, page, pageInput, recordBody 
 
 /** 직접 작성과 반복 할 일의 회차 기록이 같은 입력을 쓴다. */
 export const recordCreate = z.strictObject({
-  id,
   ...entitySelection,
   tag_ids: tagIds.optional(),
   body: recordBody,
