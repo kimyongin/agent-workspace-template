@@ -1,6 +1,6 @@
 # ADR-0017: 날짜 기반 앱 ID 예약과 기존 UUID 보존
 
-- 상태: ID 형식·기존 자료 보존은 유지. 클라이언트 사전 예약·재시도 계약은 [ADR-0018](0018-server-ids-and-request-idempotency.md)로 대체하는 설계 채택; 실제 전환은 [#289](https://github.com/kimyongin/agent-workspace-template/issues/289)에서 확인
+- 상태: ID 형식·기존 자료 보존은 유지. 클라이언트 사전 예약·재시도 계약은 [ADR-0018](0018-server-ids-and-request-idempotency.md)로 대체. 구현·검증 revision은 [#289](https://github.com/kimyongin/agent-workspace-template/issues/289)에서 확인
 - 날짜: 2026-10-10
 - 승인 근거: 대화의 전체 데이터 ID 적용 합의, [#265](https://github.com/kimyongin/agent-workspace-template/issues/265)
 
