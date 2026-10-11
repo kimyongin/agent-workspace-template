@@ -1,3 +1,4 @@
+import { settingsResponse } from "./support/preparation-api.ts";
 import { expect, test, type Page } from "@playwright/test";
 
 const user = { id: "00000000-0000-0000-0000-000000000001", aud: "authenticated", email: "fixture@example.test", app_metadata: {}, user_metadata: { full_name: "기존 계정 이름", workspace_avatar_id: "person", provider_value: "preserved" } };
@@ -10,14 +11,14 @@ test("다른 창의 발급처 추가 충돌을 읽고 사용자 이름 편집과
   const writes:{expected_version:number;value:typeof value}[]=[];
   let hold=false,release!:()=>void;
   const wait=new Promise<void>(resolve=>{release=resolve;});
-  await context.route("**/settings/business",async route=>{
+  await context.route("**/settings/business{,?**}",async route=>{
     if(route.request().method()==="GET"&&hold)await wait;
     if(route.request().method()==="PATCH") {
       const input=route.request().postDataJSON();writes.push(input);
       if(input.expected_version!==version)return route.fulfill({status:409,json:{error:{code:"conflict",message:"같은 설정에 다른 변경이 저장되어 있습니다.",fields:[]}}});
       value=input.value;version++;
     }
-    return route.fulfill({json:{versions:{record_templates:0,entity_identity:version},settings:{record_templates:{},entity_identity:value}}});
+    return route.fulfill({json:settingsResponse(route, {versions:{record_templates:0,entity_identity:version},settings:{record_templates:{},entity_identity:value}})});
   });
   await context.route("**/tags?**",route=>route.fulfill({json:{items:[],next_cursor:null}}));
   await page.goto(fixture);
@@ -46,13 +47,13 @@ for (const width of [390,1440]) test(`업무 설정 ${width}px: 독립 저장·�
   const versions = {record_templates:0,entity_identity:0};
   const settings = {record_templates:{},entity_identity:{generation:"short",default_source:"app",sources:[{code:"app",label:"앱"},{code:"crm",label:"고객"}]}};
   const writes: {id:keyof typeof settings;expected_version:number;value:unknown}[]=[];
-  await context.route("**/settings/business",route=>{
+  await context.route("**/settings/business{,?**}",route=>{
     if(route.request().method()==="PATCH") {
       const input=route.request().postDataJSON();writes.push(input);
       expect(input.expected_version).toBe(versions[input.id as keyof typeof versions]);
       settings[input.id as keyof typeof settings]=input.value;versions[input.id as keyof typeof versions]++;
     }
-    return route.fulfill({json:{versions,settings}});
+    return route.fulfill({json:settingsResponse(route, {versions,settings})});
   });
   await context.route("**/tags?**",route=>route.fulfill({json:{items:[],next_cursor:null}}));
   await page.setViewportSize({width,height:1000});await page.goto(fixture);
@@ -445,9 +446,9 @@ for (const width of [320, 390, 1440]) test(`프로필 ${width}px: 두 줄 스크
 test("발급처 순서 저장 후 다시 읽어도 첫 행 기본값과 개별 방식을 유지한다",async({page,context})=>{
   let value={generation:"short",default_source:"app",sources:[{code:"app",label:"앱",generation:"short"},{code:"crm",label:"고객",generation:"manual"}]};
   let version=0;
-  await context.route("**/settings/business",route=>{
+  await context.route("**/settings/business{,?**}",route=>{
     if(route.request().method()==="PATCH"){value=route.request().postDataJSON().value;version++;}
-    return route.fulfill({json:{versions:{record_templates:0,entity_identity:version},settings:{record_templates:{},entity_identity:value}}});
+    return route.fulfill({json:settingsResponse(route, {versions:{record_templates:0,entity_identity:version},settings:{record_templates:{},entity_identity:value}})});
   });
   await context.route("**/tags?**",route=>route.fulfill({json:{items:[],next_cursor:null}}));
   await page.goto(fixture);

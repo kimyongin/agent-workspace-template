@@ -209,3 +209,55 @@ test("업무 설정 응답 불명은 같은 키·입력·기준 버전으로 재
   settings.edit(()=>({memo:"다른 내용"}));await settings.read();await settings.save();
   expect(calls).toHaveLength(2);expect(calls[1]).toEqual(calls[0]);expect(settings.snapshot().uncertain).toBe(false);
 });
+
+
+test("발급처 편집기는 부분 조회의 버전을 저장에 쓰고 전체 저장 응답을 다시 편집한다", async () => {
+  const value = { generation: "short", default_source: "app", sources: [{ code: "app", label: "앱" }] };
+  const api = vi.fn().mockResolvedValueOnce({ versions: { entity_identity: 3 }, settings: { entity_identity: value } })
+    .mockResolvedValueOnce({ versions: { entity_identity: 4 }, settings: { entity_identity: { ...value, sources: [{ code: "app", label: "원격 앱" }] } } })
+    .mockResolvedValueOnce({ versions: { entity_identity: 5, record_templates: 99 }, settings: { entity_identity: { ...value, sources: [{ code: "app", label: "내 앱", generation: "short" }] }, record_templates: {} } });
+  const settings = createSettingsDraft(createIdentitySettingsDraft(api));
+  await settings.read();
+  settings.edit((draft) => ({ ...draft, sources: [{ ...draft.sources[0], label: "내 앱" }] }));
+  await settings.read();
+  expect(settings.snapshot().draft.sources[0].label).toBe("내 앱");
+  expect(api.mock.calls.slice(0, 2).map((call) => [call[0], call[1]])).toEqual([
+    ["GET", "/settings/business?id=entity_identity"], ["GET", "/settings/business?id=entity_identity"],
+  ]);
+  await settings.save();
+  expect(api.mock.calls[2].slice(0, 3)).toEqual(["PATCH", "/settings/business", {
+    id: "entity_identity", expected_version: 4,
+    value: { ...value, sources: [{ code: "app", label: "내 앱", generation: "short" }] },
+  }]);
+  expect(settings.snapshot().dirty).toBe(false);
+  settings.edit((draft) => ({ ...draft, sources: [{ ...draft.sources[0], label: "미저장" }] }));
+  settings.reset();
+  expect(settings.snapshot().draft.sources[0].label).toBe("내 앱");
+  expect(settings.snapshot().saved?.versions.entity_identity).toBe(5);
+});
+
+test("기록 편집기는 부분 조회 뒤 초안·취소·저장 버전을 보존하며 전체 저장 응답을 받는다", async () => {
+  const api = vi.fn()
+    .mockResolvedValueOnce({ versions: { record_templates: 2 }, settings: { record_templates: {} } })
+    .mockResolvedValueOnce({ items: [], next_cursor: null })
+    .mockResolvedValueOnce({ versions: { record_templates: 3 }, settings: { record_templates: { entity: { create: { memo: "원격", tag_ids: [] } } } } })
+    .mockResolvedValueOnce({ items: [], next_cursor: null })
+    .mockResolvedValueOnce({ versions: { record_templates: 4, entity_identity: 99 }, settings: { record_templates: { entity: { create: { memo: "저장", tag_ids: [] } } } } });
+  const settings = createSettingsDraft(createRecordTemplatesDraft(api));
+  await settings.read();
+  settings.edit((draft) => ({ ...draft, entity: { ...draft.entity, create: { memo: "내 초안", tag_ids: [] } } }));
+  await settings.read();
+  expect(settings.snapshot().draft.entity?.create?.memo).toBe("내 초안");
+  settings.reset();
+  expect(settings.snapshot().draft.entity?.create?.memo).toBe("원격");
+  settings.edit((draft) => ({ ...draft, entity: { ...draft.entity, create: { memo: "저장", tag_ids: [] } } }));
+  await settings.save();
+  expect(api.mock.calls.filter((call) => call[0] === "GET" && call[1].startsWith("/settings/"))
+    .map((call) => call[1])).toEqual(["/settings/business?id=record_templates", "/settings/business?id=record_templates"]);
+  const save = api.mock.calls.find((call) => call[0] === "PATCH")!;
+  expect(save.slice(0, 3)).toEqual(["PATCH", "/settings/business", {
+    id: "record_templates", expected_version: 3, value: { entity: { create: { memo: "저장", tag_ids: [] } } },
+  }]);
+  expect(settings.snapshot().dirty).toBe(false);
+  expect(settings.snapshot().saved?.settings.versions.record_templates).toBe(4);
+});

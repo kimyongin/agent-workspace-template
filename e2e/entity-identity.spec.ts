@@ -25,7 +25,7 @@ test("manual tuple registration previews stored data, restores links, and rekeys
     // Hold the settings response to verify identity inputs cannot race loaded defaults.
     let releaseSettings!: () => void;
     const settingsReady = new Promise<void>(resolve => { releaseSettings = resolve; });
-    await page.route("**/settings/business", async route => {
+    await page.route("**/settings/business{,?**}", async route => {
       if (route.request().method() !== "GET") return route.continue();
       await settingsReady;
       await route.continue();
@@ -88,7 +88,7 @@ test("manual tuple registration previews stored data, restores links, and rekeys
 test("identity settings recovers from an initial read failure and preserves edits on refresh", async ({page}) => {
   await devLogin(page);
   let failSettings = true;
-  await page.route("**/settings/business", async route => {
+  await page.route("**/settings/business{,?**}", async route => {
     if (route.request().method() === "GET" && failSettings) return route.abort("failed");
     await route.continue();
   });
@@ -104,7 +104,7 @@ test("identity settings recovers from an initial read failure and preserves edit
   const changed = previous === "short" ? "manual" : "short";
   await generation.selectOption(changed);
   await expect(section.getByRole("button", {name:"최신값 확인",exact:true})).toHaveCount(0);
-  await page.route("**/settings/business", async route => {
+  await page.route("**/settings/business{,?**}", async route => {
     if(route.request().method()==="PATCH") return route.fulfill({status:409,json:{error:{code:"conflict",message:"같은 설정에 다른 변경이 저장되어 있습니다.",fields:[]}}});
     return route.continue();
   });

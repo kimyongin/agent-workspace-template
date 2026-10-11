@@ -4,7 +4,7 @@ import {
   entityIdentitySettings,
   entitySourceGeneration,
 } from "@contracts/entity-identity.ts";
-import type { BusinessSettingsResult } from "@contracts/business-settings.ts";
+import type { BusinessSettingsSectionResult } from "@contracts/business-settings.ts";
 import { editableRecordTemplates, type RecordTemplates, recordTemplates } from "@contracts/record-template.ts";
 import type { api as request } from "../../lib/api.ts";
 import { ApiError } from "../../lib/api-error.ts";
@@ -28,11 +28,11 @@ export function orderedSources(
 }
 export function createIdentitySettingsDraft(
   api: typeof request,
-): SettingsDraftAdapter<EntityIdentitySettings, BusinessSettingsResult> {
+): SettingsDraftAdapter<EntityIdentitySettings, BusinessSettingsSectionResult<"entity_identity">> {
   return {
     initial: editable(defaultEntityIdentitySettings),
     isConflict,
-    read: (signal) => api("GET", "/settings/business", undefined, signal),
+    read: (signal) => api("GET", "/settings/business?id=entity_identity", undefined, signal),
     save: (value, before, signal, requestKey) =>
       api("PATCH", "/settings/business", {
         id: "entity_identity",
@@ -59,7 +59,7 @@ export function createIdentitySettingsDraft(
     },
   };
 }
-type TemplatesSaved = { settings: BusinessSettingsResult; availableTags: string[] };
+type TemplatesSaved = { settings: BusinessSettingsSectionResult<"record_templates">; availableTags: string[] };
 const selectedRecordTags = (value: RecordTemplates | undefined) =>
   Object.values(value ?? {}).flatMap((group) => Object.values(group).flatMap((template) => template?.tag_ids ?? []));
 /** Only tags from the checked baseline can be reported missing; new local selections are not stale. */
@@ -78,7 +78,7 @@ export function createRecordTemplatesDraft(api: typeof request): SettingsDraftAd
     isConflict,
     read: async (signal) => {
       const [settings, tags] = await Promise.all([
-        api<BusinessSettingsResult>("GET", "/settings/business", undefined, signal),
+        api<BusinessSettingsSectionResult<"record_templates">>("GET", "/settings/business?id=record_templates", undefined, signal),
         tagRead.all("record", signal),
       ]);
       return { settings, availableTags: tags.map((tag) => tag.id) };

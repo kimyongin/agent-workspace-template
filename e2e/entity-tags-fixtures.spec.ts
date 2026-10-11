@@ -1,3 +1,4 @@
+import { settingsResponse } from "./support/preparation-api.ts";
 import { openListEditor, openDetailEditor } from "./ui-actions.ts";
 import { fillChangeMemo } from "./ui-actions.ts";
 import { saveOnce, beginTabAction, closeDetail } from "./ui-actions.ts";
@@ -11,7 +12,7 @@ test.beforeEach(async ({ page, isMobile }) => {
   if(!isMobile) await page.setViewportSize({width:1024,height:720});
   await page.route("**/auth/v1/user", route => route.fulfill({json:{id:"90000000-0000-4000-8000-000000000000",aud:"authenticated",app_metadata:{},user_metadata:{}}}));
   await page.route("**/api/tags**", route => route.fulfill({ json: { items: tags, next_cursor: null } }));
-  await page.route("**/api/settings/business", route => route.fulfill({json:{settings:{entity_identity:defaultEntityIdentitySettings,record_templates:{}},versions:{entity_identity:0,record_templates:0}}}));
+  await page.route("**/api/settings/business{,?**}", route => route.fulfill({json:settingsResponse(route, {settings:{entity_identity:defaultEntityIdentitySettings,record_templates:{}},versions:{entity_identity:0,record_templates:0}})}));
   await page.route("**/api/records/prepare", route => {
     const body=route.request().postDataJSON();
     return route.fulfill({json:{change_note:body.change_note??"변경 기록",change_tag_ids:[],missing_tag_ids:[],settings_version:0,prepared_input:body.input??{}}});

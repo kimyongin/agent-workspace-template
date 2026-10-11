@@ -17,6 +17,17 @@ export const businessSettingsResult = z.object({
   settings: businessSettings,
 });
 export type BusinessSettingsResult = z.infer<typeof businessSettingsResult>;
+export const businessSettingsRead = z.strictObject({
+  id: z.enum(["entity_identity", "record_templates"]).optional(),
+});
+export type BusinessSettingsSectionResult<K extends keyof BusinessSettings> = {
+  settings: Pick<BusinessSettings, K>;
+  versions: Pick<BusinessSettingsResult["versions"], K>;
+};
+export type BusinessSettingsReadResult = {
+  settings: BusinessSettings;
+  versions: Partial<BusinessSettingsResult["versions"]>;
+};
 export const businessSettingsUpdate = z.discriminatedUnion("id", [
   z.strictObject({ id: z.literal("record_templates"), expected_version: settingsVersion, value: recordTemplates }),
   z.strictObject({

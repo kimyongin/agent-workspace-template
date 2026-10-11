@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { businessSettingsUpdate } from "../../contracts/business-settings.ts";
+import { businessSettingsRead, businessSettingsUpdate } from "../../contracts/business-settings.ts";
 import { prepareRecordMemo } from "../../contracts/record-preparation.ts";
 import {
   type BusinessSettingsDeps,
@@ -18,10 +18,11 @@ export function settingsTools(deps: BusinessSettingsDeps): ToolDef[] {
   const tools: ToolDef[] = [
     {
       name: "get_business_settings",
-      description: "사용자 업무 설정과 설정 ID별 versions 조회. 화면·프로필 설정과 별도 저장된다.",
-      input: z.strictObject({}),
+      description:
+        "사용자 업무 설정과 설정 ID별 versions 조회. id(entity_identity 또는 record_templates)를 선택하면 해당 settings·versions만 반환하며 생략하면 전체 조회. 화면·프로필 설정과 별도 저장된다.",
+      input: businessSettingsRead,
       readOnly: true,
-      handler: (_i, a) => getBusinessSettings(deps, a),
+      handler: (i, a) => getBusinessSettings(deps, a, i),
     },
     {
       name: "update_business_settings",
