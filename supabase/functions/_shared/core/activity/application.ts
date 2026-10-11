@@ -1,6 +1,5 @@
 import { type EffectStatusReader, passageEffectStatus } from "../search/external-effect.ts";
 import { runWrite } from "../shared/request.ts";
-import { requireRequestKey, runRequest } from "../shared/request.ts";
 import { activityChangeTarget, recordChangeFacts, taskChangeFacts } from "./change.ts";
 // 할 일·기록 유스케이스. HTTP와 MCP가 같은 함수를 호출한다(ADR-0001).
 // 읽기 → 도메인 판단 → 저장 순서와 트랜잭션 경계, 색인 작업 등록, 요청 재전송 처리를 맡는다.
@@ -74,22 +73,20 @@ async function requireRecord(store: ActivityStore, id: string, forUpdate = false
 // ---------- 할 일 ----------
 
 export async function createTask(deps: ActivityDeps, actor: Actor, input: TaskCreate): Promise<TaskResult> {
-  requireRequestKey(actor);
-  return await deps.uow.run(actor, (store) =>
-    runRequest(store, actor, "task.create", null, input, async () => {
-      const task = await store.insertTask(newTask(input));
+  return await runWrite(deps.uow, actor, "task.create", null, input, async (store) => {
+    const task = await store.insertTask(newTask(input));
 
-      await store.appendChange({
-        target_kind: "task",
-        target: activityChangeTarget(task),
-        action: "create",
-        before: null,
-        after: taskChangeFacts(task),
-        change_note: input.change_note,
-        change_tag_ids: input.change_tag_ids,
-      });
-      return toTaskResult(task);
-    }));
+    await store.appendChange({
+      target_kind: "task",
+      target: activityChangeTarget(task),
+      action: "create",
+      before: null,
+      after: taskChangeFacts(task),
+      change_note: input.change_note,
+      change_tag_ids: input.change_tag_ids,
+    });
+    return toTaskResult(task);
+  });
 }
 
 export async function getTask(deps: ActivityDeps, actor: Actor, id: string): Promise<TaskDetail> {
@@ -157,24 +154,22 @@ export async function listTasks(deps: ActivityDeps, actor: Actor, query: TaskLis
 }
 
 export async function updateTask(deps: ActivityDeps, actor: Actor, id: string, patch: TaskUpdate): Promise<TaskResult> {
-  requireRequestKey(actor);
-  return await deps.uow.run(actor, (store) =>
-    runRequest(store, actor, "task.update", id, patch, async () => {
-      const task = await requireTask(store, id, true);
-      const changes = decideUpdate(task, patch);
-      if (!changed(task, changes)) return toTaskResult(task);
-      const updated = await store.updateTask(id, changes);
-      await store.appendChange({
-        target_kind: "task",
-        target: activityChangeTarget(updated),
-        action: "update",
-        before: taskChangeFacts(task),
-        after: taskChangeFacts(updated),
-        change_note: patch.change_note,
-        change_tag_ids: patch.change_tag_ids,
-      });
-      return toTaskResult(updated);
-    }));
+  return await runWrite(deps.uow, actor, "task.update", id, patch, async (store) => {
+    const task = await requireTask(store, id, true);
+    const changes = decideUpdate(task, patch);
+    if (!changed(task, changes)) return toTaskResult(task);
+    const updated = await store.updateTask(id, changes);
+    await store.appendChange({
+      target_kind: "task",
+      target: activityChangeTarget(updated),
+      action: "update",
+      before: taskChangeFacts(task),
+      after: taskChangeFacts(updated),
+      change_note: patch.change_note,
+      change_tag_ids: patch.change_tag_ids,
+    });
+    return toTaskResult(updated);
+  });
 }
 
 /** 일회성 완료: 할 일 done, 결과 기록 생성, 기록 색인 등록을 한 트랜잭션으로. */
@@ -213,34 +208,26 @@ export async function deleteTask(
   change_note?: string,
   change_tag_ids?: string[],
 ): Promise<void> {
-  requireRequestKey(actor);
-  await deps.uow.run(
-    actor,
-    (store) =>
-      runRequest(
-        store,
-        actor,
-        "task.delete",
-        id,
-        { expected_version: expectedVersion, change_note, change_tag_ids },
-        async () => {
-          const task = await requireTask(store, id, true);
-          assertVersion(task, expectedVersion);
-          await store.detachRecords(id);
-          await store.deleteTask(id);
-          await store.appendChange({
-            target_kind: "task",
-            target: activityChangeTarget(task),
-            action: "delete",
-            before: taskChangeFacts(task),
-            after: null,
-            change_note,
-            change_tag_ids,
-          });
-          return { deleted: true };
-        },
-      ),
-  );
+  await runWrite(deps.uow, actor, "task.delete", id, {
+    expected_version: expectedVersion,
+    change_note,
+    change_tag_ids,
+  }, async (store) => {
+    const task = await requireTask(store, id, true);
+    assertVersion(task, expectedVersion);
+    await store.detachRecords(id);
+    await store.deleteTask(id);
+    await store.appendChange({
+      target_kind: "task",
+      target: activityChangeTarget(task),
+      action: "delete",
+      before: taskChangeFacts(task),
+      after: null,
+      change_note,
+      change_tag_ids,
+    });
+    return { deleted: true };
+  });
 }
 
 export async function stopTask(
