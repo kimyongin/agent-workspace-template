@@ -18,42 +18,14 @@ test("상태: 실제 인증 HTTP·OAuth MCP 집계와 lazy 기본 접힘, 그래
     const response = await mcp.call("get_status", {});
     await expect(page.getByText(`전체 기록 ${response.indexing.total.toLocaleString("ko-KR")}개 · 현재 상태`))
       .toBeVisible();
-    const explanation = page.getByText("집계 기준과 날짜별 값", { exact: true });
-    await explanation.click();
-    const day = response.daily.at(-1);
-    const values = page.getByRole("region", { name: `${day.date} 날짜별 값`, exact: true });
-    await expect(values.getByRole("heading", { name: day.date, exact: true })).toBeVisible();
-    for (
-      const [label, value] of [
-        ["등록", day.entities_created],
-        ["할 일 생성", day.tasks_created],
-        ["일회성 완료", day.once_completed],
-        ["기록 작성", day.records_created],
-        ["색인 완료", day.indexing.indexed],
-        ["준비 중", day.indexing.preparing],
-        ["확인 필요", day.indexing.attention],
-        ["대상 제외", day.indexing.excluded],
-      ]
-    ) {
-      await expect(
-        values.getByRole("term").filter({ hasText: new RegExp(`^${label}$`) }).locator("..").getByRole("definition"),
-      )
-        .toHaveText(String(value));
-    }
+    await expect(page.getByText("집계 기준과 날짜별 값", { exact: true })).toHaveCount(0);
     const originalViewport = page.viewportSize()!;
-    for (const width of [originalViewport.width, 320]) {
-      await page.setViewportSize({ width, height: originalViewport.height });
-      await expect(values).toBeVisible();
-      expect(
-        await page.evaluate(() => {
-          const expanded = document.querySelector(".status-explanation")!;
-          return document.documentElement.scrollWidth <= window.innerWidth &&
-            [expanded, ...expanded.querySelectorAll("*")].every((node) => node.scrollWidth <= node.clientWidth);
-        }),
-      ).toBe(true);
-    }
-    await page.setViewportSize(originalViewport);
-    await explanation.click();
+    const refresh = page.getByRole("button", { name: "새로고침", exact: true });
+    await expect(refresh).toHaveText("");
+    await expect(refresh.locator("svg")).toBeVisible();
+    const refreshSize = (await refresh.boundingBox())!;
+    expect(refreshSize.width).toBeGreaterThanOrEqual(44);
+    expect(refreshSize.height).toBeGreaterThanOrEqual(44);
     await expect(page.getByRole("slider")).toHaveCount(0);
     const charts = page.getByRole("button", { name: /그래프: 막대를 누르거나 방향키로 날짜 선택/ });
     await expect(charts).toHaveCount(4);

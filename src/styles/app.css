@@ -853,7 +853,7 @@ textarea.input {
 
 /* Supporting pages use the same bounded groups rather than a full-width form. */
 .settings, .status-page { width: min(100%,48rem); gap: var(--space-5); padding: 0; }
-.settings .settings-section, .status-page .status-section, .status-page .status-explanation { min-width: 0; display: grid; gap: var(--space-4); padding: var(--space-4); border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--panel); }
+.settings .settings-section, .status-page .status-section { min-width: 0; display: grid; gap: var(--space-4); padding: var(--space-4); border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--panel); }
 .settings-section-title, .status-section-title { margin: 0; font-size: .9375rem; line-height: 1.5; font-weight: 600; color: var(--ink); }
 .settings .profile-preview { margin: 0; }
 .settings-links { display: grid; gap: 0; border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--panel); }
