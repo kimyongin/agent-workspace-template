@@ -470,7 +470,7 @@ httpTest("tools/list: 계약의 도구 이름과 contracts JSON Schema", async (
   );
   assertEquals(
     byName.create_record.inputSchema as unknown,
-    z.toJSONSchema(recordCreate, { target: "draft-2020-12", io: "input" }),
+    z.toJSONSchema(recordCreate.extend({ request_key: requestKey }), { target: "draft-2020-12", io: "input" }),
   );
   for (const t of tools) assertEquals(t.inputSchema.type, "object", t.name);
   assertEquals(byName.get_task.annotations?.readOnlyHint, true);
@@ -482,7 +482,7 @@ type JsonSchema = Record<string, any>;
 const json = (schema: z.ZodType) => z.toJSONSchema(schema, { target: "draft-2020-12", io: "input" }) as JsonSchema;
 
 httpTest(
-  "tools/list: 대상 도구는 contracts 속성에 id(회차 기록은 date)만 더하고, 할 일 생성은 두 종류 입력의 합집합",
+  "tools/list: 업무 쓰기는 contracts 속성에 대상과 필수 요청 키를 더하고, 할 일 생성은 두 종류 입력의 합집합",
   async () => {
     const { tools } = await mcpA.listTools();
     const byName = Object.fromEntries(tools.map((t) => [t.name, t.inputSchema as JsonSchema]));
@@ -524,7 +524,7 @@ httpTest(
     };
     for (const [name, properties] of Object.entries(expected)) {
       const props = /^(create_|update_|delete_|rename_|complete_|stop_|resume_|record_occurrence$)/.test(name)
-        ? { ...properties, request_key: json(requestKey) }
+        ? { ...properties, request_key: json(z.strictObject({ request_key: requestKey })).properties.request_key }
         : properties;
       assertEquals(Object.keys(byName[name].properties).sort(), Object.keys(props).sort(), `${name} 속성 이름`);
       for (const [key, schema] of Object.entries(props)) {
