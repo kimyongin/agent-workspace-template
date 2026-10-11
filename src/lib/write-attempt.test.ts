@@ -39,3 +39,17 @@ it("persists only unresolved request metadata and never stores the payload",asyn
   await attempt.run(async()=>{});
   expect(entries.size).toBe(0);
 });
+
+it("an explicit new intent after cancel preserves unknown metadata and never runs the old closure",async()=>{
+  const entries=new Map<string,string>();
+  const attempt=new WriteAttempt({setItem:(k,v)=>entries.set(k,v),removeItem:k=>entries.delete(k)});
+  let oldCalls=0;
+  await expect(attempt.run(async()=>{oldCalls++;attempt.track("tag.create","");throw new ApiError(0,"network","lost");})).rejects.toThrow();
+  const oldKey=attempt.requestKey();
+  attempt.startNewIntent();
+  let newKey="";
+  await attempt.run(async()=>{newKey=attempt.requestKey();});
+  expect(newKey).not.toBe(oldKey);
+  expect(oldCalls).toBe(1);
+  expect([...entries.values()].map(v=>JSON.parse(v).request_key)).toEqual([oldKey]);
+});

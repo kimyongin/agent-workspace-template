@@ -126,7 +126,7 @@ export function prepareBusinessRecord(
       content = input.model === "task" ? taskContent(taskCreate.parse(creationInput)) : creation.data;
       if (input.model === "entity") {
         const settings = saved.settings.entity_identity ?? defaultEntityIdentitySettings;
-        const { source } = registrationIdentity(settings, content, "prepare");
+        const { source } = registrationIdentity(settings, content);
         const external_id = content.external_id as string | undefined;
         if (external_id !== undefined) {
           const existing = await store.target?.("entity", entityId(source, external_id));

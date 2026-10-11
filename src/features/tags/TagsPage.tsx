@@ -71,17 +71,18 @@ function ScopedTagsPage({scope}:{scope:TagScope}) {
   }, [page, loading]);
   const change = (action: () => void) => { if (busy) return; if (dirty) setPending(() => action); else action(); };
   const select = (tag: TagResult) => change(() => {
-    setDraft({initial:tag,name:tag.name});setFailure(null);setNotice(null);setFieldError(undefined);attempt.reset();setConflict(false);
+    setDraft({initial:tag,name:tag.name});setFailure(null);setNotice(null);setFieldError(undefined);attempt.startNewIntent();setConflict(false);
     const p=new URLSearchParams(params);p.delete("view");p.delete("create");p.delete("edit_from");p.set("edit",tag.id);navigateAfterClose(`?${p}`,true);
     requestAnimationFrame(()=>input.current?.focus());
   });
   const dismiss = () => {const p=new URLSearchParams(params);for(const key of ["view","edit","create","edit_from"])p.delete(key);navigateAfterClose(`?${p}`,true);};
   useEffect(()=>{const controller=new AbortController(); const selected=params.get("edit")??params.get("view");
-    if(params.get("create")==="1"){if(!draft){setDraft({initial:null,name:""});}return;}
-    if(selected&&draft?.initial?.id!==selected)tagRead.find(scope,selected,controller.signal).then(tag=>{if(!controller.signal.aborted){if(tag){setDraft({initial:tag,name:tag.name});}else setFailure("태그를 찾을 수 없습니다.");}}).catch(()=>{if(!controller.signal.aborted)setFailure("태그를 불러오지 못했습니다.");});
+    if(params.get("create")==="1"){if(!draft){attempt.startNewIntent();setDraft({initial:null,name:""});}return;}
+    if(selected&&draft?.initial?.id!==selected)tagRead.find(scope,selected,controller.signal).then(tag=>{if(!controller.signal.aborted){if(tag){attempt.startNewIntent();setDraft({initial:tag,name:tag.name});}else setFailure("태그를 찾을 수 없습니다.");}}).catch(()=>{if(!controller.signal.aborted)setFailure("태그를 불러오지 못했습니다.");});
     return()=>controller.abort();
   },[location.key]);
   const cancel = () => {
+    if(attempt.snapshot().uncertain){setNotice("이전 저장 결과를 확인하지 못했습니다. 새 작업 전에 갱신된 태그 목록을 확인하세요.");setRetry(n=>n+1);}
     const id = draft?.initial?.id ?? "heading"; setDraft(null); attempt.reset();setFailure(null);setFieldError(undefined);setConflict(false);
     if (conflict) { focusId.current = id; setRetry(n => n + 1); }
     else requestAnimationFrame(() => (document.getElementById(`tag-${id}`) ?? document.querySelector<HTMLElement>("dialog[open] .dialog-title"))?.focus());

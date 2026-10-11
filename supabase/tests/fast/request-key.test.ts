@@ -64,6 +64,13 @@ Deno.test("every public MCP business write requires UUID request_key before exec
     const error = await assertRejects(async () => await tool.handler({}, { userId: crypto.randomUUID() }), AppError);
     assertEquals(error.code, "invalid_input", tool.name);
   }
+  const settingsWrite = tools.find((tool) => tool.name === "update_business_settings")!;
+  assertEquals(z.toJSONSchema(settingsWrite.input, { io: "input" }).required?.sort(), [
+    "expected_version",
+    "id",
+    "request_key",
+    "value",
+  ]);
   for (const name of ["prepare_entity_registration", "prepare_record_memo"]) {
     const tool = tools.find((tool) => tool.name === name)!;
     assertEquals(tool.readOnly, true);

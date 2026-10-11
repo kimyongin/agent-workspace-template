@@ -58,7 +58,7 @@ export function prepareEntityRegistration(d: EntityDeps, a: Actor, i: Pick<Entit
   return d.uow.run(a, async (s) => {
     const saved = await s.getBusinessSettings();
     const settings = saved.settings.entity_identity ?? defaultEntityIdentitySettings;
-    const { source, external_id } = registrationIdentity(settings, i, "prepare");
+    const { source, external_id } = registrationIdentity(settings, i);
     const id = external_id === undefined ? undefined : entityId(source, external_id);
     const existing = id === undefined ? null : await s.get(id);
     return {
@@ -86,7 +86,7 @@ export function createEntity(d: EntityDeps, a: Actor, i: EntityCreate) {
         throw new AppError("settings_changed", "발급처 설정이 변경되었습니다. 다시 준비하세요");
       }
       const settings = saved.settings.entity_identity ?? defaultEntityIdentitySettings;
-      const { source } = registrationIdentity(settings, i, "prepare");
+      const { source } = registrationIdentity(settings, i);
       if (i.expected_version !== undefined && i.external_id === undefined) {
         throw invalidInput(
           "복원할 외부 식별자가 필요합니다",

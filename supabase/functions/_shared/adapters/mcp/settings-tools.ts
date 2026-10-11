@@ -8,6 +8,12 @@ import {
   updateBusinessSettings,
 } from "../../core/settings/application.ts";
 import { keyedTool, type ToolDef } from "./tools.ts";
+// MCP requires a top-level object; the use case validates the selected section's discriminated contract.
+const updateSettingsInput = z.strictObject({
+  id: z.union([businessSettingsUpdate.options[0].shape.id, businessSettingsUpdate.options[1].shape.id]),
+  expected_version: businessSettingsUpdate.options[0].shape.expected_version,
+  value: z.union([businessSettingsUpdate.options[0].shape.value, businessSettingsUpdate.options[1].shape.value]),
+});
 export function settingsTools(deps: BusinessSettingsDeps): ToolDef[] {
   const tools: ToolDef[] = [
     {
@@ -21,7 +27,7 @@ export function settingsTools(deps: BusinessSettingsDeps): ToolDef[] {
       name: "update_business_settings",
       description:
         "설정 id·해당 versions[id]의 expected_version·value로 한 섹션만 저장. 다른 설정 ID의 버전은 바뀌지 않는다. 기록 템플릿은 $변수$, 메모 최대 22000자·설정 131072바이트. 기존 record 태그만 사용. 구문·변수 오류는 위치와 이유 반환.",
-      input: businessSettingsUpdate,
+      input: updateSettingsInput,
       readOnly: false,
       handler: (i, a) => updateBusinessSettings(deps, a, i),
     },
