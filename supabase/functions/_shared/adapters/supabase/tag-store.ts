@@ -28,10 +28,10 @@ class SqlTagStore extends SqlActorStore implements TagStore {
       throw e;
     }
   }
-  insert(id: string, name: string, scope: TagResult["scope"]) {
+  insert(name: string, scope: TagResult["scope"]) {
     return this.unique(() =>
       this
-        .tx`insert into app.tags(id,owner_id,name,scope) values (${id},${this.actor.userId},${name},${scope}) returning *`
+        .tx`insert into app.tags(owner_id,name,scope) values (${this.actor.userId},${name},${scope}) returning *`
     );
   }
   rename(id: string, name: string) {

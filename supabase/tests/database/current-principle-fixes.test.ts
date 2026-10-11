@@ -1,3 +1,4 @@
+import { requestActor } from "../_request.ts";
 import { assertEquals, assertRejects } from "@std/assert";
 import { asUser, connect, dbTest, fixtureOwner, urls } from "./_db.ts";
 import { SqlPrincipleUnitOfWork } from "../../functions/_shared/adapters/supabase/principle-store.ts";
@@ -18,11 +19,11 @@ dbTest(
         await admin`insert into app.principles(owner_id,title,body,is_current,origin) values(${f.actor.userId},${token},'과거 원문',false,'legacy') returning *`;
       const current = await p.createPrinciple(
         pd,
-        f.actor,
-        principleCreate.parse({ id: crypto.randomUUID(), title: token, body: "현재 원문" }),
+        requestActor(f.actor),
+        principleCreate.parse({ title: token, body: "현재 원문" }),
       );
       await assertRejects(() => p.getPrinciple(pd, f.actor, old.id));
-      await assertRejects(() => p.deletePrinciple(pd, f.actor, old.id, old.version));
+      await assertRejects(() => p.deletePrinciple(pd, requestActor(f.actor), old.id, old.version));
       const found = await search(
         sd,
         f.actor,

@@ -1,3 +1,5 @@
+import { executeSqlRequest } from "./request-ledger.ts";
+import type { RequestIdentity } from "../../core/shared/request.ts";
 import type postgres from "postgres";
 import type {
   BusinessSettings,
@@ -14,9 +16,8 @@ import type { ChangeFacts } from "../../core/shared/changes.ts";
 
 export class SqlBusinessSettingsStore implements BusinessSettingsStore {
   constructor(private readonly tx: postgres.TransactionSql, private readonly actor: Actor) {}
-  async issueDataId(): Promise<string> {
-    const [row] = await this.tx`select app.issue_data_id() as id`;
-    return row.id as string;
+  executeRequest<T>(request: RequestIdentity, execute: () => Promise<T>): Promise<T> {
+    return executeSqlRequest(this.tx, this.actor, request, execute);
   }
   async get(): Promise<BusinessSettingsResult> {
     const rows = await this

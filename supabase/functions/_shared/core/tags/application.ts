@@ -1,3 +1,4 @@
+import { runWrite } from "../shared/request.ts";
 import type { z } from "zod";
 import type { tagCreate, tagListQuery, tagRename, TagResult } from "../../contracts/tag.ts";
 import type { Actor } from "../shared/actor.ts";
@@ -26,7 +27,7 @@ function target(use: TagUse) {
 }
 export interface TagStore extends ChangeStore {
   get(id: string, lock?: boolean): Promise<TagResult | null>;
-  insert(id: string, name: string, scope: TagResult["scope"]): Promise<TagResult>;
+  insert(name: string, scope: TagResult["scope"]): Promise<TagResult>;
   rename(id: string, name: string): Promise<TagResult>;
   delete(id: string): Promise<void>;
   /** Each use is locked and freshly read; the transaction retains that lock while the caller writes. */
@@ -38,7 +39,7 @@ export interface TagDeps {
   uow: { run<T>(actor: Actor, fn: (store: TagStore) => Promise<T>): Promise<T> };
 }
 export function createTag(d: TagDeps, a: Actor, i: z.infer<typeof tagCreate>) {
-  return d.uow.run(a, (s) => s.insert(i.id, i.name, i.scope));
+  return runWrite(d.uow, a, "tag.create", null, i, (s) => s.insert(i.name, i.scope));
 }
 export async function listTags(d: TagDeps, a: Actor, q: z.infer<typeof tagListQuery>) {
   const scope = await scopeOf(a, { list: "tags", scope: q.scope });
@@ -54,7 +55,7 @@ async function requireVersion(s: TagStore, id: string, v: number) {
   if (t.version !== v) throw conflict("다른 변경이 저장되어 있습니다. 다시 조회하세요.");
 }
 export function renameTag(d: TagDeps, a: Actor, id: string, i: z.infer<typeof tagRename>) {
-  return d.uow.run(a, async (s) => {
+  return runWrite(d.uow, a, "tag.rename", id, i, async (s) => {
     await requireVersion(s, id, i.expected_version);
     return s.rename(id, i.name);
   });
@@ -67,7 +68,7 @@ export function deleteTag(
   change_note?: string,
   change_tag_ids?: string[],
 ) {
-  return d.uow.run(a, async (s) => {
+  return runWrite(d.uow, a, "tag.delete", id, { expected_version: v, change_note, change_tag_ids }, async (s) => {
     await requireVersion(s, id, v);
     if (change_tag_ids?.includes(id)) throw invalidInput("삭제할 태그는 기록에 붙일 수 없습니다");
     for await (const before of s.uses(id)) {

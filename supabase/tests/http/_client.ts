@@ -37,18 +37,10 @@ export async function call<T = Json>(
   method: string,
   path: string,
   body?: unknown,
+  requestKey: string | null = crypto.randomUUID(),
 ): Promise<Res<T>> {
-  // Fixture convenience: allocate identities for new objects, preserving explicit IDs for retry tests.
-  if (
-    method === "POST" &&
-    /^\/(entities|tasks|records|principles|tags)$|^\/tasks\/[^/]+\/occurrences\/[^/]+\/records$/.test(path) && body &&
-    typeof body === "object" && !("id" in body)
-  ) {
-    body = path === "/entities"
-      ? { source: "app", external_id: crypto.randomUUID(), ...body }
-      : { id: crypto.randomUUID(), ...body };
-  }
   const headers: Record<string, string> = {};
+  if (requestKey && ["POST", "PATCH", "DELETE"].includes(method)) headers["Idempotency-Key"] = requestKey;
   if (token) headers.authorization = `Bearer ${token}`;
   if (body !== undefined) headers["content-type"] = "application/json";
   const res = await fetch(`${API}${path}`, {

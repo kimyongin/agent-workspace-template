@@ -1,3 +1,4 @@
+import { requestActor } from "../_request.ts";
 import { assert, assertEquals, assertRejects } from "@std/assert";
 import { SqlTagUnitOfWork } from "../../functions/_shared/adapters/supabase/tag-store.ts";
 import { SqlEntityUnitOfWork } from "../../functions/_shared/adapters/supabase/entity-store.ts";
@@ -31,34 +32,33 @@ for (
         const scope = kind;
         const first = await t.createTag(
           td,
-          f.actor,
-          tagCreate.parse({ id: crypto.randomUUID(), ...{ name: "removed", scope } }),
+          requestActor(f.actor),
+          tagCreate.parse({ ...{ name: "removed", scope } }),
         );
         const other = await t.createTag(
           td,
-          f.actor,
-          tagCreate.parse({ id: crypto.randomUUID(), ...{ name: "also removed", scope } }),
+          requestActor(f.actor),
+          tagCreate.parse({ ...{ name: "also removed", scope } }),
         );
         const tag_ids = [first.id, other.id];
         const parent = kind === "entity"
           ? await e.createEntity(
             ed,
-            f.actor,
+            requestActor(f.actor),
             entityCreate.parse({ source: "app", external_id: crypto.randomUUID(), ...{ prop1: "parent", tag_ids } }),
           )
           : kind === "task"
           ? await a.createTask(
             ad,
-            f.actor,
+            requestActor(f.actor),
             taskCreate.parse({
-              id: crypto.randomUUID(),
               ...{ kind: "once", title: "parent", tag_ids },
             }),
           )
           : await a.createRecord(
             ad,
-            f.actor,
-            recordCreate.parse({ id: crypto.randomUUID(), ...{ body: "parent", tag_ids } }),
+            requestActor(f.actor),
+            recordCreate.parse({ ...{ body: "parent", tag_ids } }),
           );
         // Hold the real application transaction after its edit, before commit.
         const heldE: e.EntityDeps = {
@@ -97,22 +97,24 @@ for (
         };
         editing = scenario === "delete parent"
           ? kind === "entity"
-            ? e.deleteEntity(heldE, f.actor, parent.id, parent.version)
+            ? e.deleteEntity(heldE, requestActor(f.actor), parent.id, parent.version)
             : kind === "task"
-            ? a.deleteTask(heldA, f.actor, parent.id, parent.version)
-            : a.deleteRecord(heldA, f.actor, parent.id, parent.version)
+            ? a.deleteTask(heldA, requestActor(f.actor), parent.id, parent.version)
+            : a.deleteRecord(heldA, requestActor(f.actor), parent.id, parent.version)
           : kind === "entity"
-          ? e.updateEntity(heldE, f.actor, parent.id, entityUpdate.parse(patch))
+          ? e.updateEntity(heldE, requestActor(f.actor), parent.id, entityUpdate.parse(patch))
           : kind === "task"
-          ? a.updateTask(heldA, f.actor, parent.id, taskUpdate.parse(patch))
-          : a.updateRecord(heldA, f.actor, parent.id, recordUpdate.parse(patch));
+          ? a.updateTask(heldA, requestActor(f.actor), parent.id, taskUpdate.parse(patch))
+          : a.updateRecord(heldA, requestActor(f.actor), parent.id, recordUpdate.parse(patch));
         await Promise.race([
           ready.promise,
           editing.then(() => {
             throw Error("edit did not reach barrier");
           }),
         ]);
-        deleting = t.deleteTag(td, f.actor, first.id, first.version, "delete dictionary entry");
+        deleting = t.deleteTag(td, requestActor(f.actor), first.id, first.version, "delete dictionary entry");
+        // Observe failures immediately while the lock barrier is being inspected.
+        void deleting.catch(() => {});
         // Verify PostgreSQL is actually waiting on the parent lock before committing the edit.
         let waited = false;
         for (let n = 0; n < 100; n++) {
@@ -127,7 +129,9 @@ for (
         release.resolve();
         await Promise.all([editing, deleting]);
         assert(waited, "observed real SELECT waiting on parent row lock");
-        await assertRejects(() => t.deleteTag(td, f.actor, first.id, first.version, "delete dictionary entry"));
+        await assertRejects(() =>
+          t.deleteTag(td, requestActor(f.actor), first.id, first.version, "delete dictionary entry")
+        );
         const events = await admin`select body,change_metadata from app.records where owner_id=${f.actor.userId}
         and change_metadata->>'target_id'=${parent.id} and change_metadata->>'action'='update' order by occurred_at`;
         if (scenario === "delete parent") {

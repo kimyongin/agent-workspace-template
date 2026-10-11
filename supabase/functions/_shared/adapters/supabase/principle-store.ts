@@ -29,8 +29,8 @@ class SqlPrincipleStore extends SqlActorStore implements PrincipleStore {
     return r ? result(r) : null;
   }
   async insert(i: PrincipleCreate) {
-    const [r] = await this.tx`insert into app.principles(id,owner_id,title,body,is_current,version)
-    values(${i.id},${this.actor.userId},${i.title},${i.body},true,1) returning *`;
+    const [r] = await this.tx`insert into app.principles(owner_id,title,body,is_current,version)
+    values(${this.actor.userId},${i.title},${i.body},true,1) returning *`;
     return result(r);
   }
   async get(id: string) {

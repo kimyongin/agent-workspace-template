@@ -2,23 +2,14 @@ import { z } from "zod";
 import { businessSettingsUpdate } from "../../contracts/business-settings.ts";
 import { prepareRecordMemo } from "../../contracts/record-preparation.ts";
 import {
-  allocateDataId,
   type BusinessSettingsDeps,
   getBusinessSettings,
   prepareBusinessRecord,
   updateBusinessSettings,
 } from "../../core/settings/application.ts";
-import type { ToolDef } from "./tools.ts";
+import { keyedTool, type ToolDef } from "./tools.ts";
 export function settingsTools(deps: BusinessSettingsDeps): ToolDef[] {
-  return [
-    {
-      name: "allocate_data_id",
-      description:
-        "새 앱 데이터 ID를 서버에서 예약합니다. YYYYMMDD-영문대문자숫자8자 형식이며 날짜는 한국 시간입니다. 반환한 id를 생성에 사용하고 저장 재시도에는 같은 id를 유지합니다.",
-      input: z.strictObject({}),
-      readOnly: false,
-      handler: (_i, a) => allocateDataId(deps, a),
-    },
+  const tools: ToolDef[] = [
     {
       name: "get_business_settings",
       description: "사용자 업무 설정과 설정 ID별 versions 조회. 화면·프로필 설정과 별도 저장된다.",
@@ -37,10 +28,11 @@ export function settingsTools(deps: BusinessSettingsDeps): ToolDef[] {
     {
       name: "prepare_record_memo",
       description:
-        "저장 전 사용자 템플릿의 기록 메모·태그 준비. 수정/삭제/복원/중단/재개는 대상 id·현재 expected_version 필요. input은 실제 저장할 업무 필드이며 서버의 전체 이전 값과 병합한다. 반환한 prepared_input(발급처·식별자 또는 생성 ID 포함)과 change_note/change_tag_ids를 실제 쓰기에 명시하고 응답 불명 재시도에는 같은 ID/version/업무 입력/메모/태그를 그대로 사용한다. 명시 빈 태그 배열은 비움이다. 템플릿 변경 후에도 이미 준비한 값을 재계산하지 않는다.",
+        "저장 전 사용자 템플릿의 기록 메모·태그 준비. 수정/삭제/복원/중단/재개는 대상 id·현재 expected_version 필요. input은 실제 저장할 업무 필드이며 서버의 전체 이전 값과 병합한다. 반환한 prepared_input(발급처·설정 버전 포함; 내부 ID 발급 없음)과 change_note/change_tag_ids를 실제 쓰기에 명시하고 응답 불명 재시도에는 같은 request_key/대상/version/업무 입력/메모/태그를 그대로 사용한다. 명시 빈 태그 배열은 비움이다. 템플릿 변경 후에도 이미 준비한 값을 재계산하지 않는다.",
       input: prepareRecordMemo,
-      readOnly: false,
+      readOnly: true,
       handler: (i, a) => prepareBusinessRecord(deps, a, i),
     },
   ];
+  return tools.map((tool) => tool.readOnly || tool.name.startsWith("prepare_") ? tool : keyedTool(tool));
 }

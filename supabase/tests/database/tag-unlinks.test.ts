@@ -1,3 +1,4 @@
+import { requestActor } from "../_request.ts";
 import { assertEquals, assertRejects } from "@std/assert";
 import { SqlTagUnitOfWork } from "../../functions/_shared/adapters/supabase/tag-store.ts";
 import { SqlEntityUnitOfWork } from "../../functions/_shared/adapters/supabase/entity-store.ts";
@@ -22,17 +23,17 @@ dbTest(
       const actor = { ...f.actor, source: "mcp" as const };
       const tag = await t.createTag(
         td,
-        actor,
-        tagCreate.parse({ id: crypto.randomUUID(), ...{ scope: "record", name: "活動分類" } }),
+        requestActor(actor),
+        tagCreate.parse({ ...{ scope: "record", name: "活動分類" } }),
       );
       const entityTag = await t.createTag(
         td,
-        actor,
-        tagCreate.parse({ id: crypto.randomUUID(), ...{ scope: "entity", name: "対象分類" } }),
+        requestActor(actor),
+        tagCreate.parse({ ...{ scope: "entity", name: "対象分類" } }),
       );
       const entity = await e.createEntity(
         ed,
-        actor,
+        requestActor(actor),
         entityCreate.parse({
           source: "app",
           external_id: crypto.randomUUID(),
@@ -41,21 +42,20 @@ dbTest(
       );
       const taskTag = await t.createTag(
         td,
-        actor,
-        tagCreate.parse({ id: crypto.randomUUID(), name: "計画分類", scope: "task" }),
+        requestActor(actor),
+        tagCreate.parse({ name: "計画分類", scope: "task" }),
       );
       const task = await a.createTask(
         ad,
-        actor,
+        requestActor(actor),
         taskCreate.parse({
-          id: crypto.randomUUID(),
           ...{ kind: "once", title: "計画", tag_ids: [taskTag.id] },
         }),
       );
       const record = await a.createRecord(
         ad,
-        actor,
-        recordCreate.parse({ id: crypto.randomUUID(), ...{ body: "観察", tag_ids: [tag.id] } }),
+        requestActor(actor),
+        recordCreate.parse({ ...{ body: "観察", tag_ids: [tag.id] } }),
       );
       const [automatic] =
         await admin`select id from app.records where owner_id=${actor.userId} and record_kind='change' order by id limit 1`;
@@ -65,12 +65,12 @@ dbTest(
           0
         ].n;
       assertEquals(await count(), 2);
-      await t.deleteTag(td, actor, taskTag.id, taskTag.version, undefined);
-      await assertRejects(() => t.deleteTag(td, actor, taskTag.id, taskTag.version, undefined));
+      await t.deleteTag(td, requestActor(actor), taskTag.id, taskTag.version, undefined);
+      await assertRejects(() => t.deleteTag(td, requestActor(actor), taskTag.id, taskTag.version, undefined));
       assertEquals(await count(), 3);
       assertEquals((await a.getTask(ad, actor, task.id)).tag_ids, []);
       assertEquals((await a.getRecord(ad, actor, record.id)).tag_ids, [tag.id]);
-      await t.deleteTag(td, actor, tag.id, tag.version);
+      await t.deleteTag(td, requestActor(actor), tag.id, tag.version);
       assertEquals(await count(), 3);
       assertEquals((await a.getRecord(ad, actor, automatic.id)).tag_ids, []);
       const changes =
@@ -80,7 +80,7 @@ dbTest(
         assertEquals([change.change_metadata.before, change.change_metadata.after], [null, null]);
         assertEquals(change.change_metadata.source, "mcp");
       }
-      await t.deleteTag(td, actor, entityTag.id, entityTag.version, "対象分類の削除");
+      await t.deleteTag(td, requestActor(actor), entityTag.id, entityTag.version, "対象分類の削除");
       assertEquals(await count(), 4);
       assertEquals((await e.getEntity(ed, actor, entity.id)).tag_ids, []);
       const [entityChange] =
@@ -99,24 +99,23 @@ dbTest(
     const f = await fixtureOwner(admin);
     try {
       const actor = f.actor,
-        tag = await t.createTag(td, actor, tagCreate.parse({ id: crypto.randomUUID(), ...{ name: "分類" } }));
+        tag = await t.createTag(td, requestActor(actor), tagCreate.parse({ ...{ name: "分類" } }));
       const taskTag = await t.createTag(
         td,
-        actor,
-        tagCreate.parse({ id: crypto.randomUUID(), name: "計画分類", scope: "task" }),
+        requestActor(actor),
+        tagCreate.parse({ name: "計画分類", scope: "task" }),
       );
       const task = await a.createTask(
         ad,
-        actor,
+        requestActor(actor),
         taskCreate.parse({
-          id: crypto.randomUUID(),
           ...{ kind: "once", title: "計画", tag_ids: [taskTag.id] },
         }),
       );
       const record = await a.createRecord(
         ad,
-        actor,
-        recordCreate.parse({ id: crypto.randomUUID(), ...{ body: "観察", tag_ids: [tag.id] } }),
+        requestActor(actor),
+        recordCreate.parse({ ...{ body: "観察", tag_ids: [tag.id] } }),
       );
       const beforeTask = await a.getTask(ad, actor, task.id), beforeRecord = await a.getRecord(ad, actor, record.id);
       const queue =
@@ -142,7 +141,7 @@ dbTest(
             ),
         },
       };
-      await assertRejects(() => t.deleteTag(bad, actor, taskTag.id, taskTag.version, undefined));
+      await assertRejects(() => t.deleteTag(bad, requestActor(actor), taskTag.id, taskTag.version, undefined));
       assertEquals(await a.getTask(ad, actor, task.id), beforeTask);
       assertEquals(await a.getRecord(ad, actor, record.id), beforeRecord);
       assertEquals((await admin`select id from app.tags where id=${tag.id}`).length, 1);
@@ -150,8 +149,8 @@ dbTest(
         await admin`select message from pgmq.q_search_index where message->>'owner_id'=${actor.userId} order by msg_id`,
         queue,
       );
-      await t.deleteTag(td, actor, taskTag.id, taskTag.version, undefined);
-      await assertRejects(() => t.deleteTag(td, actor, taskTag.id, taskTag.version, undefined));
+      await t.deleteTag(td, requestActor(actor), taskTag.id, taskTag.version, undefined);
+      await assertRejects(() => t.deleteTag(td, requestActor(actor), taskTag.id, taskTag.version, undefined));
       assertEquals((await admin`select count(*)::int n from app.records where owner_id=${actor.userId}`)[0].n, 3);
     } finally {
       await f.cleanup();

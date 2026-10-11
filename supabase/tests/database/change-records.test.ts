@@ -1,3 +1,4 @@
+import { requestActor } from "../_request.ts";
 import { assert, assertEquals, assertRejects } from "@std/assert";
 import { SqlEntityUnitOfWork } from "../../functions/_shared/adapters/supabase/entity-store.ts";
 import { SqlUnitOfWork } from "../../functions/_shared/adapters/supabase/activity-store.ts";
@@ -21,9 +22,8 @@ dbTest("no-op recurring rule object order and tag set order preserve version/ind
       recurrence = { freq: "daily", starts_on: "2020-01-01" };
     const task = await a.createTask(
       ad,
-      f.actor,
+      requestActor(f.actor),
       taskCreate.parse({
-        id: crypto.randomUUID(),
         ...{
           kind: "recurring",
           title: "동일 규칙",
@@ -38,7 +38,7 @@ dbTest("no-op recurring rule object order and tag set order preserve version/ind
       await admin`select message from pgmq.q_search_index where message->>'owner_id'=${f.actor.userId} order by msg_id`;
     const same = await a.updateTask(
       ad,
-      f.actor,
+      requestActor(f.actor),
       task.id,
       taskUpdate.parse({
         expected_version: task.version,
@@ -66,7 +66,7 @@ dbTest(
       const A = { ...f.actor, source: "mcp" as const };
       const entity = await e.createEntity(
         ed,
-        A,
+        requestActor(A),
         entityCreate.parse({ source: "app", external_id: crypto.randomUUID(), ...{ prop1: "대상", prop2: 10 } }),
       );
       const count = async () =>
@@ -78,7 +78,7 @@ dbTest(
       await e.getEntity(ed, A, entity.id);
       await e.updateEntity(
         ed,
-        A,
+        requestActor(A),
         entity.id,
         entityUpdate.parse({ expected_version: entity.version, prop2: 10, change_note: "같은 값" }),
       );
@@ -88,8 +88,8 @@ dbTest(
         prop2: 20,
         change_note: "실측",
       });
-      const updated = await e.updateEntity(ed, A, entity.id, i);
-      await assertRejects(() => e.updateEntity(ed, A, entity.id, i));
+      const updated = await e.updateEntity(ed, requestActor(A), entity.id, i);
+      await assertRejects(() => e.updateEntity(ed, requestActor(A), entity.id, i));
       assertEquals(await count(), 2);
       const rows = await a.listRecords(ad, A, recordListQuery.parse({ record_kind: "change" }));
       rows.items.forEach((r) => recordResult.parse(r));
@@ -107,62 +107,60 @@ dbTest(
       assertEquals(recordUpdate.safeParse(immutable).success, false);
       const corrected = await a.updateRecord(
         ad,
-        A,
+        requestActor(A),
         event.id,
         recordUpdate.parse({ expected_version: event.version, body: "설명 정정" }),
       );
       assertEquals(corrected.change, event.change);
       assertEquals(corrected.body, "설명 정정");
       assertEquals(await count(), 2);
-      await a.deleteRecord(ad, A, corrected.id, corrected.version);
+      await a.deleteRecord(ad, requestActor(A), corrected.id, corrected.version);
       assertEquals((await e.getEntity(ed, A, entity.id)).prop2, 20);
       assertEquals(await count(), 2);
       const task = await a.createTask(
         ad,
-        A,
+        requestActor(A),
         taskCreate.parse({
-          id: crypto.randomUUID(),
           ...{ kind: "once", title: "행동", entity_ids: [entity.id] },
         }),
       );
       assertEquals(await count(), 3);
       const taskUpdated = await a.updateTask(
         ad,
-        A,
+        requestActor(A),
         task.id,
         taskUpdate.parse({ expected_version: task.version, title: "새 행동", change_note: "계획 수정" }),
       );
       assertEquals(await count(), 4);
       const completion = await a.completeTask(
         ad,
-        A,
+        requestActor(A),
         task.id,
         taskComplete.parse({ expected_version: taskUpdated.version, body: "실제 결과" }),
       );
       assertEquals(completion.record.record_kind, "result");
       assertEquals(await count(), 4);
-      await a.deleteTask(ad, A, task.id, completion.task.version);
+      await a.deleteTask(ad, requestActor(A), task.id, completion.task.version);
       assertEquals(await count(), 5);
       assertEquals((await a.getRecord(ad, A, completion.record.id)).task_id, null);
       const record = await a.createRecord(
         ad,
-        A,
+        requestActor(A),
         recordCreate.parse({
-          id: crypto.randomUUID(),
           ...{ body: "직접 기록" },
         }),
       );
       assertEquals(await count(), 5);
       const recordUpdated = await a.updateRecord(
         ad,
-        A,
+        requestActor(A),
         record.id,
         recordUpdate.parse({ expected_version: record.version, body: "정정 본문" }),
       );
       assertEquals(await count(), 5);
-      await a.deleteRecord(ad, A, record.id, recordUpdated.version);
+      await a.deleteRecord(ad, requestActor(A), record.id, recordUpdated.version);
       assertEquals(await count(), 6);
-      await e.deleteEntity(ed, A, entity.id, updated.version, "불필요");
+      await e.deleteEntity(ed, requestActor(A), entity.id, updated.version, "불필요");
       assertEquals(await count(), 7);
       const deleted = (await a.listRecords(ad, A, recordListQuery.parse({ record_kind: "change" }))).items.find((r) =>
         r.change?.target_kind === "entity" && r.change.action === "delete"
@@ -184,18 +182,18 @@ dbTest(
       const A = f.actor,
         entity = await e.createEntity(
           ed,
-          A,
+          requestActor(A),
           entityCreate.parse({ source: "app", external_id: crypto.randomUUID(), ...{ prop1: "대상" } }),
         ),
         task = await a.createTask(
           ad,
-          A,
-          taskCreate.parse({ id: crypto.randomUUID(), ...{ kind: "once", title: "행동" } }),
+          requestActor(A),
+          taskCreate.parse({ ...{ kind: "once", title: "행동" } }),
         ),
         record = await a.createRecord(
           ad,
-          A,
-          recordCreate.parse({ id: crypto.randomUUID(), ...{ body: "기록" } }),
+          requestActor(A),
+          recordCreate.parse({ ...{ body: "기록" } }),
         );
       const broken = <S>(store: S) =>
         new Proxy(store as object, {
@@ -242,9 +240,9 @@ dbTest(
           expected_version: 1,
           body: "새 관찰",
         });
-      await assertRejects(() => e.updateEntity(badE, A, entity.id, ei));
-      await assertRejects(() => a.updateTask(badA, A, task.id, ti));
-      await assertRejects(() => a.updateRecord(badRecord, A, record.id, ri));
+      await assertRejects(() => e.updateEntity(badE, requestActor(A), entity.id, ei));
+      await assertRejects(() => a.updateTask(badA, requestActor(A), task.id, ti));
+      await assertRejects(() => a.updateRecord(badRecord, requestActor(A), record.id, ri));
       assertEquals((await e.getEntity(ed, A, entity.id)).version, 1);
       assertEquals((await a.getTask(ad, A, task.id)).title, task.title);
       assertEquals((await a.getRecord(ad, A, record.id)).body, record.body);
@@ -252,9 +250,9 @@ dbTest(
         (await admin`select id from app.records where owner_id=${A.userId} and record_kind='change'`).length,
         2,
       );
-      await e.updateEntity(ed, A, entity.id, ei);
-      await a.updateTask(ad, A, task.id, ti);
-      await a.updateRecord(ad, A, record.id, ri);
+      await e.updateEntity(ed, requestActor(A), entity.id, ei);
+      await a.updateTask(ad, requestActor(A), task.id, ti);
+      await a.updateRecord(ad, requestActor(A), record.id, ri);
       assertEquals(
         (await admin`select id from app.records where owner_id=${A.userId} and record_kind='change'`).length,
         4,

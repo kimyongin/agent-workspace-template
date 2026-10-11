@@ -44,3 +44,15 @@ export async function runRequest<T>(
   if (!store.executeRequest) throw invalidInput("요청 원장 저장소가 필요합니다");
   return await store.executeRequest({ key, operation, fingerprint }, execute);
 }
+
+export function runWrite<S extends RequestStore, T>(
+  uow: { run<R>(actor: Actor, fn: (store: S) => Promise<R>): Promise<R> },
+  actor: Actor,
+  operation: string,
+  target: unknown,
+  input: unknown,
+  execute: (store: S) => Promise<T>,
+): Promise<T> {
+  requireRequestKey(actor);
+  return uow.run(actor, (store) => runRequest(store, actor, operation, target, input, () => execute(store)));
+}

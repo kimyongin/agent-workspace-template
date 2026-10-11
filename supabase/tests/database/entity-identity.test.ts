@@ -1,3 +1,4 @@
+import { requestActor } from "../_request.ts";
 import { assert, assertEquals, assertRejects } from "@std/assert";
 import { SqlEntityUnitOfWork } from "../../functions/_shared/adapters/supabase/entity-store.ts";
 import { SqlUnitOfWork } from "../../functions/_shared/adapters/supabase/activity-store.ts";
@@ -16,23 +17,23 @@ const ed = { uow: new SqlEntityUnitOfWork(sql) },
   sd = { uow: new SqlBusinessSettingsUnitOfWork(sql), clock: { now: () => new Date("2026-10-09T00:00:00Z") } };
 const ad = { uow: new SqlUnitOfWork(sql), clock: { now: () => new Date() } };
 
-dbTest("자동 식별자는 날짜와 랜덤 8자로 준비되며 준비된 값을 그대로 저장한다", async () => {
+dbTest("자동 식별자는 준비에서 발급하지 않고 생성 성공에서 반환한다", async () => {
   const f = await fixtureOwner(admin);
   try {
     const prepared = await entities.prepareEntityRegistration(ed, f.actor, {});
-    assert(/^\d{8}-[A-Z0-9]{8}$/.test(prepared.external_id));
+    assertEquals(prepared.external_id, undefined);
     assertEquals(prepared.action, "create");
     const saved = await entities.createEntity(
       ed,
-      f.actor,
+      requestActor(f.actor),
       entityCreate.parse({
         source: prepared.source,
-        external_id: prepared.external_id,
+        settings_version: prepared.settings_version,
         prop1: "짧은 자동 식별자",
       }),
     );
-    assertEquals(saved.external_id, prepared.external_id);
-    assertEquals(saved.id, prepared.id);
+    assert(/^\d{8}-[A-Z0-9]{8}$/.test(saved.external_id));
+    assertEquals(saved.id, `${prepared.source}:${saved.external_id}`);
   } finally {
     await f.cleanup();
   }
@@ -43,18 +44,18 @@ dbTest("발급처 소프트 삭제는 새 식별만 막고 기존 값·관계를
   try {
     const sources = [{ code: "app", label: "앱" }, { code: "crm", label: "고객 시스템" }];
     const value = { generation: "manual" as const, default_source: "crm", sources };
-    await updateBusinessSettings(sd, f.actor, { id: "entity_identity", expected_version: 0, value });
+    await updateBusinessSettings(sd, requestActor(f.actor), { id: "entity_identity", expected_version: 0, value });
     const entity = await entities.createEntity(
       ed,
-      f.actor,
+      requestActor(f.actor),
       entityCreate.parse({ source: "crm", external_id: "보존", prop1: "발급처 보존" }),
     );
     const task = await activity.createTask(
       ad,
-      f.actor,
-      taskCreate.parse({ id: crypto.randomUUID(), kind: "once", title: "연결", entity_ids: [entity.id] }),
+      requestActor(f.actor),
+      taskCreate.parse({ kind: "once", title: "연결", entity_ids: [entity.id] }),
     );
-    await updateBusinessSettings(sd, f.actor, {
+    await updateBusinessSettings(sd, requestActor(f.actor), {
       id: "entity_identity",
       expected_version: 1,
       value: {
@@ -66,14 +67,18 @@ dbTest("발급처 소프트 삭제는 새 식별만 막고 기존 값·관계를
     assertEquals((await activity.getTask(ad, f.actor, task.id)).entity_ids, [entity.id]);
     await assertRejects(
       () =>
-        entities.createEntity(ed, f.actor, entityCreate.parse({ source: "crm", external_id: "새 ID", prop1: "금지" })),
+        entities.createEntity(
+          ed,
+          requestActor(f.actor),
+          entityCreate.parse({ source: "crm", external_id: "새 ID", prop1: "금지" }),
+        ),
       AppError,
     );
     await assertRejects(
       () =>
         entities.rekeyEntity(
           ed,
-          f.actor,
+          requestActor(f.actor),
           entity.id,
           entityRekey.parse({ source: "crm", external_id: "변경 ID", expected_version: 1 }),
         ),
@@ -81,19 +86,19 @@ dbTest("발급처 소프트 삭제는 새 식별만 막고 기존 값·관계를
     );
     const edited = await entities.updateEntity(
       ed,
-      f.actor,
+      requestActor(f.actor),
       entity.id,
       entityUpdate.parse({ expected_version: 1, prop1: "기존 값 편집 가능" }),
     );
-    await entities.deleteEntity(ed, f.actor, entity.id, edited.version);
+    await entities.deleteEntity(ed, requestActor(f.actor), entity.id, edited.version);
     const restore = () =>
       entities.createEntity(
         ed,
-        f.actor,
+        requestActor(f.actor),
         entityCreate.parse({ source: "crm", external_id: "보존", expected_version: 3 }),
       );
     await assertRejects(restore, AppError);
-    await updateBusinessSettings(sd, f.actor, { id: "entity_identity", expected_version: 2, value });
+    await updateBusinessSettings(sd, requestActor(f.actor), { id: "entity_identity", expected_version: 2, value });
     const restored = await restore();
     assertEquals([restored.id, restored.prop1, restored.version, restored.deleted_at], [
       entity.id,
@@ -104,7 +109,7 @@ dbTest("발급처 소프트 삭제는 새 식별만 막고 기존 값·관계를
     assertEquals((await activity.getTask(ad, f.actor, task.id)).entity_ids, [entity.id]);
     await assertRejects(
       () =>
-        updateBusinessSettings(sd, f.actor, {
+        updateBusinessSettings(sd, requestActor(f.actor), {
           id: "entity_identity",
           expected_version: 3,
           value: { ...value, default_source: "app", sources: [sources[0]] },
@@ -123,7 +128,7 @@ dbTest(
     try {
       for (const actor of [f.actor, other.actor]) {
         const saved = await getBusinessSettings(sd, actor);
-        await updateBusinessSettings(sd, actor, {
+        await updateBusinessSettings(sd, requestActor(actor), {
           expected_version: saved.versions.entity_identity,
           id: "entity_identity",
           value: {
@@ -140,46 +145,45 @@ dbTest(
         prop2: 0,
         prop4: "c",
       });
-      const created = await entities.createEntity(ed, f.actor, input),
-        foreign = await entities.createEntity(ed, other.actor, input);
+      const created = await entities.createEntity(ed, requestActor(f.actor), input),
+        foreign = await entities.createEntity(ed, requestActor(other.actor), input);
       assertEquals(created.id, "crm:000Ab:/한글%");
       assertEquals(foreign.id, created.id);
       const task = await activity.createTask(
         ad,
-        f.actor,
-        taskCreate.parse({ id: crypto.randomUUID(), kind: "once", title: "연결 유지", entity_ids: [created.id] }),
+        requestActor(f.actor),
+        taskCreate.parse({ kind: "once", title: "연결 유지", entity_ids: [created.id] }),
       );
       const record = await activity.createRecord(
         ad,
-        f.actor,
+        requestActor(f.actor),
         recordCreate.parse({
-          id: crypto.randomUUID(),
           body: "본문의 crm:000Ab:/한글% 는 그대로",
           entity_ids: [created.id],
         }),
       );
-      await entities.deleteEntity(ed, f.actor, created.id, created.version);
+      await entities.deleteEntity(ed, requestActor(f.actor), created.id, created.version);
       const deleted = await entities.getEntity(ed, f.actor, created.id);
       assert(deleted.deleted_at);
       assertEquals(deleted.version, 2);
       assertEquals((await entities.listEntities(ed, f.actor, entityListQuery.parse({}))).items, []);
       assertEquals((await activity.getTask(ad, f.actor, task.id)).entity_ids, [created.id]);
-      await assertRejects(() => entities.createEntity(ed, f.actor, input), AppError);
+      await assertRejects(() => entities.createEntity(ed, requestActor(f.actor), input), AppError);
       await assertRejects(() =>
         activity.createRecord(
           ad,
-          f.actor,
-          recordCreate.parse({ id: crypto.randomUUID(), body: "새 선택 거부", entity_ids: [created.id] }),
+          requestActor(f.actor),
+          recordCreate.parse({ body: "새 선택 거부", entity_ids: [created.id] }),
         ), AppError);
       const edited = await activity.updateTask(
         ad,
-        f.actor,
+        requestActor(f.actor),
         task.id,
         taskUpdate.parse({ expected_version: 1, title: "삭제 대상 연결 유지", entity_ids: [created.id] }),
       );
       const completed = await activity.completeTask(
         ad,
-        f.actor,
+        requestActor(f.actor),
         task.id,
         taskComplete.parse({ expected_version: edited.version, body: "보관된 문맥을 상속한 결과" }),
       );
@@ -187,7 +191,7 @@ dbTest(
       const restore = () =>
         entities.createEntity(
           ed,
-          f.actor,
+          requestActor(f.actor),
           entityCreate.parse({
             source: "crm",
             external_id: input.external_id,
@@ -204,20 +208,20 @@ dbTest(
       await assertRejects(() =>
         entities.updateEntity(
           ed,
-          f.actor,
+          requestActor(f.actor),
           restored.id,
           entityUpdate.parse({ expected_version: 1, prop1: "삭제 전 요청" }),
         ), AppError);
       const collision = await entities.createEntity(
         ed,
-        f.actor,
+        requestActor(f.actor),
         entityCreate.parse({ source: "app", external_id: "000Ab:/한글%", prop1: "다른 발급처" }),
       );
-      await entities.deleteEntity(ed, f.actor, collision.id, 1);
+      await entities.deleteEntity(ed, requestActor(f.actor), collision.id, 1);
       await assertRejects(() =>
         entities.rekeyEntity(
           ed,
-          f.actor,
+          requestActor(f.actor),
           restored.id,
           entityRekey.parse({ source: "app", external_id: input.external_id, expected_version: 3 }),
         ), AppError);
@@ -226,7 +230,7 @@ dbTest(
         () =>
           entities.updateEntity(
             ed,
-            f.actor,
+            requestActor(f.actor),
             restored.id,
             entityUpdate.parse({
               prop1: "실패한 속성 변경",
@@ -242,7 +246,7 @@ dbTest(
       assertEquals((await activity.getRecord(ad, f.actor, record.id)).entity_ids, [restored.id]);
       const rekeyed = await entities.updateEntity(
         ed,
-        f.actor,
+        requestActor(f.actor),
         restored.id,
         entityUpdate.parse({ source: "crm", external_id: "새:/ID%", prop1: "식별자와 함께 변경", expected_version: 3 }),
       );

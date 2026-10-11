@@ -2,7 +2,7 @@ import { assertEquals } from "@std/assert";
 import { httpTest, signIn } from "../http/_client.ts";
 import { connectMcp, mcpToken, tool } from "./_mcp.ts";
 
-httpTest("OAuth MCP rejects missing object UUIDs and retired request metadata/upsert tool", async () => {
+httpTest("OAuth MCP rejects missing request keys and client IDs/retired metadata/upsert tool", async () => {
   const client = await connectMcp(await mcpToken(await signIn("A")));
   try {
     const { tools } = await client.listTools();
@@ -16,7 +16,7 @@ httpTest("OAuth MCP rejects missing object UUIDs and retired request metadata/up
         ["create_tag", { name: "입력 거부" }],
       ] as const
     ) {
-      assertEquals((await tool(client, name, { id: undefined, ...content })).error.code, "invalid_input");
+      assertEquals((await tool(client, name, { request_key: undefined, ...content })).error.code, "invalid_input");
       assertEquals(
         (await tool(client, name, {
           id: crypto.randomUUID(),

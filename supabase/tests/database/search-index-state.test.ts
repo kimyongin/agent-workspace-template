@@ -1,3 +1,4 @@
+import { requestActor } from "../_request.ts";
 import { assertEquals, assertMatch, assertRejects } from "@std/assert";
 import { SqlUnitOfWork } from "../../functions/_shared/adapters/supabase/activity-store.ts";
 import { recordCreate, recordUpdate } from "../../functions/_shared/contracts/record.ts";
@@ -11,8 +12,8 @@ const deps = { uow: new SqlUnitOfWork(sql), clock: { now: () => new Date() } };
 dbTest("record body hash: one current logical queue job, owner isolation and missing-message recovery", async () => {
   const item = await activity.createRecord(
     deps,
-    A,
-    recordCreate.parse({ id: crypto.randomUUID(), body: "검색 원문😀" }),
+    requestActor(A),
+    recordCreate.parse({ body: "검색 원문😀" }),
   );
   const hash = await searchInputHash(item.body);
   const state = async () => (await admin`select * from app.search_index_state where id=${item.id}`)[0];
@@ -47,7 +48,7 @@ dbTest("record body hash: one current logical queue job, owner isolation and mis
   assertEquals((await messages()).length, 1);
   const changed = await activity.updateRecord(
     deps,
-    A,
+    requestActor(A),
     item.id,
     recordUpdate.parse({ expected_version: 1, body: "바뀐 원문😀" }),
   );
@@ -57,7 +58,7 @@ dbTest("record body hash: one current logical queue job, owner isolation and mis
   await assertRejects(() =>
     asUser(sql, A.userId, (tx) => tx`select app.enqueue_search_index('task',${item.id},${hash},${SEARCH_PIPELINE})`)
   );
-  await activity.deleteRecord(deps, A, item.id, 2);
+  await activity.deleteRecord(deps, requestActor(A), item.id, 2);
   assertEquals(await state(), undefined);
   assertEquals((await messages()).length, 0);
 });
