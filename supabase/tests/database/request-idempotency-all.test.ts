@@ -264,3 +264,52 @@ dbTest("HTTP and MCP share canonical creation and settings payloads and reject r
     await f.cleanup();
   }
 });
+
+dbTest("a request waiting on a task row does not block unrelated same-owner writes at lifetime quota", async () => {
+  const f = await fixtureOwner(admin);
+  const locked = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+  let holder: Promise<unknown> | undefined,
+    waiting: Promise<unknown> | undefined,
+    unrelated: Promise<unknown> | undefined;
+  let timer: number | undefined;
+  try {
+    const task = await activity.createTask(
+      ad,
+      keyed(f.actor),
+      taskCreate.parse({ kind: "once", title: "locked task" }),
+    );
+    holder = ad.uow.run(f.actor, async (store) => {
+      await store.getTask(task.id, { forUpdate: true });
+      locked.resolve();
+      await release.promise;
+    });
+    await locked.promise;
+    waiting = activity.updateTask(ad, keyed(f.actor), task.id, { expected_version: 1, title: "after row release" });
+    void waiting.catch(() => {});
+    let observed = false;
+    for (let n = 0; n < 100; n++) {
+      const rows =
+        await admin`select 1 from pg_stat_activity where wait_event_type='Lock' and query like '%from app.tasks%'`;
+      if (rows.length) {
+        observed = true;
+        break;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    assertEquals(observed, true, "first request is waiting on its business row");
+    unrelated = activity.createRecord(ad, keyed(f.actor), recordCreate.parse({ body: "independent record" }));
+    void unrelated.catch(() => {});
+    const result = await Promise.race([
+      unrelated,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error("unrelated write blocked before business execution")), 1500);
+      }),
+    ]);
+    assertEquals((result as { body: string }).body, "independent record");
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+    release.resolve();
+    await Promise.allSettled([holder, waiting, unrelated].filter((p): p is Promise<unknown> => p !== undefined));
+    await f.cleanup();
+  }
+});
