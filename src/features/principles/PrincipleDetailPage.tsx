@@ -34,13 +34,13 @@ export function PrincipleDetailPage() {
     {item&&<section className="form">
       <section className="detail-section" aria-label="현재 원칙"><DetailTitle>{item.title}</DetailTitle>{item.body&&<MarkdownContent text={item.body}/>}<p className="meta">수정 {formatDateTime(item.saved_at)}</p></section>
       {editor.active&&editReady&&item.is_current&&<PrincipleFormModal editing target={item} initial={{title:item.title,body:item.body}} {...editor.formProps}
-        deletion={{preparation:()=>({model:"principle",action:"delete",target_id:item.id,expected_version:item.version,input:{}}),message:<p>삭제하면 현재 원칙이 없는 상태가 됩니다. 과거 원칙을 자동 승격하지 않습니다. 기록에 보존한 근거는 남습니다.</p>,onConfirm:async(reason,tags)=>{setBusy(true);try{await api("POST",`/principles/${item.id}/delete`,{expected_version:item.version,change_note:reason, change_tag_ids:tags});editor.leave(deleteBack);}catch(e){setError(e instanceof ApiError?e.message:"삭제하지 못했습니다.");throw e;}finally{setBusy(false);}}}} details={<div className="detail-management">{message&&<Notice kind="success">{message}</Notice>}{error&&<Notice kind="error">{error}</Notice>}
+        deletion={{preparation:()=>({model:"principle",action:"delete",target_id:item.id,expected_version:item.version,input:{}}),message:<p>삭제하면 현재 원칙이 없는 상태가 됩니다. 과거 원칙을 자동 승격하지 않습니다. 기록에 보존한 근거는 남습니다.</p>,onConfirm:async(reason,tags,requestKey)=>{setBusy(true);try{await api("POST",`/principles/${item.id}/delete`,{expected_version:item.version,change_note:reason, change_tag_ids:tags}, undefined, requestKey());editor.leave(deleteBack);}catch(e){setError(e instanceof ApiError?e.message:"삭제하지 못했습니다.");throw e;}finally{setBusy(false);}}}} details={<div className="detail-management">{message&&<Notice kind="success">{message}</Notice>}{error&&<Notice kind="error">{error}</Notice>}
 
           </div>}
-        onSave={async draft=>{
+        onSave={async (draft,requestKey)=>{
         let savedId = item.id;
         await detail.save(async () => {
-          const saved = await api<WorkspacePrinciple>("PATCH", `/principles/${item.id}`, { ...draft, expected_version: item.version });
+          const saved = await api<WorkspacePrinciple>("PATCH", `/principles/${item.id}`, { ...draft, expected_version: item.version }, undefined, requestKey());
           savedId = saved.id;
           return saved;
         });

@@ -1,3 +1,4 @@
+import { writeErrorMessage } from "../../lib/write-attempt.ts";
 import { useEffect, useRef, useState } from "react";
 import { DEFAULT_RECORD_MEMO_TEMPLATES, effectiveRecordTemplate, modelActions, recordTemplates, TEMPLATE_MODELS, templateActionNames, templateModelNames, templateVariables, type TemplateAction, type TemplateModel } from "@contracts/record-template.ts";
 import { Field, Notice } from "../../components/Field.tsx";
@@ -10,7 +11,7 @@ const recordTemplatesDraft = createRecordTemplatesDraft(api);
 
 export function RecordTemplateSettings({onStateChange}: {onStateChange?: (state: {dirty:boolean;busy:boolean})=>void}) {
   const editor = useSettingsDraft(recordTemplatesDraft,onStateChange);
-  const {draft,dirty,busy,conflict}=editor;
+  const {draft,dirty,busy,conflict,uncertain}=editor;
   const saved=editor.saved?.settings;
   const setDraft=editor.resource.edit;
   const [model, setModel] = useState<TemplateModel>("entity");
@@ -20,7 +21,7 @@ export function RecordTemplateSettings({onStateChange}: {onStateChange?: (state:
   const missing = unavailableTemplateTags(editor.saved,draft);
   const text = useRef<HTMLTextAreaElement>(null);
   const read=async()=>{const refreshing=!!saved;setMessage("");if(await editor.resource.read())setMessage(refreshing?"최신 설정을 읽었습니다. 입력한 템플릿은 유지했습니다. 확인한 뒤 다시 저장하세요.":"");};
-  useEffect(()=>{if(editor.error){setMessage(editor.error instanceof Error?editor.error.message:"설정을 읽지 못했습니다.");if(editor.error instanceof ApiError)setFields(Object.fromEntries(editor.error.fields.map(field=>[field.path.replace(/^value\./,""),field.message])));}},[editor.error]);
+  useEffect(()=>{if(editor.error){setMessage(writeErrorMessage(editor.error));if(editor.error instanceof ApiError)setFields(Object.fromEntries(editor.error.fields.map(field=>[field.path.replace(/^value\./,""),field.message])));}},[editor.error]);
   const value = draft[model]?.[action] ?? effectiveRecordTemplate(undefined, model, action);
   const setValue = (patch: Partial<typeof value>) => { setDraft(current => ({ ...current, [model]: { ...current[model], [action]: { ...value, ...patch } } })); setMessage(""); setFields({}); };
   const parse = recordTemplates.safeParse(draft);
@@ -50,7 +51,7 @@ export function RecordTemplateSettings({onStateChange}: {onStateChange?: (state:
         {Object.entries(fields).filter(([key]) => key !== `${model}.${action}.memo`).map(([key, error]) => <p className="error-text" key={key}>{templateModelNames[key.split(".")[0] as TemplateModel] ?? "설정"} {templateActionNames[key.split(".")[1] as TemplateAction] ?? ""}: {error} <button type="button" className="btn" onClick={()=>{const [nextModel,nextAction]=key.split(".");if(TEMPLATE_MODELS.includes(nextModel as TemplateModel)){setModel(nextModel as TemplateModel);setAction(nextAction as TemplateAction);}}}>오류 항목 보기</button></p>)}
         <p role="status">{message}</p>
         {conflict&&<button type="button" className="btn" onClick={()=>void read()}>최신값 확인</button>}
-        <div className="settings-section-footer"><div className="actions"><button type="button" className="btn" disabled={!dirty} onClick={() => { editor.resource.reset(); setFields({}); setMessage(""); }}>변경 취소</button><button type="submit" className="btn btn-primary" disabled={!dirty}>{busy ? "저장 중…" : "기록 기본값 저장"}</button></div></div>
+        <div className="settings-section-footer"><div className="actions"><button type="button" className="btn" disabled={!dirty} onClick={() => { editor.resource.reset(); setFields({}); setMessage(""); }}>변경 취소</button><button type="submit" className="btn btn-primary" disabled={!dirty}>{busy ? "저장 중…" : uncertain ? "같은 내용 다시 시도" : "기록 기본값 저장"}</button></div></div>
       </fieldset>
     </form>}
   </section>;

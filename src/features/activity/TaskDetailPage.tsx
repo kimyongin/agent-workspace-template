@@ -219,13 +219,13 @@ export function TaskDetailPage() {
           initial={taskDraftFrom(task, timezone)}
           deletion={{preparation:()=>({model:"task",action:"delete",target_id:task.id,expected_version:task.version,input:{}}),message:<p style={{ margin: 0 }}>
             「{task.title}」을(를) 삭제합니다. 연결된 결과·회차 기록은 남고 이 할 일과의 연결만 사라집니다.
-          </p>,onConfirm:(reason,tags) =>
+          </p>,onConfirm:(reason,tags,requestKey) =>
           run(async () => {
-            await api("POST", `/tasks/${task.id}/delete`, {expected_version:task.version,change_note:reason, change_tag_ids:tags});
+            await api("POST", `/tasks/${task.id}/delete`, {expected_version:task.version,change_note:reason, change_tag_ids:tags}, undefined, requestKey());
             editor.leave(deleteBack);
           }, "삭제했습니다.")}}
           {...editor.formProps}
-          onSave={async (draft) => {
+          onSave={async (draft,requestKey) => {
             await detail.save(async current => {
             const patch: Record<string, unknown> = {
               expected_version: task.version,
@@ -241,7 +241,7 @@ export function TaskDetailPage() {
               patch.recurrence = input.recurrence;
               patch.timezone = input.timezone;
             }
-            const saved = await api<TaskResult>("PATCH", `/tasks/${task.id}`, patch);
+            const saved = await api<TaskResult>("PATCH", `/tasks/${task.id}`, patch, undefined, requestKey());
             return {...current, ...saved};
             });
             editor.close();
@@ -253,7 +253,7 @@ export function TaskDetailPage() {
       {dialog === "record" && <RecordFormModal title="기록 작성" submitLabel="저장" open
         initial={{...emptyRecord(),task_id:task.id,entity_ids:task.entity_ids,entity_context:task.entity_context}}
         onClose={closeManagement} onRouteDiscard={()=>setDialog(null)}
-        onSave={async(value,creationId)=>{await api("POST","/records",{...value,id:creationId()});closeManagement();setRecordRefresh(n=>n+1);}}/>}
+        onSave={async(value,requestKey)=>{await api("POST","/records",{...value}, undefined, requestKey());closeManagement();setRecordRefresh(n=>n+1);}}/>}
       {task.kind==="recurring"&&<TaskTransitionForm key={`${task.id}:${task.version}`} open={dialog==="transition"} task={task} onClose={closeManagement} onSaved={async()=>{closeManagement();setMessage(task.status==="active"?"중단했습니다. 오늘부터 회차가 없습니다.":"재개했습니다.");await reload();}}/>}
       {dialog === "complete" && (
         <RecordFormModal
@@ -265,8 +265,8 @@ export function TaskDetailPage() {
           intro={<p className="help" style={{ margin: 0 }}>실제로 수행한 결과를 남기면 할 일이 완료됩니다.</p>}
           onClose={closeManagement}
           onRouteDiscard={() => setDialog(null)}
-          onSave={async (value) => {
-            await api("POST", `/tasks/${task.id}/complete`, { ...value, expected_version: task.version });
+          onSave={async (value,requestKey) => {
+            await api("POST", `/tasks/${task.id}/complete`, { ...value, expected_version: task.version }, undefined, requestKey());
             closeManagement();
             setMessage("완료하고 결과 기록을 저장했습니다.");
             await reload();
@@ -282,11 +282,10 @@ export function TaskDetailPage() {
           initial={{...emptyRecord(),entity_ids:task.entity_ids,entity_context:task.entity_context}}
           onClose={closeManagement}
           onRouteDiscard={() => setDialog(null)}
-          onSave={async (value, creationId) => {
+          onSave={async (value, requestKey) => {
             await api<RecordResult>("POST", `/tasks/${task.id}/occurrences/${dialog.occurrence}/records`, {
               ...value,
-              id: creationId(),
-            });
+            }, undefined, requestKey());
             closeManagement();
             setMessage(`${dialog.occurrence} 회차에 기록했습니다.`);
             setRecordRefresh(n=>n+1);
@@ -303,8 +302,8 @@ function TaskTransitionForm({task,open,onClose,onSaved}:{task:TaskResult;open:bo
   return <FormModal open={open} title={`반복 할 일 ${label}`} submitLabel={label} dirty={false} confirmationOnly
     preparation={()=>({model:"task",action,target_id:task.id,expected_version:task.version,input:{}})}
     mutation={{target:task.title,action:label,message:action==="stop"?"오늘부터 이후 회차가 생기지 않고 기존 기록은 남습니다.":"오늘부터 규칙에 따라 회차가 다시 생깁니다."}}
-    onClose={onClose} onRouteDiscard={onClose} validate={()=>null} onSubmit={async(_id,memo)=>{
-      await api("POST",`/tasks/${task.id}/${action}`,{expected_version:task.version,...memo});
+    onClose={onClose} onRouteDiscard={onClose} validate={()=>null} onSubmit={async(requestKey,memo)=>{
+      await api("POST",`/tasks/${task.id}/${action}`,{expected_version:task.version,...memo}, undefined, requestKey());
       await onSaved();
     }}>{()=>null}</FormModal>;
 }

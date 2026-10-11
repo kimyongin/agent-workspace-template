@@ -33,12 +33,13 @@ interface ConfirmationDescription {
   label: string;
   defaultNote: string;
   preparation?: () => PrepareRecordMemo | Promise<PrepareRecordMemo>;
+  onPrepared?: (result:PreparedRecordMemo) => void;
   message?: ReactNode;
   record: boolean;
   danger?: boolean;
   excludeTag?: string;
   pendingLabel?: string;
-  execute: (creationId: () => string, memo: RecordMemo) => void | Promise<void>;
+  execute: (requestKey: () => string, memo: RecordMemo) => void | Promise<void>;
 }
 
 /** One confirmation lifetime owns memo drafts, errors, frozen retries and its dialog stage. */
@@ -83,10 +84,9 @@ export function useRecordConfirmation(options: {
     setPreparing(true);
     try {
       const request = await description.preparation();
-      // The same WriteAttempt owns the creation ID before preparation and the final write.
-      if (request.action === "create" && request.model !== "entity") request.input = {...request.input, id:await attempt.prepareCreationId()};
       const result = await api<PreparedRecordMemo>("POST", "/records/prepare", request);
       if (run !== preparationRun.current) return;
+      description.onPrepared?.(result);
       if (!touched.current.note) setNote(result.change_note);
       if (!touched.current.tags) setTags(result.change_tag_ids);
       preparationReady.current = true;
@@ -113,7 +113,7 @@ export function useRecordConfirmation(options: {
     const execute = description.execute;
     try {
       // Capture the actual operation and memo. WriteAttempt retains this closure on uncertainty.
-      await attempt.run(async () => { await execute(attempt.creationId, memo); });
+      await attempt.run(async () => { await execute(attempt.requestKey, memo); });
       workspace?.saved();
       if (latest.current.closeOnSuccess) setStage(null);
     } catch (error) {

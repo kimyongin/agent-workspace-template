@@ -8,7 +8,7 @@ export function useSettingsDraft<T, Saved>(
   const state = useSyncExternalStore(resource.subscribe, resource.snapshot);
   useEffect(() => {
     void resource.read();
-    return resource.cancel;
+    return resource.dispose;
   }, [resource]);
   useEffect(() => {
     onStateChange?.({ dirty: state.dirty, busy: state.busy });
