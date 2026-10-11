@@ -1,4 +1,5 @@
 import type postgres from "postgres";
+import { REQUEST_RESULT_MAX_BYTES } from "../../contracts/request.ts";
 import type { Actor } from "../../core/shared/actor.ts";
 import type { RequestIdentity } from "../../core/shared/request.ts";
 import { AppError } from "../../core/shared/errors.ts";
@@ -41,8 +42,8 @@ export async function executeSqlRequest<T>(
   await tx`select set_config('lock_timeout', '5s', true)`;
   const result = await execute();
   const json = JSON.stringify(result ?? null);
-  if (new TextEncoder().encode(json).byteLength > 131072) {
-    throw new AppError("invalid_input", "응답 크기가 요청 보관 한도를 넘었습니다");
+  if (new TextEncoder().encode(json).byteLength > REQUEST_RESULT_MAX_BYTES) {
+    throw new AppError("invalid_input", "응답이 1 MiB 요청 보관 한도를 넘었습니다. 변경은 저장되지 않았습니다");
   }
   await tx`select app.finish_request(${request.key}::uuid, ${tx.json(JSON.parse(json))})`;
   return result;
