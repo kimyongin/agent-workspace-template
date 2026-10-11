@@ -131,7 +131,13 @@ export function prepareBusinessRecord(
         if (external_id !== undefined) {
           const existing = await store.target?.("entity", entityId(source, external_id));
           const registration = registrationState(existing ?? null);
-          if (registration !== "create") throw conflict(registration === "restore" ? "삭제된 기존 대상을 restore 액션과 현재 버전으로 준비하세요" : "같은 발급처·식별자의 활성 엔터티가 있습니다");
+          if (registration !== "create") {
+            throw conflict(
+              registration === "restore"
+                ? "삭제된 기존 대상을 restore 액션과 현재 버전으로 준비하세요"
+                : "같은 발급처·식별자의 활성 엔터티가 있습니다",
+            );
+          }
           content = registrationContent(content, { source, external_id });
         } else {
           content = { ...content, source };
@@ -159,7 +165,12 @@ export function prepareBusinessRecord(
       ...content,
     } as ChangeFacts;
     if (input.action === "restore") {
-      prepared_input = { ...prepared_input, source: before?.source, external_id: before?.external_id, settings_version: saved.versions.entity_identity };
+      prepared_input = {
+        ...prepared_input,
+        source: before?.source,
+        external_id: before?.external_id,
+        settings_version: saved.versions.entity_identity,
+      };
     }
     if (input.action !== "create") prepared_input = { ...prepared_input, expected_version: input.expected_version };
     const title = String((after ?? before)?.[input.model === "entity" ? "prop1" : "title"] ?? "");

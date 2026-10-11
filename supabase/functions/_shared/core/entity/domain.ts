@@ -32,7 +32,7 @@ export function registrationIdentity(
 export function registrationIdentity(
   settings: EntityIdentitySettings,
   input: Pick<EntityCreate, "source" | "external_id">,
-  phase: "prepare" | "write",
+  _phase: "prepare" | "write",
 ) {
   const source = input.source ?? settings.default_source;
   if (!isActiveEntitySource(settings, source)) throw invalidInput("삭제되지 않은 발급처를 선택하세요");
@@ -48,7 +48,13 @@ export function registrationContent(
   identity: Pick<EntityContent, "source" | "external_id">,
   before: ChangeFacts | null = null,
 ): EntityContent {
-  const { settings_version: _settings, expected_version: _version, change_note: _note, change_tag_ids: _tags, ...fields } = input;
+  const {
+    settings_version: _settings,
+    expected_version: _version,
+    change_note: _note,
+    change_tag_ids: _tags,
+    ...fields
+  } = input;
   const prop1 = fields.prop1 ?? before?.prop1;
   if (!prop1) throw invalidInput("속성 1은 필수입니다");
   return {

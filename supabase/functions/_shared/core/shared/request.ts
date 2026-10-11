@@ -47,7 +47,11 @@ export async function runRequest<T>(
 
 export function runWrite<S extends RequestStore, T>(
   uow: { run<R>(actor: Actor, fn: (store: S) => Promise<R>): Promise<R> },
-  actor: Actor, operation: string, target: unknown, input: unknown, execute: (store: S) => Promise<T>,
+  actor: Actor,
+  operation: string,
+  target: unknown,
+  input: unknown,
+  execute: (store: S) => Promise<T>,
 ): Promise<T> {
   requireRequestKey(actor);
   return uow.run(actor, (store) => runRequest(store, actor, operation, target, input, () => execute(store)));

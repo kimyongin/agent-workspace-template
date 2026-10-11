@@ -60,21 +60,28 @@ export function deletePrinciple(
   change_note?: string,
   change_tag_ids?: string[],
 ) {
-  return runWrite(d.uow, a, "principle.delete", id, { expected_version: expected, change_note, change_tag_ids }, async (s) => {
-    const old = requirePrinciple(await s.current({ forUpdate: true }), id);
-    version(old, expected);
-    await s.delete(id);
-    await s.appendChange({
-      target_kind: "principle",
-      target: principleChangeTarget(old),
-      action: "delete",
-      before: principleChangeFacts(old),
-      after: null,
-      change_note,
-      change_tag_ids,
-    });
-    return { deleted: true };
-  });
+  return runWrite(
+    d.uow,
+    a,
+    "principle.delete",
+    id,
+    { expected_version: expected, change_note, change_tag_ids },
+    async (s) => {
+      const old = requirePrinciple(await s.current({ forUpdate: true }), id);
+      version(old, expected);
+      await s.delete(id);
+      await s.appendChange({
+        target_kind: "principle",
+        target: principleChangeTarget(old),
+        action: "delete",
+        before: principleChangeFacts(old),
+        after: null,
+        change_note,
+        change_tag_ids,
+      });
+      return { deleted: true };
+    },
+  );
 }
 export function getPrinciple(d: PrincipleDeps, a: Actor, id: string) {
   return d.uow.run(a, async (s) => requirePrinciple(await s.get(id), id));

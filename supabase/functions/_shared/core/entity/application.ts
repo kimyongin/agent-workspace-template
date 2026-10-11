@@ -25,7 +25,9 @@ import { type ChangeStore } from "../shared/changes.ts";
 
 export interface EntityStore extends ChangeStore {
   issueDataId?(): Promise<string>;
-  getBusinessSettings(): Promise<{ versions?: { entity_identity: number }; settings: { entity_identity?: EntityIdentitySettings } }>;
+  getBusinessSettings(): Promise<
+    { versions?: { entity_identity: number }; settings: { entity_identity?: EntityIdentitySettings } }
+  >;
   get(id: string, lock?: boolean): Promise<EntityResult | null>;
   related(id: string): Promise<Pick<EntityDetail, "tasks" | "records">>;
   insert(
@@ -59,47 +61,67 @@ export function prepareEntityRegistration(d: EntityDeps, a: Actor, i: Pick<Entit
     const { source, external_id } = registrationIdentity(settings, i, "prepare");
     const id = external_id === undefined ? undefined : entityId(source, external_id);
     const existing = id === undefined ? null : await s.get(id);
-    return { source, generation: entitySourceGeneration(settings, source), settings_version: saved.versions?.entity_identity ?? 0,
-      external_id, id, action: registrationState(existing), expected_version: existing?.version,
-      existing: existing && id ? { ...existing, ...await s.related(id) } : null };
+    return {
+      source,
+      generation: entitySourceGeneration(settings, source),
+      settings_version: saved.versions?.entity_identity ?? 0,
+      external_id,
+      id,
+      action: registrationState(existing),
+      expected_version: existing?.version,
+      existing: existing && id ? { ...existing, ...await s.related(id) } : null,
+    };
   });
 }
 export function createEntity(d: EntityDeps, a: Actor, i: EntityCreate) {
-  return runWrite(d.uow, a, i.expected_version === undefined ? "entity.create" : "entity.restore", null, i, async (s) => {
-    const saved = await s.getBusinessSettings();
-    if (i.settings_version !== undefined && i.settings_version !== (saved.versions?.entity_identity ?? 0)) {
-      throw new AppError("settings_changed", "발급처 설정이 변경되었습니다. 다시 준비하세요");
-    }
-    const settings = saved.settings.entity_identity ?? defaultEntityIdentitySettings;
-    const { source } = registrationIdentity(settings, i, "prepare");
-    if (i.expected_version !== undefined && i.external_id === undefined) throw invalidInput("복원할 외부 식별자가 필요합니다");
-    let external_id = i.external_id;
-    if (external_id === undefined) {
-      if (!s.issueDataId) throw invalidInput("ID 발급 저장소가 필요합니다");
-      do { external_id = await s.issueDataId(); } while (await s.get(entityId(source, external_id), true));
-    }
-    const id = entityId(source, external_id);
-    const { change_note, change_tag_ids, expected_version, settings_version: _settings, ...props } = i;
-    const old = await s.get(id, true);
-    const registration = registrationState(old);
-    if (registration === "duplicate") throw conflict("같은 발급처·식별자의 활성 엔터티가 있습니다");
-    if (old && old.version !== expected_version) {
-      throw conflict("삭제된 기존 엔터티를 조회하고 현재 버전으로 복원을 확인하세요");
-    }
-    if (!old && expected_version !== undefined) throw conflict("복원할 엔터티가 없습니다");
-    const content = registrationContent(props, { source, external_id }, old ? entityChangeFacts(old) : null);
-    const result = old ? await s.restore(id, props) : await s.insert({ ...props, ...content, id });
-    await s.appendChange({
-      target_kind: "entity",
-      target: entityChangeTarget(result),
-      action: old ? "restore" : "create",
-      before: old ? entityChangeFacts(old) : null,
-      after: entityChangeFacts(result),
-      change_note,
-      change_tag_ids,
-    });
-    return result;
-  });
+  return runWrite(
+    d.uow,
+    a,
+    i.expected_version === undefined ? "entity.create" : "entity.restore",
+    null,
+    i,
+    async (s) => {
+      const saved = await s.getBusinessSettings();
+      if (i.settings_version !== undefined && i.settings_version !== (saved.versions?.entity_identity ?? 0)) {
+        throw new AppError("settings_changed", "발급처 설정이 변경되었습니다. 다시 준비하세요");
+      }
+      const settings = saved.settings.entity_identity ?? defaultEntityIdentitySettings;
+      const { source } = registrationIdentity(settings, i, "prepare");
+      if (i.expected_version !== undefined && i.external_id === undefined) {
+        throw invalidInput(
+          "복원할 외부 식별자가 필요합니다",
+        );
+      }
+      let external_id = i.external_id;
+      if (external_id === undefined) {
+        if (!s.issueDataId) throw invalidInput("ID 발급 저장소가 필요합니다");
+        do {
+          external_id = await s.issueDataId();
+        } while (await s.get(entityId(source, external_id), true));
+      }
+      const id = entityId(source, external_id);
+      const { change_note, change_tag_ids, expected_version, settings_version: _settings, ...props } = i;
+      const old = await s.get(id, true);
+      const registration = registrationState(old);
+      if (registration === "duplicate") throw conflict("같은 발급처·식별자의 활성 엔터티가 있습니다");
+      if (old && old.version !== expected_version) {
+        throw conflict("삭제된 기존 엔터티를 조회하고 현재 버전으로 복원을 확인하세요");
+      }
+      if (!old && expected_version !== undefined) throw conflict("복원할 엔터티가 없습니다");
+      const content = registrationContent(props, { source, external_id }, old ? entityChangeFacts(old) : null);
+      const result = old ? await s.restore(id, props) : await s.insert({ ...props, ...content, id });
+      await s.appendChange({
+        target_kind: "entity",
+        target: entityChangeTarget(result),
+        action: old ? "restore" : "create",
+        before: old ? entityChangeFacts(old) : null,
+        after: entityChangeFacts(result),
+        change_note,
+        change_tag_ids,
+      });
+      return result;
+    },
+  );
 }
 export function getEntity(d: EntityDeps, a: Actor, id: string) {
   return d.uow.run(a, async (s) => {
@@ -173,7 +195,12 @@ export function deleteEntity(
   change_note?: string,
   change_tag_ids?: string[],
 ) {
-  return runWrite(d.uow, a, "entity.delete", id, { expected_version: expected, change_note, change_tag_ids },
+  return runWrite(
+    d.uow,
+    a,
+    "entity.delete",
+    id,
+    { expected_version: expected, change_note, change_tag_ids },
     async (s) => {
       const old = await requireVersion(s, id, expected);
       await s.delete(id);
