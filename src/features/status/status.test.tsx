@@ -28,14 +28,14 @@ it("상태 화면은 네 그래프, 실제 개수와 날짜별 값, 집계 한�
     }],
   };
   const html = renderToStaticMarkup(<StatusContent data={data} />);
-  expect(html.match(/role="img"/g)).toHaveLength(4);
+  expect(html.match(/class="status-chart-button"/g)).toHaveLength(4);
   expect(html).toContain("삭제 보관");
   expect(html).toContain("일회성 완료");
   expect(html).toContain("작성일별 현재 색인 상태");
   expect(html).toContain("과거 대기량");
   expect(html).toContain("삭제된 할 일·기록");
   expect(html).toContain("날짜별 값");
-  expect(html).toContain('type="range"');
+  expect(html).not.toContain('type="range"');
   expect(html).toContain("2026-10-11");
   expect(html).toContain('aria-label="2026-10-11 날짜별 값"');
   for (

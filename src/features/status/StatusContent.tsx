@@ -43,7 +43,7 @@ function DailyChart(
   return (
     <div className="status-chart-area">
       <div className="status-chart-heading">
-        <h3>{title}</h3>
+        <h3 className="section-title">{title}</h3>
         <span className="meta">최근 {days.length}일</span>
       </div>
       <div className="status-legend">
@@ -54,71 +54,81 @@ function DailyChart(
           </span>
         ))}
       </div>
-      <svg
-        className="status-chart"
-        viewBox="0 0 600 105"
-        role="img"
-        aria-label={`${title} 그래프. 아래 날짜 선택과 날짜별 값에서 정확한 건수를 확인할 수 있습니다.`}
-        preserveAspectRatio="none"
+      <button
+        type="button"
+        className="status-chart-button"
+        aria-label={`${title} 그래프: 막대를 누르거나 방향키로 날짜 선택`}
+        aria-describedby={current ? id : undefined}
+        disabled={!current}
+        onClick={(event) => {
+          if (!event.detail) return;
+          const bounds = event.currentTarget.getBoundingClientRect();
+          const day = Math.floor((event.clientX - bounds.left) / bounds.width * days.length);
+          setSelected(Math.max(0, Math.min(days.length - 1, day)));
+        }}
+        onKeyDown={(event) => {
+          const next = event.key === "ArrowLeft"
+            ? index - 1
+            : event.key === "ArrowRight"
+            ? index + 1
+            : event.key === "Home"
+            ? 0
+            : event.key === "End"
+            ? days.length - 1
+            : null;
+          if (next === null) return;
+          event.preventDefault();
+          setSelected(Math.max(0, Math.min(days.length - 1, next)));
+        }}
       >
-        {[0, .5, 1].map((n) => (
-          <line
-            key={n}
-            x1="0"
-            x2={width}
-            y1={height - n * height + 4}
-            y2={height - n * height + 4}
-            stroke="var(--line)"
-          />
-        ))}
-        {days.map((day, di) => {
-          let cumulative = 0;
-          return (
-            <g key={day.date}>
-              {series.map((s, si) => {
-                const value = s.value(day), barHeight = value / max * height;
-                const y = height + 4 - barHeight - (stacked ? cumulative : 0);
-                cumulative += barHeight;
-                const barWidth = stacked ? step * .68 : step * .78 / series.length;
-                return (
-                  <rect
-                    key={s.label}
-                    x={di * step + step * .12 + (stacked ? 0 : si * barWidth)}
-                    y={y}
-                    width={barWidth}
-                    height={barHeight}
-                    fill={`var(--${s.tone})`}
-                    opacity={di === index ? 1 : .8}
-                  />
-                );
-              })}
-            </g>
-          );
-        })}
-        {days.length > 0 && (
-          <>
-            <text x="0" y="103">{days[0].date.slice(5)}</text>
-            <text x="600" y="103" textAnchor="end">{days[days.length - 1].date.slice(5)}</text>
-          </>
-        )}
-      </svg>
+        <svg className="status-chart" viewBox="0 0 600 105" aria-hidden="true" preserveAspectRatio="none">
+          <rect x={index * step} y="0" width={step} height={height + 4} fill="var(--accent-soft)" />
+          {[0, .5, 1].map((n) => (
+            <line
+              key={n}
+              x1="0"
+              x2={width}
+              y1={height - n * height + 4}
+              y2={height - n * height + 4}
+              stroke="var(--line)"
+            />
+          ))}
+          {days.map((day, di) => {
+            let cumulative = 0;
+            return (
+              <g key={day.date}>
+                {series.map((s, si) => {
+                  const value = s.value(day), barHeight = value / max * height;
+                  const y = height + 4 - barHeight - (stacked ? cumulative : 0);
+                  cumulative += barHeight;
+                  const barWidth = stacked ? step * .68 : step * .78 / series.length;
+                  return (
+                    <rect
+                      key={s.label}
+                      x={di * step + step * .12 + (stacked ? 0 : si * barWidth)}
+                      y={y}
+                      width={barWidth}
+                      height={barHeight}
+                      fill={`var(--${s.tone})`}
+                      opacity={di === index ? 1 : .8}
+                    />
+                  );
+                })}
+              </g>
+            );
+          })}
+          {days.length > 0 && (
+            <>
+              <text x="0" y="103">{days[0].date.slice(5)}</text>
+              <text x="600" y="103" textAnchor="end">{days[days.length - 1].date.slice(5)}</text>
+            </>
+          )}
+        </svg>
+      </button>
       {current && (
-        <>
-          <label className="meta" htmlFor={id}>{title} 날짜 선택</label>
-          <input
-            id={id}
-            className="status-day-slider"
-            type="range"
-            min="0"
-            max={days.length - 1}
-            value={index}
-            onChange={(e) => setSelected(Number(e.target.value))}
-            aria-valuetext={`${current.date}: ${series.map((s) => `${s.label} ${s.value(current)}건`).join(", ")}`}
-          />
-          <p className="status-day-detail" aria-live="polite">
-            <strong>{current.date}</strong> · {series.map((s) => `${s.label} ${s.value(current)}건`).join(" · ")}
-          </p>
-        </>
+        <p id={id} className="status-day-detail" aria-live="polite">
+          <strong>{current.date}</strong> · {series.map((s) => `${s.label} ${s.value(current)}건`).join(" · ")}
+        </p>
       )}
     </div>
   );
@@ -127,7 +137,7 @@ function Summary({ title, total, values }: { title: string; total: number; value
   return (
     <div className="status-summary">
       <div className="status-total">
-        <h3>{title}</h3>
+        <h3 className="section-title">{title}</h3>
         <strong>
           {total.toLocaleString("ko-KR")}
           <span className="meta">개</span>
@@ -150,7 +160,7 @@ export function StatusContent({ data, children }: { data: StatusOverview; childr
     <>
       <section className="status-section" aria-labelledby="status-current-title">
         <div className="status-section-heading">
-          <h2 id="status-current-title">현재 자료·최근 활동</h2>
+          <h2 className="status-section-title" id="status-current-title">현재 자료·최근 활동</h2>
           <span className="meta">활동: 최근 {data.period.days}일 · {data.period.from}–{data.period.to}</span>
         </div>
         {entities.total + tasks.total + records.total === 0 && (
@@ -186,7 +196,7 @@ export function StatusContent({ data, children }: { data: StatusOverview; childr
       </section>
       <section className="status-section" aria-labelledby="status-index-title">
         <div className="status-section-heading">
-          <h2 id="status-index-title">색인 현황</h2>
+          <h2 className="status-section-title" id="status-index-title">색인 현황</h2>
           <span className="meta">전체 기록 {indexing.total.toLocaleString("ko-KR")}개 · 현재 상태</span>
         </div>
         <dl className="status-index-counts">
