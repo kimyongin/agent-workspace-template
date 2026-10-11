@@ -7,10 +7,6 @@ import { AppError } from "../../core/shared/errors.ts";
 export class SqlEntityLinks {
   constructor(private readonly tx: postgres.TransactionSql) {}
 
-  async validateSelection(ids: string[]) {
-    await this.capture(ids);
-  }
-
   async taskSelection(ids?: string[], existingTaskId?: string) {
     if (ids === undefined) return {};
     const [prior] = existingTaskId === undefined ? [] : await this.tx<

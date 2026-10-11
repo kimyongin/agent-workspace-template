@@ -2,7 +2,6 @@ import { type EffectStatusReader, passageEffectStatus } from "../search/external
 import { runWrite } from "../shared/request.ts";
 import { requireRequestKey, runRequest } from "../shared/request.ts";
 import { activityChangeTarget, recordChangeFacts, taskChangeFacts } from "./change.ts";
-import { entityChanges, selectedEntities } from "./entity-selection.ts";
 // 할 일·기록 유스케이스. HTTP와 MCP가 같은 함수를 호출한다(ADR-0001).
 // 읽기 → 도메인 판단 → 저장 순서와 트랜잭션 경계, 색인 작업 등록, 요청 재전송 처리를 맡는다.
 import type { RecordCreate, RecordListQuery, RecordResult, RecordUpdate } from "../../contracts/record.ts";
@@ -44,7 +43,7 @@ export type { Page } from "../shared/operations.ts";
 function toTaskResult(task: Task): TaskResult {
   return {
     ...task,
-    entity_ids: selectedEntities(task) ?? [],
+    entity_ids: task.entity_ids ?? [],
     entity_context: task.entity_context ?? [],
   };
 }
@@ -52,7 +51,7 @@ function toTaskResult(task: Task): TaskResult {
 function toRecordResult(record: ActivityRecord): RecordResult {
   return {
     ...record,
-    entity_ids: selectedEntities(record) ?? [],
+    entity_ids: record.entity_ids ?? [],
     entity_context: record.entity_context ?? [],
     record_kind: record.record_kind ?? "user",
     change: record.change ?? null,
@@ -192,7 +191,7 @@ export async function completeTask(
     const record = await store.insertRecord({
       record_kind: "result",
       inherit_task_entities: true,
-      ...entityChanges({ entity_ids: selectedEntities(task) ?? [] }),
+      entity_ids: task.entity_ids ?? [],
       body: input.body,
       occurred_at: input.occurred_at ?? null,
       task_id: task.id,
@@ -330,8 +329,8 @@ export async function recordOccurrence(
     assertRecordableOccurrence(task, date, deps.clock.now());
     const record = await store.insertRecord({
       record_kind: "result",
-      inherit_task_entities: selectedEntities(input) === undefined,
-      ...entityChanges({ entity_ids: selectedEntities(input) ?? selectedEntities(task) ?? [] }),
+      inherit_task_entities: input.entity_ids === undefined,
+      entity_ids: input.entity_ids ?? task.entity_ids ?? [],
       body: input.body,
       occurred_at: input.occurred_at ?? null,
       task_id: id,
@@ -349,8 +348,8 @@ export async function createRecord(deps: ActivityDeps, actor: Actor, input: Reco
   return await runWrite(deps.uow, actor, "record.create", null, input, async (store) => {
     const task = input.task_id ? await requireTask(store, input.task_id, true) : null;
     const record = await store.insertRecord({
-      inherit_task_entities: selectedEntities(input) === undefined,
-      ...entityChanges({ entity_ids: selectedEntities(input) ?? (task ? selectedEntities(task) : []) ?? [] }),
+      inherit_task_entities: input.entity_ids === undefined,
+      entity_ids: input.entity_ids ?? task?.entity_ids ?? [],
       body: input.body,
       occurred_at: input.occurred_at ?? null,
       task_id: task?.id ?? null,
@@ -397,9 +396,7 @@ export async function updateRecord(
     ) {
       throw invalidInput("변경 기록은 본문만 정정할 수 있습니다");
     }
-    const { expected_version: _v, ...content } = patch;
-    const selection = entityChanges(content);
-    const changes = { ...content, ...selection };
+    const { expected_version: _v, ...changes } = patch;
     if (
       !changed(record, changes)
     ) return toRecordResult(record);
