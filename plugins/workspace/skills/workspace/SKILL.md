@@ -28,7 +28,7 @@ description: Workspace에서 다음 업무의 검토·준비안을 만들거나 
 
 `search_state=keyword_fallback`은 의미 검색 대신 키워드 결과를 받았다는 뜻이다. `semantic_coverage.pending`·`excluded`와 결과의 `index_state`로 검색 범위의 한계를 확인한다. 결과 0건, 색인 지연·제외, 검색 장애, 권한·범위 제한을 구분한다. 의미 검색이 실패하면 키워드 검색이나 관련 목록·원문 조회로 가능한 준비를 이어가고 남은 한계를 설명한다. 해당 조회도 실패하면 확인하지 못한 범위만 밝힌다. 불완전한 검색을 자료 부재로 단정하지 않는다.
 
-기록 저장 뒤 색인 지연·외부 작업 결과를 확인해야 하면 `get_record_index_effects`로 현재 기록의 구간 effect ID·상태·시도 수를 조회한다. 저장 성공은 색인 완료와 별개다. `unknown`은 결과 불명으로 설명하고 원본 쓰기나 외부 호출을 새 요청으로 자동 반복하지 않는다.
+기록 저장 성공과 의미 검색 준비는 별개다. 현황은 `get_status`, 확인이 필요한 기록은 `list_indexing_issues`로 조회한다. 문제 목록은 최근 작성 순 최대 5개이며 `next_cursor`를 다음 요청의 `cursor`로 사용한다. 이유·전송 시도 수·본문 구간 진행을 설명하고 응답 확인 불가는 성공·실패로 확정하지 않는다. 사용자 조회는 외부 호출이나 원본 쓰기를 수행하지 않는다. 결과 불명 요청은 현재 자료와 기존 의도를 먼저 확인한다.
 
 
 ## 현재 계약으로 수행하기
@@ -45,7 +45,7 @@ description: Workspace에서 다음 업무의 검토·준비안을 만들거나 
 
 모든 업무 쓰기의 필수 `request_key`는 논리 쓰기 한 건에 UUID를 한 번 만들어 명시적으로 전달한다. 응답 불명·네트워크 오류·5xx·`request_in_progress`에는 같은 키와 정확한 입력·대상·`expected_version`·준비한 메모·태그를 유지한다. 진행 중이면 안내된 대기 후 같은 요청을 재시도한다. 성공 요청 키와 결과는 완료 후 30일간 보관·재현한다. 30일 이후에는 중복 방지가 보장되지 않으며 정리 후 같은 키가 신규 요청으로 실행될 수 있다. 보관 기간 안에서 재현된 당시 결과와 버전을 최신 상태로 단정하지 않는다. 확정 실패의 입력을 고치거나 별도의 새 의도를 실행하면 새 키를 사용한다. 키를 잃으면 현재 자료를 조회하고 사용자 의도를 확인하며 새 키로 자동 반복하지 않는다. `result_expired`·`idempotency_key_reused`는 새 키 자동 재전송으로 해결하지 않는다. 현재 상태를 확인해 다음 의도를 판단한다.
 
-엔터티 ID는 `발급처 코드:외부 식별자`다. 서버가 반환한 정본 ID를 참조에 그대로 사용하고 외부 식별자의 대소문자·앞자리 0을 바꾸지 않는다. 삭제된 발급처로 등록·복원·식별 정보 변경을 하려면 발급처부터 복원한다. 기존 엔터티의 속성 편집과 관계는 유지된다. 발급처·기본값·발급 방식·설정 버전 정보가 필요하거나 오래되면 `get_business_settings`에 `id: "entity_identity"`를 지정해 확인한다. 현재 작업에서 확인한 설정은 재사용하며 최종 검사는 실제 저장이 수행한다. `settings.entity_identity`의 활성 발급처를 선택하며 생략하면 `default_source`를 사용한다. 선택한 발급처의 `generation`을 우선하고 없으면 섹션의 `generation`을 따른다. 선택한 코드 `source`와 `versions.entity_identity`를 `settings_version`으로 저장 입력에 유지한다. 자동 방식은 `external_id`를 생략하면 저장 트랜잭션에서 발급하며 성공 결과의 정본 ID를 사용한다. 명시한 외부 식별자는 그대로 유지하며 활성 중복은 덮어쓰지 않는다. `settings_changed`이면 같은 설정 섹션을 다시 조회한 뒤 새 의도 키로 제출한다. 명시 식별자의 복원 확인이 필요하면 `get_entity`에 `발급처 코드:외부 식별자`를 보내 기존 값을 조회한다. 삭제된 조합이면 보관값·`version`·`deleted_at`을 확인하고 명시적 복원 의도와 해당 `expected_version`으로 등록한다. 복원은 엔터티의 기존 값·태그·할 일/기록 연결을 되살리며 별도로 삭제한 할 일·기록은 되살리지 않는다. `update_entity`에서 식별자와 속성을 함께 변경할 수 있으며, 식별 정보만 바꿀 때는 `rekey_entity`에 최신 버전을 전달한다. 변경은 구조화된 기존 연결과 사건 참조를 함께 전환하고 과거 기록 본문을 고치지 않는다.
+엔터티 ID는 `발급처 코드:외부 식별자`다. 서버가 반환한 정본 ID를 참조에 그대로 사용하고 외부 식별자의 대소문자·앞자리 0을 바꾸지 않는다. 삭제된 발급처로 등록·복원·식별 정보 변경을 하려면 발급처부터 복원한다. 기존 엔터티의 속성 편집과 관계는 유지된다. 발급처·기본값·발급 방식·설정 버전 정보가 필요하거나 오래되면 `get_business_settings`에 `id: "entity_identity"`를 지정해 확인한다. 현재 작업에서 확인한 설정은 재사용하며 최종 검사는 실제 저장이 수행한다. `settings.entity_identity`의 활성 발급처를 선택하며 생략하면 `default_source`를 사용한다. 선택한 발급처의 `generation`을 우선하고 없으면 섹션의 `generation`을 따른다. 선택한 코드 `source`와 `versions.entity_identity`를 `settings_version`으로 저장 입력에 유지한다. 자동 방식은 `external_id`를 생략하면 저장 트랜잭션에서 발급하며 성공 결과의 정본 ID를 사용한다. 명시한 외부 식별자는 그대로 유지하며 활성 중복은 덮어쓰지 않는다. `settings_changed`이면 같은 설정 섹션을 다시 조회한 뒤 새 의도 키로 제출한다. 명시 식별자의 복원 확인이 필요하면 `get_entity`에 `발급처 코드:외부 식별자`를 보내 기존 값을 조회한다. 삭제된 조합이면 보관값·`version`·`deleted_at`을 확인하고 명시적 복원 의도와 해당 `expected_version`으로 등록한다. 복원은 엔터티의 기존 값·태그·할 일/기록 연결을 되살리며 별도로 삭제한 할 일·기록은 되살리지 않는다. `update_entity`에서 식별자와 속성을 함께 변경할 수 있으며, 식별 정보만 바꿀 때도 `update_entity`에 최신 `expected_version`과 바꿀 `source`·`external_id`만 전달한다. 변경은 구조화된 기존 연결과 사건 참조를 함께 전환하고 과거 기록 본문을 고치지 않는다.
 
 일반 기록과 로그 메모의 편집은 추가 편집 로그를 만들지 않는다. change 기록의 사건 ID·시각·대상·행동·before/after는 읽기 전용이며 메모 정정으로 업무 원본을 되돌리지 않는다. 엔터티·할 일·현재 원칙의 실제 변경은 최종 메모와 원자적으로 저장한다. 조회·무변경·실패·동일 요청 재시도에는 추가 성공 기록이 생기지 않는다. 접수·원본 저장·검색 색인 완료를 구분하고 호출하지 않은 변경의 완료를 주장하지 않는다.
 
@@ -59,13 +59,14 @@ description: Workspace에서 다음 업무의 검토·준비안을 만들거나 
 | --- | --- |
 | 업무 설정 조회·요청받은 설정 변경 | `get_business_settings`, `update_business_settings` |
 | 변경 메모·기록 태그와 실제 저장 입력 준비 | `prepare_record_memo` |
-| 엔터티의 발급처·외부 식별자 변경 | `rekey_entity` |
+| 엔터티의 발급처·외부 식별자 변경 | `update_entity` |
 | 할 일 찾기·읽기 | `list_tasks`, `get_task` |
 | 오늘 해야 할 반복 할 일 확인(occurrence_on 지정) | `list_tasks`, `list_occurrences` |
 | 할 일 만들기·고치기·지우기 | `create_task`, `update_task`, `delete_task` |
 | 일회성 할 일 완료와 결과 저장 | `complete_task` |
 | 반복 할 일의 회차 기록·중단·재개 | `record_occurrence`, `stop_task`, `resume_task` |
-| 기록 찾기·읽기·쓰기 | `list_records`, `get_record`, `get_record_index_effects`, `create_record`, `update_record`, `delete_record` |
+| 현재 자료·활동·색인 현황 | `get_status`, `list_indexing_issues` |
+| 기록 찾기·읽기·쓰기 | `list_records`, `get_record`, `create_record`, `update_record`, `delete_record` |
 | 현재 원칙 확인·최초 등록·같은 문서 갱신 | `get_current_principle`, `create_principle`, `update_principle` |
 | 현재 원칙의 ID로 원문 확인·삭제 | `get_principle`, `delete_principle` |
 | 태그 목록·생성·이름 변경·삭제 | `list_tags`, `create_tag`, `rename_tag`, `delete_tag` |

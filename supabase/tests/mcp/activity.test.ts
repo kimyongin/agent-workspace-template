@@ -1,4 +1,3 @@
-import type { EffectStatus } from "../../functions/_shared/core/search/external-effect.ts";
 import { requestKey } from "../../functions/_shared/contracts/request.ts";
 // MCP 계약 테스트: 실제 OAuth 토큰과 공식 MCP 클라이언트로 도구를 호출하고, HTTP와 결과·오류 의미가 같은지 본다.
 import { assert, assertEquals } from "@std/assert";
@@ -30,26 +29,6 @@ const tokenA = await mcpToken(sessionA);
 const tokenB = await mcpToken(sessionB);
 const mcpA = await connectMcp(tokenA);
 const mcpB = await connectMcp(tokenB);
-
-httpTest("색인 effect 조회: 실제 OAuth MCP 객체 envelope·다른 소유자 거절·삭제 후 조회 불가", async () => {
-  const record = await tool(mcpA, "create_record", { body: `status-protocol-${crypto.randomUUID()}` });
-  try {
-    // Read-only invocation supplies no logical write key. Official SDK validates structuredContent as an object.
-    const response = await mcpA.callTool({ name: "get_record_index_effects", arguments: { id: record.id } });
-    assertEquals(response.isError ?? false, false);
-    assert(response.structuredContent);
-    assertEquals(Array.isArray(response.structuredContent), false);
-    const mcpStatus = response.structuredContent as { items: EffectStatus[] };
-    assertEquals(mcpStatus, { items: [] });
-    assertEquals((await call(sessionA, "GET", `/records/${record.id}/index-effects`)).status, 404);
-    assertEquals((await tool(mcpB, "get_record_index_effects", { id: record.id })).error.code, "not_found");
-    assertEquals((await call(sessionB, "GET", `/records/${record.id}/index-effects`)).status, 404);
-    assertEquals((await call(null, "GET", `/records/${record.id}/index-effects`)).status, 401);
-  } finally {
-    await tool(mcpA, "delete_record", { id: record.id, expected_version: record.version });
-  }
-  assertEquals((await tool(mcpA, "get_record_index_effects", { id: record.id })).error.code, "not_found");
-});
 
 httpTest("일반 할 일 메모와 제목 검색은 HTTP/MCP에서 같고 다른 사용자의 연결은 거부한다", async () => {
   const title = `상담 ${crypto.randomUUID()}%_`;
@@ -169,10 +148,11 @@ httpTest("검색: HTTP/MCP 본문 키워드·원문 최소 응답·대체 상태
 });
 
 const EXPECTED_TOOLS = [
+  "get_status",
+  "list_indexing_issues",
   "get_business_settings",
   "update_business_settings",
   "prepare_record_memo",
-  "rekey_entity",
   "create_entity",
   "delete_entity",
   "get_entity",
@@ -189,7 +169,6 @@ const EXPECTED_TOOLS = [
   "delete_task",
   "get_principle",
   "get_record",
-  "get_record_index_effects",
   "get_task",
   "list_occurrences",
   "list_records",
@@ -528,7 +507,6 @@ httpTest(
       create_record: json(recordCreate).properties,
       get_task: idOnly,
       get_record: idOnly,
-      get_record_index_effects: idOnly,
       update_task: { ...idOnly, ...json(taskUpdate).properties },
       update_record: { ...idOnly, ...json(recordUpdate).properties },
       complete_task: { ...idOnly, ...json(taskComplete).properties },

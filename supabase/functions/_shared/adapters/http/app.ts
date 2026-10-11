@@ -1,3 +1,5 @@
+import type { StatusDeps } from "../../core/status/application.ts";
+import { statusRoutes } from "./status-routes.ts";
 // 웹용 HTTP 진입점 조립: CORS → 인증(aud=authenticated) → 목적별 경로 → 오류 변환.
 import { Hono } from "hono";
 import { cors } from "hono/cors";
@@ -36,6 +38,7 @@ export function createHttpApp(
   authenticate: typeof verifyActor = verifyActor,
   entities?: EntityDeps,
   settings?: BusinessSettingsDeps,
+  status?: StatusDeps,
 ) {
   const app = new Hono<HttpEnv>().basePath(config.basePath);
 
@@ -73,6 +76,7 @@ export function createHttpApp(
   app.route("/", searchRoutes(search));
   if (entities) app.route("/", entityRoutes(entities));
   if (settings) app.route("/", settingsRoutes(settings));
+  if (status) app.route("/", statusRoutes(status));
 
   app.notFound(() => {
     throw new AppError("not_found", "경로를 찾을 수 없습니다");

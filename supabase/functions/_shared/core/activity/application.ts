@@ -1,4 +1,3 @@
-import { type EffectStatusReader, passageEffectStatus } from "../search/external-effect.ts";
 import { runWrite } from "../shared/request.ts";
 import { activityChangeTarget, recordChangeFacts, taskChangeFacts } from "./change.ts";
 // 할 일·기록 유스케이스. HTTP와 MCP가 같은 함수를 호출한다(ADR-0001).
@@ -14,7 +13,7 @@ import type {
   TaskUpdate,
 } from "../../contracts/task.ts";
 import type { Actor } from "../shared/actor.ts";
-import { AppError, conflict, invalidInput, notFound } from "../shared/errors.ts";
+import { conflict, invalidInput, notFound } from "../shared/errors.ts";
 import { changed } from "../shared/changes.ts";
 import { decodeCursor, type Page, paginate, scopeOf, searchInputHash } from "../shared/operations.ts";
 import {
@@ -34,7 +33,6 @@ import { listOccurrences as computeOccurrences } from "./recurrence.ts";
 export interface ActivityDeps {
   uow: UnitOfWork;
   clock: Clock;
-  effectStatus?: EffectStatusReader;
 }
 
 export type { Page } from "../shared/operations.ts";
@@ -431,10 +429,4 @@ export async function deleteRecord(
     });
     return { deleted: true };
   });
-}
-
-/** Saving a record and completing its external passage work are separate facts. */
-export function getRecordIndexEffects(deps: ActivityDeps, actor: Actor, id: string) {
-  if (!deps.effectStatus) throw new AppError("unavailable", "색인 상태를 확인할 수 없습니다");
-  return passageEffectStatus(deps.effectStatus, actor, id);
 }

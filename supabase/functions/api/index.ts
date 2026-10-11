@@ -7,6 +7,7 @@ import {
   env,
   principleDeps,
   searchDeps,
+  statusDeps,
   tagDeps,
 } from "../_shared/bootstrap.ts";
 
@@ -23,6 +24,7 @@ const app = createHttpApp(
   undefined,
   entityDeps(),
   businessSettingsDeps(),
+  statusDeps(),
 );
 
 Deno.serve(app.fetch);

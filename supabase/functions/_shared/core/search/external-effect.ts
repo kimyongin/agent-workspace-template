@@ -1,5 +1,3 @@
-import type { Actor } from "../shared/actor.ts";
-
 /** A passage identity contains references/hashes only; its text is never durable. */
 export interface PassageEffectInput {
   message_id: string;
@@ -76,20 +74,4 @@ export async function executePassageEffect(
   if (!await ledger.complete(claim, result)) return { state: "stale" };
   if (result.state === "succeeded") return { state: "succeeded", vector: result.vector };
   return { ...result, attempts: claim.attempts };
-}
-
-export interface EffectStatus {
-  effect_id: string;
-  state: "pending" | "running" | "succeeded" | "failed" | "unknown";
-  attempts: number;
-  reason: EffectReason | null;
-  start: number;
-  end: number;
-}
-export interface EffectStatusReader {
-  forRecord(actor: Actor, recordId: string): Promise<EffectStatus[]>;
-}
-/** Current owner authorization is checked by the store on every status read. */
-export function passageEffectStatus(reader: EffectStatusReader, actor: Actor, recordId: string) {
-  return reader.forRecord(actor, recordId);
 }

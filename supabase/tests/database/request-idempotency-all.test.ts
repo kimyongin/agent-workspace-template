@@ -150,7 +150,7 @@ dbTest(
       const rekeyed = await replay(
         f.actor,
         (a) =>
-          entity.rekeyEntity(ed, a, explicit.id, {
+          entity.updateEntity(ed, a, explicit.id, {
             expected_version: updated.version,
             source: "app",
             external_id: "000XYZ",
