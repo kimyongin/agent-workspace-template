@@ -24,8 +24,7 @@ if (Deno.args.includes("--probe")) {
     const response = await fetch(url, {
       method: "POST",
       headers: { authorization: `Bearer ${settings.INDEX_WORKER_TOKEN}`, "content-type": "application/json" },
-      // Reserved nil owner limits this check to no real account; never consume a user's queue.
-      body: JSON.stringify({ limit: 1, owner_id: "00000000-0000-0000-0000-000000000000" }),
+      body: JSON.stringify({ check_configuration: true }),
       signal: AbortSignal.timeout(20_000),
     });
     if (!response.ok) {
@@ -34,9 +33,9 @@ if (Deno.args.includes("--probe")) {
       Deno.exit(1);
     }
     const result = await response.json();
-    if (result.claimed !== 0) throw Error();
+    if (result.configuration_checked !== true) throw Error();
     console.log(
-      "Worker probe: HTTP 200, claimed 0. This verifies configuration/authentication, not embedding success.",
+      "Worker probe: HTTP 200, configuration checked. No DB/queue/provider call; embedding success is untested.",
     );
   } catch {
     console.error("Worker probe failed: check the target URL and administrator logs (values withheld).");

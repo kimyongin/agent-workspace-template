@@ -54,7 +54,12 @@ export const taskCreate = z.discriminatedUnion("kind", [
     tag_ids: tagIds.optional(),
     title,
     body: body.default(""),
-    due_on: isoDate.optional(),
+    due_on: isoDate.optional().describe("kind=once 전용 선택 마감일. recurring에서는 생략한다."),
+  }, {
+    error: (issue) =>
+      issue.code === "unrecognized_keys" && issue.keys.some((key) => ["timezone", "recurrence"].includes(key))
+        ? "kind=once에서는 timezone·recurrence를 제거하세요. 반복 업무라면 kind=recurring으로 생성하세요."
+        : undefined,
   }),
   z.strictObject({
     kind: z.literal("recurring"),
@@ -63,8 +68,15 @@ export const taskCreate = z.discriminatedUnion("kind", [
     tag_ids: tagIds.optional(),
     title,
     body: body.default(""),
-    recurrence,
-    timezone,
+    recurrence: recurrence.optional().nonoptional({ error: "kind=recurring에는 recurrence를 입력하세요" })
+      .describe("kind=recurring 전용 필수 반복 규칙. once에서는 생략한다."),
+    timezone: timezone.optional().nonoptional({ error: "kind=recurring에는 timezone을 입력하세요" })
+      .describe("kind=recurring 전용 필수 IANA 시간대. once에서는 생략한다."),
+  }, {
+    error: (issue) =>
+      issue.code === "unrecognized_keys" && issue.keys.includes("due_on")
+        ? "kind=recurring에서는 due_on을 제거하고 recurrence로 반복 일정을 지정하세요."
+        : undefined,
   }),
 ]);
 export type TaskCreate = z.infer<typeof taskCreate>;

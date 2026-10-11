@@ -9,6 +9,7 @@ import { indexBatch } from "../_shared/core/search/index-worker.ts";
 import { invalidWorkerSettings } from "../_shared/adapters/worker-configuration.ts";
 
 const input = z.strictObject({
+  check_configuration: z.literal(true).optional(),
   limit: z.number().int().min(1).max(5).default(5),
   owner_id: dataId.optional(),
   kind: z.enum(["task", "record", "principle"]).optional(),
@@ -67,6 +68,8 @@ Deno.serve(async (request) => {
     console.error(JSON.stringify({ event: "worker_not_configured", invalid_settings: invalidSettings }));
     return Response.json({ error: "worker_not_configured" }, { status: 503 });
   }
+  // Authenticated preflight checks delivery only. No DB setup, queue claim or external call.
+  if (scope.check_configuration) return Response.json({ configuration_checked: true });
   try {
     sql ??= postgres(url, {
       prepare: false,

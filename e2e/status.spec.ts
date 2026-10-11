@@ -1,6 +1,30 @@
 import { expect, test } from "@playwright/test";
 import { devLogin, env, mcpClient, mcpTokenViaConsent } from "./support.ts";
 
+test("검색 대기 안내는 상태 점검과 관리자 문의로 연결하고 대기가 해제되면 숨긴다", async ({ page }) => {
+  await devLogin(page);
+  let pending = 23;
+  await page.route(
+    `${env.VITE_API_URL}/search`,
+    (route) =>
+      route.fulfill({
+        json: { items: [], next_cursor: null, anchor_page: null, search_state: "ok", semantic_coverage: { pending, excluded: 0 } },
+      }),
+  );
+  await page.goto("/search?q=대기점검");
+  const link = page.getByRole("link", { name: "상태에서 오래 갱신되지 않은 대기 확인" });
+  await expect(link).toBeVisible();
+  await expect(page.getByText("대기 중인 기록은 의미 검색 결과에 빠질 수 있습니다.", { exact: false })).toContainText(
+    "관리자에게 색인 서비스 점검",
+  );
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await link.click();
+  await expect(page.getByRole("heading", { name: "상태", exact: true })).toBeVisible();
+  pending = 0;
+  await page.goto("/search?q=대기해제");
+  await expect(link).toHaveCount(0);
+});
+
 test("색인 대기: 문제 목록이 비어도 오래 갱신되지 않은 준비 상태와 점검 안내를 표시하고 새로고침으로 해제한다", async ({ page }) => {
   await devLogin(page);
   let prolonged = true;
