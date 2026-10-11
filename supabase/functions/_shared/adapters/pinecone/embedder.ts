@@ -2,7 +2,6 @@ import { type Embedder, EmbeddingError } from "../../core/search/index-worker.ts
 
 /** 본문 구간 또는 질의 한 개만 보낸다. 공급자의 자동 절단은 금지한다. */
 export class PineconeEmbedder implements Embedder {
-  readonly capabilities = { idempotency: null, lookup: false };
   async send(text: string): Promise<import("../../core/search/external-effect.ts").ProviderOutcome> {
     try {
       return { state: "succeeded", vector: await this.embed(text, "passage") };

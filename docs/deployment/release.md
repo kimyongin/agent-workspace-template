@@ -151,3 +151,5 @@ map을 functions 밖 임시 root에 두면 배포가 성공해도 정상 `functi
 - [GitHub Pages 사용자 정의 workflow](https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages)
 - [Supabase Google OAuth 설정](https://supabase.com/docs/guides/auth/social-login/auth-google)
 - [Pinecone Inference 임베딩 생성](https://docs.pinecone.io/guides/inference/generate-embeddings)
+
+검색 구간 원장 축소의 전진 migration은 기존 passage effect에 원본 식별정보를 직접 이관하고 별도 의도 테이블·미사용 공급자 컬럼/함수를 제거한다. 성공 벡터·불명/실행 중 상태·횟수·lease·fence·backoff를 보존하며 큐를 재등록하거나 전송 예산을 초기화하지 않는다. claim/complete 인자는 실제 동기 Pinecone 계약으로 줄었으므로 같은 릴리스의 서버와 worker 호출자를 함께 전환한다. 운영 적용 전 해당 revision의 원장 이관·worker 재전달·현재 원본·owner 격리 검사 증거를 확인한다. 과거 migration 파일은 수정하지 않는다.

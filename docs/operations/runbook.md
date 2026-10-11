@@ -63,9 +63,9 @@ worker 소비를 멈춰도 생산이 계속되면 대기량이 늘어난다. 장
 
 인증/구성 오류는 즉시 failed/configuration, 빈 본문은 excluded/invalid_input이며 input_limit 구간은 별도 자식으로 분할한다. 성공 형제 구간과 final apply 전 성공 결과는 재사용한다. 장애를 해결한 뒤 현재 소유자 문맥에서 app.enqueue_search_index(kind,id,current_hash,current_pipeline)을 호출해 재등록할 수 있지만 같은 원본 revision·본문 hash·pipeline·account scope의 성공 cache와 전송 상한은 유지한다. 소진된 작업은 실제 원본 수정 또는 검토한 pipeline 변경이라는 새 의도로 해결한다. 비용 상한을 우회하려고 임의 account scope를 변경하지 않는다. 큐를 비우거나 보관 메시지만 되돌리지 않는다.
 
-effect lease는 90초이며 만료만으로 외부 실패를 확정하지 않는다. 새 claim은 fence를 증가시키고 이전 fence 또는 만료 lease의 완료 저장을 거절한다. 원본 owner·revision·본문 hash·pipeline이 현재와 다르면 결과를 적용하지 않는다. 현재 Pinecone adapter는 documented 멱등 키·job 조회를 지원하지 않으며 내부 key를 공급자 헤더로 보내지 않는다. 향후 지원 공급자에서 키가 만료되거나 안전한 조회/재현이 불가능하면 `key_expired`/`unsupported_recovery`로 보류하고 새 키로 자동 전송하지 않는다.
+effect lease는 90초이며 만료만으로 외부 실패를 확정하지 않는다. 새 claim은 fence를 증가시키고 이전 fence 또는 만료 lease의 완료 저장을 거절한다. 원본 owner·revision·본문 hash·pipeline이 현재와 다르면 결과를 적용하지 않는다. 현재 Pinecone adapter는 동기 embed 호출만 사용한다. 공급자 작업 ID·비동기 접수·결과 조회·멱등 키 유효기간 계약은 두지 않으며 가상의 공급자 멱등 헤더를 보내지 않는다. unknown 재계산도 같은 구간의 기존 최대 5회 전송 안에서만 수행한다.
 
-pending/running/unknown effect는 TTL로 삭제하지 않는다. 현재 원본의 성공 구간 벡터는 재사용하며 수정·삭제·pipeline 교체는 최종 succeeded/failed 결과만 정리한다. 불명 작업의 증거는 남긴다. 안전한 사용자 조회는 HTTP `GET /records/:id/index-effects`와 MCP `get_record_index_effects`의 구간 상태·attempts·reason뿐이며 provider key/job·벡터·원문·다른 owner·옛 revision을 반환하지 않는다. private 원장을 임의 수정해 lease·fence·횟수를 초기화하는 복구는 하지 않는다.
+`private.passage_effects` 하나에 원본 식별정보와 구간 결과·상태·전송 횟수·lease·fence·backoff를 보관한다. 기존 큐는 업무 트랜잭션의 작업 의도를 유지한다. 전진 migration은 기존 원장의 성공 벡터·불명/실행 중 상태와 횟수·시계를 그대로 이관하며 전송 예산을 초기화하지 않는다. pending/running/unknown effect는 TTL이나 원본 삭제 FK로 삭제하지 않는다. 현재 원본의 성공 구간 벡터는 재사용하며 수정·삭제·pipeline 교체는 최종 succeeded/failed 결과만 정리한다. 불명 작업의 증거는 남긴다. 안전한 사용자 조회는 HTTP `GET /records/:id/index-effects`와 MCP `get_record_index_effects`의 구간 상태·attempts·reason뿐이며 벡터·원문·다른 owner·옛 revision을 반환하지 않는다. private 원장을 임의 수정해 lease·fence·횟수를 초기화하는 복구는 하지 않는다.
 
 배포 전 외부 작업 원장과 worker 복구 전진 migration을 먼저 적용하고, 안정적인 PINECONE_ACCOUNT_SCOPE를 함수 환경에 설정한 뒤 새 worker를 배포한다. API key 교체에서는 scope를 보존한다. 이것은 배포 절차이며 저장소 변경만으로 운영 적용됐다는 뜻은 아니다.
 

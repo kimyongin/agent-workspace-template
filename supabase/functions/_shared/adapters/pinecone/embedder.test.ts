@@ -71,13 +71,12 @@ Deno.test("worker 빈 본문은 공급자 무호출로 제외", async () => {
   }
 });
 
-Deno.test("passage provider declares no recovery capability or invented key header", async () => {
+Deno.test("passage provider keeps synchronous outcomes and documented headers", async () => {
   const headers: Headers[] = [];
   const provider = new PineconeEmbedder("credential", (_url, init) => {
     headers.push(new Headers(init?.headers));
     return Promise.resolve(Response.json({ message: "rate limit" }, { status: 429 }));
   });
-  assertEquals(provider.capabilities, { idempotency: null, lookup: false });
   assertEquals(await provider.send("passage"), { state: "failed", reason: "transient" });
   assertEquals([...headers[0].keys()].sort(), ["api-key", "content-type", "x-pinecone-api-version"]);
   const uncertain = new PineconeEmbedder("credential", () => Promise.reject(new TypeError("lost response")));
