@@ -315,6 +315,33 @@ dbTest(
   },
 );
 
+dbTest("external effects: definite transient failures retry with the same key and stop after five sends", async () => {
+  const a = await job();
+  const keys: string[] = [];
+  const provider: PassageProvider = {
+    capabilities: unsupported,
+    send: (_text, key) => {
+      keys.push(key);
+      return Promise.resolve({ state: "failed", reason: "transient" });
+    },
+  };
+  for (let attempts = 1; attempts <= 5; attempts++) {
+    assertEquals(await executePassageEffect(ledger, provider, a.input, a.text), {
+      state: "failed",
+      reason: "transient",
+      attempts,
+    });
+    await release((await status(a.record.id))[0].effect_id);
+  }
+  assertEquals(await executePassageEffect(ledger, provider, a.input, a.text), {
+    state: "failed",
+    reason: "retry_exhausted",
+    attempts: 5,
+  });
+  assertEquals(keys.length, 5);
+  assertEquals(new Set(keys).size, 1);
+});
+
 dbTest("external effects: local record, request result, queue and external intent roll back together", async () => {
   let recordId = "";
   const failingDeps = {

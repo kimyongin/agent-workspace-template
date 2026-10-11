@@ -28,6 +28,9 @@ description: Workspace에서 다음 업무의 검토·준비안을 만들거나 
 
 `search_state=keyword_fallback`은 의미 검색 대신 키워드 결과를 받았다는 뜻이다. `semantic_coverage.pending`·`excluded`와 결과의 `index_state`로 검색 범위의 한계를 확인한다. 결과 0건, 색인 지연·제외, 검색 장애, 권한·범위 제한을 구분한다. 의미 검색이 실패하면 키워드 검색이나 관련 목록·원문 조회로 가능한 준비를 이어가고 남은 한계를 설명한다. 해당 조회도 실패하면 확인하지 못한 범위만 밝힌다. 불완전한 검색을 자료 부재로 단정하지 않는다.
 
+기록 저장 뒤 색인 지연·외부 작업 결과를 확인해야 하면 `get_record_index_effects`로 현재 기록의 구간 effect ID·상태·시도 수를 조회한다. 저장 성공은 색인 완료와 별개다. `unknown`은 결과 불명으로 설명하고 원본 쓰기나 외부 호출을 새 요청으로 자동 반복하지 않는다.
+
+
 ## 현재 계약으로 수행하기
 
 할 일은 앞으로 할 행동이며 일반 기록은 자료·메모·참고를 담는다. 일반 참고 기록의 본문 링크만으로 할 일이 완료되거나 반복 회차가 수행된 것으로 처리되지 않는다. 실제 일회성 수행은 완료 기능의 결과 기록, 반복 수행은 해당 회차의 결과 기록으로 남긴다. 앱의 반복 할 일은 자동 실행·알림을 제공하지 않는다.
@@ -63,7 +66,7 @@ description: Workspace에서 다음 업무의 검토·준비안을 만들거나 
 | 할 일 만들기·고치기·지우기 | `create_task`, `update_task`, `delete_task` |
 | 일회성 할 일 완료와 결과 저장 | `complete_task` |
 | 반복 할 일의 회차 기록·중단·재개 | `record_occurrence`, `stop_task`, `resume_task` |
-| 기록 찾기·읽기·쓰기 | `list_records`, `get_record`, `create_record`, `update_record`, `delete_record` |
+| 기록 찾기·읽기·쓰기 | `list_records`, `get_record`, `get_record_index_effects`, `create_record`, `update_record`, `delete_record` |
 | 현재 원칙 확인·최초 등록·같은 문서 갱신 | `get_current_principle`, `create_principle`, `update_principle` |
 | 현재 원칙의 ID로 원문 확인·삭제 | `get_principle`, `delete_principle` |
 | 태그 목록·생성·이름 변경·삭제 | `list_tags`, `create_tag`, `rename_tag`, `delete_tag` |
