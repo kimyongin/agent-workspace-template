@@ -101,7 +101,8 @@ dbTest(
       assertEquals(after.daily[29].records_created, 0);
       assertEquals((await client(foreign.actor.userId).status()).records.total, 1);
       assertEquals((await client(crypto.randomUUID()).app.request("/status")).status, 401);
-      const denied = await asUser(user, own.actor.userId, (tx) => outcome(tx`select * from private.passage_effects`));
+      // Catch outside begin: a denied SQL statement aborts the transaction itself.
+      const denied = await outcome(asUser(user, own.actor.userId, (tx) => tx`select * from private.passage_effects`));
       assertEquals(denied.startsWith("42501"), true);
     } finally {
       await own.cleanup();
