@@ -55,7 +55,7 @@ export function entityTools(d: entity.EntityDeps): ToolDef[] {
     {
       name: "create_entity",
       description:
-        "예제 엔터티 생성. prop1 1~100자 필수, prop2 정수 0~1000000, prop3 날짜, prop4 a/b/c 기본 a. 발급처 source와 외부 식별자 external_id는 정확하게 보존한다. 먼저 prepare_entity_registration으로 사용자 설정에 따른 발급처/날짜와 랜덤 8자로 구성된 자동 식별자를 준비하고 source/external_id를 고정하여 저장·재시도한다. 활성 중복은 충돌. 삭제된 조합은 get_entity로 보관값·version을 확인하고 expected_version으로 명시적으로 복원하며 생략 속성은 유지한다.",
+        "예제 엔터티 생성. prop1 1~100자 필수, prop2 정수 0~1000000, prop3 날짜, prop4 a/b/c 기본 a. 발급처 source와 외부 식별자 external_id는 정확하게 보존한다. 먼저 prepare_entity_registration으로 발급처·모드·settings_version을 준비하여 유지한다. short 모드의 external_id 생략은 저장 시 서버 발급이며 manual 모드는 명시 식별자가 필수다. 활성 중복은 충돌. 삭제된 조합은 get_entity로 보관값·version을 확인하고 expected_version으로 명시적으로 복원하며 생략 속성은 유지한다.",
       input: entityCreate,
       readOnly: false,
       handler: (i, a) => entity.createEntity(d, a, parse(entityCreate, i)),

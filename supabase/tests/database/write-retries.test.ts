@@ -1,3 +1,4 @@
+import { requestActor } from "../_request.ts";
 import { assertEquals, assertRejects } from "@std/assert";
 import { entityCreate } from "../../functions/_shared/contracts/entity.ts";
 import { SqlEntityUnitOfWork } from "../../functions/_shared/adapters/supabase/entity-store.ts";
@@ -11,20 +12,20 @@ dbTest("same creation identity and stale version never repeat a business change"
   const f = await fixtureOwner(admin), other = await fixtureOwner(admin);
   try {
     const input = entityCreate.parse({ source: "app", external_id: crypto.randomUUID(), prop1: "원본" });
-    const created = await createEntity(deps, f.actor, input);
+    const created = await createEntity(deps, requestActor(f.actor), input);
     assertEquals(created.id, `app:${input.external_id}`);
-    await assertRejects(() => createEntity(deps, f.actor, input), AppError);
-    const collision = await assertRejects(() => createEntity(deps, f.actor, input), AppError);
+    await assertRejects(() => createEntity(deps, requestActor(f.actor), input), AppError);
+    const collision = await assertRejects(() => createEntity(deps, requestActor(f.actor), input), AppError);
     assertEquals(collision.code, "conflict");
     assertEquals(collision.message.includes(input.prop1!), false);
     await assertRejects(() => getEntity(deps, other.actor, created.id), AppError);
-    const foreign = await createEntity(deps, other.actor, { ...input, prop1: "다른 소유자" });
+    const foreign = await createEntity(deps, requestActor(other.actor), { ...input, prop1: "다른 소유자" });
     assertEquals(foreign.id, created.id);
     assertEquals((await getEntity(deps, other.actor, foreign.id)).prop1, "다른 소유자");
     assertEquals((await getEntity(deps, f.actor, created.id)).prop1, "원본");
     const patch = { prop1: "수정", expected_version: created.version };
-    const updated = await updateEntity(deps, f.actor, created.id, patch);
-    await assertRejects(() => updateEntity(deps, f.actor, created.id, patch), AppError);
+    const updated = await updateEntity(deps, requestActor(f.actor), created.id, patch);
+    await assertRejects(() => updateEntity(deps, requestActor(f.actor), created.id, patch), AppError);
     assertEquals((await getEntity(deps, f.actor, created.id)).version, updated.version);
     const [{ n }] =
       await admin`select count(*)::int n from app.records where owner_id=${f.actor.userId} and record_kind='change'`;

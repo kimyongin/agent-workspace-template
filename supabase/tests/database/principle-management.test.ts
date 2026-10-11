@@ -1,3 +1,4 @@
+import { requestActor } from "../_request.ts";
 import { assertEquals, assertRejects } from "@std/assert";
 import { SqlPrincipleUnitOfWork } from "../../functions/_shared/adapters/supabase/principle-store.ts";
 import { principleCreate, principleUpdate } from "../../functions/_shared/contracts/principle.ts";
@@ -14,8 +15,8 @@ dbTest(
     try {
       const first = await p.createPrinciple(
         d,
-        a,
-        principleCreate.parse({ id: crypto.randomUUID(), ...{ title: "기준" } }),
+        requestActor(a),
+        principleCreate.parse({ ...{ title: "기준" } }),
       );
       const i = principleUpdate.parse({
         title: "새 기준",
@@ -35,14 +36,14 @@ dbTest(
               )),
         },
       };
-      await assertRejects(() => p.updatePrinciple(broken, a, first.id, i));
+      await assertRejects(() => p.updatePrinciple(broken, requestActor(a), first.id, i));
       assertEquals((await p.currentPrinciple(d, a)).current?.id, first.id);
       assertEquals((await p.currentPrinciple(d, a)).current, first);
       assertEquals((await admin`select id from app.principles where owner_id=${a.userId}`).length, 1);
       // The failed save leaves only the creation change record indexed. Latest principles never enqueue embeddings.
       const indexed = () => admin`select kind from app.search_index_state where owner_id=${a.userId}`;
       assertEquals((await indexed()).map((row) => row.kind), ["record"]);
-      const result = await p.updatePrinciple(d, a, first.id, i);
+      const result = await p.updatePrinciple(d, requestActor(a), first.id, i);
       assertEquals(result.id, first.id);
       assertEquals(result.version, 2);
       assertEquals((await indexed()).map((row) => row.kind), ["record", "record"]);
@@ -51,7 +52,7 @@ dbTest(
           .length,
         0,
       );
-      await assertRejects(() => p.updatePrinciple(d, a, first.id, i));
+      await assertRejects(() => p.updatePrinciple(d, requestActor(a), first.id, i));
     } finally {
       await f.cleanup();
     }
@@ -63,10 +64,13 @@ dbTest("principle deletion failure rolls back its revision and the same retry re
   try {
     const first = await p.createPrinciple(
       d,
-      f.actor,
-      principleCreate.parse({ id: crypto.randomUUID(), ...{ title: "기준" } }),
+      requestActor(f.actor),
+      principleCreate.parse({ ...{ title: "기준" } }),
     );
-    const next = await p.updatePrinciple(d, f.actor, first.id, { title: "갱신 기준", expected_version: first.version });
+    const next = await p.updatePrinciple(d, requestActor(f.actor), first.id, {
+      title: "갱신 기준",
+      expected_version: first.version,
+    });
     const broken = {
       uow: {
         run: <T>(actor: typeof f.actor, fn: Parameters<typeof d.uow.run<T>>[1]) =>
@@ -79,15 +83,15 @@ dbTest("principle deletion failure rolls back its revision and the same retry re
             )),
       },
     };
-    await assertRejects(() => p.deletePrinciple(broken, f.actor, next.id, next.version, "삭제"));
+    await assertRejects(() => p.deletePrinciple(broken, requestActor(f.actor), next.id, next.version, "삭제"));
     assertEquals((await p.currentPrinciple(d, f.actor)).current, next);
-    await p.deletePrinciple(d, f.actor, next.id, next.version, "삭제");
-    await assertRejects(() => p.deletePrinciple(d, f.actor, next.id, next.version, "삭제"));
+    await p.deletePrinciple(d, requestActor(f.actor), next.id, next.version, "삭제");
+    await assertRejects(() => p.deletePrinciple(d, requestActor(f.actor), next.id, next.version, "삭제"));
     assertEquals((await p.currentPrinciple(d, f.actor)).current, null);
     const replacement = await p.createPrinciple(
       d,
-      f.actor,
-      principleCreate.parse({ id: crypto.randomUUID(), ...{ title: "새 기준" } }),
+      requestActor(f.actor),
+      principleCreate.parse({ ...{ title: "새 기준" } }),
     );
     assertEquals(replacement.version, 1);
   } finally {

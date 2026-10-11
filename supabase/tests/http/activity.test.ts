@@ -141,10 +141,11 @@ httpTest("응답 유실 후 재시도: 같은 버전은 충돌로 거부하고 �
   assertEquals(other.status, 404);
 });
 
-httpTest("생성의 UUID 재전송은 중복 생성을 거부한다", async () => {
-  const body = { id: crypto.randomUUID(), ...newOnce("한 번만 생성") };
-  const [x, y] = await Promise.all([call(A, "POST", "/tasks", body), call(A, "POST", "/tasks", body)]);
-  assertEquals([x.status, y.status].sort(), [201, 409]);
+httpTest("같은 요청 키 생성 재전송은 동일 결과를 재현한다", async () => {
+  const body = newOnce("한 번만 생성"), key = crypto.randomUUID();
+  const [x, y] = await Promise.all([call(A, "POST", "/tasks", body, key), call(A, "POST", "/tasks", body, key)]);
+  assertEquals([x.status, y.status], [201, 201]);
+  assertEquals(x.body, y.body);
 });
 
 httpTest("기록 삭제: 일회성 할 일은 done을 유지하고 result_record_id만 비운다", async () => {

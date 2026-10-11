@@ -185,3 +185,82 @@ dbTest(
     }
   },
 );
+
+import { createHttpApp } from "../../functions/_shared/adapters/http/app.ts";
+import { entityTools } from "../../functions/_shared/adapters/mcp/entity-tools.ts";
+import { activityTools } from "../../functions/_shared/adapters/mcp/activity-tools.ts";
+import { tagTools } from "../../functions/_shared/adapters/mcp/tag-tools.ts";
+import { principleTools } from "../../functions/_shared/adapters/mcp/principle-tools.ts";
+import { settingsTools } from "../../functions/_shared/adapters/mcp/settings-tools.ts";
+dbTest("HTTP and MCP share canonical creation and settings payloads and reject retired allocation", async () => {
+  const f = await fixtureOwner(admin);
+  try {
+    const app = createHttpApp(
+      ad,
+      { basePath: "/api", allowedOrigins: [], token: {} as never },
+      pd,
+      td,
+      {} as never,
+      () => Promise.resolve(f.actor),
+      ed,
+      sd,
+    );
+    const tools = [
+      ...entityTools(ed),
+      ...activityTools(ad),
+      ...tagTools(td),
+      ...principleTools(pd),
+      ...settingsTools(sd),
+    ];
+    const cases = [
+      { path: "/records", name: "create_record", input: { body: "cross transport" }, status: 201 },
+      { path: "/tags", name: "create_tag", input: { name: "cross tag" }, status: 201 },
+      { path: "/principles", name: "create_principle", input: { title: "cross principle" }, status: 201 },
+      {
+        path: "/entities",
+        name: "create_entity",
+        input: { source: "app", external_id: "000Case", prop1: "cross entity" },
+        status: 201,
+      },
+      {
+        path: "/settings/business",
+        name: "update_business_settings",
+        input: { id: "record_templates", expected_version: 0, value: {} },
+        status: 200,
+      },
+    ];
+    for (const example of cases) {
+      const key = crypto.randomUUID(), method = example.status === 201 ? "POST" : "PATCH";
+      const send = () =>
+        app.request(`/api${example.path}`, {
+          method,
+          headers: { "content-type": "application/json", "Idempotency-Key": key },
+          body: JSON.stringify(example.input),
+        });
+      const response = await send();
+      assertEquals(response.status, example.status);
+      const original = await response.json();
+      const tool = tools.find((t) => t.name === example.name)!;
+      assertEquals(await tool.handler({ ...example.input, request_key: key }, f.actor), original);
+      const replayed = await send();
+      assertEquals(replayed.status, example.status);
+      assertEquals(replayed.headers.get("Idempotency-Replayed"), "true");
+      assertEquals(await replayed.json(), original);
+    }
+    assertEquals(tools.some((t) => t.name === "allocate_data_id"), false);
+    const removed = await app.request("/api/ids/allocate", { method: "POST" });
+    assertEquals(removed.status, 404);
+    await removed.body?.cancel();
+    for (const path of ["/records", "/tags", "/principles", "/tasks"]) {
+      const rejected = await app.request(`/api${path}`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "Idempotency-Key": crypto.randomUUID() },
+        body: JSON.stringify({ id: "20261011-ABCDEFGH", body: "old", title: "old", name: "old", kind: "once" }),
+      });
+      assertEquals(rejected.status, 400);
+      await rejected.body?.cancel();
+    }
+  } finally {
+    await f.cleanup();
+  }
+});

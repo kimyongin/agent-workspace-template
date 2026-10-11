@@ -30,21 +30,19 @@ export interface Task {
   updated_at: string;
 }
 
-export type NewTask =
-  & { id?: string }
-  & Pick<
-    Task,
-    | "kind"
-    | "title"
-    | "body"
-    | "due_on"
-    | "recurrence"
-    | "timezone"
-    | "status"
-    | "pauses"
-    | "tag_ids"
-    | "entity_ids"
-  >;
+export type NewTask = Pick<
+  Task,
+  | "kind"
+  | "title"
+  | "body"
+  | "due_on"
+  | "recurrence"
+  | "timezone"
+  | "status"
+  | "pauses"
+  | "tag_ids"
+  | "entity_ids"
+>;
 
 export function newTask(input: TaskCreate): NewTask {
   return taskContent(input);

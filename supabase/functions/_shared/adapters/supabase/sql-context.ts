@@ -26,7 +26,10 @@ export class SqlActorStore {
     const [row] = await this.tx`select app.issue_data_id() as id`;
     return row.id as string;
   }
-  getBusinessSettings() {
+  async getBusinessSettings(lockIdentity = false) {
+    if (lockIdentity) {
+      await this.tx`select pg_advisory_xact_lock(hashtextextended(${`${this.actor.userId}:entity_identity`},0))`;
+    }
     return new SqlBusinessSettingsStore(this.tx, this.actor).get();
   }
 
@@ -82,6 +85,9 @@ function translate(e: unknown): unknown {
   const code = (e as { code?: string }).code ?? "";
   if (code === "42501" && (e as { message?: string }).message === "request_owner_missing") {
     return new AppError("unauthenticated", "계정을 확인할 수 없습니다");
+  }
+  if (code === "P0001" && (e as { message?: string }).message === "request_capacity_exceeded") {
+    return new AppError("idempotency_capacity_exceeded", "요청 보관 한도에 도달했습니다");
   }
   if (code === "40001" || code === "40P01" || code === "55P03" || code === "57014") {
     return new AppError("unavailable", "잠시 후 다시 시도하세요");

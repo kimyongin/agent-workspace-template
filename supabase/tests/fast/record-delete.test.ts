@@ -24,14 +24,19 @@ Deno.test("record deletion rejects unsupported final memo before storage and doe
     "change_tag_ids",
     "expected_version",
     "id",
+    "request_key",
   ]);
   await assertRejects(
-    () => tool.handler({ id, expected_version: 1, change_memo: { title: "삭제", body: "미사용" } }, actor),
+    () =>
+      tool.handler({
+        request_key: crypto.randomUUID(),
+        ...{ id, expected_version: 1, change_memo: { title: "삭제", body: "미사용" } },
+      }, actor),
     AppError,
   );
   const app = new Hono<HttpEnv>();
   app.use("*", async (c, next) => {
-    c.set("actor", actor);
+    c.set("actor", { ...actor, request: { key: c.req.header("Idempotency-Key") ?? crypto.randomUUID() } });
     await next();
   });
   app.route("/", activityRoutes(deps));

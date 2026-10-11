@@ -1,3 +1,4 @@
+import { requestActor } from "../_request.ts";
 import type { ChangeInput } from "../../functions/_shared/core/shared/changes.ts";
 import { assertEquals, assertRejects } from "@std/assert";
 import { type EntityCreate, entityCreate, type EntityResult } from "../../functions/_shared/contracts/entity.ts";
@@ -16,6 +17,7 @@ import { AppError } from "../../functions/_shared/core/shared/errors.ts";
 Deno.test("Entity registration uses exact namespaced identity and rejects active duplicate", async () => {
   const rows = new Map();
   const store = {
+    executeRequest: <T>(_request: unknown, execute: () => Promise<T>) => execute(),
     get: (id: string) => Promise.resolve(rows.get(id) ?? null),
     getBusinessSettings: () =>
       Promise.resolve({
@@ -37,16 +39,17 @@ Deno.test("Entity registration uses exact namespaced identity and rejects active
   } as unknown as EntityStore;
   const d: EntityDeps = { uow: { run: (_a, fn) => fn(store) } }, actor = { userId: crypto.randomUUID() };
   const input = entityCreate.parse({ source: "crm", external_id: "000Ab:/한글%", prop1: "고객" });
-  const created = await createEntity(d, actor, input);
+  const created = await createEntity(d, requestActor(actor), input);
   assertEquals(created.id, "crm:000Ab:/한글%");
   assertEquals(created.external_id, "000Ab:/한글%");
-  assertEquals((await assertRejects(() => createEntity(d, actor, input), AppError)).code, "conflict");
+  assertEquals((await assertRejects(() => createEntity(d, requestActor(actor), input), AppError)).code, "conflict");
 });
 
 Deno.test("Deleted entity registration preserves omitted values and rejects stale writes after restore", async () => {
   let row: EntityResult | null = null;
   const events: string[] = [];
   const store = {
+    executeRequest: <T>(_request: unknown, execute: () => Promise<T>) => execute(),
     get: () => Promise.resolve(row),
     related: () => Promise.resolve({ tasks: { count: 1, items: [] }, records: { count: 1, items: [] } }),
     getBusinessSettings: () => Promise.resolve({ settings: {} }),
@@ -78,13 +81,13 @@ Deno.test("Deleted entity registration preserves omitted values and rejects stal
   const d: EntityDeps = { uow: { run: (_a, fn) => fn(store) } }, actor = { userId: crypto.randomUUID() };
   const created = await createEntity(
     d,
-    actor,
+    requestActor(actor),
     entityCreate.parse({ source: "app", external_id: "001", prop1: "보관 대상", prop2: 0, prop4: "c" }),
   );
-  await deleteEntity(d, actor, created.id, 1);
+  await deleteEntity(d, requestActor(actor), created.id, 1);
   assertEquals((await getEntity(d, actor, created.id)).deleted_at, "2026-10-09T00:00:00Z");
   await assertRejects(
-    () => createEntity(d, actor, entityCreate.parse({ source: "app", external_id: "001" })),
+    () => createEntity(d, requestActor(actor), entityCreate.parse({ source: "app", external_id: "001" })),
     AppError,
   );
   const settingsDeps: BusinessSettingsDeps = {
@@ -92,6 +95,7 @@ Deno.test("Deleted entity registration preserves omitted values and rejects stal
     uow: {
       run: (_actor, fn) =>
         fn({
+          executeRequest: <T>(_request: unknown, execute: () => Promise<T>) => execute(),
           get: () =>
             Promise.resolve({
               versions: { record_templates: 1, entity_identity: 0 },
@@ -122,7 +126,7 @@ Deno.test("Deleted entity registration preserves omitted values and rejects stal
   assertEquals(prepared.change_note, "보관 대상 / 0 / c");
   const restored = await createEntity(
     d,
-    actor,
+    requestActor(actor),
     entityCreate.parse({
       ...prepared.prepared_input,
       change_note: prepared.change_note,
@@ -137,10 +141,13 @@ Deno.test("Deleted entity registration preserves omitted values and rejects stal
     null,
   ]);
   assertEquals(events, ["create", "delete", "restore"]);
-  await assertRejects(() => createEntity(d, actor, entityCreate.parse(prepared.prepared_input)), AppError);
+  await assertRejects(
+    () => createEntity(d, requestActor(actor), entityCreate.parse(prepared.prepared_input)),
+    AppError,
+  );
 
   await assertRejects(
-    () => updateEntity(d, actor, created.id, { expected_version: 1, prop1: "오래된 요청" }),
+    () => updateEntity(d, requestActor(actor), created.id, { expected_version: 1, prop1: "오래된 요청" }),
     AppError,
   );
 });

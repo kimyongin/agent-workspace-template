@@ -1,3 +1,4 @@
+import { requestActor } from "../_request.ts";
 import { assertEquals, assertMatch, assertRejects, assertThrows } from "@std/assert";
 import { SqlTagUnitOfWork } from "../../functions/_shared/adapters/supabase/tag-store.ts";
 import { SqlEntityUnitOfWork } from "../../functions/_shared/adapters/supabase/entity-store.ts";
@@ -23,39 +24,39 @@ dbTest(
       const A = f.actor,
         entityTag = await tags.createTag(
           td,
-          A,
-          tagCreate.parse({ id: crypto.randomUUID(), ...{ scope: "entity", name: "분류" } }),
+          requestActor(A),
+          tagCreate.parse({ ...{ scope: "entity", name: "분류" } }),
         ),
         activityTag = await tags.createTag(
           td,
-          A,
-          tagCreate.parse({ id: crypto.randomUUID(), ...{ scope: "record", name: "분류" } }),
+          requestActor(A),
+          tagCreate.parse({ ...{ scope: "record", name: "분류" } }),
         );
       const taskTag = await tags.createTag(
         td,
-        A,
-        tagCreate.parse({ id: crypto.randomUUID(), scope: "task", name: "분류" }),
+        requestActor(A),
+        tagCreate.parse({ scope: "task", name: "분류" }),
       );
       for (const tag of [entityTag, activityTag]) {
         await assertRejects(() =>
           a.createTask(
             ad,
-            A,
-            taskCreate.parse({ id: crypto.randomUUID(), kind: "once", title: "scope 거부", tag_ids: [tag.id] }),
+            requestActor(A),
+            taskCreate.parse({ kind: "once", title: "scope 거부", tag_ids: [tag.id] }),
           )
         );
       }
       await assertRejects(() =>
         a.createRecord(
           ad,
-          A,
-          recordCreate.parse({ id: crypto.randomUUID(), body: "task scope 거부", tag_ids: [taskTag.id] }),
+          requestActor(A),
+          recordCreate.parse({ body: "task scope 거부", tag_ids: [taskTag.id] }),
         )
       );
       const task = await a.createTask(
         ad,
-        A,
-        taskCreate.parse({ id: crypto.randomUUID(), kind: "once", title: "독립 분류", tag_ids: [taskTag.id] }),
+        requestActor(A),
+        taskCreate.parse({ kind: "once", title: "독립 분류", tag_ids: [taskTag.id] }),
       );
       assertMatch(
         await outcome(
@@ -70,18 +71,18 @@ dbTest(
       );
       assertThrows(() => tagListQuery.parse({ scope: "activity" }));
       await assertRejects(() =>
-        tags.createTag(td, A, tagCreate.parse({ id: crypto.randomUUID(), ...{ scope: "entity", name: "분류" } }))
+        tags.createTag(td, requestActor(A), tagCreate.parse({ ...{ scope: "entity", name: "분류" } }))
       );
       const foreign = await tags.createTag(
         td,
-        b.actor,
-        tagCreate.parse({ id: crypto.randomUUID(), ...{ scope: "entity", name: "외부" } }),
+        requestActor(b.actor),
+        tagCreate.parse({ ...{ scope: "entity", name: "외부" } }),
       );
       for (const tag of [activityTag.id, foreign.id, crypto.randomUUID()]) {
         await assertRejects(() =>
           e.createEntity(
             ed,
-            A,
+            requestActor(A),
             entityCreate.parse({
               source: "app",
               external_id: crypto.randomUUID(),
@@ -95,18 +96,16 @@ dbTest(
           () =>
             a.createTask(
               ad,
-              A,
+              requestActor(A),
               taskCreate.parse({
-                id: crypto.randomUUID(),
                 ...{ kind: "once", title: "거부", tag_ids: [entityTag.id] },
               }),
             ),
           () =>
             a.createRecord(
               ad,
-              A,
+              requestActor(A),
               recordCreate.parse({
-                id: crypto.randomUUID(),
                 ...{ body: "거부", tag_ids: [entityTag.id] },
               }),
             ),
@@ -114,7 +113,7 @@ dbTest(
       ) await assertRejects(create);
       const entity = await e.createEntity(
         ed,
-        A,
+        requestActor(A),
         entityCreate.parse({
           source: "app",
           external_id: crypto.randomUUID(),
@@ -134,9 +133,8 @@ dbTest(
       );
       const record = await a.createRecord(
         ad,
-        A,
+        requestActor(A),
         recordCreate.parse({
-          id: crypto.randomUUID(),
           ...{ body: "보존", tag_ids: [activityTag.id] },
         }),
       );
@@ -151,7 +149,10 @@ dbTest(
         ),
         /^23503/,
       );
-      await tags.renameTag(td, A, taskTag.id, { name: "할 일만 정정", expected_version: taskTag.version });
+      await tags.renameTag(td, requestActor(A), taskTag.id, {
+        name: "할 일만 정정",
+        expected_version: taskTag.version,
+      });
       assertEquals((await tags.listTags(td, A, tagListQuery.parse({ scope: "record" }))).items.map((tag) => tag.name), [
         "분류",
       ]);
@@ -161,22 +162,22 @@ dbTest(
       );
       await a.updateRecord(
         ad,
-        A,
+        requestActor(A),
         record.id,
         recordUpdate.parse({ expected_version: record.version, tag_ids: [] }),
       );
       await e.updateEntity(
         ed,
-        A,
+        requestActor(A),
         entity.id,
         entityUpdate.parse({ expected_version: entity.version, change_note: "속성 갱신", prop2: 20 }),
       );
-      await tags.createTag(td, A, tagCreate.parse({ id: crypto.randomUUID(), ...{ scope: "entity", name: "둘째" } }));
+      await tags.createTag(td, requestActor(A), tagCreate.parse({ ...{ scope: "entity", name: "둘째" } }));
       const page = await tags.listTags(td, A, tagListQuery.parse({ scope: "entity", limit: 1 }));
       await assertRejects(() =>
         tags.listTags(td, A, tagListQuery.parse({ scope: "record", cursor: page.next_cursor! }))
       );
-      await tags.deleteTag(td, A, entityTag.id, entityTag.version);
+      await tags.deleteTag(td, requestActor(A), entityTag.id, entityTag.version);
       assertEquals((await e.getEntity(ed, A, entity.id)).tag_ids, []);
       assertEquals((await e.getEntity(ed, A, entity.id)).version, entity.version + 2);
       const changes = await a.listRecords(ad, A, recordListQuery.parse({ record_kind: "change" }));

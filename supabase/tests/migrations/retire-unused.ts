@@ -1,3 +1,4 @@
+import { requestActor } from "../_request.ts";
 // prepare on the predecessor schema, apply the forward migration, then verify.
 // No resets, service operations or external calls. Only this fixture's owner is removed.
 import { assert, assertEquals, assertRejects } from "@std/assert";
@@ -127,7 +128,7 @@ try {
       const old = await principles.getPrinciple(pd, actor, f.principle);
       await principles.updatePrinciple(
         pd,
-        actor,
+        requestActor(actor),
         old.id,
         principleUpdate.parse({
           title: old.title,
