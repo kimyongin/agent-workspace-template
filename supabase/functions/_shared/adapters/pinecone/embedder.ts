@@ -9,7 +9,7 @@ export class PineconeEmbedder implements Embedder {
     } catch (error) {
       if (!(error instanceof EmbeddingError)) return { state: "unknown", reason: "provider_unknown" };
       if (error.category === "invalid_response") return { state: "unknown", reason: "invalid_response" };
-      if (error.category === "transient") return { state: "unknown", reason: "provider_unknown" };
+      if (error.category === "transient" && error.uncertain) return { state: "unknown", reason: "provider_unknown" };
       return { state: "failed", reason: error.category };
     }
   }
@@ -29,7 +29,7 @@ export class PineconeEmbedder implements Embedder {
         }),
       });
     } catch {
-      throw new EmbeddingError("transient");
+      throw new EmbeddingError("transient", true);
     }
     // 응답 크기를 제한한다. 외부 오류 원문·입력·키를 로그나 공개 오류에 넣지 않는다.
     const reader = response.body?.getReader();
