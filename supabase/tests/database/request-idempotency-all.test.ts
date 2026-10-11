@@ -395,15 +395,16 @@ dbTest(
           recurrence: { freq: "daily", starts_on: "2026-10-01" },
         }),
       );
-      const pauses = Array.from(
+      const pauses: { stopped_on: string; resumed_on: string | null }[] = Array.from(
         { length: 25_000 },
         () => ({ stopped_on: "2026-10-01", resumed_on: "2026-10-02" }),
       );
-      pauses.at(-1)!.resumed_on = null as unknown as string;
+      pauses.at(-1)!.resumed_on = null;
       await admin`update app.tasks set status='stopped',pauses=${
         admin.json(pauses)
       } where owner_id=${f.actor.userId} and id=${task.id}`;
       const before = await activity.getTask(ad, f.actor, task.id);
+      assertEquals(new TextEncoder().encode(JSON.stringify(before)).byteLength > 1_048_576, true);
       const [counts] = await admin`select
       (select count(*)::int from app.records where owner_id=${f.actor.userId}) records,
       (select count(*)::int from pgmq.q_search_index where message->>'owner_id'=${f.actor.userId}) jobs,

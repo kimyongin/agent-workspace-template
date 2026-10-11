@@ -92,6 +92,9 @@ function translate(e: unknown): unknown {
   if (code === "40001" || code === "40P01" || code === "55P03" || code === "57014") {
     return new AppError("unavailable", "잠시 후 다시 시도하세요");
   }
+  if (code === "22023" && (e as { message?: string }).message === "request_result_too_large") {
+    return new AppError("invalid_input", "응답이 1 MiB 요청 보관 한도를 넘었습니다. 변경은 저장되지 않았습니다");
+  }
   if (code === "23505") return new AppError("conflict", "이미 존재하는 항목입니다. 최신 데이터를 확인하세요");
   if (code === "23503") return new AppError("invalid_reference", "참조한 항목이 없거나 접근할 수 없습니다");
   if (code === "23514" || code === "22001" || code === "22P02" || code === "22023") {
