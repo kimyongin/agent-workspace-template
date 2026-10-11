@@ -21,7 +21,6 @@ export interface SearchStore {
   candidates(q: SearchInput, vector: number[] | undefined, after?: SearchPosition): Promise<SearchRow[]>;
   coverage(q: SearchInput): Promise<SearchResult["semantic_coverage"]>;
   anchorPage(q: SearchInput, vector: number[] | undefined): Promise<number | null>;
-  reserveEmbedding(): Promise<boolean>;
 }
 export interface SearchDeps {
   uow: { run<T>(a: Actor, fn: (s: SearchStore) => Promise<T>): Promise<T> };
@@ -54,13 +53,11 @@ export async function search(d: SearchDeps, a: Actor, q: SearchInput): Promise<S
   // 먼저 커서를 검증하고 공급자 호출은 DB 트랜잭션 밖에서 수행한다.
   let vector: number[] | undefined;
   if (!keywordOnly && after?.ranking !== "fallback" && d.embedder) {
-    const allowed = await d.uow.run(a, (s) => s.reserveEmbedding());
-    if (allowed) {
-      try {
-        vector = await d.embedder.embed(q.query, "query");
-      } catch (error) {
-        if (!(error instanceof EmbeddingError)) throw error;
-      }
+    await d.uow.run(a, () => Promise.resolve());
+    try {
+      vector = await d.embedder.embed(q.query, "query");
+    } catch (error) {
+      if (!(error instanceof EmbeddingError)) throw error;
     }
   }
   const ranking = keywordOnly ? "keyword" : vector ? "hybrid" : "fallback";
