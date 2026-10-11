@@ -32,7 +32,6 @@ function fixture(storageNow = () => now) {
 
   const store: ActivityStore = {
     executeRequest: <T>(_request: unknown, execute: () => Promise<T>) => execute(),
-    validateEntitySelection: unsupported,
     appendChange: () => Promise.resolve(),
     getTask: (id) => Promise.resolve(structuredClone(tasks.get(id) ?? null)),
     insertTask: (input) => {
