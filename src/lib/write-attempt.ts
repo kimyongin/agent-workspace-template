@@ -108,7 +108,8 @@ export function useWriteAttempt() {
 export function writeErrorMessage(error: unknown): string {
   if (isUncertain(error)) return "저장 여부를 알 수 없습니다. 같은 요청 키와 내용으로 다시 시도하세요. 화면을 닫거나 새로고침하면 현재 상태를 조회해 확인한 뒤 새 작업을 시작하세요.";
   if (error instanceof ApiError) {
-    if (error.code === "result_expired" || error.code === "idempotency_key_reused") return `${error.message} 현재 상태를 확인하세요. 새 키로 자동 재전송하지 마세요.`;
+    if (error.code === "result_expired") return "요청 키와 성공 결과의 30일 보관 기간이 지났습니다. 이후에는 중복 방지가 보장되지 않습니다. 현재 상태를 확인하세요. 새 키로 자동 재전송하지 마세요.";
+    if (error.code === "idempotency_key_reused") return `${error.message} 현재 상태를 확인하세요. 새 키로 자동 재전송하지 마세요.`;
     return error.code === "conflict" ? `${error.message} 화면을 닫고 다시 연 뒤 시도하세요.` : error.message;
   }
   return "처리하지 못했습니다.";
