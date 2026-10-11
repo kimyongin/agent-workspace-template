@@ -12,6 +12,78 @@ const request = vi.fn(async () => {
 const identitySettingsDraft = createIdentitySettingsDraft(request);
 const recordTemplatesDraft = createRecordTemplatesDraft(request);
 
+test("동시 발급처 삭제 충돌은 초안을 병합하지 않고 최신값을 채택한 뒤 저장한다", async () => {
+  const { ApiError } = await import("../../lib/api-error.ts");
+  const before = {
+    generation: "short" as const, default_source: "app",
+    sources: [{ code: "app", label: "앱", generation: "short" as const },
+      { code: "crm", label: "고객", generation: "manual" as const }],
+  };
+  const latest = { ...before, sources: [before.sources[0], { ...before.sources[1], deleted: true }] };
+  const api = vi.fn().mockResolvedValueOnce({ settings: { entity_identity: before }, versions: { entity_identity: 1 } })
+    .mockRejectedValueOnce(new ApiError(409, "conflict", "다른 변경"))
+    .mockResolvedValueOnce({ settings: { entity_identity: latest }, versions: { entity_identity: 2 } })
+    .mockResolvedValueOnce({ settings: { entity_identity: latest }, versions: { entity_identity: 3 } });
+  const settings = createSettingsDraft(createIdentitySettingsDraft(api));
+  await settings.read();
+  settings.edit(value => orderedSources([{ ...value.sources[0], deleted: true }, value.sources[1]], value));
+  const local = structuredClone(settings.snapshot().draft);
+  await settings.save();
+  expect(settings.snapshot()).toMatchObject({ conflict: true, draft: local, saved: { versions: { entity_identity: 1 } } });
+  await settings.read();
+  expect(settings.snapshot()).toMatchObject({ error: null, conflict: true, draft: local, saved: { versions: { entity_identity: 2 } } });
+  await settings.save();
+  expect(api.mock.calls.filter(call => call[0] === "PATCH")).toHaveLength(1);
+  settings.reset();
+  expect(settings.snapshot()).toMatchObject({ conflict: false, dirty: false, draft: latest });
+  settings.edit(value => ({ ...value, sources: [{ ...value.sources[0], label: "새 이름" }, value.sources[1]] }));
+  await settings.save();
+  expect(api.mock.calls.at(-1)?.slice(0, 3)).toEqual(["PATCH", "/settings/business", {
+    id: "entity_identity", expected_version: 2,
+    value: { ...latest, sources: [{ ...latest.sources[0], label: "새 이름" }, latest.sources[1]] },
+  }]);
+});
+
+test("최신값 조회 실패 후 초안을 편집해도 이전 기준값으로 충돌을 해제할 수 없다", async () => {
+  const save = vi.fn().mockRejectedValue(new Error("충돌"));
+  const settings = createSettingsDraft({
+    initial: { memo: "" },
+    read: vi.fn().mockResolvedValueOnce({ version: 1, value: { memo: "기준" } }).mockRejectedValueOnce(new Error("조회 실패")),
+    save, toDraft: (saved: { version: number; value: { memo: string } }) => saved.value,
+    isConflict: () => true,
+  });
+  await settings.read();
+  settings.edit(() => ({ memo: "초안" }));
+  await settings.save();
+  await settings.read();
+  settings.edit(() => ({ memo: "조회 실패 뒤 편집" }));
+  settings.reset();
+  expect(settings.snapshot()).toMatchObject({ conflict: true, draft: { memo: "조회 실패 뒤 편집" } });
+  await settings.save();
+  expect(save).toHaveBeenCalledTimes(1);
+});
+
+test("충돌 중 연속 최신값 조회는 초안과 기준값이 같아져도 명시적 채택 전까지 초안을 보존한다", async () => {
+  const settings = createSettingsDraft({
+    initial: { memo: "" },
+    read: vi.fn().mockResolvedValueOnce({ version: 1, value: { memo: "기준" } })
+      .mockResolvedValueOnce({ version: 2, value: { memo: "내 초안" } })
+      .mockResolvedValueOnce({ version: 3, value: { memo: "새 원격 변경" } }),
+    save: vi.fn().mockRejectedValue(new Error("충돌")),
+    toDraft: (saved: { version: number; value: { memo: string } }) => saved.value,
+    isConflict: () => true,
+  });
+  await settings.read();
+  settings.edit(() => ({ memo: "내 초안" }));
+  await settings.save();
+  await settings.read();
+  expect(settings.snapshot()).toMatchObject({ conflict: true, dirty: false, draft: { memo: "내 초안" } });
+  await settings.read();
+  expect(settings.snapshot()).toMatchObject({ conflict: true, dirty: true, draft: { memo: "내 초안" }, saved: { version: 3 } });
+  settings.reset();
+  expect(settings.snapshot()).toMatchObject({ conflict: false, dirty: false, draft: { memo: "새 원격 변경" } });
+});
+
 function held<T>() {
   let resolve!: (value: T) => void;
   const promise = new Promise<T>((done) => {
@@ -28,7 +100,6 @@ test("업무 설정 최신값 확인은 로컬 입력을 보존하고 저장에 
     read: vi.fn().mockResolvedValueOnce({ version: 1, value: { memo: "기준" } }).mockReturnValueOnce(latest.promise),
     save,
     toDraft: (saved: Saved) => saved.value,
-    refreshDraft: (_before, local) => local,
     isConflict: () => false,
   });
   await settings.read();
@@ -55,7 +126,6 @@ test("업무 설정 읽기의 역순·취소 응답은 현재 기준값과 초�
     },
     save: async (value, before: Saved) => ({ value, version: before.version + 1 }),
     toDraft: (saved: Saved) => saved.value,
-    refreshDraft: (_before, local) => local,
     isConflict: () => false,
   });
   const first = settings.read(), second = settings.read();
@@ -72,7 +142,7 @@ test("업무 설정 읽기의 역순·취소 응답은 현재 기준값과 초�
   expect(settings.snapshot().saved?.version).toBe(2);
 });
 
-test("업무 설정 충돌은 입력·기준 버전을 유지하며 취소는 마지막 기준값으로 돌아간다", async () => {
+test("업무 설정 충돌은 입력·기준 버전을 유지하며 최신값을 읽어야 다시 편집할 수 있다", async () => {
   const conflict = new Error("conflict");
   const settings = createSettingsDraft({
     initial: { memo: "" },
@@ -81,7 +151,6 @@ test("업무 설정 충돌은 입력·기준 버전을 유지하며 취소는 �
       throw conflict;
     },
     toDraft: (saved: Saved) => saved.value,
-    refreshDraft: (_before, local) => local,
     isConflict: (error) => error === conflict,
   });
   await settings.read();
@@ -90,10 +159,13 @@ test("업무 설정 충돌은 입력·기준 버전을 유지하며 취소는 �
   expect(settings.snapshot()).toMatchObject({ dirty: true, busy: false, conflict: true, draft: { memo: "초안" } });
   expect(settings.snapshot().saved?.version).toBe(1);
   settings.reset();
+  expect(settings.snapshot()).toMatchObject({ dirty: true, conflict: true, draft: { memo: "초안" } });
+  await settings.read();
+  settings.reset();
   expect(settings.snapshot()).toMatchObject({ dirty: false, conflict: false, draft: { memo: "기준" } });
 });
 
-test("발급처 최신값 확인은 수정한 필드·순서를 보존하고 미수정 필드는 새 기준값으로 갱신", async () => {
+test("발급처 최신값 확인은 초안 전체를 보존하고 취소는 최신 발급처 목록을 채택한다", async () => {
   const before = {
     generation: "short" as const,
     default_source: "app",
@@ -127,11 +199,12 @@ test("발급처 최신값 확인은 수정한 필드·순서를 보존하고 미
   await settings.read();
   expect(settings.snapshot().draft.sources.map((source) => [source.code, source.label])).toEqual([["crm", "내 고객"], [
     "app",
-    "원격 앱",
-  ], ["new", "새 발급처"]]);
+    "앱",
+  ]]);
   expect(settings.snapshot().draft.default_source).toBe("crm");
   settings.reset();
   expect(settings.snapshot().draft.default_source).toBe("app");
+  expect(settings.snapshot().draft.sources.map(source => source.label)).toEqual(["원격 앱", "원격 고객", "새 발급처"]);
 });
 
 test("기록 템플릿 최신값 확인은 초안 전체를 보존하고 취소는 최신 템플릿으로 돌아간다", async () => {
@@ -169,7 +242,6 @@ test("충돌 뒤 최신값 읽기가 실패해도 다시 최신값을 확인할 
       throw conflict;
     },
     toDraft: (saved: Saved) => saved.value,
-    refreshDraft: (_before, local) => local,
     isConflict: (error) => error === conflict,
   });
   await settings.read();
@@ -203,7 +275,7 @@ test("업무 설정 응답 불명은 같은 키·입력·기준 버전으로 재
     calls.push({value:value.memo,version:before.version,key});
     if(lost){lost=false;throw new ApiError(503,"unavailable","응답 불명");}
     return {version:3,value};
-  },toDraft:(saved:Saved)=>saved.value,refreshDraft:(_before,local)=>local,isConflict:()=>false});
+  },toDraft:(saved:Saved)=>saved.value,isConflict:()=>false});
   await settings.read();settings.edit(()=>({memo:"저장할 내용"}));await settings.save();
   expect(settings.snapshot().uncertain).toBe(true);
   settings.edit(()=>({memo:"다른 내용"}));await settings.read();await settings.save();

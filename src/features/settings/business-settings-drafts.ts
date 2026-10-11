@@ -40,23 +40,6 @@ export function createIdentitySettingsDraft(
         value: entityIdentitySettings.parse(value),
       }, signal, requestKey),
     toDraft: (saved) => editable(saved.settings.entity_identity ?? defaultEntityIdentitySettings),
-    refreshDraft: (before, local, latest) => {
-      const sources = local.sources.map((value) => {
-        const previous = before.sources.find((source) => source.code === value.code),
-          remote = latest.sources.find((source) => source.code === value.code);
-        if (!previous || !remote) return value;
-        return {
-          ...remote,
-          label: value.label === previous.label ? remote.label : value.label,
-          generation: value.generation === previous.generation ? remote.generation : value.generation,
-          deleted: !!value.deleted === !!previous.deleted ? remote.deleted : value.deleted,
-        };
-      });
-      latest.sources.forEach((source) => {
-        if (!sources.some((local) => local.code === source.code)) sources.push(source);
-      });
-      return orderedSources(sources, latest);
-    },
   };
 }
 type TemplatesSaved = { settings: BusinessSettingsSectionResult<"record_templates">; availableTags: string[] };
@@ -92,6 +75,5 @@ export function createRecordTemplatesDraft(api: typeof request): SettingsDraftAd
       availableTags: [...new Set([...before.availableTags, ...selectedRecordTags(value)])],
     }),
     toDraft: (saved) => editableRecordTemplates(saved.settings.settings.record_templates),
-    refreshDraft: (_before, local) => local,
   };
 }

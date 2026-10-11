@@ -5,7 +5,7 @@ const user = { id: "00000000-0000-0000-0000-000000000001", aud: "authenticated",
 const other = { ...user, id: "00000000-0000-0000-0000-000000000002", email: "other@example.test", user_metadata: { workspace_avatar_id: "leaf", provider_value: "other" } };
 const fixture = "/e2e/fixtures/auth-profile.html";
 
-test("다른 창의 발급처 추가 충돌을 읽고 사용자 이름 편집과 새 발급처를 함께 저장한다",async({page,context})=>{
+test("발급처 추가 충돌은 초안을 보존하고 최신값을 적용한 뒤 다시 편집한다",async({page,context})=>{
   let version=1;
   let value={generation:"short",default_source:"app",sources:[{code:"app",label:"앱"}]};
   const writes:{expected_version:number;value:typeof value}[]=[];
@@ -34,13 +34,92 @@ test("다른 창의 발급처 추가 충돌을 읽고 사용자 이름 편집과
   release();
   await expect(identity.getByLabel("발급처 1 이름")).toBeEditable();
   await expect(identity.getByLabel("발급처 1 이름")).toHaveValue("내가 편집한 이름");
-  await expect(identity.getByLabel("발급처 2 이름")).toHaveValue("다른 창에서 추가");
+  await expect(identity.getByLabel("발급처 2 이름")).toHaveCount(0);
+  await expect(identity.getByLabel("발급처 1 방식")).toHaveValue("short");
+  await expect(identity.getByRole("button",{name:"식별자 설정 저장",exact:true})).toBeDisabled();
+  await identity.getByRole("button",{name:"최신값으로 다시 편집",exact:true}).click();
+  await expect(identity.getByLabel("발급처 1 이름")).toHaveValue("다른 창에서 추가");
+  await expect(identity.getByLabel("발급처 2 이름")).toHaveValue("앱");
   await expect(identity.getByLabel("발급처 1 방식")).toHaveValue("manual");
+  await identity.getByLabel("발급처 2 이름").fill("내가 편집한 이름");
   await expect(identity.getByLabel("기본 발급처")).toHaveCount(0);
   await identity.getByRole("button",{name:"식별자 설정 저장",exact:true}).click();
   await expect(identity).toContainText("식별자 설정을 저장했습니다");
   expect(writes.map(input=>input.expected_version)).toEqual([1,2]);
-  expect(value.sources.map(({code,label})=>({code,label}))).toEqual([{code:"app",label:"내가 편집한 이름"},{code:"crm",label:"다른 창에서 추가"}]);
+  expect(value.sources.map(({code,label})=>({code,label}))).toEqual([{code:"crm",label:"다른 창에서 추가"},{code:"app",label:"내가 편집한 이름"}]);
+});
+
+test("서로 다른 발급처 삭제 충돌은 활성 초안을 보존하고 최신 목록에서 다시 편집한다", async ({page,context}) => {
+  let version=1;
+  let failRead=false;
+  let value={generation:"short",default_source:"app",sources:[{code:"app",label:"앱",deleted:false},{code:"crm",label:"고객",deleted:false}]};
+  const writes: number[]=[];
+  await context.route("**/settings/business{,?**}",route=>{
+    if(route.request().method()==="GET"&&failRead)return route.abort("failed");
+    if(route.request().method()==="PATCH") {
+      const input=route.request().postDataJSON();writes.push(input.expected_version);
+      if(input.expected_version!==version)return route.fulfill({status:409,json:{error:{code:"conflict",message:"버전 충돌",fields:[]}}});
+      value=input.value;version++;
+    }
+    return route.fulfill({json:settingsResponse(route,{versions:{entity_identity:version,record_templates:0},settings:{entity_identity:value,record_templates:{}}})});
+  });
+  await context.route("**/tags?**",route=>route.fulfill({json:{items:[],next_cursor:null}}));
+  await page.goto(fixture);
+  const identity=page.locator('section[aria-labelledby="entity-identity-title"]');
+  await identity.getByRole("button",{name:"앱 삭제",exact:true}).click();
+  value={...value,sources:[value.sources[0],{...value.sources[1],deleted:true}]};version=2;
+  await identity.getByRole("button",{name:"식별자 설정 저장",exact:true}).click();
+  await expect(identity.getByRole("button",{name:"최신값으로 다시 편집",exact:true})).toBeDisabled();
+  failRead=true;
+  await identity.getByRole("button",{name:"최신값 확인",exact:true}).click();
+  await expect(identity).toContainText("식별자 설정을 불러오지 못했습니다");
+  await identity.getByLabel("발급처 1 이름").fill("고객 초안");
+  await expect(identity.getByRole("button",{name:"최신값으로 다시 편집",exact:true})).toBeDisabled();
+  failRead=false;
+  await identity.getByRole("button",{name:"최신값 확인",exact:true}).click();
+  await expect(identity).toContainText("최신 설정을 읽었습니다");
+  await expect(identity.getByLabel("발급처 1 이름")).toHaveValue("고객 초안");
+  await expect(identity.getByRole("button",{name:"식별자 설정 저장",exact:true})).toBeDisabled();
+  await identity.getByRole("button",{name:"최신값으로 다시 편집",exact:true}).click();
+  await expect(identity.getByLabel("발급처 1 이름")).toHaveValue("앱");
+  await identity.getByLabel("발급처 1 이름").fill("새 앱 이름");
+  await identity.getByRole("button",{name:"식별자 설정 저장",exact:true}).click();
+  await expect(identity).toContainText("식별자 설정을 저장했습니다");
+  expect(writes).toEqual([1,2]);
+  expect(value.sources).toEqual([expect.objectContaining({code:"app",label:"새 앱 이름",deleted:false}),expect.objectContaining({code:"crm",deleted:true})]);
+});
+
+test("기록 템플릿 충돌도 초안을 보존하고 최신 템플릿을 적용한 뒤 새 버전으로 저장한다", async ({page,context}) => {
+  let version=1;
+  let value={entity:{create:{memo:"처음 템플릿",tag_ids:[] as string[]}},task:{create:{memo:"처음 할 일",tag_ids:[] as string[]}}};
+  const writes: {id:string;expected_version:number}[]=[];
+  await context.route("**/settings/business{,?**}",route=>{
+    if(route.request().method()==="PATCH") {
+      const input=route.request().postDataJSON();writes.push(input);
+      if(input.expected_version!==version)return route.fulfill({status:409,json:{error:{code:"conflict",message:"버전 충돌",fields:[]}}});
+      value=input.value;version++;
+    }
+    return route.fulfill({json:settingsResponse(route,{versions:{entity_identity:0,record_templates:version},settings:{entity_identity:{generation:"short",default_source:"app",sources:[{code:"app",label:"앱"}]},record_templates:value}})});
+  });
+  await context.route("**/tags?**",route=>route.fulfill({json:{items:[],next_cursor:null}}));
+  await page.goto(fixture);
+  const templates=page.getByRole("form",{name:"변경 기록 기본값"});
+  await templates.getByLabel("메모 템플릿").fill("내 초안");
+  value={entity:{create:{memo:"최신 엔터티",tag_ids:[]}},task:{create:{memo:"최신 할 일",tag_ids:[]}}};version=2;
+  await templates.getByRole("button",{name:"기록 기본값 저장",exact:true}).click();
+  await expect(templates.getByRole("button",{name:"최신값으로 다시 편집",exact:true})).toBeDisabled();
+  await templates.getByRole("button",{name:"최신값 확인",exact:true}).click();
+  await expect(templates).toContainText("최신 설정을 읽었습니다");
+  await expect(templates.getByLabel("메모 템플릿")).toHaveValue("내 초안");
+  await expect(templates.getByRole("button",{name:"기록 기본값 저장",exact:true})).toBeDisabled();
+  await templates.getByRole("button",{name:"최신값으로 다시 편집",exact:true}).click();
+  await expect(templates.getByLabel("메모 템플릿")).toHaveValue("최신 엔터티");
+  await templates.getByLabel("메모 템플릿").fill("다시 편집한 엔터티");
+  await templates.getByRole("button",{name:"기록 기본값 저장",exact:true}).click();
+  await expect(templates).toContainText("기록 기본값을 저장했습니다");
+  expect(writes.map(({id,expected_version})=>({id,expected_version}))).toEqual([{id:"record_templates",expected_version:1},{id:"record_templates",expected_version:2}]);
+  expect(value.entity.create.memo).toBe("다시 편집한 엔터티");
+  expect(value.task.create.memo).toBe("최신 할 일");
 });
 
 for (const width of [390,1440]) test(`업무 설정 ${width}px: 독립 저장·초안 보존·발급처 삭제/복원·행 추가·순서 변경`, async ({page,context}, info)=>{

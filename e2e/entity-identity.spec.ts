@@ -110,9 +110,10 @@ test("identity settings recovers from an initial read failure and preserves edit
   });
   await section.getByRole("button", {name:"식별자 설정 저장",exact:true}).click();
   await section.getByRole("button", {name:"최신값 확인",exact:true}).click();
-  await expect(section).toContainText("최신 설정을 확인했습니다. 입력과 순서는 유지했습니다.");
+  await expect(section).toContainText("최신 설정을 읽었습니다. 초안을 보존했습니다.");
   await expect(generation).toHaveValue(changed);
-  await section.getByRole("button", {name:"변경 취소",exact:true}).click();
+  await expect(section.getByRole("button", {name:"식별자 설정 저장",exact:true})).toBeDisabled();
+  await section.getByRole("button", {name:"최신값으로 다시 편집",exact:true}).click();
   await expect(generation).toHaveValue(previous);
 });
 
