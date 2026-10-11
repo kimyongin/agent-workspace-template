@@ -5,7 +5,6 @@ export const tagIds = referenceIds.max(10, { message: "태그는 최대 10개입
 export const tagFilterIds = tagIds.transform((ids) => [...ids].sort());
 export const tagScope = z.enum(["entity", "task", "record"]);
 export const tagCreate = z.strictObject({
-  id,
   scope: tagScope.default("record"),
   name: text(1, 30),
 });

@@ -227,7 +227,6 @@ export class SqlActivityStore extends SqlActorStore implements ActivityStore {
       record.inherit_task_entities ? record.task_id ?? undefined : undefined,
     );
     const values: Record<string, unknown> = {
-      id: record.id ?? await this.issueDataId(),
       owner_id: this.actor.userId,
       ...selection,
       body: record.body,

@@ -1,3 +1,4 @@
+import type { RequestStore } from "./request.ts";
 import type { ChangeMetadata } from "../../contracts/change.ts";
 import type { EntityContext } from "../../contracts/entity-links.ts";
 import type { Recurrence } from "../../contracts/task.ts";
@@ -38,7 +39,7 @@ export interface ChangeInput {
   change_note?: string;
   change_tag_ids?: string[];
 }
-export interface ChangeStore {
+export interface ChangeStore extends RequestStore {
   appendChange(input: ChangeInput): Promise<void>;
 }
 /** Metadata and version changes alone are not a user content change. */

@@ -4,11 +4,11 @@ import { mutationMeta } from "../../contracts/change.ts";
 import { tagCreate, tagListQuery, tagRename } from "../../contracts/tag.ts";
 import * as tags from "../../core/tags/application.ts";
 import { parse } from "../errors.ts";
-import type { ToolDef } from "./tools.ts";
+import { keyedTool, type ToolDef } from "./tools.ts";
 export function tagTools(d: tags.TagDeps): ToolDef[] {
   const rename = tagRename.extend({ id }),
     remove = z.strictObject({ id, expected_version: expectedVersion, ...mutationMeta });
-  return [
+  const tools: ToolDef[] = [
     {
       name: "list_tags",
       description: "scope entity/task/record 별 내 태그 목록. 생략은 record, next_cursor가 없을 때까지 조회한다.",
@@ -48,4 +48,5 @@ export function tagTools(d: tags.TagDeps): ToolDef[] {
       },
     },
   ];
+  return tools.map((tool) => tool.readOnly || tool.name.startsWith("prepare_") ? tool : keyedTool(tool));
 }

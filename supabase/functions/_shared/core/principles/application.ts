@@ -1,3 +1,4 @@
+import { runWrite } from "../shared/request.ts";
 import { principleChangeFacts, principleChangeTarget } from "./change.ts";
 import type { PrincipleCreate, PrincipleResult, PrincipleUpdate } from "../../contracts/principle.ts";
 import type { Actor } from "../shared/actor.ts";
@@ -16,7 +17,7 @@ function version(p: { version: number }, v: number | undefined) {
 }
 async function save(s: PrincipleStore, i: PrincipleCreate, old: PrincipleResult | null) {
   if (old && !changed(old, { title: i.title, body: i.body })) return old;
-  const { id: _id, change_note: _note, change_tag_ids: _tags, ...content } = i;
+  const { change_note: _note, change_tag_ids: _tags, ...content } = i;
   const result = old ? await s.update(old.id, content) : await s.insert(i);
 
   await s.appendChange({
@@ -31,7 +32,7 @@ async function save(s: PrincipleStore, i: PrincipleCreate, old: PrincipleResult 
   return result;
 }
 export function createPrinciple(d: PrincipleDeps, a: Actor, i: PrincipleCreate) {
-  return d.uow.run(a, async (s) => {
+  return runWrite(d.uow, a, "principle.create", null, i, async (s) => {
     if (await s.current({ forUpdate: true })) throw conflict("현재 원칙이 있습니다. 현재 문서를 편집하세요.");
     return save(s, i, null);
   });
@@ -40,11 +41,10 @@ export function currentPrinciple(d: PrincipleDeps, a: Actor) {
   return d.uow.run(a, async (s) => ({ current: await s.current() }));
 }
 export function updatePrinciple(d: PrincipleDeps, a: Actor, id: string, i: PrincipleUpdate) {
-  return d.uow.run(a, async (s) => {
+  return runWrite(d.uow, a, "principle.update", id, i, async (s) => {
     const old = requirePrinciple(await s.current({ forUpdate: true }), id);
     version(old, i.expected_version);
     return save(s, {
-      id,
       title: i.title ?? old.title,
       body: i.body ?? old.body,
       change_note: i.change_note,
@@ -60,7 +60,7 @@ export function deletePrinciple(
   change_note?: string,
   change_tag_ids?: string[],
 ) {
-  return d.uow.run(a, async (s) => {
+  return runWrite(d.uow, a, "principle.delete", id, { expected_version: expected, change_note, change_tag_ids }, async (s) => {
     const old = requirePrinciple(await s.current({ forUpdate: true }), id);
     version(old, expected);
     await s.delete(id);

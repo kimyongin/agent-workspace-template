@@ -6,7 +6,7 @@ import { entityCreate, entityListQuery, entityRekey, entityUpdate } from "../../
 import * as entity from "../../core/entity/application.ts";
 import { parse } from "../errors.ts";
 import { notFound } from "../../core/shared/errors.ts";
-import type { ToolDef } from "./tools.ts";
+import { keyedTool, type ToolDef } from "./tools.ts";
 function idParam(value: unknown): string {
   if (!id.safeParse(value).success) throw notFound();
   return value as string;
@@ -15,13 +15,13 @@ export function entityTools(d: entity.EntityDeps): ToolDef[] {
   const get = z.strictObject({ id: z.unknown() }),
     update = entityUpdate.extend({ id: z.unknown() }),
     remove = z.strictObject({ id: z.unknown(), expected_version: expectedVersion, ...businessMeta });
-  return [
+  const tools: ToolDef[] = [
     {
       name: "prepare_entity_registration",
       description:
-        "등록 전에 발급처 기본값과 날짜와 랜덤 8자로 구성된 자동 식별자를 한 번 고정하고 동일 조합의 저장값을 조회한다. create이면 반환된 source/external_id를 그대로 저장·재시도한다. restore이면 existing 보관값과 expected_version을 확인하고 등록으로 복원한다. duplicate이면 활성 중복을 거부한다.",
+        "등록 전에 발급처·발급 모드·settings_version을 확인한다. 자동 식별자는 저장 트랜잭션에서 발급한다. 반환된 source/settings_version과 명시한 external_id를 실제 쓰기에 유지한다. restore이면 existing 보관값과 expected_version을 확인하고 등록으로 복원한다. duplicate이면 활성 중복을 거부한다.",
       input: entityCreate.pick({ source: true, external_id: true }),
-      readOnly: false,
+      readOnly: true,
       handler: (i, a) =>
         entity.prepareEntityRegistration(d, a, parse(entityCreate.pick({ source: true, external_id: true }), i)),
     },
@@ -87,4 +87,5 @@ export function entityTools(d: entity.EntityDeps): ToolDef[] {
       },
     },
   ];
+  return tools.map((tool) => tool.readOnly || tool.name.startsWith("prepare_") ? tool : keyedTool(tool));
 }

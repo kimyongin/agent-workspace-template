@@ -1,3 +1,4 @@
+import { runWrite } from "../shared/request.ts";
 import { entityChangeFacts, entityChangeTarget } from "./change.ts";
 import { entityUpdateDecision, registrationContent, registrationIdentity, registrationState } from "./domain.ts";
 import { isoDate, isoDateTime, text } from "../../contracts/common.ts";
@@ -6,7 +7,7 @@ import {
   entityId,
   type EntityIdentitySettings,
   entityReferenceId,
-  generateEntityExternalId,
+  entitySourceGeneration,
 } from "../../contracts/entity-identity.ts";
 import type {
   EntityCreate,
@@ -17,14 +18,14 @@ import type {
   EntityUpdate,
 } from "../../contracts/entity.ts";
 import type { Actor } from "../shared/actor.ts";
-import { conflict, invalidInput, notFound } from "../shared/errors.ts";
+import { AppError, conflict, invalidInput, notFound } from "../shared/errors.ts";
 import { scopeOf } from "../shared/operations.ts";
 import type { Keyset } from "../shared/store.ts";
 import { type ChangeStore } from "../shared/changes.ts";
 
 export interface EntityStore extends ChangeStore {
   issueDataId?(): Promise<string>;
-  getBusinessSettings(): Promise<{ settings: { entity_identity?: EntityIdentitySettings } }>;
+  getBusinessSettings(): Promise<{ versions?: { entity_identity: number }; settings: { entity_identity?: EntityIdentitySettings } }>;
   get(id: string, lock?: boolean): Promise<EntityResult | null>;
   related(id: string): Promise<Pick<EntityDetail, "tasks" | "records">>;
   insert(
@@ -50,30 +51,35 @@ export interface EntityStore extends ChangeStore {
 export interface EntityDeps {
   uow: { run<T>(actor: Actor, fn: (store: EntityStore) => Promise<T>): Promise<T> };
 }
-/** Freeze generated identity before writing so an uncertain response can be retried with the exact tuple. */
+/** Read-only preparation freezes issuer, mode and settings revision, never reserves an ID. */
 export function prepareEntityRegistration(d: EntityDeps, a: Actor, i: Pick<EntityCreate, "source" | "external_id">) {
   return d.uow.run(a, async (s) => {
-    const settings = (await s.getBusinessSettings()).settings.entity_identity ?? defaultEntityIdentitySettings;
-    const { source } = registrationIdentity(settings, i, "prepare");
-    const external_id = i.external_id ?? (s.issueDataId ? await s.issueDataId() : generateEntityExternalId()),
-      id = entityId(source, external_id);
-    const existing = await s.get(id);
-    return {
-      source,
-      external_id,
-      id,
-      action: registrationState(existing),
-      expected_version: existing?.version,
-      existing: existing ? { ...existing, ...await s.related(id) } : null,
-    };
+    const saved = await s.getBusinessSettings();
+    const settings = saved.settings.entity_identity ?? defaultEntityIdentitySettings;
+    const { source, external_id } = registrationIdentity(settings, i, "prepare");
+    const id = external_id === undefined ? undefined : entityId(source, external_id);
+    const existing = id === undefined ? null : await s.get(id);
+    return { source, generation: entitySourceGeneration(settings, source), settings_version: saved.versions?.entity_identity ?? 0,
+      external_id, id, action: registrationState(existing), expected_version: existing?.version,
+      existing: existing && id ? { ...existing, ...await s.related(id) } : null };
   });
 }
 export function createEntity(d: EntityDeps, a: Actor, i: EntityCreate) {
-  return d.uow.run(a, async (s) => {
-    const settings = (await s.getBusinessSettings()).settings.entity_identity ?? defaultEntityIdentitySettings;
-    const { source, external_id } = registrationIdentity(settings, i, "write");
+  return runWrite(d.uow, a, i.expected_version === undefined ? "entity.create" : "entity.restore", null, i, async (s) => {
+    const saved = await s.getBusinessSettings();
+    if (i.settings_version !== undefined && i.settings_version !== (saved.versions?.entity_identity ?? 0)) {
+      throw new AppError("settings_changed", "발급처 설정이 변경되었습니다. 다시 준비하세요");
+    }
+    const settings = saved.settings.entity_identity ?? defaultEntityIdentitySettings;
+    const { source } = registrationIdentity(settings, i, "prepare");
+    if (i.expected_version !== undefined && i.external_id === undefined) throw invalidInput("복원할 외부 식별자가 필요합니다");
+    let external_id = i.external_id;
+    if (external_id === undefined) {
+      if (!s.issueDataId) throw invalidInput("ID 발급 저장소가 필요합니다");
+      do { external_id = await s.issueDataId(); } while (await s.get(entityId(source, external_id), true));
+    }
     const id = entityId(source, external_id);
-    const { change_note, change_tag_ids, expected_version, ...props } = i;
+    const { change_note, change_tag_ids, expected_version, settings_version: _settings, ...props } = i;
     const old = await s.get(id, true);
     const registration = registrationState(old);
     if (registration === "duplicate") throw conflict("같은 발급처·식별자의 활성 엔터티가 있습니다");
@@ -110,7 +116,7 @@ async function requireVersion(s: EntityStore, id: string, expected: number) {
   return entity;
 }
 export function rekeyEntity(d: EntityDeps, a: Actor, id: string, i: EntityRekey) {
-  return d.uow.run(a, async (s) => {
+  return runWrite(d.uow, a, "entity.rekey", id, i, async (s) => {
     const old = await requireVersion(s, id, i.expected_version);
     const settings = (await s.getBusinessSettings()).settings.entity_identity ?? defaultEntityIdentitySettings;
     const decision = entityUpdateDecision(settings, { id, facts: entityChangeFacts(old) }, i, true);
@@ -132,7 +138,7 @@ export function rekeyEntity(d: EntityDeps, a: Actor, id: string, i: EntityRekey)
   });
 }
 export function updateEntity(d: EntityDeps, a: Actor, id: string, i: EntityUpdate) {
-  return d.uow.run(a, async (s) => {
+  return runWrite(d.uow, a, "entity.update", id, i, async (s) => {
     const old = await requireVersion(s, id, i.expected_version);
     const { expected_version: _v, change_note, change_tag_ids, ...input } = i;
     // Ordinary property edits on retired issuers do not require settings or a rekey.
@@ -167,8 +173,7 @@ export function deleteEntity(
   change_note?: string,
   change_tag_ids?: string[],
 ) {
-  return d.uow.run(
-    a,
+  return runWrite(d.uow, a, "entity.delete", id, { expected_version: expected, change_note, change_tag_ids },
     async (s) => {
       const old = await requireVersion(s, id, expected);
       await s.delete(id);

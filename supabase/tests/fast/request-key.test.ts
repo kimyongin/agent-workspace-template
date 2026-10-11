@@ -16,3 +16,10 @@ Deno.test("task write without logical request key never starts a transaction", a
   );
   assertEquals(error.code, "invalid_input");
 });
+
+import { createRecord } from "../../functions/_shared/core/activity/application.ts";
+Deno.test("record write without request key never starts a transaction", async () => {
+  const deps = { clock: { now: () => new Date() }, uow: { run: () => { throw new Error("transaction started"); } } };
+  const error = await assertRejects(() => createRecord(deps, { userId: crypto.randomUUID() }, { body: "memo" } as never), AppError);
+  assertEquals(error.code, "invalid_input");
+});

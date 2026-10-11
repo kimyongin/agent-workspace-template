@@ -14,6 +14,7 @@ const properties = {
   prop4: z.enum(["a", "b", "c"]),
 };
 export const entityCreate = z.strictObject({
+  settings_version: z.number().int().nonnegative().optional(),
   source: entitySourceCode.optional(),
   external_id: entityExternalId.optional(),
   expected_version: expectedVersion.optional(),
