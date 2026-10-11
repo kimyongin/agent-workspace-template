@@ -59,7 +59,7 @@ Deno.test("every public MCP business write requires UUID request_key before exec
   const writes = tools.filter((tool) => !tool.readOnly);
   assertEquals(writes.length, 21);
   for (const tool of writes) {
-    const schema = z.toJSONSchema(tool.input);
+    const schema = z.toJSONSchema(tool.input, { io: "input" });
     assertEquals(schema.required?.includes("request_key"), true, tool.name);
     const error = await assertRejects(async () => await tool.handler({}, { userId: crypto.randomUUID() }), AppError);
     assertEquals(error.code, "invalid_input", tool.name);
@@ -67,7 +67,7 @@ Deno.test("every public MCP business write requires UUID request_key before exec
   for (const name of ["prepare_entity_registration", "prepare_record_memo"]) {
     const tool = tools.find((tool) => tool.name === name)!;
     assertEquals(tool.readOnly, true);
-    assertEquals(z.toJSONSchema(tool.input).required?.includes("request_key") ?? false, false);
+    assertEquals(z.toJSONSchema(tool.input, { io: "input" }).required?.includes("request_key") ?? false, false);
   }
   assertEquals(tools.some((tool) => tool.name === "allocate_data_id"), false);
 });
