@@ -81,8 +81,6 @@ export type { IndexJob } from "../shared/store.ts";
 /** 한 트랜잭션 안의 저장소. 모든 조회·쓰기·큐 등록이 같은 연결을 쓴다. */
 export interface ActivityStore extends ChangeStore, RequestStore {
   getTask(id: string, opts?: { forUpdate?: boolean }): Promise<Task | null>;
-  /** 새 선택은 현재 소유자의 살아 있는 엔터티여야 한다. 저장하지 않는다. */
-  validateEntitySelection(ids: string[]): Promise<void>;
   listTasks(filter: TaskFilter): Promise<Task[]>;
   insertTask(task: NewTask): Promise<Task>;
   /** 버전을 1 올리고 updated_at을 갱신한다. */

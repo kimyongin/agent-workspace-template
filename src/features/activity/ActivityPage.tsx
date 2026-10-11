@@ -17,7 +17,7 @@ import { api } from "../../lib/api.ts";
 import { useDisplayTime } from "../../lib/useDisplayTime.ts";
 import { TagDictionaryStatus, TagReadProvider, useTagDictionary } from "../tags/TagPicker.tsx";
 import { recordKindNames } from "./ChangeContext.tsx";
-import { emptyRecord, emptyTask, RecordFormModal, TaskFormModal, taskInput } from "./forms.tsx";
+import { emptyRecord, emptyTask, RecordFormModal, TaskFormModal } from "./forms.tsx";
 import { type ActivityItem, useActivityList } from "./useActivityList.ts";
 import { Timeline } from "./Timeline.tsx";
 import { ACTIVITY_TAG_LIMIT, activityTags, periodBounds } from "./activity-filters.ts";
@@ -106,7 +106,7 @@ export function ActivityPage({ kind }: { kind: WorkspaceListKind }) {
       </div>
     </section>
     <ActivitySection kind={kind} tags={tags} bounds={bounds} dictionary={dictionary} onCreate={begin}/>
-    {create.open && (kind === "tasks" ? <TaskFormModal key={create.key} mode="create" open initial={emptyTask(timezone)} onClose={create.close} onRouteDiscard={create.discard} onSave={async (draft, requestKey) => { const task = await api<TaskResult>("POST", "/tasks", { ...taskInput(draft) }, undefined, requestKey()); saved("task", task.id); }}/>
+    {create.open && (kind === "tasks" ? <TaskFormModal key={create.key} mode="create" open initial={emptyTask(timezone)} onClose={create.close} onRouteDiscard={create.discard} onSave={async save => { const task = await save(); saved("task", task.id); }}/>
       : <RecordFormModal key={create.key} title="기록 작성" submitLabel="저장" open initial={emptyRecord()} onClose={create.close} onRouteDiscard={create.discard} onSave={async (draft, requestKey) => { const record = await api<RecordResult>("POST", "/records", { ...draft }, undefined, requestKey()); saved("record", record.id); }}/>) }
   </>;
 }

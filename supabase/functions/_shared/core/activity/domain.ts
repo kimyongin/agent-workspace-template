@@ -1,4 +1,3 @@
-import { entityChanges, selectedEntities } from "./entity-selection.ts";
 import type { EntityContext } from "../../contracts/entity-links.ts";
 // 할 일·활동 기록의 업무 규칙. DB·SDK·HTTP를 모른다(ADR-0001, ADR-0003).
 // 상태 전환과 완료 조건의 유일한 구현이며 SQL에 같은 판단을 두지 않는다.
@@ -55,7 +54,7 @@ export function taskContent(
     | Omit<Extract<TaskCreate, { kind: "recurring" }>, "id">,
 ): Omit<NewTask, "id"> {
   const common = {
-    ...entityChanges({ entity_ids: selectedEntities(input) ?? [] }),
+    entity_ids: input.entity_ids ?? [],
     title: input.title,
     body: input.body,
     pauses: [],
@@ -105,7 +104,7 @@ export function updateTask(task: Pick<Task, "kind" | "version">, patch: TaskUpda
       message: "반복 할 일에서 쓸 수 없습니다",
     }]);
   }
-  return { ...changes, ...entityChanges(changes) };
+  return changes;
 }
 
 /** 일회성 할 일 완료 판단. 저장(할 일 상태·결과 기록·색인 등록)은 application이 한 트랜잭션으로 한다. */

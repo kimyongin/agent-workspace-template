@@ -16,7 +16,6 @@ import type { Actor } from "../../core/shared/actor.ts";
 import { runAsActor, SqlActorStore } from "./sql-context.ts";
 import { AppError } from "../../core/shared/errors.ts";
 import { hasAnyTag, hasTag, setTagLinks, tagIdsColumn } from "./tag-links.ts";
-import { selectedEntities } from "../../core/activity/entity-selection.ts";
 
 type Tx = postgres.TransactionSql;
 type Row = Record<string, unknown>;
@@ -130,7 +129,7 @@ export class SqlActivityStore extends SqlActorStore implements ActivityStore {
 
   async insertTask(task: NewTask) {
     const tx = this.tx;
-    const selection = await this.entityLinks.taskSelection(selectedEntities(task) ?? []);
+    const selection = await this.entityLinks.taskSelection(task.entity_ids ?? []);
     const values = {
       owner_id: this.actor.userId,
       kind: task.kind,
@@ -144,10 +143,6 @@ export class SqlActivityStore extends SqlActorStore implements ActivityStore {
     return (await this.getTask(row.id as string))!;
   }
 
-  async validateEntitySelection(ids: string[]) {
-    await this.entityLinks.validateSelection(ids);
-  }
-
   async setTaskTags(taskId: string, ids: string[]) {
     await setTagLinks(this.tx, this.actor, "task", taskId, ids);
   }
@@ -156,7 +151,7 @@ export class SqlActivityStore extends SqlActorStore implements ActivityStore {
     const tx = this.tx;
     const values = {
       ...pick(tx, changes, TASK_WRITABLE),
-      ...await this.entityLinks.taskSelection(selectedEntities(changes), id),
+      ...await this.entityLinks.taskSelection(changes.entity_ids, id),
     };
     if (changes.tag_ids !== undefined) await this.setTaskTags(id, changes.tag_ids);
     if (Object.keys(values).length === 0 && changes.tag_ids === undefined) {
@@ -224,7 +219,7 @@ export class SqlActivityStore extends SqlActorStore implements ActivityStore {
   async insertRecord(record: NewRecord) {
     const tx = this.tx;
     const selection = await this.entityLinks.recordSelection(
-      selectedEntities(record) ?? [],
+      record.entity_ids ?? [],
       undefined,
       record.inherit_task_entities ? record.task_id ?? undefined : undefined,
     );
@@ -248,7 +243,7 @@ export class SqlActivityStore extends SqlActorStore implements ActivityStore {
     const tx = this.tx;
     const values = {
       ...pick(tx, changes, RECORD_WRITABLE),
-      ...await this.entityLinks.recordSelection(selectedEntities(changes), id),
+      ...await this.entityLinks.recordSelection(changes.entity_ids, id),
     };
     if (changes.tag_ids !== undefined) await setTagLinks(tx, this.actor, "record", id, changes.tag_ids);
     if (
