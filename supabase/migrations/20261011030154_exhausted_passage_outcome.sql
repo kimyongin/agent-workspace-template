@@ -31,4 +31,3 @@ begin
     where id=p_effect;
   return true;
 end $$;
-

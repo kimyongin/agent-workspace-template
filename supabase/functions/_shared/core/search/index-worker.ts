@@ -2,7 +2,7 @@ import { SEARCH_PIPELINE } from "./config.ts";
 
 export type EmbeddingFailure = "input_limit" | "configuration" | "transient" | "invalid_response";
 export class EmbeddingError extends Error {
-  constructor(public readonly category: EmbeddingFailure) {
+  constructor(public readonly category: EmbeddingFailure, public readonly uncertain = false) {
     super(category);
   }
 }
