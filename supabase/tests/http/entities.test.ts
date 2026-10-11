@@ -3,13 +3,23 @@ import { call, httpTest, signIn } from "./_client.ts";
 const A = await signIn("A"), B = await signIn("B");
 httpTest("Entity HTTP: CRUD·권한·입력·버전·참조·삭제 보존 실제 진입점", async () => {
   assertEquals((await call(null, "GET", "/entities")).status, 401);
+  assertEquals((await call(A, "POST", "/entities/prepare", { source: "app" })).status, 404);
+  const settings = await call(A, "GET", "/settings/business?id=entity_identity");
+  assertEquals(settings.status, 200);
+  assertEquals(Object.keys(settings.body.settings), ["entity_identity"]);
+  const settings_version = settings.body.versions.entity_identity;
   const input = {
+    settings_version,
     source: "app",
     external_id: crypto.randomUUID(),
     prop1: "  실제 엔터티  ",
     prop2: 0,
     prop3: "2024-02-29",
   };
+  assertEquals(
+    (await call(A, "POST", "/entities", { ...input, settings_version: settings_version + 1 })).body.code,
+    "settings_changed",
+  );
   const created = await call(A, "POST", "/entities", input);
   assertEquals(created.status, 201);
   const e = created.body;
@@ -55,5 +65,31 @@ httpTest("Entity HTTP: CRUD·권한·입력·버전·참조·삭제 보존 실�
     (await call(A, "POST", "/search", { query: search.query, mode: "keyword", kinds: ["task"] })).body.items[0].id,
     task.id,
   );
+  const retained = (await call(A, "GET", `/entities/${encodeURIComponent(e.id)}`)).body;
+  assert(retained.deleted_at);
+  assertEquals([retained.prop1, retained.prop2, retained.prop4, retained.version], ["실제 엔터티", null, "c", 3]);
+  for (const expected_version of [undefined, 2]) {
+    assertEquals(
+      (await call(A, "POST", "/entities", { ...input, ...expected_version === undefined ? {} : { expected_version } }))
+        .body.code,
+      "conflict",
+    );
+  }
+  const restored = await call(A, "POST", "/entities", {
+    source: input.source,
+    external_id: input.external_id,
+    settings_version,
+    expected_version: retained.version,
+  });
+  assertEquals(restored.status, 201);
+  assertEquals([
+    restored.body.id,
+    restored.body.prop1,
+    restored.body.prop2,
+    restored.body.prop4,
+    restored.body.version,
+    restored.body.deleted_at,
+  ], [e.id, "실제 엔터티", null, "c", 4, null]);
+  await call(A, "DELETE", `/entities/${encodeURIComponent(e.id)}?expected_version=4`);
   await call(A, "DELETE", `/tasks/${task.id}?expected_version=1`);
 });

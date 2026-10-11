@@ -174,7 +174,6 @@ const EXPECTED_TOOLS = [
   "get_business_settings",
   "update_business_settings",
   "prepare_record_memo",
-  "prepare_entity_registration",
   "rekey_entity",
   "create_entity",
   "delete_entity",
