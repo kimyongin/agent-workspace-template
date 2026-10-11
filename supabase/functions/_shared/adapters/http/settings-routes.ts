@@ -8,7 +8,10 @@ import {
 import { type HttpEnv, json } from "./input.ts";
 export function settingsRoutes(deps: BusinessSettingsDeps) {
   const app = new Hono<HttpEnv>();
-  app.get("/settings/business", async (c) => c.json(await getBusinessSettings(deps, c.get("actor"))));
+  app.get(
+    "/settings/business",
+    async (c) => c.json(await getBusinessSettings(deps, c.get("actor"), { id: c.req.query("id") })),
+  );
   app.patch(
     "/settings/business",
     async (c) => c.json(await updateBusinessSettings(deps, c.get("actor"), await json(c.req.raw))),

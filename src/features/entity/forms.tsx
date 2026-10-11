@@ -29,7 +29,7 @@ export function EntityForm(
   const settingsVersion = useRef<number | undefined>(undefined);
   useEffect(()=>{
     const controller=new AbortController();
-    void api<{settings:{entity_identity:EntityIdentitySettings};versions:{entity_identity:number}}>("GET","/settings/business",undefined,controller.signal).then(result=>{
+    void api<{settings:{entity_identity:EntityIdentitySettings};versions:{entity_identity:number}}>("GET","/settings/business?id=entity_identity",undefined,controller.signal).then(result=>{
       if(controller.signal.aborted)return;
       const settings=result.settings.entity_identity??defaultEntityIdentitySettings;
       settingsVersion.current=result.versions.entity_identity;
