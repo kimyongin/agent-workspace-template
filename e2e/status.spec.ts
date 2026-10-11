@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { devLogin, env, mcpClient, mcpTokenViaConsent } from "./support.ts";
 
-test("상태: 실제 인증 HTTP·OAuth MCP 집계와 lazy 기본 접힘, 키보드·터치 날짜 선택", async ({ page }) => {
+test("상태: 실제 인증 HTTP·OAuth MCP 집계와 lazy 기본 접힘, 그래프 클릭·터치·키보드 선택 및 설정 디자인", async ({ page, isMobile }) => {
   await devLogin(page);
   const mcp = await mcpClient(await mcpTokenViaConsent(page));
   let issuesRequests = 0;
@@ -54,11 +54,40 @@ test("상태: 실제 인증 HTTP·OAuth MCP 집계와 lazy 기본 접힘, 키보
     }
     await page.setViewportSize(originalViewport);
     await explanation.click();
-    const sliders = page.getByRole("slider");
-    expect(await sliders.count()).toBe(4);
-    await sliders.first().focus();
-    await page.keyboard.press("Home");
-    await expect(sliders.first()).toHaveValue("0");
+    await expect(page.getByRole("slider")).toHaveCount(0);
+    const charts = page.getByRole("button", { name: /그래프: 막대를 누르거나 방향키로 날짜 선택/ });
+    await expect(charts).toHaveCount(4);
+    const metrics = [
+      (day: typeof response.daily[number]) => `등록 ${day.entities_created}건`,
+      (day: typeof response.daily[number]) => `생성 ${day.tasks_created}건 · 일회성 완료 ${day.once_completed}건`,
+      (day: typeof response.daily[number]) => `작성 ${day.records_created}건`,
+      (day: typeof response.daily[number]) =>
+        `완료 ${day.indexing.indexed}건 · 준비 중 ${day.indexing.preparing}건 · 확인 필요 ${day.indexing.attention}건 · 대상 제외 ${day.indexing.excluded}건`,
+    ];
+    for (let i = 0; i < metrics.length; i++) {
+      const chart = charts.nth(i);
+      const detail = chart.locator("..").locator(".status-day-detail");
+      for (const dayIndex of [0, response.daily.length - 1]) {
+        await chart.scrollIntoViewIfNeeded();
+        const box = (await chart.boundingBox())!;
+        const x = box.width * (dayIndex + .5) / response.daily.length;
+        if (isMobile) await page.touchscreen.tap(box.x + x, box.y + box.height / 2);
+        else await chart.click({ position: { x, y: box.height / 2 } });
+        const chosen = response.daily[dayIndex];
+        await expect(detail).toHaveText(`${chosen.date} · ${metrics[i](chosen)}`);
+      }
+      await chart.focus();
+      await page.keyboard.press("Home");
+      await expect(detail).toContainText(response.daily[0].date);
+      await page.keyboard.press("ArrowRight");
+      await expect(detail).toContainText(response.daily[1].date);
+      await page.keyboard.press("ArrowLeft");
+      await expect(detail).toContainText(response.daily[0].date);
+      await page.keyboard.press("ArrowLeft");
+      await expect(detail).toContainText(response.daily[0].date);
+      await page.keyboard.press("End");
+      await expect(detail).toContainText(response.daily.at(-1).date);
+    }
     await toggle.click();
     await expect(toggle).toHaveAttribute("aria-expanded", "true");
     await expect.poll(() => issuesRequests).toBe(1);
@@ -69,6 +98,37 @@ test("상태: 실제 인증 HTTP·OAuth MCP 집계와 lazy 기본 접힘, 키보
     await page.getByRole("button", { name: "새로고침", exact: true }).click();
     await expect(page.getByRole("button", { name: /^색인 문제/ })).toHaveAttribute("aria-expanded", "false");
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    const styles = async (section: string, title: string) =>
+      page.evaluate(({ section, title }) => {
+        const pick = (selector: string, properties: string[]) => {
+          const style = getComputedStyle(document.querySelector(selector)!);
+          return properties.map((property) => style.getPropertyValue(property));
+        };
+        return {
+          page: pick(".app-main > .panel", ["width", "gap", "padding"]),
+          heading: pick(".page-title", ["font-size", "line-height", "font-weight", "color"]),
+          section: pick(section, [
+            "background-color",
+            "padding",
+            "border-width",
+            "border-color",
+            "border-radius",
+            "gap",
+          ]),
+          title: pick(title, ["font-size", "line-height", "font-weight", "color"]),
+        };
+      }, { section, title });
+    for (const width of [320, 639, 640, 1440]) {
+      await page.setViewportSize({ width, height: originalViewport.height });
+      await page.goto("/settings");
+      await expect(page.getByRole("heading", { name: "설정", level: 1 })).toBeVisible();
+      const settingsStyle = await styles(".settings-section", ".settings-section-title");
+      await page.goto("/status");
+      await expect(page.getByText("이번 조회 연결 성공")).toBeVisible();
+      expect(await styles(".status-section", ".status-section-title")).toEqual(settingsStyle);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    }
+    await page.setViewportSize(originalViewport);
   } finally {
     await mcp.close();
   }
