@@ -6,7 +6,7 @@
 
 트리는 배치 제안이며 빈 디렉토리를 모두 미리 만드는 지시가 아니다. 기능별 구현 범위와 검증 조건은 해당 GitHub issue/spec에서 관리한다.
 
-단일 저장소와 단일 웹 앱, 하나의 서버 코드 기반으로 시작한다. api, mcp와 비동기 worker는 같은 서버 코드를 조립하는 배포 진입점이다. 아래 search-index는 첫 worker의 예시다. 공통 및 앱별 업무 기능은 실제 이름으로 같은 위치에 추가한다.
+단일 저장소와 단일 웹 앱, 하나의 서버 코드 기반으로 시작한다. api, mcp와 비동기 worker는 같은 서버 코드를 조립하는 배포 진입점이다. 아래 index-worker는 검색 색인 worker다. 공통 및 앱별 업무 기능은 실제 이름으로 같은 위치에 추가한다.
 
 ## 제안 구조
 
@@ -50,7 +50,7 @@ agent-workspace-template/
 │  ├─ functions/
 │  │  ├─ api/index.ts              # 웹 HTTP: 작업·기록·원칙·검색
 │  │  ├─ mcp/index.ts              # 외부 에이전트 MCP
-│  │  ├─ search-index/index.ts     # 비동기 worker의 첫 사례: 검색 색인
+│  │  ├─ index-worker/index.ts     # 비동기 worker: 검색 색인
 │  │  └─ _shared/
 │  │     ├─ core/                  # 업무 모델·유스케이스·포트
 │  │     │  ├─ activity/
@@ -66,7 +66,7 @@ agent-workspace-template/
 │  │     │  ├─ mcp/               # 프로토콜과 기능별 도구
 │  │     │  ├─ auth/              # 세션·OAuth 검증 연결
 │  │     │  ├─ supabase/          # 저장·트랜잭션·pgmq·pgvector 연결
-│  │     │  └─ embedding/         # Pinecone Inference 연결
+│  │     │  └─ pinecone/          # Pinecone Inference 연결
 │  │     └─ bootstrap.ts          # 요청별 문맥과 구현 조립
 │  └─ tests/database/             # 소유권·경쟁·원자 저장 검증
 ├─ plugins/workspace/             # 에이전트용 통합 플러그인 원본
@@ -101,7 +101,7 @@ agent-workspace-template/
 - domain은 공통/앱별 구분이 아니라 업무 모델의 역할이다. Task와 ActivityRecord도 도메인 모델이다. UI를 포함하는 별도 src/domain은 두지 않는다.
 - 예제 엔터티 `Entity`는 [PRD](../product/concept.md)의 기본 예제다. 명시적인 컬럼을 가진 단일 테이블과 그 모델·유스케이스·화면이며 이름 그대로 `entity` 위치에 둔다. 새 앱은 이 위치를 도메인 이름으로 바꾼다. 예를 들어 고객 앱은 `entity`를 `customers`로 바꾸고 고객 DB migration·HTTP/MCP·저장 어댑터·제품 스킬·테스트를 함께 바꾼다.
 - 금지하는 것은 동적 키–값 컬럼이나 범용 payload로 여러 도메인을 담는 Entity/Item 저장소다. 예제 `Entity`는 속성이 컬럼으로 고정된 도메인 테이블이므로 이 금지 대상이 아니다.
-- 검색 이름은 search다. HTTP 검색은 api의 /search에 둔다. search-index는 권한과 실행 계기가 다른 내부 작업이므로 분리한다. knowledge 접두어는 사용하지 않는다.
+- 검색 이름은 search다. HTTP 검색은 api의 /search에 둔다. index-worker는 권한과 실행 계기가 다른 내부 작업이므로 분리한다. knowledge 접두어는 사용하지 않는다.
 - 웹은 업무 API 응답을 사용한다. DB 행 타입, 서버 bootstrap/adapters를 브라우저로 가져오지 않는다. API DTO·DB 행·도메인 모델을 구분하되 형식적인 변환 클래스를 의무화하지 않는다.
 - plugins/workspace는 MCP 연결과 제품 스킬을 함께 배포하는 플러그인 원본이다. manifest·연결 설정·스킬·참고 문서를 포함한다. 트리의 꺾쇠 항목은 설명용 자리이며 실제 파일명이 아니다. 지원 클라이언트는 Claude와 Codex로 확정했다. 각 클라이언트의 공식 형식과 endpoint/등록 앱 참조 방식을 확인한 뒤 실제 파일명을 문서화한다. 클라이언트별 manifest는 같은 skills/workspace를 참조하고 제품 스킬을 클라이언트별로 복제하지 않는다. 하나의 manifest가 모든 에이전트에 설치된다고 가정하지 않는다.
 - AGENTS는 프로젝트 개발 문맥, .agents/skills의 SKILL은 개발 방법, plugins/workspace의 SKILL은 제품 사용 규칙, principles는 사용자 원칙 데이터다. 개발용 [코드 설계 원칙](../architecture/principles.md)과 다르다. workspace라는 제품 이름이 다중 조직·멤버십 모델을 자동으로 요구하지 않는다.

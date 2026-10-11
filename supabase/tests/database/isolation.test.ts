@@ -1,6 +1,8 @@
 // 사용자 격리·직접 쓰기 차단·연결 재사용 시 문맥 해제·원본과 큐의 원자성(실제 로컬 DB).
 import { assert, assertEquals, assertMatch } from "@std/assert";
-import { asUser, connect, dbTest, devUsers, outcome, urls } from "./_db.ts";
+import { SEARCH_PIPELINE } from "../../functions/_shared/core/search/config.ts";
+import { searchInputHash } from "../../functions/_shared/core/shared/operations.ts";
+import { asUser, connect, dbTest, devUsers, fixtureOwner, outcome, urls } from "./_db.ts";
 
 const admin = connect(urls.admin, { max: 1 });
 const { a: A, b: B } = await devUsers(admin);
@@ -51,32 +53,47 @@ for (
     }
   });
 
-  dbTest(`${name}: 원본 저장과 큐 전송은 함께 롤백·커밋된다`, async () => {
+  dbTest(`${name}: 현재 색인 등록 경로로 원본·상태·큐는 함께 롤백·커밋된다`, async () => {
     const sql = connect(url, { max: 1, ...opts });
+    const fixture = await fixtureOwner(admin), owner = fixture.actor.userId;
+    const body = "현재 색인 등록 원문", hash = await searchInputHash(body);
     const count = async () => {
-      const [r] = await admin<{ tasks: number; msgs: number }[]>`
-        select (select count(*)::int from app.tasks) as tasks, (select count(*)::int from pgmq.q_search_index) as msgs`;
+      const [r] = await admin<{ records: number; states: number; msgs: number }[]>`
+        select (select count(*)::int from app.records where owner_id=${owner}) as records,
+          (select count(*)::int from app.search_index_state where owner_id=${owner}) as states,
+          (select count(*)::int from pgmq.q_search_index where message->>'owner_id'=${owner}) as msgs`;
       return r;
     };
+    const insertAndEnqueue = async (tx: Parameters<Parameters<typeof asUser>[2]>[0]) => {
+      const [{ id }] = await tx<{ id: string }[]>`
+        insert into app.records(owner_id,body) values(${owner},${body}) returning id`;
+      await tx`select app.enqueue_search_index('record',${id},${hash},${SEARCH_PIPELINE})`;
+    };
     try {
-      const before = await count();
-      const failed = await outcome(asUser(sql, A, async (tx) => {
-        await insertTask(A, "롤백 대상")(tx);
-        await tx`reset role`;
-        await tx`select pgmq.send('search_index', ${tx.json({ kind: "task" })})`;
-        throw new Error("전송 뒤 실패");
+      assertEquals(await count(), { records: 0, states: 0, msgs: 0 });
+      const failed = await outcome(asUser(sql, owner, async (tx) => {
+        await insertAndEnqueue(tx);
+        throw new Error("색인 등록 뒤 실패");
       }));
-      assertMatch(failed, /전송 뒤 실패/);
-      assertEquals(await count(), before);
+      assertMatch(failed, /색인 등록 뒤 실패/);
+      assertEquals(await count(), { records: 0, states: 0, msgs: 0 });
 
-      await asUser(sql, A, async (tx) => {
-        await insertTask(A, "커밋 대상")(tx);
-        await tx`reset role`;
-        await tx`select pgmq.send('search_index', ${tx.json({ kind: "task" })})`;
+      await asUser(sql, owner, insertAndEnqueue);
+      assertEquals(await count(), { records: 1, states: 1, msgs: 1 });
+      const [job] = await admin`
+        select s.id,s.input_hash,s.pipeline,m.message from app.search_index_state s
+        join pgmq.q_search_index m on m.msg_id=s.message_id where s.owner_id=${owner}`;
+      assertEquals(job.input_hash, hash);
+      assertEquals(job.pipeline, SEARCH_PIPELINE);
+      assertEquals(job.message, {
+        owner_id: owner,
+        kind: "record",
+        id: job.id,
+        input_hash: hash,
+        pipeline: SEARCH_PIPELINE,
       });
-      const after = await count();
-      assertEquals(after, { tasks: before.tasks + 1, msgs: before.msgs + 1 });
     } finally {
+      await fixture.cleanup();
       await sql.end();
     }
   });
@@ -123,6 +140,34 @@ dbTest("Supabase API 역할(authenticated·anon)과 접속 역할은 업무 테�
     assertMatch(await outcome(app`select * from pgmq.read('search_index', 30, 1)`), /^42501 permission denied/);
   } finally {
     await app.end();
+  }
+});
+
+dbTest("접속·사용자 역할의 직접 큐 전송·테이블 접근은 거부된다", async () => {
+  const fixture = await fixtureOwner(admin);
+  const message = JSON.stringify({ owner_id: fixture.actor.userId });
+  try {
+    for (const role of ["app_server", "app_user"]) {
+      const [{ allowed }] = await admin`select has_schema_privilege(${role},'pgmq','USAGE') as allowed`;
+      assertEquals(allowed, false, role);
+      for (
+        const query of [
+          "select pgmq.send('search_index',$1::jsonb)",
+          "select pgmq.send('search_index',$1::jsonb,'{}'::jsonb,now())",
+          "insert into pgmq.q_search_index(message) values($1::jsonb)",
+          "select msg_id from pgmq.q_search_index limit 1",
+          "select pgmq.format_table_name('q','search_index')",
+        ]
+      ) {
+        const result = await outcome(admin.begin(async (tx) => {
+          await tx.unsafe(`set local role ${role}`);
+          return tx.unsafe(query, query.includes("$1") ? [message] : []);
+        }));
+        assertMatch(result, /^42501 permission denied/, `${role}: ${query}`);
+      }
+    }
+  } finally {
+    await fixture.cleanup();
   }
 });
 

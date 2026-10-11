@@ -55,7 +55,7 @@ Cron → 내부 Edge worker → 해당 작업의 유스케이스 → 필요한 �
 
 위 도식은 실행 시 호출 흐름이다. 코드 의존성은 HTTP/MCP 어댑터→application→domain과 Supabase/외부 서비스 어댑터→core의 포트 방향이다. core가 구체적인 어댑터를 import하지 않는다.
 
-HTTP와 MCP는 같은 유스케이스를 직접 호출한다. 서로의 endpoint를 다시 호출하지 않는다. 공개 진입점은 api와 mcp, 첫 비동기 작업 진입점은 search-index다. api는 /tasks, /records, /search 같은 목적별 경로를 가진다. 새로운 비동기 작업의 진입점은 실제 기능이 추가될 때 정한다.
+HTTP와 MCP는 같은 유스케이스를 직접 호출한다. 서로의 endpoint를 다시 호출하지 않는다. 공개 진입점은 api와 mcp, 검색 색인의 비동기 작업 진입점은 index-worker다. api는 /tasks, /records, /search 같은 목적별 경로를 가진다. 새로운 비동기 작업의 진입점은 실제 기능이 추가될 때 정한다.
 
 core는 SDK, React, Request/Response, Deno.env, 직접 SQL·네트워크에 의존하지 않는다. adapters가 core의 계약에 의존한다. bootstrap은 검증된 사용자 문맥과 실제 구현을 요청별로 조립한다. 웹은 제품 데이터에 직접 .rpc/.from 쓰기를 하지 않는다. Auth SDK의 로그인/세션 처리는 별개다.
 
@@ -78,13 +78,13 @@ DB 제약과 보안 정책, pgmq 같은 인프라 함수는 유지한다. SQL �
 
 서버 Supabase 어댑터가 PostgreSQL 연결을 확보하고 하나의 트랜잭션으로 유스케이스의 저장을 실행하는 방식을 우선한다. Edge Functions에서 Postgres.js로 연결하며, 연결이 짧은 환경이므로 Supavisor 트랜잭션 모드와 `prepare: false`를 쓴다. 역할과 문맥 전달은 아래 '권한과 직접 접근'의 방식을 따른다([T02-1 실험](../../experiments/t02-1/README.md)). 여러 supabase-js HTTP 호출을 하나의 트랜잭션처럼 취급하지 않는다.
 
-설명용 transaction 포트는 콜백 안의 모든 저장·큐 등록이 같은 연결을 사용한다는 계약을 가진다. 실제 범위는 첫 할 일 완료 기능에 한정하며 모든 시스템을 위한 Unit of Work 프레임워크를 만들지 않는다.
+저장 포트의 트랜잭션 콜백 안에서 업무 변경·기록·필수 큐·요청 성공 결과는 같은 연결을 사용한다. 필요한 업무 쓰기를 이 경계에서 처리하며 모든 시스템을 위한 Unit of Work 프레임워크를 만들지 않는다.
 
 완료 예시: 사용자 소유 할 일 읽기와 필요한 잠금 → 기대 버전 검사와 도메인 모델의 완료 판단 → 할 일·결과 기록·색인 큐 메시지 저장 → 커밋. 실패하면 모두 롤백한다. 기대 버전 검사 또는 잠금으로 읽기와 저장 사이 경쟁을 다루되 최종 조합은 계약에서 정한다. 외부 임베딩 호출을 이 트랜잭션 안에서 수행하지 않는다.
 
 Read Committed에서 부모 행과 연결 집합을 함께 쓰는 편집은 먼저 부모만 잠근 뒤 새 SQL 문장으로 부모·태그·적용 원칙 연결을 읽는다. 잠금 대기 중 다른 편집이 commit하면 한 SELECT의 부모는 최신 tuple이고 연결 subquery는 이전 snapshot일 수 있다. 사용 중 태그 삭제도 같은 순서를 따르며, 새 조회에서 대상 태그가 이미 제거됐거나 부모가 삭제됐으면 버전·변경 기록을 추가하지 않는다. 실제 제거만 부모 변경과 필수 기록을 함께 확정한다([PostgreSQL Read Committed](https://www.postgresql.org/docs/17/transaction-iso.html#XACT-READ-COMMITTED)).
 
-업무 판단에 사용한 시간은 검증 가능한 값으로 core에 전달한다. 서로 다른 요청의 충돌과 같은 요청의 재전송은 별도 문제다. 새 객체는 안정적인 UUID로 생성하며 중복 UUID는 충돌로 거부한다. 수정·삭제는 같은 객체 id와 기대 버전으로 재시도하고, 이미 실행된 요청은 충돌 또는 없음으로 끝난다. 과거 성공 결과는 재현하지 않으며 별도 요청 결과 저장소를 두지 않는다.
+업무 판단에 사용한 시간은 검증 가능한 값으로 core에 전달한다. 내부 ID 생성·요청 키에 따른 재전송과 별도 요청의 버전 충돌·성공 결과의 보관 수명은 [일관성과 실패의 의미](principles.md#4-일관성과-실패의-의미를-명시한다)를 따른다.
 
 ## 권한과 직접 접근
 
@@ -96,12 +96,12 @@ Read Committed에서 부모 행과 연결 집합을 함께 쓰는 편집은 먼�
 
 | 역할 | 권한 | 사용 |
 | --- | --- | --- |
-| 접속 역할(예: `app_server`) | LOGIN. 업무 테이블 권한 없음, superuser·BYPASSRLS 아님. 사용자 역할로 전환과 큐 전송만 가능: pgmq 스키마 사용, `pgmq.send`·`pgmq.format_table_name` 실행, 전송할 큐 테이블의 INSERT와 `msg_id` 컬럼 SELECT. 메시지 내용 조회·소비·삭제 권한 없음 | 서버 어댑터의 연결 |
-| worker 역할(`app_worker`) | LOGIN·NOINHERIT·superuser/BYPASSRLS 아님. 업무/큐 테이블 직접 접근·사용자 역할 전환 없음. `claim_search_index`·`prepare_search_index`·`finish_search_index`만 실행 | 비동기 worker |
+| 접속 역할(예: `app_server`) | LOGIN. 업무·큐 테이블 직접 접근 없음, superuser·BYPASSRLS 아님. 사용자 역할로 전환하며 직접 pgmq 접근·전송·소비 권한 없음 | 서버 어댑터의 연결 |
+| worker 역할(`app_worker`) | LOGIN·NOINHERIT·superuser/BYPASSRLS 아님. 업무/큐 테이블 직접 접근·사용자 역할 전환 없음. 검색 색인 claim·prepare·finish와 구간 effect claim·complete 함수만 실행 | 비동기 worker |
 | 사용자 역할(예: `app_user`) | NOLOGIN. 업무 테이블 권한과 RLS 정책의 대상. Supabase API에 노출하지 않음 | 트랜잭션 안에서만 전환 |
 | `authenticated`·`anon` | 업무 테이블·큐 권한 없음 | 일반 사용자의 직접 쓰기 차단 |
 
-트랜잭션마다 `set_config('request.jwt.claims', <검증된 Actor>, true)`와 `set local role <사용자 역할>`을 실행한다. 검색 색인 등록은 같은 트랜잭션의 제한된 `app.enqueue_search_index` 함수가 현재 소유자의 실제 원본·입력 해시를 확인하고 파생 상태와 최신 큐 메시지 하나를 교체한다. 이 함수의 SECURITY DEFINER는 큐 내용 읽기·삭제 권한을 사용자/접속 역할에 주지 않기 위한 것이며 고정 search_path·명시적 소유자 조건·PUBLIC 실행 금지를 적용한다. 초기 전송 경로의 `reset role`·직접 send 권한은 이전 서버 revision과 호환되는 전송 경계로 남아 있지만 최신 앱 배선에서는 사용하지 않는다. 이 호환 경계의 제거는 이전 서버가 더 이상 실행되지 않는 배포 단계에서 검증한다.
+트랜잭션마다 `set_config('request.jwt.claims', <검증된 Actor>, true)`와 `set local role <사용자 역할>`을 실행한다. 검색 색인 등록은 같은 트랜잭션의 제한된 `app.enqueue_search_index` 함수가 현재 소유자의 실제 원본·입력 해시를 확인하고 파생 상태와 최신 큐 메시지 하나를 교체한다. 이 함수의 SECURITY DEFINER는 큐 내용 읽기·삭제 권한을 사용자/접속 역할에 주지 않기 위한 것이며 고정 search_path·명시적 소유자 조건·PUBLIC 실행 금지를 적용한다. 접속 역할로 되돌려 직접 큐에 전송하는 구 경로와 해당 권한은 제거한다. 권한 회수 migration 적용 전에는 대상에 실행 중인 api/mcp가 이 제한 함수 경로를 사용하는지 확인한다.
 
 트랜잭션 한정 설정이라 커밋·롤백 후 연결에 문맥이 남지 않는다. 세션 단위 설정은 연결 재사용 때 다른 요청에 문맥을 넘기므로 쓰지 않는다. 앱의 실제 테스트에서도 RLS 적용과 요청 사이 문맥 해제를 확인한다. 접속 역할이 RLS를 우회하는지도 검사한다. 입력 user_id를 신뢰하거나 관리자 권한을 사용했다는 이유로 격리가 된다고 주장하지 않는다.
 
@@ -124,7 +124,7 @@ Read Committed에서 부모 행과 연결 집합을 함께 쓰는 편집은 먼�
 
 큐의 visibility 보장은 전체 임베딩 API 호출의 exactly-once 실행이나 과금 중복 방지를 의미하지 않는다. 목표는 원본에 맞는 현재 벡터를 중복 효과 없이 유지하는 것이다. 원본 저장은 즉시, 의미 검색 반영은 지연될 수 있다. 검색 불가/색인 중 상태와 키워드 fallback은 공통 search 유스케이스가 처리한다.
 
-색인 worker의 제한된 DB 함수는 SECURITY DEFINER·빈 search_path·PUBLIC 실행 금지를 적용한다. claim은 `search_index` 큐만 90초 visibility로 최대 5개 읽고, prepare/finish는 실제 큐의 소유자·종류·ID·해시와 현재 원본을 확인한다. 원본 → 상태 순서의 잠금 아래에서 현재 벡터 저장과 메시지 완료를 함께 확정한다. 외부 호출은 이 트랜잭션 밖에서 실행한다. 구 서버의 pipeline 없는 메시지는 현재 해시가 맞고 새 상태와 충돌하지 않을 때만 받는다. worker의 HTTP 인증·재시도·재처리 계약은 [운영 방법](../operations/runbook.md#검색-worker-호출과-복구)을 따른다.
+색인 worker의 제한된 DB 함수는 SECURITY DEFINER·빈 search_path·PUBLIC 실행 금지를 적용한다. claim은 `search_index` 큐만 90초 visibility로 최대 5개 읽고, prepare/finish는 실제 큐의 소유자·종류·ID·해시와 현재 원본을 확인한다. 원본 → 상태 순서의 잠금 아래에서 현재 벡터 저장과 메시지 완료를 함께 확정한다. 외부 호출은 이 트랜잭션 밖에서 실행한다. 현재 pipeline과 일치하지 않거나 pipeline이 없는 메시지는 archive한다. worker의 HTTP 인증·재시도·재처리 계약은 [운영 방법](../operations/runbook.md#검색-worker-호출과-복구)을 따른다.
 
 ## RAG
 

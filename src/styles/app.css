@@ -70,8 +70,7 @@ a {
 }
 
 .bottom-nav a,
-.nav-profile-trigger,
-.activity-tabs a {
+.nav-profile-trigger {
   display: inline-flex;
   align-items: center;
   min-height: 44px;
@@ -85,8 +84,7 @@ a {
 }
 
 .bottom-nav a[aria-current="page"],
-.nav-profile-trigger[data-current],
-.activity-tabs a[aria-current="page"] {
+.nav-profile-trigger[data-current] {
   color: var(--accent);
   background: var(--accent-soft);
 }
@@ -173,7 +171,6 @@ html { scroll-padding-bottom: calc(var(--navigation-height) + env(safe-area-inse
 .nav-profile-options a:hover { background: var(--surface); color: var(--ink); }
 .nav-profile-options a { padding: var(--space-2) var(--space-3); font-weight: 400; }
 .nav-profile-options a svg { width: 16px; height: 16px; flex-shrink: 0; color: var(--muted-ink); }
-.activity-tabs { display: flex; gap: var(--space-2); border-bottom: 1px solid var(--line); padding-bottom: var(--space-2); }
 .guide > p { margin: 0; }
 .guide-steps { margin: 0; padding-left: var(--space-6); display: grid; gap: var(--space-6); }
 .guide-steps li { min-width: 0; padding-left: var(--space-1); }
