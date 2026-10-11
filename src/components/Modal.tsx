@@ -36,7 +36,7 @@ export interface SurfaceEditor {
   onRouteDiscard?: () => void;
   footer: ModalProps["footer"];
 }
-export const SurfaceContext = createContext<{slot: HTMLDivElement | null; editor: RefObject<SurfaceEditor | null>; busy: RefObject<boolean>; register: (editor: SurfaceEditor | null) => void} | null>(null);
+export const SurfaceContext = createContext<{slot: HTMLDivElement | null; editor: RefObject<SurfaceEditor | null>; busy: RefObject<boolean>; register: (editor: SurfaceEditor | null) => void; onError?: (error: unknown) => void} | null>(null);
 
 export interface SurfaceAction {
   title: string;
@@ -49,7 +49,7 @@ export interface SurfaceAction {
 export const SurfaceActionContext = createContext<((action: SurfaceAction | null) => void) | null>(null);
 
 /** URL detail and its editor share one native dialog, focus trap and scroll surface. */
-export function DetailSurface({title, tabTitle = title, onClose, children, busy = false, footer}: {title: string; tabTitle?: string; onClose: () => void; children: ReactNode; busy?: boolean; footer?: ReactNode}) {
+export function DetailSurface({title, tabTitle = title, onClose, children, busy = false, footer, onError}: {title: string; tabTitle?: string; onClose: () => void; children: ReactNode; busy?: boolean; footer?: ReactNode; onError?: (error: unknown) => void}) {
   const previous = useDetailExploration();
   const tab = useContext(DetailTabContext);
   useEffect(() => { tab?.title(tabTitle); }, [tabTitle, tab?.title]);
@@ -72,7 +72,7 @@ export function DetailSurface({title, tabTitle = title, onClose, children, busy 
   };
   // Remove the editor before navigating, so its dirty guard cannot ask a second time.
   useEffect(()=>{if(dismissing&&!editor){setDismissing(false);if(tab)tab.close();else onClose();}},[dismissing,editor,onClose,tab]);
-  return <RelatedExpansionProvider><SurfaceContext.Provider value={{slot, register, editor:editorRef, busy:busyRef}}>
+  return <RelatedExpansionProvider><SurfaceContext.Provider value={{slot, register, editor:editorRef, busy:busyRef, onError}}>
     <ModalShell open title={editor?.title ?? title} domain={editor?.domain} headingLevel={editor || tab ? 2 : 1} onClose={dismiss} onCancelEdit={editor?.onClose}
       onRouteDiscard={editor?.onRouteDiscard} dirty={editor?.dirty} busy={busy || editor?.busy}
       previous={tab?.previous ?? (editor ? null : previous)} footer={editor?.footer ?? footer}>

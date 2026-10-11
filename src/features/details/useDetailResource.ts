@@ -29,5 +29,5 @@ export function useDetailResource<T>(input: {
     previousQuery.current = input.query;
     if (input.refreshOnQuery) void resource.reload(true);
   }, [resource, input.query, input.refreshOnQuery]);
-  return { ...state, reload: () => resource.reload(), confirm: resource.confirm, save: resource.save, editClosed: resource.editClosed };
+  return { ...state, reload: () => resource.reload(), confirm: resource.confirm, save: resource.save, failed: resource.failed, editClosed: resource.editClosed };
 }

@@ -202,7 +202,7 @@ export function TaskDetailPage() {
           )}
         </section>
       )}</>;
-  return <DetailSurface title="할 일" tabTitle={task.title} onClose={()=>navigate(back)} busy={busy} footer={<>
+  return <DetailSurface title="할 일" tabTitle={task.title} onClose={()=>navigate(back)} onError={detail.failed} busy={busy} footer={<>
     <button type="button" className="btn" disabled={busy} onClick={editor.start}>편집</button>
     {task.kind==="once"&&task.status==="open"&&<button type="button" className="btn btn-primary" disabled={busy} onClick={()=>manage("complete")}>완료하고 기록</button>}
     {task.kind==="recurring"&&<button type="button" className="btn btn-primary" disabled={busy} onClick={()=>manage("transition")}>{task.status==="active"?"중단":"재개"}</button>}
