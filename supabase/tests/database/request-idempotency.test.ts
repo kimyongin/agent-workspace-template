@@ -280,3 +280,32 @@ dbTest("the last owner capacity slot is atomic under different-key competition",
     await f.cleanup();
   }
 });
+
+dbTest("lifetime quota counts committed requests once and excludes replays and rolled-back writes", async () => {
+  const f = await fixtureOwner(admin);
+  try {
+    const actor = keyed(f.actor);
+    const created = await activity.createTask(deps, actor, input);
+    const used = async () => {
+      const [row] = await admin`select used from private.request_capacity where owner_id=${f.actor.userId}`;
+      return row?.used;
+    };
+    assertEquals(await used(), 1);
+    assertEquals(await activity.createTask(deps, actor, input), created);
+    assertEquals(await used(), 1);
+    await code(
+      () => activity.updateTask(deps, keyed(f.actor), created.id, { expected_version: 99, title: "rejected" }),
+      "conflict",
+    );
+    assertEquals(await used(), 1);
+    const changed = await activity.updateTask(deps, keyed(f.actor), created.id, {
+      expected_version: 1,
+      title: "committed",
+    });
+    assertEquals(changed.version, 2);
+    assertEquals(await used(), 2);
+    assertEquals(await effects(f.actor.userId), { tasks: 1, changes: 2, jobs: 2, receipts: 2 });
+  } finally {
+    await f.cleanup();
+  }
+});
