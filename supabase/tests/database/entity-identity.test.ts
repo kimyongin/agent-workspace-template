@@ -17,23 +17,22 @@ const ed = { uow: new SqlEntityUnitOfWork(sql) },
   sd = { uow: new SqlBusinessSettingsUnitOfWork(sql), clock: { now: () => new Date("2026-10-09T00:00:00Z") } };
 const ad = { uow: new SqlUnitOfWork(sql), clock: { now: () => new Date() } };
 
-dbTest("자동 식별자는 준비에서 발급하지 않고 생성 성공에서 반환한다", async () => {
+dbTest("발급처 설정 조회 후 자동 식별자는 생성 성공에서 반환한다", async () => {
   const f = await fixtureOwner(admin);
   try {
-    const prepared = await entities.prepareEntityRegistration(ed, f.actor, {});
-    assertEquals(prepared.external_id, undefined);
-    assertEquals(prepared.action, "create");
+    const settings = await getBusinessSettings(sd, f.actor, { id: "entity_identity" });
+    const source = settings.settings.entity_identity!.default_source;
     const saved = await entities.createEntity(
       ed,
       requestActor(f.actor),
       entityCreate.parse({
-        source: prepared.source,
-        settings_version: prepared.settings_version,
+        source,
+        settings_version: settings.versions.entity_identity,
         prop1: "짧은 자동 식별자",
       }),
     );
     assert(/^\d{8}-[A-Z0-9]{8}$/.test(saved.external_id));
-    assertEquals(saved.id, `${prepared.source}:${saved.external_id}`);
+    assertEquals(saved.id, `${source}:${saved.external_id}`);
   } finally {
     await f.cleanup();
   }

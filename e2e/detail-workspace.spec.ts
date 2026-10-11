@@ -1,3 +1,4 @@
+import { settingsResponse } from "./support/preparation-api.ts";
 import { expect, test, type Page } from "@playwright/test";
 import { entityKey } from "./support/workspace-data.ts";
 import { installWorkspaceApi, type FakeOptions } from "./support/workspace-api.ts";
@@ -674,9 +675,9 @@ for (const entered of [false,true]) test(`manual identity defaults preserve canc
   await fixture(page);
   let releaseSettings!: () => void;
   const ready = new Promise<void>(resolve => {releaseSettings=resolve;});
-  await page.route("**/api/settings/business", async route => {
+  await page.route("**/api/settings/business{,?**}", async route => {
     await ready;
-    await route.fulfill({json:{versions:{record_templates:0,entity_identity:0},settings:{entity_identity:{generation:"manual",default_source:"crm",sources:[{code:"app",label:"앱"},{code:"crm",label:"고객"}]},record_templates:{}}}});
+    await route.fulfill({json:settingsResponse(route, {versions:{record_templates:0,entity_identity:0},settings:{entity_identity:{generation:"manual",default_source:"crm",sources:[{code:"app",label:"앱"},{code:"crm",label:"고객"}]},record_templates:{}}})});
   });
   await page.goto("/entities");
   await page.getByRole("button", {name:"엔터티 등록",exact:true}).click();

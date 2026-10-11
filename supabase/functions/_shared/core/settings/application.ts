@@ -3,6 +3,8 @@ import { runWrite } from "../shared/request.ts";
 import {
   BUSINESS_SETTINGS_MAX_BYTES,
   type BusinessSettings,
+  businessSettingsRead,
+  type BusinessSettingsReadResult,
   type BusinessSettingsResult,
   type BusinessSettingsUpdate,
   businessSettingsUpdate,
@@ -195,10 +197,29 @@ export interface BusinessSettingsDeps {
   clock: { now(): Date };
   uow: { run<T>(actor: Actor, fn: (store: BusinessSettingsStore) => Promise<T>): Promise<T> };
 }
-export function getBusinessSettings(d: BusinessSettingsDeps, actor: Actor) {
+export function getBusinessSettings(d: BusinessSettingsDeps, actor: Actor): Promise<BusinessSettingsResult>;
+export function getBusinessSettings(
+  d: BusinessSettingsDeps,
+  actor: Actor,
+  input: unknown,
+): Promise<BusinessSettingsReadResult>;
+export function getBusinessSettings(d: BusinessSettingsDeps, actor: Actor, input: unknown = {}) {
+  const parsed = businessSettingsRead.safeParse(input);
+  if (!parsed.success) {
+    throw invalidInput(
+      "설정을 확인하세요",
+      parsed.error.issues.map((issue) => ({
+        path: issue.path.join("."),
+        message: issue.message,
+      })),
+    );
+  }
+  const { id } = parsed.data;
   return d.uow.run(actor, async (store) => {
     const saved = await store.get();
-    return { ...saved, settings: resolvedBusinessSettings(saved.settings) };
+    const settings = resolvedBusinessSettings(saved.settings);
+    if (id) return { settings: { [id]: settings[id] }, versions: { [id]: saved.versions[id] } };
+    return { ...saved, settings };
   });
 }
 export function updateBusinessSettings(d: BusinessSettingsDeps, actor: Actor, input: unknown) {

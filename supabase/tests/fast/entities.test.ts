@@ -163,6 +163,9 @@ Deno.test("Entity HTTP/MCP 실제 handler: CRUD parity·엄격 입력·존재 �
       headers: { "Idempotency-Key": crypto.randomUUID(), "content-type": "application/json" },
       body: input === undefined ? undefined : JSON.stringify(input),
     });
+  assertEquals(tools.some((tool) => tool.name === "prepare_entity_registration"), false);
+  assertEquals((await request("POST", "/entities/prepare", { source: "app" })).status, 404);
+  assertEquals(writes(), 0);
   const res = await request("POST", "/entities", { source: "app", external_id: crypto.randomUUID(), prop1: "웹" });
   assertEquals(res.status, 201);
   const e = await res.json();

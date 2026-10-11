@@ -9,6 +9,19 @@ httpTest("업무 설정 HTTP/MCP: 인증·같은 준비 결과·전체 이전/�
   let task: { id: string; version: number } | undefined;
   try {
     assertEquals((await call(null, "GET", "/settings/business")).status, 401);
+    assertEquals((await call(null, "GET", "/settings/business?id=entity_identity")).status, 401);
+    assertEquals(await tool(client, "get_business_settings", {}), saved);
+    for (const id of ["entity_identity", "record_templates"] as const) {
+      const selected = { settings: { [id]: saved.settings[id] }, versions: { [id]: saved.versions[id] } };
+      assertEquals((await call(a, "GET", `/settings/business?id=${id}`)).body, selected);
+      assertEquals(await tool(client, "get_business_settings", { id }), selected);
+      assertEquals((await call(b, "GET", `/settings/business?id=${id}`)).body, {
+        settings: { [id]: other.settings[id] },
+        versions: { [id]: other.versions[id] },
+      });
+    }
+    assertEquals((await call(a, "GET", "/settings/business?id=unknown")).status, 400);
+    assertEquals((await tool(client, "get_business_settings", { id: "unknown" })).error.code, "invalid_input");
     const invalid = await call(a, "PATCH", "/settings/business", {
       expected_version: saved.versions.record_templates,
       id: "record_templates",
@@ -25,6 +38,20 @@ httpTest("업무 설정 HTTP/MCP: 인증·같은 준비 결과·전체 이전/�
     });
     assertEquals(changed.versions.record_templates, saved.versions.record_templates + 1);
     assertEquals((await call(b, "GET", "/settings/business")).body, other);
+    const selectedTemplates = {
+      versions: { record_templates: saved.versions.record_templates + 1 },
+      settings: {
+        record_templates: {
+          task: { update: { memo: "${할일.이전.제목$} → ${할일.이후.제목$} / ${할일.이후.본문$}", tag_ids: [] } },
+        },
+      },
+    };
+    assertEquals((await call(a, "GET", "/settings/business?id=record_templates")).body, selectedTemplates);
+    assertEquals(await tool(client, "get_business_settings", { id: "record_templates" }), selectedTemplates);
+    assertEquals((await call(b, "GET", "/settings/business?id=record_templates")).body, {
+      settings: { record_templates: other.settings.record_templates },
+      versions: { record_templates: other.versions.record_templates },
+    });
     task = await tool(client, "create_task", { kind: "once", title: "이전 제목", body: "유지 본문" });
     const request = {
       model: "task",

@@ -17,15 +17,6 @@ export function entityTools(d: entity.EntityDeps): ToolDef[] {
     remove = z.strictObject({ id: z.unknown(), expected_version: expectedVersion, ...businessMeta });
   const tools: ToolDef[] = [
     {
-      name: "prepare_entity_registration",
-      description:
-        "등록 전에 발급처·발급 모드·settings_version을 확인한다. 자동 식별자는 저장 트랜잭션에서 발급한다. 반환된 source/settings_version과 명시한 external_id를 실제 쓰기에 유지한다. restore이면 existing 보관값과 expected_version을 확인하고 등록으로 복원한다. duplicate이면 활성 중복을 거부한다.",
-      input: entityCreate.pick({ source: true, external_id: true }),
-      readOnly: true,
-      handler: (i, a) =>
-        entity.prepareEntityRegistration(d, a, parse(entityCreate.pick({ source: true, external_id: true }), i)),
-    },
-    {
       name: "rekey_entity",
       description:
         "별도 식별 정보 변경. 현재 expected_version 필수. 삭제된 대상을 포함한 동일 조합 충돌은 거부한다. 모든 현재 연결·사건 참조를 원자적으로 전환하고 과거 본문은 그대로 보존한다.",
@@ -47,7 +38,7 @@ export function entityTools(d: entity.EntityDeps): ToolDef[] {
     {
       name: "get_entity",
       description:
-        "엔터티 속성과 선택된 할 일·기록의 최근 5개 및 전체 개수. 각 list 도구의 entity_id로 전체 조회. 엔터티는 임베딩하지 않는다.",
+        "엔터티 속성과 선택된 할 일·기록의 최근 5개 및 전체 개수. 삭제된 엔터티도 보관값·version·deleted_at을 반환하며 명시 복원 확인에 사용한다. 각 list 도구의 entity_id로 전체 조회. 엔터티는 임베딩하지 않는다.",
       input: z.strictObject({ id }),
       readOnly: true,
       handler: (i, a) => entity.getEntity(d, a, idParam(parse(get, i).id)),
@@ -55,7 +46,7 @@ export function entityTools(d: entity.EntityDeps): ToolDef[] {
     {
       name: "create_entity",
       description:
-        "예제 엔터티 생성. prop1 1~100자 필수, prop2 정수 0~1000000, prop3 날짜, prop4 a/b/c 기본 a. 발급처 source와 외부 식별자 external_id는 정확하게 보존한다. 먼저 prepare_entity_registration으로 발급처·모드·settings_version을 준비하여 유지한다. short 모드의 external_id 생략은 저장 시 서버 발급이며 manual 모드는 명시 식별자가 필수다. 활성 중복은 충돌. 삭제된 조합은 get_entity로 보관값·version을 확인하고 expected_version으로 명시적으로 복원하며 생략 속성은 유지한다.",
+        "예제 엔터티 생성. 새 등록은 prop1 1~100자 필수, prop2 정수 0~1000000, prop3 날짜, prop4 a/b/c 기본 a. 발급처 source와 외부 식별자 external_id는 정확하게 보존한다. 발급처·발급 방식·설정 버전 정보가 필요하거나 오래되면 get_business_settings의 id=entity_identity로 확인한다. 현재 작업에서 확인한 설정은 재사용하고 선택한 source와 versions.entity_identity를 settings_version으로 유지한다. 최종 검사는 저장 시 수행한다. settings_changed이면 설정을 재조회하고 새 의도 키로 제출한다. short 모드의 external_id 생략은 저장 시 서버 발급이며 manual 모드는 명시 식별자가 필수다. 활성 중복은 충돌. 삭제된 조합은 get_entity로 보관값·version을 확인하고 expected_version으로 명시적으로 복원하며 생략 속성은 유지한다.",
       input: entityCreate,
       readOnly: false,
       handler: (i, a) => entity.createEntity(d, a, parse(entityCreate, i)),
@@ -87,5 +78,5 @@ export function entityTools(d: entity.EntityDeps): ToolDef[] {
       },
     },
   ];
-  return tools.map((tool) => tool.readOnly || tool.name.startsWith("prepare_") ? tool : keyedTool(tool));
+  return tools.map((tool) => tool.readOnly ? tool : keyedTool(tool));
 }

@@ -1,10 +1,11 @@
+import { settingsResponse } from "./support/preparation-api.ts";
 // 실제 App/data-router/Auth SDK를 실행한다. 원격 Auth·API 응답만 격리하며 실제 OAuth/DB 증거와 구분한다.
 import { expect, test, type Page } from "@playwright/test";
 const user = { id: "00000000-0000-0000-0000-000000000001", aud: "authenticated", email: "fixture@example.test", app_metadata: {}, user_metadata: { full_name: "Fixture", workspace_avatar_id: "person", provider_value: "preserved" } };
 test.beforeEach(async ({ page, baseURL }) => {
   await page.route("**/*", async route => {
     const url = new URL(route.request().url());
-    if(url.pathname.endsWith("/settings/business")) await route.fulfill({json:{versions:{record_templates:0,entity_identity:0},settings:{record_templates:{},entity_identity:{generation:"short",default_source:"app",sources:[{code:"app",label:"앱"}]}}}});
+    if(url.pathname.endsWith("/settings/business")) await route.fulfill({json:settingsResponse(route, {versions:{record_templates:0,entity_identity:0},settings:{record_templates:{},entity_identity:{generation:"short",default_source:"app",sources:[{code:"app",label:"앱"}]}}})});
     else if (/\/(?:functions\/v1\/)?api\//.test(url.pathname)) await route.fulfill({ json: { items: [], next_cursor: null } });
     else if (url.origin === new URL(baseURL!).origin) await route.continue();
     else await route.abort();

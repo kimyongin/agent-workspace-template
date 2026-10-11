@@ -16,17 +16,6 @@ function idParam(value: string) {
 export function entityRoutes(d: entity.EntityDeps) {
   const app = new Hono<HttpEnv>();
   app.post(
-    "/entities/prepare",
-    async (c) =>
-      c.json(
-        await entity.prepareEntityRegistration(
-          d,
-          c.get("actor"),
-          parse(entityCreate.pick({ source: true, external_id: true }), await json(c.req.raw)),
-        ),
-      ),
-  );
-  app.post(
     "/entities/:id/identity",
     async (c) =>
       c.json(
