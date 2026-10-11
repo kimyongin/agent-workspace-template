@@ -105,8 +105,10 @@ async function loseCommittedReply(page: Page, method: string, path: string, stat
       expect(requests[1].body).toBe(requests[0].body);
       expect(requests[1].result).toEqual(requests[0].result);
       expect(requests[1].replay).toBe("true");
+      // Dialog visibility and intercepted response fulfillment can precede the application's completion callback.
+      // Observe the definite-outcome cleanup itself before considering the logical retry finished.
+      await expect.poll(() => page.evaluate(key => sessionStorage.getItem(`workspace:unresolved-write:${key}`), requests[0].key)).toBeNull();
       await page.unroute(url, handler);
-      expect(await page.evaluate(key => sessionStorage.getItem(`workspace:unresolved-write:${key}`), requests[0].key)).toBeNull();
     },
   };
 }
