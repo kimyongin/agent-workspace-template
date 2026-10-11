@@ -1,3 +1,4 @@
+import { entityId } from "../../contracts/entity-identity.ts";
 import { insertWithIdRetry } from "./data-id.ts";
 import type postgres from "postgres";
 import type { EntityCreate, EntityDetail, EntityQuery, EntityResult, EntityUpdate } from "../../contracts/entity.ts";
@@ -44,7 +45,9 @@ export class SqlEntityStore extends SqlActorStore implements EntityStore {
     let external_id = i.external_id;
     const insert = () =>
       this.tx`insert into app.entities(id,owner_id,source,external_id,prop1,prop2,prop3,prop4)
-      values (${`${i.source}:${external_id}`},${this.actor.userId},${i.source},${external_id},${i.prop1},${i.prop2},${i.prop3},${i.prop4})
+      values (${
+        entityId(i.source, external_id)
+      },${this.actor.userId},${i.source},${external_id},${i.prop1},${i.prop2},${i.prop3},${i.prop4})
       ${generatedIdentity ? this.tx`on conflict (owner_id,id) do nothing` : this.tx``} returning ${
         this.tx.unsafe(columns)
       }`;
