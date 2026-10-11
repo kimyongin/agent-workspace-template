@@ -271,7 +271,7 @@ dbTest("a request waiting on a task row does not block unrelated same-owner writ
   let holder: Promise<unknown> | undefined,
     waiting: Promise<unknown> | undefined,
     unrelated: Promise<unknown> | undefined;
-  let timer: number | undefined;
+  let timer: ReturnType<typeof setTimeout> | undefined;
   try {
     const task = await activity.createTask(
       ad,

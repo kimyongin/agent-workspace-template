@@ -1,7 +1,7 @@
 -- Keep independent same-owner business locks independent until final lifetime quota accounting.
 create or replace function app.begin_request(p_key uuid, p_operation text, p_fingerprint text)
 returns jsonb language plpgsql security definer set search_path = '' as $$
-declare v_owner uuid := auth.uid(); v_row private.request_results%rowtype;;
+declare v_owner uuid := auth.uid(); v_row private.request_results%rowtype;
 begin
   if v_owner is null then raise exception using errcode='42501', message='request_owner_missing'; end if;
   -- Also prevents a concurrent account deletion from racing the replay/commit.
