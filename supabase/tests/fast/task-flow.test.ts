@@ -1,3 +1,4 @@
+import { requestActor } from "../_request.ts";
 import { assertEquals, assertRejects } from "@std/assert";
 import { taskComplete, taskCreate, taskResult, taskUpdate } from "../../functions/_shared/contracts/task.ts";
 import { recordCreate, recordResult } from "../../functions/_shared/contracts/record.ts";
@@ -12,7 +13,7 @@ import { toErrorBody } from "../../functions/_shared/adapters/errors.ts";
 
 const actor = { userId: "00000000-0000-4000-8000-000000000001" };
 const now = "2026-10-04T01:00:00.000Z";
-const createInput = { id: crypto.randomUUID(), kind: "once", title: "준비" };
+const createInput = { kind: "once", title: "준비" };
 const completeInput = {
   expected_version: 1,
   body: "실제 결과 본문",
@@ -30,15 +31,15 @@ function fixture(storageNow = () => now) {
   const mutations: string[] = [];
 
   const store: ActivityStore = {
+    executeRequest: <T>(_request: unknown, execute: () => Promise<T>) => execute(),
     validateEntitySelection: unsupported,
     appendChange: () => Promise.resolve(),
     getTask: (id) => Promise.resolve(structuredClone(tasks.get(id) ?? null)),
     insertTask: (input) => {
-      if (tasks.has(input.id)) throw new AppError("conflict", "중복 ID");
       const task: Task = {
         ...input,
         entity_context: [],
-        id: input.id,
+        id: crypto.randomUUID(),
         version: 1,
         created_at: now,
         updated_at: now,
@@ -56,7 +57,6 @@ function fixture(storageNow = () => now) {
       return Promise.resolve(structuredClone(task));
     },
     insertRecord: (input) => {
-      if (input.id && records.has(input.id)) throw new AppError("conflict", "중복 ID");
       const { inherit_task_entities: _inherit, ...stored } = input;
       const record: ActivityRecord = {
         ...stored,
@@ -64,7 +64,7 @@ function fixture(storageNow = () => now) {
         entity_context: [],
         change: null,
         applied_principle_snapshots: [],
-        id: input.id ?? crypto.randomUUID(),
+        id: crypto.randomUUID(),
         occurred_at: input.occurred_at ?? now,
         tag_ids: input.tag_ids ?? [],
         version: 1,
@@ -136,11 +136,11 @@ function snapshot(f: ReturnType<typeof fixture>) {
 
 Deno.test("application: task edits never index latest task state; stale mutations write nothing", async () => {
   const f = fixture();
-  let task = await activity.createTask(f.deps, actor, taskCreate.parse({ ...createInput, id: crypto.randomUUID() }));
+  let task = await activity.createTask(f.deps, requestActor(actor), taskCreate.parse({ ...createInput }));
   for (const patch of [{ title: "새 제목" }, { body: "새 본문" }]) {
     task = await activity.updateTask(
       f.deps,
-      actor,
+      requestActor(actor),
       task.id,
       taskUpdate.parse({ change_note: "테스트 변경 이유", expected_version: task.version, ...patch }),
     );
@@ -151,7 +151,7 @@ Deno.test("application: task edits never index latest task state; stale mutation
   assertEquals(f.jobs.length, 0);
   task = await activity.updateTask(
     f.deps,
-    actor,
+    requestActor(actor),
     task.id,
     taskUpdate.parse({
       change_note: "테스트 변경 이유",
@@ -171,18 +171,18 @@ Deno.test("application: task edits never index latest task state; stale mutation
       () =>
         activity.updateTask(
           f.deps,
-          actor,
+          requestActor(actor),
           task.id,
           taskUpdate.parse({ change_note: "테스트 변경 이유", expected_version: 3, title: "오래된 수정" }),
         ),
-      () => activity.deleteTask(f.deps, actor, task.id, 3),
+      () => activity.deleteTask(f.deps, requestActor(actor), task.id, 3),
     ]
   ) {
     const error = await assertRejects(mutate, AppError);
     assertEquals(error.code, "conflict");
     assertEquals(snapshot(f), before);
   }
-  await activity.deleteTask(f.deps, actor, task.id, 4);
+  await activity.deleteTask(f.deps, requestActor(actor), task.id, 4);
   assertEquals(f.tasks.has(task.id), false);
   assertEquals(f.jobs.length, 0);
 });
@@ -193,10 +193,9 @@ Deno.test("application: deleting completed/recurring tasks detaches history and 
     const f = fixture(() => detachedAt);
     const task = await activity.createTask(
       f.deps,
-      actor,
+      requestActor(actor),
       taskCreate.parse(
         {
-          id: crypto.randomUUID(),
           ...kind === "once" ? createInput : {
             kind,
             title: "반복 수행",
@@ -207,13 +206,12 @@ Deno.test("application: deleting completed/recurring tasks detaches history and 
       ),
     );
     const input = recordCreate.parse({
-      id: crypto.randomUUID(),
       ...{ body: "보존할 본문" },
     });
-    const unrelated = await activity.createRecord(f.deps, actor, input);
+    const unrelated = await activity.createRecord(f.deps, requestActor(actor), input);
     const linked = kind === "once"
-      ? (await activity.completeTask(f.deps, actor, task.id, taskComplete.parse(completeInput))).record
-      : await activity.recordOccurrence(f.deps, actor, task.id, "2026-10-03", { ...input, id: crypto.randomUUID() });
+      ? (await activity.completeTask(f.deps, requestActor(actor), task.id, taskComplete.parse(completeInput))).record
+      : await activity.recordOccurrence(f.deps, requestActor(actor), task.id, "2026-10-03", { ...input });
     assertEquals(linked.task_id, task.id);
     assertEquals(linked.occurrence_on, kind === "once" ? null : "2026-10-03");
     const current = f.tasks.get(task.id)!;
@@ -221,10 +219,13 @@ Deno.test("application: deleting completed/recurring tasks detaches history and 
     assertEquals(linked.updated_at, now);
     detachedAt = "2026-10-04T02:00:00.000Z";
     const before = snapshot(f);
-    const stale = await assertRejects(() => activity.deleteTask(f.deps, actor, task.id, current.version + 1), AppError);
+    const stale = await assertRejects(
+      () => activity.deleteTask(f.deps, requestActor(actor), task.id, current.version + 1),
+      AppError,
+    );
     assertEquals(stale.code, "conflict");
     assertEquals(snapshot(f), before);
-    await activity.deleteTask(f.deps, actor, task.id, current.version);
+    await activity.deleteTask(f.deps, requestActor(actor), task.id, current.version);
     assertEquals(f.mutations.slice(-2), [`detach:${task.id}`, `delete:${task.id}`]);
     assertEquals(f.tasks.size, 0);
     assertEquals(f.records.size, 2);
@@ -244,11 +245,11 @@ Deno.test("application: deleting completed/recurring tasks detaches history and 
           () =>
             activity.updateTask(
               f.deps,
-              actor,
+              requestActor(actor),
               id,
               taskUpdate.parse({ change_note: "테스트 변경 이유", expected_version: 1, title: "수정" }),
             ),
-          () => activity.deleteTask(f.deps, actor, id, 1),
+          () => activity.deleteTask(f.deps, requestActor(actor), id, 1),
         ]
       ) {
         assertEquals((await assertRejects(mutate, AppError)).code, "not_found");
@@ -260,16 +261,16 @@ Deno.test("application: deleting completed/recurring tasks detaches history and 
 
 Deno.test("application: create → complete → identical serial retry uses real business rules", async () => {
   const f = fixture();
-  const task = await activity.createTask(f.deps, actor, taskCreate.parse({ ...createInput, id: crypto.randomUUID() }));
+  const task = await activity.createTask(f.deps, requestActor(actor), taskCreate.parse({ ...createInput }));
   const input = taskComplete.parse(completeInput);
   const versionError = await assertRejects(
-    () => activity.completeTask(f.deps, actor, task.id, { ...input, expected_version: 2 }),
+    () => activity.completeTask(f.deps, requestActor(actor), task.id, { ...input, expected_version: 2 }),
     AppError,
   );
   assertEquals(versionError.code, "conflict");
   assertEquals(f.records.size, 0);
   assertEquals(f.tasks.get(task.id)?.status, "open");
-  const result = await activity.completeTask(f.deps, actor, task.id, input);
+  const result = await activity.completeTask(f.deps, requestActor(actor), task.id, input);
   taskResult.parse(result.task);
   recordResult.parse(result.record);
   assertEquals(result.task.status, "done");
@@ -277,11 +278,11 @@ Deno.test("application: create → complete → identical serial retry uses real
   assertEquals(result.task.completed_at, now);
   assertEquals(result.task.result_record_id, result.record.id);
   assertEquals(result.record.task_id, task.id);
-  await assertRejects(() => activity.completeTask(f.deps, actor, task.id, input), AppError);
+  await assertRejects(() => activity.completeTask(f.deps, requestActor(actor), task.id, input), AppError);
   assertEquals(f.records.size, 1);
   assertEquals(f.jobs.map((job) => job.kind), ["record"]);
   const error = await assertRejects(
-    () => activity.completeTask(f.deps, actor, task.id, { ...input, body: "different" }),
+    () => activity.completeTask(f.deps, requestActor(actor), task.id, { ...input, body: "different" }),
     AppError,
   );
   assertEquals(error.code, "conflict");
@@ -292,7 +293,11 @@ async function post(app: ReturnType<typeof createHttpApp>, path: string, input?:
   return await app.fetch(
     new Request(`https://app.invalid/api${path}`, {
       method,
-      headers: { authorization: "Bearer fixture", "content-type": "application/json" },
+      headers: {
+        "Idempotency-Key": crypto.randomUUID(),
+        authorization: "Bearer fixture",
+        "content-type": "application/json",
+      },
       body: JSON.stringify(input),
     }),
   );
@@ -303,14 +308,14 @@ Deno.test("HTTP routes and MCP ToolDef schema/handler share task outcomes and in
   const tools = activityTools(f.deps);
   const create = tools.find((tool) => tool.name === "create_task")!;
   const complete = tools.find((tool) => tool.name === "complete_task")!;
-  assertEquals(create.input.safeParse(createInput).success, true);
+  assertEquals(create.input.safeParse({ request_key: crypto.randomUUID(), ...createInput }).success, true);
   const created = await post(f.app, "/tasks", createInput);
   assertEquals(created.status, 201);
   const task = taskResult.parse(await created.json());
-  await assertRejects(() => create.handler(createInput, actor), AppError); // Same request through the other adapter.
+  await create.handler({ request_key: crypto.randomUUID(), ...createInput }, actor); // A separate creation intent gets a separate ID.
   const args = { id: task.id, ...completeInput };
-  assertEquals(complete.input.safeParse(args).success, true);
-  await complete.handler(args, actor);
+  assertEquals(complete.input.safeParse({ request_key: crypto.randomUUID(), ...args }).success, true);
+  await complete.handler({ request_key: crypto.randomUUID(), ...args }, actor);
   const retry = await post(f.app, `/tasks/${task.id}/complete`, completeInput);
   assertEquals(retry.status, 409);
   assertEquals((await retry.json()).code, "conflict");
@@ -335,16 +340,25 @@ Deno.test("HTTP routes and MCP ToolDef schema/handler share task outcomes and in
     const http = await post(f.app, path, input);
     assertEquals(http.status, status);
     const mcpInput = tool === complete ? { id: path.split("/")[2], ...input } : input;
-    const error = await assertRejects(async () => await tool.handler(mcpInput, actor), AppError);
+    const error = await assertRejects(
+      async () => await tool.handler({ request_key: crypto.randomUUID(), ...mcpInput }, actor),
+      AppError,
+    );
     const mapped = toErrorBody(error);
     assertEquals(mapped.body.code, code);
     assertEquals(await http.json(), mapped.body);
   }
   assertEquals(
-    complete.input.safeParse({ ...args, change_note: "테스트 변경 이유", expected_version: 0 }).success,
+    complete.input.safeParse({
+      request_key: crypto.randomUUID(),
+      ...{ ...args, change_note: "테스트 변경 이유", expected_version: 0 },
+    }).success,
     false,
   );
-  assertEquals(create.input.safeParse({ ...createInput, owner_id: actor.userId }).success, false);
+  assertEquals(
+    create.input.safeParse({ request_key: crypto.randomUUID(), ...{ ...createInput, owner_id: actor.userId } }).success,
+    false,
+  );
   assertEquals(f.records.size, 1);
   assertEquals(f.jobs.length, 1);
 });
@@ -354,18 +368,24 @@ Deno.test("HTTP PATCH/DELETE and MCP task mutation schema/handler share validati
   const tools = activityTools(f.deps);
   const update = tools.find((tool) => tool.name === "update_task")!;
   const remove = tools.find((tool) => tool.name === "delete_task")!;
-  const task = await activity.createTask(f.deps, actor, taskCreate.parse({ ...createInput, id: crypto.randomUUID() }));
+  const task = await activity.createTask(f.deps, requestActor(actor), taskCreate.parse({ ...createInput }));
   const path = `/tasks/${task.id}`;
   const patch = { change_note: "테스트 변경 이유", expected_version: 1, title: "HTTP 수정" };
-  assertEquals(update.input.safeParse({ id: task.id, ...patch }).success, true);
+  assertEquals(
+    update.input.safeParse({ request_key: crypto.randomUUID(), ...{ id: task.id, ...patch } }).success,
+    true,
+  );
   const edited = await post(f.app, path, patch, "PATCH");
   assertEquals(edited.status, 200);
   assertEquals(taskResult.parse(await edited.json()), f.tasks.get(task.id));
   const mcpEdited = await update.handler({
-    change_note: "테스트 변경 이유",
-    id: task.id,
-    expected_version: 2,
-    body: "MCP 수정",
+    request_key: crypto.randomUUID(),
+    ...{
+      change_note: "테스트 변경 이유",
+      id: task.id,
+      expected_version: 2,
+      body: "MCP 수정",
+    },
   }, actor);
   assertEquals(taskResult.parse(mcpEdited), f.tasks.get(task.id));
   assertEquals(f.tasks.get(task.id)?.title, "HTTP 수정");
@@ -416,23 +436,35 @@ Deno.test("HTTP PATCH/DELETE and MCP task mutation schema/handler share validati
       isDelete ? "DELETE" : "PATCH",
     );
     assertEquals(http.status, status);
-    const error = await assertRejects(async () => await tool.handler({ id: task.id, ...input }, actor), AppError);
+    const error = await assertRejects(
+      async () => await tool.handler({ request_key: crypto.randomUUID(), ...{ id: task.id, ...input } }, actor),
+      AppError,
+    );
     const mapped = toErrorBody(error);
     assertEquals(mapped.body.code, code);
     assertEquals(await http.json(), mapped.body);
     assertEquals(snapshot(f), before);
   }
   assertEquals(
-    update.input.safeParse({ change_note: "테스트 변경 이유", id: task.id, expected_version: 3, status: "done" })
+    update.input.safeParse({
+      request_key: crypto.randomUUID(),
+      ...{ change_note: "테스트 변경 이유", id: task.id, expected_version: 3, status: "done" },
+    })
       .success,
     false,
   );
   assertEquals(
-    remove.input.safeParse({ change_note: "테스트 변경 이유", id: task.id, expected_version: 0 }).success,
+    remove.input.safeParse({
+      request_key: crypto.randomUUID(),
+      ...{ change_note: "테스트 변경 이유", id: task.id, expected_version: 0 },
+    }).success,
     false,
   );
   assertEquals(
-    remove.input.safeParse({ change_note: "테스트 변경 이유", id: task.id, expected_version: 3 }).success,
+    remove.input.safeParse({
+      request_key: crypto.randomUUID(),
+      ...{ change_note: "테스트 변경 이유", id: task.id, expected_version: 3 },
+    }).success,
     true,
   );
   const deleted = await post(f.app, `${path}?expected_version=3`, undefined, "DELETE");
@@ -440,12 +472,18 @@ Deno.test("HTTP PATCH/DELETE and MCP task mutation schema/handler share validati
   assertEquals(await deleted.text(), "");
   const another = await activity.createTask(
     f.deps,
-    actor,
-    taskCreate.parse({ ...createInput, id: crypto.randomUUID() }),
+    requestActor(actor),
+    taskCreate.parse({ ...createInput }),
   );
-  assertEquals(await remove.handler({ change_note: "테스트 변경 이유", id: another.id, expected_version: 1 }, actor), {
-    deleted: another.id,
-  });
+  assertEquals(
+    await remove.handler({
+      request_key: crypto.randomUUID(),
+      ...{ change_note: "테스트 변경 이유", id: another.id, expected_version: 1 },
+    }, actor),
+    {
+      deleted: another.id,
+    },
+  );
   assertEquals(f.tasks.size, 0);
   const after = snapshot(f);
   for (const id of [task.id, crypto.randomUUID()]) {
@@ -460,7 +498,10 @@ Deno.test("HTTP PATCH/DELETE and MCP task mutation schema/handler share validati
         tool === remove ? "DELETE" : "PATCH",
       );
       assertEquals(http.status, 404);
-      const error = await assertRejects(async () => await tool.handler({ id, ...input }, actor), AppError);
+      const error = await assertRejects(
+        async () => await tool.handler({ request_key: crypto.randomUUID(), ...{ id, ...input } }, actor),
+        AppError,
+      );
       assertEquals(error.code, "not_found");
       assertEquals(await http.json(), toErrorBody(error).body);
       assertEquals(snapshot(f), after);

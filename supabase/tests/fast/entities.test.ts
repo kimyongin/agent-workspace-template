@@ -1,3 +1,4 @@
+import { requestActor } from "../_request.ts";
 import { assert, assertEquals, assertRejects } from "@std/assert";
 import {
   entityCreate,
@@ -25,6 +26,7 @@ function memory() {
   const rows = new Map<string, EntityResult>();
   let writes = 0;
   const store: EntityStore = {
+    executeRequest: <T>(_request: unknown, execute: () => Promise<T>) => execute(),
     getBusinessSettings: () => Promise.resolve({ settings: {} }),
     restore: (id, changes) => {
       const row = { ...rows.get(id)!, ...changes, deleted_at: null, version: rows.get(id)!.version + 1 };
@@ -55,7 +57,7 @@ function memory() {
       const row = {
         ...input,
         tag_ids: input.tag_ids ?? [],
-        id: input.id,
+        id: input.id ?? crypto.randomUUID(),
         source_label: input.source,
         deleted_at: null,
         version: 1,
@@ -92,30 +94,35 @@ function memory() {
 Deno.test("Entity application: 멱등 serial retry·버전 거부 무쓰기·한글 커서/owner/filter 검사", async () => {
   const { d, writes } = memory(),
     input = entityCreate.parse({ source: "app", external_id: crypto.randomUUID(), ...{ prop1: "한글 😀" } });
-  const e = await createEntity(d, A, input);
-  assertEquals((await assertRejects(() => createEntity(d, A, input), AppError)).code, "conflict");
+  const e = await createEntity(d, requestActor(A), input);
+  assertEquals((await assertRejects(() => createEntity(d, requestActor(A), input), AppError)).code, "conflict");
   assertEquals(writes(), 1);
   assertEquals(
-    (await assertRejects(() => createEntity(d, A, { ...input, prop1: "다른 내용" }), AppError)).code,
+    (await assertRejects(() => createEntity(d, requestActor(A), { ...input, prop1: "다른 내용" }), AppError)).code,
     "conflict",
   );
   await assertRejects(
     () =>
-      updateEntity(d, A, e.id, entityUpdate.parse({ change_note: "테스트 변경 이유", expected_version: 2, prop2: 0 })),
+      updateEntity(
+        d,
+        requestActor(A),
+        e.id,
+        entityUpdate.parse({ change_note: "테스트 변경 이유", expected_version: 2, prop2: 0 }),
+      ),
     AppError,
   );
-  await assertRejects(() => deleteEntity(d, A, e.id, 2), AppError);
+  await assertRejects(() => deleteEntity(d, requestActor(A), e.id, 2), AppError);
   assertEquals(writes(), 1);
   const changed = await updateEntity(
     d,
-    A,
+    requestActor(A),
     e.id,
     entityUpdate.parse({ change_note: "테스트 변경 이유", expected_version: 1, prop2: 0 }),
   );
   assertEquals(changed.prop2, 0);
   await createEntity(
     d,
-    A,
+    requestActor(A),
     entityCreate.parse({ source: "app", external_id: crypto.randomUUID(), ...{ prop1: "둘째" } }),
   );
   const q = entityListQuery.parse({ limit: 1 }), first = await listEntities(d, A, q);
@@ -129,14 +136,14 @@ Deno.test("Entity application: 멱등 serial retry·버전 거부 무쓰기·한
       "invalid_input",
     );
   }
-  await deleteEntity(d, A, e.id, 2);
+  await deleteEntity(d, requestActor(A), e.id, 2);
   assert((await getEntity(d, A, e.id)).deleted_at);
 });
 Deno.test("Entity HTTP/MCP 실제 handler: CRUD parity·엄격 입력·존재 비공개·버전 무쓰기", async () => {
   const { d, writes } = memory();
   const app = new Hono<HttpEnv>();
   app.use("*", async (c, next) => {
-    c.set("actor", A);
+    c.set("actor", { ...A, request: { key: c.req.header("Idempotency-Key") ?? crypto.randomUUID() } });
     await next();
   });
   app.route("/", entityRoutes(d));
@@ -145,11 +152,15 @@ Deno.test("Entity HTTP/MCP 실제 handler: CRUD parity·엄격 입력·존재 �
     return c.json(r.body, r.status as 400);
   });
   const tools = entityTools(d),
-    tool = (name: string, i: Record<string, unknown>) => tools.find((t) => t.name === name)!.handler(i, A);
+    tool = (name: string, i: Record<string, unknown>) =>
+      tools.find((t) => t.name === name)!.handler({
+        .../^(create_|update_|delete_|rekey_)/.test(name) ? { request_key: crypto.randomUUID() } : {},
+        ...i,
+      }, A);
   const request = (method: string, path: string, input?: unknown) =>
     app.request(path, {
       method,
-      headers: { "content-type": "application/json" },
+      headers: { "Idempotency-Key": crypto.randomUUID(), "content-type": "application/json" },
       body: input === undefined ? undefined : JSON.stringify(input),
     });
   const res = await request("POST", "/entities", { source: "app", external_id: crypto.randomUUID(), prop1: "웹" });

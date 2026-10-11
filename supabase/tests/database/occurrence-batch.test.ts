@@ -1,3 +1,4 @@
+import { requestActor } from "../_request.ts";
 import { assertEquals } from "@std/assert";
 import { SqlUnitOfWork } from "../../functions/_shared/adapters/supabase/activity-store.ts";
 import { taskCreate } from "../../functions/_shared/contracts/task.ts";
@@ -15,33 +16,34 @@ dbTest("batch occurrence facts preserve owner isolation, empty selection and rec
       timezone: "Asia/Seoul",
       recurrence: { freq: "daily", starts_on: "2020-01-01" },
     };
-    const taskA = await createTask(deps, a.actor, taskCreate.parse({ ...input, id: crypto.randomUUID() }));
-    const taskB = await createTask(deps, b.actor, taskCreate.parse({ ...input, id: crypto.randomUUID() }));
-    const first = crypto.randomUUID(), second = crypto.randomUUID(), foreign = crypto.randomUUID();
+    const taskA = await createTask(deps, requestActor(a.actor), taskCreate.parse({ ...input }));
+    const taskB = await createTask(deps, requestActor(b.actor), taskCreate.parse({ ...input }));
+    const ids: string[] = [];
     for (
-      const [actor, task, id, occurred_at] of [
-        [a.actor, taskA, second, "2026-10-08T02:00:00Z"],
-        [b.actor, taskB, foreign, "2026-10-08T01:00:00Z"],
-        [a.actor, taskA, first, "2026-10-08T01:00:00Z"],
+      const [actor, task, occurred_at] of [
+        [a.actor, taskA, "2026-10-08T02:00:00Z"],
+        [b.actor, taskB, "2026-10-08T01:00:00Z"],
+        [a.actor, taskA, "2026-10-08T01:00:00Z"],
       ] as const
     ) {
-      await uow.run(
+      const record = await uow.run(
         actor,
-        (store) => store.insertRecord({ id, body: "fact", task_id: task.id, occurrence_on: "2026-10-08", occurred_at }),
+        (store) => store.insertRecord({ body: "fact", task_id: task.id, occurrence_on: "2026-10-08", occurred_at }),
       );
+      ids.push(record.id);
     }
     const read = async (
       actor: typeof a.actor,
       ids: string[],
     ) => [...await uow.run(actor, (store) => store.occurrenceRecords(ids, "2026-10-08", "2026-10-08"))];
     assertEquals(await read(a.actor, [taskB.id, taskA.id]), [
-      { task_id: taskA.id, id: first, occurrence_on: "2026-10-08" },
-      { task_id: taskA.id, id: second, occurrence_on: "2026-10-08" },
+      { task_id: taskA.id, id: ids[2], occurrence_on: "2026-10-08" },
+      { task_id: taskA.id, id: ids[0], occurrence_on: "2026-10-08" },
     ]);
     assertEquals(await read(a.actor, []), []);
     assertEquals(await read(b.actor, [taskA.id, taskB.id]), [{
       task_id: taskB.id,
-      id: foreign,
+      id: ids[1],
       occurrence_on: "2026-10-08",
     }]);
   } finally {

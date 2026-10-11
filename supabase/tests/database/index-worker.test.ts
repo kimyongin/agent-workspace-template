@@ -1,3 +1,4 @@
+import { requestActor } from "../_request.ts";
 import { assertEquals, assertMatch, assertRejects } from "@std/assert";
 import { SqlIndexQueue } from "../../functions/_shared/adapters/supabase/index-queue.ts";
 import { SqlUnitOfWork } from "../../functions/_shared/adapters/supabase/activity-store.ts";
@@ -20,9 +21,9 @@ const fixture = await fixtureOwner(admin), foreign = await fixtureOwner(admin), 
 const deps = { uow: new SqlUnitOfWork(user), clock: { now: () => new Date() } };
 const vector = Array.from({ length: 1024 }, (_, i) => i === 0 ? 1 : 0);
 const state = async (id: string) => (await admin`select * from app.search_index_state where id=${id}`)[0];
-const create = (body: string) => activity.createRecord(deps, A, recordCreate.parse({ id: crypto.randomUUID(), body }));
+const create = (body: string) => activity.createRecord(deps, requestActor(A), recordCreate.parse({ body }));
 const update = (id: string, version: number, body: string) =>
-  activity.updateRecord(deps, A, id, recordUpdate.parse({ expected_version: version, body }));
+  activity.updateRecord(deps, requestActor(A), id, recordUpdate.parse({ expected_version: version, body }));
 const scope = (id: string) => ({ limit: 1, owner_id: A.userId, kind: "record", id });
 
 dbTest("record worker: complete generation, duplicate delivery, body edit/delete during embedding", async () => {
@@ -55,7 +56,7 @@ dbTest("record worker: complete generation, duplicate delivery, body edit/delete
   released = Promise.withResolvers<number[]>();
   const late = indexBatch(queue, delayed, scope(item.id));
   await started.promise;
-  await activity.deleteRecord(deps, A, item.id, 4);
+  await activity.deleteRecord(deps, requestActor(A), item.id, 4);
   released.resolve(vector);
   assertEquals((await late).stale, 1);
   assertEquals(await state(item.id), undefined);
@@ -127,7 +128,7 @@ dbTest(
         /^42501/,
       );
     }
-    await activity.deleteRecord(deps, A, item.id, 2);
+    await activity.deleteRecord(deps, requestActor(A), item.id, 2);
   },
 );
 
@@ -135,8 +136,8 @@ dbTest("latest task content creates no task vector job and remains keyword searc
   const token = crypto.randomUUID();
   const task = await activity.createTask(
     deps,
-    A,
-    taskCreate.parse({ id: crypto.randomUUID(), title: token, body: "현재 본문", kind: "once" }),
+    requestActor(A),
+    taskCreate.parse({ title: token, body: "현재 본문", kind: "once" }),
   );
   assertEquals(await state(task.id), undefined);
   assertEquals(

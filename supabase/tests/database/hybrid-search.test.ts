@@ -1,3 +1,4 @@
+import { requestActor } from "../_request.ts";
 import { assertEquals, assertMatch, assertRejects } from "@std/assert";
 import { SqlSearchUnitOfWork } from "../../functions/_shared/adapters/supabase/search-store.ts";
 import { SqlIndexQueue } from "../../functions/_shared/adapters/supabase/index-queue.ts";
@@ -32,8 +33,8 @@ dbTest(
     for (const [n, body] of bodies.entries()) {
       const item = await activity.createRecord(
         deps,
-        A,
-        recordCreate.parse({ id: crypto.randomUUID(), body, tag_ids: [tag] }),
+        requestActor(A),
+        recordCreate.parse({ body, tag_ids: [tag] }),
       );
       ids.push(item.id);
       const result = await indexBatch(queue, {
@@ -69,7 +70,12 @@ dbTest(
         .length,
       0,
     );
-    await activity.updateRecord(deps, A, ids[0], recordUpdate.parse({ expected_version: 1, body: "바뀐 원문" }));
+    await activity.updateRecord(
+      deps,
+      requestActor(A),
+      ids[0],
+      recordUpdate.parse({ expected_version: 1, body: "바뀐 원문" }),
+    );
     assertEquals((await search(d, A, { ...q, limit: 20 })).items.map((x) => x.id), [ids[1], ids[2]]);
     assertEquals((await search(d, A, q)).semantic_coverage, { pending: 1, excluded: 0 });
     const down = { ...d, embedder: { embed: () => Promise.reject(new EmbeddingError("transient")) } };

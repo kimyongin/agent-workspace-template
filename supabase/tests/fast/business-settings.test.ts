@@ -1,3 +1,4 @@
+import { requestActor } from "../_request.ts";
 import { assertEquals, assertRejects } from "@std/assert";
 import {
   type BusinessSettingsDeps,
@@ -15,6 +16,7 @@ Deno.test("업무 설정: 모델 템플릿 저장 후 읽기, 다른 섹션 유�
     uow: {
       run: (_actor, fn) =>
         fn({
+          executeRequest: <T>(_request: unknown, execute: () => Promise<T>) => execute(),
           get: () => Promise.resolve(value),
           update: ({ id, expected_version, value: section }) => {
             if (value.versions[id] !== expected_version) throw new AppError("conflict", "다른 설정이 저장되었습니다");
@@ -29,7 +31,7 @@ Deno.test("업무 설정: 모델 템플릿 저장 후 읽기, 다른 섹션 유�
     },
   };
   const actor = { userId: crypto.randomUUID() };
-  await updateBusinessSettings(d, actor, {
+  await updateBusinessSettings(d, requestActor(actor), {
     expected_version: 0,
     id: "record_templates",
     value: { entity: { create: { memo: "${엔터티.이후.속성2$} 등록", tag_ids: [] } } },
@@ -39,11 +41,12 @@ Deno.test("업무 설정: 모델 템플릿 저장 후 읽기, 다른 섹션 유�
     "${엔터티.이후.속성2$} 등록",
   );
   await assertRejects(
-    async () => await updateBusinessSettings(d, actor, { expected_version: 0, id: "record_templates", value: {} }),
+    async () =>
+      await updateBusinessSettings(d, requestActor(actor), { expected_version: 0, id: "record_templates", value: {} }),
     AppError,
   );
   await assertRejects(async () =>
-    await updateBusinessSettings(d, actor, {
+    await updateBusinessSettings(d, requestActor(actor), {
       expected_version: 1,
       id: "record_templates",
       value: { entity: { create: { memo: "${엔터티.이전.속성2$}", tag_ids: [] } } },
@@ -57,6 +60,7 @@ Deno.test("기록 준비: 생성 할 일의 실제 기본 상태·빈 본문·�
     uow: {
       run: (_a, fn) =>
         fn({
+          executeRequest: <T>(_request: unknown, execute: () => Promise<T>) => execute(),
           get: () =>
             Promise.resolve({
               versions: { record_templates: 1, entity_identity: 1 },
@@ -85,6 +89,7 @@ Deno.test("엔터티 등록 준비: 고정 입력은 등록 기본값과 기존 
     uow: {
       run: (_actor, fn) =>
         fn({
+          executeRequest: <T>(_request: unknown, execute: () => Promise<T>) => execute(),
           get: () => Promise.resolve({ versions: { record_templates: 0, entity_identity: 0 }, settings: {} }),
           target: () => Promise.resolve(null),
           update: () => Promise.reject(new Error("읽기 전용")),
@@ -99,6 +104,7 @@ Deno.test("엔터티 등록 준비: 고정 입력은 등록 기본값과 기존 
   });
   assertEquals(prepared.prepared_input, {
     source: "app",
+    settings_version: 0,
     external_id: "001",
     prop1: "새 대상",
     prop2: null,
@@ -127,6 +133,7 @@ Deno.test("업무 설정: 발급처 표시 이름은 바꾸지만 저장된 코�
     uow: {
       run: (_actor, fn) =>
         fn({
+          executeRequest: <T>(_request: unknown, execute: () => Promise<T>) => execute(),
           get: () => Promise.resolve(value),
           recordTags: () => Promise.resolve([]),
           update: ({ id, value: section }) =>
@@ -137,14 +144,14 @@ Deno.test("업무 설정: 발급처 표시 이름은 바꾸지만 저장된 코�
   const actor = { userId: crypto.randomUUID() };
   await assertRejects(
     () =>
-      updateBusinessSettings(d, actor, {
+      updateBusinessSettings(d, requestActor(actor), {
         expected_version: 1,
         id: "entity_identity",
         value: { generation: "uuid", default_source: "app", sources: [{ code: "app", label: "앱" }] },
       }),
     AppError,
   );
-  const renamed = await updateBusinessSettings(d, actor, {
+  const renamed = await updateBusinessSettings(d, requestActor(actor), {
     expected_version: 1,
     id: "entity_identity",
     value: {
@@ -165,6 +172,7 @@ Deno.test("기록 준비: 실제 수정 계약에서 거부할 입력을 미리�
     uow: {
       run: (_actor, fn) =>
         fn({
+          executeRequest: <T>(_request: unknown, execute: () => Promise<T>) => execute(),
           get: () => Promise.resolve({ versions: { record_templates: 0, entity_identity: 0 }, settings: {} }),
           update: () => Promise.reject(new Error("읽기만")),
           recordTags: () => Promise.resolve([]),
@@ -195,6 +203,7 @@ Deno.test("기록 준비: 해석 후 메모가 본문 제한을 넘으면 쓰기
     uow: {
       run: (_actor, fn) =>
         fn({
+          executeRequest: <T>(_request: unknown, execute: () => Promise<T>) => execute(),
           get: () =>
             Promise.resolve({
               versions: { record_templates: 1, entity_identity: 1 },
@@ -222,6 +231,7 @@ Deno.test("복원 기록 준비: 보관한 0·태그·식별 정보를 보존하
     uow: {
       run: (_actor, fn) =>
         fn({
+          executeRequest: <T>(_request: unknown, execute: () => Promise<T>) => execute(),
           get: () =>
             Promise.resolve({
               versions: { record_templates: 1, entity_identity: 1 },
@@ -263,7 +273,12 @@ Deno.test("복원 기록 준비: 보관한 0·태그·식별 정보를 보존하
     input: {},
   });
   assertEquals(prepared.change_note, "0 → 0 / 001");
-  assertEquals(prepared.prepared_input, { source: "app", external_id: "001", expected_version: 3 });
+  assertEquals(prepared.prepared_input, {
+    source: "app",
+    external_id: "001",
+    expected_version: 3,
+    settings_version: 1,
+  });
 });
 
 Deno.test("기록 준비: 반복 중단·재개의 기간은 실제 상태 전환과 같고 일회성 중단은 거부", async () => {
@@ -280,6 +295,7 @@ Deno.test("기록 준비: 반복 중단·재개의 기간은 실제 상태 전�
     uow: {
       run: (_actor, fn) =>
         fn({
+          executeRequest: <T>(_request: unknown, execute: () => Promise<T>) => execute(),
           get: () =>
             Promise.resolve({
               versions: { record_templates: 1, entity_identity: 1 },

@@ -1,3 +1,4 @@
+import { requestActor } from "../_request.ts";
 import { assertEquals, assertThrows } from "@std/assert";
 import { SqlPrincipleUnitOfWork } from "../../functions/_shared/adapters/supabase/principle-store.ts";
 import { SqlUnitOfWork } from "../../functions/_shared/adapters/supabase/activity-store.ts";
@@ -16,11 +17,11 @@ dbTest(
     const f = await fixtureOwner(admin), b = await fixtureOwner(admin);
     try {
       const a = f.actor, content = { title: "당시 기준", body: "그때 본문" };
-      const first = await p.createPrinciple(d, a, principleCreate.parse({ id: crypto.randomUUID(), ...content }));
+      const first = await p.createPrinciple(d, requestActor(a), principleCreate.parse({ ...content }));
       const record = await r.createRecord(
         rd,
-        a,
-        recordCreate.parse({ id: crypto.randomUUID(), ...{ body: "판단" } }),
+        requestActor(a),
+        recordCreate.parse({ ...{ body: "판단" } }),
       );
       const snapshot = [{
         id: first.id,
@@ -35,14 +36,14 @@ dbTest(
       await admin`update app.records set applied_principle_snapshots=${admin.json(snapshot)} where id=${record.id}`;
       assertEquals(
         recordCreate.safeParse({
-          id: crypto.randomUUID(),
-          ...{ title: "새", applied_principle_ids: [first.id] },
+          body: "새 기록",
+          applied_principle_ids: [first.id],
         }).success,
         false,
       );
       const current = await p.updatePrinciple(
         d,
-        a,
+        requestActor(a),
         first.id,
         principleUpdate.parse({ ...content, body: "새 기준", change_note: "갱신", expected_version: first.version }),
       );
@@ -52,7 +53,7 @@ dbTest(
       assertEquals((await r.getRecord(rd, a, record.id)).applied_principle_snapshots, snapshot);
       const edited = await r.updateRecord(
         rd,
-        a,
+        requestActor(a),
         record.id,
         recordUpdate.parse({
           expected_version: record.version,
@@ -60,7 +61,7 @@ dbTest(
         }),
       );
       assertEquals(edited.applied_principle_snapshots, snapshot);
-      await p.deletePrinciple(d, a, current.id, current.version);
+      await p.deletePrinciple(d, requestActor(a), current.id, current.version);
       assertEquals((await p.currentPrinciple(d, a)).current, null);
       const after = await r.getRecord(rd, a, record.id);
       assertEquals(after.applied_principle_snapshots, snapshot);
@@ -68,8 +69,8 @@ dbTest(
       assertEquals(after.version, edited.version);
       const foreign = await p.createPrinciple(
         d,
-        b.actor,
-        principleCreate.parse({ id: crypto.randomUUID(), ...content }),
+        requestActor(b.actor),
+        principleCreate.parse({ ...content }),
       );
       assertThrows(() =>
         recordUpdate.parse({
