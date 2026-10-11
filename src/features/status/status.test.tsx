@@ -17,7 +17,14 @@ it("상태 화면은 네 그래프에서 날짜와 실제 값을 제공하며 �
     entities: { total: 2, active: 1, deleted: 1 },
     tasks: { total: 3, open: 1, done: 1, active: 1, stopped: 0 },
     records: { total: 4, user: 2, result: 1, change: 1 },
-    indexing: { total: 4, indexed: 1, preparing: 1, attention: 1, excluded: 1 },
+    indexing: {
+      total: 4,
+      indexed: 1,
+      preparing: 1,
+      attention: 1,
+      excluded: 1,
+      waiting: { long_waiting: 1, oldest_waiting_since: "2026-10-10T14:00:00.000Z", threshold_minutes: 15 },
+    },
     daily: [{
       date: "2026-10-11",
       entities_created: 2,
@@ -33,6 +40,9 @@ it("상태 화면은 네 그래프에서 날짜와 실제 값을 제공하며 �
   expect(html).toContain("일회성 완료");
   expect(html).toContain("작성일별 현재 색인 상태");
   expect(html).toContain("과거 대기량");
+  expect(html).toContain("준비 상태 갱신이 15분 이상 없는 기록 1개");
+  expect(html).toContain("실패로 확정된 상태는 아닙니다");
+  expect(html).toContain("관리자에게 색인 서비스 점검");
   expect(html).not.toContain("집계 기준과 날짜별 값");
   expect(html).not.toContain('type="range"');
   expect(html).toContain("2026-10-11");

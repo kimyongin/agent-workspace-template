@@ -1,7 +1,7 @@
 import { DetailLink as Link, useDetailExploration } from "../../lib/detail-exploration.tsx";
 import { SearchMatch } from "../../components/SearchMatch.tsx";
 import { useEffect, useRef, useState } from "react";
-import { useSearchParams } from "react-router";
+import { Link as PageLink, useSearchParams } from "react-router";
 import { Field, Notice } from "../../components/Field.tsx";
 import { useDisplayTime } from "../../lib/useDisplayTime.ts";
 import { TagFilter, TagNames, TagReadProvider, useTagDictionary } from "../tags/TagPicker.tsx";
@@ -46,6 +46,7 @@ export function SearchPage(){
     {result&&<>
       {result.search_state==="keyword_fallback"&&<Notice>현재 키워드 검색 결과를 표시합니다. 의미 검색을 사용할 수 없습니다.</Notice>}
       {!!(result.semantic_coverage.pending+result.semantic_coverage.excluded)&&<p className="help">의미 색인 대기 {result.semantic_coverage.pending}개 · 제외 {result.semantic_coverage.excluded}개</p>}
+      {!!result.semantic_coverage.pending&&<p className="help">대기 중인 기록은 의미 검색 결과에 빠질 수 있습니다. <PageLink to="/status">상태에서 오래 갱신되지 않은 대기 확인</PageLink> 후에도 계속되면 관리자에게 색인 서비스 점검을 요청하세요. 처리 실패로 확정된 상태는 아닙니다.</p>}
       {!result.items.length&&<p className="secondary">검색 결과가 없습니다. 검색어 또는 필터를 바꿔 보세요.</p>}
       <ul className="list">{result.items.map(r=>{
         return <li className="list-item" key={`${r.kind}:${r.id}`}><div className="list-item-main">

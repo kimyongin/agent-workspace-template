@@ -12,6 +12,67 @@ import { asUser, connect, dbTest, fixtureOwner, outcome, urls } from "./_db.ts";
 const admin = connect(urls.admin, { max: 1 }), user = connect(urls.pooler, { max: 2, prepare: false });
 const at = "2026-10-10T15:00:00.000Z";
 const id = () => `20261011-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
+dbTest(
+  "indexing wait: threshold, current source, missing state, owner isolation and progress without confirmed failure",
+  async () => {
+    const own = await fixtureOwner(admin), foreign = await fixtureOwner(admin);
+    const queriedAt = "2026-10-11T15:00:00.000Z";
+    try {
+      const records: Record<string, string> = {};
+      for (
+        const [name, since] of [
+          ["boundary", "2026-10-11T14:45:00.000Z"],
+          ["recent", "2026-10-11T14:45:00.001Z"],
+          ["missing", "2026-10-11T14:40:00.000Z"],
+          ["foreign", "2026-10-10T00:00:00.000Z"],
+          ["revised", "2026-10-11T14:59:00.000Z"],
+          ["failed", "2026-10-10T00:00:00.000Z"],
+        ]
+      ) {
+        const record = records[name] = id(), owner = name === "foreign" ? foreign.actor.userId : own.actor.userId;
+        await admin`insert into app.records(id,owner_id,body,created_at,updated_at,occurred_at)
+        values(${record},${owner},'current body',${since},${since},${since})`;
+        if (name === "missing") continue;
+        await admin`insert into app.search_index_state(owner_id,kind,id,pipeline,input_hash,state,reason,updated_at)
+        values(${owner},'record',${record},${SEARCH_PIPELINE},encode(extensions.digest(${
+          name === "revised" ? "old body" : "current body"
+        },'sha256'),'hex'),
+        ${name === "failed" ? "failed" : "pending"},${name === "failed" ? "configuration" : null},${
+          name === "revised" ? "2026-10-10T00:00:00.000Z" : since
+        })`;
+      }
+      const c = client(own.actor.userId, queriedAt), status = await c.status();
+      assertEquals(status.indexing.waiting, {
+        long_waiting: 2,
+        oldest_waiting_since: "2026-10-11T14:40:00+00:00",
+        threshold_minutes: 15,
+      });
+      assertEquals(status.indexing.preparing, 4);
+      assertEquals(status.indexing.attention, 1);
+      assertEquals(
+        (await (await c.app.request("/status/indexing/issues")).json()).items.map((r: { id: string }) => r.id),
+        [records.failed],
+      );
+      assertEquals(await c.tool.handler({}, c.actor), status);
+      await admin`update app.search_index_state set updated_at=${queriedAt} where owner_id=${own.actor.userId} and id=${records.boundary}`;
+      await admin`delete from app.records where owner_id=${own.actor.userId} and id=${records.missing}`;
+      const after = await c.status();
+      assertEquals(after.indexing.waiting.long_waiting, 0);
+      assertEquals(after.indexing.waiting.oldest_waiting_since, "2026-10-11T14:45:00.001+00:00");
+      assertEquals((await client(foreign.actor.userId, queriedAt).status()).indexing.waiting.long_waiting, 1);
+      await assertRejects(() =>
+        asUser(
+          user,
+          crypto.randomUUID(),
+          (tx) => tx`select app.status_indexing_wait(${SEARCH_PIPELINE},${queriedAt}::timestamptz)`,
+        )
+      );
+    } finally {
+      await own.cleanup();
+      await foreign.cleanup();
+    }
+  },
+);
 function client(owner: string, queriedAt = at) {
   const actor = { userId: owner },
     deps = { reader: new SqlStatusReader(user), clock: { now: () => new Date(queriedAt) } };
@@ -192,7 +253,9 @@ dbTest(
       await admin`insert into private.passage_effects(owner_id,record_id,source_version,source_hash,pipeline,provider_scope,model,dimensions,start_offset,end_offset,input_hash,state,attempts,lease_until)
         values(${own.actor.userId},${records.split_parent},1,encode(extensions.digest('known body','sha256'),'hex'),${SEARCH_PIPELINE},repeat('b',64),'private-model',1024,0,5,repeat('d',64),'running',1,'2026-10-10T15:01:30Z')`;
       const c = client(own.actor.userId), overview = await c.status();
-      assertEquals(overview.indexing, { total: 13, indexed: 1, excluded: 1, preparing: 7, attention: 4 });
+      const { waiting, ...counts } = overview.indexing;
+      assertEquals(counts, { total: 13, indexed: 1, excluded: 1, preparing: 7, attention: 4 });
+      assertEquals(waiting.long_waiting, 0);
       assertEquals(overview.daily[29].indexing, { indexed: 1, excluded: 1, preparing: 7, attention: 4 });
       const issuesResponse = await c.app.request("/status/indexing/issues");
       assertEquals(issuesResponse.status, 200);

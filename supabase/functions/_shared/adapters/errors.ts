@@ -8,7 +8,8 @@ export function fromZod(error: z.ZodError): AppError {
     const base = i.path.join(".");
     // 허용하지 않은 필드는 필드 이름별로 알린다.
     if (i.code === "unrecognized_keys") {
-      return i.keys.map((k) => ({ path: base ? `${base}.${k}` : k, message: "허용하지 않는 필드입니다" }));
+      const message = /^Unrecognized keys?:/.test(i.message) ? "허용하지 않는 필드입니다" : i.message;
+      return i.keys.map((k) => ({ path: base ? `${base}.${k}` : k, message }));
     }
     return [{ path: base || "(입력)", message: i.message }];
   });

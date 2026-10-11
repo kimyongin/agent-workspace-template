@@ -9,9 +9,11 @@ export class SqlStatusReader {
   constructor(private readonly sql: postgres.Sql) {}
   overview(actor: Actor, timezone: string, at: Date): Promise<StatusData> {
     return runAsActor(this.sql, actor, async (tx) => {
-      const [row] =
-        await tx`select app.status_overview(${SEARCH_PIPELINE},${timezone},${at.toISOString()}::timestamptz) as overview`;
-      return row.overview as StatusData;
+      const [row] = await tx`select
+        app.status_overview(${SEARCH_PIPELINE},${timezone},${at.toISOString()}::timestamptz) as overview,
+        app.status_indexing_wait(${SEARCH_PIPELINE},${at.toISOString()}::timestamptz) as waiting`;
+      const overview = row.overview as StatusData;
+      return { ...overview, indexing: { ...overview.indexing, waiting: row.waiting } };
     });
   }
 

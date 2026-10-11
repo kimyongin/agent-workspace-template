@@ -535,6 +535,10 @@ httpTest(
     }
     // 할 일 생성: MCP는 최상위 object로 펼쳐 알리므로 두 종류(once·recurring) 입력 필드의 합집합과 같아야 한다.
     const branches = (json(taskCreate).oneOf ?? json(taskCreate).anyOf) as JsonSchema[];
+    assertEquals(
+      byName.create_task.oneOf,
+      taskCreate.options.map((branch) => json(branch.extend({ request_key: requestKey }))),
+    );
     const union = new Set([...branches.flatMap((b) => Object.keys(b.properties)), "request_key"]);
     assertEquals(Object.keys(byName.create_task.properties).sort(), [...union].sort());
     const requiredEverywhere = branches.map((b) => new Set(b.required as string[]))

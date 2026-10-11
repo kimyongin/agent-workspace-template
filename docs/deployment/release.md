@@ -42,7 +42,10 @@
 1. 쓰기·worker 중지 범위, 적용 revision·패키지 해시와 복구 revision을 기록한다. 기존 UUID·업무·참조를 가진 격리 DB의 전진 이관과 빈 DB의 전체 migration을 검증한다.
 2. 요청 결과·외부 effect·worker 복구와 1 MiB 응답 보관 한도의 전진 migration을 먼저 적용한다. 응답 한도 확대는 기존 결과를 보존하며 업무 설정 입력의 128 KiB 한도를 바꾸지 않는다. private ACL, owner 격리, 30일 요청 행 정리 Cron과 계정 cascade를 확인한다. 평생 요청 counter 제거와 만료 요청 행 전체 삭제는 스펙 #300의 전진 migration으로 적용하며 기존 업무 자료·참조·설정을 보존한다. 과거 migration은 보존한다. [ADR-0019](../adr/0019-pk-based-data-id-generation.md)의 PK 기반 생성으로 전환할 때는 쓰기를 중지하고 새 writer와 순방향 migration을 함께 적용한다. migration은 ID 기본값을 순수 후보 함수로 바꾸고 미사용 예약 allocator·발급 원장을 제거한다. 기존 업무·참조·요청 결과는 수정하지 않는다.
 3. 함수 환경에 안정적인 `PINECONE_ACCOUNT_SCOPE`를 설정한다. 값은 공급자 account/project를 식별하며 API 키 회전에도 유지한다. 누락 상태의 새 worker는 claim 전에 실패한다. 값이나 비밀은 배포 기록에 출력하지 않는다.
+   `worker_not_configured`이면 함수 관리 로그의 같은 이름 이벤트에서 `invalid_settings`에 나온 설정 이름을 확인한다. 공개 응답은 상세 설정을 포함하지 않는다. 이름만으로 충분하지 않으면 Dashboard에서 설정 유무와 길이 조건을 확인하고, 비밀값을 진단 로그에 출력하지 않는다.
+   배포할 설정 파일은 `deno run --config supabase/functions/deno.json --allow-env --env-file=<커밋하지 않는 설정 파일> scripts/verify-worker.ts`로 먼저 검사한다. 실제 대상의 `INDEX_WORKER_URL`을 같은 비밀 파일에 넣고 `--allow-net`과 마지막 `--probe` 인자를 더하면 인증된 설정 전용 호출의 HTTP 200/configuration_checked을 확인한다. 로컬 파일 통과는 원격 전달을 보증하지 않으며 설정 전용 호출은 DB 연결·큐 claim·외부 호출을 하지 않으며 실제 임베딩 성공이 아니다. 실제 소량 성공·현재 색인·검색 검증은 별도로 수행한다.
 4. 같은 계약의 HTTP·MCP·worker와 웹을 적용하고 제품 플러그인 후보를 검증·갱신한다. 오래 열린 웹과 이전 플러그인에는 갱신을 안내한다. 준비는 읽기이며 생성 결과로 정본 ID를 받는지 확인한다.
+   색인 장기 대기 안내가 포함된 서버를 적용하기 전에 `workspace_indexing_wait` 전진 migration을 적용한다. 이 조회는 15분 이상 준비 상태 갱신이 없는 기록을 점검 대상으로 안내하며 실패 원인을 확정하지 않는다. 이전 서버·웹은 추가 조회/필드를 사용하지 않아 호환된다.
 5. 실제 HTTP↔OAuth MCP의 명시 키 재현·충돌·204, 웹 응답 유실 재시도와 scoped worker를 확인한 뒤 쓰기·소비를 단계적으로 재개한다. 지원 호스트의 키 유지와 유료 공급자 결과는 별도 증거로 남긴다.
 
 부분 실패에서는 해당 쓰기/소비를 멈추고 호환 revision으로 복구한다. 30일 내 요청 ledger·effect 횟수·fence를 지우거나 구 writer를 되살리는 롤백은 하지 않는다. 복구된 큐가 이미 보낸 외부 작업을 다시 보내지 않도록 현재 원본과 성공 cache·unknown·전송 상한을 대조한다. 이 절차는 운영 적용 지시를 대신하지 않는다.

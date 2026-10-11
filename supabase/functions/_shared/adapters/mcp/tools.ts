@@ -12,6 +12,7 @@ export interface ToolDef {
   name: string;
   description: string;
   input: z.ZodType;
+  inputVariants?: z.ZodObject[];
   readOnly: boolean;
   destructive?: boolean;
   handler: Handler;
@@ -21,14 +22,22 @@ export interface ToolDef {
  * 도구 목록에는 contracts의 JSON Schema를 그대로 알리고, 검증은 핸들러가 contracts로 한다.
  * SDK의 자체 검증은 오류를 일반 텍스트로 돌려주므로 통과시키고 계약 오류 형식을 지킨다.
  */
-function documented(schema: z.ZodType): StandardSchemaWithJSON<Record<string, unknown>> {
+function documented(schema: z.ZodType, variants?: z.ZodObject[]): StandardSchemaWithJSON<Record<string, unknown>> {
   const std = schema["~standard"] as unknown as StandardSchemaWithJSON["~standard"];
   return {
     "~standard": {
       version: 1,
       vendor: "workspace-contracts",
       validate: (value: unknown) => ({ value: (value ?? {}) as Record<string, unknown> }),
-      jsonSchema: std.jsonSchema,
+      jsonSchema: variants
+        ? {
+          ...std.jsonSchema,
+          input: (options) => ({
+            ...std.jsonSchema.input(options),
+            oneOf: variants.map((variant) => variant["~standard"].jsonSchema.input(options)),
+          }),
+        }
+        : std.jsonSchema,
     },
   } as StandardSchemaWithJSON<Record<string, unknown>>;
 }
@@ -39,7 +48,7 @@ export function registerTools(server: McpServer, tools: ToolDef[], actor: Actor)
       tool.name,
       {
         description: tool.description,
-        inputSchema: documented(tool.input),
+        inputSchema: documented(tool.input, tool.inputVariants),
         annotations: {
           readOnlyHint: tool.readOnly,
           destructiveHint: tool.destructive ?? false,
@@ -74,6 +83,7 @@ export function keyedTool(tool: ToolDef): ToolDef {
     description:
       `${tool.description} request_key는 논리 요청의 UUID입니다. 재시도는 같은 키와 입력을 유지하며 성공 재현은 당시 결과입니다.`,
     input: z.strictObject({ ...object.shape, request_key: requestKey }),
+    inputVariants: tool.inputVariants?.map((variant) => variant.extend({ request_key: requestKey })),
     handler: (args, actor) => {
       const { request_key, ...input } = args;
       const key = parse(requestKey, request_key);
