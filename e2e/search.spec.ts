@@ -16,8 +16,8 @@ test("웹 검색→태그 범위→MCP 결과 비교→본문 원문 확인",asy
     expect((await mcp.call("search",{query:marker,tag_id:tag.id,mode:"keyword"})).items[0].title).toBe(title);
     await page.getByRole("link",{name:title,exact:true}).click();await expect(page.getByText(marker,{exact:true})).toBeVisible();
     await page.getByRole("button",{name:/^이전: 검색/}).click();
-    await page.locator("summary").filter({hasText:"검색 조건"}).click();await expect(page.getByLabel("태그 필터")).toHaveValue(tag.id);await expect(page.getByLabel("검색 방식")).toHaveValue("keyword");
     await expect(page.getByRole("link",{name:title,exact:true})).toBeFocused();
+    await page.locator("summary").filter({hasText:"검색 조건"}).click();await expect(page.getByLabel("태그 필터")).toHaveValue(tag.id);await expect(page.getByLabel("검색 방식")).toHaveValue("keyword");
   }finally{await mcp.close();}
 });
 
@@ -66,8 +66,8 @@ test("날짜 ID 검색 결과도 상세 왕복 후 새로고침하면 원문 링
   let created: {id:string;version:number} | undefined;
   try {
     const marker = unique("날짜 ID 검색 복귀");
-    const code = "G" + crypto.randomUUID().replaceAll("-", "").slice(0,7).toUpperCase();
-    created = await mcp.call("create_record", {id:`20261010-${code}`,body:marker});
+    created = await mcp.call("create_record", {body:marker});
+    expect(created!.id).toMatch(/^[0-9]{8}-[0-9A-Z]{8}$/);
     await page.goto(`/search?q=${encodeURIComponent(marker)}&mode=keyword&record_kind=user`);
     const link = page.getByRole("link", {name:marker,exact:true});
     await expect(link).toBeVisible(); await link.click();

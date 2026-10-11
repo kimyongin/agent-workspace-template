@@ -1,4 +1,5 @@
 import { useDeferredNavigation } from "../../lib/useDeferredNavigation.ts";
+import { dataId } from "@contracts/data-id.ts";
 import { tagCreate, tagLabels, type TagResult } from "@contracts/tag.ts";
 import { useEffect, useRef, useState } from "react";
 import { Navigate, useLocation, useParams, useSearchParams } from "react-router";
@@ -18,7 +19,7 @@ type Draft = { initial: TagResult | null; name: string };
 export function TagsPage() {
   const {pathname}=useLocation(),route=useParams(),[params]=useSearchParams();
   const scope=route.scope==="entity"||pathname.endsWith("/entity")?"entity":route.scope==="task"||pathname.endsWith("/task")?"task":"record";
-  const id=route.id??(route.scope&&/^[0-9a-f-]{36}$/i.test(route.scope)?route.scope:null);
+  const id=route.id??(route.scope&&dataId.safeParse(route.scope).success?route.scope:null);
   if(id){const next=new URLSearchParams(params);if(next.get("edit")==="1"){next.set("edit",id);next.delete("view");}else if(!next.has("edit"))next.set("edit",id);return <Navigate to={`/tags/${scope}?${next}`} replace/>;}
   return <ScopedTagsPage key={scope} scope={scope}/>;
 }
