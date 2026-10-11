@@ -25,6 +25,16 @@
 
 요청/작업 ID, 유스케이스, 실행 시간, 결과 코드, 재시도 횟수, 배포 revision으로 HTTP/MCP와 worker의 실패를 추적할 수 있게 한다. 로그에 토큰·비밀값·기록 본문을 남기지 않는다. 로그 보존 기간과 접근 권한도 운영 설정으로 정한다.
 
+## 요청 성공 재현과 원장 보존
+
+HTTP 업무 쓰기는 UUID `Idempotency-Key`, MCP는 필수 UUID `request_key`를 사용한다. 같은 owner·키·정확한 입력에는 당시 성공 결과·버전을 재현하며 현재 인증·owner 존재를 매번 확인한다. 재현 횟수, `idempotency_key_reused`·`request_in_progress`·`result_expired`·`idempotency_capacity_exceeded` 수와 잠금 대기를 revision별로 관찰한다. 키와 작업 종류·결과 코드만으로 조사하고 본문·메모·토큰은 로그에 추가하지 않는다.
+
+응답 유실·5xx·커밋 불명에는 같은 키·대상·입력·expected_version을 유지한다. `request_in_progress`는 1초 뒤 같은 요청만 재시도한다. 키 또는 메모리의 정확한 입력을 잃었으면 현재 자료를 조회해 다음 의도를 확인한다. 다른 입력의 키 재사용과 만료 오류는 새 키 자동 반복으로 해결하지 않는다. 오래된 성공 재현으로 삭제된 자료를 복원하지 않는다.
+
+성공 본문은 완료 시점부터 30일간 보관한다. 이후 조회는 정리 지연 여부와 무관하게 410 `result_expired`를 반환한다. migration이 등록하는 `expire-request-results` Cron은 매일 03:17 DB 시간에 private cleanup을 실행해 `result`만 지운다. 관리 권한으로 job 성공·미정리 만료 본문 수·저장량을 확인하되 본문을 출력하지 않는다. 지연 복구에는 기존 `private.expire_request_results()`만 사용하며 공개 RPC나 사용자 원장 CRUD를 추가하지 않는다.
+
+owner·키·operation·revision·fingerprint·완료 시각의 tombstone과 owner별 성공 키 counter는 계정 존속 기간 유지한다. owner당 100,000개 한도에서는 신규 쓰기가 429로 실패하고 기존 키 재현은 가능하다. 한도에 도달했다고 tombstone/counter를 삭제하거나 줄이면 이전 요청이 재실행될 수 있으므로 금지한다. 필요하면 별도 검토한 정책 변경으로 대응한다. 계정 삭제는 결과·tombstone·capacity·effect·검색 budget·벡터를 FK cascade로 제거하며 삭제 owner의 잔여 토큰도 거절한다. 서버 내부 ID 예약 행·기존 UUID·참조·과거 migration은 요청 본문 정리 대상이 아니다.
+
 ## 비동기 작업 장애
 
 1. 큐 지연이 등록량 증가인지 소비 중단인지 구분한다. 가장 오래된 메시지와 마지막 성공 처리 시각을 확인한다.
@@ -49,9 +59,13 @@ worker 소비를 멈춰도 생산이 계속되면 대기량이 늘어난다. 장
 
 서버 Secrets는 `WORKER_DB_URL`(app_worker의 트랜잭션 풀러), `INDEX_WORKER_TOKEN`(32 byte 이상 무작위 값의 base64url), `PINECONE_API_KEY`, `PINECONE_ACCOUNT_SCOPE`다. account scope는 비밀이 아닌 안정적인 공급자 account/project 식별값으로, API key 교체 시에도 유지한다. 누락·공백·120자 초과면 worker는 claim 전에 설정 오류로 중단한다. 로컬 `setup:local`은 역할 비밀번호·내부 토큰을 생성/보존하고 풀러 준비 실패를 숨기지 않는다. 함수 env의 기존 Pinecone 키를 우선하며 기존 `.env.local` 실험 키가 있을 때만 초기 설정으로 복사한다. 함수 설정을 바꾸면 실행 중인 함수 서버를 다시 시작한다.
 
-공급자 호출 제한은 30초·응답 128000 bytes, batch 최대 5, 큐 visibility 90초다. 정확한 passage effect별 첫 호출을 포함한 최대 실제 전송은 5회이며 큐 read_ct나 새 message ID로 초기화하지 않는다. 실제 전송 전에 횟수를 저장하고 30·60·120·240초 backoff를 적용한다. 429/5xx의 확인된 거절은 transient 재시도이며 마지막은 failed/retry_exhausted다. timeout·응답 유실·invalid response·결과 저장 불명은 unknown으로 남기며 다섯 번째는 unknown/retry_exhausted로 보류한다. worker의 held는 큐를 archive하고 현재 색인은 pending으로 유지한다. get_record_index_effects 또는 HTTP 기록 index-effects 조회에서 구간 상태와 이유를 확인한다. 공급자 멱등/조회 지원이 없어 제한 재계산은 중복 과금 가능성이 있다.
+공급자 호출 제한은 30초·응답 128000 bytes, batch 최대 5, 큐 visibility 90초다. 정확한 passage effect별 첫 호출을 포함한 최대 실제 전송은 5회이며 큐 read_ct나 새 message ID로 초기화하지 않는다. 실제 전송 전에 횟수를 저장하고 30·60·120·240초 backoff를 적용한다. 429/5xx의 확인된 거절은 transient 재시도이며 마지막은 failed/retry_exhausted다. timeout·응답 유실·invalid response·결과 저장 불명은 unknown으로 남기며 다섯 번째는 unknown/retry_exhausted로 보류한다. worker의 held는 큐를 archive하고 현재 색인은 pending으로 유지한다. get_record_index_effects 또는 HTTP 기록 index-effects 조회에서 구간 상태와 이유를 확인한다. 공급자 멱등/조회 지원이 없어 제한 재계산은 중복 과금 가능성이 있다. 실제 send 수·unknown/held·retry_exhausted·cache 재사용과 input_limit 분할 부모/자식 수를 함께 관찰한다. 총 비용은 각 입력 구간의 최대 5회 전송과 구간 수에 영향을 받으며 고정 화폐 상한을 보장하지 않는다.
 
 인증/구성 오류는 즉시 failed/configuration, 빈 본문은 excluded/invalid_input이며 input_limit 구간은 별도 자식으로 분할한다. 성공 형제 구간과 final apply 전 성공 결과는 재사용한다. 장애를 해결한 뒤 현재 소유자 문맥에서 app.enqueue_search_index(kind,id,current_hash,current_pipeline)을 호출해 재등록할 수 있지만 같은 원본 revision·본문 hash·pipeline·account scope의 성공 cache와 전송 상한은 유지한다. 소진된 작업은 실제 원본 수정 또는 검토한 pipeline 변경이라는 새 의도로 해결한다. 비용 상한을 우회하려고 임의 account scope를 변경하지 않는다. 큐를 비우거나 보관 메시지만 되돌리지 않는다.
+
+effect lease는 90초이며 만료만으로 외부 실패를 확정하지 않는다. 새 claim은 fence를 증가시키고 이전 fence 또는 만료 lease의 완료 저장을 거절한다. 원본 owner·revision·본문 hash·pipeline이 현재와 다르면 결과를 적용하지 않는다. 현재 Pinecone adapter는 documented 멱등 키·job 조회를 지원하지 않으며 내부 key를 공급자 헤더로 보내지 않는다. 향후 지원 공급자에서 키가 만료되거나 안전한 조회/재현이 불가능하면 `key_expired`/`unsupported_recovery`로 보류하고 새 키로 자동 전송하지 않는다.
+
+pending/running/unknown effect는 TTL로 삭제하지 않는다. 현재 원본의 성공 구간 벡터는 재사용하며 수정·삭제·pipeline 교체는 최종 succeeded/failed 결과만 정리한다. 불명 작업의 증거는 남긴다. 안전한 사용자 조회는 HTTP `GET /records/:id/index-effects`와 MCP `get_record_index_effects`의 구간 상태·attempts·reason뿐이며 provider key/job·벡터·원문·다른 owner·옛 revision을 반환하지 않는다. private 원장을 임의 수정해 lease·fence·횟수를 초기화하는 복구는 하지 않는다.
 
 배포 전 외부 작업 원장과 worker 복구 전진 migration을 먼저 적용하고, 안정적인 PINECONE_ACCOUNT_SCOPE를 함수 환경에 설정한 뒤 새 worker를 배포한다. API key 교체에서는 scope를 보존한다. 이것은 배포 절차이며 저장소 변경만으로 운영 적용됐다는 뜻은 아니다.
 
