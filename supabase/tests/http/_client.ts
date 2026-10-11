@@ -30,6 +30,7 @@ type Json = any;
 export interface Res<T = Json> {
   status: number;
   body: T;
+  headers: Headers;
 }
 
 export async function call<T = Json>(
@@ -49,7 +50,7 @@ export async function call<T = Json>(
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   const text = await res.text();
-  return { status: res.status, body: text ? JSON.parse(text) : null };
+  return { status: res.status, body: text ? JSON.parse(text) : null, headers: res.headers };
 }
 
 /** 판정용 관리 연결(로컬 전용). 큐·행 개수를 센다. */
