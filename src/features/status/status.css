@@ -5,20 +5,12 @@
   line-height: 1.25rem;
 }
 .status-section-heading,
-.status-chart-heading,
-.status-view-meta {
+.status-chart-heading {
   display: flex;
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
   gap: var(--space-2);
-}
-.status-view-info {
-  display: grid;
-  gap: var(--space-1);
-}
-.status-view-time {
-  margin: 0;
 }
 .status-section-heading {
   margin-bottom: var(--space-2);

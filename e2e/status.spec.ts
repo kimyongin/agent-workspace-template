@@ -11,7 +11,7 @@ test("상태: 실제 인증 HTTP·OAuth MCP 집계와 lazy 기본 접힘, 그래
   try {
     await page.goto("/status");
     await expect(page.getByRole("heading", { name: "상태", level: 1 })).toBeVisible();
-    await expect(page.getByText("이번 조회 연결 성공")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "현재 자료·최근 활동", exact: true })).toBeVisible();
     expect(issuesRequests).toBe(0);
     const toggle = page.getByRole("button", { name: /^색인 문제/ });
     await expect(toggle).toHaveAttribute("aria-expanded", "false");
@@ -124,7 +124,7 @@ test("상태: 실제 인증 HTTP·OAuth MCP 집계와 lazy 기본 접힘, 그래
       await expect(page.getByRole("heading", { name: "설정", level: 1 })).toBeVisible();
       const settingsStyle = await styles(".settings-section", ".settings-section-title");
       await page.goto("/status");
-      await expect(page.getByText("이번 조회 연결 성공")).toBeVisible();
+      await expect(page.getByRole("heading", { name: "현재 자료·최근 활동", exact: true })).toBeVisible();
       expect(await styles(".status-section", ".status-section-title")).toEqual(settingsStyle);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     }
@@ -162,7 +162,7 @@ test("색인 문제: 실제 상태 화면에서 다수·마지막 페이지·이
     });
   });
   await page.goto("/status");
-  await expect(page.getByText("이번 조회 연결 성공")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "현재 자료·최근 활동", exact: true })).toBeVisible();
   expect(calls).toBe(0);
   const toggle = page.getByRole("button", { name: /^색인 문제/ });
   await toggle.focus();
@@ -213,7 +213,7 @@ test("색인 문제: 접기와 새로고침은 오래된 요청을 취소하고 
     } catch { /* Aborted requests may no longer accept a response. */ }
   });
   await page.goto("/status");
-  await expect(page.getByText("이번 조회 연결 성공")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "현재 자료·최근 활동", exact: true })).toBeVisible();
   const toggle = page.getByRole("button", { name: /^색인 문제/ });
   await toggle.click();
   await expect.poll(() => calls).toBe(1);
@@ -224,7 +224,7 @@ test("색인 문제: 접기와 새로고침은 오래된 요청을 취소하고 
   await expect(page.getByText("새 조회의 문제")).toBeVisible();
   release();
   await page.getByRole("button", { name: "새로고침", exact: true }).click();
-  await expect(page.getByText("이번 조회 연결 성공")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "현재 자료·최근 활동", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: /^색인 문제/ })).toHaveAttribute("aria-expanded", "false");
   await expect(page.getByText("오래된 요청의 문제")).toHaveCount(0);
 });

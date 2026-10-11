@@ -30,11 +30,6 @@ export function StatusPage() {
     void refresh();
     return () => controller.current?.abort();
   }, []);
-  const viewedAt = data
-    ? new Intl.DateTimeFormat("ko-KR", { timeZone: data.timezone, dateStyle: "short", timeStyle: "medium" }).format(
-      new Date(data.queried_at),
-    )
-    : null;
   return (
     <section className="panel status-page" aria-labelledby="status-title" aria-busy={busy}>
       <header className="panel-head">
@@ -43,20 +38,7 @@ export function StatusPage() {
           {busy ? "조회 중…" : "새로고침"}
         </button>
       </header>
-      <div className="status-view-info">
-        <div className="status-view-meta">
-          <span className="meta">{data?.timezone ?? "Asia/Seoul"} · 서버 집계</span>
-          <span className="meta" role="status">
-            {busy ? "서버에서 상태를 조회하고 있습니다." : error ? "이번 조회 실패" : "이번 조회 연결 성공"}
-          </span>
-        </div>
-        {error && <p className="error" role="alert">{error}</p>}
-        {data && (
-          <p className="status-view-time meta">
-            {busy || error ? "이전 조회" : "조회 시각"}: <time dateTime={data.queried_at}>{viewedAt}</time> 기준
-          </p>
-        )}
-      </div>
+      {error && <p className="error" role="alert">{error}</p>}
       {data && (
         <StatusContent data={data}>
           <IndexingIssues key={issuesRevision} count={data.indexing.attention} disabled={busy || !!error} />
