@@ -13,7 +13,12 @@ export function GuidePage() {
         <p>진행 중인 프로젝트처럼 관리할 대상을 엔터티로 등록하세요. 이 템플릿은 속성 1~4를 가진 간단한 예제입니다.</p>
         <Link className="btn" to="/entities">엔터티로 이동</Link></li>
       <li className="guide-step"><h2 className="item-title">할 일 또는 기록 작성하기</h2>
-        <p>앞으로 할 일은 할 일에, 수행한 일과 결과는 기록에 남기세요. 연결 엔터티는 선택 사항이므로 엔터티 없이도 시작할 수 있습니다.</p>
+        <p>앞으로 할 행동은 할 일에, 메모·참고 자료는 기록에 남기세요. 연결 엔터티는 선택 사항이므로 엔터티 없이도 시작할 수 있습니다.</p>
+        <ul>
+          <li>일반 기록은 참고 자료입니다. 할 일에 연결해도 완료 상태는 바뀌지 않습니다.</li>
+          <li>일회성 할 일을 실제로 수행했다면 상세의 ‘완료하고 기록’으로 결과와 완료를 함께 저장하세요.</li>
+          <li>반복 할 일은 상세에서 수행한 날짜의 ‘회차 기록’으로 결과를 남기세요. 결과가 있는 그 날짜의 회차만 완료됩니다. 반복 업무가 자동 실행되거나 알림을 보내지는 않습니다.</li>
+        </ul>
         <div className="actions"><Link className="btn" to="/tasks">할 일로 이동</Link><Link className="btn" to="/records">기록으로 이동</Link></div></li>
       <li className="guide-step"><h2 className="item-title">제품 플러그인 연결하기</h2>
         <p>Claude와 Codex용 제품 플러그인은 MCP 연결 설정과 제품 스킬을 함께 제공합니다. MCP OAuth 로그인은 데이터 접근을 허용하고, 제품 스킬은 검색·읽기·저장 방법을 안내합니다. 로그인만으로 스킬 설치가 끝나는 것은 아닙니다.</p>
