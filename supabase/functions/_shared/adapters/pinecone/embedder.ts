@@ -2,11 +2,22 @@ import { type Embedder, EmbeddingError } from "../../core/search/index-worker.ts
 
 /** 본문 구간 또는 질의 한 개만 보낸다. 공급자의 자동 절단은 금지한다. */
 export class PineconeEmbedder implements Embedder {
-  constructor(private readonly key: string, private readonly send: typeof fetch = fetch) {}
+  readonly capabilities = { idempotency: null, lookup: false };
+  async send(text: string): Promise<import("../../core/search/external-effect.ts").ProviderOutcome> {
+    try {
+      return { state: "succeeded", vector: await this.embed(text, "passage") };
+    } catch (error) {
+      if (!(error instanceof EmbeddingError)) return { state: "unknown", reason: "provider_unknown" };
+      if (error.category === "invalid_response") return { state: "unknown", reason: "invalid_response" };
+      if (error.category === "transient") return { state: "unknown", reason: "provider_unknown" };
+      return { state: "failed", reason: error.category };
+    }
+  }
+  constructor(private readonly key: string, private readonly fetcher: typeof fetch = fetch) {}
   async embed(text: string, type: "passage" | "query"): Promise<number[]> {
     let response: Response;
     try {
-      response = await this.send("https://api.pinecone.io/embed", {
+      response = await this.fetcher("https://api.pinecone.io/embed", {
         method: "POST",
         redirect: "error",
         signal: AbortSignal.timeout(30_000),
