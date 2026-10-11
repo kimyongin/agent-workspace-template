@@ -113,6 +113,8 @@ for (
           }),
         ]);
         deleting = t.deleteTag(td, requestActor(f.actor), first.id, first.version, "delete dictionary entry");
+        // Observe failures immediately while the lock barrier is being inspected.
+        void deleting.catch(() => {});
         // Verify PostgreSQL is actually waiting on the parent lock before committing the edit.
         let waited = false;
         for (let n = 0; n < 100; n++) {

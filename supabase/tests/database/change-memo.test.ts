@@ -67,18 +67,19 @@ dbTest("change record tags are separate, owner-scoped, atomic and carried throug
     );
     const app = new Hono<HttpEnv>();
     app.use("*", async (c, next) => {
-      c.set("actor", f.actor);
+      c.set("actor", { ...f.actor, request: { key: c.req.header("Idempotency-Key") ?? "" } });
       await next();
     });
     app.route("/", activityRoutes(ad));
     const stopped = await app.request(`/tasks/${recurring.id}/stop`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", "Idempotency-Key": crypto.randomUUID() },
       body: JSON.stringify({ expected_version: recurring.version, change_note: "중단 메모", change_tag_ids: [own] }),
     });
     assertEquals(stopped.status, 200);
     const current = await stopped.json();
     await activityTools(ad).find((t) => t.name === "resume_task")!.handler({
+      request_key: crypto.randomUUID(),
       id: recurring.id,
       expected_version: current.version,
       change_note: "재개 메모",
