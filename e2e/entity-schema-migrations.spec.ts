@@ -1,6 +1,8 @@
 import { expect } from "@playwright/test";
 import { type ChildProcess, spawn } from "node:child_process";
 import { once } from "node:events";
+import { readFileSync } from "node:fs";
+import { parse } from "smol-toml";
 import postgres from "postgres";
 import { devLogin, env, mcpClient, mcpTokenViaConsent, test, unique } from "./support.ts";
 import { schemaAnalysisTick } from "./entity-schema-support.ts";
@@ -165,9 +167,25 @@ test("값 변환 작업: MCP 접수→웹 취소→MCP 확정 상태·원본 유
 });
 
 test("값 변환 작업: 실제 worker 실패→웹 같은 작업 재시도→완료·MCP 성공 재현", async ({ page }) => {
+  const workerUrl = new URL(env.LOCAL_DB_URL!);
+  if (!["127.0.0.1", "localhost"].includes(workerUrl.hostname)) {
+    throw new Error("worker failure fixture requires a loopback database");
+  }
+  const config = parse(readFileSync(
+    process.env.ENTITY_SCHEMA_WORKER_CONFIG ?? new URL("../supabase/config.toml", import.meta.url),
+    "utf8",
+  ));
+  const db = config.db as Record<string, unknown> | undefined;
+  if (!db || !Number.isInteger(db.port) || workerUrl.port !== String(db.port)) {
+    throw new Error("worker failure fixture database port must match the selected local config");
+  }
+  if (!env.APP_WORKER_PASSWORD) throw new Error("local worker credential missing");
+  workerUrl.username = "app_worker";
+  workerUrl.password = encodeURIComponent(env.APP_WORKER_PASSWORD);
   await devLogin(page);
   const mcp = await mcpClient(await mcpTokenViaConsent(page)),
-    admin = postgres(env.LOCAL_DB_URL, { max: 1, onnotice: () => {} });
+    admin = postgres(env.LOCAL_DB_URL, { max: 1, onnotice: () => {} }),
+    worker = postgres(workerUrl.href, { max: 1, prepare: false, onnotice: () => {} });
   let typeId: string | undefined, entityId: string | undefined;
   try {
     const type = await mcp.call("create_entity_type", { label: unique("재시도 작업"), icon_id: "leaf" });
@@ -201,8 +219,7 @@ test("값 변환 작업: 실제 worker 실패→웹 같은 작업 재시도→�
       fingerprint: ready.fingerprint,
     });
     // Explicit local fault injection uses the real fenced worker seam. A different claimed job rolls back.
-    await admin.begin(async (tx) => {
-      await tx`set local role app_worker`;
+    await worker.begin(async (tx) => {
       const [claimed] = await tx`select app.claim_entity_schema_migration() as batch`;
       expect(claimed.batch.id).toBe(job.job_id);
       const [failed] =
@@ -246,6 +263,7 @@ test("값 변환 작업: 실제 worker 실패→웹 같은 작업 재시도→�
     await page.reload();
     await expect(page.getByRole("status")).toContainText("완료");
   } finally {
+    await worker.end();
     await mcp.close();
     if (entityId) await admin`delete from app.records where entity_ids@>array[${entityId}]`;
     if (entityId) await admin`delete from app.entities where id=${entityId}`;
