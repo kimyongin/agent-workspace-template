@@ -86,7 +86,7 @@ export function ActivityPage({ kind }: { kind: WorkspaceListKind }) {
         <div className="query-bar"><TabSearch/>
         <TabFilters active={!!(tags.length||params.get("entity_id")||params.get("kind")||params.get("status")||params.get("record_kind")||from||to)} attention={!checked||dictionary.failed||trimmedTags} summary={[
           ...tags.map(id => `태그: ${dictionary.tags?.find(tag => tag.id === id)?.name ?? "선택됨"}`),
-          params.get("entity_id") ? "선택한 엔터티" : "",
+          params.get("entity_id") ? "선택한 자료" : "",
           params.get("kind") ? `종류: ${params.get("kind") === "once" ? "한 번" : "반복"}` : "",
           params.get("status") ? `상태: ${taskLabels[params.get("status") as keyof typeof taskLabels] ?? params.get("status")}` : "",
           params.get("record_kind") ? `종류: ${recordKindNames[params.get("record_kind") as keyof typeof recordKindNames] ?? params.get("record_kind")}` : "",

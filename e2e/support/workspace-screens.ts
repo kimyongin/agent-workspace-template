@@ -12,7 +12,7 @@ export const targetCases = [["entity", "entities", 1], ["task", "tasks", 2], ["r
 
 export const connectedTarget = (page: Page, kind: typeof targetCases[number][0]) =>
   form(page).getByRole("region", {
-    name: `${{ entity: "엔터티", task: "할 일", record: "기록", principle: "원칙" }[kind]} (1개)`,
+    name: `${{ entity: "연결된 자료", task: "할 일", record: "기록", principle: "원칙" }[kind]} (1개)`,
     exact: true,
   });
 
@@ -32,7 +32,8 @@ export async function fixtures(
     }, { ...base(12, ""), name: "같은 이름", scope: "task" }],
   };
   if (options.long) {
-    rows.entities[0].prop1 = "긴제목".repeat(25);
+    rows.entities[0].properties.prop_1 = rows.entities[0].title = "긴제목".repeat(25);
+    rows.entities[0].display_properties.prop_1 = rows.entities[0].title;
     for (const row of [...rows.tasks, ...rows.records, ...rows.principles]) {
       row.body = "긴 본문\n\n".repeat(150);
       if ("title" in row) row.title = "긴제목".repeat(32);
@@ -58,11 +59,11 @@ export function linkedFixture(state: Awaited<ReturnType<typeof fixtures>>) {
   });
   Object.assign(state.rows.tasks[0], {
     entity_ids: [entityKey(1)],
-    entity_context: [{ id: entityKey(1), title: "엔터티", source: "selection", captured_at: stamp }],
+    entity_context: [{ id: entityKey(1), title: "자료", source: "selection", captured_at: stamp }],
   });
   Object.assign(state.rows.records[0], {
     entity_ids: [entityKey(1)],
-    entity_context: [{ id: entityKey(1), title: "엔터티", source: "selection", captured_at: stamp }],
+    entity_context: [{ id: entityKey(1), title: "자료", source: "selection", captured_at: stamp }],
     task_id: id(2),
   });
 }

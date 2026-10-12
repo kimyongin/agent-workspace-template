@@ -5,11 +5,11 @@ import { useDisplayTime } from "../../lib/useDisplayTime.ts";
 export type WorkspaceRecord = RecordResult;
 export const recordKindNames = {user:"직접 작성",result:"수행 결과",change:"변경 기록"};
 export const changeActionNames = {create:"등록",update:"수정",delete:"삭제",restore:"복원",stop:"중단",resume:"재개"};
-const targets = {entity:"엔터티",task:"할 일",record:"기록",principle:"원칙"};
+const targets = {entity:"자료",task:"할 일",record:"기록",principle:"원칙"};
 export function ChangeContext({record,compact=false}: {record: WorkspaceRecord;compact?:boolean}) {
   const { formatDateTime } = useDisplayTime();
   const change=record.change;
-  const target=change?`${targets[change.target_kind]} 「${change.target_title}」 · ${changeActionNames[change.action]}`:null;
+  const target=change?`${change.target_kind==="entity"?record.entity_context.find(item=>item.id===change.target_id)?.type?.label??targets.entity:targets[change.target_kind]} 「${change.target_title}」 · ${changeActionNames[change.action]}`:null;
   const properties=<dl className="props">
     <div><dt>종류</dt><dd>{recordKindNames[record.record_kind]??"기록"}</dd></div>
     {change&&<div><dt>출처</dt><dd>{change.source==="http"?"웹":"에이전트"}</dd></div>}

@@ -45,17 +45,22 @@ export async function entityPresentation(
   const [row] = await tx`select v.display,t.id,t.label,t.icon_id,t.archived,t.schema_version from app.entity_types t
     join app.entity_schema_versions v on v.owner_id=t.owner_id and v.type_id=t.id where t.id::text=${typeId} and v.schema_version=t.schema_version`;
   if (!row) throw new Error("Entity schema reference is missing");
+  return entityPresentationRow(row, properties);
+}
+/** Joined entity+current definition reads use one statement snapshot, including during atomic migration. */
+export function entityPresentationRow(row: Record<string, unknown>, properties: EntityValues["properties"]) {
+  const display = row.display as { representative: string; list_columns: string[] };
   return {
     type: {
-      id: String(row.id),
+      id: String(row.type_id ?? row.id),
       label: String(row.label),
-      icon_id: resolvedEntityTypeIcon(row.icon_id),
+      icon_id: resolvedEntityTypeIcon(String(row.icon_id)),
       archived: Boolean(row.archived),
     },
-    current_schema_version: Number(row.schema_version),
-    title: String(properties[row.display.representative]),
+    current_schema_version: Number(row.current_schema_version ?? row.schema_version),
+    title: String(properties[display.representative]),
     display_properties: Object.fromEntries(
-      (row.display.list_columns as string[]).filter((key) => key in properties).map((key) => [key, properties[key]]),
+      display.list_columns.filter((key) => Object.hasOwn(properties, key)).map((key) => [key, properties[key]]),
     ),
   };
 }

@@ -164,8 +164,7 @@ dbTest("Entity DB: representative cursors preserve Unicode and owner/filter scop
   for (const item of items) await entity.deleteEntity(d, requestActor(A), item.id, item.version);
 });
 Deno.test({
-  name: "#350 pending: Entity DB typed numeric/date filters and property cursors",
-  ignore: true,
+  name: "Entity DB: typed numeric/date AND filters and property cursors",
   sanitizeOps: false,
   sanitizeResources: false,
   fn: async () => {

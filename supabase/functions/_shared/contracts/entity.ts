@@ -34,13 +34,24 @@ export const entityUpdate = z.strictObject({
     Object.keys(v).some((k) => !["schema_version", "expected_version", "change_note", "change_tag_ids"].includes(k)),
   { message: "바꿀 필드가 없습니다" },
 );
+export const entityPropertyFilter = z.union([
+  z.strictObject({
+    key: propertyKey,
+    operator: z.enum(["eq", "gt", "gte", "lt", "lte", "contains"]),
+    value: z.union([z.string().max(4096), z.number().finite(), z.boolean()]),
+  }),
+  z.strictObject({ key: propertyKey, operator: z.literal("unset") }),
+]);
+export const entityPropertySort = z.strictObject({ key: propertyKey, direction: z.enum(["asc", "desc"]) });
 export const entityListQuery = z.strictObject({
   entity_type_id: z.string().uuid().optional(),
+  link_candidate_for: entityReferenceId.optional(),
   tag_id: id.optional(),
   ...pageInput,
   cursor: z.string().min(1).max(2000).optional(),
   keyword: text(1, 100).optional(),
-  sort: z.enum(["updated_at", "title"]).default("updated_at"),
+  filters: z.array(entityPropertyFilter).max(32).optional(),
+  sort: z.union([z.enum(["updated_at", "title"]), entityPropertySort]).default("updated_at"),
 });
 export const entitySummary = z.object({
   tag_ids: z.array(id),

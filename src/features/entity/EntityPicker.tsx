@@ -32,13 +32,15 @@ export function EntityPicker(
           >
             <option value="">{items ? "미지정" : "불러오는 중…"}</option>
             {value && !items?.some((e) => e.id === value) && <option value={value}>현재 연결 ({value})</option>}
-            {items?.map((e) => <option key={e.id} value={e.id}>{e.title} · {entityIdentityLabel(e)}</option>)}
+            {items?.map((e) => (
+              <option key={e.id} value={e.id}>{e.type.label} · {e.title} · {entityIdentityLabel(e)}</option>
+            ))}
           </select>
         )}
       </Field>
       {failed && (
         <>
-          <Notice kind="error">엔터티를 불러오지 못했습니다.</Notice>
+          <Notice kind="error">자료를 불러오지 못했습니다.</Notice>
           <button
             className="btn"
             type="button"
@@ -108,7 +110,7 @@ export function EntityLinks(
 ) {
   if (!ids?.length) return null;
   return (
-    <RelatedSection title="자료" count={ids.length}>
+    <RelatedSection title="연결된 자료" count={ids.length}>
       <CollectionList>
         {ids.map((id) => {
           return (
@@ -127,8 +129,10 @@ export function EntityLinkItem({ id, context = [] }: { id: string; context?: Ent
   return (
     <RelatedPreviewItem
       to={`/entities/${encodeURIComponent(id)}`}
-      title={capture?.title ?? "연결된 엔터티"}
-      metadata={<span>{id}</span>}
+      title={capture?.title ?? "연결된 자료"}
+      metadata={
+        <span>{capture?.type ? `${capture.type.label} · 속성 버전 ${capture.schema_version ?? "—"} · ` : ""}{id}</span>
+      }
       restoreKey={`linked-entity-${id}`}
     />
   );

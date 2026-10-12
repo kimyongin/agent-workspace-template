@@ -10,6 +10,8 @@ export const entitySelection = {
 export const entityContext = z.object({
   id: entityReferenceId,
   title: z.string(),
+  type: z.object({ id: z.string().uuid(), label: z.string(), icon_id: z.string(), archived: z.boolean() }).optional(),
+  schema_version: z.number().int().positive().optional(),
   captured_at: isoDateTime,
   source: z.enum(["selection", "legacy_backfill"]),
 });

@@ -13,7 +13,7 @@ export function EntityProperties({ entity }: { entity: EntityValues }) {
     setFailed(false);
     void api<EntitySchemaResult>(
       "GET",
-      `/entity-types/${entity.entity_type_id}/schema`,
+      `/entity-types/${entity.entity_type_id}/schema?schema_version=${entity.current_schema_version}`,
       undefined,
       c.signal,
     ).then((value) => {
@@ -22,7 +22,7 @@ export function EntityProperties({ entity }: { entity: EntityValues }) {
       if (!c.signal.aborted) setFailed(true);
     });
     return () => c.abort();
-  }, [entity.entity_type_id, entity.schema_version, retry]);
+  }, [entity.entity_type_id, entity.current_schema_version, retry]);
   if (failed) {
     return (
       <>

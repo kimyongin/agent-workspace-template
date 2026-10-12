@@ -14,7 +14,12 @@ import type { Actor } from "../shared/actor.ts";
 import { invalidInput } from "../shared/errors.ts";
 import { conflict, notFound } from "../shared/errors.ts";
 import { type PreparedRecordMemo, prepareRecordMemo } from "../../contracts/record-preparation.ts";
-import { effectiveRecordTemplate, recordTemplateTagIds, modelActions, type TemplateModel } from "../../contracts/record-template.ts";
+import {
+  effectiveRecordTemplate,
+  modelActions,
+  recordTemplateTagIds,
+  type TemplateModel,
+} from "../../contracts/record-template.ts";
 import { changeDefaults } from "./change-defaults.ts";
 import {
   entityUpdateDecision,
@@ -208,7 +213,12 @@ export function prepareBusinessRecord(
     }
     if (input.action !== "create") prepared_input = { ...prepared_input, expected_version: input.expected_version };
     const title = String((after ?? before)?.title ?? "");
-    const ids = effectiveRecordTemplate(saved.settings.record_templates,input.model,input.action,(after ?? before)?.entity_type_id).tag_ids;
+    const ids = effectiveRecordTemplate(
+      saved.settings.record_templates,
+      input.model,
+      input.action,
+      (after ?? before)?.entity_type_id,
+    ).tag_ids;
     const result = changeDefaults(
       {
         target_kind: input.model,
