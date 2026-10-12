@@ -1,3 +1,4 @@
+import { optionLabelDictionary } from "../../contracts/option-labels.ts";
 import { Ajv2020 } from "ajv/2020";
 import addFormats from "ajv-formats";
 import { z } from "zod";
@@ -35,7 +36,7 @@ const definition = z.strictObject({
     order: z.array(propertyKey).max(limits.fields),
     list_columns: z.array(propertyKey).max(limits.fields),
     archived: z.array(propertyKey).max(limits.fields),
-    option_labels: z.record(propertyKey, z.record(z.string(), z.string().min(1).max(80))),
+    option_labels: z.record(propertyKey, optionLabelDictionary),
   }),
 });
 /** An instance lives for one validation; compiled owner definitions cannot accumulate. */

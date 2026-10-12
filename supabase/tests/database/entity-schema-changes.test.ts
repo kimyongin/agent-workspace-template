@@ -77,6 +77,32 @@ dbTest(
         }],
       });
       assertEquals(Object.entries(prototype.reservations), [["__proto__", "prop_2"], ["constructor", "prop_3"]]);
+      const labels = JSON.parse('{"__proto__":"특수 코드","constructor":"생성 코드","toString":"문자 코드"}');
+      const options = await createEntitySchemaChange(d, requestActor(a.actor), other.id, {
+        expected_type_version: 1,
+        expected_schema_version: 1,
+        edits: [{
+          op: "add_property",
+          client_ref: "options",
+          field: { type: "string", enum: Object.keys(labels) },
+          required: false,
+        }],
+      });
+      const withLabels = await updateEntitySchemaChange(d, requestActor(a.actor), other.id, options.id, {
+        expected_type_version: 1,
+        expected_schema_version: 1,
+        expected_change_version: 1,
+        edits: [...options.edits, {
+          op: "set_display",
+          display: { ...options.target.display, option_labels: { [options.reservations.options]: labels } },
+        }],
+      });
+      assertEquals(withLabels.target.display.option_labels[options.reservations.options]["__proto__"], "특수 코드");
+      assertEquals(
+        (await getEntitySchemaChange(d, a.actor, other.id, options.id)).target.display
+          .option_labels[options.reservations.options],
+        labels,
+      );
       const input = {
         expected_type_version: 1,
         expected_schema_version: 1,
@@ -88,7 +114,7 @@ dbTest(
       assertEquals(await createEntitySchemaChange(d, actor, type.id, input), change);
       assertEquals(
         (await assertRejects(async () =>
-          createEntitySchemaChange(d, actor, type.id, {
+          await createEntitySchemaChange(d, actor, type.id, {
             ...input,
             edits: [{ op: "add_property", client_ref: "cost", field: { type: "string" }, required: false }],
           }), AppError)).code,
@@ -96,14 +122,14 @@ dbTest(
       );
       assertEquals(
         (await assertRejects(
-          async () => createEntitySchemaChange(d, actor, type.id, { ...input, edits: [] }),
+          async () => await createEntitySchemaChange(d, actor, type.id, { ...input, edits: [] }),
           AppError,
         ))
           .code,
         "invalid_input",
       );
       assertEquals(
-        (await assertRejects(async () => getEntitySchemaChange(d, b.actor, type.id, change.id), AppError)).code,
+        (await assertRejects(async () => await getEntitySchemaChange(d, b.actor, type.id, change.id), AppError)).code,
         "not_found",
       );
       assertEquals((await getEntitySchema(d, a.actor, { type_id: type.id })).schema_version, 1);
@@ -148,7 +174,7 @@ dbTest(
       assertEquals((await getEntitySchema(d, a.actor, { type_id: type.id })).schema.properties.prop_1.title, "商品名");
       assertEquals(
         (await assertRejects(async () =>
-          updateEntity(e, requestActor(a.actor), entity.id, {
+          await updateEntity(e, requestActor(a.actor), entity.id, {
             expected_version: entity.version,
             schema_version: 1,
             properties: { prop_1: "stale" },
@@ -173,7 +199,7 @@ dbTest(
       assertEquals((await getEntitySchemaChange(d, a.actor, type.id, next.id)).status, "stale");
       assertEquals(
         (await assertRejects(async () =>
-          applyEntitySchemaChange(d, requestActor(a.actor), type.id, next.id, {
+          await applyEntitySchemaChange(d, requestActor(a.actor), type.id, next.id, {
             expected_change_version: 1,
             analysis_id: analyzed.analysis_id,
           }), AppError)).code,
@@ -215,12 +241,15 @@ dbTest(
         value: { entity: { update: { memo: "$엔터티.이후.prop_2$", tag_ids: [] } } },
       });
       for (const op of ["archive_property", "remove_property"]) {
-        const error = await assertRejects(async () =>
-          createEntitySchemaChange(d, requestActor(a.actor), type.id, {
-            expected_type_version: 2,
-            expected_schema_version: 2,
-            edits: [{ op, key: "prop_2" }],
-          }), AppError);
+        const error = await assertRejects(
+          async () =>
+            await createEntitySchemaChange(d, requestActor(a.actor), type.id, {
+              expected_type_version: 2,
+              expected_schema_version: 2,
+              edits: [{ op, key: "prop_2" }],
+            }),
+          AppError,
+        );
         assertEquals(error.code, "invalid_input");
         assertEquals(error.fields?.[0].path, "record_templates.entity.update.memo");
       }

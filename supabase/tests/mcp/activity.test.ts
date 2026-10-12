@@ -1,3 +1,10 @@
+import {
+  schemaChangeAction,
+  schemaChangeApply,
+  schemaChangeCreate,
+  schemaChangeList,
+  schemaChangeUpdate,
+} from "../../functions/_shared/contracts/entity-schema-change.ts";
 import { requestKey } from "../../functions/_shared/contracts/request.ts";
 // MCP 계약 테스트: 실제 OAuth 토큰과 공식 MCP 클라이언트로 도구를 호출하고, HTTP와 결과·오류 의미가 같은지 본다.
 import { assert, assertEquals } from "@std/assert";
@@ -176,6 +183,12 @@ const EXPECTED_TOOLS = [
   "update_entity_type",
   "get_entity_schema",
   "list_entity_schema_versions",
+  "create_entity_schema_change",
+  "get_entity_schema_change",
+  "list_entity_schema_changes",
+  "update_entity_schema_change",
+  "analyze_entity_schema_change",
+  "apply_entity_schema_change",
   "complete_task",
   "create_principle",
   "create_record",
@@ -489,6 +502,24 @@ httpTest("tools/list: 계약의 도구 이름과 contracts JSON Schema", async (
     update_entity_type: entityTypeUpdate.safeExtend({ type_id: z.string().uuid(), request_key: requestKey }),
     get_entity_schema: entitySchemaRead,
     list_entity_schema_versions: entitySchemaHistory,
+    create_entity_schema_change: schemaChangeCreate.extend({ type_id: z.string().uuid(), request_key: requestKey }),
+    update_entity_schema_change: schemaChangeUpdate.extend({
+      type_id: z.string().uuid(),
+      change_id: z.string().uuid(),
+      request_key: requestKey,
+    }),
+    get_entity_schema_change: z.strictObject({ type_id: z.string().uuid(), change_id: z.string().uuid() }),
+    list_entity_schema_changes: schemaChangeList.extend({ type_id: z.string().uuid() }),
+    analyze_entity_schema_change: schemaChangeAction.extend({
+      type_id: z.string().uuid(),
+      change_id: z.string().uuid(),
+      request_key: requestKey,
+    }),
+    apply_entity_schema_change: schemaChangeApply.extend({
+      type_id: z.string().uuid(),
+      change_id: z.string().uuid(),
+      request_key: requestKey,
+    }),
   };
   for (const [name, schema] of Object.entries(foundationContracts)) {
     assertEquals(byName[name].inputSchema as unknown, z.toJSONSchema(schema, { target: "draft-2020-12", io: "input" }));

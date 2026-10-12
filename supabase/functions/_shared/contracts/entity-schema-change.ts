@@ -1,3 +1,4 @@
+import { optionLabelDictionary } from "./option-labels.ts";
 import { z } from "zod";
 import { type EntityDisplay, type EntityField, type EntitySchemaVersion, propertyKey } from "./entity-type.ts";
 const scalar = z.enum(["string", "integer", "number", "boolean"]);
@@ -18,7 +19,7 @@ const displayInput = z.strictObject({
   order: z.array(propertyKey).max(64),
   list_columns: z.array(propertyKey).max(64),
   archived: z.array(propertyKey).max(64),
-  option_labels: z.record(propertyKey, z.record(z.string(), z.string().min(1).max(80))),
+  option_labels: z.record(propertyKey, optionLabelDictionary),
 });
 export const entitySchemaEdit = z.discriminatedUnion("op", [
   z.strictObject({
