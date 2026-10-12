@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { entityDetail } from "../supabase/functions/_shared/contracts/entity.ts";
 import { type EntityType, initialEntityDefinition } from "../supabase/functions/_shared/contracts/entity-type.ts";
 import { fulfillPreparation } from "./support/preparation-api.ts";
 import { closeDetail } from "./ui-actions.ts";
@@ -476,14 +477,15 @@ test("entity edit preserves draft and tags while identity settings are delayed b
   const entity = { id: "app:ready", source: "app", external_id: "ready", entity_type_id: materials.id,
     schema_version: 1, properties: { prop_1: "元の名前" }, title: "元の名前", type: materials,
     source_label: "앱", current_schema_version: 1, display_properties: { prop_1: "元の名前" }, tasks: { items: [], count: 0 }, records: { items: [], count: 0 },
-    version: 1, tag_ids: ["retained-tag"], deleted_at: null, created_at: materials.created_at, updated_at: materials.updated_at };
+    version: 1, tag_ids: ["00000000-0000-4000-8000-000000000010"], deleted_at: null, created_at: materials.created_at, updated_at: materials.updated_at };
+  entityDetail.parse(entity);
   const preparations: Record<string, any>[] = [], writes: Record<string, any>[] = [];
   await page.route("**/api/entities/app%3Aready", async route => {
     if (route.request().method() === "PATCH") { const input=route.request().postDataJSON(); writes.push(input); return route.fulfill({ json: { ...entity, properties: input.properties, title: input.properties.prop_1, version: 2 } }); }
     return route.fulfill({ json: entity });
   });
   await page.route("**/api/records/prepare", async route => { preparations.push(route.request().postDataJSON()); await fulfillPreparation(route); });
-  await page.route("**/api/tags?**", route => route.fulfill({ json: { items: [{ id: "retained-tag", name: "保留タグ", scope: "entity", version: 1 }], next_cursor: null } }));
+  await page.route("**/api/tags?**", route => route.fulfill({ json: { items: [{ id: "00000000-0000-4000-8000-000000000010", name: "保留タグ", scope: "entity", version: 1 }], next_cursor: null } }));
   await page.route("**/api/settings/business?**", async route => {
     if(new URL(route.request().url()).searchParams.get("id")!=="entity_identity")return route.fallback();
     arrived(); await held; return route.fallback();
@@ -497,6 +499,7 @@ test("entity edit preserves draft and tags while identity settings are delayed b
     await expect(form.getByRole("button", { name: "保留タグ", exact: true })).toHaveAttribute("aria-pressed","true");
     await expect(form.getByRole("button", { name: "저장", exact: true })).toBeDisabled();
     await expect(form.getByRole("status").filter({ hasText: "자료 종류·식별자 설정을 읽는 중…" })).toBeVisible();
+    await form.getByLabel("이름", { exact: false }).press("Enter");
     expect(preparations).toEqual([]); expect(writes).toEqual([]);
     release();
     await expect(form.getByRole("button", { name: "저장", exact: true })).toBeEnabled();
@@ -506,11 +509,11 @@ test("entity edit preserves draft and tags while identity settings are delayed b
     const confirmation=page.locator("dialog.modal-action[open]");
     await expect(confirmation.getByRole("button", { name: "수정하고 저장", exact: true })).toBeEnabled();
     expect(preparations).toHaveLength(1);
-    expect(preparations[0]).toMatchObject({ model: "entity", action: "update", target_id: entity.id, expected_version: 1, input: { schema_version: 1, properties: { prop_1: "保持する下書き" }, tag_ids: ["retained-tag"] } });
+    expect(preparations[0]).toMatchObject({ model: "entity", action: "update", target_id: entity.id, expected_version: 1, input: { schema_version: 1, properties: { prop_1: "保持する下書き" }, tag_ids: ["00000000-0000-4000-8000-000000000010"] } });
     await confirmation.getByRole("button", { name: "수정하고 저장", exact: true }).click();
     await expect(form).not.toBeVisible();
     expect(writes).toHaveLength(1);
-    expect(writes[0]).toMatchObject({ expected_version: 1, schema_version: 1, properties: { prop_1: "保持する下書き" }, tag_ids: ["retained-tag"] });
+    expect(writes[0]).toMatchObject({ expected_version: 1, schema_version: 1, properties: { prop_1: "保持する下書き" }, tag_ids: ["00000000-0000-4000-8000-000000000010"] });
   } finally { release(); }
 });
 
@@ -519,6 +522,7 @@ test("immutable entity edit exposes identity catalog read failure and preserves 
     properties:{prop_1:"元の名前"}, title:"元の名前", type:materials, version:1, tag_ids:[], deleted_at:null,
     source_label:"앱", current_schema_version:1, display_properties:{prop_1:"元の名前"}, tasks:{items:[],count:0}, records:{items:[],count:0},
     created_at:materials.created_at, updated_at:materials.updated_at };
+  entityDetail.parse(entity);
   let editing=false, preparations=0;
   await page.route("**/api/entities/app%3Afailed-read", route=>route.fulfill({json:entity}));
   await page.route("**/api/records/prepare", async route=>{preparations++;await fulfillPreparation(route);});
