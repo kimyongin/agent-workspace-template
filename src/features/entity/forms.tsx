@@ -320,6 +320,7 @@ export function EntityForm({
                     types={types?.filter((type) => !type.archived) ?? []}
                     value={typeId}
                     disabled={!types}
+                    error={errors.entity_type_id}
                     onChange={(selected) => {
                       if (selected === typeId) {
                         return;
@@ -332,7 +333,6 @@ export function EntityForm({
                       }
                     }}
                   />
-                  {errors.entity_type_id && <p role="alert" className="error-text">{errors.entity_type_id}</p>}
                 </>
               )}
               {types && !types.some((type) =>

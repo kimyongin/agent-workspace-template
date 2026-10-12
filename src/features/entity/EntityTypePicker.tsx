@@ -2,12 +2,13 @@ import { useId, useState } from "react";
 import type { EntityType } from "@contracts/entity-type.ts";
 import { EntityTypeIcon } from "./EntityTypeIcon.tsx";
 export function EntityTypePicker(
-  { types, value, onChange, all = false, disabled = false }: {
+  { types, value, onChange, all = false, disabled = false, error }: {
     types: EntityType[];
     value: string;
     onChange: (id: string) => void;
     all?: boolean;
     disabled?: boolean;
+    error?: string;
   },
 ) {
   const [keyword, setKeyword] = useState(""), id = useId();
@@ -35,6 +36,9 @@ export function EntityTypePicker(
           className="input"
           value={value}
           disabled={disabled}
+          aria-required={!all || undefined}
+          aria-invalid={!!error || undefined}
+          aria-describedby={error ? `${id}-error` : undefined}
           onChange={(event) => onChange(event.target.value)}
         >
           <option value="">{all ? "전체 자료" : "자료 종류 선택"}</option>
@@ -47,6 +51,7 @@ export function EntityTypePicker(
           {value && !selected && <option value={value}>찾을 수 없는 자료 종류</option>}
         </select>
       </div>
+      {error && <p id={`${id}-error`} role="alert" className="error-text">{error}</p>}
       {selected && (
         <span className="help">
           <EntityTypeIcon id={selected.icon_id} /> {selected.label}

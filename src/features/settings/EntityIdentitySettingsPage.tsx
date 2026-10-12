@@ -21,7 +21,7 @@ export function EntityIdentitySettingsPage() {
   }, [state]);
   return (
     <section className="panel settings" aria-labelledby="identity-page-title">
-      <nav aria-label="설정 경로">
+      <nav className="settings-breadcrumb" aria-label="설정 경로">
         <Link to="/settings">설정</Link>
         <span aria-hidden="true">/</span>
         <span>자료 식별자·발급처</span>

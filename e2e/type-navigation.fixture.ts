@@ -96,6 +96,7 @@ test("typed creation requires selection and protects drafts before changing kind
   let form = page.getByRole("dialog", { name: "자료 추가", exact: true });
   await form.getByRole("button", { name: "저장", exact: true }).click();
   await expect(form.getByText("자료 종류와 속성 정의를 확인하세요", { exact: true })).toBeVisible();
+  await expect(form.getByLabel("자료 종류", { exact: true })).toBeFocused();
   await form.getByLabel("자료 종류", { exact: true }).selectOption(materials.id);
   form = page.getByRole("dialog", { name: "재료 추가", exact: true });
   await form.getByLabel("이름", { exact: false }).fill("보존할 초안");
