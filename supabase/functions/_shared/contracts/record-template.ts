@@ -17,10 +17,7 @@ export const templateActionNames: Record<TemplateAction, string> = {
 };
 export const templateFields: Record<TemplateModel, Record<string, string>> = {
   entity: {
-    속성1: "prop1",
-    속성2: "prop2",
-    속성3: "prop3",
-    속성4: "prop4",
+    제목: "title",
     태그: "tag_ids",
     발급처: "source",
     식별자: "external_id",
@@ -80,7 +77,9 @@ export function templateIssues(memo: string, model: TemplateModel, action: Templ
       break;
     }
     const variable = memo.slice(start, end);
-    if (!allowed.has(variable)) {
+    const dynamicProperty = model === "entity" && /^엔터티\.(이전|이후)\.prop_[1-9][0-9]*$/.test(variable) &&
+      !(action === "create" && variable.includes(".이전.")) && !(action === "delete" && variable.includes(".이후."));
+    if (!allowed.has(variable) && !dynamicProperty) {
       issues.push({
         position: open + 1,
         reason: `사용할 수 없는 변수: ${variable || "(빈 변수)"}. 모델·속성·이전/이후를 확인하세요`,
@@ -189,6 +188,10 @@ export function renderTemplate(memo: string, context: TemplateContext): string {
       if (variable === "변경내용") return context.changes;
       if (variable === "변경항목") return context.changed_fields?.join(", ") || "변경 없음";
       const [, phase, name] = variable.split(".");
+      if (context.model === "entity" && /^prop_[1-9][0-9]*$/.test(name)) {
+        const facts = phase === "이전" ? context.before : context.after;
+        return display((facts?.properties as Record<string, unknown> | undefined)?.[name]);
+      }
       return display((phase === "이전" ? context.before : context.after)?.[templateFields[context.model][name]]);
     },
   );
