@@ -19,7 +19,12 @@ import {
   getEntitySchemaChange,
   updateEntitySchemaChange,
 } from "../../functions/_shared/core/entity-types/schema-changes.ts";
-import { createEntity, getEntity, updateEntity } from "../../functions/_shared/core/entity/application.ts";
+import {
+  createEntity,
+  deleteEntity,
+  getEntity,
+  updateEntity,
+} from "../../functions/_shared/core/entity/application.ts";
 import { compileMigration } from "../../functions/_shared/core/entity-types/conversions.ts";
 import type { SchemaDefinition } from "../../functions/_shared/contracts/entity-schema-change.ts";
 import type postgres from "postgres";
@@ -446,6 +451,166 @@ dbTest(
     } finally {
       await a.cleanup();
       await b.cleanup();
+      await Promise.all([worker.end(), sql.end(), admin.end()]);
+    }
+  },
+);
+
+dbTest(
+  "persisted migration worker converts optional text with missing-only fill, null failures and deleted snapshots",
+  async () => {
+    const workerUrl = new URL(urls.admin);
+    workerUrl.username = "app_worker";
+    workerUrl.password = encodeURIComponent(Deno.env.get("APP_WORKER_PASSWORD")!);
+    const worker = connect(workerUrl.href, { prepare: false, max: 1 }),
+      admin = connect(urls.admin),
+      sql = connect(urls.direct);
+    const a = await fixtureOwner(admin),
+      d = { uow: new SqlEntityTypeUnitOfWork(sql) },
+      e = { uow: new SqlEntityUnitOfWork(sql) };
+    try {
+      const type = await createEntityType(d, requestActor(a.actor), { label: "Persisted conversion" });
+      const add = await createEntitySchemaChange(d, requestActor(a.actor), type.id, {
+        expected_type_version: 1,
+        expected_schema_version: 1,
+        edits: [{ op: "add_property", client_ref: "quantity", field: { type: ["string", "null"] }, required: false }],
+      });
+      assertEquals(add.reservations, { quantity: "prop_2" });
+      const accepted = await analyzeEntitySchemaChange(d, requestActor(a.actor), type.id, add.id, {
+        expected_change_version: 1,
+      });
+      await consume(worker);
+      await applyEntitySchemaChange(d, requestActor(a.actor), type.id, add.id, {
+        expected_change_version: 1,
+        analysis_id: accepted.analysis_id,
+      });
+      const valid = await createEntity(e, requestActor(a.actor), {
+        entity_type_id: type.id,
+        schema_version: 2,
+        properties: { prop_1: "valid", prop_2: "12" },
+      });
+      const missing = await createEntity(e, requestActor(a.actor), {
+        entity_type_id: type.id,
+        schema_version: 2,
+        properties: { prop_1: "missing" },
+      });
+      const leading = await createEntity(e, requestActor(a.actor), {
+        entity_type_id: type.id,
+        schema_version: 2,
+        properties: { prop_1: "identifier", prop_2: "001" },
+      });
+      const nullable = await createEntity(e, requestActor(a.actor), {
+        entity_type_id: type.id,
+        schema_version: 2,
+        properties: { prop_1: "null", prop_2: null },
+      });
+      const deleted = await createEntity(e, requestActor(a.actor), {
+        entity_type_id: type.id,
+        schema_version: 2,
+        properties: { prop_1: "deleted", prop_2: "7" },
+      });
+      await deleteEntity(e, requestActor(a.actor), deleted.id, deleted.version);
+      const before = await Promise.all(
+        [valid, missing, leading, nullable, deleted].map((row) => getEntity(e, a.actor, row.id)),
+      );
+      const input = {
+        expected_type_version: 2,
+        expected_schema_version: 2,
+        edits: [{ op: "update_property", key: "prop_2", field: { type: "integer" }, required: true }],
+        migration: {
+          rules: [{ op: "convert", key: "prop_2", to: "integer" }, {
+            op: "fill",
+            key: "prop_2",
+            value: 0,
+            include_null: false,
+          }],
+          overrides: [],
+        },
+      };
+      const plan = await createEntitySchemaChange(d, requestActor(a.actor), type.id, input);
+      assertEquals(plan.change_kind, "migration_required");
+      assertEquals<unknown>(plan.migration.rules, input.migration.rules);
+      const first = await analyzeEntitySchemaChange(d, requestActor(a.actor), type.id, plan.id, {
+        expected_change_version: 1,
+      });
+      await consume(worker);
+      const failed = await getEntitySchemaChange(d, a.actor, type.id, plan.id);
+      assertEquals([
+        failed.analysis?.total,
+        failed.analysis?.processed,
+        failed.analysis?.failed,
+        failed.analysis?.changed,
+        failed.analysis?.unchanged,
+        failed.analysis?.removed,
+        failed.analysis?.replacements,
+      ], [5, 5, 2, 3, 2, 0, 1]);
+      assertEquals(failed.executable, false);
+      const page = await getEntitySchemaAnalysisRows(d, a.actor, type.id, plan.id, { analysis_id: first.analysis_id });
+      assertEquals(page.items.length, 5);
+      const rows = new Map(page.items.map((row) => [row.entity_id, row]));
+      assertEquals(rows.get(valid.id)?.after, { prop_1: "valid", prop_2: 12 });
+      assertEquals(rows.get(missing.id)?.before, { prop_1: "missing" });
+      assertEquals(rows.get(missing.id)?.after, { prop_1: "missing", prop_2: 0 });
+      assertEquals(rows.get(leading.id)?.after, { prop_1: "identifier", prop_2: "001" });
+      assertEquals(rows.get(leading.id)!.errors.length > 0, true);
+      assertEquals(rows.get(nullable.id)?.after, { prop_1: "null", prop_2: null });
+      assertEquals(rows.get(nullable.id)!.errors.length > 0, true);
+      assertEquals(rows.get(deleted.id)?.after, { prop_1: "deleted", prop_2: 7 });
+      assertEquals(rows.get(deleted.id)?.errors, []);
+      const fixed = await updateEntitySchemaChange(d, requestActor(a.actor), type.id, plan.id, {
+        ...input,
+        expected_change_version: 1,
+        migration: {
+          ...input.migration,
+          overrides: [{ entity_id: leading.id, key: "prop_2", value: 1 }, {
+            entity_id: nullable.id,
+            key: "prop_2",
+            value: 0,
+          }],
+        },
+      });
+      assertEquals(fixed.version, 2);
+      assertEquals(fixed.analysis, null);
+      await assertRejects(
+        () => getEntitySchemaAnalysisRows(d, a.actor, type.id, plan.id, { analysis_id: first.analysis_id }),
+        AppError,
+      );
+      const second = await analyzeEntitySchemaChange(d, requestActor(a.actor), type.id, plan.id, {
+        expected_change_version: 2,
+      });
+      assertEquals(second.analysis_id === first.analysis_id, false);
+      await consume(worker);
+      const ready = await getEntitySchemaChange(d, a.actor, type.id, plan.id);
+      assertEquals([
+        ready.analysis?.total,
+        ready.analysis?.processed,
+        ready.analysis?.failed,
+        ready.analysis?.changed,
+        ready.analysis?.unchanged,
+        ready.analysis?.replacements,
+      ], [5, 5, 0, 5, 0, 3]);
+      assertEquals(ready.executable, true);
+      const fixedPage = await getEntitySchemaAnalysisRows(d, a.actor, type.id, plan.id, {
+        analysis_id: second.analysis_id,
+      });
+      assertEquals(fixedPage.items.find((row) => row.entity_id === leading.id)?.after, {
+        prop_1: "identifier",
+        prop_2: 1,
+      });
+      assertEquals(fixedPage.items.find((row) => row.entity_id === nullable.id)?.after, { prop_1: "null", prop_2: 0 });
+      for (const source of before) {
+        const current = await getEntity(e, a.actor, source.id);
+        assertEquals([current.properties, current.version, current.schema_version, current.deleted_at], [
+          source.properties,
+          source.version,
+          source.schema_version,
+          source.deleted_at,
+        ]);
+      }
+      assertEquals(before.find((row) => row.id === deleted.id)?.deleted_at !== null, true);
+      assertEquals((await getEntitySchema(d, a.actor, { type_id: type.id })).schema_version, 2);
+    } finally {
+      await a.cleanup();
       await Promise.all([worker.end(), sql.end(), admin.end()]);
     }
   },
