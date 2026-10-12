@@ -1,5 +1,10 @@
 import type { BusinessSettings } from "../../contracts/business-settings.ts";
-import { effectiveRecordTemplate, renderTemplate, type TemplateModel } from "../../contracts/record-template.ts";
+import {
+  effectiveRecordTemplate,
+  renderTemplate,
+  templateIssues,
+  type TemplateModel,
+} from "../../contracts/record-template.ts";
 import type { ChangeInput } from "../shared/changes.ts";
 import { changeBody, changedFieldNames } from "../shared/change-memo.ts";
 import { codePointLength, TEXT_LIMITS } from "../../contracts/common.ts";
@@ -8,6 +13,13 @@ import { invalidInput } from "../shared/errors.ts";
 /** Both prepared requests and direct writes use this rule. Explicit empty tags mean clear. */
 export function changeDefaults(input: ChangeInput, settings: BusinessSettings, availableTags: string[]) {
   const template = effectiveRecordTemplate(settings.record_templates, input.target_kind as TemplateModel, input.action);
+  const issues = templateIssues(template.memo, input.target_kind as TemplateModel, input.action);
+  if (issues.length) {
+    throw invalidInput("기록 템플릿의 변수를 확인하세요", [{
+      path: `record_templates.${input.target_kind}.${input.action}.memo`,
+      message: issues.map((issue) => issue.reason).join(" · "),
+    }]);
+  }
   const fallback = changeBody({ ...input, change_note: undefined });
   const rendered = renderTemplate(template.memo, {
     target: input.target.title,
