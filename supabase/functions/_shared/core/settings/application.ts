@@ -14,7 +14,7 @@ import type { Actor } from "../shared/actor.ts";
 import { invalidInput } from "../shared/errors.ts";
 import { conflict, notFound } from "../shared/errors.ts";
 import { type PreparedRecordMemo, prepareRecordMemo } from "../../contracts/record-preparation.ts";
-import { modelActions, type TemplateModel } from "../../contracts/record-template.ts";
+import { effectiveRecordTemplate, recordTemplateTagIds, modelActions, type TemplateModel } from "../../contracts/record-template.ts";
 import { changeDefaults } from "./change-defaults.ts";
 import {
   entityUpdateDecision,
@@ -208,7 +208,7 @@ export function prepareBusinessRecord(
     }
     if (input.action !== "create") prepared_input = { ...prepared_input, expected_version: input.expected_version };
     const title = String((after ?? before)?.title ?? "");
-    const ids = saved.settings.record_templates?.[input.model]?.[input.action]?.tag_ids ?? [];
+    const ids = effectiveRecordTemplate(saved.settings.record_templates,input.model,input.action,(after ?? before)?.entity_type_id).tag_ids;
     const result = changeDefaults(
       {
         target_kind: input.model,
@@ -281,13 +281,7 @@ export function updateBusinessSettings(d: BusinessSettingsDeps, actor: Actor, in
       new TextEncoder().encode(JSON.stringify(parsed.data.value)).length >
         BUSINESS_SETTINGS_MAX_BYTES
     ) throw invalidInput(`업무 설정은 ${BUSINESS_SETTINGS_MAX_BYTES}바이트 이하입니다`);
-    const ids = [
-      ...new Set(
-        Object.values(sections.record_templates ?? {}).flatMap((model) =>
-          Object.values(model).flatMap((template) => template?.tag_ids ?? [])
-        ),
-      ),
-    ];
+    const ids = recordTemplateTagIds(sections.record_templates);
     if ((await store.recordTags(ids)).length !== ids.length) {
       throw invalidInput("기록 범위에서 존재하는 태그만 기본값으로 사용할 수 있습니다", [{
         path: "value",

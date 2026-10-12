@@ -1,15 +1,20 @@
 import {
   effectiveRecordTemplate,
+  effectiveEntityTemplates,
   modelActions,
   type RecordTemplates,
   templateIssues,
 } from "../../contracts/record-template.ts";
 import type { SchemaDefinition } from "../../contracts/entity-schema-change.ts";
+import { sha256Hex } from "../shared/operations.ts";
 import { invalidInput } from "../shared/errors.ts";
 /** Current global entity templates apply to the selected type; #350 can supply type-bound effective templates here. */
-export function assertSchemaTemplateReferences(target: SchemaDefinition, templates: RecordTemplates) {
+export async function effectiveEntityTemplateFingerprint(templates:RecordTemplates|undefined,typeId:string) {
+  return await sha256Hex(JSON.stringify(effectiveEntityTemplates(templates,typeId)));
+}
+export function assertSchemaTemplateReferences(target: SchemaDefinition, templates: RecordTemplates, typeId?:string) {
   for (const action of modelActions("entity")) {
-    const { memo } = effectiveRecordTemplate(templates, "entity", action);
+    const { memo } = effectiveRecordTemplate(templates, "entity", action, typeId);
     const issues = templateIssues(memo, "entity", action).map((i) => i.reason);
     for (const match of memo.matchAll(/\$\{([^$]*?)\$\}|\$\$|\$([^$]*?)\$/g)) {
       if (match[0] === "$$") continue;
