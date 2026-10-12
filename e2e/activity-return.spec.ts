@@ -145,7 +145,6 @@ for (
       await saveOnce(page,page.locator("dialog.modal-action[open]"),"삭제 확인");
       await expect(link).toHaveCount(0);
       await expect(page.locator(`.${path} .list .item-title`)).toHaveCount(62);
-      ids.delete(target.id);
       await expect(page.getByRole("heading", { name: label, level:1, exact: true })).toBeFocused();
       await expect(page.locator(`#activity-${path}-page-control`)).toHaveCount(0);
       await openTabFilters(page);await page.getByRole("button",{name:tag.name,exact:true}).click();await page.getByRole("button",{name:emptyTag.name,exact:true}).click();
