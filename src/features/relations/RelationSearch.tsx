@@ -45,7 +45,7 @@ export function RelationSearchAction(
 }
 /** Current-title lookup, shared by the two directions of the same relationship. */
 export function RelationSearch(
-  { kind, excluded, onChoose, disabled, revision, draftMode = false, linkCandidateFor }: {
+  { kind, excluded, onChoose, disabled, revision, draftMode = false, linkCandidateFor, entityTypeId }: {
     kind: "entity" | "task";
     excluded: (item: Candidate) => boolean;
     onChoose: (item: Candidate) => void;
@@ -53,6 +53,7 @@ export function RelationSearch(
     revision?: number | EntityDetail["tasks"];
     draftMode?: boolean;
     linkCandidateFor?: string;
+    entityTypeId?: string;
   },
 ) {
   const label = kind === "entity" ? "자료" : "할 일";
@@ -69,7 +70,9 @@ export function RelationSearch(
         const page = kind === "entity"
           ? await api<{ items: EntitySummary[]; next_cursor: string | null }>(
             "GET",
-            `/entities${query({ keyword, limit: 20, cursor, link_candidate_for: linkCandidateFor })}`,
+            `/entities${
+              query({ keyword, limit: 20, cursor, link_candidate_for: linkCandidateFor, entity_type_id: entityTypeId })
+            }`,
             undefined,
             signal,
           )
@@ -91,7 +94,7 @@ export function RelationSearch(
           })),
         };
       },
-    }), [keyword, composing, retry, kind, revision, linkCandidateFor]);
+    }), [keyword, composing, retry, kind, revision, linkCandidateFor, entityTypeId]);
   const state = useSyncExternalStore(session.subscribe, session.snapshot);
   const [waiting, setWaiting] = useState(!!keyword);
   useEffect(() => {
