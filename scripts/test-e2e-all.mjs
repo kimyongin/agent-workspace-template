@@ -9,6 +9,7 @@ const configs = [
   "e2e/principle-current.config.ts",
   "playwright.activity.config.ts",
   "e2e/navigation-fixture.config.ts",
+  "e2e/type-navigation.config.ts",
   "e2e/workspace-screens.config.ts",
 ];
 const results = [];

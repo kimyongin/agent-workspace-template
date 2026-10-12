@@ -106,7 +106,7 @@ test("실제 App에서 태그 dirty 주 탐색·뒤로가기·앞으로가기 �
   await beginTabAction(page,"할 일 추가");
   // Keep a real forward entry before editing the URL-aware creation form.
   await expect(page.getByRole("dialog",{name:"할 일 추가",exact:true})).toBeVisible();
-  await settings(page);await expect(page).toHaveURL(/\/settings$/);await expect(page.getByLabel("발급처 1 이름")).toBeEditable();await page.goBack();
+  await settings(page);await expect(page).toHaveURL(/\/settings$/);await expect(page.getByRole("link",{name:"자료 식별자·발급처",exact:true})).toBeVisible();await page.goBack();
   const form = page.getByRole("dialog", { name: "할 일 추가", exact: true });await form.getByRole("textbox",{name:/^제목(?: \(필수\))?$/}).fill("새 초안");
   await page.goForward(); await discard.getByRole("button", { name: "취소", exact: true }).click(); await expect(page).toHaveURL(/\/tasks\?create=1$/); await expect(form.getByRole("textbox",{name:/^제목(?: \(필수\))?$/})).toHaveValue("새 초안");
 });
