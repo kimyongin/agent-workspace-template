@@ -34,7 +34,7 @@ function result(r: Record<string, unknown>) {
   };
 }
 export class SqlEntityStore extends SqlActorStore implements EntityStore {
-  async definition(typeId: string, lock = false) {
+  definition(typeId: string, lock = false) {
     return loadEntityDefinition(this.tx, typeId, lock);
   }
   async get(id: string, lock = false) {

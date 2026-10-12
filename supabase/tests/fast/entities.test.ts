@@ -3,8 +3,8 @@ import { assert, assertEquals, assertRejects } from "@std/assert";
 import {
   entityCreate,
   entityListQuery,
-  type EntityResult,
   entityUpdate,
+  type EntityValues,
 } from "../../functions/_shared/contracts/entity.ts";
 import {
   createEntity,
@@ -22,10 +22,22 @@ import { Hono } from "hono";
 import type { HttpEnv } from "../../functions/_shared/adapters/http/input.ts";
 import { AppError } from "../../functions/_shared/core/shared/errors.ts";
 const A = { userId: crypto.randomUUID() }, B = { userId: crypto.randomUUID() };
+import { initialEntityDefinition } from "../../functions/_shared/contracts/entity-type.ts";
+const entity_type_id = crypto.randomUUID();
+const definition = initialEntityDefinition("이름");
+Object.assign(definition.schema.properties, {
+  prop_2: { type: ["integer", "null"] },
+  prop_3: { type: ["string", "null"], format: "date" },
+  prop_4: { type: "string", enum: ["a", "b", "c"], default: "a" },
+});
+definition.display.order.push("prop_2", "prop_3", "prop_4");
+const type = { id: entity_type_id, label: "재료", icon_id: "leaf", archived: false };
 function memory() {
-  const rows = new Map<string, EntityResult>();
+  const rows = new Map<string, EntityValues>();
   let writes = 0;
   const store: EntityStore = {
+    definition: () =>
+      Promise.resolve({ ...definition, type, type_id: entity_type_id, type_version: 1, schema_version: 1 }),
     executeRequest: <T>(_request: unknown, execute: () => Promise<T>) => execute(),
     getBusinessSettings: () => Promise.resolve({ settings: {} }),
     restore: (id, changes) => {
@@ -59,6 +71,10 @@ function memory() {
         tag_ids: input.tag_ids ?? [],
         id: input.id ?? crypto.randomUUID(),
         source_label: input.source,
+        type,
+        current_schema_version: 1,
+        title: String(input.properties.prop_1),
+        display_properties: { prop_1: input.properties.prop_1 },
         deleted_at: null,
         version: 1,
         created_at: "2026-10-04T00:00:00.000Z",
@@ -93,12 +109,21 @@ function memory() {
 }
 Deno.test("Entity application: 멱등 serial retry·버전 거부 무쓰기·한글 커서/owner/filter 검사", async () => {
   const { d, writes } = memory(),
-    input = entityCreate.parse({ source: "app", external_id: crypto.randomUUID(), ...{ prop1: "한글 😀" } });
+    input = entityCreate.parse({
+      entity_type_id,
+      schema_version: 1,
+      source: "app",
+      external_id: crypto.randomUUID(),
+      properties: { prop_1: "한글 😀" },
+    });
   const e = await createEntity(d, requestActor(A), input);
   assertEquals((await assertRejects(() => createEntity(d, requestActor(A), input), AppError)).code, "conflict");
   assertEquals(writes(), 1);
   assertEquals(
-    (await assertRejects(() => createEntity(d, requestActor(A), { ...input, prop1: "다른 내용" }), AppError)).code,
+    (await assertRejects(
+      () => createEntity(d, requestActor(A), { ...input, properties: { prop_1: "다른 내용" } }),
+      AppError,
+    )).code,
     "conflict",
   );
   await assertRejects(
@@ -107,7 +132,12 @@ Deno.test("Entity application: 멱등 serial retry·버전 거부 무쓰기·한
         d,
         requestActor(A),
         e.id,
-        entityUpdate.parse({ change_note: "테스트 변경 이유", expected_version: 2, prop2: 0 }),
+        entityUpdate.parse({
+          schema_version: 1,
+          change_note: "테스트 변경 이유",
+          expected_version: 2,
+          properties: { prop_2: 0 },
+        }),
       ),
     AppError,
   );
@@ -117,13 +147,24 @@ Deno.test("Entity application: 멱등 serial retry·버전 거부 무쓰기·한
     d,
     requestActor(A),
     e.id,
-    entityUpdate.parse({ change_note: "테스트 변경 이유", expected_version: 1, prop2: 0 }),
+    entityUpdate.parse({
+      schema_version: 1,
+      change_note: "테스트 변경 이유",
+      expected_version: 1,
+      properties: { prop_2: 0 },
+    }),
   );
-  assertEquals(changed.prop2, 0);
+  assertEquals(changed.properties.prop_2, 0);
   await createEntity(
     d,
     requestActor(A),
-    entityCreate.parse({ source: "app", external_id: crypto.randomUUID(), ...{ prop1: "둘째" } }),
+    entityCreate.parse({
+      entity_type_id,
+      schema_version: 1,
+      source: "app",
+      external_id: crypto.randomUUID(),
+      properties: { prop_1: "둘째" },
+    }),
   );
   const q = entityListQuery.parse({ limit: 1 }), first = await listEntities(d, A, q);
   assert(first.next_cursor);
@@ -166,10 +207,16 @@ Deno.test("Entity HTTP/MCP 실제 handler: CRUD parity·엄격 입력·존재 �
   assertEquals(tools.some((tool) => tool.name === "prepare_entity_registration"), false);
   assertEquals((await request("POST", "/entities/prepare", { source: "app" })).status, 404);
   assertEquals(writes(), 0);
-  const res = await request("POST", "/entities", { source: "app", external_id: crypto.randomUUID(), prop1: "웹" });
+  const res = await request("POST", "/entities", {
+    entity_type_id,
+    schema_version: 1,
+    source: "app",
+    external_id: crypto.randomUUID(),
+    properties: { prop_1: "웹" },
+  });
   assertEquals(res.status, 201);
   const e = await res.json();
-  assertEquals((await tool("get_entity", { id: e.id }) as EntityResult).prop1, "웹");
+  assertEquals((await tool("get_entity", { id: e.id }) as EntityValues).properties.prop_1, "웹");
   const before = writes();
   assertEquals(
     (await request("PATCH", `/entities/${encodeURIComponent(e.id)}`, {
@@ -193,8 +240,9 @@ Deno.test("Entity HTTP/MCP 실제 handler: CRUD parity·엄격 입력·존재 �
     change_note: "테스트 변경 이유",
     id: e.id,
     expected_version: 1,
-    prop4: "c",
-  }) as EntityResult;
+    schema_version: 1,
+    properties: { prop_4: "c" },
+  }) as EntityValues;
   assertEquals(changed.version, 2);
   assertEquals((await request("GET", `/entities/${encodeURIComponent(e.id)}`)).status, 200);
   await tool("delete_entity", { change_note: "테스트 변경 이유", id: e.id, expected_version: 2 });

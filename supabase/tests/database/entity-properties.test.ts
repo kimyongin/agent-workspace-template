@@ -33,6 +33,9 @@ dbTest(
         prop_6: { type: ["string", "null"], enum: ["a", "b", null], title: "선택" },
       });
       definition.display.order = ["prop_1", "prop_2", "prop_3", "prop_4", "prop_5", "prop_6"];
+      const secondDefinition = initialEntityDefinition("상품명");
+      secondDefinition.schema.properties.prop_2 = { type: "string", format: "date", default: "2024-02-29" };
+      secondDefinition.display.order.push("prop_2");
       // Explicit fixture definition, not a product publishing shortcut.
       await admin.begin(async (tx) => {
         await tx`select id from app.entity_types where id=${first.id} for update`;
@@ -40,6 +43,10 @@ dbTest(
           tx.json(definition.schema)
         },${tx.json(definition.display)})`;
         await tx`update app.entity_types set schema_version=2,next_property_number=7 where id=${first.id}`;
+        await tx`insert into app.entity_schema_versions(owner_id,type_id,schema_version,schema,display) values(${owner.actor.userId},${second.id},2,${
+          tx.json(secondDefinition.schema)
+        },${tx.json(secondDefinition.display)})`;
+        await tx`update app.entity_types set schema_version=2,next_property_number=3 where id=${second.id}`;
       });
       const input = {
         entity_type_id: first.id,
@@ -102,7 +109,7 @@ dbTest(
           createEntity(entities, requestActor(owner.actor), {
             ...input,
             entity_type_id: second.id,
-            schema_version: 1,
+            schema_version: 2,
             expected_version: deleted.version,
           }), AppError)).code,
         "entity_type_immutable",
@@ -128,12 +135,13 @@ dbTest(
         "schema_migration_in_progress",
       );
       assertEquals((await getEntity(entities, owner.actor, saved.id)).properties, restored.properties);
-      await createEntity(entities, requestActor(owner.actor), {
+      const independent = await createEntity(entities, requestActor(owner.actor), {
         entity_type_id: second.id,
-        schema_version: 1,
+        schema_version: 2,
         properties: { prop_1: "상품" },
         external_id: "independent",
       });
+      assertEquals(independent.properties.prop_2, "2024-02-29");
       await admin`update app.entity_types set schema_write_locked=false,archived=true where id=${first.id}`;
       const edit = await updateEntity(entities, requestActor(owner.actor), saved.id, {
         schema_version: 2,
@@ -166,6 +174,12 @@ dbTest(
     try {
       const a = await createEntityType(types, requestActor(owner.actor), { label: "재료" });
       const b = await createEntityType(types, requestActor(owner.actor), { label: "상품" });
+      const original = await createEntity(entities, requestActor(owner.actor), {
+        entity_type_id: a.id,
+        schema_version: 1,
+        external_id: "stored",
+        properties: { prop_1: "existing" },
+      });
       let locked!: () => void, release!: () => void;
       const ready = new Promise<void>((resolve) => locked = resolve),
         gate = new Promise<void>((resolve) => release = resolve);
@@ -202,9 +216,30 @@ dbTest(
       await publication;
       assertEquals((await assertRejects(() => pending, AppError)).code, "schema_changed");
       assertEquals(
-        (await listEntities(entities, owner.actor, { entity_type_id: a.id, limit: 20, sort: "updated_at" })).items,
-        [],
+        (await listEntities(entities, owner.actor, { entity_type_id: a.id, limit: 20, sort: "updated_at" })).items.map(
+          (row) => row.external_id,
+        ),
+        ["stored"],
       );
+      const oldRead = await getEntity(entities, owner.actor, original.id);
+      assertEquals(oldRead.properties, { prop_1: "existing" });
+      assertEquals([oldRead.schema_version, oldRead.current_schema_version], [1, 2]);
+      const unrelated = await updateEntity(entities, requestActor(owner.actor), original.id, {
+        schema_version: 2,
+        expected_version: 1,
+        tag_ids: [],
+      });
+      assertEquals(unrelated.properties, { prop_1: "existing" });
+      await deleteEntity(entities, requestActor(owner.actor), original.id, unrelated.version);
+      const removed = await getEntity(entities, owner.actor, original.id);
+      const restored = await createEntity(entities, requestActor(owner.actor), {
+        entity_type_id: a.id,
+        schema_version: 2,
+        external_id: "stored",
+        properties: {},
+        expected_version: removed.version,
+      });
+      assertEquals(restored.properties, { prop_1: "existing" });
       const current = await createEntity(entities, requestActor(owner.actor), {
         entity_type_id: a.id,
         schema_version: 2,
@@ -219,3 +254,51 @@ dbTest(
     }
   },
 );
+
+dbTest("Typed entity owner DB: the 64 KiB properties limit matches canonical SQL bytes", async () => {
+  const admin = connect(urls.admin), sql = connect(urls.direct), owner = await fixtureOwner(admin);
+  const entities = { uow: new SqlEntityUnitOfWork(sql) }, types = { uow: new SqlEntityTypeUnitOfWork(sql) };
+  try {
+    const type = await createEntityType(types, requestActor(owner.actor), { label: "한도 자료" });
+    const definition = initialEntityDefinition("이름");
+    const properties: EntityProperties = { prop_1: "size" };
+    for (let n = 2; n <= 17; n++) {
+      const key = `prop_${n}`;
+      definition.schema.properties[key] = { type: "string", maxLength: 4096 };
+      definition.display.order.push(key);
+      properties[key] = "x".repeat(4096);
+    }
+    const [size] = await admin`select octet_length(${admin.json(properties)}::jsonb::text)::int bytes`;
+    properties.prop_17 = "x".repeat(4096 - (Number(size.bytes) - 65536));
+    const [canonical] = await admin`select octet_length(${admin.json(properties)}::jsonb::text)::int bytes`;
+    assertEquals(canonical.bytes, 65536);
+    await admin.begin(async (tx) => {
+      await tx`insert into app.entity_schema_versions(owner_id,type_id,schema_version,schema,display) values(${owner.actor.userId},${type.id},2,${
+        tx.json(definition.schema)
+      },${tx.json(definition.display)})`;
+      await tx`update app.entity_types set schema_version=2,next_property_number=18 where id=${type.id}`;
+    });
+    const created = await createEntity(entities, requestActor(owner.actor), {
+      entity_type_id: type.id,
+      schema_version: 2,
+      external_id: "size",
+      properties,
+    });
+    assertEquals(created.properties, properties);
+    const error = await assertRejects(
+      () =>
+        updateEntity(entities, requestActor(owner.actor), created.id, {
+          schema_version: 2,
+          expected_version: 1,
+          properties: { prop_17: String(properties.prop_17) + "x" },
+        }),
+      AppError,
+    );
+    assertEquals(error.fields?.[0].path, "properties");
+    assertEquals((await getEntity(entities, owner.actor, created.id)).version, 1);
+  } finally {
+    await owner.cleanup();
+    await sql.end();
+    await admin.end();
+  }
+});
