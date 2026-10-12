@@ -1,6 +1,6 @@
 import { openDetailEditor, openListDetail, closeDetail } from "./ui-actions.ts";
 import { expect, test } from "@playwright/test";
-import { entity, fixtureSchema, fixtureType, id } from "./support/workspace-data.ts";
+import { entity, fixtureSchema, fixtureType, id, task } from "./support/workspace-data.ts";
 import { installWorkspaceApi } from "./support/workspace-api.ts";
 
 test("long property filter copied URL/reload/history/reset/type scope and entity anchor use fragments",async({page})=>{
@@ -67,7 +67,8 @@ test("long filter survives detail edit/task/record modes and copied desktop owne
   const remote="http://127.0.0.1:55587", user={id:id(101),aud:"authenticated",email:"fixture@example.test",app_metadata:{},user_metadata:{workspace_timezone:"Asia/Seoul"}};
   const value="한".repeat(4096),row=entity(1,{prop_1:"모드 검사",prop_2:value}),schema=structuredClone(fixtureSchema);
   schema.schema.properties.prop_2={type:"string",title:"긴 값"};
-  await installWorkspaceApi(page,remote,{entities:[row],tasks:[],records:[],principles:[],tags:[]});
+  const relatedTask={...task(2),title:"관련 할 일 모드 검사"};
+  await installWorkspaceApi(page,remote,{entities:[row],tasks:[relatedTask],records:[],principles:[],tags:[]});
   await page.addInitScript(user=>localStorage.setItem("sb-127-auth-token",JSON.stringify({access_token:"fixture",refresh_token:"fixture",expires_at:Math.floor(Date.now()/1000)+3600,user})),user);
   await page.route("**/*",async route=>{
     const url=new URL(route.request().url());
@@ -115,4 +116,17 @@ test("long filter survives detail edit/task/record modes and copied desktop owne
   await expect.poll(()=>new URL(page.url()).pathname).toBe("/entities");
   expect(new URLSearchParams(new URL(page.url()).hash.slice(1)).get("entity_type_id")).toBe(fixtureType.id);
   await expect(page.getByRole("button",{name:"모드 검사",exact:true})).toBeFocused();
+  // Copied cross-kind visits can still disclose an entity list; editor modes must not append a second query marker.
+  const taskVisit=new URL(`/tasks/${relatedTask.id}`,new URL(page.url()).origin);
+  taskVisit.searchParams.set("list",`/entities?entity_type_id=${fixtureType.id}&keyword=보관`);
+  taskVisit.hash=fragment.toString();
+  await page.goto(taskVisit.href);
+  await openDetailEditor(page);
+  const taskEditor=new URL(page.url());
+  expect(taskEditor.searchParams.get("edit")).toBe("1");
+  expect(taskEditor.search.length).toBeLessThan(2048);
+  expect(new URLSearchParams(taskEditor.hash.slice(1)).get("property_filters")).toBe(filters);
+  await page.locator("dialog.modal:not(.modal-confirm)[open]:visible").getByRole("button",{name:"취소",exact:true}).click();
+  await expect.poll(()=>new URL(page.url()).searchParams.has("edit")).toBe(false);
+  expect(new URLSearchParams(new URL(page.url()).hash.slice(1)).get("anchor")).toBe(`entity-${row.id}`);
 });

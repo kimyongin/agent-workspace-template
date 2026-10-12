@@ -1,4 +1,4 @@
-import { readEntityListUrl, writeEntityListUrl, entityListAnchor } from "../../lib/entity-list-url.ts";
+import { detailListLink, entityListReturnPath, entityListAnchor, internalListReturn } from "../../lib/entity-list-url.ts";
 import { dataId } from "@contracts/data-id.ts";
 import { entityReferenceId } from "@contracts/entity-identity.ts";
 import { activityLocation } from "./activity-location.ts";
@@ -39,19 +39,27 @@ export function anchorId(kind: ActivityListKind, hash: string): string | undefin
   } catch { return undefined; }
 }
 
-export function listReturnPath(kind: ActivityListKind, params: URLSearchParams, id: string, scroll: number, route = `/${kind}`, hash = ""): string {
+function listReturnPath(kind: ActivityListKind, params: URLSearchParams, id: string, scroll: number, route: string, hash: string): string {
+  if (kind === "entities") return entityListReturnPath(params, hash, id, scroll, route);
   const next = new URLSearchParams(params);
   next.set("scroll", String(Math.max(0, Math.round(scroll))));
-  if (kind === "entities") {
-    const state = readEntityListUrl(params, hash);
-    const url = writeEntityListUrl(next, state.raw, `#${encodeURIComponent(listAnchor(kind,id))}`);
-    return `${route}?${url.search}${url.hash}`;
-  }
   return `${route}?${next}#${encodeURIComponent(listAnchor(kind, id))}`;
+}
+
+/** A row visit provides both destinations for desktop tabs and ordinary browser history. */
+export function listDetailVisit(kind: ActivityListKind, location: { pathname: string; search: string; hash: string }, id: string, scroll: number) {
+  const back = listReturnPath(kind, new URLSearchParams(location.search), id, scroll, location.pathname, location.hash);
+  const url = new URL(back, "https://workspace.invalid");
+  return {
+    to: detailListLink(`/${kind}/${encodeURIComponent(id)}`, back),
+    back,
+    origin: { pathname: url.pathname, search: url.search, hash: url.hash },
+  };
 }
 
 /** Only a matching internal list can override the normal detail fallback. */
 export function safeListReturn(value: string | null, kind: ActivityListKind, fallback: string): string {
+  if (kind === "entities") return internalListReturn(value, "/entities") ?? fallback;
   if (!value || !value.startsWith("/") || value.startsWith("//") || value.includes("\\")) return fallback;
   try {
     const url = new URL(value, "https://activity.invalid");

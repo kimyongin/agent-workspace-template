@@ -1,4 +1,4 @@
-import { restoreEntityListLink } from "./entity-list-url.ts";
+import { detailListReturn } from "./entity-list-url.ts";
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode, type Dispatch, type SetStateAction } from "react";
 import { Link, useLocation, useNavigate, type LinkProps, type NavigateOptions, type To } from "react-router";
 import { DetailTabContext, WorkspaceContext, detailIdentity } from "../features/details/workspace-context.ts";
@@ -21,11 +21,8 @@ export function useDetailOwnerReturn(fallback: string): string {
   const owner = `/${(root?.path??location.pathname).split("/")[1]}`;
   const paths = [...(root?[new URL(root.path,"https://detail.invalid")]:[]),new URL(location.pathname+location.search+location.hash,"https://detail.invalid")];
   for (const path of paths) {
-    const value = path.searchParams.get("list");
-    const candidate = value ? restoreEntityListLink(value, path.hash) : null;
-    if (!candidate?.startsWith("/") || candidate.startsWith("//") || candidate.includes("\\")) continue;
-    const url = new URL(candidate, "https://detail.invalid");
-    if (url.origin === "https://detail.invalid" && url.pathname === owner) return `${url.pathname}${url.search}${url.hash}`;
+    const candidate = detailListReturn(path, owner);
+    if (candidate) return candidate;
   }
   return root?owner:fallback;
 }

@@ -1,4 +1,4 @@
-import { readEntityListUrl, writeEntityListUrl, entityDetailListLink, changeEntityListQuery } from "../../lib/entity-list-url.ts";
+import { readEntityListUrl, writeEntityListUrl, detailListLink, changeEntityListQuery } from "../../lib/entity-list-url.ts";
 import { EntityTypeIcon } from "./EntityTypeIcon.tsx";
 import { useEffect, useState } from "react";
 import type { EntitySchemaResult } from "@contracts/entity-type.ts";
@@ -394,7 +394,7 @@ export function EntitiesPage() {
                 const p = new URLSearchParams(params);
                 p.delete("create");
                 const saved = writeEntityListUrl(p, urlFilters.raw, urlFilters.anchor);
-                create.finish(entityDetailListLink(entityPath(e.id), `/entities?${saved.search}${saved.hash}`));
+                create.finish(detailListLink(entityPath(e.id), `/entities?${saved.search}${saved.hash}`));
               }}
             />
           )}

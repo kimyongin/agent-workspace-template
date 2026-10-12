@@ -1,4 +1,4 @@
-import { entityListAnchor, restoreEntityListLink } from "../../lib/entity-list-url.ts";
+import { entityListAnchor, detailListReturn } from "../../lib/entity-list-url.ts";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode, type RefObject } from "react";
 import { useBlocker, useLocation, useNavigate, type Location, type NavigateOptions, type To } from "react-router";
 import { ConfirmDialog } from "../../components/Modal.tsx";
@@ -18,9 +18,8 @@ function destination(to: To, from: Location): string {
 }
 function ownerList(location: Location): Location {
   const owner = `/${location.pathname.split("/")[1]}`;
-  const candidate = new URLSearchParams(location.search).get("list");
-  const url = new URL(candidate?.startsWith("/") && !candidate.startsWith("//") && !candidate.includes("\\") ? restoreEntityListLink(candidate, location.hash) : owner, "https://workspace.invalid");
-  return { ...location, pathname: url.pathname === owner ? url.pathname : owner, search: url.pathname === owner ? url.search : "", hash: url.pathname === owner ? url.hash : "", state: null, key: `list:${location.key}` };
+  const url = new URL(detailListReturn(location) ?? owner, "https://workspace.invalid");
+  return { ...location, pathname: url.pathname, search: url.search, hash: url.hash, state: null, key: `list:${location.key}` };
 }
 
 /** One owner for retained detail visits, their URLs and all guards within the desktop workspace. */
