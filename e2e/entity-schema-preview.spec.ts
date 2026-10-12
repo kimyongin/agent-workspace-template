@@ -53,6 +53,9 @@ test("값 변환 준비: 저장된 직접 링크·실패 행 보완·재분석·
     await expect(page.getByRole("heading", { name: "변경 요약 · 초안 버전 2" })).toBeVisible();
     await page.reload();
     await expect(page.getByRole("heading", { name: "변경 요약 · 초안 버전 2" })).toBeVisible();
+    const httpRows = page.waitForResponse((r) =>
+      r.url().includes(`/schema-changes/${plan.id}/rows?`) && r.status() === 200
+    );
     await page.getByRole("button", { name: "영향 분석", exact: true }).click();
     await expect.poll(async () => {
       await schemaAnalysisTick();
@@ -64,6 +67,7 @@ test("값 변환 준비: 저장된 직접 링크·실패 행 보완·재분석·
       change_id: plan.id,
       analysis_id: fresh.analysis.id,
     });
+    expect(await (await httpRows).json()).toEqual(rows);
     expect(rows.items[0].before).toEqual({ prop_1: "001" });
     expect(rows.items[0].after).toEqual({ prop_1: "01" });
     expect(fresh.analysis.changed).toBe(1);
