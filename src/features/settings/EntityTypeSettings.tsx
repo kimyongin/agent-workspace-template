@@ -95,6 +95,12 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
   };
   useEffect(() => {
     const controller = new AbortController();
+    historyPending.current?.abort();
+    historyPending.current = null;
+    setHistoryBusy(false);
+    setHistoryBefore(null);
+    setHistory([]);
+    setSelectedSchema(null);
     setLoading(true);
     setError("");
     setType(null);
