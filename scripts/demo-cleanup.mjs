@@ -4,7 +4,7 @@ import { pathToFileURL } from 'node:url';
 
 // This is an explicit administrator procedure, never imported by normal migrations/startup.
 export const cleanupTables = [
-  'private.passage_effects', 'private.search_effect_intents', 'pgmq.q_search_index', 'pgmq.a_search_index',
+  'private.passage_effects', 'pgmq.q_search_index', 'pgmq.a_search_index',
   'app.search_chunks', 'app.search_index_state', 'private.entity_schema_migration_rows',
   'private.entity_schema_analysis_rows', 'app.entity_schema_migrations', 'app.entity_schema_analyses',
   'app.entity_schema_changes', 'app.entity_pairs', 'app.entity_tags', 'app.task_tags', 'app.record_tags',
@@ -49,7 +49,7 @@ const contains = (value, ids) => typeof value === 'string' ? ids.has(value)
 export function planCleanup(manifest, inventory) {
   const m = validateManifest(manifest), owner = m.owner_id;
   const rows = table => (inventory[table] ?? []).filter(r => table.startsWith('pgmq.')
-    ? r.message?.owner_id === owner : table === 'private.passage_effects' || r.owner_id === owner);
+    ? r.message?.owner_id === owner : r.owner_id === owner);
   const ids = Object.fromEntries(roots.map(k => [k, new Set(m.ids[k])]));
   const selected = {}, blockers = [];
   const select = (table, predicate) => selected[table] = rows(table).filter(predicate);
@@ -81,9 +81,7 @@ export function planCleanup(manifest, inventory) {
   }
   select('app.search_chunks', r => ids.records.has(r.record_id));
   select('app.search_index_state', r => r.kind === 'record' && ids.records.has(r.id));
-  select('private.search_effect_intents', r => ids.records.has(r.record_id));
-  const intents = new Set(selected['private.search_effect_intents'].map(r => r.id));
-  select('private.passage_effects', r => intents.has(r.intent_id));
+  select('private.passage_effects', r => ids.records.has(r.record_id));
   for (const table of ['pgmq.q_search_index', 'pgmq.a_search_index']) select(table, r => r.message?.kind === 'record' && ids.records.has(r.message.id));
   const settings = rows('app.user_business_settings').find(r => r.id === 'record_templates');
   const updatedSettings = settings && removePaths(settings.settings, m.reset_template_paths);
@@ -115,7 +113,6 @@ async function inventoryFor(sql, owner) {
   const inventory = {};
   for (const table of cleanupTables) {
     if (table.startsWith('pgmq.')) inventory[table] = await sql`select * from ${sql(table)} where message->>'owner_id'=${owner}`;
-    else if (table === 'private.passage_effects') inventory[table] = await sql`select p.* from private.passage_effects p join private.search_effect_intents i on i.id=p.intent_id where i.owner_id=${owner}`;
     else inventory[table] = await sql`select * from ${sql(table)} where owner_id=${owner}`;
   }
   return inventory;
@@ -144,7 +141,6 @@ export async function runCleanup(sql, manifest, approvedDigest) {
       // Delete the full selected set in one statement; recovery jobs may reference each other.
       const clauses = selected.map(r => tx`(${keys.map(k => tx`${tx(k.attname)}=${r[k.attname]}`).reduce((a, b) => tx`${a} and ${b}`)})`);
       if (table.startsWith('pgmq.')) await tx`delete from ${tx(table)} where message->>'owner_id'=${manifest.owner_id} and (${clauses.reduce((a, b) => tx`${a} or ${b}`)})`;
-      else if (table === 'private.passage_effects') await tx`delete from private.passage_effects where intent_id in (select id from private.search_effect_intents where owner_id=${manifest.owner_id}) and (${clauses.reduce((a, b) => tx`${a} or ${b}`)})`;
       else await tx`delete from ${tx(table)} where owner_id=${manifest.owner_id} and (${clauses.reduce((a, b) => tx`${a} or ${b}`)})`;
     }
     if (manifest.reset_template_paths.length) await tx`update app.user_business_settings set settings=${tx.json(report.updatedSettings)}, version=version+1, updated_at=now() where owner_id=${manifest.owner_id} and id='record_templates'`;
