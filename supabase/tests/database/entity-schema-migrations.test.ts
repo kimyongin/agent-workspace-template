@@ -295,14 +295,18 @@ dbTest(
         properties: { prop_1: "別修正" },
       });
       const yBefore = await getEntity(e, a.actor, y.id);
-      await updateBusinessSettings({ uow: new SqlBusinessSettingsUnitOfWork(sql) }, requestActor(a.actor), {
-        id: "record_templates",
-        expected_version: 0,
-        value: {
-          task: { update: { memo: "task only", tag_ids: [] } },
-          entity_types: { [other.id]: { update: { memo: "other only", tag_ids: [] } } },
+      await updateBusinessSettings(
+        { uow: new SqlBusinessSettingsUnitOfWork(sql), clock: activity.clock },
+        requestActor(a.actor),
+        {
+          id: "record_templates",
+          expected_version: 0,
+          value: {
+            task: { update: { memo: "task only", tag_ids: [] } },
+            entity_types: { [other.id]: { update: { memo: "other only", tag_ids: [] } } },
+          },
         },
-      });
+      );
       await finish(worker, accepted.job_id);
       const done = await getEntitySchemaMigration(d, a.actor, accepted.job_id);
       assertEquals(done.status, "succeeded");
