@@ -2,7 +2,8 @@
   "workspace": [
     "./api",
     "./mcp",
-    "./index-worker"
+    "./index-worker",
+    "./entity-schema-worker"
   ],
   "nodeModulesDir": "none",
   "imports": {

@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { SchemaEditor, SchemaVersionDiff } from "./SchemaEditor.tsx";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useBlocker, useLocation, useParams } from "react-router";
 import { api } from "../../lib/api.ts";
 import { ConfirmDialog } from "../../components/Modal.tsx";
@@ -28,6 +29,12 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
     [icon, setIcon] = useState("box"),
     [representative, setRepresentative] = useState("이름"),
     [archived, setArchived] = useState(false);
+  const [schemaState, setSchemaState] = useState({ dirty: false, busy: false, uncertain: false });
+  const schemaStateChange = useCallback(
+    (state: { dirty: boolean; busy: boolean; uncertain: boolean }) => setSchemaState(state),
+    [],
+  );
+  const [selectedSchema, setSelectedSchema] = useState<EntitySchemaVersion | null>(null);
   const [loading, setLoading] = useState(true),
     [error, setError] = useState(""),
     [message, setMessage] = useState("");
@@ -42,20 +49,21 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
   const dirty = type_id
     ? !!type && (label !== type.label || icon !== type.icon_id || archived !== type.archived)
     : label !== "" || icon !== "box" || representative !== "이름";
-  const blocker = useBlocker(dirty || busy || uncertain);
+  const protectedDraft = dirty || busy || uncertain || schemaState.dirty || schemaState.busy || schemaState.uncertain;
+  const blocker = useBlocker(protectedDraft);
   useEffect(() => {
     if (busy && blocker.state === "blocked") blocker.reset();
   }, [busy, blocker]);
   useEffect(() => {
     const unload = (e: BeforeUnloadEvent) => {
-      if (dirty || busy || uncertain) {
+      if (protectedDraft) {
         e.preventDefault();
         e.returnValue = "";
       }
     };
     window.addEventListener("beforeunload", unload);
     return () => window.removeEventListener("beforeunload", unload);
-  }, [dirty, busy, uncertain]);
+  }, [protectedDraft]);
   const load = async (signal?: AbortSignal) => {
     if (type_id) {
       const [saved, definition, versions] = await Promise.all([
@@ -280,21 +288,14 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
           </form>
         </section>
       )}
-      {schema && !versions && (
-        <section className="settings-section">
-          <h2 className="settings-section-title">속성·표시 · 버전 {schema.schema_version}</h2>
-          <ul>
-            {schema.display.order.map((key) => (
-              <li key={key}>
-                {schema.schema.properties[key].title ?? key} · {key} ·{" "}
-                {schema.schema.properties[key].format === "date" ? "날짜" : String(schema.schema.properties[key].type)}
-                {schema.schema.required.includes(key) ? " · 필수" : ""}
-                {key === schema.display.representative ? " · 대표" : ""}
-                {schema.display.archived.includes(key) ? " · 보관" : ""}
-              </li>
-            ))}
-          </ul>
-        </section>
+      {schema && type && !versions && (
+        <SchemaEditor
+          type={type}
+          definition={schema}
+          onApplied={() => load()}
+          onState={schemaStateChange}
+          disabled={dirty || busy || uncertain}
+        />
       )}
       {versions && schema && (
         <p>
@@ -302,6 +303,7 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
           {schema.display.order.map((key) => schema.schema.properties[key].title ?? key).join(" · ")}
         </p>
       )}
+      {versions && selectedSchema && schema && <SchemaVersionDiff before={selectedSchema} after={schema} />}
       {versions && (
         <section className="settings-section">
           <h2 className="settings-section-title">게시 버전</h2>
@@ -314,7 +316,7 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
                   void api<EntitySchemaVersion>(
                     "GET",
                     `/entity-types/${type_id}/schema?schema_version=${value.schema_version}`,
-                  ).then(setSchema).catch((e) => setError(e.message))}
+                  ).then(setSelectedSchema).catch((e) => setError(e.message))}
               >
                 이 버전 보기
               </button>
@@ -323,9 +325,9 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
         </section>
       )}
       <ConfirmDialog
-        open={!busy && blocker.state === "blocked"}
+        open={!busy && !schemaState.busy && blocker.state === "blocked"}
         title="변경을 버릴까요?"
-        message={uncertain
+        message={uncertain || schemaState.uncertain
           ? "저장 결과를 확인하지 못한 요청이 있습니다. 현재 상태를 확인한 뒤 작업을 이어가세요."
           : "저장하지 않은 설정이 사라집니다."}
         confirmLabel="이동"

@@ -27,7 +27,7 @@ export function displayedProperty(field: EntityField, value: unknown, labels: Re
   if (value === undefined) return "미입력";
   if (value === null) return "값 없음";
   if (typeof value === "boolean") return value ? "참" : "거짓";
-  return labels[String(value)] ?? String(value);
+  return Object.hasOwn(labels, String(value)) ? labels[String(value)] : String(value);
 }
 export function PropertyFields(
   { definition, values, onChange, errors }: {
@@ -48,7 +48,8 @@ export function PropertyFields(
       {definition.display.order.map((key) => {
         const field = definition.schema.properties[key],
           value = values[key],
-          nullable = Array.isArray(field.type) && field.type.includes("null"),
+          nullable = Array.isArray(field.type) && field.type.includes("null") &&
+            (!field.enum || field.enum.includes(null)),
           required = definition.schema.required.includes(key),
           archived = definition.display.archived.includes(key);
         if (archived) {
