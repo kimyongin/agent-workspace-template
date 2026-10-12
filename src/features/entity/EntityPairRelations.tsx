@@ -27,7 +27,7 @@ export function EntityPairRelations({ entity, onSaved }: { entity: EntityDetail;
     locationKey = useRef(location.key),
     preparation = useRef<AbortController | null>(null);
   locationKey.current = location.key;
-  const catalog = useEntityTypes("entity-pair-candidates");
+  const catalog = useEntityTypes();
   const section = useRef<HTMLDivElement | null>(null);
   useEffect(() => () => preparation.current?.abort(), [entity.id]);
   const [retry, setRetry] = useState(0),

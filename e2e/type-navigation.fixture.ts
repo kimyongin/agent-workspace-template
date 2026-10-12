@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { entityDetail } from "../supabase/functions/_shared/contracts/entity.ts";
+import { defaultEntityIdentitySettings } from "../supabase/functions/_shared/contracts/entity-identity.ts";
 import { type EntityType, initialEntityDefinition } from "../supabase/functions/_shared/contracts/entity-type.ts";
 import { fulfillPreparation } from "./support/preparation-api.ts";
 import { closeDetail } from "./ui-actions.ts";
@@ -57,6 +58,84 @@ test.beforeEach(async ({ page, baseURL }) => {
       ),
     user,
   );
+});
+
+test("자료 종류 읽기는 로그인 전 조회하지 않고 계정별 갱신과 실패 재시도를 적용한다", async ({ page }) => {
+  let requests = 0, fail = false, label = "처음 자료";
+  await page.route("**/api/entity-types?**", (route) => {
+    requests++;
+    return route.fulfill(fail
+      ? { status: 503, json: { code: "internal", message: "조회 실패" } }
+      : { json: { items: [{ ...materials, label }], next_cursor: null } });
+  });
+  await page.goto("/e2e/fixtures/entity-type-catalog.html");
+  await page.getByRole("button", { name: "조회 다시 시도", exact: true }).click();
+  expect(requests).toBe(0);
+  await page.getByRole("button", { name: "계정 A", exact: true }).click();
+  await expect(page.getByRole("status")).toHaveText("처음 자료");
+  label = "갱신된 자료";
+  await page.getByRole("button", { name: "계정 B 갱신", exact: true }).click();
+  await expect(page.getByRole("status")).toHaveText("처음 자료");
+  await page.getByRole("button", { name: "계정 A 갱신", exact: true }).click();
+  await expect(page.getByRole("status")).toHaveText("갱신된 자료");
+  fail = true;
+  await page.getByRole("button", { name: "계정 A 갱신", exact: true }).click();
+  await expect(page.getByRole("alert")).toHaveText("조회 실패");
+  fail = false;
+  label = "다시 읽은 자료";
+  await page.getByRole("button", { name: "조회 다시 시도", exact: true }).click();
+  await expect(page.getByRole("status")).toHaveText("다시 읽은 자료");
+  await expect(page.getByRole("alert")).toHaveCount(0);
+});
+
+test("계정 전환과 화면 닫기는 늦은 자료 종류 응답을 복원하지 않는다", async ({ page }) => {
+  let finish!: () => void;
+  let started!: () => void;
+  let completed!: () => void;
+  const pending = new Promise<void>((resolve) => { finish = resolve; });
+  const reading = new Promise<void>((resolve) => { started = resolve; });
+  const delivered = new Promise<void>((resolve) => { completed = resolve; });
+  let first = true;
+  await page.route("**/api/entity-types?**", async (route) => {
+    if (first) {
+      first = false;
+      started();
+      await pending;
+      await route.fulfill({ json: { items: [{ ...materials, label: "이전 계정 자료" }], next_cursor: null } }).catch(() => {});
+      completed();
+    } else await route.fulfill({ json: { items: [{ ...products, label: "새 계정 자료" }], next_cursor: null } });
+  });
+  await page.goto("/e2e/fixtures/entity-type-catalog.html");
+  await page.getByRole("button", { name: "계정 A", exact: true }).click();
+  await reading;
+  await page.getByRole("button", { name: "계정 B", exact: true }).click();
+  await expect(page.getByRole("status")).toHaveText("새 계정 자료");
+  finish();
+  await delivered;
+  await expect(page.getByRole("status")).toHaveText("새 계정 자료");
+  await page.getByRole("button", { name: "읽기 화면 전환", exact: true }).click();
+  await expect(page.getByRole("status")).toHaveCount(0);
+  await page.getByRole("button", { name: "로그아웃", exact: true }).click();
+  await page.getByRole("button", { name: "읽기 화면 전환", exact: true }).click();
+  await expect(page.getByRole("status")).toHaveText("읽는 중");
+  await expect(page.getByText("이전 계정 자료", { exact: true })).toHaveCount(0);
+});
+
+test("모든 페이지의 자료 종류가 목록과 생성 폼 및 종류 설정에 표시된다", async ({ page }) => {
+  await page.route("**/api/entity-types?**", (route) => {
+    const cursor = new URL(route.request().url()).searchParams.get("cursor");
+    return route.fulfill({ json: cursor
+      ? { items: [products, retired], next_cursor: null }
+      : { items: [materials], next_cursor: "second-page" } });
+  });
+  await page.goto("/entities");
+  await expect(page.getByLabel("자료 종류", { exact: true }).locator("option")).toContainText(["전체 자료", "재료", "상품", "보관 자료"]);
+  await page.goto(`/entities?entity_type_id=${products.id}&create=1`);
+  const form = page.locator("dialog.modal:not(.modal-confirm)[open]:visible");
+  await expect(form.getByLabel("자료 종류", { exact: true }).locator("option")).toContainText(["재료", "상품"]);
+  await page.goto("/settings/entity-types");
+  await expect(page.locator(`a[href='/settings/entity-types/${products.id}']`)).toBeVisible();
+  await expect(page.locator(`a[href='/settings/entity-types/${retired.id}']`)).toBeVisible();
 });
 test("typed shortcut and profile access preserve canonical list filters and Back", async ({ page }) => {
   await page.goto(`/entities?entity_type_id=${materials.id}&keyword=한글&tag_id=tag&sort=title&pages=2`);
@@ -524,6 +603,7 @@ test("immutable entity edit exposes identity catalog read failure and preserves 
     created_at:materials.created_at, updated_at:materials.updated_at };
   entityDetail.parse(entity);
   let editing=false, preparations=0;
+  await page.route("**/api/settings/business?**", route=>route.fulfill({json:{settings:{entity_identity:defaultEntityIdentitySettings},versions:{entity_identity:1}}}));
   await page.route("**/api/entities/app%3Afailed-read", route=>route.fulfill({json:entity}));
   await page.route("**/api/records/prepare", async route=>{preparations++;await fulfillPreparation(route);});
   await page.route("**/api/entity-types{,?**}", route=>editing
@@ -534,10 +614,15 @@ test("immutable entity edit exposes identity catalog read failure and preserves 
   await page.getByRole("button",{name:"편집",exact:true}).click();
   const form=page.getByRole("dialog",{name:"재료 편집",exact:true});
   await form.getByLabel("이름",{exact:false}).fill("保留する名前");
-  await expect(form.getByRole("alert").filter({hasText:"자료 종류·식별자 설정을 읽지 못했습니다. 다시 열어 주세요."})).toBeVisible();
+  await expect(form.getByRole("alert").filter({hasText:"자료 종류를 읽지 못했습니다."})).toBeVisible();
   await expect(form.getByRole("button",{name:"저장",exact:true})).toBeDisabled();
   await expect(form.getByRole("status").filter({hasText:"자료 종류·식별자 설정을 읽는 중…"})).toHaveCount(0);
   await expect(form.getByLabel("이름",{exact:false})).toHaveValue("保留する名前");
   await expect(form.getByRole("button",{name:"취소",exact:true})).toBeEnabled();
   expect(preparations).toBe(0);
+  editing=false;
+  await form.getByRole("button",{name:"자료 종류 다시 조회",exact:true}).click();
+  await expect(form.getByRole("alert").filter({hasText:"자료 종류를 읽지 못했습니다."})).toHaveCount(0);
+  await expect(form.getByRole("button",{name:"저장",exact:true})).toBeEnabled();
+  await expect(form.getByLabel("이름",{exact:false})).toHaveValue("保留する名前");
 });

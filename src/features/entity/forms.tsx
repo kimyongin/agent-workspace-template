@@ -10,7 +10,8 @@ import {
 import { api, ApiError } from "../../lib/api.ts";
 import type { DeletionOptions } from "../../components/DeleteAction.tsx";
 import { type EntityCreate, entityCreate, type EntityDetail } from "@contracts/entity.ts";
-import type { EntitySchemaResult, EntityType } from "@contracts/entity-type.ts";
+import type { EntitySchemaResult } from "@contracts/entity-type.ts";
+import { useEntityTypes } from "./useEntityTypes.ts";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { FormModal } from "../../components/ContentForm.tsx";
 import { ConfirmDialog } from "../../components/Modal.tsx";
@@ -38,7 +39,6 @@ export function EntityForm({
   onSave: (value: EntityCreate & { tag_ids: string[] }, requestKey: () => string) => Promise<void>;
 }) {
   const [identitySettings, setIdentitySettings] = useState<EntityIdentitySettings | null>(null),
-    [types, setTypes] = useState<EntityType[] | null>(null),
     [typeId, setTypeId] = useState(initial?.entity_type_id ?? initialTypeId ?? ""),
     [definition, setDefinition] = useState<EntitySchemaResult | null>(null),
     [schemaError, setSchemaError] = useState(""),
@@ -47,6 +47,7 @@ export function EntityForm({
     [reviewKeys, setReviewKeys] = useState<string[]>([]),
     [reload, setReload] = useState(0),
     [nextType, setNextType] = useState<string | null>(null);
+  const { types, error: catalogError, retry: retryCatalog } = useEntityTypes();
   const [archived, setArchived] = useState<EntityDetail | null>(initial?.deleted_at ? initial : null),
     [identityMessage, setIdentityMessage] = useState("");
   const [source, setSource] = useState(initial?.source ?? ""),
@@ -67,20 +68,16 @@ export function EntityForm({
     definitionRead = useRef<AbortController | null>(null);
   useEffect(() => {
     const c = new AbortController();
-    void Promise.all([
-      api<{ settings: { entity_identity: EntityIdentitySettings }; versions: { entity_identity: number } }>(
-        "GET",
-        "/settings/business?id=entity_identity",
-        undefined,
-        c.signal,
-      ),
-      api<{ items: EntityType[] }>("GET", "/entity-types?include_archived=true&limit=100", undefined, c.signal),
-    ]).then(([saved, list]) => {
+    void api<{ settings: { entity_identity: EntityIdentitySettings }; versions: { entity_identity: number } }>(
+      "GET",
+      "/settings/business?id=entity_identity",
+      undefined,
+      c.signal,
+    ).then((saved) => {
       if (c.signal.aborted) return;
       const settings = saved.settings.entity_identity ?? defaultEntityIdentitySettings;
       settingsVersion.current = saved.versions.entity_identity;
       setIdentitySettings(settings);
-      setTypes(list.items);
       if (!initial) {
         setSource(settings.default_source);
         baseline.current.source = settings.default_source;
@@ -221,7 +218,7 @@ export function EntityForm({
         domain={label}
         title={`${label} ${archived ? "복원" : initial ? "편집" : "추가"}`}
         submitLabel="저장"
-        submitDisabled={!!typeId && (!identitySettings || !definition || schemaReading || !!pendingDefinition)}
+        submitDisabled={!!typeId && (!identitySettings || !types || catalogError || !definition || schemaReading || !!pendingDefinition)}
         mutation={{
           target: definition ? String(properties[definition.display.representative] ?? label) : label,
           action: archived ? "복원" : initial ? "수정" : "등록",
@@ -269,7 +266,7 @@ export function EntityForm({
               entity_type_id: "보관된 자료 종류에는 새 자료를 추가할 수 없습니다",
             };
           }
-          if (!identitySettings || !definition) return { entity_type_id: "자료 종류와 속성 정의를 확인하세요" };
+          if (!identitySettings || !types || catalogError || !definition) return { entity_type_id: "자료 종류와 속성 정의를 확인하세요" };
           if (schemaReading || pendingDefinition) return { entity_type_id: "현재 속성 정의를 확인한 뒤 적용하세요" };
           if (reviewKeys.length) {
             return Object.fromEntries(
@@ -324,6 +321,7 @@ export function EntityForm({
         {(errors) => (
           <>
             <section className="detail-section form">
+              {catalogError && <p role="alert">자료 종류를 읽지 못했습니다. <button type="button" className="btn" onClick={retryCatalog}>자료 종류 다시 조회</button></p>}
               {initial || archived ? <p>자료 종류: {label} · 저장 후 종류를 변경할 수 없습니다.</p> : (
                 <>
                   <EntityTypePicker
@@ -447,7 +445,7 @@ export function EntityForm({
                   기존 대상 확인
                 </button>
               )}
-              {!identitySettings && !identityMessage && <p role="status">자료 종류·식별자 설정을 읽는 중…</p>}
+      {(!identitySettings || !types) && !identityMessage && !catalogError && <p role="status">자료 종류·식별자 설정을 읽는 중…</p>}
               {identityMessage && <p role={!identitySettings ? "alert" : "status"}>{identityMessage}</p>}
               {(initial || archived) && errors.entity_type_id && <p role="alert">{errors.entity_type_id}</p>}
               {definition
