@@ -332,7 +332,7 @@ dbTest(
             history.map((r) => r.id)
           }::text[]) order by id`,
       );
-      assertEquals(old, history.map((r) => r.id === record.id ? { ...r, body: "permitted body" } : r));
+      assertEquals(Array.from(old), history.map((r) => r.id === record.id ? { ...r, body: "permitted body" } : r));
       const [effects] =
         await admin`select count(*)::int as records,count(s.id)::int as indexes from app.records r left join app.search_index_state s on s.owner_id=r.owner_id and s.id=r.id where r.owner_id=${a.actor.userId} and r.change_metadata->>'schema_migration_id'=${accepted.job_id}`;
       assertEquals(effects, { records: 2, indexes: 2 });
