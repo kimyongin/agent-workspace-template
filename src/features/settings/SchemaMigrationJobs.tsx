@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { RecoveryAvailability, RecoveryChangeCreate, recoveryErrorMessage } from "./SchemaRecovery.tsx";
 import { Link, useNavigate, useParams } from "react-router";
 import type { EntitySchemaMigration, SchemaMigrationAccepted } from "@contracts/entity-schema-migration.ts";
 import type { EntitySchemaChange } from "@contracts/entity-schema-change.ts";
@@ -43,7 +44,7 @@ export function MigrationStart({ plan, disabled }: { plan: EntitySchemaChange; d
         navigate(`/settings/entity-types/${plan.type_id}/migrations/${acceptedRef.current.job_id}`);
       }
     } catch (e) {
-      setError(writeErrorMessage(e));
+      setError(plan.recovery ? recoveryErrorMessage(e) : writeErrorMessage(e));
     }
   };
   return (
@@ -133,6 +134,7 @@ export function MigrationJobs({ typeId }: { typeId: string }) {
               <EntityTypeIcon id={j.type.icon_id} />
               {j.type.label} · {labels[j.status]} · {j.processed}/{j.total}
             </Link>
+            <RecoveryAvailability job={j} />
           </li>
         ))}
       </ul>
@@ -147,10 +149,10 @@ export function SchemaMigrationJob() {
     [refresh, setRefresh] = useState(0);
   const { attempt, busy, uncertain } = useWriteAttempt();
   const [pendingAction, setPendingAction] = useState<"cancel" | "retry">();
+  useEffect(() => { setJob(undefined); }, [job_id, type_id]);
   useEffect(() => {
     const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout>;
-    setJob(undefined);
     setError("");
     const poll = async () => {
       try {
@@ -225,7 +227,7 @@ export function SchemaMigrationJob() {
           {job.result && (
             <p>새 속성 버전 {job.result.schema_version} · {job.result.total}개 적용 · {job.result.changed}개 값 변경</p>
           )}
-          {job.source_expires_at && <p>원본 보존 만료: {new Date(job.source_expires_at).toLocaleString()}</p>}
+          {job.status !== "succeeded" && job.source_expires_at && <p>원본 보존 만료: {new Date(job.source_expires_at).toLocaleString()}</p>}
           {job.status === "failed" && (
             <p role="alert">
               {job.failure_reason} · 기존 자료와 속성 정의가 유지됩니다.{" "}
@@ -233,6 +235,7 @@ export function SchemaMigrationJob() {
             </p>
           )}
           {job.status === "cancelled" && <p>적용 전 취소했습니다. 원본은 유지됩니다. 새 분석을 준비하여 실행하세요.</p>}
+          <RecoveryChangeCreate key={job.id} job={job} />
           <Link to={`/settings/entity-types/${type_id}/migrations?change_id=${job.change_id}`}>변경안 보기</Link>
           <div className="schema-actions">
             {["queued", "preparing", "ready_to_commit"].includes(job.status) && (
