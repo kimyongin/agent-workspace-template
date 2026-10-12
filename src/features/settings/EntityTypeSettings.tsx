@@ -68,6 +68,7 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
         api<{ items: EntitySchemaVersionSummary[] }>("GET", `/entity-types/${type_id}/schemas`, undefined, signal),
       ]);
       signal?.throwIfAborted();
+      if (!mounted.current) return;
       setType(saved);
       setLabel(saved.label);
       setIcon(saved.icon_id);
@@ -77,6 +78,7 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
     } else {
       const saved = await api<{ items: EntityType[] }>("GET", "/entity-types?include_archived=true", undefined, signal);
       signal?.throwIfAborted();
+      if (!mounted.current) return;
       setItems(saved.items);
     }
   };
@@ -93,6 +95,18 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
     });
     return () => controller.abort();
   }, [type_id]);
+  const retryRead = async () => {
+    if (loading || busy) return;
+    setLoading(true);
+    setError("");
+    try {
+      await load();
+    } catch (e) {
+      if (mounted.current) setError(e instanceof Error ? e.message : "조회하지 못했습니다");
+    } finally {
+      if (mounted.current) setLoading(false);
+    }
+  };
   const save = async () => {
     if (busy || (!dirty && !uncertain)) return;
     setError("");
@@ -172,6 +186,9 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
       )}
       {loading && <p role="status">불러오는 중…</p>}
       {error && <p role="alert" className="error-text">{error}</p>}
+      {error && !loading && (!type_id || !type) && (
+        <button className="btn" onClick={() => void retryRead()}>조회 다시 시도</button>
+      )}
       {message && <p role="status">{message}</p>}
       {!loading && !type_id && (
         <>
@@ -185,7 +202,7 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
               </li>
             ))}
           </ul>
-          {items.length === 0 && (
+          {items.length === 0 && !error && (
             <p className="secondary">자료 종류가 없습니다. 이름을 정해 첫 자료 종류를 만드세요.</p>
           )}
         </>

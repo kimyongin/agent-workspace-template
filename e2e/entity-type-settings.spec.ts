@@ -7,6 +7,7 @@ test("자료 종류를 웹에서 만들고 이름·아이콘·보관과 게시 �
   const mcp = await mcpClient(await mcpTokenViaConsent(page));
   const label = unique("자료 종류");
   let typeId: string | undefined;
+  let releaseDestination: (() => void) | undefined;
   try {
     await page.goto("/settings/entity-types");
     await expect(page.getByRole("heading", { name: "자료 종류·속성", exact: true })).toBeVisible();
@@ -34,8 +35,18 @@ test("자료 종류를 웹에서 만들고 이름·아이콘·보관과 게시 �
     const original = await mcp.call("get_entity_schema", { type_id: typeId });
     expect(original.schema.required).toEqual(["prop_1"]);
     expect(original.schema.properties.prop_1.title).toBe("대표 이름");
+    const destinationGate = new Promise<void>((resolve) => {
+      releaseDestination = resolve;
+    });
+    await page.route(`**/functions/v1/api/entity-types/${typeId}`, async (route) => {
+      if (route.request().method() === "GET") await destinationGate;
+      await route.continue();
+    });
     await page.getByRole("link", { name: label, exact: false }).click();
     await expect(page).toHaveURL(new RegExp(`/settings/entity-types/${typeId}$`));
+    await expect(page.locator(".settings").getByRole("status")).toHaveText("불러오는 중…");
+    await expect(page.getByLabel("자료 종류 이름", { exact: true })).toHaveCount(0);
+    releaseDestination!();
     await expect(page.getByLabel("자료 종류 이름", { exact: true })).toHaveValue(label);
     const changedLabel = unique("이름 변경");
     await page.getByLabel("자료 종류 이름", { exact: true }).fill(changedLabel);
@@ -78,6 +89,7 @@ test("자료 종류를 웹에서 만들고 이름·아이콘·보관과 게시 �
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth))
       .toBe(true);
   } finally {
+    releaseDestination?.();
     await mcp.close();
     if (typeId) {
       const admin = postgres(env.LOCAL_DB_URL, { max: 1, onnotice: () => {} });
