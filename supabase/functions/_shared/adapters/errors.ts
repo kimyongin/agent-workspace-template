@@ -32,5 +32,6 @@ export function toErrorBody(e: unknown): { status: number; body: ErrorBody } {
   const body: ErrorBody = { code: err.code, message: err.message, retryable: RETRYABLE[err.code] };
   if (err.code === "request_in_progress") body.retry_after_seconds = 1;
   if (err.fields?.length) body.fields = err.fields;
+  if (err.current) body.current = err.current;
   return { status: ERROR_HTTP_STATUS[err.code], body };
 }

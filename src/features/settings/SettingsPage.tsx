@@ -108,7 +108,7 @@ function AccountSettings() {
       </form>
     </section>)}
     <section className="settings-section" aria-labelledby="data-title"><h2 className="settings-section-title" id="data-title">자료 관리</h2>
-      <div className="settings-links"><DetailLink to="/tags/entity">엔터티 태그</DetailLink><DetailLink to="/tags/task">할 일 태그</DetailLink><DetailLink to="/tags/record">기록 태그</DetailLink></div>
+      <div className="settings-links"><DetailLink to="/settings/entity-types">자료 종류·속성</DetailLink><DetailLink to="/tags/entity">자료 태그</DetailLink><DetailLink to="/tags/task">할 일 태그</DetailLink><DetailLink to="/tags/record">기록 태그</DetailLink></div>
     </section>
     <RecordTemplateSettings onStateChange={setBusinessState} />
     <EntityIdentitySettings onStateChange={setIdentityState} />

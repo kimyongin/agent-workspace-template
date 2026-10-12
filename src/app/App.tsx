@@ -1,3 +1,4 @@
+import { EntityTypeSettings } from "../features/settings/EntityTypeSettings.tsx";
 import { StatusPage } from "../features/status/StatusPage.tsx";
 import { WriteOutcomeNotice } from "../components/WriteOutcomeNotice.tsx";
 import { DetailNavigationProvider } from "../lib/detail-exploration.tsx";
@@ -77,6 +78,9 @@ export function App() {
             <Route path="tags/:scope/:id" element={guarded(<TagsPage />)} />
             <Route path="guide" element={guarded(<GuidePage />)} />
             <Route path="settings" element={guarded(<SettingsPage />)} />
+            <Route path="settings/entity-types" element={guarded(<EntityTypeSettings />)} />
+            <Route path="settings/entity-types/:type_id" element={guarded(<EntityTypeSettings />)} />
+            <Route path="settings/entity-types/:type_id/versions" element={guarded(<EntityTypeSettings />)} />
             <Route path="*" element={<p className="secondary">페이지를 찾을 수 없습니다.</p>} />
           </Route>
   ), { basename: import.meta.env.BASE_URL.replace(/\/$/, "") }));

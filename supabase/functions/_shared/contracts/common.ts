@@ -66,6 +66,13 @@ export const ERROR_CODES = [
   "rate_limited",
   "unavailable",
   "internal",
+  "schema_changed",
+  "schema_plan_stale",
+  "schema_migration_required",
+  "entity_type_archived",
+  "schema_migration_in_progress",
+  "entity_type_immutable",
+  "migration_source_expired",
 ] as const;
 export type ErrorCode = (typeof ERROR_CODES)[number];
 
@@ -83,6 +90,13 @@ export const ERROR_HTTP_STATUS: Record<ErrorCode, number> = {
   rate_limited: 429,
   unavailable: 503,
   internal: 500,
+  schema_changed: 409,
+  schema_plan_stale: 409,
+  schema_migration_required: 409,
+  entity_type_archived: 409,
+  schema_migration_in_progress: 409,
+  entity_type_immutable: 400,
+  migration_source_expired: 410,
 };
 
 export const RETRYABLE: Record<ErrorCode, boolean> = {
@@ -99,6 +113,13 @@ export const RETRYABLE: Record<ErrorCode, boolean> = {
   rate_limited: true,
   unavailable: true,
   internal: true,
+  schema_changed: false,
+  schema_plan_stale: false,
+  schema_migration_required: false,
+  entity_type_archived: false,
+  schema_migration_in_progress: true,
+  entity_type_immutable: false,
+  migration_source_expired: false,
 };
 
 export const errorBody = z.object({
@@ -107,6 +128,15 @@ export const errorBody = z.object({
   retryable: z.boolean(),
   retry_after_seconds: z.number().optional(),
   fields: z.array(z.object({ path: z.string(), message: z.string() })).optional(),
+  current: z.object({
+    type_id: z.string(),
+    type_version: z.number().int().positive(),
+    schema_version: z.number().int().positive(),
+    change_id: z.string().optional(),
+    change_version: z.number().int().positive().optional(),
+    job_id: z.string().optional(),
+    job_version: z.number().int().positive().optional(),
+  }).optional(),
 });
 export type ErrorBody = z.infer<typeof errorBody>;
 
