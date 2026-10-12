@@ -1,10 +1,13 @@
 import { assert, assertEquals } from "@std/assert";
 import { call, httpTest, signIn } from "./_client.ts";
+import { httpEntityFixture } from "./_entity.ts";
 
 const A = await signIn("A"), B = await signIn("B");
 
 httpTest("일반 기록은 할 일에 연결하되 업무 상태·회차·과거 엔터티를 바꾸지 않는다", async () => {
-  const entity = (await call(A, "POST", "/entities", { prop1: crypto.randomUUID() })).body;
+  const entity =
+    (await call(A, "POST", "/entities", { ...await httpEntityFixture(A), properties: { prop_1: crypto.randomUUID() } }))
+      .body;
   const task = (await call(A, "POST", "/tasks", { kind: "once", title: "관계 업무", entity_ids: [entity.id] })).body;
   const created = await call(A, "POST", "/records", { body: "진행 중 상담 메모", task_id: task.id });
   assertEquals(created.status, 201);

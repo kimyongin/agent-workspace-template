@@ -14,6 +14,7 @@ import { entityCreate } from "../../functions/_shared/contracts/entity.ts";
 import { principleCreate } from "../../functions/_shared/contracts/principle.ts";
 import { AppError } from "../../functions/_shared/core/shared/errors.ts";
 import { connect, dbTest, fixtureOwner, urls } from "./_db.ts";
+import { entityFixture } from "./_entity.ts";
 const admin = connect(urls.admin, { max: 1 });
 const rootUrl = new URL(urls.admin);
 rootUrl.username = "postgres";
@@ -21,9 +22,17 @@ rootUrl.password = "postgres";
 const root = connect(rootUrl.toString(), { max: 1 });
 
 // Exercise real adapters in one rollback transaction so the deterministic RNG never escapes the test.
-async function deterministic(fn: (tx: postgres.TransactionSql, sql: postgres.Sql, owner: string) => Promise<void>) {
+async function deterministic(
+  fn: (
+    tx: postgres.TransactionSql,
+    sql: postgres.Sql,
+    owner: string,
+    schema: { entity_type_id: string; schema_version: number },
+  ) => Promise<void>,
+) {
   const f = await fixtureOwner(admin), rollback = new Error("rollback deterministic RNG");
   try {
+    const schema = await entityFixture(admin, f.actor.userId);
     await root.begin(async (tx) => {
       await tx`grant app_user to postgres`;
       await tx.unsafe(`create or replace function app.data_id_candidate() returns text language plpgsql volatile as $$
@@ -35,7 +44,7 @@ async function deterministic(fn: (tx: postgres.TransactionSql, sql: postgres.Sql
       const scoped = {
         begin: (run: (t: postgres.TransactionSql) => Promise<unknown>) => run(tx),
       } as unknown as postgres.Sql;
-      await fn(tx, scoped, f.actor.userId);
+      await fn(tx, scoped, f.actor.userId, schema);
       throw rollback;
     });
   } catch (e) {
@@ -53,13 +62,14 @@ const actor = (owner: string) => ({ userId: owner, request: { key: crypto.random
 dbTest(
   "automatic creation retries only its PK collision across all models and replays the result",
   () =>
-    deterministic(async (tx, sql, owner) => {
+    deterministic(async (tx, sql, owner, schema) => {
       const collision = "20261011-00000000";
       await tx`insert into app.tags(id,owner_id,name,scope) values(${collision},${owner},'existing','task')`;
       await tx`insert into app.tasks(id,owner_id,kind,title,status) values(${collision},${owner},'once','existing','open')`;
       await tx`insert into app.records(id,owner_id,body) values(${collision},${owner},'existing')`;
       await tx`insert into app.principles(id,owner_id,title,body,is_current) values(${collision},${owner},'existing','',false)`;
-      await tx`insert into app.entities(id,owner_id,source,external_id,prop1) values(${`app:${collision}`},${owner},'app',${collision},'existing')`;
+      await tx`insert into app.entities(id,owner_id,source,external_id,entity_type_id,schema_version,properties)
+        values(${`app:${collision}`},${owner},'app',${collision},${schema.entity_type_id},1,'{"prop_1":"existing"}'::jsonb)`;
       const ad = { uow: new SqlUnitOfWork(sql), clock: { now: () => new Date() } };
       const td = { uow: new SqlTagUnitOfWork(sql) }, pd = { uow: new SqlPrincipleUnitOfWork(sql) };
       const ed = { uow: new SqlEntityUnitOfWork(sql) };
@@ -69,7 +79,8 @@ dbTest(
         (a: ReturnType<typeof actor>) => activity.createRecord(ad, a, recordCreate.parse({ body: "new" })),
         (a: ReturnType<typeof actor>) =>
           principle.createPrinciple(pd, a, principleCreate.parse({ title: "new", body: "" })),
-        (a: ReturnType<typeof actor>) => entity.createEntity(ed, a, entityCreate.parse({ prop1: "new" })),
+        (a: ReturnType<typeof actor>) =>
+          entity.createEntity(ed, a, entityCreate.parse({ ...schema, properties: { prop_1: "new" } })),
       ];
       for (const write of writes) {
         await reset(tx);
@@ -124,9 +135,10 @@ dbTest(
 dbTest(
   "business uniqueness and explicit external identifiers are not silently regenerated",
   () =>
-    deterministic(async (tx, _sql, owner) => {
+    deterministic(async (tx, _sql, owner, schema) => {
       await tx`insert into app.tags(id,owner_id,name,scope) values('20261011-00000000',${owner},'duplicate','task')`;
-      await tx`insert into app.entities(id,owner_id,source,external_id,prop1) values('app:explicit',${owner},'app','explicit','existing')`;
+      await tx`insert into app.entities(id,owner_id,source,external_id,entity_type_id,schema_version,properties)
+        values('app:explicit',${owner},'app','explicit',${schema.entity_type_id},1,'{"prop_1":"existing"}'::jsonb)`;
       const writes = [
         (connection: postgres.Sql) =>
           tag.createTag({ uow: new SqlTagUnitOfWork(connection) }, actor(owner), { name: "duplicate", scope: "task" }),
@@ -134,7 +146,7 @@ dbTest(
           entity.createEntity(
             { uow: new SqlEntityUnitOfWork(connection) },
             actor(owner),
-            entityCreate.parse({ external_id: "explicit", prop1: "new" }),
+            entityCreate.parse({ ...schema, external_id: "explicit", properties: { prop_1: "new" } }),
           ),
       ];
       for (const write of writes) {

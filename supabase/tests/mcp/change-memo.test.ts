@@ -1,9 +1,11 @@
 import { assertEquals } from "@std/assert";
 import { call, httpTest, signIn } from "../http/_client.ts";
 import { connectMcp, mcpToken, tool } from "./_mcp.ts";
+import { httpEntityFixture } from "../http/_entity.ts";
 httpTest("HTTP and MCP save body memo once and remove preview interfaces", async () => {
   const a = await signIn("A"), client = await connectMcp(await mcpToken(a));
-  const e = await tool(client, "create_entity", { prop1: `memo-${crypto.randomUUID()}` });
+  const schema = await httpEntityFixture(a);
+  const e = await tool(client, "create_entity", { ...schema, properties: { prop_1: `memo-${crypto.randomUUID()}` } });
   try {
     assertEquals((await call(a, "POST", "/entities/preview", {})).status, 404);
     const tools = await client.listTools();
@@ -11,7 +13,8 @@ httpTest("HTTP and MCP save body memo once and remove preview interfaces", async
     const memo = "  저장한 근거\n" + "가".repeat(1200);
     const saved = await call(a, "PATCH", `/entities/${encodeURIComponent(e.id)}`, {
       expected_version: e.version,
-      prop2: 20,
+      schema_version: schema.schema_version,
+      properties: { prop_2: 20 },
       change_note: memo,
     });
     assertEquals(saved.status, 200);
@@ -22,7 +25,13 @@ httpTest("HTTP and MCP save body memo once and remove preview interfaces", async
     assertEquals(event.body, memo);
     assertEquals(["title", "summary", "change_note"].some((k) => k in event), false);
     assertEquals(
-      (await tool(client, "update_entity", { id: e.id, expected_version: e.version, prop2: 20, change_note: memo }))
+      (await tool(client, "update_entity", {
+        id: e.id,
+        schema_version: schema.schema_version,
+        expected_version: e.version,
+        properties: { prop_2: 20 },
+        change_note: memo,
+      }))
         .error.code,
       "conflict",
     );
@@ -30,7 +39,8 @@ httpTest("HTTP and MCP save body memo once and remove preview interfaces", async
       (await tool(client, "update_entity", {
         id: e.id,
         expected_version: saved.body.version,
-        prop2: 30,
+        schema_version: schema.schema_version,
+        properties: { prop_2: 30 },
         change_memo: { body: "old" },
       })).error.code,
       "invalid_input",

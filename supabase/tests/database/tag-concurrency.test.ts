@@ -11,6 +11,7 @@ import * as t from "../../functions/_shared/core/tags/application.ts";
 import * as e from "../../functions/_shared/core/entity/application.ts";
 import * as a from "../../functions/_shared/core/activity/application.ts";
 import { connect, dbTest, fixtureOwner, urls } from "./_db.ts";
+import { entityFixture } from "./_entity.ts";
 
 const admin = connect(urls.admin, { max: 1 }), sql = connect(urls.direct, { max: 3 });
 const td = { uow: new SqlTagUnitOfWork(sql) },
@@ -29,6 +30,7 @@ for (
       const ready = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
       let editing: Promise<unknown> | undefined, deleting: Promise<unknown> | undefined;
       try {
+        const schema = await entityFixture(admin, f.actor.userId);
         const scope = kind;
         const first = await t.createTag(
           td,
@@ -45,7 +47,13 @@ for (
           ? await e.createEntity(
             ed,
             requestActor(f.actor),
-            entityCreate.parse({ source: "app", external_id: crypto.randomUUID(), ...{ prop1: "parent", tag_ids } }),
+            entityCreate.parse({
+              ...schema,
+              source: "app",
+              external_id: crypto.randomUUID(),
+              properties: { prop_1: "parent" },
+              tag_ids,
+            }),
           )
           : kind === "task"
           ? await a.createTask(
@@ -86,10 +94,11 @@ for (
         };
         const patch = {
           expected_version: parent.version,
+          ...(kind === "entity" ? { schema_version: schema.schema_version } : {}),
           ...(kind === "record" ? {} : { change_note: scenario === "edit content" ? "edit content" : "remove both" }),
           ...(scenario === "edit content"
             ? (kind === "entity"
-              ? { prop1: "edited parent" }
+              ? { properties: { prop_1: "edited parent" } }
               : kind === "record"
               ? { body: "edited parent" }
               : { title: "edited parent" })
@@ -160,7 +169,7 @@ for (
           assertEquals(final.version, parent.version + 2);
           assertEquals(
             kind === "entity"
-              ? (final as { prop1: string }).prop1
+              ? ("properties" in final ? final.properties.prop_1 : undefined)
               : kind === "record"
               ? (final as { body: string }).body
               : (final as { title: string }).title,

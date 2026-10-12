@@ -11,6 +11,7 @@ import * as t from "../../functions/_shared/core/tags/application.ts";
 import * as e from "../../functions/_shared/core/entity/application.ts";
 import * as a from "../../functions/_shared/core/activity/application.ts";
 import { connect, dbTest, fixtureOwner, urls } from "./_db.ts";
+import { entityFixture } from "./_entity.ts";
 const admin = connect(urls.admin, { max: 1 }), sql = connect(urls.pooler, { max: 3, prepare: false });
 const td = { uow: new SqlTagUnitOfWork(sql) },
   ed = { uow: new SqlEntityUnitOfWork(sql) },
@@ -20,6 +21,7 @@ dbTest(
   async () => {
     const f = await fixtureOwner(admin);
     try {
+      const schema = await entityFixture(admin, f.actor.userId);
       const actor = { ...f.actor, source: "mcp" as const };
       const tag = await t.createTag(
         td,
@@ -35,9 +37,11 @@ dbTest(
         ed,
         requestActor(actor),
         entityCreate.parse({
+          ...schema,
           source: "app",
           external_id: crypto.randomUUID(),
-          ...{ prop1: "対象", tag_ids: [entityTag.id] },
+          properties: { prop_1: "対象" },
+          tag_ids: [entityTag.id],
         }),
       );
       const taskTag = await t.createTag(

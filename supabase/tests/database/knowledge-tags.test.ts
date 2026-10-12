@@ -11,6 +11,7 @@ import * as tags from "../../functions/_shared/core/tags/application.ts";
 import * as e from "../../functions/_shared/core/entity/application.ts";
 import * as a from "../../functions/_shared/core/activity/application.ts";
 import { asUser, connect, dbTest, fixtureOwner, outcome, urls } from "./_db.ts";
+import { entityFixture } from "./_entity.ts";
 const admin = connect(urls.admin, { max: 1 }),
   sql = connect(urls.pooler, { max: 3, prepare: false }),
   td = { uow: new SqlTagUnitOfWork(sql) },
@@ -21,6 +22,7 @@ dbTest(
   async () => {
     const f = await fixtureOwner(admin), b = await fixtureOwner(admin);
     try {
+      const schema = await entityFixture(admin, f.actor.userId);
       const A = f.actor,
         entityTag = await tags.createTag(
           td,
@@ -84,9 +86,11 @@ dbTest(
             ed,
             requestActor(A),
             entityCreate.parse({
+              ...schema,
               source: "app",
               external_id: crypto.randomUUID(),
-              ...{ prop1: "거부", tag_ids: [tag] },
+              properties: { prop_1: "거부" },
+              tag_ids: [tag],
             }),
           )
         );
@@ -115,9 +119,11 @@ dbTest(
         ed,
         requestActor(A),
         entityCreate.parse({
+          ...schema,
           source: "app",
           external_id: crypto.randomUUID(),
-          ...{ prop1: "대상", tag_ids: [entityTag.id] },
+          properties: { prop_1: "대상" },
+          tag_ids: [entityTag.id],
         }),
       );
       assertMatch(
@@ -170,7 +176,12 @@ dbTest(
         ed,
         requestActor(A),
         entity.id,
-        entityUpdate.parse({ expected_version: entity.version, change_note: "속성 갱신", prop2: 20 }),
+        entityUpdate.parse({
+          schema_version: schema.schema_version,
+          expected_version: entity.version,
+          change_note: "속성 갱신",
+          properties: { prop_2: 20 },
+        }),
       );
       await tags.createTag(td, requestActor(A), tagCreate.parse({ ...{ scope: "entity", name: "둘째" } }));
       const page = await tags.listTags(td, A, tagListQuery.parse({ scope: "entity", limit: 1 }));

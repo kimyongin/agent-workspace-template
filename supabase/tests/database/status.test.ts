@@ -8,6 +8,7 @@ import { SqlStatusReader } from "../../functions/_shared/adapters/supabase/statu
 import type { StatusOverview } from "../../functions/_shared/contracts/status.ts";
 import { SEARCH_PIPELINE } from "../../functions/_shared/core/search/config.ts";
 import { asUser, connect, dbTest, fixtureOwner, outcome, urls } from "./_db.ts";
+import { entityFixture } from "./_entity.ts";
 
 const admin = connect(urls.admin, { max: 1 }), user = connect(urls.pooler, { max: 2, prepare: false });
 const at = "2026-10-10T15:00:00.000Z";
@@ -115,10 +116,12 @@ dbTest(
         records_created: 0,
         indexing: { indexed: 0, preparing: 0, attention: 0, excluded: 0 },
       });
-      await admin`insert into app.entities(owner_id,id,source,external_id,prop1,created_at,deleted_at) values
-      (${own.actor.userId},'app:status-a','app','status-a','active',${at},null),
-      (${own.actor.userId},'app:status-b','app','status-b','deleted','2026-10-10T14:59:59.999Z',${at}),
-      (${foreign.actor.userId},'app:status-c','app','status-c','foreign',${at},null)`;
+      const schema = await entityFixture(admin, own.actor.userId),
+        otherSchema = await entityFixture(admin, foreign.actor.userId);
+      await admin`insert into app.entities(owner_id,id,source,external_id,entity_type_id,schema_version,properties,created_at,deleted_at) values
+      (${own.actor.userId},'app:status-a','app','status-a',${schema.entity_type_id},1,'{"prop_1":"active"}'::jsonb,${at},null),
+      (${own.actor.userId},'app:status-b','app','status-b',${schema.entity_type_id},1,'{"prop_1":"deleted"}'::jsonb,'2026-10-10T14:59:59.999Z',${at}),
+      (${foreign.actor.userId},'app:status-c','app','status-c',${otherSchema.entity_type_id},1,'{"prop_1":"foreign"}'::jsonb,${at},null)`;
       const task = id(), oldTask = id(), recurring = id();
       await admin`insert into app.tasks(id,owner_id,kind,title,status,created_at,completed_at) values
       (${task},${own.actor.userId},'once','done','done',${at},${at}),

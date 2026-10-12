@@ -22,6 +22,7 @@ import {
 } from "../../functions/_shared/contracts/task.ts";
 import { admin, API, call, httpTest, seoulDate, signIn } from "../http/_client.ts";
 import { claimsOf, connectMcp, MCP_URL, mcpGrant, mcpToken, refreshMcp, registerClient, tool } from "./_mcp.ts";
+import { httpEntityFixture } from "../http/_entity.ts";
 
 const sessionA = await signIn("A");
 const sessionB = await signIn("B");
@@ -70,7 +71,10 @@ httpTest("일반 할 일 메모와 제목 검색은 HTTP/MCP에서 같고 다른
 
 httpTest("기록 HTTP 편집·MCP 재시도는 추가 로그 없이 최신 메모·사건을 보존한다", async () => {
   const record = await tool(mcpA, "create_record", { body: crypto.randomUUID() });
-  const entity = await tool(mcpA, "create_entity", { prop1: "메모 편집 근거" });
+  const entity = await tool(mcpA, "create_entity", {
+    ...await httpEntityFixture(sessionA),
+    properties: { prop_1: "메모 편집 근거" },
+  });
   const historyBefore = await tool(mcpA, "list_records", { record_kind: "change", limit: 100 });
   const event = historyBefore.items.find((r: { change?: { target_id: string } }) => r.change?.target_id === entity.id);
   assert(event);

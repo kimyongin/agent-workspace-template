@@ -1,11 +1,13 @@
 import { assertEquals } from "@std/assert";
 import { call, httpTest, signIn } from "./_client.ts";
+import { httpEntityFixture } from "./_entity.ts";
 
 httpTest("writes require request keys and reject client IDs and retired metadata/current upsert", async () => {
   const token = await signIn("A");
+  const schema = await httpEntityFixture(token);
   for (
     const [path, content] of [
-      ["/entities", { prop1: "입력 거부" }],
+      ["/entities", { ...schema, properties: { prop_1: "입력 거부" } }],
       ["/tasks", { kind: "once", title: "입력 거부" }],
       ["/records", { body: "입력 거부" }],
       ["/principles", { title: "입력 거부" }],
@@ -30,9 +32,10 @@ httpTest("retired HTTP paths return 404 and preserve their target values", async
   const task = (await call(token, "POST", "/tasks", { kind: "once", title: "retired-route-proof" })).body;
   const record = (await call(token, "POST", "/records", { body: "retired-route-proof" })).body;
   const entity = (await call(token, "POST", "/entities", {
+    ...await httpEntityFixture(token),
     source: "app",
     external_id: crypto.randomUUID(),
-    prop1: "retired-route-proof",
+    properties: { prop_1: "retired-route-proof" },
   })).body;
   const baseline = (await call(token, "GET", "/principles/current")).body.current;
   const principle = baseline ?? (await call(token, "POST", "/principles", { title: "retired-route-proof" })).body;
