@@ -106,3 +106,39 @@ it("entity more and page restoration use body cursors while canceled late replie
     expect(fetch.mock.calls[2][1].method).toBe("GET");expect(fetch.mock.calls[3][1].method).toBe("POST");
   } finally {list.cancel();vi.unstubAllGlobals();}
 });
+
+
+it("successful tag writes notify mounted dictionaries, including DELETE 204; reads and failures do not", async () => {
+  const target = new EventTarget(), changed = vi.fn();
+  target.addEventListener("workspace:tags-changed", changed);
+  vi.stubGlobal("window", target);
+  vi.stubGlobal(
+    "fetch",
+    vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ items: [] })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: "tag", scope: "entity" }), { status: 201 }))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ code: "conflict" }), { status: 409 }))
+      .mockResolvedValueOnce(new Response("", { status: 200 })),
+  );
+  const write = async (method: string, path: string, body?: unknown) => {
+    const attempt = new WriteAttempt();
+    try {
+      await attempt.run(() => api(method, path, body, undefined, attempt.requestKey()));
+    } finally {
+      attempt.abandon();
+    }
+  };
+  try {
+    await api("GET", "/tags?scope=entity");
+    expect(changed).not.toHaveBeenCalled();
+    await write("POST", "/tags", { name: "new", scope: "entity" });
+    await write("DELETE", "/tags/tag?expected_version=1");
+    expect(changed).toHaveBeenCalledTimes(2);
+    await expect(write("PATCH", "/tags/tag", { name: "failed" })).rejects.toThrow();
+    await expect(write("PATCH", "/tags/tag", { name: "uncertain" })).rejects.toThrow();
+    expect(changed).toHaveBeenCalledTimes(2);
+  } finally {
+    vi.unstubAllGlobals();
+  }
+});

@@ -20,7 +20,7 @@ export function SearchPage(){
   useEffect(()=>setDraft(q),[q]);
   const selectedKind=params.get("kind");
   const tasks=useTagDictionary(selectedKind!=="record",false,"task"),records=useTagDictionary(selectedKind!=="task",false,"record");
-  const dictionary=selectedKind==="task"?tasks:selectedKind==="record"?records:{tags:tasks.tags&&records.tags?[...tasks.tags.map(tag=>({...tag,name:`할 일: ${tag.name}`})),...records.tags.map(tag=>({...tag,name:`기록: ${tag.name}`}))]:null,failed:tasks.failed||records.failed,retry:()=>{tasks.retry();records.retry();}};
+  const dictionary=selectedKind==="task"?tasks:selectedKind==="record"?records:{scope:"mixed" as const,pending:tasks.pending||records.pending,tags:tasks.tags&&records.tags?[...tasks.tags.map(tag=>({...tag,name:`할 일: ${tag.name}`})),...records.tags.map(tag=>({...tag,name:`기록: ${tag.name}`}))]:null,failed:tasks.failed||records.failed,retry:()=>{tasks.retry();records.retry();}};
   const change=(name:string,value:string)=>{const p=new URLSearchParams(params);p.delete("pages");p.delete("scroll");if(name==="kind"){p.delete("tag_id");p.delete("tag_ids");}value?p.set(name,value):p.delete(name);setParams(p);};
   const clearTags=()=>{const next=new URLSearchParams(params);for(const name of ["tag_id","tag_ids","pages","scroll"])next.delete(name);setParams(next);};
   return <section className="panel search-page" aria-labelledby="search-title">
@@ -36,7 +36,7 @@ export function SearchPage(){
       <Field label="검색 방식">{p=><select {...p} className="input" value={params.get("mode")??"auto"} onChange={e=>change("mode",e.target.value)}><option value="auto">자동</option><option value="keyword">키워드</option></select>}</Field>
     </div>
     <p className="help">현재 원칙은 원칙 탭에서 확인하고, 과거 변경과 근거는 기록을 검색해 원문을 읽으세요.</p>
-    {(params.has("tag_ids")||selectedKind==="principle"&&!!tag)&&<div className="form"><TagReadProvider dictionary={dictionary}><TagNames ids={activityTags(params)}/></TagReadProvider><button type="button" className="btn" onClick={clearTags}>저장된 태그 조건 해제</button></div>}
+    {(params.has("tag_ids")||selectedKind==="principle"&&!!tag)&&<div className="form"><TagReadProvider dictionary={dictionary}><TagNames scope={selectedKind==="task"?"task":"record"} ids={activityTags(params)}/></TagReadProvider><button type="button" className="btn" onClick={clearTags}>저장된 태그 조건 해제</button></div>}
     {selectedKind!=="principle"&&<TagFilter dictionary={dictionary} value={tag} onChange={id=>{const next=new URLSearchParams(params);next.delete("tag_ids");next.delete("pages");next.delete("scroll");id?next.set("tag_id",id):next.delete("tag_id");setParams(next);}}/>}
     <EntityPicker value={params.get("entity_id")??""} onChange={id=>change("entity_id",id??"")}/>
     <div className="search-filters">{["from","to"].map(name=><Field key={name} label={name==="from"?"기간 시작":"기간 끝"}>{p=><input {...p} type="datetime-local" className="input" value={params.get(name)??""} onChange={e=>change(name,e.target.value)}/>}</Field>)}</div>
