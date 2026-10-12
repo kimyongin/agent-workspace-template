@@ -7,6 +7,7 @@
   },
   "scripts": {
     "setup:local": "node scripts/local-setup.mjs",
+    "worker:entity-schema:local": "node scripts/entity-schema-worker-local.mjs",
     "stop:local": "supabase stop",
     "dev": "vite",
     "build": "tsc -p tsconfig.json --noEmit && vite build",
