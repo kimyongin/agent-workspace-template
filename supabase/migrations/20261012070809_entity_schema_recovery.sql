@@ -126,4 +126,3 @@ begin
  update app.entity_schema_migrations set status=case when v_count=total then 'ready_to_commit' else 'queued' end,version=version+1,processed=v_count,lease_until=null,updated_at=now() where id=p_id;
  return true;
 end $$;
-
