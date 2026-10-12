@@ -124,7 +124,13 @@ function ActiveModalShell({ title, domain, headingLevel=2, open, onClose, onCanc
     return state.open && (!!actionRef.current || (state.surface ? !!state.surface.editor.current?.dirty || !!state.surface.editor.current?.busy || state.surface.busy.current : state.dirty || state.busy));
   }, []);
   const readGuard = useRef<() => WorkspaceGuard>(() => ({ dirty: false, busy: false, retained: false, discard: () => {} }));
-  readGuard.current = () => ({ dirty: !!actionRef.current || (surface ? !!surface.editor.current?.dirty : dirty), busy: busy || !!actionRef.current?.busy || !!surface?.editor.current?.busy, retained: !!tab, discard: onRouteDiscard });
+  readGuard.current = () => ({
+    dirty: !!actionRef.current || (surface ? !!surface.editor.current?.dirty : dirty),
+    // A removed surface editor must not retain its previous render's busy prop.
+    busy: !!actionRef.current?.busy || (surface ? !!surface.editor.current?.busy || surface.busy.current : busy),
+    retained: !!tab,
+    discard: onRouteDiscard,
+  });
   const guardId = useId();
   useEffect(() => workspace && !tab ? workspace.registerGuard(guardId, () => readGuard.current()) : undefined, [workspace?.registerGuard, !!tab, guardId]);
   useLayoutEffect(() => { tab?.guard(readGuard.current()); });

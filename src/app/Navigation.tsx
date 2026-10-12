@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type Ref } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type Ref } from "react";
 import { Link, useLocation } from "react-router";
 import { useAuth } from "../features/auth/AuthProvider.tsx";
 import { ProfileIcon } from "../features/settings/profile.tsx";
@@ -44,6 +44,22 @@ export function Navigation({ brand, navigationRef }: { brand: string; navigation
     };
     document.addEventListener("pointerdown", outside);
     return () => document.removeEventListener("pointerdown", outside);
+  }, [open]);
+  // Bound the menu by its actual anchor position, including short or enlarged layouts.
+  useLayoutEffect(() => {
+    const menu = popover.current;
+    if (!open || !menu) return;
+    const measure = () => {
+      menu.style.setProperty("--profile-menu-remaining-height", `${Math.max(0, window.innerHeight - menu.getBoundingClientRect().top)}px`);
+      const focused = document.activeElement;
+      if (focused instanceof HTMLElement && menu.contains(focused)) focused.scrollIntoView({block:"nearest",inline:"nearest"});
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    if (profileTrigger.current) observer.observe(profileTrigger.current);
+    if (menu.firstElementChild) observer.observe(menu.firstElementChild);
+    window.addEventListener("resize", measure);
+    return () => { observer.disconnect(); window.removeEventListener("resize", measure); };
   }, [open]);
   return <nav className="bottom-nav" aria-label="주 메뉴" id="workspace-navigation" ref={navigationRef}>
     <div className="navigation-brand"><img src={appIcon} alt=""/><span>{brand}</span></div>

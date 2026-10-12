@@ -776,3 +776,33 @@ test("#335 준비 충돌: 패널 숨김은 초안 보존, 탭 닫기 승인 뒤 
   expect(state.writes).toHaveLength(0);
   expect(state.errors).toEqual([]);
 });
+
+test("#341 일반 기록 저장은 작성 URL을 제거하고 새로고침 후 상세를 유지한다", async ({ page }) => {
+  const state = await fixture(page);
+  await page.goto(`/tasks/${id(2)}`);
+  await panel(page).getByRole("button", { name: "기록 작성", exact: true }).click();
+  await panel(page).getByRole("textbox", { name: /^본문/ }).fill("새로고침해도 다시 작성하지 않을 메모");
+  await panel(page).getByRole("button", { name: "저장", exact: true }).click();
+  await expect(panel(page).getByRole("heading", { name: "등심 구매하기", exact: true })).toBeVisible();
+  await expect(page).not.toHaveURL(/action=record/);
+  await page.reload();
+  await expect(panel(page).getByRole("heading", { name: "등심 구매하기", exact: true })).toBeVisible();
+  await expect(panel(page).getByRole("textbox", { name: /^본문/ })).toHaveCount(0);
+  expect(state.writes.filter(write => write.method === "POST" && write.path.endsWith("/records"))).toHaveLength(1);
+  expect(state.errors).toEqual([]);
+});
+
+test("#341 기록 저장 대기는 이동을 막고 응답 뒤에만 작성 모드를 종료한다", async ({ page }) => {
+  const state = await fixture(page,{hold:true});
+  await page.goto(`/tasks/${id(2)}`);
+  await panel(page).getByRole("button",{name:"기록 작성",exact:true}).click();
+  await panel(page).getByRole("textbox",{name:/^본문/}).fill("대기 중에도 보호할 메모");
+  await panel(page).getByRole("button",{name:"저장",exact:true}).click(); await state.pending;
+  await page.getByRole("navigation",{name:"주 메뉴"}).getByRole("link",{name:"원칙",exact:true}).click();
+  await expect(page).toHaveURL(/action=record/);
+  await expect(panel(page).getByRole("button",{name:"처리 중…",exact:true})).toBeDisabled();
+  state.release();
+  await expect(panel(page).getByRole("heading",{name:"등심 구매하기",exact:true})).toBeVisible();
+  await expect(page).not.toHaveURL(/action=record/);
+  expect(state.errors).toEqual([]);
+});
