@@ -26,10 +26,10 @@ import {
 import type { ChangeFacts } from "../shared/changes.ts";
 import { taskCreate, taskUpdate } from "../../contracts/task.ts";
 import { resumeTask, stopTask, taskContent, updateTask } from "../activity/domain.ts";
-import { entityCreate, entityUpdate, type EntityCreate, type EntityUpdate } from "../../contracts/entity.ts";
+import { type EntityCreate, entityCreate, type EntityUpdate, entityUpdate } from "../../contracts/entity.ts";
 import { principleCreate, principleUpdate } from "../../contracts/principle.ts";
 import { defaultEntityIdentitySettings, entityId } from "../../contracts/entity-identity.ts";
-import { checkedProperties, requireDefinition, type EntityDefinitions } from "../entity/values.ts";
+import { checkedProperties, type EntityDefinitions, requireDefinition } from "../entity/values.ts";
 export interface BusinessSettingsStore extends RequestStore {
   definition?: EntityDefinitions["definition"];
   get(): Promise<BusinessSettingsResult>;
@@ -103,13 +103,21 @@ export function prepareBusinessRecord(
       ) {
         const settings = saved.settings.entity_identity ?? defaultEntityIdentitySettings;
         // content was validated by entityUpdate above; its envelope is kept for prepared_input.
-        const decision = entityUpdateDecision(settings, { id: input.target_id!, facts: before! }, content as EntityUpdate);
+        const decision = entityUpdateDecision(
+          settings,
+          { id: input.target_id!, facts: before! },
+          content as EntityUpdate,
+        );
         if (decision.rekey && await store.target?.("entity", decision.id)) {
           throw conflict("같은 발급처·식별자의 엔터티가 있습니다");
         }
       }
       if (input.action === "restore") {
-        content = restorationContent(saved.settings.entity_identity ?? defaultEntityIdentitySettings, before!, content as EntityCreate);
+        content = restorationContent(
+          saved.settings.entity_identity ?? defaultEntityIdentitySettings,
+          before!,
+          content as EntityCreate,
+        );
       }
     }
     if (input.action === "create") {
@@ -163,10 +171,27 @@ export function prepareBusinessRecord(
     if (input.model === "entity" && input.action !== "delete") {
       if (!store.definition) throw invalidInput("자료 종류 정의 저장소가 필요합니다");
       const typeId = String(content.entity_type_id ?? before?.entity_type_id ?? "");
-      const definition = await requireDefinition({ definition: store.definition.bind(store) }, typeId, Number(content.schema_version), input.action === "create" || input.action === "restore");
+      const definition = await requireDefinition(
+        { definition: store.definition.bind(store) },
+        typeId,
+        Number(content.schema_version),
+        input.action === "create" || input.action === "restore",
+      );
       const patch = (input.input.properties ?? {}) as Record<string, unknown>;
-      const properties = checkedProperties(definition, { ...before?.properties, ...(content.properties as Record<string, unknown> ?? {}) }, patch, input.action === "create");
-      content = { ...content, properties, title: String(properties[definition.display.representative]) };
+      const properties = checkedProperties(
+        definition,
+        { ...before?.properties, ...(content.properties as Record<string, unknown> ?? {}) },
+        patch,
+        input.action === "create",
+      );
+      content = {
+        ...content,
+        properties,
+        title: String(properties[definition.display.representative]),
+        property_labels: Object.fromEntries(
+          Object.entries(definition.schema.properties).map(([key, field]) => [key, field.title ?? key]),
+        ),
+      };
       if (input.action === "create") prepared_input = { ...prepared_input, properties };
     }
     const after = input.action === "delete" ? null : {

@@ -8,6 +8,14 @@ Deno.test("public definition validation rejects nested features and invalid repr
   assertThrows(() =>
     validateEntityDefinition({ ...definition, display: { ...definition.display, representative: "prop_2" } })
   );
+  for (const field of [{ format: "date" as const }, { enum: ["a", "b"] }]) {
+    assertThrows(() =>
+      validateEntityDefinition({
+        ...definition,
+        schema: { ...definition.schema, properties: { prop_1: { ...definition.schema.properties.prop_1, ...field } } },
+      })
+    );
+  }
 });
 Deno.test("properties validate calendar dates, safe precision, missing/null and creation defaults", () => {
   const definition = initialEntityDefinition("이름");

@@ -2,14 +2,21 @@ import { runWrite } from "../shared/request.ts";
 import { entityChangeFacts, entityChangeTarget } from "./change.ts";
 import { entityUpdateDecision, registrationContent, registrationIdentity, registrationState } from "./domain.ts";
 import { isoDateTime, text } from "../../contracts/common.ts";
-import { checkedProperties, requireDefinition, type EntityDefinitions } from "./values.ts";
+import { checkedProperties, type EntityDefinitions, requireDefinition } from "./values.ts";
 import {
   defaultEntityIdentitySettings,
   entityId,
   type EntityIdentitySettings,
   entityReferenceId,
 } from "../../contracts/entity-identity.ts";
-import type { EntityCreate, EntityDetail, EntityQuery, EntitySummary, EntityValues, EntityUpdate } from "../../contracts/entity.ts";
+import type {
+  EntityCreate,
+  EntityDetail,
+  EntityQuery,
+  EntitySummary,
+  EntityUpdate,
+  EntityValues,
+} from "../../contracts/entity.ts";
 import type { Actor } from "../shared/actor.ts";
 import { AppError, conflict, invalidInput, notFound } from "../shared/errors.ts";
 import { scopeOf } from "../shared/operations.ts";
@@ -73,7 +80,10 @@ export function createEntity(d: EntityDeps, a: Actor, i: EntityCreate) {
       const generated = i.external_id === undefined;
       const snapshot = generated ? null : await s.get(id);
       if (snapshot && snapshot.entity_type_id !== i.entity_type_id) {
-        throw new AppError("entity_type_immutable", "같은 식별자의 자료 종류는 변경할 수 없습니다", [{path:"entity_type_id",message:"원래 자료 종류로 복원하세요"}]);
+        throw new AppError("entity_type_immutable", "같은 식별자의 자료 종류는 변경할 수 없습니다", [{
+          path: "entity_type_id",
+          message: "원래 자료 종류로 복원하세요",
+        }]);
       }
       const old = snapshot ? await s.get(id, true) : null;
       const registration = registrationState(old);
@@ -84,13 +94,20 @@ export function createEntity(d: EntityDeps, a: Actor, i: EntityCreate) {
       if (!old && expected_version !== undefined) throw conflict("복원할 엔터티가 없습니다");
       const content = registrationContent(props, { source, external_id }, old ? entityChangeFacts(old) : null);
       content.properties = checkedProperties(definition, content.properties, props.properties, !old);
-      const result = old ? await s.restore(id, { ...props, ...content }) : await s.insert({ ...props, ...content, id }, generated);
+      const result = old
+        ? await s.restore(id, { ...props, ...content })
+        : await s.insert({ ...props, ...content, id }, generated);
       await s.appendChange({
         target_kind: "entity",
         target: entityChangeTarget(result),
         action: old ? "restore" : "create",
         before: old ? entityChangeFacts(old) : null,
-        after: entityChangeFacts(result),
+        after: {
+          ...entityChangeFacts(result),
+          property_labels: Object.fromEntries(
+            Object.entries(definition.schema.properties).map(([key, field]) => [key, field.title ?? key]),
+          ),
+        },
         change_note,
         change_tag_ids,
       });
@@ -124,22 +141,39 @@ export function updateEntity(d: EntityDeps, a: Actor, id: string, i: EntityUpdat
       ? (await s.getBusinessSettings()).settings.entity_identity ?? defaultEntityIdentitySettings
       : defaultEntityIdentitySettings;
     const decision = entityUpdateDecision(settings, { id, facts: entityChangeFacts(old) }, input);
-    const finalProperties = checkedProperties(definition, { ...old.properties, ...input.properties }, input.properties ?? {}, false);
-    decision.properties = { ...decision.properties, schema_version: i.schema_version,
-      ...(input.properties === undefined ? {} : { properties: finalProperties }) };
+    const finalProperties = checkedProperties(
+      definition,
+      { ...old.properties, ...input.properties },
+      input.properties ?? {},
+      false,
+    );
+    decision.properties = {
+      ...decision.properties,
+      schema_version: i.schema_version,
+      ...(input.properties === undefined ? {} : { properties: finalProperties }),
+    };
     decision.contentChanged = decision.contentChanged || old.schema_version !== i.schema_version;
-    if (decision.rekey && await s.get(decision.id, true)) {
+    // Immutable target identity plus the unique constraint suffice. Do not lock a
+    // different type after this type lock (opposite rekeys would invert lock order).
+    if (decision.rekey && await s.get(decision.id)) {
       throw conflict("같은 발급처·식별자의 엔터티가 있습니다. 삭제된 대상도 별도 복원해야 합니다");
     }
     if (!decision.rekey && !decision.contentChanged) return old;
     let result = decision.rekey ? await s.rekey(id, decision.identity) : old;
-    if (decision.contentChanged) result = await s.update(result.id, { ...decision.properties, schema_version: i.schema_version });
+    if (decision.contentChanged) {
+      result = await s.update(result.id, { ...decision.properties, schema_version: i.schema_version });
+    }
     await s.appendChange({
       target_kind: "entity",
       target: entityChangeTarget(result),
       action: "update",
       before: entityChangeFacts(old),
-      after: entityChangeFacts(result),
+      after: {
+        ...entityChangeFacts(result),
+        property_labels: Object.fromEntries(
+          Object.entries(definition.schema.properties).map(([key, field]) => [key, field.title ?? key]),
+        ),
+      },
       change_note,
       change_tag_ids,
     });
@@ -181,7 +215,10 @@ function sortValue(e: EntitySummary, sort: EntityQuery["sort"]) {
 }
 export function assertImmutableType(input: unknown) {
   if (input && typeof input === "object" && "entity_type_id" in input) {
-    throw new AppError("entity_type_immutable", "자료 종류는 변경할 수 없습니다", [{ path: "entity_type_id", message: "자료 종류는 생성 후 변경할 수 없습니다" }]);
+    throw new AppError("entity_type_immutable", "자료 종류는 변경할 수 없습니다", [{
+      path: "entity_type_id",
+      message: "자료 종류는 생성 후 변경할 수 없습니다",
+    }]);
   }
 }
 export async function listEntities(d: EntityDeps, a: Actor, q: EntityQuery) {

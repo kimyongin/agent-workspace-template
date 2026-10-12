@@ -4,7 +4,7 @@ import {
   entitySourceGeneration,
   isActiveEntitySource,
 } from "../../contracts/entity-identity.ts";
-import type { EntityCreate, EntityValues, EntityUpdate } from "../../contracts/entity.ts";
+import type { EntityCreate, EntityUpdate, EntityValues } from "../../contracts/entity.ts";
 import { changed, type ChangeFacts } from "../shared/changes.ts";
 import { AppError, invalidInput } from "../shared/errors.ts";
 
@@ -54,7 +54,8 @@ export function registrationContent(
   } = input;
   if (before?.entity_type_id && before.entity_type_id !== input.entity_type_id) {
     throw new AppError("entity_type_immutable", "자료 종류는 변경할 수 없습니다", [{
-      path: "entity_type_id", message: "원래 자료 종류로 복원하세요",
+      path: "entity_type_id",
+      message: "원래 자료 종류로 복원하세요",
     }]);
   }
   return {
@@ -73,9 +74,13 @@ export function entityUpdateDecision(
   input: Omit<EntityUpdate, "expected_version">,
   identityOnly = false,
 ) {
-  const { change_note: _note, change_tag_ids: _tags, source, external_id, properties: patch, schema_version, ...rest } = input;
-  const properties = { ...rest, ...(schema_version === undefined ? {} : { schema_version }),
-    ...(patch === undefined ? {} : { properties: { ...current.facts.properties, ...patch } }) };
+  const { change_note: _note, change_tag_ids: _tags, source, external_id, properties: patch, schema_version, ...rest } =
+    input;
+  const properties = {
+    ...rest,
+    ...(schema_version === undefined ? {} : { schema_version }),
+    ...(patch === undefined ? {} : { properties: { ...current.facts.properties, ...patch } }),
+  };
   const identity = {
     source: source ?? current.facts.source!,
     external_id: external_id ?? current.facts.external_id!,

@@ -8,14 +8,10 @@ import {
   type EntitySchemaVersionSummary,
   type EntityType,
   entityTypeIcons,
-  resolvedEntityTypeIcon,
 } from "@contracts/entity-type.ts";
 import { useWriteAttempt, writeErrorMessage } from "../../lib/write-attempt.ts";
 import "./settings.css";
-const glyphs = { box: "▣", leaf: "♧", package: "◇", book: "▤", tool: "⚒", star: "☆" };
-export function EntityTypeIcon({ id }: { id: string }) {
-  return <span aria-hidden="true">{glyphs[resolvedEntityTypeIcon(id)]}</span>;
-}
+import { EntityTypeIcon, glyphs } from "../entity/EntityTypeIcon.tsx";
 export function EntityTypeSettings() {
   const { type_id } = useParams();
   return <EntityTypeSettingsEditor key={type_id ?? "create"} type_id={type_id} />;

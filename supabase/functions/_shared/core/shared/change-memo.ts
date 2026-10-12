@@ -29,10 +29,14 @@ export function changedFieldNames(input: ChangeInput): string[] {
   if (!input.before || !input.after) return [];
   const before = input.before;
   const properties = Object.entries(input.after.properties ?? {}).filter(([key, value]) =>
-    changed({[key]:before.properties?.[key]}, {[key]:value})
+    changed({ [key]: before.properties?.[key] }, { [key]: value })
   ).map(([key]) => input.after?.property_labels?.[key] ?? key);
-  return [...properties, ...Object.entries(input.after).filter(([key, value]) =>
-    !["properties", "property_labels", "entity_type_id", "schema_version"].includes(key) &&
-    changed({ [key]: before[key as keyof typeof before] }, { [key]: value })
-  ).map(([key]) => labels[key] ?? key)];
+  return [
+    ...properties,
+    ...Object.entries(input.after).filter(([key, value]) =>
+      !["properties", "property_labels", "entity_type_id", "schema_version"].includes(key) &&
+      !(input.target_kind === "entity" && key === "title") &&
+      changed({ [key]: before[key as keyof typeof before] }, { [key]: value })
+    ).map(([key]) => labels[key] ?? key),
+  ];
 }
