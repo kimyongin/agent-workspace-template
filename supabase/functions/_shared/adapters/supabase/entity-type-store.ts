@@ -1,10 +1,14 @@
 import type postgres from "postgres";
 import type { Actor } from "../../core/shared/actor.ts";
 import type { RequestIdentity } from "../../core/shared/request.ts";
-import type { EntityTypeStore } from "../../core/entity-types/application.ts";
+import {
+  assertEntityTypeCapacity,
+  type EntityTypeStore,
+  entityTypeUpdateDecision,
+} from "../../core/entity-types/application.ts";
 import type { EntitySchemaVersion, EntityType } from "../../contracts/entity-type.ts";
-import { entitySchemaLimits, resolvedEntityTypeIcon } from "../../contracts/entity-type.ts";
-import { AppError, invalidInput, notFound } from "../../core/shared/errors.ts";
+import { resolvedEntityTypeIcon } from "../../contracts/entity-type.ts";
+import { notFound } from "../../core/shared/errors.ts";
 import { executeSqlRequest } from "./request-ledger.ts";
 import { runAsActor } from "./sql-context.ts";
 function typeRow(row: postgres.Row): EntityType {
@@ -50,7 +54,7 @@ export class SqlEntityTypeStore implements EntityTypeStore {
   async create(input: Parameters<EntityTypeStore["create"]>[0], definition: Parameters<EntityTypeStore["create"]>[1]) {
     await this.tx`select pg_advisory_xact_lock(hashtextextended(${this.actor.userId + ":entity-types"},0))`;
     const [count] = await this.tx`select count(*)::int as count from app.entity_types`;
-    if (count.count >= entitySchemaLimits.types) throw invalidInput("자료 종류는 64개까지 만들 수 있습니다");
+    assertEntityTypeCapacity(count.count);
     const [row] = await this
       .tx`insert into app.entity_types(owner_id,label,icon_id) values (${this.actor.userId},${input.label},${input.icon_id}) returning *`;
     await this
@@ -62,31 +66,30 @@ export class SqlEntityTypeStore implements EntityTypeStore {
   async update(id: string, input: Parameters<EntityTypeStore["update"]>[1]) {
     const [row] = await this.tx`select * from app.entity_types where id::text=${id} for update`;
     if (!row) throw notFound();
-    if (
-      Number(row.version) !== input.expected_type_version ||
-      Number(row.schema_version) !== input.expected_schema_version
-    ) {
-      throw new AppError(
-        "schema_changed",
-        "자료 종류나 속성 정의가 변경되었습니다. 최신 버전을 확인하세요.",
-        undefined,
-        { type_id: id, type_version: Number(row.version), schema_version: Number(row.schema_version) },
-      );
-    }
-    const label = input.label ?? row.label,
-      icon = input.icon_id ?? row.icon_id,
-      archived = input.archived ?? row.archived;
-    if (label === row.label && icon === row.icon_id && archived === row.archived) return typeRow(row);
+    const next = entityTypeUpdateDecision(typeRow(row), input);
+    if (!next) return typeRow(row);
+    const { label, icon_id: icon, archived } = next;
     const [saved] = await this
       .tx`update app.entity_types set label=${label},icon_id=${icon},archived=${archived},version=version+1,updated_at=now() where id=${row.id} returning *`;
     return typeRow(saved);
   }
   async schema(id: string, version?: number) {
     const [row] = await this
-      .tx`select v.* from app.entity_schema_versions v join app.entity_types t on t.owner_id=v.owner_id and t.id=v.type_id where t.id::text=${id} and v.schema_version=coalesce(${
+      .tx`select v.*,to_jsonb(t) as current_type from app.entity_schema_versions v join app.entity_types t on t.owner_id=v.owner_id and t.id=v.type_id where t.id::text=${id} and v.schema_version=coalesce(${
       version ?? null
     },t.schema_version)`;
-    return row ? schemaRow(row) : null;
+    if (!row) return null;
+    const current = row.current_type;
+    return {
+      ...schemaRow(row),
+      type: {
+        id: current.id,
+        label: current.label,
+        icon_id: resolvedEntityTypeIcon(current.icon_id),
+        archived: current.archived,
+      },
+      type_version: Number(current.version),
+    };
   }
   async history(input: Parameters<EntityTypeStore["history"]>[0]) {
     const rows = await this.tx`select * from app.entity_schema_versions where type_id::text=${input.type_id} and (${
