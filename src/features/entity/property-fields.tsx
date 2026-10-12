@@ -12,17 +12,18 @@ export function propertyDraft(values: EntityProperties): PropertyDraft {
     Object.entries(values).map(([key, value]) => [key, typeof value === "number" ? String(value) : value]),
   );
 }
+export class PropertyDraftError extends Error {
+  constructor(readonly fields: Record<string, string>) { super(Object.values(fields).join(" · ")); }
+}
 export function propertyValues(definition: Pick<EntitySchemaVersion, "schema">, values: PropertyDraft): EntityProperties {
-  return Object.fromEntries(
-    Object.entries(values).map((
-      [key, value],
-    ) => [
-      key,
-      value !== null && ["integer", "number"].includes(fieldType(definition.schema.properties[key]) ?? "")
-        ? entityNumberDraft(String(value), fieldType(definition.schema.properties[key]) as "integer" | "number")
-        : value,
-    ]),
-  );
+  const result: EntityProperties = {}, errors: Record<string, string> = {};
+  for (const [key, value] of Object.entries(values)) {
+    const kind = fieldType(definition.schema.properties[key]);
+    try { result[key] = value !== null && (kind === "integer" || kind === "number") ? entityNumberDraft(String(value), kind) : value; }
+    catch (error) { errors[`properties.${key}`] = error instanceof Error ? error.message : "숫자를 확인하세요"; }
+  }
+  if (Object.keys(errors).length) throw new PropertyDraftError(errors);
+  return result;
 }
 export function displayedProperty(field: EntityField, value: unknown, labels: Record<string, string> = {}): string {
   if (value === undefined) return "미입력";
