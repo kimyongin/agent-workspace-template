@@ -1,6 +1,8 @@
 // Installed MCP 2.2 transport accepts JSON or SSE message frames containing a
 // JSON-RPC response. This allocated proxy needs only its correlated tool reply.
-export async function readRpcReply(response, id, { maxBytes = 1048576, timeoutMs = 15000, signal } = {}) {
+// A 100-row page can contain 64 KiB per row, repeated in text and structured
+// content. Keep a bounded transport budget above that valid public envelope.
+export async function readRpcReply(response, id, { maxBytes = 32 * 1024 * 1024, timeoutMs = 15000, signal } = {}) {
   if (!response.ok || !response.body) throw new Error('Allocated upstream reply unavailable');
   const sse = response.headers.get('content-type')?.includes('text/event-stream');
   if (!sse && !response.headers.get('content-type')?.includes('application/json')) throw new Error('Unsupported allocated reply type');
