@@ -49,7 +49,7 @@ export function EntitiesPage() {
     const controller = new AbortController();
     setSchema(null);
     setSchemaReadError(false);
-    if (filter.entity_type_id) {
+    if (filter.entity_type_id && selectedType) {
       void api<EntitySchemaResult>("GET", `/entity-types/${filter.entity_type_id}/schema`, undefined, controller.signal)
         .then((value) => {
           if (!controller.signal.aborted) {
@@ -132,7 +132,7 @@ export function EntitiesPage() {
     schema && (!page || page.items.every((row) => row.current_schema_version === schema.schema_version))
       ? schema
       : null;
-  const error = types === null || !schemaReady && !schemaReadError
+  const error = types === null || !invalidType && !typeError && !schemaReady && !schemaReadError
     ? null
     : list.error
     ? list.error instanceof ApiError ? list.error.message : "자료를 불러오지 못했습니다."
