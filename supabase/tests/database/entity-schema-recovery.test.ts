@@ -26,10 +26,7 @@ import {
   updateRecord,
   updateTask,
 } from "../../functions/_shared/core/activity/application.ts";
-import {
-  changeEntityPair,
-  listEntityLinks,
-} from "../../functions/_shared/core/entity-pairs/application.ts";
+import { changeEntityPair, listEntityLinks } from "../../functions/_shared/core/entity-pairs/application.ts";
 import {
   analyzeEntitySchemaChange,
   applyEntitySchemaChange,
@@ -77,8 +74,7 @@ async function fixture() {
       expected_change_version: version,
     });
     for (let n = 0; n < 100; n++) {
-      const [r] =
-        await worker`select app.claim_entity_schema_analysis() as batch`;
+      const [r] = await worker`select app.claim_entity_schema_analysis() as batch`;
       if (!r.batch) break;
       const batch = r.batch,
         transform = compileMigration(
@@ -130,8 +126,7 @@ async function fixture() {
   }
   async function finish(id: string) {
     for (let n = 0; n < 100; n++) {
-      const [r] =
-        await worker`select app.claim_entity_schema_migration() as batch`;
+      const [r] = await worker`select app.claim_entity_schema_migration() as batch`;
       assert(r.batch);
       const batch = r.batch;
       assertEquals(batch.id, id);
@@ -537,9 +532,7 @@ dbTest(
         sort: "updated_at",
       });
       assert(
-        list.items.every((r) =>
-          r.entity_type_id === o.type.id && r.current_schema_version === 4
-        ),
+        list.items.every((r) => r.entity_type_id === o.type.id && r.current_schema_version === 4),
       );
       const filtered = await listEntities(f.e, f.a.actor, {
         entity_type_id: o.type.id,
