@@ -1,3 +1,4 @@
+import { entityDetailListLink } from "../../lib/entity-list-url.ts";
 import { useContext, useEffect, useMemo, useRef, useSyncExternalStore, type MouseEvent, type ReactNode } from "react";
 import { WorkspaceContext } from "../details/workspace-context.ts";
 import { useLocation, useNavigate, useSearchParams } from "react-router";
@@ -35,7 +36,8 @@ export function useRestoreListPosition(kind:ActivityListKind,ready:boolean) {
 
 /** List expansion belongs to its URL, so edit/save/back restores the same item. */
 export function ListExpansionProvider({children,readiness}:{children:ReactNode;readiness?:PreviewReadiness}) {
-  const [params,setParams]=useSearchParams();
+  const [params]=useSearchParams(),location=useLocation(),navigate=useNavigate();
+  const setParams=(next:URLSearchParams,options:{replace:boolean;preventScrollReset:boolean})=>navigate({pathname:location.pathname,search:next.toString(),hash:location.hash},options);
   return <ListPreviewReadiness.Provider value={readiness??null}><ItemExpansionProvider value={params.getAll("open")} toggle={path=>{
     const next=new URLSearchParams(params);
     if(next.getAll("open").includes(path))next.delete("open",path);else next.append("open",path);
@@ -54,14 +56,14 @@ export function ListPreviewItem({kind,id,title,metadata,cells}:{kind:ActivityLis
   const workspace=useContext(WorkspaceContext);
   const path=`/${kind}/${encodeURIComponent(id)}`;
   const link=()=>{
-    const back=listReturnPath(kind,params,id,0,location.pathname);
-    return {to:`${path}?list=${encodeURIComponent(back)}`,onClick:(event:MouseEvent<HTMLAnchorElement>)=>{
+    const back=listReturnPath(kind,params,id,0,location.pathname,location.hash);
+    return {to:kind==="entities"?entityDetailListLink(path,back):`${path}?list=${encodeURIComponent(back)}`,onClick:(event:MouseEvent<HTMLAnchorElement>)=>{
       if(event.button!==0||event.metaKey||event.ctrlKey||event.shiftKey||event.altKey)return;
       event.preventDefault();
       const container=event.currentTarget.closest<HTMLElement>(".has-detail-panel .workspace-list");
-      const at=listReturnPath(kind,params,id,container?.scrollTop??window.scrollY,location.pathname);
-      if(workspace){const url=new URL(at,"https://workspace.invalid");workspace.open(`${path}?list=${encodeURIComponent(at)}`,{...location,search:url.search,hash:url.hash});return;}
-      void Promise.resolve(navigate(at,{replace:true,preventScrollReset:true})).then(()=>navigate(`${path}?list=${encodeURIComponent(at)}`,{state:null}));
+      const at=listReturnPath(kind,params,id,container?.scrollTop??window.scrollY,location.pathname,location.hash);
+      if(workspace){const url=new URL(at,"https://workspace.invalid");workspace.open(kind==="entities"?entityDetailListLink(path,at):`${path}?list=${encodeURIComponent(at)}`,{...location,search:url.search,hash:url.hash});return;}
+      void Promise.resolve(navigate(at,{replace:true,preventScrollReset:true})).then(()=>navigate(kind==="entities"?entityDetailListLink(path,at):`${path}?list=${encodeURIComponent(at)}`,{state:null}));
     }};
   };
   return <div className={kind==="records"?"related-record":undefined}><RelatedPreviewItem id={listAnchor(kind,id)} to={path} title={title} cells={cells} summary={kind==="tasks"?cells?.[0]:undefined} list={{link,metadata}}/></div>;

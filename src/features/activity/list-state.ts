@@ -1,3 +1,4 @@
+import { readEntityListUrl, writeEntityListUrl, entityListAnchor } from "../../lib/entity-list-url.ts";
 import { dataId } from "@contracts/data-id.ts";
 import { entityReferenceId } from "@contracts/entity-identity.ts";
 import { activityLocation } from "./activity-location.ts";
@@ -27,6 +28,7 @@ export function listAnchor(kind: ActivityListKind, id: string): string {
 }
 
 export function anchorId(kind: ActivityListKind, hash: string): string | undefined {
+  if (kind === "entities") hash = entityListAnchor(hash);
   const prefix = kind === "principles" ? "principle" : kind === "entities" ? "entity" : `activity-${kind}`;
   if (!hash.startsWith(`#${prefix}-`)) return undefined;
   try {
@@ -37,9 +39,14 @@ export function anchorId(kind: ActivityListKind, hash: string): string | undefin
   } catch { return undefined; }
 }
 
-export function listReturnPath(kind: ActivityListKind, params: URLSearchParams, id: string, scroll: number, route = `/${kind}`): string {
+export function listReturnPath(kind: ActivityListKind, params: URLSearchParams, id: string, scroll: number, route = `/${kind}`, hash = ""): string {
   const next = new URLSearchParams(params);
   next.set("scroll", String(Math.max(0, Math.round(scroll))));
+  if (kind === "entities") {
+    const state = readEntityListUrl(params, hash);
+    const url = writeEntityListUrl(next, state.raw, `#${encodeURIComponent(listAnchor(kind,id))}`);
+    return `${route}?${url.search}${url.hash}`;
+  }
   return `${route}?${next}#${encodeURIComponent(listAnchor(kind, id))}`;
 }
 

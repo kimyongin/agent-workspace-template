@@ -1,3 +1,4 @@
+import { readEntityListUrl, writeEntityListUrl, entityDetailListLink, changeEntityListQuery } from "../../lib/entity-list-url.ts";
 import { EntityTypeIcon } from "./EntityTypeIcon.tsx";
 import { useEffect, useState } from "react";
 import type { EntitySchemaResult } from "@contracts/entity-type.ts";
@@ -31,13 +32,21 @@ export function EntitiesPage() {
   const [params] = useSearchParams(),
     { hash } = useLocation(),
     navigate = useNavigate();
+  const urlFilters = readEntityListUrl(params, hash);
+  useEffect(() => {
+    if (urlFilters.error || !params.has("property_filters")) return;
+    const normalized = writeEntityListUrl(params, urlFilters.raw, urlFilters.anchor);
+    if (normalized.search !== params.toString() || normalized.hash !== hash) {
+      void navigate({ pathname: "/entities", ...normalized }, { replace: true, preventScrollReset: true });
+    }
+  }, [params, hash, urlFilters.raw, urlFilters.error, navigate]);
   const pages = requestedPages(params);
   const filter = {
     keyword: params.get("keyword"),
     tag_id: params.get("tag_id"),
     entity_type_id: params.get("entity_type_id"),
     sort: params.get("sort") ?? "updated_at",
-    filters: params.get("property_filters"),
+    filters: urlFilters.raw,
   };
   const { types, error: typeError, retry: retryTypes } = useEntityTypes();
   const selectedType = types?.find((type) => type.id === filter.entity_type_id),
@@ -87,17 +96,19 @@ export function EntitiesPage() {
   const schemaReady = !filter.entity_type_id || schema?.type_id === filter.entity_type_id;
   const invalidType = !!filter.entity_type_id && types !== null && !selectedType;
   const unsupported = ["prop3_from", "prop3_to", "prop4"].some((key) => params.has(key));
-  const key = query(filter), context = `${key}|${hash}|${unsupported}|${schema?.schema_version ?? 0}`;
+  const key = query(filter), context = `${key}|${hash}|${urlFilters.error ?? ""}|${unsupported}|${schema?.schema_version ?? 0}`;
   const creating = create.open;
   const list = usePagedList<EntitySummary, ListPage<EntitySummary>>({
     scope: `${context}|${typeError ? "catalog_error" : types === null ? "catalog_loading" : invalidType ? "invalid" : !schemaReady ? "schema_loading" : "ready"}`,
     pages,
-    anchor: anchorId("entities", hash),
+    anchor: anchorId("entities", urlFilters.anchor),
     anchorLookahead: 1,
     restoreRetry: "resume",
     retainOnDecrease: true,
     load: (cursor, signal) =>
-      invalidType
+      urlFilters.error
+        ? Promise.reject(new ApiError(400, "invalid_input", urlFilters.error))
+        : invalidType
         ? Promise.reject(
           new ApiError(404, "not_found", "자료 종류를 찾을 수 없습니다. 전체 자료나 다른 종류를 선택하세요."),
         )
@@ -153,7 +164,7 @@ export function EntitiesPage() {
     }
     next.delete("pages");
     next.delete("open");
-    navigate({ pathname: "/entities", search: next.toString(), hash: "" }, { replace: name !== "entity_type_id" });
+    navigate({ pathname: "/entities", ...(name === "entity_type_id" ? writeEntityListUrl(next, null) : changeEntityListQuery(next, params, hash)) }, { replace: name !== "entity_type_id" });
   };
   return (
     <>
@@ -216,7 +227,7 @@ export function EntitiesPage() {
                   if (sort !== "updated_at") next.set("sort", sort);
                   else next.delete("sort");
                   for (const key of ["pages", "cursor", "open"]) next.delete(key);
-                  navigate({ pathname: "/entities", search: next.toString(), hash: "" }, { replace: true });
+                  navigate({ pathname: "/entities", ...writeEntityListUrl(next, filters || null) }, { replace: true });
                 }}
               />
             </div>
@@ -382,7 +393,8 @@ export function EntitiesPage() {
                 );
                 const p = new URLSearchParams(params);
                 p.delete("create");
-                create.finish(`${entityPath(e.id)}?list=${encodeURIComponent(`/entities?${p}`)}`);
+                const saved = writeEntityListUrl(p, urlFilters.raw, urlFilters.anchor);
+                create.finish(entityDetailListLink(entityPath(e.id), `/entities?${saved.search}${saved.hash}`));
               }}
             />
           )}

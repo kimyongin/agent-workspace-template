@@ -101,7 +101,7 @@ Playwright 결과·trace와 서비스 로그는 다음 실행으로 덮어써질
 
 | 설정 | 소유하는 검사와 변이 |
 | --- | --- |
-| collection-fixture | 목록 화면 + pagination의 desktop/mobile 연결 검사; 실제 250페이지 복원 상한은 desktop에서 한 번 확인 |
+| collection-fixture | 목록 화면 + pagination·긴 속성 조건 fragment의 HTML 직접 주소/새로고침/이력/타입 초기화/앵커 desktop/mobile 연결 검사; 실제 250페이지 복원 상한은 desktop에서 한 번 확인 |
 | detail-workspace | 상세 작업 공간과 표시 배율 |
 | entity-tags-fixtures | 자료·태그 desktop/mobile |
 | principle-current | 현재 원칙 desktop/mobile |
