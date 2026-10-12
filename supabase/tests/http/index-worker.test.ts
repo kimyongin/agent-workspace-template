@@ -54,3 +54,27 @@ httpTest("worker HTTP: 인증·메서드·입력 거부가 큐 claim/공급자 �
     assertEquals(await empty.json(), { error: "worker_not_configured" });
   }
 });
+
+httpTest("processing functions share one internal token and reject user credentials", async () => {
+  const internal = Deno.env.get("INDEX_WORKER_TOKEN")!, user = await signIn("A");
+  const schemaUrl = `${SUPABASE_URL}/functions/v1/entity-schema-worker`;
+  for (const token of [null, "wrong", user]) {
+    const response = await fetch(schemaUrl, {
+      method: "POST",
+      headers: token ? { authorization: `Bearer ${token}` } : {},
+      body: JSON.stringify({ check_configuration: true }),
+    });
+    assertEquals(response.status, 401);
+    await response.text();
+  }
+  const schema = await fetch(schemaUrl, {
+    method: "POST",
+    headers: { authorization: `Bearer ${internal}`, "content-type": "application/json" },
+    body: JSON.stringify({ check_configuration: true }),
+  });
+  assertEquals(schema.status, 200);
+  assertEquals(await schema.json(), { configuration_checked: true });
+  const index = await fetch(url, { headers: { authorization: `Bearer ${internal}` } });
+  assertEquals(index.status, 405);
+  await index.text();
+});

@@ -70,14 +70,14 @@ const local = {
   LOCAL_POOLER_PORT: String(config.poolerPort),
   APP_SERVER_PASSWORD: prev.APP_SERVER_PASSWORD ?? secret(),
   APP_WORKER_PASSWORD: prev.APP_WORKER_PASSWORD ?? secret(),
-  INDEX_WORKER_TOKEN: prev.INDEX_WORKER_TOKEN ?? randomBytes(32).toString("base64url"),
-  ENTITY_SCHEMA_WORKER_TOKEN: prev.ENTITY_SCHEMA_WORKER_TOKEN ?? functionEnv.ENTITY_SCHEMA_WORKER_TOKEN ?? randomBytes(32).toString("base64url"),
+  // 기존 설정 키를 공통 호출 토큰으로 유지한다. 기존 함수 환경의 값도 보존한다.
+  INDEX_WORKER_TOKEN: prev.INDEX_WORKER_TOKEN ?? functionEnv.INDEX_WORKER_TOKEN ?? randomBytes(32).toString("base64url"),
   DEV_USER_A_EMAIL: "dev-a@example.test",
   DEV_USER_A_PASSWORD: prev.DEV_USER_A_PASSWORD ?? secret(),
   DEV_USER_B_EMAIL: "dev-b@example.test",
   DEV_USER_B_PASSWORD: prev.DEV_USER_B_PASSWORD ?? secret(),
 };
-writeEnv(path(".env.local"), "로컬 전용. scripts/local-setup.mjs가 만든다. 커밋하지 않는다.", local);
+writeEnv(path(".env.local"), "로컬 전용. scripts/local-setup.mjs가 만든다. 커밋하지 않는다.", local, ["ENTITY_SCHEMA_WORKER_TOKEN"]);
 
 // 4. 서버 접속 역할(app_server)의 로컬 비밀번호와 Edge Functions용 설정.
 // 같은 값이어도 다시 설정하면 비밀번호 해시가 바뀌어 트랜잭션 풀러가 한동안 예전 값으로 인증을 거부한다(28P01).
@@ -113,14 +113,13 @@ writeEnv(path("supabase/functions/.env"), "로컬 전용. scripts/local-setup.mj
   APP_DB_URL: `postgresql://app_server.pooler-dev:${local.APP_SERVER_PASSWORD}@pooler:6543/postgres`,
   WORKER_DB_URL: `postgresql://app_worker.pooler-dev:${local.APP_WORKER_PASSWORD}@pooler:6543/postgres`,
   INDEX_WORKER_TOKEN: local.INDEX_WORKER_TOKEN,
-  ENTITY_SCHEMA_WORKER_TOKEN: local.ENTITY_SCHEMA_WORKER_TOKEN,
   ...(functionEnv.PINECONE_ACCOUNT_SCOPE || prev.PINECONE_ACCOUNT_SCOPE
     ? { PINECONE_ACCOUNT_SCOPE: functionEnv.PINECONE_ACCOUNT_SCOPE ?? prev.PINECONE_ACCOUNT_SCOPE } : {}),
   ...(functionEnv.PINECONE_API_KEY || prev.PINECONE_API_KEY
     ? { PINECONE_API_KEY: functionEnv.PINECONE_API_KEY ?? prev.PINECONE_API_KEY } : {}),
   AUTH_ISSUER: `${apiUrl}/auth/v1`,
   WEB_ORIGINS: config.webOrigins,
-}, ["MCP_URL"]);
+}, ["MCP_URL", "ENTITY_SCHEMA_WORKER_TOKEN"]);
 
 // 5. 개발용 사용자(A·B). 이미 있으면 비밀번호만 맞춘다.
 const admin = (p, init = {}) =>

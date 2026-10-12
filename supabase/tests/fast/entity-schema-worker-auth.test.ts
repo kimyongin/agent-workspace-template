@@ -3,7 +3,7 @@ import { entitySchemaWorker } from "../../functions/_shared/adapters/http/entity
 Deno.test("schema worker HTTP rejects user/missing tokens before DB and preflight never claims", async () => {
   const token = "s".repeat(48);
   const handler = entitySchemaWorker((name) =>
-    name === "ENTITY_SCHEMA_WORKER_TOKEN" ? token : name === "WORKER_DB_URL" ? "not-a-db-url" : undefined
+    name === "INDEX_WORKER_TOKEN" ? token : name === "WORKER_DB_URL" ? "not-a-db-url" : undefined
   );
   for (const auth of [undefined, "Bearer user-jwt", "Bearer wrong"]) {
     const response = await handler(
@@ -34,24 +34,25 @@ Deno.test("schema worker HTTP rejects user/missing tokens before DB and prefligh
   assertEquals(oversized.status, 400);
 });
 
-Deno.test("schema worker uses the index token only when its dedicated token is absent", async () => {
-  const indexToken = "i".repeat(48), dedicatedToken = "s".repeat(48);
+Deno.test("schema worker accepts only the shared token regardless of retired dedicated settings", async () => {
+  const shared = "i".repeat(48), retired = "s".repeat(48);
   for (
-    const [dedicated, supplied, expected] of [
-      [undefined, indexToken, 200],
-      [undefined, "user-jwt", 401],
-      [undefined, "wrong", 401],
-      [dedicatedToken, indexToken, 401],
-      [dedicatedToken, dedicatedToken, 200],
-      ["", indexToken, 503],
-      ["short", indexToken, 503],
+    const [common, old, supplied, expected] of [
+      [shared, undefined, shared, 200],
+      [shared, retired, shared, 200],
+      [shared, retired, retired, 401],
+      [shared, "", shared, 200],
+      [shared, "short", shared, 200],
+      [undefined, retired, retired, 503],
+      ["", retired, retired, 503],
+      ["short", retired, retired, 503],
     ] as const
   ) {
     const handler = entitySchemaWorker((name) =>
-      name === "ENTITY_SCHEMA_WORKER_TOKEN"
-        ? dedicated
-        : name === "INDEX_WORKER_TOKEN"
-        ? indexToken
+      name === "INDEX_WORKER_TOKEN"
+        ? common
+        : name === "ENTITY_SCHEMA_WORKER_TOKEN"
+        ? old
         : name === "WORKER_DB_URL"
         ? "not-a-db-url"
         : undefined
@@ -64,10 +65,5 @@ Deno.test("schema worker uses the index token only when its dedicated token is a
       }),
     );
     assertEquals(response.status, expected);
-  }
-  for (const indexToken of [undefined, "", "short"]) {
-    const handler = entitySchemaWorker((name) => name === "INDEX_WORKER_TOKEN" ? indexToken : undefined);
-    const response = await handler(new Request("http://worker", { method: "POST" }));
-    assertEquals(response.status, 503);
   }
 });

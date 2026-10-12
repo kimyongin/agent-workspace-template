@@ -27,8 +27,8 @@ export async function runEntitySchemaWorker(
   if (environment.VITE_SUPABASE_URL !== url.origin || environment.VITE_API_URL !== `${url.origin}/functions/v1/api`) {
     throw new Error("로컬 설정과 .env.local의 API 주소가 다릅니다. 환경 준비를 확인하세요");
   }
-  if (!/^[A-Za-z0-9_-]{43,}$/.test(environment.ENTITY_SCHEMA_WORKER_TOKEN ?? "")) {
-    throw new Error("전용 스키마 worker 토큰이 필요합니다. 환경 준비를 확인하세요");
+  if (!/^[A-Za-z0-9_-]{43,}$/.test(environment.INDEX_WORKER_TOKEN ?? "")) {
+    throw new Error("공통 처리 함수 호출 토큰이 필요합니다. 환경 준비를 확인하세요");
   }
   for (const value of [intervalMs, timeoutMs]) {
     if (!Number.isInteger(value) || value < 100 || value > 60000) {
@@ -42,7 +42,7 @@ export async function runEntitySchemaWorker(
         redirect: "error",
         signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)]) : AbortSignal.timeout(timeoutMs),
         headers: {
-          Authorization: `Bearer ${environment.ENTITY_SCHEMA_WORKER_TOKEN}`,
+          Authorization: `Bearer ${environment.INDEX_WORKER_TOKEN}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify(checkConfiguration ? { check_configuration: true } : { limit: 1 }),
@@ -97,7 +97,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.ar
   } catch (error) {
     if (!stop.signal.aborted) {
       console.error(
-        /^(스키마 worker|전용 스키마 worker|로컬 설정|대기·시간 제한)/.test(error.message)
+        /^(스키마 worker|공통 처리 함수 호출 토큰|로컬 설정|대기·시간 제한)/.test(error.message)
           ? error.message
           : "로컬 스키마 worker 설정을 확인하세요",
       );

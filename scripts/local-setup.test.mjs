@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { readEnv } from "./local-env.mjs";
 
-test("setup generates and preserves the private schema worker token in both environment files without starting consumption", (t) => {
+test("setup generates and preserves the shared processing token in both environment files without starting consumption", (t) => {
   const directory = mkdtempSync(join(tmpdir(), "schema-worker-setup-"));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   for (const name of ["scripts", "supabase/functions", "node_modules/postgres", "bin"]) {
@@ -51,16 +51,24 @@ test("setup generates and preserves the private schema worker token in both envi
   const first = run();
   assert.equal(first.status, 0, first.stderr);
   const localFile = join(directory, ".env.local"), functionFile = join(directory, "supabase/functions/.env");
-  const generated = readEnv(localFile).ENTITY_SCHEMA_WORKER_TOKEN;
+  const generated = readEnv(localFile).INDEX_WORKER_TOKEN;
   assert.match(generated ?? "", /^[A-Za-z0-9_-]{43,}$/);
-  assert.equal(readEnv(functionFile).ENTITY_SCHEMA_WORKER_TOKEN, generated);
+  assert.equal(readEnv(functionFile).INDEX_WORKER_TOKEN, generated);
   assert.ok(!first.stdout.includes(generated));
-  writeFileSync(localFile, readFileSync(localFile, "utf8") + "CUSTOM_LOCAL=keep\n");
-  writeFileSync(functionFile, readFileSync(functionFile, "utf8") + "CUSTOM_FUNCTION=keep\n");
+  writeFileSync(localFile, readFileSync(localFile, "utf8") + "CUSTOM_LOCAL=keep\nENTITY_SCHEMA_WORKER_TOKEN=retired-local\n");
+  writeFileSync(functionFile, readFileSync(functionFile, "utf8") + "CUSTOM_FUNCTION=keep\nENTITY_SCHEMA_WORKER_TOKEN=retired-function\n");
   const second = run();
   assert.equal(second.status, 0, second.stderr);
-  assert.equal(readEnv(localFile).ENTITY_SCHEMA_WORKER_TOKEN, generated);
-  assert.equal(readEnv(functionFile).ENTITY_SCHEMA_WORKER_TOKEN, generated);
+  assert.equal(readEnv(localFile).INDEX_WORKER_TOKEN, generated);
+  assert.equal(readEnv(functionFile).INDEX_WORKER_TOKEN, generated);
+  assert.equal(readEnv(localFile).ENTITY_SCHEMA_WORKER_TOKEN, undefined);
+  assert.equal(readEnv(functionFile).ENTITY_SCHEMA_WORKER_TOKEN, undefined);
+  writeFileSync(localFile, readFileSync(localFile, "utf8").replace(/^INDEX_WORKER_TOKEN=.*\n/m, ""));
+  const third = run();
+  assert.equal(third.status, 0, third.stderr);
+  assert.equal(readEnv(localFile).INDEX_WORKER_TOKEN, generated);
+  assert.equal(readEnv(functionFile).INDEX_WORKER_TOKEN, generated);
+  assert.ok(!third.stdout.includes(generated));
   assert.equal(readEnv(localFile).CUSTOM_LOCAL, "keep");
   assert.equal(readEnv(functionFile).CUSTOM_FUNCTION, "keep");
   assert.ok(!readFileSync(join(directory, "commands"), "utf8").includes("worker"));
