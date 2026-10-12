@@ -86,6 +86,11 @@ async function fixture() {
           batch.migration,
           batch.recovery_keys,
         );
+      assert(batch.rows.length > 0 && batch.rows.length <= 50);
+      assert(
+        new TextEncoder().encode(jsonbText(batch.rows)).byteLength <= 524288,
+        "analysis claim must bound current and owned recovery properties together",
+      );
       await worker`select app.complete_entity_schema_analysis_batch(${batch.id},${batch.fence},${
         worker.json(
           batch.rows.map((
