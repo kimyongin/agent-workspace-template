@@ -32,7 +32,7 @@ test('administrator cleanup preserves accounts, settings and another owner; stal
       await tx`insert into app.records(owner_id,id,body) values(${owner},${record},'approved demo'),(${owner},${personal},'personal keep')`;
       await tx`update app.records set task_id=${task},entity_ids=array['demo:a'] where owner_id=${owner} and id=${record}`;
       await tx`insert into app.record_tags(owner_id,record_id,tag_id) values(${owner},${record},${tag})`;
-      await tx`insert into app.entity_schema_changes(owner_id,type_id,id,source_type_version,source_schema_version,source_template_version,kind,edits,reservations,target,diff,fingerprint) values(${owner},${type},${change},1,1,1,'migration_required','[]','[]','{"schema":{},"display":{}}','{}','test')`;
+      await tx`insert into app.entity_schema_changes(owner_id,type_id,id,source_type_version,source_schema_version,source_template_fingerprint,kind,edits,reservations,target,diff,fingerprint) values(${owner},${type},${change},1,1,'test','migration_required','[]','[]','{"schema":{},"display":{}}','{}','test')`;
       await tx`insert into app.entity_schema_analyses(owner_id,type_id,change_id,id,change_version,fingerprint,membership,status,total) values(${owner},${type},${change},${analysis},1,'test','test','succeeded',1)`;
       await tx`insert into private.entity_schema_analysis_rows(owner_id,analysis_id,entity_id,source_version,source_schema_version,properties) values(${owner},${analysis},'demo:a',1,1,'{"prop_1":"original"}')`;
       await tx`insert into app.entity_schema_migrations(owner_id,type_id,id,change_id,change_version,analysis_id,fingerprint,membership,source_type_version,source_schema_version,source_template_fingerprint,source_templates,source_definition,target,migration,status,total,actor_source,source_expires_at) values(${owner},${type},${job},${change},1,${analysis},'test','test',1,1,'test','{}','{}','{}','{}','succeeded',1,'http',now()+interval '30 days')`;
@@ -40,8 +40,7 @@ test('administrator cleanup preserves accounts, settings and another owner; stal
       await tx`insert into app.user_business_settings(owner_id,id,version,settings) values(${owner},'record_templates',1,${tx.json(settings)}),(${owner},'entity_identity',1,'{"default_source":"personal"}')`;
       await tx`select pgmq.send('search_index',${tx.json({ owner_id: owner, kind: 'record', id: record, pipeline: 'test', input_hash: '0'.repeat(64) })})`;
       await tx`insert into app.search_index_state(owner_id,kind,id,input_hash,pipeline) values(${owner},'record',${record},${'0'.repeat(64)},'test')`;
-      const [intent] = await tx`select id from private.search_effect_intents where owner_id=${owner} and record_id=${record}`;
-      await tx`insert into private.passage_effects(intent_id,provider_scope,model,dimensions,start_offset,end_offset,input_hash) values(${intent.id},${'1'.repeat(64)},'test',1024,0,2,${'2'.repeat(64)})`;
+      await tx`insert into private.passage_effects(owner_id,record_id,source_version,source_hash,pipeline,provider_scope,model,dimensions,start_offset,end_offset,input_hash) values(${owner},${record},1,${'0'.repeat(64)},'test',${'1'.repeat(64)},'test',1024,0,2,${'2'.repeat(64)})`;
       const [archived] = await tx`select pgmq.send('search_index',${tx.json({owner_id: owner,kind: 'record',id: record})}) message`;
       await tx`select pgmq.archive('search_index',${archived.message})`;
     });
@@ -50,7 +49,6 @@ test('administrator cleanup preserves accounts, settings and another owner; stal
     assert.deepEqual(before.blockers, []);
     assert.equal(before.counts['app.entities'], 2);
     assert.equal(before.counts['app.entity_pairs'], 1);
-    assert.equal(before.counts['private.search_effect_intents'], 1);
     assert.equal(before.counts['private.passage_effects'], 1);
     assert.equal(before.counts['private.entity_schema_migration_rows'], 1);
     assert.equal(before.counts['private.entity_schema_analysis_rows'], 1);
@@ -64,7 +62,7 @@ test('administrator cleanup preserves accounts, settings and another owner; stal
     assert.equal((await sql`select count(*)::int n from private.entity_schema_migration_rows where job_id=${job}`)[0].n, 0);
     assert.equal((await sql`select count(*)::int n from app.entity_schema_migrations where id=${job}`)[0].n, 0);
     assert.equal((await sql`select count(*)::int n from private.entity_schema_analysis_rows where analysis_id=${analysis}`)[0].n, 0);
-    assert.equal((await sql`select count(*)::int n from private.search_effect_intents where owner_id=${owner} and record_id=${record}`)[0].n, 0);
+    assert.equal((await sql`select count(*)::int n from private.passage_effects where owner_id=${owner} and record_id=${record}`)[0].n, 0);
     assert.equal((await sql`select count(*)::int n from auth.users where id in (${owner},${other})`)[0].n, 2);
     assert.equal((await sql`select count(*)::int n from app.entities where owner_id=${other} and id='demo:a'`)[0].n, 1);
     assert.equal((await sql`select body from app.records where owner_id=${owner} and id=${personal}`)[0].body, 'personal keep');
