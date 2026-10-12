@@ -1,0 +1,418 @@
+import { assert, assertEquals } from "@std/assert";
+import postgres from "postgres";
+import {
+  admin,
+  API,
+  call,
+  httpTest,
+  signIn,
+  SUPABASE_URL,
+} from "../http/_client.ts";
+import { claimsOf, connectMcp, mcpGrant } from "./_mcp.ts";
+import type {
+  EntityDetail,
+  EntitySummary,
+} from "../../functions/_shared/contracts/entity.ts";
+import type { EntitySchemaResult } from "../../functions/_shared/contracts/entity-type.ts";
+import type { EntitySchemaChange } from "../../functions/_shared/contracts/entity-schema-change.ts";
+import {
+  jsonbText,
+  validateEntityDefinition,
+  validateEntityProperties,
+} from "../../functions/_shared/core/entity-types/schema-rules.ts";
+
+type Page = { items: EntitySummary[]; next_cursor: string | null };
+function env(name: string) {
+  const value = Deno.env.get(name);
+  if (!value) throw new Error(`Missing local test setting ${name}`);
+  return value;
+}
+const bytes = (value: unknown) =>
+  new TextEncoder().encode(JSON.stringify(value)).byteLength;
+
+httpTest(
+  "large typed pages actual HTTP/OAuth SDK preserve near-64KiB schema/properties default20/max100 and long cursors",
+  async () => {
+    const run = crypto.randomUUID(),
+      token = await signIn("A"),
+      foreign = await signIn("B");
+    const owner = String(claimsOf(token).sub),
+      keys: string[] = [],
+      entities: string[] = [];
+    let typeId: string | undefined, oauthClientId: string | undefined;
+    let client: Awaited<ReturnType<typeof connectMcp>> | undefined;
+    let worker: ReturnType<typeof postgres> | undefined;
+    const key = () => {
+      const id = crypto.randomUUID();
+      keys.push(id);
+      return id;
+    };
+    const evidence: Record<string, number | string> = { run };
+    const failures: unknown[] = [];
+    try {
+      const grant = await mcpGrant(token);
+      oauthClientId = grant.client_id;
+      client = await connectMcp(grant.access_token);
+      const catalog = await client.listTools(),
+        names = catalog.tools.map((t) => t.name);
+      assertEquals(names.length, 58);
+      assertEquals(new Set(names).size, 58);
+      for (
+        const name of [
+          "get_entity_schema",
+          "list_entities",
+          "get_entity",
+          "create_entity",
+          "analyze_entity_schema_change",
+          "apply_entity_schema_change",
+        ]
+      ) assert(names.includes(name));
+      assertEquals(
+        catalog.tools.find((t) => t.name === "list_entities")?.annotations
+          ?.readOnlyHint,
+        true,
+      );
+      evidence.tools = names.length;
+      const sdk = async <T>(name: string, args: Record<string, unknown>) => {
+        const response = await client!.callTool({ name, arguments: args });
+        assert(response.isError !== true, `${name} must succeed`);
+        assert(
+          response.structuredContent,
+          `${name} must return structured content`,
+        );
+        const text = response.content.find((block) => block.type === "text");
+        assert(text?.type === "text");
+        assertEquals(JSON.parse(text.text), response.structuredContent);
+        return {
+          body: response.structuredContent as T,
+          bytes: bytes(response),
+        };
+      };
+      const created = await call<
+        { id: string; version: number; schema_version: number }
+      >(token, "POST", "/entity-types", {
+        label: `large351 ${run}`,
+        representative_label: "이름",
+        icon_id: "leaf",
+      }, key());
+      assertEquals(created.status, 201);
+      typeId = created.body.id;
+      const order = Array.from({ length: 23 }, (_, n) => `prop_${n + 1}`);
+      const input = {
+        expected_type_version: created.body.version,
+        expected_schema_version: created.body.schema_version,
+        edits: [
+          ...Array.from(
+            { length: 22 },
+            (_, n) => ({
+              op: "add_property",
+              client_ref: `field${n + 2}`,
+              field: {
+                type: "string",
+                description: "뜻".repeat(n === 21 ? 100 : 1000),
+              },
+              required: false,
+            }),
+          ),
+          {
+            op: "set_display",
+            display: {
+              representative: "prop_1",
+              order,
+              list_columns: order.slice(0, 7),
+              archived: [],
+              option_labels: {},
+            },
+          },
+        ],
+      };
+      const plan = await call<EntitySchemaChange>(
+        token,
+        "POST",
+        `/entity-types/${typeId}/schema-changes`,
+        input,
+        key(),
+      );
+      assertEquals(plan.status, 201);
+      validateEntityDefinition(plan.body.target);
+      const definitionBytes =
+        new TextEncoder().encode(jsonbText(plan.body.target)).byteLength;
+      assert(definitionBytes > 65000 && definitionBytes <= 65536);
+      evidence.definition_bytes = definitionBytes;
+      const accepted = await sdk<{ analysis_id: string; status: string }>(
+        "analyze_entity_schema_change",
+        {
+          type_id: typeId,
+          change_id: plan.body.id,
+          expected_change_version: plan.body.version,
+          request_key: key(),
+        },
+      );
+      assertEquals(accepted.body.status, "queued");
+      const url = new URL(env("LOCAL_DB_URL"));
+      url.username = "app_worker";
+      url.password = encodeURIComponent(env("APP_WORKER_PASSWORD"));
+      worker = postgres(url.href, {
+        max: 1,
+        prepare: false,
+        onnotice: () => {},
+        connection: { statement_timeout: 15000 },
+      });
+      const [claimed] =
+        await worker`select app.claim_entity_schema_analysis() as batch`;
+      assert(claimed.batch);
+      assertEquals(claimed.batch.id, accepted.body.analysis_id);
+      assertEquals(claimed.batch.rows, []);
+      const [completed] =
+        await worker`select app.complete_entity_schema_analysis_batch(${claimed.batch.id},${claimed.batch.fence},${
+          worker.json([])
+        }) as completed`;
+      assertEquals(completed.completed, true);
+      const ready = await call<EntitySchemaChange>(
+        token,
+        "GET",
+        `/entity-types/${typeId}/schema-changes/${plan.body.id}`,
+      );
+      assertEquals(ready.status, 200);
+      assertEquals(ready.body.analysis?.status, "succeeded");
+      assert(ready.body.executable);
+      await sdk("apply_entity_schema_change", {
+        type_id: typeId,
+        change_id: plan.body.id,
+        expected_change_version: ready.body.version,
+        analysis_id: ready.body.analysis!.id,
+        request_key: key(),
+      });
+      const schema = await call<EntitySchemaResult>(
+        token,
+        "GET",
+        `/entity-types/${typeId}/schema`,
+      );
+      assertEquals(schema.status, 200);
+      assertEquals(schema.body.schema, plan.body.target.schema);
+      assertEquals(schema.body.display, plan.body.target.display);
+      assertEquals(
+        (await sdk<EntitySchemaResult>("get_entity_schema", {
+          type_id: typeId,
+        })).body,
+        schema.body,
+      );
+      assertEquals(
+        (await call(foreign, "GET", `/entity-types/${typeId}/schema`)).status,
+        404,
+      );
+      const properties: Record<string, string> = {
+        prop_1: "대표",
+        ...Object.fromEntries(
+          Array.from(
+            { length: 5 },
+            (_, n) => [`prop_${n + 2}`, "한".repeat(4096)],
+          ),
+        ),
+        prop_7: "끝".repeat(1300),
+      };
+      validateEntityProperties({
+        schema: schema.body.schema,
+        display: schema.body.display,
+      }, properties);
+      evidence.properties_bytes =
+        new TextEncoder().encode(jsonbText(properties)).byteLength;
+      assertEquals(evidence.properties_bytes, 65444);
+      for (let n = 0; n < 101; n++) {
+        const entity = await call<EntityDetail>(token, "POST", "/entities", {
+          entity_type_id: typeId,
+          schema_version: schema.body.schema_version,
+          properties,
+          change_note: "큰 응답 검증",
+        }, key());
+        assertEquals(entity.status, 201);
+        entities.push(entity.body.id);
+        assertEquals(entity.body.properties, properties);
+      }
+      const detail = await call<EntityDetail>(
+        token,
+        "GET",
+        `/entities/${encodeURIComponent(entities[0])}`,
+      );
+      assertEquals(detail.status, 200);
+      assertEquals(detail.body.properties, properties);
+      assertEquals(
+        (await sdk<EntityDetail>("get_entity", { id: entities[0] })).body,
+        detail.body,
+      );
+      assertEquals(
+        (await call(
+          foreign,
+          "GET",
+          `/entities/${encodeURIComponent(entities[0])}`,
+        )).status,
+        404,
+      );
+      const httpPage = async (query: Record<string, unknown>) => {
+        const params = new URLSearchParams(
+          Object.entries(query).map((
+            [name, value],
+          ) => [
+            name,
+            typeof value === "object" ? JSON.stringify(value) : String(value),
+          ]),
+        );
+        const response = await fetch(`${API}/entities?${params}`, {
+          headers: { authorization: `Bearer ${token}` },
+          signal: AbortSignal.timeout(30000),
+        });
+        assertEquals(response.status, 200);
+        const raw = new Uint8Array(await response.arrayBuffer());
+        return {
+          body: JSON.parse(new TextDecoder().decode(raw)) as Page,
+          bytes: raw.byteLength,
+        };
+      };
+      const assertPage = (page: Page, count: number) => {
+        assertEquals(page.items.length, count);
+        for (const item of page.items) {
+          assertEquals(item.display_properties, properties);
+          assertEquals("properties" in item, false);
+          assertEquals(item.entity_type_id, typeId);
+        }
+      };
+      for (const limit of [undefined, 100]) {
+        const query = { entity_type_id: typeId, ...(limit ? { limit } : {}) };
+        const http = await httpPage(query),
+          mcp = await sdk<Page>("list_entities", query);
+        assertPage(http.body, limit ?? 20);
+        assertPage(mcp.body, limit ?? 20);
+        assertEquals(mcp.body, http.body);
+        assert(http.bytes > 1048576);
+        assert(mcp.bytes > 1048576);
+        if (limit === 100) assert(mcp.bytes > 12 * 1024 * 1024);
+        evidence[`http_${limit ?? 20}_bytes`] = http.bytes;
+        evidence[`sdk_${limit ?? 20}_bytes`] = mcp.bytes;
+      }
+      const query = {
+        entity_type_id: typeId,
+        limit: 100,
+        sort: { key: "prop_2", direction: "asc" },
+      };
+      const first = await httpPage(query),
+        mcpFirst = await sdk<Page>("list_entities", query);
+      assertPage(first.body, 100);
+      assertEquals(first.body, mcpFirst.body);
+      assert(first.body.next_cursor);
+      assert(mcpFirst.body.next_cursor);
+      assert(
+        first.body.next_cursor.length > 16000 &&
+          first.body.next_cursor.length < 24576,
+      );
+      evidence.cursor_length = first.body.next_cursor.length;
+      const mcpNext = await sdk<Page>("list_entities", {
+        ...query,
+        cursor: first.body.next_cursor,
+      });
+      const httpNext = await httpPage({
+        ...query,
+        cursor: mcpFirst.body.next_cursor,
+      });
+      assertPage(mcpNext.body, 1);
+      assertEquals(mcpNext.body, httpNext.body);
+      assertEquals(mcpNext.body.next_cursor, null);
+      const all = [...first.body.items, ...mcpNext.body.items].map((item) =>
+        item.id
+      );
+      assertEquals(new Set(all).size, 101);
+      assertEquals(all.sort(), entities.toSorted());
+      assertEquals(
+        (await call<EntitySchemaResult>(
+          token,
+          "GET",
+          `/entity-types/${typeId}/schema`,
+        )).body,
+        schema.body,
+      );
+      console.log(JSON.stringify(evidence));
+    } catch (error) {
+      failures.push(error);
+    } finally {
+      const clean = async (runCleanup: () => Promise<unknown>) => {
+        try {
+          await runCleanup();
+        } catch (error) {
+          failures.push(error);
+        }
+      };
+      await clean(async () => {
+        await client?.close();
+      });
+      await clean(async () => {
+        await worker?.end();
+      });
+      await clean(() =>
+        admin.begin(async (tx) => {
+          // Exact run label also finds a creation whose HTTP response was lost.
+          const kinds =
+            await tx`select id,label from app.entity_types where owner_id=${owner} and label=${`large351 ${run}`}`;
+          assert(kinds.length <= 1);
+          const cleanupType = kinds[0]?.id as string | undefined;
+          if (typeId && cleanupType) assertEquals(cleanupType, typeId);
+          const owned = cleanupType
+            ? await tx`select id from app.entities where owner_id=${owner} and entity_type_id=${cleanupType}`
+            : [];
+          const ownedIds = owned.map((row) => String(row.id));
+          const records =
+            await tx`select id from app.records where owner_id=${owner} and change_metadata->>'target_kind'='entity' and change_metadata->>'target_id'=any(${ownedIds}::text[])`;
+          const recordIds = records.map((row) => String(row.id));
+          await tx`delete from private.request_results where owner_id=${owner} and request_key=any(${keys}::uuid[])`;
+          await tx`delete from pgmq.q_search_index where message->>'owner_id'=${owner} and message->>'kind'='record' and message->>'id'=any(${recordIds}::text[])`;
+          await tx`delete from pgmq.a_search_index where message->>'owner_id'=${owner} and message->>'kind'='record' and message->>'id'=any(${recordIds}::text[])`;
+          await tx`delete from private.passage_effects where owner_id=${owner} and record_id=any(${recordIds}::text[])`;
+          await tx`delete from app.search_chunks where owner_id=${owner} and record_id=any(${recordIds}::text[])`;
+          await tx`delete from app.search_index_state where owner_id=${owner} and kind='record' and id=any(${recordIds}::text[])`;
+          await tx`delete from app.records where owner_id=${owner} and id=any(${recordIds}::text[])`;
+          if (cleanupType) {
+            await tx`delete from app.entities where owner_id=${owner} and entity_type_id=${cleanupType}`;
+            await tx`delete from app.entity_types where owner_id=${owner} and id=${cleanupType}`;
+          }
+          const [remaining] =
+            await tx`select (select count(*) from app.entities where owner_id=${owner} and id=any(${ownedIds}::text[]))::int as entities,(select count(*) from app.entity_types where owner_id=${owner} and label=${`large351 ${run}`})::int as types,(select count(*) from app.records where owner_id=${owner} and id=any(${recordIds}::text[]))::int as records,(select count(*) from private.request_results where owner_id=${owner} and request_key=any(${keys}::uuid[]))::int as requests,(select count(*) from app.search_index_state where owner_id=${owner} and id=any(${recordIds}::text[]))::int as indexes,(select count(*) from private.passage_effects where owner_id=${owner} and record_id=any(${recordIds}::text[]))::int as effects,(select count(*) from app.search_chunks where owner_id=${owner} and record_id=any(${recordIds}::text[]))::int as chunks,(select count(*) from pgmq.q_search_index where message->>'owner_id'=${owner} and message->>'id'=any(${recordIds}::text[]))::int as queue,(select count(*) from pgmq.a_search_index where message->>'owner_id'=${owner} and message->>'id'=any(${recordIds}::text[]))::int as archive`;
+          assertEquals(remaining, {
+            entities: 0,
+            types: 0,
+            records: 0,
+            requests: 0,
+            indexes: 0,
+            effects: 0,
+            chunks: 0,
+            queue: 0,
+            archive: 0,
+          });
+        })
+      );
+      await clean(async () => {
+        if (!oauthClientId) return;
+        // Same endpoint as pinned auth-js GoTrueAdminApi._deleteOAuthClient; exact owned grant only.
+        const secret = env("LOCAL_SUPABASE_SECRET_KEY");
+        const removed = await fetch(
+          `${SUPABASE_URL}/auth/v1/admin/oauth/clients/${
+            encodeURIComponent(oauthClientId)
+          }`,
+          {
+            method: "DELETE",
+            headers: { apikey: secret, authorization: `Bearer ${secret}` },
+            signal: AbortSignal.timeout(15000),
+          },
+        );
+        await removed.body?.cancel();
+        assert(
+          removed.ok || removed.status === 404,
+          "run-owned OAuth client cleanup must succeed",
+        );
+      });
+    }
+    if (failures.length) {
+      throw new AggregateError(
+        failures,
+        "Actual large payload probe or owned cleanup failed",
+      );
+    }
+  },
+);
