@@ -261,6 +261,7 @@ Deno.test("Entity HTTP/MCP list: typed AND inputs require a type and reject coer
   for (
     const bad of [
       { ...query, entity_type_id: undefined },
+      { filters: [] },
       { ...query, filters: [{ key: "prop_2", operator: "gte", value: "0" }] },
       { ...query, filters: [{ key: "prop_99", operator: "eq", value: 0 }] },
       { ...query, filters: [{ key: "prop_4", operator: "gte", value: "a" }] },
