@@ -57,7 +57,7 @@ export const entityTypeCreate = z.strictObject({
 });
 export const entityTypeUpdate = z.strictObject({
   expected_type_version: version,
-  expected_schema_version: version,
+  expected_schema_version: version.optional(),
   label: entityTypeCreate.shape.label.optional(),
   icon_id: entityTypeIcon.optional(),
   archived: z.boolean().optional(),
