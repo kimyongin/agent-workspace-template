@@ -2,7 +2,7 @@ import { z } from "zod";
 import { businessMeta } from "./change.ts";
 import { tagIds } from "./tag.ts";
 import { recordResult } from "./record.ts";
-import { expectedVersion, id, isoDateTime, page, pageInput, text } from "./common.ts";
+import { codePointLength, expectedVersion, id, isoDateTime, page, pageInput, text } from "./common.ts";
 import { entityExternalId, entityReferenceId, entitySourceCode } from "./entity-identity.ts";
 import { propertyKey } from "./entity-type.ts";
 export const entityProperties = z.record(
@@ -38,7 +38,11 @@ export const entityPropertyFilter = z.union([
   z.strictObject({
     key: propertyKey,
     operator: z.enum(["eq", "gt", "gte", "lt", "lte", "contains"]),
-    value: z.union([z.string().max(4096), z.number().finite(), z.boolean()]),
+    value: z.union([
+      z.string().refine((value) => codePointLength(value) <= 4096, "텍스트는 4096자 이하입니다"),
+      z.number().finite(),
+      z.boolean(),
+    ]),
   }),
   z.strictObject({ key: propertyKey, operator: z.literal("unset") }),
 ]);
@@ -48,7 +52,7 @@ export const entityListQuery = z.strictObject({
   link_candidate_for: entityReferenceId.optional(),
   tag_id: id.optional(),
   ...pageInput,
-  cursor: z.string().min(1).max(2000).optional(),
+  cursor: z.string().min(1).max(24576).optional(),
   keyword: text(1, 100).optional(),
   filters: z.array(entityPropertyFilter).max(32).optional(),
   sort: z.union([z.enum(["updated_at", "title"]), entityPropertySort]).default("updated_at"),

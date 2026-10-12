@@ -173,3 +173,86 @@ httpTest("Entity MCP: 실제 SDK/OAuth CRUD·태그 scope·웹 parity·참조 �
     await client.close();
   }
 });
+httpTest(
+  "Entity typed list MCP/HTTP: AND numeric/date filters, unset, property cursor parity and strict errors",
+  async () => {
+    const token = await signIn("A"),
+      client = await connectMcp(await mcpToken(token)),
+      marker = crypto.randomUUID(),
+      ids: string[] = [];
+    try {
+      const schema = await httpEntityFixture(token);
+      for (const [n, value, date] of [["空", null, null], ["零", 0, "2024-02-29"], ["二", 2, "2025-01-01"]] as const) {
+        const row = await tool(client, "create_entity", {
+          ...schema,
+          properties: { prop_1: marker + n, prop_2: value, prop_3: date, prop_4: "b" },
+        });
+        ids.push(row.id);
+      }
+      const query = {
+        entity_type_id: schema.entity_type_id,
+        keyword: marker,
+        filters: [{ key: "prop_2", operator: "gte", value: 0 }, {
+          key: "prop_3",
+          operator: "lte",
+          value: "2024-02-29",
+        }],
+        sort: { key: "prop_2", direction: "asc" },
+      };
+      const listed = await tool(client, "list_entities", query);
+      assertEquals(listed.items.map((row: { id: string }) => row.id), [ids[1]]);
+      const url = new URLSearchParams({
+        entity_type_id: query.entity_type_id,
+        keyword: marker,
+        filters: JSON.stringify(query.filters),
+        sort: JSON.stringify(query.sort),
+      });
+      assertEquals((await call(token, "GET", `/entities?${url}`)).body, listed);
+      const first = await tool(client, "list_entities", {
+        entity_type_id: schema.entity_type_id,
+        keyword: marker,
+        sort: query.sort,
+        limit: 1,
+      });
+      assertEquals(first.items[0].id, ids[0]);
+      assert(first.next_cursor);
+      const second = await tool(client, "list_entities", {
+        entity_type_id: schema.entity_type_id,
+        keyword: marker,
+        sort: query.sort,
+        limit: 1,
+        cursor: first.next_cursor,
+      });
+      assertEquals(second.items[0].id, ids[1]);
+      const unset = await tool(client, "list_entities", {
+        entity_type_id: schema.entity_type_id,
+        keyword: marker,
+        filters: [{ key: "prop_2", operator: "unset" }],
+      });
+      assertEquals(unset.items.map((row: { id: string }) => row.id), [ids[0]]);
+      for (
+        const filters of [[{ key: "prop_2", operator: "gte", value: "0" }], [{
+          key: "prop_2",
+          operator: "gt",
+          value: 5,
+        }, { key: "prop_2", operator: "lte", value: 5 }], [{ key: "prop_2", operator: "eq", value: null }]]
+      ) {
+        assertEquals(
+          (await tool(client, "list_entities", { entity_type_id: schema.entity_type_id, filters })).error.code,
+          "invalid_input",
+        );
+        const invalid = new URLSearchParams({
+          entity_type_id: schema.entity_type_id,
+          filters: JSON.stringify(filters),
+        });
+        assertEquals((await call(token, "GET", `/entities?${invalid}`)).body.code, "invalid_input");
+      }
+    } finally {
+      for (const id of ids) {
+        const current = await tool(client, "get_entity", { id });
+        await tool(client, "delete_entity", { id, expected_version: current.version });
+      }
+      await client.close();
+    }
+  },
+);

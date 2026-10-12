@@ -85,6 +85,26 @@ export function EntitiesPage() {
         : api("GET", `/entities${query({ ...filter, cursor })}`, undefined, signal),
   });
   const { page, busy } = list;
+  const pageSchemaVersion = page?.items[0]?.current_schema_version;
+  useEffect(() => {
+    if (!filter.entity_type_id || !pageSchemaVersion || schema?.schema_version === pageSchemaVersion) return;
+    const controller = new AbortController();
+    void api<EntitySchemaResult>(
+      "GET",
+      `/entity-types/${filter.entity_type_id}/schema?schema_version=${pageSchemaVersion}`,
+      undefined,
+      controller.signal,
+    ).then((value) => {
+      if (!controller.signal.aborted) setSchema(value);
+    }).catch(() => {
+      if (!controller.signal.aborted) setSchemaReadError(true);
+    });
+    return () => controller.abort();
+  }, [filter.entity_type_id, pageSchemaVersion, schema?.schema_version]);
+  const displaySchema =
+    schema && (!page || page.items.every((row) => row.current_schema_version === schema.schema_version))
+      ? schema
+      : null;
   const error = types === null
     ? null
     : list.error
@@ -248,12 +268,11 @@ export function EntitiesPage() {
             <CollectionList
               view={view === "calendar" ? "list" : view}
               label={`${label} 목록`}
-              columns={schema
+              columns={displaySchema
                 ? [
                   "자료",
-                  ...schema.display.list_columns.filter((key) => key !== schema.display.representative).map((key) =>
-                    schema.schema.properties[key].title ?? key
-                  ),
+                  ...displaySchema.display.list_columns.filter((key) => key !== displaySchema.display.representative)
+                    .map((key) => displaySchema.schema.properties[key].title ?? key),
                 ]
                 : ["자료", "자료 종류"]}
             >
@@ -264,13 +283,15 @@ export function EntitiesPage() {
                       kind="entities"
                       id={e.id}
                       title={e.title}
-                      cells={schema
-                        ? schema.display.list_columns.filter((key) => key !== schema.display.representative).map(
+                      cells={displaySchema
+                        ? displaySchema.display.list_columns.filter((key) =>
+                          key !== displaySchema.display.representative
+                        ).map(
                           (key) =>
                             displayedProperty(
-                              schema.schema.properties[key],
+                              displaySchema.schema.properties[key],
                               e.display_properties[key],
-                              schema.display.option_labels[key],
+                              displaySchema.display.option_labels[key],
                             ),
                         )
                         : [e.type.label]}

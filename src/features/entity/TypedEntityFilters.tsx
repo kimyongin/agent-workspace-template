@@ -124,7 +124,7 @@ export function TypedEntityFilters(
                     </select>
                   )}
                 </Field>
-                {"value" in row && row.operator !== "unset" && (
+                {"value" in row && (
                   <Field label={`조건 ${index + 1} 값`}>
                     {(props) =>
                       kind === "boolean"

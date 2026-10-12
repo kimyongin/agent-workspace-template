@@ -10,6 +10,7 @@ const configs = [
   "playwright.activity.config.ts",
   "e2e/navigation-fixture.config.ts",
   "e2e/type-navigation.config.ts",
+  "e2e/typed-entity-consumers.config.ts",
   "e2e/navigation-preferences.config.ts",
   "e2e/workspace-screens.config.ts",
 ];
