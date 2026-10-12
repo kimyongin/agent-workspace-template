@@ -30,13 +30,13 @@ function check(files) {
 test("CLI rejects a multiline core import with its source line", () => {
   const result = check({ [core]: 'import {\n  value,\n} from "../adapters/store.ts";\n' });
   assert.equal(result.status, 1);
-  assert.match(result.output, /core\/sample\.ts:1: core는 contracts·core·zod만 가져온다/);
+  assert.match(result.output, /core\/sample\.ts:1: core는 contracts·core·순수 검증 라이브러리만 가져온다/);
 });
 
 test("CLI checks literal dynamic imports inside functions", () => {
   const result = check({ [core]: 'async function load() { return import("../bootstrap.ts"); }\n' });
   assert.equal(result.status, 1);
-  assert.match(result.output, /core\/sample\.ts:1: core는 contracts·core·zod만 가져온다/);
+  assert.match(result.output, /core\/sample\.ts:1: core는 contracts·core·순수 검증 라이브러리만 가져온다/);
 });
 
 test("CLI rejects indeterminate dynamic paths in each checked layer", () => {
@@ -56,7 +56,7 @@ test("CLI checks TypeScript import types and import-equals dependencies", () => 
   ]) {
     const result = check({ [core]: source });
     assert.equal(result.status, 1);
-    assert.match(result.output, /core는 contracts·core·zod만 가져온다/);
+    assert.match(result.output, /core는 contracts·core·순수 검증 라이브러리만 가져온다/);
   }
 });
 
@@ -95,7 +95,7 @@ test("CLI normalizes relative paths and keeps neighboring directories outside th
 
 test("CLI applies each layer's import rule to static and dynamic dependency forms", () => {
   const cases = [
-    [core, "../adapters/store.ts", /core는 contracts·core·zod만 가져온다/],
+    [core, "../adapters/store.ts", /core는 contracts·core·순수 검증 라이브러리만 가져온다/],
     ["supabase/functions/_shared/contracts/sample.ts", "../core/value.ts", /contracts는 zod와 contracts만 가져온다/],
     ["src/sample.ts", "../supabase/functions/_shared/core/value.ts", /웹은 서버 코드를 @contracts로만 가져온다/],
   ];
@@ -164,7 +164,7 @@ test("CLI rejects normalized paths escaping the allowed directories", () => {
   ]) {
     const result = check({ [core]: source });
     assert.equal(result.status, 1);
-    assert.match(result.output, /core는 contracts·core·zod만 가져온다/);
+    assert.match(result.output, /core는 contracts·core·순수 검증 라이브러리만 가져온다/);
   }
 });
 

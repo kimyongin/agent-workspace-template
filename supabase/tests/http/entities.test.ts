@@ -29,13 +29,16 @@ httpTest("Entity HTTP: CRUD·권한·입력·버전·참조·삭제 보존 실�
   assertEquals((await call(B, "GET", `/entities/${encodeURIComponent(e.id)}`)).status, 404);
   assertEquals((await call(A, "GET", "/entities/not-id")).status, 404);
   for (
-    const bad of [
-      { ...input, properties: { ...input.properties, prop_2: -1 } },
-      { ...input, properties: { ...input.properties, prop_3: "2023-02-29" } },
-      { ...input, version: 2 },
-    ]
+    const [bad, field] of [
+      [{ ...input, properties: { ...input.properties, prop_2: -1 } }, "properties.prop_2"],
+      [{ ...input, properties: { ...input.properties, prop_3: "2023-02-29" } }, "properties.prop_3"],
+      [{ ...input, version: 2 }, "version"],
+    ] as const
   ) {
-    assertEquals((await call(A, "POST", "/entities", bad)).status, 400);
+    const failure = await call(A, "POST", "/entities", { ...bad, external_id: crypto.randomUUID() });
+    assertEquals(failure.status, 400);
+    assertEquals(failure.body.code, "invalid_input");
+    assert(failure.body.fields.some((item: { path: string }) => item.path === field));
   }
   const task = (await call(A, "POST", "/tasks", { kind: "once", title: "HTTP 연결", entity_ids: [e.id] })).body;
   assertEquals(
