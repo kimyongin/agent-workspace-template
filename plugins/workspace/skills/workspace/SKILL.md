@@ -22,7 +22,7 @@ description: Workspace에서 다음 업무의 검토·준비안을 만들거나 
 
 ## 검색이 불완전할 때
 
-엔터티는 임베딩하지 않으므로 `list_entities`의 이름·속성 필터로 찾는다. 특정 대상의 할 일·기록에는 `entity_id` 범위를 사용한다. 태그나 검색 방법을 지정받지 않아도 요청의 핵심 이름·조건으로 탐색한다.
+자료는 임베딩하지 않으므로 `list_entities`의 `entity_type_id`·대표 이름 `keyword`·태그로 찾는다. 현재 목록은 `updated_at` 또는 `title` 정렬을 제공하며 속성 조건의 지원 여부는 도구의 실제 입력 계약에서 확인한다. 특정 대상의 할 일·기록에는 `entity_id` 범위를 사용한다. 태그나 검색 방법을 지정받지 않아도 요청의 핵심 이름·조건으로 탐색한다.
 
 `search`의 의미 검색은 과거 기록의 본문 구간만 사용하며 같은 기록의 결과를 하나로 합친다. 표시 title과 snippet·구간 위치는 파생 검색값이다. 사용할 자료는 `get_record`로 전체 본문을 읽는다. 엔터티·할 일·원칙 최신 값은 별도 임베딩하지 않는다. 할 일·현재 원칙의 제목·본문 키워드 검색과 도메인 직접 조회를 구별한다. 업무 내용이 의미 검색으로 찾아지길 원하면 변경 메모에 내용을 포함해 기록으로 남긴다. 처음 후보를 찾지 못하면 이름·동의어·기간·필터를 조정하고 필요한 다음 페이지를 확인한다. 조건을 바꾸면 이전 cursor를 재사용하지 않는다.
 
@@ -49,7 +49,7 @@ description: Workspace에서 다음 업무의 검토·준비안을 만들거나 
 
 모든 업무 쓰기의 필수 `request_key`는 논리 쓰기 한 건에 UUID를 한 번 만들어 명시적으로 전달한다. 응답 불명·네트워크 오류·5xx·`request_in_progress`에는 같은 키와 정확한 입력·대상·`expected_version`·준비한 메모·태그를 유지한다. 진행 중이면 안내된 대기 후 같은 요청을 재시도한다. 성공 요청 키와 결과는 완료 후 30일간 보관·재현한다. 30일 이후에는 중복 방지가 보장되지 않으며 정리 후 같은 키가 신규 요청으로 실행될 수 있다. 보관 기간 안에서 재현된 당시 결과와 버전을 최신 상태로 단정하지 않는다. 확정 실패의 입력을 고치거나 별도의 새 의도를 실행하면 새 키를 사용한다. 키를 잃으면 현재 자료를 조회하고 사용자 의도를 확인하며 새 키로 자동 반복하지 않는다. `result_expired`·`idempotency_key_reused`는 새 키 자동 재전송으로 해결하지 않는다. 현재 상태를 확인해 다음 의도를 판단한다.
 
-엔터티 ID는 `발급처 코드:외부 식별자`다. 서버가 반환한 정본 ID를 참조에 그대로 사용하고 외부 식별자의 대소문자·앞자리 0을 바꾸지 않는다. 삭제된 발급처로 등록·복원·식별 정보 변경을 하려면 발급처부터 복원한다. 기존 엔터티의 속성 편집과 관계는 유지된다. 발급처·기본값·발급 방식·설정 버전 정보가 필요하거나 오래되면 `get_business_settings`에 `id: "entity_identity"`를 지정해 확인한다. 현재 작업에서 확인한 설정은 재사용하며 최종 검사는 실제 저장이 수행한다. `settings.entity_identity`의 활성 발급처를 선택하며 생략하면 `default_source`를 사용한다. 선택한 발급처의 `generation`을 우선하고 없으면 섹션의 `generation`을 따른다. 선택한 코드 `source`와 `versions.entity_identity`를 `settings_version`으로 저장 입력에 유지한다. 자동 방식은 `external_id`를 생략하면 저장 트랜잭션에서 발급하며 성공 결과의 정본 ID를 사용한다. 명시한 외부 식별자는 그대로 유지하며 활성 중복은 덮어쓰지 않는다. `settings_changed`이면 같은 설정 섹션을 다시 조회한 뒤 새 의도 키로 제출한다. 명시 식별자의 복원 확인이 필요하면 `get_entity`에 `발급처 코드:외부 식별자`를 보내 기존 값을 조회한다. 삭제된 조합이면 보관값·`version`·`deleted_at`을 확인하고 명시적 복원 의도와 해당 `expected_version`으로 등록한다. 복원은 엔터티의 기존 값·태그·할 일/기록 연결을 되살리며 별도로 삭제한 할 일·기록은 되살리지 않는다. `update_entity`에서 식별자와 속성을 함께 변경할 수 있으며, 식별 정보만 바꿀 때도 `update_entity`에 최신 `expected_version`과 바꿀 `source`·`external_id`만 전달한다. 변경은 구조화된 기존 연결과 사건 참조를 함께 전환하고 과거 기록 본문을 고치지 않는다.
+엔터티 ID는 `발급처 코드:외부 식별자`다. 서버가 반환한 정본 ID를 참조에 그대로 사용하고 외부 식별자의 대소문자·앞자리 0을 바꾸지 않는다. 삭제된 발급처로 등록·복원·식별 정보 변경을 하려면 발급처부터 복원한다. 기존 엔터티의 속성 편집과 관계는 유지된다. 발급처·기본값·발급 방식·설정 버전 정보가 필요하거나 오래되면 `get_business_settings`에 `id: "entity_identity"`를 지정해 확인한다. 현재 작업에서 확인한 설정은 재사용하며 최종 검사는 실제 저장이 수행한다. `settings.entity_identity`의 활성 발급처를 선택하며 생략하면 `default_source`를 사용한다. 선택한 발급처의 `generation`을 우선하고 없으면 섹션의 `generation`을 따른다. 선택한 코드 `source`와 `versions.entity_identity`를 `settings_version`으로 저장 입력에 유지한다. 자동 방식은 `external_id`를 생략하면 저장 트랜잭션에서 발급하며 성공 결과의 정본 ID를 사용한다. 명시한 외부 식별자는 그대로 유지하며 활성 중복은 덮어쓰지 않는다. `settings_changed`이면 같은 설정 섹션을 다시 조회한 뒤 새 의도 키로 제출한다. 명시 식별자의 복원 확인이 필요하면 `get_entity`에 `발급처 코드:외부 식별자`를 보내 기존 값을 조회한다. 삭제된 조합이면 보관값·`version`·`deleted_at`을 확인하고 명시적 복원 의도와 해당 `expected_version`으로 등록한다. 복원은 엔터티의 기존 값·태그·할 일/기록 연결을 되살리며 별도로 삭제한 할 일·기록은 되살리지 않는다. `update_entity`에서 식별자와 속성을 함께 변경할 수 있으며, 식별 정보만 바꿀 때도 `update_entity`에 현재 `schema_version`·`expected_version`과 바꿀 `source`·`external_id`를 전달한다. 변경은 구조화된 기존 연결과 사건 참조를 함께 전환하고 과거 기록 본문을 고치지 않는다.
 
 일반 기록과 로그 메모의 편집은 추가 편집 로그를 만들지 않는다. change 기록의 사건 ID·시각·대상·행동과 과거 보존 자료의 before/after는 읽기 전용이며 메모 정정으로 업무 원본을 되돌리지 않는다. 새 변경 기록은 전체 업무 원본 캡처를 만들지 않는다. 엔터티·할 일·현재 원칙의 실제 변경은 최종 메모와 원자적으로 저장한다. 조회·무변경·실패·동일 요청 재시도에는 추가 성공 기록이 생기지 않는다. 접수·원본 저장·검색 색인 완료를 구분하고 호출하지 않은 변경의 완료를 주장하지 않는다.
 
@@ -59,6 +59,10 @@ description: Workspace에서 다음 업무의 검토·준비안을 만들거나 
 
 ## 제공 도구
 
+자료 작성 전에 `list_entity_types`로 활성 종류를 선택하고 `get_entity_schema`로 현재 `schema_version`·`prop_n`의 타입·필수 여부·기본값·표시 설정을 읽는다. 생성은 `entity_type_id`·`schema_version`·`properties`를 제출하며 기본값은 새 생성에서만 적용된다. 목록의 `display_properties`는 일부 표시값이므로 편집 전 `get_entity`의 전체 `properties`와 저장된 `schema_version`을 읽고 현재 정의와 대조한다. 부분 수정의 생략한 키는 유지되고 명시한 `null`은 정의가 허용할 때만 저장된다. 생성 후 종류는 불변이며 삭제된 자료도 원래 종류와 현재 정의·데이터 버전으로 복원한다.
+
+`schema_changed`는 초안과 기존 데이터 버전을 유지한 채 `current` 참조 및 최신 정의를 확인하고 변경 의도를 검토한 뒤 새 `request_key`로 제출한다. `entity_type_archived`는 새 생성·복원을 막고 기존 읽기·편집은 유지한다. 타입 이름·아이콘 변경은 `update_entity_type`의 `expected_type_version`으로 확인하며 속성 정의나 자료 값을 바꾸지 않는다. 지원 아이콘은 `list_entity_type_icons`, 과거 정의는 `list_entity_schema_versions`와 `get_entity_schema`의 명시 버전으로 확인한다.
+
 정확한 입력·출력·부수효과는 연결된 MCP의 도구 설명을 따른다. 사용자가 이 이름을 선택할 필요는 없다.
 
 | 하려는 일 | 도구 |
@@ -66,6 +70,9 @@ description: Workspace에서 다음 업무의 검토·준비안을 만들거나 
 | 업무 설정 조회·요청받은 설정 변경 | `get_business_settings`, `update_business_settings` |
 | 변경 메모·기록 태그와 실제 저장 입력 준비 | `prepare_record_memo` |
 | 엔터티의 발급처·외부 식별자 변경 | `update_entity` |
+| 자료 종류·현재 이름·아이콘·보관 상태 조회 | `list_entity_types`, `get_entity_type`, `list_entity_type_icons` |
+| 요청받은 자료 종류 생성·이름·아이콘·보관 상태 변경 | `create_entity_type`, `update_entity_type` |
+| 종류별 현재·과거 속성 정의와 버전 조회 | `get_entity_schema`, `list_entity_schema_versions` |
 | 할 일 찾기·읽기 | `list_tasks`, `get_task` |
 | 오늘 해야 할 반복 할 일 확인(occurrence_on 지정) | `list_tasks`, `list_occurrences` |
 | 할 일 만들기·고치기·지우기 | `create_task`, `update_task`, `delete_task` |
@@ -77,7 +84,7 @@ description: Workspace에서 다음 업무의 검토·준비안을 만들거나 
 | 현재 원칙의 ID로 원문 확인·삭제 | `get_principle`, `delete_principle` |
 | 태그 목록·생성·이름 변경·삭제 | `list_tags`, `create_tag`, `rename_tag`, `delete_tag` |
 | 기록 본문 의미 검색·업무 제목/본문 키워드 조회 | `search` |
-| 예제 엔터티 찾기·읽기·만들기·고치기·지우기 | `list_entities`, `get_entity`, `create_entity`, `update_entity`, `delete_entity` |
+| 자료 찾기·전체 값 읽기·만들기·고치기·지우기 | `list_entities`, `get_entity`, `create_entity`, `update_entity`, `delete_entity` |
 
 ## 기록 내용과 결과 보고
 

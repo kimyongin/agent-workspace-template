@@ -23,6 +23,13 @@ import {
 import { admin, API, call, httpTest, seoulDate, signIn } from "../http/_client.ts";
 import { claimsOf, connectMcp, MCP_URL, mcpGrant, mcpToken, refreshMcp, registerClient, tool } from "./_mcp.ts";
 import { httpEntityFixture } from "../http/_entity.ts";
+import {
+  entitySchemaHistory,
+  entitySchemaRead,
+  entityTypeCreate,
+  entityTypeList,
+  entityTypeUpdate,
+} from "../../functions/_shared/contracts/entity-type.ts";
 
 const sessionA = await signIn("A");
 const sessionB = await signIn("B");
@@ -162,6 +169,13 @@ const EXPECTED_TOOLS = [
   "get_entity",
   "list_entities",
   "update_entity",
+  "list_entity_type_icons",
+  "list_entity_types",
+  "get_entity_type",
+  "create_entity_type",
+  "update_entity_type",
+  "get_entity_schema",
+  "list_entity_schema_versions",
   "complete_task",
   "create_principle",
   "create_record",
@@ -467,6 +481,18 @@ httpTest("tools/list: 계약의 도구 이름과 contracts JSON Schema", async (
   assertEquals(tools.find((t) => t.name === "delete_principle")?.annotations?.destructiveHint, true);
   assertEquals(tools.map((t) => t.name).sort(), EXPECTED_TOOLS);
   const byName = Object.fromEntries(tools.map((t) => [t.name, t]));
+  const foundationContracts = {
+    list_entity_type_icons: z.strictObject({}),
+    list_entity_types: entityTypeList,
+    get_entity_type: z.strictObject({ type_id: z.string().uuid() }),
+    create_entity_type: entityTypeCreate.extend({ request_key: requestKey }),
+    update_entity_type: entityTypeUpdate.safeExtend({ type_id: z.string().uuid(), request_key: requestKey }),
+    get_entity_schema: entitySchemaRead,
+    list_entity_schema_versions: entitySchemaHistory,
+  };
+  for (const [name, schema] of Object.entries(foundationContracts)) {
+    assertEquals(byName[name].inputSchema as unknown, z.toJSONSchema(schema, { target: "draft-2020-12", io: "input" }));
+  }
   // 목록·기록 입력은 contracts schema를 그대로 노출한다.
   assertEquals(
     byName.list_tasks.inputSchema as unknown,
