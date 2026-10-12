@@ -19,7 +19,14 @@ export async function runLocalChecks(adapter, { checks, source, signal, timeoutM
       if (child && state.state === 'absent') state = { ...state, state: 'starting' };
       capture(state);
       if (child && !adapter.childRunning(child)) throw new Error('Owned runtime child exited before readiness');
-      if (state.state === 'ready') return;
+      if (state.state === 'ready') {
+        if (!child || ownedContainer && state.container?.id === ownedContainer.id
+          && state.container.ownershipToken === child.ownershipToken && state.container.source === source) return;
+        // Docker was read before the readiness probe. A just-created container
+        // can appear between those reads; wait for a fresh, nonce-bound proof.
+        if (state.container || !child.ownershipToken) throw new Error('New runtime ownership could not be confirmed');
+        state = { ...state, state: 'starting' };
+      }
       if (state.state !== 'starting' || adapter.now() >= until || (child && !adapter.childRunning(child))) {
         throw new Error('Local runtime did not become ready');
       }

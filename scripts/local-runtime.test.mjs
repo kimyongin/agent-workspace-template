@@ -161,3 +161,39 @@ test('failed startup still cleans its nonce-proven container after its child has
   assert.equal(result.exitCode, 1);
   assert.deepEqual(adapter.events, ['prepare', 'start', 'stop-child', 'stop-container:startup']);
 });
+
+test('owned startup waits for a fresh container proof when readiness races the first Docker observation', async () => {
+  const own={id:'raced-start',source:'/owned/functions',ownershipToken:'own'};
+  const adapter=external([{state:'absent'},{state:'absent'},{state:'ready',container:null},{state:'ready',container:own}]);
+  adapter.pause=async()=>{assert(!adapter.events.includes('DB'));adapter.events.push('wait-proof');};
+  const result=await runLocalChecks(adapter,{checks:['DB'],source:'/owned/functions'});
+  assert.equal(result.exitCode,0);
+  assert.deepEqual(adapter.events,['prepare','start','wait-proof','DB','stop-child','stop-container:raced-start']);
+});
+test('ready without owned container proof remains bounded and never runs checks or respawns', async () => {
+  const adapter=external([{state:'absent'},{state:'absent'},{state:'ready',container:null}]);
+  let clock=0;adapter.now=()=>clock;adapter.pause=async()=>{clock+=10;};
+  const result=await runLocalChecks(adapter,{checks:['DB'],source:'/owned/functions',timeoutMs:20});
+  assert.equal(result.exitCode,1);assert.equal(clock,20);
+  assert.deepEqual(adapter.events,['prepare','start','stop-child']);
+});
+test('ready proof with foreign nonce, missing marker or wrong source is rejected without checks', async () => {
+  for(const container of [{id:'foreign',source:'/owned/functions',ownershipToken:'foreign'},
+    {id:'unmarked',source:'/owned/functions'},{id:'wrong-source',source:'/other/functions',ownershipToken:'own'}]) {
+    const adapter=external([{state:'absent'},{state:'absent'},{state:'ready',container:null},{state:'ready',container}]);
+    let waits=0;adapter.pause=async()=>{waits++;};
+    const result=await runLocalChecks(adapter,{checks:['DB'],source:'/owned/functions'});
+    assert.equal(result.exitCode,1);assert.equal(waits,1);
+    assert.deepEqual(adapter.events,['prepare','start','stop-child']);
+    assert.equal(result.errors[0].error.message,'New runtime ownership could not be confirmed');
+  }
+});
+
+test('an earlier owned proof cannot authorize a ready snapshot with a replaced marker or source', async () => {
+  const own={id:'same-id',source:'/owned/functions',ownershipToken:'own'};
+  for(const changed of [{...own,ownershipToken:'foreign'},{...own,source:'/foreign/functions'}]) {
+    const adapter=external([{state:'absent'},{state:'absent'},{state:'starting',container:own},{state:'ready',container:changed}]);
+    const result=await runLocalChecks(adapter,{checks:['DB'],source:'/owned/functions'});
+    assert.equal(result.exitCode,1);assert.deepEqual(adapter.events,['prepare','start','stop-child']);
+  }
+});
