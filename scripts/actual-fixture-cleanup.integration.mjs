@@ -65,9 +65,9 @@ test("owned fixture final cleanup preserves same-ID other owner/baseline/Auth/se
           "1".repeat(64)
         },now(),${tx.json({ id: user === owner ? type : otherType })})`;
       }
-      await tx`insert into app.user_business_settings(owner_id,id,settings) values(${owner},'record_templates',${
+      await tx`insert into app.user_business_settings(owner_id,id,version,settings) values(${owner},'record_templates',1,${
         tx.json(settings)
-      }),(${owner},'entity_identity','{"default_source":"keep"}')`;
+      }),(${owner},'entity_identity',1,'{"default_source":"keep"}')`;
     });
     const [auth] =
       await sql`select md5(jsonb_agg(to_jsonb(u) order by id)::text) digest from auth.users u where id=any(${[
