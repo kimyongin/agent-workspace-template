@@ -395,17 +395,17 @@ test("typed management link remains type scoped while a returned list catalog is
 
 test("definition history reads the cursor beyond the first hundred versions and opens the oldest diff", async ({ page }) => {
   const cursors: (string | null)[] = [];
-  await page.route(`**/api/entity-types/${material.id}**`, route => {
+  await page.route(`**/api/entity-types/${materials.id}**`, route => {
     const url = new URL(route.request().url());
     if (url.pathname.endsWith("/schemas")) {
       const before = url.searchParams.get("before"); cursors.push(before);
       const versions = before ? [1] : Array.from({ length: 100 }, (_, n) => 101 - n);
-      return route.fulfill({ json: { items: versions.map(schema_version => ({ type_id: material.id, schema_version, created_at: material.created_at })), next_before: before ? null : 2 } });
+      return route.fulfill({ json: { items: versions.map(schema_version => ({ type_id: materials.id, schema_version, created_at: materials.created_at })), next_before: before ? null : 2 } });
     }
-    if (url.pathname.endsWith("/schema")) return route.fulfill({ json: { type_id: material.id, schema_version: Number(url.searchParams.get("schema_version") ?? 101), created_at: material.created_at, ...initialEntityDefinition("이름") } });
-    return route.fulfill({ json: { ...material, schema_version: 101 } });
+    if (url.pathname.endsWith("/schema")) return route.fulfill({ json: { type_id: materials.id, schema_version: Number(url.searchParams.get("schema_version") ?? 101), created_at: materials.created_at, ...initialEntityDefinition("이름") } });
+    return route.fulfill({ json: { ...materials, schema_version: 101 } });
   });
-  await page.goto(`/settings/entity-types/${material.id}/versions`);
+  await page.goto(`/settings/entity-types/${materials.id}/versions`);
   await expect(page.getByRole("button", { name: "이전 게시 버전 더 보기", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "이전 게시 버전 더 보기", exact: true }).click();
   const oldest = page.locator("details").filter({ has: page.locator("summary", { hasText: /^버전 1 ·/ }) });

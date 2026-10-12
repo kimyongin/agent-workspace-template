@@ -1,4 +1,4 @@
-import { entityKey } from "./support/workspace-data.ts";
+import { entityKey, fixtureType } from "./support/workspace-data.ts";
 import { fillChangeMemo } from "./ui-actions.ts";
 import { beginTabAction, saveOnce } from "./ui-actions.ts";
 import { expect, test } from "@playwright/test";
@@ -8,6 +8,8 @@ import { compatibleEdit, connectedTarget, fillText, fixtures, form, go } from ".
 test("태그 DELETE pending: Back·경로 이동·reload 보호와 응답 뒤 복귀", async ({ page }) => {
   const state = await fixtures(page, { hold: true });
   await go(page, "/entities");
+  await expect.poll(() => new URL(page.url()).searchParams.get("entity_type_id")).toBe(fixtureType.id);
+  const originalList = page.url();
   await page.getByRole("link", { name: "기록 태그 fixture", exact: true }).click();
   await page.getByRole("button", { name: "같은 이름 삭제", exact: true }).click();
   const confirm = page.locator("dialog.modal-action[open]");
@@ -37,7 +39,7 @@ test("태그 DELETE pending: Back·경로 이동·reload 보호와 응답 뒤 �
   await expect(page.getByRole("button", { name: "같은 이름 삭제", exact: true })).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "기록 태그 관리", exact: true })).toBeFocused();
   await page.goBack();
-  await expect(page).toHaveURL(/entities$/);
+  await expect(page).toHaveURL(originalList);
   expect(state.writes).toHaveLength(1);
   expect(state.errors).toEqual([]);
 });

@@ -101,7 +101,8 @@ test("엔터티 create/edit 복합 직접 링크는 연결 작성 한 폼만 연
   await go(page, `/entities/${encodeURIComponent(entityKey(1))}?create=task&edit=1`);
   await expect(form(page)).toHaveCount(1);
   await expect(form(page).getByRole("textbox", { name: /^제목(?: \(필수\))?$/ })).toBeVisible();
-  await expect(form(page).getByLabel("제목", { exact: false })).toHaveCount(0);
+  await expect(form(page).getByLabel("식별자", { exact: true })).toHaveCount(0);
+  await expect(form(page).getByLabel("수량", { exact: false })).toHaveCount(0);
   await fillText(page, "연결 작성 한 번");
   await saveOnce(page, form(page), "추가");
   await expect.poll(() => state.writes.length).toBe(1);
