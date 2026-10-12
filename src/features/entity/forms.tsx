@@ -17,7 +17,7 @@ import { ConfirmDialog } from "../../components/Modal.tsx";
 import { Field } from "../../components/Field.tsx";
 import { fieldErrors } from "../../lib/format.ts";
 import { TagPicker } from "../tags/TagPicker.tsx";
-import { fieldType, type PropertyDraft, propertyDraft, PropertyFields, propertyValues } from "./property-fields.tsx";
+import { fieldType, type PropertyDraft, PropertyDraftError, propertyDraft, PropertyFields, propertyValues } from "./property-fields.tsx";
 export function EntityForm({
   initial,
   initialTypeId,
@@ -280,7 +280,9 @@ export function EntityForm({
               ),
             );
           }
-          const fields = value();
+          let fields;
+          try { fields = value(); }
+          catch (error) { if (error instanceof PropertyDraftError) return error.fields; throw error; }
           if (entitySourceGeneration(identitySettings, source) === "manual" && !external) {
             return {
               external_id: "식별자를 입력하세요",

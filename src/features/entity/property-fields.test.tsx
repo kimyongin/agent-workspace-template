@@ -63,3 +63,10 @@ it("property drafts reject a rounded numeric value while preserving the draft", 
   expect(() => propertyValues(definition, values)).toThrow();
   expect(values.prop_2).toBe("1.0000000000000001");
 });
+
+it("numeric draft failure reports the original field key for accessible form feedback", () => {
+  const definition = initialEntityDefinition("이름");
+  definition.schema.properties.prop_2 = { type: "number", title: "수량" };
+  try { propertyValues(definition, { prop_1: "자료", prop_2: "1.0000000000000001" }); throw new Error("must reject"); }
+  catch (error) { expect((error as { fields: Record<string, string> }).fields["properties.prop_2"]).toContain("정밀도"); }
+});

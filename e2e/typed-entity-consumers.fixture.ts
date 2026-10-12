@@ -164,7 +164,9 @@ test("entity numeric draft rejects precision loss before preparing a record and 
   const input = form.getByLabel("수량", { exact: false });
   await input.fill("9007199254740993");
   await form.getByRole("button", { name: "저장", exact: true }).click();
-  await expect(form.getByRole("alert")).toContainText("정밀도");
+  await expect(form.getByRole("alert")).toContainText("입력을 확인하세요");
+  await expect(input).toHaveAttribute("aria-invalid", "true");
+  await expect(form).toContainText("정밀도");
   await expect(input).toHaveValue("9007199254740993");
   expect(prepared).toBe(0);
 });
