@@ -26,3 +26,6 @@ section[aria-labelledby="entity-identity-title"] .settings-section-footer { bord
 .schema-field h3 { overflow-wrap: anywhere; }
 .schema-constraints, .schema-actions { display: flex; gap: var(--space-3); flex-wrap: wrap; }
 .schema-constraints > * { flex: 1 1 12rem; min-width: 0; }
+
+.settings-breadcrumb { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+.settings-breadcrumb a { display: inline-flex; align-items: center; min-width: 44px; min-height: 44px; }

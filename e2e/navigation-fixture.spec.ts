@@ -83,7 +83,8 @@ test("프로필 팝오버는 키보드·외부 클릭·경로 이동에 초점�
   await expect(page.getByRole("button", { name:"메뉴", exact:true })).toHaveCount(0);
   await expect(page.locator(".settings").getByRole("link", { name:"사용 가이드", exact:true })).toHaveCount(0);
   await profile.click(); await expect(popup).toContainText(user.user_metadata.full_name); await expect(popup).not.toContainText(user.email);
-  await profile.press("ArrowDown"); await expect(popup.getByRole("link", { name:"상태", exact:true })).toBeFocused();
+  await profile.press("ArrowDown"); await expect(popup.getByRole("link", { name:"전체 자료", exact:true })).toBeFocused();
+  await popup.getByRole("link", { name:"상태", exact:true }).focus();
   await page.keyboard.press("ArrowDown"); await expect(popup.getByRole("link", { name:"설정", exact:true })).toBeFocused();
   await page.keyboard.press("ArrowDown"); await expect(popup.getByRole("link", { name:"사용 가이드", exact:true })).toBeFocused();
   await page.keyboard.press("End"); await expect(popup.getByRole("link", { name:"로그아웃", exact:true })).toBeFocused();
@@ -120,10 +121,10 @@ test("저장 중 중복 요청과 탭·로그아웃 이동을 막고 응답 뒤 
   let finish!: () => void; const waiting = new Promise<void>(resolve => { finish = resolve; }); let calls = 0;
   await page.route("**/auth/v1/user", async route => { if (route.request().method() !== "PUT") return route.fallback(); calls++; await waiting; saved = true; await route.fulfill({ json: { ...user, user_metadata: { ...user.user_metadata, workspace_avatar_id: "sun" } } }); });
   await page.goto("/settings"); await page.getByRole("radio", { name: "해바라기", exact: true }).check(); await page.getByRole("button",{name:"프로필 저장", exact: true }).click();
-  await expect(page.getByRole("button",{name:"프로필 저장" })).toBeDisabled(); await page.getByRole("navigation", { name: "주 메뉴" }).getByRole("link", { name: "엔터티", exact: true }).click();
+  await expect(page.getByRole("button",{name:"프로필 저장" })).toBeDisabled(); await page.locator('.bottom-nav-inner > a[aria-label="전체 자료"]').click();
   await expect(page).toHaveURL(/\/settings$/); await expect(page.getByRole("dialog")).toHaveCount(0);
   await requestLogout(page); await expect(page).toHaveURL(/\/settings$/); expect(calls).toBe(1);
-  finish(); await expect(page.getByRole("form",{name:"프로필 설정"}).getByRole("status")).toContainText("저장했습니다"); await page.getByRole("navigation", { name: "주 메뉴" }).getByRole("link", { name: "엔터티", exact: true }).click(); await expect(page).toHaveURL(/\/entities$/);
+  finish(); await expect(page.getByRole("form",{name:"프로필 설정"}).getByRole("status")).toContainText("저장했습니다"); await page.locator('.bottom-nav-inner > a[aria-label="전체 자료"]').click(); await expect(page).toHaveURL(/\/entities$/);
 });
 
 test("알 수 없는 아이콘은 기본값이며 계정 전환과 세션 만료는 이전 초안을 지운다", async ({ page }) => {
@@ -186,7 +187,7 @@ test("가이드의 복사 실패와 성공 안내는 유지한다", async ({ pag
 
 for(const width of [390,1440])test(`#205 ${width}px: 설정·가이드 구획과 탐색 팝오버`,async({page},info)=>{
   await page.setViewportSize({width,height:900});await page.goto("/settings");
-  const groups=page.locator(".settings .settings-section");await expect(groups).toHaveCount(6);
+  const groups=page.locator(".settings .settings-section");await expect(groups).toHaveCount(5);
   expect((await page.locator(".settings").boundingBox())!.width).toBeLessThanOrEqual(768);
   await page.screenshot({path:info.outputPath(`compact-settings-${width}.png`)});
   await page.getByRole("button",{name:"내 프로필",exact:true}).click();const popup=page.locator("#nav-profile-options"),box=(await popup.boundingBox())!;
@@ -210,7 +211,7 @@ test("#215 메인 네 탭의 상단 구획·브랜드·필터 조작은 좁은 �
   await page.route(/\/(?:functions\/v1\/)?api\/principles\/current$/, route => route.fulfill({ json: { current: null } }));
   for (const width of [320, 360, 390, 479, 480, 639, 640, 768, 1024, 1440]) {
     await page.setViewportSize({ width, height: 844 });
-    for (const [path, title] of [["entities", "엔터티"], ["tasks", "할 일"], ["records", "기록"], ["principles", "원칙"]]) {
+    for (const [path, title] of [["entities", "전체 자료"], ["tasks", "할 일"], ["records", "기록"], ["principles", "원칙"]]) {
       await page.goto(`/${path}`);
       const header = page.getByRole("region", { name: title, exact: true });
       await expect(header.getByRole("heading", { level: 1, name: title, exact: true })).toBeVisible();
@@ -250,7 +251,7 @@ test("#215 메인 네 탭의 상단 구획·브랜드·필터 조작은 좁은 �
   }
   await page.setViewportSize({ width: 320, height: 844 }); await page.goto("/entities?filters=1&prop4=a");
   await page.evaluate(() => document.documentElement.style.fontSize = "200%");
-  const toggle = page.getByRole("button", { name: /필터 닫기/ }), reset = page.getByRole("button", { name: "조건 초기화" });
+  const toggle = page.getByRole("button", { name: /필터 닫기/ }), reset = page.locator(".main-tab-header").getByRole("button", { name: "조건 초기화" });
   const t = (await toggle.boundingBox())!, r = (await reset.boundingBox())!;
   expect(r.y >= t.y + t.height || r.x >= t.x + t.width).toBe(true);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
@@ -277,8 +278,9 @@ test("#217 아이콘 선택은 가용 폭을 채우고 팝오버 이모지는 �
     for (const tile of tiles) { expect(tile.width).toBeGreaterThanOrEqual(44); expect(tile.height).toBeGreaterThanOrEqual(44); }
     const profile = page.getByRole("button", { name: "내 프로필", exact: true }); await profile.click();
     const popup = page.locator("#nav-profile-options");
-    await expect(popup.getByRole("link")).toHaveCount(4);
-    await profile.press("ArrowDown"); await expect(popup.getByRole("link", { name: "상태", exact:true })).toBeFocused();
+    await expect(popup.getByRole("link")).toHaveCount(8);
+    await profile.press("ArrowDown"); await expect(popup.getByRole("link", { name: "전체 자료", exact:true })).toBeFocused();
+    await popup.getByRole("link", { name: "상태", exact:true }).focus();
     await page.keyboard.press("ArrowDown"); await expect(popup.getByRole("link", { name: "설정", exact:true })).toBeFocused();
     await page.keyboard.press("End"); await expect(popup.getByRole("link", { name: "로그아웃", exact:true })).toBeFocused();
     const iconStyle = (selector: string) => page.locator(selector).evaluate(el => { const s = getComputedStyle(el), b = el.getBoundingClientRect(); return { width:b.width, height:b.height, font:s.fontSize, border:s.borderWidth }; });

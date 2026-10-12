@@ -1,0 +1,212 @@
+import assert from "node:assert/strict";
+import { spawn } from "node:child_process";
+import { copyFileSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { createServer } from "node:http";
+import { test } from "node:test";
+import { runEntitySchemaWorker } from "./entity-schema-worker-local.mjs";
+
+const token = "local-worker-test-token-abcdefghijklmnopqrstuvwxyz";
+async function fixture(t, handler) {
+  const server = createServer(handler);
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  t.after(() => {
+    server.closeAllConnections();
+    server.close();
+  });
+  const apiUrl = `http://127.0.0.1:${server.address().port}`;
+  return {
+    apiUrl,
+    environment: {
+      VITE_SUPABASE_URL: apiUrl,
+      VITE_API_URL: `${apiUrl}/functions/v1/api`,
+      ENTITY_SCHEMA_WORKER_TOKEN: token,
+    },
+  };
+}
+
+test("local worker uses configured origin, internal auth and a single bounded claim without logging response data", async (t) => {
+  const requests = [], output = [];
+  const config = await fixture(t, async (request, response) => {
+    let body = "";
+    for await (const chunk of request) body += chunk;
+    requests.push({ path: request.url, auth: request.headers.authorization, body: JSON.parse(body) });
+    response.end(JSON.stringify({ claimed: 1, source: "private-source", secret: token }));
+  });
+  await runEntitySchemaWorker({ ...config, once: true, report: (message) => output.push(message) });
+  assert.deepEqual(requests, [{
+    path: "/functions/v1/entity-schema-worker",
+    auth: `Bearer ${token}`,
+    body: { limit: 1 },
+  }]);
+  assert.deepEqual(output, ["스키마 worker HTTP 200"]);
+});
+
+test("runner rejects remote or mismatched configured targets and missing internal tokens before calling", async (t) => {
+  let requests = 0;
+  const config = await fixture(t, (_, response) => {
+    requests++;
+    response.end();
+  });
+  for (
+    const unsafe of [
+      { apiUrl: "https://example.test" },
+      { apiUrl: "http://user:password@127.0.0.1:1234" },
+      { apiUrl: `${config.apiUrl}/other` },
+      { environment: { ...config.environment, VITE_SUPABASE_URL: "http://127.0.0.1:55421" } },
+      { environment: { ...config.environment, VITE_API_URL: "https://example.test/functions/v1/api" } },
+      { environment: { ...config.environment, ENTITY_SCHEMA_WORKER_TOKEN: "short" } },
+    ]
+  ) await assert.rejects(runEntitySchemaWorker({ ...config, ...unsafe, once: true, report: () => {} }));
+  assert.equal(requests, 0);
+});
+
+test("polling waits for completion, never overlaps requests and stops on cancellation", async (t) => {
+  let active = 0, maximum = 0, requests = 0;
+  const stop = new AbortController();
+  const config = await fixture(t, async (_, response) => {
+    requests++;
+    active++;
+    maximum = Math.max(maximum, active);
+    await new Promise((resolve) => setTimeout(resolve, 120));
+    active--;
+    response.end();
+  });
+  const safety = setTimeout(() => stop.abort(), 2000);
+  t.after(() => clearTimeout(safety));
+  await runEntitySchemaWorker({
+    ...config,
+    intervalMs: 100,
+    timeoutMs: 1000,
+    signal: stop.signal,
+    report: () => {
+      if (requests === 2) stop.abort();
+    },
+  });
+  assert.equal(requests, 2);
+  assert.equal(maximum, 1);
+});
+
+test("configuration probe authenticates without claiming queued work", async (t) => {
+  let body;
+  const config = await fixture(t, async (request, response) => {
+    let raw = "";
+    for await (const chunk of request) raw += chunk;
+    body = JSON.parse(raw);
+    response.end();
+  });
+  await runEntitySchemaWorker({ ...config, once: true, checkConfiguration: true, report: () => {} });
+  assert.deepEqual(body, { check_configuration: true });
+});
+
+for (const [signal, exitCode] of [["SIGINT", 130], ["SIGTERM", 143]]) {
+  test(`executable receives ${signal} and cancels a pending request without printing secrets`, async (t) => {
+    let contacted;
+    const contact = new Promise((resolve) => {
+      contacted = resolve;
+    });
+    const config = await fixture(t, () => contacted());
+    const directory = mkdtempSync(join(tmpdir(), "schema-worker-cli-"));
+    t.after(() => rmSync(directory, { recursive: true, force: true }));
+    mkdirSync(join(directory, "scripts"));
+    mkdirSync(join(directory, "supabase"));
+    for (const name of ["entity-schema-worker-local.mjs", "local-env.mjs", "local-config.mjs"]) {
+      copyFileSync(new URL(name, import.meta.url), join(directory, "scripts", name));
+    }
+    symlinkSync(new URL("../node_modules", import.meta.url).pathname, join(directory, "node_modules"));
+    writeFileSync(
+      join(directory, "supabase", "config.toml"),
+      `project_id="isolated_worker"
+[api]
+port=${new URL(config.apiUrl).port}
+[db.pooler]
+enabled=true
+port=6543
+[auth]
+site_url="http://127.0.0.1:9999"
+`,
+    );
+    writeFileSync(
+      join(directory, ".env.local"),
+      Object.entries(config.environment).map(([key, value]) => `${key}=${value}`).join("\n"),
+    );
+    const child = spawn(process.execPath, [join(directory, "scripts", "entity-schema-worker-local.mjs")], {
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    let output = "";
+    child.stdout.on("data", (chunk) => output += chunk);
+    child.stderr.on("data", (chunk) => output += chunk);
+    t.after(() => {
+      if (child.exitCode === null) child.kill("SIGKILL");
+    });
+    const finished = new Promise((resolve) => child.once("close", (code, signal) => resolve({ code, signal })));
+    await Promise.race([
+      contact,
+      finished.then((result) => {
+        throw new Error(`Runner exited before request: ${JSON.stringify(result)} ${output}`);
+      }),
+    ]);
+    child.kill(signal);
+    assert.deepEqual(await finished, { code: exitCode, signal: null });
+    assert.ok(!output.includes(token));
+  });
+}
+
+test("HTTP auth errors stop polling and suppress private response bodies", async (t) => {
+  let requests = 0;
+  const output = [];
+  const config = await fixture(t, (_, response) => {
+    requests++;
+    response.writeHead(401);
+    response.end(token + " private-source");
+  });
+  await assert.rejects(runEntitySchemaWorker({ ...config, report: (message) => output.push(message) }), /HTTP 401/);
+  assert.equal(requests, 1);
+  assert.deepEqual(output, ["스키마 worker HTTP 401"]);
+});
+
+test("HTTP timeout is bounded and does not claim a job failed", async (t) => {
+  const config = await fixture(t, () => {});
+  await assert.rejects(
+    runEntitySchemaWorker({ ...config, once: true, timeoutMs: 100, report: () => {} }),
+    /요청 시간 초과.*작업 상태/,
+  );
+});
+
+test("runner refuses redirects and never forwards its token to another origin", async (t) => {
+  let forwarded = 0;
+  const other = await fixture(t, (_, response) => {
+    forwarded++;
+    response.end();
+  });
+  const config = await fixture(t, (_, response) => {
+    response.writeHead(307, { Location: `${other.apiUrl}/functions/v1/entity-schema-worker` });
+    response.end();
+  });
+  await assert.rejects(runEntitySchemaWorker({ ...config, once: true, report: () => {} }), /연결 실패/);
+  assert.equal(forwarded, 0);
+});
+
+test("runner cancels interval waiting without another invocation and rejects unbounded timing", async (t) => {
+  let requests = 0;
+  const stop = new AbortController();
+  const config = await fixture(t, (_, response) => {
+    requests++;
+    response.end();
+  });
+  await runEntitySchemaWorker({
+    ...config,
+    intervalMs: 60000,
+    signal: stop.signal,
+    report: () => setTimeout(() => stop.abort(), 20),
+  });
+  assert.equal(requests, 1);
+  for (const value of [0, 99, 60001, NaN]) {
+    await assert.rejects(
+      runEntitySchemaWorker({ ...config, once: true, intervalMs: value, report: () => {} }),
+      /100~60000ms/,
+    );
+  }
+  assert.equal(requests, 1);
+});

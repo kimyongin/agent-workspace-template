@@ -197,10 +197,10 @@ test("identity settings recovers from an initial read failure and preserves edit
     if (route.request().method() === "GET" && failSettings) return route.abort("failed");
     await route.continue();
   });
-  await page.goto("/settings");
+  await page.goto("/settings/entity-identity");
   const section = page.locator('section[aria-labelledby="entity-identity-title"]');
   await expect(section).toContainText("식별자 설정을 불러오지 못했습니다.");
-  await expect(section.getByRole("form", { name: "엔터티 식별자 설정" })).toHaveCount(0);
+  await expect(section.getByRole("form", { name: "자료 식별자 설정" })).toHaveCount(0);
   failSettings = false;
   await section.getByRole("button", { name: "다시 시도", exact: true }).click();
   const generation = section.getByLabel("발급처 1 방식");
