@@ -1,3 +1,4 @@
+import { RelatedPreviewItem } from "../relations/RelatedPreviewItem.tsx";
 import { useLocation } from "react-router";
 import { useDetailViewState } from "../../lib/detail-exploration.tsx";
 import { EntityTypePicker } from "./EntityTypePicker.tsx";
@@ -11,7 +12,7 @@ import { FormModal } from "../../components/ContentForm.tsx";
 import { CollectionList } from "../../components/Collection.tsx";
 import { BodyAction } from "../../components/BodyAction.tsx";
 import { Notice } from "../../components/Field.tsx";
-import { RelatedItem, RelatedSection } from "../../components/RelatedItems.tsx";
+import { RelatedSection } from "../../components/RelatedItems.tsx";
 import { api, query } from "../../lib/api.ts";
 import { createPagedList } from "../collections/paged-list.ts";
 import { type Candidate, RelationSearch, RelationSearchAction } from "../relations/RelationSearch.tsx";
@@ -101,7 +102,7 @@ export function EntityPairRelations({ entity, onSaved }: { entity: EntityDetail;
           <CollectionList>
             {state.page?.items.map((item) => (
               <li key={item.id}>
-                <RelatedItem
+                <RelatedPreviewItem
                   title={item.title}
                   to={entityPath(item.id)}
                   metadata={

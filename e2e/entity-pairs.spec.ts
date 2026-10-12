@@ -45,10 +45,12 @@ test("연결된 자료: 웹 추가→상대 상세→해제→새로고침과 �
     await confirmation.getByLabel("기록 메모", { exact: true }).fill("관계 검증");
     await confirmation.getByRole("button", { name: "연결하고 저장", exact: true }).click();
     await expect(confirmation).not.toBeVisible();
-    await expect(page.getByRole("link", { name: y.title, exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: y.title, exact: true })).toBeVisible();
     expect((await mcp.call("list_entity_links", { id: y.id })).items.map((e: { id: string }) => e.id)).toEqual([x.id]);
-    await page.getByRole("link", { name: y.title, exact: true }).click();
-    await expect(page.getByRole("link", { name: x.title, exact: true })).toBeVisible();
+    await page.getByRole("button", { name: y.title, exact: true }).click();
+    await page.getByRole("link", { name: y.title + " 상세", exact: true }).click();
+    await expect(page.getByRole("button", { name: x.title, exact: true })).toBeVisible();
+    await page.getByRole("button", { name: x.title, exact: true }).click();
     await page.getByRole("button", { name: `${x.title} 연결 해제`, exact: true }).click();
     await confirmation.getByRole("button", { name: "해제하고 저장", exact: true }).click();
     await expect(confirmation).not.toBeVisible();
