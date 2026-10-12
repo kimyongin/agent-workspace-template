@@ -683,7 +683,7 @@ export function SchemaEditor(
           {plan.analysis?.status === "failed" && (
             <p role="alert">분석 작업 실패: {plan.analysis.failure_reason}. 원본은 유지됩니다. 다시 분석하세요.</p>
           )}
-          {plan.status === "stale" && <p>정의나 자료·연결이 변경되었습니다. 입력은 유지됩니다. 현재 상태를 확인하고 보완한 뒤 새 변경안을 분석하세요.</p>}
+          {plan.status === "stale" && <p>{plan.recovery ? "정의나 자료·연결이 변경되었습니다. 입력은 유지됩니다. 현재 상태를 확인하고 보완한 뒤 새 변경안을 분석하세요." : "정의나 자료가 변경되었습니다. 최신 정의를 확인하고 새 변경을 만드세요."}</p>}
           {plan.status === "applied" && (
             <button
               className="btn"
