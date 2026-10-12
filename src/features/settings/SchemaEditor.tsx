@@ -44,8 +44,25 @@ export function SchemaEditor(
     [readBusy, setReadBusy] = useState(false);
   const { attempt, busy, uncertain } = useWriteAttempt();
   const mounted = useRef(true);
+  const planRead = useRef<{ epoch: number; controller: AbortController | null }>({ epoch: 0, controller: null });
   const dirty = Object.keys(numericDrafts).length > 0 || JSON.stringify(draft) !== JSON.stringify(saved) ||
     JSON.stringify(migration) !== JSON.stringify(plan?.migration ?? { rules: [], overrides: [] });
+  const protectedDraft = useRef({ dirty, busy, uncertain });
+  protectedDraft.current = { dirty, busy, uncertain };
+  const cancelPlanRead = () => {
+    planRead.current.controller?.abort();
+    planRead.current = { epoch: planRead.current.epoch + 1, controller: null };
+  };
+  const applyPlan = (value: EntitySchemaChange | null) => {
+    const target = value?.target ?? definition;
+    setPlan(value);
+    setMigration(value?.migration ?? { rules: [], overrides: [] });
+    setAcceptedAnalysis(null);
+    setDraft(clone(target));
+    setSaved(clone(target));
+    setNumericDrafts({});
+    setRefs(Object.fromEntries(Object.entries(value?.reservations ?? {}).map(([ref, key]) => [key, ref])));
+  };
   useEffect(() => {
     onState({ dirty, busy, uncertain });
   }, [dirty, busy, uncertain, onState]);
@@ -54,24 +71,25 @@ export function SchemaEditor(
     mounted.current = true;
     return () => {
       mounted.current = false;
+      cancelPlanRead();
     };
   }, []);
   useEffect(() => {
-    setNumericDrafts({});
-    setDraft(clone(definition));
-    setSaved(clone(definition));
-    setPlan(null);
-    setMigration({ rules: [], overrides: [] });
-    setAcceptedAnalysis(null);
-    setRefs({});
-  }, [definition.schema_version]);
+    cancelPlanRead();
+    setReadBusy(false);
+    applyPlan(null);
+  }, [type.id, definition.schema_version]);
   const base = `/entity-types/${type.id}/schema-changes`;
-  const list = () =>
-    api<{ items: EntitySchemaChangeSummary[] }>("GET", base).then((r) => {
-      if (mounted.current) setChanges(r.items);
+  const list = (signal?: AbortSignal) =>
+    api<{ items: EntitySchemaChangeSummary[] }>("GET", base, undefined, signal).then((r) => {
+      if (mounted.current && !signal?.aborted) setChanges(r.items);
     });
   useEffect(() => {
-    void list().catch((e) => setError(e.message));
+    const controller = new AbortController();
+    void list(controller.signal).catch((e) => {
+      if (!controller.signal.aborted && mounted.current) setError(e.message);
+    });
+    return () => controller.abort();
   }, [type.id, definition.schema_version]);
   useEffect(() => {
     if (!plan || (plan.status !== "analyzing" && !acceptedAnalysis)) return;
@@ -100,7 +118,11 @@ export function SchemaEditor(
   }, [plan?.id, plan?.status, acceptedAnalysis]);
   const setField = (key: string, field: EntityField) =>
     setDraft((d) => ({ ...d, schema: { ...d.schema, properties: { ...d.schema.properties, [key]: field } } }));
-  const setNumericField = (key: string, name: "minLength" | "maxLength" | "minimum" | "maximum" | "default", raw: string) => {
+  const setNumericField = (
+    key: string,
+    name: "minLength" | "maxLength" | "minimum" | "maximum" | "default",
+    raw: string,
+  ) => {
     setNumericDrafts((values) => ({ ...values, [key + ":" + name]: raw }));
   };
   const flag = (key: string, name: "required" | "archived" | "list_columns", value: boolean) =>
@@ -168,16 +190,16 @@ export function SchemaEditor(
     let payload;
     try {
       payload = action === "save"
-      ? {
-        expected_type_version: type.version,
-        expected_schema_version: definition.schema_version,
-        edits: edits(schemaNumericValues(draft, numericDrafts)),
-        migration: migrationNumericValues(plan?.target ?? draft, migration),
-        ...(plan ? { expected_change_version: plan.version } : {}),
-      }
-      : action === "apply"
-      ? { expected_change_version: plan!.version, analysis_id: plan!.analysis!.id }
-      : { expected_change_version: plan!.version };
+        ? {
+          expected_type_version: type.version,
+          expected_schema_version: definition.schema_version,
+          edits: edits(schemaNumericValues(draft, numericDrafts)),
+          migration: migrationNumericValues(plan?.target ?? draft, migration),
+          ...(plan ? { expected_change_version: plan.version } : {}),
+        }
+        : action === "apply"
+        ? { expected_change_version: plan!.version, analysis_id: plan!.analysis!.id }
+        : { expected_change_version: plan!.version };
     } catch (e) {
       setError(e instanceof Error ? e.message : "숫자를 확인하세요.");
       return;
@@ -201,16 +223,14 @@ export function SchemaEditor(
           attempt.requestKey(),
         );
         if (!mounted.current) return;
-        setPlan(value);
-        setMigration(value.migration);
+        cancelPlanRead();
+        setReadBusy(false);
         if (action === "save") {
-          setAcceptedAnalysis(null);
-          setDraft(clone(value.target));
-          setNumericDrafts({});
-          setSaved(clone(value.target));
-          setRefs(Object.fromEntries(Object.entries(value.reservations).map(([ref, key]) => [key, ref])));
+          applyPlan(value);
           setMessage("변경 초안을 저장했습니다. 영향 분석을 실행하세요.");
         } else {
+          setPlan(value);
+          setMigration(value.migration);
           setMessage("새 속성 버전을 게시했습니다.");
           try {
             await onApplied();
@@ -225,38 +245,39 @@ export function SchemaEditor(
       if (mounted.current) setError(plan?.recovery ? recoveryErrorMessage(e) : writeErrorMessage(e));
     }
   };
-  const loadPlan = async (value: EntitySchemaChangeSummary) => {
-    if (dirty || busy || uncertain) return;
+  const loadPlan = async (id: string) => {
+    if (protectedDraft.current.dirty || protectedDraft.current.busy || protectedDraft.current.uncertain) {
+      setReadBusy(false);
+      return;
+    }
+    cancelPlanRead();
+    const controller = new AbortController(), epoch = planRead.current.epoch;
+    planRead.current.controller = controller;
+    const current = () => mounted.current && !controller.signal.aborted && epoch === planRead.current.epoch;
     setReadBusy(true);
     setError("");
     try {
-      const fresh = await api<EntitySchemaChange>("GET", `${base}/${value.id}`);
-      setPlan(fresh);
-      setMigration(fresh.migration);
-      setDraft(clone(fresh.target));
-      setNumericDrafts({});
-      setSaved(clone(fresh.target));
-      setRefs(Object.fromEntries(Object.entries(fresh.reservations).map(([ref, key]) => [key, ref])));
+      const fresh = await api<EntitySchemaChange>("GET", `${base}/${id}`, undefined, controller.signal);
+      if (
+        current() && !protectedDraft.current.dirty && !protectedDraft.current.busy && !protectedDraft.current.uncertain
+      ) {
+        applyPlan(fresh);
+      }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "조회 실패");
+      if (current()) setError(e instanceof Error ? e.message : "조회 실패");
     } finally {
-      setReadBusy(false);
+      if (current()) {
+        planRead.current.controller = null;
+        setReadBusy(false);
+      }
     }
   };
   useEffect(() => {
     const selected = new URLSearchParams(location.search).get("change_id");
-    if (!selected || selected === plan?.id || dirty || busy || uncertain) return;
-    setReadBusy(true);
-    void api<EntitySchemaChange>("GET", `${base}/${selected}`).then((fresh) => {
-      if (!mounted.current) return;
-      setPlan(fresh);
-      setMigration(fresh.migration);
-      setDraft(clone(fresh.target));
-      setNumericDrafts({});
-      setSaved(clone(fresh.target));
-      setRefs(Object.fromEntries(Object.entries(fresh.reservations).map(([ref, key]) => [key, ref])));
-    }).catch((e) => setError(e.message)).finally(() => setReadBusy(false));
-  }, [location.search, type.id]);
+    if (selected && selected !== plan?.id) void loadPlan(selected);
+    else setReadBusy(false);
+    return cancelPlanRead;
+  }, [location.search, type.id, definition.schema_version]);
   const reorder = (key: string, offset: number) =>
     setDraft((d) => {
       const order = [...d.display.order], at = order.indexOf(key), other = at + offset;
@@ -272,7 +293,10 @@ export function SchemaEditor(
       </p>
       {error && <p role="alert" className="error-text">{error}</p>}
       {message && <p role="status">{message}</p>}
-      <fieldset className="settings-fields" disabled={busy || uncertain || disabled || readBusy || Boolean(plan?.recovery)}>
+      <fieldset
+        className="settings-fields"
+        disabled={busy || uncertain || disabled || readBusy || Boolean(plan?.recovery)}
+      >
         {draft.display.order.map((key, index) => {
           const f = draft.schema.properties[key],
             scalar = fieldType(f) ?? "string",
@@ -368,8 +392,7 @@ export function SchemaEditor(
                           min={0}
                           max={4096}
                           value={numericDrafts[key + ":" + name] ?? f[name] ?? ""}
-                          onChange={(e) =>
-                            setNumericField(key, name, e.target.value)}
+                          onChange={(e) => setNumericField(key, name, e.target.value)}
                         />
                       )}
                     </Field>
@@ -388,8 +411,7 @@ export function SchemaEditor(
                           inputMode="decimal"
                           step="any"
                           value={numericDrafts[key + ":" + name] ?? f[name] ?? ""}
-                          onChange={(e) =>
-                            setNumericField(key, name, e.target.value)}
+                          onChange={(e) => setNumericField(key, name, e.target.value)}
                         />
                       )}
                     </Field>
@@ -515,9 +537,10 @@ export function SchemaEditor(
                           type={f.format === "date" ? "date" : "text"}
                           inputMode={["integer", "number"].includes(scalar) ? "decimal" : undefined}
                           value={numericDrafts[key + ":default"] ?? String(f.default)}
-                          onChange={(e) => ["integer", "number"].includes(scalar)
-                            ? setNumericField(key, "default", e.target.value)
-                            : setField(key, { ...f, default: e.target.value })}
+                          onChange={(e) =>
+                            ["integer", "number"].includes(scalar)
+                              ? setNumericField(key, "default", e.target.value)
+                              : setField(key, { ...f, default: e.target.value })}
                         />
                       )}
                 </Field>
@@ -617,36 +640,52 @@ export function SchemaEditor(
           속성 추가
         </button>
       </fieldset>
-      {!plan?.recovery && <div className="settings-section-footer">
-        <button
-          className="btn"
-          disabled={busy || uncertain || !dirty}
-          onClick={() => {
-            setDraft(clone(saved));
-            setMigration(plan?.migration ?? { rules: [], overrides: [] });
-            setError("");
-          }}
-        >
-          편집 취소
-        </button>
-        <button
-          className="btn btn-primary"
-          disabled={busy || disabled || Boolean(plan?.recovery) || (!dirty && !uncertain)}
-          onClick={() => void write("save")}
-        >
-          {busy ? "처리 중…" : uncertain ? "같은 요청 다시 확인" : "변경 초안 저장"}
-        </button>
-      </div>}
+      {!plan?.recovery && (
+        <div className="settings-section-footer">
+          <button
+            className="btn"
+            disabled={busy || uncertain || !dirty}
+            onClick={() => {
+              setDraft(clone(saved));
+              setNumericDrafts({});
+              setMigration(plan?.migration ?? { rules: [], overrides: [] });
+              setError("");
+            }}
+          >
+            편집 취소
+          </button>
+          <button
+            className="btn btn-primary"
+            disabled={busy || disabled || Boolean(plan?.recovery) || (!dirty && !uncertain)}
+            onClick={() => void write("save")}
+          >
+            {busy ? "처리 중…" : uncertain ? "같은 요청 다시 확인" : "변경 초안 저장"}
+          </button>
+        </div>
+      )}
       {plan && (
         <section className="schema-summary" aria-label="속성 변경 요약">
           <h3>변경 요약 · 초안 버전 {plan.version}</h3>
           <Link to={`?change_id=${plan.id}`}>이 변경안 직접 링크</Link>
           {plan.recovery && (
             <section aria-label="복구안 원본">
-              <p>보존 원본을 사용하는 새 버전의 복구안입니다. 영향 분석 후 현재 값 → 복구 값 미리보기를 확인하고 실행하세요.</p>
-              <Link to={`/settings/entity-types/${plan.type_id}/migrations/${plan.recovery.source_job_id}`}>원본 작업 확인</Link>
-              <p className="secondary">원본 보존 만료: <time dateTime={plan.recovery.source_expires_at}>{new Date(plan.recovery.source_expires_at).toLocaleString()}</time></p>
-              <p>복구안의 속성과 변환 규칙은 원본 기준으로 유지됩니다. 보완이 필요하면 현재 자료를 직접 수정하거나 새 변경안을 준비하고 다시 분석하세요.</p>
+              <p>
+                보존 원본을 사용하는 새 버전의 복구안입니다. 영향 분석 후 현재 값 → 복구 값 미리보기를 확인하고
+                실행하세요.
+              </p>
+              <Link to={`/settings/entity-types/${plan.type_id}/migrations/${plan.recovery.source_job_id}`}>
+                원본 작업 확인
+              </Link>
+              <p className="secondary">
+                원본 보존 만료:{" "}
+                <time dateTime={plan.recovery.source_expires_at}>
+                  {new Date(plan.recovery.source_expires_at).toLocaleString()}
+                </time>
+              </p>
+              <p>
+                복구안의 속성과 변환 규칙은 원본 기준으로 유지됩니다. 보완이 필요하면 현재 자료를 직접 수정하거나 새
+                변경안을 준비하고 다시 분석하세요.
+              </p>
             </section>
           )}
           <p>상태: {plan.status} · {plan.change_kind === "compatible" ? "호환 가능한 게시" : "자료 값 변환 필요"}</p>
@@ -694,7 +733,13 @@ export function SchemaEditor(
           {plan.analysis?.status === "failed" && (
             <p role="alert">분석 작업 실패: {plan.analysis.failure_reason}. 원본은 유지됩니다. 다시 분석하세요.</p>
           )}
-          {plan.status === "stale" && <p>{plan.recovery ? "정의나 자료·연결이 변경되었습니다. 입력은 유지됩니다. 현재 상태를 확인하고 보완한 뒤 새 변경안을 분석하세요." : "정의나 자료가 변경되었습니다. 최신 정의를 확인하고 새 변경을 만드세요."}</p>}
+          {plan.status === "stale" && (
+            <p>
+              {plan.recovery
+                ? "정의나 자료·연결이 변경되었습니다. 입력은 유지됩니다. 현재 상태를 확인하고 보완한 뒤 새 변경안을 분석하세요."
+                : "정의나 자료가 변경되었습니다. 최신 정의를 확인하고 새 변경을 만드세요."}
+            </p>
+          )}
           {plan.status === "applied" && (
             <button
               className="btn"
@@ -728,12 +773,9 @@ export function SchemaEditor(
               className="btn"
               disabled={busy || uncertain || dirty}
               onClick={() => {
-                setPlan(null);
-                setMigration({ rules: [], overrides: [] });
-                setRefs({});
-                setDraft(clone(definition));
-                setNumericDrafts({});
-                setSaved(clone(definition));
+                cancelPlanRead();
+                setReadBusy(false);
+                applyPlan(null);
               }}
             >
               새 변경 시작
@@ -746,7 +788,13 @@ export function SchemaEditor(
         disabled={busy || readBusy}
         onClick={() => {
           setReadBusy(true);
-          void list().then(() => setError("")).catch((e) => setError(e.message)).finally(() => setReadBusy(false));
+          void list().then(() => {
+            if (mounted.current) setError("");
+          }).catch((e) => {
+            if (mounted.current) setError(e.message);
+          }).finally(() => {
+            if (mounted.current) setReadBusy(false);
+          });
         }}
       >
         초안 목록 다시 조회
@@ -760,7 +808,7 @@ export function SchemaEditor(
                 <button
                   className="btn"
                   disabled={dirty || busy || uncertain || readBusy}
-                  onClick={() => void loadPlan(c)}
+                  onClick={() => void loadPlan(c.id)}
                 >
                   초안 {c.id.slice(0, 8)} · {c.status}
                 </button>

@@ -61,20 +61,37 @@ export function MigrationStart({ plan, disabled }: { plan: EntitySchemaChange; d
   );
 }
 export function MigrationJobs({ typeId }: { typeId: string }) {
-  const [items, setItems] = useState<EntitySchemaMigration[]>([]),
-    [before, setBefore] = useState<string | null>(null),
-    [error, setError] = useState("");
+  const [list, setList] = useState({
+    typeId,
+    items: [] as EntitySchemaMigration[],
+    before: null as string | null,
+    expanded: false,
+  });
+  const [error, setError] = useState("");
+  const [moreError, setMoreError] = useState("");
+  const visibleList = useRef(list);
+  visibleList.current = list;
   const [refresh, setRefresh] = useState(0);
   const moreRequest = useRef<AbortController | null>(null);
   const [moreBusy, setMoreBusy] = useState(false);
+  const { items, before } = list.typeId === typeId ? list : { items: [], before: null };
+  const merge = (prior: EntitySchemaMigration[], incoming: EntitySchemaMigration[], prepend: boolean) => {
+    const versions = new Map(prior.map((job) => [job.id, job]));
+    for (const job of incoming) {
+      if (!versions.has(job.id) || versions.get(job.id)!.version <= job.version) versions.set(job.id, job);
+    }
+    return [...new Set((prepend ? [...incoming, ...prior] : [...prior, ...incoming]).map((job) => job.id))]
+      .map((id) => versions.get(id)!);
+  };
   useEffect(() => {
     const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout>;
     moreRequest.current?.abort();
+    moreRequest.current = null;
     setMoreBusy(false);
-    setItems([]);
-    setBefore(null);
+    setList((prior) => prior.typeId === typeId ? prior : { typeId, items: [], before: null, expanded: false });
     setError("");
+    setMoreError("");
     const poll = async () => {
       try {
         const r = await api<{ items: EntitySchemaMigration[]; next_before: string | null }>(
@@ -84,12 +101,32 @@ export function MigrationJobs({ typeId }: { typeId: string }) {
           controller.signal,
         );
         if (controller.signal.aborted) return;
-        setItems(r.items);
-        setBefore(r.next_before);
+        const olderActive = visibleList.current.typeId === typeId
+          ? visibleList.current.items.filter((job) => active(job) && !r.items.some((head) => head.id === job.id))
+          : [];
+        const updated = await Promise.all(olderActive.map((job) =>
+          api<EntitySchemaMigration>(
+            "GET",
+            `/entity-schema-migrations/${job.id}`,
+            undefined,
+            controller.signal,
+          )
+        ));
+        if (controller.signal.aborted) return;
+        if (updated.some((job) => job.type_id !== typeId)) throw new Error("이 자료 종류의 작업이 아닙니다");
+        setList((prior) => ({
+          ...prior,
+          items: merge(merge(prior.items, r.items, true), updated, false),
+          before: prior.expanded ? prior.before : r.next_before,
+        }));
         setError("");
-        if (r.items.some(active)) timer = setTimeout(() => void poll(), 1200);
+        const displayed = merge(merge(visibleList.current.items, r.items, true), updated, false);
+        if (displayed.some(active)) timer = setTimeout(() => void poll(), 1200);
       } catch (e) {
-        if (!controller.signal.aborted) setError(e instanceof Error ? e.message : "작업 조회 실패");
+        if (!controller.signal.aborted) {
+          setError(e instanceof Error ? e.message : "작업 조회 실패");
+          if (visibleList.current.items.some(active)) timer = setTimeout(() => void poll(), 3000);
+        }
       }
     };
     void poll();
@@ -100,9 +137,8 @@ export function MigrationJobs({ typeId }: { typeId: string }) {
     };
   }, [typeId, refresh]);
   const more = async () => {
-    if (moreBusy) return;
+    if (!before || moreRequest.current) return;
     const controller = new AbortController();
-    moreRequest.current?.abort();
     moreRequest.current = controller;
     setMoreBusy(true);
     try {
@@ -113,20 +149,27 @@ export function MigrationJobs({ typeId }: { typeId: string }) {
         controller.signal,
       );
       if (controller.signal.aborted) return;
-      setItems((prior) => [...prior, ...r.items]);
-      setBefore(r.next_before);
+      setList((prior) => ({
+        ...prior,
+        items: merge(prior.items, r.items, false),
+        before: r.next_before,
+        expanded: true,
+      }));
+      setMoreError("");
+      if (r.items.some(active) && !items.some(active)) setRefresh((n) => n + 1);
     } catch (e) {
-      if (!controller.signal.aborted) setError(e instanceof Error ? e.message : "작업 조회 실패");
+      if (!controller.signal.aborted) setMoreError(e instanceof Error ? e.message : "작업 조회 실패");
     } finally {
+      if (moreRequest.current === controller) moreRequest.current = null;
       if (!controller.signal.aborted) setMoreBusy(false);
     }
   };
   return (
     <section aria-label="값 변환 작업">
       <h2>값 변환 작업</h2>
-      {error && <p role="alert">{error}</p>}
+      {(error || moreError) && <p role="alert">{error || moreError}</p>}
       <button className="btn" onClick={() => setRefresh((n) => n + 1)}>작업 목록 다시 조회</button>
-      {items.length === 0 && !error && <p className="secondary">접수한 값 변환 작업이 없습니다.</p>}
+      {items.length === 0 && !error && !moreError && <p className="secondary">접수한 값 변환 작업이 없습니다.</p>}
       <ul>
         {items.map((j) => (
           <li key={j.id}>
@@ -149,7 +192,9 @@ export function SchemaMigrationJob() {
     [refresh, setRefresh] = useState(0);
   const { attempt, busy, uncertain } = useWriteAttempt();
   const [pendingAction, setPendingAction] = useState<"cancel" | "retry">();
-  useEffect(() => { setJob(undefined); }, [job_id, type_id]);
+  useEffect(() => {
+    setJob(undefined);
+  }, [job_id, type_id]);
   useEffect(() => {
     const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout>;
@@ -227,7 +272,9 @@ export function SchemaMigrationJob() {
           {job.result && (
             <p>새 속성 버전 {job.result.schema_version} · {job.result.total}개 적용 · {job.result.changed}개 값 변경</p>
           )}
-          {job.status !== "succeeded" && job.source_expires_at && <p>원본 보존 만료: {new Date(job.source_expires_at).toLocaleString()}</p>}
+          {job.status !== "succeeded" && job.source_expires_at && (
+            <p>원본 보존 만료: {new Date(job.source_expires_at).toLocaleString()}</p>
+          )}
           {job.status === "failed" && (
             <p role="alert">
               {job.failure_reason} · 기존 자료와 속성 정의가 유지됩니다.{" "}

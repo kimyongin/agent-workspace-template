@@ -1,9 +1,4 @@
-import {
-  assertSchemaApplicationBindings,
-  assertSchemaApplicationReady,
-  assertSchemaApplicationSource,
-  type SchemaApplicationContext,
-} from "../../core/entity-types/schema-application.ts";
+import { type SchemaApplicationContext } from "../../core/entity-types/schema-application.ts";
 import { jsonbText } from "../../core/entity-types/schema-rules.ts";
 import { migrationRecordRenderer } from "../../core/entity-types/migration-preparation.ts";
 import {
@@ -13,10 +8,10 @@ import {
 } from "../../core/entity-types/recovery-policy.ts";
 import type postgres from "postgres";
 import { SqlSchemaChangeStore } from "./schema-change-store.ts";
-import type { SchemaMigrationStore } from "../../core/entity-types/schema-migrations.ts";
+import type { SchemaMigrationActionContext, SchemaMigrationStore } from "../../core/entity-types/schema-migrations.ts";
 import type { EntitySchemaMigration, SchemaMigrationAccepted } from "../../contracts/entity-schema-migration.ts";
 import { effectiveEntityTemplates } from "../../contracts/record-template.ts";
-import { AppError, conflict, invalidInput, notFound } from "../../core/shared/errors.ts";
+import { AppError, invalidInput, notFound } from "../../core/shared/errors.ts";
 import { resolvedEntityTypeIcon } from "../../contracts/entity-type.ts";
 export class SqlSchemaMigrationStore extends SqlSchemaChangeStore implements SchemaMigrationStore {
   private accepted(r: postgres.Row): SchemaMigrationAccepted {
@@ -200,13 +195,32 @@ export class SqlSchemaMigrationStore extends SqlSchemaChangeStore implements Sch
       next_before: rows.length > i.limit ? String(rows[i.limit - 1].id) : null,
     };
   }
-  async cancelMigration(id: string, i: Parameters<SchemaMigrationStore["cancelMigration"]>[1]) {
+  async loadMigrationAction(id: string): Promise<SchemaMigrationActionContext> {
     const identity = await this.job(id);
-    await this.tx`select id from app.entity_types where id=${identity.type_id} for update`;
+    const [type] = await this
+      .tx`select schema_write_locked from app.entity_types where id=${identity.type_id} for update`;
+    if (!type) throw notFound();
     const j = await this.job(id, true);
-    // Terminal results always win even when a caller's version predates the commit.
-    if (["committing", "succeeded", "failed", "cancelled"].includes(j.status)) return this.jobDto(j);
-    if (j.version !== i.expected_job_version) throw conflict("작업 상태가 변경되었습니다. 다시 조회하세요");
+    const observed_at = await this.recoveryObservedAt();
+    return {
+      job: {
+        id: j.id,
+        type_id: j.type_id,
+        change_id: j.change_id,
+        change_version: Number(j.change_version),
+        analysis_id: j.analysis_id,
+        fingerprint: j.fingerprint,
+        version: Number(j.version),
+        status: j.status,
+        retryable: j.retryable,
+        source_expires_at: j.source_expires_at?.toISOString() ?? null,
+      },
+      schema_write_locked: type.schema_write_locked,
+      observed_at,
+    };
+  }
+  async saveMigrationCancellation(j: SchemaMigrationActionContext["job"]) {
+    const id = j.id;
     const [r] = await this
       .tx`update app.entity_schema_migrations set status='cancelled',version=version+1,fence=fence+1,lease_until=null,retryable=false,updated_at=now() where id=${id} returning *`;
     await this.tx`delete from private.entity_schema_migration_rows where job_id=${id}`;
@@ -215,27 +229,15 @@ export class SqlSchemaMigrationStore extends SqlSchemaChangeStore implements Sch
     await this.tx`update app.entity_types set schema_write_locked=false where id=${j.type_id}`;
     return this.jobDto(r);
   }
-  async retryMigration(id: string, i: Parameters<SchemaMigrationStore["retryMigration"]>[1]) {
-    const identity = await this.job(id), t = await this.lockType(identity.type_id), j = await this.job(id, true);
-    if (j.version !== i.expected_job_version) throw conflict("작업 상태가 변경되었습니다. 다시 조회하세요");
-    if (j.source_expires_at && j.source_expires_at <= new Date()) {
-      throw new AppError("migration_source_expired", "재시도 원본의 30일 보관 기간이 지났습니다. 새 분석을 준비하세요");
-    }
-    if (j.status !== "failed" || !j.retryable) {
-      throw conflict("재시도 가능한 실패 작업만 재개할 수 있습니다. 새 분석을 준비하세요");
-    }
-    const c = await this.row(j.type_id, j.change_id, true);
-    if (c.version !== j.change_version || c.fingerprint !== j.fingerprint || c.analysis_id !== j.analysis_id) {
-      throw new AppError("schema_plan_stale", "새 분석을 준비하세요");
-    }
-    const context = await this.loadSchemaApplication(t.id, c.id, j.analysis_id);
-    assertSchemaApplicationSource(context, context.change.source_type_version, context.change.source_schema_version);
-    assertSchemaApplicationReady(context, "migration_required", j.analysis_id);
-    await assertSchemaApplicationBindings(context, await this.lockSchemaApplicationBindings(context));
+  async migrationReferencesFresh(id: string) {
+    const j = await this.job(id);
     const [refs] = await this.tx`select app.entity_schema_reference_baseline(${this.actor.userId},${j.type_id})=${
       this.tx.json(j.source_references)
     }::jsonb as fresh`;
-    if (!refs.fresh) throw new AppError("schema_plan_stale", "연결이 변경되었습니다. 새 분석을 준비하세요");
+    return Boolean(refs.fresh);
+  }
+  async saveMigrationRetry(j: SchemaMigrationActionContext["job"]) {
+    const id = j.id;
     const [r] = await this
       .tx`update app.entity_schema_migrations set status='queued',version=version+1,fence=fence+1,lease_until=null,retryable=false,failure_reason=null,updated_at=now() where id=${id} returning *`;
     await this.tx`update app.entity_types set schema_write_locked=true where id=${j.type_id}`;
