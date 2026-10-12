@@ -246,7 +246,7 @@ dbTest(
           AppError,
         );
         assertEquals(error.code, "invalid_input");
-        assertEquals(error.fields?.[0].path, "record_templates.entity.update.memo");
+        assertEquals(error.fields?.[0].path, `record_templates.entity_types.${type.id}.update.memo`);
       }
     } finally {
       await a.cleanup();
