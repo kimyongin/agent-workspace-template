@@ -66,7 +66,7 @@ export class SqlEntityTypeStore implements EntityTypeStore {
   async update(id: string, input: Parameters<EntityTypeStore["update"]>[1]) {
     const [row] = await this.tx`select * from app.entity_types where id::text=${id} for update`;
     if (!row) throw notFound();
-    const next = entityTypeUpdateDecision(typeRow(row), input);
+    const next = entityTypeUpdateDecision({ ...typeRow(row), icon_id: row.icon_id }, input);
     if (!next) return typeRow(row);
     const { label, icon_id: icon, archived } = next;
     const [saved] = await this

@@ -131,6 +131,10 @@ export function validateEntityDefinition(raw: unknown): Pick<EntitySchemaVersion
       if (!check(f.default)) fail(`schema.properties.${key}.default`, "기본값이 속성 제약을 만족하지 않습니다");
     }
   }
+  const representativeDefault = schema.properties[display.representative].default;
+  if (typeof representativeDefault === "string" && !representativeDefault.trim()) {
+    fail(`schema.properties.${display.representative}.default`, "대표 이름은 공백만 입력할 수 없습니다");
+  }
   void validate;
   return parsed.data as Pick<EntitySchemaVersion, "schema" | "display">;
 }
@@ -156,10 +160,22 @@ export function validateEntityProperties(
     throw invalidInput(
       "속성 값을 확인하세요",
       (check.errors ?? []).map((e) => ({
-        path: `properties${e.instancePath}`,
+        path: [
+          "properties",
+          ...e.instancePath.split("/").filter(Boolean),
+          ...(e.keyword === "required"
+            ? [String(e.params.missingProperty)]
+            : e.keyword === "additionalProperties"
+            ? [String(e.params.additionalProperty)]
+            : []),
+        ].join("."),
         message: e.message ?? "유효하지 않은 값",
       })),
     );
+  }
+  const representative = result[display.representative];
+  if (typeof representative === "string" && !representative.trim()) {
+    fail(`properties.${display.representative}`, "대표 이름은 공백만 입력할 수 없습니다");
   }
   for (const [key, value] of Object.entries(result)) {
     numeric(schema.properties[key], value, `properties.${key}`);

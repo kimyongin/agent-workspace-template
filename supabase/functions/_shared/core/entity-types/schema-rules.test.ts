@@ -23,3 +23,10 @@ Deno.test("properties validate calendar dates, safe precision, missing/null and 
   definition.display.order.push("prop_3");
   assertThrows(() => validateEntityProperties(definition, { prop_1: "자료", prop_3: 0.0000001 }));
 });
+Deno.test("representative is not whitespace and public field errors use dot paths", () => {
+  const definition = initialEntityDefinition("이름");
+  const blank = assertThrows(() => validateEntityProperties(definition, { prop_1: "   " }));
+  assertEquals((blank as { fields?: { path: string }[] }).fields?.[0].path, "properties.prop_1");
+  const wrong = assertThrows(() => validateEntityProperties(definition, { prop_1: 12 }));
+  assertEquals((wrong as { fields?: { path: string }[] }).fields?.[0].path, "properties.prop_1");
+});
