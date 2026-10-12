@@ -1,3 +1,4 @@
+import { EntityTypeIcon } from "../entity/EntityTypeIcon.tsx";
 import { entityIdentityLabel } from "@contracts/entity-identity.ts";
 import { createPagedList } from "../collections/paged-list.ts";
 import { BodyAction } from "../../components/BodyAction.tsx";
@@ -9,7 +10,13 @@ import { Field, Notice } from "../../components/Field.tsx";
 import { RelatedItem } from "../../components/RelatedItems.tsx";
 import { api, query } from "../../lib/api.ts";
 
-export type Candidate = { id: string; title: string; entityIds?: string[]; identity?: string; type?: EntitySummary["type"] };
+export type Candidate = {
+  id: string;
+  title: string;
+  entityIds?: string[];
+  identity?: string;
+  type?: EntitySummary["type"];
+};
 type CandidatePage = { items: Candidate[]; next_cursor: string | null };
 /** Saved relationships and draft selection expose the same search action. */
 export function RelationSearchAction(
@@ -77,7 +84,9 @@ export function RelationSearch(
           items: page.items.map((item) => ({
             id: item.id,
             title: item.title,
-            ...("entity_type_id" in item ? { type: item.type, identity: `${item.type.label} · ${entityIdentityLabel(item)}` } : {}),
+            ...("entity_type_id" in item
+              ? { type: item.type, identity: `${item.type.label} · ${entityIdentityLabel(item)}` }
+              : {}),
             ...("entity_ids" in item ? { entityIds: item.entity_ids } : {}),
           })),
         };
@@ -145,7 +154,9 @@ export function RelationSearch(
               to={draftMode ? undefined : `/${kind === "entity" ? "entities" : "tasks"}/${encodeURIComponent(item.id)}`}
               restoreKey={`relation-candidate-${kind}-${item.id}`}
               title={item.title}
-              metadata={item.identity && <span>{item.identity}</span>}
+              metadata={item.identity && (
+                <span>{item.type && <EntityTypeIcon id={item.type.icon_id} />} {item.identity}</span>
+              )}
               action={
                 <BodyAction
                   icon="link"

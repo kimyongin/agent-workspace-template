@@ -19,8 +19,24 @@ grant select,insert,delete on app.entity_pairs to app_user;
 -- Resolve the owner from that visible locked row without requesting extra auth schema grants.
 create or replace function app.rekey_entity(old_id text,new_source text,new_external_id text) returns void
 language plpgsql security invoker set search_path='' as $$
-declare next_id text:=new_source||':'||new_external_id; entity_owner uuid; preserved_pairs jsonb;
+declare next_id text:=new_source||':'||new_external_id; entity_owner uuid; preserved_pairs jsonb; peer_type record;
 begin
+  select owner_id into entity_owner from app.entities where id=old_id;
+  if not found then raise exception 'entity not found' using errcode='23503'; end if;
+  perform pg_advisory_xact_lock(hashtextextended(entity_owner::text||':entity_pairs',0));
+  for peer_type in select t.id,t.schema_write_locked from app.entity_types t
+    where t.owner_id=entity_owner and t.id in (
+      select e.entity_type_id from app.entities e where e.owner_id=entity_owner and (
+        e.id=old_id or e.id in (select case when p.entity_id=old_id then p.other_id else p.entity_id end
+          from app.entity_pairs p where p.owner_id=entity_owner and (p.entity_id=old_id or p.other_id=old_id))))
+    order by t.id for update
+  loop
+    if peer_type.schema_write_locked then raise exception 'schema_migration_in_progress' using errcode='55000'; end if;
+  end loop;
+  perform 1 from app.entities e where e.owner_id=entity_owner and (
+    e.id=old_id or e.id in (select case when p.entity_id=old_id then p.other_id else p.entity_id end
+      from app.entity_pairs p where p.owner_id=entity_owner and (p.entity_id=old_id or p.other_id=old_id)))
+    order by e.id collate "C" for update;
   select owner_id into entity_owner from app.entities where id=old_id and deleted_at is null for update;
   if not found then raise exception 'entity not found' using errcode='23503'; end if;
   select jsonb_agg(jsonb_build_object('peer',case when entity_id=old_id then other_id else entity_id end,'created_at',created_at)) into preserved_pairs from app.entity_pairs where owner_id=entity_owner and (entity_id=old_id or other_id=old_id);
@@ -28,8 +44,10 @@ begin
   update app.entities set id=next_id,source=new_source,external_id=new_external_id,version=version+1,updated_at=now()
     where owner_id=entity_owner and id=old_id;
   insert into app.entity_pairs(owner_id,entity_id,other_id,created_at)
-    select entity_owner,least(next_id collate "C",p->>'peer' collate "C"),greatest(next_id collate "C",p->>'peer' collate "C"),(p->>'created_at')::timestamptz
+    select entity_owner,least(next_id collate "C",(p->>'peer') collate "C"),greatest(next_id collate "C",(p->>'peer') collate "C"),(p->>'created_at')::timestamptz
     from jsonb_array_elements(coalesce(preserved_pairs,'[]'::jsonb)) p;
+  update app.entities set version=version+1,updated_at=now() where owner_id=entity_owner and id in
+    (select p->>'peer' from jsonb_array_elements(coalesce(preserved_pairs,'[]'::jsonb)) p);
   update app.tasks t set entity_ids=array_replace(entity_ids,old_id,next_id),
     entity_context=app.rewrite_entity_refs(entity_context,old_id,next_id,true),version=version+1,updated_at=now()
     where owner_id=entity_owner and (old_id=any(entity_ids) or entity_context @> jsonb_build_array(jsonb_build_object('id',old_id)));

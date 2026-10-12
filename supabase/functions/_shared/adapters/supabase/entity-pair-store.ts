@@ -1,6 +1,8 @@
 import type postgres from "postgres";
 import type { Actor } from "../../core/shared/actor.ts";
 import type { EntityPairStore } from "../../core/entity-pairs/application.ts";
+import { resolvedEntityTypeIcon } from "../../contracts/entity-type.ts";
+import type { EntitySummary } from "../../contracts/entity.ts";
 import { compareEntityIds } from "../../contracts/entity-pairs.ts";
 import { SqlEntityStore } from "./entity-store.ts";
 import { loadEntityDefinition } from "./entity-values.ts";
@@ -53,13 +55,37 @@ export class SqlEntityPairStore extends SqlActorStore implements EntityPairStore
   }
   async list(id: string, limit: number, after?: string) {
     const tx = this.tx;
-    const rows = await tx`select e.id from app.entity_pairs p join app.entities e on e.owner_id=p.owner_id
+    const rows = await tx`select e.*,t.label,t.icon_id,t.archived,t.schema_version as current_schema_version,v.display,
+      coalesce((select jsonb_agg(tag_id order by tag_id) from app.entity_tags where owner_id=e.owner_id and entity_id=e.id),'[]'::jsonb) as tag_ids,
+      coalesce((select item->>'label' from app.user_business_settings b cross join lateral jsonb_array_elements(b.settings->'sources') item
+        where b.owner_id=e.owner_id and b.id='entity_identity' and item->>'code'=e.source),e.source) as source_label
+      from app.entity_pairs p join app.entities e on e.owner_id=p.owner_id
       and e.id=case when p.entity_id=${id} then p.other_id else p.entity_id end
+      join app.entity_types t on t.owner_id=e.owner_id and t.id=e.entity_type_id
+      join app.entity_schema_versions v on v.owner_id=t.owner_id and v.type_id=t.id and v.schema_version=t.schema_version
       where (p.entity_id=${id} or p.other_id=${id}) ${after ? tx`and e.id collate "C">${after} collate "C"` : tx``}
       order by e.id collate "C" limit ${limit}`;
-    const store = new SqlEntityStore(tx, this.actor);
-    const items = await Promise.all(rows.map((r) => store.get(String(r.id))));
-    return items.filter((e) => e !== null).map(({ properties: _properties, ...summary }) => summary);
+    return rows.map((r): EntitySummary => ({
+      id: r.id,
+      source: r.source,
+      external_id: r.external_id,
+      source_label: r.source_label,
+      entity_type_id: r.entity_type_id,
+      schema_version: Number(r.schema_version),
+      current_schema_version: Number(r.current_schema_version),
+      title: String(r.properties[r.display.representative]),
+      type: { id: r.entity_type_id, label: r.label, icon_id: resolvedEntityTypeIcon(r.icon_id), archived: r.archived },
+      display_properties: Object.fromEntries(
+        (r.display.list_columns as string[]).filter((key) => key in r.properties).map(
+          (key) => [key, r.properties[key]],
+        ),
+      ),
+      tag_ids: r.tag_ids,
+      version: r.version,
+      created_at: r.created_at.toISOString(),
+      updated_at: r.updated_at.toISOString(),
+      deleted_at: r.deleted_at?.toISOString() ?? null,
+    }));
   }
 }
 export class SqlEntityPairUnitOfWork {
