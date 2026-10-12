@@ -54,9 +54,10 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
         input = page.getByLabel(kind === "entities" ? "자료 제목 검색" : "검색어", { exact: true });
       await expect(input).toBeVisible();
       await expect(summary).toHaveAccessibleName("필터 열기");
-      await expect(page.getByLabel(label, { exact: true })).toBeHidden();
+      await expect(page.getByLabel(kind === "entities" ? "조건 1 값" : label, { exact: true })).toBeHidden();
       await expect(filters.locator(".tag-filter-chips")).toBeHidden();
-      await expect(page.getByRole("combobox")).toHaveCount(0);
+      await expect(filters.getByRole("combobox")).toHaveCount(0);
+      if (kind === "entities") await expect(page.locator(".main-tab-header").getByLabel("자료 종류", { exact: true })).toBeVisible();
       await expect(page.locator(".list .related-item").first()).toBeVisible();
       const beforeReads = reads;
       await summary.focus();
@@ -68,7 +69,7 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
       await expect(filters.locator(".tag-filter-chips")).toBeVisible();
       const changedRead = page.waitForResponse((response) => new URL(response.url()).pathname === `/api/${kind}`);
       if (kind === "entities") await setEntityCategory(page, value);
-      else await page.getByLabel(label, { exact: true }).selectOption(value);
+      else await page.getByLabel(kind === "entities" ? "조건 1 값" : label, { exact: true }).selectOption(value);
       await changedRead;
       await expect(summary).toHaveAccessibleName(/적용 중/);
       const applied = page.url(), appliedReads = reads;
@@ -78,7 +79,7 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
       prior.searchParams.delete("filters");
       expect(closed.href).toBe(prior.href);
       expect(reads).toBe(appliedReads);
-      await expect(page.getByLabel(label, { exact: true })).toBeHidden();
+      await expect(page.getByLabel(kind === "entities" ? "조건 1 값" : label, { exact: true })).toBeHidden();
       await expect(input).toBeVisible();
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
       if (width === 390) await page.screenshot({ path: info.outputPath(kind + "-filters-390.png") });

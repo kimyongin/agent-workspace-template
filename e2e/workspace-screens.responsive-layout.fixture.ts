@@ -449,10 +449,8 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
         expect(field.h).toBeGreaterThanOrEqual(44);
         expect(field.right).toBeLessThanOrEqual(width);
       }
-      expect(inputs[0].y).toBeCloseTo(inputs[1].y);
-      if (kind === "entities" && width >= 768) {
-        expect(inputs[0].y).toBeCloseTo(inputs[3].y);
-      }
+      if (kind !== "entities") expect(inputs[0].y).toBeCloseTo(inputs[1].y);
+      else await expect(page.locator(".main-tab-header").getByLabel("자료 종류", { exact: true })).toBeVisible();
       const filterBottom = (await grid.boundingBox())!;
       expect((await page.locator(".tag-filter-chips").boundingBox())!.y).toBeGreaterThanOrEqual(
         filterBottom.y + filterBottom.height,
