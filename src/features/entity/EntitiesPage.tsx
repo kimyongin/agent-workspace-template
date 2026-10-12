@@ -90,7 +90,7 @@ export function EntitiesPage() {
   const key = query(filter), context = `${key}|${hash}|${unsupported}|${schema?.schema_version ?? 0}`;
   const creating = create.open;
   const list = usePagedList<EntitySummary, ListPage<EntitySummary>>({
-    scope: `${context}|${types === null || !schemaReady ? "loading" : invalidType ? "invalid" : "ready"}`,
+    scope: `${context}|${typeError ? "catalog_error" : types === null ? "catalog_loading" : invalidType ? "invalid" : !schemaReady ? "schema_loading" : "ready"}`,
     pages,
     anchor: anchorId("entities", hash),
     anchorLookahead: 1,
