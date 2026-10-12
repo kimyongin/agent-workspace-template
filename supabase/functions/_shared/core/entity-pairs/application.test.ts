@@ -23,7 +23,7 @@ const actor = {
   userId: "00000000-0000-4000-8000-000000000001",
   request: { key: "00000000-0000-4000-8000-000000000002" },
 };
-function fixture() {
+function fixture(existingCount = 0) {
   const values = ["local:a", "local:b"].map(
     (id) => ({
       id,
@@ -55,7 +55,7 @@ function fixture() {
       return linked;
     },
     async count() {
-      return linked ? 1 : 0;
+      return existingCount + (linked ? 1 : 0);
     },
     async change(_l, _r, next) {
       linked = next;
@@ -135,4 +135,31 @@ Deno.test("deleted endpoint remains unlinkable and stale endpoint/self/missing r
       expected_other_version: 3,
     }, true)
   );
+});
+
+Deno.test("pair cap rejects the next relation but a current relation remains a no-op at the cap", async () => {
+  const full = fixture(100);
+  await assertRejects(() =>
+    changeEntityPair(
+      full.d,
+      actor,
+      "local:a",
+      { other_id: "local:b", expected_version: 1, expected_other_version: 1 },
+      true,
+    )
+  );
+  assertEquals(full.events.length, 0);
+  const last = fixture(99);
+  await changeEntityPair(last.d, actor, "local:a", {
+    other_id: "local:b",
+    expected_version: 1,
+    expected_other_version: 1,
+  }, true);
+  const noop = await changeEntityPair(last.d, { ...actor, request: { key: crypto.randomUUID() } }, "local:b", {
+    other_id: "local:a",
+    expected_version: 2,
+    expected_other_version: 2,
+  }, true);
+  assertEquals(noop.changed, false);
+  assertEquals(last.events.length, 1);
 });

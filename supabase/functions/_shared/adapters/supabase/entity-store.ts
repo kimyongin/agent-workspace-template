@@ -1,3 +1,4 @@
+import { prepareEntityPairRekey } from "./entity-pair-locks.ts";
 import { entityId } from "../../contracts/entity-identity.ts";
 import { insertWithIdRetry } from "./data-id.ts";
 import type postgres from "postgres";
@@ -36,6 +37,9 @@ function result(r: Record<string, unknown>) {
 export class SqlEntityStore extends SqlActorStore implements EntityStore {
   definition(typeId: string, lock = false) {
     return loadEntityDefinition(this.tx, typeId, lock);
+  }
+  prepareRekey(id: string) {
+    return prepareEntityPairRekey(this.tx, this.actor, id);
   }
   async get(id: string, lock = false) {
     if (lock) {

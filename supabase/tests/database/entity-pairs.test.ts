@@ -167,3 +167,45 @@ dbTest(
     }
   },
 );
+dbTest("entity pair cap: 100 preserved links, next-link rejection and no-op at cap", async () => {
+  const admin = connect(urls.admin), sql = connect(urls.direct), owner = await fixtureOwner(admin);
+  const entities = { uow: new SqlEntityUnitOfWork(sql) },
+    pairs = { uow: new SqlEntityPairUnitOfWork(sql) },
+    types = { uow: new SqlEntityTypeUnitOfWork(sql) };
+  try {
+    const type = await createEntityType(types, requestActor(owner.actor), { label: "연결 한도" });
+    await admin`insert into app.entities(owner_id,id,source,external_id,entity_type_id,schema_version,properties)
+    select ${owner.actor.userId}::uuid,'app:cap-'||lpad(n::text,3,'0'),'app','cap-'||lpad(n::text,3,'0'),${type.id}::uuid,1,jsonb_build_object('prop_1','자료 '||n)
+    from generate_series(0,101) n`;
+    await admin`insert into app.entity_pairs(owner_id,entity_id,other_id)
+    select ${owner.actor.userId}::uuid,'app:cap-000','app:cap-'||lpad(n::text,3,'0') from generate_series(1,100) n`;
+    assertEquals((await listEntityLinks(pairs, owner.actor, "app:cap-000", { limit: 100 })).items.length, 100);
+    assertEquals(
+      (await changeEntityPair(pairs, requestActor(owner.actor), "app:cap-000", {
+        other_id: "app:cap-001",
+        expected_version: 1,
+        expected_other_version: 1,
+      }, true)).changed,
+      false,
+    );
+    const error = await assertRejects(
+      () =>
+        changeEntityPair(pairs, requestActor(owner.actor), "app:cap-000", {
+          other_id: "app:cap-101",
+          expected_version: 1,
+          expected_other_version: 1,
+        }, true),
+      AppError,
+    );
+    assertEquals(error.code, "invalid_input");
+    assertEquals((await getEntity(entities, owner.actor, "app:cap-000")).version, 1);
+    assertEquals(
+      (await admin`select count(*)::int as n from app.records where owner_id=${owner.actor.userId}`)[0].n,
+      0,
+    );
+  } finally {
+    await owner.cleanup();
+    await sql.end();
+    await admin.end();
+  }
+});

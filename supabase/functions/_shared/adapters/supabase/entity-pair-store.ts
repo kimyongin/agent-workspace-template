@@ -1,32 +1,12 @@
 import type postgres from "postgres";
 import type { Actor } from "../../core/shared/actor.ts";
 import type { EntityPairStore } from "../../core/entity-pairs/application.ts";
-import { resolvedEntityTypeIcon } from "../../contracts/entity-type.ts";
 import type { EntitySummary } from "../../contracts/entity.ts";
-import { compareEntityIds } from "../../contracts/entity-pairs.ts";
 import { SqlEntityStore } from "./entity-store.ts";
-import { loadEntityDefinition } from "./entity-values.ts";
+import { entityPresentationRow } from "./entity-values.ts";
+import { lockEndpoints, lockEntityPairs } from "./entity-pair-locks.ts";
 import { runAsActor, SqlActorStore } from "./sql-context.ts";
 
-export async function lockEntityPairs(tx: postgres.TransactionSql, actor: Actor) {
-  await tx`select pg_advisory_xact_lock(hashtextextended(${`${actor.userId}:entity_pairs`},0))`;
-}
-async function lockEndpoints(tx: postgres.TransactionSql, ids: string[]) {
-  const rows = await tx<
-    { id: string; entity_type_id: string }[]
-  >`select id,entity_type_id from app.entities where id in ${tx(ids)}`;
-  for (const type of [...new Set(rows.map((r) => r.entity_type_id))].sort()) await loadEntityDefinition(tx, type, true);
-  for (const id of rows.map((r) => r.id).sort(compareEntityIds)) {
-    await tx`select id from app.entities where id=${id} for update`;
-  }
-}
-/** Acquire pair membership first, then the complete type/endpoint neighborhood before the origin lock. */
-export async function prepareEntityPairRekey(tx: postgres.TransactionSql, actor: Actor, id: string) {
-  await lockEntityPairs(tx, actor);
-  const peers = await tx<{ id: string }[]>`select case when entity_id=${id} then other_id else entity_id end as id
-    from app.entity_pairs where entity_id=${id} or other_id=${id}`;
-  await lockEndpoints(tx, [id, ...peers.map((r) => r.id)]);
-}
 export class SqlEntityPairStore extends SqlActorStore implements EntityPairStore {
   async endpoints(ids: string[], lock: boolean) {
     if (lock) {
@@ -55,7 +35,8 @@ export class SqlEntityPairStore extends SqlActorStore implements EntityPairStore
   }
   async list(id: string, limit: number, after?: string) {
     const tx = this.tx;
-    const rows = await tx`select e.*,t.label,t.icon_id,t.archived,t.schema_version as current_schema_version,v.display,
+    const rows =
+      await tx`select e.*,t.id as type_id,t.label,t.icon_id,t.archived,t.schema_version as current_schema_version,v.display,
       coalesce((select jsonb_agg(tag_id order by tag_id) from app.entity_tags where owner_id=e.owner_id and entity_id=e.id),'[]'::jsonb) as tag_ids,
       coalesce((select item->>'label' from app.user_business_settings b cross join lateral jsonb_array_elements(b.settings->'sources') item
         where b.owner_id=e.owner_id and b.id='entity_identity' and item->>'code'=e.source),e.source) as source_label
@@ -72,14 +53,7 @@ export class SqlEntityPairStore extends SqlActorStore implements EntityPairStore
       source_label: r.source_label,
       entity_type_id: r.entity_type_id,
       schema_version: Number(r.schema_version),
-      current_schema_version: Number(r.current_schema_version),
-      title: String(r.properties[r.display.representative]),
-      type: { id: r.entity_type_id, label: r.label, icon_id: resolvedEntityTypeIcon(r.icon_id), archived: r.archived },
-      display_properties: Object.fromEntries(
-        (r.display.list_columns as string[]).filter((key) => key in r.properties).map(
-          (key) => [key, r.properties[key]],
-        ),
-      ),
+      ...entityPresentationRow(r, r.properties),
       tag_ids: r.tag_ids,
       version: r.version,
       created_at: r.created_at.toISOString(),
