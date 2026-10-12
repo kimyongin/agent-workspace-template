@@ -9,14 +9,8 @@ import { entityTypeTools } from "../../functions/_shared/adapters/mcp/entity-typ
 import { registerTools } from "../../functions/_shared/adapters/mcp/tools.ts";
 import { initialEntityDefinition } from "../../functions/_shared/contracts/entity-type.ts";
 import type { EntityValues } from "../../functions/_shared/contracts/entity.ts";
-import type {
-  EntityDeps,
-  EntityStore,
-} from "../../functions/_shared/core/entity/application.ts";
-import type {
-  EntityTypeDeps,
-  EntityTypeStore,
-} from "../../functions/_shared/core/entity-types/application.ts";
+import type { EntityDeps, EntityStore } from "../../functions/_shared/core/entity/application.ts";
+import type { EntityTypeDeps, EntityTypeStore } from "../../functions/_shared/core/entity-types/application.ts";
 import {
   jsonbText,
   validateEntityDefinition,
@@ -51,8 +45,7 @@ Deno.test("valid near-64 KiB properties and schema retain every value through GE
     prop_7: "끝".repeat(1300),
   };
   validateEntityProperties(definition, properties);
-  const bytes = (value: unknown) =>
-    new TextEncoder().encode(jsonbText(value)).byteLength;
+  const bytes = (value: unknown) => new TextEncoder().encode(jsonbText(value)).byteLength;
   assert(bytes(properties) > 65000 && bytes(properties) <= 65536);
   assert(bytes(definition) > 60000 && bytes(definition) <= 65536);
   const type = {
@@ -106,9 +99,7 @@ Deno.test("valid near-64 KiB properties and schema retain every value through GE
             _cursor: {
               id: row.id,
               category: 2 as const,
-              at: typeof q.sort === "object"
-                ? properties.prop_2
-                : row.updated_at,
+              at: typeof q.sort === "object" ? properties.prop_2 : row.updated_at,
             },
           })),
       ),
@@ -144,9 +135,7 @@ Deno.test("valid near-64 KiB properties and schema retain every value through GE
     assert(body.next_cursor.length < 24576);
     assertEquals(body.items.at(-1).display_properties, properties);
     const next = await app.request(
-      `/entities?entity_type_id=${typeId}&limit=${limit ?? 20}&cursor=${
-        encodeURIComponent(body.next_cursor)
-      }`,
+      `/entities?entity_type_id=${typeId}&limit=${limit ?? 20}&cursor=${encodeURIComponent(body.next_cursor)}`,
     );
     assertEquals(next.status, 200);
     assertEquals(
@@ -164,8 +153,7 @@ Deno.test("valid near-64 KiB properties and schema retain every value through GE
   >();
   registerTools(
     {
-      registerTool: (name: string, _info: unknown, callback: unknown) =>
-        registered.set(name, callback as never),
+      registerTool: (name: string, _info: unknown, callback: unknown) => registered.set(name, callback as never),
     } as unknown as McpServer,
     [...entityTools(deps), ...entityTypeTools(schemaDeps)],
     actor,
