@@ -38,3 +38,12 @@ Deno.test("representative is not whitespace and public field errors use dot path
   const wrong = assertThrows(() => validateEntityProperties(definition, { prop_1: 12 }));
   assertEquals((wrong as { fields?: { path: string }[] }).fields?.[0].path, "properties.prop_1");
 });
+Deno.test("definitions reject SQL-unsafe labels and Gregorian year zero", () => {
+  const d = initialEntityDefinition("이름");
+  d.schema.properties.prop_1.title = "bad\u0000";
+  assertThrows(() => validateEntityDefinition(d));
+  d.schema.properties.prop_1.title = "한국어😀";
+  d.schema.properties.prop_2 = { type: "string", format: "date" };
+  d.display.order.push("prop_2");
+  assertThrows(() => validateEntityProperties(d, { prop_1: "name", prop_2: "0000-02-29" }));
+});

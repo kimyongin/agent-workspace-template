@@ -23,3 +23,35 @@ describe("schema form public presentation", () => {
     expect(html).toContain('value="0"');
   });
 });
+it("nullable single-select exposes null only when its enum admits null", () => {
+  const definition = initialEntityDefinition("이름");
+  definition.schema.properties.prop_2 = { type: ["string", "null"], enum: ["a"] };
+  definition.display.order.push("prop_2");
+  const html = renderToStaticMarkup(
+    <PropertyFields definition={definition} values={{ prop_1: "이름" }} onChange={() => {}} errors={{}} />,
+  );
+  expect(html).not.toContain('value="null"');
+  definition.schema.properties.prop_2.enum = ["a", null];
+  expect(
+    renderToStaticMarkup(
+      <PropertyFields definition={definition} values={{ prop_1: "이름" }} onChange={() => {}} errors={{}} />,
+    ),
+  ).toContain('value="null"');
+});
+it("archived arbitrary stored text cannot resolve inherited option labels", () => {
+  const definition = initialEntityDefinition("이름");
+  definition.schema.properties.prop_2 = { type: "string", title: "보관 메모" };
+  definition.display.order.push("prop_2");
+  definition.display.archived.push("prop_2");
+  for (const value of ["__proto__", "constructor", "toString"]) {
+    const html = renderToStaticMarkup(
+      <PropertyFields
+        definition={definition}
+        values={{ prop_1: "이름", prop_2: value }}
+        onChange={() => {}}
+        errors={{}}
+      />,
+    );
+    expect(html).toContain(value);
+  }
+});

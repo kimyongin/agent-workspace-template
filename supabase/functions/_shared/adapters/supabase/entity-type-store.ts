@@ -1,3 +1,4 @@
+import { SqlSchemaChangeStore } from "./schema-change-store.ts";
 import type postgres from "postgres";
 import type { Actor } from "../../core/shared/actor.ts";
 import type { RequestIdentity } from "../../core/shared/request.ts";
@@ -8,7 +9,7 @@ import {
 } from "../../core/entity-types/application.ts";
 import type { EntitySchemaVersion, EntityType } from "../../contracts/entity-type.ts";
 import { resolvedEntityTypeIcon } from "../../contracts/entity-type.ts";
-import { notFound } from "../../core/shared/errors.ts";
+import { AppError, notFound } from "../../core/shared/errors.ts";
 import { executeSqlRequest } from "./request-ledger.ts";
 import { runAsActor } from "./sql-context.ts";
 function typeRow(row: postgres.Row): EntityType {
@@ -33,8 +34,7 @@ function schemaRow(row: postgres.Row): EntitySchemaVersion {
     created_at: row.created_at.toISOString(),
   };
 }
-export class SqlEntityTypeStore implements EntityTypeStore {
-  constructor(private readonly tx: postgres.TransactionSql, private readonly actor: Actor) {}
+export class SqlEntityTypeStore extends SqlSchemaChangeStore implements EntityTypeStore {
   executeRequest<T>(request: RequestIdentity, execute: () => Promise<T>) {
     return executeSqlRequest(this.tx, this.actor, request, execute);
   }
@@ -66,6 +66,9 @@ export class SqlEntityTypeStore implements EntityTypeStore {
   async update(id: string, input: Parameters<EntityTypeStore["update"]>[1]) {
     const [row] = await this.tx`select * from app.entity_types where id::text=${id} for update`;
     if (!row) throw notFound();
+    if (row.schema_write_locked) {
+      throw new AppError("schema_migration_in_progress", "속성 마이그레이션 완료 후 다시 시도하세요");
+    }
     const next = entityTypeUpdateDecision({ ...typeRow(row), icon_id: row.icon_id }, input);
     if (!next) return typeRow(row);
     const { label, icon_id: icon, archived } = next;

@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 import postgres from "postgres";
 import { devLogin, env, mcpClient, mcpTokenViaConsent, unique } from "./support.ts";
 import { saveOnce } from "./ui-actions.ts";
+import { analyzeAndApply } from "./entity-schema-support.ts";
 import { initialEntityDefinition } from "../supabase/functions/_shared/contracts/entity-type.ts";
 
 test("다중 타입 여섯 속성을 MCP로 저장하고 웹 전체 상세 편집은 summary에 없는 값도 유지한다", async ({ page }) => {
@@ -26,14 +27,18 @@ test("다중 타입 여섯 속성을 MCP로 저장하고 웹 전체 상세 편�
     });
     definition.display.order = ["prop_1", "prop_2", "prop_3", "prop_4", "prop_5", "prop_6"];
     definition.display.list_columns = ["prop_1"];
-    // Explicit test-only published definition fixture until schema-change editor #346 exists.
-    await admin.begin(async (tx) => {
-      const [owner] = await tx`select owner_id from app.entity_types where id=${typeId}`;
-      await tx`insert into app.entity_schema_versions(owner_id,type_id,schema_version,schema,display) values(${owner.owner_id},${typeId},2,${
-        tx.json(definition.schema)
-      },${tx.json(definition.display)})`;
-      await tx`update app.entity_types set schema_version=2,version=version+1 where id=${typeId}`;
+    const change = await mcp.call("create_entity_schema_change", {
+      type_id: typeId,
+      expected_type_version: 1,
+      expected_schema_version: 1,
+      edits: Object.entries(definition.schema.properties).filter(([key]) => key !== "prop_1").map(([key, field]) => ({
+        op: "add_property",
+        client_ref: key,
+        field,
+        required: false,
+      })),
     });
+    await analyzeAndApply(mcp, typeId!, change.id, change.version);
     const title = unique("검증 대상");
     const created = await mcp.call("create_entity", {
       entity_type_id: typeId,
@@ -68,13 +73,19 @@ test("다중 타입 여섯 속성을 MCP로 저장하고 웹 전체 상세 편�
     await page.getByRole("button", { name: "편집", exact: true }).click();
     const stale = page.getByRole("dialog", { name: `${type.label} 편집`, exact: true });
     await stale.getByLabel("이름", { exact: false }).fill("실패해도 보존할 초안");
-    await admin.begin(async (tx) => {
-      const [owner] = await tx`select owner_id from app.entity_types where id=${typeId}`;
-      await tx`insert into app.entity_schema_versions(owner_id,type_id,schema_version,schema,display) values(${owner.owner_id},${typeId},3,${
-        tx.json(definition.schema)
-      },${tx.json(definition.display)})`;
-      await tx`update app.entity_types set schema_version=3,version=version+1 where id=${typeId}`;
+    const currentType = await mcp.call("get_entity_type", { type_id: typeId });
+    const next = await mcp.call("create_entity_schema_change", {
+      type_id: typeId,
+      expected_type_version: currentType.version,
+      expected_schema_version: 2,
+      edits: [{
+        op: "update_property",
+        key: "prop_1",
+        field: { ...definition.schema.properties.prop_1, description: "次の定義" },
+        required: true,
+      }],
     });
+    await analyzeAndApply(mcp, typeId!, next.id, next.version);
     await stale.getByRole("button", { name: "저장", exact: true }).click();
     await expect(page.locator("dialog.modal-action[open]").getByRole("alert")).toBeVisible();
     await page.locator("dialog.modal-action[open]").getByRole("button", { name: "취소", exact: true }).click();

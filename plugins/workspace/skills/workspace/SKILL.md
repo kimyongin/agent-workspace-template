@@ -61,7 +61,7 @@ description: Workspace에서 다음 업무의 검토·준비안을 만들거나 
 
 자료 작성 전에 `list_entity_types`로 활성 종류를 선택하고 `get_entity_schema`로 현재 `schema_version`·`prop_n`의 타입·필수 여부·기본값·표시 설정을 읽는다. 생성은 `entity_type_id`·`schema_version`·`properties`를 제출하며 기본값은 새 생성에서만 적용된다. 목록의 `display_properties`는 일부 표시값이므로 편집 전 `get_entity`의 전체 `properties`와 저장된 `schema_version`을 읽고 현재 정의와 대조한다. 부분 수정의 생략한 키는 유지되고 명시한 `null`은 정의가 허용할 때만 저장된다. 생성 후 종류는 불변이며 삭제된 자료도 원래 종류와 현재 정의·데이터 버전으로 복원한다.
 
-`schema_changed`는 초안과 기존 데이터 버전을 유지한 채 `current` 참조 및 최신 정의를 확인하고 변경 의도를 검토한 뒤 새 `request_key`로 제출한다. `entity_type_archived`는 새 생성·복원을 막고 기존 읽기·편집은 유지한다. 타입 이름·아이콘 변경은 `update_entity_type`의 `expected_type_version`으로 확인하며 속성 정의나 자료 값을 바꾸지 않는다. 지원 아이콘은 `list_entity_type_icons`, 과거 정의는 `list_entity_schema_versions`와 `get_entity_schema`의 명시 버전으로 확인한다.
+`schema_changed`는 초안과 기존 데이터 버전을 유지한 채 `current` 참조 및 최신 정의를 확인하고 변경 의도를 검토한 뒤 새 `request_key`로 제출한다. `entity_type_archived`는 새 생성·복원을 막고 기존 읽기·편집은 유지한다. 타입 이름·아이콘 변경은 `update_entity_type`의 `expected_type_version`으로 확인하며 속성 정의나 자료 값을 바꾸지 않는다. 속성 변경은 `create_entity_schema_change`에서 제한된 edits와 add_property client_ref를 저장해 서버 prop_n 예약을 확인한다. 수정은 `update_entity_schema_change`의 expected_change_version에 결속한다. `analyze_entity_schema_change`는 요청 키가 필요한 비동기 쓰기로 analysis_id를 접수하며 get/list로 상태를 읽는다. 최신 ready·실패 0·compatible 변경만 `apply_entity_schema_change`의 analysis_id와 변경 버전으로 게시한다. migration_required는 필드별 이유를 확인하여 값 변환 작업으로 진행한다. 보관은 정의·값을 유지하며 필수 해제는 명시해야 한다. 키 변경/재사용/종류 이동은 지원하지 않는다. 지원 아이콘은 `list_entity_type_icons`, 과거 정의는 `list_entity_schema_versions`와 `get_entity_schema`의 명시 버전으로 확인한다.
 
 정확한 입력·출력·부수효과는 연결된 MCP의 도구 설명을 따른다. 사용자가 이 이름을 선택할 필요는 없다.
 
@@ -73,6 +73,8 @@ description: Workspace에서 다음 업무의 검토·준비안을 만들거나 
 | 자료 종류·현재 이름·아이콘·보관 상태 조회 | `list_entity_types`, `get_entity_type`, `list_entity_type_icons` |
 | 요청받은 자료 종류 생성·이름·아이콘·보관 상태 변경 | `create_entity_type`, `update_entity_type` |
 | 종류별 현재·과거 속성 정의와 버전 조회 | `get_entity_schema`, `list_entity_schema_versions` |
+| 요청받은 속성 변경 초안·영향 분석·호환 가능한 게시 | `create_entity_schema_change`, `update_entity_schema_change`, `analyze_entity_schema_change`, `apply_entity_schema_change` |
+| 변경 초안·차이·분석 상태 조회 | `get_entity_schema_change`, `list_entity_schema_changes` |
 | 할 일 찾기·읽기 | `list_tasks`, `get_task` |
 | 오늘 해야 할 반복 할 일 확인(occurrence_on 지정) | `list_tasks`, `list_occurrences` |
 | 할 일 만들기·고치기·지우기 | `create_task`, `update_task`, `delete_task` |

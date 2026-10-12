@@ -1,3 +1,18 @@
+import {
+  schemaChangeAction,
+  schemaChangeApply,
+  schemaChangeCreate,
+  schemaChangeList,
+  schemaChangeUpdate,
+} from "../../contracts/entity-schema-change.ts";
+import {
+  analyzeEntitySchemaChange,
+  applyEntitySchemaChange,
+  createEntitySchemaChange,
+  getEntitySchemaChange,
+  listEntitySchemaChanges,
+  updateEntitySchemaChange,
+} from "../../core/entity-types/schema-changes.ts";
 import { z } from "zod";
 import {
   entitySchemaHistory,
@@ -19,6 +34,66 @@ import {
 import { keyedTool, type ToolDef } from "./tools.ts";
 export function entityTypeTools(deps: EntityTypeDeps): ToolDef[] {
   const tools: ToolDef[] = [
+    {
+      name: "create_entity_schema_change",
+      description:
+        "자료 종류의 속성 변경 초안 저장. add_property client_ref를 prop_n으로 영구 예약. 제한된 편집만 지원, request_key 필수.",
+      input: schemaChangeCreate.extend({ type_id: z.string().uuid() }),
+      readOnly: false,
+      handler: (i, a) => {
+        const { type_id, ...raw } = i;
+        return createEntitySchemaChange(deps, a, String(type_id), raw);
+      },
+    },
+    {
+      name: "update_entity_schema_change",
+      description: "변경 초안 버전을 확인하여 수정. 예약 번호는 회수하지 않으며 새 분석 필요.",
+      input: schemaChangeUpdate.extend({ type_id: z.string().uuid(), change_id: z.string().uuid() }),
+      readOnly: false,
+      handler: (i, a) => {
+        const { type_id, change_id, ...raw } = i;
+        return updateEntitySchemaChange(deps, a, String(type_id), String(change_id), raw);
+      },
+    },
+    {
+      name: "get_entity_schema_change",
+      description: "변경 초안·정확한 차이·영향 분석 상태 조회. 게시하지 않습니다.",
+      input: z.strictObject({ type_id: z.string().uuid(), change_id: z.string().uuid() }),
+      readOnly: true,
+      handler: (i, a) => getEntitySchemaChange(deps, a, String(i.type_id), String(i.change_id)),
+    },
+    {
+      name: "list_entity_schema_changes",
+      description: "자료 종류의 변경 초안을 제한된 페이지로 조회.",
+      input: schemaChangeList.extend({ type_id: z.string().uuid() }),
+      readOnly: true,
+      handler: (i, a) => {
+        const { type_id, ...raw } = i;
+        return listEntitySchemaChanges(deps, a, String(type_id), raw);
+      },
+    },
+    {
+      name: "analyze_entity_schema_change",
+      description:
+        "변경 버전과 전체 자료 snapshot을 고정해 비동기 영향 분석 접수. analysis.id는 분석 참조. GET으로 상태 확인, request_key 필수.",
+      input: schemaChangeAction.extend({ type_id: z.string().uuid(), change_id: z.string().uuid() }),
+      readOnly: false,
+      handler: (i, a) => {
+        const { type_id, change_id, ...raw } = i;
+        return analyzeEntitySchemaChange(deps, a, String(type_id), String(change_id), raw);
+      },
+    },
+    {
+      name: "apply_entity_schema_change",
+      description:
+        "최신 성공 분석에 결속한 compatible 변경만 새 불변 버전으로 게시. 기존 자료는 다시 저장하지 않습니다. migration_required는 별도 값 변환 실행 필요.",
+      input: schemaChangeApply.extend({ type_id: z.string().uuid(), change_id: z.string().uuid() }),
+      readOnly: false,
+      handler: (i, a) => {
+        const { type_id, change_id, ...raw } = i;
+        return applyEntitySchemaChange(deps, a, String(type_id), String(change_id), raw);
+      },
+    },
     {
       name: "list_entity_type_icons",
       description: "자료 종류의 지원 icon_id·라벨 목록. 알 수 없는 저장 아이콘은 box로 표시합니다.",

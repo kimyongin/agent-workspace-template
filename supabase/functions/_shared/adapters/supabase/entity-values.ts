@@ -35,15 +35,15 @@ export async function loadEntityDefinition(
     }
     : null;
 }
-/** Stored schema interprets values; current type metadata supplies live name/icon. */
+/** Current display settings project unchanged stored values after compatible publication. */
 export async function entityPresentation(
   tx: postgres.TransactionSql,
   typeId: string,
-  version: number,
+  _version: number,
   properties: EntityValues["properties"],
 ) {
   const [row] = await tx`select v.display,t.id,t.label,t.icon_id,t.archived,t.schema_version from app.entity_types t
-    join app.entity_schema_versions v on v.owner_id=t.owner_id and v.type_id=t.id where t.id::text=${typeId} and v.schema_version=${version}`;
+    join app.entity_schema_versions v on v.owner_id=t.owner_id and v.type_id=t.id where t.id::text=${typeId} and v.schema_version=t.schema_version`;
   if (!row) throw new Error("Entity schema reference is missing");
   return {
     type: {
