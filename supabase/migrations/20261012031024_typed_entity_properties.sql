@@ -1,5 +1,9 @@
 -- Non-destructive forward transition. Only owners with existing fixed-property rows
 -- receive an explicit legacy definition; new/empty owners remain without a type.
+-- Change type-table structure before legacy inserts enqueue its deferred schema FK.
+-- Publication/migration take this type-row lock before entity locks and set the gate
+-- while preparing/applying; all DDL and the backfill remain in one transaction.
+alter table app.entity_types add column schema_write_locked boolean not null default false;
 alter table app.entities add column entity_type_id uuid,
   add column schema_version integer,
   add column properties jsonb;
@@ -25,9 +29,6 @@ alter table app.entities alter column entity_type_id set not null,
     references app.entity_schema_versions(owner_id,type_id,schema_version);
 alter table app.entities drop column prop1, drop column prop2, drop column prop3, drop column prop4;
 create index entities_owner_type_updated on app.entities(owner_id,entity_type_id,updated_at desc,id desc);
--- Publication and schema migration take the same type-row lock before entity locks.
--- Future migration jobs set this gate in their own transaction while preparing/applying.
-alter table app.entity_types add column schema_write_locked boolean not null default false;
 create function app.enforce_entity_type_immutable() returns trigger language plpgsql set search_path='' as $$
 begin
   if new.entity_type_id is distinct from old.entity_type_id then
