@@ -1,3 +1,4 @@
+import { EntityTypeIcon } from "../entity/EntityTypeIcon.tsx";
 import { useEntityTypes } from "../entity/useEntityTypes.ts";
 import type { EntitySchemaResult } from "@contracts/entity-type.ts";
 import { writeErrorMessage } from "../../lib/write-attempt.ts";
@@ -163,7 +164,9 @@ export function RecordTemplateSettings(
                       if (!modelActions(next).includes(action)) setAction("create");
                     }}
                   >
-                    {TEMPLATE_MODELS.map((key) => <option key={key} value={key}>{templateModelNames[key]}</option>)}
+                    {TEMPLATE_MODELS.map((key) => (
+                      <option key={key} value={key}>{key === "entity" ? "자료" : templateModelNames[key]}</option>
+                    ))}
                   </select>
                 )}
               </Field>
@@ -212,6 +215,7 @@ export function RecordTemplateSettings(
                 {schemaError && <Notice kind="error">속성 정의를 읽지 못했습니다. 자료 종류를 다시 선택하세요.</Notice>}
                 {schema && (
                   <p className="secondary">
+                    <EntityTypeIcon id={types?.find((type) => type.id === typeId)?.icon_id ?? "box"} />{" "}
                     {types?.find((type) => type.id === typeId)?.label} · 속성 버전 {schema.schema_version}
                   </p>
                 )}
@@ -264,7 +268,7 @@ export function RecordTemplateSettings(
                           ? `${schema.schema.properties[key].title ?? key} · ${
                             variable.includes(".이전.") ? "이전" : "이후"
                           } (${key})`
-                          : variable.replace(/^엔터티\./, "자료.")}
+                          : variable.replaceAll("엔터티", "자료")}
                       </option>
                     );
                   })}

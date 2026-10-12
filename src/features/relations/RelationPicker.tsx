@@ -1,3 +1,5 @@
+import { EntityTypeIcon } from "../entity/EntityTypeIcon.tsx";
+import type { EntityContext } from "@contracts/entity-links.ts";
 import { BodyAction } from "../../components/BodyAction.tsx";
 import { useEffect, useId, useRef, useState } from "react";
 import type { EntitySummary } from "@contracts/entity.ts";
@@ -10,12 +12,15 @@ import { type Candidate, RelationSearch, RelationSearchAction } from "./Relation
 export function RelationPicker({ kind, value, context = [], onChange, error }: {
   kind: "entity" | "task";
   value: string[];
-  context?: { id: string; title: string }[];
+  context?: Array<Pick<EntityContext, "id" | "title" | "type" | "schema_version">>;
   onChange: (ids: string[]) => void;
   error?: string;
 }) {
   const label = kind === "entity" ? "자료" : "할 일";
   const [names, setNames] = useState(() => new Map(context.map((item) => [item.id, item.title])));
+  const [types, setTypes] = useState(() =>
+    new Map(context.filter((item) => item.type).map((item) => [item.id, item.type!]))
+  );
   const [searching, setSearching] = useState(false), searchId = useId();
   const root = useRef<HTMLDivElement>(null), nextFocus = useRef<string | null>(null);
   const selection = value.join(",");
@@ -29,7 +34,10 @@ export function RelationPicker({ kind, value, context = [], onChange, error }: {
         controller.signal,
       )
         .then((item) => {
-          if (!controller.signal.aborted) setNames((prior) => new Map(prior).set(id, item.title));
+          if (!controller.signal.aborted) {
+            setNames((prior) => new Map(prior).set(id, item.title));
+            if ("type" in item) setTypes((prior) => new Map(prior).set(id, item.type));
+          }
         }).catch(() => {});
     }
     return () => controller.abort();
@@ -80,7 +88,18 @@ export function RelationPicker({ kind, value, context = [], onChange, error }: {
             <li key={id}>
               <RelatedItem
                 title={names.get(id) ?? label}
-                metadata={kind === "entity" ? <span>{id}</span> : undefined}
+                metadata={kind === "entity"
+                  ? (
+                    <span>
+                      {types.get(id) && (
+                        <>
+                          <EntityTypeIcon id={types.get(id)!.icon_id} /> {types.get(id)!.label} ·
+                        </>
+                      )}
+                      {id}
+                    </span>
+                  )
+                  : undefined}
                 action={
                   <BodyAction
                     icon="unlink"

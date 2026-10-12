@@ -1,3 +1,4 @@
+import { EntityTypeIcon } from "./EntityTypeIcon.tsx";
 import { entityIdentityLabel } from "@contracts/entity-identity.ts";
 import { CollectionList } from "../../components/Collection.tsx";
 import { RelatedSection } from "../../components/RelatedItems.tsx";
