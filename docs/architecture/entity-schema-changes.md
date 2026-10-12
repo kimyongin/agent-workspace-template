@@ -1,6 +1,6 @@
 # 자료 종류 속성 변경 계약
 
-속성 변경은 종류별 초안 저장 → 비동기 영향 분석 → 호환 가능한 새 버전 게시로 진행한다. HTTP와 MCP는 같은 유스케이스·Actor 트랜잭션·요청 원장을 사용한다. 조회와 버전 미리보기는 쓰기나 분석 실행을 하지 않는다.
+속성 변경은 종류별 초안 저장 → 비동기 영향 분석 → 호환 가능한 새 버전 게시 또는 값 변환 작업으로 진행한다. HTTP와 MCP는 같은 유스케이스·Actor 트랜잭션·요청 원장을 사용한다. 조회와 버전 미리보기는 쓰기나 분석 실행을 하지 않는다.
 
 ## 제한된 편집
 
@@ -16,7 +16,7 @@
 
 `POST .../:change_id/analyze`는 `expected_change_version`과 요청 키를 받아 202로 `type_id/change_id/change_version/analysis_id/status: queued`를 반환한다. 정의·초안·기록 템플릿 버전과 삭제 상태를 포함한 전체 자료 집합·버전·값을 고정하여 durable 분석을 접수한다. 최대 2000개·8 MiB다. 내부 작업자는 50개씩 정의/값 validator를 한 번 컴파일하여 모든 결과를 검증한다. 분석은 제한된 변환 규칙을 적용한 별도 결과를 저장하며 활성 자료 값·정의를 바꾸지 않는다. 생성 기본값은 기존 자료에 채우지 않는다. 분석 상태는 queued/running/succeeded/failed, 변경 상태와 분석 상태는 별개다. succeeded의 failed 수가 양수면 실행할 수 없다.
 
-작업자 claim/결과는 fence와 90초 lease로 결속한다. 오래된 작업자가 새 초안/분석에 결과를 저장할 수 없다. 분석 완료와 GET은 현재 종류·스키마·자료 membership를 대조하여 stale을 반환한다. 분석/GET 응답은 원본 전체 자료를 노출하지 않고 최대 20개 실패 요약만 반환한다. before/after 페이지는 아래 별도 경계를 사용하며 실제 적용 작업은 후속 티켓에서 제공한다.
+작업자 claim/결과는 fence와 90초 lease로 결속한다. 오래된 작업자가 새 초안/분석에 결과를 저장할 수 없다. 분석 완료와 GET은 현재 종류·스키마·자료 membership를 대조하여 stale을 반환한다. 분석/GET 응답은 원본 전체 자료를 노출하지 않고 최대 20개 실패 요약만 반환한다. before/after 페이지와 실제 적용 작업은 아래 별도 경계를 사용한다.
 
 ## 게시와 표시
 
@@ -30,7 +30,7 @@ MCP는 `create/get/list/update/analyze/apply_entity_schema_change`를 제공한�
 
 ## 제한된 변환과 명시 보완
 
-create/PATCH는 `migration: {rules, overrides}`를 받는다. fingerprint에는 이 입력도 포함한다. 규칙·보완 변경은 change version을 올리고 이전 analysis_id를 무효화한다. 규칙 또는 보완을 지정하면 호환 정의라도 값 변환 경로다. 실제 적용/복구 기능은 이 분석 단계에 포함하지 않는다.
+create/PATCH는 `migration: {rules, overrides}`를 받는다. fingerprint에는 이 입력도 포함한다. 규칙·보완 변경은 change version을 올리고 이전 analysis_id를 무효화한다. 규칙 또는 보완을 지정하면 호환 정의라도 값 변환 경로다. 분석은 값을 적용하지 않는다. 값 적용은 최신 성공 분석에 결속한 별도 작업이며 완료 후 복구안은 후속 기능이다.
 
 같은 key당 convert/map 하나, fill 하나, replace_failure 하나만 지원한다. remove는 제거 편집과 결속하고 다른 변환과 함께 쓰지 않는다. `convert(key,to)`는 string/integer/number/date, `map(key,mapping,identity)`는 선택 코드 매핑, `fill(key,value,include_null)`은 누락 또는 명시적으로 null까지 채우기, `remove(key)`는 target에서 제거한 속성의 영구 값 제거, `replace_failure(key,value)`는 해당 속성 실패만 대체한다. `overrides(entity_id,key,value)`는 해당 owner/type 자료만 직접 보완한다. 보완 리터럴·코드 매핑 대상값은 저장 시 target field로 검증한다. 순서는 속성 변환 → 누락 채우기 → 행 보완 → 실패 대체 → 최종 전체 객체 검증이다. 임의 코드·URL·표현식·타입 간 이동은 받지 않는다.
 
@@ -62,3 +62,22 @@ create/PATCH는 `migration: {rules, overrides}`를 받는다. fingerprint에는 
 `record_templates.entity_types[type_id][action]`은 해당 종류의 메모·기본 기록 태그를 저장한다. 종류에 설정하지 않은 행동은 공통 entity 템플릿/기본값을 사용한다. 새 속성 변수 `$엔터티.이후.prop_n$`는 선택한 종류의 활성 키에 결속하며 공통 entity 설정에서는 속성 변수를 저장할 수 없다. 설정 UI는 종류 이름·아이콘·정의 버전·속성 라벨을 보여주고 고정 키를 삽입한다. 명시 메모가 템플릿보다 우선하며 0/false/빈 문자열/null을 누락으로 자동 변환하지 않는다. 설정 섹션 version은 기존 독립 저장 계약을 유지한다.
 
 새 할 일·기록 선택 문맥에는 당시 대표 제목·종류 ID/이름/아이콘·현재 schema_version을 함께 보존한다. trusted 이전 문맥과 과거 본문은 이후 이름/속성 변경에도 다시 쓰지 않는다. 보관 타입에는 새 선택을 추가하지 않으며 기존 선택은 유지한다. 삭제 식별자를 처음 확인하여 복원할 때는 기존 활성 속성·태그를 준비 요청에 담고 보관 속성은 생략하여 서버가 원래 값을 보존하게 한다. 생성 후 자료 종류는 변경하지 않는다.
+
+
+## durable 값 변환 작업
+
+`POST /entity-types/:type_id/schema-changes/:change_id/migrations`와 `start_entity_schema_migration`은 `expected_type_version`, `expected_schema_version`, `expected_change_version`, `analysis_id`, `fingerprint` 및 요청 키를 받아 202 접수로 `job_id/type_id/change_id/analysis_id/job_version/status: queued`를 반환한다. migration_required·최신 ready 분석·실패 0·정확한 source membership와 해당 종류 effective 템플릿만 같은 타입 잠금 아래 대조한다. 같은 키 성공 재현은 완료 후에도 원래 접수 응답을 반환한다. 새 실행 여부를 timeout만으로 추측하지 않는다.
+
+`GET /entity-schema-migrations?type_id=...&limit=20&before=...`와 `list_entity_schema_migrations`는 소유자의 종류별 작업을 최근 생성 순서로 기본 20/최대 100개 조회한다. before는 같은 소유자와 종류 범위의 마지막 job UUID다. `GET /entity-schema-migrations/:job_id` / `get_entity_schema_migration`은 종류 이름·아이콘, 계획/분석 참조, version, 상태, total/processed, retryable/failure_reason, 확정 result, source_expires_at을 반환한다. 과대 원본과 준비값은 상태 응답에 포함하지 않는다.
+
+상태는 queued → preparing → ready_to_commit → committing → succeeded다. DB의 owner/type 활성 작업 유일 제약과 접수부터 terminal까지의 종류 쓰기 gate가 CRUD·속성 게시·보관 및 두 끝점 중 하나가 해당 종류인 연결 쓰기를 막는다. 할 일/기록의 선택 변경·삭제·새 상속은 기존/새/상속 선택의 타입 합집합을 task/record 잠금 전에 정렬하여 검사한다. 선택을 유지하는 메모/본문 수정·다른 종류/소유자 업무와 읽기는 계속된다. 엔터티 값을 바꾸는 태그 삭제는 태그 잠금 전에 관련 타입을 검사하고, 이후 새 타입 사용이 발견되면 충돌로 롤백한다. 기존 선택 문맥과 과거 자동 기록은 다시 캡처하지 않는다.
+
+`POST .../:job_id/cancel` / `cancel_entity_schema_migration`은 `expected_job_version`·요청 키를 확인하여 committing 전에 취소한다. committing 또는 terminal 상태가 먼저 확정되면 그 결과가 우선한다. 취소는 준비 행을 제거하고 원본/정의를 유지한다. `POST .../:job_id/retry` / `retry_entity_schema_migration`은 같은 입력을 받고 retryable failed인 같은 작업을 최신 source/plan/템플릿/관계 baseline으로 재검사하여 202로 재개한다. 새 의도 키를 사용한다. cancelled/stale/값·크기 오류는 새 변경안 또는 재분석을 요구한다.
+
+전용 토큰이 없거나 틀리면 worker는 DB 연결 전에 거부한다. app_worker는 테이블 권한 없이 claim/stage/fail/commit RPC만 실행한다. claim은 최대 50행·원본+대상 512 KiB, preparation은 최대 50행·직렬화 결과 512 KiB·2초로 제한한다. lease는 90초이며 각 claim은 fence를 올린다. stage/fail/finalize 모두 살아 있는 같은 fence/lease만 받아 이전 worker를 막는다. lease 만료나 DB timeout은 failed 확정이 아니며 다음 worker가 같은 작업을 조정한다. statement timeout 15초와 lock timeout 5초를 유지한다.
+
+원본/대상·정의·effective 템플릿·관계/선택 baseline·기록 준비 자료 합계는 8 MiB, 전체 대상은 삭제 상태 포함 최대 2000개다. 값과 대표 이름은 공통 변환 validator로 다시 확인하고 변경 행의 메모/기록 태그·입력 해시는 일반 쓰기와 같은 공통 규칙으로 준비한다. 최종 단일 RPC 트랜잭션이 현재 pointer·모든 대상 properties/schema/data version·불변 정의·필요한 새 변경 기록과 색인 의도·성공 result·복구 baseline을 bulk SQL로 함께 확정한다. 엔터티 ID/종류와 pair 매핑, 과거 본문/캡처는 유지한다. 중간 rollback은 어느 적용 효과도 남기지 않는다. joined GET과 type FOR SHARE 목록은 전체 이전 또는 전체 새 epoch를 읽는다.
+
+성공 원본·원본 정의·source/committed membership와 pair/현재 task/user·result record 선택 구조는 30일간 소유자 범위에 보존한다. task/record 본문 version이나 다른 종류 peer 속성 version을 복구 충돌로 저장하지 않는다. worker는 만료된 terminal 자료를 제한된 묶음으로 제거하며 만료된 원본 분석 페이지는 migration_source_expired/410이다. 성공 결과와 계획/작업 참조는 남는다. 복구안 생성 도구는 이 티켓에 제공하지 않는다.
+
+웹 `/settings/entity-types/:type_id/migrations/:job_id`는 접수 후 페이지 이탈·직접 링크·새로고침·상태 조회·취소·재시도를 지원한다. GET/polling은 작업을 실행하지 않는다. 실행 인프라는 기존 opt-in 로컬 runner 또는 운영자가 별도로 설정하는 전용 worker 스케줄이다. 운영 Cron 활성화·배포는 이 구현의 실행 범위가 아니다.

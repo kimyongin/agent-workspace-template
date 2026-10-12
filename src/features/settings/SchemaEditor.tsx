@@ -1,3 +1,4 @@
+import { MigrationStart } from "./SchemaMigrationJobs.tsx";
 import { Link, useLocation } from "react-router";
 import { ConversionEditor } from "./ConversionEditor.tsx";
 import { useEffect, useRef, useState } from "react";
@@ -663,6 +664,9 @@ export function SchemaEditor(
               실패한 자료 값을 확인하여 직접 수정하거나 값 변환 변경을 준비한 뒤 다시 분석하세요. 실패가 있으면 게시할
               수 없습니다.
             </p>
+          )}
+          {plan.change_kind === "migration_required" && (
+            <MigrationStart plan={plan} disabled={busy || uncertain || dirty || disabled} />
           )}
           {plan.change_kind === "migration_required" && (
             <p>현재 자료와 활성 정의는 유지됩니다. 영향 분석 결과를 확인하고 값 변환 작업을 준비하세요.</p>

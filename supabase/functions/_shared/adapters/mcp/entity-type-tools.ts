@@ -1,4 +1,16 @@
 import {
+  cancelEntitySchemaMigration,
+  getEntitySchemaMigration,
+  listEntitySchemaMigrations,
+  retryEntitySchemaMigration,
+  startEntitySchemaMigration,
+} from "../../core/entity-types/schema-migrations.ts";
+import {
+  schemaMigrationAction,
+  schemaMigrationList,
+  schemaMigrationStart,
+} from "../../contracts/entity-schema-migration.ts";
+import {
   schemaAnalysisRows,
   schemaChangeAction,
   schemaChangeApply,
@@ -36,6 +48,54 @@ import {
 import { keyedTool, type ToolDef } from "./tools.ts";
 export function entityTypeTools(deps: EntityTypeDeps): ToolDef[] {
   const tools: ToolDef[] = [
+    {
+      name: "start_entity_schema_migration",
+      description:
+        "최신 성공 분석·fingerprint·type/schema/change version을 확인하여 값 변환 접수. job_id로 상태 조회, request_key 필수. 준비 중 같은 종류 쓰기 차단.",
+      input: schemaMigrationStart.extend({ type_id: z.string().uuid(), change_id: z.string().uuid() }),
+      readOnly: false,
+      handler: (i, a) => {
+        const { type_id, change_id, ...raw } = i;
+        return startEntitySchemaMigration(deps, a, String(type_id), String(change_id), raw);
+      },
+    },
+    {
+      name: "get_entity_schema_migration",
+      description:
+        "값 변환 작업 상태·건수·확정 결과·재시도 여부·원본 만료 조회. timeout/lease 만료는 실패 확정이 아닙니다.",
+      input: z.strictObject({ job_id: z.string().uuid() }),
+      readOnly: true,
+      handler: (i, a) => getEntitySchemaMigration(deps, a, String(i.job_id)),
+    },
+    {
+      name: "list_entity_schema_migrations",
+      description: "소유자의 값 변환 작업을 종류·limit/before로 조회.",
+      input: schemaMigrationList,
+      readOnly: true,
+      handler: (i, a) => listEntitySchemaMigrations(deps, a, i),
+    },
+    {
+      name: "cancel_entity_schema_migration",
+      description:
+        "expected_job_version을 확인하여 commit 전 작업 취소. 경쟁한 commit/성공의 확정 상태를 반환. request_key 필수.",
+      input: schemaMigrationAction.extend({ job_id: z.string().uuid() }),
+      readOnly: false,
+      handler: (i, a) => {
+        const { job_id, ...raw } = i;
+        return cancelEntitySchemaMigration(deps, a, String(job_id), raw);
+      },
+    },
+    {
+      name: "retry_entity_schema_migration",
+      description:
+        "retryable failed인 같은 작업을 최신 source/plan 대조 후 재개. cancelled/stale은 재분석. expected_job_version·새 의도 request_key 필수.",
+      input: schemaMigrationAction.extend({ job_id: z.string().uuid() }),
+      readOnly: false,
+      handler: (i, a) => {
+        const { job_id, ...raw } = i;
+        return retryEntitySchemaMigration(deps, a, String(job_id), raw);
+      },
+    },
     {
       name: "create_entity_schema_change",
       description:

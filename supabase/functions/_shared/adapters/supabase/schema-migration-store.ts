@@ -1,0 +1,153 @@
+import type postgres from "postgres";
+import { SqlSchemaChangeStore } from "./schema-change-store.ts";
+import type { SchemaMigrationStore } from "../../core/entity-types/schema-migrations.ts";
+import type { EntitySchemaMigration, SchemaMigrationAccepted } from "../../contracts/entity-schema-migration.ts";
+import { effectiveEntityTemplates } from "../../contracts/record-template.ts";
+import { AppError, conflict, invalidInput, notFound } from "../../core/shared/errors.ts";
+import { resolvedEntityTypeIcon } from "../../contracts/entity-type.ts";
+export class SqlSchemaMigrationStore extends SqlSchemaChangeStore implements SchemaMigrationStore {
+  private accepted(r: postgres.Row): SchemaMigrationAccepted {
+    return {
+      job_id: r.id,
+      type_id: r.type_id,
+      change_id: r.change_id,
+      analysis_id: r.analysis_id,
+      job_version: Number(r.version),
+      status: "queued",
+    };
+  }
+  private async job(id: string, lock = false) {
+    const [r] = await this.tx`select * from app.entity_schema_migrations where id::text=${id} ${
+      lock ? this.tx`for update` : this.tx``
+    }`;
+    if (!r) throw notFound();
+    return r;
+  }
+  private async jobDto(r: postgres.Row): Promise<EntitySchemaMigration> {
+    const [t] = await this.tx`select id,label,icon_id,archived from app.entity_types where id=${r.type_id}`;
+    return {
+      id: r.id,
+      type_id: r.type_id,
+      type: { id: t.id, label: t.label, archived: t.archived, icon_id: resolvedEntityTypeIcon(t.icon_id) },
+      change_id: r.change_id,
+      change_version: Number(r.change_version),
+      analysis_id: r.analysis_id,
+      fingerprint: r.fingerprint,
+      source_type_version: Number(r.source_type_version),
+      source_schema_version: Number(r.source_schema_version),
+      version: Number(r.version),
+      status: r.status,
+      total: Number(r.total),
+      processed: Number(r.processed),
+      retryable: r.retryable,
+      failure_reason: r.failure_reason,
+      result: r.result,
+      source_expires_at: r.source_expires_at?.toISOString() ?? null,
+      created_at: r.created_at.toISOString(),
+      updated_at: r.updated_at.toISOString(),
+    };
+  }
+  private async validSource(t: postgres.Row, c: postgres.Row, analysisId: string) {
+    this.sourceRefs(t, {
+      expected_type_version: Number(c.source_type_version),
+      expected_schema_version: Number(c.source_schema_version),
+    });
+    const [a] = await this.tx`select * from app.entity_schema_analyses where id=${analysisId} and change_id=${c.id}`;
+    const [fresh] = await this.tx`select app.entity_schema_membership(${this.actor.userId},${t.id}) as membership`;
+    if (c.kind !== "migration_required") throw invalidInput("호환 가능한 변경은 새 버전 게시를 사용하세요");
+    if (
+      c.status !== "ready" || c.analysis_id !== analysisId || !a || a.status !== "succeeded" || a.failed !== 0 ||
+      a.change_version !== c.version || a.fingerprint !== c.fingerprint || a.membership !== fresh.membership
+    ) throw new AppError("schema_plan_stale", "최신 성공 분석을 준비하세요");
+    await this.templates(c.target, t.id, c.source_template_fingerprint);
+    return a;
+  }
+  async startMigration(typeId: string, changeId: string, i: Parameters<SchemaMigrationStore["startMigration"]>[2]) {
+    const t = await this.lockType(typeId), c = await this.row(typeId, changeId, true);
+    this.editable(c, i.expected_change_version);
+    this.sourceRefs(t, i);
+    if (c.fingerprint !== i.fingerprint) {
+      throw new AppError("schema_plan_stale", "확인한 변경안과 실행 요청이 다릅니다");
+    }
+    const a = await this.validSource(t, c, i.analysis_id);
+    const [definition] = await this
+      .tx`select schema,display from app.entity_schema_versions where type_id=${typeId} and schema_version=${t.schema_version}`;
+    const [settings] = await this.tx`select settings from app.user_business_settings where id='record_templates'`;
+    const templates = effectiveEntityTemplates(settings?.settings, typeId);
+    for (const template of Object.values(templates.entity!)) template!.tag_ids = [...template!.tag_ids].sort();
+    const [refs] = await this.tx`select app.entity_schema_reference_baseline(${this.actor.userId},${typeId}) as value`;
+    const [size] = await this
+      .tx`select coalesce(sum(octet_length(properties::text)+octet_length(after::text)),0)::bigint as bytes from private.entity_schema_analysis_rows where analysis_id=${a.id}`;
+    const metadataBytes = new TextEncoder().encode(
+      JSON.stringify({ definition, target: c.target, references: refs.value, templates, migration: c.migration }),
+    )
+      .length;
+    if (Number(size.bytes) + metadataBytes > 8388608) {
+      throw invalidInput("원본·변환값·복구 문맥은 8 MiB 이하에서 실행할 수 있습니다");
+    }
+    const [j] = await this
+      .tx`insert into app.entity_schema_migrations(owner_id,type_id,change_id,change_version,analysis_id,fingerprint,membership,source_type_version,source_schema_version,source_template_fingerprint,source_templates,source_definition,target,migration,source_references,total,actor_source) values(${this.actor.userId},${typeId},${changeId},${c.version},${a.id},${c.fingerprint},${a.membership},${t.version},${t.schema_version},${c.source_template_fingerprint},${
+      this.tx.json(templates as never)
+    },${this.tx.json(definition)},${this.tx.json(c.target)},${this.tx.json(c.migration)},${
+      this.tx.json(refs.value)
+    },${a.total},${this.actor.source ?? "http"}) returning *`;
+    await this
+      .tx`insert into private.entity_schema_migration_rows(owner_id,job_id,entity_id,source_version,source_schema_version,source_properties,source_deleted_at,source_identity,after,changed) select r.owner_id,${j.id},r.entity_id,r.source_version,r.source_schema_version,r.properties,r.deleted_at,jsonb_build_object('source',e.source,'external_id',e.external_id,'tag_ids',coalesce((select jsonb_agg(tag_id order by tag_id) from app.entity_tags where entity_id=e.id),'[]'::jsonb)),r.after,r.changed from private.entity_schema_analysis_rows r join app.entities e on e.owner_id=r.owner_id and e.id=r.entity_id where r.analysis_id=${a.id} and r.processed and jsonb_array_length(r.errors)=0`;
+    await this.tx`update app.entity_types set schema_write_locked=true where id=${typeId}`;
+    return this.accepted(j);
+  }
+  async getMigration(id: string) {
+    return this.jobDto(await this.job(id));
+  }
+  async listMigrations(i: Parameters<SchemaMigrationStore["listMigrations"]>[0]) {
+    if (i.type_id) {
+      const [t] = await this.tx`select id from app.entity_types where id=${i.type_id}`;
+      if (!t) throw notFound();
+    }
+    const prior = i.before ? await this.job(i.before) : null;
+    if (prior && i.type_id && prior.type_id !== i.type_id) throw invalidInput("이 종류의 작업 목록 cursor가 아닙니다");
+    const rows = await this.tx`select * from app.entity_schema_migrations where (${
+      i.type_id ?? null
+    }::uuid is null or type_id=${i.type_id ?? null}::uuid) ${
+      prior ? this.tx`and (created_at,id)<(${prior.created_at},${prior.id}::uuid)` : this.tx``
+    } order by created_at desc,id desc limit ${i.limit + 1}`;
+    return {
+      items: await Promise.all(rows.slice(0, i.limit).map((r) => this.jobDto(r))),
+      next_before: rows.length > i.limit ? String(rows[i.limit - 1].id) : null,
+    };
+  }
+  async cancelMigration(id: string, i: Parameters<SchemaMigrationStore["cancelMigration"]>[1]) {
+    const identity = await this.job(id);
+    await this.tx`select id from app.entity_types where id=${identity.type_id} for update`;
+    const j = await this.job(id, true);
+    // Terminal results always win even when a caller's version predates the commit.
+    if (["committing", "succeeded", "failed", "cancelled"].includes(j.status)) return this.jobDto(j);
+    if (j.version !== i.expected_job_version) throw conflict("작업 상태가 변경되었습니다. 다시 조회하세요");
+    const [r] = await this
+      .tx`update app.entity_schema_migrations set status='cancelled',version=version+1,fence=fence+1,lease_until=null,retryable=false,updated_at=now() where id=${id} returning *`;
+    await this.tx`delete from private.entity_schema_migration_rows where job_id=${id}`;
+    await this.tx`update app.entity_types set schema_write_locked=false where id=${j.type_id}`;
+    return this.jobDto(r);
+  }
+  async retryMigration(id: string, i: Parameters<SchemaMigrationStore["retryMigration"]>[1]) {
+    const identity = await this.job(id), t = await this.lockType(identity.type_id), j = await this.job(id, true);
+    if (j.version !== i.expected_job_version) throw conflict("작업 상태가 변경되었습니다. 다시 조회하세요");
+    if (j.status !== "failed" || !j.retryable) {
+      throw conflict("재시도 가능한 실패 작업만 재개할 수 있습니다. 새 분석을 준비하세요");
+    }
+    const c = await this.row(j.type_id, j.change_id, true);
+    if (c.version !== j.change_version || c.fingerprint !== j.fingerprint || c.analysis_id !== j.analysis_id) {
+      throw new AppError("schema_plan_stale", "새 분석을 준비하세요");
+    }
+    await this.validSource(t, c, j.analysis_id);
+    const [refs] = await this.tx`select app.entity_schema_reference_baseline(${this.actor.userId},${j.type_id})=${
+      this.tx.json(j.source_references)
+    }::jsonb as fresh`;
+    if (!refs.fresh) throw new AppError("schema_plan_stale", "연결이 변경되었습니다. 새 분석을 준비하세요");
+    const [r] = await this
+      .tx`update app.entity_schema_migrations set status='queued',version=version+1,fence=fence+1,lease_until=null,retryable=false,failure_reason=null,updated_at=now() where id=${id} returning *`;
+    await this.tx`update app.entity_types set schema_write_locked=true where id=${j.type_id}`;
+    // Acceptance status describes durable resumption, regardless of a worker's next internal phase.
+    return this.accepted(r);
+  }
+}

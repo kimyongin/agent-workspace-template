@@ -1,3 +1,8 @@
+import {
+  schemaMigrationAction,
+  schemaMigrationList,
+  schemaMigrationStart,
+} from "../../functions/_shared/contracts/entity-schema-migration.ts";
 import { entityPairQuery, entityPairWrite } from "../../functions/_shared/contracts/entity-pairs.ts";
 import { entityReferenceId } from "../../functions/_shared/contracts/entity-identity.ts";
 import {
@@ -196,6 +201,11 @@ const EXPECTED_TOOLS = [
   "analyze_entity_schema_change",
   "apply_entity_schema_change",
   "list_entity_schema_analysis_rows",
+  "start_entity_schema_migration",
+  "get_entity_schema_migration",
+  "list_entity_schema_migrations",
+  "cancel_entity_schema_migration",
+  "retry_entity_schema_migration",
   "complete_task",
   "create_principle",
   "create_record",
@@ -523,6 +533,18 @@ httpTest("tools/list: 계약의 도구 이름과 contracts JSON Schema", async (
       type_id: z.string().uuid(),
       change_id: z.string().uuid(),
     }),
+    start_entity_schema_migration: schemaMigrationStart.extend({
+      type_id: z.string().uuid(),
+      change_id: z.string().uuid(),
+      request_key: requestKey,
+    }),
+    get_entity_schema_migration: z.strictObject({ job_id: z.string().uuid() }),
+    list_entity_schema_migrations: schemaMigrationList,
+    cancel_entity_schema_migration: schemaMigrationAction.extend({
+      job_id: z.string().uuid(),
+      request_key: requestKey,
+    }),
+    retry_entity_schema_migration: schemaMigrationAction.extend({ job_id: z.string().uuid(), request_key: requestKey }),
     list_entity_schema_changes: schemaChangeList.extend({ type_id: z.string().uuid() }),
     analyze_entity_schema_change: schemaChangeAction.extend({
       type_id: z.string().uuid(),

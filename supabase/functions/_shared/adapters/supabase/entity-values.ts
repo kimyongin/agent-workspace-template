@@ -13,11 +13,18 @@ export async function loadEntityDefinition(
     const [type] = await tx`select * from app.entity_types where id::text=${typeId} for update`;
     if (!type) return null;
     if (type.schema_write_locked) {
+      const [job] =
+        await tx`select id,version from app.entity_schema_migrations where type_id=${typeId} and status in ('queued','preparing','ready_to_commit','committing')`;
       throw new AppError(
         "schema_migration_in_progress",
         "속성 마이그레이션 중입니다. 완료 후 다시 저장하세요",
         undefined,
-        { type_id: typeId, type_version: Number(type.version), schema_version: Number(type.schema_version) },
+        {
+          type_id: typeId,
+          type_version: Number(type.version),
+          schema_version: Number(type.schema_version),
+          ...(job ? { job_id: job.id, job_version: Number(job.version) } : {}),
+        },
       );
     }
   }

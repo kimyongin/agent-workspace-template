@@ -1,4 +1,4 @@
-import { SqlSchemaChangeStore } from "./schema-change-store.ts";
+import { SqlSchemaMigrationStore } from "./schema-migration-store.ts";
 import type postgres from "postgres";
 import type { Actor } from "../../core/shared/actor.ts";
 import type { RequestIdentity } from "../../core/shared/request.ts";
@@ -34,7 +34,7 @@ function schemaRow(row: postgres.Row): EntitySchemaVersion {
     created_at: row.created_at.toISOString(),
   };
 }
-export class SqlEntityTypeStore extends SqlSchemaChangeStore implements EntityTypeStore {
+export class SqlEntityTypeStore extends SqlSchemaMigrationStore implements EntityTypeStore {
   executeRequest<T>(request: RequestIdentity, execute: () => Promise<T>) {
     return executeSqlRequest(this.tx, this.actor, request, execute);
   }
