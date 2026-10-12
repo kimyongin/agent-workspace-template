@@ -1,4 +1,5 @@
 // 업무 HTTP API 클라이언트. 세션 토큰을 붙이고 공통 오류 본문을 ApiError로 바꾼다.
+import { ENTITY_QUERY_URL_MAX_BYTES, entityHttpQuery } from "@contracts/entity-query.ts";
 import type { ErrorBody } from "@contracts/common.ts";
 import { freezeWrite } from "./write-attempt.ts";
 import { supabase } from "./supabase.ts";
@@ -15,7 +16,13 @@ export async function api<T>(
   signal?: AbortSignal,
   requestKey?: string,
 ): Promise<T> {
-  const writing = method !== "GET" && !["/search", "/records/prepare"].includes(path);
+  if (method === "GET" && path.startsWith("/entities?") &&
+    new TextEncoder().encode(`${base}${path}`).byteLength > ENTITY_QUERY_URL_MAX_BYTES) {
+    body = entityHttpQuery(Object.fromEntries(new URLSearchParams(path.slice("/entities?".length))));
+    method = "POST";
+    path = "/entities/query";
+  }
+  const writing = method !== "GET" && !["/search", "/records/prepare", "/entities/query"].includes(path);
   let serialized = body === undefined ? undefined : JSON.stringify(body);
   if (writing) {
     if (!requestKey) throw new Error("업무 쓰기는 요청 키가 필요합니다");
@@ -25,7 +32,7 @@ export async function api<T>(
   signal?.throwIfAborted();
   const headers: Record<string, string> = {};
   if (data.session) headers.authorization = `Bearer ${data.session.access_token}`;
-  if (requestKey) headers["Idempotency-Key"] = requestKey;
+  if (requestKey && writing) headers["Idempotency-Key"] = requestKey;
   if (serialized !== undefined) headers["content-type"] = "application/json";
   let res: Response;
   try {

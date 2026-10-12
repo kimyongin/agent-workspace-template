@@ -5,12 +5,22 @@ import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { createOwned, cleanupOwned, setupOwned, saveJournal, readJournal, assertJournal } from './journal.mjs';
 import { randomUUID } from 'node:crypto';
-import { activityTools } from '../../supabase/functions/_shared/adapters/mcp/activity-tools.ts';
-import { entityTools } from '../../supabase/functions/_shared/adapters/mcp/entity-tools.ts';
-import { principleTools } from '../../supabase/functions/_shared/adapters/mcp/principle-tools.ts';
-import { tagTools } from '../../supabase/functions/_shared/adapters/mcp/tag-tools.ts';
-
-const schemas = new Map([...activityTools({}), ...entityTools({}), ...principleTools({}), ...tagTools({})].map(({ name, input }) => [name, input]));
+import { z } from 'zod';
+import { entityCreate, entityListQuery } from '../../supabase/functions/_shared/contracts/entity.ts';
+import { tagCreate, tagListQuery } from '../../supabase/functions/_shared/contracts/tag.ts';
+import { principleCreate } from '../../supabase/functions/_shared/contracts/principle.ts';
+import { recordCreate, recordListQuery } from '../../supabase/functions/_shared/contracts/record.ts';
+import { taskCreate, taskListQuery } from '../../supabase/functions/_shared/contracts/task.ts';
+import { requestKey } from '../../supabase/functions/_shared/contracts/request.ts';
+// The same public input contracts used by HTTP/MCP; no core/runtime dependency.
+const creates = { tag: tagCreate, entity: entityCreate, principle: principleCreate, record: recordCreate, task: taskCreate };
+const schemas = new Map(Object.entries(creates).map(([kind, contract]) => [`create_${kind}`, { parse(input) { const { request_key, ...body } = input; requestKey.parse(request_key); return { ...contract.parse(body), request_key }; } }]));
+for (const [name, contract] of Object.entries({ list_entities: entityListQuery, list_tags: tagListQuery, list_records: recordListQuery, list_tasks: taskListQuery })) schemas.set(name, contract);
+for (const kind of Object.keys(creates)) { schemas.set(`get_${kind}`, z.strictObject({ id: z.string() })); schemas.set(`delete_${kind}`, z.strictObject({ id: z.string(), expected_version: z.number(), request_key: requestKey.optional() })); }
+schemas.set('get_current_principle', z.strictObject({}));
+const typeId = '00000000-0000-4000-8000-000000000001';
+const scalarType = async () => ({ id: typeId, schema_version: 2, label: '검사 자료 test' });
+const entityInput = marker => ({ entity_type_id: typeId, schema_version: 2, properties: { prop_1: marker, prop_2: 7, prop_3: '2026-10-04', prop_4: 'b' } });
 
 const endpoint = 'http://127.0.0.1:55421/functions/v1/mcp';
 function journal() {
@@ -19,23 +29,26 @@ function journal() {
 }
 function service() {
   const rows = { tag: new Map(), entity: new Map(), principle: new Map(), record: new Map() };
-  let fault, oauthAttempts = 0;
-  const calls = [], queries = [];
+  let fault, oauthAttempts = 0; const receipts = new Map();
+  const calls = [], queries = [], inputs = [];
   return {
-    rows, calls, queries, fail: (point) => { fault = point; },
+    rows, calls, queries, inputs, fail: (point) => { fault = point; },
     get oauthAttempts() { return oauthAttempts; },
     async oauth(id) { assert.equal(id, 'own-client'); oauthAttempts++; if (fault === 'oauth') { fault = undefined; throw new Error('lost auth response'); } },
     async call(name, input) {
       assert(schemas.has(name), `Actual MCP ToolDef missing: ${name}`);
       input = schemas.get(name).parse(input); // Real input contract before any mock effect.
-      calls.push(name);
+      calls.push(name); inputs.push({ name, input: structuredClone(input) });
       if (name === 'get_current_principle') return { current: [...rows.principle.values()].find(row => row.is_current) ?? null };
       const [verb, suffix] = name.split('_');
       const kind = suffix === 'entities' ? 'entity' : suffix.replace(/s$/, '');
       if (verb === 'create') {
         if (fault === `before:${kind}`) { fault = undefined; throw new Error('transport before commit'); }
-        if (rows[kind].has(input.id)) throw Object.assign(new Error("conflict"), { code: "conflict" });
-        const object = { ...input, version: 1, ...(kind === "principle" ? { is_current: true } : {}) };
+        const key = input.request_key;
+        if (receipts.has(key)) return structuredClone(receipts.get(key));
+        const { request_key, ...body } = input;
+        const object = { ...body, id: kind === 'entity' ? `app:${randomUUID()}` : randomUUID(), version: 1, ...(kind === 'entity' ? { title: input.properties.prop_1 } : {}), ...(kind === "principle" ? { is_current: true } : {}) };
+        receipts.set(key, structuredClone(object));
         rows[kind].set(object.id, object);
         if (fault === `after:${kind}`) { fault = undefined; throw new Error('lost create response'); }
         return object;
@@ -69,15 +82,20 @@ for (const failure of ['before:entity', 'after:entity']) test(`partial setup ${f
     await saveJournal(path, data, true);
     const tag = await createOwned(data, save, api.call, 'tag', { name: data.marker });
     api.fail(failure);
-    await assert.rejects(createOwned(data, save, api.call, 'entity', { prop1: data.marker }), /transport|lost/);
+    await assert.rejects(createOwned(data, save, api.call, 'entity', entityInput(data.marker)), /transport|lost/);
     data = await readJournal(path, endpoint, 'codex-cli');
     assert.equal(data.tag.id, tag.id);
     assert.equal(data.token, journal().token);
     assert.equal(data.pendingCreate.kind, 'entity');
-    assert.match(data.pendingCreate.input.id, /^[a-f0-9-]{36}$/);
+    assert.match(data.pendingCreate.input.request_key, /^[a-f0-9-]{36}$/);
+    assert.equal('id' in data.pendingCreate.input, false);
+    const pendingInput = structuredClone(data.pendingCreate.input);
     api.rows.tag.set('foreign', { id: 'foreign', name: 'unrelated', version: 3 });
     await cleanupOwned(data, save, api.call, api.oauth);
     assert.equal(api.rows.entity.size, 0);
+    const attempts = api.inputs.filter(r => r.name === 'create_entity');
+    assert.deepEqual(attempts.map(r => r.input), [pendingInput, pendingInput]);
+    assert.notEqual(data.entity.id, pendingInput.request_key);
     assert.deepEqual([...api.rows.tag.keys()], ['foreign']);
     const cleaned = await readJournal(path, endpoint, 'codex-cli');
     assert.equal(cleaned.state, 'cleaned');
@@ -141,7 +159,7 @@ test('inventory failure after all four creates leaves every ID available for par
       const persisted = await readJournal(path, endpoint, 'codex-cli');
       for (const kind of ['tag', 'entity', 'principle', 'record']) assert.equal(persisted[kind].id, data[kind].id);
       throw new Error('listTools transport failure');
-    }), /listTools/);
+    }, scalarType), /listTools/);
     assert.equal(inventoryCalls, 1);
     data = await readJournal(path, endpoint, 'codex-cli');
     assert.equal(data.state, 'creating');
@@ -158,7 +176,7 @@ test('cleanup reads only the owned current principle and never uses retired hist
     const data = journal(), api = service(), save = () => saveJournal(path, data);
     await saveJournal(path, data, true);
     const foreign = randomUUID(); api.rows.principle.set(foreign, { id: foreign, title: 'archived data', is_current: false, version: 9 });
-    await setupOwned(data, save, api.call, async () => ({ tools: [...schemas.keys()].map(name => ({ name })) }));
+    await setupOwned(data, save, api.call, async () => ({ tools: [...schemas.keys()].map(name => ({ name })) }), scalarType);
     assert(!schemas.has('list_principles')); assert(!schemas.has('correct_principle'));
     await cleanupOwned(data, save, api.call, api.oauth);
     assert(api.rows.principle.has(foreign)); assert(!api.rows.principle.has(data.principle.id));

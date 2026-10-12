@@ -15,18 +15,17 @@ export function savingFaultAdapter(mode) {
       if (mutation) {
         attempts++;
         const input = rpc.params?.arguments;
-        if (name !== 'create_record' || typeof input?.id !== 'string' || !input.id) return error(rpc, '이번 시험은 원래 단일 기록 요청의 재시도 식별 정보가 필요합니다. 변경은 전달되지 않았습니다.');
+        if (name !== 'create_record' || typeof input?.request_key !== 'string' || !input.request_key) return error(rpc, '이번 시험은 원래 단일 기록 요청의 재시도 식별 정보가 필요합니다. 변경은 전달되지 않았습니다.');
         const signature = hash({ name, input });
         if (inputHash && signature !== inputHash) { mismatched = true; return error(rpc, '응답을 잃은 원래 요청과 입력 또는 요청 식별 정보가 다릅니다. 중복 저장을 방지하기 위해 전달하지 않았습니다.'); }
         const replay = injected === 1;
         if (replay) replayCalls++;
         const result = await forward(rpc);
-        if (replay && result?.result?.isError && result.result.structuredContent?.code === "conflict") { replayConfirmed = true; return result; }
         if (!result?.result || result.result.isError || result.error) return result;
         const stored = result.result.structuredContent;
         if (!stored?.id) return result;
         upstreamMutations++;
-        if (!injected) { inputHash = signature; requestIdHash = hash(input.id); committedId = stored.id; injected = 1; return error(rpc, '원본 서비스에 전달한 뒤 응답을 잃었습니다. 저장 여부가 불확실합니다. 원문 조회 또는 동일 입력과 동일 요청 식별 정보로 확인하세요.'); }
+        if (!injected) { inputHash = signature; requestIdHash = hash(input.request_key); committedId = stored.id; injected = 1; return error(rpc, '원본 서비스에 전달한 뒤 응답을 잃었습니다. 저장 여부가 불확실합니다. 원문 조회 또는 동일 입력과 동일 요청 식별 정보로 확인하세요.'); }
         replayConfirmed ||= replay && stored.id === committedId;
         originalConfirmation ||= replayConfirmed;
         return result;

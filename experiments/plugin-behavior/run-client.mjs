@@ -109,7 +109,7 @@ let savingAnswer = '';
 function answerFacts(text = '') {
   if (saving || roundtrip) savingAnswer += text + '\n'; // Memory only; no raw answer persisted.
   evidence.answer.originalDetail ||= text.includes(fixture.originalDetail);
-  evidence.answer.currentValue ||= new RegExp(`(?<![a-zA-Z0-9-])${fixture.entity.prop2}(?![a-zA-Z0-9-])`).test(text);
+  evidence.answer.currentValue ||= new RegExp(`(?<![a-zA-Z0-9-])${fixture.entity.properties.prop_2}(?![a-zA-Z0-9-])`).test(text);
   evidence.answer.sourceId ||= text.includes(fixture.record.id);
   evidence.answer.currentPrincipleId ||= text.includes(fixture.principle.id);
   if (fixture.scenario === 'missing') evidence.answer.missingCurrentPrinciple ||= /현재.{0,30}원칙.{0,30}(없|부재|미설정|비어)/.test(text);

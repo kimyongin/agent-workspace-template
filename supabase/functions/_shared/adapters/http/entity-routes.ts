@@ -1,4 +1,6 @@
 import { Hono } from "hono";
+import { entityHttpQuery } from "../../contracts/entity-query.ts";
+export { entityHttpQuery } from "../../contracts/entity-query.ts";
 import { entityCreate, entityListQuery, entityUpdate } from "../../contracts/entity.ts";
 import { businessMeta } from "../../contracts/change.ts";
 import { expectedVersion } from "../../contracts/common.ts";
@@ -12,20 +14,6 @@ function idParam(value: string) {
   const parsed = entityReferenceId.safeParse(value);
   if (!parsed.success) throw notFound();
   return parsed.data;
-}
-/** Structured URL fields use JSON, then the same strict MCP contract. */
-export function entityHttpQuery(query: Record<string, string>): Record<string, unknown> {
-  const input: Record<string, unknown> = { ...query };
-  for (const key of ["filters", "sort"]) {
-    if (query[key] !== undefined && (key === "filters" || !["title", "updated_at"].includes(query[key]))) {
-      try {
-        input[key] = JSON.parse(query[key]);
-      } catch {
-        input[key] = null;
-      }
-    }
-  }
-  return input;
 }
 export function entityRoutes(d: entity.EntityDeps) {
   const app = new Hono<HttpEnv>();
@@ -45,6 +33,10 @@ export function entityRoutes(d: entity.EntityDeps) {
     "/entities",
     async (c) =>
       c.json(await entity.listEntities(d, c.get("actor"), parse(entityListQuery, entityHttpQuery(c.req.query())))),
+  );
+  app.post(
+    "/entities/query",
+    async (c) => c.json(await entity.listEntities(d, c.get("actor"), parse(entityListQuery, await json(c.req.raw)))),
   );
   app.get("/entities/:id", async (c) => c.json(await entity.getEntity(d, c.get("actor"), idParam(c.req.param("id")))));
   app.post(

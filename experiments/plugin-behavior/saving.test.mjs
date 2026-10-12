@@ -37,27 +37,27 @@ test('lost-response lookup recovery is valid but cannot claim an unobserved keye
 
 test('public entity related projections may change only to match the requested saved originals', () => {
   const t0 = '2026-10-06T00:00:00.000Z', t1 = '2026-10-06T00:01:00.000Z', t2 = '2026-10-06T00:02:00.000Z';
-  const source = { id: 'source', body: 'old', updated_at: t0, entity_ids: ['entity'] };
+  const source = { id: 'source', body: 'old', record_kind: 'user', occurred_at: t0, updated_at: t0, entity_ids: ['entity'] };
   const task = { id: 'task', title: 'review', updated_at: t0, entity_ids: ['entity'], status: 'open', version: 1, result_record_id: null, result_record: null };
-  const entity = { id: 'entity', prop1: 'customer', prop2: 11, version: 2, updated_at: t0, tasks: { count: 1, items: [{ id: 'task', title: 'review', updated_at: t0 }] }, records: { count: 1, items: [{ id: 'source', body: 'old', updated_at: t0 }] } };
+  const entity = { id: 'entity', title: 'customer', properties: { prop_1: 'customer', prop_2: 11 }, version: 2, updated_at: t0, tasks: { count: 1, items: [{ id: 'task', title: 'review', updated_at: t0 }] }, records: { count: 1, items: [{ id: 'source', body: 'old', record_kind: 'user', occurred_at: t0, updated_at: t0 }] } };
   const before = { current: null, entities: [entity], tasks: [task], records: [source], principles: [], tags: [] };
-  const user = { id: 'new', body: 'SOURCE-123 current 11', version: 1, updated_at: t1, record_kind: 'user', entity_ids: ['entity'] };
-  const event = { id: 'event', body: 'creation', updated_at: t2, record_kind: 'change', entity_ids: ['entity'], change: { event_id: 'event-identity', target_id: 'new', target_kind: 'record', target_title: 'result', action: 'create', source: 'mcp', path: '/records/new', before: null, after: { ...user } } };
-  const afterEntity = { ...entity, records: { count: 3, items: [{ id: 'event', body: 'creation', updated_at: t2 }, { id: 'new', body: 'SOURCE-123 current 11', updated_at: t1 }, { id: 'source', body: 'old', updated_at: t0 }] } };
+  const user = { id: 'new', body: 'SOURCE-123 current 11', version: 1, occurred_at: t1, updated_at: t1, record_kind: 'user', entity_ids: ['entity'] };
+  const event = { id: 'event', body: 'creation', occurred_at: t2, updated_at: t2, record_kind: 'change', entity_ids: ['entity'], change: { event_id: 'event-identity', target_id: 'new', target_kind: 'record', target_title: 'result', action: 'create', source: 'mcp', path: '/records/new', before: null, after: { ...user } } };
+  const afterEntity = { ...entity, records: { count: 3, items: [{ id: 'event', body: 'creation', record_kind: 'change', occurred_at: t2, updated_at: t2 }, { id: 'new', body: 'SOURCE-123 current 11', record_kind: 'user', occurred_at: t1, updated_at: t1 }, { id: 'source', body: 'old', record_kind: 'user', occurred_at: t0, updated_at: t0 }] } };
   const after = { ...before, entities: [afterEntity], records: [source, event, user] };
   const fixture = { entity, task, originalDetail: 'SOURCE-123' };
   assert.equal(verifyStoredChange(before, after, fixture, 'save-record').allowedChange, true);
-  assert.equal(verifyStoredChange(before, { ...after, entities: [{ ...afterEntity, prop2: 12 }] }, fixture, 'save-record').allowedChange, false);
+  assert.equal(verifyStoredChange(before, { ...after, entities: [{ ...afterEntity, properties: { ...afterEntity.properties, prop_2: 12 } }] }, fixture, 'save-record').allowedChange, false);
   assert.equal(verifyStoredChange(before, { ...after, entities: [{ ...afterEntity, records: { count: 4, items: afterEntity.records.items } }] }, fixture, 'save-record').allowedChange, false);
   assert.equal(verifyStoredChange(before, { ...after, entities: [{ ...afterEntity, tasks: { count: 1, items: [{ id: 'foreign', title: 'other', updated_at: t0 }] } }] }, fixture, 'save-record').allowedChange, false);
   const result = { ...user, record_kind: 'result', task_id: 'task', occurred_at: t1 };
   const done = { ...task, version: 2, status: 'done', updated_at: t1, completed_at: t1, result_record_id: 'new', result_record: { id: 'new', body: 'SOURCE-123 current 11' } };
-  const doneEntity = { ...entity, tasks: { count: 1, items: [{ id: 'task', title: 'review', updated_at: t1 }] }, records: { count: 2, items: [{ id: 'new', body: 'SOURCE-123 current 11', updated_at: t1 }, { id: 'source', body: 'old', updated_at: t0 }] } };
+  const doneEntity = { ...entity, tasks: { count: 1, items: [{ id: 'task', title: 'review', updated_at: t1 }] }, records: { count: 2, items: [{ id: 'new', body: 'SOURCE-123 current 11', record_kind: 'result', occurred_at: t1, updated_at: t1 }, { id: 'source', body: 'old', record_kind: 'user', occurred_at: t0, updated_at: t0 }] } };
   const completed = { ...before, tasks: [done], records: [source, result], entities: [doneEntity] };
   assert.equal(verifyStoredChange(before, completed, fixture, 'save-task').allowedChange, true);
   assert.equal(verifyStoredChange(before, { ...completed, tasks: [{ ...done, result_record: { ...done.result_record, id: 'wrong' } }] }, fixture, 'save-task').allowedChange, false);
   const memoFixture = { ...fixture, saving: { recordId: 'new', correction: 'corrected' } };
-  const corrected = { ...completed, tasks: [{ ...done, result_record: { id: 'new', body: 'corrected' } }], records: [source, { ...result, body: 'corrected', version: 2, updated_at: t2 }], entities: [{ ...doneEntity, records: { count: 2, items: [{ id: 'new', body: 'corrected', updated_at: t2 }, { id: 'source', body: 'old', updated_at: t0 }] } }] };
+  const corrected = { ...completed, tasks: [{ ...done, result_record: { id: 'new', body: 'corrected' } }], records: [source, { ...result, body: 'corrected', version: 2, updated_at: t2 }], entities: [{ ...doneEntity, records: { count: 2, items: [{ id: 'new', body: 'corrected', record_kind: 'result', occurred_at: t1, updated_at: t2 }, { id: 'source', body: 'old', record_kind: 'user', occurred_at: t0, updated_at: t0 }] } }] };
   assert.equal(verifyStoredChange(completed, corrected, memoFixture, 'save-memo').allowedChange, true);
   assert.equal(verifyStoredChange(completed, { ...corrected, tasks: [{ ...done, version: 3 }] }, memoFixture, 'save-memo').allowedChange, false);
 });
@@ -65,8 +65,8 @@ test('public entity related projections may change only to match the requested s
 test('independent originals permit only the requested record, task result or memo correction', () => {
   const source = { id: 'source', body: 'old', version: 1 };
   const task = { id: 'task', status: 'open', version: 1, result_record_id: null, result_record: null };
-  const before = { current: null, entities: [{ id: 'entity', prop2: 11 }], tasks: [task], records: [source], principles: [], tags: [] };
-  const fixture = { entity: { id: 'entity', prop2: 11 }, task, originalDetail: 'SOURCE-123', saving: { correction: 'corrected' } };
+  const before = { current: null, entities: [{ id: 'entity', properties: { prop_2: 11 } }], tasks: [task], records: [source], principles: [], tags: [] };
+  const fixture = { entity: { id: 'entity', properties: { prop_2: 11 } }, task, originalDetail: 'SOURCE-123', saving: { correction: 'corrected' } };
   const user = { id: 'new', version: 1, record_kind: 'user', body: 'SOURCE-123 current 11', entity_ids: ['entity'] };
   const event = { id: 'event', record_kind: 'change', entity_ids: ['entity'], change: { event_id: 'event-identity', target_id: 'new', target_kind: 'record', target_title: 'result', action: 'create', source: 'mcp', path: '/records/new', before: null, after: { ...user } } };
   const saved = { ...before, records: [source, event, user] };
