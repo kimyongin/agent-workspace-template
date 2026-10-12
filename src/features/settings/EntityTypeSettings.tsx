@@ -198,6 +198,8 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
           <Link to={`/settings/entity-types/${type_id}`}>속성·표시</Link>
           {" · "}
           <Link to={`/settings/entity-types/${type_id}/versions`}>버전</Link>
+          <span aria-hidden="true">·</span>
+          <Link to={`/settings/entity-types/${type_id}/migrations`}>값 변환 준비</Link>
           {" · "}
           <Link to="/settings/entity-types">자료 종류 목록</Link>
         </nav>

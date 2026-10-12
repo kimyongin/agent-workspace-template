@@ -3,6 +3,8 @@ import {
   type EntitySchemaChange,
   type EntitySchemaChangeSummary,
   type SchemaAnalysisAccepted,
+  type SchemaAnalysisPage,
+  schemaAnalysisRows,
   schemaChangeAction,
   schemaChangeApply,
   schemaChangeCreate,
@@ -22,6 +24,7 @@ export interface SchemaChangeStore {
     input: z.infer<typeof schemaChangeList>,
   ): Promise<{ items: EntitySchemaChangeSummary[]; next_before: string | null }>;
   analyzeChange(typeId: string, id: string, input: z.infer<typeof schemaChangeAction>): Promise<SchemaAnalysisAccepted>;
+  analysisRows(typeId: string, id: string, input: z.infer<typeof schemaAnalysisRows>): Promise<SchemaAnalysisPage>;
   applyChange(typeId: string, id: string, input: z.infer<typeof schemaChangeApply>): Promise<EntitySchemaChange>;
 }
 function parse<T>(schema: z.ZodType<T>, raw: unknown): T {
@@ -68,3 +71,9 @@ export function applyEntitySchemaChange(d: EntityTypeDeps, a: Actor, typeId: str
   return runWrite(d.uow, a, "entity-schema-change.apply", [typeId, id], i, (s) => s.applyChange(typeId, id, i));
 }
 export type SchemaChangeDepsStore = EntityTypeStore;
+
+export function getEntitySchemaAnalysisRows(d: EntityTypeDeps, a: Actor, typeId: string, id: string, raw: unknown) {
+  refs(typeId, id);
+  const i = parse(schemaAnalysisRows, raw);
+  return d.uow.run(a, (s) => s.analysisRows(typeId, id, i));
+}
