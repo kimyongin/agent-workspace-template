@@ -15,7 +15,6 @@ for (
     if (!isMobile) await page.setViewportSize({width:1024,height:720});
     await devLogin(page);
     const mcp = await mcpClient(await mcpTokenViaConsent(page));
-    const ids = new Set<string>();
     const tag = await mcp.call("create_tag", { scope:kind, name: unique("활동 왕복").slice(0, 30) });
     const emptyTag = await mcp.call("create_tag", { scope:kind, name: unique("빈 활동 조건").slice(0, 30) });
     const entity = await createFixtureEntity(mcp, { prop_1: unique("활동 문맥"), prop_2: 0 });
@@ -28,7 +27,6 @@ for (
         tag_ids: [tag.id],
         entity_ids: [entity.id],
       });
-      ids.add(item.id);
       return item;
     };
     try {
@@ -167,21 +165,9 @@ for (
       await expect(page.getByRole("heading", { name: label, level:1, exact: true })).toBeFocused();
       await openTabFilters(page);await expect(page.getByRole("button",{name:tag.name,exact:true})).toHaveAttribute("aria-pressed","true");
     } finally {
-      try {
-        for (const id of ids) {
-          try {
-            const item = await mcp.call(`get_${kind}`, { id });
-            await mcp.call(`delete_${kind}`, { id, expected_version: item.version });
-          } catch (error) {
-            if (!String(error).includes('"code":"not_found"')) throw error;
-          }
-        }
-        await mcp.call("delete_tag", { id: tag.id, expected_version: 1 });
-        await mcp.call("delete_tag", { id: emptyTag.id, expected_version: 1 });
-        await mcp.call("delete_entity", { id: entity.id, expected_version: 1 });
-      } finally {
-        await mcp.close();
-      }
+      // The automatic owned fixture closes UI first and removes these exact IDs,
+      // dependent change records and queue state after the business assertions.
+      await mcp.close();
     }
   });
 }
