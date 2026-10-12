@@ -1,3 +1,5 @@
+import { entityPairRoutes } from "./entity-pair-routes.ts";
+import type { EntityPairDeps } from "../../core/entity-pairs/application.ts";
 import { entityTypeRoutes } from "./entity-type-routes.ts";
 import type { EntityTypeDeps } from "../../core/entity-types/application.ts";
 import type { StatusDeps } from "../../core/status/application.ts";
@@ -42,6 +44,7 @@ export function createHttpApp(
   settings?: BusinessSettingsDeps,
   status?: StatusDeps,
   entityTypes?: EntityTypeDeps,
+  entityPairs?: EntityPairDeps,
 ) {
   const app = new Hono<HttpEnv>().basePath(config.basePath);
 
@@ -80,6 +83,7 @@ export function createHttpApp(
   if (entities) app.route("/", entityRoutes(entities));
   if (settings) app.route("/", settingsRoutes(settings));
   if (status) app.route("/", statusRoutes(status));
+  if (entityPairs) app.route("/", entityPairRoutes(entityPairs));
   if (entityTypes) app.route("/", entityTypeRoutes(entityTypes));
 
   app.notFound(() => {

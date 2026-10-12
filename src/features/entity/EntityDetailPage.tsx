@@ -1,3 +1,4 @@
+import { EntityPairRelations } from "./EntityPairRelations.tsx";
 import { entityPath } from "@contracts/entity-identity.ts";
 import { useDetailResource } from "../details/useDetailResource.ts";
 import { CollectionList } from "../../components/Collection.tsx";
@@ -209,6 +210,7 @@ export function EntityDetailPage() {
             <TagNames scope="entity" compact ids={entity.tag_ids} />
           </section>
           <div className="detail-relations">
+            <EntityPairRelations entity={entity} onSaved={(version)=>{ detail.confirm(current=>current?{...current,version}:current); if(!editor.active) void reload(); }}/>
             {entity.deleted_at && (
               <>
                 <RelatedSection title="할 일" count={entity.tasks.count}>

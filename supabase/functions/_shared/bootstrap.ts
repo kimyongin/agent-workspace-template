@@ -92,3 +92,10 @@ let entityTypes: EntityTypeDeps | undefined;
 export function entityTypeDeps(): EntityTypeDeps {
   return entityTypes ??= { uow: new SqlEntityTypeUnitOfWork(database()) };
 }
+
+import { SqlEntityPairUnitOfWork } from "./adapters/supabase/entity-pair-store.ts";
+import type { EntityPairDeps } from "./core/entity-pairs/application.ts";
+let entityPairs: EntityPairDeps | undefined;
+export function entityPairDeps(): EntityPairDeps {
+  return entityPairs ??= { uow: new SqlEntityPairUnitOfWork(database()) };
+}
