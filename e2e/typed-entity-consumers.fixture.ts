@@ -12,7 +12,7 @@ test.beforeEach(async ({ page, baseURL }) => {
     }
     if (url.pathname.startsWith("/api/entity-types/")) {
       return route.fulfill({
-        json: { ...fixtureSchema, type: url.pathname.includes(second.id) ? second : fixtureType },
+        json: { ...fixtureSchema, type_id: url.pathname.includes(second.id) ? second.id : fixtureType.id, type: url.pathname.includes(second.id) ? second : fixtureType },
       });
     }
     if (url.pathname === "/api/settings/business") {

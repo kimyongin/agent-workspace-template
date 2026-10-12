@@ -42,7 +42,7 @@ test("Entity 웹 CRUD·초안 보호→MCP parity·활동 연결→삭제 원문
     });
     const unrelated = await mcp.call("create_task", { kind: "once", title: task.title + " 외부", body: "별도" });
     await page.goto(`/search?q=${encodeURIComponent(task.title)}&mode=keyword&kind=task`);
-    await page.getByText("검색 조건",{exact:false}).first().click(); await page.getByLabel("전체 자료", { exact: true }).selectOption(id);
+    await page.getByText("검색 조건",{exact:false}).first().click(); await page.getByLabel("자료", { exact: true }).selectOption(id);
     await expect(page.locator(".list .item-title")).toHaveCount(1);
     expect(new URL(page.url()).searchParams.get("entity_id")).toBe(id);
     await page.getByRole("link", { name: task.title, exact: true }).click();
@@ -172,7 +172,7 @@ test("Entity 목록: 키워드/선택/정렬·추가 페이지·상세 복귀/�
     await mcp.call("delete_entity", { id: ids[19], expected_version: 1 });
     ids.splice(19, 1);
     await page.reload();
-    await expect(page.getByRole("heading", { name: "전체 자료", level: 1, exact: true })).toBeFocused();
+    await expect(page.getByRole("heading", { name: (await scalarFixtureType(mcp)).label, level: 1, exact: true })).toBeFocused();
   } finally {
     for (const id of ids) {
       await mcp.call("delete_entity", { id, expected_version: 1 });

@@ -84,12 +84,13 @@ export function EntitiesPage() {
   }
   const selectedTag = dictionary.tags?.find((tag) => tag.id === filter.tag_id);
   if (selectedTag) filterSummary.push(`태그: ${selectedTag.name}`);
+  const schemaReady = !filter.entity_type_id || schema?.type_id === filter.entity_type_id;
   const invalidType = !!filter.entity_type_id && types !== null && !selectedType;
   const unsupported = ["prop3_from", "prop3_to", "prop4"].some((key) => params.has(key));
   const key = query(filter), context = `${key}|${hash}|${unsupported}|${schema?.schema_version ?? 0}`;
   const creating = create.open;
   const list = usePagedList<EntitySummary, ListPage<EntitySummary>>({
-    scope: `${context}|${types === null ? "loading" : invalidType ? "invalid" : "ready"}`,
+    scope: `${context}|${types === null || !schemaReady ? "loading" : invalidType ? "invalid" : "ready"}`,
     pages,
     anchor: anchorId("entities", hash),
     anchorLookahead: 1,
@@ -102,6 +103,8 @@ export function EntitiesPage() {
         )
         : typeError || types === null
         ? Promise.reject(new Error(typeError ? "자료 종류를 불러오지 못했습니다." : "자료 종류를 확인하는 중…"))
+        : !schemaReady
+        ? Promise.reject(new Error(schemaReadError ? "속성 정의를 읽지 못했습니다." : "속성 정의를 확인하는 중…"))
         : unsupported
         ? Promise.reject(
           new ApiError(400, "invalid_input", "이전 속성 조건은 더 이상 지원하지 않습니다. 조건을 초기화하세요."),
@@ -129,7 +132,7 @@ export function EntitiesPage() {
     schema && (!page || page.items.every((row) => row.current_schema_version === schema.schema_version))
       ? schema
       : null;
-  const error = types === null
+  const error = types === null || !schemaReady && !schemaReadError
     ? null
     : list.error
     ? list.error instanceof ApiError ? list.error.message : "자료를 불러오지 못했습니다."
