@@ -221,6 +221,7 @@ export function EntityForm({
         domain={label}
         title={`${label} ${archived ? "복원" : initial ? "편집" : "추가"}`}
         submitLabel="저장"
+        submitDisabled={!!typeId && (!identitySettings || !definition || schemaReading || !!pendingDefinition)}
         mutation={{
           target: definition ? String(properties[definition.display.representative] ?? label) : label,
           action: archived ? "복원" : initial ? "수정" : "등록",
@@ -446,7 +447,9 @@ export function EntityForm({
                   기존 대상 확인
                 </button>
               )}
-              {identityMessage && <p role="status">{identityMessage}</p>}
+              {!identitySettings && !identityMessage && <p role="status">자료 종류·식별자 설정을 읽는 중…</p>}
+              {identityMessage && <p role={!identitySettings ? "alert" : "status"}>{identityMessage}</p>}
+              {(initial || archived) && errors.entity_type_id && <p role="alert">{errors.entity_type_id}</p>}
               {definition
                 ? (
                   <PropertyFields
@@ -460,7 +463,7 @@ export function EntityForm({
                     }}
                   />
                 )
-                : typeId && <p role="status">속성 정의를 불러오는 중…</p>}
+                : typeId && !schemaError && <p role="status">속성 정의를 불러오는 중…</p>}
             </section>
             <section className="detail-section form">
               <TagPicker scope="entity" value={tags} error={errors.tag_ids} onChange={setTags} />
