@@ -4,10 +4,6 @@ const actions = { create: "등록", update: "수정", delete: "삭제", restore:
 const labels: Record<string, string> = {
   source: "발급처",
   external_id: "식별자",
-  prop1: "속성 1",
-  prop2: "속성 2",
-  prop3: "속성 3",
-  prop4: "속성 4",
   title: "제목",
   body: "본문",
   status: "상태",
@@ -32,7 +28,15 @@ export function changeBody(input: ChangeInput): string {
 export function changedFieldNames(input: ChangeInput): string[] {
   if (!input.before || !input.after) return [];
   const before = input.before;
-  return Object.entries(input.after).filter(([key, value]) =>
-    changed({ [key]: before[key as keyof typeof before] }, { [key]: value })
-  ).map(([key]) => labels[key] ?? key);
+  const properties = Object.entries(input.after.properties ?? {}).filter(([key, value]) =>
+    changed({ [key]: before.properties?.[key] }, { [key]: value })
+  ).map(([key]) => input.after?.property_labels?.[key] ?? key);
+  return [
+    ...properties,
+    ...Object.entries(input.after).filter(([key, value]) =>
+      !["properties", "property_labels", "entity_type_id", "schema_version"].includes(key) &&
+      !(input.target_kind === "entity" && key === "title") &&
+      changed({ [key]: before[key as keyof typeof before] }, { [key]: value })
+    ).map(([key]) => labels[key] ?? key),
+  ];
 }

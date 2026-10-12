@@ -26,10 +26,12 @@ import {
 import type { ChangeFacts } from "../shared/changes.ts";
 import { taskCreate, taskUpdate } from "../../contracts/task.ts";
 import { resumeTask, stopTask, taskContent, updateTask } from "../activity/domain.ts";
-import { entityCreate, entityUpdate } from "../../contracts/entity.ts";
+import { type EntityCreate, entityCreate, type EntityUpdate, entityUpdate } from "../../contracts/entity.ts";
 import { principleCreate, principleUpdate } from "../../contracts/principle.ts";
 import { defaultEntityIdentitySettings, entityId } from "../../contracts/entity-identity.ts";
+import { checkedProperties, type EntityDefinitions, requireDefinition } from "../entity/values.ts";
 export interface BusinessSettingsStore extends RequestStore {
+  definition?: EntityDefinitions["definition"];
   get(): Promise<BusinessSettingsResult>;
   update(input: BusinessSettingsUpdate): Promise<BusinessSettingsResult>;
   recordTags(ids: string[]): Promise<string[]>;
@@ -100,13 +102,22 @@ export function prepareBusinessRecord(
         (content.source !== undefined || content.external_id !== undefined)
       ) {
         const settings = saved.settings.entity_identity ?? defaultEntityIdentitySettings;
-        const decision = entityUpdateDecision(settings, { id: input.target_id!, facts: before! }, content);
+        // content was validated by entityUpdate above; its envelope is kept for prepared_input.
+        const decision = entityUpdateDecision(
+          settings,
+          { id: input.target_id!, facts: before! },
+          content as EntityUpdate,
+        );
         if (decision.rekey && await store.target?.("entity", decision.id)) {
           throw conflict("같은 발급처·식별자의 엔터티가 있습니다");
         }
       }
       if (input.action === "restore") {
-        content = restorationContent(saved.settings.entity_identity ?? defaultEntityIdentitySettings, before!, content);
+        content = restorationContent(
+          saved.settings.entity_identity ?? defaultEntityIdentitySettings,
+          before!,
+          content as EntityCreate,
+        );
       }
     }
     if (input.action === "create") {
@@ -135,7 +146,7 @@ export function prepareBusinessRecord(
                 : "같은 발급처·식별자의 활성 엔터티가 있습니다",
             );
           }
-          content = registrationContent(content, { source, external_id });
+          content = registrationContent(content as EntityCreate, { source, external_id });
         } else {
           content = { ...content, source };
         }
@@ -157,6 +168,32 @@ export function prepareBusinessRecord(
         d.clock.now(),
       );
     }
+    if (input.model === "entity" && input.action !== "delete") {
+      if (!store.definition) throw invalidInput("자료 종류 정의 저장소가 필요합니다");
+      const typeId = String(content.entity_type_id ?? before?.entity_type_id ?? "");
+      const definition = await requireDefinition(
+        { definition: store.definition.bind(store) },
+        typeId,
+        Number(content.schema_version),
+        input.action === "create" || input.action === "restore",
+      );
+      const patch = (input.input.properties ?? {}) as Record<string, unknown>;
+      const properties = checkedProperties(
+        definition,
+        { ...before?.properties, ...(content.properties as Record<string, unknown> ?? {}) },
+        patch,
+        input.action === "create",
+      );
+      content = {
+        ...content,
+        properties,
+        title: String(properties[definition.display.representative]),
+        property_labels: Object.fromEntries(
+          Object.entries(definition.schema.properties).map(([key, field]) => [key, field.title ?? key]),
+        ),
+      };
+      if (input.action === "create") prepared_input = { ...prepared_input, properties };
+    }
     const after = input.action === "delete" ? null : {
       ...before,
       ...content,
@@ -170,7 +207,7 @@ export function prepareBusinessRecord(
       };
     }
     if (input.action !== "create") prepared_input = { ...prepared_input, expected_version: input.expected_version };
-    const title = String((after ?? before)?.[input.model === "entity" ? "prop1" : "title"] ?? "");
+    const title = String((after ?? before)?.title ?? "");
     const ids = saved.settings.record_templates?.[input.model]?.[input.action]?.tag_ids ?? [];
     const result = changeDefaults(
       {

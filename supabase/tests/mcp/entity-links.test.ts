@@ -1,6 +1,7 @@
 import { assert, assertEquals } from "@std/assert";
 import { call, httpTest, signIn } from "../http/_client.ts";
 import { connectMcp, mcpToken, tool } from "./_mcp.ts";
+import { httpEntityFixture } from "../http/_entity.ts";
 
 httpTest(
   "selected targets: HTTP/MCP memo retry, owner checks, exact filtered search and immutable event context",
@@ -13,7 +14,10 @@ httpTest(
     try {
       for (const name of ["첫 대상", "둘째 대상"]) {
         targets.push(
-          await tool(client, "create_entity", { prop1: name + crypto.randomUUID().slice(0, 8) }),
+          await tool(client, "create_entity", {
+            ...await httpEntityFixture(session),
+            properties: { prop_1: name + crypto.randomUUID().slice(0, 8) },
+          }),
         );
       }
       const ids = targets.map((target) => target.id).sort(), marker = "연결" + crypto.randomUUID();
@@ -99,7 +103,12 @@ httpTest(
     const targets: { id: string; version: number }[] = [], tasks: string[] = [], records: string[] = [];
     try {
       for (const title of ["완료 대상", "회차 대상"]) {
-        targets.push(await tool(client, "create_entity", { prop1: title + crypto.randomUUID().slice(0, 8) }));
+        targets.push(
+          await tool(client, "create_entity", {
+            ...await httpEntityFixture(session),
+            properties: { prop_1: title + crypto.randomUUID().slice(0, 8) },
+          }),
+        );
       }
       const ids = targets.map((row) => row.id).sort();
       const once = await tool(client, "create_task", {

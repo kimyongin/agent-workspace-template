@@ -16,12 +16,14 @@ import * as activity from "../../functions/_shared/core/activity/application.ts"
 import { SqlEntityUnitOfWork } from "../../functions/_shared/adapters/supabase/entity-store.ts";
 import { SqlUnitOfWork } from "../../functions/_shared/adapters/supabase/activity-store.ts";
 import { connect, dbTest, fixtureOwner, urls } from "./_db.ts";
+import { entityFixture } from "./_entity.ts";
 const admin = connect(urls.admin, { max: 1 }), sql = connect(urls.direct, { max: 3, prepare: false });
 const ed = { uow: new SqlEntityUnitOfWork(sql) },
   ad = { uow: new SqlUnitOfWork(sql), clock: { now: () => new Date() } };
 dbTest("change record tags are separate, owner-scoped, atomic and carried through HTTP/MCP transitions", async () => {
   const f = await fixtureOwner(admin), other = await fixtureOwner(admin);
   try {
+    const schema = await entityFixture(admin, f.actor.userId);
     const tags = await admin`insert into app.tags(owner_id,name,scope) values
       (${f.actor.userId},'원본','entity'),(${f.actor.userId},'기록','record'),(${other.actor.userId},'다른 사용자','record') returning id,owner_id,scope`;
     const own = tags.find((t) => t.scope === "record" && t.owner_id === f.actor.userId)!.id as string;
@@ -33,9 +35,10 @@ dbTest("change record tags are separate, owner-scoped, atomic and carried throug
       ed,
       requestActor(f.actor),
       entityCreate.parse({
+        ...schema,
         source: "app",
         external_id: crypto.randomUUID(),
-        prop1: "원본",
+        properties: { prop_1: "원본" },
         tag_ids: [entityTag],
         change_tag_ids: [own],
       }),
@@ -48,10 +51,15 @@ dbTest("change record tags are separate, owner-scoped, atomic and carried throug
           ed,
           requestActor(f.actor),
           target.id,
-          entityUpdate.parse({ expected_version: target.version, prop2: 99, change_tag_ids: [invalid] }),
+          entityUpdate.parse({
+            schema_version: schema.schema_version,
+            expected_version: target.version,
+            properties: { prop_2: 99 },
+            change_tag_ids: [invalid],
+          }),
         )
       );
-      assertEquals((await entity.getEntity(ed, f.actor, target.id)).prop2, null);
+      assertEquals((await entity.getEntity(ed, f.actor, target.id)).properties.prop_2, null);
       assertEquals((await events()).items.length, 1);
     }
     const recurring = await activity.createTask(
@@ -121,14 +129,15 @@ dbTest("change record tags are separate, owner-scoped, atomic and carried throug
 dbTest("business save preserves exact entered memo, factual blank default, no-op, retry and rollback", async () => {
   const f = await fixtureOwner(admin), other = await fixtureOwner(admin);
   try {
+    const schema = await entityFixture(admin, f.actor.userId);
     const e = await entity.createEntity(
       ed,
       requestActor(f.actor),
       entityCreate.parse({
+        ...schema,
         source: "app",
         external_id: crypto.randomUUID(),
-        prop1: "대상",
-        prop2: 10,
+        properties: { prop_1: "대상", prop_2: 10 },
         change_note: "",
       }),
     );
@@ -142,7 +151,12 @@ dbTest("business save preserves exact entered memo, factual blank default, no-op
     );
     assertEquals((await records()).items.find((r) => r.change?.target_id === task.id)!.body, "  업무 근거\n");
     const memo = "  상세 근거\n" + "가".repeat(21000);
-    const patch = entityUpdate.parse({ expected_version: e.version, prop2: 20, change_note: memo });
+    const patch = entityUpdate.parse({
+      schema_version: schema.schema_version,
+      expected_version: e.version,
+      properties: { prop_2: 20 },
+      change_note: memo,
+    });
     const saved = await entity.updateEntity(ed, requestActor(f.actor), e.id, patch);
     await assertRejects(() => entity.updateEntity(ed, requestActor(f.actor), e.id, patch));
     await assertRejects(() =>
@@ -156,7 +170,12 @@ dbTest("business save preserves exact entered memo, factual blank default, no-op
       ed,
       requestActor(f.actor),
       e.id,
-      entityUpdate.parse({ expected_version: saved.version, prop2: 20, change_note: "다른 메모" }),
+      entityUpdate.parse({
+        schema_version: schema.schema_version,
+        expected_version: saved.version,
+        properties: { prop_2: 20 },
+        change_note: "다른 메모",
+      }),
     );
     assertEquals(await records(), events);
     const failing: entity.EntityDeps = {
@@ -176,16 +195,25 @@ dbTest("business save preserves exact entered memo, factual blank default, no-op
         failing,
         requestActor(f.actor),
         e.id,
-        entityUpdate.parse({ expected_version: saved.version, prop2: 30 }),
+        entityUpdate.parse({
+          schema_version: schema.schema_version,
+          expected_version: saved.version,
+          properties: { prop_2: 30 },
+        }),
       )
     );
-    assertEquals((await entity.getEntity(ed, f.actor, e.id)).prop2, 20);
+    assertEquals((await entity.getEntity(ed, f.actor, e.id)).properties.prop_2, 20);
     assertEquals(await records(), events);
     const updated = await entity.updateEntity(
       ed,
       requestActor(f.actor),
       e.id,
-      entityUpdate.parse({ expected_version: saved.version, prop2: 30, change_note: "   " }),
+      entityUpdate.parse({
+        schema_version: schema.schema_version,
+        expected_version: saved.version,
+        properties: { prop_2: 30 },
+        change_note: "   ",
+      }),
     );
     assertEquals((await records()).items.find((r) => r.body === "대상 수정 (속성 2)")!.change!.target_id, e.id);
     await entity.deleteEntity(ed, requestActor(f.actor), e.id, updated.version, "삭제 근거");

@@ -38,8 +38,12 @@ const definition = z.strictObject({
     option_labels: z.record(propertyKey, z.record(z.string(), z.string().min(1).max(80))),
   }),
 });
-const ajv = new Ajv2020({ strict: true, allErrors: true, validateFormats: true });
-(addFormats as unknown as (a: Ajv2020, options: { mode: string }) => void)(ajv, { mode: "full" });
+/** An instance lives for one validation; compiled owner definitions cannot accumulate. */
+function validator() {
+  const ajv = new Ajv2020({ strict: true, allErrors: true, validateFormats: true });
+  (addFormats as unknown as (a: Ajv2020, options: { mode: string }) => void)(ajv, { mode: "full" });
+  return ajv;
+}
 function fail(path: string, message: string): never {
   throw invalidInput(message, [{ path, message }]);
 }
@@ -58,6 +62,7 @@ function numeric(f: EntityField, value: unknown, path: string) {
   }
 }
 export function validateEntityDefinition(raw: unknown): Pick<EntitySchemaVersion, "schema" | "display"> {
+  const ajv = validator();
   if (new TextEncoder().encode(JSON.stringify(raw)).length > limits.definition_bytes) {
     fail("schema", "정의는 64 KiB 이하입니다");
   }
@@ -108,7 +113,8 @@ export function validateEntityDefinition(raw: unknown): Pick<EntitySchemaVersion
   if (display.order.length !== keys.length) fail("display.order", "모든 속성의 순서가 필요합니다");
   const rep = schema.properties[display.representative];
   if (
-    !rep || rep.type !== "string" || !schema.required.includes(display.representative) ||
+    !rep || rep.type !== "string" || rep.format !== undefined || rep.enum !== undefined ||
+    !schema.required.includes(display.representative) ||
     display.archived.includes(display.representative) || (rep.minLength ?? 0) < 1
   ) fail("display.representative", "대표 속성은 활성 필수 텍스트이며 빈 문자열을 허용하지 않습니다");
   if (display.list_columns.some((k) => display.archived.includes(k))) {
@@ -152,10 +158,14 @@ export function validateEntityProperties(
       }
     }
   }
-  if (new TextEncoder().encode(JSON.stringify(result)).length > limits.properties_bytes) {
+  // JSONB's canonical text adds a space after each colon/comma. Properties contain
+  // scalar values only, so this matches the database guard without parsing strings.
+  const canonicalBytes = new TextEncoder().encode(JSON.stringify(result)).length +
+    Math.max(0, 2 * Object.keys(result).length - 1);
+  if (canonicalBytes > limits.properties_bytes) {
     fail("properties", "속성 값은 64 KiB 이하입니다");
   }
-  const check = ajv.compile(schema);
+  const check = validator().compile(schema);
   if (!check(result)) {
     throw invalidInput(
       "속성 값을 확인하세요",
@@ -179,6 +189,12 @@ export function validateEntityProperties(
   }
   for (const [key, value] of Object.entries(result)) {
     numeric(schema.properties[key], value, `properties.${key}`);
+    if (
+      typeof value === "string" &&
+      (value.includes("\u0000") || /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/.test(value))
+    ) {
+      fail(`properties.${key}`, "텍스트에는 NUL 또는 잘못된 Unicode 문자를 저장할 수 없습니다");
+    }
     if (typeof value === "string" && Array.from(value).length > limits.string_length) {
       fail(`properties.${key}`, "텍스트는 4096자 이하입니다");
     }

@@ -3,7 +3,7 @@ import { CollectionList } from "../../components/Collection.tsx";
 import { RelatedSection } from "../../components/RelatedItems.tsx";
 import { RelatedPreviewItem } from "../relations/RelatedPreviewItem.tsx";
 import type { EntityContext } from "@contracts/entity-links.ts";
-import type { EntityResult } from "@contracts/entity.ts";
+import type { EntitySummary } from "@contracts/entity.ts";
 import { useEffect, useState } from "react";
 import { DetailLink as Link } from "../../lib/detail-exploration.tsx";
 import { Field, Notice } from "../../components/Field.tsx";
@@ -11,7 +11,7 @@ import { api, query } from "../../lib/api.ts";
 import "./entity.css";
 import { RelationPicker } from "../relations/RelationPicker.tsx";
 export function EntityPicker(
-  { value, onChange, error, label = "엔터티" }: {
+  { value, onChange, error, label = "자료" }: {
     value: string | null | undefined;
     onChange: (id: string | null) => void;
     error?: string;
@@ -31,12 +31,8 @@ export function EntityPicker(
             onChange={(e) => onChange(e.target.value || null)}
           >
             <option value="">{items ? "미지정" : "불러오는 중…"}</option>
-            {value && !items?.some((e) => e.id === value) && (
-              <option value={value}>현재 연결 ({value})</option>
-            )}
-            {items?.map((e) => (
-              <option key={e.id} value={e.id}>{e.prop1} · {entityIdentityLabel(e)}</option>
-            ))}
+            {value && !items?.some((e) => e.id === value) && <option value={value}>현재 연결 ({value})</option>}
+            {items?.map((e) => <option key={e.id} value={e.id}>{e.title} · {entityIdentityLabel(e)}</option>)}
           </select>
         )}
       </Field>
@@ -59,14 +55,14 @@ export function EntityLink({ id }: { id: string | null | undefined }) {
   return id
     ? (
       <p className="secondary">
-        연결 엔터티: <Link to={`/entities/${encodeURIComponent(id)}`}>엔터티 편집</Link>
+        연결 자료: <Link to={`/entities/${encodeURIComponent(id)}`}>자료 보기</Link>
       </p>
     )
     : null;
 }
 
 function useEntities() {
-  const [items, setItems] = useState<EntityResult[] | null>(null),
+  const [items, setItems] = useState<EntitySummary[] | null>(null),
     [failed, setFailed] = useState(false),
     [retry, setRetry] = useState(0);
   useEffect(() => {
@@ -75,15 +71,14 @@ function useEntities() {
     setItems(null);
     (async () => {
       let cursor: string | null = null;
-      const all: EntityResult[] = [];
+      const all: EntitySummary[] = [];
       do {
-        const page: { items: EntityResult[]; next_cursor: string | null } =
-          await api(
-            "GET",
-            `/entities${query({ limit: 100, cursor })}`,
-            undefined,
-            controller.signal,
-          );
+        const page: { items: EntitySummary[]; next_cursor: string | null } = await api(
+          "GET",
+          `/entities${query({ limit: 100, cursor })}`,
+          undefined,
+          controller.signal,
+        );
         all.push(...page.items);
         cursor = page.next_cursor;
       } while (cursor);
@@ -97,8 +92,15 @@ function useEntities() {
 }
 
 /** Form selection uses the same search/card design as saved relationships. */
-export function EntityMultiPicker({value,context=[],onChange,error}: {value:string[];context?:EntityContext[];onChange:(ids:string[])=>void;error?:string}) {
-  return <RelationPicker kind="entity" value={value} context={context} onChange={onChange} error={error}/>;
+export function EntityMultiPicker(
+  { value, context = [], onChange, error }: {
+    value: string[];
+    context?: EntityContext[];
+    onChange: (ids: string[]) => void;
+    error?: string;
+  },
+) {
+  return <RelationPicker kind="entity" value={value} context={context} onChange={onChange} error={error} />;
 }
 
 export function EntityLinks(
@@ -106,12 +108,12 @@ export function EntityLinks(
 ) {
   if (!ids?.length) return null;
   return (
-    <RelatedSection title="엔터티" count={ids.length}>
+    <RelatedSection title="자료" count={ids.length}>
       <CollectionList>
         {ids.map((id) => {
           return (
             <li key={id}>
-              <EntityLinkItem id={id} context={context}/>
+              <EntityLinkItem id={id} context={context} />
             </li>
           );
         })}
@@ -120,7 +122,14 @@ export function EntityLinks(
   );
 }
 
-export function EntityLinkItem({id,context=[]}: {id:string;context?:EntityContext[]}) {
-  const capture=context.find(item=>item.id===id);
-  return <RelatedPreviewItem to={`/entities/${encodeURIComponent(id)}`} title={capture?.title??"연결된 엔터티"} metadata={<span>{id}</span>} restoreKey={`linked-entity-${id}`}/>;
+export function EntityLinkItem({ id, context = [] }: { id: string; context?: EntityContext[] }) {
+  const capture = context.find((item) => item.id === id);
+  return (
+    <RelatedPreviewItem
+      to={`/entities/${encodeURIComponent(id)}`}
+      title={capture?.title ?? "연결된 엔터티"}
+      metadata={<span>{id}</span>}
+      restoreKey={`linked-entity-${id}`}
+    />
+  );
 }

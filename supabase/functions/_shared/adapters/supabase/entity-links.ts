@@ -46,16 +46,16 @@ export class SqlEntityLinks {
   private async capture(ids: string[], prior: EntityContext[] = []) {
     if (!ids.length) return [];
     const live = await this.tx<
-      { id: string; prop1: string; captured_at: Date }[]
-    >`select id,prop1,now() as captured_at from app.entities where deleted_at is null and id in ${
-      this.tx(ids)
-    } order by id for key share`;
+      { id: string; title: string; captured_at: Date }[]
+    >`select e.id,e.properties->>(v.display->>'representative') as title,now() as captured_at from app.entities e
+      join app.entity_schema_versions v on v.owner_id=e.owner_id and v.type_id=e.entity_type_id and v.schema_version=e.schema_version
+      where e.deleted_at is null and e.id in ${this.tx(ids)} order by e.id for key share of e`;
     return ids.map((id) => {
       const captured = prior.find((entity) => entity.id === id);
       const entity = live.find((entity) => entity.id === id);
       if (!entity && !captured) throw new AppError("invalid_reference", "엔터티가 없거나 접근할 수 없습니다");
       return captured ??
-        { id, title: entity!.prop1, captured_at: entity!.captured_at.toISOString(), source: "selection" as const };
+        { id, title: entity!.title, captured_at: entity!.captured_at.toISOString(), source: "selection" as const };
     });
   }
 }

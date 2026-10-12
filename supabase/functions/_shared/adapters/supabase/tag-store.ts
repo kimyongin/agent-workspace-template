@@ -8,6 +8,7 @@ import { conflict } from "../../core/shared/errors.ts";
 import { runAsActor, SqlActorStore } from "./sql-context.ts";
 import { SqlEntityStore } from "./entity-store.ts";
 import { SqlActivityStore } from "./activity-store.ts";
+import { checkedProperties, requireDefinition } from "../../core/entity/values.ts";
 const toTag = (r: Record<string, unknown>): TagResult => ({
   scope: r.scope as TagResult["scope"],
   id: r.id as string,
@@ -59,7 +60,13 @@ class SqlTagStore extends SqlActorStore implements TagStore {
   }
   async setTags(use: TagUse, tag_ids: string[]): Promise<TagUse> {
     if (use.kind === "entity") {
-      return { kind: "entity", value: await new SqlEntityStore(this.tx, this.actor).update(use.value.id, { tag_ids }) };
+      const entities = new SqlEntityStore(this.tx, this.actor);
+      const definition = await requireDefinition(entities, use.value.entity_type_id, use.value.current_schema_version);
+      checkedProperties(definition, use.value.properties, {}, false);
+      return {
+        kind: "entity",
+        value: await entities.update(use.value.id, { tag_ids, schema_version: definition.schema_version }),
+      };
     }
     const activity = new SqlActivityStore(this.tx, this.actor);
     if (use.kind === "task") return { kind: "task", value: await activity.updateTask(use.value.id, { tag_ids }) };

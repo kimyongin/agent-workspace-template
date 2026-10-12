@@ -1,14 +1,23 @@
 import { entityId } from "../../contracts/entity-identity.ts";
 import { insertWithIdRetry } from "./data-id.ts";
 import type postgres from "postgres";
-import type { EntityCreate, EntityDetail, EntityQuery, EntityResult, EntityUpdate } from "../../contracts/entity.ts";
+import type {
+  EntityCreate,
+  EntityDetail,
+  EntityQuery,
+  EntitySummary,
+  EntityUpdate,
+  EntityValues,
+} from "../../contracts/entity.ts";
+import { entityPresentation, loadEntityDefinition } from "./entity-values.ts";
 import type { EntityStore } from "../../core/entity/application.ts";
 import type { Actor } from "../../core/shared/actor.ts";
 import type { Keyset } from "../../core/shared/store.ts";
 import { runAsActor, SqlActorStore } from "./sql-context.ts";
 import { hasTag, setTagLinks, tagIdsColumn } from "./tag-links.ts";
-const columns = "id,source,external_id,deleted_at,prop1,prop2,prop3,prop4,version,created_at,updated_at";
-function result(r: Record<string, unknown>): EntityResult {
+const columns =
+  "id,source,external_id,deleted_at,entity_type_id,schema_version,properties,version,created_at,updated_at";
+function result(r: Record<string, unknown>) {
   return {
     tag_ids: (r.tag_ids as string[]) ?? [],
     id: r.id as string,
@@ -16,18 +25,24 @@ function result(r: Record<string, unknown>): EntityResult {
     external_id: r.external_id as string,
     source_label: r.source as string,
     deleted_at: r.deleted_at instanceof Date ? r.deleted_at.toISOString() : null,
-    prop1: r.prop1 as string,
-    prop2: r.prop2 as number | null,
-    prop3: r.prop3 instanceof Date ? r.prop3.toISOString().slice(0, 10) : r.prop3 as string | null,
-    prop4: r.prop4 as EntityResult["prop4"],
+    entity_type_id: r.entity_type_id as string,
+    schema_version: Number(r.schema_version),
+    properties: r.properties as EntityValues["properties"],
     version: r.version as number,
     created_at: (r.created_at as Date).toISOString(),
     updated_at: (r.updated_at as Date).toISOString(),
   };
 }
 export class SqlEntityStore extends SqlActorStore implements EntityStore {
+  definition(typeId: string, lock = false) {
+    return loadEntityDefinition(this.tx, typeId, lock);
+  }
   async get(id: string, lock = false) {
     if (lock) {
+      // Discover immutable type without locking the entity; acquire type first for publication/migration.
+      const [identity] = await this.tx`select entity_type_id from app.entities where id=${id}`;
+      if (!identity) return null;
+      await this.definition(identity.entity_type_id, true);
       const rows = await this.tx`select id from app.entities where id=${id} for update`;
       if (!rows.length) return null;
     }
@@ -37,17 +52,23 @@ export class SqlEntityStore extends SqlActorStore implements EntityStore {
     if (!r) return null;
     return this.label(result(r));
   }
-  private async label(row: EntityResult) {
+  private async label(row: ReturnType<typeof result>): Promise<EntityValues> {
     const settings = (await this.getBusinessSettings()).settings.entity_identity;
-    return { ...row, source_label: settings?.sources.find((s) => s.code === row.source)?.label ?? row.source };
+    return {
+      ...row,
+      source_label: settings?.sources.find((s) => s.code === row.source)?.label ?? row.source,
+      ...await entityPresentation(this.tx, row.entity_type_id, row.schema_version, row.properties),
+    };
   }
   async insert(i: Parameters<EntityStore["insert"]>[0], generatedIdentity = false) {
     let external_id = i.external_id;
     const insert = () =>
-      this.tx`insert into app.entities(id,owner_id,source,external_id,prop1,prop2,prop3,prop4)
+      this.tx`insert into app.entities(id,owner_id,source,external_id,entity_type_id,schema_version,properties)
       values (${
         entityId(i.source, external_id)
-      },${this.actor.userId},${i.source},${external_id},${i.prop1},${i.prop2},${i.prop3},${i.prop4})
+      },${this.actor.userId},${i.source},${external_id},${i.entity_type_id},${i.schema_version},${
+        this.tx.json(i.properties)
+      })
       ${generatedIdentity ? this.tx`on conflict (owner_id,id) do nothing` : this.tx``} returning ${
         this.tx.unsafe(columns)
       }`;
@@ -65,12 +86,9 @@ export class SqlEntityStore extends SqlActorStore implements EntityStore {
   }
   async update(id: string, changes: Omit<EntityUpdate, "expected_version" | "change_note" | "change_tag_ids">) {
     if (changes.tag_ids !== undefined) await setTagLinks(this.tx, this.actor, "entity", id, changes.tag_ids);
-    const values = Object.fromEntries(
-      Object.entries(changes).filter(([k, v]) => ["prop1", "prop2", "prop3", "prop4"].includes(k) && v !== undefined),
-    );
-    if (Object.keys(values).length) {
-      await this.tx`update app.entities set ${this.tx(values)},version=version+1,updated_at=now() where id=${id}`;
-    } else await this.tx`update app.entities set version=version+1,updated_at=now() where id=${id}`;
+    await this.tx`update app.entities set schema_version=${changes.schema_version},
+      properties=${changes.properties === undefined ? this.tx`properties` : this.tx.json(changes.properties)},
+      version=version+1,updated_at=now() where id=${id}`;
     return (await this.get(id))!;
   }
   async delete(id: string) {
@@ -88,34 +106,20 @@ export class SqlEntityStore extends SqlActorStore implements EntityStore {
   }
   async list(q: EntityQuery, after?: Keyset) {
     const tx = this.tx;
-    const key = q.sort === "prop2"
-      ? tx`coalesce(prop2,-1)`
-      : q.sort === "prop3"
-      ? tx`coalesce(prop3,date '0001-01-01 BC')`
-      : q.sort === "prop1"
-      ? tx`prop1`
-      : tx`updated_at`;
-    const at = after
-      ? q.sort === "prop2"
-        ? tx`${Number(after.at)}`
-        : q.sort === "prop3"
-        ? after.at === "0000-01-01" ? tx`date '0001-01-01 BC'` : tx`${after.at}::date`
-        : q.sort === "updated_at"
-        ? tx`${after.at}::timestamptz`
-        : tx`${after.at}`
-      : tx``;
+    const title =
+      tx`properties->>(select display->>'representative' from app.entity_schema_versions v where v.owner_id=entities.owner_id and v.type_id=entities.entity_type_id and v.schema_version=entities.schema_version)`;
+    const key = q.sort === "title" ? title : tx`updated_at`;
+    const at = after ? q.sort === "updated_at" ? tx`${after.at}::timestamptz` : tx`${after.at}` : tx``;
     const descending = q.sort === "updated_at";
     const rows =
       (await tx`select ${tx.unsafe(columns)},${tagIdsColumn(tx, "entity")} from app.entities where deleted_at is null
+      ${q.entity_type_id ? tx`and entity_type_id=${q.entity_type_id}::uuid` : tx``}
       ${q.tag_id ? tx`and ${hasTag(tx, "entity", q.tag_id)}` : tx``}
       ${
         q.keyword
-          ? tx`and (position(lower(${q.keyword}) in lower(prop1))>0 or position(lower(${q.keyword}) in lower(external_id))>0 or position(lower(${q.keyword}) in lower(source))>0)`
+          ? tx`and (position(lower(${q.keyword}) in lower(${title}))>0 or position(lower(${q.keyword}) in lower(external_id))>0 or position(lower(${q.keyword}) in lower(source))>0)`
           : tx``
       }
-      ${q.prop4 ? tx`and prop4=${q.prop4}` : tx``}
-      ${q.prop3_from ? tx`and prop3>=${q.prop3_from}::date` : tx``}
-      ${q.prop3_to ? tx`and prop3<=${q.prop3_to}::date` : tx``}
       ${
         after
           ? descending ? tx`and (${key},id)<(${at},${after.id}::text)` : tx`and (${key},id)>(${at},${after.id}::text)`
@@ -124,7 +128,10 @@ export class SqlEntityStore extends SqlActorStore implements EntityStore {
       order by ${key} ${descending ? tx`desc` : tx`asc`}, id ${descending ? tx`desc` : tx`asc`} limit ${q.limit}`).map(
         result,
       );
-    return Promise.all(rows.map((row) => this.label(row)));
+    return Promise.all(rows.map(async (row): Promise<EntitySummary> => {
+      const { properties: _values, ...summary } = await this.label(row);
+      return summary;
+    }));
   }
   async related(id: string): Promise<Pick<EntityDetail, "tasks" | "records">> {
     const load = async (table: "tasks" | "records") => {

@@ -5,25 +5,41 @@ import { SqlEntityUnitOfWork } from "../../functions/_shared/adapters/supabase/e
 import { createEntity, getEntity, updateEntity } from "../../functions/_shared/core/entity/application.ts";
 import { AppError } from "../../functions/_shared/core/shared/errors.ts";
 import { connect, dbTest, fixtureOwner, urls } from "./_db.ts";
+import { entityFixture } from "./_entity.ts";
 const admin = connect(urls.admin, { max: 1 });
 const sql = connect(urls.pooler, { max: 3, prepare: false });
 const deps = { uow: new SqlEntityUnitOfWork(sql) };
 dbTest("same creation identity and stale version never repeat a business change", async () => {
   const f = await fixtureOwner(admin), other = await fixtureOwner(admin);
   try {
-    const input = entityCreate.parse({ source: "app", external_id: crypto.randomUUID(), prop1: "원본" });
+    const schema = await entityFixture(admin, f.actor.userId),
+      foreignSchema = await entityFixture(admin, other.actor.userId);
+    const input = entityCreate.parse({
+      ...schema,
+      source: "app",
+      external_id: crypto.randomUUID(),
+      properties: { prop_1: "원본" },
+    });
     const created = await createEntity(deps, requestActor(f.actor), input);
     assertEquals(created.id, `app:${input.external_id}`);
     await assertRejects(() => createEntity(deps, requestActor(f.actor), input), AppError);
     const collision = await assertRejects(() => createEntity(deps, requestActor(f.actor), input), AppError);
     assertEquals(collision.code, "conflict");
-    assertEquals(collision.message.includes(input.prop1!), false);
+    assertEquals(collision.message.includes(String(input.properties.prop_1)), false);
     await assertRejects(() => getEntity(deps, other.actor, created.id), AppError);
-    const foreign = await createEntity(deps, requestActor(other.actor), { ...input, prop1: "다른 소유자" });
+    const foreign = await createEntity(deps, requestActor(other.actor), {
+      ...input,
+      ...foreignSchema,
+      properties: { prop_1: "다른 소유자" },
+    });
     assertEquals(foreign.id, created.id);
-    assertEquals((await getEntity(deps, other.actor, foreign.id)).prop1, "다른 소유자");
-    assertEquals((await getEntity(deps, f.actor, created.id)).prop1, "원본");
-    const patch = { prop1: "수정", expected_version: created.version };
+    assertEquals((await getEntity(deps, other.actor, foreign.id)).properties.prop_1, "다른 소유자");
+    assertEquals((await getEntity(deps, f.actor, created.id)).properties.prop_1, "원본");
+    const patch = {
+      schema_version: schema.schema_version,
+      properties: { prop_1: "수정" },
+      expected_version: created.version,
+    };
     const updated = await updateEntity(deps, requestActor(f.actor), created.id, patch);
     await assertRejects(() => updateEntity(deps, requestActor(f.actor), created.id, patch), AppError);
     assertEquals((await getEntity(deps, f.actor, created.id)).version, updated.version);
