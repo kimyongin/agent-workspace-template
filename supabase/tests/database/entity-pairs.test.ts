@@ -198,7 +198,10 @@ dbTest(
         renamedLinks.items.map((e) => e.id),
         [z.id, y.id],
       );
-      assertEquals((await listEntityLinks(pairs, a.actor, y.id, { limit: 20 })).items[0].id, renamed.id);
+      assertEquals((await listEntityLinks(pairs, a.actor, y.id, { limit: 20 })).items.map((item) => item.id), [
+        z.id,
+        renamed.id,
+      ]);
       const [canonical] =
         await admin`select entity_id,other_id from app.entity_pairs where owner_id=${a.actor.userId} and (entity_id=${y.id} or other_id=${y.id}) and (entity_id=${renamed.id} or other_id=${renamed.id})`;
       assertEquals({ entity_id: canonical.entity_id, other_id: canonical.other_id }, {
@@ -233,7 +236,10 @@ dbTest(
       );
       await assertRejects(() => getEntity(entities, a.actor, "app:rollback-only"));
       await deleteEntity(entities, requestActor(a.actor), renamed.id, before.version);
-      assert((await listEntityLinks(pairs, a.actor, y.id, { limit: 20 })).items[0].deleted_at);
+      assert(
+        (await listEntityLinks(pairs, a.actor, y.id, { limit: 20 })).items.find((item) => item.id === renamed.id)!
+          .deleted_at,
+      );
       const yBeforeDelete = await getEntity(entities, a.actor, y.id);
       await deleteEntity(entities, requestActor(a.actor), y.id, yBeforeDelete.version);
       assert(
