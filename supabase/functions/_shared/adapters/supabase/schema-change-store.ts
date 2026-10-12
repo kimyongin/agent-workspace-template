@@ -1,3 +1,4 @@
+import { assertRecoveryFresh, type RecoveryEvidence } from "../../core/entity-types/recovery-policy.ts";
 import {
   assertSchemaTemplateReferences,
   effectiveEntityTemplateFingerprint,
@@ -93,36 +94,48 @@ export class SqlSchemaChangeStore implements SchemaChangeStore {
       ...(referencesChanged ? [{ path: "references", message: "연결 또는 할 일·기록의 선택이 변경되었습니다" }] : []),
     ];
   }
+  protected async recoveryEvidence(j: postgres.Row, t: postgres.Row) {
+    const [time] = await this.tx`select now() as observed_at`;
+    const [material] = await this
+      .tx`select count(*)::int as count from private.entity_schema_migration_rows where job_id=${j.id}`;
+    const present = !!(j.source_definition?.schema && j.committed_membership && j.committed_references);
+    const [fresh] = present
+      ? await this
+        .tx`select app.entity_schema_membership(${this.actor.userId},${t.id})=${j.committed_membership} as values, app.entity_schema_reference_baseline(${this.actor.userId},${t.id})=${
+        this.tx.json(j.committed_references)
+      }::jsonb as references`
+      : [{ values: false, references: false }];
+    const evidence: RecoveryEvidence = {
+      status: j.status,
+      expires_at: j.source_expires_at?.toISOString() ?? null,
+      material_present: present,
+      retained: Number(material.count),
+      total: Number(j.total),
+      values_match: fresh.values,
+      references_match: fresh.references,
+      conflicts: present && (!fresh.values || !fresh.references)
+        ? await this.recoveryConflicts(j, t.id, !fresh.references)
+        : [],
+      type: {
+        id: t.id,
+        version: Number(t.version),
+        schema_version: Number(t.schema_version),
+        archived: t.archived,
+        schema_write_locked: t.schema_write_locked,
+      },
+    };
+    return { evidence, observed_at: time.observed_at.toISOString() };
+  }
   protected async recoveryFresh(c: postgres.Row, lock = true) {
     if (!c.recovery_source_job_id) return;
     const [j] = await this.tx`select * from app.entity_schema_migrations where id=${c.recovery_source_job_id} ${
       lock ? this.tx`for update` : this.tx``
     }`;
     if (!j) throw notFound();
-    if (j.source_expires_at <= new Date()) {
-      throw new AppError(
-        "migration_source_expired",
-        "복구 원본의 30일 보관 기간이 지났습니다. 현재 자료로 새 변경을 준비하세요",
-      );
-    }
-    const [material] = await this
-      .tx`select count(*)::int as count from private.entity_schema_migration_rows where job_id=${j.id}`;
-    if (
-      !j.source_definition?.schema || !j.committed_membership || !j.committed_references || material.count !== j.total
-    ) {
-      throw conflict("복구 원본 또는 확정 기준 자료가 없습니다. 현재 자료로 새 변경을 준비하세요");
-    }
-    const [fresh] = await this
-      .tx`select app.entity_schema_membership(${this.actor.userId},${c.type_id})=${j.committed_membership} as values, app.entity_schema_reference_baseline(${this.actor.userId},${c.type_id})=${
-      this.tx.json(j.committed_references)
-    }::jsonb as references`;
-    if (!fresh.values || !fresh.references) {
-      throw new AppError(
-        "schema_plan_stale",
-        "완료 후 값·자료 구성·식별·연결 선택이 변경되었습니다. 충돌 자료를 수동 보완하고 새 변경과 분석을 준비하세요",
-        await this.recoveryConflicts(j, c.type_id, !fresh.references),
-      );
-    }
+    const [t] = await this.tx`select * from app.entity_types where id=${c.type_id}`;
+    if (!t) throw notFound();
+    const read = await this.recoveryEvidence(j, t);
+    assertRecoveryFresh(read.evidence, new Date(read.observed_at));
   }
   protected async row(typeId: string, id: string, lock = false) {
     const [row] = await this

@@ -940,7 +940,7 @@ dbTest(
 );
 
 dbTest(
-  "recovery stage includes multibyte record metadata in 8 MiB and fails atomically without truncating original values",
+  "recovery start preflights multibyte generated records in 8 MiB and rejects before accepting or locking",
   async () => {
     const f = await fixture();
     try {
@@ -963,40 +963,20 @@ dbTest(
           },
         },
       );
-      const c = await f.recovery(o.job.job_id),
-        accepted = await f.accept(o.type.id, c.id, c.version);
-      const before = await getEntity(f.e, f.a.actor, "large:1");
-      for (let n = 0; n < 100; n++) {
-        const [claim] = await f
-          .worker`select app.claim_entity_schema_migration() as batch`;
-        assert(claim.batch);
-        assertEquals(claim.batch.id, accepted.job_id);
-        assertEquals(claim.batch.status, "preparing");
-        assert(claim.batch.rows.length > 0 && claim.batch.rows.length <= 50);
-        assert(
-          new TextEncoder().encode(jsonbText(claim.batch.rows)).byteLength <=
-            524288,
-        );
-        const prepared = await prepareMigrationBatch(claim.batch);
-        assert(!prepared.stale);
-        assertEquals(prepared.results[0].record_body, "한".repeat(22000));
-        await f
-          .worker`select app.stage_entity_schema_migration(${accepted.job_id},${claim.batch.fence},${
-          f.worker.json(prepared.results)
-        })`;
-        if (
-          (await getEntitySchemaMigration(f.d, f.a.actor, accepted.job_id))
-            .status === "failed"
-        ) break;
-      }
-      const status = await getEntitySchemaMigration(
-        f.d,
-        f.a.actor,
-        accepted.job_id,
-      );
-      assertEquals(status.status, "failed");
-      assertEquals(status.failure_reason, "migration_result_limit");
-      assertEquals(status.retryable, false);
+      const c = await f.recovery(o.job.job_id), ready = await f.analyze(o.type.id, c.id, c.version);
+      const before = await getEntity(f.e, f.a.actor, "large:1"), t = await getEntityType(f.d, f.a.actor, o.type.id);
+      assert(ready.executable);
+      await code(() =>
+        startEntitySchemaMigration(f.d, f.actor(), o.type.id, c.id, {
+          expected_change_version: c.version,
+          expected_type_version: t.version,
+          expected_schema_version: t.schema_version,
+          analysis_id: ready.analysis!.id,
+          fingerprint: ready.fingerprint,
+        }), "invalid_input");
+      const [jobs] = await f
+        .admin`select count(*)::int as count from app.entity_schema_migrations where type_id=${o.type.id}`;
+      assertEquals(jobs.count, 1);
       assertEquals(await getEntity(f.e, f.a.actor, "large:1"), before);
       assertEquals(
         (await getEntitySchema(f.d, f.a.actor, { type_id: o.type.id }))

@@ -22,7 +22,7 @@
 
 공통 정본은 `contracts/entity-type.ts`의 entitySchemaLimits다. 일반 소규모 업무의 수십 속성·수천 자료를 처리하면서 원자적 전환 비용을 한정한다. 최대 타입 64/owner, 속성 64/type, schema+display 합계 64 KiB, properties 64 KiB, 텍스트 4096 Unicode codepoints, 선택 코드 128개다. 정수는 JavaScript safe integer 범위, 숫자는 절댓값 10억 이하·소수점 6자리 이하며 초과값을 반올림하지 않는다. 정수→숫자 확대도 제품 숫자 한도를 벗어나면 호환 변경이 아니다.
 
-변환 대상은 삭제/보관 포함 최대 2000개, 준비 자료의 원본+대상 JSON UTF-8 합계 8 MiB, preview page 최대 100개·실패 sample 최대 20개, 타입별 활성 적용 job 1개다. 원자적 전환 전 한도를 확인하며 준비 동안 긴 DB transaction을 유지하지 않는다. 원본 복구 자료는 성공 시점부터 30일 보존하며 만료 후 복구는 migration_source_expired/410이다. cleanup 지연으로 남은 원본도 만료 이후 반환하지 않는다. 요청 원장 30일과 복구 30일은 목적·저장 자료가 별개다.
+변환 대상은 삭제/보관 포함 최대 2000개, 준비 자료의 원본+대상 JSON UTF-8 합계 8 MiB, preview page 최대 100개·실패 sample 최대 20개, 타입별 활성 적용 job 1개다. 시작 접수 전에 원본·대상·복구 속성, 식별·태그 기준, 정의·템플릿·변환 메타데이터와 생성될 기록 본문·문맥·태그의 전체 UTF-8 비용을 확인한다. 초과 작업은 작업 생성·쓰기 잠금 전에 거절하며, 작업자의 준비 단계도 같은 한도를 재확인한다. 준비 동안 긴 DB transaction을 유지하지 않는다. 원본 복구 자료는 성공 시점부터 30일 보존하며 만료 후 복구는 migration_source_expired/410이다. cleanup 지연으로 남은 원본도 만료 이후 반환하지 않는다. 요청 원장 30일과 복구 30일은 목적·저장 자료가 별개다.
 
 변경안 상태 draft/analyzing/ready/stale/invalid/applied/cancelled와 적용 작업 queued/preparing/ready_to_commit/committing/succeeded/failed/cancelled는 별개다. preview는 owner/type/source type·schema version/target definition·plan fingerprint/대상 version 집합에 결속한다. 실제 commit 여부가 불명확하면 조회·조정하며 lease 만료로 실패를 확정하지 않는다. 복구는 새 forward 변경안으로 만들고 현재 수정/관계/식별 변화를 재분석한다.
 
