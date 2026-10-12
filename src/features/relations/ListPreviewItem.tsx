@@ -36,8 +36,9 @@ export function useRestoreListPosition(kind:ActivityListKind,ready:boolean) {
 
 /** List expansion belongs to its URL, so edit/save/back restores the same item. */
 export function ListExpansionProvider({children,readiness}:{children:ReactNode;readiness?:PreviewReadiness}) {
-  const [params]=useSearchParams(),location=useLocation(),navigate=useNavigate();
-  const setParams=(next:URLSearchParams,options:{replace:boolean;preventScrollReset:boolean})=>navigate({pathname:location.pathname,search:next.toString(),hash:location.hash},options);
+  const [params,originalSetParams]=useSearchParams(),location=useLocation(),navigate=useNavigate();
+  const setParams=(next:URLSearchParams,options:{replace:boolean;preventScrollReset:boolean})=>location.pathname==="/entities"&&location.hash.startsWith("#property_filters=")
+    ?navigate({pathname:location.pathname,search:next.toString(),hash:location.hash},options):originalSetParams(next,options);
   return <ListPreviewReadiness.Provider value={readiness??null}><ItemExpansionProvider value={params.getAll("open")} toggle={path=>{
     const next=new URLSearchParams(params);
     if(next.getAll("open").includes(path))next.delete("open",path);else next.append("open",path);
