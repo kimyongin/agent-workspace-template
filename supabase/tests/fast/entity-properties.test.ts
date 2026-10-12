@@ -74,11 +74,29 @@ Deno.test("Typed entity usecase validates the final patch, uses defaults only at
   );
   assertEquals(error.fields?.[0].path, "properties.prop_2");
   assertEquals(state.row!.version, 2);
+  for (const value of ["bad\u0000text", "bad\uD800text", "bad\uDC00text"]) {
+    const storageError = await assertRejects(
+      () =>
+        updateEntity(deps, actor, state.row!.id, {
+          schema_version: 1,
+          expected_version: 2,
+          properties: { prop_1: value },
+        }),
+      AppError,
+    );
+    assertEquals(storageError.fields?.[0].path, "properties.prop_1");
+  }
+  const emoji = await updateEntity(deps, actor, state.row!.id, {
+    schema_version: 1,
+    expected_version: 2,
+    properties: { prop_1: "😀".repeat(4096) },
+  });
+  assertEquals(emoji.properties.prop_1, "😀".repeat(4096));
   assertEquals(
     (await assertRejects(() =>
       updateEntity(deps, actor, state.row!.id, {
         schema_version: 2,
-        expected_version: 2,
+        expected_version: 3,
         properties: { prop_1: "new" },
       }), AppError)).code,
     "schema_changed",

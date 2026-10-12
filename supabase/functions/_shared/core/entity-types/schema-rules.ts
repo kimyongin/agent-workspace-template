@@ -189,6 +189,12 @@ export function validateEntityProperties(
   }
   for (const [key, value] of Object.entries(result)) {
     numeric(schema.properties[key], value, `properties.${key}`);
+    if (
+      typeof value === "string" &&
+      (value.includes("\u0000") || /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/.test(value))
+    ) {
+      fail(`properties.${key}`, "텍스트에는 NUL 또는 잘못된 Unicode 문자를 저장할 수 없습니다");
+    }
     if (typeof value === "string" && Array.from(value).length > limits.string_length) {
       fail(`properties.${key}`, "텍스트는 4096자 이하입니다");
     }
