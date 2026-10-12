@@ -14,7 +14,9 @@ test("owned fixture final cleanup preserves same-ID other owner/baseline/Auth/se
     type = crypto.randomUUID(),
     baseline = crypto.randomUUID(),
     otherType = crypto.randomUUID(),
-    key = crypto.randomUUID();
+    key = crypto.randomUUID(),
+    record = `fixture-record-${crypto.randomUUID()}`,
+    otherRecord = `fixture-record-${crypto.randomUUID()}`;
   const environment = {
     name: "isolated-fixture-integration",
     host: target.hostname,
@@ -51,12 +53,12 @@ test("owned fixture final cleanup preserves same-ID other owner/baseline/Auth/se
           entityId.split(":")[1]
         },${id},1,'{}')`;
       }
-      for (const user of [owner, other]) {
-        await tx`insert into app.records(owner_id,id,body,entity_ids) values(${user},'same-record','fixture',array['fixture:same'])`;
+      for (const [user, recordId] of [[owner, record], [other, otherRecord]]) {
+        await tx`insert into app.records(owner_id,id,body,entity_ids) values(${user},${recordId},'fixture',array['fixture:same'])`;
         await tx`select pgmq.send('search_index'::text,${
-          tx.json({ owner_id: user, kind: "record", id: "same-record" })
+          tx.json({ owner_id: user, kind: "record", id: recordId })
         }::jsonb)`;
-        await tx`insert into app.search_index_state(owner_id,kind,id,input_hash,pipeline) values(${user},'record','same-record',${
+        await tx`insert into app.search_index_state(owner_id,kind,id,input_hash,pipeline) values(${user},'record',${recordId},${
           "0".repeat(64)
         },'fixture')`;
         await tx`insert into private.request_results(owner_id,request_key,operation,fingerprint,completed_at,result) values(${user},${key},'entity-type.create',${
@@ -107,7 +109,7 @@ test("owned fixture final cleanup preserves same-ID other owner/baseline/Auth/se
       1,
     );
     assert.equal(
-      (await sql`select count(*)::int n from app.records where owner_id=${other} and id='same-record'`)[
+      (await sql`select count(*)::int n from app.records where owner_id=${other} and id=${otherRecord}`)[
         0
       ].n,
       1,
@@ -159,7 +161,7 @@ test("owned fixture final cleanup preserves same-ID other owner/baseline/Auth/se
       sql.json({
         owner_id: owner,
         kind: "record",
-        id: "same-record",
+        id: record,
         pipeline: "fixture",
         input_hash: "0".repeat(64),
       })
@@ -171,13 +173,13 @@ test("owned fixture final cleanup preserves same-ID other owner/baseline/Auth/se
       null,
     );
     assert.equal(
-      (await sql`select count(*)::int n from app.records where owner_id=${owner} and id='same-record'`)[
+      (await sql`select count(*)::int n from app.records where owner_id=${owner} and id=${record}`)[
         0
       ].n,
       0,
     );
     assert.equal(
-      (await sql`select count(*)::int n from app.search_index_state where owner_id=${owner} and id='same-record'`)[
+      (await sql`select count(*)::int n from app.search_index_state where owner_id=${owner} and id=${record}`)[
         0
       ].n,
       0,
