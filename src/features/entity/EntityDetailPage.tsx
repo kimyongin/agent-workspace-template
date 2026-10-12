@@ -1,3 +1,4 @@
+import { detailModeLink } from "../../lib/entity-list-url.ts";
 import { EntityPairRelations } from "./EntityPairRelations.tsx";
 import { entityPath } from "@contracts/entity-identity.ts";
 import { useDetailResource } from "../details/useDetailResource.ts";
@@ -40,7 +41,7 @@ export function EntityDetailPage() {
     setCreating(null);
     const p = new URLSearchParams(params);
     p.delete("create");
-    afterClose(`${location.pathname}?${p}${location.hash}`, true);
+    afterClose(detailModeLink(location.pathname, p, location.hash), true);
   };
   useEffect(() => {
     const value = params.get("create"), next = value === "task" || value === "record" ? value : null;
@@ -126,7 +127,7 @@ export function EntityDetailPage() {
         onCreate={() => {
           const p = new URLSearchParams(params);
           p.set("create", "task");
-          navigate(`?${p}`);
+          navigate(detailModeLink(location.pathname, p, location.hash));
         }}
       />
       {([["records", "기록"]] as const).map(([kind, label]) => (
@@ -141,7 +142,7 @@ export function EntityDetailPage() {
               onClick={() => {
                 const p = new URLSearchParams(params);
                 p.set("create", "record");
-                navigate(`?${p}`);
+                navigate(detailModeLink(location.pathname, p, location.hash));
               }}
             >
               작성

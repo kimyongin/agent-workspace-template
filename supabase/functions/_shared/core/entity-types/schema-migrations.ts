@@ -1,4 +1,9 @@
 import {
+  assertSchemaApplication,
+  assertSchemaApplicationBindings,
+  type SchemaApplicationContext,
+} from "./schema-application.ts";
+import {
   assertRecoveryFresh,
   assessRecovery,
   type RecoveryContext,
@@ -26,11 +31,7 @@ export interface SchemaMigrationStore {
     context: RecoveryContext,
     proposal: RecoveryProposal,
   ): Promise<import("../../contracts/entity-schema-change.ts").EntitySchemaChange>;
-  startMigration(
-    typeId: string,
-    changeId: string,
-    input: z.infer<typeof schemaMigrationStart>,
-  ): Promise<SchemaMigrationAccepted>;
+  saveSchemaMigration(context: SchemaApplicationContext): Promise<SchemaMigrationAccepted>;
   getMigration(id: string): Promise<EntitySchemaMigration>;
   listMigrations(
     input: z.infer<typeof schemaMigrationList>,
@@ -64,7 +65,12 @@ export function startEntitySchemaMigration(
     "entity-schema-migration.start",
     [typeId, changeId],
     i,
-    (s) => s.startMigration(typeId, changeId, i),
+    async (s) => {
+      const context = await s.loadSchemaApplication(typeId, changeId, i.analysis_id);
+      assertSchemaApplication(context, "migration_required", i);
+      await assertSchemaApplicationBindings(context, await s.lockSchemaApplicationBindings(context));
+      return s.saveSchemaMigration(context);
+    },
   );
 }
 export function getEntitySchemaMigration(d: EntityTypeDeps, a: Actor, id: string) {

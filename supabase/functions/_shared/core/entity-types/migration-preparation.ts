@@ -79,7 +79,7 @@ export function migrationRecordRenderer(
   };
 }
 /** This public preparation boundary shares conversion, memo and index-hash semantics with ordinary writes. */
-export async function prepareMigrationBatch(batch: MigrationWorkerBatch, now = new Date(), budgetMs = 2000) {
+export async function prepareMigrationBatch(batch: MigrationWorkerBatch, now: Date, budgetMs = 2000) {
   const started = performance.now();
   const fingerprint = await effectiveEntityTemplateFingerprint(batch.templates, batch.type_id);
   if (fingerprint !== batch.source_template_fingerprint) return { stale: true as const, results: [] };

@@ -138,7 +138,7 @@ async function fixture() {
         assert(done.done);
         return;
       }
-      const prep = await prepareMigrationBatch(batch);
+      const prep = await prepareMigrationBatch(batch, new Date("2026-10-12T00:00:00Z"));
       assert(!prep.stale);
       assert(batch.rows.length === 0 || prep.results.length > 0);
       assert(
@@ -808,7 +808,7 @@ dbTest(
         accepted = await f.accept(o.type.id, c.id, c.version);
       const [claim] = await f
         .worker`select app.claim_entity_schema_migration() as batch`;
-      const staged = await prepareMigrationBatch(claim.batch);
+      const staged = await prepareMigrationBatch(claim.batch, new Date("2026-10-12T00:00:00Z"));
       assert(!staged.stale);
       await f
         .worker`select app.stage_entity_schema_migration(${accepted.job_id},${claim.batch.fence},${
