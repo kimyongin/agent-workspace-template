@@ -1,4 +1,11 @@
 import {
+  cancelEntitySchemaMigration,
+  getEntitySchemaMigration,
+  listEntitySchemaMigrations,
+  retryEntitySchemaMigration,
+  startEntitySchemaMigration,
+} from "../../core/entity-types/schema-migrations.ts";
+import {
   analyzeEntitySchemaChange,
   applyEntitySchemaChange,
   createEntitySchemaChange,
@@ -144,5 +151,44 @@ export function entityTypeRoutes(deps: EntityTypeDeps) {
       }),
     );
   });
+  app.post(
+    "/entity-types/:type_id/schema-changes/:change_id/migrations",
+    async (c) =>
+      c.json(
+        await startEntitySchemaMigration(
+          deps,
+          c.get("actor"),
+          c.req.param("type_id"),
+          c.req.param("change_id"),
+          await json(c.req.raw),
+        ),
+        202,
+      ),
+  );
+  app.get(
+    "/entity-schema-migrations",
+    async (c) =>
+      c.json(
+        await listEntitySchemaMigrations(deps, c.get("actor"), {
+          type_id: c.req.query("type_id"),
+          limit: number(c.req.query("limit")),
+          before: c.req.query("before"),
+        }),
+      ),
+  );
+  app.get(
+    "/entity-schema-migrations/:job_id",
+    async (c) => c.json(await getEntitySchemaMigration(deps, c.get("actor"), c.req.param("job_id"))),
+  );
+  app.post(
+    "/entity-schema-migrations/:job_id/cancel",
+    async (c) =>
+      c.json(await cancelEntitySchemaMigration(deps, c.get("actor"), c.req.param("job_id"), await json(c.req.raw))),
+  );
+  app.post(
+    "/entity-schema-migrations/:job_id/retry",
+    async (c) =>
+      c.json(await retryEntitySchemaMigration(deps, c.get("actor"), c.req.param("job_id"), await json(c.req.raw)), 202),
+  );
   return app;
 }

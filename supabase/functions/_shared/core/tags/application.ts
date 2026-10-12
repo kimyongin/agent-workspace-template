@@ -26,6 +26,7 @@ function target(use: TagUse) {
   return use.kind === "entity" ? entityChangeTarget(use.value) : activityChangeTarget(use.value);
 }
 export interface TagStore extends ChangeStore {
+  prepareDelete?(id: string): Promise<void>;
   get(id: string, lock?: boolean): Promise<TagResult | null>;
   insert(name: string, scope: TagResult["scope"]): Promise<TagResult>;
   rename(id: string, name: string): Promise<TagResult>;
@@ -69,6 +70,7 @@ export function deleteTag(
   change_tag_ids?: string[],
 ) {
   return runWrite(d.uow, a, "tag.delete", id, { expected_version: v, change_note, change_tag_ids }, async (s) => {
+    await s.prepareDelete?.(id);
     await requireVersion(s, id, v);
     if (change_tag_ids?.includes(id)) throw invalidInput("삭제할 태그는 기록에 붙일 수 없습니다");
     for await (const before of s.uses(id)) {

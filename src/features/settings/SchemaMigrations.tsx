@@ -1,3 +1,4 @@
+import { MigrationJobs } from "./SchemaMigrationJobs.tsx";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useBlocker, useParams } from "react-router";
 import type { EntitySchemaVersion, EntityType } from "@contracts/entity-type.ts";
@@ -56,7 +57,7 @@ export function SchemaMigrations() {
   return (
     <section className="panel settings">
       <h1 className="page-title">
-        {type && <EntityTypeIcon id={type.icon_id} />} {type?.label ?? "자료 종류"} · 값 변환 준비
+        {type && <EntityTypeIcon id={type.icon_id} />} {type?.label ?? "자료 종류"} · 마이그레이션
       </h1>
       <nav aria-label="자료 종류 설정">
         <Link to={`/settings/entity-types/${type_id}`}>속성·표시로 돌아가기</Link>
@@ -80,6 +81,7 @@ export function SchemaMigrations() {
           <button className="btn" onClick={() => void load().catch((e) => setError(e.message))}>조회 다시 시도</button>
         </>
       )}
+      {type_id && <MigrationJobs typeId={type_id} />}
       {type && type.id === type_id && definition && (
         <SchemaEditor key={type_id} type={type} definition={definition} onApplied={load} onState={state} />
       )}

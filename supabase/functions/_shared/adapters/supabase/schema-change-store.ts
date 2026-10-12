@@ -20,7 +20,7 @@ import { jsonbText } from "../../core/entity-types/schema-rules.ts";
 import { canonical, definitionFingerprint, resolveSchemaEdits } from "../../core/entity-types/evolution.ts";
 export class SqlSchemaChangeStore implements SchemaChangeStore {
   constructor(protected readonly tx: postgres.TransactionSql, protected readonly actor: Actor) {}
-  private async lockType(typeId: string) {
+  protected async lockType(typeId: string) {
     const [t] = await this.tx`select * from app.entity_types where id::text=${typeId} for update`;
     if (!t) throw notFound();
     if (t.schema_write_locked) {
@@ -28,7 +28,7 @@ export class SqlSchemaChangeStore implements SchemaChangeStore {
     }
     return t;
   }
-  private sourceRefs(t: postgres.Row, i: { expected_type_version: number; expected_schema_version: number }) {
+  protected sourceRefs(t: postgres.Row, i: { expected_type_version: number; expected_schema_version: number }) {
     if (t.version !== i.expected_type_version || t.schema_version !== i.expected_schema_version) {
       throw new AppError("schema_changed", "자료 종류나 속성 정의가 변경되었습니다", undefined, {
         type_id: t.id,
@@ -43,7 +43,7 @@ export class SqlSchemaChangeStore implements SchemaChangeStore {
       .tx`select schema,display from app.entity_schema_versions where type_id=${t.id} and schema_version=${t.schema_version}`;
     return { schema: v.schema, display: v.display };
   }
-  private async templates(target: SchemaDefinition, typeId: string, expected?: string) {
+  protected async templates(target: SchemaDefinition, typeId: string, expected?: string) {
     await this.tx`select pg_advisory_xact_lock(hashtextextended(${`${this.actor.userId}:record_templates`},0))`;
     const [row] = await this.tx`select version,settings from app.user_business_settings where id='record_templates'`;
     const version = await effectiveEntityTemplateFingerprint(row?.settings as RecordTemplates | undefined, typeId);
@@ -82,7 +82,7 @@ export class SqlSchemaChangeStore implements SchemaChangeStore {
     }
     return reservations;
   }
-  private async row(typeId: string, id: string, lock = false) {
+  protected async row(typeId: string, id: string, lock = false) {
     const [row] = await this
       .tx`select * from app.entity_schema_changes where type_id::text=${typeId} and id::text=${id} ${
       lock ? this.tx`for update` : this.tx``
@@ -90,7 +90,7 @@ export class SqlSchemaChangeStore implements SchemaChangeStore {
     if (!row) throw notFound();
     return row;
   }
-  private editable(row: postgres.Row, version: number) {
+  protected editable(row: postgres.Row, version: number) {
     if (Number(row.version) !== version) throw conflict("변경 초안 버전이 변경되었습니다");
     if (["applied", "cancelled"].includes(row.status)) throw conflict("완료된 변경은 수정할 수 없습니다");
   }
@@ -124,7 +124,7 @@ export class SqlSchemaChangeStore implements SchemaChangeStore {
     }
     if (!["applied", "cancelled"].includes(status)) {
       const [fresh] = await this
-        .tx`select version=${row.source_type_version} and schema_version=${row.source_schema_version} and not schema_write_locked  as fresh from app.entity_types where id=${row.type_id}`;
+        .tx`select version=${row.source_type_version} and schema_version=${row.source_schema_version} and (not schema_write_locked or exists(select 1 from app.entity_schema_migrations j where j.change_id=${row.id} and j.status in ('queued','preparing','ready_to_commit','committing'))) as fresh from app.entity_types where id=${row.type_id}`;
       if (!fresh?.fresh) status = "stale";
       const [settings] = await this.tx`select settings from app.user_business_settings where id='record_templates'`;
       if (
@@ -278,6 +278,9 @@ export class SqlSchemaChangeStore implements SchemaChangeStore {
     input: Parameters<SchemaChangeStore["analysisRows"]>[2],
   ): Promise<SchemaAnalysisPage> {
     const change = await this.row(typeId, id);
+    const [expired] = await this
+      .tx`select id from app.entity_schema_migrations where analysis_id=${input.analysis_id} and source_expires_at<=now() and status='succeeded'`;
+    if (expired) throw new AppError("migration_source_expired", "원본 분석 자료의 30일 보관 기간이 지났습니다");
     if (change.analysis_id !== input.analysis_id) throw new AppError("schema_plan_stale", "최신 분석을 조회하세요");
     const [a] = await this
       .tx`select status from app.entity_schema_analyses where id=${input.analysis_id} and change_id=${id}`;

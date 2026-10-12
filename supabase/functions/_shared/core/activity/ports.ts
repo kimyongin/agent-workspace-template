@@ -80,14 +80,20 @@ export type { IndexJob } from "../shared/store.ts";
 
 /** 한 트랜잭션 안의 저장소. 모든 조회·쓰기·큐 등록이 같은 연결을 쓴다. */
 export interface ActivityStore extends ChangeStore, RequestStore {
-  getTask(id: string, opts?: { forUpdate?: boolean }): Promise<Task | null>;
+  getTask(
+    id: string,
+    opts?: { forUpdate?: boolean; entityIds?: string[]; selectionWrite?: boolean },
+  ): Promise<Task | null>;
   listTasks(filter: TaskFilter): Promise<Task[]>;
   insertTask(task: NewTask): Promise<Task>;
   /** 버전을 1 올리고 updated_at을 갱신한다. */
   updateTask(id: string, changes: Partial<Task>): Promise<Task>;
   deleteTask(id: string): Promise<void>;
 
-  getRecord(id: string, opts?: { forUpdate?: boolean }): Promise<ActivityRecord | null>;
+  getRecord(
+    id: string,
+    opts?: { forUpdate?: boolean; entityIds?: string[]; selectionWrite?: boolean },
+  ): Promise<ActivityRecord | null>;
   getRecordBodies(ids: string[]): Promise<Pick<ActivityRecord, "id" | "body">[]>;
   listRecords(filter: RecordFilter): Promise<ActivityRecord[]>;
   /** Batch facts in task/date/occurred-at/id order, inside this transaction. Empty ids read nothing. */

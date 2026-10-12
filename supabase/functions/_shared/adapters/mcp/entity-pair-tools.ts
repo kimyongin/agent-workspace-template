@@ -18,9 +18,9 @@ export function entityPairTools(d: EntityPairDeps): ToolDef[] {
         return listEntityLinks(d, a, id, q);
       },
     },
-    ...[true, false].map((linked) =>
+    ...[{ name: "link_entities", linked: true }, { name: "unlink_entities", linked: false }].map(({ name, linked }) =>
       keyedTool({
-        name: linked ? "link_entities" : "unlink_entities",
+        name,
         description: `양쪽 자료의 expected_version/expected_other_version을 검사하고 연결${
           linked ? "" : " 해제"
         }합니다. 무방향 쌍은 한 행이며 실제 변경은 양쪽 version과 기록 한 건을 원자적으로 저장합니다. 자료당 연결 한도는 100개입니다. 삭제·보관된 자료는 조회/해제할 수 있습니다.`,

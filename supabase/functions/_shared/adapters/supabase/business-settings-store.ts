@@ -48,9 +48,14 @@ export class SqlBusinessSettingsStore implements BusinessSettingsStore {
           throw invalidInput("속성 변수는 자료 종류를 선택한 템플릿에서 사용하세요");
         }
       }
+      const types = await this.tx<{ id: string }[]>`select id from app.entity_types order by id`;
       for (
         const typeId of [
-          ...new Set([...Object.keys(templates.entity_types ?? {}), ...Object.keys(previous?.entity_types ?? {})]),
+          ...new Set([
+            ...types.map((t) => t.id),
+            ...Object.keys(templates.entity_types ?? {}),
+            ...Object.keys(previous?.entity_types ?? {}),
+          ]),
         ].sort()
       ) {
         const changed = JSON.stringify(effectiveEntityTemplates(previous, typeId)) !==
