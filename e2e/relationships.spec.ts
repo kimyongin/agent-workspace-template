@@ -1,6 +1,6 @@
 import { createFixtureEntity, scalarFixtureType, fixtureEntityList } from "./entity-schema-support.ts";
-import { test, expect } from "@playwright/test";
-import { devLogin, mcpClient, mcpTokenViaConsent, unique } from "./support.ts";
+import { expect } from "@playwright/test";
+import { test, devLogin, mcpClient, mcpTokenViaConsent, unique } from "./support.ts";
 import { beginTabAction, openDetailEditor, saveOnce } from "./ui-actions.ts";
 
 test("상세 보기의 양방향 연결·해제와 일반 메모가 웹/MCP에서 일치한다",async({page})=>{

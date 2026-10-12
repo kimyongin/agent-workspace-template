@@ -1,8 +1,8 @@
-import { expect, test } from "@playwright/test";
+import { expect } from "@playwright/test";
 import { type ChildProcess, spawn } from "node:child_process";
 import { once } from "node:events";
 import postgres from "postgres";
-import { devLogin, env, mcpClient, mcpTokenViaConsent, unique } from "./support.ts";
+import { test, devLogin, env, mcpClient, mcpTokenViaConsent, unique } from "./support.ts";
 import { schemaAnalysisTick } from "./entity-schema-support.ts";
 async function stopWorker(child: ChildProcess | undefined) {
   if (!child || child.exitCode !== null || child.signalCode !== null) return;

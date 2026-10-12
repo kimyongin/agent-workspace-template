@@ -1,47 +1,62 @@
 import postgres from "postgres";
 import { initialEntityDefinition } from "../supabase/functions/_shared/contracts/entity-type.ts";
-import { expect, test } from "@playwright/test";
-import { devLogin, env, unique } from "./support.ts";
+import { expect } from "@playwright/test";
+import { devLogin, env, ownFixtureResult, test, unique } from "./support.ts";
 import { beginTabAction, saveOnce } from "./ui-actions.ts";
 
-let fixtureType: { id: string; label: string };
+let fixtureType: { id: string; label: string } | undefined;
 test.beforeEach(async ({ page }) => {
-  const login = await page.request.post(`${env.VITE_SUPABASE_URL}/auth/v1/token?grant_type=password`, {
-    headers: { apikey: env.VITE_SUPABASE_PUBLISHABLE_KEY },
-    data: { email: env.DEV_USER_A_EMAIL, password: env.DEV_USER_A_PASSWORD },
-  });
-  const token = (await login.json()).access_token;
+  fixtureType = undefined;
+  const login = await page.request.post(
+    `${env.VITE_SUPABASE_URL}/auth/v1/token?grant_type=password`,
+    {
+      headers: { apikey: env.VITE_SUPABASE_PUBLISHABLE_KEY },
+      data: { email: env.DEV_USER_A_EMAIL, password: env.DEV_USER_A_PASSWORD },
+    },
+  );
+  const identity = await login.json(), token = identity.access_token;
+  const typeRequestKey = crypto.randomUUID();
+  ownFixtureResult(identity.user.id, "entity_types", "", typeRequestKey);
   const created = await page.request.post(`${env.VITE_API_URL}/entity-types`, {
-    headers: { authorization: `Bearer ${token}`, "Idempotency-Key": crypto.randomUUID() },
+    headers: {
+      authorization: `Bearer ${token}`,
+      "Idempotency-Key": typeRequestKey,
+    },
     data: { label: unique("식별 시험"), representative_label: "이름" },
   });
   expect(created.ok()).toBeTruthy();
   fixtureType = await created.json();
+  ownFixtureResult(
+    identity.user.id,
+    "entity_types",
+    fixtureType!.id,
+    typeRequestKey,
+  );
   const definition = initialEntityDefinition("이름");
   Object.assign(definition.schema.properties, {
     prop_2: { type: ["integer", "null"], title: "개수", default: 0 },
     prop_3: { type: ["string", "null"], format: "date", title: "날짜" },
-    prop_4: { type: "string", enum: ["a", "b", "c"], title: "구분", default: "a" },
+    prop_4: {
+      type: "string",
+      enum: ["a", "b", "c"],
+      title: "구분",
+      default: "a",
+    },
   });
   definition.display.order = ["prop_1", "prop_2", "prop_3", "prop_4"];
   const admin = postgres(env.LOCAL_DB_URL, { max: 1, onnotice: () => {} });
   try {
     await admin.begin(async (tx) => {
-      const [owner] = await tx`select owner_id from app.entity_types where id=${fixtureType.id}`;
-      await tx`insert into app.entity_schema_versions(owner_id,type_id,schema_version,schema,display) values(${owner.owner_id},${fixtureType.id},2,${
-        tx.json(definition.schema)
-      },${tx.json(definition.display)})`;
-      await tx`update app.entity_types set schema_version=2,version=version+1 where id=${fixtureType.id}`;
+      const [owner] = await tx`select owner_id from app.entity_types where id=${
+        fixtureType!.id
+      }`;
+      await tx`insert into app.entity_schema_versions(owner_id,type_id,schema_version,schema,display) values(${owner.owner_id},${
+        fixtureType!.id
+      },2,${tx.json(definition.schema)},${tx.json(definition.display)})`;
+      await tx`update app.entity_types set schema_version=2,version=version+1 where id=${
+        fixtureType!.id
+      }`;
     });
-  } finally {
-    await admin.end();
-  }
-});
-test.afterEach(async () => {
-  const admin = postgres(env.LOCAL_DB_URL, { max: 1, onnotice: () => {} });
-  try {
-    await admin`delete from app.entities where entity_type_id=${fixtureType.id}`;
-    await admin`delete from app.entity_types where id=${fixtureType.id}`;
   } finally {
     await admin.end();
   }
@@ -49,10 +64,13 @@ test.afterEach(async () => {
 
 test("manual tuple registration previews stored data, restores links, and rekeys URL safely", async ({ page }) => {
   await devLogin(page);
-  const login = await page.request.post(`${env.VITE_SUPABASE_URL}/auth/v1/token?grant_type=password`, {
-    headers: { apikey: env.VITE_SUPABASE_PUBLISHABLE_KEY },
-    data: { email: env.DEV_USER_A_EMAIL, password: env.DEV_USER_A_PASSWORD },
-  });
+  const login = await page.request.post(
+    `${env.VITE_SUPABASE_URL}/auth/v1/token?grant_type=password`,
+    {
+      headers: { apikey: env.VITE_SUPABASE_PUBLISHABLE_KEY },
+      data: { email: env.DEV_USER_A_EMAIL, password: env.DEV_USER_A_PASSWORD },
+    },
+  );
   const token = (await login.json()).access_token;
   const api = async (method: string, path: string, data?: unknown) => {
     const response = await page.request.fetch(`${env.VITE_API_URL}${path}`, {
@@ -67,7 +85,8 @@ test("manual tuple registration previews stored data, restores links, and rekeys
     return response.status() === 204 ? null : response.json();
   };
   const original = await api("GET", "/settings/business");
-  const external_id = `000Ab:/한글%${unique("식별자")}`, name = unique("보관 자료");
+  const external_id = `000Ab:/한글%${unique("식별자")}`,
+    name = unique("보관 자료");
   let entityId: string | undefined, taskId: string | undefined;
   try {
     await api("PATCH", "/settings/business", {
@@ -77,7 +96,9 @@ test("manual tuple registration previews stored data, restores links, and rekeys
         ...original.settings.entity_identity,
         generation: "manual",
         default_source: "app",
-        sources: original.settings.entity_identity.sources.map((source: { code: string }) => ({
+        sources: original.settings.entity_identity.sources.map((
+          source: { code: string },
+        ) => ({
           ...source,
           generation: "manual",
         })),
@@ -88,21 +109,30 @@ test("manual tuple registration previews stored data, restores links, and rekeys
       expected_version: original.versions.record_templates,
       value: {
         ...original.settings.record_templates,
-        entity: { ...original.settings.record_templates?.entity, delete: { memo: "삭제 템플릿", tag_ids: [] } },
+        entity: {
+          ...original.settings.record_templates?.entity,
+          delete: { memo: "삭제 템플릿", tag_ids: [] },
+        },
       },
     });
     const target = await api("POST", "/entities", {
       source: "app",
       external_id,
-      entity_type_id: fixtureType.id,
+      entity_type_id: fixtureType!.id,
       schema_version: 2,
       properties: { prop_1: name, prop_2: 0, prop_4: "c" },
     });
     entityId = target.id;
-    const task = await api("POST", "/tasks", { kind: "once", title: unique("연결 보존"), entity_ids: [target.id] });
+    const task = await api("POST", "/tasks", {
+      kind: "once",
+      title: unique("연결 보존"),
+      entity_ids: [target.id],
+    });
     taskId = task.id;
-    await api("POST", `/entities/${encodeURIComponent(target.id)}/delete`, { expected_version: 1 });
-    await page.goto(`/entities?entity_type_id=${fixtureType.id}`);
+    await api("POST", `/entities/${encodeURIComponent(target.id)}/delete`, {
+      expected_version: 1,
+    });
+    await page.goto(`/entities?entity_type_id=${fixtureType!.id}`);
     // Hold the settings response to verify identity inputs cannot race loaded defaults.
     let releaseSettings!: () => void;
     const settingsReady = new Promise<void>((resolve) => {
@@ -113,54 +143,96 @@ test("manual tuple registration previews stored data, restores links, and rekeys
       await settingsReady;
       await route.continue();
     });
-    await beginTabAction(page, `${fixtureType.label} 추가`);
-    const form = page.getByRole("dialog", { name: `${fixtureType.label} 추가`, exact: true });
+    await beginTabAction(page, `${fixtureType!.label} 추가`);
+    const form = page.getByRole("dialog", {
+      name: `${fixtureType!.label} 추가`,
+      exact: true,
+    });
     await expect(form.getByLabel("식별자")).toBeDisabled();
-    await expect(form.getByRole("button", { name: "기존 대상 확인", exact: true })).toBeDisabled();
+    await expect(
+      form.getByRole("button", { name: "기존 대상 확인", exact: true }),
+    ).toBeDisabled();
     releaseSettings();
     await expect(form.getByLabel("식별자")).toBeEnabled();
-    await form.getByRole("button", { name: "기존 대상 확인", exact: true }).click();
+    await form.getByRole("button", { name: "기존 대상 확인", exact: true })
+      .click();
     await expect(form.getByRole("status")).toHaveText("식별자는 1~200자입니다");
     await form.getByLabel("식별자").fill(external_id);
-    await form.getByRole("button", { name: "기존 대상 확인", exact: true }).click();
-    const restore = page.getByRole("dialog", { name: `${fixtureType.label} 복원`, exact: true });
-    await expect(restore.getByLabel("이름", { exact: false })).toHaveValue(name);
+    await form.getByRole("button", { name: "기존 대상 확인", exact: true })
+      .click();
+    const restore = page.getByRole("dialog", {
+      name: `${fixtureType!.label} 복원`,
+      exact: true,
+    });
+    await expect(restore.getByLabel("이름", { exact: false })).toHaveValue(
+      name,
+    );
     await expect(restore.getByLabel("개수")).toHaveValue("0");
     await expect(restore.getByLabel("구분")).toHaveValue("value:c");
     await restore.getByLabel("날짜").fill("2026-10-09");
     await saveOnce(page, restore);
     await expect(page.getByText(name, { exact: true }).first()).toBeVisible();
-    const restored = await api("GET", `/entities/${encodeURIComponent(target.id)}`);
-    expect([restored.deleted_at, restored.version, restored.properties.prop_2, restored.properties.prop_4]).toEqual([
+    const restored = await api(
+      "GET",
+      `/entities/${encodeURIComponent(target.id)}`,
+    );
+    expect([
+      restored.deleted_at,
+      restored.version,
+      restored.properties.prop_2,
+      restored.properties.prop_4,
+    ]).toEqual([
       null,
       3,
       0,
       "c",
     ]);
-    expect((await api("GET", `/tasks/${task.id}`)).entity_ids).toEqual([target.id]);
+    expect((await api("GET", `/tasks/${task.id}`)).entity_ids).toEqual([
+      target.id,
+    ]);
     await page.getByRole("button", { name: "편집", exact: true }).click();
-    const rekey = page.getByRole("dialog", { name: `${fixtureType.label} 편집`, exact: true });
+    const rekey = page.getByRole("dialog", {
+      name: `${fixtureType!.label} 편집`,
+      exact: true,
+    });
     const next = `새:/ID%${unique("변경")}`;
     await rekey.getByLabel("식별자").fill(next);
     await saveOnce(page, rekey);
     entityId = `app:${next}`;
-    await expect(page).toHaveURL(new RegExp(encodeURIComponent(entityId).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
-    expect((await api("GET", `/tasks/${task.id}`)).entity_ids).toEqual([entityId]);
-    await expect(page.locator(`[id="tab-${`/entities/${encodeURIComponent(target.id)}`}"]`)).toHaveCount(0);
+    await expect(page).toHaveURL(
+      new RegExp(
+        encodeURIComponent(entityId).replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
+      ),
+    );
+    expect((await api("GET", `/tasks/${task.id}`)).entity_ids).toEqual([
+      entityId,
+    ]);
+    await expect(
+      page.locator(
+        `[id="tab-${`/entities/${encodeURIComponent(target.id)}`}"]`,
+      ),
+    ).toHaveCount(0);
     await expect(page.getByText(name, { exact: true }).first()).toBeVisible();
     await page.reload();
     await expect(page.getByText(name, { exact: true }).first()).toBeVisible();
     await page.getByRole("button", { name: "편집", exact: true }).click();
     await page.getByRole("button", { name: "삭제", exact: true }).click();
     const deletion = page.locator("dialog.modal-action[open]");
-    await expect(deletion.getByLabel("기록 메모", { exact: true })).toHaveValue("삭제 템플릿");
+    await expect(deletion.getByLabel("기록 메모", { exact: true })).toHaveValue(
+      "삭제 템플릿",
+    );
     await deletion.getByLabel("기록 메모", { exact: true }).fill("");
-    const request = page.waitForRequest((value) => value.method() === "POST" && value.url().endsWith("/delete"));
-    await deletion.getByRole("button", { name: "삭제하고 기록", exact: true }).click();
+    const request = page.waitForRequest((value) =>
+      value.method() === "POST" && value.url().endsWith("/delete")
+    );
+    await deletion.getByRole("button", { name: "삭제하고 기록", exact: true })
+      .click();
     expect((await request).postDataJSON().change_note).toBe("");
     await expect(deletion).toHaveCount(0);
     const events = await api("GET", "/records?record_kind=change&limit=100");
-    const deletionEvent = events.items.find((event: { change?: { target_id: string; action: string } }) =>
+    const deletionEvent = events.items.find((
+      event: { change?: { target_id: string; action: string } },
+    ) =>
       event.change?.target_id === entityId && event.change.action === "delete"
     );
     expect(deletionEvent.body).not.toBe("삭제 템플릿");
@@ -168,12 +240,19 @@ test("manual tuple registration previews stored data, restores links, and rekeys
   } finally {
     if (taskId) {
       const task = await api("GET", `/tasks/${taskId}`);
-      await api("POST", `/tasks/${taskId}/delete`, { expected_version: task.version });
+      await api("POST", `/tasks/${taskId}/delete`, {
+        expected_version: task.version,
+      });
     }
     if (entityId) {
-      const target = await api("GET", `/entities/${encodeURIComponent(entityId)}`);
+      const target = await api(
+        "GET",
+        `/entities/${encodeURIComponent(entityId)}`,
+      );
       if (!target.deleted_at) {
-        await api("POST", `/entities/${encodeURIComponent(entityId)}/delete`, { expected_version: target.version });
+        await api("POST", `/entities/${encodeURIComponent(entityId)}/delete`, {
+          expected_version: target.version,
+        });
       }
     }
     const latest = await api("GET", "/settings/business");
@@ -194,13 +273,18 @@ test("identity settings recovers from an initial read failure and preserves edit
   await devLogin(page);
   let failSettings = true;
   await page.route("**/settings/business{,?**}", async (route) => {
-    if (route.request().method() === "GET" && failSettings) return route.abort("failed");
+    if (route.request().method() === "GET" && failSettings) {
+      return route.abort("failed");
+    }
     await route.continue();
   });
   await page.goto("/settings/entity-identity");
-  const section = page.locator('section[aria-labelledby="entity-identity-title"]');
+  const section = page.locator(
+    'section[aria-labelledby="entity-identity-title"]',
+  );
   await expect(section).toContainText("식별자 설정을 불러오지 못했습니다.");
-  await expect(section.getByRole("form", { name: "자료 식별자 설정" })).toHaveCount(0);
+  await expect(section.getByRole("form", { name: "자료 식별자 설정" }))
+    .toHaveCount(0);
   failSettings = false;
   await section.getByRole("button", { name: "다시 시도", exact: true }).click();
   const generation = section.getByLabel("발급처 1 방식");
@@ -208,30 +292,51 @@ test("identity settings recovers from an initial read failure and preserves edit
   const previous = await generation.inputValue();
   const changed = previous === "short" ? "manual" : "short";
   await generation.selectOption(changed);
-  await expect(section.getByRole("button", { name: "최신값 확인", exact: true })).toHaveCount(0);
+  await expect(
+    section.getByRole("button", { name: "최신값 확인", exact: true }),
+  ).toHaveCount(0);
   await page.route("**/settings/business{,?**}", async (route) => {
     if (route.request().method() === "PATCH") {
       return route.fulfill({
         status: 409,
-        json: { error: { code: "conflict", message: "같은 설정에 다른 변경이 저장되어 있습니다.", fields: [] } },
+        json: {
+          error: {
+            code: "conflict",
+            message: "같은 설정에 다른 변경이 저장되어 있습니다.",
+            fields: [],
+          },
+        },
       });
     }
     return route.continue();
   });
-  await section.getByRole("button", { name: "식별자 설정 저장", exact: true }).click();
-  await section.getByRole("button", { name: "최신값 확인", exact: true }).click();
-  await expect(section).toContainText("최신 설정을 읽었습니다. 초안을 보존했습니다.");
+  await section.getByRole("button", { name: "식별자 설정 저장", exact: true })
+    .click();
+  await section.getByRole("button", { name: "최신값 확인", exact: true })
+    .click();
+  await expect(section).toContainText(
+    "최신 설정을 읽었습니다. 초안을 보존했습니다.",
+  );
   await expect(generation).toHaveValue(changed);
-  await expect(section.getByRole("button", { name: "식별자 설정 저장", exact: true })).toBeDisabled();
-  await section.getByRole("button", { name: "최신값으로 다시 편집", exact: true }).click();
+  await expect(
+    section.getByRole("button", { name: "식별자 설정 저장", exact: true }),
+  ).toBeDisabled();
+  await section.getByRole("button", {
+    name: "최신값으로 다시 편집",
+    exact: true,
+  }).click();
   await expect(generation).toHaveValue(previous);
 });
 
 test("late archived lookup preserves newer identity and same-identity property edits", async ({ page }) => {
   await devLogin(page);
-  await page.goto(`/entities?entity_type_id=${fixtureType.id}`);
-  await beginTabAction(page, `${fixtureType.label} 추가`);
-  const form = () => page.getByRole("dialog", { name: `${fixtureType.label} 추가`, exact: true });
+  await page.goto(`/entities?entity_type_id=${fixtureType!.id}`);
+  await beginTabAction(page, `${fixtureType!.label} 추가`);
+  const form = () =>
+    page.getByRole("dialog", {
+      name: `${fixtureType!.label} 추가`,
+      exact: true,
+    });
   await expect(form().getByLabel("식별자")).toBeEnabled();
   const source = await form().getByLabel("발급처").inputValue();
   const identity = unique("지연 식별자");
@@ -258,12 +363,22 @@ test("late archived lookup preserves newer identity and same-identity property e
         id: `${source}:${identity}`,
         source,
         external_id: identity,
-        entity_type_id: fixtureType.id,
-        type: { id: fixtureType.id, label: fixtureType.label, icon_id: "box", archived: false },
+        entity_type_id: fixtureType!.id,
+        type: {
+          id: fixtureType!.id,
+          label: fixtureType!.label,
+          icon_id: "box",
+          archived: false,
+        },
         schema_version: 2,
         current_schema_version: 2,
         title: `보관된 값 ${number}`,
-        properties: { prop_1: `보관된 값 ${number}`, prop_2: 0, prop_3: null, prop_4: "a" },
+        properties: {
+          prop_1: `보관된 값 ${number}`,
+          prop_2: 0,
+          prop_3: null,
+          prop_4: "a",
+        },
         display_properties: { prop_1: `보관된 값 ${number}` },
         source_label: source,
         tasks: { count: 0, items: [] },
@@ -278,8 +393,11 @@ test("late archived lookup preserves newer identity and same-identity property e
     delivered();
   });
   const start = async () => {
-    const requested = page.waitForRequest((value) => value.method() === "GET" && value.url().includes("/entities/"));
-    await form().getByRole("button", { name: "기존 대상 확인", exact: true }).click();
+    const requested = page.waitForRequest((value) =>
+      value.method() === "GET" && value.url().includes("/entities/")
+    );
+    await form().getByRole("button", { name: "기존 대상 확인", exact: true })
+      .click();
     await requested;
     await expect.poll(() => held.length).toBeGreaterThan(0);
   };
@@ -287,7 +405,9 @@ test("late archived lookup preserves newer identity and same-identity property e
     await held.splice(index, 1)[0]();
     // Let React commit the response before checking the still-current input.
     await page.evaluate(() =>
-      new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
+      new Promise<void>((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+      )
     );
   };
   await form().getByLabel("식별자").fill(identity);
@@ -296,30 +416,49 @@ test("late archived lookup preserves newer identity and same-identity property e
   await form().getByLabel("이름", { exact: false }).fill("새 입력");
   await settle();
   await expect(form().getByLabel("식별자")).toHaveValue("다른 식별자");
-  await expect(form().getByLabel("이름", { exact: false })).toHaveValue("새 입력");
+  await expect(form().getByLabel("이름", { exact: false })).toHaveValue(
+    "새 입력",
+  );
 
   await form().getByLabel("식별자").fill(identity);
   await start();
-  await form().getByLabel("이름", { exact: false }).fill("같은 식별자에서 수정");
+  await form().getByLabel("이름", { exact: false }).fill(
+    "같은 식별자에서 수정",
+  );
   await settle();
-  await expect(form().getByLabel("이름", { exact: false })).toHaveValue("같은 식별자에서 수정");
+  await expect(form().getByLabel("이름", { exact: false })).toHaveValue(
+    "같은 식별자에서 수정",
+  );
   await start();
   await start();
   await settle(1);
-  const restore = page.getByRole("dialog", { name: `${fixtureType.label} 복원`, exact: true });
-  await expect(restore.getByLabel("이름", { exact: false })).toHaveValue("보관된 값 4");
+  const restore = page.getByRole("dialog", {
+    name: `${fixtureType!.label} 복원`,
+    exact: true,
+  });
+  await expect(restore.getByLabel("이름", { exact: false })).toHaveValue(
+    "보관된 값 4",
+  );
   await settle();
-  await expect(restore.getByLabel("이름", { exact: false })).toHaveValue("보관된 값 4");
+  await expect(restore.getByLabel("이름", { exact: false })).toHaveValue(
+    "보관된 값 4",
+  );
   await restore.getByRole("button", { name: "취소", exact: true }).click();
   const discard = page.getByRole("dialog", { name: "변경을 버릴까요?" });
-  if (await discard.isVisible()) await discard.getByRole("button", { name: "변경 버리기", exact: true }).click();
-  await beginTabAction(page, `${fixtureType.label} 추가`);
+  if (await discard.isVisible()) {
+    await discard.getByRole("button", { name: "변경 버리기", exact: true })
+      .click();
+  }
+  await beginTabAction(page, `${fixtureType!.label} 추가`);
   await expect(form().getByLabel("식별자")).toBeEnabled();
   await form().getByLabel("식별자").fill(identity);
   await start();
   await form().getByRole("button", { name: "취소", exact: true }).click();
-  if (await discard.isVisible()) await discard.getByRole("button", { name: "변경 버리기", exact: true }).click();
-  await beginTabAction(page, `${fixtureType.label} 추가`);
+  if (await discard.isVisible()) {
+    await discard.getByRole("button", { name: "변경 버리기", exact: true })
+      .click();
+  }
+  await beginTabAction(page, `${fixtureType!.label} 추가`);
   await expect(form().getByLabel("식별자")).toBeEnabled();
   const newIdentity = await form().getByLabel("식별자").inputValue();
   await settle();
@@ -329,9 +468,12 @@ test("late archived lookup preserves newer identity and same-identity property e
 
 test("manual lookup pending before confirmation cannot replace the prepared entity", async ({ page }) => {
   await devLogin(page);
-  await page.goto(`/entities?entity_type_id=${fixtureType.id}`);
-  await beginTabAction(page, `${fixtureType.label} 추가`);
-  const form = page.getByRole("dialog", { name: `${fixtureType.label} 추가`, exact: true });
+  await page.goto(`/entities?entity_type_id=${fixtureType!.id}`);
+  await beginTabAction(page, `${fixtureType!.label} 추가`);
+  const form = page.getByRole("dialog", {
+    name: `${fixtureType!.label} 추가`,
+    exact: true,
+  });
   await expect(form.getByLabel("식별자")).toBeEnabled();
   const source = await form.getByLabel("발급처").inputValue();
   const identity = unique("확인 중 조회"), title = unique("지킬 입력");
@@ -345,19 +487,31 @@ test("manual lookup pending before confirmation cannot replace the prepared enti
     delivered = resolve;
   });
   await page.route("**/entities/*", async (route) => {
-    if (route.request().method() !== "GET" || ++reads !== 1) return route.continue();
+    if (route.request().method() !== "GET" || ++reads !== 1) {
+      return route.continue();
+    }
     await gate;
     await route.fulfill({
       json: {
         id: `${source}:${identity}`,
         source,
         external_id: identity,
-        entity_type_id: fixtureType.id,
-        type: { id: fixtureType.id, label: fixtureType.label, icon_id: "box", archived: false },
+        entity_type_id: fixtureType!.id,
+        type: {
+          id: fixtureType!.id,
+          label: fixtureType!.label,
+          icon_id: "box",
+          archived: false,
+        },
         schema_version: 2,
         current_schema_version: 2,
         title: "옛 보관값",
-        properties: { prop_1: "옛 보관값", prop_2: 0, prop_3: null, prop_4: "a" },
+        properties: {
+          prop_1: "옛 보관값",
+          prop_2: 0,
+          prop_3: null,
+          prop_4: "a",
+        },
         display_properties: { prop_1: "옛 보관값" },
         source_label: source,
         tasks: { count: 0, items: [] },
@@ -371,24 +525,34 @@ test("manual lookup pending before confirmation cannot replace the prepared enti
     });
     delivered();
   });
-  const started = page.waitForRequest((value) => value.method() === "GET" && value.url().includes("/entities/"));
-  await form.getByRole("button", { name: "기존 대상 확인", exact: true }).click();
+  const started = page.waitForRequest((value) =>
+    value.method() === "GET" && value.url().includes("/entities/")
+  );
+  await form.getByRole("button", { name: "기존 대상 확인", exact: true })
+    .click();
   await started;
   const prepared = page.waitForResponse((value) =>
-    value.request().method() === "POST" && value.url().endsWith("/records/prepare")
+    value.request().method() === "POST" &&
+    value.url().endsWith("/records/prepare")
   );
   await form.getByRole("button", { name: "저장", exact: true }).click();
   const defaults = await (await prepared).json();
   const confirmation = page.locator("dialog.modal-action[open]");
-  await expect(confirmation.getByLabel("기록 메모", { exact: true })).toHaveValue(defaults.change_note);
+  await expect(confirmation.getByLabel("기록 메모", { exact: true }))
+    .toHaveValue(defaults.change_note);
   release();
   await done;
   await page.evaluate(() =>
-    new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
+    new Promise<void>((resolve) =>
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+    )
   );
-  await expect(confirmation.getByRole("button", { name: "등록하고 저장", exact: true })).toBeEnabled();
+  await expect(
+    confirmation.getByRole("button", { name: "등록하고 저장", exact: true }),
+  ).toBeEnabled();
   await expect(confirmation.getByRole("heading")).toContainText(title);
-  await expect(confirmation.getByLabel("기록 메모", { exact: true })).toHaveValue(defaults.change_note);
+  await expect(confirmation.getByLabel("기록 메모", { exact: true }))
+    .toHaveValue(defaults.change_note);
   await confirmation.getByRole("button", { name: "취소", exact: true }).click();
   await expect(form.getByLabel("이름", { exact: false })).toHaveValue(title);
 });

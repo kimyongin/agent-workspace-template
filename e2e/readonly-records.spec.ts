@@ -1,7 +1,7 @@
 import { openListDetail, closeDetail } from "./ui-actions.ts";
 import { createHash } from "node:crypto";
-import { expect, test } from "@playwright/test";
-import { devLogin, mcpClient, mcpTokenViaConsent, unique } from "./support.ts";
+import { expect } from "@playwright/test";
+import { test, devLogin, mcpClient, mcpTokenViaConsent, unique } from "./support.ts";
 
 // Actual OAuth/owner API evidence. Run serially with the other DEV_USER_A tests.
 test("읽기·검색·네 탭 이동·상세 닫기는 계정 기록 원문과 개수를 바꾸지 않는다", async ({ page }, info) => {

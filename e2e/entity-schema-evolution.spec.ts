@@ -1,6 +1,6 @@
-import { expect, test } from "@playwright/test";
+import { expect } from "@playwright/test";
 import postgres from "postgres";
-import { devLogin, env, mcpClient, mcpTokenViaConsent, unique } from "./support.ts";
+import { test, devLogin, env, mcpClient, mcpTokenViaConsent, unique } from "./support.ts";
 import { schemaAnalysisTick } from "./entity-schema-support.ts";
 test("웹 속성 초안·분석·게시 후 기존 자료 표시와 MCP 생성·이전 폼 충돌이 같은 정의를 사용한다", async ({ page, context }) => {
   await devLogin(page);

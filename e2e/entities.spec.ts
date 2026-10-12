@@ -3,8 +3,8 @@ import { entity as makeEntity, fixtureType, fixtureSchema } from "./support/work
 import { createFixtureEntity, scalarFixtureType, fixtureEntityList } from "./entity-schema-support.ts";
 import { fillChangeMemo } from "./ui-actions.ts";
 import { saveOnce, beginTabAction, openDetailEditor, openListDetail, openTabFilters, closeDetail } from "./ui-actions.ts";
-import { expect, test } from "@playwright/test";
-import { devLogin, mcpClient, mcpTokenViaConsent, unique } from "./support.ts";
+import { expect } from "@playwright/test";
+import { test, devLogin, mcpClient, mcpTokenViaConsent, unique } from "./support.ts";
 
 test("Entity 웹 CRUD·초안 보호→MCP parity·활동 연결→삭제 원문 보존", async ({ page }) => {
   await devLogin(page);

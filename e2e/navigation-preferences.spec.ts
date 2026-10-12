@@ -1,5 +1,5 @@
-import { expect, test } from "@playwright/test";
-import { devLogin, env } from "./support.ts";
+import { expect } from "@playwright/test";
+import { test, devLogin, env } from "./support.ts";
 // Serial real Auth metadata round trip, run by the integration owner.
 test("personal navigation partial save survives reload and login without changing other profile metadata", async ({ page }) => {
   await devLogin(page);

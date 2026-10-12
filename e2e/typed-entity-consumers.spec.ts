@@ -1,6 +1,6 @@
-import { expect, test } from "@playwright/test";
+import { expect } from "@playwright/test";
 import postgres from "postgres";
-import { devLogin, env, mcpClient, mcpTokenViaConsent, unique } from "./support.ts";
+import { test, devLogin, env, mcpClient, mcpTokenViaConsent, unique } from "./support.ts";
 import { analyzeAndApply } from "./entity-schema-support.ts";
 import { openTabFilters } from "./ui-actions.ts";
 test("타입별 목록·AND 필터·업무 문맥·템플릿은 현재 정의를 사용하며 과거 사실을 보존한다", async ({ page }) => {

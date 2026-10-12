@@ -1,7 +1,7 @@
 import { createFixtureEntity } from "./entity-schema-support.ts";
 import { openDetailEditor } from "./ui-actions.ts";
-import { expect, test } from "@playwright/test";
-import { devLogin, mcpClient, mcpTokenViaConsent, unique } from "./support.ts";
+import { expect } from "@playwright/test";
+import { test, devLogin, mcpClient, mcpTokenViaConsent, unique } from "./support.ts";
 import { savePrinciple } from "./principle-support.ts";
 
 for(const kind of ["entity","task","principle"] as const)test(`삭제된 ${kind}: 이전 변경 기록은 연결 행에서 당시 metadata 보존`,async({page})=>{

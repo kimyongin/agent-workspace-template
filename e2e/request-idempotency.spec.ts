@@ -1,8 +1,8 @@
 import { scalarFixtureType, fixtureEntityList } from "./entity-schema-support.ts";
-import { mcpClient, mcpTokenViaConsent } from "./support.ts";
+import { test, mcpClient, mcpTokenViaConsent } from "./support.ts";
 // Real browser + HTTP commit evidence. Only the response is lost; writes reach the local server.
 import postgres from "postgres";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, type Page } from "@playwright/test";
 import { devLogin, env, unique } from "./support.ts";
 import { beginTabAction, fillChangeMemo, openDetailEditor, saveOnce } from "./ui-actions.ts";
 

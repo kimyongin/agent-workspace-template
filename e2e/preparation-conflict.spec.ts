@@ -1,6 +1,6 @@
 import { createFixtureEntity, scalarFixtureType, fixtureEntityList } from "./entity-schema-support.ts";
-import { expect, test } from "@playwright/test";
-import { devLogin, mcpClient, mcpTokenViaConsent, unique } from "./support.ts";
+import { expect } from "@playwright/test";
+import { test, devLogin, mcpClient, mcpTokenViaConsent, unique } from "./support.ts";
 import { savePrinciple } from "./principle-support.ts";
 import { openDetailEditor, saveOnce } from "./ui-actions.ts";
 

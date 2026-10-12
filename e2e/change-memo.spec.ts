@@ -1,8 +1,8 @@
 import { scalarFixtureType, fixtureEntityList } from "./entity-schema-support.ts";
 import { fillChangeMemo } from "./ui-actions.ts";
-import { expect, test } from "@playwright/test";
+import { expect } from "@playwright/test";
 import { beginTabAction, openDetailEditor, saveOnce } from "./ui-actions.ts";
-import { devLogin, mcpClient, mcpTokenViaConsent, unique } from "./support.ts";
+import { test, devLogin, mcpClient, mcpTokenViaConsent, unique } from "./support.ts";
 
 test("엔터티 확인 후 한 번에 저장하고 입력 메모만 기록 본문으로 남긴다", async ({page}) => {
   await devLogin(page);

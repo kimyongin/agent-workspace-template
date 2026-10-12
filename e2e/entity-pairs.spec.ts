@@ -1,5 +1,5 @@
-import { expect, test } from "@playwright/test";
-import { devLogin, mcpClient, mcpTokenViaConsent, unique } from "./support.ts";
+import { expect } from "@playwright/test";
+import { test, devLogin, mcpClient, mcpTokenViaConsent, unique } from "./support.ts";
 import { discardEditor, fillChangeMemo } from "./ui-actions.ts";
 
 test("연결된 자료: 웹 추가→상대 상세→해제→새로고침과 편집 초안·메모·키보드 보존", async ({ page }) => {

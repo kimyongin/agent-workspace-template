@@ -1,9 +1,9 @@
 import { beginTabAction, saveOnce } from "./ui-actions.ts";
 // 디자인 가이드의 화면 검수 중 자동으로 확인할 수 있는 항목(docs/design/guide.md "화면 완료 체크리스트").
 // 화면 폭별 가로 넘침, 조작 영역 44px, 200% 확대(폭 절반), 키보드만으로 작성·닫기, 대화상자 초점.
-import { expect, type Page, test } from "@playwright/test";
+import { expect, type Page } from "@playwright/test";
 import {savePrinciple} from "./principle-support.ts";
-import { devLogin, mcpClient, mcpTokenViaConsent, unique } from "./support.ts";
+import { test, devLogin, mcpClient, mcpTokenViaConsent, unique } from "./support.ts";
 
 const WIDTHS = [320,360,390,639,640,768,1024,1440];
 

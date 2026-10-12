@@ -1,6 +1,6 @@
-import { expect, test } from "@playwright/test";
+import { expect } from "@playwright/test";
 import postgres from "postgres";
-import { devLogin, env, mcpClient, mcpTokenViaConsent, unique } from "./support.ts";
+import { test, devLogin, env, mcpClient, mcpTokenViaConsent, unique } from "./support.ts";
 import { schemaAnalysisTick } from "./entity-schema-support.ts";
 test("값 변환 준비: 저장된 직접 링크·실패 행 보완·재분석·MCP 결과·stale·모바일 초안 보존", async ({ page }) => {
   await devLogin(page);

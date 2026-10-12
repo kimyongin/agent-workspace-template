@@ -1,5 +1,5 @@
-import { expect, test } from "@playwright/test";
-import { devLogin, env, mcpClient, mcpTokenViaConsent } from "./support.ts";
+import { expect } from "@playwright/test";
+import { test, devLogin, env, mcpClient, mcpTokenViaConsent } from "./support.ts";
 
 test("검색 대기 안내는 상태 점검과 관리자 문의로 연결하고 대기가 해제되면 숨긴다", async ({ page }) => {
   await devLogin(page);
