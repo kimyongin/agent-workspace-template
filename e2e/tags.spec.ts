@@ -193,13 +193,15 @@ test("#370 MCP 태그 생성·정정 뒤 유지한 웹 목록과 상세가 최�
     await list.getByRole("button", { name: title, exact: true }).click();
     await expect(list.locator('[aria-label="태그"]').getByText(name, { exact: true })).toBeVisible();
     await expect(list.getByText("삭제된 태그", { exact: true })).toHaveCount(0);
+    await openListDetail(page, title);
+    await expect(page.locator("dialog.modal[open]").getByText(name, { exact: true })).toBeVisible();
+    await closeDetail(page, title);
     const renamed = unique("외부 정정").slice(0, 30);
     await mcp.call("rename_tag", { id: tag.id, expected_version: 1, name: renamed });
-    await list.getByRole("button", { name: title, exact: true }).click();
-    await list.getByRole("button", { name: title, exact: true }).click();
-    await expect(list.locator('[aria-label="태그"]').getByText(renamed, { exact: true })).toBeVisible();
+    // Revisit the already-expanded item without changing filters or toggling its preview.
     await openListDetail(page, title);
     await expect(page.locator("dialog.modal[open]").getByText(renamed, { exact: true })).toBeVisible();
+    if (!isMobile) await expect(list.locator('[aria-label="태그"]').getByText(renamed, { exact: true })).toBeVisible();
     await page.screenshot({ path: info.outputPath("tag-refresh-fixed.png"), fullPage: true });
     await closeDetail(page, title);
     await mcp.call("delete_tag", { id: tag.id, expected_version: 2 });

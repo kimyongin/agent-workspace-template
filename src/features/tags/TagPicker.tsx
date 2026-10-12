@@ -18,7 +18,8 @@ type TagDictionary = {
 };
 export const tagScopeLabels: Record<TagScope, string> = { entity: "자료", task: "할 일", record: "기록" };
 export function useTagDictionary(enabled = true, preserveListLayout = false, scope: TagScope = "record") {
-  const location = useLocation(), revision = useContext(WorkspaceContext)?.revision;
+  const location = useLocation(), workspace = useContext(WorkspaceContext);
+  const revision = workspace?.revision, navigationKey = workspace?.navigationKey;
   const [read, setRead] = useState<{ scope: TagScope; tags: TagResult[] | null; failed: boolean; pending: boolean }>({
     scope,
     tags: null,
@@ -86,7 +87,7 @@ export function useTagDictionary(enabled = true, preserveListLayout = false, sco
       if (!controller.signal.aborted) setRead((previous) => ({ ...previous, failed: true, pending: false }));
     });
     return () => controller.abort();
-  }, [retry, enabled, scope, location.pathname, location.search, location.hash, revision]);
+  }, [retry, enabled, scope, location.pathname, location.search, location.hash, revision, navigationKey]);
   return { scope, tags, failed, pending, retry: retryLookup };
 }
 export function TagPicker(
