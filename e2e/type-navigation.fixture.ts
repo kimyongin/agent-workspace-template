@@ -468,3 +468,47 @@ test("conversion literals preserve unsafe drafts and removed properties permit e
   await expect(input).toHaveValue("1.0000000000000001");
   expect(writes).toBe(0);
 });
+
+test("entity edit preserves draft and tags while identity settings are delayed before preparation", async ({ page }) => {
+  let release!: () => void, arrived!: () => void;
+  const held = new Promise<void>(resolve => { release = resolve; });
+  const reading = new Promise<void>(resolve => { arrived = resolve; });
+  const entity = { id: "app:ready", source: "app", external_id: "ready", entity_type_id: materials.id,
+    schema_version: 1, properties: { prop_1: "元の名前" }, title: "元の名前", type: materials,
+    version: 1, tag_ids: ["retained-tag"], deleted_at: null, created_at: materials.created_at, updated_at: materials.updated_at };
+  const preparations: Record<string, any>[] = [], writes: Record<string, any>[] = [];
+  await page.route("**/api/entities/app%3Aready", async route => {
+    if (route.request().method() === "PATCH") { const input=route.request().postDataJSON(); writes.push(input); return route.fulfill({ json: { ...entity, properties: input.properties, title: input.properties.prop_1, version: 2 } }); }
+    return route.fulfill({ json: entity });
+  });
+  await page.route("**/api/records/prepare", async route => { preparations.push(route.request().postDataJSON()); await fulfillPreparation(route); });
+  await page.route("**/api/tags?**", route => route.fulfill({ json: { items: [{ id: "retained-tag", name: "保留タグ", scope: "entity", version: 1 }], next_cursor: null } }));
+  await page.route("**/api/settings/business?**", async route => {
+    if(new URL(route.request().url()).searchParams.get("id")!=="entity_identity")return route.fallback();
+    arrived(); await held; return route.fallback();
+  });
+  try {
+    await page.goto(`/entities/${encodeURIComponent(entity.id)}`);
+    await page.getByRole("button", { name: "편집", exact: true }).click();
+    const form=page.getByRole("dialog", { name: "재료 편집", exact: true });
+    await reading;
+    await form.getByLabel("이름", { exact: false }).fill("保持する下書き");
+    await expect(form.getByRole("button", { name: "保留タグ", exact: true })).toHaveAttribute("aria-pressed","true");
+    await expect(form.getByRole("button", { name: "저장", exact: true })).toBeDisabled();
+    await expect(form.getByRole("status").filter({ hasText: "자료 종류·식별자 설정을 읽는 중…" })).toBeVisible();
+    expect(preparations).toEqual([]); expect(writes).toEqual([]);
+    release();
+    await expect(form.getByRole("button", { name: "저장", exact: true })).toBeEnabled();
+    await expect(form.getByLabel("이름", { exact: false })).toHaveValue("保持する下書き");
+    await expect(form.getByRole("button", { name: "保留タグ", exact: true })).toHaveAttribute("aria-pressed","true");
+    await form.getByRole("button", { name: "저장", exact: true }).click();
+    const confirmation=page.locator("dialog.modal-action[open]");
+    await expect(confirmation.getByRole("button", { name: "수정하고 저장", exact: true })).toBeEnabled();
+    expect(preparations).toHaveLength(1);
+    expect(preparations[0]).toMatchObject({ model: "entity", action: "update", target_id: entity.id, expected_version: 1, input: { schema_version: 1, properties: { prop_1: "保持する下書き" }, tag_ids: ["retained-tag"] } });
+    await confirmation.getByRole("button", { name: "수정하고 저장", exact: true }).click();
+    await expect(form).not.toBeVisible();
+    expect(writes).toHaveLength(1);
+    expect(writes[0]).toMatchObject({ expected_version: 1, schema_version: 1, properties: { prop_1: "保持する下書き" }, tag_ids: ["retained-tag"] });
+  } finally { release(); }
+});
