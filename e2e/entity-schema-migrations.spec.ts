@@ -2,7 +2,7 @@ import { expect } from "@playwright/test";
 import { type ChildProcess, spawn } from "node:child_process";
 import { once } from "node:events";
 import postgres from "postgres";
-import { test, devLogin, env, mcpClient, mcpTokenViaConsent, unique } from "./support.ts";
+import { devLogin, env, mcpClient, mcpTokenViaConsent, test, unique } from "./support.ts";
 import { schemaAnalysisTick } from "./entity-schema-support.ts";
 async function stopWorker(child: ChildProcess | undefined) {
   if (!child || child.exitCode !== null || child.signalCode !== null) return;
@@ -155,6 +155,96 @@ test("값 변환 작업: MCP 접수→웹 취소→MCP 확정 상태·원본 유
     expect((await mcp.call("get_entity_schema", { type_id: typeId })).schema_version).toBe(1);
     await page.reload();
     await expect(page.getByRole("status")).toContainText("취소");
+  } finally {
+    await mcp.close();
+    if (entityId) await admin`delete from app.records where entity_ids@>array[${entityId}]`;
+    if (entityId) await admin`delete from app.entities where id=${entityId}`;
+    if (typeId) await admin`delete from app.entity_types where id=${typeId}`;
+    await admin.end();
+  }
+});
+
+test("값 변환 작업: 실제 worker 실패→웹 같은 작업 재시도→완료·MCP 성공 재현", async ({ page }) => {
+  await devLogin(page);
+  const mcp = await mcpClient(await mcpTokenViaConsent(page)),
+    admin = postgres(env.LOCAL_DB_URL, { max: 1, onnotice: () => {} });
+  let typeId: string | undefined, entityId: string | undefined;
+  try {
+    const type = await mcp.call("create_entity_type", { label: unique("재시도 작업"), icon_id: "leaf" });
+    typeId = type.id;
+    const entity = await mcp.call("create_entity", {
+      entity_type_id: typeId,
+      schema_version: 1,
+      properties: { prop_1: "보존 원본" },
+    });
+    entityId = entity.id;
+    const plan = await mcp.call("create_entity_schema_change", {
+      type_id: typeId,
+      expected_type_version: 1,
+      expected_schema_version: 1,
+      edits: [{ op: "add_property", client_ref: "count", field: { type: "integer", title: "수량" }, required: true }],
+      migration: { rules: [{ op: "fill", key: "prop_2", value: 7 }], overrides: [] },
+    });
+    await mcp.call("analyze_entity_schema_change", { type_id: typeId, change_id: plan.id, expected_change_version: 1 });
+    await expect.poll(async () => {
+      await schemaAnalysisTick();
+      return (await mcp.call("get_entity_schema_change", { type_id: typeId, change_id: plan.id })).executable;
+    }, { timeout: 30000 }).toBe(true);
+    const ready = await mcp.call("get_entity_schema_change", { type_id: typeId, change_id: plan.id });
+    const job = await mcp.call("start_entity_schema_migration", {
+      type_id: typeId,
+      change_id: plan.id,
+      expected_type_version: 1,
+      expected_schema_version: 1,
+      expected_change_version: 1,
+      analysis_id: ready.analysis.id,
+      fingerprint: ready.fingerprint,
+    });
+    // Explicit local fault injection uses the real fenced worker seam. A different claimed job rolls back.
+    await admin.begin(async (tx) => {
+      await tx`set local role app_worker`;
+      const [claimed] = await tx`select app.claim_entity_schema_migration() as batch`;
+      expect(claimed.batch.id).toBe(job.job_id);
+      const [failed] =
+        await tx`select app.fail_entity_schema_migration(${job.job_id},${claimed.batch.fence},'migration_worker_failed',true) as accepted`;
+      expect(failed.accepted).toBe(true);
+    });
+    const failed = await mcp.call("get_entity_schema_migration", { job_id: job.job_id });
+    expect(failed.status).toBe("failed");
+    expect(failed.retryable).toBe(true);
+    expect((await mcp.call("get_entity", { id: entityId })).properties).toEqual({ prop_1: "보존 원본" });
+    expect((await mcp.call("get_entity_schema", { type_id: typeId })).schema_version).toBe(1);
+    await page.goto(`/settings/entity-types/${typeId}/migrations/${job.job_id}`);
+    await expect(page.getByRole("alert")).toContainText("같은 작업을 재시도할 수 있습니다");
+    const response = page.waitForResponse((r) =>
+      r.url().endsWith(`/entity-schema-migrations/${job.job_id}/retry`) && r.request().method() === "POST"
+    );
+    await page.getByRole("button", { name: "같은 작업 재시도", exact: true }).click();
+    const resumedResponse = await response, resumed = await resumedResponse.json();
+    expect(resumedResponse.status()).toBe(202);
+    expect(resumed).toMatchObject({ job_id: job.job_id, job_version: failed.version + 1, status: "queued" });
+    const retryKey = resumedResponse.request().headers()["idempotency-key"];
+    expect(retryKey).toBeTruthy();
+    await expect(page.getByRole("status")).toContainText("접수");
+    expect((await mcp.call("get_entity", { id: entityId })).version).toBe(entity.version);
+    await expect.poll(async () => {
+      await schemaAnalysisTick();
+      return (await mcp.call("get_entity_schema_migration", { job_id: job.job_id })).status;
+    }, { timeout: 30000 }).toBe("succeeded");
+    await expect(page.getByRole("status")).toContainText("완료");
+    const current = await mcp.call("get_entity", { id: entityId });
+    expect(current.properties).toEqual({ prop_1: "보존 원본", prop_2: 7 });
+    expect(current.version).toBe(entity.version + 1);
+    expect((await mcp.call("get_entity_schema", { type_id: typeId })).schema_version).toBe(2);
+    expect(
+      await mcp.call("retry_entity_schema_migration", {
+        job_id: job.job_id,
+        expected_job_version: failed.version,
+        request_key: retryKey,
+      }),
+    ).toEqual(resumed);
+    await page.reload();
+    await expect(page.getByRole("status")).toContainText("완료");
   } finally {
     await mcp.close();
     if (entityId) await admin`delete from app.records where entity_ids@>array[${entityId}]`;
