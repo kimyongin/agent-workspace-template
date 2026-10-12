@@ -16,8 +16,10 @@ export async function api<T>(
   signal?: AbortSignal,
   requestKey?: string,
 ): Promise<T> {
-  if (method === "GET" && path.startsWith("/entities?") &&
-    new TextEncoder().encode(`${base}${path}`).byteLength > ENTITY_QUERY_URL_MAX_BYTES) {
+  if (
+    method === "GET" && path.startsWith("/entities?") &&
+    new TextEncoder().encode(`${base}${path}`).byteLength > ENTITY_QUERY_URL_MAX_BYTES
+  ) {
     body = entityHttpQuery(Object.fromEntries(new URLSearchParams(path.slice("/entities?".length))));
     method = "POST";
     path = "/entities/query";
@@ -44,7 +46,15 @@ export async function api<T>(
   if (res.ok && res.headers.get("Idempotency-Replayed") === "true" && typeof window !== "undefined") {
     window.dispatchEvent(new Event("workspace:write-replayed"));
   }
-  if (res.status === 204) return undefined as T;
+  const notifyTagWrite = () => {
+    if (writing && /^\/tags(?:\/|\?|$)/.test(path) && typeof window !== "undefined") {
+      window.dispatchEvent(new Event("workspace:tags-changed"));
+    }
+  };
+  if (res.status === 204) {
+    notifyTagWrite();
+    return undefined as T;
+  }
   let text: string;
   try {
     text = await res.text();
@@ -70,6 +80,7 @@ export async function api<T>(
     );
   }
   if (writing && parsed === null) throw new ApiError(0, "network", "성공 응답을 확인하지 못했습니다.", [], true);
+  notifyTagWrite();
   return parsed as T;
 }
 

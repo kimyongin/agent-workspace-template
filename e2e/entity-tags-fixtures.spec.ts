@@ -344,3 +344,85 @@ test("#229 태그 삭제 확인도 서버 메모 오류를 입력에 표시하�
   expect(submitted.map(url => url.searchParams.get("change_note"))).toEqual(["초안 메모","보완한 근거"]);
   expect(submitted[1].searchParams.get("expected_version")).toBe(submitted[0].searchParams.get("expected_version"));
 });
+
+
+test("#370 사전의 없는 ID는 삭제로 단정하지 않고 화면 복귀 때 목록 단위로 재확인한다", async ({ page }) => {
+  let current: typeof tags = [], reads = 0;
+  await page.route("**/api/tags**", (route) => {
+    if (new URL(route.request().url()).searchParams.get("scope") === "entity") reads++;
+    return route.fulfill({ json: { items: current, next_cursor: null } });
+  });
+  await page.goto(url + "?dictionary=1");
+  const names = page.getByRole("region", { name: "자료 이름 확인" });
+  await expect(names.getByText("태그 확인 필요", { exact: true })).toHaveCount(20);
+  await expect(page.getByText("삭제된 태그", { exact: true })).toHaveCount(0);
+  const before = reads;
+  current = tags;
+  await page.getByRole("button", { name: "화면 복귀", exact: true }).click();
+  await expect(names.getByText("첫 태그", { exact: true })).toHaveCount(20);
+  expect(reads - before).toBe(1);
+});
+
+test("#370 공유 사전은 다른 태그 범위를 대신하지 않으며 실패 후 다시 읽을 수 있다", async ({ page }) => {
+  let fail = false;
+  await page.route("**/api/tags**", (route) => {
+    const scope = new URL(route.request().url()).searchParams.get("scope");
+    if (fail && scope === "entity") {
+      return route.fulfill({ status: 503, json: { code: "internal", message: "조회 실패" } });
+    }
+    return route.fulfill({
+      json: { items: [{ ...tags[0], name: scope === "record" ? "기록 태그명" : "자료 태그명" }], next_cursor: null },
+    });
+  });
+  await page.goto(url + "?dictionary=1");
+  await expect(page.getByRole("region", { name: "자료 이름 확인" }).getByText("자료 태그명", { exact: true }))
+    .toHaveCount(20);
+  await expect(page.getByRole("region", { name: "다른 범위 확인" }).getByText("기록 태그명", { exact: true }))
+    .toBeVisible();
+  fail = true;
+  await page.getByRole("button", { name: "화면 복귀", exact: true }).click();
+  await expect(page.getByText("태그 사전을 불러오지 못했습니다. 조건과 기존 행은 유지합니다.", { exact: true }))
+    .toBeVisible();
+  await expect(page.getByText("태그 이름 조회 실패", { exact: true })).toHaveCount(20);
+  fail = false;
+  await page.getByRole("button", { name: "태그 다시 시도", exact: true }).click();
+  await expect(page.getByRole("region", { name: "자료 이름 확인" }).getByText("자료 태그명", { exact: true }))
+    .toHaveCount(20);
+});
+
+test("#370 늦은 이전 사전 응답이 새 이름을 덮어쓰지 않는다", async ({ page }) => {
+  let reads = 0, release = () => {}, arrived = () => {};
+  const started = new Promise<void>((resolve) => {
+    arrived = resolve;
+  });
+  await page.route("**/api/tags**", async (route) => {
+    const scope = new URL(route.request().url()).searchParams.get("scope");
+    if (scope === "entity") reads++;
+    if (scope === "entity" && reads === 2) {
+      arrived();
+      await new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      await route.fulfill({ json: { items: [{ ...tags[0], name: "느린 이전 이름" }], next_cursor: null } }).catch(
+        () => {},
+      );
+      return;
+    }
+    await route.fulfill({
+      json: { items: [{ ...tags[0], name: reads >= 3 ? "최신 이름" : "최초 이름" }], next_cursor: null },
+    });
+  });
+  try {
+    await page.goto(url + "?dictionary=1");
+    const names = page.getByRole("region", { name: "자료 이름 확인" });
+    await expect(names.getByText("최초 이름", { exact: true })).toHaveCount(20);
+    await page.getByRole("button", { name: "화면 복귀", exact: true }).click();
+    await started;
+    await page.getByRole("button", { name: "화면 복귀", exact: true }).click();
+    await expect(names.getByText("최신 이름", { exact: true })).toHaveCount(20);
+    release();
+    await expect(names.getByText("느린 이전 이름", { exact: true })).toHaveCount(0);
+  } finally {
+    release();
+  }
+});

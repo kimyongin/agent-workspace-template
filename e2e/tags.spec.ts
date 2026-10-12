@@ -1,6 +1,6 @@
 import { scalarFixtureType, fixtureEntityList } from "./entity-schema-support.ts";
 import { fillChangeMemo } from "./ui-actions.ts";
-import { saveOnce, beginTabAction, openDetailEditor, openListDetail, openTabFilters } from "./ui-actions.ts";
+import { saveOnce, beginTabAction, openDetailEditor, openListDetail, openTabFilters, closeDetail } from "./ui-actions.ts";
 import {expect } from "@playwright/test";
 import { test, devLogin,mcpClient,mcpTokenViaConsent,unique } from "./support.ts";
 // Exercise native-dialog history; retained desktop tabs have a dedicated suite.
@@ -160,4 +160,56 @@ test("추가 페이지 태그의 편집 취소·충돌·저장 뒤 목록과 초
     await expect(page.getByRole("button",{name:`${draft} 이름 변경`,exact:true})).toBeFocused();
     await expect(page.getByRole("button",{name:`${tags[1].name} 이름 변경`,exact:true})).toBeVisible();
   }finally{await mcp.close();}
+});
+
+
+test("#370 MCP 태그 생성·정정 뒤 유지한 웹 목록과 상세가 최신 이름을 읽는다", async ({ page, isMobile }, info) => {
+  if (!isMobile) await page.setViewportSize({ width: 1440, height: 900 });
+  await devLogin(page);
+  const mcp = await mcpClient(await mcpTokenViaConsent(page));
+  try {
+    const type = await mcp.call("create_entity_type", {
+      label: unique("태그 갱신 자료"),
+      icon_id: "box",
+      representative_label: "제목",
+    });
+    await page.goto(fixtureEntityList(type.id));
+    await openTabFilters(page);
+    await expect(page.getByText("자료 태그", { exact: true })).toBeVisible();
+    // Complete the first dictionary read before the external MCP write.
+    await expect(page.getByText("태그를 불러오는 중…", { exact: true })).toHaveCount(0);
+    const name = unique("외부 태그").slice(0, 30);
+    const tag = await mcp.call("create_tag", { scope: "entity", name });
+    const title = unique("갱신 확인");
+    await mcp.call("create_entity", {
+      entity_type_id: type.id,
+      schema_version: type.schema_version,
+      properties: { prop_1: title },
+      tag_ids: [tag.id],
+    });
+    // A filter navigation receives fresh rows without reloading the page.
+    await page.getByRole("textbox", { name: "자료 제목 검색", exact: true }).fill(title);
+    const list = page.getByRole("list", { name: `${type.label} 목록`, exact: true });
+    await list.getByRole("button", { name: title, exact: true }).click();
+    await expect(list.locator('[aria-label="태그"]').getByText(name, { exact: true })).toBeVisible();
+    await expect(list.getByText("삭제된 태그", { exact: true })).toHaveCount(0);
+    await openListDetail(page, title);
+    await expect(page.locator("dialog.modal[open]").getByText(name, { exact: true })).toBeVisible();
+    await closeDetail(page, title);
+    const renamed = unique("외부 정정").slice(0, 30);
+    await mcp.call("rename_tag", { id: tag.id, expected_version: 1, name: renamed });
+    // Revisit the already-expanded item without changing filters or toggling its preview.
+    await openListDetail(page, title);
+    await expect(page.locator("dialog.modal[open]").getByText(renamed, { exact: true })).toBeVisible();
+    if (!isMobile) await expect(list.locator('[aria-label="태그"]').getByText(renamed, { exact: true })).toBeVisible();
+    await page.screenshot({ path: info.outputPath("tag-refresh-fixed.png"), fullPage: true });
+    await closeDetail(page, title);
+    await mcp.call("delete_tag", { id: tag.id, expected_version: 2 });
+    await page.getByRole("textbox", { name: "자료 제목 검색", exact: true }).fill("");
+    await expect(list.getByRole("button", { name: title, exact: true })).toBeVisible();
+    await expect(list.getByText(renamed, { exact: true })).toHaveCount(0);
+    expect((await mcp.call("list_entities", { entity_type_id: type.id })).items[0].tag_ids).toEqual([]);
+  } finally {
+    await mcp.close();
+  }
 });

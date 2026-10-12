@@ -188,7 +188,7 @@ export function DetailWorkspace({ children, render, enabled }: { children: React
     return () => cancelAnimationFrame(frame);
   }, [active, visible, desktop, tabs.length, tabs.find(tab => tab.id === active)?.title, listRef, base.hash]);
   if (!started || !eligible) return children;
-  return <WorkspaceContext.Provider value={{ revision, saved, open, registerGuard }}><div ref={split.ref} style={split.style} className={`detail-workspace${desktop && shown ? " has-detail-panel" : ""}${split.dragging ? " is-resizing" : ""}`}>
+  return <WorkspaceContext.Provider value={{ revision, navigationKey: location.key, saved, open, registerGuard }}><div ref={split.ref} style={split.style} className={`detail-workspace${desktop && shown ? " has-detail-panel" : ""}${split.dragging ? " is-resizing" : ""}`}>
     <div className="workspace-list" ref={listRef}>{render(base)}
       {desktop && !visible && tabs.length > 0 && <button className="btn workspace-reopen" onClick={() => setVisible(true)}>상세 탭 보기 ({tabs.length}개)</button>}
     </div>
