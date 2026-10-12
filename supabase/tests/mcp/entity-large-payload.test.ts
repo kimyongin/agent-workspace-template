@@ -1,18 +1,8 @@
 import { assert, assertEquals } from "@std/assert";
 import postgres from "postgres";
-import {
-  admin,
-  API,
-  call,
-  httpTest,
-  signIn,
-  SUPABASE_URL,
-} from "../http/_client.ts";
+import { admin, API, call, httpTest, signIn, SUPABASE_URL } from "../http/_client.ts";
 import { claimsOf, connectMcp, mcpGrant } from "./_mcp.ts";
-import type {
-  EntityDetail,
-  EntitySummary,
-} from "../../functions/_shared/contracts/entity.ts";
+import type { EntityDetail, EntitySummary } from "../../functions/_shared/contracts/entity.ts";
 import type { EntitySchemaResult } from "../../functions/_shared/contracts/entity-type.ts";
 import type { EntitySchemaChange } from "../../functions/_shared/contracts/entity-schema-change.ts";
 import {
@@ -27,8 +17,7 @@ function env(name: string) {
   if (!value) throw new Error(`Missing local test setting ${name}`);
   return value;
 }
-const bytes = (value: unknown) =>
-  new TextEncoder().encode(JSON.stringify(value)).byteLength;
+const bytes = (value: unknown) => new TextEncoder().encode(JSON.stringify(value)).byteLength;
 
 httpTest(
   "large typed pages actual HTTP/OAuth SDK preserve near-64KiB schema/properties default20/max100 and long cursors",
@@ -135,8 +124,7 @@ httpTest(
       );
       assertEquals(plan.status, 201);
       validateEntityDefinition(plan.body.target);
-      const definitionBytes =
-        new TextEncoder().encode(jsonbText(plan.body.target)).byteLength;
+      const definitionBytes = new TextEncoder().encode(jsonbText(plan.body.target)).byteLength;
       assert(definitionBytes > 65000 && definitionBytes <= 65536);
       evidence.definition_bytes = definitionBytes;
       const accepted = await sdk<{ analysis_id: string; status: string }>(
@@ -158,8 +146,7 @@ httpTest(
         onnotice: () => {},
         connection: { statement_timeout: 15000 },
       });
-      const [claimed] =
-        await worker`select app.claim_entity_schema_analysis() as batch`;
+      const [claimed] = await worker`select app.claim_entity_schema_analysis() as batch`;
       assert(claimed.batch);
       assertEquals(claimed.batch.id, accepted.body.analysis_id);
       assertEquals(claimed.batch.rows, []);
@@ -215,8 +202,7 @@ httpTest(
         schema: schema.body.schema,
         display: schema.body.display,
       }, properties);
-      evidence.properties_bytes =
-        new TextEncoder().encode(jsonbText(properties)).byteLength;
+      evidence.properties_bytes = new TextEncoder().encode(jsonbText(properties)).byteLength;
       assertEquals(evidence.properties_bytes, 65444);
       for (let n = 0; n < 101; n++) {
         const entity = await call<EntityDetail>(token, "POST", "/entities", {
@@ -248,7 +234,9 @@ httpTest(
         )).status,
         404,
       );
-      const httpPage = async (query: Record<string, unknown>) => {
+      const [readBaseline] =
+        await admin`select (select count(*) from private.request_results where owner_id=${owner})::int as requests,(select count(*) from app.records where owner_id=${owner} and change_metadata->>'target_id'=any(${entities}::text[]))::int as records,(select count(*) from app.entities where owner_id=${owner} and entity_type_id=${typeId!})::int as entities`;
+      const httpPage = async (query: Record<string, unknown>, bodyQuery = false) => {
         const params = new URLSearchParams(
           Object.entries(query).map((
             [name, value],
@@ -257,8 +245,10 @@ httpTest(
             typeof value === "object" ? JSON.stringify(value) : String(value),
           ]),
         );
-        const response = await fetch(`${API}/entities?${params}`, {
-          headers: { authorization: `Bearer ${token}` },
+        const response = await fetch(bodyQuery ? `${API}/entities/query` : `${API}/entities?${params}`, {
+          method: bodyQuery ? "POST" : "GET",
+          headers: { authorization: `Bearer ${token}`, ...(bodyQuery ? { "content-type": "application/json" } : {}) },
+          ...(bodyQuery ? { body: JSON.stringify(query) } : {}),
           signal: AbortSignal.timeout(30000),
         });
         assertEquals(response.status, 200);
@@ -283,6 +273,7 @@ httpTest(
         assertPage(http.body, limit ?? 20);
         assertPage(mcp.body, limit ?? 20);
         assertEquals(mcp.body, http.body);
+        assertEquals((await httpPage(query, true)).body, http.body);
         assert(http.bytes > 1048576);
         assert(mcp.bytes > 1048576);
         if (limit === 100) assert(mcp.bytes > 12 * 1024 * 1024);
@@ -312,13 +303,11 @@ httpTest(
       const httpNext = await httpPage({
         ...query,
         cursor: mcpFirst.body.next_cursor,
-      });
+      }, true);
       assertPage(mcpNext.body, 1);
       assertEquals(mcpNext.body, httpNext.body);
       assertEquals(mcpNext.body.next_cursor, null);
-      const all = [...first.body.items, ...mcpNext.body.items].map((item) =>
-        item.id
-      );
+      const all = [...first.body.items, ...mcpNext.body.items].map((item) => item.id);
       assertEquals(new Set(all).size, 101);
       assertEquals(all.sort(), entities.toSorted());
       assertEquals(
@@ -329,6 +318,33 @@ httpTest(
         )).body,
         schema.body,
       );
+      const filtered = {
+        entity_type_id: typeId,
+        limit: 100,
+        filters: [{ key: "prop_2", operator: "eq", value: "한".repeat(4096) }],
+      };
+      assertEquals((await httpPage(filtered, true)).body, (await sdk<Page>("list_entities", filtered)).body);
+      for (
+        const invalid of [{ entity_type_id: typeId, limit: 101 }, { entity_type_id: typeId, cursor: "invalid" }, {
+          owner_id: "other",
+        }, { entity_type_id: typeId, filters: [{ key: "prop_2", operator: "eq", value: 0 }] }]
+      ) {
+        const params = new URLSearchParams(
+          Object.entries(invalid).map(([k, v]) => [k, typeof v === "object" ? JSON.stringify(v) : String(v)]),
+        );
+        const get = await call(token, "GET", `/entities?${params}`);
+        const post = await call(token, "POST", "/entities/query", invalid, null);
+        assertEquals(post.status, 400);
+        assertEquals(post.body, get.body);
+        const mcp = await client!.callTool({ name: "list_entities", arguments: invalid });
+        assertEquals(mcp.isError, true);
+        assertEquals(mcp.structuredContent, post.body);
+      }
+      assertEquals((await call(foreign, "POST", "/entities/query", { entity_type_id: typeId }, null)).status, 404);
+      const [readAfter] =
+        await admin`select (select count(*) from private.request_results where owner_id=${owner})::int as requests,(select count(*) from app.records where owner_id=${owner} and change_metadata->>'target_id'=any(${entities}::text[]))::int as records,(select count(*) from app.entities where owner_id=${owner} and entity_type_id=${typeId!})::int as entities`;
+      assertEquals(readAfter, readBaseline);
+      evidence.post_query_read_only = "no ledger, records or entity writes";
       console.log(JSON.stringify(evidence));
     } catch (error) {
       failures.push(error);
@@ -392,9 +408,7 @@ httpTest(
         // Same endpoint as pinned auth-js GoTrueAdminApi._deleteOAuthClient; exact owned grant only.
         const secret = env("LOCAL_SUPABASE_SECRET_KEY");
         const removed = await fetch(
-          `${SUPABASE_URL}/auth/v1/admin/oauth/clients/${
-            encodeURIComponent(oauthClientId)
-          }`,
+          `${SUPABASE_URL}/auth/v1/admin/oauth/clients/${encodeURIComponent(oauthClientId)}`,
           {
             method: "DELETE",
             headers: { apikey: secret, authorization: `Bearer ${secret}` },

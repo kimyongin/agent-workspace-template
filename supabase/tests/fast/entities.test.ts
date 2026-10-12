@@ -299,3 +299,40 @@ Deno.test("Entity HTTP list: structured URL filters and sorts share strict MCP s
   query.set("filters", "[");
   assertEquals((await app.request(`/entities?${query}`)).status, 400);
 });
+
+Deno.test("entity POST query is a keyless read sharing GET/MCP defaults and strict errors without writes", async () => {
+  const { d, writes } = memory(), app = new Hono<HttpEnv>();
+  app.use("*", async (c, next) => {
+    c.set("actor", A);
+    await next();
+  });
+  app.onError((e, c) => {
+    const r = toErrorBody(e);
+    return c.json(r.body, r.status as 400);
+  });
+  app.route("/", entityRoutes(d));
+  const post = (body: unknown) =>
+    app.request("/entities/query", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  const response = await post({ entity_type_id });
+  assertEquals(response.status, 200);
+  assertEquals(await response.json(), await (await app.request(`/entities?entity_type_id=${entity_type_id}`)).json());
+  assertEquals(
+    await (await post({ entity_type_id })).json(),
+    await entityTools(d).find((t) => t.name === "list_entities")!.handler({ entity_type_id }, A),
+  );
+  for (
+    const body of [
+      { owner_id: "other" },
+      { entity_type_id, filters: [{ key: "prop_2", operator: "eq", value: "wrong" }] },
+      { entity_type_id, limit: 101 },
+      { entity_type_id, cursor: "invalid" },
+    ]
+  ) {
+    assertEquals((await post(body)).status, 400);
+  }
+  assertEquals(writes(), 0);
+});
