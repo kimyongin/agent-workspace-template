@@ -232,7 +232,13 @@ export function EntityForm({
         preparation={async () => {
           const existing = archived ?? await checkExisting(), target = existing ?? initial;
           const input = existing && !archived
-            ? { ...value(), properties: existing.properties, expected_version: existing.version }
+            ? {
+              ...value(),
+              properties: Object.fromEntries(
+                Object.entries(existing.properties).filter(([key]) => !definition!.display.archived.includes(key)),
+              ),
+              expected_version: existing.version,
+            }
             : value();
           if (initial && !existing) {
             const { entity_type_id: _type, settings_version: _settings, ...patch } = input;

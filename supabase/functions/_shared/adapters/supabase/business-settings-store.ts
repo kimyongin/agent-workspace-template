@@ -9,11 +9,13 @@ import type {
 import { resolvedBusinessSettings } from "../../contracts/business-settings.ts";
 import type { Actor } from "../../core/shared/actor.ts";
 import type { BusinessSettingsStore } from "../../core/settings/application.ts";
-import { conflict } from "../../core/shared/errors.ts";
+import { conflict, invalidInput } from "../../core/shared/errors.ts";
 import { runAsActor } from "./sql-context.ts";
-import { templateFields, type TemplateModel } from "../../contracts/record-template.ts";
+import { effectiveEntityTemplates, templateFields, type TemplateModel } from "../../contracts/record-template.ts";
+import { assertSchemaTemplateReferences } from "../../core/entity-types/template-references.ts";
+import type { RecordTemplates } from "../../contracts/record-template.ts";
 import type { ChangeFacts } from "../../core/shared/changes.ts";
-import { entityPresentation, loadEntityDefinition } from "./entity-values.ts";
+import { entityPresentationRow, loadEntityDefinition } from "./entity-values.ts";
 
 export class SqlBusinessSettingsStore implements BusinessSettingsStore {
   constructor(private readonly tx: postgres.TransactionSql, private readonly actor: Actor) {}
@@ -39,6 +41,25 @@ export class SqlBusinessSettingsStore implements BusinessSettingsStore {
     };
   }
   async update({ id, expected_version: expected, value }: BusinessSettingsUpdate): Promise<BusinessSettingsResult> {
+    if (id === "record_templates") {
+      const templates = value as RecordTemplates, previous = (await this.get()).settings.record_templates;
+      for (const template of Object.values(templates.entity ?? {})) {
+        if (/(?:\$\{|\$)엔터티\.(?:이전|이후)\.prop_[1-9][0-9]*(?:\$}|\$)/.test(template!.memo.replace(/\$\$/g, ""))) {
+          throw invalidInput("속성 변수는 자료 종류를 선택한 템플릿에서 사용하세요");
+        }
+      }
+      for (
+        const typeId of [
+          ...new Set([...Object.keys(templates.entity_types ?? {}), ...Object.keys(previous?.entity_types ?? {})]),
+        ].sort()
+      ) {
+        const changed = JSON.stringify(effectiveEntityTemplates(previous, typeId)) !==
+          JSON.stringify(effectiveEntityTemplates(templates, typeId));
+        const definition = await loadEntityDefinition(this.tx, typeId, changed);
+        if (!definition) throw invalidInput("템플릿의 자료 종류가 없거나 접근할 수 없습니다");
+        assertSchemaTemplateReferences(definition, templates, typeId);
+      }
+    }
     // Lock even the absent initial row; concurrent first saves cannot silently overwrite.
     await this.tx`select pg_advisory_xact_lock(hashtextextended(${`${this.actor.userId}:${id}`},0))`;
     const current = await this.get();
@@ -60,7 +81,12 @@ export class SqlBusinessSettingsStore implements BusinessSettingsStore {
   }
   async target(model: TemplateModel, id: string) {
     const table = model === "entity" ? "entities" : model === "task" ? "tasks" : "principles";
-    const [row] = await this.tx`select * from app.${this.tx(table)} where id=${id}`;
+    const [row] = model === "entity"
+      ? await this
+        .tx`select e.*,t.id as type_id,t.label,t.icon_id,t.archived,t.schema_version as current_schema_version,v.display from app.entities e
+        join app.entity_types t on t.owner_id=e.owner_id and t.id=e.entity_type_id
+        join app.entity_schema_versions v on v.owner_id=t.owner_id and v.type_id=t.id and v.schema_version=t.schema_version where e.id=${id}`
+      : await this.tx`select * from app.${this.tx(table)} where id=${id}`;
     if (!row) return null;
     if (model === "principle" && !row.is_current) return null;
     const facts = model === "entity"
@@ -70,8 +96,7 @@ export class SqlBusinessSettingsStore implements BusinessSettingsStore {
         entity_type_id: row.entity_type_id,
         schema_version: Number(row.schema_version),
         properties: row.properties,
-        title:
-          (await entityPresentation(this.tx, row.entity_type_id, Number(row.schema_version), row.properties)).title,
+        title: entityPresentationRow(row, row.properties).title,
       }
       : Object.fromEntries(
         Object.values(templateFields[model]).map(

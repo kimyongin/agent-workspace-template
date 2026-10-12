@@ -50,7 +50,9 @@ export function templateVariables(model: TemplateModel, action: TemplateAction, 
     "변경내용",
     ...(action === "update" ? ["변경항목"] : []),
     ...["이전", "이후"].filter((phase) => action !== (phase === "이전" ? "create" : "delete")).flatMap((phase) =>
-      [...Object.keys(templateFields[model]), ...(model === "entity" ? propertyKeys : [])].map((field) => `${templateModelNames[model]}.${phase}.${field}`)
+      [...Object.keys(templateFields[model]), ...(model === "entity" ? propertyKeys : [])].map((field) =>
+        `${templateModelNames[model]}.${phase}.${field}`
+      )
     ),
   ];
 }
@@ -112,8 +114,16 @@ export const recordTemplates = z.strictObject({
   for (const [typeId, group] of Object.entries(settings.entity_types ?? {})) {
     for (const [name, value] of Object.entries(group)) {
       const action = name as TemplateAction;
-      if (!modelActions("entity").includes(action)) context.addIssue({code:"custom",path:["entity_types",typeId,name],message:"이 모델에서 사용할 수 없는 액션입니다"});
-      for (const issue of templateIssues(value.memo,"entity",action)) context.addIssue({code:"custom",path:["entity_types",typeId,name,"memo"],message:issue.reason});
+      if (!modelActions("entity").includes(action)) {
+        context.addIssue({
+          code: "custom",
+          path: ["entity_types", typeId, name],
+          message: "이 모델에서 사용할 수 없는 액션입니다",
+        });
+      }
+      for (const issue of templateIssues(value.memo, "entity", action)) {
+        context.addIssue({ code: "custom", path: ["entity_types", typeId, name, "memo"], message: issue.reason });
+      }
     }
   }
   for (const model of TEMPLATE_MODELS) {
@@ -153,7 +163,9 @@ export function effectiveRecordTemplate(
   action: TemplateAction,
   typeId?: string,
 ) {
-  const value = model === "entity" && typeId ? templates?.entity_types?.[typeId]?.[action] ?? templates?.entity?.[action] : templates?.[model]?.[action];
+  const value = model === "entity" && typeId
+    ? templates?.entity_types?.[typeId]?.[action] ?? templates?.entity?.[action]
+    : templates?.[model]?.[action];
   return {
     memo: value?.memo.trim() ? simplifyTemplateSyntax(value.memo) : DEFAULT_RECORD_MEMO_TEMPLATES[action],
     tag_ids: value?.tag_ids ?? [],
@@ -161,14 +173,37 @@ export function effectiveRecordTemplate(
 }
 /** Effective templates contain only this type's actual memo and tags; other settings cannot stale a plan. */
 export function effectiveEntityTemplates(templates: RecordTemplates | undefined, typeId: string): RecordTemplates {
-  return {entity:Object.fromEntries(modelActions("entity").map((action)=>[action,effectiveRecordTemplate(templates,"entity",action,typeId)]))};
+  return {
+    entity: Object.fromEntries(
+      modelActions("entity").map((action) => [action, effectiveRecordTemplate(templates, "entity", action, typeId)]),
+    ),
+  };
 }
 export function recordTemplateTagIds(templates: RecordTemplates | undefined): string[] {
-  return [...new Set([...TEMPLATE_MODELS.map((model)=>templates?.[model]),...Object.values(templates?.entity_types??{})].flatMap((group)=>Object.values(group??{}).flatMap((value)=>value?.tag_ids??[])))];
+  return [
+    ...new Set([
+      ...TEMPLATE_MODELS.map((model) => templates?.[model]),
+      ...Object.values(templates?.entity_types ?? {}),
+    ].flatMap((group) => Object.values(group ?? {}).flatMap((value) => value?.tag_ids ?? []))),
+  ];
 }
-export function mapRecordTemplateTags(templates: RecordTemplates, map: (ids:string[])=>string[]):RecordTemplates {
-  const group=(values:RecordTemplates['entity'])=>Object.fromEntries(Object.entries(values??{}).map(([action,value])=>[action,{...value,tag_ids:map(value!.tag_ids)}]));
-  return {...Object.fromEntries(TEMPLATE_MODELS.filter((model)=>templates[model]).map((model)=>[model,group(templates[model])])),...(templates.entity_types?{entity_types:Object.fromEntries(Object.entries(templates.entity_types).map(([id,values])=>[id,group(values)]))}:{})};
+export function mapRecordTemplateTags(templates: RecordTemplates, map: (ids: string[]) => string[]): RecordTemplates {
+  const group = (values: RecordTemplates["entity"]) =>
+    Object.fromEntries(
+      Object.entries(values ?? {}).map(([action, value]) => [action, { ...value, tag_ids: map(value!.tag_ids) }]),
+    );
+  return {
+    ...Object.fromEntries(
+      TEMPLATE_MODELS.filter((model) => templates[model]).map((model) => [model, group(templates[model])]),
+    ),
+    ...(templates.entity_types
+      ? {
+        entity_types: Object.fromEntries(
+          Object.entries(templates.entity_types).map(([id, values]) => [id, group(values)]),
+        ),
+      }
+      : {}),
+  };
 }
 /** Keep unset overrides unset; only display legacy empty memos as the default. */
 export function editableRecordTemplates(templates: RecordTemplates = {}): RecordTemplates {
@@ -181,7 +216,20 @@ export function editableRecordTemplates(templates: RecordTemplates = {}): Record
       if (group[action]) result[model]![action] = effectiveRecordTemplate(templates, model, action);
     }
   }
-  if (templates.entity_types) result.entity_types=Object.fromEntries(Object.entries(templates.entity_types).map(([typeId,group])=>[typeId,Object.fromEntries(Object.entries(group).map(([action])=>[action,effectiveRecordTemplate(templates,"entity",action as TemplateAction,typeId)]))]));
+  if (templates.entity_types) {
+    result.entity_types = Object.fromEntries(
+      Object.entries(templates.entity_types).map((
+        [typeId, group],
+      ) => [
+        typeId,
+        Object.fromEntries(
+          Object.entries(group).map((
+            [action],
+          ) => [action, effectiveRecordTemplate(templates, "entity", action as TemplateAction, typeId)]),
+        ),
+      ]),
+    );
+  }
   return result;
 }
 export interface TemplateContext {

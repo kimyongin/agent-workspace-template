@@ -40,7 +40,12 @@ export class SqlActorStore {
     const target = input.target, target_title = target.title;
     const settingsStore = new SqlBusinessSettingsStore(this.tx, this.actor);
     const settings = (await settingsStore.get()).settings;
-    const ids = effectiveRecordTemplate(settings.record_templates,input.target_kind as "entity"|"task"|"principle",input.action,(input.after??input.before)?.entity_type_id).tag_ids;
+    const ids = effectiveRecordTemplate(
+      settings.record_templates,
+      input.target_kind as "entity" | "task" | "principle",
+      input.action,
+      (input.after ?? input.before)?.entity_type_id,
+    ).tag_ids;
     const memo = changeDefaults(input, settings, await settingsStore.recordTags(ids));
     const body = memo.change_note;
     // New events retain facts and the final memo, not an extra full domain capture.

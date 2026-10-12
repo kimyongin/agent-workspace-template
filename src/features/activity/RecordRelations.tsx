@@ -12,7 +12,7 @@ import { RelatedTaskItem } from "./RelatedTask.tsx";
 type Change = NonNullable<RecordResult["change"]>;
 const groups = [
   {kind:"task",title:"할 일",route:"tasks"},
-  {kind:"entity",title:"엔터티",route:"entities"},
+  {kind:"entity",title:"연결된 자료",route:"entities"},
   {kind:"principle",title:"원칙",route:"principles"},
   {kind:"record",title:"기록",route:"records"},
 ] as const;
