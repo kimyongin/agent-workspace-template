@@ -41,6 +41,8 @@ import {
 import { compileMigration } from "../../functions/_shared/core/entity-types/conversions.ts";
 import { prepareMigrationBatch } from "../../functions/_shared/adapters/http/schema-migration-preparation.ts";
 import { SEARCH_PIPELINE } from "../../functions/_shared/core/search/config.ts";
+import { SqlTagUnitOfWork } from "../../functions/_shared/adapters/supabase/tag-store.ts";
+import { createTag } from "../../functions/_shared/core/tags/application.ts";
 import { AppError } from "../../functions/_shared/core/shared/errors.ts";
 import type { SchemaEdit } from "../../functions/_shared/contracts/entity-schema-change.ts";
 async function fixture() {
@@ -239,6 +241,17 @@ dbTest(
         schema_version: 1,
         properties: { prop_1: "unrelated peer edit" },
       });
+      const peerType = await getEntityType(f.d, f.a.actor, o.other.id);
+      const peerSchemaChange = await createEntitySchemaChange(f.d, f.actor(), o.other.id, {
+        expected_type_version: peerType.version,
+        expected_schema_version: peerType.schema_version,
+        edits: [{ op: "add_property", client_ref: "unrelated", field: { type: "string" }, required: false }],
+      });
+      const peerAnalysis = await f.analyze(o.other.id, peerSchemaChange.id, peerSchemaChange.version);
+      await applyEntitySchemaChange(f.d, f.actor(), o.other.id, peerSchemaChange.id, {
+        expected_change_version: peerSchemaChange.version,
+        analysis_id: peerAnalysis.analysis!.id,
+      });
       const history = await asUser(
         f.sql,
         f.a.actor.userId,
@@ -308,6 +321,14 @@ dbTest(
       assertEquals(Array.from(old), Array.from(history));
       const list = await listEntities(f.e, f.a.actor, { entity_type_id: o.type.id, limit: 100, sort: "updated_at" });
       assert(list.items.every((r) => r.entity_type_id === o.type.id && r.current_schema_version === 4));
+      const filtered = await listEntities(f.e, f.a.actor, {
+        entity_type_id: o.type.id,
+        limit: 100,
+        filters: [{ key: "prop_3", operator: "eq", value: 0 }],
+        sort: { key: "prop_3", direction: "asc" },
+      });
+      assertEquals(filtered.items.map((r) => r.id), [o.x.id]);
+
       assertEquals(
         (await listEntitySchemaMigrations(f.d, f.a.actor, { type_id: o.type.id, limit: 100 })).items.length,
         2,
@@ -320,7 +341,7 @@ dbTest(
 dbTest(
   "recovery detects later values/new/delete/restore/rekey/pair/task/record changes with bounded actionable conflicts",
   async () => {
-    for (const action of ["value", "new", "delete", "restore", "rekey", "pair", "task", "record"]) {
+    for (const action of ["value", "tag", "new", "delete", "restore", "rekey", "pair", "pair_same", "task", "record"]) {
       const f = await fixture();
       try {
         const o = await f.original(action), x = await getEntity(f.e, f.a.actor, o.x.id);
@@ -330,6 +351,25 @@ dbTest(
             schema_version: 3,
             properties: { prop_1: "new value" },
           });
+        }
+        if (action === "tag") {
+          const tag = await createTag({ uow: new SqlTagUnitOfWork(f.sql) }, f.actor(), {
+            scope: "entity",
+            name: "later tag",
+          });
+          await updateEntity(f.e, f.actor(), x.id, {
+            expected_version: x.version,
+            schema_version: 3,
+            tag_ids: [tag.id],
+          });
+        }
+        if (action === "pair_same") {
+          const same = await getEntity(f.e, f.a.actor, o.same.id);
+          await changeEntityPair(f.p, f.actor(), x.id, {
+            other_id: same.id,
+            expected_version: x.version,
+            expected_other_version: same.version,
+          }, false);
         }
         if (action === "new") {
           await createEntity(f.e, f.actor(), {
@@ -478,6 +518,38 @@ dbTest(
       const [deleted] = await f
         .admin`select (select count(*) from private.entity_schema_migration_rows where owner_id=${f.a.actor.userId})::int as sources,(select count(*) from private.entity_schema_analysis_rows where owner_id=${f.a.actor.userId})::int as analyses`;
       assertEquals(deleted, { sources: 0, analyses: 0 });
+    } finally {
+      await f.cleanup();
+    }
+  },
+);
+
+dbTest(
+  "recovery final atomic commit rechecks incident selections after staging and does not rewrite values/history",
+  async () => {
+    const f = await fixture();
+    try {
+      const o = await f.original(),
+        c = await f.recovery(o.job.job_id),
+        accepted = await f.accept(o.type.id, c.id, c.version);
+      const [claim] = await f.worker`select app.claim_entity_schema_migration() as batch`;
+      const staged = await prepareMigrationBatch(claim.batch);
+      assert(!staged.stale);
+      await f.worker`select app.stage_entity_schema_migration(${accepted.job_id},${claim.batch.fence},${
+        f.worker.json(staged.results)
+      })`;
+      // Privileged fixture injection proves the final RPC gate, beyond the ordinary public write lock.
+      await f.admin`update app.tasks set entity_ids='{}',entity_context='[]' where id=${o.task.id}`;
+      const [final] = await f.worker`select app.claim_entity_schema_migration() as batch`;
+      const [result] = await f
+        .worker`select app.commit_entity_schema_migration(${accepted.job_id},${final.batch.fence},${final.batch.source_template_fingerprint},${SEARCH_PIPELINE}) as committed`;
+      assertEquals(result.committed, false);
+      assertEquals(
+        (await getEntitySchemaMigration(f.d, f.a.actor, accepted.job_id)).failure_reason,
+        "schema_plan_stale",
+      );
+      assertEquals((await getEntitySchema(f.d, f.a.actor, { type_id: o.type.id })).schema_version, 3);
+      assertEquals((await getEntity(f.e, f.a.actor, o.x.id)).properties, { prop_1: "original" });
     } finally {
       await f.cleanup();
     }

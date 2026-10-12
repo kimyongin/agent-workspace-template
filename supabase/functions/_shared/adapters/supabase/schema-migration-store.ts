@@ -87,7 +87,7 @@ export class SqlSchemaMigrationStore extends SqlSchemaChangeStore implements Sch
     return {
       status,
       reason,
-      conflicts,
+      conflicts: conflicts.slice(0, 21),
       current_type_version: Number(t.version),
       current_schema_version: Number(t.schema_version),
     };

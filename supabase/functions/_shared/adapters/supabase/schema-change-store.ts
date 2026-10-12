@@ -105,7 +105,13 @@ export class SqlSchemaChangeStore implements SchemaChangeStore {
         "복구 원본의 30일 보관 기간이 지났습니다. 현재 자료로 새 변경을 준비하세요",
       );
     }
-    if (!j.source_definition?.schema) throw conflict("복구 원본 자료가 없습니다. 현재 자료로 새 변경을 준비하세요");
+    const [material] = await this
+      .tx`select count(*)::int as count from private.entity_schema_migration_rows where job_id=${j.id}`;
+    if (
+      !j.source_definition?.schema || !j.committed_membership || !j.committed_references || material.count !== j.total
+    ) {
+      throw conflict("복구 원본 또는 확정 기준 자료가 없습니다. 현재 자료로 새 변경을 준비하세요");
+    }
     const [fresh] = await this
       .tx`select app.entity_schema_membership(${this.actor.userId},${c.type_id})=${j.committed_membership} as values, app.entity_schema_reference_baseline(${this.actor.userId},${c.type_id})=${
       this.tx.json(j.committed_references)

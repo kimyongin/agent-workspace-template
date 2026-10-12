@@ -185,11 +185,13 @@ httpTest(
         (await call(token, "GET", `/entities/${encodeURIComponent(entityId!)}`)).body.properties.prop_2,
         false,
       );
-      await tool(client, "analyze_entity_schema_change", {
+      const recoveryAnalysis = await tool(client, "analyze_entity_schema_change", {
         type_id: typeId,
         change_id: draft.body.id,
         expected_change_version: 1,
+        request_key: crypto.randomUUID(),
       });
+      assertEquals(recoveryAnalysis.status, "queued");
       for (let n = 0; n < 4; n++) {
         const [r] = await worker`select app.claim_entity_schema_analysis() as batch`;
         if (!r.batch) break;
