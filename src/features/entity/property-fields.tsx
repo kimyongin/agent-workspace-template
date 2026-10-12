@@ -2,7 +2,8 @@ import type { EntityField, EntitySchemaVersion } from "@contracts/entity-type.ts
 import type { EntityProperties } from "@contracts/entity.ts";
 import { Field } from "../../components/Field.tsx";
 export type PropertyDraft = Record<string, string | boolean | null>;
-export function fieldType(field: EntityField) {
+export function fieldType(field: EntityField | undefined) {
+  if (!field) return undefined;
   return Array.isArray(field.type) ? field.type.find((type) => type !== "null") : field.type;
 }
 export function propertyDraft(values: EntityProperties): PropertyDraft {

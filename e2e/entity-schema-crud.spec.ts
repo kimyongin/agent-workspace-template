@@ -80,6 +80,16 @@ test("다중 타입 여섯 속성을 MCP로 저장하고 웹 전체 상세 편�
     await page.locator("dialog.modal-action[open]").getByRole("button", { name: "취소", exact: true }).click();
     await expect(stale.getByLabel("이름", { exact: false })).toHaveValue("실패해도 보존할 초안");
     expect((await mcp.call("get_entity", { id: entityId })).properties.prop_1).toBe(updatedTitle);
+    await stale.getByRole("button", { name: "속성 정의 다시 조회", exact: true }).click();
+    await expect(stale.getByRole("region", { name: "현재 속성 정의 검토" })).toContainText("현재 정의 버전 3");
+    await expect(stale.getByLabel("이름", { exact: false })).toHaveValue("실패해도 보존할 초안");
+    await stale.getByRole("button", { name: "확인한 정의로 편집", exact: true }).click();
+    await expect(stale).toContainText(`편집 정의 버전 3 · 자료 버전 ${saved.version}`);
+    await saveOnce(page, stale);
+    const recovered = await mcp.call("get_entity", { id: entityId });
+    expect(recovered.properties.prop_1).toBe("실패해도 보존할 초안");
+    expect(recovered.schema_version).toBe(3);
+    expect(recovered.version).toBe(saved.version + 1);
   } finally {
     await mcp.close();
     if (entityId) await admin`delete from app.entities where id=${entityId}`;
