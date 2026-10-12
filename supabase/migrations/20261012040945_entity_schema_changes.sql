@@ -52,7 +52,9 @@ begin
  where x.status='queued' or (x.status='running' and x.lease_until<now()) order by x.created_at limit 1;
  if candidate is null then return null; end if;
  perform 1 from app.entity_types t where t.owner_id=owner and t.id=type_id for update;
+ if not found then return null; end if;
  select * into a from app.entity_schema_analyses x where x.owner_id=owner and x.id=candidate for update;
+ if not found then return null; end if;
  if not(a.status='queued' or (a.status='running' and a.lease_until<now())) then return null; end if;
  select * into c from app.entity_schema_changes x where x.owner_id=owner and x.id=a.change_id;
  if c.version<>a.change_version or c.fingerprint<>a.fingerprint or c.analysis_id<>a.id or c.status<>'analyzing' then
@@ -68,7 +70,9 @@ begin
  select x.owner_id,x.type_id into owner,type_id from app.entity_schema_analyses x where x.id=p_id;
  if owner is null then return false; end if;
  perform 1 from app.entity_types t where t.owner_id=owner and t.id=type_id for update;
+ if not found then return false; end if;
  select * into a from app.entity_schema_analyses x where x.id=p_id for update;
+ if not found then return false; end if;
  if a.status<>'running' or a.fence<>p_fence or a.lease_until<=now() then return false; end if;
  select * into c from app.entity_schema_changes x where x.owner_id=owner and x.id=a.change_id for update;
  if c.version<>a.change_version or c.fingerprint<>a.fingerprint or c.analysis_id<>a.id then return false; end if;

@@ -601,7 +601,7 @@ export function SchemaEditor(
         </button>
       </div>
       {plan && (
-        <section aria-label="속성 변경 요약">
+        <section className="schema-summary" aria-label="속성 변경 요약">
           <h3>변경 요약 · 초안 버전 {plan.version}</h3>
           <p>상태: {plan.status} · {plan.change_kind === "compatible" ? "호환 가능한 게시" : "자료 값 변환 필요"}</p>
           <ul>
@@ -678,6 +678,16 @@ export function SchemaEditor(
           </div>
         </section>
       )}
+      <button
+        className="btn"
+        disabled={busy || readBusy}
+        onClick={() => {
+          setReadBusy(true);
+          void list().then(() => setError("")).catch((e) => setError(e.message)).finally(() => setReadBusy(false));
+        }}
+      >
+        초안 목록 다시 조회
+      </button>
       {changes.length > 0 && (
         <details>
           <summary>저장한 변경 초안</summary>
@@ -702,7 +712,7 @@ export function SchemaEditor(
 export function SchemaVersionDiff({ before, after }: { before: EntitySchemaVersion; after: EntitySchemaVersion }) {
   const paths = [...new Set([...Object.keys(before.schema.properties), ...Object.keys(after.schema.properties)])];
   return (
-    <section aria-label="버전 차이">
+    <section className="schema-version-diff" aria-label="버전 차이">
       <h3>버전 {before.schema_version} → {after.schema_version} 차이</h3>
       <ul>
         {paths.filter((k) =>
