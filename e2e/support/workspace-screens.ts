@@ -20,6 +20,19 @@ export async function fixtures(
   page: Page,
   options: { long?: boolean; emptyPrinciple?: boolean; failWrite?: "unknown" | "conflict"; hold?: boolean } = {},
 ) {
+  const user = {
+    id: id(901), aud: "authenticated", email: "workspace-screens@example.test",
+    app_metadata: {}, user_metadata: {},
+  };
+  // These screens represent a logged-in workspace. Individual account fixtures may override it.
+  await page.addInitScript((user) => {
+    if (localStorage.getItem("sb-127-auth-token")) return;
+    localStorage.setItem("sb-127-auth-token", JSON.stringify({
+      access_token: "workspace-screens-fixture-access", refresh_token: "workspace-screens-fixture-refresh",
+      token_type: "bearer", expires_at: Math.floor(Date.now() / 1000) + 3600, user,
+    }));
+  }, user);
+  await page.route("http://127.0.0.1:55581/auth/v1/user", (route) => route.fulfill({ json: user }));
   const rows: WorkspaceRows = {
     entities: [entity()],
     tasks: [task()],
