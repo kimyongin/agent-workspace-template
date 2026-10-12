@@ -70,7 +70,9 @@ description: Workspace에서 다음 업무의 검토·준비안을 만들거나 
 
 자료 종류의 속성 변경 요청은 현재 종류·스키마 버전을 확인하고 `create_entity_schema_change`로 제한된 edits와 추가 속성의 client_ref를 저장한다. 서버가 예약한 prop_n과 필드별 차이를 검토한다. 수정은 `update_entity_schema_change`의 expected_change_version에 결속한다. 생성·수정·분석·게시에는 모두 request_key를 사용한다.
 
-`analyze_entity_schema_change`가 반환한 analysis_id와 queued 상태는 접수 결과다. `get_entity_schema_change`로 분석 상태·실패 항목을 읽고, 목록은 `list_entity_schema_changes`로 조회한다. 최신 ready·실패 0·compatible 변경만 `apply_entity_schema_change`에 analysis_id와 변경 버전을 제출해 게시한다. migration_required는 이유와 다음 행동을 설명하고 현재 정의를 유지한다. 현재 호환 게시 경로는 값을 변환하지 않으며 기본값은 기존 자료에 채우지 않는다. 보관은 정의·값을 유지하고 필수 해제를 명시한다. 키 변경/재사용/종류 이동은 지원하지 않는다.
+`analyze_entity_schema_change`의 analysis_id와 queued는 접수 결과다. `get_entity_schema_change`로 분석 상태·대상/성공/실패/변경 건수·freshness를 확인한다. 완료한 현재 analysis_id로 `list_entity_schema_analysis_rows`를 호출해 before/after·필드 오류를 읽고 next_after로 이어 조회한다. 페이지는 기본 20개·최대 100개·512 KiB이며, after=null은 after_bytes와 크기 오류를 확인한다. queued/running/failed를 빈 성공 결과로 해석하지 않는다. stale이면 원본·정의 변경을 검토하고 최신 변경안/분석을 준비한다. 목록은 `list_entity_schema_changes`로 조회한다.
+
+값 변환 준비는 `update_entity_schema_change`에 제한된 migration.rules와 같은 종류의 entity_id/key/value 보완을 명시해 저장한다. 누락·null·false·0·빈 문자열을 구분하고 숫자 앞자리 0·정밀도·잘못된 날짜·매핑 누락의 오류를 사용자에게 보여준다. 보완 저장은 이전 분석을 무효화하므로 새 analysis_id로 다시 분석한다. 분석/미리보기는 현재 자료 값·활성 정의를 유지한다. 최신 ready·실패 0·compatible 변경만 `apply_entity_schema_change`에 analysis_id와 변경 버전을 제출해 게시한다. migration_required의 실제 값 적용은 이 게시 도구의 범위 밖이다. 기본값은 기존 자료에 채우지 않는다. 보관은 정의·값을 유지하고 필수 해제를 명시한다. 키 변경/재사용/종류 이동은 지원하지 않는다.
 
 정확한 입력·출력·부수효과는 연결된 MCP의 도구 설명을 따른다. 사용자가 이 이름을 선택할 필요는 없다.
 
@@ -84,6 +86,7 @@ description: Workspace에서 다음 업무의 검토·준비안을 만들거나 
 | 종류별 현재·과거 속성 정의와 버전 조회 | `get_entity_schema`, `list_entity_schema_versions` |
 | 요청받은 속성 변경 초안·영향 분석·호환 가능한 게시 | `create_entity_schema_change`, `update_entity_schema_change`, `analyze_entity_schema_change`, `apply_entity_schema_change` |
 | 변경 초안·차이·분석 상태 조회 | `get_entity_schema_change`, `list_entity_schema_changes` |
+| 완료한 현재 분석의 변환 전후·실패 페이지 조회 | `list_entity_schema_analysis_rows` |
 | 할 일 찾기·읽기 | `list_tasks`, `get_task` |
 | 오늘 해야 할 반복 할 일 확인(occurrence_on 지정) | `list_tasks`, `list_occurrences` |
 | 할 일 만들기·고치기·지우기 | `create_task`, `update_task`, `delete_task` |
