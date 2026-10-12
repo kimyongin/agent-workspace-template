@@ -1,5 +1,6 @@
 import { assert, assertEquals } from "@std/assert";
 import {
+  migrationRecordRenderer,
   type MigrationWorkerBatch,
   prepareMigrationBatch,
 } from "../../functions/_shared/core/entity-types/migration-preparation.ts";
@@ -46,6 +47,20 @@ Deno.test("migration preparation preserves explicit values, shared template/hash
   assertEquals(output.results[0].record_context[0].schema_version, 2);
   assertEquals(output.results[0].record_context[0].title, "원본");
   assertEquals(output.results[0].after, { prop_1: "원본", prop_2: 0 });
+  const unchanged = migrationRecordRenderer(batch, new Date("2026-10-12T00:00:00Z"))({
+    ...batch.rows[0],
+    changed: false,
+  });
+  assertEquals(unchanged.record_body, null);
+  assertEquals(unchanged.record_tags, []);
+  assertEquals(unchanged.record_context, [{
+    id: "app:😀/?",
+    title: "원본",
+    type: batch.type,
+    schema_version: 2,
+    captured_at: "2026-10-12T00:00:00.000Z",
+    source: "selection",
+  }]);
   const stale = await prepareMigrationBatch({ ...batch, source_template_fingerprint: "not the same" });
   assert(stale.stale);
   assertEquals(stale.results, []);

@@ -512,12 +512,8 @@ export function SchemaEditor(
                         <input
                           {...p}
                           className="input"
-                          type={f.format === "date"
-                            ? "date"
-                            : ["integer", "number"].includes(scalar)
-                            ? "text"
-                            : "text"}
-                          step="any"
+                          type={f.format === "date" ? "date" : "text"}
+                          inputMode={["integer", "number"].includes(scalar) ? "decimal" : undefined}
                           value={numericDrafts[key + ":default"] ?? String(f.default)}
                           onChange={(e) => ["integer", "number"].includes(scalar)
                             ? setNumericField(key, "default", e.target.value)

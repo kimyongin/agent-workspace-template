@@ -415,3 +415,55 @@ test("definition history reads the cursor beyond the first hundred versions and 
   expect(cursors).toEqual([null, "2"]);
   await expect(page.getByRole("button", { name: "이전 게시 버전 더 보기", exact: true })).toHaveCount(0);
 });
+
+
+test("numeric schema bounds keep invalid raw decimals and reject before creating a change", async ({ page }) => {
+  const definition = initialEntityDefinition("이름");
+  definition.schema.properties.prop_2 = { type: "number", title: "정확한 수량" };
+  definition.display.order.push("prop_2");
+  let writes = 0;
+  await page.route(`**/api/entity-types/${materials.id}/schema`, (route) => route.fulfill({ json: { ...definition, type: materials, type_id: materials.id, schema_version: 1, created_at: materials.created_at } }));
+  await page.route(`**/api/entity-types/${materials.id}/schema-changes`, (route) => {
+    if (route.request().method() !== "GET") writes++;
+    return route.fulfill({ json: { items: [], next_before: null } });
+  });
+  await page.goto(`/settings/entity-types/${materials.id}`);
+  const section = page.getByRole("region", { name: "정확한 수량 속성", exact: true });
+  const input = section.getByLabel("최소값", { exact: true });
+  await input.fill("1.0000000000000001");
+  await page.getByRole("button", { name: "변경 초안 저장", exact: true }).click();
+  await expect(page.getByRole("alert")).toContainText("정밀도");
+  await expect(input).toHaveValue("1.0000000000000001");
+  expect(writes).toBe(0);
+});
+
+
+test("conversion literals preserve unsafe drafts and removed properties permit explicit removal", async ({ page }) => {
+  const target = initialEntityDefinition("이름");
+  target.schema.properties.prop_2 = { type: "number", title: "수량" };
+  target.display.order.push("prop_2");
+  const changeId = "00000000-0000-4000-8000-000000000701";
+  const plan = { id: changeId, type_id: materials.id, source_type_version: 1, source_schema_version: 1,
+    source_template_fingerprint: "fixture", version: 1, status: "draft", change_kind: "migration_required",
+    edits: [], migration: { rules: [], overrides: [] }, executable: false, reservations: {}, target,
+    fingerprint: "fixture", analysis: null, created_at: materials.created_at, updated_at: materials.updated_at,
+    diff: [{ path: "properties.prop_3", before: { type: "integer", title: "이전 수량" }, after: null,
+      before_present: true, after_present: false, kind: "migration_required", reason: "속성 제거", next_action: "명시 제거" }] };
+  let writes = 0;
+  await page.route(`**/api/entity-types/${materials.id}/schema-changes/${changeId}`, (route) => {
+    if (route.request().method() !== "GET") writes++;
+    return route.fulfill({ json: plan });
+  });
+  await page.goto(`/settings/entity-types/${materials.id}?change_id=${changeId}`);
+  const conversions = page.getByRole("region", { name: "변환 규칙과 영향 미리보기" });
+  await conversions.getByLabel("prop_3 변환 방식", { exact: true }).selectOption("remove");
+  await expect(conversions.getByLabel("prop_3 변환 방식", { exact: true })).toHaveValue("remove");
+  const field = conversions.locator(".schema-field").filter({ has: page.getByLabel("prop_2 변환 방식", { exact: true }) });
+  await field.getByLabel("누락값 채우기", { exact: true }).check();
+  const input = field.getByLabel("보완값", { exact: true });
+  await input.fill("1.0000000000000001");
+  await page.getByRole("button", { name: "변경 초안 저장", exact: true }).click();
+  await expect(page.getByRole("alert")).toContainText("정밀도");
+  await expect(input).toHaveValue("1.0000000000000001");
+  expect(writes).toBe(0);
+});

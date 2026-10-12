@@ -1,3 +1,11 @@
+import {
+  assertRecoveryFresh,
+  assessRecovery,
+  type RecoveryContext,
+  type RecoveryProposal,
+  recoveryProposal,
+  recoveryTarget,
+} from "./recovery-policy.ts";
 import { z } from "zod";
 import {
   type EntitySchemaMigration,
@@ -9,12 +17,14 @@ import {
 } from "../../contracts/entity-schema-migration.ts";
 import type { EntityTypeDeps } from "./application.ts";
 import type { Actor } from "../shared/actor.ts";
-import { invalidInput } from "../shared/errors.ts";
+import { AppError, conflict, invalidInput } from "../shared/errors.ts";
 import { runWrite } from "../shared/request.ts";
 export interface SchemaMigrationStore {
-  createRecovery(
-    id: string,
-    input: z.infer<typeof schemaRecoveryCreate>,
+  loadRecovery(id: string): Promise<RecoveryContext>;
+  recoveryTemplates(typeId: string, target: RecoveryContext["source"]): Promise<string>;
+  saveRecovery(
+    context: RecoveryContext,
+    proposal: RecoveryProposal,
   ): Promise<import("../../contracts/entity-schema-change.ts").EntitySchemaChange>;
   startMigration(
     typeId: string,
@@ -79,5 +89,25 @@ export function retryEntitySchemaMigration(d: EntityTypeDeps, a: Actor, id: stri
 export function createEntitySchemaRecovery(d: EntityTypeDeps, a: Actor, id: string, raw: unknown) {
   parse(z.string().uuid(), id);
   const i = parse(schemaRecoveryCreate, raw);
-  return runWrite(d.uow, a, "entity-schema-migration.recovery", id, i, (s) => s.createRecovery(id, i));
+  return runWrite(d.uow, a, "entity-schema-migration.recovery", id, i, async (s) => {
+    const context = await s.loadRecovery(id);
+    const now = new Date(context.observed_at), type = context.evidence.type;
+    if (assessRecovery(context.evidence, now).status === "expired") assertRecoveryFresh(context.evidence, now);
+    if (type.schema_write_locked) {
+      throw new AppError("schema_migration_in_progress", "마이그레이션 완료 후 다시 시도하세요");
+    }
+    if (type.version !== i.expected_type_version || type.schema_version !== i.expected_schema_version) {
+      throw new AppError("schema_changed", "자료 종류나 속성 정의가 변경되었습니다", undefined, {
+        type_id: type.id,
+        type_version: type.version,
+        schema_version: type.schema_version,
+      });
+    }
+    if (type.archived) throw new AppError("entity_type_archived", "보관된 자료 종류를 먼저 복원하세요");
+    if (context.job_version !== i.expected_job_version) throw conflict("작업 버전이 변경되었습니다. 다시 조회하세요");
+    assertRecoveryFresh(context.evidence, now);
+    const target = recoveryTarget(context);
+    const templates = await s.recoveryTemplates(type.id, target);
+    return s.saveRecovery(context, await recoveryProposal(context, target, templates));
+  });
 }

@@ -1,3 +1,4 @@
+import { entityNumberDraft } from "../../contracts/entity-number.ts";
 import type { MigrationPlan, SchemaAnalysisRow, SchemaDefinition } from "../../contracts/entity-schema-change.ts";
 import { AppError, invalidInput } from "../shared/errors.ts";
 import { recoverEntityProperties } from "./recovery.ts";
@@ -82,19 +83,13 @@ export function compileMigration(target: SchemaDefinition, plan: MigrationPlan, 
           after[rule.key] = value;
           continue;
         }
-        const pattern = rule.to === "integer" ? /^-?(0|[1-9][0-9]*)$/ : /^-?(0|[1-9][0-9]*)(\.[0-9]{1,6})?$/;
-        if (typeof value !== "string" || !pattern.test(value)) {
-          fail("전체 ASCII 십진수만 변환할 수 있습니다. 공백·앞자리 0·지수·정밀도 손실은 허용하지 않습니다");
-        } else {
-          const number = Number(value);
-          if (
-            !Number.isFinite(number) || (rule.to === "integer" ? !Number.isSafeInteger(number) : Math.abs(number) > 1e9)
-          ) fail("숫자 범위 또는 정밀도를 초과했습니다");
-          else if (
-            rule.to === "number" &&
-            jsonbText(number) !== value.replace(/(\.[0-9]*?)0+$/, "$1").replace(/\.$/, "").replace(/^-0$/, "0")
-          ) fail("십진수 정밀도를 손실 없이 표현할 수 없습니다");
-          else after[rule.key] = number;
+        if (typeof value !== "string") fail("전체 ASCII 십진수만 변환할 수 있습니다");
+        else {
+          try {
+            after[rule.key] = entityNumberDraft(value, rule.to);
+          } catch (error) {
+            fail(error instanceof Error ? error.message : "숫자 범위 또는 정밀도를 초과했습니다");
+          }
         }
       } else if (rule.to === "string") {
         if (typeof value === "number") after[rule.key] = jsonbText(value);

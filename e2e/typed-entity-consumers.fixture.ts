@@ -152,3 +152,19 @@ test("numeric filter rejects a precision-losing draft without applying or cleari
   await page.getByRole("button", { name: "속성 조건 적용", exact: true }).click();
   await expect.poll(() => new URL(page.url()).searchParams.get("property_filters")).toBe('[{"key":"prop_2","operator":"eq","value":42}]');
 });
+
+
+test("entity numeric draft rejects precision loss before preparing a record and preserves the input", async ({ page }) => {
+  let prepared = 0;
+  await page.route("**/api/records/prepare", async (route) => { prepared++; return route.fulfill({ json: {} }); });
+  await page.goto(`/entities?entity_type_id=${fixtureType.id}`);
+  await page.getByRole("button", { name: "검사 자료 추가", exact: true }).click();
+  const form = page.getByRole("dialog", { name: "검사 자료 추가", exact: true });
+  await form.getByLabel("제목", { exact: false }).fill("숫자 초안");
+  const input = form.getByLabel("수량", { exact: false });
+  await input.fill("9007199254740993");
+  await form.getByRole("button", { name: "저장", exact: true }).click();
+  await expect(form.getByRole("alert")).toContainText("정밀도");
+  await expect(input).toHaveValue("9007199254740993");
+  expect(prepared).toBe(0);
+});
