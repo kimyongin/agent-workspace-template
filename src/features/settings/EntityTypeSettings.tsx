@@ -18,10 +18,10 @@ export function EntityTypeIcon({ id }: { id: string }) {
 }
 export function EntityTypeSettings() {
   const { type_id } = useParams();
-  return <EntityTypeSettingsEditor key={type_id ?? "create"} />;
+  return <EntityTypeSettingsEditor key={type_id ?? "create"} type_id={type_id} />;
 }
-function EntityTypeSettingsEditor() {
-  const { type_id } = useParams();
+function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
+  const { type_id: activeTypeId } = useParams();
   const location = useLocation();
   const versions = location.pathname.endsWith("/versions");
   const [items, setItems] = useState<EntityType[]>([]),
@@ -67,6 +67,7 @@ function EntityTypeSettingsEditor() {
         api<EntitySchemaVersion>("GET", `/entity-types/${type_id}/schema`, undefined, signal),
         api<{ items: EntitySchemaVersionSummary[] }>("GET", `/entity-types/${type_id}/schemas`, undefined, signal),
       ]);
+      signal?.throwIfAborted();
       setType(saved);
       setLabel(saved.label);
       setIcon(saved.icon_id);
@@ -75,6 +76,7 @@ function EntityTypeSettingsEditor() {
       setHistory(versions.items);
     } else {
       const saved = await api<{ items: EntityType[] }>("GET", "/entity-types?include_archived=true", undefined, signal);
+      signal?.throwIfAborted();
       setItems(saved.items);
     }
   };
@@ -146,6 +148,15 @@ function EntityTypeSettingsEditor() {
     setArchived(type?.archived ?? false);
   };
 
+  // The router may expose destination params while the previous editor is still mounted.
+  // Its draft belongs to its fixed route scope and must never become the destination form.
+  if (activeTypeId !== type_id) {
+    return (
+      <section className="panel settings">
+        <p role="status">불러오는 중…</p>
+      </section>
+    );
+  }
   return (
     <section className="panel settings" aria-labelledby="entity-types-title">
       <Link to="/settings">설정</Link>
