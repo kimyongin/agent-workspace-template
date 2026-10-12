@@ -47,3 +47,15 @@ Deno.test("definitions reject SQL-unsafe labels and Gregorian year zero", () => 
   d.display.order.push("prop_2");
   assertThrows(() => validateEntityProperties(d, { prop_1: "name", prop_2: "0000-02-29" }));
 });
+
+Deno.test("validated definitions retain prototype-like single-select labels", () => {
+  const d = initialEntityDefinition("이름");
+  d.schema.properties.prop_2 = { type: "string", enum: ["__proto__", "constructor", "toString"] };
+  d.display.order.push("prop_2");
+  d.display.option_labels.prop_2 = JSON.parse(
+    '{"__proto__":"특수 코드","constructor":"생성 코드","toString":"문자 코드"}',
+  );
+  const validated = validateEntityDefinition(d);
+  assertEquals(Object.keys(validated.display.option_labels.prop_2), ["__proto__", "constructor", "toString"]);
+  assertEquals(validateEntityProperties(d, { prop_1: "이름", prop_2: "__proto__" }).prop_2, "__proto__");
+});

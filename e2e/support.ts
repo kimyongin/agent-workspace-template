@@ -38,15 +38,17 @@ export async function mcpTokenViaConsent(page: Page): Promise<string> {
   const verifier = b64url(randomBytes(32));
   const state = b64url(randomBytes(16));
   const url = new URL(`${AUTH}/oauth/authorize`);
-  for (const [k, v] of Object.entries({
-    response_type: "code",
-    client_id: reg.client_id,
-    redirect_uri: REDIRECT,
-    state,
-    code_challenge: b64url(createHash("sha256").update(verifier).digest()),
-    code_challenge_method: "S256",
-    resource: MCP_URL,
-  })) url.searchParams.set(k, v);
+  for (
+    const [k, v] of Object.entries({
+      response_type: "code",
+      client_id: reg.client_id,
+      redirect_uri: REDIRECT,
+      state,
+      code_challenge: b64url(createHash("sha256").update(verifier).digest()),
+      code_challenge_method: "S256",
+      resource: MCP_URL,
+    })
+  ) url.searchParams.set(k, v);
 
   // 클라이언트의 loopback callback 서버 대신 그 요청을 가로채 code를 받는다.
   let callback: URL | null = null;
@@ -60,8 +62,11 @@ export async function mcpTokenViaConsent(page: Page): Promise<string> {
   const authorization = await fetch(url, { redirect: "manual" });
   await authorization.body?.cancel();
   const consent = new URL(authorization.headers.get("location") ?? "", SUPABASE);
-  if (!/^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/.test(appOrigin) ||
-      consent.protocol !== "http:" || !["127.0.0.1", "localhost"].includes(consent.hostname) || consent.pathname !== "/oauth/consent") {
+  if (
+    !/^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/.test(appOrigin) ||
+    consent.protocol !== "http:" || !["127.0.0.1", "localhost"].includes(consent.hostname) ||
+    consent.pathname !== "/oauth/consent"
+  ) {
     throw new Error("Expected local OAuth consent redirect");
   }
   await page.goto(new URL(`${consent.pathname}${consent.search}`, appOrigin).href);
@@ -91,12 +96,16 @@ export async function mcpTokenViaConsent(page: Page): Promise<string> {
 export async function mcpClient(token: string) {
   const client = new Client({ name: "e2e-agent", version: "0.0.0" });
   await client.connect(
-    new StreamableHTTPClientTransport(new URL(MCP_URL), { requestInit: { headers: { authorization: `Bearer ${token}` } } }),
+    new StreamableHTTPClientTransport(new URL(MCP_URL), {
+      requestInit: { headers: { authorization: `Bearer ${token}` } },
+    }),
   );
   return {
     async call(name: string, args: Record<string, unknown>) {
-      const writing=/^(create_|update_|delete_|rename_|rekey_|complete_|stop_|resume_|record_occurrence$)/.test(name);
-      if(writing && !("request_key" in args)) args={...args,request_key:crypto.randomUUID()};
+      const writing =
+        /^(create_|update_|delete_|rename_|rekey_|complete_|stop_|resume_|analyze_|apply_|start_|cancel_|retry_|record_occurrence$)/
+          .test(name);
+      if (writing && !("request_key" in args)) args = { ...args, request_key: crypto.randomUUID() };
       const res = await client.callTool({ name, arguments: args });
       if (res.isError) throw new Error(`${name} 실패: ${JSON.stringify(res.structuredContent)}`);
       return res.structuredContent as Record<string, any>;
