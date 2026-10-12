@@ -50,7 +50,7 @@ test("읽기·검색·네 탭 이동·상세 닫기는 계정 기록 원문과 �
     await expect(page.getByRole("heading", { name: "할 일", level: 1 })).toBeVisible();
     const navigation = page.getByRole("navigation", { name: "주 메뉴" });
     const navigateBuiltin = async (path: string) => {
-      await navigation.getByRole("button", { name: "내 프로필", exact: true }).click();
+      await navigation.getByRole("button", { name: /^내 프로필(?: · .+)?$/, exact: true }).click();
       await page.locator(`#nav-profile-options a[href="${path}"]`).click();
     };
     for (const [name, path] of [["전체 자료", "/entities"], ["할 일", "/tasks"], ["기록", "/records"], ["원칙", "/principles/current"]]) {

@@ -3,7 +3,7 @@ import postgres from "postgres";
 import { admin, call, httpTest, signIn } from "../http/_client.ts";
 import { connectMcp, mcpToken, tool } from "./_mcp.ts";
 import { compileMigration } from "../../functions/_shared/core/entity-types/conversions.ts";
-import { prepareMigrationBatch } from "../../functions/_shared/adapters/http/schema-migration-preparation.ts";
+import { prepareMigrationBatch } from "../../functions/_shared/core/entity-types/migration-preparation.ts";
 import { SEARCH_PIPELINE } from "../../functions/_shared/core/search/config.ts";
 httpTest(
   "migration jobs HTTP/MCP: fixed 202 acceptance replay, owner reads, cancel/retry versions and same-key replay after success",

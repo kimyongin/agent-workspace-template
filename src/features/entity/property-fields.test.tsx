@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
-import { PropertyFields } from "./property-fields.tsx";
+import { PropertyFields, propertyValues } from "./property-fields.tsx";
 import { initialEntityDefinition } from "@contracts/entity-type.ts";
 describe("schema form public presentation", () => {
   it("renders labels and three boolean states while preserving zero", () => {
@@ -54,4 +54,12 @@ it("archived arbitrary stored text cannot resolve inherited option labels", () =
     );
     expect(html).toContain(value);
   }
+});
+
+it("property drafts reject a rounded numeric value while preserving the draft", () => {
+  const definition = initialEntityDefinition("이름");
+  definition.schema.properties.prop_2 = { type: "number", title: "수량" };
+  const values = { prop_1: "이름", prop_2: "1.0000000000000001" };
+  expect(() => propertyValues(definition, values)).toThrow();
+  expect(values.prop_2).toBe("1.0000000000000001");
 });

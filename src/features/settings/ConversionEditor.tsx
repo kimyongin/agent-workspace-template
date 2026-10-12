@@ -63,12 +63,13 @@ function Literal({ field, value, onChange }: { field: EntityField; value: unknow
             className="input"
             aria-label="보완값"
             value={String(value ?? "")}
-            type={field.format === "date" ? "date" : scalar === "number" || scalar === "integer" ? "number" : "text"}
+            type={field.format === "date" ? "date" : "text"}
+            inputMode={scalar === "number" || scalar === "integer" ? "decimal" : undefined}
             step="any"
             onChange={(e) =>
               onChange(
                 scalar === "number" || scalar === "integer"
-                  ? e.target.value === "" ? "" : Number(e.target.value)
+                  ? e.target.value
                   : e.target.value,
               )}
           />
@@ -148,7 +149,7 @@ export function ConversionEditor(
           {[
             ...new Set([
               ...plan.target.display.order,
-              ...plan.diff.filter((d) => d.after_present === false && /^schema.properties.prop_/.test(d.path)).map(
+              ...plan.diff.filter((d) => d.after_present === false && /^properties\.(prop_[1-9][0-9]*)$/.test(d.path)).map(
                 (d) => d.path.split(".").at(-1)!,
               ),
             ]),

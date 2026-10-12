@@ -28,6 +28,9 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
     [type, setType] = useState<EntityType | null>(null),
     [schema, setSchema] = useState<EntitySchemaVersion | null>(null),
     [history, setHistory] = useState<EntitySchemaVersionSummary[]>([]);
+  const [historyBefore, setHistoryBefore] = useState<number | null>(null);
+  const [historyBusy, setHistoryBusy] = useState(false);
+  const historyPending = useRef<AbortController | null>(null);
   const [label, setLabel] = useState(""),
     [icon, setIcon] = useState("box"),
     [representative, setRepresentative] = useState("이름"),
@@ -72,7 +75,7 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
       const [saved, definition, versions] = await Promise.all([
         api<EntityType>("GET", `/entity-types/${type_id}`, undefined, signal),
         api<EntitySchemaVersion>("GET", `/entity-types/${type_id}/schema`, undefined, signal),
-        api<{ items: EntitySchemaVersionSummary[] }>("GET", `/entity-types/${type_id}/schemas`, undefined, signal),
+        api<{ items: EntitySchemaVersionSummary[]; next_before: number | null }>("GET", `/entity-types/${type_id}/schemas`, undefined, signal),
       ]);
       signal?.throwIfAborted();
       if (!mounted.current) return;
@@ -82,6 +85,7 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
       setArchived(saved.archived);
       setSchema(definition);
       setHistory(versions.items);
+      setHistoryBefore(versions.next_before ?? null);
     } else {
       const saved = await api<{ items: EntityType[] }>("GET", "/entity-types?include_archived=true", undefined, signal);
       signal?.throwIfAborted();
@@ -102,6 +106,23 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
     });
     return () => controller.abort();
   }, [type_id]);
+  const readHistoryPage = async () => {
+    if (historyBusy || historyBefore === null || !type_id) return;
+    const controller = new AbortController();
+    historyPending.current?.abort();
+    historyPending.current = controller;
+    setHistoryBusy(true);
+    setError("");
+    try {
+      const page = await api<{ items: EntitySchemaVersionSummary[]; next_before: number | null }>("GET", `/entity-types/${type_id}/schemas?before=${historyBefore}`, undefined, controller.signal);
+      if (!controller.signal.aborted && mounted.current) {
+        setHistory((items) => [...items, ...page.items.filter((row) => !items.some((item) => item.schema_version === row.schema_version))]);
+        setHistoryBefore(page.next_before);
+      }
+    } catch (e) { if (!controller.signal.aborted && mounted.current) setError(e instanceof Error ? e.message : "이전 게시 버전을 읽지 못했습니다."); }
+    finally { if (!controller.signal.aborted && mounted.current) setHistoryBusy(false); }
+  };
+  useEffect(() => () => historyPending.current?.abort(), []);
   const retryRead = async () => {
     if (loading || busy) return;
     setLoading(true);
@@ -338,6 +359,7 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
               </button>
             </details>
           ))}
+          {historyBefore !== null && <button className="btn" disabled={historyBusy} onClick={() => void readHistoryPage()}>{historyBusy ? "이전 버전 읽는 중…" : "이전 게시 버전 더 보기"}</button>}
         </section>
       )}
       <ConfirmDialog

@@ -45,7 +45,7 @@ import { compileMigration } from "../../functions/_shared/core/entity-types/conv
 import {
   type MigrationWorkerBatch,
   prepareMigrationBatch,
-} from "../../functions/_shared/adapters/http/schema-migration-preparation.ts";
+} from "../../functions/_shared/core/entity-types/migration-preparation.ts";
 import { SEARCH_PIPELINE } from "../../functions/_shared/core/search/config.ts";
 import { AppError } from "../../functions/_shared/core/shared/errors.ts";
 import type { EntityTypeDeps } from "../../functions/_shared/core/entity-types/application.ts";

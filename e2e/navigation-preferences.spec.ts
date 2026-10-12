@@ -46,7 +46,7 @@ test("personal navigation partial save survives reload and login without changin
     await page.reload();
     await expect(page.getByRole("navigation", { name: "주 메뉴", exact: true }).locator(".bottom-nav-inner > a"))
       .toHaveText(["☆원칙", "⚒할 일"]);
-    await page.getByRole("button", { name: "내 프로필", exact: true }).click();
+    await page.getByRole("button", { name: /^내 프로필(?: · .+)?$/, exact: true }).click();
     await page.locator("#nav-profile-options").getByRole("link", { name: "로그아웃", exact: true }).click();
     await expect(page.getByRole("heading", { name: "로그인", exact: true })).toBeVisible();
     await devLogin(page);

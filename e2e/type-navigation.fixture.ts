@@ -73,7 +73,7 @@ test("typed shortcut and profile access preserve canonical list filters and Back
   expect(new URL(page.url()).searchParams.has("pages")).toBe(false);
   await page.goBack();
   await expect(page.getByLabel("자료 종류", { exact: true })).toHaveValue(materials.id);
-  await page.getByRole("button", { name: "내 프로필", exact: true }).click();
+  await page.getByRole("button", { name: /^내 프로필(?: · .+)?$/, exact: true }).click();
   await expect(page.locator("#nav-profile-options").getByRole("link", { name: "원칙", exact: true })).toBeVisible();
   await page.locator("#nav-profile-options").getByRole("link", { name: "전체 자료", exact: true }).click();
   await expect(page.getByRole("heading", { name: "전체 자료", level: 1 })).toBeVisible();
@@ -115,7 +115,7 @@ test("settings identity route keeps drafts and treats settings as account locati
   await expect(page.getByLabel("발급처 1 이름")).toHaveCount(0);
   await page.getByRole("link", { name: "자료 식별자·발급처", exact: true }).click();
   await expect(page).toHaveURL(/\/settings\/entity-identity$/);
-  await expect(page.getByRole("button", { name: "내 프로필", exact: true })).toHaveAttribute("data-current", "true");
+  await expect(page.getByRole("button", { name: /^내 프로필(?: · .+)?$/, exact: true })).toHaveAttribute("data-current", "true");
   await page.getByLabel("발급처 1 이름").fill("식별자 초안");
   await page.getByRole("link", { name: "설정", exact: true }).click();
   await page.getByRole("dialog", { name: "변경을 버릴까요?" }).getByRole("button", { name: "취소", exact: true })
@@ -150,7 +150,7 @@ test("0, 1, and many active types expose fixed account and all business paths", 
   await page.getByLabel("자료 종류 검색", { exact: true }).fill("추가 종류 7");
   await page.getByLabel("자료 종류", { exact: true }).selectOption(items[9].id);
   await expect(page.getByRole("heading", { name: "추가 종류 7", level: 1 })).toBeVisible();
-  await page.getByRole("button", { name: "내 프로필", exact: true }).click();
+  await page.getByRole("button", { name: /^내 프로필(?: · .+)?$/, exact: true }).click();
   const menu = page.locator("#nav-profile-options");
   await menu.getByRole("searchbox", { name: "자료 종류 검색", exact: true }).fill("긴한국어");
   await expect(menu.getByRole("link", { name: items[11].label, exact: true })).toHaveCount(1);
@@ -159,7 +159,7 @@ test("0, 1, and many active types expose fixed account and all business paths", 
   expect(box!.y).toBeGreaterThanOrEqual(0);
   expect(box!.y + box!.height).toBeLessThanOrEqual(await page.evaluate(() => innerHeight));
   await page.keyboard.press("Escape");
-  await expect(page.getByRole("button", { name: "내 프로필", exact: true })).toBeFocused();
+  await expect(page.getByRole("button", { name: /^내 프로필(?: · .+)?$/, exact: true })).toBeFocused();
 });
 
 test("short layouts and enlarged long labels keep controls inside viewport", async ({ page }) => {
@@ -184,10 +184,10 @@ test("short layouts and enlarged long labels keep controls inside viewport", asy
     expect(size[0]).toBeGreaterThanOrEqual(44);
     expect(size[1]).toBeGreaterThanOrEqual(44);
   }
-  await page.getByRole("button", { name: "내 프로필", exact: true }).click();
+  await page.getByRole("button", { name: /^내 프로필(?: · .+)?$/, exact: true }).click();
   await page.locator("#nav-profile-options").getByRole("link", { name: "로그아웃", exact: true }).focus();
   await page.keyboard.press("Escape");
-  await expect(page.getByRole("button", { name: "내 프로필", exact: true })).toBeFocused();
+  await expect(page.getByRole("button", { name: /^내 프로필(?: · .+)?$/, exact: true })).toBeFocused();
 });
 
 test("a late old type list cannot replace current rows", async ({ page }) => {
@@ -391,4 +391,27 @@ test("typed management link remains type scoped while a returned list catalog is
   } finally {
     release();
   }
+});
+
+test("definition history reads the cursor beyond the first hundred versions and opens the oldest diff", async ({ page }) => {
+  const cursors: (string | null)[] = [];
+  await page.route(`**/api/entity-types/${material.id}**`, route => {
+    const url = new URL(route.request().url());
+    if (url.pathname.endsWith("/schemas")) {
+      const before = url.searchParams.get("before"); cursors.push(before);
+      const versions = before ? [1] : Array.from({ length: 100 }, (_, n) => 101 - n);
+      return route.fulfill({ json: { items: versions.map(schema_version => ({ type_id: material.id, schema_version, created_at: material.created_at })), next_before: before ? null : 2 } });
+    }
+    if (url.pathname.endsWith("/schema")) return route.fulfill({ json: { type_id: material.id, schema_version: Number(url.searchParams.get("schema_version") ?? 101), created_at: material.created_at, ...initialEntityDefinition("이름") } });
+    return route.fulfill({ json: { ...material, schema_version: 101 } });
+  });
+  await page.goto(`/settings/entity-types/${material.id}/versions`);
+  await expect(page.getByRole("button", { name: "이전 게시 버전 더 보기", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "이전 게시 버전 더 보기", exact: true }).click();
+  const oldest = page.locator("details").filter({ has: page.locator("summary", { hasText: /^버전 1 ·/ }) });
+  await oldest.locator("summary").click();
+  await oldest.getByRole("button", { name: "이 버전 보기", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "버전 1 → 101 차이", exact: true })).toBeVisible();
+  expect(cursors).toEqual([null, "2"]);
+  await expect(page.getByRole("button", { name: "이전 게시 버전 더 보기", exact: true })).toHaveCount(0);
 });

@@ -1,3 +1,4 @@
+import { migrationNumericValues, schemaNumericValues } from "./numeric-drafts.ts";
 import { MigrationStart } from "./SchemaMigrationJobs.tsx";
 import { recoveryErrorMessage } from "./SchemaRecovery.tsx";
 import { Link, useLocation } from "react-router";
@@ -35,6 +36,7 @@ export function SchemaEditor(
   const [plan, setPlan] = useState<EntitySchemaChange | null>(null),
     [changes, setChanges] = useState<EntitySchemaChangeSummary[]>([]),
     [refs, setRefs] = useState<Record<string, string>>({});
+  const [numericDrafts, setNumericDrafts] = useState<Record<string, string>>({});
   const [migration, setMigration] = useState<MigrationPlan>({ rules: [], overrides: [] });
   const [acceptedAnalysis, setAcceptedAnalysis] = useState<string | null>(null);
   const [error, setError] = useState(""),
@@ -42,7 +44,7 @@ export function SchemaEditor(
     [readBusy, setReadBusy] = useState(false);
   const { attempt, busy, uncertain } = useWriteAttempt();
   const mounted = useRef(true);
-  const dirty = JSON.stringify(draft) !== JSON.stringify(saved) ||
+  const dirty = Object.keys(numericDrafts).length > 0 || JSON.stringify(draft) !== JSON.stringify(saved) ||
     JSON.stringify(migration) !== JSON.stringify(plan?.migration ?? { rules: [], overrides: [] });
   useEffect(() => {
     onState({ dirty, busy, uncertain });
@@ -55,6 +57,7 @@ export function SchemaEditor(
     };
   }, []);
   useEffect(() => {
+    setNumericDrafts({});
     setDraft(clone(definition));
     setSaved(clone(definition));
     setPlan(null);
@@ -97,6 +100,9 @@ export function SchemaEditor(
   }, [plan?.id, plan?.status, acceptedAnalysis]);
   const setField = (key: string, field: EntityField) =>
     setDraft((d) => ({ ...d, schema: { ...d.schema, properties: { ...d.schema.properties, [key]: field } } }));
+  const setNumericField = (key: string, name: "minLength" | "maxLength" | "minimum" | "maximum" | "default", raw: string) => {
+    setNumericDrafts((values) => ({ ...values, [key + ":" + name]: raw }));
+  };
   const flag = (key: string, name: "required" | "archived" | "list_columns", value: boolean) =>
     setDraft((d) => {
       if (name === "required") {
@@ -118,7 +124,7 @@ export function SchemaEditor(
         },
       };
     });
-  const edits = (): SchemaEdit[] => {
+  const edits = (draft: SchemaDefinition): SchemaEdit[] => {
     const result: SchemaEdit[] = [];
     for (const [key, field] of Object.entries(draft.schema.properties)) {
       const required = draft.schema.required.includes(key);
@@ -159,17 +165,23 @@ export function SchemaEditor(
     if (busy) return;
     setError("");
     setMessage("");
-    const payload = action === "save"
+    let payload;
+    try {
+      payload = action === "save"
       ? {
         expected_type_version: type.version,
         expected_schema_version: definition.schema_version,
-        edits: edits(),
-        migration,
+        edits: edits(schemaNumericValues(draft, numericDrafts)),
+        migration: migrationNumericValues(plan?.target ?? draft, migration),
         ...(plan ? { expected_change_version: plan.version } : {}),
       }
       : action === "apply"
       ? { expected_change_version: plan!.version, analysis_id: plan!.analysis!.id }
       : { expected_change_version: plan!.version };
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "숫자를 확인하세요.");
+      return;
+    }
     const path = action === "save" ? (plan ? `${base}/${plan.id}` : base) : `${base}/${plan!.id}/${action}`;
     try {
       await attempt.run(async () => {
@@ -194,6 +206,7 @@ export function SchemaEditor(
         if (action === "save") {
           setAcceptedAnalysis(null);
           setDraft(clone(value.target));
+          setNumericDrafts({});
           setSaved(clone(value.target));
           setRefs(Object.fromEntries(Object.entries(value.reservations).map(([ref, key]) => [key, ref])));
           setMessage("변경 초안을 저장했습니다. 영향 분석을 실행하세요.");
@@ -221,6 +234,7 @@ export function SchemaEditor(
       setPlan(fresh);
       setMigration(fresh.migration);
       setDraft(clone(fresh.target));
+      setNumericDrafts({});
       setSaved(clone(fresh.target));
       setRefs(Object.fromEntries(Object.entries(fresh.reservations).map(([ref, key]) => [key, ref])));
     } catch (e) {
@@ -238,6 +252,7 @@ export function SchemaEditor(
       setPlan(fresh);
       setMigration(fresh.migration);
       setDraft(clone(fresh.target));
+      setNumericDrafts({});
       setSaved(clone(fresh.target));
       setRefs(Object.fromEntries(Object.entries(fresh.reservations).map(([ref, key]) => [key, ref])));
     }).catch((e) => setError(e.message)).finally(() => setReadBusy(false));
@@ -348,12 +363,13 @@ export function SchemaEditor(
                         <input
                           {...p}
                           className="input"
-                          type="number"
+                          type="text"
+                          inputMode="decimal"
                           min={0}
                           max={4096}
-                          value={f[name] ?? ""}
+                          value={numericDrafts[key + ":" + name] ?? f[name] ?? ""}
                           onChange={(e) =>
-                            setField(key, { ...f, [name]: e.target.value === "" ? undefined : Number(e.target.value) })}
+                            setNumericField(key, name, e.target.value)}
                         />
                       )}
                     </Field>
@@ -368,11 +384,12 @@ export function SchemaEditor(
                         <input
                           {...p}
                           className="input"
-                          type="number"
+                          type="text"
+                          inputMode="decimal"
                           step="any"
-                          value={f[name] ?? ""}
+                          value={numericDrafts[key + ":" + name] ?? f[name] ?? ""}
                           onChange={(e) =>
-                            setField(key, { ...f, [name]: e.target.value === "" ? undefined : Number(e.target.value) })}
+                            setNumericField(key, name, e.target.value)}
                         />
                       )}
                     </Field>
@@ -498,15 +515,13 @@ export function SchemaEditor(
                           type={f.format === "date"
                             ? "date"
                             : ["integer", "number"].includes(scalar)
-                            ? "number"
+                            ? "text"
                             : "text"}
                           step="any"
-                          value={String(f.default)}
-                          onChange={(e) =>
-                            setField(key, {
-                              ...f,
-                              default: ["integer", "number"].includes(scalar) ? Number(e.target.value) : e.target.value,
-                            })}
+                          value={numericDrafts[key + ":default"] ?? String(f.default)}
+                          onChange={(e) => ["integer", "number"].includes(scalar)
+                            ? setNumericField(key, "default", e.target.value)
+                            : setField(key, { ...f, default: e.target.value })}
                         />
                       )}
                 </Field>
@@ -721,6 +736,7 @@ export function SchemaEditor(
                 setMigration({ rules: [], overrides: [] });
                 setRefs({});
                 setDraft(clone(definition));
+                setNumericDrafts({});
                 setSaved(clone(definition));
               }}
             >

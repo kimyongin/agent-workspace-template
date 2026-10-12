@@ -21,7 +21,7 @@ test.beforeEach(async ({ page, isMobile }) => {
 });
 async function settings(page: Page) {
   const inert=await page.locator("dialog.modal:not(.modal-confirm)[open]").count()>0;
-  const profile=page.getByRole("button",{name:"내 프로필",exact:true});
+  const profile=page.getByRole("button",{name:/^내 프로필(?: · .+)?$/,exact:true});
   // Native modal blocks physical background clicks. Invoke actual App handlers to probe route intents.
   if(await profile.getAttribute("aria-expanded")!=="true"){if(inert)await profile.evaluate((el:HTMLButtonElement)=>el.click());else await profile.click();}
   const link=page.getByRole("link",{name:"설정",exact:true});
@@ -161,7 +161,7 @@ test("실제 App 태그 폐기 승인 뒤에만 로그아웃 요청하고 로그
   await settings(page); await page.getByRole("dialog", { name: "변경을 버릴까요?" }).getByRole("button", { name: "변경 버리기" }).click();
   await expect(page).toHaveURL(/\/settings$/); expect(signOuts).toBe(0);
   // 새 위치의 로그아웃도 미저장 선택의 취소/승인을 지켜야 한다.
-  await page.getByRole("radio", { name: "별", exact: true }).check(); await page.getByRole("button", { name: "내 프로필", exact: true }).click(); await page.getByRole("link", { name: "로그아웃", exact: true }).click();
+  await page.getByRole("radio", { name: "별", exact: true }).check(); await page.getByRole("button", { name: /^내 프로필(?: · .+)?$/, exact: true }).click(); await page.getByRole("link", { name: "로그아웃", exact: true }).click();
   await page.getByRole("dialog", { name: "변경을 버릴까요?" }).getByRole("button", { name: "취소", exact: true }).click();
   await expect(page.getByRole("radio", { name: "별", exact: true })).toBeChecked(); expect(signOuts).toBe(0);
   await page.getByRole("link", { name: "로그아웃", exact: true }).click();
