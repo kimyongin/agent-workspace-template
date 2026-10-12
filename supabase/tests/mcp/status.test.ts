@@ -7,7 +7,10 @@ httpTest("status: actual authenticated HTTP/OAuth MCP readonly parity, strict in
   const token = await signIn("A"), client = await connectMcp(await mcpToken(token));
   try {
     const names = (await client.listTools()).tools.map((t) => t.name);
-    assertEquals(names.length, 35);
+    assertEquals(names.length, 58);
+    for (const name of ["list_entity_links", "link_entities", "unlink_entities"]) {
+      assertEquals(names.includes(name), true);
+    }
     assertEquals(names.includes("rekey_entity"), false);
     assertEquals(names.includes("get_record_index_effects"), false);
     const http = await call(token, "GET", "/status/indexing/issues");

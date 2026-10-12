@@ -1,7 +1,7 @@
 import { openListDetail, closeDetail } from "./ui-actions.ts";
 import { createHash } from "node:crypto";
-import { expect, test } from "@playwright/test";
-import { devLogin, mcpClient, mcpTokenViaConsent, unique } from "./support.ts";
+import { expect } from "@playwright/test";
+import { test, devLogin, mcpClient, mcpTokenViaConsent, unique } from "./support.ts";
 
 // Actual OAuth/owner API evidence. Run serially with the other DEV_USER_A tests.
 test("읽기·검색·네 탭 이동·상세 닫기는 계정 기록 원문과 개수를 바꾸지 않는다", async ({ page }, info) => {
@@ -49,15 +49,18 @@ test("읽기·검색·네 탭 이동·상세 닫기는 계정 기록 원문과 �
     await page.goto("/tasks");
     await expect(page.getByRole("heading", { name: "할 일", level: 1 })).toBeVisible();
     const navigation = page.getByRole("navigation", { name: "주 메뉴" });
-    await expect(navigation.getByRole("link")).toHaveCount(4);
-    for (const [name, path] of [["엔터티", "/entities"], ["할 일", "/tasks"], ["기록", "/records"], ["원칙", "/principles/current"]]) {
+    const navigateBuiltin = async (path: string) => {
+      await navigation.getByRole("button", { name: /^내 프로필(?: · .+)?$/, exact: true }).click();
+      await page.locator(`#nav-profile-options a[href="${path}"]`).click();
+    };
+    for (const [name, path] of [["전체 자료", "/entities"], ["할 일", "/tasks"], ["기록", "/records"], ["원칙", "/principles/current"]]) {
       const response = page.waitForResponse(response => response.request().method() === "GET" && new URL(response.url()).pathname.endsWith(path));
-      await navigation.getByRole("link", { name, exact: true }).click();
+      await navigateBuiltin(name === "원칙" ? "/principles" : path);
       const read = await response;
       expect(read.ok()).toBe(true);await read.finished();
       await expect(page.getByRole("heading", { name, level: 1 })).toBeVisible();
     }
-    await navigation.getByRole("link", { name: "기록", exact: true }).click();
+    await navigateBuiltin("/records");
     await expect(page.getByLabel("검색 방식", { exact: true })).toHaveCount(0);
     const search = page.waitForResponse(response => response.request().method() === "POST" && new URL(response.url()).pathname.endsWith("/search"));
     await page.getByLabel("검색어", { exact: true }).fill(title);

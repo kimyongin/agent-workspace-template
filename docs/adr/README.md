@@ -24,6 +24,8 @@
 
 | [0019](0019-pk-based-data-id-generation.md) | 테이블 PK 기반 서버 ID 생성 | 채택 |
 
+| [0020](0020-typed-entity-schema.md) | 자료 종류별 JSON Schema와 불변 게시 버전 | 설계 채택, 구현은 #343 |
+
 ## 문서의 책임
 
 ADR에는 결정·이유·대가를 담는다. 제품의 의미와 범위는 [PRD](../product/concept.md), 설계·개발 방법은 [Matt 스킬](../development/matt-skills.md)이 담당한다. 번호는 재사용하지 않는다. 합의한 변경과 과거 근거는 Git/GitHub에서 추적한다.

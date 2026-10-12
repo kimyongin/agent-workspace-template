@@ -1,6 +1,7 @@
 import { assertEquals } from "@std/assert";
 import { assert } from "@std/assert";
 import { call, httpTest, signIn } from "../http/_client.ts";
+import { httpEntityFixture } from "../http/_entity.ts";
 import { connectMcp, mcpToken, tool } from "./_mcp.ts";
 
 httpTest(
@@ -58,13 +59,15 @@ httpTest(
 );
 
 httpTest("OAuth MCP rejects missing request keys and client IDs/retired metadata/upsert tool", async () => {
-  const client = await connectMcp(await mcpToken(await signIn("A")));
+  const session = await signIn("A");
+  const schema = await httpEntityFixture(session);
+  const client = await connectMcp(await mcpToken(session));
   try {
     const { tools } = await client.listTools();
     assertEquals(tools.some((t) => t.name === "save_current_principle"), false);
     for (
       const [name, content] of [
-        ["create_entity", { prop1: "입력 거부" }],
+        ["create_entity", { ...schema, properties: { prop_1: "입력 거부" } }],
         ["create_task", { kind: "once", title: "입력 거부" }],
         ["create_record", { body: "입력 거부" }],
         ["create_principle", { title: "입력 거부" }],

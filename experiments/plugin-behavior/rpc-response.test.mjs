@@ -13,7 +13,7 @@ test('JSON and SSE yield the same correlated public reply before fault injection
   assert.equal((await readRpcReply(chunked, 7)).result.structuredContent.body, '소유');
   for (const response of [json, sse]) {
     const adapter = savingFaultAdapter('save-response-loss');
-    const rpc = { jsonrpc: '2.0', id: 7, method: 'tools/call', params: { name: 'create_record', arguments: { title: 'owned', id: 'same' } } };
+    const rpc = { jsonrpc: '2.0', id: 7, method: 'tools/call', params: { name: 'create_record', arguments: { body: 'owned', request_key: '00000000-0000-4000-8000-000000000001' } } };
     assert.equal((await adapter.call(rpc, () => readRpcReply(response(), rpc.id))).result.isError, true);
     assert.equal(adapter.evidence().injected, 1);
     assert.equal(adapter.evidence().upstreamMutations, 1);
@@ -32,4 +32,19 @@ test('malformed, unmatched, oversized or stalled SSE cannot stand in for a tool 
   canceled = false; control.abort();
   await assert.rejects(readRpcReply(external, 7, { signal: control.signal }));
   assert.equal(canceled, true);
+});
+
+test('valid large entity pages survive JSON and SSE text plus structured MCP envelopes', async () => {
+  // Five valid 4096-character Korean fields fit the 64 KiB properties contract.
+  const properties = Object.fromEntries(Array.from({ length: 5 }, (_, i) => [`prop_${i + 1}`, '한'.repeat(4096)]));
+  const page = { items: Array.from({ length: 100 }, (_, i) => ({ id: `app:${i}`, display_properties: properties })), next_cursor: 'remaining-page' };
+  const large = { jsonrpc: '2.0', id: 7, result: { content: [{ type: 'text', text: JSON.stringify(page) }], structuredContent: page } };
+  assert.ok(Buffer.byteLength(JSON.stringify(large)) > 1048576);
+  for (const [type, body] of [['application/json', JSON.stringify(large)], ['text/event-stream', `event: message\ndata: ${JSON.stringify(large)}\n\n`]]) {
+    const actual = await readRpcReply(new Response(body, { headers: { 'content-type': type } }), 7);
+    assert.equal(actual.result.structuredContent.items.length, 100);
+    assert.equal(actual.result.structuredContent.items[99].display_properties.prop_5, '한'.repeat(4096));
+    assert.equal(actual.result.structuredContent.next_cursor, 'remaining-page');
+    assert.deepEqual(JSON.parse(actual.result.content[0].text), page);
+  }
 });

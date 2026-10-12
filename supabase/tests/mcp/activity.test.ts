@@ -1,3 +1,19 @@
+import {
+  schemaMigrationAction,
+  schemaMigrationList,
+  schemaMigrationStart,
+  schemaRecoveryCreate,
+} from "../../functions/_shared/contracts/entity-schema-migration.ts";
+import { entityPairQuery, entityPairWrite } from "../../functions/_shared/contracts/entity-pairs.ts";
+import { entityReferenceId } from "../../functions/_shared/contracts/entity-identity.ts";
+import {
+  schemaAnalysisRows,
+  schemaChangeAction,
+  schemaChangeApply,
+  schemaChangeCreate,
+  schemaChangeList,
+  schemaChangeUpdate,
+} from "../../functions/_shared/contracts/entity-schema-change.ts";
 import { requestKey } from "../../functions/_shared/contracts/request.ts";
 // MCP 계약 테스트: 실제 OAuth 토큰과 공식 MCP 클라이언트로 도구를 호출하고, HTTP와 결과·오류 의미가 같은지 본다.
 import { assert, assertEquals } from "@std/assert";
@@ -22,6 +38,14 @@ import {
 } from "../../functions/_shared/contracts/task.ts";
 import { admin, API, call, httpTest, seoulDate, signIn } from "../http/_client.ts";
 import { claimsOf, connectMcp, MCP_URL, mcpGrant, mcpToken, refreshMcp, registerClient, tool } from "./_mcp.ts";
+import { httpEntityFixture } from "../http/_entity.ts";
+import {
+  entitySchemaHistory,
+  entitySchemaRead,
+  entityTypeCreate,
+  entityTypeList,
+  entityTypeUpdate,
+} from "../../functions/_shared/contracts/entity-type.ts";
 
 const sessionA = await signIn("A");
 const sessionB = await signIn("B");
@@ -70,7 +94,10 @@ httpTest("일반 할 일 메모와 제목 검색은 HTTP/MCP에서 같고 다른
 
 httpTest("기록 HTTP 편집·MCP 재시도는 추가 로그 없이 최신 메모·사건을 보존한다", async () => {
   const record = await tool(mcpA, "create_record", { body: crypto.randomUUID() });
-  const entity = await tool(mcpA, "create_entity", { prop1: "메모 편집 근거" });
+  const entity = await tool(mcpA, "create_entity", {
+    ...await httpEntityFixture(sessionA),
+    properties: { prop_1: "메모 편집 근거" },
+  });
   const historyBefore = await tool(mcpA, "list_records", { record_kind: "change", limit: 100 });
   const event = historyBefore.items.find((r: { change?: { target_id: string } }) => r.change?.target_id === entity.id);
   assert(event);
@@ -158,6 +185,29 @@ const EXPECTED_TOOLS = [
   "get_entity",
   "list_entities",
   "update_entity",
+  "list_entity_links",
+  "link_entities",
+  "unlink_entities",
+  "list_entity_type_icons",
+  "list_entity_types",
+  "get_entity_type",
+  "create_entity_type",
+  "update_entity_type",
+  "get_entity_schema",
+  "list_entity_schema_versions",
+  "create_entity_schema_change",
+  "get_entity_schema_change",
+  "list_entity_schema_changes",
+  "update_entity_schema_change",
+  "analyze_entity_schema_change",
+  "apply_entity_schema_change",
+  "list_entity_schema_analysis_rows",
+  "start_entity_schema_migration",
+  "get_entity_schema_migration",
+  "list_entity_schema_migrations",
+  "cancel_entity_schema_migration",
+  "retry_entity_schema_migration",
+  "create_entity_schema_recovery",
   "complete_task",
   "create_principle",
   "create_record",
@@ -463,6 +513,56 @@ httpTest("tools/list: 계약의 도구 이름과 contracts JSON Schema", async (
   assertEquals(tools.find((t) => t.name === "delete_principle")?.annotations?.destructiveHint, true);
   assertEquals(tools.map((t) => t.name).sort(), EXPECTED_TOOLS);
   const byName = Object.fromEntries(tools.map((t) => [t.name, t]));
+  const foundationContracts = {
+    list_entity_links: entityPairQuery.extend({ id: entityReferenceId }),
+    link_entities: entityPairWrite.extend({ id: entityReferenceId, request_key: requestKey }),
+    unlink_entities: entityPairWrite.extend({ id: entityReferenceId, request_key: requestKey }),
+    list_entity_type_icons: z.strictObject({}),
+    list_entity_types: entityTypeList,
+    get_entity_type: z.strictObject({ type_id: z.string().uuid() }),
+    create_entity_type: entityTypeCreate.extend({ request_key: requestKey }),
+    update_entity_type: entityTypeUpdate.safeExtend({ type_id: z.string().uuid(), request_key: requestKey }),
+    get_entity_schema: entitySchemaRead,
+    list_entity_schema_versions: entitySchemaHistory,
+    create_entity_schema_change: schemaChangeCreate.extend({ type_id: z.string().uuid(), request_key: requestKey }),
+    update_entity_schema_change: schemaChangeUpdate.extend({
+      type_id: z.string().uuid(),
+      change_id: z.string().uuid(),
+      request_key: requestKey,
+    }),
+    get_entity_schema_change: z.strictObject({ type_id: z.string().uuid(), change_id: z.string().uuid() }),
+    list_entity_schema_analysis_rows: schemaAnalysisRows.extend({
+      type_id: z.string().uuid(),
+      change_id: z.string().uuid(),
+    }),
+    start_entity_schema_migration: schemaMigrationStart.extend({
+      type_id: z.string().uuid(),
+      change_id: z.string().uuid(),
+      request_key: requestKey,
+    }),
+    create_entity_schema_recovery: schemaRecoveryCreate.extend({ job_id: z.string().uuid(), request_key: requestKey }),
+    get_entity_schema_migration: z.strictObject({ job_id: z.string().uuid() }),
+    list_entity_schema_migrations: schemaMigrationList,
+    cancel_entity_schema_migration: schemaMigrationAction.extend({
+      job_id: z.string().uuid(),
+      request_key: requestKey,
+    }),
+    retry_entity_schema_migration: schemaMigrationAction.extend({ job_id: z.string().uuid(), request_key: requestKey }),
+    list_entity_schema_changes: schemaChangeList.extend({ type_id: z.string().uuid() }),
+    analyze_entity_schema_change: schemaChangeAction.extend({
+      type_id: z.string().uuid(),
+      change_id: z.string().uuid(),
+      request_key: requestKey,
+    }),
+    apply_entity_schema_change: schemaChangeApply.extend({
+      type_id: z.string().uuid(),
+      change_id: z.string().uuid(),
+      request_key: requestKey,
+    }),
+  };
+  for (const [name, schema] of Object.entries(foundationContracts)) {
+    assertEquals(byName[name].inputSchema as unknown, z.toJSONSchema(schema, { target: "draft-2020-12", io: "input" }));
+  }
   // 목록·기록 입력은 contracts schema를 그대로 노출한다.
   assertEquals(
     byName.list_tasks.inputSchema as unknown,

@@ -1,5 +1,5 @@
-import { expect, test } from "@playwright/test";
-import { devLogin } from "./support.ts";
+import { expect } from "@playwright/test";
+import { test, devLogin } from "./support.ts";
 
 test("실제 계정 표시 저장·새로고침·다른 탭 반영 및 원래 설정 복원", async ({page, context}, info) => {
   await devLogin(page); await page.goto("/settings");
@@ -44,7 +44,7 @@ test("실제 계정 닉네임·이모지 저장·다른 탭·새로고침·기�
     const after=await page.evaluate(async()=>{const path="/src/lib/supabase.ts",{supabase}=await import(path);const {data,error}=await supabase.auth.getUser();if(error)throw error;return data.user!.user_metadata;});
     expect(after).toEqual({...before,workspace_nickname:targetName,workspace_avatar_id:targetIcon});
     await page.screenshot({path:info.outputPath("profile-settings.png"),fullPage:true});
-    await page.getByRole("button",{name:"내 프로필",exact:true}).click();const popup=page.locator("#nav-profile-options");await expect(popup).toContainText(targetName);await expect(popup).not.toContainText("@");
+    await page.getByRole("button",{name:/^내 프로필(?: · .+)?$/,exact:true}).click();const popup=page.locator("#nav-profile-options");await expect(popup).toContainText(targetName);await expect(popup).not.toContainText("@");
     await page.screenshot({path:info.outputPath("profile-popover.png")});
   } finally {
     await page.evaluate(async original=>{const path="/src/lib/supabase.ts",{supabase}=await import(path);const {error}=await supabase.auth.updateUser({data:{workspace_nickname:original.workspace_nickname??null,workspace_avatar_id:original.workspace_avatar_id??null}});if(error)throw error;},before);

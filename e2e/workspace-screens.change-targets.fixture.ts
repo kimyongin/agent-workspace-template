@@ -11,7 +11,7 @@ for (const kind of ["entity", "task"] as const) {
         const state = await fixtures(page),
           r = state.rows.records[0],
           targetId = kind === "entity" ? entityKey(1) : id(2);
-        state.rows.entities.push({ ...entity(5), prop1: "다른 연결 엔터티" });
+        state.rows.entities.push(entity(5, { prop_1: "다른 연결 엔터티" }));
         Object.assign(r, {
           record_kind: "change",
           task_id: id(2),
@@ -44,7 +44,7 @@ for (const kind of ["entity", "task"] as const) {
         }
         await page.setViewportSize({ width: 390, height: 844 });
         await go(page, `/records/${r.id}`);
-        const entities = form(page).getByRole("region", { name: "엔터티 (2개)", exact: true }),
+        const entities = form(page).getByRole("region", { name: "연결된 자료 (2개)", exact: true }),
           tasks = connectedTarget(page, "task");
         await expect(entities).toHaveCount(1);
         await expect(entities.locator(".related-item")).toHaveCount(2);

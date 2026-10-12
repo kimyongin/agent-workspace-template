@@ -13,6 +13,7 @@ import * as tag from "../../functions/_shared/core/tags/application.ts";
 import * as settings from "../../functions/_shared/core/settings/application.ts";
 import { taskCreate } from "../../functions/_shared/contracts/task.ts";
 import { entityCreate } from "../../functions/_shared/contracts/entity.ts";
+import { entityFixture } from "./_entity.ts";
 import { principleCreate } from "../../functions/_shared/contracts/principle.ts";
 import { recordCreate } from "../../functions/_shared/contracts/record.ts";
 import { tagCreate } from "../../functions/_shared/contracts/tag.ts";
@@ -117,11 +118,13 @@ dbTest(
   async () => {
     const f = await fixtureOwner(admin);
     try {
+      const schema = await entityFixture(admin, f.actor.userId);
       const savedSettings = await settings.getBusinessSettings(sd, f.actor, { id: "entity_identity" });
       const input = entityCreate.parse({
+        ...schema,
         source: savedSettings.settings.entity_identity!.default_source,
         settings_version: savedSettings.versions.entity_identity,
-        prop1: "auto",
+        properties: { prop_1: "auto" },
       });
       const createAttempt = keyed(f.actor);
       const auto = await entity.createEntity(ed, createAttempt, input);
@@ -136,21 +139,37 @@ dbTest(
       assertEquals(await entity.createEntity(ed, createAttempt, input), auto);
       await code(() => entity.createEntity(ed, keyed(f.actor), input), "settings_changed");
       await code(
-        () => entity.createEntity(ed, keyed(f.actor), entityCreate.parse({ prop1: "no explicit identity" })),
+        () =>
+          entity.createEntity(
+            ed,
+            keyed(f.actor),
+            entityCreate.parse({ ...schema, properties: { prop_1: "no explicit identity" } }),
+          ),
         "invalid_input",
       );
-      const explicitInput = entityCreate.parse({ source: "app", external_id: "000AbC", prop1: "external" });
+      const explicitInput = entityCreate.parse({
+        ...schema,
+        source: "app",
+        external_id: "000AbC",
+        properties: { prop_1: "external" },
+      });
       const explicitAttempt = keyed(f.actor);
       const explicit = await entity.createEntity(ed, explicitAttempt, explicitInput);
       assertEquals(explicit.id, "app:000AbC");
       const updated = await replay(
         f.actor,
-        (a) => entity.updateEntity(ed, a, explicit.id, { expected_version: 1, prop1: "updated" }),
+        (a) =>
+          entity.updateEntity(ed, a, explicit.id, {
+            schema_version: schema.schema_version,
+            expected_version: 1,
+            properties: { prop_1: "updated" },
+          }),
       );
       const rekeyed = await replay(
         f.actor,
         (a) =>
           entity.updateEntity(ed, a, explicit.id, {
+            schema_version: schema.schema_version,
             expected_version: updated.version,
             source: "app",
             external_id: "000XYZ",
@@ -161,12 +180,14 @@ dbTest(
       await replay(f.actor, (a) => entity.deleteEntity(ed, a, rekeyed.id, rekeyed.version));
       const deleted = await entity.getEntity(ed, f.actor, rekeyed.id);
       const restoreInput = entityCreate.parse({
+        ...schema,
+        properties: {},
         source: "app",
         external_id: "000XYZ",
         expected_version: deleted.version,
       });
       const restored = await replay(f.actor, (a) => entity.createEntity(ed, a, restoreInput));
-      assertEquals(restored.prop1, "updated");
+      assertEquals(restored.properties.prop_1, "updated");
       const nextSettings = {
         ...settingInput,
         expected_version: 1,
@@ -193,6 +214,7 @@ import { settingsTools } from "../../functions/_shared/adapters/mcp/settings-too
 dbTest("HTTP and MCP share canonical creation and settings payloads and reject retired allocation", async () => {
   const f = await fixtureOwner(admin);
   try {
+    const schema = await entityFixture(admin, f.actor.userId);
     const app = createHttpApp(
       ad,
       { basePath: "/api", allowedOrigins: [], token: {} as never },
@@ -217,7 +239,7 @@ dbTest("HTTP and MCP share canonical creation and settings payloads and reject r
       {
         path: "/entities",
         name: "create_entity",
-        input: { source: "app", external_id: "000Case", prop1: "cross entity" },
+        input: { ...schema, source: "app", external_id: "000Case", properties: { prop_1: "cross entity" } },
         status: 201,
       },
       {
@@ -327,15 +349,17 @@ dbTest(
   async () => {
     const f = await fixtureOwner(admin);
     try {
+      const schema = await entityFixture(admin, f.actor.userId);
       const entityIds: string[] = [];
       for (let n = 0; n < 100; n++) {
         const created = await entity.createEntity(
           ed,
           keyed(f.actor),
           entityCreate.parse({
+            ...schema,
             source: "app",
             external_id: `${n.toString().padStart(3, "0")}${"😀".repeat(197)}`,
-            prop1: "\u0001".repeat(100),
+            properties: { prop_1: "\u0001".repeat(100) },
           }),
         );
         entityIds.push(created.id);

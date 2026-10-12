@@ -173,7 +173,7 @@ export function activityTools(deps: activity.ActivityDeps): ToolDef[] {
     {
       name: "create_record",
       description:
-        "일반 기록을 작성한다. 선택적 task_id로 할 일에 연결해도 완료·회차 상태는 바뀌지 않는다. 엔터티 선택 생략 시 해당 할 일의 현재 연결을 담는다. 본문은 검색에 쓰이며 필요한 원칙 근거는 본문에 설명한다.",
+        "일반 기록을 작성한다. 선택적 task_id로 할 일에 연결해도 완료·회차 상태는 바뀌지 않는다. 자료 선택 생략 시 해당 할 일의 현재 연결을 담는다. 본문은 검색에 쓰이며 필요한 원칙 근거는 본문에 설명한다.",
       input: recordCreate,
       readOnly: false,
       handler: (args, actor) => activity.createRecord(deps, actor, parse(recordCreate, args)),

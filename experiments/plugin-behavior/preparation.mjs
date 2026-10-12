@@ -10,7 +10,7 @@ export async function readBusinessOriginals(call) {
   const state = { current: await call('get_current_principle', {}) };
   state.principles = state.current.current ? [state.current.current] : [];
   for (const kind of ['entities', 'tasks', 'records', 'tags']) {
-    const scopes = kind === 'tags' ? [{ scope: 'entity' }, { scope: 'activity' }] : [{}];
+    const scopes = kind === 'tags' ? [{ scope: 'entity' }, { scope: 'task' }, { scope: 'record' }] : [{}];
     const rows = [];
     for (const scope of scopes) {
       let cursor; const seen = new Set();

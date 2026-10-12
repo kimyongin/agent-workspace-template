@@ -283,7 +283,7 @@ test("다른 탭의 같은 계정 프로필 갱신은 미저장 선택·이동 �
   await expect(second.getByRole("radio", { name: "잎", exact: true })).toBeChecked();
   await expect(page.getByRole("radio", { name: "별", exact: true })).toBeChecked();
   await expect(page.getByRole("button", { name:"프로필 저장", exact: true })).toBeEnabled();
-  await page.getByRole("link", { name: "엔터티", exact: true }).click();
+  await page.getByRole("link", { name: "전체 자료", exact: true }).click();
   await page.getByRole("dialog", { name: "변경을 버릴까요?" }).getByRole("button", { name: "취소", exact: true }).click();
   await expect(page.getByRole("radio", { name: "별", exact: true })).toBeChecked();
   await page.getByRole("form",{name:"프로필 설정"}).getByRole("button",{name:"변경 취소", exact: true }).click();
@@ -513,13 +513,13 @@ for (const width of [320, 390, 1440]) test(`프로필 ${width}px: 두 줄 스크
   await otherTab.getByRole("form",{name:"프로필 설정"}).getByRole("button",{name:"변경 취소",exact:true}).click();
   await expect(otherTab.getByLabel("닉네임",{exact:true})).toHaveValue("새 닉네임");
   await page.reload(); await expect(page.getByLabel("닉네임",{exact:true})).toHaveValue("새 닉네임");
-  await page.getByRole("button",{name:"내 프로필",exact:true}).click();
+  await page.getByRole("button",{name:/^내 프로필(?: · .+)?$/,exact:true}).click();
   const popup=page.locator("#nav-profile-options");await expect(popup).toContainText("새 닉네임");await expect(popup).not.toContainText(user.email);await expect(popup.locator(".profile-icon")).toHaveText("🎯");
   await page.screenshot({path:info.outputPath(`profile-popup-${width}.png`)});
   await page.keyboard.press("Escape");
   await page.getByLabel("닉네임",{exact:true}).fill(" ");await page.getByRole("button",{name:"프로필 저장",exact:true}).click();await expect(page.getByRole("form",{name:"프로필 설정"}).getByRole("status")).toContainText("설정을 저장했습니다");
   expect(writes.at(-1)).toEqual({workspace_nickname:null});
-  await page.getByRole("button",{name:"내 프로필",exact:true}).click();await expect(popup).toContainText("기존 계정 이름");
+  await page.getByRole("button",{name:/^내 프로필(?: · .+)?$/,exact:true}).click();await expect(popup).toContainText("기존 계정 이름");
 });
 
 test("발급처 순서 저장 후 다시 읽어도 첫 행 기본값과 개별 방식을 유지한다",async({page,context})=>{

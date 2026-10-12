@@ -127,7 +127,7 @@ type Json = any;
 
 /** 도구를 호출하고 구조화 결과를 돌려준다. 오류면 { error: {code,...} }. */
 export async function tool(client: Client, name: string, args: Record<string, unknown>): Promise<Json> {
-  if (/^(create_|update_|delete_|rename_|rekey_|complete_|stop_|resume_|record_occurrence$)/.test(name)) {
+  if (/^(create_|update_|delete_|link_|unlink_|rename_|rekey_|complete_|stop_|resume_|record_occurrence$)/.test(name)) {
     args = { request_key: crypto.randomUUID(), ...args };
   }
   const res = await client.callTool({ name, arguments: args });

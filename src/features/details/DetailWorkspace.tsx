@@ -1,3 +1,4 @@
+import { entityListAnchor, restoreEntityListLink } from "../../lib/entity-list-url.ts";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode, type RefObject } from "react";
 import { useBlocker, useLocation, useNavigate, type Location, type NavigateOptions, type To } from "react-router";
 import { ConfirmDialog } from "../../components/Modal.tsx";
@@ -8,7 +9,7 @@ import { DetailTabs } from "./DetailTabs.tsx";
 import "./workspace.css";
 
 type Tab = { id: string; location: Location; title: string; returnTo?: string };
-const kindLabels: Record<string, string> = { entities: "엔터티", tasks: "할 일", records: "기록", principles: "원칙" };
+const kindLabels: Record<string, string> = { entities: "자료", tasks: "할 일", records: "기록", principles: "원칙" };
 const href = (location: Location) => `${location.pathname}${location.search}${location.hash}`;
 function destination(to: To, from: Location): string {
   if (typeof to !== "string") return `${to.pathname ?? from.pathname}${to.search ? (to.search.startsWith("?") ? to.search : `?${to.search}`) : ""}${to.hash ?? ""}`;
@@ -18,7 +19,7 @@ function destination(to: To, from: Location): string {
 function ownerList(location: Location): Location {
   const owner = `/${location.pathname.split("/")[1]}`;
   const candidate = new URLSearchParams(location.search).get("list");
-  const url = new URL(candidate?.startsWith("/") && !candidate.startsWith("//") && !candidate.includes("\\") ? candidate : owner, "https://workspace.invalid");
+  const url = new URL(candidate?.startsWith("/") && !candidate.startsWith("//") && !candidate.includes("\\") ? restoreEntityListLink(candidate, location.hash) : owner, "https://workspace.invalid");
   return { ...location, pathname: url.pathname === owner ? url.pathname : owner, search: url.pathname === owner ? url.search : "", hash: url.pathname === owner ? url.hash : "", state: null, key: `list:${location.key}` };
 }
 
@@ -175,7 +176,8 @@ export function DetailWorkspace({ children, render, enabled }: { children: React
     const frame = requestAnimationFrame(() => {
       let anchor:HTMLElement|null = null;
       try {
-        const candidate = base.hash ? document.getElementById(decodeURIComponent(base.hash.slice(1))) : null;
+        const listAnchor = base.pathname === "/entities" ? entityListAnchor(base.hash) : base.hash;
+        const candidate = listAnchor ? document.getElementById(decodeURIComponent(listAnchor.slice(1))) : null;
         if (candidate && listRef.current?.contains(candidate) && candidate.matches(".item-title")) anchor = candidate;
       } catch { /* A malformed external fragment falls back to the list heading. */ }
       const button = tabFocus.current === "list" ? anchor ?? listRef.current?.querySelector<HTMLElement>("h1") : document.getElementById(`tab-${active}`);

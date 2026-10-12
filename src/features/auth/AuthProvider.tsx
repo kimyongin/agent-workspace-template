@@ -4,8 +4,12 @@ import { type ReactNode, useContext, useEffect, useRef, useState } from "react";
 import { Navigate, useLocation } from "react-router";
 import { supabase } from "../../lib/supabase.ts";
 import { AuthContext } from "./auth-context.ts";
-import { preferenceMetadata, type AccountPreferences } from "../settings/account-preferences.ts";
-import { profileClient, readProfile, ProfileDisplayRefreshError } from "./profile-client.ts";
+import {
+  type AccountPreferences,
+  type PreferenceMetadata,
+  preferenceMetadata,
+} from "../settings/account-preferences.ts";
+import { profileClient, ProfileDisplayRefreshError, readProfile } from "./profile-client.ts";
 
 interface CanonicalRead {
   revision: number;
@@ -24,7 +28,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const session = activeSession.current;
     if (!session) return;
     // 표시용 필드만 복사한다. 토큰·권한·SDK 세션 저장소는 프로필 흐름이 변경하지 않는다.
-    const display = { ...session, user: { ...session.user, user_metadata: { ...session.user.user_metadata, ...preferenceMetadata(preferences) } } };
+    const display = {
+      ...session,
+      user: { ...session.user, user_metadata: { ...session.user.user_metadata, ...preferenceMetadata(preferences) } },
+    };
     activeSession.current = display;
     setState({ session: display, loading: false });
   };
@@ -34,10 +41,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!session) throw new Error("로그인이 필요합니다.");
     const revision = ++profileRevision.current;
     const task: CanonicalRead = {
-      revision, token: session.access_token,
-      promise: readProfile(session).then(profile => {
-        if (generation !== accountGeneration.current || activeSession.current?.user.id !== session.user.id) throw new Error("로그인 계정이 변경되었습니다.");
-        if (revision === profileRevision.current && activeSession.current.access_token === task.token) applyProfile(profile);
+      revision,
+      token: session.access_token,
+      promise: readProfile(session).then((profile) => {
+        if (generation !== accountGeneration.current || activeSession.current?.user.id !== session.user.id) {
+          throw new Error("로그인 계정이 변경되었습니다.");
+        }
+        if (revision === profileRevision.current && activeSession.current.access_token === task.token) {
+          applyProfile(profile);
+        }
         return profile;
       }),
     };
@@ -47,12 +59,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const confirmLatest = async (initial: CanonicalRead, assertAccount: () => void) => {
     let task = initial;
     for (;;) {
-      const result = await task.promise.then(value => ({ value }), error => ({ error }));
+      const result = await task.promise.then((value) => ({ value }), (error) => ({ error }));
       assertAccount();
       // 오래된 성공/실패 모두 최신 조회를 기다린다. 진행 중 hydration을 무효화하지 않는다.
       const latest = latestRead.current;
-      if (task !== latest || task.revision !== profileRevision.current || task.token !== activeSession.current?.access_token) {
-        task = latest?.revision === profileRevision.current && latest.token === activeSession.current?.access_token ? latest : readCanonical();
+      if (
+        task !== latest || task.revision !== profileRevision.current ||
+        task.token !== activeSession.current?.access_token
+      ) {
+        task = latest?.revision === profileRevision.current && latest.token === activeSession.current?.access_token
+          ? latest
+          : readCanonical();
         continue;
       }
       if ("error" in result) throw result.error;
@@ -67,7 +84,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const task = readCanonical();
       void task.promise.catch(() => {
         // Initial screens wait for account preferences. Failure falls back to the session display.
-        if (alive && task === latestRead.current && task.revision === profileRevision.current) setState(previous => ({ ...previous, loading: false }));
+        if (alive && task === latestRead.current && task.revision === profileRevision.current) {
+          setState((previous) => ({ ...previous, loading: false }));
+        }
       });
     };
     const apply = (session: Session | null) => {
@@ -76,27 +95,43 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (newAccount) accountGeneration.current++;
       profileRevision.current++;
       activeSession.current = session;
-      setState(previous => ({ session, loading: !!session && (newAccount || previous.loading) }));
+      setState((previous) => ({ session, loading: !!session && (newAccount || previous.loading) }));
       // Auth 콜백의 SDK 잠금 밖에서, 별도 클라이언트로 서버 정본을 읽는다.
-      queueMicrotask(() => { if (alive) void hydrate(); });
+      queueMicrotask(() => {
+        if (alive) void hydrate();
+      });
     };
-    const { data } = supabase.auth.onAuthStateChange((_event, session) => { eventReceived = true; apply(session); });
+    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+      eventReceived = true;
+      apply(session);
+    });
     void supabase.auth.getSession().then(({ data, error }) => {
       if (!eventReceived) apply(error ? null : data.session);
-    }).catch(() => { if (!eventReceived) apply(null); });
+    }).catch(() => {
+      if (!eventReceived) apply(null);
+    });
     const updates = new BroadcastChannel("workspace-decorative-profile");
     channel.current = updates;
-    updates.onmessage = event => {
+    updates.onmessage = (event) => {
       if (event.data === activeSession.current?.user.id) void hydrate();
     };
-    return () => { alive = false; accountGeneration.current++; profileRevision.current++; channel.current = null; updates.close(); data.subscription.unsubscribe(); };
+    return () => {
+      alive = false;
+      accountGeneration.current++;
+      profileRevision.current++;
+      channel.current = null;
+      updates.close();
+      data.subscription.unsubscribe();
+    };
   }, []);
-  const saveProfile = async (metadata: Record<string, string | null>) => {
+  const saveProfile = async (metadata: PreferenceMetadata) => {
     const original = activeSession.current;
     const generation = accountGeneration.current;
     if (!original) throw new Error("로그인이 필요합니다.");
     const assertAccount = () => {
-      if (activeSession.current?.user.id !== original.user.id || generation !== accountGeneration.current) throw new Error("로그인 계정이 변경되었습니다.");
+      if (activeSession.current?.user.id !== original.user.id || generation !== accountGeneration.current) {
+        throw new Error("로그인 계정이 변경되었습니다.");
+      }
     };
     ++profileRevision.current;
     const client = profileClient(original);
@@ -106,11 +141,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (error) throw error;
       if (data.user?.id !== original.user.id) throw new Error("로그인 계정이 변경되었습니다.");
       // 저장 알림에는 계정 ID만 담는다. 수신 탭도 자기 토큰으로 서버 표시를 읽는다.
-    } finally { await client.dispose(); }
+    } finally {
+      await client.dispose();
+    }
     assertAccount();
     channel.current?.postMessage(original.user.id);
-    try { return await confirmLatest(readCanonical(), assertAccount); }
-    catch { assertAccount(); throw new ProfileDisplayRefreshError(); }
+    try {
+      return await confirmLatest(readCanonical(), assertAccount);
+    } catch {
+      assertAccount();
+      throw new ProfileDisplayRefreshError();
+    }
   };
   const savePreferences = (changes: Partial<AccountPreferences>) => saveProfile(preferenceMetadata(changes));
   return <AuthContext.Provider value={{ ...state, savePreferences }}>{children}</AuthContext.Provider>;

@@ -56,14 +56,26 @@ function toRecordResult(record: ActivityRecord): RecordResult {
   };
 }
 
-async function requireTask(store: ActivityStore, id: string, forUpdate = false): Promise<Task> {
-  const task = await store.getTask(id, { forUpdate });
+async function requireTask(
+  store: ActivityStore,
+  id: string,
+  forUpdate = false,
+  entityIds?: string[],
+  selectionWrite = false,
+): Promise<Task> {
+  const task = await store.getTask(id, { forUpdate, entityIds, selectionWrite });
   if (!task) throw notFound();
   return task;
 }
 
-async function requireRecord(store: ActivityStore, id: string, forUpdate = false): Promise<ActivityRecord> {
-  const record = await store.getRecord(id, { forUpdate });
+async function requireRecord(
+  store: ActivityStore,
+  id: string,
+  forUpdate = false,
+  entityIds?: string[],
+  selectionWrite = false,
+): Promise<ActivityRecord> {
+  const record = await store.getRecord(id, { forUpdate, entityIds, selectionWrite });
   if (!record) throw notFound();
   return record;
 }
@@ -153,7 +165,7 @@ export async function listTasks(deps: ActivityDeps, actor: Actor, query: TaskLis
 
 export async function updateTask(deps: ActivityDeps, actor: Actor, id: string, patch: TaskUpdate): Promise<TaskResult> {
   return await runWrite(deps.uow, actor, "task.update", id, patch, async (store) => {
-    const task = await requireTask(store, id, true);
+    const task = await requireTask(store, id, true, patch.entity_ids, patch.entity_ids !== undefined);
     const changes = decideUpdate(task, patch);
     if (!changed(task, changes)) return toTaskResult(task);
     const updated = await store.updateTask(id, changes);
@@ -179,7 +191,7 @@ export async function completeTask(
 ): Promise<{ task: TaskResult; record: RecordResult }> {
   return await runWrite(deps.uow, actor, "task.complete", id, input, async (store) => {
     const now = deps.clock.now();
-    const task = await requireTask(store, id, true);
+    const task = await requireTask(store, id, true, undefined, true);
     const decided = decideComplete(task, input.expected_version, now);
     const record = await store.insertRecord({
       record_kind: "result",
@@ -211,7 +223,7 @@ export async function deleteTask(
     change_note,
     change_tag_ids,
   }, async (store) => {
-    const task = await requireTask(store, id, true);
+    const task = await requireTask(store, id, true, undefined, true);
     assertVersion(task, expectedVersion);
     await store.detachRecords(id);
     await store.deleteTask(id);
@@ -310,7 +322,7 @@ export async function recordOccurrence(
 ): Promise<RecordResult> {
   return await runWrite(deps.uow, actor, "occurrence.record", { task_id: id, date }, input, async (store) => {
     // 중단·규칙 수정과 겹치지 않도록 할 일을 잠그고 판단한다.
-    const task = await requireTask(store, id, true);
+    const task = await requireTask(store, id, true, undefined, true);
     assertRecordableOccurrence(task, date, deps.clock.now());
     const record = await store.insertRecord({
       record_kind: "result",
@@ -331,7 +343,7 @@ export async function recordOccurrence(
 
 export async function createRecord(deps: ActivityDeps, actor: Actor, input: RecordCreate): Promise<RecordResult> {
   return await runWrite(deps.uow, actor, "record.create", null, input, async (store) => {
-    const task = input.task_id ? await requireTask(store, input.task_id, true) : null;
+    const task = input.task_id ? await requireTask(store, input.task_id, true, input.entity_ids, true) : null;
     const record = await store.insertRecord({
       inherit_task_entities: input.entity_ids === undefined,
       entity_ids: input.entity_ids ?? task?.entity_ids ?? [],
@@ -373,7 +385,7 @@ export async function updateRecord(
   patch: RecordUpdate,
 ): Promise<RecordResult> {
   return await runWrite(deps.uow, actor, "record.update", id, patch, async (store) => {
-    const record = await requireRecord(store, id, true);
+    const record = await requireRecord(store, id, true, patch.entity_ids, patch.entity_ids !== undefined);
     assertVersion(record, patch.expected_version);
     if (
       record.record_kind === "change" &&
@@ -413,7 +425,7 @@ export async function deleteRecord(
     change_note,
     change_tag_ids,
   }, async (store) => {
-    const record = await requireRecord(store, id, true);
+    const record = await requireRecord(store, id, true, undefined, true);
     assertVersion(record, expectedVersion);
     const owner = await store.taskWithResult(id);
     if (owner) await store.updateTask(owner.id, { result_record_id: null });

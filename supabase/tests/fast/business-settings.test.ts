@@ -8,6 +8,23 @@ import {
 import { AppError } from "../../functions/_shared/core/shared/errors.ts";
 import { prepareBusinessRecord } from "../../functions/_shared/core/settings/application.ts";
 import type { BusinessSettingsResult } from "../../functions/_shared/contracts/business-settings.ts";
+import { initialEntityDefinition } from "../../functions/_shared/contracts/entity-type.ts";
+const entity_type_id = crypto.randomUUID();
+const entityDefinition = initialEntityDefinition("이름");
+Object.assign(entityDefinition.schema.properties, {
+  prop_2: { type: ["integer", "null"], default: null },
+  prop_3: { type: ["string", "null"], format: "date", default: null },
+  prop_4: { type: "string", enum: ["a", "b", "c"], default: "a" },
+});
+entityDefinition.display.order.push("prop_2", "prop_3", "prop_4");
+const definition = () =>
+  Promise.resolve({
+    ...entityDefinition,
+    type_id: entity_type_id,
+    schema_version: 1,
+    type_version: 1,
+    type: { id: entity_type_id, label: "재료", icon_id: "leaf", archived: false },
+  });
 
 Deno.test("업무 설정: 모델 템플릿 저장 후 읽기, 다른 섹션 유지, 오래된 버전 거부", async () => {
   let value: BusinessSettingsResult = { versions: { record_templates: 0, entity_identity: 0 }, settings: {} };
@@ -34,11 +51,11 @@ Deno.test("업무 설정: 모델 템플릿 저장 후 읽기, 다른 섹션 유�
   await updateBusinessSettings(d, requestActor(actor), {
     expected_version: 0,
     id: "record_templates",
-    value: { entity: { create: { memo: "${엔터티.이후.속성2$} 등록", tag_ids: [] } } },
+    value: { entity: { create: { memo: "${엔터티.이후.prop_2$} 등록", tag_ids: [] } } },
   });
   assertEquals(
     (await getBusinessSettings(d, actor)).settings.record_templates?.entity?.create?.memo,
-    "${엔터티.이후.속성2$} 등록",
+    "${엔터티.이후.prop_2$} 등록",
   );
   await assertRejects(
     async () =>
@@ -83,7 +100,7 @@ Deno.test("기록 준비: 생성 할 일의 실제 기본 상태·빈 본문·�
   assertEquals(result.change_note, "open/없음/미지정");
 });
 
-Deno.test("엔터티 등록 준비: 고정 입력은 등록 기본값과 기존 기록 입력을 함께 보존", async () => {
+Deno.test("자료 등록 준비: 타입 정의의 등록 기본값과 기존 기록 입력을 함께 보존", async () => {
   const d: BusinessSettingsDeps = {
     clock: { now: () => new Date("2026-10-10T00:00:00Z") },
     uow: {
@@ -92,6 +109,7 @@ Deno.test("엔터티 등록 준비: 고정 입력은 등록 기본값과 기존 
           executeRequest: <T>(_request: unknown, execute: () => Promise<T>) => execute(),
           get: () => Promise.resolve({ versions: { record_templates: 0, entity_identity: 0 }, settings: {} }),
           target: () => Promise.resolve(null),
+          definition,
           update: () => Promise.reject(new Error("읽기 전용")),
           recordTags: () => Promise.resolve([]),
         }),
@@ -100,16 +118,23 @@ Deno.test("엔터티 등록 준비: 고정 입력은 등록 기본값과 기존 
   const prepared = await prepareBusinessRecord(d, { userId: crypto.randomUUID() }, {
     model: "entity",
     action: "create",
-    input: { external_id: "001", prop1: "새 대상", expected_version: 2, change_note: "입력 기록", change_tag_ids: [] },
+    input: {
+      entity_type_id,
+      schema_version: 1,
+      properties: { prop_1: "새 대상" },
+      external_id: "001",
+      expected_version: 2,
+      change_note: "입력 기록",
+      change_tag_ids: [],
+    },
   });
   assertEquals(prepared.prepared_input, {
     source: "app",
     settings_version: 0,
     external_id: "001",
-    prop1: "새 대상",
-    prop2: null,
-    prop3: null,
-    prop4: "a",
+    entity_type_id,
+    schema_version: 1,
+    properties: { prop_1: "새 대상", prop_2: null, prop_3: null, prop_4: "a" },
     tag_ids: [],
     expected_version: 2,
     change_note: "입력 기록",
@@ -239,7 +264,7 @@ Deno.test("복원 기록 준비: 보관한 0·태그·식별 정보를 보존하
                 record_templates: {
                   entity: {
                     restore: {
-                      memo: "${엔터티.이전.속성2$} → ${엔터티.이후.속성2$} / ${엔터티.이후.식별자$}",
+                      memo: "${엔터티.이전.prop_2$} → ${엔터티.이후.prop_2$} / ${엔터티.이후.식별자$}",
                       tag_ids: [],
                     },
                   },
@@ -248,6 +273,7 @@ Deno.test("복원 기록 준비: 보관한 0·태그·식별 정보를 보존하
             }),
           update: () => Promise.reject(new Error("읽기만")),
           recordTags: () => Promise.resolve([]),
+          definition,
           target: () =>
             Promise.resolve({
               version: 3,
@@ -255,10 +281,9 @@ Deno.test("복원 기록 준비: 보관한 0·태그·식별 정보를 보존하
               facts: {
                 source: "app",
                 external_id: "001",
-                prop1: "보관값",
-                prop2: 0,
-                prop3: null,
-                prop4: "a",
+                entity_type_id,
+                schema_version: 1,
+                properties: { prop_1: "보관값", prop_2: 0, prop_3: null, prop_4: "a" },
                 tag_ids: [],
               },
             }),
@@ -270,7 +295,7 @@ Deno.test("복원 기록 준비: 보관한 0·태그·식별 정보를 보존하
     action: "restore",
     target_id: "app:001",
     expected_version: 3,
-    input: {},
+    input: { entity_type_id, schema_version: 1, properties: {} },
   });
   assertEquals(prepared.change_note, "0 → 0 / 001");
   assertEquals(prepared.prepared_input, {
@@ -278,6 +303,9 @@ Deno.test("복원 기록 준비: 보관한 0·태그·식별 정보를 보존하
     external_id: "001",
     expected_version: 3,
     settings_version: 1,
+    entity_type_id,
+    schema_version: 1,
+    properties: {},
   });
 });
 

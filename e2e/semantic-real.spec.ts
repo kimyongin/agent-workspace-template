@@ -1,6 +1,6 @@
 // 유료 실제 공급자 E2E: RUN_PINECONE_E2E=1로 명시적으로 실행한다. CI 기본 실행에는 포함하지 않는다.
-import {expect,test} from "@playwright/test";
-import {devLogin,env,mcpClient,mcpTokenViaConsent} from "./support.ts";
+import {expect } from "@playwright/test";
+import { test, devLogin,env,mcpClient,mcpTokenViaConsent } from "./support.ts";
 test("실제 의미 검색→기록 원문→필터와 초점 복귀",async({page})=>{
   test.skip(process.env.RUN_PINECONE_E2E!=="1","실제 Pinecone 호출은 명시적으로 실행");
   await devLogin(page);const mcp=await mcpClient(await mcpTokenViaConsent(page));

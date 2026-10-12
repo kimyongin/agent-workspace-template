@@ -12,6 +12,23 @@ Node·Deno·Supabase CLI 버전과 설치 명령은 package.json·lockfile을 �
 
 단계별 원래 종료 코드와 정리 실패를 함께 표시하고, 중단 후 남은 단계를 실행하지 않는다. 준비·소유권 확인 실패에는 새 실행을 반복하지 않는다. 서비스 로그와 원래 검사 실패는 필요한 경우 실행별 외부 위치에 보존한다. 수명주기/외부 Docker adapter의 모의 검사는 실제 격리 CLI 실행과 구분한다.
 
+## 엔터티 스키마의 로컬 소비 실행
+
+영속 분석/마이그레이션은 페이지의 요청이나 진행 조회가 소비하지 않는다. 로컬 환경 소유자가 `setup:local`로 생성한 `ENTITY_SCHEMA_WORKER_TOKEN`을 함수 환경과 `.env.local`에 동일하게 준비하고 함수 서버를 실행한 뒤, 별도 터미널에서 아래 명령으로 소비를 명시적으로 켠다. 환경 파일을 갱신했다면 함수 서버를 다시 시작한다. `setup:local`·migration·일반 GET은 폴링이나 Cron을 등록하지 않는다.
+
+```sh
+npm run worker:entity-schema:local -- --check-configuration
+npm run worker:entity-schema:local
+```
+
+첫 명령은 인증된 `{ "check_configuration": true }` 구성 확인만 수행하고 종료하며 작업을 claim하지 않는다. 두 번째 명령은 설정된 로컬 origin의 `/functions/v1/entity-schema-worker`에 `{ "limit": 1 }`을 보낸다. `supabase/config.toml`의 API 주소를 읽고 `.env.local`의 `VITE_SUPABASE_URL`·`VITE_API_URL`이 정확히 같은 origin/경로인지 확인한다. 기본 포트를 따로 가정하지 않는다. 원격 주소·자격증명이 붙은 주소·redirect를 거부하고 서버 전용 토큰만 사용한다.
+
+`--config=/absolute/path/config.toml`은 별도 격리 로컬 설정을 명시할 때 사용한다. 생략하면 추적된 supabase/config.toml을 읽는다. 어느 설정에서도 loopback HTTP와 .env.local의 정확한 API origin 일치를 검사한다. 실제 브라우저 값 변환 검사는 `ENTITY_SCHEMA_WORKER_CONFIG`에 격리 설정 경로를 지정하면 opt-in child runner에 같은 인자를 전달한다. 추적된 설정을 테스트용 포트로 수정하지 않는다.
+
+응답 완료 후 기본 2000ms를 기다려 다음 호출을 하므로 요청이 겹치지 않는다. `--interval-ms=1000`·`--timeout-ms=30000`은 각각 100~60000ms 정수만 허용한다. `--once`는 한 번만 소비한다. HTTP 비성공·연결 실패·요청 시간 초과에는 실행기를 종료하고 작업 상태를 다시 확인한다. 네트워크 관찰 실패만으로 작업을 failed/cancelled로 만들지 않는다. Ctrl+C/SIGINT는 130, SIGTERM은 143으로 요청·대기를 취소해 끝낸다. 소비 중단은 접수된 작업 삭제가 아니며 재실행 시 영속 상태/lease에 따라 이어간다. 로그에는 HTTP 상태만 출력하고 응답 본문·토큰·변환 원문·stage는 출력하지 않는다.
+
+실제 API E2E fixture는 함수 준비 후 이 실행기를 자식 프로세스로 시작하고 종료·실패 시 해당 자식만 중단한다. 분석 접수 뒤 페이지 이동/닫기→재접속→완료 조회를 실행해 브라우저 수명과 독립적인 소비를 확인한다. runner의 격리 HTTP/CLI 테스트는 실제 app_worker 권한·lease/fence·DB 처리·브라우저 완료 증거를 대신하지 않는다. #343 통합 E2E 판단·실행 증거는 #351에서 전체 통합 revision을 기준으로 남긴다. 운영 일정 활성화는 [별도 운영 인계](../operations/runbook.md#엔터티-스키마-worker-호출과-운영-인계)를 따른다.
+
 ## 공유 환경과 테스트 자료
 
 별도 worktree만으로 DB·계정·포트·서비스가 분리되지 않는다. 같은 로컬 Supabase를 쓰는 setup·migration·DB/HTTP/MCP/E2E 검사는 직렬로 실행한다. 서버의 hot reload도 실행 중인 검사의 코드를 바꿀 수 있다. 병렬 실행에는 서비스·설정·자료·정리 대상까지 분리된 환경이 필요하다.
@@ -84,12 +101,23 @@ Playwright 결과·trace와 서비스 로그는 다음 실행으로 덮어써질
 
 | 설정 | 소유하는 검사와 변이 |
 | --- | --- |
-| collection-fixture | 목록 화면 + pagination의 desktop/mobile 연결 검사; 실제 250페이지 복원 상한은 desktop에서 한 번 확인 |
+| collection-fixture | 목록 화면 + pagination·긴 속성 조건 fragment의 HTML 직접 주소/새로고침/이력/타입 초기화/앵커 desktop/mobile 연결 검사; 실제 250페이지 복원 상한은 desktop에서 한 번 확인 |
 | detail-workspace | 상세 작업 공간과 표시 배율 |
-| entity-tags-fixtures | 엔터티·태그 desktop/mobile |
+| entity-tags-fixtures | 자료·태그 desktop/mobile |
 | principle-current | 현재 원칙 desktop/mobile |
 | activity | 활동 desktop/mobile 서울 시간대 + desktop UTC 날짜 변이 |
 | navigation-fixture | 탐색·프로필 desktop, OAuth 동의 desktop/mobile |
+| navigation-preferences | 개인 메뉴 Auth metadata·미리보기·취소·충돌·overflow desktop/mobile |
+| type-navigation | 자료 종류별 탐색·작성·설정·기본 메뉴의 격리 desktop/mobile |
+| typed-entity-consumers | 타입별 목록 열·AND 필터·템플릿 변수 삽입·첫 삭제 식별자 복원의 보관값/태그 보존 desktop/mobile |
 | workspace-screens | [사용자 흐름별 작업 공간 화면 검사](../../e2e/workspace-screens.md)만 실행 |
 
 페이지 읽기의 상한·취소·실패 규칙은 `paged-list.test.ts`에서 검증한다. `pagination-fixture.spec.ts`는 실제 앱에서 URL 복원·누적 행·재시도 cursor·초점·읽던 위치·필터 초기화를 확인한다. 대량 모의 목록 때문에 실제 로그인 검사를 반복하지 않는다. 실제 API의 로그인·저장·웹/MCP 왕복 검사는 기본 설정에 남긴다.
+
+전체 실행의 실제 API 설정은 `node scripts/test-e2e-all.mjs --actual-config /절대/격리/playwright.config.mjs`로 교체할 수 있다. 첫 설정만 교체하며 나머지 열 개 fixture 설정은 등록 순서대로 실행한다. 별도 DB·worker 설정은 실행 환경의 명시 설정으로 유지하고 tracked 설정 파일이나 개인 환경 파일을 고치지 않는다. 상세 정리·운영 범위는 [데모 자료 정리](../operations/demo-cleanup.md)를 따른다.
+
+구 고정 속성 표현의 보존·거부 분류와 현재 fixture 계약은 [전환 검사](typed-fixture-transition.md)에 있다.
+
+실제 API 검사의 `e2e/support.ts` 자동 fixture는 각 test의 새 자료 종류·업무 자료 ID와 요청 키를 소유자별로 추적한다. MCP 연결을 먼저 닫아도 자료는 화면 검사와 `afterEach`가 끝날 때까지 유지한다. 마지막에는 브라우저 context와 MCP 연결을 닫고, 도입한 종류의 현재·역사 참조와 검색 queue/state를 명시 manifest의 dry-run digest로 정리한다. Auth 사용자·OAuth 연결·다른 소유자·기존 종류·무관한 설정은 보존한다. 종류별 템플릿은 해당 종류의 명시 action 경로만 제거한다. 설정 도중 실패해도 성공한 요청 receipt로 도입 ID를 회수하며, 실패한 설정을 정리하는 동안 원래 테스트의 종류 ID를 가정하지 않는다.
+
+이 정리는 worker 1개인 loopback 실제 설정에서만 허용한다. `ENTITY_SCHEMA_WORKER_CONFIG`가 가리키는 Supabase 설정의 API·직접 DB 포트가 환경 파일과 일치해야 하며, fixture는 그 환경/소유자/개수/잔여 행만 결과에 첨부한다. 정리 정책의 서비스 없는 검사는 `node --test scripts/actual-fixture-cleanup.test.mjs scripts/demo-cleanup.test.mjs`다. 실제 격리 DB의 소유자·같은 ID·검색 재큐잉 회귀는 실행 lease 안에서 `LOCAL_DB_URL`을 그 DB로 지정하고 `node --test scripts/actual-fixture-cleanup.integration.mjs`로 별도 실행한다. 테스트가 만든 두 임시 Auth 사용자는 해당 통합 검사 자체의 finally에서만 제거한다.

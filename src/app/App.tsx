@@ -1,9 +1,25 @@
+import { SchemaMigrationJob } from "../features/settings/SchemaMigrationJobs.tsx";
+import { NavigationPreviewProvider } from "../features/settings/navigation-preview.tsx";
+import { NavigationSettingsPage } from "../features/settings/NavigationSettingsPage.tsx";
+import { EntityIdentitySettingsPage } from "../features/settings/EntityIdentitySettingsPage.tsx";
+import { SchemaMigrations } from "../features/settings/SchemaMigrations.tsx";
+import { EntityTypeSettings } from "../features/settings/EntityTypeSettings.tsx";
 import { StatusPage } from "../features/status/StatusPage.tsx";
 import { WriteOutcomeNotice } from "../components/WriteOutcomeNotice.tsx";
 import { DetailNavigationProvider } from "../lib/detail-exploration.tsx";
 // 앱 조립: 경로·메뉴·브랜드. 새 도메인은 메뉴와 경로를 여기서 바꾼다.
 import { useState } from "react";
-import { createBrowserRouter, createRoutesFromElements, Navigate, Outlet, Route, RouterProvider, Routes, useLocation, type Location } from "react-router";
+import {
+  createBrowserRouter,
+  createRoutesFromElements,
+  type Location,
+  Navigate,
+  Outlet,
+  Route,
+  RouterProvider,
+  Routes,
+  useLocation,
+} from "react-router";
 import { DetailWorkspace } from "../features/details/DetailWorkspace.tsx";
 import { Navigation } from "./Navigation.tsx";
 import { useNavigationResize } from "./useNavigationResize.ts";
@@ -32,53 +48,91 @@ function Layout() {
   const location = useLocation();
   const navigation = useNavigationResize(session?.user.id ?? null);
   return (
-    <div style={navigation.style} className={`app-shell${session ? " has-navigation" : ""}${navigation.dragging ? " is-resizing" : ""}`}>
+    <div
+      style={navigation.style}
+      className={`app-shell${session ? " has-navigation" : ""}${navigation.dragging ? " is-resizing" : ""}`}
+    >
       <header className={`app-header${session ? " workspace-header" : ""}`}>
         <span className="app-brand">{APP_NAME}</span>
       </header>
       <main className="app-main" key={location.pathname === "/logout" ? "logout" : session?.user.id ?? "signed-out"}>
-        {session && <WriteOutcomeNotice/>}
-        <DetailNavigationProvider key={location.pathname === "/logout" ? "logout" : session?.user.id ?? "signed-out"} scope={session?.user.id ?? "signed-out"}>
-          <DetailWorkspace enabled={!!session} render={location => <WorkspaceRoutes location={location}/>}><Outlet/></DetailWorkspace>
+        {session && <WriteOutcomeNotice />}
+        <DetailNavigationProvider
+          key={location.pathname === "/logout" ? "logout" : session?.user.id ?? "signed-out"}
+          scope={session?.user.id ?? "signed-out"}
+        >
+          <DetailWorkspace enabled={!!session} render={(location) => <WorkspaceRoutes location={location} />}>
+            <Outlet />
+          </DetailWorkspace>
         </DetailNavigationProvider>
       </main>
       {session && <Navigation brand={APP_NAME} navigationRef={navigation.ref} />}
-      <div className="pane-resize-handle navigation-resize-handle" {...navigation.separator}/>
+      <div className="pane-resize-handle navigation-resize-handle" {...navigation.separator} />
     </div>
   );
 }
 
 const guarded = (el: React.ReactNode) => <RequireAuth>{el}</RequireAuth>;
 const workspaceRoutes = [
-  { path: "entities", element: <EntitiesPage/> }, { path: "entities/:id", element: <EntityDetailPage/> },
-  { path: "tasks", element: <TasksPage/> }, { path: "tasks/:id", element: <TaskDetailPage/> },
-  { path: "records", element: <RecordsPage/> }, { path: "records/:id", element: <RecordDetailPage/> },
-  { path: "principles", element: <PrinciplesPage/> }, { path: "principles/:id", element: <PrincipleDetailPage/> },
-  { path: "search", element: <SearchPage/> },
-  { path: "status", element: <StatusPage/> },
+  { path: "entities", element: <EntitiesPage /> },
+  { path: "entities/:id", element: <EntityDetailPage /> },
+  { path: "tasks", element: <TasksPage /> },
+  { path: "tasks/:id", element: <TaskDetailPage /> },
+  { path: "records", element: <RecordsPage /> },
+  { path: "records/:id", element: <RecordDetailPage /> },
+  { path: "principles", element: <PrinciplesPage /> },
+  { path: "principles/:id", element: <PrincipleDetailPage /> },
+  { path: "search", element: <SearchPage /> },
+  { path: "status", element: <StatusPage /> },
 ];
 
 function WorkspaceRoutes({ location }: { location: Location }) {
-  return <Routes location={location}>{workspaceRoutes.map(route => <Route key={route.path} {...route}/>)}</Routes>;
+  return <Routes location={location}>{workspaceRoutes.map((route) => <Route key={route.path} {...route} />)}</Routes>;
 }
 
 export function App() {
   // Data router는 기존 URL을 유지하고 편집 초안의 useBlocker 경로를 지원한다.
-  const [router] = useState(() => createBrowserRouter(createRoutesFromElements(
-          <Route path="/*" element={<Layout />}>
-            <Route index element={<Navigate to="/tasks" replace />} />
-            <Route path="login" element={<LoginPage />} />
-            {/* 세션 해제 뒤 next=/logout으로 재로그인하는 루프를 만들지 않는다. */}
-            <Route path="logout" element={<LogoutPage />} />
-            <Route path="oauth/consent" element={guarded(<ConsentPage />)} />
-            {workspaceRoutes.map(route => <Route key={route.path} path={route.path} element={guarded(route.element)}/>)}
-            <Route path="tags" element={guarded(<TagsPage />)} />
-            <Route path="tags/:scope" element={guarded(<TagsPage />)} />
-            <Route path="tags/:scope/:id" element={guarded(<TagsPage />)} />
-            <Route path="guide" element={guarded(<GuidePage />)} />
-            <Route path="settings" element={guarded(<SettingsPage />)} />
-            <Route path="*" element={<p className="secondary">페이지를 찾을 수 없습니다.</p>} />
-          </Route>
-  ), { basename: import.meta.env.BASE_URL.replace(/\/$/, "") }));
-  return <AuthProvider><DisplayScaleProvider><RouterProvider router={router} /></DisplayScaleProvider></AuthProvider>;
+  const [router] = useState(() =>
+    createBrowserRouter(
+      createRoutesFromElements(
+        <Route path="/*" element={<Layout />}>
+          <Route index element={<Navigate to="/tasks" replace />} />
+          <Route path="login" element={<LoginPage />} />
+          {/* 세션 해제 뒤 next=/logout으로 재로그인하는 루프를 만들지 않는다. */}
+          <Route path="logout" element={<LogoutPage />} />
+          <Route path="oauth/consent" element={guarded(<ConsentPage />)} />
+          {workspaceRoutes.map((route) => (
+            <Route
+              key={route.path}
+              path={route.path}
+              element={guarded(route.element)}
+            />
+          ))}
+          <Route path="tags" element={guarded(<TagsPage />)} />
+          <Route path="tags/:scope" element={guarded(<TagsPage />)} />
+          <Route path="tags/:scope/:id" element={guarded(<TagsPage />)} />
+          <Route path="guide" element={guarded(<GuidePage />)} />
+          <Route path="settings/navigation" element={guarded(<NavigationSettingsPage />)} />
+          <Route path="settings" element={guarded(<SettingsPage />)} />
+          <Route path="settings/entity-identity" element={guarded(<EntityIdentitySettingsPage />)} />
+          <Route path="settings/entity-types" element={guarded(<EntityTypeSettings />)} />
+          <Route path="settings/entity-types/:type_id" element={guarded(<EntityTypeSettings />)} />
+          <Route path="settings/entity-types/:type_id/versions" element={guarded(<EntityTypeSettings />)} />
+          <Route path="settings/entity-types/:type_id/migrations/:job_id" element={guarded(<SchemaMigrationJob />)} />
+          <Route path="settings/entity-types/:type_id/migrations" element={guarded(<SchemaMigrations />)} />
+          <Route path="*" element={<p className="secondary">페이지를 찾을 수 없습니다.</p>} />
+        </Route>,
+      ),
+      { basename: import.meta.env.BASE_URL.replace(/\/$/, "") },
+    )
+  );
+  return (
+    <AuthProvider>
+      <DisplayScaleProvider>
+        <NavigationPreviewProvider>
+          <RouterProvider router={router} />
+        </NavigationPreviewProvider>
+      </DisplayScaleProvider>
+    </AuthProvider>
+  );
 }

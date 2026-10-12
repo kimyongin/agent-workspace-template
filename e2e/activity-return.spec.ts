@@ -1,7 +1,8 @@
+import { createFixtureEntity, scalarFixtureType, fixtureEntityList } from "./entity-schema-support.ts";
 import { fillChangeMemo } from "./ui-actions.ts";
 import { saveOnce, openDetailEditor, openListDetail, openTabFilters } from "./ui-actions.ts";
-import { expect, test } from "@playwright/test";
-import { devLogin, mcpClient, mcpTokenViaConsent, unique } from "./support.ts";
+import { expect } from "@playwright/test";
+import { test, devLogin, mcpClient, mcpTokenViaConsent, unique } from "./support.ts";
 
 for (
   const [kind, path, label, editLabel] of [
@@ -14,10 +15,9 @@ for (
     if (!isMobile) await page.setViewportSize({width:1024,height:720});
     await devLogin(page);
     const mcp = await mcpClient(await mcpTokenViaConsent(page));
-    const ids = new Set<string>();
     const tag = await mcp.call("create_tag", { scope:kind, name: unique("활동 왕복").slice(0, 30) });
     const emptyTag = await mcp.call("create_tag", { scope:kind, name: unique("빈 활동 조건").slice(0, 30) });
-    const entity = await mcp.call("create_entity", { prop1: unique("활동 문맥"), prop2: 0 });
+    const entity = await createFixtureEntity(mcp, { prop_1: unique("활동 문맥"), prop_2: 0 });
     const title = unique(`${label} 복원 대상`);
     const create = async (title: string) => {
       const item = await mcp.call(`create_${kind}`, {
@@ -27,7 +27,6 @@ for (
         tag_ids: [tag.id],
         entity_ids: [entity.id],
       });
-      ids.add(item.id);
       return item;
     };
     try {
@@ -111,10 +110,10 @@ for (
       await openListDetail(page,title);
       await expect(page.getByRole("heading", { name: kind === "record" ? "기록" : title, exact: true })).toBeVisible();
       const view=page.locator("dialog.modal:not(.modal-confirm)[open]");
-      const initialDetail=page.url(),entityToggle=view.getByRole("region",{name:/^엔터티/}).getByRole("button",{name:entity.prop1,exact:true});
+      const initialDetail=page.url(),entityToggle=view.getByRole("region",{name:/^연결된 자료/}).getByRole("button",{name:entity.title,exact:true});
       await entityToggle.click();await expect(entityToggle).toHaveAttribute("aria-expanded","true");await expect(page).toHaveURL(initialDetail);
-      const entityEdit=view.getByRole("link",{name:entity.prop1+" 상세",exact:true});await entityEdit.click();await openDetailEditor(page);
-      await expect(view.getByLabel("속성 1",{exact:false})).toHaveValue(entity.prop1);await view.getByRole("button",{name:"취소",exact:true}).click();await view.getByRole("button",{name:/^이전:/}).click();
+      const entityEdit=view.getByRole("link",{name:entity.title+" 상세",exact:true});await entityEdit.click();await openDetailEditor(page);
+      await expect(view.getByLabel("제목",{exact:false})).toHaveValue(entity.title);await view.getByRole("button",{name:"취소",exact:true}).click();await view.getByRole("button",{name:/^이전:/}).click();
       await expect(page).toHaveURL(initialDetail);await expect(entityEdit).toBeFocused();
       await openDetailEditor(page);const dialog=page.getByRole("dialog",{name:editLabel,exact:true});
       await dialog.getByLabel("본문").fill("닫기 취소 뒤 보존할 초안");await dialog.getByRole("button",{name:"닫기",exact:true}).click();
@@ -146,7 +145,6 @@ for (
       await saveOnce(page,page.locator("dialog.modal-action[open]"),"삭제 확인");
       await expect(link).toHaveCount(0);
       await expect(page.locator(`.${path} .list .item-title`)).toHaveCount(62);
-      ids.delete(target.id);
       await expect(page.getByRole("heading", { name: label, level:1, exact: true })).toBeFocused();
       await expect(page.locator(`#activity-${path}-page-control`)).toHaveCount(0);
       await openTabFilters(page);await page.getByRole("button",{name:tag.name,exact:true}).click();await page.getByRole("button",{name:emptyTag.name,exact:true}).click();
@@ -166,21 +164,9 @@ for (
       await expect(page.getByRole("heading", { name: label, level:1, exact: true })).toBeFocused();
       await openTabFilters(page);await expect(page.getByRole("button",{name:tag.name,exact:true})).toHaveAttribute("aria-pressed","true");
     } finally {
-      try {
-        for (const id of ids) {
-          try {
-            const item = await mcp.call(`get_${kind}`, { id });
-            await mcp.call(`delete_${kind}`, { id, expected_version: item.version });
-          } catch (error) {
-            if (!String(error).includes('"code":"not_found"')) throw error;
-          }
-        }
-        await mcp.call("delete_tag", { id: tag.id, expected_version: 1 });
-        await mcp.call("delete_tag", { id: emptyTag.id, expected_version: 1 });
-        await mcp.call("delete_entity", { id: entity.id, expected_version: 1 });
-      } finally {
-        await mcp.close();
-      }
+      // The automatic owned fixture closes UI first and removes these exact IDs,
+      // dependent change records and queue state after the business assertions.
+      await mcp.close();
     }
   });
 }

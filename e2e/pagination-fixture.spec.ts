@@ -1,6 +1,7 @@
+import { setEntityCategory } from "./ui-actions.ts";
 // Actual App and pagination bindings, with per-page Auth/API fixtures; no shared account.
 import { expect, test, type Page } from "@playwright/test";
-import { id } from "./support/workspace-data.ts";
+import { id, entity } from "./support/workspace-data.ts";
 import { installWorkspaceApi } from "./support/workspace-api.ts";
 import { openTabFilters } from "./ui-actions.ts";
 
@@ -125,22 +126,12 @@ test("Entity restored pages: retry cursor, focus and filter reset", async ({ pag
     const externalId = crypto.randomUUID();
     await route.fulfill({
       json: {
-        items: [{
-          id: `app:${externalId}`,
-          source: "app", external_id: externalId, source_label: "앱", deleted_at: null, tag_ids: [],
-          prop1: `경계 항목 ${index}`,
-          prop2: null,
-          prop3: null,
-          prop4: "a",
-          version: 1,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        }],
+        items: [{ ...entity(index,{prop_1:`경계 항목 ${index}`}),id:`app:${externalId}`,external_id:externalId }],
         next_cursor: `page-${index}`,
       },
     });
   });
-  await page.goto("/entities?pages=2");
+  await page.goto("/entities?entity_type_id=00000000-0000-4000-8000-000000000900&pages=2");
   const more = page.getByRole("button", { name: "더 보기", exact: true });
   await expect(more).toHaveAttribute("aria-disabled", "false", { timeout: 30000 });
   await expect(page.locator(".list .item-title")).toHaveCount(2);
@@ -159,9 +150,9 @@ test("Entity restored pages: retry cursor, focus and filter reset", async ({ pag
   expect(cursors.slice(-2)).toEqual(["page-2", "page-2"]);
   const beforeFilter = cursors.length;
   await openTabFilters(page);
-  await page.getByLabel("속성 4 필터").selectOption("b");
+  await setEntityCategory(page, "b");
   await expect(page.locator(".list .item-title")).toHaveCount(1);
-  await page.getByLabel("속성 4 필터").selectOption("");
+  await setEntityCategory(page, "");
   await expect.poll(() => cursors.length).toBe(beforeFilter + 2);
   await expect(page.locator(".list .item-title")).toHaveCount(1);
   await expect(more).toHaveAttribute("aria-disabled", "false");

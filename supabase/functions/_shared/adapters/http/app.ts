@@ -1,3 +1,7 @@
+import { entityPairRoutes } from "./entity-pair-routes.ts";
+import type { EntityPairDeps } from "../../core/entity-pairs/application.ts";
+import { entityTypeRoutes } from "./entity-type-routes.ts";
+import type { EntityTypeDeps } from "../../core/entity-types/application.ts";
 import type { StatusDeps } from "../../core/status/application.ts";
 import { statusRoutes } from "./status-routes.ts";
 // 웹용 HTTP 진입점 조립: CORS → 인증(aud=authenticated) → 목적별 경로 → 오류 변환.
@@ -39,6 +43,8 @@ export function createHttpApp(
   entities?: EntityDeps,
   settings?: BusinessSettingsDeps,
   status?: StatusDeps,
+  entityTypes?: EntityTypeDeps,
+  entityPairs?: EntityPairDeps,
 ) {
   const app = new Hono<HttpEnv>().basePath(config.basePath);
 
@@ -77,6 +83,8 @@ export function createHttpApp(
   if (entities) app.route("/", entityRoutes(entities));
   if (settings) app.route("/", settingsRoutes(settings));
   if (status) app.route("/", statusRoutes(status));
+  if (entityPairs) app.route("/", entityPairRoutes(entityPairs));
+  if (entityTypes) app.route("/", entityTypeRoutes(entityTypes));
 
   app.notFound(() => {
     throw new AppError("not_found", "경로를 찾을 수 없습니다");

@@ -1,5 +1,5 @@
 // 업무 오류. 어댑터가 HTTP 상태·MCP 도구 오류로 바꾼다(contracts/common.ts의 ErrorCode).
-import type { ErrorCode } from "../../contracts/common.ts";
+import type { ErrorBody, ErrorCode } from "../../contracts/common.ts";
 
 export interface FieldError {
   path: string;
@@ -7,7 +7,12 @@ export interface FieldError {
 }
 
 export class AppError extends Error {
-  constructor(readonly code: ErrorCode, message: string, readonly fields?: FieldError[]) {
+  constructor(
+    readonly code: ErrorCode,
+    message: string,
+    readonly fields?: FieldError[],
+    readonly current?: ErrorBody["current"],
+  ) {
     super(message);
     this.name = "AppError";
   }

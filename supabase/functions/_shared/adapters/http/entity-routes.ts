@@ -1,4 +1,6 @@
 import { Hono } from "hono";
+import { entityHttpQuery } from "../../contracts/entity-query.ts";
+export { entityHttpQuery } from "../../contracts/entity-query.ts";
 import { entityCreate, entityListQuery, entityUpdate } from "../../contracts/entity.ts";
 import { businessMeta } from "../../contracts/change.ts";
 import { expectedVersion } from "../../contracts/common.ts";
@@ -29,7 +31,12 @@ export function entityRoutes(d: entity.EntityDeps) {
   });
   app.get(
     "/entities",
-    async (c) => c.json(await entity.listEntities(d, c.get("actor"), parse(entityListQuery, c.req.query()))),
+    async (c) =>
+      c.json(await entity.listEntities(d, c.get("actor"), parse(entityListQuery, entityHttpQuery(c.req.query())))),
+  );
+  app.post(
+    "/entities/query",
+    async (c) => c.json(await entity.listEntities(d, c.get("actor"), parse(entityListQuery, await json(c.req.raw)))),
   );
   app.get("/entities/:id", async (c) => c.json(await entity.getEntity(d, c.get("actor"), idParam(c.req.param("id")))));
   app.post(
@@ -38,15 +45,18 @@ export function entityRoutes(d: entity.EntityDeps) {
   );
   app.patch(
     "/entities/:id",
-    async (c) =>
-      c.json(
+    async (c) => {
+      const input = await json(c.req.raw);
+      entity.assertImmutableType(input);
+      return c.json(
         await entity.updateEntity(
           d,
           c.get("actor"),
           idParam(c.req.param("id")),
-          parse(entityUpdate, await json(c.req.raw)),
+          parse(entityUpdate, input),
         ),
-      ),
+      );
+    },
   );
   return app;
 }

@@ -1,4 +1,5 @@
-import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { changeEntityListQuery } from "../lib/entity-list-url.ts";
+import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router";
 import { Field } from "./Field.tsx";
 import { BodyAction } from "./BodyAction.tsx";
@@ -11,7 +12,13 @@ export function clearListPosition(params: URLSearchParams) {
 }
 /** Debounce only text; concurrent filter changes survive through the latest URL. */
 export function TabSearch({ entity = false }: { entity?: boolean }) {
-  const [params, setParams] = useSearchParams();
+  const [params, originalSetParams] = useSearchParams(), location = useLocation(), navigate = useNavigate();
+  const latestLocation = useRef(location); latestLocation.current = location;
+  const setParams = useCallback((next: URLSearchParams, options: {replace:boolean}) => {
+    if (!entity) return originalSetParams(next, options);
+    const current = latestLocation.current;
+    return navigate({ pathname: current.pathname, ...changeEntityListQuery(next, latest.current, current.hash) }, options);
+  }, [entity, originalSetParams, navigate]);
   const name = entity ? "keyword" : "q", applied = params.get(name) ?? "";
   const latest = useRef(params); latest.current = params;
   const [draft, setDraft] = useState(applied), [composing, setComposing] = useState(false);
@@ -26,9 +33,9 @@ export function TabSearch({ entity = false }: { entity?: boolean }) {
     }, 300);
     return () => clearTimeout(timer);
   }, [draft, composing, applied, name, setParams]);
-  return <div className="workspace-search"><Field label={entity ? "속성 1 키워드" : "검색어"}>
+  return <div className="workspace-search"><Field label={entity ? "자료 제목 검색" : "검색어"}>
     {props => <div className="workspace-search-input"><svg className="search-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4.5 4.5"/></svg><input {...props} ref={input} className="input" value={draft}
-      maxLength={entity ? 100 : 200} placeholder={entity ? "엔터티 제목 검색" : "검색어 입력"}
+      maxLength={entity ? 100 : 200} placeholder={entity ? "자료 이름 검색" : "검색어 입력"}
       onChange={event => setDraft(event.target.value)} onCompositionStart={() => setComposing(true)}
       onCompositionEnd={event => { setDraft(event.currentTarget.value); setComposing(false); }}/>
       {!!draft && <button type="button" className="search-clear" aria-label="검색어 지우기" onClick={() => {
@@ -39,7 +46,7 @@ export function TabSearch({ entity = false }: { entity?: boolean }) {
   </Field></div>;
 }
 export function resetTabFilters(params: URLSearchParams) {
-  return new URLSearchParams([...params].filter(([key]) => ["q", "keyword", "filters", "view"].includes(key)));
+  return new URLSearchParams([...params].filter(([key]) => ["q", "keyword", "filters", "view", "entity_type_id"].includes(key)));
 }
 /** URL owns disclosure state; optional conditions remain mounted while hidden. */
 export function TabFilters({ active = false, attention = false, summary = [], children }: { active?: boolean; attention?: boolean; summary?: string[]; children: ReactNode }) {

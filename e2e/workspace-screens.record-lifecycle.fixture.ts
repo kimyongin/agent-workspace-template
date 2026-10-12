@@ -1,4 +1,4 @@
-import { entityKey } from "./support/workspace-data.ts";
+import { entityKey, fixtureType } from "./support/workspace-data.ts";
 import { fillChangeMemo } from "./ui-actions.ts";
 import { beginTabAction, saveOnce } from "./ui-actions.ts";
 import { expect, test } from "@playwright/test";
@@ -8,6 +8,8 @@ import { compatibleEdit, connectedTarget, fillText, fixtures, form, go } from ".
 test("태그 DELETE pending: Back·경로 이동·reload 보호와 응답 뒤 복귀", async ({ page }) => {
   const state = await fixtures(page, { hold: true });
   await go(page, "/entities");
+  await expect.poll(() => new URL(page.url()).searchParams.get("entity_type_id")).toBe(fixtureType.id);
+  const originalList = page.url();
   await page.getByRole("link", { name: "기록 태그 fixture", exact: true }).click();
   await page.getByRole("button", { name: "같은 이름 삭제", exact: true }).click();
   const confirm = page.locator("dialog.modal-action[open]");
@@ -37,7 +39,7 @@ test("태그 DELETE pending: Back·경로 이동·reload 보호와 응답 뒤 �
   await expect(page.getByRole("button", { name: "같은 이름 삭제", exact: true })).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "기록 태그 관리", exact: true })).toBeFocused();
   await page.goBack();
-  await expect(page).toHaveURL(/entities$/);
+  await expect(page).toHaveURL(originalList);
   expect(state.writes).toHaveLength(1);
   expect(state.errors).toEqual([]);
 });
@@ -80,12 +82,12 @@ test("원칙 저장 결과는 같은 ID·확인된 본문을 보여준다", asyn
   expect(state.errors).toEqual([]);
 });
 
-for (const [kind, label] of [["entities", "엔터티"], ["tasks", "할 일"], ["records", "기록"]]) {
+for (const [kind, label] of [["entities", "검사 자료"], ["tasks", "할 일"], ["records", "기록"]]) {
   test(`${kind}: 생성·보기·편집 메모·태그·삭제 이유`, async ({ page }) => {
     const state = await fixtures(page);
     await go(page, `/${kind}`);
     await beginTabAction(page, kind === "records" ? "기록 작성" : `${label} 추가`);
-    if (kind === "entities") await form(page).getByLabel("속성 1", { exact: false }).fill("새 엔터티");
+    if (kind === "entities") await form(page).getByLabel("제목", { exact: false }).fill("새 엔터티");
     else await fillText(page, `새 ${label}`);
     await form(page).getByRole("button", { name: "같은 이름", exact: true }).click();
     await saveOnce(page, form(page), kind === "tasks" ? "추가" : "저장");
@@ -95,7 +97,7 @@ for (const [kind, label] of [["entities", "엔터티"], ["tasks", "할 일"], ["
     await compatibleEdit(page);
     await expect(form(page)).toHaveCount(1);
     await expect(form(page).getByRole("button", { name: "저장", exact: true })).toBeVisible();
-    if (kind === "entities") await form(page).getByLabel("속성 2", { exact: false }).fill("20");
+    if (kind === "entities") await form(page).getByLabel("수량", { exact: false }).fill("20");
     else await form(page).getByRole("textbox", { name: /^본문(?: \(필수\))?$/ }).fill("편집한 본문");
     if (kind !== "records") await fillChangeMemo(page, form(page), "실측 결과 반영");
     await saveOnce(page, form(page));
@@ -251,7 +253,7 @@ test("기록: 자동 변경 문맥·원칙 snapshot·정정 시스템 필드 제
   await saveOnce(page, form(page));
   await expect.poll(() => state.writes.length).toBe(1);
   expect(Object.keys(state.writes[0].body).sort()).toEqual(["body", "expected_version"].sort());
-  expect(state.rows.entities[0].prop2).toBe(0);
+  expect(state.rows.entities[0].properties.prop_2).toBe(0);
   await expect(page).not.toHaveURL(/[?&]edit=/);
   await expect(form(page).getByRole("heading", { name: "기록", exact: true })).toBeVisible();
   await compatibleEdit(page);
@@ -260,7 +262,7 @@ test("기록: 자동 변경 문맥·원칙 snapshot·정정 시스템 필드 제
   await expect(confirm).toContainText("대상의 업무 상태는 되돌리지 않습니다.");
   await saveOnce(page, confirm, "삭제 확인");
   await expect(page).toHaveURL(/\/records$/);
-  expect(state.rows.entities[0].prop2).toBe(0);
+  expect(state.rows.entities[0].properties.prop_2).toBe(0);
   expect(state.rows.records).toHaveLength(0);
   expect(state.errors).toEqual([]);
 });
@@ -291,7 +293,7 @@ test("태그 인라인 편집: 취소는 목록으로 복귀·삭제 실패는 �
   await expect(deletion).toHaveCount(0);
   await expect(form(page)).toHaveCount(1);
   await expect(form(page).getByRole("form", { name: "태그 추가" })).toBeVisible();
-  await expect(form(page).getByRole("heading", { name: "엔터티 태그 관리", exact: true })).toBeFocused();
+  await expect(form(page).getByRole("heading", { name: "자료 태그 관리", exact: true })).toBeFocused();
   expect(attempts).toHaveLength(2);
   expect(attempts[1]).toBe(attempts[0]);
   expect(state.errors).toEqual([]);

@@ -2,7 +2,7 @@ import { expect, type Page, type Locator } from "@playwright/test";
 
 /** A desktop visit closes through its tab; narrow screens keep the native dialog close control. */
 export async function closeDetail(page: Page, title: string) {
-  const dialog = page.locator("dialog.modal:not(.modal-confirm)[open]");
+  const dialog = page.locator("dialog.modal:not(.modal-confirm)[open]:visible");
   await expect(dialog).toBeVisible();
   const tabClose = page.getByRole("button", { name: `${title} 탭 닫기`, exact: true });
   if (await dialog.evaluate(el => el.classList.contains("detail-docked"))) await tabClose.click();
@@ -12,7 +12,7 @@ export async function closeDetail(page: Page, title: string) {
 /** Complete a save through its public confirmation stage when the domain requires a change record. */
 export async function saveOnce(page: Page, scope: Page | Locator = page, label = "저장", waitForWrite = true) {
   const issuer = scope.getByLabel("발급처",{exact:false});
-  if(await issuer.isVisible() && !await page.getByRole("dialog",{name:"엔터티 복원",exact:true}).isVisible())await expect(issuer).toBeEnabled();
+  if(await issuer.isVisible() && !await page.getByRole("dialog",{name:/복원$/,exact:false}).isVisible())await expect(issuer).toBeEnabled();
   const final = page.locator("dialog.modal-action[open]").getByRole("button", {name:/^(등록|수정|중단|재개|복원|식별 정보 변경)하고 저장$|^삭제하고 기록$|^같은 내용 다시 시도$/});
   const requested = scope.getByRole("button", {name:label === "삭제 확인" ? "삭제하고 기록" : label,exact:true});
   if (await requested.isVisible()) {
@@ -38,7 +38,18 @@ export async function fillChangeMemo(page: Page, scope: Page | Locator, value: s
 
 /** Exercise the primary creation action; detail-page actions remain direct. */
 export async function beginTabAction(page: Page, label: string) {
-  const actions: Record<string, [string,string]> = {"할 일 추가":["할 일","할 일 등록"],"기록 작성":["기록","기록 작성"],"엔터티 추가":["엔터티","엔터티 등록"],"현재 원칙 등록":["원칙","원칙 작성"]};
+  const actions: Record<string, [string,string]> = {"할 일 추가":["할 일","할 일 등록"],"기록 작성":["기록","기록 작성"],"검사 자료 추가":["검사 자료","검사 자료 추가"],"현재 원칙 등록":["원칙","원칙 작성"]};
+  if (label === "검사 자료 추가") {
+    const header = page.locator(".main-tab-header");
+    const picker = header.getByLabel("자료 종류", { exact: true });
+    if (await picker.count() && !(await picker.inputValue())) {
+      await expect(picker).toBeEnabled();
+      const option = picker.locator('option[value]:not([value=""])').first();
+      await picker.selectOption(await option.getAttribute("value") ?? "");
+    }
+    await page.getByRole("button", { name: /^(검사 자료.*|자료) 추가$/, exact: true }).click();
+    return;
+  }
   const action = actions[label];
   if (!action) { await page.getByRole("button",{name:label,exact:true}).click(); return; }
   if (/^\/(entities|tasks|records|principles)\/?$/.test(new URL(page.url()).pathname)) { await page.getByRole("button",{name:action[1],exact:true}).click(); }
@@ -47,8 +58,8 @@ export async function beginTabAction(page: Page, label: string) {
 
 /** Enter editing through the viewer, keeping the dialog and navigation context. */
 export async function openDetailEditor(page: Page) {
-  await page.locator("dialog.modal:not(.modal-confirm)[open]").getByRole("button", {name:"편집",exact:true}).click();
-  await expect(page.locator("dialog.modal:not(.modal-confirm)[open]").getByRole("button", {name:"저장",exact:true})).toBeVisible();
+  await page.locator("dialog.modal:not(.modal-confirm)[open]:visible").getByRole("button", {name:"편집",exact:true}).click();
+  await expect(page.locator("dialog.modal:not(.modal-confirm)[open]:visible").getByRole("button", {name:"저장",exact:true})).toBeVisible();
 }
 
 export async function openListEditor(page: Page, title: string, scope: Page | Locator = page) {
@@ -62,9 +73,10 @@ export async function openListEditor(page: Page, title: string, scope: Page | Lo
 
 /** Main lists disclose first; full relation/workflow actions belong to the existing detail. */
 export async function openListDetail(page: Page, title: string) {
-  const toggle=page.getByRole("button",{name:title,exact:true});
+  const list=page.locator(".workspace-list, .app-main > .activity-section").filter({ has: page.getByRole("button", { name: title, exact: true }) });
+  const toggle=list.getByRole("button",{name:title,exact:true});
   if(await toggle.getAttribute("aria-expanded")!=="true")await toggle.click();
-  await page.getByRole("link",{name:title+" 상세",exact:true}).click();
+  await list.getByRole("link",{name:title+" 상세",exact:true}).click();
 }
 
 /** Open the visible common conditions group without toggling an already-open group. */
@@ -73,4 +85,21 @@ export async function openTabFilters(page: Page) {
   await expect(toggle).toBeVisible();
   if(await toggle.getAttribute("aria-expanded")==="false")await toggle.click();
   await expect(toggle).toHaveAttribute("aria-expanded","true");
+}
+
+/** Enter a live scalar condition using the current type definition. */
+export async function setEntityCategory(page: Page, value: string) {
+  const header = page.locator(".main-tab-header");
+  const picker = header.getByLabel("자료 종류", { exact: true });
+  if (!(await picker.inputValue())) {
+    const option = picker.locator('option[value]:not([value=""])').first();
+    await picker.selectOption(await option.getAttribute("value") ?? "");
+  }
+  await openTabFilters(page);
+  if (value) {
+    if (!await header.getByLabel("조건 1 속성", { exact: true }).count()) await header.getByRole("button", { name: "속성 조건 추가", exact: true }).click();
+    await header.getByLabel("조건 1 속성", { exact: true }).selectOption("prop_4");
+    await header.getByLabel("조건 1 값", { exact: true }).selectOption(value);
+  } else await header.getByRole("button", { name: "조건 1 제거", exact: true }).click();
+  await header.getByRole("button", { name: "속성 조건 적용", exact: true }).click();
 }

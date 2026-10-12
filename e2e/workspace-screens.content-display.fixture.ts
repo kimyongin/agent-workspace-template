@@ -139,7 +139,7 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
       await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
     ).toBe(true);
     const card = connectedTarget(page, "task").locator(".related-item");
-    const entityCard = form(page).getByRole("region", { name: "엔터티 (1개)", exact: true }).locator(".related-item");
+    const entityCard = form(page).getByRole("region", { name: "연결된 자료 (1개)", exact: true }).locator(".related-item");
     const cardStyle = async (el: ReturnType<typeof form>) =>
       el.evaluate((n) => {
         const c = getComputedStyle(n);

@@ -8,6 +8,7 @@ import { recordCreate, recordListQuery, recordResult, recordUpdate } from "../..
 import * as e from "../../functions/_shared/core/entity/application.ts";
 import * as a from "../../functions/_shared/core/activity/application.ts";
 import { connect, dbTest, fixtureOwner, urls } from "./_db.ts";
+import { entityFixture } from "./_entity.ts";
 const admin = connect(urls.admin, { max: 1 }),
   sql = connect(urls.pooler, { max: 3, prepare: false }),
   ed = { uow: new SqlEntityUnitOfWork(sql) },
@@ -63,11 +64,17 @@ dbTest(
   async () => {
     const f = await fixtureOwner(admin);
     try {
+      const schema = await entityFixture(admin, f.actor.userId);
       const A = { ...f.actor, source: "mcp" as const };
       const entity = await e.createEntity(
         ed,
         requestActor(A),
-        entityCreate.parse({ source: "app", external_id: crypto.randomUUID(), ...{ prop1: "대상", prop2: 10 } }),
+        entityCreate.parse({
+          ...schema,
+          source: "app",
+          external_id: crypto.randomUUID(),
+          properties: { prop_1: "대상", prop_2: 10 },
+        }),
       );
       const count = async () =>
         Number(
@@ -80,12 +87,18 @@ dbTest(
         ed,
         requestActor(A),
         entity.id,
-        entityUpdate.parse({ expected_version: entity.version, prop2: 10, change_note: "같은 값" }),
+        entityUpdate.parse({
+          schema_version: schema.schema_version,
+          expected_version: entity.version,
+          properties: { prop_2: 10 },
+          change_note: "같은 값",
+        }),
       );
       assertEquals(await count(), 1);
       const i = entityUpdate.parse({
+        schema_version: schema.schema_version,
         expected_version: entity.version,
-        prop2: 20,
+        properties: { prop_2: 20 },
         change_note: "실측",
       });
       const updated = await e.updateEntity(ed, requestActor(A), entity.id, i);
@@ -115,7 +128,7 @@ dbTest(
       assertEquals(corrected.body, "설명 정정");
       assertEquals(await count(), 2);
       await a.deleteRecord(ad, requestActor(A), corrected.id, corrected.version);
-      assertEquals((await e.getEntity(ed, A, entity.id)).prop2, 20);
+      assertEquals((await e.getEntity(ed, A, entity.id)).properties.prop_2, 20);
       assertEquals(await count(), 2);
       const task = await a.createTask(
         ad,
@@ -179,11 +192,17 @@ dbTest(
   async () => {
     const f = await fixtureOwner(admin);
     try {
+      const schema = await entityFixture(admin, f.actor.userId);
       const A = f.actor,
         entity = await e.createEntity(
           ed,
           requestActor(A),
-          entityCreate.parse({ source: "app", external_id: crypto.randomUUID(), ...{ prop1: "대상" } }),
+          entityCreate.parse({
+            ...schema,
+            source: "app",
+            external_id: crypto.randomUUID(),
+            properties: { prop_1: "대상" },
+          }),
         ),
         task = await a.createTask(
           ad,
@@ -227,8 +246,9 @@ dbTest(
         },
       };
       const ei = entityUpdate.parse({
+          schema_version: schema.schema_version,
           expected_version: 1,
-          prop1: "새 이름",
+          properties: { prop_1: "새 이름" },
           change_note: "정정",
         }),
         ti = taskUpdate.parse({

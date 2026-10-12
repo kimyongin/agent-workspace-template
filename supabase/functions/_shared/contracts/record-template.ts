@@ -17,10 +17,7 @@ export const templateActionNames: Record<TemplateAction, string> = {
 };
 export const templateFields: Record<TemplateModel, Record<string, string>> = {
   entity: {
-    속성1: "prop1",
-    속성2: "prop2",
-    속성3: "prop3",
-    속성4: "prop4",
+    제목: "title",
     태그: "tag_ids",
     발급처: "source",
     식별자: "external_id",
@@ -46,14 +43,16 @@ export function modelActions(model: TemplateModel): TemplateAction[] {
     ? ["create", "update", "delete", "stop", "resume"]
     : ["create", "update", "delete"];
 }
-export function templateVariables(model: TemplateModel, action: TemplateAction): string[] {
+export function templateVariables(model: TemplateModel, action: TemplateAction, propertyKeys: string[] = []): string[] {
   return [
     "대상",
     "액션",
     "변경내용",
     ...(action === "update" ? ["변경항목"] : []),
     ...["이전", "이후"].filter((phase) => action !== (phase === "이전" ? "create" : "delete")).flatMap((phase) =>
-      Object.keys(templateFields[model]).map((field) => `${templateModelNames[model]}.${phase}.${field}`)
+      [...Object.keys(templateFields[model]), ...(model === "entity" ? propertyKeys : [])].map((field) =>
+        `${templateModelNames[model]}.${phase}.${field}`
+      )
     ),
   ];
 }
@@ -80,7 +79,9 @@ export function templateIssues(memo: string, model: TemplateModel, action: Templ
       break;
     }
     const variable = memo.slice(start, end);
-    if (!allowed.has(variable)) {
+    const dynamicProperty = model === "entity" && /^엔터티\.(이전|이후)\.prop_[1-9][0-9]*$/.test(variable) &&
+      !(action === "create" && variable.includes(".이전.")) && !(action === "delete" && variable.includes(".이후."));
+    if (!allowed.has(variable) && !dynamicProperty) {
       issues.push({
         position: open + 1,
         reason: `사용할 수 없는 변수: ${variable || "(빈 변수)"}. 모델·속성·이전/이후를 확인하세요`,
@@ -108,7 +109,23 @@ export const recordTemplates = z.strictObject({
   entity: actions.optional(),
   task: actions.optional(),
   principle: actions.optional(),
+  entity_types: z.record(z.string().uuid(), actions).optional(),
 }).superRefine((settings, context) => {
+  for (const [typeId, group] of Object.entries(settings.entity_types ?? {})) {
+    for (const [name, value] of Object.entries(group)) {
+      const action = name as TemplateAction;
+      if (!modelActions("entity").includes(action)) {
+        context.addIssue({
+          code: "custom",
+          path: ["entity_types", typeId, name],
+          message: "이 모델에서 사용할 수 없는 액션입니다",
+        });
+      }
+      for (const issue of templateIssues(value.memo, "entity", action)) {
+        context.addIssue({ code: "custom", path: ["entity_types", typeId, name, "memo"], message: issue.reason });
+      }
+    }
+  }
   for (const model of TEMPLATE_MODELS) {
     for (const action of TEMPLATE_ACTIONS) {
       const value = settings[model]?.[action];
@@ -144,11 +161,48 @@ export function effectiveRecordTemplate(
   templates: RecordTemplates | undefined,
   model: TemplateModel,
   action: TemplateAction,
+  typeId?: string,
 ) {
-  const value = templates?.[model]?.[action];
+  const value = model === "entity" && typeId
+    ? templates?.entity_types?.[typeId]?.[action] ?? templates?.entity?.[action]
+    : templates?.[model]?.[action];
   return {
     memo: value?.memo.trim() ? simplifyTemplateSyntax(value.memo) : DEFAULT_RECORD_MEMO_TEMPLATES[action],
     tag_ids: value?.tag_ids ?? [],
+  };
+}
+/** Effective templates contain only this type's actual memo and tags; other settings cannot stale a plan. */
+export function effectiveEntityTemplates(templates: RecordTemplates | undefined, typeId: string): RecordTemplates {
+  return {
+    entity: Object.fromEntries(
+      modelActions("entity").map((action) => [action, effectiveRecordTemplate(templates, "entity", action, typeId)]),
+    ),
+  };
+}
+export function recordTemplateTagIds(templates: RecordTemplates | undefined): string[] {
+  return [
+    ...new Set([
+      ...TEMPLATE_MODELS.map((model) => templates?.[model]),
+      ...Object.values(templates?.entity_types ?? {}),
+    ].flatMap((group) => Object.values(group ?? {}).flatMap((value) => value?.tag_ids ?? []))),
+  ];
+}
+export function mapRecordTemplateTags(templates: RecordTemplates, map: (ids: string[]) => string[]): RecordTemplates {
+  const group = (values: RecordTemplates["entity"]) =>
+    Object.fromEntries(
+      Object.entries(values ?? {}).map(([action, value]) => [action, { ...value, tag_ids: map(value!.tag_ids) }]),
+    );
+  return {
+    ...Object.fromEntries(
+      TEMPLATE_MODELS.filter((model) => templates[model]).map((model) => [model, group(templates[model])]),
+    ),
+    ...(templates.entity_types
+      ? {
+        entity_types: Object.fromEntries(
+          Object.entries(templates.entity_types).map(([id, values]) => [id, group(values)]),
+        ),
+      }
+      : {}),
   };
 }
 /** Keep unset overrides unset; only display legacy empty memos as the default. */
@@ -161,6 +215,20 @@ export function editableRecordTemplates(templates: RecordTemplates = {}): Record
     for (const action of modelActions(model)) {
       if (group[action]) result[model]![action] = effectiveRecordTemplate(templates, model, action);
     }
+  }
+  if (templates.entity_types) {
+    result.entity_types = Object.fromEntries(
+      Object.entries(templates.entity_types).map((
+        [typeId, group],
+      ) => [
+        typeId,
+        Object.fromEntries(
+          Object.entries(group).map((
+            [action],
+          ) => [action, effectiveRecordTemplate(templates, "entity", action as TemplateAction, typeId)]),
+        ),
+      ]),
+    );
   }
   return result;
 }
@@ -189,6 +257,10 @@ export function renderTemplate(memo: string, context: TemplateContext): string {
       if (variable === "변경내용") return context.changes;
       if (variable === "변경항목") return context.changed_fields?.join(", ") || "변경 없음";
       const [, phase, name] = variable.split(".");
+      if (context.model === "entity" && /^prop_[1-9][0-9]*$/.test(name)) {
+        const facts = phase === "이전" ? context.before : context.after;
+        return display((facts?.properties as Record<string, unknown> | undefined)?.[name]);
+      }
       return display((phase === "이전" ? context.before : context.after)?.[templateFields[context.model][name]]);
     },
   );

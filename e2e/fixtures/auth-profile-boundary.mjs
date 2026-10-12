@@ -21,7 +21,7 @@ async function eventually(check) {
 }
 const json = (value, status = 200) => new Response(JSON.stringify(value), { status, headers: { "Content-Type": "application/json" } });
 async function loadSource(path, bindings, tail) {
-  const source = fs.readFileSync(path, "utf8").replace(/^import[^\n]*\n/gm, "")
+  const source = fs.readFileSync(path, "utf8").replace(/^import\s[\s\S]*?;\n/gm, "")
     .replace(/import\.meta\.env\.VITE_SUPABASE_URL/g, '"http://fixture.invalid"')
     .replace(/import\.meta\.env\.VITE_SUPABASE_PUBLISHABLE_KEY/g, '"fixture-public"');
   const { code } = await transformWithOxc(source, "boundary-source.tsx", { jsx: { runtime: "classic", pragma: "__jsx" }, tsconfig: false });

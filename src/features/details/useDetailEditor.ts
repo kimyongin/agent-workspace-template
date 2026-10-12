@@ -1,3 +1,4 @@
+import { detailModeLink } from "../../lib/entity-list-url.ts";
 import { useEffect, useRef, useState } from "react";
 import { useLocation, useSearchParams } from "react-router";
 import { useDetailNavigate } from "../../lib/detail-exploration.tsx";
@@ -33,13 +34,13 @@ export function useDetailEditor(onClosed: () => void) {
     viewer.delete("edit");
     viewer.delete("edit_from");
     latestClosed.current();
-    leave(`${pathname}?${viewer}`);
+    leave(detailModeLink(pathname, viewer, location.hash));
   };
   const start = () => {
     const next = new URLSearchParams(params);
     next.set("edit", "1");
     next.delete("edit_from");
-    navigate(`?${next}`);
+    navigate(detailModeLink(location.pathname, next, location.hash));
   };
   return { active, start, close, leave, formProps: { onClose: () => close(), onRouteDiscard: discard } };
 }

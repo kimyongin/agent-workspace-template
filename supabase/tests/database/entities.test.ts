@@ -9,6 +9,7 @@ import * as entity from "../../functions/_shared/core/entity/application.ts";
 import * as activity from "../../functions/_shared/core/activity/application.ts";
 import { AppError } from "../../functions/_shared/core/shared/errors.ts";
 import { asUser, connect, dbTest, devUsers, outcome, urls } from "./_db.ts";
+import { entityFixture } from "./_entity.ts";
 const admin = connect(urls.admin, { max: 1 }),
   sql = connect(urls.pooler, { prepare: false, max: 3 }),
   users = await devUsers(admin);
@@ -16,11 +17,16 @@ const A = { userId: users.a },
   B = { userId: users.b },
   d = { uow: new SqlEntityUnitOfWork(sql) },
   a = { uow: new SqlUnitOfWork(sql), clock: { now: () => new Date() } };
-const create = (name: string, actor = A, extra = {}) =>
+const create = async (name: string, actor = A, extra = {}) =>
   entity.createEntity(
     d,
     requestActor(actor),
-    entityCreate.parse({ source: "app", external_id: crypto.randomUUID(), ...{ prop1: name, ...extra } }),
+    entityCreate.parse({
+      ...await entityFixture(admin, actor.userId),
+      source: "app",
+      external_id: crypto.randomUUID(),
+      properties: { prop_1: name, ...extra },
+    }),
   );
 dbTest("Entity DB: same owner 참조 거부·삭제 링크 보존·원문/버전/태그/색인 보존", async () => {
   const e = await create("링크 보존"), foreign = await create("외부", B);
@@ -93,7 +99,13 @@ dbTest("Entity DB: same owner 참조 거부·삭제 링크 보존·원문/버전
   await entity.deleteEntity(d, requestActor(B), foreign.id, 1);
 });
 dbTest("Entity DB: RLS·직접 접근 차단·선택 검증·멱등성·버전 경쟁", async () => {
-  const input = entityCreate.parse({ source: "app", external_id: crypto.randomUUID(), ...{ prop1: "멱등" } });
+  const schema = await entityFixture(admin, A.userId);
+  const input = entityCreate.parse({
+    ...schema,
+    source: "app",
+    external_id: crypto.randomUUID(),
+    properties: { prop_1: "멱등" },
+  });
   const results = await Promise.allSettled([
     entity.createEntity(d, requestActor(A), input),
     entity.createEntity(d, requestActor(A), input),
@@ -113,12 +125,17 @@ dbTest("Entity DB: RLS·직접 접근 차단·선택 검증·멱등성·버전 �
     return tx`select * from app.entities`;
   }))).startsWith("42501"));
   const writes = await Promise.allSettled(
-    ["정정1", "정정2"].map((prop1) =>
+    ["정정1", "정정2"].map((title) =>
       entity.updateEntity(
         d,
         requestActor(A),
         e.id,
-        entityUpdate.parse({ change_note: "테스트 변경 이유", expected_version: 1, prop1 }),
+        entityUpdate.parse({
+          schema_version: schema.schema_version,
+          change_note: "테스트 변경 이유",
+          expected_version: 1,
+          properties: { prop_1: title },
+        }),
       )
     ),
   );
@@ -126,35 +143,79 @@ dbTest("Entity DB: RLS·직접 접근 차단·선택 검증·멱등성·버전 �
   await assertRejects(() => entity.deleteEntity(d, requestActor(A), e.id, 1), AppError);
   await entity.deleteEntity(d, requestActor(A), e.id, 2);
 });
-dbTest("Entity DB: Unicode 키워드·0/null·날짜 범위·선택·모든 정렬 커서와 다른 owner/filter 거부", async () => {
-  const marker = crypto.randomUUID(), items = [];
-  for (const [n, prop2, prop3] of [["가", null, null], ["나", 0, "2024-02-29"], ["다", 2, "2025-01-01"]] as const) {
-    items.push(await create(`${marker} ${n}`, A, { prop2, prop3, prop4: "b" }));
-  }
-  for (const sort of ["updated_at", "prop1", "prop2", "prop3"] as const) {
-    const q = entityListQuery.parse({ keyword: marker, sort, limit: 1 });
-    let page = await entity.listEntities(d, A, q);
-    const ids = [page.items[0].id];
-    const cursor = page.next_cursor!;
-    while (page.next_cursor) {
-      page = await entity.listEntities(d, A, { ...q, cursor: page.next_cursor });
-      ids.push(...page.items.map((e) => e.id));
-    }
-    assertEquals(new Set(ids).size, 3);
-    assertEquals(ids, sort === "updated_at" ? items.map((e) => e.id).reverse() : items.map((e) => e.id));
+dbTest("Entity DB: representative cursors preserve Unicode and owner/filter scope", async () => {
+  const marker = crypto.randomUUID(), schema = await entityFixture(admin, A.userId);
+  const items = [await create(`${marker} 가`), await create(`${marker} 나`)];
+  for (const sort of ["updated_at", "title"] as const) {
+    const q = entityListQuery.parse({ entity_type_id: schema.entity_type_id, keyword: marker, sort, limit: 1 });
+    const first = await entity.listEntities(d, A, q);
+    const cursor = first.next_cursor!;
+    const second = await entity.listEntities(d, A, { ...q, cursor });
+    assertEquals(
+      [...first.items, ...second.items].map((row) => row.id),
+      sort === "title" ? items.map((row) => row.id) : items.map((row) => row.id).reverse(),
+    );
     assertEquals(
       (await assertRejects(() => entity.listEntities(d, B, { ...q, cursor }), AppError)).code,
       "invalid_input",
     );
-    await assertRejects(() => entity.listEntities(d, A, { ...q, prop4: "a", cursor }), AppError);
+    await assertRejects(() => entity.listEntities(d, A, { ...q, keyword: marker + "다", cursor }), AppError);
   }
-  assertEquals(
-    (await entity.listEntities(
-      d,
-      A,
-      entityListQuery.parse({ keyword: marker, prop3_from: "2024-02-29", prop3_to: "2024-02-29", prop4: "b" }),
-    )).items.map((e) => e.id),
-    [items[1].id],
-  );
-  for (const e of items) await entity.deleteEntity(d, requestActor(A), e.id, 1);
+  for (const item of items) await entity.deleteEntity(d, requestActor(A), item.id, item.version);
+});
+Deno.test({
+  name: "Entity DB: typed numeric/date AND filters and property cursors",
+  sanitizeOps: false,
+  sanitizeResources: false,
+  fn: async () => {
+    const marker = crypto.randomUUID(), items = [];
+    const schema = await entityFixture(admin, A.userId);
+    for (const [n, amount, date] of [["가", null, null], ["나", 0, "2024-02-29"], ["다", 2, "2025-01-01"]] as const) {
+      items.push(await create(`${marker} ${n}`, A, { prop_2: amount, prop_3: date, prop_4: "b" }));
+    }
+    for (
+      const sort of ["updated_at", { key: "prop_1", direction: "asc" }, { key: "prop_2", direction: "asc" }, {
+        key: "prop_3",
+        direction: "asc",
+      }] as const
+    ) {
+      const q = entityListQuery.parse({ entity_type_id: schema.entity_type_id, keyword: marker, sort, limit: 1 });
+      let page = await entity.listEntities(d, A, q);
+      const ids = [page.items[0].id];
+      const cursor = page.next_cursor!;
+      while (page.next_cursor) {
+        page = await entity.listEntities(d, A, { ...q, cursor: page.next_cursor });
+        ids.push(...page.items.map((e) => e.id));
+      }
+      assertEquals(new Set(ids).size, 3);
+      assertEquals(ids, sort === "updated_at" ? items.map((e) => e.id).reverse() : items.map((e) => e.id));
+      assertEquals(
+        (await assertRejects(() => entity.listEntities(d, B, { ...q, cursor }), AppError)).code,
+        "invalid_input",
+      );
+      await assertRejects(() =>
+        entity.listEntities(
+          d,
+          A,
+          entityListQuery.parse({ ...q, filters: [{ key: "prop_4", operator: "eq", value: "a" }], cursor }),
+        ), AppError);
+    }
+    assertEquals(
+      (await entity.listEntities(
+        d,
+        A,
+        entityListQuery.parse({
+          entity_type_id: schema.entity_type_id,
+          keyword: marker,
+          filters: [
+            { key: "prop_3", operator: "gte", value: "2024-02-29" },
+            { key: "prop_3", operator: "lte", value: "2024-02-29" },
+            { key: "prop_4", operator: "eq", value: "b" },
+          ],
+        }),
+      )).items.map((e) => e.id),
+      [items[1].id],
+    );
+    for (const e of items) await entity.deleteEntity(d, requestActor(A), e.id, 1);
+  },
 });

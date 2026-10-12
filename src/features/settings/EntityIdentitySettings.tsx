@@ -36,10 +36,10 @@ export function EntityIdentitySettings({onStateChange}: {onStateChange?: (state:
     return ordered(sources,current);
   });
   return <section className="settings-section" aria-labelledby="entity-identity-title">
-    <h2 className="settings-section-title" id="entity-identity-title">엔터티 식별자</h2>
+    <h2 className="settings-section-title" id="entity-identity-title">자료 식별자</h2>
     {message&&<p className={error?"error-text":"secondary"} role={error?"alert":"status"}>{message}</p>}
     {!saved&&<><p role="status">{message?"":"설정을 읽는 중…"}</p>{message&&<button className="btn" disabled={busy} onClick={()=>void read()}>다시 시도</button>}</>}
-    {draft&&saved&&<form className="form" aria-label="엔터티 식별자 설정" aria-busy={busy} onSubmit={async event=>{
+    {draft&&saved&&<form className="form" aria-label="자료 식별자 설정" aria-busy={busy} onSubmit={async event=>{
       event.preventDefault();if(busy||conflict||!dirty)return;
       const parsed=entityIdentitySettings.safeParse(draft);
       if(!parsed.success){setMessage(parsed.error.issues.map(issue=>issue.message).join(" · "));setError(true);return;}

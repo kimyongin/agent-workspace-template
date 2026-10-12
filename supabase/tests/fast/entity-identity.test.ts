@@ -1,7 +1,9 @@
 import { requestActor } from "../_request.ts";
 import type { ChangeInput } from "../../functions/_shared/core/shared/changes.ts";
 import { assertEquals, assertRejects } from "@std/assert";
-import { type EntityCreate, entityCreate, type EntityResult } from "../../functions/_shared/contracts/entity.ts";
+import { type EntityCreate, entityCreate, type EntityValues } from "../../functions/_shared/contracts/entity.ts";
+import { initialEntityDefinition } from "../../functions/_shared/contracts/entity-type.ts";
+import type { EntityDefinition } from "../../functions/_shared/core/entity/values.ts";
 import {
   createEntity,
   deleteEntity,
@@ -13,10 +15,25 @@ import {
 import { type BusinessSettingsDeps, prepareBusinessRecord } from "../../functions/_shared/core/settings/application.ts";
 import { entityChangeFacts } from "../../functions/_shared/core/entity/change.ts";
 import { AppError } from "../../functions/_shared/core/shared/errors.ts";
+const typeId = "00000000-0000-4000-8000-000000000001";
+const definition: EntityDefinition = {
+  ...initialEntityDefinition("속성 1"),
+  type_id: typeId,
+  schema_version: 1,
+  type_version: 1,
+  type: { id: typeId, label: "검사 자료", icon_id: "box", archived: false },
+};
+definition.schema.properties.prop_1.maxLength = 100;
+definition.schema.properties.prop_2 = { type: ["integer", "null"], minimum: 0, maximum: 1_000_000, default: null };
+definition.schema.properties.prop_3 = { type: ["string", "null"], format: "date", default: null };
+definition.schema.properties.prop_4 = { type: "string", enum: ["a", "b", "c"], default: "a" };
+definition.display.order = ["prop_1", "prop_2", "prop_3", "prop_4"];
+const schema = { entity_type_id: typeId, schema_version: 1 };
 
 Deno.test("Entity registration uses exact namespaced identity and rejects active duplicate", async () => {
   const rows = new Map();
   const store = {
+    definition: () => Promise.resolve(definition),
     executeRequest: <T>(_request: unknown, execute: () => Promise<T>) => execute(),
     get: (id: string) => Promise.resolve(rows.get(id) ?? null),
     getBusinessSettings: () =>
@@ -30,15 +47,28 @@ Deno.test("Entity registration uses exact namespaced identity and rejects active
           },
         },
       }),
-    insert: (i: Record<string, unknown>) => {
-      const row = { ...i, version: 1, deleted_at: null };
+    insert: (i: Parameters<EntityStore["insert"]>[0]) => {
+      const row = {
+        ...i,
+        type: definition.type,
+        title: String(i.properties.prop_1),
+        current_schema_version: 1,
+        display_properties: i.properties,
+        version: 1,
+        deleted_at: null,
+      };
       rows.set(i.id, row);
       return Promise.resolve(row);
     },
     appendChange: () => Promise.resolve(),
   } as unknown as EntityStore;
   const d: EntityDeps = { uow: { run: (_a, fn) => fn(store) } }, actor = { userId: crypto.randomUUID() };
-  const input = entityCreate.parse({ source: "crm", external_id: "000Ab:/한글%", prop1: "고객" });
+  const input = entityCreate.parse({
+    ...schema,
+    source: "crm",
+    external_id: "000Ab:/한글%",
+    properties: { prop_1: "고객" },
+  });
   const created = await createEntity(d, requestActor(actor), input);
   assertEquals(created.id, "crm:000Ab:/한글%");
   assertEquals(created.external_id, "000Ab:/한글%");
@@ -46,9 +76,10 @@ Deno.test("Entity registration uses exact namespaced identity and rejects active
 });
 
 Deno.test("Deleted entity registration preserves omitted values and rejects stale writes after restore", async () => {
-  let row: EntityResult | null = null;
+  let row: EntityValues | null = null;
   const events: string[] = [];
   const store = {
+    definition: () => Promise.resolve(definition),
     executeRequest: <T>(_request: unknown, execute: () => Promise<T>) => execute(),
     get: () => Promise.resolve(row),
     related: () => Promise.resolve({ tasks: { count: 1, items: [] }, records: { count: 1, items: [] } }),
@@ -56,6 +87,10 @@ Deno.test("Deleted entity registration preserves omitted values and rejects stal
     insert: (i: Parameters<EntityStore["insert"]>[0]) => {
       row = {
         ...i,
+        type: definition.type,
+        title: String(i.properties.prop_1),
+        current_schema_version: 1,
+        display_properties: i.properties,
         source_label: i.source,
         created_at: "2026-10-09T00:00:00Z",
         updated_at: "2026-10-09T00:00:00Z",
@@ -82,12 +117,22 @@ Deno.test("Deleted entity registration preserves omitted values and rejects stal
   const created = await createEntity(
     d,
     requestActor(actor),
-    entityCreate.parse({ source: "app", external_id: "001", prop1: "보관 대상", prop2: 0, prop4: "c" }),
+    entityCreate.parse({
+      ...schema,
+      source: "app",
+      external_id: "001",
+      properties: { prop_1: "보관 대상", prop_2: 0, prop_4: "c" },
+    }),
   );
   await deleteEntity(d, requestActor(actor), created.id, 1);
   assertEquals((await getEntity(d, actor, created.id)).deleted_at, "2026-10-09T00:00:00Z");
   await assertRejects(
-    () => createEntity(d, requestActor(actor), entityCreate.parse({ source: "app", external_id: "001" })),
+    () =>
+      createEntity(
+        d,
+        requestActor(actor),
+        entityCreate.parse({ ...schema, source: "app", external_id: "001", properties: {} }),
+      ),
     AppError,
   );
   const settingsDeps: BusinessSettingsDeps = {
@@ -95,6 +140,7 @@ Deno.test("Deleted entity registration preserves omitted values and rejects stal
     uow: {
       run: (_actor, fn) =>
         fn({
+          definition: () => Promise.resolve(definition),
           executeRequest: <T>(_request: unknown, execute: () => Promise<T>) => execute(),
           get: () =>
             Promise.resolve({
@@ -102,7 +148,10 @@ Deno.test("Deleted entity registration preserves omitted values and rejects stal
               settings: {
                 record_templates: {
                   entity: {
-                    restore: { memo: "$엔터티.이후.속성1$ / $엔터티.이후.속성2$ / $엔터티.이후.속성4$", tag_ids: [] },
+                    restore: {
+                      memo: "$엔터티.이후.prop_1$ / $엔터티.이후.prop_2$ / $엔터티.이후.prop_4$",
+                      tag_ids: [],
+                    },
                   },
                 },
               },
@@ -121,7 +170,7 @@ Deno.test("Deleted entity registration preserves omitted values and rejects stal
     action: "restore",
     target_id: created.id,
     expected_version: 2,
-    input: { prop3: "2026-10-09" },
+    input: { ...schema, properties: { prop_3: "2026-10-09" } },
   });
   assertEquals(prepared.change_note, "보관 대상 / 0 / c");
   const restored = await createEntity(
@@ -133,7 +182,13 @@ Deno.test("Deleted entity registration preserves omitted values and rejects stal
       change_tag_ids: prepared.change_tag_ids,
     }),
   );
-  assertEquals([restored.prop1, restored.prop2, restored.prop4, restored.version, restored.deleted_at], [
+  assertEquals([
+    restored.properties.prop_1,
+    restored.properties.prop_2,
+    restored.properties.prop_4,
+    restored.version,
+    restored.deleted_at,
+  ], [
     "보관 대상",
     0,
     "c",
@@ -147,7 +202,12 @@ Deno.test("Deleted entity registration preserves omitted values and rejects stal
   );
 
   await assertRejects(
-    () => updateEntity(d, requestActor(actor), created.id, { expected_version: 1, prop1: "오래된 요청" }),
+    () =>
+      updateEntity(d, requestActor(actor), created.id, {
+        schema_version: 1,
+        expected_version: 1,
+        properties: { prop_1: "오래된 요청" },
+      }),
     AppError,
   );
 });

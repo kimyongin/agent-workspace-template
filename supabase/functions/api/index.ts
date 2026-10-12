@@ -4,6 +4,8 @@ import {
   activityDeps,
   businessSettingsDeps,
   entityDeps,
+  entityPairDeps,
+  entityTypeDeps,
   env,
   principleDeps,
   searchDeps,
@@ -25,6 +27,8 @@ const app = createHttpApp(
   entityDeps(),
   businessSettingsDeps(),
   statusDeps(),
+  entityTypeDeps(),
+  entityPairDeps(),
 );
 
 Deno.serve(app.fetch);

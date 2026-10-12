@@ -85,3 +85,17 @@ export const env = {
   },
   webOrigins: () => (Deno.env.get("WEB_ORIGINS") ?? "").split(",").map((s) => s.trim()).filter(Boolean),
 };
+
+import { SqlEntityTypeUnitOfWork } from "./adapters/supabase/entity-type-store.ts";
+import type { EntityTypeDeps } from "./core/entity-types/application.ts";
+let entityTypes: EntityTypeDeps | undefined;
+export function entityTypeDeps(): EntityTypeDeps {
+  return entityTypes ??= { uow: new SqlEntityTypeUnitOfWork(database()) };
+}
+
+import { SqlEntityPairUnitOfWork } from "./adapters/supabase/entity-pair-store.ts";
+import type { EntityPairDeps } from "./core/entity-pairs/application.ts";
+let entityPairs: EntityPairDeps | undefined;
+export function entityPairDeps(): EntityPairDeps {
+  return entityPairs ??= { uow: new SqlEntityPairUnitOfWork(database()) };
+}

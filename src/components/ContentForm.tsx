@@ -38,6 +38,7 @@ interface FormModalProps {
   domain?: string;
   open: boolean;
   submitLabel: string;
+  submitDisabled?: boolean;
   dirty: boolean;
   onClose: () => void;
   onRouteDiscard?: () => void;
@@ -63,7 +64,7 @@ export function FormModal(props: FormModalProps) {
   </ModalShell>;
 }
 
-function FormContents({title, domain, open, submitLabel, dirty, onClose, onRouteDiscard, onSubmit, validate, children, deletion, mutation, preparation, onPrepared, confirmationOnly, present}: FormModalProps & {present?: (value: Presentation)=>void}) {
+function FormContents({title, domain, open, submitLabel, submitDisabled = false, dirty, onClose, onRouteDiscard, onSubmit, validate, children, deletion, mutation, preparation, onPrepared, confirmationOnly, present}: FormModalProps & {present?: (value: Presentation)=>void}) {
   const formId = useId();
   const surface = useContext(SurfaceContext);
   const callbacks = useRef({onClose,onRouteDiscard,onSubmit,validate,deletion,mutation,preparation,onPrepared});
@@ -92,7 +93,7 @@ function FormContents({title, domain, open, submitLabel, dirty, onClose, onRoute
   const { busy, uncertain, active, errors, failure } = confirmation;
   const submit = async (e: FormEvent) => {
     e.preventDefault();
-    if (busy || active) return;
+    if (busy || active || submitDisabled) return;
     const local = callbacks.current.validate();
     if (local) return confirmation.reject(local, "입력을 확인하세요.");
     if (mutation) confirmation.begin("save"); else await confirmation.write("save");
@@ -100,7 +101,7 @@ function FormContents({title, domain, open, submitLabel, dirty, onClose, onRoute
   const footer = (requestCancel:()=>void) => <>
     {deletion && !uncertain && <button type="button" key="delete" className="btn btn-danger delete-trigger" disabled={busy} onClick={()=>confirmation.begin("delete")}>삭제</button>}
     <button key="cancel" type="button" className="btn" disabled={busy} onClick={requestCancel}>취소</button>
-    <button key="save" type="submit" form={formId} className="btn btn-primary" disabled={busy}>{busy ? "처리 중…" : uncertain ? "같은 내용 다시 시도" : submitLabel}</button>
+    <button key="save" type="submit" form={formId} className="btn btn-primary" disabled={busy || submitDisabled}>{busy ? "처리 중…" : uncertain ? "같은 내용 다시 시도" : submitLabel}</button>
   </>;
   const register = surface?.register;
   useLayoutEffect(() => {
@@ -110,7 +111,7 @@ function FormContents({title, domain, open, submitLabel, dirty, onClose, onRoute
       onClose: ()=>callbacks.current.onClose(), onRouteDiscard: ()=>(callbacks.current.onRouteDiscard ?? callbacks.current.onClose)()});
     else present?.(presentation);
     return () => { register?.(null); };
-  }, [register,present,open,title,domain,dirty,confirmation.dirty,busy,formId,submitLabel,!!deletion]);
+  }, [register,present,open,title,domain,dirty,confirmation.dirty,busy,formId,submitLabel,submitDisabled,!!deletion]);
   const form = <form id={formId} className="form" onSubmit={submit} noValidate>
     {failure && !active && <Notice kind="error">{failure}</Notice>}
     <fieldset disabled={busy || uncertain || active} className="form plain-fieldset">{children(errors)}</fieldset>

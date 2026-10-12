@@ -1,3 +1,4 @@
+import { loadEntityDefinition } from "./entity-values.ts";
 import { insertWithIdRetry } from "./data-id.ts";
 import type postgres from "postgres";
 import type { TagResult } from "../../contracts/tag.ts";
@@ -8,6 +9,7 @@ import { conflict } from "../../core/shared/errors.ts";
 import { runAsActor, SqlActorStore } from "./sql-context.ts";
 import { SqlEntityStore } from "./entity-store.ts";
 import { SqlActivityStore } from "./activity-store.ts";
+import { checkedProperties, requireDefinition } from "../../core/entity/values.ts";
 const toTag = (r: Record<string, unknown>): TagResult => ({
   scope: r.scope as TagResult["scope"],
   id: r.id as string,
@@ -17,8 +19,25 @@ const toTag = (r: Record<string, unknown>): TagResult => ({
   updated_at: (r.updated_at as Date).toISOString(),
 });
 class SqlTagStore extends SqlActorStore implements TagStore {
+  private deletionTypes: Set<string> | undefined;
+  private async deletionTypeIds(id: string) {
+    const rows = await this.tx<
+      { entity_type_id: string }[]
+    >`select distinct e.entity_type_id from app.entities e where e.id in (
+      select entity_id from app.entity_tags where tag_id=${id}
+      union select unnest(t.entity_ids) from app.tasks t join app.task_tags l on l.task_id=t.id where l.tag_id=${id}
+      union select unnest(r.entity_ids) from app.records r join app.record_tags l on l.record_id=r.id where l.tag_id=${id})`;
+    return rows.map((r) => r.entity_type_id).sort();
+  }
+  async prepareDelete(id: string) {
+    this.deletionTypes = new Set(await this.deletionTypeIds(id));
+    for (const typeId of this.deletionTypes) await loadEntityDefinition(this.tx, typeId, true);
+  }
   async get(id: string, lock = false) {
     const [r] = await this.tx`select * from app.tags where id=${id} ${lock ? this.tx`for update` : this.tx``}`;
+    if (lock && this.deletionTypes && (await this.deletionTypeIds(id)).some((type) => !this.deletionTypes!.has(type))) {
+      throw conflict("태그 연결이 변경되었습니다. 최신 상태에서 다시 삭제하세요");
+    }
     return r ? toTag(r) : null;
   }
   async unique(fn: () => Promise<Record<string, unknown>[]>) {
@@ -59,7 +78,13 @@ class SqlTagStore extends SqlActorStore implements TagStore {
   }
   async setTags(use: TagUse, tag_ids: string[]): Promise<TagUse> {
     if (use.kind === "entity") {
-      return { kind: "entity", value: await new SqlEntityStore(this.tx, this.actor).update(use.value.id, { tag_ids }) };
+      const entities = new SqlEntityStore(this.tx, this.actor);
+      const definition = await requireDefinition(entities, use.value.entity_type_id, use.value.current_schema_version);
+      checkedProperties(definition, use.value.properties, {}, false);
+      return {
+        kind: "entity",
+        value: await entities.update(use.value.id, { tag_ids, schema_version: definition.schema_version }),
+      };
     }
     const activity = new SqlActivityStore(this.tx, this.actor);
     if (use.kind === "task") return { kind: "task", value: await activity.updateTask(use.value.id, { tag_ids }) };

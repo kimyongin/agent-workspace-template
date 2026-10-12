@@ -57,3 +57,12 @@ describe("list return paths",()=>{
   });
 
 });
+
+it("entity return paths keep long filter fragments and restore the old entity focus anchor",()=>{
+  const raw=JSON.stringify([{key:"prop_2",operator:"eq",value:"한".repeat(4096)}]);
+  const params=new URLSearchParams({entity_type_id:"00000000-0000-4000-8000-000000000001",pages:"2"});
+  const hash=`#${new URLSearchParams({property_filters:raw,entity_type_id:params.get("entity_type_id")!})}`;
+  const back=new URL(listReturnPath("entities",params,"app:one",42,"/entities",hash),"https://fixture.invalid");
+  expect(back.search.length).toBeLessThan(2048);expect(anchorId("entities",back.hash)).toBe("app:one");
+  expect(new URLSearchParams(back.hash.slice(1)).get("property_filters")).toBe(raw);
+});

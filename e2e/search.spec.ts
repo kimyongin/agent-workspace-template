@@ -1,5 +1,5 @@
-import {expect,test} from "@playwright/test";
-import {devLogin,mcpClient,mcpTokenViaConsent,unique} from "./support.ts";
+import {expect } from "@playwright/test";
+import { test, devLogin,mcpClient,mcpTokenViaConsent,unique } from "./support.ts";
 import {savePrinciple} from "./principle-support.ts";
 // This suite checks native-dialog history restoration; retained wide panels are covered separately.
 test.beforeEach(async({page,isMobile})=>{if(!isMobile)await page.setViewportSize({width:1024,height:720});});

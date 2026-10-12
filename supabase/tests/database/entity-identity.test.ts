@@ -11,6 +11,7 @@ import * as entities from "../../functions/_shared/core/entity/application.ts";
 import * as activity from "../../functions/_shared/core/activity/application.ts";
 import { AppError } from "../../functions/_shared/core/shared/errors.ts";
 import { connect, dbTest, fixtureOwner, urls } from "./_db.ts";
+import { entityFixture } from "./_entity.ts";
 
 const admin = connect(urls.admin, { max: 1 }), sql = connect(urls.pooler, { prepare: false, max: 3 });
 const ed = { uow: new SqlEntityUnitOfWork(sql) },
@@ -20,15 +21,17 @@ const ad = { uow: new SqlUnitOfWork(sql), clock: { now: () => new Date() } };
 dbTest("발급처 설정 조회 후 자동 식별자는 생성 성공에서 반환한다", async () => {
   const f = await fixtureOwner(admin);
   try {
+    const schema = await entityFixture(admin, f.actor.userId);
     const settings = await getBusinessSettings(sd, f.actor, { id: "entity_identity" });
     const source = settings.settings.entity_identity!.default_source;
     const saved = await entities.createEntity(
       ed,
       requestActor(f.actor),
       entityCreate.parse({
+        ...schema,
         source,
         settings_version: settings.versions.entity_identity,
-        prop1: "짧은 자동 식별자",
+        properties: { prop_1: "짧은 자동 식별자" },
       }),
     );
     assert(/^\d{8}-[A-Z0-9]{8}$/.test(saved.external_id));
@@ -41,13 +44,14 @@ dbTest("발급처 설정 조회 후 자동 식별자는 생성 성공에서 반�
 dbTest("발급처 소프트 삭제는 새 식별만 막고 기존 값·관계를 보존하며 복원 후 같은 엔터티를 되살린다", async () => {
   const f = await fixtureOwner(admin);
   try {
+    const schema = await entityFixture(admin, f.actor.userId);
     const sources = [{ code: "app", label: "앱" }, { code: "crm", label: "고객 시스템" }];
     const value = { generation: "manual" as const, default_source: "crm", sources };
     await updateBusinessSettings(sd, requestActor(f.actor), { id: "entity_identity", expected_version: 0, value });
     const entity = await entities.createEntity(
       ed,
       requestActor(f.actor),
-      entityCreate.parse({ source: "crm", external_id: "보존", prop1: "발급처 보존" }),
+      entityCreate.parse({ ...schema, source: "crm", external_id: "보존", properties: { prop_1: "발급처 보존" } }),
     );
     const task = await activity.createTask(
       ad,
@@ -69,7 +73,7 @@ dbTest("발급처 소프트 삭제는 새 식별만 막고 기존 값·관계를
         entities.createEntity(
           ed,
           requestActor(f.actor),
-          entityCreate.parse({ source: "crm", external_id: "새 ID", prop1: "금지" }),
+          entityCreate.parse({ ...schema, source: "crm", external_id: "새 ID", properties: { prop_1: "금지" } }),
         ),
       AppError,
     );
@@ -79,7 +83,12 @@ dbTest("발급처 소프트 삭제는 새 식별만 막고 기존 값·관계를
           ed,
           requestActor(f.actor),
           entity.id,
-          entityUpdate.parse({ source: "crm", external_id: "변경 ID", expected_version: 1 }),
+          entityUpdate.parse({
+            schema_version: schema.schema_version,
+            source: "crm",
+            external_id: "변경 ID",
+            expected_version: 1,
+          }),
         ),
       AppError,
     );
@@ -87,19 +96,23 @@ dbTest("발급처 소프트 삭제는 새 식별만 막고 기존 값·관계를
       ed,
       requestActor(f.actor),
       entity.id,
-      entityUpdate.parse({ expected_version: 1, prop1: "기존 값 편집 가능" }),
+      entityUpdate.parse({
+        schema_version: schema.schema_version,
+        expected_version: 1,
+        properties: { prop_1: "기존 값 편집 가능" },
+      }),
     );
     await entities.deleteEntity(ed, requestActor(f.actor), entity.id, edited.version);
     const restore = () =>
       entities.createEntity(
         ed,
         requestActor(f.actor),
-        entityCreate.parse({ source: "crm", external_id: "보존", expected_version: 3 }),
+        entityCreate.parse({ ...schema, source: "crm", external_id: "보존", expected_version: 3, properties: {} }),
       );
     await assertRejects(restore, AppError);
     await updateBusinessSettings(sd, requestActor(f.actor), { id: "entity_identity", expected_version: 2, value });
     const restored = await restore();
-    assertEquals([restored.id, restored.prop1, restored.version, restored.deleted_at], [
+    assertEquals([restored.id, restored.properties.prop_1, restored.version, restored.deleted_at], [
       entity.id,
       "기존 값 편집 가능",
       4,
@@ -125,6 +138,8 @@ dbTest(
   async () => {
     const f = await fixtureOwner(admin), other = await fixtureOwner(admin);
     try {
+      const schema = await entityFixture(admin, f.actor.userId),
+        foreignSchema = await entityFixture(admin, other.actor.userId);
       for (const actor of [f.actor, other.actor]) {
         const saved = await getBusinessSettings(sd, actor);
         await updateBusinessSettings(sd, requestActor(actor), {
@@ -138,14 +153,13 @@ dbTest(
         });
       }
       const input = entityCreate.parse({
+        ...schema,
         source: "crm",
         external_id: "000Ab:/한글%",
-        prop1: "보관 고객",
-        prop2: 0,
-        prop4: "c",
+        properties: { prop_1: "보관 고객", prop_2: 0, prop_4: "c" },
       });
       const created = await entities.createEntity(ed, requestActor(f.actor), input),
-        foreign = await entities.createEntity(ed, requestActor(other.actor), input);
+        foreign = await entities.createEntity(ed, requestActor(other.actor), { ...input, ...foreignSchema });
       assertEquals(created.id, "crm:000Ab:/한글%");
       assertEquals(foreign.id, created.id);
       const task = await activity.createTask(
@@ -192,10 +206,11 @@ dbTest(
           ed,
           requestActor(f.actor),
           entityCreate.parse({
+            ...schema,
             source: "crm",
             external_id: input.external_id,
             expected_version: 2,
-            prop3: "2026-10-09",
+            properties: { prop_3: "2026-10-09" },
           }),
         );
       const competing = await Promise.allSettled([restore(), restore()]);
@@ -203,18 +218,32 @@ dbTest(
       const restored = (competing.find((r) =>
         r.status === "fulfilled"
       ) as PromiseFulfilledResult<Awaited<ReturnType<typeof restore>>>).value;
-      assertEquals([restored.prop1, restored.prop2, restored.prop4, restored.version], ["보관 고객", 0, "c", 3]);
+      assertEquals([
+        restored.properties.prop_1,
+        restored.properties.prop_2,
+        restored.properties.prop_4,
+        restored.version,
+      ], ["보관 고객", 0, "c", 3]);
       await assertRejects(() =>
         entities.updateEntity(
           ed,
           requestActor(f.actor),
           restored.id,
-          entityUpdate.parse({ expected_version: 1, prop1: "삭제 전 요청" }),
+          entityUpdate.parse({
+            schema_version: schema.schema_version,
+            expected_version: 1,
+            properties: { prop_1: "삭제 전 요청" },
+          }),
         ), AppError);
       const collision = await entities.createEntity(
         ed,
         requestActor(f.actor),
-        entityCreate.parse({ source: "app", external_id: "000Ab:/한글%", prop1: "다른 발급처" }),
+        entityCreate.parse({
+          ...schema,
+          source: "app",
+          external_id: "000Ab:/한글%",
+          properties: { prop_1: "다른 발급처" },
+        }),
       );
       await entities.deleteEntity(ed, requestActor(f.actor), collision.id, 1);
       await assertRejects(() =>
@@ -222,7 +251,12 @@ dbTest(
           ed,
           requestActor(f.actor),
           restored.id,
-          entityUpdate.parse({ source: "app", external_id: input.external_id, expected_version: 3 }),
+          entityUpdate.parse({
+            schema_version: schema.schema_version,
+            source: "app",
+            external_id: input.external_id,
+            expected_version: 3,
+          }),
         ), AppError);
       assertEquals((await activity.getRecord(ad, f.actor, record.id)).entity_ids, [restored.id]);
       await assertRejects(
@@ -232,7 +266,8 @@ dbTest(
             requestActor(f.actor),
             restored.id,
             entityUpdate.parse({
-              prop1: "실패한 속성 변경",
+              schema_version: schema.schema_version,
+              properties: { prop_1: "실패한 속성 변경" },
               source: "crm",
               external_id: "failed:/ID",
               expected_version: 3,
@@ -247,10 +282,16 @@ dbTest(
         ed,
         requestActor(f.actor),
         restored.id,
-        entityUpdate.parse({ source: "crm", external_id: "새:/ID%", prop1: "식별자와 함께 변경", expected_version: 3 }),
+        entityUpdate.parse({
+          schema_version: schema.schema_version,
+          source: "crm",
+          external_id: "새:/ID%",
+          properties: { prop_1: "식별자와 함께 변경" },
+          expected_version: 3,
+        }),
       );
       assertEquals(rekeyed.id, "crm:새:/ID%");
-      assertEquals(rekeyed.prop1, "식별자와 함께 변경");
+      assertEquals(rekeyed.properties.prop_1, "식별자와 함께 변경");
       const readRecord = await activity.getRecord(ad, f.actor, record.id);
       assertEquals(readRecord.entity_ids, [rekeyed.id]);
       assertEquals(

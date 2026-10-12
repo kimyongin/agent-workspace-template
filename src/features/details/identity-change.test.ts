@@ -18,3 +18,11 @@ describe("식별 변경 뒤 탐색", () => {
     expect(result.options).toEqual({ replace: true, state: { rekeyedDetail: "/entities/app%3AA%25%ED%95%9C%EA%B8%80" } });
   });
 });
+
+it("rekey preserves long-filter copied detail fragments and rewrites their original entity anchor",()=>{
+  const raw=JSON.stringify([{key:"prop_2",operator:"eq",value:"한".repeat(4096)}]);
+  const hash=`#${new URLSearchParams({property_filters:raw,entity_type_id:"00000000-0000-4000-8000-000000000001",anchor:"entity-app:old"})}`;
+  const result=replaceEntityDetailVisit({pathname:"/entities/app%3Aold",search:"?list="+encodeURIComponent("/entities?entity_type_id=00000000-0000-4000-8000-000000000001"),hash},"app:old","app:new");
+  const url=new URL(result.path,"https://fixture.invalid");expect(url.search.length).toBeLessThan(2048);
+  expect(new URLSearchParams(url.hash.slice(1)).get("anchor")).toBe("entity-app:new");expect(new URLSearchParams(url.hash.slice(1)).get("property_filters")).toBe(raw);
+});

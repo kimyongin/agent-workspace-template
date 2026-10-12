@@ -4,6 +4,8 @@ import {
   activityDeps,
   businessSettingsDeps,
   entityDeps,
+  entityPairDeps,
+  entityTypeDeps,
   env,
   principleDeps,
   searchDeps,
@@ -22,5 +24,7 @@ Deno.serve(
     entityDeps(),
     businessSettingsDeps(),
     statusDeps(),
+    entityTypeDeps(),
+    entityPairDeps(),
   ),
 );

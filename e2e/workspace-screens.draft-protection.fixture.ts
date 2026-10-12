@@ -5,7 +5,7 @@ import { expect, test } from "@playwright/test";
 import { id } from "./support/workspace-data.ts";
 import { compatibleEdit, fillText, fixtures, form, go } from "./support/workspace-screens.ts";
 
-for (const [kind, label] of [["entities", "엔터티"], ["tasks", "할 일"], ["records", "기록"], ["principles", "원칙"]]) {
+for (const [kind, label] of [["entities", "검사 자료"], ["tasks", "할 일"], ["records", "기록"], ["principles", "원칙"]]) {
   test(`${kind}: uncertain 생성 폐기 후 새 작성은 새로운 요청키`, async ({ page }) => {
     const state = await fixtures(page, { failWrite: "unknown", emptyPrinciple: true });
     await go(page, `/${kind}`);
@@ -15,7 +15,7 @@ for (const [kind, label] of [["entities", "엔터티"], ["tasks", "할 일"], ["
         kind === "principles" ? "현재 원칙 등록" : kind === "records" ? "기록 작성" : `${label} 추가`,
       );
     const fill = async (value: string) => {
-      if (kind === "entities") await form(page).getByLabel("속성 1", { exact: false }).fill(value);
+      if (kind === "entities") await form(page).getByLabel("제목", { exact: false }).fill(value);
       else await fillText(page, value);
     };
     const submit = () => saveOnce(page, form(page), kind === "tasks" ? "추가" : "저장");
@@ -101,7 +101,8 @@ test("엔터티 create/edit 복합 직접 링크는 연결 작성 한 폼만 연
   await go(page, `/entities/${encodeURIComponent(entityKey(1))}?create=task&edit=1`);
   await expect(form(page)).toHaveCount(1);
   await expect(form(page).getByRole("textbox", { name: /^제목(?: \(필수\))?$/ })).toBeVisible();
-  await expect(form(page).getByLabel("속성 1", { exact: false })).toHaveCount(0);
+  await expect(form(page).getByLabel("식별자", { exact: true })).toHaveCount(0);
+  await expect(form(page).getByLabel("수량", { exact: false })).toHaveCount(0);
   await fillText(page, "연결 작성 한 번");
   await saveOnce(page, form(page), "추가");
   await expect.poll(() => state.writes.length).toBe(1);
@@ -110,7 +111,7 @@ test("엔터티 create/edit 복합 직접 링크는 연결 작성 한 폼만 연
 });
 
 for (const [kind, label] of [["task", "할 일 작성"], ["record", "기록 작성"]] as const) {
-  test(`엔터티 연결 ${kind}: 취소·폐기 승인은 작성 URL을 닫고 reload는 읽기`, async ({ page }) => {
+  test(`자료 연결 ${kind}: 취소·폐기 승인은 작성 URL을 닫고 reload는 읽기`, async ({ page }) => {
     const state = await fixtures(page);
     await go(page, `/entities/${encodeURIComponent(entityKey(1))}?list=%2Fentities%3Fq%3D%EC%97%94%ED%84%B0%ED%8B%B0`);
     for (const dirty of [false, true]) {
@@ -142,7 +143,7 @@ for (const [kind, label] of [["task", "할 일 작성"], ["record", "기록 작�
 test("엔터티 관련 작성은 URL·뒤로가기 초안 보호·reload·같은 surface 저장", async ({ page }) => {
   const state = await fixtures(page);
   await go(page, "/entities");
-  await openListDetail(page, "엔터티");
+  await openListDetail(page, "자료");
   await form(page).getByRole("button", { name: "할 일 작성", exact: true }).click();
   await expect(page).toHaveURL(/create=task/);
   await expect(form(page)).toHaveCount(1);
@@ -303,7 +304,7 @@ test("#229 엔터티 관련 작성 취소는 직접 편집 의도와 목록 문�
   );
   await expect(form(page)).toHaveAccessibleName("기록 작성");
   await form(page).getByRole("button", { name: "취소", exact: true }).click();
-  await expect(form(page).getByRole("textbox", { name: "속성 1 (필수)", exact: true })).toBeVisible();
+  await expect(form(page).getByRole("textbox", { name: "제목 (필수)", exact: true })).toBeVisible();
   await form(page).getByRole("button", { name: "취소", exact: true }).click();
   await expect(form(page).getByRole("button", { name: "편집", exact: true })).toBeVisible();
   const url = new URL(page.url());

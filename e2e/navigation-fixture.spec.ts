@@ -1,3 +1,4 @@
+import { fixtureType, fixtureSchema } from "./support/workspace-data.ts";
 import { settingsResponse } from "./support/preparation-api.ts";
 // 실제 App/data-router/Auth SDK를 실행한다. 원격 Auth·API 응답만 격리하며 실제 OAuth/DB 증거와 구분한다.
 import { expect, test, type Page } from "@playwright/test";
@@ -5,7 +6,9 @@ const user = { id: "00000000-0000-0000-0000-000000000001", aud: "authenticated",
 test.beforeEach(async ({ page, baseURL }) => {
   await page.route("**/*", async route => {
     const url = new URL(route.request().url());
-    if(url.pathname.endsWith("/settings/business")) await route.fulfill({json:settingsResponse(route, {versions:{record_templates:0,entity_identity:0},settings:{record_templates:{},entity_identity:{generation:"short",default_source:"app",sources:[{code:"app",label:"앱"}]}}})});
+    if(url.pathname === "/api/entity-types") await route.fulfill({json:{items:[fixtureType],next_cursor:null}});
+    else if(url.pathname.startsWith("/api/entity-types/")) await route.fulfill({json:url.pathname.endsWith("/schema")?fixtureSchema:fixtureType});
+    else if(url.pathname.endsWith("/settings/business")) await route.fulfill({json:settingsResponse(route, {versions:{record_templates:0,entity_identity:0},settings:{record_templates:{},entity_identity:{generation:"short",default_source:"app",sources:[{code:"app",label:"앱"}]}}})});
     else if (/\/(?:functions\/v1\/)?api\//.test(url.pathname)) await route.fulfill({ json: { items: [], next_cursor: null } });
     else if (url.origin === new URL(baseURL!).origin) await route.continue();
     else await route.abort();
@@ -18,7 +21,7 @@ test.beforeEach(async ({ page, baseURL }) => {
   }, user);
 });
 async function openProfile(page: Page) {
-  const profile = page.getByRole("button", { name:"내 프로필", exact:true });
+  const profile = page.getByRole("button", { name:/^내 프로필(?: · .+)?$/, exact:true });
   if (await profile.getAttribute("aria-expanded") !== "true") await profile.click();
 }
 async function settings(page: Page) { await openProfile(page); await page.locator("#nav-profile-options").getByRole("link", { name:"설정", exact:true }).click(); }
@@ -55,7 +58,7 @@ test("네 탭과 프로필은 320~1440px와 200%에서 조작 가능하다", asy
       expect(size[0]).toBeGreaterThanOrEqual(44); expect(size[1]).toBeGreaterThanOrEqual(44);
     }
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    await page.getByRole("button", { name: "내 프로필", exact: true }).click();
+    await page.getByRole("button", { name: /^내 프로필(?: · .+)?$/, exact: true }).click();
     await page.getByRole("link", { name: "로그아웃", exact: true }).focus();
     const action = await page.getByRole("link", { name: "로그아웃", exact: true }).boundingBox(); const bottom = await nav.boundingBox();
     if(width<1024)expect(action!.y + action!.height).toBeLessThanOrEqual(bottom!.y);
@@ -67,23 +70,24 @@ test("네 탭과 프로필은 320~1440px와 200%에서 조작 가능하다", asy
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: info.outputPath("settings-320-text200.png") });
   await openProfile(page); await expect(page.locator("#nav-profile-options").getByRole("link", { name: "사용 가이드", exact: true })).toBeVisible();
-  await page.keyboard.press("Escape"); await expect(page.getByRole("button", { name: "내 프로필", exact: true })).toBeFocused();
+  await page.keyboard.press("Escape"); await expect(page.getByRole("button", { name: /^내 프로필(?: · .+)?$/, exact: true })).toBeFocused();
   await page.evaluate(() => document.documentElement.style.fontSize = "");
   // 1440px 화면의 200% 브라우저 확대에 대응하는 CSS reflow 크기.
   await page.setViewportSize({ width: 720, height: 450 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-  await page.getByRole("button", { name: "내 프로필", exact: true }).click();
+  await page.getByRole("button", { name: /^내 프로필(?: · .+)?$/, exact: true }).click();
   await page.getByRole("link", { name: "로그아웃", exact: true }).focus();
   const action = await page.getByRole("link", { name: "로그아웃", exact: true }).boundingBox(); const nav = await page.getByRole("navigation", { name: "주 메뉴" }).boundingBox();
   expect(action!.y + action!.height).toBeLessThanOrEqual(nav!.y);
 });
 
 test("프로필 팝오버는 키보드·외부 클릭·경로 이동에 초점을 유지한다", async ({ page }) => {
-  await page.goto("/settings"); const profile = page.getByRole("button", { name:"내 프로필", exact:true }), popup = page.locator("#nav-profile-options");
+  await page.goto("/settings"); const profile = page.getByRole("button", { name:/^내 프로필(?: · .+)?$/, exact:true }), popup = page.locator("#nav-profile-options");
   await expect(page.getByRole("button", { name:"메뉴", exact:true })).toHaveCount(0);
   await expect(page.locator(".settings").getByRole("link", { name:"사용 가이드", exact:true })).toHaveCount(0);
   await profile.click(); await expect(popup).toContainText(user.user_metadata.full_name); await expect(popup).not.toContainText(user.email);
-  await profile.press("ArrowDown"); await expect(popup.getByRole("link", { name:"상태", exact:true })).toBeFocused();
+  await profile.press("ArrowDown"); await expect(popup.getByRole("link", { name:"전체 자료", exact:true })).toBeFocused();
+  await popup.getByRole("link", { name:"상태", exact:true }).focus();
   await page.keyboard.press("ArrowDown"); await expect(popup.getByRole("link", { name:"설정", exact:true })).toBeFocused();
   await page.keyboard.press("ArrowDown"); await expect(popup.getByRole("link", { name:"사용 가이드", exact:true })).toBeFocused();
   await page.keyboard.press("End"); await expect(popup.getByRole("link", { name:"로그아웃", exact:true })).toBeFocused();
@@ -120,10 +124,10 @@ test("저장 중 중복 요청과 탭·로그아웃 이동을 막고 응답 뒤 
   let finish!: () => void; const waiting = new Promise<void>(resolve => { finish = resolve; }); let calls = 0;
   await page.route("**/auth/v1/user", async route => { if (route.request().method() !== "PUT") return route.fallback(); calls++; await waiting; saved = true; await route.fulfill({ json: { ...user, user_metadata: { ...user.user_metadata, workspace_avatar_id: "sun" } } }); });
   await page.goto("/settings"); await page.getByRole("radio", { name: "해바라기", exact: true }).check(); await page.getByRole("button",{name:"프로필 저장", exact: true }).click();
-  await expect(page.getByRole("button",{name:"프로필 저장" })).toBeDisabled(); await page.getByRole("navigation", { name: "주 메뉴" }).getByRole("link", { name: "엔터티", exact: true }).click();
+  await expect(page.getByRole("button",{name:"프로필 저장" })).toBeDisabled(); await page.locator(".bottom-nav-inner > a").and(page.getByRole("link", { name: fixtureType.label, exact: true })).click();
   await expect(page).toHaveURL(/\/settings$/); await expect(page.getByRole("dialog")).toHaveCount(0);
   await requestLogout(page); await expect(page).toHaveURL(/\/settings$/); expect(calls).toBe(1);
-  finish(); await expect(page.getByRole("form",{name:"프로필 설정"}).getByRole("status")).toContainText("저장했습니다"); await page.getByRole("navigation", { name: "주 메뉴" }).getByRole("link", { name: "엔터티", exact: true }).click(); await expect(page).toHaveURL(/\/entities$/);
+  finish(); await expect(page.getByRole("form",{name:"프로필 설정"}).getByRole("status")).toContainText("저장했습니다"); await page.locator(".bottom-nav-inner > a").and(page.getByRole("link", { name: fixtureType.label, exact: true })).click(); await expect(page).toHaveURL(new RegExp(`/entities\\?entity_type_id=${fixtureType.id}$`));
 });
 
 test("알 수 없는 아이콘은 기본값이며 계정 전환과 세션 만료는 이전 초안을 지운다", async ({ page }) => {
@@ -153,10 +157,10 @@ test("미저장 설정의 탭·프로필·뒤로가기·로그아웃은 같은 �
     await requestLogout(page);
   }]) {
     await action(); await expect(confirm).toBeVisible(); await confirm.getByRole("button", { name: "취소", exact: true }).click(); await expect(page.getByRole("radio", { name: "별", exact: true })).toBeChecked();
-    if (step === 1) { await expect(page.locator("#nav-profile-options").getByRole("link", { name: "사용 가이드", exact: true })).toBeFocused(); await expect(page.getByRole("button", { name: "내 프로필", exact: true })).toHaveAttribute("aria-expanded", "true"); }
+    if (step === 1) { await expect(page.locator("#nav-profile-options").getByRole("link", { name: "사용 가이드", exact: true })).toBeFocused(); await expect(page.getByRole("button", { name: /^내 프로필(?: · .+)?$/, exact: true })).toHaveAttribute("aria-expanded", "true"); }
     if (step === 3) {
       await expect(page.locator("#nav-profile-options").getByRole("link", { name:"로그아웃", exact:true })).toBeFocused();
-      await expect(page.getByRole("button", { name:"내 프로필", exact:true })).toHaveAttribute("aria-expanded", "true");
+      await expect(page.getByRole("button", { name:/^내 프로필(?: · .+)?$/, exact:true })).toHaveAttribute("aria-expanded", "true");
     }
     step++;
   }
@@ -186,12 +190,12 @@ test("가이드의 복사 실패와 성공 안내는 유지한다", async ({ pag
 
 for(const width of [390,1440])test(`#205 ${width}px: 설정·가이드 구획과 탐색 팝오버`,async({page},info)=>{
   await page.setViewportSize({width,height:900});await page.goto("/settings");
-  const groups=page.locator(".settings .settings-section");await expect(groups).toHaveCount(6);
+  const groups=page.locator(".settings .settings-section");await expect(groups).toHaveCount(5);
   expect((await page.locator(".settings").boundingBox())!.width).toBeLessThanOrEqual(768);
   await page.screenshot({path:info.outputPath(`compact-settings-${width}.png`)});
-  await page.getByRole("button",{name:"내 프로필",exact:true}).click();const popup=page.locator("#nav-profile-options"),box=(await popup.boundingBox())!;
+  await page.getByRole("button",{name:/^내 프로필(?: · .+)?$/,exact:true}).click();const popup=page.locator("#nav-profile-options"),box=(await popup.boundingBox())!;
   expect(box.x).toBeGreaterThanOrEqual(0);expect(box.x+box.width).toBeLessThanOrEqual(width);expect(box.y).toBeGreaterThanOrEqual(0);
-  await page.keyboard.press("Escape");await expect(page.getByRole("button",{name:"내 프로필",exact:true})).toBeFocused();
+  await page.keyboard.press("Escape");await expect(page.getByRole("button",{name:/^내 프로필(?: · .+)?$/,exact:true})).toBeFocused();
   await page.goto("/guide");await expect(page.locator(".guide-step")).toHaveCount(5);await page.screenshot({path:info.outputPath(`compact-guide-${width}.png`)});
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
   if(width>=1024){
@@ -200,7 +204,7 @@ for(const width of [390,1440])test(`#205 ${width}px: 설정·가이드 구획과
       for(const node of await page.locator(".bottom-nav-inner > a,.nav-profile-trigger").all())await expect(node).toBeInViewport();
     }
     const nav=(await page.locator(".bottom-nav").boundingBox())!;expect(nav.y).toBeGreaterThan(0);expect(nav.y+nav.height).toBeCloseTo(280);
-    await page.getByRole("button",{name:"내 프로필",exact:true}).click();const short=(await page.locator("#nav-profile-options").boundingBox())!;expect(short.y).toBeGreaterThanOrEqual(0);expect(short.y+short.height).toBeLessThanOrEqual(280);
+    await page.getByRole("button",{name:/^내 프로필(?: · .+)?$/,exact:true}).click();const short=(await page.locator("#nav-profile-options").boundingBox())!;expect(short.y).toBeGreaterThanOrEqual(0);expect(short.y+short.height).toBeLessThanOrEqual(280);
   }
 });
 
@@ -210,7 +214,7 @@ test("#215 메인 네 탭의 상단 구획·브랜드·필터 조작은 좁은 �
   await page.route(/\/(?:functions\/v1\/)?api\/principles\/current$/, route => route.fulfill({ json: { current: null } }));
   for (const width of [320, 360, 390, 479, 480, 639, 640, 768, 1024, 1440]) {
     await page.setViewportSize({ width, height: 844 });
-    for (const [path, title] of [["entities", "엔터티"], ["tasks", "할 일"], ["records", "기록"], ["principles", "원칙"]]) {
+    for (const [path, title] of [["entities", "전체 자료"], ["tasks", "할 일"], ["records", "기록"], ["principles", "원칙"]]) {
       await page.goto(`/${path}`);
       const header = page.getByRole("region", { name: title, exact: true });
       await expect(header.getByRole("heading", { level: 1, name: title, exact: true })).toBeVisible();
@@ -227,7 +231,7 @@ test("#215 메인 네 탭의 상단 구획·브랜드·필터 조작은 좁은 �
         await expect(page.getByRole("button", { name: /^필터/ })).toHaveCount(0);
         continue;
       }
-      const search = header.getByRole("textbox", { name: path === "entities" ? "속성 1 키워드" : "검색어", exact: true }), toggle = header.getByRole("button", { name: /^필터 (열기|닫기)/ });
+      const search = header.getByRole("textbox", { name: path === "entities" ? "자료 제목 검색" : "검색어", exact: true }), toggle = header.getByRole("button", { name: /^필터 (열기|닫기)/ });
       const closedToggle = (await toggle.boundingBox())!;
       await expect(toggle).toHaveText("");
       await toggle.press("Enter");
@@ -248,9 +252,9 @@ test("#215 메인 네 탭의 상단 구획·브랜드·필터 조작은 좁은 �
       if (width === 390 || width === 1440) await page.screenshot({ path: info.outputPath(`main-${path}-${width}.png`) });
     }
   }
-  await page.setViewportSize({ width: 320, height: 844 }); await page.goto("/entities?filters=1&prop4=a");
+  await page.setViewportSize({ width: 320, height: 844 }); await page.goto("/entities?entity_type_id=00000000-0000-4000-8000-000000000900&filters=1&property_filters=%5B%7B%22key%22%3A%22prop_4%22%2C%22operator%22%3A%22eq%22%2C%22value%22%3A%22a%22%7D%5D");
   await page.evaluate(() => document.documentElement.style.fontSize = "200%");
-  const toggle = page.getByRole("button", { name: /필터 닫기/ }), reset = page.getByRole("button", { name: "조건 초기화" });
+  const toggle = page.getByRole("button", { name: /필터 닫기/ }), reset = page.locator(".main-tab-header").getByRole("button", { name: "조건 초기화" });
   const t = (await toggle.boundingBox())!, r = (await reset.boundingBox())!;
   expect(r.y >= t.y + t.height || r.x >= t.x + t.width).toBe(true);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
@@ -275,10 +279,13 @@ test("#217 아이콘 선택은 가용 폭을 채우고 팝오버 이모지는 �
     const row = tiles.filter(tile => Math.abs(tile.y - tiles[0].y) < 1); columns.push(row.length);
     expect(g.x + g.width - row.at(-1)!.right).toBeLessThanOrEqual(16);
     for (const tile of tiles) { expect(tile.width).toBeGreaterThanOrEqual(44); expect(tile.height).toBeGreaterThanOrEqual(44); }
-    const profile = page.getByRole("button", { name: "내 프로필", exact: true }); await profile.click();
+    const profile = page.getByRole("button", { name: /^내 프로필(?: · .+)?$/, exact: true }); await profile.click();
     const popup = page.locator("#nav-profile-options");
-    await expect(popup.getByRole("link")).toHaveCount(4);
-    await profile.press("ArrowDown"); await expect(popup.getByRole("link", { name: "상태", exact:true })).toBeFocused();
+    const expectedLinks = ["전체 자료", fixtureType.label, "할 일", "기록", "원칙", "상태", "설정", "사용 가이드", "로그아웃"];
+    for (const name of expectedLinks) await expect(popup.getByRole("link", { name, exact: true })).toHaveCount(1);
+    await expect(popup.getByRole("link")).toHaveCount(expectedLinks.length);
+    await profile.press("ArrowDown"); await expect(popup.getByRole("link", { name: "전체 자료", exact:true })).toBeFocused();
+    await popup.getByRole("link", { name: "상태", exact:true }).focus();
     await page.keyboard.press("ArrowDown"); await expect(popup.getByRole("link", { name: "설정", exact:true })).toBeFocused();
     await page.keyboard.press("End"); await expect(popup.getByRole("link", { name: "로그아웃", exact:true })).toBeFocused();
     const iconStyle = (selector: string) => page.locator(selector).evaluate(el => { const s = getComputedStyle(el), b = el.getBoundingClientRect(); return { width:b.width, height:b.height, font:s.fontSize, border:s.borderWidth }; });
@@ -290,7 +297,7 @@ test("#217 아이콘 선택은 가용 폭을 채우고 팝오버 이모지는 �
   expect(new Set(columns).size).toBeGreaterThan(1); expect(Math.max(...columns)).toBeGreaterThan(5);
   for (const height of [320, 280]) {
     await page.setViewportSize({ width:1440, height });
-    const trigger = page.getByRole("button", { name:"내 프로필", exact:true }); await trigger.click(); await trigger.press("End");
+    const trigger = page.getByRole("button", { name:/^내 프로필(?: · .+)?$/, exact:true }); await trigger.click(); await trigger.press("End");
     const popup = page.locator("#nav-profile-options"), b = (await popup.boundingBox())!;
     expect(b.y).toBeGreaterThanOrEqual(0); expect(b.y + b.height).toBeLessThanOrEqual(height);
     await expect(popup.getByRole("link", { name:"로그아웃", exact:true })).toBeInViewport();

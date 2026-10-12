@@ -1,7 +1,7 @@
 import { entityKey } from "./workspace-data.ts";
 import { openDetailEditor } from "../ui-actions.ts";
 import { expect, type Page } from "@playwright/test";
-import { base, entity, id, principle, record, stamp, task, type WorkspaceRows } from "./workspace-data.ts";
+import { base, entity, fixtureType, id, principle, record, stamp, task, type WorkspaceRows } from "./workspace-data.ts";
 import { installWorkspaceApi } from "./workspace-api.ts";
 
 export const targetCases = [["entity", "entities", 1], ["task", "tasks", 2], ["record", "records", 31], [
@@ -12,7 +12,7 @@ export const targetCases = [["entity", "entities", 1], ["task", "tasks", 2], ["r
 
 export const connectedTarget = (page: Page, kind: typeof targetCases[number][0]) =>
   form(page).getByRole("region", {
-    name: `${{ entity: "엔터티", task: "할 일", record: "기록", principle: "원칙" }[kind]} (1개)`,
+    name: `${{ entity: "연결된 자료", task: "할 일", record: "기록", principle: "원칙" }[kind]} (1개)`,
     exact: true,
   });
 
@@ -32,7 +32,8 @@ export async function fixtures(
     }, { ...base(12, ""), name: "같은 이름", scope: "task" }],
   };
   if (options.long) {
-    rows.entities[0].prop1 = "긴제목".repeat(25);
+    rows.entities[0].properties.prop_1 = rows.entities[0].title = "긴제목".repeat(25);
+    rows.entities[0].display_properties.prop_1 = rows.entities[0].title;
     for (const row of [...rows.tasks, ...rows.records, ...rows.principles]) {
       row.body = "긴 본문\n\n".repeat(150);
       if ("title" in row) row.title = "긴제목".repeat(32);
@@ -47,9 +48,13 @@ export async function fixtures(
   return installWorkspaceApi(page, "http://127.0.0.1:55581", rows, options);
 }
 
-export const go = async (page: Page, path: string) => page.goto(path);
+export const go = async (page: Page, path: string) => {
+  const url = new URL(path, "http://fixture.test");
+  if (url.pathname === "/entities" && !url.searchParams.has("entity_type_id")) url.searchParams.set("entity_type_id", "00000000-0000-4000-8000-000000000900");
+  return page.goto(url.pathname + url.search + url.hash);
+};
 
-export const form = (page: Page) => page.locator("dialog.modal:not(.modal-confirm)[open]");
+export const form = (page: Page) => page.locator("dialog.modal:not(.modal-confirm)[open]:visible");
 
 export function linkedFixture(state: Awaited<ReturnType<typeof fixtures>>) {
   Object.assign(state.rows.entities[0], {
@@ -58,11 +63,11 @@ export function linkedFixture(state: Awaited<ReturnType<typeof fixtures>>) {
   });
   Object.assign(state.rows.tasks[0], {
     entity_ids: [entityKey(1)],
-    entity_context: [{ id: entityKey(1), title: "엔터티", source: "selection", captured_at: stamp }],
+    entity_context: [{ id: entityKey(1), title: "자료", type: fixtureType, schema_version: 1, source: "selection", captured_at: stamp }],
   });
   Object.assign(state.rows.records[0], {
     entity_ids: [entityKey(1)],
-    entity_context: [{ id: entityKey(1), title: "엔터티", source: "selection", captured_at: stamp }],
+    entity_context: [{ id: entityKey(1), title: "자료", type: fixtureType, schema_version: 1, source: "selection", captured_at: stamp }],
     task_id: id(2),
   });
 }

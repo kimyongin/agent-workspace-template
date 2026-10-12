@@ -1,3 +1,4 @@
+import { setEntityCategory } from "./ui-actions.ts";
 import { openDetailEditor, openListDetail, openListEditor, openTabFilters } from "./ui-actions.ts";
 import { saveOnce } from "./ui-actions.ts";
 import { expect, test } from "@playwright/test";
@@ -10,7 +11,7 @@ for (const kind of ["entities", "records"] as const) {
     if (kind === "entities") {
       state.listPages(
         kind,
-        Array.from({ length: 250 }, (_, index) => [{ ...entity(100 + index), prop1: "부분 행 " + index }]),
+        Array.from({ length: 250 }, (_, index) => [entity(100 + index, { prop_1: "부분 행 " + index })]),
       );
     } else {state.listPages(
         kind,
@@ -41,7 +42,7 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
       }
     });
     for (
-      const [kind, label, value] of [["entities", "속성 4 필터", "b"], ["tasks", "할 일 상태", "open"], [
+      const [kind, label, value] of [["entities", "분류 필터", "b"], ["tasks", "할 일 상태", "open"], [
         "records",
         "기록 종류",
         "user",
@@ -50,12 +51,13 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
       await go(page, "/" + kind);
       const filters = page.locator(".tab-filters"),
         summary = filters.getByRole("button", { name: /^필터 (열기|닫기)/ }),
-        input = page.getByLabel(kind === "entities" ? "속성 1 키워드" : "검색어", { exact: true });
+        input = page.getByLabel(kind === "entities" ? "자료 제목 검색" : "검색어", { exact: true });
       await expect(input).toBeVisible();
       await expect(summary).toHaveAccessibleName("필터 열기");
-      await expect(page.getByLabel(label, { exact: true })).toBeHidden();
+      await expect(page.getByLabel(kind === "entities" ? "조건 1 값" : label, { exact: true })).toBeHidden();
       await expect(filters.locator(".tag-filter-chips")).toBeHidden();
-      await expect(page.getByRole("combobox")).toHaveCount(0);
+      await expect(filters.getByRole("combobox")).toHaveCount(0);
+      if (kind === "entities") await expect(page.locator(".main-tab-header").getByLabel("자료 종류", { exact: true })).toBeVisible();
       await expect(page.locator(".list .related-item").first()).toBeVisible();
       const beforeReads = reads;
       await summary.focus();
@@ -66,7 +68,8 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
       expect(reads).toBe(beforeReads);
       await expect(filters.locator(".tag-filter-chips")).toBeVisible();
       const changedRead = page.waitForResponse((response) => new URL(response.url()).pathname === `/api/${kind}`);
-      await page.getByLabel(label, { exact: true }).selectOption(value);
+      if (kind === "entities") await setEntityCategory(page, value);
+      else await page.getByLabel(kind === "entities" ? "조건 1 값" : label, { exact: true }).selectOption(value);
       await changedRead;
       await expect(summary).toHaveAccessibleName(/적용 중/);
       const applied = page.url(), appliedReads = reads;
@@ -76,7 +79,7 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
       prior.searchParams.delete("filters");
       expect(closed.href).toBe(prior.href);
       expect(reads).toBe(appliedReads);
-      await expect(page.getByLabel(label, { exact: true })).toBeHidden();
+      await expect(page.getByLabel(kind === "entities" ? "조건 1 값" : label, { exact: true })).toBeHidden();
       await expect(input).toBeVisible();
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
       if (width === 390) await page.screenshot({ path: info.outputPath(kind + "-filters-390.png") });
