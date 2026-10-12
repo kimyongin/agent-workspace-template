@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { type EntityType, initialEntityDefinition } from "../supabase/functions/_shared/contracts/entity-type.ts";
 import { fulfillPreparation } from "./support/preparation-api.ts";
+import { closeDetail } from "./ui-actions.ts";
 const type = (n: number, label: string, archived = false): EntityType => ({
   id: `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`,
   label,
@@ -309,4 +310,85 @@ test("save blocks duplicate submission and Back until typed detail is ready", as
   const editing = page.getByRole("dialog", { name: "재료 편집", exact: true });
   await expect(editing.getByLabel("자료 종류", { exact: true })).toHaveCount(0);
   await expect(editing).toContainText("저장 후 종류를 변경할 수 없습니다");
+});
+
+test("clean settings navigation proceeds while initial business settings are still reading", async ({ page }) => {
+  let release!: () => void, started!: () => void;
+  const hold = new Promise<void>((resolve) => {
+      release = resolve;
+    }),
+    arrived = new Promise<void>((resolve) => {
+      started = resolve;
+    });
+  await page.route("**/api/settings/business?**", async (route) => {
+    if (new URL(route.request().url()).searchParams.get("id") !== "record_templates") return route.fallback();
+    started();
+    await hold;
+    return route.fallback();
+  });
+  try {
+    await page.goto("/settings");
+    await arrived;
+    await expect(page.getByRole("button", { name: "프로필 저장", exact: true })).toBeDisabled();
+    await page.getByRole("link", { name: "자료 종류·속성", exact: true }).click();
+    await expect(page).toHaveURL(/\/settings\/entity-types$/, { timeout: 1500 });
+    await expect(page.getByRole("dialog", { name: "변경을 버릴까요?", exact: true })).toHaveCount(0);
+  } finally {
+    release();
+  }
+});
+
+test("typed management link remains type scoped while a returned list catalog is loading", async ({ page }) => {
+  let reading = false, release!: () => void, started!: () => void;
+  const hold = new Promise<void>((resolve) => {
+      release = resolve;
+    }),
+    arrived = new Promise<void>((resolve) => {
+      started = resolve;
+    });
+  const entity = {
+    id: "app:returned",
+    source: "app",
+    external_id: "returned",
+    source_label: "앱",
+    deleted_at: null,
+    entity_type_id: materials.id,
+    type: materials,
+    schema_version: 1,
+    current_schema_version: 1,
+    properties: { prop_1: "복귀 자료" },
+    display_properties: { prop_1: "복귀 자료" },
+    title: "복귀 자료",
+    tag_ids: [],
+    version: 1,
+    created_at: "2026-10-12T00:00:00Z",
+    updated_at: "2026-10-12T00:00:00Z",
+    tasks: { items: [], count: 0 },
+    records: { items: [], count: 0 },
+  };
+  await page.route("**/api/entities/app%3Areturned{,?**}", (route) => route.fulfill({ json: entity }));
+  await page.route("**/api/entity-types{,?**}", async (route) => {
+    if (reading) {
+      started();
+      await hold;
+    }
+    return route.fulfill({ json: { items: [materials, products], next_cursor: null } });
+  });
+  try {
+    const list = `/entities?entity_type_id=${materials.id}&keyword=복귀`;
+    await page.goto(`/entities/app%3Areturned?list=${encodeURIComponent(list)}`);
+    await expect(page.getByRole("dialog", { name: "재료", exact: true })).toBeVisible();
+    reading = true;
+    await closeDetail(page, entity.title);
+    await arrived;
+    await expect(page).toHaveURL(new RegExp(`entity_type_id=${materials.id}`));
+    await expect(page.getByRole("link", { name: "자료 종류·속성 관리", exact: true })).toHaveAttribute(
+      "href",
+      `/settings/entity-types/${materials.id}`,
+    );
+    await page.getByRole("link", { name: "자료 종류·속성 관리", exact: true }).click();
+    await expect(page).toHaveURL(new RegExp(`/settings/entity-types/${materials.id}$`));
+  } finally {
+    release();
+  }
 });

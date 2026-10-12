@@ -11,7 +11,8 @@ export function useSettingsDraft<T, Saved>(
     return resource.dispose;
   }, [resource]);
   useEffect(() => {
-    onStateChange?.({ dirty: state.dirty, busy: state.busy });
-  }, [state.dirty, state.busy, onStateChange]);
+    // Route guards protect drafts and in-flight writes; a clean GET can be canceled on navigation.
+    onStateChange?.({ dirty: state.dirty, busy: state.busy && state.operation === "save" });
+  }, [state.dirty, state.busy, state.operation, onStateChange]);
   return { ...state, resource };
 }
