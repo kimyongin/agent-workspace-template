@@ -44,6 +44,7 @@ import {
   startEntitySchemaMigration,
 } from "../../functions/_shared/core/entity-types/schema-migrations.ts";
 import { compileMigration } from "../../functions/_shared/core/entity-types/conversions.ts";
+import { jsonbText } from "../../functions/_shared/core/entity-types/schema-rules.ts";
 import { prepareMigrationBatch } from "../../functions/_shared/adapters/http/schema-migration-preparation.ts";
 import { SEARCH_PIPELINE } from "../../functions/_shared/core/search/config.ts";
 import { SqlTagUnitOfWork } from "../../functions/_shared/adapters/supabase/tag-store.ts";
@@ -119,6 +120,11 @@ async function fixture() {
       assert(r.batch);
       const batch = r.batch;
       assertEquals(batch.id, id);
+      assert(batch.rows.length <= 50);
+      assert(
+        new TextEncoder().encode(jsonbText(batch.rows)).byteLength <= 524288,
+        "migration claim must bound source, after and owned recovery properties together",
+      );
       if (batch.status === "committing") {
         const [done] =
           await worker`select app.commit_entity_schema_migration(${id},${batch.fence},${batch.source_template_fingerprint},${SEARCH_PIPELINE}) as done`;
@@ -127,6 +133,10 @@ async function fixture() {
       }
       const prep = await prepareMigrationBatch(batch);
       assert(!prep.stale);
+      assert(batch.rows.length > 0 && prep.results.length > 0);
+      assert(
+        new TextEncoder().encode(jsonbText(prep.results)).byteLength <= 1048576,
+      );
       await worker`select app.stage_entity_schema_migration(${id},${batch.fence},${
         worker.json(prep.results)
       })`;
@@ -949,6 +959,11 @@ dbTest(
         assert(claim.batch);
         assertEquals(claim.batch.id, accepted.job_id);
         assertEquals(claim.batch.status, "preparing");
+        assert(claim.batch.rows.length > 0 && claim.batch.rows.length <= 50);
+        assert(
+          new TextEncoder().encode(jsonbText(claim.batch.rows)).byteLength <=
+            524288,
+        );
         const prepared = await prepareMigrationBatch(claim.batch);
         assert(!prepared.stale);
         assertEquals(prepared.results[0].record_body, "한".repeat(22000));
@@ -978,6 +993,67 @@ dbTest(
       const [state] = await f
         .admin`select schema_write_locked,(select count(*) from app.records where owner_id=${f.a.actor.userId})::int as records from app.entity_types where id=${o.type.id}`;
       assertEquals(state, { schema_write_locked: false, records: 66 });
+    } finally {
+      await f.cleanup();
+    }
+  },
+);
+
+dbTest(
+  "recovery start counts owned copies plus large multibyte templates and rejects without a job lock or half change",
+  async () => {
+    const f = await fixture();
+    try {
+      const o = await f.largeOriginal(68);
+      await updateBusinessSettings(
+        {
+          uow: new SqlBusinessSettingsUnitOfWork(f.sql),
+          clock: f.activity.clock,
+        },
+        f.actor(),
+        {
+          id: "record_templates",
+          expected_version: 1,
+          value: {
+            entity_types: {
+              [o.type.id]: {
+                update: { memo: "한".repeat(22000), tag_ids: [] },
+              },
+            },
+          },
+        },
+      );
+      const c = await f.recovery(o.job.job_id),
+        ready = await f.analyze(o.type.id, c.id, c.version);
+      assert(ready.executable);
+      const before = await getEntity(f.e, f.a.actor, "large:1"),
+        t = await getEntityType(f.d, f.a.actor, o.type.id);
+      const [captured] = await f
+        .admin`select sum(octet_length(properties::text)+octet_length(recovery_properties::text)+octet_length(after::text))::bigint as bytes from private.entity_schema_analysis_rows where analysis_id=${
+        ready.analysis!.id
+      }`;
+      assert(Number(captured.bytes) <= 8388608);
+      assert(Number(captured.bytes) + 66000 > 8388608);
+      await code(
+        () =>
+          startEntitySchemaMigration(f.d, f.actor(), o.type.id, c.id, {
+            expected_change_version: c.version,
+            expected_type_version: t.version,
+            expected_schema_version: t.schema_version,
+            analysis_id: ready.analysis!.id,
+            fingerprint: ready.fingerprint,
+          }),
+        "invalid_input",
+      );
+      assertEquals(await getEntity(f.e, f.a.actor, "large:1"), before);
+      assertEquals(
+        (await getEntitySchema(f.d, f.a.actor, { type_id: o.type.id }))
+          .schema_version,
+        3,
+      );
+      const [state] = await f
+        .admin`select schema_write_locked,(select count(*) from app.entity_schema_migrations where change_id=${c.id})::int as jobs,(select count(*) from app.records where owner_id=${f.a.actor.userId})::int as records from app.entity_types where id=${o.type.id}`;
+      assertEquals(state, { schema_write_locked: false, jobs: 0, records: 68 });
     } finally {
       await f.cleanup();
     }
