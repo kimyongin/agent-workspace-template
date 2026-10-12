@@ -210,3 +210,55 @@ test("runner cancels interval waiting without another invocation and rejects unb
   }
   assert.equal(requests, 1);
 });
+
+test("CLI explicit isolated config preserves tracked defaults and exact matching-origin validation", async (t) => {
+  let requests = 0;
+  const config = await fixture(t, (_, response) => {
+    requests++;
+    response.end("private-response");
+  });
+  const directory = mkdtempSync(join(tmpdir(), "schema-worker-config-"));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  mkdirSync(join(directory, "scripts"));
+  mkdirSync(join(directory, "supabase"));
+  for (const name of ["entity-schema-worker-local.mjs", "local-env.mjs", "local-config.mjs"]) {
+    copyFileSync(new URL(name, import.meta.url), join(directory, "scripts", name));
+  }
+  symlinkSync(new URL("../node_modules", import.meta.url).pathname, join(directory, "node_modules"));
+  const toml = (port) =>
+    `project_id="isolated_worker"\n[api]\nport=${port}\n[db.pooler]\nenabled=true\nport=6543\n[auth]\nsite_url="http://127.0.0.1:9999"\n`;
+  const tracked = join(directory, "supabase", "config.toml"), external = join(directory, "isolated.toml");
+  writeFileSync(tracked, toml(65534));
+  writeFileSync(external, toml(new URL(config.apiUrl).port));
+  writeFileSync(
+    join(directory, ".env.local"),
+    Object.entries(config.environment).map(([key, value]) => `${key}=${value}`).join("\n"),
+  );
+  const run = async (args) => {
+    const child = spawn(process.execPath, [
+      join(directory, "scripts", "entity-schema-worker-local.mjs"),
+      "--once",
+      ...args,
+    ], { stdio: ["ignore", "pipe", "pipe"] });
+    let output = "";
+    child.stdout.on("data", (chunk) => output += chunk);
+    child.stderr.on("data", (chunk) => output += chunk);
+    t.after(() => {
+      if (child.exitCode === null) child.kill("SIGKILL");
+    });
+    const code = await new Promise((resolve) => child.once("close", resolve));
+    return { code, output };
+  };
+  const mismatch = await run([]);
+  assert.equal(mismatch.code, 1);
+  assert.equal(requests, 0);
+  const explicit = await run([`--config=${external}`]);
+  assert.equal(explicit.code, 0);
+  assert.equal(requests, 1);
+  assert.equal(explicit.output.trim(), "스키마 worker HTTP 200");
+  assert(!explicit.output.includes(token));
+  assert(!explicit.output.includes("private-response"));
+  const duplicate = await run([`--config=${external}`, `--config=${external}`]);
+  assert.equal(duplicate.code, 1);
+  assert.equal(requests, 1);
+});

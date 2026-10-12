@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import type { EntitySchemaMigration, SchemaMigrationAccepted } from "@contracts/entity-schema-migration.ts";
 import type { EntitySchemaChange } from "@contracts/entity-schema-change.ts";
@@ -19,12 +19,13 @@ const active = (job: EntitySchemaMigration) =>
 export function MigrationStart({ plan, disabled }: { plan: EntitySchemaChange; disabled: boolean }) {
   const navigate = useNavigate(), { attempt, busy, uncertain } = useWriteAttempt();
   const [error, setError] = useState("");
+  const acceptedRef = useRef<SchemaMigrationAccepted | undefined>(undefined);
   const start = async () => {
     setError("");
-    let accepted: SchemaMigrationAccepted | undefined;
+
     try {
       await attempt.run(async () => {
-        accepted = await api<SchemaMigrationAccepted>(
+        acceptedRef.current = await api<SchemaMigrationAccepted>(
           "POST",
           `/entity-types/${plan.type_id}/schema-changes/${plan.id}/migrations`,
           {
@@ -38,7 +39,9 @@ export function MigrationStart({ plan, disabled }: { plan: EntitySchemaChange; d
           attempt.requestKey(),
         );
       });
-      if (accepted) navigate(`/settings/entity-types/${plan.type_id}/migrations/${accepted.job_id}`);
+      if (acceptedRef.current) {
+        navigate(`/settings/entity-types/${plan.type_id}/migrations/${acceptedRef.current.job_id}`);
+      }
     } catch (e) {
       setError(writeErrorMessage(e));
     }
@@ -61,9 +64,13 @@ export function MigrationJobs({ typeId }: { typeId: string }) {
     [before, setBefore] = useState<string | null>(null),
     [error, setError] = useState("");
   const [refresh, setRefresh] = useState(0);
+  const moreRequest = useRef<AbortController | null>(null);
+  const [moreBusy, setMoreBusy] = useState(false);
   useEffect(() => {
     const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout>;
+    moreRequest.current?.abort();
+    setMoreBusy(false);
     setItems([]);
     setBefore(null);
     setError("");
@@ -87,19 +94,30 @@ export function MigrationJobs({ typeId }: { typeId: string }) {
     void poll();
     return () => {
       controller.abort();
+      moreRequest.current?.abort();
       clearTimeout(timer);
     };
   }, [typeId, refresh]);
   const more = async () => {
+    if (moreBusy) return;
+    const controller = new AbortController();
+    moreRequest.current?.abort();
+    moreRequest.current = controller;
+    setMoreBusy(true);
     try {
       const r = await api<{ items: EntitySchemaMigration[]; next_before: string | null }>(
         "GET",
         `/entity-schema-migrations?type_id=${typeId}&before=${before}`,
+        undefined,
+        controller.signal,
       );
+      if (controller.signal.aborted) return;
       setItems((prior) => [...prior, ...r.items]);
       setBefore(r.next_before);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "작업 조회 실패");
+      if (!controller.signal.aborted) setError(e instanceof Error ? e.message : "작업 조회 실패");
+    } finally {
+      if (!controller.signal.aborted) setMoreBusy(false);
     }
   };
   return (
@@ -118,7 +136,7 @@ export function MigrationJobs({ typeId }: { typeId: string }) {
           </li>
         ))}
       </ul>
-      {before && <button className="btn" onClick={() => void more()}>이전 작업 더 보기</button>}
+      {before && <button className="btn" disabled={moreBusy} onClick={() => void more()}>이전 작업 더 보기</button>}
     </section>
   );
 }

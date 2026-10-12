@@ -73,17 +73,24 @@ if (process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.ar
   process.once("SIGTERM", onTerm);
   try {
     const options = {};
+    let configFile;
     for (const arg of process.argv.slice(2)) {
       if (arg === "--once") options.once = true;
       else if (arg === "--check-configuration") options.checkConfiguration = true;
       else if (/^--(interval|timeout)-ms=[0-9]+$/.test(arg)) {
         const [name, value] = arg.split("=");
         options[name === "--interval-ms" ? "intervalMs" : "timeoutMs"] = Number(value);
+      } else if (arg.startsWith("--config=")) {
+        const path = arg.slice("--config=".length);
+        if (configFile || !path || path.length > 4096 || /[\0\r\n]/.test(path)) {
+          throw new Error("로컬 설정 파일 인자가 올바르지 않습니다");
+        }
+        configFile = path;
       } else throw new Error("스키마 worker 실행 인자가 올바르지 않습니다");
     }
     await runEntitySchemaWorker({
       ...options,
-      apiUrl: readLocalConfig().apiUrl,
+      apiUrl: readLocalConfig(configFile).apiUrl,
       environment: readEnv(new URL("../.env.local", import.meta.url)),
       signal: stop.signal,
     });
