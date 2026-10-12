@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { collapsedDates, groupRecords } from "./timeline.ts";
-import { listScope, listReturnPath, safeListReturn } from "./list-state.ts";
+import { listScope, listDetailVisit, safeListReturn } from "./list-state.ts";
 
 describe("record dates and return state", () => {
   it("uses the display timezone at midnight and preserves server order", () => {
@@ -24,7 +24,7 @@ describe("record dates and return state", () => {
     const params = new URLSearchParams("tag_id=t&pages=2&collapsed=2026-10-04,invalid,2026-10-03");
     expect([...collapsedDates(params)]).toEqual(["2026-10-04","2026-10-03"]);
     expect(listScope(params)).toBe("tag_id=t");
-    expect(listReturnPath("records",params,"r",120)).toContain("collapsed=");
+    expect(listDetailVisit("records",{pathname:"/records",search:params.toString(),hash:""},"r",120).back).toContain("collapsed=");
     expect(safeListReturn("/principles?pages=2#principle-a","principles","fallback")).toBe("/principles?pages=2#principle-a");
   });
 });
