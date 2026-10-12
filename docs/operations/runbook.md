@@ -53,27 +53,31 @@ worker 소비를 멈춰도 생산이 계속되면 대기량이 늘어난다. 장
 
 재색인은 대상 범위·원본 수·모델/입력 버전·예상 비용을 확인한 뒤 제한된 배치로 시작한다. 오래된 작업이 최신 결과를 덮거나 삭제된 원본을 복구하지 않아야 한다. 진행·실패 수와 완료 후 검색 품질을 확인한다. 모델이나 차원이 바뀌면 구 색인 유지·새 색인 전환·복귀 방식을 해당 변경 티켓에서 정하며, 사용 중인 색인을 무조건 먼저 지우지 않는다.
 
+## 공통 처리 함수 호출 토큰
+
+검색·스키마 처리 함수는 공통 호출 토큰 하나만 사용한다. 서버 설정 키 `INDEX_WORKER_TOKEN`과 Vault 항목 `search_worker_token`은 기존 이름을 유지하지만 검색 전용이 아닌 두 처리 함수의 공통 설정이다. 종류별 전용 토큰·우선순위·fallback은 지원하지 않는다. 토큰은 최소 32byte 무작위 base64url 값이며 사용자 JWT·DB 접속 자격 증명과 구분한다. 공통 토큰 교체 시 두 함수와 두 Cron 호출을 함께 전환·검증한다. `setup:local`은 같은 값을 로컬 호출자와 함수 환경에 저장하고, 폐기된 `ENTITY_SCHEMA_WORKER_TOKEN` 선언만 제거하며 다른 사용자 설정은 보존한다.
+
 ## 엔터티 스키마 worker 호출과 운영 인계
 
-`POST /functions/v1/entity-schema-worker`는 내부 `Authorization: Bearer <token>`을 요구하며 사용자 JWT는 받지 않는다. `ENTITY_SCHEMA_WORKER_TOKEN`이 등록되어 있으면 그 값만 사용한다. 전용 설정이 없을 때는 기존 `INDEX_WORKER_TOKEN`을 재사용할 수 있다. 빈 값·짧은 전용 설정은 검색 토큰으로 우회하지 않고 503으로 거부한다. 공유 시 두 worker의 실행 권한이 함께 부여되므로 토큰 교체 영향도 함께 확인한다. 토큰은 최소 32byte 무작위 base64url 값이며 서버 Secrets/Vault와 개인 로컬 환경에만 둔다. 함수 gateway의 `verify_jwt=false`는 이 내부 인증을 함수 안에서 반드시 검사하는 계약과 함께 사용한다. 누락/잘못된 토큰은 DB 접근 전에 401로 거부한다. `WORKER_DB_URL`은 제한된 app_worker 트랜잭션 풀러 역할이며 일반 사용자/서버 DB 역할로 대체하지 않는다. 검색/Pinecone 설정과 독립적이다.
+`POST /functions/v1/entity-schema-worker`는 내부 `Authorization: Bearer <token>`을 요구하며 사용자 JWT는 받지 않는다. 공통 `INDEX_WORKER_TOKEN`만 사용하며 누락·빈 값·짧은 설정은 503으로 거부한다. 토큰은 최소 32byte 무작위 base64url 값이며 서버 Secrets/Vault와 개인 로컬 환경에만 둔다. 함수 gateway의 `verify_jwt=false`는 이 내부 인증을 함수 안에서 반드시 검사하는 계약과 함께 사용한다. 누락/잘못된 토큰은 DB 접근 전에 401로 거부한다. `WORKER_DB_URL`은 제한된 app_worker 트랜잭션 풀러 역할이며 일반 사용자/서버 DB 역할로 대체하지 않는다. 검색/Pinecone 설정과 독립적이다.
 
 인증된 `{ "check_configuration": true }`는 구성만 확인하며 작업을 claim하지 않는다. 정상 소비 본문은 `{ "limit": 1 }`이다. 반환/관찰은 bounded 개수·상태로 제한하고 분석 source·stage·복구 원문·토큰을 로그에 남기지 않는다. 로컬 소비 명령과 취소·시간 제한은 [실행 환경](../development/verification.md#엔터티-스키마의-로컬-소비-실행)을 따른다. 브라우저가 닫혀도 DB에 접수된 작업은 실행 중인 consumer가 처리한다. 실행기를 끄면 작업은 영속 상태로 남으며 HTTP timeout만으로 실패·취소를 단정하지 않는다. lease/fence에 따른 재개 후 소유자 API의 분석/작업 상태를 확인한다.
 
-운영 적용은 코드 머지와 구분되는 별도 배포 지시에서 수행한다. 아래 SQL은 인계 예시이며 저장소 migration·로컬 setup에서 실행하지 않는다. 해당 환경의 schema worker RPC/권한 migration과 함수를 배포하고, 전용 또는 공유 내부 토큰과 WORKER_DB_URL을 준비한 뒤 다음 순서로 확인한다.
+운영 적용은 코드 머지와 구분되는 별도 배포 지시에서 수행한다. 아래 SQL은 인계 예시이며 저장소 migration·로컬 setup에서 실행하지 않는다. 해당 환경의 schema worker RPC/권한 migration과 함수를 배포하고, 공통 호출 토큰과 WORKER_DB_URL을 준비한 뒤 다음 순서로 확인한다.
 
 1. 토큰 없음·잘못된 토큰·사용자 JWT의 401과 올바른 내부 토큰의 구성 확인 응답을 검증한다. 확인 응답은 claim 성공 증거가 아니다.
 2. 본인 시험 타입의 제한 분석을 접수하고 단일 consumer 호출 뒤 소유자 API에서 실제 분석 완료와 결과를 확인한다. 마이그레이션 기능을 배포한 revision에서는 제한 실행·원자적 완료·복구 preview도 확인한다. HTTP 200/빈 큐만으로 처리 성공을 주장하지 않는다.
-3. pg_cron·pg_net을 활성화하고 Vault에 `entity_schema_worker_url`(해당 환경의 **고정 HTTPS 함수 전체 주소**)·`entity_schema_worker_token`을 준비한다. 공유 구성에서는 기존 `search_worker_token`을 그대로 참조하며 비밀값을 출력·복사하지 않는다. 같은 이름의 job/Vault 항목이 있으면 값을 출력하거나 덮어쓰지 않고 기존 소유·설정을 먼저 확인한다. URL을 사용자 입력/작업 자료에서 만들지 않는다. 기존 토큰은 교체 적용/검증이 끝나기 전 폐기하지 않는다.
+3. pg_cron·pg_net을 활성화하고 Vault에 `entity_schema_worker_url`(해당 환경의 **고정 HTTPS 함수 전체 주소**)을 준비하고 두 함수의 호출에는 공통 `search_worker_token`을 참조한다. 종류별 토큰 항목을 만들거나 비밀값을 출력·복사하지 않는다. 같은 이름의 job/Vault 항목이 있으면 값을 출력하거나 덮어쓰지 않고 기존 소유·설정을 먼저 확인한다. URL을 사용자 입력/작업 자료에서 만들지 않는다. 기존 토큰은 교체 적용/검증이 끝나기 전 폐기하지 않는다.
 4. 위 확인 뒤 승인된 환경에서만 매분 limit1 호출을 등록한다. [Supabase 공식 일정 방식](https://supabase.com/docs/guides/functions/schedule-functions)을 따르되 이 함수에는 위에서 선택한 내부 Bearer를 사용한다.
 
-전용 구성의 예시는 다음과 같다. 공유 구성에서는 아래 토큰 조회 이름만 `search_worker_token`으로 바꾼다.
+두 처리 함수의 Cron은 같은 Vault 토큰을 참조한다.
 
 ```sql
 select cron.schedule('entity-schema-worker', '* * * * *', $job$
   select net.http_post(
     url := (select decrypted_secret from vault.decrypted_secrets where name='entity_schema_worker_url'),
     headers := jsonb_build_object('Content-Type','application/json','Authorization',
-      'Bearer '||(select decrypted_secret from vault.decrypted_secrets where name='entity_schema_worker_token')),
+      'Bearer '||(select decrypted_secret from vault.decrypted_secrets where name='search_worker_token')),
     body := '{"limit":1}'::jsonb,
     timeout_milliseconds := 30000
   );

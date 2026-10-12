@@ -14,7 +14,7 @@ Node·Deno·Supabase CLI 버전과 설치 명령은 package.json·lockfile을 �
 
 ## 엔터티 스키마의 로컬 소비 실행
 
-영속 분석/마이그레이션은 페이지의 요청이나 진행 조회가 소비하지 않는다. 로컬 환경 소유자가 `setup:local`로 생성한 `ENTITY_SCHEMA_WORKER_TOKEN`을 함수 환경과 `.env.local`에 동일하게 준비하고 함수 서버를 실행한 뒤, 별도 터미널에서 아래 명령으로 소비를 명시적으로 켠다. 환경 파일을 갱신했다면 함수 서버를 다시 시작한다. `setup:local`·migration·일반 GET은 폴링이나 Cron을 등록하지 않는다.
+영속 분석/마이그레이션은 페이지의 요청이나 진행 조회가 소비하지 않는다. 로컬 환경 소유자가 `setup:local`로 생성한 `INDEX_WORKER_TOKEN`을 함수 환경과 `.env.local`에 동일하게 준비하고 함수 서버를 실행한 뒤, 별도 터미널에서 아래 명령으로 소비를 명시적으로 켠다. 환경 파일을 갱신했다면 함수 서버를 다시 시작한다. `setup:local`·migration·일반 GET은 폴링이나 Cron을 등록하지 않는다.
 
 ```sh
 npm run worker:entity-schema:local -- --check-configuration

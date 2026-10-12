@@ -21,7 +21,7 @@ async function fixture(t, handler) {
     environment: {
       VITE_SUPABASE_URL: apiUrl,
       VITE_API_URL: `${apiUrl}/functions/v1/api`,
-      ENTITY_SCHEMA_WORKER_TOKEN: token,
+      INDEX_WORKER_TOKEN: token,
     },
   };
 }
@@ -56,7 +56,7 @@ test("runner rejects remote or mismatched configured targets and missing interna
       { apiUrl: `${config.apiUrl}/other` },
       { environment: { ...config.environment, VITE_SUPABASE_URL: "http://127.0.0.1:55421" } },
       { environment: { ...config.environment, VITE_API_URL: "https://example.test/functions/v1/api" } },
-      { environment: { ...config.environment, ENTITY_SCHEMA_WORKER_TOKEN: "short" } },
+      { environment: { ...config.environment, INDEX_WORKER_TOKEN: "short" } },
     ]
   ) await assert.rejects(runEntitySchemaWorker({ ...config, ...unsafe, once: true, report: () => {} }));
   assert.equal(requests, 0);
