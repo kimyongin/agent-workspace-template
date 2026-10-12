@@ -27,7 +27,7 @@ async function dragSplit(page: Page, distance: number) {
   await page.mouse.up();
 }
 async function openEntity(page: Page, title = "등심") {
-  const list = page.locator(".workspace-list").getByRole("region", { name: "엔터티 목록", exact: true });
+  const list = page.locator(".workspace-list").getByRole("region", { name: /^(전체 자료|검사 자료) 목록$/, exact: true });
   await list.getByRole("button", { name: title, exact: true }).click();
   await list.getByRole("link", { name: `${title} 상세`, exact: true }).click();
   await expect(page.getByRole("tab", {name:title,exact:true})).toHaveAttribute("aria-selected","true");
@@ -399,7 +399,7 @@ test("desktop: pending writes block tab switching, close, hide and navigation", 
   expect(await tabNames(page)).toEqual(["등심", "등심 구매하기"]);
   for (const label of ["등심 탭 닫기", "등심 구매하기 탭 닫기", "상세 패널 숨기기"]) await page.getByRole("button", { name: label, exact: true }).evaluate((el: HTMLButtonElement) => el.click());
   await page.getByRole("tab", { name: "등심", exact: true }).evaluate((el: HTMLButtonElement) => el.click());
-  await page.getByRole("navigation", { name: "주 메뉴" }).getByRole("link", { name: "전체 자료", exact: true }).evaluate((el: HTMLAnchorElement) => el.click());
+  await page.getByRole("navigation", { name: "주 메뉴" }).getByRole("link", { name: "검사 자료", exact: true }).evaluate((el: HTMLAnchorElement) => el.click());
   await expect(page.getByRole("tab", { name: "등심 구매하기", exact: true })).toHaveAttribute("aria-selected", "true");
   await expect(page.locator(".workspace-details")).toBeVisible(); await expect(page.getByRole("tab")).toHaveCount(2);
   state.release(); await expect(panel(page).getByRole("button", { name: "편집", exact: true })).toBeVisible(); expect(state.errors).toEqual([]);
@@ -679,7 +679,7 @@ for (const entered of [false,true]) test(`manual identity defaults preserve canc
     await ready;
     await route.fulfill({json:settingsResponse(route, {versions:{record_templates:0,entity_identity:0},settings:{entity_identity:{generation:"manual",default_source:"crm",sources:[{code:"app",label:"앱"},{code:"crm",label:"고객"}]},record_templates:{}}})});
   });
-  await page.goto("/entities");
+  await page.goto("/entities?entity_type_id=00000000-0000-4000-8000-000000000900");
   await page.getByRole("button", {name:"검사 자료 추가",exact:true}).click();
   const form = page.getByRole("dialog", {name:"검사 자료 추가",exact:true});
   await expect(form.getByLabel("식별자")).toBeDisabled();
@@ -724,13 +724,13 @@ for(const width of [390,1440]) test(`전체 펼침 ${width}px 토글은 표시�
   await page.setViewportSize({width,height:900});
   const state=await fixture(page);
   await page.goto('/entities');
-  const main=page.getByRole('region',{name:'엔터티 목록',exact:true});
+  const main=page.getByRole('region',{name:/^(전체 자료|검사 자료) 목록$/,exact:true});
   await main.getByRole('button',{name:'등심',exact:true}).click();
-  await main.getByRole('button',{name:'엔터티 전체 열기',exact:true}).click();
+  await main.getByRole('button',{name:'전체 자료 전체 열기',exact:true}).click();
   for(const name of ['등심','버섯']) await expect(main.getByRole('button',{name,exact:true})).toHaveAttribute('aria-expanded','true');
   expect(new URL(page.url()).searchParams.getAll('open')).toHaveLength(2);
   await page.reload();
-  await main.getByRole('button',{name:'엔터티 전체 닫기',exact:true}).click();
+  await main.getByRole('button',{name:'전체 자료 전체 닫기',exact:true}).click();
   for(const name of ['등심','버섯']) await expect(main.getByRole('button',{name,exact:true})).toHaveAttribute('aria-expanded','false');
   expect(new URL(page.url()).searchParams.getAll('open')).toHaveLength(0);
   await main.getByRole("button",{name:"등심",exact:true}).click();

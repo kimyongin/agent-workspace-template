@@ -19,7 +19,7 @@ export function settingsTools(deps: BusinessSettingsDeps): ToolDef[] {
     {
       name: "get_business_settings",
       description:
-        "사용자 업무 설정과 설정 ID별 versions 조회. id(entity_identity 또는 record_templates)를 선택하면 해당 settings·versions만 반환하며 생략하면 전체 조회. 엔터티 발급처·방식·설정 버전 정보가 필요하거나 오래되면 entity_identity를 조회한다. 현재 작업의 설정은 재사용하고 선택한 source와 versions.entity_identity를 settings_version으로 저장에 전달한다. 화면·프로필 설정과 별도 저장된다.",
+        "사용자 업무 설정과 설정 ID별 versions 조회. id(entity_identity 또는 record_templates)를 선택하면 해당 settings·versions만 반환하며 생략하면 전체 조회. 자료 발급처·방식·설정 버전 정보가 필요하거나 오래되면 entity_identity를 조회한다. 현재 작업의 설정은 재사용하고 선택한 source와 versions.entity_identity를 settings_version으로 저장에 전달한다. 화면·프로필 설정과 별도 저장된다.",
       input: businessSettingsRead,
       readOnly: true,
       handler: (i, a) => getBusinessSettings(deps, a, i),
