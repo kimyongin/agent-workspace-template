@@ -1,9 +1,10 @@
+import { readEntityListUrl, writeEntityListUrl, entityDetailListLink, restoreEntityListLink } from "../../lib/entity-list-url.ts";
 import { entityPath } from "@contracts/entity-identity.ts";
 import type { NavigateOptions } from "react-router";
 
 /** A replacement visit owns its list disclosure, anchor and retained-tab transfer metadata. */
 export function replaceEntityDetailVisit(
-  location: { pathname: string; search: string },
+  location: { pathname: string; search: string; hash?: string },
   previousId: string,
   savedId: string,
 ): { path: string; options: NavigateOptions } {
@@ -12,19 +13,22 @@ export function replaceEntityDetailVisit(
   viewer.delete("edit_from");
   const list = viewer.get("list");
   if (list?.startsWith("/entities?")) {
-    const destination = new URL(list, "https://workspace.invalid");
+    const destination = new URL(restoreEntityListLink(list, location.hash ?? ""), "https://workspace.invalid");
     const opened = destination.searchParams.getAll("open");
     destination.searchParams.delete("open");
     for (const path of opened) {
       destination.searchParams.append("open", path === entityPath(previousId) ? entityPath(savedId) : path);
     }
-    if (destination.hash === `#${encodeURIComponent(`entity-${previousId}`)}`) {
-      destination.hash = encodeURIComponent(`entity-${savedId}`);
-    }
-    viewer.set("list", `${destination.pathname}${destination.search}${destination.hash}`);
+    const state = readEntityListUrl(destination.searchParams,destination.hash);
+    const anchor = state.anchor === `#${encodeURIComponent(`entity-${previousId}`)}` ? `#${encodeURIComponent(`entity-${savedId}`)}` : state.anchor;
+    const target = writeEntityListUrl(destination.searchParams,state.raw,anchor);
+    viewer.set("list", `${destination.pathname}?${target.search}${target.hash}`);
   }
   return {
-    path: `${entityPath(savedId)}?${viewer}`,
+    path: viewer.has("list") ? (() => {
+      const back = viewer.get("list")!;viewer.delete("list");
+      return entityDetailListLink(`${entityPath(savedId)}?${viewer}`,back);
+    })() : `${entityPath(savedId)}?${viewer}${location.hash ?? ""}`,
     options: { replace: true, state: { rekeyedDetail: location.pathname } },
   };
 }

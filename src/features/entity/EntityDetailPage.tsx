@@ -40,7 +40,7 @@ export function EntityDetailPage() {
     setCreating(null);
     const p = new URLSearchParams(params);
     p.delete("create");
-    afterClose(`${location.pathname}?${p}`, true);
+    afterClose(`${location.pathname}?${p}${location.hash}`, true);
   };
   useEffect(() => {
     const value = params.get("create"), next = value === "task" || value === "record" ? value : null;

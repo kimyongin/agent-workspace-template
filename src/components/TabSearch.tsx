@@ -1,4 +1,5 @@
-import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { changeEntityListQuery } from "../lib/entity-list-url.ts";
+import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router";
 import { Field } from "./Field.tsx";
 import { BodyAction } from "./BodyAction.tsx";
@@ -11,7 +12,13 @@ export function clearListPosition(params: URLSearchParams) {
 }
 /** Debounce only text; concurrent filter changes survive through the latest URL. */
 export function TabSearch({ entity = false }: { entity?: boolean }) {
-  const [params, setParams] = useSearchParams();
+  const [params, originalSetParams] = useSearchParams(), location = useLocation(), navigate = useNavigate();
+  const latestLocation = useRef(location); latestLocation.current = location;
+  const setParams = useCallback((next: URLSearchParams, options: {replace:boolean}) => {
+    if (!entity) return originalSetParams(next, options);
+    const current = latestLocation.current;
+    return navigate({ pathname: current.pathname, ...changeEntityListQuery(next, latest.current, current.hash) }, options);
+  }, [entity, originalSetParams, navigate]);
   const name = entity ? "keyword" : "q", applied = params.get(name) ?? "";
   const latest = useRef(params); latest.current = params;
   const [draft, setDraft] = useState(applied), [composing, setComposing] = useState(false);
