@@ -1,4 +1,7 @@
-import { assertSchemaTemplateReferences } from "../../core/entity-types/template-references.ts";
+import {
+  assertSchemaTemplateReferences,
+  effectiveEntityTemplateFingerprint,
+} from "../../core/entity-types/template-references.ts";
 import type { RecordTemplates } from "../../contracts/record-template.ts";
 import type postgres from "postgres";
 import type { Actor } from "../../core/shared/actor.ts";
@@ -7,10 +10,13 @@ import type {
   EntitySchemaChange,
   EntitySchemaChangeSummary,
   SchemaAnalysis,
+  SchemaAnalysisPage,
   SchemaDefinition,
   SchemaEdit,
 } from "../../contracts/entity-schema-change.ts";
+import { compileMigration } from "../../core/entity-types/conversions.ts";
 import { AppError, conflict, invalidInput, notFound } from "../../core/shared/errors.ts";
+import { jsonbText } from "../../core/entity-types/schema-rules.ts";
 import { canonical, definitionFingerprint, resolveSchemaEdits } from "../../core/entity-types/evolution.ts";
 export class SqlSchemaChangeStore implements SchemaChangeStore {
   constructor(protected readonly tx: postgres.TransactionSql, protected readonly actor: Actor) {}
@@ -37,15 +43,28 @@ export class SqlSchemaChangeStore implements SchemaChangeStore {
       .tx`select schema,display from app.entity_schema_versions where type_id=${t.id} and schema_version=${t.schema_version}`;
     return { schema: v.schema, display: v.display };
   }
-  private async templates(target: SchemaDefinition, expected?: number) {
+  private async templates(target: SchemaDefinition, typeId: string, expected?: string) {
     await this.tx`select pg_advisory_xact_lock(hashtextextended(${`${this.actor.userId}:record_templates`},0))`;
     const [row] = await this.tx`select version,settings from app.user_business_settings where id='record_templates'`;
-    const version = Number(row?.version ?? 0);
+    const version = await effectiveEntityTemplateFingerprint(row?.settings as RecordTemplates | undefined, typeId);
     if (expected !== undefined && version !== expected) {
       throw new AppError("schema_plan_stale", "기록 템플릿이 변경되었습니다. 새 변경과 분석을 준비하세요");
     }
-    assertSchemaTemplateReferences(target, (row?.settings ?? {}) as RecordTemplates);
+    assertSchemaTemplateReferences(target, (row?.settings ?? {}) as RecordTemplates, typeId);
     return version;
+  }
+  private async migrationOwnership(typeId: string, input: Parameters<SchemaChangeStore["createChange"]>[1]) {
+    for (const rule of input.migration.rules) {
+      if (rule.op === "remove" && !input.edits.some((e) => e.op === "remove_property" && e.key === rule.key)) {
+        throw invalidInput("속성 제거 편집과 같은 키의 명시 제거만 지원합니다");
+      }
+    }
+    const ids = [...new Set(input.migration.overrides.map((o) => o.entity_id))];
+    if (ids.length) {
+      const [r] = await this
+        .tx`select count(*)::int as count from app.entities where entity_type_id=${typeId} and id=any(${ids}::text[])`;
+      if (r.count !== ids.length) throw notFound();
+    }
   }
   private async reserve(t: postgres.Row, edits: SchemaEdit[], prior: Record<string, string> = {}) {
     const reservations: Record<string, string> = Object.assign(Object.create(null), prior);
@@ -88,8 +107,16 @@ export class SqlSchemaChangeStore implements SchemaChangeStore {
           change_version: Number(a.change_version),
           status: a.status,
           total: Number(a.total),
+          snapshot_fingerprint: a.membership,
+          definition_fingerprint: a.fingerprint,
           processed: Number(a.processed),
           failed: Number(a.failed),
+          changed: Number(a.changed ?? 0),
+          unchanged: Number(a.unchanged ?? 0),
+          removed: Number(a.removed ?? 0),
+          replacements: Number(a.replacements ?? 0),
+          retryable: Boolean(a.retryable),
+          failure_reason: a.failure_reason ?? null,
           errors: errors.map((r) => ({ entity_id: r.entity_id, fields: r.errors })),
           created_at: a.created_at.toISOString(),
         };
@@ -97,8 +124,12 @@ export class SqlSchemaChangeStore implements SchemaChangeStore {
     }
     if (!["applied", "cancelled"].includes(status)) {
       const [fresh] = await this
-        .tx`select version=${row.source_type_version} and schema_version=${row.source_schema_version} and not schema_write_locked and coalesce((select s.version from app.user_business_settings s where s.owner_id=app.entity_types.owner_id and s.id='record_templates'),0)=${row.source_template_version} as fresh from app.entity_types where id=${row.type_id}`;
+        .tx`select version=${row.source_type_version} and schema_version=${row.source_schema_version} and not schema_write_locked  as fresh from app.entity_types where id=${row.type_id}`;
       if (!fresh?.fresh) status = "stale";
+      const [settings] = await this.tx`select settings from app.user_business_settings where id='record_templates'`;
+      if (
+        await effectiveEntityTemplateFingerprint(settings?.settings, row.type_id) !== row.source_template_fingerprint
+      ) status = "stale";
       if (analysis) {
         const [a] = await this
           .tx`select membership=app.entity_schema_membership(owner_id,type_id) as fresh from app.entity_schema_analyses where id=${row.analysis_id}`;
@@ -110,11 +141,13 @@ export class SqlSchemaChangeStore implements SchemaChangeStore {
       type_id: row.type_id,
       source_type_version: Number(row.source_type_version),
       source_schema_version: Number(row.source_schema_version),
-      source_template_version: Number(row.source_template_version),
+      source_template_fingerprint: row.source_template_fingerprint,
       version: Number(row.version),
       status,
       change_kind: row.kind,
       edits: row.edits,
+      migration: row.migration ?? { rules: [], overrides: [] },
+      executable: status === "ready" && analysis?.status === "succeeded" && analysis.failed === 0,
       reservations: row.reservations,
       target: row.target,
       diff: row.diff,
@@ -129,20 +162,24 @@ export class SqlSchemaChangeStore implements SchemaChangeStore {
     this.sourceRefs(t, input);
     const reservations = await this.reserve(t, input.edits);
     const resolved = resolveSchemaEdits(await this.definition(t), input.edits, reservations);
-    const templateVersion = await this.templates(resolved.target);
+    await this.migrationOwnership(typeId, input);
+    compileMigration(resolved.target, input.migration);
+    if (input.migration.rules.length || input.migration.overrides.length) resolved.kind = "migration_required";
+    const templateVersion = await this.templates(resolved.target, typeId);
     const fingerprint = await definitionFingerprint({
       type_id: typeId,
       source_type_version: t.version,
       source_schema_version: t.schema_version,
-      source_template_version: templateVersion,
+      source_template_fingerprint: templateVersion,
       edits: input.edits,
+      migration: input.migration,
       reservations,
       target: resolved.target,
     });
     const [r] = await this
-      .tx`insert into app.entity_schema_changes(owner_id,type_id,source_type_version,source_schema_version,source_template_version,edits,reservations,target,diff,kind,fingerprint) values(${this.actor.userId},${typeId},${t.version},${t.schema_version},${templateVersion},${
-      this.tx.json(input.edits as never)
-    },${this.tx.json(reservations)},${this.tx.json(resolved.target as never)},${
+      .tx`insert into app.entity_schema_changes(owner_id,type_id,source_type_version,source_schema_version,source_template_fingerprint,migration,edits,reservations,target,diff,kind,fingerprint) values(${this.actor.userId},${typeId},${t.version},${t.schema_version},${templateVersion},${
+      this.tx.json(input.migration as never)
+    },${this.tx.json(input.edits as never)},${this.tx.json(reservations)},${this.tx.json(resolved.target as never)},${
       this.tx.json(resolved.diff as never)
     },${resolved.kind},${fingerprint}) returning *`;
     return this.dto(r);
@@ -158,21 +195,29 @@ export class SqlSchemaChangeStore implements SchemaChangeStore {
     ) throw new AppError("schema_plan_stale", "새 정의를 기준으로 새 변경을 만드세요");
     const reservations = await this.reserve(t, input.edits, row.reservations);
     const resolved = resolveSchemaEdits(await this.definition(t), input.edits, reservations);
-    await this.templates(resolved.target, Number(row.source_template_version));
-    if (canonical(input.edits) === canonical(row.edits)) return this.dto(row);
+    await this.migrationOwnership(typeId, input);
+    compileMigration(resolved.target, input.migration);
+    if (input.migration.rules.length || input.migration.overrides.length) resolved.kind = "migration_required";
+    await this.templates(resolved.target, typeId, row.source_template_fingerprint);
+    if (canonical(input.edits) === canonical(row.edits) && canonical(input.migration) === canonical(row.migration)) {
+      return this.dto(row);
+    }
     const fingerprint = await definitionFingerprint({
       type_id: typeId,
       source_type_version: t.version,
       source_schema_version: t.schema_version,
-      source_template_version: row.source_template_version,
+      source_template_fingerprint: row.source_template_fingerprint,
       edits: input.edits,
+      migration: input.migration,
       reservations,
       target: resolved.target,
     });
     const [r] = await this
-      .tx`update app.entity_schema_changes set version=version+1,status='draft',analysis_id=null,edits=${
-      this.tx.json(input.edits as never)
-    },reservations=${this.tx.json(reservations)},target=${this.tx.json(resolved.target as never)},diff=${
+      .tx`update app.entity_schema_changes set version=version+1,status='draft',analysis_id=null,migration=${
+      this.tx.json(input.migration as never)
+    },edits=${this.tx.json(input.edits as never)},reservations=${this.tx.json(reservations)},target=${
+      this.tx.json(resolved.target as never)
+    },diff=${
       this.tx.json(resolved.diff as never)
     },kind=${resolved.kind},fingerprint=${fingerprint},updated_at=now() where id=${id} returning *`;
     return this.dto(r);
@@ -207,16 +252,16 @@ export class SqlSchemaChangeStore implements SchemaChangeStore {
       expected_type_version: Number(row.source_type_version),
       expected_schema_version: Number(row.source_schema_version),
     });
-    await this.templates(row.target, Number(row.source_template_version));
-    const [size] = await this
-      .tx`select count(*)::int as count,coalesce(sum(octet_length(jsonb_build_array(id,version,schema_version,properties,deleted_at)::text)),0)::bigint as bytes from app.entities where entity_type_id=${typeId}`;
-    if (size.count > 2000 || Number(size.bytes) > 8388608) {
-      throw invalidInput("영향 분석은 2000개·8 MiB 이하에서 실행할 수 있습니다");
+    await this.templates(row.target, typeId, row.source_template_fingerprint);
+    const overrides = row.migration?.overrides ?? [];
+    for (const override of overrides) {
+      const [entity] = await this
+        .tx`select id from app.entities where entity_type_id=${typeId} and id=${override.entity_id}`;
+      if (!entity) throw notFound();
     }
     const [a] = await this
-      .tx`insert into app.entity_schema_analyses(owner_id,type_id,change_id,change_version,fingerprint,membership,total) values(${this.actor.userId},${typeId},${id},${row.version},${row.fingerprint},app.entity_schema_membership(${this.actor.userId},${typeId}),${size.count}) returning id`;
-    await this
-      .tx`insert into private.entity_schema_analysis_rows(owner_id,analysis_id,entity_id,source_version,source_schema_version,properties,deleted_at) select owner_id,${a.id},id,version,schema_version,properties,deleted_at from app.entities where entity_type_id=${typeId}`;
+      .tx`with snapshot as materialized (select owner_id,id,version,schema_version,properties,deleted_at from app.entities where entity_type_id=${typeId}), size as (select count(*)::int as count,coalesce(sum(octet_length(jsonb_build_array(id,version,schema_version,properties,deleted_at)::text)),0)::bigint as bytes from snapshot), analysis as (insert into app.entity_schema_analyses(owner_id,type_id,change_id,change_version,fingerprint,membership,total) select ${this.actor.userId},${typeId},${id},${row.version},${row.fingerprint},md5(coalesce((select jsonb_agg(jsonb_build_array(id,version,schema_version,properties,deleted_at) order by id)::text from snapshot),'[]')),count from size where count<=2000 and bytes<=8388608 returning id), saved as (insert into private.entity_schema_analysis_rows(owner_id,analysis_id,entity_id,source_version,source_schema_version,properties,deleted_at) select s.owner_id,a.id,s.id,s.version,s.schema_version,s.properties,s.deleted_at from snapshot s cross join analysis a returning entity_id) select a.id,(select count(*) from saved) as captured from analysis a`;
+    if (!a) throw invalidInput("영향 분석은 2000개·8 MiB 이하에서 실행할 수 있습니다");
     await this
       .tx`update app.entity_schema_changes set status='analyzing',analysis_id=${a.id},updated_at=now() where id=${id}`;
     return {
@@ -225,6 +270,47 @@ export class SqlSchemaChangeStore implements SchemaChangeStore {
       change_version: Number(row.version),
       analysis_id: String(a.id),
       status: "queued" as const,
+    };
+  }
+  async analysisRows(
+    typeId: string,
+    id: string,
+    input: Parameters<SchemaChangeStore["analysisRows"]>[2],
+  ): Promise<SchemaAnalysisPage> {
+    const change = await this.row(typeId, id);
+    if (change.analysis_id !== input.analysis_id) throw new AppError("schema_plan_stale", "최신 분석을 조회하세요");
+    const [a] = await this
+      .tx`select status from app.entity_schema_analyses where id=${input.analysis_id} and change_id=${id}`;
+    if (!a) throw notFound();
+    if (a.status !== "succeeded") throw conflict("분석이 아직 완료되지 않았습니다");
+    const rows = await this
+      .tx`select entity_id,properties as before,after,after_bytes,changed,removed,replacements,errors from private.entity_schema_analysis_rows where analysis_id=${input.analysis_id} and (${
+      input.after ?? null
+    }::text is null or entity_id>${
+      input.after ?? null
+    }) and (${input.failures_only}=false or jsonb_array_length(errors)>0) order by entity_id limit ${input.limit + 1}`;
+    const items: SchemaAnalysisPage["items"] = [];
+    let bytes = 0;
+    for (const r of rows.slice(0, input.limit)) {
+      const item = {
+        entity_id: r.entity_id,
+        before: r.before,
+        after: r.after,
+        after_bytes: Number(r.after_bytes),
+        changed: r.changed,
+        removed: Number(r.removed),
+        replacements: Number(r.replacements),
+        errors: r.errors,
+      };
+      const size = new TextEncoder().encode(jsonbText(item)).length;
+      if (bytes + size > 524288) break;
+      items.push(item);
+      bytes += size;
+    }
+    return {
+      analysis_id: input.analysis_id,
+      items,
+      next_after: rows.length > items.length && items.length ? items.at(-1)!.entity_id : null,
     };
   }
   async applyChange(typeId: string, id: string, input: Parameters<SchemaChangeStore["applyChange"]>[2]) {
@@ -252,7 +338,7 @@ export class SqlSchemaChangeStore implements SchemaChangeStore {
       a.failed !== 0 || a.change_version !== row.version || a.fingerprint !== row.fingerprint ||
       a.membership !== fresh.membership
     ) throw new AppError("schema_plan_stale", "최신 영향 분석을 완료하세요");
-    await this.templates(row.target, Number(row.source_template_version));
+    await this.templates(row.target, typeId, row.source_template_fingerprint);
     const next = Number(t.schema_version) + 1;
     await this
       .tx`insert into app.entity_schema_versions(owner_id,type_id,schema_version,schema,display) values(${this.actor.userId},${typeId},${next},${

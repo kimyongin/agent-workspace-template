@@ -250,3 +250,14 @@ export function compileEntityProperties(raw: unknown) {
 export function validateEntityProperties(raw: unknown, values: Record<string, unknown>, creation = false) {
   return compileEntityProperties(raw)(values, creation);
 }
+/** Compile a supported field for explicit migration literals, without creation defaults. */
+export function compileEntityFieldValue(field: EntityField) {
+  const check = validator().compile({ $schema: ENTITY_SCHEMA_DIALECT, ...field });
+  return (value: unknown) => {
+    if (!check(value)) throw invalidInput("보완값이 대상 속성 제약을 만족하지 않습니다");
+    numeric(field, value, "value");
+    if (typeof value === "string" && (!sqlSafeText(value) || (field.format === "date" && value.startsWith("0000-")))) {
+      throw invalidInput("저장할 수 없는 보완값입니다");
+    }
+  };
+}

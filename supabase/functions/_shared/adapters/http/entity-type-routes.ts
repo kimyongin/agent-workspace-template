@@ -2,6 +2,7 @@ import {
   analyzeEntitySchemaChange,
   applyEntitySchemaChange,
   createEntitySchemaChange,
+  getEntitySchemaAnalysisRows,
   getEntitySchemaChange,
   listEntitySchemaChanges,
   updateEntitySchemaChange,
@@ -129,5 +130,19 @@ export function entityTypeRoutes(deps: EntityTypeDeps) {
         ),
       ),
   );
+  app.get("/entity-types/:type_id/schema-changes/:change_id/rows", async (c) => {
+    const failures = c.req.query("failures_only");
+    if (failures !== undefined && !["true", "false"].includes(failures)) {
+      throw invalidInput("failures_only는 true/false입니다");
+    }
+    return c.json(
+      await getEntitySchemaAnalysisRows(deps, c.get("actor"), c.req.param("type_id"), c.req.param("change_id"), {
+        analysis_id: c.req.query("analysis_id"),
+        limit: number(c.req.query("limit")),
+        after: c.req.query("after"),
+        failures_only: failures === "true",
+      }),
+    );
+  });
   return app;
 }

@@ -1,4 +1,5 @@
 import {
+  schemaAnalysisRows,
   schemaChangeAction,
   schemaChangeApply,
   schemaChangeCreate,
@@ -189,6 +190,7 @@ const EXPECTED_TOOLS = [
   "update_entity_schema_change",
   "analyze_entity_schema_change",
   "apply_entity_schema_change",
+  "list_entity_schema_analysis_rows",
   "complete_task",
   "create_principle",
   "create_record",
@@ -509,6 +511,10 @@ httpTest("tools/list: 계약의 도구 이름과 contracts JSON Schema", async (
       request_key: requestKey,
     }),
     get_entity_schema_change: z.strictObject({ type_id: z.string().uuid(), change_id: z.string().uuid() }),
+    list_entity_schema_analysis_rows: schemaAnalysisRows.extend({
+      type_id: z.string().uuid(),
+      change_id: z.string().uuid(),
+    }),
     list_entity_schema_changes: schemaChangeList.extend({ type_id: z.string().uuid() }),
     analyze_entity_schema_change: schemaChangeAction.extend({
       type_id: z.string().uuid(),

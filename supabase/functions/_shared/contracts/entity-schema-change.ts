@@ -1,4 +1,5 @@
-import { optionLabelDictionary } from "./option-labels.ts";
+import { entityReferenceId } from "./entity-identity.ts";
+import { optionLabelDictionary, ownStringDictionary } from "./option-labels.ts";
 import { z } from "zod";
 import { type EntityDisplay, type EntityField, type EntitySchemaVersion, propertyKey } from "./entity-type.ts";
 const scalar = z.enum(["string", "integer", "number", "boolean"]);
@@ -42,10 +43,51 @@ export const entitySchemaEdit = z.discriminatedUnion("op", [
   z.strictObject({ op: z.literal("remove_property"), key: propertyKey }),
   z.strictObject({ op: z.literal("set_display"), display: displayInput }),
 ]);
+const literal = z.union([z.string().max(4096), z.number().finite(), z.boolean(), z.null()]);
+export const migrationRule = z.discriminatedUnion("op", [
+  z.strictObject({ op: z.literal("convert"), key: propertyKey, to: z.enum(["string", "integer", "number", "date"]) }),
+  z.strictObject({
+    op: z.literal("map"),
+    key: propertyKey,
+    mapping: ownStringDictionary(z.string().max(4096)),
+    identity: z.boolean().default(false),
+  }),
+  z.strictObject({ op: z.literal("fill"), key: propertyKey, value: literal, include_null: z.boolean().default(false) }),
+  z.strictObject({ op: z.literal("remove"), key: propertyKey }),
+  z.strictObject({ op: z.literal("replace_failure"), key: propertyKey, value: literal }),
+]);
+export const migrationOverride = z.strictObject({
+  entity_id: entityReferenceId,
+  key: propertyKey,
+  value: literal,
+});
+export const migrationPlan = z.strictObject({
+  rules: z.array(migrationRule).max(128).default([]),
+  overrides: z.array(migrationOverride).max(2000).default([]),
+});
+export const schemaAnalysisRows = z.strictObject({
+  analysis_id: z.string().uuid(),
+  limit: z.number().int().min(1).max(100).default(20),
+  after: entityReferenceId.optional(),
+  failures_only: z.boolean().default(false),
+});
+export type MigrationPlan = z.infer<typeof migrationPlan>;
+export type SchemaAnalysisRow = {
+  entity_id: string;
+  before: Record<string, unknown>;
+  after: Record<string, unknown> | null;
+  after_bytes: number;
+  changed: boolean;
+  removed: number;
+  replacements: number;
+  errors: Array<{ path: string; message: string }>;
+};
+export type SchemaAnalysisPage = { analysis_id: string; items: SchemaAnalysisRow[]; next_after: string | null };
 export const schemaChangeCreate = z.strictObject({
   expected_type_version: z.number().int().positive(),
   expected_schema_version: z.number().int().positive(),
   edits: z.array(entitySchemaEdit).min(1).max(128),
+  migration: migrationPlan.default({ rules: [], overrides: [] }),
 });
 export const schemaChangeUpdate = schemaChangeCreate.extend({ expected_change_version: z.number().int().positive() });
 export const schemaChangeAction = z.strictObject({ expected_change_version: z.number().int().positive() });
@@ -70,8 +112,16 @@ export type SchemaAnalysis = {
   change_version: number;
   status: "queued" | "running" | "succeeded" | "failed";
   total: number;
+  snapshot_fingerprint: string;
+  definition_fingerprint: string;
   processed: number;
   failed: number;
+  changed: number;
+  unchanged: number;
+  removed: number;
+  replacements: number;
+  retryable: boolean;
+  failure_reason: string | null;
   errors: Array<{ entity_id: string; fields: Array<{ path: string; message: string }> }>;
   created_at: string;
 };
@@ -80,11 +130,13 @@ export type EntitySchemaChange = {
   type_id: string;
   source_type_version: number;
   source_schema_version: number;
-  source_template_version: number;
+  source_template_fingerprint: string;
   version: number;
   status: "draft" | "analyzing" | "ready" | "stale" | "invalid" | "applied" | "cancelled";
   change_kind: "compatible" | "migration_required";
   edits: SchemaEdit[];
+  migration: MigrationPlan;
+  executable: boolean;
   reservations: Record<string, string>;
   target: Pick<EntitySchemaVersion, "schema" | "display">;
   diff: SchemaDiff[];
