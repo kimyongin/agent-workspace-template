@@ -215,7 +215,7 @@ dbTest("business save preserves exact entered memo, factual blank default, no-op
         change_note: "   ",
       }),
     );
-    assertEquals((await records()).items.find((r) => r.body === "대상 수정 (prop_2)")!.change!.target_id, e.id);
+    assertEquals((await records()).items.find((r) => r.body === "대상 수정 (속성 2)")!.change!.target_id, e.id);
     await entity.deleteEntity(ed, requestActor(f.actor), e.id, updated.version, "삭제 근거");
     assertEquals((await records()).items.find((r) => r.change?.action === "delete")!.body, "삭제 근거");
   } finally {
