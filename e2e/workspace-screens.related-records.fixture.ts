@@ -171,9 +171,9 @@ for (const width of [320, 1440]) {
     }).click();
     expect(state.writes).toHaveLength(0);
     await expect(draft.getByRole("list", { name: "선택한 할 일" }).locator(".related-item")).toHaveCount(1);
-    await expect(draft.getByRole("list", { name: "선택한 엔터티" }).locator(".related-item")).toHaveCount(1);
+    await expect(draft.getByRole("list", { name: "선택한 자료" }).locator(".related-item")).toHaveCount(1);
     await expect(draft.locator(".entity-choice")).toHaveCount(0);
-    await draft.getByRole("button", { name: "엔터티 해제", exact: true }).click();
+    await draft.getByRole("button", { name: "자료 해제", exact: true }).click();
     await expect(entitySearch).toBeFocused();
     await draft.getByRole("group", { name: "자료 검색 결과" }).getByRole("button", {
       name: "자료 연결",
@@ -187,7 +187,7 @@ for (const width of [320, 1440]) {
     await expect(draft.getByRole("list", { name: "선택한 할 일" })).toContainText("할 일");
     await draft.getByRole("button", { name: "자료 검색 닫기", exact: true }).click();
     await expect(entitySearch).toHaveCount(0);
-    await draft.getByRole("button", { name: "엔터티 해제", exact: true }).click();
+    await draft.getByRole("button", { name: "자료 해제", exact: true }).click();
     await expect(draft.getByRole("button", { name: "자료 연결", exact: true })).toBeFocused();
     await draft.getByRole("button", { name: "자료 연결", exact: true }).click();
     await expect(entitySearch).toHaveValue("엔터");
@@ -213,7 +213,7 @@ test("#191 할 일에서 일반 기록 작성: 귀속 미리 선택·변경·엔
   const state = await fixtures(page), t = state.rows.tasks[0];
   Object.assign(t, {
     entity_ids: [entityKey(1)],
-    entity_context: [{ id: entityKey(1), title: "전체 자료", source: "selection", captured_at: stamp }],
+    entity_context: [{ id: entityKey(1), title: "자료", source: "selection", captured_at: stamp }],
   });
   state.rows.tasks.push({ ...task(82), title: "다른 할 일" });
   await go(page, `/tasks/${id(2)}`);
@@ -228,7 +228,7 @@ test("#191 할 일에서 일반 기록 작성: 귀속 미리 선택·변경·엔
     exact: true,
   }).click();
   await expect(draft.getByRole("list", { name: "선택한 할 일" }).locator(".related-item")).toHaveCount(1);
-  await expect(draft.getByRole("list", { name: "선택한 엔터티" })).toContainText("전체 자료");
+  await expect(draft.getByRole("list", { name: "선택한 자료" })).toContainText("자료");
   await draft.getByRole("button", { name: "저장", exact: true }).click();
   await expect.poll(() => state.writes.length).toBe(1);
   expect(state.writes[0].body).toMatchObject({ task_id: id(82), entity_ids: [entityKey(1)] });

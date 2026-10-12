@@ -80,7 +80,7 @@ test("원칙 저장 결과는 같은 ID·확인된 본문을 보여준다", asyn
   expect(state.errors).toEqual([]);
 });
 
-for (const [kind, label] of [["entities", "전체 자료"], ["tasks", "할 일"], ["records", "기록"]]) {
+for (const [kind, label] of [["entities", "검사 자료"], ["tasks", "할 일"], ["records", "기록"]]) {
   test(`${kind}: 생성·보기·편집 메모·태그·삭제 이유`, async ({ page }) => {
     const state = await fixtures(page);
     await go(page, `/${kind}`);

@@ -161,7 +161,7 @@ export function TaskEntityRelations(
   return (
     <RelationControls key={task.id} task={task} onSaved={onSaved}>
       {({ search, button, unlink }) => (
-        <RelatedSection title="자료" count={task.entity_ids.length} action={button}>
+        <RelatedSection title="연결된 자료" count={task.entity_ids.length} action={button}>
           {search}
           <CollectionList>
             {task.entity_ids.map((id) => {

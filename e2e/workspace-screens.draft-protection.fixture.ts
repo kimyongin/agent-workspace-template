@@ -5,7 +5,7 @@ import { expect, test } from "@playwright/test";
 import { id } from "./support/workspace-data.ts";
 import { compatibleEdit, fillText, fixtures, form, go } from "./support/workspace-screens.ts";
 
-for (const [kind, label] of [["entities", "전체 자료"], ["tasks", "할 일"], ["records", "기록"], ["principles", "원칙"]]) {
+for (const [kind, label] of [["entities", "검사 자료"], ["tasks", "할 일"], ["records", "기록"], ["principles", "원칙"]]) {
   test(`${kind}: uncertain 생성 폐기 후 새 작성은 새로운 요청키`, async ({ page }) => {
     const state = await fixtures(page, { failWrite: "unknown", emptyPrinciple: true });
     await go(page, `/${kind}`);
@@ -142,7 +142,7 @@ for (const [kind, label] of [["task", "할 일 작성"], ["record", "기록 작�
 test("엔터티 관련 작성은 URL·뒤로가기 초안 보호·reload·같은 surface 저장", async ({ page }) => {
   const state = await fixtures(page);
   await go(page, "/entities");
-  await openListDetail(page, "전체 자료");
+  await openListDetail(page, "자료");
   await form(page).getByRole("button", { name: "할 일 작성", exact: true }).click();
   await expect(page).toHaveURL(/create=task/);
   await expect(form(page)).toHaveCount(1);

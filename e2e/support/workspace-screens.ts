@@ -1,7 +1,7 @@
 import { entityKey } from "./workspace-data.ts";
 import { openDetailEditor } from "../ui-actions.ts";
 import { expect, type Page } from "@playwright/test";
-import { base, entity, id, principle, record, stamp, task, type WorkspaceRows } from "./workspace-data.ts";
+import { base, entity, fixtureType, id, principle, record, stamp, task, type WorkspaceRows } from "./workspace-data.ts";
 import { installWorkspaceApi } from "./workspace-api.ts";
 
 export const targetCases = [["entity", "entities", 1], ["task", "tasks", 2], ["record", "records", 31], [
@@ -63,11 +63,11 @@ export function linkedFixture(state: Awaited<ReturnType<typeof fixtures>>) {
   });
   Object.assign(state.rows.tasks[0], {
     entity_ids: [entityKey(1)],
-    entity_context: [{ id: entityKey(1), title: "자료", source: "selection", captured_at: stamp }],
+    entity_context: [{ id: entityKey(1), title: "자료", type: fixtureType, schema_version: 1, source: "selection", captured_at: stamp }],
   });
   Object.assign(state.rows.records[0], {
     entity_ids: [entityKey(1)],
-    entity_context: [{ id: entityKey(1), title: "자료", source: "selection", captured_at: stamp }],
+    entity_context: [{ id: entityKey(1), title: "자료", type: fixtureType, schema_version: 1, source: "selection", captured_at: stamp }],
     task_id: id(2),
   });
 }

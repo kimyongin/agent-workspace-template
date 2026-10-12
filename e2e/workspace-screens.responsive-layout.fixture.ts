@@ -105,21 +105,21 @@ for (const width of [390, 1440]) {
     await go(page, "/entities");
     await page.screenshot({ path: info.outputPath(`tab-entities-${width}.png`) });
     const top = page.locator(".app-main > .panel"),
-      bottom = page.getByRole("region", { name: "엔터티 목록", exact: true });
+      bottom = page.getByRole("region", { name: "검사 자료 목록", exact: true });
     expect((await bottom.boundingBox())!.y).toBeGreaterThanOrEqual(
       (await top.boundingBox())!.y + (await top.boundingBox())!.height,
     );
     const inset = 24,
       topBox = (await top.boundingBox())!,
       listBox = (await bottom.locator(".collection-list").boundingBox())!;
-    expect((await top.getByRole("heading", { name: "전체 자료", exact: true }).boundingBox())!.x - topBox.x).toBeCloseTo(
+    expect((await top.getByRole("heading", { name: "검사 자료", exact: true }).boundingBox())!.x - topBox.x).toBeCloseTo(
       0,
     );
     expect((await top.getByLabel("자료 제목 검색", { exact: false }).boundingBox())!.x - topBox.x).toBeCloseTo(0);
     expect((await bottom.locator(".item-title").first().boundingBox())!.x - listBox.x).toBeGreaterThanOrEqual(inset);
-    await expect(bottom.getByRole("link", { name: "엔터티 상세", exact: true })).toHaveCount(0);
-    await openListEditor(page, "전체 자료", bottom);
-    await expect(form(page).getByLabel("제목", { exact: false })).toHaveValue("전체 자료");
+    await expect(bottom.getByRole("link", { name: "자료 상세", exact: true })).toHaveCount(0);
+    await openListEditor(page, "자료", bottom);
+    await expect(form(page).getByLabel("제목", { exact: false })).toHaveValue("자료");
     await expect(form(page).getByRole("button", { name: "할 일 작성", exact: true })).toHaveCount(0);
     await expect(form(page).getByRole("link", { name: /목록/ })).toHaveCount(0);
     await expect(form(page).getByRole("button", { name: "취소", exact: true })).toHaveCount(1);
@@ -159,7 +159,7 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
     await page.setViewportSize({ width, height: 900 });
     state.rows.records[0].body = "긴 한국어 기록😀".repeat(40) + "\n\n원문 마지막 부분";
     for (
-      const [kind, n, title] of [["entities", 1, "전체 자료"], ["tasks", 2, "할 일"], [
+      const [kind, n, title] of [["entities", 1, "자료"], ["tasks", 2, "할 일"], [
         "records",
         3,
         recordDisplayText(state.rows.records[0].body),
