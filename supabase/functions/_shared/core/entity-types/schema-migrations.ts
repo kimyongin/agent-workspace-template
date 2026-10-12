@@ -1,6 +1,8 @@
 import {
   assertSchemaApplication,
   assertSchemaApplicationBindings,
+  assertSchemaApplicationReady,
+  assertSchemaApplicationSource,
   type SchemaApplicationContext,
 } from "./schema-application.ts";
 import {
@@ -21,6 +23,8 @@ import {
   schemaRecoveryCreate,
 } from "../../contracts/entity-schema-migration.ts";
 import type { EntityTypeDeps } from "./application.ts";
+import type { SchemaChangeStore } from "./schema-changes.ts";
+import type { RequestStore } from "../shared/request.ts";
 import type { Actor } from "../shared/actor.ts";
 import { AppError, conflict, invalidInput } from "../shared/errors.ts";
 import { runWrite } from "../shared/request.ts";
@@ -37,9 +41,42 @@ export interface SchemaMigrationStore {
   listMigrations(
     input: z.infer<typeof schemaMigrationList>,
   ): Promise<{ items: EntitySchemaMigration[]; next_before: string | null }>;
-  cancelMigration(id: string, input: z.infer<typeof schemaMigrationAction>): Promise<EntitySchemaMigration>;
-  retryMigration(id: string, input: z.infer<typeof schemaMigrationAction>): Promise<SchemaMigrationAccepted>;
+  loadMigrationAction(id: string): Promise<SchemaMigrationActionContext>;
+  saveMigrationCancellation(job: SchemaMigrationActionContext["job"]): Promise<EntitySchemaMigration>;
+  saveMigrationRetry(job: SchemaMigrationActionContext["job"]): Promise<SchemaMigrationAccepted>;
+  migrationReferencesFresh(id: string): Promise<boolean>;
 }
+export type SchemaMigrationActionContext = {
+  job: Pick<
+    EntitySchemaMigration,
+    | "id"
+    | "type_id"
+    | "change_id"
+    | "change_version"
+    | "analysis_id"
+    | "fingerprint"
+    | "version"
+    | "status"
+    | "retryable"
+    | "source_expires_at"
+  >;
+  schema_write_locked: boolean;
+  observed_at: string;
+};
+export type SchemaMigrationActionStore =
+  & RequestStore
+  & Pick<
+    SchemaMigrationStore,
+    | "loadMigrationAction"
+    | "getMigration"
+    | "saveMigrationCancellation"
+    | "saveMigrationRetry"
+    | "migrationReferencesFresh"
+  >
+  & Pick<SchemaChangeStore, "loadSchemaApplication" | "lockSchemaApplicationBindings">;
+type SchemaMigrationActionDeps = {
+  uow: { run<T>(actor: Actor, fn: (store: SchemaMigrationActionStore) => Promise<T>): Promise<T> };
+};
 function parse<T>(schema: z.ZodType<T>, raw: unknown): T {
   const result = schema.safeParse(raw);
   if (!result.success) {
@@ -82,15 +119,48 @@ export function listEntitySchemaMigrations(d: EntityTypeDeps, a: Actor, raw: unk
   const i = parse(schemaMigrationList, raw);
   return d.uow.run(a, (s) => s.listMigrations(i));
 }
-export function cancelEntitySchemaMigration(d: EntityTypeDeps, a: Actor, id: string, raw: unknown) {
+export function cancelEntitySchemaMigration(d: SchemaMigrationActionDeps, a: Actor, id: string, raw: unknown) {
   parse(z.string().uuid(), id);
   const i = parse(schemaMigrationAction, raw);
-  return runWrite(d.uow, a, "entity-schema-migration.cancel", id, i, (s) => s.cancelMigration(id, i));
+  return runWrite(d.uow, a, "entity-schema-migration.cancel", id, i, async (s) => {
+    const { job } = await s.loadMigrationAction(id);
+    // A locked terminal result wins over an outdated caller, including the commit winner.
+    if (["committing", "succeeded", "failed", "cancelled"].includes(job.status)) return s.getMigration(id);
+    if (job.version !== i.expected_job_version) throw conflict("작업 상태가 변경되었습니다. 다시 조회하세요");
+    return s.saveMigrationCancellation(job);
+  });
 }
-export function retryEntitySchemaMigration(d: EntityTypeDeps, a: Actor, id: string, raw: unknown) {
+export function retryEntitySchemaMigration(d: SchemaMigrationActionDeps, a: Actor, id: string, raw: unknown) {
   parse(z.string().uuid(), id);
   const i = parse(schemaMigrationAction, raw);
-  return runWrite(d.uow, a, "entity-schema-migration.retry", id, i, (s) => s.retryMigration(id, i));
+  return runWrite(d.uow, a, "entity-schema-migration.retry", id, i, async (s) => {
+    const { job, schema_write_locked, observed_at } = await s.loadMigrationAction(id);
+    if (schema_write_locked) {
+      throw new AppError("schema_migration_in_progress", "마이그레이션 완료 후 다시 시도하세요");
+    }
+    if (job.version !== i.expected_job_version) throw conflict("작업 상태가 변경되었습니다. 다시 조회하세요");
+    if (job.source_expires_at && new Date(job.source_expires_at) <= new Date(observed_at)) {
+      throw new AppError("migration_source_expired", "재시도 원본의 30일 보관 기간이 지났습니다. 새 분석을 준비하세요");
+    }
+    if (job.status !== "failed" || !job.retryable) {
+      throw conflict("재시도 가능한 실패 작업만 재개할 수 있습니다. 새 분석을 준비하세요");
+    }
+    const context = await s.loadSchemaApplication(job.type_id, job.change_id, job.analysis_id);
+    const change = context.change;
+    if (
+      change.version !== job.change_version || change.fingerprint !== job.fingerprint ||
+      change.analysis_id !== job.analysis_id
+    ) {
+      throw new AppError("schema_plan_stale", "새 분석을 준비하세요");
+    }
+    assertSchemaApplicationSource(context, change.source_type_version, change.source_schema_version);
+    assertSchemaApplicationReady(context, "migration_required", job.analysis_id);
+    await assertSchemaApplicationBindings(context, await s.lockSchemaApplicationBindings(context));
+    if (!await s.migrationReferencesFresh(id)) {
+      throw new AppError("schema_plan_stale", "연결이 변경되었습니다. 새 분석을 준비하세요");
+    }
+    return s.saveMigrationRetry(job);
+  });
 }
 
 export function createEntitySchemaRecovery(d: EntityTypeDeps, a: Actor, id: string, raw: unknown) {
