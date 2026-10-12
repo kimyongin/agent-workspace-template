@@ -67,7 +67,7 @@ dbTest("type foundation: explicit creation, owner isolation, immutable versions 
       })
     );
     await assertRejects(
-      () => createEntityType(d, requestActor(a.actor), { label: "잘못된 아이콘", icon_id: "unknown" }),
+      async () => await createEntityType(d, requestActor(a.actor), { label: "잘못된 아이콘", icon_id: "unknown" }),
       AppError,
     );
     await admin`update app.entity_types set icon_id='retired-icon' where id=${second.id}`;
