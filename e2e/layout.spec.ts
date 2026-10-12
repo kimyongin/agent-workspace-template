@@ -7,9 +7,16 @@ import { devLogin, mcpClient, mcpTokenViaConsent, unique } from "./support.ts";
 
 const WIDTHS = [320,360,390,639,640,768,1024,1440];
 
-test("하단 메뉴는 엔터티·할 일·원칙·기록 순서",async({page})=>{
+test("사용자 바로가기와 별도로 프로필에서 전체 업무 화면에 접근한다",async({page})=>{
   await devLogin(page);await page.goto("/entities");
-  await expect(page.getByRole("navigation",{name:"주 메뉴"}).getByRole("link")).toHaveText(["전체 자료","할 일","원칙","기록"]);
+  const navigation = page.getByRole("navigation",{name:"주 메뉴"});
+  await navigation.getByRole("button",{name:"내 프로필",exact:true}).click();
+  const menu = page.locator("#nav-profile-options");
+  for (const [path, label] of [["/entities","전체 자료"],["/tasks","할 일"],["/records","기록"],["/principles","원칙"]]) {
+    const link = menu.locator(`a[href="${path}"]`);
+    await expect(link).toHaveAccessibleName(label);
+    await expect(link).toBeVisible();
+  }
 });
 
 /** 가로 넘침과 44px보다 작은 조작 영역(보이는 버튼·링크·입력)을 찾는다. */

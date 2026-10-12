@@ -1,5 +1,5 @@
 import { setEntityCategory } from "./ui-actions.ts";
-import { entity as makeEntity } from "./support/workspace-data.ts";
+import { entity as makeEntity, fixtureType, fixtureSchema } from "./support/workspace-data.ts";
 import { createFixtureEntity, scalarFixtureType, fixtureEntityList } from "./entity-schema-support.ts";
 import { fillChangeMemo } from "./ui-actions.ts";
 import { saveOnce, beginTabAction, openDetailEditor, openListDetail, openTabFilters, closeDetail } from "./ui-actions.ts";
@@ -186,6 +186,7 @@ test("Entity 복원: 대상 없음 조회 한도·제목 초점·필터 hash 제
   let requests = 0, release: () => void = () => {}, started: () => void = () => {};
   const delayed = new Promise<void>((resolve) => release = resolve),
     arrived = new Promise<void>((resolve) => started = resolve);
+  await page.route("**/api/entity-types**", route => route.fulfill({ json: new URL(route.request().url()).pathname.endsWith("/entity-types") ? { items: [fixtureType], next_cursor: null } : new URL(route.request().url()).pathname.endsWith("/schema") ? fixtureSchema : fixtureType }));
   await page.route("**/api/entities?**", async (route) => {
     const url = new URL(route.request().url()), keyword = url.searchParams.get("keyword");
     requests++;
