@@ -1,13 +1,16 @@
-import { entityTypeCatalogEvent } from "./entity-type-catalog.ts";
-import { useEffect, useState } from "react";
+import { entityTypeCatalogEvent, readEntityTypeCatalog } from "./entity-type-catalog.ts";
+import { useContext, useEffect, useState } from "react";
 import type { EntityType } from "@contracts/entity-type.ts";
+import { AuthContext } from "../auth/auth-context.ts";
 import { api, query } from "../../lib/api.ts";
-export function useEntityTypes(scope = "catalog", revision?: unknown) {
+export function useEntityTypes(revision?: unknown, enabled = true) {
+  const { session } = useContext(AuthContext);
+  const scope = enabled ? session?.user.id ?? null : null;
   const [catalog, setCatalog] = useState<{ scope: string; types: EntityType[] } | null>(null),
-    [error, setError] = useState(false),
+    [error, setError] = useState<string | null>(null),
     [generation, setGeneration] = useState(0);
   useEffect(() => {
-    const refresh = () => setGeneration((value) => value + 1);
+    const refresh = () => { if (scope) setGeneration((value) => value + 1); };
     const changed = (event: Event) => {
       if ((event as CustomEvent<unknown>).detail === scope) refresh();
     };
@@ -21,32 +24,21 @@ export function useEntityTypes(scope = "catalog", revision?: unknown) {
   useEffect(() => {
     const controller = new AbortController();
     setCatalog((previous) => previous?.scope === scope ? previous : null);
-    setError(false);
-    void (async () => {
-      const items: EntityType[] = [], seen = new Set<string>();
-      let cursor: string | undefined;
-      do {
-        const page = await api<{ items: EntityType[]; next_cursor?: string | null }>(
-          "GET",
-          `/entity-types${query({ include_archived: "true", limit: 100, cursor })}`,
-          undefined,
-          controller.signal,
-        );
-        controller.signal.throwIfAborted();
-        items.push(...page.items);
-        cursor = page.next_cursor ?? undefined;
-        if (cursor && seen.has(cursor)) throw new Error("자료 종류 목록을 끝까지 읽지 못했습니다.");
-        if (cursor) seen.add(cursor);
-      } while (cursor);
-      setCatalog({ scope, types: items });
-    })().catch(() => {
-      if (!controller.signal.aborted) setError(true);
+    setError(null);
+    if (!scope) return () => controller.abort();
+    void readEntityTypeCatalog(controller.signal, (cursor, signal) =>
+      api<{ items: EntityType[]; next_cursor?: string | null }>(
+        "GET", `/entity-types${query({ include_archived: "true", limit: 100, cursor })}`, undefined, signal,
+      )).then((types) => {
+      if (!controller.signal.aborted) setCatalog({ scope, types });
+    }).catch(() => {
+      if (!controller.signal.aborted) setError(scope);
     });
     return () => controller.abort();
   }, [scope, generation, revision]);
   return {
-    types: catalog?.scope === scope ? catalog.types : null,
-    error,
+    types: scope && catalog?.scope === scope ? catalog.types : null,
+    error: !!scope && error === scope,
     retry: () => setGeneration((value) => value + 1),
   };
 }

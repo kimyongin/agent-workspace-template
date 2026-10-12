@@ -28,7 +28,7 @@ function NavigationSettings() {
   const pending = useRef(false), mounted = useRef(true);
   const { setPreview } = useNavigationPreview();
   const location = useLocation();
-  const catalog = useEntityTypes(session!.user.id, location.key);
+  const catalog = useEntityTypes(location.key);
   const types = catalog.types ?? [];
   const dirty = !equal(draft, baseline);
   const refs = draft?.refs ?? defaultNavigationRefs(types);

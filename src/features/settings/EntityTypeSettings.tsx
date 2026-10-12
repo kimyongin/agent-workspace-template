@@ -1,5 +1,6 @@
 import { useAuth } from "../auth/AuthProvider.tsx";
 import { invalidateEntityTypeCatalog } from "../entity/entity-type-catalog.ts";
+import { useEntityTypes } from "../entity/useEntityTypes.ts";
 import { SchemaEditor, SchemaVersionDiff } from "./SchemaEditor.tsx";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useBlocker, useLocation, useParams } from "react-router";
@@ -24,8 +25,9 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
   const { type_id: activeTypeId } = useParams();
   const location = useLocation();
   const versions = location.pathname.endsWith("/versions");
-  const [items, setItems] = useState<EntityType[]>([]),
-    [type, setType] = useState<EntityType | null>(null),
+  const catalog = useEntityTypes(undefined, !type_id);
+  const items = catalog.types ?? [];
+  const [type, setType] = useState<EntityType | null>(null),
     [schema, setSchema] = useState<EntitySchemaVersion | null>(null),
     [history, setHistory] = useState<EntitySchemaVersionSummary[]>([]);
   const [historyBefore, setHistoryBefore] = useState<number | null>(null);
@@ -86,11 +88,6 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
       setSchema(definition);
       setHistory(versions.items);
       setHistoryBefore(versions.next_before ?? null);
-    } else {
-      const saved = await api<{ items: EntityType[] }>("GET", "/entity-types?include_archived=true", undefined, signal);
-      signal?.throwIfAborted();
-      if (!mounted.current) return;
-      setItems(saved.items);
     }
   };
   useEffect(() => {
@@ -175,7 +172,6 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
           setIcon(saved.icon_id);
           setArchived(saved.archived);
         } else {
-          setItems((rows) => rows.some((row) => row.id === saved.id) ? rows : [...rows, saved]);
           setLabel("");
           setIcon("box");
           setRepresentative("이름");
@@ -232,6 +228,8 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
         </nav>
       )}
       {loading && <p role="status">불러오는 중…</p>}
+      {!type_id && !catalog.types && !catalog.error && <p role="status">자료 종류를 읽는 중…</p>}
+      {!type_id && catalog.error && <p role="alert">자료 종류를 읽지 못했습니다. <button className="btn" onClick={catalog.retry}>자료 종류 다시 조회</button></p>}
       {error && <p role="alert" className="error-text">{error}</p>}
       {error && !loading && (!type_id || !type) && (
         <button className="btn" onClick={() => void retryRead()}>조회 다시 시도</button>
@@ -249,7 +247,7 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
               </li>
             ))}
           </ul>
-          {items.length === 0 && !error && (
+          {catalog.types && items.length === 0 && !catalog.error && !error && (
             <p className="secondary">자료 종류가 없습니다. 이름을 정해 첫 자료 종류를 만드세요.</p>
           )}
         </>
