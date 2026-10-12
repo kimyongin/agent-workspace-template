@@ -177,7 +177,17 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
   }
   return (
     <section className="panel settings" aria-labelledby="entity-types-title">
-      <Link to="/settings">설정</Link>
+      <nav className="settings-breadcrumb" aria-label="현재 설정 위치">
+        <Link to="/settings">설정</Link>
+        <span aria-hidden="true">›</span>
+        <span>{type_id ? type?.label ?? "자료 종류" : "자료 종류·속성"}</span>
+        {versions && (
+          <>
+            <span aria-hidden="true">›</span>
+            <span>버전</span>
+          </>
+        )}
+      </nav>
       <h1 id="entity-types-title" className="page-title">{type_id ? type?.label ?? "자료 종류" : "자료 종류·속성"}</h1>
       {type_id && (
         <nav aria-label="자료 종류 설정">

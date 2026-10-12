@@ -60,7 +60,7 @@ dbTest(
       const entity = await createEntity(e, requestActor(a.actor), {
         entity_type_id: type.id,
         schema_version: 1,
-        source: "manual",
+        source: "app",
         external_id: crypto.randomUUID(),
         properties: { prop_1: "旧資料" },
       });
@@ -85,7 +85,7 @@ dbTest(
       assertEquals(change.reservations, { cost: "prop_2" });
       assertEquals(await createEntitySchemaChange(d, actor, type.id, input), change);
       assertEquals(
-        (await assertRejects(() =>
+        (await assertRejects(async () =>
           createEntitySchemaChange(d, actor, type.id, {
             ...input,
             edits: [{ op: "add_property", client_ref: "cost", field: { type: "string" }, required: false }],
@@ -93,12 +93,15 @@ dbTest(
         "idempotency_key_reused",
       );
       assertEquals(
-        (await assertRejects(() => createEntitySchemaChange(d, actor, type.id, { ...input, edits: [] }), AppError))
+        (await assertRejects(
+          async () => createEntitySchemaChange(d, actor, type.id, { ...input, edits: [] }),
+          AppError,
+        ))
           .code,
         "invalid_input",
       );
       assertEquals(
-        (await assertRejects(() => getEntitySchemaChange(d, b.actor, type.id, change.id), AppError)).code,
+        (await assertRejects(async () => getEntitySchemaChange(d, b.actor, type.id, change.id), AppError)).code,
         "not_found",
       );
       assertEquals((await getEntitySchema(d, a.actor, { type_id: type.id })).schema_version, 1);
@@ -142,7 +145,7 @@ dbTest(
       assertEquals(current.title, "旧資料");
       assertEquals((await getEntitySchema(d, a.actor, { type_id: type.id })).schema.properties.prop_1.title, "商品名");
       assertEquals(
-        (await assertRejects(() =>
+        (await assertRejects(async () =>
           updateEntity(e, requestActor(a.actor), entity.id, {
             expected_version: entity.version,
             schema_version: 1,
@@ -167,7 +170,7 @@ dbTest(
       });
       assertEquals((await getEntitySchemaChange(d, a.actor, type.id, next.id)).status, "stale");
       assertEquals(
-        (await assertRejects(() =>
+        (await assertRejects(async () =>
           applyEntitySchemaChange(d, requestActor(a.actor), type.id, next.id, {
             expected_change_version: 1,
             analysis_id: analyzed.analysis_id,
@@ -210,7 +213,7 @@ dbTest(
         value: { entity: { update: { memo: "$엔터티.이후.prop_2$", tag_ids: [] } } },
       });
       for (const op of ["archive_property", "remove_property"]) {
-        const error = await assertRejects(() =>
+        const error = await assertRejects(async () =>
           createEntitySchemaChange(d, requestActor(a.actor), type.id, {
             expected_type_version: 2,
             expected_schema_version: 2,

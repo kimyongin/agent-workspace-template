@@ -1,21 +1,7 @@
 import { expect, test } from "@playwright/test";
 import postgres from "postgres";
-import { readFileSync } from "node:fs";
-import { parseEnv } from "node:util";
 import { devLogin, env, mcpClient, mcpTokenViaConsent, unique } from "./support.ts";
-import { saveOnce } from "./ui-actions.ts";
-async function analysisTick() {
-  const secret =
-    parseEnv(readFileSync(new URL("../supabase/functions/.env", import.meta.url), "utf8")).ENTITY_SCHEMA_WORKER_TOKEN;
-  if (!secret) throw new Error("local schema worker token missing");
-  const response = await fetch(`${env.VITE_SUPABASE_URL}/functions/v1/entity-schema-worker`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${secret}`, "content-type": "application/json" },
-    body: JSON.stringify({ limit: 1 }),
-  });
-  expect(response.status).toBe(200);
-  await response.json();
-}
+import { schemaAnalysisTick } from "./entity-schema-support.ts";
 test("웹 속성 초안·분석·게시 후 기존 자료 표시와 MCP 생성·이전 폼 충돌이 같은 정의를 사용한다", async ({ page, context }) => {
   await devLogin(page);
   const mcp = await mcpClient(await mcpTokenViaConsent(page));
@@ -60,7 +46,7 @@ test("웹 속성 초안·분석·게시 후 기존 자료 표시와 MCP 생성·
     expect((await mcp.call("get_entity_schema", { type_id: typeId })).schema_version).toBe(1);
     await page.getByRole("button", { name: "영향 분석", exact: true }).click();
     await expect.poll(async () => {
-      await analysisTick();
+      await schemaAnalysisTick();
       return (await mcp.call("get_entity_schema_change", { type_id: typeId, change_id: planId })).status;
     }, { timeout: 30000 }).toBe("ready");
     await expect(page.getByRole("button", { name: "새 버전 게시", exact: true })).toBeEnabled();
