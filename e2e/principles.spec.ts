@@ -1,7 +1,7 @@
 import { fillChangeMemo } from "./ui-actions.ts";
 import { beginTabAction, openDetailEditor, saveOnce, openListDetail } from "./ui-actions.ts";
-import { expect, test } from "@playwright/test";
-import { devLogin, mcpClient, mcpTokenViaConsent, unique } from "./support.ts";
+import { expect } from "@playwright/test";
+import { test, devLogin, mcpClient, mcpTokenViaConsent, unique } from "./support.ts";
 import { savePrinciple } from "./principle-support.ts";
 
 // Account-wide current requires an exclusive integration account (parent owns allocation).

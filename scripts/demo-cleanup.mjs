@@ -38,7 +38,10 @@ function removePaths(settings, paths) {
   for (const path of paths) {
     let parent = value;
     for (const key of path.slice(0, -1)) parent = parent?.[key];
-    if (parent && typeof parent === 'object') delete parent[path.at(-1)];
+    if (parent && typeof parent === 'object') {
+      delete parent[path.at(-1)];
+      if(path.length===3&&path[0]==='entity_types'&&Object.keys(parent).length===0)delete value.entity_types[path[1]];
+    }
   }
   return value;
 }

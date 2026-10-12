@@ -1,5 +1,5 @@
-import { expect, test } from "@playwright/test";
-import { devLogin } from "./support.ts";
+import { expect } from "@playwright/test";
+import { test, devLogin } from "./support.ts";
 
 test("실제 계정 표시 저장·새로고침·다른 탭 반영 및 원래 설정 복원", async ({page, context}, info) => {
   await devLogin(page); await page.goto("/settings");

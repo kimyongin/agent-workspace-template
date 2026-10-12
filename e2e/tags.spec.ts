@@ -1,8 +1,8 @@
 import { scalarFixtureType, fixtureEntityList } from "./entity-schema-support.ts";
 import { fillChangeMemo } from "./ui-actions.ts";
 import { saveOnce, beginTabAction, openDetailEditor, openListDetail, openTabFilters } from "./ui-actions.ts";
-import {expect,test} from "@playwright/test";
-import {devLogin,mcpClient,mcpTokenViaConsent,unique} from "./support.ts";
+import {expect } from "@playwright/test";
+import { test, devLogin,mcpClient,mcpTokenViaConsent,unique } from "./support.ts";
 // Exercise native-dialog history; retained desktop tabs have a dedicated suite.
 test.beforeEach(async({page,isMobile})=>{if(!isMobile)await page.setViewportSize({width:1024,height:720});});
 

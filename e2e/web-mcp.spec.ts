@@ -1,7 +1,7 @@
 import { saveOnce, beginTabAction, openDetailEditor, openListDetail } from "./ui-actions.ts";
 // T02-2 완료 조건: 웹 작성 → MCP 조회·완료 → 웹 결과 확인, 그리고 반대 방향.
-import { expect, test } from "@playwright/test";
-import { devLogin, mcpClient, mcpTokenViaConsent, unique } from "./support.ts";
+import { expect } from "@playwright/test";
+import { test, devLogin, mcpClient, mcpTokenViaConsent, unique } from "./support.ts";
 
 test("웹에서 만든 할 일을 에이전트가 MCP로 완료하고 웹에서 결과를 본다", async ({ page }) => {
   await devLogin(page);

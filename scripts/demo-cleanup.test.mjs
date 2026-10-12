@@ -74,3 +74,11 @@ test('another type recovery snapshot cannot restore a deleted relation after cle
   });
   assert.deepEqual(report.blockers.map(b => b.reason), ['unapproved_recovery_reference']);
 });
+
+test('explicit final type-action reset prunes only its now-empty type binding',()=>{
+ const kept='00000000-0000-4000-8000-000000000003';
+ const settings={entity_types:{[type]:{update:{memo:'owned'}},[kept]:{update:{memo:'keep'}}},task:{create:{memo:'personal'}}};
+ const report=planCleanup({...manifest,ids:{entities:[],tasks:[],records:[],tags:[],entity_types:[type]},reset_template_paths:[['entity_types',type,'update']]},{'app.entity_types':[{owner_id:owner,id:type}],'app.user_business_settings':[{owner_id:owner,id:'record_templates',settings}]});
+ assert.deepEqual(report.blockers,[]);assert.deepEqual(report.updatedSettings,{entity_types:{[kept]:{update:{memo:'keep'}}},task:{create:{memo:'personal'}}});
+ assert.equal(settings.entity_types[type].update.memo,'owned');
+});

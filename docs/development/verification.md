@@ -117,3 +117,7 @@ Playwright 결과·trace와 서비스 로그는 다음 실행으로 덮어써질
 전체 실행의 실제 API 설정은 `node scripts/test-e2e-all.mjs --actual-config /절대/격리/playwright.config.mjs`로 교체할 수 있다. 첫 설정만 교체하며 나머지 열 개 fixture 설정은 등록 순서대로 실행한다. 별도 DB·worker 설정은 실행 환경의 명시 설정으로 유지하고 tracked 설정 파일이나 개인 환경 파일을 고치지 않는다. 상세 정리·운영 범위는 [데모 자료 정리](../operations/demo-cleanup.md)를 따른다.
 
 구 고정 속성 표현의 보존·거부 분류와 현재 fixture 계약은 [전환 검사](typed-fixture-transition.md)에 있다.
+
+실제 API 검사의 `e2e/support.ts` 자동 fixture는 각 test의 새 자료 종류·업무 자료 ID와 요청 키를 소유자별로 추적한다. MCP 연결을 먼저 닫아도 자료는 화면 검사와 `afterEach`가 끝날 때까지 유지한다. 마지막에는 브라우저 context와 MCP 연결을 닫고, 도입한 종류의 현재·역사 참조와 검색 queue/state를 명시 manifest의 dry-run digest로 정리한다. Auth 사용자·OAuth 연결·다른 소유자·기존 종류·무관한 설정은 보존한다. 종류별 템플릿은 해당 종류의 명시 action 경로만 제거한다. 설정 도중 실패해도 성공한 요청 receipt로 도입 ID를 회수하며, 실패한 설정을 정리하는 동안 원래 테스트의 종류 ID를 가정하지 않는다.
+
+이 정리는 worker 1개인 loopback 실제 설정에서만 허용한다. `ENTITY_SCHEMA_WORKER_CONFIG`가 가리키는 Supabase 설정의 API·직접 DB 포트가 환경 파일과 일치해야 하며, fixture는 그 환경/소유자/개수/잔여 행만 결과에 첨부한다. 정리 정책의 서비스 없는 검사는 `node --test scripts/actual-fixture-cleanup.test.mjs scripts/demo-cleanup.test.mjs`다. 실제 격리 DB의 소유자·같은 ID·검색 재큐잉 회귀는 실행 lease 안에서 `LOCAL_DB_URL`을 그 DB로 지정하고 `node --test scripts/actual-fixture-cleanup.integration.mjs`로 별도 실행한다. 테스트가 만든 두 임시 Auth 사용자는 해당 통합 검사 자체의 finally에서만 제거한다.

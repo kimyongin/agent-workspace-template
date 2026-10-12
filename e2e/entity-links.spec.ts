@@ -1,6 +1,6 @@
 import { createFixtureEntity, scalarFixtureType, fixtureEntityList } from "./entity-schema-support.ts";
-import { test, expect } from "@playwright/test";
-import { devLogin, mcpClient, mcpTokenViaConsent, unique } from "./support.ts";
+import { expect } from "@playwright/test";
+import { test, devLogin, mcpClient, mcpTokenViaConsent, unique } from "./support.ts";
 import { beginTabAction, openDetailEditor } from "./ui-actions.ts";
 
 test("general record selects two entities in web; MCP, both related views and deletion retain context", async ({ page }) => {

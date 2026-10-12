@@ -1,6 +1,6 @@
 import { scalarFixtureType } from "./entity-schema-support.ts";
-import { mcpClient, mcpTokenViaConsent } from "./support.ts";
-import { expect, test } from "@playwright/test";
+import { test, mcpClient, mcpTokenViaConsent } from "./support.ts";
+import { expect } from "@playwright/test";
 import { devLogin, env, unique } from "./support.ts";
 import { beginTabAction } from "./ui-actions.ts";
 

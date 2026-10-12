@@ -1,5 +1,5 @@
-import { expect, test } from "@playwright/test";
-import { devLogin, mcpClient, mcpTokenViaConsent, unique } from "./support.ts";
+import { expect } from "@playwright/test";
+import { test, devLogin, mcpClient, mcpTokenViaConsent, unique } from "./support.ts";
 
 for (const kind of ["once", "recurring"] as const) {
   test(`#341 실제 MCP/웹 ${kind}: 일반 기록 저장·작성 URL 종료·새로고침·취소`, async ({ page }) => {

@@ -1,6 +1,6 @@
 import postgres from "postgres";
-import { expect, test } from "@playwright/test";
-import { devLogin, env, unique } from "./support.ts";
+import { expect } from "@playwright/test";
+import { test, devLogin, env, unique } from "./support.ts";
 import { closeDetail, saveOnce } from "./ui-actions.ts";
 
 // Real API/Auth/DB consumer round-trip. Run only in the serial integration environment.
