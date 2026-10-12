@@ -29,9 +29,9 @@ test("설정 템플릿 오류·변수 삽입과 실제 변경 확인·취소·�
     await expect(form).toContainText("닫는 구분자 $가 없습니다");
     await expect(form.getByLabel("메모 템플릿")).toHaveValue("앞 $엔터티.이전.prop_2");
     await form.getByLabel("액션",{exact:true}).selectOption("update");
-    await form.getByLabel("메모 템플릿").fill("");
+    await form.getByLabel("메모 템플릿").fill("앞 ");
     await form.getByLabel("변수 삽입").selectOption("엔터티.이전.prop_2");
-    await expect(form.getByLabel("메모 템플릿")).toHaveValue("$엔터티.이전.prop_2$");
+    await expect(form.getByLabel("메모 템플릿")).toHaveValue("앞 $엔터티.이전.prop_2$");
     await form.getByLabel("메모 템플릿").fill("$엔터티.이전.prop_2$ → $엔터티.이후.prop_2$");
     await expect(form.getByText("미리보기 예시 값 편집",{exact:true})).toHaveCount(0);
     await expect(form.locator("output")).toHaveCount(0);
