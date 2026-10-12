@@ -105,6 +105,7 @@ Playwright 결과·trace와 서비스 로그는 다음 실행으로 덮어써질
 | principle-current | 현재 원칙 desktop/mobile |
 | activity | 활동 desktop/mobile 서울 시간대 + desktop UTC 날짜 변이 |
 | navigation-fixture | 탐색·프로필 desktop, OAuth 동의 desktop/mobile |
+| navigation-preferences | 개인 메뉴 Auth metadata·미리보기·취소·충돌·overflow desktop/mobile |
 | type-navigation | 자료 종류별 탐색·작성·설정·기본 메뉴의 격리 desktop/mobile |
 | workspace-screens | [사용자 흐름별 작업 공간 화면 검사](../../e2e/workspace-screens.md)만 실행 |
 

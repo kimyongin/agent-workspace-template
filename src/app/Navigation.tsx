@@ -1,8 +1,9 @@
+import { useNavigationPreview } from "../features/settings/navigation-preview.tsx";
 import { type Ref, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Link, useLocation } from "react-router";
 import { useAuth } from "../features/auth/AuthProvider.tsx";
 import { ProfileIcon } from "../features/settings/profile.tsx";
-import { profileName } from "../features/settings/account-preferences.ts";
+import { accountPreferences, profileName } from "../features/settings/account-preferences.ts";
 
 import { navigationSection } from "./navigation-section.ts";
 import appIcon from "./app-icon.svg";
@@ -54,7 +55,12 @@ export function Navigation({ brand, navigationRef }: { brand: string; navigation
   const location = useLocation();
   const { session } = useAuth();
   const catalog = useEntityTypes(session?.user.id ?? "signed-out", location.key);
-  const entries = resolveNavigationRefs(defaultNavigationRefs(catalog.types ?? []), catalog.types ?? []);
+  const { preview } = useNavigationPreview();
+  const preference = preview === undefined ? accountPreferences(session?.user.user_metadata ?? {}).navigation : preview;
+  const entries = resolveNavigationRefs(
+    preference?.refs ?? defaultNavigationRefs(catalog.types ?? []),
+    catalog.types ?? [],
+  );
   const [keyword, setKeyword] = useState("");
   const requestedTypeId = entityTypeLocation(location.search);
   const [detailType, setDetailType] = useState<{ path: string; id: string } | null>(null);
@@ -186,7 +192,7 @@ export function Navigation({ brand, navigationRef }: { brand: string; navigation
             aria-label="내 프로필"
             aria-expanded={open}
             aria-controls="nav-profile-options"
-            data-current={current === "more" || undefined}
+            data-current={current === "more" || !!current && !entries.slice(0, capacity).some(isCurrent) || undefined}
             onClick={() => setOpen((value) => !value)}
           >
             <ProfileIcon id={session?.user.user_metadata?.workspace_avatar_id} />
