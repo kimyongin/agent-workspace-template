@@ -26,7 +26,7 @@ export function verifyRoundtrip(before, after, fixture, mode) {
   let scope = Boolean(id) && events.length === expectedEvents && equal(before.tags, after.tags);
   const eventTarget = target ?? old;
   const eventEntities = singular === 'entity' ? [id] : eventTarget?.entity_ids ?? [];
-  if (expectedEvents) scope &&= events.every(e => e.change?.target_kind === singular && e.change.target_id === id && (singular === 'record' ? typeof e.change.target_title === 'string' : e.change.target_title === (eventTarget?.prop1 ?? eventTarget?.title)) && e.change.action === action && e.change.source === (mode.startsWith('web-') ? 'http' : 'mcp') && e.change.path === (action === 'delete' ? null : `/${plural}/${id}`) && typeof e.change.event_id === 'string' && e.change.event_id.length > 0 && e.change.before === null && e.change.after === null && equal(e.entity_ids, eventEntities) && (intent.memoBody === undefined || e.body === intent.memoBody));
+  if (expectedEvents) scope &&= events.every(e => e.change?.target_kind === singular && e.change.target_id === id && (singular === 'record' ? typeof e.change.target_title === 'string' : e.change.target_title === eventTarget?.title) && e.change.action === action && e.change.source === (mode.startsWith('web-') ? 'http' : 'mcp') && e.change.path === (action === 'delete' ? null : `/${plural}/${encodeURIComponent(id)}`) && typeof e.change.event_id === 'string' && e.change.event_id.length > 0 && e.change.before === null && e.change.after === null && equal(e.entity_ids, eventEntities) && (intent.memoBody === undefined || e.body === intent.memoBody));
   for (const kind of kinds) {
     const expected = kind === 'records' ? expectedEvents + (mode === 'web-source' || mode === 'web-complete' ? 1 : 0) : kind === plural && action === 'create' ? 1 : 0;
     scope &&= created[kind].length === expected;
@@ -38,8 +38,9 @@ export function verifyRoundtrip(before, after, fixture, mode) {
       let mutable = kind === 'entities' ? ['tasks', 'records', 'principles'] : [];
       if (kind === 'tasks' && mode === 'web-memo') mutable.push('result_record');
       if (kind === plural && previous.id === id && action !== 'create') {
-        mutable = [...mutable, 'version', 'updated_at', ...(mode === 'roundtrip-entity' ? ['prop2'] : mode === 'web-complete' ? ['status', 'completed_at', 'result_record_id', 'result_record'] : mode === 'web-principle-update' ? ['body', 'saved_at'] : ['body'])];
+        mutable = [...mutable, 'version', 'updated_at', ...(mode === 'roundtrip-entity' ? ['properties', 'display_properties'] : mode === 'web-complete' ? ['status', 'completed_at', 'result_record_id', 'result_record'] : mode === 'web-principle-update' ? ['body', 'saved_at'] : ['body'])];
         scope &&= current.version === previous.version + 1;
+        if (mode === 'roundtrip-entity') scope &&= ['properties', 'display_properties'].every(field => equal(omit(previous[field], ['prop_2']), omit(current[field], ['prop_2'])));
         if (mode === 'web-principle-update') scope &&= stamp(current.saved_at) && Date.parse(current.saved_at) >= Date.parse(previous.saved_at);
       }
       scope &&= equal(omit(previous, mutable), omit(current, mutable));
@@ -50,8 +51,8 @@ export function verifyRoundtrip(before, after, fixture, mode) {
   if (singular !== 'principle') scope &&= equal(before.current, after.current) && equal(before.principles, after.principles);
   else scope &&= equal(after.current.current, action === 'delete' ? null : target);
   let content = false;
-  if (mode === 'web-entity') content = target?.prop1 === fixture.marker && target.prop2 === 7 && target.prop3 === '2026-10-06' && target.prop4 === 'b' && entityProjectionMatches(target, after);
-  if (mode === 'roundtrip-entity') content = target?.prop2 === 11 && events[0]?.body === intent.memoBody;
+  if (mode === 'web-entity') content = target?.title === fixture.marker && target.properties?.prop_1 === fixture.marker && target.properties.prop_2 === 7 && target.properties.prop_3 === '2026-10-06' && target.properties.prop_4 === 'b' && entityProjectionMatches(target, after);
+  if (mode === 'roundtrip-entity') content = target?.properties?.prop_2 === 11 && events[0]?.body === intent.memoBody;
   if (mode === 'web-source') content = target?.body === intent.body && equal(target.entity_ids, [fixture.entity.id]);
   if (mode === 'web-principle') content = target?.title === `${fixture.marker}-principle` && target.body === intent.body;
   if (mode === 'web-principle-update' || mode === 'web-memo') content = target?.body === intent.body;

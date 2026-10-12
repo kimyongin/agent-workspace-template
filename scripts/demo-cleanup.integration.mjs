@@ -38,11 +38,11 @@ test('administrator cleanup preserves accounts, settings and another owner; stal
       await tx`insert into app.entity_schema_migrations(owner_id,type_id,id,change_id,change_version,analysis_id,fingerprint,membership,source_type_version,source_schema_version,source_template_fingerprint,source_templates,source_definition,target,migration,status,total,actor_source,source_expires_at) values(${owner},${type},${job},${change},1,${analysis},'test','test',1,1,'test','{}','{}','{}','{}','succeeded',1,'http',now()+interval '30 days')`;
       await tx`insert into private.entity_schema_migration_rows(owner_id,job_id,entity_id,source_version,source_schema_version,source_properties,source_identity,after,changed) values(${owner},${job},'demo:a',1,1,'{"prop_1":"original"}','{}','{}',false)`;
       await tx`insert into app.user_business_settings(owner_id,id,version,settings) values(${owner},'record_templates',1,${tx.json(settings)}),(${owner},'entity_identity',1,'{"default_source":"personal"}')`;
-      await tx`select pgmq.send('search_index',${tx.json({ owner_id: owner, kind: 'record', id: record, pipeline: 'test', input_hash: '0'.repeat(64) })})`;
+      await tx`select pgmq.send('search_index'::text,${tx.json({ owner_id: owner, kind: 'record', id: record, pipeline: 'test', input_hash: '0'.repeat(64) })}::jsonb)`;
       await tx`insert into app.search_index_state(owner_id,kind,id,input_hash,pipeline) values(${owner},'record',${record},${'0'.repeat(64)},'test')`;
       await tx`insert into private.passage_effects(owner_id,record_id,source_version,source_hash,pipeline,provider_scope,model,dimensions,start_offset,end_offset,input_hash) values(${owner},${record},1,${'0'.repeat(64)},'test',${'1'.repeat(64)},'test',1024,0,2,${'2'.repeat(64)})`;
-      const [archived] = await tx`select pgmq.send('search_index',${tx.json({owner_id: owner,kind: 'record',id: record})}) message`;
-      await tx`select pgmq.archive('search_index',${archived.message})`;
+      const [archived] = await tx`select pgmq.send('search_index'::text,${tx.json({owner_id: owner,kind: 'record',id: record})}::jsonb) message`;
+      await tx`select pgmq.archive('search_index'::text,${archived.message}::bigint)`;
     });
     const before = await runCleanup(sql, manifest);
     assert.equal(before.mode, 'dry-run');
@@ -69,8 +69,8 @@ test('administrator cleanup preserves accounts, settings and another owner; stal
     const saved = await sql`select id,settings from app.user_business_settings where owner_id=${owner}`;
     assert.deepEqual(saved.find(r => r.id === 'record_templates').settings, { entity: { update: { memo: 'keep' } }, task: { create: { memo: 'personal' } } });
     assert.deepEqual(saved.find(r => r.id === 'entity_identity').settings, { default_source: 'personal' });
-    const [stale] = await sql`select pgmq.send('search_index',${sql.json({ owner_id: owner, kind: 'record', id: record, pipeline: 'test', input_hash: '0'.repeat(64) })}) message`;
-    assert.equal((await sql`select app.prepare_search_index(${stale.message},'test') result`)[0].result, null);
+    const [stale] = await sql`select pgmq.send('search_index'::text,${sql.json({ owner_id: owner, kind: 'record', id: record, pipeline: 'test', input_hash: '0'.repeat(64) })}::jsonb) message`;
+    assert.equal((await sql`select app.prepare_search_index(${stale.message}::bigint,'test'::text) result`)[0].result, null);
     assert.equal((await sql`select count(*)::int n from app.records where owner_id=${owner} and id=${record}`)[0].n, 0);
     assert.equal((await sql`select count(*)::int n from app.search_index_state where owner_id=${owner} and id=${record}`)[0].n, 0);
   } finally {

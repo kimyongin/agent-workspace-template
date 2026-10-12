@@ -13,7 +13,7 @@ test('JSON and SSE yield the same correlated public reply before fault injection
   assert.equal((await readRpcReply(chunked, 7)).result.structuredContent.body, '소유');
   for (const response of [json, sse]) {
     const adapter = savingFaultAdapter('save-response-loss');
-    const rpc = { jsonrpc: '2.0', id: 7, method: 'tools/call', params: { name: 'create_record', arguments: { title: 'owned', id: 'same' } } };
+    const rpc = { jsonrpc: '2.0', id: 7, method: 'tools/call', params: { name: 'create_record', arguments: { body: 'owned', request_key: '00000000-0000-4000-8000-000000000001' } } };
     assert.equal((await adapter.call(rpc, () => readRpcReply(response(), rpc.id))).result.isError, true);
     assert.equal(adapter.evidence().injected, 1);
     assert.equal(adapter.evidence().upstreamMutations, 1);

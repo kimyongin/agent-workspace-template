@@ -3,13 +3,13 @@ import assert from 'node:assert/strict';
 import { verifyRoundtrip, beginRoundtripPhase, finishRoundtripPhase, hasRoundtripOriginal, assessRoundtripNative, roundtripAnswerProof } from './roundtrip.mjs';
 
 const empty = () => ({ current: { current: null }, entities: [], tasks: [], records: [], principles: [], tags: [] });
-const f = { marker: 'plugin-codex-cli-12345678', entity: { id: 'e', prop1: 'plugin-codex-cli-12345678', prop2: 7, prop3: '2026-10-06', prop4: 'b', version: 1 }, roundtrip: { intent: { id: 'e', memoBody: 'final memo' } } };
+const f = { marker: 'plugin-codex-cli-12345678', entity: { id: 'e', title: 'plugin-codex-cli-12345678', properties: { prop_1: 'plugin-codex-cli-12345678', prop_2: 7, prop_3: '2026-10-06', prop_4: 'b' }, version: 1 }, roundtrip: { intent: { id: 'e', memoBody: 'final memo' } } };
 const event = (target, kind, action, source = 'http') => ({ id: 'c', record_kind: 'change', title: 'change', body: 'final memo', version: 1, entity_ids: kind === 'entity' ? ['e'] : [], change: { event_id: 'evt', target_kind: kind, target_id: target, target_title: kind === 'entity' ? f.marker : `${f.marker}-principle`, action, source, path: action === 'delete' ? null : `/${kind === 'entity' ? 'entities' : kind + 's'}/${target}`, before: null, after: null } });
 test('entity update preserves scalar identity and requires the actual final memo event, with no extra writes', () => {
   const before = { ...empty(), entities: [f.entity] };
-  const after = { ...empty(), entities: [{ ...f.entity, prop2: 11, version: 2 }], records: [event('e', 'entity', 'update', 'mcp')] };
+  const after = { ...empty(), entities: [{ ...f.entity, properties: { ...f.entity.properties, prop_2: 11 }, version: 2 }], records: [event('e', 'entity', 'update', 'mcp')] };
   assert.equal(verifyRoundtrip(before, after, f, 'roundtrip-entity').pass, true);
-  assert.equal(verifyRoundtrip(before, { ...after, entities: [{ ...after.entities[0], prop4: 'a' }] }, f, 'roundtrip-entity').pass, false);
+  assert.equal(verifyRoundtrip(before, { ...after, entities: [{ ...after.entities[0], properties: { ...after.entities[0].properties, prop_4: 'a' } }] }, f, 'roundtrip-entity').pass, false);
   assert.equal(verifyRoundtrip(before, { ...after, records: [...after.records, { ...after.records[0], id: 'extra' }] }, f, 'roundtrip-entity').pass, false);
   assert.equal(verifyRoundtrip(before, { ...after, records: [{ ...after.records[0], body: '' }] }, f, 'roundtrip-entity').pass, false);
 });
@@ -104,12 +104,20 @@ test('read-only phase detects a memo write even when a task still reports done',
 test('phase intent is durable before work; a killed phase blocks replay and remembers even failed new IDs', async () => {
   const journal = { roundtrip: { baseline: empty(), owned: {}, completed: [] } };
   const saved = []; const save = async () => saved.push(structuredClone(journal));
-  await beginRoundtripPhase(journal, save, empty(), 'web-entity', { prop2: 7 });
+  await beginRoundtripPhase(journal, save, empty(), 'web-entity', { properties: { prop_2: 7 } });
   assert.equal(saved[0].roundtrip.pending.mode, 'web-entity');
   await assert.rejects(beginRoundtripPhase(journal, save, empty(), 'web-entity', {}), /reconcile/);
-  const after = { ...empty(), entities: [{ ...f.entity, prop1: 'unexpected' }] };
+  const after = { ...empty(), entities: [{ ...f.entity, title: 'unexpected', properties: { ...f.entity.properties, prop_1: 'unexpected' } }] };
   const proof = await finishRoundtripPhase(journal, save, after);
   assert.equal(proof.pass, false);
   assert.deepEqual(journal.roundtrip.owned.entities, ['e']);
   assert.ok(journal.roundtrip.pending);
+});
+test('tuple entity identity uses the encoded public event path without changing its raw target ID', () => {
+  const entity = { ...f.entity, id: 'app:trial' };
+  const before = { ...empty(), entities: [entity] };
+  const changed = { ...entity, version: 2, properties: { ...entity.properties, prop_2: 11 } };
+  const note = { ...event(entity.id, 'entity', 'update', 'mcp'), entity_ids: [entity.id], change: { ...event(entity.id, 'entity', 'update', 'mcp').change, path: '/entities/app%3Atrial' } };
+  const fixture = { ...f, entity, roundtrip: { intent: { id: entity.id, memoBody: 'final memo' } } };
+  assert.equal(verifyRoundtrip(before, { ...empty(), entities: [changed], records: [note] }, fixture, 'roundtrip-entity').pass, true);
 });

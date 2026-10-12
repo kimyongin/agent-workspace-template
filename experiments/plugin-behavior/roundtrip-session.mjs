@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
 import { saveJournal } from './journal.mjs';
 import { readBusinessOriginals } from './preparation.mjs';
@@ -21,7 +22,8 @@ export async function connectRoundtrip(f) {
   try { await client.connect(new StreamableHTTPClientTransport(new URL(f.endpoint), { requestInit: { headers: { Authorization: `Bearer ${f.token}` } } })); }
   catch (error) { await client.close(); throw error; }
   return { client, call: async (name, input) => {
-    const response = await client.callTool({ name, arguments: input });
+    const arguments_ = /^(create_|update_|delete_|analyze_|apply_|start_|cancel_|retry_)/.test(name) ? { ...input, request_key: input.request_key ?? randomUUID() } : input;
+    const response = await client.callTool({ name, arguments: arguments_ });
     if (response.isError) throw new Error('Independent roundtrip public call failed; no payload logged');
     return response.structuredContent ?? JSON.parse(response.content[0].text);
   } };
