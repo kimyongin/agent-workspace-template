@@ -163,7 +163,7 @@ for (const width of [320, 1440]) {
       .click();
     await draft.getByRole("button", { name: "자료 연결", exact: true }).click();
     const entitySearch = draft.getByRole("searchbox", { name: "자료 제목 검색" });
-    await entitySearch.fill("엔터");
+    await entitySearch.fill("자료");
     await entitySearch.press("Enter");
     await draft.getByRole("group", { name: "자료 검색 결과" }).getByRole("button", {
       name: "자료 연결",
@@ -190,7 +190,7 @@ for (const width of [320, 1440]) {
     await draft.getByRole("button", { name: "자료 해제", exact: true }).click();
     await expect(draft.getByRole("button", { name: "자료 연결", exact: true })).toBeFocused();
     await draft.getByRole("button", { name: "자료 연결", exact: true }).click();
-    await expect(entitySearch).toHaveValue("엔터");
+    await expect(entitySearch).toHaveValue("자료");
     await draft.getByRole("group", { name: "자료 검색 결과" }).getByRole("button", {
       name: "자료 연결",
       exact: true,
