@@ -1,6 +1,6 @@
 # 컴포넌트와 상호작용
 
-[ADR-0012](../adr/0012-current-state-and-unified-records.md)와 [통합 기록 설계](../architecture/unified-record-model.md)가 도메인 계약이다. 엔터티·할 일·원칙·기록 네 탭, 현재 원칙 문서와 추가 로그 없는 기록 편집을 기준으로 화면을 구성한다. 구현과 검증 상태는 관련 GitHub 이슈·PR에서 확인한다.
+[ADR-0012](../adr/0012-current-state-and-unified-records.md)와 [통합 기록 설계](../architecture/unified-record-model.md)가 도메인 계약이다. 상위 탐색은 [ADR-0020](../adr/0020-typed-entity-schema.md)의 프로필+사용자 바로가기 합의를 따르고 자료 종류·할 일·원칙·기록 및 추가 로그 없는 기록 편집을 기준으로 화면을 구성한다. 구현과 검증 상태는 관련 GitHub 이슈·PR에서 확인한다.
 
 ## 책임과 재사용
 

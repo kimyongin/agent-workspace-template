@@ -1,6 +1,6 @@
 // 의존 경계 검사(ADR-0001, docs/design/template-structure.md).
 // - contracts: zod와 같은 폴더의 contracts만 가져온다.
-// - core: contracts·core와 zod만. SDK·SQL·HTTP·Deno API·환경변수·adapters·bootstrap 금지.
+// - core: contracts·core와 순수 검증 라이브러리(zod·ajv/2020·ajv-formats)만. SDK·SQL·HTTP·Deno API·환경변수·adapters·bootstrap 금지.
 // - 웹(src): 서버 코드는 @contracts만. 제품 데이터에 supabase-js의 .from/.rpc를 쓰지 않는다(Auth만 허용).
 // - 동적 import: 문자열 또는 보간 없는 template literal만 판정한다. 그 외 경로는 경계를 증명할 수 없어 실패한다.
 // 사용: node scripts/check-boundaries.mjs [저장소 루트] (실패 시 `파일:줄: 문제`)
@@ -83,9 +83,9 @@ for (const file of walk(join(shared, "contracts"))) {
 for (const file of walk(join(shared, "core"))) {
   check(file, {
     importAllowed: (spec) =>
-      spec === "zod" || insideDir(spec, file, join(shared, "core")) || insideDir(spec, file, join(shared, "contracts"))
+      ["zod", "ajv/2020", "ajv-formats"].includes(spec) || insideDir(spec, file, join(shared, "core")) || insideDir(spec, file, join(shared, "contracts"))
         ? null
-        : "core는 contracts·core·zod만 가져온다",
+        : "core는 contracts·core·순수 검증 라이브러리만 가져온다",
     forbidden: [
       [denoApi, "core에서 Deno API(환경변수 등) 사용"],
       [(node) => ["CallExpression", "OptionalCallExpression"].includes(node.type) &&

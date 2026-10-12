@@ -1,3 +1,5 @@
+import { entityTypeTools } from "./entity-type-tools.ts";
+import type { EntityTypeDeps } from "../../core/entity-types/application.ts";
 import type { StatusDeps } from "../../core/status/application.ts";
 import { statusTools } from "./status-tools.ts";
 // MCP 진입점 조립: 보호 자원 metadata(RFC 9728) → 토큰 검증(aud=MCP URL) → 요청별 무상태 MCP 서버.
@@ -45,6 +47,7 @@ export function createMcpApp(
   entities?: EntityDeps,
   settings?: BusinessSettingsDeps,
   status?: StatusDeps,
+  entityTypes?: EntityTypeDeps,
 ) {
   const tools = [
     ...activityTools(deps),
@@ -54,6 +57,7 @@ export function createMcpApp(
     ...(entities ? entityTools(entities) : []),
     ...(settings ? settingsTools(settings) : []),
     ...(status ? statusTools(status) : []),
+    ...(entityTypes ? entityTypeTools(entityTypes) : []),
   ];
   const handler = async (req: Request): Promise<Response> => {
     let actor;
