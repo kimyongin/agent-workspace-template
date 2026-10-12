@@ -262,3 +262,119 @@ dbTest(
     }
   },
 );
+
+dbTest(
+  "schema draft races: concurrent reservations never reuse keys and publication competes with an actual value write",
+  async () => {
+    const workerUrl = new URL(urls.admin);
+    workerUrl.username = "app_worker";
+    workerUrl.password = encodeURIComponent(Deno.env.get("APP_WORKER_PASSWORD")!);
+    const worker = connect(workerUrl.href, { prepare: false, max: 1 }),
+      admin = connect(urls.admin),
+      sql = connect(urls.direct, { max: 4 });
+    const owner = await fixtureOwner(admin);
+    const d = { uow: new SqlEntityTypeUnitOfWork(sql) }, e = { uow: new SqlEntityUnitOfWork(sql) };
+    try {
+      const type = await createEntityType(d, requestActor(owner.actor), { label: "競争対象" });
+      const other = await createEntityType(d, requestActor(owner.actor), { label: "独立対象" });
+      const drafts = await Promise.all(
+        ["first", "second"].map((ref) =>
+          createEntitySchemaChange(d, requestActor(owner.actor), type.id, {
+            expected_type_version: 1,
+            expected_schema_version: 1,
+            edits: [{ op: "add_property", client_ref: ref, field: { type: "string", title: ref }, required: false }],
+          })
+        ),
+      );
+      assertEquals(drafts.map((change) => Object.values(change.reservations)[0]).sort(), ["prop_2", "prop_3"]);
+      const independent = await createEntitySchemaChange(d, requestActor(owner.actor), other.id, {
+        expected_type_version: 1,
+        expected_schema_version: 1,
+        edits: [{ op: "add_property", client_ref: "independent", field: { type: "string" }, required: false }],
+      });
+      assertEquals(independent.reservations, { independent: "prop_2" });
+      const initial = await getEntitySchema(d, owner.actor, { type_id: type.id });
+      const removed = await updateEntitySchemaChange(d, requestActor(owner.actor), type.id, drafts[0].id, {
+        expected_type_version: 1,
+        expected_schema_version: 1,
+        expected_change_version: 1,
+        edits: [{
+          op: "update_property",
+          key: "prop_1",
+          field: { ...initial.schema.properties.prop_1, title: "削除した追加とは別の変更" },
+          required: true,
+        }],
+      });
+      assertEquals(Object.keys(removed.target.schema.properties), ["prop_1"]);
+      assertEquals(removed.reservations, drafts[0].reservations);
+      const after = await createEntitySchemaChange(d, requestActor(owner.actor), type.id, {
+        expected_type_version: 1,
+        expected_schema_version: 1,
+        edits: [{ op: "add_property", client_ref: "after-drop", field: { type: "string" }, required: false }],
+      });
+      assertEquals(after.reservations, { "after-drop": "prop_4" });
+      const entity = await createEntity(e, requestActor(owner.actor), {
+        entity_type_id: type.id,
+        schema_version: 1,
+        properties: { prop_1: "original value" },
+      });
+      const publication = await createEntitySchemaChange(d, requestActor(owner.actor), type.id, {
+        expected_type_version: 1,
+        expected_schema_version: 1,
+        edits: [{
+          op: "update_property",
+          key: "prop_1",
+          field: { ...initial.schema.properties.prop_1, title: "Published label" },
+          required: true,
+        }],
+      });
+      const accepted = await analyzeEntitySchemaChange(d, requestActor(owner.actor), type.id, publication.id, {
+        expected_change_version: publication.version,
+      });
+      await consume(worker);
+      assertEquals((await getEntitySchemaChange(d, owner.actor, type.id, publication.id)).status, "ready");
+      const results = await Promise.allSettled([
+        applyEntitySchemaChange(d, requestActor(owner.actor), type.id, publication.id, {
+          expected_change_version: publication.version,
+          analysis_id: accepted.analysis_id,
+        }),
+        updateEntity(e, requestActor(owner.actor), entity.id, {
+          schema_version: 1,
+          expected_version: entity.version,
+          properties: { prop_1: "racing value" },
+        }),
+      ]);
+      assertEquals(results.filter((result) => result.status === "fulfilled").length, 1);
+      const current = await getEntity(e, owner.actor, entity.id),
+        schema = await getEntitySchema(d, owner.actor, { type_id: type.id });
+      const failed = results.find((result) => result.status === "rejected");
+      if (!failed || failed.status !== "rejected" || !(failed.reason instanceof AppError)) {
+        throw new Error("race must return one public business conflict");
+      }
+      if (results[0].status === "fulfilled") {
+        assertEquals(failed.reason.code, "schema_changed");
+        assertEquals([schema.schema_version, current.schema_version, current.version, current.properties.prop_1], [
+          2,
+          1,
+          entity.version,
+          "original value",
+        ]);
+        assertEquals(schema.schema.properties.prop_1.title, "Published label");
+      } else {
+        assertEquals(failed.reason.code, "schema_plan_stale");
+        assertEquals([schema.schema_version, current.schema_version, current.version, current.properties.prop_1], [
+          1,
+          1,
+          entity.version + 1,
+          "racing value",
+        ]);
+        assertEquals(schema.schema.properties.prop_1.title, "이름");
+      }
+    } finally {
+      await owner.cleanup();
+      await sql.end();
+      await admin.end();
+      await worker.end();
+    }
+  },
+);
