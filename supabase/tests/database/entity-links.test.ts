@@ -8,6 +8,7 @@ import { taskCreate, taskListQuery } from "../../functions/_shared/contracts/tas
 import * as entity from "../../functions/_shared/core/entity/application.ts";
 import * as activity from "../../functions/_shared/core/activity/application.ts";
 import { connect, dbTest, fixtureOwner, urls } from "./_db.ts";
+import { entityFixture } from "./_entity.ts";
 
 const admin = connect(urls.admin, { max: 1 }), sql = connect(urls.pooler, { max: 3, prepare: false });
 const ed = { uow: new SqlEntityUnitOfWork(sql) },
@@ -18,15 +19,26 @@ dbTest(
   async () => {
     const f = await fixtureOwner(admin);
     try {
+      const schema = await entityFixture(admin, f.actor.userId);
       const first = await entity.createEntity(
         ed,
         requestActor(f.actor),
-        entityCreate.parse({ source: "app", external_id: crypto.randomUUID(), ...{ prop1: "공동 대상 1" } }),
+        entityCreate.parse({
+          ...schema,
+          source: "app",
+          external_id: crypto.randomUUID(),
+          properties: { prop_1: "공동 대상 1" },
+        }),
       );
       const second = await entity.createEntity(
         ed,
         requestActor(f.actor),
-        entityCreate.parse({ source: "app", external_id: crypto.randomUUID(), ...{ prop1: "공동 대상 2" } }),
+        entityCreate.parse({
+          ...schema,
+          source: "app",
+          external_id: crypto.randomUUID(),
+          properties: { prop_1: "공동 대상 2" },
+        }),
       );
       const ids = [first.id, second.id].sort();
       const task = await activity.createTask(
@@ -70,15 +82,26 @@ dbTest(
   async () => {
     const f = await fixtureOwner(admin);
     try {
+      const schema = await entityFixture(admin, f.actor.userId);
       const first = await entity.createEntity(
         ed,
         requestActor(f.actor),
-        entityCreate.parse({ source: "app", external_id: crypto.randomUUID(), ...{ prop1: "삭제 전 첫 대상" } }),
+        entityCreate.parse({
+          ...schema,
+          source: "app",
+          external_id: crypto.randomUUID(),
+          properties: { prop_1: "삭제 전 첫 대상" },
+        }),
       );
       const second = await entity.createEntity(
         ed,
         requestActor(f.actor),
-        entityCreate.parse({ source: "app", external_id: crypto.randomUUID(), ...{ prop1: "삭제 전 둘째 대상" } }),
+        entityCreate.parse({
+          ...schema,
+          source: "app",
+          external_id: crypto.randomUUID(),
+          properties: { prop_1: "삭제 전 둘째 대상" },
+        }),
       );
       const ids = [first.id, second.id].sort();
       const task = await activity.createTask(
@@ -131,15 +154,27 @@ dbTest(
   async () => {
     const f = await fixtureOwner(admin), other = await fixtureOwner(admin);
     try {
+      const schema = await entityFixture(admin, f.actor.userId),
+        foreignSchema = await entityFixture(admin, other.actor.userId);
       const target = await entity.createEntity(
         ed,
         requestActor(f.actor),
-        entityCreate.parse({ source: "app", external_id: crypto.randomUUID(), ...{ prop1: "기록의 대상" } }),
+        entityCreate.parse({
+          ...schema,
+          source: "app",
+          external_id: crypto.randomUUID(),
+          properties: { prop_1: "기록의 대상" },
+        }),
       );
       const foreign = await entity.createEntity(
         ed,
         requestActor(other.actor),
-        entityCreate.parse({ source: "app", external_id: crypto.randomUUID(), ...{ prop1: "다른 소유자" } }),
+        entityCreate.parse({
+          ...foreignSchema,
+          source: "app",
+          external_id: crypto.randomUUID(),
+          properties: { prop_1: "다른 소유자" },
+        }),
       );
       let record = await activity.createRecord(
         ad,
@@ -149,7 +184,7 @@ dbTest(
         }),
       );
       const original = await activity.getRecord(ad, f.actor, record.id);
-      await admin`update app.entities set prop1='현재 바뀐 이름' where id=${target.id}`;
+      await admin`update app.entities set properties=jsonb_set(properties,'{prop_1}','"현재 바뀐 이름"'::jsonb) where owner_id=${f.actor.userId} and id=${target.id}`;
       const memoEdit = await activity.updateRecord(
         ad,
         requestActor(f.actor),
@@ -225,10 +260,16 @@ dbTest(
   async () => {
     const f = await fixtureOwner(admin);
     try {
+      const schema = await entityFixture(admin, f.actor.userId);
       const target = await entity.createEntity(
         ed,
         requestActor(f.actor),
-        entityCreate.parse({ source: "app", external_id: crypto.randomUUID(), ...{ prop1: "당시 대상" } }),
+        entityCreate.parse({
+          ...schema,
+          source: "app",
+          external_id: crypto.randomUUID(),
+          properties: { prop_1: "당시 대상" },
+        }),
       );
       const task = await activity.createTask(
         ad,

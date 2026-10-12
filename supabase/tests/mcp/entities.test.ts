@@ -1,9 +1,11 @@
 import { assert, assertEquals } from "@std/assert";
 import { admin, call, httpTest, signIn } from "../http/_client.ts";
 import { connectMcp, mcpToken, tool } from "./_mcp.ts";
+import { httpEntityFixture } from "../http/_entity.ts";
 httpTest("Entity MCP: 실제 SDK/OAuth CRUD·태그 scope·웹 parity·참조 거부·삭제 보존", async () => {
   const token = await signIn("A"), foreignToken = await signIn("B"), client = await connectMcp(await mcpToken(token));
   try {
+    const schema = await httpEntityFixture(token);
     const listed = await client.listTools();
     for (const name of ["list_entities", "get_entity", "create_entity", "update_entity", "delete_entity"]) {
       assert(listed.tools.some((t) => t.name === name));
@@ -17,12 +19,14 @@ httpTest("Entity MCP: 실제 SDK/OAuth CRUD·태그 scope·웹 parity·참조 �
       scope: "record",
     });
     const e = await tool(client, "create_entity", {
-      prop1: "MCP 엔터티",
-      prop2: 1,
-      prop4: "b",
+      ...schema,
+      properties: { prop_1: "MCP 엔터티", prop_2: 1, prop_4: "b" },
       tag_ids: [tag.id],
     });
-    assertEquals((await call(token, "GET", `/entities/${encodeURIComponent(e.id)}`)).body.prop1, e.prop1);
+    assertEquals(
+      (await call(token, "GET", `/entities/${encodeURIComponent(e.id)}`)).body.properties.prop_1,
+      e.properties.prop_1,
+    );
     assertEquals(e.tag_ids, [tag.id]);
     const [createdHistory] =
       await admin`select id,change_metadata from app.records where record_kind='change' and change_metadata->>'target_id'=${e.id}`;
@@ -44,7 +48,8 @@ httpTest("Entity MCP: 실제 SDK/OAuth CRUD·태그 scope·웹 parity·참조 �
       0,
     );
     assertEquals(
-      (await tool(client, "create_entity", { prop1: "거부", tag_ids: [activityTag.id] })).error.code,
+      (await tool(client, "create_entity", { ...schema, properties: { prop_1: "거부" }, tag_ids: [activityTag.id] }))
+        .error.code,
       "invalid_reference",
     );
     assertEquals((await tool(client, "get_entity", { id: "bad-id" })).error.code, "not_found");
@@ -70,22 +75,33 @@ httpTest("Entity MCP: 실제 SDK/OAuth CRUD·태그 scope·웹 parity·참조 �
     assertEquals((await tool(client, "search", { ...search, entity_id: `app:${crypto.randomUUID()}` })).items, []);
     assertEquals((await tool(client, "search", { ...search, entity_id: "bad" })).error.code, "invalid_input");
     assertEquals(
-      (await tool(client, "update_entity", { id: e.id, expected_version: 2, prop1: "경쟁", change_note: "수정" })).error
+      (await tool(client, "update_entity", {
+        id: e.id,
+        schema_version: schema.schema_version,
+        expected_version: 2,
+        properties: { prop_1: "경쟁" },
+        change_note: "수정",
+      })).error
         .code,
       "conflict",
     );
     const withoutReason = await tool(client, "update_entity", {
       id: e.id,
       expected_version: 1,
-      prop1: "이유 없이 수정",
+      schema_version: schema.schema_version,
+      properties: { prop_1: "이유 없이 수정" },
     });
     assertEquals(withoutReason.version, 2);
-    assertEquals(withoutReason.prop1, "이유 없이 수정");
-    assertEquals((await call(token, "GET", `/entities/${encodeURIComponent(e.id)}`)).body.prop1, withoutReason.prop1);
+    assertEquals(withoutReason.properties.prop_1, "이유 없이 수정");
+    assertEquals(
+      (await call(token, "GET", `/entities/${encodeURIComponent(e.id)}`)).body.properties.prop_1,
+      withoutReason.properties.prop_1,
+    );
     const changed = await tool(client, "update_entity", {
       id: e.id,
       expected_version: 2,
-      prop3: "2026-10-04",
+      schema_version: schema.schema_version,
+      properties: { prop_3: "2026-10-04" },
       change_note: "일자 정정",
     });
     assertEquals(changed.version, 3);
@@ -143,7 +159,7 @@ httpTest("Entity MCP: 실제 SDK/OAuth CRUD·태그 scope·웹 parity·참조 �
         source: context.source,
       })),
       [
-        { id: e.id, title: e.prop1, source: "selection" },
+        { id: e.id, title: e.title, source: "selection" },
       ],
     );
     assertEquals(retained.body, marker);

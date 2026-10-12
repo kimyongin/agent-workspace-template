@@ -12,12 +12,12 @@ Deno.test("사용자 설정이 없으면 설정과 기록 준비가 같은 기�
     target_kind: "entity",
     action: "update",
     target: { id: "app:test", title: "고객", entity_ids: [], entity_context: [] },
-    before: { prop2: 1 },
-    after: { prop2: 2 },
+    before: { properties: { prop_2: 1 } },
+    after: { properties: { prop_2: 2 } },
   };
   assertEquals(effectiveRecordTemplate(undefined, "entity", "update").memo, DEFAULT_RECORD_MEMO_TEMPLATES.update);
   assertEquals(editableRecordTemplates(), {});
-  assertEquals(changeDefaults(input, {}, []).change_note, "고객 수정 (속성 2)");
+  assertEquals(changeDefaults(input, {}, []).change_note, "고객 수정 (prop_2)");
   const tag = crypto.randomUUID();
   const legacy = { entity: { update: { memo: "", tag_ids: [tag] } } };
   assertEquals(editableRecordTemplates(legacy).entity?.update, {
@@ -26,7 +26,7 @@ Deno.test("사용자 설정이 없으면 설정과 기록 준비가 같은 기�
   });
   assertEquals(legacy.entity.update.memo, "");
   assertEquals(changeDefaults(input, { record_templates: legacy }, [tag]), {
-    change_note: "고객 수정 (속성 2)",
+    change_note: "고객 수정 (prop_2)",
     change_tag_ids: [tag],
     missing_tag_ids: [],
   });

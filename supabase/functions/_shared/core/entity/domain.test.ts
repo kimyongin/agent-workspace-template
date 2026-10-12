@@ -3,32 +3,32 @@ import { defaultEntityIdentitySettings } from "../../contracts/entity-identity.t
 import { AppError } from "../shared/errors.ts";
 import { entityUpdateDecision, registrationContent, registrationIdentity, registrationState } from "./domain.ts";
 
-Deno.test("엔터티 판단: 등록 기본값과 복원의 생략·명시 값은 준비와 저장에 함께 쓰인다", () => {
+Deno.test("엔터티 판단: 복원의 생략·명시 속성은 준비와 저장에 함께 쓰인다", () => {
   const identity = registrationIdentity(defaultEntityIdentitySettings, { external_id: "000Ab:/한글%" });
-  assertEquals(registrationContent({ prop1: "새 대상" }, identity), {
+  const type = { entity_type_id: "00000000-0000-4000-8000-000000000001", schema_version: 1 };
+  assertEquals(registrationContent({ ...type, properties: { prop_1: "새 대상" } }, identity), {
+    ...type,
     source: "app",
     external_id: "000Ab:/한글%",
-    prop1: "새 대상",
-    prop2: null,
-    prop3: null,
-    prop4: "a",
+    properties: { prop_1: "새 대상" },
     tag_ids: [],
   });
   const stored = {
+    ...type,
     source: "app",
     external_id: "000Ab:/한글%",
-    prop1: "보관값",
-    prop2: 0,
-    prop3: null,
-    prop4: "c" as const,
+    properties: { prop_1: "보관값", prop_2: 0, prop_3: null, prop_4: "c" },
     tag_ids: ["보관 태그"],
   };
-  assertEquals(registrationContent({ prop3: "2026-10-10", tag_ids: [] }, identity, stored), {
+  assertEquals(registrationContent({ ...type, properties: { prop_3: "2026-10-10" }, tag_ids: [] }, identity, stored), {
     ...stored,
-    prop3: "2026-10-10",
+    properties: { ...stored.properties, prop_3: "2026-10-10" },
     tag_ids: [],
   });
-  assertEquals(registrationContent({ prop2: null }, identity, stored).prop2, null);
+  assertEquals(
+    registrationContent({ ...type, properties: { prop_2: null } }, identity, stored).properties.prop_2,
+    null,
+  );
 });
 
 Deno.test("엔터티 판단: 준비 스냅샷과 저장 조회는 부재·활성 중복·복원을 같은 상태로 분류", () => {
@@ -39,17 +39,31 @@ Deno.test("엔터티 판단: 준비 스냅샷과 저장 조회는 부재·활성
 
 Deno.test("엔터티 판단: 삭제된 발급처의 기존 속성 편집은 유지하지만 새 식별은 거부한다", () => {
   const settings = { ...defaultEntityIdentitySettings, sources: [{ code: "app", label: "앱", deleted: true }] };
-  const current = { id: "app:001", facts: { source: "app", external_id: "001", prop1: "보관값", prop2: 0 } };
-  assertEquals(entityUpdateDecision(settings, current, { prop1: "수정" }).after.prop1, "수정");
-  assertEquals(entityUpdateDecision(settings, current, { external_id: "001" }).rekey, false);
-  assertThrows(() => entityUpdateDecision(settings, current, { external_id: "002" }), AppError);
-  assertThrows(() => entityUpdateDecision(settings, current, { external_id: "001" }, true), AppError);
+  const current = {
+    id: "app:001",
+    facts: { source: "app", external_id: "001", properties: { prop_1: "보관값", prop_2: 0 } },
+  };
+  assertEquals(
+    entityUpdateDecision(settings, current, { schema_version: 1, properties: { prop_1: "수정" } }).after.properties
+      ?.prop_1,
+    "수정",
+  );
+  assertEquals(entityUpdateDecision(settings, current, { schema_version: 1, external_id: "001" }).rekey, false);
+  assertThrows(() => entityUpdateDecision(settings, current, { schema_version: 1, external_id: "002" }), AppError);
+  assertThrows(
+    () => entityUpdateDecision(settings, current, { schema_version: 1, external_id: "001" }, true),
+    AppError,
+  );
   assertThrows(() => registrationIdentity(settings, { external_id: "001" }), AppError);
 });
 
 Deno.test("엔터티 판단: 같은 식별·태그 순서만 변경하면 업무 변경이 아니다", () => {
-  const current = { id: "app:001", facts: { source: "app", external_id: "001", tag_ids: ["a", "b"] } };
+  const current = {
+    id: "app:001",
+    facts: { source: "app", external_id: "001", schema_version: 1, tag_ids: ["a", "b"] },
+  };
   const result = entityUpdateDecision(defaultEntityIdentitySettings, current, {
+    schema_version: 1,
     external_id: "001",
     tag_ids: ["b", "a"],
   });

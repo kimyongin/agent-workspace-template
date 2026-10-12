@@ -4,6 +4,7 @@ import { searchInput, searchResult } from "../../functions/_shared/contracts/sea
 import { search } from "../../functions/_shared/core/search/application.ts";
 import { AppError } from "../../functions/_shared/core/shared/errors.ts";
 import { asUser, connect, dbTest, fixtureOwner, urls } from "./_db.ts";
+import { entityFixture } from "./_entity.ts";
 const admin = connect(urls.admin, { max: 1 }),
   sql = connect(urls.pooler, { max: 3, prepare: false }),
   fixture = await fixtureOwner(admin),
@@ -11,6 +12,7 @@ const admin = connect(urls.admin, { max: 1 }),
   users = { a: fixture.actor.userId, b: foreignFixture.actor.userId };
 const d = { uow: new SqlSearchUnitOfWork(sql) }, A = { userId: users.a }, B = { userId: users.b };
 dbTest("검색: 한국어 본문·literal 와일드카드·상태·태그·기간·개수 격리와 복합 커서", async () => {
+  const schema = await entityFixture(admin, users.a);
   const token = crypto.randomUUID(),
     sameId = crypto.randomUUID(),
     tagId = crypto.randomUUID(),
@@ -20,7 +22,8 @@ dbTest("검색: 한국어 본문·literal 와일드카드·상태·태그·기�
     taskTag = crypto.randomUUID(),
     at = "2001-03-04T00:00:00.000Z";
   await asUser(sql, users.a, async (tx) => {
-    await tx`insert into app.entities(id,owner_id,source,external_id,prop1) values(${entity},${users.a},'app',${externalId},'검색 범위')`;
+    await tx`insert into app.entities(id,owner_id,source,external_id,entity_type_id,schema_version,properties)
+      values(${entity},${users.a},'app',${externalId},${schema.entity_type_id},${schema.schema_version},'{"prop_1":"검색 범위"}'::jsonb)`;
     await tx`insert into app.tags(id,owner_id,name) values(${tagId},${users.a},${token.slice(0, 30)})`;
     await tx`insert into app.tags(id,owner_id,name) values(${scopeTag},${users.a},${scopeTag.slice(0, 30)})`;
     await tx`insert into app.tags(id,owner_id,name,scope) values(${taskTag},${users.a},${taskTag.slice(0, 30)},'task')`;
