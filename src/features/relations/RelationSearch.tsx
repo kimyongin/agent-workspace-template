@@ -1,3 +1,4 @@
+import { EntityTypeIcon } from "../entity/EntityTypeIcon.tsx";
 import { entityIdentityLabel } from "@contracts/entity-identity.ts";
 import { createPagedList } from "../collections/paged-list.ts";
 import { BodyAction } from "../../components/BodyAction.tsx";
@@ -9,7 +10,13 @@ import { Field, Notice } from "../../components/Field.tsx";
 import { RelatedItem } from "../../components/RelatedItems.tsx";
 import { api, query } from "../../lib/api.ts";
 
-export type Candidate = { id: string; title: string; entityIds?: string[]; identity?: string };
+export type Candidate = {
+  id: string;
+  title: string;
+  entityIds?: string[];
+  identity?: string;
+  type?: EntitySummary["type"];
+};
 type CandidatePage = { items: Candidate[]; next_cursor: string | null };
 /** Saved relationships and draft selection expose the same search action. */
 export function RelationSearchAction(
@@ -38,13 +45,15 @@ export function RelationSearchAction(
 }
 /** Current-title lookup, shared by the two directions of the same relationship. */
 export function RelationSearch(
-  { kind, excluded, onChoose, disabled, revision, draftMode = false }: {
+  { kind, excluded, onChoose, disabled, revision, draftMode = false, linkCandidateFor, entityTypeId }: {
     kind: "entity" | "task";
     excluded: (item: Candidate) => boolean;
     onChoose: (item: Candidate) => void;
     disabled: boolean;
     revision?: number | EntityDetail["tasks"];
     draftMode?: boolean;
+    linkCandidateFor?: string;
+    entityTypeId?: string;
   },
 ) {
   const label = kind === "entity" ? "자료" : "할 일";
@@ -61,7 +70,9 @@ export function RelationSearch(
         const page = kind === "entity"
           ? await api<{ items: EntitySummary[]; next_cursor: string | null }>(
             "GET",
-            `/entities${query({ keyword, limit: 20, cursor })}`,
+            `/entities${
+              query({ keyword, limit: 20, cursor, link_candidate_for: linkCandidateFor, entity_type_id: entityTypeId })
+            }`,
             undefined,
             signal,
           )
@@ -76,12 +87,14 @@ export function RelationSearch(
           items: page.items.map((item) => ({
             id: item.id,
             title: item.title,
-            ...("entity_type_id" in item ? { identity: `${item.type.label} · ${entityIdentityLabel(item)}` } : {}),
+            ...("entity_type_id" in item
+              ? { type: item.type, identity: `${item.type.label} · ${entityIdentityLabel(item)}` }
+              : {}),
             ...("entity_ids" in item ? { entityIds: item.entity_ids } : {}),
           })),
         };
       },
-    }), [keyword, composing, retry, kind, revision]);
+    }), [keyword, composing, retry, kind, revision, linkCandidateFor, entityTypeId]);
   const state = useSyncExternalStore(session.subscribe, session.snapshot);
   const [waiting, setWaiting] = useState(!!keyword);
   useEffect(() => {
@@ -138,13 +151,15 @@ export function RelationSearch(
       )}
       {result && (
         <div className="related-search-results" role="group" aria-label={`${label} 검색 결과`}>
-          {result.items.filter((item) => !excluded(item)).map((item) => (
+          {result.items.filter((item) => !item.type?.archived && !excluded(item)).map((item) => (
             <RelatedItem
               key={item.id}
               to={draftMode ? undefined : `/${kind === "entity" ? "entities" : "tasks"}/${encodeURIComponent(item.id)}`}
               restoreKey={`relation-candidate-${kind}-${item.id}`}
               title={item.title}
-              metadata={item.identity && <span>{item.identity}</span>}
+              metadata={item.identity && (
+                <span>{item.type && <EntityTypeIcon id={item.type.icon_id} />} {item.identity}</span>
+              )}
               action={
                 <BodyAction
                   icon="link"

@@ -35,6 +35,9 @@ test.beforeEach(async ({ page, baseURL }) => {
         },
       });
     }
+    if (url.pathname.endsWith("/links") && route.request().method() === "GET") {
+      return route.fulfill({ json: { items: [], next_cursor: null } });
+    }
     if (url.pathname.startsWith("/api/entities")) {
       return route.fulfill({
         json: url.pathname === "/api/entities" ? { items: [entity()], next_cursor: null } : entity(),

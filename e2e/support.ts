@@ -103,7 +103,7 @@ export async function mcpClient(token: string) {
   return {
     async call(name: string, args: Record<string, unknown>) {
       const writing =
-        /^(create_|update_|delete_|rename_|rekey_|complete_|stop_|resume_|analyze_|apply_|start_|cancel_|retry_|record_occurrence$)/
+        /^(create_|update_|delete_|link_|unlink_|rename_|rekey_|complete_|stop_|resume_|analyze_|apply_|start_|cancel_|retry_|record_occurrence$)/
           .test(name);
       if (writing && !("request_key" in args)) args = { ...args, request_key: crypto.randomUUID() };
       const res = await client.callTool({ name, arguments: args });
