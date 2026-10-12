@@ -22,10 +22,9 @@ import { compileEntityProperties } from "../../functions/_shared/core/entity-typ
 import { AppError } from "../../functions/_shared/core/shared/errors.ts";
 import type { SchemaDefinition } from "../../functions/_shared/contracts/entity-schema-change.ts";
 import type postgres from "postgres";
-async function consume(admin: postgres.Sql) {
+async function consume(worker: postgres.Sql) {
   for (let i = 0; i < 80; i++) {
-    const batch = await admin.begin(async (tx) => {
-      await tx`set local role app_worker`;
+    const batch = await worker.begin(async (tx) => {
       const [r] = await tx`select app.claim_entity_schema_analysis() as batch`;
       return r.batch;
     });
@@ -40,8 +39,7 @@ async function consume(admin: postgres.Sql) {
         return { entity_id: r.entity_id, errors: e.fields };
       }
     });
-    await admin.begin(async (tx) => {
-      await tx`set local role app_worker`;
+    await worker.begin(async (tx) => {
       await tx`select app.complete_entity_schema_analysis_batch(${batch.id},${batch.fence},${tx.json(results)})`;
     });
   }
@@ -50,6 +48,10 @@ async function consume(admin: postgres.Sql) {
 dbTest(
   "schema draft owner transaction: permanent reservations, async analysis, compatible display and stale writes",
   async () => {
+    const workerUrl = new URL(urls.admin);
+    workerUrl.username = "app_worker";
+    workerUrl.password = encodeURIComponent(Deno.env.get("APP_WORKER_PASSWORD")!);
+    const worker = connect(workerUrl.href, { prepare: false, max: 1 });
     const admin = connect(urls.admin), sql = connect(urls.direct, { max: 4 });
     const a = await fixtureOwner(admin), b = await fixtureOwner(admin);
     const d = { uow: new SqlEntityTypeUnitOfWork(sql) }, e = { uow: new SqlEntityUnitOfWork(sql) };
@@ -129,7 +131,7 @@ dbTest(
         accepted,
       );
       assertEquals((await getEntitySchema(d, a.actor, { type_id: type.id })).schema_version, 1);
-      await consume(admin);
+      await consume(worker);
       const ready = await getEntitySchemaChange(d, a.actor, type.id, change.id);
       assertEquals(ready.status, "ready");
       assertEquals(ready.analysis?.failed, 0);
@@ -162,7 +164,7 @@ dbTest(
       const analyzed = await analyzeEntitySchemaChange(d, requestActor(a.actor), type.id, next.id, {
         expected_change_version: 1,
       });
-      await consume(admin);
+      await consume(worker);
       await updateEntity(e, requestActor(a.actor), entity.id, {
         expected_version: entity.version,
         schema_version: 2,
@@ -202,7 +204,7 @@ dbTest(
       });
       assertEquals(narrowed.change_kind, "migration_required");
       await analyzeEntitySchemaChange(d, requestActor(a.actor), type.id, narrowed.id, { expected_change_version: 1 });
-      await consume(admin);
+      await consume(worker);
       const failures = await getEntitySchemaChange(d, a.actor, type.id, narrowed.id);
       assertEquals(failures.analysis?.failed, 1);
       assertEquals(failures.analysis?.errors[0].entity_id, entity.id);
@@ -227,6 +229,7 @@ dbTest(
       await b.cleanup();
       await sql.end();
       await admin.end();
+      await worker.end();
     }
   },
 );
