@@ -177,6 +177,17 @@ Deno.test("valid near-64 KiB properties and schema retain every value through GE
     (schemaReply.structuredContent as typeof saved).schema,
     definition.schema,
   );
+  const defaultReply = await registered.get("list_entities")!({
+    entity_type_id: typeId,
+  });
+  const defaultPage = defaultReply.structuredContent as {
+    items: EntityValues[];
+    next_cursor: string;
+  };
+  assertEquals(defaultPage.items.length, 20);
+  assertEquals(defaultPage.items[19].display_properties, properties);
+  assert(bytes(defaultReply) > 1048576);
+  assert(defaultPage.next_cursor.length < 24576);
   const query = {
     entity_type_id: typeId,
     limit: 100,
