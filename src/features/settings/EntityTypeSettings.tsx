@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useBlocker, useLocation, useParams } from "react-router";
-import { api, isUncertain } from "../../lib/api.ts";
+import { api } from "../../lib/api.ts";
 import { ConfirmDialog } from "../../components/Modal.tsx";
 import { Field } from "../../components/Field.tsx";
 import {
@@ -10,12 +10,17 @@ import {
   entityTypeIcons,
   resolvedEntityTypeIcon,
 } from "@contracts/entity-type.ts";
+import { useWriteAttempt, writeErrorMessage } from "../../lib/write-attempt.ts";
 import "./settings.css";
 const glyphs = { box: "▣", leaf: "♧", package: "◇", book: "▤", tool: "⚒", star: "☆" };
 export function EntityTypeIcon({ id }: { id: string }) {
   return <span aria-hidden="true">{glyphs[resolvedEntityTypeIcon(id)]}</span>;
 }
 export function EntityTypeSettings() {
+  const { type_id } = useParams();
+  return <EntityTypeSettingsEditor key={type_id ?? "create"} />;
+}
+function EntityTypeSettingsEditor() {
   const { type_id } = useParams();
   const location = useLocation();
   const versions = location.pathname.endsWith("/versions");
@@ -28,15 +33,19 @@ export function EntityTypeSettings() {
     [representative, setRepresentative] = useState("이름"),
     [archived, setArchived] = useState(false);
   const [loading, setLoading] = useState(true),
-    [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
-    [message, setMessage] = useState(""),
-    [uncertain, setUncertain] = useState(false);
-  const attempt = useRef<{ key: string; method: string; path: string; input: unknown } | null>(null);
-  const pending = useRef(false);
+    [message, setMessage] = useState("");
+  const { attempt, busy, uncertain } = useWriteAttempt();
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
   const dirty = type_id
     ? !!type && (label !== type.label || icon !== type.icon_id || archived !== type.archived)
-    : !!label.trim();
+    : label !== "" || icon !== "box" || representative !== "이름";
   const blocker = useBlocker(dirty || busy || uncertain);
   useEffect(() => {
     if (busy && blocker.state === "blocked") blocker.reset();
@@ -75,8 +84,6 @@ export function EntityTypeSettings() {
     setError("");
     setType(null);
     setLabel("");
-    attempt.current = null;
-    setUncertain(false);
     void load(controller.signal).catch((e) => {
       if (!controller.signal.aborted) setError(e instanceof Error ? e.message : "조회하지 못했습니다");
     }).finally(() => {
@@ -85,13 +92,10 @@ export function EntityTypeSettings() {
     return () => controller.abort();
   }, [type_id]);
   const save = async () => {
-    if (pending.current) return;
-    pending.current = true;
-    setBusy(true);
+    if (busy || (!dirty && !uncertain)) return;
     setError("");
     setMessage("");
-    const current = attempt.current ?? {
-      key: crypto.randomUUID(),
+    const current = {
       method: type_id ? "PATCH" : "POST",
       path: type_id ? `/entity-types/${type_id}` : "/entity-types",
       input: type_id
@@ -104,32 +108,44 @@ export function EntityTypeSettings() {
         }
         : { label, icon_id: icon, representative_label: representative },
     };
-    attempt.current = current;
     try {
-      const saved = await api<EntityType>(current.method, current.path, current.input, undefined, current.key);
-      attempt.current = null;
-      setUncertain(false);
-      if (type_id) {
-        setType(saved);
-        setLabel(saved.label);
-        setIcon(saved.icon_id);
-        setArchived(saved.archived);
-      } else {
-        setItems((rows) => [...rows, saved]);
-        setLabel("");
-        setRepresentative("이름");
-      }
-      setMessage("자료 종류를 저장했습니다.");
+      await attempt.run(async () => {
+        const saved = await api<EntityType>(
+          current.method,
+          current.path,
+          current.input,
+          undefined,
+          attempt.requestKey(),
+        );
+        if (!mounted.current) return;
+        if (type_id) {
+          setType(saved);
+          setLabel(saved.label);
+          setIcon(saved.icon_id);
+          setArchived(saved.archived);
+        } else {
+          setItems((rows) => rows.some((row) => row.id === saved.id) ? rows : [...rows, saved]);
+          setLabel("");
+          setIcon("box");
+          setRepresentative("이름");
+        }
+        setMessage("자료 종류를 저장했습니다.");
+      });
     } catch (e) {
-      const unknown = isUncertain(e);
-      setUncertain(unknown);
-      if (!unknown) attempt.current = null;
-      setError(e instanceof Error ? e.message : "저장하지 못했습니다. 입력은 유지했습니다.");
-    } finally {
-      pending.current = false;
-      setBusy(false);
+      if (mounted.current) setError(writeErrorMessage(e));
     }
   };
+  const cancel = () => {
+    if (busy || uncertain) return;
+    attempt.reset();
+    setError("");
+    setMessage("");
+    setLabel(type?.label ?? "");
+    setIcon(type?.icon_id ?? "box");
+    setRepresentative("이름");
+    setArchived(type?.archived ?? false);
+  };
+
   return (
     <section className="panel settings" aria-labelledby="entity-types-title">
       <Link to="/settings">설정</Link>
@@ -225,11 +241,14 @@ export function EntityTypeSettings() {
             <div className="settings-section-footer">
               <p className="secondary">
                 {uncertain
-                  ? "저장 결과를 확인하지 못했습니다. 같은 요청으로 다시 확인하세요."
+                  ? "저장 여부를 알 수 없습니다. 같은 요청으로 다시 확인하세요. 새로고침 후에는 현재 상태를 조회한 뒤 새 작업을 시작하세요."
                   : type_id
                   ? "이름·아이콘·보관 상태 변경은 속성 정의와 저장값을 바꾸지 않습니다."
                   : "필수 텍스트 대표 속성과 함께 생성합니다."}
               </p>
+              <button type="button" className="btn" disabled={busy || uncertain || !dirty} onClick={cancel}>
+                변경 취소
+              </button>
               <button className="btn btn-primary" disabled={busy || (!dirty && !uncertain)}>
                 {busy ? "저장 중…" : uncertain ? "같은 요청 다시 확인" : type_id ? "저장" : "자료 종류 만들기"}
               </button>
