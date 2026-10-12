@@ -20,11 +20,12 @@ import type {
 import type { Actor } from "../shared/actor.ts";
 import { AppError, conflict, invalidInput, notFound } from "../shared/errors.ts";
 import { scopeOf } from "../shared/operations.ts";
-import type { Keyset } from "../shared/store.ts";
+import { type EntityKeyset, validateEntityQuery, validFilterScalar } from "./list-rules.ts";
 import { type ChangeStore } from "../shared/changes.ts";
 
 export interface EntityStore extends ChangeStore, EntityDefinitions {
   issueDataId?(): Promise<string>;
+  prepareRekey?(id: string): Promise<void>;
   getBusinessSettings(lockIdentity?: boolean): Promise<
     { versions?: { entity_identity: number }; settings: { entity_identity?: EntityIdentitySettings } }
   >;
@@ -45,7 +46,12 @@ export interface EntityStore extends ChangeStore, EntityDefinitions {
   delete(id: string): Promise<void>;
   restore(id: string, changes: EntityCreate): Promise<EntityValues>;
   rekey(id: string, identity: { source: string; external_id: string }): Promise<EntityValues>;
-  list(query: EntityQuery, after?: Keyset): Promise<EntitySummary[]>;
+  listRevisions?(typeId?: string): Promise<Array<{ id: string; type_version: number; schema_version: number }>>;
+  list(
+    query: EntityQuery,
+    after?: EntityKeyset,
+    typeIds?: string[],
+  ): Promise<Array<EntitySummary & { _cursor?: EntityKeyset }>>;
 }
 export interface EntityDeps {
   uow: { run<T>(actor: Actor, fn: (store: EntityStore) => Promise<T>): Promise<T> };
@@ -132,6 +138,7 @@ async function requireVersion(s: EntityStore, id: string, expected: number) {
 export function updateEntity(d: EntityDeps, a: Actor, id: string, i: EntityUpdate) {
   return runWrite(d.uow, a, "entity.update", id, i, async (s) => {
     assertImmutableType(i);
+    if (i.source !== undefined || i.external_id !== undefined) await s.prepareRekey?.(id);
     const old = await requireVersion(s, id, i.expected_version);
     const definition = await requireDefinition(s, old.entity_type_id, i.schema_version);
     const { expected_version: _v, change_note, change_tag_ids, ...input } = i;
@@ -210,9 +217,6 @@ export function deleteEntity(
     },
   );
 }
-function sortValue(e: EntitySummary, sort: EntityQuery["sort"]) {
-  return e[sort];
-}
 export function assertImmutableType(input: unknown) {
   if (input && typeof input === "object" && "entity_type_id" in input) {
     throw new AppError("entity_type_immutable", "자료 종류는 변경할 수 없습니다", [{
@@ -222,28 +226,55 @@ export function assertImmutableType(input: unknown) {
   }
 }
 export async function listEntities(d: EntityDeps, a: Actor, q: EntityQuery) {
-  const { cursor, limit, ...filter } = q;
-  const scope = await scopeOf(a, { list: "entities", ...filter });
-  let after: Keyset | undefined;
-  if (cursor) {
-    try {
-      const decoded = JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(cursor), (v) => v.charCodeAt(0))));
-      const validAt = typeof decoded.at === "string" &&
-        (q.sort === "updated_at"
-          ? isoDateTime.safeParse(decoded.at).success
-          : text(1, 4096).safeParse(decoded.at).success);
-      if (decoded.scope !== scope || !entityReferenceId.safeParse(decoded.id).success || !validAt) throw Error();
-      after = { at: decoded.at, id: decoded.id };
-    } catch {
-      throw invalidInput("커서가 잘못되었거나 다른 목록 조건의 커서입니다");
-    }
-  }
   return d.uow.run(a, async (s) => {
-    const rows = await s.list({ ...q, limit: limit + 1 }, after);
-    const items = rows.slice(0, limit), last = items.at(-1);
-    const body = last ? JSON.stringify({ scope, at: sortValue(last, q.sort), id: last.id }) : "";
+    if (q.link_candidate_for) {
+      const origin = await s.get(q.link_candidate_for);
+      if (!origin) throw notFound();
+      if (origin.deleted_at || origin.type.archived) {
+        throw conflict("삭제·보관된 자료에는 새 연결을 추가할 수 없습니다");
+      }
+    }
+    const revisions = await s.listRevisions?.(q.entity_type_id) ?? [];
+    const definition = q.entity_type_id ? await s.definition(q.entity_type_id) : null;
+    validateEntityQuery(q, definition);
+    const { cursor, limit, ...filter } = q;
+    const scope = await scopeOf(a, { list: "entities", ...filter, revisions });
+    if (q.entity_type_id && !definition) {
+      if (cursor) throw invalidInput("커서의 자료 종류를 찾을 수 없습니다");
+      throw notFound();
+    }
+    let after: EntityKeyset | undefined;
+    if (cursor) {
+      try {
+        const decoded = JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(cursor), (v) => v.charCodeAt(0))));
+        const property = typeof q.sort === "object" ? definition?.schema.properties[q.sort.key] : null;
+        const validAt = property
+          ? decoded.category === 2 ? validFilterScalar(property, decoded.at) : decoded.at === null
+          : decoded.category === 2 && typeof decoded.at === "string" &&
+            (q.sort === "updated_at"
+              ? isoDateTime.safeParse(decoded.at).success
+              : text(1, 4096).safeParse(decoded.at).success);
+        if (
+          decoded.scope !== scope || !entityReferenceId.safeParse(decoded.id).success ||
+          ![0, 1, 2].includes(decoded.category) || !validAt
+        ) throw Error();
+        after = { at: decoded.at, category: decoded.category, id: decoded.id };
+      } catch {
+        throw invalidInput("커서가 잘못되었거나 다른 목록 조건·정의의 커서입니다");
+      }
+    }
+    const rows = await s.list(
+      { ...q, limit: limit + 1 },
+      after,
+      s.listRevisions ? revisions.map((type) => type.id) : undefined,
+    );
+    const selected = rows.slice(0, limit), last = selected.at(-1);
+    const tuple = last
+      ? last._cursor ?? { at: last[q.sort as "title" | "updated_at"], category: 2, id: last.id }
+      : null;
+    const body = JSON.stringify({ scope, ...tuple });
     return {
-      items,
+      items: selected.map(({ _cursor: _private, ...item }) => item),
       next_cursor: rows.length > limit ? btoa(String.fromCharCode(...new TextEncoder().encode(body))) : null,
     };
   });

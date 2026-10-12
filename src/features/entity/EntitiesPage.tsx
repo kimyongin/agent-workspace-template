@@ -1,3 +1,7 @@
+import { useEffect, useState } from "react";
+import type { EntitySchemaResult } from "@contracts/entity-type.ts";
+import { displayedProperty } from "./property-fields.tsx";
+import { TypedEntityFilters } from "./TypedEntityFilters.tsx";
 import { EntityTypePicker } from "./EntityTypePicker.tsx";
 import { useEntityTypes } from "./useEntityTypes.ts";
 import { typeListSearch } from "../../app/type-navigation.ts";
@@ -13,7 +17,7 @@ import type { ListPage } from "../collections/paged-list.ts";
 import type { EntitySummary } from "@contracts/entity.ts";
 import { useLocation, useNavigate, useSearchParams } from "react-router";
 import { ListExpansionProvider, ListPreviewItem, useRestoreListPosition } from "../relations/ListPreviewItem.tsx";
-import { Field, Notice } from "../../components/Field.tsx";
+import { Notice } from "../../components/Field.tsx";
 import { api, ApiError, query } from "../../lib/api.ts";
 import { EntityForm } from "./forms.tsx";
 import { GuideLink } from "../../components/GuideLink.tsx";
@@ -32,13 +36,33 @@ export function EntitiesPage() {
     tag_id: params.get("tag_id"),
     entity_type_id: params.get("entity_type_id"),
     sort: params.get("sort") ?? "updated_at",
+    filters: params.get("property_filters"),
   };
   const { types, error: typeError, retry: retryTypes } = useEntityTypes();
   const selectedType = types?.find((type) => type.id === filter.entity_type_id),
     label = selectedType?.label ?? (filter.entity_type_id ? "찾을 수 없는 자료 종류" : "전체 자료");
+  const [schema, setSchema] = useState<EntitySchemaResult | null>(null),
+    [schemaReadError, setSchemaReadError] = useState(false),
+    [schemaRetry, setSchemaRetry] = useState(0);
+  useEffect(() => {
+    const controller = new AbortController();
+    setSchema(null);
+    setSchemaReadError(false);
+    if (filter.entity_type_id) {
+      void api<EntitySchemaResult>("GET", `/entity-types/${filter.entity_type_id}/schema`, undefined, controller.signal)
+        .then((value) => {
+          if (!controller.signal.aborted) {
+            setSchema(value);
+          }
+        }).catch(() => {
+          if (!controller.signal.aborted) setSchemaReadError(true);
+        });
+    }
+    return () => controller.abort();
+  }, [filter.entity_type_id, selectedType?.schema_version, schemaRetry]);
   const invalidType = !!filter.entity_type_id && types !== null && !selectedType;
   const unsupported = ["prop3_from", "prop3_to", "prop4"].some((key) => params.has(key));
-  const key = query(filter), context = `${key}|${hash}|${unsupported}`;
+  const key = query(filter), context = `${key}|${hash}|${unsupported}|${schema?.schema_version ?? 0}`;
   const creating = create.open;
   const list = usePagedList<EntitySummary, ListPage<EntitySummary>>({
     scope: `${context}|${types === null ? "loading" : invalidType ? "invalid" : "ready"}`,
@@ -106,6 +130,14 @@ export function EntitiesPage() {
               <button className="btn" onClick={retryTypes}>종류 다시 시도</button>
             </>
           )}
+          {schemaReadError && (
+            <Notice kind="error">
+              속성 정의를 읽지 못했습니다.{" "}
+              <button type="button" className="btn" onClick={() => setSchemaRetry((value) => value + 1)}>
+                속성 정의 다시 시도
+              </button>
+            </Notice>
+          )}
           {selectedType?.archived && (
             <Notice>보관된 자료 종류입니다. 기존 자료를 읽을 수 있으며 새 자료를 추가하려면 보관을 해제하세요.</Notice>
           )}
@@ -121,24 +153,25 @@ export function EntitiesPage() {
             자료 종류·속성 관리
           </Link>
           <TabFilters
-            active={!!(filter.tag_id || filter.sort !== "updated_at")}
+            active={!!(filter.tag_id || filter.sort !== "updated_at" || filter.filters)}
             attention={dictionary.failed}
             summary={[]}
           >
             <div className="filter-grid" role="group" aria-label="자료 필터">
-              <Field label="정렬">
-                {(p) => (
-                  <select
-                    {...p}
-                    className="input"
-                    value={filter.sort}
-                    onChange={(e) => set("sort", e.target.value)}
-                  >
-                    <option value="updated_at">최근 수정순</option>
-                    <option value="title">이름순</option>
-                  </select>
-                )}
-              </Field>
+              <TypedEntityFilters
+                schema={schema}
+                raw={filter.filters}
+                sort={filter.sort}
+                onChange={(filters, sort) => {
+                  const next = new URLSearchParams(params);
+                  if (filters) next.set("property_filters", filters);
+                  else next.delete("property_filters");
+                  if (sort !== "updated_at") next.set("sort", sort);
+                  else next.delete("sort");
+                  for (const key of ["pages", "cursor", "open"]) next.delete(key);
+                  navigate({ pathname: "/entities", search: next.toString(), hash: "" }, { replace: true });
+                }}
+              />
             </div>
             <TagDictionaryStatus dictionary={dictionary} />
             <fieldset className="field tag-filter-chips">
@@ -215,12 +248,33 @@ export function EntitiesPage() {
             <CollectionList
               view={view === "calendar" ? "list" : view}
               label={`${label} 목록`}
-              columns={["자료", "자료 종류"]}
+              columns={schema
+                ? [
+                  "자료",
+                  ...schema.display.list_columns.filter((key) => key !== schema.display.representative).map((key) =>
+                    schema.schema.properties[key].title ?? key
+                  ),
+                ]
+                : ["자료", "자료 종류"]}
             >
               {page?.items.map((e) => (
                 <li className="list-item" key={e.id}>
                   <div className="list-item-main">
-                    <ListPreviewItem kind="entities" id={e.id} title={e.title} cells={[e.type.label]} />
+                    <ListPreviewItem
+                      kind="entities"
+                      id={e.id}
+                      title={e.title}
+                      cells={schema
+                        ? schema.display.list_columns.filter((key) => key !== schema.display.representative).map(
+                          (key) =>
+                            displayedProperty(
+                              schema.schema.properties[key],
+                              e.display_properties[key],
+                              schema.display.option_labels[key],
+                            ),
+                        )
+                        : [e.type.label]}
+                    />
                   </div>
                 </li>
               ))}

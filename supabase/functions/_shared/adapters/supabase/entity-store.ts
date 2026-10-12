@@ -9,10 +9,10 @@ import type {
   EntityUpdate,
   EntityValues,
 } from "../../contracts/entity.ts";
-import { entityPresentation, loadEntityDefinition } from "./entity-values.ts";
+import { entityPresentationRow, loadEntityDefinition } from "./entity-values.ts";
 import type { EntityStore } from "../../core/entity/application.ts";
 import type { Actor } from "../../core/shared/actor.ts";
-import type { Keyset } from "../../core/shared/store.ts";
+import { type EntityKeyset, fieldKind } from "../../core/entity/list-rules.ts";
 import { runAsActor, SqlActorStore } from "./sql-context.ts";
 import { hasTag, setTagLinks, tagIdsColumn } from "./tag-links.ts";
 const columns =
@@ -46,19 +46,44 @@ export class SqlEntityStore extends SqlActorStore implements EntityStore {
       const rows = await this.tx`select id from app.entities where id=${id} for update`;
       if (!rows.length) return null;
     }
-    const [r] = await this.tx`select ${this.tx.unsafe(columns)},${
-      tagIdsColumn(this.tx, "entity")
-    } from app.entities where id=${id}`;
-    if (!r) return null;
-    return this.label(result(r));
+    const [r] = await this.tx`select ${this.projection()} from ${this.joined()} where entities.id=${id}`;
+    return r ? this.present(r) : null;
   }
-  private async label(row: ReturnType<typeof result>): Promise<EntityValues> {
-    const settings = (await this.getBusinessSettings()).settings.entity_identity;
+  private projection() {
+    const tx = this.tx;
+    return tx`${tx.unsafe(columns.split(",").map((name) => "entities." + name).join(","))},${
+      tagIdsColumn(tx, "entity")
+    },
+      t.id as type_id,t.label,t.icon_id,t.archived,t.schema_version as current_schema_version,v.display,
+      b.settings as identity_settings`;
+  }
+  private joined() {
+    const tx = this.tx;
+    return tx`app.entities join app.entity_types t on t.owner_id=entities.owner_id and t.id=entities.entity_type_id
+      join app.entity_schema_versions v on v.owner_id=t.owner_id and v.type_id=t.id and v.schema_version=t.schema_version
+      left join app.user_business_settings b on b.owner_id=entities.owner_id and b.id='entity_identity'`;
+  }
+  private present(r: Record<string, unknown>): EntityValues {
+    const row = result(r),
+      settings = r.identity_settings as { sources?: Array<{ code: string; label: string }> } | null;
     return {
       ...row,
-      source_label: settings?.sources.find((s) => s.code === row.source)?.label ?? row.source,
-      ...await entityPresentation(this.tx, row.entity_type_id, row.schema_version, row.properties),
+      source_label: settings?.sources?.find((source) => source.code === row.source)?.label ?? row.source,
+      ...entityPresentationRow(r, row.properties),
     };
+  }
+  async listRevisions(typeId?: string) {
+    const tx = this.tx;
+    // Shared type locks keep revision resolution and query on the same publication epoch.
+    // Reading during preparation remains allowed; only the atomic pointer commit waits.
+    const rows = await tx`select id,version,schema_version from app.entity_types ${
+      typeId ? tx`where id=${typeId}::uuid` : tx``
+    } order by id for share`;
+    return rows.map((row) => ({
+      id: String(row.id),
+      type_version: Number(row.version),
+      schema_version: Number(row.schema_version),
+    }));
   }
   async insert(i: Parameters<EntityStore["insert"]>[0], generatedIdentity = false) {
     let external_id = i.external_id;
@@ -104,34 +129,83 @@ export class SqlEntityStore extends SqlActorStore implements EntityStore {
     await this.tx`select app.rekey_entity(${id},${identity.source},${identity.external_id})`;
     return (await this.get(next))!;
   }
-  async list(q: EntityQuery, after?: Keyset) {
+  async list(q: EntityQuery, after?: EntityKeyset, typeIds?: string[]) {
     const tx = this.tx;
-    const title =
-      tx`properties->>(select display->>'representative' from app.entity_schema_versions v where v.owner_id=entities.owner_id and v.type_id=entities.entity_type_id and v.schema_version=(select t.schema_version from app.entity_types t where t.owner_id=entities.owner_id and t.id=entities.entity_type_id))`;
-    const key = q.sort === "title" ? title : tx`updated_at`;
+    const definition = q.entity_type_id ? await this.definition(q.entity_type_id) : null;
+    const title = tx`entities.properties->>(v.display->>'representative')`;
+    const scalar = (key: string) => {
+      const field = definition!.schema.properties[key], kind = fieldKind(field);
+      const json = tx`entities.properties->${key}::text`, value = tx`entities.properties->>${key}::text`;
+      // CASE is essential: PostgreSQL may reorder AND predicates before casting unrelated type rows.
+      return kind === "integer" || kind === "number"
+        ? tx`case when jsonb_typeof(${json})='number' then (${value})::numeric end`
+        : kind === "boolean"
+        ? tx`case when jsonb_typeof(${json})='boolean' then (${value})::boolean end`
+        : tx`case when jsonb_typeof(${json})='string' then ${value} end`;
+    };
+    const property = typeof q.sort === "object" ? q.sort : null;
+    const key = property ? scalar(property.key) : q.sort === "title" ? title : tx`entities.updated_at`;
+    // Missing < explicit null < scalar in ascending order; descending reverses the tuple.
+    const category = property
+      ? tx`case when not (entities.properties ? ${property.key}) then 0 when entities.properties->${property.key}::text='null'::jsonb then 1 else 2 end`
+      : tx`2`;
+    const descending = property ? property.direction === "desc" : q.sort === "updated_at";
+    const direction = descending ? tx`desc` : tx`asc`, compare = descending ? tx`<` : tx`>`;
+    const filters = (q.filters ?? []).map((filter) => {
+      const json = tx`entities.properties->${filter.key}::text`;
+      if (filter.operator === "unset") {
+        return tx`and (not (entities.properties ? ${filter.key}) or ${json}='null'::jsonb)`;
+      }
+      if (!("value" in filter)) throw new Error("Unsupported filter");
+      const value = scalar(filter.key);
+      if (filter.operator === "contains") return tx`and position(${filter.value} in ${value})>0`;
+      const operators = { eq: "=", gt: ">", gte: ">=", lt: "<", lte: "<=" };
+      return tx`and ${value} ${tx.unsafe(operators[filter.operator])} ${filter.value}`;
+    });
     const at = after ? q.sort === "updated_at" ? tx`${after.at}::timestamptz` : tx`${after.at}` : tx``;
-    const descending = q.sort === "updated_at";
-    const rows =
-      (await tx`select ${tx.unsafe(columns)},${tagIdsColumn(tx, "entity")} from app.entities where deleted_at is null
-      ${q.entity_type_id ? tx`and entity_type_id=${q.entity_type_id}::uuid` : tx``}
+    const boundary = !after
+      ? tx``
+      : after.category < 2
+      ? tx`and (${category} ${compare} ${after.category} or (${category}=${after.category} and entities.id ${compare} ${after.id}))`
+      : tx`and (${category} ${compare} ${after.category} or (${category}=${after.category} and (${key},entities.id) ${compare} (${at},${after.id}::text)))`;
+    const rows = await tx`select ${this.projection()},${category} as sort_category,${key} as sort_at
+      from ${this.joined()} where entities.deleted_at is null
+      ${typeIds ? tx`and entities.entity_type_id=any(${typeIds}::uuid[])` : tx``}
+      ${q.entity_type_id ? tx`and entities.entity_type_id=${q.entity_type_id}::uuid` : tx``}
       ${q.tag_id ? tx`and ${hasTag(tx, "entity", q.tag_id)}` : tx``}
       ${
-        q.keyword
-          ? tx`and (position(lower(${q.keyword}) in lower(${title}))>0 or position(lower(${q.keyword}) in lower(external_id))>0 or position(lower(${q.keyword}) in lower(source))>0)`
-          : tx``
-      }
+      q.link_candidate_for
+        ? tx`and not t.archived and entities.id<>${q.link_candidate_for} and not exists(select 1 from app.entity_pairs p where (p.entity_id=${q.link_candidate_for} and p.other_id=entities.id) or (p.other_id=${q.link_candidate_for} and p.entity_id=entities.id))`
+        : tx``
+    }
       ${
-        after
-          ? descending ? tx`and (${key},id)<(${at},${after.id}::text)` : tx`and (${key},id)>(${at},${after.id}::text)`
-          : tx``
-      }
-      order by ${key} ${descending ? tx`desc` : tx`asc`}, id ${descending ? tx`desc` : tx`asc`} limit ${q.limit}`).map(
-        result,
-      );
-    return Promise.all(rows.map(async (row): Promise<EntitySummary> => {
-      const { properties: _values, ...summary } = await this.label(row);
-      return summary;
-    }));
+      q.keyword
+        ? tx`and (position(lower(${q.keyword}) in lower(${title}))>0 or position(lower(${q.keyword}) in lower(entities.external_id))>0 or position(lower(${q.keyword}) in lower(entities.source))>0 ${
+          q.link_candidate_for ? tx`or position(lower(${q.keyword}) in lower(t.label))>0` : tx``
+        })`
+        : tx``
+    }
+      ${filters.reduce((all, filter) => tx`${all} ${filter}`, tx``)} ${boundary}
+      order by ${category} ${direction},${key} ${direction},entities.id ${direction} limit ${q.limit}`;
+    return rows.map((row) => {
+      const { properties: _values, ...summary } = this.present(row);
+      const kind = property ? fieldKind(definition!.schema.properties[property.key]) : null;
+      const at = row.sort_at instanceof Date
+        ? row.sort_at.toISOString()
+        : row.sort_at === null
+        ? null
+        : kind === "number" || kind === "integer"
+        ? Number(row.sort_at)
+        : row.sort_at;
+      return {
+        ...summary,
+        _cursor: {
+          at: at as EntityKeyset["at"],
+          category: Number(row.sort_category) as EntityKeyset["category"],
+          id: summary.id,
+        },
+      };
+    });
   }
   async related(id: string): Promise<Pick<EntityDetail, "tasks" | "records">> {
     const load = async (table: "tasks" | "records") => {
