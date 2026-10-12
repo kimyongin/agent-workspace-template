@@ -131,7 +131,7 @@ test("Entity restored pages: retry cursor, focus and filter reset", async ({ pag
       },
     });
   });
-  await page.goto("/entities?pages=2");
+  await page.goto("/entities?entity_type_id=00000000-0000-4000-8000-000000000900&pages=2");
   const more = page.getByRole("button", { name: "더 보기", exact: true });
   await expect(more).toHaveAttribute("aria-disabled", "false", { timeout: 30000 });
   await expect(page.locator(".list .item-title")).toHaveCount(2);

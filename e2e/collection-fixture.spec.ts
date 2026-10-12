@@ -70,7 +70,7 @@ test("related sections switch independently and return from a linked detail", as
   await expect(tasks.getByRole("radio", { name: "카드", exact: true })).toHaveAttribute("aria-checked", "true");
   await expect(records.getByRole("radio", { name: "테이블", exact: true })).toHaveAttribute("aria-checked", "true");
   await page.goto(`/records/${record.id}`);
-  await expect(dialog.getByRole("radiogroup", { name: "엔터티 보기 방식" })).toBeVisible();
+  await expect(dialog.getByRole("radiogroup", { name: "연결된 자료 보기 방식" })).toBeVisible();
   await expect(dialog.getByRole("radiogroup", { name: "할 일 보기 방식" })).toBeVisible();
   expect(state.writes).toEqual([]); expect(state.errors).toEqual([]);
 });
@@ -82,12 +82,13 @@ test("empty and failed lists keep truthful counts and retry in every view", asyn
   await page.goto("/records");
   await expect(page.getByRole("alert")).toContainText("기록을 불러오지 못했습니다");
   await expect(page.locator(".collection-heading h2")).toHaveText("기록");
-  const before = state.reads.length;
+  const recordReads = () => state.reads.filter(url => new URL(url).pathname === "/api/records").length;
+  const before = recordReads();
   for (const mode of ["카드", "테이블", "캘린더"]) {
     await page.getByRole("radio", { name: mode, exact: true }).click();
     await expect(page.getByRole("alert")).toBeVisible();
   }
-  expect(state.reads.length).toBe(before);
+  expect(recordReads()).toBe(before);
   clearFailure(); await page.getByRole("button", { name: "다시 시도", exact: true }).click();
   await expect(page.locator(".collection-heading h2")).toHaveText("기록 (0개)");
   await expect(page.getByRole("alert")).toHaveCount(0);

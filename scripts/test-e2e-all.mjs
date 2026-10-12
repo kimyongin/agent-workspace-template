@@ -1,19 +1,8 @@
+import { e2eRunPlan } from "./e2e-run-plan.mjs";
 import { spawnSync } from "node:child_process";
 
 // Configs remain sequential: fixture servers reuse ports; real-account writes share state.
-const configs = [
-  "playwright.config.ts",
-  "e2e/collection-fixture.config.ts",
-  "e2e/detail-workspace.config.ts",
-  "e2e/entity-tags-fixtures.config.ts",
-  "e2e/principle-current.config.ts",
-  "playwright.activity.config.ts",
-  "e2e/navigation-fixture.config.ts",
-  "e2e/type-navigation.config.ts",
-  "e2e/typed-entity-consumers.config.ts",
-  "e2e/navigation-preferences.config.ts",
-  "e2e/workspace-screens.config.ts",
-];
+const configs = e2eRunPlan(process.argv.slice(2));
 const results = [];
 for (const config of configs) {
   console.log(`\nE2E: ${config}`);

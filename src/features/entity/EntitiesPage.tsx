@@ -15,7 +15,7 @@ import { TagDictionaryStatus, TagReadProvider, useTagDictionary } from "../tags/
 import { anchorId, requestedPages } from "../activity/list-state.ts";
 import { usePagedList } from "../collections/usePagedList.ts";
 import type { ListPage } from "../collections/paged-list.ts";
-import type { EntitySummary } from "@contracts/entity.ts";
+import { entityListQuery, type EntitySummary } from "@contracts/entity.ts";
 import { useLocation, useNavigate, useSearchParams } from "react-router";
 import { ListExpansionProvider, ListPreviewItem, useRestoreListPosition } from "../relations/ListPreviewItem.tsx";
 import { Notice } from "../../components/Field.tsx";
@@ -61,6 +61,29 @@ export function EntitiesPage() {
     }
     return () => controller.abort();
   }, [filter.entity_type_id, selectedType?.schema_version, schemaRetry]);
+  const filterSummary: string[] = [];
+  if (schema) {
+    try {
+      const parsed = entityListQuery.safeParse({
+        entity_type_id: filter.entity_type_id,
+        ...(filter.filters ? { filters: JSON.parse(filter.filters) } : {}),
+        sort: filter.sort.startsWith("{") ? JSON.parse(filter.sort) : filter.sort,
+      });
+      if (parsed.success) {
+        const comparison = { eq: "", contains: " 포함", gt: " 초과", gte: " 이상", lt: " 미만", lte: " 이하", unset: "" };
+        for (const condition of parsed.data.filters ?? []) {
+          const field = schema.schema.properties[condition.key];
+          if (field) filterSummary.push(`${field.title ?? condition.key}${comparison[condition.operator]}: ${condition.operator === "unset" ? "미지정" : displayedProperty(field, condition.value, schema.display.option_labels[condition.key])}`);
+        }
+        if (typeof parsed.data.sort === "object") {
+          const field = schema.schema.properties[parsed.data.sort.key];
+          if (field) filterSummary.push(`${field.title ?? parsed.data.sort.key}: ${parsed.data.sort.direction === "asc" ? "오름차순" : "내림차순"}`);
+        } else if (parsed.data.sort === "title") filterSummary.push("이름순");
+      }
+    } catch { /* The list and condition editor report invalid input. */ }
+  }
+  const selectedTag = dictionary.tags?.find((tag) => tag.id === filter.tag_id);
+  if (selectedTag) filterSummary.push(`태그: ${selectedTag.name}`);
   const invalidType = !!filter.entity_type_id && types !== null && !selectedType;
   const unsupported = ["prop3_from", "prop3_to", "prop4"].some((key) => params.has(key));
   const key = query(filter), context = `${key}|${hash}|${unsupported}|${schema?.schema_version ?? 0}`;
@@ -176,7 +199,7 @@ export function EntitiesPage() {
           <TabFilters
             active={!!(filter.tag_id || filter.sort !== "updated_at" || filter.filters)}
             attention={dictionary.failed}
-            summary={[]}
+            summary={filterSummary}
           >
             <div className="filter-grid" role="group" aria-label="자료 필터">
               <TypedEntityFilters

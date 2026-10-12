@@ -1,3 +1,4 @@
+import { entitySummary } from "../../supabase/functions/_shared/contracts/entity.ts";
 import { defaultEntityIdentitySettings, entityId } from "../../supabase/functions/_shared/contracts/entity-identity.ts";
 import type { Page } from "@playwright/test";
 import { recordDisplayText } from "../../supabase/functions/_shared/contracts/record-display.ts";
@@ -170,7 +171,7 @@ export async function installWorkspaceApi(
       }
       if (plan) {
         return reply({
-          items: plan[pageNumber - 1] ?? [],
+          items: kind === "entities" ? (plan[pageNumber - 1] ?? []).map((row) => entitySummary.parse(row)) : plan[pageNumber - 1] ?? [],
           next_cursor: pageNumber < plan.length ? "page:" + (pageNumber + 1) : null,
         });
       }
@@ -189,7 +190,7 @@ export async function installWorkspaceApi(
       }
       const offset = Number(url.searchParams.get("cursor") ?? 0), size = options.pageSize ?? Math.max(1, items.length);
       return reply({
-        items: items.slice(offset, offset + size),
+        items: kind === "entities" ? items.slice(offset, offset + size).map((row) => entitySummary.parse(row)) : items.slice(offset, offset + size),
         next_cursor: items.length > offset + size ? String(offset + size) : null,
       });
     }

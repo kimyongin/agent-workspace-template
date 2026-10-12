@@ -540,7 +540,7 @@ for (const width of [390, 1440]) test(`detail hierarchy ${width}: domain heading
   await page.setViewportSize({width,height:900});
   const state=await fixture(page);
   for (const item of [
-    {path:`/entities/${encodeURIComponent(entityKey(1))}`,domain:"전체 자료",title:"등심"},
+    {path:`/entities/${encodeURIComponent(entityKey(1))}`,domain:"검사 자료",title:"등심"},
     {path:`/tasks/${id(2)}`,domain:"할 일",title:"등심 구매하기"},
     {path:`/records/${id(3)}`,domain:"기록",title:null},
     {path:`/principles/${id(4)}`,domain:"원칙",title:"현재 기준"},
@@ -625,7 +625,7 @@ test("mobile direct visit: related previous restores its source without stacked 
   await expect(modal.locator(".modal-head .dialog-title")).toHaveText("할 일");
   await expect(modal).toHaveCount(1);
   await modal.getByRole("button",{name:/^이전:/}).click();
-  await expect(modal.locator(".modal-head .dialog-title")).toHaveText("전체 자료");
+  await expect(modal.locator(".modal-head .dialog-title")).toHaveText("검사 자료");
   await expect(modal.locator(".detail-title")).toHaveText("등심");
   expect(state.errors).toEqual([]); expect(state.writes).toEqual([]);
 });
@@ -735,7 +735,7 @@ for(const width of [390,1440]) test(`전체 펼침 ${width}px 토글은 표시�
   expect(new URL(page.url()).searchParams.getAll('open')).toHaveLength(0);
   await main.getByRole("button",{name:"등심",exact:true}).click();
   await main.getByRole("link",{name:"등심 상세",exact:true}).click();
-  const detail=page.getByRole("dialog",{name:"전체 자료",exact:true});
+  const detail=page.getByRole("dialog",{name:"검사 자료",exact:true});
   const tasks=detail.getByRole('region',{name:'할 일 (1개)',exact:true});
   const records=detail.getByRole('region',{name:'기록 (1개)',exact:true});
   await tasks.getByRole('button',{name:'할 일 전체 열기',exact:true}).click();
