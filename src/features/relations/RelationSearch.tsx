@@ -151,7 +151,7 @@ export function RelationSearch(
       )}
       {result && (
         <div className="related-search-results" role="group" aria-label={`${label} 검색 결과`}>
-          {result.items.filter((item) => !excluded(item)).map((item) => (
+          {result.items.filter((item) => !item.type?.archived && !excluded(item)).map((item) => (
             <RelatedItem
               key={item.id}
               to={draftMode ? undefined : `/${kind === "entity" ? "entities" : "tasks"}/${encodeURIComponent(item.id)}`}

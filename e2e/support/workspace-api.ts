@@ -101,6 +101,7 @@ export async function installWorkspaceApi(
         held?.finish();
       }
     };
+    if (kind === "entities" && action === "links" && method === "GET") return reply({ items: [], next_cursor: null });
     if (kind === "entity-types") return reply(key ? fixtureSchema : { items: [fixtureType], next_cursor: null });
     if (kind === "settings" && key === "business") {
       return reply({

@@ -5,7 +5,7 @@ import { useEntityTypes } from "./useEntityTypes.ts";
 import { useContext, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { EntityDetail, EntitySummary } from "@contracts/entity.ts";
 import { entityPath } from "@contracts/entity-identity.ts";
-import { entityPairResult } from "@contracts/entity-pairs.ts";
+import { entityLinkPage, entityPairResult } from "@contracts/entity-pairs.ts";
 import { SurfaceContext } from "../../components/Modal.tsx";
 import { FormModal } from "../../components/ContentForm.tsx";
 import { CollectionList } from "../../components/Collection.tsx";
@@ -36,8 +36,10 @@ export function EntityPairRelations({ entity, onSaved }: { entity: EntityDetail;
   const session = useMemo(
     () =>
       createPagedList<EntitySummary, LinkPage>({
-        load: (cursor, signal) =>
-          api("GET", `${entityPath(entity.id)}/links${query({ limit: 20, cursor })}`, undefined, signal),
+        load: async (cursor, signal) =>
+          entityLinkPage.parse(
+            await api("GET", `${entityPath(entity.id)}/links${query({ limit: 20, cursor })}`, undefined, signal),
+          ),
       }),
     [entity.id, entity.version, retry],
   );
@@ -105,7 +107,8 @@ export function EntityPairRelations({ entity, onSaved }: { entity: EntityDetail;
                   metadata={
                     <>
                       <EntityTypeIcon id={item.type.icon_id} /> {item.type.label}
-                      {item.deleted_at ? " · 삭제됨" : item.type.archived ? " · 보관됨" : ""}
+                      {item.deleted_at ? " · 삭제됨" : ""}
+                      {item.type.archived ? " · 보관됨" : ""}
                     </>
                   }
                   action={

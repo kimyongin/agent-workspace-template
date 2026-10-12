@@ -53,7 +53,7 @@ export function changeEntityPair(d: EntityPairDeps, a: Actor, id: string, input:
         title: e.title,
         type: e.type,
         schema_version: e.current_schema_version,
-        captured_at: new Date().toISOString(),
+        captured_at,
         source: "selection" as const,
       }));
       await s.appendChange({
