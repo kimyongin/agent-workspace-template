@@ -46,7 +46,8 @@ export function EntitiesPage() {
   }, []);
   const selectedType = types?.find((type) => type.id === filter.entity_type_id),
     label = selectedType?.label ?? "전체 자료";
-  const key = query(filter), context = `${key}|${hash}`;
+  const unsupported = ["prop3_from", "prop3_to", "prop4"].some((key) => params.has(key));
+  const key = query(filter), context = `${key}|${hash}|${unsupported}`;
   const creating = create.open;
   const list = usePagedList<EntitySummary, ListPage<EntitySummary>>({
     scope: context,
@@ -55,7 +56,12 @@ export function EntitiesPage() {
     anchorLookahead: 1,
     restoreRetry: "resume",
     retainOnDecrease: true,
-    load: (cursor, signal) => api("GET", `/entities${query({ ...filter, cursor })}`, undefined, signal),
+    load: (cursor, signal) =>
+      unsupported
+        ? Promise.reject(
+          new ApiError(400, "invalid_input", "이전 속성 조건은 더 이상 지원하지 않습니다. 조건을 초기화하세요."),
+        )
+        : api("GET", `/entities${query({ ...filter, cursor })}`, undefined, signal),
   });
   const { page, busy } = list;
   const error = list.error ? list.error instanceof ApiError ? list.error.message : "자료를 불러오지 못했습니다." : null;
@@ -67,7 +73,12 @@ export function EntitiesPage() {
     const next = new URLSearchParams(params);
     if (value) next.set(name, value);
     else next.delete(name);
-    if (name === "entity_type_id") next.delete("sort");
+    if (name === "entity_type_id") {
+      next.delete("sort");
+      next.delete("prop3_from");
+      next.delete("prop3_to");
+      next.delete("prop4");
+    }
     next.delete("pages");
     next.delete("open");
     navigate({ pathname: "/entities", search: next.toString(), hash: "" }, { replace: true });
@@ -156,6 +167,14 @@ export function EntitiesPage() {
           {error && (
             <>
               <Notice kind="error">{error}</Notice>
+              {unsupported && (
+                <button
+                  className="btn"
+                  onClick={() => navigate(`/entities?${resetTabFilters(params)}`, { replace: true })}
+                >
+                  조건 초기화
+                </button>
+              )}
               {!page &&
                 (
                   <button className="btn" onClick={() => void list.retry()}>

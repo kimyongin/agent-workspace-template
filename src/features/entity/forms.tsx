@@ -335,9 +335,11 @@ export function EntityForm({
                   className="btn"
                   disabled={!identitySettings || !definition}
                   onClick={() =>
-                    void checkExisting().catch((e) =>
-                      setIdentityMessage(e instanceof Error ? e.message : "조회하지 못했습니다")
-                    )}
+                    void checkExisting().catch((e) => {
+                      if (!(e instanceof DOMException && e.name === "AbortError")) {
+                        setIdentityMessage(e instanceof Error ? e.message : "조회하지 못했습니다");
+                      }
+                    })}
                 >
                   기존 대상 확인
                 </button>
@@ -371,6 +373,8 @@ export function EntityForm({
         confirmLabel="종류 변경"
         onCancel={() => setNextType(null)}
         onConfirm={() => {
+          lookup.current?.abort();
+          setArchived(null);
           setTypeId(nextType!);
           setProperties({});
           setNextType(null);
