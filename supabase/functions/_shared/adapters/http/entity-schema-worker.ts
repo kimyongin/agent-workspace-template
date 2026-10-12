@@ -8,7 +8,8 @@ const input = z.strictObject({ limit: z.literal(1).default(1), check_configurati
 export function entitySchemaWorker(readEnv: (name: string) => string | undefined) {
   let sql: postgres.Sql | undefined;
   return async (request: Request): Promise<Response> => {
-    const token = readEnv("ENTITY_SCHEMA_WORKER_TOKEN");
+    // 전용 토큰이 없을 때만 검색 worker 토큰을 사용한다. 잘못된 전용 설정은 우회하지 않는다.
+    const token = readEnv("ENTITY_SCHEMA_WORKER_TOKEN") ?? readEnv("INDEX_WORKER_TOKEN");
     if (!token || token.length < 43) return Response.json({ error: "worker_not_configured" }, { status: 503 });
     if (request.headers.get("Authorization") !== `Bearer ${token}`) {
       return Response.json({ error: "unauthorized" }, { status: 401 });

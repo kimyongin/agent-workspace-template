@@ -33,3 +33,41 @@ Deno.test("schema worker HTTP rejects user/missing tokens before DB and prefligh
   );
   assertEquals(oversized.status, 400);
 });
+
+Deno.test("schema worker uses the index token only when its dedicated token is absent", async () => {
+  const indexToken = "i".repeat(48), dedicatedToken = "s".repeat(48);
+  for (
+    const [dedicated, supplied, expected] of [
+      [undefined, indexToken, 200],
+      [undefined, "user-jwt", 401],
+      [undefined, "wrong", 401],
+      [dedicatedToken, indexToken, 401],
+      [dedicatedToken, dedicatedToken, 200],
+      ["", indexToken, 503],
+      ["short", indexToken, 503],
+    ] as const
+  ) {
+    const handler = entitySchemaWorker((name) =>
+      name === "ENTITY_SCHEMA_WORKER_TOKEN"
+        ? dedicated
+        : name === "INDEX_WORKER_TOKEN"
+        ? indexToken
+        : name === "WORKER_DB_URL"
+        ? "not-a-db-url"
+        : undefined
+    );
+    const response = await handler(
+      new Request("http://worker", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${supplied}` },
+        body: JSON.stringify({ check_configuration: true }),
+      }),
+    );
+    assertEquals(response.status, expected);
+  }
+  for (const indexToken of [undefined, "", "short"]) {
+    const handler = entitySchemaWorker((name) => name === "INDEX_WORKER_TOKEN" ? indexToken : undefined);
+    const response = await handler(new Request("http://worker", { method: "POST" }));
+    assertEquals(response.status, 503);
+  }
+});
