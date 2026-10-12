@@ -82,6 +82,17 @@ export class SqlSchemaChangeStore implements SchemaChangeStore {
     }
     return reservations;
   }
+  protected async recoveryConflicts(j: postgres.Row, typeId: string, referencesChanged: boolean) {
+    const rows = await this
+      .tx`select coalesce(e.id,r.entity_id) as id from app.entities e full join private.entity_schema_migration_rows r on r.owner_id=e.owner_id and r.entity_id=e.id and r.job_id=${j.id} where (e.entity_type_id=${typeId} or r.job_id=${j.id}) and (e.id is null or r.entity_id is null or e.version<>r.committed_version or e.deleted_at is distinct from r.source_deleted_at) order by coalesce(e.id,r.entity_id) limit 20`;
+    return [
+      ...rows.map((r) => ({
+        path: `entities.${r.id}`,
+        message: "완료 후 값·태그·자료 상태·식별 또는 연결이 변경되어 자동 복구하지 않습니다",
+      })),
+      ...(referencesChanged ? [{ path: "references", message: "연결 또는 할 일·기록의 선택이 변경되었습니다" }] : []),
+    ];
+  }
   protected async recoveryFresh(c: postgres.Row, lock = true) {
     if (!c.recovery_source_job_id) return;
     const [j] = await this.tx`select * from app.entity_schema_migrations where id=${c.recovery_source_job_id} ${
@@ -100,20 +111,10 @@ export class SqlSchemaChangeStore implements SchemaChangeStore {
       this.tx.json(j.committed_references)
     }::jsonb as references`;
     if (!fresh.values || !fresh.references) {
-      const rows = await this
-        .tx`select e.id from app.entities e full join private.entity_schema_migration_rows r on r.owner_id=e.owner_id and r.entity_id=e.id and r.job_id=${j.id} where (e.entity_type_id=${c.type_id} or r.job_id=${j.id}) and (e.id is null or r.entity_id is null or e.version<>r.committed_version or e.deleted_at is distinct from r.source_deleted_at) order by coalesce(e.id,r.entity_id) limit 20`;
       throw new AppError(
         "schema_plan_stale",
         "완료 후 값·자료 구성·식별·연결 선택이 변경되었습니다. 충돌 자료를 수동 보완하고 새 변경과 분석을 준비하세요",
-        [
-          ...rows.map((r) => ({
-            path: `entities.${r.id ?? "removed"}`,
-            message: "완료 후 변경된 자료는 자동 복구하지 않습니다",
-          })),
-          ...(!fresh.references
-            ? [{ path: "references", message: "연결 또는 할 일·기록의 선택이 변경되었습니다" }]
-            : []),
-        ],
+        await this.recoveryConflicts(j, c.type_id, !fresh.references),
       );
     }
   }

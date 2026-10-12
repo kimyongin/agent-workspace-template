@@ -78,7 +78,7 @@ description: Workspace에서 다음 업무의 검토·준비안을 만들거나 
 
 `get_entity_schema_migration`으로 queued/preparing/ready_to_commit/committing/succeeded/failed/cancelled 및 processed/total, 확정 result를 확인한다. `list_entity_schema_migrations`는 type_id·limit/before로 작업을 찾는다. 접수 뒤 화면 이탈이나 timeout·lease 만료는 취소/실패 또는 새 실행의 근거가 아니다. 결과가 불명확하면 원래 job_id와 request_key를 조회·재확인하며 새 키로 자동 반복하지 않는다. 같은 종류 자료·설정·양 끝점 중 하나가 해당 종류인 연결·할 일/기록 선택 쓰기는 terminal 상태까지 차단되며 읽기·다른 종류/소유자 업무는 계속된다.
 
-요청받은 적용 전 취소는 `cancel_entity_schema_migration`에 job_id와 조회한 expected_job_version을 제출한다. committing/성공과 경쟁하면 반환된 확정 상태가 우선한다. retryable failed에만 `retry_entity_schema_migration`을 같은 job_id·expected_job_version과 새 의도 request_key로 제출한다. cancelled/stale/invalid·값 오류는 새 변경안 또는 재분석을 요구한다. 성공 원본은 30일간 소유자 범위에 보존하며 source_expires_at 이후 복구 자료는 만료된다. 완료 후 자동 복구를 실행하거나 아직 제공하지 않는 복구 도구를 호출하지 않는다.
+요청받은 적용 전 취소는 `cancel_entity_schema_migration`에 job_id와 조회한 expected_job_version을 제출한다. committing/성공과 경쟁하면 반환된 확정 상태가 우선한다. retryable failed에만 `retry_entity_schema_migration`을 같은 job_id·expected_job_version과 새 의도 request_key로 제출한다. cancelled/stale/invalid·값 오류는 새 변경안 또는 재분석을 요구한다. 성공 원본은 30일간 소유자 범위에 보존하며 source_expires_at 이후 복구 자료는 만료된다. 완료 후 자동 복구를 실행하지 않으며 요청받은 복구는 새 초안과 분석으로 시작한다.
 
 정확한 입력·출력·부수효과는 연결된 MCP의 도구 설명을 따른다. 사용자가 이 이름을 선택할 필요는 없다.
 

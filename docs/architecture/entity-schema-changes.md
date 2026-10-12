@@ -50,6 +50,9 @@ create/PATCH는 `migration: {rules, overrides}`를 받는다. fingerprint에는 
 | POST .../:change_id/analyze | analyze_entity_schema_change | 202 durable snapshot 분석 접수 |
 | GET .../:change_id | get_entity_schema_change | 상태·freshness·counts·fingerprint |
 | GET .../:change_id/rows | list_entity_schema_analysis_rows | bounded before/after·실패 페이지 |
+| POST /entity-schema-migrations/:job_id/recovery-changes | create_entity_schema_recovery | 원본·현재 버전 확인 후 새 복구 draft만 생성 |
+| POST .../:change_id/migrations | start_entity_schema_migration | 최신 분석·fingerprint로 정상 값 변환 접수 |
+| GET /entity-schema-migrations/:job_id | get_entity_schema_migration | 결과·보존 기한·복구 가능 여부 조회 |
 
 ## 타입별 목록과 기록 소비자
 

@@ -164,6 +164,118 @@ httpTest(
         prop_1: "source",
         prop_2: false,
       });
+      const recoveryPath = `/entity-schema-migrations/${secondId}/recovery-changes`;
+      const refs = {
+        expected_job_version: done.version,
+        expected_type_version: done.recovery.current_type_version,
+        expected_schema_version: done.recovery.current_schema_version,
+      };
+      assertEquals(done.recovery.status, "available");
+      assertEquals((await call(token, "POST", recoveryPath, refs, null)).status, 400);
+      assertEquals((await call(other, "POST", recoveryPath, refs)).status, 404);
+      assertEquals((await call(token, "POST", recoveryPath, { ...refs, target: {} })).status, 400);
+      const recoveryKey = crypto.randomUUID(), draft = await call(token, "POST", recoveryPath, refs, recoveryKey);
+      assertEquals(draft.status, 201);
+      assertEquals(draft.body.status, "draft");
+      assertEquals(
+        await tool(client, "create_entity_schema_recovery", { job_id: secondId, ...refs, request_key: recoveryKey }),
+        draft.body,
+      );
+      assertEquals(
+        (await call(token, "GET", `/entities/${encodeURIComponent(entityId!)}`)).body.properties.prop_2,
+        false,
+      );
+      await tool(client, "analyze_entity_schema_change", {
+        type_id: typeId,
+        change_id: draft.body.id,
+        expected_change_version: 1,
+      });
+      for (let n = 0; n < 4; n++) {
+        const [r] = await worker`select app.claim_entity_schema_analysis() as batch`;
+        if (!r.batch) break;
+        const b = r.batch, convert = compileMigration(b.target, b.migration, b.recovery_keys);
+        await worker`select app.complete_entity_schema_analysis_batch(${b.id},${b.fence},${
+          worker.json(
+            b.rows.map((
+              r: {
+                entity_id: string;
+                properties: Record<string, unknown>;
+                recovery_properties: Record<string, unknown>;
+              },
+            ) => convert(r.entity_id, r.properties, r.recovery_properties)),
+          )
+        })`;
+      }
+      const recoveredPlan = (await call(token, "GET", `/entity-types/${typeId}/schema-changes/${draft.body.id}`)).body;
+      assert(recoveredPlan.executable);
+      const rows = await tool(client, "list_entity_schema_analysis_rows", {
+        type_id: typeId,
+        change_id: draft.body.id,
+        analysis_id: recoveredPlan.analysis.id,
+      });
+      assertEquals(rows.items[0].after, { prop_1: "source" });
+      const recovered = await tool(client, "start_entity_schema_migration", {
+        type_id: typeId,
+        change_id: draft.body.id,
+        expected_change_version: 1,
+        expected_type_version: refs.expected_type_version,
+        expected_schema_version: refs.expected_schema_version,
+        analysis_id: recoveredPlan.analysis.id,
+        fingerprint: recoveredPlan.fingerprint,
+        request_key: crypto.randomUUID(),
+      });
+      for (let n = 0; n < 4; n++) {
+        const [r] = await worker`select app.claim_entity_schema_migration() as batch`;
+        const b = r.batch;
+        assertEquals(b.id, recovered.job_id);
+        if (b.status === "committing") {
+          await worker`select app.commit_entity_schema_migration(${b.id},${b.fence},${b.source_template_fingerprint},${SEARCH_PIPELINE})`;
+          break;
+        }
+        const prepared = await prepareMigrationBatch(b);
+        await worker`select app.stage_entity_schema_migration(${b.id},${b.fence},${worker.json(prepared.results)})`;
+      }
+      assertEquals(
+        (await call(token, "GET", `/entity-schema-migrations/${recovered.job_id}`)).body.status,
+        "succeeded",
+      );
+      assertEquals((await call(token, "GET", `/entities/${encodeURIComponent(entityId!)}`)).body.properties, {
+        prop_1: "source",
+      });
+      const newer = (await call(token, "GET", `/entity-schema-migrations/${recovered.job_id}`)).body;
+      await call(token, "PATCH", `/entities/${encodeURIComponent(entityId!)}`, {
+        expected_version: 3,
+        schema_version: 3,
+        properties: { prop_1: "later value" },
+      });
+      const staleRefs = {
+        expected_job_version: newer.version,
+        expected_type_version: newer.recovery.current_type_version,
+        expected_schema_version: newer.recovery.current_schema_version,
+      };
+      const staleHttp = await call(
+        token,
+        "POST",
+        `/entity-schema-migrations/${recovered.job_id}/recovery-changes`,
+        staleRefs,
+      );
+      assertEquals(staleHttp.status, 409);
+      assertEquals(staleHttp.body.code, "schema_plan_stale");
+      const staleMcp = await tool(client, "create_entity_schema_recovery", { job_id: recovered.job_id, ...staleRefs });
+      assertEquals(staleMcp.error.code, "schema_plan_stale");
+      await admin`update app.entity_schema_migrations set source_expires_at=now()-interval '1 second' where id=${recovered.job_id}`;
+      const expiredHttp = await call(
+        token,
+        "POST",
+        `/entity-schema-migrations/${recovered.job_id}/recovery-changes`,
+        staleRefs,
+      );
+      assertEquals(expiredHttp.status, 410);
+      assertEquals(expiredHttp.body.code, "migration_source_expired");
+      assertEquals(
+        (await tool(client, "create_entity_schema_recovery", { job_id: recovered.job_id, ...staleRefs })).error.code,
+        "migration_source_expired",
+      );
     } finally {
       await client.close();
       await worker.end();

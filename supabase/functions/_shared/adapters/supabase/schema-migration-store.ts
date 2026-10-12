@@ -53,6 +53,7 @@ export class SqlSchemaMigrationStore extends SqlSchemaChangeStore implements Sch
   }
   private async recoveryAvailability(j: postgres.Row, t: postgres.Row) {
     let status: "available" | "expired" | "unavailable" | "conflict" = "available", reason: string | null = null;
+    let conflicts: Array<{ path: string; message: string }> = [];
     if (j.status !== "succeeded") {
       status = "unavailable";
       reason = "성공한 작업에서만 복구안을 만들 수 있습니다";
@@ -74,6 +75,8 @@ export class SqlSchemaMigrationStore extends SqlSchemaChangeStore implements Sch
           this.tx.json(j.committed_references)
         }::jsonb as references`;
         if (!b.values || !b.references || t.archived) {
+          conflicts = await this.recoveryConflicts(j, t.id, !b.references);
+          if (t.archived) conflicts.push({ path: "type.archived", message: "보관된 자료 종류를 먼저 복원하세요" });
           status = "conflict";
           reason = t.archived
             ? "보관된 자료 종류를 먼저 복원하세요"
@@ -84,12 +87,23 @@ export class SqlSchemaMigrationStore extends SqlSchemaChangeStore implements Sch
     return {
       status,
       reason,
+      conflicts,
       current_type_version: Number(t.version),
       current_schema_version: Number(t.schema_version),
     };
   }
   async createRecovery(id: string, i: Parameters<SchemaMigrationStore["createRecovery"]>[1]) {
-    const identity = await this.job(id), t = await this.lockType(identity.type_id), j = await this.job(id, true);
+    const identity = await this.job(id);
+    // Owner access precedes the type lock; expiry is checked before the active-job gate.
+    await this.tx`select id from app.entity_types where id=${identity.type_id} for update`;
+    const j = await this.job(id, true);
+    if (j.status === "succeeded" && j.source_expires_at <= new Date()) {
+      throw new AppError(
+        "migration_source_expired",
+        "복구 원본의 30일 보관 기간이 지났습니다. 현재 자료로 새 변경을 준비하세요",
+      );
+    }
+    const t = await this.lockType(identity.type_id);
     this.sourceRefs(t, i);
     if (j.version !== i.expected_job_version) throw conflict("작업 버전이 변경되었습니다. 다시 조회하세요");
     const available = await this.recoveryAvailability(j, t);
