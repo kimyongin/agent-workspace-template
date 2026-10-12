@@ -7,10 +7,10 @@ import type { Recurrence } from "../../contracts/task.ts";
 export interface ChangeFacts {
   source?: string;
   external_id?: string;
-  prop1?: string;
-  prop2?: number | null;
-  prop3?: string | null;
-  prop4?: "a" | "b" | "c";
+  entity_type_id?: string;
+  schema_version?: number;
+  properties?: Record<string, string | number | boolean | null>;
+  property_labels?: Record<string, string>;
   title?: string;
   body?: string;
   status?: "open" | "done" | "active" | "stopped";

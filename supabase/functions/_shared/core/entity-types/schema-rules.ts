@@ -152,7 +152,10 @@ export function validateEntityProperties(
       }
     }
   }
-  if (new TextEncoder().encode(JSON.stringify(result)).length > limits.properties_bytes) {
+  // JSONB's canonical text adds a space after each colon/comma. Properties contain
+  // scalar values only, so this matches the database guard without parsing strings.
+  const canonicalBytes = new TextEncoder().encode(JSON.stringify(result)).length + Math.max(0, 2 * Object.keys(result).length - 1);
+  if (canonicalBytes > limits.properties_bytes) {
     fail("properties", "속성 값은 64 KiB 이하입니다");
   }
   const check = ajv.compile(schema);

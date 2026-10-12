@@ -38,15 +38,18 @@ export function entityRoutes(d: entity.EntityDeps) {
   );
   app.patch(
     "/entities/:id",
-    async (c) =>
-      c.json(
+    async (c) => {
+      const input = await json(c.req.raw);
+      entity.assertImmutableType(input);
+      return c.json(
         await entity.updateEntity(
           d,
           c.get("actor"),
           idParam(c.req.param("id")),
-          parse(entityUpdate, await json(c.req.raw)),
+          parse(entityUpdate, input),
         ),
-      ),
+      );
+    },
   );
   return app;
 }

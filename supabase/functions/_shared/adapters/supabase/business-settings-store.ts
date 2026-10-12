@@ -13,9 +13,11 @@ import { conflict } from "../../core/shared/errors.ts";
 import { runAsActor } from "./sql-context.ts";
 import { templateFields, type TemplateModel } from "../../contracts/record-template.ts";
 import type { ChangeFacts } from "../../core/shared/changes.ts";
+import { entityPresentation, loadEntityDefinition } from "./entity-values.ts";
 
 export class SqlBusinessSettingsStore implements BusinessSettingsStore {
   constructor(private readonly tx: postgres.TransactionSql, private readonly actor: Actor) {}
+  definition(typeId: string, lock = false) { return loadEntityDefinition(this.tx,typeId,lock); }
   executeRequest<T>(request: RequestIdentity, execute: () => Promise<T>): Promise<T> {
     return executeSqlRequest(this.tx, this.actor, request, execute);
   }
@@ -59,7 +61,9 @@ export class SqlBusinessSettingsStore implements BusinessSettingsStore {
     const [row] = await this.tx`select * from app.${this.tx(table)} where id=${id}`;
     if (!row) return null;
     if (model === "principle" && !row.is_current) return null;
-    const facts = Object.fromEntries(
+    const facts = model === "entity" ? { source:row.source,external_id:row.external_id,entity_type_id:row.entity_type_id,
+      schema_version:Number(row.schema_version),properties:row.properties,
+      title:(await entityPresentation(this.tx,row.entity_type_id,Number(row.schema_version),row.properties)).title } : Object.fromEntries(
       Object.values(templateFields[model]).map(
         (field) => [field, row[field] instanceof Date ? row[field].toISOString().slice(0, 10) : row[field]],
       ),
