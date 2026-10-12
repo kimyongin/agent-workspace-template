@@ -1,3 +1,5 @@
+import { scalarFixtureType, fixtureEntityList } from "./entity-schema-support.ts";
+import { mcpClient, mcpTokenViaConsent } from "./support.ts";
 // Real browser + HTTP commit evidence. Only the response is lost; writes reach the local server.
 import postgres from "postgres";
 import { expect, test, type Page } from "@playwright/test";
@@ -96,7 +98,7 @@ async function loseCommittedReply(page: Page, method: string, path: string, stat
       const payload = JSON.parse(requests[0].body!);
       for (const value of Object.values(persisted)) {
         expect(value).not.toContain(requests[0].body!);
-        for (const field of ["body", "change_note", "prop1"]) if (payload[field]) expect(value).not.toContain(payload[field]);
+        for (const text of [payload.body, payload.change_note, payload.properties?.prop_1]) if (text) expect(value).not.toContain(text);
       }
       await confirmation.getByRole("button", { name: "같은 내용 다시 시도", exact: true }).click();
       await expect(confirmation).not.toBeVisible();
@@ -168,8 +170,11 @@ test("external entity restore retries the committed tuple and settings lookup al
   let id: string | undefined;
   try {
     const settings = await proof.api("GET", "/settings/business?id=entity_identity");
+    const fixtureMcp = await mcpClient(await mcpTokenViaConsent(page));
+    const type = await scalarFixtureType(fixtureMcp);
+    await fixtureMcp.close();
     const source = settings.settings.entity_identity.default_source;
-    const entity = await proof.api("POST", "/entities", { source, external_id, settings_version: settings.versions.entity_identity, prop1: title, prop2: 0, prop4: "a" });
+    const entity = await proof.api("POST", "/entities", { source, external_id, settings_version: settings.versions.entity_identity, entity_type_id:type.id,schema_version:type.schema_version,properties:{prop_1:title,prop_2:0,prop_4:"a"} });
     id = entity.id;
     await proof.api("POST", `/entities/${encodeURIComponent(id!)}/delete`, { expected_version: entity.version });
     const before = await proof.preparationState();
@@ -183,14 +188,14 @@ test("external entity restore retries the committed tuple and settings lookup al
     expect(retained.version).toBe(2);
     expect(retained.deleted_at).toBeTruthy();
     expect(await proof.preparationState()).toEqual(before);
-    await page.goto("/entities");
-    await beginTabAction(page, "엔터티 추가");
-    const form = page.getByRole("dialog", { name: "엔터티 추가", exact: true });
+    await page.goto(fixtureEntityList(type.id));
+    await beginTabAction(page, "검사 자료 추가");
+    const form = page.getByRole("dialog", { name: /^검사 자료.* 추가$/, exact: true });
     await expect(form.getByLabel("식별자")).toBeEnabled();
     await form.getByLabel("식별자").fill(external_id);
     await form.getByRole("button", { name: "기존 대상 확인", exact: true }).click();
-    const restore = page.getByRole("dialog", { name: "엔터티 복원", exact: true });
-    await expect(restore.getByLabel("속성 1")).toHaveValue(title);
+    const restore = page.getByRole("dialog", { name: `${type.label} 복원`, exact: true });
+    await expect(restore.getByLabel("제목")).toHaveValue(title);
     await fillChangeMemo(page, restore, unique("복원 메모"));
     expect(await proof.preparationState()).toEqual(before);
     const lostRestore = await loseCommittedReply(page, "POST", "/entities", 201);

@@ -161,13 +161,13 @@ export function TaskEntityRelations(
   return (
     <RelationControls key={task.id} task={task} onSaved={onSaved}>
       {({ search, button, unlink }) => (
-        <RelatedSection title="엔터티" count={task.entity_ids.length} action={button}>
+        <RelatedSection title="자료" count={task.entity_ids.length} action={button}>
           {search}
           <CollectionList>
             {task.entity_ids.map((id) => {
               const item = {
                 id,
-                title: task.entity_context.find((item) => item.id === id)?.title ?? "엔터티",
+                title: task.entity_context.find((item) => item.id === id)?.title ?? "자료",
               };
               return (
                 <li key={id}>

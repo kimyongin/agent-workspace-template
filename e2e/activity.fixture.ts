@@ -1,3 +1,4 @@
+import { entity as makeEntity, fixtureType, fixtureSchema, entityKey } from "./support/workspace-data.ts";
 import { fulfillPreparation } from "./support/preparation-api.ts";
 import { openListEditor, openDetailEditor, openListDetail, openTabFilters } from "./ui-actions.ts";
 import { fillChangeMemo } from "./ui-actions.ts";
@@ -60,7 +61,7 @@ for (const kind of ["tasks", "records"] as const) test(`${kind} 탭은 자기 �
 });
 
 for(const [kind,condition] of [["tasks","kind=once"],["tasks","status=done"],["records","record_kind=change"],["records",`entity_id=${id(8)}`]] as const) test(`${kind} 종류·상태·대상 필터 ${condition}의 빈 결과는 계정에 자료가 없다는 안내와 구분한다`,async({page})=>{
-  await page.route("http://127.0.0.1:55581/api/**",route=>route.fulfill({json:new URL(route.request().url()).pathname.endsWith(`/entities/${id(8)}`)?{id:id(8),prop1:"조건 대상",prop2:null,prop3:null,prop4:"a",version:1}:{items:[],next_cursor:null}}));
+  await page.route("http://127.0.0.1:55581/api/**",route=>route.fulfill({json:new URL(route.request().url()).pathname.endsWith(`/entities/${entityKey(8)}`)?makeEntity(8, {prop_1:"조건 대상"}):{items:[],next_cursor:null}}));
   await page.goto(`/e2e/fixtures/activity.html?route=`+encodeURIComponent(`/${kind}?${condition}`));
   await expect(page.getByText(`조건에 맞는 ${kind==="tasks"?"할 일":"기록"}이 없습니다.`,{exact:true})).toBeVisible();
   await expect(page.getByText(`아직 ${kind==="tasks"?"할 일":"기록"}이 없습니다.`,{exact:true})).toHaveCount(0);
@@ -93,15 +94,15 @@ test("옛 반대 목록 anchor는 같은 기록 ID와 초점으로 명시 변환
 });
 
 test("연결 카드 행동은44px 누름 영역이고 클릭·키보드로 연결/해제한다",async({page})=>{
-  const entity={id:id(8),prop1:"함",prop2:null,prop3:null,prop4:"a",version:1};
+  const entity=makeEntity(8,{prop_1:"함"});
   await page.route("http://127.0.0.1:55581/api/**",route=>route.fulfill({json:{items:new URL(route.request().url()).pathname.endsWith("/entities")?[entity]:[],next_cursor:null}}));
   await page.goto("/e2e/fixtures/activity.html?route=/records?create=1");
-  await page.getByRole("button",{name:"엔터티 연결",exact:true}).click();await page.getByRole("searchbox",{name:"엔터티 제목 검색",exact:true}).fill("함");
+  await page.getByRole("button",{name:"자료 연결",exact:true}).click();await page.getByRole("searchbox",{name:"자료 제목 검색",exact:true}).fill("함");
   for(const width of [320,360,390,639,640,768,1024,1440]){
     await page.setViewportSize({width,height:900});const connect=page.getByRole("button",{name:"함 연결",exact:true});await expect(connect).toBeEnabled();
     const box=(await connect.boundingBox())!;expect(box.width).toBeGreaterThanOrEqual(44);expect(box.height).toBeGreaterThanOrEqual(44);
     await connect.click();const unlink=page.getByRole("button",{name:"함 해제",exact:true});await expect(unlink).toBeFocused();
-    await page.keyboard.press("Space");await expect(unlink).toHaveCount(0);await expect(page.getByRole("searchbox",{name:"엔터티 제목 검색"})).toBeFocused();
+    await page.keyboard.press("Space");await expect(unlink).toHaveCount(0);await expect(page.getByRole("searchbox",{name:"자료 제목 검색"})).toBeFocused();
     expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
   }
 });

@@ -38,7 +38,7 @@ export const fixtureSchema = (() => {
   definition.display.list_columns.push("prop_2");
   return { ...definition, type_id: fixtureType.id, type: fixtureType, type_version: 1, schema_version: 1 };
 })();
-export const entity = (n = 1): EntityDetail => ({
+export const entity = (n = 1, properties: Partial<EntityDetail["properties"]> = {}): EntityDetail => ({
   ...identity(n),
   id: entityKey(n),
   source: "app",
@@ -49,9 +49,9 @@ export const entity = (n = 1): EntityDetail => ({
   type: fixtureType,
   schema_version: 1,
   current_schema_version: 1,
-  title: "자료",
-  properties: { prop_1: "자료", prop_2: 0, prop_3: null, prop_4: "a" },
-  display_properties: { prop_1: "자료", prop_2: 0 },
+  title: String(properties.prop_1 ?? "자료"),
+  properties: { prop_1: "자료", prop_2: 0, prop_3: null, prop_4: "a", ...properties },
+  display_properties: { prop_1: properties.prop_1 ?? "자료", prop_2: properties.prop_2 ?? 0 },
   tag_ids: [],
   tasks: { count: 0, items: [] },
   records: { count: 0, items: [] },

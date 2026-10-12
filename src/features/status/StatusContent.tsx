@@ -156,9 +156,9 @@ export function StatusContent({ data, children }: { data: StatusOverview; childr
         {entities.total + tasks.total + records.total === 0 && (
           <p className="secondary">아직 보관한 자료가 없습니다. 활동이 없는 날짜는 0으로 표시합니다.</p>
         )}
-        <section className="status-domain" aria-label="엔터티 현황">
+        <section className="status-domain" aria-label="자료 현황">
           <Summary
-            title="엔터티"
+            title="자료"
             total={entities.total}
             values={[["활성", entities.active], ["삭제 보관", entities.deleted]]}
           />

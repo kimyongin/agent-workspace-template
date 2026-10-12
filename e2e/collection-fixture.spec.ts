@@ -6,7 +6,7 @@ import {installWorkspaceApi} from "./support/workspace-api.ts";
 import {closeDetail} from "./ui-actions.ts";
 const task={...makeTask(),title:"다음 상담 준비",body:"필요한 자료를 준비합니다.",due_on:"2026-10-12",entity_ids:[entityKey(1)],entity_context:[{id:entityKey(1),title:"김민수",source:"selection" as const,captured_at:stamp}]};
 const record={...makeRecord(),body:"상담 내용을 정리하고 다음 방문 일정을 확인했습니다.",task_id:id(2),entity_ids:[entityKey(1)],entity_context:task.entity_context};
-const entity={...makeEntity(),prop1:"김민수",prop3:"2026-10-08",tasks:{count:1,items:[task]},records:{count:1,items:[record]}};
+const entity={...makeEntity(1, {prop_1:"김민수",prop_3:"2026-10-08"}),tasks:{count:1,items:[task]},records:{count:1,items:[record]}};
 const user = { id: id(100), aud: "authenticated", email: "fixture@example.test", app_metadata: {}, user_metadata: { workspace_timezone: "Asia/Seoul" } };
 
 async function fixture(page: Page, records = [record]) {
@@ -22,7 +22,7 @@ async function fixture(page: Page, records = [record]) {
   return state;
 }
 
-for (const [kind, label, title] of [["entities", "엔터티", entity.prop1], ["tasks", "할 일", task.title], ["records", "기록", record.body]] as const) test(`${kind}: views keep filters, list reads and disclosure/detail return`, async ({ page }) => {
+for (const [kind, label, title] of [["entities", "전체 자료", entity.title], ["tasks", "할 일", task.title], ["records", "기록", record.body]] as const) test(`${kind}: views keep filters, list reads and disclosure/detail return`, async ({ page }) => {
   const state = await fixture(page);
   await page.goto(`/${kind}`);
   const list = page.getByRole("region", { name: `${label} 목록`, exact: true });
@@ -227,7 +227,7 @@ for (const action of ["delete", "create"] as const) test(`unavailable change tar
   const tasks=detail.getByRole("region",{name:"할 일 (1개)"});
   const badge=action==="delete"?"삭제됨":"조회 불가";
   await expect(tasks.getByText(badge,{exact:true})).toBeVisible();
-  await expect(detail.getByRole("region",{name:"엔터티 (1개)"})).toBeVisible();
+  await expect(detail.getByRole("region",{name:"연결된 자료 (1개)"})).toBeVisible();
   for(const view of ["리스트","카드","테이블"]){
     await tasks.getByRole("radio",{name:view,exact:true}).click();
     await expect(tasks.getByText(badge,{exact:true})).toBeVisible();
@@ -283,7 +283,7 @@ test("responsive brand aligns desktop title and menu/search gaps, with icon-only
 
 test("closed filters show conditions below search and opening hides the summary", async ({ page }) => {
   await fixture(page);
-  for (const [path, condition] of [["/entities?prop4=a", "속성 4: a"], ["/tasks?status=done", "상태: 완료"], ["/records?record_kind=change", "종류: 변경 기록"]]) {
+  for (const [path, condition] of [["/entities?entity_type_id=00000000-0000-4000-8000-000000000900&property_filters=%5B%7B%22key%22%3A%22prop_4%22%2C%22operator%22%3A%22eq%22%2C%22value%22%3A%22a%22%7D%5D", "분류: a"], ["/tasks?status=done", "상태: 완료"], ["/records?record_kind=change", "종류: 변경 기록"]]) {
     await page.goto(path);
     const summary = page.getByLabel("적용된 필터", {exact:true});
     await expect(summary).toContainText(condition);
@@ -295,15 +295,15 @@ test("closed filters show conditions below search and opening hides the summary"
 });
 
 test("soft-deleted entity returned by GET keeps historical relation without a detail link", async ({page}) => {
-  const history={...record,record_kind:"change" as const,change:{target_kind:"entity" as const,target_id:entity.id,target_title:entity.prop1,action:"delete" as const,source:"http" as const,event_id:id(90),path:null,before:null,after:null}};
+  const history={...record,record_kind:"change" as const,change:{target_kind:"entity" as const,target_id:entity.id,target_title:entity.title,action:"delete" as const,source:"http" as const,event_id:id(90),path:null,before:null,after:null}};
   const state=await fixture(page,[history]);
   state.rows.entities[0].deleted_at="2026-10-10T00:00:00Z";
   await page.goto(`/records/${history.id}`);
-  const section=page.getByRole("dialog").getByRole("region",{name:"엔터티 (1개)",exact:true});
+  const section=page.getByRole("dialog").getByRole("region",{name:"연결된 자료 (1개)",exact:true});
   await expect(section.getByText("삭제됨",{exact:true})).toBeVisible();
-  await section.getByRole("button",{name:entity.prop1,exact:true}).click();
+  await section.getByRole("button",{name:entity.title,exact:true}).click();
   await expect(section).toContainText("기록에 저장된 당시 제목");
-  await expect(section.getByRole("link",{name:entity.prop1+" 상세",exact:true})).toHaveCount(0);
+  await expect(section.getByRole("link",{name:entity.title+" 상세",exact:true})).toHaveCount(0);
   expect(state.writes).toEqual([]);
 });
 

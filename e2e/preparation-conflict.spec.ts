@@ -1,3 +1,4 @@
+import { createFixtureEntity, scalarFixtureType, fixtureEntityList } from "./entity-schema-support.ts";
 import { expect, test } from "@playwright/test";
 import { devLogin, mcpClient, mcpTokenViaConsent, unique } from "./support.ts";
 import { savePrinciple } from "./principle-support.ts";
@@ -14,12 +15,11 @@ for (const model of ["entity", "task", "principle"] as const) {
       try {
         if (model === "entity") {
           const setting = await mcp.call("get_business_settings", { id: "entity_identity" });
-          target = await mcp.call("create_entity", { source: setting.settings.entity_identity.default_source,
-            settings_version: setting.versions.entity_identity, prop1: title, prop2: 0 });
+          target = await createFixtureEntity(mcp, { prop_1: title, prop_2: 0 }, { source: setting.settings.entity_identity.default_source, settings_version: setting.versions.entity_identity });
         } else if (model === "task") target = await mcp.call("create_task", { kind: "once", title });
         else target = await savePrinciple(mcp, { title });
         const list = model === "entity" ? "entities" : model === "task" ? "tasks" : "principles";
-        const inputLabel = model === "entity" ? "속성 1" : "제목";
+        const inputLabel = model === "entity" ? "제목" : "제목";
         await page.goto(`/${list}/${encodeURIComponent(target!.id)}`);
         await openDetailEditor(page);
         const editor = page.locator("dialog.modal:not(.modal-confirm)[open]");
@@ -29,7 +29,7 @@ for (const model of ["entity", "task", "principle"] as const) {
           await expect(editor.getByRole("button", { name: "수정하고 저장", exact: true })).toBeEnabled();
         }
         const updated = await mcp.call(`update_${model}`, { id: target!.id, expected_version: target!.version,
-          ...(model === "entity" ? { prop1: latest, prop2: 10 } : { title: latest, body: "다른 접점의 최신 본문" }),
+          ...(model === "entity" ? { schema_version: (await scalarFixtureType(mcp)).schema_version, properties: { prop_1: latest, prop_2: 10 } } : { title: latest, body: "다른 접점의 최신 본문" }),
           change_note: "실제 MCP 변경과 웹 초안 충돌 검증" });
         if (model === "task") {
           const completed = await mcp.call("complete_task", { id: target!.id, expected_version: updated.version, body: "충돌 검증용 완료 결과" });
@@ -51,7 +51,7 @@ for (const model of ["entity", "task", "principle"] as const) {
         await saveOnce(page, editor);
         await expect(editor.getByRole("button", { name: "편집", exact: true })).toBeVisible();
         const saved = await mcp.call(`get_${model}`, { id: target!.id });
-        expect(saved[model === "entity" ? "prop1" : "title"]).toBe(`${title} 재검토`);
+        expect(saved.title).toBe(`${title} 재검토`);
       } finally {
         try {
           if (resultId) {

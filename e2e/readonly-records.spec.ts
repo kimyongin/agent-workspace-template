@@ -50,7 +50,7 @@ test("읽기·검색·네 탭 이동·상세 닫기는 계정 기록 원문과 �
     await expect(page.getByRole("heading", { name: "할 일", level: 1 })).toBeVisible();
     const navigation = page.getByRole("navigation", { name: "주 메뉴" });
     await expect(navigation.getByRole("link")).toHaveCount(4);
-    for (const [name, path] of [["엔터티", "/entities"], ["할 일", "/tasks"], ["기록", "/records"], ["원칙", "/principles/current"]]) {
+    for (const [name, path] of [["전체 자료", "/entities"], ["할 일", "/tasks"], ["기록", "/records"], ["원칙", "/principles/current"]]) {
       const response = page.waitForResponse(response => response.request().method() === "GET" && new URL(response.url()).pathname.endsWith(path));
       await navigation.getByRole("link", { name, exact: true }).click();
       const read = await response;

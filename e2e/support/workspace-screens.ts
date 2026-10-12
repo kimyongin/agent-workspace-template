@@ -48,9 +48,13 @@ export async function fixtures(
   return installWorkspaceApi(page, "http://127.0.0.1:55581", rows, options);
 }
 
-export const go = async (page: Page, path: string) => page.goto(path);
+export const go = async (page: Page, path: string) => {
+  const url = new URL(path, "http://fixture.test");
+  if (url.pathname === "/entities" && !url.searchParams.has("entity_type_id")) url.searchParams.set("entity_type_id", "00000000-0000-4000-8000-000000000900");
+  return page.goto(url.pathname + url.search + url.hash);
+};
 
-export const form = (page: Page) => page.locator("dialog.modal:not(.modal-confirm)[open]");
+export const form = (page: Page) => page.locator("dialog.modal:not(.modal-confirm)[open]:visible");
 
 export function linkedFixture(state: Awaited<ReturnType<typeof fixtures>>) {
   Object.assign(state.rows.entities[0], {

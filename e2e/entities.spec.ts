@@ -1,3 +1,6 @@
+import { setEntityCategory } from "./ui-actions.ts";
+import { entity as makeEntity } from "./support/workspace-data.ts";
+import { createFixtureEntity, scalarFixtureType, fixtureEntityList } from "./entity-schema-support.ts";
 import { fillChangeMemo } from "./ui-actions.ts";
 import { saveOnce, beginTabAction, openDetailEditor, openListDetail, openTabFilters, closeDetail } from "./ui-actions.ts";
 import { expect, test } from "@playwright/test";
@@ -5,20 +8,23 @@ import { devLogin, mcpClient, mcpTokenViaConsent, unique } from "./support.ts";
 
 test("Entity 웹 CRUD·초안 보호→MCP parity·활동 연결→삭제 원문 보존", async ({ page }) => {
   await devLogin(page);
-  await page.getByRole("link", { name: "엔터티", exact: true }).click();
-  await beginTabAction(page,"엔터티 추가");
-  const form = page.getByRole("dialog", { name: "엔터티 추가" }),
+  const fixtureMcp = await mcpClient(await mcpTokenViaConsent(page));
+  const fixtureType = await scalarFixtureType(fixtureMcp);
+  await page.goto(fixtureEntityList(fixtureType.id));
+  await fixtureMcp.close();
+  await beginTabAction(page,"검사 자료 추가");
+  const form = page.getByRole("dialog", { name: /^검사 자료.* 추가$/ }),
     name = unique("예제 엔터티");
-  await form.getByLabel("속성 1").fill(name);
-  await form.getByLabel("속성 2").fill("0");
-  await form.getByLabel("속성 3").fill("2024-02-29");
-  await form.getByLabel("속성 4").selectOption("b");
+  await form.getByLabel("제목").fill(name);
+  await form.getByLabel("수량").fill("0");
+  await form.getByLabel("날짜").fill("2024-02-29");
+  await form.getByLabel("분류").selectOption("b");
   await form.getByRole("button", {name:"닫기",exact:true}).click();
   await page.getByRole("dialog", { name: "변경을 버릴까요?" }).getByRole(
     "button",
     { name: "취소", exact: true },
   ).click();
-  await expect(form.getByLabel("속성 1")).toHaveValue(name);
+  await expect(form.getByLabel("제목")).toHaveValue(name);
   await saveOnce(page, form);
   await expect(form).not.toBeVisible();await expect(page).toHaveURL(/\/entities\/[^/?]+%3A[0-9]{8}-[0-9A-Z]{8}(?:\?|$)/);
   await expect(page.getByRole("heading",{name,exact:true})).toBeVisible();
@@ -26,8 +32,8 @@ test("Entity 웹 CRUD·초안 보호→MCP parity·활동 연결→삭제 원문
   const mcp = await mcpClient(await mcpTokenViaConsent(page));
   try {
     const e = await mcp.call("get_entity", { id });
-    expect(e.prop2).toBe(0);
-    expect(e.prop3).toBe("2024-02-29");
+    expect(e.properties.prop_2).toBe(0);
+    expect(e.properties.prop_3).toBe("2024-02-29");
     const task = await mcp.call("create_task", {
       kind: "once",
       title: unique("연결 행동"),
@@ -36,7 +42,7 @@ test("Entity 웹 CRUD·초안 보호→MCP parity·활동 연결→삭제 원문
     });
     const unrelated = await mcp.call("create_task", { kind: "once", title: task.title + " 외부", body: "별도" });
     await page.goto(`/search?q=${encodeURIComponent(task.title)}&mode=keyword&kind=task`);
-    await page.getByText("검색 조건",{exact:false}).first().click(); await page.getByLabel("엔터티", { exact: true }).selectOption(id);
+    await page.getByText("검색 조건",{exact:false}).first().click(); await page.getByLabel("전체 자료", { exact: true }).selectOption(id);
     await expect(page.locator(".list .item-title")).toHaveCount(1);
     expect(new URL(page.url()).searchParams.get("entity_id")).toBe(id);
     await page.getByRole("link", { name: task.title, exact: true }).click();
@@ -63,27 +69,27 @@ test("Entity 웹 CRUD·초안 보호→MCP parity·활동 연결→삭제 원문
     await page.goto(`/tasks/${task.id}`);
     await openDetailEditor(page);
     const editTask = page.getByRole("dialog", { name: "할 일 편집" });
-    await expect(editTask.getByRole("searchbox", { name: "엔터티 제목 검색" })).toHaveCount(0);
+    await expect(editTask.getByRole("searchbox", { name: "자료 제목 검색" })).toHaveCount(0);
     expect((await mcp.call("get_task", { id: task.id })).entity_ids).toEqual([id]);
     await closeDetail(page, task.title);
     await page.goto(`/entities/${encodeURIComponent(id)}`);
     await openDetailEditor(page);
-    const edit = page.getByRole("dialog", { name: "엔터티 편집" });
-    await edit.getByLabel("속성 2").fill("10");
+    const edit = page.getByRole("dialog", { name: /^검사 자료.* 편집$/ });
+    await edit.getByLabel("수량").fill("10");
     await fillChangeMemo(page,edit,"실측 반영");
     await saveOnce(page, edit);
     await expect(edit).not.toBeVisible();
-    expect((await mcp.call("get_entity", { id })).prop2).toBe(10);
+    expect((await mcp.call("get_entity", { id })).properties.prop_2).toBe(10);
     await page.goto(`/entities/${encodeURIComponent(id)}`);
     await openDetailEditor(page);
     await page.getByRole("button", { name: "삭제", exact: true }).click();
     const remove = page.locator("dialog.modal-action[open]");
     await remove.getByRole("button", { name: "취소", exact: true }).click();
-    await expect(page.locator("dialog.modal:not(.modal-confirm)[open]").getByLabel("속성 1")).toHaveValue(name);
+    await expect(page.locator("dialog.modal:not(.modal-confirm)[open]").getByLabel("제목")).toHaveValue(name);
     await page.getByRole("button", { name: "삭제", exact: true }).click();
     await saveOnce(page,page.locator("dialog.modal-action[open]"),"삭제 확인");
     await expect(
-      page.getByRole("heading", { name: "엔터티", level: 1, exact: true }),
+      page.getByRole("heading", { name: "전체 자료", level: 1, exact: true }),
     )
       .toBeVisible();
     const current = await mcp.call("get_task", { id: task.id });
@@ -101,7 +107,7 @@ test("Entity 웹 CRUD·초안 보호→MCP parity·활동 연결→삭제 원문
 test("엔터티 관련 기록 취소: 작성 URL·reload·메모와 변경 이벤트 무쓰기",async({page})=>{
   await devLogin(page);const mcp=await mcpClient(await mcpTokenViaConsent(page));
   try{
-    const entity=await mcp.call("create_entity",{prop1:unique("연결 취소"),prop2:0,prop4:"a"});
+    const entity=await createFixtureEntity(mcp, {prop_1:unique("연결 취소"),prop_2:0,prop_4:"a"});
     const before=await mcp.call("list_records",{entity_id:entity.id,record_kind:"change",limit:100});
     await page.goto(`/entities/${encodeURIComponent(entity.id)}?list=%2Fentities`);
     for(const dirty of [false,true]){
@@ -113,7 +119,7 @@ test("엔터티 관련 기록 취소: 작성 URL·reload·메모와 변경 이�
       await expect(page).not.toHaveURL(/create=/);await expect(page).toHaveURL(/list=/);
       await expect(page.getByRole("button",{name:"기록 작성",exact:true})).toBeFocused();
     }
-    await page.reload();await expect(page.getByRole("heading",{name:entity.prop1,exact:true})).toBeVisible();
+    await page.reload();await expect(page.getByRole("heading",{name:entity.title,exact:true})).toBeVisible();
     await expect(page.getByRole("dialog",{name:"기록 작성",exact:true})).toHaveCount(0);
     expect((await mcp.call("get_entity",{id:entity.id})).version).toBe(1);
     expect((await mcp.call("list_records",{entity_id:entity.id,record_kind:"user"})).items).toEqual([]);
@@ -127,15 +133,15 @@ test("Entity 목록: 키워드/선택/정렬·추가 페이지·상세 복귀/�
     ids: string[] = [];
   try {
     for (let i = 0; i < 21; i++) {
-      const e = await mcp.call("create_entity", {
-        prop1: `${marker} ${String(i).padStart(2, "0")}`,
-        prop2: i,
-        prop4: "c",
+      const e = await createFixtureEntity(mcp, {
+        prop_1: `${marker} ${String(i).padStart(2, "0")}`,
+        prop_2: i,
+        prop_4: "c",
       });
       ids.push(e.id);
     }
     await page.goto(
-      `/entities?keyword=${encodeURIComponent(marker)}&prop4=c&sort=prop2`,
+      fixtureEntityList((await scalarFixtureType(mcp)).id, marker, "c", true),
     );
     await expect(page.getByRole("button", { name: `${marker} 00`, exact: true }))
       .toBeVisible();
@@ -157,16 +163,16 @@ test("Entity 목록: 키워드/선택/정렬·추가 페이지·상세 복귀/�
         await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
       ).toBe(true);
     }
-    await page.goto(`/entities?keyword=${encodeURIComponent(marker)}&prop4=c&sort=prop2`);
+    await page.goto(fixtureEntityList((await scalarFixtureType(mcp)).id, marker, "c", true));
     await openListDetail(page, `${marker} 19`);
-    const concurrent = await mcp.call("create_entity", { prop1: `${marker} 새 항목`, prop2: 0, prop4: "c" });
+    const concurrent = await createFixtureEntity(mcp, { prop_1: `${marker} 새 항목`, prop_2: 0, prop_4: "c" });
     ids.push(concurrent.id);
     await closeDetail(page, `${marker} 19`);
     await expect(page.getByRole("button", { name: `${marker} 19`, exact: true })).toBeFocused();
     await mcp.call("delete_entity", { id: ids[19], expected_version: 1 });
     ids.splice(19, 1);
     await page.reload();
-    await expect(page.getByRole("heading", { name: "엔터티", level: 1, exact: true })).toBeFocused();
+    await expect(page.getByRole("heading", { name: "전체 자료", level: 1, exact: true })).toBeFocused();
   } finally {
     for (const id of ids) {
       await mcp.call("delete_entity", { id, expected_version: 1 });
@@ -188,29 +194,19 @@ test("Entity 복원: 대상 없음 조회 한도·제목 초점·필터 hash 제
       await delayed;
     }
     const externalId = crypto.randomUUID();
-    const item = {
-      id: `app:${externalId}`,
-      source: "app", external_id: externalId, source_label: "앱", deleted_at: null, tag_ids: [],
-      prop1: keyword ?? "계속되는 목록",
-      prop2: null,
-      prop3: null,
-      prop4: "a",
-      version: 1,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
+    const item = { ...makeEntity(1,{prop_1:keyword ?? "계속되는 목록"}),id:`app:${externalId}`,external_id:externalId };
     await route.fulfill({ json: { items: [item], next_cursor: keyword ? null : "more" } }).catch(() => {});
   });
   await page.goto(`/entities?pages=1#entity-${encodeURIComponent(`app:${crypto.randomUUID()}`)}`);
-  await expect(page.getByRole("heading", { name: "엔터티", level: 1, exact: true })).toBeFocused();
+  await expect(page.getByRole("heading", { name: "전체 자료", level: 1, exact: true })).toBeFocused();
   expect(requests).toBe(2);
   await openTabFilters(page);
-  await page.getByLabel("속성 4 필터").selectOption("b");
+  await setEntityCategory(page, "b");
   await expect(page).not.toHaveURL(/#entity-/);
   expect(new URL(page.url()).searchParams.has("pages")).toBe(false);
-  await page.getByLabel("속성 1 키워드",{exact:true}).fill("느림");
+  await page.getByLabel("자료 제목 검색",{exact:true}).fill("느림");
   await arrived;
-  await page.getByLabel("속성 1 키워드",{exact:true}).fill("최신");
+  await page.getByLabel("자료 제목 검색",{exact:true}).fill("최신");
   await expect(page.getByRole("button", { name: "최신", exact: true })).toBeVisible();
   release();
   await expect(page.getByRole("button", { name: "느림", exact: true })).toHaveCount(0);
@@ -222,12 +218,12 @@ test("Entity lookahead 뒤 더 보기: 현재 커서 append·실패 retry·행�
   const mcp = await mcpClient(await mcpTokenViaConsent(page)), marker = unique("복원 후 추가"), ids: string[] = [];
   try {
     for (let i = 0; i < 61; i++) {
-      ids.push((await mcp.call("create_entity", { prop1: `${marker} ${String(i).padStart(2, "0")}`, prop2: i })).id);
+      ids.push((await createFixtureEntity(mcp, { prop_1: `${marker} ${String(i).padStart(2, "0")}`, prop_2: i })).id);
     }
-    await page.goto(`/entities?keyword=${encodeURIComponent(marker)}&sort=prop2`);
+    await page.goto(fixtureEntityList((await scalarFixtureType(mcp)).id, marker, undefined, true));
     const anchor = page.getByRole("button", { name: `${marker} 19`, exact: true });
     await openListDetail(page, `${marker} 19`);
-    ids.push((await mcp.call("create_entity", { prop1: `${marker} 동시 추가`, prop2: 0 })).id);
+    ids.push((await createFixtureEntity(mcp, { prop_1: `${marker} 동시 추가`, prop_2: 0 })).id);
     await closeDetail(page, `${marker} 19`);
     await expect(anchor).toBeFocused();
     await expect(page.locator(".list .item-title")).toHaveCount(40);
