@@ -1,3 +1,4 @@
+import { fixtureType, fixtureSchema } from "./support/workspace-data.ts";
 import { settingsResponse } from "./support/preparation-api.ts";
 // 실제 App/data-router/Auth SDK를 실행한다. 원격 Auth·API 응답만 격리하며 실제 OAuth/DB 증거와 구분한다.
 import { expect, test, type Page } from "@playwright/test";
@@ -5,7 +6,9 @@ const user = { id: "00000000-0000-0000-0000-000000000001", aud: "authenticated",
 test.beforeEach(async ({ page, baseURL }) => {
   await page.route("**/*", async route => {
     const url = new URL(route.request().url());
-    if(url.pathname.endsWith("/settings/business")) await route.fulfill({json:settingsResponse(route, {versions:{record_templates:0,entity_identity:0},settings:{record_templates:{},entity_identity:{generation:"short",default_source:"app",sources:[{code:"app",label:"앱"}]}}})});
+    if(url.pathname === "/api/entity-types") await route.fulfill({json:{items:[fixtureType],next_cursor:null}});
+    else if(url.pathname.startsWith("/api/entity-types/")) await route.fulfill({json:url.pathname.endsWith("/schema")?fixtureSchema:fixtureType});
+    else if(url.pathname.endsWith("/settings/business")) await route.fulfill({json:settingsResponse(route, {versions:{record_templates:0,entity_identity:0},settings:{record_templates:{},entity_identity:{generation:"short",default_source:"app",sources:[{code:"app",label:"앱"}]}}})});
     else if (/\/(?:functions\/v1\/)?api\//.test(url.pathname)) await route.fulfill({ json: { items: [], next_cursor: null } });
     else if (url.origin === new URL(baseURL!).origin) await route.continue();
     else await route.abort();
@@ -228,7 +231,7 @@ test("#215 메인 네 탭의 상단 구획·브랜드·필터 조작은 좁은 �
         await expect(page.getByRole("button", { name: /^필터/ })).toHaveCount(0);
         continue;
       }
-      const search = header.getByRole("textbox", { name: path === "entities" ? "속성 1 키워드" : "검색어", exact: true }), toggle = header.getByRole("button", { name: /^필터 (열기|닫기)/ });
+      const search = header.getByRole("textbox", { name: path === "entities" ? "자료 제목 검색" : "검색어", exact: true }), toggle = header.getByRole("button", { name: /^필터 (열기|닫기)/ });
       const closedToggle = (await toggle.boundingBox())!;
       await expect(toggle).toHaveText("");
       await toggle.press("Enter");
@@ -249,7 +252,7 @@ test("#215 메인 네 탭의 상단 구획·브랜드·필터 조작은 좁은 �
       if (width === 390 || width === 1440) await page.screenshot({ path: info.outputPath(`main-${path}-${width}.png`) });
     }
   }
-  await page.setViewportSize({ width: 320, height: 844 }); await page.goto("/entities?filters=1&prop4=a");
+  await page.setViewportSize({ width: 320, height: 844 }); await page.goto("/entities?entity_type_id=00000000-0000-4000-8000-000000000900&filters=1&property_filters=%5B%7B%22key%22%3A%22prop_4%22%2C%22operator%22%3A%22eq%22%2C%22value%22%3A%22a%22%7D%5D");
   await page.evaluate(() => document.documentElement.style.fontSize = "200%");
   const toggle = page.getByRole("button", { name: /필터 닫기/ }), reset = page.locator(".main-tab-header").getByRole("button", { name: "조건 초기화" });
   const t = (await toggle.boundingBox())!, r = (await reset.boundingBox())!;

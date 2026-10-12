@@ -59,7 +59,7 @@ test("#181 일반 기록: 취소한 삭제 메모의 검증이 본문 저장을 
   expect(state.writes[0].body.body).toBe("유효한 본문");
 });
 
-for (const [kind, n, label] of [["entities", 1, "속성 1"], ["tasks", 2, "제목"], ["principles", 4, "제목"]] as const) {
+for (const [kind, n, label] of [["entities", 1, "제목"], ["tasks", 2, "제목"], ["principles", 4, "제목"]] as const) {
   test(`#181 ${kind}: 작은 단일 확인 단계·취소 초안 보존·기록 태그`, async ({ page }, info) => {
     const state = await fixtures(page);
     await page.setViewportSize({ width: 390, height: 844 });
@@ -96,7 +96,7 @@ for (const [kind, n, label] of [["entities", 1, "속성 1"], ["tasks", 2, "제�
 test("#181 응답 유실은 확인 입력을 고정하고 같은 ID/version·메모·태그로 재시도", async ({ page }) => {
   const state = await fixtures(page, { failWrite: "unknown" });
   await go(page, `/entities/${encodeURIComponent(entityKey(1))}?edit=1&edit_from=view`);
-  await form(page).getByLabel("속성 1", { exact: false }).fill("수정");
+  await form(page).getByLabel("제목", { exact: false }).fill("수정");
   await form(page).getByRole("button", { name: "저장", exact: true }).click();
   await form(page).getByLabel("기록 메모").fill("동일 요청 메모");
   await form(page).getByRole("button", { name: "수정하고 저장", exact: true }).click();

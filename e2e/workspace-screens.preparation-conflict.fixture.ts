@@ -1,3 +1,4 @@
+import { entity } from "./support/workspace-data.ts";
 import { expect, test } from "@playwright/test";
 import { form, fixtures, go } from "./support/workspace-screens.ts";
 import { entityKey, id } from "./support/workspace-data.ts";
@@ -22,7 +23,7 @@ test("#335 준비 충돌 후 확인 취소는 초안을 보존하고 편집 취�
   expect(state.errors).toEqual([]);
 });
 
-for (const [kind, n, label] of [["entities", 1, "속성 1"], ["tasks", 2, "제목"], ["principles", 4, "제목"]] as const) {
+for (const [kind, n, label] of [["entities", 1, "제목"], ["tasks", 2, "제목"], ["principles", 4, "제목"]] as const) {
   for (const stage of ["prepare", "write"] as const) {
     test(`#335 ${kind}: ${stage} 충돌 후 초안 보존·최신 조회`, async ({ page }) => {
       const state = await fixtures(page, stage === "write" ? { failWrite: "conflict" } : {});
@@ -30,7 +31,7 @@ for (const [kind, n, label] of [["entities", 1, "속성 1"], ["tasks", 2, "제�
       await go(page, `/${kind}/${encodeURIComponent(key)}?edit=1`);
       await form(page).getByLabel(label, { exact: false }).fill("보존할 이름 초안");
       const row = state.rows[kind][0];
-      Object.assign(row, kind === "entities" ? { prop1: "다른 접점의 최신 이름", version: 2 }
+      Object.assign(row, kind === "entities" ? { ...entity(1, { prop_1: "다른 접점의 최신 이름" }), version: 2 }
         : { title: "다른 접점의 최신 이름", body: "다른 접점의 최신 본문", version: 2 });
       if (stage === "prepare") await page.route("**/api/records/prepare", route => route.fulfill({ status: 409,
         json: { code: "conflict", message: "다른 변경이 저장되어 있습니다.", retryable: false } }));

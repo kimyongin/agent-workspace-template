@@ -6,7 +6,7 @@ import { entity, id, stamp, task } from "./support/workspace-data.ts";
 import { fixtures, form, go } from "./support/workspace-screens.ts";
 
 for (const width of [320, 390, 1024]) {
-  test(`엔터티 연결 목록 ${width}px: 본문 대표 문구·오른쪽 행동과 간결한 상세`, async ({ page }, info) => {
+  test(`자료 연결 목록 ${width}px: 본문 대표 문구·오른쪽 행동과 간결한 상세`, async ({ page }, info) => {
     const state = await fixtures(page), title = "memo-edd743a2-2a0c-455b-b3ad-312e05d47d4e 등록";
     Object.assign(state.rows.entities[0], {
       records: {
@@ -54,7 +54,7 @@ test("연결 엔터티 범위: 각 탭 조회·검색 조건·본문 왕복·해
     state.rows[kind as "tasks" | "records"][0].entity_ids = [entityKey(1)];
     state.rows[kind as "tasks" | "records"][0].entity_context = [{
       id: entityKey(1),
-      title: "엔터티",
+      title: "전체 자료",
       source: "selection",
       captured_at: stamp,
     }];
@@ -115,7 +115,7 @@ for (const kind of ["tasks", "records"] as const) {
     for (const width of [320, 390, 1440]) {
       await page.setViewportSize({ width, height: 900 });
       await go(page, `/${kind}/${row.id}`);
-      const link = form(page).getByRole("region", { name: /^엔터티/ }).getByRole("button", { name: "함", exact: true });
+      const link = form(page).getByRole("region", { name: /^연결된 자료/ }).getByRole("button", { name: "함", exact: true });
       const box = (await link.boundingBox())!;
       expect(box.width).toBeGreaterThanOrEqual(44);
       expect(box.height).toBeGreaterThanOrEqual(44);
@@ -123,7 +123,7 @@ for (const kind of ["tasks", "records"] as const) {
       await page.keyboard.press("Enter");
       await expect(link).toHaveAttribute("aria-expanded", "true");
       expect(new URL(page.url()).pathname).toBe(`/${kind}/${row.id}`);
-      await expect(form(page).getByLabel("속성 1", { exact: false })).toHaveCount(0);
+      await expect(form(page).getByLabel("제목", { exact: false })).toHaveCount(0);
       await expect(form(page).getByRole("link", { name: "함 상세", exact: true })).toBeVisible();
     }
     expect(state.writes).toHaveLength(0);
@@ -181,14 +181,14 @@ for (const scope of ["invalid", entityKey(99)]) {
 for (const kind of ["tasks", "records"] as const) {
   test(`엔터티 제목 연결 검색 ${kind}: 빈 검색·부분 일치·선택 보존·해제·저장`, async ({ page }) => {
     const state = await fixtures(page), reads: URLSearchParams[] = [];
-    const targets = [{ ...entity(81), prop1: "Alpha 고객" }, { ...entity(82), prop1: "Beta 고객" }];
+    const targets = [entity(81, { prop_1: "Alpha 고객" }), entity(82, { prop_1: "Beta 고객" })];
     await page.route("**/api/entities?**", (route) => {
       const params = new URL(route.request().url()).searchParams;
       reads.push(params);
       return route.fulfill({
         json: {
           items: targets.filter((item) =>
-            item.prop1.toLowerCase().includes((params.get("keyword") ?? "").toLowerCase())
+            item.title.toLowerCase().includes((params.get("keyword") ?? "").toLowerCase())
           ),
           next_cursor: null,
         },
@@ -198,8 +198,8 @@ for (const kind of ["tasks", "records"] as const) {
     if (kind === "tasks") {
       await form(page).getByRole("textbox", { name: "제목 (필수)", exact: true }).fill("새 관계 업무");
     } else await form(page).getByLabel("본문", { exact: false }).fill("새 관계 기록");
-    await form(page).getByRole("button", { name: "엔터티 연결", exact: true }).click();
-    const search = form(page).getByRole("searchbox", { name: "엔터티 제목 검색", exact: true });
+    await form(page).getByRole("button", { name: "자료 연결", exact: true }).click();
+    const search = form(page).getByRole("searchbox", { name: "자료 제목 검색", exact: true });
     await expect(search).toBeVisible();
     expect(reads).toHaveLength(0);
     await search.fill("aLpHa");
@@ -235,7 +235,7 @@ test("엔터티 제목 연결 검색: IME·늦은 응답 격리·페이지 실�
     if (word === "느림") {
       arrived();
       await held;
-      return route.fulfill({ json: { items: [{ ...entity(91), prop1: "오래된 결과" }], next_cursor: null } }).catch(
+      return route.fulfill({ json: { items: [entity(91, { prop_1: "오래된 결과" })], next_cursor: null } }).catch(
         () => {},
       );
     }
@@ -246,16 +246,16 @@ test("엔터티 제목 연결 검색: IME·늦은 응답 격리·페이지 실�
       }
       return route.fulfill({
         json: {
-          items: [{ ...entity(92), prop1: "최신 결과" }, { ...entity(93), prop1: "추가 결과" }],
+          items: [entity(92, { prop_1: "최신 결과" }), entity(93, { prop_1: "추가 결과" })],
           next_cursor: null,
         },
       });
     }
-    return route.fulfill({ json: { items: [{ ...entity(92), prop1: "최신 결과" }], next_cursor: "page-two" } });
+    return route.fulfill({ json: { items: [entity(92, { prop_1: "최신 결과" })], next_cursor: "page-two" } });
   });
   await go(page, "/tasks?create=1");
-  await form(page).getByRole("button", { name: "엔터티 연결", exact: true }).click();
-  const search = form(page).getByRole("searchbox", { name: "엔터티 제목 검색", exact: true });
+  await form(page).getByRole("button", { name: "자료 연결", exact: true }).click();
+  const search = form(page).getByRole("searchbox", { name: "자료 제목 검색", exact: true });
   await expect(search).toBeVisible();
   await search.dispatchEvent("compositionstart");
   await search.fill("느");
@@ -290,10 +290,10 @@ test("엔터티 제목 연결 검색: IME·늦은 응답 격리·페이지 실�
 for (const kind of ["tasks", "records"] as const) {
   test(`#185 ${kind}: 검색 Enter는 저장하지 않고 검색·선택은 아래 표준 카드`, async ({ page }, info) => {
     const state = await fixtures(page);
-    state.rows.entities[0].prop1 = "검색 대상";
+    Object.assign(state.rows.entities[0], entity(1, { prop_1: "검색 대상" }));
     await go(page, `/${kind}?create=1`);
-    await form(page).getByRole("button", { name: "엔터티 연결", exact: true }).click();
-    const search = form(page).getByRole("searchbox", { name: "엔터티 제목 검색", exact: true });
+    await form(page).getByRole("button", { name: "자료 연결", exact: true }).click();
+    const search = form(page).getByRole("searchbox", { name: "자료 제목 검색", exact: true });
     await search.dispatchEvent("compositionstart");
     await search.fill("검");
     await search.press("Enter");
@@ -302,7 +302,7 @@ for (const kind of ["tasks", "records"] as const) {
     await search.fill("검색");
     await search.dispatchEvent("compositionend");
     await search.press("Enter");
-    const result = form(page).getByRole("group", { name: "엔터티 검색 결과" });
+    const result = form(page).getByRole("group", { name: "자료 검색 결과" });
     await result.getByRole("button", { name: "검색 대상 연결", exact: true }).click();
     const selected = form(page).getByRole("list", { name: "선택한 엔터티", exact: true });
     await expect(selected.locator(".related-item")).toHaveCount(1);
@@ -325,10 +325,10 @@ test("#185 빈 연결 개수만 표시·관계 카드 빈 공간은 이동하지
   await expect(form(page).getByText("연결된 기록이 없습니다.", { exact: true })).toHaveCount(0);
   Object.assign(state.rows.tasks[0], {
     entity_ids: [entityKey(1)],
-    entity_context: [{ id: entityKey(1), title: "엔터티", source: "selection", captured_at: stamp }],
+    entity_context: [{ id: entityKey(1), title: "전체 자료", source: "selection", captured_at: stamp }],
   });
   await page.reload();
-  const link = form(page).getByRole("button", { name: "엔터티", exact: true }),
+  const link = form(page).getByRole("button", { name: "전체 자료", exact: true }),
     card = link.locator("xpath=ancestor::div[contains(@class,'related-item')][last()]");
   const t = (await link.boundingBox())!;
   await page.mouse.click(t.x + t.width + 12, t.y + t.height / 2);
@@ -356,17 +356,17 @@ for (const side of ["tasks", "entities"] as const) {
       await page.setViewportSize({ width, height: 900 });
       await go(page, `/${side}/${side === "tasks" ? id(2) : encodeURIComponent(entityKey(1))}`);
       await form(page).evaluate((el) => el.setAttribute("data-original", "yes"));
-      await form(page).getByRole("button", { name: side === "tasks" ? "엔터티 연결" : "할 일 연결", exact: true })
+      await form(page).getByRole("button", { name: side === "tasks" ? "자료 연결" : "할 일 연결", exact: true })
         .click();
       const search = form(page).getByRole("searchbox", {
-        name: side === "tasks" ? "엔터티 제목 검색" : "할 일 제목 검색",
+        name: side === "tasks" ? "자료 제목 검색" : "할 일 제목 검색",
       });
-      await search.fill(side === "tasks" ? "엔터티" : "할 일");
+      await search.fill(side === "tasks" ? "전체 자료" : "할 일");
       await search.press("Enter");
       expect(state.writes).toHaveLength(0);
       await expect(page.locator("dialog.modal-action[open]")).toHaveCount(0);
       const connect = form(page).getByRole("button", {
-        name: side === "tasks" ? "엔터티 연결" : "할 일 연결",
+        name: side === "tasks" ? "자료 연결" : "할 일 연결",
         exact: true,
       }).last();
       await connect.click();
@@ -377,7 +377,7 @@ for (const side of ["tasks", "entities"] as const) {
       expect(state.writes).toHaveLength(0);
       await connect.click();
       await form(page).getByRole("button", { name: "연결하고 저장", exact: true }).click();
-      const title = side === "tasks" ? "엔터티" : "할 일",
+      const title = side === "tasks" ? "전체 자료" : "할 일",
         unlink = form(page).getByRole("button", { name: `${title} 해제`, exact: true });
       await form(page).getByRole("button", { name: title, exact: true }).click();
       await expect(unlink).toBeVisible();
@@ -386,7 +386,7 @@ for (const side of ["tasks", "entities"] as const) {
       await expect(form(page).getByRole("button", { name: title, exact: true })).toBeVisible();
       if (side === "tasks") {
         await openDetailEditor(page);
-        await expect(form(page).getByRole("searchbox", { name: "엔터티 제목 검색" })).toHaveCount(0);
+        await expect(form(page).getByRole("searchbox", { name: "자료 제목 검색" })).toHaveCount(0);
         await form(page).getByRole("button", { name: "취소", exact: true }).click();
         await form(page).getByRole("button", { name: "기록 작성", exact: true }).click();
         await form(page).getByLabel("본문", { exact: false }).fill("완료 전 진행 메모");
@@ -415,14 +415,14 @@ for (const side of ["tasks", "entities"] as const) {
 test("#187 연결 미확정 재시도는 같은 버전·내용을 유지하고 취소는 최신 보기를 조회한다", async ({ page }) => {
   const state = await fixtures(page, { failWrite: "unknown" });
   await go(page, `/tasks/${id(2)}`);
-  await form(page).getByRole("button", { name: "엔터티 연결", exact: true }).click();
-  await form(page).getByRole("searchbox", { name: "엔터티 제목 검색" }).fill("엔터티");
-  await form(page).getByRole("button", { name: "엔터티 연결", exact: true }).last().click();
+  await form(page).getByRole("button", { name: "자료 연결", exact: true }).click();
+  await form(page).getByRole("searchbox", { name: "자료 제목 검색" }).fill("전체 자료");
+  await form(page).getByRole("button", { name: "자료 연결", exact: true }).last().click();
   await form(page).getByRole("button", { name: "연결하고 저장" }).click();
   await expect(form(page).getByRole("button", { name: "같은 내용 다시 시도" })).toBeVisible();
   await expect(form(page).getByLabel("기록 메모")).toBeDisabled();
   await form(page).getByRole("button", { name: "같은 내용 다시 시도" }).click();
-  await form(page).getByRole("button", { name: "엔터티", exact: true }).click();
+  await form(page).getByRole("button", { name: "전체 자료", exact: true }).click();
   await expect(form(page).getByRole("button", { name: "엔터티 해제" })).toBeVisible();
   expect(state.writes[0].body).toEqual(state.writes[1].body);
   expect(state.errors).toEqual([]);
@@ -441,20 +441,20 @@ test("#187 연결 검색 IME·늦은 추가 페이지 격리와 다른 편집 �
     if (q.has("cursor")) {
       arrivePage();
       await heldPage;
-      return route.fulfill({ json: { items: [{ ...entity(81), prop1: "오래된 후보" }], next_cursor: null } }).catch(
+      return route.fulfill({ json: { items: [entity(81, { prop_1: "오래된 후보" })], next_cursor: null } }).catch(
         () => {},
       );
     }
     return route.fulfill({
       json: {
-        items: [{ ...entity(), prop1: q.get("keyword") }],
+        items: [entity(1, { prop_1: q.get("keyword") })],
         next_cursor: q.get("keyword") === "이전" ? "more" : null,
       },
     });
   });
   await go(page, `/tasks/${id(2)}`);
-  await form(page).getByRole("button", { name: "엔터티 연결", exact: true }).click();
-  const search = form(page).getByRole("searchbox", { name: "엔터티 제목 검색" });
+  await form(page).getByRole("button", { name: "자료 연결", exact: true }).click();
+  const search = form(page).getByRole("searchbox", { name: "자료 제목 검색" });
   await search.dispatchEvent("compositionstart");
   await search.fill("이");
   await search.press("Enter");
@@ -490,9 +490,9 @@ for (const side of ["tasks", "entities"] as const) {
   test(`#187 ${side}: 두 번째 검색 페이지 후보를 보고 돌아오면 검색·초점 복원`, async ({ page }) => {
     const state = await fixtures(page),
       kind = side === "tasks" ? "entities" : "tasks",
-      label = side === "tasks" ? "엔터티" : "할 일";
-    const a = kind === "entities" ? { ...entity(81), prop1: "후보 첫째" } : { ...task(81), title: "후보 첫째" },
-      b = kind === "entities" ? { ...entity(82), prop1: "후보 둘째" } : { ...task(82), title: "후보 둘째" };
+      label = side === "tasks" ? "전체 자료" : "할 일";
+    const a = kind === "entities" ? entity(81, { prop_1: "후보 첫째" }) : { ...task(81), title: "후보 첫째" },
+      b = kind === "entities" ? entity(82, { prop_1: "후보 둘째" }) : { ...task(82), title: "후보 둘째" };
     if (kind === "entities") state.rows.entities.push(a as ReturnType<typeof entity>, b as ReturnType<typeof entity>);
     else state.rows.tasks.push(a as ReturnType<typeof task>, b as ReturnType<typeof task>);
     await page.route(
@@ -530,7 +530,7 @@ for (const side of ["tasks", "entities"] as const) {
     const state = await fixtures(page),
       taskRow = state.rows.tasks[0],
       entityRow = state.rows.entities[0],
-      label = side === "tasks" ? "엔터티" : "할 일";
+      label = side === "tasks" ? "전체 자료" : "할 일";
     let fail = true;
     await page.route(`**/api/${side}/${side === "tasks" ? id(2) : encodeURIComponent(entityKey(1))}`, (route) => {
       if (route.request().method() !== "GET") return route.fallback();
@@ -602,10 +602,10 @@ for (const side of ["tasks", "entities"] as const) {
   test(`#227 ${side}: 관계 검색의 반복 cursor 거부는 이미 읽은 후보를 보존`, async ({ page }) => {
     const state = await fixtures(page),
       kind = side === "tasks" ? "entities" : "tasks",
-      label = side === "tasks" ? "엔터티" : "할 일";
-    const a = kind === "entities" ? { ...entity(181), prop1: "첫 후보" } : { ...task(181), title: "첫 후보" };
-    const b = kind === "entities" ? { ...entity(182), prop1: "거부 후보" } : { ...task(182), title: "거부 후보" };
-    const c = kind === "entities" ? { ...entity(183), prop1: "재시도 후보" } : { ...task(183), title: "재시도 후보" };
+      label = side === "tasks" ? "전체 자료" : "할 일";
+    const a = kind === "entities" ? entity(181, { prop_1: "첫 후보" }) : { ...task(181), title: "첫 후보" };
+    const b = kind === "entities" ? entity(182, { prop_1: "거부 후보" }) : { ...task(182), title: "거부 후보" };
+    const c = kind === "entities" ? entity(183, { prop_1: "재시도 후보" }) : { ...task(183), title: "재시도 후보" };
     let repeats = 0;
     const reads: (string | null)[] = [];
     await page.route(`**/api/${kind}?**`, (route) => {

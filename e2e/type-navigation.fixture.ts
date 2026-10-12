@@ -223,7 +223,7 @@ test("a late old type list cannot replace current rows", async ({ page }) => {
 
 test("IME search preserves the selected type and current keyword after switching", async ({ page }) => {
   await page.goto(`/entities?entity_type_id=${materials.id}&keyword=기존`);
-  const input = page.getByRole("textbox", { name: "속성 1 키워드", exact: true });
+  const input = page.getByRole("textbox", { name: "자료 제목 검색", exact: true });
   await input.dispatchEvent("compositionstart");
   await input.fill("새 검색");
   expect(new URL(page.url()).searchParams.get("keyword")).toBe("기존");

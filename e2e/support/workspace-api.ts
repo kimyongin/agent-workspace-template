@@ -102,7 +102,7 @@ export async function installWorkspaceApi(
       }
     };
     if (kind === "entities" && action === "links" && method === "GET") return reply({ items: [], next_cursor: null });
-    if (kind === "entity-types") return reply(key ? fixtureSchema : { items: [fixtureType], next_cursor: null });
+    if (kind === "entity-types") return reply(key ? action === "schema" ? fixtureSchema : fixtureType : { items: [fixtureType], next_cursor: null });
     if (kind === "settings" && key === "business") {
       return reply({
         versions: { record_templates: 0, entity_identity: 0 },
@@ -175,7 +175,10 @@ export async function installWorkspaceApi(
         });
       }
       let items = storage[kind];
-      if (kind === "entities") items = items.filter((row) => !row.deleted_at);
+      if (kind === "entities") {
+        const typeId = url.searchParams.get("entity_type_id"), keyword = url.searchParams.get("keyword")?.toLowerCase();
+        items = items.filter((row) => !row.deleted_at && (!typeId || row.entity_type_id === typeId) && (!keyword || String(row.title).toLowerCase().includes(keyword)) && row.id !== url.searchParams.get("link_candidate_for"));
+      }
       if (kind === "tags") items = items.filter((r) => r.scope === (url.searchParams.get("scope") ?? "record"));
       if (kind === "principles") return reply({ code: "not_found", message: "지원하지 않는 원칙 목록" }, 404);
       if (kind === "records" && url.searchParams.get("task_id")) {
@@ -250,16 +253,19 @@ export async function installWorkspaceApi(
     }
     const found = storage[kind].find((r) => r.id === key);
     if (!found) return reply({ code: "not_found", message: "자료 없음" }, 404);
+    const previousProperties = found.properties;
     Object.assign(found, body, { version: found.version + 1 });
     if (kind === "entities" && body.properties) {
-      found.properties = { ...(found.properties as object), ...(body.properties as object) };
+      found.properties = { ...(previousProperties as object), ...(body.properties as object) };
       found.title = (found.properties as Record<string, unknown>).prop_1;
-      found.display_properties = found.properties;
+      found.display_properties = { prop_1: found.title, prop_2: (found.properties as Record<string, unknown>).prop_2 };
     }
     if (kind === "tasks" && body.entity_ids) {
       found.entity_context = (body.entity_ids as string[]).map((id) => ({
         id,
         title: storage.entities.find((e) => e.id === id)?.title ?? "자료",
+        type: storage.entities.find((e) => e.id === id)?.type,
+        schema_version: storage.entities.find((e) => e.id === id)?.schema_version,
         source: "selection",
         captured_at: stamp,
       }));

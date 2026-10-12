@@ -7,7 +7,7 @@ import { createTagRead } from "./tag-read.ts";
 const tagRead = createTagRead(api);
 
 export type TagScope = TagResult["scope"];
-export const tagScopeLabels: Record<TagScope,string> = {entity:"엔터티",task:"할 일",record:"기록"};
+export const tagScopeLabels: Record<TagScope,string> = {entity:"자료",task:"할 일",record:"기록"};
 export function useTagDictionary(enabled = true, preserveListLayout = false, scope: TagScope = "record") {
   const [tags,setTags]=useState<TagResult[]|null>(null),[failed,setFailed]=useState(false),[retry,setRetry]=useState(0);
   const position = useRef<{target:HTMLElement;y:number;focus:boolean}|null>(null);
