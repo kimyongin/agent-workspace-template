@@ -31,12 +31,14 @@ async function typeFixture(owner: string, label: string, numeric = true) {
   definition.display.order.push("prop_2", "prop_3", "prop_4", "prop_5");
   definition.display.list_columns.push("prop_2", "prop_4");
   definition.display.archived.push("prop_5");
-  const [type] =
-    await admin`insert into app.entity_types(owner_id,label,next_property_number) values(${owner},${label},6) returning id`;
-  await admin`insert into app.entity_schema_versions(owner_id,type_id,schema_version,schema,display) values(${owner},${type.id},1,${
-    admin.json(definition.schema as never)
-  },${admin.json(definition.display as never)})`;
-  return { id: String(type.id), definition };
+  return await admin.begin(async (tx) => {
+    const [type] =
+      await tx`insert into app.entity_types(owner_id,label,next_property_number) values(${owner},${label},6) returning id`;
+    await tx`insert into app.entity_schema_versions(owner_id,type_id,schema_version,schema,display) values(${owner},${type.id},1,${
+      tx.json(definition.schema as never)
+    },${tx.json(definition.display as never)})`;
+    return { id: String(type.id), definition };
+  });
 }
 dbTest("typed list: scalar AND, missing/null order, stable ID ties, owner/type/revision cursor isolation", async () => {
   const owner = await fixtureOwner(admin), foreign = await fixtureOwner(admin);
