@@ -56,7 +56,7 @@ export function entitySchemaWorker(readEnv: (name: string) => string | undefined
         }
         let prepared;
         try {
-          prepared = await prepareMigrationBatch(batch);
+          prepared = await prepareMigrationBatch(batch, new Date());
         } catch (e) {
           const bounded = e instanceof AppError && e.code === "invalid_input";
           await sql`select app.fail_entity_schema_migration(${batch.id},${batch.fence},${

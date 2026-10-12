@@ -1,3 +1,7 @@
+import type {
+  SchemaApplicationBindings,
+  SchemaApplicationContext,
+} from "../../core/entity-types/schema-application.ts";
 import { assertRecoveryFresh, type RecoveryEvidence } from "../../core/entity-types/recovery-policy.ts";
 import {
   assertSchemaTemplateReferences,
@@ -386,33 +390,67 @@ export class SqlSchemaChangeStore implements SchemaChangeStore {
       next_after: rows.length > items.length && items.length ? items.at(-1)!.entity_id : null,
     };
   }
-  async applyChange(typeId: string, id: string, input: Parameters<SchemaChangeStore["applyChange"]>[2]) {
-    const t = await this.lockType(typeId);
-    const row = await this.row(typeId, id, true);
-    this.editable(row, input.expected_change_version);
-    this.sourceRefs(t, {
-      expected_type_version: Number(row.source_type_version),
-      expected_schema_version: Number(row.source_schema_version),
-    });
-    if (row.kind !== "compatible") {
-      throw new AppError(
-        "schema_migration_required",
-        "이 변경은 값 변환 작업이 필요합니다",
-        row.diff.filter((d: { kind: string }) => d.kind === "migration_required").map((
-          d: { path: string; reason: string },
-        ) => ({ path: d.path, message: d.reason })),
-      );
-    }
+  async loadSchemaApplication(typeId: string, id: string, analysisId: string): Promise<SchemaApplicationContext> {
+    const [t] = await this.tx`select * from app.entity_types where id::text=${typeId} for update`;
+    if (!t) throw notFound();
+    const c = await this.row(typeId, id, true);
     const [a] = await this
-      .tx`select * from app.entity_schema_analyses where id::text=${input.analysis_id} and change_id=${id}`;
+      .tx`select * from app.entity_schema_analyses where id::text=${analysisId} and change_id=${id}`;
     const [fresh] = await this.tx`select app.entity_schema_membership(${this.actor.userId},${typeId}) as membership`;
-    if (
-      row.status !== "ready" || row.analysis_id !== input.analysis_id || !a || a.status !== "succeeded" ||
-      a.failed !== 0 || a.change_version !== row.version || a.fingerprint !== row.fingerprint ||
-      a.membership !== fresh.membership
-    ) throw new AppError("schema_plan_stale", "최신 영향 분석을 완료하세요");
-    await this.templates(row.target, typeId, row.source_template_fingerprint);
-    const next = Number(t.schema_version) + 1;
+    return {
+      type: {
+        id: t.id,
+        label: t.label,
+        icon_id: t.icon_id,
+        version: Number(t.version),
+        schema_version: Number(t.schema_version),
+        archived: t.archived,
+        schema_write_locked: t.schema_write_locked,
+      },
+      change: {
+        id: c.id,
+        version: Number(c.version),
+        status: c.status,
+        kind: c.kind,
+        source_type_version: Number(c.source_type_version),
+        source_schema_version: Number(c.source_schema_version),
+        analysis_id: c.analysis_id,
+        fingerprint: c.fingerprint,
+        source_template_fingerprint: c.source_template_fingerprint,
+        target: c.target,
+        diff: c.diff,
+        migration: c.migration,
+        recovery_source_job_id: c.recovery_source_job_id,
+        recovery_keys: c.recovery_keys,
+      },
+      analysis: a
+        ? {
+          id: a.id,
+          status: a.status,
+          failed: Number(a.failed),
+          change_version: Number(a.change_version),
+          fingerprint: a.fingerprint,
+          membership: a.membership,
+          total: Number(a.total),
+        }
+        : null,
+      membership: fresh.membership,
+    };
+  }
+  async lockSchemaApplicationBindings(context: SchemaApplicationContext): Promise<SchemaApplicationBindings> {
+    let recovery: SchemaApplicationBindings["recovery"] = null;
+    if (context.change.recovery_source_job_id) {
+      const [j] = await this
+        .tx`select * from app.entity_schema_migrations where id=${context.change.recovery_source_job_id} for update`;
+      if (!j) throw notFound();
+      recovery = await this.recoveryEvidence(j, context.type);
+    }
+    await this.tx`select pg_advisory_xact_lock(hashtextextended(${`${this.actor.userId}:record_templates`},0))`;
+    const [row] = await this.tx`select settings from app.user_business_settings where id='record_templates'`;
+    return { recovery, templates: row?.settings ?? {} };
+  }
+  async saveSchemaPublication(context: SchemaApplicationContext, next: number) {
+    const typeId = context.type.id, id = context.change.id, row = context.change;
     await this
       .tx`insert into app.entity_schema_versions(owner_id,type_id,schema_version,schema,display) values(${this.actor.userId},${typeId},${next},${
       this.tx.json(row.target.schema)

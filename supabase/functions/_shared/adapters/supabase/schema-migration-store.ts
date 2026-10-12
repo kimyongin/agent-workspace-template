@@ -1,3 +1,9 @@
+import {
+  assertSchemaApplicationBindings,
+  assertSchemaApplicationReady,
+  assertSchemaApplicationSource,
+  type SchemaApplicationContext,
+} from "../../core/entity-types/schema-application.ts";
 import { jsonbText } from "../../core/entity-types/schema-rules.ts";
 import { migrationRecordRenderer } from "../../core/entity-types/migration-preparation.ts";
 import {
@@ -91,30 +97,9 @@ export class SqlSchemaMigrationStore extends SqlSchemaChangeStore implements Sch
     }) returning *`;
     return this.dto(c);
   }
-  private async validSource(t: postgres.Row, c: postgres.Row, analysisId: string) {
-    this.sourceRefs(t, {
-      expected_type_version: Number(c.source_type_version),
-      expected_schema_version: Number(c.source_schema_version),
-    });
-    const [a] = await this.tx`select * from app.entity_schema_analyses where id=${analysisId} and change_id=${c.id}`;
-    const [fresh] = await this.tx`select app.entity_schema_membership(${this.actor.userId},${t.id}) as membership`;
-    if (c.kind !== "migration_required") throw invalidInput("호환 가능한 변경은 새 버전 게시를 사용하세요");
-    if (
-      c.status !== "ready" || c.analysis_id !== analysisId || !a || a.status !== "succeeded" || a.failed !== 0 ||
-      a.change_version !== c.version || a.fingerprint !== c.fingerprint || a.membership !== fresh.membership
-    ) throw new AppError("schema_plan_stale", "최신 성공 분석을 준비하세요");
-    await this.recoveryFresh(c);
-    await this.templates(c.target, t.id, c.source_template_fingerprint);
-    return a;
-  }
-  async startMigration(typeId: string, changeId: string, i: Parameters<SchemaMigrationStore["startMigration"]>[2]) {
-    const t = await this.lockType(typeId), c = await this.row(typeId, changeId, true);
-    this.editable(c, i.expected_change_version);
-    this.sourceRefs(t, i);
-    if (c.fingerprint !== i.fingerprint) {
-      throw new AppError("schema_plan_stale", "확인한 변경안과 실행 요청이 다릅니다");
-    }
-    const a = await this.validSource(t, c, i.analysis_id);
+  async saveSchemaMigration(context: SchemaApplicationContext) {
+    const t = context.type, c = context.change, a = context.analysis!;
+    const typeId = t.id, changeId = c.id;
     const [definition] = await this
       .tx`select schema,display from app.entity_schema_versions where type_id=${typeId} and schema_version=${t.schema_version}`;
     const [settings] = await this.tx`select settings from app.user_business_settings where id='record_templates'`;
@@ -238,7 +223,10 @@ export class SqlSchemaMigrationStore extends SqlSchemaChangeStore implements Sch
     if (c.version !== j.change_version || c.fingerprint !== j.fingerprint || c.analysis_id !== j.analysis_id) {
       throw new AppError("schema_plan_stale", "새 분석을 준비하세요");
     }
-    await this.validSource(t, c, j.analysis_id);
+    const context = await this.loadSchemaApplication(t.id, c.id, j.analysis_id);
+    assertSchemaApplicationSource(context, context.change.source_type_version, context.change.source_schema_version);
+    assertSchemaApplicationReady(context, "migration_required", j.analysis_id);
+    await assertSchemaApplicationBindings(context, await this.lockSchemaApplicationBindings(context));
     const [refs] = await this.tx`select app.entity_schema_reference_baseline(${this.actor.userId},${j.type_id})=${
       this.tx.json(j.source_references)
     }::jsonb as fresh`;

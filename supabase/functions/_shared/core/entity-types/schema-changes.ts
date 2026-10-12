@@ -1,3 +1,9 @@
+import {
+  assertSchemaApplication,
+  assertSchemaApplicationBindings,
+  type SchemaApplicationBindings,
+  type SchemaApplicationContext,
+} from "./schema-application.ts";
 import { z } from "zod";
 import {
   type EntitySchemaChange,
@@ -25,7 +31,9 @@ export interface SchemaChangeStore {
   ): Promise<{ items: EntitySchemaChangeSummary[]; next_before: string | null }>;
   analyzeChange(typeId: string, id: string, input: z.infer<typeof schemaChangeAction>): Promise<SchemaAnalysisAccepted>;
   analysisRows(typeId: string, id: string, input: z.infer<typeof schemaAnalysisRows>): Promise<SchemaAnalysisPage>;
-  applyChange(typeId: string, id: string, input: z.infer<typeof schemaChangeApply>): Promise<EntitySchemaChange>;
+  loadSchemaApplication(typeId: string, id: string, analysisId: string): Promise<SchemaApplicationContext>;
+  lockSchemaApplicationBindings(context: SchemaApplicationContext): Promise<SchemaApplicationBindings>;
+  saveSchemaPublication(context: SchemaApplicationContext, nextSchemaVersion: number): Promise<EntitySchemaChange>;
 }
 function parse<T>(schema: z.ZodType<T>, raw: unknown): T {
   const r = schema.safeParse(raw);
@@ -68,7 +76,12 @@ export function analyzeEntitySchemaChange(d: EntityTypeDeps, a: Actor, typeId: s
 export function applyEntitySchemaChange(d: EntityTypeDeps, a: Actor, typeId: string, id: string, raw: unknown) {
   refs(typeId, id);
   const i = parse(schemaChangeApply, raw);
-  return runWrite(d.uow, a, "entity-schema-change.apply", [typeId, id], i, (s) => s.applyChange(typeId, id, i));
+  return runWrite(d.uow, a, "entity-schema-change.apply", [typeId, id], i, async (s) => {
+    const context = await s.loadSchemaApplication(typeId, id, i.analysis_id);
+    assertSchemaApplication(context, "compatible", i);
+    await assertSchemaApplicationBindings(context, await s.lockSchemaApplicationBindings(context));
+    return s.saveSchemaPublication(context, context.type.schema_version + 1);
+  });
 }
 export type SchemaChangeDepsStore = EntityTypeStore;
 

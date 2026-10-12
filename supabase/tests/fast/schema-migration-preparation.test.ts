@@ -47,6 +47,10 @@ Deno.test("migration preparation preserves explicit values, shared template/hash
   assertEquals(output.results[0].record_context[0].schema_version, 2);
   assertEquals(output.results[0].record_context[0].title, "원본");
   assertEquals(output.results[0].after, { prop_1: "원본", prop_2: 0 });
+  assertEquals(output.results[0].record_context[0].captured_at, "2026-10-12T00:00:00.000Z");
+  const later = await prepareMigrationBatch(batch, new Date("2027-02-03T04:05:06Z"));
+  assertEquals(later.results[0].record_context[0].captured_at, "2027-02-03T04:05:06.000Z");
+  assertEquals(later.results[0].record_body, "0 · 원본");
   const unchanged = migrationRecordRenderer(batch, new Date("2026-10-12T00:00:00Z"))({
     ...batch.rows[0],
     changed: false,
@@ -61,7 +65,10 @@ Deno.test("migration preparation preserves explicit values, shared template/hash
     captured_at: "2026-10-12T00:00:00.000Z",
     source: "selection",
   }]);
-  const stale = await prepareMigrationBatch({ ...batch, source_template_fingerprint: "not the same" });
+  const stale = await prepareMigrationBatch(
+    { ...batch, source_template_fingerprint: "not the same" },
+    new Date("2026-10-12T00:00:00Z"),
+  );
   assert(stale.stale);
   assertEquals(stale.results, []);
   const large = { entity: { update: { memo: "한".repeat(18000), tag_ids: [] } } },
@@ -71,7 +78,7 @@ Deno.test("migration preparation preserves explicit values, shared template/hash
       source_template_fingerprint: await effectiveEntityTemplateFingerprint(large, batch.type_id),
       rows: Array.from({ length: 50 }, (_, i) => ({ ...batch.rows[0], entity_id: `app:${i}` })),
     };
-  const bounded = await prepareMigrationBatch(largeBatch);
+  const bounded = await prepareMigrationBatch(largeBatch, new Date("2026-10-12T00:00:00Z"));
   assert(!bounded.stale);
   assert(bounded.results.length > 0 && bounded.results.length < 50);
   assert(new TextEncoder().encode(JSON.stringify(bounded.results)).length <= 524288);

@@ -54,3 +54,10 @@ export function entityListAnchor(hash: string) {
   const state = readEntityListUrl(new URLSearchParams({ entity_type_id: fragment.get("entity_type_id") ?? "" }),hash);
   return state.error ? "" : state.anchor;
 }
+
+/** Same-detail modes retain the validated list-fragment representation and its origin anchor. */
+export function detailModeLink(pathname: string, params: URLSearchParams, hash: string) {
+  const path = `${pathname}?${params}${hash}`;
+  const list = params.get("list");
+  return list?.startsWith("/entities?") ? entityDetailListLink(path, restoreEntityListLink(list, hash)) : path;
+}

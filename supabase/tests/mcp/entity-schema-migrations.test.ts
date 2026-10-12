@@ -150,7 +150,7 @@ httpTest(
           await worker`select app.commit_entity_schema_migration(${b.id},${b.fence},${b.source_template_fingerprint},${SEARCH_PIPELINE})`;
           break;
         }
-        const prepared = await prepareMigrationBatch(b);
+        const prepared = await prepareMigrationBatch(b, new Date("2026-10-12T00:00:00Z"));
         await worker`select app.stage_entity_schema_migration(${b.id},${b.fence},${worker.json(prepared.results)})`;
       }
       const done = (await call(token, "GET", `/entity-schema-migrations/${secondId}`)).body;
@@ -234,7 +234,7 @@ httpTest(
           await worker`select app.commit_entity_schema_migration(${b.id},${b.fence},${b.source_template_fingerprint},${SEARCH_PIPELINE})`;
           break;
         }
-        const prepared = await prepareMigrationBatch(b);
+        const prepared = await prepareMigrationBatch(b, new Date("2026-10-12T00:00:00Z"));
         await worker`select app.stage_entity_schema_migration(${b.id},${b.fence},${worker.json(prepared.results)})`;
       }
       assertEquals(
