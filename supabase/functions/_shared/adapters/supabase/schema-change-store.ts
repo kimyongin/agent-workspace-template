@@ -133,13 +133,13 @@ export class SqlSchemaChangeStore implements SchemaChangeStore {
     const [time] = await this.tx`select clock_timestamp() as observed_at`;
     return time.observed_at.toISOString();
   }
-  protected async recoveryFresh(c: postgres.Row, lock = true) {
-    if (!c.recovery_source_job_id) return;
-    const [j] = await this.tx`select * from app.entity_schema_migrations where id=${c.recovery_source_job_id} ${
+  protected async recoveryFresh(sourceJobId: string | null, typeId: string, lock = true) {
+    if (!sourceJobId) return;
+    const [j] = await this.tx`select * from app.entity_schema_migrations where id=${sourceJobId} ${
       lock ? this.tx`for update` : this.tx``
     }`;
     if (!j) throw notFound();
-    const [t] = await this.tx`select * from app.entity_types where id=${c.type_id}`;
+    const [t] = await this.tx`select * from app.entity_types where id=${typeId}`;
     if (!t) throw notFound();
     const read = await this.recoveryEvidence(j, t);
     assertRecoveryFresh(read.evidence, new Date(read.observed_at));
@@ -320,7 +320,7 @@ export class SqlSchemaChangeStore implements SchemaChangeStore {
       expected_type_version: Number(row.source_type_version),
       expected_schema_version: Number(row.source_schema_version),
     });
-    await this.recoveryFresh(row);
+    await this.recoveryFresh(row.recovery_source_job_id, typeId);
     await this.templates(row.target, typeId, row.source_template_fingerprint);
     const overrides = row.migration?.overrides ?? [];
     for (const override of overrides) {
@@ -354,7 +354,7 @@ export class SqlSchemaChangeStore implements SchemaChangeStore {
     input: Parameters<SchemaChangeStore["analysisRows"]>[2],
   ): Promise<SchemaAnalysisPage> {
     const change = await this.row(typeId, id);
-    await this.recoveryFresh(change, false);
+    await this.recoveryFresh(change.recovery_source_job_id, typeId, false);
     const [expired] = await this
       .tx`select id from app.entity_schema_migrations where analysis_id=${input.analysis_id} and source_expires_at<=now() and status='succeeded'`;
     if (expired) throw new AppError("migration_source_expired", "원본 분석 자료의 30일 보관 기간이 지났습니다");

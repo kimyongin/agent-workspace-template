@@ -157,7 +157,7 @@ export class SqlSchemaMigrationStore extends SqlSchemaChangeStore implements Sch
     if (preparedCount !== Number(a.total)) {
       throw invalidInput("모든 자료의 기록을 준비할 수 없습니다. 새 분석을 준비하세요");
     }
-    await this.recoveryFresh(c);
+    await this.recoveryFresh(c.recovery_source_job_id, typeId);
     const [j] = await this
       .tx`insert into app.entity_schema_migrations(owner_id,type_id,change_id,change_version,analysis_id,fingerprint,membership,source_type_version,source_schema_version,source_template_fingerprint,source_templates,source_definition,target,migration,source_references,total,actor_source) select ${this.actor.userId},${typeId},${changeId},${c.version},${a.id},${c.fingerprint},${a.membership},${t.version},${t.schema_version},${c.source_template_fingerprint},${
       this.tx.json(templates as never)
