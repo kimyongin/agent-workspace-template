@@ -233,7 +233,7 @@ test("자료 연결 작성·실패 초안·성공 후 조회 실패와 모달 �
   await page.route("**/api/principles**", route => route.fulfill({ json: { items: [], next_cursor: null } }));
   await page.route("**/api/tasks", route => { bodies.push(route.request().postDataJSON()); if (failSave) return route.fulfill({ status: 400, json: { code: "validation", message: "저장 실패" } }); saved = true; return route.fulfill({ status: 201, json: { id: "created" } }); });
   await page.route("**/api/records", route => { bodies.push(route.request().postDataJSON()); return route.fulfill({ status: 201, json: { id: "record-created" } }); });
-  await page.goto(url); await page.getByRole("link", { name: "전체 자료", exact: true }).evaluate((el:HTMLAnchorElement)=>el.click());
+  await page.goto(url); await page.getByRole("link", { name: "자료 fixture", exact: true }).evaluate((el:HTMLAnchorElement)=>el.click());
   await expect(page.getByText("버전 7")).toHaveCount(0); await page.getByRole("button", { name: "할 일 작성" }).click();
   const form = page.getByRole("dialog", { name: "할 일 추가", exact: true });
   await expect(form.getByRole("button", { name: entity.title+" 해제", exact: true })).toBeVisible();
@@ -318,7 +318,7 @@ for(const [path,label,scope] of [["entities","전체 자료","entity"],["records
   await page.getByRole("link",{name:scope==="entity"?"자료 태그":"기록 태그",exact:true}).click();
   await page.getByRole("button",{name:"닫기",exact:true}).click();
   await expect(page).toHaveURL(/\/settings$/);
-  await expect(page.getByRole("link",{name:`${label} 태그`,exact:true})).toBeFocused();
+  await expect(page.getByRole("link",{name:scope==="entity"?"자료 태그":"기록 태그",exact:true})).toBeFocused();
 });
 
 
