@@ -26,7 +26,7 @@ test("설정 템플릿 오류·변수 삽입과 실제 변경 확인·취소·�
     await form.getByLabel("자료 종류", { exact: true }).selectOption(fixtureType.id);
     await form.getByLabel("메모 템플릿").fill("앞 $엔터티.이전.prop_2");
     await form.getByRole("button",{name:"기록 기본값 저장"}).click();
-    await expect(form).toContainText("3번째 문자");
+    await expect(form).toContainText("닫는 구분자 $가 없습니다");
     await expect(form.getByLabel("메모 템플릿")).toHaveValue("앞 $엔터티.이전.prop_2");
     await form.getByLabel("액션",{exact:true}).selectOption("update");
     await form.getByLabel("메모 템플릿").fill("");
