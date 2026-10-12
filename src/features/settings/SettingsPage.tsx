@@ -48,6 +48,7 @@ function AccountSettings() {
     const previous = previousSaved.current;
     previousSaved.current = saved;
     setDraft((value) => ({
+      navigation: saved.navigation,
       icon: value.icon === previous.icon ? saved.icon : value.icon,
       nickname: value.nickname === previous.nickname ? saved.nickname : value.nickname,
       timezone: value.timezone === previous.timezone ? saved.timezone : value.timezone,
@@ -267,6 +268,11 @@ function AccountSettings() {
               {{ profile, date, display }[section]}
             </fieldset>
             {controls(section)}
+            {section === "display" && (
+              <div className="settings-links">
+                <DetailLink to="/settings/navigation">메뉴 바로가기</DetailLink>
+              </div>
+            )}
           </form>
         </section>
       ))}

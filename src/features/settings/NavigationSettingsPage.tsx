@@ -1,0 +1,301 @@
+import { useEffect, useRef, useState } from "react";
+import { useBlocker, useLocation } from "react-router";
+import { ConfirmDialog } from "../../components/Modal.tsx";
+import { DetailLink } from "../../lib/detail-exploration.tsx";
+import { defaultNavigationRefs, type NavigationRef, resolveNavigationRefs } from "../../app/type-navigation.ts";
+import { useAuth } from "../auth/AuthProvider.tsx";
+import { ProfileDisplayRefreshError } from "../auth/profile-client.ts";
+import { useEntityTypes } from "../entity/useEntityTypes.ts";
+import { EntityTypeIcon } from "../entity/EntityTypeIcon.tsx";
+import { accountPreferences, type NavigationPreference } from "./account-preferences.ts";
+import { useNavigationPreview } from "./navigation-preview.tsx";
+import "./settings.css";
+const equal = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+const key = (ref: NavigationRef) => `${ref.kind}:${ref.id}`;
+export function NavigationSettingsPage() {
+  const { session } = useAuth();
+  return session ? <NavigationSettings key={session.user.id} /> : null;
+}
+function NavigationSettings() {
+  const { session, savePreferences } = useAuth();
+  const saved = accountPreferences(session!.user.user_metadata).navigation;
+  const [baseline, setBaseline] = useState(saved);
+  const [draft, setDraft] = useState(saved);
+  const [conflict, setConflict] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<{ text: string; error?: boolean } | null>(null);
+  const [keyword, setKeyword] = useState("");
+  const pending = useRef(false), mounted = useRef(true);
+  const { setPreview } = useNavigationPreview();
+  const location = useLocation();
+  const catalog = useEntityTypes(session!.user.id, location.key);
+  const types = catalog.types ?? [];
+  const dirty = !equal(draft, baseline);
+  const refs = draft?.refs ?? defaultNavigationRefs(types);
+  const choices = resolveNavigationRefs([
+    ...["entities", "tasks", "principles", "records"].map((id) => ({ kind: "builtin", id } as NavigationRef)),
+    ...types.map((type) => ({ kind: "type" as const, id: type.id })),
+  ], types);
+  const blocker = useBlocker(dirty || busy);
+  useEffect(() => {
+    if (busy && blocker.state === "blocked") blocker.reset();
+  }, [busy, blocker]);
+  useEffect(() => {
+    if (equal(saved, baseline)) return;
+    if (dirty || pending.current) setConflict(true);
+    else {
+      setBaseline(saved);
+      setDraft(saved);
+    }
+  }, [JSON.stringify(saved)]);
+  useEffect(() => {
+    setPreview(draft);
+    return () => setPreview(undefined);
+  }, [draft, setPreview]);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+  useEffect(() => {
+    const unload = (event: BeforeUnloadEvent) => {
+      if (dirty || busy) {
+        event.preventDefault();
+        event.returnValue = "";
+      }
+    };
+    window.addEventListener("beforeunload", unload);
+    return () => window.removeEventListener("beforeunload", unload);
+  }, [dirty, busy]);
+  const edit = (next: NavigationRef[]) => {
+    setDraft({ version: 1, refs: next });
+    setMessage(null);
+  };
+  const save = async () => {
+    if (pending.current || !dirty || conflict) return;
+    pending.current = true;
+    setBusy(true);
+    setMessage(null);
+    try {
+      const confirmed = await savePreferences({ navigation: draft });
+      if (mounted.current) {
+        setBaseline(confirmed.navigation);
+        setDraft(confirmed.navigation);
+        setConflict(false);
+        setMessage({ text: "메뉴 설정을 저장했습니다." });
+      }
+    } catch (cause) {
+      if (mounted.current) {
+        setMessage({
+          error: true,
+          text: cause instanceof ProfileDisplayRefreshError
+            ? cause.message
+            : "저장하지 못했습니다. 선택한 메뉴를 유지했습니다. 다시 시도하세요.",
+        });
+      }
+    } finally {
+      pending.current = false;
+      if (mounted.current) setBusy(false);
+    }
+  };
+  return (
+    <section className="panel settings" aria-labelledby="navigation-settings-title">
+      <nav className="settings-breadcrumb" aria-label="설정 경로">
+        <DetailLink to="/settings">설정</DetailLink>
+        <span>메뉴 바로가기</span>
+      </nav>
+      <h1 className="page-title" id="navigation-settings-title">메뉴 바로가기</h1>
+      <p className="secondary">
+        내 프로필은 항상 표시됩니다. 바로가기는 최대 4개를 선택할 수 있고, 모든 업무와 자료 종류는 프로필에서 찾을 수
+        있습니다.
+      </p>
+      <form
+        className="form"
+        aria-label="메뉴 바로가기 설정"
+        aria-busy={busy}
+        onSubmit={(event) => {
+          event.preventDefault();
+          void save();
+        }}
+      >
+        <fieldset className="settings-fields" disabled={busy}>
+          <legend className="label">바로가기 순서와 미리보기</legend>
+          <p className="secondary">
+            {draft === null ? "기본 구성 사용 중" : "내가 선택한 구성"}{" "}
+            · 화면에 맞지 않는 후순위 항목은 프로필에서 접근할 수 있습니다. 아래 선택은 현재 메뉴에 미리 표시됩니다.
+          </p>
+          <ol className="navigation-selection" aria-label="선택한 바로가기">
+            {refs.map((ref, index) => {
+              const entry = resolveNavigationRefs([ref], types)[0];
+              const label = entry?.label ?? "사용할 수 없는 자료 종류";
+              return (
+                <li key={key(ref)}>
+                  <span className="navigation-selection-label">
+                    <EntityTypeIcon id={entry?.icon ?? "box"} />
+                    {label}
+                    {entry?.archived ? " · 보관" : ""}
+                    {!entry ? catalog.types === null && !catalog.error ? " · 확인 중" : " · 참조 유지" : ""}
+                  </span>
+                  <div className="actions">
+                    <button
+                      type="button"
+                      className="btn"
+                      aria-label={`${label} 위로 이동`}
+                      disabled={index === 0}
+                      onClick={() => {
+                        const next = [...refs];
+                        [next[index - 1], next[index]] = [next[index], next[index - 1]];
+                        edit(next);
+                      }}
+                    >
+                      위로
+                    </button>
+                    <button
+                      type="button"
+                      className="btn"
+                      aria-label={`${label} 아래로 이동`}
+                      disabled={index === refs.length - 1}
+                      onClick={() => {
+                        const next = [...refs];
+                        [next[index + 1], next[index]] = [next[index], next[index + 1]];
+                        edit(next);
+                      }}
+                    >
+                      아래로
+                    </button>
+                    <button
+                      type="button"
+                      className="btn"
+                      aria-label={`${label} 숨기기`}
+                      onClick={() => edit(refs.filter((_, position) => position !== index))}
+                    >
+                      숨기기
+                    </button>
+                  </div>
+                </li>
+              );
+            })}
+          </ol>
+          {refs.length === 0 && <p className="secondary">내 프로필만 표시합니다.</p>}
+          <label className="field">
+            <span className="label">바로가기 검색</span>
+            <input
+              className="input"
+              type="search"
+              value={keyword}
+              onChange={(event) => setKeyword(event.target.value)}
+            />
+          </label>
+          <div className="navigation-choices" aria-label="추가할 바로가기">
+            {choices.filter((entry) =>
+              !refs.some((ref) => key(ref) === entry.key) &&
+              entry.label.toLocaleLowerCase().includes(keyword.toLocaleLowerCase())
+            ).map((entry) => (
+              <button
+                type="button"
+                className="btn"
+                key={entry.key}
+                disabled={refs.length >= 4}
+                onClick={() => edit([...refs, entry.ref])}
+              >
+                <EntityTypeIcon id={entry.icon} />
+                {entry.label}
+                {entry.archived ? " · 보관" : ""} 추가
+              </button>
+            ))}
+          </div>
+          {catalog.error && (
+            <div role="alert">
+              자료 종류를 불러오지 못했습니다. 저장된 참조는 유지됩니다.{" "}
+              <button type="button" className="btn" onClick={catalog.retry}>다시 시도</button>
+            </div>
+          )}
+          <button
+            type="button"
+            className="btn"
+            disabled={draft === null}
+            onClick={() => {
+              setDraft(null);
+              setMessage(null);
+            }}
+          >
+            기본 구성 사용
+          </button>
+        </fieldset>
+        {conflict && (
+          <div role="alert">
+            <p>
+              다른 탭에서 메뉴 설정이 변경되었습니다. 선택한 미리보기는 유지했습니다. 최신 설정을 확인하고 계속하세요.
+            </p>
+            <div className="actions">
+              <button
+                type="button"
+                className="btn"
+                disabled={busy}
+                onClick={() => {
+                  setBaseline(saved);
+                  setDraft(saved);
+                  setConflict(false);
+                }}
+              >
+                최신 설정 사용
+              </button>
+              <button
+                type="button"
+                className="btn"
+                disabled={busy}
+                onClick={() => {
+                  setBaseline(saved);
+                  setConflict(false);
+                }}
+              >
+                현재 선택 유지
+              </button>
+            </div>
+          </div>
+        )}
+        {message && (
+          <p role={message.error ? "alert" : "status"} className={message.error ? "error-text" : "secondary"}>
+            {message.text}
+          </p>
+        )}
+        <div className="settings-section-footer actions">
+          <button
+            type="button"
+            className="btn"
+            disabled={!dirty && !conflict || busy}
+            onClick={() => {
+              setBaseline(saved);
+              setDraft(saved);
+              setConflict(false);
+              setMessage(null);
+            }}
+          >
+            변경 취소
+          </button>
+          <button
+            type="submit"
+            className="btn btn-primary"
+            disabled={!dirty || busy || conflict}
+            aria-label="메뉴 바로가기 저장"
+          >
+            {busy ? "저장 중…" : "저장"}
+          </button>
+        </div>
+      </form>
+      <ConfirmDialog
+        open={!busy && blocker.state === "blocked"}
+        title="변경을 버릴까요?"
+        message="저장하지 않은 메뉴 설정이 사라집니다."
+        confirmLabel="변경 버리기"
+        onConfirm={() => {
+          if (blocker.state === "blocked") blocker.proceed();
+        }}
+        onCancel={() => {
+          if (blocker.state === "blocked") blocker.reset();
+        }}
+      />
+    </section>
+  );
+}

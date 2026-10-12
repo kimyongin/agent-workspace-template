@@ -1,3 +1,4 @@
+import { entityTypeCatalogEvent } from "./entity-type-catalog.ts";
 import { useEffect, useState } from "react";
 import type { EntityType } from "@contracts/entity-type.ts";
 import { api, query } from "../../lib/api.ts";
@@ -5,6 +6,18 @@ export function useEntityTypes(scope = "catalog", revision?: unknown) {
   const [catalog, setCatalog] = useState<{ scope: string; types: EntityType[] } | null>(null),
     [error, setError] = useState(false),
     [generation, setGeneration] = useState(0);
+  useEffect(() => {
+    const refresh = () => setGeneration((value) => value + 1);
+    const changed = (event: Event) => {
+      if ((event as CustomEvent<unknown>).detail === scope) refresh();
+    };
+    window.addEventListener(entityTypeCatalogEvent, changed);
+    window.addEventListener("focus", refresh);
+    return () => {
+      window.removeEventListener(entityTypeCatalogEvent, changed);
+      window.removeEventListener("focus", refresh);
+    };
+  }, [scope]);
   useEffect(() => {
     const controller = new AbortController();
     setCatalog((previous) => previous?.scope === scope ? previous : null);

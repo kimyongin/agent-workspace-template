@@ -1,3 +1,5 @@
+import { useAuth } from "../auth/AuthProvider.tsx";
+import { invalidateEntityTypeCatalog } from "../entity/entity-type-catalog.ts";
 import { SchemaEditor, SchemaVersionDiff } from "./SchemaEditor.tsx";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useBlocker, useLocation, useParams } from "react-router";
@@ -18,6 +20,7 @@ export function EntityTypeSettings() {
   return <EntityTypeSettingsEditor key={type_id ?? "create"} type_id={type_id} />;
 }
 function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
+  const { session } = useAuth();
   const { type_id: activeTypeId } = useParams();
   const location = useLocation();
   const versions = location.pathname.endsWith("/versions");
@@ -138,6 +141,7 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
           attempt.requestKey(),
         );
         if (!mounted.current) return;
+        if (session) invalidateEntityTypeCatalog(session.user.id);
         if (type_id) {
           setType(saved);
           setLabel(saved.label);

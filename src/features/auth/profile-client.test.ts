@@ -2,15 +2,30 @@ import { afterEach, expect, test, vi } from "vitest";
 import type { Session } from "@supabase/supabase-js";
 import { profileClient, readProfile } from "./profile-client.ts";
 
-afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); });
+afterEach(() => {
+  vi.unstubAllEnvs();
+  vi.unstubAllGlobals();
+});
 test("만료 임박한 개인 프로필 세션은 공유 refresh token을 회전시키지 않는다", async () => {
   vi.stubEnv("VITE_SUPABASE_URL", "http://127.0.0.1:56521");
   vi.stubEnv("VITE_SUPABASE_PUBLISHABLE_KEY", "fixture-public-key");
-  const network = vi.fn(() => { throw new Error("unexpected network"); });
+  const network = vi.fn(() => {
+    throw new Error("unexpected network");
+  });
   vi.stubGlobal("fetch", network);
   const session = {
-    access_token: "fixture-access", refresh_token: "shared-refresh", expires_at: Math.floor(Date.now() / 1000) + 30,
-    token_type: "bearer", expires_in: 30, user: { id: "fixture-account", aud: "authenticated", app_metadata: {}, user_metadata: { workspace_avatar_id: "person" }, created_at: "2026-10-04T00:00:00Z" },
+    access_token: "fixture-access",
+    refresh_token: "shared-refresh",
+    expires_at: Math.floor(Date.now() / 1000) + 30,
+    token_type: "bearer",
+    expires_in: 30,
+    user: {
+      id: "fixture-account",
+      aud: "authenticated",
+      app_metadata: {},
+      user_metadata: { workspace_avatar_id: "person" },
+      created_at: "2026-10-04T00:00:00Z",
+    },
   } satisfies Session;
   const client = profileClient(session);
   try {
@@ -19,25 +34,87 @@ test("만료 임박한 개인 프로필 세션은 공유 refresh token을 회전
     expect(network).not.toHaveBeenCalled();
     expect(session.refresh_token).toBe("shared-refresh");
     expect(session.user.user_metadata.workspace_avatar_id).toBe("person");
-  } finally { await client.dispose(); }
+  } finally {
+    await client.dispose();
+  }
 });
 
 test("명시적 JWT 서버 조회는 만료 임박한 snapshot도 refresh 없이 읽고 원본을 보존한다", async () => {
   vi.stubEnv("VITE_SUPABASE_URL", "http://127.0.0.1:56521");
   vi.stubEnv("VITE_SUPABASE_PUBLISHABLE_KEY", "fixture-public-key");
   const session = {
-    access_token: "fixture-access", refresh_token: "shared-refresh", expires_at: Math.floor(Date.now() / 1000) + 30,
-    token_type: "bearer", expires_in: 30, user: { id: "fixture-account", aud: "authenticated", app_metadata: {}, user_metadata: { workspace_avatar_id: "person", provider_value: "preserved" }, created_at: "2026-10-04T00:00:00Z" },
+    access_token: "fixture-access",
+    refresh_token: "shared-refresh",
+    expires_at: Math.floor(Date.now() / 1000) + 30,
+    token_type: "bearer",
+    expires_in: 30,
+    user: {
+      id: "fixture-account",
+      aud: "authenticated",
+      app_metadata: {},
+      user_metadata: { workspace_avatar_id: "person", provider_value: "preserved" },
+      created_at: "2026-10-04T00:00:00Z",
+    },
   } satisfies Session;
   const original = JSON.stringify(session);
   const network = vi.fn(async (url: string, init?: RequestInit) => {
     expect(url).toBe("http://127.0.0.1:56521/auth/v1/user");
     expect(init?.method).toBe("GET");
     expect(new Headers(init?.headers).get("Authorization")).toBe("Bearer fixture-access");
-    return new Response(JSON.stringify({ ...session.user, user_metadata: { workspace_avatar_id: "leaf" } }), { headers: { "Content-Type": "application/json" } });
+    return new Response(JSON.stringify({ ...session.user, user_metadata: { workspace_avatar_id: "leaf" } }), {
+      headers: { "Content-Type": "application/json" },
+    });
   });
   vi.stubGlobal("fetch", network);
-  expect(await readProfile(session)).toEqual({ icon: "leaf", nickname: null, timezone: null, desktopDisplayScale: 100, mobileDisplayScale: 100 });
+  expect(await readProfile(session)).toEqual({
+    navigation: null,
+    icon: "leaf",
+    nickname: null,
+    timezone: null,
+    desktopDisplayScale: 100,
+    mobileDisplayScale: 100,
+  });
   expect(network).toHaveBeenCalledTimes(1);
   expect(JSON.stringify(session)).toBe(original);
+});
+
+test("Auth 정본 조회는 메뉴 참조만 복원하고 도메인 라벨과 권한을 개인 표시 상태로 복사하지 않는다", async () => {
+  vi.stubEnv("VITE_SUPABASE_URL", "http://127.0.0.1:56521");
+  vi.stubEnv("VITE_SUPABASE_PUBLISHABLE_KEY", "fixture-public-key");
+  const session = {
+    access_token: "fixture-access",
+    refresh_token: "shared-refresh",
+    expires_at: Math.floor(Date.now() / 1000) + 3600,
+    token_type: "bearer",
+    expires_in: 3600,
+    user: {
+      id: "fixture-account",
+      aud: "authenticated",
+      app_metadata: {},
+      user_metadata: {},
+      created_at: "2026-10-04T00:00:00Z",
+    },
+  } satisfies Session;
+  const network = vi.fn(async () =>
+    new Response(
+      JSON.stringify({
+        ...session.user,
+        user_metadata: {
+          workspace_navigation: {
+            version: 1,
+            refs: [{ kind: "type", id: "00000000-0000-4000-8000-000000000001", label: "기밀 이름", icon: "secret" }],
+            role: "admin",
+          },
+          role: "admin",
+        },
+      }),
+      { headers: { "Content-Type": "application/json" } },
+    )
+  );
+  vi.stubGlobal("fetch", network);
+  expect((await readProfile(session)).navigation).toEqual({
+    version: 1,
+    refs: [{ kind: "type", id: "00000000-0000-4000-8000-000000000001" }],
+  });
+  expect(network).toHaveBeenCalledTimes(1);
 });

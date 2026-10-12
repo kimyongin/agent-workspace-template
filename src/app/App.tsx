@@ -1,3 +1,5 @@
+import { NavigationPreviewProvider } from "../features/settings/navigation-preview.tsx";
+import { NavigationSettingsPage } from "../features/settings/NavigationSettingsPage.tsx";
 import { EntityIdentitySettingsPage } from "../features/settings/EntityIdentitySettingsPage.tsx";
 import { EntityTypeSettings } from "../features/settings/EntityTypeSettings.tsx";
 import { StatusPage } from "../features/status/StatusPage.tsx";
@@ -108,6 +110,7 @@ export function App() {
           <Route path="tags/:scope" element={guarded(<TagsPage />)} />
           <Route path="tags/:scope/:id" element={guarded(<TagsPage />)} />
           <Route path="guide" element={guarded(<GuidePage />)} />
+          <Route path="settings/navigation" element={guarded(<NavigationSettingsPage />)} />
           <Route path="settings" element={guarded(<SettingsPage />)} />
           <Route path="settings/entity-identity" element={guarded(<EntityIdentitySettingsPage />)} />
           <Route path="settings/entity-types" element={guarded(<EntityTypeSettings />)} />
@@ -122,7 +125,9 @@ export function App() {
   return (
     <AuthProvider>
       <DisplayScaleProvider>
-        <RouterProvider router={router} />
+        <NavigationPreviewProvider>
+          <RouterProvider router={router} />
+        </NavigationPreviewProvider>
       </DisplayScaleProvider>
     </AuthProvider>
   );
