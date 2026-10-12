@@ -275,10 +275,10 @@ test("desktop: closing an inactive dirty tab asks once; cancel and discard prese
 test("desktop: hidden dirty drafts protect leaving workspace and cleanup after approval", async ({ page }) => {
   const state = await fixture(page); await page.goto(`/entities/${encodeURIComponent(entityKey(1))}`); await openTask(page);
   await panel(page).getByRole("button", { name: "편집", exact: true }).click(); await panel(page).getByLabel("본문", { exact: true }).fill("초안");
-  await page.getByRole("tab", { name: "등심", exact: true }).click(); await page.getByRole("button", { name: "내 프로필" }).click(); await page.getByRole("link", { name: "설정", exact: true }).click();
+  await page.getByRole("tab", { name: "등심", exact: true }).click(); await page.getByRole("button", { name: /^내 프로필(?: · .+)?$/ }).click(); await page.getByRole("link", { name: "설정", exact: true }).click();
   const confirm = page.getByRole("dialog", { name: "변경을 버릴까요?" }); await confirm.getByRole("button", { name: "취소", exact: true }).click();
   await expect(page.getByRole("tab")).toHaveCount(2);
-  if(await page.getByRole("button",{name:"내 프로필"}).getAttribute("aria-expanded")!=="true")await page.getByRole("button", { name: "내 프로필" }).click();
+  if(await page.getByRole("button",{name:/^내 프로필(?: · .+)?$/}).getAttribute("aria-expanded")!=="true")await page.getByRole("button", { name: /^내 프로필(?: · .+)?$/ }).click();
   await page.getByRole("link", { name: "설정", exact: true }).click(); await confirm.getByRole("button", { name: "변경 버리기" }).click();
   await expect(page).toHaveURL(/\/settings$/); await expect(page.getByRole("tab")).toHaveCount(0); expect(state.errors).toEqual([]);
 });
@@ -507,7 +507,7 @@ test("desktop: record tabs use distinct body previews and logout removes the ret
   await expect(page.getByRole("tab", {name:title,exact:true})).toHaveAttribute("aria-selected","true");
     await expect(page.getByRole("tab", { name: title, exact: true })).toHaveAttribute("aria-selected", "true");
   }
-  await expect(page.getByRole("tab")).toHaveCount(2); await page.getByRole("button", { name: "내 프로필" }).click(); await page.getByRole("link", { name: "로그아웃", exact: true }).click();
+  await expect(page.getByRole("tab")).toHaveCount(2); await page.getByRole("button", { name: /^내 프로필(?: · .+)?$/ }).click(); await page.getByRole("link", { name: "로그아웃", exact: true }).click();
   await expect(page).toHaveURL(/\/login$/); await expect(page.getByRole("tab")).toHaveCount(0);
   expect(await page.evaluate(() => localStorage.getItem("sb-127-auth-token"))).toBeNull(); expect(state.errors).toEqual([]);
 });

@@ -136,3 +136,19 @@ test("template insertion uses selected type labels and immutable property keys",
     "수량 · 이후 (prop_2)",
   );
 });
+
+test("numeric filter rejects a precision-losing draft without applying or clearing its input", async ({ page }) => {
+  await page.goto(`/entities?entity_type_id=${fixtureType.id}`);
+  await openTabFilters(page);
+  await page.getByRole("button", { name: "속성 조건 추가", exact: true }).click();
+  await page.getByLabel("조건 1 속성", { exact: true }).selectOption("prop_2");
+  const input = page.getByLabel("조건 1 값", { exact: true });
+  await input.fill("9007199254740993");
+  await page.getByRole("button", { name: "속성 조건 적용", exact: true }).click();
+  await expect(page.getByRole("alert")).toContainText("조건 값과 비교");
+  await expect(input).toHaveValue("9007199254740993");
+  expect(new URL(page.url()).searchParams.has("property_filters")).toBe(false);
+  await input.fill("42");
+  await page.getByRole("button", { name: "속성 조건 적용", exact: true }).click();
+  await expect.poll(() => new URL(page.url()).searchParams.get("property_filters")).toBe('[{"key":"prop_2","operator":"eq","value":42}]');
+});

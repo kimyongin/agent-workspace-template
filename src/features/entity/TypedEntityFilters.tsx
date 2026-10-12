@@ -1,3 +1,4 @@
+import { entityNumberDraft } from "@contracts/entity-number.ts";
 import { useEffect, useState } from "react";
 import type { EntitySchemaResult } from "@contracts/entity-type.ts";
 import { entityPropertyFilter } from "@contracts/entity.ts";
@@ -202,7 +203,7 @@ export function TypedEntityFilters(
                       (kind === "integer" || kind === "number") && (typeof value !== "string" || !value.trim()) &&
                       typeof value !== "number"
                     ) throw Error("숫자를 입력하세요");
-                    return { ...row, value: kind === "integer" || kind === "number" ? Number(value) : value };
+                    return { ...row, value: kind === "integer" || kind === "number" ? entityNumberDraft(String(value), kind) : value };
                   });
                   const parsed = z.array(entityPropertyFilter).parse(filters);
                   setError("");

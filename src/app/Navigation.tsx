@@ -11,6 +11,8 @@ import { api } from "../lib/api.ts";
 import type { EntityDetail } from "@contracts/entity.ts";
 import {
   defaultNavigationRefs,
+  visibleNavigationEntries,
+  currentNavigationName,
   entityTypeLocation,
   navigationCapacity,
   navigationEntryCurrent,
@@ -57,10 +59,10 @@ export function Navigation({ brand, navigationRef }: { brand: string; navigation
   const catalog = useEntityTypes(session?.user.id ?? "signed-out", location.key);
   const { preview } = useNavigationPreview();
   const preference = preview === undefined ? accountPreferences(session?.user.user_metadata ?? {}).navigation : preview;
-  const entries = resolveNavigationRefs(
+  const entries = visibleNavigationEntries(resolveNavigationRefs(
     preference?.refs ?? defaultNavigationRefs(catalog.types ?? []),
     catalog.types ?? [],
-  );
+  ));
   const [keyword, setKeyword] = useState("");
   const requestedTypeId = entityTypeLocation(location.search);
   const [detailType, setDetailType] = useState<{ path: string; id: string } | null>(null);
@@ -147,6 +149,9 @@ export function Navigation({ brand, navigationRef }: { brand: string; navigation
       window.removeEventListener("resize", measure);
     };
   }, [open]);
+  const profileCurrent = current === "more" || !!current && !entries.slice(0, capacity).some(isCurrent);
+  const settingsTypeId = location.pathname.match(/^\/settings\/entity-types\/([^/]+)/)?.[1];
+  const currentLabel = currentNavigationName(current, location.pathname, catalog.types?.find((type) => type.id === (settingsTypeId ?? typeId))?.label);
   return (
     <nav className="bottom-nav" aria-label="주 메뉴" id="workspace-navigation" ref={navigationRef}>
       <div className="navigation-brand">
@@ -189,10 +194,11 @@ export function Navigation({ brand, navigationRef }: { brand: string; navigation
             className="nav-profile-trigger"
             type="button"
             ref={profileTrigger}
-            aria-label="내 프로필"
+            aria-label={profileCurrent ? `내 프로필 · ${currentLabel} 현재 화면` : "내 프로필"}
+            aria-current={profileCurrent ? "page" : undefined}
             aria-expanded={open}
             aria-controls="nav-profile-options"
-            data-current={current === "more" || !!current && !entries.slice(0, capacity).some(isCurrent) || undefined}
+            data-current={profileCurrent || undefined}
             onClick={() => setOpen((value) => !value)}
           >
             <ProfileIcon id={session?.user.user_metadata?.workspace_avatar_id} />

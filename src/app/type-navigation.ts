@@ -80,3 +80,22 @@ export function navigationCapacity(width: number, fontSize: number, sidebar: boo
   const minimum = Math.max(44, fontSize * 3);
   return Math.max(0, Math.min(4, Math.floor((width - minimum - 16) / (minimum + 4))));
 }
+
+/** Saved refs retain archived identities; ordinary shortcut slots show active entries. */
+export function visibleNavigationEntries(entries: NavigationEntry[]) { return entries.filter((entry) => !entry.archived); }
+export function currentNavigationName(section: string | null, path: string, typeLabel?: string): string {
+  if (section === "entities") return typeLabel ?? "전체 자료";
+  if (section === "tasks") return "할 일";
+  if (section === "records") return "기록";
+  if (section === "principles") return "원칙";
+  if (path.startsWith("/settings/entity-types")) return typeLabel ? `${typeLabel}${path.includes("/migrations") ? " · 값 변환 작업" : ""}` : "자료 종류·속성";
+  if (path.startsWith("/settings/navigation")) return "메뉴 구성";
+  if (path.startsWith("/settings")) return "설정";
+  if (path.startsWith("/tags/entity")) return "자료 태그";
+  if (path.startsWith("/tags/task")) return "할 일 태그";
+  if (path.startsWith("/tags/record")) return "기록 태그";
+  if (path.startsWith("/guide")) return "사용 가이드";
+  if (path.startsWith("/status")) return "상태";
+  if (path.startsWith("/search")) return "검색";
+  return "현재 화면";
+}

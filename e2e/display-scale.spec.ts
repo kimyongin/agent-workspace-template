@@ -55,7 +55,7 @@ test("display scale: failed save keeps selection; retry persists only changed me
   await page.getByRole("form", { name: "화면 표시 설정" }).getByRole("button", { name: "변경 취소" }).click(); await expect.poll(() => rootSize(page)).toBe(24);
   await navigate(page, "검사 자료"); await expect(page.getByRole("heading", { name: "검사 자료", exact: true, level: 1 })).toBeVisible();
   expect(await rootSize(page)).toBe(24);
-  await page.getByRole("button", { name: "내 프로필" }).click(); await page.getByRole("link", { name: "로그아웃", exact: true }).click();
+  await page.getByRole("button", { name: /^내 프로필(?: · .+)?$/ }).click(); await page.getByRole("link", { name: "로그아웃", exact: true }).click();
   await expect(page).toHaveURL(/\/login/); await expect.poll(() => rootSize(page)).toBe(16);
 });
 test("display scale: 150% keeps main filters, details, confirmation and resize usable on desktop/mobile", async ({ page }, info) => {
@@ -111,7 +111,7 @@ test("display scale: 150% settings, menus and lists reflow at compact widths", a
     await expect(page.locator("main h1")).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), path).toBe(true);
   }
-  await page.getByRole("button", { name: "내 프로필" }).click();
+  await page.getByRole("button", { name: /^내 프로필(?: · .+)?$/ }).click();
   await expect(page.getByRole("link", { name: "설정", exact: true })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });

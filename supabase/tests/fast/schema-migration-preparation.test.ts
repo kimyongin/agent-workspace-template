@@ -2,7 +2,7 @@ import { assert, assertEquals } from "@std/assert";
 import {
   type MigrationWorkerBatch,
   prepareMigrationBatch,
-} from "../../functions/_shared/adapters/http/schema-migration-preparation.ts";
+} from "../../functions/_shared/core/entity-types/migration-preparation.ts";
 import { effectiveEntityTemplateFingerprint } from "../../functions/_shared/core/entity-types/template-references.ts";
 import { initialEntityDefinition } from "../../functions/_shared/contracts/entity-type.ts";
 Deno.test("migration preparation preserves explicit values, shared template/hash semantics and bounded output", async () => {

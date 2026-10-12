@@ -42,7 +42,7 @@ import {
 } from "../../functions/_shared/core/entity-types/schema-migrations.ts";
 import { compileMigration } from "../../functions/_shared/core/entity-types/conversions.ts";
 import { jsonbText } from "../../functions/_shared/core/entity-types/schema-rules.ts";
-import { prepareMigrationBatch } from "../../functions/_shared/adapters/http/schema-migration-preparation.ts";
+import { prepareMigrationBatch } from "../../functions/_shared/core/entity-types/migration-preparation.ts";
 import { SEARCH_PIPELINE } from "../../functions/_shared/core/search/config.ts";
 import { SqlTagUnitOfWork } from "../../functions/_shared/adapters/supabase/tag-store.ts";
 import { createTag } from "../../functions/_shared/core/tags/application.ts";

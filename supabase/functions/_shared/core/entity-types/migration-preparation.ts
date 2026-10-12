@@ -1,13 +1,13 @@
-import { invalidInput } from "../../core/shared/errors.ts";
-import { compileMigration } from "../../core/entity-types/conversions.ts";
-import { effectiveEntityTemplateFingerprint } from "../../core/entity-types/template-references.ts";
-import { changeDefaults } from "../../core/settings/change-defaults.ts";
-import { searchInputHash } from "../../core/shared/operations.ts";
+import { invalidInput } from "../shared/errors.ts";
+import { compileMigration } from "./conversions.ts";
+import { effectiveEntityTemplateFingerprint } from "./template-references.ts";
+import { changeDefaults } from "../settings/change-defaults.ts";
+import { searchInputHash } from "../shared/operations.ts";
 import type { MigrationPlan, SchemaDefinition } from "../../contracts/entity-schema-change.ts";
 import type { RecordTemplates } from "../../contracts/record-template.ts";
 import type { EntityTypeRef } from "../../contracts/entity-type.ts";
-import type { ChangeFacts, ChangeInput } from "../../core/shared/changes.ts";
-import { canonical } from "../../core/entity-types/evolution.ts";
+import type { ChangeFacts, ChangeInput } from "../shared/changes.ts";
+import { canonical } from "./evolution.ts";
 export type MigrationWorkerBatch = {
   id: string;
   owner_id: string;

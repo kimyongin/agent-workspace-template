@@ -1,3 +1,4 @@
+import { entityNumberDraft } from "@contracts/entity-number.ts";
 import type { EntityField, EntitySchemaVersion } from "@contracts/entity-type.ts";
 import type { EntityProperties } from "@contracts/entity.ts";
 import { Field } from "../../components/Field.tsx";
@@ -11,14 +12,14 @@ export function propertyDraft(values: EntityProperties): PropertyDraft {
     Object.entries(values).map(([key, value]) => [key, typeof value === "number" ? String(value) : value]),
   );
 }
-export function propertyValues(definition: EntitySchemaVersion, values: PropertyDraft): EntityProperties {
+export function propertyValues(definition: Pick<EntitySchemaVersion, "schema">, values: PropertyDraft): EntityProperties {
   return Object.fromEntries(
     Object.entries(values).map((
       [key, value],
     ) => [
       key,
       value !== null && ["integer", "number"].includes(fieldType(definition.schema.properties[key]) ?? "")
-        ? Number(value)
+        ? entityNumberDraft(String(value), fieldType(definition.schema.properties[key]) as "integer" | "number")
         : value,
     ]),
   );

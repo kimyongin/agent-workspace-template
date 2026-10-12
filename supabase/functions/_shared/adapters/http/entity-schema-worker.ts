@@ -1,5 +1,5 @@
 import { AppError } from "../../core/shared/errors.ts";
-import { prepareMigrationBatch } from "./schema-migration-preparation.ts";
+import { prepareMigrationBatch } from "../../core/entity-types/migration-preparation.ts";
 import { SEARCH_PIPELINE } from "../../core/search/config.ts";
 import postgres from "postgres";
 import { z } from "zod";

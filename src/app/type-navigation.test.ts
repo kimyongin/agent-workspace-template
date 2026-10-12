@@ -57,3 +57,13 @@ test("switching kinds keeps the chosen view and filter disclosure", () => {
       .toString(),
   ).toBe("view=cards&filters=1&entity_type_id=new");
 });
+
+test("archived pinned refs stay stored but do not consume visible shortcuts", async () => {
+  const { visibleNavigationEntries, currentNavigationName } = await import("./type-navigation.ts");
+  const refs = [{ kind: "type" as const, id: "1" }, { kind: "builtin" as const, id: "tasks" as const }];
+  const resolved = resolveNavigationRefs(refs, [type("1", "보관 자료", true)]);
+  expect(visibleNavigationEntries(resolved).map((entry) => entry.to)).toEqual(["/tasks"]);
+  expect(refs).toEqual([{ kind: "type", id: "1" }, { kind: "builtin", id: "tasks" }]);
+  expect(currentNavigationName("entities", "/entities", "보관 자료")).toBe("보관 자료");
+  expect(currentNavigationName("principles", "/principles")).toBe("원칙");
+});

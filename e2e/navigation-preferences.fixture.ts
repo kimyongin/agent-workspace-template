@@ -41,7 +41,6 @@ async function fixture(page: Page, baseURL: string, initial: unknown = null) {
       }
       return route.fulfill({ json: { ...account, user_metadata: metadata } });
     }
-    if (await fulfillPreparation(route)) return;
     if (url.pathname === "/api/entity-types") {
       const offset = Number(url.searchParams.get("cursor") ?? 0);
       return route.fulfill({
@@ -51,6 +50,9 @@ async function fixture(page: Page, baseURL: string, initial: unknown = null) {
         },
       });
     }
+    const selected = types.find((type) => url.pathname.startsWith(`/api/entity-types/${type.id}`));
+    if (selected) return route.fulfill({ json: url.pathname.endsWith("/schema") ? { type: selected, type_id: selected.id, schema_version: selected.schema_version, ...initialEntityDefinition("이름") } : selected });
+    if (await fulfillPreparation(route)) return;
     if (url.pathname.startsWith("/api/")) return route.fulfill({ json: { items: [], next_cursor: null } });
     return route.abort();
   });
@@ -153,10 +155,10 @@ test("unknown refs remain explicit and live rename archive restore do not rewrit
   state.setTypes([{ ...material, label: "새 재료 이름", archived: true }, product]);
   await page.reload();
   await expect(page.locator(".navigation-selection-label").first()).toContainText("새 재료 이름 · 보관");
-  await expect(nav(page).getByRole("link", { name: "새 재료 이름", exact: true })).toBeVisible();
+  await expect(nav(page).locator(".bottom-nav-inner > a").filter({ hasText: "새 재료 이름" })).toHaveCount(0);
   expect(state.metadata().workspace_navigation).toEqual(preference);
   expect(state.writes).toEqual([]);
-  await page.getByRole("button", { name: "내 프로필", exact: true }).click();
+  await page.getByRole("button", { name: /^내 프로필(?: · .+)?$/, exact: true }).click();
   await expect(page.locator("#nav-profile-options").getByRole("link", { name: "원칙", exact: true })).toBeVisible();
 });
 test("invalid navigation reads fallback without hidden writes and all profile destinations stay reachable at short 200% layout", async ({ page, baseURL }) => {
@@ -165,7 +167,7 @@ test("invalid navigation reads fallback without hidden writes and all profile de
   await expect(nav(page).locator(".bottom-nav-inner > a")).toHaveCount(4);
   await page.setViewportSize({ width: 320, height: 300 });
   await page.evaluate(() => document.documentElement.style.fontSize = "200%");
-  await page.getByRole("button", { name: "내 프로필", exact: true }).click();
+  await page.getByRole("button", { name: /^내 프로필(?: · .+)?$/, exact: true }).click();
   for (const label of ["전체 자료", "원칙", "설정", "사용 가이드", "로그아웃"]) {
     const link = page.locator("#nav-profile-options").getByRole("link", { name: label, exact: true });
     await link.scrollIntoViewIfNeeded();
@@ -199,7 +201,7 @@ test(
     await expect.poll(() => nav(page).locator(".bottom-nav-inner > a").count()).toBeLessThan(4);
     await page.getByLabel("바로가기 검색", { exact: true }).fill("자료 10");
     await expect(page.getByRole("button", { name: "자료 10 추가", exact: true })).toBeVisible();
-    await page.getByRole("button", { name: "내 프로필", exact: true }).click();
+    await page.getByRole("button", { name: /^내 프로필(?: · .+)?$/, exact: true }).click();
     const search = page.getByLabel("자료 종류 검색", { exact: true });
     await search.dispatchEvent("compositionstart");
     await search.fill("자료 11");
@@ -215,8 +217,9 @@ test(
 test("profile identifies current location when its shortcut is hidden", async ({ page, baseURL }) => {
   await fixture(page, baseURL!, { version: 1, refs: [ref("tasks")] });
   await page.goto("/principles");
-  await expect(page.getByRole("button", { name: "내 프로필", exact: true })).toHaveAttribute("data-current", "true");
-  await page.getByRole("button", { name: "내 프로필", exact: true }).click();
+  await expect(page.getByRole("button", { name: /^내 프로필(?: · .+)?$/, exact: true })).toHaveAttribute("data-current", "true");
+  await expect(page.getByRole("button", { name: "내 프로필 · 원칙 현재 화면", exact: true })).toHaveAttribute("aria-current", "page");
+  await page.getByRole("button", { name: /^내 프로필(?: · .+)?$/, exact: true }).click();
   await expect(page.locator("#nav-profile-options").getByRole("link", { name: "원칙", exact: true })).toHaveAttribute(
     "aria-current",
     "page",
@@ -275,7 +278,7 @@ test("late old account metadata cannot overwrite the new account navigation", as
     });
   });
   await page.goto("/tasks");
-  await expect(nav(page).getByRole("button", { name: "내 프로필", exact: true })).toBeVisible();
+  await expect(nav(page).getByRole("button", { name: /^내 프로필(?: · .+)?$/, exact: true })).toBeVisible();
   await page.evaluate(async (access_token) => {
     const path = "/src/lib/supabase.ts";
     const { supabase } = await import(path);
@@ -315,13 +318,13 @@ test("canonical type rename icon archive restore immediately refresh pinned navi
   await expect(nav(page).getByRole("link", { name: "새 재료", exact: true })).toContainText("☆");
   await page.getByLabel("자료 종류 보관 (기존 자료와 연결은 유지)", { exact: true }).check();
   await page.getByRole("button", { name: "저장", exact: true }).click();
-  await page.getByRole("button", { name: "내 프로필", exact: true }).click();
+  await page.getByRole("button", { name: /^내 프로필(?: · .+)?$/, exact: true }).click();
   await expect(page.locator("#nav-profile-options").getByRole("link", { name: "새 재료 · 보관", exact: true }))
     .toBeVisible();
   await page.keyboard.press("Escape");
   await page.getByLabel("자료 종류 보관 (기존 자료와 연결은 유지)", { exact: true }).uncheck();
   await page.getByRole("button", { name: "저장", exact: true }).click();
-  await page.getByRole("button", { name: "내 프로필", exact: true }).click();
+  await page.getByRole("button", { name: /^내 프로필(?: · .+)?$/, exact: true }).click();
   await expect(page.locator("#nav-profile-options").getByRole("link", { name: "새 재료", exact: true })).toBeVisible();
   expect(state.writes).toEqual([]);
   expect(state.metadata().workspace_navigation).toEqual(preference);
