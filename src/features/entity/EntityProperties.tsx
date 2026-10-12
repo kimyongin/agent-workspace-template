@@ -13,7 +13,7 @@ export function EntityProperties({ entity }: { entity: EntityValues }) {
     setFailed(false);
     void api<EntitySchemaResult>(
       "GET",
-      `/entity-types/${entity.entity_type_id}/schema?schema_version=${entity.schema_version}`,
+      `/entity-types/${entity.entity_type_id}/schema`,
       undefined,
       c.signal,
     ).then((value) => {

@@ -61,9 +61,38 @@ function numeric(f: EntityField, value: unknown, path: string) {
     fail(path, "숫자는 절댓값 10억 이하, 소수점 6자리 이하입니다");
   }
 }
+export function sqlSafeText(value: string): boolean {
+  return !value.includes("\u0000") &&
+    !/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/.test(value);
+}
+/** PostgreSQL JSONB text spacing and decimal rendering, including nested definitions. */
+export function jsonbText(value: unknown): string {
+  if (Array.isArray(value)) return "[" + value.map(jsonbText).join(", ") + "]";
+  if (value && typeof value === "object") {
+    return "{" + Object.entries(value).filter(([, v]) =>
+      v !== undefined
+    ).map(([k, v]) => JSON.stringify(k) + ": " + jsonbText(v)).join(", ") + "}";
+  }
+  if (typeof value === "number" && String(value).includes("e")) {
+    const [mantissa, exponent] = String(value).split("e"), negative = mantissa.startsWith("-");
+    const plain = mantissa.replace("-", ""),
+      digits = plain.replace(".", ""),
+      point = (plain.indexOf(".") < 0 ? plain.length : plain.indexOf(".")) + Number(exponent);
+    return (negative ? "-" : "") +
+      (point <= 0
+        ? "0." + "0".repeat(-point) + digits
+        : point >= digits.length
+        ? digits + "0".repeat(point - digits.length)
+        : digits.slice(0, point) + "." + digits.slice(point));
+  }
+  return JSON.stringify(value);
+}
 export function validateEntityDefinition(raw: unknown): Pick<EntitySchemaVersion, "schema" | "display"> {
   const ajv = validator();
-  if (new TextEncoder().encode(JSON.stringify(raw)).length > limits.definition_bytes) {
+  if (
+    new TextEncoder().encode(jsonbText((raw as { schema?: unknown })?.schema)).length +
+        new TextEncoder().encode(jsonbText((raw as { display?: unknown })?.display)).length > limits.definition_bytes
+  ) {
     fail("schema", "정의는 64 KiB 이하입니다");
   }
   const parsed = definition.safeParse(raw);
@@ -74,6 +103,18 @@ export function validateEntityDefinition(raw: unknown): Pick<EntitySchemaVersion
     );
   }
   const { schema, display } = parsed.data;
+  const inspectText = (value: unknown, path: string) => {
+    if (typeof value === "string" && !sqlSafeText(value)) {
+      fail(path, "텍스트에는 NUL 또는 잘못된 Unicode 문자를 저장할 수 없습니다");
+    }
+    if (value && typeof value === "object") {
+      for (const [key, v] of Object.entries(value)) {
+        if (!sqlSafeText(key)) fail(path, "선택 코드에 잘못된 문자가 있습니다");
+        inspectText(v, `${path}.${key}`);
+      }
+    }
+  };
+  inspectText(parsed.data, "definition");
   const keys = Object.keys(schema.properties);
   if (!keys.length || keys.length > limits.fields) fail("schema.properties", "속성은 1~64개입니다");
   for (const [key, f] of Object.entries(schema.properties)) {
@@ -134,6 +175,9 @@ export function validateEntityDefinition(raw: unknown): Pick<EntitySchemaVersion
   for (const [key, f] of Object.entries(schema.properties)) {
     if (f.default !== undefined) {
       const check = ajv.compile({ $schema: ENTITY_SCHEMA_DIALECT, ...f });
+      if (f.format === "date" && typeof f.default === "string" && f.default.startsWith("0000-")) {
+        fail(`schema.properties.${key}.default`, "날짜의 연도는 0001~9999입니다");
+      }
       if (!check(f.default)) fail(`schema.properties.${key}.default`, "기본값이 속성 제약을 만족하지 않습니다");
     }
   }
@@ -144,60 +188,64 @@ export function validateEntityDefinition(raw: unknown): Pick<EntitySchemaVersion
   void validate;
   return parsed.data as Pick<EntitySchemaVersion, "schema" | "display">;
 }
-export function validateEntityProperties(
-  raw: unknown,
-  values: Record<string, unknown>,
-  creation = false,
-): Record<string, unknown> {
+export function compileEntityProperties(raw: unknown) {
   const { schema, display } = validateEntityDefinition(raw);
-  const result = { ...values };
-  if (creation) {
-    for (const [key, f] of Object.entries(schema.properties)) {
-      if (result[key] === undefined && !display.archived.includes(key) && f.default !== undefined) {
-        result[key] = f.default;
+  const check = validator().compile(schema);
+  return (values: Record<string, unknown>, creation = false): Record<string, unknown> => {
+    const result = { ...values };
+    if (creation) {
+      for (const [key, f] of Object.entries(schema.properties)) {
+        if (result[key] === undefined && !display.archived.includes(key) && f.default !== undefined) {
+          result[key] = f.default;
+        }
       }
     }
-  }
-  // JSONB's canonical text adds a space after each colon/comma. Properties contain
-  // scalar values only, so this matches the database guard without parsing strings.
-  const canonicalBytes = new TextEncoder().encode(JSON.stringify(result)).length +
-    Math.max(0, 2 * Object.keys(result).length - 1);
-  if (canonicalBytes > limits.properties_bytes) {
-    fail("properties", "속성 값은 64 KiB 이하입니다");
-  }
-  const check = validator().compile(schema);
-  if (!check(result)) {
-    throw invalidInput(
-      "속성 값을 확인하세요",
-      (check.errors ?? []).map((e) => ({
-        path: [
-          "properties",
-          ...e.instancePath.split("/").filter(Boolean),
-          ...(e.keyword === "required"
-            ? [String(e.params.missingProperty)]
-            : e.keyword === "additionalProperties"
-            ? [String(e.params.additionalProperty)]
-            : []),
-        ].join("."),
-        message: e.message ?? "유효하지 않은 값",
-      })),
-    );
-  }
-  const representative = result[display.representative];
-  if (typeof representative === "string" && !representative.trim()) {
-    fail(`properties.${display.representative}`, "대표 이름은 공백만 입력할 수 없습니다");
-  }
-  for (const [key, value] of Object.entries(result)) {
-    numeric(schema.properties[key], value, `properties.${key}`);
-    if (
-      typeof value === "string" &&
-      (value.includes("\u0000") || /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/.test(value))
-    ) {
-      fail(`properties.${key}`, "텍스트에는 NUL 또는 잘못된 Unicode 문자를 저장할 수 없습니다");
+    // JSONB's canonical text adds a space after each colon/comma. Properties contain
+    // scalar values only, so this matches the database guard without parsing strings.
+    const canonicalBytes = new TextEncoder().encode(jsonbText(result)).length;
+    if (canonicalBytes > limits.properties_bytes) {
+      fail("properties", "속성 값은 64 KiB 이하입니다");
     }
-    if (typeof value === "string" && Array.from(value).length > limits.string_length) {
-      fail(`properties.${key}`, "텍스트는 4096자 이하입니다");
+    if (!check(result)) {
+      throw invalidInput(
+        "속성 값을 확인하세요",
+        (check.errors ?? []).map((e) => ({
+          path: [
+            "properties",
+            ...e.instancePath.split("/").filter(Boolean),
+            ...(e.keyword === "required"
+              ? [String(e.params.missingProperty)]
+              : e.keyword === "additionalProperties"
+              ? [String(e.params.additionalProperty)]
+              : []),
+          ].join("."),
+          message: e.message ?? "유효하지 않은 값",
+        })),
+      );
     }
-  }
-  return result;
+    const representative = result[display.representative];
+    if (typeof representative === "string" && !representative.trim()) {
+      fail(`properties.${display.representative}`, "대표 이름은 공백만 입력할 수 없습니다");
+    }
+    for (const [key, value] of Object.entries(result)) {
+      numeric(schema.properties[key], value, `properties.${key}`);
+      if (schema.properties[key].format === "date" && typeof value === "string" && value.startsWith("0000-")) {
+        fail(`properties.${key}`, "날짜의 연도는 0001~9999입니다");
+      }
+      if (
+        typeof value === "string" &&
+        (value.includes("\u0000") ||
+          /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/.test(value))
+      ) {
+        fail(`properties.${key}`, "텍스트에는 NUL 또는 잘못된 Unicode 문자를 저장할 수 없습니다");
+      }
+      if (typeof value === "string" && Array.from(value).length > limits.string_length) {
+        fail(`properties.${key}`, "텍스트는 4096자 이하입니다");
+      }
+    }
+    return result;
+  };
+}
+export function validateEntityProperties(raw: unknown, values: Record<string, unknown>, creation = false) {
+  return compileEntityProperties(raw)(values, creation);
 }

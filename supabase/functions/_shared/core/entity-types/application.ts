@@ -1,3 +1,4 @@
+import type { SchemaChangeStore } from "./schema-changes.ts";
 import {
   entitySchemaHistory,
   entitySchemaLimits,
@@ -29,7 +30,7 @@ function parse<T>(schema: z.ZodType<T>, raw: unknown): T {
   }
   return result.data;
 }
-export interface EntityTypeStore extends RequestStore {
+export interface EntityTypeStore extends RequestStore, SchemaChangeStore {
   list(input: ReturnType<typeof entityTypeList.parse>): Promise<{ items: EntityType[]; next_cursor: string | null }>;
   get(id: string): Promise<EntityType | null>;
   create(

@@ -107,7 +107,7 @@ export class SqlEntityStore extends SqlActorStore implements EntityStore {
   async list(q: EntityQuery, after?: Keyset) {
     const tx = this.tx;
     const title =
-      tx`properties->>(select display->>'representative' from app.entity_schema_versions v where v.owner_id=entities.owner_id and v.type_id=entities.entity_type_id and v.schema_version=entities.schema_version)`;
+      tx`properties->>(select display->>'representative' from app.entity_schema_versions v where v.owner_id=entities.owner_id and v.type_id=entities.entity_type_id and v.schema_version=(select t.schema_version from app.entity_types t where t.owner_id=entities.owner_id and t.id=entities.entity_type_id))`;
     const key = q.sort === "title" ? title : tx`updated_at`;
     const at = after ? q.sort === "updated_at" ? tx`${after.at}::timestamptz` : tx`${after.at}` : tx``;
     const descending = q.sort === "updated_at";

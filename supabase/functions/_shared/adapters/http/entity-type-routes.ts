@@ -1,3 +1,11 @@
+import {
+  analyzeEntitySchemaChange,
+  applyEntitySchemaChange,
+  createEntitySchemaChange,
+  getEntitySchemaChange,
+  listEntitySchemaChanges,
+  updateEntitySchemaChange,
+} from "../../core/entity-types/schema-changes.ts";
 import { Hono } from "hono";
 import {
   createEntityType,
@@ -59,6 +67,66 @@ export function entityTypeRoutes(deps: EntityTypeDeps) {
           limit: number(c.req.query("limit")),
           before: number(c.req.query("before")),
         }),
+      ),
+  );
+  app.post(
+    "/entity-types/:type_id/schema-changes",
+    async (c) =>
+      c.json(await createEntitySchemaChange(deps, c.get("actor"), c.req.param("type_id"), await json(c.req.raw)), 201),
+  );
+  app.get(
+    "/entity-types/:type_id/schema-changes",
+    async (c) =>
+      c.json(
+        await listEntitySchemaChanges(deps, c.get("actor"), c.req.param("type_id"), {
+          limit: number(c.req.query("limit")),
+          before: c.req.query("before"),
+        }),
+      ),
+  );
+  app.get(
+    "/entity-types/:type_id/schema-changes/:change_id",
+    async (c) =>
+      c.json(await getEntitySchemaChange(deps, c.get("actor"), c.req.param("type_id"), c.req.param("change_id"))),
+  );
+  app.patch(
+    "/entity-types/:type_id/schema-changes/:change_id",
+    async (c) =>
+      c.json(
+        await updateEntitySchemaChange(
+          deps,
+          c.get("actor"),
+          c.req.param("type_id"),
+          c.req.param("change_id"),
+          await json(c.req.raw),
+        ),
+      ),
+  );
+  app.post(
+    "/entity-types/:type_id/schema-changes/:change_id/analyze",
+    async (c) =>
+      c.json(
+        await analyzeEntitySchemaChange(
+          deps,
+          c.get("actor"),
+          c.req.param("type_id"),
+          c.req.param("change_id"),
+          await json(c.req.raw),
+        ),
+        202,
+      ),
+  );
+  app.post(
+    "/entity-types/:type_id/schema-changes/:change_id/apply",
+    async (c) =>
+      c.json(
+        await applyEntitySchemaChange(
+          deps,
+          c.get("actor"),
+          c.req.param("type_id"),
+          c.req.param("change_id"),
+          await json(c.req.raw),
+        ),
       ),
   );
   return app;

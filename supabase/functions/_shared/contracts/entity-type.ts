@@ -50,10 +50,13 @@ export const entitySchemaErrorCodes = [
 ] as const;
 export const propertyKey = z.string().regex(/^prop_[1-9][0-9]*$/);
 const version = z.number().int().positive();
+const safeText = (v: string) =>
+  !v.includes("\u0000") && !/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/.test(v);
 export const entityTypeCreate = z.strictObject({
-  label: z.string().trim().min(1).max(80),
+  label: z.string().trim().min(1).max(80).refine(safeText, "텍스트에 저장할 수 없는 문자가 있습니다"),
   icon_id: entityTypeIcon.default("box"),
-  representative_label: z.string().trim().min(1).max(80).default("이름"),
+  representative_label: z.string().trim().min(1).max(80).refine(safeText, "텍스트에 저장할 수 없는 문자가 있습니다")
+    .default("이름"),
 });
 export const entityTypeUpdate = z.strictObject({
   expected_type_version: version,

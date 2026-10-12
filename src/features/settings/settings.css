@@ -22,6 +22,12 @@ section[aria-labelledby="entity-identity-title"] .settings-section-footer { bord
 .settings-source-actions { display: flex; align-items: center; gap: 0; }
 .settings-source-actions .item-icon { width: 44px; height: 44px; padding: 0; display: inline-flex; align-items: center; justify-content: center; }
 @media (max-width: 639px) { .settings-source-row { grid-template-columns: minmax(0,1fr); } .settings-source-actions { justify-content: flex-end; } }
+.schema-field { display: grid; gap: var(--space-4); padding-block: var(--space-4); border-bottom: 1px solid var(--line); min-width: 0; }
+.schema-field h3 { overflow-wrap: anywhere; }
+.schema-constraints, .schema-actions { display: flex; gap: var(--space-3); flex-wrap: wrap; }
+.schema-constraints > * { flex: 1 1 12rem; min-width: 0; }
 
 .settings-breadcrumb { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
 .settings-breadcrumb a { display: inline-flex; align-items: center; min-width: 44px; min-height: 44px; }
+
+.schema-summary, .schema-version-diff { min-width: 0; overflow-wrap: anywhere; }
