@@ -248,3 +248,53 @@ Deno.test("Entity HTTP/MCP 실제 handler: CRUD parity·엄격 입력·존재 �
   await tool("delete_entity", { change_note: "테스트 변경 이유", id: e.id, expected_version: 2 });
   assertEquals((await request("GET", `/entities/${encodeURIComponent(e.id)}`)).status, 200);
 });
+
+Deno.test("Entity HTTP/MCP list: typed AND inputs require a type and reject coercion", async () => {
+  const { d } = memory();
+  const tool = entityTools(d).find((t) => t.name === "list_entities")!;
+  const query = {
+    entity_type_id,
+    filters: [{ key: "prop_2", operator: "gte", value: 0 }],
+    sort: { key: "prop_2", direction: "asc" },
+  };
+  assertEquals((await tool.handler(query, A) as { items: unknown[] }).items, []);
+  for (
+    const bad of [
+      { ...query, entity_type_id: undefined },
+      { ...query, filters: [{ key: "prop_2", operator: "gte", value: "0" }] },
+      { ...query, filters: [{ key: "prop_99", operator: "eq", value: 0 }] },
+      { ...query, filters: [{ key: "prop_4", operator: "gte", value: "a" }] },
+      {
+        ...query,
+        filters: [{ key: "prop_2", operator: "gt", value: 5 }, { key: "prop_2", operator: "lte", value: 5 }],
+      },
+      { ...query, filters: [{ key: "prop_2", operator: "eq", value: 0 }, { key: "prop_2", operator: "unset" }] },
+      { ...query, filters: [{ key: "prop_2", operator: "eq", value: 0 }, { key: "prop_2", operator: "eq", value: 0 }] },
+    ]
+  ) {
+    assertEquals((await assertRejects(() => tool.handler(bad, A), AppError)).code, "invalid_input");
+  }
+});
+
+Deno.test("Entity HTTP list: structured URL filters and sorts share strict MCP semantics", async () => {
+  const { d } = memory(), app = new Hono<HttpEnv>();
+  app.use("*", async (c, next) => {
+    c.set("actor", A);
+    await next();
+  });
+  app.route("/", entityRoutes(d));
+  app.onError((error, c) => {
+    const result = toErrorBody(error);
+    return c.json(result.body, result.status as 400);
+  });
+  const query = new URLSearchParams({
+    entity_type_id,
+    filters: JSON.stringify([{ key: "prop_2", operator: "gte", value: 0 }]),
+    sort: JSON.stringify({ key: "prop_2", direction: "desc" }),
+  });
+  assertEquals((await app.request(`/entities?${query}`)).status, 200);
+  query.set("filters", JSON.stringify([{ key: "prop_2", operator: "gte", value: "0" }]));
+  assertEquals((await app.request(`/entities?${query}`)).status, 400);
+  query.set("filters", "[");
+  assertEquals((await app.request(`/entities?${query}`)).status, 400);
+});

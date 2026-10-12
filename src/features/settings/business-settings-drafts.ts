@@ -5,7 +5,12 @@ import {
   entitySourceGeneration,
 } from "@contracts/entity-identity.ts";
 import type { BusinessSettingsSectionResult } from "@contracts/business-settings.ts";
-import { editableRecordTemplates, type RecordTemplates, recordTemplates } from "@contracts/record-template.ts";
+import {
+  editableRecordTemplates,
+  type RecordTemplates,
+  recordTemplates,
+  recordTemplateTagIds,
+} from "@contracts/record-template.ts";
 import type { api as request } from "../../lib/api.ts";
 import { ApiError } from "../../lib/api-error.ts";
 import { createTagRead } from "../tags/tag-read.ts";
@@ -34,17 +39,22 @@ export function createIdentitySettingsDraft(
     isConflict,
     read: (signal) => api("GET", "/settings/business?id=entity_identity", undefined, signal),
     save: (value, before, signal, requestKey) =>
-      api("PATCH", "/settings/business", {
-        id: "entity_identity",
-        expected_version: before.versions.entity_identity,
-        value: entityIdentitySettings.parse(value),
-      }, signal, requestKey),
+      api(
+        "PATCH",
+        "/settings/business",
+        {
+          id: "entity_identity",
+          expected_version: before.versions.entity_identity,
+          value: entityIdentitySettings.parse(value),
+        },
+        signal,
+        requestKey,
+      ),
     toDraft: (saved) => editable(saved.settings.entity_identity ?? defaultEntityIdentitySettings),
   };
 }
 type TemplatesSaved = { settings: BusinessSettingsSectionResult<"record_templates">; availableTags: string[] };
-const selectedRecordTags = (value: RecordTemplates | undefined) =>
-  Object.values(value ?? {}).flatMap((group) => Object.values(group).flatMap((template) => template?.tag_ids ?? []));
+const selectedRecordTags = recordTemplateTagIds;
 /** Only tags from the checked baseline can be reported missing; new local selections are not stale. */
 export function unavailableTemplateTags(saved: TemplatesSaved | null, draft: RecordTemplates) {
   if (!saved) return [];
@@ -61,17 +71,28 @@ export function createRecordTemplatesDraft(api: typeof request): SettingsDraftAd
     isConflict,
     read: async (signal) => {
       const [settings, tags] = await Promise.all([
-        api<BusinessSettingsSectionResult<"record_templates">>("GET", "/settings/business?id=record_templates", undefined, signal),
+        api<BusinessSettingsSectionResult<"record_templates">>(
+          "GET",
+          "/settings/business?id=record_templates",
+          undefined,
+          signal,
+        ),
         tagRead.all("record", signal),
       ]);
       return { settings, availableTags: tags.map((tag) => tag.id) };
     },
     save: async (value, before, signal, requestKey) => ({
-      settings: await api("PATCH", "/settings/business", {
-        id: "record_templates",
-        expected_version: before.settings.versions.record_templates,
-        value: recordTemplates.parse(value),
-      }, signal, requestKey),
+      settings: await api(
+        "PATCH",
+        "/settings/business",
+        {
+          id: "record_templates",
+          expected_version: before.settings.versions.record_templates,
+          value: recordTemplates.parse(value),
+        },
+        signal,
+        requestKey,
+      ),
       availableTags: [...new Set([...before.availableTags, ...selectedRecordTags(value)])],
     }),
     toDraft: (saved) => editableRecordTemplates(saved.settings.settings.record_templates),

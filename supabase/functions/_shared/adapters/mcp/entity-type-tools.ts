@@ -1,4 +1,5 @@
 import {
+  schemaAnalysisRows,
   schemaChangeAction,
   schemaChangeApply,
   schemaChangeCreate,
@@ -9,6 +10,7 @@ import {
   analyzeEntitySchemaChange,
   applyEntitySchemaChange,
   createEntitySchemaChange,
+  getEntitySchemaAnalysisRows,
   getEntitySchemaChange,
   listEntitySchemaChanges,
   updateEntitySchemaChange,
@@ -81,6 +83,17 @@ export function entityTypeTools(deps: EntityTypeDeps): ToolDef[] {
       handler: (i, a) => {
         const { type_id, change_id, ...raw } = i;
         return analyzeEntitySchemaChange(deps, a, String(type_id), String(change_id), raw);
+      },
+    },
+    {
+      name: "list_entity_schema_analysis_rows",
+      description:
+        "분석의 원본·변환값·실패를 자료 ID 순서의 제한된 페이지로 조회. 미완료 분석은 성공으로 보이지 않습니다.",
+      input: schemaAnalysisRows.extend({ type_id: z.string().uuid(), change_id: z.string().uuid() }),
+      readOnly: true,
+      handler: (i, a) => {
+        const { type_id, change_id, ...raw } = i;
+        return getEntitySchemaAnalysisRows(deps, a, String(type_id), String(change_id), raw);
       },
     },
     {

@@ -1,15 +1,20 @@
 import {
+  effectiveEntityTemplates,
   effectiveRecordTemplate,
   modelActions,
   type RecordTemplates,
   templateIssues,
 } from "../../contracts/record-template.ts";
 import type { SchemaDefinition } from "../../contracts/entity-schema-change.ts";
+import { sha256Hex } from "../shared/operations.ts";
 import { invalidInput } from "../shared/errors.ts";
-/** Current global entity templates apply to the selected type; #350 can supply type-bound effective templates here. */
-export function assertSchemaTemplateReferences(target: SchemaDefinition, templates: RecordTemplates) {
+/** Only the chosen type’s effective memo and tags can stale its schema change. */
+export async function effectiveEntityTemplateFingerprint(templates: RecordTemplates | undefined, typeId: string) {
+  return await sha256Hex(JSON.stringify(effectiveEntityTemplates(templates, typeId)));
+}
+export function assertSchemaTemplateReferences(target: SchemaDefinition, templates: RecordTemplates, typeId?: string) {
   for (const action of modelActions("entity")) {
-    const { memo } = effectiveRecordTemplate(templates, "entity", action);
+    const { memo } = effectiveRecordTemplate(templates, "entity", action, typeId);
     const issues = templateIssues(memo, "entity", action).map((i) => i.reason);
     for (const match of memo.matchAll(/\$\{([^$]*?)\$\}|\$\$|\$([^$]*?)\$/g)) {
       if (match[0] === "$$") continue;
@@ -21,7 +26,9 @@ export function assertSchemaTemplateReferences(target: SchemaDefinition, templat
     }
     if (issues.length) {
       throw invalidInput("기록 템플릿의 속성 참조를 확인하세요", [{
-        path: `record_templates.entity.${action}.memo`,
+        path: typeId
+          ? `record_templates.entity_types.${typeId}.${action}.memo`
+          : `record_templates.entity.${action}.memo`,
         message: issues.join(" · "),
       }]);
     }

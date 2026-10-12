@@ -1,7 +1,6 @@
 import postgres from "postgres";
 import { z } from "zod";
-import { compileEntityProperties } from "../../core/entity-types/schema-rules.ts";
-import { AppError } from "../../core/shared/errors.ts";
+import { compileMigration } from "../../core/entity-types/conversions.ts";
 const input = z.strictObject({ limit: z.literal(1).default(1), check_configuration: z.literal(true).optional() });
 export function entitySchemaWorker(readEnv: (name: string) => string | undefined) {
   let sql: postgres.Sql | undefined;
@@ -47,16 +46,16 @@ export function entitySchemaWorker(readEnv: (name: string) => string | undefined
       const [claimed] = await sql`select app.claim_entity_schema_analysis() as batch`;
       const batch = claimed.batch;
       if (!batch) return Response.json({ processed: 0 });
-      const check = compileEntityProperties(batch.target);
-      const results = batch.rows.map((row: { entity_id: string; properties: Record<string, unknown> }) => {
-        try {
-          check(row.properties);
-          return { entity_id: row.entity_id, errors: [] };
-        } catch (e) {
-          if (!(e instanceof AppError)) throw e;
-          return { entity_id: row.entity_id, errors: e.fields ?? [{ path: "properties", message: e.message }] };
-        }
-      });
+      let results;
+      try {
+        const convert = compileMigration(batch.target, batch.migration);
+        results = batch.rows.map((row: { entity_id: string; properties: Record<string, unknown> }) =>
+          convert(row.entity_id, row.properties)
+        );
+      } catch {
+        await sql`select app.fail_entity_schema_analysis(${batch.id},${batch.fence})`;
+        return Response.json({ processed: 0, analysis_failed: true });
+      }
       const [saved] = await sql`select app.complete_entity_schema_analysis_batch(${batch.id},${batch.fence},${
         sql.json(results)
       }) as saved`;

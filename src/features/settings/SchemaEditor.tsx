@@ -1,8 +1,11 @@
+import { Link, useLocation } from "react-router";
+import { ConversionEditor } from "./ConversionEditor.tsx";
 import { useEffect, useRef, useState } from "react";
 import type { EntityField, EntitySchemaVersion, EntityType } from "@contracts/entity-type.ts";
 import type {
   EntitySchemaChange,
   EntitySchemaChangeSummary,
+  MigrationPlan,
   SchemaAnalysisAccepted,
   SchemaDefinition,
   SchemaEdit,
@@ -24,18 +27,21 @@ export function SchemaEditor(
     disabled?: boolean;
   },
 ) {
+  const location = useLocation();
   const [draft, setDraft] = useState<SchemaDefinition>(() => clone(definition)),
     [saved, setSaved] = useState<SchemaDefinition>(() => clone(definition));
   const [plan, setPlan] = useState<EntitySchemaChange | null>(null),
     [changes, setChanges] = useState<EntitySchemaChangeSummary[]>([]),
     [refs, setRefs] = useState<Record<string, string>>({});
+  const [migration, setMigration] = useState<MigrationPlan>({ rules: [], overrides: [] });
   const [acceptedAnalysis, setAcceptedAnalysis] = useState<string | null>(null);
   const [error, setError] = useState(""),
     [message, setMessage] = useState(""),
     [readBusy, setReadBusy] = useState(false);
   const { attempt, busy, uncertain } = useWriteAttempt();
   const mounted = useRef(true);
-  const dirty = JSON.stringify(draft) !== JSON.stringify(saved);
+  const dirty = JSON.stringify(draft) !== JSON.stringify(saved) ||
+    JSON.stringify(migration) !== JSON.stringify(plan?.migration ?? { rules: [], overrides: [] });
   useEffect(() => {
     onState({ dirty, busy, uncertain });
   }, [dirty, busy, uncertain, onState]);
@@ -50,6 +56,7 @@ export function SchemaEditor(
     setDraft(clone(definition));
     setSaved(clone(definition));
     setPlan(null);
+    setMigration({ rules: [], overrides: [] });
     setAcceptedAnalysis(null);
     setRefs({});
   }, [definition.schema_version]);
@@ -155,6 +162,7 @@ export function SchemaEditor(
         expected_type_version: type.version,
         expected_schema_version: definition.schema_version,
         edits: edits(),
+        migration,
         ...(plan ? { expected_change_version: plan.version } : {}),
       }
       : action === "apply"
@@ -180,6 +188,7 @@ export function SchemaEditor(
         );
         if (!mounted.current) return;
         setPlan(value);
+        setMigration(value.migration);
         if (action === "save") {
           setAcceptedAnalysis(null);
           setDraft(clone(value.target));
@@ -208,6 +217,7 @@ export function SchemaEditor(
     try {
       const fresh = await api<EntitySchemaChange>("GET", `${base}/${value.id}`);
       setPlan(fresh);
+      setMigration(fresh.migration);
       setDraft(clone(fresh.target));
       setSaved(clone(fresh.target));
       setRefs(Object.fromEntries(Object.entries(fresh.reservations).map(([ref, key]) => [key, ref])));
@@ -217,6 +227,19 @@ export function SchemaEditor(
       setReadBusy(false);
     }
   };
+  useEffect(() => {
+    const selected = new URLSearchParams(location.search).get("change_id");
+    if (!selected || selected === plan?.id || dirty || busy || uncertain) return;
+    setReadBusy(true);
+    void api<EntitySchemaChange>("GET", `${base}/${selected}`).then((fresh) => {
+      if (!mounted.current) return;
+      setPlan(fresh);
+      setMigration(fresh.migration);
+      setDraft(clone(fresh.target));
+      setSaved(clone(fresh.target));
+      setRefs(Object.fromEntries(Object.entries(fresh.reservations).map(([ref, key]) => [key, ref])));
+    }).catch((e) => setError(e.message)).finally(() => setReadBusy(false));
+  }, [location.search, type.id]);
   const reorder = (key: string, offset: number) =>
     setDraft((d) => {
       const order = [...d.display.order], at = order.indexOf(key), other = at + offset;
@@ -587,6 +610,7 @@ export function SchemaEditor(
           disabled={busy || uncertain || !dirty}
           onClick={() => {
             setDraft(clone(saved));
+            setMigration(plan?.migration ?? { rules: [], overrides: [] });
             setError("");
           }}
         >
@@ -603,6 +627,7 @@ export function SchemaEditor(
       {plan && (
         <section className="schema-summary" aria-label="속성 변경 요약">
           <h3>변경 요약 · 초안 버전 {plan.version}</h3>
+          <Link to={`?change_id=${plan.id}`}>이 변경안 직접 링크</Link>
           <p>상태: {plan.status} · {plan.change_kind === "compatible" ? "호환 가능한 게시" : "자료 값 변환 필요"}</p>
           <ul>
             {plan.diff.map((d, i) => (
@@ -615,9 +640,18 @@ export function SchemaEditor(
           {plan.analysis && (
             <p role="status">
               분석: {plan.analysis.status} · {plan.analysis.processed}/{plan.analysis.total} · 실패{" "}
-              {plan.analysis.failed}
+              {plan.analysis.failed} · 성공 {plan.analysis.processed - plan.analysis.failed} · 변경{" "}
+              {plan.analysis.changed} · 무변경 {plan.analysis.unchanged} · 제거 {plan.analysis.removed} · 명시 보완{" "}
+              {plan.analysis.replacements}
             </p>
           )}
+          <ConversionEditor
+            key={plan.id}
+            plan={plan}
+            migration={migration}
+            onChange={setMigration}
+            disabled={busy || uncertain || disabled}
+          />
           {plan.analysis?.errors.map((r) => (
             <div key={r.entity_id}>
               <strong>{r.entity_id}</strong>
@@ -632,6 +666,9 @@ export function SchemaEditor(
           )}
           {plan.change_kind === "migration_required" && (
             <p>현재 자료와 활성 정의는 유지됩니다. 영향 분석 결과를 확인하고 값 변환 작업을 준비하세요.</p>
+          )}
+          {plan.analysis?.status === "failed" && (
+            <p role="alert">분석 작업 실패: {plan.analysis.failure_reason}. 원본은 유지됩니다. 다시 분석하세요.</p>
           )}
           {plan.status === "stale" && <p>정의나 자료가 변경되었습니다. 최신 정의를 확인하고 새 변경을 만드세요.</p>}
           {plan.status === "applied" && (
@@ -668,6 +705,7 @@ export function SchemaEditor(
               disabled={busy || uncertain || dirty}
               onClick={() => {
                 setPlan(null);
+                setMigration({ rules: [], overrides: [] });
                 setRefs({});
                 setDraft(clone(definition));
                 setSaved(clone(definition));

@@ -1,5 +1,6 @@
 import { SqlBusinessSettingsUnitOfWork } from "../../functions/_shared/adapters/supabase/business-settings-store.ts";
 import { updateBusinessSettings } from "../../functions/_shared/core/settings/application.ts";
+import { AppError } from "../../functions/_shared/core/shared/errors.ts";
 import { assertEquals, assertRejects } from "@std/assert";
 import { connect, dbTest, fixtureOwner, urls } from "./_db.ts";
 import { requestActor } from "../_request.ts";
@@ -14,12 +15,12 @@ import {
   analyzeEntitySchemaChange,
   applyEntitySchemaChange,
   createEntitySchemaChange,
+  getEntitySchemaAnalysisRows,
   getEntitySchemaChange,
   updateEntitySchemaChange,
 } from "../../functions/_shared/core/entity-types/schema-changes.ts";
 import { createEntity, getEntity, updateEntity } from "../../functions/_shared/core/entity/application.ts";
-import { compileEntityProperties } from "../../functions/_shared/core/entity-types/schema-rules.ts";
-import { AppError } from "../../functions/_shared/core/shared/errors.ts";
+import { compileMigration } from "../../functions/_shared/core/entity-types/conversions.ts";
 import type { SchemaDefinition } from "../../functions/_shared/contracts/entity-schema-change.ts";
 import type postgres from "postgres";
 async function consume(worker: postgres.Sql) {
@@ -29,16 +30,10 @@ async function consume(worker: postgres.Sql) {
       return r.batch;
     });
     if (!batch) return;
-    const check = compileEntityProperties(batch.target as SchemaDefinition);
-    const results = batch.rows.map((r: { entity_id: string; properties: Record<string, unknown> }) => {
-      try {
-        check(r.properties);
-        return { entity_id: r.entity_id, errors: [] };
-      } catch (e) {
-        if (!(e instanceof AppError)) throw e;
-        return { entity_id: r.entity_id, errors: e.fields };
-      }
-    });
+    const convert = compileMigration(batch.target as SchemaDefinition, batch.migration);
+    const results = batch.rows.map((r: { entity_id: string; properties: Record<string, unknown> }) =>
+      convert(r.entity_id, r.properties)
+    );
     await worker.begin(async (tx) => {
       await tx`select app.complete_entity_schema_analysis_batch(${batch.id},${batch.fence},${tx.json(results)})`;
     });
@@ -238,7 +233,7 @@ dbTest(
       await updateBusinessSettings(settings, requestActor(a.actor), {
         id: "record_templates",
         expected_version: 0,
-        value: { entity: { update: { memo: "$엔터티.이후.prop_2$", tag_ids: [] } } },
+        value: { entity_types: { [type.id]: { update: { memo: "$엔터티.이후.prop_2$", tag_ids: [] } } } },
       });
       for (const op of ["archive_property", "remove_property"]) {
         const error = await assertRejects(
@@ -375,6 +370,83 @@ dbTest(
       await sql.end();
       await admin.end();
       await worker.end();
+    }
+  },
+);
+
+dbTest(
+  "migration snapshot preview retains source, requires explicit failure fix and scopes sample ownership",
+  async () => {
+    const workerUrl = new URL(urls.admin);
+    workerUrl.username = "app_worker";
+    workerUrl.password = encodeURIComponent(Deno.env.get("APP_WORKER_PASSWORD")!);
+    const worker = connect(workerUrl.href, { prepare: false, max: 1 }),
+      admin = connect(urls.admin),
+      sql = connect(urls.direct);
+    const a = await fixtureOwner(admin),
+      b = await fixtureOwner(admin),
+      d = { uow: new SqlEntityTypeUnitOfWork(sql) },
+      e = { uow: new SqlEntityUnitOfWork(sql) };
+    try {
+      const type = await createEntityType(d, requestActor(a.actor), { label: "Preview" });
+      const entity = await createEntity(e, requestActor(a.actor), {
+        entity_type_id: type.id,
+        schema_version: 1,
+        properties: { prop_1: "001" },
+      });
+      const input = {
+        expected_type_version: 1,
+        expected_schema_version: 1,
+        edits: [{
+          op: "update_property",
+          key: "prop_1",
+          field: { type: "string", minLength: 1, maxLength: 2 },
+          required: true,
+        }],
+        migration: { rules: [], overrides: [] },
+      };
+      const plan = await createEntitySchemaChange(d, requestActor(a.actor), type.id, input);
+      const accepted = await analyzeEntitySchemaChange(d, requestActor(a.actor), type.id, plan.id, {
+        expected_change_version: plan.version,
+      });
+      await assertRejects(() =>
+        getEntitySchemaAnalysisRows(d, a.actor, type.id, plan.id, { analysis_id: accepted.analysis_id })
+      );
+      await consume(worker);
+      const ready = await getEntitySchemaChange(d, a.actor, type.id, plan.id);
+      assertEquals(ready.analysis?.total, 1);
+      assertEquals(ready.analysis?.failed, 1);
+      assertEquals(ready.executable, false);
+      const page = await getEntitySchemaAnalysisRows(d, a.actor, type.id, plan.id, {
+        analysis_id: accepted.analysis_id,
+        failures_only: true,
+      });
+      assertEquals(page.items[0].before, { prop_1: "001" });
+      assertEquals(page.items[0].after, { prop_1: "001" });
+      await assertRejects(() =>
+        getEntitySchemaAnalysisRows(d, b.actor, type.id, plan.id, { analysis_id: accepted.analysis_id })
+      );
+      const fixed = await updateEntitySchemaChange(d, requestActor(a.actor), type.id, plan.id, {
+        ...input,
+        expected_change_version: plan.version,
+        migration: { rules: [], overrides: [{ entity_id: entity.id, key: "prop_1", value: "01" }] },
+      });
+      assertEquals(fixed.version, 2);
+      assertEquals(fixed.analysis, null);
+      await analyzeEntitySchemaChange(d, requestActor(a.actor), type.id, plan.id, {
+        expected_change_version: fixed.version,
+      });
+      await consume(worker);
+      const result = await getEntitySchemaChange(d, a.actor, type.id, plan.id);
+      assertEquals(result.executable, true);
+      assertEquals(result.analysis?.changed, 1);
+      assertEquals(result.analysis?.replacements, 1);
+      assertEquals((await getEntity(e, a.actor, entity.id)).properties, { prop_1: "001" });
+      assertEquals((await getEntitySchema(d, a.actor, { type_id: type.id })).schema_version, 1);
+    } finally {
+      await a.cleanup();
+      await b.cleanup();
+      await Promise.all([worker.end(), sql.end(), admin.end()]);
     }
   },
 );
