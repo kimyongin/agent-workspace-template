@@ -475,6 +475,7 @@ test("entity edit preserves draft and tags while identity settings are delayed b
   const reading = new Promise<void>(resolve => { arrived = resolve; });
   const entity = { id: "app:ready", source: "app", external_id: "ready", entity_type_id: materials.id,
     schema_version: 1, properties: { prop_1: "元の名前" }, title: "元の名前", type: materials,
+    source_label: "앱", current_schema_version: 1, display_properties: { prop_1: "元の名前" }, tasks: { items: [], count: 0 }, records: { items: [], count: 0 },
     version: 1, tag_ids: ["retained-tag"], deleted_at: null, created_at: materials.created_at, updated_at: materials.updated_at };
   const preparations: Record<string, any>[] = [], writes: Record<string, any>[] = [];
   await page.route("**/api/entities/app%3Aready", async route => {
@@ -511,4 +512,28 @@ test("entity edit preserves draft and tags while identity settings are delayed b
     expect(writes).toHaveLength(1);
     expect(writes[0]).toMatchObject({ expected_version: 1, schema_version: 1, properties: { prop_1: "保持する下書き" }, tag_ids: ["retained-tag"] });
   } finally { release(); }
+});
+
+test("immutable entity edit exposes identity catalog read failure and preserves the draft", async ({ page }) => {
+  const entity={ id:"app:failed-read", source:"app", external_id:"failed-read", entity_type_id:materials.id, schema_version:1,
+    properties:{prop_1:"元の名前"}, title:"元の名前", type:materials, version:1, tag_ids:[], deleted_at:null,
+    source_label:"앱", current_schema_version:1, display_properties:{prop_1:"元の名前"}, tasks:{items:[],count:0}, records:{items:[],count:0},
+    created_at:materials.created_at, updated_at:materials.updated_at };
+  let editing=false, preparations=0;
+  await page.route("**/api/entities/app%3Afailed-read", route=>route.fulfill({json:entity}));
+  await page.route("**/api/records/prepare", async route=>{preparations++;await fulfillPreparation(route);});
+  await page.route("**/api/entity-types{,?**}", route=>editing
+    ?route.fulfill({status:500,json:{code:"internal",message:"catalog unavailable",retryable:true}})
+    :route.fallback());
+  await page.goto(`/entities/${encodeURIComponent(entity.id)}`);
+  editing=true;
+  await page.getByRole("button",{name:"편집",exact:true}).click();
+  const form=page.getByRole("dialog",{name:"재료 편집",exact:true});
+  await form.getByLabel("이름",{exact:false}).fill("保留する名前");
+  await expect(form.getByRole("alert").filter({hasText:"자료 종류·식별자 설정을 읽지 못했습니다. 다시 열어 주세요."})).toBeVisible();
+  await expect(form.getByRole("button",{name:"저장",exact:true})).toBeDisabled();
+  await expect(form.getByRole("status").filter({hasText:"자료 종류·식별자 설정을 읽는 중…"})).toHaveCount(0);
+  await expect(form.getByLabel("이름",{exact:false})).toHaveValue("保留する名前");
+  await expect(form.getByRole("button",{name:"취소",exact:true})).toBeEnabled();
+  expect(preparations).toBe(0);
 });
