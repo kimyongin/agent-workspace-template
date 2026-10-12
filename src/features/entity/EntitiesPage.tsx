@@ -1,6 +1,7 @@
+import { EntityTypeIcon } from "./EntityTypeIcon.tsx";
 import { useEffect, useState } from "react";
 import type { EntitySchemaResult } from "@contracts/entity-type.ts";
-import { displayedProperty } from "./property-fields.tsx";
+import { displayedProperty, fieldType } from "./property-fields.tsx";
 import { TypedEntityFilters } from "./TypedEntityFilters.tsx";
 import { EntityTypePicker } from "./EntityTypePicker.tsx";
 import { useEntityTypes } from "./useEntityTypes.ts";
@@ -268,6 +269,14 @@ export function EntitiesPage() {
             <CollectionList
               view={view === "calendar" ? "list" : view}
               label={`${label} 목록`}
+              numericColumns={displaySchema
+                ? displaySchema.display.list_columns.filter((key) => key !== displaySchema.display.representative)
+                  .flatMap((key, index) =>
+                    ["integer", "number"].includes(fieldType(displaySchema.schema.properties[key]) ?? "")
+                      ? [index + 1]
+                      : []
+                  )
+                : []}
               columns={displaySchema
                 ? [
                   "자료",
@@ -294,7 +303,11 @@ export function EntitiesPage() {
                               displaySchema.display.option_labels[key],
                             ),
                         )
-                        : [e.type.label]}
+                        : [
+                          <span key="type">
+                            <EntityTypeIcon id={e.type.icon_id} /> {e.type.label}
+                          </span>,
+                        ]}
                     />
                   </div>
                 </li>

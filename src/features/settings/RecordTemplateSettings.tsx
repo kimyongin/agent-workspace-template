@@ -76,7 +76,11 @@ export function RecordTemplateSettings(
       );
       if (editor.error instanceof ApiError) {
         setFields(
-          Object.fromEntries(editor.error.fields.map((field) => [field.path.replace(/^value\./, ""), field.message])),
+          Object.fromEntries(
+            editor.error.fields.map((
+              field,
+            ) => [field.path.replace(/^(?:value|record_templates)\./, ""), field.message]),
+          ),
         );
       }
     }
@@ -283,13 +287,21 @@ export function RecordTemplateSettings(
             />
             {Object.entries(fields).filter(([key]) => key !== `${path}.memo`).map(([key, error]) => (
               <p className="error-text" key={key}>
-                {templateModelNames[key.split(".")[0] as TemplateModel] ?? "설정"}{" "}
+                {key.split(".")[0] === "entity"
+                  ? "자료"
+                  : templateModelNames[key.split(".")[0] as TemplateModel] ?? "설정"}{" "}
                 {templateActionNames[key.split(".")[1] as TemplateAction] ?? ""}: {error}{" "}
                 <button
                   type="button"
                   className="btn"
                   onClick={() => {
-                    const [nextModel, nextAction] = key.split(".");
+                    const [nextModel, nextAction, typeAction] = key.split(".");
+                    if (nextModel === "entity_types") {
+                      setModel("entity");
+                      setTypeId(nextAction);
+                      setAction(typeAction as TemplateAction);
+                      return;
+                    }
                     if (TEMPLATE_MODELS.includes(nextModel as TemplateModel)) {
                       setModel(nextModel as TemplateModel);
                       setAction(nextAction as TemplateAction);
