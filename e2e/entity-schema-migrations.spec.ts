@@ -77,6 +77,7 @@ test("값 변환 작업: 웹 접수→페이지 이탈→실제 local runner 완
       new URL("../scripts/entity-schema-worker-local.mjs", import.meta.url).pathname,
       "--interval-ms=100",
       "--timeout-ms=10000",
+      ...(process.env.ENTITY_SCHEMA_WORKER_CONFIG ? [`--config=${process.env.ENTITY_SCHEMA_WORKER_CONFIG}`] : []),
     ], { cwd: new URL("..", import.meta.url).pathname, env: process.env, stdio: "ignore" });
     await expect.poll(async () => {
       expect(runner?.exitCode).toBeNull();
