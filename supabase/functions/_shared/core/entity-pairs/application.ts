@@ -48,6 +48,7 @@ export function changeEntityPair(d: EntityPairDeps, a: Actor, id: string, input:
         throw invalidInput(`자료당 연결은 ${ENTITY_PAIR_LIMIT}개까지 가능합니다`);
       }
       await s.change(entity_id, other_id, linked);
+      const captured_at = new Date().toISOString();
       const context = endpoints.map((e) => ({
         id: e.id,
         title: e.title,
