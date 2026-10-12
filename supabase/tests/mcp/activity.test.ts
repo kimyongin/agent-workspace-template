@@ -1,3 +1,5 @@
+import { entityPairQuery, entityPairWrite } from "../../functions/_shared/contracts/entity-pairs.ts";
+import { entityReferenceId } from "../../functions/_shared/contracts/entity-identity.ts";
 import {
   schemaAnalysisRows,
   schemaChangeAction,
@@ -177,6 +179,9 @@ const EXPECTED_TOOLS = [
   "get_entity",
   "list_entities",
   "update_entity",
+  "list_entity_links",
+  "link_entities",
+  "unlink_entities",
   "list_entity_type_icons",
   "list_entity_types",
   "get_entity_type",
@@ -497,6 +502,9 @@ httpTest("tools/list: 계약의 도구 이름과 contracts JSON Schema", async (
   assertEquals(tools.map((t) => t.name).sort(), EXPECTED_TOOLS);
   const byName = Object.fromEntries(tools.map((t) => [t.name, t]));
   const foundationContracts = {
+    list_entity_links: entityPairQuery.extend({ id: entityReferenceId }),
+    link_entities: entityPairWrite.extend({ id: entityReferenceId, request_key: requestKey }),
+    unlink_entities: entityPairWrite.extend({ id: entityReferenceId, request_key: requestKey }),
     list_entity_type_icons: z.strictObject({}),
     list_entity_types: entityTypeList,
     get_entity_type: z.strictObject({ type_id: z.string().uuid() }),
