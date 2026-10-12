@@ -238,6 +238,7 @@ export function EntityForm({
                 Object.entries(existing.properties).filter(([key]) => !definition!.display.archived.includes(key)),
               ),
               expected_version: existing.version,
+              tag_ids: existing.tag_ids,
             }
             : value();
           if (initial && !existing) {

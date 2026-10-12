@@ -2,14 +2,7 @@ import { prepareEntityPairRekey } from "./entity-pair-locks.ts";
 import { entityId } from "../../contracts/entity-identity.ts";
 import { insertWithIdRetry } from "./data-id.ts";
 import type postgres from "postgres";
-import type {
-  EntityCreate,
-  EntityDetail,
-  EntityQuery,
-  EntitySummary,
-  EntityUpdate,
-  EntityValues,
-} from "../../contracts/entity.ts";
+import type { EntityCreate, EntityDetail, EntityQuery, EntityUpdate, EntityValues } from "../../contracts/entity.ts";
 import { entityPresentationRow, loadEntityDefinition } from "./entity-values.ts";
 import type { EntityStore } from "../../core/entity/application.ts";
 import type { Actor } from "../../core/shared/actor.ts";
