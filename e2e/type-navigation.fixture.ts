@@ -25,7 +25,6 @@ test.beforeEach(async ({ page, baseURL }) => {
   await page.route("**/*", async (route) => {
     const url = new URL(route.request().url());
     if (url.origin === new URL(baseURL!).origin) return route.continue();
-    if (await fulfillPreparation(route)) return;
     if (url.pathname === "/api/entity-types") {
       return route.fulfill({ json: { items: [materials, products, retired], next_cursor: null } });
     }
@@ -39,6 +38,7 @@ test.beforeEach(async ({ page, baseURL }) => {
           : selected,
       });
     }
+    if (await fulfillPreparation(route)) return;
     if (url.pathname.startsWith("/api/")) return route.fulfill({ json: { items: [], next_cursor: null } });
     return route.abort();
   });
