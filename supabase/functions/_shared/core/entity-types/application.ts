@@ -104,7 +104,10 @@ export function entityTypeUpdateDecision(
   current: EntityType,
   input: ReturnType<typeof entityTypeUpdate.parse>,
 ): Pick<EntityType, "label" | "icon_id" | "archived"> | null {
-  if (current.version !== input.expected_type_version || current.schema_version !== input.expected_schema_version) {
+  if (
+    current.version !== input.expected_type_version ||
+    (input.expected_schema_version !== undefined && current.schema_version !== input.expected_schema_version)
+  ) {
     throw new AppError("schema_changed", "자료 종류나 속성 정의가 변경되었습니다. 최신 버전을 확인하세요.", undefined, {
       type_id: current.id,
       type_version: current.version,

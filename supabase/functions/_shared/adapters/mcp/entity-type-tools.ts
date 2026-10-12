@@ -50,7 +50,7 @@ export function entityTypeTools(deps: EntityTypeDeps): ToolDef[] {
     {
       name: "update_entity_type",
       description:
-        "자료 종류 이름·icon_id·archived 수정. expected_type_version과 expected_schema_version 모두 필요. 속성/값을 변경하지 않습니다.",
+        "자료 종류 이름·icon_id·archived 수정. expected_type_version 필요, expected_schema_version을 선택적으로 함께 확인. 속성/값을 변경하지 않습니다.",
       input: entityTypeUpdate.safeExtend({ type_id: z.string().uuid() }),
       readOnly: false,
       handler: (i, a) => {
