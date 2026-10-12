@@ -16,7 +16,7 @@ import { ConfirmDialog } from "../../components/Modal.tsx";
 import { Field } from "../../components/Field.tsx";
 import { fieldErrors } from "../../lib/format.ts";
 import { TagPicker } from "../tags/TagPicker.tsx";
-import { type PropertyDraft, propertyDraft, PropertyFields, propertyValues } from "./property-fields.tsx";
+import { fieldType, type PropertyDraft, propertyDraft, PropertyFields, propertyValues } from "./property-fields.tsx";
 export function EntityForm({
   initial,
   initialTypeId,
@@ -41,6 +41,9 @@ export function EntityForm({
     [typeId, setTypeId] = useState(initial?.entity_type_id ?? initialTypeId ?? ""),
     [definition, setDefinition] = useState<EntitySchemaResult | null>(null),
     [schemaError, setSchemaError] = useState(""),
+    [pendingDefinition, setPendingDefinition] = useState<EntitySchemaResult | null>(null),
+    [schemaReading, setSchemaReading] = useState(false),
+    [reviewKeys, setReviewKeys] = useState<string[]>([]),
     [reload, setReload] = useState(0),
     [nextType, setNextType] = useState<string | null>(null);
   const [archived, setArchived] = useState<EntityDetail | null>(initial?.deleted_at ? initial : null),
@@ -59,7 +62,8 @@ export function EntityForm({
   const prepared = useRef<Record<string, unknown> | null>(null),
     initializedType = useRef<string | null>(null),
     settingsVersion = useRef<number | undefined>(undefined),
-    lookup = useRef<AbortController | null>(null);
+    lookup = useRef<AbortController | null>(null),
+    definitionRead = useRef<AbortController | null>(null);
   useEffect(() => {
     const c = new AbortController();
     void Promise.all([
@@ -86,10 +90,15 @@ export function EntityForm({
     return () => {
       c.abort();
       lookup.current?.abort();
+      definitionRead.current?.abort();
     };
   }, []);
   useEffect(() => {
     const c = new AbortController();
+    definitionRead.current?.abort();
+    setPendingDefinition(null);
+    setSchemaReading(false);
+    setReviewKeys([]);
     setDefinition(null);
     setSchemaError("");
     if (typeId) {
@@ -115,6 +124,43 @@ export function EntityForm({
     }
     return () => c.abort();
   }, [typeId, reload]);
+  const readDefinition = async () => {
+    if (!typeId || schemaReading) return;
+    const controller = new AbortController();
+    definitionRead.current?.abort();
+    definitionRead.current = controller;
+    setSchemaReading(true);
+    setSchemaError("");
+    try {
+      const latest = await api<EntitySchemaResult>(
+        "GET",
+        `/entity-types/${typeId}/schema`,
+        undefined,
+        controller.signal,
+      );
+      controller.signal.throwIfAborted();
+      setPendingDefinition(latest);
+    } catch (error) {
+      if (!controller.signal.aborted) {
+        setSchemaError(error instanceof Error ? error.message : "현재 정의를 읽지 못했습니다. 초안은 유지했습니다.");
+      }
+    } finally {
+      if (!controller.signal.aborted) setSchemaReading(false);
+    }
+  };
+  const acceptDefinition = () => {
+    if (!pendingDefinition) return;
+    const kind = (field: EntitySchemaResult["schema"]["properties"][string] | undefined) =>
+      field ? `${fieldType(field)}:${field.format ?? ""}:${field.enum ? "selection" : ""}` : "missing";
+    setReviewKeys(
+      Object.keys(properties).filter((key) =>
+        kind(definition?.schema.properties[key]) !== kind(pendingDefinition.schema.properties[key])
+      ),
+    );
+    setDefinition(pendingDefinition);
+    setPendingDefinition(null);
+    prepared.current = null;
+  };
   const activeType = types?.find((type) => type.id === typeId),
     label = activeType?.label ?? initial?.type.label ?? initialTypeLabel ?? "자료";
   const value = () => {
@@ -210,6 +256,17 @@ export function EntityForm({
         }}
         validate={() => {
           if (!identitySettings || !definition) return { entity_type_id: "자료 종류와 속성 정의를 확인하세요" };
+          if (schemaReading || pendingDefinition) return { entity_type_id: "현재 속성 정의를 확인한 뒤 적용하세요" };
+          if (reviewKeys.length) {
+            return Object.fromEntries(
+              reviewKeys.map(
+                (key) => [
+                  `properties.${key}`,
+                  "속성 타입이 변경되었습니다. 보존한 초안을 확인하고 새 타입으로 다시 입력하세요.",
+                ],
+              ),
+            );
+          }
           const fields = value();
           if (entitySourceGeneration(identitySettings, source) === "manual" && !external) {
             return {
@@ -280,17 +337,48 @@ export function EntityForm({
                   활성 자료 종류가 없습니다. <a href="/settings/entity-types">자료 종류 만들기·보관 관리</a>
                 </p>
               )}
-              {schemaError && (
-                <>
-                  <p role="alert">{schemaError}</p>
+              {definition && (
+                <p className="help">
+                  편집 정의 버전 {definition.schema_version}
+                  {initial ? ` · 자료 버전 ${initial.version}` : ""}. 정의를 다시 읽어도 초안과 자료 버전은 유지됩니다.
+                </p>
+              )}
+              {schemaError && <p role="alert">{schemaError}</p>}
+              {typeId && (
+                <button
+                  type="button"
+                  className="btn"
+                  disabled={schemaReading}
+                  onClick={() => void readDefinition()}
+                >
+                  {schemaReading ? "현재 정의 확인 중…" : "속성 정의 다시 조회"}
+                </button>
+              )}
+              {pendingDefinition && (
+                <section aria-label="현재 속성 정의 검토">
+                  <p>
+                    현재 정의 버전{" "}
+                    {pendingDefinition.schema_version}. 보존한 입력을 검토한 뒤 적용하세요. 값과 자료 버전은 자동
+                    변경하지 않습니다.
+                  </p>
+                  <ul>
+                    {pendingDefinition.display.order.map((key) => (
+                      <li key={key}>
+                        {pendingDefinition.schema.properties[key].title ?? key} ·{" "}
+                        {String(pendingDefinition.schema.properties[key].type)}
+                        {pendingDefinition.schema.required.includes(key) ? " · 필수" : ""}
+                      </li>
+                    ))}
+                  </ul>
+                  <button type="button" className="btn" onClick={acceptDefinition}>확인한 정의로 편집</button>
                   <button
                     type="button"
                     className="btn"
-                    onClick={() => setReload((n) => n + 1)}
+                    onClick={() => setPendingDefinition(null)}
                   >
-                    속성 정의 다시 조회
+                    정의 검토 취소
                   </button>
-                </>
+                </section>
               )}
               <Field label="발급처" required error={errors.source}>
                 {(p) => (
@@ -353,6 +441,7 @@ export function EntityForm({
                     errors={errors}
                     onChange={(values) => {
                       lookup.current?.abort();
+                      setReviewKeys((keys) => keys.filter((key) => values[key] === properties[key]));
                       setProperties(values);
                     }}
                   />
