@@ -86,24 +86,34 @@ async function fixture() {
           batch.migration,
           batch.recovery_keys,
         );
-      assert(batch.rows.length > 0 && batch.rows.length <= 50);
+      assert(batch.rows.length <= 50);
       assert(
         new TextEncoder().encode(jsonbText(batch.rows)).byteLength <= 524288,
         "analysis claim must bound current and owned recovery properties together",
       );
-      await worker`select app.complete_entity_schema_analysis_batch(${batch.id},${batch.fence},${
-        worker.json(
-          batch.rows.map((
-            row: {
-              entity_id: string;
-              properties: Record<string, unknown>;
-              recovery_properties: Record<string, unknown>;
-            },
-          ) =>
-            transform(row.entity_id, row.properties, row.recovery_properties)
-          ),
-        )
-      })`;
+      const [completed] =
+        await worker`select app.complete_entity_schema_analysis_batch(${batch.id},${batch.fence},${
+          worker.json(
+            batch.rows.map((
+              row: {
+                entity_id: string;
+                properties: Record<string, unknown>;
+                recovery_properties: Record<string, unknown>;
+              },
+            ) =>
+              transform(row.entity_id, row.properties, row.recovery_properties)
+            ),
+          )
+        }) as completed`;
+      assert(completed.completed);
+      if (batch.rows.length === 0) {
+        const change = await getEntitySchemaChange(d, a.actor, type, id);
+        assert(
+          change.analysis?.status === "succeeded" ||
+            change.analysis?.status === "failed",
+          "an empty zero-target analysis must finalize rather than stall",
+        );
+      }
     }
     return getEntitySchemaChange(d, a.actor, type, id);
   }
@@ -138,13 +148,22 @@ async function fixture() {
       }
       const prep = await prepareMigrationBatch(batch);
       assert(!prep.stale);
-      assert(batch.rows.length > 0 && prep.results.length > 0);
+      assert(batch.rows.length === 0 || prep.results.length > 0);
       assert(
         new TextEncoder().encode(jsonbText(prep.results)).byteLength <= 1048576,
       );
-      await worker`select app.stage_entity_schema_migration(${id},${batch.fence},${
-        worker.json(prep.results)
-      })`;
+      const before = await getEntitySchemaMigration(d, a.actor, id);
+      const [staged] =
+        await worker`select app.stage_entity_schema_migration(${id},${batch.fence},${
+          worker.json(prep.results)
+        }) as staged`;
+      assert(staged.staged);
+      const after = await getEntitySchemaMigration(d, a.actor, id);
+      assert(
+        after.processed > before.processed ||
+          after.status === "ready_to_commit" || after.status === "failed",
+        "staging must advance processed rows or finalize even for a zero-target job",
+      );
     }
     throw Error("budget");
   }
