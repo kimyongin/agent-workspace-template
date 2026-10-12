@@ -39,6 +39,7 @@ function usecase(c: RecoveryContext) {
   const store = {
     executeRequest: <T>(_r: unknown, fn: () => Promise<T>) => fn(),
     loadRecovery: () => Promise.resolve(c),
+    recoveryObservedAt: () => Promise.resolve(c.observed_at),
     recoveryTemplates: () => Promise.resolve("templates"),
     saveRecovery: (_c: RecoveryContext, proposal: RecoveryProposal) => {
       saved.push(proposal);
@@ -80,4 +81,30 @@ Deno.test("recovery creation uses the observed expiry before the active gate and
     assertEquals((e as { code: string }).code, "schema_plan_stale");
     assertEquals(stale.saved, []);
   }
+});
+
+Deno.test("recovery creation observes expiry again after template preparation before saving", async () => {
+  const c = context(), run = usecase(c);
+  c.evidence.expires_at = "2026-11-01T00:00:00Z";
+  // The locked source observation precedes the later explicit adapter clock.
+  const sourceTime = c.observed_at;
+  const store = {
+    executeRequest: <T>(_r: unknown, fn: () => Promise<T>) => fn(),
+    loadRecovery: () => Promise.resolve({ ...c, observed_at: sourceTime }),
+    recoveryTemplates: () => Promise.resolve("templates"),
+    recoveryObservedAt: () => Promise.resolve("2026-11-01T00:00:00Z"),
+    saveRecovery: () => {
+      throw new Error("expired source must never save");
+    },
+  } as unknown as EntityTypeStore;
+  const e = await assertRejects(async () =>
+    await createEntitySchemaRecovery(
+      { uow: { run: (_a, fn) => fn(store) } },
+      { userId: "owner", request: { key: crypto.randomUUID() } },
+      jobId,
+      { expected_job_version: 4, expected_type_version: 3, expected_schema_version: 2 },
+    )
+  );
+  assertEquals((e as { code: string }).code, "migration_source_expired");
+  assertEquals(run.saved, []);
 });

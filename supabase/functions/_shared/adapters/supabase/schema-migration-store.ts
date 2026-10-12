@@ -88,13 +88,14 @@ export class SqlSchemaMigrationStore extends SqlSchemaChangeStore implements Sch
   async saveRecovery(context: RecoveryContext, proposal: RecoveryProposal) {
     const t = context.evidence.type;
     const [c] = await this
-      .tx`insert into app.entity_schema_changes(owner_id,type_id,source_type_version,source_schema_version,source_template_fingerprint,migration,edits,reservations,target,diff,kind,fingerprint,recovery_source_job_id,recovery_expires_at,recovery_keys) values(${this.actor.userId},${t.id},${t.version},${t.schema_version},${proposal.templates},'{"rules":[],"overrides":[]}','[]','{}',${
+      .tx`insert into app.entity_schema_changes(owner_id,type_id,source_type_version,source_schema_version,source_template_fingerprint,migration,edits,reservations,target,diff,kind,fingerprint,recovery_source_job_id,recovery_expires_at,recovery_keys) select ${this.actor.userId},${t.id},${t.version},${t.schema_version},${proposal.templates},'{"rules":[],"overrides":[]}','[]','{}',${
       this.tx.json(proposal.target)
     },${
       this.tx.json(proposal.diff as never)
     },'migration_required',${proposal.fingerprint},${context.job_id},${context.evidence.expires_at},${
       this.tx.json(proposal.keys)
-    }) returning *`;
+    } where ${context.evidence.expires_at}::timestamptz>clock_timestamp() returning *`;
+    if (!c) throw new AppError("migration_source_expired", "복구 원본의 30일 보관 기간이 지났습니다");
     return this.dto(c);
   }
   async saveSchemaMigration(context: SchemaApplicationContext) {
@@ -106,7 +107,7 @@ export class SqlSchemaMigrationStore extends SqlSchemaChangeStore implements Sch
     const templates = effectiveEntityTemplates(settings?.settings, typeId);
     for (const template of Object.values(templates.entity!)) template!.tag_ids = [...template!.tag_ids].sort();
     const [refs] = await this.tx`select app.entity_schema_reference_baseline(${this.actor.userId},${typeId}) as value`;
-    const [time] = await this.tx`select now() as observed_at`;
+    const [time] = await this.tx`select clock_timestamp() as observed_at`;
     const [size] = await this
       .tx`select coalesce(sum(octet_length(r.properties::text)+octet_length(r.after::text)+coalesce(octet_length(r.recovery_properties::text),0)+octet_length(jsonb_build_object('source',e.source,'external_id',e.external_id,'tag_ids',coalesce((select jsonb_agg(tag_id order by tag_id) from app.entity_tags where entity_id=e.id),'[]'::jsonb))::text)),0) as bytes from private.entity_schema_analysis_rows r join app.entities e on e.owner_id=r.owner_id and e.id=r.entity_id where r.analysis_id=${a.id} and r.processed and jsonb_array_length(r.errors)=0`;
     const [metadata] = await this.tx`select octet_length(${this.tx.json(definition)}::jsonb::text)+octet_length(${
@@ -156,12 +157,16 @@ export class SqlSchemaMigrationStore extends SqlSchemaChangeStore implements Sch
     if (preparedCount !== Number(a.total)) {
       throw invalidInput("모든 자료의 기록을 준비할 수 없습니다. 새 분석을 준비하세요");
     }
+    await this.recoveryFresh(c);
     const [j] = await this
-      .tx`insert into app.entity_schema_migrations(owner_id,type_id,change_id,change_version,analysis_id,fingerprint,membership,source_type_version,source_schema_version,source_template_fingerprint,source_templates,source_definition,target,migration,source_references,total,actor_source) values(${this.actor.userId},${typeId},${changeId},${c.version},${a.id},${c.fingerprint},${a.membership},${t.version},${t.schema_version},${c.source_template_fingerprint},${
+      .tx`insert into app.entity_schema_migrations(owner_id,type_id,change_id,change_version,analysis_id,fingerprint,membership,source_type_version,source_schema_version,source_template_fingerprint,source_templates,source_definition,target,migration,source_references,total,actor_source) select ${this.actor.userId},${typeId},${changeId},${c.version},${a.id},${c.fingerprint},${a.membership},${t.version},${t.schema_version},${c.source_template_fingerprint},${
       this.tx.json(templates as never)
     },${this.tx.json(definition)},${this.tx.json(c.target)},${this.tx.json(c.migration)},${
       this.tx.json(refs.value)
-    },${a.total},${this.actor.source ?? "http"}) returning *`;
+    },${a.total},${
+      this.actor.source ?? "http"
+    } where ${c.recovery_source_job_id}::uuid is null or exists(select 1 from app.entity_schema_migrations source where source.id=${c.recovery_source_job_id} and source.source_expires_at>clock_timestamp()) returning *`;
+    if (!j) throw new AppError("migration_source_expired", "복구 원본의 30일 보관 기간이 지났습니다");
     await this
       .tx`insert into private.entity_schema_migration_rows(owner_id,job_id,entity_id,source_version,source_schema_version,source_properties,source_deleted_at,source_identity,after,changed) select r.owner_id,${j.id},r.entity_id,r.source_version,r.source_schema_version,r.properties,r.deleted_at,jsonb_build_object('source',e.source,'external_id',e.external_id,'tag_ids',coalesce((select jsonb_agg(tag_id order by tag_id) from app.entity_tags where entity_id=e.id),'[]'::jsonb)),r.after,r.changed from private.entity_schema_analysis_rows r join app.entities e on e.owner_id=r.owner_id and e.id=r.entity_id where r.analysis_id=${a.id} and r.processed and jsonb_array_length(r.errors)=0`;
     if (c.recovery_source_job_id) {

@@ -26,6 +26,7 @@ import { AppError, conflict, invalidInput } from "../shared/errors.ts";
 import { runWrite } from "../shared/request.ts";
 export interface SchemaMigrationStore {
   loadRecovery(id: string): Promise<RecoveryContext>;
+  recoveryObservedAt(): Promise<string>;
   recoveryTemplates(typeId: string, target: RecoveryContext["source"]): Promise<string>;
   saveRecovery(
     context: RecoveryContext,
@@ -114,6 +115,8 @@ export function createEntitySchemaRecovery(d: EntityTypeDeps, a: Actor, id: stri
     assertRecoveryFresh(context.evidence, now);
     const target = recoveryTarget(context);
     const templates = await s.recoveryTemplates(type.id, target);
-    return s.saveRecovery(context, await recoveryProposal(context, target, templates));
+    const proposal = await recoveryProposal(context, target, templates);
+    assertRecoveryFresh(context.evidence, new Date(await s.recoveryObservedAt()));
+    return s.saveRecovery(context, proposal);
   });
 }
