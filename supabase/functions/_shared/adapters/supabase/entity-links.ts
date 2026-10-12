@@ -59,7 +59,7 @@ export class SqlEntityLinks {
     >`select e.id,e.properties->>(v.display->>'representative') as title,now() as captured_at,t.id as type_id,t.label,t.icon_id,t.archived,t.schema_version from app.entities e
       join app.entity_types t on t.owner_id=e.owner_id and t.id=e.entity_type_id
       join app.entity_schema_versions v on v.owner_id=t.owner_id and v.type_id=t.id and v.schema_version=t.schema_version
-      where e.deleted_at is null and e.id in ${this.tx(ids)} order by e.id for key share of e`;
+      where e.deleted_at is null and not t.archived and e.id in ${this.tx(ids)} order by e.id for key share of e`;
     return ids.map((id) => {
       const captured = prior.find((entity) => entity.id === id);
       const entity = live.find((entity) => entity.id === id);

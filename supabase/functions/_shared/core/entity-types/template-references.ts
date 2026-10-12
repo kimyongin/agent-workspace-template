@@ -10,7 +10,11 @@ import { sha256Hex } from "../shared/operations.ts";
 import { invalidInput } from "../shared/errors.ts";
 /** Only the chosen type’s effective memo and tags can stale its schema change. */
 export async function effectiveEntityTemplateFingerprint(templates: RecordTemplates | undefined, typeId: string) {
-  return await sha256Hex(JSON.stringify(effectiveEntityTemplates(templates, typeId)));
+  const effective = effectiveEntityTemplates(templates, typeId);
+  for (const action of modelActions("entity")) {
+    effective.entity![action]!.tag_ids = [...effective.entity![action]!.tag_ids].sort();
+  }
+  return await sha256Hex(JSON.stringify(effective));
 }
 export function assertSchemaTemplateReferences(target: SchemaDefinition, templates: RecordTemplates, typeId?: string) {
   for (const action of modelActions("entity")) {

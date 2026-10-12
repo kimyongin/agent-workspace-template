@@ -31,7 +31,7 @@ export function validFilterScalar(field: EntityField, value: unknown) {
 }
 export function validateEntityQuery(q: EntityQuery, definition: EntityDefinition | null) {
   const propertySort = typeof q.sort === "object" ? q.sort : null;
-  if (!propertySort && !q.filters?.length) return;
+  if (!propertySort && q.filters === undefined) return;
   if (!q.entity_type_id || !definition) throw invalidInput("속성 조건에는 자료 종류를 선택하세요");
   const field = (key: string) => {
     const value = definition.schema.properties[key];

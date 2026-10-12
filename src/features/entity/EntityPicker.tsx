@@ -132,7 +132,11 @@ export function EntityLinkItem({ id, context = [] }: { id: string; context?: Ent
       to={`/entities/${encodeURIComponent(id)}`}
       title={capture?.title ?? "연결된 자료"}
       metadata={
-        <span>{capture?.type ? `${capture.type.label} · 속성 버전 ${capture.schema_version ?? "—"} · ` : ""}{id}</span>
+        <span>
+          {capture?.type && <EntityTypeIcon id={capture.type.icon_id} />}{" "}
+          {capture?.type ? `${capture.type.label} · 속성 버전 ${capture.schema_version ?? "—"} · ` : ""}
+          {id}
+        </span>
       }
       restoreKey={`linked-entity-${id}`}
     />
