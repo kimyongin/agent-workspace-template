@@ -6,6 +6,7 @@ import type {
   SchemaAnalysisRow,
 } from "@contracts/entity-schema-change.ts";
 import type { EntityField } from "@contracts/entity-type.ts";
+import { recoveryErrorMessage } from "./SchemaRecovery.tsx";
 import { Field } from "../../components/Field.tsx";
 import { api } from "../../lib/api.ts";
 import { fieldType } from "../entity/property-fields.tsx";
@@ -107,7 +108,7 @@ export function ConversionEditor(
       setError("");
     } catch (e) {
       if (controller.signal.aborted) return;
-      setError(e instanceof Error ? e.message : "결과 조회 실패");
+      setError(plan.recovery ? recoveryErrorMessage(e) : e instanceof Error ? e.message : "결과 조회 실패");
     }
   };
   useEffect(() => {
@@ -136,6 +137,7 @@ export function ConversionEditor(
     });
   return (
     <section aria-label="변환 규칙과 영향 미리보기">
+      {!plan.recovery && <>
       <h3>명시적인 변환 규칙</h3>
       <p>
         기본값은 기존 자료에 채우지 않습니다. 변환 → 행 보완 → 실패 대체 → 최종 검증 순으로 처리합니다. 보완 저장 후
@@ -306,7 +308,8 @@ export function ConversionEditor(
           })}
         </div>
       </fieldset>
-      <h3>분석 결과</h3>
+      </>}
+      <h3>{plan.recovery ? "복구 값 영향 미리보기" : "분석 결과"}</h3>
       {unsaved
         ? (
           <p role="status">
@@ -329,7 +332,7 @@ export function ConversionEditor(
                   <div key={key}>
                     <dt>{plan.target.schema.properties[key]?.title ?? key} · {key}</dt>
                     <dd style={{ overflowWrap: "anywhere" }}>
-                      원본 {Object.hasOwn(row.before, key) ? JSON.stringify(row.before[key]) : "누락"} → 변환{" "}
+                      {plan.recovery ? "현재 값" : "원본"} {Object.hasOwn(row.before, key) ? JSON.stringify(row.before[key]) : "누락"} → {plan.recovery ? "복구" : "변환"}{" "}
                       {row.after === null
                         ? "미리보기 크기 초과"
                         : Object.hasOwn(row.after, key)
@@ -340,7 +343,7 @@ export function ConversionEditor(
                 ))}
               </dl>
               {row.errors.map((e, i) => <p role="alert" key={i}>{e.path}: {e.message}</p>)}
-              {[...new Set(row.errors.map((e) => e.path.split(".").at(-1)!))].filter((key) =>
+              {!plan.recovery && [...new Set(row.errors.map((e) => e.path.split(".").at(-1)!))].filter((key) =>
                 plan.target.schema.properties[key]
               ).map((key) => {
                 const o = migration.overrides.find((o) => o.entity_id === row.entity_id && o.key === key);

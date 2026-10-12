@@ -1,5 +1,6 @@
 import {
   cancelEntitySchemaMigration,
+  createEntitySchemaRecovery,
   getEntitySchemaMigration,
   listEntitySchemaMigrations,
   retryEntitySchemaMigration,
@@ -9,6 +10,7 @@ import {
   schemaMigrationAction,
   schemaMigrationList,
   schemaMigrationStart,
+  schemaRecoveryCreate,
 } from "../../contracts/entity-schema-migration.ts";
 import {
   schemaAnalysisRows,
@@ -48,6 +50,17 @@ import {
 import { keyedTool, type ToolDef } from "./tools.ts";
 export function entityTypeTools(deps: EntityTypeDeps): ToolDef[] {
   const tools: ToolDef[] = [
+    {
+      name: "create_entity_schema_recovery",
+      description:
+        "완료 작업 원본으로 같은 종류의 새 복구 초안만 생성. 30일 원본·이후 값/연결 변경 검사. 최신 버전과 request_key 필수. 분석·preview·start는 일반 흐름으로 명시 실행.",
+      input: schemaRecoveryCreate.extend({ job_id: z.string().uuid() }),
+      readOnly: false,
+      handler: (i, a) => {
+        const { job_id, ...raw } = i;
+        return createEntitySchemaRecovery(deps, a, String(job_id), raw);
+      },
+    },
     {
       name: "start_entity_schema_migration",
       description:

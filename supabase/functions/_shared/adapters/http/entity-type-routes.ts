@@ -1,5 +1,6 @@
 import {
   cancelEntitySchemaMigration,
+  createEntitySchemaRecovery,
   getEntitySchemaMigration,
   listEntitySchemaMigrations,
   retryEntitySchemaMigration,
@@ -189,6 +190,11 @@ export function entityTypeRoutes(deps: EntityTypeDeps) {
     "/entity-schema-migrations/:job_id/retry",
     async (c) =>
       c.json(await retryEntitySchemaMigration(deps, c.get("actor"), c.req.param("job_id"), await json(c.req.raw)), 202),
+  );
+  app.post(
+    "/entity-schema-migrations/:job_id/recovery-changes",
+    async (c) =>
+      c.json(await createEntitySchemaRecovery(deps, c.get("actor"), c.req.param("job_id"), await json(c.req.raw)), 201),
   );
   return app;
 }

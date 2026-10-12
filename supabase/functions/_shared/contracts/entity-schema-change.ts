@@ -136,6 +136,7 @@ export type EntitySchemaChange = {
   change_kind: "compatible" | "migration_required";
   edits: SchemaEdit[];
   migration: MigrationPlan;
+  recovery?: { source_job_id: string; source_expires_at: string } | null;
   executable: boolean;
   reservations: Record<string, string>;
   target: Pick<EntitySchemaVersion, "schema" | "display">;

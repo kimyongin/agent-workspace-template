@@ -72,6 +72,8 @@ description: Workspace에서 다음 업무의 검토·준비안을 만들거나 
 
 `analyze_entity_schema_change`의 analysis_id와 queued는 접수 결과다. `get_entity_schema_change`로 분석 상태·대상/성공/실패/변경 건수·freshness를 확인한다. 완료한 현재 analysis_id로 `list_entity_schema_analysis_rows`를 호출해 before/after·필드 오류를 읽고 next_after로 이어 조회한다. 페이지는 기본 20개·최대 100개·512 KiB이며, after=null은 after_bytes와 크기 오류를 확인한다. queued/running/failed를 빈 성공 결과로 해석하지 않는다. stale이면 원본·정의 변경을 검토하고 최신 변경안/분석을 준비한다. 목록은 `list_entity_schema_changes`로 조회한다.
 
+완료 작업 복구 요청은 `get_entity_schema_migration`의 recovery.status/reason과 source_expires_at·현재 종류 이름/icon·현재 type/schema version을 확인한다. available이면 `create_entity_schema_recovery`에 job_id, expected_job_version, expected_type_version, expected_schema_version, request_key를 제출한다. 결과는 새 변경 초안이며 자동 실행하지 않는다. get/analyze/list_entity_schema_analysis_rows로 원본과 복구 결과를 검토한 뒤 사용자 요청 범위에서 일반 start_entity_schema_migration을 사용한다. expired는 migration_source_expired/410, unavailable은 원본/확정 기준 자료 없음, conflict는 완료 후 값·자료 구성·식별·연결 선택 변경이다. 최대 20개 자료 이유와 연결 이유를 설명하고 현재 자료의 수동 보완/새 변경·분석을 준비한다. 이름/icon이나 본문만의 수정은 원본 복구 값으로 되돌리지 않는다. 임의 target/schema/원본값/다른 타입 이동은 입력하지 않는다. 복구 초안은 서버 원본에 결속되어 편집하지 않으며 30일 기한을 연장하지 않는다. 응답이 불확실하면 원래 키와 정확한 입력을 유지해 확인한다.
+
 값 변환 준비는 `update_entity_schema_change`에 제한된 migration.rules와 같은 종류의 entity_id/key/value 보완을 명시해 저장한다. 누락·null·false·0·빈 문자열을 구분하고 숫자 앞자리 0·정밀도·잘못된 날짜·매핑 누락의 오류를 사용자에게 보여준다. 보완 저장은 이전 분석을 무효화하므로 새 analysis_id로 다시 분석한다. 분석/미리보기는 현재 자료 값·활성 정의를 유지한다. 최신 ready·실패 0·compatible 변경만 `apply_entity_schema_change`에 analysis_id와 변경 버전을 제출해 게시한다. migration_required는 사용자 요청에 따라 최신 성공 분석·실패 0건을 확인하고 `start_entity_schema_migration`에 type_id/change_id, expected_type_version/expected_schema_version/expected_change_version, analysis_id, fingerprint를 제출한다. 접수 응답의 job_id는 분석 ID와 구분한다. 기본값은 기존 자료에 채우지 않는다. 보관은 정의·값을 유지하고 필수 해제를 명시한다. 키 변경/재사용/종류 이동은 지원하지 않는다.
 
 `get_entity_schema_migration`으로 queued/preparing/ready_to_commit/committing/succeeded/failed/cancelled 및 processed/total, 확정 result를 확인한다. `list_entity_schema_migrations`는 type_id·limit/before로 작업을 찾는다. 접수 뒤 화면 이탈이나 timeout·lease 만료는 취소/실패 또는 새 실행의 근거가 아니다. 결과가 불명확하면 원래 job_id와 request_key를 조회·재확인하며 새 키로 자동 반복하지 않는다. 같은 종류 자료·설정·양 끝점 중 하나가 해당 종류인 연결·할 일/기록 선택 쓰기는 terminal 상태까지 차단되며 읽기·다른 종류/소유자 업무는 계속된다.
@@ -91,6 +93,7 @@ description: Workspace에서 다음 업무의 검토·준비안을 만들거나 
 | 요청받은 속성 변경 초안·영향 분석·호환 가능한 게시 | `create_entity_schema_change`, `update_entity_schema_change`, `analyze_entity_schema_change`, `apply_entity_schema_change` |
 | 변경 초안·차이·분석 상태 조회 | `get_entity_schema_change`, `list_entity_schema_changes` |
 | 완료한 현재 분석의 변환 전후·실패 페이지 조회 | `list_entity_schema_analysis_rows` |
+| 완료 작업의 원본 복구안 생성 | `create_entity_schema_recovery` |
 | 요청받은 값 변환 실행·작업 조회 | `start_entity_schema_migration`, `get_entity_schema_migration`, `list_entity_schema_migrations` |
 | 요청받은 적용 전 취소·재시도 가능한 실패 재개 | `cancel_entity_schema_migration`, `retry_entity_schema_migration` |
 | 할 일 찾기·읽기 | `list_tasks`, `get_task` |

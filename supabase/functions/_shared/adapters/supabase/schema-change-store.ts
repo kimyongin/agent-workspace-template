@@ -38,7 +38,7 @@ export class SqlSchemaChangeStore implements SchemaChangeStore {
     }
     if (t.archived) throw new AppError("entity_type_archived", "보관된 자료 종류를 먼저 복원하세요");
   }
-  private async definition(t: postgres.Row): Promise<SchemaDefinition> {
+  protected async definition(t: postgres.Row): Promise<SchemaDefinition> {
     const [v] = await this
       .tx`select schema,display from app.entity_schema_versions where type_id=${t.id} and schema_version=${t.schema_version}`;
     return { schema: v.schema, display: v.display };
@@ -82,6 +82,41 @@ export class SqlSchemaChangeStore implements SchemaChangeStore {
     }
     return reservations;
   }
+  protected async recoveryFresh(c: postgres.Row, lock = true) {
+    if (!c.recovery_source_job_id) return;
+    const [j] = await this.tx`select * from app.entity_schema_migrations where id=${c.recovery_source_job_id} ${
+      lock ? this.tx`for update` : this.tx``
+    }`;
+    if (!j) throw notFound();
+    if (j.source_expires_at <= new Date()) {
+      throw new AppError(
+        "migration_source_expired",
+        "복구 원본의 30일 보관 기간이 지났습니다. 현재 자료로 새 변경을 준비하세요",
+      );
+    }
+    if (!j.source_definition?.schema) throw conflict("복구 원본 자료가 없습니다. 현재 자료로 새 변경을 준비하세요");
+    const [fresh] = await this
+      .tx`select app.entity_schema_membership(${this.actor.userId},${c.type_id})=${j.committed_membership} as values, app.entity_schema_reference_baseline(${this.actor.userId},${c.type_id})=${
+      this.tx.json(j.committed_references)
+    }::jsonb as references`;
+    if (!fresh.values || !fresh.references) {
+      const rows = await this
+        .tx`select e.id from app.entities e full join private.entity_schema_migration_rows r on r.owner_id=e.owner_id and r.entity_id=e.id and r.job_id=${j.id} where (e.entity_type_id=${c.type_id} or r.job_id=${j.id}) and (e.id is null or r.entity_id is null or e.version<>r.committed_version or e.deleted_at is distinct from r.source_deleted_at) order by coalesce(e.id,r.entity_id) limit 20`;
+      throw new AppError(
+        "schema_plan_stale",
+        "완료 후 값·자료 구성·식별·연결 선택이 변경되었습니다. 충돌 자료를 수동 보완하고 새 변경과 분석을 준비하세요",
+        [
+          ...rows.map((r) => ({
+            path: `entities.${r.id ?? "removed"}`,
+            message: "완료 후 변경된 자료는 자동 복구하지 않습니다",
+          })),
+          ...(!fresh.references
+            ? [{ path: "references", message: "연결 또는 할 일·기록의 선택이 변경되었습니다" }]
+            : []),
+        ],
+      );
+    }
+  }
   protected async row(typeId: string, id: string, lock = false) {
     const [row] = await this
       .tx`select * from app.entity_schema_changes where type_id::text=${typeId} and id::text=${id} ${
@@ -94,7 +129,7 @@ export class SqlSchemaChangeStore implements SchemaChangeStore {
     if (Number(row.version) !== version) throw conflict("변경 초안 버전이 변경되었습니다");
     if (["applied", "cancelled"].includes(row.status)) throw conflict("완료된 변경은 수정할 수 없습니다");
   }
-  private async dto(row: postgres.Row): Promise<EntitySchemaChange> {
+  protected async dto(row: postgres.Row): Promise<EntitySchemaChange> {
     let analysis: SchemaAnalysis | null = null;
     let status = row.status;
     if (row.analysis_id) {
@@ -147,6 +182,9 @@ export class SqlSchemaChangeStore implements SchemaChangeStore {
       change_kind: row.kind,
       edits: row.edits,
       migration: row.migration ?? { rules: [], overrides: [] },
+      recovery: row.recovery_source_job_id
+        ? { source_job_id: row.recovery_source_job_id, source_expires_at: row.recovery_expires_at.toISOString() }
+        : null,
       executable: status === "ready" && analysis?.status === "succeeded" && analysis.failed === 0,
       reservations: row.reservations,
       target: row.target,
@@ -193,6 +231,9 @@ export class SqlSchemaChangeStore implements SchemaChangeStore {
       Number(row.source_type_version) !== input.expected_type_version ||
       Number(row.source_schema_version) !== input.expected_schema_version
     ) throw new AppError("schema_plan_stale", "새 정의를 기준으로 새 변경을 만드세요");
+    if (row.recovery_source_job_id) {
+      throw conflict("복구 초안은 원본에 결속됩니다. 현재 변경을 수동 보완한 후 새 복구안과 분석을 준비하세요");
+    }
     const reservations = await this.reserve(t, input.edits, row.reservations);
     const resolved = resolveSchemaEdits(await this.definition(t), input.edits, reservations);
     await this.migrationOwnership(typeId, input);
@@ -252,6 +293,7 @@ export class SqlSchemaChangeStore implements SchemaChangeStore {
       expected_type_version: Number(row.source_type_version),
       expected_schema_version: Number(row.source_schema_version),
     });
+    await this.recoveryFresh(row);
     await this.templates(row.target, typeId, row.source_template_fingerprint);
     const overrides = row.migration?.overrides ?? [];
     for (const override of overrides) {
@@ -262,6 +304,13 @@ export class SqlSchemaChangeStore implements SchemaChangeStore {
     const [a] = await this
       .tx`with snapshot as materialized (select owner_id,id,version,schema_version,properties,deleted_at from app.entities where entity_type_id=${typeId}), size as (select count(*)::int as count,coalesce(sum(octet_length(jsonb_build_array(id,version,schema_version,properties,deleted_at)::text)),0)::bigint as bytes from snapshot), analysis as (insert into app.entity_schema_analyses(owner_id,type_id,change_id,change_version,fingerprint,membership,total) select ${this.actor.userId},${typeId},${id},${row.version},${row.fingerprint},md5(coalesce((select jsonb_agg(jsonb_build_array(id,version,schema_version,properties,deleted_at) order by id)::text from snapshot),'[]')),count from size where count<=2000 and bytes<=8388608 returning id), saved as (insert into private.entity_schema_analysis_rows(owner_id,analysis_id,entity_id,source_version,source_schema_version,properties,deleted_at) select s.owner_id,a.id,s.id,s.version,s.schema_version,s.properties,s.deleted_at from snapshot s cross join analysis a returning entity_id) select a.id,(select count(*) from saved) as captured from analysis a`;
     if (!a) throw invalidInput("영향 분석은 2000개·8 MiB 이하에서 실행할 수 있습니다");
+    if (row.recovery_source_job_id) {
+      await this
+        .tx`update private.entity_schema_analysis_rows r set recovery_properties=s.source_properties from private.entity_schema_migration_rows s where r.analysis_id=${a.id} and s.job_id=${row.recovery_source_job_id} and s.entity_id=r.entity_id and s.owner_id=r.owner_id`;
+      const [size] = await this
+        .tx`select coalesce(sum(octet_length(properties::text)+octet_length(recovery_properties::text)),0) as bytes from private.entity_schema_analysis_rows where analysis_id=${a.id}`;
+      if (Number(size.bytes) > 8388608) throw invalidInput("복구 분석 원본은 8 MiB 이하에서 실행할 수 있습니다");
+    }
     await this
       .tx`update app.entity_schema_changes set status='analyzing',analysis_id=${a.id},updated_at=now() where id=${id}`;
     return {
@@ -278,6 +327,7 @@ export class SqlSchemaChangeStore implements SchemaChangeStore {
     input: Parameters<SchemaChangeStore["analysisRows"]>[2],
   ): Promise<SchemaAnalysisPage> {
     const change = await this.row(typeId, id);
+    await this.recoveryFresh(change, false);
     const [expired] = await this
       .tx`select id from app.entity_schema_migrations where analysis_id=${input.analysis_id} and source_expires_at<=now() and status='succeeded'`;
     if (expired) throw new AppError("migration_source_expired", "원본 분석 자료의 30일 보관 기간이 지났습니다");

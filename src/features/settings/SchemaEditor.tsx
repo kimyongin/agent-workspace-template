@@ -1,4 +1,5 @@
 import { MigrationStart } from "./SchemaMigrationJobs.tsx";
+import { recoveryErrorMessage } from "./SchemaRecovery.tsx";
 import { Link, useLocation } from "react-router";
 import { ConversionEditor } from "./ConversionEditor.tsx";
 import { useEffect, useRef, useState } from "react";
@@ -208,7 +209,7 @@ export function SchemaEditor(
         }
       });
     } catch (e) {
-      if (mounted.current) setError(writeErrorMessage(e));
+      if (mounted.current) setError(plan?.recovery ? recoveryErrorMessage(e) : writeErrorMessage(e));
     }
   };
   const loadPlan = async (value: EntitySchemaChangeSummary) => {
@@ -256,7 +257,7 @@ export function SchemaEditor(
       </p>
       {error && <p role="alert" className="error-text">{error}</p>}
       {message && <p role="status">{message}</p>}
-      <fieldset className="settings-fields" disabled={busy || uncertain || disabled || readBusy}>
+      <fieldset className="settings-fields" disabled={busy || uncertain || disabled || readBusy || Boolean(plan?.recovery)}>
         {draft.display.order.map((key, index) => {
           const f = draft.schema.properties[key],
             scalar = fieldType(f) ?? "string",
@@ -605,7 +606,7 @@ export function SchemaEditor(
           속성 추가
         </button>
       </fieldset>
-      <div className="settings-section-footer">
+      {!plan?.recovery && <div className="settings-section-footer">
         <button
           className="btn"
           disabled={busy || uncertain || !dirty}
@@ -619,16 +620,24 @@ export function SchemaEditor(
         </button>
         <button
           className="btn btn-primary"
-          disabled={busy || disabled || (!dirty && !uncertain)}
+          disabled={busy || disabled || Boolean(plan?.recovery) || (!dirty && !uncertain)}
           onClick={() => void write("save")}
         >
           {busy ? "처리 중…" : uncertain ? "같은 요청 다시 확인" : "변경 초안 저장"}
         </button>
-      </div>
+      </div>}
       {plan && (
         <section className="schema-summary" aria-label="속성 변경 요약">
           <h3>변경 요약 · 초안 버전 {plan.version}</h3>
           <Link to={`?change_id=${plan.id}`}>이 변경안 직접 링크</Link>
+          {plan.recovery && (
+            <section aria-label="복구안 원본">
+              <p>보존 원본을 사용하는 새 버전의 복구안입니다. 영향 분석 후 현재 값 → 복구 값 미리보기를 확인하고 실행하세요.</p>
+              <Link to={`/settings/entity-types/${plan.type_id}/migrations/${plan.recovery.source_job_id}`}>원본 작업 확인</Link>
+              <p className="secondary">원본 보존 만료: <time dateTime={plan.recovery.source_expires_at}>{new Date(plan.recovery.source_expires_at).toLocaleString()}</time></p>
+              <p>복구안의 속성과 변환 규칙은 원본 기준으로 유지됩니다. 보완이 필요하면 현재 자료를 직접 수정하거나 새 변경안을 준비하고 다시 분석하세요.</p>
+            </section>
+          )}
           <p>상태: {plan.status} · {plan.change_kind === "compatible" ? "호환 가능한 게시" : "자료 값 변환 필요"}</p>
           <ul>
             {plan.diff.map((d, i) => (
@@ -651,7 +660,7 @@ export function SchemaEditor(
             plan={plan}
             migration={migration}
             onChange={setMigration}
-            disabled={busy || uncertain || disabled}
+            disabled={busy || uncertain || disabled || Boolean(plan.recovery)}
           />
           {plan.analysis?.errors.map((r) => (
             <div key={r.entity_id}>
@@ -674,7 +683,7 @@ export function SchemaEditor(
           {plan.analysis?.status === "failed" && (
             <p role="alert">분석 작업 실패: {plan.analysis.failure_reason}. 원본은 유지됩니다. 다시 분석하세요.</p>
           )}
-          {plan.status === "stale" && <p>정의나 자료가 변경되었습니다. 최신 정의를 확인하고 새 변경을 만드세요.</p>}
+          {plan.status === "stale" && <p>정의나 자료·연결이 변경되었습니다. 입력은 유지됩니다. 현재 상태를 확인하고 보완한 뒤 새 변경안을 분석하세요.</p>}
           {plan.status === "applied" && (
             <button
               className="btn"
