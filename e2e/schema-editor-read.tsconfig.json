@@ -1,0 +1,10 @@
+{
+  "extends": "../tsconfig.json",
+  "include": [
+    "../src",
+    "schema-editor-read.fixture.ts",
+    "schema-editor-read.config.ts",
+    "fixtures/schema-editor-read.tsx"
+  ],
+  "exclude": ["../supabase/functions/_shared/contracts/*.test.ts"]
+}
