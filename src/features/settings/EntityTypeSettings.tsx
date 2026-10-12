@@ -18,10 +18,10 @@ export function EntityTypeIcon({ id }: { id: string }) {
 }
 export function EntityTypeSettings() {
   const { type_id } = useParams();
-  return <EntityTypeSettingsEditor key={type_id ?? "create"} />;
+  return <EntityTypeSettingsEditor key={type_id ?? "create"} type_id={type_id} />;
 }
-function EntityTypeSettingsEditor() {
-  const { type_id } = useParams();
+function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
+  const { type_id: activeTypeId } = useParams();
   const location = useLocation();
   const versions = location.pathname.endsWith("/versions");
   const [items, setItems] = useState<EntityType[]>([]),
@@ -67,6 +67,8 @@ function EntityTypeSettingsEditor() {
         api<EntitySchemaVersion>("GET", `/entity-types/${type_id}/schema`, undefined, signal),
         api<{ items: EntitySchemaVersionSummary[] }>("GET", `/entity-types/${type_id}/schemas`, undefined, signal),
       ]);
+      signal?.throwIfAborted();
+      if (!mounted.current) return;
       setType(saved);
       setLabel(saved.label);
       setIcon(saved.icon_id);
@@ -75,6 +77,8 @@ function EntityTypeSettingsEditor() {
       setHistory(versions.items);
     } else {
       const saved = await api<{ items: EntityType[] }>("GET", "/entity-types?include_archived=true", undefined, signal);
+      signal?.throwIfAborted();
+      if (!mounted.current) return;
       setItems(saved.items);
     }
   };
@@ -91,6 +95,18 @@ function EntityTypeSettingsEditor() {
     });
     return () => controller.abort();
   }, [type_id]);
+  const retryRead = async () => {
+    if (loading || busy) return;
+    setLoading(true);
+    setError("");
+    try {
+      await load();
+    } catch (e) {
+      if (mounted.current) setError(e instanceof Error ? e.message : "조회하지 못했습니다");
+    } finally {
+      if (mounted.current) setLoading(false);
+    }
+  };
   const save = async () => {
     if (busy || (!dirty && !uncertain)) return;
     setError("");
@@ -146,6 +162,15 @@ function EntityTypeSettingsEditor() {
     setArchived(type?.archived ?? false);
   };
 
+  // The router may expose destination params while the previous editor is still mounted.
+  // Its draft belongs to its fixed route scope and must never become the destination form.
+  if (activeTypeId !== type_id) {
+    return (
+      <section className="panel settings">
+        <p role="status">불러오는 중…</p>
+      </section>
+    );
+  }
   return (
     <section className="panel settings" aria-labelledby="entity-types-title">
       <Link to="/settings">설정</Link>
@@ -161,6 +186,9 @@ function EntityTypeSettingsEditor() {
       )}
       {loading && <p role="status">불러오는 중…</p>}
       {error && <p role="alert" className="error-text">{error}</p>}
+      {error && !loading && (!type_id || !type) && (
+        <button className="btn" onClick={() => void retryRead()}>조회 다시 시도</button>
+      )}
       {message && <p role="status">{message}</p>}
       {!loading && !type_id && (
         <>
@@ -174,7 +202,7 @@ function EntityTypeSettingsEditor() {
               </li>
             ))}
           </ul>
-          {items.length === 0 && (
+          {items.length === 0 && !error && (
             <p className="secondary">자료 종류가 없습니다. 이름을 정해 첫 자료 종류를 만드세요.</p>
           )}
         </>

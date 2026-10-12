@@ -7,6 +7,7 @@ test("자료 종류를 웹에서 만들고 이름·아이콘·보관과 게시 �
   const mcp = await mcpClient(await mcpTokenViaConsent(page));
   const label = unique("자료 종류");
   let typeId: string | undefined;
+  let releaseDestination: (() => void) | undefined;
   try {
     await page.goto("/settings/entity-types");
     await expect(page.getByRole("heading", { name: "자료 종류·속성", exact: true })).toBeVisible();
@@ -25,7 +26,7 @@ test("자료 종류를 웹에서 만들고 이름·아이콘·보관과 게시 �
     await page.getByLabel("대표 속성 이름", { exact: true }).fill("대표 이름");
     await page.getByLabel("아이콘", { exact: true }).selectOption("leaf");
     await page.getByRole("button", { name: "자료 종류 만들기", exact: true }).click();
-    await expect(page.getByRole("status")).toContainText("자료 종류를 저장했습니다");
+    await expect(page.locator(".settings").getByRole("status")).toContainText("자료 종류를 저장했습니다");
     const types = await mcp.call("list_entity_types", { include_archived: true, limit: 100 });
     const created = types.items.find((value: { label: string }) => value.label === label);
     expect(created).toBeTruthy();
@@ -34,8 +35,19 @@ test("자료 종류를 웹에서 만들고 이름·아이콘·보관과 게시 �
     const original = await mcp.call("get_entity_schema", { type_id: typeId });
     expect(original.schema.required).toEqual(["prop_1"]);
     expect(original.schema.properties.prop_1.title).toBe("대표 이름");
+    const destinationGate = new Promise<void>((resolve) => {
+      releaseDestination = resolve;
+    });
+    await page.route(`**/functions/v1/api/entity-types/${typeId}`, async (route) => {
+      if (route.request().method() === "GET") await destinationGate;
+      await route.continue();
+    });
     await page.getByRole("link", { name: label, exact: false }).click();
     await expect(page).toHaveURL(new RegExp(`/settings/entity-types/${typeId}$`));
+    await expect(page.locator(".settings").getByRole("status")).toHaveText("불러오는 중…");
+    await expect(page.getByLabel("자료 종류 이름", { exact: true })).toHaveCount(0);
+    releaseDestination!();
+    await expect(page.getByLabel("자료 종류 이름", { exact: true })).toHaveValue(label);
     const changedLabel = unique("이름 변경");
     await page.getByLabel("자료 종류 이름", { exact: true }).fill(changedLabel);
     await page.getByRole("link", { name: "자료 종류 목록", exact: true }).click();
@@ -45,7 +57,7 @@ test("자료 종류를 웹에서 만들고 이름·아이콘·보관과 게시 �
     await expect(page.getByLabel("자료 종류 이름", { exact: true })).toHaveValue(changedLabel);
     await page.getByLabel("아이콘", { exact: true }).selectOption("star");
     await page.getByRole("button", { name: "저장", exact: true }).click();
-    await expect(page.getByRole("status")).toContainText("자료 종류를 저장했습니다");
+    await expect(page.locator(".settings").getByRole("status")).toContainText("자료 종류를 저장했습니다");
     const renamed = await mcp.call("get_entity_type", { type_id: typeId });
     expect(renamed.label).toBe(changedLabel);
     expect(renamed.icon_id).toBe("star");
@@ -63,11 +75,11 @@ test("자료 종류를 웹에서 만들고 이름·아이콘·보관과 게시 �
     await page.getByRole("link", { name: "속성·표시", exact: true }).click();
     await page.getByRole("checkbox", { name: /자료 종류 보관/ }).check();
     await page.getByRole("button", { name: "저장", exact: true }).click();
-    await expect(page.getByRole("status")).toContainText("자료 종류를 저장했습니다");
+    await expect(page.locator(".settings").getByRole("status")).toContainText("자료 종류를 저장했습니다");
     expect((await mcp.call("get_entity_type", { type_id: typeId })).archived).toBe(true);
     await page.getByRole("checkbox", { name: /자료 종류 보관/ }).uncheck();
     await page.getByRole("button", { name: "저장", exact: true }).click();
-    await expect(page.getByRole("status")).toContainText("자료 종류를 저장했습니다");
+    await expect(page.locator(".settings").getByRole("status")).toContainText("자료 종류를 저장했습니다");
     expect((await mcp.call("get_entity_type", { type_id: typeId })).archived).toBe(false);
     await page.setViewportSize({ width: 320, height: 640 });
     await page.evaluate(() => {
@@ -77,6 +89,7 @@ test("자료 종류를 웹에서 만들고 이름·아이콘·보관과 게시 �
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth))
       .toBe(true);
   } finally {
+    releaseDestination?.();
     await mcp.close();
     if (typeId) {
       const admin = postgres(env.LOCAL_DB_URL, { max: 1, onnotice: () => {} });
@@ -120,7 +133,7 @@ test("자료 종류 생성의 성공 응답 유실은 초안·같은 요청을 �
     expect(before).toHaveLength(1);
     typeId = before[0].id;
     await page.getByRole("button", { name: "같은 요청 다시 확인", exact: true }).click();
-    await expect(page.getByRole("status")).toContainText("자료 종류를 저장했습니다");
+    await expect(page.locator(".settings").getByRole("status")).toContainText("자료 종류를 저장했습니다");
     expect(keys).toHaveLength(2);
     expect(keys[1]).toBe(keys[0]);
     const current = await mcp.call("list_entity_types", { include_archived: true, limit: 100 });
