@@ -1,3 +1,5 @@
+import { scalarFixtureType } from "./entity-schema-support.ts";
+import { mcpClient, mcpTokenViaConsent } from "./support.ts";
 import { expect, test } from "@playwright/test";
 import { devLogin, env, unique } from "./support.ts";
 import { beginTabAction } from "./ui-actions.ts";
@@ -9,8 +11,11 @@ test("설정 템플릿 오류·변수 삽입과 실제 변경 확인·취소·�
   const api = async(method:string,path:string,data?:unknown) => {
     const response = await page.request.fetch(`${env.VITE_API_URL}${path}`,{method,headers:{authorization:`Bearer ${token}`,...(method!=="GET"?{"Idempotency-Key":crypto.randomUUID()}:{})},data});
     const text = await response.text();
-    expect(response.ok(), `${method} ${path}: ${response.status()} ${text}`).toBeTruthy(); return response.status() === 204 ? null : JSON.parse(text);
+    expect(response.ok(), `${method} ${path}: ${response.status()}`).toBeTruthy(); return response.status() === 204 ? null : JSON.parse(text);
   };
+  const fixtureMcp = await mcpClient(await mcpTokenViaConsent(page));
+  const fixtureType = await scalarFixtureType(fixtureMcp);
+  await fixtureMcp.close();
   const saved = await api("GET","/settings/business");
   const tag = await api("POST","/tags",{scope:"record",name:unique("템플릿")});
   let taskId:string|undefined;
@@ -18,15 +23,16 @@ test("설정 템플릿 오류·변수 삽입과 실제 변경 확인·취소·�
     await page.goto("/settings");
     const form = page.getByRole("form",{name:"변경 기록 기본값"});
     await expect(form.getByLabel("메모 템플릿")).toBeVisible();
-    await form.getByLabel("메모 템플릿").fill("앞 ${엔터티.이전.속성2$}");
+    await form.getByLabel("자료 종류", { exact: true }).selectOption(fixtureType.id);
+    await form.getByLabel("메모 템플릿").fill("앞 $엔터티.이전.prop_2");
     await form.getByRole("button",{name:"기록 기본값 저장"}).click();
     await expect(form).toContainText("3번째 문자");
-    await expect(form.getByLabel("메모 템플릿")).toHaveValue("앞 ${엔터티.이전.속성2$}");
+    await expect(form.getByLabel("메모 템플릿")).toHaveValue("앞 $엔터티.이전.prop_2");
     await form.getByLabel("액션",{exact:true}).selectOption("update");
     await form.getByLabel("메모 템플릿").fill("");
-    await form.getByLabel("변수 삽입").selectOption("엔터티.이전.속성2");
-    await expect(form.getByLabel("메모 템플릿")).toHaveValue("$엔터티.이전.속성2$");
-    await form.getByLabel("메모 템플릿").fill("${엔터티.이전.속성2$} → ${엔터티.이후.속성2$}");
+    await form.getByLabel("변수 삽입").selectOption("엔터티.이전.prop_2");
+    await expect(form.getByLabel("메모 템플릿")).toHaveValue("$엔터티.이전.prop_2$");
+    await form.getByLabel("메모 템플릿").fill("$엔터티.이전.prop_2$ → $엔터티.이후.prop_2$");
     await expect(form.getByText("미리보기 예시 값 편집",{exact:true})).toHaveCount(0);
     await expect(form.locator("output")).toHaveCount(0);
     // Clear the invalid create slot before saving another action.
