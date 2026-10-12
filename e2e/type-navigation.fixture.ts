@@ -450,6 +450,7 @@ test("conversion literals preserve unsafe drafts and removed properties permit e
     diff: [{ path: "properties.prop_3", before: { type: "integer", title: "이전 수량" }, after: null,
       before_present: true, after_present: false, kind: "migration_required", reason: "속성 제거", next_action: "명시 제거" }] };
   let writes = 0;
+  await page.route(`**/api/entity-types/${materials.id}/schema-changes`, (route) => route.fulfill({ json: { items: [], next_before: null } }));
   await page.route(`**/api/entity-types/${materials.id}/schema-changes/${changeId}`, (route) => {
     if (route.request().method() !== "GET") writes++;
     return route.fulfill({ json: plan });
