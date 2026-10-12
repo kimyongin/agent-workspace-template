@@ -7,7 +7,7 @@ import type { EntitySchemaMigration } from "@contracts/entity-schema-migration.t
 import { ApiError } from "../../lib/api-error.ts";
 import { WriteAttempt } from "../../lib/write-attempt.ts";
 vi.mock("../../lib/api.ts", () => ({ api: vi.fn() }));
-import { RecoveryAvailability, RecoveryChangeCreate, recoveryErrorMessage, submitRecoveryChange } from "./SchemaRecovery.tsx";
+import { RecoveryAvailability, RecoveryChangeCreate, RecoveryConflictList, recoveryErrorMessage, submitRecoveryChange } from "./SchemaRecovery.tsx";
 
 const job = {
   id: "job-1", version: 7, status: "succeeded", type_id: "type-1",
@@ -69,4 +69,25 @@ it("복구 미리보기는 서버 원본 계획을 유지하고 편집할 수 �
   expect(html).toContain("복구 값 영향 미리보기");
   expect(html).not.toContain("변환 방식");
   expect(html).not.toContain("보완값 지정");
+});
+
+it("복구 충돌 목록은 자료 식별자를 안전한 상세 링크로 제공하고 연결·선택 사유를 설명한다", () => {
+  const html = renderToStaticMarkup(<MemoryRouter><RecoveryConflictList conflicts={[
+    { path: "entities.crm:VIP/a.b", message: "완료 후 값이 변경되었습니다" },
+    { path: "references", message: "할 일의 선택이 변경되었습니다" },
+    { path: "entities.removed", message: "자료 구성이 변경되었습니다" },
+  ]} /></MemoryRouter>);
+  expect(html).toContain('href="/entities/crm%3AVIP%2Fa.b"');
+  expect(html).toContain("crm:VIP/a.b");
+  expect(html).toContain("연결·선택: 할 일의 선택이 변경되었습니다");
+  expect(html).not.toContain('href="/entities/removed"');
+});
+
+it("속성 변경·종류 보관 오류도 입력을 보존하고 필드별 충돌 사유를 함께 안내한다", () => {
+  const fields = [{ path: "entities.app:one", message: "완료 후 자료가 수정되었습니다" }];
+  const changed = recoveryErrorMessage(new ApiError(409, "schema_changed", "현재 속성 변경", fields));
+  expect(changed).toContain("입력은 유지");
+  expect(changed).toContain("app:one: 완료 후 자료가 수정되었습니다");
+  expect(changed).toContain("새 변경안을 분석");
+  expect(recoveryErrorMessage(new ApiError(409, "entity_type_archived", "보관 상태"))).toContain("자료 종류를 먼저 복원");
 });

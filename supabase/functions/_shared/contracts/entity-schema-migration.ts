@@ -47,6 +47,7 @@ export type EntitySchemaMigration = {
   recovery?: {
     status: "available" | "expired" | "unavailable" | "conflict";
     reason: string | null;
+    conflicts?: Array<{ path: string; message: string }>;
     current_type_version: number;
     current_schema_version: number;
   };
