@@ -466,6 +466,9 @@ dbTest(
       a = await fixtureOwner(admin),
       d = { uow: new SqlEntityTypeUnitOfWork(sql) },
       e = { uow: new SqlEntityUnitOfWork(sql) };
+    let stopReader = false;
+    let reader: Promise<void> | undefined;
+    let readerFailure: unknown;
     try {
       const type = await createEntityType(d, requestActor(a.actor), { label: "Read race" }),
         entity = await createEntity(e, requestActor(a.actor), {
@@ -482,10 +485,11 @@ dbTest(
         schema: old.current_schema_version,
         value: old.properties.prop_2,
       }];
-      const reads = (async () => {
-        for (let i = 0; i < 40; i++) {
+      reader = (async () => {
+        for (let i = 0; i < 40 && !stopReader; i++) {
           const row = await getEntity(e, a.actor, entity.id);
           observations.push({ schema: row.current_schema_version, value: row.properties.prop_2 });
+          if (stopReader) break;
           const list = await listEntities(e, a.actor, { entity_type_id: type.id, limit: 20, sort: "updated_at" });
           for (const r of list.items) {
             observations.push({
@@ -494,14 +498,19 @@ dbTest(
             });
           }
         }
-      })();
+      })().catch((error) => {
+        readerFailure = error;
+      });
       assert(await commit(worker, final));
-      await reads;
+      await reader;
+      if (readerFailure) throw readerFailure;
       for (const o of observations) assert(o.schema === 1 ? o.value === undefined : o.schema === 2 && o.value === 7);
       const after = await getEntity(e, a.actor, entity.id);
       assertEquals({ schema: after.current_schema_version, value: after.properties.prop_2 }, { schema: 2, value: 7 });
       assertEquals((await getEntitySchemaMigration(d, a.actor, job.job_id)).status, "succeeded");
     } finally {
+      stopReader = true;
+      await reader;
       await a.cleanup();
       await worker.end();
       await sql.end();
