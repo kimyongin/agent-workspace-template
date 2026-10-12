@@ -50,3 +50,15 @@ create/PATCH는 `migration: {rules, overrides}`를 받는다. fingerprint에는 
 | POST .../:change_id/analyze | analyze_entity_schema_change | 202 durable snapshot 분석 접수 |
 | GET .../:change_id | get_entity_schema_change | 상태·freshness·counts·fingerprint |
 | GET .../:change_id/rows | list_entity_schema_analysis_rows | bounded before/after·실패 페이지 |
+
+## 타입별 목록과 기록 소비자
+
+`GET /entities`와 `list_entities`는 같은 AND 배열 `filters`와 `sort`를 받는다. HTTP는 URL 인코딩 JSON을, MCP는 배열·객체를 직접 전달한다. 속성 조건 또는 속성 정렬에는 `entity_type_id`가 필요하며 잘못된 키·보관 속성·연산자·스칼라 타입·중복 비교·모순 범위는 입력 오류다. 텍스트는 `eq/contains`, 숫자·날짜는 `eq/gt/gte/lt/lte`, 불리언·선택 코드는 `eq`를 지원한다. 값 없는 `unset`은 null 또는 키 누락을 함께 찾는다. 한 조회에 조건은 최대 32개다. 필터는 값을 변환하거나 반올림하지 않는다.
+
+정렬은 `updated_at` 내림차순, `title` 오름차순 또는 `{key,direction}`이다. 속성 오름차순은 누락 → 명시 null → 값, 내림차순은 반대이며 각 그룹과 같은 값은 자료 ID로 결속한다. 커서는 owner·조건·대상 타입 집합의 metadata/schema revision을 포함한다. 긴 Unicode 텍스트와 식별자를 지원하도록 인코딩 커서는 24 KiB로 제한한다. 종류별 공유 잠금 아래 정의와 목록을 읽고 최초 타입 집합에 조회를 결속하여 게시·atomic migration 중 다른 정의의 값/정렬이 섞이지 않는다. 숫자 SQL 캐스트는 JSONB kind를 검사한 CASE 안에서만 수행한다. 값·현재 표시·종류·발급처 표시는 한 joined statement로 읽으며 자료마다 설정을 다시 조회하지 않는다.
+
+웹의 `property_filters`와 JSON `sort`는 목록 URL의 타입 전용 조건이다. 필터 펼침의 `filters=1`과 구분하며 타입 전환 때 공통 keyword/tag/view는 보존하고 타입 전용 조건·페이지·커서는 초기화한다. 조건 초기화는 현재 타입을 보존한다. 목록·상세가 받은 현재 정의 버전의 불변 표시를 읽어 라벨과 값의 시점을 맞춘다.
+
+`record_templates.entity_types[type_id][action]`은 해당 종류의 메모·기본 기록 태그를 저장한다. 종류에 설정하지 않은 행동은 공통 entity 템플릿/기본값을 사용한다. 새 속성 변수 `$엔터티.이후.prop_n$`는 선택한 종류의 활성 키에 결속하며 공통 entity 설정에서는 속성 변수를 저장할 수 없다. 설정 UI는 종류 이름·아이콘·정의 버전·속성 라벨을 보여주고 고정 키를 삽입한다. 명시 메모가 템플릿보다 우선하며 0/false/빈 문자열/null을 누락으로 자동 변환하지 않는다. 설정 섹션 version은 기존 독립 저장 계약을 유지한다.
+
+새 할 일·기록 선택 문맥에는 당시 대표 제목·종류 ID/이름/아이콘·현재 schema_version을 함께 보존한다. trusted 이전 문맥과 과거 본문은 이후 이름/속성 변경에도 다시 쓰지 않는다. 보관 타입에는 새 선택을 추가하지 않으며 기존 선택은 유지한다. 삭제 식별자를 처음 확인하여 복원할 때는 기존 활성 속성·태그를 준비 요청에 담고 보관 속성은 생략하여 서버가 원래 값을 보존하게 한다. 생성 후 자료 종류는 변경하지 않는다.
