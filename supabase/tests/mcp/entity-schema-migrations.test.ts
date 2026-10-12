@@ -104,6 +104,21 @@ httpTest(
         })).status,
         409,
       );
+      assertEquals((await call(token, "POST", path, input)).status, 409);
+      const reanalysis = await call(token, "POST", `/entity-types/${typeId}/schema-changes/${plan.id}/analyze`, {
+        expected_change_version: 1,
+      });
+      for (let i = 0; i < 4; i++) {
+        const [r] = await worker`select app.claim_entity_schema_analysis() as batch`;
+        if (!r.batch) break;
+        const b = r.batch, convert = compileMigration(b.target, b.migration);
+        await worker`select app.complete_entity_schema_analysis_batch(${b.id},${b.fence},${
+          worker.json(b.rows.map((r: { entity_id: string; properties: Record<string, unknown> }) =>
+            convert(r.entity_id, r.properties)
+          ))
+        })`;
+      }
+      input.analysis_id = reanalysis.body.analysis_id;
       const secondKey = crypto.randomUUID(),
         second = await call(token, "POST", path, input, secondKey),
         secondId = second.body.job_id;

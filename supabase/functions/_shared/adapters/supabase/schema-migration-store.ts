@@ -126,12 +126,17 @@ export class SqlSchemaMigrationStore extends SqlSchemaChangeStore implements Sch
     const [r] = await this
       .tx`update app.entity_schema_migrations set status='cancelled',version=version+1,fence=fence+1,lease_until=null,retryable=false,updated_at=now() where id=${id} returning *`;
     await this.tx`delete from private.entity_schema_migration_rows where job_id=${id}`;
+    await this
+      .tx`update app.entity_schema_changes set status='draft',analysis_id=null,updated_at=now() where id=${j.change_id} and analysis_id=${j.analysis_id} and status='ready'`;
     await this.tx`update app.entity_types set schema_write_locked=false where id=${j.type_id}`;
     return this.jobDto(r);
   }
   async retryMigration(id: string, i: Parameters<SchemaMigrationStore["retryMigration"]>[1]) {
     const identity = await this.job(id), t = await this.lockType(identity.type_id), j = await this.job(id, true);
     if (j.version !== i.expected_job_version) throw conflict("작업 상태가 변경되었습니다. 다시 조회하세요");
+    if (j.source_expires_at && j.source_expires_at <= new Date()) {
+      throw new AppError("migration_source_expired", "재시도 원본의 30일 보관 기간이 지났습니다. 새 분석을 준비하세요");
+    }
     if (j.status !== "failed" || !j.retryable) {
       throw conflict("재시도 가능한 실패 작업만 재개할 수 있습니다. 새 분석을 준비하세요");
     }
