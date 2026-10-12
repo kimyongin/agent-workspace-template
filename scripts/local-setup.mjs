@@ -59,6 +59,7 @@ if (!apiUrl || !publishable || !secretKey) throw new Error("supabase status에�
 
 // 3. 웹·시험용 설정(.env.local). 개발용 사용자 비밀번호는 처음 만든 값을 유지한다.
 const prev = readEnv(path(".env.local"));
+const functionEnv = readEnv(path("supabase/functions/.env"));
 const local = {
   VITE_SUPABASE_URL: apiUrl,
   VITE_SUPABASE_PUBLISHABLE_KEY: publishable,
@@ -70,6 +71,7 @@ const local = {
   APP_SERVER_PASSWORD: prev.APP_SERVER_PASSWORD ?? secret(),
   APP_WORKER_PASSWORD: prev.APP_WORKER_PASSWORD ?? secret(),
   INDEX_WORKER_TOKEN: prev.INDEX_WORKER_TOKEN ?? randomBytes(32).toString("base64url"),
+  ENTITY_SCHEMA_WORKER_TOKEN: prev.ENTITY_SCHEMA_WORKER_TOKEN ?? functionEnv.ENTITY_SCHEMA_WORKER_TOKEN ?? randomBytes(32).toString("base64url"),
   DEV_USER_A_EMAIL: "dev-a@example.test",
   DEV_USER_A_PASSWORD: prev.DEV_USER_A_PASSWORD ?? secret(),
   DEV_USER_B_EMAIL: "dev-b@example.test",
@@ -106,12 +108,12 @@ for (const [role, password] of [["app_server", local.APP_SERVER_PASSWORD], ["app
 await db.end();
 // SUPABASE_로 시작하는 이름은 CLI가 함수에 넘기지 않는다. SUPABASE_URL 등은 CLI가 직접 넣고,
 // 토큰 검증 키(JWKS)는 @supabase/server가 그 주소에서 가져온다.
-const functionEnv = readEnv(path("supabase/functions/.env"));
 writeEnv(path("supabase/functions/.env"), "로컬 전용. scripts/local-setup.mjs가 만든다. 커밋하지 않는다.", {
   // Edge Runtime 컨테이너에서 본 트랜잭션 풀러 주소(prepare: false로 연결).
   APP_DB_URL: `postgresql://app_server.pooler-dev:${local.APP_SERVER_PASSWORD}@pooler:6543/postgres`,
   WORKER_DB_URL: `postgresql://app_worker.pooler-dev:${local.APP_WORKER_PASSWORD}@pooler:6543/postgres`,
   INDEX_WORKER_TOKEN: local.INDEX_WORKER_TOKEN,
+  ENTITY_SCHEMA_WORKER_TOKEN: local.ENTITY_SCHEMA_WORKER_TOKEN,
   ...(functionEnv.PINECONE_ACCOUNT_SCOPE || prev.PINECONE_ACCOUNT_SCOPE
     ? { PINECONE_ACCOUNT_SCOPE: functionEnv.PINECONE_ACCOUNT_SCOPE ?? prev.PINECONE_ACCOUNT_SCOPE } : {}),
   ...(functionEnv.PINECONE_API_KEY || prev.PINECONE_API_KEY
