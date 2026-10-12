@@ -87,20 +87,17 @@ async function fixture() {
         new TextEncoder().encode(jsonbText(batch.rows)).byteLength <= 524288,
         "analysis claim must bound current and owned recovery properties together",
       );
-      const [completed] =
-        await worker`select app.complete_entity_schema_analysis_batch(${batch.id},${batch.fence},${
-          worker.json(
-            batch.rows.map((
-              row: {
-                entity_id: string;
-                properties: Record<string, unknown>;
-                recovery_properties: Record<string, unknown>;
-              },
-            ) =>
-              transform(row.entity_id, row.properties, row.recovery_properties)
-            ),
-          )
-        }) as completed`;
+      const [completed] = await worker`select app.complete_entity_schema_analysis_batch(${batch.id},${batch.fence},${
+        worker.json(
+          batch.rows.map((
+            row: {
+              entity_id: string;
+              properties: Record<string, unknown>;
+              recovery_properties: Record<string, unknown>;
+            },
+          ) => transform(row.entity_id, row.properties, row.recovery_properties)),
+        )
+      }) as completed`;
       assert(completed.completed);
       if (batch.rows.length === 0) {
         const change = await getEntitySchemaChange(d, a.actor, type, id);
@@ -148,10 +145,9 @@ async function fixture() {
         new TextEncoder().encode(jsonbText(prep.results)).byteLength <= 1048576,
       );
       const before = await getEntitySchemaMigration(d, a.actor, id);
-      const [staged] =
-        await worker`select app.stage_entity_schema_migration(${id},${batch.fence},${
-          worker.json(prep.results)
-        }) as staged`;
+      const [staged] = await worker`select app.stage_entity_schema_migration(${id},${batch.fence},${
+        worker.json(prep.results)
+      }) as staged`;
       assert(staged.staged);
       const after = await getEntitySchemaMigration(d, a.actor, id);
       assert(
