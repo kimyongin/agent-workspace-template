@@ -1,7 +1,69 @@
 import { entityListQuery } from "@contracts/entity.ts";
 import { ENTITY_QUERY_URL_MAX_BYTES } from "@contracts/entity-query.ts";
+import { entityPath } from "@contracts/entity-identity.ts";
 const key = "property_filters";
 const invalid = "속성 조건 주소가 잘못되었거나 중복되었습니다. 조건을 확인하거나 초기화하세요.";
+type VisitLocation = { pathname: string; search: string; hash?: string };
+
+/** Resolve a visit's disclosed list without accepting another owner's route or an external URL. */
+export function detailListReturn(location: VisitLocation, owner = `/${location.pathname.split("/")[1]}`): string | null {
+  return internalListReturn(new URLSearchParams(location.search).get("list"), owner, location.hash ?? "");
+}
+
+export function internalListReturn(value: string | null, owner: string, hash = ""): string | null {
+  if (!value?.startsWith("/") || value.startsWith("//") || value.includes("\\")) return null;
+  try {
+    const url = new URL(restoreEntityListLink(value, hash), "https://workspace.invalid");
+    return url.origin === "https://workspace.invalid" && url.pathname === owner ? `${url.pathname}${url.search}${url.hash}` : null;
+  } catch { return null; }
+}
+
+/** A saved identity follows its list, reopened details and focus without exposing their encoding. */
+export function rekeyEntityDetailLink(location: VisitLocation, previousId: string, savedId: string): string {
+  const viewer = new URLSearchParams(location.search);
+  viewer.delete("edit");
+  viewer.delete("edit_from");
+  const list = detailListReturn(location, "/entities");
+  if (list) {
+    const destination = new URL(list, "https://workspace.invalid");
+    const opened = destination.searchParams.getAll("open");
+    destination.searchParams.delete("open");
+    for (const path of opened) destination.searchParams.append("open", path === entityPath(previousId) ? entityPath(savedId) : path);
+    const state = readEntityListUrl(destination.searchParams, destination.hash);
+    const previousAnchor = `#${encodeURIComponent(`entity-${previousId}`)}`;
+    const savedAnchor = `#${encodeURIComponent(`entity-${savedId}`)}`;
+    if (state.error) {
+      destination.hash = replaceListAnchor(destination.hash, previousAnchor, savedAnchor);
+      viewer.set("list", `${destination.pathname}${destination.search}${destination.hash}`);
+    } else {
+      const target = writeEntityListUrl(destination.searchParams, state.raw, state.anchor === previousAnchor ? savedAnchor : state.anchor);
+      viewer.set("list", `${destination.pathname}?${target.search}${target.hash}`);
+    }
+  }
+  const back = viewer.get("list");
+  if (!back) return `${entityPath(savedId)}?${viewer}${location.hash ?? ""}`;
+  viewer.delete("list");
+  return detailListLink(`${entityPath(savedId)}?${viewer}`, back);
+}
+
+/** Preserve ambiguous filter bytes until explicit repair; only a unique matching focus may move. */
+function replaceListAnchor(hash: string, previous: string, next: string): string {
+  const fragment = new URLSearchParams(hash.slice(1));
+  if (!fragment.has(key)) return hash === previous ? next : hash;
+  if (fragment.getAll("anchor").length !== 1 || `#${encodeURIComponent(fragment.get("anchor")!)}` !== previous) return hash;
+  return "#" + hash.slice(1).split("&").map(part => new URLSearchParams(part).has("anchor") ? `anchor=${next.slice(1)}` : part).join("&");
+}
+
+/** A list row's return context owns scroll, focus and the short/fragment representation. */
+export function entityListReturnPath(params: URLSearchParams, hash: string, id: string, scroll: number, route = "/entities"): string {
+  const next = new URLSearchParams(params);
+  next.set("scroll", String(Math.max(0, Math.round(scroll))));
+  const anchor = `#${encodeURIComponent(`entity-${id}`)}`;
+  const state = readEntityListUrl(params, hash);
+  if (state.error) return `${route}?${next}${new URLSearchParams(hash.slice(1)).has(key) ? hash : anchor}`;
+  const url = writeEntityListUrl(next, state.raw, anchor);
+  return `${route}?${url.search}${url.hash}`;
+}
 export function readEntityListUrl(params: URLSearchParams, hash: string) {
   const fragment = new URLSearchParams(hash.slice(1));
   const hasFragment = fragment.has(key);
@@ -28,7 +90,8 @@ export function writeEntityListUrl(params: URLSearchParams, raw: string | null, 
   return { search: next.toString(), hash: `#${fragment}` };
 }
 /** Keep list filter fragments out of a detail's encoded list query as well. */
-export function entityDetailListLink(path: string, list: string) {
+export function detailListLink(path: string, list: string) {
+  if (!list.startsWith("/entities?") && !path.split(/[?#]/)[0].startsWith("/entities/")) return `${path}?list=${encodeURIComponent(list)}`;
   const url = new URL(list, "https://workspace.invalid"), detail = new URL(path,"https://workspace.invalid");
   const fragmented = new URLSearchParams(url.hash.slice(1)).has(key);
   detail.searchParams.set("list", fragmented ? `${url.pathname}${url.search}` : list);
@@ -40,7 +103,7 @@ export function changeEntityListQuery(next: URLSearchParams, current: URLSearchP
   const state = readEntityListUrl(current, hash);
   return state.error ? { search: next.toString(), hash } : writeEntityListUrl(next, state.raw);
 }
-export function restoreEntityListLink(list: string, hash: string) {
+function restoreEntityListLink(list: string, hash: string) {
   if (!list.startsWith("/entities?") || !new URLSearchParams(hash.slice(1)).has(key)) return list;
   const url = new URL(list, "https://workspace.invalid");
   if (url.hash) return `${list}&${hash.slice(1)}`;
@@ -59,5 +122,5 @@ export function entityListAnchor(hash: string) {
 export function detailModeLink(pathname: string, params: URLSearchParams, hash: string) {
   const path = `${pathname}?${params}${hash}`;
   const list = params.get("list");
-  return list?.startsWith("/entities?") ? entityDetailListLink(path, restoreEntityListLink(list, hash)) : path;
+  return list?.startsWith("/entities?") ? detailListLink(path, restoreEntityListLink(list, hash)) : path;
 }

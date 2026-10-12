@@ -56,7 +56,7 @@ function PopoverLink({ to, label }: { to: keyof typeof popoverIcons; label: stri
 export function Navigation({ brand, navigationRef }: { brand: string; navigationRef?: Ref<HTMLElement> }) {
   const location = useLocation();
   const { session } = useAuth();
-  const catalog = useEntityTypes(session?.user.id ?? "signed-out", location.key);
+  const catalog = useEntityTypes(location.key);
   const { preview } = useNavigationPreview();
   const preference = preview === undefined ? accountPreferences(session?.user.user_metadata ?? {}).navigation : preview;
   const entries = visibleNavigationEntries(resolveNavigationRefs(

@@ -10,7 +10,11 @@ import {
 import type { RecordTemplates } from "../../contracts/record-template.ts";
 import type postgres from "postgres";
 import type { Actor } from "../../core/shared/actor.ts";
-import type { SchemaChangeStore } from "../../core/entity-types/schema-changes.ts";
+import type {
+  PreparedSchemaChange,
+  SchemaChangeDraftContext,
+  SchemaChangeStore,
+} from "../../core/entity-types/schema-changes.ts";
 import type {
   EntitySchemaChange,
   EntitySchemaChangeSummary,
@@ -19,10 +23,8 @@ import type {
   SchemaDefinition,
   SchemaEdit,
 } from "../../contracts/entity-schema-change.ts";
-import { compileMigration } from "../../core/entity-types/conversions.ts";
 import { AppError, conflict, invalidInput, notFound } from "../../core/shared/errors.ts";
 import { jsonbText } from "../../core/entity-types/schema-rules.ts";
-import { canonical, definitionFingerprint, resolveSchemaEdits } from "../../core/entity-types/evolution.ts";
 export class SqlSchemaChangeStore implements SchemaChangeStore {
   constructor(protected readonly tx: postgres.TransactionSql, protected readonly actor: Actor) {}
   protected async lockType(typeId: string) {
@@ -58,18 +60,20 @@ export class SqlSchemaChangeStore implements SchemaChangeStore {
     assertSchemaTemplateReferences(target, (row?.settings ?? {}) as RecordTemplates, typeId);
     return version;
   }
-  private async migrationOwnership(typeId: string, input: Parameters<SchemaChangeStore["createChange"]>[1]) {
-    for (const rule of input.migration.rules) {
-      if (rule.op === "remove" && !input.edits.some((e) => e.op === "remove_property" && e.key === rule.key)) {
-        throw invalidInput("속성 제거 편집과 같은 키의 명시 제거만 지원합니다");
-      }
-    }
-    const ids = [...new Set(input.migration.overrides.map((o) => o.entity_id))];
+  async lockSchemaChangeBindings(typeId: string, ids: string[]): Promise<RecordTemplates> {
     if (ids.length) {
       const [r] = await this
         .tx`select count(*)::int as count from app.entities where entity_type_id=${typeId} and id=any(${ids}::text[])`;
       if (r.count !== ids.length) throw notFound();
     }
+    await this.tx`select pg_advisory_xact_lock(hashtextextended(${`${this.actor.userId}:record_templates`},0))`;
+    const [row] = await this.tx`select settings from app.user_business_settings where id='record_templates'`;
+    return row?.settings ?? {};
+  }
+  async reserveSchemaChangeProperties(typeId: string, edits: SchemaEdit[], prior: Record<string, string>) {
+    const [t] = await this.tx`select * from app.entity_types where id=${typeId} for update`;
+    if (!t) throw notFound();
+    return this.reserve(t, edits, prior);
   }
   private async reserve(t: postgres.Row, edits: SchemaEdit[], prior: Record<string, string> = {}) {
     const reservations: Record<string, string> = Object.assign(Object.create(null), prior);
@@ -222,72 +226,57 @@ export class SqlSchemaChangeStore implements SchemaChangeStore {
       updated_at: row.updated_at.toISOString(),
     };
   }
-  async createChange(typeId: string, input: Parameters<SchemaChangeStore["createChange"]>[1]) {
-    const t = await this.lockType(typeId);
-    this.sourceRefs(t, input);
-    const reservations = await this.reserve(t, input.edits);
-    const resolved = resolveSchemaEdits(await this.definition(t), input.edits, reservations);
-    await this.migrationOwnership(typeId, input);
-    compileMigration(resolved.target, input.migration);
-    if (input.migration.rules.length || input.migration.overrides.length) resolved.kind = "migration_required";
-    const templateVersion = await this.templates(resolved.target, typeId);
-    const fingerprint = await definitionFingerprint({
-      type_id: typeId,
-      source_type_version: t.version,
-      source_schema_version: t.schema_version,
-      source_template_fingerprint: templateVersion,
-      edits: input.edits,
-      migration: input.migration,
-      reservations,
-      target: resolved.target,
-    });
-    const [r] = await this
-      .tx`insert into app.entity_schema_changes(owner_id,type_id,source_type_version,source_schema_version,source_template_fingerprint,migration,edits,reservations,target,diff,kind,fingerprint) values(${this.actor.userId},${typeId},${t.version},${t.schema_version},${templateVersion},${
-      this.tx.json(input.migration as never)
-    },${this.tx.json(input.edits as never)},${this.tx.json(reservations)},${this.tx.json(resolved.target as never)},${
-      this.tx.json(resolved.diff as never)
-    },${resolved.kind},${fingerprint}) returning *`;
-    return this.dto(r);
+  async loadSchemaChangeDraft(typeId: string): Promise<SchemaChangeDraftContext> {
+    const [t] = await this.tx`select * from app.entity_types where id::text=${typeId} for update`;
+    if (!t) throw notFound();
+    return {
+      type: {
+        id: t.id,
+        version: Number(t.version),
+        schema_version: Number(t.schema_version),
+        archived: t.archived,
+        schema_write_locked: t.schema_write_locked,
+      },
+      definition: await this.definition(t),
+      previous: null,
+    };
   }
-  async updateChange(typeId: string, id: string, input: Parameters<SchemaChangeStore["updateChange"]>[2]) {
-    const t = await this.lockType(typeId);
-    this.sourceRefs(t, input);
+  async lockExistingSchemaChange(
+    typeId: string,
+    id: string,
+  ): Promise<NonNullable<SchemaChangeDraftContext["previous"]>> {
     const row = await this.row(typeId, id, true);
-    this.editable(row, input.expected_change_version);
-    if (
-      Number(row.source_type_version) !== input.expected_type_version ||
-      Number(row.source_schema_version) !== input.expected_schema_version
-    ) throw new AppError("schema_plan_stale", "새 정의를 기준으로 새 변경을 만드세요");
-    if (row.recovery_source_job_id) {
-      throw conflict("복구 초안은 원본에 결속됩니다. 현재 변경을 수동 보완한 후 새 복구안과 분석을 준비하세요");
-    }
-    const reservations = await this.reserve(t, input.edits, row.reservations);
-    const resolved = resolveSchemaEdits(await this.definition(t), input.edits, reservations);
-    await this.migrationOwnership(typeId, input);
-    compileMigration(resolved.target, input.migration);
-    if (input.migration.rules.length || input.migration.overrides.length) resolved.kind = "migration_required";
-    await this.templates(resolved.target, typeId, row.source_template_fingerprint);
-    if (canonical(input.edits) === canonical(row.edits) && canonical(input.migration) === canonical(row.migration)) {
-      return this.dto(row);
-    }
-    const fingerprint = await definitionFingerprint({
-      type_id: typeId,
-      source_type_version: t.version,
-      source_schema_version: t.schema_version,
+    return {
+      id: row.id,
+      version: Number(row.version),
+      status: row.status,
+      source_type_version: Number(row.source_type_version),
+      source_schema_version: Number(row.source_schema_version),
       source_template_fingerprint: row.source_template_fingerprint,
-      edits: input.edits,
-      migration: input.migration,
-      reservations,
-      target: resolved.target,
-    });
-    const [r] = await this
-      .tx`update app.entity_schema_changes set version=version+1,status='draft',analysis_id=null,migration=${
-      this.tx.json(input.migration as never)
-    },edits=${this.tx.json(input.edits as never)},reservations=${this.tx.json(reservations)},target=${
-      this.tx.json(resolved.target as never)
-    },diff=${
-      this.tx.json(resolved.diff as never)
-    },kind=${resolved.kind},fingerprint=${fingerprint},updated_at=now() where id=${id} returning *`;
+      edits: row.edits,
+      migration: row.migration,
+      reservations: row.reservations,
+      recovery_source_job_id: row.recovery_source_job_id,
+    };
+  }
+  async saveSchemaChangeDraft(context: SchemaChangeDraftContext, prepared: PreparedSchemaChange) {
+    const { type: t, previous } = context;
+    const { edits, migration, reservations, target, diff, kind, fingerprint, source_template_fingerprint } = prepared;
+    const [r] = previous
+      ? await this
+        .tx`update app.entity_schema_changes set version=version+1,status='draft',analysis_id=null,migration=${
+        this.tx.json(migration as never)
+      },edits=${this.tx.json(edits as never)},reservations=${this.tx.json(reservations)},target=${
+        this.tx.json(target as never)
+      },diff=${
+        this.tx.json(diff as never)
+      },kind=${kind},fingerprint=${fingerprint},updated_at=now() where id=${previous.id} returning *`
+      : await this
+        .tx`insert into app.entity_schema_changes(owner_id,type_id,source_type_version,source_schema_version,source_template_fingerprint,migration,edits,reservations,target,diff,kind,fingerprint) values(${this.actor.userId},${t.id},${t.version},${t.schema_version},${source_template_fingerprint},${
+        this.tx.json(migration as never)
+      },${this.tx.json(edits as never)},${this.tx.json(reservations)},${this.tx.json(target as never)},${
+        this.tx.json(diff as never)
+      },${kind},${fingerprint}) returning *`;
     return this.dto(r);
   }
   async getChange(typeId: string, id: string) {
