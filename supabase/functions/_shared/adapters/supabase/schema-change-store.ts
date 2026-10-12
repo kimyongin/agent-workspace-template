@@ -99,7 +99,6 @@ export class SqlSchemaChangeStore implements SchemaChangeStore {
     ];
   }
   protected async recoveryEvidence(j: postgres.Row, t: postgres.Row) {
-    const [time] = await this.tx`select now() as observed_at`;
     const [material] = await this
       .tx`select count(*)::int as count from private.entity_schema_migration_rows where job_id=${j.id}`;
     const present = !!(j.source_definition?.schema && j.committed_membership && j.committed_references);
@@ -128,7 +127,11 @@ export class SqlSchemaChangeStore implements SchemaChangeStore {
         schema_write_locked: t.schema_write_locked,
       },
     };
-    return { evidence, observed_at: time.observed_at.toISOString() };
+    return { evidence, observed_at: await this.recoveryObservedAt() };
+  }
+  async recoveryObservedAt() {
+    const [time] = await this.tx`select clock_timestamp() as observed_at`;
+    return time.observed_at.toISOString();
   }
   protected async recoveryFresh(c: postgres.Row, lock = true) {
     if (!c.recovery_source_job_id) return;
@@ -447,6 +450,7 @@ export class SqlSchemaChangeStore implements SchemaChangeStore {
     }
     await this.tx`select pg_advisory_xact_lock(hashtextextended(${`${this.actor.userId}:record_templates`},0))`;
     const [row] = await this.tx`select settings from app.user_business_settings where id='record_templates'`;
+    if (recovery) recovery.observed_at = await this.recoveryObservedAt();
     return { recovery, templates: row?.settings ?? {} };
   }
   async saveSchemaPublication(context: SchemaApplicationContext, next: number) {

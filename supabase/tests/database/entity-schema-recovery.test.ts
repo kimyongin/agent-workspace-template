@@ -1052,3 +1052,76 @@ dbTest(
     }
   },
 );
+
+dbTest("recovery expiry uses wallclock after type/template lock waits and before acceptance", async () => {
+  for (const phase of ["type", "template-create", "template-start"] as const) {
+    const f = await fixture();
+    try {
+      const o = await f.original(phase), before = await getEntity(f.e, f.a.actor, o.x.id);
+      const c = phase === "template-start" ? await f.recovery(o.job.job_id) : null;
+      const ready = c ? await f.analyze(o.type.id, c.id, c.version) : null;
+      const [counts] = await f
+        .admin`select (select count(*)::int from app.entity_schema_changes where type_id=${o.type.id}) changes,(select count(*)::int from app.entity_schema_migrations where type_id=${o.type.id}) jobs`;
+      let acquired!: () => void, release!: () => void;
+      const locked = new Promise<void>((resolve) => acquired = resolve),
+        untilRelease = new Promise<void>((resolve) => release = resolve);
+      const hold = f.admin.begin(async (tx) => {
+        if (phase === "type") {
+          await tx`select id from app.entity_types where id=${o.type.id} for update`;
+          await tx`update app.entity_types set schema_write_locked=true where id=${o.type.id}`;
+        } else await tx`select pg_advisory_xact_lock(hashtextextended(${`${f.a.actor.userId}:record_templates`},0))`;
+        await tx`update app.entity_schema_migrations set source_expires_at=clock_timestamp()+interval '1 second' where id=${o.job.job_id}`;
+        // Commit expiry before template waits; type-lock case publishes it on release.
+        acquired();
+        await untilRelease;
+      });
+      await locked;
+      // Template cases need a committed source expiry before the application obtains its job lock.
+      if (phase !== "type") {
+        release();
+        await hold;
+      }
+      let unlockTemplate!: () => void, secondLocked: Promise<unknown> | null = null;
+      if (phase !== "type") {
+        let signal!: () => void;
+        const taken = new Promise<void>((resolve) => signal = resolve),
+          wait = new Promise<void>((resolve) => unlockTemplate = resolve);
+        secondLocked = f.admin.begin(async (tx) => {
+          await tx`select pg_advisory_xact_lock(hashtextextended(${`${f.a.actor.userId}:record_templates`},0))`;
+          signal();
+          await wait;
+        });
+        await taken;
+      }
+      const result = (phase === "template-start"
+        ? startEntitySchemaMigration(f.d, f.actor(), o.type.id, c!.id, {
+          expected_change_version: c!.version,
+          expected_type_version: ready!.source_type_version,
+          expected_schema_version: ready!.source_schema_version,
+          analysis_id: ready!.analysis!.id,
+          fingerprint: ready!.fingerprint,
+        })
+        : f.recovery(o.job.job_id)).then(() => ({ code: "accepted" }), (error) => ({ code: (error as AppError).code }));
+      try {
+        await f.admin`select pg_sleep(1.2)`;
+      } finally {
+        if (phase === "type") {
+          release();
+          await hold;
+        } else {
+          unlockTemplate();
+          await secondLocked;
+        }
+      }
+      assertEquals((await result).code, "migration_source_expired");
+      const [after] = await f
+        .admin`select (select count(*)::int from app.entity_schema_changes where type_id=${o.type.id}) changes,(select count(*)::int from app.entity_schema_migrations where type_id=${o.type.id}) jobs`;
+      assertEquals(after, counts);
+      assertEquals(await getEntity(f.e, f.a.actor, o.x.id), before);
+      const [gate] = await f.admin`select schema_write_locked from app.entity_types where id=${o.type.id}`;
+      assertEquals(gate.schema_write_locked, phase === "type");
+    } finally {
+      await f.cleanup();
+    }
+  }
+});
