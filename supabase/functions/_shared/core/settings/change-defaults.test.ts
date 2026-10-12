@@ -7,6 +7,17 @@ import {
 import type { ChangeInput } from "../shared/changes.ts";
 import { changeDefaults } from "./change-defaults.ts";
 
+Deno.test("record deletion uses its existing action memo without introducing record template variables", () => {
+  const input: ChangeInput = {
+    target_kind: "record",
+    action: "delete",
+    target: { id: "record", title: "기록", entity_ids: [], entity_context: [] },
+    before: { body: "원문" },
+    after: null,
+  };
+  assertEquals(changeDefaults(input, {}, []).change_note, "기록 삭제");
+});
+
 Deno.test("사용자 설정이 없으면 설정과 기록 준비가 같은 기본 템플릿을 사용한다", () => {
   const input: ChangeInput = {
     target_kind: "entity",

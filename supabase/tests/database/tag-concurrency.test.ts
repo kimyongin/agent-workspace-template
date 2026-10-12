@@ -13,7 +13,9 @@ import * as a from "../../functions/_shared/core/activity/application.ts";
 import { connect, dbTest, fixtureOwner, urls } from "./_db.ts";
 import { entityFixture } from "./_entity.ts";
 
-const admin = connect(urls.admin, { max: 1 }), sql = connect(urls.direct, { max: 3 });
+const applicationName = `tag-concurrency-${crypto.randomUUID()}`;
+const admin = connect(urls.admin, { max: 1 }),
+  sql = connect(urls.direct, { max: 3, connection: { application_name: applicationName } });
 const td = { uow: new SqlTagUnitOfWork(sql) },
   ed = { uow: new SqlEntityUnitOfWork(sql) },
   ad = { uow: new SqlUnitOfWork(sql), clock: { now: () => new Date() } };
@@ -124,11 +126,14 @@ for (
         deleting = t.deleteTag(td, requestActor(f.actor), first.id, first.version, "delete dictionary entry");
         // Observe failures immediately while the lock barrier is being inspected.
         void deleting.catch(() => {});
-        // Verify PostgreSQL is actually waiting on the parent lock before committing the edit.
+        // Observe this test's actual blocking chain, independent of which table a
+        // typed writer locks first, then release its idle held transaction.
         let waited = false;
         for (let n = 0; n < 100; n++) {
-          const rows = await admin`select query from pg_stat_activity where wait_event_type='Lock'
-          and query like ${`%from app.${kind === "entity" ? "entities" : `${kind}s`}%`}`;
+          const rows = await admin`select waiter.pid from pg_stat_activity waiter
+            where waiter.application_name=${applicationName} and waiter.wait_event_type='Lock'
+            and exists(select 1 from pg_stat_activity holder where holder.application_name=${applicationName}
+              and holder.state='idle in transaction' and holder.pid=any(pg_blocking_pids(waiter.pid)))`;
           if (rows.length) {
             waited = true;
             break;
@@ -137,7 +142,7 @@ for (
         }
         release.resolve();
         await Promise.all([editing, deleting]);
-        assert(waited, "observed real SELECT waiting on parent row lock");
+        assert(waited, "observed real SELECT waiting on the parent/type application lock");
         await assertRejects(() =>
           t.deleteTag(td, requestActor(f.actor), first.id, first.version, "delete dictionary entry")
         );

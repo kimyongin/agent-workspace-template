@@ -13,7 +13,8 @@ import { invalidInput } from "../shared/errors.ts";
 /** Both prepared requests and direct writes use this rule. Explicit empty tags mean clear. */
 export function changeDefaults(input: ChangeInput, settings: BusinessSettings, availableTags: string[]) {
   const template = effectiveRecordTemplate(settings.record_templates, input.target_kind as TemplateModel, input.action);
-  const issues = templateIssues(template.memo, input.target_kind as TemplateModel, input.action);
+  // Records use the existing action memo; user-editable template models exclude records.
+  const issues = input.target_kind === "record" ? [] : templateIssues(template.memo, input.target_kind, input.action);
   if (issues.length) {
     throw invalidInput("기록 템플릿의 변수를 확인하세요", [{
       path: `record_templates.${input.target_kind}.${input.action}.memo`,
