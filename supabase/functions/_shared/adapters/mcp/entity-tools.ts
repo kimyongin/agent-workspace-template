@@ -27,7 +27,7 @@ export function entityTools(d: entity.EntityDeps): ToolDef[] {
     {
       name: "get_entity",
       description:
-        "엔터티 속성과 선택된 할 일·기록의 최근 5개 및 전체 개수. 삭제된 엔터티도 보관값·version·deleted_at을 반환하며 명시 복원 확인에 사용한다. 각 list 도구의 entity_id로 전체 조회. 엔터티는 임베딩하지 않는다.",
+        "자료 속성과 선택된 할 일·기록의 최근 5개 및 전체 개수. 삭제된 자료도 보관값·version·deleted_at을 반환하며 명시 복원 확인에 사용한다. 각 list 도구의 entity_id로 전체 조회. 자료는 임베딩하지 않는다.",
       input: z.strictObject({ id }),
       readOnly: true,
       handler: (i, a) => entity.getEntity(d, a, idParam(parse(get, i).id)),
@@ -56,7 +56,7 @@ export function entityTools(d: entity.EntityDeps): ToolDef[] {
     {
       name: "delete_entity",
       description:
-        "엔터티 소프트 삭제. 속성·태그·할 일/기록 연결은 보존하고 활성 후보에서 제외한다. 같은 조합·현재 버전으로 등록하면 복원한다.",
+        "자료 소프트 삭제. 속성·태그·할 일/기록 연결은 보존하고 활성 후보에서 제외한다. 같은 조합·현재 버전으로 등록하면 복원한다.",
       input: z.strictObject({ id, expected_version: expectedVersion, ...businessMeta }),
       readOnly: false,
       destructive: true,

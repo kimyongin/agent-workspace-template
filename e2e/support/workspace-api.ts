@@ -229,7 +229,7 @@ export async function installWorkspaceApi(
       return reply(saved, 201);
     }
     if (method === "POST" && !key) {
-      const saved = {
+      const saved: FakeRow = {
         ...(kind === "entities"
           ? entity(sequence++)
           : kind === "tasks"
