@@ -5,7 +5,7 @@ import {
   entitySourceGeneration,
 } from "@contracts/entity-identity.ts";
 import type { BusinessSettingsSectionResult } from "@contracts/business-settings.ts";
-import { editableRecordTemplates, type RecordTemplates, recordTemplates } from "@contracts/record-template.ts";
+import { editableRecordTemplates, recordTemplateTagIds, type RecordTemplates, recordTemplates } from "@contracts/record-template.ts";
 import type { api as request } from "../../lib/api.ts";
 import { ApiError } from "../../lib/api-error.ts";
 import { createTagRead } from "../tags/tag-read.ts";
@@ -43,8 +43,7 @@ export function createIdentitySettingsDraft(
   };
 }
 type TemplatesSaved = { settings: BusinessSettingsSectionResult<"record_templates">; availableTags: string[] };
-const selectedRecordTags = (value: RecordTemplates | undefined) =>
-  Object.values(value ?? {}).flatMap((group) => Object.values(group).flatMap((template) => template?.tag_ids ?? []));
+const selectedRecordTags = recordTemplateTagIds;
 /** Only tags from the checked baseline can be reported missing; new local selections are not stale. */
 export function unavailableTemplateTags(saved: TemplatesSaved | null, draft: RecordTemplates) {
   if (!saved) return [];

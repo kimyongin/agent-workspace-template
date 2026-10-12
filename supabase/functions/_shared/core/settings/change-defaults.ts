@@ -12,7 +12,7 @@ import { invalidInput } from "../shared/errors.ts";
 
 /** Both prepared requests and direct writes use this rule. Explicit empty tags mean clear. */
 export function changeDefaults(input: ChangeInput, settings: BusinessSettings, availableTags: string[]) {
-  const template = effectiveRecordTemplate(settings.record_templates, input.target_kind as TemplateModel, input.action);
+  const template = effectiveRecordTemplate(settings.record_templates, input.target_kind as TemplateModel, input.action, (input.after ?? input.before)?.entity_type_id);
   // Records use the existing action memo; user-editable template models exclude records.
   const issues = input.target_kind === "record" ? [] : templateIssues(template.memo, input.target_kind, input.action);
   if (issues.length) {
