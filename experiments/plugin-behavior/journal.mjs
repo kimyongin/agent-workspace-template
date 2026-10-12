@@ -7,7 +7,7 @@ export function assertJournal(journal, endpoint, clientName) {
   for (const kind of ['tag', 'entity', 'principle', 'record', 'task']) {
     if (journal[kind] && !ownedName(journal, kind, journal[kind])) throw new Error('Fixture journal object identity mismatch');
   }
-  if (journal.pendingCreate && (!Object.keys(plurals).includes(journal.pendingCreate.kind) || !ownedName(journal, journal.pendingCreate.kind, journal.pendingCreate.input))) throw new Error('Pending fixture identity mismatch');
+  if (journal.pendingCreate && (!/^[a-f0-9-]{36}$/.test(journal.pendingCreate.input.request_key ?? '') || 'id' in journal.pendingCreate.input || !Object.keys(plurals).includes(journal.pendingCreate.kind) || !ownedName(journal, journal.pendingCreate.kind, journal.pendingCreate.input))) throw new Error('Pending fixture identity mismatch');
   const url = new URL(endpoint);
   if (url.protocol !== 'http:' || !['127.0.0.1', 'localhost'].includes(url.hostname)) throw new Error('Only loopback journal endpoint allowed');
   if (journal.token) {
@@ -40,17 +40,11 @@ export async function readJournal(path, endpoint, clientName) {
 export async function createOwned(journal, save, call, kind, input) {
   if (journal[kind]) { await save(); return journal[kind]; }
   if (!journal.pendingCreate) {
-    journal.pendingCreate = { kind, input: { ...input, id: randomUUID() } };
+    journal.pendingCreate = { kind, input: { ...input, request_key: input.request_key ?? randomUUID() } };
   }
   if (journal.pendingCreate.kind !== kind) throw new Error('Unresolved fixture creation step');
   await save(); // Durable identity/input before every attempt, including a retry after disk failure.
-  let object;
-  try { object = await call(`create_${kind}`, journal.pendingCreate.input); }
-  catch (error) {
-    if (error?.code !== "conflict" && !/conflict/.test(error?.message ?? "")) throw error;
-    object = (await listAll(call, kind)).find(row => row.id === journal.pendingCreate.input.id);
-    if (!object || !ownedName(journal, kind, object)) throw error;
-  }
+  const object = await call(`create_${kind}`, journal.pendingCreate.input);
   if (!object?.id) throw new Error('Fixture create returned no ID');
   journal[kind] = object;
   delete journal.pendingCreate;
@@ -61,8 +55,8 @@ export async function createOwned(journal, save, call, kind, input) {
 const plurals = { tag: 'tags', entity: 'entities', principle: 'principles', record: 'records', task: 'tasks' };
 function ownedName(journal, kind, object) {
   if (kind === 'record') return object.tag_ids?.includes(journal.tag?.id) && object.entity_ids?.includes(journal.entity?.id) &&
-    (object.id === journal.record?.id || object.id === journal.pendingCreate?.input.id && object.body === journal.pendingCreate.input.body);
-  return kind === 'tag' ? object.name === journal.marker : kind === 'entity' ? object.prop1 === journal.marker :
+    (object.id === journal.record?.id || object.request_key === journal.pendingCreate?.input.request_key && object.body === journal.pendingCreate.input.body);
+  return kind === 'tag' ? object.name === journal.marker : kind === 'entity' ? (object.properties?.prop_1 ?? object.title) === journal.marker :
     object.title === `${journal.marker}-${kind}`;
 }
 async function listPageSet(call, kind) {
@@ -83,13 +77,18 @@ async function listAll(call, kind) {
   return listPageSet(call, kind);
 }
 
-export async function setupOwned(journal, save, call, listTools) {
+export async function setupOwned(journal, save, call, listTools, prepareType) {
   const { marker, originalDetail } = journal;
   const { current } = await call('get_current_principle', {});
   const ownPending = journal.pendingCreate?.kind === 'principle' && current && ownedName(journal, 'principle', current);
   if (current && current.id !== journal.principle?.id && !ownPending) throw new Error('Fixture refuses existing current principle before writes');
+  if (!journal.entityType) {
+    if (typeof prepareType !== 'function') throw new Error('Explicit typed scalar fixture provider required');
+    journal.entityType = await prepareType({ call });
+    await save();
+  }
   const tag = await createOwned(journal, save, call, 'tag', { name: marker });
-  const entity = await createOwned(journal, save, call, 'entity', { prop1: marker, prop2: 7, prop3: '2026-10-04', prop4: 'b' });
+  const entity = await createOwned(journal, save, call, 'entity', { entity_type_id: journal.entityType.id, schema_version: journal.entityType.schema_version, properties: { prop_1: marker, prop_2: 7, prop_3: '2026-10-04', prop_4: 'b' } });
   await createOwned(journal, save, call, 'principle', { title: `${marker}-principle`, body: '결과 기록에는 원문에서 읽은 검증 코드를 정확히 남기고 대상 속성 2의 현재 값도 함께 적는다.' });
   await createOwned(journal, save, call, 'record', { body: `${marker}-source\n\n당시 확인한 원문 검증 코드는 ${originalDetail}이다. 대상 속성 2는 7이며 현재 원문과 원칙을 다시 비교한다.`, tag_ids: [tag.id], entity_ids: [entity.id] });
   const tools = (await listTools()).tools.map(({ name }) => name).sort();
@@ -100,7 +99,7 @@ export async function setupOwned(journal, save, call, listTools) {
 
 export async function cleanupOwned(journal, save, call, deleteOAuth) {
   if (journal.state === 'cleaned') return;
-  // Retry with the persisted object UUID; a conflict is reconciled by reading the owned fixture.
+  // Retry the exact persisted request key and input; server success replay returns its actual ID.
   // This may create the intended fixture if the failed request never committed.
   if (journal.pendingCreate) {
     const { kind, input } = journal.pendingCreate;

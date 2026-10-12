@@ -16,6 +16,7 @@ if (!source || !fixturePath || process.env.PLUGIN_ENV_HANDOFF !== 'exclusive-loc
 const helpers = await import(pathToFileURL(resolve(source, 'e2e/support.ts')).href);
 const { readLocalConfig } = await import(pathToFileURL(resolve(source, 'scripts/local-config.mjs')).href);
 const { chromium, expect } = await import(pathToFileURL(resolve(source, 'node_modules/@playwright/test/index.mjs')).href);
+const { scalarFixtureType } = await import(pathToFileURL(resolve(source, 'e2e/entity-schema-support.ts')).href);
 const { beginTabAction, openDetailEditor, saveOnce } = await import(pathToFileURL(resolve(source, 'e2e/ui-actions.ts')).href);
 const { webUrl } = readLocalConfig(pathToFileURL(resolve(source, 'supabase/config.toml')));
 let f = await readJournal(fixturePath, helpers.MCP_URL, JSON.parse(await readFile(fixturePath, 'utf8')).clientName);
@@ -39,8 +40,8 @@ async function webPhase(mode, intent, path, action) {
     const request = route.request();
     if (request.method() === method) {
       const input = request.postDataJSON();
-      if (creating ? !input?.id : !input?.expected_version) throw new Error('Real web commit lacks object identity/version');
-      f.roundtrip.pending.webMutation = { path, ...(creating ? { id: input.id } : { expected_version: input.expected_version }) }; await save();
+      if (!input?.request_key || (!creating && !input?.expected_version)) throw new Error('Real web commit lacks object identity/version');
+      f.roundtrip.pending.webMutation = { path, request_key: input.request_key, ...(!creating ? { expected_version: input.expected_version } : {}) }; await save();
     }
     await route.continue();
   });
@@ -98,7 +99,7 @@ async function readWeb(mode, action) {
   if (!unchanged) throw new Error('Web reread changed stored originals');
 }
 async function fields(form, value) {
-  const fieldCodes = { 이메일: 'email', 비밀번호: 'password', '속성 1': 'prop1', '속성 2': 'prop2', '속성 3': 'prop3', 제목: 'title', 본문: 'body' };
+  const fieldCodes = { 이메일: 'email', 비밀번호: 'password', 수량: 'quantity', 날짜: 'date', 제목: 'title', 본문: 'body' };
   for (const [label, text] of Object.entries(value)) { evidence.stage = `field-${fieldCodes[label] ?? 'known-input'}`; await form.getByLabel(webFieldLabel(label)).fill(text); }
   evidence.stage = 'fields-complete';
 }
@@ -120,10 +121,12 @@ try {
   await page.goto('/login'); await fields(page, { 이메일: f.authEmail, 비밀번호: f.authPassword });
   evidence.stage = 'submit'; await page.getByRole('button', { name: '이메일로 로그인', exact: true }).click();
   evidence.stage = 'await-login'; await page.waitForURL(u => u.pathname !== '/login');
+  f.entityType = await scalarFixtureType({ call }); await save();
+  evidence.explicitScalarTypeProvisioning = true;
   await webPhase('web-entity', {}, '/entities', async () => {
-    await page.goto('/entities'); await beginTabAction(page, '엔터티 추가');
-    const form = page.getByRole('dialog', { name: '엔터티 추가', exact: true });
-    await fields(form, { '속성 1': f.marker, '속성 2': '7', '속성 3': '2026-10-06' }); await form.getByLabel(webFieldLabel('속성 4')).selectOption('b');
+    await page.goto(`/entities?entity_type_id=${f.entityType.id}`); await beginTabAction(page, '검사 자료 추가');
+    const form = page.getByRole('dialog', { name: `${f.entityType.label} 추가`, exact: true });
+    await fields(form, { 제목: f.marker, 수량: '7', 날짜: '2026-10-06' }); await form.getByLabel(webFieldLabel('분류')).selectOption('b');
     await saveOnce(page, form); await expect(form).not.toBeVisible();
   });
   await webPhase('web-principle', { body: '초기 조건: 속성2가 7이면 보류' }, '/principles', async () => {
@@ -139,10 +142,10 @@ try {
   });
   await nativePhase('roundtrip-entity', { id: f.entity.id, memoBody: `${f.originalDetail}; 속성2 7에서 11로 변경; ENTITY-${randomUUID()}` });
   await readWeb('desktop-entity-final-memo', async () => {
-    const webResponse = page.waitForResponse(r => r.request().method() === 'GET' && new URL(r.url()).pathname.endsWith(`/api/entities/${f.entity.id}`));
-    await page.goto(`/entities/${f.entity.id}`); await openDetailEditor(page); await expect(page.getByRole('dialog', { name: '엔터티 편집', exact: true }).getByLabel(webFieldLabel('속성 2'))).toHaveValue('11');
+    const webResponse = page.waitForResponse(r => r.request().method() === 'GET' && new URL(r.url()).pathname.endsWith(`/api/entities/${encodeURIComponent(f.entity.id)}`));
+    await page.goto(`/entities/${encodeURIComponent(f.entity.id)}`); await openDetailEditor(page); await expect(page.getByRole('dialog', { name: `${f.entityType.label} 편집`, exact: true }).getByLabel(webFieldLabel('수량'))).toHaveValue('11');
     const row = await (await webResponse).json();
-    if (row.id !== f.entity.id || row.version !== f.entity.version || row.prop2 !== 11) throw new Error('Actual web entity identity/version mismatch');
+    if (row.id !== f.entity.id || row.version !== f.entity.version || row.properties.prop_2 !== 11) throw new Error('Actual web entity identity/version mismatch');
     evidence.webEntity = { sameId: true, sameVersion: true, version: row.version };
     const all = await readBusinessOriginals(call), memo = all.records.find(r => r.change?.target_id === f.entity.id && r.change.action === 'update');
     await page.goto(`/records/${memo.id}`); await expect(page.locator('main')).toContainText(f.roundtrip.intent.memoBody);
@@ -166,7 +169,7 @@ try {
   await readWeb('desktop-exact-source-reopening', async () => { await page.goto(`/records/${f.record.id}`); await expect(page.locator('main')).toContainText(f.record.body); });
   await page.setViewportSize(evidence.mobileViewport);
   await readWeb('mobile-result-and-current-reread', async () => {
-    await page.goto(`/entities/${f.entity.id}`); await openDetailEditor(page); await expect(page.getByRole('dialog', { name: '엔터티 편집', exact: true }).getByLabel(webFieldLabel('속성 2'))).toHaveValue('11');
+    await page.goto(`/entities/${encodeURIComponent(f.entity.id)}`); await openDetailEditor(page); await expect(page.getByRole('dialog', { name: `${f.entityType.label} 편집`, exact: true }).getByLabel(webFieldLabel('수량'))).toHaveValue('11');
     await page.goto('/tasks');
     const taskLink = page.getByRole('link', { name: f.task.title, exact: true });
     await expect(page.getByRole('listitem').filter({ has: taskLink }).getByText('완료', { exact: true })).toBeVisible();

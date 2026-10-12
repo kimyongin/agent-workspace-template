@@ -19,6 +19,7 @@ if (!['normal', 'missing', 'conflict', 'roundtrip'].includes(scenario)) throw ne
 if (!['setup', 'baseline', 'verify', 'cleanup'].includes(operation) || !source || !['codex-cli', 'claude-cli'].includes(clientName) || !outputDirectory || process.env.PLUGIN_ENV_HANDOFF !== 'exclusive-local') throw new Error('Root exclusive-local handoff required: prepare-fixture.mjs setup|baseline|verify|cleanup <allocated-source> <client> <outside-output>');
 const output = await outsideDirectory(outputDirectory), fixturePath = resolve(output, `${clientName}-fixture.json`);
 const { chromium } = await import(pathToFileURL(resolve(source, 'node_modules/@playwright/test/index.mjs')).href);
+const { scalarFixtureType } = await import(pathToFileURL(resolve(source, 'e2e/entity-schema-support.ts')).href);
 const helpers = await import(pathToFileURL(resolve(source, 'e2e/support.ts')).href);
 const { readLocalConfig } = await import(pathToFileURL(resolve(source, 'scripts/local-config.mjs')).href);
 const { webUrl } = readLocalConfig(pathToFileURL(resolve(source, 'supabase/config.toml')));
@@ -29,7 +30,8 @@ const admin = createClient(env.VITE_SUPABASE_URL, env.LOCAL_SUPABASE_SECRET_KEY,
 let journal, browser, client;
 const save = () => saveJournal(fixturePath, journal);
 async function call(name, input) {
-  const response = await client.callTool({ name, arguments: input });
+  const arguments_ = /^(create_|update_|delete_|analyze_|apply_|start_|cancel_|retry_)/.test(name) ? { ...input, request_key: input.request_key ?? randomUUID() } : input;
+  const response = await client.callTool({ name, arguments: arguments_ });
   if (response.isError) throw new Error(`Public fixture tool ${name} failed; no payload logged`);
   return response.structuredContent ?? JSON.parse(response.content[0].text);
 }
@@ -59,10 +61,10 @@ try {
       await prepareRoundtripProfile(journal, save, call, () => client.listTools());
       console.log(JSON.stringify({ operation, clientName, state: journal.state, authOnly: true, fixturePath, rawAuthOrBodiesLogged: false }));
     } else {
-    await setupOwned(journal, save, call, () => client.listTools());
+    await setupOwned(journal, save, call, () => client.listTools(), scalarFixtureType);
     journal.state = 'creating'; await save();
     await createOwned(journal, save, call, 'task', { kind: 'once', title: `${journal.marker}-task`, entity_ids: [journal.entity.id] });
-    journal.entity = await call('update_entity', { id: journal.entity.id, expected_version: journal.entity.version, prop2: 11 }); await save();
+    journal.entity = await call('update_entity', { id: journal.entity.id, expected_version: journal.entity.version, schema_version: journal.entity.schema_version, properties: { prop_2: 11 } }); await save();
     if (scenario === 'missing') {
       await save(); await call('delete_principle', { id: journal.principle.id, expected_version: journal.principle.version });
       journal.deleted = { principle: true }; await save();
