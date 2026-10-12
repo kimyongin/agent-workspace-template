@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { EntityTypePicker } from "./EntityTypePicker.tsx";
+import { useEntityTypes } from "./useEntityTypes.ts";
+import { typeListSearch } from "../../app/type-navigation.ts";
 import { Link } from "react-router";
-import type { EntityType } from "@contracts/entity-type.ts";
 import { entityPath } from "@contracts/entity-identity.ts";
 import { CollectionHeading, CollectionList, useMainCollectionView } from "../../components/Collection.tsx";
 import { useCreateMode } from "../../components/useCreateMode.ts";
@@ -32,45 +33,45 @@ export function EntitiesPage() {
     entity_type_id: params.get("entity_type_id"),
     sort: params.get("sort") ?? "updated_at",
   };
-  const [types, setTypes] = useState<EntityType[] | null>(null), [typeError, setTypeError] = useState(false);
-  useEffect(() => {
-    const c = new AbortController();
-    void api<{ items: EntityType[] }>("GET", "/entity-types?include_archived=true&limit=100", undefined, c.signal).then(
-      (value) => {
-        if (!c.signal.aborted) setTypes(value.items);
-      },
-    ).catch(() => {
-      if (!c.signal.aborted) setTypeError(true);
-    });
-    return () => c.abort();
-  }, []);
+  const { types, error: typeError, retry: retryTypes } = useEntityTypes();
   const selectedType = types?.find((type) => type.id === filter.entity_type_id),
-    label = selectedType?.label ?? "전체 자료";
+    label = selectedType?.label ?? (filter.entity_type_id ? "찾을 수 없는 자료 종류" : "전체 자료");
+  const invalidType = !!filter.entity_type_id && types !== null && !selectedType;
   const unsupported = ["prop3_from", "prop3_to", "prop4"].some((key) => params.has(key));
   const key = query(filter), context = `${key}|${hash}|${unsupported}`;
   const creating = create.open;
   const list = usePagedList<EntitySummary, ListPage<EntitySummary>>({
-    scope: context,
+    scope: `${context}|${types === null ? "loading" : invalidType ? "invalid" : "ready"}`,
     pages,
     anchor: anchorId("entities", hash),
     anchorLookahead: 1,
     restoreRetry: "resume",
     retainOnDecrease: true,
     load: (cursor, signal) =>
-      unsupported
+      invalidType
+        ? Promise.reject(
+          new ApiError(404, "not_found", "자료 종류를 찾을 수 없습니다. 전체 자료나 다른 종류를 선택하세요."),
+        )
+        : typeError || types === null
+        ? Promise.reject(new Error(typeError ? "자료 종류를 불러오지 못했습니다." : "자료 종류를 확인하는 중…"))
+        : unsupported
         ? Promise.reject(
           new ApiError(400, "invalid_input", "이전 속성 조건은 더 이상 지원하지 않습니다. 조건을 초기화하세요."),
         )
         : api("GET", `/entities${query({ ...filter, cursor })}`, undefined, signal),
   });
   const { page, busy } = list;
-  const error = list.error ? list.error instanceof ApiError ? list.error.message : "자료를 불러오지 못했습니다." : null;
+  const error = types === null
+    ? null
+    : list.error
+    ? list.error instanceof ApiError ? list.error.message : "자료를 불러오지 못했습니다."
+    : null;
   const readiness = useRestoreListPosition(
     "entities",
     (dictionary.tags !== null || dictionary.failed) && !busy && !!page,
   );
   const set = (name: string, value: string) => {
-    const next = new URLSearchParams(params);
+    const next = name === "entity_type_id" ? typeListSearch(params, value) : new URLSearchParams(params);
     if (value) next.set(name, value);
     else next.delete(name);
     if (name === "entity_type_id") {
@@ -81,7 +82,7 @@ export function EntitiesPage() {
     }
     next.delete("pages");
     next.delete("open");
-    navigate({ pathname: "/entities", search: next.toString(), hash: "" }, { replace: true });
+    navigate({ pathname: "/entities", search: next.toString(), hash: "" }, { replace: name !== "entity_type_id" });
   };
   return (
     <>
@@ -89,24 +90,29 @@ export function EntitiesPage() {
         <div className="panel-head">
           <h1 id="entities-title" className="page-title" tabIndex={-1}>{label}</h1>
         </div>
-        <div className="query-bar">
+        <div className="query-bar entity-query-bar">
           <TabSearch entity />
-          <Field label="자료 종류">
-            {(p) => (
-              <select
-                {...p}
-                className="input"
-                value={filter.entity_type_id ?? ""}
-                onChange={(e) => set("entity_type_id", e.target.value)}
-              >
-                <option value="">전체 자료</option>
-                {types?.map((type) => (
-                  <option key={type.id} value={type.id}>{type.label}{type.archived ? " · 보관" : ""}</option>
-                ))}
-              </select>
-            )}
-          </Field>
-          {typeError && <Notice kind="error">자료 종류를 불러오지 못했습니다.</Notice>}
+          <EntityTypePicker
+            types={types ?? []}
+            value={filter.entity_type_id ?? ""}
+            all
+            disabled={types === null}
+            onChange={(value) => set("entity_type_id", value)}
+          />
+          {!types && !typeError && <p role="status">자료 종류를 확인하는 중…</p>}
+          {typeError && (
+            <>
+              <Notice kind="error">자료 종류를 불러오지 못했습니다.</Notice>
+              <button className="btn" onClick={retryTypes}>종류 다시 시도</button>
+            </>
+          )}
+          {selectedType?.archived && (
+            <Notice>보관된 자료 종류입니다. 기존 자료를 읽을 수 있으며 새 자료를 추가하려면 보관을 해제하세요.</Notice>
+          )}
+          {types?.length === 0 && <p className="secondary">아직 자료 종류가 없습니다.</p>}
+          {types && types.length > 0 && types.every((type) => type.archived) && (
+            <p className="secondary">모든 자료 종류가 보관되어 있습니다.</p>
+          )}
           <Link to={selectedType ? `/settings/entity-types/${selectedType.id}` : "/settings/entity-types"}>
             자료 종류·속성 관리
           </Link>
@@ -160,7 +166,7 @@ export function EntitiesPage() {
               view={view}
               onChange={changeView}
             />
-            {types?.some((type) => !type.archived)
+            {!invalidType && !selectedType?.archived && types?.some((type) => !type.archived)
               ? <TabCreateButton label={`${selectedType?.label ?? "자료"} 추가`} onClick={create.begin} />
               : <Link to="/settings/entity-types">자료 종류 만들기·보관 관리</Link>}
           </div>
@@ -183,7 +189,7 @@ export function EntitiesPage() {
                 )}
             </>
           )}
-          {!page && busy && <p role="status" className="secondary">불러오는 중…</p>}
+          {!page && (busy || types === null && !typeError) && <p role="status" className="secondary">불러오는 중…</p>}
           {page?.items.length === 0 && (
             <>
               <p className="secondary">
@@ -239,7 +245,7 @@ export function EntitiesPage() {
               {busy ? "불러오는 중…" : error ? "다시 시도" : page.next_cursor ? "더 보기" : "모두 불러왔습니다"}
             </button>
           )}
-          {creating && (
+          {creating && !invalidType && !selectedType?.archived && (
             <EntityForm
               key={create.key}
               initialTypeId={filter.entity_type_id ?? undefined}

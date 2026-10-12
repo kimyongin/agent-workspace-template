@@ -1,3 +1,4 @@
+import { EntityTypePicker } from "./EntityTypePicker.tsx";
 import {
   defaultEntityIdentitySettings,
   entityId,
@@ -255,6 +256,11 @@ export function EntityForm({
           prepared.current = result.prepared_input;
         }}
         validate={() => {
+          if (!initial && activeType?.archived) {
+            return {
+              entity_type_id: "보관된 자료 종류에는 새 자료를 추가할 수 없습니다",
+            };
+          }
           if (!identitySettings || !definition) return { entity_type_id: "자료 종류와 속성 정의를 확인하세요" };
           if (schemaReading || pendingDefinition) return { entity_type_id: "현재 속성 정의를 확인한 뒤 적용하세요" };
           if (reviewKeys.length) {
@@ -308,31 +314,30 @@ export function EntityForm({
         {(errors) => (
           <>
             <section className="detail-section form">
-              {initial || archived
-                ? <p>자료 종류: {label} · 저장 후 종류를 변경할 수 없습니다.</p>
-                : (
-                  <Field label="자료 종류" required error={errors.entity_type_id}>
-                    {(p) => (
-                      <select
-                        {...p}
-                        className="input"
-                        value={typeId}
-                        disabled={!types}
-                        onChange={(e) => {
-                          const selected = e.target.value;
-                          if (dirty) setNextType(selected);
-                          else setTypeId(selected);
-                        }}
-                      >
-                        <option value="">자료 종류 선택</option>
-                        {types?.filter((type) => !type.archived).map((type) => (
-                          <option key={type.id} value={type.id}>{type.label}</option>
-                        ))}
-                      </select>
-                    )}
-                  </Field>
-                )}
-              {types && !types.some((type) => !type.archived) && !initial && (
+              {initial || archived ? <p>자료 종류: {label} · 저장 후 종류를 변경할 수 없습니다.</p> : (
+                <>
+                  <EntityTypePicker
+                    types={types?.filter((type) => !type.archived) ?? []}
+                    value={typeId}
+                    disabled={!types}
+                    onChange={(selected) => {
+                      if (selected === typeId) {
+                        return;
+                      }
+                      if (dirty) {
+                        setNextType(selected);
+                      } else {
+                        initializedType.current = null;
+                        setTypeId(selected);
+                      }
+                    }}
+                  />
+                  {errors.entity_type_id && <p role="alert" className="error-text">{errors.entity_type_id}</p>}
+                </>
+              )}
+              {types && !types.some((type) =>
+                !type.archived
+              ) && !initial && (
                 <p>
                   활성 자료 종류가 없습니다. <a href="/settings/entity-types">자료 종류 만들기·보관 관리</a>
                 </p>
@@ -464,8 +469,13 @@ export function EntityForm({
         onConfirm={() => {
           lookup.current?.abort();
           setArchived(null);
+          initializedType.current = null;
+          prepared.current = null;
           setTypeId(nextType!);
           setProperties({});
+          setTags([]);
+          setExternal("");
+          setIdentityMessage("");
           setNextType(null);
         }}
       />

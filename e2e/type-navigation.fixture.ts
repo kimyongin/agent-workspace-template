@@ -1,0 +1,311 @@
+import { expect, test } from "@playwright/test";
+import { type EntityType, initialEntityDefinition } from "../supabase/functions/_shared/contracts/entity-type.ts";
+import { fulfillPreparation } from "./support/preparation-api.ts";
+const type = (n: number, label: string, archived = false): EntityType => ({
+  id: `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`,
+  label,
+  archived,
+  icon_id: "leaf",
+  version: 1,
+  schema_version: 1,
+  next_property_number: 2,
+  created_at: `2026-10-${String(n).padStart(2, "0")}T00:00:00Z`,
+  updated_at: "2026-10-12T00:00:00Z",
+});
+const materials = type(1, "재료"), products = type(2, "상품"), retired = type(3, "보관 자료", true);
+const user = {
+  id: "00000000-0000-0000-0000-000000000001",
+  aud: "authenticated",
+  email: "fixture@example.test",
+  app_metadata: {},
+  user_metadata: { full_name: "Fixture" },
+};
+test.beforeEach(async ({ page, baseURL }) => {
+  await page.route("**/*", async (route) => {
+    const url = new URL(route.request().url());
+    if (url.origin === new URL(baseURL!).origin) return route.continue();
+    if (await fulfillPreparation(route)) return;
+    if (url.pathname === "/api/entity-types") {
+      return route.fulfill({ json: { items: [materials, products, retired], next_cursor: null } });
+    }
+    const selected = [materials, products, retired].find((value) =>
+      url.pathname.startsWith(`/api/entity-types/${value.id}`)
+    );
+    if (selected) {
+      return route.fulfill({
+        json: url.pathname.endsWith("/schema")
+          ? { type: selected, type_id: selected.id, schema_version: 1, ...initialEntityDefinition("이름") }
+          : selected,
+      });
+    }
+    if (url.pathname.startsWith("/api/")) return route.fulfill({ json: { items: [], next_cursor: null } });
+    return route.abort();
+  });
+  await page.addInitScript(
+    (user) =>
+      localStorage.setItem(
+        "sb-127-auth-token",
+        JSON.stringify({
+          access_token: "ui-fixture",
+          refresh_token: "ui-fixture",
+          token_type: "bearer",
+          expires_at: Math.floor(Date.now() / 1000) + 3600,
+          user,
+        }),
+      ),
+    user,
+  );
+});
+test("typed shortcut and profile access preserve canonical list filters and Back", async ({ page }) => {
+  await page.goto(`/entities?entity_type_id=${materials.id}&keyword=한글&tag_id=tag&sort=title&pages=2`);
+  const nav = page.getByRole("navigation", { name: "주 메뉴" });
+  await expect(nav.locator(".bottom-nav-inner > a")).toHaveText(["♧재료", "♧상품", "⚒할 일", "▤기록"]);
+  await expect(nav.locator(`a[href='/entities?entity_type_id=${materials.id}']`)).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
+  await page.getByLabel("자료 종류", { exact: true }).selectOption(products.id);
+  await expect(page).toHaveURL(new RegExp(`entity_type_id=${products.id}`));
+  expect(new URL(page.url()).searchParams.get("keyword")).toBe("한글");
+  expect(new URL(page.url()).searchParams.get("tag_id")).toBe("tag");
+  expect(new URL(page.url()).searchParams.has("sort")).toBe(false);
+  expect(new URL(page.url()).searchParams.has("pages")).toBe(false);
+  await page.goBack();
+  await expect(page.getByLabel("자료 종류", { exact: true })).toHaveValue(materials.id);
+  await page.getByRole("button", { name: "내 프로필", exact: true }).click();
+  await expect(page.locator("#nav-profile-options").getByRole("link", { name: "원칙", exact: true })).toBeVisible();
+  await page.locator("#nav-profile-options").getByRole("link", { name: "전체 자료", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "전체 자료", level: 1 })).toBeVisible();
+});
+test("invalid and archived type URLs never widen or offer creation", async ({ page }) => {
+  const listRequests: string[] = [];
+  page.on("request", (request) => {
+    if (new URL(request.url()).pathname === "/api/entities") listRequests.push(request.url());
+  });
+  await page.goto("/entities?entity_type_id=invalid");
+  await expect(page.getByRole("alert")).toContainText("자료 종류를 찾을 수 없습니다");
+  expect(listRequests).toHaveLength(0);
+  await page.goto(`/entities?entity_type_id=${retired.id}`);
+  await expect(page.getByText("보관된 자료 종류입니다.", { exact: false })).toBeVisible();
+  await expect(page.getByRole("button", { name: "보관 자료 추가", exact: true })).toHaveCount(0);
+  expect(listRequests.every((url) => new URL(url).searchParams.get("entity_type_id") === retired.id)).toBe(true);
+});
+test("typed creation requires selection and protects drafts before changing kind", async ({ page }) => {
+  await page.goto("/entities");
+  await page.getByRole("button", { name: "자료 추가", exact: true }).click();
+  let form = page.getByRole("dialog", { name: "자료 추가", exact: true });
+  await form.getByRole("button", { name: "저장", exact: true }).click();
+  await expect(form.getByText("자료 종류와 속성 정의를 확인하세요", { exact: true })).toBeVisible();
+  await form.getByLabel("자료 종류", { exact: true }).selectOption(materials.id);
+  form = page.getByRole("dialog", { name: "재료 추가", exact: true });
+  await form.getByLabel("이름", { exact: false }).fill("보존할 초안");
+  await form.getByLabel("자료 종류", { exact: true }).selectOption(products.id);
+  const confirmation = page.getByRole("dialog", { name: "자료 종류를 바꿀까요?", exact: true });
+  await confirmation.getByRole("button", { name: "취소", exact: true }).click();
+  await expect(form.getByLabel("이름", { exact: false })).toHaveValue("보존할 초안");
+  await form.getByLabel("자료 종류", { exact: true }).selectOption(products.id);
+  await confirmation.getByRole("button", { name: "종류 변경", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "상품 추가", exact: true }).getByLabel("이름", { exact: false }))
+    .toHaveValue("");
+});
+test("settings identity route keeps drafts and treats settings as account location", async ({ page }) => {
+  await page.goto("/settings");
+  await expect(page.getByLabel("발급처 1 이름")).toHaveCount(0);
+  await page.getByRole("link", { name: "자료 식별자·발급처", exact: true }).click();
+  await expect(page).toHaveURL(/\/settings\/entity-identity$/);
+  await expect(page.getByRole("button", { name: "내 프로필", exact: true })).toHaveAttribute("data-current", "true");
+  await page.getByLabel("발급처 1 이름").fill("식별자 초안");
+  await page.getByRole("link", { name: "설정", exact: true }).click();
+  await page.getByRole("dialog", { name: "변경을 버릴까요?" }).getByRole("button", { name: "취소", exact: true })
+    .click();
+  await expect(page.getByLabel("발급처 1 이름")).toHaveValue("식별자 초안");
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "자료 식별자·발급처", level: 1 })).toBeVisible();
+});
+
+test("0, 1, and many active types expose fixed account and all business paths", async ({ page }) => {
+  let items: EntityType[] = [];
+  await page.route("**/api/entity-types{,?**}", (route) => route.fulfill({ json: { items, next_cursor: null } }));
+  await page.goto("/entities");
+  const shortcuts = page.locator(".bottom-nav-inner > a");
+  await expect(shortcuts.first()).toHaveAttribute("aria-label", "전체 자료");
+  await expect(page.getByText("아직 자료 종류가 없습니다.", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "자료 추가", exact: true })).toHaveCount(0);
+  items = [materials];
+  await page.reload();
+  await expect(shortcuts.first()).toHaveAttribute("aria-label", "재료");
+  await expect(shortcuts.last()).toHaveAttribute("aria-label", "원칙");
+  items = [
+    materials,
+    products,
+    ...Array.from(
+      { length: 10 },
+      (_, index) => type(index + 4, index === 9 ? "긴한국어자료종류이름공백없는문구".repeat(3) : `추가 종류 ${index}`),
+    ),
+  ];
+  await page.reload();
+  await expect(shortcuts).toHaveCount(4);
+  await page.getByLabel("자료 종류 검색", { exact: true }).fill("추가 종류 7");
+  await page.getByLabel("자료 종류", { exact: true }).selectOption(items[9].id);
+  await expect(page.getByRole("heading", { name: "추가 종류 7", level: 1 })).toBeVisible();
+  await page.getByRole("button", { name: "내 프로필", exact: true }).click();
+  const menu = page.locator("#nav-profile-options");
+  await menu.getByRole("searchbox", { name: "자료 종류 검색", exact: true }).fill("긴한국어");
+  await expect(menu.getByRole("link", { name: items[11].label, exact: true })).toHaveCount(1);
+  await menu.getByRole("link", { name: "로그아웃", exact: true }).focus();
+  const box = await menu.getByRole("link", { name: "로그아웃", exact: true }).boundingBox();
+  expect(box!.y).toBeGreaterThanOrEqual(0);
+  expect(box!.y + box!.height).toBeLessThanOrEqual(await page.evaluate(() => innerHeight));
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("button", { name: "내 프로필", exact: true })).toBeFocused();
+});
+
+test("short layouts and enlarged long labels keep controls inside viewport", async ({ page }) => {
+  const long = type(1, "아주긴자료종류이름공백없는문자열".repeat(4));
+  await page.route(
+    "**/api/entity-types{,?**}",
+    (route) => route.fulfill({ json: { items: [long, products], next_cursor: null } }),
+  );
+  await page.setViewportSize({ width: 320, height: 300 });
+  await page.goto("/settings");
+  await page.evaluate(() => document.documentElement.style.fontSize = "200%");
+  await expect(page.locator(".bottom-nav-inner > a").first()).toHaveAttribute("aria-label", long.label);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  for (
+    const size of await page.locator(".bottom-nav-inner > a, .nav-profile-trigger").evaluateAll((nodes) =>
+      nodes.map((node) => {
+        const r = node.getBoundingClientRect();
+        return [r.width, r.height];
+      })
+    )
+  ) {
+    expect(size[0]).toBeGreaterThanOrEqual(44);
+    expect(size[1]).toBeGreaterThanOrEqual(44);
+  }
+  await page.getByRole("button", { name: "내 프로필", exact: true }).click();
+  await page.locator("#nav-profile-options").getByRole("link", { name: "로그아웃", exact: true }).focus();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("button", { name: "내 프로필", exact: true })).toBeFocused();
+});
+
+test("a late old type list cannot replace current rows", async ({ page }) => {
+  let release!: () => void, started!: () => void;
+  const hold = new Promise<void>((resolve) => {
+      release = resolve;
+    }),
+    arrived = new Promise<void>((resolve) => {
+      started = resolve;
+    });
+  await page.route("**/api/entities?**", async (route) => {
+    const id = new URL(route.request().url()).searchParams.get("entity_type_id");
+    if (id === materials.id) {
+      started();
+      await hold;
+    }
+    const kind = id === materials.id ? materials : products;
+    return route.fulfill({
+      json: {
+        items: [{ id: `app:${kind.id}`, title: kind.label + " 결과", type: kind, tag_ids: [] }],
+        next_cursor: null,
+      },
+    });
+  });
+  await page.goto(`/entities?entity_type_id=${materials.id}`);
+  await arrived;
+  await page.getByLabel("자료 종류", { exact: true }).selectOption(products.id);
+  await expect(page.getByRole("button", { name: "상품 결과", exact: true })).toBeVisible();
+  release();
+  await expect(page.getByRole("button", { name: "재료 결과", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "상품", level: 1 })).toBeVisible();
+});
+
+test("IME search preserves the selected type and current keyword after switching", async ({ page }) => {
+  await page.goto(`/entities?entity_type_id=${materials.id}&keyword=기존`);
+  const input = page.getByRole("textbox", { name: "속성 1 키워드", exact: true });
+  await input.dispatchEvent("compositionstart");
+  await input.fill("새 검색");
+  expect(new URL(page.url()).searchParams.get("keyword")).toBe("기존");
+  await page.getByLabel("자료 종류", { exact: true }).selectOption(products.id);
+  await input.dispatchEvent("compositionend");
+  await expect.poll(() => new URL(page.url()).searchParams.get("keyword")).toBe("새 검색");
+  expect(new URL(page.url()).searchParams.get("entity_type_id")).toBe(products.id);
+});
+
+test("type catalog failure and all archived types have distinct recovery paths", async ({ page }) => {
+  let failing = true;
+  await page.route(
+    "**/api/entity-types{,?**}",
+    (route) => failing ? route.abort() : route.fulfill({ json: { items: [retired], next_cursor: null } }),
+  );
+  await page.goto("/entities");
+  await expect(page.getByRole("alert")).toContainText("자료 종류를 불러오지 못했습니다");
+  await expect(page.getByText("아직 자료 종류가 없습니다.", { exact: true })).toHaveCount(0);
+  failing = false;
+  await page.getByRole("button", { name: "종류 다시 시도", exact: true }).click();
+  await expect(page.getByText("모든 자료 종류가 보관되어 있습니다.", { exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "자료 종류 만들기·보관 관리", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "자료 추가", exact: true })).toHaveCount(0);
+});
+
+test("save blocks duplicate submission and Back until typed detail is ready", async ({ page }) => {
+  let release!: () => void, started!: () => void, writes = 0;
+  const hold = new Promise<void>((resolve) => {
+      release = resolve;
+    }),
+    arrived = new Promise<void>((resolve) => {
+      started = resolve;
+    });
+  const entity = {
+    id: "app:created",
+    source: "app",
+    external_id: "created",
+    source_label: "앱",
+    deleted_at: null,
+    entity_type_id: materials.id,
+    type: materials,
+    schema_version: 1,
+    current_schema_version: 1,
+    properties: { prop_1: "새 재료" },
+    display_properties: { prop_1: "새 재료" },
+    title: "새 재료",
+    tag_ids: [],
+    version: 1,
+    created_at: "2026-10-12T00:00:00Z",
+    updated_at: "2026-10-12T00:00:00Z",
+    tasks: { items: [], count: 0 },
+    records: { items: [], count: 0 },
+  };
+  await page.route("**/api/entities{,?**}", async (route) => {
+    if (route.request().method() !== "POST") return route.fallback();
+    writes++;
+    expect(route.request().postDataJSON()).toMatchObject({
+      entity_type_id: materials.id,
+      properties: { prop_1: "새 재료" },
+    });
+    expect(route.request().headers()["idempotency-key"]).toBeTruthy();
+    started();
+    await hold;
+    return route.fulfill({ json: entity });
+  });
+  await page.route("**/api/entities/app%3Acreated{,?**}", (route) => route.fulfill({ json: entity }));
+  await page.goto(`/entities?entity_type_id=${materials.id}`);
+  await page.getByRole("button", { name: "재료 추가", exact: true }).click();
+  const form = page.getByRole("dialog", { name: "재료 추가", exact: true });
+  await form.getByLabel("이름", { exact: false }).fill("새 재료");
+  await form.getByRole("button", { name: "저장", exact: true }).click();
+  const action = page.locator("dialog.modal-action[open]");
+  await action.getByRole("button", { name: "등록하고 저장", exact: true }).click();
+  await arrived;
+  await page.goBack();
+  await expect(page).toHaveURL(/create=1/);
+  await page.keyboard.press("Escape");
+  await expect(action).toBeVisible();
+  release();
+  await expect(page).toHaveURL(/\/entities\/app%3Acreated/);
+  await expect(page.getByText("새 재료", { exact: true }).first()).toBeVisible();
+  expect(writes).toBe(1);
+  await page.getByRole("button", { name: "편집", exact: true }).click();
+  const editing = page.getByRole("dialog", { name: "재료 편집", exact: true });
+  await expect(editing.getByLabel("자료 종류", { exact: true })).toHaveCount(0);
+  await expect(editing).toContainText("저장 후 종류를 변경할 수 없습니다");
+});
