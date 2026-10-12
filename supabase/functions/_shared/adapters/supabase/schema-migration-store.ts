@@ -4,6 +4,8 @@ import type { SchemaMigrationStore } from "../../core/entity-types/schema-migrat
 import type { EntitySchemaMigration, SchemaMigrationAccepted } from "../../contracts/entity-schema-migration.ts";
 import { effectiveEntityTemplates } from "../../contracts/record-template.ts";
 import { AppError, conflict, invalidInput, notFound } from "../../core/shared/errors.ts";
+import { definitionFingerprint } from "../../core/entity-types/evolution.ts";
+import { validateEntityDefinition } from "../../core/entity-types/schema-rules.ts";
 import { resolvedEntityTypeIcon } from "../../contracts/entity-type.ts";
 export class SqlSchemaMigrationStore extends SqlSchemaChangeStore implements SchemaMigrationStore {
   private accepted(r: postgres.Row): SchemaMigrationAccepted {
@@ -24,7 +26,8 @@ export class SqlSchemaMigrationStore extends SqlSchemaChangeStore implements Sch
     return r;
   }
   private async jobDto(r: postgres.Row): Promise<EntitySchemaMigration> {
-    const [t] = await this.tx`select id,label,icon_id,archived from app.entity_types where id=${r.type_id}`;
+    const [t] = await this
+      .tx`select id,label,icon_id,archived,version,schema_version from app.entity_types where id=${r.type_id}`;
     return {
       id: r.id,
       type_id: r.type_id,
@@ -42,10 +45,99 @@ export class SqlSchemaMigrationStore extends SqlSchemaChangeStore implements Sch
       retryable: r.retryable,
       failure_reason: r.failure_reason,
       result: r.result,
+      recovery: await this.recoveryAvailability(r, t),
       source_expires_at: r.source_expires_at?.toISOString() ?? null,
       created_at: r.created_at.toISOString(),
       updated_at: r.updated_at.toISOString(),
     };
+  }
+  private async recoveryAvailability(j: postgres.Row, t: postgres.Row) {
+    let status: "available" | "expired" | "unavailable" | "conflict" = "available", reason: string | null = null;
+    if (j.status !== "succeeded") {
+      status = "unavailable";
+      reason = "성공한 작업에서만 복구안을 만들 수 있습니다";
+    } else if (j.source_expires_at <= new Date()) {
+      status = "expired";
+      reason = "복구 원본의 30일 보관 기간이 지났습니다";
+    } else if (!j.source_definition?.schema || !j.committed_membership || !j.committed_references) {
+      status = "unavailable";
+      reason = "복구 원본 또는 확정 기준 자료가 없습니다";
+    } else {
+      const [r] = await this
+        .tx`select count(*) as count from private.entity_schema_migration_rows where job_id=${j.id}`;
+      if (Number(r.count) !== Number(j.total)) {
+        status = "unavailable";
+        reason = "복구 원본 자료가 없습니다";
+      } else {
+        const [b] = await this
+          .tx`select app.entity_schema_membership(${this.actor.userId},${t.id})=${j.committed_membership} as values, app.entity_schema_reference_baseline(${this.actor.userId},${t.id})=${
+          this.tx.json(j.committed_references)
+        }::jsonb as references`;
+        if (!b.values || !b.references || t.archived) {
+          status = "conflict";
+          reason = t.archived
+            ? "보관된 자료 종류를 먼저 복원하세요"
+            : "완료 후 값·자료 구성·연결 선택이 변경되었습니다. 수동 보완과 새 분석이 필요합니다";
+        }
+      }
+    }
+    return {
+      status,
+      reason,
+      current_type_version: Number(t.version),
+      current_schema_version: Number(t.schema_version),
+    };
+  }
+  async createRecovery(id: string, i: Parameters<SchemaMigrationStore["createRecovery"]>[1]) {
+    const identity = await this.job(id), t = await this.lockType(identity.type_id), j = await this.job(id, true);
+    this.sourceRefs(t, i);
+    if (j.version !== i.expected_job_version) throw conflict("작업 버전이 변경되었습니다. 다시 조회하세요");
+    const available = await this.recoveryAvailability(j, t);
+    if (available.status === "expired") throw new AppError("migration_source_expired", available.reason!);
+    if (available.status === "unavailable") throw conflict(available.reason!);
+    await this.recoveryFresh({ recovery_source_job_id: j.id, type_id: t.id });
+    const current = await this.definition(t), target = structuredClone(j.source_definition);
+    // Current-only fields and their display bindings survive subsequent compatible schema edits.
+    for (const [key, field] of Object.entries(current.schema.properties)) {
+      if (!Object.hasOwn(target.schema.properties, key) && !Object.hasOwn(j.target.schema.properties, key)) {
+        target.schema.properties[key] = field;
+        if (current.schema.required.includes(key)) target.schema.required.push(key);
+        for (const name of ["order", "list_columns", "archived"] as const) {
+          if (current.display[name].includes(key)) target.display[name].push(key);
+        }
+        if (current.display.option_labels[key]) target.display.option_labels[key] = current.display.option_labels[key];
+      }
+    }
+    validateEntityDefinition(target);
+    const templates = await this.templates(target, t.id);
+    const diff = [{
+      path: "recovery",
+      before: current,
+      after: target,
+      before_present: true,
+      after_present: true,
+      kind: "migration_required",
+      reason: "보존된 원본과 현재 속성을 검증하는 새 복구 버전",
+      next_action: "분석·미리보기 후 값 변환 작업을 실행하세요",
+    }];
+    const fingerprint = await definitionFingerprint({
+      source_job_id: j.id,
+      source_type_version: t.version,
+      source_schema_version: t.schema_version,
+      target,
+      templates,
+      committed_membership: j.committed_membership,
+      committed_references: j.committed_references,
+    });
+    const [c] = await this
+      .tx`insert into app.entity_schema_changes(owner_id,type_id,source_type_version,source_schema_version,source_template_fingerprint,migration,edits,reservations,target,diff,kind,fingerprint,recovery_source_job_id,recovery_expires_at,recovery_keys) values(${this.actor.userId},${t.id},${t.version},${t.schema_version},${templates},'{"rules":[],"overrides":[]}','[]','{}',${
+      this.tx.json(target)
+    },${this.tx.json(diff)},'migration_required',${fingerprint},${j.id},${j.source_expires_at},${
+      this.tx.json([
+        ...new Set([...Object.keys(j.source_definition.schema.properties), ...Object.keys(j.target.schema.properties)]),
+      ])
+    }) returning *`;
+    return this.dto(c);
   }
   private async validSource(t: postgres.Row, c: postgres.Row, analysisId: string) {
     this.sourceRefs(t, {
@@ -59,6 +151,7 @@ export class SqlSchemaMigrationStore extends SqlSchemaChangeStore implements Sch
       c.status !== "ready" || c.analysis_id !== analysisId || !a || a.status !== "succeeded" || a.failed !== 0 ||
       a.change_version !== c.version || a.fingerprint !== c.fingerprint || a.membership !== fresh.membership
     ) throw new AppError("schema_plan_stale", "최신 성공 분석을 준비하세요");
+    await this.recoveryFresh(c);
     await this.templates(c.target, t.id, c.source_template_fingerprint);
     return a;
   }
@@ -77,7 +170,7 @@ export class SqlSchemaMigrationStore extends SqlSchemaChangeStore implements Sch
     for (const template of Object.values(templates.entity!)) template!.tag_ids = [...template!.tag_ids].sort();
     const [refs] = await this.tx`select app.entity_schema_reference_baseline(${this.actor.userId},${typeId}) as value`;
     const [size] = await this
-      .tx`select coalesce(sum(octet_length(properties::text)+octet_length(after::text)),0)::bigint as bytes from private.entity_schema_analysis_rows where analysis_id=${a.id}`;
+      .tx`select coalesce(sum(octet_length(properties::text)+octet_length(after::text)+coalesce(octet_length(recovery_properties::text),0)),0)::bigint as bytes from private.entity_schema_analysis_rows where analysis_id=${a.id}`;
     const metadataBytes = new TextEncoder().encode(
       JSON.stringify({ definition, target: c.target, references: refs.value, templates, migration: c.migration }),
     )
@@ -93,6 +186,14 @@ export class SqlSchemaMigrationStore extends SqlSchemaChangeStore implements Sch
     },${a.total},${this.actor.source ?? "http"}) returning *`;
     await this
       .tx`insert into private.entity_schema_migration_rows(owner_id,job_id,entity_id,source_version,source_schema_version,source_properties,source_deleted_at,source_identity,after,changed) select r.owner_id,${j.id},r.entity_id,r.source_version,r.source_schema_version,r.properties,r.deleted_at,jsonb_build_object('source',e.source,'external_id',e.external_id,'tag_ids',coalesce((select jsonb_agg(tag_id order by tag_id) from app.entity_tags where entity_id=e.id),'[]'::jsonb)),r.after,r.changed from private.entity_schema_analysis_rows r join app.entities e on e.owner_id=r.owner_id and e.id=r.entity_id where r.analysis_id=${a.id} and r.processed and jsonb_array_length(r.errors)=0`;
+    if (c.recovery_source_job_id) {
+      await this
+        .tx`update app.entity_schema_migrations set recovery_source_job_id=${c.recovery_source_job_id},recovery_keys=${
+        this.tx.json(c.recovery_keys)
+      } where id=${j.id}`;
+      await this
+        .tx`update private.entity_schema_migration_rows r set recovery_properties=a.recovery_properties from private.entity_schema_analysis_rows a where r.job_id=${j.id} and a.analysis_id=${c.analysis_id} and a.entity_id=r.entity_id and a.owner_id=r.owner_id`;
+    }
     await this.tx`update app.entity_types set schema_write_locked=true where id=${typeId}`;
     return this.accepted(j);
   }

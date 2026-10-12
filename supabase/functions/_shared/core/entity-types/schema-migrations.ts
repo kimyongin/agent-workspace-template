@@ -5,12 +5,17 @@ import {
   schemaMigrationAction,
   schemaMigrationList,
   schemaMigrationStart,
+  schemaRecoveryCreate,
 } from "../../contracts/entity-schema-migration.ts";
 import type { EntityTypeDeps } from "./application.ts";
 import type { Actor } from "../shared/actor.ts";
 import { invalidInput } from "../shared/errors.ts";
 import { runWrite } from "../shared/request.ts";
 export interface SchemaMigrationStore {
+  createRecovery(
+    id: string,
+    input: z.infer<typeof schemaRecoveryCreate>,
+  ): Promise<import("../../contracts/entity-schema-change.ts").EntitySchemaChange>;
   startMigration(
     typeId: string,
     changeId: string,
@@ -69,4 +74,10 @@ export function retryEntitySchemaMigration(d: EntityTypeDeps, a: Actor, id: stri
   parse(z.string().uuid(), id);
   const i = parse(schemaMigrationAction, raw);
   return runWrite(d.uow, a, "entity-schema-migration.retry", id, i, (s) => s.retryMigration(id, i));
+}
+
+export function createEntitySchemaRecovery(d: EntityTypeDeps, a: Actor, id: string, raw: unknown) {
+  parse(z.string().uuid(), id);
+  const i = parse(schemaRecoveryCreate, raw);
+  return runWrite(d.uow, a, "entity-schema-migration.recovery", id, i, (s) => s.createRecovery(id, i));
 }

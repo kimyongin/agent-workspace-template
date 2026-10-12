@@ -78,10 +78,14 @@ export function entitySchemaWorker(readEnv: (name: string) => string | undefined
       if (!batch) return Response.json({ processed: 0 });
       let results;
       try {
-        const convert = compileMigration(batch.target, batch.migration);
-        results = batch.rows.map((row: { entity_id: string; properties: Record<string, unknown> }) =>
-          convert(row.entity_id, row.properties)
-        );
+        const convert = compileMigration(batch.target, batch.migration, batch.recovery_keys);
+        results = batch.rows.map((
+          row: {
+            entity_id: string;
+            properties: Record<string, unknown>;
+            recovery_properties?: Record<string, unknown> | null;
+          },
+        ) => convert(row.entity_id, row.properties, row.recovery_properties));
       } catch {
         await sql`select app.fail_entity_schema_analysis(${batch.id},${batch.fence})`;
         return Response.json({ processed: 0, analysis_failed: true });

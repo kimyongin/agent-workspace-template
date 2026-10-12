@@ -1,9 +1,10 @@
 import type { MigrationPlan, SchemaAnalysisRow, SchemaDefinition } from "../../contracts/entity-schema-change.ts";
 import { AppError, invalidInput } from "../shared/errors.ts";
+import { recoverEntityProperties } from "./recovery.ts";
 import { canonical } from "./evolution.ts";
 import { compileEntityFieldValue, compileEntityProperties, jsonbText } from "./schema-rules.ts";
 /** Restricted literal operations; no defaults, expressions, URLs or cross-property execution. */
-export function compileMigration(target: SchemaDefinition, plan: MigrationPlan) {
+export function compileMigration(target: SchemaDefinition, plan: MigrationPlan, recoveryKeys?: string[] | null) {
   const validate = compileEntityProperties(target);
   const keys = new Set<string>();
   for (const rule of plan.rules) {
@@ -43,8 +44,14 @@ export function compileMigration(target: SchemaDefinition, plan: MigrationPlan) 
     row.set(o.key, o.value);
     overrides.set(o.entity_id, row);
   }
-  return (entityId: string, before: Record<string, unknown>): SchemaAnalysisRow => {
-    const after = { ...before }, errors: SchemaAnalysisRow["errors"] = [];
+  return (
+    entityId: string,
+    before: Record<string, unknown>,
+    original?: Record<string, unknown> | null,
+  ): SchemaAnalysisRow => {
+    if (recoveryKeys && !original) throw invalidInput("복구 원본 자료가 없습니다");
+    const after = recoveryKeys ? recoverEntityProperties(recoveryKeys, original!, before) : { ...before },
+      errors: SchemaAnalysisRow["errors"] = [];
     let removed = 0, replacements = 0;
     for (const rule of [...plan.rules.filter((r) => r.op !== "fill"), ...plan.rules.filter((r) => r.op === "fill")]) {
       if (rule.op === "replace_failure") continue;

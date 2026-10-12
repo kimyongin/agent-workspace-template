@@ -102,3 +102,34 @@ Deno.test("migration public plan retains prototype-like mapping codes and Unicod
     "app:" + "😀".repeat(200),
   );
 });
+
+Deno.test("trusted recovery restores removed same-meaning keys and distinguishes null/zero/false/empty/missing", () => {
+  const target = initialEntityDefinition("Name");
+  Object.assign(target.schema.properties, {
+    prop_2: { type: ["string", "null"] },
+    prop_3: { type: "integer" },
+    prop_4: { type: "boolean" },
+    prop_5: { type: "string" },
+    prop_6: { type: "string" },
+  });
+  target.display.order.push("prop_2", "prop_3", "prop_4", "prop_5", "prop_6");
+  const transform = compileMigration(target, { rules: [], overrides: [] }, [
+    "prop_1",
+    "prop_2",
+    "prop_3",
+    "prop_4",
+    "prop_5",
+    "prop_6",
+    "prop_7",
+  ]);
+  const result = transform("a", { prop_1: "A", prop_7: "added" }, {
+    prop_1: "A",
+    prop_2: null,
+    prop_3: 0,
+    prop_4: false,
+    prop_5: "",
+  });
+  assertEquals(result.after, { prop_1: "A", prop_2: null, prop_3: 0, prop_4: false, prop_5: "" });
+  assertEquals(result.errors, []);
+  assertEquals(result.changed, true);
+});

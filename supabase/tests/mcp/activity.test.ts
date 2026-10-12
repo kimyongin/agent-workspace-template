@@ -2,6 +2,7 @@ import {
   schemaMigrationAction,
   schemaMigrationList,
   schemaMigrationStart,
+  schemaRecoveryCreate,
 } from "../../functions/_shared/contracts/entity-schema-migration.ts";
 import { entityPairQuery, entityPairWrite } from "../../functions/_shared/contracts/entity-pairs.ts";
 import { entityReferenceId } from "../../functions/_shared/contracts/entity-identity.ts";
@@ -206,6 +207,7 @@ const EXPECTED_TOOLS = [
   "list_entity_schema_migrations",
   "cancel_entity_schema_migration",
   "retry_entity_schema_migration",
+  "create_entity_schema_recovery",
   "complete_task",
   "create_principle",
   "create_record",
@@ -538,6 +540,7 @@ httpTest("tools/list: 계약의 도구 이름과 contracts JSON Schema", async (
       change_id: z.string().uuid(),
       request_key: requestKey,
     }),
+    create_entity_schema_recovery: schemaRecoveryCreate.extend({ job_id: z.string().uuid(), request_key: requestKey }),
     get_entity_schema_migration: z.strictObject({ job_id: z.string().uuid() }),
     list_entity_schema_migrations: schemaMigrationList,
     cancel_entity_schema_migration: schemaMigrationAction.extend({

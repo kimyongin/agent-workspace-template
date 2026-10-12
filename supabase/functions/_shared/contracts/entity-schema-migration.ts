@@ -7,6 +7,11 @@ export const schemaMigrationStart = z.strictObject({
   analysis_id: z.string().uuid(),
   fingerprint: z.string().regex(/^[a-f0-9]{64}$/),
 });
+export const schemaRecoveryCreate = z.strictObject({
+  expected_job_version: z.number().int().positive(),
+  expected_type_version: z.number().int().positive(),
+  expected_schema_version: z.number().int().positive(),
+});
 export const schemaMigrationAction = z.strictObject({ expected_job_version: z.number().int().positive() });
 export const schemaMigrationList = z.strictObject({
   type_id: z.string().uuid().optional(),
@@ -39,6 +44,12 @@ export type EntitySchemaMigration = {
   retryable: boolean;
   failure_reason: string | null;
   result: { schema_version: number; type_version: number; total: number; changed: number; committed_at: string } | null;
+  recovery?: {
+    status: "available" | "expired" | "unavailable" | "conflict";
+    reason: string | null;
+    current_type_version: number;
+    current_schema_version: number;
+  };
   source_expires_at: string | null;
   created_at: string;
   updated_at: string;

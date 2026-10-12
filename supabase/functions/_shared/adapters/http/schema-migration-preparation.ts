@@ -18,6 +18,7 @@ export type MigrationWorkerBatch = {
   target: SchemaDefinition;
   source_definition: SchemaDefinition;
   migration: MigrationPlan;
+  recovery_keys?: string[] | null;
   source_template_fingerprint: string;
   templates: RecordTemplates;
   available_tags: string[];
@@ -31,6 +32,7 @@ export type MigrationWorkerBatch = {
       external_id: string;
       tag_ids: string[];
       changed: boolean;
+      recovery_properties?: Record<string, unknown> | null;
     }
   >;
 };
@@ -39,12 +41,12 @@ export async function prepareMigrationBatch(batch: MigrationWorkerBatch, now = n
   const started = performance.now();
   const fingerprint = await effectiveEntityTemplateFingerprint(batch.templates, batch.type_id);
   if (fingerprint !== batch.source_template_fingerprint) return { stale: true as const, results: [] };
-  const convert = compileMigration(batch.target, batch.migration);
+  const convert = compileMigration(batch.target, batch.migration, batch.recovery_keys);
   const results = [];
   let bytes = 2;
   for (const row of batch.rows.slice(0, 50)) {
     if (results.length && performance.now() - started >= budgetMs) break;
-    const value = convert(row.entity_id, row.properties);
+    const value = convert(row.entity_id, row.properties, row.recovery_properties);
     if (value.errors.length || canonical(value.after) !== canonical(row.after) || value.changed !== row.changed) {
       throw new Error("Migration analysis disagrees with preparation");
     }
