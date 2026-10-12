@@ -113,7 +113,11 @@ export function EntitiesPage() {
           {types && types.length > 0 && types.every((type) => type.archived) && (
             <p className="secondary">모든 자료 종류가 보관되어 있습니다.</p>
           )}
-          <Link to={selectedType ? `/settings/entity-types/${selectedType.id}` : "/settings/entity-types"}>
+          <Link
+            to={filter.entity_type_id
+              ? `/settings/entity-types/${encodeURIComponent(filter.entity_type_id)}`
+              : "/settings/entity-types"}
+          >
             자료 종류·속성 관리
           </Link>
           <TabFilters
