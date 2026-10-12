@@ -225,7 +225,7 @@ export function assertImmutableType(input: unknown) {
     }]);
   }
 }
-export async function listEntities(d: EntityDeps, a: Actor, q: EntityQuery) {
+export function listEntities(d: EntityDeps, a: Actor, q: EntityQuery) {
   return d.uow.run(a, async (s) => {
     if (q.link_candidate_for) {
       const origin = await s.get(q.link_candidate_for);
