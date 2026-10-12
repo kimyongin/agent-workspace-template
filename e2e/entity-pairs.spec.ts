@@ -30,6 +30,7 @@ test("연결된 자료: 웹 추가→상대 상세→해제→새로고침과 �
     await page.goto(path(x.id));
     await expect(page.getByRole("heading", { name: "연결된 자료", exact: true })).toBeVisible();
     await page.getByRole("button", { name: "자료 연결", exact: true }).click();
+    await page.getByLabel("자료 종류", { exact: true }).selectOption(otherType.id);
     const search = page.getByRole("searchbox", { name: "자료 제목 검색", exact: true });
     await search.fill(y.title);
     await expect(page.getByText(otherType.label, { exact: false }).last()).toBeVisible();
@@ -39,6 +40,7 @@ test("연결된 자료: 웹 추가→상대 상세→해제→새로고침과 �
     await memo.fill("관계를 설명하는 사용자 메모");
     await confirmation.getByRole("button", { name: "취소", exact: true }).click();
     await expect(search).toHaveValue(y.title);
+    await expect(page.getByLabel("자료 종류", { exact: true })).toHaveValue(otherType.id);
     await page.getByRole("button", { name: `${y.title} 연결`, exact: true }).click();
     await confirmation.getByLabel("기록 메모", { exact: true }).fill("관계 검증");
     await confirmation.getByRole("button", { name: "연결하고 저장", exact: true }).click();
