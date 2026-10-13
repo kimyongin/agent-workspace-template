@@ -25,7 +25,7 @@ async function api(method, path, body) {
 }
 async function work(kind, id) {
   const res = await fetch(`${endpoint.origin}/functions/v1/index-worker`, {
-    method: "POST", headers: { authorization: `Bearer ${env.INDEX_WORKER_TOKEN}`, "content-type": "application/json" },
+    method: "POST", headers: { authorization: `Bearer ${env.PROCESSING_TOKEN}`, "content-type": "application/json" },
     body: JSON.stringify({ limit: 1, owner_id: user.id, kind, id }),
   });
   if (!res.ok) throw new Error(`로컬 worker: ${res.status}`);

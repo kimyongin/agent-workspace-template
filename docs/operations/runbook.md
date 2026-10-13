@@ -55,11 +55,24 @@ worker 소비를 멈춰도 생산이 계속되면 대기량이 늘어난다. 장
 
 ## 공통 처리 함수 호출 토큰
 
-검색·스키마 처리 함수는 공통 호출 토큰 하나만 사용한다. 서버 설정 키 `INDEX_WORKER_TOKEN`과 Vault 항목 `search_worker_token`은 기존 이름을 유지하지만 검색 전용이 아닌 두 처리 함수의 공통 설정이다. 종류별 전용 토큰·우선순위·fallback은 지원하지 않는다. 토큰은 최소 32byte 무작위 base64url 값이며 사용자 JWT·DB 접속 자격 증명과 구분한다. 공통 토큰 교체 시 두 함수와 두 Cron 호출을 함께 전환·검증한다. `setup:local`은 같은 값을 로컬 호출자와 함수 환경에 저장하고, 폐기된 `ENTITY_SCHEMA_WORKER_TOKEN` 선언만 제거하며 다른 사용자 설정은 보존한다.
+검색·스키마 처리 함수는 공통 호출 토큰 하나만 사용한다. 서버 설정 키 `PROCESSING_TOKEN`과 Vault 항목 `processing_token`은 두 처리 함수의 공통 설정이다. 종류별 전용 토큰·우선순위·fallback은 지원하지 않는다. 토큰은 최소 32byte 무작위 base64url 값이며 사용자 JWT·DB 접속 자격 증명과 구분한다. 공통 토큰 교체 시 두 함수와 두 Cron 호출을 함께 전환·검증한다. `setup:local`은 같은 값을 로컬 호출자와 함수 환경에 저장하고, 기존 토큰 값을 유지해 `PROCESSING_TOKEN`으로 전환하고 구 선언을 제거하며 다른 사용자 설정은 보존한다.
+
+### 공통 처리 토큰 설정 이름 전환
+
+#375의 이름 전환은 토큰 교체가 아니다. `INDEX_WORKER_TOKEN` → `PROCESSING_TOKEN`, Vault의 `search_worker_token` → `processing_token`으로 같은 값을 옮긴다. 함수에는 구 이름 alias나 fallback을 두지 않는다. 적용된 migration은 재작성하지 않으며 Cron과 Vault는 해당 운영 환경의 설정으로 전환한다.
+
+1. 두 Cron의 ID·일정·활성 상태와 함수 버전, 기존 Secrets의 digest를 기록한다. 값과 Cron command 전문은 출력하지 않는다. 같은 이름의 신규 설정이 있다면 동일 값인지 확인하고 서로 다르면 중단한다.
+2. 기존 Vault 값을 관리 도구 프로세스 안에서 읽고 digest가 기존 Edge Secret과 같은지 확인한다. 모드 0600의 개인 임시 env 파일로 `PROCESSING_TOKEN`만 `supabase secrets set --env-file`에 전달하고 즉시 파일을 삭제한다. 기존 Secret은 복구용으로 유지한다. 값이 CLI 인자·로그·이슈에 나오지 않게 한다.
+3. 검증한 revision의 두 처리 함수를 배포한다. 같은 토큰으로 두 함수의 `check_configuration`이 200인지, 무인증·잘못된 토큰·사용자 JWT가 401인지 확인한다. 실패하면 기존 Secret을 유지한 채 이전 함수 revision으로 복구한다.
+4. DB 트랜잭션 안에서 기존 Vault 값과 같은 `processing_token`을 만들고, 확인한 두 Cron command에서 Vault 항목 이름만 바꾼다. job ID·URL·body·일정·활성 상태는 유지한다. 전환 전 기존 항목이 정확히 하나인지 확인하고 새 항목이 있으면 값 일치를 검사한다.
+5. 두 Cron의 실제 pg_net HTTP 응답과 정상 실행을 확인한다. 실패하면 command의 Vault 이름을 되돌리고 이전 함수 revision으로 복구한다. 기존 Vault/Secret이 남아 있어 토큰을 재발급할 필요가 없다.
+6. 확인 뒤 구 Edge Secret과 구 Vault 항목을 제거한다. 복구가 필요하면 `processing_token` 값으로 구 Secret/Vault 이름을 재구성한 뒤 이전 함수·Cron으로 되돌린다. 원본 토큰은 출력하거나 새 값으로 교체하지 않는다.
+
+로컬 `setup:local`은 구 이름을 신규 이름으로 한 번 전환하고 기존 값을 보존한다. 두 파일의 신규/구 토큰 값이 서로 다르면 파일 저장과 서비스 시작 전에 중단한다. 전환한 함수 환경은 해당 실행 소유자가 재시작해야 반영되며 이전 revision의 실행이 공유하는 파일을 임의로 변경하지 않는다.
 
 ## 엔터티 스키마 worker 호출과 운영 인계
 
-`POST /functions/v1/entity-schema-worker`는 내부 `Authorization: Bearer <token>`을 요구하며 사용자 JWT는 받지 않는다. 공통 `INDEX_WORKER_TOKEN`만 사용하며 누락·빈 값·짧은 설정은 503으로 거부한다. 토큰은 최소 32byte 무작위 base64url 값이며 서버 Secrets/Vault와 개인 로컬 환경에만 둔다. 함수 gateway의 `verify_jwt=false`는 이 내부 인증을 함수 안에서 반드시 검사하는 계약과 함께 사용한다. 누락/잘못된 토큰은 DB 접근 전에 401로 거부한다. `WORKER_DB_URL`은 제한된 app_worker 트랜잭션 풀러 역할이며 일반 사용자/서버 DB 역할로 대체하지 않는다. 검색/Pinecone 설정과 독립적이다.
+`POST /functions/v1/entity-schema-worker`는 내부 `Authorization: Bearer <token>`을 요구하며 사용자 JWT는 받지 않는다. 공통 `PROCESSING_TOKEN`만 사용하며 누락·빈 값·짧은 설정은 503으로 거부한다. 토큰은 최소 32byte 무작위 base64url 값이며 서버 Secrets/Vault와 개인 로컬 환경에만 둔다. 함수 gateway의 `verify_jwt=false`는 이 내부 인증을 함수 안에서 반드시 검사하는 계약과 함께 사용한다. 누락/잘못된 토큰은 DB 접근 전에 401로 거부한다. `WORKER_DB_URL`은 제한된 app_worker 트랜잭션 풀러 역할이며 일반 사용자/서버 DB 역할로 대체하지 않는다. 검색/Pinecone 설정과 독립적이다.
 
 인증된 `{ "check_configuration": true }`는 구성만 확인하며 작업을 claim하지 않는다. 정상 소비 본문은 `{ "limit": 1 }`이다. 반환/관찰은 bounded 개수·상태로 제한하고 분석 source·stage·복구 원문·토큰을 로그에 남기지 않는다. 로컬 소비 명령과 취소·시간 제한은 [실행 환경](../development/verification.md#엔터티-스키마의-로컬-소비-실행)을 따른다. 브라우저가 닫혀도 DB에 접수된 작업은 실행 중인 consumer가 처리한다. 실행기를 끄면 작업은 영속 상태로 남으며 HTTP timeout만으로 실패·취소를 단정하지 않는다. lease/fence에 따른 재개 후 소유자 API의 분석/작업 상태를 확인한다.
 
@@ -67,7 +80,7 @@ worker 소비를 멈춰도 생산이 계속되면 대기량이 늘어난다. 장
 
 1. 토큰 없음·잘못된 토큰·사용자 JWT의 401과 올바른 내부 토큰의 구성 확인 응답을 검증한다. 확인 응답은 claim 성공 증거가 아니다.
 2. 본인 시험 타입의 제한 분석을 접수하고 단일 consumer 호출 뒤 소유자 API에서 실제 분석 완료와 결과를 확인한다. 마이그레이션 기능을 배포한 revision에서는 제한 실행·원자적 완료·복구 preview도 확인한다. HTTP 200/빈 큐만으로 처리 성공을 주장하지 않는다.
-3. pg_cron·pg_net을 활성화하고 Vault에 `entity_schema_worker_url`(해당 환경의 **고정 HTTPS 함수 전체 주소**)을 준비하고 두 함수의 호출에는 공통 `search_worker_token`을 참조한다. 종류별 토큰 항목을 만들거나 비밀값을 출력·복사하지 않는다. 같은 이름의 job/Vault 항목이 있으면 값을 출력하거나 덮어쓰지 않고 기존 소유·설정을 먼저 확인한다. URL을 사용자 입력/작업 자료에서 만들지 않는다. 기존 토큰은 교체 적용/검증이 끝나기 전 폐기하지 않는다.
+3. pg_cron·pg_net을 활성화하고 Vault에 `entity_schema_worker_url`(해당 환경의 **고정 HTTPS 함수 전체 주소**)을 준비하고 두 함수의 호출에는 공통 `processing_token`을 참조한다. 종류별 토큰 항목을 만들거나 비밀값을 출력·복사하지 않는다. 같은 이름의 job/Vault 항목이 있으면 값을 출력하거나 덮어쓰지 않고 기존 소유·설정을 먼저 확인한다. URL을 사용자 입력/작업 자료에서 만들지 않는다. 기존 토큰은 교체 적용/검증이 끝나기 전 폐기하지 않는다.
 4. 위 확인 뒤 승인된 환경에서만 매분 limit1 호출을 등록한다. [Supabase 공식 일정 방식](https://supabase.com/docs/guides/functions/schedule-functions)을 따르되 이 함수에는 위에서 선택한 내부 Bearer를 사용한다.
 
 두 처리 함수의 Cron은 같은 Vault 토큰을 참조한다.
@@ -77,7 +90,7 @@ select cron.schedule('entity-schema-worker', '* * * * *', $job$
   select net.http_post(
     url := (select decrypted_secret from vault.decrypted_secrets where name='entity_schema_worker_url'),
     headers := jsonb_build_object('Content-Type','application/json','Authorization',
-      'Bearer '||(select decrypted_secret from vault.decrypted_secrets where name='search_worker_token')),
+      'Bearer '||(select decrypted_secret from vault.decrypted_secrets where name='processing_token')),
     body := '{"limit":1}'::jsonb,
     timeout_milliseconds := 30000
   );
@@ -95,9 +108,9 @@ select cron.unschedule('entity-schema-worker');
 
 ## 검색 worker 호출과 복구
 
-`POST /functions/v1/index-worker`는 사용자 HTTP/MCP 토큰 대신 `Authorization: Bearer <INDEX_WORKER_TOKEN>`을 요구한다. 본문은 `{ "limit": 5 }`이며 최대 5개를 병렬 처리한다. 제한된 확인에는 `owner_id`·`kind`·`id`를 추가해 범위를 좁힌다. 범위를 생략하면 현재 보이는 전체 큐에서 읽으므로 비용 검증에는 반드시 시험 항목을 지정한다. 키/DB 미설정은 claim 전 503, 인증 실패는 401, 잘못된 입력은 400이다. 반환은 claimed·indexed·excluded·failed·retry·held·stale 개수이며 원문/비밀은 포함하지 않는다.
+`POST /functions/v1/index-worker`는 사용자 HTTP/MCP 토큰 대신 `Authorization: Bearer <PROCESSING_TOKEN>`을 요구한다. 본문은 `{ "limit": 5 }`이며 최대 5개를 병렬 처리한다. 제한된 확인에는 `owner_id`·`kind`·`id`를 추가해 범위를 좁힌다. 범위를 생략하면 현재 보이는 전체 큐에서 읽으므로 비용 검증에는 반드시 시험 항목을 지정한다. 키/DB 미설정은 claim 전 503, 인증 실패는 401, 잘못된 입력은 400이다. 반환은 claimed·indexed·excluded·failed·retry·held·stale 개수이며 원문/비밀은 포함하지 않는다.
 
-서버 Secrets는 `WORKER_DB_URL`(app_worker의 트랜잭션 풀러), `INDEX_WORKER_TOKEN`(32 byte 이상 무작위 값의 base64url), `PINECONE_API_KEY`, `PINECONE_ACCOUNT_SCOPE`다. account scope는 비밀이 아닌 안정적인 공급자 account/project 식별값으로, API key 교체 시에도 유지한다. 누락·공백·120자 초과면 worker는 claim 전에 설정 오류로 중단한다. 로컬 `setup:local`은 역할 비밀번호·내부 토큰을 생성/보존하고 풀러 준비 실패를 숨기지 않는다. 함수 env의 기존 Pinecone 키를 우선하며 기존 `.env.local` 실험 키가 있을 때만 초기 설정으로 복사한다. 함수 설정을 바꾸면 실행 중인 함수 서버를 다시 시작한다.
+서버 Secrets는 `WORKER_DB_URL`(app_worker의 트랜잭션 풀러), `PROCESSING_TOKEN`(32 byte 이상 무작위 값의 base64url), `PINECONE_API_KEY`, `PINECONE_ACCOUNT_SCOPE`다. account scope는 비밀이 아닌 안정적인 공급자 account/project 식별값으로, API key 교체 시에도 유지한다. 누락·공백·120자 초과면 worker는 claim 전에 설정 오류로 중단한다. 로컬 `setup:local`은 역할 비밀번호·내부 토큰을 생성/보존하고 풀러 준비 실패를 숨기지 않는다. 함수 env의 기존 Pinecone 키를 우선하며 기존 `.env.local` 실험 키가 있을 때만 초기 설정으로 복사한다. 함수 설정을 바꾸면 실행 중인 함수 서버를 다시 시작한다.
 
 공급자 호출 제한은 30초·응답 128000 bytes, batch 최대 5, 큐 visibility 90초다. 정확한 passage effect별 첫 호출을 포함한 최대 실제 전송은 5회이며 큐 read_ct나 새 message ID로 초기화하지 않는다. 실제 전송 전에 횟수를 저장하고 30·60·120·240초 backoff를 적용한다. 429/5xx의 확인된 거절은 transient 재시도이며 마지막은 failed/retry_exhausted다. timeout·응답 유실·invalid response·결과 저장 불명은 unknown으로 남기며 다섯 번째는 unknown/retry_exhausted로 보류한다. worker의 held는 큐를 archive하고 현재 색인은 pending으로 유지한다. MCP `get_status`·`list_indexing_issues` 조회에서 현재 색인 현황과 문제 기록의 이유·시도·구간 진행을 확인한다. 공급자 멱등/조회 지원이 없어 제한 재계산은 중복 과금 가능성이 있다. 실제 send 수·unknown/held·retry_exhausted·cache 재사용과 input_limit 분할 부모/자식 수를 함께 관찰한다. 총 비용은 각 입력 구간의 최대 5회 전송과 구간 수에 영향을 받으며 고정 화폐 상한을 보장하지 않는다.
 
@@ -109,14 +122,14 @@ effect lease는 90초이며 만료만으로 외부 실패를 확정하지 않는
 
 배포 전 외부 작업 원장과 worker 복구 전진 migration을 먼저 적용하고, 안정적인 PINECONE_ACCOUNT_SCOPE를 함수 환경에 설정한 뒤 새 worker를 배포한다. API key 교체에서는 scope를 보존한다. 이것은 배포 절차이며 저장소 변경만으로 운영 적용됐다는 뜻은 아니다.
 
-Cron 활성화는 해당 환경의 배포 지시 범위에서만 한다. [Supabase 공식 방식](https://supabase.com/docs/guides/functions/schedule-functions)에 따라 pg_cron·pg_net을 켜고 Vault에 `search_worker_url`(함수의 고정 HTTPS 주소)·`search_worker_token`을 저장한다. worker의 인증·소량 성공·비용 확인 뒤 아래 작업을 등록한다. 로컬 초기화나 migration은 자동 소비 일정을 만들지 않는다.
+Cron 활성화는 해당 환경의 배포 지시 범위에서만 한다. [Supabase 공식 방식](https://supabase.com/docs/guides/functions/schedule-functions)에 따라 pg_cron·pg_net을 켜고 Vault에 `search_worker_url`(함수의 고정 HTTPS 주소)·`processing_token`을 저장한다. worker의 인증·소량 성공·비용 확인 뒤 아래 작업을 등록한다. 로컬 초기화나 migration은 자동 소비 일정을 만들지 않는다.
 
 ```sql
 select cron.schedule('search-index-worker', '* * * * *', $job$
   select net.http_post(
     url := (select decrypted_secret from vault.decrypted_secrets where name='search_worker_url'),
     headers := jsonb_build_object('Content-Type','application/json','Authorization',
-      'Bearer '||(select decrypted_secret from vault.decrypted_secrets where name='search_worker_token')),
+      'Bearer '||(select decrypted_secret from vault.decrypted_secrets where name='processing_token')),
     body := '{"limit":5}'::jsonb, timeout_milliseconds := 45000
   );
 $job$);

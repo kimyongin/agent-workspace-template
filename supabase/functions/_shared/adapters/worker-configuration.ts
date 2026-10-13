@@ -1,7 +1,7 @@
 /** Report only setting names. Never attach secret values or their digests to diagnostics. */
 export function invalidWorkerSettings(settings: Record<string, string | undefined>): string[] {
   const invalid: string[] = [];
-  if (!settings.INDEX_WORKER_TOKEN || settings.INDEX_WORKER_TOKEN.length < 43) invalid.push("INDEX_WORKER_TOKEN");
+  if (!settings.PROCESSING_TOKEN || settings.PROCESSING_TOKEN.length < 43) invalid.push("PROCESSING_TOKEN");
   for (const name of ["PINECONE_API_KEY", "WORKER_DB_URL"]) {
     if (!settings[name]?.trim()) invalid.push(name);
   }

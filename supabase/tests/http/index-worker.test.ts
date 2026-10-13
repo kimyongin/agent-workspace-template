@@ -3,8 +3,8 @@ import { admin, httpTest, signIn, SUPABASE_URL } from "./_client.ts";
 const url = `${SUPABASE_URL}/functions/v1/index-worker`;
 httpTest("worker HTTP: 인증·메서드·입력 거부가 큐 claim/공급자 호출보다 먼저", async () => {
   const before = (await admin`select sum(read_ct)::bigint as count from pgmq.q_search_index`)[0].count;
-  const user = await signIn("A"), internal = Deno.env.get("INDEX_WORKER_TOKEN")!;
-  for (const token of [null, user]) {
+  const user = await signIn("A"), internal = Deno.env.get("PROCESSING_TOKEN")!;
+  for (const token of [null, "wrong", user]) {
     const response = await fetch(url, {
       method: "POST",
       headers: token ? { authorization: `Bearer ${token}` } : {},
@@ -56,7 +56,7 @@ httpTest("worker HTTP: 인증·메서드·입력 거부가 큐 claim/공급자 �
 });
 
 httpTest("processing functions share one internal token and reject user credentials", async () => {
-  const internal = Deno.env.get("INDEX_WORKER_TOKEN")!, user = await signIn("A");
+  const internal = Deno.env.get("PROCESSING_TOKEN")!, user = await signIn("A");
   const schemaUrl = `${SUPABASE_URL}/functions/v1/entity-schema-worker`;
   for (const token of [null, "wrong", user]) {
     const response = await fetch(schemaUrl, {

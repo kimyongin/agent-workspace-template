@@ -2,7 +2,7 @@
 import { invalidWorkerSettings } from "../supabase/functions/_shared/adapters/worker-configuration.ts";
 
 const settings = Object.fromEntries(
-  ["INDEX_WORKER_TOKEN", "PINECONE_API_KEY", "WORKER_DB_URL", "PINECONE_ACCOUNT_SCOPE"].map((
+  ["PROCESSING_TOKEN", "PINECONE_API_KEY", "WORKER_DB_URL", "PINECONE_ACCOUNT_SCOPE"].map((
     name,
   ) => [name, Deno.env.get(name)]),
 );
@@ -23,7 +23,7 @@ if (Deno.args.includes("--probe")) {
     }
     const response = await fetch(url, {
       method: "POST",
-      headers: { authorization: `Bearer ${settings.INDEX_WORKER_TOKEN}`, "content-type": "application/json" },
+      headers: { authorization: `Bearer ${settings.PROCESSING_TOKEN}`, "content-type": "application/json" },
       body: JSON.stringify({ check_configuration: true }),
       signal: AbortSignal.timeout(20_000),
     });

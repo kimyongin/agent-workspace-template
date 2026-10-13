@@ -11,6 +11,15 @@ import { readLocalConfig } from "./local-config.mjs";
 const root = new URL("..", import.meta.url);
 const path = (p) => new URL(p, root);
 const config = readLocalConfig();
+const prev = readEnv(path(".env.local"));
+const functionEnv = readEnv(path("supabase/functions/.env"));
+// 설치 설정의 이름만 전환한다. 서로 다른 값은 임의로 선택하지 않는다.
+const tokens = new Set([
+  prev.PROCESSING_TOKEN, functionEnv.PROCESSING_TOKEN,
+  prev.INDEX_WORKER_TOKEN, functionEnv.INDEX_WORKER_TOKEN,
+].filter(value => value !== undefined));
+if (tokens.size > 1) throw new Error("공통 처리 토큰 설정이 서로 다릅니다. 원본 파일을 유지합니다.");
+const processingToken = tokens.size ? [...tokens][0] : randomBytes(32).toString("base64url");
 
 function supabase(args, opts = {}) {
   // 인자는 이 파일의 고정 값뿐이라 셸 문자열로 합쳐도 안전하다(Windows의 npx.cmd 실행용).
@@ -58,8 +67,6 @@ const secretKey = status.SECRET_KEY;
 if (!apiUrl || !publishable || !secretKey) throw new Error("supabase status에서 API_URL·PUBLISHABLE_KEY·SECRET_KEY를 찾지 못했습니다");
 
 // 3. 웹·시험용 설정(.env.local). 개발용 사용자 비밀번호는 처음 만든 값을 유지한다.
-const prev = readEnv(path(".env.local"));
-const functionEnv = readEnv(path("supabase/functions/.env"));
 const local = {
   VITE_SUPABASE_URL: apiUrl,
   VITE_SUPABASE_PUBLISHABLE_KEY: publishable,
@@ -70,14 +77,14 @@ const local = {
   LOCAL_POOLER_PORT: String(config.poolerPort),
   APP_SERVER_PASSWORD: prev.APP_SERVER_PASSWORD ?? secret(),
   APP_WORKER_PASSWORD: prev.APP_WORKER_PASSWORD ?? secret(),
-  // 기존 설정 키를 공통 호출 토큰으로 유지한다. 기존 함수 환경의 값도 보존한다.
-  INDEX_WORKER_TOKEN: prev.INDEX_WORKER_TOKEN ?? functionEnv.INDEX_WORKER_TOKEN ?? randomBytes(32).toString("base64url"),
+  // 기존 토큰 값을 두 파일에 동일하게 보존한다.
+  PROCESSING_TOKEN: processingToken,
   DEV_USER_A_EMAIL: "dev-a@example.test",
   DEV_USER_A_PASSWORD: prev.DEV_USER_A_PASSWORD ?? secret(),
   DEV_USER_B_EMAIL: "dev-b@example.test",
   DEV_USER_B_PASSWORD: prev.DEV_USER_B_PASSWORD ?? secret(),
 };
-writeEnv(path(".env.local"), "로컬 전용. scripts/local-setup.mjs가 만든다. 커밋하지 않는다.", local, ["ENTITY_SCHEMA_WORKER_TOKEN"]);
+writeEnv(path(".env.local"), "로컬 전용. scripts/local-setup.mjs가 만든다. 커밋하지 않는다.", local, ["INDEX_WORKER_TOKEN", "ENTITY_SCHEMA_WORKER_TOKEN"]);
 
 // 4. 서버 접속 역할(app_server)의 로컬 비밀번호와 Edge Functions용 설정.
 // 같은 값이어도 다시 설정하면 비밀번호 해시가 바뀌어 트랜잭션 풀러가 한동안 예전 값으로 인증을 거부한다(28P01).
@@ -112,14 +119,14 @@ writeEnv(path("supabase/functions/.env"), "로컬 전용. scripts/local-setup.mj
   // Edge Runtime 컨테이너에서 본 트랜잭션 풀러 주소(prepare: false로 연결).
   APP_DB_URL: `postgresql://app_server.pooler-dev:${local.APP_SERVER_PASSWORD}@pooler:6543/postgres`,
   WORKER_DB_URL: `postgresql://app_worker.pooler-dev:${local.APP_WORKER_PASSWORD}@pooler:6543/postgres`,
-  INDEX_WORKER_TOKEN: local.INDEX_WORKER_TOKEN,
+  PROCESSING_TOKEN: local.PROCESSING_TOKEN,
   ...(functionEnv.PINECONE_ACCOUNT_SCOPE || prev.PINECONE_ACCOUNT_SCOPE
     ? { PINECONE_ACCOUNT_SCOPE: functionEnv.PINECONE_ACCOUNT_SCOPE ?? prev.PINECONE_ACCOUNT_SCOPE } : {}),
   ...(functionEnv.PINECONE_API_KEY || prev.PINECONE_API_KEY
     ? { PINECONE_API_KEY: functionEnv.PINECONE_API_KEY ?? prev.PINECONE_API_KEY } : {}),
   AUTH_ISSUER: `${apiUrl}/auth/v1`,
   WEB_ORIGINS: config.webOrigins,
-}, ["MCP_URL", "ENTITY_SCHEMA_WORKER_TOKEN"]);
+}, ["MCP_URL", "INDEX_WORKER_TOKEN", "ENTITY_SCHEMA_WORKER_TOKEN"]);
 
 // 5. 개발용 사용자(A·B). 이미 있으면 비밀번호만 맞춘다.
 const admin = (p, init = {}) =>
