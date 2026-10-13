@@ -127,23 +127,23 @@ test("CLI failure/missing history emits full; dispatch forces full; output and s
       execFileSync(process.execPath, [new URL('./ci-impact.mjs', import.meta.url).pathname.replace(/^\/(\w:)/, '$1')], { cwd: dir, env: { ...process.env, GITHUB_EVENT_NAME: eventName, GITHUB_EVENT_PATH: eventPath, GITHUB_OUTPUT: output, GITHUB_STEP_SUMMARY: summary }, stdio: 'pipe' });
     }
     assert.equal(readFileSync(output, 'utf8'), 'mode=full\nmode=full\n');
-    assert.match(readFileSync(summary, 'utf8'), /Full check and isolated integration required/);
+    assert.match(readFileSync(summary, 'utf8'), /Full static checks and build required/);
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
-test("required jobs skip draft/canceled runs; active integration explicitly fails a failed/missing check", () => {
+test("hosted CI retains draft-aware static checks and build without running tests", () => {
   const yaml = readFileSync(new URL('../.github/workflows/ci.yml', import.meta.url), 'utf8');
   assert.match(yaml, /  check:\n    if: github\.event_name != 'pull_request' \|\| github\.event\.pull_request\.draft == false/);
-  assert.match(yaml, /  integration:\n    needs: check\n    if: \$\{\{ !cancelled\(\) && \(github\.event_name != 'pull_request' \|\| github\.event\.pull_request\.draft == false\) \}\}/);
-  assert.match(yaml, /\[ "\$CHECK_RESULT" = "success" \] \|\|.*exit 1/);
-  assert.match(yaml, /Missing\/invalid classification.*exit 1/);
   assert.match(yaml, /workflow_dispatch:/);
-  assert.doesNotMatch(yaml, /paths-ignore:|continue-on-error:/);
-  assert.match(yaml, /docs\|presentation\|web\)/);
-  assert.match(yaml, /- name: 의존 경계 검사\n        if: steps\.impact\.outputs\.mode != 'docs'/);
-  const integration = yaml.slice(yaml.indexOf('  integration:'));
-  for (const name of ['로컬 Supabase 준비(러너 안의 격리 DB)', 'DB 테스트', 'Edge Functions 실행', 'HTTP 계약 테스트', 'MCP 계약 테스트']) {
-    assert.ok(integration.includes(`- name: ${name}\n        if: needs.check.outputs.mode == 'full'`), name);
+  assert.doesNotMatch(yaml, /paths-ignore:|continue-on-error:|  integration:/);
+  assert.match(yaml, /run: node scripts\/check-docs\.mjs/);
+  assert.match(yaml, /run: npm run check:deno/);
+  assert.match(yaml, /run: npm run check:boundaries/);
+  assert.match(yaml, /run: npm run build/);
+  assert.doesNotMatch(yaml, /npm run (?:test|check:docs|setup:local|serve:functions)|node --test|deno test|vitest|playwright test/);
+  const scripts = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).scripts;
+  for (const name of ['check:deno', 'check:boundaries', 'build']) {
+    assert.doesNotMatch(scripts[name], /(?:test:|--test|deno test|vitest|playwright test)/, name);
   }
 });
 
@@ -166,22 +166,6 @@ test("web changes cannot lighten shared contracts, auth, communication, executio
   for (const status of ['C100', 'T', 'U']) assert.equal(mode(change('src/features/settings/SchemaEditor.tsx', 'old', 'new', status)), 'full', status);
   for (const oldPath of ['supabase/functions/server.ts', 'src/lib/api.ts']) assert.equal(classifyChanges([{status:'R100',oldPath,path:'src/features/details/new.ts'}]).mode, 'full', oldPath);
   assert.equal(classifyChanges([ui], { forceFull: true }).mode, 'full');
-});
-
-
-test("the actual integration gate accepts web and rejects failed checks or unknown/missing modes", () => {
-  const yaml = readFileSync(new URL('../.github/workflows/ci.yml', import.meta.url), 'utf8');
-  const block = yaml.slice(yaml.indexOf('  integration:'));
-  const script = block.match(/        run: \|\n([\s\S]*?)      - uses:/)[1].replace(/^          /gm, '');
-  const dir = mkdtempSync(join(tmpdir(), 'ci-gate-test-'));
-  try {
-    const summary = join(dir, 'summary');
-    const run = (check, impact) => execFileSync('sh', ['-c', script], { env: { ...process.env, CHECK_RESULT: check, IMPACT_MODE: impact, GITHUB_STEP_SUMMARY: summary }, stdio: 'pipe' });
-    for (const impact of ['docs', 'presentation', 'web', 'full']) run('success', impact);
-    for (const check of ['failure', 'cancelled', 'skipped', '']) assert.throws(() => run(check, 'web'), check);
-    for (const impact of ['', 'future-mode']) assert.throws(() => run('success', impact), impact);
-    assert.match(readFileSync(summary, 'utf8'), /Impact: web.*omitted; check passed/);
-  } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
 
