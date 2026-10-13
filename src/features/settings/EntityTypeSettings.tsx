@@ -85,6 +85,7 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
     }
   }, [loading, location.state?.materialTypeFocus]);
   const { attempt, busy, uncertain } = useWriteAttempt();
+  const createdTypeId = useRef<string | null>(null);
   const mounted = useRef(true);
   useEffect(() => {
     mounted.current = true;
@@ -242,7 +243,6 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
         }
         : { label, icon_id: icon, representative_label: representative },
     };
-    let createdId: string | undefined;
     try {
       await attempt.run(async () => {
         const saved = await api<EntityType>(
@@ -263,14 +263,13 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
           setLabel("");
           setIcon("box");
           setRepresentative("이름");
-          createdId = saved.id;
+          createdTypeId.current = saved.id;
         }
         setMessage("자료 종류를 저장했습니다.");
       });
-      if (createdId) {
-        navigate(`/settings/entity-types/${createdId}`, {
-          state: { materialTypeFocus: true },
-        });
+      // A retry replays the first callback, so its confirmed result must outlive a save invocation.
+      if (createdTypeId.current) {
+        navigate(`/settings/entity-types/${createdTypeId.current}`, { state: { materialTypeFocus: true } });
       }
     } catch (e) {
       if (mounted.current) setError(writeErrorMessage(e));
@@ -509,11 +508,14 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
               >
                 변경 취소
               </button>
-              <button
-                className="btn btn-primary"
-                disabled={anyBusy || (!dirty && !uncertain)}
-              >
-                {busy ? "저장 중…" : uncertain ? "같은 요청 다시 확인" : type_id ? "저장" : "자료 종류 만들기"}
+              <button className="btn btn-primary" disabled={anyBusy || (!dirty && !uncertain)}>
+                {busy
+                  ? "저장 중…"
+                  : uncertain
+                  ? "같은 요청 다시 확인"
+                  : type_id
+                  ? "기본 정보 저장"
+                  : "자료 종류 만들기"}
               </button>
             </div>
           </form>
