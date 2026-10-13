@@ -367,7 +367,7 @@ test("기존 식별자 주소는 같은 자료 공통 설정을 열고 닫으면
 for (const suffix of ["migrations", "migrations/00000000-0000-4000-8000-000000000099"]) {
   test(`자료 설정 별칭 직접 주소 ${suffix}도 새로고침 후 빈 화면이 되지 않는다`, async ({ page }) => {
     await page.route("**/api/entity-schema-migrations/**", route => route.fulfill({
-      status: 503, json: { error: { code: "unavailable", message: "작업 상태 조회 실패", fields: [] } },
+      status: 503, json: { error: { code: "internal", message: "작업 상태 조회 실패", fields: [] } },
     }));
     await page.goto(`/settings/materials/${materials.id}/${suffix}`);
     await expect(page.getByRole("heading", { name: "자료 설정", exact: true })).toBeVisible();
