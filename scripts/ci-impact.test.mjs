@@ -1,10 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, writeFileSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
-import { classifyChanges, comparisonRange, presentationCss, presentationTsx } from "./ci-impact.mjs";
+import { classifyChanges, comparisonRange, gitChanges, presentationCss, presentationTsx } from "./ci-impact.mjs";
 
 const change = (path, before, after, status = "M") => ({ path, before, after, status });
 const mode = (...changes) => classifyChanges(changes).mode;
@@ -182,4 +182,33 @@ test("the actual integration gate accepts web and rejects failed checks or unkno
     for (const impact of ['', 'future-mode']) assert.throws(() => run('success', impact), impact);
     assert.match(readFileSync(summary, 'utf8'), /Impact: web.*omitted; check passed/);
   } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+
+test("real Git additions, edits, deletions and safe/unsafe renames classify through the CLI diff reader", () => {
+  const dir = mkdtempSync(join(tmpdir(), 'ci-web-diff-test-'));
+  const previous = process.cwd();
+  const git = (...args) => execFileSync('git', args, {cwd: dir, encoding: 'utf8', stdio: 'pipe'}).trim();
+  const write = (path, text) => { const target = join(dir, path); mkdirSync(join(target, '..'), {recursive: true}); writeFileSync(target, text); };
+  const commit = () => { git('add', '.'); git('-c', 'user.name=CI test', '-c', 'user.email=ci@test.invalid', '-c', 'commit.gpgsign=false', 'commit', '--no-verify', '-qm', 'fixture'); return git('rev-parse', 'HEAD'); };
+  try {
+    git('init', '-q');
+    write('src/features/activity/edit.ts', 'export const value = 1;');
+    write('src/features/settings/remove.ts', 'export const removed = true;');
+    write('src/features/details/old.ts', 'export const retained = true;');
+    write('supabase/functions/server.ts', 'export const server = true;');
+    const base = commit();
+    write('src/features/activity/edit.ts', 'export const value = 2;');
+    rmSync(join(dir, 'src/features/settings/remove.ts'));
+    git('mv', 'src/features/details/old.ts', 'src/features/details/new.ts');
+    write('src/features/entity/add.ts', 'export const added = true;');
+    const head = commit();
+    process.chdir(dir);
+    const changes = gitChanges(base, head);
+    assert.deepEqual(changes.map(change => change.status).sort(), ['A', 'D', 'M', 'R100']);
+    assert.equal(classifyChanges(changes).mode, 'web');
+    git('mv', 'supabase/functions/server.ts', 'src/features/entity/server.ts');
+    const moved = commit();
+    assert.equal(classifyChanges(gitChanges(head, moved)).mode, 'full');
+  } finally { process.chdir(previous); rmSync(dir, {recursive: true, force: true}); }
 });
