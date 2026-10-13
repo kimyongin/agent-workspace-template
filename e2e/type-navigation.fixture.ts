@@ -753,6 +753,7 @@ test("basic conflict and uncertain responses retain input and retry the exact re
   await page.getByRole("button", { name: "기본 정보 저장", exact: true }).click();
   await expect(page.getByRole("alert")).toContainText("다른 변경이 저장되었습니다.");
   await expect(input).toHaveValue("남길 입력");
+  await page.getByRole("button", { name: "최신 기본 정보 확인", exact: true }).click();
   await page.getByRole("button", { name: "기본 정보 저장", exact: true }).click();
   await expect(page.getByRole("alert")).toContainText("저장 여부를 알 수 없습니다.");
   await expect(input).toBeDisabled();
@@ -837,4 +838,56 @@ test("lost creation response replays one result and selects its workspace", asyn
   expect(attempts).toHaveLength(2);
   expect(attempts[0]).toEqual(attempts[1]);
   expect(created.size).toBe(1);
+});
+
+test("basic conflict refresh preserves section drafts and reapplies against the latest version", async ({ page }) => {
+  let latest = { ...materials };
+  const writes: { key: string; body: any }[] = [];
+  await page.route("**/api/settings/business**", route => route.fulfill({ json: { settings: { record_templates: {}, entity_identity: defaultEntityIdentitySettings }, versions: { record_templates: 1, entity_identity: 1 } } }));
+  await page.route(`**/api/entity-types/${materials.id}/schema`, route => {
+    return route.fulfill({ json: { type_id: materials.id, schema_version: 1, ...initialEntityDefinition("이름") } });
+  });
+  await page.route(`**/api/entity-types/${materials.id}`, route => {
+    if (route.request().method() === "GET") return route.fulfill({ json: latest });
+    const body = route.request().postDataJSON();
+    writes.push({ key: route.request().headers()["idempotency-key"], body });
+    if (writes.length === 1) {
+      latest = { ...materials, label: "다른 화면 저장값", icon_id: "book", archived: true, version: 2 };
+      return route.fulfill({ status: 409, json: { code: "conflict", message: "다른 변경이 저장되었습니다." } });
+    }
+    latest = { ...latest, ...body, version: 3 };
+    return route.fulfill({ json: latest });
+  });
+  await page.goto(`/settings/entity-types/${materials.id}`);
+  await page.getByRole("button", { name: "이름 속성 편집", exact: true }).click();
+  await page.getByLabel("속성 이름", { exact: true }).fill("남길 속성 초안");
+  await page.getByRole("button", { name: /현재 종류 기록 기본값/ }).click();
+  const record = page.getByRole("form", { name: "현재 종류 기록 기본값", exact: true });
+  await record.getByLabel("메모 템플릿").fill("남길 기록 초안");
+  await page.getByRole("button", { name: /^기본 정보(?! 저장)/ }).click();
+  const name = page.getByLabel("자료 종류 이름", { exact: true });
+  await name.fill("내 기본 정보 초안");
+  await page.getByRole("button", { name: "기본 정보 저장", exact: true }).click();
+  await expect(page.getByRole("alert").filter({ hasText: "다른 변경이 저장되었습니다." })).toBeVisible();
+  await page.getByRole("button", { name: "최신 기본 정보 확인", exact: true }).click();
+  await expect(page.getByText(/최신 저장값: 다른 화면 저장값/)).toBeVisible();
+  await expect(name).toHaveValue("내 기본 정보 초안");
+  await expect(page.getByRole("radio", { name: "책", exact: true })).toBeChecked();
+  await expect(page.getByLabel("자료 종류 보관 (기존 자료와 연결은 유지)")).toBeChecked();
+  await expect(page.getByLabel("속성 이름", { exact: true })).toHaveValue("남길 속성 초안");
+  await expect(record.getByLabel("메모 템플릿")).toHaveValue("남길 기록 초안");
+  await page.getByRole("form", { name: "기본 정보", exact: true }).getByRole("button", { name: "변경 취소", exact: true }).click();
+  await expect(name).toHaveValue("다른 화면 저장값");
+  await expect(page.getByLabel("속성 이름", { exact: true })).toHaveValue("남길 속성 초안");
+  await expect(record.getByLabel("메모 템플릿")).toHaveValue("남길 기록 초안");
+  await name.fill("내 기본 정보 초안");
+  await page.getByRole("button", { name: "기본 정보 저장", exact: true }).click();
+  await expect(page.getByRole("status").filter({ hasText: "자료 종류를 저장했습니다." })).toBeVisible();
+  expect(writes[1].body).toMatchObject({ expected_type_version: 2, label: "내 기본 정보 초안", icon_id: "book", archived: true });
+  expect(writes[1].key).not.toBe(writes[0].key);
+  await name.fill("취소할 입력");
+  await page.getByRole("form", { name: "기본 정보", exact: true }).getByRole("button", { name: "변경 취소", exact: true }).click();
+  await expect(name).toHaveValue("내 기본 정보 초안");
+  await expect(page.getByLabel("속성 이름", { exact: true })).toHaveValue("남길 속성 초안");
+  await expect(record.getByLabel("메모 템플릿")).toHaveValue("남길 기록 초안");
 });

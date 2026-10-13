@@ -312,6 +312,7 @@ test("canonical type rename icon archive restore immediately refresh pinned navi
     });
   });
   await page.goto(`/settings/entity-types/${material.id}`);
+  await page.getByRole("button", { name: /^기본 정보(?! 저장)/ }).click();
   const picker = page.getByRole("group", { name: "아이콘", exact: true });
   await expect(picker.getByRole("radio")).toHaveCount(6);
   await expect(picker.getByRole("radio", { name: "잎", exact: true })).toBeChecked();
@@ -326,16 +327,16 @@ test("canonical type rename icon archive restore immediately refresh pinned navi
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
   await page.getByLabel("자료 종류 이름", { exact: true }).fill("새 재료");
   await page.getByRole("radio", { name: "별", exact: true }).check();
-  await page.getByRole("button", { name: "저장", exact: true }).click();
+  await page.getByRole("button", { name: "기본 정보 저장", exact: true }).click();
   await expect(nav(page).getByRole("link", { name: "새 재료", exact: true }).locator("svg")).toHaveAttribute("data-icon", "star");
   await page.getByLabel("자료 종류 보관 (기존 자료와 연결은 유지)", { exact: true }).check();
-  await page.getByRole("button", { name: "저장", exact: true }).click();
+  await page.getByRole("button", { name: "기본 정보 저장", exact: true }).click();
   await page.getByRole("button", { name: /^내 프로필(?: · .+)?$/, exact: true }).click();
   await expect(page.locator("#nav-profile-options").getByRole("link", { name: "새 재료 · 보관", exact: true }))
     .toBeVisible();
   await page.keyboard.press("Escape");
   await page.getByLabel("자료 종류 보관 (기존 자료와 연결은 유지)", { exact: true }).uncheck();
-  await page.getByRole("button", { name: "저장", exact: true }).click();
+  await page.getByRole("button", { name: "기본 정보 저장", exact: true }).click();
   await page.getByRole("button", { name: /^내 프로필(?: · .+)?$/, exact: true }).click();
   await expect(page.locator("#nav-profile-options").getByRole("link", { name: "새 재료", exact: true })).toBeVisible();
   expect(state.writes).toEqual([]);

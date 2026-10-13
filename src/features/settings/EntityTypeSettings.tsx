@@ -10,7 +10,7 @@ import { useEntityTypes } from "../entity/useEntityTypes.ts";
 import { SchemaEditor, SchemaVersionDiff } from "./SchemaEditor.tsx";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router";
-import { api } from "../../lib/api.ts";
+import { api, ApiError } from "../../lib/api.ts";
 import { Field } from "../../components/Field.tsx";
 import {
   type EntitySchemaVersion,
@@ -67,7 +67,11 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
     [representative, setRepresentative] = useState("이름"),
     [archived, setArchived] = useState(false);
   const [jobState, setJobState] = useState({ dirty: false, busy: false, uncertain: false });
-  const jobStateChange = useCallback((state: { dirty: boolean; busy: boolean; uncertain?: boolean }) => setJobState({ ...state, uncertain: !!state.uncertain }), []);
+  const jobStateChange = useCallback(
+    (state: { dirty: boolean; busy: boolean; uncertain?: boolean }) =>
+      setJobState({ ...state, uncertain: !!state.uncertain }),
+    [],
+  );
   const [schemaState, setSchemaState] = useState({ dirty: false, busy: false, uncertain: false });
   const schemaStateChange = useCallback(
     (state: { dirty: boolean; busy: boolean; uncertain: boolean }) => setSchemaState(state),
@@ -87,6 +91,43 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
   }, [loading, location.state?.materialTypeFocus]);
   const { attempt, busy, uncertain } = useWriteAttempt();
   const createdTypeId = useRef<string | null>(null);
+  const [basicConflict, setBasicConflict] = useState(false);
+  const [latestBasics, setLatestBasics] = useState<EntityType | null>(null);
+  const [latestBusy, setLatestBusy] = useState(false);
+  const latestPending = useRef<AbortController | null>(null);
+  const basicBaseline = useRef(type);
+  basicBaseline.current = type;
+  useEffect(() => () => latestPending.current?.abort(), []);
+  const applySavedType = (saved: EntityType, preserveDraft: boolean) => {
+    const previous = basicBaseline.current;
+    setLabel((value) => preserveDraft && previous && value !== previous.label ? value : saved.label);
+    setIcon((value) => preserveDraft && previous && value !== previous.icon_id ? value : saved.icon_id);
+    setArchived((value) => preserveDraft && previous && value !== previous.archived ? value : saved.archived);
+    setType(saved);
+  };
+  const readLatestBasics = async () => {
+    if (!type_id || busy || uncertain || latestBusy) return;
+    const controller = new AbortController();
+    latestPending.current?.abort();
+    latestPending.current = controller;
+    setLatestBusy(true);
+    setError("");
+    try {
+      const saved = await api<EntityType>("GET", `/entity-types/${type_id}`, undefined, controller.signal);
+      if (controller.signal.aborted || !mounted.current) return;
+      applySavedType(saved, true);
+      setLatestBasics(saved);
+      setBasicConflict(false);
+      attempt.reset();
+      if (session) invalidateEntityTypeCatalog(session.user.id);
+    } catch (error) {
+      if (!controller.signal.aborted && mounted.current) {
+        setError(error instanceof Error ? error.message : "최신 기본 정보를 읽지 못했습니다.");
+      }
+    } finally {
+      if (!controller.signal.aborted && mounted.current) setLatestBusy(false);
+    }
+  };
   const mounted = useRef(true);
   useEffect(() => {
     mounted.current = true;
@@ -101,7 +142,8 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
     : label !== "" || icon !== "box" || representative !== "이름";
   const protectedDraft = recordState.dirty || commonState.dirty ||
     recordState.busy || commonState.busy || dirty || busy || uncertain ||
-    schemaState.dirty || schemaState.busy || schemaState.uncertain || jobState.dirty || jobState.busy || jobState.uncertain;
+    schemaState.dirty || schemaState.busy || schemaState.uncertain || jobState.dirty || jobState.busy ||
+    jobState.uncertain;
   const anyBusy = busy || schemaState.busy || recordState.busy ||
     commonState.busy || jobState.busy;
   const load = async (signal?: AbortSignal, preserveBasics = false) => {
@@ -125,17 +167,13 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
       ]);
       signal?.throwIfAborted();
       if (!mounted.current) return;
-      setType(saved);
-      if (!preserveBasics) {
-        setLabel(saved.label);
-        setIcon(saved.icon_id);
-        setArchived(saved.archived);
-      }
+      applySavedType(saved, preserveBasics);
       setSchema(definition);
       setHistory(versions.items);
       setHistoryBefore(versions.next_before ?? null);
     }
   };
+  const refreshDefinitions = useCallback(() => load(undefined, true), [type_id]);
   useEffect(() => {
     const controller = new AbortController();
     historyPending.current?.abort();
@@ -228,7 +266,7 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
     }
   };
   const save = async () => {
-    if (busy || schemaState.busy || (!dirty && !uncertain)) return;
+    if (busy || schemaState.busy || latestBusy || basicConflict || (!dirty && !uncertain)) return;
     setError("");
     setMessage("");
     const current = {
@@ -256,10 +294,9 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
         if (!mounted.current) return;
         if (session) invalidateEntityTypeCatalog(session.user.id);
         if (type_id) {
-          setType(saved);
-          setLabel(saved.label);
-          setIcon(saved.icon_id);
-          setArchived(saved.archived);
+          applySavedType(saved, false);
+          setLatestBasics(null);
+          setBasicConflict(false);
         } else {
           setLabel("");
           setIcon("box");
@@ -270,14 +307,24 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
       });
       // A retry replays the first callback, so its confirmed result must outlive a save invocation.
       if (createdTypeId.current) {
-        requestAnimationFrame(() => { if(mounted.current && createdTypeId.current) navigate(`/settings/entity-types/${createdTypeId.current}`, { state: { materialTypeFocus: true } }); });
+        requestAnimationFrame(() => {
+          if (mounted.current && createdTypeId.current) {
+            navigate(`/settings/entity-types/${createdTypeId.current}`, { state: { materialTypeFocus: true } });
+          }
+        });
       }
     } catch (e) {
-      if (mounted.current) setError(writeErrorMessage(e));
+      if (mounted.current) {
+        const conflict = e instanceof ApiError && e.code === "conflict";
+        setBasicConflict(conflict);
+        setError(
+          conflict ? `${e.message} 최신 기본 정보를 확인하고 입력을 비교한 뒤 다시 저장하세요.` : writeErrorMessage(e),
+        );
+      }
     }
   };
   const cancel = () => {
-    if (busy || uncertain) return;
+    if (busy || uncertain || latestBusy || basicConflict) return;
     attempt.reset();
     setError("");
     setMessage("");
@@ -430,13 +477,23 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
         >
           <form
             className="form"
-            aria-busy={busy}
+            aria-label={type_id ? "기본 정보" : "자료 종류 만들기"}
+            aria-busy={busy || latestBusy}
             onSubmit={(e) => {
               e.preventDefault();
               void save();
             }}
           >
-            <fieldset className="settings-fields" disabled={busy || uncertain}>
+            {latestBasics && (
+              <p className="secondary" role="status">
+                최신 저장값: {latestBasics.label} ·{" "}
+                {entityTypeIcons.find((value) => value.id === latestBasics.icon_id)?.label} ·{" "}
+                {latestBasics.archived ? "보관" : "사용 중"} · 버전{" "}
+                {latestBasics.version}. 변경한 입력은 유지했습니다. 비교한 뒤 기본 정보를 저장하거나 변경 취소로 최신
+                저장값을 사용하세요.
+              </p>
+            )}
+            <fieldset className="settings-fields" disabled={busy || uncertain || latestBusy}>
               <Field label="자료 종류 이름">
                 {(props) => (
                   <input
@@ -505,12 +562,25 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
               <button
                 type="button"
                 className="btn"
-                disabled={busy || uncertain || !dirty}
+                disabled={busy || uncertain || latestBusy || basicConflict || !dirty}
                 onClick={cancel}
               >
                 변경 취소
               </button>
-              <button className="btn btn-primary" disabled={anyBusy || (!dirty && !uncertain)}>
+              {basicConflict && (
+                <button
+                  type="button"
+                  className="btn"
+                  disabled={busy || uncertain || latestBusy}
+                  onClick={() => void readLatestBasics()}
+                >
+                  {latestBusy ? "최신 기본 정보 읽는 중…" : "최신 기본 정보 확인"}
+                </button>
+              )}
+              <button
+                className="btn btn-primary"
+                disabled={anyBusy || latestBusy || basicConflict || (!dirty && !uncertain)}
+              >
                 {busy
                   ? "저장 중…"
                   : uncertain
@@ -527,12 +597,20 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
         <SchemaEditor
           type={type}
           definition={schema}
-          onApplied={() => load(undefined, dirty)}
+          onApplied={refreshDefinitions}
           onState={schemaStateChange}
           disabled={busy || uncertain || jobState.busy || jobState.uncertain}
         />
       )}
-      {type_id && selectedJob && <SchemaMigrationJob key={selectedJob} typeId={type_id} jobId={selectedJob} onState={jobStateChange} disabled={busy || uncertain || schemaState.busy || schemaState.uncertain} />}
+      {type_id && selectedJob && (
+        <SchemaMigrationJob
+          key={selectedJob}
+          typeId={type_id}
+          jobId={selectedJob}
+          onState={jobStateChange}
+          disabled={busy || uncertain || schemaState.busy || schemaState.uncertain}
+        />
+      )}
       {type_id && (
         <MaterialSettingsSection
           title="현재 종류 기록 기본값"
