@@ -110,7 +110,9 @@ function ActiveModalShell({ title, domain, headingLevel=2, open, onClose, onCanc
       actionFocus.current = document.activeElement as HTMLElement;
       ref.current?.querySelector<HTMLElement>(".surface-action textarea, .surface-action input, .surface-action button")?.focus();
     } else if (actionFocus.current) {
-      if (actionFocus.current.isConnected) actionFocus.current.focus();
+      const invalid = ref.current?.querySelector<HTMLElement>("form [aria-invalid='true']");
+      if (invalid) invalid.focus();
+      else if (actionFocus.current.isConnected) actionFocus.current.focus();
       actionFocus.current = null;
     }
   }, [actionOpen]);

@@ -1,6 +1,6 @@
 import { setEntityCategory } from "./ui-actions.ts";
 import { entity as makeEntity, fixtureType, fixtureSchema } from "./support/workspace-data.ts";
-import { createFixtureEntity, scalarFixtureType, fixtureEntityList } from "./entity-schema-support.ts";
+import { createFixtureEntity, scalarFixtureType, fixtureEntityList, analyzeAndApply } from "./entity-schema-support.ts";
 import { fillChangeMemo } from "./ui-actions.ts";
 import { saveOnce, beginTabAction, openDetailEditor, openListDetail, openTabFilters, closeDetail } from "./ui-actions.ts";
 import { expect } from "@playwright/test";
@@ -275,4 +275,41 @@ test("Entity lookahead 뒤 더 보기: 현재 커서 append·실패 retry·행�
     for (const id of ids) await mcp.call("delete_entity", { id, expected_version: 1 });
     await mcp.close();
   }
+});
+
+test("#396 material creation and editing explain schema bounds before memo confirmation", async ({page}) => {
+  await devLogin(page);
+  const mcp=await mcpClient(await mcpTokenViaConsent(page));
+  try {
+    const type=await mcp.call("create_entity_type",{label:unique("입력 검증")});
+    const change=await mcp.call("create_entity_schema_change",{type_id:type.id,expected_type_version:1,expected_schema_version:1,
+      edits:[{op:"add_property",client_ref:"quantity",field:{type:["integer","null"],title:"수량",minimum:0,maximum:100},required:false}]});
+    await analyzeAndApply(mcp,type.id,change.id,change.version);
+    await page.goto(fixtureEntityList(type.id));
+    await beginTabAction(page,type.label+" 추가");
+    const form=page.getByRole("dialog",{name:type.label+" 추가"});
+    await form.getByLabel("이름",{exact:false}).fill(unique("경계 자료"));
+    for(const [value,message] of [["101","100 이하여야 합니다"],["-1","0 이상이어야 합니다"]]){
+      await form.getByLabel("수량",{exact:true}).fill(value);
+      await form.getByRole("button",{name:"저장",exact:true}).click();
+      await expect(form).toContainText(message);
+      await expect(form.getByLabel("수량",{exact:true})).toBeFocused();
+      await expect(page.locator("dialog.modal-action[open]")).toHaveCount(0);
+    }
+    await form.getByLabel("수량",{exact:true}).fill("0");
+    await saveOnce(page,form);
+    await expect(form).not.toBeVisible();
+    const id=decodeURIComponent(new URL(page.url()).pathname.split("/").at(-1)!);
+    expect((await mcp.call("get_entity",{id})).properties.prop_2).toBe(0);
+    await openDetailEditor(page);
+    const edit=page.getByRole("dialog",{name:type.label+" 편집"});
+    await edit.getByLabel("수량",{exact:true}).fill("101");
+    await edit.getByRole("button",{name:"저장",exact:true}).click();
+    await expect(edit).toContainText("100 이하여야 합니다");
+    expect((await mcp.call("get_entity",{id})).version).toBe(1);
+    await edit.getByLabel("수량",{exact:true}).fill("100");
+    await saveOnce(page,edit);
+    await expect(edit).not.toBeVisible();
+    expect((await mcp.call("get_entity",{id})).properties.prop_2).toBe(100);
+  } finally {await mcp.close();}
 });

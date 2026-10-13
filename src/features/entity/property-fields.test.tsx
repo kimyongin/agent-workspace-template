@@ -88,3 +88,27 @@ it("required empty inputs fail while optional null, zero and false remain distin
     );
   }
 });
+
+it("schema constraints reject invalid values beside the original field without changing drafts", () => {
+  const definition = initialEntityDefinition("이름");
+  Object.assign(definition.schema.properties, {
+    prop_2: { type: ["integer", "null"], minimum: 0, maximum: 100 },
+    prop_3: { type: "string", minLength: 2, maxLength: 3 },
+    prop_4: { type: ["string", "null"], enum: ["a", null] },
+    prop_5: { type: "string", format: "date" },
+  });
+  for (const [key, value, message] of [
+    ["prop_2", "101", "100 이하"], ["prop_2", "-1", "0 이상"],
+    ["prop_3", "가", "2자 이상"], ["prop_3", "가나다라", "3자 이하"],
+    ["prop_4", "missing", "선택"], ["prop_5", "2025-02-29", "날짜"], ["prop_5", "0000-02-29", "날짜"],
+  ]) {
+    const draft = { prop_1: "자료", [key]: value };
+    try { propertyValues(definition, draft); throw new Error("must reject"); }
+    catch (error) {
+      expect((error as { fields: Record<string, string> }).fields["properties."+key]).toContain(message);
+    }
+    expect(draft[key]).toBe(value);
+  }
+  expect(propertyValues(definition, {prop_1:"자료",prop_2:"0",prop_3:"😀가",prop_4:null,prop_5:"2024-02-29"}))
+    .toEqual({prop_1:"자료",prop_2:0,prop_3:"😀가",prop_4:null,prop_5:"2024-02-29"});
+});

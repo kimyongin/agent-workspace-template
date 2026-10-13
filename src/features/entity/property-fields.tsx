@@ -1,3 +1,4 @@
+import { codePointLength, isoDate } from "@contracts/common.ts";
 import { entityNumberDraft } from "@contracts/entity-number.ts";
 import type { EntityField, EntitySchemaVersion } from "@contracts/entity-type.ts";
 import type { EntityProperties } from "@contracts/entity.ts";
@@ -28,8 +29,25 @@ export function propertyValues(definition: Pick<EntitySchemaVersion, "schema">, 
       errors[`properties.${key}`] = "필수 항목을 입력하세요";
       continue;
     }
-    try { result[key] = value !== null && (kind === "integer" || kind === "number") ? entityNumberDraft(String(value), kind) : value; }
-    catch (error) { errors[`properties.${key}`] = error instanceof Error ? error.message : "숫자를 확인하세요"; }
+    try {
+      const field = definition.schema.properties[key];
+      const parsed = value !== null && (kind === "integer" || kind === "number") ? entityNumberDraft(String(value), kind) : value;
+      if (field) {
+        if (parsed === null && !(Array.isArray(field.type) && field.type.includes("null"))) throw new Error("값을 입력하세요");
+        if (field.enum && !field.enum.includes(parsed as string | null)) throw new Error("현재 선택 항목에서 값을 선택하세요");
+        if (typeof parsed === "number") {
+          if (field.minimum !== undefined && parsed < field.minimum) throw new Error(`${field.minimum} 이상이어야 합니다`);
+          if (field.maximum !== undefined && parsed > field.maximum) throw new Error(`${field.maximum} 이하여야 합니다`);
+        }
+        if (typeof parsed === "string") {
+          if (field.minLength !== undefined && codePointLength(parsed) < field.minLength) throw new Error(`${field.minLength}자 이상이어야 합니다`);
+          if (field.maxLength !== undefined && codePointLength(parsed) > field.maxLength) throw new Error(`${field.maxLength}자 이하여야 합니다`);
+          if (field.format === "date" && (parsed.startsWith("0000-") || !isoDate.safeParse(parsed).success)) throw new Error("실제로 존재하는 날짜를 입력하세요");
+        }
+      }
+      result[key] = parsed;
+    }
+    catch (error) { errors[`properties.${key}`] = error instanceof Error ? error.message : "값을 확인하세요"; }
   }
   if (Object.keys(errors).length) throw new PropertyDraftError(errors);
   return result;

@@ -1,5 +1,5 @@
 import { prepareEntityPairRekey } from "./entity-pair-locks.ts";
-import { entityId } from "../../contracts/entity-identity.ts";
+import { entityId, entitySourceLabel } from "../../contracts/entity-identity.ts";
 import { insertWithIdRetry } from "./data-id.ts";
 import type postgres from "postgres";
 import type { EntityCreate, EntityDetail, EntityQuery, EntityUpdate, EntityValues } from "../../contracts/entity.ts";
@@ -65,7 +65,7 @@ export class SqlEntityStore extends SqlActorStore implements EntityStore {
       settings = r.identity_settings as { sources?: Array<{ code: string; label: string }> } | null;
     return {
       ...row,
-      source_label: settings?.sources?.find((source) => source.code === row.source)?.label ?? row.source,
+      source_label: entitySourceLabel(settings, row.source),
       ...entityPresentationRow(r, row.properties),
     };
   }

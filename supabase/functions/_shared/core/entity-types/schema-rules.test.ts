@@ -59,3 +59,14 @@ Deno.test("validated definitions retain prototype-like single-select labels", ()
   assertEquals(Object.keys(validated.display.option_labels.prop_2), ["__proto__", "constructor", "toString"]);
   assertEquals(validateEntityProperties(d, { prop_1: "이름", prop_2: "__proto__" }).prop_2, "__proto__");
 });
+
+Deno.test("property limits return localized field errors to every caller", () => {
+  const d = initialEntityDefinition("이름");
+  d.schema.properties.prop_2 = { type: "integer", maximum: 100 };
+  d.display.order.push("prop_2");
+  const error = assertThrows(() => validateEntityProperties(d, { prop_1: "자료", prop_2: 101 }));
+  assertEquals((error as { fields?: { path: string; message: string }[] }).fields, [{
+    path: "properties.prop_2",
+    message: "100 이하여야 합니다",
+  }]);
+});

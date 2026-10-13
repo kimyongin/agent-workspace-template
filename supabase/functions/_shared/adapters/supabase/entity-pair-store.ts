@@ -1,3 +1,4 @@
+import { entitySourceLabel } from "../../contracts/entity-identity.ts";
 import type postgres from "postgres";
 import type { Actor } from "../../core/shared/actor.ts";
 import type { EntityPairStore } from "../../core/entity-pairs/application.ts";
@@ -38,19 +39,22 @@ export class SqlEntityPairStore extends SqlActorStore implements EntityPairStore
     const rows =
       await tx`select e.*,t.id as type_id,t.label,t.icon_id,t.archived,t.schema_version as current_schema_version,v.display,
       coalesce((select jsonb_agg(tag_id order by tag_id) from app.entity_tags where owner_id=e.owner_id and entity_id=e.id),'[]'::jsonb) as tag_ids,
-      coalesce((select item->>'label' from app.user_business_settings b cross join lateral jsonb_array_elements(b.settings->'sources') item
-        where b.owner_id=e.owner_id and b.id='entity_identity' and item->>'code'=e.source),e.source) as source_label
+      b.settings as identity_settings
       from app.entity_pairs p join app.entities e on e.owner_id=p.owner_id
       and e.id=case when p.entity_id=${id} then p.other_id else p.entity_id end
       join app.entity_types t on t.owner_id=e.owner_id and t.id=e.entity_type_id
       join app.entity_schema_versions v on v.owner_id=t.owner_id and v.type_id=t.id and v.schema_version=t.schema_version
+      left join app.user_business_settings b on b.owner_id=e.owner_id and b.id='entity_identity'
       where (p.entity_id=${id} or p.other_id=${id}) ${after ? tx`and e.id collate "C">${after} collate "C"` : tx``}
       order by e.id collate "C" limit ${limit}`;
     return rows.map((r): EntitySummary => ({
       id: r.id,
       source: r.source,
       external_id: r.external_id,
-      source_label: r.source_label,
+      source_label: entitySourceLabel(
+        r.identity_settings as { sources?: Array<{ code: string; label: string }> } | null,
+        r.source,
+      ),
       entity_type_id: r.entity_type_id,
       schema_version: Number(r.schema_version),
       ...entityPresentationRow(r, r.properties),
