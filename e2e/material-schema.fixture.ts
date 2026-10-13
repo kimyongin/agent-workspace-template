@@ -307,16 +307,29 @@ test("늦은 완료 작업 조회는 확인된 기본 정보와 다음 저장 �
   let saved = { ...materials, version: 2, schema_version: 2 };
   let typeReads = 0, historyReads = 0;
   let release!: () => void, arrived!: () => void;
-  const pending = new Promise<void>(resolve => { release = resolve; });
-  const reading = new Promise<void>(resolve => { arrived = resolve; });
+  const pending = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const reading = new Promise<void>((resolve) => {
+    arrived = resolve;
+  });
   const writes: any[] = [];
-  await page.route(`**/api/entity-types/${materials.id}**`, async route => {
+  await page.route(`**/api/entity-types/${materials.id}**`, async (route) => {
     const path = new URL(route.request().url()).pathname;
-    if (path.endsWith("/schema")) return route.fulfill({ json: { type_id: materials.id, schema_version: 2, ...initialEntityDefinition("이름") } });
+    if (path.endsWith("/schema")) {
+      return route.fulfill({ json: { type_id: materials.id, schema_version: 2, ...initialEntityDefinition("이름") } });
+    }
     if (path.endsWith("/schema-changes")) return route.fulfill({ json: { items: [], next_before: null } });
     if (path.endsWith("/schemas")) {
       historyReads++;
-      return route.fulfill({ json: { items: historyReads > 1 ? [{ type_id: materials.id, schema_version: 2, created_at: materials.created_at }] : [], next_before: null } });
+      return route.fulfill({
+        json: {
+          items: historyReads > 1
+            ? [{ type_id: materials.id, schema_version: 2, created_at: materials.created_at }]
+            : [],
+          next_before: null,
+        },
+      });
     }
     if (route.request().method() === "PATCH") {
       const body = route.request().postDataJSON();
@@ -326,10 +339,16 @@ test("늦은 완료 작업 조회는 확인된 기본 정보와 다음 저장 �
     }
     typeReads++;
     const snapshot = { ...saved };
-    if (typeReads === 2) { arrived(); await pending; }
+    if (typeReads === 2) {
+      arrived();
+      await pending;
+    }
     return route.fulfill({ json: snapshot });
   });
-  await page.route("**/api/entity-schema-migrations/**", route => route.fulfill({ json: { ...job(20), result: { schema_version: 2, total: 10, changed: 10 } } }));
+  await page.route(
+    "**/api/entity-schema-migrations/**",
+    (route) => route.fulfill({ json: { ...job(20), result: { schema_version: 2, total: 10, changed: 10 } } }),
+  );
   await page.goto(`/settings/entity-types/${materials.id}/migrations/${id(20)}`);
   await reading;
   await page.getByRole("button", { name: /^기본 정보(?! 저장)/ }).click();
@@ -345,7 +364,11 @@ test("늦은 완료 작업 조회는 확인된 기본 정보와 다음 저장 �
   await name.fill("다음 저장 이름");
   await page.getByRole("button", { name: "기본 정보 저장", exact: true }).click();
   await expect(page.getByRole("status").filter({ hasText: "자료 종류를 저장했습니다." })).toBeVisible();
-  expect(writes).toMatchObject([{ expected_type_version: 2, label: "확인된 최신 이름", icon_id: "book" }, { expected_type_version: 3, label: "다음 저장 이름", icon_id: "book" }]);
+  expect(writes).toMatchObject([{ expected_type_version: 2, label: "확인된 최신 이름", icon_id: "book" }, {
+    expected_type_version: 3,
+    label: "다음 저장 이름",
+    icon_id: "book",
+  }]);
 });
 
 test("완료 작업을 다시 선택하면 다른 작업을 보는 동안 게시된 정의와 기록 변수를 갱신한다", async ({ page }) => {
@@ -489,3 +512,50 @@ test("새 게시 이력이 취소한 이전 페이지의 본문 읽기 오류는
   await expect(page.getByRole("alert")).toContainText("현재 이전 게시 조회 실패");
   await expect(page.getByRole("button", { name: "확인한 새 속성 속성 편집", exact: true })).toBeVisible();
 });
+
+test(
+  "자료 설정의 실제 shell에서 속성과 화면 표시를 배치하고 긴 이름·배율·키보드를 유지한다",
+  async ({ page }, info) => {
+    const definition = initialEntityDefinition("재료명");
+    Object.assign(definition.schema.properties, {
+      prop_2: { type: "number", title: "수량" },
+      prop_3: { type: "string", title: "단위", enum: ["kg", "g"] },
+    });
+    definition.display.order.push("prop_2", "prop_3");
+    definition.display.list_columns.push("prop_2", "prop_3");
+    await page.route(
+      `**/api/entity-types/${materials.id}/schema`,
+      (route) => route.fulfill({ json: { type: materials, type_id: materials.id, schema_version: 1, ...definition } }),
+    );
+    await page.route("**/api/settings/business**", (route) =>
+      route.fulfill({
+        json: {
+          settings: { record_templates: {}, entity_identity: defaultEntityIdentitySettings },
+          versions: { record_templates: 0, entity_identity: 0 },
+        },
+      }));
+    await page.goto(`/settings/entity-types/${materials.id}`);
+    await page.getByRole("button", { name: "수량 속성 편집", exact: true }).click();
+    const properties = page.getByRole("region", { name: "속성", exact: true });
+    const display = page.getByRole("region", { name: "화면 표시", exact: true });
+    await expect(display.getByRole("table").locator("th")).toHaveText(["재료명", "수량", "단위"]);
+    const left = await properties.boundingBox(), right = await display.boundingBox();
+    if (info.project.name === "desktop") {
+      expect(left!.x + left!.width).toBeLessThanOrEqual(right!.x);
+    } else expect(left!.y + left!.height).toBeLessThanOrEqual(right!.y);
+    await page.screenshot({ path: info.outputPath("property-display-settings.png"), fullPage: true });
+    await properties.getByLabel("속성 이름", { exact: true }).filter({ visible: true }).fill(
+      "공백없이아주긴속성이름을입력해도화면너비를넘지않아야하는상황",
+    );
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth),
+    ).toBe(true);
+    await properties.getByRole("button", { name: "편집 닫기", exact: true }).focus();
+    await page.keyboard.press("Enter");
+    await expect(properties.getByLabel("속성 이름", { exact: true }).filter({ visible: true })).toHaveCount(0);
+    await page.setViewportSize({ width: 320, height: 640 });
+    await page.evaluate(() => document.documentElement.style.zoom = "2");
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth))
+      .toBe(true);
+  },
+);

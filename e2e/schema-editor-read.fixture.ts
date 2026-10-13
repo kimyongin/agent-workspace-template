@@ -275,6 +275,7 @@ test("접힌 속성의 잘못된 조건은 검토에서 해당 행을 열고 입
   await expect(page.getByRole("alert")).toBeVisible();
   await expect(page.getByLabel("최대 길이", { exact: true })).toHaveValue("1.5");
   await expect(page.getByLabel("최대 길이", { exact: true })).toBeVisible();
+  await expect(page.getByLabel("최대 길이", { exact: true })).toBeFocused();
   await expect(page.getByRole("button", { name: "변경 초안 저장", exact: true })).toHaveCount(0);
   await revealSetting(page.getByLabel("최대 길이", { exact: true }));
   await page.getByLabel("최대 길이", { exact: true }).fill("20");

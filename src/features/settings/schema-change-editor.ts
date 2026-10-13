@@ -12,7 +12,7 @@ import { entityFieldInput } from "@contracts/entity-schema-change.ts";
 import { api } from "../../lib/api.ts";
 import { ApiError } from "../../lib/api-error.ts";
 import { useWriteAttempt, writeErrorMessage } from "../../lib/write-attempt.ts";
-import { migrationNumericValues, schemaNumericValues } from "./numeric-drafts.ts";
+import { migrationNumericValues, SchemaNumericDraftError, schemaNumericValues } from "./numeric-drafts.ts";
 import { recoveryErrorMessage } from "./SchemaRecovery.tsx";
 import { fieldType } from "../entity/property-fields.tsx";
 function supportsNumericCondition(field: EntityField, name: string) {
@@ -35,7 +35,7 @@ export function useSchemaChangeEditor(
     disabled: boolean;
     selectionSearch: string;
     onFieldKeysChanged: (replacements: Record<string, string>) => void;
-    onInvalidField: (key: string, includeSelect: boolean) => void;
+    onInvalidField: (key: string, includeSelect: boolean, condition?: string) => void;
   },
 ) {
   const [startState, setStartState] = useState({ busy: false, uncertain: false });
@@ -271,6 +271,7 @@ export function useSchemaChangeEditor(
   };
   const validateFields = () => {
     for (const key of draft.display.order) {
+      let condition: string | undefined;
       try {
         if (
           Object.keys(numericDrafts).some((address) =>
@@ -290,17 +291,21 @@ export function useSchemaChangeEditor(
         );
         const field = converted.schema.properties[key];
         const valid = entityFieldInput.safeParse(field);
-        if (!valid.success) throw new Error("속성 조건을 확인하세요.");
+        if (!valid.success) {
+          condition = String(valid.error.issues[0].path[0]);
+          throw new Error("속성 조건을 확인하세요.");
+        }
         if (
           (field.minLength ?? 0) > (field.maxLength ?? 4096) ||
           field.minimum !== undefined && field.maximum !== undefined && field.minimum > field.maximum
         ) {
+          condition = (field.minLength ?? 0) > (field.maxLength ?? 4096) ? "maxLength" : "maximum";
           throw new Error("최소 조건이 최대 조건보다 큽니다.");
         }
       } catch (e) {
         setError(e instanceof Error ? e.message : "속성 조건을 확인하세요.");
         setFieldError(key);
-        onInvalidField(key, true);
+        onInvalidField(key, true, e instanceof SchemaNumericDraftError ? e.condition : condition);
         return false;
       }
     }
@@ -379,7 +384,8 @@ export function useSchemaChangeEditor(
           }).find((key) => key && draft.schema.properties[key]);
           if (field) {
             setFieldError(field);
-            onInvalidField(field, false);
+            const condition = e.fields.find((issue) => issue.path.split(".").includes(field))?.path.split(".").at(-1);
+            onInvalidField(field, false, condition);
           }
         }
       }

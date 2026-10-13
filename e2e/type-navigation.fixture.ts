@@ -652,7 +652,7 @@ test("materials workspace keeps basic drafts while history opens and guards type
   await page.getByRole("button", { name: /^기본 정보(?! 저장)/ }).click();
   await expect(page.getByLabel("자료 종류 이름", { exact: true })).toHaveValue("편집 중 재료");
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-  await page.getByRole("button", { name: "변경 취소", exact: true }).click();
+  await page.getByRole("form", {name:"기본 정보",exact:true}).getByRole("button", { name: "변경 취소", exact: true }).click();
   await page.getByLabel("자료 종류 선택", { exact: true }).selectOption(products.id);
   await expect(page.getByLabel("자료 종류 선택", { exact: true })).toHaveValue(products.id);
   await expect(page.getByLabel("자료 종류 선택", { exact: true })).toBeFocused();

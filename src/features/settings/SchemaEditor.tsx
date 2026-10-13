@@ -44,17 +44,21 @@ export function SchemaEditor(
     setOpenFields((keys) => keys.map((key) => replacements[key] ?? key));
     setAdvancedFields((keys) => keys.map((key) => replacements[key] ?? key));
   };
-  const onInvalidField = (key: string, includeSelect: boolean) => {
+  const onInvalidField = (key: string, includeSelect: boolean, condition?: string) => {
     setAdvancedFields((keys) => keys.includes(key) ? keys : [...keys, key]);
     setOpenFields((keys) => keys.includes(key) ? keys : [...keys, key]);
     requestAnimationFrame(() => {
       const element = fieldElements.current[key];
       element?.scrollIntoView({ block: "nearest" });
-      if (element && !element.contains(document.activeElement)) {
+      if (!element) return;
+      const input = [...element.querySelectorAll<HTMLInputElement>("[data-schema-setting]")].find((input) =>
+        input.dataset.schemaSetting === condition
+      ) ??
         element.querySelector<HTMLInputElement>(
           includeSelect ? "input:not([disabled]),select:not([disabled])" : "input:not([disabled])",
-        )?.focus();
-      }
+        );
+      input?.scrollIntoView({ block: "nearest" });
+      input?.focus();
     });
   };
   const editor = useSchemaChangeEditor({
@@ -173,6 +177,7 @@ export function SchemaEditor(
                           {...p}
                           className="input"
                           maxLength={80}
+                          data-schema-setting="title"
                           value={f.title ?? ""}
                           onChange={(e) => editField(key, { ...f, title: e.target.value })}
                         />
@@ -183,6 +188,7 @@ export function SchemaEditor(
                         <select
                           {...p}
                           className="input"
+                          data-schema-setting="type"
                           value={f.enum ? "select" : f.format === "date" ? "date" : scalar}
                           onChange={(e) => {
                             const value = e.target.value;
@@ -337,6 +343,7 @@ export function SchemaEditor(
                                     inputMode="decimal"
                                     min={0}
                                     max={4096}
+                                    data-schema-setting={name}
                                     value={numericDrafts[key + ":" + name] ?? f[name] ?? ""}
                                     onChange={(e) => editNumeric(key, name, e.target.value)}
                                   />
@@ -356,6 +363,7 @@ export function SchemaEditor(
                                     type="text"
                                     inputMode="decimal"
                                     step="any"
+                                    data-schema-setting={name}
                                     value={numericDrafts[key + ":" + name] ?? f[name] ?? ""}
                                     onChange={(e) => editNumeric(key, name, e.target.value)}
                                   />
@@ -371,6 +379,7 @@ export function SchemaEditor(
                                 <textarea
                                   {...p}
                                   className="input"
+                                  data-schema-setting="enum"
                                   value={f.enum!.filter((v) => v !== null).join("\n")}
                                   onChange={(e) =>
                                     editField(key, {
@@ -458,6 +467,7 @@ export function SchemaEditor(
                                     className="input"
                                     type={f.format === "date" ? "date" : "text"}
                                     inputMode={["integer", "number"].includes(scalar) ? "decimal" : undefined}
+                                    data-schema-setting="default"
                                     value={numericDrafts[key + ":default"] ?? String(f.default)}
                                     onChange={(e) =>
                                       ["integer", "number"].includes(scalar)
