@@ -30,7 +30,7 @@ test("웹 속성 초안·분석·게시 후 기존 자료 표시와 MCP 생성·
     await page.getByRole("button", { name: /^변경 이력/ }).click();
     await expect(page.getByRole("dialog", { name: "변경을 버릴까요?" })).toHaveCount(0);
     await expect(page.getByRole("region", { name: "자료 이름 속성", exact: true }).getByLabel("속성 이름", { exact: true })).toHaveValue("자료 이름");
-    await page.getByRole("button", { name: "속성 추가", exact: true }).click();
+    await page.getByRole("button", { name: "입력 항목 추가", exact: true }).click();
     const field = page.getByRole("region", { name: "새 속성 속성", exact: true });
     await field.getByLabel("속성 이름", { exact: true }).fill("수량");
     const count = page.getByRole("region", { name: "수량 속성", exact: true });

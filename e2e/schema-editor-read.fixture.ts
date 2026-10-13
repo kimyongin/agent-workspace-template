@@ -141,7 +141,7 @@ test("결과 불명 저장은 동일 요청을 확인하고 발급된 속성 키
     return route.fulfill({ json: value });
   });
   await page.goto("/e2e/fixtures/schema-editor-read.html");
-  await page.getByRole("button", { name: "속성 추가", exact: true }).click();
+  await page.getByRole("button", { name: "입력 항목 추가", exact: true }).click();
   await page.getByRole("region", { name: "새 속성 속성", exact: true }).getByLabel("속성 이름").fill("추가값");
   await page.getByRole("button", { name: "변경 검토", exact: true }).click();
   await expect(page.getByRole("button", { name: "같은 요청 다시 확인", exact: true })).toBeEnabled();
@@ -257,7 +257,7 @@ test("속성 요약에서 열린 행의 입력을 검토하고 행 완료와 적
   await expect(review).toContainText("검토할 이름");
   await expect(review).toContainText("아직 자료와 활성 속성에 적용되지 않았습니다");
   expect(writes).toHaveLength(1);
-  await page.getByRole("button", { name: "편집 닫기", exact: true }).click();
+  await page.getByRole("button", { name: "이 항목 접기", exact: true }).click();
   await expect(page.getByLabel("속성 이름", { exact: true })).toBeHidden();
   await page.getByRole("button", { name: "검토할 이름 속성 편집", exact: true }).click();
   await expect(page.getByLabel("속성 이름", { exact: true })).toHaveValue("검토할 이름");
@@ -269,7 +269,8 @@ test("접힌 속성의 잘못된 조건은 검토에서 해당 행을 열고 입
   await page.getByRole("button", { name: "이름 속성 편집", exact: true }).click();
   await revealSetting(page.getByLabel("최대 길이", { exact: true }));
   await page.getByLabel("최대 길이", { exact: true }).fill("1.5");
-  await page.getByRole("button", { name: "이름 속성 편집", exact: true }).click();
+  await page.getByRole("button", { name: "이 항목 접기", exact: true }).click();
+  await expect(page.getByRole("button", {name:"이름 속성 편집",exact:true})).toBeFocused();
   await expect(page.getByLabel("최대 길이", { exact: true })).toBeHidden();
   await page.getByRole("button", { name: "변경 검토", exact: true }).click();
   await expect(page.getByRole("alert")).toBeVisible();
@@ -279,7 +280,7 @@ test("접힌 속성의 잘못된 조건은 검토에서 해당 행을 열고 입
   await expect(page.getByRole("button", { name: "변경 초안 저장", exact: true })).toHaveCount(0);
   await revealSetting(page.getByLabel("최대 길이", { exact: true }));
   await page.getByLabel("최대 길이", { exact: true }).fill("20");
-  await page.getByRole("button", { name: "편집 닫기", exact: true }).click();
+  await page.getByRole("button", { name: "이 항목 접기", exact: true }).click();
   await expect(page.getByRole("button", { name: "이름 속성 편집", exact: true })).toContainText("변경됨");
   await page.evaluate(() => document.documentElement.style.fontSize = "200%");
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(
@@ -304,7 +305,7 @@ test("서버가 거부한 속성은 검토 실패 뒤 해당 행을 열고 초�
   await page.getByRole("button", { name: "이름 속성 편집", exact: true }).click();
   await revealSetting(page.getByLabel("최소 길이", { exact: true }));
   await page.getByLabel("최소 길이", { exact: true }).fill("2");
-  await page.getByRole("button", { name: "편집 닫기", exact: true }).click();
+  await page.getByRole("button", { name: "이 항목 접기", exact: true }).click();
   await page.getByRole("button", { name: "변경 검토", exact: true }).click();
   await expect(page.getByRole("alert")).toContainText("대표 속성 조건");
   await expect(page.getByLabel("최소 길이", { exact: true })).toBeVisible();

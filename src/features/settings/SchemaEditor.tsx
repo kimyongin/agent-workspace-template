@@ -96,7 +96,6 @@ export function SchemaEditor(
     editNumeric,
     editFlag,
     moveField,
-    validateFields,
     loadPlan,
   } = editor;
   return (
@@ -122,10 +121,10 @@ export function SchemaEditor(
                 if (key) setOpenFields((keys) => [...keys, key]);
               }}
             >
-              속성 추가
+              입력 항목 추가
             </button>
           </div>
-          <p className="secondary">입력받을 항목을 설정하세요. 편집 닫기는 저장하지 않습니다.</p>
+          <p className="secondary">수량·단위처럼 자료에 입력할 항목을 설정하세요.</p>
           <fieldset
             className="settings-fields"
             disabled={busy || uncertain || disabled || readBusy || startState.busy || startState.uncertain}
@@ -505,11 +504,13 @@ export function SchemaEditor(
                       className="btn"
                       type="button"
                       onClick={() => {
-                        if (validateFields()) setOpenFields((keys) => keys.filter((value) => value !== key));
+                        setOpenFields((keys) => keys.filter((value) => value !== key));
+                        fieldElements.current[key]?.querySelector<HTMLButtonElement>("h3 button")?.focus();
                       }}
                     >
-                      편집 닫기
+                      이 항목 접기
                     </button>
+                    <p className="secondary">접어도 입력은 유지됩니다. 전체 변경은 아래 ‘변경 검토’로 확인하세요.</p>
                   </fieldset>
                 </section>
               );
