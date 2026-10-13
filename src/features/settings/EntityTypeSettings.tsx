@@ -2,6 +2,7 @@ import { MaterialCommonSettings } from "./MaterialCommonSettings.tsx";
 import { RecordTemplateSettings } from "./RecordTemplateSettings.tsx";
 import { createMaterialTemplateDrafts } from "./material-template-drafts.ts";
 import { MaterialSettingsProtection } from "./MaterialSettingsProtection.tsx";
+import { MigrationJobs, SchemaMigrationJob } from "./SchemaMigrationJobs.tsx";
 import { MaterialSettingsSection } from "./MaterialSettingsSection.tsx";
 import { useAuth } from "../auth/AuthProvider.tsx";
 import { invalidateEntityTypeCatalog } from "../entity/entity-type-catalog.ts";
@@ -43,7 +44,9 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
   const [commonOpen, setCommonOpen] = useState(false);
   const commonButton = useRef<HTMLButtonElement>(null);
   const commonScroll = useRef({ page: 0, pane: 0 });
-  const { type_id: activeTypeId } = useParams();
+  const { type_id: activeTypeId, job_id } = useParams();
+  const queryJob = new URLSearchParams(useLocation().search).get("job_id");
+  const selectedJob = job_id ?? queryJob ?? undefined;
   const location = useLocation();
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
@@ -63,11 +66,9 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
     [icon, setIcon] = useState("box"),
     [representative, setRepresentative] = useState("이름"),
     [archived, setArchived] = useState(false);
-  const [schemaState, setSchemaState] = useState({
-    dirty: false,
-    busy: false,
-    uncertain: false,
-  });
+  const [jobState, setJobState] = useState({ dirty: false, busy: false, uncertain: false });
+  const jobStateChange = useCallback((state: { dirty: boolean; busy: boolean; uncertain?: boolean }) => setJobState({ ...state, uncertain: !!state.uncertain }), []);
+  const [schemaState, setSchemaState] = useState({ dirty: false, busy: false, uncertain: false });
   const schemaStateChange = useCallback(
     (state: { dirty: boolean; busy: boolean; uncertain: boolean }) => setSchemaState(state),
     [],
@@ -100,9 +101,9 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
     : label !== "" || icon !== "box" || representative !== "이름";
   const protectedDraft = recordState.dirty || commonState.dirty ||
     recordState.busy || commonState.busy || dirty || busy || uncertain ||
-    schemaState.dirty || schemaState.busy || schemaState.uncertain;
+    schemaState.dirty || schemaState.busy || schemaState.uncertain || jobState.dirty || jobState.busy || jobState.uncertain;
   const anyBusy = busy || schemaState.busy || recordState.busy ||
-    commonState.busy;
+    commonState.busy || jobState.busy;
   const load = async (signal?: AbortSignal, preserveBasics = false) => {
     if (type_id) {
       const [saved, definition, versions] = await Promise.all([
@@ -528,9 +529,10 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
           definition={schema}
           onApplied={() => load(undefined, dirty)}
           onState={schemaStateChange}
-          disabled={busy || uncertain}
+          disabled={busy || uncertain || jobState.busy || jobState.uncertain}
         />
       )}
+      {type_id && selectedJob && <SchemaMigrationJob typeId={type_id} jobId={selectedJob} onState={jobStateChange} disabled={busy || uncertain || schemaState.busy || schemaState.uncertain} />}
       {type_id && (
         <MaterialSettingsSection
           title="현재 종류 기록 기본값"
@@ -548,12 +550,10 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
         <MaterialSettingsSection
           title="변경 이력"
           summary={`현재 버전 ${schema?.schema_version ?? "…"}`}
-          initialOpen={versions || !!historyVersion}
+          initialOpen={versions || !!historyVersion || location.pathname.includes("/migrations") || !!selectedJob}
         >
           {selectedSchema && schema && <SchemaVersionDiff before={selectedSchema} after={schema} />}
-          <Link to={`/settings/entity-types/${type_id}/migrations`}>
-            값 변환 작업
-          </Link>
+          <MigrationJobs typeId={type_id} />
           {history.map((value) => (
             <details key={value.schema_version}>
               <summary>

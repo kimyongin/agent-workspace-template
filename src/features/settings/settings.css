@@ -65,3 +65,5 @@ section[aria-labelledby="entity-identity-title"] .settings-section-footer { bord
 @media (max-width: 639px) {
   .material-common-open > :not(.material-common-settings):not(.material-settings-toolbar):not(h1):not(dialog) { display: none; }
 }
+.schema-field > fieldset:not([hidden]) { display: grid; gap: var(--space-4); min-width: 0; }
+.settings .schema-field [hidden] { display: none; }

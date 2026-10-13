@@ -1,8 +1,6 @@
-import { SchemaMigrationJob } from "../features/settings/SchemaMigrationJobs.tsx";
 import { NavigationPreviewProvider } from "../features/settings/navigation-preview.tsx";
 import { NavigationSettingsPage } from "../features/settings/NavigationSettingsPage.tsx";
 import { EntityIdentitySettingsPage } from "../features/settings/EntityIdentitySettingsPage.tsx";
-import { SchemaMigrations } from "../features/settings/SchemaMigrations.tsx";
 import { EntityTypeSettings } from "../features/settings/EntityTypeSettings.tsx";
 import { StatusPage } from "../features/status/StatusPage.tsx";
 import { WriteOutcomeNotice } from "../components/WriteOutcomeNotice.tsx";
@@ -118,12 +116,14 @@ export function App() {
           <Route path="settings/entity-identity" element={guarded(<EntityIdentitySettingsPage />)} />
           <Route path="settings/materials" element={guarded(<EntityTypeSettings />)} />
           <Route path="settings/materials/:type_id" element={guarded(<EntityTypeSettings />)} />
+          <Route path="settings/materials/:type_id/migrations/:job_id" element={guarded(<EntityTypeSettings />)} />
+          <Route path="settings/materials/:type_id/migrations" element={guarded(<EntityTypeSettings />)} />
           <Route path="settings/materials/:type_id/versions" element={guarded(<EntityTypeSettings />)} />
           <Route path="settings/entity-types" element={guarded(<EntityTypeSettings />)} />
           <Route path="settings/entity-types/:type_id" element={guarded(<EntityTypeSettings />)} />
           <Route path="settings/entity-types/:type_id/versions" element={guarded(<EntityTypeSettings />)} />
-          <Route path="settings/entity-types/:type_id/migrations/:job_id" element={guarded(<SchemaMigrationJob />)} />
-          <Route path="settings/entity-types/:type_id/migrations" element={guarded(<SchemaMigrations />)} />
+          <Route path="settings/entity-types/:type_id/migrations/:job_id" element={guarded(<EntityTypeSettings />)} />
+          <Route path="settings/entity-types/:type_id/migrations" element={guarded(<EntityTypeSettings />)} />
           <Route path="*" element={<p className="secondary">페이지를 찾을 수 없습니다.</p>} />
         </Route>,
       ),
