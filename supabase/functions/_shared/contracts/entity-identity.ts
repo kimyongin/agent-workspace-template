@@ -88,3 +88,12 @@ export function entityPath(id: string): string {
 export function entityIdentityLabel(value: { source: string; external_id: string; source_label?: string }): string {
   return `${value.source_label ?? value.source} · ${value.external_id}`;
 }
+
+/** Lists and details resolve the same effective issuer labels, including unsaved defaults. */
+export function entitySourceLabel(
+  settings: { sources?: Array<{ code: string; label: string }> } | null | undefined,
+  source: string,
+): string {
+  return (settings?.sources ?? defaultEntityIdentitySettings.sources).find((item) => item.code === source)?.label ??
+    source;
+}

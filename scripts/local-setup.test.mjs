@@ -37,10 +37,10 @@ test("setup generates and preserves the shared processing token in both environm
     join(directory, "fetch.mjs"),
     "globalThis.fetch = async () => ({ ok: true, json: async () => ({ users: [] }) });",
   );
-  const run = () =>
+  const run = (args = []) =>
     spawnSync(
       process.execPath,
-      ["--import", join(directory, "fetch.mjs"), join(directory, "scripts/local-setup.mjs")],
+      ["--import", join(directory, "fetch.mjs"), join(directory, "scripts/local-setup.mjs"), ...args],
       {
         cwd: directory,
         env: { ...process.env, PATH: `${join(directory, "bin")}:${process.env.PATH}` },
@@ -71,5 +71,13 @@ test("setup generates and preserves the shared processing token in both environm
   assert.ok(!third.stdout.includes(generated));
   assert.equal(readEnv(localFile).CUSTOM_LOCAL, "keep");
   assert.equal(readEnv(functionFile).CUSTOM_FUNCTION, "keep");
-  assert.ok(!readFileSync(join(directory, "commands"), "utf8").includes("worker"));
+  const functionsSkipped = run(["--skip-functions"]);
+  assert.equal(functionsSkipped.status, 0, functionsSkipped.stderr);
+  const commands = readFileSync(join(directory, "commands"), "utf8");
+  assert.ok(!commands.includes("worker"));
+  const starts = commands.trim().split("\n").map(line => line.split(" ")).filter(args => args[1] === "start");
+  assert.equal(starts.length, 4);
+  const excluded = "studio,imgproxy,vector,logflare,mailpit,realtime,storage-api,postgres-meta";
+  assert.deepEqual(starts[0], ["supabase", "start", "-x", excluded]);
+  assert.deepEqual(starts[3], ["supabase", "start", "-x", `${excluded},edge-runtime`]);
 });

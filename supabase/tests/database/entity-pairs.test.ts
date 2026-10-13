@@ -342,3 +342,46 @@ dbTest("entity pair cap: 100 preserved links, next-link rejection and no-op at c
     await admin.end();
   }
 });
+
+dbTest("issuer labels agree across details, lists and linked materials without saved settings", async () => {
+  const admin = connect(urls.admin), sql = connect(urls.direct);
+  const a = await fixtureOwner(admin);
+  const entities = { uow: new SqlEntityUnitOfWork(sql) }, pairs = { uow: new SqlEntityPairUnitOfWork(sql) };
+  try {
+    const type = await createEntityType({ uow: new SqlEntityTypeUnitOfWork(sql) }, requestActor(a.actor), {
+      label: "라벨 검증",
+    });
+    const create = (name: string) =>
+      createEntity(entities, requestActor(a.actor), {
+        entity_type_id: type.id,
+        schema_version: 1,
+        properties: { prop_1: name },
+      });
+    const x = await create("자료A"), y = await create("자료B");
+    assertEquals((await getEntity(entities, a.actor, x.id)).source_label, "앱");
+    assertEquals(
+      (await listEntities(entities, a.actor, { limit: 20, sort: "updated_at" })).items.map((e) => e.source_label),
+      ["앱", "앱"],
+    );
+    await changeEntityPair(pairs, requestActor(a.actor), x.id, {
+      other_id: y.id,
+      expected_version: 1,
+      expected_other_version: 1,
+    }, true);
+    assertEquals((await listEntityLinks(pairs, a.actor, x.id, { limit: 20 })).items[0].source_label, "앱");
+    await admin`insert into app.user_business_settings(owner_id,id,version,settings) values(${a.actor.userId},'entity_identity',1,
+      ${
+      admin.json({
+        generation: "short",
+        default_source: "app",
+        sources: [{ code: "app", label: "사용자 앱", deleted: true }],
+      })
+    })`;
+    assertEquals((await getEntity(entities, a.actor, x.id)).source_label, "사용자 앱");
+    assertEquals((await listEntityLinks(pairs, a.actor, x.id, { limit: 20 })).items[0].source_label, "사용자 앱");
+  } finally {
+    await a.cleanup();
+    await sql.end();
+    await admin.end();
+  }
+});

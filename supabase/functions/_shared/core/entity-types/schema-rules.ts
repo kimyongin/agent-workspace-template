@@ -10,6 +10,28 @@ import {
   propertyKey,
 } from "../../contracts/entity-type.ts";
 import { invalidInput } from "../shared/errors.ts";
+function propertyErrorMessage(keyword: string, params: Record<string, unknown>): string {
+  switch (keyword) {
+    case "minimum":
+      return `${params.limit} 이상이어야 합니다`;
+    case "maximum":
+      return `${params.limit} 이하여야 합니다`;
+    case "minLength":
+      return `${params.limit}자 이상이어야 합니다`;
+    case "maxLength":
+      return `${params.limit}자 이하여야 합니다`;
+    case "required":
+      return "필수 항목을 입력하세요";
+    case "enum":
+      return "현재 선택 항목에서 값을 선택하세요";
+    case "format":
+      return "실제로 존재하는 날짜를 입력하세요";
+    case "additionalProperties":
+      return "현재 입력 항목에 없는 값입니다";
+    default:
+      return "항목의 데이터 타입과 값을 확인하세요";
+  }
+}
 const scalarType = z.enum(["string", "integer", "number", "boolean"]);
 const field = z.strictObject({
   type: z.union([scalarType, z.array(z.union([scalarType, z.literal("null")])).min(2).max(2)]),
@@ -220,7 +242,7 @@ export function compileEntityProperties(raw: unknown) {
               ? [String(e.params.additionalProperty)]
               : []),
           ].join("."),
-          message: e.message ?? "유효하지 않은 값",
+          message: propertyErrorMessage(e.keyword, e.params),
         })),
       );
     }

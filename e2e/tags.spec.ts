@@ -111,7 +111,9 @@ test("웹 태그 생성→MCP 중복·이름 변경→웹 삭제",async({page})=
     await page.reload();await page.getByRole("button",{name:`${renamed} 삭제`,exact:true}).click();
     await page.locator("dialog.modal-action[open]").getByRole("button",{name:"삭제하고 기록",exact:true}).click();
     await expect(page.getByRole("button",{name:`${renamed} 삭제`,exact:true})).toHaveCount(0);
-    await expect.poll(()=>page.evaluate(()=>document.activeElement?.id)).toMatch(/^(tag-|tags-title)/);
+    const focusTargets = page.getByRole("heading", { name: "기록 태그 관리", exact: true })
+      .or(page.getByRole("button", { name: / 이름 변경$/ }));
+    await expect.poll(() => focusTargets.evaluateAll(elements => elements.some(element => element === document.activeElement))).toBe(true);
   }finally{await mcp.close();}
 });
 
