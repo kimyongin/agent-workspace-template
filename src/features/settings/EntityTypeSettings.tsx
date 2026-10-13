@@ -270,7 +270,7 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
       });
       // A retry replays the first callback, so its confirmed result must outlive a save invocation.
       if (createdTypeId.current) {
-        navigate(`/settings/entity-types/${createdTypeId.current}`, { state: { materialTypeFocus: true } });
+        requestAnimationFrame(() => { if(mounted.current && createdTypeId.current) navigate(`/settings/entity-types/${createdTypeId.current}`, { state: { materialTypeFocus: true } }); });
       }
     } catch (e) {
       if (mounted.current) setError(writeErrorMessage(e));
@@ -532,7 +532,7 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
           disabled={busy || uncertain || jobState.busy || jobState.uncertain}
         />
       )}
-      {type_id && selectedJob && <SchemaMigrationJob typeId={type_id} jobId={selectedJob} onState={jobStateChange} disabled={busy || uncertain || schemaState.busy || schemaState.uncertain} />}
+      {type_id && selectedJob && <SchemaMigrationJob key={selectedJob} typeId={type_id} jobId={selectedJob} onState={jobStateChange} disabled={busy || uncertain || schemaState.busy || schemaState.uncertain} />}
       {type_id && (
         <MaterialSettingsSection
           title="현재 종류 기록 기본값"
@@ -586,6 +586,8 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
         dirty={protectedDraft}
         busy={anyBusy}
         typeId={type_id}
+        jobId={selectedJob}
+        protectJob={jobState.dirty || jobState.uncertain}
       />
     </section>
   );

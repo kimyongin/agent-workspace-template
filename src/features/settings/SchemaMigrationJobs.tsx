@@ -56,7 +56,7 @@ export function MigrationStart(
         const params = new URLSearchParams(location.search);
         params.set("job_id", acceptedRef.current.job_id);
         params.set("change_id", plan.id);
-        navigate(`/settings/entity-types/${plan.type_id}?${params}`);
+        requestAnimationFrame(() => { navigate(`/settings/entity-types/${plan.type_id}?${params}`); });
       }
     } catch (e) {
       setError(plan.recovery ? recoveryErrorMessage(e) : writeErrorMessage(e));

@@ -147,7 +147,7 @@ export function DetailWorkspace({ children, render, enabled }: { children: React
     if (anyBusy()) return;
     const state = current.current, path = destination(to, origin), identity = detailIdentity(path);
     const existing = state.tabs.find(tab => tab.id === identity);
-    if (workspaceBase(origin.pathname)) { setBase(origin); if(materialSettingsBase(origin.pathname))baseFocus.current=document.activeElement instanceof HTMLElement ? document.activeElement : null; }
+    if (workspaceBase(origin.pathname)) { setBase(origin); if(materialSettingsBase(origin.pathname) && !detailIdentity(location.pathname))baseFocus.current=document.activeElement instanceof HTMLElement ? document.activeElement : null; }
     setVisible(true);
     if (existing && state.active === identity && href(location) === href(existing.location)) return;
     const returnTo = returnTarget(origin, identity);
