@@ -96,14 +96,18 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
   const [latestBusy, setLatestBusy] = useState(false);
   const latestPending = useRef<AbortController | null>(null);
   const basicBaseline = useRef(type);
-  basicBaseline.current = type;
+  const schemaBaseline = useRef(schema);
   useEffect(() => () => latestPending.current?.abort(), []);
   const applySavedType = (saved: EntityType, preserveDraft: boolean) => {
     const previous = basicBaseline.current;
+    if (previous && saved.version < previous.version) return previous;
+    // Advance synchronously: consecutive completions can precede React's next render.
+    basicBaseline.current = saved;
     setLabel((value) => preserveDraft && previous && value !== previous.label ? value : saved.label);
     setIcon((value) => preserveDraft && previous && value !== previous.icon_id ? value : saved.icon_id);
     setArchived((value) => preserveDraft && previous && value !== previous.archived ? value : saved.archived);
     setType(saved);
+    return saved;
   };
   const readLatestBasics = async () => {
     if (!type_id || busy || uncertain || latestBusy) return;
@@ -115,8 +119,7 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
     try {
       const saved = await api<EntityType>("GET", `/entity-types/${type_id}`, undefined, controller.signal);
       if (controller.signal.aborted || !mounted.current) return;
-      applySavedType(saved, true);
-      setLatestBasics(saved);
+      setLatestBasics(applySavedType(saved, true));
       setBasicConflict(false);
       attempt.reset();
       if (session) invalidateEntityTypeCatalog(session.user.id);
@@ -168,6 +171,9 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
       signal?.throwIfAborted();
       if (!mounted.current) return;
       applySavedType(saved, preserveBasics);
+      if (definition.schema_version < (schemaBaseline.current?.schema_version ?? 0) ||
+        definition.schema_version < (basicBaseline.current?.schema_version ?? 0)) return;
+      schemaBaseline.current = definition;
       setSchema(definition);
       setHistory(versions.items);
       setHistoryBefore(versions.next_before ?? null);

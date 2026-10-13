@@ -300,3 +300,48 @@ test("완료 작업의 최신 정의 조회 실패는 작업 결과와 초안을
   await expect(page.getByLabel("자료 종류 이름", { exact: true })).toHaveValue("실패 후 유지할 기본 입력");
   await expect(page.getByRole("button", { name: "최신 속성 다시 조회", exact: true })).toHaveCount(0);
 });
+
+test("늦은 완료 작업 조회는 확인된 기본 정보와 다음 저장 버전을 되돌리지 않는다", async ({ page }) => {
+  let saved = { ...materials, version: 2, schema_version: 2 };
+  let typeReads = 0, historyReads = 0;
+  let release!: () => void, arrived!: () => void;
+  const pending = new Promise<void>(resolve => { release = resolve; });
+  const reading = new Promise<void>(resolve => { arrived = resolve; });
+  const writes: any[] = [];
+  await page.route(`**/api/entity-types/${materials.id}**`, async route => {
+    const path = new URL(route.request().url()).pathname;
+    if (path.endsWith("/schema")) return route.fulfill({ json: { type_id: materials.id, schema_version: 2, ...initialEntityDefinition("이름") } });
+    if (path.endsWith("/schema-changes")) return route.fulfill({ json: { items: [], next_before: null } });
+    if (path.endsWith("/schemas")) {
+      historyReads++;
+      return route.fulfill({ json: { items: historyReads > 1 ? [{ type_id: materials.id, schema_version: 2, created_at: materials.created_at }] : [], next_before: null } });
+    }
+    if (route.request().method() === "PATCH") {
+      const body = route.request().postDataJSON();
+      writes.push(body);
+      saved = { ...saved, ...body, version: saved.version + 1 };
+      return route.fulfill({ json: saved });
+    }
+    typeReads++;
+    const snapshot = { ...saved };
+    if (typeReads === 2) { arrived(); await pending; }
+    return route.fulfill({ json: snapshot });
+  });
+  await page.route("**/api/entity-schema-migrations/**", route => route.fulfill({ json: { ...job(20), result: { schema_version: 2, total: 10, changed: 10 } } }));
+  await page.goto(`/settings/entity-types/${materials.id}/migrations/${id(20)}`);
+  await reading;
+  await page.getByRole("button", { name: /^기본 정보(?! 저장)/ }).click();
+  const name = page.getByLabel("자료 종류 이름", { exact: true });
+  await name.fill("확인된 최신 이름");
+  await page.getByRole("radio", { name: "책", exact: true }).check();
+  await page.getByRole("button", { name: "기본 정보 저장", exact: true }).click();
+  await expect(page.getByRole("status").filter({ hasText: "자료 종류를 저장했습니다." })).toBeVisible();
+  release();
+  await expect(page.locator("summary", { hasText: /^버전 2 ·/ })).toBeVisible();
+  await expect(name).toHaveValue("확인된 최신 이름");
+  await expect(page.getByRole("radio", { name: "책", exact: true })).toBeChecked();
+  await name.fill("다음 저장 이름");
+  await page.getByRole("button", { name: "기본 정보 저장", exact: true }).click();
+  await expect(page.getByRole("status").filter({ hasText: "자료 종류를 저장했습니다." })).toBeVisible();
+  expect(writes).toMatchObject([{ expected_type_version: 2, label: "확인된 최신 이름", icon_id: "book" }, { expected_type_version: 3, label: "다음 저장 이름", icon_id: "book" }]);
+});
