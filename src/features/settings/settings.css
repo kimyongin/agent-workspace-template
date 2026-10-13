@@ -59,3 +59,6 @@ section[aria-labelledby="entity-identity-title"] .settings-section-footer { bord
 .material-section-toggle { display: flex; flex-wrap: wrap; gap: var(--space-2); justify-content: space-between; align-items: center; width: 100%; min-height: 44px; text-align: left; padding: var(--space-2) 0; border: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; }
 .material-settings-section > [hidden] { display: none; }
 .material-section-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.schema-field > div:not([hidden]) { display: grid; gap: var(--space-4); min-width: 0; }
+.schema-field [hidden] { display: none; }

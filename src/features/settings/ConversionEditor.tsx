@@ -1,3 +1,4 @@
+import { schemaDiffLabel, schemaValueLabel } from "./schema-labels.ts";
 import { useEffect, useRef, useState } from "react";
 import type {
   EntitySchemaChange,
@@ -161,7 +162,7 @@ export function ConversionEditor(
               scalar = fieldType(f);
             return (
               <section className="schema-field" key={key}>
-                <Field label={`${f?.title ?? key} · ${key}`}>
+                <Field label={f?.title ?? "삭제한 속성"}>
                   {(p) => (
                     <select
                       {...p}
@@ -256,7 +257,7 @@ export function ConversionEditor(
                             checked={rule.include_null}
                             onChange={(e) => setRule(key, { ...rule, include_null: e.target.checked })}
                           />{" "}
-                          명시적 null도 채우기
+                          명시적 값 없음도 채우기
                         </label>
                       )}
                     </section>
@@ -331,26 +332,26 @@ export function ConversionEditor(
               <dl>
                 {[...new Set([...Object.keys(row.before), ...Object.keys(row.after ?? {})])].map((key) => (
                   <div key={key}>
-                    <dt>{plan.target.schema.properties[key]?.title ?? key} · {key}</dt>
+                    <dt>{plan.target.schema.properties[key]?.title ?? "삭제한 속성"}</dt>
                     <dd style={{ overflowWrap: "anywhere" }}>
-                      {plan.recovery ? "현재 값" : "원본"} {Object.hasOwn(row.before, key) ? JSON.stringify(row.before[key]) : "누락"} → {plan.recovery ? "복구" : "변환"}{" "}
+                      {plan.recovery ? "현재 값" : "원본"} {Object.hasOwn(row.before, key) ? schemaValueLabel(row.before[key], plan.target) : "누락"} → {plan.recovery ? "복구" : "변환"}{" "}
                       {row.after === null
                         ? "미리보기 크기 초과"
                         : Object.hasOwn(row.after, key)
-                        ? JSON.stringify(row.after[key])
+                        ? schemaValueLabel(row.after[key], plan.target)
                         : "제거"}
                     </dd>
                   </div>
                 ))}
               </dl>
-              {row.errors.map((e, i) => <p role="alert" key={i}>{e.path}: {e.message}</p>)}
+              {row.errors.map((e, i) => <p role="alert" key={i}>{schemaDiffLabel(e.path, plan.target, plan.target)}: {e.message}</p>)}
               {!plan.recovery && [...new Set(row.errors.map((e) => e.path.split(".").at(-1)!))].filter((key) =>
                 plan.target.schema.properties[key]
               ).map((key) => {
                 const o = migration.overrides.find((o) => o.entity_id === row.entity_id && o.key === key);
                 return (
                   <fieldset disabled={disabled} key={key}>
-                    <legend>{key} 직접 보완</legend>
+                    <legend>{plan.target.schema.properties[key]?.title ?? "속성"} 직접 보완</legend>
                     <button
                       className="btn"
                       onClick={() =>
