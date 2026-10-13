@@ -252,7 +252,7 @@ export function SchemaMigrationJob(
         );
         if (controller.signal.aborted) return;
         if (value.type_id !== type_id) throw new Error("이 자료 종류의 작업이 아닙니다");
-        setJob(value);
+        setJob(current => current?.id === value.id && current.version > value.version ? current : value);
         if (value.status === "succeeded" && applied.current) {
           const failure = await applied.current(value);
           if (controller.signal.aborted) return;
@@ -284,13 +284,14 @@ export function SchemaMigrationJob(
     setPendingAction(action);
     try {
       await attempt.run(async () => {
-        await api(
+        const confirmed = await api<EntitySchemaMigration>(
           "POST",
           `/entity-schema-migrations/${job.id}/${action}`,
           { expected_job_version: job.version },
           undefined,
           attempt.requestKey(),
         );
+        setJob(current => current?.id === confirmed.id && current.version > confirmed.version ? current : confirmed);
       });
       setPendingAction(undefined);
       setRefresh((n) => n + 1);

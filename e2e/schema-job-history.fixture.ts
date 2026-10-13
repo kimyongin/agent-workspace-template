@@ -194,3 +194,31 @@ test("새 작업 20개 뒤의 재시도 작업도 펼친 위치에서 확정 상
   await expect(page.getByRole("link").nth(20)).toHaveAccessibleName("작업 10 · 완료 · 10/10");
   await expect(page.getByRole("button", { name: "이전 작업 더 보기" })).toBeEnabled();
 });
+
+test("취소 성공 응답은 후속 조회가 늦어도 즉시 표시하고 이전 접수 상태로 돌아가지 않는다", async ({ page }) => {
+  let reads = 0;
+  let release!: () => void;
+  const held = new Promise<void>(resolve => { release = resolve; });
+  await page.route(`**/api/entity-schema-migrations/${id(30)}`, async route => {
+    reads++;
+    if (reads > 1) await held;
+    await route.fulfill({ json: job(30, "queued", 1) });
+  });
+  await page.route(`**/api/entity-schema-migrations/${id(30)}/cancel`, async route => {
+    expect(route.request().postDataJSON()).toEqual({ expected_job_version: 1 });
+    await route.fulfill({ json: job(30, "cancelled", 2) });
+  });
+  await page.clock.install();
+  await page.goto("/e2e/fixtures/schema-job-history.html?job=30");
+  await expect(page.getByRole("status")).toContainText("접수");
+  try {
+    await page.getByRole("button", { name: "적용 전 취소", exact: true }).click();
+    await expect(page.getByRole("status")).toContainText("취소");
+    await expect(page.getByRole("button", { name: "적용 전 취소", exact: true })).toHaveCount(0);
+    const refreshed = page.waitForResponse(response => response.url().endsWith(`/entity-schema-migrations/${id(30)}`));
+    release();
+    await (await refreshed).finished();
+    await page.clock.runFor(100);
+    await expect(page.getByRole("status")).toContainText("취소");
+  } finally { release(); }
+});
