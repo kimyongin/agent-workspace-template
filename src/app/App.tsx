@@ -87,7 +87,8 @@ const workspaceRoutes = [
 ];
 
 function WorkspaceRoutes({ location }: { location: Location }) {
-  return <Routes location={location}>{workspaceRoutes.map((route) => <Route key={route.path} {...route} />)}</Routes>;
+  const settings = ["settings/entity-types", "settings/entity-types/:type_id", "settings/entity-types/:type_id/versions", "settings/entity-types/:type_id/migrations", "settings/entity-types/:type_id/migrations/:job_id", "settings/materials", "settings/materials/:type_id", "settings/materials/:type_id/versions"];
+  return <Routes location={location}>{workspaceRoutes.map((route) => <Route key={route.path} {...route} />)}{settings.map(path=><Route key={path} path={path} element={<EntityTypeSettings />} />)}</Routes>;
 }
 
 export function App() {

@@ -1,12 +1,15 @@
+import { MaterialCommonSettings } from "./MaterialCommonSettings.tsx";
+import { RecordTemplateSettings } from "./RecordTemplateSettings.tsx";
+import { createMaterialTemplateDrafts } from "./material-template-drafts.ts";
+import { MaterialSettingsProtection } from "./MaterialSettingsProtection.tsx";
 import { MaterialSettingsSection } from "./MaterialSettingsSection.tsx";
 import { useAuth } from "../auth/AuthProvider.tsx";
 import { invalidateEntityTypeCatalog } from "../entity/entity-type-catalog.ts";
 import { useEntityTypes } from "../entity/useEntityTypes.ts";
 import { SchemaEditor, SchemaVersionDiff } from "./SchemaEditor.tsx";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
-import { Link, useBlocker, useLocation, useNavigate, useParams } from "react-router";
+import { Link, useLocation, useNavigate, useParams } from "react-router";
 import { api } from "../../lib/api.ts";
-import { ConfirmDialog } from "../../components/Modal.tsx";
 import { Field } from "../../components/Field.tsx";
 import {
   type EntitySchemaVersion,
@@ -24,12 +27,30 @@ export function EntityTypeSettings() {
 function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
   const { session } = useAuth();
   const iconGroup = useId();
+  const [templates] = useState(() => createMaterialTemplateDrafts(type_id));
+  useEffect(() => {
+    const refresh = () => {
+      void templates.refreshTags();
+    };
+    window.addEventListener("workspace:tags-changed", refresh);
+    return () => {
+      window.removeEventListener("workspace:tags-changed", refresh);
+      templates.dispose();
+    };
+  }, [templates]);
+  const [recordState, setRecordState] = useState({ dirty: false, busy: false });
+  const [commonState, setCommonState] = useState({ dirty: false, busy: false });
+  const [commonOpen, setCommonOpen] = useState(false);
+  const commonButton = useRef<HTMLButtonElement>(null);
+  const commonScroll = useRef({ page: 0, pane: 0 });
   const { type_id: activeTypeId } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const versions = location.pathname.endsWith("/versions");
-  const historyVersion = new URLSearchParams(location.search).get("schema_version");
+  const historyVersion = new URLSearchParams(location.search).get(
+    "schema_version",
+  );
   const catalog = useEntityTypes();
   const items = catalog.types ?? [];
   const [type, setType] = useState<EntityType | null>(null),
@@ -42,18 +63,26 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
     [icon, setIcon] = useState("box"),
     [representative, setRepresentative] = useState("이름"),
     [archived, setArchived] = useState(false);
-  const [schemaState, setSchemaState] = useState({ dirty: false, busy: false, uncertain: false });
+  const [schemaState, setSchemaState] = useState({
+    dirty: false,
+    busy: false,
+    uncertain: false,
+  });
   const schemaStateChange = useCallback(
     (state: { dirty: boolean; busy: boolean; uncertain: boolean }) => setSchemaState(state),
     [],
   );
-  const [selectedSchema, setSelectedSchema] = useState<EntitySchemaVersion | null>(null);
+  const [selectedSchema, setSelectedSchema] = useState<
+    EntitySchemaVersion | null
+  >(null);
   const [loading, setLoading] = useState(true),
     [error, setError] = useState(""),
     [message, setMessage] = useState("");
   const selector = useRef<HTMLSelectElement>(null);
   useEffect(() => {
-    if (!loading && location.state?.materialTypeFocus) selector.current?.focus();
+    if (!loading && location.state?.materialTypeFocus) {
+      selector.current?.focus();
+    }
   }, [loading, location.state?.materialTypeFocus]);
   const { attempt, busy, uncertain } = useWriteAttempt();
   const mounted = useRef(true);
@@ -64,34 +93,28 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
     };
   }, []);
   const dirty = type_id
-    ? !!type && (label !== type.label || icon !== type.icon_id || archived !== type.archived)
+    ? !!type &&
+      (label !== type.label || icon !== type.icon_id ||
+        archived !== type.archived)
     : label !== "" || icon !== "box" || representative !== "이름";
-  const protectedDraft = dirty || busy || uncertain || schemaState.dirty || schemaState.busy || schemaState.uncertain;
-  const anyBusy = busy || schemaState.busy;
-  const blocker = useBlocker(({ currentLocation, nextLocation }) => {
-    const scope = (path: string) => path.match(/^\/settings\/(?:entity-types|materials)\/([^/]+)/)?.[1] ?? null;
-    return protectedDraft && (scope(currentLocation.pathname) !== scope(nextLocation.pathname) ||
-      !/^\/settings\/(?:entity-types|materials)(?:\/[^/]+(?:\/versions)?)?$/.test(nextLocation.pathname));
-  });
-  useEffect(() => {
-    if (anyBusy && blocker.state === "blocked") blocker.reset();
-  }, [anyBusy, blocker]);
-  useEffect(() => {
-    const unload = (e: BeforeUnloadEvent) => {
-      if (protectedDraft) {
-        e.preventDefault();
-        e.returnValue = "";
-      }
-    };
-    window.addEventListener("beforeunload", unload);
-    return () => window.removeEventListener("beforeunload", unload);
-  }, [protectedDraft]);
+  const protectedDraft = recordState.dirty || commonState.dirty ||
+    recordState.busy || commonState.busy || dirty || busy || uncertain ||
+    schemaState.dirty || schemaState.busy || schemaState.uncertain;
+  const anyBusy = busy || schemaState.busy || recordState.busy ||
+    commonState.busy;
   const load = async (signal?: AbortSignal, preserveBasics = false) => {
     if (type_id) {
       const [saved, definition, versions] = await Promise.all([
         api<EntityType>("GET", `/entity-types/${type_id}`, undefined, signal),
-        api<EntitySchemaVersion>("GET", `/entity-types/${type_id}/schema`, undefined, signal),
-        api<{ items: EntitySchemaVersionSummary[]; next_before: number | null }>(
+        api<EntitySchemaVersion>(
+          "GET",
+          `/entity-types/${type_id}/schema`,
+          undefined,
+          signal,
+        ),
+        api<
+          { items: EntitySchemaVersionSummary[]; next_before: number | null }
+        >(
           "GET",
           `/entity-types/${type_id}/schemas`,
           undefined,
@@ -124,7 +147,9 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
     setType(null);
     setLabel("");
     void load(controller.signal).catch((e) => {
-      if (!controller.signal.aborted) setError(e instanceof Error ? e.message : "조회하지 못했습니다");
+      if (!controller.signal.aborted) {
+        setError(e instanceof Error ? e.message : "조회하지 못했습니다");
+      }
     }).finally(() => {
       if (!controller.signal.aborted) setLoading(false);
     });
@@ -158,7 +183,9 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
     setHistoryBusy(true);
     setError("");
     try {
-      const page = await api<{ items: EntitySchemaVersionSummary[]; next_before: number | null }>(
+      const page = await api<
+        { items: EntitySchemaVersionSummary[]; next_before: number | null }
+      >(
         "GET",
         `/entity-types/${type_id}/schemas?before=${historyBefore}`,
         undefined,
@@ -175,7 +202,9 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
       }
     } catch (e) {
       if (!controller.signal.aborted && mounted.current) {
-        setError(e instanceof Error ? e.message : "이전 게시 버전을 읽지 못했습니다.");
+        setError(
+          e instanceof Error ? e.message : "이전 게시 버전을 읽지 못했습니다.",
+        );
       }
     } finally {
       if (!controller.signal.aborted && mounted.current) setHistoryBusy(false);
@@ -189,7 +218,9 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
     try {
       await load();
     } catch (e) {
-      if (mounted.current) setError(e instanceof Error ? e.message : "조회하지 못했습니다");
+      if (mounted.current) {
+        setError(e instanceof Error ? e.message : "조회하지 못했습니다");
+      }
     } finally {
       if (mounted.current) setLoading(false);
     }
@@ -236,7 +267,11 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
         }
         setMessage("자료 종류를 저장했습니다.");
       });
-      if (createdId) navigate(`/settings/entity-types/${createdId}`, { state: { materialTypeFocus: true } });
+      if (createdId) {
+        navigate(`/settings/entity-types/${createdId}`, {
+          state: { materialTypeFocus: true },
+        });
+      }
     } catch (e) {
       if (mounted.current) setError(writeErrorMessage(e));
     }
@@ -262,7 +297,10 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
     );
   }
   return (
-    <section className="panel settings" aria-labelledby="entity-types-title">
+    <section
+      className={`panel settings${commonOpen ? " material-common-open" : ""}`}
+      aria-labelledby="entity-types-title"
+    >
       <h1 id="entity-types-title" className="page-title">자료 설정</h1>
       <div className="material-settings-toolbar">
         <Field label="자료 종류 검색">
@@ -293,19 +331,60 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
             >
               <option value="">종류 추가</option>
               {type_id && !items.some((item) => item.id === type_id) && (
-                <option value={type_id}>{type?.label ?? "자료 종류 읽는 중…"}</option>
+                <option value={type_id}>
+                  {type?.label ?? "자료 종류 읽는 중…"}
+                </option>
               )}
               {items.filter((item) =>
-                item.id === type_id || item.label.toLocaleLowerCase().includes(search.toLocaleLowerCase())
+                item.id === type_id ||
+                item.label.toLocaleLowerCase().includes(
+                  search.toLocaleLowerCase(),
+                )
               ).map((item) => (
-                <option key={item.id} value={item.id}>{item.label}{item.archived ? " (보관)" : ""}</option>
+                <option key={item.id} value={item.id}>
+                  {item.label}
+                  {item.archived ? " (보관)" : ""}
+                </option>
               ))}
             </select>
           )}
         </Field>
         <Link className="btn" to="/settings/entity-types">종류 추가</Link>
-        <Link className="btn" to="/settings/entity-identity">공통 설정</Link>
+        <button
+          ref={commonButton}
+          className="btn"
+          aria-expanded={commonOpen}
+          onClick={() => {
+            if (!commonOpen) {
+              commonScroll.current = {
+                page: window.scrollY,
+                pane: commonButton.current?.closest(".workspace-list")?.scrollTop ??
+                  0,
+              };
+              setCommonOpen(true);
+            }
+          }}
+        >
+          공통 설정
+        </button>
       </div>
+      <MaterialCommonSettings
+        open={commonOpen}
+        templates={templates.common}
+        onStateChange={setCommonState}
+        onClose={() => {
+          setCommonOpen(false);
+          requestAnimationFrame(() => {
+            commonButton.current?.focus({ preventScroll: true });
+            window.scrollTo({
+              top: commonScroll.current.page,
+              behavior: "instant",
+            });
+            const pane = commonButton.current?.closest(".workspace-list");
+            if (pane) pane.scrollTop = commonScroll.current.pane;
+          });
+        }}
+      />
       {type && (
         <p className="material-settings-current">
           <EntityTypeIcon id={type.icon_id} /> {type.label}
@@ -316,18 +395,28 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
       {!catalog.types && !catalog.error && <p role="status">자료 종류를 읽는 중…</p>}
       {catalog.error && (
         <p role="alert">
-          자료 종류를 읽지 못했습니다. <button className="btn" onClick={catalog.retry}>자료 종류 다시 조회</button>
+          자료 종류를 읽지 못했습니다.{" "}
+          <button className="btn" onClick={catalog.retry}>
+            자료 종류 다시 조회
+          </button>
         </p>
       )}
       {error && <p role="alert" className="error-text">{error}</p>}
       {error && !loading && (!type_id || !type) && (
-        <button className="btn" onClick={() => void retryRead()}>조회 다시 시도</button>
+        <button
+          className="btn"
+          onClick={() => void retryRead()}
+        >
+          조회 다시 시도
+        </button>
       )}
       {message && <p role="status">{message}</p>}
       {!loading && !type_id && (
         <>
           {catalog.types && items.length === 0 && !catalog.error && !error && (
-            <p className="secondary">자료 종류가 없습니다. 이름을 정해 첫 자료 종류를 만드세요.</p>
+            <p className="secondary">
+              자료 종류가 없습니다. 이름을 정해 첫 자료 종류를 만드세요.
+            </p>
           )}
         </>
       )}
@@ -395,7 +484,11 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
               )}
               {type_id && (
                 <label>
-                  <input type="checkbox" checked={archived} onChange={(e) => setArchived(e.target.checked)} />{" "}
+                  <input
+                    type="checkbox"
+                    checked={archived}
+                    onChange={(e) => setArchived(e.target.checked)}
+                  />{" "}
                   자료 종류 보관 (기존 자료와 연결은 유지)
                 </label>
               )}
@@ -408,10 +501,18 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
                   ? "이름·아이콘·보관 상태 변경은 속성 정의와 저장값을 바꾸지 않습니다."
                   : "필수 텍스트 대표 속성과 함께 생성합니다."}
               </p>
-              <button type="button" className="btn" disabled={busy || uncertain || !dirty} onClick={cancel}>
+              <button
+                type="button"
+                className="btn"
+                disabled={busy || uncertain || !dirty}
+                onClick={cancel}
+              >
                 변경 취소
               </button>
-              <button className="btn btn-primary" disabled={anyBusy || (!dirty && !uncertain)}>
+              <button
+                className="btn btn-primary"
+                disabled={anyBusy || (!dirty && !uncertain)}
+              >
                 {busy ? "저장 중…" : uncertain ? "같은 요청 다시 확인" : type_id ? "저장" : "자료 종류 만들기"}
               </button>
             </div>
@@ -429,15 +530,32 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
       )}
       {type_id && (
         <MaterialSettingsSection
+          title="현재 종류 기록 기본값"
+          state={recordState}
+        >
+          <RecordTemplateSettings
+            materialResource={templates.typed}
+            materialTypeId={type_id}
+            publishedVersion={schema?.schema_version}
+            onStateChange={setRecordState}
+          />
+        </MaterialSettingsSection>
+      )}
+      {type_id && (
+        <MaterialSettingsSection
           title="변경 이력"
           summary={`현재 버전 ${schema?.schema_version ?? "…"}`}
           initialOpen={versions || !!historyVersion}
         >
           {selectedSchema && schema && <SchemaVersionDiff before={selectedSchema} after={schema} />}
-          <Link to={`/settings/entity-types/${type_id}/migrations`}>값 변환 작업</Link>
+          <Link to={`/settings/entity-types/${type_id}/migrations`}>
+            값 변환 작업
+          </Link>
           {history.map((value) => (
             <details key={value.schema_version}>
-              <summary>버전 {value.schema_version} · {new Date(value.created_at).toLocaleString()}</summary>
+              <summary>
+                버전 {value.schema_version} · {new Date(value.created_at).toLocaleString()}
+              </summary>
               <button
                 className="btn"
                 onClick={() => {
@@ -461,19 +579,10 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
           )}
         </MaterialSettingsSection>
       )}
-      <ConfirmDialog
-        open={!busy && !schemaState.busy && blocker.state === "blocked"}
-        title="변경을 버릴까요?"
-        message={uncertain || schemaState.uncertain
-          ? "저장 결과를 확인하지 못한 요청이 있습니다. 현재 상태를 확인한 뒤 작업을 이어가세요."
-          : "저장하지 않은 설정이 사라집니다."}
-        confirmLabel="이동"
-        onConfirm={() => {
-          if (blocker.state === "blocked") blocker.proceed();
-        }}
-        onCancel={() => {
-          if (blocker.state === "blocked") blocker.reset();
-        }}
+      <MaterialSettingsProtection
+        dirty={protectedDraft}
+        busy={anyBusy}
+        typeId={type_id}
       />
     </section>
   );

@@ -3,7 +3,9 @@ import type { Location, NavigateOptions, To } from "react-router";
 
 export const detailIdentity = (path: string) => path.split(/[?#]/)[0].match(/^\/(entities|tasks|records|principles)\/[^/]+$/)?.[0] ?? null;
 export const workspaceList = (path: string) => /^\/(entities|tasks|records|principles|search)$/.test(path);
-export type WorkspaceGuard = { dirty: boolean; busy: boolean; discard: () => void; retained: boolean };
+export const materialSettingsBase = (path: string) => /^\/settings\/(?:entity-types|materials)(?:\/[^/]+(?:\/(?:versions|migrations)(?:\/[^/]+)?)?)?$/.test(path);
+export const workspaceBase = (path: string) => workspaceList(path) || materialSettingsBase(path);
+export type WorkspaceGuard = { dirty: boolean; busy: boolean; discard: () => void; retained: boolean; allows?: (path: string) => boolean };
 export const WorkspaceContext = createContext<{
   revision: number;
   navigationKey?: string;

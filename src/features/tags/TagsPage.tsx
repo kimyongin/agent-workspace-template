@@ -23,7 +23,8 @@ export function TagsPage() {
   if(id){const next=new URLSearchParams(params);if(next.get("edit")==="1"){next.set("edit",id);next.delete("view");}else if(!next.has("edit"))next.set("edit",id);return <Navigate to={`/tags/${scope}?${next}`} replace/>;}
   return <ScopedTagsPage key={scope} scope={scope}/>;
 }
-function ScopedTagsPage({scope}:{scope:TagScope}) {
+function ScopedTagsPage({scope}:{scope:TagScope}) { return <TagManagement scope={scope}/>; }
+export function TagManagement({scope,inline=false,onClose,onStateChange}:{scope:TagScope;inline?:boolean;onClose?:()=>void;onStateChange?:(state:{dirty:boolean;busy:boolean})=>void}) {
   const location=useLocation(),[params]=useSearchParams(),navigateAfterClose=useDeferredNavigation();
   const previous=useDetailExploration(),navigate=useDetailNavigate();
   const [closing,setClosing]=useState(false);
@@ -38,7 +39,7 @@ function ScopedTagsPage({scope}:{scope:TagScope}) {
   const [deletions,setDeletions]=useState<Record<string,DeletionState>>({});
   const deletionDirty=Object.values(deletions).some(state=>state.armed||state.uncertain);
   const busy = writing || deletingBusy;
-  useEffect(()=>{if(closing&&!busy){setClosing(false);if(previous)previous.back();else void navigate(scope==="entity"?"/entities":scope==="task"?"/tasks":"/records");}},[closing,busy,previous,navigate,scope]);
+  useEffect(()=>{if(closing&&!busy){setClosing(false);if(inline)onClose?.();else if(previous)previous.back();else void navigate(scope==="entity"?"/entities":scope==="task"?"/tasks":"/records");}},[closing,busy,previous,navigate,scope]);
   const [pending, setPending] = useState<(() => void) | null>(null);
   useEffect(()=>{setDeletionState({armed:false,busy:false,uncertain:false});},[draft?.initial?.id,!!draft]);
   const pageCount = useRef(1), focusId = useRef<string | null>(null), input = useRef<HTMLInputElement>(null), saving = useRef(false);
@@ -46,6 +47,7 @@ function ScopedTagsPage({scope}:{scope:TagScope}) {
   const invalidateReads = () => { readEpoch.current++; readAbort.current?.abort(); };
   useEffect(() => () => { readEpoch.current++; readAbort.current?.abort(); }, []);
   const dirty = !closing && (deletionDirty || !!draft && (draft.name !== (draft.initial?.name ?? "") || uncertain));
+  useEffect(()=>onStateChange?.({dirty,busy}),[dirty,busy,onStateChange]);
   useEffect(() => {
     readAbort.current?.abort(); const controller = new AbortController(); readAbort.current = controller;
     const epoch = ++readEpoch.current; const current = () => !controller.signal.aborted && epoch === readEpoch.current;
@@ -73,11 +75,11 @@ function ScopedTagsPage({scope}:{scope:TagScope}) {
   const change = (action: () => void) => { if (busy) return; if (dirty) setPending(() => action); else action(); };
   const select = (tag: TagResult) => change(() => {
     setDraft({initial:tag,name:tag.name});setFailure(null);setNotice(null);setFieldError(undefined);attempt.startNewIntent();setConflict(false);
-    const p=new URLSearchParams(params);p.delete("view");p.delete("create");p.delete("edit_from");p.set("edit",tag.id);navigateAfterClose(`?${p}`,true);
+    const p=new URLSearchParams(params);p.delete("view");p.delete("create");p.delete("edit_from");p.set("edit",tag.id);if(!inline)navigateAfterClose(`?${p}`,true);
     requestAnimationFrame(()=>input.current?.focus());
   });
-  const dismiss = () => {const p=new URLSearchParams(params);for(const key of ["view","edit","create","edit_from"])p.delete(key);navigateAfterClose(`?${p}`,true);};
-  useEffect(()=>{const controller=new AbortController(); const selected=params.get("edit")??params.get("view");
+  const dismiss = () => {const p=new URLSearchParams(params);for(const key of ["view","edit","create","edit_from"])p.delete(key);if(!inline)navigateAfterClose(`?${p}`,true);};
+  useEffect(()=>{if(inline)return;const controller=new AbortController(); const selected=params.get("edit")??params.get("view");
     if(params.get("create")==="1"){if(!draft){attempt.startNewIntent();setDraft({initial:null,name:""});}return;}
     if(selected&&draft?.initial?.id!==selected)tagRead.find(scope,selected,controller.signal).then(tag=>{if(!controller.signal.aborted){if(tag){attempt.startNewIntent();setDraft({initial:tag,name:tag.name});}else setFailure("태그를 찾을 수 없습니다.");}}).catch(()=>{if(!controller.signal.aborted)setFailure("태그를 불러오지 못했습니다.");});
     return()=>controller.abort();
@@ -143,7 +145,7 @@ function ScopedTagsPage({scope}:{scope:TagScope}) {
     </div>
     {failure&&<Notice kind="error">{failure}</Notice>}
   </form>;
-  return <ModalShell open title={`${tagScopeLabels[scope]} 태그 관리`} headingLevel={1} previous={previous} dirty={dirty} busy={busy} onClose={close} onRouteDiscard={()=>{setDraft(null);setDeletions({});attempt.reset();}}>
+  const body = <>
     <div className="tag-management">
     {!draft?.initial&&editor(null)}
     {notice && <Notice>{notice}</Notice>}
@@ -169,5 +171,8 @@ function ScopedTagsPage({scope}:{scope:TagScope}) {
       onConfirm={() => {const action=pending;setPending(null);action?.();}} />
 
     </div>
-  </ModalShell>;
+  </>;
+  if (inline) return <section aria-label={`${tagScopeLabels[scope]} 태그 관리`}><h3 tabIndex={-1} id="tag-heading">{tagScopeLabels[scope]} 태그 관리</h3><button className="btn" disabled={busy} onClick={()=>change(close)}>태그 관리 닫기</button>{body}</section>;
+    return <ModalShell open title={`${tagScopeLabels[scope]} 태그 관리`} headingLevel={1} previous={previous} dirty={dirty} busy={busy} onClose={close} onRouteDiscard={()=>{setDraft(null);setDeletions({});attempt.reset();}}>
+{body}</ModalShell>;
 }
