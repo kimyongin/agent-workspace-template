@@ -334,11 +334,11 @@ export function ConversionEditor(
                   <div key={key}>
                     <dt>{plan.target.schema.properties[key]?.title ?? "삭제한 속성"}</dt>
                     <dd style={{ overflowWrap: "anywhere" }}>
-                      {plan.recovery ? "현재 값" : "원본"} {Object.hasOwn(row.before, key) ? schemaValueLabel(row.before[key], plan.target) : "누락"} → {plan.recovery ? "복구" : "변환"}{" "}
+                      {plan.recovery ? "현재 값" : "원본"} {Object.hasOwn(row.before, key) ? schemaValueLabel(row.before[key]) : "누락"} → {plan.recovery ? "복구" : "변환"}{" "}
                       {row.after === null
                         ? "미리보기 크기 초과"
                         : Object.hasOwn(row.after, key)
-                        ? schemaValueLabel(row.after[key], plan.target)
+                        ? schemaValueLabel(row.after[key])
                         : "제거"}
                     </dd>
                   </div>

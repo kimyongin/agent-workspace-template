@@ -532,7 +532,7 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
           disabled={busy || uncertain || jobState.busy || jobState.uncertain}
         />
       )}
-      {type_id && selectedJob && <SchemaMigrationJob key={selectedJob} typeId={type_id} jobId={selectedJob} onState={jobStateChange} disabled={busy || uncertain || schemaState.busy || schemaState.uncertain} />}
+      {type_id && selectedJob && <SchemaMigrationJob key={selectedJob} typeId={type_id} jobId={selectedJob} onApplied={() => load(undefined, true)} onState={jobStateChange} disabled={busy || uncertain || schemaState.busy || schemaState.uncertain} />}
       {type_id && (
         <MaterialSettingsSection
           title="현재 종류 기록 기본값"

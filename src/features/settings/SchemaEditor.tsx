@@ -24,6 +24,19 @@ import { Field } from "../../components/Field.tsx";
 import { fieldType } from "../entity/property-fields.tsx";
 const optionLabel = (labels: Record<string, string> | undefined, code: string) =>
   labels && Object.hasOwn(labels, code) ? labels[code] : code;
+const numericConditionNames: Record<string, string> = {
+  minLength: "최소 길이",
+  maxLength: "최대 길이",
+  minimum: "최소값",
+  maximum: "최대값",
+  default: "기본값",
+};
+function supportsNumericCondition(field: EntityField, name: string) {
+  const kind = fieldType(field);
+  if (name === "minLength" || name === "maxLength") return kind === "string" && !field.format;
+  if (name === "default" && (field.default === undefined || field.default === null)) return false;
+  return kind === "number" || kind === "integer";
+}
 const clone = (v: SchemaDefinition) => structuredClone({ schema: v.schema, display: v.display });
 type EditState = { dirty: boolean; busy: boolean; uncertain: boolean; error?: boolean };
 export function SchemaEditor(
@@ -54,6 +67,7 @@ export function SchemaEditor(
     [readBusy, setReadBusy] = useState(false);
   const { attempt, busy, uncertain } = useWriteAttempt();
   const mounted = useRef(true);
+  const seenDefinition = useRef({ typeId: type.id, version: definition.schema_version });
   const planRead = useRef<{ epoch: number; controller: AbortController | null }>({ epoch: 0, controller: null });
   const dirty = Object.keys(numericDrafts).length > 0 || JSON.stringify(draft) !== JSON.stringify(saved) ||
     JSON.stringify(migration) !== JSON.stringify(plan?.migration ?? { rules: [], overrides: [] });
@@ -87,10 +101,80 @@ export function SchemaEditor(
     };
   }, []);
   useEffect(() => {
+    const prior = seenDefinition.current;
+    if (prior.typeId === type.id && prior.version === definition.schema_version) return;
+    // An unresolved request retains its exact payload until its result is confirmed.
+    if (prior.typeId === type.id && (protectedDraft.current.busy || protectedDraft.current.uncertain)) return;
+    seenDefinition.current = { typeId: type.id, version: definition.schema_version };
     cancelPlanRead();
     setReadBusy(false);
-    applyPlan(null);
-  }, [type.id, definition.schema_version]);
+    if (prior.typeId !== type.id || !protectedDraft.current.dirty) {
+      applyPlan(null);
+      return;
+    }
+    const next = clone(definition);
+    for (const key of new Set([...Object.keys(saved.schema.properties), ...Object.keys(draft.schema.properties)])) {
+      const previousField = saved.schema.properties[key], localField = draft.schema.properties[key];
+      if (JSON.stringify(previousField) !== JSON.stringify(localField)) {
+        if (!localField) {
+          delete next.schema.properties[key];
+          next.display.order = next.display.order.filter((value) => value !== key);
+        } else if (!previousField || !next.schema.properties[key]) {
+          next.schema.properties[key] = structuredClone(localField);
+          if (!next.display.order.includes(key)) next.display.order.push(key);
+        } else {
+          // Carry local attribute edits, while keeping the worker's published type/conditions.
+          const field = { ...next.schema.properties[key] };
+          for (const name of new Set([...Object.keys(previousField), ...Object.keys(localField)])) {
+            const attribute = name as keyof EntityField;
+            if (JSON.stringify(previousField[attribute]) !== JSON.stringify(localField[attribute])) {
+              Object.assign(field, { [attribute]: localField[attribute] });
+            }
+          }
+          next.schema.properties[key] = field;
+        }
+      }
+      for (const name of ["required", "list_columns", "archived"] as const) {
+        const previous = name === "required" ? saved.schema.required : saved.display[name];
+        const local = name === "required" ? draft.schema.required : draft.display[name];
+        const current = name === "required" ? next.schema.required : next.display[name];
+        if (!next.schema.properties[key]) {
+          current.splice(0, current.length, ...current.filter((value) => value !== key));
+        } else if (previous.includes(key) !== local.includes(key)) {
+          current.splice(
+            0,
+            current.length,
+            ...current.filter((value) => value !== key),
+            ...(local.includes(key) ? [key] : []),
+          );
+        }
+      }
+      if (!next.schema.properties[key]) delete next.display.option_labels[key];
+      else if (JSON.stringify(saved.display.option_labels[key]) !== JSON.stringify(draft.display.option_labels[key])) {
+        if (draft.display.option_labels[key]) {
+          next.display.option_labels[key] = structuredClone(draft.display.option_labels[key]);
+        } else delete next.display.option_labels[key];
+      }
+    }
+    if (saved.display.representative !== draft.display.representative) {
+      next.display.representative = draft.display.representative;
+    }
+    if (JSON.stringify(saved.display.order) !== JSON.stringify(draft.display.order)) {
+      next.display.order = [
+        ...draft.display.order.filter((key) => next.schema.properties[key]),
+        ...next.display.order.filter((key) => !draft.display.order.includes(key)),
+      ];
+    }
+    const migrationEdited =
+      JSON.stringify(migration) !== JSON.stringify(plan?.migration ?? { rules: [], overrides: [] });
+    setPlan(null);
+    setAcceptedAnalysis(null);
+    setDraft(next);
+    setSaved(clone(definition));
+    setRefs((values) => Object.fromEntries(Object.entries(values).filter(([key]) => key.startsWith("new_"))));
+    if (!migrationEdited) setMigration({ rules: [], overrides: [] });
+    setMessage("현재 게시된 속성을 갱신했습니다. 편집 중인 입력은 유지됩니다. 변경된 조건을 확인하고 다시 검토하세요.");
+  }, [type.id, definition.schema_version, busy, uncertain, startState.busy, startState.uncertain]);
   const base = `/entity-types/${type.id}/schema-changes`;
   const list = (signal?: AbortSignal) =>
     api<{ items: EntitySchemaChangeSummary[] }>("GET", base, undefined, signal).then((r) => {
@@ -198,6 +282,16 @@ export function SchemaEditor(
   const validateFields = () => {
     for (const key of draft.display.order) {
       try {
+        if (
+          Object.keys(numericDrafts).some((address) =>
+            address.startsWith(key + ":") &&
+            !supportsNumericCondition(draft.schema.properties[key], address.split(":")[1])
+          )
+        ) {
+          throw new Error(
+            "현재 타입에서 사용할 수 없는 이전 조건 입력이 있습니다. 해당 속성에서 입력을 확인하고 제거하세요.",
+          );
+        }
         const converted = schemaNumericValues(
           draft,
           Object.fromEntries(
@@ -417,6 +511,34 @@ export function SchemaEditor(
                 hidden={!openFields.includes(key)}
                 disabled={Boolean(plan?.recovery)}
               >
+                {Object.entries(numericDrafts).filter(([address]) =>
+                  address.startsWith(key + ":") && !supportsNumericCondition(f, address.split(":")[1])
+                ).map(([address, raw]) => {
+                  const label = numericConditionNames[address.split(":")[1]];
+                  return (
+                    <div key={address}>
+                      <p className="error-text">
+                        현재 타입에서 사용할 수 없는 이전 조건 입력입니다. 입력을 확인하고 제거하세요.
+                      </p>
+                      <Field label={`이전 ${label} 입력`}>
+                        {(props) => <input {...props} className="input" value={raw} readOnly />}
+                      </Field>
+                      <button
+                        className="btn"
+                        type="button"
+                        aria-label={`${f.title ?? "속성"} 이전 ${label} 입력 제거`}
+                        onClick={() =>
+                          setNumericDrafts((prior) => {
+                            const values = { ...prior };
+                            delete values[address];
+                            return values;
+                          })}
+                      >
+                        이전 조건 입력 제거
+                      </button>
+                    </div>
+                  );
+                })}
                 <Field label="속성 이름">
                   {(p) => (
                     <input
@@ -841,9 +963,21 @@ export function SchemaEditor(
           <ul>
             {plan.diff.map((d, i) => (
               <li key={i}>
-                <strong>{schemaDiffLabel(d.path, plan.target, definition)}</strong>:{" "}
-                {d.before_present ? schemaValueLabel(d.before, plan.target) : "미지정"} →{" "}
-                {d.after_present ? schemaValueLabel(d.after, plan.target) : "미지정"} · {d.reason} · {d.next_action}
+                <strong>{schemaDiffLabel(d.path, plan.target, definition)}</strong>: {d.before_present
+                  ? schemaValueLabel(
+                    d.before,
+                    /^(?:display\.)?(representative|order|list_columns|archived)$/.test(d.path)
+                      ? definition
+                      : undefined,
+                  )
+                  : "미지정"} → {d.after_present
+                  ? schemaValueLabel(
+                    d.after,
+                    /^(?:display\.)?(representative|order|list_columns|archived)$/.test(d.path)
+                      ? plan.target
+                      : undefined,
+                  )
+                  : "미지정"} · {d.reason} · {d.next_action}
               </li>
             ))}
           </ul>

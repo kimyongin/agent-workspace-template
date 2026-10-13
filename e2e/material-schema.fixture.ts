@@ -186,3 +186,117 @@ test("완료 작업에서 만든 원본 복구안은 같은 작업공간과 기�
   await expect(page.getByRole("heading", { name: "자료 설정", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: /^선택한 값 변환 작업/ })).toContainText("완료");
 });
+
+test("변환 완료는 새 게시 속성을 바로 갱신하고 기본·속성·기록 초안을 유지한다", async ({ page }) => {
+  let complete = false;
+  let definitionReads = 0;
+  const original = initialEntityDefinition("이름");
+  original.schema.properties.prop_2 = { type: "number", title: "수량" };
+  original.display.order.push("prop_2");
+  const published = initialEntityDefinition("이름");
+  published.schema.properties.prop_2 = { type: "string", title: "수량" };
+  published.schema.properties.prop_3 = { type: "string", title: "게시된 추가값" };
+  published.display.order.push("prop_2", "prop_3");
+  await page.route(`**/api/entity-types/${materials.id}**`, (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path.endsWith("/schema")) {
+      definitionReads++;
+      return route.fulfill({
+        json: { type_id: materials.id, schema_version: complete ? 2 : 1, ...(complete ? published : original) },
+      });
+    }
+    if (path.endsWith("/schemas") || path.endsWith("/schema-changes")) {
+      return route.fulfill({ json: { items: [], next_before: null } });
+    }
+    return route.fulfill({ json: { ...materials, version: complete ? 2 : 1, schema_version: complete ? 2 : 1 } });
+  });
+  await page.route(
+    "**/api/settings/business**",
+    (route) => route.fulfill({ json: { settings: { record_templates: {} }, versions: { record_templates: 0 } } }),
+  );
+  await page.route(
+    "**/api/entity-schema-migrations/**",
+    (route) =>
+      route.fulfill({
+        json: {
+          ...job(20, complete ? "succeeded" : "preparing"),
+          result: complete ? { schema_version: 2, total: 10, changed: 10 } : null,
+        },
+      }),
+  );
+  await page.goto(`/settings/entity-types/${materials.id}/migrations/${id(20)}`);
+  await page.getByRole("button", { name: /^기본 정보/ }).click();
+  await page.getByLabel("자료 종류 이름", { exact: true }).fill("남길 기본 입력");
+  await page.getByRole("button", { name: "이름 속성 편집", exact: true }).click();
+  await page.getByLabel("속성 이름", { exact: true }).first().fill("남길 속성 입력");
+  await page.getByRole("button", { name: "수량 속성 편집", exact: true }).click();
+  await page.getByLabel("최소값", { exact: true }).fill("7.5");
+  await page.getByRole("button", { name: /^현재 종류 기록 기본값/ }).click();
+  const record = page.getByRole("form", { name: "현재 종류 기록 기본값", exact: true });
+  await record.getByLabel("메모 템플릿").fill("남길 기록 입력");
+  complete = true;
+  await page.getByRole("button", { name: "상태 다시 조회", exact: true }).click();
+  await expect(page.getByRole("button", { name: /^선택한 값 변환 작업/ })).toContainText("완료");
+  await expect(record.getByLabel("변수 삽입").locator("option").filter({ hasText: "게시된 추가값" }).first())
+    .toHaveCount(1);
+  await expect(page.getByLabel("자료 종류 이름", { exact: true })).toHaveValue("남길 기본 입력");
+  await expect(page.getByLabel("속성 이름", { exact: true }).first()).toHaveValue("남길 속성 입력");
+  await expect(record.getByLabel("메모 템플릿")).toHaveValue("남길 기록 입력");
+  await expect(page.getByRole("button", { name: "게시된 추가값 속성 편집", exact: true })).toBeVisible();
+  await expect(page.getByLabel("이전 최소값 입력", { exact: true })).toHaveValue("7.5");
+  await page.getByRole("button", { name: "속성 변경 검토", exact: true }).click();
+  await expect(page.getByRole("alert")).toContainText("현재 타입에서 사용할 수 없는 이전 조건 입력");
+  await page.getByRole("button", { name: "수량 이전 최소값 입력 제거", exact: true }).click();
+  await expect(page.getByLabel("이전 최소값 입력", { exact: true })).toHaveCount(0);
+  const refreshedReads = definitionReads;
+  await page.getByRole("button", { name: "상태 다시 조회", exact: true }).click();
+  await expect(page.getByRole("button", { name: /^선택한 값 변환 작업/ })).toContainText("완료");
+  expect(definitionReads).toBe(refreshedReads);
+});
+
+test("완료 작업의 최신 정의 조회 실패는 작업 결과와 초안을 유지하고 다시 조회한다", async ({ page }) => {
+  let complete = false, failed = false;
+  const published = initialEntityDefinition("갱신한 이름");
+  await page.route(`**/api/entity-types/${materials.id}**`, (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path.endsWith("/schema")) {
+      if (complete && !failed) {
+        failed = true;
+        return route.fulfill({ status: 500, json: { code: "internal", message: "정의 조회 실패" } });
+      }
+      return route.fulfill({
+        json: {
+          type_id: materials.id,
+          schema_version: complete ? 2 : 1,
+          ...(complete ? published : initialEntityDefinition("이름")),
+        },
+      });
+    }
+    if (path.endsWith("/schemas") || path.endsWith("/schema-changes")) {
+      return route.fulfill({ json: { items: [], next_before: null } });
+    }
+    return route.fulfill({ json: { ...materials, version: complete ? 2 : 1, schema_version: complete ? 2 : 1 } });
+  });
+  await page.route(
+    "**/api/entity-schema-migrations/**",
+    (route) =>
+      route.fulfill({
+        json: {
+          ...job(20, complete ? "succeeded" : "preparing"),
+          result: complete ? { schema_version: 2, total: 10, changed: 10 } : null,
+        },
+      }),
+  );
+  await page.goto(`/settings/entity-types/${materials.id}/migrations/${id(20)}`);
+  await page.getByRole("button", { name: /^기본 정보/ }).click();
+  await page.getByLabel("자료 종류 이름", { exact: true }).fill("실패 후 유지할 기본 입력");
+  complete = true;
+  await page.getByRole("button", { name: "상태 다시 조회", exact: true }).click();
+  await expect(page.getByRole("alert")).toContainText("값 변환은 완료되었습니다. 최신 속성 조회에 실패");
+  await expect(page.getByRole("button", { name: /^선택한 값 변환 작업/ })).toContainText("오류");
+  await expect(page.getByRole("status").filter({ hasText: "완료 · 10/10" })).toBeVisible();
+  await page.getByRole("button", { name: "최신 속성 다시 조회", exact: true }).click();
+  await expect(page.getByRole("button", { name: "갱신한 이름 속성 편집", exact: true })).toBeVisible();
+  await expect(page.getByLabel("자료 종류 이름", { exact: true })).toHaveValue("실패 후 유지할 기본 입력");
+  await expect(page.getByRole("button", { name: "최신 속성 다시 조회", exact: true })).toHaveCount(0);
+});

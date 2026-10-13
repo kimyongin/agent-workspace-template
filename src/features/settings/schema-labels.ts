@@ -50,6 +50,7 @@ export function schemaDiffLabel(path: string, target: SchemaDefinition, source: 
   };
   return `${name}${labels[parts.at(-1)!] ? ` · ${labels[parts.at(-1)!]}` : ""}`;
 }
+/** Supply a definition only when the value is a schema reference, never a stored scalar. */
 export function schemaValueLabel(value: unknown, definition?: SchemaDefinition): string {
   if (value === null) return "값 없음";
   if (value === undefined) return "미지정";
@@ -59,7 +60,7 @@ export function schemaValueLabel(value: unknown, definition?: SchemaDefinition):
     if ("type" in value) return fieldSummary(value as EntityField);
     return "설정 변경";
   }
-  return typeof value === "string" && /^prop_[0-9]+$/.test(value)
+  return definition && typeof value === "string" && /^prop_[0-9]+$/.test(value)
     ? definition?.schema.properties[value]?.title ?? "속성"
     : String(value);
 }

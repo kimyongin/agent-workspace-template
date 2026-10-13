@@ -287,3 +287,47 @@ test("서버가 거부한 속성은 검토 실패 뒤 해당 행을 열고 초�
   await expect(page.getByLabel("최소 길이", { exact: true })).toBeVisible();
   await expect(page.getByLabel("최소 길이", { exact: true })).toHaveValue("2");
 });
+
+test("변환 미리보기는 속성 키처럼 생긴 저장 문자열도 원본 그대로 보여 준다", async ({ page }) => {
+  const prepared = {
+    ...plan("b"),
+    change_kind: "migration_required",
+    status: "ready",
+    analysis: {
+      id: "analysis-1",
+      status: "succeeded",
+      total: 1,
+      processed: 1,
+      failed: 0,
+      changed: 1,
+      unchanged: 0,
+      removed: 0,
+      replacements: 0,
+      errors: [],
+    },
+  };
+  await page.route(`**${base}/b`, (route) => route.fulfill({ json: prepared }));
+  await page.route(
+    `**${base}/b/rows?**`,
+    (route) =>
+      route.fulfill({
+        json: {
+          items: [{
+            entity_id: "20261013-ABCDEFGH",
+            before: { prop_1: "prop_0001" },
+            after: { prop_1: "prop_1" },
+            after_bytes: 20,
+            changed: true,
+            removed: 0,
+            replacements: 0,
+            errors: [],
+          }],
+          next_after: null,
+        },
+      }),
+  );
+  await page.goto("/e2e/fixtures/schema-editor-read.html?change_id=b");
+  await expect(page.getByRole("region", { name: "변환 규칙과 영향 미리보기" }).locator("dd")).toHaveText(
+    "원본 prop_0001 → 변환 prop_1",
+  );
+});
