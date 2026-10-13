@@ -284,14 +284,17 @@ export function SchemaMigrationJob(
     setPendingAction(action);
     try {
       await attempt.run(async () => {
-        const confirmed = await api<EntitySchemaMigration>(
+        const confirmed = await api<EntitySchemaMigration | SchemaMigrationAccepted>(
           "POST",
           `/entity-schema-migrations/${job.id}/${action}`,
           { expected_job_version: job.version },
           undefined,
           attempt.requestKey(),
         );
-        setJob(current => current?.id === confirmed.id && current.version > confirmed.version ? current : confirmed);
+        // Cancel returns the full job; retry returns an acceptance that needs the existing detail read.
+        if ("id" in confirmed) {
+          setJob(current => current?.id === confirmed.id && current.version > confirmed.version ? current : confirmed);
+        }
       });
       setPendingAction(undefined);
       setRefresh((n) => n + 1);

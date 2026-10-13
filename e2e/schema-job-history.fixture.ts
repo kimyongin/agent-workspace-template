@@ -222,3 +222,23 @@ test("취소 성공 응답은 후속 조회가 늦어도 즉시 표시하고 이
     await expect(page.getByRole("status")).toContainText("취소");
   } finally { release(); }
 });
+
+test("재시도의 접수 응답은 작업 상세로 취급하지 않고 조회된 작업 이름과 상태를 유지한다", async ({ page }) => {
+  let retried = false;
+  await page.route(`**/api/entity-schema-migrations/${id(30)}`, async route => {
+    await route.fulfill({ json: retried ? job(30, "queued", 4) : { ...job(30, "failed", 3), retryable: true, failure_reason: "일시 오류" } });
+  });
+  await page.route(`**/api/entity-schema-migrations/${id(30)}/retry`, async route => {
+    expect(route.request().postDataJSON()).toEqual({ expected_job_version: 3 });
+    retried = true;
+    await route.fulfill({ status: 202, json: {
+      job_id: id(30), type_id: typeId, change_id: id(500), analysis_id: id(501), job_version: 4, status: "queued",
+    } });
+  });
+  await page.goto("/e2e/fixtures/schema-job-history.html?job=30");
+  await expect(page.getByRole("status")).toContainText("실패");
+  await page.getByRole("button", { name: "같은 작업 재시도", exact: true }).click();
+  await expect(page.getByRole("status")).toContainText("접수");
+  await expect(page.getByText(/작업 30의 수정·삭제·설정 게시/)).toBeVisible();
+  await expect(page.getByRole("button", { name: "적용 전 취소", exact: true })).toBeVisible();
+});
