@@ -1,3 +1,4 @@
+import type { EntitySchemaChange } from "@contracts/entity-schema-change.ts";
 import { materialSettingsPath } from "./material-settings-path.ts";
 import { fieldSummary, schemaChangeLabels, schemaDiffLabel, schemaValueLabel } from "./schema-labels.ts";
 import { MaterialSettingsSection } from "./MaterialSettingsSection.tsx";
@@ -23,7 +24,7 @@ export function SchemaEditor(
   { type, definition, onApplied, onState, disabled = false }: {
     type: EntityType;
     definition: EntitySchemaVersion;
-    onApplied: () => Promise<void>;
+    onApplied: (change?: EntitySchemaChange) => Promise<string>;
     onState: (state: EditState) => void;
     disabled?: boolean;
   },
