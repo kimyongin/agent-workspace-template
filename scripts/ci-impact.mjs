@@ -1,4 +1,4 @@
-// Fail closed: known web-only edits avoid unchanged server integration; shared/unknown edits stay full.
+// Fail closed: known web-only edits skip server static checks; shared/unknown edits stay full.
 import { parse } from "@babel/parser";
 import { execFileSync } from "node:child_process";
 import { appendFileSync, readFileSync } from "node:fs";
@@ -164,7 +164,7 @@ export function main(env = process.env) {
   }
   console.log(JSON.stringify({ ...result, range }, null, 2));
   if (env.GITHUB_OUTPUT) appendFileSync(env.GITHUB_OUTPUT, `mode=${result.mode}\n`);
-  if (env.GITHUB_STEP_SUMMARY) appendFileSync(env.GITHUB_STEP_SUMMARY, `### Change impact: ${result.mode}\n\n${range ? `Comparison: ${range.base} → ${range.head}\n\n` : ""}${result.reasons.map((reason) => `- ${reason.replace(/[\r\n]/g, " ")}`).join("\n")}\n\n${result.mode === "full" ? "Full check and isolated integration required." : "Unchanged server/DB/HTTP/MCP steps omitted; browser changes still require scoped local E2E including actual auth/storage/API paths when affected."}\n\nBrowser E2E runs locally as needed; it is not part of CI.\n`);
+  if (env.GITHUB_STEP_SUMMARY) appendFileSync(env.GITHUB_STEP_SUMMARY, `### Change impact: ${result.mode}\n\n${range ? `Comparison: ${range.base} → ${range.head}\n\n` : ""}${result.reasons.map((reason) => `- ${reason.replace(/[\r\n]/g, " ")}`).join("\n")}\n\n${result.mode === "full" ? "Full static checks and build required." : "Static checks and build selected by change impact."}\n\nAll tests run locally while hosted CI tests are suspended. Record relevant local test and E2E evidence before merge.\n`);
   return result;
 }
 
