@@ -345,3 +345,54 @@ test("늦은 완료 작업 조회는 확인된 기본 정보와 다음 저장 �
   await expect(page.getByRole("status").filter({ hasText: "자료 종류를 저장했습니다." })).toBeVisible();
   expect(writes).toMatchObject([{ expected_type_version: 2, label: "확인된 최신 이름", icon_id: "book" }, { expected_type_version: 3, label: "다음 저장 이름", icon_id: "book" }]);
 });
+
+test("완료 작업을 다시 선택하면 다른 작업을 보는 동안 게시된 정의와 기록 변수를 갱신한다", async ({ page }) => {
+  let currentVersion = 1;
+  let definitionReads = 0;
+  const published = initialEntityDefinition("이름");
+  published.schema.properties.prop_2 = { type: "string", title: "다른 곳에서 게시한 값" };
+  published.display.order.push("prop_2");
+  await page.route(`**/api/entity-types/${materials.id}**`, (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path.endsWith("/schema")) {
+      definitionReads++;
+      return route.fulfill({
+        json: {
+          type_id: materials.id,
+          schema_version: currentVersion,
+          ...(currentVersion === 2 ? published : initialEntityDefinition("이름")),
+        },
+      });
+    }
+    if (path.endsWith("/schemas") || path.endsWith("/schema-changes")) {
+      return route.fulfill({ json: { items: [], next_before: null } });
+    }
+    return route.fulfill({ json: { ...materials, version: currentVersion, schema_version: currentVersion } });
+  });
+  await page.route("**/api/settings/business**", (route) =>
+    route.fulfill({
+      json: {
+        settings: { record_templates: {} },
+        versions: { record_templates: 0 },
+      },
+    }));
+  await page.route("**/api/entity-schema-migrations?**", (route) =>
+    route.fulfill({
+      json: { items: [job(20), job(21, "failed")], next_before: null },
+    }));
+  await page.route("**/api/entity-schema-migrations/**", (route) => {
+    const jobId = new URL(route.request().url()).pathname.split("-").at(-1);
+    return route.fulfill({ json: job(Number(jobId), Number(jobId) === 20 ? "succeeded" : "failed") });
+  });
+  await page.goto(`/settings/entity-types/${materials.id}/migrations/${id(20)}`);
+  await expect.poll(() => definitionReads).toBeGreaterThanOrEqual(2);
+  await page.getByRole("link", { name: "작업 21 · 실패 · 1/10", exact: true }).click();
+  await expect(page.getByRole("button", { name: /^선택한 값 변환 작업/ })).toContainText("실패");
+  currentVersion = 2;
+  await page.getByRole("link", { name: "작업 20 · 완료 · 10/10", exact: true }).click();
+  await expect(page.getByRole("button", { name: "다른 곳에서 게시한 값 속성 편집", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: /^현재 종류 기록 기본값/ }).click();
+  const record = page.getByRole("form", { name: "현재 종류 기록 기본값", exact: true });
+  await expect(record.getByLabel("변수 삽입").locator("option").filter({ hasText: "다른 곳에서 게시한 값" }).first())
+    .toHaveCount(1);
+});

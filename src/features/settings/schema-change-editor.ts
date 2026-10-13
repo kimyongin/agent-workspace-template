@@ -30,7 +30,7 @@ export function useSchemaChangeEditor(
   { type, definition, onApplied, onState, disabled, selectionSearch, onFieldKeysChanged, onInvalidField }: {
     type: EntityType;
     definition: EntitySchemaVersion;
-    onApplied: () => Promise<void>;
+    onApplied: (change?: EntitySchemaChange) => Promise<string>;
     onState: (state: EditState) => void;
     disabled: boolean;
     selectionSearch: string;
@@ -356,13 +356,8 @@ export function useSchemaChangeEditor(
           setPlan(value);
           setMigration(value.migration);
           setMessage("새 속성 버전을 게시했습니다.");
-          try {
-            await onApplied();
-          } catch {
-            if (mounted.current) {
-              setError("게시가 완료되었습니다. 최신 정의 조회에 실패했습니다. 정의를 다시 조회하세요.");
-            }
-          }
+          const publicationError = await onApplied(value);
+          if (mounted.current && publicationError) setError(publicationError);
         }
       });
     } catch (e) {
