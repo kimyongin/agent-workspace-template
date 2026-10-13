@@ -5,7 +5,7 @@ export const detailIdentity = (path: string) => path.split(/[?#]/)[0].match(/^\/
 export const workspaceList = (path: string) => /^\/(entities|tasks|records|principles|search)$/.test(path);
 export const materialSettingsBase = (path: string) => /^\/settings\/(?:entity-types|materials)(?:\/[^/]+(?:\/(?:versions|migrations)(?:\/[^/]+)?)?)?$/.test(path);
 export const workspaceBase = (path: string) => workspaceList(path) || materialSettingsBase(path);
-export type WorkspaceGuard = { dirty: boolean; busy: boolean; discard: () => void; retained: boolean; allows?: (path: string) => boolean };
+export type WorkspaceGuard = { dirty: boolean; busy: boolean; discard: () => void; retained: boolean; allows?: (path: string, search?: string) => boolean };
 export const WorkspaceContext = createContext<{
   revision: number;
   navigationKey?: string;

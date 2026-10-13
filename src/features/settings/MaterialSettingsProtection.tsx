@@ -4,17 +4,17 @@ import { ConfirmDialog } from "../../components/Modal.tsx";
 import { detailIdentity, materialSettingsBase, WorkspaceContext } from "../details/workspace-context.ts";
 
 export function MaterialSettingsProtection(
-  props: { dirty: boolean; busy: boolean; typeId?: string },
+  props: { dirty: boolean; busy: boolean; typeId?: string; jobId?: string; protectJob?: boolean },
 ) {
   const workspace = useContext(WorkspaceContext),
     id = useId(),
     latest = useRef(props);
   latest.current = props;
-  const allows = (path: string) =>
+  const allows = (path: string, search?:string) =>
     !!detailIdentity(path) ||
     materialSettingsBase(path) &&
       (path.match(/^\/settings\/(?:entity-types|materials)\/([^/]+)/)?.[1] ??
-          undefined) === latest.current.typeId;
+          undefined) === latest.current.typeId && (!latest.current.protectJob || (path.match(/\/migrations\/([^/]+)$/)?.[1] ?? new URLSearchParams(search).get("job_id") ?? undefined) === latest.current.jobId);
   useEffect(
     () =>
       workspace?.registerGuard(
@@ -35,10 +35,10 @@ function LocalProtection(
   { dirty, busy, allows }: {
     dirty: boolean;
     busy: boolean;
-    allows: (path: string) => boolean;
+    allows: (path: string, search?:string) => boolean;
   },
 ) {
-  const blocker = useBlocker(({ nextLocation }) => dirty && !allows(nextLocation.pathname));
+  const blocker = useBlocker(({ nextLocation }) => dirty && !allows(nextLocation.pathname,nextLocation.search));
   useEffect(() => {
     if (busy && blocker.state === "blocked") blocker.reset();
   }, [busy, blocker]);

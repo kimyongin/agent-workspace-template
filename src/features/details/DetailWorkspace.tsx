@@ -243,7 +243,7 @@ function WorkspaceRouteProtection({ guards }: { guards: RefObject<Map<string, ()
   const blocked = useRef<WorkspaceGuard[]>([]);
   const blocker = useBlocker(({ nextLocation }) => {
     const staying = workspaceBase(nextLocation.pathname) || !!detailIdentity(nextLocation.pathname);
-    blocked.current = [...guards.current.values()].map(read => read()).filter(guard => guard.busy || guard.dirty && (!staying || !guard.retained || guard.allows && !guard.allows(nextLocation.pathname)));
+    blocked.current = [...guards.current.values()].map(read => read()).filter(guard => guard.busy || guard.dirty && (!staying || !guard.retained || guard.allows && !guard.allows(nextLocation.pathname,nextLocation.search)));
     return blocked.current.length > 0;
   });
   useEffect(() => { if (blocker.state === "blocked" && blocked.current.some(guard => guard.busy)) blocker.reset(); }, [blocker]);
