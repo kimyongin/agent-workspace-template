@@ -314,7 +314,9 @@ export function SchemaEditor(
         requestAnimationFrame(() => {
           const element = fieldElements.current[key];
           element?.scrollIntoView({ block: "nearest" });
-          element?.querySelector<HTMLInputElement>("input:not([disabled]),select:not([disabled])")?.focus();
+          if (element && !element.contains(document.activeElement)) {
+            element.querySelector<HTMLInputElement>("input:not([disabled]),select:not([disabled])")?.focus();
+          }
         });
         return false;
       }
@@ -401,7 +403,10 @@ export function SchemaEditor(
             setOpenFields((keys) => keys.includes(field) ? keys : [...keys, field]);
             requestAnimationFrame(() => {
               fieldElements.current[field]?.scrollIntoView({ block: "nearest" });
-              fieldElements.current[field]?.querySelector<HTMLInputElement>("input:not([disabled])")?.focus();
+              const element = fieldElements.current[field];
+              if (element && !element.contains(document.activeElement)) {
+                element.querySelector<HTMLInputElement>("input:not([disabled])")?.focus();
+              }
             });
           }
         }
