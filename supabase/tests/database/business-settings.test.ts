@@ -208,7 +208,7 @@ dbTest("자료 기본 문구의 SQL 비교는 구 공통 값을 무시하며 nul
     const [unchanged] =
       await admin`select settings,version from app.user_business_settings where owner_id=${owner.actor.userId} and id='record_templates'`;
     assertEquals(unchanged.settings, templates);
-    assertEquals(unchanged.version, 1);
+    assertEquals(Number(unchanged.version), 1);
   } finally {
     await owner.cleanup();
     await admin.end();

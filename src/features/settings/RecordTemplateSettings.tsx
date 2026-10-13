@@ -74,6 +74,7 @@ function MaterialRecordTemplateSettings(
     state.uncertain,
     state.busy,
     state.operation,
+    state.error,
     props.onStateChange,
   ]);
   return (
