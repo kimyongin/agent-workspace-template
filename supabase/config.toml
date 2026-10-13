@@ -437,7 +437,7 @@ verify_jwt = false
 enabled = true
 verify_jwt = false
 
-# ENTITY_SCHEMA_WORKER_TOKEN을 함수 안에서 DB 접근 전에 반드시 검사한다. 자동 호출 일정은 만들지 않는다.
+# PROCESSING_TOKEN을 함수 안에서 DB 접근 전에 반드시 검사한다. 자동 호출 일정은 만들지 않는다.
 [functions.entity-schema-worker]
 enabled = true
 verify_jwt = false

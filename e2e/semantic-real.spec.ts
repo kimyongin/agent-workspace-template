@@ -7,7 +7,7 @@ test("실제 의미 검색→기록 원문→필터와 초점 복귀",async({pag
   let item:{id:string;version:number}|undefined;
   try{
     const saved=await mcp.call("create_record",{body:"두꺼운 책은 주말 아침에 읽는다. 관리 코드는 오로라-731이다."});item={id:saved.id,version:saved.version};
-    const response=await fetch(`${env.VITE_SUPABASE_URL}/functions/v1/index-worker`,{method:"POST",headers:{authorization:`Bearer ${env.INDEX_WORKER_TOKEN}`,"content-type":"application/json"},body:JSON.stringify({limit:1,kind:"record",id:item!.id})});
+    const response=await fetch(`${env.VITE_SUPABASE_URL}/functions/v1/index-worker`,{method:"POST",headers:{authorization:`Bearer ${env.PROCESSING_TOKEN}`,"content-type":"application/json"},body:JSON.stringify({limit:1,kind:"record",id:item!.id})});
     expect(response.status).toBe(200);expect((await response.json()).indexed).toBe(1);
     const query="두꺼운 책은 언제 읽기로 했지?";
     await page.goto(`/search?q=${encodeURIComponent(query)}&kind=record`);

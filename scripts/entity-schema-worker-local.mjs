@@ -27,7 +27,7 @@ export async function runEntitySchemaWorker(
   if (environment.VITE_SUPABASE_URL !== url.origin || environment.VITE_API_URL !== `${url.origin}/functions/v1/api`) {
     throw new Error("로컬 설정과 .env.local의 API 주소가 다릅니다. 환경 준비를 확인하세요");
   }
-  if (!/^[A-Za-z0-9_-]{43,}$/.test(environment.INDEX_WORKER_TOKEN ?? "")) {
+  if (!/^[A-Za-z0-9_-]{43,}$/.test(environment.PROCESSING_TOKEN ?? "")) {
     throw new Error("공통 처리 함수 호출 토큰이 필요합니다. 환경 준비를 확인하세요");
   }
   for (const value of [intervalMs, timeoutMs]) {
@@ -42,7 +42,7 @@ export async function runEntitySchemaWorker(
         redirect: "error",
         signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)]) : AbortSignal.timeout(timeoutMs),
         headers: {
-          Authorization: `Bearer ${environment.INDEX_WORKER_TOKEN}`,
+          Authorization: `Bearer ${environment.PROCESSING_TOKEN}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify(checkConfiguration ? { check_configuration: true } : { limit: 1 }),

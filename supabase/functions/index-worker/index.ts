@@ -17,10 +17,10 @@ const input = z.strictObject({
 });
 let sql: postgres.Sql | undefined;
 Deno.serve(async (request) => {
-  const token = Deno.env.get("INDEX_WORKER_TOKEN");
+  const token = Deno.env.get("PROCESSING_TOKEN");
   // 인증 전에 DB 연결·큐 claim·외부 호출을 하지 않는다. 사용자 HTTP/MCP 토큰은 받지 않는다.
   if (!token || token.length < 43) {
-    console.error(JSON.stringify({ event: "worker_not_configured", invalid_settings: ["INDEX_WORKER_TOKEN"] }));
+    console.error(JSON.stringify({ event: "worker_not_configured", invalid_settings: ["PROCESSING_TOKEN"] }));
     return Response.json({ error: "worker_not_configured" }, { status: 503 });
   }
   if (request.headers.get("Authorization") !== `Bearer ${token}`) {
@@ -59,7 +59,7 @@ Deno.serve(async (request) => {
   const key = Deno.env.get("PINECONE_API_KEY"), url = Deno.env.get("WORKER_DB_URL");
   const accountScope = Deno.env.get("PINECONE_ACCOUNT_SCOPE");
   const invalidSettings = invalidWorkerSettings({
-    INDEX_WORKER_TOKEN: token,
+    PROCESSING_TOKEN: token,
     PINECONE_API_KEY: key,
     WORKER_DB_URL: url,
     PINECONE_ACCOUNT_SCOPE: accountScope,

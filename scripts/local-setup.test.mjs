@@ -51,23 +51,30 @@ test("setup generates and preserves the shared processing token in both environm
   const first = run();
   assert.equal(first.status, 0, first.stderr);
   const localFile = join(directory, ".env.local"), functionFile = join(directory, "supabase/functions/.env");
-  const generated = readEnv(localFile).INDEX_WORKER_TOKEN;
+  const generated = readEnv(localFile).PROCESSING_TOKEN;
   assert.match(generated ?? "", /^[A-Za-z0-9_-]{43,}$/);
-  assert.equal(readEnv(functionFile).INDEX_WORKER_TOKEN, generated);
+  assert.equal(readEnv(functionFile).PROCESSING_TOKEN, generated);
   assert.ok(!first.stdout.includes(generated));
   writeFileSync(localFile, readFileSync(localFile, "utf8") + "CUSTOM_LOCAL=keep\nENTITY_SCHEMA_WORKER_TOKEN=retired-local\n");
   writeFileSync(functionFile, readFileSync(functionFile, "utf8") + "CUSTOM_FUNCTION=keep\nENTITY_SCHEMA_WORKER_TOKEN=retired-function\n");
+  // 기존 설치를 재현한다. 이름만 전환하고 값은 유지해야 한다.
+  for (const file of [localFile, functionFile]) {
+    writeFileSync(file, readFileSync(file, "utf8").replaceAll("PROCESSING_TOKEN=", "INDEX_WORKER_TOKEN="));
+  }
   const second = run();
   assert.equal(second.status, 0, second.stderr);
-  assert.equal(readEnv(localFile).INDEX_WORKER_TOKEN, generated);
-  assert.equal(readEnv(functionFile).INDEX_WORKER_TOKEN, generated);
+  assert.equal(readEnv(localFile).PROCESSING_TOKEN, generated);
+  assert.equal(readEnv(functionFile).PROCESSING_TOKEN, generated);
+  assert.equal(readEnv(localFile).INDEX_WORKER_TOKEN, undefined);
+  assert.equal(readEnv(functionFile).INDEX_WORKER_TOKEN, undefined);
   assert.equal(readEnv(localFile).ENTITY_SCHEMA_WORKER_TOKEN, undefined);
   assert.equal(readEnv(functionFile).ENTITY_SCHEMA_WORKER_TOKEN, undefined);
-  writeFileSync(localFile, readFileSync(localFile, "utf8").replace(/^INDEX_WORKER_TOKEN=.*\n/m, ""));
+  writeFileSync(localFile, readFileSync(localFile, "utf8").replace(/^PROCESSING_TOKEN=.*\n/m, ""));
+  writeFileSync(functionFile, readFileSync(functionFile, "utf8").replaceAll("PROCESSING_TOKEN=", "INDEX_WORKER_TOKEN="));
   const third = run();
   assert.equal(third.status, 0, third.stderr);
-  assert.equal(readEnv(localFile).INDEX_WORKER_TOKEN, generated);
-  assert.equal(readEnv(functionFile).INDEX_WORKER_TOKEN, generated);
+  assert.equal(readEnv(localFile).PROCESSING_TOKEN, generated);
+  assert.equal(readEnv(functionFile).PROCESSING_TOKEN, generated);
   assert.ok(!third.stdout.includes(generated));
   assert.equal(readEnv(localFile).CUSTOM_LOCAL, "keep");
   assert.equal(readEnv(functionFile).CUSTOM_FUNCTION, "keep");
@@ -80,4 +87,12 @@ test("setup generates and preserves the shared processing token in both environm
   const excluded = "studio,imgproxy,vector,logflare,mailpit,realtime,storage-api,postgres-meta";
   assert.deepEqual(starts[0], ["supabase", "start", "-x", excluded]);
   assert.deepEqual(starts[3], ["supabase", "start", "-x", `${excluded},edge-runtime`]);
+  // 모호한 설정을 임의 선택하거나 비밀값을 출력하지 않는다.
+  writeFileSync(functionFile, readFileSync(functionFile, "utf8") + "INDEX_WORKER_TOKEN=conflicting-private-value\n");
+  const originals = [localFile, functionFile].map(file => readFileSync(file, "utf8"));
+  const conflict = run();
+  assert.notEqual(conflict.status, 0);
+  assert.deepEqual([localFile, functionFile].map(file => readFileSync(file, "utf8")), originals);
+  assert.ok(!conflict.stderr.includes(generated));
+  assert.ok(!conflict.stderr.includes("conflicting-private-value"));
 });

@@ -29,7 +29,7 @@ try {
     items.push(item);
     const response = await fetch(`${SUPABASE_URL}/functions/v1/index-worker`, {
       method: "POST",
-      headers: { authorization: `Bearer ${Deno.env.get("INDEX_WORKER_TOKEN")}`, "content-type": "application/json" },
+      headers: { authorization: `Bearer ${Deno.env.get("PROCESSING_TOKEN")}`, "content-type": "application/json" },
       body: JSON.stringify({ limit: 1, owner_id: user, kind: "record", id: item.id }),
     });
     assertEquals(response.status, 200);
