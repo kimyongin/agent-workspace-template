@@ -49,7 +49,7 @@ test("값 변환 준비: 저장된 직접 링크·실패 행 보완·재분석·
     await expect(dialog).toBeVisible();
     await dialog.getByRole("button", { name: "취소", exact: true }).click();
     await expect(row.getByRole("textbox", { name: "보완값", exact: true })).toHaveValue("01");
-    await page.getByRole("button", { name: "변경 초안 저장", exact: true }).click();
+    await page.getByRole("button", { name: "보완 내용 검토", exact: true }).click();
     await expect(page.getByRole("heading", { name: "변경 요약 · 초안 버전 2" })).toBeVisible();
     await page.reload();
     await expect(page.getByRole("heading", { name: "변경 요약 · 초안 버전 2" })).toBeVisible();

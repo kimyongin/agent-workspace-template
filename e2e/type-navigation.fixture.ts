@@ -509,10 +509,11 @@ test("numeric schema bounds keep invalid raw decimals and reject before creating
     return route.fulfill({ json: { items: [], next_before: null } });
   });
   await page.goto(`/settings/entity-types/${materials.id}`);
+  await page.getByRole("button", { name: "정확한 수량 속성 편집", exact: true }).click();
   const section = page.getByRole("region", { name: "정확한 수량 속성", exact: true });
   const input = section.getByLabel("최소값", { exact: true });
   await input.fill("1.0000000000000001");
-  await page.getByRole("button", { name: "변경 초안 저장", exact: true }).click();
+  await page.getByRole("button", { name: "속성 변경 검토", exact: true }).click();
   await expect(page.getByRole("alert")).toContainText("정밀도");
   await expect(input).toHaveValue("1.0000000000000001");
   expect(writes).toBe(0);
@@ -544,7 +545,7 @@ test("conversion literals preserve unsafe drafts and removed properties permit e
   await field.getByLabel("누락값 채우기", { exact: true }).check();
   const input = field.getByLabel("보완값", { exact: true });
   await input.fill("1.0000000000000001");
-  await page.getByRole("button", { name: "변경 초안 저장", exact: true }).click();
+  await page.getByRole("button", { name: "보완 내용 검토", exact: true }).click();
   await expect(page.getByRole("alert")).toContainText("정밀도");
   await expect(input).toHaveValue("1.0000000000000001");
   expect(writes).toBe(0);
@@ -770,6 +771,7 @@ test("basic save preserves property edits and searchable archived selection at e
         : route.fallback(),
   );
   await page.goto(`/settings/entity-types/${materials.id}`);
+  await page.getByRole("button", { name: "이름 속성 편집", exact: true }).click();
   await page.getByLabel("속성 이름", { exact: true }).fill("保留する属性");
   await page.getByRole("button", { name: /^기본 정보(?! 저장)/ }).click();
   await page.getByLabel("자료 종류 이름", { exact: true }).fill("新しい基本情報");

@@ -23,13 +23,13 @@ test("웹 속성 초안·분석·게시 후 기존 자료 표시와 MCP 생성·
     const oldForm = oldPage.getByRole("dialog", { name: `${type.label} 편집`, exact: true });
     await oldForm.getByLabel("이름", { exact: false }).fill("충돌 뒤 유지할 초안");
     await page.goto(`/settings/entity-types/${typeId}`);
+    await page.getByRole("button", { name: "이름 속성 편집", exact: true }).click();
     await page.getByRole("region", { name: "이름 속성", exact: true }).getByLabel("속성 이름", { exact: true }).fill(
       "자료 이름",
     );
-    await page.getByRole("link", { name: "버전", exact: true }).click();
-    const leave = page.getByRole("dialog", { name: "변경을 버릴까요?" });
-    await expect(leave).toBeVisible();
-    await leave.getByRole("button", { name: "취소", exact: true }).click();
+    await page.getByRole("button", { name: /^변경 이력/ }).click();
+    await expect(page.getByRole("dialog", { name: "변경을 버릴까요?" })).toHaveCount(0);
+    await expect(page.getByRole("region", { name: "자료 이름 속성", exact: true }).getByLabel("속성 이름", { exact: true })).toHaveValue("자료 이름");
     await page.getByRole("button", { name: "속성 추가", exact: true }).click();
     const field = page.getByRole("region", { name: "새 속성 속성", exact: true });
     await field.getByLabel("속성 이름", { exact: true }).fill("수량");
@@ -37,8 +37,8 @@ test("웹 속성 초안·분석·게시 후 기존 자료 표시와 MCP 생성·
     await count.getByLabel("데이터 타입", { exact: true }).selectOption("integer");
     await count.getByLabel("생성 기본값 (기존 자료에는 채우지 않음)", { exact: true }).selectOption("value");
     await expect(count.getByLabel("기본값", { exact: true })).toHaveValue("0");
-    await page.getByRole("button", { name: "변경 초안 저장", exact: true }).click();
-    await expect(page.getByRole("heading", { name: "변경 요약 · 초안 버전 1" })).toBeVisible();
+    await page.getByRole("button", { name: "속성 변경 검토", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "속성 변경 검토 · 변경안 버전 1" })).toBeVisible();
     const plans = await mcp.call("list_entity_schema_changes", { type_id: typeId });
     const planId = plans.items[0].id;
     const draft = await mcp.call("get_entity_schema_change", { type_id: typeId, change_id: planId });
@@ -62,7 +62,7 @@ test("웹 속성 초안·분석·게시 후 기존 자료 표시와 MCP 생성·
     await page.getByRole("button", { name: "새 버전 게시", exact: true }).click();
     await expect(page.getByRole("button", { name: "같은 요청 다시 확인", exact: true })).toBeVisible();
     await page.getByRole("button", { name: "같은 요청 다시 확인", exact: true }).click();
-    await expect(page.getByRole("heading", { name: "속성·표시 · 버전 2", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: /^속성·표시 버전 2/ })).toBeVisible();
     const current = await mcp.call("get_entity", { id: existing.id });
     expect(current.schema_version).toBe(1);
     expect(current.version).toBe(existing.version);
@@ -89,7 +89,7 @@ test("웹 속성 초안·분석·게시 후 기존 자료 표시와 MCP 생성·
     await page.goto(`/settings/entity-types/${typeId}/versions`);
     await page.getByText(/^버전 1 ·/).click();
     await page.getByRole("button", { name: "이 버전 보기", exact: true }).click();
-    await expect(page.getByRole("region", { name: "버전 차이", exact: true })).toContainText("prop_2");
+    await expect(page.getByRole("region", { name: "버전 차이", exact: true })).toContainText("수량");
     await page.setViewportSize({ width: 320, height: 640 });
     await page.evaluate(() => {
       document.documentElement.style.zoom = "2";

@@ -63,12 +63,12 @@ test("자료 종류를 웹에서 만들고 이름·아이콘·보관과 게시 �
     await page.getByRole("button", { name: /^변경 이력/ }).click();
     await page.getByText(/^버전 1 ·/).click();
     await page.getByRole("button", { name: "이 버전 보기" }).click();
-    await expect(page.getByRole("heading", { name: "버전 1 → 버전 1 차이", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "버전 1 → 1 차이", exact: true })).toBeVisible();
     expect((await mcp.call("get_entity_schema", { type_id: typeId, schema_version: 1 })).schema).toEqual(
       original.schema,
     );
     await page.reload();
-    await expect(page.getByRole("heading", { name: "버전 1 → 버전 1 차이", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "버전 1 → 1 차이", exact: true })).toBeVisible();
     await page.getByRole("button", { name: /^기본 정보(?! 저장)/ }).click();
     await page.getByRole("checkbox", { name: /자료 종류 보관/ }).check();
     await page.getByRole("button", { name: "기본 정보 저장", exact: true }).click();
