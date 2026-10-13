@@ -11,9 +11,14 @@ test.beforeEach(async ({ page, baseURL }) => {
       return route.fulfill({ json: { items: [fixtureType, second], next_cursor: null } });
     }
     if (url.pathname.startsWith("/api/entity-types/")) {
-      return route.fulfill({
-        json: { ...fixtureSchema, type_id: url.pathname.includes(second.id) ? second.id : fixtureType.id, type: url.pathname.includes(second.id) ? second : fixtureType },
-      });
+      const selected = url.pathname.includes(second.id) ? second : fixtureType;
+      if (url.pathname.endsWith("/schemas")) return route.fulfill({ json: {
+        items: [{ type_id: selected.id, schema_version: fixtureSchema.schema_version, created_at: stamp }], next_before: null,
+      } });
+      if (url.pathname.endsWith("/schema-changes")) return route.fulfill({ json: { items: [], next_before: null } });
+      return route.fulfill({ json: url.pathname.endsWith("/schema")
+        ? { ...fixtureSchema, type_id: selected.id, type: selected }
+        : selected });
     }
     if (url.pathname === "/api/settings/business") {
       return route.fulfill({
@@ -125,10 +130,10 @@ test("manual deleted lookup opens restore confirmation without submitting archiv
   expect(inputs[0].tag_ids).toEqual([id(700)]);
 });
 test("template insertion uses selected type labels and immutable property keys", async ({ page }) => {
-  await page.goto("/settings");
-  await page.getByRole("heading", { name: "변경 기록 기본값" }).scrollIntoViewIfNeeded();
-  const form = page.getByRole("form", { name: "변경 기록 기본값" });
-  await form.getByLabel("자료 종류", { exact: true }).selectOption(fixtureType.id);
+  await page.goto(`/settings/entity-types/${fixtureType.id}`);
+  await page.getByRole("button", { name: /현재 종류 기록 기본값/ }).click();
+  const form = page.getByRole("form", { name: "현재 종류 기록 기본값" });
+  await expect(form.getByLabel("자료 종류", { exact: true })).toHaveCount(0);
   await form.getByLabel("액션", { exact: true }).selectOption("update");
   await form.getByLabel("변수 삽입", { exact: true }).selectOption("엔터티.이후.prop_2");
   await expect(form.getByLabel("메모 템플릿", { exact: true })).toContainText("$엔터티.이후.prop_2$");

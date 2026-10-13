@@ -1,6 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { materialSettingsPath } from "./material-settings-path.ts";
+import { type MaterialSectionState, MaterialSettingsSection } from "./MaterialSettingsSection.tsx";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { RecoveryAvailability, RecoveryChangeCreate, recoveryErrorMessage } from "./SchemaRecovery.tsx";
-import { Link, useNavigate, useParams } from "react-router";
+import { Link, useLocation, useNavigate } from "react-router";
 import type { EntitySchemaMigration, SchemaMigrationAccepted } from "@contracts/entity-schema-migration.ts";
 import type { EntitySchemaChange } from "@contracts/entity-schema-change.ts";
 import { api } from "../../lib/api.ts";
@@ -17,9 +19,19 @@ const labels: Record<EntitySchemaMigration["status"], string> = {
 };
 const active = (job: EntitySchemaMigration) =>
   ["queued", "preparing", "ready_to_commit", "committing"].includes(job.status);
-export function MigrationStart({ plan, disabled }: { plan: EntitySchemaChange; disabled: boolean }) {
-  const navigate = useNavigate(), { attempt, busy, uncertain } = useWriteAttempt();
+export function MigrationStart(
+  { plan, disabled, onState }: {
+    plan: EntitySchemaChange;
+    disabled: boolean;
+    onState?: (state: { busy: boolean; uncertain: boolean }) => void;
+  },
+) {
+  const navigate = useNavigate(), location = useLocation(), { attempt, busy, uncertain } = useWriteAttempt();
   const [error, setError] = useState("");
+  useLayoutEffect(() => {
+    onState?.({ busy, uncertain });
+  }, [busy, uncertain, onState]);
+  useLayoutEffect(() => () => onState?.({ busy: false, uncertain: false }), [onState]);
   const acceptedRef = useRef<SchemaMigrationAccepted | undefined>(undefined);
   const start = async () => {
     setError("");
@@ -41,7 +53,12 @@ export function MigrationStart({ plan, disabled }: { plan: EntitySchemaChange; d
         );
       });
       if (acceptedRef.current) {
-        navigate(`/settings/entity-types/${plan.type_id}/migrations/${acceptedRef.current.job_id}`);
+        const params = new URLSearchParams(location.search);
+        params.set("job_id", acceptedRef.current.job_id);
+        params.set("change_id", plan.id);
+        requestAnimationFrame(() => {
+          navigate(`/settings/entity-types/${plan.type_id}?${params}`);
+        });
       }
     } catch (e) {
       setError(plan.recovery ? recoveryErrorMessage(e) : writeErrorMessage(e));
@@ -61,6 +78,7 @@ export function MigrationStart({ plan, disabled }: { plan: EntitySchemaChange; d
   );
 }
 export function MigrationJobs({ typeId }: { typeId: string }) {
+  const location = useLocation();
   const [list, setList] = useState({
     typeId,
     items: [] as EntitySchemaMigration[],
@@ -173,7 +191,7 @@ export function MigrationJobs({ typeId }: { typeId: string }) {
       <ul>
         {items.map((j) => (
           <li key={j.id}>
-            <Link to={`/settings/entity-types/${j.type_id}/migrations/${j.id}`}>
+            <Link to={materialSettingsPath(j.type_id, location.search, { job_id: j.id })}>
               <EntityTypeIcon id={j.type.icon_id} />
               {j.type.label} · {labels[j.status]} · {j.processed}/{j.total}
             </Link>
@@ -185,15 +203,41 @@ export function MigrationJobs({ typeId }: { typeId: string }) {
     </section>
   );
 }
-export function SchemaMigrationJob() {
-  const { type_id, job_id } = useParams();
+export function SchemaMigrationJob({ typeId: type_id, jobId: job_id, onState, onApplied, disabled = false }: {
+  typeId: string;
+  jobId: string;
+  onState: (state: MaterialSectionState) => void;
+  onApplied?: () => Promise<void>;
+  disabled?: boolean;
+}) {
+  const location = useLocation();
+  const applied = useRef(onApplied);
+  applied.current = onApplied;
+  const notified = useRef(new Set<string>());
+  const notifying = useRef(new Set<string>());
+  const [refreshFailed, setRefreshFailed] = useState(false);
   const [job, setJob] = useState<EntitySchemaMigration>(),
     [error, setError] = useState(""),
     [refresh, setRefresh] = useState(0);
   const { attempt, busy, uncertain } = useWriteAttempt();
+  const [recoveryState, setRecoveryState] = useState<MaterialSectionState>({
+    dirty: false,
+    busy: false,
+    uncertain: false,
+  });
+  useLayoutEffect(() => {
+    onState({
+      dirty: false,
+      busy: busy || recoveryState.busy,
+      uncertain: uncertain || recoveryState.uncertain,
+      error: !!error,
+    });
+  }, [busy, uncertain, error, recoveryState, onState]);
+  useLayoutEffect(() => () => onState({ dirty: false, busy: false, uncertain: false }), [onState]);
   const [pendingAction, setPendingAction] = useState<"cancel" | "retry">();
   useEffect(() => {
     setJob(undefined);
+    setRefreshFailed(false);
   }, [job_id, type_id]);
   useEffect(() => {
     const controller = new AbortController();
@@ -210,6 +254,25 @@ export function SchemaMigrationJob() {
         if (controller.signal.aborted) return;
         if (value.type_id !== type_id) throw new Error("이 자료 종류의 작업이 아닙니다");
         setJob(value);
+        if (
+          value.status === "succeeded" && applied.current && !notified.current.has(value.id) &&
+          !notifying.current.has(value.id)
+        ) {
+          notifying.current.add(value.id);
+          try {
+            await applied.current();
+            if (controller.signal.aborted) return;
+            notified.current.add(value.id);
+            setRefreshFailed(false);
+          } catch {
+            if (controller.signal.aborted) return;
+            setRefreshFailed(true);
+            throw new Error("값 변환은 완료되었습니다. 최신 속성 조회에 실패했습니다. 상태를 다시 조회하세요.");
+          } finally {
+            notifying.current.delete(value.id);
+          }
+        }
+        if (controller.signal.aborted) return;
         setError("");
         if (active(value)) timer = setTimeout(() => void poll(), 1200);
       } catch (e) {
@@ -226,7 +289,7 @@ export function SchemaMigrationJob() {
     };
   }, [job_id, type_id, refresh]);
   const write = async (action: "cancel" | "retry") => {
-    if (!job) return;
+    if (!job || disabled || busy) return;
     setError("");
     setPendingAction(action);
     try {
@@ -246,12 +309,19 @@ export function SchemaMigrationJob() {
     }
   };
   return (
-    <section className="panel settings">
-      <h1 className="page-title">
-        {job && <EntityTypeIcon id={job.type.icon_id} />} {job?.type.label ?? "자료 종류"} · 값 변환 작업
-      </h1>
+    <MaterialSettingsSection
+      title="선택한 값 변환 작업"
+      initialOpen
+      summary={job ? `${labels[job.status]} · ${job.processed}/${job.total}` : "읽는 중…"}
+      state={{
+        dirty: false,
+        busy: busy || recoveryState.busy,
+        uncertain: uncertain || recoveryState.uncertain,
+        error: !!error,
+      }}
+    >
       <nav aria-label="값 변환 탐색">
-        <Link to={`/settings/entity-types/${type_id}/migrations`}>변경안·작업 목록</Link>{" "}
+        <Link to={materialSettingsPath(type_id, location.search, { job_id: null })}>변경안·작업 목록</Link>{" "}
         <Link to={`/entities?entity_type_id=${type_id}`}>자료 목록</Link>
       </nav>
       <p className="secondary">
@@ -259,6 +329,7 @@ export function SchemaMigrationJob() {
       </p>
       {error && <p role="alert">{error}</p>}
       <button className="btn" onClick={() => setRefresh((n) => n + 1)}>상태 다시 조회</button>
+      {refreshFailed && <button className="btn" onClick={() => setRefresh((n) => n + 1)}>최신 속성 다시 조회</button>}
       {job && (
         <>
           <p role="status">{labels[job.status]} · {job.processed}/{job.total}개 준비</p>
@@ -282,13 +353,20 @@ export function SchemaMigrationJob() {
             </p>
           )}
           {job.status === "cancelled" && <p>적용 전 취소했습니다. 원본은 유지됩니다. 새 분석을 준비하여 실행하세요.</p>}
-          <RecoveryChangeCreate key={job.id} job={job} />
-          <Link to={`/settings/entity-types/${type_id}/migrations?change_id=${job.change_id}`}>변경안 보기</Link>
+          <RecoveryChangeCreate
+            key={job.id}
+            job={job}
+            onState={setRecoveryState}
+            disabled={disabled || busy || uncertain}
+          />
+          <Link to={materialSettingsPath(type_id, location.search, { change_id: job.change_id, job_id: job.id })}>
+            변경안 보기
+          </Link>
           <div className="schema-actions">
             {["queued", "preparing", "ready_to_commit"].includes(job.status) && (
               <button
                 className="btn"
-                disabled={busy || uncertain}
+                disabled={busy || uncertain || disabled}
                 onClick={() => void write("cancel")}
               >
                 적용 전 취소
@@ -297,7 +375,7 @@ export function SchemaMigrationJob() {
             {job.status === "failed" && job.retryable && (
               <button
                 className="btn btn-primary"
-                disabled={busy || uncertain}
+                disabled={busy || uncertain || disabled}
                 onClick={() => void write("retry")}
               >
                 같은 작업 재시도
@@ -315,6 +393,6 @@ export function SchemaMigrationJob() {
           </div>
         </>
       )}
-    </section>
+    </MaterialSettingsSection>
   );
 }

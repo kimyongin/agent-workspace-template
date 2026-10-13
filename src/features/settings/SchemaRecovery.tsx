@@ -1,5 +1,7 @@
-import { useEffect, useRef, useState } from "react";
-import { Link, useNavigate } from "react-router";
+import { materialSettingsPath } from "./material-settings-path.ts";
+import type { MaterialSectionState } from "./MaterialSettingsSection.tsx";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { Link, useLocation, useNavigate } from "react-router";
 import type { EntitySchemaMigration } from "@contracts/entity-schema-migration.ts";
 import { entityPath, entityReferenceId } from "@contracts/entity-identity.ts";
 import type { EntitySchemaChange } from "@contracts/entity-schema-change.ts";
@@ -75,10 +77,14 @@ export function submitRecoveryChange(job: EntitySchemaMigration, requestKey: str
     requestKey,
   );
 }
-export function RecoveryChangeCreate({ job }: { job: EntitySchemaMigration }) {
-  const navigate = useNavigate();
+export function RecoveryChangeCreate({ job, onState, disabled = false }: {
+  job: EntitySchemaMigration; onState?: (state: MaterialSectionState) => void; disabled?: boolean;
+}) {
+  const navigate = useNavigate(), location = useLocation();
   const { attempt, busy, uncertain } = useWriteAttempt();
   const [error, setError] = useState("");
+  useLayoutEffect(() => { onState?.({ dirty: false, busy, uncertain, error: !!error }); }, [busy, uncertain, error, onState]);
+  useLayoutEffect(() => () => onState?.({ dirty: false, busy: false, uncertain: false }), [onState]);
   const created = useRef<EntitySchemaChange | undefined>(undefined);
   const mounted = useRef(true);
   useEffect(() => {
@@ -91,7 +97,11 @@ export function RecoveryChangeCreate({ job }: { job: EntitySchemaMigration }) {
       await attempt.run(async () => {
         created.current = await submitRecoveryChange(job, attempt.requestKey());
       });
-      if (mounted.current && created.current) navigate(`/settings/entity-types/${job.type_id}/migrations?change_id=${created.current.id}`);
+      if (mounted.current && created.current) {
+        const params = new URLSearchParams(location.search); params.set("change_id", created.current.id); params.set("job_id", job.id);
+        // Let the confirmed write's state reach the shared workspace guard before this outcome navigation.
+        requestAnimationFrame(() => { if (mounted.current) navigate(`/settings/entity-types/${job.type_id}?${params}`); });
+      }
     } catch (e) {
       if (mounted.current) setError(recoveryErrorMessage(e));
     }
@@ -109,10 +119,10 @@ export function RecoveryChangeCreate({ job }: { job: EntitySchemaMigration }) {
       {job.recovery?.status === "expired" && <p>보존 기한이 지난 원본으로는 복구할 수 없습니다. 현재 자료에서 새 변경안을 준비하세요.</p>}
       {error && <p role="alert">{error}</p>}
       <div className="schema-actions">
-        <button className="btn btn-primary" disabled={busy || (!uncertain && job.recovery?.status !== "available")} onClick={() => void create()}>
+        <button className="btn btn-primary" disabled={busy || disabled || (!uncertain && job.recovery?.status !== "available")} onClick={() => void create()}>
           {busy ? "복구안 생성 중…" : uncertain ? "같은 복구안 요청 다시 확인" : "원본 복구안 만들기"}
         </button>
-        <Link to={`/settings/entity-types/${job.type_id}/migrations`}>변경안·분석 확인</Link>
+        <Link to={materialSettingsPath(job.type_id, location.search)}>변경안·분석 확인</Link>
       </div>
     </section>
   );

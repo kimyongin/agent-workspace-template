@@ -66,10 +66,10 @@ test("값 변환 작업: 웹 접수→페이지 이탈→실제 local runner 완
     const accepted = await (await response).json();
     expect(accepted.status).toBe("queued");
     const path = `/settings/entity-types/${type.id}/migrations/${accepted.job_id}`;
-    await expect(page).toHaveURL(new RegExp(`${accepted.job_id}$`));
-    await expect(page.getByRole("status")).toContainText("접수");
+    await expect(page).toHaveURL(new RegExp(`job_id=${accepted.job_id}(?:&|$)`));
+    await expect(page.getByRole("status").filter({ hasText: /^(접수|실행 중|완료|취소) · / })).toContainText("접수");
     expect((await mcp.call("get_entity", { id: x.id })).properties).toEqual({ prop_1: "원본" });
-    await page.getByRole("link", { name: "자료 목록", exact: true }).click();
+    await page.getByRole("link", { name: "할 일", exact: true }).click();
     await page.goto(`/entities?entity_type_id=${other.id}`);
     // Explicit test infrastructure owns execution. No GET/page poll calls the worker.
     const origin = new URL(env.VITE_SUPABASE_URL);
@@ -88,10 +88,10 @@ test("값 변환 작업: 웹 접수→페이지 이탈→실제 local runner 완
     await stopWorker(runner);
     runner = undefined;
     await page.goto(path);
-    await expect(page.getByRole("status")).toContainText("완료");
+    await expect(page.getByRole("status").filter({ hasText: /^(접수|실행 중|완료|취소) · / })).toContainText("완료");
     await page.reload();
-    await expect(page.getByRole("status")).toContainText("완료");
-    await expect(page.getByRole("heading", { name: new RegExp(type.label) })).toBeVisible();
+    await expect(page.getByRole("status").filter({ hasText: /^(접수|실행 중|완료|취소) · / })).toContainText("완료");
+    await expect(page.locator(".material-settings-current")).toBeVisible();
     const current = await mcp.call("get_entity", { id: x.id });
     expect(current.properties).toEqual({ prop_1: "원본", prop_2: 7 });
     expect(current.entity_type_id).toBe(type.id);
@@ -100,7 +100,7 @@ test("값 변환 작업: 웹 접수→페이지 이탈→실제 local runner 완
     const mcpJob = await mcp.call("get_entity_schema_migration", { job_id: accepted.job_id });
     expect(mcpJob.result.schema_version).toBe(2);
     await page.setViewportSize({ width: 320, height: 750 });
-    await expect(page.getByRole("status")).toBeVisible();
+    await expect(page.getByRole("status").filter({ hasText: /^(접수|실행 중|완료|취소) · / })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   } finally {
     await stopWorker(runner);
@@ -149,14 +149,14 @@ test("값 변환 작업: MCP 접수→웹 취소→MCP 확정 상태·원본 유
         fingerprint: ready.fingerprint,
       });
     await page.goto(`/settings/entity-types/${typeId}/migrations/${job.job_id}`);
-    await expect(page.getByRole("status")).toContainText("접수");
+    await expect(page.getByRole("status").filter({ hasText: /^(접수|실행 중|완료|취소) · / })).toContainText("접수");
     await page.getByRole("button", { name: "적용 전 취소", exact: true }).click();
-    await expect(page.getByRole("status")).toContainText("취소");
+    await expect(page.getByRole("status").filter({ hasText: /^(접수|실행 중|완료|취소) · / })).toContainText("취소");
     expect((await mcp.call("get_entity_schema_migration", { job_id: job.job_id })).status).toBe("cancelled");
     expect((await mcp.call("get_entity", { id: entityId })).properties).toEqual({ prop_1: "原本" });
     expect((await mcp.call("get_entity_schema", { type_id: typeId })).schema_version).toBe(1);
     await page.reload();
-    await expect(page.getByRole("status")).toContainText("취소");
+    await expect(page.getByRole("status").filter({ hasText: /^(접수|실행 중|완료|취소) · / })).toContainText("취소");
   } finally {
     await mcp.close();
     if (entityId) await admin`delete from app.records where entity_ids@>array[${entityId}]`;
@@ -242,13 +242,13 @@ test("값 변환 작업: 실제 worker 실패→웹 같은 작업 재시도→�
     expect(resumed).toMatchObject({ job_id: job.job_id, job_version: failed.version + 1, status: "queued" });
     const retryKey = resumedResponse.request().headers()["idempotency-key"];
     expect(retryKey).toBeTruthy();
-    await expect(page.getByRole("status")).toContainText("접수");
+    await expect(page.getByRole("status").filter({ hasText: /^(접수|실행 중|완료|취소) · / })).toContainText("접수");
     expect((await mcp.call("get_entity", { id: entityId })).version).toBe(entity.version);
     await expect.poll(async () => {
       await schemaAnalysisTick();
       return (await mcp.call("get_entity_schema_migration", { job_id: job.job_id })).status;
     }, { timeout: 30000 }).toBe("succeeded");
-    await expect(page.getByRole("status")).toContainText("완료");
+    await expect(page.getByRole("status").filter({ hasText: /^(접수|실행 중|완료|취소) · / })).toContainText("완료");
     const current = await mcp.call("get_entity", { id: entityId });
     expect(current.properties).toEqual({ prop_1: "보존 원본", prop_2: 7 });
     expect(current.version).toBe(entity.version + 1);
@@ -261,7 +261,7 @@ test("값 변환 작업: 실제 worker 실패→웹 같은 작업 재시도→�
       }),
     ).toEqual(resumed);
     await page.reload();
-    await expect(page.getByRole("status")).toContainText("완료");
+    await expect(page.getByRole("status").filter({ hasText: /^(접수|실행 중|완료|취소) · / })).toContainText("완료");
   } finally {
     await worker.end();
     await mcp.close();

@@ -75,7 +75,7 @@ export function useTagDictionary(enabled = true, preserveListLayout = false, sco
     setRead((previous) => ({
       scope,
       tags: previous.scope === scope ? previous.tags : null,
-      failed: false,
+      failed: previous.scope === scope && previous.failed,
       pending: true,
     }));
     tagRead.all(scope, controller.signal).then((all) => {

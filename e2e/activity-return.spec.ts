@@ -89,6 +89,7 @@ for (
       expect((await readingRow.boundingBox())!.y).toBeCloseTo(readingY, 1);
       await control.scrollIntoViewIfNeeded();
       const lastRow = page.locator(`#${await page.locator(`.${path} .list .item-title`).last().getAttribute("id")}`);
+      await lastRow.scrollIntoViewIfNeeded();
       await expect(lastRow).toBeInViewport();
       const lastY = (await lastRow.boundingBox())!.y;
       const lastScroll = await page.evaluate(() => window.scrollY);

@@ -55,7 +55,7 @@ it("원본 만료나 자료 없음 상태에는 복구 생성 버튼을 비활�
   for (const status of ["expired", "unavailable", "conflict"] as const) {
     const html = renderToStaticMarkup(<MemoryRouter><RecoveryChangeCreate job={{ ...job, recovery: { ...job.recovery!, status } }} /></MemoryRouter>);
     expect(html).toMatch(/<button[^>]*disabled=""[^>]*>원본 복구안 만들기<\/button>/);
-    expect(html).toContain('/settings/entity-types/type-1/migrations');
+    expect(html).toContain('/settings/entity-types/type-1');
   }
   const available = renderToStaticMarkup(<MemoryRouter><RecoveryChangeCreate job={job} /></MemoryRouter>);
   expect(available).toContain("원본 복구안 만들기");

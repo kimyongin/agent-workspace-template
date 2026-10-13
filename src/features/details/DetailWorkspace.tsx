@@ -2,7 +2,7 @@ import { entityListAnchor, detailListReturn } from "../../lib/entity-list-url.ts
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode, type RefObject } from "react";
 import { useBlocker, useLocation, useNavigate, type Location, type NavigateOptions, type To } from "react-router";
 import { ConfirmDialog } from "../../components/Modal.tsx";
-import { DetailTabContext, WorkspaceContext, detailIdentity, workspaceList, type WorkspaceGuard } from "./workspace-context.ts";
+import { DetailTabContext, WorkspaceContext, detailIdentity, workspaceList, workspaceBase, materialSettingsBase, type WorkspaceGuard } from "./workspace-context.ts";
 import { useWorkspaceResize } from "./useWorkspaceResize.ts";
 import { useDisplayScale } from "../settings/display-scale.tsx";
 import { DetailTabs } from "./DetailTabs.tsx";
@@ -32,8 +32,8 @@ export function DetailWorkspace({ children, render, enabled }: { children: React
     return () => desktopQuery.removeEventListener("change", notify);
   }, [desktopQuery]);
   const desktop = useSyncExternalStore(subscribeDesktop, () => desktopQuery.matches, () => false);
-  const eligible = enabled && (workspaceList(location.pathname) || !!detailIdentity(location.pathname));
-  const [started, setStarted] = useState(desktop && eligible);
+  const eligible = enabled && (workspaceBase(location.pathname) || !!detailIdentity(location.pathname));
+  const [started, setStarted] = useState(eligible && (desktop || materialSettingsBase(location.pathname)));
   const [tabs, setTabs] = useState<Tab[]>([]);
   const [active, setActive] = useState<string | null>(null);
   const [visible, setVisible] = useState(true);
@@ -43,6 +43,7 @@ export function DetailWorkspace({ children, render, enabled }: { children: React
   const current = useRef({ tabs, active, base, visible });
   current.current = { tabs, active, base, visible };
   const guards = useRef(new Map<string, () => WorkspaceGuard>());
+  const baseFocus = useRef<HTMLElement | null>(null);
   const tabFocus = useRef<string | null>(null);
   const openedLocation = useRef<Location | null>(null);
   const registerGuard = useCallback((key: string, guard: () => WorkspaceGuard) => {
@@ -72,7 +73,7 @@ export function DetailWorkspace({ children, render, enabled }: { children: React
     if (!eligible) { setTabs([]); setActive(null); setStarted(false); return; }
     // Do not reparent a mobile form while its native dialog owns an unfinished visit.
     if (!started) {
-      if (!desktop || document.querySelector("dialog.modal[open]")) return;
+      if ((!desktop && !materialSettingsBase(location.pathname)) || document.querySelector("dialog.modal[open]")) return;
       setStarted(true);
     }
     const id = detailIdentity(location.pathname);
@@ -146,12 +147,12 @@ export function DetailWorkspace({ children, render, enabled }: { children: React
     if (anyBusy()) return;
     const state = current.current, path = destination(to, origin), identity = detailIdentity(path);
     const existing = state.tabs.find(tab => tab.id === identity);
-    if (workspaceList(origin.pathname)) setBase(origin);
+    if (workspaceBase(origin.pathname)) { setBase(origin); if(materialSettingsBase(origin.pathname) && !detailIdentity(location.pathname))baseFocus.current=document.activeElement instanceof HTMLElement ? document.activeElement : null; }
     setVisible(true);
     if (existing && state.active === identity && href(location) === href(existing.location)) return;
     const returnTo = returnTarget(origin, identity);
     rememberReturn(identity, returnTo);
-    void navigate(existing ? href(existing.location) : path, { replace: !!existing, state: { workspaceOwner: workspaceList(origin.pathname) ? origin.pathname : state.base.pathname, workspaceReturnTo: returnTo } });
+    void navigate(existing ? href(existing.location) : path, { replace: !!existing, state: { workspaceOwner: workspaceBase(origin.pathname) ? origin.pathname : state.base.pathname, workspaceReturnTo: returnTo } });
   }, [navigate, location, anyBusy]);
   const select = (tab: Tab) => {
     if (anyBusy()) return;
@@ -171,7 +172,7 @@ export function DetailWorkspace({ children, render, enabled }: { children: React
     return index;
   };
   useEffect(() => {
-    if (!desktop || !visible) return;
+    if ((!desktop && !materialSettingsBase(base.pathname)) || !visible) return;
     const frame = requestAnimationFrame(() => {
       let anchor:HTMLElement|null = null;
       try {
@@ -179,7 +180,7 @@ export function DetailWorkspace({ children, render, enabled }: { children: React
         const candidate = listAnchor ? document.getElementById(decodeURIComponent(listAnchor.slice(1))) : null;
         if (candidate && listRef.current?.contains(candidate) && candidate.matches(".item-title")) anchor = candidate;
       } catch { /* A malformed external fragment falls back to the list heading. */ }
-      const button = tabFocus.current === "list" ? anchor ?? listRef.current?.querySelector<HTMLElement>("h1") : document.getElementById(`tab-${active}`);
+      const button = tabFocus.current === "list" ? (materialSettingsBase(base.pathname) && baseFocus.current?.isConnected ? baseFocus.current : null) ?? anchor ?? listRef.current?.querySelector<HTMLElement>("h1") : document.getElementById(`tab-${active}`);
       if (tabFocus.current === "list" && !anchor) button?.setAttribute("tabindex", "-1");
       if (tabFocus.current) button?.focus({ preventScroll: true });
       if (tabFocus.current !== "list") button?.scrollIntoView({ block: "nearest", inline: "nearest" });
@@ -187,7 +188,8 @@ export function DetailWorkspace({ children, render, enabled }: { children: React
     });
     return () => cancelAnimationFrame(frame);
   }, [active, visible, desktop, tabs.length, tabs.find(tab => tab.id === active)?.title, listRef, base.hash]);
-  if (!started || !eligible) return children;
+  // Material editors use this same retained parent on the first authenticated render and after startup commits.
+  if ((!started && !materialSettingsBase(location.pathname)) || !eligible) return children;
   return <WorkspaceContext.Provider value={{ revision, navigationKey: location.key, saved, open, registerGuard }}><div ref={split.ref} style={split.style} className={`detail-workspace${desktop && shown ? " has-detail-panel" : ""}${split.dragging ? " is-resizing" : ""}`}>
     <div className="workspace-list" ref={listRef}>{render(base)}
       {desktop && !visible && tabs.length > 0 && <button className="btn workspace-reopen" onClick={() => setVisible(true)}>상세 탭 보기 ({tabs.length}개)</button>}
@@ -241,8 +243,8 @@ function useWorkspaceScroll(enabled: boolean, split: boolean, base: Location) {
 function WorkspaceRouteProtection({ guards }: { guards: RefObject<Map<string, () => WorkspaceGuard>> }) {
   const blocked = useRef<WorkspaceGuard[]>([]);
   const blocker = useBlocker(({ nextLocation }) => {
-    const staying = workspaceList(nextLocation.pathname) || !!detailIdentity(nextLocation.pathname);
-    blocked.current = [...guards.current.values()].map(read => read()).filter(guard => guard.busy || guard.dirty && (!staying || !guard.retained));
+    const staying = workspaceBase(nextLocation.pathname) || !!detailIdentity(nextLocation.pathname);
+    blocked.current = [...guards.current.values()].map(read => read()).filter(guard => guard.busy || guard.dirty && (!staying || !guard.retained || guard.allows && !guard.allows(nextLocation.pathname,nextLocation.search)));
     return blocked.current.length > 0;
   });
   useEffect(() => { if (blocker.state === "blocked" && blocked.current.some(guard => guard.busy)) blocker.reset(); }, [blocker]);

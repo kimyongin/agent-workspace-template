@@ -5,7 +5,7 @@ import { env } from "./support.ts";
 /** Explicit actual internal worker consumption; callers own serial local API tests. */
 export async function schemaAnalysisTick() {
   const token =
-    parseEnv(readFileSync(new URL("../supabase/functions/.env", import.meta.url), "utf8")).ENTITY_SCHEMA_WORKER_TOKEN;
+    parseEnv(readFileSync(new URL("../supabase/functions/.env", import.meta.url), "utf8")).INDEX_WORKER_TOKEN;
   if (!token) throw new Error("local schema worker token missing");
   const response = await fetch(`${env.VITE_SUPABASE_URL}/functions/v1/entity-schema-worker`, {
     method: "POST",

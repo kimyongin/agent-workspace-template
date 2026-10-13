@@ -2,13 +2,14 @@ import { EntityTypeIcon } from "../entity/EntityTypeIcon.tsx";
 import { useEntityTypes } from "../entity/useEntityTypes.ts";
 import type { EntitySchemaResult } from "@contracts/entity-type.ts";
 import { writeErrorMessage } from "../../lib/write-attempt.ts";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import {
   DEFAULT_RECORD_MEMO_TEMPLATES,
   effectiveRecordTemplate,
   mapRecordTemplateTags,
   modelActions,
   recordTemplates,
+  renderTemplate,
   TEMPLATE_MODELS,
   type TemplateAction,
   templateActionNames,
@@ -22,18 +23,94 @@ import { api, ApiError } from "../../lib/api.ts";
 import { useSettingsDraft } from "./useSettingsDraft.ts";
 import { createRecordTemplatesDraft, unavailableTemplateTags } from "./business-settings-drafts.ts";
 
+import type { MaterialTemplateResource } from "./material-template-drafts.ts";
+
 const recordTemplatesDraft = createRecordTemplatesDraft(api);
 
 export function RecordTemplateSettings(
-  { onStateChange }: { onStateChange?: (state: { dirty: boolean; busy: boolean }) => void },
+  props: {
+    onStateChange?: (state: { dirty: boolean; busy: boolean; uncertain?: boolean; error?: boolean }) => void;
+    materialResource?: MaterialTemplateResource;
+    materialTypeId?: string;
+    publishedVersion?: number;
+    common?: boolean;
+    general?: boolean;
+  },
 ) {
-  const editor = useSettingsDraft(recordTemplatesDraft, onStateChange);
+  return props.materialResource
+    ? (
+      <MaterialRecordTemplateSettings
+        {...props}
+        materialResource={props.materialResource}
+      />
+    )
+    : <GeneralRecordTemplateSettings {...props} />;
+}
+function GeneralRecordTemplateSettings(
+  props: Parameters<typeof RecordTemplateSettings>[0],
+) {
+  const editor = useSettingsDraft(recordTemplatesDraft, props.onStateChange);
+  return <RecordTemplateForm {...props} editor={editor} />;
+}
+function MaterialRecordTemplateSettings(
+  props: Parameters<typeof RecordTemplateSettings>[0] & {
+    materialResource: MaterialTemplateResource;
+  },
+) {
+  const state = useSyncExternalStore(
+    props.materialResource.subscribe,
+    props.materialResource.snapshot,
+  );
+  useEffect(() => {
+    void props.materialResource.read();
+  }, [props.materialResource]);
+  useEffect(() => {
+    props.onStateChange?.({
+      dirty: state.dirty || state.uncertain,
+      uncertain:state.uncertain, error:!!state.error,
+      busy: state.busy && state.operation === "save",
+    });
+  }, [
+    state.dirty,
+    state.uncertain,
+    state.busy,
+    state.operation,
+    props.onStateChange,
+  ]);
+  return (
+    <RecordTemplateForm
+      {...props}
+      editor={{ ...state, resource: props.materialResource }}
+    />
+  );
+}
+function RecordTemplateForm({
+  editor,
+  materialResource,
+  materialTypeId,
+  publishedVersion,
+  common,
+  general,
+}: Parameters<typeof RecordTemplateSettings>[0] & {
+  editor:
+    & ReturnType<
+      typeof useSettingsDraft<
+        import("@contracts/record-template.ts").RecordTemplates,
+        Awaited<
+          ReturnType<ReturnType<typeof createRecordTemplatesDraft>["read"]>
+        >
+      >
+    >
+    & { locked?: boolean };
+}) {
   const { draft, dirty, busy, conflict, uncertain, latestReady } = editor;
   const saved = editor.saved?.settings;
   const setDraft = editor.resource.edit;
-  const [model, setModel] = useState<TemplateModel>("entity");
+  const [model, setModel] = useState<TemplateModel>(
+    general ? "task" : "entity",
+  );
   const { types, error: typeError, retry: retryTypes } = useEntityTypes();
-  const [typeId, setTypeId] = useState("");
+  const [typeId, setTypeId] = useState(materialTypeId ?? "");
   const [schema, setSchema] = useState<EntitySchemaResult | null>(null),
     [schemaError, setSchemaError] = useState(false);
   useEffect(() => {
@@ -41,7 +118,12 @@ export function RecordTemplateSettings(
     setSchema(null);
     setSchemaError(false);
     if (typeId) {
-      void api<EntitySchemaResult>("GET", `/entity-types/${typeId}/schema`, undefined, controller.signal).then(
+      void api<EntitySchemaResult>(
+        "GET",
+        `/entity-types/${typeId}/schema`,
+        undefined,
+        controller.signal,
+      ).then(
         (value) => {
           if (!controller.signal.aborted) setSchema(value);
         },
@@ -50,7 +132,7 @@ export function RecordTemplateSettings(
       });
     }
     return () => controller.abort();
-  }, [typeId]);
+  }, [typeId, publishedVersion]);
   const [action, setAction] = useState<TemplateAction>("create");
   const [message, setMessage] = useState("");
   const [fields, setFields] = useState<Record<string, string>>({});
@@ -79,14 +161,22 @@ export function RecordTemplateSettings(
           Object.fromEntries(
             editor.error.fields.map((
               field,
-            ) => [field.path.replace(/^(?:value|record_templates)\./, ""), field.message]),
+            ) => [
+              field.path.replace(/^(?:value|record_templates)\./, ""),
+              field.message,
+            ]),
           ),
         );
       }
     }
   }, [editor.error]);
   const path = model === "entity" && typeId ? `entity_types.${typeId}.${action}` : `${model}.${action}`;
-  const value = effectiveRecordTemplate(draft, model, action, typeId || undefined);
+  const value = effectiveRecordTemplate(
+    draft,
+    model,
+    action,
+    typeId || undefined,
+  );
   const setValue = (patch: Partial<typeof value>) => {
     setDraft((current) =>
       model === "entity" && typeId
@@ -94,39 +184,60 @@ export function RecordTemplateSettings(
           ...current,
           entity_types: {
             ...current.entity_types,
-            [typeId]: { ...current.entity_types?.[typeId], [action]: { ...value, ...patch } },
+            [typeId]: {
+              ...current.entity_types?.[typeId],
+              [action]: { ...value, ...patch },
+            },
           },
         })
-        : ({ ...current, [model]: { ...current[model], [action]: { ...value, ...patch } } })
+        : ({
+          ...current,
+          [model]: { ...current[model], [action]: { ...value, ...patch } },
+        })
     );
     setMessage("");
     setFields({});
   };
   const parse = recordTemplates.safeParse(draft);
-  const currentError = parse.success
-    ? null
-    : parse.error.issues.find((issue) => issue.path.join(".").startsWith(path))?.message;
+  const currentError = parse.success ? null : parse.error.issues.find((issue) => issue.path.join(".").startsWith(path))
+    ?.message;
+  const title = materialResource ? common ? "자료 공통 기록 기본값" : "현재 종류 기록 기본값" : "변경 기록 기본값";
   return (
-    <section className="settings-section" aria-labelledby="record-template-title">
-      <h2 className="settings-section-title" id="record-template-title">변경 기록 기본값</h2>
+    <section className="settings-section" aria-label={title}>
+      <h2 className="settings-section-title">{title}</h2>
       {!saved && (
         <>
-          <p role={message ? "alert" : "status"}>{message || "설정을 읽는 중…"}</p>
+          <p role={message ? "alert" : "status"}>
+            {message || "설정을 읽는 중…"}
+          </p>
           {message && (
-            <button type="button" className="btn" disabled={busy} onClick={() => void read()}>다시 시도</button>
+            <button
+              type="button"
+              className="btn"
+              disabled={busy}
+              onClick={() => void read()}
+            >
+              다시 시도
+            </button>
           )}
         </>
       )}
       {saved && (
         <form
           className="form"
-          aria-label="변경 기록 기본값"
+          aria-label={title}
           aria-busy={busy}
           onSubmit={async (event) => {
             event.preventDefault();
             if (busy || conflict || !dirty) return;
             if (!parse.success) {
-              setFields(Object.fromEntries(parse.error.issues.map((issue) => [issue.path.join("."), issue.message])));
+              setFields(
+                Object.fromEntries(
+                  parse.error.issues.map((
+                    issue,
+                  ) => [issue.path.join("."), issue.message]),
+                ),
+              );
               setMessage("템플릿 오류를 확인하세요.");
               return;
             }
@@ -139,7 +250,8 @@ export function RecordTemplateSettings(
         >
           {missing.length > 0 && (
             <Notice kind="error">
-              삭제된 기본 기록 태그 {missing.length}개를 정리해야 합니다.{" "}
+              삭제된 기본 기록 태그 {missing.length}개를 정리해야 합니다. {materialResource &&
+                "정리는 현재 설정 범위에만 적용합니다. 다른 종류나 모델의 오류는 해당 설정에서 정리하세요."}{" "}
               <button
                 type="button"
                 className="btn"
@@ -154,26 +266,35 @@ export function RecordTemplateSettings(
               </button>
             </Notice>
           )}
-          <fieldset disabled={busy} className="form plain-fieldset">
+          <fieldset
+            disabled={busy || editor.locked}
+            className="form plain-fieldset"
+          >
             <div className="field-row">
-              <Field label="모델">
-                {(props) => (
-                  <select
-                    {...props}
-                    className="input"
-                    value={model}
-                    onChange={(event) => {
-                      const next = event.target.value as TemplateModel;
-                      setModel(next);
-                      if (!modelActions(next).includes(action)) setAction("create");
-                    }}
-                  >
-                    {TEMPLATE_MODELS.map((key) => (
-                      <option key={key} value={key}>{key === "entity" ? "자료" : templateModelNames[key]}</option>
-                    ))}
-                  </select>
-                )}
-              </Field>
+              {!materialResource && (
+                <Field label="모델">
+                  {(props) => (
+                    <select
+                      {...props}
+                      className="input"
+                      value={model}
+                      onChange={(event) => {
+                        const next = event.target.value as TemplateModel;
+                        setModel(next);
+                        if (!modelActions(next).includes(action)) {
+                          setAction("create");
+                        }
+                      }}
+                    >
+                      {TEMPLATE_MODELS.filter((key) => !general || key !== "entity").map((key) => (
+                        <option key={key} value={key}>
+                          {key === "entity" ? "자료" : templateModelNames[key]}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </Field>
+              )}
               <Field label="액션">
                 {(props) => (
                   <select
@@ -183,7 +304,9 @@ export function RecordTemplateSettings(
                     onChange={(event) => setAction(event.target.value as TemplateAction)}
                   >
                     {modelActions(model).map((key) => (
-                      <option key={key} value={key}>{templateActionNames[key]}</option>
+                      <option key={key} value={key}>
+                        {templateActionNames[key]}
+                      </option>
                     ))}
                   </select>
                 )}
@@ -191,35 +314,49 @@ export function RecordTemplateSettings(
             </div>
             {model === "entity" && (
               <>
-                <Field
-                  label="자료 종류"
-                  help="속성 변수는 선택한 자료 종류의 고정 키를 참조합니다. 공통 템플릿에는 공통 변수만 사용하세요."
-                >
-                  {(props) => (
-                    <select
-                      {...props}
-                      className="input"
-                      value={typeId}
-                      onChange={(event) => setTypeId(event.target.value)}
-                    >
-                      <option value="">전체 자료 공통</option>
-                      {types?.map((type) => (
-                        <option key={type.id} value={type.id}>{type.label}{type.archived ? " · 보관" : ""}</option>
-                      ))}
-                    </select>
-                  )}
-                </Field>
-                {typeError && (
+                {!materialResource && (
+                  <Field
+                    label="자료 종류"
+                    help="속성 변수는 선택한 자료 종류의 고정 키를 참조합니다. 공통 템플릿에는 공통 변수만 사용하세요."
+                  >
+                    {(props) => (
+                      <select
+                        {...props}
+                        className="input"
+                        value={typeId}
+                        onChange={(event) => setTypeId(event.target.value)}
+                      >
+                        <option value="">전체 자료 공통</option>
+                        {types?.map((type) => (
+                          <option key={type.id} value={type.id}>
+                            {type.label}
+                            {type.archived ? " · 보관" : ""}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                  </Field>
+                )}
+                {typeError && !materialResource && (
                   <Notice kind="error">
                     자료 종류를 읽지 못했습니다.{" "}
-                    <button type="button" className="btn" onClick={retryTypes}>다시 시도</button>
+                    <button type="button" className="btn" onClick={retryTypes}>
+                      다시 시도
+                    </button>
                   </Notice>
                 )}
                 {typeId && !schema && !schemaError && <p role="status">속성 정의를 읽는 중…</p>}
-                {schemaError && <Notice kind="error">속성 정의를 읽지 못했습니다. 자료 종류를 다시 선택하세요.</Notice>}
+                {schemaError && (
+                  <Notice kind="error">
+                    속성 정의를 읽지 못했습니다. 자료 종류를 다시 선택하세요.
+                  </Notice>
+                )}
                 {schema && (
                   <p className="secondary">
-                    <EntityTypeIcon id={types?.find((type) => type.id === typeId)?.icon_id ?? "box"} />{" "}
+                    <EntityTypeIcon
+                      id={types?.find((type) => type.id === typeId)?.icon_id ??
+                        "box"}
+                    />{" "}
                     {types?.find((type) => type.id === typeId)?.label} · 속성 버전 {schema.schema_version}
                   </p>
                 )}
@@ -238,6 +375,7 @@ export function RecordTemplateSettings(
                   ref={text}
                   className="input"
                   rows={3}
+                  readOnly={uncertain}
                   value={value.memo}
                   onChange={(event) => setValue({ memo: event.target.value })}
                 />
@@ -251,9 +389,13 @@ export function RecordTemplateSettings(
                   value=""
                   onChange={(event) => {
                     const variable = `$${event.target.value}$`;
-                    const start = text.current?.selectionStart ?? value.memo.length,
+                    const start = text.current?.selectionStart ??
+                        value.memo.length,
                       end = text.current?.selectionEnd ?? start;
-                    setValue({ memo: value.memo.slice(0, start) + variable + value.memo.slice(end) });
+                    setValue({
+                      memo: value.memo.slice(0, start) + variable +
+                        value.memo.slice(end),
+                    });
                     text.current?.focus();
                   }}
                 >
@@ -279,47 +421,89 @@ export function RecordTemplateSettings(
                 </select>
               )}
             </Field>
+            <div className="secondary" aria-label="기록 메모 예시">
+              <strong>예시 (실제 저장값이 아닙니다)</strong>
+              <p>
+                {renderTemplate(
+                  value.memo || DEFAULT_RECORD_MEMO_TEMPLATES[action],
+                  {
+                    model,
+                    action,
+                    target: "예시 자료",
+                    changes: "이름 변경",
+                    changed_fields: ["이름"],
+                    before: {
+                      properties: Object.fromEntries(
+                        (schema?.display.order ?? []).map(
+                          (key) => [key, "이전 예시"],
+                        ),
+                      ),
+                    },
+                    after: {
+                      properties: Object.fromEntries(
+                        (schema?.display.order ?? []).map(
+                          (key) => [key, "이후 예시"],
+                        ),
+                      ),
+                    },
+                  },
+                )}
+              </p>
+            </div>
             <TagPicker
               label="기본 기록 태그"
               scope="record"
               value={value.tag_ids}
               onChange={(tag_ids) => setValue({ tag_ids })}
             />
-            {Object.entries(fields).filter(([key]) => key !== `${path}.memo`).map(([key, error]) => (
-              <p className="error-text" key={key}>
-                {key.split(".")[0] === "entity"
-                  ? "자료"
-                  : templateModelNames[key.split(".")[0] as TemplateModel] ?? "설정"}{" "}
-                {templateActionNames[key.split(".")[1] as TemplateAction] ?? ""}: {error}{" "}
-                <button
-                  type="button"
-                  className="btn"
-                  onClick={() => {
-                    const [nextModel, nextAction, typeAction] = key.split(".");
-                    if (nextModel === "entity_types") {
-                      setModel("entity");
-                      setTypeId(nextAction);
-                      setAction(typeAction as TemplateAction);
-                      return;
-                    }
-                    if (TEMPLATE_MODELS.includes(nextModel as TemplateModel)) {
-                      setModel(nextModel as TemplateModel);
-                      setAction(nextAction as TemplateAction);
-                    }
-                  }}
-                >
-                  오류 항목 보기
-                </button>
-              </p>
-            ))}
+            {Object.entries(fields).filter(([key]) => key !== `${path}.memo`)
+              .map(([key, error]) => (
+                <p className="error-text" key={key}>
+                  {key.split(".")[0] === "entity" ? "자료" : templateModelNames[key.split(".")[0] as TemplateModel] ??
+                    "설정"} {templateActionNames[key.split(".")[1] as TemplateAction] ??
+                    ""}: {error}{" "}
+                  <button
+                    type="button"
+                    className="btn"
+                    disabled={!!materialResource}
+                    onClick={() => {
+                      const [nextModel, nextAction, typeAction] = key.split(
+                        ".",
+                      );
+                      if (nextModel === "entity_types") {
+                        setModel("entity");
+                        setTypeId(nextAction);
+                        setAction(typeAction as TemplateAction);
+                        return;
+                      }
+                      if (
+                        TEMPLATE_MODELS.includes(nextModel as TemplateModel)
+                      ) {
+                        setModel(nextModel as TemplateModel);
+                        setAction(nextAction as TemplateAction);
+                      }
+                    }}
+                  >
+                    오류 항목 보기
+                  </button>
+                </p>
+              ))}
             <p role="status">{message}</p>
-            {conflict && <button type="button" className="btn" onClick={() => void read()}>최신값 확인</button>}
+            {conflict && (
+              <button
+                type="button"
+                className="btn"
+                onClick={() => void read()}
+              >
+                최신값 확인
+              </button>
+            )}
             <div className="settings-section-footer">
               <div className="actions">
                 <button
                   type="button"
                   className="btn"
-                  disabled={conflict ? !latestReady : !dirty}
+                  disabled={uncertain || (conflict ? !latestReady : !dirty)}
                   onClick={() => {
                     editor.resource.reset();
                     setFields({});
@@ -328,7 +512,11 @@ export function RecordTemplateSettings(
                 >
                   {conflict ? "최신값으로 다시 편집" : "변경 취소"}
                 </button>
-                <button type="submit" className="btn btn-primary" disabled={!dirty || conflict}>
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  disabled={!dirty || conflict}
+                >
                   {busy ? "저장 중…" : uncertain ? "같은 내용 다시 시도" : "기록 기본값 저장"}
                 </button>
               </div>

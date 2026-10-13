@@ -279,14 +279,13 @@ function AccountSettings() {
       <section className="settings-section" aria-labelledby="data-title">
         <h2 className="settings-section-title" id="data-title">자료 관리</h2>
         <div className="settings-links">
-          <DetailLink to="/settings/entity-types">자료 종류·속성</DetailLink>
-          <DetailLink to="/settings/entity-identity">자료 식별자·발급처</DetailLink>
-          <DetailLink to="/tags/entity">자료 태그</DetailLink>
+          <DetailLink to="/settings/entity-types">자료 설정</DetailLink>
           <DetailLink to="/tags/task">할 일 태그</DetailLink>
           <DetailLink to="/tags/record">기록 태그</DetailLink>
+
         </div>
       </section>
-      <RecordTemplateSettings onStateChange={setBusinessState} />
+      <RecordTemplateSettings general onStateChange={setBusinessState} />
       <ConfirmDialog
         open={!anyBusy && blocker.state === "blocked"}
         title="변경을 버릴까요?"

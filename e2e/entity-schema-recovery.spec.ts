@@ -52,8 +52,8 @@ test("원본 복구: 웹 키보드 생성·분석→MCP 실행→자료·연결�
     await expect(page.getByRole("alert")).toContainText("이 자료 종류의 작업이 아닙니다");
     await expect(page.getByRole("button", { name: "원본 복구안 만들기", exact: true })).toHaveCount(0);
     await page.goto(`/settings/entity-types/${type.id}/migrations/${started.job_id}`);
-    await expect(page.getByRole("heading", { level: 1 })).toContainText(label);
-    await expect(page.getByRole("heading", { level: 1 }).locator("svg")).toHaveAttribute("data-icon", "star");
+    await expect(page.locator(".material-settings-current")).toContainText(label);
+    await expect(page.locator(".material-settings-current svg")).toHaveAttribute("data-icon", "star");
     const create = page.getByRole("button", { name: "원본 복구안 만들기", exact: true });
     await expect(create).toBeEnabled();
     const recoveryResponse = page.waitForResponse((r) => r.url().endsWith(`/entity-schema-migrations/${started.job_id}/recovery-changes`) && r.request().method() === "POST");
@@ -64,7 +64,7 @@ test("원본 복구: 웹 키보드 생성·분석→MCP 실행→자료·연결�
     expect(response.status()).toBe(201);
     const recovery = await response.json();
     expect(recovery.status).toBe("draft");
-    await expect(page).toHaveURL(new RegExp(`change_id=${recovery.id}$`));
+    await expect(page).toHaveURL(new RegExp(`change_id=${recovery.id}(?:&|$)`));
     await expect(page.getByRole("link", { name: "원본 작업 확인", exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "변경 초안 저장", exact: true })).toHaveCount(0);
     // Creating a recovery plan must not execute or restore values.
@@ -89,13 +89,13 @@ test("원본 복구: 웹 키보드 생성·분석→MCP 실행→자료·연결�
       analysis_id: recoveryReady.analysis.id, fingerprint: recoveryReady.fingerprint,
     });
     await page.goto(`/settings/entity-types/${type.id}/migrations/${accepted.job_id}`);
-    await expect(page.getByRole("status")).toContainText("접수");
+    await expect(page.getByRole("status").filter({ hasText: /^(접수|실행 중|완료|취소) · / })).toContainText("접수");
     await expect.poll(async () => {
       await schemaAnalysisTick();
       return (await mcp.call("get_entity_schema_migration", { job_id: accepted.job_id })).status;
     }, { timeout: 30_000 }).toBe("succeeded");
     await page.getByRole("button", { name: "상태 다시 조회", exact: true }).click();
-    await expect(page.getByRole("status")).toContainText("완료");
+    await expect(page.getByRole("status").filter({ hasText: /^(접수|실행 중|완료|취소) · / })).toContainText("완료");
     await expect(page.getByText(/새 속성 버전 3/)).toBeVisible();
     const restored = await mcp.call("get_entity", { id: entity.id });
     expect(restored.properties).toEqual({ prop_1: "001 원본" });
@@ -107,9 +107,9 @@ test("원본 복구: 웹 키보드 생성·분석→MCP 실행→자료·연결�
     expect((await mcp.call("get_entity_type", { type_id: type.id })).label).toBe(label);
     expect((await mcp.call("get_entity_type", { type_id: type.id })).icon_id).toBe("star");
     await page.reload();
-    await expect(page.getByRole("heading", { level: 1 })).toContainText(label);
+    await expect(page.locator(".material-settings-current")).toContainText(label);
     await page.setViewportSize({ width: 320, height: 750 });
-    await expect(page.getByRole("status")).toBeVisible();
+    await expect(page.getByRole("status").filter({ hasText: /^(접수|실행 중|완료|취소) · / })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     // Expire only this test fixture after its successful GET; the actual write must report 410.
     await expect(create).toBeEnabled();

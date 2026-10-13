@@ -50,7 +50,7 @@ test("태그 실제 DELETE pending은 Back을 막고 응답 뒤 정상 복귀한
     await page.goto("/entities");
     await page.getByRole("button",{name:/^내 프로필(?: · .+)?$/,exact:true}).click();
     await page.getByRole("link",{name:"설정",exact:true}).click();
-    await expect(page.getByRole("link",{name:"자료 식별자·발급처",exact:true})).toBeVisible();
+    await expect(page.getByRole("link",{name:"자료 설정",exact:true})).toBeVisible();
     await page.getByRole("link",{name:"기록 태그",exact:true}).click();
     await expect(page).toHaveURL(/tags\/record$/);
     let arrived!:()=>void,finished!:()=>void,deletes=0;
