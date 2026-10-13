@@ -38,3 +38,16 @@ section[aria-labelledby="entity-identity-title"] .settings-section-footer { bord
 .navigation-choices { display: flex; flex-wrap: wrap; gap: var(--space-2); max-height: 24rem; overflow: auto; }
 .navigation-choices .btn { white-space: normal; overflow-wrap: anywhere; max-width: 100%; min-height: 44px; }
 .navigation-selection .btn { min-width: 44px; min-height: 44px; }
+
+.entity-type-icon-picker { min-width: 0; padding: 0; border: 0; margin: 0; }
+.entity-type-icon-picker legend { padding: 0; margin-bottom: var(--space-2); }
+.entity-type-icon-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(4.25rem, 1fr)); gap: var(--space-2); max-width: 30rem; }
+.entity-type-icon-option { position: relative; cursor: pointer; min-width: 0; }
+.entity-type-icon-option input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: inherit; }
+.entity-type-icon-face { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-2); min-height: 4.5rem; padding: var(--space-2); border: 1px solid var(--control-border); border-radius: var(--radius-input); background: var(--input-surface); color: var(--muted-ink); font-size: var(--text-label); }
+.entity-type-icon-face .entity-type-icon { width: 1.5rem; height: 1.5rem; }
+.entity-type-icon-option input:checked + .entity-type-icon-face { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+.entity-type-icon-option input:focus-visible + .entity-type-icon-face { outline: 2px solid var(--accent); outline-offset: 3px; }
+.entity-type-icon-option input:not(:disabled):hover + .entity-type-icon-face { color: var(--ink); }
+.entity-type-icon-option input:checked:not(:disabled):hover + .entity-type-icon-face { color: var(--accent); }
+.entity-type-icon-option input:disabled + .entity-type-icon-face { opacity: .5; cursor: not-allowed; }
