@@ -43,7 +43,7 @@ test("자료 종류를 웹에서 만들고 이름·아이콘·보관과 게시 �
     await expect(page).toHaveURL(new RegExp(`/settings/entity-types/${typeId}$`));
     await expect(page.getByLabel("자료 종류 이름", { exact: true })).toHaveCount(0);
     releaseDestination!();
-    await page.getByRole("button", { name: /^기본 정보/ }).click();
+    await page.getByRole("button", { name: /^기본 정보(?! 저장)/ }).click();
     await expect(page.getByLabel("자료 종류 이름", { exact: true })).toHaveValue(label);
     const changedLabel = unique("이름 변경");
     await page.getByLabel("자료 종류 이름", { exact: true }).fill(changedLabel);
@@ -69,7 +69,7 @@ test("자료 종류를 웹에서 만들고 이름·아이콘·보관과 게시 �
     );
     await page.reload();
     await expect(page.getByRole("heading", { name: "버전 1 → 버전 1 차이", exact: true })).toBeVisible();
-    await page.getByRole("button", { name: /^기본 정보/ }).click();
+    await page.getByRole("button", { name: /^기본 정보(?! 저장)/ }).click();
     await page.getByRole("checkbox", { name: /자료 종류 보관/ }).check();
     await page.getByRole("button", { name: "기본 정보 저장", exact: true }).click();
     await expect(page.locator(".settings").getByRole("status")).toContainText("자료 종류를 저장했습니다");
@@ -135,7 +135,7 @@ test("자료 종류 생성의 성공 응답 유실은 초안·같은 요청을 �
     expect(keys[1]).toBe(keys[0]);
     const current = await mcp.call("list_entity_types", { include_archived: true, limit: 100 });
     expect(current.items.filter((value: { label: string }) => value.label === label)).toHaveLength(1);
-    await page.getByRole("button", { name: /^기본 정보/ }).click();
+    await page.getByRole("button", { name: /^기본 정보(?! 저장)/ }).click();
     await expect(page.getByLabel("자료 종류 이름", { exact: true })).toHaveValue(label);
   } finally {
     await mcp.close();

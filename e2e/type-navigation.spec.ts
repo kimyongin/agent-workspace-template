@@ -53,7 +53,7 @@ test("settings type creation opens typed entity creation, immutable detail, and 
     await expect(page).toHaveURL(new RegExp(`/settings/entity-types/${typeId}$`));
     await expect(page.getByRole("button", { name: /^내 프로필(?: · .+)?$/, exact: true })).toHaveAttribute("data-current", "true");
     await page.reload();
-    await page.getByRole("button", { name: /^기본 정보/ }).click();
+    await page.getByRole("button", { name: /^기본 정보(?! 저장)/ }).click();
     await expect(page.getByLabel("자료 종류 이름", { exact: true })).toHaveValue(label);
   } finally {
     if (typeId) {
