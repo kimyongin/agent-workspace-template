@@ -60,5 +60,10 @@ section[aria-labelledby="entity-identity-title"] .settings-section-footer { bord
 .material-settings-section > [hidden] { display: none; }
 .material-section-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
+.material-common-settings { border: 1px solid var(--line); border-radius: var(--radius-card); padding: var(--space-4); margin-block: var(--space-4); min-width: 0; }
+.material-common-settings > .actions { justify-content: space-between; }
+@media (max-width: 639px) {
+  .material-common-open > :not(.material-common-settings):not(.material-settings-toolbar):not(h1):not(dialog) { display: none; }
+}
 .schema-field > fieldset:not([hidden]) { display: grid; gap: var(--space-4); min-width: 0; }
 .settings .schema-field [hidden] { display: none; }

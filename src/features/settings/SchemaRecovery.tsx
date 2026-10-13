@@ -99,7 +99,8 @@ export function RecoveryChangeCreate({ job, onState, disabled = false }: {
       });
       if (mounted.current && created.current) {
         const params = new URLSearchParams(location.search); params.set("change_id", created.current.id); params.set("job_id", job.id);
-        navigate(`/settings/entity-types/${job.type_id}?${params}`);
+        // Let the confirmed write's state reach the shared workspace guard before this outcome navigation.
+        requestAnimationFrame(() => { if (mounted.current) navigate(`/settings/entity-types/${job.type_id}?${params}`); });
       }
     } catch (e) {
       if (mounted.current) setError(recoveryErrorMessage(e));

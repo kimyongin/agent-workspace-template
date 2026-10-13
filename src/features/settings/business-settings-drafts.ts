@@ -6,7 +6,6 @@ import {
 } from "@contracts/entity-identity.ts";
 import type { BusinessSettingsSectionResult } from "@contracts/business-settings.ts";
 import {
-  editableRecordTemplates,
   type RecordTemplates,
   recordTemplates,
   recordTemplateTagIds,
@@ -67,7 +66,7 @@ export function unavailableTemplateTags(saved: TemplatesSaved | null, draft: Rec
 export function createRecordTemplatesDraft(api: typeof request): SettingsDraftAdapter<RecordTemplates, TemplatesSaved> {
   const tagRead = createTagRead(api);
   return {
-    initial: editableRecordTemplates(undefined),
+    initial: {},
     isConflict,
     read: async (signal) => {
       const [settings, tags] = await Promise.all([
@@ -95,6 +94,6 @@ export function createRecordTemplatesDraft(api: typeof request): SettingsDraftAd
       ),
       availableTags: [...new Set([...before.availableTags, ...selectedRecordTags(value)])],
     }),
-    toDraft: (saved) => editableRecordTemplates(saved.settings.settings.record_templates),
+    toDraft: (saved) => structuredClone(saved.settings.settings.record_templates ?? {}),
   };
 }
