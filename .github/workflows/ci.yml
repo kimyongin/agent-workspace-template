@@ -51,7 +51,7 @@ jobs:
             git show --format= --check HEAD
           fi
       - name: 의존 경계 검사
-        if: steps.impact.outputs.mode == 'full'
+        if: steps.impact.outputs.mode != 'docs'
         run: npm run check:boundaries
       - name: 서버 검사(Deno)
         if: steps.impact.outputs.mode == 'full'
@@ -83,7 +83,7 @@ jobs:
           [ "$CHECK_RESULT" = "success" ] || { echo "check failed or unavailable"; exit 1; }
           case "$IMPACT_MODE" in
             full) echo "Full isolated DB/HTTP/MCP verification" >> "$GITHUB_STEP_SUMMARY" ;;
-            docs|presentation) echo "Impact: $IMPACT_MODE. Isolated DB/HTTP/MCP omitted; check passed." >> "$GITHUB_STEP_SUMMARY" ;;
+            docs|presentation|web) echo "Impact: $IMPACT_MODE. Isolated DB/HTTP/MCP omitted; check passed." >> "$GITHUB_STEP_SUMMARY" ;;
             *) echo "Missing/invalid classification"; exit 1 ;;
           esac
           echo "Browser E2E runs locally as needed (npm run test:e2e); it is not part of CI." >> "$GITHUB_STEP_SUMMARY"
