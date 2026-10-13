@@ -38,7 +38,9 @@ export function MaterialCommonSettings({
   };
   const ref = useRef<HTMLDivElement>(null),
     tagLaunch = useRef<HTMLButtonElement | null>(null);
-  useLayoutEffect(() => {if(!scope)tagLaunch.current?.focus({preventScroll:true});},[scope]);
+  useLayoutEffect(() => {
+    if (!scope) tagLaunch.current?.focus({ preventScroll: true });
+  }, [scope]);
   useEffect(() => {
     if (!open) return;
     const escape = (event: KeyboardEvent) => {
@@ -93,7 +95,7 @@ export function MaterialCommonSettings({
             기록 태그 관리
           </button>
         </div>
-        <MaterialEntityLookup />
+        <MaterialEntityLookup enabled={open} />
       </div>
       {scope && (
         <TagManagement
@@ -124,37 +126,80 @@ export function MaterialCommonSettings({
     </div>
   );
 }
-function MaterialEntityLookup() {
-  const [items, setItems] = useState<EntitySummary[]>([]),
-    [error, setError] = useState("");
-  useEffect(() => {
+function MaterialEntityLookup({ enabled }: { enabled: boolean }) {
+  type Page = { items: EntitySummary[]; next_cursor: string | null };
+  const [page, setPage] = useState<Page | null>(null),
+    [error, setError] = useState(""),
+    [loading, setLoading] = useState(false);
+  const pending = useRef<AbortController | null>(null);
+  const read = async (cursor?: string) => {
+    if (pending.current) return;
     const controller = new AbortController();
-    void api<{ items: EntitySummary[] }>(
-      "GET",
-      "/entities",
-      undefined,
-      controller.signal,
-    ).then((value) => {
-      if (!controller.signal.aborted) setItems(value.items);
-    }).catch(() => {
-      if (!controller.signal.aborted) setError("자료를 읽지 못했습니다.");
-    });
-    return () => controller.abort();
-  }, []);
+    pending.current = controller;
+    setLoading(true);
+    setError("");
+    try {
+      const value = await api<Page>(
+        "GET",
+        `/entities${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ""}`,
+        undefined,
+        controller.signal,
+      );
+      if (!controller.signal.aborted) {
+        setPage((previous) => ({
+          items: cursor && previous
+            ? [
+              ...previous.items,
+              ...value.items.filter((item) => !previous.items.some((saved) => saved.id === item.id)),
+            ]
+            : value.items,
+          next_cursor: value.next_cursor ?? null,
+        }));
+      }
+    } catch {
+      if (!controller.signal.aborted) setError("자료를 읽지 못했습니다. 읽어온 목록은 유지합니다.");
+    } finally {
+      if (!controller.signal.aborted && pending.current === controller) {
+        pending.current = null;
+        setLoading(false);
+      }
+    }
+  };
+  useEffect(() => {
+    if (enabled && !page && !pending.current) void read();
+  }, [enabled]);
+  useEffect(() => () => pending.current?.abort(), []);
   return (
     <section aria-label="자료 확인">
       <h3>자료 확인</h3>
-      {error && <p role="alert">{error}</p>}
-      <ul>
-        {items.map((item) => (
-          <li key={item.id}>
-            <DetailLink to={`/entities/${item.id}`}>
-              {item.title} 자료 확인
-            </DetailLink>
-          </li>
-        ))}
-      </ul>
-      {!items.length && !error && <p className="secondary">확인할 자료가 없습니다.</p>}
+      {loading && <p role="status">자료를 읽는 중…</p>}
+      {error && (
+        <>
+          <p role="alert">{error}</p>
+          <button className="btn" disabled={loading} onClick={() => void read(page?.next_cursor ?? undefined)}>
+            자료 다시 시도
+          </button>
+        </>
+      )}
+      {page && (
+        <ul>
+          {page.items.map((item) => (
+            <li key={item.id}>
+              <DetailLink to={`/entities/${item.id}`}>{item.title} 자료 확인</DetailLink>
+            </li>
+          ))}
+        </ul>
+      )}
+      {page && !page.items.length && !loading && !error && <p className="secondary">확인할 자료가 없습니다.</p>}
+      {page?.next_cursor && !error && (
+        <button
+          className="btn"
+          disabled={loading}
+          onClick={() => void read(page.next_cursor!)}
+        >
+          자료 더 읽기
+        </button>
+      )}
     </section>
   );
 }
