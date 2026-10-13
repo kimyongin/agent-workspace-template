@@ -41,7 +41,7 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
   }, [templates]);
   const [recordState, setRecordState] = useState({ dirty: false, busy: false });
   const [commonState, setCommonState] = useState({ dirty: false, busy: false });
-  const [commonOpen, setCommonOpen] = useState(false);
+  const [commonOpen, setCommonOpen] = useState(() => new URLSearchParams(window.location.search).get("common") === "1");
   const commonButton = useRef<HTMLButtonElement>(null);
   const commonScroll = useRef({ page: 0, pane: 0 });
   const { type_id: activeTypeId, job_id } = useParams();
