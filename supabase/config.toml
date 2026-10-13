@@ -383,10 +383,9 @@ allow_dynamic_registration = true
 
 [edge_runtime]
 enabled = true
-# Supported request policies: `oneshot`, `per_worker`.
-# `per_worker` (default) — enables hot reload during local development.
-# `oneshot` — fallback mode if hot reload causes issues (e.g. in large repos or with symlinks).
-policy = "per_worker"
+# Development and functional tests use oneshot; reserve per_worker for deliberate load tests.
+# See docs/development/verification.md for resource limits and safe restart ownership.
+policy = "oneshot"
 # Port to attach the Chrome inspector for debugging edge functions.
 inspector_port = 8483
 # The Deno major version to use.
