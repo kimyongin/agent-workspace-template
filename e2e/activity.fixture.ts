@@ -353,10 +353,10 @@ for(const kind of ["records","tasks"]){
       }
       const path=new URL(route.request().url()).pathname;await route.fulfill({json:path.endsWith("/principles/current")?{current:null}:items.find(item=>path.endsWith("/"+item.id))??{items,next_cursor:null}});
     });
-    await page.goto(`/e2e/fixtures/activity.html?route=/${kind}`);
+    await page.goto(`/e2e/fixtures/activity.html?route=${encodeURIComponent(`/${kind}?filters=1&open=/${kind}/${id(20)}`)}`);
     await openTabFilters(page);const section=page.locator(`.${kind}`);
     const title=section.getByRole("button",{name:"기록 20",exact:true});
-    await expect(title).toBeVisible();await title.click();
+    await expect(title).toBeVisible();await expect(title).toHaveAttribute("aria-expanded","true");
     await title.focus();await title.evaluate(el=>el.scrollIntoView({block:"center"}));
     const y=await title.evaluate(el=>el.getBoundingClientRect().top);
     await page.getByRole("button",{name:"태그 다시 시도",exact:true}).first().evaluate((el:HTMLButtonElement)=>el.click());

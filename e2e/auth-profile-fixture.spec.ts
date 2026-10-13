@@ -104,6 +104,7 @@ test("기록 템플릿 충돌도 초안을 보존하고 최신 템플릿을 적�
   await context.route("**/tags?**",route=>route.fulfill({json:{items:[],next_cursor:null}}));
   await page.goto(fixture);
   const templates=page.getByRole("form",{name:"변경 기록 기본값"});
+  await templates.getByLabel("모델",{exact:true}).selectOption("task");
   await templates.getByLabel("메모 템플릿").fill("내 초안");
   value={entity:{create:{memo:"최신 엔터티",tag_ids:[]}},task:{create:{memo:"최신 할 일",tag_ids:[]}}};version=2;
   await templates.getByRole("button",{name:"기록 기본값 저장",exact:true}).click();
@@ -113,13 +114,13 @@ test("기록 템플릿 충돌도 초안을 보존하고 최신 템플릿을 적�
   await expect(templates.getByLabel("메모 템플릿")).toHaveValue("내 초안");
   await expect(templates.getByRole("button",{name:"기록 기본값 저장",exact:true})).toBeDisabled();
   await templates.getByRole("button",{name:"최신값으로 다시 편집",exact:true}).click();
-  await expect(templates.getByLabel("메모 템플릿")).toHaveValue("최신 엔터티");
-  await templates.getByLabel("메모 템플릿").fill("다시 편집한 엔터티");
+  await expect(templates.getByLabel("메모 템플릿")).toHaveValue("최신 할 일");
+  await templates.getByLabel("메모 템플릿").fill("다시 편집한 할 일");
   await templates.getByRole("button",{name:"기록 기본값 저장",exact:true}).click();
   await expect(templates).toContainText("기록 기본값을 저장했습니다");
   expect(writes.map(({id,expected_version})=>({id,expected_version}))).toEqual([{id:"record_templates",expected_version:1},{id:"record_templates",expected_version:2}]);
-  expect(value.entity.create.memo).toBe("다시 편집한 엔터티");
-  expect(value.task.create.memo).toBe("최신 할 일");
+  expect(value.entity.create.memo).toBe("최신 엔터티");
+  expect(value.task.create.memo).toBe("다시 편집한 할 일");
 });
 
 for (const width of [390,1440]) test(`업무 설정 ${width}px: 독립 저장·초안 보존·발급처 삭제/복원·행 추가·순서 변경`, async ({page,context}, info)=>{
