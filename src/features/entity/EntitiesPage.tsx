@@ -208,7 +208,7 @@ export function EntitiesPage() {
               ? `/settings/entity-types/${encodeURIComponent(filter.entity_type_id)}`
               : "/settings/entity-types"}
           >
-            자료 종류·속성 관리
+            자료 설정
           </Link>
           <TabFilters
             active={!!(filter.tag_id || filter.sort !== "updated_at" || filter.filters)}
