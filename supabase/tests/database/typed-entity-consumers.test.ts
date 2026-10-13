@@ -200,8 +200,8 @@ dbTest(
           entity_types: { [type.id]: { create: { memo: "$엔터티.이후.prop_5$", tag_ids: [] } } },
         }, { entity: { create: { memo: "$엔터티.이후.prop_2$", tag_ids: [] } } }]
       ) {
-        await assertRejects(() =>
-          updateBusinessSettings(settings, requestActor(owner.actor), {
+        await assertRejects(async () =>
+          await updateBusinessSettings(settings, requestActor(owner.actor), {
             id: "record_templates",
             expected_version: 1,
             value: next,

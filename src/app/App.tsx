@@ -84,18 +84,24 @@ const workspaceRoutes = [
 ];
 
 const materialSettingsRoutes = [
-  "settings/entity-types", "settings/entity-types/:type_id",
-  "settings/entity-types/:type_id/versions", "settings/entity-types/:type_id/migrations",
+  "settings/entity-types",
+  "settings/entity-types/:type_id",
+  "settings/entity-types/:type_id/versions",
+  "settings/entity-types/:type_id/migrations",
   "settings/entity-types/:type_id/migrations/:job_id",
-  "settings/materials", "settings/materials/:type_id",
-  "settings/materials/:type_id/versions", "settings/materials/:type_id/migrations",
+  "settings/materials",
+  "settings/materials/:type_id",
+  "settings/materials/:type_id/versions",
+  "settings/materials/:type_id/migrations",
   "settings/materials/:type_id/migrations/:job_id",
 ];
 function WorkspaceRoutes({ location }: { location: Location }) {
-  return <Routes location={location}>
-    {workspaceRoutes.map((route) => <Route key={route.path} {...route} />)}
-    {materialSettingsRoutes.map(path => <Route key={path} path={path} element={<EntityTypeSettings />} />)}
-  </Routes>;
+  return (
+    <Routes location={location}>
+      {workspaceRoutes.map((route) => <Route key={route.path} {...route} />)}
+      {materialSettingsRoutes.map((path) => <Route key={path} path={path} element={<EntityTypeSettings />} />)}
+    </Routes>
+  );
 }
 
 export function App() {
@@ -122,8 +128,13 @@ export function App() {
           <Route path="guide" element={guarded(<GuidePage />)} />
           <Route path="settings/navigation" element={guarded(<NavigationSettingsPage />)} />
           <Route path="settings" element={guarded(<SettingsPage />)} />
-          <Route path="settings/entity-identity" element={guarded(<Navigate to="/settings/entity-types?common=1" replace />)} />
-          {materialSettingsRoutes.map(path => <Route key={path} path={path} element={guarded(<EntityTypeSettings />)} />)}
+          <Route
+            path="settings/entity-identity"
+            element={guarded(<Navigate to="/settings#entity-identity-title" replace />)}
+          />
+          {materialSettingsRoutes.map((path) => (
+            <Route key={path} path={path} element={guarded(<EntityTypeSettings />)} />
+          ))}
           <Route path="*" element={<p className="secondary">페이지를 찾을 수 없습니다.</p>} />
         </Route>,
       ),

@@ -12,12 +12,15 @@ import { entityFieldInput } from "@contracts/entity-schema-change.ts";
 import { api } from "../../lib/api.ts";
 import { ApiError } from "../../lib/api-error.ts";
 import { useWriteAttempt, writeErrorMessage } from "../../lib/write-attempt.ts";
-import { migrationNumericValues, schemaNumericValues } from "./numeric-drafts.ts";
+import { migrationNumericValues, SchemaNumericDraftError, schemaNumericValues } from "./numeric-drafts.ts";
 import { recoveryErrorMessage } from "./SchemaRecovery.tsx";
+import { fieldInputPolicy } from "./field-input-policy.ts";
 import { fieldType } from "../entity/property-fields.tsx";
 function supportsNumericCondition(field: EntityField, name: string) {
   const kind = fieldType(field);
-  if (name === "minLength" || name === "maxLength") return kind === "string" && !field.format;
+  if (name === "minLength" || name === "maxLength") {
+    return kind === "string" && !field.format;
+  }
   if (name === "default" && (field.default === undefined || field.default === null)) return false;
   return kind === "number" || kind === "integer";
 }
@@ -27,7 +30,9 @@ export type EditState = { dirty: boolean; busy: boolean; uncertain: boolean; err
  * Published definitions come from the settings owner; rows and focus stay in the UI.
  */
 export function useSchemaChangeEditor(
-  { type, definition, onApplied, onState, disabled, selectionSearch, onFieldKeysChanged, onInvalidField }: {
+  { type, definition, onApplied, onState, disabled, selectionSearch, onFieldKeysChanged, onInvalidField,
+    onReviewed,
+  }: {
     type: EntityType;
     definition: EntitySchemaVersion;
     onApplied: (change?: EntitySchemaChange) => Promise<string>;
@@ -35,7 +40,8 @@ export function useSchemaChangeEditor(
     disabled: boolean;
     selectionSearch: string;
     onFieldKeysChanged: (replacements: Record<string, string>) => void;
-    onInvalidField: (key: string, includeSelect: boolean) => void;
+    onReviewed: () => void;
+    onInvalidField: (key: string, includeSelect: boolean, condition?: string) => void;
   },
 ) {
   const [startState, setStartState] = useState({ busy: false, uncertain: false });
@@ -49,11 +55,14 @@ export function useSchemaChangeEditor(
   const [numericDrafts, setNumericDrafts] = useState<Record<string, string>>({});
   const [migration, setMigration] = useState<MigrationPlan>({ rules: [], overrides: [] });
   const [acceptedAnalysis, setAcceptedAnalysis] = useState<string | null>(null);
+  const [reviewTarget, setReviewTarget] = useState<{ id: string; version: number } | null>(null);
   const [error, setError] = useState(""),
     [message, setMessage] = useState(""),
     [readBusy, setReadBusy] = useState(false);
   const { attempt, busy, uncertain } = useWriteAttempt();
   const mounted = useRef(true);
+  const latestDefinition = useRef(definition);
+  latestDefinition.current = definition;
   const seenDefinition = useRef({ typeId: type.id, version: definition.schema_version });
   const planRead = useRef<{ epoch: number; controller: AbortController | null }>({ epoch: 0, controller: null });
   const dirty = Object.keys(numericDrafts).length > 0 || JSON.stringify(draft) !== JSON.stringify(saved) ||
@@ -65,7 +74,7 @@ export function useSchemaChangeEditor(
     planRead.current = { epoch: planRead.current.epoch + 1, controller: null };
   };
   const applyPlan = (value: EntitySchemaChange | null) => {
-    const target = value?.target ?? definition;
+    const target = value?.target ?? latestDefinition.current;
     onFieldKeysChanged(
       Object.fromEntries(Object.entries(value?.reservations ?? {}).map(([ref, key]) => [`new_${ref}`, key])),
     );
@@ -186,7 +195,9 @@ export function useSchemaChangeEditor(
         if (!controller.signal.aborted) {
           setPlan(value);
           if (value.status !== "analyzing") setAcceptedAnalysis(null);
-          if (value.status === "analyzing") timer = setTimeout(() => void poll(), 1200);
+          if (value.status === "analyzing") {
+            timer = setTimeout(() => void poll(), 1200);
+          }
         }
       } catch (e) {
         if (!controller.signal.aborted) {
@@ -210,13 +221,18 @@ export function useSchemaChangeEditor(
   ) => {
     setNumericDrafts((values) => ({ ...values, [key + ":" + name]: raw }));
   };
-  const flag = (key: string, name: "required" | "archived" | "list_columns", value: boolean) =>
+  const flag = (key: string, name: "required" | "archived" | "list_columns", value: boolean,
+  ) =>
     setDraft((d) => {
       if (name === "required") {
         return {
           ...d,
           schema: {
             ...d.schema,
+            properties: {
+              ...d.schema.properties,
+              [key]: fieldInputPolicy(d.schema.properties[key], value),
+            },
             required: value
               ? [...d.schema.required.filter((k) => k !== key), key]
               : d.schema.required.filter((k) => k !== key),
@@ -235,14 +251,17 @@ export function useSchemaChangeEditor(
     const result: SchemaEdit[] = [];
     for (const [key, field] of Object.entries(draft.schema.properties)) {
       const required = draft.schema.required.includes(key);
-      if (refs[key]) result.push({ op: "add_property", client_ref: refs[key], field, required });
-      else if (
+      if (refs[key]) {
+        result.push({ op: "add_property", client_ref: refs[key], field, required });
+      } else if (
         JSON.stringify(field) !== JSON.stringify(definition.schema.properties[key]) ||
         required !== definition.schema.required.includes(key)
       ) result.push({ op: "update_property", key, field, required });
     }
     for (const key of Object.keys(definition.schema.properties)) {
-      if (!draft.schema.properties[key]) result.push({ op: "remove_property", key });
+      if (!draft.schema.properties[key]) {
+        result.push({ op: "remove_property", key });
+      }
     }
     const display = {
       ...draft.display,
@@ -270,6 +289,7 @@ export function useSchemaChangeEditor(
   };
   const validateFields = () => {
     for (const key of draft.display.order) {
+      let condition: string | undefined;
       try {
         if (
           Object.keys(numericDrafts).some((address) =>
@@ -289,17 +309,21 @@ export function useSchemaChangeEditor(
         );
         const field = converted.schema.properties[key];
         const valid = entityFieldInput.safeParse(field);
-        if (!valid.success) throw new Error("속성 조건을 확인하세요.");
+        if (!valid.success) {
+          condition = String(valid.error.issues[0].path[0]);
+          throw new Error("속성 조건을 확인하세요.");
+        }
         if (
           (field.minLength ?? 0) > (field.maxLength ?? 4096) ||
           field.minimum !== undefined && field.maximum !== undefined && field.minimum > field.maximum
         ) {
+          condition = (field.minLength ?? 0) > (field.maxLength ?? 4096) ? "maxLength" : "maximum";
           throw new Error("최소 조건이 최대 조건보다 큽니다.");
         }
       } catch (e) {
         setError(e instanceof Error ? e.message : "속성 조건을 확인하세요.");
         setFieldError(key);
-        onInvalidField(key, true);
+        onInvalidField(key, true, e instanceof SchemaNumericDraftError ? e.condition : condition);
         return false;
       }
     }
@@ -351,7 +375,9 @@ export function useSchemaChangeEditor(
         setReadBusy(false);
         if (action === "save") {
           applyPlan(value);
-          setMessage("변경 초안을 저장했습니다. 영향 분석을 실행하세요.");
+          setReviewTarget({ id: value.id, version: value.version });
+          setMessage("변경안을 저장했습니다. 자료에 미치는 영향을 확인합니다.");
+          onReviewed();
         } else {
           setPlan(value);
           setMigration(value.migration);
@@ -377,12 +403,22 @@ export function useSchemaChangeEditor(
           }).find((key) => key && draft.schema.properties[key]);
           if (field) {
             setFieldError(field);
-            onInvalidField(field, false);
+            const condition = e.fields.find((issue) => issue.path.split(".").includes(field))?.path.split(".").at(-1);
+            onInvalidField(field, false, condition);
           }
         }
       }
     }
   };
+  // Only an explicitly saved review starts analysis; reads and direct links never write.
+  useEffect(() => {
+    if (!reviewTarget || busy || uncertain) return;
+    setReviewTarget(null);
+    if (dirty || !plan || plan.id !== reviewTarget.id || plan.version !== reviewTarget.version) return;
+    if (!["analyzing", "applied", "cancelled", "stale"].includes(plan.status)) {
+      void write("analyze");
+    }
+  }, [reviewTarget, busy, uncertain, dirty, plan?.id, plan?.version]);
   const loadPlan = async (id: string) => {
     if (protectedDraft.current.dirty || protectedDraft.current.busy || protectedDraft.current.uncertain) {
       setReadBusy(false);
@@ -447,6 +483,17 @@ export function useSchemaChangeEditor(
   const editFlag = (key: string, name: "required" | "archived" | "list_columns", value: boolean) => {
     if (editable() && !plan?.recovery) flag(key, name, value);
   };
+  const setFieldInactive = (key: string, value: boolean) => {
+    if (
+      !editable() || plan?.recovery || key === draft.display.representative ||
+      key.startsWith("new_")
+    ) return;
+    if (value) {
+      flag(key, "required", false);
+      flag(key, "list_columns", false);
+    }
+    flag(key, "archived", value);
+  };
   const editOptionLabel = (key: string, code: string, label: string) => {
     if (!editable() || plan?.recovery || key.startsWith("new_")) return;
     setDraft((d) => ({
@@ -489,7 +536,9 @@ export function useSchemaChangeEditor(
     setRefs((r) => ({ ...r, [key]: ref }));
     setDraft((d) => ({
       ...d,
-      schema: { ...d.schema, properties: { ...d.schema.properties, [key]: { type: "string", title: "새 속성" } } },
+      schema: { ...d.schema, properties: { ...d.schema.properties, [key]: fieldInputPolicy({ type: "string", title: "새 항목" }, false),
+        },
+      },
       display: { ...d.display, order: [...d.display.order, key] },
     }));
     return key;
@@ -503,26 +552,31 @@ export function useSchemaChangeEditor(
   };
   const editMigration = (value: MigrationPlan) => {
     // Conversion input can still be edited while a plan read is in flight.
-    if (!busy && !uncertain && !disabled && !plan?.recovery) setMigration(value);
+    if (!busy && !uncertain && !disabled && !plan?.recovery) {
+      setMigration(value);
+    }
   };
   const review = () => {
+    if (!uncertain && !editable()) return;
+    if (!uncertain && !dirty && plan) return analyze();
     if (uncertain || validateFields()) return write("save");
+    return Promise.resolve();
   };
   const analyze = () => {
-    if (!uncertain && !dirty && plan && !["analyzing", "applied", "cancelled", "stale"].includes(plan.status)) {
+    if (editable() && !dirty && plan && !["analyzing", "applied", "cancelled", "stale"].includes(plan.status)) {
       return write("analyze");
     }
   };
   const publish = () => {
     if (
-      !uncertain && !dirty && plan?.status === "ready" && plan.change_kind === "compatible" &&
+      editable() && !dirty && plan?.status === "ready" && plan.change_kind === "compatible" &&
       plan.analysis?.failed === 0
     ) {
       return write("apply");
     }
   };
   const startNewChange = () => {
-    if (busy || uncertain || dirty) return;
+    if (busy || uncertain || dirty || disabled || readBusy) return;
     cancelPlanRead();
     setReadBusy(false);
     applyPlan(null);
@@ -530,9 +584,19 @@ export function useSchemaChangeEditor(
   const refreshDefinition = async () => {
     setReadBusy(true);
     try {
-      await onApplied();
+      const failure = await onApplied();
+      if (!mounted.current) return false;
+      if (failure) {
+        setError(failure);
+        return false;
+      }
+      setError("");
+      return true;
     } catch (e) {
-      if (mounted.current) setError(e instanceof Error ? e.message : "조회 실패");
+      if (mounted.current) {
+        setError(e instanceof Error ? e.message : "조회 실패");
+      }
+      return false;
     } finally {
       if (mounted.current) setReadBusy(false);
     }
@@ -543,19 +607,28 @@ export function useSchemaChangeEditor(
       await list();
       if (mounted.current) setError("");
     } catch (e) {
-      if (mounted.current) setError(e instanceof Error ? e.message : "조회 실패");
+      if (mounted.current) {
+        setError(e instanceof Error ? e.message : "조회 실패");
+      }
     } finally {
       if (mounted.current) setReadBusy(false);
     }
   };
+  const changedFields = draft.display.order.filter((key) =>
+    JSON.stringify(draft.schema.properties[key]) !== JSON.stringify(saved.schema.properties[key]) ||
+    draft.schema.required.includes(key) !== saved.schema.required.includes(key) ||
+    Object.keys(numericDrafts).some((address) => address.startsWith(key + ":"))
+  );
+  const changeCount = changedFields.length +
+    Object.keys(saved.schema.properties).filter((key) => !draft.schema.properties[key]).length +
+    (JSON.stringify(draft.display) !== JSON.stringify(saved.display) ? 1 : 0) +
+    (JSON.stringify(migration) !== JSON.stringify(plan?.migration ?? { rules: [], overrides: [] }) ? 1 : 0);
   return {
     view: {
       draft,
       unreservedFields: Object.keys(draft.schema.properties).filter((key) => key.startsWith("new_")),
-      changedFields: draft.display.order.filter((key) =>
-        JSON.stringify(draft.schema.properties[key]) !== JSON.stringify(saved.schema.properties[key]) ||
-        Object.keys(numericDrafts).some((address) => address.startsWith(key + ":"))
-      ),
+      changedFields,
+      changeCount,
       unsupportedNumericInputs: Object.entries(numericDrafts).filter(([address]) => {
         const [key, name] = address.split(":");
         return draft.schema.properties[key] && !supportsNumericCondition(draft.schema.properties[key], name);
@@ -572,12 +645,14 @@ export function useSchemaChangeEditor(
       uncertain,
       readBusy,
       startState,
+      analysisPending: acceptedAnalysis !== null,
       migrationEdited: JSON.stringify(migration) !== JSON.stringify(plan?.migration ?? { rules: [], overrides: [] }),
     },
     editField,
     editNumeric,
     removeNumericInput,
     editFlag,
+    setFieldInactive,
     editOptionLabel,
     chooseRepresentative,
     removeField,

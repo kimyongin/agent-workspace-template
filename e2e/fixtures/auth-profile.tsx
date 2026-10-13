@@ -4,7 +4,6 @@ import { useState } from "react";
 import { createRoot } from "react-dom/client";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import { AuthProvider, useAuth } from "../../src/features/auth/AuthProvider.tsx";
-import { EntityIdentitySettings } from "../../src/features/settings/EntityIdentitySettings.tsx";
 import { SettingsPage } from "../../src/features/settings/SettingsPage.tsx";
 import { Navigation } from "../../src/app/Navigation.tsx";
 import "../../src/styles/tokens.css";
@@ -36,7 +35,6 @@ function Probe() {
           지연 저장 검사
         </button>
         <SettingsPage />
-        <EntityIdentitySettings />
       </main>
       <Navigation brand="Workspace" />
     </div>

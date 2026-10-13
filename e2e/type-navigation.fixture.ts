@@ -192,10 +192,7 @@ test("typed creation requires selection and protects drafts before changing kind
 });
 test("settings identity route keeps drafts and treats settings as account location", async ({ page }) => {
   await page.goto("/settings");
-  await expect(page.getByLabel("발급처 1 이름")).toHaveCount(0);
-  await page.getByRole("link", { name: "자료 설정", exact: true }).click();
-  await page.getByRole("button", { name: "공통 설정", exact: true }).click();
-  await expect(page).toHaveURL(/\/settings\/entity-types$/);
+  await expect(page).toHaveURL(/\/settings$/);
   await expect(page.getByRole("button", { name: /^내 프로필(?: · .+)?$/, exact: true })).toHaveAttribute("data-current", "true");
   await page.getByLabel("발급처 1 이름").fill("식별자 초안");
   await page.getByRole("link", { name: "할 일", exact: true }).click();
@@ -204,7 +201,6 @@ test("settings identity route keeps drafts and treats settings as account locati
   await expect(page.getByLabel("발급처 1 이름")).toHaveValue("식별자 초안");
   page.on("dialog", dialog => dialog.accept());
   await page.reload();
-  await page.getByRole("button", { name: "공통 설정", exact: true }).click();
   await expect(page.getByLabel("발급처 1 이름")).toBeVisible();
 });
 
@@ -514,9 +510,10 @@ test("numeric schema bounds keep invalid raw decimals and reject before creating
   await page.goto(`/settings/entity-types/${materials.id}`);
   await page.getByRole("button", { name: "정확한 수량 속성 편집", exact: true }).click();
   const section = page.getByRole("region", { name: "정확한 수량 속성", exact: true });
+  await section.getByText("추가 설정", {exact:true}).click();
   const input = section.getByLabel("최소값", { exact: true });
   await input.fill("1.0000000000000001");
-  await page.getByRole("button", { name: "속성 변경 검토", exact: true }).click();
+  await page.getByRole("button", { name: "변경 검토", exact: true }).click();
   await expect(page.getByRole("alert")).toContainText("정밀도");
   await expect(input).toHaveValue("1.0000000000000001");
   expect(writes).toBe(0);
@@ -655,7 +652,7 @@ test("materials workspace keeps basic drafts while history opens and guards type
   await page.getByRole("button", { name: /^기본 정보(?! 저장)/ }).click();
   await expect(page.getByLabel("자료 종류 이름", { exact: true })).toHaveValue("편집 중 재료");
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-  await page.getByRole("button", { name: "변경 취소", exact: true }).click();
+  await page.getByRole("form", {name:"기본 정보",exact:true}).getByRole("button", { name: "변경 취소", exact: true }).click();
   await page.getByLabel("자료 종류 선택", { exact: true }).selectOption(products.id);
   await expect(page.getByLabel("자료 종류 선택", { exact: true })).toHaveValue(products.id);
   await expect(page.getByLabel("자료 종류 선택", { exact: true })).toBeFocused();

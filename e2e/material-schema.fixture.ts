@@ -1,3 +1,4 @@
+import { revealSetting } from "./ui-actions.ts";
 import { expect, test } from "@playwright/test";
 import { entityDetail } from "../supabase/functions/_shared/contracts/entity.ts";
 import { defaultEntityIdentitySettings } from "../supabase/functions/_shared/contracts/entity-identity.ts";
@@ -44,7 +45,9 @@ test.beforeEach(async ({ page, baseURL }) => {
       });
     }
     if (await fulfillPreparation(route)) return;
-    if (url.pathname.startsWith("/api/")) return route.fulfill({ json: { items: [], next_cursor: null } });
+    if (url.pathname.startsWith("/api/")) {
+      return route.fulfill({ json: { items: [], next_cursor: null } });
+    }
     return route.abort();
   });
   await page.addInitScript(
@@ -101,14 +104,18 @@ test("작업 직접 링크와 작업 재선택에서도 기본 입력과 속성 
   await page.getByRole("button", { name: /^기본 정보/ }).click();
   await page.getByLabel("자료 종류 이름", { exact: true }).fill("남길 기본 입력");
   await page.getByRole("button", { name: "이름 속성 편집", exact: true }).click();
-  await page.getByLabel("속성 이름", { exact: true }).fill("남길 속성 입력");
+  await page.getByLabel("항목 이름", { exact: true }).fill("남길 속성 입력");
   await page.getByRole("link", { name: "작업 21 · 완료 · 10/10", exact: true }).click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await expect(page.getByLabel("자료 종류 이름", { exact: true })).toHaveValue("남길 기본 입력");
-  await expect(page.getByLabel("속성 이름", { exact: true })).toHaveValue("남길 속성 입력");
+  await expect(page.getByLabel("항목 이름", { exact: true })).toHaveValue(
+    "남길 속성 입력",
+  );
   await expect(page.getByRole("button", { name: /^선택한 값 변환 작업/ })).toContainText("완료");
   await page.goBack();
-  await expect(page.getByLabel("속성 이름", { exact: true })).toHaveValue("남길 속성 입력");
+  await expect(page.getByLabel("항목 이름", { exact: true })).toHaveValue(
+    "남길 속성 입력",
+  );
 });
 
 test("실패 작업의 응답 불명 재시도는 같은 내용과 키로 확인하며 기본 입력을 보존한다", async ({ page }) => {
@@ -228,8 +235,10 @@ test("변환 완료는 새 게시 속성을 바로 갱신하고 기본·속성·
   await page.getByRole("button", { name: /^기본 정보/ }).click();
   await page.getByLabel("자료 종류 이름", { exact: true }).fill("남길 기본 입력");
   await page.getByRole("button", { name: "이름 속성 편집", exact: true }).click();
-  await page.getByLabel("속성 이름", { exact: true }).first().fill("남길 속성 입력");
+  await page.getByLabel("항목 이름", { exact: true }).first().fill("남길 속성 입력",
+  );
   await page.getByRole("button", { name: "수량 속성 편집", exact: true }).click();
+  await revealSetting(page.getByLabel("최소값", { exact: true }));
   await page.getByLabel("최소값", { exact: true }).fill("7.5");
   await page.getByRole("button", { name: /^현재 종류 기록 기본값/ }).click();
   const record = page.getByRole("form", { name: "현재 종류 기록 기본값", exact: true });
@@ -240,11 +249,11 @@ test("변환 완료는 새 게시 속성을 바로 갱신하고 기본·속성·
   await expect(record.getByLabel("변수 삽입").locator("option").filter({ hasText: "게시된 추가값" }).first())
     .toHaveCount(1);
   await expect(page.getByLabel("자료 종류 이름", { exact: true })).toHaveValue("남길 기본 입력");
-  await expect(page.getByLabel("속성 이름", { exact: true }).first()).toHaveValue("남길 속성 입력");
+  await expect(page.getByLabel("항목 이름", { exact: true }).first()).toHaveValue("남길 속성 입력");
   await expect(record.getByLabel("메모 템플릿")).toHaveValue("남길 기록 입력");
   await expect(page.getByRole("button", { name: "게시된 추가값 속성 편집", exact: true })).toBeVisible();
   await expect(page.getByLabel("이전 최소값 입력", { exact: true })).toHaveValue("7.5");
-  await page.getByRole("button", { name: "속성 변경 검토", exact: true }).click();
+  await page.getByRole("button", { name: "변경 검토", exact: true }).click();
   await expect(page.getByRole("alert")).toContainText("현재 타입에서 사용할 수 없는 이전 조건 입력");
   await page.getByRole("button", { name: "수량 이전 최소값 입력 제거", exact: true }).click();
   await expect(page.getByLabel("이전 최소값 입력", { exact: true })).toHaveCount(0);
@@ -305,16 +314,31 @@ test("늦은 완료 작업 조회는 확인된 기본 정보와 다음 저장 �
   let saved = { ...materials, version: 2, schema_version: 2 };
   let typeReads = 0, historyReads = 0;
   let release!: () => void, arrived!: () => void;
-  const pending = new Promise<void>(resolve => { release = resolve; });
-  const reading = new Promise<void>(resolve => { arrived = resolve; });
+  const pending = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const reading = new Promise<void>((resolve) => {
+    arrived = resolve;
+  });
   const writes: any[] = [];
-  await page.route(`**/api/entity-types/${materials.id}**`, async route => {
+  await page.route(`**/api/entity-types/${materials.id}**`, async (route) => {
     const path = new URL(route.request().url()).pathname;
-    if (path.endsWith("/schema")) return route.fulfill({ json: { type_id: materials.id, schema_version: 2, ...initialEntityDefinition("이름") } });
-    if (path.endsWith("/schema-changes")) return route.fulfill({ json: { items: [], next_before: null } });
+    if (path.endsWith("/schema")) {
+      return route.fulfill({ json: { type_id: materials.id, schema_version: 2, ...initialEntityDefinition("이름") } });
+    }
+    if (path.endsWith("/schema-changes")) {
+        return route.fulfill({ json: { items: [], next_before: null } });
+      }
     if (path.endsWith("/schemas")) {
       historyReads++;
-      return route.fulfill({ json: { items: historyReads > 1 ? [{ type_id: materials.id, schema_version: 2, created_at: materials.created_at }] : [], next_before: null } });
+      return route.fulfill({
+        json: {
+          items: historyReads > 1
+            ? [{ type_id: materials.id, schema_version: 2, created_at: materials.created_at }]
+            : [],
+          next_before: null,
+        },
+      });
     }
     if (route.request().method() === "PATCH") {
       const body = route.request().postDataJSON();
@@ -324,10 +348,16 @@ test("늦은 완료 작업 조회는 확인된 기본 정보와 다음 저장 �
     }
     typeReads++;
     const snapshot = { ...saved };
-    if (typeReads === 2) { arrived(); await pending; }
+    if (typeReads === 2) {
+      arrived();
+      await pending;
+    }
     return route.fulfill({ json: snapshot });
   });
-  await page.route("**/api/entity-schema-migrations/**", route => route.fulfill({ json: { ...job(20), result: { schema_version: 2, total: 10, changed: 10 } } }));
+  await page.route(
+    "**/api/entity-schema-migrations/**",
+    (route) => route.fulfill({ json: { ...job(20), result: { schema_version: 2, total: 10, changed: 10 } } }),
+  );
   await page.goto(`/settings/entity-types/${materials.id}/migrations/${id(20)}`);
   await reading;
   await page.getByRole("button", { name: /^기본 정보(?! 저장)/ }).click();
@@ -343,7 +373,11 @@ test("늦은 완료 작업 조회는 확인된 기본 정보와 다음 저장 �
   await name.fill("다음 저장 이름");
   await page.getByRole("button", { name: "기본 정보 저장", exact: true }).click();
   await expect(page.getByRole("status").filter({ hasText: "자료 종류를 저장했습니다." })).toBeVisible();
-  expect(writes).toMatchObject([{ expected_type_version: 2, label: "확인된 최신 이름", icon_id: "book" }, { expected_type_version: 3, label: "다음 저장 이름", icon_id: "book" }]);
+  expect(writes).toMatchObject([{ expected_type_version: 2, label: "확인된 최신 이름", icon_id: "book" }, {
+    expected_type_version: 3,
+    label: "다음 저장 이름",
+    icon_id: "book",
+  }]);
 });
 
 test("완료 작업을 다시 선택하면 다른 작업을 보는 동안 게시된 정의와 기록 변수를 갱신한다", async ({ page }) => {
@@ -487,3 +521,62 @@ test("새 게시 이력이 취소한 이전 페이지의 본문 읽기 오류는
   await expect(page.getByRole("alert")).toContainText("현재 이전 게시 조회 실패");
   await expect(page.getByRole("button", { name: "확인한 새 속성 속성 편집", exact: true })).toBeVisible();
 });
+
+test(
+  "자료 설정의 실제 shell에서 속성과 화면 표시를 배치하고 긴 이름·배율·키보드를 유지한다",
+  async ({ page }, info) => {
+    const definition = initialEntityDefinition("재료명");
+    Object.assign(definition.schema.properties, {
+      prop_2: { type: "number", title: "수량" },
+      prop_3: { type: "string", title: "단위", enum: ["kg", "g"] },
+    });
+    definition.display.order.push("prop_2", "prop_3");
+    definition.display.list_columns.push("prop_2", "prop_3");
+    await page.route(
+      `**/api/entity-types/${materials.id}/schema`,
+      (route) => route.fulfill({ json: { type: materials, type_id: materials.id, schema_version: 1, ...definition } }),
+    );
+    await page.route("**/api/settings/business**", (route) =>
+      route.fulfill({
+        json: {
+          settings: { record_templates: {}, entity_identity: defaultEntityIdentitySettings },
+          versions: { record_templates: 0, entity_identity: 0 },
+        },
+      }));
+    await page.goto(`/settings/entity-types/${materials.id}`);
+    await page.getByRole("button", { name: "수량 속성 편집", exact: true }).click();
+    const properties = page.getByRole("region", { name: "입력 항목",
+      exact: true,
+    });
+    await expect(page.getByRole("region", { name: "화면 표시", exact: true })).toHaveCount(0);
+    await expect(properties.getByLabel("자료 이름으로 사용할 항목")).toHaveValue("prop_1");
+    await expect(properties.getByRole("button", { name: "변경 검토", exact: true })).toBeDisabled();
+    await page.screenshot({ path: info.outputPath("property-display-settings.png"), fullPage: true });
+    await properties.getByLabel("항목 이름", { exact: true }).filter({
+      visible: true,
+    }).fill(
+      "공백없이아주긴속성이름을입력해도화면너비를넘지않아야하는상황",
+    );
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth),
+    ).toBe(true);
+    for (const width of [320, 390, 639, 640, 1023, 1024, 1440]) {
+      await page.setViewportSize({ width, height: 900 });
+      expect(
+      await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth),
+    ).toBe(true);
+      await expect(properties.getByRole("button", { name: /위로$/ }).first()).toBeVisible();
+    }
+    await properties.locator(".schema-field .material-section-toggle[aria-expanded=true]").focus();
+    await page.keyboard.press("Enter");
+    await expect(properties.getByLabel("항목 이름", { exact: true }).filter({
+        visible: true,
+      }),
+    ).toHaveCount(0);
+    await page.setViewportSize({ width: 320, height: 640 });
+    await page.evaluate(() => document.documentElement.style.zoom = "2");
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth),
+    ).toBe(true);
+  },
+);

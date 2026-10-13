@@ -38,7 +38,9 @@ Deno.test("migration preparation preserves explicit values, shared template/hash
       changed: true,
     }],
   };
-  batch.source_template_fingerprint = await effectiveEntityTemplateFingerprint(templates, batch.type_id);
+  batch.source_template_fingerprint = await effectiveEntityTemplateFingerprint({
+    entity_types: { [batch.type_id]: templates.entity },
+  }, batch.type_id);
   const output = await prepareMigrationBatch(batch, new Date("2026-10-12T00:00:00Z"));
   assert(!output.stale);
   assertEquals(output.results[0].record_body, "0 · 원본");
@@ -75,7 +77,9 @@ Deno.test("migration preparation preserves explicit values, shared template/hash
     largeBatch = {
       ...batch,
       templates: large,
-      source_template_fingerprint: await effectiveEntityTemplateFingerprint(large, batch.type_id),
+      source_template_fingerprint: await effectiveEntityTemplateFingerprint({
+        entity_types: { [batch.type_id]: large.entity },
+      }, batch.type_id),
       rows: Array.from({ length: 50 }, (_, i) => ({ ...batch.rows[0], entity_id: `app:${i}` })),
     };
   const bounded = await prepareMigrationBatch(largeBatch, new Date("2026-10-12T00:00:00Z"));

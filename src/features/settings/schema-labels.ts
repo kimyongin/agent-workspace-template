@@ -10,13 +10,17 @@ export const schemaChangeLabels: Record<EntitySchemaChange["status"], string> = 
   applied: "게시 완료",
   cancelled: "취소",
 };
-export function fieldSummary(field: EntityField) {
+export function fieldTypeLabel(field: EntityField) {
   const kind = fieldType(field);
   const label = field.enum
-    ? `선택 ${field.enum.filter((value) => value !== null).length}개`
+    ? "단일 선택"
     : field.format === "date"
     ? "날짜"
     : ({ string: "텍스트", integer: "정수", number: "숫자", boolean: "참·거짓" }[kind ?? "string"] ?? "텍스트");
+  return label;
+}
+export function fieldSummary(field: EntityField) {
+  const label = fieldTypeLabel(field);
   const constraints = [
     field.minLength !== undefined ? `최소 ${field.minLength}자` : "",
     field.maxLength !== undefined ? `최대 ${field.maxLength}자` : "",
@@ -63,4 +67,16 @@ export function schemaValueLabel(value: unknown, definition?: SchemaDefinition):
   return definition && typeof value === "string" && /^prop_[0-9]+$/.test(value)
     ? definition?.schema.properties[value]?.title ?? "속성"
     : String(value);
+}
+
+/** Review values use the input labels rather than schema storage spellings. */
+export function schemaDiffValueLabel(path: string, value: unknown, definition: SchemaDefinition): string {
+  if (path.endsWith(".required") && typeof value === "boolean") return value ? "필수" : "선택";
+  if (path.endsWith(".type") && (typeof value === "string" || Array.isArray(value))) {
+    return fieldTypeLabel({ type: value as EntityField["type"] });
+  }
+  return schemaValueLabel(
+    value,
+    /^(?:display\.)?(representative|order|list_columns|archived)$/.test(path) ? definition : undefined,
+  );
 }

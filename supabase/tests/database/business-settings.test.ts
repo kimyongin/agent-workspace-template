@@ -190,3 +190,27 @@ dbTest("업무 설정 DB: 소유자 격리·섹션 병합·경합·고정 메모
     await admin.end();
   }
 });
+
+dbTest("자료 기본 문구의 SQL 비교는 구 공통 값을 무시하며 null 문구와 종류 태그를 보존한다", async () => {
+  const admin = connect(urls.admin), owner = await fixtureOwner(admin), typeId = crypto.randomUUID();
+  const templates = {
+    entity: { create: { memo: "폐기된 공통", tag_ids: [crypto.randomUUID()] } },
+    entity_types: { [typeId]: { update: { memo: null, tag_ids: [] } } },
+  };
+  try {
+    await admin`insert into app.user_business_settings(owner_id,id,version,settings) values(${owner.actor.userId},'record_templates',1,${
+      admin.json(templates)
+    })`;
+    const [row] =
+      await admin`select private.entity_schema_effective_templates(${owner.actor.userId}::uuid,${typeId}::uuid) as value`;
+    assertEquals(row.value.entity.create, { memo: "$대상$ $액션$", tag_ids: [] });
+    assertEquals(row.value.entity.update, { memo: "$대상$ $액션$ ($변경항목$)", tag_ids: [] });
+    const [unchanged] =
+      await admin`select settings,version from app.user_business_settings where owner_id=${owner.actor.userId} and id='record_templates'`;
+    assertEquals(unchanged.settings, templates);
+    assertEquals(Number(unchanged.version), 1);
+  } finally {
+    await owner.cleanup();
+    await admin.end();
+  }
+});

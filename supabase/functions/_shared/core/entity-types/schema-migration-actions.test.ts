@@ -229,7 +229,7 @@ Deno.test("public retry checks template bindings before the current reference ba
 Deno.test("public retry validates template property references even when its fingerprint matches", async () => {
   const f = await fixture();
   f.set({ status: "failed", retryable: true });
-  f.bindings.templates = { entity: { update: { memo: "$엔터티.이후.prop_9$", tag_ids: [] } } };
+  f.bindings.templates = { entity_types: { [id]: { update: { memo: "$엔터티.이후.prop_9$", tag_ids: [] } } } };
   f.context.change.source_template_fingerprint = await effectiveEntityTemplateFingerprint(f.bindings.templates, id);
   const error = await assertRejects(() => f.retry());
   assertEquals((error as { code: string }).code, "invalid_input");

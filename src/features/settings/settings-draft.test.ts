@@ -217,18 +217,18 @@ test("기록 템플릿 최신값 확인은 초안 전체를 보존하고 취소�
       .mockResolvedValueOnce({
         settings: {
           versions: { entity_identity: 10, record_templates: 2 },
-          settings: { record_templates: { entity: { create: { memo: "원격 템플릿", tag_ids: [] } } } },
+          settings: { record_templates: { task: { create: { memo: "원격 템플릿", tag_ids: [] } } } },
         },
         availableTags: [],
       }),
   });
   await settings.read();
-  settings.edit((value) => ({ ...value, entity: { ...value.entity, create: { memo: "내 템플릿", tag_ids: [] } } }));
+  settings.edit((value) => ({ ...value, task: { ...value.task, create: { memo: "내 템플릿", tag_ids: [] } } }));
   await settings.read();
-  expect(settings.snapshot().draft.entity?.create?.memo).toBe("내 템플릿");
+  expect(settings.snapshot().draft.task?.create?.memo).toBe("내 템플릿");
   expect(settings.snapshot().saved?.settings.versions.record_templates).toBe(2);
   settings.reset();
-  expect(settings.snapshot().draft.entity?.create?.memo).toBe("원격 템플릿");
+  expect(settings.snapshot().draft.task?.create?.memo).toBe("원격 템플릿");
 });
 
 test("충돌 뒤 최신값 읽기가 실패해도 다시 최신값을 확인할 수 있는 상태를 유지", async () => {
@@ -256,15 +256,15 @@ test("템플릿의 누락 태그 안내는 새 로컬 선택을 삭제된 태그
     settings: {
       versions: { record_templates: 1, entity_identity: 0 },
       settings: {
-        record_templates: { entity: { create: { memo: "기준", tag_ids: ["deleted"] } } },
+        record_templates: { task: { create: { memo: "기준", tag_ids: ["deleted"] } } },
       },
     },
     availableTags: [],
   };
-  expect(unavailableTemplateTags(saved, { entity: { create: { memo: "입력", tag_ids: ["deleted", "new"] } } })).toEqual(
+  expect(unavailableTemplateTags(saved, { task: { create: { memo: "입력", tag_ids: ["deleted", "new"] } } })).toEqual(
     ["deleted"],
   );
-  expect(unavailableTemplateTags(saved, { entity: { create: { memo: "입력", tag_ids: ["new"] } } })).toEqual([]);
+  expect(unavailableTemplateTags(saved, { task: { create: { memo: "입력", tag_ids: ["new"] } } })).toEqual([]);
 });
 
 test("업무 설정 응답 불명은 같은 키·입력·기준 버전으로 재시도한다",async()=>{
@@ -312,23 +312,23 @@ test("기록 편집기는 부분 조회 뒤 초안·취소·저장 버전을 보
   const api = vi.fn()
     .mockResolvedValueOnce({ versions: { record_templates: 2 }, settings: { record_templates: {} } })
     .mockResolvedValueOnce({ items: [], next_cursor: null })
-    .mockResolvedValueOnce({ versions: { record_templates: 3 }, settings: { record_templates: { entity: { create: { memo: "원격", tag_ids: [] } } } } })
+    .mockResolvedValueOnce({ versions: { record_templates: 3 }, settings: { record_templates: { task: { create: { memo: "원격", tag_ids: [] } } } } })
     .mockResolvedValueOnce({ items: [], next_cursor: null })
-    .mockResolvedValueOnce({ versions: { record_templates: 4, entity_identity: 99 }, settings: { record_templates: { entity: { create: { memo: "저장", tag_ids: [] } } } } });
+    .mockResolvedValueOnce({ versions: { record_templates: 4, entity_identity: 99 }, settings: { record_templates: { task: { create: { memo: "저장", tag_ids: [] } } } } });
   const settings = createSettingsDraft(createRecordTemplatesDraft(api));
   await settings.read();
-  settings.edit((draft) => ({ ...draft, entity: { ...draft.entity, create: { memo: "내 초안", tag_ids: [] } } }));
+  settings.edit((draft) => ({ ...draft, task: { ...draft.task, create: { memo: "내 초안", tag_ids: [] } } }));
   await settings.read();
-  expect(settings.snapshot().draft.entity?.create?.memo).toBe("내 초안");
+  expect(settings.snapshot().draft.task?.create?.memo).toBe("내 초안");
   settings.reset();
-  expect(settings.snapshot().draft.entity?.create?.memo).toBe("원격");
-  settings.edit((draft) => ({ ...draft, entity: { ...draft.entity, create: { memo: "저장", tag_ids: [] } } }));
+  expect(settings.snapshot().draft.task?.create?.memo).toBe("원격");
+  settings.edit((draft) => ({ ...draft, task: { ...draft.task, create: { memo: "저장", tag_ids: [] } } }));
   await settings.save();
   expect(api.mock.calls.filter((call) => call[0] === "GET" && call[1].startsWith("/settings/"))
     .map((call) => call[1])).toEqual(["/settings/business?id=record_templates", "/settings/business?id=record_templates"]);
   const save = api.mock.calls.find((call) => call[0] === "PATCH")!;
   expect(save.slice(0, 3)).toEqual(["PATCH", "/settings/business", {
-    id: "record_templates", expected_version: 3, value: { entity: { create: { memo: "저장", tag_ids: [] } } },
+    id: "record_templates", expected_version: 3, value: { task: { create: { memo: "저장", tag_ids: [] } } },
   }]);
   expect(settings.snapshot().dirty).toBe(false);
   expect(settings.snapshot().saved?.settings.versions.record_templates).toBe(4);

@@ -147,10 +147,12 @@ Deno.test("Deleted entity registration preserves omitted values and rejects stal
               versions: { record_templates: 1, entity_identity: 0 },
               settings: {
                 record_templates: {
-                  entity: {
-                    restore: {
-                      memo: "$엔터티.이후.prop_1$ / $엔터티.이후.prop_2$ / $엔터티.이후.prop_4$",
-                      tag_ids: [],
+                  entity_types: {
+                    [typeId]: {
+                      restore: {
+                        memo: "$엔터티.이후.prop_1$ / $엔터티.이후.prop_2$ / $엔터티.이후.prop_4$",
+                        tag_ids: [],
+                      },
                     },
                   },
                 },

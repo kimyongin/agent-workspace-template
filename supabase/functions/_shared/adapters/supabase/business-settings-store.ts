@@ -43,11 +43,6 @@ export class SqlBusinessSettingsStore implements BusinessSettingsStore {
   async update({ id, expected_version: expected, value }: BusinessSettingsUpdate): Promise<BusinessSettingsResult> {
     if (id === "record_templates") {
       const templates = value as RecordTemplates, previous = (await this.get()).settings.record_templates;
-      for (const template of Object.values(templates.entity ?? {})) {
-        if (/(?:\$\{|\$)엔터티\.(?:이전|이후)\.prop_[1-9][0-9]*(?:\$}|\$)/.test(template!.memo.replace(/\$\$/g, ""))) {
-          throw invalidInput("속성 변수는 자료 종류를 선택한 템플릿에서 사용하세요");
-        }
-      }
       const types = await this.tx<{ id: string }[]>`select id from app.entity_types order by id`;
       for (
         const typeId of [

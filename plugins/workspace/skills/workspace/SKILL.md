@@ -33,7 +33,7 @@ description: Workspace에서 다음 업무의 검토·준비안을 만들거나 
 
 자료 간 연결/해제는 `prepare_record_memo`의 준비 대상이 아니므로 확인한 양쪽 버전과 메모·태그를 실제 쓰기에 직접 유지한다. 자료 간 관계를 다룰 때 `list_entity_links`로 현재 연결을 읽고 `list_entities`의 `link_candidate_for`에 원점을 지정해 자기 자신·이미 연결된 자료·삭제/보관 대상을 제외한 후보를 찾는다. 자료 종류와 대표 이름을 확인한 뒤 `link_entities` 또는 `unlink_entities`에 양쪽 ID·`expected_version`·`expected_other_version`을 전달한다. 연결은 무방향이며 같은/다른 종류와 순환을 허용한다. 자료당 보존 연결 한도는 100개다. 삭제/보관된 이전 연결은 조회·해제할 수 있다. 역순 재시도는 ID와 버전을 함께 뒤집고 같은 메모·태그·`request_key`를 유지한다. `changed=false`는 새 연결 변경·기록이 생기지 않았다는 뜻이며 재현 결과의 버전은 당시 값이다.
 
-자료 종류를 지정한 목록은 도구 계약의 `filters`에 `prop_n`·operator·value 조건을, `sort`에 key/direction을 전달한다. `unset`은 value 없이 누락과 null을 찾는다. 다른 종류의 같은 prop_n은 의미가 다르므로 `get_entity_schema`에서 현재 정의를 읽는다. 자료 종류별 기록 템플릿 설정은 `record_templates.entity_types.<type_id>.<action>`에 저장하며 속성 변수는 `$엔터티.이후.prop_1$`처럼 고정 키를 사용한다. 표시 라벨을 변수 키로 바꾸지 않는다.
+자료 종류를 지정한 목록은 도구 계약의 `filters`에 `prop_n`·operator·value 조건을, `sort`에 key/direction을 전달한다. `unset`은 value 없이 누락과 null을 찾는다. 다른 종류의 같은 prop_n은 의미가 다르므로 `get_entity_schema`에서 현재 정의를 읽는다. 자료 종류별 기록 템플릿 설정은 `record_templates.entity_types.<type_id>.<action>`에 저장하며 속성 변수는 `$엔터티.이후.prop_1$`처럼 고정 키를 사용한다. 표시 라벨을 변수 키로 바꾸지 않는다. 자료 종류별 memo가 null이거나 행동 설정이 없으면 고정 기본 문구를 사용하며 tag_ids는 독립적이다. 자료 공통 record_templates.entity 설정은 지원하지 않는다.
 
 ## 현재 계약으로 수행하기
 

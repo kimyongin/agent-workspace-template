@@ -51,11 +51,11 @@ Deno.test("업무 설정: 모델 템플릿 저장 후 읽기, 다른 섹션 유�
   await updateBusinessSettings(d, requestActor(actor), {
     expected_version: 0,
     id: "record_templates",
-    value: { entity: { create: { memo: "${엔터티.이후.prop_2$} 등록", tag_ids: [] } } },
+    value: { task: { create: { memo: "${할일.이후.제목$} 등록", tag_ids: [] } } },
   });
   assertEquals(
-    (await getBusinessSettings(d, actor)).settings.record_templates?.entity?.create?.memo,
-    "${엔터티.이후.prop_2$} 등록",
+    (await getBusinessSettings(d, actor)).settings.record_templates?.task?.create?.memo,
+    "${할일.이후.제목$} 등록",
   );
   await assertRejects(
     async () =>
@@ -262,10 +262,12 @@ Deno.test("복원 기록 준비: 보관한 0·태그·식별 정보를 보존하
               versions: { record_templates: 1, entity_identity: 1 },
               settings: {
                 record_templates: {
-                  entity: {
-                    restore: {
-                      memo: "${엔터티.이전.prop_2$} → ${엔터티.이후.prop_2$} / ${엔터티.이후.식별자$}",
-                      tag_ids: [],
+                  entity_types: {
+                    [entity_type_id]: {
+                      restore: {
+                        memo: "${엔터티.이전.prop_2$} → ${엔터티.이후.prop_2$} / ${엔터티.이후.식별자$}",
+                        tag_ids: [],
+                      },
                     },
                   },
                 },

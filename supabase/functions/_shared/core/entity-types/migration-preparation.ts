@@ -4,7 +4,7 @@ import { effectiveEntityTemplateFingerprint } from "./template-references.ts";
 import { changeDefaults } from "../settings/change-defaults.ts";
 import { searchInputHash } from "../shared/operations.ts";
 import type { MigrationPlan, SchemaDefinition } from "../../contracts/entity-schema-change.ts";
-import type { RecordTemplates } from "../../contracts/record-template.ts";
+import type { EntityTemplateSnapshot } from "../../contracts/record-template.ts";
 import type { EntityTypeRef } from "../../contracts/entity-type.ts";
 import type { ChangeFacts, ChangeInput } from "../shared/changes.ts";
 import { canonical } from "./evolution.ts";
@@ -20,7 +20,7 @@ export type MigrationWorkerBatch = {
   migration: MigrationPlan;
   recovery_keys?: string[] | null;
   source_template_fingerprint: string;
-  templates: RecordTemplates;
+  templates: EntityTemplateSnapshot;
   available_tags: string[];
   type: EntityTypeRef;
   rows: Array<
@@ -73,7 +73,11 @@ export function migrationRecordRenderer(
       after: facts(row.after, batch.target),
     };
     const memo = row.changed
-      ? changeDefaults(input, { record_templates: batch.templates }, batch.available_tags)
+      ? changeDefaults(
+        input,
+        { record_templates: { entity_types: { [batch.type_id]: batch.templates.entity } } },
+        batch.available_tags,
+      )
       : null;
     return { record_body: memo?.change_note ?? null, record_context: context, record_tags: memo?.change_tag_ids ?? [] };
   };
@@ -81,7 +85,9 @@ export function migrationRecordRenderer(
 /** This public preparation boundary shares conversion, memo and index-hash semantics with ordinary writes. */
 export async function prepareMigrationBatch(batch: MigrationWorkerBatch, now: Date, budgetMs = 2000) {
   const started = performance.now();
-  const fingerprint = await effectiveEntityTemplateFingerprint(batch.templates, batch.type_id);
+  const fingerprint = await effectiveEntityTemplateFingerprint({
+    entity_types: { [batch.type_id]: batch.templates.entity },
+  }, batch.type_id);
   if (fingerprint !== batch.source_template_fingerprint) return { stale: true as const, results: [] };
   const convert = compileMigration(batch.target, batch.migration, batch.recovery_keys);
   const renderRecord = migrationRecordRenderer(batch, now);

@@ -9,7 +9,42 @@ export const businessSettings = z.strictObject({
 });
 export type BusinessSettings = z.infer<typeof businessSettings>;
 export function resolvedBusinessSettings(settings: BusinessSettings): BusinessSettings {
-  return { record_templates: {}, entity_identity: defaultEntityIdentitySettings, ...businessSettings.parse(settings) };
+  const raw = settings.record_templates as
+    | (Record<string, unknown> & Pick<NonNullable<BusinessSettings["record_templates"]>, "entity_types">)
+    | undefined;
+  let templates = raw;
+  if (raw) {
+    // Retire stored common settings without rewriting data on a read.
+    const { entity: _retired, ...current } = raw;
+    templates = {
+      ...current,
+      ...(raw.entity_types
+        ? {
+          entity_types: Object.fromEntries(
+            Object.entries(raw.entity_types).map((
+              [id, group],
+            ) => [
+              id,
+              Object.fromEntries(
+                Object.entries(group).map(([action, value]) => [action, {
+                  ...value,
+                  memo: value!.memo === null || value!.memo.trim() === "" ? null : value!.memo,
+                }]),
+              ),
+            ]),
+          ),
+        }
+        : {}),
+    };
+  }
+  return {
+    record_templates: {},
+    entity_identity: defaultEntityIdentitySettings,
+    ...businessSettings.parse({
+      ...settings,
+      ...(templates ? { record_templates: templates } : {}),
+    }),
+  };
 }
 const settingsVersion = z.number().int().nonnegative();
 export const businessSettingsResult = z.object({

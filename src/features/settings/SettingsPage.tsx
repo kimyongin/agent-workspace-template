@@ -1,3 +1,4 @@
+import { EntityIdentitySettings } from "./EntityIdentitySettings.tsx";
 import { RecordTemplateSettings } from "./RecordTemplateSettings.tsx";
 import { Field } from "../../components/Field.tsx";
 import { browserTimezone, timezoneOptions } from "../../lib/timezone.ts";
@@ -37,6 +38,7 @@ function AccountSettings() {
   const saved = { ...preferences, nickname: preferences.nickname ?? "" };
   const [draft, setDraft] = useState(saved);
   useDisplayScalePreview(draft.desktopDisplayScale, draft.mobileDisplayScale);
+  const [identityState, setIdentityState] = useState({ dirty: false, busy: false });
   const [businessState, setBusinessState] = useState({ dirty: false, busy: false });
   const [saving, setSaving] = useState<PreferenceSection | null>(null);
   const [messages, setMessages] = useState<Partial<Record<PreferenceSection, { text: string; error?: boolean }>>>({});
@@ -60,8 +62,8 @@ function AccountSettings() {
         : value.mobileDisplayScale,
     }));
   }, [saved.icon, saved.nickname, saved.timezone, saved.desktopDisplayScale, saved.mobileDisplayScale]);
-  const anyBusy = saving !== null || businessState.busy;
-  const anyDirty = dirty || businessState.dirty;
+  const anyBusy = saving !== null || businessState.busy || identityState.busy;
+  const anyDirty = dirty || businessState.dirty || identityState.dirty;
   const blocker = useBlocker(anyDirty || anyBusy);
   useEffect(() => {
     if (anyBusy && blocker.state === "blocked") blocker.reset();
@@ -280,12 +282,13 @@ function AccountSettings() {
         <h2 className="settings-section-title" id="data-title">자료 관리</h2>
         <div className="settings-links">
           <DetailLink to="/settings/entity-types">자료 설정</DetailLink>
+          <DetailLink to="/tags/entity">자료 태그</DetailLink>
           <DetailLink to="/tags/task">할 일 태그</DetailLink>
           <DetailLink to="/tags/record">기록 태그</DetailLink>
-
         </div>
       </section>
-      <RecordTemplateSettings general onStateChange={setBusinessState} />
+      <EntityIdentitySettings onStateChange={setIdentityState} />
+      <RecordTemplateSettings onStateChange={setBusinessState} />
       <ConfirmDialog
         open={!anyBusy && blocker.state === "blocked"}
         title="변경을 버릴까요?"

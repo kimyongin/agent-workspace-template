@@ -18,6 +18,6 @@ test("schema editor and job history public screens remain in the full browser ru
   assert.ok(plan.includes("e2e/schema-editor-read.config.ts"));
   assert.ok(plan.includes("e2e/schema-job-history.config.ts"));
   assert.ok(plan.includes("e2e/material-schema.config.ts"));
-  assert.ok(plan.includes("e2e/material-common.config.ts"));
+  assert.ok(plan.includes("e2e/material-templates.config.ts"));
   assert.equal(new Set(plan).size, plan.length);
 });

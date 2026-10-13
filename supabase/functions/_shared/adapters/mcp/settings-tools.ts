@@ -27,7 +27,7 @@ export function settingsTools(deps: BusinessSettingsDeps): ToolDef[] {
     {
       name: "update_business_settings",
       description:
-        "설정 id·해당 versions[id]의 expected_version·value로 한 섹션만 저장. 다른 설정 ID의 버전은 바뀌지 않는다. 기록 템플릿은 $변수$, 메모 최대 22000자·설정 131072바이트. 기존 record 태그만 사용. 구문·변수 오류는 위치와 이유 반환.",
+        "설정 id·해당 versions[id]의 expected_version·value로 한 섹션만 저장. 다른 설정 ID의 버전은 바뀌지 않는다. 자료 템플릿은 entity_types[type_id][action]에 memo(string 또는 null)·tag_ids로 설정. null은 고정 기본 문구이며 공통 entity 키는 지원하지 않는다. 기록 템플릿은 $변수$, 메모 최대 22000자·설정 131072바이트. 기존 record 태그만 사용. 구문·변수 오류는 위치와 이유 반환.",
       input: updateSettingsInput,
       readOnly: false,
       handler: (i, a) => updateBusinessSettings(deps, a, i),

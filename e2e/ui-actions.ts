@@ -103,3 +103,10 @@ export async function setEntityCategory(page: Page, value: string) {
   } else await header.getByRole("button", { name: "조건 1 제거", exact: true }).click();
   await header.getByRole("button", { name: "속성 조건 적용", exact: true }).click();
 }
+
+/** Reveal optional settings through their visible disclosure controls. */
+export async function revealSetting(control: import("@playwright/test").Locator) {
+  for (const details of await control.locator("xpath=ancestor::details").all()) {
+    if (await details.getAttribute("open") === null) await details.locator(":scope > summary").click();
+  }
+}

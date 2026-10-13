@@ -91,7 +91,7 @@ test("서로 다른 발급처 삭제 충돌은 활성 초안을 보존하고 최
 
 test("기록 템플릿 충돌도 초안을 보존하고 최신 템플릿을 적용한 뒤 새 버전으로 저장한다", async ({page,context}) => {
   let version=1;
-  let value={entity:{create:{memo:"처음 템플릿",tag_ids:[] as string[]}},task:{create:{memo:"처음 할 일",tag_ids:[] as string[]}}};
+  let value={principle:{create:{memo:"처음 원칙",tag_ids:[] as string[]}},task:{create:{memo:"처음 할 일",tag_ids:[] as string[]}}};
   const writes: {id:string;expected_version:number}[]=[];
   await context.route("**/settings/business{,?**}",route=>{
     if(route.request().method()==="PATCH") {
@@ -106,7 +106,7 @@ test("기록 템플릿 충돌도 초안을 보존하고 최신 템플릿을 적�
   const templates=page.getByRole("form",{name:"변경 기록 기본값"});
   await templates.getByLabel("모델",{exact:true}).selectOption("task");
   await templates.getByLabel("메모 템플릿").fill("내 초안");
-  value={entity:{create:{memo:"최신 엔터티",tag_ids:[]}},task:{create:{memo:"최신 할 일",tag_ids:[]}}};version=2;
+  value={principle:{create:{memo:"최신 원칙",tag_ids:[]}},task:{create:{memo:"최신 할 일",tag_ids:[]}}};version=2;
   await templates.getByRole("button",{name:"기록 기본값 저장",exact:true}).click();
   await expect(templates.getByRole("button",{name:"최신값으로 다시 편집",exact:true})).toBeDisabled();
   await templates.getByRole("button",{name:"최신값 확인",exact:true}).click();
@@ -119,7 +119,7 @@ test("기록 템플릿 충돌도 초안을 보존하고 최신 템플릿을 적�
   await templates.getByRole("button",{name:"기록 기본값 저장",exact:true}).click();
   await expect(templates).toContainText("기록 기본값을 저장했습니다");
   expect(writes.map(({id,expected_version})=>({id,expected_version}))).toEqual([{id:"record_templates",expected_version:1},{id:"record_templates",expected_version:2}]);
-  expect(value.entity.create.memo).toBe("최신 엔터티");
+  expect(value.principle.create.memo).toBe("최신 원칙");
   expect(value.task.create.memo).toBe("다시 편집한 할 일");
 });
 

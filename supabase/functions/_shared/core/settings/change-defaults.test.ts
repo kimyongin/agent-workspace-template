@@ -1,7 +1,7 @@
+import { resolvedBusinessSettings } from "../../contracts/business-settings.ts";
 import { assertEquals } from "@std/assert";
 import {
   DEFAULT_RECORD_MEMO_TEMPLATES,
-  editableRecordTemplates,
   effectiveRecordTemplate,
   recordTemplates,
 } from "../../contracts/record-template.ts";
@@ -28,23 +28,26 @@ Deno.test("사용자 설정이 없으면 설정과 기록 준비가 같은 기�
     after: { properties: { prop_2: 2 } },
   };
   assertEquals(effectiveRecordTemplate(undefined, "entity", "update").memo, DEFAULT_RECORD_MEMO_TEMPLATES.update);
-  assertEquals(editableRecordTemplates(), {});
-  assertEquals(changeDefaults(input, {}, []).change_note, "고객 수정 (prop_2)");
   const tag = crypto.randomUUID();
-  const legacy = { entity: { update: { memo: "", tag_ids: [tag] } } };
-  assertEquals(editableRecordTemplates(legacy).entity?.update, {
-    memo: DEFAULT_RECORD_MEMO_TEMPLATES.update,
-    tag_ids: [tag],
-  });
-  assertEquals(legacy.entity.update.memo, "");
-  assertEquals(changeDefaults(input, { record_templates: legacy }, [tag]), {
+  const typeId = crypto.randomUUID();
+  input.after = { ...input.after, entity_type_id: typeId };
+  const value = { entity_types: { [typeId]: { update: { memo: null, tag_ids: [tag] } } } };
+  assertEquals(changeDefaults(input, { record_templates: value }, [tag]), {
     change_note: "고객 수정 (prop_2)",
     change_tag_ids: [tag],
     missing_tag_ids: [],
   });
+  assertEquals(value.entity_types[typeId].update.memo, null);
   assertEquals(
-    changeDefaults(input, { record_templates: { entity: { update: { memo: "${대상$}: ${액션$}", tag_ids: [] } } } }, [])
-      .change_note,
+    changeDefaults(input, {
+      record_templates: {
+        entity_types: {
+          [typeId]: {
+            update: { memo: "${대상$}: ${액션$}", tag_ids: [] },
+          },
+        },
+      },
+    }, []).change_note,
     "고객: 수정",
   );
   assertEquals(changeDefaults({ ...input, change_note: "직접 쓴 메모" }, {}, []).change_note, "직접 쓴 메모");
@@ -73,4 +76,34 @@ Deno.test("type-bound templates retain zero/false and explicit memo precedence",
     }, []).change_note,
     "재료 수정 (prop_2)",
   );
+});
+
+Deno.test("구 공통 자료 메모를 읽어도 종류의 고정 기본값이며 다른 설정은 보존한다", () => {
+  const id = "00000000-0000-4000-8000-000000000001";
+  const tag = "00000000-0000-4000-8000-000000000002";
+  const old = {
+    record_templates: {
+      entity: { create: { memo: "old common", tag_ids: [tag] } },
+      entity_types: { [id]: { create: { memo: "", tag_ids: [tag] } } },
+      task: { create: { memo: "task memo", tag_ids: [] } },
+    },
+  };
+  const saved = resolvedBusinessSettings(old as unknown as Parameters<typeof resolvedBusinessSettings>[0]);
+  assertEquals(saved.record_templates, {
+    entity_types: { [id]: { create: { memo: null, tag_ids: [tag] } } },
+    task: { create: { memo: "task memo", tag_ids: [] } },
+  });
+  const input: ChangeInput = {
+    target_kind: "entity",
+    action: "create",
+    target: { id: "app:new", title: "재료", entity_ids: [], entity_context: [] },
+    before: null,
+    after: { entity_type_id: id, properties: { prop_1: "재료" } },
+  };
+  assertEquals(changeDefaults(input, saved, [tag]), {
+    change_note: "재료 등록",
+    change_tag_ids: [tag],
+    missing_tag_ids: [],
+  });
+  assertEquals(old.record_templates.entity_types[id].create.memo, "");
 });

@@ -15,7 +15,7 @@ export function MaterialSettingsSection({ title, summary, state, initialOpen = f
     if (initialOpen) setOpen(true);
   }, [initialOpen]);
   return (
-    <section className="settings-section material-settings-section">
+    <section className="settings-section material-settings-section" aria-label={title}>
       <h2 className="settings-section-title">
         <button
           type="button"
