@@ -281,7 +281,8 @@ function AccountSettings() {
         <div className="settings-links">
           <DetailLink to="/settings/entity-types">자료 설정</DetailLink>
           <DetailLink to="/tags/task">할 일 태그</DetailLink>
-          
+          <DetailLink to="/tags/record">기록 태그</DetailLink>
+
         </div>
       </section>
       <RecordTemplateSettings general onStateChange={setBusinessState} />

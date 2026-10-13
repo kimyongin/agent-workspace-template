@@ -315,10 +315,19 @@ for(const [path,label,scope] of [["entities","전체 자료","entity"],["records
   await page.goto("/e2e/fixtures/entity-tags-app.html");
   await page.goto(`/${path}?pages=1`);
   await expect(page.getByRole("button",{name:`${label} 작업 메뉴`})).toHaveCount(0);await settings(page);
-  await page.getByRole("link",{name:scope==="entity"?"자료 태그":"기록 태그",exact:true}).click();
-  await page.getByRole("button",{name:"닫기",exact:true}).click();
-  await expect(page).toHaveURL(/\/settings$/);
-  await expect(page.getByRole("link",{name:scope==="entity"?"자료 태그":"기록 태그",exact:true})).toBeFocused();
+  if(scope==="entity"){
+    await page.getByRole("link",{name:"자료 설정",exact:true}).click();
+    await page.getByRole("button",{name:"공통 설정",exact:true}).click();
+    await page.getByRole("button",{name:"자료 태그 관리",exact:true}).click();
+    await page.getByRole("button",{name:"태그 관리 닫기",exact:true}).click();
+    await expect(page).toHaveURL(/\/settings\/entity-types$/);
+    await expect(page.getByRole("button",{name:"자료 태그 관리",exact:true})).toBeFocused();
+  }else{
+    await page.getByRole("link",{name:"기록 태그",exact:true}).click();
+    await page.getByRole("button",{name:"닫기",exact:true}).click();
+    await expect(page).toHaveURL(/\/settings$/);
+    await expect(page.getByRole("link",{name:"기록 태그",exact:true})).toBeFocused();
+  }
 });
 
 

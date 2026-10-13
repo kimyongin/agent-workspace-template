@@ -20,10 +20,11 @@ test("설정 템플릿 오류·변수 삽입과 실제 변경 확인·취소·�
   const tag = await api("POST","/tags",{scope:"record",name:unique("템플릿")});
   let taskId:string|undefined;
   try {
-    await page.goto("/settings");
-    const form = page.getByRole("form",{name:"변경 기록 기본값"});
+    await page.goto(`/settings/entity-types/${fixtureType.id}`);
+    await page.getByRole("button",{name:/^기록 기본값/}).click();
+    let form = page.getByRole("form",{name:"현재 종류 기록 기본값"});
     await expect(form.getByLabel("메모 템플릿")).toBeVisible();
-    await form.getByLabel("자료 종류", { exact: true }).selectOption(fixtureType.id);
+    await expect(form.getByLabel("자료 종류", { exact: true })).toHaveCount(0);
     await form.getByLabel("메모 템플릿").fill("앞 $엔터티.이전.prop_2");
     await form.getByRole("button",{name:"기록 기본값 저장"}).click();
     await expect(form).toContainText("닫는 구분자 $가 없습니다");
@@ -34,10 +35,13 @@ test("설정 템플릿 오류·변수 삽입과 실제 변경 확인·취소·�
     await expect(form.getByLabel("메모 템플릿")).toHaveValue("앞 $엔터티.이전.prop_2$");
     await form.getByLabel("메모 템플릿").fill("$엔터티.이전.prop_2$ → $엔터티.이후.prop_2$");
     await expect(form.getByText("미리보기 예시 값 편집",{exact:true})).toHaveCount(0);
-    await expect(form.locator("output")).toHaveCount(0);
+    await expect(form.getByLabel("기록 메모 예시",{exact:true})).toBeVisible();
     // Clear the invalid create slot before saving another action.
     await form.getByLabel("액션",{exact:true}).selectOption("create");
     await form.getByLabel("메모 템플릿").fill("");
+    await form.getByRole("button",{name:"변경 취소",exact:true}).click();
+    await page.goto("/settings");
+    form = page.getByRole("form",{name:"변경 기록 기본값"});
     await form.getByLabel("모델",{exact:true}).selectOption("task");
     await form.getByLabel("메모 템플릿").fill("${대상$} 준비 ${액션$}");
     await form.getByRole("button",{name:tag.name,exact:true}).click();

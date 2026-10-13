@@ -193,16 +193,19 @@ test("typed creation requires selection and protects drafts before changing kind
 test("settings identity route keeps drafts and treats settings as account location", async ({ page }) => {
   await page.goto("/settings");
   await expect(page.getByLabel("발급처 1 이름")).toHaveCount(0);
-  await page.getByRole("link", { name: "자료 식별자·발급처", exact: true }).click();
-  await expect(page).toHaveURL(/\/settings\/entity-identity$/);
+  await page.getByRole("link", { name: "자료 설정", exact: true }).click();
+  await page.getByRole("button", { name: "공통 설정", exact: true }).click();
+  await expect(page).toHaveURL(/\/settings\/entity-types$/);
   await expect(page.getByRole("button", { name: /^내 프로필(?: · .+)?$/, exact: true })).toHaveAttribute("data-current", "true");
   await page.getByLabel("발급처 1 이름").fill("식별자 초안");
-  await page.getByRole("link", { name: "설정", exact: true }).click();
+  await page.getByRole("link", { name: "할 일", exact: true }).click();
   await page.getByRole("dialog", { name: "변경을 버릴까요?" }).getByRole("button", { name: "취소", exact: true })
     .click();
   await expect(page.getByLabel("발급처 1 이름")).toHaveValue("식별자 초안");
+  page.on("dialog", dialog => dialog.accept());
   await page.reload();
-  await expect(page.getByRole("heading", { name: "자료 식별자·발급처", level: 1 })).toBeVisible();
+  await page.getByRole("button", { name: "공통 설정", exact: true }).click();
+  await expect(page.getByLabel("발급처 1 이름")).toBeVisible();
 });
 
 test("0, 1, and many active types expose fixed account and all business paths", async ({ page }) => {
@@ -410,7 +413,7 @@ test("clean settings navigation proceeds while initial business settings are sti
     await page.goto("/settings");
     await arrived;
     await expect(page.getByRole("button", { name: "프로필 저장", exact: true })).toBeDisabled();
-    await page.getByRole("link", { name: "자료 종류·속성", exact: true }).click();
+    await page.getByRole("link", { name: "자료 설정", exact: true }).click();
     await expect(page).toHaveURL(/\/settings\/entity-types$/, { timeout: 1500 });
     await expect(page.getByRole("dialog", { name: "변경을 버릴까요?", exact: true })).toHaveCount(0);
   } finally {
@@ -462,11 +465,11 @@ test("typed management link remains type scoped while a returned list catalog is
     await closeDetail(page, entity.title);
     await arrived;
     await expect(page).toHaveURL(new RegExp(`entity_type_id=${materials.id}`));
-    await expect(page.getByRole("link", { name: "자료 종류·속성 관리", exact: true })).toHaveAttribute(
+    await expect(page.getByRole("link", { name: "자료 설정", exact: true })).toHaveAttribute(
       "href",
       `/settings/entity-types/${materials.id}`,
     );
-    await page.getByRole("link", { name: "자료 종류·속성 관리", exact: true }).click();
+    await page.getByRole("link", { name: "자료 설정", exact: true }).click();
     await expect(page).toHaveURL(new RegExp(`/settings/entity-types/${materials.id}$`));
   } finally {
     release();
