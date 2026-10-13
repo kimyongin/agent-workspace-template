@@ -109,9 +109,9 @@ test("manual tuple registration previews stored data, restores links, and rekeys
       expected_version: original.versions.record_templates,
       value: {
         ...original.settings.record_templates,
-        entity: {
-          ...original.settings.record_templates?.entity,
-          delete: { memo: "삭제 템플릿", tag_ids: [] },
+        entity_types: {
+          ...original.settings.record_templates?.entity_types,
+          [fixtureType!.id]: { delete: { memo: "삭제 템플릿", tag_ids: [] } },
         },
       },
     });

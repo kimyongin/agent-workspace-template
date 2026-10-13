@@ -192,10 +192,7 @@ test("typed creation requires selection and protects drafts before changing kind
 });
 test("settings identity route keeps drafts and treats settings as account location", async ({ page }) => {
   await page.goto("/settings");
-  await expect(page.getByLabel("발급처 1 이름")).toHaveCount(0);
-  await page.getByRole("link", { name: "자료 설정", exact: true }).click();
-  await page.getByRole("button", { name: "공통 설정", exact: true }).click();
-  await expect(page).toHaveURL(/\/settings\/entity-types$/);
+  await expect(page).toHaveURL(/\/settings$/);
   await expect(page.getByRole("button", { name: /^내 프로필(?: · .+)?$/, exact: true })).toHaveAttribute("data-current", "true");
   await page.getByLabel("발급처 1 이름").fill("식별자 초안");
   await page.getByRole("link", { name: "할 일", exact: true }).click();
@@ -204,7 +201,6 @@ test("settings identity route keeps drafts and treats settings as account locati
   await expect(page.getByLabel("발급처 1 이름")).toHaveValue("식별자 초안");
   page.on("dialog", dialog => dialog.accept());
   await page.reload();
-  await page.getByRole("button", { name: "공통 설정", exact: true }).click();
   await expect(page.getByLabel("발급처 1 이름")).toBeVisible();
 });
 

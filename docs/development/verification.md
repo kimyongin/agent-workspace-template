@@ -112,7 +112,7 @@ Playwright 결과·trace와 서비스 로그는 다음 실행으로 덮어써질
 | typed-entity-consumers | 타입별 목록 열·AND 필터·템플릿 변수 삽입·첫 삭제 식별자 복원의 보관값/태그 보존 desktop/mobile |
 | schema-editor-read | 속성 변경안 공개 화면의 지연 조회·조회 실패·초안·저장 결과·복구안 desktop/mobile |
 | material-schema | 통합 자료 설정의 속성 행·검토·변환·작업·복구와 기존 직접 주소 desktop/mobile |
-| material-common | 자료 종류/공통 기록 기본값의 독립 저장·충돌·재시도·태그 관리·보조 상세 복귀 desktop/mobile |
+| material-templates | 자료 종류별 고정 기본 문구·독립 저장·충돌·재시도·일반 설정 태그 진입/복귀 desktop/mobile |
 | schema-job-history | 값 변환 작업 공개 목록의 20개 초과 이력·자동 갱신·겹친 응답·더 보기 재시도·종류 전환 desktop/mobile |
 | workspace-screens | [사용자 흐름별 작업 공간 화면 검사](../../e2e/workspace-screens.md)만 실행 |
 

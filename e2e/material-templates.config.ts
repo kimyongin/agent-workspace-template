@@ -1,14 +1,14 @@
 import { defineConfig, devices } from "@playwright/test";
 export default defineConfig({
   testDir: ".",
-  testMatch: "material-common.fixture.ts",
+  testMatch: "material-templates.fixture.ts",
   fullyParallel: true,
   workers: 2,
   projects: [{ name: "desktop", use: { ...devices["Desktop Chrome"] } }, {
     name: "mobile",
     use: { ...devices["Pixel 7"], viewport: { width: 320, height: 568 } },
   }],
-  outputDir: "test-results/material-common",
+  outputDir: "test-results/material-templates",
   webServer: {
     command: "npm run dev -- --host 127.0.0.1 --port 56883 --strictPort",
     url: "http://127.0.0.1:56883",

@@ -16,7 +16,7 @@ export async function effectiveEntityTemplateFingerprint(templates: RecordTempla
   }
   return await sha256Hex(JSON.stringify(effective));
 }
-export function assertSchemaTemplateReferences(target: SchemaDefinition, templates: RecordTemplates, typeId?: string) {
+export function assertSchemaTemplateReferences(target: SchemaDefinition, templates: RecordTemplates, typeId: string) {
   for (const action of modelActions("entity")) {
     const { memo } = effectiveRecordTemplate(templates, "entity", action, typeId);
     const issues = templateIssues(memo, "entity", action).map((i) => i.reason);
@@ -30,9 +30,7 @@ export function assertSchemaTemplateReferences(target: SchemaDefinition, templat
     }
     if (issues.length) {
       throw invalidInput("기록 템플릿의 속성 참조를 확인하세요", [{
-        path: typeId
-          ? `record_templates.entity_types.${typeId}.${action}.memo`
-          : `record_templates.entity.${action}.memo`,
+        path: `record_templates.entity_types.${typeId}.${action}.memo`,
         message: issues.join(" · "),
       }]);
     }

@@ -1,7 +1,6 @@
 import { createMaterialDefinition } from "./material-definition.ts";
-import { MaterialCommonSettings } from "./MaterialCommonSettings.tsx";
 import { RecordTemplateSettings } from "./RecordTemplateSettings.tsx";
-import { createMaterialTemplateDrafts } from "./material-template-drafts.ts";
+import { createMaterialTemplateDraft } from "./material-template-drafts.ts";
 import { MaterialSettingsProtection } from "./MaterialSettingsProtection.tsx";
 import { MigrationJobs, SchemaMigrationJob } from "./SchemaMigrationJobs.tsx";
 import { MaterialSettingsSection } from "./MaterialSettingsSection.tsx";
@@ -24,22 +23,18 @@ export function EntityTypeSettings() {
 function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
   const { session } = useAuth();
   const iconGroup = useId();
-  const [templates] = useState(() => createMaterialTemplateDrafts(type_id));
+  const [templates] = useState(() => type_id ? createMaterialTemplateDraft(type_id) : null);
   useEffect(() => {
     const refresh = () => {
-      void templates.refreshTags();
+      void templates?.read();
     };
     window.addEventListener("workspace:tags-changed", refresh);
     return () => {
       window.removeEventListener("workspace:tags-changed", refresh);
-      templates.dispose();
+      templates?.dispose();
     };
   }, [templates]);
   const [recordState, setRecordState] = useState({ dirty: false, busy: false });
-  const [commonState, setCommonState] = useState({ dirty: false, busy: false });
-  const [commonOpen, setCommonOpen] = useState(() => new URLSearchParams(window.location.search).get("common") === "1");
-  const commonButton = useRef<HTMLButtonElement>(null);
-  const commonScroll = useRef({ page: 0, pane: 0 });
   const { type_id: activeTypeId, job_id } = useParams();
   const queryJob = new URLSearchParams(useLocation().search).get("job_id");
   const selectedJob = job_id ?? queryJob ?? undefined;
@@ -117,12 +112,12 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
     };
   }, []);
   const dirty = type_id ? basicDirty : label !== "" || icon !== "box" || representative !== "이름";
-  const protectedDraft = recordState.dirty || commonState.dirty ||
-    recordState.busy || commonState.busy || dirty || busy || uncertain ||
+  const protectedDraft = recordState.dirty ||
+    recordState.busy || dirty || busy || uncertain ||
     schemaState.dirty || schemaState.busy || schemaState.uncertain || jobState.dirty || jobState.busy ||
     jobState.uncertain;
   const anyBusy = busy || schemaState.busy || recordState.busy ||
-    commonState.busy || jobState.busy;
+    jobState.busy;
   useEffect(() => {
     const controller = new AbortController();
     setSelectedSchema(null);
@@ -249,7 +244,7 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
   }
   return (
     <section
-      className={`panel settings${commonOpen ? " material-common-open" : ""}`}
+      className="panel settings"
       aria-labelledby="entity-types-title"
     >
       <h1 id="entity-types-title" className="page-title">자료 설정</h1>
@@ -301,42 +296,7 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
           )}
         </Field>
         <Link className="btn" to="/settings/entity-types">종류 추가</Link>
-        <button
-          ref={commonButton}
-          aria-label="공통 설정"
-          className="btn"
-          aria-expanded={commonOpen}
-          onClick={() => {
-            if (!commonOpen) {
-              commonScroll.current = {
-                page: window.scrollY,
-                pane: commonButton.current?.closest(".workspace-list")?.scrollTop ??
-                  0,
-              };
-              setCommonOpen(true);
-            }
-          }}
-        >
-          공통 설정{commonState.busy ? " · 저장 중…" : commonState.dirty ? " · 미저장" : ""}
-        </button>
       </div>
-      <MaterialCommonSettings
-        open={commonOpen}
-        templates={templates.common}
-        onStateChange={setCommonState}
-        onClose={() => {
-          setCommonOpen(false);
-          requestAnimationFrame(() => {
-            commonButton.current?.focus({ preventScroll: true });
-            window.scrollTo({
-              top: commonScroll.current.page,
-              behavior: "instant",
-            });
-            const pane = commonButton.current?.closest(".workspace-list");
-            if (pane) pane.scrollTop = commonScroll.current.pane;
-          });
-        }}
-      />
       {type && (
         <p className="material-settings-current">
           <EntityTypeIcon id={type.icon_id} /> {type.label}
@@ -517,13 +477,13 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
           disabled={busy || uncertain || schemaState.busy || schemaState.uncertain}
         />
       )}
-      {type_id && (
+      {type_id && templates && (
         <MaterialSettingsSection
           title="현재 종류 기록 기본값"
           state={recordState}
         >
           <RecordTemplateSettings
-            materialResource={templates.typed}
+            materialResource={templates}
             materialTypeId={type_id}
             publishedVersion={schema?.schema_version}
             onStateChange={setRecordState}
