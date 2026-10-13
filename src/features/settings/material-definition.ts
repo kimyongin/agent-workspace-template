@@ -209,6 +209,9 @@ export function createMaterialDefinition(typeId?: string) {
           historyBefore: page.next_before,
         };
         emit();
+      } catch (error) {
+        if (!alive || controller.signal.aborted || generation !== historyGeneration) return;
+        throw error;
       } finally {
         if (alive && historyPending === controller) {
           historyPending = null;
