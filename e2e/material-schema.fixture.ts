@@ -345,3 +345,145 @@ test("늦은 완료 작업 조회는 확인된 기본 정보와 다음 저장 �
   await expect(page.getByRole("status").filter({ hasText: "자료 종류를 저장했습니다." })).toBeVisible();
   expect(writes).toMatchObject([{ expected_type_version: 2, label: "확인된 최신 이름", icon_id: "book" }, { expected_type_version: 3, label: "다음 저장 이름", icon_id: "book" }]);
 });
+
+test("완료 작업을 다시 선택하면 다른 작업을 보는 동안 게시된 정의와 기록 변수를 갱신한다", async ({ page }) => {
+  let currentVersion = 1;
+  let definitionReads = 0;
+  const published = initialEntityDefinition("이름");
+  published.schema.properties.prop_2 = { type: "string", title: "다른 곳에서 게시한 값" };
+  published.display.order.push("prop_2");
+  await page.route(`**/api/entity-types/${materials.id}**`, (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path.endsWith("/schema")) {
+      definitionReads++;
+      return route.fulfill({
+        json: {
+          type_id: materials.id,
+          schema_version: currentVersion,
+          ...(currentVersion === 2 ? published : initialEntityDefinition("이름")),
+        },
+      });
+    }
+    if (path.endsWith("/schemas") || path.endsWith("/schema-changes")) {
+      return route.fulfill({ json: { items: [], next_before: null } });
+    }
+    return route.fulfill({ json: { ...materials, version: currentVersion, schema_version: currentVersion } });
+  });
+  await page.route("**/api/settings/business**", (route) =>
+    route.fulfill({
+      json: {
+        settings: { record_templates: {} },
+        versions: { record_templates: 0 },
+      },
+    }));
+  await page.route("**/api/entity-schema-migrations?**", (route) =>
+    route.fulfill({
+      json: { items: [job(20), job(21, "failed")], next_before: null },
+    }));
+  await page.route("**/api/entity-schema-migrations/**", (route) => {
+    const jobId = new URL(route.request().url()).pathname.split("-").at(-1);
+    return route.fulfill({ json: job(Number(jobId), Number(jobId) === 20 ? "succeeded" : "failed") });
+  });
+  await page.goto(`/settings/entity-types/${materials.id}/migrations/${id(20)}`);
+  await expect.poll(() => definitionReads).toBeGreaterThanOrEqual(2);
+  await page.getByRole("link", { name: "작업 21 · 실패 · 1/10", exact: true }).click();
+  await expect(page.getByRole("button", { name: /^선택한 값 변환 작업/ })).toContainText("실패");
+  currentVersion = 2;
+  await page.getByRole("link", { name: "작업 20 · 완료 · 10/10", exact: true }).click();
+  await expect(page.getByRole("button", { name: "다른 곳에서 게시한 값 속성 편집", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: /^현재 종류 기록 기본값/ }).click();
+  const record = page.getByRole("form", { name: "현재 종류 기록 기본값", exact: true });
+  await expect(record.getByLabel("변수 삽입").locator("option").filter({ hasText: "다른 곳에서 게시한 값" }).first())
+    .toHaveCount(1);
+});
+
+test("새 게시 이력이 취소한 이전 페이지의 본문 읽기 오류는 숨기고 현재 조회 실패만 알린다", async ({ page }) => {
+  let complete = false;
+  const published = initialEntityDefinition("이름");
+  published.schema.properties.prop_2 = { type: "string", title: "확인한 새 속성" };
+  published.display.order.push("prop_2");
+  await page.addInitScript((historyPath) => {
+    const fetchResponse = window.fetch.bind(window);
+    let held = false;
+    window.fetch = async (input, init) => {
+      const url = new URL(
+        typeof input === "string" ? input : input instanceof URL ? input.href : input.url,
+        window.location.href,
+      );
+      const response = await fetchResponse(input, init);
+      if (held || url.pathname !== historyPath || !url.searchParams.has("before")) return response;
+      held = true;
+      // Headers have arrived. Hold only this response's body read until the real request signal aborts it.
+      response.text = () =>
+        new Promise<string>((_resolve, reject) => {
+          document.documentElement.dataset.fixtureHistoryBody = "pending";
+          const aborted = () => {
+            document.documentElement.dataset.fixtureHistoryBody = "aborted";
+            reject(new DOMException("The operation was aborted.", "AbortError"));
+          };
+          if (init?.signal?.aborted) aborted();
+          else init?.signal?.addEventListener("abort", aborted, { once: true });
+        });
+      return response;
+    };
+  }, `/api/entity-types/${materials.id}/schemas`);
+  await page.route(`**/api/entity-types/${materials.id}**`, (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname.endsWith("/schema")) {
+      return route.fulfill({
+        json: {
+          type_id: materials.id,
+          schema_version: complete ? 3 : 2,
+          ...(complete ? published : initialEntityDefinition("이름")),
+        },
+      });
+    }
+    if (url.pathname.endsWith("/schema-changes")) {
+      return route.fulfill({ json: { items: [], next_before: null } });
+    }
+    if (url.pathname.endsWith("/schemas")) {
+      if (url.searchParams.has("before")) {
+        if (complete) {
+          return route.fulfill({ status: 500, json: { code: "internal", message: "현재 이전 게시 조회 실패" } });
+        }
+        return route.fulfill({
+          json: {
+            items: [{ type_id: materials.id, schema_version: 1, created_at: materials.created_at }],
+            next_before: null,
+          },
+        });
+      }
+      return route.fulfill({
+        json: {
+          items: (complete ? [3, 2] : [2]).map((schema_version) => ({
+            type_id: materials.id,
+            schema_version,
+            created_at: materials.created_at,
+          })),
+          next_before: 2,
+        },
+      });
+    }
+    return route.fulfill({ json: { ...materials, version: complete ? 3 : 2, schema_version: complete ? 3 : 2 } });
+  });
+  await page.route("**/api/entity-schema-migrations/**", (route) =>
+    route.fulfill({
+      json: {
+        ...job(20, complete ? "succeeded" : "preparing"),
+        result: complete ? { schema_version: 3, total: 10, changed: 10 } : null,
+      },
+    }));
+  await page.goto(`/settings/entity-types/${materials.id}/migrations/${id(20)}`);
+  await page.getByRole("button", { name: "이전 게시 버전 더 보기", exact: true }).click();
+  await page.waitForFunction(() => document.documentElement.dataset.fixtureHistoryBody === "pending");
+  complete = true;
+  await page.getByRole("button", { name: "상태 다시 조회", exact: true }).click();
+  await expect(page.getByRole("button", { name: "확인한 새 속성 속성 편집", exact: true })).toBeVisible();
+  await page.waitForFunction(() => document.documentElement.dataset.fixtureHistoryBody === "aborted");
+  await expect(page.locator("summary", { hasText: /^버전 3 ·/ })).toBeVisible();
+  await expect(page.locator("summary", { hasText: /^버전 1 ·/ })).toHaveCount(0);
+  await expect(page.getByRole("alert")).toHaveCount(0);
+  await page.getByRole("button", { name: "이전 게시 버전 더 보기", exact: true }).click();
+  await expect(page.getByRole("alert")).toContainText("현재 이전 게시 조회 실패");
+  await expect(page.getByRole("button", { name: "확인한 새 속성 속성 편집", exact: true })).toBeVisible();
+});

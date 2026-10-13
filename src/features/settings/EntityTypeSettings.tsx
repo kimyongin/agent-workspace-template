@@ -1,3 +1,4 @@
+import { createMaterialDefinition } from "./material-definition.ts";
 import { MaterialCommonSettings } from "./MaterialCommonSettings.tsx";
 import { RecordTemplateSettings } from "./RecordTemplateSettings.tsx";
 import { createMaterialTemplateDrafts } from "./material-template-drafts.ts";
@@ -8,16 +9,11 @@ import { useAuth } from "../auth/AuthProvider.tsx";
 import { invalidateEntityTypeCatalog } from "../entity/entity-type-catalog.ts";
 import { useEntityTypes } from "../entity/useEntityTypes.ts";
 import { SchemaEditor, SchemaVersionDiff } from "./SchemaEditor.tsx";
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState, useSyncExternalStore } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router";
 import { api, ApiError } from "../../lib/api.ts";
 import { Field } from "../../components/Field.tsx";
-import {
-  type EntitySchemaVersion,
-  type EntitySchemaVersionSummary,
-  type EntityType,
-  entityTypeIcons,
-} from "@contracts/entity-type.ts";
+import { type EntitySchemaVersion, type EntityType, entityTypeIcons } from "@contracts/entity-type.ts";
 import { useWriteAttempt, writeErrorMessage } from "../../lib/write-attempt.ts";
 import "./settings.css";
 import { EntityTypeIcon } from "../entity/EntityTypeIcon.tsx";
@@ -56,16 +52,26 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
   );
   const catalog = useEntityTypes();
   const items = catalog.types ?? [];
-  const [type, setType] = useState<EntityType | null>(null),
-    [schema, setSchema] = useState<EntitySchemaVersion | null>(null),
-    [history, setHistory] = useState<EntitySchemaVersionSummary[]>([]);
-  const [historyBefore, setHistoryBefore] = useState<number | null>(null);
-  const [historyBusy, setHistoryBusy] = useState(false);
-  const historyPending = useRef<AbortController | null>(null);
-  const [label, setLabel] = useState(""),
-    [icon, setIcon] = useState("box"),
-    [representative, setRepresentative] = useState("이름"),
-    [archived, setArchived] = useState(false);
+  const [definitions] = useState(() => createMaterialDefinition(type_id));
+  const {
+    type,
+    schema,
+    history,
+    historyBefore,
+    historyBusy,
+    label,
+    icon,
+    archived,
+    basicConflict,
+    latestBasics,
+    latestBusy,
+    dirty: basicDirty,
+    jobErrors,
+  } = useSyncExternalStore(definitions.subscribe, definitions.snapshot);
+  useEffect(() => {
+    definitions.selectJob(selectedJob);
+  }, [definitions, selectedJob]);
+  const [representative, setRepresentative] = useState("이름");
   const [jobState, setJobState] = useState({ dirty: false, busy: false, uncertain: false });
   const jobStateChange = useCallback(
     (state: { dirty: boolean; busy: boolean; uncertain?: boolean }) =>
@@ -91,44 +97,16 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
   }, [loading, location.state?.materialTypeFocus]);
   const { attempt, busy, uncertain } = useWriteAttempt();
   const createdTypeId = useRef<string | null>(null);
-  const [basicConflict, setBasicConflict] = useState(false);
-  const [latestBasics, setLatestBasics] = useState<EntityType | null>(null);
-  const [latestBusy, setLatestBusy] = useState(false);
-  const latestPending = useRef<AbortController | null>(null);
-  const basicBaseline = useRef(type);
-  const schemaBaseline = useRef(schema);
-  useEffect(() => () => latestPending.current?.abort(), []);
-  const applySavedType = (saved: EntityType, preserveDraft: boolean) => {
-    const previous = basicBaseline.current;
-    if (previous && saved.version < previous.version) return previous;
-    // Advance synchronously: consecutive completions can precede React's next render.
-    basicBaseline.current = saved;
-    setLabel((value) => preserveDraft && previous && value !== previous.label ? value : saved.label);
-    setIcon((value) => preserveDraft && previous && value !== previous.icon_id ? value : saved.icon_id);
-    setArchived((value) => preserveDraft && previous && value !== previous.archived ? value : saved.archived);
-    setType(saved);
-    return saved;
-  };
   const readLatestBasics = async () => {
     if (!type_id || busy || uncertain || latestBusy) return;
-    const controller = new AbortController();
-    latestPending.current?.abort();
-    latestPending.current = controller;
-    setLatestBusy(true);
     setError("");
     try {
-      const saved = await api<EntityType>("GET", `/entity-types/${type_id}`, undefined, controller.signal);
-      if (controller.signal.aborted || !mounted.current) return;
-      setLatestBasics(applySavedType(saved, true));
-      setBasicConflict(false);
+      await definitions.readLatestBasics();
+      if (!mounted.current) return;
       attempt.reset();
       if (session) invalidateEntityTypeCatalog(session.user.id);
     } catch (error) {
-      if (!controller.signal.aborted && mounted.current) {
-        setError(error instanceof Error ? error.message : "최신 기본 정보를 읽지 못했습니다.");
-      }
-    } finally {
-      if (!controller.signal.aborted && mounted.current) setLatestBusy(false);
+      if (mounted.current) setError(error instanceof Error ? error.message : "최신 기본 정보를 읽지 못했습니다.");
     }
   };
   const mounted = useRef(true);
@@ -138,69 +116,28 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
       mounted.current = false;
     };
   }, []);
-  const dirty = type_id
-    ? !!type &&
-      (label !== type.label || icon !== type.icon_id ||
-        archived !== type.archived)
-    : label !== "" || icon !== "box" || representative !== "이름";
+  const dirty = type_id ? basicDirty : label !== "" || icon !== "box" || representative !== "이름";
   const protectedDraft = recordState.dirty || commonState.dirty ||
     recordState.busy || commonState.busy || dirty || busy || uncertain ||
     schemaState.dirty || schemaState.busy || schemaState.uncertain || jobState.dirty || jobState.busy ||
     jobState.uncertain;
   const anyBusy = busy || schemaState.busy || recordState.busy ||
     commonState.busy || jobState.busy;
-  const load = async (signal?: AbortSignal, preserveBasics = false) => {
-    if (type_id) {
-      const [saved, definition, versions] = await Promise.all([
-        api<EntityType>("GET", `/entity-types/${type_id}`, undefined, signal),
-        api<EntitySchemaVersion>(
-          "GET",
-          `/entity-types/${type_id}/schema`,
-          undefined,
-          signal,
-        ),
-        api<
-          { items: EntitySchemaVersionSummary[]; next_before: number | null }
-        >(
-          "GET",
-          `/entity-types/${type_id}/schemas`,
-          undefined,
-          signal,
-        ),
-      ]);
-      signal?.throwIfAborted();
-      if (!mounted.current) return;
-      applySavedType(saved, preserveBasics);
-      if (definition.schema_version < (schemaBaseline.current?.schema_version ?? 0) ||
-        definition.schema_version < (basicBaseline.current?.schema_version ?? 0)) return;
-      schemaBaseline.current = definition;
-      setSchema(definition);
-      setHistory(versions.items);
-      setHistoryBefore(versions.next_before ?? null);
-    }
-  };
-  const refreshDefinitions = useCallback(() => load(undefined, true), [type_id]);
   useEffect(() => {
     const controller = new AbortController();
-    historyPending.current?.abort();
-    historyPending.current = null;
-    setHistoryBusy(false);
-    setHistoryBefore(null);
-    setHistory([]);
     setSelectedSchema(null);
     setLoading(true);
     setError("");
-    setType(null);
-    setLabel("");
-    void load(controller.signal).catch((e) => {
-      if (!controller.signal.aborted) {
-        setError(e instanceof Error ? e.message : "조회하지 못했습니다");
-      }
+    void definitions.initialize(controller.signal).catch((e) => {
+      if (!controller.signal.aborted) setError(e instanceof Error ? e.message : "조회하지 못했습니다");
     }).finally(() => {
       if (!controller.signal.aborted) setLoading(false);
     });
-    return () => controller.abort();
-  }, [type_id]);
+    return () => {
+      controller.abort();
+      definitions.dispose();
+    };
+  }, [definitions]);
   useEffect(() => {
     if (!type_id || !historyVersion) {
       setSelectedSchema(null);
@@ -222,47 +159,21 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
     return () => controller.abort();
   }, [type_id, historyVersion]);
   const readHistoryPage = async () => {
-    if (historyBusy || historyBefore === null || !type_id) return;
-    const controller = new AbortController();
-    historyPending.current?.abort();
-    historyPending.current = controller;
-    setHistoryBusy(true);
     setError("");
     try {
-      const page = await api<
-        { items: EntitySchemaVersionSummary[]; next_before: number | null }
-      >(
-        "GET",
-        `/entity-types/${type_id}/schemas?before=${historyBefore}`,
-        undefined,
-        controller.signal,
-      );
-      if (!controller.signal.aborted && mounted.current) {
-        setHistory((
-          items,
-        ) => [
-          ...items,
-          ...page.items.filter((row) => !items.some((item) => item.schema_version === row.schema_version)),
-        ]);
-        setHistoryBefore(page.next_before);
-      }
+      await definitions.readHistoryPage();
     } catch (e) {
-      if (!controller.signal.aborted && mounted.current) {
-        setError(
-          e instanceof Error ? e.message : "이전 게시 버전을 읽지 못했습니다.",
-        );
+      if (mounted.current && !(e instanceof DOMException && e.name === "AbortError")) {
+        setError(e instanceof Error ? e.message : "이전 게시 버전을 읽지 못했습니다.");
       }
-    } finally {
-      if (!controller.signal.aborted && mounted.current) setHistoryBusy(false);
     }
   };
-  useEffect(() => () => historyPending.current?.abort(), []);
   const retryRead = async () => {
     if (loading || busy) return;
     setLoading(true);
     setError("");
     try {
-      await load();
+      await definitions.refresh(undefined, false);
     } catch (e) {
       if (mounted.current) {
         setError(e instanceof Error ? e.message : "조회하지 못했습니다");
@@ -278,15 +189,7 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
     const current = {
       method: type_id ? "PATCH" : "POST",
       path: type_id ? `/entity-types/${type_id}` : "/entity-types",
-      input: type_id
-        ? {
-          expected_type_version: type!.version,
-          expected_schema_version: type!.schema_version,
-          label,
-          icon_id: icon,
-          archived,
-        }
-        : { label, icon_id: icon, representative_label: representative },
+      input: type_id ? definitions.basicSaveInput() : { label, icon_id: icon, representative_label: representative },
     };
     try {
       await attempt.run(async () => {
@@ -300,12 +203,9 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
         if (!mounted.current) return;
         if (session) invalidateEntityTypeCatalog(session.user.id);
         if (type_id) {
-          applySavedType(saved, false);
-          setLatestBasics(null);
-          setBasicConflict(false);
+          definitions.acceptBasicSave(saved);
         } else {
-          setLabel("");
-          setIcon("box");
+          definitions.cancelBasics();
           setRepresentative("이름");
           createdTypeId.current = saved.id;
         }
@@ -322,7 +222,7 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
     } catch (e) {
       if (mounted.current) {
         const conflict = e instanceof ApiError && e.code === "conflict";
-        setBasicConflict(conflict);
+        definitions.conflict(conflict);
         setError(
           conflict ? `${e.message} 최신 기본 정보를 확인하고 입력을 비교한 뒤 다시 저장하세요.` : writeErrorMessage(e),
         );
@@ -334,10 +234,8 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
     attempt.reset();
     setError("");
     setMessage("");
-    setLabel(type?.label ?? "");
-    setIcon(type?.icon_id ?? "box");
+    definitions.cancelBasics();
     setRepresentative("이름");
-    setArchived(type?.archived ?? false);
   };
 
   // The router may expose destination params while the previous editor is still mounted.
@@ -508,7 +406,7 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
                     required
                     maxLength={80}
                     value={label}
-                    onChange={(e) => setLabel(e.target.value)}
+                    onChange={(e) => definitions.editBasic("label", e.target.value)}
                   />
                 )}
               </Field>
@@ -522,7 +420,7 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
                         name={iconGroup}
                         value={item.id}
                         checked={icon === item.id}
-                        onChange={() => setIcon(item.id)}
+                        onChange={() => definitions.editBasic("icon", item.id)}
                       />
                       <span className="entity-type-icon-face">
                         <EntityTypeIcon id={item.id} />
@@ -551,7 +449,7 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
                   <input
                     type="checkbox"
                     checked={archived}
-                    onChange={(e) => setArchived(e.target.checked)}
+                    onChange={(e) => definitions.editBasic("archived", e.target.checked)}
                   />{" "}
                   자료 종류 보관 (기존 자료와 연결은 유지)
                 </label>
@@ -603,7 +501,7 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
         <SchemaEditor
           type={type}
           definition={schema}
-          onApplied={refreshDefinitions}
+          onApplied={definitions.published}
           onState={schemaStateChange}
           disabled={busy || uncertain || jobState.busy || jobState.uncertain}
         />
@@ -613,7 +511,8 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
           key={selectedJob}
           typeId={type_id}
           jobId={selectedJob}
-          onApplied={refreshDefinitions}
+          onApplied={definitions.migrationSucceeded}
+          publicationError={jobErrors[selectedJob] ?? ""}
           onState={jobStateChange}
           disabled={busy || uncertain || schemaState.busy || schemaState.uncertain}
         />

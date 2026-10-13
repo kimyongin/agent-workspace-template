@@ -22,7 +22,7 @@ const definition = {
   created_at: type.created_at,
 };
 const onState = () => {};
-const onApplied = async () => {};
+const onApplied = async () => "";
 createRoot(document.getElementById("root")!).render(
   <BrowserRouter>
     <nav aria-label="Fixture navigation">

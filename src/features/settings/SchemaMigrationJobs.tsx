@@ -203,19 +203,19 @@ export function MigrationJobs({ typeId }: { typeId: string }) {
     </section>
   );
 }
-export function SchemaMigrationJob({ typeId: type_id, jobId: job_id, onState, onApplied, disabled = false }: {
-  typeId: string;
-  jobId: string;
-  onState: (state: MaterialSectionState) => void;
-  onApplied?: () => Promise<void>;
-  disabled?: boolean;
-}) {
+export function SchemaMigrationJob(
+  { typeId: type_id, jobId: job_id, onState, onApplied, publicationError = "", disabled = false }: {
+    typeId: string;
+    jobId: string;
+    onState: (state: MaterialSectionState) => void;
+    onApplied?: (job: EntitySchemaMigration) => Promise<string>;
+    publicationError?: string;
+    disabled?: boolean;
+  },
+) {
   const location = useLocation();
   const applied = useRef(onApplied);
   applied.current = onApplied;
-  const notified = useRef(new Set<string>());
-  const notifying = useRef(new Set<string>());
-  const [refreshFailed, setRefreshFailed] = useState(false);
   const [job, setJob] = useState<EntitySchemaMigration>(),
     [error, setError] = useState(""),
     [refresh, setRefresh] = useState(0);
@@ -230,14 +230,13 @@ export function SchemaMigrationJob({ typeId: type_id, jobId: job_id, onState, on
       dirty: false,
       busy: busy || recoveryState.busy,
       uncertain: uncertain || recoveryState.uncertain,
-      error: !!error,
+      error: !!error || !!publicationError,
     });
-  }, [busy, uncertain, error, recoveryState, onState]);
+  }, [busy, uncertain, error, publicationError, recoveryState, onState]);
   useLayoutEffect(() => () => onState({ dirty: false, busy: false, uncertain: false }), [onState]);
   const [pendingAction, setPendingAction] = useState<"cancel" | "retry">();
   useEffect(() => {
     setJob(undefined);
-    setRefreshFailed(false);
   }, [job_id, type_id]);
   useEffect(() => {
     const controller = new AbortController();
@@ -254,22 +253,13 @@ export function SchemaMigrationJob({ typeId: type_id, jobId: job_id, onState, on
         if (controller.signal.aborted) return;
         if (value.type_id !== type_id) throw new Error("이 자료 종류의 작업이 아닙니다");
         setJob(value);
-        if (
-          value.status === "succeeded" && applied.current && !notified.current.has(value.id) &&
-          !notifying.current.has(value.id)
-        ) {
-          notifying.current.add(value.id);
-          try {
-            await applied.current();
-            if (controller.signal.aborted) return;
-            notified.current.add(value.id);
-            setRefreshFailed(false);
-          } catch {
-            if (controller.signal.aborted) return;
-            setRefreshFailed(true);
-            throw new Error("값 변환은 완료되었습니다. 최신 속성 조회에 실패했습니다. 상태를 다시 조회하세요.");
-          } finally {
-            notifying.current.delete(value.id);
+        if (value.status === "succeeded" && applied.current) {
+          const failure = await applied.current(value);
+          if (controller.signal.aborted) return;
+          if (failure) {
+            setError("");
+            timer = setTimeout(() => void poll(), 3000);
+            return;
           }
         }
         if (controller.signal.aborted) return;
@@ -317,7 +307,7 @@ export function SchemaMigrationJob({ typeId: type_id, jobId: job_id, onState, on
         dirty: false,
         busy: busy || recoveryState.busy,
         uncertain: uncertain || recoveryState.uncertain,
-        error: !!error,
+        error: !!error || !!publicationError,
       }}
     >
       <nav aria-label="값 변환 탐색">
@@ -327,9 +317,13 @@ export function SchemaMigrationJob({ typeId: type_id, jobId: job_id, onState, on
       <p className="secondary">
         접수한 작업은 화면을 닫거나 다른 페이지로 이동해도 계속됩니다. 다시 열면 서버의 확정 상태를 조회합니다.
       </p>
-      {error && <p role="alert">{error}</p>}
+      {(error || publicationError) && <p role="alert">{error || publicationError}</p>}
       <button className="btn" onClick={() => setRefresh((n) => n + 1)}>상태 다시 조회</button>
-      {refreshFailed && <button className="btn" onClick={() => setRefresh((n) => n + 1)}>최신 속성 다시 조회</button>}
+      {publicationError && (
+        <button className="btn" onClick={() => setRefresh((n) => n + 1)}>
+          최신 속성 다시 조회
+        </button>
+      )}
       {job && (
         <>
           <p role="status">{labels[job.status]} · {job.processed}/{job.total}개 준비</p>
