@@ -82,13 +82,17 @@ export function navigationCapacity(width: number, fontSize: number, sidebar: boo
 }
 
 /** Saved refs retain archived identities; ordinary shortcut slots show active entries. */
-export function visibleNavigationEntries(entries: NavigationEntry[]) { return entries.filter((entry) => !entry.archived); }
+export function visibleNavigationEntries(entries: NavigationEntry[]) {
+  return entries.filter((entry) => !entry.archived);
+}
 export function currentNavigationName(section: string | null, path: string, typeLabel?: string): string {
   if (section === "entities") return typeLabel ?? "전체 자료";
   if (section === "tasks") return "할 일";
   if (section === "records") return "기록";
   if (section === "principles") return "원칙";
-  if (path.startsWith("/settings/entity-types")) return typeLabel ? `${typeLabel}${path.includes("/migrations") ? " · 값 변환 작업" : ""}` : "자료 종류·속성";
+  if (path.startsWith("/settings/entity-types") || path.startsWith("/settings/materials")) {
+    return typeLabel ? `${typeLabel}${path.includes("/migrations") ? " · 값 변환 작업" : ""}` : "자료 종류·속성";
+  }
   if (path.startsWith("/settings/navigation")) return "메뉴 구성";
   if (path.startsWith("/settings")) return "설정";
   if (path.startsWith("/tags/entity")) return "자료 태그";

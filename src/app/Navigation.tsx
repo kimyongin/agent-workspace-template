@@ -10,13 +10,13 @@ import appIcon from "./app-icon.svg";
 import { api } from "../lib/api.ts";
 import type { EntityDetail } from "@contracts/entity.ts";
 import {
-  defaultNavigationRefs,
-  visibleNavigationEntries,
   currentNavigationName,
+  defaultNavigationRefs,
   entityTypeLocation,
   navigationCapacity,
   navigationEntryCurrent,
   resolveNavigationRefs,
+  visibleNavigationEntries,
 } from "./type-navigation.ts";
 import { useEntityTypes } from "../features/entity/useEntityTypes.ts";
 import { EntityTypeIcon } from "../features/entity/EntityTypeIcon.tsx";
@@ -150,8 +150,12 @@ export function Navigation({ brand, navigationRef }: { brand: string; navigation
     };
   }, [open]);
   const profileCurrent = current === "more" || !!current && !entries.slice(0, capacity).some(isCurrent);
-  const settingsTypeId = location.pathname.match(/^\/settings\/entity-types\/([^/]+)/)?.[1];
-  const currentLabel = currentNavigationName(current, location.pathname, catalog.types?.find((type) => type.id === (settingsTypeId ?? typeId))?.label);
+  const settingsTypeId = location.pathname.match(/^\/settings\/(?:entity-types|materials)\/([^/]+)/)?.[1];
+  const currentLabel = currentNavigationName(
+    current,
+    location.pathname,
+    catalog.types?.find((type) => type.id === (settingsTypeId ?? typeId))?.label,
+  );
   return (
     <nav className="bottom-nav" aria-label="주 메뉴" id="workspace-navigation" ref={navigationRef}>
       <div className="navigation-brand">

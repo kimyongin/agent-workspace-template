@@ -51,3 +51,11 @@ section[aria-labelledby="entity-identity-title"] .settings-section-footer { bord
 .entity-type-icon-option input:not(:disabled):hover + .entity-type-icon-face { color: var(--ink); }
 .entity-type-icon-option input:checked:not(:disabled):hover + .entity-type-icon-face { color: var(--accent); }
 .entity-type-icon-option input:disabled + .entity-type-icon-face { opacity: .5; cursor: not-allowed; }
+
+.material-settings-toolbar { display: flex; gap: var(--space-3); flex-wrap: wrap; align-items: end; }
+.material-settings-toolbar > .field { flex: 1 1 12rem; min-width: 0; }
+.material-settings-toolbar .input { width: 100%; min-width: 0; }
+.material-settings-current { display: flex; gap: var(--space-2); align-items: center; overflow-wrap: anywhere; }
+.material-section-toggle { display: flex; flex-wrap: wrap; gap: var(--space-2); justify-content: space-between; align-items: center; width: 100%; min-height: 44px; text-align: left; padding: var(--space-2) 0; border: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; }
+.material-settings-section > [hidden] { display: none; }
+.material-section-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }

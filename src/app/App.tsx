@@ -115,6 +115,9 @@ export function App() {
           <Route path="settings/navigation" element={guarded(<NavigationSettingsPage />)} />
           <Route path="settings" element={guarded(<SettingsPage />)} />
           <Route path="settings/entity-identity" element={guarded(<EntityIdentitySettingsPage />)} />
+          <Route path="settings/materials" element={guarded(<EntityTypeSettings />)} />
+          <Route path="settings/materials/:type_id" element={guarded(<EntityTypeSettings />)} />
+          <Route path="settings/materials/:type_id/versions" element={guarded(<EntityTypeSettings />)} />
           <Route path="settings/entity-types" element={guarded(<EntityTypeSettings />)} />
           <Route path="settings/entity-types/:type_id" element={guarded(<EntityTypeSettings />)} />
           <Route path="settings/entity-types/:type_id/versions" element={guarded(<EntityTypeSettings />)} />
