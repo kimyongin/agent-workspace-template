@@ -41,7 +41,7 @@ if (authEnv.SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID && authEnv.SUPABASE_AUTH_EXT
 
 // 2. 로컬 Supabase. 쓰지 않는 서비스는 띄우지 않는다.
 // CLI start의 stdout에는 로컬 secret key가 포함되므로 일반 로그에 출력하지 않는다.
-const excluded = "studio,imgproxy,vector,logflare,mailpit,realtime,storage-api";
+const excluded = "studio,imgproxy,vector,logflare,mailpit,realtime,storage-api,postgres-meta";
 // test:integration:local prepares the stack without claiming an Edge runtime created by setup.
 supabase(["start", "-x", excluded + (process.argv.includes("--skip-functions") ? ",edge-runtime" : "")]);
 // 이미 떠 있던 로컬 DB에도 새 migration을 적용한다(새로 시작하면 start가 적용한다).
