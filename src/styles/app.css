@@ -879,7 +879,7 @@ textarea.input {
 /* Type shortcuts keep full accessible names while fitting the existing navigation. */
 .bottom-nav-inner > a > span:last-child { min-width: 0; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .navigation-icon { display: inline-flex; align-items: center; justify-content: center; }
-.nav-profile-business { display: flex; flex-direction: column; min-width: 0; }
+.nav-profile-business { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; }
 .nav-profile-business a { flex-shrink: 0; }
 .nav-profile-business a span:last-child { overflow-wrap: anywhere; min-width: 0; }
 .entity-type-picker { min-width: 0; display: grid; gap: var(--space-2); }
