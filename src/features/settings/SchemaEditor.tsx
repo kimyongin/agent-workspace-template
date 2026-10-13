@@ -512,7 +512,7 @@ export function SchemaEditor(
         />
         </MaterialSettingsSection>
       </div>
-      {!plan?.recovery && (
+      {!plan?.recovery && (!plan || dirty || uncertain) && (
         <div className="settings-section-footer schema-review-actions">
           <p className="secondary">
             {dirty
@@ -540,7 +540,7 @@ export function SchemaEditor(
         </div>
       )}
       {plan && (
-        <section className="schema-summary" aria-label="속성 변경 요약">
+        <section className="schema-summary" aria-label="속성 변경 요약" data-change-version={plan.version}>
           <h2 ref={reviewHeading} tabIndex={-1}>변경 검토</h2>
           {plan.status !== "applied" && (
             <p>
@@ -775,7 +775,7 @@ export function SchemaEditor(
           ))}
         </ul>
       </details>
-    <ConfirmDialog
+      <ConfirmDialog
         open={deleteKey !== null}
         title="항목을 삭제할까요?"
         message={`‘${

@@ -116,14 +116,14 @@ test("조회 실패는 현재 변경안을 유지하고 목록 재선택과 편�
   await expect(page.getByLabel("최대 길이", { exact: true })).toHaveValue("7.");
   await page.getByRole("button", { name: "변경 취소", exact: true }).click();
   await expect(page.getByLabel("최대 길이", { exact: true })).toHaveValue("4096");
-  await expect(page.getByRole("button", { name: "변경 검토", exact: true })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "변경 검토", exact: true })).toHaveCount(0);
   failed = false;
   await page.getByText(/^저장한 변경안 \(/).click();
   await page.getByRole("button", { name: "초안 a · 초안", exact: true }).click();
   await expect(page.getByLabel("항목 이름", { exact: true })).toHaveValue(
     "이전 이름",
   );
-  await expect(page.getByRole("button", { name: "변경 검토", exact: true })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "변경 검토", exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: "새 변경 시작", exact: true }).click();
   await expect(page.getByLabel("항목 이름", { exact: true })).toHaveValue(
     "이름",
@@ -175,12 +175,12 @@ test("결과 불명 저장은 동일 요청을 확인하고 발급된 속성 키
   await expect(page.getByText("기술 정보", { exact: true })).toHaveCount(0);
   expect(requests[1]).toEqual(requests[0]);
   expect(requests[0].key).toBeTruthy();
-  await expect(page.getByRole("button", { name: "변경 검토", exact: true })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "변경 검토", exact: true })).toHaveCount(0);
   await page.getByRole("region", { name: "추가값 속성", exact: true }).getByLabel("항목 이름").fill("수정값");
   await page.getByRole("button", { name: "변경 검토", exact: true }).click();
   await expect(page.getByRole("region", { name: "수정값 속성", exact: true })).toHaveCount(1);
   await expect.poll(() => requests.length).toBe(3);
-  await expect(page.getByRole("button", { name: "변경 검토", exact: true })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "변경 검토", exact: true })).toHaveCount(0);
   expect(requests[2].body.edits.find((edit) => edit.op === "add_property")?.client_ref)
     .toBe(requests[0].body.edits.find((edit) => edit.op === "add_property")?.client_ref);
 });
@@ -580,6 +580,8 @@ test("자료 폼에서 빈 선택 값은 하나로 표시하고 null·0·false�
   await expect(page.getByRole("option", { name: "값 없음", exact: true })).toHaveCount(0);
   await page.getByLabel("이전 텍스트", { exact: true }).fill("");
   await expect(result).not.toContainText('"prop_5"');
+  await page.getByLabel("이전 선택", { exact: true }).selectOption("unset");
+  await expect(result).not.toContainText('"prop_6"');
   await page.getByLabel("숫자 입력", { exact: true }).fill("0");
   await page.getByLabel("참거짓 입력", { exact: true }).selectOption("value:false");
   await expect(result).toContainText('"prop_2":"0"');

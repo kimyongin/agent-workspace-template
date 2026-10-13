@@ -49,7 +49,12 @@ test("값 변환 준비: 저장된 직접 링크·실패 행 보완·재분석·
     await expect(dialog).toBeVisible();
     await dialog.getByRole("button", { name: "취소", exact: true }).click();
     await expect(row.getByRole("textbox", { name: "보완값", exact: true })).toHaveValue("01");
+    const reviewed = page.waitForResponse(response =>
+      response.url().endsWith('/analyze') && response.request().method() === 'POST' && response.status() === 202
+    );
     await page.getByRole("button", { name: "보완 내용 검토", exact: true }).click();
+    await reviewed;
+    await expect(page.getByRole("region", { name: "속성 변경 요약", exact: true })).toHaveAttribute("data-change-version", "2");
     await expect(page.getByRole("heading", { name: "변경 검토" })).toBeVisible();
     await page.reload();
     await expect(page.getByRole("heading", { name: "변경 검토" })).toBeVisible();
