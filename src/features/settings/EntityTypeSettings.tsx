@@ -351,6 +351,7 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
         <Link className="btn" to="/settings/entity-types">종류 추가</Link>
         <button
           ref={commonButton}
+          aria-label="공통 설정"
           className="btn"
           aria-expanded={commonOpen}
           onClick={() => {
@@ -364,7 +365,7 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
             }
           }}
         >
-          공통 설정
+          공통 설정{commonState.busy ? " · 저장 중…" : commonState.dirty ? " · 미저장" : ""}
         </button>
       </div>
       <MaterialCommonSettings

@@ -29,7 +29,7 @@ const recordTemplatesDraft = createRecordTemplatesDraft(api);
 
 export function RecordTemplateSettings(
   props: {
-    onStateChange?: (state: { dirty: boolean; busy: boolean }) => void;
+    onStateChange?: (state: { dirty: boolean; busy: boolean; uncertain?: boolean; error?: boolean }) => void;
     materialResource?: MaterialTemplateResource;
     materialTypeId?: string;
     publishedVersion?: number;
@@ -67,6 +67,7 @@ function MaterialRecordTemplateSettings(
   useEffect(() => {
     props.onStateChange?.({
       dirty: state.dirty || state.uncertain,
+      uncertain:state.uncertain, error:!!state.error,
       busy: state.busy && state.operation === "save",
     });
   }, [
