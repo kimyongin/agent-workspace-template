@@ -115,16 +115,16 @@ test("keyboard reorder previews retained refs; failed save keeps draft and route
   const move = page.getByRole("button", { name: "기록 위로 이동" });
   await move.focus();
   await page.keyboard.press("Enter");
-  await expect(nav(page).locator(".bottom-nav-inner > a")).toHaveText(["▤기록", "⚒할 일"]);
+  await expect(nav(page).locator(".bottom-nav-inner > a")).toHaveText(["기록", "할 일"]);
   state.fail();
   await page.getByRole("button", { name: "메뉴 바로가기 저장" }).click();
   await expect(page.getByRole("alert")).toContainText("선택한 메뉴를 유지");
   await page.getByRole("link", { name: "설정", exact: true }).click();
   await expect(page.getByRole("dialog", { name: "변경을 버릴까요?" })).toBeVisible();
   await page.getByRole("button", { name: "취소", exact: true }).click();
-  await expect(nav(page).locator(".bottom-nav-inner > a")).toHaveText(["▤기록", "⚒할 일"]);
+  await expect(nav(page).locator(".bottom-nav-inner > a")).toHaveText(["기록", "할 일"]);
   await page.getByRole("button", { name: "변경 취소", exact: true }).click();
-  await expect(nav(page).locator(".bottom-nav-inner > a")).toHaveText(["⚒할 일", "▤기록"]);
+  await expect(nav(page).locator(".bottom-nav-inner > a")).toHaveText(["할 일", "기록"]);
 });
 test("external tab metadata preserves dirty preview until conflict is reviewed", async ({ page, baseURL }) => {
   const state = await fixture(page, baseURL!, { version: 1, refs: [ref("tasks"), ref("records")] });
@@ -137,10 +137,10 @@ test("external tab metadata preserves dirty preview until conflict is reviewed",
     channel.close();
   }, account.id);
   await expect(page.getByRole("alert")).toContainText("다른 탭");
-  await expect(nav(page).locator(".bottom-nav-inner > a")).toHaveText(["▤기록", "⚒할 일"]);
+  await expect(nav(page).locator(".bottom-nav-inner > a")).toHaveText(["기록", "할 일"]);
   await expect(page.getByRole("button", { name: "메뉴 바로가기 저장" })).toBeDisabled();
   await page.getByRole("button", { name: "최신 설정 사용" }).click();
-  await expect(nav(page).locator(".bottom-nav-inner > a")).toHaveText(["☆원칙"]);
+  await expect(nav(page).locator(".bottom-nav-inner > a")).toHaveText(["원칙"]);
   expect(state.writes).toEqual([]);
 });
 test("unknown refs remain explicit and live rename archive restore do not rewrite preferences", async ({ page, baseURL }) => {
@@ -285,9 +285,9 @@ test("late old account metadata cannot overwrite the new account navigation", as
     const { error } = await supabase.auth.setSession({ access_token, refresh_token: "other-refresh" });
     if (error) throw error;
   }, otherToken);
-  await expect(nav(page).locator(".bottom-nav-inner > a")).toHaveText(["☆원칙"]);
+  await expect(nav(page).locator(".bottom-nav-inner > a")).toHaveText(["원칙"]);
   release();
-  await expect(nav(page).locator(".bottom-nav-inner > a")).toHaveText(["☆원칙"]);
+  await expect(nav(page).locator(".bottom-nav-inner > a")).toHaveText(["원칙"]);
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem("sb-127-auth-token")!).user.id)).toBe(otherId);
 });
 
@@ -312,10 +312,22 @@ test("canonical type rename icon archive restore immediately refresh pinned navi
     });
   });
   await page.goto(`/settings/entity-types/${material.id}`);
+  const picker = page.getByRole("group", { name: "아이콘", exact: true });
+  await expect(picker.getByRole("radio")).toHaveCount(6);
+  await expect(picker.getByRole("radio", { name: "잎", exact: true })).toBeChecked();
+  await expect(picker.locator("svg")).toHaveCount(6);
+  await picker.getByRole("radio", { name: "잎", exact: true }).focus();
+  await page.keyboard.press("ArrowRight");
+  await expect(picker.getByRole("radio", { name: "포장", exact: true })).toBeChecked();
+  expect(await picker.locator("label").evaluateAll((labels) => labels.every((label) => {
+    const rect = label.getBoundingClientRect();
+    return rect.width >= 44 && rect.height >= 44;
+  }))).toBe(true);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
   await page.getByLabel("자료 종류 이름", { exact: true }).fill("새 재료");
-  await page.getByLabel("아이콘", { exact: true }).selectOption("star");
+  await page.getByRole("radio", { name: "별", exact: true }).check();
   await page.getByRole("button", { name: "저장", exact: true }).click();
-  await expect(nav(page).getByRole("link", { name: "새 재료", exact: true })).toContainText("☆");
+  await expect(nav(page).getByRole("link", { name: "새 재료", exact: true }).locator("svg")).toHaveAttribute("data-icon", "star");
   await page.getByLabel("자료 종류 보관 (기존 자료와 연결은 유지)", { exact: true }).check();
   await page.getByRole("button", { name: "저장", exact: true }).click();
   await page.getByRole("button", { name: /^내 프로필(?: · .+)?$/, exact: true }).click();

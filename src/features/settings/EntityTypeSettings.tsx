@@ -2,7 +2,7 @@ import { useAuth } from "../auth/AuthProvider.tsx";
 import { invalidateEntityTypeCatalog } from "../entity/entity-type-catalog.ts";
 import { useEntityTypes } from "../entity/useEntityTypes.ts";
 import { SchemaEditor, SchemaVersionDiff } from "./SchemaEditor.tsx";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { Link, useBlocker, useLocation, useParams } from "react-router";
 import { api } from "../../lib/api.ts";
 import { ConfirmDialog } from "../../components/Modal.tsx";
@@ -15,13 +15,14 @@ import {
 } from "@contracts/entity-type.ts";
 import { useWriteAttempt, writeErrorMessage } from "../../lib/write-attempt.ts";
 import "./settings.css";
-import { EntityTypeIcon, glyphs } from "../entity/EntityTypeIcon.tsx";
+import { EntityTypeIcon } from "../entity/EntityTypeIcon.tsx";
 export function EntityTypeSettings() {
   const { type_id } = useParams();
   return <EntityTypeSettingsEditor key={type_id ?? "create"} type_id={type_id} />;
 }
 function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
   const { session } = useAuth();
+  const iconGroup = useId();
   const { type_id: activeTypeId } = useParams();
   const location = useLocation();
   const versions = location.pathname.endsWith("/versions");
@@ -276,20 +277,26 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
                   />
                 )}
               </Field>
-              <Field label="아이콘">
-                {(props) => (
-                  <select
-                    {...props}
-                    className="input"
-                    value={icon}
-                    onChange={(e) => setIcon(e.target.value)}
-                  >
-                    {entityTypeIcons.map((item) => (
-                      <option key={item.id} value={item.id}>{glyphs[item.id]} {item.label}</option>
-                    ))}
-                  </select>
-                )}
-              </Field>
+              <fieldset className="entity-type-icon-picker">
+                <legend className="label">아이콘</legend>
+                <div className="entity-type-icon-options">
+                  {entityTypeIcons.map((item) => (
+                    <label className="entity-type-icon-option" key={item.id}>
+                      <input
+                        type="radio"
+                        name={iconGroup}
+                        value={item.id}
+                        checked={icon === item.id}
+                        onChange={() => setIcon(item.id)}
+                      />
+                      <span className="entity-type-icon-face">
+                        <EntityTypeIcon id={item.id} />
+                        <span>{item.label}</span>
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
               {!type_id && (
                 <Field label="대표 속성 이름">
                   {(props) => (

@@ -1,6 +1,6 @@
 import { expect } from "@playwright/test";
 import postgres from "postgres";
-import { test, devLogin, env, mcpClient, mcpTokenViaConsent, unique } from "./support.ts";
+import { devLogin, env, mcpClient, mcpTokenViaConsent, test, unique } from "./support.ts";
 
 test("자료 종류를 웹에서 만들고 이름·아이콘·보관과 게시 버전을 MCP로 확인한다", async ({ page }) => {
   await devLogin(page);
@@ -11,20 +11,20 @@ test("자료 종류를 웹에서 만들고 이름·아이콘·보관과 게시 �
   try {
     await page.goto("/settings/entity-types");
     await expect(page.getByRole("heading", { name: "자료 종류·속성", exact: true })).toBeVisible();
-    await page.getByLabel("아이콘", { exact: true }).selectOption("star");
+    await page.getByRole("radio", { name: "별", exact: true }).check();
     await page.getByRole("link", { name: "설정", exact: true }).click();
     const initialConfirm = page.getByRole("dialog", { name: "변경을 버릴까요?" });
     await expect(initialConfirm).toBeVisible();
     await initialConfirm.getByRole("button", { name: "취소", exact: true }).click();
     await page.getByRole("button", { name: "변경 취소", exact: true }).click();
-    await expect(page.getByLabel("아이콘", { exact: true })).toHaveValue("box");
+    await expect(page.getByRole("radio", { name: "상자", exact: true })).toBeChecked();
     await page.getByLabel("대표 속성 이름", { exact: true }).fill("초안 이름");
     await expect(page.getByRole("button", { name: "변경 취소", exact: true })).toBeEnabled();
     await page.getByRole("button", { name: "변경 취소", exact: true }).click();
     await expect(page.getByLabel("대표 속성 이름", { exact: true })).toHaveValue("이름");
     await page.getByLabel("자료 종류 이름", { exact: true }).fill(label);
     await page.getByLabel("대표 속성 이름", { exact: true }).fill("대표 이름");
-    await page.getByLabel("아이콘", { exact: true }).selectOption("leaf");
+    await page.getByRole("radio", { name: "잎", exact: true }).check();
     await page.getByRole("button", { name: "자료 종류 만들기", exact: true }).click();
     await expect(page.locator(".settings").getByRole("status")).toContainText("자료 종류를 저장했습니다");
     const types = await mcp.call("list_entity_types", { include_archived: true, limit: 100 });
@@ -55,7 +55,7 @@ test("자료 종류를 웹에서 만들고 이름·아이콘·보관과 게시 �
     await expect(confirm).toBeVisible();
     await confirm.getByRole("button", { name: "취소", exact: true }).click();
     await expect(page.getByLabel("자료 종류 이름", { exact: true })).toHaveValue(changedLabel);
-    await page.getByLabel("아이콘", { exact: true }).selectOption("star");
+    await page.getByRole("radio", { name: "별", exact: true }).check();
     await page.getByRole("button", { name: "저장", exact: true }).click();
     await expect(page.locator(".settings").getByRole("status")).toContainText("자료 종류를 저장했습니다");
     const renamed = await mcp.call("get_entity_type", { type_id: typeId });

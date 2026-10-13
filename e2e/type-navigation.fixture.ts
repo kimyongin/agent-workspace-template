@@ -140,7 +140,7 @@ test("모든 페이지의 자료 종류가 목록과 생성 폼 및 종류 설�
 test("typed shortcut and profile access preserve canonical list filters and Back", async ({ page }) => {
   await page.goto(`/entities?entity_type_id=${materials.id}&keyword=한글&tag_id=tag&sort=title&pages=2`);
   const nav = page.getByRole("navigation", { name: "주 메뉴" });
-  await expect(nav.locator(".bottom-nav-inner > a")).toHaveText(["♧재료", "♧상품", "⚒할 일", "▤기록"]);
+  await expect(nav.locator(".bottom-nav-inner > a")).toHaveText(["재료", "상품", "할 일", "기록"]);
   await expect(nav.locator(`a[href='/entities?entity_type_id=${materials.id}']`)).toHaveAttribute(
     "aria-current",
     "page",
