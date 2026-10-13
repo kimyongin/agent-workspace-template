@@ -351,10 +351,13 @@ test("공통 보조 영역의 태그 CRUD는 범위를 구분하고 초안을 �
 });
 
 test("기존 식별자 주소는 같은 자료 공통 설정을 열고 닫으면 작업 화면으로 돌아온다", async ({ page }) => {
-  await page.route("**/api/settings/business**", route => route.fulfill({ json: {
-    settings: { entity_identity: defaultEntityIdentitySettings, record_templates: {} },
-    versions: { entity_identity: 0, record_templates: 0 },
-  } }));
+  await page.route("**/api/settings/business**", (route) =>
+    route.fulfill({
+      json: {
+        settings: { entity_identity: defaultEntityIdentitySettings, record_templates: {} },
+        versions: { entity_identity: 0, record_templates: 0 },
+      },
+    }));
   await page.goto("/settings/entity-identity");
   await expect(page).toHaveURL(/\/settings\/entity-types\?common=1$/);
   await expect(page.getByRole("heading", { name: "자료 설정", exact: true })).toBeVisible();
@@ -366,9 +369,11 @@ test("기존 식별자 주소는 같은 자료 공통 설정을 열고 닫으면
 
 for (const suffix of ["migrations", "migrations/00000000-0000-4000-8000-000000000099"]) {
   test(`자료 설정 별칭 직접 주소 ${suffix}도 새로고침 후 빈 화면이 되지 않는다`, async ({ page }) => {
-    await page.route("**/api/entity-schema-migrations/**", route => route.fulfill({
-      status: 503, json: { error: { code: "unavailable", message: "작업 상태 조회 실패", fields: [] } },
-    }));
+    await page.route("**/api/entity-schema-migrations/**", (route) =>
+      route.fulfill({
+        status: 503,
+        json: { code: "unavailable", message: "작업 상태 조회 실패", fields: [] },
+      }));
     await page.goto(`/settings/materials/${materials.id}/${suffix}`);
     await expect(page.getByRole("heading", { name: "자료 설정", exact: true })).toBeVisible();
     await expect(page.locator(".material-settings-current")).toContainText(materials.label);
@@ -378,3 +383,65 @@ for (const suffix of ["migrations", "migrations/00000000-0000-4000-8000-00000000
     await expect(page.locator(".material-settings-current")).toContainText(materials.label);
   });
 }
+
+test("공통 자료 확인은 열 때 읽고 지연·다음 페이지 실패 뒤 재시도와 상세 복귀를 유지한다", async ({ page }) => {
+  const entity = (n: number) => ({
+    id: `app:lookup${n}`,
+    source: "app",
+    external_id: `lookup${n}`,
+    entity_type_id: materials.id,
+    schema_version: 1,
+    properties: { prop_1: `확인 ${n}` },
+    title: `확인 ${n}`,
+    type: materials,
+    source_label: "앱",
+    current_schema_version: 1,
+    display_properties: { prop_1: `확인 ${n}` },
+    tasks: { items: [], count: 0 },
+    records: { items: [], count: 0 },
+    version: 1,
+    tag_ids: [],
+    deleted_at: null,
+    created_at: materials.created_at,
+    updated_at: materials.updated_at,
+  });
+  let reads = 0, release!: () => void, fail = true;
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route("**/api/entities{,?**}", async (route) => {
+    reads++;
+    const cursor = new URL(route.request().url()).searchParams.get("cursor");
+    if (!cursor) {
+      await held;
+      return route.fulfill({ json: { items: [entity(1)], next_cursor: "lookup-page2" } });
+    }
+    expect(cursor).toBe("lookup-page2");
+    if (fail) {
+      fail = false;
+      return route.fulfill({ status: 503, json: { code: "unavailable", message: "두 번째 페이지 실패" } });
+    }
+    return route.fulfill({ json: { items: [entity(2)], next_cursor: null } });
+  });
+  await page.route("**/api/entities/app%3Alookup2", (route) => route.fulfill({ json: entity(2) }));
+  await page.goto(`/settings/entity-types/${materials.id}`);
+  await expect(page.getByRole("button", { name: "공통 설정", exact: true })).toBeVisible();
+  expect(reads).toBe(0);
+  await page.getByRole("button", { name: "공통 설정", exact: true }).click();
+  const lookup = page.getByRole("region", { name: "자료 확인", exact: true });
+  await expect(lookup.getByText("자료를 읽는 중…", { exact: true })).toBeVisible();
+  await expect(lookup.getByText("확인할 자료가 없습니다.", { exact: true })).toHaveCount(0);
+  release();
+  await expect(lookup.getByRole("link", { name: "확인 1 자료 확인", exact: true })).toBeVisible();
+  await lookup.getByRole("button", { name: "자료 더 읽기", exact: true }).click();
+  await expect(lookup.getByRole("alert")).toContainText("자료를 읽지 못했습니다.");
+  await expect(lookup.getByRole("link", { name: "확인 1 자료 확인", exact: true })).toBeVisible();
+  await lookup.getByRole("button", { name: "자료 다시 시도", exact: true }).click();
+  const second = lookup.getByRole("link", { name: "확인 2 자료 확인", exact: true });
+  await expect(second).toBeVisible();
+  await second.click();
+  await closeDetail(page, "확인 2");
+  await expect(second).toBeFocused();
+  await expect(lookup.getByRole("link", { name: "확인 1 자료 확인", exact: true })).toBeVisible();
+  expect(reads).toBe(3);
+});

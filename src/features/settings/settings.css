@@ -67,3 +67,11 @@ section[aria-labelledby="entity-identity-title"] .settings-section-footer { bord
 }
 .schema-field > fieldset:not([hidden]) { display: grid; gap: var(--space-4); min-width: 0; }
 .settings .schema-field [hidden] { display: none; }
+
+/* Summary rows stay compact while their controls retain the full touch target. */
+.settings .schema-field { padding-block: var(--space-2); }
+.settings .schema-field > h3 { margin: 0; font-size: var(--text-label); }
+.material-section-toggle > span { min-width: 0; overflow-wrap: anywhere; }
+.material-section-toggle > .secondary { margin-left: auto; text-align: right; }
+.material-section-toggle::after { content: ""; width: 6px; height: 6px; border-top: 1px solid var(--muted-ink); border-right: 1px solid var(--muted-ink); transform: rotate(45deg); flex-shrink: 0; }
+.material-section-toggle[aria-expanded="true"]::after { transform: rotate(135deg); }

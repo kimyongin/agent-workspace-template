@@ -126,7 +126,7 @@ test("manual deleted lookup opens restore confirmation without submitting archiv
 });
 test("template insertion uses selected type labels and immutable property keys", async ({ page }) => {
   await page.goto(`/settings/entity-types/${fixtureType.id}`);
-  await page.getByRole("button", { name: /^기록 기본값/ }).click();
+  await page.getByRole("button", { name: /현재 종류 기록 기본값/ }).click();
   const form = page.getByRole("form", { name: "현재 종류 기록 기본값" });
   await expect(form.getByLabel("자료 종류", { exact: true })).toHaveCount(0);
   await form.getByLabel("액션", { exact: true }).selectOption("update");

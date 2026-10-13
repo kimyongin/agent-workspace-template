@@ -91,7 +91,7 @@ export function currentNavigationName(section: string | null, path: string, type
   if (section === "records") return "기록";
   if (section === "principles") return "원칙";
   if (path.startsWith("/settings/entity-types") || path.startsWith("/settings/materials")) {
-    return typeLabel ? `${typeLabel}${path.includes("/migrations") ? " · 값 변환 작업" : ""}` : "자료 종류·속성";
+    return typeLabel ? `${typeLabel}${path.includes("/migrations") ? " · 값 변환 작업" : ""}` : "자료 설정";
   }
   if (path.startsWith("/settings/navigation")) return "메뉴 구성";
   if (path.startsWith("/settings")) return "설정";
