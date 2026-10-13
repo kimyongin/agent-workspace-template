@@ -159,6 +159,7 @@ test("복구안 직접 링크는 원본 기준을 적용하며 속성과 변환 
   });
   await expect(page.getByLabel("속성 이름", { exact: true })).toHaveValue("현재 이름");
   await expect(page.getByLabel("속성 이름", { exact: true })).toBeDisabled();
+  await expect(page.getByLabel("속성 이름", { exact: true })).toBeVisible();
   await expect(page.getByRole("region", { name: "복구안 원본", exact: true })).toContainText("보존 원본");
   await expect(page.getByRole("button", { name: "변경 초안 저장", exact: true })).toHaveCount(0);
 });

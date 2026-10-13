@@ -369,8 +369,7 @@ export function SchemaEditor(
       {message && <p role="status">{message}</p>}
       <fieldset
         className="settings-fields"
-        disabled={busy || uncertain || disabled || readBusy || startState.busy || startState.uncertain ||
-          Boolean(plan?.recovery)}
+        disabled={busy || uncertain || disabled || readBusy || startState.busy || startState.uncertain}
       >
         {draft.display.order.map((key, index) => {
           const f = draft.schema.properties[key],
@@ -412,7 +411,12 @@ export function SchemaEditor(
                   </span>
                 </button>
               </h3>
-              <div id={`schema-field-${key}`} hidden={!openFields.includes(key)}>
+              <fieldset
+                className="settings-fields"
+                id={`schema-field-${key}`}
+                hidden={!openFields.includes(key)}
+                disabled={Boolean(plan?.recovery)}
+              >
                 <Field label="속성 이름">
                   {(p) => (
                     <input
@@ -736,14 +740,14 @@ export function SchemaEditor(
                   <summary>기술 정보</summary>
                   <p>속성 키: {key.startsWith("new_") ? "저장 시 발급" : key}</p>
                 </details>
-              </div>
+              </fieldset>
             </section>
           );
         })}
         <button
           className="btn"
           type="button"
-          disabled={Object.keys(draft.schema.properties).length >= 64}
+          disabled={Boolean(plan?.recovery) || Object.keys(draft.schema.properties).length >= 64}
           onClick={() => {
             const ref = crypto.randomUUID(), key = `new_${ref}`;
             setOpenFields((keys) => [...keys, key]);
