@@ -349,3 +349,32 @@ test("공통 보조 영역의 태그 CRUD는 범위를 구분하고 초안을 �
   await expect(common.getByText("기록 전용", { exact: true })).toBeVisible();
   await expect(common.getByText("자료 전용", { exact: true })).toHaveCount(0);
 });
+
+test("기존 식별자 주소는 같은 자료 공통 설정을 열고 닫으면 작업 화면으로 돌아온다", async ({ page }) => {
+  await page.route("**/api/settings/business**", route => route.fulfill({ json: {
+    settings: { entity_identity: defaultEntityIdentitySettings, record_templates: {} },
+    versions: { entity_identity: 0, record_templates: 0 },
+  } }));
+  await page.goto("/settings/entity-identity");
+  await expect(page).toHaveURL(/\/settings\/entity-types\?common=1$/);
+  await expect(page.getByRole("heading", { name: "자료 설정", exact: true })).toBeVisible();
+  await expect(page.getByRole("form", { name: "자료 식별자 설정", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "공통 설정 닫기", exact: true }).click();
+  await expect(page.getByRole("button", { name: "공통 설정", exact: true })).toBeFocused();
+  await expect(page.getByRole("heading", { name: "자료 설정", exact: true })).toBeVisible();
+});
+
+for (const suffix of ["migrations", "migrations/00000000-0000-4000-8000-000000000099"]) {
+  test(`자료 설정 별칭 직접 주소 ${suffix}도 새로고침 후 빈 화면이 되지 않는다`, async ({ page }) => {
+    await page.route("**/api/entity-schema-migrations/**", route => route.fulfill({
+      status: 503, json: { error: { code: "unavailable", message: "작업 상태 조회 실패", fields: [] } },
+    }));
+    await page.goto(`/settings/materials/${materials.id}/${suffix}`);
+    await expect(page.getByRole("heading", { name: "자료 설정", exact: true })).toBeVisible();
+    await expect(page.locator(".material-settings-current")).toContainText(materials.label);
+    if (suffix.includes("/")) await expect(page.getByRole("alert")).toContainText("작업 상태 조회 실패");
+    await page.reload();
+    await expect(page.getByRole("heading", { name: "자료 설정", exact: true })).toBeVisible();
+    await expect(page.locator(".material-settings-current")).toContainText(materials.label);
+  });
+}

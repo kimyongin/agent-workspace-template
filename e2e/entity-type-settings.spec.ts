@@ -61,7 +61,7 @@ test("자료 종류를 웹에서 만들고 이름·아이콘·보관과 게시 �
     expect(renamed.version).toBe(2);
     expect(renamed.schema_version).toBe(1);
     await page.getByRole("button", { name: /^변경 이력/ }).click();
-    await page.getByText(/^버전 1 ·/).click();
+    await page.locator("summary").filter({ hasText: /^버전 1 ·/ }).click();
     await page.getByRole("button", { name: "이 버전 보기" }).click();
     await expect(page.getByRole("heading", { name: "버전 1 → 1 차이", exact: true })).toBeVisible();
     expect((await mcp.call("get_entity_schema", { type_id: typeId, schema_version: 1 })).schema).toEqual(

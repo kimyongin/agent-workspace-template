@@ -1,6 +1,5 @@
 import { NavigationPreviewProvider } from "../features/settings/navigation-preview.tsx";
 import { NavigationSettingsPage } from "../features/settings/NavigationSettingsPage.tsx";
-import { EntityIdentitySettingsPage } from "../features/settings/EntityIdentitySettingsPage.tsx";
 import { EntityTypeSettings } from "../features/settings/EntityTypeSettings.tsx";
 import { StatusPage } from "../features/status/StatusPage.tsx";
 import { WriteOutcomeNotice } from "../components/WriteOutcomeNotice.tsx";
@@ -84,9 +83,19 @@ const workspaceRoutes = [
   { path: "status", element: <StatusPage /> },
 ];
 
+const materialSettingsRoutes = [
+  "settings/entity-types", "settings/entity-types/:type_id",
+  "settings/entity-types/:type_id/versions", "settings/entity-types/:type_id/migrations",
+  "settings/entity-types/:type_id/migrations/:job_id",
+  "settings/materials", "settings/materials/:type_id",
+  "settings/materials/:type_id/versions", "settings/materials/:type_id/migrations",
+  "settings/materials/:type_id/migrations/:job_id",
+];
 function WorkspaceRoutes({ location }: { location: Location }) {
-  const settings = ["settings/entity-types", "settings/entity-types/:type_id", "settings/entity-types/:type_id/versions", "settings/entity-types/:type_id/migrations", "settings/entity-types/:type_id/migrations/:job_id", "settings/materials", "settings/materials/:type_id", "settings/materials/:type_id/versions"];
-  return <Routes location={location}>{workspaceRoutes.map((route) => <Route key={route.path} {...route} />)}{settings.map(path=><Route key={path} path={path} element={<EntityTypeSettings />} />)}</Routes>;
+  return <Routes location={location}>
+    {workspaceRoutes.map((route) => <Route key={route.path} {...route} />)}
+    {materialSettingsRoutes.map(path => <Route key={path} path={path} element={<EntityTypeSettings />} />)}
+  </Routes>;
 }
 
 export function App() {
@@ -113,17 +122,8 @@ export function App() {
           <Route path="guide" element={guarded(<GuidePage />)} />
           <Route path="settings/navigation" element={guarded(<NavigationSettingsPage />)} />
           <Route path="settings" element={guarded(<SettingsPage />)} />
-          <Route path="settings/entity-identity" element={guarded(<EntityIdentitySettingsPage />)} />
-          <Route path="settings/materials" element={guarded(<EntityTypeSettings />)} />
-          <Route path="settings/materials/:type_id" element={guarded(<EntityTypeSettings />)} />
-          <Route path="settings/materials/:type_id/migrations/:job_id" element={guarded(<EntityTypeSettings />)} />
-          <Route path="settings/materials/:type_id/migrations" element={guarded(<EntityTypeSettings />)} />
-          <Route path="settings/materials/:type_id/versions" element={guarded(<EntityTypeSettings />)} />
-          <Route path="settings/entity-types" element={guarded(<EntityTypeSettings />)} />
-          <Route path="settings/entity-types/:type_id" element={guarded(<EntityTypeSettings />)} />
-          <Route path="settings/entity-types/:type_id/versions" element={guarded(<EntityTypeSettings />)} />
-          <Route path="settings/entity-types/:type_id/migrations/:job_id" element={guarded(<EntityTypeSettings />)} />
-          <Route path="settings/entity-types/:type_id/migrations" element={guarded(<EntityTypeSettings />)} />
+          <Route path="settings/entity-identity" element={guarded(<Navigate to="/settings/entity-types?common=1" replace />)} />
+          {materialSettingsRoutes.map(path => <Route key={path} path={path} element={guarded(<EntityTypeSettings />)} />)}
           <Route path="*" element={<p className="secondary">페이지를 찾을 수 없습니다.</p>} />
         </Route>,
       ),

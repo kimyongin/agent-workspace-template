@@ -87,7 +87,7 @@ test("웹 속성 초안·분석·게시 후 기존 자료 표시와 MCP 생성·
     await expect(page.getByText("자료 이름", { exact: true })).toBeVisible();
     await expect(page.getByText("0", { exact: true })).toBeVisible();
     await page.goto(`/settings/entity-types/${typeId}/versions`);
-    await page.getByText(/^버전 1 ·/).click();
+    await page.locator("summary").filter({ hasText: /^버전 1 ·/ }).click();
     await page.getByRole("button", { name: "이 버전 보기", exact: true }).click();
     await expect(page.getByRole("region", { name: "버전 차이", exact: true })).toContainText("수량");
     await page.setViewportSize({ width: 320, height: 640 });

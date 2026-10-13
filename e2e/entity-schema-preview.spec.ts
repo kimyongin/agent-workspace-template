@@ -29,9 +29,9 @@ test("값 변환 준비: 저장된 직접 링크·실패 행 보완·재분석·
     });
     const path = `/settings/entity-types/${typeId}/migrations?change_id=${plan.id}`;
     await page.goto(path);
-    await expect(page.getByRole("heading", { name: "변경 요약 · 초안 버전 1" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "속성 변경 검토 · 변경안 버전 1" })).toBeVisible();
     await page.reload();
-    await expect(page.getByRole("heading", { name: "변경 요약 · 초안 버전 1" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "속성 변경 검토 · 변경안 버전 1" })).toBeVisible();
     await page.getByRole("button", { name: "영향 분석", exact: true }).click();
     await expect.poll(async () => {
       await schemaAnalysisTick();
@@ -41,18 +41,18 @@ test("값 변환 준비: 저장된 직접 링크·실패 행 보완·재분석·
       has: page.getByRole("heading", { name: `${entity.id} · 변환 실패` }),
     });
     await expect(row).toBeVisible();
-    await expect(row).toContainText('"001"');
+    await expect(row).toContainText("001");
     await row.getByRole("button", { name: "보완값 지정", exact: true }).click();
     await row.getByRole("textbox", { name: "보완값", exact: true }).fill("01");
-    await page.getByRole("link", { name: "속성·표시로 돌아가기" }).click();
+    await page.getByRole("link", { name: "할 일", exact: true }).click();
     const dialog = page.getByRole("dialog", { name: "변경을 버릴까요?" });
     await expect(dialog).toBeVisible();
     await dialog.getByRole("button", { name: "취소", exact: true }).click();
     await expect(row.getByRole("textbox", { name: "보완값", exact: true })).toHaveValue("01");
     await page.getByRole("button", { name: "보완 내용 검토", exact: true }).click();
-    await expect(page.getByRole("heading", { name: "변경 요약 · 초안 버전 2" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "속성 변경 검토 · 변경안 버전 2" })).toBeVisible();
     await page.reload();
-    await expect(page.getByRole("heading", { name: "변경 요약 · 초안 버전 2" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "속성 변경 검토 · 변경안 버전 2" })).toBeVisible();
     const httpRows = page.waitForResponse((r) =>
       r.url().includes(`/schema-changes/${plan.id}/rows?`) && r.status() === 200
     );
