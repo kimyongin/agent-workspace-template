@@ -67,3 +67,19 @@ test("#396 preparation field errors survive returning to the entity editor", asy
   await expect(form(page).getByLabel("수량",{exact:true})).toHaveValue("10");
   expect(state.writes).toHaveLength(0);
 });
+
+test("#396 schema conflicts keep the cancel action while preserving property drafts",async({page})=>{
+  const state=await fixtures(page);
+  await go(page,`/entities/${encodeURIComponent(entityKey(1))}?edit=1`);
+  await form(page).getByLabel("수량",{exact:true}).fill("10");
+  await page.route("**/api/records/prepare",route=>route.fulfill({status:409,
+    json:{code:"schema_changed",message:"속성 정의가 변경되었습니다",retryable:false,
+      fields:[{path:"schema_version",message:"최신 정의를 확인하세요"}]}}));
+  await form(page).getByRole("button",{name:"저장",exact:true}).click();
+  const confirmation=page.locator("dialog.modal-action[open]");
+  await expect(confirmation).toContainText("속성 정의가 변경되었습니다");
+  await expect(confirmation.getByRole("button",{name:"입력 수정",exact:true})).toHaveCount(0);
+  await confirmation.getByRole("button",{name:"취소",exact:true}).click();
+  await expect(form(page).getByLabel("수량",{exact:true})).toHaveValue("10");
+  expect(state.writes).toHaveLength(0);
+});
