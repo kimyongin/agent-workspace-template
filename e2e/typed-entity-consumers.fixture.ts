@@ -11,9 +11,14 @@ test.beforeEach(async ({ page, baseURL }) => {
       return route.fulfill({ json: { items: [fixtureType, second], next_cursor: null } });
     }
     if (url.pathname.startsWith("/api/entity-types/")) {
-      return route.fulfill({
-        json: { ...fixtureSchema, type_id: url.pathname.includes(second.id) ? second.id : fixtureType.id, type: url.pathname.includes(second.id) ? second : fixtureType },
-      });
+      const selected = url.pathname.includes(second.id) ? second : fixtureType;
+      if (url.pathname.endsWith("/schemas")) return route.fulfill({ json: {
+        items: [{ type_id: selected.id, schema_version: fixtureSchema.schema_version, created_at: stamp }], next_before: null,
+      } });
+      if (url.pathname.endsWith("/schema-changes")) return route.fulfill({ json: { items: [], next_before: null } });
+      return route.fulfill({ json: url.pathname.endsWith("/schema")
+        ? { ...fixtureSchema, type_id: selected.id, type: selected }
+        : selected });
     }
     if (url.pathname === "/api/settings/business") {
       return route.fulfill({
