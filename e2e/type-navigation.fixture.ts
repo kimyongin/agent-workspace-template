@@ -637,10 +637,10 @@ test("materials workspace keeps basic drafts while history opens and guards type
   await page.goto(`/settings/entity-types/${materials.id}`);
   await expect(page.getByRole("heading", { name: "자료 설정", level: 1 })).toBeVisible();
   await expect(page.getByLabel("자료 종류 이름", { exact: true })).toBeHidden();
-  await page.getByRole("button", { name: /^기본 정보/ }).click();
+  await page.getByRole("button", { name: /^기본 정보(?! 저장)/ }).click();
   await page.getByLabel("자료 종류 이름", { exact: true }).fill("편집 중 재료");
-  await page.getByRole("button", { name: /^기본 정보/ }).click();
-  await expect(page.getByRole("button", { name: /^기본 정보/ })).toContainText("미저장");
+  await page.getByRole("button", { name: /^기본 정보(?! 저장)/ }).click();
+  await expect(page.getByRole("button", { name: /^기본 정보(?! 저장)/ })).toContainText("미저장");
   await page.getByRole("button", { name: /^변경 이력/ }).click();
   await expect(page.getByRole("dialog", { name: "변경을 버릴까요?" })).toHaveCount(0);
   await page.getByLabel("자료 종류 선택", { exact: true }).selectOption(products.id);
@@ -648,7 +648,7 @@ test("materials workspace keeps basic drafts while history opens and guards type
   await expect(confirmation).toBeVisible();
   await confirmation.getByRole("button", { name: "취소", exact: true }).click();
   await expect(page.getByLabel("자료 종류 선택", { exact: true })).toHaveValue(materials.id);
-  await page.getByRole("button", { name: /^기본 정보/ }).click();
+  await page.getByRole("button", { name: /^기본 정보(?! 저장)/ }).click();
   await expect(page.getByLabel("자료 종류 이름", { exact: true })).toHaveValue("편집 중 재료");
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.getByRole("button", { name: "변경 취소", exact: true }).click();
@@ -669,7 +669,7 @@ test("history selection preserves basic drafts and survives reload", async ({ pa
       }),
   );
   await page.goto(`/settings/entity-types/${materials.id}/versions`);
-  await page.getByRole("button", { name: /^기본 정보/ }).click();
+  await page.getByRole("button", { name: /^기본 정보(?! 저장)/ }).click();
   await page.getByLabel("자료 종류 이름", { exact: true }).fill("유지할 기본 정보");
   await page.locator("summary", { hasText: /^버전 1 ·/ }).click();
   await page.getByRole("button", { name: "이 버전 보기", exact: true }).click();
@@ -716,14 +716,14 @@ test("first type creation selects its workspace and independent basics save arch
   await expect(page.getByLabel("자료 종류 선택", { exact: true })).toHaveValue(saved.id);
   await expect(page.getByLabel("자료 종류 선택", { exact: true })).toBeFocused();
   await expect(page.getByRole("dialog", { name: "변경을 버릴까요?" })).toHaveCount(0);
-  await page.getByRole("button", { name: /^기본 정보/ }).click();
+  await page.getByRole("button", { name: /^기본 정보(?! 저장)/ }).click();
   await page.getByLabel("자료 종류 보관 (기존 자료와 연결은 유지)").check();
-  await page.getByRole("button", { name: "저장", exact: true }).click();
+  await page.getByRole("button", { name: "기본 정보 저장", exact: true }).click();
   await expect(page.getByLabel("자료 종류 선택", { exact: true }).locator("option:checked")).toHaveText(
     "첫 자료 (보관)",
   );
   await page.getByLabel("자료 종류 보관 (기존 자료와 연결은 유지)").uncheck();
-  await page.getByRole("button", { name: "저장", exact: true }).click();
+  await page.getByRole("button", { name: "기본 정보 저장", exact: true }).click();
   await expect(page.getByLabel("자료 종류 선택", { exact: true }).locator("option:checked")).toHaveText("첫 자료");
   expect(writes).toMatchObject([{ label: "첫 자료", representative_label: "제목" }, {
     archived: true,
@@ -743,18 +743,18 @@ test("basic conflict and uncertain responses retain input and retry the exact re
     return route.fulfill({ json: { ...materials, label: "남길 입력", version: 2 } });
   });
   await page.goto(`/settings/entity-types/${materials.id}`);
-  await page.getByRole("button", { name: /^기본 정보/ }).click();
+  await page.getByRole("button", { name: /^기본 정보(?! 저장)/ }).click();
   const input = page.getByLabel("자료 종류 이름", { exact: true });
   await input.fill("남길 입력");
-  await page.getByRole("button", { name: "저장", exact: true }).click();
+  await page.getByRole("button", { name: "기본 정보 저장", exact: true }).click();
   await expect(page.getByRole("alert")).toContainText("다른 변경이 저장되었습니다.");
   await expect(input).toHaveValue("남길 입력");
-  await page.getByRole("button", { name: "저장", exact: true }).click();
+  await page.getByRole("button", { name: "기본 정보 저장", exact: true }).click();
   await expect(page.getByRole("alert")).toContainText("저장 여부를 알 수 없습니다.");
   await expect(input).toBeDisabled();
-  await page.getByRole("button", { name: /^기본 정보/ }).click();
-  await expect(page.getByRole("button", { name: /^기본 정보/ })).toContainText("결과 확인 필요");
-  await page.getByRole("button", { name: /^기본 정보/ }).click();
+  await page.getByRole("button", { name: /^기본 정보(?! 저장)/ }).click();
+  await expect(page.getByRole("button", { name: /^기본 정보(?! 저장)/ })).toContainText("결과 확인 필요");
+  await page.getByRole("button", { name: /^기본 정보(?! 저장)/ }).click();
   await page.getByRole("button", { name: "같은 요청 다시 확인", exact: true }).click();
   await expect(page.getByRole("status").filter({ hasText: "자료 종류를 저장했습니다." })).toBeVisible();
   expect(attempts[1]).toEqual(attempts[2]);
@@ -771,9 +771,9 @@ test("basic save preserves property edits and searchable archived selection at e
   );
   await page.goto(`/settings/entity-types/${materials.id}`);
   await page.getByLabel("속성 이름", { exact: true }).fill("保留する属性");
-  await page.getByRole("button", { name: /^기본 정보/ }).click();
+  await page.getByRole("button", { name: /^기본 정보(?! 저장)/ }).click();
   await page.getByLabel("자료 종류 이름", { exact: true }).fill("新しい基本情報");
-  await page.getByRole("button", { name: "저장", exact: true }).click();
+  await page.getByRole("button", { name: "기본 정보 저장", exact: true }).click();
   await expect(page.getByRole("status").filter({ hasText: "자료 종류를 저장했습니다." })).toBeVisible();
   await expect(page.getByLabel("속성 이름", { exact: true })).toHaveValue("保留する属性");
   await page.getByLabel("자료 종류 검색", { exact: true }).fill("보관");
@@ -783,10 +783,53 @@ test("basic save preserves property edits and searchable archived selection at e
     "보관 자료 (보관)",
   ]);
   await page.evaluate(() => document.documentElement.style.fontSize = "200%");
-  const toggle = page.getByRole("button", { name: /^기본 정보/ });
+  const toggle = page.getByRole("button", { name: /^기본 정보(?! 저장)/ });
   await toggle.focus();
   await page.keyboard.press("Enter");
   await expect(toggle).toHaveAttribute("aria-expanded", "false");
   await expect(toggle).toBeFocused();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});
+
+test("lost creation response replays one result and selects its workspace", async ({ page }) => {
+  const saved = type(4, "응답 유실 자료");
+  const attempts: { key: string; body: unknown }[] = [];
+  const created = new Map<string, EntityType>();
+  await page.route("**/api/entity-types{,?**}", (route) => {
+    if (route.request().method() !== "POST") {
+      return route.fulfill({ json: { items: [...created.values()], next_cursor: null } });
+    }
+    const key = route.request().headers()["idempotency-key"];
+    attempts.push({ key, body: route.request().postDataJSON() });
+    if (!created.has(key)) created.set(key, saved);
+    if (attempts.length === 1) return route.abort();
+    return route.fulfill({ json: created.get(key) });
+  });
+  await page.route(`**/api/entity-types/${saved.id}**`, (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname.endsWith("/schema")) {
+      return route.fulfill({ json: { type_id: saved.id, schema_version: 1, ...initialEntityDefinition("제목") } });
+    }
+    if (url.pathname.endsWith("/schemas") || url.pathname.endsWith("/schema-changes")) {
+      return route.fulfill({ json: { items: [], next_before: null } });
+    }
+    return route.fulfill({ json: saved });
+  });
+  await page.goto("/settings/entity-types");
+  const name = page.getByLabel("자료 종류 이름", { exact: true });
+  await name.fill("응답 유실 자료");
+  await page.getByLabel("대표 속성 이름", { exact: true }).fill("제목");
+  await page.getByRole("button", { name: "자료 종류 만들기", exact: true }).click();
+  await expect(page.getByRole("alert")).toContainText("저장 여부를 알 수 없습니다.");
+  await expect(name).toHaveValue("응답 유실 자료");
+  await expect(name).toBeDisabled();
+  await page.getByRole("button", { name: "같은 요청 다시 확인", exact: true }).click();
+  await expect(page.getByLabel("자료 종류 선택", { exact: true })).toHaveValue(saved.id);
+  await expect(page).toHaveURL(new RegExp(`/settings/entity-types/${saved.id}$`));
+  await expect(page.getByLabel("자료 종류 선택", { exact: true })).toBeFocused();
+  await page.getByRole("button", { name: /^기본 정보(?! 저장)/ }).click();
+  await expect(page.getByRole("button", { name: "기본 정보 저장", exact: true })).toBeVisible();
+  expect(attempts).toHaveLength(2);
+  expect(attempts[0]).toEqual(attempts[1]);
+  expect(created.size).toBe(1);
 });

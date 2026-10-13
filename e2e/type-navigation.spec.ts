@@ -16,7 +16,7 @@ test("settings type creation opens typed entity creation, immutable detail, and 
   let typeId: string | undefined;
   try {
     await page.goto("/settings");
-    await page.getByRole("link", { name: "자료 종류·속성", exact: true }).click();
+    await page.getByRole("link", { name: "자료 설정", exact: true }).click();
     await page.getByLabel("자료 종류 이름", { exact: true }).fill(label);
     const creating = page.waitForResponse((response) =>
       new URL(response.url()).pathname.endsWith("/entity-types") && response.request().method() === "POST"
@@ -49,10 +49,11 @@ test("settings type creation opens typed entity creation, immutable detail, and 
     await closeDetail(page, title);
     await expect(page).toHaveURL(new RegExp(`entity_type_id=${typeId}`));
     expect(new URL(page.url()).searchParams.get("keyword")).toBe(title);
-    await page.getByRole("link", { name: "자료 종류·속성 관리", exact: true }).click();
+    await page.getByRole("link", { name: "자료 설정", exact: true }).click();
     await expect(page).toHaveURL(new RegExp(`/settings/entity-types/${typeId}$`));
     await expect(page.getByRole("button", { name: /^내 프로필(?: · .+)?$/, exact: true })).toHaveAttribute("data-current", "true");
     await page.reload();
+    await page.getByRole("button", { name: /^기본 정보(?! 저장)/ }).click();
     await expect(page.getByLabel("자료 종류 이름", { exact: true })).toHaveValue(label);
   } finally {
     if (typeId) {
