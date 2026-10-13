@@ -107,7 +107,7 @@ test("원본 복구: 웹 키보드 생성·분석→MCP 실행→자료·연결�
     expect((await mcp.call("get_entity_type", { type_id: type.id })).label).toBe(label);
     expect((await mcp.call("get_entity_type", { type_id: type.id })).icon_id).toBe("star");
     await page.reload();
-    await expect(page.getByRole("heading", { level: 1 })).toContainText(label);
+    await expect(page.locator(".material-settings-current")).toContainText(label);
     await page.setViewportSize({ width: 320, height: 750 });
     await expect(page.getByRole("status").filter({ hasText: /^(접수|실행 중|완료|취소) · / })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
