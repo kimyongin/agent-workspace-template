@@ -32,7 +32,7 @@ test("값 변환 준비: 저장된 직접 링크·실패 행 보완·재분석·
     await expect(page.getByRole("heading", { name: "변경 검토" })).toBeVisible();
     await page.reload();
     await expect(page.getByRole("heading", { name: "변경 검토" })).toBeVisible();
-    await page.getByRole("button", { name: "검토 계속", exact: true }).click();
+    await page.getByRole("button", { name: "변경 검토", exact: true }).click();
     await expect.poll(async () => {
       await schemaAnalysisTick();
       return (await mcp.call("get_entity_schema_change", { type_id: typeId, change_id: plan.id })).analysis?.status;

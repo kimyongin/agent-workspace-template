@@ -548,11 +548,9 @@ test(
     const properties = page.getByRole("region", { name: "입력 항목",
       exact: true,
     });
-    await page.getByRole("button", { name: /^화면 표시/ }).click();
-    const display = page.getByRole("region", { name: "화면 표시", exact: true });
-    await expect(display.getByRole("table")).toHaveCount(0);
-    const left = await properties.boundingBox(), right = await display.boundingBox();
-    expect(left!.y + left!.height).toBeLessThanOrEqual(right!.y);
+    await expect(page.getByRole("region", { name: "화면 표시", exact: true })).toHaveCount(0);
+    await expect(properties.getByLabel("자료 이름으로 사용할 항목")).toHaveValue("prop_1");
+    await expect(properties.getByRole("button", { name: "변경 검토", exact: true })).toBeDisabled();
     await page.screenshot({ path: info.outputPath("property-display-settings.png"), fullPage: true });
     await properties.getByLabel("항목 이름", { exact: true }).filter({
       visible: true,
@@ -567,8 +565,7 @@ test(
       expect(
       await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth),
     ).toBe(true);
-      const propertyBounds = await properties.boundingBox(), displayBounds = await display.boundingBox();
-      expect(propertyBounds!.y + propertyBounds!.height).toBeLessThanOrEqual(displayBounds!.y);
+      await expect(properties.getByRole("button", { name: /위로$/ }).first()).toBeVisible();
     }
     await properties.locator(".schema-field .material-section-toggle[aria-expanded=true]").focus();
     await page.keyboard.press("Enter");

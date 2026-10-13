@@ -5,10 +5,10 @@ import {
   fieldTypeLabel,
   schemaChangeLabels,
   schemaDiffLabel,
+  schemaDiffValueLabel,
   schemaValueLabel,
 } from "./schema-labels.ts";
-import { SchemaDisplaySettings } from "./SchemaDisplaySettings.tsx";
-import { MaterialSettingsSection } from "./MaterialSettingsSection.tsx";
+import { SchemaRepresentativeSetting } from "./SchemaRepresentativeSetting.tsx";
 import { MigrationStart } from "./SchemaMigrationJobs.tsx";
 import { Link, useLocation, useNavigate } from "react-router";
 import { ConversionEditor } from "./ConversionEditor.tsx";
@@ -103,6 +103,7 @@ export function SchemaEditor(
     readBusy,
     startState,
     migrationEdited,
+    analysisPending,
   } = editor.view;
   const {
     editField,
@@ -111,6 +112,38 @@ export function SchemaEditor(
     moveField,
     loadPlan,
   } = editor;
+  const reviewSaved = propertiesOpen && plan?.status === "invalid" && plan.analysis?.status === "succeeded";
+  const analysisNeeded = plan && !dirty && !["analyzing", "applied", "cancelled", "stale"].includes(plan.status) &&
+    (!plan.analysis || plan.analysis.status === "failed");
+  const openEditing = () => {
+                setPropertiesOpen(true);
+                requestAnimationFrame(() => {
+                  propertiesHeading.current?.scrollIntoView({ block: "start" });
+                  propertiesHeading.current?.focus();
+                });
+              };
+  const moveInput = (key: string, offset: number) => {
+    moveField(key, offset);
+    requestAnimationFrame(() => {
+      const element = fieldElements.current[key];
+      const buttons = element?.querySelectorAll<HTMLButtonElement>(".schema-order-actions button");
+      const same = buttons?.[offset < 0 ? 0 : 1];
+      if (same && !same.matches(":disabled")) same.focus();
+      else {(element?.querySelector<HTMLButtonElement>(".schema-order-actions button:not(:disabled)") ??
+          element?.querySelector<HTMLButtonElement>("h3 button"))?.focus();}
+    });
+  };
+  const newEditing = async () => {
+    if (busy || uncertain || dirty || readBusy || disabled || !await editor.refreshDefinition()) return;
+    requestAnimationFrame(() => {
+      if (!propertiesHeading.current) return;
+      editor.startNewChange();
+      const params = new URLSearchParams(location.search);
+      params.delete("change_id");
+      navigate(`${location.pathname}?${params}`);
+      openEditing();
+    });
+  };
   return (
     <div className="schema-settings">
       {error && <p role="alert" className="error-text">{error}</p>}
@@ -154,40 +187,67 @@ export function SchemaEditor(
             className="settings-fields"
             disabled={busy || uncertain || disabled || readBusy || startState.busy || startState.uncertain}
           >
-            {draft.display.order.map((key) => {
+            <SchemaRepresentativeSetting
+              draft={draft}
+              disabled={Boolean(plan?.recovery)}
+              chooseRepresentative={editor.chooseRepresentative}
+            />
+            {draft.display.order.map((key, index) => {
               const f = draft.schema.properties[key],
                 scalar = fieldType(f) ?? "string";
               return (
                 <section
                   className="schema-field"
                   key={key}
-                  aria-label={`${f.title ?? "새 항목"} 속성`}
+                  aria-label={`${f.title || "새 항목"} 속성`}
                   ref={(element) => {
                     fieldElements.current[key] = element;
                   }}
                 >
-                  <h3>
-                    <button
-                      className="material-section-toggle"
-                      type="button"
-                      aria-label={`${f.title ?? "새 항목"} 속성 편집`}
-                      aria-expanded={openFields.includes(key)}
-                      aria-controls={`schema-field-${key}`}
-                      onClick={() =>
+                  <div className="schema-field-heading">
+                    <h3>
+                      <button
+                        className="material-section-toggle"
+                        type="button"
+                        aria-label={`${f.title || "새 항목"} 속성 편집`}
+                        aria-expanded={openFields.includes(key)}
+                        aria-controls={`schema-field-${key}`}
+                        onClick={() =>
                         setOpenFields((keys) =>
                           keys.includes(key) ? keys.filter((value) => value !== key) : [...keys, key]
                         )}
-                    >
-                      <span>{f.title ?? "새 항목"}</span>
-                      <span className="secondary">
+                      >
+                        <span>{f.title || "새 항목"}</span>
+                        <span className="secondary">
                         <span>{fieldTypeLabel(f)}</span>
                         {draft.schema.required.includes(key) && <span className="schema-badge">필수</span>}
                         {draft.display.archived.includes(key) && <span className="schema-badge">사용 중지</span>}
                         {changedFields.includes(key) && <span className="schema-badge">변경됨</span>}
                         {fieldError === key && <span className="schema-badge error-text">오류</span>}
                       </span>
-                    </button>
-                  </h3>
+                      </button>
+                    </h3>
+                    <div className="schema-order-actions">
+                      <button
+                        type="button"
+                        className="btn"
+                        aria-label={`${f.title || "새 항목"} 위로`}
+                        disabled={index === 0 || Boolean(plan?.recovery)}
+                        onClick={() => moveInput(key, -1)}
+                      >
+                        ↑
+                      </button>
+                      <button
+                        type="button"
+                        className="btn"
+                        aria-label={`${f.title || "새 항목"} 아래로`}
+                        disabled={index === draft.display.order.length - 1 || Boolean(plan?.recovery)}
+                        onClick={() => moveInput(key, 1)}
+                      >
+                        ↓
+                      </button>
+                    </div>
+                  </div>
                   <fieldset
                     className="settings-fields"
                     id={`schema-field-${key}`}
@@ -311,6 +371,21 @@ export function SchemaEditor(
                       />{" "}
                       필수 입력
                     </label>
+                        <label>
+                          <input
+                            type="checkbox"
+                            aria-label={`${f.title || "새 항목"} 목록에 표시`}
+                            checked={draft.display.list_columns.includes(key)}
+                            disabled={unreservedFields.includes(key) || draft.display.archived.includes(key)}
+                            onChange={(event) => editFlag(key, "list_columns", event.target.checked)}
+                          />{" "}
+                          목록에 표시
+                        </label>
+                        {unreservedFields.includes(key) && (
+                          <p className="secondary">
+                            새 항목은 변경 검토 후 자료 이름과 목록 표시를 선택할 수 있습니다.
+                          </p>
+                        )}
 
                         <Field label="설명">
                           {(p) => (
@@ -484,13 +559,15 @@ export function SchemaEditor(
                             disabled={key === draft.display.representative}
                             onClick={() => setDeleteKey(key)}
                           >
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7" /></svg>항목 삭제
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
+                              <path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7" />
+                            </svg>항목 삭제
                           </button>
                         </div>
                         {key === draft.display.representative && (
                           <p className="secondary">
-                            자료 이름으로 쓰는 항목입니다. 화면 표시에서 다른 항목을 선택한 뒤 사용 중지하거나
-                            삭제하세요.
+                            자료 이름으로 쓰는 항목입니다. 위에서 자료 이름으로 사용할 다른 항목을 선택한 뒤 사용
+                            중지하거나 삭제하세요.
                           </p>
                         )}
                       </div>
@@ -500,45 +577,42 @@ export function SchemaEditor(
               );
             })}
           </fieldset>
-        </section>
-        <MaterialSettingsSection title="화면 표시">
-        <SchemaDisplaySettings
-          draft={draft}
-          disabled={busy || uncertain || disabled || readBusy || startState.busy || startState.uncertain ||
-            Boolean(plan?.recovery)}
-          chooseRepresentative={editor.chooseRepresentative}
-          editFlag={editFlag}
-          moveField={moveField}
-        />
-        </MaterialSettingsSection>
-      </div>
-      {!plan?.recovery && (!plan || dirty || uncertain) && (
-        <div className="settings-section-footer schema-review-actions">
-          <p className="secondary">
+          {propertiesOpen && <p className="secondary">항목 순서는 입력·상세·목록에 함께 적용됩니다.</p>}
+          {!plan?.recovery && (!plan || dirty || reviewSaved) && (
+            <div className="settings-section-footer schema-review-actions">
+              <p className="secondary">
             {dirty
               ? `변경 ${changeCount}개 · 검토 후 자료에 적용됩니다.`
               : plan && plan.status !== "applied"
               ? "저장한 변경안입니다. 아직 자료에 적용되지 않았습니다."
               : "현재 적용된 설정입니다."}
           </p>
-          <div className="actions">
-            <button
+              <div className="actions">
+                <button
               className="btn"
               disabled={busy || uncertain || !dirty}
               onClick={editor.cancelEditing}
             >
               변경 취소
             </button>
-            <button
-              className="btn btn-primary"
-              disabled={busy || disabled || Boolean(plan?.recovery) || (!dirty && !uncertain)}
-              onClick={() => void editor.review()}
-            >
-              {busy ? "처리 중…" : uncertain ? "같은 요청 다시 확인" : migrationEdited ? "보완 내용 검토" : "변경 검토"}
-            </button>
-          </div>
-        </div>
-      )}
+                <button
+                  className="btn btn-primary"
+                  disabled={busy || disabled || readBusy || startState.busy || startState.uncertain ||
+                    Boolean(plan?.recovery) || (!dirty && !uncertain && !reviewSaved)}
+                  onClick={() => void editor.review()}
+                >
+                  {busy ? "처리 중…" : uncertain ? "같은 요청 다시 확인" : migrationEdited ? "보완 내용 검토" : "변경 검토"}
+                </button>
+              </div>
+            </div>
+          )}
+          {!propertiesOpen && !plan && (
+            <div className="schema-actions">
+              <button className="btn" onClick={openEditing}>항목 편집</button>
+            </div>
+          )}
+        </section>
+      </div>
       {plan && (
         <section className="schema-summary" aria-label="속성 변경 요약" data-change-version={plan.version}>
           <h2 ref={reviewHeading} tabIndex={-1}>변경 검토</h2>
@@ -584,27 +658,19 @@ export function SchemaEditor(
             상태: {schemaChangeLabels[plan.status]} ·{" "}
             {plan.change_kind === "compatible" ? "검토 완료 후 적용 가능" : "자료 값 변환 필요"}
           </p>
-          <ul>
+          <dl className="schema-change-list">
             {plan.diff.map((d, i) => (
-              <li key={i}>
-                <strong>{schemaDiffLabel(d.path, plan.target, definition)}</strong>: {d.before_present
-                  ? schemaValueLabel(
-                    d.before,
-                    /^(?:display\.)?(representative|order|list_columns|archived)$/.test(d.path)
-                      ? definition
-                      : undefined,
-                  )
-                  : "미지정"} → {d.after_present
-                  ? schemaValueLabel(
-                    d.after,
-                    /^(?:display\.)?(representative|order|list_columns|archived)$/.test(d.path)
-                      ? plan.target
-                      : undefined,
-                  )
-                  : "미지정"} · {d.reason} · {d.next_action}
-              </li>
+              <div key={i}>
+                <dt>{schemaDiffLabel(d.path, plan.target, definition)}</dt>
+                <dd>
+                  {d.before_present ? schemaDiffValueLabel(d.path, d.before, definition) : "설정 안 함"}
+                  {" → "}
+                  {d.after_present ? schemaDiffValueLabel(d.path, d.after, plan.target) : "설정 안 함"}
+                  {d.kind === "migration_required" && <span className="secondary">· 값 변환 필요</span>}
+                </dd>
+              </div>
             ))}
-          </ul>
+          </dl>
           {plan.analysis && (
             <div className="schema-analysis-status" role="status">
               <strong>
@@ -654,7 +720,7 @@ export function SchemaEditor(
             </details>
           )}
           {plan.change_kind === "migration_required" || plan.recovery || migration.rules.length > 0 ||
-              migration.overrides.length > 0
+              migration.overrides.length > 0 || (plan.analysis?.failed ?? 0) > 0
             ? (
               <ConversionEditor
                 key={plan.id}
@@ -664,17 +730,7 @@ export function SchemaEditor(
                 disabled={busy || uncertain || disabled || Boolean(plan.recovery)}
               />
             )
-            : (
-              <details>
-                <summary>값 변환 준비</summary>
-                <ConversionEditor
-                  plan={plan}
-                  migration={migration}
-                  onChange={editor.editMigration}
-                  disabled={busy || uncertain || disabled}
-                />
-              </details>
-            )}
+            : null}
           {plan.analysis && plan.analysis.failed > 0 && (
             <p>
               실패한 자료 값을 확인하여 직접 수정하거나 값 변환 변경을 준비한 뒤 다시 분석하세요. 실패가 있으면 게시할
@@ -701,52 +757,66 @@ export function SchemaEditor(
                 : "정의나 자료가 변경되었습니다. 최신 정의를 확인하고 새 변경을 만드세요."}
             </p>
           )}
-          {plan.status === "applied" && (
-            <button
-              className="btn"
-              disabled={readBusy}
-              onClick={() => void editor.refreshDefinition()}
-            >
-              최신 정의 다시 조회
-            </button>
-          )}
           <div className="schema-actions">
-            <button
-              className="btn"
-              disabled={busy || uncertain}
-              onClick={() => {
-                setPropertiesOpen(true);
-                requestAnimationFrame(() => {
-                  propertiesHeading.current?.scrollIntoView({ block: "start" });
-                  propertiesHeading.current?.focus();
-                });
-              }}
-            >
-              편집으로 돌아가기
-            </button>
-            <button
-              className="btn"
-              disabled={busy || uncertain || dirty ||
-                ["analyzing", "applied", "cancelled", "stale"].includes(plan.status)}
-              onClick={() => void editor.analyze()}
-            >
-              {plan.analysis ? "다시 검토" : "검토 계속"}
-            </button>
-            <button
-              className="btn"
-              disabled={busy || uncertain || dirty}
-              onClick={editor.startNewChange}
-            >
-              새 변경 시작
-            </button>
-            <button
-              className="btn btn-primary"
-              disabled={busy || uncertain || dirty || plan.status !== "ready" || plan.change_kind !== "compatible" ||
-                plan.analysis?.failed !== 0}
-              onClick={() => void editor.publish()}
-            >
+            {["applied", "cancelled", "stale"].includes(plan.status)
+              ? (
+                <>
+                  {plan.status === "applied" && definition.schema_version <= plan.source_schema_version && (
+                    <button
+                      className="btn"
+                      disabled={busy || uncertain || readBusy}
+                      onClick={() => void editor.refreshDefinition()}
+                    >
+                      최신 설정 다시 조회
+                    </button>
+                  )}
+                  <button
+                    className="btn btn-primary"
+                    disabled={busy || uncertain || dirty || readBusy || disabled ||
+                      plan.status === "applied" && definition.schema_version <= plan.source_schema_version}
+                    onClick={() => void newEditing()}
+                  >
+                    항목 편집
+                  </button>
+                </>
+              )
+              : (
+                <>
+                  <button className="btn" disabled={busy || uncertain} onClick={openEditing}>편집으로 돌아가기</button>
+                  {uncertain && !dirty
+                    ? (
+                      <button
+                        className="btn btn-primary"
+                        disabled={busy || disabled}
+                        onClick={() => void editor.review()}
+                      >
+                        같은 요청 다시 확인
+                      </button>
+                    )
+                    : analysisPending || plan.status === "analyzing"
+                    ? <button className="btn btn-primary" disabled>검토 중…</button>
+                    : analysisNeeded
+                    ? (
+                      <button
+                        className="btn btn-primary"
+                        disabled={busy || uncertain || disabled || readBusy}
+                        onClick={() => void editor.analyze()}
+                      >
+                        {plan.analysis ? "검토 재시도" : "변경 검토"}
+                      </button>
+                    )
+                    : plan.change_kind === "compatible" && (
+                      <button
+                        className="btn btn-primary"
+                        disabled={busy || uncertain || dirty || disabled || readBusy || plan.status !== "ready" ||
+                          plan.analysis?.failed !== 0}
+                        onClick={() => void editor.publish()}
+                      >
               변경 적용
             </button>
+                    )}
+                </>
+              )}
           </div>
         </section>
       )}
@@ -794,8 +864,7 @@ export function SchemaEditor(
     </div>
   );
 }
-export function SchemaVersionDiff({ before, after }: { before: EntitySchemaVersion; after: EntitySchemaVersion },
-) {
+export function SchemaVersionDiff({ before, after }: { before: EntitySchemaVersion; after: EntitySchemaVersion }) {
   const paths = [...new Set([...Object.keys(before.schema.properties), ...Object.keys(after.schema.properties)])];
   const names: Record<string, string> = {
     title: "이름",
@@ -851,7 +920,8 @@ export function SchemaVersionDiff({ before, after }: { before: EntitySchemaVersi
             JSON.stringify(after.display[name as keyof typeof displayNames])
         ).map(([name, label]) => (
           <li key={name}>
-            {label}: {schemaValueLabel(before.display[name as keyof typeof displayNames], before)} → {schemaValueLabel(after.display[name as keyof typeof displayNames], after)}
+            {label}: {schemaValueLabel(before.display[name as keyof typeof displayNames], before)} →{" "}
+            {schemaValueLabel(after.display[name as keyof typeof displayNames], after)}
           </li>
         ))}
         {[...new Set([...Object.keys(before.display.option_labels), ...Object.keys(after.display.option_labels)])]
@@ -863,7 +933,8 @@ export function SchemaVersionDiff({ before, after }: { before: EntitySchemaVersi
               {" "}
               {Object.entries(before.display.option_labels[key] ?? {}).map(([code, label]) => `${code}: ${label}`).join(
                 ", ",
-              ) || "없음"} → {Object.entries(after.display.option_labels[key] ?? {}).map(([code, label]) => `${code}: ${label}`).join(
+              ) || "없음"} →{" "}
+              {Object.entries(after.display.option_labels[key] ?? {}).map(([code, label]) => `${code}: ${label}`).join(
                 ", ",
               ) || "없음"}
             </li>

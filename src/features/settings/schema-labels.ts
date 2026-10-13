@@ -68,3 +68,15 @@ export function schemaValueLabel(value: unknown, definition?: SchemaDefinition):
     ? definition?.schema.properties[value]?.title ?? "속성"
     : String(value);
 }
+
+/** Review values use the input labels rather than schema storage spellings. */
+export function schemaDiffValueLabel(path: string, value: unknown, definition: SchemaDefinition): string {
+  if (path.endsWith(".required") && typeof value === "boolean") return value ? "필수" : "선택";
+  if (path.endsWith(".type") && (typeof value === "string" || Array.isArray(value))) {
+    return fieldTypeLabel({ type: value as EntityField["type"] });
+  }
+  return schemaValueLabel(
+    value,
+    /^(?:display\.)?(representative|order|list_columns|archived)$/.test(path) ? definition : undefined,
+  );
+}

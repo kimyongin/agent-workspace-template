@@ -69,7 +69,7 @@ test("원본 복구: 웹 키보드 생성·분석→MCP 실행→자료·연결�
     await expect(page.getByRole("button", { name: "변경 초안 저장", exact: true })).toHaveCount(0);
     // Creating a recovery plan must not execute or restore values.
     expect((await mcp.call("get_entity", { id: entity.id })).properties.prop_2).toBe(7);
-    await page.getByRole("button", { name: "검토 계속", exact: true }).click();
+    await page.getByRole("button", { name: "변경 검토", exact: true }).click();
     await expect.poll(async () => {
       await schemaAnalysisTick();
       return (await mcp.call("get_entity_schema_change", { type_id: type.id, change_id: recovery.id })).executable;

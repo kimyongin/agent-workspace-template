@@ -61,6 +61,8 @@ export function useSchemaChangeEditor(
     [readBusy, setReadBusy] = useState(false);
   const { attempt, busy, uncertain } = useWriteAttempt();
   const mounted = useRef(true);
+  const latestDefinition = useRef(definition);
+  latestDefinition.current = definition;
   const seenDefinition = useRef({ typeId: type.id, version: definition.schema_version });
   const planRead = useRef<{ epoch: number; controller: AbortController | null }>({ epoch: 0, controller: null });
   const dirty = Object.keys(numericDrafts).length > 0 || JSON.stringify(draft) !== JSON.stringify(saved) ||
@@ -72,7 +74,7 @@ export function useSchemaChangeEditor(
     planRead.current = { epoch: planRead.current.epoch + 1, controller: null };
   };
   const applyPlan = (value: EntitySchemaChange | null) => {
-    const target = value?.target ?? definition;
+    const target = value?.target ?? latestDefinition.current;
     onFieldKeysChanged(
       Object.fromEntries(Object.entries(value?.reservations ?? {}).map(([ref, key]) => [`new_${ref}`, key])),
     );
@@ -555,24 +557,26 @@ export function useSchemaChangeEditor(
     }
   };
   const review = () => {
+    if (!uncertain && !editable()) return;
+    if (!uncertain && !dirty && plan) return analyze();
     if (uncertain || validateFields()) return write("save");
     return Promise.resolve();
   };
   const analyze = () => {
-    if (!uncertain && !dirty && plan && !["analyzing", "applied", "cancelled", "stale"].includes(plan.status)) {
+    if (editable() && !dirty && plan && !["analyzing", "applied", "cancelled", "stale"].includes(plan.status)) {
       return write("analyze");
     }
   };
   const publish = () => {
     if (
-      !uncertain && !dirty && plan?.status === "ready" && plan.change_kind === "compatible" &&
+      editable() && !dirty && plan?.status === "ready" && plan.change_kind === "compatible" &&
       plan.analysis?.failed === 0
     ) {
       return write("apply");
     }
   };
   const startNewChange = () => {
-    if (busy || uncertain || dirty) return;
+    if (busy || uncertain || dirty || disabled || readBusy) return;
     cancelPlanRead();
     setReadBusy(false);
     applyPlan(null);
@@ -580,11 +584,19 @@ export function useSchemaChangeEditor(
   const refreshDefinition = async () => {
     setReadBusy(true);
     try {
-      await onApplied();
+      const failure = await onApplied();
+      if (!mounted.current) return false;
+      if (failure) {
+        setError(failure);
+        return false;
+      }
+      setError("");
+      return true;
     } catch (e) {
       if (mounted.current) {
         setError(e instanceof Error ? e.message : "조회 실패");
       }
+      return false;
     } finally {
       if (mounted.current) setReadBusy(false);
     }
@@ -633,6 +645,7 @@ export function useSchemaChangeEditor(
       uncertain,
       readBusy,
       startState,
+      analysisPending: acceptedAnalysis !== null,
       migrationEdited: JSON.stringify(migration) !== JSON.stringify(plan?.migration ?? { rules: [], overrides: [] }),
     },
     editField,
