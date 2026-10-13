@@ -550,6 +550,13 @@ test(
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth),
     ).toBe(true);
+    for (const width of [320, 390, 639, 640, 1023, 1024, 1440]) {
+      await page.setViewportSize({ width, height: 900 });
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+      const propertyBounds = await properties.boundingBox(), displayBounds = await display.boundingBox();
+      if (width >= 1024) expect(propertyBounds!.x + propertyBounds!.width).toBeLessThanOrEqual(displayBounds!.x);
+      else expect(propertyBounds!.y + propertyBounds!.height).toBeLessThanOrEqual(displayBounds!.y);
+    }
     await properties.getByRole("button", { name: "편집 닫기", exact: true }).focus();
     await page.keyboard.press("Enter");
     await expect(properties.getByLabel("속성 이름", { exact: true }).filter({ visible: true })).toHaveCount(0);
