@@ -1,4 +1,4 @@
-// Fail closed: only proved documentation/static presentation edits avoid integration.
+// Fail closed: known web-only edits avoid unchanged server integration; shared/unknown edits stay full.
 import { parse } from "@babel/parser";
 import { execFileSync } from "node:child_process";
 import { appendFileSync, readFileSync } from "node:fs";
@@ -80,6 +80,23 @@ export function presentationCss(before, after) {
 // under docs remain full; placing a file in docs is not enough to skip runtime checks.
 const isDocument = (path) => /^docs\/.*\.(?:md|html|txt|svg|png|jpe?g|webp|gif|pdf)$/.test(path);
 
+// Only existing browser-owned areas qualify. Auth, transport, shared contracts,
+// execution config/tools and unknown future areas retain full verification.
+function isWebPath(path) {
+  if (/auth|oauth|token|login|logout|consent/i.test(path)) return false;
+  return /^src\/(?:features\/(?:activity|collections|details|entity|principles|relations|search|settings|status|tags)\/|components\/|styles\/).*\.(?:ts|tsx|css)$/.test(path)
+    || /^e2e\/[^/]+\.(?:spec|fixture)\.ts$/.test(path)
+    || /^e2e\/fixtures\/[^/]+\.(?:tsx|html)$/.test(path);
+}
+
+function webChange({ status, path, oldPath, before, after }) {
+  if (!isWebPath(path)) return false;
+  if (/^R\d+$/.test(status)) return isWebPath(oldPath ?? "");
+  if (status === "D") return true;
+  return status === "A" && typeof after === "string"
+    || status === "M" && typeof before === "string" && typeof after === "string";
+}
+
 export function classifyChanges(changes, { forceFull = false } = {}) {
   if (forceFull) return { mode: "full", reasons: ["forced full verification"] };
   if (!changes.length) return { mode: "full", reasons: ["empty or unavailable diff"] };
@@ -87,18 +104,18 @@ export function classifyChanges(changes, { forceFull = false } = {}) {
   for (const { status, path, oldPath, before, after } of changes) {
     let kind = "full";
     if (isDocument(path) && (["M", "A", "D"].includes(status) || /^R\d+$/.test(status) && isDocument(oldPath ?? ""))) kind = "docs";
-    else if (["M", "A"].includes(status) && typeof after === "string") {
-      if (/^(?:docs\/|\.agents\/skills\/).*\.md$/.test(path) || /^(?:README|AGENTS|CLAUDE)\.md$/.test(path)) kind = "docs";
-      else if (status === "M" && typeof before === "string") {
-        if (/^src\/(?:features\/(?!auth\/)|components\/).*\.tsx$/.test(path) && !/auth|oauth|token/i.test(path) && presentationTsx(before, after)) kind = "presentation";
-        else if (/^src\/styles\/.*\.css$/.test(path) && presentationCss(before, after)) kind = "presentation";
-      }
+    else if (webChange({ status, path, oldPath, before, after })) {
+      kind = "web";
+      if (status === "M" && /^src\/.*\.tsx$/.test(path) && presentationTsx(before, after)) kind = "presentation";
+      else if (status === "M" && /^src\/styles\/.*\.css$/.test(path) && presentationCss(before, after)) kind = "presentation";
+    } else if (["M", "A"].includes(status) && typeof after === "string") {
+      if (/^(?:docs\/|\.agents\/skills\/).*\.md$/.test(path) || /^(?:README|AGENTS|CLAUDE|GLOSSARY)\.md$/.test(path)) kind = "docs";
     }
     kinds.add(kind);
     reasons.push(`${status} ${path}: ${kind}`);
   }
-  // Documentation accompanying presentation evidence does not increase runtime risk.
-  const mode = kinds.has("full") ? "full" : kinds.has("presentation") ? "presentation" : "docs";
+  // Documentation accompanying browser evidence does not increase runtime risk.
+  const mode = kinds.has("full") ? "full" : kinds.has("web") ? "web" : kinds.has("presentation") ? "presentation" : "docs";
   return { mode, reasons };
 }
 
@@ -147,7 +164,7 @@ export function main(env = process.env) {
   }
   console.log(JSON.stringify({ ...result, range }, null, 2));
   if (env.GITHUB_OUTPUT) appendFileSync(env.GITHUB_OUTPUT, `mode=${result.mode}\n`);
-  if (env.GITHUB_STEP_SUMMARY) appendFileSync(env.GITHUB_STEP_SUMMARY, `### Change impact: ${result.mode}\n\n${range ? `Comparison: ${range.base} → ${range.head}\n\n` : ""}${result.reasons.map((reason) => `- ${reason.replace(/[\r\n]/g, " ")}`).join("\n")}\n\n${result.mode === "full" ? "Full check and isolated integration required." : "Heavy server/DB/HTTP/MCP steps omitted; presentation still requires ticketed viewport/keyboard/focus checks."}\n\nBrowser E2E runs locally as needed; it is not part of CI.\n`);
+  if (env.GITHUB_STEP_SUMMARY) appendFileSync(env.GITHUB_STEP_SUMMARY, `### Change impact: ${result.mode}\n\n${range ? `Comparison: ${range.base} → ${range.head}\n\n` : ""}${result.reasons.map((reason) => `- ${reason.replace(/[\r\n]/g, " ")}`).join("\n")}\n\n${result.mode === "full" ? "Full check and isolated integration required." : "Unchanged server/DB/HTTP/MCP steps omitted; browser changes still require scoped local E2E including actual auth/storage/API paths when affected."}\n\nBrowser E2E runs locally as needed; it is not part of CI.\n`);
   return result;
 }
 

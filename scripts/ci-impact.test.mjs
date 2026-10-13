@@ -1,10 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, writeFileSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
-import { classifyChanges, comparisonRange, presentationCss, presentationTsx } from "./ci-impact.mjs";
+import { classifyChanges, comparisonRange, gitChanges, presentationCss, presentationTsx } from "./ci-impact.mjs";
 
 const change = (path, before, after, status = "M") => ({ path, before, after, status });
 const mode = (...changes) => classifyChanges(changes).mode;
@@ -31,16 +31,16 @@ test("only static JSX text/intrinsic display attributes qualify; AST behavior an
   assert.equal(presentationTsx('<div dangerouslySetInnerHTML={html}>old</div>', '<div dangerouslySetInnerHTML={html}>new</div>'), false);
 });
 
-test("input children and class names cannot bypass full verification; safe display labels still qualify", () => {
+test("input children and class names require web verification rather than static presentation", () => {
   for (const tag of ["option", "textarea", "select", "input"]) {
     const before = `<${tag}>public</${tag}>`, after = `<${tag}>private</${tag}>`;
     assert.equal(presentationTsx(before, after), false, tag);
-    assert.equal(mode(change('src/features/activity/forms.tsx', before, after)), 'full', tag);
+    assert.equal(mode(change('src/features/activity/forms.tsx', before, after)), 'web', tag);
   }
   for (const className of ["visually-hidden", "hidden", "other-layout"]) {
     const after = component.replace('className="old"', `className="${className}"`);
     assert.equal(presentationTsx(component, after), false, className);
-    assert.equal(mode(change('src/components/Field.tsx', component, after)), 'full', className);
+    assert.equal(mode(change('src/components/Field.tsx', component, after)), 'web', className);
   }
   assert.equal(presentationTsx('<input placeholder="Old" aria-label="Old" />', '<input placeholder="New" aria-label="New" />'), false);
   assert.equal(presentationTsx(component, component.replace("Old text", "New text")), true);
@@ -59,7 +59,7 @@ test("strict custom/input/fragment ancestry propagates through nested DOM text a
       [wrap('<div><span title="public">same</span></div>'), wrap('<div><span title="private">same</span></div>')],
     ]) {
       assert.equal(presentationTsx(before, after), false, after);
-      assert.equal(mode(change('src/components/Field.tsx', before, after)), 'full', after);
+      assert.equal(mode(change('src/components/Field.tsx', before, after)), 'web', after);
     }
   }
   assert.equal(presentationTsx('<div><span title="Old">public</span></div>', '<div><span title="New">private</span></div>'), true);
@@ -95,7 +95,7 @@ test("docs artifacts including HTML markup/script/style are docs; runtime files 
   assert.equal(mode(change('docs/overview.html',before,after),change('.github/workflows/ci.yml','old','new')), 'full');
 });
 
-test("classification defaults full for auth/config/data/tooling/mixed runtime/delete/rename/missing source", () => {
+test("classification defaults full for auth/config/data/tooling/mixed runtime and unavailable source", () => {
   assert.equal(mode(change('docs/guide.md', 'old', 'new')), 'docs');
   assert.equal(mode(change('docs/new.md', null, 'new', 'A')), 'docs');
   assert.equal(mode(change('src/features/activity/TasksPage.tsx', component, component.replace("Old text", "New text"))), 'presentation');
@@ -103,7 +103,7 @@ test("classification defaults full for auth/config/data/tooling/mixed runtime/de
     assert.equal(mode(change(path, component, component.replace("Old text", "New text"))), 'full', path);
   }
   for (const status of ['R100', 'C100', 'T', 'U']) assert.equal(mode(change('docs/guide.md', 'old', 'new', status)), 'full');
-  assert.equal(mode(change('src/features/activity/TasksPage.tsx', null, component, 'A')), 'full');
+  assert.equal(mode(change('src/features/activity/TasksPage.tsx', null, component, 'A')), 'web');
   assert.equal(mode(change('docs/guide.md', 'old', 'new'), change('src/lib/api.ts', 'old', 'new')), 'full');
   assert.equal(classifyChanges([], {}).mode, 'full');
   assert.equal(classifyChanges([change('docs/guide.md', 'old', 'new')], { forceFull: true }).mode, 'full');
@@ -139,8 +139,76 @@ test("required jobs skip draft/canceled runs; active integration explicitly fail
   assert.match(yaml, /Missing\/invalid classification.*exit 1/);
   assert.match(yaml, /workflow_dispatch:/);
   assert.doesNotMatch(yaml, /paths-ignore:|continue-on-error:/);
+  assert.match(yaml, /docs\|presentation\|web\)/);
+  assert.match(yaml, /- name: 의존 경계 검사\n        if: steps\.impact\.outputs\.mode != 'docs'/);
   const integration = yaml.slice(yaml.indexOf('  integration:'));
   for (const name of ['로컬 Supabase 준비(러너 안의 격리 DB)', 'DB 테스트', 'Edge Functions 실행', 'HTTP 계약 테스트', 'MCP 계약 테스트']) {
     assert.ok(integration.includes(`- name: ${name}\n        if: needs.check.outputs.mode == 'full'`), name);
   }
+});
+
+
+test("web-only business UI and browser scenarios avoid unchanged server integration", () => {
+  for (const path of ['src/features/settings/SchemaEditor.tsx', 'src/features/activity/forms.tsx', 'src/components/Field.tsx', 'src/features/details/detail-resource.ts', 'src/styles/app.css', 'e2e/material-schema.fixture.ts', 'e2e/detail-workspace.spec.ts', 'e2e/fixtures/workspace-screens.tsx', 'e2e/fixtures/schema-editor-read.html']) {
+    assert.equal(mode(change(path, 'old logic', 'new logic')), 'web', path);
+    for (const status of ['A', 'D']) assert.equal(mode(change(path, status === 'A' ? null : 'old', status === 'D' ? null : 'new', status)), 'web', `${status} ${path}`);
+  }
+  assert.equal(mode(change('GLOSSARY.md', 'old', 'new')), 'docs');
+  assert.equal(mode(change('docs/guide.md', 'old', 'new'), change('src/features/settings/SchemaEditor.tsx', 'old', 'new')), 'web');
+  assert.equal(classifyChanges([{status:'R100',oldPath:'src/features/details/old.ts',path:'src/features/details/new.ts'}]).mode, 'web');
+});
+
+test("web changes cannot lighten shared contracts, auth, communication, execution tools or unknown paths", () => {
+  const ui = change('src/features/settings/SchemaEditor.tsx', 'old', 'new');
+  for (const path of ['src/features/auth/AuthProvider.tsx', 'src/features/settings/auth-flow.tsx', 'src/lib/api.ts', 'src/lib/write-attempt.ts', 'src/app/App.tsx', 'src/features/new-area/unknown.ts', 'supabase/functions/_shared/contracts/task.ts', 'supabase/functions/_shared/core/activity/application.ts', 'supabase/migrations/test.sql', 'e2e/auth-profile-fixture.spec.ts', 'e2e/consent.spec.ts', 'e2e/support.ts', 'e2e/material-schema.config.ts', 'e2e/workspace-screens.tsconfig.json', 'playwright.config.ts', 'vite.config.ts', '.github/workflows/ci.yml', 'scripts/local-setup.mjs', 'package.json', 'package-lock.json']) {
+    assert.equal(mode(ui, change(path, 'old', 'new')), 'full', path);
+  }
+  for (const status of ['C100', 'T', 'U']) assert.equal(mode(change('src/features/settings/SchemaEditor.tsx', 'old', 'new', status)), 'full', status);
+  for (const oldPath of ['supabase/functions/server.ts', 'src/lib/api.ts']) assert.equal(classifyChanges([{status:'R100',oldPath,path:'src/features/details/new.ts'}]).mode, 'full', oldPath);
+  assert.equal(classifyChanges([ui], { forceFull: true }).mode, 'full');
+});
+
+
+test("the actual integration gate accepts web and rejects failed checks or unknown/missing modes", () => {
+  const yaml = readFileSync(new URL('../.github/workflows/ci.yml', import.meta.url), 'utf8');
+  const block = yaml.slice(yaml.indexOf('  integration:'));
+  const script = block.match(/        run: \|\n([\s\S]*?)      - uses:/)[1].replace(/^          /gm, '');
+  const dir = mkdtempSync(join(tmpdir(), 'ci-gate-test-'));
+  try {
+    const summary = join(dir, 'summary');
+    const run = (check, impact) => execFileSync('sh', ['-c', script], { env: { ...process.env, CHECK_RESULT: check, IMPACT_MODE: impact, GITHUB_STEP_SUMMARY: summary }, stdio: 'pipe' });
+    for (const impact of ['docs', 'presentation', 'web', 'full']) run('success', impact);
+    for (const check of ['failure', 'cancelled', 'skipped', '']) assert.throws(() => run(check, 'web'), check);
+    for (const impact of ['', 'future-mode']) assert.throws(() => run('success', impact), impact);
+    assert.match(readFileSync(summary, 'utf8'), /Impact: web.*omitted; check passed/);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+
+test("real Git additions, edits, deletions and safe/unsafe renames classify through the CLI diff reader", () => {
+  const dir = mkdtempSync(join(tmpdir(), 'ci-web-diff-test-'));
+  const previous = process.cwd();
+  const git = (...args) => execFileSync('git', args, {cwd: dir, encoding: 'utf8', stdio: 'pipe'}).trim();
+  const write = (path, text) => { const target = join(dir, path); mkdirSync(join(target, '..'), {recursive: true}); writeFileSync(target, text); };
+  const commit = () => { git('add', '.'); git('-c', 'user.name=CI test', '-c', 'user.email=ci@test.invalid', '-c', 'commit.gpgsign=false', 'commit', '--no-verify', '-qm', 'fixture'); return git('rev-parse', 'HEAD'); };
+  try {
+    git('init', '-q');
+    write('src/features/activity/edit.ts', 'export const value = 1;');
+    write('src/features/settings/remove.ts', 'export const removed = true;');
+    write('src/features/details/old.ts', 'export const retained = true;');
+    write('supabase/functions/server.ts', 'export const server = true;');
+    const base = commit();
+    write('src/features/activity/edit.ts', 'export const value = 2;');
+    rmSync(join(dir, 'src/features/settings/remove.ts'));
+    git('mv', 'src/features/details/old.ts', 'src/features/details/new.ts');
+    write('src/features/entity/add.ts', 'export const added = true;');
+    const head = commit();
+    process.chdir(dir);
+    const changes = gitChanges(base, head);
+    assert.deepEqual(changes.map(change => change.status).sort(), ['A', 'D', 'M', 'R100']);
+    assert.equal(classifyChanges(changes).mode, 'web');
+    git('mv', 'supabase/functions/server.ts', 'src/features/entity/server.ts');
+    const moved = commit();
+    assert.equal(classifyChanges(gitChanges(head, moved)).mode, 'full');
+  } finally { process.chdir(previous); rmSync(dir, {recursive: true, force: true}); }
 });
