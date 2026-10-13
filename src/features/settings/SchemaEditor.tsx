@@ -1,25 +1,13 @@
-import { ApiError } from "../../lib/api-error.ts";
 import { materialSettingsPath } from "./material-settings-path.ts";
 import { fieldSummary, schemaChangeLabels, schemaDiffLabel, schemaValueLabel } from "./schema-labels.ts";
 import { MaterialSettingsSection } from "./MaterialSettingsSection.tsx";
-import { entityFieldInput } from "@contracts/entity-schema-change.ts";
-import { migrationNumericValues, schemaNumericValues } from "./numeric-drafts.ts";
 import { MigrationStart } from "./SchemaMigrationJobs.tsx";
-import { recoveryErrorMessage } from "./SchemaRecovery.tsx";
 import { Link, useLocation, useNavigate } from "react-router";
 import { ConversionEditor } from "./ConversionEditor.tsx";
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import type { EntityField, EntitySchemaVersion, EntityType } from "@contracts/entity-type.ts";
-import type {
-  EntitySchemaChange,
-  EntitySchemaChangeSummary,
-  MigrationPlan,
-  SchemaAnalysisAccepted,
-  SchemaDefinition,
-  SchemaEdit,
-} from "@contracts/entity-schema-change.ts";
-import { api } from "../../lib/api.ts";
-import { useWriteAttempt, writeErrorMessage } from "../../lib/write-attempt.ts";
+import { useSchemaChangeEditor } from "./schema-change-editor.ts";
+import type { EditState } from "./schema-change-editor.ts";
 import { Field } from "../../components/Field.tsx";
 import { fieldType } from "../entity/property-fields.tsx";
 const optionLabel = (labels: Record<string, string> | undefined, code: string) =>
@@ -31,14 +19,6 @@ const numericConditionNames: Record<string, string> = {
   maximum: "최대값",
   default: "기본값",
 };
-function supportsNumericCondition(field: EntityField, name: string) {
-  const kind = fieldType(field);
-  if (name === "minLength" || name === "maxLength") return kind === "string" && !field.format;
-  if (name === "default" && (field.default === undefined || field.default === null)) return false;
-  return kind === "number" || kind === "integer";
-}
-const clone = (v: SchemaDefinition) => structuredClone({ schema: v.schema, display: v.display });
-type EditState = { dirty: boolean; busy: boolean; uncertain: boolean; error?: boolean };
 export function SchemaEditor(
   { type, definition, onApplied, onState, disabled = false }: {
     type: EntityType;
@@ -49,411 +29,59 @@ export function SchemaEditor(
   },
 ) {
   const location = useLocation(), navigate = useNavigate();
-  const [startState, setStartState] = useState({ busy: false, uncertain: false });
-  const startStateChange = useCallback((state: { busy: boolean; uncertain: boolean }) => setStartState(state), []);
   const [openFields, setOpenFields] = useState<string[]>([]);
-  const [fieldError, setFieldError] = useState<string | null>(null);
   const fieldElements = useRef<Record<string, HTMLElement | null>>({});
-  const [draft, setDraft] = useState<SchemaDefinition>(() => clone(definition)),
-    [saved, setSaved] = useState<SchemaDefinition>(() => clone(definition));
-  const [plan, setPlan] = useState<EntitySchemaChange | null>(null),
-    [changes, setChanges] = useState<EntitySchemaChangeSummary[]>([]),
-    [refs, setRefs] = useState<Record<string, string>>({});
-  const [numericDrafts, setNumericDrafts] = useState<Record<string, string>>({});
-  const [migration, setMigration] = useState<MigrationPlan>({ rules: [], overrides: [] });
-  const [acceptedAnalysis, setAcceptedAnalysis] = useState<string | null>(null);
-  const [error, setError] = useState(""),
-    [message, setMessage] = useState(""),
-    [readBusy, setReadBusy] = useState(false);
-  const { attempt, busy, uncertain } = useWriteAttempt();
-  const mounted = useRef(true);
-  const seenDefinition = useRef({ typeId: type.id, version: definition.schema_version });
-  const planRead = useRef<{ epoch: number; controller: AbortController | null }>({ epoch: 0, controller: null });
-  const dirty = Object.keys(numericDrafts).length > 0 || JSON.stringify(draft) !== JSON.stringify(saved) ||
-    JSON.stringify(migration) !== JSON.stringify(plan?.migration ?? { rules: [], overrides: [] });
-  const protectedDraft = useRef({ dirty, busy, uncertain });
-  protectedDraft.current = { dirty, busy: busy || startState.busy, uncertain: uncertain || startState.uncertain };
-  const cancelPlanRead = () => {
-    planRead.current.controller?.abort();
-    planRead.current = { epoch: planRead.current.epoch + 1, controller: null };
-  };
-  const applyPlan = (value: EntitySchemaChange | null) => {
-    const target = value?.target ?? definition;
-    setOpenFields((keys) => keys.map((key) => value?.reservations[key.replace(/^new_/, "")] ?? key));
-    setFieldError(null);
-    setPlan(value);
-    setMigration(value?.migration ?? { rules: [], overrides: [] });
-    setAcceptedAnalysis(null);
-    setDraft(clone(target));
-    setSaved(clone(target));
-    setNumericDrafts({});
-    setRefs(Object.fromEntries(Object.entries(value?.reservations ?? {}).map(([ref, key]) => [key, ref])));
-  };
-  useLayoutEffect(() => {
-    onState({ dirty, busy: busy || startState.busy, uncertain: uncertain || startState.uncertain, error: !!error });
-  }, [dirty, busy, uncertain, error, startState, onState]);
-  useLayoutEffect(() => () => onState({ dirty: false, busy: false, uncertain: false }), [onState]);
-  useEffect(() => {
-    mounted.current = true;
-    return () => {
-      mounted.current = false;
-      cancelPlanRead();
-    };
-  }, []);
-  useEffect(() => {
-    const prior = seenDefinition.current;
-    if (prior.typeId === type.id && prior.version === definition.schema_version) return;
-    // An unresolved request retains its exact payload until its result is confirmed.
-    if (prior.typeId === type.id && (protectedDraft.current.busy || protectedDraft.current.uncertain)) return;
-    seenDefinition.current = { typeId: type.id, version: definition.schema_version };
-    cancelPlanRead();
-    setReadBusy(false);
-    if (prior.typeId !== type.id || !protectedDraft.current.dirty) {
-      applyPlan(null);
-      return;
-    }
-    const next = clone(definition);
-    for (const key of new Set([...Object.keys(saved.schema.properties), ...Object.keys(draft.schema.properties)])) {
-      const previousField = saved.schema.properties[key], localField = draft.schema.properties[key];
-      if (JSON.stringify(previousField) !== JSON.stringify(localField)) {
-        if (!localField) {
-          delete next.schema.properties[key];
-          next.display.order = next.display.order.filter((value) => value !== key);
-        } else if (!previousField || !next.schema.properties[key]) {
-          next.schema.properties[key] = structuredClone(localField);
-          if (!next.display.order.includes(key)) next.display.order.push(key);
-        } else {
-          // Carry local attribute edits, while keeping the worker's published type/conditions.
-          const field = { ...next.schema.properties[key] };
-          for (const name of new Set([...Object.keys(previousField), ...Object.keys(localField)])) {
-            const attribute = name as keyof EntityField;
-            if (JSON.stringify(previousField[attribute]) !== JSON.stringify(localField[attribute])) {
-              Object.assign(field, { [attribute]: localField[attribute] });
-            }
-          }
-          next.schema.properties[key] = field;
-        }
+  const onFieldKeysChanged = (replacements: Record<string, string>) =>
+    setOpenFields((keys) => keys.map((key) => replacements[key] ?? key));
+  const onInvalidField = (key: string, includeSelect: boolean) => {
+    setOpenFields((keys) => keys.includes(key) ? keys : [...keys, key]);
+    requestAnimationFrame(() => {
+      const element = fieldElements.current[key];
+      element?.scrollIntoView({ block: "nearest" });
+      if (element && !element.contains(document.activeElement)) {
+        element.querySelector<HTMLInputElement>(
+          includeSelect ? "input:not([disabled]),select:not([disabled])" : "input:not([disabled])",
+        )?.focus();
       }
-      for (const name of ["required", "list_columns", "archived"] as const) {
-        const previous = name === "required" ? saved.schema.required : saved.display[name];
-        const local = name === "required" ? draft.schema.required : draft.display[name];
-        const current = name === "required" ? next.schema.required : next.display[name];
-        if (!next.schema.properties[key]) {
-          current.splice(0, current.length, ...current.filter((value) => value !== key));
-        } else if (previous.includes(key) !== local.includes(key)) {
-          current.splice(
-            0,
-            current.length,
-            ...current.filter((value) => value !== key),
-            ...(local.includes(key) ? [key] : []),
-          );
-        }
-      }
-      if (!next.schema.properties[key]) delete next.display.option_labels[key];
-      else if (JSON.stringify(saved.display.option_labels[key]) !== JSON.stringify(draft.display.option_labels[key])) {
-        if (draft.display.option_labels[key]) {
-          next.display.option_labels[key] = structuredClone(draft.display.option_labels[key]);
-        } else delete next.display.option_labels[key];
-      }
-    }
-    if (saved.display.representative !== draft.display.representative) {
-      next.display.representative = draft.display.representative;
-    }
-    if (JSON.stringify(saved.display.order) !== JSON.stringify(draft.display.order)) {
-      next.display.order = [
-        ...draft.display.order.filter((key) => next.schema.properties[key]),
-        ...next.display.order.filter((key) => !draft.display.order.includes(key)),
-      ];
-    }
-    const migrationEdited =
-      JSON.stringify(migration) !== JSON.stringify(plan?.migration ?? { rules: [], overrides: [] });
-    setPlan(null);
-    setAcceptedAnalysis(null);
-    setDraft(next);
-    setSaved(clone(definition));
-    setRefs((values) => Object.fromEntries(Object.entries(values).filter(([key]) => key.startsWith("new_"))));
-    if (!migrationEdited) setMigration({ rules: [], overrides: [] });
-    setMessage("현재 게시된 속성을 갱신했습니다. 편집 중인 입력은 유지됩니다. 변경된 조건을 확인하고 다시 검토하세요.");
-  }, [type.id, definition.schema_version, busy, uncertain, startState.busy, startState.uncertain]);
-  const base = `/entity-types/${type.id}/schema-changes`;
-  const list = (signal?: AbortSignal) =>
-    api<{ items: EntitySchemaChangeSummary[] }>("GET", base, undefined, signal).then((r) => {
-      if (mounted.current && !signal?.aborted) setChanges(r.items);
     });
-  useEffect(() => {
-    const controller = new AbortController();
-    void list(controller.signal).catch((e) => {
-      if (!controller.signal.aborted && mounted.current) setError(e.message);
-    });
-    return () => controller.abort();
-  }, [type.id, definition.schema_version]);
-  useEffect(() => {
-    if (!plan || (plan.status !== "analyzing" && !acceptedAnalysis)) return;
-    const controller = new AbortController();
-    let timer: ReturnType<typeof setTimeout>;
-    const poll = async () => {
-      try {
-        const value = await api<EntitySchemaChange>("GET", `${base}/${plan.id}`, undefined, controller.signal);
-        if (!controller.signal.aborted) {
-          setPlan(value);
-          if (value.status !== "analyzing") setAcceptedAnalysis(null);
-          if (value.status === "analyzing") timer = setTimeout(() => void poll(), 1200);
-        }
-      } catch (e) {
-        if (!controller.signal.aborted) {
-          setError(e instanceof Error ? e.message : "분석 상태 조회 실패");
-          timer = setTimeout(() => void poll(), 1200);
-        }
-      }
-    };
-    timer = setTimeout(() => void poll(), 1200);
-    return () => {
-      controller.abort();
-      clearTimeout(timer);
-    };
-  }, [plan?.id, plan?.status, acceptedAnalysis]);
-  const setField = (key: string, field: EntityField) =>
-    setDraft((d) => ({ ...d, schema: { ...d.schema, properties: { ...d.schema.properties, [key]: field } } }));
-  const setNumericField = (
-    key: string,
-    name: "minLength" | "maxLength" | "minimum" | "maximum" | "default",
-    raw: string,
-  ) => {
-    setNumericDrafts((values) => ({ ...values, [key + ":" + name]: raw }));
   };
-  const flag = (key: string, name: "required" | "archived" | "list_columns", value: boolean) =>
-    setDraft((d) => {
-      if (name === "required") {
-        return {
-          ...d,
-          schema: {
-            ...d.schema,
-            required: value
-              ? [...d.schema.required.filter((k) => k !== key), key]
-              : d.schema.required.filter((k) => k !== key),
-          },
-        };
-      }
-      return {
-        ...d,
-        display: {
-          ...d.display,
-          [name]: value ? [...d.display[name].filter((k) => k !== key), key] : d.display[name].filter((k) => k !== key),
-        },
-      };
-    });
-  const edits = (draft: SchemaDefinition): SchemaEdit[] => {
-    const result: SchemaEdit[] = [];
-    for (const [key, field] of Object.entries(draft.schema.properties)) {
-      const required = draft.schema.required.includes(key);
-      if (refs[key]) result.push({ op: "add_property", client_ref: refs[key], field, required });
-      else if (
-        JSON.stringify(field) !== JSON.stringify(definition.schema.properties[key]) ||
-        required !== definition.schema.required.includes(key)
-      ) result.push({ op: "update_property", key, field, required });
-    }
-    for (const key of Object.keys(definition.schema.properties)) {
-      if (!draft.schema.properties[key]) result.push({ op: "remove_property", key });
-    }
-    const display = {
-      ...draft.display,
-      option_labels: Object.fromEntries(
-        Object.entries(draft.display.option_labels).filter(([key]) => !key.startsWith("new_")).map((
-          [key, labels],
-        ) => [
-          key,
-          Object.fromEntries(
-            Object.entries(labels).filter(([code]) => draft.schema.properties[key]?.enum?.includes(code)),
-          ),
-        ]),
-      ),
-      order: draft.display.order.filter((k) => !k.startsWith("new_")),
-      list_columns: draft.display.list_columns.filter((k) => !k.startsWith("new_")),
-      archived: draft.display.archived.filter((k) => !k.startsWith("new_")),
-    };
-    // New keys are reserved in the first save; subsequent edits can select them for display.
-    if (JSON.stringify(display) !== JSON.stringify(definition.display)) {
-      const operation: SchemaEdit = { op: "set_display", display };
-      if (Object.keys(draft.schema.properties).some((k) => k.startsWith("new_"))) result.unshift(operation);
-      else result.push(operation);
-    }
-    return result;
-  };
-  const validateFields = () => {
-    for (const key of draft.display.order) {
-      try {
-        if (
-          Object.keys(numericDrafts).some((address) =>
-            address.startsWith(key + ":") &&
-            !supportsNumericCondition(draft.schema.properties[key], address.split(":")[1])
-          )
-        ) {
-          throw new Error(
-            "현재 타입에서 사용할 수 없는 이전 조건 입력이 있습니다. 해당 속성에서 입력을 확인하고 제거하세요.",
-          );
-        }
-        const converted = schemaNumericValues(
-          draft,
-          Object.fromEntries(
-            Object.entries(numericDrafts).filter(([address]) => address.startsWith(key + ":")),
-          ),
-        );
-        const field = converted.schema.properties[key];
-        const valid = entityFieldInput.safeParse(field);
-        if (!valid.success) throw new Error("속성 조건을 확인하세요.");
-        if (
-          (field.minLength ?? 0) > (field.maxLength ?? 4096) ||
-          field.minimum !== undefined && field.maximum !== undefined && field.minimum > field.maximum
-        ) {
-          throw new Error("최소 조건이 최대 조건보다 큽니다.");
-        }
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "속성 조건을 확인하세요.");
-        setFieldError(key);
-        setOpenFields((keys) => keys.includes(key) ? keys : [...keys, key]);
-        requestAnimationFrame(() => {
-          const element = fieldElements.current[key];
-          element?.scrollIntoView({ block: "nearest" });
-          if (element && !element.contains(document.activeElement)) {
-            element.querySelector<HTMLInputElement>("input:not([disabled]),select:not([disabled])")?.focus();
-          }
-        });
-        return false;
-      }
-    }
-    setFieldError(null);
-    setError("");
-    return true;
-  };
-  const write = async (action: "save" | "analyze" | "apply") => {
-    if (busy || disabled) return;
-    setError("");
-    setMessage("");
-    let payload;
-    try {
-      payload = action === "save"
-        ? {
-          expected_type_version: type.version,
-          expected_schema_version: definition.schema_version,
-          edits: edits(schemaNumericValues(draft, numericDrafts)),
-          migration: migrationNumericValues(plan?.target ?? draft, migration),
-          ...(plan ? { expected_change_version: plan.version } : {}),
-        }
-        : action === "apply"
-        ? { expected_change_version: plan!.version, analysis_id: plan!.analysis!.id }
-        : { expected_change_version: plan!.version };
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "숫자를 확인하세요.");
-      return;
-    }
-    const path = action === "save" ? (plan ? `${base}/${plan.id}` : base) : `${base}/${plan!.id}/${action}`;
-    try {
-      await attempt.run(async () => {
-        if (action === "analyze") {
-          const accepted = await api<SchemaAnalysisAccepted>("POST", path, payload, undefined, attempt.requestKey());
-          if (mounted.current) {
-            setAcceptedAnalysis(accepted.analysis_id);
-            setMessage("영향 분석을 접수했습니다.");
-          }
-          return;
-        }
-        const value = await api<EntitySchemaChange>(
-          action === "save" && plan ? "PATCH" : "POST",
-          path,
-          payload,
-          undefined,
-          attempt.requestKey(),
-        );
-        if (!mounted.current) return;
-        cancelPlanRead();
-        setReadBusy(false);
-        if (action === "save") {
-          applyPlan(value);
-          setMessage("변경 초안을 저장했습니다. 영향 분석을 실행하세요.");
-        } else {
-          setPlan(value);
-          setMigration(value.migration);
-          setMessage("새 속성 버전을 게시했습니다.");
-          try {
-            await onApplied();
-          } catch {
-            if (mounted.current) {
-              setError("게시가 완료되었습니다. 최신 정의 조회에 실패했습니다. 정의를 다시 조회하세요.");
-            }
-          }
-        }
-      });
-    } catch (e) {
-      if (mounted.current) {
-        setError(plan?.recovery ? recoveryErrorMessage(e) : writeErrorMessage(e));
-        if (e instanceof ApiError) {
-          const field = e.fields.map(({ path }) => {
-            const named = path.match(/(?:^|\.)(prop_[0-9]+)(?:\.|$)/)?.[1];
-            if (named) return named;
-            const index = path.match(/^edits\.(\d+)/)?.[1];
-            const edit = index ? edits(schemaNumericValues(draft, numericDrafts))[Number(index)] : undefined;
-            return edit && "key" in edit
-              ? edit.key
-              : edit && "client_ref" in edit
-              ? Object.keys(refs).find((key) => refs[key] === edit.client_ref)
-              : undefined;
-          }).find((key) => key && draft.schema.properties[key]);
-          if (field) {
-            setFieldError(field);
-            setOpenFields((keys) => keys.includes(field) ? keys : [...keys, field]);
-            requestAnimationFrame(() => {
-              fieldElements.current[field]?.scrollIntoView({ block: "nearest" });
-              const element = fieldElements.current[field];
-              if (element && !element.contains(document.activeElement)) {
-                element.querySelector<HTMLInputElement>("input:not([disabled])")?.focus();
-              }
-            });
-          }
-        }
-      }
-    }
-  };
-  const loadPlan = async (id: string) => {
-    if (protectedDraft.current.dirty || protectedDraft.current.busy || protectedDraft.current.uncertain) {
-      setReadBusy(false);
-      setMessage("현재 속성 입력은 유지됩니다. 편집을 검토·저장하거나 취소한 뒤 다른 변경안을 여세요.");
-      return;
-    }
-    cancelPlanRead();
-    const controller = new AbortController(), epoch = planRead.current.epoch;
-    planRead.current.controller = controller;
-    const current = () => mounted.current && !controller.signal.aborted && epoch === planRead.current.epoch;
-    setReadBusy(true);
-    setError("");
-    try {
-      const fresh = await api<EntitySchemaChange>("GET", `${base}/${id}`, undefined, controller.signal);
-      if (
-        current() && !protectedDraft.current.dirty && !protectedDraft.current.busy && !protectedDraft.current.uncertain
-      ) {
-        applyPlan(fresh);
-      }
-    } catch (e) {
-      if (current()) setError(e instanceof Error ? e.message : "조회 실패");
-    } finally {
-      if (current()) {
-        planRead.current.controller = null;
-        setReadBusy(false);
-      }
-    }
-  };
-  useEffect(() => {
-    const selected = new URLSearchParams(location.search).get("change_id");
-    if (selected && selected !== plan?.id) void loadPlan(selected);
-    else setReadBusy(false);
-    return cancelPlanRead;
-  }, [location.search, type.id, definition.schema_version]);
-  const reorder = (key: string, offset: number) =>
-    setDraft((d) => {
-      const order = [...d.display.order], at = order.indexOf(key), other = at + offset;
-      if (other < 0 || other >= order.length) return d;
-      [order[at], order[other]] = [order[other], order[at]];
-      return { ...d, display: { ...d.display, order } };
-    });
+  const editor = useSchemaChangeEditor({
+    type,
+    definition,
+    onApplied,
+    onState,
+    disabled,
+    selectionSearch: location.search,
+    onFieldKeysChanged,
+    onInvalidField,
+  });
+  const {
+    draft,
+    unreservedFields,
+    changedFields,
+    unsupportedNumericInputs,
+    plan,
+    changes,
+    numericDrafts,
+    migration,
+    fieldError,
+    error,
+    message,
+    dirty,
+    busy,
+    uncertain,
+    readBusy,
+    startState,
+    migrationEdited,
+  } = editor.view;
+  const {
+    editField,
+    editNumeric,
+    editFlag,
+    moveField,
+    validateFields,
+    loadPlan,
+  } = editor;
   return (
     <MaterialSettingsSection
       title="속성·표시"
@@ -502,10 +130,7 @@ export function SchemaEditor(
                     {draft.schema.required.includes(key) ? " · 필수" : ""}
                     {draft.display.list_columns.includes(key) ? " · 목록 표시" : ""}
                     {draft.display.archived.includes(key) ? " · 보관" : ""}
-                    {JSON.stringify(f) !== JSON.stringify(saved.schema.properties[key]) ||
-                        Object.keys(numericDrafts).some((address) => address.startsWith(key + ":"))
-                      ? " · 미저장"
-                      : ""}
+                    {changedFields.includes(key) ? " · 미저장" : ""}
                     {fieldError === key ? " · 오류" : ""}
                   </span>
                 </button>
@@ -516,9 +141,7 @@ export function SchemaEditor(
                 hidden={!openFields.includes(key)}
                 disabled={Boolean(plan?.recovery)}
               >
-                {Object.entries(numericDrafts).filter(([address]) =>
-                  address.startsWith(key + ":") && !supportsNumericCondition(f, address.split(":")[1])
-                ).map(([address, raw]) => {
+                {unsupportedNumericInputs.filter(([address]) => address.startsWith(key + ":")).map(([address, raw]) => {
                   const label = numericConditionNames[address.split(":")[1]];
                   return (
                     <div key={address}>
@@ -532,12 +155,7 @@ export function SchemaEditor(
                         className="btn"
                         type="button"
                         aria-label={`${f.title ?? "속성"} 이전 ${label} 입력 제거`}
-                        onClick={() =>
-                          setNumericDrafts((prior) => {
-                            const values = { ...prior };
-                            delete values[address];
-                            return values;
-                          })}
+                        onClick={() => editor.removeNumericInput(address)}
                       >
                         이전 조건 입력 제거
                       </button>
@@ -551,7 +169,7 @@ export function SchemaEditor(
                       className="input"
                       maxLength={80}
                       value={f.title ?? ""}
-                      onChange={(e) => setField(key, { ...f, title: e.target.value })}
+                      onChange={(e) => editField(key, { ...f, title: e.target.value })}
                     />
                   )}
                 </Field>
@@ -562,7 +180,7 @@ export function SchemaEditor(
                       className="input"
                       maxLength={1000}
                       value={f.description ?? ""}
-                      onChange={(e) => setField(key, { ...f, description: e.target.value })}
+                      onChange={(e) => editField(key, { ...f, description: e.target.value })}
                     />
                   )}
                 </Field>
@@ -574,7 +192,7 @@ export function SchemaEditor(
                       value={f.enum ? "select" : f.format === "date" ? "date" : scalar}
                       onChange={(e) => {
                         const value = e.target.value;
-                        setField(key, {
+                        editField(key, {
                           type: nullable
                             ? [value === "date" || value === "select" ? "string" : value as "string", "null"]
                             : value === "date" || value === "select"
@@ -604,7 +222,7 @@ export function SchemaEditor(
                   <input
                     type="checkbox"
                     checked={draft.schema.required.includes(key)}
-                    onChange={(e) => flag(key, "required", e.target.checked)}
+                    onChange={(e) => editFlag(key, "required", e.target.checked)}
                   />{" "}
                   필수 입력
                 </label>
@@ -612,7 +230,7 @@ export function SchemaEditor(
                   <input
                     type="checkbox"
                     checked={nullable}
-                    onChange={(e) => setField(key, { ...f, type: e.target.checked ? [scalar, "null"] : scalar })}
+                    onChange={(e) => editField(key, { ...f, type: e.target.checked ? [scalar, "null"] : scalar })}
                   />{" "}
                   값 없음 허용{f.enum && !f.enum.includes(null) ? " (선택 코드에 값 없음도 추가해야 적용)" : ""}
                 </label>
@@ -629,7 +247,7 @@ export function SchemaEditor(
                             min={0}
                             max={4096}
                             value={numericDrafts[key + ":" + name] ?? f[name] ?? ""}
-                            onChange={(e) => setNumericField(key, name, e.target.value)}
+                            onChange={(e) => editNumeric(key, name, e.target.value)}
                           />
                         )}
                       </Field>
@@ -648,7 +266,7 @@ export function SchemaEditor(
                             inputMode="decimal"
                             step="any"
                             value={numericDrafts[key + ":" + name] ?? f[name] ?? ""}
-                            onChange={(e) => setNumericField(key, name, e.target.value)}
+                            onChange={(e) => editNumeric(key, name, e.target.value)}
                           />
                         )}
                       </Field>
@@ -664,7 +282,7 @@ export function SchemaEditor(
                           className="input"
                           value={f.enum!.filter((v) => v !== null).join("\n")}
                           onChange={(e) =>
-                            setField(key, {
+                            editField(key, {
                               ...f,
                               enum: [...e.target.value.split("\n"), ...(f.enum!.includes(null) ? [null] : [])],
                             })}
@@ -677,7 +295,7 @@ export function SchemaEditor(
                           type="checkbox"
                           checked={f.enum!.includes(null)}
                           onChange={(e) =>
-                            setField(key, {
+                            editField(key, {
                               ...f,
                               enum: e.target.checked ? [...f.enum!, null] : f.enum!.filter((v) => v !== null),
                             })}
@@ -692,19 +310,9 @@ export function SchemaEditor(
                             {...p}
                             className="input"
                             maxLength={80}
-                            disabled={key.startsWith("new_")}
+                            disabled={unreservedFields.includes(key)}
                             value={optionLabel(draft.display.option_labels[key], code!)}
-                            onChange={(e) =>
-                              setDraft((d) => ({
-                                ...d,
-                                display: {
-                                  ...d.display,
-                                  option_labels: {
-                                    ...d.display.option_labels,
-                                    [key]: { ...d.display.option_labels[key], [code!]: e.target.value },
-                                  },
-                                },
-                              }))}
+                            onChange={(e) => editor.editOptionLabel(key, code!, e.target.value)}
                           />
                         )}
                       </Field>
@@ -718,7 +326,7 @@ export function SchemaEditor(
                       className="input"
                       value={f.default === undefined ? "unset" : f.default === null ? "null" : "value"}
                       onChange={(e) =>
-                        setField(key, {
+                        editField(key, {
                           ...f,
                           default: e.target.value === "unset"
                             ? undefined
@@ -746,7 +354,7 @@ export function SchemaEditor(
                             {...p}
                             className="input"
                             value={String(f.default)}
-                            onChange={(e) => setField(key, { ...f, default: e.target.value === "true" })}
+                            onChange={(e) => editField(key, { ...f, default: e.target.value === "true" })}
                           >
                             <option value="false">거짓</option>
                             <option value="true">참</option>
@@ -758,7 +366,7 @@ export function SchemaEditor(
                             {...p}
                             className="input"
                             value={String(f.default)}
-                            onChange={(e) => setField(key, { ...f, default: e.target.value })}
+                            onChange={(e) => editField(key, { ...f, default: e.target.value })}
                           >
                             {f.enum!.filter((v) => v !== null).map((code) => (
                               <option key={code} value={code!}>
@@ -776,8 +384,8 @@ export function SchemaEditor(
                             value={numericDrafts[key + ":default"] ?? String(f.default)}
                             onChange={(e) =>
                               ["integer", "number"].includes(scalar)
-                                ? setNumericField(key, "default", e.target.value)
-                                : setField(key, { ...f, default: e.target.value })}
+                                ? editNumeric(key, "default", e.target.value)
+                                : editField(key, { ...f, default: e.target.value })}
                           />
                         )}
                   </Field>
@@ -787,8 +395,8 @@ export function SchemaEditor(
                     type="radio"
                     name="representative"
                     checked={draft.display.representative === key}
-                    disabled={key.startsWith("new_")}
-                    onChange={() => setDraft((d) => ({ ...d, display: { ...d.display, representative: key } }))}
+                    disabled={unreservedFields.includes(key)}
+                    onChange={() => editor.chooseRepresentative(key)}
                   />{" "}
                   대표 이름
                 </label>
@@ -796,8 +404,8 @@ export function SchemaEditor(
                   <input
                     type="checkbox"
                     checked={draft.display.list_columns.includes(key)}
-                    disabled={key.startsWith("new_")}
-                    onChange={(e) => flag(key, "list_columns", e.target.checked)}
+                    disabled={unreservedFields.includes(key)}
+                    onChange={(e) => editFlag(key, "list_columns", e.target.checked)}
                   />{" "}
                   목록에 표시
                 </label>
@@ -805,8 +413,8 @@ export function SchemaEditor(
                   <input
                     type="checkbox"
                     checked={draft.display.archived.includes(key)}
-                    disabled={key.startsWith("new_")}
-                    onChange={(e) => flag(key, "archived", e.target.checked)}
+                    disabled={unreservedFields.includes(key)}
+                    onChange={(e) => editFlag(key, "archived", e.target.checked)}
                   />{" "}
                   속성 보관 (값 유지)
                 </label>
@@ -816,7 +424,7 @@ export function SchemaEditor(
                     type="button"
                     aria-label={`${f.title ?? key} 위로`}
                     disabled={index === 0}
-                    onClick={() => reorder(key, -1)}
+                    onClick={() => moveField(key, -1)}
                   >
                     위로
                   </button>
@@ -825,31 +433,14 @@ export function SchemaEditor(
                     type="button"
                     aria-label={`${f.title ?? key} 아래로`}
                     disabled={index === draft.display.order.length - 1}
-                    onClick={() => reorder(key, 1)}
+                    onClick={() => moveField(key, 1)}
                   >
                     아래로
                   </button>
                   <button
                     className="btn"
                     type="button"
-                    onClick={() =>
-                      setDraft((d) => {
-                        const properties = { ...d.schema.properties };
-                        delete properties[key];
-                        return {
-                          ...d,
-                          schema: { ...d.schema, properties, required: d.schema.required.filter((k) => k !== key) },
-                          display: {
-                            ...d.display,
-                            order: d.display.order.filter((k) => k !== key),
-                            list_columns: d.display.list_columns.filter((k) => k !== key),
-                            archived: d.display.archived.filter((k) => k !== key),
-                            option_labels: Object.fromEntries(
-                              Object.entries(d.display.option_labels).filter(([k]) => k !== key),
-                            ),
-                          },
-                        };
-                      })}
+                    onClick={() => editor.removeField(key)}
                   >
                     영구 삭제 초안
                   </button>
@@ -865,7 +456,7 @@ export function SchemaEditor(
                 </button>
                 <details>
                   <summary>기술 정보</summary>
-                  <p>속성 키: {key.startsWith("new_") ? "저장 시 발급" : key}</p>
+                  <p>속성 키: {unreservedFields.includes(key) ? "저장 시 발급" : key}</p>
                 </details>
               </fieldset>
             </section>
@@ -876,17 +467,8 @@ export function SchemaEditor(
           type="button"
           disabled={Boolean(plan?.recovery) || Object.keys(draft.schema.properties).length >= 64}
           onClick={() => {
-            const ref = crypto.randomUUID(), key = `new_${ref}`;
-            setOpenFields((keys) => [...keys, key]);
-            setRefs((r) => ({ ...r, [key]: ref }));
-            setDraft((d) => ({
-              ...d,
-              schema: {
-                ...d.schema,
-                properties: { ...d.schema.properties, [key]: { type: "string", title: "새 속성" } },
-              },
-              display: { ...d.display, order: [...d.display.order, key] },
-            }));
+            const key = editor.addField();
+            if (key) setOpenFields((keys) => [...keys, key]);
           }}
         >
           속성 추가
@@ -897,28 +479,20 @@ export function SchemaEditor(
           <button
             className="btn"
             disabled={busy || uncertain || !dirty}
-            onClick={() => {
-              setDraft(clone(saved));
-              setNumericDrafts({});
-              setMigration(plan?.migration ?? { rules: [], overrides: [] });
-              setError("");
-            }}
+            onClick={editor.cancelEditing}
           >
             편집 취소
           </button>
           <button
             className="btn btn-primary"
             disabled={busy || disabled || Boolean(plan?.recovery) || (!dirty && !uncertain)}
-            onClick={() => {
-              if (uncertain) void write("save");
-              else if (validateFields()) void write("save");
-            }}
+            onClick={() => void editor.review()}
           >
             {busy
               ? "처리 중…"
               : uncertain
               ? "같은 요청 다시 확인"
-              : JSON.stringify(migration) !== JSON.stringify(plan?.migration ?? { rules: [], overrides: [] })
+              : migrationEdited
               ? "보완 내용 검토"
               : "속성 변경 검토"}
           </button>
@@ -1002,7 +576,7 @@ export function SchemaEditor(
                 key={plan.id}
                 plan={plan}
                 migration={migration}
-                onChange={setMigration}
+                onChange={editor.editMigration}
                 disabled={busy || uncertain || disabled || Boolean(plan.recovery)}
               />
             )
@@ -1012,7 +586,7 @@ export function SchemaEditor(
                 <ConversionEditor
                   plan={plan}
                   migration={migration}
-                  onChange={setMigration}
+                  onChange={editor.editMigration}
                   disabled={busy || uncertain || disabled}
                 />
               </details>
@@ -1037,7 +611,7 @@ export function SchemaEditor(
             <MigrationStart
               plan={plan}
               disabled={busy || uncertain || dirty || disabled}
-              onState={startStateChange}
+              onState={editor.migrationStateChanged}
             />
           )}
           {plan.change_kind === "migration_required" && (
@@ -1057,10 +631,7 @@ export function SchemaEditor(
             <button
               className="btn"
               disabled={readBusy}
-              onClick={() => {
-                setReadBusy(true);
-                void onApplied().catch((e) => setError(e.message)).finally(() => setReadBusy(false));
-              }}
+              onClick={() => void editor.refreshDefinition()}
             >
               최신 정의 다시 조회
             </button>
@@ -1070,7 +641,7 @@ export function SchemaEditor(
               className="btn"
               disabled={busy || uncertain || dirty ||
                 ["analyzing", "applied", "cancelled", "stale"].includes(plan.status)}
-              onClick={() => void write("analyze")}
+              onClick={() => void editor.analyze()}
             >
               영향 분석
             </button>
@@ -1078,18 +649,14 @@ export function SchemaEditor(
               className="btn btn-primary"
               disabled={busy || uncertain || dirty || plan.status !== "ready" || plan.change_kind !== "compatible" ||
                 plan.analysis?.failed !== 0}
-              onClick={() => void write("apply")}
+              onClick={() => void editor.publish()}
             >
               새 버전 게시
             </button>
             <button
               className="btn"
               disabled={busy || uncertain || dirty}
-              onClick={() => {
-                cancelPlanRead();
-                setReadBusy(false);
-                applyPlan(null);
-              }}
+              onClick={editor.startNewChange}
             >
               새 변경 시작
             </button>
@@ -1099,16 +666,7 @@ export function SchemaEditor(
       <button
         className="btn"
         disabled={busy || readBusy}
-        onClick={() => {
-          setReadBusy(true);
-          void list().then(() => {
-            if (mounted.current) setError("");
-          }).catch((e) => {
-            if (mounted.current) setError(e.message);
-          }).finally(() => {
-            if (mounted.current) setReadBusy(false);
-          });
-        }}
+        onClick={() => void editor.refreshChanges()}
       >
         초안 목록 다시 조회
       </button>
