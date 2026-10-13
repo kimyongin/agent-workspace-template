@@ -45,7 +45,9 @@ test.beforeEach(async ({ page, baseURL }) => {
       });
     }
     if (await fulfillPreparation(route)) return;
-    if (url.pathname.startsWith("/api/")) return route.fulfill({ json: { items: [], next_cursor: null } });
+    if (url.pathname.startsWith("/api/")) {
+      return route.fulfill({ json: { items: [], next_cursor: null } });
+    }
     return route.abort();
   });
   await page.addInitScript(
@@ -102,14 +104,18 @@ test("작업 직접 링크와 작업 재선택에서도 기본 입력과 속성 
   await page.getByRole("button", { name: /^기본 정보/ }).click();
   await page.getByLabel("자료 종류 이름", { exact: true }).fill("남길 기본 입력");
   await page.getByRole("button", { name: "이름 속성 편집", exact: true }).click();
-  await page.getByLabel("속성 이름", { exact: true }).fill("남길 속성 입력");
+  await page.getByLabel("항목 이름", { exact: true }).fill("남길 속성 입력");
   await page.getByRole("link", { name: "작업 21 · 완료 · 10/10", exact: true }).click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await expect(page.getByLabel("자료 종류 이름", { exact: true })).toHaveValue("남길 기본 입력");
-  await expect(page.getByLabel("속성 이름", { exact: true })).toHaveValue("남길 속성 입력");
+  await expect(page.getByLabel("항목 이름", { exact: true })).toHaveValue(
+    "남길 속성 입력",
+  );
   await expect(page.getByRole("button", { name: /^선택한 값 변환 작업/ })).toContainText("완료");
   await page.goBack();
-  await expect(page.getByLabel("속성 이름", { exact: true })).toHaveValue("남길 속성 입력");
+  await expect(page.getByLabel("항목 이름", { exact: true })).toHaveValue(
+    "남길 속성 입력",
+  );
 });
 
 test("실패 작업의 응답 불명 재시도는 같은 내용과 키로 확인하며 기본 입력을 보존한다", async ({ page }) => {
@@ -229,7 +235,8 @@ test("변환 완료는 새 게시 속성을 바로 갱신하고 기본·속성·
   await page.getByRole("button", { name: /^기본 정보/ }).click();
   await page.getByLabel("자료 종류 이름", { exact: true }).fill("남길 기본 입력");
   await page.getByRole("button", { name: "이름 속성 편집", exact: true }).click();
-  await page.getByLabel("속성 이름", { exact: true }).first().fill("남길 속성 입력");
+  await page.getByLabel("항목 이름", { exact: true }).first().fill("남길 속성 입력",
+  );
   await page.getByRole("button", { name: "수량 속성 편집", exact: true }).click();
   await revealSetting(page.getByLabel("최소값", { exact: true }));
   await page.getByLabel("최소값", { exact: true }).fill("7.5");
@@ -242,7 +249,7 @@ test("변환 완료는 새 게시 속성을 바로 갱신하고 기본·속성·
   await expect(record.getByLabel("변수 삽입").locator("option").filter({ hasText: "게시된 추가값" }).first())
     .toHaveCount(1);
   await expect(page.getByLabel("자료 종류 이름", { exact: true })).toHaveValue("남길 기본 입력");
-  await expect(page.getByLabel("속성 이름", { exact: true }).first()).toHaveValue("남길 속성 입력");
+  await expect(page.getByLabel("항목 이름", { exact: true }).first()).toHaveValue("남길 속성 입력");
   await expect(record.getByLabel("메모 템플릿")).toHaveValue("남길 기록 입력");
   await expect(page.getByRole("button", { name: "게시된 추가값 속성 편집", exact: true })).toBeVisible();
   await expect(page.getByLabel("이전 최소값 입력", { exact: true })).toHaveValue("7.5");
@@ -319,7 +326,9 @@ test("늦은 완료 작업 조회는 확인된 기본 정보와 다음 저장 �
     if (path.endsWith("/schema")) {
       return route.fulfill({ json: { type_id: materials.id, schema_version: 2, ...initialEntityDefinition("이름") } });
     }
-    if (path.endsWith("/schema-changes")) return route.fulfill({ json: { items: [], next_before: null } });
+    if (path.endsWith("/schema-changes")) {
+        return route.fulfill({ json: { items: [], next_before: null } });
+      }
     if (path.endsWith("/schemas")) {
       historyReads++;
       return route.fulfill({
@@ -536,15 +545,18 @@ test(
       }));
     await page.goto(`/settings/entity-types/${materials.id}`);
     await page.getByRole("button", { name: "수량 속성 편집", exact: true }).click();
-    const properties = page.getByRole("region", { name: "속성", exact: true });
+    const properties = page.getByRole("region", { name: "입력 항목",
+      exact: true,
+    });
+    await page.getByRole("button", { name: /^화면 표시/ }).click();
     const display = page.getByRole("region", { name: "화면 표시", exact: true });
-    await expect(display.getByRole("table").locator("th")).toHaveText(["재료명", "수량", "단위"]);
+    await expect(display.getByRole("table")).toHaveCount(0);
     const left = await properties.boundingBox(), right = await display.boundingBox();
-    if (info.project.name === "desktop") {
-      expect(left!.x + left!.width).toBeLessThanOrEqual(right!.x);
-    } else expect(left!.y + left!.height).toBeLessThanOrEqual(right!.y);
+    expect(left!.y + left!.height).toBeLessThanOrEqual(right!.y);
     await page.screenshot({ path: info.outputPath("property-display-settings.png"), fullPage: true });
-    await properties.getByLabel("속성 이름", { exact: true }).filter({ visible: true }).fill(
+    await properties.getByLabel("항목 이름", { exact: true }).filter({
+      visible: true,
+    }).fill(
       "공백없이아주긴속성이름을입력해도화면너비를넘지않아야하는상황",
     );
     expect(
@@ -552,17 +564,22 @@ test(
     ).toBe(true);
     for (const width of [320, 390, 639, 640, 1023, 1024, 1440]) {
       await page.setViewportSize({ width, height: 900 });
-      expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+      expect(
+      await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth),
+    ).toBe(true);
       const propertyBounds = await properties.boundingBox(), displayBounds = await display.boundingBox();
-      if (width >= 1024) expect(propertyBounds!.x + propertyBounds!.width).toBeLessThanOrEqual(displayBounds!.x);
-      else expect(propertyBounds!.y + propertyBounds!.height).toBeLessThanOrEqual(displayBounds!.y);
+      expect(propertyBounds!.y + propertyBounds!.height).toBeLessThanOrEqual(displayBounds!.y);
     }
-    await properties.getByRole("button", { name: "이 항목 접기", exact: true }).focus();
+    await properties.locator(".schema-field .material-section-toggle[aria-expanded=true]").focus();
     await page.keyboard.press("Enter");
-    await expect(properties.getByLabel("속성 이름", { exact: true }).filter({ visible: true })).toHaveCount(0);
+    await expect(properties.getByLabel("항목 이름", { exact: true }).filter({
+        visible: true,
+      }),
+    ).toHaveCount(0);
     await page.setViewportSize({ width: 320, height: 640 });
     await page.evaluate(() => document.documentElement.style.zoom = "2");
-    expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth))
-      .toBe(true);
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth),
+    ).toBe(true);
   },
 );

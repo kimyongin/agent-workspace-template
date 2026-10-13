@@ -28,7 +28,9 @@ function plan(id: string): EntitySchemaChange {
 }
 test.beforeEach(async ({ page, baseURL }) => {
   await page.route("**/*", async (route) => {
-    if (new URL(route.request().url()).origin === new URL(baseURL!).origin) return route.continue();
+    if (new URL(route.request().url()).origin === new URL(baseURL!).origin) {
+      return route.continue();
+    }
     if (new URL(route.request().url()).pathname === base) {
       return route.fulfill({ json: { items: [plan("a"), plan("b")] } });
     }
@@ -57,15 +59,21 @@ test("늦은 이전 변경안 응답은 현재 변경안과 새 입력을 덮지
   await reading;
   await page.getByRole("link", { name: "변경안 B", exact: true }).click();
   await page.getByRole("button", { name: "현재 이름 속성 편집", exact: true }).evaluate((button) => {
-    if (button.getAttribute("aria-expanded") === "false") (button as HTMLButtonElement).click();
-  });
-  await expect(page.getByLabel("속성 이름", { exact: true })).toHaveValue("현재 이름");
-  await page.getByLabel("속성 이름", { exact: true }).fill("사용자 초안");
+    if (button.getAttribute("aria-expanded") === "false") {
+        (button as HTMLButtonElement).click();
+      }
+    });
+  await expect(page.getByLabel("항목 이름", { exact: true })).toHaveValue(
+    "현재 이름",
+  );
+  await page.getByLabel("항목 이름", { exact: true }).fill("사용자 초안");
   await revealSetting(page.getByLabel("최대 길이", { exact: true }));
   await page.getByLabel("최대 길이", { exact: true }).fill("12.");
   finish();
   await sent;
-  await expect(page.getByLabel("속성 이름", { exact: true })).toHaveValue("사용자 초안");
+  await expect(page.getByLabel("항목 이름", { exact: true })).toHaveValue(
+    "사용자 초안",
+  );
   await expect(page.getByLabel("최대 길이", { exact: true })).toHaveValue("12.");
   await expect(page.getByRole("link", { name: "이 변경안 직접 링크" })).toHaveAttribute(
     "href",
@@ -85,15 +93,23 @@ test("조회 실패는 현재 변경안을 유지하고 목록 재선택과 편�
   await page.route(`**${base}/b`, (route) => route.fulfill({ json: plan("b") }));
   await page.goto("/e2e/fixtures/schema-editor-read.html?change_id=b");
   await page.getByRole("button", { name: "현재 이름 속성 편집", exact: true }).evaluate((button) => {
-    if (button.getAttribute("aria-expanded") === "false") (button as HTMLButtonElement).click();
-  });
-  await expect(page.getByLabel("속성 이름", { exact: true })).toHaveValue("현재 이름");
+    if (button.getAttribute("aria-expanded") === "false") {
+        (button as HTMLButtonElement).click();
+      }
+    });
+  await expect(page.getByLabel("항목 이름", { exact: true })).toHaveValue(
+    "현재 이름",
+  );
   await page.getByRole("link", { name: "변경안 A", exact: true }).click();
   await expect(page.getByRole("alert")).toHaveText("변경안 조회 실패");
   await page.getByRole("button", { name: "현재 이름 속성 편집", exact: true }).evaluate((button) => {
-    if (button.getAttribute("aria-expanded") === "false") (button as HTMLButtonElement).click();
-  });
-  await expect(page.getByLabel("속성 이름", { exact: true })).toHaveValue("현재 이름");
+    if (button.getAttribute("aria-expanded") === "false") {
+        (button as HTMLButtonElement).click();
+      }
+    });
+  await expect(page.getByLabel("항목 이름", { exact: true })).toHaveValue(
+    "현재 이름",
+  );
   await revealSetting(page.getByLabel("최대 길이", { exact: true }));
   await page.getByLabel("최대 길이", { exact: true }).fill("7.");
   await page.getByRole("link", { name: "변경안 B", exact: true }).click();
@@ -104,10 +120,14 @@ test("조회 실패는 현재 변경안을 유지하고 목록 재선택과 편�
   failed = false;
   await page.getByText(/^저장한 변경안 \(/).click();
   await page.getByRole("button", { name: "초안 a · 초안", exact: true }).click();
-  await expect(page.getByLabel("속성 이름", { exact: true })).toHaveValue("이전 이름");
+  await expect(page.getByLabel("항목 이름", { exact: true })).toHaveValue(
+    "이전 이름",
+  );
   await expect(page.getByRole("button", { name: "변경 검토", exact: true })).toBeDisabled();
   await page.getByRole("button", { name: "새 변경 시작", exact: true }).click();
-  await expect(page.getByLabel("속성 이름", { exact: true })).toHaveValue("이름");
+  await expect(page.getByLabel("항목 이름", { exact: true })).toHaveValue(
+    "이름",
+  );
 });
 test("결과 불명 저장은 동일 요청을 확인하고 발급된 속성 키를 다음 편집에도 유지한다", async ({ page }) => {
   let lastSaved = plan("b");
@@ -133,7 +153,9 @@ test("결과 불명 저장은 동일 요청을 확인하고 발급된 속성 키
     });
     if (requests.length === 1) return route.abort("failed");
     const value = plan("b"), addition = body.edits.find((edit) => edit.op === "add_property");
-    if (!addition) throw new Error("Expected new property in the public save request");
+    if (!addition) {
+      throw new Error("Expected new property in the public save request");
+    }
     value.target.schema.properties.prop_2 = addition.field;
     value.target.display.order.push("prop_2");
     value.reservations = { [addition.client_ref]: "prop_2" };
@@ -141,24 +163,22 @@ test("결과 불명 저장은 동일 요청을 확인하고 발급된 속성 키
     return route.fulfill({ json: value });
   });
   await page.goto("/e2e/fixtures/schema-editor-read.html");
-  await page.getByRole("button", { name: "입력 항목 추가", exact: true }).click();
-  await page.getByRole("region", { name: "새 속성 속성", exact: true }).getByLabel("속성 이름").fill("추가값");
+  await page.getByRole("button", { name: "항목 추가", exact: true }).click();
+  await page.getByRole("region", { name: "새 항목 속성", exact: true })
+    .getByLabel("항목 이름").fill("추가값");
   await page.getByRole("button", { name: "변경 검토", exact: true }).click();
   await expect(page.getByRole("button", { name: "같은 요청 다시 확인", exact: true })).toBeEnabled();
-  await expect(page.getByLabel("속성 이름", { exact: true }).last()).toBeDisabled();
+  await expect(page.getByLabel("항목 이름", { exact: true }).last()).toBeDisabled();
   await page.getByRole("button", { name: "같은 요청 다시 확인", exact: true }).click();
-  await revealSetting(
-    page.getByRole("region", { name: "추가값 속성", exact: true }).getByText("기술 정보", { exact: true }),
-  );
-  await expect(page.getByRole("region", { name: "추가값 속성", exact: true }).getByText("기술 정보", { exact: true }))
-    .toBeVisible();
-  await expect(page.getByRole("region", { name: "추가값 속성", exact: true })).toContainText("prop_2");
+  await page.getByRole("button", { name: "편집으로 돌아가기", exact: true })
+    .click();
+  await expect(page.getByText("기술 정보", { exact: true })).toHaveCount(0);
   expect(requests[1]).toEqual(requests[0]);
   expect(requests[0].key).toBeTruthy();
   await expect(page.getByRole("button", { name: "변경 검토", exact: true })).toBeDisabled();
-  await page.getByRole("region", { name: "추가값 속성", exact: true }).getByLabel("속성 이름").fill("수정값");
+  await page.getByRole("region", { name: "추가값 속성", exact: true }).getByLabel("항목 이름").fill("수정값");
   await page.getByRole("button", { name: "변경 검토", exact: true }).click();
-  await expect(page.getByRole("region", { name: "수정값 속성", exact: true })).toContainText("prop_2");
+  await expect(page.getByRole("region", { name: "수정값 속성", exact: true })).toHaveCount(1);
   await expect.poll(() => requests.length).toBe(3);
   await expect(page.getByRole("button", { name: "변경 검토", exact: true })).toBeDisabled();
   expect(requests[2].body.edits.find((edit) => edit.op === "add_property")?.client_ref)
@@ -174,11 +194,15 @@ test("복구안 직접 링크는 원본 기준을 적용하며 속성과 변환 
     }));
   await page.goto("/e2e/fixtures/schema-editor-read.html?change_id=b");
   await page.getByRole("button", { name: "현재 이름 속성 편집", exact: true }).evaluate((button) => {
-    if (button.getAttribute("aria-expanded") === "false") (button as HTMLButtonElement).click();
-  });
-  await expect(page.getByLabel("속성 이름", { exact: true })).toHaveValue("현재 이름");
-  await expect(page.getByLabel("속성 이름", { exact: true })).toBeDisabled();
-  await expect(page.getByLabel("속성 이름", { exact: true })).toBeVisible();
+    if (button.getAttribute("aria-expanded") === "false") {
+        (button as HTMLButtonElement).click();
+      }
+    });
+  await expect(page.getByLabel("항목 이름", { exact: true })).toHaveValue(
+    "현재 이름",
+  );
+  await expect(page.getByLabel("항목 이름", { exact: true })).toBeDisabled();
+  await expect(page.getByLabel("항목 이름", { exact: true })).toBeVisible();
   await expect(page.getByRole("region", { name: "복구안 원본", exact: true })).toContainText("보존 원본");
   await expect(page.getByRole("button", { name: "변경 초안 저장", exact: true })).toHaveCount(0);
 });
@@ -203,9 +227,13 @@ test("다른 변경안을 읽는 동안 새로 입력한 변환 규칙은 늦은
   await page.route(`**${base}/b`, (route) => route.fulfill({ json: plan("b") }));
   await page.goto("/e2e/fixtures/schema-editor-read.html?change_id=b");
   await page.getByRole("button", { name: "현재 이름 속성 편집", exact: true }).evaluate((button) => {
-    if (button.getAttribute("aria-expanded") === "false") (button as HTMLButtonElement).click();
-  });
-  await expect(page.getByLabel("속성 이름", { exact: true })).toHaveValue("현재 이름");
+    if (button.getAttribute("aria-expanded") === "false") {
+        (button as HTMLButtonElement).click();
+      }
+    });
+  await expect(page.getByLabel("항목 이름", { exact: true })).toHaveValue(
+    "현재 이름",
+  );
   await page.getByRole("link", { name: "변경안 A", exact: true }).click();
   await reading;
   await page.getByText("값 변환 준비", { exact: true }).click();
@@ -213,19 +241,25 @@ test("다른 변경안을 읽는 동안 새로 입력한 변환 규칙은 늦은
   await page.getByLabel("보완값", { exact: true }).fill("사용자 보완값");
   finish();
   await sent;
-  await expect(page.getByLabel("속성 이름", { exact: true })).toBeEnabled();
+  await expect(page.getByLabel("항목 이름", { exact: true })).toBeEnabled();
   await expect(page.getByLabel("보완값", { exact: true })).toHaveValue("사용자 보완값");
   await page.getByRole("button", { name: "현재 이름 속성 편집", exact: true }).evaluate((button) => {
-    if (button.getAttribute("aria-expanded") === "false") (button as HTMLButtonElement).click();
-  });
-  await expect(page.getByLabel("속성 이름", { exact: true })).toHaveValue("현재 이름");
+    if (button.getAttribute("aria-expanded") === "false") {
+        (button as HTMLButtonElement).click();
+      }
+    });
+  await expect(page.getByLabel("항목 이름", { exact: true })).toHaveValue(
+    "현재 이름",
+  );
   await expect(page.getByRole("button", { name: "보완 내용 검토", exact: true })).toBeEnabled();
 });
 
 test("속성 요약에서 열린 행의 입력을 검토하고 행 완료와 적용을 구분한다", async ({ page }) => {
   const writes: unknown[] = [];
   await page.route(`**${base}`, (route) => {
-    if (route.request().method() === "GET") return route.fulfill({ json: { items: [] } });
+    if (route.request().method() === "GET") {
+      return route.fulfill({ json: { items: [] } });
+    }
     const body = route.request().postDataJSON();
     writes.push(body);
     const prepared = plan("b");
@@ -249,18 +283,24 @@ test("속성 요약에서 열린 행의 입력을 검토하고 행 완료와 적
     return route.fulfill({ json: prepared });
   });
   await page.goto("/e2e/fixtures/schema-editor-read.html");
-  await expect(page.getByLabel("속성 이름", { exact: true })).toBeHidden();
+  await expect(page.getByLabel("항목 이름", { exact: true })).toBeHidden();
   await page.getByRole("button", { name: "이름 속성 편집", exact: true }).click();
-  await page.getByLabel("속성 이름", { exact: true }).fill("검토할 이름");
+  await page.getByLabel("항목 이름", { exact: true }).fill("검토할 이름");
   await page.getByRole("button", { name: "변경 검토", exact: true }).click();
   const review = page.getByRole("region", { name: "속성 변경 요약", exact: true });
   await expect(review).toContainText("검토할 이름");
-  await expect(review).toContainText("아직 자료와 활성 속성에 적용되지 않았습니다");
+  await expect(review).toContainText("아직 적용되지 않았습니다");
   expect(writes).toHaveLength(1);
-  await page.getByRole("button", { name: "이 항목 접기", exact: true }).click();
-  await expect(page.getByLabel("속성 이름", { exact: true })).toBeHidden();
+  await page.getByRole("button", { name: "편집으로 돌아가기", exact: true })
+    .click();
+  await page.locator(
+    ".schema-field .material-section-toggle[aria-expanded=true]",
+  ).click();
+  await expect(page.getByLabel("항목 이름", { exact: true })).toBeHidden();
   await page.getByRole("button", { name: "검토할 이름 속성 편집", exact: true }).click();
-  await expect(page.getByLabel("속성 이름", { exact: true })).toHaveValue("검토할 이름");
+  await expect(page.getByLabel("항목 이름", { exact: true })).toHaveValue(
+    "검토할 이름",
+  );
   expect(writes).toHaveLength(1);
 });
 
@@ -269,7 +309,9 @@ test("접힌 속성의 잘못된 조건은 검토에서 해당 행을 열고 입
   await page.getByRole("button", { name: "이름 속성 편집", exact: true }).click();
   await revealSetting(page.getByLabel("최대 길이", { exact: true }));
   await page.getByLabel("최대 길이", { exact: true }).fill("1.5");
-  await page.getByRole("button", { name: "이 항목 접기", exact: true }).click();
+  await page.locator(
+    ".schema-field .material-section-toggle[aria-expanded=true]",
+  ).click();
   await expect(page.getByRole("button", {name:"이름 속성 편집",exact:true})).toBeFocused();
   await expect(page.getByLabel("최대 길이", { exact: true })).toBeHidden();
   await page.getByRole("button", { name: "변경 검토", exact: true }).click();
@@ -280,7 +322,9 @@ test("접힌 속성의 잘못된 조건은 검토에서 해당 행을 열고 입
   await expect(page.getByRole("button", { name: "변경 초안 저장", exact: true })).toHaveCount(0);
   await revealSetting(page.getByLabel("최대 길이", { exact: true }));
   await page.getByLabel("최대 길이", { exact: true }).fill("20");
-  await page.getByRole("button", { name: "이 항목 접기", exact: true }).click();
+  await page.locator(
+    ".schema-field .material-section-toggle[aria-expanded=true]",
+  ).click();
   await expect(page.getByRole("button", { name: "이름 속성 편집", exact: true })).toContainText("변경됨");
   await page.evaluate(() => document.documentElement.style.fontSize = "200%");
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(
@@ -305,7 +349,9 @@ test("서버가 거부한 속성은 검토 실패 뒤 해당 행을 열고 초�
   await page.getByRole("button", { name: "이름 속성 편집", exact: true }).click();
   await revealSetting(page.getByLabel("최소 길이", { exact: true }));
   await page.getByLabel("최소 길이", { exact: true }).fill("2");
-  await page.getByRole("button", { name: "이 항목 접기", exact: true }).click();
+  await page.locator(
+    ".schema-field .material-section-toggle[aria-expanded=true]",
+  ).click();
   await page.getByRole("button", { name: "변경 검토", exact: true }).click();
   await expect(page.getByRole("alert")).toContainText("대표 속성 조건");
   await expect(page.getByLabel("최소 길이", { exact: true })).toBeVisible();
@@ -359,47 +405,61 @@ test("변환 미리보기는 속성 키처럼 생긴 저장 문자열도 원본 
 test("속성과 화면 표시는 같은 초안에서 편집하고 미리보기·순서·취소를 함께 반영한다", async ({ page }, info) => {
   const writes: string[] = [];
   page.on("request", (request) => {
-    if (request.method() !== "GET" && request.url().includes("/api/")) writes.push(request.url());
-  });
+    if (request.method() !== "GET" && request.url().includes("/api/")) {
+        writes.push(request.url());
+      }
+    });
   await page.goto("/e2e/fixtures/schema-editor-read.html?display-example=1");
-  const properties = page.getByRole("region", { name: "속성", exact: true });
+  const properties = page.getByRole("region", { name: "입력 항목",
+      exact: true,
+    });
+    await page.getByRole("button", { name: /^화면 표시/ }).click();
   const display = page.getByRole("region", { name: "화면 표시", exact: true });
   await expect(display.getByLabel("자료 이름으로 사용할 속성")).toHaveValue("prop_1");
   await properties.getByRole("button", { name: "수량 속성 편집", exact: true }).click();
   await expect(properties.getByLabel("최소값", { exact: true })).toBeHidden();
-  await expect(properties.getByLabel("형식", { exact: true }).filter({ visible: true })).toHaveValue("number");
-  await properties.getByLabel("필수 입력", { exact: true }).filter({ visible: true }).check();
+  await expect(properties.getByLabel("데이터 타입", { exact: true }).filter({
+        visible: true,
+      }),
+    ).toHaveValue("number");
+    await revealSetting(
+      properties.getByRole("region", { name: "수량 속성", exact: true })
+        .getByLabel("필수 입력", { exact: true }),
+    );
+    await properties.getByRole("region", { name: "수량 속성", exact: true })
+      .getByLabel("필수 입력", { exact: true }).check();
   await expect(properties.getByRole("button", { name: "수량 속성 편집", exact: true })).toContainText("변경됨");
   await display.getByLabel("단위 목록에 표시", { exact: true }).uncheck();
   await display.getByRole("button", { name: "수량 위로", exact: true }).click();
-  const preview = display.getByRole("table");
-  await expect(preview.locator("th")).toHaveText(["수량", "재료명"]);
-  await expect(preview.locator("tbody tr").first()).toContainText("10");
-  await expect(display).toContainText("가상 예시이며 실제 자료가 아닙니다");
+    await expect(display.locator(".schema-display-fields li").first())
+      .toContainText("수량");
+    await expect(display.getByRole("table")).toHaveCount(0);
   await page.getByRole("button", { name: "변경 취소", exact: true }).click();
-  await expect(preview.locator("th")).toHaveText(["재료명", "수량", "단위"]);
-  await expect(properties.getByLabel("필수 입력", { exact: true }).filter({ visible: true })).not.toBeChecked();
+  await expect(display.locator(".schema-display-fields li").first())
+      .toContainText("재료명");
+    await expect(display.getByLabel("단위 목록에 표시")).toBeChecked();
+    await expect(
+      properties.getByRole("region", { name: "수량 속성", exact: true })
+        .getByLabel("필수 입력", { exact: true }),
+    ).not.toBeChecked();
   await expect(page.getByRole("button", { name: "변경 검토", exact: true })).toBeDisabled();
-  await display.getByLabel("재료명 목록에 표시", { exact: true }).uncheck();
-  await display.getByLabel("수량 목록에 표시", { exact: true }).uncheck();
-  await display.getByLabel("단위 목록에 표시", { exact: true }).uncheck();
-  await expect(display.getByRole("table")).toHaveCount(0);
-  await expect(display).toContainText("목록에 표시할 속성을 선택하세요");
-  expect(writes).toEqual([]);
-  await page.getByRole("button", { name: "변경 취소", exact: true }).click();
+    expect(writes).toEqual([]);
   await page.screenshot({ path: info.outputPath("schema-settings.png"), fullPage: true });
   await page.evaluate(() => document.documentElement.style.fontSize = "200%");
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(
     true,
   );
-});
+  },
+);
 
 test("검토는 저장 성공 후 한 번 분석하고 분석 응답 불명은 같은 키로만 재시도한다", async ({ page }) => {
   let saved = plan("b"), failed = true;
   const requests: Array<{ path: string; key: string | undefined; body: unknown }> = [];
   await page.route(`**${base}**`, async (route) => {
     const path = new URL(route.request().url()).pathname;
-    if (route.request().method() === "GET") return route.fulfill({ json: path === base ? { items: [] } : saved });
+    if (route.request().method() === "GET") {
+      return route.fulfill({ json: path === base ? { items: [] } : saved });
+    }
     requests.push({ path, key: route.request().headers()["idempotency-key"], body: route.request().postDataJSON() });
     if (path.endsWith("/analyze")) {
       if (failed) {
@@ -418,12 +478,12 @@ test("검토는 저장 성공 후 한 번 분석하고 분석 응답 불명은 �
   await page.goto("/e2e/fixtures/schema-editor-read.html");
   expect(requests).toHaveLength(0);
   await page.getByRole("button", { name: "이름 속성 편집", exact: true }).click();
-  await page.getByLabel("속성 이름", { exact: true }).fill("검토한 이름");
+  await page.getByLabel("항목 이름", { exact: true }).fill("검토한 이름");
   await page.getByRole("button", { name: "변경 검토", exact: true }).click();
   await expect(page.getByRole("button", { name: "같은 요청 다시 확인", exact: true })).toBeEnabled();
   expect(requests.map((r) => r.path)).toEqual([base, `${base}/b/analyze`]);
   expect(requests[0].key).not.toBe(requests[1].key);
-  await expect(page.getByLabel("속성 이름", { exact: true })).toBeDisabled();
+  await expect(page.getByLabel("항목 이름", { exact: true })).toBeDisabled();
   await page.getByRole("button", { name: "같은 요청 다시 확인", exact: true }).click();
   await expect(page.getByRole("button", { name: "같은 요청 다시 확인", exact: true })).toHaveCount(0);
   expect(requests).toHaveLength(3);
@@ -435,9 +495,10 @@ test("선택 항목 이름은 코드를 바꾸지 않고 미리보기에 반영�
   await page.goto("/e2e/fixtures/schema-editor-read.html?display-example=1");
   await page.getByRole("button", { name: "단위 속성 편집", exact: true }).click();
   await page.getByLabel("선택 항목 1", { exact: true }).fill("포대");
-  await expect(page.getByRole("region", { name: "목록 미리보기", exact: true })).toContainText("포대");
-  await revealSetting(page.getByLabel("선택 코드 (줄마다 하나)", { exact: true }));
-  await expect(page.getByLabel("선택 코드 (줄마다 하나)", { exact: true })).toHaveValue("kg\ng");
+  await expect(page.getByLabel("선택 항목 1", { exact: true })).toHaveValue(
+    "포대",
+  );
+  await expect(page.getByText("기술 정보", { exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: "선택 항목 추가", exact: true }).click();
   await expect(page.getByLabel("선택 항목 3", { exact: true })).toHaveValue("option_1");
   await page.getByRole("button", { name: "선택 항목 3 제거", exact: true }).click();
@@ -453,4 +514,74 @@ test("좁은 화면 200% 배율에서도 속성과 표시 조작이 페이지를
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(
     true,
   );
+});
+
+test("새 행의 타입과 필수 설정은 단순하며 삭제 취소와 사용 중지는 초안만 바꾼다", async ({ page }) => {
+  let writes = 0;
+  page.on("request", (request) => {
+    if (request.method() !== "GET" && request.url().includes("/api/")) writes++;
+  });
+  await page.goto("/e2e/fixtures/schema-editor-read.html?display-example=1");
+  await page.getByRole("button", { name: "항목 추가", exact: true }).click();
+  const added = page.getByRole("region", { name: "새 항목 속성", exact: true });
+  await expect(added.getByLabel("항목 이름")).toBeVisible();
+  await added.getByLabel("데이터 타입").selectOption("number");
+  await expect(added.getByLabel("필수 입력")).toBeHidden();
+  await added.getByText("추가 설정", { exact: true }).click();
+  await added.getByLabel("필수 입력").check();
+  await expect(page.getByText("기술 정보", { exact: true })).toHaveCount(0);
+  await expect(page.getByLabel("값 없음 허용", { exact: false })).toHaveCount(
+    0,
+  );
+  await added.getByRole("button", { name: "항목 삭제", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "항목을 삭제할까요?" });
+  await expect(dialog).toContainText("아직 실제 자료는 변경되지 않습니다");
+  await dialog.getByRole("button", { name: "취소", exact: true }).click();
+  await expect(added.getByLabel("데이터 타입")).toHaveValue("number");
+  await added.getByRole("button", { name: "항목 삭제", exact: true }).click();
+  await dialog.getByRole("button", { name: "삭제 변경안 만들기", exact: true })
+    .click();
+  await expect(added).toHaveCount(0);
+  await page.getByRole("button", { name: "수량 속성 편집", exact: true })
+    .click();
+  const quantity = page.getByRole("region", { name: "수량 속성", exact: true });
+  await quantity.getByText("추가 설정", { exact: true }).click();
+  await quantity.getByLabel("필수 입력").check();
+  await quantity.getByRole("button", { name: "사용 중지", exact: true })
+    .click();
+  await expect(quantity.getByLabel("필수 입력")).not.toBeChecked();
+  await expect(quantity.getByRole("button", { name: "다시 사용", exact: true }))
+    .toBeEnabled();
+  await page.getByRole("button", { name: /^화면 표시/ }).click();
+  await expect(page.getByLabel("수량 목록에 표시", { exact: true })).not
+    .toBeChecked();
+  await expect(page.getByLabel("수량 목록에 표시", { exact: true }))
+    .toBeDisabled();
+  expect(writes).toBe(0);
+  await page.getByRole("button", { name: "변경 취소", exact: true }).click();
+  await expect(quantity.getByRole("button", { name: "사용 중지", exact: true }))
+    .toBeVisible();
+  await expect(page.getByLabel("수량 목록에 표시", { exact: true }))
+    .toBeChecked();
+});
+
+test("자료 폼에서 빈 선택 값은 하나로 표시하고 null·0·false와 이전 정의를 보존한다", async ({ page }) => {
+  await page.goto("/e2e/fixtures/schema-editor-read.html?empty-inputs=1");
+  const result = page.getByLabel("입력 결과", { exact: true });
+  await expect(result).toContainText('"prop_2":"0"');
+  await expect(result).toContainText('"prop_3":false');
+  await page.getByLabel("숫자 입력", { exact: true }).fill("");
+  await expect(result).toContainText('"prop_2":null');
+  await page.getByLabel("참거짓 입력", { exact: true }).selectOption("unset");
+  await expect(result).toContainText('"prop_3":null');
+  await page.getByLabel("선택 입력", { exact: true }).selectOption("unset");
+  await expect(result).toContainText('"prop_4":null');
+  await expect(page.getByLabel("선택 입력").getByRole("option", { name: "미입력", exact: true })).toHaveCount(1);
+  await expect(page.getByRole("option", { name: "값 없음", exact: true })).toHaveCount(0);
+  await page.getByLabel("이전 텍스트", { exact: true }).fill("");
+  await expect(result).not.toContainText('"prop_5"');
+  await page.getByLabel("숫자 입력", { exact: true }).fill("0");
+  await page.getByLabel("참거짓 입력", { exact: true }).selectOption("value:false");
+  await expect(result).toContainText('"prop_2":"0"');
+  await expect(result).toContainText('"prop_3":false');
 });

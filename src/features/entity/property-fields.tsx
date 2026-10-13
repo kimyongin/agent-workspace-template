@@ -15,19 +15,29 @@ export function propertyDraft(values: EntityProperties): PropertyDraft {
 export class PropertyDraftError extends Error {
   constructor(readonly fields: Record<string, string>) { super(Object.values(fields).join(" · ")); }
 }
-export function propertyValues(definition: Pick<EntitySchemaVersion, "schema">, values: PropertyDraft): EntityProperties {
+export function propertyValues(definition: Pick<EntitySchemaVersion, "schema">, values: PropertyDraft,
+): EntityProperties {
   const result: EntityProperties = {}, errors: Record<string, string> = {};
   for (const [key, value] of Object.entries(values)) {
     const kind = fieldType(definition.schema.properties[key]);
+    if (
+      definition.schema.required.includes(key) &&
+      (value === null || value === "" ||
+        typeof value === "string" && !value.trim())
+    ) {
+      errors[`properties.${key}`] = "필수 항목을 입력하세요";
+      continue;
+    }
     try { result[key] = value !== null && (kind === "integer" || kind === "number") ? entityNumberDraft(String(value), kind) : value; }
     catch (error) { errors[`properties.${key}`] = error instanceof Error ? error.message : "숫자를 확인하세요"; }
   }
   if (Object.keys(errors).length) throw new PropertyDraftError(errors);
   return result;
 }
-export function displayedProperty(field: EntityField, value: unknown, labels: Record<string, string> = {}): string {
+export function displayedProperty(field: EntityField, value: unknown, labels: Record<string, string> = {},
+): string {
   if (value === undefined) return "미입력";
-  if (value === null) return "값 없음";
+  if (value === null) return "미입력";
   if (typeof value === "boolean") return value ? "참" : "거짓";
   return Object.hasOwn(labels, String(value)) ? labels[String(value)] : String(value);
 }
@@ -57,7 +67,7 @@ export function PropertyFields(
         if (archived) {
           return (
             <p key={key}>
-              {field.title ?? key} · 보관: {displayedProperty(field, value, definition.display.option_labels[key])}
+              {field.title ?? key} · 사용 중지: {displayedProperty(field, value, definition.display.option_labels[key])}
             </p>
           );
         }
@@ -70,15 +80,13 @@ export function PropertyFields(
                     <select
                       {...props}
                       className="input"
-                      value={value === undefined ? "unset" : value === null ? "null" : `value:${String(value)}`}
+                      value={value === undefined || value === null ? "unset" : `value:${String(value)}`}
                       onChange={(e) => {
                         const v = e.target.value;
                         set(
                           key,
                           v === "unset"
-                            ? undefined
-                            : v === "null"
-                            ? null
+                            ? nullable ? null : undefined
                             : fieldType(field) === "boolean"
                             ? v === "value:true"
                             : v.slice(6),
@@ -86,7 +94,6 @@ export function PropertyFields(
                       }}
                     >
                       <option value="unset">미입력</option>
-                      {nullable && <option value="null">값 없음</option>}
                       {fieldType(field) === "boolean"
                         ? (
                           <>
@@ -112,31 +119,12 @@ export function PropertyFields(
                         const next = e.target.value;
                         set(
                           key,
-                          next === "" && ["integer", "number"].includes(fieldType(field) ?? "") ? undefined : next,
+                          next === "" ? nullable ? null : required ? "" : undefined : next,
                         );
                       }}
                     />
                   )}
                 {field.description && <p className="help">{field.description}</p>}
-                {required && <p className="help">키 입력 필수{nullable ? " · 값 없음 허용" : ""}</p>}
-                {nullable && !field.enum && fieldType(field) !== "boolean" && (
-                  <button
-                    type="button"
-                    className="btn"
-                    onClick={() => set(key, null)}
-                  >
-                    값 비우기
-                  </button>
-                )}
-                {!required && value !== undefined && (
-                  <button
-                    type="button"
-                    className="btn"
-                    onClick={() => set(key, undefined)}
-                  >
-                    미입력으로 변경
-                  </button>
-                )}
               </>
             )}
           </Field>

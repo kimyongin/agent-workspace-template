@@ -14,10 +14,13 @@ import { ApiError } from "../../lib/api-error.ts";
 import { useWriteAttempt, writeErrorMessage } from "../../lib/write-attempt.ts";
 import { migrationNumericValues, SchemaNumericDraftError, schemaNumericValues } from "./numeric-drafts.ts";
 import { recoveryErrorMessage } from "./SchemaRecovery.tsx";
+import { fieldInputPolicy } from "./field-input-policy.ts";
 import { fieldType } from "../entity/property-fields.tsx";
 function supportsNumericCondition(field: EntityField, name: string) {
   const kind = fieldType(field);
-  if (name === "minLength" || name === "maxLength") return kind === "string" && !field.format;
+  if (name === "minLength" || name === "maxLength") {
+    return kind === "string" && !field.format;
+  }
   if (name === "default" && (field.default === undefined || field.default === null)) return false;
   return kind === "number" || kind === "integer";
 }
@@ -27,7 +30,9 @@ export type EditState = { dirty: boolean; busy: boolean; uncertain: boolean; err
  * Published definitions come from the settings owner; rows and focus stay in the UI.
  */
 export function useSchemaChangeEditor(
-  { type, definition, onApplied, onState, disabled, selectionSearch, onFieldKeysChanged, onInvalidField }: {
+  { type, definition, onApplied, onState, disabled, selectionSearch, onFieldKeysChanged, onInvalidField,
+    onReviewed,
+  }: {
     type: EntityType;
     definition: EntitySchemaVersion;
     onApplied: (change?: EntitySchemaChange) => Promise<string>;
@@ -35,6 +40,7 @@ export function useSchemaChangeEditor(
     disabled: boolean;
     selectionSearch: string;
     onFieldKeysChanged: (replacements: Record<string, string>) => void;
+    onReviewed: () => void;
     onInvalidField: (key: string, includeSelect: boolean, condition?: string) => void;
   },
 ) {
@@ -187,7 +193,9 @@ export function useSchemaChangeEditor(
         if (!controller.signal.aborted) {
           setPlan(value);
           if (value.status !== "analyzing") setAcceptedAnalysis(null);
-          if (value.status === "analyzing") timer = setTimeout(() => void poll(), 1200);
+          if (value.status === "analyzing") {
+            timer = setTimeout(() => void poll(), 1200);
+          }
         }
       } catch (e) {
         if (!controller.signal.aborted) {
@@ -211,13 +219,18 @@ export function useSchemaChangeEditor(
   ) => {
     setNumericDrafts((values) => ({ ...values, [key + ":" + name]: raw }));
   };
-  const flag = (key: string, name: "required" | "archived" | "list_columns", value: boolean) =>
+  const flag = (key: string, name: "required" | "archived" | "list_columns", value: boolean,
+  ) =>
     setDraft((d) => {
       if (name === "required") {
         return {
           ...d,
           schema: {
             ...d.schema,
+            properties: {
+              ...d.schema.properties,
+              [key]: fieldInputPolicy(d.schema.properties[key], value),
+            },
             required: value
               ? [...d.schema.required.filter((k) => k !== key), key]
               : d.schema.required.filter((k) => k !== key),
@@ -236,14 +249,17 @@ export function useSchemaChangeEditor(
     const result: SchemaEdit[] = [];
     for (const [key, field] of Object.entries(draft.schema.properties)) {
       const required = draft.schema.required.includes(key);
-      if (refs[key]) result.push({ op: "add_property", client_ref: refs[key], field, required });
-      else if (
+      if (refs[key]) {
+        result.push({ op: "add_property", client_ref: refs[key], field, required });
+      } else if (
         JSON.stringify(field) !== JSON.stringify(definition.schema.properties[key]) ||
         required !== definition.schema.required.includes(key)
       ) result.push({ op: "update_property", key, field, required });
     }
     for (const key of Object.keys(definition.schema.properties)) {
-      if (!draft.schema.properties[key]) result.push({ op: "remove_property", key });
+      if (!draft.schema.properties[key]) {
+        result.push({ op: "remove_property", key });
+      }
     }
     const display = {
       ...draft.display,
@@ -359,6 +375,7 @@ export function useSchemaChangeEditor(
           applyPlan(value);
           setReviewTarget({ id: value.id, version: value.version });
           setMessage("변경안을 저장했습니다. 자료에 미치는 영향을 확인합니다.");
+          onReviewed();
         } else {
           setPlan(value);
           setMigration(value.migration);
@@ -396,7 +413,9 @@ export function useSchemaChangeEditor(
     if (!reviewTarget || busy || uncertain) return;
     setReviewTarget(null);
     if (dirty || !plan || plan.id !== reviewTarget.id || plan.version !== reviewTarget.version) return;
-    if (!["analyzing", "applied", "cancelled", "stale"].includes(plan.status)) void write("analyze");
+    if (!["analyzing", "applied", "cancelled", "stale"].includes(plan.status)) {
+      void write("analyze");
+    }
   }, [reviewTarget, busy, uncertain, dirty, plan?.id, plan?.version]);
   const loadPlan = async (id: string) => {
     if (protectedDraft.current.dirty || protectedDraft.current.busy || protectedDraft.current.uncertain) {
@@ -462,6 +481,17 @@ export function useSchemaChangeEditor(
   const editFlag = (key: string, name: "required" | "archived" | "list_columns", value: boolean) => {
     if (editable() && !plan?.recovery) flag(key, name, value);
   };
+  const setFieldInactive = (key: string, value: boolean) => {
+    if (
+      !editable() || plan?.recovery || key === draft.display.representative ||
+      key.startsWith("new_")
+    ) return;
+    if (value) {
+      flag(key, "required", false);
+      flag(key, "list_columns", false);
+    }
+    flag(key, "archived", value);
+  };
   const editOptionLabel = (key: string, code: string, label: string) => {
     if (!editable() || plan?.recovery || key.startsWith("new_")) return;
     setDraft((d) => ({
@@ -504,7 +534,9 @@ export function useSchemaChangeEditor(
     setRefs((r) => ({ ...r, [key]: ref }));
     setDraft((d) => ({
       ...d,
-      schema: { ...d.schema, properties: { ...d.schema.properties, [key]: { type: "string", title: "새 속성" } } },
+      schema: { ...d.schema, properties: { ...d.schema.properties, [key]: fieldInputPolicy({ type: "string", title: "새 항목" }, false),
+        },
+      },
       display: { ...d.display, order: [...d.display.order, key] },
     }));
     return key;
@@ -518,10 +550,13 @@ export function useSchemaChangeEditor(
   };
   const editMigration = (value: MigrationPlan) => {
     // Conversion input can still be edited while a plan read is in flight.
-    if (!busy && !uncertain && !disabled && !plan?.recovery) setMigration(value);
+    if (!busy && !uncertain && !disabled && !plan?.recovery) {
+      setMigration(value);
+    }
   };
   const review = () => {
     if (uncertain || validateFields()) return write("save");
+    return Promise.resolve();
   };
   const analyze = () => {
     if (!uncertain && !dirty && plan && !["analyzing", "applied", "cancelled", "stale"].includes(plan.status)) {
@@ -547,7 +582,9 @@ export function useSchemaChangeEditor(
     try {
       await onApplied();
     } catch (e) {
-      if (mounted.current) setError(e instanceof Error ? e.message : "조회 실패");
+      if (mounted.current) {
+        setError(e instanceof Error ? e.message : "조회 실패");
+      }
     } finally {
       if (mounted.current) setReadBusy(false);
     }
@@ -558,7 +595,9 @@ export function useSchemaChangeEditor(
       await list();
       if (mounted.current) setError("");
     } catch (e) {
-      if (mounted.current) setError(e instanceof Error ? e.message : "조회 실패");
+      if (mounted.current) {
+        setError(e instanceof Error ? e.message : "조회 실패");
+      }
     } finally {
       if (mounted.current) setReadBusy(false);
     }
@@ -600,6 +639,7 @@ export function useSchemaChangeEditor(
     editNumeric,
     removeNumericInput,
     editFlag,
+    setFieldInactive,
     editOptionLabel,
     chooseRepresentative,
     removeField,

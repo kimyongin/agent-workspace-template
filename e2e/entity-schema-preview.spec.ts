@@ -29,9 +29,9 @@ test("값 변환 준비: 저장된 직접 링크·실패 행 보완·재분석·
     });
     const path = `/settings/entity-types/${typeId}/migrations?change_id=${plan.id}`;
     await page.goto(path);
-    await expect(page.getByRole("heading", { name: "변경 검토 · 변경안 버전 1" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "변경 검토" })).toBeVisible();
     await page.reload();
-    await expect(page.getByRole("heading", { name: "변경 검토 · 변경안 버전 1" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "변경 검토" })).toBeVisible();
     await page.getByRole("button", { name: "검토 계속", exact: true }).click();
     await expect.poll(async () => {
       await schemaAnalysisTick();
@@ -50,9 +50,9 @@ test("값 변환 준비: 저장된 직접 링크·실패 행 보완·재분석·
     await dialog.getByRole("button", { name: "취소", exact: true }).click();
     await expect(row.getByRole("textbox", { name: "보완값", exact: true })).toHaveValue("01");
     await page.getByRole("button", { name: "보완 내용 검토", exact: true }).click();
-    await expect(page.getByRole("heading", { name: "변경 검토 · 변경안 버전 2" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "변경 검토" })).toBeVisible();
     await page.reload();
-    await expect(page.getByRole("heading", { name: "변경 검토 · 변경안 버전 2" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "변경 검토" })).toBeVisible();
     const httpRows = page.waitForResponse((r) =>
       r.url().includes(`/schema-changes/${plan.id}/rows?`) && r.status() === 200
     );

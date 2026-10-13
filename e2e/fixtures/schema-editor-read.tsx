@@ -1,3 +1,5 @@
+import { useState } from "react";
+import { PropertyFields, type PropertyDraft } from "../../src/features/entity/property-fields.tsx";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, Link } from "react-router";
 import { SchemaEditor } from "../../src/features/settings/SchemaEditor.tsx";
@@ -31,6 +33,18 @@ if (new URLSearchParams(location.search).has("display-example")) {
   definition.display.list_columns.push("prop_2", "prop_3");
   definition.display.option_labels.prop_3 = { kg: "킬로그램", g: "그램" };
 }
+function EmptyInputsFixture() {
+  const [values, setValues] = useState<PropertyDraft>({ prop_1: "자료", prop_2: "0", prop_3: false, prop_4: "a", prop_5: "이전 값" });
+  const fields = { ...definition, schema: { ...definition.schema, properties: {
+    ...definition.schema.properties,
+    prop_2: { type: ["number", "null"] as ("number" | "null")[], title: "숫자 입력" },
+    prop_3: { type: ["boolean", "null"] as ("boolean" | "null")[], title: "참거짓 입력" },
+    prop_4: { type: ["string", "null"] as ("string" | "null")[], enum: ["a", null], title: "선택 입력" },
+    prop_5: { type: "string" as const, title: "이전 텍스트" },
+  } }, display: { ...definition.display, order: ["prop_1", "prop_2", "prop_3", "prop_4", "prop_5"] } };
+  return <><PropertyFields definition={fields} values={values} onChange={setValues} errors={{}} />
+    <output aria-label="입력 결과">{JSON.stringify(values)}</output></>;
+}
 const onState = () => {};
 const onApplied = async () => "";
 createRoot(document.getElementById("root")!).render(
@@ -39,6 +53,6 @@ createRoot(document.getElementById("root")!).render(
       <Link to="?change_id=a">변경안 A</Link>
       <Link to="?change_id=b">변경안 B</Link>
     </nav>
-    <SchemaEditor type={type} definition={definition} onState={onState} onApplied={onApplied} />
+    {new URLSearchParams(location.search).has("empty-inputs") ? <EmptyInputsFixture /> : <SchemaEditor type={type} definition={definition} onState={onState} onApplied={onApplied} />}
   </BrowserRouter>,
 );
