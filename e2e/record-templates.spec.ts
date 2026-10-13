@@ -21,7 +21,7 @@ test("설정 템플릿 오류·변수 삽입과 실제 변경 확인·취소·�
   let taskId:string|undefined;
   try {
     await page.goto(`/settings/entity-types/${fixtureType.id}`);
-    await page.getByRole("button",{name:/^기록 기본값/}).click();
+    await page.getByRole("button",{name:/현재 종류 기록 기본값/}).click();
     let form = page.getByRole("form",{name:"현재 종류 기록 기본값"});
     await expect(form.getByLabel("메모 템플릿")).toBeVisible();
     await expect(form.getByLabel("자료 종류", { exact: true })).toHaveCount(0);
