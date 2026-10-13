@@ -510,9 +510,10 @@ test("numeric schema bounds keep invalid raw decimals and reject before creating
   await page.goto(`/settings/entity-types/${materials.id}`);
   await page.getByRole("button", { name: "정확한 수량 속성 편집", exact: true }).click();
   const section = page.getByRole("region", { name: "정확한 수량 속성", exact: true });
+  await section.getByText("추가 설정", {exact:true}).click();
   const input = section.getByLabel("최소값", { exact: true });
   await input.fill("1.0000000000000001");
-  await page.getByRole("button", { name: "속성 변경 검토", exact: true }).click();
+  await page.getByRole("button", { name: "변경 검토", exact: true }).click();
   await expect(page.getByRole("alert")).toContainText("정밀도");
   await expect(input).toHaveValue("1.0000000000000001");
   expect(writes).toBe(0);

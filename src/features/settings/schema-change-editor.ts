@@ -49,6 +49,7 @@ export function useSchemaChangeEditor(
   const [numericDrafts, setNumericDrafts] = useState<Record<string, string>>({});
   const [migration, setMigration] = useState<MigrationPlan>({ rules: [], overrides: [] });
   const [acceptedAnalysis, setAcceptedAnalysis] = useState<string | null>(null);
+  const [reviewTarget, setReviewTarget] = useState<{ id: string; version: number } | null>(null);
   const [error, setError] = useState(""),
     [message, setMessage] = useState(""),
     [readBusy, setReadBusy] = useState(false);
@@ -351,7 +352,8 @@ export function useSchemaChangeEditor(
         setReadBusy(false);
         if (action === "save") {
           applyPlan(value);
-          setMessage("변경 초안을 저장했습니다. 영향 분석을 실행하세요.");
+          setReviewTarget({ id: value.id, version: value.version });
+          setMessage("변경안을 저장했습니다. 자료에 미치는 영향을 확인합니다.");
         } else {
           setPlan(value);
           setMigration(value.migration);
@@ -383,6 +385,13 @@ export function useSchemaChangeEditor(
       }
     }
   };
+  // Only an explicitly saved review starts analysis; reads and direct links never write.
+  useEffect(() => {
+    if (!reviewTarget || busy || uncertain) return;
+    setReviewTarget(null);
+    if (dirty || !plan || plan.id !== reviewTarget.id || plan.version !== reviewTarget.version) return;
+    if (!["analyzing", "applied", "cancelled", "stale"].includes(plan.status)) void write("analyze");
+  }, [reviewTarget, busy, uncertain, dirty, plan?.id, plan?.version]);
   const loadPlan = async (id: string) => {
     if (protectedDraft.current.dirty || protectedDraft.current.busy || protectedDraft.current.uncertain) {
       setReadBusy(false);
@@ -548,14 +557,21 @@ export function useSchemaChangeEditor(
       if (mounted.current) setReadBusy(false);
     }
   };
+  const changedFields = draft.display.order.filter((key) =>
+    JSON.stringify(draft.schema.properties[key]) !== JSON.stringify(saved.schema.properties[key]) ||
+    draft.schema.required.includes(key) !== saved.schema.required.includes(key) ||
+    Object.keys(numericDrafts).some((address) => address.startsWith(key + ":"))
+  );
+  const changeCount = changedFields.length +
+    Object.keys(saved.schema.properties).filter((key) => !draft.schema.properties[key]).length +
+    (JSON.stringify(draft.display) !== JSON.stringify(saved.display) ? 1 : 0) +
+    (JSON.stringify(migration) !== JSON.stringify(plan?.migration ?? { rules: [], overrides: [] }) ? 1 : 0);
   return {
     view: {
       draft,
       unreservedFields: Object.keys(draft.schema.properties).filter((key) => key.startsWith("new_")),
-      changedFields: draft.display.order.filter((key) =>
-        JSON.stringify(draft.schema.properties[key]) !== JSON.stringify(saved.schema.properties[key]) ||
-        Object.keys(numericDrafts).some((address) => address.startsWith(key + ":"))
-      ),
+      changedFields,
+      changeCount,
       unsupportedNumericInputs: Object.entries(numericDrafts).filter(([address]) => {
         const [key, name] = address.split(":");
         return draft.schema.properties[key] && !supportsNumericCondition(draft.schema.properties[key], name);

@@ -10,13 +10,17 @@ export const schemaChangeLabels: Record<EntitySchemaChange["status"], string> = 
   applied: "게시 완료",
   cancelled: "취소",
 };
-export function fieldSummary(field: EntityField) {
+export function fieldTypeLabel(field: EntityField) {
   const kind = fieldType(field);
   const label = field.enum
-    ? `선택 ${field.enum.filter((value) => value !== null).length}개`
+    ? "단일 선택"
     : field.format === "date"
     ? "날짜"
     : ({ string: "텍스트", integer: "정수", number: "숫자", boolean: "참·거짓" }[kind ?? "string"] ?? "텍스트");
+  return label;
+}
+export function fieldSummary(field: EntityField) {
+  const label = fieldTypeLabel(field);
   const constraints = [
     field.minLength !== undefined ? `최소 ${field.minLength}자` : "",
     field.maxLength !== undefined ? `최대 ${field.maxLength}자` : "",

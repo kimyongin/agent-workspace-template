@@ -34,22 +34,22 @@ test("웹 속성 초안·분석·게시 후 기존 자료 표시와 MCP 생성·
     const field = page.getByRole("region", { name: "새 속성 속성", exact: true });
     await field.getByLabel("속성 이름", { exact: true }).fill("수량");
     const count = page.getByRole("region", { name: "수량 속성", exact: true });
-    await count.getByLabel("데이터 타입", { exact: true }).selectOption("integer");
+    await count.getByLabel("형식", { exact: true }).selectOption("integer");
+    await count.getByText("추가 설정", {exact:true}).click();
     await count.getByLabel("생성 기본값 (기존 자료에는 채우지 않음)", { exact: true }).selectOption("value");
     await expect(count.getByLabel("기본값", { exact: true })).toHaveValue("0");
-    await page.getByRole("button", { name: "속성 변경 검토", exact: true }).click();
-    await expect(page.getByRole("heading", { name: "속성 변경 검토 · 변경안 버전 1" })).toBeVisible();
+    await page.getByRole("button", { name: "변경 검토", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "변경 검토 · 변경안 버전 1" })).toBeVisible();
     const plans = await mcp.call("list_entity_schema_changes", { type_id: typeId });
     const planId = plans.items[0].id;
     const draft = await mcp.call("get_entity_schema_change", { type_id: typeId, change_id: planId });
     expect(draft.reservations).toEqual({ [Object.keys(draft.reservations)[0]]: "prop_2" });
     expect((await mcp.call("get_entity_schema", { type_id: typeId })).schema_version).toBe(1);
-    await page.getByRole("button", { name: "영향 분석", exact: true }).click();
     await expect.poll(async () => {
       await schemaAnalysisTick();
       return (await mcp.call("get_entity_schema_change", { type_id: typeId, change_id: planId })).status;
     }, { timeout: 30000 }).toBe("ready");
-    await expect(page.getByRole("button", { name: "새 버전 게시", exact: true })).toBeEnabled();
+    await expect(page.getByRole("button", { name: "변경 적용", exact: true })).toBeEnabled();
     let lost = false;
     await page.route(`**/entity-types/${typeId}/schema-changes/${planId}/apply`, async (route) => {
       if (!lost) {
@@ -59,7 +59,7 @@ test("웹 속성 초안·분석·게시 후 기존 자료 표시와 MCP 생성·
         await route.abort("failed");
       } else await route.continue();
     });
-    await page.getByRole("button", { name: "새 버전 게시", exact: true }).click();
+    await page.getByRole("button", { name: "변경 적용", exact: true }).click();
     await expect(page.getByRole("button", { name: "같은 요청 다시 확인", exact: true })).toBeVisible();
     await page.getByRole("button", { name: "같은 요청 다시 확인", exact: true }).click();
     await expect(page.getByRole("button", { name: /^속성·표시 버전 2/ })).toBeVisible();

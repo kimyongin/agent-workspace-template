@@ -21,6 +21,16 @@ const definition = {
   schema_version: 1,
   created_at: type.created_at,
 };
+if (new URLSearchParams(location.search).has("display-example")) {
+  definition.schema.properties.prop_1.title = "재료명";
+  Object.assign(definition.schema.properties, {
+    prop_2: { type: "number", title: "수량" },
+    prop_3: { type: "string", title: "단위", enum: ["kg", "g"] },
+  });
+  definition.display.order.push("prop_2", "prop_3");
+  definition.display.list_columns.push("prop_2", "prop_3");
+  definition.display.option_labels.prop_3 = { kg: "킬로그램", g: "그램" };
+}
 const onState = () => {};
 const onApplied = async () => "";
 createRoot(document.getElementById("root")!).render(

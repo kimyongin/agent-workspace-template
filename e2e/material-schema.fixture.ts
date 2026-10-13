@@ -1,3 +1,4 @@
+import { revealSetting } from "./ui-actions.ts";
 import { expect, test } from "@playwright/test";
 import { entityDetail } from "../supabase/functions/_shared/contracts/entity.ts";
 import { defaultEntityIdentitySettings } from "../supabase/functions/_shared/contracts/entity-identity.ts";
@@ -230,6 +231,7 @@ test("변환 완료는 새 게시 속성을 바로 갱신하고 기본·속성·
   await page.getByRole("button", { name: "이름 속성 편집", exact: true }).click();
   await page.getByLabel("속성 이름", { exact: true }).first().fill("남길 속성 입력");
   await page.getByRole("button", { name: "수량 속성 편집", exact: true }).click();
+  await revealSetting(page.getByLabel("최소값", { exact: true }));
   await page.getByLabel("최소값", { exact: true }).fill("7.5");
   await page.getByRole("button", { name: /^현재 종류 기록 기본값/ }).click();
   const record = page.getByRole("form", { name: "현재 종류 기록 기본값", exact: true });
@@ -244,7 +246,7 @@ test("변환 완료는 새 게시 속성을 바로 갱신하고 기본·속성·
   await expect(record.getByLabel("메모 템플릿")).toHaveValue("남길 기록 입력");
   await expect(page.getByRole("button", { name: "게시된 추가값 속성 편집", exact: true })).toBeVisible();
   await expect(page.getByLabel("이전 최소값 입력", { exact: true })).toHaveValue("7.5");
-  await page.getByRole("button", { name: "속성 변경 검토", exact: true }).click();
+  await page.getByRole("button", { name: "변경 검토", exact: true }).click();
   await expect(page.getByRole("alert")).toContainText("현재 타입에서 사용할 수 없는 이전 조건 입력");
   await page.getByRole("button", { name: "수량 이전 최소값 입력 제거", exact: true }).click();
   await expect(page.getByLabel("이전 최소값 입력", { exact: true })).toHaveCount(0);
