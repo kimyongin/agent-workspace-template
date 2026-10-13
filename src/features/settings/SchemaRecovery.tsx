@@ -1,6 +1,6 @@
 import { materialSettingsPath } from "./material-settings-path.ts";
 import type { MaterialSectionState } from "./MaterialSettingsSection.tsx";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router";
 import type { EntitySchemaMigration } from "@contracts/entity-schema-migration.ts";
 import { entityPath, entityReferenceId } from "@contracts/entity-identity.ts";
@@ -83,8 +83,8 @@ export function RecoveryChangeCreate({ job, onState, disabled = false }: {
   const navigate = useNavigate(), location = useLocation();
   const { attempt, busy, uncertain } = useWriteAttempt();
   const [error, setError] = useState("");
-  useEffect(() => { onState?.({ dirty: false, busy, uncertain, error: !!error }); }, [busy, uncertain, error, onState]);
-  useEffect(() => () => onState?.({ dirty: false, busy: false, uncertain: false }), [onState]);
+  useLayoutEffect(() => { onState?.({ dirty: false, busy, uncertain, error: !!error }); }, [busy, uncertain, error, onState]);
+  useLayoutEffect(() => () => onState?.({ dirty: false, busy: false, uncertain: false }), [onState]);
   const created = useRef<EntitySchemaChange | undefined>(undefined);
   const mounted = useRef(true);
   useEffect(() => {

@@ -8,7 +8,7 @@ import { MigrationStart } from "./SchemaMigrationJobs.tsx";
 import { recoveryErrorMessage } from "./SchemaRecovery.tsx";
 import { Link, useLocation, useNavigate } from "react-router";
 import { ConversionEditor } from "./ConversionEditor.tsx";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { EntityField, EntitySchemaVersion, EntityType } from "@contracts/entity-type.ts";
 import type {
   EntitySchemaChange,
@@ -89,10 +89,10 @@ export function SchemaEditor(
     setNumericDrafts({});
     setRefs(Object.fromEntries(Object.entries(value?.reservations ?? {}).map(([ref, key]) => [key, ref])));
   };
-  useEffect(() => {
+  useLayoutEffect(() => {
     onState({ dirty, busy: busy || startState.busy, uncertain: uncertain || startState.uncertain, error: !!error });
   }, [dirty, busy, uncertain, error, startState, onState]);
-  useEffect(() => () => onState({ dirty: false, busy: false, uncertain: false }), [onState]);
+  useLayoutEffect(() => () => onState({ dirty: false, busy: false, uncertain: false }), [onState]);
   useEffect(() => {
     mounted.current = true;
     return () => {

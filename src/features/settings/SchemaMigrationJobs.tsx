@@ -1,6 +1,6 @@
 import { materialSettingsPath } from "./material-settings-path.ts";
 import { type MaterialSectionState, MaterialSettingsSection } from "./MaterialSettingsSection.tsx";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { RecoveryAvailability, RecoveryChangeCreate, recoveryErrorMessage } from "./SchemaRecovery.tsx";
 import { Link, useLocation, useNavigate } from "react-router";
 import type { EntitySchemaMigration, SchemaMigrationAccepted } from "@contracts/entity-schema-migration.ts";
@@ -28,10 +28,10 @@ export function MigrationStart(
 ) {
   const navigate = useNavigate(), location = useLocation(), { attempt, busy, uncertain } = useWriteAttempt();
   const [error, setError] = useState("");
-  useEffect(() => {
+  useLayoutEffect(() => {
     onState?.({ busy, uncertain });
   }, [busy, uncertain, onState]);
-  useEffect(() => () => onState?.({ busy: false, uncertain: false }), [onState]);
+  useLayoutEffect(() => () => onState?.({ busy: false, uncertain: false }), [onState]);
   const acceptedRef = useRef<SchemaMigrationAccepted | undefined>(undefined);
   const start = async () => {
     setError("");
@@ -225,7 +225,7 @@ export function SchemaMigrationJob({ typeId: type_id, jobId: job_id, onState, on
     busy: false,
     uncertain: false,
   });
-  useEffect(() => {
+  useLayoutEffect(() => {
     onState({
       dirty: false,
       busy: busy || recoveryState.busy,
@@ -233,7 +233,7 @@ export function SchemaMigrationJob({ typeId: type_id, jobId: job_id, onState, on
       error: !!error,
     });
   }, [busy, uncertain, error, recoveryState, onState]);
-  useEffect(() => () => onState({ dirty: false, busy: false, uncertain: false }), [onState]);
+  useLayoutEffect(() => () => onState({ dirty: false, busy: false, uncertain: false }), [onState]);
   const [pendingAction, setPendingAction] = useState<"cancel" | "retry">();
   useEffect(() => {
     setJob(undefined);
