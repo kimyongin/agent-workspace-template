@@ -290,6 +290,28 @@ test("통합 태그는 접힌 섹션에도 조회 오류와 저장 미확정 상
   await expect(section).toContainText("결과 확인 필요");
 });
 
+test("통합 태그는 삭제 실패 후 접혀도 오류와 기존 행을 유지한다", async ({ page }) => {
+  const tag = { id: "00000000-0000-4000-8000-000000000010", name: "삭제 실패 태그", scope: "entity", version: 1 };
+  await page.route(
+    "**/api/tags**",
+    (route) =>
+      route.request().method() === "DELETE"
+        ? route.fulfill({ status: 400, json: { code: "validation", message: "삭제 실패" } })
+        : route.fulfill({ json: { items: [tag], next_cursor: null } }),
+  );
+  await page.goto("/settings/tags");
+  await page.getByRole("button", { name: "삭제 실패 태그 삭제", exact: true }).click();
+  const confirmation = page.locator("dialog.modal-action[open]");
+  await confirmation.getByRole("button", { name: "삭제하고 기록", exact: true }).click();
+  await expect(confirmation).toContainText("삭제 실패");
+  await confirmation.getByRole("button", { name: "취소", exact: true }).click();
+  const section = page.getByRole("heading", { level: 2 }).getByRole("button");
+  await section.click();
+  await expect(section).toContainText("오류");
+  await section.click();
+  await expect(page.getByText("삭제 실패 태그", { exact: true })).toBeVisible();
+});
+
 test("기존 식별자 주소도 일반 설정의 식별자 섹션으로 연결한다", async ({ page }) => {
   await settingsFixture(page);
   await page.goto("/settings/entity-identity");

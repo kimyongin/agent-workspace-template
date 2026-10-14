@@ -133,7 +133,7 @@ export function TagManagement({scope,inline=false,onClose,onStateChange}:{scope:
         setPage(p => p && ({ ...p, items: p.items.filter(t => t.id !== target.id) })); setNotice("태그를 삭제했습니다.");
         if(draft?.initial?.id===target.id){setDraft(null);attempt.reset();dismiss();}
         setRetry(n => n + 1);
-      } catch (e) { focusId.current = target.id; setNotice(null); throw e; }
+      } catch (e) { focusId.current = target.id; setNotice(null); setFailure(writeErrorMessage(e)); throw e; }
       finally { setDeletingBusy(false); saving.current = false; }
     };
   const reportDeletion=(id:string,state:DeletionState)=>setDeletions(current=>{const before=current[id];return before&&before.armed===state.armed&&before.busy===state.busy&&before.uncertain===state.uncertain?current:{...current,[id]:state};});
