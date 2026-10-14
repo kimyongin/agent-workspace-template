@@ -6,6 +6,10 @@
 
 Node·Deno·Supabase CLI 버전과 설치 명령은 package.json·lockfile을 따른다. 로컬 Supabase에는 Docker가 필요하다. 함수 서버와 웹 서버의 실행 대상은 환경 파일에서 확인한다. 웹을 로컬에서 열었다고 DB도 로컬인 것은 아니다.
 
+
+
+기존 로컬 stack을 다른 checkout/worktree에서 재사용할 때는 함수 실행 전에 `supabase/signing_keys.json`의 공개 `kid`가 해당 Auth의 `/auth/v1/.well-known/jwks.json`과 일치하는지 확인한다. 같은 project_id라도 checkout의 무시 파일은 서로 다를 수 있으며, CLI가 다른 JWKS를 함수에 주입하면 Auth 로그인은 성공하고 업무 API만 401을 반환한다. DB·사용자·서명키를 재생성하지 말고 실행 설정을 기존 stack에 맞춘다. 비밀키·토큰은 출력하지 않고 기존 파일은 비공개 백업으로 보존한다. 로컬 Google provider가 비활성화된 경우 `.env.local`의 준비된 개발 계정으로 로그인한다.
+
 `setup:local`은 키·개발 계정·환경 파일을 준비하며 기존 생성 값과 사용자 설정을 보존한다. `test:integration:local`은 설정된 함수 서버를 먼저 관찰한다. 준비된 기존 실행은 재사용하고, 준비 중이면 최대 2분 기다리며 준비 실패 시 중단한다. 기존 실행에서는 setup·migration·환경 파일 갱신을 하지 않으므로 검사에 필요한 로컬 환경은 먼저 준비되어 있어야 한다. 명령의 실제 동작은 [검사 실행](../../scripts/test-local-integration.mjs)과 [수명주기 module](../../scripts/local-runtime.mjs)이 소유한다.
 
 함수 실행이 없을 때만 Edge runtime을 제외한 setup 후 다시 관찰하고 직접 함수를 실행한다. setup 중 독립적으로 나타난 실행은 빌려 쓰며 제거하지 않는다. 직접 실행할 때는 기본 환경 파일을 수정하지 않고 개인 임시 환경 파일에 실행별 nonce를 추가한다. 정확한 컨테이너 ID·실제 functions bind source·Docker 환경의 nonce가 모두 일치해야 정리를 허용한다. 생성 시각이나 동일 source만으로 소유권을 추정하지 않는다. 실행 직전에도 다시 관찰하며, nonce가 없거나 ID가 바뀌면 중단하고 컨테이너를 보존한다. 검사 종료·실패·SIGINT/SIGTERM에는 직접 만든 자식 프로세스 트리를 강제 종료하고 증명한 컨테이너 ID만 정리하며 DB·volume과 기존 실행을 정리하지 않는다. project 이름만으로 정리하지 않는다. 다른 터미널이 같은 project의 Supabase CLI를 직접 실행하는 경우 CLI 자체의 이름 기반 교체와 시작 시점 경쟁까지 원자적으로 막지는 못하므로 같은 project에서 동시에 시작하지 않는다.

@@ -34,6 +34,7 @@ import { TasksPage } from "../features/activity/TasksPage.tsx";
 import { PrinciplesPage } from "../features/principles/PrinciplesPage.tsx";
 import { PrincipleDetailPage } from "../features/principles/PrincipleDetailPage.tsx";
 import { TagsPage } from "../features/tags/TagsPage.tsx";
+import { TagSettingsPage } from "../features/tags/TagSettingsPage.tsx";
 import { SearchPage } from "../features/search/SearchPage.tsx";
 import { EntitiesPage } from "../features/entity/EntitiesPage.tsx";
 import { EntityDetailPage } from "../features/entity/EntityDetailPage.tsx";
@@ -128,6 +129,7 @@ export function App() {
           <Route path="guide" element={guarded(<GuidePage />)} />
           <Route path="settings/navigation" element={guarded(<NavigationSettingsPage />)} />
           <Route path="settings" element={guarded(<SettingsPage />)} />
+          <Route path="settings/tags" element={guarded(<TagSettingsPage />)} />
           <Route
             path="settings/entity-identity"
             element={guarded(<Navigate to="/settings#entity-identity-title" replace />)}

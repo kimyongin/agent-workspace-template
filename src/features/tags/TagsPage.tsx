@@ -67,7 +67,7 @@ export function TagManagement({scope,inline=false,onClose,onStateChange}:{scope:
     if (!focusId.current || loading) return;
     // Restore focus after the confirmation stage has revealed the refreshed management list.
     const frame = requestAnimationFrame(() => {
-      (document.getElementById(`tag-${focusId.current}`) ?? document.querySelector<HTMLElement>("dialog[open] .dialog-title"))?.focus();
+      (document.getElementById(`tag-${focusId.current}`) ?? document.querySelector<HTMLElement>("dialog[open] .dialog-title") ?? document.getElementById("tag-heading"))?.focus();
       focusId.current = null;
     });
     return () => cancelAnimationFrame(frame);
@@ -88,7 +88,7 @@ export function TagManagement({scope,inline=false,onClose,onStateChange}:{scope:
     if(attempt.snapshot().uncertain){setNotice("이전 저장 결과를 확인하지 못했습니다. 새 작업 전에 갱신된 태그 목록을 확인하세요.");setRetry(n=>n+1);}
     const id = draft?.initial?.id ?? "heading"; setDraft(null); attempt.reset();setFailure(null);setFieldError(undefined);setConflict(false);
     if (conflict) { focusId.current = id; setRetry(n => n + 1); }
-    else requestAnimationFrame(() => (document.getElementById(`tag-${id}`) ?? document.querySelector<HTMLElement>("dialog[open] .dialog-title"))?.focus());
+    else requestAnimationFrame(() => (document.getElementById(`tag-${id}`) ?? document.querySelector<HTMLElement>("dialog[open] .dialog-title") ?? document.getElementById("tag-heading"))?.focus());
     dismiss();
   };
   const save = async () => {
@@ -172,7 +172,7 @@ export function TagManagement({scope,inline=false,onClose,onStateChange}:{scope:
 
     </div>
   </>;
-  if (inline) return <section aria-label={`${tagScopeLabels[scope]} 태그 관리`}><h3 tabIndex={-1} id="tag-heading">{tagScopeLabels[scope]} 태그 관리</h3><button className="btn" disabled={busy} onClick={()=>change(close)}>태그 관리 닫기</button>{body}</section>;
+  if (inline) return <section aria-label={`${tagScopeLabels[scope]} 태그 관리`}>{body}</section>;
     return <ModalShell open title={`${tagScopeLabels[scope]} 태그 관리`} headingLevel={1} previous={previous} dirty={dirty} busy={busy} onClose={close} onRouteDiscard={()=>{setDraft(null);setDeletions({});attempt.reset();}}>
 {body}</ModalShell>;
 }
