@@ -32,7 +32,7 @@ export function SchemaVersionDiff(
   };
   return (
     <section className="schema-version-diff" aria-label="버전 차이">
-      <h3>버전 {before.schema_version} → {after.schema_version} 차이</h3>
+      <h4 className="section-title">버전 {before.schema_version} → {after.schema_version} 차이</h4>
       <ul>
         {paths.filter((key) =>
           JSON.stringify(before.schema.properties[key]) !==
