@@ -218,6 +218,13 @@ test("history expansion preserves the same section surface as other settings", a
   const history = workspace.getByRole("region", { name: "변경 이력", exact: true });
   for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
     await page.setViewportSize({ width, height: 900 });
+    const sections = await workspace.locator(".material-settings-section").evaluateAll((elements) => elements.map((el) => {
+      const box = el.getBoundingClientRect();
+      return { top: box.top, bottom: box.bottom };
+    }));
+    for (let index = 1; index < sections.length; index++) {
+      expect(sections[index].top - sections[index - 1].bottom, `section gap at ${width}px`).toBeCloseTo(20, 0);
+    }
     const reference = await input.evaluate((node) => {
       const css = getComputedStyle(node);
       return { padding: css.padding, border: css.borderWidth, background: css.backgroundColor };

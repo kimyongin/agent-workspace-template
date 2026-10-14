@@ -70,7 +70,7 @@
   margin-top: var(--space-5);
 }
 .samples-content .settings {
-  gap: var(--space-4);
+  gap: var(--space-5);
 }
 .samples-status {
   margin: 0;

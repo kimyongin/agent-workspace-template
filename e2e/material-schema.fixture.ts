@@ -920,6 +920,17 @@ test(
         },
       }));
     await page.goto(`/settings/entity-types/${materials.id}`);
+    for (const width of [320, 390, 768]) {
+      await page.setViewportSize({ width, height: 900 });
+      const names = ["기본 정보", "입력 항목", "기록 자동 완성", "변경 이력"];
+      const boxes = [];
+      for (const name of names) {
+        boxes.push((await page.getByRole("region", { name, exact: true }).boundingBox())!);
+      }
+      for (let index = 1; index < boxes.length; index++) {
+        expect(boxes[index].y - (boxes[index - 1].y + boxes[index - 1].height), `${width}px ${names[index]}`).toBeCloseTo(20, 0);
+      }
+    }
     await page.getByRole("button", { name: "입력 항목", exact: true }).click();
     await page.getByRole("button", { name: "수량 속성 편집", exact: true })
       .click();
