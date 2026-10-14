@@ -552,7 +552,11 @@ export function MaterialWorkspaceSample() {
                   <div id={id} hidden={!open} className="related-preview">
                     <PropertyDefinition fields={plan.after} />
                     <div className="schema-history-result">
-                      <h4 className="section-title">변경 결과 · 버전 {plan.version - 1} → {plan.version}</h4>
+                      <h4 className="section-title">변경 결과</h4>
+                      <p>
+                        버전 {plan.version - 1} → {plan.version} ·{" "}
+                        {plan.status === "applied" ? "적용 완료" : plan.status === "discarded" ? "폐기됨" : "검토 완료"}
+                      </p>
                       <ul>{changes(plan).map((change, index) => <li key={index}>{change}</li>)}</ul>
                       <p className="secondary">
                         {plan.status === "applied"
