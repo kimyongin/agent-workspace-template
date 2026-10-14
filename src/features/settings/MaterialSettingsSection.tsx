@@ -20,7 +20,7 @@ export function MaterialSettingsSection(
     if (initialOpen) setOpen(true);
   }, [initialOpen]);
   return (
-    <section className="settings-section material-settings-section" aria-label={title}>
+    <section className="settings-section material-settings-section" aria-label={title} data-open={open}>
       <h2 className="settings-section-title">
         <button
           type="button"

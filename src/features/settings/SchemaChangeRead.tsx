@@ -1,9 +1,13 @@
 import type { EntitySchemaChange } from "@contracts/entity-schema-change.ts";
 import type { EntitySchemaVersion } from "@contracts/entity-type.ts";
+import { SchemaDefinitionRead } from "./SchemaDefinitionRead.tsx";
 import { schemaDiffLabel, schemaDiffValueLabel } from "./schema-labels.ts";
 
 export function SchemaChangeDiff(
-  { change, definition }: { change: EntitySchemaChange; definition: EntitySchemaVersion },
+  { change, definition }: {
+    change: EntitySchemaChange;
+    definition: EntitySchemaVersion;
+  },
 ) {
   return (
     <dl className="schema-change-list">
@@ -23,11 +27,16 @@ export function SchemaChangeDiff(
 }
 /** A job visit reads its proposal without adopting it as the user's input draft. */
 export function SchemaChangeRead(
-  { change, definition }: { change: EntitySchemaChange; definition: EntitySchemaVersion },
+  { change, definition }: {
+    change: EntitySchemaChange;
+    definition: EntitySchemaVersion;
+  },
 ) {
   return (
     <section className="schema-summary" aria-label="변환 작업의 변경 내용">
-      <h3>변경 내용</h3>
+      <SchemaDefinitionRead definition={change.target} />
+      <h3>변경 결과</h3>
+      <p>버전 {change.source_schema_version} → {change.source_schema_version + 1}</p>
       <SchemaChangeDiff change={change} definition={definition} />
       {change.analysis && (
         <details>

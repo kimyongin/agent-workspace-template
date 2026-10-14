@@ -858,8 +858,8 @@ test("basic conflict refresh preserves section drafts and reapplies against the 
   await page.goto(`/settings/entity-types/${materials.id}`);
   await page.getByRole("button", { name: "이름 속성 편집", exact: true }).click();
   await page.getByLabel("속성 이름", { exact: true }).fill("남길 속성 초안");
-  await page.getByRole("button", { name: /현재 종류 기록 기본값/ }).click();
-  const record = page.getByRole("form", { name: "현재 종류 기록 기본값", exact: true });
+  await page.getByRole("button", { name: /기록 자동 완성/ }).click();
+  const record = page.getByRole("form", { name: "기록 자동 완성", exact: true });
   await record.getByLabel("메모 템플릿").fill("남길 기록 초안");
   await page.getByRole("button", { name: /^기본 정보(?! 저장)/ }).click();
   const name = page.getByLabel("자료 종류 이름", { exact: true });

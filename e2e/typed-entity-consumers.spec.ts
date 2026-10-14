@@ -80,8 +80,8 @@ test("타입별 목록·AND 필터·업무 문맥·템플릿은 현재 정의를
     await expect(page.getByRole("button", { name: first.title, exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: second.title, exact: true })).toBeVisible();
     await page.goto(`/settings/entity-types/${type.id}`);
-    await page.getByRole("button", { name: /현재 종류 기록 기본값/ }).click();
-    const template = page.getByRole("form", { name: "현재 종류 기록 기본값" });
+    await page.getByRole("button", { name: /기록 자동 완성/ }).click();
+    const template = page.getByRole("form", { name: "기록 자동 완성" });
     await template.getByLabel("액션", { exact: true }).selectOption("update");
     await template.getByLabel("메모 템플릿", { exact: true }).fill("値 $엔터티.이후.prop_2$ / $엔터티.이후.prop_4$");
     await template.getByRole("button", { name: "기록 기본값 저장", exact: true }).click();
