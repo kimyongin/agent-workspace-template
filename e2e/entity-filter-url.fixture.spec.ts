@@ -16,7 +16,7 @@ test("long property filter copied URL/reload/history/reset/type scope and entity
     if(url.origin===new URL(test.info().project.use.baseURL as string).origin)return route.continue();
     return route.abort();
   });
-  await page.route("**/api/entity-types/**",async route=>route.fulfill({json:schema}));
+  await page.route("**/api/entity-types/*/schema",async route=>route.fulfill({json:schema}));
   const reads:Array<{method:string;filters?:Array<{value?:unknown}>}>=[];
   await page.route("**/api/entities**",async route=>{
     const request=route.request(),url=new URL(request.url());
@@ -77,7 +77,7 @@ test("long filter survives detail edit/task/record modes and copied desktop owne
     if(url.origin===new URL(test.info().project.use.baseURL as string).origin)return route.continue();
     return route.abort();
   });
-  await page.route("**/api/entity-types/**",async route=>route.fulfill({json:schema}));
+  await page.route("**/api/entity-types/*/schema",async route=>route.fulfill({json:schema}));
   const reads:Array<{type:string;valueLength:number;matches:boolean}>=[];
   await page.route("**/api/entities**",async route=>{
     const request=route.request(),url=new URL(request.url());

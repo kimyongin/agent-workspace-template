@@ -110,7 +110,7 @@ test("프로필 팝오버는 키보드·외부 클릭·경로 이동에 초점�
   await page.keyboard.press("ArrowDown"); await expect(popup.getByRole("link", { name:"사용 가이드", exact:true })).toBeFocused();
   await page.keyboard.press("End"); await expect(popup.getByRole("link", { name:"로그아웃", exact:true })).toBeFocused();
   await page.keyboard.press("Escape"); await expect(profile).toBeFocused();
-  await profile.click(); await page.getByRole("heading", { name:"설정", exact:true }).click(); await expect(profile).toHaveAttribute("aria-expanded", "false");
+  await profile.click(); await page.getByRole("heading", { name:"기본 설정", exact:true }).click(); await expect(profile).toHaveAttribute("aria-expanded", "false");
   await profile.click(); await popup.getByRole("link", { name:"사용 가이드", exact:true }).click(); await expect(page).toHaveURL(/\/guide$/); await expect(profile).toHaveAttribute("aria-expanded", "false");
   await expect(profile).toHaveAttribute("data-current", "true");
 });

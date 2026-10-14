@@ -44,8 +44,8 @@ httpTest(
       client = await connectMcp(grant.access_token);
       const catalog = await client.listTools(),
         names = catalog.tools.map((t) => t.name);
-      assertEquals(names.length, 58);
-      assertEquals(new Set(names).size, 58);
+      assertEquals(names.length, 67);
+      assertEquals(new Set(names).size, 67);
       for (
         const name of [
           "get_entity_schema",

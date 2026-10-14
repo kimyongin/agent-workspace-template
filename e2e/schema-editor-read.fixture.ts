@@ -424,14 +424,20 @@ test("입력 항목 안에서 대표·목록·순서 변경을 함께 취소하�
   await page.getByRole("button", { name: "입력 항목", exact: true }).click();
   const section = page.getByRole("region", { name: "입력 항목", exact: true });
   await expect(page.getByRole("region", { name: "화면 표시", exact: true })).toHaveCount(0);
-  await expect(section.getByLabel("자료 이름으로 사용할 항목")).toHaveValue("prop_1");
+  await expect(section.getByRole("radio", { name: "재료명 자료 이름으로 사용", exact: true, includeHidden: true }))
+    .toBeChecked();
   await section.getByRole("button", { name: "수량 속성 편집", exact: true }).click();
   const quantity = page.getByRole("region", { name: "수량 속성", exact: true });
   await expect(quantity.getByLabel("수량 목록에 표시")).toBeHidden();
   await quantity.getByText("추가 설정", { exact: true }).click();
   await quantity.getByLabel("필수 입력").check();
   await quantity.getByLabel("데이터 타입").selectOption("string");
-  await section.getByLabel("자료 이름으로 사용할 항목").selectOption("prop_2");
+  const representative = quantity.getByRole("radio", { name: "수량 자료 이름으로 사용", exact: true });
+  await expect(representative).toBeDisabled();
+  await revealSetting(quantity.getByLabel("최소 길이", { exact: true }));
+  await quantity.getByLabel("최소 길이", { exact: true }).fill("1");
+  await representative.check();
+  await expect(representative).toBeChecked();
   await section.getByRole("button", { name: "단위 속성 편집", exact: true }).click();
   const unit = page.getByRole("region", { name: "단위 속성", exact: true });
   await unit.getByText("추가 설정", { exact: true }).click();
@@ -450,7 +456,8 @@ test("입력 항목 안에서 대표·목록·순서 변경을 함께 취소하�
   await expect(unit.getByLabel("단위 목록에 표시")).toBeChecked();
   await expect(quantity.getByLabel("필수 입력")).not.toBeChecked();
   await expect(quantity.getByLabel("데이터 타입")).toHaveValue("number");
-  await expect(section.getByLabel("자료 이름으로 사용할 항목")).toHaveValue("prop_1");
+  await expect(section.getByRole("radio", { name: "재료명 자료 이름으로 사용", exact: true, includeHidden: true }))
+    .toBeChecked();
   await expect(section.getByRole("button", { name: "변경 검토", exact: true })).toBeDisabled();
   expect(writes).toEqual([]);
   await page.screenshot({ path: info.outputPath("integrated-settings.png"), fullPage: true });

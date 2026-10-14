@@ -12,7 +12,14 @@ httpTest(
     try {
       const schema = await httpEntityFixture(token);
       assertEquals((await client.listTools()).tools.some((t) => t.name === "prepare_entity_registration"), false);
-      const settings = await tool(client, "get_entity_type_identity", { id: schema.entity_type_id });
+      const settings = await tool(client, "get_entity_type_identity", { type_id: schema.entity_type_id });
+      assertEquals(settings.type_id, schema.entity_type_id);
+      assertEquals(
+        settings.sources.some((source: { code: string; generation: string }) =>
+          source.code === "app" && source.generation === "automatic"
+        ),
+        true,
+      );
       const identity_version = settings.version;
       const identity = { ...schema, source: "app", external_id, identity_version };
       const created = await tool(client, "create_entity", {

@@ -119,7 +119,8 @@ test("keyboard reorder previews retained refs; failed save keeps draft and route
   state.fail();
   await page.getByRole("button", { name: "메뉴 바로가기 저장" }).click();
   await expect(page.getByRole("alert")).toContainText("선택한 메뉴를 유지");
-  await page.getByRole("navigation", { name: "설정 범주" }).getByRole("link", { name: "자료", exact: true }).click();
+  await page.getByRole("button", { name: "설정 메뉴", exact: true }).click();
+  await page.getByRole("navigation", { name: "설정 메뉴" }).getByRole("link", { name: "자료", exact: true }).click();
   await expect(page.getByRole("dialog", { name: "변경을 버릴까요?" })).toBeVisible();
   await page.getByRole("button", { name: "취소", exact: true }).click();
   await expect(nav(page).locator(".bottom-nav-inner > a")).toHaveText(["기록", "할 일"]);
@@ -242,7 +243,8 @@ test("pending save prevents duplicate submission and departure until authoritati
   });
   await page.getByRole("button", { name: "메뉴 바로가기 저장" }).click();
   await expect(page.getByRole("button", { name: "메뉴 바로가기 저장" })).toBeDisabled();
-  await page.getByRole("navigation", { name: "설정 범주" }).getByRole("link", { name: "자료", exact: true }).click();
+  await page.getByRole("button", { name: "설정 메뉴", exact: true }).click();
+  await page.getByRole("navigation", { name: "설정 메뉴" }).getByRole("link", { name: "자료", exact: true }).click();
   await expect(page).toHaveURL(/\/settings#settings-display$/);
   await expect(page.getByRole("dialog")).toHaveCount(0);
   release();

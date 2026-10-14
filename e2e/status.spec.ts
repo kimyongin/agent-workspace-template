@@ -149,7 +149,7 @@ test("상태: 실제 인증 HTTP·OAuth MCP 집계와 lazy 기본 접힘, 그래
     for (const width of [320, 639, 640, 1440]) {
       await page.setViewportSize({ width, height: originalViewport.height });
       await page.goto("/settings");
-      await expect(page.getByRole("heading", { name: "설정", level: 1 })).toBeVisible();
+      await expect(page.getByRole("heading", { name: "기본 설정", level: 1 })).toBeVisible();
       const settingsStyle = await styles(".settings-section", ".settings-section-title");
       await page.goto("/status");
       await expect(page.getByRole("heading", { name: "현재 자료·최근 활동", exact: true })).toBeVisible();

@@ -195,13 +195,14 @@ test("종류 문구 저장 충돌은 초안을 보존하고 응답 유실은 같
 test("태그 관리는 설정 링크 하나에서 같은 화면의 대상을 전환한다", async ({ page }) => {
   await settingsFixture(page);
   await page.goto("/settings");
+  await page.getByRole("button", { name: "설정 메뉴", exact: true }).click();
   await expect(page.getByRole("link", { name: "태그", exact: true })).toHaveCount(1);
   for (const name of ["자료 태그", "할 일 태그", "기록 태그"]) {
     await expect(page.getByRole("link", { name, exact: true })).toHaveCount(0);
   }
-  await page.getByRole("navigation", { name: "설정 범주" }).getByRole("link", { name: "태그", exact: true }).click();
+  await page.getByRole("navigation", { name: "설정 메뉴" }).getByRole("link", { name: "태그", exact: true }).click();
   await expect(page).toHaveURL(/\/settings\/tags$/);
-  await expect(page.getByRole("heading", { name: "태그 관리", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "태그 설정", exact: true })).toBeVisible();
   const target = page.getByLabel("관리 대상", { exact: true });
   await expect(target.locator("option")).toHaveText(["자료", "할 일", "기록"]);
   for (const scope of ["task", "record", "entity"]) {
@@ -355,7 +356,7 @@ test("기록 대상과 액션 전환은 초안을 보존하고 대상별 저장�
   await expect(form.getByLabel("메모 템플릿")).toHaveValue("수정 초안");
   await form.getByLabel("액션", { exact: true }).selectOption("create");
   await expect(form.getByLabel("메모 템플릿")).toHaveValue("할 일 초안");
-  await page.getByRole("navigation", { name: "설정 범주" }).getByRole("link", { name: "기본", exact: true }).click();
+  await page.getByRole("navigation", { name: "설정 메뉴" }).getByRole("link", { name: "기본", exact: true }).click();
   await page.getByRole("dialog", { name: "변경을 버릴까요?" }).getByRole("button", { name: "취소", exact: true }).click();
   await expect(form.getByLabel("메모 템플릿")).toHaveValue("할 일 초안");
   await form.getByRole("button", { name: "기록 기본값 저장", exact: true }).click();
