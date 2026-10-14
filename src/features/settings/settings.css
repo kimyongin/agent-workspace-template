@@ -131,8 +131,6 @@ section[aria-labelledby="entity-identity-title"] .settings-section-footer { bord
 .schema-history-row .schema-analysis-status { border: 0; padding: var(--space-2) 0; }
 .schema-history-row .schema-job-detail { padding: 0; }
 
-.settings .material-settings-section[aria-label="변경 이력"][data-open="true"] { padding: 0; border: 0; background: transparent; }
-
 /* The common row marker belongs to the complete row, including its expanded editor. */
 .schema-field-title { display: flex; flex-direction: column; align-items: flex-start; justify-content: center; min-width: 0; min-height: 44px; width: 100%; padding-block: var(--space-2); color: var(--ink); font: inherit; text-align: left; }
 .schema-field[data-expanded] .schema-field-title { color: var(--accent); }
