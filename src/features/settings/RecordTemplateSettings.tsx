@@ -32,6 +32,7 @@ export function RecordTemplateSettings(
     materialResource?: MaterialTemplateResource;
     materialTypeId?: string;
     publishedVersion?: number;
+    selectedModel?: TemplateModel;
   },
 ) {
   return props.materialResource
@@ -88,6 +89,7 @@ function RecordTemplateForm({
   materialResource,
   materialTypeId,
   publishedVersion,
+  selectedModel,
 }: Parameters<typeof RecordTemplateSettings>[0] & {
   editor: ReturnType<
     typeof useSettingsDraft<
@@ -102,7 +104,7 @@ function RecordTemplateForm({
   const saved = editor.saved?.settings;
   const setDraft = editor.resource.edit;
   const [model, setModel] = useState<TemplateModel>(
-    materialResource ? "entity" : "task",
+    selectedModel ?? (materialResource ? "entity" : "task"),
   );
   const { types, error: typeError, retry: retryTypes } = useEntityTypes();
   const typeId = materialTypeId ?? "";
@@ -203,10 +205,10 @@ function RecordTemplateForm({
   const parse = recordTemplates.safeParse(draft);
   const currentError = parse.success ? null : parse.error.issues.find((issue) => issue.path.join(".").startsWith(path))
     ?.message;
-  const title = materialResource ? "기록 자동 완성" : "변경 기록 기본값";
+  const title = "기록 자동 완성";
   return (
     <section className={materialResource ? "material-record-template" : "settings-section"} aria-label={title}>
-      {!materialResource && <h2 className="settings-section-title">{title}</h2>}
+      {!materialResource && !selectedModel && <h2 className="settings-section-title">{title}</h2>}
       {!saved && (
         <>
           <p role={message ? "alert" : "status"}>
@@ -240,6 +242,7 @@ function RecordTemplateForm({
             }
             setMessage("");
             if (await editor.resource.save()) {
+              window.dispatchEvent(new Event("workspace:record-settings-changed"));
               setMessage("기록 기본값을 저장했습니다.");
               setFields({});
             }
@@ -267,8 +270,8 @@ function RecordTemplateForm({
             className="form plain-fieldset"
           >
             <div className="field-row">
-              {!materialResource && (
-                <Field label="모델">
+              {!materialResource && !selectedModel && (
+                <Field label="대상">
                   {(props) => (
                     <select
                       {...props}

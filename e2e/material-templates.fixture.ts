@@ -113,8 +113,8 @@ async function settingsFixture(page: import("@playwright/test").Page, initial: a
   };
 }
 async function openTyped(page: import("@playwright/test").Page) {
-  await page.goto(`/settings/entity-types/${materials.id}`);
-  await page.getByRole("button", { name: /기록 자동 완성/ }).click();
+  await page.goto("/settings/records");
+  await page.getByLabel("대상", { exact: true }).selectOption(`type:${materials.id}`);
   return page.getByRole("form", { name: "기록 자동 완성", exact: true });
 }
 
@@ -167,7 +167,7 @@ test("미설정과 null은 고정 문구를 표시하고 되돌리기는 다른 
   expect(state.writes[2].body.value.task.create.memo).toBe("할 일 유지");
   expect(state.writes[2].body.value).not.toHaveProperty("entity");
   await page.reload();
-  await page.getByRole("button", { name: /기록 자동 완성/ }).click();
+  await page.getByLabel("대상", { exact: true }).selectOption(`type:${materials.id}`);
   await expect(form.getByLabel("메모 템플릿")).toHaveValue("$대상$ $액션$");
   await expect(form.getByText("기본 문구 사용 중", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "공통 설정", exact: true })).toHaveCount(0);
@@ -193,11 +193,11 @@ test("종류 문구 저장 충돌은 초안을 보존하고 응답 유실은 같
 test("태그 관리는 설정 링크 하나에서 같은 화면의 대상을 전환한다", async ({ page }) => {
   await settingsFixture(page);
   await page.goto("/settings");
-  await expect(page.getByRole("link", { name: "태그 관리", exact: true })).toHaveCount(1);
+  await expect(page.getByRole("link", { name: "태그", exact: true })).toHaveCount(1);
   for (const name of ["자료 태그", "할 일 태그", "기록 태그"]) {
     await expect(page.getByRole("link", { name, exact: true })).toHaveCount(0);
   }
-  await page.getByRole("link", { name: "태그 관리", exact: true }).click();
+  await page.getByRole("navigation", { name: "설정 범주" }).getByRole("link", { name: "태그", exact: true }).click();
   await expect(page).toHaveURL(/\/settings\/tags$/);
   await expect(page.getByRole("heading", { name: "태그 관리", exact: true })).toBeVisible();
   const target = page.getByLabel("관리 대상", { exact: true });
@@ -312,17 +312,10 @@ test("통합 태그는 삭제 실패 후 접혀도 오류와 기존 행을 유�
   await expect(page.getByText("삭제 실패 태그", { exact: true })).toBeVisible();
 });
 
-test("기존 식별자 주소도 일반 설정의 식별자 섹션으로 연결한다", async ({ page }) => {
-  await settingsFixture(page);
-  await page.goto("/settings/entity-identity");
-  await expect(page).toHaveURL(/\/settings#entity-identity-title$/);
-  await expect(page.getByRole("form", { name: "자료 식별자 설정", exact: true })).toBeVisible();
-});
-
 test("공유 기록 설정은 본문 조회만 작은 버튼으로 표시하고 저장 버튼을 유지한다", async ({ page }) => {
   const fixture = await settingsFixture(page);
-  await page.goto("/settings");
-  const form = page.getByRole("form", { name: "변경 기록 기본값", exact: true });
+  await page.goto("/settings/records");
+  const form = page.getByRole("form", { name: "기록 자동 완성", exact: true });
   await expect(form).toBeVisible();
   await form.getByLabel("메모 템플릿").fill("기록 설정 버튼 검증");
   fixture.fail("conflict");
@@ -340,4 +333,31 @@ test("공유 기록 설정은 본문 조회만 작은 버튼으로 표시하고 
   await form.getByRole("button", { name: "최신값으로 다시 편집", exact: true }).click();
   await expect(reload).toHaveCount(0);
   await expect(form.getByLabel("메모 템플릿")).toBeVisible();
+});
+
+
+test("기록 대상과 액션 전환은 초안을 보존하고 대상별 저장은 다른 입력을 유지한다", async ({ page }) => {
+  const fixture = await settingsFixture(page);
+  await page.goto("/settings/records");
+  const target = page.getByLabel("대상", { exact: true });
+  const form = page.getByRole("form", { name: "기록 자동 완성", exact: true });
+  await form.getByLabel("메모 템플릿").fill("할 일 초안");
+  await form.getByLabel("액션", { exact: true }).selectOption("update");
+  await form.getByLabel("메모 템플릿").fill("수정 초안");
+  await target.selectOption(`type:${materials.id}`);
+  await form.getByLabel("메모 템플릿").fill("재료 저장");
+  await form.getByRole("button", { name: "기록 기본값 저장", exact: true }).click();
+  await expect(form.getByRole("status")).toContainText("저장했습니다");
+  expect(fixture.writes[0].body.value).not.toHaveProperty("task");
+  await target.selectOption("task");
+  await expect(form.getByLabel("액션", { exact: true })).toHaveValue("update");
+  await expect(form.getByLabel("메모 템플릿")).toHaveValue("수정 초안");
+  await form.getByLabel("액션", { exact: true }).selectOption("create");
+  await expect(form.getByLabel("메모 템플릿")).toHaveValue("할 일 초안");
+  await page.getByRole("navigation", { name: "설정 범주" }).getByRole("link", { name: "기본", exact: true }).click();
+  await page.getByRole("dialog", { name: "변경을 버릴까요?" }).getByRole("button", { name: "취소", exact: true }).click();
+  await expect(form.getByLabel("메모 템플릿")).toHaveValue("할 일 초안");
+  await form.getByRole("button", { name: "기록 기본값 저장", exact: true }).click();
+  await expect(form.getByRole("status")).toContainText("저장했습니다");
+  expect(fixture.writes[1].body.value.entity_types[materials.id].create.memo).toBe("재료 저장");
 });
