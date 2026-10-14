@@ -290,7 +290,7 @@ async function fixture() {
       sql,
       a.actor.userId,
       (tx) =>
-        tx`insert into app.entities(owner_id,id,source,external_id,entity_type_id,schema_version,properties) select ${a.actor.userId},'large:'||n,'large',n::text,${type.id},2,jsonb_build_object('prop_1','row '||n,'prop_2',repeat('한',4096),'prop_3',repeat('글',4096),'prop_4',repeat('값',4096),'prop_5',repeat('복',4096),'prop_6',repeat('구',4096)) from generate_series(1,${count}) n`,
+        tx`insert into app.entities(owner_id,id,source,external_id,entity_type_id,schema_version,properties) select ${a.actor.userId},'app:'||${type.id}::text||':'||n,'app',n::text,${type.id},2,jsonb_build_object('prop_1','row '||n,'prop_2',repeat('한',4096),'prop_3',repeat('글',4096),'prop_4',repeat('값',4096),'prop_5',repeat('복',4096),'prop_6',repeat('구',4096)) from generate_series(1,${count}) n`,
     );
     await updateBusinessSettings(
       { uow: new SqlBusinessSettingsUnitOfWork(sql), clock: activity.clock },
@@ -898,7 +898,7 @@ dbTest(
     const f = await fixture();
     try {
       const o = await f.largeOriginal(70), c = await f.recovery(o.job.job_id);
-      const before = await getEntity(f.e, f.a.actor, "large:1");
+      const before = await getEntity(f.e, f.a.actor, `app:${o.type.id}:1`);
       const ready = await f.analyze(o.type.id, c.id, c.version);
       assertEquals(ready.analysis?.status, "failed");
       assertEquals(ready.analysis?.failure_reason, "analysis_result_limit");
@@ -915,7 +915,7 @@ dbTest(
           }),
         "schema_plan_stale",
       );
-      assertEquals(await getEntity(f.e, f.a.actor, "large:1"), before);
+      assertEquals(await getEntity(f.e, f.a.actor, `app:${o.type.id}:1`), before);
       assertEquals(
         (await getEntitySchema(f.d, f.a.actor, { type_id: o.type.id }))
           .schema_version,
@@ -955,7 +955,8 @@ dbTest(
         },
       );
       const c = await f.recovery(o.job.job_id), ready = await f.analyze(o.type.id, c.id, c.version);
-      const before = await getEntity(f.e, f.a.actor, "large:1"), t = await getEntityType(f.d, f.a.actor, o.type.id);
+      const before = await getEntity(f.e, f.a.actor, `app:${o.type.id}:1`),
+        t = await getEntityType(f.d, f.a.actor, o.type.id);
       assert(ready.executable);
       await code(() =>
         startEntitySchemaMigration(f.d, f.actor(), o.type.id, c.id, {
@@ -968,7 +969,7 @@ dbTest(
       const [jobs] = await f
         .admin`select count(*)::int as count from app.entity_schema_migrations where type_id=${o.type.id}`;
       assertEquals(jobs.count, 1);
-      assertEquals(await getEntity(f.e, f.a.actor, "large:1"), before);
+      assertEquals(await getEntity(f.e, f.a.actor, `app:${o.type.id}:1`), before);
       assertEquals(
         (await getEntitySchema(f.d, f.a.actor, { type_id: o.type.id }))
           .schema_version,
@@ -1010,7 +1011,7 @@ dbTest(
       const c = await f.recovery(o.job.job_id),
         ready = await f.analyze(o.type.id, c.id, c.version);
       assert(ready.executable);
-      const before = await getEntity(f.e, f.a.actor, "large:1"),
+      const before = await getEntity(f.e, f.a.actor, `app:${o.type.id}:1`),
         t = await getEntityType(f.d, f.a.actor, o.type.id);
       const [captured] = await f
         .admin`select sum(octet_length(properties::text)+octet_length(recovery_properties::text)+octet_length(after::text))::bigint as bytes from private.entity_schema_analysis_rows where analysis_id=${
@@ -1029,7 +1030,7 @@ dbTest(
           }),
         "invalid_input",
       );
-      assertEquals(await getEntity(f.e, f.a.actor, "large:1"), before);
+      assertEquals(await getEntity(f.e, f.a.actor, `app:${o.type.id}:1`), before);
       assertEquals(
         (await getEntitySchema(f.d, f.a.actor, { type_id: o.type.id }))
           .schema_version,

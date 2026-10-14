@@ -534,7 +534,7 @@ dbTest(
         sql,
         a.actor.userId,
         (tx) =>
-          tx`insert into app.entities(owner_id,id,source,external_id,entity_type_id,schema_version,properties) select ${a.actor.userId},'limit:'||n,'limit',n::text,${type.id},1,jsonb_build_object('prop_1','item '||n) from generate_series(1,2000) n`,
+          tx`insert into app.entities(owner_id,id,source,external_id,entity_type_id,schema_version,properties) select ${a.actor.userId},'app:'||${type.id}::text||':'||n,'app',n::text,${type.id},1,jsonb_build_object('prop_1','item '||n) from generate_series(1,2000) n`,
       );
       const plan = await analyze(d, a.actor, type.id, worker),
         job = await startEntitySchemaMigration(d, requestActor(a.actor), type.id, plan.change.id, plan.input);
@@ -567,7 +567,7 @@ dbTest(
         sql,
         a.actor.userId,
         (tx) =>
-          tx`insert into app.entities(owner_id,id,source,external_id,entity_type_id,schema_version,properties) select ${a.actor.userId},'over:'||n,'over',n::text,${over.id},1,jsonb_build_object('prop_1','item') from generate_series(1,2001) n`,
+          tx`insert into app.entities(owner_id,id,source,external_id,entity_type_id,schema_version,properties) select ${a.actor.userId},'app:'||${over.id}::text||':'||n,'app',n::text,${over.id},1,jsonb_build_object('prop_1','item') from generate_series(1,2001) n`,
       );
       await code(() => analyze(d, a.actor, over.id, worker), "invalid_input");
       const large = await createEntityType(d, requestActor(a.actor), { label: "Over bytes" });
@@ -575,7 +575,7 @@ dbTest(
         sql,
         a.actor.userId,
         (tx) =>
-          tx`insert into app.entities(owner_id,id,source,external_id,entity_type_id,schema_version,properties) select ${a.actor.userId},'bytes:'||n,'bytes',n::text,${large.id},1,jsonb_build_object('prop_1',repeat('한',4096)) from generate_series(1,700) n`,
+          tx`insert into app.entities(owner_id,id,source,external_id,entity_type_id,schema_version,properties) select ${a.actor.userId},'app:'||${large.id}::text||':'||n,'app',n::text,${large.id},1,jsonb_build_object('prop_1',repeat('한',4096)) from generate_series(1,700) n`,
       );
       await code(() => analyze(d, a.actor, large.id, worker), "invalid_input");
       assertEquals((await getEntitySchema(d, a.actor, { type_id: over.id })).schema_version, 1);
