@@ -1432,6 +1432,18 @@ test(
     expect(Math.max(...positions) - Math.min(...positions)).toBeLessThan(1);
     await expect(row.getByRole("region", { name: "변경 결과", exact: true }))
       .toContainText("버전 1 → 2");
+    const result = row.getByRole("region", { name: "변경 결과", exact: true });
+    const typography = await result.locator("h3, h4, p, li, strong").evaluateAll((elements) => elements.map((el) => {
+      const style = getComputedStyle(el);
+      return { tag: el.tagName, size: style.fontSize, weight: style.fontWeight, height: style.lineHeight };
+    }));
+    for (const style of typography) {
+      if (style.tag === "H3" || style.tag === "H4") {
+        expect(style).toMatchObject({ size: "13px", weight: "600", height: "20px" });
+      } else {
+        expect(style).toMatchObject({ size: "14px", weight: style.tag === "STRONG" ? "600" : "400", height: "24px" });
+      }
+    }
     await page.screenshot({
       path: info.outputPath("schema-history-presentation.png"),
       fullPage: true,

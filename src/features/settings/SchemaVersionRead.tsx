@@ -69,7 +69,7 @@ export function SchemaVersionRead(
         <>
           <SchemaDefinitionRead definition={value.target} />
           <section aria-label="변경 결과" className="schema-history-result">
-            <h3>변경 결과</h3>
+            <h3 className="section-title">변경 결과</h3>
             {version === 1 ? <p>버전 1 · 최초 생성</p> : (
               <>
                 <p>버전 {version - 1} → {version} · 적용 완료</p>
