@@ -6,7 +6,7 @@ import { useEntityTypes } from "../entity/useEntityTypes.ts";
 import { RecordTemplateSettings } from "./RecordTemplateSettings.tsx";
 import { createMaterialTemplateDraft, createRecordModelDraft } from "./material-template-drafts.ts";
 import { MaterialSettingsSection, type MaterialSectionState } from "./MaterialSettingsSection.tsx";
-import { SettingsNavigation } from "./SettingsNavigation.tsx";
+import { SettingsHeading } from "./SettingsHeading.tsx";
 import "./settings.css";
 type Target = { id: string; label: string; model: "entity" | "task" | "principle"; typeId?: string };
 export function RecordSettingsPage() {
@@ -26,7 +26,7 @@ export function RecordSettingsPage() {
     return () => window.removeEventListener("beforeunload", unload);
   }, [dirty, busy]);
   return <section className="panel settings" aria-label="기록 설정">
-    <h1 className="page-title">기록 설정</h1><SettingsNavigation />
+    <SettingsHeading title="기록 설정" />
     <Field label="대상">{props => <select {...props} className="input" value={selected} onChange={event => { const id = event.target.value; setSelected(id); setVisited(current => current.includes(id) ? current : [...current, id]); }}>{targets.map(target => <option key={target.id} value={target.id}>{target.label}{states[target.id]?.uncertain ? " · 결과 확인 필요" : states[target.id]?.dirty ? " · 미저장" : ""}</option>)}</select>}</Field>
     {catalog.error && <Notice kind="error">자료 종류를 읽지 못했습니다. <button type="button" className="btn" onClick={catalog.retry}>다시 시도</button></Notice>}
     {visited.map(id => { const target = targets.find(target => target.id === id); return target && <div key={id} hidden={selected !== id}><TargetEditor target={target} report={report} /></div>; })}
