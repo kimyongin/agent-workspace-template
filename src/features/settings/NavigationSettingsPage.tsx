@@ -16,7 +16,7 @@ export function NavigationSettingsPage() {
   const { session } = useAuth();
   return session ? <NavigationSettings key={session.user.id} /> : null;
 }
-function NavigationSettings() {
+export function NavigationSettings({ inline = false, onStateChange }: { inline?: boolean; onStateChange?: (state: { dirty: boolean; busy: boolean }) => void }) {
   const { session, savePreferences } = useAuth();
   const saved = accountPreferences(session!.user.user_metadata).navigation;
   const [baseline, setBaseline] = useState(saved);
@@ -36,10 +36,7 @@ function NavigationSettings() {
     ...["entities", "tasks", "principles", "records"].map((id) => ({ kind: "builtin", id } as NavigationRef)),
     ...types.map((type) => ({ kind: "type" as const, id: type.id })),
   ], types);
-  const blocker = useBlocker(dirty || busy);
-  useEffect(() => {
-    if (busy && blocker.state === "blocked") blocker.reset();
-  }, [busy, blocker]);
+  useEffect(() => { onStateChange?.({ dirty, busy }); }, [dirty, busy, onStateChange]);
   useEffect(() => {
     if (equal(saved, baseline)) return;
     if (dirty || pending.current) setConflict(true);
@@ -100,7 +97,8 @@ function NavigationSettings() {
     }
   };
   return (
-    <section className="panel settings" aria-labelledby="navigation-settings-title">
+    <section className={inline ? "navigation-inline-settings" : "panel settings"} aria-label="메뉴 바로가기">
+      {!inline && <>
       <nav className="settings-breadcrumb" aria-label="설정 경로">
         <DetailLink to="/settings">설정</DetailLink>
         <span>메뉴 바로가기</span>
@@ -110,6 +108,7 @@ function NavigationSettings() {
         내 프로필은 항상 표시됩니다. 바로가기는 최대 4개를 선택할 수 있고, 모든 업무와 자료 종류는 프로필에서 찾을 수
         있습니다.
       </p>
+      </>}
       <form
         className="form"
         aria-label="메뉴 바로가기 설정"
@@ -284,18 +283,13 @@ function NavigationSettings() {
           </button>
         </div>
       </form>
-      <ConfirmDialog
-        open={!busy && blocker.state === "blocked"}
-        title="변경을 버릴까요?"
-        message="저장하지 않은 메뉴 설정이 사라집니다."
-        confirmLabel="변경 버리기"
-        onConfirm={() => {
-          if (blocker.state === "blocked") blocker.proceed();
-        }}
-        onCancel={() => {
-          if (blocker.state === "blocked") blocker.reset();
-        }}
-      />
+      {!inline && <NavigationSettingsProtection dirty={dirty} busy={busy} />}
     </section>
   );
+}
+
+function NavigationSettingsProtection({ dirty, busy }: { dirty: boolean; busy: boolean }) {
+  const blocker = useBlocker(dirty || busy);
+  useEffect(() => { if (busy && blocker.state === "blocked") blocker.reset(); }, [busy, blocker]);
+  return <ConfirmDialog open={!busy && blocker.state === "blocked"} title="변경을 버릴까요?" message="저장하지 않은 메뉴 설정이 사라집니다." confirmLabel="변경 버리기" onConfirm={() => { if (blocker.state === "blocked") blocker.proceed(); }} onCancel={() => { if (blocker.state === "blocked") blocker.reset(); }} />;
 }
