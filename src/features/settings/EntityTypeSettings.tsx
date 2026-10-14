@@ -1,3 +1,5 @@
+import {TypeIdentitySettings} from "./TypeIdentitySettings.tsx";
+import type {MaterialSectionState} from "./MaterialSettingsSection.tsx";
 import { BodyAction } from "../../components/BodyAction.tsx";
 import { createMaterialDefinition } from "./material-definition.ts";
 import { SettingsNavigation } from "./SettingsNavigation.tsx";
@@ -59,6 +61,8 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
       setJobState({ ...state, uncertain: !!state.uncertain, error: !!state.error }),
     [],
   );
+  const [identityState,setIdentityState]=useState<MaterialSectionState>({dirty:false,busy:false});
+  const identityStateChange=useCallback((state:MaterialSectionState)=>setIdentityState(state),[]);
   const [schemaState, setSchemaState] = useState({ dirty: false, busy: false, uncertain: false });
   const schemaStateChange = useCallback(
     (state: { dirty: boolean; busy: boolean; uncertain: boolean }) => setSchemaState(state),
@@ -98,10 +102,10 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
     };
   }, []);
   const dirty = type_id ? basicDirty : label !== "" || icon !== "box" || representative !== "이름";
-  const protectedDraft = dirty || busy || uncertain ||
+  const protectedDraft = dirty || busy || uncertain || identityState.dirty || identityState.uncertain || identityState.busy ||
     schemaState.dirty || schemaState.busy || schemaState.uncertain || jobState.dirty || jobState.busy ||
     jobState.uncertain;
-  const anyBusy = busy || schemaState.busy ||
+  const anyBusy = busy || identityState.busy || schemaState.busy ||
     jobState.busy;
   useEffect(() => {
     const controller = new AbortController();
@@ -420,6 +424,7 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
           </form>
         </MaterialSettingsSection>
       )}
+      {!loading&&type_id&&type&&<TypeIdentitySettings typeId={type_id} onState={identityStateChange} disabled={busy||uncertain||schemaState.busy||schemaState.uncertain||jobState.busy||jobState.uncertain}/>}
       {schema && type && (
         <SchemaEditor
           type={type}
@@ -436,10 +441,10 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
           onMigrationApplied={definitions.migrationSucceeded}
           jobErrors={jobErrors}
           onJobState={jobStateChange}
-          jobDisabled={busy || uncertain || schemaState.busy || schemaState.uncertain}
+          jobDisabled={busy || uncertain || identityState.busy || identityState.uncertain || schemaState.busy || schemaState.uncertain}
           onApplied={definitions.published}
           onState={schemaStateChange}
-          disabled={busy || uncertain || jobState.busy || jobState.uncertain}
+          disabled={busy || uncertain || identityState.busy || identityState.uncertain || jobState.busy || jobState.uncertain}
         />
       )}
       <MaterialSettingsProtection

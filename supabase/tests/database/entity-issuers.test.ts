@@ -35,6 +35,7 @@ dbTest("issuer registry: type defaults, rule reuse, owner boundaries, disable an
         code: "app",
         rule_id: APP_IDENTIFIER_RULE_ID,
         active: true,
+        referenced: false,
         source_label: "앱",
         rule_label: "자동 발급",
         generation: "automatic",
