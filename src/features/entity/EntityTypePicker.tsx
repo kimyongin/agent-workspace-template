@@ -2,13 +2,14 @@ import { useId, useState } from "react";
 import type { EntityType } from "@contracts/entity-type.ts";
 import { EntityTypeIcon } from "./EntityTypeIcon.tsx";
 export function EntityTypePicker(
-  { types, value, onChange, all = false, disabled = false, error }: {
+  { types, value, onChange, all = false, disabled = false, error, compact = false }: {
     types: EntityType[];
     value: string;
     onChange: (id: string) => void;
     all?: boolean;
     disabled?: boolean;
     error?: string;
+    compact?: boolean;
   },
 ) {
   const [keyword, setKeyword] = useState(""), id = useId();
@@ -16,7 +17,7 @@ export function EntityTypePicker(
   const selected = types.find((type) => type.id === value);
   return (
     <div className="entity-type-picker">
-      {types.length > 6 && (
+      {!compact && types.length > 6 && (
         <label className="field">
           <span className="label">자료 종류 검색</span>
           <input
@@ -30,7 +31,7 @@ export function EntityTypePicker(
         </label>
       )}
       <div className="field">
-        <label className="label" htmlFor={id}>자료 종류</label>
+        <label className={compact ? "label visually-hidden" : "label"} htmlFor={id}>자료 종류</label>
         <select
           id={id}
           className="input"
@@ -52,7 +53,7 @@ export function EntityTypePicker(
         </select>
       </div>
       {error && <p id={`${id}-error`} role="alert" className="error-text">{error}</p>}
-      {selected && (
+      {selected && !compact && (
         <span className="help">
           <EntityTypeIcon id={selected.icon_id} /> {selected.label}
           {selected.archived ? " · 보관" : ""}
