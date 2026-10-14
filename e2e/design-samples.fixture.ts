@@ -148,6 +148,9 @@ test("invalid closed fields expand and focus; move controls retain the expanded 
   await workspace.getByRole("button", { name: "상품명 아래로 이동", exact: true }).click();
   await expect(workspace.getByRole("button", { name: "상품명 아래로 이동", exact: true })).toBeDisabled();
   await expect(field.getByLabel("항목 이름")).toHaveValue("상품명");
+  await expect(workspace.getByRole("button", { name: "상품명 위로 이동", exact: true })).toBeFocused();
+  await workspace.getByRole("button", { name: "상품명 위로 이동", exact: true }).click();
+  await expect(workspace.getByRole("button", { name: "상품명 아래로 이동", exact: true })).toBeFocused();
   expect(
     await workspace.locator(".schema-order-actions .body-action-face svg").first().evaluate((node) =>
       getComputedStyle(node).width

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { BodyAction } from "../components/BodyAction.tsx";
 import { CollectionList } from "../components/Collection.tsx";
 import { ConfirmDialog } from "../components/ConfirmDialog.tsx";
@@ -56,6 +56,22 @@ function PropertyList(
 ) {
   const [expanded, setExpanded] = useState<string[]>(["prop_2"]);
   const root = useRef<HTMLDivElement>(null);
+  const movement = useRef<{ id: string; direction: number } | null>(null);
+  useLayoutEffect(() => {
+    const moved = movement.current;
+    if (!moved) return;
+    movement.current = null;
+    const row = root.current?.querySelector(`[data-property-id="${moved.id}"]`);
+    const buttons = row?.querySelectorAll<HTMLButtonElement>(".schema-order-actions button");
+    const preferred = buttons?.[moved.direction < 0 ? 0 : 1];
+    const other = buttons?.[moved.direction < 0 ? 1 : 0];
+    const target = preferred && !preferred.disabled
+      ? preferred
+      : other && !other.disabled
+      ? other
+      : row?.querySelector<HTMLButtonElement>(".schema-field-title");
+    target?.focus();
+  }, [fields]);
   useEffect(() => {
     const ids = Object.keys(errors).map((key) => key.split(".")[0]);
     if (ids.length) setExpanded((prior) => [...new Set([...prior, ...ids])]);
@@ -73,6 +89,7 @@ function PropertyList(
   const toggle = (id: string) =>
     setExpanded((values) => values.includes(id) ? values.filter((value) => value !== id) : [...values, id]);
   const move = (index: number, delta: number) => {
+    movement.current = { id: fields[index].id, direction: delta };
     const next = [...fields];
     [next[index], next[index + delta]] = [next[index + delta], next[index]];
     onChange(next);
@@ -85,7 +102,7 @@ function PropertyList(
           const bodyId = `sample-${field.id}-body`;
           return (
             <li key={field.id}>
-              <div className="related-item schema-field" data-expanded={open || undefined}>
+              <div className="related-item schema-field" data-property-id={field.id} data-expanded={open || undefined}>
                 <div className="schema-field-heading">
                   <h3>
                     <button
