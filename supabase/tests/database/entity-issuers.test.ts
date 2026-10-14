@@ -264,7 +264,7 @@ dbTest("account deletion cascades the complete referenced registry while preserv
       );
     }
     assertEquals((await getEntityType(types, other.actor, preserved.id)).id, preserved.id);
-    assertEquals((await listEntityIssuers(issuers, other.actor)).map((value) => value.code), ["app"]);
+    assertEquals((await listEntityIssuers(issuers, other.actor)).items.map((value) => value.code), ["app"]);
   } finally {
     await own.cleanup();
     await other.cleanup();
