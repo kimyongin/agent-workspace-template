@@ -1,5 +1,5 @@
+import { fixtureIdentity } from "./support/workspace-data.ts";
 import { expect, test } from "@playwright/test";
-import { defaultEntityIdentitySettings } from "../supabase/functions/_shared/contracts/entity-identity.ts";
 import { type EntityType, initialEntityDefinition } from "../supabase/functions/_shared/contracts/entity-type.ts";
 import { fulfillPreparation } from "./support/preparation-api.ts";
 const type = (n: number, label: string, archived = false): EntityType => ({
@@ -36,6 +36,9 @@ test.beforeEach(async ({ page, baseURL }) => {
       url.pathname.startsWith(`/api/entity-types/${value.id}`)
     );
     if (selected) {
+      if (url.pathname.endsWith("/identity")) {
+        return route.fulfill({ json: fixtureIdentity(selected.id) });
+      }
       if (
         url.pathname.endsWith("/schemas") ||
         url.pathname.endsWith("/schema-changes")
@@ -73,7 +76,10 @@ test.beforeEach(async ({ page, baseURL }) => {
   );
 });
 
-async function settingsFixture(page: import("@playwright/test").Page, initial: any = {}) {
+async function settingsFixture(
+  page: import("@playwright/test").Page,
+  initial: any = {},
+) {
   let value = initial, version = 4;
   const writes: any[] = [];
   let fail = "";
@@ -94,14 +100,10 @@ async function settingsFixture(page: import("@playwright/test").Page, initial: a
       value = body.value;
       version++;
     }
-    const id = new URL(route.request().url()).searchParams.get("id");
     return route.fulfill({
       json: {
-        settings: {
-          ...(id !== "record_templates" ? { entity_identity: defaultEntityIdentitySettings } : {}),
-          ...(id !== "entity_identity" ? { record_templates: value } : {}),
-        },
-        versions: { entity_identity: 0, record_templates: version },
+        settings: { record_templates: value },
+        versions: { record_templates: version },
       },
     });
   });
@@ -334,7 +336,6 @@ test("공유 기록 설정은 본문 조회만 작은 버튼으로 표시하고 
   await expect(reload).toHaveCount(0);
   await expect(form.getByLabel("메모 템플릿")).toBeVisible();
 });
-
 
 test("기록 대상과 액션 전환은 초안을 보존하고 대상별 저장은 다른 입력을 유지한다", async ({ page }) => {
   const fixture = await settingsFixture(page);
