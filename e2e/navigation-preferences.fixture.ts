@@ -243,7 +243,7 @@ test("pending save prevents duplicate submission and departure until authoritati
   await page.getByRole("button", { name: "메뉴 바로가기 저장" }).click();
   await expect(page.getByRole("button", { name: "메뉴 바로가기 저장" })).toBeDisabled();
   await page.getByRole("navigation", { name: "설정 범주" }).getByRole("link", { name: "자료", exact: true }).click();
-  await expect(page).toHaveURL(/\/settings\/navigation$/);
+  await expect(page).toHaveURL(/\/settings#settings-display$/);
   await expect(page.getByRole("dialog")).toHaveCount(0);
   release();
   await expect(page.getByRole("status")).toHaveText("메뉴 설정을 저장했습니다.");
