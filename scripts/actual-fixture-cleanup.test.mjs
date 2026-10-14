@@ -1,9 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {
-  cleanupOwnedFixture,
-  fixtureManifest,
-} from "./actual-fixture-cleanup.mjs";
+import { cleanupOwnedFixture, fixtureManifest, registryFixturePlan } from "./actual-fixture-cleanup.mjs";
 const type = "00000000-0000-4000-8000-000000000001",
   baseline = "00000000-0000-4000-8000-000000000002";
 const scope = {
@@ -111,5 +108,37 @@ test("cleanup rejects remote/mismatched environment before connecting and permit
       requestKeys: [],
     }),
     [],
+  );
+});
+
+test("registry cleanup uses exact created owner/source/rule scope and blocks baseline references", () => {
+  const rule = "00000000-0000-4000-8000-000000000003";
+  const created = { ...scope, ids: { ...scope.ids, entity_issuers: ["market"], entity_identifier_rules: [rule] } };
+  const inventory = {
+    entity_issuers: [{ owner_id: "owner", code: "market", system: false }, {
+      owner_id: "other",
+      code: "market",
+      system: false,
+    }, { owner_id: "owner", code: "app", system: true }],
+    entity_identifier_rules: [{ owner_id: "owner", id: rule, source: "market" }],
+    entity_type_identity_sources: [{ owner_id: "owner", type_id: type, code: "market", rule_id: rule }],
+    entities: [{ owner_id: "owner", entity_type_id: type, source: "market" }],
+  };
+  assert.deepEqual(registryFixturePlan("owner", created, inventory), {
+    issuers: ["market"],
+    rules: [rule],
+    blockers: [],
+  });
+  const unapproved = structuredClone(inventory);
+  unapproved.entity_type_identity_sources.push({ owner_id: "owner", type_id: baseline, code: "market", rule_id: rule });
+  assert.deepEqual(registryFixturePlan("owner", created, unapproved).blockers, ["unapproved_type_identity_reference"]);
+  unapproved.entity_identifier_rules.push({ owner_id: "owner", id: baseline, source: "market" });
+  assert.deepEqual(registryFixturePlan("owner", created, unapproved).blockers, [
+    "untracked_issuer_rule",
+    "unapproved_type_identity_reference",
+  ]);
+  assert.deepEqual(
+    registryFixturePlan("owner", { ids: { entity_types: [], entity_issuers: ["app"] } }, inventory).blockers,
+    ["system_issuer"],
   );
 });

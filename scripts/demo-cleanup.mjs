@@ -22,7 +22,7 @@ export function validateManifest(m) {
       || !m.environment.host || !Number.isInteger(m.environment.port) || m.environment.port < 1
       || m.environment.port > 65535 || !m.environment.database) throw new Error('explicit environment identity required');
   if (!m.ids || Object.keys(m.ids).length !== roots.length || roots.some(k => !Array.isArray(m.ids[k])
-      || m.ids[k].some(id => typeof id !== 'string' || !id || id === '*' || id.length > 200)
+      || m.ids[k].some(id => typeof id !== 'string' || !id || id === '*' || id.length > (k === 'entities' ? 470 : 200))
       || new Set(m.ids[k]).size !== m.ids[k].length)) throw new Error('explicit ids arrays required for each supported root');
   if (m.ids.entity_types.some(id => !uuid.test(id))) throw new Error('type IDs must be UUIDs');
   if (!Array.isArray(m.reset_template_paths) || m.reset_template_paths.some(p => !Array.isArray(p)
