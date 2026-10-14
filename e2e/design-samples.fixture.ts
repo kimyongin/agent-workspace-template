@@ -235,3 +235,93 @@ test("history expansion preserves the same section surface as other settings", a
     }
   }
 });
+
+test("tag clear is a contextual action outside the choices and restores keyboard focus", async ({ page }) => {
+  await page.goto(direct);
+  const tags = page.getByRole("group", { name: "기본 기록 태그", exact: true });
+  const clear = tags.getByRole("button", { name: "모든 태그 선택 해제", exact: true });
+  await expect(clear).toHaveCount(0);
+  await expect(tags.locator(".tag-selection button")).toHaveCount(3);
+  const offset = () =>
+    tags.evaluate((node) =>
+      node.querySelector(".tag-selection")!.getBoundingClientRect().top - node.getBoundingClientRect().top
+    );
+  const before = await offset();
+  await tags.getByRole("button", { name: "중요", exact: true }).click();
+  await expect(tags).toHaveAccessibleName("기본 기록 태그");
+  await expect(clear).toBeVisible();
+  await expect(tags.locator(".tag-selection").getByRole("button", { name: "모든 태그 선택 해제" })).toHaveCount(0);
+  expect(await offset()).toBe(before);
+  await tags.getByRole("button", { name: "진행 중", exact: true }).click();
+  await tags.getByRole("button", { name: "중요", exact: true }).click();
+  await expect(tags.getByRole("button", { name: "중요", exact: true })).toHaveAttribute("aria-pressed", "false");
+  await clear.click();
+  await expect(clear).toHaveCount(0);
+  await expect(tags.getByRole("button", { name: "중요", exact: true })).toBeFocused();
+  await expect(tags.locator("[aria-pressed=true]")).toHaveCount(0);
+  expect(await offset()).toBe(before);
+  for (const width of [320, 390, 639, 640, 1440]) {
+    await page.setViewportSize({ width, height: 800 });
+    await tags.getByRole("button", { name: "중요", exact: true }).click();
+    const box = (await clear.boundingBox())!;
+    expect(box.width).toBeGreaterThanOrEqual(44);
+    expect(box.height).toBeGreaterThanOrEqual(44);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await clear.click();
+  }
+});
+
+test("tag selection handles empty, missing, loading, failure, busy and the ten-tag limit", async ({ page }) => {
+  await page.goto(direct);
+  const mode = page.getByLabel("태그 예시 상태");
+  const tags = page.getByRole("group", { name: "기본 기록 태그", exact: true });
+  const clear = tags.getByRole("button", { name: "모든 태그 선택 해제", exact: true });
+  await mode.selectOption("empty");
+  await expect(tags.getByRole("button")).toHaveCount(0);
+  await expect(tags).toContainText("태그 관리에서 태그를 먼저 추가하세요.");
+  for (const state of ["loading", "failure"]) {
+    await mode.selectOption(state);
+    await expect(clear).toBeEnabled();
+    await clear.click();
+    await expect(clear).toHaveCount(0);
+    await expect(tags.locator("legend")).toBeFocused();
+  }
+  await mode.selectOption("unknown");
+  await tags.getByRole("button", { name: "이름 확인이 필요한 태그 1 선택 해제", exact: true }).click();
+  await expect(tags.locator("legend")).toBeFocused();
+  await expect(clear).toHaveCount(0);
+  await mode.selectOption("busy");
+  await expect(clear).toBeDisabled();
+  await expect(tags.getByRole("button", { name: "중요", exact: true })).toBeDisabled();
+  await mode.selectOption("many");
+  const choices = tags.locator(".tag-selection button");
+  for (let i = 0; i < 10; i++) await choices.nth(i).click();
+  await expect(choices.nth(10)).toBeDisabled();
+  await expect(tags.getByRole("status")).toContainText("최대 10개");
+  await page.setViewportSize({ width: 320, height: 800 });
+  await page.evaluate(() => document.documentElement.style.fontSize = "200%");
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await choices.first().click();
+  await expect(choices.nth(10)).toBeEnabled();
+  await expect(tags.getByRole("status")).toHaveCount(0);
+  await clear.click();
+  await expect(choices.filter({ has: page.locator("[aria-pressed=true]") })).toHaveCount(0);
+  await page.evaluate(() => document.documentElement.style.fontSize = "");
+});
+
+test("tag clear retains list position with the template label at 200%", async ({ page }) => {
+  await page.goto(direct);
+  await page.setViewportSize({ width: 320, height: 800 });
+  await page.evaluate(() => document.documentElement.style.fontSize = "200%");
+  const tags = page.getByRole("group", { name: "기본 기록 태그", exact: true });
+  const offset = () =>
+    tags.evaluate((node) =>
+      node.querySelector(".tag-selection")!.getBoundingClientRect().top - node.getBoundingClientRect().top
+    );
+  const before = await offset();
+  await tags.getByRole("button", { name: "중요", exact: true }).click();
+  expect(await offset()).toBe(before);
+  await tags.getByRole("button", { name: "모든 태그 선택 해제", exact: true }).click();
+  expect(await offset()).toBe(before);
+  await page.evaluate(() => document.documentElement.style.fontSize = "");
+});

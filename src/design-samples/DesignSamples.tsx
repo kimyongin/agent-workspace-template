@@ -4,8 +4,9 @@ import { Field, Notice } from "../components/Field.tsx";
 import { MaterialSettingsSection } from "../features/settings/MaterialSettingsSection.tsx";
 import { MaterialWorkspaceSample } from "./PropertySamples.tsx";
 import { ModalSamples } from "./ModalSamples.tsx";
+import { TagSamples } from "./TagSamples.tsx";
 
-const topics = [["buttons", "버튼"], ["forms", "폼과 상태"], ["workspace", "목록과 자료 설정"], [
+const topics = [["buttons", "버튼"], ["forms", "폼과 상태"], ["tags", "태그"], ["workspace", "목록과 자료 설정"], [
   "dialogs",
   "모달과 확인",
 ]] as const;
@@ -85,6 +86,11 @@ function SamplesContent() {
         <h2 id="forms-title" className="page-title">폼과 상태</h2>
         <p className="secondary">필수 입력, 도움말, 오류, 읽기 전용과 비활성을 비교해보세요.</p>
         <FormSamples />
+      </section>
+      <section id="tags" className="samples-topic" aria-labelledby="tags-title">
+        <h2 id="tags-title" className="page-title">태그</h2>
+        <p className="secondary">태그를 눌러 선택하거나 해제하세요. 전체 해제는 라벨 옆의 보조 행동입니다.</p>
+        <TagSamples />
       </section>
       <section id="workspace" className="samples-topic" aria-labelledby="workspace-title">
         <h2 id="workspace-title" className="page-title">목록과 자료 설정</h2>

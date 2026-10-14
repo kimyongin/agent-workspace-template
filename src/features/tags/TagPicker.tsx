@@ -4,7 +4,7 @@ import { useLocation } from "react-router";
 import { WorkspaceContext } from "../details/workspace-context.ts";
 import { api } from "../../lib/api.ts";
 import { Field, Notice } from "../../components/Field.tsx";
-import "./tag-picker.css";
+import { TagSelection } from "./TagSelection.tsx";
 import { createTagRead } from "./tag-read.ts";
 const tagRead = createTagRead(api);
 
@@ -102,63 +102,24 @@ export function TagPicker(
 ) {
   const { tags, failed, retry } = useTagDictionary(true, false, scope);
   return (
-    <fieldset className="tag-picker">
-      <legend className="label">{label ?? `${tagScopeLabels[scope]} 태그`}</legend>
-      <div className="field">
-        {error && <p className="error-text">{error}</p>}
-        {failed
-          ? (
-            <>
-              <Notice kind="error">태그를 불러오지 못했습니다. 기존 선택은 유지합니다.</Notice>
-              <button type="button" className="btn" onClick={retry}>태그 다시 시도</button>
-            </>
-          )
-          : !tags
-          ? <p className="secondary" role="status">태그를 불러오는 중…</p>
-          : null}
-        <div className="chips tag-selection">
-          <button
-            type="button"
-            className="chip"
-            aria-label="태그 선택 해제"
-            disabled={!value.length}
-            onClick={() => onChange([])}
-          >
-            선택 해제
-          </button>
-          {tags?.filter((t) => t.id !== excludeId).map((t) => (
-            <button
-              type="button"
-              className="chip"
-              key={t.id}
-              aria-pressed={value.includes(t.id)}
-              disabled={!value.includes(t.id) && value.length >= 10}
-              onClick={() =>
-                onChange(
-                  value.includes(t.id) ? value.filter((id) => id !== t.id) : [...value, t.id],
-                )}
-            >
-              {t.name}
-            </button>
-          ))}
-          {tags &&
-            value.filter((id) => !tags.some((t) => t.id === id)).map((id) => (
-              <button
-                type="button"
-                className="chip"
-                key={id}
-                aria-pressed
-                onClick={() => onChange(value.filter((v) => v !== id))}
-              >
-                태그 확인 필요 (선택 해제)
-              </button>
-            ))}
-          {tags && !tags.length && !value.length && (
-            <span className="secondary">태그 관리에서 태그를 먼저 추가하세요.</span>
-          )}
-        </div>
-      </div>
-    </fieldset>
+    <TagSelection
+      label={label ?? `${tagScopeLabels[scope]} 태그`}
+      tags={tags}
+      value={value}
+      onChange={onChange}
+      error={error}
+      excludeId={excludeId}
+      status={failed
+        ? (
+          <>
+            <Notice kind="error">태그를 불러오지 못했습니다. 기존 선택은 유지합니다.</Notice>
+            <button type="button" className="btn" onClick={retry}>태그 다시 시도</button>
+          </>
+        )
+        : !tags
+        ? <p className="secondary" role="status">태그를 불러오는 중…</p>
+        : null}
+    />
   );
 }
 export function TagFilter(

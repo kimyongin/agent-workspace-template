@@ -12,6 +12,7 @@
 
 - 버튼: 종류 선택 옆 추가, 입력 옆 제거, 독립 보조 행동, 섹션 푸터를 비교한다.
 - 폼: 빈 상품명으로 입력 확인을 눌러 오류와 초점을 확인한다. 읽기 전용·비활성·0·긴 값도 비교한다.
+- 태그: 선택·재클릭 해제·라벨 옆 전체 해제·빈 사전·조회 중/실패·이름 확인 필요·10개 한도·저장 중을 비교한다.
 - 목록과 자료 설정: 항목 열기/접기·순서 이동·추가 설정·추가/삭제를 조작한다. 변경 검토는 당시 입력의 사본을 이력에 추가하며 이후 편집과 독립적이다. 이력 아래 변경 결과·적용·폐기를 확인한다. 기본 정보와 기록 자동 완성은 각 섹션에서 저장한다.
 - 모달과 확인: 편집→저장 확인→확인 취소와 편집 취소→변경 폐기를 확인한다. 샘플 저장 결과를 실패 또는 결과 미확정으로 선택하면 초안/메모 유지·처리 중 잠금·재시도/결과 확인을 볼 수 있다. 자료 삭제는 짧은 확인창이다.
 
@@ -19,7 +20,7 @@
 
 ## 유지
 
-샘플 코드는 [src/design-samples](../../src/design-samples)에 있다. `Field`, `BodyAction`, `CollectionList`, `MaterialSettingsSection`, `SchemaDefinitionRead`, `ConfirmDialog`와 공용 CSS·토큰을 사용한다. 샘플 전용 CSS는 미리보기 배치만 담당한다. 편집 모달의 예시 상태는 native dialog와 같은 공용 shell 클래스를 사용하고, 저장·폐기 확인은 실제 앱과 같은 `ConfirmationSurface`를 편집창 위에 연다.
+샘플 코드는 [src/design-samples](../../src/design-samples)에 있다. `Field`, `BodyAction`, `CollectionList`, `MaterialSettingsSection`, `SchemaDefinitionRead`, `ConfirmDialog`, `TagSelection`과 공용 CSS·토큰을 사용한다. 샘플 전용 CSS는 미리보기 배치만 담당한다. 편집 모달의 예시 상태는 native dialog와 같은 공용 shell 클래스를 사용하고, 저장·폐기 확인은 실제 앱과 같은 `ConfirmationSurface`를 편집창 위에 연다.
 
 시각 값은 [시각 규격](visual-spec.md), 행동은 [UI 패턴](ui-patterns.md)이 소유한다. 샘플에서 차이를 발견하면 기준과 실제 소비 화면을 함께 확인해 수정하며 샘플에만 다른 컨트롤 스타일을 추가하지 않는다.
 
