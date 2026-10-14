@@ -323,7 +323,7 @@ test("접힌 속성의 잘못된 조건은 검토에서 해당 행을 열고 입
   await page.locator(
     ".schema-field .material-section-toggle[aria-expanded=true]",
   ).click();
-  await expect(page.getByRole("button", { name: "이름 속성 편집", exact: true })).toBeFocused();
+  await expect(page.getByRole("button", { name: "이름 항목 펼치기", exact: true })).toBeFocused();
   await expect(page.getByLabel("최대 길이", { exact: true })).toBeHidden();
   await page.getByRole("button", { name: "변경 검토", exact: true }).click();
   await expect(page.getByRole("alert")).toBeVisible();

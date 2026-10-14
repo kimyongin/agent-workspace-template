@@ -964,6 +964,7 @@ test(
     });
     expect(innerChrome).toEqual({ border: "0px", padding: "0px" });
     await expect(page.getByRole("heading", { name: "기록 자동 완성", exact: true })).toHaveCount(1);
+    await page.screenshot({ path: info.outputPath("record-autocomplete-flat.png"), fullPage: true });
     await page.getByRole("button", { name: "기록 자동 완성", exact: true }).click();
     await page.screenshot({
       path: info.outputPath("property-display-settings.png"),
