@@ -77,7 +77,7 @@ for (const outcome of ["success", "failure", "uncertain"]) {
     await dialog.getByLabel("기록 메모").fill("초안을 유지합니다");
     await dialog.getByRole("button", { name: "취소", exact: true }).click();
     await expect(dialog.getByLabel("상품명")).toHaveValue("머그컵");
-    await expect(dialog.getByLabel("상품명")).toBeFocused();
+    await expect(dialog.getByRole("button", { name: "저장", exact: true })).toBeFocused();
     await dialog.getByRole("button", { name: "닫기" }).click();
     await expect(dialog.getByRole("heading")).toHaveText("변경을 버릴까요?");
     await dialog.getByRole("button", { name: "계속 편집" }).click();
@@ -90,7 +90,14 @@ for (const outcome of ["success", "failure", "uncertain"]) {
     if (outcome !== "success") {
       await expect(dialog.getByRole("alert")).toBeVisible();
       await expect(dialog.getByLabel("기록 메모")).toHaveValue("초안을 유지합니다");
-      if (outcome === "uncertain") await expect(dialog.getByLabel("기록 메모")).toBeDisabled();
+      if (outcome === "uncertain") {
+        await expect(dialog.getByLabel("기록 메모")).toBeDisabled();
+        await expect(dialog.getByRole("button", { name: "취소", exact: true })).toBeDisabled();
+        await expect(dialog.getByRole("button", { name: "닫기" })).toBeDisabled();
+        await dialog.press("Escape");
+        await expect(dialog.getByLabel("기록 메모")).toHaveValue("초안을 유지합니다");
+        await expect(dialog.getByRole("button", { name: "결과 확인" })).toBeEnabled();
+      }
       await dialog.getByRole("button", { name: outcome === "uncertain" ? "결과 확인" : "저장", exact: true }).click();
     }
     await expect(page.locator("dialog[open]")).toHaveCount(0);
@@ -121,4 +128,29 @@ test("preview width changes keep the same live draft and dialog", async ({ page 
   await content.getByRole("dialog").getByRole("button", { name: "닫기" }).click();
   await content.getByRole("dialog").getByRole("button", { name: "변경 버리기" }).click();
   await page.getByRole("button", { name: "현재 화면", exact: true }).click();
+});
+
+test("invalid closed fields expand and focus; move controls retain the expanded row", async ({ page }) => {
+  await page.goto(direct);
+  const workspace = page.locator("#workspace");
+  await workspace.getByRole("button", { name: "상품명 펼치기", exact: true }).click();
+  const field = workspace.locator("#sample-prop_1-body");
+  await field.locator("summary").click();
+  await field.getByLabel("최대 길이").fill("0");
+  await field.locator("summary").click();
+  await workspace.getByRole("button", { name: "상품명 접기", exact: true }).click();
+  await workspace.getByRole("button", { name: "변경 검토", exact: true }).click();
+  await expect(field.getByLabel("최대 길이")).toBeVisible();
+  await expect(field.getByLabel("최대 길이")).toHaveAttribute("aria-invalid", "true");
+  await expect(field.getByLabel("최대 길이")).toBeFocused();
+  await field.getByLabel("최대 길이").fill("80");
+  await expect(field.getByLabel("최대 길이")).toBeVisible();
+  await workspace.getByRole("button", { name: "상품명 아래로 이동", exact: true }).click();
+  await expect(workspace.getByRole("button", { name: "상품명 아래로 이동", exact: true })).toBeDisabled();
+  await expect(field.getByLabel("항목 이름")).toHaveValue("상품명");
+  expect(
+    await workspace.locator(".schema-order-actions .body-action-face svg").first().evaluate((node) =>
+      getComputedStyle(node).width
+    ),
+  ).toBe("12px");
 });

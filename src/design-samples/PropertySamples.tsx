@@ -1,9 +1,12 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { BodyAction } from "../components/BodyAction.tsx";
 import { CollectionList } from "../components/Collection.tsx";
 import { ConfirmDialog } from "../components/ConfirmDialog.tsx";
 import { Field } from "../components/Field.tsx";
 import { MaterialSettingsSection } from "../features/settings/MaterialSettingsSection.tsx";
+
+import { SchemaDefinitionRead } from "../features/settings/SchemaDefinitionRead.tsx";
+import { ENTITY_SCHEMA_DIALECT, type EntityField } from "@contracts/entity-type.ts";
 
 type Property = {
   id: string;
@@ -29,8 +32,8 @@ const equal = (left: Property[], right: Property[]) => JSON.stringify(left) === 
 function OrderIcon({ direction }: { direction: "up" | "down" }) {
   return (
     <svg
-      width="14"
-      height="14"
+      width="12"
+      height="12"
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
@@ -44,8 +47,27 @@ function OrderIcon({ direction }: { direction: "up" | "down" }) {
   );
 }
 
-function PropertyList({ fields, onChange }: { fields: Property[]; onChange: (fields: Property[]) => void }) {
+function PropertyList(
+  { fields, onChange, errors }: {
+    fields: Property[];
+    onChange: (fields: Property[]) => void;
+    errors: Record<string, string>;
+  },
+) {
   const [expanded, setExpanded] = useState<string[]>(["prop_2"]);
+  const root = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const ids = Object.keys(errors).map((key) => key.split(".")[0]);
+    if (ids.length) setExpanded((prior) => [...new Set([...prior, ...ids])]);
+  }, [errors]);
+  useEffect(() => {
+    if (Object.keys(errors).length) {
+      const invalid = root.current?.querySelector<HTMLElement>("[aria-invalid='true']");
+      const advanced = invalid?.closest("details");
+      if (advanced) advanced.open = true;
+      invalid?.focus();
+    }
+  }, [errors, expanded]);
   const edit = (id: string, patch: Partial<Property>) =>
     onChange(fields.map((field) => field.id === id ? { ...field, ...patch } : field));
   const toggle = (id: string) =>
@@ -56,166 +78,162 @@ function PropertyList({ fields, onChange }: { fields: Property[]; onChange: (fie
     onChange(next);
   };
   return (
-    <CollectionList label="입력 항목 예시">
-      {fields.map((field, index) => {
-        const open = expanded.includes(field.id);
-        const bodyId = `sample-${field.id}-body`;
-        return (
-          <li key={field.id}>
-            <div className="related-item schema-field" data-expanded={open || undefined}>
-              <div className="schema-field-heading">
-                <h3>
+    <div ref={root}>
+      <CollectionList label="입력 항목 예시">
+        {fields.map((field, index) => {
+          const open = expanded.includes(field.id);
+          const bodyId = `sample-${field.id}-body`;
+          return (
+            <li key={field.id}>
+              <div className="related-item schema-field" data-expanded={open || undefined}>
+                <div className="schema-field-heading">
+                  <h3>
+                    <button
+                      type="button"
+                      className="schema-field-title related-toggle item-title"
+                      aria-expanded={open}
+                      aria-controls={bodyId}
+                      onClick={() => toggle(field.id)}
+                    >
+                      <span>{field.label || "새 항목"}</span>
+                      <span className="secondary">
+                        {field.type === "text" ? "텍스트" : "숫자"}
+                        {field.required ? " · 필수" : ""}
+                      </span>
+                    </button>
+                  </h3>
+                  <div className="schema-order-actions">
+                    <BodyAction
+                      type="button"
+                      className="item-icon"
+                      aria-label={`${field.label || "새 항목"} 위로 이동`}
+                      disabled={index === 0}
+                      onClick={() => move(index, -1)}
+                    >
+                      <OrderIcon direction="up" />
+                    </BodyAction>
+                    <BodyAction
+                      type="button"
+                      className="item-icon"
+                      aria-label={`${field.label || "새 항목"} 아래로 이동`}
+                      disabled={index === fields.length - 1}
+                      onClick={() => move(index, 1)}
+                    >
+                      <OrderIcon direction="down" />
+                    </BodyAction>
+                  </div>
                   <button
                     type="button"
-                    className="schema-field-title related-toggle item-title"
+                    className="material-section-toggle schema-field-disclosure"
+                    aria-label={`${field.label || "새 항목"} ${open ? "접기" : "펼치기"}`}
                     aria-expanded={open}
                     aria-controls={bodyId}
                     onClick={() => toggle(field.id)}
                   >
-                    <span>{field.label || "새 항목"}</span>
-                    <span className="secondary">
-                      {field.type === "text" ? "텍스트" : "숫자"}
-                      {field.required ? " · 필수" : ""}
-                    </span>
-                  </button>
-                </h3>
-                <div className="schema-order-actions">
-                  <button
-                    type="button"
-                    className="btn item-icon"
-                    aria-label={`${field.label || "새 항목"} 위로 이동`}
-                    disabled={index === 0}
-                    onClick={() => move(index, -1)}
-                  >
-                    <OrderIcon direction="up" />
-                  </button>
-                  <button
-                    type="button"
-                    className="btn item-icon"
-                    aria-label={`${field.label || "새 항목"} 아래로 이동`}
-                    disabled={index === fields.length - 1}
-                    onClick={() => move(index, 1)}
-                  >
-                    <OrderIcon direction="down" />
                   </button>
                 </div>
-                <button
-                  type="button"
-                  className="material-section-toggle schema-field-disclosure"
-                  aria-label={`${field.label || "새 항목"} ${open ? "접기" : "펼치기"}`}
-                  aria-expanded={open}
-                  aria-controls={bodyId}
-                  onClick={() => toggle(field.id)}
-                >
-                </button>
-              </div>
-              <fieldset id={bodyId} hidden={!open} className="plain-fieldset">
-                <legend className="visually-hidden">{field.label || "새 항목"} 편집</legend>
-                <Field label="항목 이름" required>
-                  {(props) => (
-                    <input
-                      {...props}
-                      className="input"
-                      value={field.label}
-                      onChange={(event) => edit(field.id, { label: event.target.value })}
-                    />
-                  )}
-                </Field>
-                <Field label="데이터 타입">
-                  {(props) => (
-                    <select
-                      {...props}
-                      className="input"
-                      value={field.type}
-                      onChange={(event) => edit(field.id, { type: event.target.value as Property["type"] })}
-                    >
-                      <option value="text">텍스트</option>
-                      <option value="number">숫자</option>
-                    </select>
-                  )}
-                </Field>
-                <details className="schema-advanced">
-                  <summary className="secondary">추가 설정</summary>
-                  <div className="form">
-                    <label className="samples-choice">
+                <fieldset id={bodyId} hidden={!open} className="plain-fieldset">
+                  <legend className="visually-hidden">{field.label || "새 항목"} 편집</legend>
+                  <Field label="항목 이름" required error={errors[`${field.id}.label`]}>
+                    {(props) => (
                       <input
-                        type="checkbox"
-                        checked={field.required}
-                        onChange={(event) => edit(field.id, { required: event.target.checked })}
-                      />필수 입력
-                    </label>
-                    <label className="samples-choice">
-                      <input
-                        type="checkbox"
-                        checked={field.listed}
-                        onChange={(event) => edit(field.id, { listed: event.target.checked })}
-                      />목록에 표시
-                    </label>
-                    {field.type === "text" && (
-                      <Field label="최대 길이" help="비워두면 제한하지 않습니다.">
-                        {(props) => (
-                          <input
-                            {...props}
-                            className="input"
-                            type="number"
-                            min="1"
-                            value={field.maxLength}
-                            onChange={(event) => edit(field.id, { maxLength: event.target.value })}
-                          />
-                        )}
-                      </Field>
+                        {...props}
+                        className="input"
+                        value={field.label}
+                        onChange={(event) => edit(field.id, { label: event.target.value })}
+                      />
                     )}
-                    <div className="actions schema-actions">
-                      <button
-                        type="button"
-                        className="btn btn-danger"
-                        onClick={() => onChange(fields.filter((value) => value.id !== field.id))}
+                  </Field>
+                  <Field label="데이터 타입">
+                    {(props) => (
+                      <select
+                        {...props}
+                        className="input"
+                        value={field.type}
+                        onChange={(event) => edit(field.id, { type: event.target.value as Property["type"] })}
                       >
-                        항목 삭제
-                      </button>
+                        <option value="text">텍스트</option>
+                        <option value="number">숫자</option>
+                      </select>
+                    )}
+                  </Field>
+                  <details className="schema-advanced">
+                    <summary className="secondary">추가 설정</summary>
+                    <div className="form">
+                      <label className="samples-choice">
+                        <input
+                          type="checkbox"
+                          checked={field.required}
+                          onChange={(event) => edit(field.id, { required: event.target.checked })}
+                        />필수 입력
+                      </label>
+                      <label className="samples-choice">
+                        <input
+                          type="checkbox"
+                          checked={field.listed}
+                          onChange={(event) => edit(field.id, { listed: event.target.checked })}
+                        />목록에 표시
+                      </label>
+                      {field.type === "text" && (
+                        <Field label="최대 길이" error={errors[`${field.id}.maxLength`]}>
+                          {(props) => (
+                            <input
+                              {...props}
+                              className="input"
+                              type="number"
+                              min="1"
+                              value={field.maxLength}
+                              onChange={(event) => edit(field.id, { maxLength: event.target.value })}
+                            />
+                          )}
+                        </Field>
+                      )}
+                      <div className="actions schema-actions">
+                        <button
+                          type="button"
+                          className="btn btn-danger"
+                          onClick={() => onChange(fields.filter((value) => value.id !== field.id))}
+                        >
+                          항목 삭제
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                </details>
-              </fieldset>
-            </div>
-          </li>
-        );
-      })}
-    </CollectionList>
+                  </details>
+                </fieldset>
+              </div>
+            </li>
+          );
+        })}
+      </CollectionList>
+    </div>
   );
 }
 
 function PropertyDefinition({ fields }: { fields: Property[] }) {
+  const properties: Record<string, EntityField> = Object.fromEntries(fields.map((field) => [field.id, {
+    title: field.label,
+    type: field.type === "text" ? "string" : "number",
+    ...(field.type === "text" && field.maxLength ? { maxLength: Number(field.maxLength) } : {}),
+  }]));
   return (
-    <div className="schema-definition-read">
-      {fields.length
-        ? fields.map((field) => (
-          <section key={field.id}>
-            <h3>{field.label}</h3>
-            <dl className="props schema-definition-values">
-              <div>
-                <dt>데이터 타입</dt>
-                <dd>{field.type === "text" ? "텍스트" : "숫자"}</dd>
-              </div>
-              <div>
-                <dt>필수 입력</dt>
-                <dd>{field.required ? "예" : "아니요"}</dd>
-              </div>
-              <div>
-                <dt>목록에 표시</dt>
-                <dd>{field.listed ? "예" : "아니요"}</dd>
-              </div>
-              {field.type === "text" && (
-                <div>
-                  <dt>최대 길이</dt>
-                  <dd>{field.maxLength || "제한 없음"}</dd>
-                </div>
-              )}
-            </dl>
-          </section>
-        ))
-        : <p className="secondary">입력 항목이 없습니다.</p>}
-    </div>
+    <SchemaDefinitionRead
+      definition={{
+        schema: {
+          $schema: ENTITY_SCHEMA_DIALECT,
+          type: "object",
+          additionalProperties: false,
+          properties,
+          required: fields.filter((field) => field.required).map((field) => field.id),
+        },
+        display: {
+          representative: fields.find((field) => field.type === "text")?.id ?? "",
+          order: fields.map((field) => field.id),
+          list_columns: fields.filter((field) => field.listed).map((field) => field.id),
+          archived: [],
+          option_labels: {},
+        },
+      }}
+    />
   );
 }
 
@@ -264,6 +282,7 @@ export function MaterialWorkspaceSample() {
     after: initialFields,
   }]);
   const nextField = useRef(3), nextPlan = useRef(2);
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const [historyOpen, setHistoryOpen] = useState(false);
   const [expanded, setExpanded] = useState<number[]>([]);
   const [action, setAction] = useState<{ kind: "apply" | "discard"; plan: Plan } | null>(null);
@@ -272,13 +291,16 @@ export function MaterialWorkspaceSample() {
   const [savedTemplate, setSavedTemplate] = useState(template);
   const [typeName, setTypeName] = useState("상품"), [savedTypeName, setSavedTypeName] = useState("상품");
   const review = () => {
-    if (
-      draft.some((field) =>
-        !field.label.trim() ||
-        (field.type === "text" && field.maxLength !== "" &&
-          (!Number.isInteger(Number(field.maxLength)) || Number(field.maxLength) < 1))
-      )
-    ) {
+    const invalid: Record<string, string> = {};
+    for (const field of draft) {
+      if (!field.label.trim()) invalid[`${field.id}.label`] = "항목 이름을 입력하세요.";
+      if (
+        field.type === "text" && field.maxLength !== "" &&
+        (!Number.isInteger(Number(field.maxLength)) || Number(field.maxLength) < 1)
+      ) invalid[`${field.id}.maxLength`] = "최대 길이는 1 이상의 정수로 입력하세요.";
+    }
+    setErrors(invalid);
+    if (Object.keys(invalid).length) {
       setMessage("항목 이름과 최대 길이를 확인하세요.");
       return;
     }
@@ -361,7 +383,14 @@ export function MaterialWorkspaceSample() {
         initialOpen
         state={{ dirty: !equal(current, draft), busy: false }}
       >
-        <PropertyList fields={draft} onChange={setDraft} />
+        <PropertyList
+          fields={draft}
+          errors={errors}
+          onChange={(fields) => {
+            setDraft(fields);
+            setErrors({});
+          }}
+        />
         <div>
           <BodyAction
             icon="create"
@@ -448,7 +477,7 @@ export function MaterialWorkspaceSample() {
                       </span>
                     </button>
                   </h3>
-                  <div id={id} hidden={!open}>
+                  <div id={id} hidden={!open} className="related-preview">
                     <PropertyDefinition fields={plan.after} />
                     <div className="schema-history-result">
                       <h4 className="section-title">변경 결과 · 버전 {plan.version - 1} → {plan.version}</h4>

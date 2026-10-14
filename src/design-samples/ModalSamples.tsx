@@ -128,6 +128,7 @@ function EditDialog(
   const dialog = useRef<HTMLDialogElement>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const entry = useRef<HTMLElement | null>(null);
+  const editFocusSelector = useRef("input");
   useSurfaceViewport(dialog);
   useEffect(() => {
     entry.current = document.activeElement as HTMLElement;
@@ -140,16 +141,18 @@ function EditDialog(
     };
   }, []);
   useEffect(() => {
-    dialog.current?.querySelector<HTMLElement>(stage === "edit" ? "input" : "[data-cancel]")?.focus();
+    dialog.current?.querySelector<HTMLElement>(stage === "edit" ? editFocusSelector.current : "[data-cancel]")?.focus();
   }, [stage]);
   const dismiss = () => {
-    if (pending.current) return;
+    if (pending.current || uncertain) return;
     if (stage !== "edit") {
       setStage("edit");
       return;
     }
-    if (draft !== initial) setStage("discard");
-    else onClose();
+    if (draft !== initial) {
+      editFocusSelector.current = document.activeElement?.getAttribute("data-edit-focus") ?? "input";
+      setStage("discard");
+    } else onClose();
   };
   const review = () => {
     if (!draft.trim()) {
@@ -159,6 +162,7 @@ function EditDialog(
     }
     setError("");
     setFailure("");
+    editFocusSelector.current = "[data-edit-save]";
     setStage("review");
   };
   const execute = () => {
@@ -202,7 +206,14 @@ function EditDialog(
           <h2 id="sample-editor-title" className="dialog-title">
             {stage === "edit" ? "상품 편집" : stage === "discard" ? "변경을 버릴까요?" : "변경을 저장할까요?"}
           </h2>
-          <button type="button" className="btn btn-text modal-icon" aria-label="닫기" disabled={busy} onClick={dismiss}>
+          <button
+            type="button"
+            className="btn btn-text modal-icon"
+            data-edit-focus=".modal-icon"
+            aria-label="닫기"
+            disabled={busy || uncertain}
+            onClick={dismiss}
+          >
             <span aria-hidden="true">×</span>
           </button>
         </header>
@@ -265,8 +276,24 @@ function EditDialog(
         <footer className="modal-foot">
           {stage === "edit" && (
             <>
-              <button type="button" className="btn" onClick={dismiss}>취소</button>
-              <button type="submit" form="sample-edit-form" className="btn btn-primary">저장</button>
+              <button
+                data-edit-cancel
+                data-edit-focus="[data-edit-cancel]"
+                type="button"
+                className="btn"
+                onClick={dismiss}
+              >
+                취소
+              </button>
+              <button
+                data-edit-save
+                data-edit-focus="[data-edit-save]"
+                type="submit"
+                form="sample-edit-form"
+                className="btn btn-primary"
+              >
+                저장
+              </button>
             </>
           )}
           {stage === "review" && (
@@ -275,8 +302,10 @@ function EditDialog(
                 data-cancel
                 type="button"
                 className="btn"
-                disabled={busy}
-                onClick={() => setStage("edit")}
+                disabled={busy || uncertain}
+                onClick={() => {
+                  if (!pending.current && !uncertain) setStage("edit");
+                }}
               >
                 취소
               </button>

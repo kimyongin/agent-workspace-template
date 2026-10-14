@@ -80,34 +80,6 @@
   grid-template-columns: repeat(2,minmax(0,1fr));
   gap: var(--space-4);
 }
-.samples-values {
-  margin: 0;
-}
-.samples-values dd {
-  margin: 0;
-  overflow-wrap: anywhere;
-}
-.samples-content .schema-definition-values > div {
-  display: grid;
-  grid-template-columns: min(7rem,40%) minmax(0,1fr);
-  gap: var(--space-3);
-}
-.samples-content .schema-definition-read h3 {
-  margin-block: var(--space-4) var(--space-2);
-  font-size: var(--text-item);
-}
-.samples-content .schema-history-row > .related-item-title {
-  min-height: 52px;
-}
-.samples-content .schema-history-row .material-section-toggle {
-  padding: 0;
-}
-.samples-content .schema-field .field {
-  min-width: 0;
-}
-.samples-content .schema-field .input {
-  min-width: 0;
-}
 .samples-content-footer {
   margin-top: var(--space-8);
   border-top: 1px solid var(--line);
@@ -118,11 +90,6 @@
   align-items: center;
   gap: var(--space-2);
   min-height: 44px;
-}
-.samples-choice input {
-  width: 20px;
-  height: 20px;
-  accent-color: var(--accent);
 }
 .samples-dialog-options {
   margin-bottom: var(--space-4);
