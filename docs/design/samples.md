@@ -19,7 +19,7 @@
 
 ## 유지
 
-샘플 코드는 [src/design-samples](../../src/design-samples)에 있다. `Field`, `BodyAction`, `CollectionList`, `MaterialSettingsSection`, `SchemaDefinitionRead`, `ConfirmDialog`와 공용 CSS·토큰을 사용한다. 샘플 전용 CSS는 미리보기 배치만 담당한다. 편집 모달의 예시 상태는 native dialog와 같은 공용 shell 클래스를 사용한다.
+샘플 코드는 [src/design-samples](../../src/design-samples)에 있다. `Field`, `BodyAction`, `CollectionList`, `MaterialSettingsSection`, `SchemaDefinitionRead`, `ConfirmDialog`와 공용 CSS·토큰을 사용한다. 샘플 전용 CSS는 미리보기 배치만 담당한다. 편집 모달의 예시 상태는 native dialog와 같은 공용 shell 클래스를 사용하고, 저장·폐기 확인은 실제 앱과 같은 `ConfirmationSurface`를 편집창 위에 연다.
 
 시각 값은 [시각 규격](visual-spec.md), 행동은 [UI 패턴](ui-patterns.md)이 소유한다. 샘플에서 차이를 발견하면 기준과 실제 소비 화면을 함께 확인해 수정하며 샘플에만 다른 컨트롤 스타일을 추가하지 않는다.
 

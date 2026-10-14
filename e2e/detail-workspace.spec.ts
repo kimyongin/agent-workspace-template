@@ -837,8 +837,14 @@ test("confirmation overlays the retained mobile editor and restores its focus", 
   await expect(page.locator("dialog[open]")).toHaveCount(1);
   await expect(save).toBeFocused();
   await expect(editor.getByLabel("제목")).toHaveValue("겹친 확인창 초안");
+  for (const width of [1440, 390]) {
+    await save.click();
+    await expect(confirmation.getByLabel("기록 메모")).toHaveValue("취소해도 보존할 메모");
+    await page.setViewportSize({ width, height: 844 });
+    await confirmation.press("Escape");
+    await expect(save).toBeFocused();
+  }
   await save.click();
-  await expect(confirmation.getByLabel("기록 메모")).toHaveValue("취소해도 보존할 메모");
   await confirmation.getByRole("button", { name: "수정하고 저장", exact: true }).click();
   await expect(confirmation).not.toBeVisible();
   await expect(editor.getByRole("button", { name: "편집", exact: true })).toBeVisible();
