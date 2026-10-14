@@ -452,7 +452,8 @@ export function EntityForm({
                     )}
                   </Field>
                 )
-                : (
+                : identitySettings?.sources.filter((item) => item.active).length === 1 &&
+                    identitySettings.sources.find((item) => item.active)?.code === "app" ? null : (
                   <Field label="발급처" required error={errors.source}>
                     {(p) => (
                       <select
