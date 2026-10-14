@@ -1,6 +1,9 @@
 import { expect, test, vi } from "vitest";
 import { createSettingsDraft } from "./settings-draft.ts";
-import { createRecordTemplatesDraft, unavailableTemplateTags } from "./business-settings-drafts.ts";
+import {
+  createRecordTemplatesDraft,
+  unavailableTemplateTags,
+} from "./business-settings-drafts.ts";
 const request = vi.fn(async () => {
   throw new Error("Unexpected HTTP request in draft policy test");
 });
@@ -10,11 +13,8 @@ test("최신값 조회 실패 후 초안을 편집해도 이전 기준값으로 
   const save = vi.fn().mockRejectedValue(new Error("충돌"));
   const settings = createSettingsDraft({
     initial: { memo: "" },
-    read: vi.fn().mockResolvedValueOnce({ version: 1, value: { memo: "기준" } }).mockRejectedValueOnce(
-      new Error("조회 실패"),
-    ),
-    save,
-    toDraft: (saved: { version: number; value: { memo: string } }) => saved.value,
+    read: vi.fn().mockResolvedValueOnce({ version: 1, value: { memo: "기준" } }).mockRejectedValueOnce(new Error("조회 실패")),
+    save, toDraft: (saved: { version: number; value: { memo: string } }) => saved.value,
     isConflict: () => true,
   });
   await settings.read();
@@ -44,12 +44,7 @@ test("충돌 중 연속 최신값 조회는 초안과 기준값이 같아져도 
   await settings.read();
   expect(settings.snapshot()).toMatchObject({ conflict: true, dirty: false, draft: { memo: "내 초안" } });
   await settings.read();
-  expect(settings.snapshot()).toMatchObject({
-    conflict: true,
-    dirty: true,
-    draft: { memo: "내 초안" },
-    saved: { version: 3 },
-  });
+  expect(settings.snapshot()).toMatchObject({ conflict: true, dirty: true, draft: { memo: "내 초안" }, saved: { version: 3 } });
   settings.reset();
   expect(settings.snapshot()).toMatchObject({ conflict: false, dirty: false, draft: { memo: "새 원격 변경" } });
 });
@@ -195,49 +190,29 @@ test("템플릿의 누락 태그 안내는 새 로컬 선택을 삭제된 태그
   expect(unavailableTemplateTags(saved, { task: { create: { memo: "입력", tag_ids: ["new"] } } })).toEqual([]);
 });
 
-test("업무 설정 응답 불명은 같은 키·입력·기준 버전으로 재시도한다", async () => {
-  const { ApiError } = await import("../../lib/api-error.ts");
-  const calls: { value: string; version: number; key: string }[] = [];
-  let lost = true;
-  const settings = createSettingsDraft({
-    initial: { memo: "" },
-    read: async () => ({ version: 2, value: { memo: "기준" } }),
-    save: async (value, before: Saved, _signal, key) => {
-      calls.push({ value: value.memo, version: before.version, key });
-      if (lost) {
-        lost = false;
-        throw new ApiError(503, "unavailable", "응답 불명");
-      }
-      return { version: 3, value };
-    },
-    toDraft: (saved: Saved) => saved.value,
-    isConflict: () => false,
-  });
-  await settings.read();
-  settings.edit(() => ({ memo: "저장할 내용" }));
-  await settings.save();
+test("업무 설정 응답 불명은 같은 키·입력·기준 버전으로 재시도한다",async()=>{
+  const { ApiError }=await import("../../lib/api-error.ts");
+  const calls:{value:string;version:number;key:string}[]=[];
+  let lost=true;
+  const settings=createSettingsDraft({initial:{memo:""},read:async()=>({version:2,value:{memo:"기준"}}),save:async(value,before:Saved,_signal,key)=>{
+    calls.push({value:value.memo,version:before.version,key});
+    if(lost){lost=false;throw new ApiError(503,"unavailable","응답 불명");}
+    return {version:3,value};
+  },toDraft:(saved:Saved)=>saved.value,isConflict:()=>false});
+  await settings.read();settings.edit(()=>({memo:"저장할 내용"}));await settings.save();
   expect(settings.snapshot().uncertain).toBe(true);
-  settings.edit(() => ({ memo: "다른 내용" }));
-  await settings.read();
-  await settings.save();
-  expect(calls).toHaveLength(2);
-  expect(calls[1]).toEqual(calls[0]);
-  expect(settings.snapshot().uncertain).toBe(false);
+  settings.edit(()=>({memo:"다른 내용"}));await settings.read();await settings.save();
+  expect(calls).toHaveLength(2);expect(calls[1]).toEqual(calls[0]);expect(settings.snapshot().uncertain).toBe(false);
 });
+
 
 test("기록 편집기는 부분 조회 뒤 초안·취소·저장 버전을 보존하며 전체 저장 응답을 받는다", async () => {
   const api = vi.fn()
     .mockResolvedValueOnce({ versions: { record_templates: 2 }, settings: { record_templates: {} } })
     .mockResolvedValueOnce({ items: [], next_cursor: null })
-    .mockResolvedValueOnce({
-      versions: { record_templates: 3 },
-      settings: { record_templates: { task: { create: { memo: "원격", tag_ids: [] } } } },
-    })
+    .mockResolvedValueOnce({ versions: { record_templates: 3 }, settings: { record_templates: { task: { create: { memo: "원격", tag_ids: [] } } } } })
     .mockResolvedValueOnce({ items: [], next_cursor: null })
-    .mockResolvedValueOnce({
-      versions: { record_templates: 4 },
-      settings: { record_templates: { task: { create: { memo: "저장", tag_ids: [] } } } },
-    });
+    .mockResolvedValueOnce({ versions: { record_templates: 4 }, settings: { record_templates: { task: { create: { memo: "저장", tag_ids: [] } } } } });
   const settings = createSettingsDraft(createRecordTemplatesDraft(api));
   await settings.read();
   settings.edit((draft) => ({ ...draft, task: { ...draft.task, create: { memo: "내 초안", tag_ids: [] } } }));
@@ -247,15 +222,11 @@ test("기록 편집기는 부분 조회 뒤 초안·취소·저장 버전을 보
   expect(settings.snapshot().draft.task?.create?.memo).toBe("원격");
   settings.edit((draft) => ({ ...draft, task: { ...draft.task, create: { memo: "저장", tag_ids: [] } } }));
   await settings.save();
-  expect(
-    api.mock.calls.filter((call) => call[0] === "GET" && call[1].startsWith("/settings/"))
-      .map((call) => call[1]),
-  ).toEqual(["/settings/business?id=record_templates", "/settings/business?id=record_templates"]);
+  expect(api.mock.calls.filter((call) => call[0] === "GET" && call[1].startsWith("/settings/"))
+    .map((call) => call[1])).toEqual(["/settings/business?id=record_templates", "/settings/business?id=record_templates"]);
   const save = api.mock.calls.find((call) => call[0] === "PATCH")!;
   expect(save.slice(0, 3)).toEqual(["PATCH", "/settings/business", {
-    id: "record_templates",
-    expected_version: 3,
-    value: { task: { create: { memo: "저장", tag_ids: [] } } },
+    id: "record_templates", expected_version: 3, value: { task: { create: { memo: "저장", tag_ids: [] } } },
   }]);
   expect(settings.snapshot().dirty).toBe(false);
   expect(settings.snapshot().saved?.settings.versions.record_templates).toBe(4);
