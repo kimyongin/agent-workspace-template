@@ -1,3 +1,4 @@
+import { BodyAction } from "../../components/BodyAction.tsx";
 import { useEffect, useRef, useState } from "react";
 import type { EntitySchemaVersion } from "@contracts/entity-type.ts";
 import { api } from "../../lib/api.ts";
@@ -59,9 +60,9 @@ export function SchemaVersionRead(
     <div className="schema-version-read">
       {error && <p role="alert">{error}</p>}
       {error && (
-        <button className="btn" onClick={() => setRetry((n) => n + 1)}>
+        <BodyAction icon="reset"  onClick={() => setRetry((n) => n + 1)}>
           입력 항목 다시 조회
-        </button>
+        </BodyAction>
       )}
       {!value && !error && <p role="status">입력 항목 읽는 중…</p>}
       {value && (

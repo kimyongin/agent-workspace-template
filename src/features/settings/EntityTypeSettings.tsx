@@ -1,3 +1,4 @@
+import { BodyAction, BodyActionFace } from "../../components/BodyAction.tsx";
 import { createMaterialDefinition } from "./material-definition.ts";
 import { RecordTemplateSettings } from "./RecordTemplateSettings.tsx";
 import { createMaterialTemplateDraft } from "./material-template-drafts.ts";
@@ -294,26 +295,26 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
             </select>
           )}
         </Field>
-        <Link className="btn" to="/settings/entity-types">종류 추가</Link>
+        <Link className="body-action" to="/settings/entity-types"><BodyActionFace icon="create">종류 추가</BodyActionFace></Link>
       </div>
       {loading && <p role="status">불러오는 중…</p>}
       {!catalog.types && !catalog.error && <p role="status">자료 종류를 읽는 중…</p>}
       {catalog.error && (
         <p role="alert">
           자료 종류를 읽지 못했습니다.{" "}
-          <button className="btn" onClick={catalog.retry}>
+          <BodyAction icon="reset"  onClick={catalog.retry}>
             자료 종류 다시 조회
-          </button>
+          </BodyAction>
         </p>
       )}
       {error && <p role="alert" className="error-text">{error}</p>}
       {error && !loading && (!type_id || !type) && (
-        <button
-          className="btn"
+        <BodyAction icon="reset"
+
           onClick={() => void retryRead()}
         >
           조회 다시 시도
-        </button>
+        </BodyAction>
       )}
       {message && <p role="status">{message}</p>}
       {!loading && !type_id && (

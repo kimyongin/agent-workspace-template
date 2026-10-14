@@ -954,6 +954,19 @@ test(
       expect(button.width).toBeGreaterThanOrEqual(44);
       expect(button.height).toBeGreaterThanOrEqual(44);
     }
+    const compact = await properties.getByRole("button", { name: "항목 추가", exact: true }).evaluate(el => {
+      const face = el.querySelector(".body-action-face")!;
+      const style = getComputedStyle(face);
+      return { text: style.fontSize, weight: style.fontWeight, visibleHeight: face.getBoundingClientRect().height, hitHeight: el.getBoundingClientRect().height, border: style.borderTopWidth };
+    });
+    expect(compact).toEqual({ text: "12px", weight: "400", visibleHeight: 24, hitHeight: 44, border: "0px" });
+    const footer = await properties.getByRole("button", { name: "변경 검토", exact: true }).evaluate(el => ({ text: getComputedStyle(el).fontSize, height: el.getBoundingClientRect().height }));
+    expect(footer).toEqual({ text: "14px", height: 44 });
+    expect(await quantity.locator(".schema-order-actions svg").first().evaluate(el => el.getBoundingClientRect().width)).toBe(12);
+    await quantity.getByText("추가 설정", { exact: true }).click();
+    const deletion = quantity.getByRole("button", { name: "항목 삭제", exact: true });
+    expect(await deletion.locator(".body-action-face").evaluate(el => getComputedStyle(el).color)).toBe("rgb(255, 140, 150)");
+    await quantity.getByText("추가 설정", { exact: true }).click();
     await page.getByRole("button", { name: "기록 자동 완성", exact: true }).click();
     const record = page.getByRole("form", { name: "기록 자동 완성", exact: true });
     await expect(record).toBeVisible();

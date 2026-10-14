@@ -13,12 +13,12 @@ const paths: Record<ActionIcon, ReactNode> = {
 };
 
 /** The small visible face is shared by buttons and navigation links. */
-export function BodyActionFace({icon,children}: {icon?:ActionIcon;children:ReactNode}) {
-  return <span className="body-action-face" data-tone={icon==="create"||icon==="link"?"accent":undefined}>
+export function BodyActionFace({icon,children,danger=false}: {icon?:ActionIcon;children:ReactNode;danger?:boolean}) {
+  return <span className="body-action-face" data-tone={danger?"danger":icon==="create"||icon==="link"?"accent":undefined}>
     {icon&&<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[icon]}</svg>}{children}
   </span>;
 }
 
-export function BodyAction({icon,children,className,...props}:ButtonHTMLAttributes<HTMLButtonElement>&{icon?:ActionIcon}) {
-  return <button type="button" {...props} className={["body-action",className].filter(Boolean).join(" ")}><BodyActionFace icon={icon}>{children}</BodyActionFace></button>;
+export function BodyAction({icon,children,className,danger=false,...props}:ButtonHTMLAttributes<HTMLButtonElement>&{icon?:ActionIcon;danger?:boolean}) {
+  return <button type="button" {...props} className={["body-action",className].filter(Boolean).join(" ")}><BodyActionFace icon={icon} danger={danger}>{children}</BodyActionFace></button>;
 }

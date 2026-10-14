@@ -1,3 +1,4 @@
+import { BodyAction } from "../../components/BodyAction.tsx";
 import { MaterialSettingsSection } from "./MaterialSettingsSection.tsx";
 import type { EntitySchemaChange } from "@contracts/entity-schema-change.ts";
 import { materialSettingsPath } from "./material-settings-path.ts";
@@ -338,24 +339,24 @@ export function SchemaEditor(
                             </button>
                           </h3>
                           <div className="schema-order-actions">
-                            <button
+                            <BodyAction
                               type="button"
-                              className="btn item-icon"
+                              className="item-icon"
                               aria-label={`${f.title || "새 항목"} 위로`}
                               disabled={index === 0 || Boolean(plan?.recovery)}
                               onClick={() => moveInput(key, -1)}
                             >
                               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="m6 12 6-6 6 6M12 6v14" /></svg>
-                            </button>
-                            <button
+                            </BodyAction>
+                            <BodyAction
                               type="button"
-                              className="btn item-icon"
+                              className="item-icon"
                               aria-label={`${f.title || "새 항목"} 아래로`}
                               disabled={index === draft.display.order.length - 1 || Boolean(plan?.recovery)}
                               onClick={() => moveInput(key, 1)}
                             >
                               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="m6 12 6 6 6-6M12 4v14" /></svg>
-                            </button>
+                            </BodyAction>
                           </div>
                           <button
                             type="button"
@@ -446,9 +447,9 @@ export function SchemaEditor(
                                       />
                                     )}
                                   </Field>
-                                  <button
+                                  <BodyAction
                                     type="button"
-                                    className="btn"
+
                                     aria-label={`선택 항목 ${i + 1} 제거`}
                                     disabled={f.enum!.filter((value) =>
                                       value !== null
@@ -460,12 +461,12 @@ export function SchemaEditor(
                                       })}
                                   >
                                     제거
-                                  </button>
+                                  </BodyAction>
                                 </div>
                               ))}
-                              <button
+                              <BodyAction icon="create"
                                 type="button"
-                                className="btn"
+
                                 disabled={f.enum.filter((value) => value !== null).length >= 128}
                                 onClick={() => {
                                   let number = 1;
@@ -479,7 +480,7 @@ export function SchemaEditor(
                                 }}
                               >
                                 선택 항목 추가
-                              </button>
+                              </BodyAction>
                               <p className="secondary">
                                 선택 항목을 제거하면 기존 자료의 해당 값을 검토해야 합니다.
                               </p>
@@ -563,14 +564,14 @@ export function SchemaEditor(
                                           />
                                         )}
                                       </Field>
-                                      <button
-                                        className="btn"
+                                      <BodyAction
+
                                         type="button"
                                         aria-label={`${f.title ?? "속성"} 이전 ${label} 입력 제거`}
                                         onClick={() => editor.removeNumericInput(address)}
                                       >
                                         이전 조건 입력 제거
-                                      </button>
+                                      </BodyAction>
                                     </div>
                                   );
                                 },
@@ -723,8 +724,8 @@ export function SchemaEditor(
                                 사용 중지는 기존 값을 유지합니다. 삭제는 검토·적용 후 반영됩니다.
                               </p>
                               <div className="schema-actions">
-                                <button
-                                  className="btn"
+                                <BodyAction
+
                                   type="button"
                                   disabled={unreservedFields.includes(key) ||
                                     key === draft.display.representative}
@@ -735,9 +736,9 @@ export function SchemaEditor(
                                     )}
                                 >
                                   {draft.display.archived.includes(key) ? "다시 사용" : "사용 중지"}
-                                </button>
-                                <button
-                                  className="btn btn-danger"
+                                </BodyAction>
+                                <BodyAction
+                                  danger
                                   type="button"
                                   disabled={key === draft.display.representative}
                                   onClick={() => setDeleteKey(key)}
@@ -753,7 +754,7 @@ export function SchemaEditor(
                                   >
                                     <path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7" />
                                   </svg>항목 삭제
-                                </button>
+                                </BodyAction>
                               </div>
                               {key === draft.display.representative && (
                                 <p className="secondary">
@@ -771,8 +772,8 @@ export function SchemaEditor(
               </CollectionList>
             </fieldset>
             <div className="schema-actions">
-              <button
-                className="btn"
+              <BodyAction icon="create"
+
                 type="button"
                 disabled={busy || uncertain || disabled || readBusy || startState.busy || startState.uncertain ||
                   Boolean(plan?.recovery) || Object.keys(draft.schema.properties).length >= 64}
@@ -783,7 +784,7 @@ export function SchemaEditor(
                 }}
               >
                 항목 추가
-              </button>
+              </BodyAction>
             </div>
             <p className="secondary">항목 순서는 입력·상세·목록에 함께 적용됩니다.</p>
             {!plan?.recovery && (!plan || dirty || reviewSaved) && (
@@ -1268,16 +1269,16 @@ export function SchemaEditor(
           </CollectionList>
           {historyRows.length === 0 && <p className="secondary">변경 이력이 없습니다.</p>}
           {editor.view.changesBefore && (
-            <button
-              className="btn"
+            <BodyAction
+
               disabled={readBusy || busy || uncertain}
               onClick={() => void editor.moreChanges()}
             >
               이전 변경안 더 보기
-            </button>
+            </BodyAction>
           )}
-          <button
-            className="btn"
+          <BodyAction icon="reset"
+
             disabled={busy || readBusy || uncertain}
             onClick={() => {
               jobs.refresh();
@@ -1285,26 +1286,26 @@ export function SchemaEditor(
             }}
           >
             변경 이력 다시 조회
-          </button>
+          </BodyAction>
           {jobs.error && <p role="alert">{jobs.error}</p>}
           {jobs.before && (
-            <button className="btn" disabled={jobs.moreBusy} onClick={() => void jobs.more()}>
+            <BodyAction  disabled={jobs.moreBusy} onClick={() => void jobs.more()}>
               {jobs.moreBusy ? "이전 변환 이력 읽는 중…" : "이전 변환 이력 더 보기"}
-            </button>
+            </BodyAction>
           )}
           {jobs.error && (
-            <button className="btn" onClick={jobs.refresh}>
+            <BodyAction icon="reset"  onClick={jobs.refresh}>
               변환 이력 다시 조회
-            </button>
+            </BodyAction>
           )}
           {historyBefore !== null && (
-            <button
-              className="btn"
+            <BodyAction
+
               disabled={historyBusy}
               onClick={() => void onMoreVersions?.()}
             >
               {historyBusy ? "이전 버전 읽는 중…" : "이전 게시 버전 더 보기"}
-            </button>
+            </BodyAction>
           )}
         </div>
       </MaterialSettingsSection>
