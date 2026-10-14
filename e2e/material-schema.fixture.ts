@@ -920,6 +920,11 @@ test(
         },
       }));
     await page.goto(`/settings/entity-types/${materials.id}`);
+    await expect(page.getByLabel("자료 종류 검색", { exact: true })).toHaveCount(0);
+    await expect(page.getByLabel("자료 종류 선택", { exact: true }).locator("option")).toContainText([
+      "종류 추가", "재료", "상품", "보관 자료 (보관)",
+    ]);
+
     for (const width of [320, 390, 768]) {
       await page.setViewportSize({ width, height: 900 });
       const names = ["기본 정보", "입력 항목", "기록 자동 완성", "변경 이력"];

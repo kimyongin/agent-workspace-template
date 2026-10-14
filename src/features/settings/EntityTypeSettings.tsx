@@ -40,7 +40,6 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
   const selectedJob = job_id ?? queryJob ?? undefined;
   const location = useLocation();
   const navigate = useNavigate();
-  const [search, setSearch] = useState("");
   const versions = location.pathname.endsWith("/versions");
   const historyVersion = new URLSearchParams(location.search).get(
     "schema_version",
@@ -249,18 +248,6 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
     >
       <h1 id="entity-types-title" className="page-title">자료 설정</h1>
       <div className="material-settings-toolbar">
-        <Field label="자료 종류 검색">
-          {(props) => (
-            <input
-              {...props}
-              className="input"
-              type="search"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="이름으로 찾기"
-            />
-          )}
-        </Field>
         <Field label="자료 종류 선택">
           {(props) => (
             <select
@@ -281,12 +268,7 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
                   {type?.label ?? "자료 종류 읽는 중…"}
                 </option>
               )}
-              {items.filter((item) =>
-                item.id === type_id ||
-                item.label.toLocaleLowerCase().includes(
-                  search.toLocaleLowerCase(),
-                )
-              ).map((item) => (
+              {items.map((item) => (
                 <option key={item.id} value={item.id}>
                   {item.label}
                   {item.archived ? " (보관)" : ""}

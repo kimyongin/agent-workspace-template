@@ -763,7 +763,7 @@ test("basic conflict and uncertain responses retain input and retry the exact re
   expect(attempts[0].key).not.toBe(attempts[1].key);
 });
 
-test("basic save preserves property edits and searchable archived selection at enlarged scale", async ({ page }) => {
+test("basic save preserves property edits and unfiltered archived selection at enlarged scale", async ({ page }) => {
   await page.route(
     `**/api/entity-types/${materials.id}`,
     (route) =>
@@ -772,17 +772,19 @@ test("basic save preserves property edits and searchable archived selection at e
         : route.fallback(),
   );
   await page.goto(`/settings/entity-types/${materials.id}`);
+  await page.getByRole("button", { name: "입력 항목", exact: true }).click();
   await page.getByRole("button", { name: "이름 속성 편집", exact: true }).click();
-  await page.getByLabel("속성 이름", { exact: true }).fill("保留する属性");
+  await page.getByLabel("항목 이름", { exact: true }).fill("保留する属性");
   await page.getByRole("button", { name: /^기본 정보(?! 저장)/ }).click();
   await page.getByLabel("자료 종류 이름", { exact: true }).fill("新しい基本情報");
   await page.getByRole("button", { name: "기본 정보 저장", exact: true }).click();
   await expect(page.getByRole("status").filter({ hasText: "자료 종류를 저장했습니다." })).toBeVisible();
-  await expect(page.getByLabel("속성 이름", { exact: true })).toHaveValue("保留する属性");
-  await page.getByLabel("자료 종류 검색", { exact: true }).fill("보관");
+  await expect(page.getByLabel("항목 이름", { exact: true })).toHaveValue("保留する属性");
+  await expect(page.getByLabel("자료 종류 검색", { exact: true })).toHaveCount(0);
   await expect(page.getByLabel("자료 종류 선택", { exact: true }).locator("option")).toContainText([
     "종류 추가",
     "재료",
+    "상품",
     "보관 자료 (보관)",
   ]);
   await page.evaluate(() => document.documentElement.style.fontSize = "200%");
