@@ -327,6 +327,29 @@ Deno.test("Registration rejects stale type identity and retired creation while e
     (await assertRejects(() => createEntity(deps, actor, { ...input, identity_version: 2 }), AppError)).code,
     "invalid_input",
   );
-  const restored = await createEntity(deps, actor, { ...input, identity_version: 2, expected_version: 2 });
+  const preparation: BusinessSettingsDeps = {
+    clock: { now: () => new Date("2026-10-15T00:00:00Z") },
+    uow: {
+      run: (_actor, run) =>
+        run({
+          get: () => Promise.resolve({ versions: { record_templates: 0 }, settings: {} }),
+          getTypeIdentity: () => Promise.resolve(config()),
+          definition: () => Promise.resolve(definition),
+          target: () =>
+            Promise.resolve({ version: row!.version, deleted_at: row!.deleted_at, facts: entityChangeFacts(row!) }),
+          recordTags: () => Promise.resolve([]),
+          update: () => Promise.reject(new Error("read only")),
+        }),
+    },
+  };
+  const prepared = await prepareBusinessRecord(preparation, actor, {
+    model: "entity",
+    action: "restore",
+    target_id: created.id,
+    expected_version: 2,
+    input: { ...schema, properties: {} },
+  });
+  assertEquals([prepared.prepared_input.source, prepared.prepared_input.identity_version], ["crm", 2]);
+  const restored = await createEntity(deps, actor, entityCreate.parse(prepared.prepared_input));
   assertEquals([restored.id, restored.external_id, restored.deleted_at], [`crm:${typeId}:001A:B`, "001A:B", null]);
 });

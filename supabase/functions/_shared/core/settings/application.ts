@@ -109,7 +109,7 @@ export function prepareBusinessRecord(
         content = restorationContent(
           identity!,
           before!,
-          content as EntityCreate,
+          { ...content, expected_version: input.expected_version } as EntityCreate,
         );
       }
     }
