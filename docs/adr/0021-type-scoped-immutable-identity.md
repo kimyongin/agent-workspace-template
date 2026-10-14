@@ -3,7 +3,7 @@
 - 상태: 채택, 구현·운영 적용 여부는 [#426](https://github.com/kimyongin/agent-workspace-template/issues/426)에서 확인
 - 날짜: 2026-10-15
 - 승인: 외부 플랫폼 자료 통합 설계안에 대한 사용자의 “진행하자” 지시
-- 대체 범위: [ADR-0016](0016-entity-source-identity-and-restoration.md)의 자료 식별 범위와 식별 정보 변경 허용
+- 대체 범위: [ADR-0016](0016-entity-source-identity-and-restoration.md)의 자료 식별 범위·식별 정보 변경 허용·전역 식별 설정·중지 발급처 복원 제한
 
 ## 목적
 

@@ -1,10 +1,10 @@
 # Workspace 제품 플러그인
 
-`workspace` 0.6.3는 현재 상태·현재 원칙·기록 원문을 근거로 다음 업무를 준비하는 제품 스킬의 소스 후보다. Claude Code와 Codex가 같은 `skills/workspace/`를 사용하며 개발 스킬은 포함하지 않는다. 기존 운영 MCP `https://ayzcluvdppsppwszzaqx.supabase.co/functions/v1/mcp`에 연결하며 OAuth 로그인이 필요하다. 새 앱에서 이 패키지를 재사용할 때는 두 MCP 설정의 주소를 해당 앱의 검증한 주소로 함께 바꾼다. 토큰이나 서버 비밀을 파일에 넣지 않는다. 후보 소스 변경은 기존 설치 갱신이나 운영 서버 배포를 뜻하지 않는다.
+`workspace` 0.7.0는 현재 상태·현재 원칙·기록 원문을 근거로 다음 업무를 준비하는 제품 스킬의 소스 후보다. Claude Code와 Codex가 같은 `skills/workspace/`를 사용하며 개발 스킬은 포함하지 않는다. 기존 운영 MCP `https://ayzcluvdppsppwszzaqx.supabase.co/functions/v1/mcp`에 연결하며 OAuth 로그인이 필요하다. 새 앱에서 이 패키지를 재사용할 때는 두 MCP 설정의 주소를 해당 앱의 검증한 주소로 함께 바꾼다. 토큰이나 서버 비밀을 파일에 넣지 않는다. 후보 소스 변경은 기존 설치 갱신이나 운영 서버 배포를 뜻하지 않는다.
 
 0.6.1은 모든 업무 쓰기에 UUID `request_key`를 요구하며 같은 논리 요청의 불확실한 재시도에는 정확한 입력과 키를 유지한다. 공개 ID 사전 발급은 없고 준비는 읽기이며 생성 성공 응답의 정본 ID를 사용한다. 키/입력을 잃거나 결과가 만료되면 현재 상태와 다음 의도를 확인하고 새 키로 자동 반복하지 않는다. `get_status`로 현재 현황을, `list_indexing_issues`로 최대 5개 문제 기록의 이유·전송 시도 수·본문 구간 진행을 확인한다. 응답 확인 불가는 확정 실패가 아니다. 이전 키 없는 클라이언트와의 쓰기 호환은 제공하지 않는다.
 
-0.6.1은 설정 ID별 독립 버전과 발급처 삭제·복원, 업무 설정·기록 템플릿 준비와 발급처별 엔터티 식별자·소프트 삭제·복원·식별 정보 변경 계약을 사용한다. 같은 서버 revision을 먼저 배포·검증한 뒤 클라이언트를 갱신한다. [기록 템플릿](../../docs/adr/0015-change-record-templates.md)과 [엔터티 식별자](../../docs/adr/0016-entity-source-identity-and-restoration.md)의 이관 기준을 따른다.
+0.7.0 후보는 자료 종류·발급처·문자열 번호를 결합한 불변 자료 식별자와 재사용 발급처·번호 규칙, 종류별 식별 설정 도구를 사용한다. 생성 시 종류별 설정을 확인하고 `identity_version`을 유지하며 일반 수정으로 번호를 바꾸지 않는다. 전역 `entity_identity` 설정과 rekey 입력은 제거한다. 서버를 먼저 같은 revision으로 배포·검증한 뒤 클라이언트를 갱신해야 한다. 이 후보를 운영에 배포하거나 기존 클라이언트에 설치하지 않았다. [종류별 식별 결정](../../docs/adr/0021-type-scoped-immutable-identity.md)의 빈 저장소 전환 범위를 따른다.
 
 “준비만” 요청은 원문 식별자와 가능한 순서·필요한 확인을 제안한 뒤 끝낸다. 현재 원칙 부재, 자료 충돌, 검색 장애와 색인 지연을 구분한다. 다중 대상·메모·현재 원칙의 서버 계약을 안내하고 과거 캡처의 해석은 `skills/workspace/references/preservation.md`를 필요한 경우에만 읽는다. 실제 클라이언트 검증 절차와 원시 출력 없는 증거 범위는 [행동 실험](../../experiments/plugin-behavior/README.md)에 있다.
 
@@ -51,7 +51,7 @@ Git source로 등록한 marketplace만 `codex plugin marketplace upgrade workspa
 ```powershell
 node scripts/check-plugin.mjs
 node --test scripts/check-plugin.test.mjs
-node scripts/package-plugin.mjs C:/release-artifacts/workspace-0.6.3.zip
+node scripts/package-plugin.mjs C:/release-artifacts/workspace-0.7.0.zip
 ```
 
 명령은 저장소 루트에서 실행한다. ZIP과 옆의 `.json` 증거는 저장소 밖에 쓴다. 파일 순서·ZIP 시각을 고정해 같은 원본은 같은 SHA-256을 만든다. 증거에 버전, endpoint, 도구 목록, 서버 도구 원본 해시와 각 패키지 파일 해시가 들어간다. 서버 원본의 해시는 실제 운영 revision 확인을 대신하지 않는다. 운영에서 아직 배포하지 않은 도구는 연결된 서버에서 사용할 수 없다.
