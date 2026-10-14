@@ -18,6 +18,7 @@ export function typeIdentitySettingsAdapter(
   port: TypeIdentitySettingsPort,
 ): SettingsDraftAdapter<TypeIdentityDraft, EntityTypeIdentity> {
   return {
+    version: (saved) => saved.version,
     initial: { label: "", default_source: "app", sources: [] },
     read: (signal) => port.read(typeId, signal),
     save: (draft, before, signal, key) =>

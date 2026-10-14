@@ -85,3 +85,53 @@ Deno.test("HTTP and MCP reject mutable issuer codes and external automatic gener
   );
   assertEquals((e as { code: string }).code, "invalid_input");
 });
+
+Deno.test("HTTP and MCP enforce registry system-definition policy through the shared core", async () => {
+  const appIssuer = { code: "app", label: "앱", active: true, system: true, version: 1 },
+    appRule = {
+      id: "00000000-0000-4000-8000-000000000001",
+      source: "app",
+      label: "자동 발급",
+      meaning: "앱 번호",
+      generation: "automatic",
+      active: true,
+      version: 1,
+    };
+  const d: EntityIssuerDeps = {
+    uow: {
+      run: (_actor, fn) =>
+        fn({
+          executeRequest: <T>(_r: unknown, execute: () => Promise<T>) => execute(),
+          lockIssuer: () => Promise.resolve(appIssuer),
+          issuerIsDefault: () => Promise.resolve(true),
+          lockRule: () => Promise.resolve(appRule),
+          ruleUsage: () => Promise.resolve({ referenced: true, usedAsDefault: true }),
+        } as unknown as EntityIssuerStore),
+    },
+  };
+  const app = new Hono<HttpEnv>();
+  app.use("*", async (c, next) => {
+    c.set("actor", actor);
+    await next();
+  });
+  app.route("/", entityIssuerRoutes(d));
+  app.onError((e, c) => {
+    const { body, status } = toErrorBody(e);
+    return c.json(body, status as 400);
+  });
+  const response = await app.request("/entity-issuers/app", {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ active: false, expected_version: 1 }),
+  });
+  assertEquals(response.status, 400);
+  assertEquals((await response.json()).code, "invalid_input");
+  const tool = entityIssuerTools(d).find((t) => t.name === "update_entity_identifier_rule")!;
+  const e = await assertRejects(() =>
+    tool.handler(
+      { rule_id: appRule.id, meaning: "외부 번호", expected_version: 1, request_key: crypto.randomUUID() },
+      actor,
+    )
+  );
+  assertEquals((e as { code: string }).code, "invalid_input");
+});

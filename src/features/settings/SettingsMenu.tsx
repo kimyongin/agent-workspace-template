@@ -15,7 +15,9 @@ export function SettingsMenu() {
   useEffect(() => {
     if (!open) return;
     const outside = (event: PointerEvent) => {
-      if (!root.current?.contains(event.target as Node)) setOpen(false);
+      if (!document.querySelector("dialog.modal-confirm[open]") && !root.current?.contains(event.target as Node)) {
+        setOpen(false);
+      }
     };
     document.addEventListener("pointerdown", outside);
     return () => document.removeEventListener("pointerdown", outside);
@@ -29,7 +31,10 @@ export function SettingsMenu() {
       className="settings-menu"
       ref={root}
       onBlur={(event) => {
-        if (event.relatedTarget && !event.currentTarget.contains(event.relatedTarget as Node)) setOpen(false);
+        if (
+          !document.querySelector("dialog.modal-confirm[open]") && event.relatedTarget &&
+          !event.currentTarget.contains(event.relatedTarget as Node)
+        ) setOpen(false);
       }}
       onKeyDown={(event) => {
         if (event.key === "Escape") {

@@ -84,10 +84,10 @@ export function TypeIdentitySettings(
     }
     if (await editor.resource.save()) setMessage("식별자 설정을 저장했습니다.");
   };
-  const error = editor.error
-    ? conflict
-      ? "같은 식별자 설정이 변경되었습니다. 입력을 유지했습니다. 최신 저장값을 확인하고 비교하세요."
-      : writeErrorMessage(editor.error)
+  const error = conflict
+    ? "같은 식별자 설정이 변경되었습니다. 입력을 유지했습니다. 최신 저장값을 확인하고 비교하세요."
+    : editor.error
+    ? writeErrorMessage(editor.error)
     : inputError;
   return (
     <MaterialSettingsSection title="식별자" summary={saved?.label} state={state}>
