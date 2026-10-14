@@ -157,3 +157,48 @@ test("invalid closed fields expand and focus; move controls retain the expanded 
     ),
   ).toBe("12px");
 });
+
+test("confirmation fits its content at the center with a dimmed backdrop", async ({ page }) => {
+  await page.goto(direct);
+  for (
+    const viewport of [
+      { width: 320, height: 800 },
+      { width: 390, height: 800 },
+      { width: 639, height: 800 },
+      { width: 640, height: 800 },
+      { width: 1440, height: 900 },
+      { width: 390, height: 260 },
+    ]
+  ) {
+    await page.setViewportSize(viewport);
+    await page.locator("#dialogs").getByRole("button", { name: "예시 자료 삭제", exact: true }).click();
+    const dialog = page.getByRole("dialog");
+    const geometry = await dialog.evaluate((node) => {
+      const box = node.getBoundingClientRect(), inner = node.querySelector(".modal-inner")!.getBoundingClientRect();
+      return {
+        extraHeight: box.height - inner.height,
+        centerY: box.top + box.height / 2,
+        centerX: box.left + box.width / 2,
+        modal: node.matches(":modal"),
+        backdrop: getComputedStyle(node, "::backdrop").backgroundColor,
+      };
+    });
+    expect(geometry.extraHeight, `unnecessary blank height at ${viewport.width}×${viewport.height}`)
+      .toBeLessThanOrEqual(4);
+    expect(Math.abs(geometry.centerY - viewport.height / 2)).toBeLessThanOrEqual(2);
+    expect(Math.abs(geometry.centerX - viewport.width / 2)).toBeLessThanOrEqual(2);
+    expect(geometry.modal).toBe(true);
+    expect(geometry.backdrop).toBe("rgba(0, 0, 0, 0.6)");
+    await dialog.getByRole("button", { name: "취소", exact: true }).click();
+  }
+  await page.setViewportSize({ width: 390, height: 800 });
+  await page.locator("#dialogs").getByRole("button", { name: "편집 모달 열기" }).click();
+  const dialog = page.getByRole("dialog");
+  expect((await dialog.boundingBox())!.height).toBe(800);
+  await dialog.getByRole("button", { name: "저장", exact: true }).click();
+  const geometry = await dialog.evaluate((node) => ({
+    box: node.getBoundingClientRect().height,
+    inner: node.querySelector(".modal-inner")!.getBoundingClientRect().height,
+  }));
+  expect(geometry.box - geometry.inner).toBeLessThanOrEqual(4);
+});
