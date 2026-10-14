@@ -65,6 +65,11 @@ export interface SchemaChangeStore {
   ): Promise<Record<string, string>>;
   lockSchemaChangeBindings(typeId: string, entityIds: string[]): Promise<RecordTemplates>;
   saveSchemaChangeDraft(context: SchemaChangeDraftContext, prepared: PreparedSchemaChange): Promise<EntitySchemaChange>;
+  loadSchemaDiscard(typeId: string, id: string): Promise<{
+    change: Pick<EntitySchemaChange, "version" | "status">;
+    migration_active: boolean;
+  }>;
+  saveSchemaDiscard(typeId: string, id: string): Promise<EntitySchemaChange>;
   getChange(typeId: string, id: string): Promise<EntitySchemaChange>;
   listChanges(
     typeId: string,
@@ -211,4 +216,17 @@ export function getEntitySchemaAnalysisRows(d: EntityTypeDeps, a: Actor, typeId:
   refs(typeId, id);
   const i = parse(schemaAnalysisRows, raw);
   return d.uow.run(a, (s) => s.analysisRows(typeId, id, i));
+}
+
+export function discardEntitySchemaChange(d: EntityTypeDeps, a: Actor, typeId: string, id: string, raw: unknown) {
+  refs(typeId, id);
+  const input = parse(schemaChangeAction, raw);
+  return runWrite(d.uow, a, "entity-schema-change.discard", [typeId, id], input, async (store) => {
+    const { change, migration_active } = await store.loadSchemaDiscard(typeId, id);
+    if (change.status === "cancelled") return store.getChange(typeId, id);
+    if (change.status === "applied") throw conflict("이미 적용한 변경은 폐기할 수 없습니다");
+    if (change.version !== input.expected_change_version) throw conflict("변경안 버전이 변경되었습니다");
+    if (migration_active) throw conflict("진행 중인 값 변환을 먼저 취소하세요");
+    return store.saveSchemaDiscard(typeId, id);
+  });
 }

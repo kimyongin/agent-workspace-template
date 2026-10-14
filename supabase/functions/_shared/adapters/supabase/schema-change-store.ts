@@ -226,6 +226,28 @@ export class SqlSchemaChangeStore implements SchemaChangeStore {
       updated_at: row.updated_at.toISOString(),
     };
   }
+  async loadSchemaDiscard(typeId: string, id: string) {
+    // Match worker/publication lock order: type → change → analysis.
+    const [type] = await this.tx`select id from app.entity_types where id::text=${typeId} for update`;
+    if (!type) throw notFound();
+    const change = await this.row(typeId, id, true);
+    const [active] = await this
+      .tx`select exists(select 1 from app.entity_schema_migrations where change_id=${change.id} and status in ('queued','preparing','ready_to_commit','committing')) as present`;
+    return {
+      change: { version: Number(change.version), status: change.status as EntitySchemaChange["status"] },
+      migration_active: active.present,
+    };
+  }
+  async saveSchemaDiscard(typeId: string, id: string) {
+    const row = await this.row(typeId, id);
+    if (row.analysis_id) {
+      await this
+        .tx`update app.entity_schema_analyses set status='failed',failure_reason='analysis_discarded',retryable=false,fence=fence+1,lease_until=null where id=${row.analysis_id} and status in ('queued','running')`;
+    }
+    const [saved] = await this
+      .tx`update app.entity_schema_changes set status='cancelled',version=version+1,updated_at=now() where id=${row.id} returning *`;
+    return this.dto(saved);
+  }
   async loadSchemaChangeDraft(typeId: string): Promise<SchemaChangeDraftContext> {
     const [t] = await this.tx`select * from app.entity_types where id::text=${typeId} for update`;
     if (!t) throw notFound();

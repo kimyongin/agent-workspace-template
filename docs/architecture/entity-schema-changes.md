@@ -24,7 +24,7 @@
 
 목록/상세/새 연결 capture의 현재 라벨·대표 이름·표시 순서·목록 컬럼·보관 표시는 현재 정의를 사용한다. 저장 schema_version은 마지막 저장 정의의 이력으로 유지한다. 과거 기록의 당시 제목/본문은 다시 쓰지 않는다.
 
-MCP는 `create/get/list/update/analyze/apply_entity_schema_change`를 제공한다. create/update/analyze/apply는 모두 request_key가 필요한 명시 쓰기다. 웹은 발급 전 추가 속성을 저장하여 키를 확인한 뒤 그 키의 대표/목록/선택 라벨 표시를 편집한다. 전송 결과가 불명확하면 동일 요청을 재확인하고, 완료 후 조회 실패는 게시 실패와 구분한다.
+MCP는 `create/get/list/update/analyze/apply/discard_entity_schema_change`를 제공한다. create/update/analyze/apply/discard는 모두 request_key가 필요한 명시 쓰기다. 웹은 발급 전 추가 속성을 저장하여 키를 확인한 뒤 그 키의 대표/목록/선택 라벨 표시를 편집한다. 전송 결과가 불명확하면 동일 요청을 재확인하고, 완료 후 조회 실패는 게시 실패와 구분한다.
 
 자료 종류별 effective 기록 템플릿의 속성 참조가 target에서 존재하고 활성인지 검사한다. create/update/analyze/apply는 설정 잠금 아래 해당 타입의 effective 템플릿 SHA256을 비교한다. 다른 타입·할 일 템플릿 변경만으로 무관한 변경안을 stale로 만들지 않는다.
 
@@ -99,3 +99,9 @@ job 상태/목록의 `recovery.status`는 available/expired/unavailable/conflict
 이미 저장된 과도한 query 주소가 HTML 서버에서 거절되면 JavaScript가 시작되지 않아 브라우저에서 자동 전환할 수 없다. 앱이 읽을 수 있는 기존 긴 query 주소는 같은 조건의 fragment 주소로 replace 정규화한다. 새 주소 생성과 정상화된 링크의 새로고침을 검증하며 운영 서버의 한도 변경은 별도 범위다.
 
 게시·값 변환 시작의 실행 순서는 코어 application이 소유한다. 저장 어댑터가 잠긴 타입·변경안·분석·현재 membership을 읽으면 코어의 공통 정책이 경로 호환성, 버전·fingerprint·분석 결속, 실패 없는 성공 분석을 판단한다. 코어가 잠긴 복구·템플릿 기준도 검증한 다음 어댑터에 게시/작업 저장을 지시한다. 작업자의 기록 생성 시각은 어댑터에서 코어로 명시 전달한다.
+
+## 변경 이력에서의 검토와 폐기
+
+입력 항목은 편집을, 변경 이력의 펼침 행은 저장된 변경안의 검토·적용·폐기를 담당한다. 섹션을 접으면 내부 버튼과 설명도 숨기며 초안은 유지한다. 변경 검토의 저장 성공 후 해당 이력 행으로 초점을 옮기고 기존 자료 영향 분석을 시작한다. 이미 적용한 변경과 활성 값 변환이 있는 변경은 폐기하지 않는다.
+
+`POST /entity-types/:type_id/schema-changes/:change_id/discard`와 `discard_entity_schema_change`는 `expected_change_version`과 요청 키로 명시 폐기를 수행한다. 폐기는 기존 cancelled 저장 상태를 사용하고 UI는 폐기됨으로 표시한다. 현재 정의·자료·속성 키 예약·이력은 유지한다. 분석 중 폐기는 분석 fence와 변경 버전을 전진시켜 늦은 결과 반영을 막는다. 작업 취소와 변경안 폐기는 별도 행동이다.

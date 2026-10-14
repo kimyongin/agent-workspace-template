@@ -63,6 +63,28 @@ httpTest(
         accepted.body,
       );
       assertEquals((await call(token, "GET", `/entity-types/${id}/schema`)).body.schema_version, 1);
+      const discardPath = `/entity-types/${id}/schema-changes/${created.body.id}/discard`;
+      assertEquals((await call(other, "POST", discardPath, { expected_change_version: 1 })).status, 404);
+      assertEquals((await call(token, "POST", discardPath, { expected_change_version: 2 })).status, 409);
+      const discardKey = crypto.randomUUID();
+      const discarded = await call(token, "POST", discardPath, { expected_change_version: 1 }, discardKey);
+      assertEquals(discarded.status, 200);
+      assertEquals(discarded.body.status, "cancelled");
+      assertEquals(discarded.body.version, 2);
+      assertEquals(
+        await tool(client, "discard_entity_schema_change", {
+          type_id: id,
+          change_id: created.body.id,
+          expected_change_version: 1,
+          request_key: discardKey,
+        }),
+        discarded.body,
+      );
+      assertEquals(
+        (await call(token, "GET", `/entity-types/${id}/schema-changes/${created.body.id}`)).body.status,
+        "cancelled",
+      );
+      assertEquals((await call(token, "GET", `/entity-types/${id}/schema`)).body.schema_version, 1);
     } finally {
       if (id) await admin`delete from app.entity_types where id=${id}`;
       await client.close();

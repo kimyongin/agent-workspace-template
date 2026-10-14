@@ -201,6 +201,7 @@ const EXPECTED_TOOLS = [
   "update_entity_schema_change",
   "analyze_entity_schema_change",
   "apply_entity_schema_change",
+  "discard_entity_schema_change",
   "list_entity_schema_analysis_rows",
   "start_entity_schema_migration",
   "get_entity_schema_migration",
@@ -550,6 +551,11 @@ httpTest("tools/list: 계약의 도구 이름과 contracts JSON Schema", async (
     retry_entity_schema_migration: schemaMigrationAction.extend({ job_id: z.string().uuid(), request_key: requestKey }),
     list_entity_schema_changes: schemaChangeList.extend({ type_id: z.string().uuid() }),
     analyze_entity_schema_change: schemaChangeAction.extend({
+      type_id: z.string().uuid(),
+      change_id: z.string().uuid(),
+      request_key: requestKey,
+    }),
+    discard_entity_schema_change: schemaChangeAction.extend({
       type_id: z.string().uuid(),
       change_id: z.string().uuid(),
       request_key: requestKey,

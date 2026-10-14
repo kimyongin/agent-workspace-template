@@ -23,6 +23,7 @@ test("웹 속성 초안·분석·게시 후 기존 자료 표시와 MCP 생성·
     const oldForm = oldPage.getByRole("dialog", { name: `${type.label} 편집`, exact: true });
     await oldForm.getByLabel("이름", { exact: false }).fill("충돌 뒤 유지할 초안");
     await page.goto(`/settings/entity-types/${typeId}`);
+    await page.getByRole("button", { name: "입력 항목", exact: true }).click();
     await page.getByRole("button", { name: "이름 속성 편집", exact: true }).click();
     await page.getByRole("region", { name: "이름 속성", exact: true }).getByLabel("항목 이름", { exact: true }).fill(
       "자료 이름",
@@ -68,7 +69,7 @@ test("웹 속성 초안·분석·게시 후 기존 자료 표시와 MCP 생성·
     await page.getByRole("button", { name: "변경 적용", exact: true }).click();
     await expect(page.getByRole("button", { name: "같은 요청 다시 확인", exact: true })).toBeVisible();
     await page.getByRole("button", { name: "같은 요청 다시 확인", exact: true }).click();
-    await expect(page.getByRole("heading", { name: "입력 항목", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /^입력 항목/ })).toBeVisible();
     const current = await mcp.call("get_entity", { id: existing.id });
     expect(current.schema_version).toBe(1);
     expect(current.version).toBe(existing.version);

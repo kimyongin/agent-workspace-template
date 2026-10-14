@@ -615,3 +615,140 @@ dbTest(
     }
   },
 );
+
+dbTest("schema discard preserves data, rejects stale/applied/foreign requests and fences late analysis", async () => {
+  const { discardEntitySchemaChange } = await import("../../functions/_shared/core/entity-types/schema-changes.ts");
+  const admin = connect(urls.admin), sql = connect(urls.direct);
+  const a = await fixtureOwner(admin), b = await fixtureOwner(admin);
+  const d = { uow: new SqlEntityTypeUnitOfWork(sql) }, e = { uow: new SqlEntityUnitOfWork(sql) };
+  const wu = new URL(urls.admin);
+  wu.username = "app_worker";
+  wu.password = encodeURIComponent(Deno.env.get("APP_WORKER_PASSWORD")!);
+  const worker = connect(wu.href, { max: 1 });
+  try {
+    const t = await createEntityType(d, requestActor(a.actor), { label: "폐기 검사" });
+    const entity = await createEntity(e, requestActor(a.actor), {
+      entity_type_id: t.id,
+      schema_version: 1,
+      source: "app",
+      external_id: crypto.randomUUID(),
+      properties: { prop_1: "원본 유지" },
+    });
+    const change = await createEntitySchemaChange(d, requestActor(a.actor), t.id, {
+      expected_type_version: 1,
+      expected_schema_version: 1,
+      edits: [{
+        op: "update_property",
+        key: "prop_1",
+        field: { type: "string", title: "새 이름", minLength: 1, maxLength: 4096 },
+        required: true,
+      }],
+    });
+    await assertRejects(
+      () => discardEntitySchemaChange(d, requestActor(b.actor), t.id, change.id, { expected_change_version: 1 }),
+      AppError,
+    );
+    await assertRejects(
+      () => discardEntitySchemaChange(d, requestActor(a.actor), t.id, change.id, { expected_change_version: 2 }),
+      AppError,
+      "버전",
+    );
+    await analyzeEntitySchemaChange(d, requestActor(a.actor), t.id, change.id, { expected_change_version: 1 });
+    const [claimed] = await worker`select app.claim_entity_schema_analysis() as batch`;
+    const actor = requestActor(a.actor);
+    const discarded = await discardEntitySchemaChange(d, actor, t.id, change.id, { expected_change_version: 1 });
+    assertEquals(discarded.status, "cancelled");
+    assertEquals(discarded.version, 2);
+    assertEquals(
+      (await discardEntitySchemaChange(d, actor, t.id, change.id, { expected_change_version: 1 })).version,
+      2,
+    );
+    assertEquals(
+      (await discardEntitySchemaChange(d, requestActor(a.actor), t.id, change.id, { expected_change_version: 1 }))
+        .status,
+      "cancelled",
+    );
+    const batch = claimed.batch;
+    const results = batch.rows.map((r: { entity_id: string; properties: Record<string, unknown> }) =>
+      compileMigration(batch.target, batch.migration)(r.entity_id, r.properties)
+    );
+    const [late] = await worker`select app.complete_entity_schema_analysis_batch(${batch.id},${batch.fence},${
+      worker.json(results)
+    }) as accepted`;
+    assertEquals(late.accepted, false);
+    assertEquals((await getEntitySchemaChange(d, a.actor, t.id, change.id)).status, "cancelled");
+    assertEquals((await getEntity(e, a.actor, entity.id)).properties, { prop_1: "원본 유지" });
+    assertEquals((await getEntityType(d, a.actor, t.id)).schema_version, 1);
+    await assertRejects(
+      () =>
+        applyEntitySchemaChange(d, requestActor(a.actor), t.id, change.id, {
+          expected_change_version: 2,
+          analysis_id: batch.id,
+        }),
+      AppError,
+    );
+    const publishable = await createEntitySchemaChange(d, requestActor(a.actor), t.id, {
+      expected_type_version: 1,
+      expected_schema_version: 1,
+      edits: [{
+        op: "update_property",
+        key: "prop_1",
+        field: { type: "string", title: "적용 이름", minLength: 1, maxLength: 4096 },
+        required: true,
+      }],
+    });
+    await analyzeEntitySchemaChange(d, requestActor(a.actor), t.id, publishable.id, { expected_change_version: 1 });
+    await consume(worker);
+    const reviewed = await getEntitySchemaChange(d, a.actor, t.id, publishable.id);
+    await applyEntitySchemaChange(d, requestActor(a.actor), t.id, reviewed.id, {
+      expected_change_version: 1,
+      analysis_id: reviewed.analysis!.id,
+    });
+    await assertRejects(
+      () => discardEntitySchemaChange(d, requestActor(a.actor), t.id, reviewed.id, { expected_change_version: 1 }),
+      AppError,
+      "이미 적용",
+    );
+    const migrating = await createEntitySchemaChange(d, requestActor(a.actor), t.id, {
+      expected_type_version: 2,
+      expected_schema_version: 2,
+      edits: [{
+        op: "add_property",
+        client_ref: "confirmed",
+        field: { type: "boolean", title: "확인" },
+        required: true,
+      }],
+      migration: { rules: [{ op: "fill", key: "prop_2", value: false }], overrides: [] },
+    });
+    await analyzeEntitySchemaChange(d, requestActor(a.actor), t.id, migrating.id, { expected_change_version: 1 });
+    await consume(worker);
+    const prepared = await getEntitySchemaChange(d, a.actor, t.id, migrating.id);
+    const { startEntitySchemaMigration, cancelEntitySchemaMigration } = await import(
+      "../../functions/_shared/core/entity-types/schema-migrations.ts"
+    );
+    const job = await startEntitySchemaMigration(d, requestActor(a.actor), t.id, prepared.id, {
+      expected_change_version: 1,
+      expected_type_version: 2,
+      expected_schema_version: 2,
+      analysis_id: prepared.analysis!.id,
+      fingerprint: prepared.fingerprint,
+    });
+    await assertRejects(
+      () => discardEntitySchemaChange(d, requestActor(a.actor), t.id, prepared.id, { expected_change_version: 1 }),
+      AppError,
+      "진행 중인",
+    );
+    await cancelEntitySchemaMigration(d, requestActor(a.actor), job.job_id, { expected_job_version: job.job_version });
+    assertEquals(
+      (await discardEntitySchemaChange(d, requestActor(a.actor), t.id, prepared.id, { expected_change_version: 1 }))
+        .status,
+      "cancelled",
+    );
+  } finally {
+    await a.cleanup();
+    await b.cleanup();
+    await worker.end();
+    await sql.end();
+    await admin.end();
+  }
+});

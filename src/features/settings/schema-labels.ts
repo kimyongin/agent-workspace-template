@@ -3,12 +3,12 @@ import type { EntitySchemaChange, SchemaDefinition } from "@contracts/entity-sch
 import { fieldType } from "../entity/property-fields.tsx";
 export const schemaChangeLabels: Record<EntitySchemaChange["status"], string> = {
   draft: "초안",
-  analyzing: "분석 중",
+  analyzing: "검토 중",
   ready: "검토 완료",
   stale: "현재 상태 확인 필요",
   invalid: "보완 필요",
-  applied: "게시 완료",
-  cancelled: "취소",
+  applied: "적용됨",
+  cancelled: "폐기됨",
 };
 export function fieldTypeLabel(field: EntityField) {
   const kind = fieldType(field);
