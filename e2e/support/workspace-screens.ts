@@ -67,7 +67,7 @@ export const go = async (page: Page, path: string) => {
   return page.goto(url.pathname + url.search + url.hash);
 };
 
-export const form = (page: Page) => page.locator("dialog.modal:not(.modal-confirm)[open]:visible");
+export const form = (page: Page) => page.locator("dialog.modal[open]:visible").last();
 
 export function linkedFixture(state: Awaited<ReturnType<typeof fixtures>>) {
   Object.assign(state.rows.entities[0], {

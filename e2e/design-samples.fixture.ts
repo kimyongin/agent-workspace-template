@@ -71,18 +71,26 @@ for (const outcome of ["success", "failure", "uncertain"]) {
     await samples.getByLabel("샘플 저장 결과").selectOption(outcome);
     const opener = samples.getByRole("button", { name: "편집 모달 열기" });
     await opener.click();
-    let dialog = page.getByRole("dialog");
+    const editor = page.locator("dialog.modal:not(.modal-confirm)[open]");
+    let dialog = editor;
     await dialog.getByLabel("상품명").fill("머그컵");
     await dialog.getByRole("button", { name: "저장", exact: true }).click();
+    dialog = page.locator("dialog.modal-confirm[open]");
+    await expect(page.locator("dialog[open]")).toHaveCount(2);
+    await expect(editor.getByLabel("상품명")).toHaveValue("머그컵");
     await dialog.getByLabel("기록 메모").fill("초안을 유지합니다");
     await dialog.getByRole("button", { name: "취소", exact: true }).click();
+    dialog = editor;
     await expect(dialog.getByLabel("상품명")).toHaveValue("머그컵");
     await expect(dialog.getByRole("button", { name: "저장", exact: true })).toBeFocused();
     await dialog.getByRole("button", { name: "닫기" }).click();
+    dialog = page.locator("dialog.modal-confirm[open]");
     await expect(dialog.getByRole("heading")).toHaveText("변경을 버릴까요?");
     await dialog.getByRole("button", { name: "계속 편집" }).click();
+    dialog = editor;
     await expect(dialog.getByLabel("상품명")).toHaveValue("머그컵");
     await dialog.getByRole("button", { name: "저장", exact: true }).click();
+    dialog = page.locator("dialog.modal-confirm[open]");
     await expect(dialog.getByLabel("기록 메모")).toHaveValue("초안을 유지합니다");
     await dialog.getByRole("button", { name: "저장", exact: true }).click();
     await expect(dialog.getByRole("button", { name: "취소", exact: true })).toBeDisabled();
@@ -104,7 +112,7 @@ for (const outcome of ["success", "failure", "uncertain"]) {
     await expect(samples.locator("dd")).toHaveText("머그컵");
     await expect(opener).toBeFocused();
     await samples.getByRole("button", { name: "예시 자료 삭제" }).click();
-    dialog = page.getByRole("dialog");
+    dialog = page.locator("dialog.modal-confirm[open]");
     expect((await dialog.boundingBox())!.width).toBeLessThanOrEqual(448);
     await dialog.getByRole("button", { name: "취소", exact: true }).press("Escape");
     await expect(page.locator("dialog[open]")).toHaveCount(0);
@@ -123,10 +131,10 @@ test("preview width changes keep the same live draft and dialog", async ({ page 
   await content.getByRole("button", { name: "편집 모달 열기" }).click();
   await content.getByRole("dialog").getByLabel("상품명").fill("같은 모달");
   await page.getByRole("button", { name: "데스크톱", exact: true }).click();
-  await expect(content.getByRole("dialog").getByLabel("상품명")).toHaveValue("같은 모달");
+  await expect(content.locator("dialog:not(.modal-confirm)[open]").getByLabel("상품명")).toHaveValue("같은 모달");
   await page.getByRole("button", { name: "모바일", exact: true }).click();
   await content.getByRole("dialog").getByRole("button", { name: "닫기" }).click();
-  await content.getByRole("dialog").getByRole("button", { name: "변경 버리기" }).click();
+  await content.locator("dialog.modal-confirm[open]").getByRole("button", { name: "변경 버리기" }).click();
   await page.getByRole("button", { name: "현재 화면", exact: true }).click();
 });
 
@@ -196,7 +204,7 @@ test("confirmation fits its content at the center with a dimmed backdrop", async
   const dialog = page.getByRole("dialog");
   expect((await dialog.boundingBox())!.height).toBe(800);
   await dialog.getByRole("button", { name: "저장", exact: true }).click();
-  const geometry = await dialog.evaluate((node) => ({
+  const geometry = await page.locator("dialog.modal-confirm[open]").evaluate((node) => ({
     box: node.getBoundingClientRect().height,
     inner: node.querySelector(".modal-inner")!.getBoundingClientRect().height,
   }));

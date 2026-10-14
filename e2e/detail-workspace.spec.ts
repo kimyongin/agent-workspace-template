@@ -806,3 +806,71 @@ test("#341 기록 저장 대기는 이동을 막고 응답 뒤에만 작성 모�
   await expect(page).not.toHaveURL(/action=record/);
   expect(state.errors).toEqual([]);
 });
+
+
+test("confirmation overlays the retained mobile editor and restores its focus", async ({ page }) => {
+  const state = await fixture(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`/tasks/${id(2)}`);
+  const editor = page.locator("dialog.modal:not(.modal-confirm)[open]");
+  await editor.getByRole("button", { name: "편집", exact: true }).click();
+  await editor.getByLabel("제목").fill("겹친 확인창 초안");
+  const save = editor.getByRole("button", { name: "저장", exact: true });
+  await save.click();
+  await expect(page.locator("dialog[open]")).toHaveCount(2);
+  const confirmation = page.locator("dialog.modal-confirm[open]");
+  await expect(confirmation.getByLabel("기록 메모")).toBeVisible();
+  await expect(editor).toBeVisible();
+  await expect(editor.getByLabel("제목")).toHaveValue("겹친 확인창 초안");
+  expect(await editor.evaluate(el => el.matches(":modal"))).toBe(true);
+  expect(await confirmation.evaluate(el => el.matches(":modal"))).toBe(true);
+  expect((await confirmation.boundingBox())!.width).toBeLessThan(390);
+  await confirmation.getByLabel("기록 메모").fill("취소해도 보존할 메모");
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 844 });
+    await expect(confirmation.getByLabel("기록 메모")).toHaveValue("취소해도 보존할 메모");
+    await expect.poll(() => confirmation.evaluate(el => el.contains(document.activeElement))).toBe(true);
+    await confirmation.getByRole("button", { name: "취소", exact: true }).press("Tab");
+    expect(await confirmation.evaluate(el => el.contains(document.activeElement))).toBe(true);
+  }
+  await confirmation.press("Escape");
+  await expect(page.locator("dialog[open]")).toHaveCount(1);
+  await expect(save).toBeFocused();
+  await expect(editor.getByLabel("제목")).toHaveValue("겹친 확인창 초안");
+  for (const width of [1440, 390]) {
+    await save.click();
+    await expect(confirmation.getByLabel("기록 메모")).toHaveValue("취소해도 보존할 메모");
+    await page.setViewportSize({ width, height: 844 });
+    await confirmation.press("Escape");
+    await expect(save).toBeFocused();
+  }
+  await save.click();
+  await confirmation.getByRole("button", { name: "수정하고 저장", exact: true }).click();
+  await expect(confirmation).not.toBeVisible();
+  await expect(editor.getByRole("button", { name: "편집", exact: true })).toBeVisible();
+  expect(state.errors).toEqual([]);
+});
+
+test("docked confirmation remains topmost during one-way resize and cancellation", async ({ page }) => {
+  const state = await fixture(page);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(`/tasks/${id(2)}`);
+  const editor = page.locator("dialog.modal:not(.modal-confirm)[open]");
+  await panel(page).getByRole("button", { name: "편집", exact: true }).click();
+  const save = editor.getByRole("button", { name: "저장", exact: true });
+  await editor.getByLabel("제목").fill("패널의 확인창 초안");
+  expect(await editor.evaluate(el => el.matches(":modal"))).toBe(false);
+  for (const width of [390, 1440]) {
+    await save.click();
+    const confirmation = page.locator("dialog.modal-confirm[open]");
+    await expect(confirmation.getByLabel("기록 메모")).toBeVisible();
+    await page.setViewportSize({ width, height: 900 });
+    await expect.poll(() => confirmation.evaluate(el => el.contains(document.activeElement))).toBe(true);
+    await confirmation.press("Escape");
+    await expect(save).toBeFocused();
+    await expect.poll(() => editor.evaluate(el => el.matches(":modal"))).toBe(width === 390);
+    await expect(editor.getByLabel("제목")).toHaveValue("패널의 확인창 초안");
+  }
+  expect(state.writes).toHaveLength(0);
+  expect(state.errors).toEqual([]);
+});

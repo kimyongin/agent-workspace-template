@@ -76,10 +76,12 @@ test("display scale: 150% keeps main filters, details, confirmation and resize u
   const modal = page.locator("dialog.modal:not(.modal-confirm)[open]");
   await expect(modal.getByLabel("본문", { exact: true })).toHaveValue("크기를 바꾸어도 보존할 입력");
   await modal.getByRole("button", { name: "저장", exact: true }).click();
-  await expect(modal.getByRole("button", { name: "수정하고 저장" })).toBeVisible();
+  const confirmation = page.locator("dialog.modal-confirm[open]");
+  await expect(confirmation.getByRole("button", { name: "수정하고 저장" })).toBeVisible();
+  await expect(page.locator("dialog[open]")).toHaveCount(2);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: info.outputPath("display-scale-mobile150-confirm.png") });
-  await modal.getByRole("button", { name: "취소", exact: true }).click();
+  await confirmation.getByRole("button", { name: "취소", exact: true }).click();
   await page.setViewportSize({ width: 1440, height: 900 });
   await expect(page.getByLabel("본문", { exact: true })).toHaveValue("크기를 바꾸어도 보존할 입력");
   const notify = () => page.evaluate(id => { const channel = new BroadcastChannel("workspace-decorative-profile"); channel.postMessage(id); channel.close(); }, id(100));
