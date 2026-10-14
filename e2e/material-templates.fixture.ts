@@ -199,6 +199,9 @@ test("공유 기록 설정은 본문 조회만 작은 버튼으로 표시하고 
   expect(await reload.locator(".body-action-face").evaluate(el => getComputedStyle(el).fontSize)).toBe("12px");
   expect(await save.evaluate(el => ({ font: getComputedStyle(el).fontSize, height: el.getBoundingClientRect().height }))).toEqual({ font: "14px", height: 44 });
   await reload.click();
+  await expect(form.getByLabel("메모 템플릿")).toHaveValue("기록 설정 버튼 검증");
+  await expect(form.getByRole("button", { name: "최신값으로 다시 편집", exact: true })).toBeEnabled();
+  await form.getByRole("button", { name: "최신값으로 다시 편집", exact: true }).click();
   await expect(reload).toHaveCount(0);
   await expect(form.getByLabel("메모 템플릿")).toBeVisible();
 });
