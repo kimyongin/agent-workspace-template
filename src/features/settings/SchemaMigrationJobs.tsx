@@ -86,6 +86,7 @@ export function useMigrationHistory(typeId: string, selectedJob?: string) {
   const [error, setError] = useState("");
   const [moreError, setMoreError] = useState("");
   const [selectedError, setSelectedError] = useState("");
+  const [selectedChange, setSelectedChange] = useState<EntitySchemaChange>();
   const visibleList = useRef(list);
   visibleList.current = list;
   const [refresh, setRefresh] = useState(0);
@@ -103,9 +104,10 @@ export function useMigrationHistory(typeId: string, selectedJob?: string) {
   useEffect(() => {
     const controller = new AbortController();
     setSelectedError("");
+    setSelectedChange(undefined);
     if (selectedJob) {
       void api<EntitySchemaMigration>("GET", `/entity-schema-migrations/${selectedJob}`, undefined, controller.signal)
-        .then((job) => {
+        .then(async (job) => {
           if (controller.signal.aborted) {
             return;
           }
@@ -117,6 +119,15 @@ export function useMigrationHistory(typeId: string, selectedJob?: string) {
             typeId,
             items: merge(prior.typeId === typeId ? prior.items : [], [job], false),
           }));
+          const change = await api<EntitySchemaChange>(
+            "GET",
+            `/entity-types/${typeId}/schema-changes/${job.change_id}`,
+            undefined,
+            controller.signal,
+          );
+          if (controller.signal.aborted) return;
+          if (change.type_id !== typeId || change.id !== job.change_id) throw new Error("이 작업의 변경안이 아닙니다");
+          setSelectedChange(change);
         }).catch((error) => {
           if (!controller.signal.aborted) setSelectedError(error instanceof Error ? error.message : "작업 조회 실패");
         });
@@ -214,6 +225,7 @@ export function useMigrationHistory(typeId: string, selectedJob?: string) {
   return {
     items,
     before,
+    selectedChange,
     error: error || moreError || selectedError,
     moreBusy,
     more,

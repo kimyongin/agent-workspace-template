@@ -66,10 +66,10 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
     definitions.selectJob(selectedJob);
   }, [definitions, selectedJob]);
   const [representative, setRepresentative] = useState("이름");
-  const [jobState, setJobState] = useState({ dirty: false, busy: false, uncertain: false });
+  const [jobState, setJobState] = useState({ dirty: false, busy: false, uncertain: false, error: false });
   const jobStateChange = useCallback(
-    (state: { dirty: boolean; busy: boolean; uncertain?: boolean }) =>
-      setJobState({ ...state, uncertain: !!state.uncertain }),
+    (state: { dirty: boolean; busy: boolean; uncertain?: boolean; error?: boolean }) =>
+      setJobState({ ...state, uncertain: !!state.uncertain, error: !!state.error }),
     [],
   );
   const [schemaState, setSchemaState] = useState({ dirty: false, busy: false, uncertain: false });
@@ -485,6 +485,7 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
           historyBusy={historyBusy}
           onMoreVersions={readHistoryPage}
           selectedJob={selectedJob}
+          historyJobState={jobState}
           onMigrationApplied={definitions.migrationSucceeded}
           jobErrors={jobErrors}
           onJobState={jobStateChange}

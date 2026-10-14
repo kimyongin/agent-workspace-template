@@ -30,23 +30,21 @@ test("웹 속성 초안·분석·게시 후 기존 자료 표시와 MCP 생성·
     );
     await page.getByRole("button", { name: /^변경 이력/ }).click();
     await expect(page.getByRole("dialog", { name: "변경을 버릴까요?" })).toHaveCount(0);
-    await expect(page.getByRole("region", { name: "자료 이름 속성", exact: true }).getByLabel("항목 이름", { exact: true }),
+    await expect(
+      page.getByRole("region", { name: "자료 이름 속성", exact: true }).getByLabel("항목 이름", { exact: true }),
     ).toHaveValue("자료 이름");
     await page.getByRole("button", { name: "항목 추가", exact: true }).click();
-    const field = page.getByRole("region", { name: "새 항목 속성",
-      exact: true,
-    });
+    const field = page.getByRole("region", { name: "새 항목 속성", exact: true });
     await field.getByLabel("항목 이름", { exact: true }).fill("수량");
     const count = page.getByRole("region", { name: "수량 속성", exact: true });
     await count.getByLabel("데이터 타입", { exact: true }).selectOption(
       "integer",
     );
-    await count.getByText("추가 설정", {exact:true}).click();
+    await count.getByText("추가 설정", { exact: true }).click();
     await count.getByLabel("생성 기본값 (기존 자료에는 채우지 않음)", { exact: true }).selectOption("value");
     await expect(count.getByLabel("기본값", { exact: true })).toHaveValue("0");
     await page.getByRole("button", { name: "변경 검토", exact: true }).click();
-    await expect(page.getByRole("heading", { name: "변경 검토" }),
-    ).toBeVisible();
+    await expect(page.getByRole("heading", { name: "변경 검토" })).toBeVisible();
     const plans = await mcp.call("list_entity_schema_changes", { type_id: typeId });
     const planId = plans.items[0].id;
     const draft = await mcp.call("get_entity_schema_change", { type_id: typeId, change_id: planId });
@@ -94,8 +92,11 @@ test("웹 속성 초안·분석·게시 후 기존 자료 표시와 MCP 생성·
     await expect(page.getByText("자료 이름", { exact: true })).toBeVisible();
     await expect(page.getByText("0", { exact: true })).toBeVisible();
     await page.goto(`/settings/entity-types/${typeId}/versions`);
-    await page.locator("summary").filter({ hasText: /^버전 1 ·/ }).click();
-    await page.getByRole("button", { name: "이 버전 보기", exact: true }).click();
+    const initialVersion = page.locator(".schema-history-row").filter({
+      has: page.getByRole("button", { name: /^최초 생성/ }),
+    });
+    await initialVersion.getByRole("button", { name: /^최초 생성/ }).click();
+    await initialVersion.getByRole("link", { name: "이 버전 보기", exact: true }).click();
     await expect(page.getByRole("region", { name: "버전 차이", exact: true })).toContainText("수량");
     await page.setViewportSize({ width: 320, height: 640 });
     await page.evaluate(() => {

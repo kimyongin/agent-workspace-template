@@ -30,6 +30,7 @@ import { useSchemaChangeEditor } from "./schema-change-editor.ts";
 import type { EditState } from "./schema-change-editor.ts";
 import { Field } from "../../components/Field.tsx";
 import { fieldInputPolicy } from "./field-input-policy.ts";
+import { SchemaChangeDiff, SchemaChangeRead } from "./SchemaChangeRead.tsx";
 import { schemaHistoryRows } from "./schema-history.ts";
 import type { EntitySchemaMigration } from "@contracts/entity-schema-migration.ts";
 import type { MaterialSectionState } from "./MaterialSettingsSection.tsx";
@@ -59,6 +60,7 @@ export function SchemaEditor(
     historyBusy = false,
     onMoreVersions,
     selectedJob,
+    historyJobState,
     onMigrationApplied,
     jobErrors = {},
     onJobState,
@@ -77,6 +79,7 @@ export function SchemaEditor(
     historyBusy?: boolean;
     onMoreVersions?: () => Promise<void>;
     selectedJob?: string;
+    historyJobState?: MaterialSectionState;
     onMigrationApplied?: (job: EntitySchemaMigration) => Promise<string>;
     jobErrors?: Record<string, string>;
     onJobState?: (state: MaterialSectionState) => void;
@@ -186,7 +189,9 @@ export function SchemaEditor(
     }
   }, [selectedJob]);
   const historyRows = schemaHistoryRows(
-    changes,
+    jobs.selectedChange && !changes.some((c) => c.id === jobs.selectedChange!.id)
+      ? [...changes, jobs.selectedChange]
+      : changes,
     selectedVersion && !historyVersions.some((v) => v.schema_version === selectedVersion.schema_version)
       ? [...historyVersions, selectedVersion]
       : historyVersions,
@@ -722,12 +727,16 @@ export function SchemaEditor(
       {betweenSections}
       <MaterialSettingsSection
         title="변경 이력"
-        summary={activeJob
-          ? `값 변환 중 · ${activeJob.processed}/${activeJob.total}`
-          : uncertain
+        summary={historyJobState?.uncertain || uncertain
           ? "결과 확인 필요"
-          : busy
+          : historyJobState?.busy || busy
           ? "처리 중…"
+          : historyJobState?.error || jobs.error || Object.values(jobErrors).some(Boolean)
+          ? "조회 오류 · 확인 필요"
+          : historyRows.some((row) => !row.version && row.jobs[0]?.status === "failed")
+          ? "값 변환 실패"
+          : activeJob
+          ? `값 변환 중 · ${activeJob.processed}/${activeJob.total}`
           : changes.some((c) => c.status === "analyzing")
           ? "검토 중"
           : changes.filter((c) => !["applied", "cancelled"].includes(c.status)).length
@@ -788,12 +797,11 @@ export function SchemaEditor(
                     if (rowJob) {
                       navigate(materialSettingsPath(type.id, location.search, { job_id: rowJob.id }));
                     }
-                    if (row.changeId && c) {
+                    if (row.changeId && c && !rowJob) {
                       setReviewOpen(true);
                       const params = new URLSearchParams(location.search);
                       params.set("change_id", row.changeId);
-                      if (rowJob) params.set("job_id", rowJob.id);
-                      else params.delete("job_id");
+                      params.delete("job_id");
                       navigate(`/settings/entity-types/${type.id}?${params}`);
                       if (plan?.id !== row.changeId) void loadPlan(row.changeId);
                     }
@@ -805,6 +813,9 @@ export function SchemaEditor(
                   <span className="secondary">{status}</span>
                 </button>
                 <div id={`schema-history-${row.id}`} hidden={!isOpen}>
+                  {jobs.selectedChange && jobs.selectedChange.id === row.changeId &&
+                    (plan?.id !== row.changeId || transforming) &&
+                    <SchemaChangeRead change={jobs.selectedChange} definition={definition} />}
                   {row.jobs.length > 0 && (
                     <div className="schema-job-visits">
                       {row.jobs.length > 1 && (
@@ -892,19 +903,7 @@ export function SchemaEditor(
                         상태: {schemaChangeLabels[plan.status]} ·{" "}
                         {plan.change_kind === "compatible" ? "검토 완료 후 적용 가능" : "자료 값 변환 필요"}
                       </p>
-                      <dl className="schema-change-list">
-                        {plan.diff.map((d, i) => (
-                          <div key={i}>
-                            <dt>{schemaDiffLabel(d.path, plan.target, definition)}</dt>
-                            <dd>
-                              {d.before_present ? schemaDiffValueLabel(d.path, d.before, definition) : "설정 안 함"}
-                              {" → "}
-                              {d.after_present ? schemaDiffValueLabel(d.path, d.after, plan.target) : "설정 안 함"}
-                              {d.kind === "migration_required" && <span className="secondary">· 값 변환 필요</span>}
-                            </dd>
-                          </div>
-                        ))}
-                      </dl>
+                      <SchemaChangeDiff change={plan} definition={definition} />
                       {plan.analysis && plan.status !== "cancelled" && (
                         <div className="schema-analysis-status" role="status">
                           <strong>

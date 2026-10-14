@@ -35,6 +35,30 @@ test.beforeEach(async ({ page, baseURL }) => {
       url.pathname.startsWith(`/api/entity-types/${value.id}`)
     );
     if (selected) {
+      if (url.pathname.includes("/schema-changes/")) {
+        return route.fulfill({
+          json: {
+            id: url.pathname.split("/").at(-1),
+            type_id: selected.id,
+            source_type_version: 1,
+            source_schema_version: 1,
+            source_template_fingerprint: "fixture",
+            version: 1,
+            status: "draft",
+            change_kind: "compatible",
+            target: initialEntityDefinition("이름"),
+            migration: { rules: [], overrides: [] },
+            reservations: {},
+            edits: [],
+            diff: [],
+            executable: false,
+            fingerprint: "fixture",
+            analysis: null,
+            created_at: "2026-10-13T00:00:00Z",
+            updated_at: "2026-10-13T00:00:00Z",
+          },
+        });
+      }
       if (url.pathname.endsWith("/schemas") || url.pathname.endsWith("/schema-changes")) {
         return route.fulfill({ json: { items: [], next_before: null } });
       }
@@ -68,6 +92,26 @@ test.beforeEach(async ({ page, baseURL }) => {
 
 const typeId = "00000000-0000-4000-8000-000000000001";
 const id = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
+const linkedChange = () => ({
+  id: id(500),
+  type_id: materials.id,
+  source_type_version: 1,
+  source_schema_version: 1,
+  source_template_fingerprint: "fixture",
+  version: 1,
+  status: "draft",
+  change_kind: "compatible",
+  target: initialEntityDefinition("이름"),
+  migration: { rules: [], overrides: [] },
+  reservations: {},
+  edits: [],
+  diff: [],
+  executable: false,
+  fingerprint: "fixture",
+  analysis: null,
+  created_at: "2026-10-13T00:00:00Z",
+  updated_at: "2026-10-13T00:00:00Z",
+});
 const job = (n: number, status: EntitySchemaMigration["status"] = "succeeded", version = 1): EntitySchemaMigration => ({
   id: id(n),
   type_id: typeId,
@@ -142,6 +186,11 @@ test("실패 작업의 응답 불명 재시도는 같은 내용과 키로 확인
   await page.getByRole("button", { name: /^기본 정보/ }).click();
   await page.getByLabel("자료 종류 이름", { exact: true }).fill("기본 초안");
   await page.getByRole("button", { name: "같은 작업 재시도", exact: true }).click();
+  const historyToggle = page.getByRole("region", { name: "변경 이력", exact: true }).getByRole("heading", { level: 2 })
+    .getByRole("button");
+  await historyToggle.click();
+  await expect(historyToggle).toContainText("결과 확인 필요");
+  await historyToggle.click();
   await page.getByRole("button", { name: "상태 다시 조회", exact: true }).click();
   await page.getByRole("button", { name: "같은 요청 다시 확인", exact: true }).click();
   await expect.poll(() => requests.length).toBe(2);
@@ -213,6 +262,7 @@ test("변환 완료는 새 게시 속성을 바로 갱신하고 기본·속성·
   published.display.order.push("prop_2", "prop_3");
   await page.route(`**/api/entity-types/${materials.id}**`, (route) => {
     const path = new URL(route.request().url()).pathname;
+    if (path.endsWith(`/schema-changes/${id(500)}`)) return route.fulfill({ json: linkedChange() });
     if (path.endsWith("/schema")) {
       definitionReads++;
       return route.fulfill({
@@ -281,6 +331,7 @@ test("완료 작업의 최신 정의 조회 실패는 작업 결과와 초안을
   const published = initialEntityDefinition("갱신한 이름");
   await page.route(`**/api/entity-types/${materials.id}**`, (route) => {
     const path = new URL(route.request().url()).pathname;
+    if (path.endsWith(`/schema-changes/${id(500)}`)) return route.fulfill({ json: linkedChange() });
     if (path.endsWith("/schema")) {
       if (complete && !failed) {
         failed = true;
@@ -339,6 +390,7 @@ test("늦은 완료 작업 조회는 확인된 기본 정보와 다음 저장 �
   const writes: any[] = [];
   await page.route(`**/api/entity-types/${materials.id}**`, async (route) => {
     const path = new URL(route.request().url()).pathname;
+    if (path.endsWith(`/schema-changes/${id(500)}`)) return route.fulfill({ json: linkedChange() });
     if (path.endsWith("/schema")) {
       return route.fulfill({ json: { type_id: materials.id, schema_version: 2, ...initialEntityDefinition("이름") } });
     }
@@ -405,6 +457,7 @@ test("완료 작업을 다시 선택하면 다른 작업을 보는 동안 게시
   published.display.order.push("prop_2");
   await page.route(`**/api/entity-types/${materials.id}**`, (route) => {
     const path = new URL(route.request().url()).pathname;
+    if (path.endsWith(`/schema-changes/${id(500)}`)) return route.fulfill({ json: linkedChange() });
     if (path.endsWith("/schema")) {
       definitionReads++;
       return route.fulfill({
@@ -483,6 +536,7 @@ test("새 게시 이력이 취소한 이전 페이지의 본문 읽기 오류는
   }, `/api/entity-types/${materials.id}/schemas`);
   await page.route(`**/api/entity-types/${materials.id}**`, (route) => {
     const url = new URL(route.request().url());
+    if (url.pathname.endsWith(`/schema-changes/${id(500)}`)) return route.fulfill({ json: linkedChange() });
     if (url.pathname.endsWith("/schema")) {
       return route.fulfill({
         json: {
@@ -742,9 +796,44 @@ test("변환 목록 조회가 실패해도 페이지 밖 작업 직접 링크는
     (route) => route.fulfill({ status: 503, json: { code: "unavailable", message: "변환 목록 조회 실패" } }),
   );
   await page.route(`**/api/entity-schema-migrations/${id(31)}`, (route) => route.fulfill({ json: job(31, "failed") }));
+  await page.route(`**/api/entity-types/${materials.id}/schema-changes/${id(500)}`, (route) =>
+    route.fulfill({
+      json: {
+        id: id(500),
+        type_id: materials.id,
+        source_schema_version: 1,
+        source_type_version: 1,
+        version: 1,
+        status: "ready",
+        change_kind: "migration_required",
+        target: initialEntityDefinition("변환 후 이름"),
+        migration: { rules: [], overrides: [] },
+        diff: [{
+          path: "schema.properties.prop_1.title",
+          before: "원본 이름",
+          after: "변환 후 이름",
+          before_present: true,
+          after_present: true,
+          kind: "compatible",
+        }],
+        reservations: {},
+        edits: [],
+        executable: true,
+        fingerprint: "fixture",
+        source_template_fingerprint: "fixture",
+        analysis: null,
+        created_at: "2026-10-13T00:00:00Z",
+        updated_at: "2026-10-13T00:00:00Z",
+      },
+    }));
   await page.goto(`/settings/entity-types/${materials.id}?job_id=${id(31)}`);
   const detail = page.getByRole("region", { name: "값 변환 상세", exact: true });
   await expect(detail.getByRole("status")).toContainText("실패");
+  await expect(page.getByRole("region", { name: "변환 작업의 변경 내용", exact: true })).toContainText(
+    "원본 이름 → 변환 후 이름",
+  );
+  await page.getByRole("button", { name: "입력 항목", exact: true }).click();
+  await expect(page.getByRole("button", { name: "이름 속성 편집", exact: true })).toBeVisible();
   await expect(page.getByRole("alert").filter({ hasText: "변환 목록 조회 실패" })).toBeVisible();
   await expect(page.locator(".schema-history-row")).toHaveCount(1);
   await expect(page.getByRole("button", { name: "변환 이력 다시 조회", exact: true })).toBeVisible();
