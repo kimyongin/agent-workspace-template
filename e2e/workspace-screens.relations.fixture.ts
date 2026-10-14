@@ -371,8 +371,8 @@ for (const side of ["tasks", "entities"] as const) {
       }).last();
       await connect.click();
       await expect(form(page).getByLabel("기록 메모", { exact: true })).toHaveValue("할 일 수정");
-      await expect(form(page)).toHaveAttribute("data-original", "yes");
-      await expect(page.locator("dialog[open]")).toHaveCount(1);
+      await expect(page.locator("dialog.modal:not(.modal-confirm)[open]")).toHaveAttribute("data-original", "yes");
+      await expect(page.locator("dialog[open]")).toHaveCount(2);
       await form(page).getByRole("button", { name: "취소", exact: true }).click();
       expect(state.writes).toHaveLength(0);
       await connect.click();

@@ -417,7 +417,7 @@ test("변환 완료는 새 게시 속성을 바로 갱신하고 기본·속성·
       .click();
   await revealSetting(page.getByLabel("최소값", { exact: true }));
   await page.getByLabel("최소값", { exact: true }).fill("7.5");
-  await page.getByRole("button", { name: /^식별자/ }).click();
+  await page.getByRole("region", { name: "식별자", exact: true }).locator(".material-section-toggle").click();
   const record = page.getByRole("form", { name: "식별자 설정", exact: true });
   await record.getByLabel("이름", { exact: false }).fill("남길 식별자 입력");
   complete = true;
@@ -1013,7 +1013,7 @@ test(
     const deletion = quantity.getByRole("button", { name: "항목 삭제", exact: true });
     expect(await deletion.locator(".body-action-face").evaluate(el => getComputedStyle(el).color)).toBe("rgb(255, 140, 150)");
     await quantity.getByText("추가 설정", { exact: true }).click();
-    await page.getByRole("button", { name: /^식별자/ }).click();
+    await page.getByRole("region", { name: "식별자", exact: true }).locator(".material-section-toggle").click();
     const record = page.getByRole("form", { name: "식별자 설정", exact: true });
     await expect(record).toBeVisible();
     const innerChrome = await record.evaluate(el => {
@@ -1027,7 +1027,7 @@ test(
       path: info.outputPath("identity-settings-flat.png"),
       fullPage: true,
     });
-    await page.getByRole("button", { name: /^식별자/ }).click();
+    await page.getByRole("region", { name: "식별자", exact: true }).locator(".material-section-toggle").click();
     await page.screenshot({
       path: info.outputPath("property-display-settings.png"),
       fullPage: true,
