@@ -296,12 +296,6 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
         </Field>
         <Link className="btn" to="/settings/entity-types">종류 추가</Link>
       </div>
-      {type && (
-        <p className="material-settings-current">
-          <EntityTypeIcon id={type.icon_id} /> {type.label}
-          {type.archived ? " · 보관됨" : ""}
-        </p>
-      )}
       {loading && <p role="status">불러오는 중…</p>}
       {!catalog.types && !catalog.error && <p role="status">자료 종류를 읽는 중…</p>}
       {catalog.error && (

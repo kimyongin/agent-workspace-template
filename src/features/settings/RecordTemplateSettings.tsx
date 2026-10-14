@@ -206,8 +206,8 @@ function RecordTemplateForm({
     ?.message;
   const title = materialResource ? "기록 자동 완성" : "변경 기록 기본값";
   return (
-    <section className="settings-section" aria-label={title}>
-      <h2 className="settings-section-title">{title}</h2>
+    <section className={materialResource ? "material-record-template" : "settings-section"} aria-label={title}>
+      {!materialResource && <h2 className="settings-section-title">{title}</h2>}
       {!saved && (
         <>
           <p role={message ? "alert" : "status"}>
