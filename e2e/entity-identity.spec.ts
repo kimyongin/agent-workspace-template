@@ -275,12 +275,12 @@ test("kind identity settings retries a failed read and saves a label without cha
   await expect(section.getByRole("alert")).toBeVisible();
   fail = false;
   await section.getByRole("button", { name: "식별자 설정 다시 조회", exact: true }).click();
-  await section.getByLabel("이름", {exact: true}).fill("상품 번호");
+  await section.getByLabel("이름", { exact: true }).fill("상품 번호");
   await section.getByRole("button", { name: "식별자 저장", exact: true }).click();
   await expect(section.getByRole("status")).toHaveText("식별자 설정을 저장했습니다.");
   await page.reload();
   await section.getByRole("button", { name: /^식별자/ }).click();
-  await expect(section.getByLabel("이름", {exact: true})).toHaveValue("상품 번호");
+  await expect(section.getByLabel("이름", { exact: true })).toHaveValue("상품 번호");
 });
 
 test("late archived lookup preserves newer identity and same-identity property edits", async ({ page }) => {
@@ -502,4 +502,42 @@ test("manual lookup pending before confirmation cannot replace the prepared enti
     .toHaveValue(defaults.change_note);
   await confirmation.getByRole("button", { name: "취소", exact: true }).click();
   await expect(form.getByLabel("이름", { exact: false })).toHaveValue(title);
+});
+
+test("five settings workspaces retain real API selections and stay within the viewport", async ({ page }, info) => {
+  await devLogin(page);
+  for (
+    const [path, title] of [
+      ["/settings", "기본 설정"],
+      [`/settings/entity-types/${fixtureType!.id}`, "자료 설정"],
+      ["/settings/tags", "태그 설정"],
+      ["/settings/records", "기록 설정"],
+      ["/settings/issuers", "발급처 설정"],
+    ]
+  ) {
+    await page.goto(path);
+    await expect(page.getByRole("heading", { name: title, exact: true, level: 1 })).toBeVisible();
+    await page.getByRole("button", { name: "설정 메뉴", exact: true }).click();
+    const menu = page.getByRole("navigation", { name: "설정 메뉴", exact: true });
+    await expect(menu.getByRole("link")).toHaveCount(5);
+    await page.getByRole("button", { name: "설정 메뉴", exact: true }).press("Escape");
+    if (title === "자료 설정") {
+      const identity = page.getByRole("region", { name: "식별자", exact: true });
+      await identity.getByRole("button", { name: /^식별자/ }).click();
+      await expect(identity.getByLabel("이름", { exact: true })).toHaveValue("식별자");
+      await expect(identity.getByLabel("기본 발급처")).toHaveValue(fixtureSource);
+      await expect(page.getByRole("region", { name: "기록 자동 완성", exact: true })).toHaveCount(0);
+    }
+    if (title === "기록 설정") {
+      await page.getByLabel("대상", { exact: true }).selectOption(`type:${fixtureType!.id}`);
+      await expect(page.getByLabel("메모 템플릿")).toHaveValue("$대상$ $액션$");
+    }
+    if (title === "발급처 설정") {
+      await page.getByLabel("발급처", { exact: true }).selectOption(fixtureSource);
+      await expect(page.getByRole("button", { name: /기본 정보/ })).toContainText("시험 마켓");
+    }
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth))
+      .toBe(true);
+    await page.screenshot({ path: info.outputPath(`${title}.png`), fullPage: true });
+  }
 });
