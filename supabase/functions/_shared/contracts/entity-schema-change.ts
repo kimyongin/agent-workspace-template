@@ -160,5 +160,5 @@ export type SchemaAnalysisAccepted = {
 
 export type EntitySchemaChangeSummary = Pick<
   EntitySchemaChange,
-  "id" | "type_id" | "version" | "status" | "change_kind" | "created_at" | "updated_at"
+  "id" | "type_id" | "source_schema_version" | "version" | "status" | "change_kind" | "created_at" | "updated_at"
 >;

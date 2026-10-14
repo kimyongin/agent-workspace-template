@@ -123,7 +123,7 @@ test("조회 실패는 현재 변경안을 유지하고 목록 재선택과 편�
   if (await page.getByRole("button", { name: /^변경 이력/ }).first().getAttribute("aria-expanded") === "false") {
     await page.getByRole("button", { name: /^변경 이력/ }).first().click();
   }
-  await page.locator(".schema-history-row > button").first().click();
+  await page.locator('button[aria-controls="schema-history-change-a"]').click();
   await expect(page.getByLabel("항목 이름", { exact: true })).toHaveValue(
     "이전 이름",
   );
@@ -821,4 +821,33 @@ test("현재 상태가 바뀐 미적용 변경안도 이력 행에서 폐기할 
   await page.getByRole("dialog", { name: "변경안을 폐기할까요?" }).getByRole("button", { name: "폐기", exact: true })
     .click();
   await expect(history).toContainText("폐기됨");
+});
+
+test("변경 이력 첫 페이지를 갱신해도 펼친 과거 변경과 다음 cursor를 유지한다", async ({ page }) => {
+  const first = { ...plan("b"), created_at: "2026-10-14T00:00:00Z" };
+  const older = { ...plan("a"), created_at: "2026-10-13T00:00:00Z" };
+  const oldest = { ...plan("c"), created_at: "2026-10-12T00:00:00Z" };
+  const cursors: Array<string | null> = [];
+  await page.route(`**${base}**`, (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname !== base) return route.fulfill({ json: first });
+    const before = url.searchParams.get("before");
+    cursors.push(before);
+    return route.fulfill({
+      json: before === "b"
+        ? { items: [older], next_before: "a" }
+        : before === "a"
+        ? { items: [oldest], next_before: null }
+        : { items: [first], next_before: "b" },
+    });
+  });
+  await page.goto("/e2e/fixtures/schema-editor-read.html?change_id=b");
+  await expect(page.locator(".schema-history-row")).toHaveCount(1);
+  await page.getByRole("button", { name: "이전 변경안 더 보기", exact: true }).click();
+  await expect(page.locator(".schema-history-row")).toHaveCount(2);
+  await page.getByRole("button", { name: "변경 이력 다시 조회", exact: true }).click();
+  await expect(page.locator(".schema-history-row")).toHaveCount(2);
+  await page.getByRole("button", { name: "이전 변경안 더 보기", exact: true }).click();
+  await expect(page.locator(".schema-history-row")).toHaveCount(3);
+  expect(cursors.filter(Boolean)).toEqual(["b", "a"]);
 });
