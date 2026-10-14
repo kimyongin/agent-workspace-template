@@ -829,8 +829,7 @@ test("confirmation overlays the retained mobile editor and restores its focus", 
   for (const width of [1440, 390]) {
     await page.setViewportSize({ width, height: 844 });
     await expect(confirmation.getByLabel("기록 메모")).toHaveValue("취소해도 보존할 메모");
-    await confirmation.getByLabel("기록 메모").click();
-    await expect(confirmation.getByLabel("기록 메모")).toBeFocused();
+    await expect.poll(() => confirmation.evaluate(el => el.contains(document.activeElement))).toBe(true);
     await confirmation.getByRole("button", { name: "취소", exact: true }).press("Tab");
     expect(await confirmation.evaluate(el => el.contains(document.activeElement))).toBe(true);
   }

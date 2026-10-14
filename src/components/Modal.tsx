@@ -106,6 +106,10 @@ function ActiveModalShell({ title, domain, headingLevel=2, open, onClose, onCanc
   const registerAction = useCallback((value: SurfaceAction | null) => { actionRef.current=value; setAction(value); }, []);
   const actionOpen = !!action;
   const docked = !!tab?.docked;
+  // Reopening the parent would lift it above its confirmation. Defer only its native mode switch.
+  const nativeDocked = useRef(docked);
+  if (!actionOpen) nativeDocked.current = docked;
+  const dialogDocked = nativeDocked.current;
   useEffect(() => {
     if (!actionOpen) ref.current?.querySelector<HTMLElement>("form [aria-invalid='true']")?.focus();
   }, [actionOpen]);
@@ -140,7 +144,7 @@ function ActiveModalShell({ title, domain, headingLevel=2, open, onClose, onCanc
     if (!d) return;
     if (open && active && !d.open) {
       returnFocus.current = document.activeElement;
-      if (docked) d.show(); else d.showModal();
+      if (dialogDocked) d.show(); else d.showModal();
       (d.querySelector<HTMLElement>(".surface-action textarea, .surface-action input") ?? d.querySelector<HTMLElement>("form input, form textarea, form select") ?? d.querySelector<HTMLElement>(".dialog-title"))?.focus();
     } else if ((!open || !active) && d.open) {
       d.close();
@@ -152,7 +156,7 @@ function ActiveModalShell({ title, domain, headingLevel=2, open, onClose, onCanc
         if (!tab) (returnFocus.current as HTMLElement | null)?.focus?.();
       }
     };
-  }, [open, active, docked]);
+  }, [open, active, dialogDocked]);
 
   useEffect(() => {
     if (docked || !active) return;
