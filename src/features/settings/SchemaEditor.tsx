@@ -879,7 +879,7 @@ export function SchemaEditor(
                   >
                     <button
                       type="button"
-                      className="material-section-toggle related-toggle item-title"
+                      className="material-section-toggle related-toggle item-title schema-history-toggle"
                       aria-expanded={isOpen}
                       aria-controls={`schema-history-${row.id}`}
                       disabled={!isOpen && plan?.id !== row.changeId &&
@@ -922,13 +922,13 @@ export function SchemaEditor(
                         }
                       }}
                     >
-                      <span>
-                        {title}{" "}
-                        <span className="secondary">
+                      <span className="schema-history-heading">
+                        <span>{title}</span>
+                        <time className="secondary" dateTime={row.createdAt}>
                           {new Date(row.createdAt).toLocaleString()}
-                        </span>
+                        </time>
                       </span>
-                      <span className="secondary">{status}</span>
+                      <span className="secondary schema-history-status">{status}</span>
                     </button>
                     <div
                       id={`schema-history-${row.id}`}

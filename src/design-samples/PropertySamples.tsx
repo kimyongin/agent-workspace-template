@@ -481,14 +481,17 @@ export function MaterialWorkspaceSample() {
                   <h3 className="related-item-title">
                     <button
                       type="button"
-                      className="material-section-toggle"
+                      className="material-section-toggle schema-history-toggle item-title"
                       aria-expanded={open}
                       aria-controls={id}
                       onClick={() =>
                         setExpanded((prior) => open ? prior.filter((value) => value !== plan.id) : [...prior, plan.id])}
                     >
-                      <span>입력 항목 변경</span>
-                      <span className="secondary">
+                      <span className="schema-history-heading">
+                        <span>입력 항목 변경</span>
+                        <time className="secondary" dateTime="2026-10-14T03:51:12Z">2026. 10. 14. 오후 12:51:12</time>
+                      </span>
+                      <span className="secondary schema-history-status">
                         버전 {plan.version} ·{" "}
                         {plan.status === "applied" ? "적용됨" : plan.status === "discarded" ? "폐기됨" : "검토 완료"}
                       </span>
