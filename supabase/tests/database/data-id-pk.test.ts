@@ -69,7 +69,7 @@ dbTest(
       await tx`insert into app.records(id,owner_id,body) values(${collision},${owner},'existing')`;
       await tx`insert into app.principles(id,owner_id,title,body,is_current) values(${collision},${owner},'existing','',false)`;
       await tx`insert into app.entities(id,owner_id,source,external_id,entity_type_id,schema_version,properties)
-        values(${`app:${collision}`},${owner},'app',${collision},${schema.entity_type_id},1,'{"prop_1":"existing"}'::jsonb)`;
+        values(${`app:${schema.entity_type_id}:${collision}`},${owner},'app',${collision},${schema.entity_type_id},1,'{"prop_1":"existing"}'::jsonb)`;
       const ad = { uow: new SqlUnitOfWork(sql), clock: { now: () => new Date() } };
       const td = { uow: new SqlTagUnitOfWork(sql) }, pd = { uow: new SqlPrincipleUnitOfWork(sql) };
       const ed = { uow: new SqlEntityUnitOfWork(sql) };
@@ -85,7 +85,10 @@ dbTest(
       for (const write of writes) {
         await reset(tx);
         const a = actor(owner), value = await write(a);
-        assertEquals(value.id, value.id.startsWith("app:") ? "app:20261011-00000001" : "20261011-00000001");
+        assertEquals(
+          value.id,
+          value.id.startsWith("app:") ? `app:${schema.entity_type_id}:20261011-00000001` : "20261011-00000001",
+        );
         assertEquals(await write(a), value);
       }
       const changes =
@@ -138,7 +141,7 @@ dbTest(
     deterministic(async (tx, _sql, owner, schema) => {
       await tx`insert into app.tags(id,owner_id,name,scope) values('20261011-00000000',${owner},'duplicate','task')`;
       await tx`insert into app.entities(id,owner_id,source,external_id,entity_type_id,schema_version,properties)
-        values('app:explicit',${owner},'app','explicit',${schema.entity_type_id},1,'{"prop_1":"existing"}'::jsonb)`;
+        values(${`app:${schema.entity_type_id}:explicit`},${owner},'app','explicit',${schema.entity_type_id},1,'{"prop_1":"existing"}'::jsonb)`;
       const writes = [
         (connection: postgres.Sql) =>
           tag.createTag({ uow: new SqlTagUnitOfWork(connection) }, actor(owner), { name: "duplicate", scope: "task" }),

@@ -44,7 +44,7 @@ dbTest("Entity DB: same owner 참조 거부·삭제 링크 보존·원문/버전
       ...{ body: "기록 원문", entity_ids: [e.id] },
     }),
   );
-  for (const ref of [foreign.id, `app:${crypto.randomUUID()}`]) {
+  for (const ref of [foreign.id, `app:00000000-0000-4000-8000-000000000001:${crypto.randomUUID()}`]) {
     for (
       const run of [
         () =>

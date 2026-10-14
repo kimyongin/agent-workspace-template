@@ -1,3 +1,5 @@
+import * as registry from "../../functions/_shared/core/entity-issuers/application.ts";
+import { SqlEntityIssuerUnitOfWork } from "../../functions/_shared/adapters/supabase/entity-issuer-store.ts";
 import { assert, assertEquals, assertRejects } from "@std/assert";
 import { asUser, connect, dbTest, fixtureOwner, urls } from "./_db.ts";
 import { requestActor } from "../_request.ts";
@@ -16,7 +18,7 @@ import { changeEntityPair, listEntityLinks } from "../../functions/_shared/core/
 import { TEXT_LIMITS } from "../../functions/_shared/contracts/common.ts";
 import { AppError } from "../../functions/_shared/core/shared/errors.ts";
 dbTest(
-  "entity pairs: owner/RLS/canonical reverse race, lifecycle, Unicode rekey rollback, gates and bounded pages",
+  "entity pairs: owner/RLS/canonical reverse race, lifecycle, Unicode immutable identity rollback, gates and bounded pages",
   async () => {
     const admin = connect(urls.admin),
       sql = connect(urls.direct, { max: 5 }),
@@ -47,7 +49,7 @@ dbTest(
         }, true),
       ]);
       assertEquals(raced[0], raced[1]);
-      assertEquals(raced[0].pair, { entity_id: x.id, other_id: y.id });
+      assertEquals(Object.values(raced[0].pair), [x.id, y.id].sort((a, b) => a < b ? -1 : a > b ? 1 : 0));
       assertEquals((await listEntityLinks(pairs, a.actor, y.id, { limit: 20 })).items.map((e) => e.id), [x.id]);
       assertEquals(
         (await assertRejects(() => listEntityLinks(pairs, b.actor, x.id, { limit: 20 }), AppError)).code,
@@ -104,11 +106,12 @@ dbTest(
       }, true);
       assert(second.changed);
       const page = await listEntityLinks(pairs, a.actor, x.id, { limit: 1 });
-      assertEquals(page.items[0].id, z.id);
+      const sortedPeers = [z.id, y.id].sort((a, b) => a < b ? -1 : a > b ? 1 : 0);
+      assertEquals(page.items[0].id, sortedPeers[0]);
       assert(page.next_cursor);
       assertEquals(
         (await listEntityLinks(pairs, a.actor, x.id, { limit: 1, cursor: page.next_cursor! })).items[0].id,
-        y.id,
+        sortedPeers[1],
       );
       await assertRejects(() => listEntityLinks(pairs, a.actor, y.id, { limit: 1, cursor: page.next_cursor! }));
       const candidates = await listEntities(entities, a.actor, { limit: 20, sort: "title", link_candidate_for: x.id });
@@ -143,11 +146,11 @@ dbTest(
         expected_version: 1,
         expected_other_version: 1,
       }, true);
-      const rekeyRace = await Promise.allSettled([
+      const immutableRace = await Promise.allSettled([
         updateEntity(entities, requestActor(a.actor), p.id, {
           schema_version: 1,
           expected_version: 2,
-          external_id: "rekey-race-next",
+          ...{ external_id: "identity-race-next" },
         }),
         changeEntityPair(pairs, requestActor(a.actor), q.id, {
           other_id: p.id,
@@ -155,8 +158,8 @@ dbTest(
           expected_other_version: 2,
         }, false),
       ]);
-      assertEquals(rekeyRace.filter((result) => result.status === "fulfilled").length, 1);
-      for (const result of rekeyRace) {
+      assertEquals(immutableRace.filter((result) => result.status === "fulfilled").length, 1);
+      for (const result of immutableRace) {
         if (result.status === "rejected") assert((result.reason as AppError).code !== "unavailable");
       }
       // Foundation gate fixture; actual applying-job integration belongs to #348/#351.
@@ -183,31 +186,26 @@ dbTest(
           updateEntity(entities, requestActor(a.actor), x.id, {
             schema_version: 1,
             expected_version: 3,
-            external_id: "blocked-rekey",
+            ...{ external_id: "blocked-identity" },
           }), AppError)).code,
-        "schema_migration_in_progress",
+        "entity_type_immutable",
       );
       await admin`update app.entity_types set schema_write_locked=false where owner_id=${a.actor.userId} and id=${t2.id}`;
-      const renamed = await updateEntity(entities, requestActor(a.actor), x.id, {
-        schema_version: 1,
-        expected_version: 3,
-        external_id: "\u{10FFFF}/?#%😀",
-      });
-      const renamedLinks = await listEntityLinks(pairs, a.actor, renamed.id, { limit: 20 });
-      assertEquals(
-        renamedLinks.items.map((e) => e.id),
-        [z.id, y.id],
+      await assertRejects(
+        () =>
+          updateEntity(entities, requestActor(a.actor), x.id, {
+            schema_version: 1,
+            expected_version: 3,
+            ...{ external_id: "\u{10FFFF}/?#%😀" },
+          }),
+        AppError,
       );
-      assertEquals((await listEntityLinks(pairs, a.actor, y.id, { limit: 20 })).items.map((item) => item.id), [
-        z.id,
-        renamed.id,
-      ]);
+      const renamed = await getEntity(entities, a.actor, x.id);
+      const renamedLinks = await listEntityLinks(pairs, a.actor, renamed.id, { limit: 20 });
+      assertEquals(new Set(renamedLinks.items.map((e) => e.id)), new Set([z.id, y.id]));
       const [canonical] =
-        await admin`select entity_id,other_id from app.entity_pairs where owner_id=${a.actor.userId} and (entity_id=${y.id} or other_id=${y.id}) and (entity_id=${renamed.id} or other_id=${renamed.id})`;
-      assertEquals({ entity_id: canonical.entity_id, other_id: canonical.other_id }, {
-        entity_id: y.id,
-        other_id: renamed.id,
-      });
+        await admin`select entity_id,other_id from app.entity_pairs where owner_id=${a.actor.userId} and (entity_id=${y.id} or other_id=${y.id}) and (entity_id=${x.id} or other_id=${x.id})`;
+      assertEquals([canonical.entity_id, canonical.other_id], [x.id, y.id].sort((a, b) => a < b ? -1 : a > b ? 1 : 0));
       const [history] = await admin`select body from app.records where owner_id=${a.actor.userId} and id=${
         records[0].id
       }`;
@@ -217,7 +215,7 @@ dbTest(
         updateEntity(entities, requestActor(a.actor), renamed.id, {
           schema_version: 1,
           expected_version: before.version,
-          external_id: y.external_id,
+          ...{ external_id: y.external_id },
         })
       );
       assertEquals((await getEntity(entities, a.actor, renamed.id)).version, before.version);
@@ -225,7 +223,7 @@ dbTest(
         updateEntity(entities, requestActor(a.actor), renamed.id, {
           schema_version: 1,
           expected_version: before.version,
-          external_id: "rollback-only",
+          ...{ external_id: "rollback-only" },
           change_note: "x".repeat(TEXT_LIMITS.body.max + 1),
         })
       );
@@ -234,7 +232,7 @@ dbTest(
         (await listEntityLinks(pairs, a.actor, y.id, { limit: 20 })).items.some((item) => item.id === renamed.id),
         true,
       );
-      await assertRejects(() => getEntity(entities, a.actor, "app:rollback-only"));
+      await assertRejects(() => getEntity(entities, a.actor, `app:${t1.id}:rollback-only`));
       await deleteEntity(entities, requestActor(a.actor), renamed.id, before.version);
       assert(
         (await listEntityLinks(pairs, a.actor, y.id, { limit: 20 })).items.find((item) => item.id === renamed.id)!
@@ -252,7 +250,7 @@ dbTest(
         entity_type_id: t2.id,
         schema_version: 1,
         source: y.source,
-        external_id: y.external_id,
+        ...{ external_id: y.external_id },
         expected_version: yDeleted.version,
         properties: y.properties,
       });
@@ -308,14 +306,17 @@ dbTest("entity pair cap: 100 preserved links, next-link rejection and no-op at c
   try {
     const type = await createEntityType(types, requestActor(owner.actor), { label: "연결 한도" });
     await admin`insert into app.entities(owner_id,id,source,external_id,entity_type_id,schema_version,properties)
-    select ${owner.actor.userId}::uuid,'app:cap-'||lpad(n::text,3,'0'),'app','cap-'||lpad(n::text,3,'0'),${type.id}::uuid,1,jsonb_build_object('prop_1','자료 '||n)
+    select ${owner.actor.userId}::uuid,'app:'||${type.id}::text||':cap-'||lpad(n::text,3,'0'),'app','cap-'||lpad(n::text,3,'0'),${type.id}::uuid,1,jsonb_build_object('prop_1','자료 '||n)
     from generate_series(0,101) n`;
     await admin`insert into app.entity_pairs(owner_id,entity_id,other_id)
-    select ${owner.actor.userId}::uuid,'app:cap-000','app:cap-'||lpad(n::text,3,'0') from generate_series(1,100) n`;
-    assertEquals((await listEntityLinks(pairs, owner.actor, "app:cap-000", { limit: 100 })).items.length, 100);
+    select ${owner.actor.userId}::uuid,${`app:${type.id}:cap-000`},'app:'||${type.id}::text||':cap-'||lpad(n::text,3,'0') from generate_series(1,100) n`;
     assertEquals(
-      (await changeEntityPair(pairs, requestActor(owner.actor), "app:cap-000", {
-        other_id: "app:cap-001",
+      (await listEntityLinks(pairs, owner.actor, `app:${type.id}:cap-000`, { limit: 100 })).items.length,
+      100,
+    );
+    assertEquals(
+      (await changeEntityPair(pairs, requestActor(owner.actor), `app:${type.id}:cap-000`, {
+        other_id: `app:${type.id}:cap-001`,
         expected_version: 1,
         expected_other_version: 1,
       }, true)).changed,
@@ -323,15 +324,15 @@ dbTest("entity pair cap: 100 preserved links, next-link rejection and no-op at c
     );
     const error = await assertRejects(
       () =>
-        changeEntityPair(pairs, requestActor(owner.actor), "app:cap-000", {
-          other_id: "app:cap-101",
+        changeEntityPair(pairs, requestActor(owner.actor), `app:${type.id}:cap-000`, {
+          other_id: `app:${type.id}:cap-101`,
           expected_version: 1,
           expected_other_version: 1,
         }, true),
       AppError,
     );
     assertEquals(error.code, "invalid_input");
-    assertEquals((await getEntity(entities, owner.actor, "app:cap-000")).version, 1);
+    assertEquals((await getEntity(entities, owner.actor, `app:${type.id}:cap-000`)).version, 1);
     assertEquals(
       (await admin`select count(*)::int as n from app.records where owner_id=${owner.actor.userId}`)[0].n,
       0,
@@ -369,14 +370,10 @@ dbTest("issuer labels agree across details, lists and linked materials without s
       expected_other_version: 1,
     }, true);
     assertEquals((await listEntityLinks(pairs, a.actor, x.id, { limit: 20 })).items[0].source_label, "앱");
-    await admin`insert into app.user_business_settings(owner_id,id,version,settings) values(${a.actor.userId},'entity_identity',1,
-      ${
-      admin.json({
-        generation: "short",
-        default_source: "app",
-        sources: [{ code: "app", label: "사용자 앱", deleted: true }],
-      })
-    })`;
+    await registry.updateEntityIssuer({ uow: new SqlEntityIssuerUnitOfWork(sql) }, requestActor(a.actor), "app", {
+      expected_version: 1,
+      label: "사용자 앱",
+    });
     assertEquals((await getEntity(entities, a.actor, x.id)).source_label, "사용자 앱");
     assertEquals((await listEntityLinks(pairs, a.actor, x.id, { limit: 20 })).items[0].source_label, "사용자 앱");
   } finally {

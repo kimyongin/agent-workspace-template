@@ -20,60 +20,29 @@ dbTest("설정 ID별 첫 저장·버전 격리와 같은 ID의 동시 저장 충
   const own = await fixtureOwner(admin), first = await fixtureOwner(admin);
   const settings = { uow: new SqlBusinessSettingsUnitOfWork(sql), clock: { now: () => new Date() } };
   try {
-    await Promise.all([
-      updateBusinessSettings(settings, requestActor(own.actor), {
-        id: "record_templates",
-        expected_version: 0,
-        value: { task: { create: { memo: "동시 기록 기본값", tag_ids: [] } } },
-      }),
-      updateBusinessSettings(settings, requestActor(own.actor), {
-        id: "entity_identity",
-        expected_version: 0,
-        value: { generation: "manual", default_source: "app", sources: [{ code: "app", label: "동시 식별 설정" }] },
-      }),
-    ]);
-    const saved = await getBusinessSettings(settings, own.actor);
-    assertEquals(saved.versions, { record_templates: 1, entity_identity: 1 });
-    assertEquals(saved.settings.record_templates?.task?.create?.memo, "동시 기록 기본값");
-    assertEquals(saved.settings.entity_identity?.generation, "manual");
-    await updateBusinessSettings(settings, requestActor(own.actor), {
+    const input = {
       id: "record_templates",
-      expected_version: 1,
-      value: {},
-    });
-    const identity = await updateBusinessSettings(settings, requestActor(own.actor), {
-      id: "entity_identity",
-      expected_version: 1,
-      value: saved.settings.entity_identity!,
-    });
-    assertEquals(identity.versions, { record_templates: 2, entity_identity: 2 });
-    await updateBusinessSettings(settings, requestActor(own.actor), {
-      id: "entity_identity",
-      expected_version: 2,
-      value: {
-        ...saved.settings.entity_identity!,
-        sources: [...saved.settings.entity_identity!.sources, { code: "crm", label: "다른 창에서 추가" }],
-      },
-    });
-    const addedSourceConflict = await assertRejects(
-      () =>
-        updateBusinessSettings(settings, requestActor(own.actor), {
-          id: "entity_identity",
-          expected_version: 2,
-          value: saved.settings.entity_identity!,
-        }),
-      AppError,
+      expected_version: 0,
+      value: { task: { create: { memo: "동시 기록 기본값", tag_ids: [] } } },
+    };
+    await updateBusinessSettings(settings, requestActor(own.actor), input);
+    const saved = await getBusinessSettings(settings, own.actor);
+    assertEquals(saved.versions, { record_templates: 1 });
+    assertEquals(saved.settings.record_templates?.task?.create?.memo, "동시 기록 기본값");
+    await updateBusinessSettings(settings, requestActor(own.actor), { ...input, expected_version: 1, value: {} });
+    assertEquals((await getBusinessSettings(settings, own.actor)).versions, { record_templates: 2 });
+    assertEquals(
+      (await assertRejects(() => updateBusinessSettings(settings, requestActor(own.actor), input), AppError)).code,
+      "conflict",
     );
-    assertEquals(addedSourceConflict.code, "conflict");
-    await assertRejects(
-      () =>
+    assertEquals(
+      (await assertRejects(() =>
         updateBusinessSettings(settings, requestActor(own.actor), {
           id: "entity_identity",
-          expected_version: 1,
-          value: saved.settings.entity_identity!,
-        }),
-      AppError,
-      "같은 설정",
+          expected_version: 0,
+          value: {},
+        }), AppError)).code,
+      "invalid_input",
     );
     const outcomes = await Promise.allSettled(
       ["첫 번째", "두 번째"].map((memo) =>
@@ -87,7 +56,6 @@ dbTest("설정 ID별 첫 저장·버전 격리와 같은 ID의 동시 저장 충
     assertEquals(outcomes.filter((result) => result.status === "fulfilled").length, 1);
     assertEquals((await getBusinessSettings(settings, first.actor)).versions, {
       record_templates: 1,
-      entity_identity: 0,
     });
   } finally {
     await own.cleanup();
@@ -116,14 +84,8 @@ dbTest("업무 설정 DB: 소유자 격리·섹션 병합·경합·고정 메모
     });
     assertEquals((await getBusinessSettings(settings, other.actor)).versions, {
       record_templates: 0,
-      entity_identity: 0,
     });
     assertEquals((await getBusinessSettings(settings, other.actor)).settings.record_templates, {});
-    await updateBusinessSettings(settings, requestActor(actor), {
-      expected_version: 0,
-      id: "entity_identity",
-      value: { generation: "uuid", default_source: "app", sources: [{ code: "app", label: "앱 표시" }] },
-    });
     assertEquals((await getBusinessSettings(settings, actor)).settings.record_templates?.task?.create?.tag_ids, [
       tag.id,
     ]);
