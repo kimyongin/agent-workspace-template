@@ -90,7 +90,7 @@ section[aria-labelledby="entity-identity-title"] .settings-section-footer { bord
 .schema-work-area > .settings-fields { display: grid; gap: var(--space-4); padding: 0; border: 0; min-width: 0; }
 .schema-option-row { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: var(--space-2); align-items: end; margin-bottom: var(--space-2); }
 
-.schema-settings { display: grid; gap: var(--space-4); min-width: 0; }
+.schema-settings { display: grid; gap: var(--space-5); min-width: 0; }
 .schema-summary { padding: var(--space-4); border: 1px solid var(--line); border-radius: var(--radius-card); scroll-margin-block: var(--space-4); }
 
 .schema-work-area > fieldset[hidden] { display: none; }
