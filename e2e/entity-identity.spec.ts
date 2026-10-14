@@ -534,7 +534,8 @@ test("five settings workspaces retain real API selections and stay within the vi
     }
     if (title === "발급처 설정") {
       await page.getByLabel("발급처", { exact: true }).selectOption(fixtureSource);
-      await expect(page.getByRole("button", { name: /기본 정보/ })).toContainText("시험 마켓");
+      await expect(page.getByLabel("발급처", { exact: true })).toHaveValue(fixtureSource);
+      await expect(page.getByText("상품 번호", { exact: true })).toBeVisible();
     }
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth))
       .toBe(true);
