@@ -202,3 +202,28 @@ test("confirmation fits its content at the center with a dimmed backdrop", async
   }));
   expect(geometry.box - geometry.inner).toBeLessThanOrEqual(4);
 });
+
+test("history expansion preserves the same section surface as other settings", async ({ page }) => {
+  await page.goto(direct);
+  const workspace = page.locator("#workspace");
+  const input = workspace.getByRole("region", { name: "입력 항목", exact: true });
+  const history = workspace.getByRole("region", { name: "변경 이력", exact: true });
+  for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    const reference = await input.evaluate((node) => {
+      const css = getComputedStyle(node);
+      return { padding: css.padding, border: css.borderWidth, background: css.backgroundColor };
+    });
+    for (const open of [true, false]) {
+      await history.getByRole("button", { name: /변경 이력 현재 버전/ }).click();
+      await expect(history).toHaveAttribute("data-open", String(open));
+      expect(
+        await history.evaluate((node) => {
+          const css = getComputedStyle(node);
+          return { padding: css.padding, border: css.borderWidth, background: css.backgroundColor };
+        }),
+        `history surface at ${width}px, expanded=${open}`,
+      ).toEqual(reference);
+    }
+  }
+});
