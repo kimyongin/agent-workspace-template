@@ -806,3 +806,42 @@ test("#341 기록 저장 대기는 이동을 막고 응답 뒤에만 작성 모�
   await expect(page).not.toHaveURL(/action=record/);
   expect(state.errors).toEqual([]);
 });
+
+
+test("confirmation overlays the retained mobile editor and restores its focus", async ({ page }) => {
+  const state = await fixture(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`/tasks/${id(2)}`);
+  const editor = page.locator("dialog.modal:not(.modal-confirm)[open]");
+  await editor.getByRole("button", { name: "편집", exact: true }).click();
+  await editor.getByLabel("제목").fill("겹친 확인창 초안");
+  const save = editor.getByRole("button", { name: "저장", exact: true });
+  await save.click();
+  await expect(page.locator("dialog[open]")).toHaveCount(2);
+  const confirmation = page.locator("dialog.modal-confirm[open]");
+  await expect(confirmation.getByLabel("기록 메모")).toBeVisible();
+  await expect(editor).toBeVisible();
+  await expect(editor.getByLabel("제목")).toHaveValue("겹친 확인창 초안");
+  expect(await editor.evaluate(el => el.matches(":modal"))).toBe(true);
+  expect(await confirmation.evaluate(el => el.matches(":modal"))).toBe(true);
+  expect((await confirmation.boundingBox())!.width).toBeLessThan(390);
+  await confirmation.getByLabel("기록 메모").fill("취소해도 보존할 메모");
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 844 });
+    await expect(confirmation.getByLabel("기록 메모")).toHaveValue("취소해도 보존할 메모");
+    await confirmation.getByLabel("기록 메모").click();
+    await expect(confirmation.getByLabel("기록 메모")).toBeFocused();
+    await confirmation.getByRole("button", { name: "취소", exact: true }).press("Tab");
+    expect(await confirmation.evaluate(el => el.contains(document.activeElement))).toBe(true);
+  }
+  await confirmation.press("Escape");
+  await expect(page.locator("dialog[open]")).toHaveCount(1);
+  await expect(save).toBeFocused();
+  await expect(editor.getByLabel("제목")).toHaveValue("겹친 확인창 초안");
+  await save.click();
+  await expect(confirmation.getByLabel("기록 메모")).toHaveValue("취소해도 보존할 메모");
+  await confirmation.getByRole("button", { name: "수정하고 저장", exact: true }).click();
+  await expect(confirmation).not.toBeVisible();
+  await expect(editor.getByRole("button", { name: "편집", exact: true })).toBeVisible();
+  expect(state.errors).toEqual([]);
+});

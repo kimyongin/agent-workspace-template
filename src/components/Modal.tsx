@@ -3,7 +3,7 @@
 import { createContext, type ReactNode, type RefObject, useCallback, useContext, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { useBlocker } from "react-router";
 import { createPortal } from "react-dom";
-import { ConfirmDialog, useSurfaceViewport } from "./ConfirmDialog.tsx";
+import { ConfirmDialog, ConfirmationSurface, useSurfaceViewport } from "./ConfirmDialog.tsx";
 export { ConfirmDialog } from "./ConfirmDialog.tsx";
 import { useDetailExploration } from "../lib/detail-exploration.tsx";
 import { RelatedExpansionProvider } from "./RelatedItems.tsx";
@@ -47,7 +47,7 @@ export interface SurfaceAction {
   busy: boolean;
   onCancel: () => void;
 }
-/** Short actions replace this dialog's content instead of opening nested dialogs. */
+/** Short actions open above this retained viewing/editing surface. */
 export const SurfaceActionContext = createContext<((action: SurfaceAction | null) => void) | null>(null);
 
 /** URL detail and its editor share one native dialog, focus trap and scroll surface. */
@@ -104,19 +104,10 @@ function ActiveModalShell({ title, domain, headingLevel=2, open, onClose, onCanc
   const [action, setAction] = useState<SurfaceAction | null>(null);
   const actionRef = useRef<SurfaceAction | null>(null);
   const registerAction = useCallback((value: SurfaceAction | null) => { actionRef.current=value; setAction(value); }, []);
-  const actionFocus = useRef<HTMLElement | null>(null);
   const actionOpen = !!action;
-  const docked = !!tab?.docked && !actionOpen;
+  const docked = !!tab?.docked;
   useEffect(() => {
-    if (actionOpen) {
-      actionFocus.current = document.activeElement as HTMLElement;
-      ref.current?.querySelector<HTMLElement>(".surface-action textarea, .surface-action input, .surface-action button")?.focus();
-    } else if (actionFocus.current) {
-      const invalid = ref.current?.querySelector<HTMLElement>("form [aria-invalid='true']");
-      if (invalid) invalid.focus();
-      else if (actionFocus.current.isConnected) actionFocus.current.focus();
-      actionFocus.current = null;
-    }
+    if (!actionOpen) ref.current?.querySelector<HTMLElement>("form [aria-invalid='true']")?.focus();
   }, [actionOpen]);
   const surface = useContext(SurfaceContext);
   const returnFocus = useRef<Element | null>(null);
@@ -193,9 +184,9 @@ function ActiveModalShell({ title, domain, headingLevel=2, open, onClose, onCanc
 
   return <SurfaceActionContext.Provider value={registerAction}><dialog
       ref={ref}
-      className={`modal${action ? " modal-action" : ""}${docked ? " detail-docked" : ""}`}
-      aria-label={!action && domain ? title : undefined}
-      aria-labelledby={!action && domain ? undefined : titleId}
+      className={`modal${docked ? " detail-docked" : ""}`}
+      aria-label={domain ? title : undefined}
+      aria-labelledby={domain ? undefined : titleId}
       onCancel={(e) => {
         e.preventDefault();
         e.stopPropagation();
@@ -204,16 +195,17 @@ function ActiveModalShell({ title, domain, headingLevel=2, open, onClose, onCanc
     >
       <div className="modal-inner">
         <div className="modal-head">
-          {previous && !action && <button type="button" className="btn btn-text modal-icon modal-back" aria-label={previous.label} title={previous.label} disabled={busy} onClick={()=>tab ? previous.back() : requestLeave(previous.back)}><span aria-hidden="true">←</span></button>}
-          {headingLevel===1?<h1 id={titleId} className="dialog-title" tabIndex={-1}>{action?.title ?? domain ?? title}</h1>:<h2 id={titleId} className="dialog-title" tabIndex={-1}>{action?.title ?? domain ?? title}</h2>}
+          {previous && <button type="button" className="btn btn-text modal-icon modal-back" aria-label={previous.label} title={previous.label} disabled={busy} onClick={()=>tab ? previous.back() : requestLeave(previous.back)}><span aria-hidden="true">←</span></button>}
+          {headingLevel===1?<h1 id={titleId} className="dialog-title" tabIndex={-1}>{domain ?? title}</h1>:<h2 id={titleId} className="dialog-title" tabIndex={-1}>{domain ?? title}</h2>}
           {!docked && <button type="button" className="btn btn-text modal-icon" aria-label="닫기" title="닫기" onClick={requestClose} disabled={busy || action?.busy}>
             <span aria-hidden="true">×</span>
           </button>}
         </div>
-        <div className="modal-body" tabIndex={0}><div hidden={!!action}>{children}</div>{action && <div className="surface-action">{action.body}</div>}</div>
-        {footer && <div className="modal-foot" hidden={!!action}>{typeof footer === "function" ? footer(requestCancelEdit) : footer}</div>}
-        {action?.footer && <div className="modal-foot">{action.footer}</div>}
+        <div className="modal-body" tabIndex={0}>{children}</div>
+        {footer && <div className="modal-foot">{typeof footer === "function" ? footer(requestCancelEdit) : footer}</div>}
       </div>
+      {action && <ConfirmationSurface open title={action.title} busy={action.busy} onCancel={action.onCancel}
+        closeButton footer={action.footer}><div className="surface-action">{action.body}</div></ConfirmationSurface>}
       <ConfirmDialog
         open={confirmDiscard}
         busy={busy || action?.busy}

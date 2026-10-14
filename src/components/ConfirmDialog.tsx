@@ -16,56 +16,15 @@ interface ConfirmProps {
 export function ConfirmDialog(
   { open, title, message, confirmLabel, danger, busy, confirmDisabled = false, onConfirm, onCancel }: ConfirmProps,
 ) {
-  const ref = useRef<HTMLDialogElement>(null);
-  const titleId = useId();
-  const cancelRef = useRef<HTMLButtonElement>(null);
-  useSurfaceViewport(ref);
-  const returnFocus = useRef<HTMLElement | null>(null);
-  useEffect(() => {
-    const d = ref.current;
-    if (!d) return;
-    if (open && !d.open) {
-      returnFocus.current = document.activeElement as HTMLElement;
-      d.showModal();
-      cancelRef.current?.focus();
-    } else if (!open && d.open) {
-      d.close();
-      returnFocus.current?.focus();
-    }
-  }, [open]);
-  useEffect(() => () => {
-    if (ref.current?.open) ref.current.close();
-    returnFocus.current?.focus();
-  }, []);
-  return createPortal(
-    <dialog
-      ref={ref}
-      className="modal modal-confirm modal-action"
-      aria-labelledby={titleId}
-      onKeyDown={(e) => {
-        if (e.key === "Escape") {
-          e.preventDefault();
-          e.stopPropagation();
-          if (!busy) onCancel();
-        }
-      }}
-      onCancel={(e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        if (!busy) onCancel();
-      }}
-    >
-      <div className="modal-inner">
-        <div className="modal-head">
-          <h2 id={titleId} className="dialog-title">{title}</h2>
-        </div>
-        <div className="modal-body form">
-          <div>{message}</div>
-        </div>
-        <div className="modal-foot">
-          <button ref={cancelRef} type="button" className="btn" onClick={onCancel} disabled={busy}>
-            취소
-          </button>
+  return (
+    <ConfirmationSurface
+      open={open}
+      title={title}
+      busy={busy}
+      onCancel={onCancel}
+      footer={
+        <>
+          <button type="button" className="btn" onClick={onCancel} disabled={busy}>취소</button>
           <button
             type="button"
             className={danger ? "btn btn-danger" : "btn btn-primary"}
@@ -74,7 +33,78 @@ export function ConfirmDialog(
           >
             {busy ? "처리 중…" : confirmLabel}
           </button>
+        </>
+      }
+    >
+      <div>{message}</div>
+    </ConfirmationSurface>
+  );
+}
+
+/** A short native modal above the retained editing surface; only the top dialog is interactive. */
+export function ConfirmationSurface({ open, title, busy = false, onCancel, footer, children, closeButton = false }: {
+  open: boolean;
+  title: string;
+  busy?: boolean;
+  onCancel: () => void;
+  footer: ReactNode;
+  children: ReactNode;
+  closeButton?: boolean;
+}) {
+  const ref = useRef<HTMLDialogElement>(null);
+  const titleId = useId();
+  useSurfaceViewport(ref);
+  useEffect(() => {
+    const dialog = ref.current;
+    if (!open || !dialog) return;
+    const returnFocus = document.activeElement as HTMLElement | null;
+    dialog.showModal();
+    (dialog.querySelector<HTMLElement>("textarea:not(:disabled), input:not(:disabled)") ??
+      dialog.querySelector<HTMLElement>(".modal-foot button:not(:disabled)"))?.focus();
+    return () => {
+      dialog.close();
+      if (returnFocus?.isConnected) returnFocus.focus();
+    };
+  }, [open]);
+  const cancel = () => {
+    if (!busy) onCancel();
+  };
+  return createPortal(
+    <dialog
+      ref={ref}
+      className="modal modal-confirm modal-action"
+      aria-labelledby={titleId}
+      onKeyDown={(event) => {
+        if (event.key === "Escape") {
+          event.preventDefault();
+          event.stopPropagation();
+          cancel();
+        }
+      }}
+      onCancel={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        cancel();
+      }}
+    >
+      <div className="modal-inner">
+        <div className="modal-head">
+          <h2 id={titleId} className="dialog-title">{title}</h2>
+          {closeButton && (
+            <button
+              type="button"
+              className="btn btn-text modal-icon"
+              aria-label="닫기"
+              title="닫기"
+              disabled={busy}
+              onClick={cancel}
+            >
+              <span aria-hidden="true">×</span>
+            </button>
+          )}
         </div>
+        <div className="modal-body form">{children}</div>
+        <div className="modal-foot">{footer}</div>
       </div>
     </dialog>,
     document.body,

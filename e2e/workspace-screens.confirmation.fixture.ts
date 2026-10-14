@@ -60,7 +60,7 @@ test("#181 일반 기록: 취소한 삭제 메모의 검증이 본문 저장을 
 });
 
 for (const [kind, n, label] of [["entities", 1, "제목"], ["tasks", 2, "제목"], ["principles", 4, "제목"]] as const) {
-  test(`#181 ${kind}: 작은 단일 확인 단계·취소 초안 보존·기록 태그`, async ({ page }, info) => {
+  test(`#181 ${kind}: 편집 위 작은 확인창·취소 초안 보존·기록 태그`, async ({ page }, info) => {
     const state = await fixtures(page);
     await page.setViewportSize({ width: 390, height: 844 });
     await go(page, `/${kind}/${kind === "entities" ? encodeURIComponent(entityKey(n)) : id(n)}?edit=1&edit_from=view`);
@@ -68,7 +68,7 @@ for (const [kind, n, label] of [["entities", 1, "제목"], ["tasks", 2, "제목"
     await expect(form(page).getByLabel("기록 메모")).toHaveCount(0);
     await form(page).getByRole("button", { name: kind === "tasks" ? "저장" : "저장", exact: true }).click();
     await expect(form(page).getByLabel("기록 메모")).toHaveValue("변경 초안 수정");
-    await expect(page.locator("dialog[open]")).toHaveCount(1);
+    await expect(page.locator("dialog[open]")).toHaveCount(2);
     expect(state.writes).toHaveLength(0);
     const box = (await form(page).boundingBox())!;
     expect(box.height).toBeLessThan(844 - 32);
@@ -118,7 +118,7 @@ test("#181 일반 기록은 바로 저장하고 삭제만 작은 메모·태그 
   await form(page).getByRole("button", { name: "편집", exact: true }).click();
   await form(page).getByRole("button", { name: "삭제", exact: true }).click();
   await expect(form(page).getByLabel("기록 메모")).toBeVisible();
-  await expect(page.locator("dialog[open]")).toHaveCount(1);
+  await expect(page.locator("dialog[open]")).toHaveCount(2);
   await form(page).getByLabel("기록 메모").fill("중복 자료 삭제");
   await form(page).getByRole("button", { name: "삭제하고 기록", exact: true }).click();
   await expect.poll(() => state.writes.length).toBe(2);
@@ -258,7 +258,7 @@ for (const [kind, n] of [["entities", 1], ["tasks", 2], ["records", 3], ["princi
     await form(page).getByRole("button", { name: "삭제", exact: true }).click();
     const confirm = page.locator("dialog.modal-action[open]");
     await expect(confirm.getByRole("button", { name: "삭제하고 기록", exact: true })).toBeVisible();
-    await expect(page.locator("dialog[open]")).toHaveCount(1);
+    await expect(page.locator("dialog[open]")).toHaveCount(2);
     expect(state.writes).toHaveLength(before);
     await expect(form(page).getByRole("button", { name: "저장", exact: true })).toHaveCount(0);
     await confirm.getByRole("button", { name: "취소", exact: true }).click();

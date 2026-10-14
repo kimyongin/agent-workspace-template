@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { BodyAction } from "../components/BodyAction.tsx";
-import { ConfirmDialog, useSurfaceViewport } from "../components/ConfirmDialog.tsx";
+import { ConfirmationSurface, ConfirmDialog, useSurfaceViewport } from "../components/ConfirmDialog.tsx";
 import { Field, Notice } from "../components/Field.tsx";
 
 type Outcome = "success" | "failure" | "uncertain";
@@ -128,21 +128,18 @@ function EditDialog(
   const dialog = useRef<HTMLDialogElement>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const entry = useRef<HTMLElement | null>(null);
-  const editFocusSelector = useRef("input");
   useSurfaceViewport(dialog);
   useEffect(() => {
     entry.current = document.activeElement as HTMLElement;
     const node = dialog.current;
     node?.showModal();
+    node?.querySelector<HTMLInputElement>("input")?.focus();
     return () => {
       if (timer.current) clearTimeout(timer.current);
       node?.close();
       if (entry.current?.isConnected) entry.current.focus();
     };
   }, []);
-  useEffect(() => {
-    dialog.current?.querySelector<HTMLElement>(stage === "edit" ? editFocusSelector.current : "[data-cancel]")?.focus();
-  }, [stage]);
   const dismiss = () => {
     if (pending.current || uncertain) return;
     if (stage !== "edit") {
@@ -150,7 +147,6 @@ function EditDialog(
       return;
     }
     if (draft !== initial) {
-      editFocusSelector.current = document.activeElement?.getAttribute("data-edit-focus") ?? "input";
       setStage("discard");
     } else onClose();
   };
@@ -162,7 +158,6 @@ function EditDialog(
     }
     setError("");
     setFailure("");
-    editFocusSelector.current = "[data-edit-save]";
     setStage("review");
   };
   const execute = () => {
@@ -192,33 +187,30 @@ function EditDialog(
     }, 600);
   };
   return createPortal(
-    <dialog
-      ref={dialog}
-      className={`modal${stage === "edit" ? "" : " modal-confirm modal-action"}`}
-      aria-labelledby="sample-editor-title"
-      onCancel={(event) => {
-        event.preventDefault();
-        dismiss();
-      }}
-    >
-      <div className="modal-inner">
-        <header className="modal-head">
-          <h2 id="sample-editor-title" className="dialog-title">
-            {stage === "edit" ? "상품 편집" : stage === "discard" ? "변경을 버릴까요?" : "변경을 저장할까요?"}
-          </h2>
-          <button
-            type="button"
-            className="btn btn-text modal-icon"
-            data-edit-focus=".modal-icon"
-            aria-label="닫기"
-            disabled={busy || uncertain}
-            onClick={dismiss}
-          >
-            <span aria-hidden="true">×</span>
-          </button>
-        </header>
-        <div className="modal-body">
-          {stage === "edit" && (
+    <>
+      <dialog
+        ref={dialog}
+        className="modal"
+        aria-labelledby="sample-editor-title"
+        onCancel={(event) => {
+          event.preventDefault();
+          dismiss();
+        }}
+      >
+        <div className="modal-inner">
+          <header className="modal-head">
+            <h2 id="sample-editor-title" className="dialog-title">상품 편집</h2>
+            <button
+              type="button"
+              className="btn btn-text modal-icon"
+              aria-label="닫기"
+              disabled={busy || uncertain}
+              onClick={dismiss}
+            >
+              <span aria-hidden="true">×</span>
+            </button>
+          </header>
+          <div className="modal-body">
             <form
               id="sample-edit-form"
               className="form"
@@ -242,87 +234,74 @@ function EditDialog(
               </Field>
               <p className="secondary">취소하면 같은 보기로 돌아갑니다. 변경한 입력은 폐기 확인을 거쳐 버립니다.</p>
             </form>
-          )}
-          {stage === "review" && (
-            <div className="form">
-              <dl className="props samples-values">
-                <div>
-                  <dt>상품명</dt>
-                  <dd>{initial} → {snapshot.current && uncertain ? snapshot.current.name : draft}</dd>
-                </div>
-              </dl>
-              <Field label="기록 메모">
-                {(props) => (
-                  <textarea
-                    {...props}
-                    className="input"
-                    rows={3}
-                    value={note}
-                    disabled={busy || uncertain}
-                    onChange={(event) => setNote(event.target.value)}
-                  />
-                )}
-              </Field>
-              {failure && <Notice kind="error">{failure}</Notice>}
-              {busy && (
-                <p className="secondary" role="status">{uncertain ? "같은 실행의 결과 확인 중…" : "예시 저장 중…"}</p>
-              )}
-            </div>
-          )}
-          {stage === "discard" && (
-            <p>저장하지 않은 상품명 변경을 버립니다. 취소하면 입력한 내용과 편집 위치를 유지합니다.</p>
-          )}
+          </div>
+          <footer className="modal-foot">
+            <button type="button" className="btn" onClick={dismiss}>취소</button>
+            <button type="submit" form="sample-edit-form" className="btn btn-primary">저장</button>
+          </footer>
         </div>
-        <footer className="modal-foot">
-          {stage === "edit" && (
-            <>
-              <button
-                data-edit-cancel
-                data-edit-focus="[data-edit-cancel]"
-                type="button"
-                className="btn"
-                onClick={dismiss}
-              >
-                취소
-              </button>
-              <button
-                data-edit-save
-                data-edit-focus="[data-edit-save]"
-                type="submit"
-                form="sample-edit-form"
-                className="btn btn-primary"
-              >
-                저장
-              </button>
-            </>
-          )}
-          {stage === "review" && (
-            <>
-              <button
-                data-cancel
-                type="button"
-                className="btn"
-                disabled={busy || uncertain}
-                onClick={() => {
-                  if (!pending.current && !uncertain) setStage("edit");
-                }}
-              >
-                취소
-              </button>
-              <button type="button" className="btn btn-primary" disabled={busy} onClick={execute}>
-                {busy ? "처리 중…" : uncertain ? "결과 확인" : "저장"}
-              </button>
-            </>
-          )}
-          {stage === "discard" && (
-            <>
-              <button data-cancel type="button" className="btn" onClick={() => setStage("edit")}>계속 편집</button>
-              <button type="button" className="btn btn-danger" onClick={onClose}>변경 버리기</button>
-            </>
-          )}
-        </footer>
-      </div>
-    </dialog>,
+      </dialog>
+      {stage !== "edit" && (
+        <ConfirmationSurface
+          open
+          title={stage === "discard" ? "변경을 버릴까요?" : "변경을 저장할까요?"}
+          busy={busy || uncertain}
+          onCancel={() => setStage("edit")}
+          closeButton
+          footer={stage === "discard"
+            ? (
+              <>
+                <button type="button" className="btn" onClick={() => setStage("edit")}>계속 편집</button>
+                <button type="button" className="btn btn-danger" onClick={onClose}>변경 버리기</button>
+              </>
+            )
+            : (
+              <>
+                <button
+                  type="button"
+                  className="btn"
+                  disabled={busy || uncertain}
+                  onClick={() => setStage("edit")}
+                >
+                  취소
+                </button>
+                <button type="button" className="btn btn-primary" disabled={busy} onClick={execute}>
+                  {busy ? "처리 중…" : uncertain ? "결과 확인" : "저장"}
+                </button>
+              </>
+            )}
+        >
+          {stage === "discard"
+            ? <p>저장하지 않은 상품명 변경을 버립니다. 취소하면 입력한 내용과 편집 위치를 유지합니다.</p>
+            : (
+              <div className="form">
+                <dl className="props samples-values">
+                  <div>
+                    <dt>상품명</dt>
+                    <dd>{initial} → {snapshot.current && uncertain ? snapshot.current.name : draft}</dd>
+                  </div>
+                </dl>
+                <Field label="기록 메모">
+                  {(props) => (
+                    <textarea
+                      {...props}
+                      className="input"
+                      rows={3}
+                      value={note}
+                      disabled={busy || uncertain}
+                      onChange={(event) => setNote(event.target.value)}
+                    />
+                  )}
+                </Field>
+                {failure && <Notice kind="error">{failure}</Notice>}
+                {busy && (
+                  <p className="secondary" role="status">{uncertain ? "같은 실행의 결과 확인 중…" : "예시 저장 중…"}</p>
+                )}
+              </div>
+            )}
+        </ConfirmationSurface>
+      )}
+    </>,
     document.body,
   );
 }
