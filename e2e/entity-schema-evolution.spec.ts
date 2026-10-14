@@ -99,7 +99,7 @@ test("웹 속성 초안·분석·게시 후 기존 자료 표시와 MCP 생성·
     ).toBeVisible();
     await page.getByRole("button", { name: "같은 요청 다시 확인", exact: true })
       .click();
-    await expect(page.getByRole("heading", { name: /^입력 항목/ }))
+    await expect(page.getByRole("heading", { name: /^입력 항목/, level: 2 }))
       .toBeVisible();
     const current = await mcp.call("get_entity", { id: existing.id });
     expect(current.schema_version).toBe(1);

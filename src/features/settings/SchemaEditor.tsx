@@ -889,21 +889,11 @@ export function SchemaEditor(
                         }
                         setExpandedRow(row.id);
                         if (isSelectedJob) setSelectedJobOpen(true);
-                        if (rowJob) {
-                          navigate(
-                            materialSettingsPath(type.id, location.search, {
-                              job_id: rowJob.id,
-                            }),
-                          );
-                        }
-                        if (row.version) {
-                          navigate(
-                            materialSettingsPath(type.id, location.search, {
-                              schema_version: String(
-                                row.version.schema_version,
-                              ),
-                            }),
-                          );
+                        if (rowJob || row.version) {
+                          navigate(materialSettingsPath(type.id, location.search, {
+                            job_id: rowJob?.id ?? null,
+                            schema_version: row.version ? String(row.version.schema_version) : null,
+                          }));
                         }
                         if (row.changeId && c && !rowJob && !row.version) {
                           setReviewOpen(true);

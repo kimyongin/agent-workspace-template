@@ -21,6 +21,10 @@ export function SchemaDefinitionRead(
         if (!field) {
           return null;
         }
+        const optionLabel = (value: string) => {
+          const label = definition.display.option_labels[key]?.[value];
+          return label && label !== value ? `${label} (${value})` : value;
+        };
         const values: Array<[string, string]> = [
           ["데이터 타입", fieldTypeLabel(field)],
           [
@@ -62,14 +66,14 @@ export function SchemaDefinitionRead(
         if (Object.hasOwn(field, "default")) {
           values.push([
             "생성 기본값",
-            field.default === null ? "비워 두기" : schemaValueLabel(field.default),
+            field.default === null ? "비워 두기" : typeof field.default === "string" && field.enum ? optionLabel(field.default) : schemaValueLabel(field.default),
           ]);
         }
         if (field.enum) {
           values.push([
             "선택 항목",
             field.enum.map((value) =>
-              value === null ? "비워 두기" : definition.display.option_labels[key]?.[value] ?? value
+              value === null ? "비워 두기" : optionLabel(value)
             ).join(", "),
           ]);
         }

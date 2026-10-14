@@ -1252,7 +1252,9 @@ test(
       title: "판매 가능",
       default: false,
     };
-    target.display.order.push("prop_2", "prop_3");
+    target.schema.properties.prop_4 = { type: "string", title: "단위", enum: ["kg", "g"], default: "kg" };
+    target.display.option_labels.prop_4 = { kg: "킬로그램", g: "그램" };
+    target.display.order.push("prop_2", "prop_3", "prop_4");
     target.display.list_columns.push("prop_2");
     let mismatch = true;
     await page.route(`**/api/entity-types/${materials.id}**`, (route) => {
@@ -1334,6 +1336,8 @@ test(
     await expect(
       definition.getByRole("region", { name: "판매 가능 정의", exact: true }),
     ).toContainText("아니오");
+    await expect(definition.getByRole("region", { name: "단위 정의", exact: true })).toContainText("킬로그램 (kg)");
+    await expect(definition.getByRole("region", { name: "단위 정의", exact: true })).toContainText("그램 (g)");
     const positions = await definition.locator("dt").evaluateAll((elements) =>
       elements.map((el) => el.getBoundingClientRect().x)
     );
@@ -1346,3 +1350,29 @@ test(
     });
   },
 );
+
+test("다른 완료 변경을 열면 버전과 해당 변환 작업을 함께 선택한다", async ({ page }) => {
+  const jobs = [
+    { ...job(20), result: { schema_version: 2, total: 10, changed: 10 } },
+    { ...job(31), change_id: id(501), source_schema_version: 2, result: { schema_version: 3, total: 10, changed: 10 } },
+  ];
+  await page.route("**/api/entity-schema-migrations**", route => {
+    const url = new URL(route.request().url());
+    return route.fulfill({ json: url.pathname.endsWith("/entity-schema-migrations") ? { items: jobs, next_before: null } : jobs.find(j => url.pathname.endsWith(j.id)) });
+  });
+  await page.route(`**/api/entity-types/${materials.id}**`, route => {
+    const url = new URL(route.request().url());
+    if (url.pathname.includes("/schema-changes/")) return route.fulfill({ json: { ...linkedChange(), id: url.pathname.split("/").at(-1), status: "applied" } });
+    if (url.pathname.endsWith("/schema-changes")) return route.fulfill({ json: { items: [], next_before: null } });
+    if (url.pathname.endsWith("/schemas")) return route.fulfill({ json: { items: [3, 2, 1].map(schema_version => ({ type_id: materials.id, schema_version, created_at: materials.created_at })), next_before: null } });
+    if (url.pathname.endsWith("/schema")) return route.fulfill({ json: { type_id: materials.id, schema_version: requestedVersion(route, 3), ...initialEntityDefinition("이름") } });
+    return route.fulfill({ json: { ...materials, version: 3, schema_version: 3 } });
+  });
+  await page.goto(`/settings/entity-types/${materials.id}?job_id=${id(20)}`);
+  await page.getByRole("button", { name: /버전 3 · 적용됨$/ }).click();
+  await expect(page).toHaveURL(new RegExp(`job_id=${id(31)}`));
+  await expect(page).toHaveURL(/schema_version=3/);
+  const row = page.locator(".schema-history-row").filter({ has: page.getByRole("button", { name: /버전 3 · 적용됨$/ }) });
+  await expect(row.getByRole("region", { name: "값 변환 상세", exact: true })).toBeVisible();
+  await expect(row.getByRole("region", { name: "변경 결과", exact: true })).toContainText("버전 2 → 3");
+});
