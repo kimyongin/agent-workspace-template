@@ -15,7 +15,8 @@ export async function saveOnce(page: Page, scope: Page | Locator = page, label =
   if(await issuer.isVisible() && !await page.getByRole("dialog",{name:/복원$/,exact:false}).isVisible())await expect(issuer).toBeEnabled();
   const final = page.locator("dialog.modal-action[open]").getByRole("button", {name:/^(등록|수정|중단|재개|복원|식별 정보 변경)하고 저장$|^삭제하고 기록$|^같은 내용 다시 시도$/});
   const requested = scope.getByRole("button", {name:label === "삭제 확인" ? "삭제하고 기록" : label,exact:true});
-  if (await requested.isVisible()) {
+  if (await final.isVisible()) await final.click();
+  else if (await requested.isVisible()) {
     await requested.click();
     if ((label === "저장" || label === "추가" || label === "변경") && await final.isVisible()) await final.click();
   } else await final.click();

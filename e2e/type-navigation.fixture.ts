@@ -408,7 +408,7 @@ test("save blocks duplicate submission and Back until typed detail is ready", as
   await expect(editing).toContainText("저장 후 종류를 변경할 수 없습니다");
 });
 
-test("clean settings navigation proceeds while initial business settings are still reading", async ({ page }) => {
+test("clean settings navigation proceeds while initial record templates are still reading", async ({ page }) => {
   let release!: () => void, started!: () => void;
   const hold = new Promise<void>((resolve) => {
       release = resolve;
@@ -423,11 +423,11 @@ test("clean settings navigation proceeds while initial business settings are sti
     return route.fallback();
   });
   try {
-    await page.goto("/settings");
+    await page.goto("/settings/records");
     await arrived;
-    await expect(page.getByRole("button", { name: "프로필 저장", exact: true })).toBeDisabled();
-    await page.getByRole("link", { name: "자료 설정", exact: true }).click();
-    await expect(page).toHaveURL(/\/settings\/entity-types$/, { timeout: 1500 });
+    await page.getByRole("button", { name: "설정 메뉴", exact: true }).click();
+    await page.getByRole("navigation", { name: "설정 메뉴", exact: true }).getByRole("link", { name: "자료", exact: true }).click();
+    await expect(page).toHaveURL(/\/settings\/materials$/, { timeout: 1500 });
     await expect(page.getByRole("dialog", { name: "변경을 버릴까요?", exact: true })).toHaveCount(0);
   } finally {
     release();
