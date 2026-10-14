@@ -83,6 +83,11 @@ export function createSettingsDraft<T, Saved>(adapter: SettingsDraftAdapter<T, S
     edit: (update: (value: T) => T) => {
       if (!state.busy && !state.uncertain) emit({ draft: update(state.draft), error: null });
     },
+    acceptLatest: () => {
+      if (!state.busy && !state.uncertain && state.saved && state.conflict && state.latestReady) {
+        emit({ conflict: false, latestReady: false, error: null });
+      }
+    },
     reset: () => {
       if (!state.busy && !state.uncertain && state.saved && (!state.conflict || state.latestReady)) {
         emit({ draft: adapter.toDraft(state.saved), error: null, conflict: false, latestReady: false });
