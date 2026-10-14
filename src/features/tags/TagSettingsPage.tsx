@@ -34,7 +34,7 @@ export function TagSettingsPage() {
   return (
     <section className="panel settings" aria-labelledby="tag-heading">
       <SettingsHeading title="태그 설정" id="tag-heading" tabIndex={-1} />
-      
+
       <div className="material-settings-toolbar">
         <Field label="관리 대상">
           {(props) => (

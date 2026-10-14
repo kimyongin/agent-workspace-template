@@ -233,7 +233,7 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
       aria-labelledby="entity-types-title"
     >
       <SettingsHeading title="자료 설정" id="entity-types-title" />
-      
+
       <div className="material-settings-toolbar">
         <Field label="자료 종류 선택">
           {(props) => (
