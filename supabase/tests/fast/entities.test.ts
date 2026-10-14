@@ -1,3 +1,4 @@
+import { identityFixture } from "../_entity-identity.ts";
 import { requestActor } from "../_request.ts";
 import { assert, assertEquals, assertRejects } from "@std/assert";
 import {
@@ -39,21 +40,10 @@ function memory() {
     definition: () =>
       Promise.resolve({ ...definition, type, type_id: entity_type_id, type_version: 1, schema_version: 1 }),
     executeRequest: <T>(_request: unknown, execute: () => Promise<T>) => execute(),
-    getBusinessSettings: () => Promise.resolve({ settings: {} }),
+    getTypeIdentity: () => Promise.resolve(identityFixture(entity_type_id)),
     restore: (id, changes) => {
       const row = { ...rows.get(id)!, ...changes, deleted_at: null, version: rows.get(id)!.version + 1 };
       rows.set(id, row);
-      return Promise.resolve(row);
-    },
-    rekey: (id, identity) => {
-      const row = {
-        ...rows.get(id)!,
-        ...identity,
-        id: `${identity.source}:${identity.external_id}`,
-        version: rows.get(id)!.version + 1,
-      };
-      rows.delete(id);
-      rows.set(row.id, row);
       return Promise.resolve(row);
     },
     appendChange: () => Promise.resolve(),
@@ -236,6 +226,19 @@ Deno.test("Entity HTTP/MCP 실제 handler: CRUD parity·엄격 입력·존재 �
     (await assertRejects(async () => await tool("get_entity", { id: "not-id" }), AppError)).code,
     "not_found",
   );
+  for (const field of ["source", "external_id", "entity_type_id"]) {
+    const invalid = {
+      schema_version: 1,
+      expected_version: 1,
+      [field]: field === "entity_type_id" ? entity_type_id : "replacement",
+    };
+    assertEquals((await request("PATCH", `/entities/${encodeURIComponent(e.id)}`, invalid)).status, 400);
+    assertEquals(
+      (await assertRejects(async () => await tool("update_entity", { id: e.id, ...invalid }), AppError)).code,
+      "entity_type_immutable",
+    );
+    assertEquals((await tool("get_entity", { id: e.id }) as EntityValues).version, 1);
+  }
   const changed = await tool("update_entity", {
     change_note: "테스트 변경 이유",
     id: e.id,

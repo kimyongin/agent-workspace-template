@@ -1,14 +1,10 @@
 import { runWrite } from "../shared/request.ts";
 import { entityChangeFacts, entityChangeTarget } from "./change.ts";
-import { entityUpdateDecision, registrationContent, registrationIdentity, registrationState } from "./domain.ts";
+import { registrationContent, registrationIdentity, registrationState } from "./domain.ts";
 import { isoDateTime, text } from "../../contracts/common.ts";
 import { checkedProperties, type EntityDefinitions, requireDefinition } from "./values.ts";
-import {
-  defaultEntityIdentitySettings,
-  entityId,
-  type EntityIdentitySettings,
-  entityReferenceId,
-} from "../../contracts/entity-identity.ts";
+import { entityId, entityReferenceId, entityTypeKey } from "../../contracts/entity-identity.ts";
+import type { EntityTypeIdentity } from "../../contracts/entity-issuer.ts";
 import type {
   EntityCreate,
   EntityDetail,
@@ -21,14 +17,11 @@ import type { Actor } from "../shared/actor.ts";
 import { AppError, conflict, invalidInput, notFound } from "../shared/errors.ts";
 import { scopeOf } from "../shared/operations.ts";
 import { type EntityKeyset, validateEntityQuery, validFilterScalar } from "./list-rules.ts";
-import { type ChangeStore } from "../shared/changes.ts";
+import { changed, type ChangeStore } from "../shared/changes.ts";
 
 export interface EntityStore extends ChangeStore, EntityDefinitions {
   issueDataId?(): Promise<string>;
-  prepareRekey?(id: string): Promise<void>;
-  getBusinessSettings(lockIdentity?: boolean): Promise<
-    { versions?: { entity_identity: number }; settings: { entity_identity?: EntityIdentitySettings } }
-  >;
+  getTypeIdentity(typeId: string, lock?: boolean): Promise<EntityTypeIdentity | null>;
   get(id: string, lock?: boolean): Promise<EntityValues | null>;
   related(id: string): Promise<Pick<EntityDetail, "tasks" | "records">>;
   insert(
@@ -45,7 +38,6 @@ export interface EntityStore extends ChangeStore, EntityDefinitions {
   ): Promise<EntityValues>;
   delete(id: string): Promise<void>;
   restore(id: string, changes: EntityCreate): Promise<EntityValues>;
-  rekey(id: string, identity: { source: string; external_id: string }): Promise<EntityValues>;
   listRevisions?(typeId?: string): Promise<Array<{ id: string; type_version: number; schema_version: number }>>;
   list(
     query: EntityQuery,
@@ -57,6 +49,7 @@ export interface EntityDeps {
   uow: { run<T>(actor: Actor, fn: (store: EntityStore) => Promise<T>): Promise<T> };
 }
 export function createEntity(d: EntityDeps, a: Actor, i: EntityCreate) {
+  i = { ...i, entity_type_id: entityTypeKey.parse(i.entity_type_id) };
   return runWrite(
     d.uow,
     a,
@@ -65,11 +58,11 @@ export function createEntity(d: EntityDeps, a: Actor, i: EntityCreate) {
     i,
     async (s) => {
       const definition = await requireDefinition(s, i.entity_type_id, i.schema_version, true);
-      const saved = await s.getBusinessSettings(true);
-      if (i.settings_version !== undefined && i.settings_version !== (saved.versions?.entity_identity ?? 0)) {
+      const settings = await s.getTypeIdentity(i.entity_type_id, true);
+      if (!settings) throw notFound();
+      if (i.identity_version !== undefined && i.identity_version !== settings.version) {
         throw new AppError("settings_changed", "발급처 설정이 변경되었습니다. 설정을 다시 조회하세요");
       }
-      const settings = saved.settings.entity_identity ?? defaultEntityIdentitySettings;
       const { source } = registrationIdentity(settings, i);
       if (i.expected_version !== undefined && i.external_id === undefined) {
         throw invalidInput(
@@ -81,8 +74,8 @@ export function createEntity(d: EntityDeps, a: Actor, i: EntityCreate) {
         if (!s.issueDataId) throw invalidInput("ID 발급 저장소가 필요합니다");
         external_id = await s.issueDataId();
       }
-      const id = entityId(source, external_id);
-      const { change_note, change_tag_ids, expected_version, settings_version: _settings, ...props } = i;
+      const id = entityId(source, i.entity_type_id, external_id);
+      const { change_note, change_tag_ids, expected_version, identity_version: _settings, ...props } = i;
       const generated = i.external_id === undefined;
       const snapshot = generated ? null : await s.get(id);
       if (snapshot && snapshot.entity_type_id !== i.entity_type_id) {
@@ -138,38 +131,18 @@ async function requireVersion(s: EntityStore, id: string, expected: number) {
 export function updateEntity(d: EntityDeps, a: Actor, id: string, i: EntityUpdate) {
   return runWrite(d.uow, a, "entity.update", id, i, async (s) => {
     assertImmutableType(i);
-    if (i.source !== undefined || i.external_id !== undefined) await s.prepareRekey?.(id);
     const old = await requireVersion(s, id, i.expected_version);
     const definition = await requireDefinition(s, old.entity_type_id, i.schema_version);
     const { expected_version: _v, change_note, change_tag_ids, ...input } = i;
-    // Ordinary property edits on retired issuers do not require settings or a rekey.
-    const settings = (input.source !== undefined && input.source !== old.source) ||
-        (input.external_id !== undefined && input.external_id !== old.external_id)
-      ? (await s.getBusinessSettings()).settings.entity_identity ?? defaultEntityIdentitySettings
-      : defaultEntityIdentitySettings;
-    const decision = entityUpdateDecision(settings, { id, facts: entityChangeFacts(old) }, input);
     const finalProperties = checkedProperties(
       definition,
       { ...old.properties, ...input.properties },
       input.properties ?? {},
       false,
     );
-    decision.properties = {
-      ...decision.properties,
-      schema_version: i.schema_version,
-      ...(input.properties === undefined ? {} : { properties: finalProperties }),
-    };
-    decision.contentChanged = decision.contentChanged || old.schema_version !== i.schema_version;
-    // Immutable target identity plus the unique constraint suffice. Do not lock a
-    // different type after this type lock (opposite rekeys would invert lock order).
-    if (decision.rekey && await s.get(decision.id)) {
-      throw conflict("같은 발급처·식별자의 엔터티가 있습니다. 삭제된 대상도 별도 복원해야 합니다");
-    }
-    if (!decision.rekey && !decision.contentChanged) return old;
-    let result = decision.rekey ? await s.rekey(id, decision.identity) : old;
-    if (decision.contentChanged) {
-      result = await s.update(result.id, { ...decision.properties, schema_version: i.schema_version });
-    }
+    const patch = { ...input, ...(input.properties === undefined ? {} : { properties: finalProperties }) };
+    if (!changed(entityChangeFacts(old), patch)) return old;
+    const result = await s.update(id, patch);
     await s.appendChange({
       target_kind: "entity",
       target: entityChangeTarget(result),
@@ -218,8 +191,10 @@ export function deleteEntity(
   );
 }
 export function assertImmutableType(input: unknown) {
-  if (input && typeof input === "object" && "entity_type_id" in input) {
-    throw new AppError("entity_type_immutable", "자료 종류는 변경할 수 없습니다", [{
+  if (
+    input && typeof input === "object" && ["entity_type_id", "source", "external_id", "id"].some((key) => key in input)
+  ) {
+    throw new AppError("entity_type_immutable", "자료 종류·발급처·번호는 변경할 수 없습니다", [{
       path: "entity_type_id",
       message: "자료 종류는 생성 후 변경할 수 없습니다",
     }]);

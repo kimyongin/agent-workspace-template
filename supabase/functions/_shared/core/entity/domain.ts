@@ -1,11 +1,7 @@
-import {
-  entityId,
-  type EntityIdentitySettings,
-  entitySourceGeneration,
-  isActiveEntitySource,
-} from "../../contracts/entity-identity.ts";
-import type { EntityCreate, EntityUpdate, EntityValues } from "../../contracts/entity.ts";
-import { changed, type ChangeFacts } from "../shared/changes.ts";
+import { entityNumberInput } from "../../contracts/entity-identity.ts";
+import type { EntityTypeIdentity } from "../../contracts/entity-issuer.ts";
+import type { EntityCreate, EntityValues } from "../../contracts/entity.ts";
+import { type ChangeFacts } from "../shared/changes.ts";
 import { AppError, invalidInput } from "../shared/errors.ts";
 
 export type EntityContent = Pick<
@@ -20,21 +16,27 @@ export function registrationState(existing: { deleted_at?: string | null } | nul
 
 /** Validate an issuer and optional explicit identity; automatic allocation belongs to the write transaction. */
 export function registrationIdentity(
-  settings: EntityIdentitySettings,
-  input: Pick<EntityCreate, "source"> & { external_id: string },
+  settings: EntityTypeIdentity,
+  input: Pick<EntityCreate, "source" | "expected_version"> & { external_id: string },
 ): Pick<EntityContent, "source" | "external_id">;
 export function registrationIdentity(
-  settings: EntityIdentitySettings,
-  input: Pick<EntityCreate, "source" | "external_id">,
+  settings: EntityTypeIdentity,
+  input: Pick<EntityCreate, "source" | "external_id" | "expected_version">,
 ): { source: string; external_id?: string };
 export function registrationIdentity(
-  settings: EntityIdentitySettings,
-  input: Pick<EntityCreate, "source" | "external_id">,
+  settings: EntityTypeIdentity,
+  input: Pick<EntityCreate, "source" | "external_id" | "expected_version">,
 ) {
   const source = input.source ?? settings.default_source;
-  if (!isActiveEntitySource(settings, source)) throw invalidInput("삭제되지 않은 발급처를 선택하세요");
+  if (input.external_id !== undefined && !entityNumberInput.safeParse(input.external_id).success) {
+    throw invalidInput("번호는 앞뒤 공백 없이 원본 문자열로 입력하세요");
+  }
+  const binding = settings.sources.find((value) => value.code === source);
+  if (!binding || (input.expected_version === undefined && !binding.active)) {
+    throw invalidInput("등록 가능한 발급처를 선택하세요");
+  }
   if (!input.external_id) {
-    if (entitySourceGeneration(settings, source) === "manual") throw invalidInput("식별자를 입력하세요");
+    if (binding.generation === "direct") throw invalidInput("식별자를 입력하세요");
   }
   return { source, external_id: input.external_id };
 }
@@ -46,7 +48,7 @@ export function registrationContent(
   before: ChangeFacts | null = null,
 ): EntityContent {
   const {
-    settings_version: _settings,
+    identity_version: _settings,
     expected_version: _version,
     change_note: _note,
     change_tag_ids: _tags,
@@ -67,45 +69,18 @@ export function registrationContent(
   };
 }
 
-/** Partial identity updates and ordinary properties share the same change decision. */
-export function entityUpdateDecision(
-  settings: EntityIdentitySettings,
-  current: { id: string; facts: ChangeFacts },
-  input: Omit<EntityUpdate, "expected_version">,
-  identityOnly = false,
-) {
-  const { change_note: _note, change_tag_ids: _tags, source, external_id, properties: patch, schema_version, ...rest } =
-    input;
-  const properties = {
-    ...rest,
-    ...(schema_version === undefined ? {} : { schema_version }),
-    ...(patch === undefined ? {} : { properties: { ...current.facts.properties, ...patch } }),
-  };
-  const identity = {
-    source: source ?? current.facts.source!,
-    external_id: external_id ?? current.facts.external_id!,
-  };
-  const id = entityId(identity.source, identity.external_id);
-  const rekey = id !== current.id;
-  if ((rekey || identityOnly) && !isActiveEntitySource(settings, identity.source)) {
-    throw invalidInput("삭제되지 않은 발급처를 선택하세요");
-  }
-  return {
-    id,
-    identity,
-    rekey,
-    properties,
-    contentChanged: changed(current.facts, properties),
-    after: { ...current.facts, ...properties, ...identity },
-  };
-}
-
-/** Restoration never changes the tuple and requires its issuer to remain active. */
-export function restorationContent(settings: EntityIdentitySettings, before: ChangeFacts, input: EntityCreate) {
+/** Restoration retains the original immutable tuple, including retired issuer bindings. */
+export function restorationContent(settings: EntityTypeIdentity, before: ChangeFacts, input: EntityCreate) {
   if (
     (input.source !== undefined && input.source !== before.source) ||
     (input.external_id !== undefined && input.external_id !== before.external_id)
-  ) throw invalidInput("복원은 같은 발급처·식별자로 준비하세요");
-  if (!isActiveEntitySource(settings, before.source)) throw invalidInput("삭제된 발급처를 먼저 복원하세요");
+  ) {
+    throw invalidInput("복원은 같은 발급처·번호로 준비하세요");
+  }
+  registrationIdentity(settings, {
+    source: before.source!,
+    external_id: before.external_id!,
+    expected_version: input.expected_version,
+  });
   return registrationContent(input, { source: before.source!, external_id: before.external_id! }, before);
 }

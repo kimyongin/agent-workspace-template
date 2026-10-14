@@ -63,7 +63,7 @@ Deno.test("valid near-64 KiB properties and schema retain every value through GE
     created_at: "2026-10-12T00:00:00Z",
   };
   const rows: EntityValues[] = Array.from({ length: 101 }, (_, n) => ({
-    id: `large:${String(n).padStart(3, "0")}`,
+    id: `large:${typeId}:${String(n).padStart(3, "0")}`,
     source: "large",
     external_id: String(n),
     source_label: "large",
@@ -121,7 +121,7 @@ Deno.test("valid near-64 KiB properties and schema retain every value through GE
   const schema = await app.request(`/entity-types/${typeId}/schema`);
   assertEquals(schema.status, 200);
   assertEquals((await schema.json()).schema, definition.schema);
-  const detail = await app.request("/entities/large:000");
+  const detail = await app.request(`/entities/large:${typeId}:000`);
   assertEquals(detail.status, 200);
   assertEquals((await detail.json()).properties, properties);
   for (const limit of [undefined, 100]) {
@@ -140,7 +140,7 @@ Deno.test("valid near-64 KiB properties and schema retain every value through GE
     assertEquals(next.status, 200);
     assertEquals(
       (await next.json()).items[0].id,
-      limit === 100 ? "large:100" : "large:020",
+      limit === 100 ? `large:${typeId}:100` : `large:${typeId}:020`,
     );
   }
   const registered = new Map<
@@ -196,6 +196,6 @@ Deno.test("valid near-64 KiB properties and schema retain every value through GE
     cursor: page.next_cursor,
   });
   assertEquals((next.structuredContent as typeof page).items.map((r) => r.id), [
-    "large:100",
+    `large:${typeId}:100`,
   ]);
 });

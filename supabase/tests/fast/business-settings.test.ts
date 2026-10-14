@@ -1,3 +1,4 @@
+import { identityFixture } from "../_entity-identity.ts";
 import { requestActor } from "../_request.ts";
 import { assertEquals, assertRejects } from "@std/assert";
 import {
@@ -27,7 +28,7 @@ const definition = () =>
   });
 
 Deno.test("업무 설정: 모델 템플릿 저장 후 읽기, 다른 섹션 유지, 오래된 버전 거부", async () => {
-  let value: BusinessSettingsResult = { versions: { record_templates: 0, entity_identity: 0 }, settings: {} };
+  let value: BusinessSettingsResult = { versions: { record_templates: 0 }, settings: {} };
   const d: BusinessSettingsDeps = {
     clock: { now: () => new Date("2026-10-09T00:00:00Z") },
     uow: {
@@ -80,7 +81,7 @@ Deno.test("기록 준비: 생성 할 일의 실제 기본 상태·빈 본문·�
           executeRequest: <T>(_request: unknown, execute: () => Promise<T>) => execute(),
           get: () =>
             Promise.resolve({
-              versions: { record_templates: 1, entity_identity: 1 },
+              versions: { record_templates: 1 },
               settings: {
                 record_templates: {
                   task: { create: { memo: "${할일.이후.상태$}/${할일.이후.본문$}/${할일.이후.기한$}", tag_ids: [] } },
@@ -107,8 +108,9 @@ Deno.test("자료 등록 준비: 타입 정의의 등록 기본값과 기존 기
       run: (_actor, fn) =>
         fn({
           executeRequest: <T>(_request: unknown, execute: () => Promise<T>) => execute(),
-          get: () => Promise.resolve({ versions: { record_templates: 0, entity_identity: 0 }, settings: {} }),
+          get: () => Promise.resolve({ versions: { record_templates: 0 }, settings: {} }),
           target: () => Promise.resolve(null),
+          getTypeIdentity: () => Promise.resolve(identityFixture(entity_type_id)),
           definition,
           update: () => Promise.reject(new Error("읽기 전용")),
           recordTags: () => Promise.resolve([]),
@@ -130,7 +132,7 @@ Deno.test("자료 등록 준비: 타입 정의의 등록 기본값과 기존 기
   });
   assertEquals(prepared.prepared_input, {
     source: "app",
-    settings_version: 0,
+    identity_version: 1,
     external_id: "001",
     entity_type_id,
     schema_version: 1,
@@ -142,55 +144,6 @@ Deno.test("자료 등록 준비: 타입 정의의 등록 기본값과 기존 기
   });
 });
 
-Deno.test("업무 설정: 발급처 표시 이름은 바꾸지만 저장된 코드를 제거하거나 바꾸지 않는다", async () => {
-  const value: BusinessSettingsResult = {
-    versions: { record_templates: 1, entity_identity: 1 },
-    settings: {
-      entity_identity: {
-        generation: "manual",
-        default_source: "crm",
-        sources: [{ code: "app", label: "앱" }, { code: "crm", label: "고객 관리" }],
-      },
-    },
-  };
-  const d: BusinessSettingsDeps = {
-    clock: { now: () => new Date("2026-10-09T00:00:00Z") },
-    uow: {
-      run: (_actor, fn) =>
-        fn({
-          executeRequest: <T>(_request: unknown, execute: () => Promise<T>) => execute(),
-          get: () => Promise.resolve(value),
-          recordTags: () => Promise.resolve([]),
-          update: ({ id, value: section }) =>
-            Promise.resolve({ versions: { record_templates: 2, entity_identity: 2 }, settings: { [id]: section } }),
-        }),
-    },
-  };
-  const actor = { userId: crypto.randomUUID() };
-  await assertRejects(
-    () =>
-      updateBusinessSettings(d, requestActor(actor), {
-        expected_version: 1,
-        id: "entity_identity",
-        value: { generation: "uuid", default_source: "app", sources: [{ code: "app", label: "앱" }] },
-      }),
-    AppError,
-  );
-  const renamed = await updateBusinessSettings(d, requestActor(actor), {
-    expected_version: 1,
-    id: "entity_identity",
-    value: {
-      generation: "manual",
-      default_source: "crm",
-      sources: [{ code: "app", label: "앱" }, { code: "crm", label: "고객" }],
-    },
-  });
-  assertEquals(renamed.settings.entity_identity?.sources.find((source) => source.code === "crm"), {
-    code: "crm",
-    label: "고객",
-  });
-});
-
 Deno.test("기록 준비: 실제 수정 계약에서 거부할 입력을 미리보기에서도 거부", async () => {
   const d: BusinessSettingsDeps = {
     clock: { now: () => new Date("2026-10-09T00:00:00Z") },
@@ -198,7 +151,7 @@ Deno.test("기록 준비: 실제 수정 계약에서 거부할 입력을 미리�
       run: (_actor, fn) =>
         fn({
           executeRequest: <T>(_request: unknown, execute: () => Promise<T>) => execute(),
-          get: () => Promise.resolve({ versions: { record_templates: 0, entity_identity: 0 }, settings: {} }),
+          get: () => Promise.resolve({ versions: { record_templates: 0 }, settings: {} }),
           update: () => Promise.reject(new Error("읽기만")),
           recordTags: () => Promise.resolve([]),
           target: () =>
@@ -231,7 +184,7 @@ Deno.test("기록 준비: 해석 후 메모가 본문 제한을 넘으면 쓰기
           executeRequest: <T>(_request: unknown, execute: () => Promise<T>) => execute(),
           get: () =>
             Promise.resolve({
-              versions: { record_templates: 1, entity_identity: 1 },
+              versions: { record_templates: 1 },
               settings: { record_templates: { task: { create: { memo: "추가 ${할일.이후.본문$}", tag_ids: [] } } } },
             }),
           update: () => Promise.reject(new Error("읽기만")),
@@ -259,7 +212,7 @@ Deno.test("복원 기록 준비: 보관한 0·태그·식별 정보를 보존하
           executeRequest: <T>(_request: unknown, execute: () => Promise<T>) => execute(),
           get: () =>
             Promise.resolve({
-              versions: { record_templates: 1, entity_identity: 1 },
+              versions: { record_templates: 1 },
               settings: {
                 record_templates: {
                   entity_types: {
@@ -275,6 +228,7 @@ Deno.test("복원 기록 준비: 보관한 0·태그·식별 정보를 보존하
             }),
           update: () => Promise.reject(new Error("읽기만")),
           recordTags: () => Promise.resolve([]),
+          getTypeIdentity: () => Promise.resolve(identityFixture(entity_type_id)),
           definition,
           target: () =>
             Promise.resolve({
@@ -295,7 +249,7 @@ Deno.test("복원 기록 준비: 보관한 0·태그·식별 정보를 보존하
   const prepared = await prepareBusinessRecord(d, { userId: crypto.randomUUID() }, {
     model: "entity",
     action: "restore",
-    target_id: "app:001",
+    target_id: `app:${entity_type_id}:001`,
     expected_version: 3,
     input: { entity_type_id, schema_version: 1, properties: {} },
   });
@@ -304,7 +258,7 @@ Deno.test("복원 기록 준비: 보관한 0·태그·식별 정보를 보존하
     source: "app",
     external_id: "001",
     expected_version: 3,
-    settings_version: 1,
+    identity_version: 1,
     entity_type_id,
     schema_version: 1,
     properties: {},
@@ -328,7 +282,7 @@ Deno.test("기록 준비: 반복 중단·재개의 기간은 실제 상태 전�
           executeRequest: <T>(_request: unknown, execute: () => Promise<T>) => execute(),
           get: () =>
             Promise.resolve({
-              versions: { record_templates: 1, entity_identity: 1 },
+              versions: { record_templates: 1 },
               settings: {
                 record_templates: {
                   task: {

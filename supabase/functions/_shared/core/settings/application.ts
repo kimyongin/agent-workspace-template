@@ -1,3 +1,5 @@
+import type { EntityTypeIdentity } from "../../contracts/entity-issuer.ts";
+import { assertImmutableType } from "../entity/application.ts";
 import type { RequestStore } from "../shared/request.ts";
 import { runWrite } from "../shared/request.ts";
 import {
@@ -21,21 +23,16 @@ import {
   type TemplateModel,
 } from "../../contracts/record-template.ts";
 import { changeDefaults } from "./change-defaults.ts";
-import {
-  entityUpdateDecision,
-  registrationContent,
-  registrationIdentity,
-  registrationState,
-  restorationContent,
-} from "../entity/domain.ts";
+import { registrationContent, registrationIdentity, registrationState, restorationContent } from "../entity/domain.ts";
 import type { ChangeFacts } from "../shared/changes.ts";
 import { taskCreate, taskUpdate } from "../../contracts/task.ts";
 import { resumeTask, stopTask, taskContent, updateTask } from "../activity/domain.ts";
-import { type EntityCreate, entityCreate, type EntityUpdate, entityUpdate } from "../../contracts/entity.ts";
+import { type EntityCreate, entityCreate, entityUpdate } from "../../contracts/entity.ts";
 import { principleCreate, principleUpdate } from "../../contracts/principle.ts";
-import { defaultEntityIdentitySettings, entityId } from "../../contracts/entity-identity.ts";
+import { entityId } from "../../contracts/entity-identity.ts";
 import { checkedProperties, type EntityDefinitions, requireDefinition } from "../entity/values.ts";
 export interface BusinessSettingsStore extends RequestStore {
+  getTypeIdentity?(typeId: string, lock?: boolean): Promise<EntityTypeIdentity | null>;
   definition?: EntityDefinitions["definition"];
   get(): Promise<BusinessSettingsResult>;
   update(input: BusinessSettingsUpdate): Promise<BusinessSettingsResult>;
@@ -78,6 +75,12 @@ export function prepareBusinessRecord(
       before = target.facts;
     }
     let content = input.input;
+    if (input.model === "entity" && input.action === "update") assertImmutableType(content);
+    let identity: EntityTypeIdentity | null = null;
+    if (input.model === "entity" && ["create", "restore"].includes(input.action)) {
+      identity = await store.getTypeIdentity?.(String(content.entity_type_id ?? before?.entity_type_id ?? "")) ?? null;
+      if (!identity) throw notFound();
+    }
     let prepared_input = content;
     if (input.action === "update" || input.action === "restore") {
       const schema = input.action === "restore"
@@ -102,24 +105,9 @@ export function prepareBusinessRecord(
         )
         : fields;
       prepared_input = content;
-      if (
-        input.model === "entity" && input.action === "update" &&
-        (content.source !== undefined || content.external_id !== undefined)
-      ) {
-        const settings = saved.settings.entity_identity ?? defaultEntityIdentitySettings;
-        // content was validated by entityUpdate above; its envelope is kept for prepared_input.
-        const decision = entityUpdateDecision(
-          settings,
-          { id: input.target_id!, facts: before! },
-          content as EntityUpdate,
-        );
-        if (decision.rekey && await store.target?.("entity", decision.id)) {
-          throw conflict("같은 발급처·식별자의 엔터티가 있습니다");
-        }
-      }
       if (input.action === "restore") {
         content = restorationContent(
-          saved.settings.entity_identity ?? defaultEntityIdentitySettings,
+          identity!,
           before!,
           content as EntityCreate,
         );
@@ -138,11 +126,14 @@ export function prepareBusinessRecord(
       prepared_input = creation.data;
       content = input.model === "task" ? taskContent(taskCreate.parse(creationInput)) : creation.data;
       if (input.model === "entity") {
-        const settings = saved.settings.entity_identity ?? defaultEntityIdentitySettings;
+        const settings = identity!;
         const { source } = registrationIdentity(settings, content);
         const external_id = content.external_id as string | undefined;
         if (external_id !== undefined) {
-          const existing = await store.target?.("entity", entityId(source, external_id));
+          const existing = await store.target?.(
+            "entity",
+            entityId(source, String(content.entity_type_id), external_id),
+          );
           const registration = registrationState(existing ?? null);
           if (registration !== "create") {
             throw conflict(
@@ -155,7 +146,7 @@ export function prepareBusinessRecord(
         } else {
           content = { ...content, source };
         }
-        prepared_input = { ...creation.data, ...content, settings_version: saved.versions.entity_identity };
+        prepared_input = { ...creation.data, ...content, identity_version: identity!.version };
       }
     }
     if (input.action === "stop" || input.action === "resume") {
@@ -208,7 +199,7 @@ export function prepareBusinessRecord(
         ...prepared_input,
         source: before?.source,
         external_id: before?.external_id,
-        settings_version: saved.versions.entity_identity,
+        identity_version: identity!.version,
       };
     }
     if (input.action !== "create") prepared_input = { ...prepared_input, expected_version: input.expected_version };
@@ -277,15 +268,6 @@ export function updateBusinessSettings(d: BusinessSettingsDeps, actor: Actor, in
     const current = await store.get();
     if (current.versions[parsed.data.id] !== parsed.data.expected_version) {
       throw conflict("같은 설정에 다른 변경이 저장되어 있습니다. 최신값을 확인한 뒤 다시 저장하세요.");
-    }
-    if (sections.entity_identity) {
-      const nextCodes = new Set(sections.entity_identity.sources.map((source) => source.code));
-      if (current.settings.entity_identity?.sources.some((source) => !nextCodes.has(source.code))) {
-        throw invalidInput("발급처 코드는 보존해야 합니다. 삭제 상태로 바꾸거나 복원하세요.", [{
-          path: "value.sources",
-          message: "기존 발급처 코드를 제거하거나 변경할 수 없습니다",
-        }]);
-      }
     }
     if (
       new TextEncoder().encode(JSON.stringify(parsed.data.value)).length >

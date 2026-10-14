@@ -3,7 +3,13 @@ import { businessMeta } from "./change.ts";
 import { tagIds } from "./tag.ts";
 import { recordResult } from "./record.ts";
 import { codePointLength, expectedVersion, id, isoDateTime, page, pageInput, text } from "./common.ts";
-import { entityExternalId, entityReferenceId, entitySourceCode } from "./entity-identity.ts";
+import {
+  entityExternalId,
+  entityNumberInput,
+  entityReferenceId,
+  entitySourceCode,
+  entityTypeKey,
+} from "./entity-identity.ts";
 import { propertyKey } from "./entity-type.ts";
 export const entityProperties = z.record(
   propertyKey,
@@ -11,12 +17,12 @@ export const entityProperties = z.record(
 );
 const schemaVersion = z.number().int().positive();
 export const entityCreate = z.strictObject({
-  entity_type_id: z.string().uuid(),
+  entity_type_id: entityTypeKey,
   schema_version: schemaVersion,
   properties: entityProperties,
-  settings_version: z.number().int().nonnegative().optional(),
+  identity_version: z.number().int().nonnegative().optional(),
   source: entitySourceCode.optional(),
-  external_id: entityExternalId.optional(),
+  external_id: entityNumberInput.optional(),
   expected_version: expectedVersion.optional(),
   ...businessMeta,
   tag_ids: tagIds.optional(),
@@ -24,8 +30,6 @@ export const entityCreate = z.strictObject({
 export const entityUpdate = z.strictObject({
   schema_version: schemaVersion,
   properties: entityProperties.optional(),
-  source: entitySourceCode.optional(),
-  external_id: entityExternalId.optional(),
   ...businessMeta,
   tag_ids: tagIds.optional(),
   expected_version: expectedVersion,
@@ -48,6 +52,7 @@ export const entityPropertyFilter = z.union([
 ]);
 export const entityPropertySort = z.strictObject({ key: propertyKey, direction: z.enum(["asc", "desc"]) });
 export const entityListQuery = z.strictObject({
+  source: entitySourceCode.optional(),
   entity_type_id: z.string().uuid().optional(),
   link_candidate_for: entityReferenceId.optional(),
   tag_id: id.optional(),

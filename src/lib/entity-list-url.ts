@@ -6,7 +6,10 @@ const invalid = "속성 조건 주소가 잘못되었거나 중복되었습니�
 type VisitLocation = { pathname: string; search: string; hash?: string };
 
 /** Resolve a visit's disclosed list without accepting another owner's route or an external URL. */
-export function detailListReturn(location: VisitLocation, owner = `/${location.pathname.split("/")[1]}`): string | null {
+export function detailListReturn(
+  location: VisitLocation,
+  owner = `/${location.pathname.split("/")[1]}`,
+): string | null {
   return internalListReturn(new URLSearchParams(location.search).get("list"), owner, location.hash ?? "");
 }
 
@@ -14,48 +17,22 @@ export function internalListReturn(value: string | null, owner: string, hash = "
   if (!value?.startsWith("/") || value.startsWith("//") || value.includes("\\")) return null;
   try {
     const url = new URL(restoreEntityListLink(value, hash), "https://workspace.invalid");
-    return url.origin === "https://workspace.invalid" && url.pathname === owner ? `${url.pathname}${url.search}${url.hash}` : null;
-  } catch { return null; }
-}
-
-/** A saved identity follows its list, reopened details and focus without exposing their encoding. */
-export function rekeyEntityDetailLink(location: VisitLocation, previousId: string, savedId: string): string {
-  const viewer = new URLSearchParams(location.search);
-  viewer.delete("edit");
-  viewer.delete("edit_from");
-  const list = detailListReturn(location, "/entities");
-  if (list) {
-    const destination = new URL(list, "https://workspace.invalid");
-    const opened = destination.searchParams.getAll("open");
-    destination.searchParams.delete("open");
-    for (const path of opened) destination.searchParams.append("open", path === entityPath(previousId) ? entityPath(savedId) : path);
-    const state = readEntityListUrl(destination.searchParams, destination.hash);
-    const previousAnchor = `#${encodeURIComponent(`entity-${previousId}`)}`;
-    const savedAnchor = `#${encodeURIComponent(`entity-${savedId}`)}`;
-    if (state.error) {
-      destination.hash = replaceListAnchor(destination.hash, previousAnchor, savedAnchor);
-      viewer.set("list", `${destination.pathname}${destination.search}${destination.hash}`);
-    } else {
-      const target = writeEntityListUrl(destination.searchParams, state.raw, state.anchor === previousAnchor ? savedAnchor : state.anchor);
-      viewer.set("list", `${destination.pathname}?${target.search}${target.hash}`);
-    }
+    return url.origin === "https://workspace.invalid" && url.pathname === owner
+      ? `${url.pathname}${url.search}${url.hash}`
+      : null;
+  } catch {
+    return null;
   }
-  const back = viewer.get("list");
-  if (!back) return `${entityPath(savedId)}?${viewer}${location.hash ?? ""}`;
-  viewer.delete("list");
-  return detailListLink(`${entityPath(savedId)}?${viewer}`, back);
-}
-
-/** Preserve ambiguous filter bytes until explicit repair; only a unique matching focus may move. */
-function replaceListAnchor(hash: string, previous: string, next: string): string {
-  const fragment = new URLSearchParams(hash.slice(1));
-  if (!fragment.has(key)) return hash === previous ? next : hash;
-  if (fragment.getAll("anchor").length !== 1 || `#${encodeURIComponent(fragment.get("anchor")!)}` !== previous) return hash;
-  return "#" + hash.slice(1).split("&").map(part => new URLSearchParams(part).has("anchor") ? `anchor=${next.slice(1)}` : part).join("&");
 }
 
 /** A list row's return context owns scroll, focus and the short/fragment representation. */
-export function entityListReturnPath(params: URLSearchParams, hash: string, id: string, scroll: number, route = "/entities"): string {
+export function entityListReturnPath(
+  params: URLSearchParams,
+  hash: string,
+  id: string,
+  scroll: number,
+  route = "/entities",
+): string {
   const next = new URLSearchParams(params);
   next.set("scroll", String(Math.max(0, Math.round(scroll))));
   const anchor = `#${encodeURIComponent(`entity-${id}`)}`;
@@ -70,29 +47,54 @@ export function readEntityListUrl(params: URLSearchParams, hash: string) {
   const raw = hasFragment ? fragment.get(key) : params.get(key);
   let error: string | null = null;
   const anchor = hasFragment ? fragment.get("anchor") ? `#${encodeURIComponent(fragment.get("anchor")!)}` : "" : hash;
-  if (params.getAll(key).length > 1 || params.getAll("entity_type_id").length > 1 || hasFragment && (
-    params.has(key) || fragment.getAll(key).length !== 1 || fragment.getAll("entity_type_id").length !== 1 || fragment.getAll("anchor").length > 1 ||
-    [...fragment.keys()].some(name => ![key,"entity_type_id","anchor"].includes(name)) || !params.get("entity_type_id") || fragment.get("entity_type_id") !== params.get("entity_type_id")
-  )) error = invalid;
-  if (hasFragment) { try { decodeURIComponent(hash.slice(1)); } catch { error = invalid; } }
+  if (
+    params.getAll(key).length > 1 || params.getAll("entity_type_id").length > 1 || hasFragment && (
+        params.has(key) || fragment.getAll(key).length !== 1 || fragment.getAll("entity_type_id").length !== 1 ||
+        fragment.getAll("anchor").length > 1 ||
+        [...fragment.keys()].some((name) => ![key, "entity_type_id", "anchor"].includes(name)) ||
+        !params.get("entity_type_id") || fragment.get("entity_type_id") !== params.get("entity_type_id")
+      )
+  ) error = invalid;
+  if (hasFragment) {
+    try {
+      decodeURIComponent(hash.slice(1));
+    } catch {
+      error = invalid;
+    }
+  }
   if (raw !== null) {
-    try { if (!entityListQuery.shape.filters.safeParse(JSON.parse(raw)).success) error = invalid; } catch { error = invalid; }
+    try {
+      if (!entityListQuery.shape.filters.safeParse(JSON.parse(raw)).success) error = invalid;
+    } catch {
+      error = invalid;
+    }
   }
   return { raw, anchor, error };
 }
 export function writeEntityListUrl(params: URLSearchParams, raw: string | null, anchor = "") {
-  const next = new URLSearchParams(params); next.delete(key);
+  const next = new URLSearchParams(params);
+  next.delete(key);
   if (raw) next.set(key, raw);
-  if (!raw || new TextEncoder().encode(`/entities?${next}`).byteLength <= ENTITY_QUERY_URL_MAX_BYTES) return { search: next.toString(), hash: anchor };
+  if (!raw || new TextEncoder().encode(`/entities?${next}`).byteLength <= ENTITY_QUERY_URL_MAX_BYTES) {
+    return { search: next.toString(), hash: anchor };
+  }
   next.delete(key);
   const fragment = new URLSearchParams({ [key]: raw, entity_type_id: next.get("entity_type_id") ?? "" });
-  if (anchor) { try { fragment.set("anchor", decodeURIComponent(anchor.slice(1))); } catch { fragment.set("anchor", anchor.slice(1)); } }
+  if (anchor) {
+    try {
+      fragment.set("anchor", decodeURIComponent(anchor.slice(1)));
+    } catch {
+      fragment.set("anchor", anchor.slice(1));
+    }
+  }
   return { search: next.toString(), hash: `#${fragment}` };
 }
 /** Keep list filter fragments out of a detail's encoded list query as well. */
 export function detailListLink(path: string, list: string) {
-  if (!list.startsWith("/entities?") && !path.split(/[?#]/)[0].startsWith("/entities/")) return `${path}?list=${encodeURIComponent(list)}`;
-  const url = new URL(list, "https://workspace.invalid"), detail = new URL(path,"https://workspace.invalid");
+  if (!list.startsWith("/entities?") && !path.split(/[?#]/)[0].startsWith("/entities/")) {
+    return `${path}?list=${encodeURIComponent(list)}`;
+  }
+  const url = new URL(list, "https://workspace.invalid"), detail = new URL(path, "https://workspace.invalid");
   const fragmented = new URLSearchParams(url.hash.slice(1)).has(key);
   detail.searchParams.set("list", fragmented ? `${url.pathname}${url.search}` : list);
   if (fragmented) detail.hash = url.hash;
@@ -114,7 +116,7 @@ function restoreEntityListLink(list: string, hash: string) {
 export function entityListAnchor(hash: string) {
   const fragment = new URLSearchParams(hash.slice(1));
   if (!fragment.has(key)) return hash;
-  const state = readEntityListUrl(new URLSearchParams({ entity_type_id: fragment.get("entity_type_id") ?? "" }),hash);
+  const state = readEntityListUrl(new URLSearchParams({ entity_type_id: fragment.get("entity_type_id") ?? "" }), hash);
   return state.error ? "" : state.anchor;
 }
 

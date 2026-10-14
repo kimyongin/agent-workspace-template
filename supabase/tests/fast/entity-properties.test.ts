@@ -1,3 +1,4 @@
+import { identityFixture } from "../_entity-identity.ts";
 import { assertEquals, assertRejects } from "@std/assert";
 import {
   createEntity,
@@ -30,7 +31,7 @@ Deno.test("Typed entity usecase validates the final patch, uses defaults only at
         type_version: 1,
         type: { id: typeId, label: "재료", icon_id: "leaf", archived: false },
       }),
-    getBusinessSettings: () => Promise.resolve({ settings: {} }),
+    getTypeIdentity: () => Promise.resolve(identityFixture(typeId)),
     get: () => Promise.resolve(state.row),
     insert: (i: Parameters<EntityStore["insert"]>[0]) =>
       Promise.resolve(

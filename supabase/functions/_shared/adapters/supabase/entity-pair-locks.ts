@@ -15,10 +15,3 @@ export async function lockEndpoints(tx: postgres.TransactionSql, ids: string[]) 
     await tx`select id from app.entities where id=${id} for update`;
   }
 }
-/** Acquire pair membership first, then the complete type/endpoint neighborhood before the origin lock. */
-export async function prepareEntityPairRekey(tx: postgres.TransactionSql, actor: Actor, id: string) {
-  await lockEntityPairs(tx, actor);
-  const peers = await tx<{ id: string }[]>`select case when entity_id=${id} then other_id else entity_id end as id
-    from app.entity_pairs where entity_id=${id} or other_id=${id}`;
-  await lockEndpoints(tx, [id, ...peers.map((r) => r.id)]);
-}
