@@ -1,5 +1,8 @@
-import { scalarFixtureType, fixtureEntityList } from "./entity-schema-support.ts";
-import { test, mcpClient, mcpTokenViaConsent } from "./support.ts";
+import {
+  fixtureEntityList,
+  scalarFixtureType,
+} from "./entity-schema-support.ts";
+import { mcpClient, mcpTokenViaConsent, test } from "./support.ts";
 // Real browser + HTTP commit evidence. Only the response is lost; writes reach the local server.
 import postgres from "postgres";
 import { expect, type Page } from "@playwright/test";
@@ -164,25 +167,66 @@ test("committed task create, edit and delete survive a lost reply with one event
   }
 });
 
-test("external entity restore retries the committed tuple and settings lookup allocates nothing", async ({ page }) => {
+test("external entity restore retries the committed tuple and type identity lookup allocates nothing", async ({ page }) => {
   await devLogin(page);
   const proof = await evidence(page), external_id = `000Ab:/한글%${unique("복원 식별자")}`, title = unique("응답 유실 복원");
   let id: string | undefined;
   try {
-    const settings = await proof.api("GET", "/settings/business?id=entity_identity");
     const fixtureMcp = await mcpClient(await mcpTokenViaConsent(page));
     const type = await scalarFixtureType(fixtureMcp);
     await fixtureMcp.close();
-    const source = settings.settings.entity_identity.default_source;
-    const entity = await proof.api("POST", "/entities", { source, external_id, settings_version: settings.versions.entity_identity, entity_type_id:type.id,schema_version:type.schema_version,properties:{prop_1:title,prop_2:0,prop_4:"a"} });
+    const source = `e2e_${
+      crypto.randomUUID().replaceAll("-", "").slice(0, 16)
+    }`;
+    await proof.api("POST", "/entity-issuers", {
+      code: source,
+      label: "복원 검사 발급처",
+    });
+    const rule = await proof.api("POST", `/entity-issuers/${source}/rules`, {
+      label: "원본 번호",
+      meaning: "복원 검사용 원본 번호",
+    });
+    const initial = await proof.api("GET", `/entity-types/${type.id}/identity`);
+    const identity = await proof.api(
+      "PATCH",
+      `/entity-types/${type.id}/identity`,
+      {
+        label: "식별자",
+        default_source: source,
+        expected_version: initial.version,
+        sources: [
+          ...initial.sources.map(({ code, rule_id, active }: any) => ({
+            code,
+            rule_id,
+            active,
+          })),
+          { code: source, rule_id: rule.id, active: true },
+        ],
+      },
+    );
+    const entity = await proof.api("POST", "/entities", {
+      source,
+      external_id,
+      identity_version: identity.version,
+      entity_type_id:type.id,
+      schema_version:type.schema_version,
+      properties:{prop_1:title,prop_2:0,prop_4:"a"},
+    });
     id = entity.id;
     await proof.api("POST", `/entities/${encodeURIComponent(id!)}/delete`, { expected_version: entity.version });
+    const settings = await proof.api(
+      "GET",
+      `/entity-types/${type.id}/identity`,
+    );
     const before = await proof.preparationState();
     const taskPreparation = await proof.api("POST", "/records/prepare", {
       model: "task", action: "create", input: { kind: "once", title: unique("준비만 하는 할 일") },
     });
     expect(taskPreparation.prepared_input).not.toHaveProperty("id");
-    const identitySettings = await proof.api("GET", "/settings/business?id=entity_identity");
+    const identitySettings = await proof.api(
+      "GET",
+      `/entity-types/${type.id}/identity`,
+    );
     expect(identitySettings).toEqual(settings);
     const retained = await proof.api("GET", `/entities/${encodeURIComponent(id!)}`);
     expect(retained.version).toBe(2);
@@ -202,7 +246,12 @@ test("external entity restore retries the committed tuple and settings lookup al
     await saveOnce(page, restore);
     await lostRestore.retry();
     const payload = JSON.parse(lostRestore.requests[0].body!);
-    expect([payload.source, payload.external_id, payload.settings_version, payload.expected_version]).toEqual([source, external_id, settings.versions.entity_identity, 2]);
+    expect([
+      payload.source,
+      payload.external_id,
+      payload.identity_version,
+      payload.expected_version,
+    ]).toEqual([source, external_id, settings.version, 2]);
     expect(lostRestore.requests[0].result.id).toBe(id);
     const current = await proof.api("GET", `/entities/${encodeURIComponent(id!)}`);
     expect([current.version, current.deleted_at]).toEqual([3, null]);

@@ -1,6 +1,16 @@
-import { createFixtureEntity, scalarFixtureType, fixtureEntityList } from "./entity-schema-support.ts";
+import {
+  createFixtureEntity,
+  fixtureEntityList,
+  scalarFixtureType,
+} from "./entity-schema-support.ts";
 import { expect } from "@playwright/test";
-import { test, devLogin, mcpClient, mcpTokenViaConsent, unique } from "./support.ts";
+import {
+  devLogin,
+  mcpClient,
+  mcpTokenViaConsent,
+  test,
+  unique,
+} from "./support.ts";
 import { savePrinciple } from "./principle-support.ts";
 import { openDetailEditor, saveOnce } from "./ui-actions.ts";
 
@@ -14,8 +24,18 @@ for (const model of ["entity", "task", "principle"] as const) {
       let resultId: string | undefined;
       try {
         if (model === "entity") {
-          const setting = await mcp.call("get_business_settings", { id: "entity_identity" });
-          target = await createFixtureEntity(mcp, { prop_1: title, prop_2: 0 }, { source: setting.settings.entity_identity.default_source, settings_version: setting.versions.entity_identity });
+          const type = await scalarFixtureType(mcp);
+          const identity = await mcp.call("get_entity_type_identity", {
+            type_id: type.id,
+          });
+          target = await createFixtureEntity(
+            mcp,
+            { prop_1: title, prop_2: 0 },
+            {
+              source: identity.default_source,
+              identity_version: identity.version,
+            },
+          );
         } else if (model === "task") target = await mcp.call("create_task", { kind: "once", title });
         else target = await savePrinciple(mcp, { title });
         const list = model === "entity" ? "entities" : model === "task" ? "tasks" : "principles";
