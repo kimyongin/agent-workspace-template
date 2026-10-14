@@ -79,3 +79,47 @@ test("식별자 설정 충돌 뒤 최신 버전을 명시적으로 채택해도 
     saved: { label: "내 상품 번호", version: 5 },
   });
 });
+
+test("발급처 모달 뒤 조회가 더 새로운 설정을 읽어도 미저장 식별자 초안을 자동 재기준하지 않는다", async () => {
+  const before: EntityTypeIdentity = {
+    type_id: "11111111-1111-4111-8111-111111111111",
+    label: "상품 번호",
+    default_source: "app",
+    version: 1,
+    sources: [{
+      code: "app",
+      rule_id: "00000000-0000-4000-8000-000000000001",
+      active: true,
+      referenced: false,
+      source_label: "앱",
+      rule_label: "자동 발급",
+      generation: "automatic",
+    }],
+  };
+  let remote = before;
+  const writes: unknown[] = [];
+  const resource = createSettingsDraft(
+    typeIdentitySettingsAdapter(before.type_id, {
+      read: async () => remote,
+      save: async (_id, input) => {
+        writes.push(input);
+        return { ...remote, label: input.label, version: 3 };
+      },
+    }),
+  );
+  await resource.read();
+  resource.edit((value) => ({ ...value, label: "내 상품 번호" }));
+  remote = { ...before, label: "다른 창의 번호", version: 2 };
+  await resource.read();
+  await resource.save();
+  expect(resource.snapshot()).toMatchObject({ conflict: true, latestReady: true, draft: { label: "내 상품 번호" } });
+  expect(writes).toEqual([]);
+  resource.acceptLatest();
+  await resource.save();
+  expect(writes).toEqual([{
+    label: "내 상품 번호",
+    default_source: "app",
+    sources: [{ code: "app", rule_id: "00000000-0000-4000-8000-000000000001", active: true }],
+    expected_version: 2,
+  }]);
+});
