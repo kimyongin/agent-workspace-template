@@ -184,3 +184,24 @@ test("기존 식별자 주소도 일반 설정의 식별자 섹션으로 연결�
   await expect(page).toHaveURL(/\/settings#entity-identity-title$/);
   await expect(page.getByRole("form", { name: "자료 식별자 설정", exact: true })).toBeVisible();
 });
+
+test("공유 기록 설정은 본문 조회만 작은 버튼으로 표시하고 저장 버튼을 유지한다", async ({ page }) => {
+  const fixture = await settingsFixture(page);
+  await page.goto("/settings");
+  const form = page.getByRole("form", { name: "변경 기록 기본값", exact: true });
+  await expect(form).toBeVisible();
+  await form.getByLabel("메모 템플릿").fill("기록 설정 버튼 검증");
+  fixture.fail("conflict");
+  const save = form.getByRole("button", { name: "기록 기본값 저장", exact: true });
+  await save.click();
+  const reload = form.getByRole("button", { name: "최신값 확인", exact: true });
+  await expect(reload).toBeVisible();
+  expect(await reload.locator(".body-action-face").evaluate(el => getComputedStyle(el).fontSize)).toBe("12px");
+  expect(await save.evaluate(el => ({ font: getComputedStyle(el).fontSize, height: el.getBoundingClientRect().height }))).toEqual({ font: "14px", height: 44 });
+  await reload.click();
+  await expect(form.getByLabel("메모 템플릿")).toHaveValue("기록 설정 버튼 검증");
+  await expect(form.getByRole("button", { name: "최신값으로 다시 편집", exact: true })).toBeEnabled();
+  await form.getByRole("button", { name: "최신값으로 다시 편집", exact: true }).click();
+  await expect(reload).toHaveCount(0);
+  await expect(form.getByLabel("메모 템플릿")).toBeVisible();
+});

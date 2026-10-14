@@ -6,3 +6,6 @@
 .body-action:hover:not(:disabled):not([aria-disabled="true"]) .body-action-face { background: var(--line); color: var(--ink); }
 .body-action:hover:not(:disabled):not([aria-disabled="true"]) .body-action-face[data-tone="accent"] { background: color-mix(in srgb,var(--accent) 20%,transparent); color: var(--accent); }
 .body-action:disabled, .body-action[aria-disabled="true"] { opacity: .6; cursor: not-allowed; }
+
+.body-action-face[data-tone="danger"] { color: var(--danger); }
+.body-action:hover:not(:disabled):not([aria-disabled="true"]) .body-action-face[data-tone="danger"] { color: var(--danger); }

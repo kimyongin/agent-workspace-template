@@ -1,3 +1,4 @@
+import { BodyAction } from "../../components/BodyAction.tsx";
 import { schemaDiffLabel, schemaValueLabel } from "./schema-labels.ts";
 import { useEffect, useRef, useState } from "react";
 import type {
@@ -352,8 +353,8 @@ export function ConversionEditor(
                 return (
                   <fieldset disabled={disabled} key={key}>
                     <legend>{plan.target.schema.properties[key]?.title ?? "속성"} 직접 보완</legend>
-                    <button
-                      className="btn"
+                    <BodyAction
+
                       onClick={() =>
                         setOverride(
                           row,
@@ -367,7 +368,7 @@ export function ConversionEditor(
                         )}
                     >
                       보완값 지정
-                    </button>
+                    </BodyAction>
                     {o && (
                       <>
                         <Literal
@@ -375,13 +376,13 @@ export function ConversionEditor(
                           value={o.value}
                           onChange={(v) => setOverride(row, key, v)}
                         />
-                        <button
-                          className="btn"
+                        <BodyAction
+
                           onClick={() =>
                             onChange({ ...migration, overrides: migration.overrides.filter((x) => x !== o) })}
                         >
                           보완 취소
-                        </button>
+                        </BodyAction>
                       </>
                     )}
                   </fieldset>
@@ -389,8 +390,8 @@ export function ConversionEditor(
               })}
             </article>
           ))}
-          {page?.next_after && <button className="btn" onClick={() => void load(page.next_after!)}>다음 결과</button>}
-          <button className="btn" onClick={() => void load()}>첫 결과 다시 조회</button>
+          {page?.next_after && <BodyAction  onClick={() => void load(page.next_after!)}>다음 결과</BodyAction>}
+          <BodyAction icon="reset"  onClick={() => void load()}>첫 결과 다시 조회</BodyAction>
         </>
       )}
       {error && <p role="alert">{error}</p>}

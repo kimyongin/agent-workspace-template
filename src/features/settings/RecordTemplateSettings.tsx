@@ -1,3 +1,4 @@
+import { BodyAction } from "../../components/BodyAction.tsx";
 import { EntityTypeIcon } from "../entity/EntityTypeIcon.tsx";
 import { useEntityTypes } from "../entity/useEntityTypes.ts";
 import type { EntitySchemaResult } from "@contracts/entity-type.ts";
@@ -206,22 +207,22 @@ function RecordTemplateForm({
     ?.message;
   const title = materialResource ? "기록 자동 완성" : "변경 기록 기본값";
   return (
-    <section className="settings-section" aria-label={title}>
-      <h2 className="settings-section-title">{title}</h2>
+    <section className={materialResource ? "material-record-template" : "settings-section"} aria-label={title}>
+      {!materialResource && <h2 className="settings-section-title">{title}</h2>}
       {!saved && (
         <>
           <p role={message ? "alert" : "status"}>
             {message || "설정을 읽는 중…"}
           </p>
           {message && (
-            <button
+            <BodyAction icon="reset"
               type="button"
-              className="btn"
+
               disabled={busy}
               onClick={() => void read()}
             >
               다시 시도
-            </button>
+            </BodyAction>
           )}
         </>
       )}
@@ -255,9 +256,9 @@ function RecordTemplateForm({
             <Notice kind="error">
               삭제된 기본 기록 태그 {missing.length}개를 정리해야 합니다. {materialResource &&
                 "정리는 현재 설정 범위에만 적용합니다. 다른 종류나 모델의 오류는 해당 설정에서 정리하세요."}{" "}
-              <button
+              <BodyAction
                 type="button"
-                className="btn"
+
                 disabled={busy}
                 onClick={() => {
                   setDraft((current) =>
@@ -266,7 +267,7 @@ function RecordTemplateForm({
                 }}
               >
                 삭제된 태그 정리
-              </button>
+              </BodyAction>
             </Notice>
           )}
           <fieldset
@@ -320,9 +321,9 @@ function RecordTemplateForm({
                 {typeError && !materialResource && (
                   <Notice kind="error">
                     자료 종류를 읽지 못했습니다.{" "}
-                    <button type="button" className="btn" onClick={retryTypes}>
+                    <BodyAction icon="reset" type="button"  onClick={retryTypes}>
                       다시 시도
-                    </button>
+                    </BodyAction>
                   </Notice>
                 )}
                 {typeId && !schema && !schemaError && <p role="status">속성 정의를 읽는 중…</p>}
@@ -365,9 +366,9 @@ function RecordTemplateForm({
             {model === "entity" && (
               <div className="actions">
                 <span className="secondary">{usingDefault ? "기본 문구 사용 중" : "이 종류의 문구 사용 중"}</span>
-                <button type="button" className="btn" disabled={usingDefault} onClick={() => setValue({ memo: null })}>
+                <BodyAction icon="reset" type="button"  disabled={usingDefault} onClick={() => setValue({ memo: null })}>
                   기본 문구로 되돌리기
-                </button>
+                </BodyAction>
               </div>
             )}
             <Field label="변수 삽입">
@@ -451,9 +452,9 @@ function RecordTemplateForm({
                   {key.split(".")[0] === "entity" ? "자료" : templateModelNames[key.split(".")[0] as TemplateModel] ??
                     "설정"} {templateActionNames[key.split(".")[1] as TemplateAction] ??
                     ""}: {error}{" "}
-                  <button
+                  <BodyAction icon="view"
                     type="button"
-                    className="btn"
+
                     disabled={!!materialResource}
                     onClick={() => {
                       const [nextModel, nextAction] = key.split(
@@ -468,19 +469,19 @@ function RecordTemplateForm({
                     }}
                   >
                     오류 항목 보기
-                  </button>
+                  </BodyAction>
                 </p>
               ))}
           </fieldset>
           <p role="status">{message}</p>
           {conflict && (
-            <button
+            <BodyAction icon="reset"
               type="button"
-              className="btn"
+
               onClick={() => void read()}
             >
               최신값 확인
-            </button>
+            </BodyAction>
           )}
           <div className="settings-section-footer">
             <div className="actions">

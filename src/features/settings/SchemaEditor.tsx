@@ -1,3 +1,4 @@
+import { BodyAction } from "../../components/BodyAction.tsx";
 import { MaterialSettingsSection } from "./MaterialSettingsSection.tsx";
 import type { EntitySchemaChange } from "@contracts/entity-schema-change.ts";
 import { materialSettingsPath } from "./material-settings-path.ts";
@@ -296,471 +297,483 @@ export function SchemaEditor(
                 disabled={Boolean(plan?.recovery)}
                 chooseRepresentative={editor.chooseRepresentative}
               />
-              {draft.display.order.map((key, index) => {
-                const f = draft.schema.properties[key],
-                  scalar = fieldType(f) ?? "string";
-                return (
-                  <section
-                    className="schema-field"
-                    key={key}
-                    aria-label={`${f.title || "새 항목"} 속성`}
-                    ref={(element) => {
-                      fieldElements.current[key] = element;
-                    }}
-                  >
-                    <div className="schema-field-heading">
-                      <h3>
-                        <button
-                          className="material-section-toggle"
-                          type="button"
-                          aria-label={`${f.title || "새 항목"} 속성 편집`}
-                          aria-expanded={openFields.includes(key)}
-                          aria-controls={`schema-field-${key}`}
-                          onClick={() =>
-                            setOpenFields((keys) =>
-                              keys.includes(key) ? keys.filter((value) => value !== key) : [...keys, key]
-                            )}
-                        >
-                          <span>{f.title || "새 항목"}</span>
-                          <span className="secondary">
-                            <span>{fieldTypeLabel(f)}</span>
-                            {draft.schema.required.includes(key) && <span className="schema-badge">필수</span>}
-                            {draft.display.archived.includes(key) && <span className="schema-badge">사용 중지</span>}
-                            {changedFields.includes(key) && <span className="schema-badge">변경됨</span>}
-                            {fieldError === key && (
-                              <span className="schema-badge error-text">
-                                오류
-                              </span>
-                            )}
-                          </span>
-                        </button>
-                      </h3>
-                      <div className="schema-order-actions">
-                        <button
-                          type="button"
-                          className="btn"
-                          aria-label={`${f.title || "새 항목"} 위로`}
-                          disabled={index === 0 || Boolean(plan?.recovery)}
-                          onClick={() => moveInput(key, -1)}
-                        >
-                          ↑
-                        </button>
-                        <button
-                          type="button"
-                          className="btn"
-                          aria-label={`${f.title || "새 항목"} 아래로`}
-                          disabled={index === draft.display.order.length - 1 || Boolean(plan?.recovery)}
-                          onClick={() => moveInput(key, 1)}
-                        >
-                          ↓
-                        </button>
-                      </div>
-                    </div>
-                    <fieldset
-                      className="settings-fields"
-                      id={`schema-field-${key}`}
-                      hidden={!openFields.includes(key)}
-                      disabled={Boolean(plan?.recovery)}
-                    >
-                      <Field label="항목 이름">
-                        {(p) => (
-                          <input
-                            {...p}
-                            className="input"
-                            maxLength={80}
-                            data-schema-setting="title"
-                            value={f.title ?? ""}
-                            onChange={(e) => editField(key, { ...f, title: e.target.value })}
-                          />
-                        )}
-                      </Field>
-                      <Field label="데이터 타입">
-                        {(p) => (
-                          <select
-                            {...p}
-                            className="input"
-                            data-schema-setting="type"
-                            value={f.enum ? "select" : f.format === "date" ? "date" : scalar}
-                            onChange={(e) => {
-                              const value = e.target.value;
-                              editField(
-                                key,
-                                fieldInputPolicy({
-                                  type: value === "date" || value === "select" ? "string" : value as "string",
-                                  title: f.title,
-                                  description: f.description,
-                                  ...(value === "date"
-                                    ? { format: "date" as const }
-                                    : value === "select"
-                                    ? { enum: ["option_1"] }
-                                    : {}),
-                                  ...(key === draft.display.representative ? { minLength: 1 } : {}),
-                                }, draft.schema.required.includes(key)),
-                              );
-                            }}
-                          >
-                            <option value="string">텍스트</option>
-                            <option value="integer">정수</option>
-                            <option value="number">숫자</option>
-                            <option value="date">날짜</option>
-                            <option value="boolean">참·거짓</option>
-                            <option value="select">단일 선택</option>
-                          </select>
-                        )}
-                      </Field>
-                      {f.enum && (
-                        <div className="schema-options">
-                          <h4>선택 항목</h4>
-                          {f.enum.filter((value) => value !== null).map((
-                            code,
-                            i,
-                          ) => (
-                            <div className="schema-option-row" key={code!}>
-                              <Field label={`선택 항목 ${i + 1}`}>
-                                {(props) => (
-                                  <input
-                                    {...props}
-                                    className="input"
-                                    maxLength={80}
-                                    disabled={unreservedFields.includes(key)}
-                                    value={optionLabel(
-                                      draft.display.option_labels[key],
-                                      code!,
-                                    )}
-                                    onChange={(event) =>
-                                      editor.editOptionLabel(
-                                        key,
-                                        code!,
-                                        event.target.value,
-                                      )}
-                                  />
-                                )}
-                              </Field>
-                              <button
-                                type="button"
-                                className="btn"
-                                aria-label={`선택 항목 ${i + 1} 제거`}
-                                disabled={f.enum!.filter((value) =>
-                                  value !== null
-                                ).length <= 1}
-                                onClick={() =>
-                                  editField(key, {
-                                    ...f,
-                                    enum: f.enum!.filter((value) => value !== code),
-                                  })}
-                              >
-                                제거
-                              </button>
-                            </div>
-                          ))}
-                          <button
-                            type="button"
-                            className="btn"
-                            disabled={f.enum.filter((value) => value !== null).length >= 128}
-                            onClick={() => {
-                              let number = 1;
-                              while (f.enum!.includes(`option_${number}`)) {
-                                number++;
-                              }
-                              editField(key, {
-                                ...f,
-                                enum: [...f.enum!, `option_${number}`],
-                              });
-                            }}
-                          >
-                            선택 항목 추가
-                          </button>
-                          <p className="secondary">
-                            선택 항목을 제거하면 기존 자료의 해당 값을 검토해야 합니다.
-                          </p>
-                          {unreservedFields.includes(key) && (
-                            <p className="secondary">새 속성의 표시 이름은 변경 검토 후 편집할 수 있습니다.</p>
-                          )}
-                        </div>
-                      )}
-                      <details
-                        className="schema-advanced"
-                        open={advancedFields.includes(key)}
-                        onToggle={(event) => {
-                          const open = event.currentTarget.open;
-                          setAdvancedFields((keys) =>
-                            open ? keys.includes(key) ? keys : [...keys, key] : keys.filter((value) => value !== key)
-                          );
+              <CollectionList view="list" label="입력 항목 목록">
+                {draft.display.order.map((key, index) => {
+                  const f = draft.schema.properties[key],
+                    scalar = fieldType(f) ?? "string";
+                  const toggleField = () => setOpenFields(keys =>
+                    keys.includes(key) ? keys.filter(value => value !== key) : [...keys, key]
+                  );
+                  return (
+                    <li key={key}>
+                      <section
+                        className="schema-field related-item"
+                        data-expanded={openFields.includes(key) || undefined}
+                        aria-label={`${f.title || "새 항목"} 속성`}
+                        ref={(element) => {
+                          fieldElements.current[key] = element;
                         }}
                       >
-                        <summary>추가 설정</summary>
-                        <div className="form">
-                          <label>
-                            <input
-                              type="checkbox"
-                              checked={draft.schema.required.includes(key)}
-                              onChange={(e) => editFlag(key, "required", e.target.checked)}
-                            />{" "}
-                            필수 입력
-                          </label>
-                          <label>
-                            <input
-                              type="checkbox"
-                              aria-label={`${f.title || "새 항목"} 목록에 표시`}
-                              checked={draft.display.list_columns.includes(key)}
-                              disabled={unreservedFields.includes(key) ||
-                                draft.display.archived.includes(key)}
-                              onChange={(event) =>
-                                editFlag(
-                                  key,
-                                  "list_columns",
-                                  event.target.checked,
+                        <div className="schema-field-heading">
+                          <h3>
+                            <button
+                              className="schema-field-title related-toggle item-title"
+                              type="button"
+                              aria-label={`${f.title || "새 항목"} 속성 편집`}
+                              aria-expanded={openFields.includes(key)}
+                              aria-controls={`schema-field-${key}`}
+                              onClick={toggleField}
+                          >
+                              <span>{f.title || "새 항목"}</span>
+                              <span className="secondary">
+                                <span>{fieldTypeLabel(f)}</span>
+                                {draft.schema.required.includes(key) && <span className="schema-badge">필수</span>}
+                                {draft.display.archived.includes(key) && <span className="schema-badge">사용 중지</span>}
+                                {changedFields.includes(key) && <span className="schema-badge">변경됨</span>}
+                                {fieldError === key && (
+                                  <span className="schema-badge error-text">
+                                    오류
+                                  </span>
                                 )}
-                            />{" "}
-                            목록에 표시
-                          </label>
-                          {unreservedFields.includes(key) && (
-                            <p className="secondary">
-                              새 항목은 변경 검토 후 자료 이름과 목록 표시를 선택할 수 있습니다.
-                            </p>
-                          )}
-
-                          <Field label="설명">
+                              </span>
+                            </button>
+                          </h3>
+                          <div className="schema-order-actions">
+                            <BodyAction
+                              type="button"
+                              className="item-icon"
+                              aria-label={`${f.title || "새 항목"} 위로`}
+                              disabled={index === 0 || Boolean(plan?.recovery)}
+                              onClick={() => moveInput(key, -1)}
+                            >
+                              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="m6 12 6-6 6 6M12 6v14" /></svg>
+                            </BodyAction>
+                            <BodyAction
+                              type="button"
+                              className="item-icon"
+                              aria-label={`${f.title || "새 항목"} 아래로`}
+                              disabled={index === draft.display.order.length - 1 || Boolean(plan?.recovery)}
+                              onClick={() => moveInput(key, 1)}
+                            >
+                              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="m6 12 6 6 6-6M12 4v14" /></svg>
+                            </BodyAction>
+                          </div>
+                          <button
+                            type="button"
+                            className="material-section-toggle schema-field-disclosure"
+                            aria-label={`${f.title || "새 항목"} 항목 ${openFields.includes(key) ? "접기" : "펼치기"}`}
+                            aria-expanded={openFields.includes(key)}
+                            aria-controls={`schema-field-${key}`}
+                            onClick={toggleField}
+                          />
+                        </div>
+                        <fieldset
+                          className="settings-fields"
+                          id={`schema-field-${key}`}
+                          hidden={!openFields.includes(key)}
+                          disabled={Boolean(plan?.recovery)}
+                        >
+                          <Field label="항목 이름">
                             {(p) => (
-                              <textarea
+                              <input
                                 {...p}
                                 className="input"
-                                maxLength={1000}
-                                value={f.description ?? ""}
-                                onChange={(e) =>
-                                  editField(key, {
-                                    ...f,
-                                    description: e.target.value,
-                                  })}
+                                maxLength={80}
+                                data-schema-setting="title"
+                                value={f.title ?? ""}
+                                onChange={(e) => editField(key, { ...f, title: e.target.value })}
                               />
                             )}
                           </Field>
-                          {unsupportedNumericInputs.filter(([address]) => address.startsWith(key + ":")).map(
-                            ([address, raw]) => {
-                              const label = numericConditionNames[address.split(":")[1]];
-                              return (
-                                <div key={address}>
-                                  <p className="error-text">
-                                    현재 타입에서 사용할 수 없는 이전 조건 입력입니다. 입력을 확인하고 제거하세요.
-                                  </p>
-                                  <Field label={`이전 ${label} 입력`}>
-                                    {(props) => (
-                                      <input
-                                        {...props}
-                                        className="input"
-                                        value={raw}
-                                        readOnly
-                                      />
-                                    )}
-                                  </Field>
-                                  <button
-                                    className="btn"
-                                    type="button"
-                                    aria-label={`${f.title ?? "속성"} 이전 ${label} 입력 제거`}
-                                    onClick={() => editor.removeNumericInput(address)}
-                                  >
-                                    이전 조건 입력 제거
-                                  </button>
-                                </div>
-                              );
-                            },
-                          )}
-                          {scalar === "string" && !f.format && (
-                            <div className="schema-constraints">
-                              {(["minLength", "maxLength"] as const).map((
-                                name,
-                              ) => (
-                                <Field
-                                  key={name}
-                                  label={name === "minLength" ? "최소 길이" : "최대 길이"}
-                                >
-                                  {(p) => (
-                                    <input
-                                      {...p}
-                                      className="input"
-                                      type="text"
-                                      inputMode="decimal"
-                                      min={0}
-                                      max={4096}
-                                      data-schema-setting={name}
-                                      value={numericDrafts[key + ":" + name] ?? f[name] ?? ""}
-                                      onChange={(e) => editNumeric(key, name, e.target.value)}
-                                    />
-                                  )}
-                                </Field>
-                              ))}
-                            </div>
-                          )}
-                          {["integer", "number"].includes(scalar) && (
-                            <div className="schema-constraints">
-                              {(["minimum", "maximum"] as const).map((name) => (
-                                <Field key={name} label={name === "minimum" ? "최소값" : "최대값"}>
-                                  {(p) => (
-                                    <input
-                                      {...p}
-                                      className="input"
-                                      type="text"
-                                      inputMode="decimal"
-                                      step="any"
-                                      data-schema-setting={name}
-                                      value={numericDrafts[key + ":" + name] ?? f[name] ?? ""}
-                                      onChange={(e) => editNumeric(key, name, e.target.value)}
-                                    />
-                                  )}
-                                </Field>
-                              ))}
-                            </div>
-                          )}
-                          <Field label="생성 기본값 (기존 자료에는 채우지 않음)">
+                          <Field label="데이터 타입">
                             {(p) => (
                               <select
                                 {...p}
                                 className="input"
-                                value={f.default === undefined ||
-                                    f.default === null
-                                  ? "unset"
-                                  : "value"}
-                                onChange={(e) =>
-                                  editField(key, {
-                                    ...f,
-                                    default: e.target.value === "unset"
-                                      ? undefined
-                                      : e.target.value === "null"
-                                      ? null
-                                      : scalar === "boolean"
-                                      ? false
-                                      : ["integer", "number"].includes(scalar)
-                                      ? 0
-                                      : f.enum?.find((v) => v !== null) ?? "",
-                                  })}
+                                data-schema-setting="type"
+                                value={f.enum ? "select" : f.format === "date" ? "date" : scalar}
+                                onChange={(e) => {
+                                  const value = e.target.value;
+                                  editField(
+                                    key,
+                                    fieldInputPolicy({
+                                      type: value === "date" || value === "select" ? "string" : value as "string",
+                                      title: f.title,
+                                      description: f.description,
+                                      ...(value === "date"
+                                        ? { format: "date" as const }
+                                        : value === "select"
+                                        ? { enum: ["option_1"] }
+                                        : {}),
+                                      ...(key === draft.display.representative ? { minLength: 1 } : {}),
+                                    }, draft.schema.required.includes(key)),
+                                  );
+                                }}
                               >
-                                <option value="unset">설정 안 함</option>
-                                <option value="value">값 지정</option>
+                                <option value="string">텍스트</option>
+                                <option value="integer">정수</option>
+                                <option value="number">숫자</option>
+                                <option value="date">날짜</option>
+                                <option value="boolean">참·거짓</option>
+                                <option value="select">단일 선택</option>
                               </select>
                             )}
                           </Field>
-                          {f.default !== undefined && f.default !== null && (
-                            <Field label="기본값">
-                              {(p) =>
-                                scalar === "boolean"
-                                  ? (
-                                    <select
-                                      {...p}
-                                      className="input"
-                                      value={String(f.default)}
-                                      onChange={(e) =>
-                                        editField(key, {
-                                          ...f,
-                                          default: e.target.value === "true",
-                                        })}
-                                    >
-                                      <option value="false">거짓</option>
-                                      <option value="true">참</option>
-                                    </select>
-                                  )
-                                  : f.enum
-                                  ? (
-                                    <select
-                                      {...p}
-                                      className="input"
-                                      value={String(f.default)}
-                                      onChange={(e) =>
-                                        editField(key, {
-                                          ...f,
-                                          default: e.target.value,
-                                        })}
-                                    >
-                                      {f.enum!.filter((v) => v !== null).map((
-                                        code,
-                                      ) => (
-                                        <option key={code} value={code!}>
-                                          {optionLabel(
-                                            draft.display.option_labels[key],
-                                            code!,
-                                          )}
-                                        </option>
-                                      ))}
-                                    </select>
-                                  )
-                                  : (
-                                    <input
-                                      {...p}
-                                      className="input"
-                                      type={f.format === "date" ? "date" : "text"}
-                                      inputMode={["integer", "number"].includes(
-                                          scalar,
-                                        )
-                                        ? "decimal"
-                                        : undefined}
-                                      data-schema-setting="default"
-                                      value={numericDrafts[key + ":default"] ?? String(f.default)}
-                                      onChange={(e) =>
-                                        ["integer", "number"].includes(scalar)
-                                          ? editNumeric(
+                          {f.enum && (
+                            <div className="schema-options">
+                              <h4>선택 항목</h4>
+                              {f.enum.filter((value) => value !== null).map((
+                                code,
+                                i,
+                              ) => (
+                                <div className="schema-option-row" key={code!}>
+                                  <Field label={`선택 항목 ${i + 1}`}>
+                                    {(props) => (
+                                      <input
+                                        {...props}
+                                        className="input"
+                                        maxLength={80}
+                                        disabled={unreservedFields.includes(key)}
+                                        value={optionLabel(
+                                          draft.display.option_labels[key],
+                                          code!,
+                                        )}
+                                        onChange={(event) =>
+                                          editor.editOptionLabel(
                                             key,
-                                            "default",
-                                            e.target.value,
-                                          )
-                                          : editField(key, {
-                                            ...f,
-                                            default: e.target.value,
-                                          })}
-                                    />
-                                  )}
-                            </Field>
-                          )}
-                          <p className="secondary">
-                            사용 중지는 기존 값을 유지합니다. 삭제는 검토·적용 후 반영됩니다.
-                          </p>
-                          <div className="schema-actions">
-                            <button
-                              className="btn"
-                              type="button"
-                              disabled={unreservedFields.includes(key) ||
-                                key === draft.display.representative}
-                              onClick={() =>
-                                editor.setFieldInactive(
-                                  key,
-                                  !draft.display.archived.includes(key),
-                                )}
-                            >
-                              {draft.display.archived.includes(key) ? "다시 사용" : "사용 중지"}
-                            </button>
-                            <button
-                              className="btn btn-danger"
-                              type="button"
-                              disabled={key === draft.display.representative}
-                              onClick={() => setDeleteKey(key)}
-                            >
-                              <svg
-                                width="18"
-                                height="18"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="1.5"
-                                aria-hidden="true"
+                                            code!,
+                                            event.target.value,
+                                          )}
+                                      />
+                                    )}
+                                  </Field>
+                                  <button
+                                    type="button"
+                                    className="btn btn-input"
+                                    aria-label={`선택 항목 ${i + 1} 제거`}
+                                    disabled={f.enum!.filter((value) =>
+                                      value !== null
+                                    ).length <= 1}
+                                    onClick={() =>
+                                      editField(key, {
+                                        ...f,
+                                        enum: f.enum!.filter((value) => value !== code),
+                                      })}
+                                  >
+                                    제거
+                                  </button>
+                                </div>
+                              ))}
+                              <BodyAction icon="create"
+                                type="button"
+
+                                disabled={f.enum.filter((value) => value !== null).length >= 128}
+                                onClick={() => {
+                                  let number = 1;
+                                  while (f.enum!.includes(`option_${number}`)) {
+                                    number++;
+                                  }
+                                  editField(key, {
+                                    ...f,
+                                    enum: [...f.enum!, `option_${number}`],
+                                  });
+                                }}
                               >
-                                <path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7" />
-                              </svg>항목 삭제
-                            </button>
-                          </div>
-                          {key === draft.display.representative && (
-                            <p className="secondary">
-                              자료 이름으로 쓰는 항목입니다. 위에서 자료 이름으로 사용할 다른 항목을 선택한 뒤 사용
-                              중지하거나 삭제하세요.
-                            </p>
+                                선택 항목 추가
+                              </BodyAction>
+                              <p className="secondary">
+                                선택 항목을 제거하면 기존 자료의 해당 값을 검토해야 합니다.
+                              </p>
+                              {unreservedFields.includes(key) && (
+                                <p className="secondary">새 속성의 표시 이름은 변경 검토 후 편집할 수 있습니다.</p>
+                              )}
+                            </div>
                           )}
-                        </div>
-                      </details>
-                    </fieldset>
-                  </section>
-                );
-              })}
+                          <details
+                            className="schema-advanced"
+                            open={advancedFields.includes(key)}
+                            onToggle={(event) => {
+                              const open = event.currentTarget.open;
+                              setAdvancedFields((keys) =>
+                                open ? keys.includes(key) ? keys : [...keys, key] : keys.filter((value) => value !== key)
+                              );
+                            }}
+                          >
+                            <summary>추가 설정</summary>
+                            <div className="form">
+                              <label>
+                                <input
+                                  type="checkbox"
+                                  checked={draft.schema.required.includes(key)}
+                                  onChange={(e) => editFlag(key, "required", e.target.checked)}
+                                />{" "}
+                                필수 입력
+                              </label>
+                              <label>
+                                <input
+                                  type="checkbox"
+                                  aria-label={`${f.title || "새 항목"} 목록에 표시`}
+                                  checked={draft.display.list_columns.includes(key)}
+                                  disabled={unreservedFields.includes(key) ||
+                                    draft.display.archived.includes(key)}
+                                  onChange={(event) =>
+                                    editFlag(
+                                      key,
+                                      "list_columns",
+                                      event.target.checked,
+                                    )}
+                                />{" "}
+                                목록에 표시
+                              </label>
+                              {unreservedFields.includes(key) && (
+                                <p className="secondary">
+                                  새 항목은 변경 검토 후 자료 이름과 목록 표시를 선택할 수 있습니다.
+                                </p>
+                              )}
+
+                              <Field label="설명">
+                                {(p) => (
+                                  <textarea
+                                    {...p}
+                                    className="input"
+                                    maxLength={1000}
+                                    value={f.description ?? ""}
+                                    onChange={(e) =>
+                                      editField(key, {
+                                        ...f,
+                                        description: e.target.value,
+                                      })}
+                                  />
+                                )}
+                              </Field>
+                              {unsupportedNumericInputs.filter(([address]) => address.startsWith(key + ":")).map(
+                                ([address, raw]) => {
+                                  const label = numericConditionNames[address.split(":")[1]];
+                                  return (
+                                    <div key={address}>
+                                      <p className="error-text">
+                                        현재 타입에서 사용할 수 없는 이전 조건 입력입니다. 입력을 확인하고 제거하세요.
+                                      </p>
+                                      <Field label={`이전 ${label} 입력`}>
+                                        {(props) => (
+                                          <input
+                                            {...props}
+                                            className="input"
+                                            value={raw}
+                                            readOnly
+                                          />
+                                        )}
+                                      </Field>
+                                      <BodyAction
+
+                                        type="button"
+                                        aria-label={`${f.title ?? "속성"} 이전 ${label} 입력 제거`}
+                                        onClick={() => editor.removeNumericInput(address)}
+                                      >
+                                        이전 조건 입력 제거
+                                      </BodyAction>
+                                    </div>
+                                  );
+                                },
+                              )}
+                              {scalar === "string" && !f.format && (
+                                <div className="schema-constraints">
+                                  {(["minLength", "maxLength"] as const).map((
+                                    name,
+                                  ) => (
+                                    <Field
+                                      key={name}
+                                      label={name === "minLength" ? "최소 길이" : "최대 길이"}
+                                    >
+                                      {(p) => (
+                                        <input
+                                          {...p}
+                                          className="input"
+                                          type="text"
+                                          inputMode="decimal"
+                                          min={0}
+                                          max={4096}
+                                          data-schema-setting={name}
+                                          value={numericDrafts[key + ":" + name] ?? f[name] ?? ""}
+                                          onChange={(e) => editNumeric(key, name, e.target.value)}
+                                        />
+                                      )}
+                                    </Field>
+                                  ))}
+                                </div>
+                              )}
+                              {["integer", "number"].includes(scalar) && (
+                                <div className="schema-constraints">
+                                  {(["minimum", "maximum"] as const).map((name) => (
+                                    <Field key={name} label={name === "minimum" ? "최소값" : "최대값"}>
+                                      {(p) => (
+                                        <input
+                                          {...p}
+                                          className="input"
+                                          type="text"
+                                          inputMode="decimal"
+                                          step="any"
+                                          data-schema-setting={name}
+                                          value={numericDrafts[key + ":" + name] ?? f[name] ?? ""}
+                                          onChange={(e) => editNumeric(key, name, e.target.value)}
+                                        />
+                                      )}
+                                    </Field>
+                                  ))}
+                                </div>
+                              )}
+                              <Field label="생성 기본값 (기존 자료에는 채우지 않음)">
+                                {(p) => (
+                                  <select
+                                    {...p}
+                                    className="input"
+                                    value={f.default === undefined ||
+                                        f.default === null
+                                      ? "unset"
+                                      : "value"}
+                                    onChange={(e) =>
+                                      editField(key, {
+                                        ...f,
+                                        default: e.target.value === "unset"
+                                          ? undefined
+                                          : e.target.value === "null"
+                                          ? null
+                                          : scalar === "boolean"
+                                          ? false
+                                          : ["integer", "number"].includes(scalar)
+                                          ? 0
+                                          : f.enum?.find((v) => v !== null) ?? "",
+                                      })}
+                                  >
+                                    <option value="unset">설정 안 함</option>
+                                    <option value="value">값 지정</option>
+                                  </select>
+                                )}
+                              </Field>
+                              {f.default !== undefined && f.default !== null && (
+                                <Field label="기본값">
+                                  {(p) =>
+                                    scalar === "boolean"
+                                      ? (
+                                        <select
+                                          {...p}
+                                          className="input"
+                                          value={String(f.default)}
+                                          onChange={(e) =>
+                                            editField(key, {
+                                              ...f,
+                                              default: e.target.value === "true",
+                                            })}
+                                        >
+                                          <option value="false">거짓</option>
+                                          <option value="true">참</option>
+                                        </select>
+                                      )
+                                      : f.enum
+                                      ? (
+                                        <select
+                                          {...p}
+                                          className="input"
+                                          value={String(f.default)}
+                                          onChange={(e) =>
+                                            editField(key, {
+                                              ...f,
+                                              default: e.target.value,
+                                            })}
+                                        >
+                                          {f.enum!.filter((v) => v !== null).map((
+                                            code,
+                                          ) => (
+                                            <option key={code} value={code!}>
+                                              {optionLabel(
+                                                draft.display.option_labels[key],
+                                                code!,
+                                              )}
+                                            </option>
+                                          ))}
+                                        </select>
+                                      )
+                                      : (
+                                        <input
+                                          {...p}
+                                          className="input"
+                                          type={f.format === "date" ? "date" : "text"}
+                                          inputMode={["integer", "number"].includes(
+                                              scalar,
+                                            )
+                                            ? "decimal"
+                                            : undefined}
+                                          data-schema-setting="default"
+                                          value={numericDrafts[key + ":default"] ?? String(f.default)}
+                                          onChange={(e) =>
+                                            ["integer", "number"].includes(scalar)
+                                              ? editNumeric(
+                                                key,
+                                                "default",
+                                                e.target.value,
+                                              )
+                                              : editField(key, {
+                                                ...f,
+                                                default: e.target.value,
+                                              })}
+                                        />
+                                      )}
+                                </Field>
+                              )}
+                              <p className="secondary">
+                                사용 중지는 기존 값을 유지합니다. 삭제는 검토·적용 후 반영됩니다.
+                              </p>
+                              <div className="schema-actions">
+                                <BodyAction
+
+                                  type="button"
+                                  disabled={unreservedFields.includes(key) ||
+                                    key === draft.display.representative}
+                                  onClick={() =>
+                                    editor.setFieldInactive(
+                                      key,
+                                      !draft.display.archived.includes(key),
+                                    )}
+                                >
+                                  {draft.display.archived.includes(key) ? "다시 사용" : "사용 중지"}
+                                </BodyAction>
+                                <BodyAction
+                                  danger
+                                  type="button"
+                                  disabled={key === draft.display.representative}
+                                  onClick={() => setDeleteKey(key)}
+                                >
+                                  <svg
+                                    width="18"
+                                    height="18"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="1.5"
+                                    aria-hidden="true"
+                                  >
+                                    <path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7" />
+                                  </svg>항목 삭제
+                                </BodyAction>
+                              </div>
+                              {key === draft.display.representative && (
+                                <p className="secondary">
+                                  자료 이름으로 쓰는 항목입니다. 위에서 자료 이름으로 사용할 다른 항목을 선택한 뒤 사용
+                                  중지하거나 삭제하세요.
+                                </p>
+                              )}
+                            </div>
+                          </details>
+                        </fieldset>
+                      </section>
+                    </li>
+                  );
+                })}
+              </CollectionList>
             </fieldset>
             <div className="schema-actions">
-              <button
-                className="btn"
+              <BodyAction icon="create"
+
                 type="button"
                 disabled={busy || uncertain || disabled || readBusy || startState.busy || startState.uncertain ||
                   Boolean(plan?.recovery) || Object.keys(draft.schema.properties).length >= 64}
@@ -771,7 +784,7 @@ export function SchemaEditor(
                 }}
               >
                 항목 추가
-              </button>
+              </BodyAction>
             </div>
             <p className="secondary">항목 순서는 입력·상세·목록에 함께 적용됩니다.</p>
             {!plan?.recovery && (!plan || dirty || reviewSaved) && (
@@ -1256,16 +1269,16 @@ export function SchemaEditor(
           </CollectionList>
           {historyRows.length === 0 && <p className="secondary">변경 이력이 없습니다.</p>}
           {editor.view.changesBefore && (
-            <button
-              className="btn"
+            <BodyAction
+
               disabled={readBusy || busy || uncertain}
               onClick={() => void editor.moreChanges()}
             >
               이전 변경안 더 보기
-            </button>
+            </BodyAction>
           )}
-          <button
-            className="btn"
+          <BodyAction icon="reset"
+
             disabled={busy || readBusy || uncertain}
             onClick={() => {
               jobs.refresh();
@@ -1273,26 +1286,26 @@ export function SchemaEditor(
             }}
           >
             변경 이력 다시 조회
-          </button>
+          </BodyAction>
           {jobs.error && <p role="alert">{jobs.error}</p>}
           {jobs.before && (
-            <button className="btn" disabled={jobs.moreBusy} onClick={() => void jobs.more()}>
+            <BodyAction  disabled={jobs.moreBusy} onClick={() => void jobs.more()}>
               {jobs.moreBusy ? "이전 변환 이력 읽는 중…" : "이전 변환 이력 더 보기"}
-            </button>
+            </BodyAction>
           )}
           {jobs.error && (
-            <button className="btn" onClick={jobs.refresh}>
+            <BodyAction icon="reset"  onClick={jobs.refresh}>
               변환 이력 다시 조회
-            </button>
+            </BodyAction>
           )}
           {historyBefore !== null && (
-            <button
-              className="btn"
+            <BodyAction
+
               disabled={historyBusy}
               onClick={() => void onMoreVersions?.()}
             >
               {historyBusy ? "이전 버전 읽는 중…" : "이전 게시 버전 더 보기"}
-            </button>
+            </BodyAction>
           )}
         </div>
       </MaterialSettingsSection>

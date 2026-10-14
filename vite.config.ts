@@ -25,6 +25,14 @@ export default defineConfig({
       "@contracts": fileURLToPath(new URL("./supabase/functions/_shared/contracts", import.meta.url)),
     },
   },
+  build: {
+    rolldownOptions: {
+      input: {
+        app: fileURLToPath(new URL("./index.html", import.meta.url)),
+        samples: fileURLToPath(new URL("./design-samples/index.html", import.meta.url)),
+      },
+    },
+  },
   server: { host: "127.0.0.1", port: webPort, strictPort: true },
   preview: { host: "127.0.0.1", port: webPort, strictPort: true },
   test: { include: ["src/**/*.test.{ts,tsx}"] },

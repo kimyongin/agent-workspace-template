@@ -932,6 +932,53 @@ test(
     await expect(
       properties.getByRole("button", { name: "변경 검토", exact: true }),
     ).toBeDisabled();
+    await expect(page.locator(".material-settings-current")).toHaveCount(0);
+    await expect(properties.getByRole("list", { name: "입력 항목 목록", exact: true })).toBeVisible();
+    const quantity = properties.getByRole("region", { name: "수량 속성", exact: true });
+    const layout = await quantity.evaluate(el => {
+      const row = el.getBoundingClientRect();
+      const header = el.querySelector(".schema-field-heading")!.getBoundingClientRect();
+      const marker = getComputedStyle(el, "::before");
+      const buttons = [...el.querySelectorAll(".schema-order-actions button, .schema-field-disclosure")].map(button => ({
+        x: button.getBoundingClientRect().x, right: button.getBoundingClientRect().right,
+        width: button.getBoundingClientRect().width, height: button.getBoundingClientRect().height,
+      }));
+      return { rowHeight: row.height, headerHeight: header.height, markerHeight: parseFloat(marker.height), buttons };
+    });
+    expect(layout.markerHeight).toBeGreaterThan(layout.headerHeight);
+    expect(layout.markerHeight).toBeGreaterThan(layout.rowHeight - 24);
+    expect(layout.buttons).toHaveLength(3);
+    expect(layout.buttons[0].right).toBeLessThanOrEqual(layout.buttons[1].x);
+    expect(layout.buttons[1].right).toBeLessThanOrEqual(layout.buttons[2].x);
+    for (const button of layout.buttons) {
+      expect(button.width).toBeGreaterThanOrEqual(44);
+      expect(button.height).toBeGreaterThanOrEqual(44);
+    }
+    const compact = await properties.getByRole("button", { name: "항목 추가", exact: true }).evaluate(el => {
+      const face = el.querySelector(".body-action-face")!;
+      const style = getComputedStyle(face);
+      return { text: style.fontSize, weight: style.fontWeight, visibleHeight: face.getBoundingClientRect().height, hitHeight: el.getBoundingClientRect().height, border: style.borderTopWidth };
+    });
+    expect(compact).toEqual({ text: "12px", weight: "400", visibleHeight: 24, hitHeight: 44, border: "0px" });
+    const footer = await properties.getByRole("button", { name: "변경 검토", exact: true }).evaluate(el => ({ text: getComputedStyle(el).fontSize, height: el.getBoundingClientRect().height }));
+    expect(footer).toEqual({ text: "14px", height: 44 });
+    expect(await quantity.locator(".schema-order-actions svg").first().evaluate(el => el.getBoundingClientRect().width)).toBe(12);
+    await quantity.getByText("추가 설정", { exact: true }).click();
+    const deletion = quantity.getByRole("button", { name: "항목 삭제", exact: true });
+    expect(await deletion.locator(".body-action-face").evaluate(el => getComputedStyle(el).color)).toBe("rgb(255, 140, 150)");
+    await quantity.getByText("추가 설정", { exact: true }).click();
+    await page.getByRole("button", { name: "기록 자동 완성", exact: true }).click();
+    const record = page.getByRole("form", { name: "기록 자동 완성", exact: true });
+    await expect(record).toBeVisible();
+    const innerChrome = await record.evaluate(el => {
+      const section = el.parentElement!;
+      const style = getComputedStyle(section);
+      return { border: style.borderTopWidth, padding: style.padding };
+    });
+    expect(innerChrome).toEqual({ border: "0px", padding: "0px" });
+    await expect(page.getByRole("heading", { name: "기록 자동 완성", exact: true })).toHaveCount(1);
+    await page.screenshot({ path: info.outputPath("record-autocomplete-flat.png"), fullPage: true });
+    await page.getByRole("button", { name: "기록 자동 완성", exact: true }).click();
     await page.screenshot({
       path: info.outputPath("property-display-settings.png"),
       fullPage: true,
