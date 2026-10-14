@@ -22,6 +22,10 @@ httpTest(
       const key = crypto.randomUUID();
       const created = await call(token, "POST", `/entity-types/${id}/schema-changes`, input, key);
       assertEquals(created.status, 201);
+      const history = await call(token, "GET", `/entity-types/${id}/schema-changes`);
+      assertEquals(history.status, 200);
+      assertEquals(history.body.items[0].source_schema_version, 1);
+      assertEquals(await tool(client, "list_entity_schema_changes", { type_id: id }), history.body);
       assertEquals(created.body.reservations, { count: "prop_2" });
       assertEquals(
         await tool(client, "create_entity_schema_change", { type_id: id, ...input, request_key: key }),

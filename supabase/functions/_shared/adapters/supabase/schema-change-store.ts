@@ -314,6 +314,7 @@ export class SqlSchemaChangeStore implements SchemaChangeStore {
       items: rows.slice(0, input.limit).map((r): EntitySchemaChangeSummary => ({
         id: r.id,
         type_id: r.type_id,
+        source_schema_version: Number(r.source_schema_version),
         version: Number(r.version),
         status: r.status,
         change_kind: r.kind,

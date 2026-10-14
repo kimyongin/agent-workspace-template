@@ -2,12 +2,11 @@ import { createMaterialDefinition } from "./material-definition.ts";
 import { RecordTemplateSettings } from "./RecordTemplateSettings.tsx";
 import { createMaterialTemplateDraft } from "./material-template-drafts.ts";
 import { MaterialSettingsProtection } from "./MaterialSettingsProtection.tsx";
-import { MigrationJobs, SchemaMigrationJob } from "./SchemaMigrationJobs.tsx";
 import { MaterialSettingsSection } from "./MaterialSettingsSection.tsx";
 import { useAuth } from "../auth/AuthProvider.tsx";
 import { invalidateEntityTypeCatalog } from "../entity/entity-type-catalog.ts";
 import { useEntityTypes } from "../entity/useEntityTypes.ts";
-import { SchemaEditor, SchemaVersionDiff } from "./SchemaEditor.tsx";
+import { SchemaEditor } from "./SchemaEditor.tsx";
 import { useCallback, useEffect, useId, useRef, useState, useSyncExternalStore } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router";
 import { api, ApiError } from "../../lib/api.ts";
@@ -67,10 +66,10 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
     definitions.selectJob(selectedJob);
   }, [definitions, selectedJob]);
   const [representative, setRepresentative] = useState("이름");
-  const [jobState, setJobState] = useState({ dirty: false, busy: false, uncertain: false });
+  const [jobState, setJobState] = useState({ dirty: false, busy: false, uncertain: false, error: false });
   const jobStateChange = useCallback(
-    (state: { dirty: boolean; busy: boolean; uncertain?: boolean }) =>
-      setJobState({ ...state, uncertain: !!state.uncertain }),
+    (state: { dirty: boolean; busy: boolean; uncertain?: boolean; error?: boolean }) =>
+      setJobState({ ...state, uncertain: !!state.uncertain, error: !!state.error }),
     [],
   );
   const [schemaState, setSchemaState] = useState({ dirty: false, busy: false, uncertain: false });
@@ -480,57 +479,17 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
           }
           historyInitiallyOpen={versions || !!historyVersion || location.pathname.includes("/migrations") ||
             !!selectedJob}
-          historyContent={
-            <>
-              {type_id && selectedJob && (
-                <SchemaMigrationJob
-                  key={selectedJob}
-                  typeId={type_id}
-                  jobId={selectedJob}
-                  onApplied={definitions.migrationSucceeded}
-                  publicationError={jobErrors[selectedJob] ?? ""}
-                  onState={jobStateChange}
-                  disabled={busy || uncertain || schemaState.busy || schemaState.uncertain}
-                />
-              )}
-              <MigrationJobs typeId={type.id} />
-              {[
-                ...history,
-                ...(selectedSchema &&
-                    !history.some((version) => version.schema_version === selectedSchema.schema_version)
-                  ? [selectedSchema]
-                  : []),
-              ].sort((a, b) => b.schema_version - a.schema_version).map((value) => (
-                <details key={value.schema_version} open={historyVersion === String(value.schema_version)}>
-                  <summary>
-                    버전 {value.schema_version} · {new Date(value.created_at).toLocaleString()}
-                  </summary>
-                  <button
-                    className="btn"
-                    onClick={() => {
-                      const params = new URLSearchParams(location.search);
-                      params.set("schema_version", String(value.schema_version));
-                      navigate(`${location.pathname}?${params}`);
-                    }}
-                  >
-                    이 버전 보기
-                  </button>
-                  {selectedSchema?.schema_version === value.schema_version && (
-                    <SchemaVersionDiff before={selectedSchema} after={schema} />
-                  )}
-                </details>
-              ))}
-              {historyBefore !== null && (
-                <button
-                  className="btn"
-                  disabled={historyBusy}
-                  onClick={() => void readHistoryPage()}
-                >
-                  {historyBusy ? "이전 버전 읽는 중…" : "이전 게시 버전 더 보기"}
-                </button>
-              )}
-            </>
-          }
+          historyVersions={history}
+          selectedVersion={selectedSchema}
+          historyBefore={historyBefore}
+          historyBusy={historyBusy}
+          onMoreVersions={readHistoryPage}
+          selectedJob={selectedJob}
+          historyJobState={jobState}
+          onMigrationApplied={definitions.migrationSucceeded}
+          jobErrors={jobErrors}
+          onJobState={jobStateChange}
+          jobDisabled={busy || uncertain || schemaState.busy || schemaState.uncertain}
           onApplied={definitions.published}
           onState={schemaStateChange}
           disabled={busy || uncertain || jobState.busy || jobState.uncertain}

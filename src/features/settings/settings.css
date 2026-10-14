@@ -115,3 +115,9 @@ section[aria-labelledby="entity-identity-title"] .settings-section-footer { bord
 .schema-history-row > .material-section-toggle[aria-expanded="true"] { color: var(--accent); }
 .schema-history-row .schema-summary { border: 0; padding: var(--space-3) 0 0; }
 .schema-history-row .schema-actions { justify-content: flex-end; }
+
+.schema-job-detail progress { width: 100%; accent-color: var(--accent); }
+.schema-job-visits nav { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-bottom: var(--space-4); }
+.schema-published-version { margin: var(--space-4); }
+.schema-history-row .schema-job-detail { padding: var(--space-4); }
+.schema-history-row .schema-actions > .schema-actions { margin: 0; }

@@ -10,17 +10,33 @@ import {
   schemaValueLabel,
 } from "./schema-labels.ts";
 import { SchemaRepresentativeSetting } from "./SchemaRepresentativeSetting.tsx";
-import { MigrationStart } from "./SchemaMigrationJobs.tsx";
+import {
+  migrationActive,
+  migrationLabels,
+  MigrationStart,
+  SchemaMigrationJob,
+  useMigrationHistory,
+} from "./SchemaMigrationJobs.tsx";
 import { Link, useLocation, useNavigate } from "react-router";
 import { ConversionEditor } from "./ConversionEditor.tsx";
 import { type ReactNode, useEffect, useRef, useState } from "react";
-import type { EntityField, EntitySchemaVersion, EntityType } from "@contracts/entity-type.ts";
+import type {
+  EntityField,
+  EntitySchemaVersion,
+  EntitySchemaVersionSummary,
+  EntityType,
+} from "@contracts/entity-type.ts";
 import { useSchemaChangeEditor } from "./schema-change-editor.ts";
 import type { EditState } from "./schema-change-editor.ts";
 import { Field } from "../../components/Field.tsx";
 import { fieldInputPolicy } from "./field-input-policy.ts";
+import { SchemaChangeDiff, SchemaChangeRead } from "./SchemaChangeRead.tsx";
+import { schemaHistoryRows } from "./schema-history.ts";
+import type { EntitySchemaMigration } from "@contracts/entity-schema-migration.ts";
+import type { MaterialSectionState } from "./MaterialSettingsSection.tsx";
 import { ConfirmDialog } from "../../components/Modal.tsx";
 import { fieldType } from "../entity/property-fields.tsx";
+const noJobState = () => {};
 const optionLabel = (labels: Record<string, string> | undefined, code: string) =>
   labels && Object.hasOwn(labels, code) ? labels[code] : code;
 const numericConditionNames: Record<string, string> = {
@@ -38,7 +54,17 @@ export function SchemaEditor(
     onState,
     disabled = false,
     betweenSections,
-    historyContent,
+    historyVersions = [],
+    selectedVersion,
+    historyBefore = null,
+    historyBusy = false,
+    onMoreVersions,
+    selectedJob,
+    historyJobState,
+    onMigrationApplied,
+    jobErrors = {},
+    onJobState,
+    jobDisabled = false,
     historyInitiallyOpen = false,
   }: {
     type: EntityType;
@@ -47,11 +73,28 @@ export function SchemaEditor(
     onState: (state: EditState) => void;
     disabled?: boolean;
     betweenSections?: ReactNode;
-    historyContent?: ReactNode;
+    historyVersions?: EntitySchemaVersionSummary[];
+    selectedVersion?: EntitySchemaVersion | null;
+    historyBefore?: number | null;
+    historyBusy?: boolean;
+    onMoreVersions?: () => Promise<void>;
+    selectedJob?: string;
+    historyJobState?: MaterialSectionState;
+    onMigrationApplied?: (job: EntitySchemaMigration) => Promise<string>;
+    jobErrors?: Record<string, string>;
+    onJobState?: (state: MaterialSectionState) => void;
+    jobDisabled?: boolean;
     historyInitiallyOpen?: boolean;
   },
 ) {
   const location = useLocation(), navigate = useNavigate();
+  const jobs = useMigrationHistory(type.id, selectedJob);
+  const lockedPlan = jobs.items.some((job) =>
+    migrationActive(job) &&
+    job.change_id === new URLSearchParams(location.search).get("change_id")
+  );
+  const [expandedRow, setExpandedRow] = useState<string>();
+  const [selectedJobOpen, setSelectedJobOpen] = useState(true);
   const [propertiesOpen, setPropertiesOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(historyInitiallyOpen);
   const [reviewOpen, setReviewOpen] = useState(true);
@@ -89,7 +132,7 @@ export function SchemaEditor(
     definition,
     onApplied,
     onState,
-    disabled,
+    disabled: disabled || lockedPlan,
     selectionSearch: location.search,
     onFieldKeysChanged,
     onInvalidField,
@@ -139,6 +182,22 @@ export function SchemaEditor(
   useEffect(() => {
     if (historyInitiallyOpen) setHistoryOpen(true);
   }, [historyInitiallyOpen]);
+  useEffect(() => {
+    if (selectedJob) {
+      setHistoryOpen(true);
+      setSelectedJobOpen(true);
+    }
+  }, [selectedJob]);
+  const historyRows = schemaHistoryRows(
+    jobs.selectedChange && !changes.some((c) => c.id === jobs.selectedChange!.id)
+      ? [...changes, jobs.selectedChange]
+      : changes,
+    selectedVersion && !historyVersions.some((v) => v.schema_version === selectedVersion.schema_version)
+      ? [...historyVersions, selectedVersion]
+      : historyVersions,
+    jobs.items,
+  );
+  const activeJob = jobs.items.find(migrationActive);
   const reviewSaved = propertiesOpen && plan?.status === "invalid" && plan.analysis?.status === "succeeded";
   const analysisNeeded = plan && !dirty && !["analyzing", "applied", "cancelled", "stale"].includes(plan.status) &&
     (!plan.analysis || plan.analysis.status === "failed");
@@ -215,7 +274,8 @@ export function SchemaEditor(
               id="schema-property-inputs"
               hidden={!propertiesOpen}
               className="settings-fields"
-              disabled={busy || uncertain || disabled || readBusy || startState.busy || startState.uncertain}
+              disabled={lockedPlan || busy || uncertain || disabled || readBusy || startState.busy ||
+                startState.uncertain}
             >
               <SchemaRepresentativeSetting
                 draft={draft}
@@ -667,10 +727,16 @@ export function SchemaEditor(
       {betweenSections}
       <MaterialSettingsSection
         title="변경 이력"
-        summary={uncertain
+        summary={historyJobState?.uncertain || uncertain
           ? "결과 확인 필요"
-          : busy
+          : historyJobState?.busy || busy
           ? "처리 중…"
+          : historyJobState?.error || jobs.error || Object.values(jobErrors).some(Boolean)
+          ? "조회 오류 · 확인 필요"
+          : historyRows.some((row) => !row.version && row.jobs[0]?.status === "failed")
+          ? "값 변환 실패"
+          : activeJob
+          ? `값 변환 중 · ${activeJob.processed}/${activeJob.total}`
           : changes.some((c) => c.status === "analyzing")
           ? "검토 중"
           : changes.filter((c) => !["applied", "cancelled"].includes(c.status)).length
@@ -680,263 +746,333 @@ export function SchemaEditor(
         onOpenChange={setHistoryOpen}
       >
         <div className="schema-history-list">
-          {changes.map((c) => (
-            <section
-              className="schema-history-row"
-              key={c.id}
-              aria-label={`변경안 ${new Date(c.created_at).toLocaleString()}`}
-            >
-              <button
-                type="button"
-                className="material-section-toggle"
-                aria-expanded={plan?.id === c.id && reviewOpen}
-                aria-controls={`schema-review-${c.id}`}
-                disabled={plan?.id !== c.id && (busy || uncertain || readBusy || dirty)}
-                onClick={() => {
-                  if (plan?.id === c.id) {
-                    setReviewOpen(!reviewOpen);
-                    return;
-                  }
-                  const params = new URLSearchParams(location.search);
-                  params.set("change_id", c.id);
-                  navigate(`${location.pathname}?${params}`);
-                  void loadPlan(c.id);
-                }}
+          {historyRows.map((row) => {
+            const c = row.change;
+            const rowJob = row.jobs.find((job) => job.id === selectedJob) ?? row.jobs.find(migrationActive) ??
+              row.jobs[0];
+            const isSelectedJob = row.jobs.some((job) => job.id === selectedJob);
+            const isOpen = (!!plan && plan.id === row.changeId && reviewOpen) || expandedRow === row.id ||
+              (isSelectedJob && selectedJobOpen) ||
+              !!selectedVersion && selectedVersion.schema_version === row.version?.schema_version;
+            const transforming = row.jobs.some(migrationActive);
+            const running = row.jobs.find(migrationActive);
+            const status = running
+              ? `값 변환 중 · ${running.processed}/${running.total}`
+              : row.version
+              ? `버전 ${row.version.schema_version} · 적용됨`
+              : rowJob?.status === "failed"
+              ? "값 변환 실패"
+              : c
+              ? schemaChangeLabels[c.status]
+              : rowJob
+              ? migrationLabels[rowJob.status]
+              : "";
+            const title = row.version?.schema_version === 1 ? "최초 생성" : "입력 항목 변경";
+            return (
+              <section
+                className="schema-history-row"
+                key={row.id}
+                aria-label={`${title} ${new Date(row.createdAt).toLocaleString()}`}
               >
-                <span>
-                  입력 항목 변경 <span className="secondary">{new Date(c.created_at).toLocaleString()}</span>
-                </span>
-                <span className="secondary">{schemaChangeLabels[c.status]}</span>
-              </button>
-              <div id={`schema-review-${c.id}`} hidden={plan?.id !== c.id || !reviewOpen}>
-                {plan?.id === c.id && (
-                  <section className="schema-summary" aria-label="속성 변경 요약" data-change-version={plan.version}>
-                    <h3 ref={reviewHeading} tabIndex={-1}>변경 검토</h3>
-                    {!["applied", "cancelled"].includes(plan.status) && (
-                      <p>
-                        아직 적용되지 않았습니다. 변경 내용과 기존 자료에 미치는 영향을 확인하세요.
-                      </p>
-                    )}
-                    <Link
-                      to={{
-                        pathname: location.pathname,
-                        search: (() => {
-                          const params = new URLSearchParams(location.search);
-                          params.set("change_id", plan.id);
-                          return `?${params}`;
-                        })(),
-                      }}
-                    >
-                      이 변경안 직접 링크
-                    </Link>
-                    {plan.recovery && (
-                      <section aria-label="복구안 원본">
-                        <p>
-                          보존 원본을 사용하는 새 버전의 복구안입니다. 영향 분석 후 현재 값 → 복구 값 미리보기를
-                          확인하고 실행하세요.
-                        </p>
-                        <Link
-                          to={materialSettingsPath(plan.type_id, location.search, {
-                            job_id: plan.recovery.source_job_id,
-                          })}
-                        >
-                          원본 작업 확인
-                        </Link>
-                        <p className="secondary">
-                          원본 보존 만료:{" "}
-                          <time dateTime={plan.recovery.source_expires_at}>
-                            {new Date(plan.recovery.source_expires_at).toLocaleString()}
-                          </time>
-                        </p>
-                        <p>
-                          복구안의 속성과 변환 규칙은 원본 기준으로 유지됩니다. 보완이 필요하면 현재 자료를 직접
-                          수정하거나 새 변경안을 준비하고 다시 분석하세요.
-                        </p>
-                      </section>
-                    )}
-                    <p>
-                      상태: {schemaChangeLabels[plan.status]} ·{" "}
-                      {plan.change_kind === "compatible" ? "검토 완료 후 적용 가능" : "자료 값 변환 필요"}
-                    </p>
-                    <dl className="schema-change-list">
-                      {plan.diff.map((d, i) => (
-                        <div key={i}>
-                          <dt>{schemaDiffLabel(d.path, plan.target, definition)}</dt>
-                          <dd>
-                            {d.before_present ? schemaDiffValueLabel(d.path, d.before, definition) : "설정 안 함"}
-                            {" → "}
-                            {d.after_present ? schemaDiffValueLabel(d.path, d.after, plan.target) : "설정 안 함"}
-                            {d.kind === "migration_required" && <span className="secondary">· 값 변환 필요</span>}
-                          </dd>
-                        </div>
-                      ))}
-                    </dl>
-                    {plan.analysis && plan.status !== "cancelled" && (
-                      <div className="schema-analysis-status" role="status">
-                        <strong>
-                          {{
-                            queued: "검토 접수",
-                            running: "기존 자료 확인 중",
-                            succeeded: plan.analysis.failed ? "보완 필요" : "검토 완료",
-                            failed: "검토 실패",
-                          }[plan.analysis.status]}
-                        </strong>
-                        <p>
-                          확인한 자료 {plan.analysis.processed}/{plan.analysis.total}개 · 문제 {plan.analysis.failed}개
-                        </p>
-                        {plan.analysis.status === "succeeded" &&
-                          plan.analysis.failed === 0 && (
-                          <p className="secondary">
-                            기존 자료가 새 입력 조건을 충족합니다.
-                          </p>
-                        )}
-                        {dirty && (
-                          <p className="error-text">
-                            검토 이후 입력이 바뀌었습니다. 변경 검토를 다시 진행하세요.
-                          </p>
-                        )}
-                      </div>
-                    )}
-                    {plan.analysis && plan.status !== "cancelled" && (
-                      <details className="schema-result-details">
-                        <summary>자료별 결과</summary>
-                        <p>
-                          변경 {plan.analysis.changed}개 · 무변경 {plan.analysis.unchanged}개 · 값 제거{" "}
-                          {plan.analysis.removed}개 · 값 보완 {plan.analysis.replacements}개
-                        </p>
-                        {plan.analysis.errors.map((result) => (
-                          <div key={result.entity_id}>
-                            <strong>{result.entity_id}</strong>
-                            <ul>
-                              {result.fields.map((field, index) => (
-                                <li key={index}>
-                                  {schemaDiffLabel(field.path, plan.target, definition)}: {field.message}
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        ))}
-                        {!plan.analysis.errors.length && <p>표시할 문제 항목이 없습니다.</p>}
-                      </details>
-                    )}
-                    {plan.change_kind === "migration_required" || plan.recovery || migration.rules.length > 0 ||
-                        migration.overrides.length > 0 || (plan.analysis?.failed ?? 0) > 0
-                      ? (
-                        <ConversionEditor
-                          key={plan.id}
-                          plan={plan}
-                          migration={migration}
-                          onChange={editor.editMigration}
-                          disabled={busy || uncertain || disabled || Boolean(plan.recovery) ||
-                            ["applied", "cancelled", "stale"].includes(plan.status)}
+                <button
+                  type="button"
+                  className="material-section-toggle"
+                  aria-expanded={isOpen}
+                  aria-controls={`schema-history-${row.id}`}
+                  disabled={!isOpen && plan?.id !== row.changeId && (busy || uncertain || readBusy || dirty)}
+                  onClick={() => {
+                    if (isOpen) {
+                      setExpandedRow(undefined);
+                      if (plan?.id === row.changeId) setReviewOpen(false);
+                      if (isSelectedJob) setSelectedJobOpen(false);
+                      if (selectedVersion && selectedVersion.schema_version === row.version?.schema_version) {
+                        const params = new URLSearchParams(location.search);
+                        params.delete("schema_version");
+                        navigate(`${location.pathname}?${params}`);
+                      }
+                      return;
+                    }
+                    setExpandedRow(row.id);
+                    if (isSelectedJob) setSelectedJobOpen(true);
+                    if (rowJob) {
+                      navigate(materialSettingsPath(type.id, location.search, { job_id: rowJob.id }));
+                    }
+                    if (row.changeId && c && !rowJob) {
+                      setReviewOpen(true);
+                      const params = new URLSearchParams(location.search);
+                      params.set("change_id", row.changeId);
+                      params.delete("job_id");
+                      navigate(`/settings/entity-types/${type.id}?${params}`);
+                      if (plan?.id !== row.changeId) void loadPlan(row.changeId);
+                    }
+                  }}
+                >
+                  <span>
+                    {title} <span className="secondary">{new Date(row.createdAt).toLocaleString()}</span>
+                  </span>
+                  <span className="secondary">{status}</span>
+                </button>
+                <div id={`schema-history-${row.id}`} hidden={!isOpen}>
+                  {jobs.selectedChange && jobs.selectedChange.id === row.changeId &&
+                    (plan?.id !== row.changeId || transforming) &&
+                    <SchemaChangeRead change={jobs.selectedChange} definition={definition} />}
+                  {row.jobs.length > 0 && (
+                    <div className="schema-job-visits">
+                      {row.jobs.length > 1 && (
+                        <nav aria-label="이 변경의 값 변환 이력">
+                          {row.jobs.map((job) => (
+                            <Link key={job.id} to={materialSettingsPath(type.id, location.search, { job_id: job.id })}>
+                              {new Date(job.created_at).toLocaleString()} · {migrationLabels[job.status]}
+                            </Link>
+                          ))}
+                        </nav>
+                      )}
+                      {(isSelectedJob || (!selectedJob && (isOpen || plan?.id === row.changeId))) && rowJob && (
+                        <SchemaMigrationJob
+                          key={rowJob.id}
+                          typeId={type.id}
+                          jobId={rowJob.id}
+                          onState={onJobState ?? noJobState}
+                          onApplied={onMigrationApplied}
+                          onJobChange={jobs.accept}
+                          publicationError={jobErrors[rowJob.id] ?? ""}
+                          disabled={jobDisabled}
                         />
-                      )
-                      : null}
-                    {plan.analysis && plan.analysis.failed > 0 && (
+                      )}
+                    </div>
+                  )}
+                  {row.version && (
+                    <div className="schema-published-version">
+                      <Link
+                        to={materialSettingsPath(type.id, location.search, {
+                          schema_version: String(row.version.schema_version),
+                        })}
+                      >
+                        이 버전 보기
+                      </Link>
+                      {selectedVersion?.schema_version === row.version.schema_version &&
+                        <SchemaVersionDiff before={selectedVersion} after={definition} />}
+                    </div>
+                  )}
+                  {plan && plan.id === row.changeId && !transforming && (
+                    <section className="schema-summary" aria-label="속성 변경 요약" data-change-version={plan.version}>
+                      <h3 ref={reviewHeading} tabIndex={-1}>변경 검토</h3>
+                      {!["applied", "cancelled"].includes(plan.status) && (
+                        <p>
+                          아직 적용되지 않았습니다. 변경 내용과 기존 자료에 미치는 영향을 확인하세요.
+                        </p>
+                      )}
+                      <Link
+                        to={{
+                          pathname: location.pathname,
+                          search: (() => {
+                            const params = new URLSearchParams(location.search);
+                            params.set("change_id", plan.id);
+                            return `?${params}`;
+                          })(),
+                        }}
+                      >
+                        이 변경안 직접 링크
+                      </Link>
+                      {plan.recovery && (
+                        <section aria-label="복구안 원본">
+                          <p>
+                            보존 원본을 사용하는 새 버전의 복구안입니다. 영향 분석 후 현재 값 → 복구 값 미리보기를
+                            확인하고 실행하세요.
+                          </p>
+                          <Link
+                            to={materialSettingsPath(plan.type_id, location.search, {
+                              job_id: plan.recovery.source_job_id,
+                            })}
+                          >
+                            원본 작업 확인
+                          </Link>
+                          <p className="secondary">
+                            원본 보존 만료:{" "}
+                            <time dateTime={plan.recovery.source_expires_at}>
+                              {new Date(plan.recovery.source_expires_at).toLocaleString()}
+                            </time>
+                          </p>
+                          <p>
+                            복구안의 속성과 변환 규칙은 원본 기준으로 유지됩니다. 보완이 필요하면 현재 자료를 직접
+                            수정하거나 새 변경안을 준비하고 다시 분석하세요.
+                          </p>
+                        </section>
+                      )}
                       <p>
-                        실패한 자료 값을 확인하여 직접 수정하거나 값 변환 변경을 준비한 뒤 다시 분석하세요. 실패가
-                        있으면 게시할 수 없습니다.
+                        상태: {schemaChangeLabels[plan.status]} ·{" "}
+                        {plan.change_kind === "compatible" ? "검토 완료 후 적용 가능" : "자료 값 변환 필요"}
                       </p>
-                    )}
-                    {plan.change_kind === "migration_required" && plan.executable && !dirty && !analysisPending && (
-                      <MigrationStart
-                        plan={plan}
-                        disabled={busy || uncertain || dirty || disabled}
-                        onState={editor.migrationStateChanged}
-                      />
-                    )}
-                    {plan.change_kind === "migration_required" && (
-                      <p>현재 자료와 활성 정의는 유지됩니다. 영향 분석 결과를 확인하고 값 변환 작업을 준비하세요.</p>
-                    )}
-                    {plan.analysis?.status === "failed" && plan.status !== "cancelled" && (
-                      <p role="alert">
-                        분석 작업 실패: {plan.analysis.failure_reason}. 원본은 유지됩니다. 다시 분석하세요.
-                      </p>
-                    )}
-                    {plan.status === "stale" && (
-                      <p>
-                        {plan.recovery
-                          ? "정의나 자료·연결이 변경되었습니다. 입력은 유지됩니다. 현재 상태를 확인하고 보완한 뒤 새 변경안을 분석하세요."
-                          : "정의나 자료가 변경되었습니다. 최신 정의를 확인하고 새 변경을 만드세요."}
-                      </p>
-                    )}
-                    <div className="schema-actions">
-                      {["applied", "cancelled"].includes(plan.status)
+                      <SchemaChangeDiff change={plan} definition={definition} />
+                      {plan.analysis && plan.status !== "cancelled" && (
+                        <div className="schema-analysis-status" role="status">
+                          <strong>
+                            {{
+                              queued: "검토 접수",
+                              running: "기존 자료 확인 중",
+                              succeeded: plan.analysis.failed ? "보완 필요" : "검토 완료",
+                              failed: "검토 실패",
+                            }[plan.analysis.status]}
+                          </strong>
+                          <p>
+                            확인한 자료 {plan.analysis.processed}/{plan.analysis.total}개 · 문제{" "}
+                            {plan.analysis.failed}개
+                          </p>
+                          {plan.analysis.status === "succeeded" &&
+                            plan.analysis.failed === 0 && (
+                            <p className="secondary">
+                              기존 자료가 새 입력 조건을 충족합니다.
+                            </p>
+                          )}
+                          {dirty && (
+                            <p className="error-text">
+                              검토 이후 입력이 바뀌었습니다. 변경 검토를 다시 진행하세요.
+                            </p>
+                          )}
+                        </div>
+                      )}
+                      {plan.analysis && plan.status !== "cancelled" && (
+                        <details className="schema-result-details">
+                          <summary>자료별 결과</summary>
+                          <p>
+                            변경 {plan.analysis.changed}개 · 무변경 {plan.analysis.unchanged}개 · 값 제거{" "}
+                            {plan.analysis.removed}개 · 값 보완 {plan.analysis.replacements}개
+                          </p>
+                          {plan.analysis.errors.map((result) => (
+                            <div key={result.entity_id}>
+                              <strong>{result.entity_id}</strong>
+                              <ul>
+                                {result.fields.map((field, index) => (
+                                  <li key={index}>
+                                    {schemaDiffLabel(field.path, plan.target, definition)}: {field.message}
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          ))}
+                          {!plan.analysis.errors.length && <p>표시할 문제 항목이 없습니다.</p>}
+                        </details>
+                      )}
+                      {plan.change_kind === "migration_required" || plan.recovery || migration.rules.length > 0 ||
+                          migration.overrides.length > 0 || (plan.analysis?.failed ?? 0) > 0
                         ? (
-                          <>
-                            {plan.status === "applied" && definition.schema_version <= plan.source_schema_version && (
-                              <button
-                                className="btn"
-                                disabled={busy || uncertain || readBusy}
-                                onClick={() => void editor.refreshDefinition()}
-                              >
-                                최신 설정 다시 조회
-                              </button>
-                            )}
-                          </>
+                          <ConversionEditor
+                            key={plan.id}
+                            plan={plan}
+                            migration={migration}
+                            onChange={editor.editMigration}
+                            disabled={!!row.version || busy || uncertain || disabled || Boolean(plan.recovery) ||
+                              ["applied", "cancelled", "stale"].includes(plan.status)}
+                          />
                         )
-                        : (
-                          <>
-                            <button
-                              className="btn btn-danger"
-                              disabled={busy || uncertain || dirty || disabled || startState.busy ||
-                                startState.uncertain}
-                              onClick={() => setDiscardConfirm(true)}
-                            >
-                              폐기
-                            </button>
-                            {uncertain && !dirty
-                              ? (
+                        : null}
+                      {plan.analysis && plan.analysis.failed > 0 && (
+                        <p>
+                          실패한 자료 값을 확인하여 직접 수정하거나 값 변환 변경을 준비한 뒤 다시 분석하세요. 실패가
+                          있으면 게시할 수 없습니다.
+                        </p>
+                      )}
+                      {!row.version && plan.change_kind === "migration_required" && (
+                        <p>현재 자료와 활성 정의는 유지됩니다. 영향 분석 결과를 확인하고 값 변환 작업을 준비하세요.</p>
+                      )}
+                      {plan.analysis?.status === "failed" && plan.status !== "cancelled" && (
+                        <p role="alert">
+                          분석 작업 실패: {plan.analysis.failure_reason}. 원본은 유지됩니다. 다시 분석하세요.
+                        </p>
+                      )}
+                      {plan.status === "stale" && (
+                        <p>
+                          {plan.recovery
+                            ? "정의나 자료·연결이 변경되었습니다. 입력은 유지됩니다. 현재 상태를 확인하고 보완한 뒤 새 변경안을 분석하세요."
+                            : "정의나 자료가 변경되었습니다. 최신 정의를 확인하고 새 변경을 만드세요."}
+                        </p>
+                      )}
+                      <div className="schema-actions">
+                        {(row.version || ["applied", "cancelled"].includes(plan.status))
+                          ? (
+                            <>
+                              {plan.status === "applied" && definition.schema_version <= plan.source_schema_version && (
                                 <button
-                                  className="btn btn-primary"
-                                  disabled={busy || disabled}
-                                  onClick={() => void editor.review()}
+                                  className="btn"
+                                  disabled={busy || uncertain || readBusy}
+                                  onClick={() => void editor.refreshDefinition()}
                                 >
-                                  같은 요청 다시 확인
-                                </button>
-                              )
-                              : dirty
-                              ? (
-                                <button
-                                  className="btn btn-primary"
-                                  disabled={busy || disabled || readBusy}
-                                  onClick={() => void editor.review()}
-                                >
-                                  보완 내용 검토
-                                </button>
-                              )
-                              : analysisPending || plan.status === "analyzing"
-                              ? <button className="btn btn-primary" disabled>검토 중…</button>
-                              : analysisNeeded
-                              ? (
-                                <button
-                                  className="btn btn-primary"
-                                  disabled={busy || uncertain || disabled || readBusy}
-                                  onClick={() => void editor.analyze()}
-                                >
-                                  {plan.analysis ? "검토 재시도" : "변경 검토"}
-                                </button>
-                              )
-                              : plan.change_kind === "compatible" && plan.status !== "stale" && (
-                                <button
-                                  className="btn btn-primary"
-                                  disabled={busy || uncertain || dirty || disabled || readBusy ||
-                                    plan.status !== "ready" ||
-                                    plan.analysis?.failed !== 0}
-                                  onClick={() => void editor.publish()}
-                                >
-                                  변경 적용
+                                  최신 설정 다시 조회
                                 </button>
                               )}
-                          </>
-                        )}
-                    </div>
-                  </section>
-                )}
-              </div>
-            </section>
-          ))}
-          {changes.length === 0 && <p className="secondary">저장한 변경안이 없습니다.</p>}
+                            </>
+                          )
+                          : (
+                            <>
+                              <button
+                                className="btn btn-danger"
+                                disabled={busy || uncertain || dirty || disabled || startState.busy ||
+                                  startState.uncertain}
+                                onClick={() => setDiscardConfirm(true)}
+                              >
+                                폐기
+                              </button>
+                              {uncertain && !dirty
+                                ? (
+                                  <button
+                                    className="btn btn-primary"
+                                    disabled={busy || disabled}
+                                    onClick={() => void editor.review()}
+                                  >
+                                    같은 요청 다시 확인
+                                  </button>
+                                )
+                                : dirty
+                                ? (
+                                  <button
+                                    className="btn btn-primary"
+                                    disabled={busy || disabled || readBusy}
+                                    onClick={() => void editor.review()}
+                                  >
+                                    보완 내용 검토
+                                  </button>
+                                )
+                                : analysisPending || plan.status === "analyzing"
+                                ? <button className="btn btn-primary" disabled>검토 중…</button>
+                                : analysisNeeded
+                                ? (
+                                  <button
+                                    className="btn btn-primary"
+                                    disabled={busy || uncertain || disabled || readBusy}
+                                    onClick={() => void editor.analyze()}
+                                  >
+                                    {plan.analysis ? "검토 재시도" : "변경 검토"}
+                                  </button>
+                                )
+                                : plan.change_kind === "migration_required" && plan.executable && !row.version
+                                ? (
+                                  <MigrationStart
+                                    plan={plan}
+                                    disabled={busy || uncertain || dirty || disabled}
+                                    onState={editor.migrationStateChanged}
+                                  />
+                                )
+                                : plan.change_kind === "compatible" && plan.status !== "stale" && (
+                                  <button
+                                    className="btn btn-primary"
+                                    disabled={busy || uncertain || dirty || disabled || readBusy ||
+                                      plan.status !== "ready" ||
+                                      plan.analysis?.failed !== 0}
+                                    onClick={() => void editor.publish()}
+                                  >
+                                    변경 적용
+                                  </button>
+                                )}
+                            </>
+                          )}
+                      </div>
+                    </section>
+                  )}
+                </div>
+              </section>
+            );
+          })}
+          {historyRows.length === 0 && <p className="secondary">변경 이력이 없습니다.</p>}
           {editor.view.changesBefore && (
             <button
               className="btn"
@@ -946,10 +1082,32 @@ export function SchemaEditor(
               이전 변경안 더 보기
             </button>
           )}
-          <button className="btn" disabled={busy || readBusy || uncertain} onClick={() => void editor.refreshChanges()}>
+          <button
+            className="btn"
+            disabled={busy || readBusy || uncertain}
+            onClick={() => {
+              jobs.refresh();
+              void editor.refreshChanges();
+            }}
+          >
             변경 이력 다시 조회
           </button>
-          {historyContent}
+          {jobs.error && <p role="alert">{jobs.error}</p>}
+          {jobs.before && (
+            <button className="btn" disabled={jobs.moreBusy} onClick={() => void jobs.more()}>
+              {jobs.moreBusy ? "이전 변환 이력 읽는 중…" : "이전 변환 이력 더 보기"}
+            </button>
+          )}
+          {jobs.error && <button className="btn" onClick={jobs.refresh}>변환 이력 다시 조회</button>}
+          {historyBefore !== null && (
+            <button
+              className="btn"
+              disabled={historyBusy}
+              onClick={() => void onMoreVersions?.()}
+            >
+              {historyBusy ? "이전 버전 읽는 중…" : "이전 게시 버전 더 보기"}
+            </button>
+          )}
         </div>
       </MaterialSettingsSection>
       <ConfirmDialog

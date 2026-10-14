@@ -62,7 +62,7 @@ test("값 변환 작업: 웹 접수→페이지 이탈→실제 local runner 완
     const response = page.waitForResponse((r) =>
       r.url().endsWith(`/schema-changes/${plan.id}/migrations`) && r.request().method() === "POST"
     );
-    await page.getByRole("button", { name: "값 변환 실행", exact: true }).click();
+    await page.getByRole("button", { name: "값 변환 시작", exact: true }).click();
     const accepted = await (await response).json();
     expect(accepted.status).toBe("queued");
     const path = `/settings/entity-types/${type.id}/migrations/${accepted.job_id}`;
@@ -150,7 +150,7 @@ test("값 변환 작업: MCP 접수→웹 취소→MCP 확정 상태·원본 유
       });
     await page.goto(`/settings/entity-types/${typeId}/migrations/${job.job_id}`);
     await expect(page.getByRole("status").filter({ hasText: /^(접수|실행 중|완료|취소) · / })).toContainText("접수");
-    await page.getByRole("button", { name: "적용 전 취소", exact: true }).click();
+    await page.getByRole("button", { name: "변환 취소", exact: true }).click();
     await expect(page.getByRole("status").filter({ hasText: /^(접수|실행 중|완료|취소) · / })).toContainText("취소");
     expect((await mcp.call("get_entity_schema_migration", { job_id: job.job_id })).status).toBe("cancelled");
     expect((await mcp.call("get_entity", { id: entityId })).properties).toEqual({ prop_1: "原本" });

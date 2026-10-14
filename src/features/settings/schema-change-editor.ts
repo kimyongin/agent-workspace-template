@@ -50,6 +50,7 @@ export function useSchemaChangeEditor(
   const [plan, setPlan] = useState<EntitySchemaChange | null>(null),
     [changes, setChanges] = useState<EntitySchemaChangeSummary[]>([]),
     [refs, setRefs] = useState<Record<string, string>>({});
+  const changesExpanded = useRef(false);
   const [changesBefore, setChangesBefore] = useState<string | null>(null);
   const latestPlan = useRef(plan);
   latestPlan.current = plan;
@@ -180,17 +181,29 @@ export function useSchemaChangeEditor(
       (r) => {
         if (mounted.current && !signal?.aborted) {
           const selected = latestPlan.current;
-          setChanges(
-            selected
-              ? r.items.some((item) => item.id === selected.id)
-                ? r.items.map((item) => item.id === selected.id ? selected : item)
-                : [selected, ...r.items]
-              : r.items,
-          );
-          setChangesBefore(r.next_before ?? null);
+          setChanges((prior) => {
+            const incoming = selected && !r.items.some((item) => item.id === selected.id)
+              ? [selected, ...r.items]
+              : r.items;
+            const known = new Map(prior.filter((item) => item.type_id === type.id).map((item) => [item.id, item]));
+            for (const item of incoming) {
+              const previous = known.get(item.id);
+              if (
+                !previous || item.version > previous.version ||
+                (item.version === previous.version && item.updated_at >= previous.updated_at)
+              ) known.set(item.id, item);
+            }
+            return [...known.values()].sort((a, b) => b.id.localeCompare(a.id));
+          });
+          if (!changesExpanded.current) {
+            setChangesBefore(r.next_before ?? null);
+          }
         }
       },
     );
+  useEffect(() => {
+    changesExpanded.current = false;
+  }, [type.id]);
   useEffect(() => {
     const controller = new AbortController();
     void list(controller.signal).catch((e) => {
@@ -649,6 +662,7 @@ export function useSchemaChangeEditor(
       );
       if (mounted.current) {
         setChanges((prior) => [...prior, ...result.items.filter((item) => !prior.some((p) => p.id === item.id))]);
+        changesExpanded.current = true;
         setChangesBefore(result.next_before);
         setError("");
       }

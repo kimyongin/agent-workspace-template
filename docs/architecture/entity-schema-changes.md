@@ -105,3 +105,7 @@ job 상태/목록의 `recovery.status`는 available/expired/unavailable/conflict
 입력 항목은 편집을, 변경 이력의 펼침 행은 저장된 변경안의 검토·적용·폐기를 담당한다. 섹션을 접으면 내부 버튼과 설명도 숨기며 초안은 유지한다. 변경 검토의 저장 성공 후 해당 이력 행으로 초점을 옮기고 기존 자료 영향 분석을 시작한다. 이미 적용한 변경과 활성 값 변환이 있는 변경은 폐기하지 않는다.
 
 `POST /entity-types/:type_id/schema-changes/:change_id/discard`와 `discard_entity_schema_change`는 `expected_change_version`과 요청 키로 명시 폐기를 수행한다. 폐기는 기존 cancelled 저장 상태를 사용하고 UI는 폐기됨으로 표시한다. 현재 정의·자료·속성 키 예약·이력은 유지한다. 분석 중 폐기는 분석 fence와 변경 버전을 전진시켜 늦은 결과 반영을 막는다. 작업 취소와 변경안 폐기는 별도 행동이다.
+
+## 웹 변경 이력의 연결
+
+변경안 목록은 `source_schema_version`을 포함한다. 적용 트랜잭션은 현재 source 버전에서 정확히 다음 버전을 게시하므로 applied 변경의 source+1을 게시 이력에 연결한다. 값 변환 작업은 `change_id`와 성공 `result.schema_version`으로 연결한다. 생성 날짜나 목록 위치로 버전을 추측하지 않는다. 웹은 세 조회의 cursor·오류를 보존하면서 연결된 변경을 하나의 행으로 표시하며 최초 버전과 아직 변경안을 조회하지 않은 게시 버전도 누락하지 않는다.

@@ -212,9 +212,9 @@ test("취소 성공 응답은 후속 조회가 늦어도 즉시 표시하고 이
   await page.goto("/e2e/fixtures/schema-job-history.html?job=30");
   await expect(page.getByRole("status")).toContainText("접수");
   try {
-    await page.getByRole("button", { name: "적용 전 취소", exact: true }).click();
+    await page.getByRole("button", { name: "변환 취소", exact: true }).click();
     await expect(page.getByRole("status")).toContainText("취소");
-    await expect(page.getByRole("button", { name: "적용 전 취소", exact: true })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "변환 취소", exact: true })).toHaveCount(0);
     const refreshed = page.waitForResponse(response => response.url().endsWith(`/entity-schema-migrations/${id(30)}`));
     release();
     await (await refreshed).finished();
@@ -240,5 +240,5 @@ test("재시도의 접수 응답은 작업 상세로 취급하지 않고 조회�
   await page.getByRole("button", { name: "같은 작업 재시도", exact: true }).click();
   await expect(page.getByRole("status")).toContainText("접수");
   await expect(page.getByText(/작업 30의 수정·삭제·설정 게시/)).toBeVisible();
-  await expect(page.getByRole("button", { name: "적용 전 취소", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "변환 취소", exact: true })).toBeVisible();
 });
