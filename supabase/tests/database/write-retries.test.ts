@@ -32,7 +32,9 @@ dbTest("same creation identity and stale version never repeat a business change"
       ...foreignSchema,
       properties: { prop_1: "다른 소유자" },
     });
-    assertEquals(foreign.id, created.id);
+    assertEquals(foreign.id, `app:${foreignSchema.entity_type_id}:${input.external_id}`);
+    assertEquals(foreign.external_id, created.external_id);
+    assertEquals(foreign.source, created.source);
     assertEquals((await getEntity(deps, other.actor, foreign.id)).properties.prop_1, "다른 소유자");
     assertEquals((await getEntity(deps, f.actor, created.id)).properties.prop_1, "원본");
     const patch = {

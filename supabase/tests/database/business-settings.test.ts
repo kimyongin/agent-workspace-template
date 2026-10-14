@@ -36,8 +36,8 @@ dbTest("설정 ID별 첫 저장·버전 격리와 같은 ID의 동시 저장 충
       "conflict",
     );
     assertEquals(
-      (await assertRejects(() =>
-        updateBusinessSettings(settings, requestActor(own.actor), {
+      (await assertRejects(async () =>
+        await updateBusinessSettings(settings, requestActor(own.actor), {
           id: "entity_identity",
           expected_version: 0,
           value: {},

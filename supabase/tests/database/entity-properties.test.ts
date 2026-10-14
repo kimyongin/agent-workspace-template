@@ -112,8 +112,10 @@ dbTest(
             schema_version: 2,
             expected_version: deleted.version,
           }), AppError)).code,
-        "entity_type_immutable",
+        "conflict",
       );
+      // Another type computes another canonical target; it cannot restore this deleted row.
+      assertEquals((await getEntity(entities, owner.actor, saved.id)).deleted_at, deleted.deleted_at);
       const restored = await createEntity(entities, requestActor(owner.actor), {
         ...input,
         properties: {},
