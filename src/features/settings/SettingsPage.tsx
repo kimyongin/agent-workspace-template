@@ -4,7 +4,7 @@ import { Field } from "../../components/Field.tsx";
 import { browserTimezone, timezoneOptions } from "../../lib/timezone.ts";
 import { DetailLink } from "../../lib/detail-exploration.tsx";
 import { useEffect, useRef, useState } from "react";
-import { useBlocker } from "react-router";
+import { Link, useBlocker } from "react-router";
 import { ConfirmDialog } from "../../components/Modal.tsx";
 import { useAuth } from "../auth/AuthProvider.tsx";
 import { ProfileDisplayRefreshError } from "../auth/profile-client.ts";
@@ -282,9 +282,7 @@ function AccountSettings() {
         <h2 className="settings-section-title" id="data-title">자료 관리</h2>
         <div className="settings-links">
           <DetailLink to="/settings/entity-types">자료 설정</DetailLink>
-          <DetailLink to="/tags/entity">자료 태그</DetailLink>
-          <DetailLink to="/tags/task">할 일 태그</DetailLink>
-          <DetailLink to="/tags/record">기록 태그</DetailLink>
+          <Link to="/settings/tags">태그 관리</Link>
         </div>
       </section>
       <EntityIdentitySettings onStateChange={setIdentityState} />

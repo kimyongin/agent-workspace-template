@@ -139,20 +139,23 @@ test("미설정과 null은 고정 문구를 표시하고 되돌리기는 다른 
   await expect(form.getByLabel("메모 템플릿")).toHaveValue(/\$대상\$/);
   await form.getByRole("button", { name: "기본 문구로 되돌리기", exact: true }).click();
 
-
   await form.getByText("기록 전용", { exact: true }).click();
   await form.getByRole("button", { name: "기록 기본값 저장", exact: true }).click();
   await expect(form.getByRole("status")).toContainText("저장했습니다");
   expect(state.writes[0].body.value.entity_types[materials.id].create).toEqual({ memo: null, tag_ids: [tag.id] });
   await form.getByLabel("메모 템플릿").fill("종류 문구");
   await page.setViewportSize({ width: 320, height: 900 });
-  await page.evaluate(() => { document.documentElement.style.fontSize = "200%"; });
+  await page.evaluate(() => {
+    document.documentElement.style.fontSize = "200%";
+  });
   const resetAlignment = await form.locator(".record-template-defaults").evaluate((el) => {
     const button = el.querySelector("button")!.getBoundingClientRect();
     return Math.abs(button.right - el.getBoundingClientRect().right);
   });
   expect(resetAlignment).toBeLessThanOrEqual(1);
-  await page.evaluate(() => { document.documentElement.style.fontSize = ""; });
+  await page.evaluate(() => {
+    document.documentElement.style.fontSize = "";
+  });
 
   await form.getByRole("button", { name: "기록 기본값 저장", exact: true }).click();
   await expect(form.getByRole("status")).toContainText("저장했습니다");
@@ -187,16 +190,126 @@ test("종류 문구 저장 충돌은 초안을 보존하고 응답 유실은 같
   expect(state.writes[2]).toEqual(state.writes[1]);
 });
 
-test("자료 태그는 다른 태그와 같은 설정 위치에서 열고 닫기 후 초점을 돌려준다", async ({ page }) => {
+test("태그 관리는 설정 링크 하나에서 같은 화면의 대상을 전환한다", async ({ page }) => {
   await settingsFixture(page);
   await page.goto("/settings");
-  await expect(page.getByRole("form", { name: "자료 식별자 설정", exact: true })).toBeVisible();
-  await expect(page.getByLabel("모델", { exact: true }).locator("option")).toHaveText(["할일", "원칙"]);
-  await page.getByRole("link", { name: "자료 태그", exact: true }).click();
-  await expect(page).toHaveURL(/\/tags\/entity$/);
-  await page.getByRole("button", { name: "닫기", exact: true }).click();
-  await expect(page).toHaveURL(/\/settings$/);
-  await expect(page.getByRole("link", { name: "자료 태그", exact: true })).toBeFocused();
+  await expect(page.getByRole("link", { name: "태그 관리", exact: true })).toHaveCount(1);
+  for (const name of ["자료 태그", "할 일 태그", "기록 태그"]) {
+    await expect(page.getByRole("link", { name, exact: true })).toHaveCount(0);
+  }
+  await page.getByRole("link", { name: "태그 관리", exact: true }).click();
+  await expect(page).toHaveURL(/\/settings\/tags$/);
+  await expect(page.getByRole("heading", { name: "태그 관리", exact: true })).toBeVisible();
+  const target = page.getByLabel("관리 대상", { exact: true });
+  await expect(target.locator("option")).toHaveText(["자료", "할 일", "기록"]);
+  for (const scope of ["task", "record", "entity"]) {
+    await target.selectOption(scope);
+    await expect(page).toHaveURL(new RegExp(`\\/settings\\/tags\\?scope=${scope}$`));
+    await expect(page.getByText("아직 태그가 없습니다.", { exact: true })).toBeVisible();
+  }
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});
+
+test("통합 태그의 초안은 대상 전환 취소 시 보존하고 확인 시 버린다", async ({ page }) => {
+  await page.goto("/settings/tags");
+  const name = page.getByRole("textbox", { name: "태그 이름 (필수)", exact: true });
+  await name.fill("저장 전 초안");
+  await page.getByLabel("관리 대상", { exact: true }).selectOption("task");
+  await page.getByRole("dialog").getByRole("button", { name: "취소", exact: true }).click();
+  await expect(page.getByLabel("관리 대상", { exact: true })).toHaveValue("entity");
+  await expect(name).toHaveValue("저장 전 초안");
+  await page.getByLabel("관리 대상", { exact: true }).selectOption("record");
+  await page.getByRole("button", { name: "변경 버리기", exact: true }).click();
+  await expect(page.getByLabel("관리 대상", { exact: true })).toHaveValue("record");
+  await expect(name).toHaveValue("");
+});
+
+test("통합 태그는 저장 중 전환을 막고 대상별 사전에 같은 이름을 저장한다", async ({ page }) => {
+  const dictionaries: Record<string, any[]> = { entity: [], task: [], record: [] };
+  let release: (() => void) | undefined;
+  await page.route("**/api/tags**", async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    if (request.method() === "GET") {
+      return route.fulfill({ json: { items: dictionaries[url.searchParams.get("scope")!], next_cursor: null } });
+    }
+    const body = request.postDataJSON();
+    if (body.scope === "entity") {
+      await new Promise<void>((resolve) => {
+        release = resolve;
+      });
+    }
+    const tag = {
+      id: `00000000-0000-4000-8000-00000000000${Object.keys(dictionaries).indexOf(body.scope) + 1}`,
+      ...body,
+      version: 1,
+    };
+    dictionaries[body.scope].push(tag);
+    await route.fulfill({ status: 201, json: tag });
+  });
+  await page.goto("/settings/tags");
+  const name = page.getByRole("textbox", { name: "태그 이름 (필수)", exact: true });
+  await name.fill("공통 이름");
+  await page.getByRole("button", { name: "추가", exact: true }).click();
+  await expect(page.getByLabel("관리 대상", { exact: true })).toBeDisabled();
+  await expect.poll(() => !!release).toBe(true);
+  release!();
+  await expect(page.getByText("공통 이름", { exact: true })).toBeVisible();
+  await page.getByLabel("관리 대상", { exact: true }).selectOption("task");
+  await expect(page.getByText("공통 이름", { exact: true })).toHaveCount(0);
+  await name.fill("공통 이름");
+  await page.getByRole("button", { name: "추가", exact: true }).click();
+  await expect(page.getByText("공통 이름", { exact: true })).toBeVisible();
+  expect(dictionaries.entity).toHaveLength(1);
+  expect(dictionaries.task).toHaveLength(1);
+  expect(dictionaries.record).toHaveLength(0);
+});
+
+test("통합 태그는 접힌 섹션에도 조회 오류와 저장 미확정 상태를 남긴다", async ({ page }) => {
+  let readFailed = true;
+  await page.route("**/api/tags**", (route) => {
+    if (route.request().method() !== "GET") return route.abort();
+    if (readFailed) return route.fulfill({ status: 503, json: { code: "unavailable", message: "조회 실패" } });
+    return route.fulfill({ json: { items: [], next_cursor: null } });
+  });
+  await page.goto("/settings/tags");
+  await expect(page.getByText("태그 목록을 불러오지 못했습니다. 기존 목록은 유지합니다.")).toBeVisible();
+  const section = page.getByRole("heading", { level: 2 }).getByRole("button");
+  await section.click();
+  await expect(section).toHaveAttribute("aria-expanded", "false");
+  await expect(section).toContainText("오류");
+  await section.click();
+  readFailed = false;
+  await page.getByRole("button", { name: "목록 다시 시도", exact: true }).click();
+  await expect(page.getByText("아직 태그가 없습니다.", { exact: true })).toBeVisible();
+  await page.getByRole("textbox", { name: "태그 이름 (필수)", exact: true }).fill("응답 미확정");
+  await page.getByRole("button", { name: "추가", exact: true }).click();
+  await expect(section).toContainText("결과 확인 필요");
+  await section.click();
+  await expect(section).toHaveAttribute("aria-expanded", "false");
+  await expect(section).toContainText("결과 확인 필요");
+});
+
+test("통합 태그는 삭제 실패 후 접혀도 오류와 기존 행을 유지한다", async ({ page }) => {
+  const tag = { id: "00000000-0000-4000-8000-000000000010", name: "삭제 실패 태그", scope: "entity", version: 1 };
+  await page.route(
+    "**/api/tags**",
+    (route) =>
+      route.request().method() === "DELETE"
+        ? route.fulfill({ status: 400, json: { code: "validation", message: "삭제 실패" } })
+        : route.fulfill({ json: { items: [tag], next_cursor: null } }),
+  );
+  await page.goto("/settings/tags");
+  await page.getByRole("button", { name: "삭제 실패 태그 삭제", exact: true }).click();
+  const confirmation = page.locator("dialog.modal-action[open]");
+  await confirmation.getByRole("button", { name: "삭제하고 기록", exact: true }).click();
+  await expect(confirmation).toContainText("삭제 실패");
+  await confirmation.getByRole("button", { name: "취소", exact: true }).click();
+  const section = page.getByRole("heading", { level: 2 }).getByRole("button");
+  await section.click();
+  await expect(section).toContainText("오류");
+  await section.click();
+  await expect(page.getByText("삭제 실패 태그", { exact: true })).toBeVisible();
 });
 
 test("기존 식별자 주소도 일반 설정의 식별자 섹션으로 연결한다", async ({ page }) => {
@@ -217,8 +330,10 @@ test("공유 기록 설정은 본문 조회만 작은 버튼으로 표시하고 
   await save.click();
   const reload = form.getByRole("button", { name: "최신값 확인", exact: true });
   await expect(reload).toBeVisible();
-  expect(await reload.locator(".body-action-face").evaluate(el => getComputedStyle(el).fontSize)).toBe("12px");
-  expect(await save.evaluate(el => ({ font: getComputedStyle(el).fontSize, height: el.getBoundingClientRect().height }))).toEqual({ font: "14px", height: 44 });
+  expect(await reload.locator(".body-action-face").evaluate((el) => getComputedStyle(el).fontSize)).toBe("12px");
+  expect(
+    await save.evaluate((el) => ({ font: getComputedStyle(el).fontSize, height: el.getBoundingClientRect().height })),
+  ).toEqual({ font: "14px", height: 44 });
   await reload.click();
   await expect(form.getByLabel("메모 템플릿")).toHaveValue("기록 설정 버튼 검증");
   await expect(form.getByRole("button", { name: "최신값으로 다시 편집", exact: true })).toBeEnabled();
