@@ -46,7 +46,7 @@ export function EntityForm({
     [pendingDefinition, setPendingDefinition] = useState<EntitySchemaResult | null>(null),
     [schemaReading, setSchemaReading] = useState(false),
     [reviewKeys, setReviewKeys] = useState<string[]>([]),
-    [reload, setReload] = useState(0),
+    [identityReload, setIdentityReload] = useState(0),
     [nextType, setNextType] = useState<string | null>(null);
   const { types, error: catalogError, retry: retryCatalog } = useEntityTypes();
   const [archived, setArchived] = useState<EntityDetail | null>(initial?.deleted_at ? initial : null),
@@ -91,7 +91,7 @@ export function EntityForm({
       c.abort();
       lookup.current?.abort();
     };
-  }, [typeId, reload]);
+  }, [typeId, identityReload]);
   useEffect(() => {
     const c = new AbortController();
     definitionRead.current?.abort();
@@ -122,7 +122,7 @@ export function EntityForm({
       });
     }
     return () => c.abort();
-  }, [typeId, reload]);
+  }, [typeId]);
   const readDefinition = async () => {
     if (!typeId || schemaReading) return;
     const controller = new AbortController();
@@ -433,7 +433,7 @@ export function EntityForm({
                 <button
                   type="button"
                   className="btn"
-                  onClick={() => setReload((value) => value + 1)}
+                  onClick={() => setIdentityReload((value) => value + 1)}
                 >
                   식별자 설정 다시 조회
                 </button>
@@ -452,7 +452,8 @@ export function EntityForm({
                     )}
                   </Field>
                 )
-                : (
+                : identitySettings?.sources.filter((item) => item.active).length === 1 &&
+                    identitySettings.sources.find((item) => item.active)?.code === "app" ? null : (
                   <Field label="발급처" required error={errors.source}>
                     {(p) => (
                       <select
