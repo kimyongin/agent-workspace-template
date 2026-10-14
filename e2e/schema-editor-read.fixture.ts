@@ -433,9 +433,9 @@ test("입력 항목 안에서 대표·목록·순서 변경을 함께 취소하�
   await quantity.getByLabel("필수 입력").check();
   await quantity.getByLabel("데이터 타입").selectOption("string");
   const representative = quantity.getByRole("radio", { name: "수량 자료 이름으로 사용", exact: true });
-  await expect(representative).toBeDisabled();
+  await expect(representative).toBeEnabled();
   await revealSetting(quantity.getByLabel("최소 길이", { exact: true }));
-  await quantity.getByLabel("최소 길이", { exact: true }).fill("1");
+  await expect(quantity.getByLabel("최소 길이", { exact: true })).toHaveValue("1");
   await representative.check();
   await expect(representative).toBeChecked();
   await section.getByRole("button", { name: "단위 속성 편집", exact: true }).click();
