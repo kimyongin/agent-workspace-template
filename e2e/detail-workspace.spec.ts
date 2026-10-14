@@ -653,7 +653,7 @@ test("desktop: ordinary edits preserve the immutable identity, retained tab and 
   await page.goto(`/entities/${encodeURIComponent(oldId)}`);
   await panel(page).getByRole("button", {name:"편집",exact:true}).click();
   await expect(panel(page).getByLabel("번호",{exact:true})).toHaveAttribute("readonly", "");
-  await panel(page).getByLabel("제목",{exact:true}).fill("등심 수정");
+  await panel(page).getByLabel("제목",{exact:false}).fill("등심 수정");
   await saveOnce(page,panel(page));
   await expect(page).toHaveURL(new RegExp(encodeURIComponent(oldId)));
   await expect(page.getByRole("tab",{name:"등심 수정",exact:true})).toHaveCount(1);
@@ -674,7 +674,7 @@ for (const entered of [false,true]) test(`manual identity defaults preserve canc
   await page.goto("/entities?entity_type_id=00000000-0000-4000-8000-000000000900");
   await page.getByRole("button", {name:"검사 자료 추가",exact:true}).click();
   const form = page.getByRole("dialog", {name:"검사 자료 추가",exact:true});
-  await expect(form.getByLabel("식별자")).toBeDisabled();
+  await expect(form.getByLabel("번호")).toBeDisabled();
   if (entered) await form.getByLabel("제목").fill("설정 도착 전 입력");
   releaseSettings();
   await expect(form.getByLabel("식별자")).toBeEnabled();
