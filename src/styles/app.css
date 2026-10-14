@@ -756,7 +756,8 @@ textarea.input {
 .modal.modal-confirm.modal-action {
   border: 1px solid var(--line);
   width: min(28rem, calc(100% - 2 * var(--space-4)));
-  height: auto;
+  /* Native modal insets need an intrinsic height to keep this confirmation compact. */
+  height: fit-content;
   margin: auto;
   border-radius: var(--radius-card);
   max-height: calc(var(--surface-height, 100dvh) - 2 * var(--space-4));
