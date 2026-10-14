@@ -1,5 +1,5 @@
 import { entitySummary } from "../../supabase/functions/_shared/contracts/entity.ts";
-import { defaultEntityIdentitySettings, entityId } from "../../supabase/functions/_shared/contracts/entity-identity.ts";
+import { entityId } from "../../supabase/functions/_shared/contracts/entity-identity.ts";
 import type { Page } from "@playwright/test";
 import { recordDisplayText } from "../../supabase/functions/_shared/contracts/record-display.ts";
 import {
@@ -7,6 +7,7 @@ import {
   entity,
   fixtureSchema,
   fixtureType,
+  fixtureIdentity,
   principle,
   record,
   stamp,
@@ -103,11 +104,11 @@ export async function installWorkspaceApi(
       }
     };
     if (kind === "entities" && action === "links" && method === "GET") return reply({ items: [], next_cursor: null });
-    if (kind === "entity-types") return reply(key ? action === "schema" ? fixtureSchema : fixtureType : { items: [fixtureType], next_cursor: null });
+    if (kind === "entity-types") return reply(key ? action === "schema" ? fixtureSchema : action === "identity" ? fixtureIdentity(key) : fixtureType : { items: [fixtureType], next_cursor: null });
     if (kind === "settings" && key === "business") {
       return reply({
-        versions: { record_templates: 0, entity_identity: 0 },
-        settings: { entity_identity: defaultEntityIdentitySettings, record_templates: {} },
+        versions: { record_templates: 0 },
+        settings: { record_templates: {} },
       });
     }
     if (kind === "records" && key === "prepare") {
@@ -244,7 +245,7 @@ export async function installWorkspaceApi(
         Object.assign(saved, {
           source,
           external_id,
-          id: entityId(source, external_id),
+          id: entityId(source, String(body.entity_type_id ?? fixtureType.id), external_id),
           title: (body.properties as Record<string, unknown>)?.prop_1 ?? saved.title,
           display_properties: body.properties ?? saved.display_properties,
         });
