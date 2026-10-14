@@ -30,7 +30,6 @@ export function TypeIdentitySettings(
   const [message, setMessage] = useState(""), [inputError, setInputError] = useState("");
   const reportModal = useCallback((state: MaterialSectionState) => setModalState(state), []);
   const [catalogRevision, setCatalogRevision] = useState(0);
-  const savedCodes = saved?.sources.map((s) => s.code).join(",") ?? "";
   useEffect(() => {
     const c = new AbortController();
     setCatalogError("");
@@ -38,7 +37,7 @@ export function TypeIdentitySettings(
       if (c.signal.aborted) return;
       setIssuers(result.items);
       const definitions = await Promise.all(
-        savedCodes.split(",").filter(Boolean).map(async (code) =>
+        (saved?.sources.map((source) => source.code) ?? []).map(async (code) =>
           [code, (await issuerRegistry.rules(code, c.signal)).items] as const
         ),
       );
@@ -47,7 +46,7 @@ export function TypeIdentitySettings(
       if (!c.signal.aborted) setCatalogError(e.message);
     });
     return () => c.abort();
-  }, [savedCodes, catalogRevision]);
+  }, [saved, catalogRevision]);
   const state = {
     dirty: dirty || conflict || modalState.dirty || registryState.dirty,
     busy: busy && editor.operation === "save" || modalState.busy || registryState.busy,
@@ -251,6 +250,7 @@ export function TypeIdentitySettings(
                             <BodyAction
                               icon="create"
                               aria-label={`${sourceName(source.code)} 번호 규칙 추가`}
+                              disabled={!rules[source.code]}
                               onClick={() => setRegistryEdit({ kind: "rule", source: source.code })}
                             >
                               규칙 추가

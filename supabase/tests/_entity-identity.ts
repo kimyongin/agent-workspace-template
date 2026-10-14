@@ -9,6 +9,7 @@ export function identityFixture(type_id: string): EntityTypeIdentity {
       code: "app",
       rule_id: "00000000-0000-4000-8000-000000000001",
       active: true,
+      referenced: false,
       source_label: "앱",
       rule_label: "자동 발급",
       generation: "automatic",
