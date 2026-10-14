@@ -551,7 +551,7 @@ dbTest(
   },
 );
 dbTest(
-  "recovery detects later values/new/delete/restore/rekey/pair/task/record changes with bounded actionable conflicts",
+  "recovery detects later values/new/delete/restore/pair/task/record changes with bounded actionable conflicts",
   async () => {
     for (
       const action of [
@@ -560,7 +560,6 @@ dbTest(
         "new",
         "delete",
         "restore",
-        "rekey",
         "pair",
         "pair_same",
         "task",
@@ -620,14 +619,6 @@ dbTest(
             external_id: del.external_id,
             properties: del.properties,
             expected_version: del.version,
-          });
-        }
-        if (action === "rekey") {
-          await updateEntity(f.e, f.actor(), x.id, {
-            expected_version: x.version,
-            schema_version: 3,
-            source: x.source,
-            external_id: "rekey",
           });
         }
         if (action === "pair") {

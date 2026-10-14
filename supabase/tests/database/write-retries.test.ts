@@ -21,7 +21,7 @@ dbTest("same creation identity and stale version never repeat a business change"
       properties: { prop_1: "원본" },
     });
     const created = await createEntity(deps, requestActor(f.actor), input);
-    assertEquals(created.id, `app:${input.external_id}`);
+    assertEquals(created.id, `app:${input.entity_type_id}:${input.external_id}`);
     await assertRejects(() => createEntity(deps, requestActor(f.actor), input), AppError);
     const collision = await assertRejects(() => createEntity(deps, requestActor(f.actor), input), AppError);
     assertEquals(collision.code, "conflict");

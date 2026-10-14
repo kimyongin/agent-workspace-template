@@ -119,9 +119,9 @@ dbTest(
       const schema = await entityFixture(admin, own.actor.userId),
         otherSchema = await entityFixture(admin, foreign.actor.userId);
       await admin`insert into app.entities(owner_id,id,source,external_id,entity_type_id,schema_version,properties,created_at,deleted_at) values
-      (${own.actor.userId},'app:status-a','app','status-a',${schema.entity_type_id},1,'{"prop_1":"active"}'::jsonb,${at},null),
-      (${own.actor.userId},'app:status-b','app','status-b',${schema.entity_type_id},1,'{"prop_1":"deleted"}'::jsonb,'2026-10-10T14:59:59.999Z',${at}),
-      (${foreign.actor.userId},'app:status-c','app','status-c',${otherSchema.entity_type_id},1,'{"prop_1":"foreign"}'::jsonb,${at},null)`;
+      (${own.actor.userId},${`app:${schema.entity_type_id}:status-a`},'app','status-a',${schema.entity_type_id},1,'{"prop_1":"active"}'::jsonb,${at},null),
+      (${own.actor.userId},${`app:${schema.entity_type_id}:status-b`},'app','status-b',${schema.entity_type_id},1,'{"prop_1":"deleted"}'::jsonb,'2026-10-10T14:59:59.999Z',${at}),
+      (${foreign.actor.userId},${`app:${otherSchema.entity_type_id}:status-c`},'app','status-c',${otherSchema.entity_type_id},1,'{"prop_1":"foreign"}'::jsonb,${at},null)`;
       const task = id(), oldTask = id(), recurring = id();
       await admin`insert into app.tasks(id,owner_id,kind,title,status,created_at,completed_at) values
       (${task},${own.actor.userId},'once','done','done',${at},${at}),

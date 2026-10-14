@@ -11,7 +11,7 @@ httpTest("업무 설정 HTTP/MCP: 인증·같은 준비 결과·전체 이전/�
     assertEquals((await call(null, "GET", "/settings/business")).status, 401);
     assertEquals((await call(null, "GET", "/settings/business?id=entity_identity")).status, 401);
     assertEquals(await tool(client, "get_business_settings", {}), saved);
-    for (const id of ["entity_identity", "record_templates"] as const) {
+    for (const id of ["record_templates"] as const) {
       const selected = { settings: { [id]: saved.settings[id] }, versions: { [id]: saved.versions[id] } };
       assertEquals((await call(a, "GET", `/settings/business?id=${id}`)).body, selected);
       assertEquals(await tool(client, "get_business_settings", { id }), selected);
@@ -20,6 +20,8 @@ httpTest("업무 설정 HTTP/MCP: 인증·같은 준비 결과·전체 이전/�
         versions: { [id]: other.versions[id] },
       });
     }
+    assertEquals((await call(a, "GET", "/settings/business?id=entity_identity")).status, 400);
+    assertEquals((await tool(client, "get_business_settings", { id: "entity_identity" })).error.code, "invalid_input");
     assertEquals((await call(a, "GET", "/settings/business?id=unknown")).status, 400);
     assertEquals((await tool(client, "get_business_settings", { id: "unknown" })).error.code, "invalid_input");
     const invalid = await call(a, "PATCH", "/settings/business", {

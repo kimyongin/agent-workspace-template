@@ -67,7 +67,11 @@ dbTest(
           ad,
           requestActor(f.actor),
           taskCreate.parse({
-            ...{ kind: "once", title: "없는 대상", entity_ids: [`app:${crypto.randomUUID()}`] },
+            ...{
+              kind: "once",
+              title: "없는 대상",
+              entity_ids: [`app:00000000-0000-4000-8000-000000000001:${crypto.randomUUID()}`],
+            },
           }),
         )
       );
@@ -195,7 +199,7 @@ dbTest(
       record = memoEdit;
       const beforeRejected = await activity.getRecord(ad, f.actor, record.id);
 
-      for (const id of [foreign.id, `app:${crypto.randomUUID()}`]) {
+      for (const id of [foreign.id, `app:00000000-0000-4000-8000-000000000001:${crypto.randomUUID()}`]) {
         await assertRejects(() =>
           activity.updateRecord(
             ad,
