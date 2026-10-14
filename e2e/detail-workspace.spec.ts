@@ -850,3 +850,27 @@ test("confirmation overlays the retained mobile editor and restores its focus", 
   await expect(editor.getByRole("button", { name: "편집", exact: true })).toBeVisible();
   expect(state.errors).toEqual([]);
 });
+
+test("docked confirmation remains topmost during one-way resize and cancellation", async ({ page }) => {
+  const state = await fixture(page);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(`/tasks/${id(2)}`);
+  const editor = page.locator("dialog.modal:not(.modal-confirm)[open]");
+  await panel(page).getByRole("button", { name: "편집", exact: true }).click();
+  const save = editor.getByRole("button", { name: "저장", exact: true });
+  await editor.getByLabel("제목").fill("패널의 확인창 초안");
+  expect(await editor.evaluate(el => el.matches(":modal"))).toBe(false);
+  for (const width of [390, 1440]) {
+    await save.click();
+    const confirmation = page.locator("dialog.modal-confirm[open]");
+    await expect(confirmation.getByLabel("기록 메모")).toBeVisible();
+    await page.setViewportSize({ width, height: 900 });
+    await expect.poll(() => confirmation.evaluate(el => el.contains(document.activeElement))).toBe(true);
+    await confirmation.press("Escape");
+    await expect(save).toBeFocused();
+    await expect.poll(() => editor.evaluate(el => el.matches(":modal"))).toBe(width === 390);
+    await expect(editor.getByLabel("제목")).toHaveValue("패널의 확인창 초안");
+  }
+  expect(state.writes).toHaveLength(0);
+  expect(state.errors).toEqual([]);
+});
