@@ -145,6 +145,15 @@ test("미설정과 null은 고정 문구를 표시하고 되돌리기는 다른 
   await expect(form.getByRole("status")).toContainText("저장했습니다");
   expect(state.writes[0].body.value.entity_types[materials.id].create).toEqual({ memo: null, tag_ids: [tag.id] });
   await form.getByLabel("메모 템플릿").fill("종류 문구");
+  await page.setViewportSize({ width: 320, height: 900 });
+  await page.evaluate(() => { document.documentElement.style.fontSize = "200%"; });
+  const resetAlignment = await form.locator(".record-template-defaults").evaluate((el) => {
+    const button = el.querySelector("button")!.getBoundingClientRect();
+    return Math.abs(button.right - el.getBoundingClientRect().right);
+  });
+  expect(resetAlignment).toBeLessThanOrEqual(1);
+  await page.evaluate(() => { document.documentElement.style.fontSize = ""; });
+
   await form.getByRole("button", { name: "기록 기본값 저장", exact: true }).click();
   await expect(form.getByRole("status")).toContainText("저장했습니다");
   await form.getByRole("button", { name: "기본 문구로 되돌리기", exact: true }).click();
