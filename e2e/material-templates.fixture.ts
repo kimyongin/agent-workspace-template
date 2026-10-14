@@ -127,12 +127,33 @@ test("미설정과 null은 고정 문구를 표시하고 되돌리기는 다른 
   });
   const form = await openTyped(page);
   await expect(form.getByLabel("메모 템플릿")).toHaveValue("$대상$ $액션$");
+  await expect(form.getByRole("button", { name: "기본 문구로 되돌리기", exact: true })).toHaveCount(0);
+  await expect(form.getByLabel("기록 메모 예시")).toHaveCount(0);
+  await expect(form.getByText(/속성 버전/)).toHaveCount(0);
+  const variableBox = await form.getByLabel("변수 삽입").boundingBox();
+  const memoBox = await form.getByLabel("메모 템플릿").boundingBox();
+  expect(variableBox!.y + variableBox!.height).toBeLessThan(memoBox!.y);
   await expect(form.getByRole("button", { name: "기록 기본값 저장", exact: true })).toBeDisabled();
+  await form.getByLabel("변수 삽입").selectOption("대상");
+  await expect(form.getByLabel("메모 템플릿")).toBeFocused();
+  await expect(form.getByLabel("메모 템플릿")).toHaveValue(/\$대상\$/);
+  await form.getByRole("button", { name: "기본 문구로 되돌리기", exact: true }).click();
+
+
   await form.getByText("기록 전용", { exact: true }).click();
   await form.getByRole("button", { name: "기록 기본값 저장", exact: true }).click();
   await expect(form.getByRole("status")).toContainText("저장했습니다");
   expect(state.writes[0].body.value.entity_types[materials.id].create).toEqual({ memo: null, tag_ids: [tag.id] });
   await form.getByLabel("메모 템플릿").fill("종류 문구");
+  await page.setViewportSize({ width: 320, height: 900 });
+  await page.evaluate(() => { document.documentElement.style.fontSize = "200%"; });
+  const resetAlignment = await form.locator(".record-template-defaults").evaluate((el) => {
+    const button = el.querySelector("button")!.getBoundingClientRect();
+    return Math.abs(button.right - el.getBoundingClientRect().right);
+  });
+  expect(resetAlignment).toBeLessThanOrEqual(1);
+  await page.evaluate(() => { document.documentElement.style.fontSize = ""; });
+
   await form.getByRole("button", { name: "기록 기본값 저장", exact: true }).click();
   await expect(form.getByRole("status")).toContainText("저장했습니다");
   await form.getByRole("button", { name: "기본 문구로 되돌리기", exact: true }).click();

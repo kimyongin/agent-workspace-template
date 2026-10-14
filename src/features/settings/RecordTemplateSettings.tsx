@@ -1,5 +1,4 @@
 import { BodyAction } from "../../components/BodyAction.tsx";
-import { EntityTypeIcon } from "../entity/EntityTypeIcon.tsx";
 import { useEntityTypes } from "../entity/useEntityTypes.ts";
 import type { EntitySchemaResult } from "@contracts/entity-type.ts";
 import { writeErrorMessage } from "../../lib/write-attempt.ts";
@@ -10,7 +9,6 @@ import {
   mapRecordTemplateTags,
   modelActions,
   recordTemplates,
-  renderTemplate,
   TEMPLATE_MODELS,
   type TemplateAction,
   templateActionNames,
@@ -215,12 +213,7 @@ function RecordTemplateForm({
             {message || "설정을 읽는 중…"}
           </p>
           {message && (
-            <BodyAction icon="reset"
-              type="button"
-
-              disabled={busy}
-              onClick={() => void read()}
-            >
+            <BodyAction icon="reset" type="button" disabled={busy} onClick={() => void read()}>
               다시 시도
             </BodyAction>
           )}
@@ -258,7 +251,6 @@ function RecordTemplateForm({
                 "정리는 현재 설정 범위에만 적용합니다. 다른 종류나 모델의 오류는 해당 설정에서 정리하세요."}{" "}
               <BodyAction
                 type="button"
-
                 disabled={busy}
                 onClick={() => {
                   setDraft((current) =>
@@ -321,7 +313,7 @@ function RecordTemplateForm({
                 {typeError && !materialResource && (
                   <Notice kind="error">
                     자료 종류를 읽지 못했습니다.{" "}
-                    <BodyAction icon="reset" type="button"  onClick={retryTypes}>
+                    <BodyAction icon="reset" type="button" onClick={retryTypes}>
                       다시 시도
                     </BodyAction>
                   </Notice>
@@ -332,44 +324,7 @@ function RecordTemplateForm({
                     속성 정의를 읽지 못했습니다. 자료 종류를 다시 선택하세요.
                   </Notice>
                 )}
-                {schema && (
-                  <p className="secondary">
-                    <EntityTypeIcon
-                      id={types?.find((type) => type.id === typeId)?.icon_id ??
-                        "box"}
-                    />{" "}
-                    {types?.find((type) => type.id === typeId)?.label} · 속성 버전 {schema.schema_version}
-                  </p>
-                )}
               </>
-            )}
-            <Field
-              label="메모 템플릿"
-              help={`사용자 설정이 없거나 비어 있으면 기본 템플릿 ${
-                DEFAULT_RECORD_MEMO_TEMPLATES[action]
-              }을 사용합니다. 달러 기호 자체는 $$로 입력하세요.`}
-              error={fields[`${path}.memo`] ?? currentError ?? undefined}
-            >
-              {(props) => (
-                <textarea
-                  {...props}
-                  ref={text}
-                  className="input"
-                  rows={3}
-                  readOnly={uncertain}
-                  value={value.memo}
-                  onChange={(event) =>
-                    setValue({ memo: model === "entity" && !event.target.value.trim() ? null : event.target.value })}
-                />
-              )}
-            </Field>
-            {model === "entity" && (
-              <div className="actions">
-                <span className="secondary">{usingDefault ? "기본 문구 사용 중" : "이 종류의 문구 사용 중"}</span>
-                <BodyAction icon="reset" type="button"  disabled={usingDefault} onClick={() => setValue({ memo: null })}>
-                  기본 문구로 되돌리기
-                </BodyAction>
-              </div>
             )}
             <Field label="변수 삽입">
               {(props) => (
@@ -411,35 +366,35 @@ function RecordTemplateForm({
                 </select>
               )}
             </Field>
-            <div className="secondary" aria-label="기록 메모 예시">
-              <strong>예시 (실제 저장값이 아닙니다)</strong>
-              <p>
-                {renderTemplate(
-                  value.memo || DEFAULT_RECORD_MEMO_TEMPLATES[action],
-                  {
-                    model,
-                    action,
-                    target: "예시 자료",
-                    changes: "이름 변경",
-                    changed_fields: ["이름"],
-                    before: {
-                      properties: Object.fromEntries(
-                        (schema?.display.order ?? []).map(
-                          (key) => [key, "이전 예시"],
-                        ),
-                      ),
-                    },
-                    after: {
-                      properties: Object.fromEntries(
-                        (schema?.display.order ?? []).map(
-                          (key) => [key, "이후 예시"],
-                        ),
-                      ),
-                    },
-                  },
+            <Field
+              label="메모 템플릿"
+              help="비워두면 기본 문구를 사용합니다. 달러 기호 자체는 $$로 입력하세요."
+              error={fields[`${path}.memo`] ?? currentError ?? undefined}
+            >
+              {(props) => (
+                <textarea
+                  {...props}
+                  ref={text}
+                  className="input"
+                  rows={3}
+                  readOnly={uncertain}
+                  value={value.memo}
+                  onChange={(event) =>
+                    setValue({ memo: model === "entity" && !event.target.value.trim() ? null : event.target.value })}
+                />
+              )}
+            </Field>
+            {model === "entity" && (
+              <div className="record-template-defaults">
+                <span className="secondary">{usingDefault ? "기본 문구 사용 중" : "이 종류의 문구 사용 중"}</span>
+                {!usingDefault && (
+                  <BodyAction icon="reset" onClick={() => setValue({ memo: null })}>
+                    기본 문구로 되돌리기
+                  </BodyAction>
                 )}
-              </p>
-            </div>
+              </div>
+            )}
+
             <TagPicker
               label="기본 기록 태그"
               scope="record"
@@ -452,9 +407,9 @@ function RecordTemplateForm({
                   {key.split(".")[0] === "entity" ? "자료" : templateModelNames[key.split(".")[0] as TemplateModel] ??
                     "설정"} {templateActionNames[key.split(".")[1] as TemplateAction] ??
                     ""}: {error}{" "}
-                  <BodyAction icon="view"
+                  <BodyAction
+                    icon="view"
                     type="button"
-
                     disabled={!!materialResource}
                     onClick={() => {
                       const [nextModel, nextAction] = key.split(
@@ -475,11 +430,7 @@ function RecordTemplateForm({
           </fieldset>
           <p role="status">{message}</p>
           {conflict && (
-            <BodyAction icon="reset"
-              type="button"
-
-              onClick={() => void read()}
-            >
+            <BodyAction icon="reset" type="button" onClick={() => void read()}>
               최신값 확인
             </BodyAction>
           )}
