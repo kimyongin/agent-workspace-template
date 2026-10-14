@@ -447,9 +447,9 @@ export function SchemaEditor(
                                       />
                                     )}
                                   </Field>
-                                  <BodyAction
+                                  <button
                                     type="button"
-
+                                    className="btn btn-input"
                                     aria-label={`선택 항목 ${i + 1} 제거`}
                                     disabled={f.enum!.filter((value) =>
                                       value !== null
@@ -461,7 +461,7 @@ export function SchemaEditor(
                                       })}
                                   >
                                     제거
-                                  </BodyAction>
+                                  </button>
                                 </div>
                               ))}
                               <BodyAction icon="create"

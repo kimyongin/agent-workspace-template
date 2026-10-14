@@ -1,4 +1,4 @@
-import { BodyAction, BodyActionFace } from "../../components/BodyAction.tsx";
+import { BodyAction } from "../../components/BodyAction.tsx";
 import { createMaterialDefinition } from "./material-definition.ts";
 import { RecordTemplateSettings } from "./RecordTemplateSettings.tsx";
 import { createMaterialTemplateDraft } from "./material-template-drafts.ts";
@@ -295,7 +295,7 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
             </select>
           )}
         </Field>
-        <Link className="body-action" to="/settings/entity-types"><BodyActionFace icon="create">종류 추가</BodyActionFace></Link>
+        <Link className="btn btn-input" to="/settings/entity-types">종류 추가</Link>
       </div>
       {loading && <p role="status">불러오는 중…</p>}
       {!catalog.types && !catalog.error && <p role="status">자료 종류를 읽는 중…</p>}
