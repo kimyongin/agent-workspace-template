@@ -292,11 +292,6 @@ export function SchemaEditor(
               disabled={lockedPlan || busy || uncertain || disabled || readBusy || startState.busy ||
                 startState.uncertain}
             >
-              <SchemaRepresentativeSetting
-                draft={draft}
-                disabled={Boolean(plan?.recovery)}
-                chooseRepresentative={editor.chooseRepresentative}
-              />
               <CollectionList view="list" label="입력 항목 목록">
                 {draft.display.order.map((key, index) => {
                   const f = draft.schema.properties[key],
@@ -328,6 +323,7 @@ export function SchemaEditor(
                               <span className="secondary">
                                 <span>{fieldTypeLabel(f)}</span>
                                 {draft.schema.required.includes(key) && <span className="schema-badge">필수</span>}
+                                {key === draft.display.representative && <span className="schema-badge">자료 이름</span>}
                                 {draft.display.archived.includes(key) && <span className="schema-badge">사용 중지</span>}
                                 {changedFields.includes(key) && <span className="schema-badge">변경됨</span>}
                                 {fieldError === key && (
@@ -489,6 +485,12 @@ export function SchemaEditor(
                               )}
                             </div>
                           )}
+                          <SchemaRepresentativeSetting
+                            draft={draft}
+                            propertyKey={key}
+                            disabled={Boolean(plan?.recovery)}
+                            chooseRepresentative={editor.chooseRepresentative}
+                          />
                           <details
                             className="schema-advanced"
                             open={advancedFields.includes(key)}
@@ -758,7 +760,7 @@ export function SchemaEditor(
                               </div>
                               {key === draft.display.representative && (
                                 <p className="secondary">
-                                  자료 이름으로 쓰는 항목입니다. 위에서 자료 이름으로 사용할 다른 항목을 선택한 뒤 사용
+                                  자료 이름으로 쓰는 항목입니다. 다른 항목을 펼쳐 자료 이름으로 선택한 뒤 사용
                                   중지하거나 삭제하세요.
                                 </p>
                               )}

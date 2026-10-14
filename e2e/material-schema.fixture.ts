@@ -892,8 +892,10 @@ test(
     Object.assign(definition.schema.properties, {
       prop_2: { type: "number", title: "수량" },
       prop_3: { type: "string", title: "단위", enum: ["kg", "g"] },
+      prop_4: { type: "string", title: "표시 이름", minLength: 1 },
     });
-    definition.display.order.push("prop_2", "prop_3");
+    definition.display.order.push("prop_2", "prop_3", "prop_4");
+    definition.schema.required.push("prop_4");
     definition.display.list_columns.push("prop_2", "prop_3");
     await page.route(
       `**/api/entity-types/${materials.id}/schema`,
@@ -927,8 +929,19 @@ test(
     });
     await expect(page.getByRole("region", { name: "화면 표시", exact: true }))
       .toHaveCount(0);
-    await expect(properties.getByLabel("자료 이름으로 사용할 항목"))
-      .toHaveValue("prop_1");
+    await expect(properties.getByLabel("자료 이름으로 사용할 항목")).toHaveCount(0);
+    await page.getByRole("button", { name: "재료명 속성 편집", exact: true }).click();
+    await expect(properties.getByRole("radio", { name: "재료명 자료 이름으로 사용", exact: true })).toBeChecked();
+    await expect(properties.getByRole("radio", { name: "수량 자료 이름으로 사용", exact: true })).toBeDisabled();
+    await page.getByRole("button", { name: "표시 이름 속성 편집", exact: true }).click();
+    await properties.getByRole("radio", { name: "표시 이름 자료 이름으로 사용", exact: true }).check();
+    await expect(properties.getByRole("radio", { name: "재료명 자료 이름으로 사용", exact: true })).not.toBeChecked();
+    await expect(properties.getByRole("radio", { name: "표시 이름 자료 이름으로 사용", exact: true })).toBeChecked();
+    await properties.getByRole("radio", { name: "재료명 자료 이름으로 사용", exact: true }).check();
+    await expect(properties.getByRole("radio", { name: "표시 이름 자료 이름으로 사용", exact: true })).not.toBeChecked();
+    await page.getByRole("button", { name: "표시 이름 속성 편집", exact: true }).click();
+
+    await page.getByRole("button", { name: "재료명 속성 편집", exact: true }).click();
     await expect(
       properties.getByRole("button", { name: "변경 검토", exact: true }),
     ).toBeDisabled();
