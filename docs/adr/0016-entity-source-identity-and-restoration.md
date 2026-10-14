@@ -1,5 +1,6 @@
 # ADR-0016: 발급처별 엔터티 식별과 소프트 삭제·복원
 
+- Identity scope and mutable-key policy are superseded by [ADR-0021](0021-type-scoped-immutable-identity.md); deletion/restoration semantics remain.
 - 상태: 채택
 - 날짜: 2026-10-09
 - 근거: 외부 식별자 직접 사용·발급처 구분·같은 식별자의 재등록 시 복원에 대한 대화 합의, [#242](https://github.com/kimyongin/agent-workspace-template/issues/242)
