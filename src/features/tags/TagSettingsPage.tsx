@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useBlocker, useNavigate, useSearchParams } from "react-router";
 import { ConfirmDialog } from "../../components/ConfirmDialog.tsx";
 import { Field } from "../../components/Field.tsx";
-import { MaterialSettingsSection } from "../settings/MaterialSettingsSection.tsx";
+import { type MaterialSectionState, MaterialSettingsSection } from "../settings/MaterialSettingsSection.tsx";
 import { type TagScope, tagScopeLabels } from "./TagPicker.tsx";
 import { TagManagement } from "./TagsPage.tsx";
 import "../settings/settings.css";
@@ -12,7 +12,7 @@ export function TagSettingsPage() {
   const [params] = useSearchParams(), navigate = useNavigate();
   const rawScope = params.get("scope");
   const scope: TagScope = rawScope === "task" || rawScope === "record" ? rawScope : "entity";
-  const [state, setState] = useState({ dirty: false, busy: false });
+  const [state, setState] = useState<MaterialSectionState>({ dirty: false, busy: false });
   const selector = useRef<HTMLSelectElement>(null);
   const blocker = useBlocker(state.dirty || state.busy);
   useEffect(() => {

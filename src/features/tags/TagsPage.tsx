@@ -24,7 +24,7 @@ export function TagsPage() {
   return <ScopedTagsPage key={scope} scope={scope}/>;
 }
 function ScopedTagsPage({scope}:{scope:TagScope}) { return <TagManagement scope={scope}/>; }
-export function TagManagement({scope,inline=false,onClose,onStateChange}:{scope:TagScope;inline?:boolean;onClose?:()=>void;onStateChange?:(state:{dirty:boolean;busy:boolean})=>void}) {
+export function TagManagement({scope,inline=false,onClose,onStateChange}:{scope:TagScope;inline?:boolean;onClose?:()=>void;onStateChange?:(state:{dirty:boolean;busy:boolean;uncertain:boolean;error:boolean})=>void}) {
   const location=useLocation(),[params]=useSearchParams(),navigateAfterClose=useDeferredNavigation();
   const previous=useDetailExploration(),navigate=useDetailNavigate();
   const [closing,setClosing]=useState(false);
@@ -47,7 +47,9 @@ export function TagManagement({scope,inline=false,onClose,onStateChange}:{scope:
   const invalidateReads = () => { readEpoch.current++; readAbort.current?.abort(); };
   useEffect(() => () => { readEpoch.current++; readAbort.current?.abort(); }, []);
   const dirty = !closing && (deletionDirty || !!draft && (draft.name !== (draft.initial?.name ?? "") || uncertain));
-  useEffect(()=>onStateChange?.({dirty,busy}),[dirty,busy,onStateChange]);
+  const resultsUncertain = uncertain || Object.values(deletions).some(state=>state.uncertain);
+  const failed = !!(error || failure || fieldError);
+  useEffect(()=>onStateChange?.({dirty,busy,uncertain:resultsUncertain,error:failed}),[dirty,busy,resultsUncertain,failed,onStateChange]);
   useEffect(() => {
     readAbort.current?.abort(); const controller = new AbortController(); readAbort.current = controller;
     const epoch = ++readEpoch.current; const current = () => !controller.signal.aborted && epoch === readEpoch.current;

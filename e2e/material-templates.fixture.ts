@@ -265,6 +265,31 @@ test("통합 태그는 저장 중 전환을 막고 대상별 사전에 같은 �
   expect(dictionaries.record).toHaveLength(0);
 });
 
+test("통합 태그는 접힌 섹션에도 조회 오류와 저장 미확정 상태를 남긴다", async ({ page }) => {
+  let readFailed = true;
+  await page.route("**/api/tags**", (route) => {
+    if (route.request().method() !== "GET") return route.abort();
+    if (readFailed) return route.fulfill({ status: 503, json: { code: "unavailable", message: "조회 실패" } });
+    return route.fulfill({ json: { items: [], next_cursor: null } });
+  });
+  await page.goto("/settings/tags");
+  await expect(page.getByText("태그 목록을 불러오지 못했습니다. 기존 목록은 유지합니다.")).toBeVisible();
+  const section = page.getByRole("heading", { level: 2 }).getByRole("button");
+  await section.click();
+  await expect(section).toHaveAttribute("aria-expanded", "false");
+  await expect(section).toContainText("오류");
+  await section.click();
+  readFailed = false;
+  await page.getByRole("button", { name: "목록 다시 시도", exact: true }).click();
+  await expect(page.getByText("아직 태그가 없습니다.", { exact: true })).toBeVisible();
+  await page.getByRole("textbox", { name: "태그 이름 (필수)", exact: true }).fill("응답 미확정");
+  await page.getByRole("button", { name: "추가", exact: true }).click();
+  await expect(section).toContainText("결과 확인 필요");
+  await section.click();
+  await expect(section).toHaveAttribute("aria-expanded", "false");
+  await expect(section).toContainText("결과 확인 필요");
+});
+
 test("기존 식별자 주소도 일반 설정의 식별자 섹션으로 연결한다", async ({ page }) => {
   await settingsFixture(page);
   await page.goto("/settings/entity-identity");
