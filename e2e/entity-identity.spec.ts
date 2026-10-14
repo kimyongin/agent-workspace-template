@@ -77,7 +77,7 @@ test.beforeEach(async ({ page }) => {
       await tx`insert into app.entity_schema_versions(owner_id,type_id,schema_version,schema,display) values(${owner.owner_id},${
         fixtureType!.id
       },2,${tx.json(definition.schema)},${tx.json(definition.display)})`;
-      await tx`update app.entity_types set schema_version=2,version=version+1 where id=${fixtureType!.id}`;
+      await tx`update app.entity_types set schema_version=2,next_property_number=5,version=version+1 where id=${fixtureType!.id}`;
     });
   } finally {
     await admin.end();
