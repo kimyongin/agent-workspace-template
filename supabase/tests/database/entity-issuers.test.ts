@@ -212,3 +212,63 @@ dbTest("issuer registry: deleted entities retain rule meaning and type-source ma
     await admin.end();
   }
 });
+
+dbTest("account deletion cascades the complete referenced registry while preserving another owner", async () => {
+  const admin = connect(urls.admin), sql = connect(urls.direct);
+  const own = await fixtureOwner(admin), other = await fixtureOwner(admin);
+  const issuers = { uow: new SqlEntityIssuerUnitOfWork(sql) },
+    types = { uow: new SqlEntityTypeUnitOfWork(sql) },
+    entities = { uow: new SqlEntityUnitOfWork(sql) };
+  try {
+    const type = await createEntityType(types, requestActor(own.actor), { label: "삭제 대상" });
+    const preserved = await createEntityType(types, requestActor(other.actor), { label: "보존 대상" });
+    const source = await createEntityIssuer(issuers, requestActor(own.actor), { code: "market", label: "마켓" });
+    const rule = await createIdentifierRule(issuers, requestActor(own.actor), source.code, {
+      label: "상품 번호",
+      meaning: "마켓 상품 번호",
+    });
+    const identity = await getEntityTypeIdentity(issuers, own.actor, type.id);
+    await updateEntityTypeIdentity(issuers, requestActor(own.actor), type.id, {
+      label: "상품 번호",
+      default_source: "market",
+      expected_version: identity.version,
+      sources: [...identity.sources.map(({ code, rule_id, active }) => ({ code, rule_id, active })), {
+        code: "market",
+        rule_id: rule.id,
+        active: true,
+      }],
+    });
+    const entity = await createEntity(entities, requestActor(own.actor), {
+      entity_type_id: type.id,
+      schema_version: 1,
+      source: "market",
+      external_id: "001A:B",
+      properties: { prop_1: "상품" },
+    });
+    await deleteEntity(entities, requestActor(own.actor), entity.id, entity.version);
+    await admin`delete from auth.users where id=${own.actor.userId}`;
+    for (
+      const table of [
+        "entity_issuers",
+        "entity_identifier_rules",
+        "entity_type_identity",
+        "entity_type_identity_sources",
+        "entity_types",
+        "entities",
+        "records",
+      ]
+    ) {
+      assertEquals(
+        (await admin`select count(*)::int n from ${admin(`app.${table}`)} where owner_id=${own.actor.userId}`)[0].n,
+        0,
+      );
+    }
+    assertEquals((await getEntityType(types, other.actor, preserved.id)).id, preserved.id);
+    assertEquals((await listEntityIssuers(issuers, other.actor)).map((value) => value.code), ["app"]);
+  } finally {
+    await own.cleanup();
+    await other.cleanup();
+    await sql.end();
+    await admin.end();
+  }
+});
