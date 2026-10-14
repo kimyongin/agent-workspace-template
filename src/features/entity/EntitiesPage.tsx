@@ -173,14 +173,15 @@ export function EntitiesPage() {
           <h1 id="entities-title" className="page-title" tabIndex={-1}>{label}</h1>
         </div>
         <div className="query-bar entity-query-bar">
-          <TabSearch entity />
           <EntityTypePicker
             types={types ?? []}
             value={filter.entity_type_id ?? ""}
             all
+            compact
             disabled={types === null}
             onChange={(value) => set("entity_type_id", value)}
           />
+          <TabSearch entity />
           {!types && !typeError && <p role="status">자료 종류를 확인하는 중…</p>}
           {typeError && (
             <>
@@ -203,13 +204,6 @@ export function EntitiesPage() {
           {types && types.length > 0 && types.every((type) => type.archived) && (
             <p className="secondary">모든 자료 종류가 보관되어 있습니다.</p>
           )}
-          <Link
-            to={filter.entity_type_id
-              ? `/settings/entity-types/${encodeURIComponent(filter.entity_type_id)}`
-              : "/settings/entity-types"}
-          >
-            자료 설정
-          </Link>
           <TabFilters
             active={!!(filter.tag_id || filter.sort !== "updated_at" || filter.filters)}
             attention={dictionary.failed}

@@ -69,7 +69,7 @@ export function TypedEntityFilters(
         )}
       </Field>
       {schema && (
-        <fieldset className="form plain-fieldset">
+        <fieldset className="form plain-fieldset entity-property-conditions">
           <legend className="label">속성 조건 · 모두 충족</legend>
           {draft.map((row, index) => {
             const field = schema.schema.properties[row.key], kind = field ? fieldType(field) : null;

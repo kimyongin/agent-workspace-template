@@ -508,3 +508,35 @@ for (const width of [320, 1440]) {
     expect(state.errors).toEqual([]);
   });
 }
+
+for (const width of [320, 390]) {
+  test(`mobile-entity-query ${width}px: type comes first and property filters fit the panel`, async ({ page }) => {
+    const state = await fixtures(page);
+    await page.setViewportSize({ width, height: 900 });
+    await go(page, "/entities");
+    const header = page.locator(".main-tab-header");
+    const picker = header.getByLabel("자료 종류", { exact: true });
+    const search = header.getByLabel("자료 제목 검색", { exact: true });
+    expect((await picker.boundingBox())!.y + (await picker.boundingBox())!.height).toBeLessThan((await search.boundingBox())!.y);
+    await expect(header.getByRole("link", { name: "자료 설정", exact: true })).toHaveCount(0);
+    await expect(header.locator(".entity-type-picker .help")).toHaveCount(0);
+    await expect(header.locator(".entity-type-picker label.label")).toHaveClass(/visually-hidden/);
+    await openTabFilters(page);
+    await page.getByRole("button", { name: "속성 조건 추가", exact: true }).click();
+    for (const scale of ["100%", "200%"]) {
+      await page.evaluate(value => { document.documentElement.style.fontSize = value; }, scale);
+      const panel = header.locator(".tab-filters > .form");
+      expect(await panel.evaluate(el => el.scrollWidth <= el.clientWidth), scale).toBe(true);
+      const boxes = await panel.locator("input,select,button").evaluateAll(elements => elements.map(el => {
+        const box = el.getBoundingClientRect();
+        return { left: box.left, right: box.right };
+      }));
+      const panelBox = (await panel.boundingBox())!;
+      for (const box of boxes) {
+        expect(box.left).toBeGreaterThanOrEqual(panelBox.x);
+        expect(box.right).toBeLessThanOrEqual(panelBox.x + panelBox.width);
+      }
+    }
+    expect(state.writes).toHaveLength(0);
+  });
+}

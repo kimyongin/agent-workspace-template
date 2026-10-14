@@ -226,7 +226,7 @@ test("0, 1, and many active types expose fixed account and all business paths", 
   ];
   await page.reload();
   await expect(shortcuts).toHaveCount(4);
-  await page.getByLabel("자료 종류 검색", { exact: true }).fill("추가 종류 7");
+  await expect(page.locator(".entity-type-picker").getByLabel("자료 종류 검색", { exact: true })).toHaveCount(0);
   await page.getByLabel("자료 종류", { exact: true }).selectOption(items[9].id);
   await expect(page.getByRole("heading", { name: "추가 종류 7", level: 1 })).toBeVisible();
   await page.getByRole("button", { name: /^내 프로필(?: · .+)?$/, exact: true }).click();
@@ -417,7 +417,7 @@ test("clean settings navigation proceeds while initial business settings are sti
   }
 });
 
-test("typed management link remains type scoped while a returned list catalog is loading", async ({ page }) => {
+test("type selection remains scoped while a returned list catalog is loading", async ({ page }) => {
   let reading = false, release!: () => void, started!: () => void;
   const hold = new Promise<void>((resolve) => {
       release = resolve;
@@ -461,12 +461,8 @@ test("typed management link remains type scoped while a returned list catalog is
     await closeDetail(page, entity.title);
     await arrived;
     await expect(page).toHaveURL(new RegExp(`entity_type_id=${materials.id}`));
-    await expect(page.getByRole("link", { name: "자료 설정", exact: true })).toHaveAttribute(
-      "href",
-      `/settings/entity-types/${materials.id}`,
-    );
-    await page.getByRole("link", { name: "자료 설정", exact: true }).click();
-    await expect(page).toHaveURL(new RegExp(`/settings/entity-types/${materials.id}$`));
+    await expect(page.getByLabel("자료 종류", { exact: true })).toHaveValue(materials.id);
+    await expect(page.getByRole("link", { name: "자료 설정", exact: true })).toHaveCount(0);
   } finally {
     release();
   }
@@ -890,3 +886,17 @@ test("basic conflict refresh preserves section drafts and reapplies against the 
   await expect(page.getByLabel("속성 이름", { exact: true })).toHaveValue("남길 속성 초안");
   await expect(record.getByLabel("메모 템플릿")).toHaveValue("남길 기록 초안");
 });
+
+for (const width of [320, 390]) {
+  test(`mobile-header ${width}px: page titles use the available width across application routes`, async ({ page }) => {
+    await page.route("**/api/status", route => route.fulfill({ status: 503, json: { error: { code: "unavailable", message: "헤더 검사용 응답" } } }));
+    await page.setViewportSize({ width, height: 900 });
+    for (const path of ["/entities", "/tasks", "/records", "/principles", "/settings", "/status", "/search", "/guide"]) {
+      await page.goto(path);
+      const title = page.locator(".page-title").first();
+      await expect(title, path).toBeVisible();
+      expect((await title.boundingBox())!.height, path).toBeLessThanOrEqual(44);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), path).toBe(true);
+    }
+  });
+}
