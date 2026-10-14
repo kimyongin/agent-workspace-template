@@ -155,3 +155,7 @@ section[aria-labelledby="entity-identity-title"] .settings-section-footer { bord
 .record-template-defaults { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2); }
 .record-template-defaults > .secondary { min-width: 0; font-size: var(--text-meta); }
 .record-template-defaults > .body-action { margin-left: auto; }
+
+.schema-representative-choice { display: flex; align-items: center; gap: var(--space-2); min-height: 44px; cursor: pointer; font-size: var(--text-label); }
+.schema-representative-choice input { accent-color: var(--accent); }
+.schema-representative-setting > p { margin: 0; }

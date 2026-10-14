@@ -14,11 +14,12 @@ type Property = {
   type: "text" | "number";
   required: boolean;
   listed: boolean;
+  representative: boolean;
   maxLength: string;
 };
 const initialFields: Property[] = [
-  { id: "prop_1", label: "상품명", type: "text", required: true, listed: true, maxLength: "80" },
-  { id: "prop_2", label: "수량", type: "number", required: false, listed: true, maxLength: "" },
+  { id: "prop_1", label: "상품명", type: "text", required: true, listed: true, representative: true, maxLength: "80" },
+  { id: "prop_2", label: "수량", type: "number", required: false, listed: true, representative: false, maxLength: "" },
 ];
 type Plan = {
   id: number;
@@ -116,6 +117,7 @@ function PropertyList(
                       <span className="secondary">
                         {field.type === "text" ? "텍스트" : "숫자"}
                         {field.required ? " · 필수" : ""}
+                        {field.representative ? " · 자료 이름" : ""}
                       </span>
                     </button>
                   </h3>
@@ -174,6 +176,20 @@ function PropertyList(
                       </select>
                     )}
                   </Field>
+                  <div className="schema-representative-setting">
+                    <label className="schema-representative-choice">
+                      <input
+                        type="radio"
+                        name="sample-representative"
+                        aria-label={`${field.label || "새 항목"} 자료 이름으로 사용`}
+                        checked={field.representative}
+                        disabled={field.type !== "text" || !field.required}
+                        onChange={() =>
+                          onChange(fields.map((value) => ({ ...value, representative: value.id === field.id })))}
+                      />
+                      <span>자료 이름으로 사용</span>
+                    </label>
+                  </div>
                   <details className="schema-advanced">
                     <summary className="secondary">추가 설정</summary>
                     <div className="form">
@@ -243,7 +259,7 @@ function PropertyDefinition({ fields }: { fields: Property[] }) {
           required: fields.filter((field) => field.required).map((field) => field.id),
         },
         display: {
-          representative: fields.find((field) => field.type === "text")?.id ?? "",
+          representative: fields.find((field) => field.representative)?.id ?? "",
           order: fields.map((field) => field.id),
           list_columns: fields.filter((field) => field.listed).map((field) => field.id),
           archived: [],
@@ -419,6 +435,7 @@ export function MaterialWorkspaceSample() {
                 type: "text",
                 required: false,
                 listed: false,
+                representative: false,
                 maxLength: "",
               }])}
           >
