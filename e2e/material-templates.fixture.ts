@@ -114,8 +114,8 @@ async function settingsFixture(page: import("@playwright/test").Page, initial: a
 }
 async function openTyped(page: import("@playwright/test").Page) {
   await page.goto(`/settings/entity-types/${materials.id}`);
-  await page.getByRole("button", { name: /현재 종류 기록 기본값/ }).click();
-  return page.getByRole("form", { name: "현재 종류 기록 기본값", exact: true });
+  await page.getByRole("button", { name: /기록 자동 완성/ }).click();
+  return page.getByRole("form", { name: "기록 자동 완성", exact: true });
 }
 
 test("미설정과 null은 고정 문구를 표시하고 되돌리기는 다른 종류와 태그를 보존한다", async ({ page }) => {
@@ -143,7 +143,7 @@ test("미설정과 null은 고정 문구를 표시하고 되돌리기는 다른 
   expect(state.writes[2].body.value.task.create.memo).toBe("할 일 유지");
   expect(state.writes[2].body.value).not.toHaveProperty("entity");
   await page.reload();
-  await page.getByRole("button", { name: /현재 종류 기록 기본값/ }).click();
+  await page.getByRole("button", { name: /기록 자동 완성/ }).click();
   await expect(form.getByLabel("메모 템플릿")).toHaveValue("$대상$ $액션$");
   await expect(form.getByText("기본 문구 사용 중", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "공통 설정", exact: true })).toHaveCount(0);

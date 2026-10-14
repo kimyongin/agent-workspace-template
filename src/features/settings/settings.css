@@ -111,13 +111,26 @@ section[aria-labelledby="entity-identity-title"] .settings-section-footer { bord
 .schema-input-content > .settings-fields { display: grid; gap: var(--space-4); padding: 0; border: 0; min-width: 0; }
 .schema-area-heading > h2 { width: 100%; }
 .schema-history-list { display: grid; gap: var(--space-3); }
-.schema-history-row { border: 1px solid var(--line); border-radius: var(--radius-input); padding: var(--space-3); min-width: 0; }
+.schema-history-row > .item-title { line-height: 1.25rem; font-size: var(--text-item); font-weight: 600; }
+.schema-history-row > .item-title > .secondary { font-size: var(--text-meta); font-weight: 400; }
 .schema-history-row > .material-section-toggle[aria-expanded="true"] { color: var(--accent); }
 .schema-history-row .schema-summary { border: 0; padding: var(--space-3) 0 0; }
 .schema-history-row .schema-actions { justify-content: flex-end; }
 
 .schema-job-detail progress { width: 100%; accent-color: var(--accent); }
 .schema-job-visits nav { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-bottom: var(--space-4); }
-.schema-published-version { margin: var(--space-4); }
-.schema-history-row .schema-job-detail { padding: var(--space-4); }
 .schema-history-row .schema-actions > .schema-actions { margin: 0; }
+
+/* History reuses the collection's contiguous rows and marker; inner content stays flat. */
+.schema-definition-read, .schema-history-result { min-width: 0; }
+.schema-definition-read > h3 { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-2); }
+.schema-definition-read > h3 .secondary { margin-left: auto; font-size: var(--text-meta); font-weight: 400; }
+.schema-definition-read > section { margin-block: var(--space-4); }
+.schema-definition-read h4 { margin: 0 0 var(--space-2); font-size: var(--text-label); }
+.schema-definition-read .schema-definition-values { margin: 0; grid-template-columns: minmax(0,1fr); }
+.schema-definition-values dt, .schema-definition-values dd { margin: 0; padding: 0; overflow-wrap: anywhere; }
+.schema-history-result { margin-top: var(--space-4); border-top: 1px solid var(--line); padding-top: var(--space-3); }
+.schema-history-row .schema-analysis-status { border: 0; padding: var(--space-2) 0; }
+.schema-history-row .schema-job-detail { padding: 0; }
+
+.settings .material-settings-section[aria-label="변경 이력"][data-open="true"] { padding: 0; border: 0; background: transparent; }

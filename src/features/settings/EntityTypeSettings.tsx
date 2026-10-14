@@ -464,7 +464,7 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
             <>
               {type_id && templates && (
                 <MaterialSettingsSection
-                  title="현재 종류 기록 기본값"
+                  title="기록 자동 완성"
                   state={recordState}
                 >
                   <RecordTemplateSettings

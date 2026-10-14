@@ -204,7 +204,7 @@ function RecordTemplateForm({
   const parse = recordTemplates.safeParse(draft);
   const currentError = parse.success ? null : parse.error.issues.find((issue) => issue.path.join(".").startsWith(path))
     ?.message;
-  const title = materialResource ? "현재 종류 기록 기본값" : "변경 기록 기본값";
+  const title = materialResource ? "기록 자동 완성" : "변경 기록 기본값";
   return (
     <section className="settings-section" aria-label={title}>
       <h2 className="settings-section-title">{title}</h2>
