@@ -437,51 +437,53 @@ export function MaterialWorkspaceSample() {
         summary="종류별 문구"
         state={{ dirty: template !== savedTemplate, busy: false }}
       >
-        <Field label="액션">
-          {(props) => (
-            <select {...props} className="input">
-              <option>수정</option>
-            </select>
-          )}
-        </Field>
-        <Field label="변수 삽입">
-          {(props) => (
-            <select
-              {...props}
-              className="input"
-              value=""
-              onChange={(event) => {
-                const start = templateInput.current?.selectionStart ?? template.length;
-                const end = templateInput.current?.selectionEnd ?? start;
-                setTemplate(template.slice(0, start) + `$${event.target.value}$` + template.slice(end));
-                templateInput.current?.focus();
-              }}
-            >
-              <option value="" disabled>변수를 선택하세요</option>
-              <option value="대상">대상</option>
-              <option value="액션">액션</option>
-            </select>
-          )}
-        </Field>
-        <Field label="메모 템플릿" help="비워두면 기본 문구를 사용합니다. 달러 기호 자체는 $$로 입력하세요.">
-          {(props) => (
-            <textarea
-              {...props}
-              className="input"
-              rows={3}
-              ref={templateInput}
-              value={template}
-              onChange={(event) => setTemplate(event.target.value.trim() ? event.target.value : "$대상$ $액션$")}
-            />
-          )}
-        </Field>
-        <div className="record-template-defaults">
-          <span className="secondary">
-            {template === "$대상$ $액션$" ? "기본 문구 사용 중" : "이 종류의 문구 사용 중"}
-          </span>
-          {template !== "$대상$ $액션$" && (
-            <BodyAction icon="reset" onClick={() => setTemplate("$대상$ $액션$")}>기본 문구로 되돌리기</BodyAction>
-          )}
+        <div className="form">
+          <Field label="액션">
+            {(props) => (
+              <select {...props} className="input">
+                <option>수정</option>
+              </select>
+            )}
+          </Field>
+          <Field label="변수 삽입">
+            {(props) => (
+              <select
+                {...props}
+                className="input"
+                value=""
+                onChange={(event) => {
+                  const start = templateInput.current?.selectionStart ?? template.length;
+                  const end = templateInput.current?.selectionEnd ?? start;
+                  setTemplate(template.slice(0, start) + `$${event.target.value}$` + template.slice(end));
+                  templateInput.current?.focus();
+                }}
+              >
+                <option value="" disabled>변수를 선택하세요</option>
+                <option value="대상">대상</option>
+                <option value="액션">액션</option>
+              </select>
+            )}
+          </Field>
+          <Field label="메모 템플릿" help="비워두면 기본 문구를 사용합니다. 달러 기호 자체는 $$로 입력하세요.">
+            {(props) => (
+              <textarea
+                {...props}
+                className="input"
+                rows={3}
+                ref={templateInput}
+                value={template}
+                onChange={(event) => setTemplate(event.target.value.trim() ? event.target.value : "$대상$ $액션$")}
+              />
+            )}
+          </Field>
+          <div className="record-template-defaults">
+            <span className="secondary">
+              {template === "$대상$ $액션$" ? "기본 문구 사용 중" : "이 종류의 문구 사용 중"}
+            </span>
+            {template !== "$대상$ $액션$" && (
+              <BodyAction icon="reset" onClick={() => setTemplate("$대상$ $액션$")}>기본 문구로 되돌리기</BodyAction>
+            )}
+          </div>
         </div>
         <div className="settings-section-footer">
           <div className="actions schema-actions">
