@@ -1,3 +1,5 @@
+import { SqlEntityIssuerUnitOfWork } from "./adapters/supabase/entity-issuer-store.ts";
+import type { EntityIssuerDeps } from "./core/entity-issuers/application.ts";
 import { SqlStatusReader } from "./adapters/supabase/status-reader.ts";
 import type { StatusDeps } from "./core/status/application.ts";
 // 실행 환경에서 실제 구현을 조립한다. 요청마다 Actor는 진입점이 검증해 유스케이스에 넘긴다.
@@ -98,4 +100,9 @@ import type { EntityPairDeps } from "./core/entity-pairs/application.ts";
 let entityPairs: EntityPairDeps | undefined;
 export function entityPairDeps(): EntityPairDeps {
   return entityPairs ??= { uow: new SqlEntityPairUnitOfWork(database()) };
+}
+
+let issuers: EntityIssuerDeps | undefined;
+export function entityIssuerDeps(): EntityIssuerDeps {
+  return issuers ??= { uow: new SqlEntityIssuerUnitOfWork(database()) };
 }

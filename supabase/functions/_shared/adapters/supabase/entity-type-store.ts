@@ -1,3 +1,4 @@
+import { SqlEntityIssuerStore } from "./entity-issuer-store.ts";
 import { SqlSchemaMigrationStore } from "./schema-migration-store.ts";
 import type postgres from "postgres";
 import type { Actor } from "../../core/shared/actor.ts";
@@ -35,6 +36,13 @@ function schemaRow(row: postgres.Row): EntitySchemaVersion {
   };
 }
 export class SqlEntityTypeStore extends SqlSchemaMigrationStore implements EntityTypeStore {
+  private async hydrate(row: postgres.Row): Promise<EntityType> {
+    return {
+      ...typeRow(row),
+      identity: (await new SqlEntityIssuerStore(this.tx, this.actor).getTypeIdentity(row.id))!,
+    };
+  }
+
   executeRequest<T>(request: RequestIdentity, execute: () => Promise<T>) {
     return executeSqlRequest(this.tx, this.actor, request, execute);
   }
@@ -43,13 +51,13 @@ export class SqlEntityTypeStore extends SqlSchemaMigrationStore implements Entit
       input.cursor ?? null
     }::text is null or id::text > ${input.cursor ?? null}) order by id limit ${input.limit + 1}`;
     return {
-      items: rows.slice(0, input.limit).map(typeRow),
+      items: await Promise.all(rows.slice(0, input.limit).map((row) => this.hydrate(row))),
       next_cursor: rows.length > input.limit ? String(rows[input.limit - 1].id) : null,
     };
   }
   async get(id: string) {
     const [row] = await this.tx`select * from app.entity_types where id::text=${id}`;
-    return row ? typeRow(row) : null;
+    return row ? this.hydrate(row) : null;
   }
   async create(input: Parameters<EntityTypeStore["create"]>[0], definition: Parameters<EntityTypeStore["create"]>[1]) {
     await this.tx`select pg_advisory_xact_lock(hashtextextended(${this.actor.userId + ":entity-types"},0))`;
@@ -61,7 +69,8 @@ export class SqlEntityTypeStore extends SqlSchemaMigrationStore implements Entit
       .tx`insert into app.entity_schema_versions(owner_id,type_id,schema_version,schema,display) values (${this.actor.userId},${row.id},1,${
       this.tx.json(definition.schema as never)
     },${this.tx.json(definition.display as never)})`;
-    return typeRow(row);
+    await new SqlEntityIssuerStore(this.tx, this.actor).initializeTypeIdentity(row.id);
+    return this.hydrate(row);
   }
   async update(id: string, input: Parameters<EntityTypeStore["update"]>[1]) {
     const [row] = await this.tx`select * from app.entity_types where id::text=${id} for update`;
@@ -70,11 +79,11 @@ export class SqlEntityTypeStore extends SqlSchemaMigrationStore implements Entit
       throw new AppError("schema_migration_in_progress", "속성 마이그레이션 완료 후 다시 시도하세요");
     }
     const next = entityTypeUpdateDecision({ ...typeRow(row), icon_id: row.icon_id }, input);
-    if (!next) return typeRow(row);
+    if (!next) return this.hydrate(row);
     const { label, icon_id: icon, archived } = next;
     const [saved] = await this
       .tx`update app.entity_types set label=${label},icon_id=${icon},archived=${archived},version=version+1,updated_at=now() where id=${row.id} returning *`;
-    return typeRow(saved);
+    return this.hydrate(saved);
   }
   async schema(id: string, version?: number) {
     const [row] = await this
@@ -85,6 +94,7 @@ export class SqlEntityTypeStore extends SqlSchemaMigrationStore implements Entit
     const current = row.current_type;
     return {
       ...schemaRow(row),
+      identity: (await new SqlEntityIssuerStore(this.tx, this.actor).getTypeIdentity(current.id))!,
       type: {
         id: current.id,
         label: current.label,
