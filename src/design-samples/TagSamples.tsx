@@ -41,7 +41,7 @@ export function TagSamples() {
       </Field>
       <fieldset disabled={mode === "busy"} className="plain-fieldset">
         <TagSelection
-          label="예시 태그"
+          label="기본 기록 태그"
           tags={mode === "loading" || mode === "failure"
             ? null
             : mode === "empty" || mode === "unknown"

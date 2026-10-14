@@ -238,7 +238,7 @@ test("history expansion preserves the same section surface as other settings", a
 
 test("tag clear is a contextual action outside the choices and restores keyboard focus", async ({ page }) => {
   await page.goto(direct);
-  const tags = page.getByRole("group", { name: "예시 태그", exact: true });
+  const tags = page.getByRole("group", { name: "기본 기록 태그", exact: true });
   const clear = tags.getByRole("button", { name: "모든 태그 선택 해제", exact: true });
   await expect(clear).toHaveCount(0);
   await expect(tags.locator(".tag-selection button")).toHaveCount(3);
@@ -248,7 +248,7 @@ test("tag clear is a contextual action outside the choices and restores keyboard
     );
   const before = await offset();
   await tags.getByRole("button", { name: "중요", exact: true }).click();
-  await expect(tags).toHaveAccessibleName("예시 태그");
+  await expect(tags).toHaveAccessibleName("기본 기록 태그");
   await expect(clear).toBeVisible();
   await expect(tags.locator(".tag-selection").getByRole("button", { name: "모든 태그 선택 해제" })).toHaveCount(0);
   expect(await offset()).toBe(before);
@@ -274,7 +274,7 @@ test("tag clear is a contextual action outside the choices and restores keyboard
 test("tag selection handles empty, missing, loading, failure, busy and the ten-tag limit", async ({ page }) => {
   await page.goto(direct);
   const mode = page.getByLabel("태그 예시 상태");
-  const tags = page.getByRole("group", { name: "예시 태그", exact: true });
+  const tags = page.getByRole("group", { name: "기본 기록 태그", exact: true });
   const clear = tags.getByRole("button", { name: "모든 태그 선택 해제", exact: true });
   await mode.selectOption("empty");
   await expect(tags.getByRole("button")).toHaveCount(0);
@@ -306,5 +306,22 @@ test("tag selection handles empty, missing, loading, failure, busy and the ten-t
   await expect(tags.getByRole("status")).toHaveCount(0);
   await clear.click();
   await expect(choices.filter({ has: page.locator("[aria-pressed=true]") })).toHaveCount(0);
+  await page.evaluate(() => document.documentElement.style.fontSize = "");
+});
+
+test("tag clear retains list position with the template label at 200%", async ({ page }) => {
+  await page.goto(direct);
+  await page.setViewportSize({ width: 320, height: 800 });
+  await page.evaluate(() => document.documentElement.style.fontSize = "200%");
+  const tags = page.getByRole("group", { name: "기본 기록 태그", exact: true });
+  const offset = () =>
+    tags.evaluate((node) =>
+      node.querySelector(".tag-selection")!.getBoundingClientRect().top - node.getBoundingClientRect().top
+    );
+  const before = await offset();
+  await tags.getByRole("button", { name: "중요", exact: true }).click();
+  expect(await offset()).toBe(before);
+  await tags.getByRole("button", { name: "모든 태그 선택 해제", exact: true }).click();
+  expect(await offset()).toBe(before);
   await page.evaluate(() => document.documentElement.style.fontSize = "");
 });

@@ -32,18 +32,21 @@ export function TagSelection({ label, tags, value, onChange, error, status, excl
     >
       <legend ref={heading} className="tag-picker-heading" tabIndex={-1}>
         <span id={id} className="label">{label}</span>
-        {value.length > 0 && (
-          <BodyAction
-            icon="close"
-            aria-label="모든 태그 선택 해제"
-            onClick={() => {
-              onChange([]);
-              focusChoice();
-            }}
-          >
-            전체 해제
-          </BodyAction>
-        )}
+        <BodyAction
+          icon="close"
+          className="tag-clear-action"
+          data-empty={!value.length || undefined}
+          aria-hidden={!value.length || undefined}
+          disabled={!value.length}
+          tabIndex={value.length ? undefined : -1}
+          aria-label="모든 태그 선택 해제"
+          onClick={() => {
+            onChange([]);
+            focusChoice();
+          }}
+        >
+          전체 해제
+        </BodyAction>
       </legend>
       <div className="field">
         {error && <p id={`${id}-error`} className="error-text">{error}</p>}
