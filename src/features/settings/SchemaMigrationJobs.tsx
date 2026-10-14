@@ -1,3 +1,4 @@
+import { BodyAction } from "../../components/BodyAction.tsx";
 import { materialSettingsPath } from "./material-settings-path.ts";
 import { type MaterialSectionState } from "./MaterialSettingsSection.tsx";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
@@ -346,11 +347,11 @@ export function SchemaMigrationJob(
         접수한 작업은 화면을 닫거나 다른 페이지로 이동해도 계속됩니다. 다시 열면 서버의 확정 상태를 조회합니다.
       </p>
       {(error || publicationError) && <p role="alert">{error || publicationError}</p>}
-      <button className="btn" onClick={() => setRefresh((n) => n + 1)}>상태 다시 조회</button>
+      <BodyAction icon="reset"  onClick={() => setRefresh((n) => n + 1)}>상태 다시 조회</BodyAction>
       {publicationError && (
-        <button className="btn" onClick={() => setRefresh((n) => n + 1)}>
+        <BodyAction icon="reset"  onClick={() => setRefresh((n) => n + 1)}>
           최신 속성 다시 조회
-        </button>
+        </BodyAction>
       )}
       {job && (
         <>
