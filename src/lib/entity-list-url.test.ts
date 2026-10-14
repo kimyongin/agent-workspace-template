@@ -31,7 +31,7 @@ it("short query compatibility and explicit ambiguity/invalid/type errors never s
   const reset=writeEntityListUrl(new URLSearchParams({entity_type_id:kind,keyword:"保留"}),null,"");expect(reset.hash).toBe("");expect(new URLSearchParams(reset.search).get("keyword")).toBe("保留");
 });
 
-it("common filter changes retain invalid drafts until repair and anchors survive entity rekey links",()=>{
+it("common filter changes retain invalid drafts until repair",()=>{
   const invalid=new URLSearchParams({entity_type_id:kind,property_filters:"bad JSON",keyword:"old"});
   const next=new URLSearchParams(invalid);next.set("keyword","new");
   const changed=changeEntityListQuery(next,invalid,"");expect(new URLSearchParams(changed.search).get("property_filters")).toBe("bad JSON");expect(readEntityListUrl(new URLSearchParams(changed.search),changed.hash).error).not.toBeNull();

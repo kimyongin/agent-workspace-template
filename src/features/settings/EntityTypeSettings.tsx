@@ -2,7 +2,7 @@ import {TypeIdentitySettings} from "./TypeIdentitySettings.tsx";
 import type {MaterialSectionState} from "./MaterialSettingsSection.tsx";
 import { BodyAction } from "../../components/BodyAction.tsx";
 import { createMaterialDefinition } from "./material-definition.ts";
-import { SettingsNavigation } from "./SettingsNavigation.tsx";
+import { SettingsHeading } from "./SettingsHeading.tsx";
 import { MaterialSettingsProtection } from "./MaterialSettingsProtection.tsx";
 import { MaterialSettingsSection } from "./MaterialSettingsSection.tsx";
 import { useAuth } from "../auth/AuthProvider.tsx";
@@ -236,8 +236,8 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
       className="panel settings"
       aria-labelledby="entity-types-title"
     >
-      <h1 id="entity-types-title" className="page-title">자료 설정</h1>
-      <SettingsNavigation />
+      <SettingsHeading title="자료 설정" id="entity-types-title" />
+
       <div className="material-settings-toolbar">
         <Field label="자료 종류 선택">
           {(props) => (

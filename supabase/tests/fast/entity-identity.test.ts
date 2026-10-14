@@ -33,20 +33,31 @@ const schema = { entity_type_id: typeId, schema_version: 1 };
 Deno.test("Entity registration uses exact namespaced identity and rejects active duplicate", async () => {
   const rows = new Map();
   const store = {
+    getTypeIdentity: () =>
+      Promise.resolve({
+        type_id: typeId,
+        label: "번호",
+        version: 1,
+        default_source: "app",
+        sources: [{
+          code: "app",
+          rule_id: typeId,
+          active: true,
+          source_label: "앱",
+          rule_label: "자동",
+          generation: "automatic" as const,
+        }, {
+          code: "crm",
+          rule_id: typeId,
+          active: true,
+          source_label: "CRM",
+          rule_label: "번호",
+          generation: "direct" as const,
+        }],
+      }),
     definition: () => Promise.resolve(definition),
     executeRequest: <T>(_request: unknown, execute: () => Promise<T>) => execute(),
     get: (id: string) => Promise.resolve(rows.get(id) ?? null),
-    getBusinessSettings: () =>
-      Promise.resolve({
-        version: 1,
-        settings: {
-          entity_identity: {
-            generation: "manual",
-            default_source: "crm",
-            sources: [{ code: "app", label: "앱" }, { code: "crm", label: "CRM" }],
-          },
-        },
-      }),
     insert: (i: Parameters<EntityStore["insert"]>[0]) => {
       const row = {
         ...i,
@@ -70,7 +81,7 @@ Deno.test("Entity registration uses exact namespaced identity and rejects active
     properties: { prop_1: "고객" },
   });
   const created = await createEntity(d, requestActor(actor), input);
-  assertEquals(created.id, "crm:000Ab:/한글%");
+  assertEquals(created.id, `crm:${typeId}:000Ab:/한글%`);
   assertEquals(created.external_id, "000Ab:/한글%");
   assertEquals((await assertRejects(() => createEntity(d, requestActor(actor), input), AppError)).code, "conflict");
 });
@@ -79,11 +90,32 @@ Deno.test("Deleted entity registration preserves omitted values and rejects stal
   let row: EntityValues | null = null;
   const events: string[] = [];
   const store = {
+    getTypeIdentity: () =>
+      Promise.resolve({
+        type_id: typeId,
+        label: "번호",
+        version: 1,
+        default_source: "app",
+        sources: [{
+          code: "app",
+          rule_id: typeId,
+          active: true,
+          source_label: "앱",
+          rule_label: "자동",
+          generation: "automatic" as const,
+        }, {
+          code: "crm",
+          rule_id: typeId,
+          active: true,
+          source_label: "CRM",
+          rule_label: "번호",
+          generation: "direct" as const,
+        }],
+      }),
     definition: () => Promise.resolve(definition),
     executeRequest: <T>(_request: unknown, execute: () => Promise<T>) => execute(),
     get: () => Promise.resolve(row),
     related: () => Promise.resolve({ tasks: { count: 1, items: [] }, records: { count: 1, items: [] } }),
-    getBusinessSettings: () => Promise.resolve({ settings: {} }),
     insert: (i: Parameters<EntityStore["insert"]>[0]) => {
       row = {
         ...i,
@@ -140,11 +172,33 @@ Deno.test("Deleted entity registration preserves omitted values and rejects stal
     uow: {
       run: (_actor, fn) =>
         fn({
+          getTypeIdentity: () =>
+            Promise.resolve({
+              type_id: typeId,
+              label: "번호",
+              version: 1,
+              default_source: "app",
+              sources: [{
+                code: "app",
+                rule_id: typeId,
+                active: true,
+                source_label: "앱",
+                rule_label: "자동",
+                generation: "automatic" as const,
+              }, {
+                code: "crm",
+                rule_id: typeId,
+                active: true,
+                source_label: "CRM",
+                rule_label: "번호",
+                generation: "direct" as const,
+              }],
+            }),
           definition: () => Promise.resolve(definition),
           executeRequest: <T>(_request: unknown, execute: () => Promise<T>) => execute(),
           get: () =>
             Promise.resolve({
-              versions: { record_templates: 1, entity_identity: 0 },
+              versions: { record_templates: 1 },
               settings: {
                 record_templates: {
                   entity_types: {
@@ -212,4 +266,90 @@ Deno.test("Deleted entity registration preserves omitted values and rejects stal
       }),
     AppError,
   );
+});
+
+Deno.test("Registration rejects stale type identity and retired creation while explicit restore keeps its number", async () => {
+  let active = true;
+  let row: EntityValues | null = null;
+  const config = () => ({
+    type_id: typeId,
+    label: "고객 번호",
+    version: 2,
+    default_source: "crm",
+    sources: [{
+      code: "crm",
+      rule_id: typeId,
+      active,
+      source_label: "CRM",
+      rule_label: "고객",
+      generation: "direct" as const,
+    }],
+  });
+  const store = {
+    definition: () => Promise.resolve(definition),
+    executeRequest: <T>(_request: unknown, execute: () => Promise<T>) => execute(),
+    getTypeIdentity: () => Promise.resolve(config()),
+    get: () => Promise.resolve(row),
+    insert: (input: Parameters<EntityStore["insert"]>[0]) =>
+      Promise.resolve(
+        row = {
+          ...input,
+          type: definition.type,
+          title: "고객",
+          current_schema_version: 1,
+          display_properties: input.properties,
+          tag_ids: [],
+          source_label: "CRM",
+          version: 1,
+          deleted_at: null,
+          created_at: "2026-10-15T00:00:00Z",
+          updated_at: "2026-10-15T00:00:00Z",
+        },
+      ),
+    restore: (_id: string, input: EntityCreate) =>
+      Promise.resolve(row = { ...row!, ...input, version: 3, deleted_at: null }),
+    appendChange: () => Promise.resolve(),
+  } as unknown as EntityStore;
+  const deps: EntityDeps = { uow: { run: (_actor, run) => run(store) } };
+  const actor = requestActor({ userId: crypto.randomUUID() });
+  const input = {
+    ...schema,
+    source: "crm",
+    external_id: "001A:B",
+    properties: { prop_1: "고객" },
+    identity_version: 1,
+  };
+  assertEquals((await assertRejects(() => createEntity(deps, actor, input), AppError)).code, "settings_changed");
+  const created = await createEntity(deps, actor, { ...input, identity_version: 2 });
+  row = { ...created, deleted_at: "2026-10-15T00:00:00Z", version: 2 };
+  active = false;
+  assertEquals(
+    (await assertRejects(() => createEntity(deps, actor, { ...input, identity_version: 2 }), AppError)).code,
+    "invalid_input",
+  );
+  const preparation: BusinessSettingsDeps = {
+    clock: { now: () => new Date("2026-10-15T00:00:00Z") },
+    uow: {
+      run: (_actor, run) =>
+        run({
+          get: () => Promise.resolve({ versions: { record_templates: 0 }, settings: {} }),
+          getTypeIdentity: () => Promise.resolve(config()),
+          definition: () => Promise.resolve(definition),
+          target: () =>
+            Promise.resolve({ version: row!.version, deleted_at: row!.deleted_at, facts: entityChangeFacts(row!) }),
+          recordTags: () => Promise.resolve([]),
+          update: () => Promise.reject(new Error("read only")),
+        }),
+    },
+  };
+  const prepared = await prepareBusinessRecord(preparation, actor, {
+    model: "entity",
+    action: "restore",
+    target_id: created.id,
+    expected_version: 2,
+    input: { ...schema, properties: {} },
+  });
+  assertEquals([prepared.prepared_input.source, prepared.prepared_input.identity_version], ["crm", 2]);
+  const restored = await createEntity(deps, actor, entityCreate.parse(prepared.prepared_input));
+  assertEquals([restored.id, restored.external_id, restored.deleted_at], [`crm:${typeId}:001A:B`, "001A:B", null]);
 });

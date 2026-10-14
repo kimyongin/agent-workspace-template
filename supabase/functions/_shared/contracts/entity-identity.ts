@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { codePointLength, text } from "./common.ts";
+import { codePointLength } from "./common.ts";
 
 export const entitySourceCode = z.string().regex(/^[a-z][a-z0-9_-]{0,31}$/, {
   message: "발급처 코드는 영문 소문자로 시작하는 영문·숫자·_·- 1~32자입니다",
@@ -13,87 +13,45 @@ export const entityExternalId = z.string().refine((v) => codePointLength(v) >= 1
   }), {
   message: "식별자에 제어문자나 잘못된 Unicode를 사용할 수 없습니다",
 });
-export const entityIdentity = z.strictObject({ source: entitySourceCode, external_id: entityExternalId });
-/** The restricted source has no colon; splitting at its first colon preserves every external character. */
-export function entityId(source: string, external_id: string): string {
-  const identity = entityIdentity.parse({ source, external_id });
-  return `${identity.source}:${identity.external_id}`;
+export const entityTypeKey = z.string().uuid().transform((v) => v.toLowerCase());
+export const entityNumberInput = entityExternalId.refine((v) => v.trim() === v, {
+  message: "번호 앞뒤에 공백을 사용할 수 없습니다",
+});
+export const entityIdentity = z.strictObject({
+  source: entitySourceCode,
+  entity_type_id: entityTypeKey,
+  external_id: entityExternalId,
+});
+/** Fixed source/type segments precede the entire unchanged raw number. */
+export function entityId(source: string, entity_type_id: string, external_id: string): string {
+  const identity = entityIdentity.parse({ source, entity_type_id, external_id });
+  return `${identity.source}:${identity.entity_type_id}:${identity.external_id}`;
 }
 export function splitEntityId(value: string) {
-  const colon = value.indexOf(":");
-  return entityIdentity.parse({ source: value.slice(0, colon), external_id: value.slice(colon + 1) });
+  const first = value.indexOf(":"), second = value.indexOf(":", first + 1);
+  return entityIdentity.parse({
+    source: value.slice(0, first),
+    entity_type_id: value.slice(first + 1, second),
+    external_id: value.slice(second + 1),
+  });
 }
 export const entityReferenceId = z.string().refine((v) => {
   try {
     const tuple = splitEntityId(v);
-    return entityId(tuple.source, tuple.external_id) === v;
+    return entityId(tuple.source, tuple.entity_type_id, tuple.external_id) === v;
   } catch {
     return false;
   }
-}, { message: "발급처:식별자 조합이어야 합니다" });
+}, { message: "발급처:자료 종류:번호 조합이어야 합니다" });
 export const entityReferenceIds = z.array(entityReferenceId).max(100).refine(
   (ids) => new Set(ids).size === ids.length,
   {
     message: "중복된 엔터티 참조가 있습니다",
   },
 );
-export const entityIdentitySettings = z.strictObject({
-  generation: z.enum(["manual", "short", "uuid"]).transform((value) => value === "uuid" ? "short" as const : value),
-  default_source: entitySourceCode,
-  sources: z.array(
-    z.strictObject({
-      code: entitySourceCode,
-      label: text(1, 100),
-      generation: z.enum(["manual", "short"]).optional(),
-      deleted: z.boolean().optional(),
-    }),
-  )
-    .min(1).max(32),
-}).superRefine((v, ctx) => {
-  if (new Set(v.sources.map((s) => s.code)).size !== v.sources.length) {
-    ctx.addIssue({ code: "custom", path: ["sources"], message: "발급처 코드가 중복되었습니다" });
-  }
-  if (!v.sources.some((s) => s.code === "app")) {
-    ctx.addIssue({ code: "custom", path: ["sources"], message: "앱 발급처는 유지해야 합니다" });
-  }
-  if (!v.sources.some((s) => s.code === v.default_source && !s.deleted)) {
-    ctx.addIssue({ code: "custom", path: ["default_source"], message: "삭제되지 않은 발급처를 선택하세요" });
-  }
-}).transform((v) => {
-  // Old settings placed the default separately; preserve that choice when first converting.
-  const sources = v.sources.every((source) => source.generation === undefined)
-    ? [
-      ...v.sources.filter((source) => source.code === v.default_source),
-      ...v.sources.filter((source) => source.code !== v.default_source),
-    ]
-    : v.sources;
-  const first = sources.find((source) => !source.deleted)!;
-  return { ...v, sources, default_source: first.code, generation: first.generation ?? v.generation };
-});
-export type EntityIdentitySettings = z.infer<typeof entityIdentitySettings>;
-export function isActiveEntitySource(settings: EntityIdentitySettings, code: unknown): boolean {
-  return settings.sources.some((source) => source.code === code && !source.deleted);
-}
-export function entitySourceGeneration(settings: EntityIdentitySettings, source: string) {
-  return settings.sources.find((value) => value.code === source)?.generation ?? settings.generation;
-}
-export const defaultEntityIdentitySettings: EntityIdentitySettings = {
-  generation: "short",
-  default_source: "app",
-  sources: [{ code: "app", label: "앱" }],
-};
 export function entityPath(id: string): string {
   return `/entities/${encodeURIComponent(id)}`;
 }
 export function entityIdentityLabel(value: { source: string; external_id: string; source_label?: string }): string {
   return `${value.source_label ?? value.source} · ${value.external_id}`;
-}
-
-/** Lists and details resolve the same effective issuer labels, including unsaved defaults. */
-export function entitySourceLabel(
-  settings: { sources?: Array<{ code: string; label: string }> } | null | undefined,
-  source: string,
-): string {
-  return (settings?.sources ?? defaultEntityIdentitySettings.sources).find((item) => item.code === source)?.label ??
-    source;
 }

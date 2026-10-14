@@ -1,4 +1,4 @@
-import { SettingsNavigation } from "../settings/SettingsNavigation.tsx";
+import { SettingsHeading } from "../settings/SettingsHeading.tsx";
 import { useEffect, useRef, useState } from "react";
 import { useBlocker, useNavigate, useSearchParams } from "react-router";
 import { ConfirmationSurface, ConfirmDialog } from "../../components/ConfirmDialog.tsx";
@@ -33,8 +33,8 @@ export function TagSettingsPage() {
   }, [state.dirty, state.busy]);
   return (
     <section className="panel settings" aria-labelledby="tag-heading">
-      <h1 className="page-title" id="tag-heading" tabIndex={-1}>태그 관리</h1>
-      <SettingsNavigation />
+      <SettingsHeading title="태그 설정" id="tag-heading" tabIndex={-1} />
+
       <div className="material-settings-toolbar">
         <Field label="관리 대상">
           {(props) => (

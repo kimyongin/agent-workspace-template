@@ -165,7 +165,9 @@ section[aria-labelledby="entity-identity-title"] .settings-section-footer { bord
 .schema-history-result p, .schema-history-result ul { margin-block: var(--space-2); }
 .schema-history-result ul { padding-left: var(--space-5); }
 
-.settings-menu { position: relative; align-self: flex-end; margin: var(--space-3) var(--space-4) 0; z-index: 30; }
+.settings-menu { position: relative; flex: 0 0 auto; margin: 0; z-index: 30; }
+.settings-heading { flex-wrap: nowrap; }
+.settings-menu-trigger { width: 44px; height: 44px; padding: 0; display: grid; place-items: center; }
 .settings-menu-options { position: absolute; inset-inline-end: 0; margin-block-start: var(--space-2); min-width: 9rem; display: grid; padding: var(--space-2); background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-card); box-shadow: var(--shadow-soft); }
 .settings-menu-options a { display: flex; align-items: center; min-height: 44px; padding-inline: var(--space-3); }
 .navigation-inline-settings { margin-block-start: var(--space-4); }

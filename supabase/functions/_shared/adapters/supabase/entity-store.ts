@@ -1,5 +1,5 @@
-import { prepareEntityPairRekey } from "./entity-pair-locks.ts";
-import { entityId, entitySourceLabel } from "../../contracts/entity-identity.ts";
+import { SqlEntityIssuerStore } from "./entity-issuer-store.ts";
+import { entityId } from "../../contracts/entity-identity.ts";
 import { insertWithIdRetry } from "./data-id.ts";
 import type postgres from "postgres";
 import type { EntityCreate, EntityDetail, EntityQuery, EntityUpdate, EntityValues } from "../../contracts/entity.ts";
@@ -31,8 +31,8 @@ export class SqlEntityStore extends SqlActorStore implements EntityStore {
   definition(typeId: string, lock = false) {
     return loadEntityDefinition(this.tx, typeId, lock);
   }
-  prepareRekey(id: string) {
-    return prepareEntityPairRekey(this.tx, this.actor, id);
+  getTypeIdentity(typeId: string, lock = false) {
+    return new SqlEntityIssuerStore(this.tx, this.actor).getTypeIdentity(typeId, lock);
   }
   async get(id: string, lock = false) {
     if (lock) {
@@ -52,20 +52,19 @@ export class SqlEntityStore extends SqlActorStore implements EntityStore {
       tagIdsColumn(tx, "entity")
     },
       t.id as type_id,t.label,t.icon_id,t.archived,t.schema_version as current_schema_version,v.display,
-      b.settings as identity_settings`;
+      issuer.label as source_label`;
   }
   private joined() {
     const tx = this.tx;
     return tx`app.entities join app.entity_types t on t.owner_id=entities.owner_id and t.id=entities.entity_type_id
       join app.entity_schema_versions v on v.owner_id=t.owner_id and v.type_id=t.id and v.schema_version=t.schema_version
-      left join app.user_business_settings b on b.owner_id=entities.owner_id and b.id='entity_identity'`;
+      join app.entity_issuers issuer on issuer.owner_id=entities.owner_id and issuer.code=entities.source`;
   }
   private present(r: Record<string, unknown>): EntityValues {
-    const row = result(r),
-      settings = r.identity_settings as { sources?: Array<{ code: string; label: string }> } | null;
+    const row = result(r);
     return {
       ...row,
-      source_label: entitySourceLabel(settings, row.source),
+      source_label: String(r.source_label),
       ...entityPresentationRow(r, row.properties),
     };
   }
@@ -87,7 +86,7 @@ export class SqlEntityStore extends SqlActorStore implements EntityStore {
     const insert = () =>
       this.tx`insert into app.entities(id,owner_id,source,external_id,entity_type_id,schema_version,properties)
       values (${
-        entityId(i.source, external_id)
+        entityId(i.source, i.entity_type_id, external_id)
       },${this.actor.userId},${i.source},${external_id},${i.entity_type_id},${i.schema_version},${
         this.tx.json(i.properties)
       })
@@ -120,11 +119,6 @@ export class SqlEntityStore extends SqlActorStore implements EntityStore {
     const { source: _source, external_id: _external, expected_version: _version, ...props } = changes;
     await this.tx`update app.entities set deleted_at=null where id=${id}`;
     return this.update(id, props);
-  }
-  async rekey(id: string, identity: { source: string; external_id: string }) {
-    const next = `${identity.source}:${identity.external_id}`;
-    await this.tx`select app.rekey_entity(${id},${identity.source},${identity.external_id})`;
-    return (await this.get(next))!;
   }
   async list(q: EntityQuery, after?: EntityKeyset, typeIds?: string[]) {
     const tx = this.tx;
@@ -169,6 +163,7 @@ export class SqlEntityStore extends SqlActorStore implements EntityStore {
       from ${this.joined()} where entities.deleted_at is null
       ${typeIds ? tx`and entities.entity_type_id=any(${typeIds}::uuid[])` : tx``}
       ${q.entity_type_id ? tx`and entities.entity_type_id=${q.entity_type_id}::uuid` : tx``}
+      ${q.source ? tx`and entities.source=${q.source}` : tx``}
       ${q.tag_id ? tx`and ${hasTag(tx, "entity", q.tag_id)}` : tx``}
       ${
       q.link_candidate_for

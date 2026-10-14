@@ -10,7 +10,7 @@ import { AppError } from "../../functions/_shared/core/shared/errors.ts";
 
 const actor = { userId: crypto.randomUUID() };
 function fixture(saved: BusinessSettingsResult = {
-  versions: { entity_identity: 0, record_templates: 4 },
+  versions: { record_templates: 4 },
   settings: { record_templates: { task: { create: { memo: "추가", tag_ids: [] } } } },
 }) {
   const deps: BusinessSettingsDeps = {
@@ -38,20 +38,6 @@ function fixture(saved: BusinessSettingsResult = {
   const read = settingsTools(deps).find((tool) => tool.name === "get_business_settings")!;
   return { app, read };
 }
-Deno.test("업무 설정 HTTP/MCP: 발급처만 조회하면 해석한 기본값과 해당 버전만 반환", async () => {
-  const { app, read } = fixture();
-  const expected = {
-    versions: { entity_identity: 0 },
-    settings: {
-      entity_identity: { generation: "short", default_source: "app", sources: [{ code: "app", label: "앱" }] },
-    },
-  };
-  const response = await app.request("/settings/business?id=entity_identity");
-  assertEquals(response.status, 200);
-  assertEquals(await response.json(), expected);
-  assertEquals(await read.handler({ id: "entity_identity" }, actor), expected);
-});
-
 Deno.test("업무 설정 HTTP/MCP: 기록 템플릿 선택·선택 생략 전체·잘못된 선택자 거절", async () => {
   const { app, read } = fixture();
   const templates = {
@@ -61,15 +47,14 @@ Deno.test("업무 설정 HTTP/MCP: 기록 템플릿 선택·선택 생략 전체
   assertEquals(await (await app.request("/settings/business?id=record_templates")).json(), templates);
   assertEquals(await read.handler({ id: "record_templates" }, actor), templates);
   const full = {
-    versions: { entity_identity: 0, record_templates: 4 },
+    versions: { record_templates: 4 },
     settings: {
-      entity_identity: { generation: "short", default_source: "app", sources: [{ code: "app", label: "앱" }] },
       record_templates: { task: { create: { memo: "추가", tag_ids: [] } } },
     },
   };
   assertEquals(await (await app.request("/settings/business")).json(), full);
   assertEquals(await read.handler({}, actor), full);
-  for (const id of ["", "unknown", "ENTITY_IDENTITY"]) {
+  for (const id of ["", "unknown", "entity_identity", "ENTITY_IDENTITY"]) {
     assertEquals((await app.request(`/settings/business?id=${id}`)).status, 400);
     assertEquals((await assertRejects(async () => await read.handler({ id }, actor), AppError)).code, "invalid_input");
   }
@@ -80,38 +65,4 @@ Deno.test("업무 설정 HTTP/MCP: 기록 템플릿 선택·선택 생략 전체
     (await assertRejects(async () => await read.handler({ owner_id: actor.userId }, actor), AppError)).code,
     "invalid_input",
   );
-});
-
-Deno.test("업무 설정 HTTP/MCP: 미저장 템플릿 기본값과 저장한 발급처 값·버전은 선택 조회에서도 유지", async () => {
-  const { app, read } = fixture({
-    versions: { entity_identity: 7, record_templates: 0 },
-    settings: {
-      entity_identity: {
-        generation: "manual",
-        default_source: "crm",
-        sources: [
-          { code: "crm", label: "고객", generation: "manual" },
-          { code: "app", label: "앱", generation: "short" },
-        ],
-      },
-    },
-  });
-  const templates = { settings: { record_templates: {} }, versions: { record_templates: 0 } };
-  assertEquals(await (await app.request("/settings/business?id=record_templates")).json(), templates);
-  assertEquals(await read.handler({ id: "record_templates" }, actor), templates);
-  const identity = {
-    settings: {
-      entity_identity: {
-        generation: "manual",
-        default_source: "crm",
-        sources: [
-          { code: "crm", label: "고객", generation: "manual" },
-          { code: "app", label: "앱", generation: "short" },
-        ],
-      },
-    },
-    versions: { entity_identity: 7 },
-  };
-  assertEquals(await (await app.request("/settings/business?id=entity_identity")).json(), identity);
-  assertEquals(await read.handler({ id: "entity_identity" }, actor), identity);
 });

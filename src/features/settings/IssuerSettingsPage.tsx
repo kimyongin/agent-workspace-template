@@ -1,3 +1,4 @@
+import { SettingsHeading } from "./SettingsHeading.tsx";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { EntityIssuer, IdentifierRule } from "@contracts/entity-issuer.ts";
 import { BodyAction } from "../../components/BodyAction.tsx";
@@ -69,7 +70,7 @@ export function IssuerSettingsPage() {
   };
   return (
     <section className="panel settings" aria-label="발급처 설정">
-      <h1 className="page-title">발급처 설정</h1>
+      <SettingsHeading title="발급처 설정" />
       <div className="material-settings-toolbar">
         <Field label="발급처">
           {(props) => (

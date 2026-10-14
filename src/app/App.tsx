@@ -1,5 +1,4 @@
-import {IssuerSettingsPage} from "../features/settings/IssuerSettingsPage.tsx";
-import { SettingsMenu } from "../features/settings/SettingsMenu.tsx";
+import { IssuerSettingsPage } from "../features/settings/IssuerSettingsPage.tsx";
 import { RecordSettingsPage } from "../features/settings/RecordSettingsPage.tsx";
 import { NavigationPreviewProvider } from "../features/settings/navigation-preview.tsx";
 import { EntityTypeSettings } from "../features/settings/EntityTypeSettings.tsx";
@@ -55,7 +54,6 @@ function Layout() {
       <header className={`app-header${session ? " workspace-header" : ""}`}>
         <span className="app-brand">{APP_NAME}</span>
       </header>
-      {session && <SettingsMenu />}
       <main className="app-main" key={location.pathname === "/logout" ? "logout" : session?.user.id ?? "signed-out"}>
         {session && <WriteOutcomeNotice />}
         <DetailNavigationProvider

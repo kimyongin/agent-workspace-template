@@ -1,5 +1,5 @@
 import { NavigationSettings } from "./NavigationSettingsPage.tsx";
-import { SettingsNavigation } from "./SettingsNavigation.tsx";
+import { SettingsHeading } from "./SettingsHeading.tsx";
 import { Field } from "../../components/Field.tsx";
 import { browserTimezone, timezoneOptions } from "../../lib/timezone.ts";
 import { useEffect, useRef, useState } from "react";
@@ -251,8 +251,8 @@ function AccountSettings() {
   );
   return (
     <section className="panel settings" aria-labelledby="settings-title">
-      <h1 className="page-title" id="settings-title">기본 설정</h1>
-      <SettingsNavigation />
+      <SettingsHeading title="기본 설정" id="settings-title" />
+
       {(["profile", "date", "display"] as const).map((section) => (
         <section className="settings-section" aria-labelledby={`settings-${section}`} key={section}>
           <h2 id={`settings-${section}`} className="settings-section-title">{preferenceSections[section].title}</h2>

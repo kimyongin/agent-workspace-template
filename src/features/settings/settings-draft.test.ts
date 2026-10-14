@@ -1,48 +1,13 @@
 import { expect, test, vi } from "vitest";
 import { createSettingsDraft } from "./settings-draft.ts";
 import {
-  createIdentitySettingsDraft,
   createRecordTemplatesDraft,
-  orderedSources,
   unavailableTemplateTags,
 } from "./business-settings-drafts.ts";
 const request = vi.fn(async () => {
   throw new Error("Unexpected HTTP request in draft policy test");
 });
-const identitySettingsDraft = createIdentitySettingsDraft(request);
 const recordTemplatesDraft = createRecordTemplatesDraft(request);
-
-test("동시 발급처 삭제 충돌은 초안을 병합하지 않고 최신값을 채택한 뒤 저장한다", async () => {
-  const { ApiError } = await import("../../lib/api-error.ts");
-  const before = {
-    generation: "short" as const, default_source: "app",
-    sources: [{ code: "app", label: "앱", generation: "short" as const },
-      { code: "crm", label: "고객", generation: "manual" as const }],
-  };
-  const latest = { ...before, sources: [before.sources[0], { ...before.sources[1], deleted: true }] };
-  const api = vi.fn().mockResolvedValueOnce({ settings: { entity_identity: before }, versions: { entity_identity: 1 } })
-    .mockRejectedValueOnce(new ApiError(409, "conflict", "다른 변경"))
-    .mockResolvedValueOnce({ settings: { entity_identity: latest }, versions: { entity_identity: 2 } })
-    .mockResolvedValueOnce({ settings: { entity_identity: latest }, versions: { entity_identity: 3 } });
-  const settings = createSettingsDraft(createIdentitySettingsDraft(api));
-  await settings.read();
-  settings.edit(value => orderedSources([{ ...value.sources[0], deleted: true }, value.sources[1]], value));
-  const local = structuredClone(settings.snapshot().draft);
-  await settings.save();
-  expect(settings.snapshot()).toMatchObject({ conflict: true, draft: local, saved: { versions: { entity_identity: 1 } } });
-  await settings.read();
-  expect(settings.snapshot()).toMatchObject({ error: null, conflict: true, draft: local, saved: { versions: { entity_identity: 2 } } });
-  await settings.save();
-  expect(api.mock.calls.filter(call => call[0] === "PATCH")).toHaveLength(1);
-  settings.reset();
-  expect(settings.snapshot()).toMatchObject({ conflict: false, dirty: false, draft: latest });
-  settings.edit(value => ({ ...value, sources: [{ ...value.sources[0], label: "새 이름" }, value.sources[1]] }));
-  await settings.save();
-  expect(api.mock.calls.at(-1)?.slice(0, 3)).toEqual(["PATCH", "/settings/business", {
-    id: "entity_identity", expected_version: 2,
-    value: { ...latest, sources: [{ ...latest.sources[0], label: "새 이름" }, latest.sources[1]] },
-  }]);
-});
 
 test("최신값 조회 실패 후 초안을 편집해도 이전 기준값으로 충돌을 해제할 수 없다", async () => {
   const save = vi.fn().mockRejectedValue(new Error("충돌"));
@@ -165,58 +130,16 @@ test("업무 설정 충돌은 입력·기준 버전을 유지하며 최신값을
   expect(settings.snapshot()).toMatchObject({ dirty: false, conflict: false, draft: { memo: "기준" } });
 });
 
-test("발급처 최신값 확인은 초안 전체를 보존하고 취소는 최신 발급처 목록을 채택한다", async () => {
-  const before = {
-    generation: "short" as const,
-    default_source: "app",
-    sources: [
-      { code: "app", label: "앱", generation: "short" as const },
-      { code: "crm", label: "고객", generation: "manual" as const },
-    ],
-  };
-  const settings = createSettingsDraft({
-    ...identitySettingsDraft,
-    read: vi.fn().mockResolvedValueOnce({
-      versions: { entity_identity: 1, record_templates: 9 },
-      settings: { entity_identity: before },
-    })
-      .mockResolvedValueOnce({
-        versions: { entity_identity: 2, record_templates: 10 },
-        settings: {
-          entity_identity: {
-            ...before,
-            sources: [
-              { ...before.sources[0], label: "원격 앱" },
-              { ...before.sources[1], label: "원격 고객" },
-              { code: "new", label: "새 발급처", generation: "short" },
-            ],
-          },
-        },
-      }),
-  });
-  await settings.read();
-  settings.edit((value) => orderedSources([{ ...value.sources[1], label: "내 고객" }, value.sources[0]], value));
-  await settings.read();
-  expect(settings.snapshot().draft.sources.map((source) => [source.code, source.label])).toEqual([["crm", "내 고객"], [
-    "app",
-    "앱",
-  ]]);
-  expect(settings.snapshot().draft.default_source).toBe("crm");
-  settings.reset();
-  expect(settings.snapshot().draft.default_source).toBe("app");
-  expect(settings.snapshot().draft.sources.map(source => source.label)).toEqual(["원격 앱", "원격 고객", "새 발급처"]);
-});
-
 test("기록 템플릿 최신값 확인은 초안 전체를 보존하고 취소는 최신 템플릿으로 돌아간다", async () => {
   const settings = createSettingsDraft({
     ...recordTemplatesDraft,
     read: vi.fn().mockResolvedValueOnce({
-      settings: { versions: { entity_identity: 9, record_templates: 1 }, settings: {} },
+      settings: { versions: { record_templates: 1 }, settings: {} },
       availableTags: [],
     })
       .mockResolvedValueOnce({
         settings: {
-          versions: { entity_identity: 10, record_templates: 2 },
+          versions: { record_templates: 2 },
           settings: { record_templates: { task: { create: { memo: "원격 템플릿", tag_ids: [] } } } },
         },
         availableTags: [],
@@ -254,7 +177,7 @@ test("충돌 뒤 최신값 읽기가 실패해도 다시 최신값을 확인할 
 test("템플릿의 누락 태그 안내는 새 로컬 선택을 삭제된 태그로 오인하지 않는다", () => {
   const saved = {
     settings: {
-      versions: { record_templates: 1, entity_identity: 0 },
+      versions: { record_templates: 1 },
       settings: {
         record_templates: { task: { create: { memo: "기준", tag_ids: ["deleted"] } } },
       },
@@ -283,38 +206,13 @@ test("업무 설정 응답 불명은 같은 키·입력·기준 버전으로 재
 });
 
 
-test("발급처 편집기는 부분 조회의 버전을 저장에 쓰고 전체 저장 응답을 다시 편집한다", async () => {
-  const value = { generation: "short", default_source: "app", sources: [{ code: "app", label: "앱" }] };
-  const api = vi.fn().mockResolvedValueOnce({ versions: { entity_identity: 3 }, settings: { entity_identity: value } })
-    .mockResolvedValueOnce({ versions: { entity_identity: 4 }, settings: { entity_identity: { ...value, sources: [{ code: "app", label: "원격 앱" }] } } })
-    .mockResolvedValueOnce({ versions: { entity_identity: 5, record_templates: 99 }, settings: { entity_identity: { ...value, sources: [{ code: "app", label: "내 앱", generation: "short" }] }, record_templates: {} } });
-  const settings = createSettingsDraft(createIdentitySettingsDraft(api));
-  await settings.read();
-  settings.edit((draft) => ({ ...draft, sources: [{ ...draft.sources[0], label: "내 앱" }] }));
-  await settings.read();
-  expect(settings.snapshot().draft.sources[0].label).toBe("내 앱");
-  expect(api.mock.calls.slice(0, 2).map((call) => [call[0], call[1]])).toEqual([
-    ["GET", "/settings/business?id=entity_identity"], ["GET", "/settings/business?id=entity_identity"],
-  ]);
-  await settings.save();
-  expect(api.mock.calls[2].slice(0, 3)).toEqual(["PATCH", "/settings/business", {
-    id: "entity_identity", expected_version: 4,
-    value: { ...value, sources: [{ code: "app", label: "내 앱", generation: "short" }] },
-  }]);
-  expect(settings.snapshot().dirty).toBe(false);
-  settings.edit((draft) => ({ ...draft, sources: [{ ...draft.sources[0], label: "미저장" }] }));
-  settings.reset();
-  expect(settings.snapshot().draft.sources[0].label).toBe("내 앱");
-  expect(settings.snapshot().saved?.versions.entity_identity).toBe(5);
-});
-
 test("기록 편집기는 부분 조회 뒤 초안·취소·저장 버전을 보존하며 전체 저장 응답을 받는다", async () => {
   const api = vi.fn()
     .mockResolvedValueOnce({ versions: { record_templates: 2 }, settings: { record_templates: {} } })
     .mockResolvedValueOnce({ items: [], next_cursor: null })
     .mockResolvedValueOnce({ versions: { record_templates: 3 }, settings: { record_templates: { task: { create: { memo: "원격", tag_ids: [] } } } } })
     .mockResolvedValueOnce({ items: [], next_cursor: null })
-    .mockResolvedValueOnce({ versions: { record_templates: 4, entity_identity: 99 }, settings: { record_templates: { task: { create: { memo: "저장", tag_ids: [] } } } } });
+    .mockResolvedValueOnce({ versions: { record_templates: 4 }, settings: { record_templates: { task: { create: { memo: "저장", tag_ids: [] } } } } });
   const settings = createSettingsDraft(createRecordTemplatesDraft(api));
   await settings.read();
   settings.edit((draft) => ({ ...draft, task: { ...draft.task, create: { memo: "내 초안", tag_ids: [] } } }));

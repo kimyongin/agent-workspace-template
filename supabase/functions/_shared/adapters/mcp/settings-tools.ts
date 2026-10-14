@@ -1,4 +1,3 @@
-import { z } from "zod";
 import { businessSettingsRead, businessSettingsUpdate } from "../../contracts/business-settings.ts";
 import { prepareRecordMemo } from "../../contracts/record-preparation.ts";
 import {
@@ -8,18 +7,13 @@ import {
   updateBusinessSettings,
 } from "../../core/settings/application.ts";
 import { keyedTool, type ToolDef } from "./tools.ts";
-// MCP requires a top-level object; the use case validates the selected section's discriminated contract.
-const updateSettingsInput = z.strictObject({
-  id: z.union([businessSettingsUpdate.options[0].shape.id, businessSettingsUpdate.options[1].shape.id]),
-  expected_version: businessSettingsUpdate.options[0].shape.expected_version,
-  value: z.union([businessSettingsUpdate.options[0].shape.value, businessSettingsUpdate.options[1].shape.value]),
-});
+const updateSettingsInput = businessSettingsUpdate;
 export function settingsTools(deps: BusinessSettingsDeps): ToolDef[] {
   const tools: ToolDef[] = [
     {
       name: "get_business_settings",
       description:
-        "사용자 업무 설정과 설정 ID별 versions 조회. id(entity_identity 또는 record_templates)를 선택하면 해당 settings·versions만 반환하며 생략하면 전체 조회. 자료 발급처·방식·설정 버전 정보가 필요하거나 오래되면 entity_identity를 조회한다. 현재 작업의 설정은 재사용하고 선택한 source와 versions.entity_identity를 settings_version으로 저장에 전달한다. 화면·프로필 설정과 별도 저장된다.",
+        "사용자 업무 설정과 설정 ID별 versions 조회. id(record_templates)를 선택하면 해당 settings·versions만 반환하며 생략하면 전체 조회. 자료 식별자 설정은 get_entity_type_identity로 조회한다. 화면·프로필 설정과 별도 저장된다.",
       input: businessSettingsRead,
       readOnly: true,
       handler: (i, a) => getBusinessSettings(deps, a, i),

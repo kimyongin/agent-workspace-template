@@ -9,7 +9,6 @@ import type { EntityContext } from "@contracts/entity-links.ts";
 import { RelatedSection } from "../../components/RelatedItems.tsx";
 import { RelatedRecordItem } from "../activity/RelatedRecords.tsx";
 import { useDetailDeleteReturn, useDetailNavigate, useDetailOwnerReturn } from "../../lib/detail-exploration.tsx";
-import { useEntityIdentityChange } from "../details/useEntityIdentityChange.ts";
 import { useDetailEditor } from "../details/useDetailEditor.ts";
 import { useDeferredNavigation } from "../../lib/useDeferredNavigation.ts";
 import { TagNames } from "../tags/TagPicker.tsx";
@@ -65,7 +64,6 @@ export function EntityDetailPage() {
     (detail.error ? detail.error instanceof ApiError ? detail.error.message : "자료를 불러오지 못했습니다." : null);
   const reload = detail.reload;
   const editor = useDetailEditor(detail.editClosed);
-  const replaceIdentityVisit = useEntityIdentityChange(editor.formProps.onRouteDiscard);
   const [busy, setBusy] = useState(false);
   useEffect(() => {
     if (!detail.confirmed && entity) relationSaved.current = false;
@@ -309,33 +307,25 @@ export function EntityDetailPage() {
               }}
               {...editor.formProps}
               onSave={async (
-                { source, external_id, expected_version, entity_type_id, settings_version, ...value },
+                { source, external_id, expected_version, entity_type_id, identity_version, ...value },
                 requestKey,
               ) => {
-                let savedId = entity.id;
                 await detail.save(async (current) => {
                   const savedEntity = await api<EntityDetail>(
                     entity.deleted_at ? "POST" : "PATCH",
                     entity.deleted_at ? "/entities" : entityPath(id),
                     {
                       ...value,
-                      source,
-                      external_id,
-                      ...(entity.deleted_at ? { entity_type_id, settings_version } : {}),
+                      ...(entity.deleted_at ? { source, external_id, entity_type_id, identity_version } : {}),
                       expected_version: expected_version ?? entity.version,
                     },
                     undefined,
                     requestKey(),
                   );
-                  savedId = savedEntity.id;
                   return { ...current, ...savedEntity };
                 });
-                if (savedId !== entity.id) {
-                  replaceIdentityVisit(entity.id, savedId);
-                } else {
-                  editor.close();
-                  void reload();
-                }
+                editor.close();
+                void reload();
               }}
             />
           )}
