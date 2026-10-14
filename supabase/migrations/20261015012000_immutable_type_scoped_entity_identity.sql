@@ -35,7 +35,7 @@ alter table app.entities drop constraint entities_owner_id_source_external_id_ke
 alter table app.entities add constraint entity_tuple_id
   check(id=source||':'||entity_type_id::text||':'||external_id);
 alter table app.entities add constraint entity_external_id_outer_space
-  check(external_id=btrim(external_id,U&'\0009\000A\000B\000C\000D\0020\00A0\1680\2000\2001\2002\2003\2004\2005\2006\2007\2008\2009\200A\2028\2029\202F\205F\3000\FEFF')); 
+  check(external_id=btrim(external_id,U&'\0009\000A\000B\000C\000D\0020\00A0\1680\2000\2001\2002\2003\2004\2005\2006\2007\2008\2009\200A\2028\2029\202F\205F\3000\FEFF'));
 create or replace function app.enforce_entity_type_immutable() returns trigger
 language plpgsql set search_path='' as $$
 begin

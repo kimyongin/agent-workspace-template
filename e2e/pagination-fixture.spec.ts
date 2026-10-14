@@ -1,7 +1,7 @@
 import { setEntityCategory } from "./ui-actions.ts";
 // Actual App and pagination bindings, with per-page Auth/API fixtures; no shared account.
-import { expect, test, type Page } from "@playwright/test";
-import { id, entity } from "./support/workspace-data.ts";
+import { expect, type Page, test } from "@playwright/test";
+import { entity, fixtureType, id } from "./support/workspace-data.ts";
 import { installWorkspaceApi } from "./support/workspace-api.ts";
 import { openTabFilters } from "./ui-actions.ts";
 
@@ -126,7 +126,11 @@ test("Entity restored pages: retry cursor, focus and filter reset", async ({ pag
     const externalId = crypto.randomUUID();
     await route.fulfill({
       json: {
-        items: [{ ...entity(index,{prop_1:`경계 항목 ${index}`}),id:`app:${externalId}`,external_id:externalId }],
+        items: [{
+          ...entity(index,{prop_1:`경계 항목 ${index}`}),
+          id: `app:${fixtureType.id}:${externalId}`,
+          external_id:externalId,
+        }],
         next_cursor: `page-${index}`,
       },
     });

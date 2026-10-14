@@ -1,6 +1,12 @@
 import { expect, test } from "@playwright/test";
-import { defaultEntityIdentitySettings } from "../supabase/functions/_shared/contracts/entity-identity.ts";
-import { entity, fixtureSchema, fixtureType, id, stamp } from "./support/workspace-data.ts";
+import {
+  entity,
+  fixtureIdentity,
+  fixtureSchema,
+  fixtureType,
+  id,
+  stamp,
+} from "./support/workspace-data.ts";
 import { openTabFilters } from "./ui-actions.ts";
 const second = { ...fixtureType, id: id(901), label: "다른 자료" };
 test.beforeEach(async ({ page, baseURL }) => {
@@ -12,6 +18,9 @@ test.beforeEach(async ({ page, baseURL }) => {
     }
     if (url.pathname.startsWith("/api/entity-types/")) {
       const selected = url.pathname.includes(second.id) ? second : fixtureType;
+      if (url.pathname.endsWith("/identity")) {
+        return route.fulfill({ json: fixtureIdentity(selected.id) });
+      }
       if (url.pathname.endsWith("/schemas")) return route.fulfill({ json: {
         items: [{ type_id: selected.id, schema_version: fixtureSchema.schema_version, created_at: stamp }], next_before: null,
       } });
@@ -23,8 +32,8 @@ test.beforeEach(async ({ page, baseURL }) => {
     if (url.pathname === "/api/settings/business") {
       return route.fulfill({
         json: {
-          settings: { entity_identity: defaultEntityIdentitySettings, record_templates: {} },
-          versions: { entity_identity: 0, record_templates: 0 },
+          settings: { record_templates: {} },
+          versions: { record_templates: 0 },
         },
       });
     }
@@ -96,10 +105,29 @@ test("typed list exposes current columns and AND filters, type switch clears onl
 test("manual deleted lookup opens restore confirmation without submitting archived properties", async ({ page }) => {
   const archived = {
     ...entity(),
+    source: "crm",
+    source_label: "고객",
+    id: `crm:${fixtureType.id}:${entity().external_id}`,
     deleted_at: stamp,
     tag_ids: [id(700)],
     properties: { prop_1: "보존 이름", prop_2: 0, prop_3: null, prop_4: "b" },
   };
+  await page.route("**/api/entity-types/*/identity", (route) =>
+    route.fulfill({
+      json: {
+        ...fixtureIdentity(),
+        default_source: "crm",
+        sources: [{
+          code: "crm",
+          rule_id: fixtureType.id,
+          active: true,
+          referenced: false,
+          source_label: "고객",
+          rule_label: "고객 번호",
+          generation: "direct",
+        }],
+      },
+    }));
   const schema = { ...fixtureSchema, display: { ...fixtureSchema.display, archived: ["prop_4"] } };
   await page.route("**/api/entity-types/*/schema", (route) => route.fulfill({ json: schema }));
   await page.route("**/api/entities/*", (route) => route.fulfill({ json: archived }));
@@ -121,7 +149,7 @@ test("manual deleted lookup opens restore confirmation without submitting archiv
   await page.getByRole("button", { name: "검사 자료 추가", exact: true }).click();
   const form = page.getByRole("dialog", { name: "검사 자료 추가", exact: true });
   await form.getByLabel("제목", { exact: false }).fill("임시 입력");
-  await form.getByLabel("식별자", { exact: true }).fill(archived.external_id);
+  await form.getByLabel("번호", { exact: true }).fill(archived.external_id);
   await form.getByRole("button", { name: "저장", exact: true }).click();
   await expect(page.locator("dialog.modal-action[open]")).toBeVisible();
   await expect.poll(() => inputs.length).toBe(1);
@@ -130,8 +158,10 @@ test("manual deleted lookup opens restore confirmation without submitting archiv
   expect(inputs[0].tag_ids).toEqual([id(700)]);
 });
 test("template insertion uses selected type labels and immutable property keys", async ({ page }) => {
-  await page.goto(`/settings/entity-types/${fixtureType.id}`);
-  await page.getByRole("button", { name: /기록 자동 완성/ }).click();
+  await page.goto("/settings/records");
+  await page.getByLabel("대상", { exact: true }).selectOption(
+    `type:${fixtureType.id}`,
+  );
   const form = page.getByRole("form", { name: "기록 자동 완성" });
   await expect(form.getByLabel("자료 종류", { exact: true })).toHaveCount(0);
   await form.getByLabel("액션", { exact: true }).selectOption("update");
@@ -157,7 +187,6 @@ test("numeric filter rejects a precision-losing draft without applying or cleari
   await page.getByRole("button", { name: "속성 조건 적용", exact: true }).click();
   await expect.poll(() => new URL(page.url()).searchParams.get("property_filters")).toBe('[{"key":"prop_2","operator":"eq","value":42}]');
 });
-
 
 test("entity numeric draft rejects precision loss before preparing a record and preserves the input", async ({ page }) => {
   let prepared = 0;
