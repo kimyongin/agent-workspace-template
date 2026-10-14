@@ -102,7 +102,7 @@ test("explicit empty configuration saves only navigation and survives reload; de
   await expect(page.getByText("내 프로필만 표시합니다.")).toBeVisible();
   await page.getByRole("button", { name: "기본 구성 사용", exact: true }).click();
   await expect(nav(page).locator(".bottom-nav-inner > a")).toHaveCount(4);
-  await page.getByRole("button", { name: "변경 취소", exact: true }).click();
+  await page.getByRole("form", { name: "메뉴 바로가기 설정", exact: true }).getByRole("button", { name: "변경 취소", exact: true }).click();
   await expect(nav(page).locator(".bottom-nav-inner > a")).toHaveCount(0);
   await page.getByRole("button", { name: "기본 구성 사용", exact: true }).click();
   await page.getByRole("button", { name: "메뉴 바로가기 저장" }).click();
@@ -119,11 +119,11 @@ test("keyboard reorder previews retained refs; failed save keeps draft and route
   state.fail();
   await page.getByRole("button", { name: "메뉴 바로가기 저장" }).click();
   await expect(page.getByRole("alert")).toContainText("선택한 메뉴를 유지");
-  await page.getByRole("link", { name: "설정", exact: true }).click();
+  await page.getByRole("navigation", { name: "설정 범주" }).getByRole("link", { name: "자료", exact: true }).click();
   await expect(page.getByRole("dialog", { name: "변경을 버릴까요?" })).toBeVisible();
   await page.getByRole("button", { name: "취소", exact: true }).click();
   await expect(nav(page).locator(".bottom-nav-inner > a")).toHaveText(["기록", "할 일"]);
-  await page.getByRole("button", { name: "변경 취소", exact: true }).click();
+  await page.getByRole("form", { name: "메뉴 바로가기 설정", exact: true }).getByRole("button", { name: "변경 취소", exact: true }).click();
   await expect(nav(page).locator(".bottom-nav-inner > a")).toHaveText(["할 일", "기록"]);
 });
 test("external tab metadata preserves dirty preview until conflict is reviewed", async ({ page, baseURL }) => {
@@ -242,12 +242,12 @@ test("pending save prevents duplicate submission and departure until authoritati
   });
   await page.getByRole("button", { name: "메뉴 바로가기 저장" }).click();
   await expect(page.getByRole("button", { name: "메뉴 바로가기 저장" })).toBeDisabled();
-  await page.getByRole("link", { name: "설정", exact: true }).click();
-  await expect(page).toHaveURL(/\/settings\/navigation$/);
+  await page.getByRole("navigation", { name: "설정 범주" }).getByRole("link", { name: "자료", exact: true }).click();
+  await expect(page).toHaveURL(/\/settings#settings-display$/);
   await expect(page.getByRole("dialog")).toHaveCount(0);
   release();
   await expect(page.getByRole("status")).toHaveText("메뉴 설정을 저장했습니다.");
-  await expect(page.getByRole("button", { name: "변경 취소", exact: true })).toBeDisabled();
+  await expect(page.getByRole("form", { name: "메뉴 바로가기 설정", exact: true }).getByRole("button", { name: "변경 취소", exact: true })).toBeDisabled();
 });
 test("late old account metadata cannot overwrite the new account navigation", async ({ page, baseURL }) => {
   await fixture(page, baseURL!, { version: 1, refs: [ref("tasks")] });

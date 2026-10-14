@@ -1,7 +1,6 @@
 import { BodyAction } from "../../components/BodyAction.tsx";
 import { createMaterialDefinition } from "./material-definition.ts";
-import { RecordTemplateSettings } from "./RecordTemplateSettings.tsx";
-import { createMaterialTemplateDraft } from "./material-template-drafts.ts";
+import { SettingsNavigation } from "./SettingsNavigation.tsx";
 import { MaterialSettingsProtection } from "./MaterialSettingsProtection.tsx";
 import { MaterialSettingsSection } from "./MaterialSettingsSection.tsx";
 import { useAuth } from "../auth/AuthProvider.tsx";
@@ -23,18 +22,6 @@ export function EntityTypeSettings() {
 function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
   const { session } = useAuth();
   const iconGroup = useId();
-  const [templates] = useState(() => type_id ? createMaterialTemplateDraft(type_id) : null);
-  useEffect(() => {
-    const refresh = () => {
-      void templates?.read();
-    };
-    window.addEventListener("workspace:tags-changed", refresh);
-    return () => {
-      window.removeEventListener("workspace:tags-changed", refresh);
-      templates?.dispose();
-    };
-  }, [templates]);
-  const [recordState, setRecordState] = useState({ dirty: false, busy: false });
   const { type_id: activeTypeId, job_id } = useParams();
   const queryJob = new URLSearchParams(useLocation().search).get("job_id");
   const selectedJob = job_id ?? queryJob ?? undefined;
@@ -111,11 +98,10 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
     };
   }, []);
   const dirty = type_id ? basicDirty : label !== "" || icon !== "box" || representative !== "이름";
-  const protectedDraft = recordState.dirty ||
-    recordState.busy || dirty || busy || uncertain ||
+  const protectedDraft = dirty || busy || uncertain ||
     schemaState.dirty || schemaState.busy || schemaState.uncertain || jobState.dirty || jobState.busy ||
     jobState.uncertain;
-  const anyBusy = busy || schemaState.busy || recordState.busy ||
+  const anyBusy = busy || schemaState.busy ||
     jobState.busy;
   useEffect(() => {
     const controller = new AbortController();
@@ -247,6 +233,7 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
       aria-labelledby="entity-types-title"
     >
       <h1 id="entity-types-title" className="page-title">자료 설정</h1>
+      <SettingsNavigation />
       <div className="material-settings-toolbar">
         <Field label="자료 종류 선택">
           {(props) => (
@@ -437,23 +424,6 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
         <SchemaEditor
           type={type}
           definition={schema}
-          betweenSections={
-            <>
-              {type_id && templates && (
-                <MaterialSettingsSection
-                  title="기록 자동 완성"
-                  state={recordState}
-                >
-                  <RecordTemplateSettings
-                    materialResource={templates}
-                    materialTypeId={type_id}
-                    publishedVersion={schema?.schema_version}
-                    onStateChange={setRecordState}
-                  />
-                </MaterialSettingsSection>
-              )}
-            </>
-          }
           historyInitiallyOpen={versions || !!historyVersion || location.pathname.includes("/migrations") ||
             !!selectedJob}
           historyVersions={history}
