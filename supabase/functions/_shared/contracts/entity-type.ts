@@ -1,3 +1,4 @@
+import type { EntityTypeIdentity } from "./entity-issuer.ts";
 import { z } from "zod";
 export const ENTITY_SCHEMA_DIALECT = "https://json-schema.org/draft/2020-12/schema";
 export const entityTypeIcons = [
@@ -106,6 +107,7 @@ export type EntityDisplay = {
   option_labels: Record<string, Record<string, string>>;
 };
 export type EntityType = {
+  identity?: EntityTypeIdentity;
   id: string;
   label: string;
   icon_id: string;
@@ -117,6 +119,7 @@ export type EntityType = {
   updated_at: string;
 };
 export type EntitySchemaVersion = {
+  identity?: EntityTypeIdentity;
   type_id: string;
   schema_version: number;
   schema: EntitySchema;

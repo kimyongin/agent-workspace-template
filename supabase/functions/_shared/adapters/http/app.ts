@@ -1,3 +1,5 @@
+import { entityIssuerRoutes } from "./entity-issuer-routes.ts";
+import type { EntityIssuerDeps } from "../../core/entity-issuers/application.ts";
 import { entityPairRoutes } from "./entity-pair-routes.ts";
 import type { EntityPairDeps } from "../../core/entity-pairs/application.ts";
 import { entityTypeRoutes } from "./entity-type-routes.ts";
@@ -45,6 +47,7 @@ export function createHttpApp(
   status?: StatusDeps,
   entityTypes?: EntityTypeDeps,
   entityPairs?: EntityPairDeps,
+  issuers?: EntityIssuerDeps,
 ) {
   const app = new Hono<HttpEnv>().basePath(config.basePath);
 
@@ -84,6 +87,7 @@ export function createHttpApp(
   if (settings) app.route("/", settingsRoutes(settings));
   if (status) app.route("/", statusRoutes(status));
   if (entityPairs) app.route("/", entityPairRoutes(entityPairs));
+  if (issuers) app.route("/", entityIssuerRoutes(issuers));
   if (entityTypes) app.route("/", entityTypeRoutes(entityTypes));
 
   app.notFound(() => {

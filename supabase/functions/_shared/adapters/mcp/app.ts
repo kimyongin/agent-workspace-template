@@ -1,3 +1,5 @@
+import { entityIssuerTools } from "./entity-issuer-tools.ts";
+import type { EntityIssuerDeps } from "../../core/entity-issuers/application.ts";
 import { entityPairTools } from "./entity-pair-tools.ts";
 import type { EntityPairDeps } from "../../core/entity-pairs/application.ts";
 import { entityTypeTools } from "./entity-type-tools.ts";
@@ -51,8 +53,10 @@ export function createMcpApp(
   status?: StatusDeps,
   entityTypes?: EntityTypeDeps,
   entityPairs?: EntityPairDeps,
+  issuers?: EntityIssuerDeps,
 ) {
   const tools = [
+    ...(issuers ? entityIssuerTools(issuers) : []),
     ...activityTools(deps),
     ...principleTools(principles),
     ...tagTools(tags),
