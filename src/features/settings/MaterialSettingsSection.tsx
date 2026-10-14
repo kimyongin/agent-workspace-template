@@ -2,14 +2,19 @@ import { type ReactNode, useEffect, useId, useState } from "react";
 
 export type MaterialSectionState = { dirty: boolean; busy: boolean; uncertain?: boolean; error?: boolean };
 /** Collapsing a section hides its content without disposing an editor or its draft. */
-export function MaterialSettingsSection({ title, summary, state, initialOpen = false, children }: {
-  title: string;
-  summary?: string;
-  state?: MaterialSectionState;
-  initialOpen?: boolean;
-  children: ReactNode;
-}) {
-  const [open, setOpen] = useState(initialOpen);
+export function MaterialSettingsSection(
+  { title, summary, state, initialOpen = false, open: controlledOpen, onOpenChange, children }: {
+    title: string;
+    summary?: string;
+    state?: MaterialSectionState;
+    initialOpen?: boolean;
+    open?: boolean;
+    onOpenChange?: (open: boolean) => void;
+    children: ReactNode;
+  },
+) {
+  const [localOpen, setOpen] = useState(initialOpen);
+  const open = controlledOpen ?? localOpen;
   const id = useId();
   useEffect(() => {
     if (initialOpen) setOpen(true);
@@ -22,7 +27,10 @@ export function MaterialSettingsSection({ title, summary, state, initialOpen = f
           className="material-section-toggle"
           aria-expanded={open}
           aria-controls={id}
-          onClick={() => setOpen(!open)}
+          onClick={() => {
+            setOpen(!open);
+            onOpenChange?.(!open);
+          }}
         >
           <span>{title}</span>
           <span className="secondary">

@@ -100,6 +100,7 @@ test("작업 직접 링크와 작업 재선택에서도 기본 입력과 속성 
     (route) => route.fulfill({ json: job(Number(new URL(route.request().url()).pathname.split("-").at(-1))) }),
   );
   await page.goto(`/settings/entity-types/${materials.id}/migrations/${id(20)}`);
+  await page.getByRole("button", { name: "입력 항목", exact: true }).click();
   await expect(page.getByRole("heading", { name: "자료 설정", exact: true })).toBeVisible();
   await page.getByRole("button", { name: /^기본 정보/ }).click();
   await page.getByLabel("자료 종류 이름", { exact: true }).fill("남길 기본 입력");
@@ -135,6 +136,7 @@ test("실패 작업의 응답 불명 재시도는 같은 내용과 키로 확인
     });
   });
   await page.goto(`/settings/entity-types/${materials.id}/migrations/${id(20)}`);
+  await page.getByRole("button", { name: "입력 항목", exact: true }).click();
   await page.getByRole("button", { name: /^기본 정보/ }).click();
   await page.getByLabel("자료 종류 이름", { exact: true }).fill("기본 초안");
   await page.getByRole("button", { name: "같은 작업 재시도", exact: true }).click();
@@ -181,6 +183,7 @@ test("완료 작업에서 만든 원본 복구안은 같은 작업공간과 기�
     (route) => route.fulfill({ json: recovered }),
   );
   await page.goto(`/settings/entity-types/${materials.id}/migrations/${source.id}`);
+  await page.getByRole("button", { name: "입력 항목", exact: true }).click();
   await page.getByRole("button", { name: /^기본 정보/ }).click();
   await page.getByLabel("자료 종류 이름", { exact: true }).fill("復帰する基本入力");
   await page.getByRole("button", { name: "원본 복구안 만들기", exact: true }).click();
@@ -232,11 +235,11 @@ test("변환 완료는 새 게시 속성을 바로 갱신하고 기본·속성·
       }),
   );
   await page.goto(`/settings/entity-types/${materials.id}/migrations/${id(20)}`);
+  await page.getByRole("button", { name: "입력 항목", exact: true }).click();
   await page.getByRole("button", { name: /^기본 정보/ }).click();
   await page.getByLabel("자료 종류 이름", { exact: true }).fill("남길 기본 입력");
   await page.getByRole("button", { name: "이름 속성 편집", exact: true }).click();
-  await page.getByLabel("항목 이름", { exact: true }).first().fill("남길 속성 입력",
-  );
+  await page.getByLabel("항목 이름", { exact: true }).first().fill("남길 속성 입력");
   await page.getByRole("button", { name: "수량 속성 편집", exact: true }).click();
   await revealSetting(page.getByLabel("최소값", { exact: true }));
   await page.getByLabel("최소값", { exact: true }).fill("7.5");
@@ -297,6 +300,7 @@ test("완료 작업의 최신 정의 조회 실패는 작업 결과와 초안을
       }),
   );
   await page.goto(`/settings/entity-types/${materials.id}/migrations/${id(20)}`);
+  await page.getByRole("button", { name: "입력 항목", exact: true }).click();
   await page.getByRole("button", { name: /^기본 정보/ }).click();
   await page.getByLabel("자료 종류 이름", { exact: true }).fill("실패 후 유지할 기본 입력");
   complete = true;
@@ -327,8 +331,8 @@ test("늦은 완료 작업 조회는 확인된 기본 정보와 다음 저장 �
       return route.fulfill({ json: { type_id: materials.id, schema_version: 2, ...initialEntityDefinition("이름") } });
     }
     if (path.endsWith("/schema-changes")) {
-        return route.fulfill({ json: { items: [], next_before: null } });
-      }
+      return route.fulfill({ json: { items: [], next_before: null } });
+    }
     if (path.endsWith("/schemas")) {
       historyReads++;
       return route.fulfill({
@@ -359,6 +363,7 @@ test("늦은 완료 작업 조회는 확인된 기본 정보와 다음 저장 �
     (route) => route.fulfill({ json: { ...job(20), result: { schema_version: 2, total: 10, changed: 10 } } }),
   );
   await page.goto(`/settings/entity-types/${materials.id}/migrations/${id(20)}`);
+  await page.getByRole("button", { name: "입력 항목", exact: true }).click();
   await reading;
   await page.getByRole("button", { name: /^기본 정보(?! 저장)/ }).click();
   const name = page.getByLabel("자료 종류 이름", { exact: true });
@@ -419,6 +424,7 @@ test("완료 작업을 다시 선택하면 다른 작업을 보는 동안 게시
     return route.fulfill({ json: job(Number(jobId), Number(jobId) === 20 ? "succeeded" : "failed") });
   });
   await page.goto(`/settings/entity-types/${materials.id}/migrations/${id(20)}`);
+  await page.getByRole("button", { name: "입력 항목", exact: true }).click();
   await expect.poll(() => definitionReads).toBeGreaterThanOrEqual(2);
   await page.getByRole("link", { name: "작업 21 · 실패 · 1/10", exact: true }).click();
   await expect(page.getByRole("button", { name: /^선택한 값 변환 작업/ })).toContainText("실패");
@@ -508,6 +514,7 @@ test("새 게시 이력이 취소한 이전 페이지의 본문 읽기 오류는
       },
     }));
   await page.goto(`/settings/entity-types/${materials.id}/migrations/${id(20)}`);
+  await page.getByRole("button", { name: "입력 항목", exact: true }).click();
   await page.getByRole("button", { name: "이전 게시 버전 더 보기", exact: true }).click();
   await page.waitForFunction(() => document.documentElement.dataset.fixtureHistoryBody === "pending");
   complete = true;
@@ -544,10 +551,9 @@ test(
         },
       }));
     await page.goto(`/settings/entity-types/${materials.id}`);
+    await page.getByRole("button", { name: "입력 항목", exact: true }).click();
     await page.getByRole("button", { name: "수량 속성 편집", exact: true }).click();
-    const properties = page.getByRole("region", { name: "입력 항목",
-      exact: true,
-    });
+    const properties = page.getByRole("region", { name: "입력 항목", exact: true });
     await expect(page.getByRole("region", { name: "화면 표시", exact: true })).toHaveCount(0);
     await expect(properties.getByLabel("자료 이름으로 사용할 항목")).toHaveValue("prop_1");
     await expect(properties.getByRole("button", { name: "변경 검토", exact: true })).toBeDisabled();
@@ -563,13 +569,14 @@ test(
     for (const width of [320, 390, 639, 640, 1023, 1024, 1440]) {
       await page.setViewportSize({ width, height: 900 });
       expect(
-      await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth),
-    ).toBe(true);
+        await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth),
+      ).toBe(true);
       await expect(properties.getByRole("button", { name: /위로$/ }).first()).toBeVisible();
     }
     await properties.locator(".schema-field .material-section-toggle[aria-expanded=true]").focus();
     await page.keyboard.press("Enter");
-    await expect(properties.getByLabel("항목 이름", { exact: true }).filter({
+    await expect(
+      properties.getByLabel("항목 이름", { exact: true }).filter({
         visible: true,
       }),
     ).toHaveCount(0);

@@ -24,6 +24,7 @@ import {
   analyzeEntitySchemaChange,
   applyEntitySchemaChange,
   createEntitySchemaChange,
+  discardEntitySchemaChange,
   getEntitySchemaAnalysisRows,
   getEntitySchemaChange,
   listEntitySchemaChanges,
@@ -167,6 +168,17 @@ export function entityTypeTools(deps: EntityTypeDeps): ToolDef[] {
       handler: (i, a) => {
         const { type_id, change_id, ...raw } = i;
         return getEntitySchemaAnalysisRows(deps, a, String(type_id), String(change_id), raw);
+      },
+    },
+    {
+      name: "discard_entity_schema_change",
+      description:
+        "미적용 변경안을 폐기하고 이력을 보존합니다. 자료/현재 정의는 유지하며 활성 값 변환은 먼저 취소해야 합니다. 기대 변경안 버전과 요청 키를 사용합니다.",
+      input: schemaChangeAction.extend({ type_id: z.string().uuid(), change_id: z.string().uuid() }),
+      readOnly: false,
+      handler: (i, a) => {
+        const { type_id, change_id, ...raw } = i;
+        return discardEntitySchemaChange(deps, a, String(type_id), String(change_id), raw);
       },
     },
     {

@@ -30,9 +30,7 @@ export type EditState = { dirty: boolean; busy: boolean; uncertain: boolean; err
  * Published definitions come from the settings owner; rows and focus stay in the UI.
  */
 export function useSchemaChangeEditor(
-  { type, definition, onApplied, onState, disabled, selectionSearch, onFieldKeysChanged, onInvalidField,
-    onReviewed,
-  }: {
+  { type, definition, onApplied, onState, disabled, selectionSearch, onFieldKeysChanged, onInvalidField, onReviewed }: {
     type: EntityType;
     definition: EntitySchemaVersion;
     onApplied: (change?: EntitySchemaChange) => Promise<string>;
@@ -52,6 +50,9 @@ export function useSchemaChangeEditor(
   const [plan, setPlan] = useState<EntitySchemaChange | null>(null),
     [changes, setChanges] = useState<EntitySchemaChangeSummary[]>([]),
     [refs, setRefs] = useState<Record<string, string>>({});
+  const [changesBefore, setChangesBefore] = useState<string | null>(null);
+  const latestPlan = useRef(plan);
+  latestPlan.current = plan;
   const [numericDrafts, setNumericDrafts] = useState<Record<string, string>>({});
   const [migration, setMigration] = useState<MigrationPlan>({ rules: [], overrides: [] });
   const [acceptedAnalysis, setAcceptedAnalysis] = useState<string | null>(null);
@@ -175,9 +176,21 @@ export function useSchemaChangeEditor(
   }, [type.id, definition.schema_version, busy, uncertain, startState.busy, startState.uncertain]);
   const base = `/entity-types/${type.id}/schema-changes`;
   const list = (signal?: AbortSignal) =>
-    api<{ items: EntitySchemaChangeSummary[] }>("GET", base, undefined, signal).then((r) => {
-      if (mounted.current && !signal?.aborted) setChanges(r.items);
-    });
+    api<{ items: EntitySchemaChangeSummary[]; next_before?: string | null }>("GET", base, undefined, signal).then(
+      (r) => {
+        if (mounted.current && !signal?.aborted) {
+          const selected = latestPlan.current;
+          setChanges(
+            selected
+              ? r.items.some((item) => item.id === selected.id)
+                ? r.items.map((item) => item.id === selected.id ? selected : item)
+                : [selected, ...r.items]
+              : r.items,
+          );
+          setChangesBefore(r.next_before ?? null);
+        }
+      },
+    );
   useEffect(() => {
     const controller = new AbortController();
     void list(controller.signal).catch((e) => {
@@ -212,6 +225,15 @@ export function useSchemaChangeEditor(
       clearTimeout(timer);
     };
   }, [plan?.id, plan?.status, acceptedAnalysis]);
+  useEffect(() => {
+    if (plan) {
+      setChanges((items) =>
+        items.some((item) => item.id === plan.id)
+          ? items.map((item) => item.id === plan.id ? plan : item)
+          : [plan, ...items]
+      );
+    }
+  }, [plan]);
   const setField = (key: string, field: EntityField) =>
     setDraft((d) => ({ ...d, schema: { ...d.schema, properties: { ...d.schema.properties, [key]: field } } }));
   const setNumericField = (
@@ -221,8 +243,7 @@ export function useSchemaChangeEditor(
   ) => {
     setNumericDrafts((values) => ({ ...values, [key + ":" + name]: raw }));
   };
-  const flag = (key: string, name: "required" | "archived" | "list_columns", value: boolean,
-  ) =>
+  const flag = (key: string, name: "required" | "archived" | "list_columns", value: boolean) =>
     setDraft((d) => {
       if (name === "required") {
         return {
@@ -331,7 +352,7 @@ export function useSchemaChangeEditor(
     setError("");
     return true;
   };
-  const write = async (action: "save" | "analyze" | "apply") => {
+  const write = async (action: "save" | "analyze" | "apply" | "discard") => {
     if (busy || disabled) return;
     setError("");
     setMessage("");
@@ -378,6 +399,9 @@ export function useSchemaChangeEditor(
           setReviewTarget({ id: value.id, version: value.version });
           setMessage("변경안을 저장했습니다. 자료에 미치는 영향을 확인합니다.");
           onReviewed();
+        } else if (action === "discard") {
+          applyPlan(value);
+          setMessage("변경안을 폐기했습니다. 현재 자료와 설정은 유지됩니다.");
         } else {
           setPlan(value);
           setMigration(value.migration);
@@ -536,8 +560,9 @@ export function useSchemaChangeEditor(
     setRefs((r) => ({ ...r, [key]: ref }));
     setDraft((d) => ({
       ...d,
-      schema: { ...d.schema, properties: { ...d.schema.properties, [key]: fieldInputPolicy({ type: "string", title: "새 항목" }, false),
-        },
+      schema: {
+        ...d.schema,
+        properties: { ...d.schema.properties, [key]: fieldInputPolicy({ type: "string", title: "새 항목" }, false) },
       },
       display: { ...d.display, order: [...d.display.order, key] },
     }));
@@ -614,6 +639,25 @@ export function useSchemaChangeEditor(
       if (mounted.current) setReadBusy(false);
     }
   };
+  const moreChanges = async () => {
+    if (!changesBefore || readBusy) return;
+    setReadBusy(true);
+    try {
+      const result = await api<{ items: EntitySchemaChangeSummary[]; next_before: string | null }>(
+        "GET",
+        `${base}?before=${encodeURIComponent(changesBefore)}`,
+      );
+      if (mounted.current) {
+        setChanges((prior) => [...prior, ...result.items.filter((item) => !prior.some((p) => p.id === item.id))]);
+        setChangesBefore(result.next_before);
+        setError("");
+      }
+    } catch (error) {
+      if (mounted.current) setError(writeErrorMessage(error));
+    } finally {
+      if (mounted.current) setReadBusy(false);
+    }
+  };
   const changedFields = draft.display.order.filter((key) =>
     JSON.stringify(draft.schema.properties[key]) !== JSON.stringify(saved.schema.properties[key]) ||
     draft.schema.required.includes(key) !== saved.schema.required.includes(key) ||
@@ -635,6 +679,7 @@ export function useSchemaChangeEditor(
       }),
       plan,
       changes,
+      changesBefore,
       numericDrafts,
       migration,
       fieldError,
@@ -666,10 +711,18 @@ export function useSchemaChangeEditor(
     review,
     analyze,
     publish,
+    discard: () => {
+      if (
+        !busy && !disabled && !readBusy && !startState.busy && !startState.uncertain &&
+        (uncertain || (plan && !dirty && !["applied", "cancelled"].includes(plan.status)))
+      ) return write("discard");
+      return Promise.resolve();
+    },
     startNewChange,
     loadPlan,
     refreshDefinition,
     refreshChanges,
+    moreChanges,
     migrationStateChanged: startStateChange,
   };
 }

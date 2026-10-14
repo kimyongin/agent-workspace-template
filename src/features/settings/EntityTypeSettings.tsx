@@ -461,70 +461,80 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
         <SchemaEditor
           type={type}
           definition={schema}
+          betweenSections={
+            <>
+              {type_id && templates && (
+                <MaterialSettingsSection
+                  title="현재 종류 기록 기본값"
+                  state={recordState}
+                >
+                  <RecordTemplateSettings
+                    materialResource={templates}
+                    materialTypeId={type_id}
+                    publishedVersion={schema?.schema_version}
+                    onStateChange={setRecordState}
+                  />
+                </MaterialSettingsSection>
+              )}
+            </>
+          }
+          historyInitiallyOpen={versions || !!historyVersion || location.pathname.includes("/migrations") ||
+            !!selectedJob}
+          historyContent={
+            <>
+              {type_id && selectedJob && (
+                <SchemaMigrationJob
+                  key={selectedJob}
+                  typeId={type_id}
+                  jobId={selectedJob}
+                  onApplied={definitions.migrationSucceeded}
+                  publicationError={jobErrors[selectedJob] ?? ""}
+                  onState={jobStateChange}
+                  disabled={busy || uncertain || schemaState.busy || schemaState.uncertain}
+                />
+              )}
+              <MigrationJobs typeId={type.id} />
+              {[
+                ...history,
+                ...(selectedSchema &&
+                    !history.some((version) => version.schema_version === selectedSchema.schema_version)
+                  ? [selectedSchema]
+                  : []),
+              ].sort((a, b) => b.schema_version - a.schema_version).map((value) => (
+                <details key={value.schema_version} open={historyVersion === String(value.schema_version)}>
+                  <summary>
+                    버전 {value.schema_version} · {new Date(value.created_at).toLocaleString()}
+                  </summary>
+                  <button
+                    className="btn"
+                    onClick={() => {
+                      const params = new URLSearchParams(location.search);
+                      params.set("schema_version", String(value.schema_version));
+                      navigate(`${location.pathname}?${params}`);
+                    }}
+                  >
+                    이 버전 보기
+                  </button>
+                  {selectedSchema?.schema_version === value.schema_version && (
+                    <SchemaVersionDiff before={selectedSchema} after={schema} />
+                  )}
+                </details>
+              ))}
+              {historyBefore !== null && (
+                <button
+                  className="btn"
+                  disabled={historyBusy}
+                  onClick={() => void readHistoryPage()}
+                >
+                  {historyBusy ? "이전 버전 읽는 중…" : "이전 게시 버전 더 보기"}
+                </button>
+              )}
+            </>
+          }
           onApplied={definitions.published}
           onState={schemaStateChange}
           disabled={busy || uncertain || jobState.busy || jobState.uncertain}
         />
-      )}
-      {type_id && selectedJob && (
-        <SchemaMigrationJob
-          key={selectedJob}
-          typeId={type_id}
-          jobId={selectedJob}
-          onApplied={definitions.migrationSucceeded}
-          publicationError={jobErrors[selectedJob] ?? ""}
-          onState={jobStateChange}
-          disabled={busy || uncertain || schemaState.busy || schemaState.uncertain}
-        />
-      )}
-      {type_id && templates && (
-        <MaterialSettingsSection
-          title="현재 종류 기록 기본값"
-          state={recordState}
-        >
-          <RecordTemplateSettings
-            materialResource={templates}
-            materialTypeId={type_id}
-            publishedVersion={schema?.schema_version}
-            onStateChange={setRecordState}
-          />
-        </MaterialSettingsSection>
-      )}
-      {type_id && (
-        <MaterialSettingsSection
-          title="변경 이력"
-          summary={`현재 버전 ${schema?.schema_version ?? "…"}`}
-          initialOpen={versions || !!historyVersion || location.pathname.includes("/migrations") || !!selectedJob}
-        >
-          {selectedSchema && schema && <SchemaVersionDiff before={selectedSchema} after={schema} />}
-          <MigrationJobs typeId={type_id} />
-          {history.map((value) => (
-            <details key={value.schema_version}>
-              <summary>
-                버전 {value.schema_version} · {new Date(value.created_at).toLocaleString()}
-              </summary>
-              <button
-                className="btn"
-                onClick={() => {
-                  const params = new URLSearchParams(location.search);
-                  params.set("schema_version", String(value.schema_version));
-                  navigate(`${location.pathname}?${params}`);
-                }}
-              >
-                이 버전 보기
-              </button>
-            </details>
-          ))}
-          {historyBefore !== null && (
-            <button
-              className="btn"
-              disabled={historyBusy}
-              onClick={() => void readHistoryPage()}
-            >
-              {historyBusy ? "이전 버전 읽는 중…" : "이전 게시 버전 더 보기"}
-            </button>
-          )}
-        </MaterialSettingsSection>
       )}
       <MaterialSettingsProtection
         dirty={protectedDraft}

@@ -10,6 +10,7 @@ import {
   analyzeEntitySchemaChange,
   applyEntitySchemaChange,
   createEntitySchemaChange,
+  discardEntitySchemaChange,
   getEntitySchemaAnalysisRows,
   getEntitySchemaChange,
   listEntitySchemaChanges,
@@ -130,6 +131,19 @@ export function entityTypeRoutes(deps: EntityTypeDeps) {
     async (c) =>
       c.json(
         await applyEntitySchemaChange(
+          deps,
+          c.get("actor"),
+          c.req.param("type_id"),
+          c.req.param("change_id"),
+          await json(c.req.raw),
+        ),
+      ),
+  );
+  app.post(
+    "/entity-types/:type_id/schema-changes/:change_id/discard",
+    async (c) =>
+      c.json(
+        await discardEntitySchemaChange(
           deps,
           c.get("actor"),
           c.req.param("type_id"),
