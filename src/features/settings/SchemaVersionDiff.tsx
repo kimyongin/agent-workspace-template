@@ -32,7 +32,6 @@ export function SchemaVersionDiff(
   };
   return (
     <section className="schema-version-diff" aria-label="버전 차이">
-      <h4 className="section-title">버전 {before.schema_version} → {after.schema_version} 차이</h4>
       <ul>
         {paths.filter((key) =>
           JSON.stringify(before.schema.properties[key]) !==
@@ -45,7 +44,7 @@ export function SchemaVersionDiff(
           const label = next?.title ?? prior?.title ?? "이름 없는 속성";
           return (
             <li key={key}>
-              <strong>{label}</strong>
+              <span>{label}</span>
               {!prior ? ` · 새 속성 · ${fieldSummary(next)}` : !next ? " · 영구 삭제 (변경안)" : (
                 <ul>
                   {Object.entries(names).filter(([name]) =>

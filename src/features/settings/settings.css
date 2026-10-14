@@ -162,6 +162,5 @@ section[aria-labelledby="entity-identity-title"] .settings-section-footer { bord
 
 /* Historical results use the same section headings and values as other read views. */
 .schema-history-result { font-size: var(--text-body); font-weight: 400; line-height: 1.5rem; color: var(--muted-ink); }
-.schema-history-result strong { font-weight: 600; }
 .schema-history-result p, .schema-history-result ul { margin-block: var(--space-2); }
 .schema-history-result ul { padding-left: var(--space-5); }
