@@ -1,4 +1,4 @@
-import { settingsResponse } from "./support/preparation-api.ts";
+import { fixtureIdentity } from "./support/workspace-data.ts";
 import { expect, test, type Page } from "@playwright/test";
 import { entityKey } from "./support/workspace-data.ts";
 import { installWorkspaceApi, type FakeOptions } from "./support/workspace-api.ts";
@@ -647,37 +647,29 @@ test("related previous: an explicit new source replaces the single return target
 });
 
 
-test("desktop: rekey replaces the retained entity tab and URL after a completed save", async ({page}) => {
+test("desktop: ordinary edits preserve the immutable identity, retained tab and URL", async ({page}) => {
   await page.setViewportSize({width:1440,height:900});
-  const state = await fixture(page);
-  const oldId = entityKey(1), nextId = "app:새:/ID%";
-  await page.route("**/api/entities/*", async route => {
-    if(route.request().method()!=="PATCH") return route.fallback();
-    const input = route.request().postDataJSON();
-    const target = state.rows.entities.find(value => value.id === oldId)!;
-    Object.assign(target,input,{id:nextId,version:target.version+1});
-    await route.fulfill({json:target});
-  });
+  const state = await fixture(page), oldId = entityKey(1);
   await page.goto(`/entities/${encodeURIComponent(oldId)}`);
-  await expect(page.getByRole("tab", {name:"등심",exact:true})).toHaveAttribute("aria-selected","true");
   await panel(page).getByRole("button", {name:"편집",exact:true}).click();
-  await panel(page).getByLabel("식별자").fill("새:/ID%");
+  await expect(panel(page).getByLabel("번호",{exact:true})).toHaveAttribute("readonly", "");
+  await panel(page).getByLabel("제목",{exact:true}).fill("등심 수정");
   await saveOnce(page,panel(page));
-  await expect(page).toHaveURL(new RegExp(encodeURIComponent(nextId)));
-  await expect(page.locator(`[id="tab-/entities/${encodeURIComponent(oldId)}"]`)).toHaveCount(0);
-  await expect(page.getByRole("tab", {name:"등심",exact:true})).toHaveCount(1);
-  await expect(panel(page).getByText("새:/ID%", {exact:true})).toBeVisible();
+  await expect(page).toHaveURL(new RegExp(encodeURIComponent(oldId)));
+  await expect(page.getByRole("tab",{name:"등심 수정",exact:true})).toHaveCount(1);
+  expect(state.rows.entities[0].id).toBe(oldId);
+  expect(state.rows.entities[0].external_id).toBe(id(1));
   expect(state.errors).toEqual([]);
 });
-
 
 for (const entered of [false,true]) test(`manual identity defaults preserve cancel state: entered=${entered}`, async ({page}) => {
   await fixture(page);
   let releaseSettings!: () => void;
   const ready = new Promise<void>(resolve => {releaseSettings=resolve;});
-  await page.route("**/api/settings/business{,?**}", async route => {
+  await page.route("**/api/entity-types/*/identity", async route => {
     await ready;
-    await route.fulfill({json:settingsResponse(route, {versions:{record_templates:0,entity_identity:0},settings:{entity_identity:{generation:"manual",default_source:"crm",sources:[{code:"app",label:"앱"},{code:"crm",label:"고객"}]},record_templates:{}}})});
+    const config = fixtureIdentity();
+    await route.fulfill({json:{...config,label:"식별자",default_source:"crm",sources:[{...config.sources[0],code:"crm",source_label:"고객",generation:"direct"}]}});
   });
   await page.goto("/entities?entity_type_id=00000000-0000-4000-8000-000000000900");
   await page.getByRole("button", {name:"검사 자료 추가",exact:true}).click();
@@ -711,7 +703,7 @@ test("desktop: closing a search detail restores the originating result and reloa
 
 test("desktop: entity list focus round trips a Unicode and percent identity through its encoded hash",async({page})=>{
   const state=await fixture(page);await page.setViewportSize({width:1440,height:900});
-  const external="고객 / # ? % : 7",canonical=`crm:${external}`;
+  const external="고객 / # ? % : 7",canonical=`crm:${id(900)}:${external}`;
   Object.assign(state.rows.entities[0],{id:canonical,source:"crm",external_id:external,source_label:"고객 관리"});
   await page.goto("/entities");await openEntity(page);
   await page.getByRole("button",{name:"등심 탭 닫기",exact:true}).click();

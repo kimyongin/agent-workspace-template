@@ -195,10 +195,10 @@ test("Entity 복원: 대상 없음 조회 한도·제목 초점·필터 hash 제
       await delayed;
     }
     const externalId = crypto.randomUUID();
-    const item = { ...makeEntity(1,{prop_1:keyword ?? "계속되는 목록"}),id:`app:${externalId}`,external_id:externalId };
+    const item = { ...makeEntity(1,{prop_1:keyword ?? "계속되는 목록"}),id:`app:${makeEntity(1).entity_type_id}:${externalId}`,external_id:externalId };
     await route.fulfill({ json: { items: [item], next_cursor: keyword ? null : "more" } }).catch(() => {});
   });
-  await page.goto(`/entities?pages=1#entity-${encodeURIComponent(`app:${crypto.randomUUID()}`)}`);
+  await page.goto(`/entities?pages=1#entity-${encodeURIComponent(`app:${makeEntity(1).entity_type_id}:${crypto.randomUUID()}`)}`);
   await expect(page.getByRole("heading", { name: "전체 자료", level: 1, exact: true })).toBeFocused();
   expect(requests).toBe(2);
   await openTabFilters(page);
