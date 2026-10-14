@@ -828,7 +828,7 @@ export function SchemaEditor(
                           migration={migration}
                           onChange={editor.editMigration}
                           disabled={busy || uncertain || disabled || Boolean(plan.recovery) ||
-                            ["applied", "cancelled"].includes(plan.status)}
+                            ["applied", "cancelled", "stale"].includes(plan.status)}
                         />
                       )
                       : null}
@@ -861,7 +861,7 @@ export function SchemaEditor(
                       </p>
                     )}
                     <div className="schema-actions">
-                      {["applied", "cancelled", "stale"].includes(plan.status)
+                      {["applied", "cancelled"].includes(plan.status)
                         ? (
                           <>
                             {plan.status === "applied" && definition.schema_version <= plan.source_schema_version && (
@@ -873,22 +873,10 @@ export function SchemaEditor(
                                 최신 설정 다시 조회
                               </button>
                             )}
-                            <button
-                              className="btn btn-primary"
-                              disabled={busy || uncertain || dirty || readBusy || disabled ||
-                                plan.status === "applied" && definition.schema_version <= plan.source_schema_version}
-                              onClick={() =>
-                                void newEditing()}
-                            >
-                              항목 편집
-                            </button>
                           </>
                         )
                         : (
                           <>
-                            <button className="btn" disabled={busy || uncertain || disabled} onClick={openEditing}>
-                              내용 수정
-                            </button>
                             <button
                               className="btn btn-danger"
                               disabled={busy || uncertain || dirty || disabled || startState.busy ||
@@ -929,7 +917,7 @@ export function SchemaEditor(
                                   {plan.analysis ? "검토 재시도" : "변경 검토"}
                                 </button>
                               )
-                              : plan.change_kind === "compatible" && (
+                              : plan.change_kind === "compatible" && plan.status !== "stale" && (
                                 <button
                                   className="btn btn-primary"
                                   disabled={busy || uncertain || dirty || disabled || readBusy ||
