@@ -143,3 +143,11 @@ section[aria-labelledby="entity-identity-title"] .settings-section-footer { bord
   .schema-field-heading > h3 { flex-basis: 100%; }
   .schema-order-actions { flex-direction: column; }
 }
+
+/* A history row reserves its last column for disclosure, even when metadata wraps. */
+.schema-history-row .schema-history-toggle { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, .65fr) 6px; gap: var(--space-3); align-items: center; font-size: var(--text-item); font-weight: 600; line-height: 1.25rem; }
+.schema-history-heading { display: grid; gap: var(--space-1); }
+.schema-history-heading > .secondary, .schema-history-status { font-size: var(--text-meta); font-weight: 400; line-height: 1.25rem; }
+.schema-history-row .schema-history-status { margin-left: 0; text-align: right; }
+.schema-history-row .schema-history-toggle[aria-expanded="true"] { color: var(--accent); }
+.schema-history-list > .body-action { justify-self: start; }

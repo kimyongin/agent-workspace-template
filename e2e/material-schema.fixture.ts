@@ -1361,6 +1361,34 @@ test(
     const row = page.locator(".schema-history-row").filter({
       has: page.getByRole("button", { name: /버전 2 · 적용됨$/ }),
     });
+    for (const width of [320, 390, 768]) {
+      await page.setViewportSize({ width, height: 900 });
+      for (const scale of ["100%", "200%"]) {
+        await page.evaluate((value) => {
+          document.documentElement.style.fontSize = value;
+        }, scale);
+        const layout = await row.locator(".schema-history-toggle").evaluate((el) => {
+          const heading = el.querySelector(".schema-history-heading")!;
+          const title = heading.firstElementChild!.getBoundingClientRect();
+          const date = heading.querySelector("time")!.getBoundingClientRect();
+          const status = el.querySelector(".schema-history-status")!.getBoundingClientRect();
+          const button = el.getBoundingClientRect();
+          return {
+            display: getComputedStyle(el).display,
+            dateBelow: date.top >= title.bottom,
+            statusSeparate: status.left >= heading.getBoundingClientRect().right,
+            arrowSpace: button.right - status.right,
+            overflowPixels: el.scrollWidth - el.clientWidth,
+          };
+        });
+        expect(layout, `${width}px ${scale}`).toMatchObject({ display: "grid", dateBelow: true, statusSeparate: true });
+        expect(layout.arrowSpace).toBeGreaterThanOrEqual(12);
+        expect(layout.overflowPixels).toBeLessThanOrEqual(2);
+      }
+    }
+    await page.evaluate(() => {
+      document.documentElement.style.fontSize = "";
+    });
     await row.getByRole("button", { name: /버전 2 · 적용됨$/ }).click();
     await expect(row.getByRole("alert")).toContainText("요청한 스키마 버전");
     await row.getByRole("button", { name: /버전 2 · 적용됨$/ }).click();
