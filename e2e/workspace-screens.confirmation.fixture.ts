@@ -322,3 +322,37 @@ test("#229 업무 확인의 서버 메모 오류는 해당 입력에 표시하�
   expect(submitted[1].expected_version).toBe(submitted[0].expected_version);
   expect(state.errors).toEqual([]);
 });
+
+for (const [kind, n, label] of [["entities", 1, "자료 태그"], ["tasks", 2, "할 일 태그"], ["records", 3, "기록 태그"]] as const) {
+  test(`${kind}: tag clear stays outside choices, keeps the group name and only updates the draft`, async ({ page }) => {
+    const state = await fixtures(page);
+    await go(page, `/${kind}/${kind === "entities" ? encodeURIComponent(entityKey(n)) : id(n)}?edit=1&edit_from=view`);
+    const picker = form(page).getByRole("group", { name: label, exact: true });
+    const choice = picker.getByRole("button", { name: "같은 이름", exact: true });
+    const clear = picker.getByRole("button", { name: "모든 태그 선택 해제", exact: true });
+    await expect(clear).toHaveCount(0);
+    await choice.click();
+    await expect(choice).toHaveAttribute("aria-pressed", "true");
+    await expect(picker).toHaveAccessibleName(label);
+    await expect(picker.locator(".tag-selection").getByRole("button", { name: "모든 태그 선택 해제" })).toHaveCount(0);
+    await clear.click();
+    await expect(clear).toHaveCount(0);
+    await expect(choice).toHaveAttribute("aria-pressed", "false");
+    await expect(choice).toBeFocused();
+    expect(state.writes).toHaveLength(0);
+    expect(state.errors).toEqual([]);
+  });
+}
+
+test("failed tag lookup still permits clearing existing draft selections", async ({ page }) => {
+  const state = await fixtures(page);
+  state.rows.records[0].tag_ids = [id(11)];
+  await page.route("**/api/tags**", route => route.fulfill({ status: 503, json: { error: { code: "unavailable", message: "fixture lookup failed", fields: [] } } }));
+  await go(page, `/records/${id(3)}?edit=1&edit_from=view`);
+  const picker = form(page).getByRole("group", { name: "기록 태그", exact: true });
+  await expect(picker.getByRole("alert")).toContainText("기존 선택은 유지합니다");
+  await picker.getByRole("button", { name: "모든 태그 선택 해제", exact: true }).click();
+  await expect(picker.getByRole("button", { name: "모든 태그 선택 해제", exact: true })).toHaveCount(0);
+  await expect(picker.locator("legend")).toBeFocused();
+  expect(state.writes).toHaveLength(0);
+});
