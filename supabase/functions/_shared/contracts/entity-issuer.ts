@@ -59,6 +59,7 @@ export interface EntityTypeIdentity {
     code: string;
     rule_id: string;
     active: boolean;
+    referenced: boolean;
     source_label: string;
     rule_label: string;
     generation: "automatic" | "direct";

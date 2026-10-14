@@ -105,7 +105,7 @@ export class SqlEntityIssuerStore implements EntityIssuerStore {
     const r = rows[0];
     if (!r) return null;
     const sources = await this
-      .tx`select s.code,s.rule_id,(s.active and i.active and r.active) as active,i.label as source_label,r.label as rule_label,r.generation from app.entity_type_identity_sources s join app.entity_issuers i on i.owner_id=s.owner_id and i.code=s.code join app.entity_identifier_rules r on r.owner_id=s.owner_id and r.id=s.rule_id where s.type_id=${r.type_id} order by s.code`;
+      .tx`select s.code,s.rule_id,s.referenced,(s.active and i.active and r.active) as active,i.label as source_label,r.label as rule_label,r.generation from app.entity_type_identity_sources s join app.entity_issuers i on i.owner_id=s.owner_id and i.code=s.code join app.entity_identifier_rules r on r.owner_id=s.owner_id and r.id=s.rule_id where s.type_id=${r.type_id} order by s.code`;
     return {
       type_id: r.type_id,
       label: r.label,
@@ -115,6 +115,7 @@ export class SqlEntityIssuerStore implements EntityIssuerStore {
         code: s.code,
         rule_id: s.rule_id,
         active: s.active,
+        referenced: s.referenced,
         source_label: s.source_label,
         rule_label: s.rule_label,
         generation: s.generation,
