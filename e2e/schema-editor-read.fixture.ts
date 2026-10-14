@@ -172,6 +172,7 @@ test("결과 불명 저장은 동일 요청을 확인하고 발급된 속성 키
   await expect(page.getByRole("button", { name: "같은 요청 다시 확인", exact: true })).toBeEnabled();
   await expect(page.getByLabel("항목 이름", { exact: true }).last()).toBeDisabled();
   await page.getByRole("button", { name: "같은 요청 다시 확인", exact: true }).click();
+  await expect(page.getByRole("button", { name: "입력 항목", exact: true })).toHaveAttribute("aria-expanded", "false");
   await page.getByRole("button", { name: "입력 항목", exact: true })
     .click();
   await expect(page.getByText("기술 정보", { exact: true })).toHaveCount(0);
@@ -180,8 +181,10 @@ test("결과 불명 저장은 동일 요청을 확인하고 발급된 속성 키
   await expect(page.getByRole("button", { name: "변경 검토", exact: true })).toBeEnabled();
   await page.getByRole("region", { name: "추가값 속성", exact: true }).getByLabel("항목 이름").fill("수정값");
   await page.getByRole("button", { name: "변경 검토", exact: true }).click();
-  await expect(page.getByRole("region", { name: "수정값 속성", exact: true })).toHaveCount(1);
   await expect.poll(() => requests.length).toBe(3);
+  await expect(page.getByRole("button", { name: "입력 항목", exact: true })).toHaveAttribute("aria-expanded", "false");
+  await page.getByRole("button", { name: "입력 항목", exact: true }).click();
+  await expect(page.getByRole("region", { name: "수정값 속성", exact: true })).toHaveCount(1);
   await expect(page.getByRole("button", { name: "변경 검토", exact: true })).toBeEnabled();
   expect(requests[2].body.edits.find((edit) => edit.op === "add_property")?.client_ref)
     .toBe(requests[0].body.edits.find((edit) => edit.op === "add_property")?.client_ref);
@@ -649,7 +652,9 @@ for (const failed of [false, true]) {
     expect(requests).toEqual([]);
     if (!failed) {
       await expect(review.getByRole("button", { name: "변경 적용", exact: true })).toBeEnabled();
-      if (await page.getByRole("button", { name: "입력 항목", exact: true }).getAttribute("aria-expanded") === "false") await page.getByRole("button", { name: "입력 항목", exact: true }).click();
+      if (
+        await page.getByRole("button", { name: "입력 항목", exact: true }).getAttribute("aria-expanded") === "false"
+      ) await page.getByRole("button", { name: "입력 항목", exact: true }).click();
       await expect(page.getByRole("button", { name: "입력 항목", exact: true })).toHaveAttribute(
         "aria-expanded",
         "true",
