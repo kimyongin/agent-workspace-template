@@ -165,10 +165,6 @@ try {
     await page.goto(`/records/${f.roundtrip.result.id}`); await expect(page.locator('main')).toContainText(f.roundtrip.result.body);
     await page.goto(`/records/${f.record.id}`); await expect(page.locator('main')).toContainText(f.record.body);
   });
-  await page.setViewportSize(evidence.desktopViewport);
-  await readWeb('current-empty-source-still-exact', async () => {
-    await page.goto(`/records/${f.record.id}`); await expect(page.locator('main')).toContainText(f.record.body);
-  });
   evidence.pass = true;
 } catch (error) {
   evidence.pass = false; evidence.failure = { phase: evidence.phase, stage: evidence.stage, ...webFailureDiagnostic(error), pending: Boolean(f.roundtrip.pending) }; process.exitCode = 1;

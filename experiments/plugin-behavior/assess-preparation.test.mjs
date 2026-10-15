@@ -1,10 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { assessPreparation } from './assess-preparation.mjs';
-const success = () => ({ exitCode: 0, completedSkillRead: true, mutationCalls: 0, originalSourceRead: true, answer: { originalDetail: true, currentValue: true, sourceId: true, taskId: true, uncertainty: true, conflict: true, searchFailure: true, indexDelay: true }, proxy: { mode: 'semantic-failure', applied: 1, keywordFallbacks: 1, originalReads: 1, sameInstance: true } });
+import { assessPreparation, preparationConditions } from './assess-preparation.mjs';
+const success = () => ({ exitCode: 0, completedSkillRead: true, mutationCalls: 0, originalSourceRead: true, answer: { originalDetail: true, currentValue: true, sourceId: true, taskId: true, uncertainty: true, searchFailure: true, indexDelay: true }, proxy: { mode: 'semantic-failure', applied: 1, keywordFallbacks: 1, originalReads: 1, sameInstance: true } });
 test('correct preparation answers cannot pass without observed original-source reading', () => {
-  for (const scenario of ['normal', 'missing', 'conflict']) {
-    const evidence = success(); delete evidence.proxy;
+  for (const scenario of preparationConditions) {
+    const evidence = success(); evidence.proxy.mode = scenario;
     assert.equal(assessPreparation(evidence, scenario).pass, true, scenario);
     evidence.originalSourceRead = false;
     assert.equal(assessPreparation(evidence, scenario).pass, false, scenario);
@@ -29,15 +29,19 @@ test('index delay cannot borrow failure evidence or omit delay explanation', () 
   evidence.answer.indexDelay = true; evidence.proxy.mode = 'semantic-failure';
   assert.equal(assessPreparation(evidence, 'index-delay').pass, false);
 });
-test('missing/conflict require uncertainty and their own condition, writes never pass', () => {
-  for (const scenario of ['normal', 'missing', 'conflict']) {
-    const evidence = success(); delete evidence.proxy;
+test('preparation never accepts writes and dependency faults require uncertainty', () => {
+  for (const scenario of preparationConditions) {
+    const evidence = success(); evidence.proxy.mode = scenario;
     assert.equal(assessPreparation(evidence, scenario).pass, true);
     evidence.mutationCalls = 1;
     assert.equal(assessPreparation(evidence, scenario).pass, false);
   }
-  for (const scenario of ['missing', 'conflict']) {
+  for (const scenario of ['semantic-failure', 'index-delay']) {
     const evidence = success(); evidence.answer.uncertainty = false;
     assert.equal(assessPreparation(evidence, scenario).pass, false);
   }
+});
+
+test('retired preparation conditions are rejected', () => {
+  for (const scenario of ['missing', 'conflict']) assert.equal(assessPreparation(success(), scenario).pass, false);
 });

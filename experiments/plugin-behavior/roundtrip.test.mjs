@@ -1,10 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { verifyRoundtrip, beginRoundtripPhase, finishRoundtripPhase, hasRoundtripOriginal, assessRoundtripNative, roundtripAnswerProof } from './roundtrip.mjs';
+import { verifyRoundtrip, beginRoundtripPhase, finishRoundtripPhase, hasRoundtripTaskOriginal, assessRoundtripNative, roundtripAnswerProof } from './roundtrip.mjs';
 
 const empty = () => ({ entities: [], tasks: [], records: [], tags: [] });
 const f = { marker: 'plugin-codex-cli-12345678', entity: { id: 'e', title: 'plugin-codex-cli-12345678', properties: { prop_1: 'plugin-codex-cli-12345678', prop_2: 7, prop_3: '2026-10-06', prop_4: 'b' }, version: 1 }, roundtrip: { intent: { id: 'e', memoBody: 'final memo' } } };
-const event = (target, kind, action, source = 'http') => ({ id: 'c', record_kind: 'change', title: 'change', body: 'final memo', version: 1, entity_ids: kind === 'entity' ? ['e'] : [], change: { event_id: 'evt', target_kind: kind, target_id: target, target_title: kind === 'entity' ? f.marker : `${f.marker}-task`, action, source, path: action === 'delete' ? null : `/${kind === 'entity' ? 'entities' : kind + 's'}/${target}`, before: null, after: null } });
+const event = (target, kind, action, source = 'http') => ({ id: 'c', record_kind: 'change', title: 'change', body: 'final memo', version: 1, entity_ids: kind === 'entity' ? ['e'] : [], change: { event_id: 'evt', target_kind: kind, target_id: target, target_title: kind === 'entity' ? f.marker : `${f.marker}-task`, action, source, path: `/${kind === 'entity' ? 'entities' : kind + 's'}/${target}`, before: null, after: null } });
 test('entity update preserves scalar identity and requires the actual final memo event, with no extra writes', () => {
   const before = { ...empty(), entities: [f.entity] };
   const after = { ...empty(), entities: [{ ...f.entity, properties: { ...f.entity.properties, prop_2: 11 }, version: 2 }], records: [event('e', 'entity', 'update', 'mcp')] };
@@ -31,9 +31,9 @@ test('real completion DTO keeps timestamps independent, result body exact, and m
 
 test('native task originals require full exact current DTO; a search result or stale version is insufficient', () => {
   const task = { id: 't', body: 'task body', status: 'done', version: 2, result_record_id: 'r', result_record: { id: 'r', body: 'result' } };
-  assert.equal(hasRoundtripOriginal('get_task', { structuredContent: task }, 'task', task), true);
-  assert.equal(hasRoundtripOriginal('search', { structuredContent: task }, 'task', task), false);
-  assert.equal(hasRoundtripOriginal('get_task', { ...task, version: 1 }, 'task', task), false);
+  assert.equal(hasRoundtripTaskOriginal('get_task', { structuredContent: task }, task), true);
+  assert.equal(hasRoundtripTaskOriginal('search', { structuredContent: task }, task), false);
+  assert.equal(hasRoundtripTaskOriginal('get_task', { ...task, version: 1 }, task), false);
   const evidence = { mode: 'roundtrip-task-read', exitCode: 0, completedSkillRead: true, originalSourceRead: true, independent: { pass: true }, mutationCalls: 0 };
   assert.equal(assessRoundtripNative(evidence).pass, false);
   assert.equal(assessRoundtripNative({ ...evidence, completedTaskRead: true, answer: { roundtrip: { correct: true } } }).pass, true);

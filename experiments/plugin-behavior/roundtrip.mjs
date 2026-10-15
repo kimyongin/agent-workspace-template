@@ -21,19 +21,17 @@ export function verifyRoundtrip(before, after, fixture, mode) {
   const action = ['web-entity', 'web-source', 'roundtrip-task'].includes(mode) ? 'create' : mode === 'web-complete' ? 'complete' : 'update';
   const target = action === 'create' ? created[plural].find(row => singular === 'record' ? row.record_kind === 'user' : true) : after[plural].find(row => row.id === intent.id);
   const old = before[plural].find(row => row.id === intent.id);
-  const id = target?.id ?? (action === 'delete' ? old?.id : null);
+  const id = target?.id ?? null;
   const expectedEvents = ['web-complete', 'web-memo'].includes(mode) ? 0 : 1;
   let scope = Boolean(id) && events.length === expectedEvents && equal(before.tags, after.tags);
-  const eventTarget = target ?? old;
-  const eventEntities = singular === 'entity' ? [id] : eventTarget?.entity_ids ?? [];
-  if (expectedEvents) scope &&= events.every(e => e.change?.target_kind === singular && e.change.target_id === id && (singular === 'record' ? typeof e.change.target_title === 'string' : e.change.target_title === eventTarget?.title) && e.change.action === action && e.change.source === (mode.startsWith('web-') ? 'http' : 'mcp') && e.change.path === (action === 'delete' ? null : `/${plural}/${encodeURIComponent(id)}`) && typeof e.change.event_id === 'string' && e.change.event_id.length > 0 && e.change.before === null && e.change.after === null && equal(e.entity_ids, eventEntities) && (intent.memoBody === undefined || e.body === intent.memoBody));
+  const eventEntities = singular === 'entity' ? [id] : target?.entity_ids ?? [];
+  if (expectedEvents) scope &&= events.every(e => e.change?.target_kind === singular && e.change.target_id === id && (singular === 'record' ? typeof e.change.target_title === 'string' : e.change.target_title === target?.title) && e.change.action === action && e.change.source === (mode.startsWith('web-') ? 'http' : 'mcp') && e.change.path === `/${plural}/${encodeURIComponent(id)}` && typeof e.change.event_id === 'string' && e.change.event_id.length > 0 && e.change.before === null && e.change.after === null && equal(e.entity_ids, eventEntities) && (intent.memoBody === undefined || e.body === intent.memoBody));
   for (const kind of kinds) {
     const expected = kind === 'records' ? expectedEvents + (mode === 'web-source' || mode === 'web-complete' ? 1 : 0) : kind === plural && action === 'create' ? 1 : 0;
     scope &&= created[kind].length === expected;
-    scope &&= after[kind].length === before[kind].length + expected - (kind === plural && action === 'delete' ? 1 : 0);
+    scope &&= after[kind].length === before[kind].length + expected;
     for (const previous of before[kind]) {
       const current = after[kind].find(v => v.id === previous.id);
-      if (kind === plural && previous.id === id && action === 'delete') { scope &&= !current; continue; }
       if (!current) { scope = false; continue; }
       let mutable = kind === 'entities' ? ['tasks', 'records'] : [];
       if (kind === 'tasks' && mode === 'web-memo') mutable.push('result_record');
@@ -127,12 +125,12 @@ export function roundtripAnswerProof(text, f, mode) {
   return { correct: false, sha256 };
 }
 
-export function hasRoundtripOriginal(tool, payload, kind, original) {
+export function hasRoundtripTaskOriginal(tool, payload, original) {
   const allowed = ['get_task', 'list_tasks'];
   if (!allowed.includes(tool) || !original || !payload) return false;
-  if (typeof payload === 'string') { try { return hasRoundtripOriginal(tool, JSON.parse(payload), kind, original); } catch { return false; } }
+  if (typeof payload === 'string') { try { return hasRoundtripTaskOriginal(tool, JSON.parse(payload), original); } catch { return false; } }
   if (typeof payload !== 'object') return false;
   const keys = ['id', 'body', 'version', 'status', 'result_record_id', 'result_record'];
   if (keys.every(k => equal(payload[k], original[k]))) return true;
-  return Object.values(payload).some(v => hasRoundtripOriginal(tool, v, kind, original));
+  return Object.values(payload).some(v => hasRoundtripTaskOriginal(tool, v, original));
 }

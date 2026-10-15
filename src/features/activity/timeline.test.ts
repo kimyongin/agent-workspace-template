@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { collapsedDates, groupRecords } from "./timeline.ts";
-import { listScope, listDetailVisit, safeListReturn } from "./list-state.ts";
+import { listScope, listDetailVisit } from "./list-state.ts";
 
 describe("record dates and return state", () => {
   it("uses the display timezone at midnight and preserves server order", () => {

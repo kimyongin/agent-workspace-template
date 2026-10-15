@@ -11,13 +11,13 @@ import { outsideDirectory } from './files.mjs';
 import { assertJournal } from './journal.mjs';
 import { installPreparedPlugin } from './native-install.mjs';
 import { configuredMcpNames } from './session-isolation.mjs';
-import { assessPreparation } from './assess-preparation.mjs';
+import { assessPreparation, preparationConditions } from './assess-preparation.mjs';
 import { hasOriginalRecord } from './original-record-proof.mjs';
 import { savingModes, savingPrompt, assessSaving, classifyIndexStatements, classifyStorageStatements } from './saving.mjs';
 import { openSavingTrial } from './saving-session.mjs';
 import { hasCompletedSharedSkillOutput } from './skill-output-proof.mjs';
 import { observeSearch, searchProofForTarget } from './search-proof.mjs';
-import { roundtripModes, roundtripPrompt, assessRoundtripNative, hasRoundtripOriginal, roundtripAnswerProof } from './roundtrip.mjs';
+import { roundtripModes, roundtripPrompt, assessRoundtripNative, hasRoundtripTaskOriginal, roundtripAnswerProof } from './roundtrip.mjs';
 import { openRoundtripTrial } from './roundtrip-session.mjs';
 
 const repo = fileURLToPath(new URL('../../', import.meta.url));
@@ -35,7 +35,7 @@ if (roundtrip && (!fixture.record || !fixture.entity || (mode === 'roundtrip-tas
 const allocatedBackendRevision = process.env.PREPARATION_BACKEND_REVISION ?? null;
 if ((preparing || saving || roundtrip) && !/^[a-f0-9]{40}$/.test(allocatedBackendRevision ?? '')) throw new Error('Trial requires root-allocated actual backend revision separately from fixture origin');
 const condition = expectedCondition ?? fixture.scenario ?? 'normal';
-if (!['normal', 'missing', 'conflict', 'semantic-failure', 'index-delay'].includes(condition)) throw new Error('Unknown preparation condition');
+if (!preparationConditions.includes(condition)) throw new Error('Unknown preparation condition');
 const faultCondition = ['semantic-failure', 'index-delay'].includes(condition);
 const savingFault = ['save-failure', 'save-response-loss'].includes(mode);
 if (savingFault !== Boolean(process.env.SAVING_MCP_PROXY) || (saving && condition !== 'normal')) throw new Error('Saving fault requires its allocated proxy and normal owned fixture');
@@ -108,7 +108,6 @@ function answerFacts(text = '') {
   evidence.answer.originalDetail ||= text.includes(fixture.originalDetail);
   evidence.answer.currentValue ||= new RegExp(`(?<![a-zA-Z0-9-])${fixture.entity.properties.prop_2}(?![a-zA-Z0-9-])`).test(text);
   evidence.answer.sourceId ||= text.includes(fixture.record.id);
-  if (fixture.scenario === 'conflict') evidence.answer.conflict ||= /충돌|상충|불일치|모순/.test(text);
   evidence.answer.searchFailure ||= /검색.{0,35}(장애|오류|실패)|의미.{0,35}(불가|실패|오류)/.test(text);
   evidence.answer.indexDelay ||= /색인.{0,35}(지연|대기|미완|pending)|미색인|keyword_fallback|keyword.{0,35}(대체|fallback)/.test(text);
   evidence.answer.taskId ||= fixture.task && text.includes(fixture.task.id);
@@ -167,7 +166,7 @@ createInterface({ input: child.stdout }).on('line', (line) => {
       if (saving && item.tool === 'search' && typeof item.id === 'string' && item.arguments) searchInputs.set(item.id, item.arguments);
       if (item.status === 'completed' && !item.error && !item.result?.isError) {
         evidence.originalSourceRead ||= hasOriginalRecord(item.tool, item.result, originalRecord);
-        if (roundtrip) evidence.completedTaskRead ||= hasRoundtripOriginal(item.tool, item.result, 'task', fixture.task);
+        if (roundtrip) evidence.completedTaskRead ||= hasRoundtripTaskOriginal(item.tool, item.result, fixture.task);
         if (saving && item.tool === 'search') { const observed = observeSearch(item.arguments ?? searchInputs.get(item.id), item.result, fixture.saving?.correction); if (observed) searchObservations.push(observed); }
       }
       if (item.status === 'completed') searchInputs.delete(item.id);
@@ -195,7 +194,7 @@ createInterface({ input: child.stdout }).on('line', (line) => {
       if (saving && block.type === 'tool_use' && block.name.split('__').at(-1) === 'search') searchInputs.set(block.id, block.input);
       if (saving && block.type === 'tool_result' && !block.is_error && recordReadTools.get(block.tool_use_id) === 'search') { const observed = observeSearch(searchInputs.get(block.tool_use_id), block.content, fixture.saving?.correction); if (observed) searchObservations.push(observed); searchInputs.delete(block.tool_use_id); }
       if (block.type === 'tool_result' && !block.is_error && hasOriginalRecord(recordReadTools.get(block.tool_use_id), block.content, originalRecord)) { evidence.originalSourceRead = true; evidence.originalSourceReadVia = recordReadTools.get(block.tool_use_id); }
-      if (roundtrip && block.type === 'tool_result' && !block.is_error) evidence.completedTaskRead ||= hasRoundtripOriginal(recordReadTools.get(block.tool_use_id), block.content, 'task', fixture.task);
+      if (roundtrip && block.type === 'tool_result' && !block.is_error) evidence.completedTaskRead ||= hasRoundtripTaskOriginal(recordReadTools.get(block.tool_use_id), block.content, fixture.task);
       if (block.type === 'tool_use') { if (block.name === 'Read' && ownSkillPath(block.input?.file_path)) { reads.set(block.id, ownSkillPath(block.input.file_path)); evidence.readsSkill = true; } if (block.name === 'Skill' && /(^|:)workspace$/.test(block.input?.skill ?? '') && evidence.init?.plugins?.includes('workspace')) { reads.set(block.id, resolve(plugin, 'skills/workspace/SKILL.md')); evidence.readsSkill = true; } }
       if (block.type === 'text') answerFacts(block.text);
       if (block.type === 'tool_use') evidence.events.push({ type: 'tool_use', tool: block.name, ...(block.name === 'Skill' ? { skill: block.input?.skill } : {}) });

@@ -1,6 +1,5 @@
 import { recordLabels, type RecordResult } from "@contracts/record.ts";
 import { taskLabels } from "@contracts/task.ts";
-import { MarkdownContent } from "../../components/MarkdownContent.tsx";
 import { useDisplayTime } from "../../lib/useDisplayTime.ts";
 
 export type WorkspaceRecord = RecordResult;

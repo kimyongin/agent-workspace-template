@@ -4,7 +4,7 @@ import { ConfirmDialog } from "../../components/Modal.tsx";
 import { Field, Notice } from "../../components/Field.tsx";
 import { useEntityTypes } from "../entity/useEntityTypes.ts";
 import { RecordTemplateSettings } from "./RecordTemplateSettings.tsx";
-import { createMaterialTemplateDraft, createRecordModelDraft } from "./material-template-drafts.ts";
+import { createMaterialTemplateDraft, createTaskTemplateDraft } from "./material-template-drafts.ts";
 import { MaterialSettingsSection, type MaterialSectionState } from "./MaterialSettingsSection.tsx";
 import { SettingsHeading } from "./SettingsHeading.tsx";
 import "./settings.css";
@@ -34,7 +34,7 @@ export function RecordSettingsPage() {
   </section>;
 }
 function TargetEditor({ target, report }: { target: Target; report: (id: string, state: MaterialSectionState) => void }) {
-  const [resource] = useState(() => target.typeId ? createMaterialTemplateDraft(target.typeId) : createRecordModelDraft("task"));
+  const [resource] = useState(() => target.typeId ? createMaterialTemplateDraft(target.typeId) : createTaskTemplateDraft());
   const [state, setState] = useState<MaterialSectionState>({ dirty: false, busy: false });
   const onStateChange = useCallback((next: MaterialSectionState) => { setState(next); report(target.id, next); }, [report, target.id]);
   useEffect(() => {
