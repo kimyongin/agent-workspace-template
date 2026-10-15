@@ -112,6 +112,7 @@ function SampleCreation({ source, created, onClose, onSave }: {
         ref={dialog}
         className="modal"
         aria-labelledby="issuer-sample-title"
+        aria-describedby="issuer-sample-description"
         onCancel={(e) => {
           e.preventDefault();
           close();
@@ -121,6 +122,9 @@ function SampleCreation({ source, created, onClose, onSave }: {
           <header className="modal-head">
             <h2 id="issuer-sample-title" className="dialog-title">{source ? "번호 종류 추가" : "발급처 추가"}</h2>
             <button type="button" className="btn btn-text modal-icon" aria-label="닫기" onClick={close}>×</button>
+            <p id="issuer-sample-description" className="page-description">
+              {source ? "이 발급처에서 쓰는 번호 종류의 이름을 정합니다." : "자료 번호를 발급하는 곳의 이름을 정합니다."}
+            </p>
           </header>
           <div className="modal-body">
             <form

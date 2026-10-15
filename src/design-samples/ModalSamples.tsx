@@ -192,6 +192,7 @@ function EditDialog(
         ref={dialog}
         className="modal"
         aria-labelledby="sample-editor-title"
+        aria-describedby="sample-editor-description"
         onCancel={(event) => {
           event.preventDefault();
           dismiss();
@@ -209,6 +210,7 @@ function EditDialog(
             >
               <span aria-hidden="true">×</span>
             </button>
+            <p id="sample-editor-description" className="page-description">상품 이름을 수정하고 저장·취소 동작을 확인합니다.</p>
           </header>
           <div className="modal-body">
             <form

@@ -712,7 +712,7 @@ textarea.input {
   padding-top: calc(var(--space-2) + env(safe-area-inset-top, 0px));
   min-width: 0;
 }
-.modal-head .dialog-title { overflow-wrap: anywhere; min-width: 0; }
+.modal-head .dialog-title { overflow-wrap: anywhere; min-width: 0; flex: 1 1 0%; }
 .modal-head .btn { flex-shrink: 0; }
 .modal-head:has(> .page-description) { flex-wrap: wrap; row-gap: var(--space-1); }
 .modal-head > .page-description { flex: 1 0 100%; max-width: none; }

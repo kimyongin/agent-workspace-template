@@ -536,6 +536,29 @@ test("desktop: relation saves refresh retained filtered lists without leaving th
   expect(state.writes).toHaveLength(1); expect(state.errors).toEqual([]);
 });
 
+for (const width of [320, 390]) {
+  test(`long domain heading ${width}: description keeps the close control on the title row`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    const state = await fixture(page);
+    const label = "긴자료종류이름".repeat(8);
+    state.rows.entities[0].type = { ...state.rows.entities[0].type, label };
+    await page.goto(`/entities/${encodeURIComponent(entityKey(1))}`);
+    const view = page.locator("dialog.modal[open]:not(.modal-confirm)");
+    const title = view.locator(".dialog-title");
+    await expect(title).toHaveText(label);
+    const close = view.getByRole("button", { name: "닫기", exact: true });
+    const titleBox = (await title.boundingBox())!, closeBox = (await close.boundingBox())!;
+    expect(closeBox.x).toBeGreaterThanOrEqual(titleBox.x + titleBox.width);
+    const descriptionBox = (await view.locator(".modal-head > .page-description").boundingBox())!;
+    expect(descriptionBox.y).toBeGreaterThanOrEqual(
+      Math.max(titleBox.y + titleBox.height, closeBox.y + closeBox.height),
+    );
+    expect(await view.evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
+    await close.click();
+    await expect(view).toHaveCount(0);
+  });
+}
+
 for (const width of [390, 1440]) test(`detail hierarchy ${width}: domain headings, content first and value-only editing`, async ({page}, info) => {
   await page.setViewportSize({width,height:900});
   const state=await fixture(page);
