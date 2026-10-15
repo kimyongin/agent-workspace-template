@@ -186,13 +186,18 @@ test("미저장 설정의 탭·프로필·뒤로가기·로그아웃은 같은 �
   await expect(page).toHaveURL(/\/login$/); expect(logoutCalls).toBe(1); await expect(page.getByRole("navigation", { name: "주 메뉴" })).toHaveCount(0);
 });
 
-test("원격 로그아웃 실패는 로컬 해제를 안내하며 재로그인은 프로필을 복원한다", async ({ page }) => {
+test("원격 로그아웃 실패는 로컬 해제를 안내하며 재로그인은 프로필을 복원한다", async ({ page }, info) => {
   let fail = true; let calls = 0;
   await page.route("**/auth/v1/logout*", async route => { calls++; await route.fulfill(fail ? { status: 500, json: { msg: "fixture failure" } } : { status: 204 }); });
   await page.route("**/auth/v1/user", route => route.fulfill({ json: { ...user, user_metadata: { ...user.user_metadata, workspace_avatar_id: "leaf" } } }));
   await page.goto("/settings"); await requestLogout(page);
   await expect(page.getByRole("alert")).toContainText("이 기기에서는 로그아웃했습니다",{timeout:15000});
   await expect(page.getByRole("navigation", { name: "주 메뉴" })).toHaveCount(0);
+  for (const width of [390, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.screenshot({ path: info.outputPath(`logout-failure-${width}.png`) });
+  }
   fail = false; await page.getByRole("link", { name: "로그인으로 이동", exact: true }).click(); await expect(page).toHaveURL(/\/login$/); expect(calls).toBe(1);
   await signIn(page); await expect(page).toHaveURL(/\/tasks$/); await settings(page); await expect(page.getByRole("radio", { name: "잎", exact: true })).toBeChecked(); expect(calls).toBe(1);
 });
