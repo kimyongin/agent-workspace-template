@@ -548,6 +548,10 @@ for (const width of [390, 1440]) test(`detail hierarchy ${width}: domain heading
     await page.goto(item.path);
     const view=page.locator("dialog.modal[open]:not(.modal-confirm)");
     await expect(view.locator(".modal-head .dialog-title")).toHaveText(item.domain);
+    const description = view.locator(".modal-head > .page-description");
+    await expect(description).toBeVisible();
+    const readDescription = await description.innerText();
+    await expect(view).toHaveAttribute("aria-describedby", await description.getAttribute("id") as string);
     if(item.title) await expect(view.locator(".modal-body .detail-title")).toHaveText(item.title);
     else await expect(view.locator(".record-content")).toHaveText("구매 기준을 정리했습니다.");
     const relation=view.locator(".detail-relations");
@@ -560,6 +564,8 @@ for (const width of [390, 1440]) test(`detail hierarchy ${width}: domain heading
     if(item.domain==="할 일") await view.screenshot({path:info.outputPath(`detail-hierarchy-${width}.png`)});
     await view.getByRole("button",{name:"편집",exact:true}).click();
     await expect(view.locator(".modal-head .dialog-title")).toHaveText(item.domain);
+    await expect(description).not.toHaveText(readDescription);
+    await expect(description).toHaveCSS("font-size", "13px");
     await expect(view.getByRole("region",{name:/^(엔터티|할 일|기록) \(\d+개\)$/})).toHaveCount(0);
     await expect(view.getByRole("button",{name:/^(엔터티|할 일|기록).* (연결|해제)$/})).toHaveCount(0);
     if(item.domain==="기록") {
@@ -571,6 +577,7 @@ for (const width of [390, 1440]) test(`detail hierarchy ${width}: domain heading
       await expect(view.getByRole("region",{name:"연결된 자료 (1개)",exact:true})).toBeVisible();
       await expect(view.getByRole("region",{name:"할 일 (1개)",exact:true})).toBeVisible();
     } else await view.getByRole("button",{name:"취소",exact:true}).click();
+    await expect(description).toHaveText(readDescription);
   }
   expect(state.errors).toEqual([]);
 });

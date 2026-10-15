@@ -35,6 +35,7 @@ export function TextFields(
 
 interface FormModalProps {
   title: string;
+  description?: string;
   domain?: string;
   open: boolean;
   submitLabel: string;
@@ -58,13 +59,13 @@ export function FormModal(props: FormModalProps) {
   const [presentation, setPresentation] = useState<Presentation>({dirty: props.dirty, busy: false, footer: null});
   const present = useCallback((value: Presentation) => setPresentation(value), []);
   if (surface) return <FormContents {...props}/>;
-  return <ModalShell open={props.open} title={props.title} domain={props.domain} dirty={props.dirty || presentation.dirty} busy={presentation.busy}
+  return <ModalShell open={props.open} title={props.title} description={props.description} domain={props.domain} dirty={props.dirty || presentation.dirty} busy={presentation.busy}
     onClose={props.onClose} onRouteDiscard={props.onRouteDiscard} footer={presentation.footer}>
     <FormContents {...props} present={present}/>
   </ModalShell>;
 }
 
-function FormContents({title, domain, open, submitLabel, submitDisabled = false, dirty, onClose, onRouteDiscard, onSubmit, validate, children, deletion, mutation, preparation, onPrepared, confirmationOnly, present}: FormModalProps & {present?: (value: Presentation)=>void}) {
+function FormContents({title, description, domain, open, submitLabel, submitDisabled = false, dirty, onClose, onRouteDiscard, onSubmit, validate, children, deletion, mutation, preparation, onPrepared, confirmationOnly, present}: FormModalProps & {present?: (value: Presentation)=>void}) {
   const formId = useId();
   const surface = useContext(SurfaceContext);
   const callbacks = useRef({onClose,onRouteDiscard,onSubmit,validate,deletion,mutation,preparation,onPrepared});
@@ -107,11 +108,11 @@ function FormContents({title, domain, open, submitLabel, submitDisabled = false,
   useLayoutEffect(() => {
     if (!open) return;
     const presentation = {dirty: dirty || confirmation.dirty, busy, footer};
-    if (register) register({title, domain, ...presentation,
+    if (register) register({title, description, domain, ...presentation,
       onClose: ()=>callbacks.current.onClose(), onRouteDiscard: ()=>(callbacks.current.onRouteDiscard ?? callbacks.current.onClose)()});
     else present?.(presentation);
     return () => { register?.(null); };
-  }, [register,present,open,title,domain,dirty,confirmation.dirty,busy,formId,submitLabel,submitDisabled,!!deletion]);
+  }, [register,present,open,title,description,domain,dirty,confirmation.dirty,busy,formId,submitLabel,submitDisabled,!!deletion]);
   const form = <form id={formId} className="form" onSubmit={submit} noValidate>
     {failure && !active && <Notice kind="error">{failure}</Notice>}
     <fieldset disabled={busy || uncertain || active} className="form plain-fieldset">{children(errors)}</fieldset>

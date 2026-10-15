@@ -20,7 +20,10 @@ export function IssuerSettingsSample({ standalone = false }: { standalone?: bool
   const [message, setMessage] = useState("");
   return (
     <section className="settings" aria-label="발급처 설정 샘플">
-      <Heading className="page-title">발급처 설정</Heading>
+      <header className="page-heading">
+        <Heading className="page-title">발급처 설정</Heading>
+        <p className="page-description">자료 번호의 발급처와 번호 종류를 관리합니다.</p>
+      </header>
       <div>
         <BodyAction icon="create" onClick={() => setEditing({})}>발급처 추가</BodyAction>
       </div>

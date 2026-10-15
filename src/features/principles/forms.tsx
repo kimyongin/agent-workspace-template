@@ -15,7 +15,7 @@ export function PrincipleFormModal({initial,editing=false,target,details,deletio
 }) {
   const [baseline] = useState({title:initial.title,body:initial.body});
   const [draft,setDraft]=useState(baseline);
-  return <FormModal domain="원칙" title={editing?"현재 원칙 편집":"현재 원칙 등록"} open submitLabel="저장"
+  return <FormModal domain="원칙" description="앞으로 업무에 적용할 판단 기준을 작성하고 저장합니다." title={editing?"현재 원칙 편집":"현재 원칙 등록"} open submitLabel="저장"
     deletion={deletion}
     preparation={()=>({model:"principle",action:editing?"update":"create",target_id:target?.id,expected_version:target?.version,input:content.parse(draft)})}
     mutation={{target:draft.title, action:editing ? "수정" : "등록"}}

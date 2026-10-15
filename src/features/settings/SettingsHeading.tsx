@@ -1,10 +1,12 @@
 import { SettingsMenu } from "./SettingsMenu.tsx";
+import { PageHeading } from "../../components/PageHeading.tsx";
 
-export function SettingsHeading({ title, id, tabIndex }: { title: string; id?: string; tabIndex?: number }) {
+export function SettingsHeading(
+  { title, description, id, tabIndex }: { title: string; description: string; id?: string; tabIndex?: number },
+) {
   return (
-    <div className="panel-head settings-heading">
-      <h1 className="page-title" id={id} tabIndex={tabIndex}>{title}</h1>
+    <PageHeading title={title} description={description} id={id} tabIndex={tabIndex}>
       <SettingsMenu />
-    </div>
+    </PageHeading>
   );
 }

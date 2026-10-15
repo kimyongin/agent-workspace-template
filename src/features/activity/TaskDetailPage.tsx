@@ -113,7 +113,7 @@ export function TaskDetailPage() {
 
   if (loadError && !task) {
     return (
-      <DetailSurface title="할 일" onClose={()=>navigate(back)}>
+      <DetailSurface title="할 일" description="일정과 진행 상태를 확인하고, 수행 결과를 기록합니다." onClose={()=>navigate(back)}>
         <Notice kind="error">{loadError}</Notice>
         <button type="button" className="btn" onClick={reload}>조회 다시 시도</button>
       </DetailSurface>
@@ -202,7 +202,7 @@ export function TaskDetailPage() {
           )}
         </section>
       )}</>;
-  return <DetailSurface title="할 일" tabTitle={task.title} onClose={()=>navigate(back)} onError={detail.failed} busy={busy} footer={<>
+  return <DetailSurface title="할 일" description="일정과 진행 상태를 확인하고, 수행 결과를 기록합니다." tabTitle={task.title} onClose={()=>navigate(back)} onError={detail.failed} busy={busy} footer={<>
     <button type="button" className="btn" disabled={busy} onClick={editor.start}>편집</button>
     {task.kind==="once"&&task.status==="open"&&<button type="button" className="btn btn-primary" disabled={busy} onClick={()=>manage("complete")}>완료하고 기록</button>}
     {task.kind==="recurring"&&<button type="button" className="btn btn-primary" disabled={busy} onClick={()=>manage("transition")}>{task.status==="active"?"중단":"재개"}</button>}

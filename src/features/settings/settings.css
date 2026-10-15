@@ -194,7 +194,6 @@ section[aria-labelledby="entity-identity-title"] .settings-section-footer { bord
 .schema-history-result ul { padding-left: var(--space-5); }
 
 .settings-menu { position: relative; flex: 0 0 auto; margin: 0; z-index: 30; }
-.settings-heading { flex-wrap: nowrap; }
 .settings-menu > .settings-menu-trigger { width: 44px; height: 44px; padding: 0; display: grid; place-items: center; }
 .settings-menu-trigger svg { width: 1.125rem; height: 1.125rem; }
 .settings-menu-options { position: absolute; inset-inline-end: 0; margin-block-start: var(--space-2); min-width: 9rem; display: grid; padding: var(--space-2); background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-card); box-shadow: var(--shadow-soft); }

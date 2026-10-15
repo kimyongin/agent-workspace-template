@@ -86,7 +86,7 @@ export function IssuerSettingsPage() {
   };
   return (
     <section className="panel settings" aria-label="발급처 설정">
-      <SettingsHeading title="발급처 설정" />
+      <SettingsHeading title="발급처 설정" description="자료 번호의 발급처와 번호 종류를 관리합니다." />
       <div className="settings-inline-actions">
         <button
           type="button"

@@ -1045,10 +1045,16 @@ for (const width of [320, 390]) {
   test(`mobile-header ${width}px: page titles use the available width across application routes`, async ({ page }) => {
     await page.route("**/api/status", route => route.fulfill({ status: 503, json: { error: { code: "unavailable", message: "헤더 검사용 응답" } } }));
     await page.setViewportSize({ width, height: 900 });
-    for (const path of ["/entities", "/tasks", "/records", "/principles", "/settings", "/status", "/search", "/guide"]) {
+    for (const path of ["/entities", "/tasks", "/records", "/principles", "/settings", "/settings/entity-types", "/settings/tags", "/settings/records", "/settings/issuers", "/status", "/search", "/guide"]) {
       await page.goto(path);
       const title = page.locator(".page-title").first();
       await expect(title, path).toBeVisible();
+      const description = page.locator(".page-heading > .page-description");
+      await expect(description, path).toHaveCount(1);
+      await expect(description, path).toBeVisible();
+      await expect(description, path).toHaveCSS("font-size", "13px");
+      expect((await description.innerText()).trim().length, path).toBeGreaterThan(10);
+      expect((await description.boundingBox())!.y, path).toBeGreaterThanOrEqual((await title.boundingBox())!.y + (await title.boundingBox())!.height);
       expect((await title.boundingBox())!.height, path).toBeLessThanOrEqual(44);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), path).toBe(true);
     }

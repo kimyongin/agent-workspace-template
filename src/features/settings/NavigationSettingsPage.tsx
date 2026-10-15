@@ -1,3 +1,4 @@
+import { PageHeading } from "../../components/PageHeading.tsx";
 import { useEffect, useRef, useState } from "react";
 import { useBlocker, useLocation } from "react-router";
 import { ConfirmDialog } from "../../components/Modal.tsx";
@@ -126,7 +127,7 @@ export function NavigationSettings(
             <DetailLink to="/settings">설정</DetailLink>
             <span>메뉴 바로가기</span>
           </nav>
-          <h1 className="page-title" id="navigation-settings-title">메뉴 바로가기</h1>
+          <PageHeading title="메뉴 바로가기" id="navigation-settings-title" description="자주 쓰는 화면을 골라 메뉴에 표시하고 순서를 정합니다." />
         </>
       )}
       <form

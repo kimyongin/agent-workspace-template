@@ -1,3 +1,4 @@
+import { PageHeading } from "../../components/PageHeading.tsx";
 import { BodyAction } from "../../components/BodyAction.tsx";
 import { CollectionHeading, CollectionList, useMainCollectionView } from "../../components/Collection.tsx";
 import { RecordCalendar } from "./RecordCalendar.tsx";
@@ -219,9 +220,10 @@ export function ActivityPage({ kind }: { kind: WorkspaceListKind }) {
   return (
     <>
       <section className="panel main-tab-header" aria-labelledby={`${kind}-title`}>
-        <div className="panel-head">
-          <h1 id={`${kind}-title`} className="page-title" tabIndex={-1}>{label}</h1>
-        </div>
+        <PageHeading title={label} id={`${kind}-title`} tabIndex={-1}
+          description={kind === "tasks"
+            ? "할 일을 정리하고, 반복 일정과 수행 결과를 관리합니다."
+            : "메모와 참고 자료, 업무 변경 내역을 모아 봅니다."} />
         <div className="panel-body">
           {params.has("legacy_activity") && (
             <Notice>

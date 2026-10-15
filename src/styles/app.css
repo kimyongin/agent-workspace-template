@@ -63,10 +63,12 @@ a {
 .has-navigation .app-main { padding-top: calc(var(--space-4) + env(safe-area-inset-top, 0px)); }
 .has-navigation :is(.app-main, .workspace-list) > .panel > :is(.page-title, .panel-head) { min-height: var(--space-8); }
 .has-navigation :is(.app-main, .workspace-list) > .panel > .page-title,
-.has-navigation :is(.app-main, .workspace-list) > .panel > .panel-head > .page-title { display: flex; align-items: center; gap: var(--space-3); min-height: var(--space-8); }
+.has-navigation :is(.app-main, .workspace-list) > .panel > .panel-head > .page-title,
+.has-navigation :is(.app-main, .workspace-list) > .panel > .page-heading .page-title { display: flex; align-items: center; gap: var(--space-3); min-height: var(--space-8); }
 @media(max-width:1023px), (max-height:319px) {
   .has-navigation :is(.app-main, .workspace-list) > .panel > .page-title::before,
-  .has-navigation :is(.app-main, .workspace-list) > .panel > .panel-head > .page-title::before { content: ""; flex: 0 0 var(--space-8); height: var(--space-8); background: url("../app/app-icon.svg") center / contain no-repeat; }
+  .has-navigation :is(.app-main, .workspace-list) > .panel > .panel-head > .page-title::before,
+  .has-navigation :is(.app-main, .workspace-list) > .panel > .page-heading .page-title::before { content: ""; flex: 0 0 var(--space-8); height: var(--space-8); background: url("../app/app-icon.svg") center / contain no-repeat; }
 }
 
 .bottom-nav a,
@@ -226,6 +228,18 @@ html { scroll-padding-bottom: calc(var(--navigation-height) + env(safe-area-inse
 
 .panel-head > :first-child {
   margin-right: auto;
+}
+
+.page-heading { display: grid; gap: var(--space-2); min-width: 0; }
+.page-heading > .panel-head { flex-wrap: nowrap; }
+.page-description {
+  margin: 0;
+  max-width: 65ch;
+  font-size: var(--text-label);
+  line-height: 1.25rem;
+  font-weight: 400;
+  color: var(--muted-ink);
+  overflow-wrap: anywhere;
 }
 
 .actions {
@@ -700,6 +714,8 @@ textarea.input {
 }
 .modal-head .dialog-title { overflow-wrap: anywhere; min-width: 0; }
 .modal-head .btn { flex-shrink: 0; }
+.modal-head:has(> .page-description) { flex-wrap: wrap; row-gap: var(--space-1); }
+.modal-head > .page-description { flex: 1 0 100%; max-width: none; }
 .modal-head .modal-icon { width: 44px; height: 44px; padding: 0; font-size: 1.5rem; text-decoration: none; display: inline-flex; justify-content: center; align-items: center; }
 .modal-foot { flex-wrap: wrap; }
 .modal-foot[hidden] { display: none; }

@@ -1,3 +1,4 @@
+import { PageHeading } from "../../components/PageHeading.tsx";
 // MCP OAuth 동의 화면(/oauth/consent). Supabase OAuth 서버가 authorization_id와 함께 보낸다.
 // 클라이언트 이름과 돌아갈 주소를 보여 주고 사용자가 승인·거부한다(T02-1 실험 2의 채택 방식).
 import { useEffect, useRef, useState } from "react";
@@ -71,7 +72,7 @@ export function ConsentPage() {
   const name = details?.client?.name || details?.client?.id || "알 수 없는 클라이언트";
   return (
     <section className="panel auth-panel" aria-labelledby="consent-title">
-      <h1 id="consent-title" className="page-title">에이전트 연결 승인</h1>
+      <PageHeading title="에이전트 연결 승인" id="consent-title" description="연결할 에이전트와 요청 범위를 확인하고 접근을 허용합니다." />
       {error && <Notice kind="error">{error}</Notice>}
       {!details && !error && <p className="secondary" role="status">요청을 확인하는 중…</p>}
       {details && (

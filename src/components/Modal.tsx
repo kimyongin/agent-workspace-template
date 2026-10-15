@@ -11,6 +11,7 @@ import { DetailTabContext, WorkspaceContext, type WorkspaceGuard } from "../feat
 
 export interface ModalProps {
   title: string;
+  description?: string;
   /** Stable visible domain heading; the accessible name retains the current operation. */
   domain?: string;
   headingLevel?: 1 | 2;
@@ -31,6 +32,7 @@ export interface ModalProps {
 
 export interface SurfaceEditor {
   title: string;
+  description?: string;
   domain?: string;
   dirty: boolean;
   busy: boolean;
@@ -51,7 +53,7 @@ export interface SurfaceAction {
 export const SurfaceActionContext = createContext<((action: SurfaceAction | null) => void) | null>(null);
 
 /** URL detail and its editor share one native dialog, focus trap and scroll surface. */
-export function DetailSurface({title, tabTitle = title, onClose, children, busy = false, footer, onError}: {title: string; tabTitle?: string; onClose: () => void; children: ReactNode; busy?: boolean; footer?: ReactNode; onError?: (error: unknown) => void}) {
+export function DetailSurface({title, description, tabTitle = title, onClose, children, busy = false, footer, onError}: {title: string; description?: string; tabTitle?: string; onClose: () => void; children: ReactNode; busy?: boolean; footer?: ReactNode; onError?: (error: unknown) => void}) {
   const previous = useDetailExploration();
   const tab = useContext(DetailTabContext);
   useEffect(() => { tab?.title(tabTitle); }, [tabTitle, tab?.title]);
@@ -75,7 +77,7 @@ export function DetailSurface({title, tabTitle = title, onClose, children, busy 
   // Remove the editor before navigating, so its dirty guard cannot ask a second time.
   useEffect(()=>{if(dismissing&&!editor){setDismissing(false);if(tab)tab.close();else onClose();}},[dismissing,editor,onClose,tab]);
   return <RelatedExpansionProvider><SurfaceContext.Provider value={{slot, register, editor:editorRef, busy:busyRef, onError}}>
-    <ModalShell open title={editor?.title ?? title} domain={editor?.domain} headingLevel={editor || tab ? 2 : 1} onClose={dismiss} onCancelEdit={editor?.onClose}
+    <ModalShell open title={editor?.title ?? title} description={editor ? editor.description : description} domain={editor?.domain} headingLevel={editor || tab ? 2 : 1} onClose={dismiss} onCancelEdit={editor?.onClose}
       onRouteDiscard={editor?.onRouteDiscard} dirty={editor?.dirty} busy={busy || editor?.busy}
       previous={tab?.previous ?? (editor ? null : previous)} footer={editor?.footer ?? footer}>
       <div hidden={!!editor}>{children}</div>
@@ -93,7 +95,7 @@ export function ModalShell(props: ModalProps) {
   return props.open ? <ActiveModalShell {...props} /> : null;
 }
 
-function ActiveModalShell({ title, domain, headingLevel=2, open, onClose, onCancelEdit, previous, onRouteDiscard = onClose, dirty = false, busy = false, footer, children }: ModalProps) {
+function ActiveModalShell({ title, description, domain, headingLevel=2, open, onClose, onCancelEdit, previous, onRouteDiscard = onClose, dirty = false, busy = false, footer, children }: ModalProps) {
   const tab = useContext(DetailTabContext);
   const workspace = useContext(WorkspaceContext);
   const active = tab?.active ?? true;
@@ -199,6 +201,7 @@ function ActiveModalShell({ title, domain, headingLevel=2, open, onClose, onCanc
       className={`modal${docked ? " detail-docked" : ""}`}
       aria-label={domain ? title : undefined}
       aria-labelledby={domain ? undefined : titleId}
+      aria-describedby={description ? `${titleId}-description` : undefined}
       onCancel={(e) => {
         e.preventDefault();
         e.stopPropagation();
@@ -212,6 +215,7 @@ function ActiveModalShell({ title, domain, headingLevel=2, open, onClose, onCanc
           {!docked && <button type="button" className="btn btn-text modal-icon" aria-label="닫기" title="닫기" onClick={requestClose} disabled={busy || action?.busy}>
             <span aria-hidden="true">×</span>
           </button>}
+          {description && <p id={`${titleId}-description`} className="page-description">{description}</p>}
         </div>
         <div className="modal-body" tabIndex={0}>{children}</div>
         {footer && <div className="modal-foot">{typeof footer === "function" ? footer(requestCancelEdit) : footer}</div>}

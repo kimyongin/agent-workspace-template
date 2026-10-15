@@ -245,7 +245,7 @@ function AccountSettings() {
   );
   return (
     <section className="panel settings account-settings" aria-labelledby="settings-title">
-      <SettingsHeading title="기본 설정" id="settings-title" />
+      <SettingsHeading title="기본 설정" description="프로필과 날짜·시각, 화면 표시, 메뉴 바로가기를 내게 맞춥니다." id="settings-title" />
 
       {(["profile", "date", "display"] as const).map((section) => (
         <section className="settings-section" aria-labelledby={`settings-${section}`} key={section}>

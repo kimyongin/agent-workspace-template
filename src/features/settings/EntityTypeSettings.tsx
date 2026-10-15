@@ -237,7 +237,7 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
       className="panel settings"
       aria-labelledby="entity-types-title"
     >
-      <SettingsHeading title="자료 설정" id="entity-types-title" />
+      <SettingsHeading title="자료 설정" description="자료 종류별 입력 항목과 식별자, 변경 이력을 관리합니다." id="entity-types-title" />
 
       {(type_id || items.length > 0) && (
         <div className="material-settings-toolbar">

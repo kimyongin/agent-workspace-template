@@ -226,6 +226,7 @@ export function EntityForm({
       <FormModal
         open
         domain={label}
+        description="발급처와 번호를 확인하고, 자료의 속성과 태그를 입력합니다."
         title={`${label} ${archived ? "복원" : initial ? "편집" : "추가"}`}
         submitLabel="저장"
         submitDisabled={!!typeId &&

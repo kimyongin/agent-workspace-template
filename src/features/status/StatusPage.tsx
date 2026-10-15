@@ -1,3 +1,4 @@
+import { PageHeading } from "../../components/PageHeading.tsx";
 import { useEffect, useRef, useState } from "react";
 import type { StatusOverview } from "@contracts/status.ts";
 import { api } from "../../lib/api.ts";
@@ -33,8 +34,7 @@ export function StatusPage() {
   }, []);
   return (
     <section className="panel status-page" aria-labelledby="status-title" aria-busy={busy}>
-      <header className="panel-head">
-        <h1 className="page-title" id="status-title">상태</h1>
+      <PageHeading title="상태" id="status-title" description="저장된 데이터와 검색 준비 상태를 확인합니다.">
         <button
           className="btn btn-text"
           type="button"
@@ -57,7 +57,7 @@ export function StatusPage() {
             <path d="M20 11a8 8 0 0 0-14-5L3 9m0-6v6h6m-5 4a8 8 0 0 0 14 5l3-3m0 6v-6h-6" />
           </svg>
         </button>
-      </header>
+      </PageHeading>
       {error && <Notice kind="error">{error}</Notice>}
       {data && (
         <StatusContent data={data}>

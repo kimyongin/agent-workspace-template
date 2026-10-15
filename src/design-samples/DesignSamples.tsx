@@ -52,9 +52,9 @@ function SamplesPreview() {
   return (
     <div className="samples-preview">
       <header className="samples-preview-header">
-        <div>
+        <div className="page-heading">
           <h1 className="page-title">디자인 샘플</h1>
-          <p className="secondary">직접 눌러보세요. 모든 변경은 예시 데이터에만 반영됩니다.</p>
+          <p className="page-description">화면 폭을 바꾸며 예시 데이터로 디자인과 동작을 확인합니다.</p>
         </div>
         <div className="actions" role="group" aria-label="미리보기 화면 폭">
           {[["auto", "현재 화면"], ["390", "모바일"], ["1280", "데스크톱"]].map(([value, label]) => (
@@ -98,11 +98,11 @@ function SamplesPreview() {
 function SamplesContent() {
   return (
     <main className="samples-content">
-      <header>
+      <header className="page-heading">
         <p className="meta">WORKSPACE · DESIGN SAMPLES</p>
         <h1 className="page-title">같은 역할, 같은 문법</h1>
-        <p className="secondary">
-          앱의 공용 스타일과 컴포넌트로 만든 예시입니다. 로그인이나 서버 연결 없이 조작할 수 있습니다.
+        <p className="page-description">
+          공용 스타일과 컴포넌트를 로그인 없이 예시 데이터로 조작해 봅니다.
         </p>
       </header>
       <section id="settings" className="samples-topic" aria-label="기본 설정 샘플">

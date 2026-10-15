@@ -60,7 +60,10 @@ export function AccountSettingsSample({ standalone = false }: { standalone?: boo
   );
   return (
     <section className="panel settings account-settings" aria-label="기본 설정 예시">
-      <Heading className="page-title">기본 설정</Heading>
+      <header className="page-heading">
+        <Heading className="page-title">기본 설정</Heading>
+        <p className="page-description">프로필과 날짜·시각, 화면 표시, 메뉴 바로가기를 내게 맞춥니다.</p>
+      </header>
       {([
         { id: "profile", title: "프로필", keys: ["nickname"], content: field("nickname", "닉네임") },
         {

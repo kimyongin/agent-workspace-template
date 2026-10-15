@@ -176,6 +176,6 @@ export function TagManagement({scope,inline=false,onClose,onStateChange}:{scope:
     </div>
   </>;
   if (inline) return <section aria-label={`${tagScopeLabels[scope]} 태그 관리`}>{body}</section>;
-    return <ModalShell open title={`${tagScopeLabels[scope]} 태그 관리`} headingLevel={1} previous={previous} dirty={dirty} busy={busy} onClose={close} onRouteDiscard={()=>{setDraft(null);setDeletions({});attempt.reset();}}>
+    return <ModalShell open title={`${tagScopeLabels[scope]} 태그 관리`} description="태그를 추가하거나 이름을 바꾸고, 사용하지 않는 태그를 정리합니다." headingLevel={1} previous={previous} dirty={dirty} busy={busy} onClose={close} onRouteDiscard={()=>{setDraft(null);setDeletions({});attempt.reset();}}>
 {body}</ModalShell>;
 }

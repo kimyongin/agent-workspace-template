@@ -1,3 +1,4 @@
+import { PageHeading } from "../../components/PageHeading.tsx";
 import {
   changeEntityListQuery,
   detailListLink,
@@ -212,9 +213,8 @@ export function EntitiesPage() {
   return (
     <>
       <section className="panel main-tab-header" aria-labelledby="entities-title">
-        <div className="panel-head">
-          <h1 id="entities-title" className="page-title" tabIndex={-1}>{label}</h1>
-        </div>
+        <PageHeading title={label} id="entities-title" tabIndex={-1}
+          description="자료를 등록하고, 속성과 연결된 할 일·기록을 관리합니다." />
         <div className="query-bar entity-query-bar">
           <EntityTypePicker
             types={types ?? []}

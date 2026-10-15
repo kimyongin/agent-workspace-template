@@ -1,3 +1,4 @@
+import { PageHeading } from "../../components/PageHeading.tsx";
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { supabase } from "../../lib/supabase.ts";
@@ -33,7 +34,7 @@ export function LogoutPage() {
     if (!started.current) { started.current = true; void signOut(); }
   }, [loading, session, navigate]);
   return <section className="panel auth-panel" aria-labelledby="logout-title">
-    <h1 id="logout-title" className="page-title">로그아웃</h1>
+    <PageHeading title="로그아웃" id="logout-title" description="계정 연결을 종료하고 로그인 화면으로 이동합니다." />
     {error ? <>
       <p className="error-text" role="alert">{localSignedOut ? "이 기기에서는 로그아웃했습니다. 서버의 다른 세션 로그아웃은 확인하지 못했습니다." : "로그아웃하지 못했습니다. 다시 시도하세요."}</p>
       {localSignedOut ? <div className="actions"><Link className="btn btn-primary" to="/login">로그인으로 이동</Link></div>

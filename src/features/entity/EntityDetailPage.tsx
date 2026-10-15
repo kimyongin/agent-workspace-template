@@ -163,6 +163,7 @@ export function EntityDetailPage() {
   return (
     <DetailSurface
       title={entity?.type.label ?? "자료"}
+      description="속성과 연결된 자료·할 일·기록을 확인하고 수정합니다."
       tabTitle={entity?.title ?? "자료"}
       onClose={() => navigate(back)}
       onError={detail.failed}

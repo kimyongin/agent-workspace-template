@@ -101,6 +101,7 @@ export function IdentitySourceModal({
     <ModalShell
       open
       title="발급처 연결"
+      description="이 자료 종류에 사용할 발급처와 번호 종류를 선택합니다."
       dirty={!!source || editState.dirty || !!editState.uncertain}
       busy={editState.busy || !!editState.uncertain}
       onClose={onClose}
