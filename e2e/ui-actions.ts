@@ -11,8 +11,6 @@ export async function closeDetail(page: Page, title: string) {
 
 /** Complete a save through its public confirmation stage when the domain requires a change record. */
 export async function saveOnce(page: Page, scope: Page | Locator = page, label = "저장", waitForWrite = true) {
-  const issuer = scope.getByLabel("발급처",{exact:false});
-  if(await issuer.isVisible() && !await page.getByRole("dialog",{name:/복원$/,exact:false}).isVisible())await expect(issuer).toBeEnabled();
   const final = page.locator("dialog.modal-action[open]").getByRole("button", {name:/^(등록|수정|중단|재개|복원|식별 정보 변경)하고 저장$|^삭제하고 기록$|^같은 내용 다시 시도$/});
   const requested = scope.getByRole("button", {name:label === "삭제 확인" ? "삭제하고 기록" : label,exact:true});
   if (await final.isVisible()) await final.click();

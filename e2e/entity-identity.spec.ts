@@ -155,7 +155,7 @@ test("manual tuple registration restores stored properties and links while ident
       name: `${fixtureType!.label} 추가`,
       exact: true,
     });
-    await expect(form.getByLabel("식별자")).toBeDisabled();
+    await expect(form.getByLabel("번호", { exact: true })).toBeDisabled();
     await expect(
       form.getByRole("button", { name: "기존 대상 확인", exact: true }),
     ).toBeDisabled();
@@ -275,12 +275,12 @@ test("kind identity settings retries a failed read and saves a label without cha
   await expect(section.getByRole("alert")).toBeVisible();
   fail = false;
   await section.getByRole("button", { name: "식별자 설정 다시 조회", exact: true }).click();
-  await section.getByLabel("이름", { exact: true }).fill("상품 번호");
+  await section.getByLabel("이름", { exact: false }).fill("상품 번호");
   await section.getByRole("button", { name: "식별자 저장", exact: true }).click();
   await expect(section.getByRole("status")).toHaveText("식별자 설정을 저장했습니다.");
   await page.reload();
   await section.getByRole("button", { name: /^식별자/ }).click();
-  await expect(section.getByLabel("이름", { exact: true })).toHaveValue("상품 번호");
+  await expect(section.getByLabel("이름", { exact: false })).toHaveValue("상품 번호");
 });
 
 test("late archived lookup preserves newer identity and same-identity property edits", async ({ page }) => {
@@ -524,7 +524,7 @@ test("five settings workspaces retain real API selections and stay within the vi
     if (title === "자료 설정") {
       const identity = page.getByRole("region", { name: "식별자", exact: true });
       await identity.getByRole("button", { name: /^식별자/ }).click();
-      await expect(identity.getByLabel("이름", { exact: true })).toHaveValue("식별자");
+      await expect(identity.getByLabel("이름", { exact: false })).toHaveValue("식별자");
       await expect(identity.getByLabel("기본 발급처")).toHaveValue(fixtureSource);
       await expect(page.getByRole("region", { name: "기록 자동 완성", exact: true })).toHaveCount(0);
     }

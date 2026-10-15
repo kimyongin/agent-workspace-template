@@ -1,6 +1,6 @@
 import { setEntityCategory } from "./ui-actions.ts";
 import { entity as makeEntity, fixtureType, fixtureSchema } from "./support/workspace-data.ts";
-import { createFixtureEntity, scalarFixtureType, fixtureEntityList, analyzeAndApply } from "./entity-schema-support.ts";
+import { createFixtureEntity, scalarFixtureType, fixtureEntityList, analyzeAndApply, seedFixtureEntities } from "./entity-schema-support.ts";
 import { fillChangeMemo } from "./ui-actions.ts";
 import { saveOnce, beginTabAction, openDetailEditor, openListDetail, openTabFilters, closeDetail } from "./ui-actions.ts";
 import { expect } from "@playwright/test";
@@ -128,18 +128,13 @@ test("엔터티 관련 기록 취소: 작성 URL·reload·메모와 변경 이�
 });
 test("Entity 목록: 키워드/선택/정렬·추가 페이지·상세 복귀/새로고침 초점·viewport", async ({ page }) => {
   await devLogin(page);
-  const mcp = await mcpClient(await mcpTokenViaConsent(page)),
-    marker = unique("페이지 엔터티"),
-    ids: string[] = [];
+  const token = await mcpTokenViaConsent(page);
+  const ownerId: string = JSON.parse(Buffer.from(token.split(".")[1], "base64url").toString()).sub;
+  const mcp = await mcpClient(token), marker = unique("페이지 엔터티"), ids: string[] = [];
   try {
-    for (let i = 0; i < 21; i++) {
-      const e = await createFixtureEntity(mcp, {
-        prop_1: `${marker} ${String(i).padStart(2, "0")}`,
-        prop_2: i,
-        prop_4: "c",
-      });
-      ids.push(e.id);
-    }
+    ids.push(...await seedFixtureEntities(mcp, ownerId, Array.from({ length: 21 }, (_, i) => ({
+      prop_1: `${marker} ${String(i).padStart(2, "0")}`, prop_2: i, prop_4: "c",
+    }))));
     await page.goto(
       fixtureEntityList((await scalarFixtureType(mcp)).id, marker, "c", true),
     );
@@ -174,9 +169,7 @@ test("Entity 목록: 키워드/선택/정렬·추가 페이지·상세 복귀/�
     await page.reload();
     await expect(page.getByRole("heading", { name: (await scalarFixtureType(mcp)).label, level: 1, exact: true })).toBeFocused();
   } finally {
-    for (const id of ids) {
-      await mcp.call("delete_entity", { id, expected_version: 1 });
-    }
+    // The serial owned fixture releases exactly these rows after all browser work ends.
     await mcp.close();
   }
 });
@@ -216,11 +209,13 @@ test("Entity 복원: 대상 없음 조회 한도·제목 초점·필터 hash 제
 
 test("Entity lookahead 뒤 더 보기: 현재 커서 append·실패 retry·행과 버튼 초점 보존", async ({ page }) => {
   await devLogin(page);
-  const mcp = await mcpClient(await mcpTokenViaConsent(page)), marker = unique("복원 후 추가"), ids: string[] = [];
+  const token = await mcpTokenViaConsent(page);
+  const ownerId: string = JSON.parse(Buffer.from(token.split(".")[1], "base64url").toString()).sub;
+  const mcp = await mcpClient(token), marker = unique("복원 후 추가"), ids: string[] = [];
   try {
-    for (let i = 0; i < 61; i++) {
-      ids.push((await createFixtureEntity(mcp, { prop_1: `${marker} ${String(i).padStart(2, "0")}`, prop_2: i })).id);
-    }
+    ids.push(...await seedFixtureEntities(mcp, ownerId, Array.from({ length: 61 }, (_, i) => ({
+      prop_1: `${marker} ${String(i).padStart(2, "0")}`, prop_2: i,
+    }))));
     await page.goto(fixtureEntityList((await scalarFixtureType(mcp)).id, marker, undefined, true));
     const anchor = page.getByRole("button", { name: `${marker} 19`, exact: true });
     await openListDetail(page, `${marker} 19`);
@@ -272,7 +267,7 @@ test("Entity lookahead 뒤 더 보기: 현재 커서 append·실패 retry·행�
     expect(await page.evaluate(() => window.scrollY)).toBeGreaterThanOrEqual(retryY - 100);
     await expect(anchor).not.toBeFocused();
   } finally {
-    for (const id of ids) await mcp.call("delete_entity", { id, expected_version: 1 });
+    // Cleanup is tied to this exact fixture scope, including failed scenarios.
     await mcp.close();
   }
 });
