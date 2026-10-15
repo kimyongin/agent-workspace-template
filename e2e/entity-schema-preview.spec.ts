@@ -38,7 +38,10 @@ test("값 변환 준비: 저장된 직접 링크·실패 행 보완·재분석·
       return (await mcp.call("get_entity_schema_change", { type_id: typeId, change_id: plan.id })).analysis?.status;
     }, { timeout: 30000 }).toBe("succeeded");
     const row = page.locator("article").filter({
-      has: page.getByRole("heading", { name: `${entity.id} · 변환 실패` }),
+      has: page.getByRole("heading", {
+        name: `${entity.title} · ${entity.source} · ${entity.external_id} · 변환 실패`,
+        exact: true,
+      }),
     });
     await expect(row).toBeVisible();
     await expect(row).toContainText("001");

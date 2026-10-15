@@ -104,11 +104,15 @@ test("원본 복구: 웹 키보드 생성·분석→MCP 실행→자료·연결�
       return (await mcp.call("get_entity_schema_change", { type_id: type.id, change_id: recovery.id })).executable;
     }, { timeout: 30_000 }).toBe(true);
     const row = page.locator("article").filter({
-      has: page.getByRole("heading", { name: `${entity.id} · 변경`, exact: true }),
+      has: page.getByRole("heading", {
+        name: `${entity.title} · ${entity.source} · ${entity.external_id} · 변경`,
+        exact: true,
+      }),
     });
     await expect(row).toBeVisible();
     await expect(row).toContainText("현재 값 7 → 복구 제거");
     const recoveryReady = await mcp.call("get_entity_schema_change", { type_id: type.id, change_id: recovery.id });
+    const expectedRecoverySchemaVersion = recoveryReady.source_schema_version + 1;
     const preview = await mcp.call("list_entity_schema_analysis_rows", {
       type_id: type.id,
       change_id: recovery.id,
@@ -132,11 +136,11 @@ test("원본 복구: 웹 키보드 생성·분석→MCP 실행→자료·연결�
     }, { timeout: 30_000 }).toBe("succeeded");
     await page.getByRole("button", { name: "상태 다시 조회", exact: true }).click();
     await expect(page.getByRole("status").filter({ hasText: /^(접수|실행 중|완료|취소) · / })).toContainText("완료");
-    await expect(page.getByText(/새 속성 버전 3/)).toBeVisible();
+    await expect(page.getByText(new RegExp(`^새 속성 버전 ${expectedRecoverySchemaVersion} · `))).toBeVisible();
     const restored = await mcp.call("get_entity", { id: entity.id });
     expect(restored.properties).toEqual({ prop_1: "001 원본" });
     expect(restored.entity_type_id).toBe(type.id);
-    expect(restored.schema_version).toBe(4);
+    expect(restored.schema_version).toBe(expectedRecoverySchemaVersion);
     expect(await mcp.call("get_entity", { id: peer.id })).toEqual(peerBefore);
     expect((await mcp.call("list_entity_links", { id: entity.id })).items.map((r: { id: string }) => r.id)).toContain(
       peer.id,
