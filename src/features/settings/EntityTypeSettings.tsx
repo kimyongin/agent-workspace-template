@@ -390,36 +390,38 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
                   ? "이름·아이콘·보관 상태 변경은 속성 정의와 저장값을 바꾸지 않습니다."
                   : "필수 텍스트 대표 속성과 함께 생성합니다."}
               </p>
-              <button
-                type="button"
-                className="btn"
-                disabled={busy || uncertain || latestBusy || basicConflict || !dirty}
-                onClick={cancel}
-              >
-                변경 취소
-              </button>
-              {basicConflict && (
+              <div className="actions">
                 <button
                   type="button"
                   className="btn"
-                  disabled={busy || uncertain || latestBusy}
-                  onClick={() => void readLatestBasics()}
+                  disabled={busy || uncertain || latestBusy || basicConflict || !dirty}
+                  onClick={cancel}
                 >
-                  {latestBusy ? "최신 기본 정보 읽는 중…" : "최신 기본 정보 확인"}
+                  변경 취소
                 </button>
-              )}
-              <button
-                className="btn btn-primary"
-                disabled={anyBusy || latestBusy || basicConflict || (!dirty && !uncertain)}
-              >
-                {busy
-                  ? "저장 중…"
-                  : uncertain
-                  ? "같은 요청 다시 확인"
-                  : type_id
-                  ? "기본 정보 저장"
-                  : "자료 종류 만들기"}
-              </button>
+                {basicConflict && (
+                  <button
+                    type="button"
+                    className="btn"
+                    disabled={busy || uncertain || latestBusy}
+                    onClick={() => void readLatestBasics()}
+                  >
+                    {latestBusy ? "최신 기본 정보 읽는 중…" : "최신 기본 정보 확인"}
+                  </button>
+                )}
+                <button
+                  className="btn btn-primary"
+                  disabled={anyBusy || latestBusy || basicConflict || (!dirty && !uncertain)}
+                >
+                  {busy
+                    ? "저장 중…"
+                    : uncertain
+                    ? "같은 요청 다시 확인"
+                    : type_id
+                    ? "기본 정보 저장"
+                    : "자료 종류 만들기"}
+                </button>
+              </div>
             </div>
           </form>
         </MaterialSettingsSection>

@@ -265,21 +265,23 @@ export function TypeIdentitySettings(
             </div>
           </fieldset>
           <div className="settings-section-footer">
-            <button
-              className="btn"
-              type="button"
-              disabled={busy || uncertain || disabled || (!dirty && !conflict) || conflict && !latestReady}
-              onClick={() => {
-                editor.resource.reset();
-                setMessage("");
-                setInputError("");
-              }}
-            >
-              변경 취소
-            </button>
-            <button className="btn btn-primary" disabled={busy || disabled || conflict || (!dirty && !uncertain)}>
-              {busy ? "저장 중…" : uncertain ? "같은 요청 다시 확인" : "식별자 저장"}
-            </button>
+            <div className="actions">
+              <button
+                className="btn"
+                type="button"
+                disabled={busy || uncertain || disabled || (!dirty && !conflict) || conflict && !latestReady}
+                onClick={() => {
+                  editor.resource.reset();
+                  setMessage("");
+                  setInputError("");
+                }}
+              >
+                변경 취소
+              </button>
+              <button className="btn btn-primary" disabled={busy || disabled || conflict || (!dirty && !uncertain)}>
+                {busy ? "저장 중…" : uncertain ? "같은 요청 다시 확인" : "식별자 저장"}
+              </button>
+            </div>
           </div>
         </form>
       )}

@@ -259,28 +259,30 @@ export function NavigationSettings({ inline = false, onStateChange }: { inline?:
             {message.text}
           </p>
         )}
-        <div className="settings-section-footer actions">
-          <button
-            type="button"
-            className="btn"
-            disabled={!dirty && !conflict || busy}
-            onClick={() => {
-              setBaseline(saved);
-              setDraft(saved);
-              setConflict(false);
-              setMessage(null);
-            }}
-          >
-            변경 취소
-          </button>
-          <button
-            type="submit"
-            className="btn btn-primary"
-            disabled={!dirty || busy || conflict}
-            aria-label="메뉴 바로가기 저장"
-          >
-            {busy ? "저장 중…" : "저장"}
-          </button>
+        <div className="settings-section-footer">
+          <div className="actions">
+            <button
+              type="button"
+              className="btn"
+              disabled={!dirty && !conflict || busy}
+              onClick={() => {
+                setBaseline(saved);
+                setDraft(saved);
+                setConflict(false);
+                setMessage(null);
+              }}
+            >
+              변경 취소
+            </button>
+            <button
+              type="submit"
+              className="btn btn-primary"
+              disabled={!dirty || busy || conflict}
+              aria-label="메뉴 바로가기 저장"
+            >
+              {busy ? "저장 중…" : "저장"}
+            </button>
+          </div>
         </div>
       </form>
       {!inline && <NavigationSettingsProtection dirty={dirty} busy={busy} />}
