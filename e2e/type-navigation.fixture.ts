@@ -1016,3 +1016,32 @@ for (const width of [320, 390]) {
     }
   });
 }
+
+for (const width of [320, 1440]) {
+  test(`status design ${width}px: errors, disclosure and pagination use shared controls`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    let failStatus = true, failIssues = true;
+    const data = { timezone: "Asia/Seoul", queried_at: "2026-10-15T00:00:00Z", period: {from:"2026-10-15", to:"2026-10-15", days:1}, entities: {total:0,active:0,deleted:0}, tasks:{total:0,open:0,done:0,active:0,stopped:0}, records:{total:1,user:1,result:0,change:0}, indexing:{total:1,indexed:0,preparing:0,attention:1,excluded:0,waiting:{long_waiting:0,oldest_waiting_since:null,threshold_minutes:5}},daily:[] };
+    await page.route("**/api/status", route => route.fulfill(failStatus ? {status:503,json:{error:{code:"unavailable",message:"조회 실패"}}} : {json:data}));
+    await page.route("**/api/status/indexing/issues**", route => route.fulfill(failIssues ? {status:503,json:{error:{code:"unavailable",message:"조회 실패"}}} : {json:{items:[{id:"issue",created_at:"2026-10-15T00:00:00Z",title:"긴 제목 ".repeat(15),reason:"provider_unknown",attempts:1,chunks:{total:1,succeeded:0,preparing:0,unknown:1,failed:0}}],next_cursor:null}}));
+    await page.goto("/status");
+    await expect(page.getByRole("alert")).toHaveClass(/notice-error/);
+    failStatus = false;
+    await page.getByRole("button", {name:"새로고침",exact:true}).click();
+    await page.getByRole("button", {name:/^색인 문제/}).click();
+    await expect(page.getByRole("alert")).toHaveClass(/notice-error/);
+    failIssues = false;
+    await page.getByRole("button", {name:"다시 시도",exact:true}).click();
+    const summary = page.locator(".status-issue-list summary");
+    await expect(summary).toBeVisible();
+    await summary.press("Enter");
+    await expect(page.getByText("현재 구간 전송 시도 1회",{exact:false})).toBeVisible();
+    const marker = await summary.evaluate(el=>({column:getComputedStyle(el,"::after").gridColumnStart,list:getComputedStyle(el).listStyleType}));
+    expect(marker).toEqual({column:"2",list:"none"});
+    const next=page.getByRole("button",{name:"다음",exact:true});
+    await expect(next).toBeDisabled();
+    expect((await next.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+    await expect(next.locator(".body-action-face")).toHaveCSS("font-size","12px");
+    expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+  });
+}
