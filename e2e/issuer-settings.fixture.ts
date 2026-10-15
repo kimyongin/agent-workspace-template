@@ -438,10 +438,12 @@ test("default policy refusal preserves the draft and resolves affected types wit
   await expect(modal.getByLabel("이름")).toHaveValue("내 쿠팡");
   await expect(modal.getByRole("button", { name: "최신 저장값 확인" })).toHaveCount(0);
   await modal.getByRole("button", { name: "상품 기본 발급처 변경", exact: true }).click();
+  await expect(modal.getByLabel("상품 기본 발급처", { exact: true })).toBeFocused();
   await modal.getByLabel("상품 기본 발급처", { exact: true }).selectOption("app");
   await modal.getByRole("button", { name: "기본 발급처 변경", exact: true }).click();
   await expect(modal.getByRole("button", { name: "상품 기본 발급처 변경", exact: true })).toHaveCount(0);
   await expect(modal.getByLabel("이름")).toHaveValue("내 쿠팡");
+  await expect(modal.getByLabel("이름")).toBeFocused();
   await modal.getByRole("button", { name: "저장", exact: true }).click();
   await page.getByRole("dialog", { name: "사용을 중지할까요?" }).getByRole("button", { name: "중지하고 저장" }).click();
   await expect(modal).not.toBeVisible();

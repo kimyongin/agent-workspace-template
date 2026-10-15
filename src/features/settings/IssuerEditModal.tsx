@@ -29,6 +29,7 @@ export function IssuerEditModal(
     onState?: (state: MaterialSectionState) => void;
   },
 ) {
+  const form = useRef<HTMLFormElement>(null);
   const original = target.kind === "issuer" ? target.issuer : target.rule;
   const [baseline, setBaseline] = useState(original),
     [label, setLabel] = useState(original?.label ?? ""),
@@ -186,6 +187,7 @@ export function IssuerEditModal(
     >
       <form
         id="registry-edit-form"
+        ref={form}
         className="form"
         onSubmit={(e) => {
           e.preventDefault();
@@ -220,6 +222,7 @@ export function IssuerEditModal(
                   setRepairing(null);
                   setRepairState({ busy: false, uncertain: false });
                   setError("");
+                  requestAnimationFrame(() => form.current?.querySelector<HTMLInputElement>("input")?.focus());
                 }}
               />
             )}
