@@ -752,3 +752,118 @@ dbTest("schema discard preserves data, rejects stale/applied/foreign requests an
     await admin.end();
   }
 });
+
+dbTest(
+  "empty material publishes structural changes immediately and rejects an intervening entity insertion",
+  async () => {
+    const admin = connect(urls.admin), sql = connect(urls.direct, { max: 1 });
+    const owner = await fixtureOwner(admin);
+    const d = { uow: new SqlEntityTypeUnitOfWork(sql) }, e = { uow: new SqlEntityUnitOfWork(sql) };
+    try {
+      const type = await createEntityType(d, requestActor(owner.actor), { label: "빈 자료 변경" });
+      const create = (version: number, title: string) =>
+        createEntitySchemaChange(d, requestActor(owner.actor), type.id, {
+          expected_type_version: version,
+          expected_schema_version: version,
+          edits: [{ op: "add_property", client_ref: title, field: { type: "integer", title }, required: true }],
+        });
+      const first = await create(1, "필수 수량");
+      assertEquals(first.change_kind, "migration_required");
+      const accepted = await analyzeEntitySchemaChange(d, requestActor(owner.actor), type.id, first.id, {
+        expected_change_version: first.version,
+      });
+      const ready = await getEntitySchemaChange(d, owner.actor, type.id, first.id);
+      assertEquals([ready.status, ready.analysis?.status, ready.analysis?.total], ["ready", "succeeded", 0]);
+      assertEquals(ready.analysis?.id, accepted.analysis_id);
+      const applied = await applyEntitySchemaChange(d, requestActor(owner.actor), type.id, first.id, {
+        expected_change_version: first.version,
+        analysis_id: accepted.analysis_id,
+      });
+      assertEquals(applied.status, "applied");
+      assertEquals((await getEntitySchema(d, owner.actor, { type_id: type.id })).schema.required, ["prop_1", "prop_2"]);
+      const second = await create(2, "추가 수량");
+      const stale = await analyzeEntitySchemaChange(d, requestActor(owner.actor), type.id, second.id, {
+        expected_change_version: second.version,
+      });
+      await createEntity(e, requestActor(owner.actor), {
+        entity_type_id: type.id,
+        schema_version: 2,
+        source: "app",
+        external_id: crypto.randomUUID(),
+        properties: { prop_1: "늦게 등록", prop_2: 0 },
+      });
+      const error = await assertRejects(() =>
+        applyEntitySchemaChange(d, requestActor(owner.actor), type.id, second.id, {
+          expected_change_version: second.version,
+          analysis_id: stale.analysis_id,
+        })
+      );
+      assertEquals((error as AppError).code, "schema_plan_stale");
+      assertEquals((await getEntitySchema(d, owner.actor, { type_id: type.id })).schema_version, 2);
+    } finally {
+      await owner.cleanup();
+      await sql.end();
+      await admin.end();
+    }
+  },
+);
+
+dbTest(
+  "first schema review persists new field order, labels, representative and conversion references together",
+  async () => {
+    const admin = connect(urls.admin), sql = connect(urls.direct, { max: 1 });
+    const owner = await fixtureOwner(admin), d = { uow: new SqlEntityTypeUnitOfWork(sql) };
+    try {
+      const type = await createEntityType(d, requestActor(owner.actor), { label: "한번에 항목 설정" });
+      const draft = await createEntitySchemaChange(d, requestActor(owner.actor), type.id, {
+        expected_type_version: 1,
+        expected_schema_version: 1,
+        edits: [
+          {
+            op: "add_property",
+            client_ref: "choice",
+            field: { type: ["string", "null"], title: "상태", enum: ["ready", null] },
+          },
+          {
+            op: "add_property",
+            client_ref: "name",
+            field: { type: "string", title: "상품명", minLength: 1 },
+            required: true,
+          },
+          {
+            op: "set_display",
+            display: {
+              representative: "new_name",
+              order: ["new_name", "new_choice", "prop_1"],
+              list_columns: ["new_choice", "new_name"],
+              archived: [],
+              option_labels: { new_choice: { ready: "판매 중" } },
+            },
+          },
+        ],
+        migration: { rules: [{ op: "fill", key: "new_name", value: "새 상품" }] },
+      });
+      assertEquals(draft.target.display, {
+        representative: "prop_3",
+        order: ["prop_3", "prop_2", "prop_1"],
+        list_columns: ["prop_2", "prop_3"],
+        archived: [],
+        option_labels: { prop_2: { ready: "판매 중" } },
+      });
+      assertEquals(draft.migration.rules, [{ op: "fill", key: "prop_3", value: "새 상품", include_null: false }]);
+      const analysis = await analyzeEntitySchemaChange(d, requestActor(owner.actor), type.id, draft.id, {
+        expected_change_version: draft.version,
+      });
+      await applyEntitySchemaChange(d, requestActor(owner.actor), type.id, draft.id, {
+        expected_change_version: draft.version,
+        analysis_id: analysis.analysis_id,
+      });
+      const published = await getEntitySchema(d, owner.actor, { type_id: type.id });
+      assertEquals(published.display, draft.target.display);
+    } finally {
+      await owner.cleanup();
+      await sql.end();
+      await admin.end();
+    }
+  },
+);

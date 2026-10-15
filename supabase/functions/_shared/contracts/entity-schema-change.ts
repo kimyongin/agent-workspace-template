@@ -15,12 +15,15 @@ export const entityFieldInput = z.strictObject({
   enum: z.array(z.union([z.string().max(4096), z.null()])).min(1).max(128).optional(),
   default: z.union([z.string(), z.number().finite(), z.boolean(), z.null()]).optional(),
 });
+// new_<client_ref> is valid in display/conversion input alongside its add_property.
+// Published definitions and all other property-key contracts remain prop_n only.
+const propertyInputReference = z.union([propertyKey, z.string().startsWith("new_").min(5).max(84)]);
 const displayInput = z.strictObject({
-  representative: propertyKey,
-  order: z.array(propertyKey).max(64),
-  list_columns: z.array(propertyKey).max(64),
-  archived: z.array(propertyKey).max(64),
-  option_labels: z.record(propertyKey, optionLabelDictionary),
+  representative: propertyInputReference,
+  order: z.array(propertyInputReference).max(64),
+  list_columns: z.array(propertyInputReference).max(64),
+  archived: z.array(propertyInputReference).max(64),
+  option_labels: z.record(propertyInputReference, optionLabelDictionary),
 });
 export const entitySchemaEdit = z.discriminatedUnion("op", [
   z.strictObject({
@@ -83,11 +86,21 @@ export type SchemaAnalysisRow = {
   errors: Array<{ path: string; message: string }>;
 };
 export type SchemaAnalysisPage = { analysis_id: string; items: SchemaAnalysisRow[]; next_after: string | null };
+const migrationInput = z.strictObject({
+  rules: z.array(z.discriminatedUnion("op", [
+    migrationRule.options[0].extend({ key: propertyInputReference }),
+    migrationRule.options[1].extend({ key: propertyInputReference }),
+    migrationRule.options[2].extend({ key: propertyInputReference }),
+    migrationRule.options[3].extend({ key: propertyInputReference }),
+    migrationRule.options[4].extend({ key: propertyInputReference }),
+  ])).max(128).default([]),
+  overrides: z.array(migrationOverride.extend({ key: propertyInputReference })).max(2000).default([]),
+});
 export const schemaChangeCreate = z.strictObject({
   expected_type_version: z.number().int().positive(),
   expected_schema_version: z.number().int().positive(),
   edits: z.array(entitySchemaEdit).min(1).max(128),
-  migration: migrationPlan.default({ rules: [], overrides: [] }),
+  migration: migrationInput.default({ rules: [], overrides: [] }),
 });
 export const schemaChangeUpdate = schemaChangeCreate.extend({ expected_change_version: z.number().int().positive() });
 export const schemaChangeAction = z.strictObject({ expected_change_version: z.number().int().positive() });

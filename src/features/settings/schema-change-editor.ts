@@ -57,6 +57,9 @@ export function useSchemaChangeEditor(
   const [numericDrafts, setNumericDrafts] = useState<Record<string, string>>({});
   const [migration, setMigration] = useState<MigrationPlan>({ rules: [], overrides: [] });
   const [acceptedAnalysis, setAcceptedAnalysis] = useState<string | null>(null);
+  const [restartedFrom, setRestartedFrom] = useState<string | null>(null);
+  const [staleInput, setStaleInput] = useState(false);
+  const [planSyncNeeded, setPlanSyncNeeded] = useState(false);
   const [reviewTarget, setReviewTarget] = useState<{ id: string; version: number } | null>(null);
   const [error, setError] = useState(""),
     [message, setMessage] = useState(""),
@@ -82,6 +85,9 @@ export function useSchemaChangeEditor(
     );
     setFieldError(null);
     setPlan(value);
+    setRestartedFrom(null);
+    setStaleInput(false);
+    setPlanSyncNeeded(false);
     setMigration(value?.migration ?? { rules: [], overrides: [] });
     setAcceptedAnalysis(null);
     setDraft(clone(target));
@@ -297,27 +303,19 @@ export function useSchemaChangeEditor(
         result.push({ op: "remove_property", key });
       }
     }
+    const reference = (key: string) => refs[key] ? `new_${refs[key]}` : key;
     const display = {
-      ...draft.display,
-      option_labels: Object.fromEntries(
-        Object.entries(draft.display.option_labels).filter(([key]) => !key.startsWith("new_")).map((
-          [key, labels],
-        ) => [
-          key,
-          Object.fromEntries(
-            Object.entries(labels).filter(([code]) => draft.schema.properties[key]?.enum?.includes(code)),
-          ),
-        ]),
-      ),
-      order: draft.display.order.filter((k) => !k.startsWith("new_")),
-      list_columns: draft.display.list_columns.filter((k) => !k.startsWith("new_")),
-      archived: draft.display.archived.filter((k) => !k.startsWith("new_")),
+      representative: reference(draft.display.representative),
+      order: draft.display.order.map(reference),
+      list_columns: draft.display.list_columns.map(reference),
+      archived: draft.display.archived.map(reference),
+      option_labels: Object.fromEntries(Object.entries(draft.display.option_labels).map(([key, labels]) => [
+        reference(key),
+        Object.fromEntries(Object.entries(labels).filter(([code]) => draft.schema.properties[key]?.enum?.includes(code))),
+      ])),
     };
-    // New keys are reserved in the first save; subsequent edits can select them for display.
     if (JSON.stringify(display) !== JSON.stringify(definition.display)) {
-      const operation: SchemaEdit = { op: "set_display", display };
-      if (Object.keys(draft.schema.properties).some((k) => k.startsWith("new_"))) result.unshift(operation);
-      else result.push(operation);
+      result.push({ op: "set_display", display });
     }
     return result;
   };
@@ -365,19 +363,27 @@ export function useSchemaChangeEditor(
     setError("");
     return true;
   };
-  const write = async (action: "save" | "analyze" | "apply" | "discard") => {
+  const migrationInput = () => {
+    const value = migrationNumericValues(plan?.target ?? draft, migration);
+    const reference = (key: string) => refs[key] ? `new_${refs[key]}` : key;
+    return {
+      rules: value.rules.map((rule) => ({ ...rule, key: reference(rule.key) })),
+      overrides: value.overrides.map((override) => ({ ...override, key: reference(override.key) })),
+    };
+  };
+  const write = async (action: "save" | "restart" | "analyze" | "apply" | "discard") => {
     if (busy || disabled) return;
     setError("");
     setMessage("");
     let payload;
     try {
-      payload = action === "save"
+      payload = action === "save" || action === "restart"
         ? {
           expected_type_version: type.version,
           expected_schema_version: definition.schema_version,
           edits: edits(schemaNumericValues(draft, numericDrafts)),
-          migration: migrationNumericValues(plan?.target ?? draft, migration),
-          ...(plan ? { expected_change_version: plan.version } : {}),
+          migration: migrationInput(),
+          ...(plan && action !== "restart" ? { expected_change_version: plan.version } : {}),
         }
         : action === "apply"
         ? { expected_change_version: plan!.version, analysis_id: plan!.analysis!.id }
@@ -386,7 +392,7 @@ export function useSchemaChangeEditor(
       setError(e instanceof Error ? e.message : "숫자를 확인하세요.");
       return;
     }
-    const path = action === "save" ? (plan ? `${base}/${plan.id}` : base) : `${base}/${plan!.id}/${action}`;
+    const path = action === "restart" ? base : action === "save" ? (plan ? `${base}/${plan.id}` : base) : `${base}/${plan!.id}/${action}`;
     try {
       await attempt.run(async () => {
         if (action === "analyze") {
@@ -407,10 +413,13 @@ export function useSchemaChangeEditor(
         if (!mounted.current) return;
         cancelPlanRead();
         setReadBusy(false);
-        if (action === "save") {
+        if (action === "save" || action === "restart") {
           applyPlan(value);
+          if (action === "restart") setRestartedFrom(plan!.id);
           setReviewTarget({ id: value.id, version: value.version });
-          setMessage("변경안을 저장했습니다. 자료에 미치는 영향을 확인합니다.");
+          setMessage(action === "restart"
+            ? "최신 기준으로 새 변경안을 만들었습니다. 기존 변경안은 이력에 유지됩니다."
+            : "변경안을 저장했습니다. 자료에 미치는 영향을 확인합니다.");
           onReviewed();
         } else if (action === "discard") {
           applyPlan(value);
@@ -427,6 +436,7 @@ export function useSchemaChangeEditor(
       if (mounted.current) {
         setError(plan?.recovery ? recoveryErrorMessage(e) : writeErrorMessage(e));
         if (e instanceof ApiError) {
+          if (e.code === "schema_plan_stale") setStaleInput(true);
           const field = e.fields.map(({ path }) => {
             const named = path.match(/(?:^|\.)(prop_[0-9]+)(?:\.|$)/)?.[1];
             if (named) return named;
@@ -456,6 +466,30 @@ export function useSchemaChangeEditor(
       void write("analyze");
     }
   }, [reviewTarget, busy, uncertain, dirty, plan?.id, plan?.version]);
+  const refreshPlan = async () => {
+    const selected = latestPlan.current;
+    if (!selected) return;
+    cancelPlanRead();
+    const controller = new AbortController(), epoch = planRead.current.epoch;
+    planRead.current.controller = controller;
+    const current = () => mounted.current && !controller.signal.aborted && epoch === planRead.current.epoch && latestPlan.current?.id === selected.id;
+    setPlanSyncNeeded(true);
+    setReadBusy(true);
+    try {
+      const fresh = await api<EntitySchemaChange>("GET", `${base}/${selected.id}`, undefined, controller.signal);
+      if (!current()) return;
+      if (protectedDraft.current.dirty || protectedDraft.current.busy || protectedDraft.current.uncertain) {
+        setPlan(fresh);
+        setAcceptedAnalysis(null);
+      } else applyPlan(fresh);
+      setPlanSyncNeeded(false);
+      setError("");
+    } catch (e) {
+      if (current()) setError(e instanceof Error ? e.message : "변경안 상태를 다시 조회하세요.");
+    } finally {
+      if (current()) { planRead.current.controller = null; setReadBusy(false); }
+    }
+  };
   const loadPlan = async (id: string) => {
     if (protectedDraft.current.dirty || protectedDraft.current.busy || protectedDraft.current.uncertain) {
       setReadBusy(false);
@@ -522,8 +556,7 @@ export function useSchemaChangeEditor(
   };
   const setFieldInactive = (key: string, value: boolean) => {
     if (
-      !editable() || plan?.recovery || key === draft.display.representative ||
-      key.startsWith("new_")
+      !editable() || plan?.recovery || key === draft.display.representative
     ) return;
     if (value) {
       flag(key, "required", false);
@@ -532,7 +565,7 @@ export function useSchemaChangeEditor(
     flag(key, "archived", value);
   };
   const editOptionLabel = (key: string, code: string, label: string) => {
-    if (!editable() || plan?.recovery || key.startsWith("new_")) return;
+    if (!editable() || plan?.recovery) return;
     setDraft((d) => ({
       ...d,
       display: {
@@ -545,7 +578,7 @@ export function useSchemaChangeEditor(
     }));
   };
   const chooseRepresentative = (key: string) => {
-    if (editable() && !plan?.recovery && !key.startsWith("new_")) {
+    if (editable() && !plan?.recovery) {
       setDraft((d) => ({ ...d, display: { ...d.display, representative: key } }));
     }
   };
@@ -607,7 +640,7 @@ export function useSchemaChangeEditor(
   };
   const publish = () => {
     if (
-      editable() && !dirty && plan?.status === "ready" && plan.change_kind === "compatible" &&
+      editable() && !dirty && plan?.status === "ready" && (plan.change_kind === "compatible" || (!plan.recovery && plan.analysis?.total === 0)) &&
       plan.analysis?.failed === 0
     ) {
       return write("apply");
@@ -643,7 +676,7 @@ export function useSchemaChangeEditor(
     setReadBusy(true);
     try {
       await list();
-      if (mounted.current) setError("");
+      await refreshPlan();
     } catch (e) {
       if (mounted.current) {
         setError(e instanceof Error ? e.message : "조회 실패");
@@ -684,7 +717,6 @@ export function useSchemaChangeEditor(
   return {
     view: {
       draft,
-      unreservedFields: Object.keys(draft.schema.properties).filter((key) => key.startsWith("new_")),
       changedFields,
       changeCount,
       unsupportedNumericInputs: Object.entries(numericDrafts).filter(([address]) => {
@@ -705,6 +737,9 @@ export function useSchemaChangeEditor(
       readBusy,
       startState,
       analysisPending: acceptedAnalysis !== null,
+      restartedFrom,
+      staleInput,
+      planSyncNeeded,
       migrationEdited: JSON.stringify(migration) !== JSON.stringify(plan?.migration ?? { rules: [], overrides: [] }),
     },
     editField,
@@ -735,6 +770,11 @@ export function useSchemaChangeEditor(
     startNewChange,
     loadPlan,
     refreshDefinition,
+    refreshPlan,
+    restartReview: () => {
+      if (!editable() || plan?.recovery || planSyncNeeded) return;
+      if (validateFields()) return write("restart");
+    },
     refreshChanges,
     moreChanges,
     migrationStateChanged: startStateChange,

@@ -113,7 +113,7 @@ export function entityTypeTools(deps: EntityTypeDeps): ToolDef[] {
     {
       name: "create_entity_schema_change",
       description:
-        "자료 종류의 속성 변경 초안 저장. add_property client_ref를 prop_n으로 영구 예약. 제한된 편집만 지원, request_key 필수.",
+        "자료 종류의 속성 변경 초안 저장. add_property client_ref를 prop_n으로 영구 예약. 같은 edits의 set_display 및 migration key에서 new_<client_ref>로 새 항목의 순서·대표·목록·선택 이름을 지정 가능. 제한된 편집만 지원, request_key 필수.",
       input: schemaChangeCreate.extend({ type_id: z.string().uuid() }),
       readOnly: false,
       handler: (i, a) => {
@@ -151,7 +151,7 @@ export function entityTypeTools(deps: EntityTypeDeps): ToolDef[] {
     {
       name: "analyze_entity_schema_change",
       description:
-        "변경 버전과 전체 자료 snapshot을 고정해 비동기 영향 분석 접수. analysis.id는 분석 참조. GET으로 상태 확인, request_key 필수.",
+        "변경 버전과 전체 자료 snapshot을 고정해 영향 분석 접수. 자료 0개인 일반 변경은 즉시 분석 완료, 나머지는 비동기 처리. analysis.id는 분석 참조. GET으로 상태 확인, request_key 필수.",
       input: schemaChangeAction.extend({ type_id: z.string().uuid(), change_id: z.string().uuid() }),
       readOnly: false,
       handler: (i, a) => {
@@ -184,7 +184,7 @@ export function entityTypeTools(deps: EntityTypeDeps): ToolDef[] {
     {
       name: "apply_entity_schema_change",
       description:
-        "최신 성공 분석에 결속한 compatible 변경만 새 불변 버전으로 게시. 기존 자료는 다시 저장하지 않습니다. migration_required는 별도 값 변환 실행 필요.",
+        "최신 성공 분석에 결속한 compatible 변경만 새 불변 버전으로 게시. 기존 자료는 다시 저장하지 않습니다. migration_required라도 복구안이 아니며 최신 정확한 성공 분석의 대상이 0개면 직접 게시 가능. 그 외에는 별도 값 변환 실행 필요.",
       input: schemaChangeApply.extend({ type_id: z.string().uuid(), change_id: z.string().uuid() }),
       readOnly: false,
       handler: (i, a) => {

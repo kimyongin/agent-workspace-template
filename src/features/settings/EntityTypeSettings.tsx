@@ -206,7 +206,7 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
       }
     } catch (e) {
       if (mounted.current) {
-        const conflict = e instanceof ApiError && e.code === "conflict";
+        const conflict = e instanceof ApiError && (e.code === "conflict" || e.code === "schema_changed");
         definitions.conflict(conflict);
         setError(
           conflict ? `${e.message} 최신 기본 정보를 확인하고 입력을 비교한 뒤 다시 저장하세요.` : writeErrorMessage(e),
