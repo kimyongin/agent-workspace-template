@@ -350,8 +350,16 @@ export class SqlSchemaChangeStore implements SchemaChangeStore {
         .tx`select coalesce(sum(octet_length(properties::text)+octet_length(recovery_properties::text)),0) as bytes from private.entity_schema_analysis_rows where analysis_id=${a.id}`;
       if (Number(size.bytes) > 8388608) throw invalidInput("복구 분석 원본은 8 MiB 이하에서 실행할 수 있습니다");
     }
+    const empty = Number(a.captured) === 0 && !row.recovery_source_job_id;
+    if (empty) {
+      // The type lock and captured membership make this an exact empty snapshot, not an estimate.
+      await this
+        .tx`update app.entity_schema_analyses set status='succeeded',processed=0,failed=0,lease_until=null where id=${a.id}`;
+    }
     await this
-      .tx`update app.entity_schema_changes set status='analyzing',analysis_id=${a.id},updated_at=now() where id=${id}`;
+      .tx`update app.entity_schema_changes set status=${
+      empty ? "ready" : "analyzing"
+    },analysis_id=${a.id},updated_at=now() where id=${id}`;
     return {
       type_id: typeId,
       change_id: id,

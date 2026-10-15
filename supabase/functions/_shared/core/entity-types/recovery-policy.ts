@@ -1,7 +1,7 @@
 import type { SchemaDefinition, SchemaDiff } from "../../contracts/entity-schema-change.ts";
 import type { EntitySchemaMigration } from "../../contracts/entity-schema-migration.ts";
 import { AppError, conflict } from "../shared/errors.ts";
-import { definitionFingerprint } from "./evolution.ts";
+import { definitionFingerprint, schemaDefinitionDiff } from "./evolution.ts";
 import { validateEntityDefinition } from "./schema-rules.ts";
 export type RecoveryEvidence = {
   status: EntitySchemaMigration["status"];
@@ -89,6 +89,7 @@ export async function recoveryProposal(
   target: SchemaDefinition,
   templates: string,
 ): Promise<RecoveryProposal> {
+  const diff = schemaDefinitionDiff(context.current, target);
   return {
     target,
     templates,
@@ -101,10 +102,10 @@ export async function recoveryProposal(
       committed_membership: context.committed_membership,
       committed_references: context.committed_references,
     }),
-    diff: [{
+    diff: diff.length ? diff : [{
       path: "recovery",
-      before: context.current,
-      after: target,
+      before: "현재 자료 값",
+      after: "보존된 원본 값",
       before_present: true,
       after_present: true,
       kind: "migration_required",
