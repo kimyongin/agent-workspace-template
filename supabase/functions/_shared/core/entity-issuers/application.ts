@@ -1,5 +1,6 @@
 import {
   assertIssuerCreation,
+  assertRegistryDeletion,
   assertRuleCreation,
   assertTypeIdentityUpdate,
   identifierRuleUpdateDecision,
@@ -14,9 +15,11 @@ import {
   type IdentifierRule,
   identifierRuleCreate,
   identifierRuleUpdate,
+  type IdentityDefaultType,
   issuerCode,
   issuerCreate,
   issuerUpdate,
+  registryDelete,
   typeIdentityUpdate,
 } from "../../contracts/entity-issuer.ts";
 import type { Actor } from "../shared/actor.ts";
@@ -30,7 +33,11 @@ export interface EntityIssuerStore extends RequestStore, EntityIdentityReadStore
   listIssuers(): Promise<EntityIssuer[]>;
   countIssuersForUpdate(): Promise<number>;
   lockIssuer(code: string): Promise<EntityIssuer | null>;
-  issuerIsDefault(code: string): Promise<boolean>;
+  defaultTypes(source: string, ruleId?: string): Promise<IdentityDefaultType[]>;
+  issuerHasDependencies(code: string): Promise<boolean>;
+  ruleHasDependencies(id: string): Promise<boolean>;
+  deleteIssuer(code: string): Promise<void>;
+  deleteRule(id: string): Promise<void>;
   countRules(source: string): Promise<number>;
   lockRule(id: string): Promise<IdentifierRule | null>;
   ruleUsage(id: string): Promise<RuleUsage>;
@@ -72,7 +79,7 @@ export function updateEntityIssuer(d: EntityIssuerDeps, a: Actor, code: string, 
   return runWrite(d.uow, a, "issuer.update", code, i, async (s) => {
     const current = await s.lockIssuer(code);
     if (!current) throw notFound();
-    const next = issuerUpdateDecision(current, i, await s.issuerIsDefault(code));
+    const next = issuerUpdateDecision(current, i, await s.defaultTypes(code));
     return s.updateIssuer(code, { ...next, expected_version: i.expected_version });
   });
 }
@@ -116,5 +123,28 @@ export function updateEntityTypeIdentity(d: EntityIssuerDeps, a: Actor, typeId: 
     if (!current) throw notFound();
     assertTypeIdentityUpdate(current, i, await s.identitySourceAvailability(i.sources));
     return s.updateTypeIdentity(typeId, i);
+  });
+}
+
+export function deleteEntityIssuer(d: EntityIssuerDeps, a: Actor, code: string, raw: unknown) {
+  code = parse(issuerCode, code);
+  const input = parse(registryDelete, raw);
+  return runWrite(d.uow, a, "issuer.delete", code, input, async (s) => {
+    const current = await s.lockIssuer(code);
+    if (!current) throw notFound();
+    assertRegistryDeletion(current, input.expected_version, current.system, await s.issuerHasDependencies(code));
+    await s.deleteIssuer(code);
+    return { deleted: true };
+  });
+}
+export function deleteIdentifierRule(d: EntityIssuerDeps, a: Actor, id: string, raw: unknown) {
+  id = parse(z.string().uuid(), id);
+  const input = parse(registryDelete, raw);
+  return runWrite(d.uow, a, "identifier-rule.delete", id, input, async (s) => {
+    const current = await s.lockRule(id);
+    if (!current) throw notFound();
+    assertRegistryDeletion(current, input.expected_version, current.source === "app", await s.ruleHasDependencies(id));
+    await s.deleteRule(id);
+    return { deleted: true };
   });
 }

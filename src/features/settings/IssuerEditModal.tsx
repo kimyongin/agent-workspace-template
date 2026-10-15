@@ -1,5 +1,12 @@
-import { useEffect, useRef, useState } from "react";
-import type { EntityIssuer, IdentifierRule } from "@contracts/entity-issuer.ts";
+import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  type EntityIssuer,
+  type IdentifierRule,
+  type IdentityDefaultType,
+  identityDefaultTypeField,
+} from "@contracts/entity-issuer.ts";
+import { BodyAction } from "../../components/BodyAction.tsx";
+import { DefaultIssuerRepair } from "./DefaultIssuerRepair.tsx";
 import { Field } from "../../components/Field.tsx";
 import { ConfirmDialog, ModalShell } from "../../components/Modal.tsx";
 import { ApiError } from "../../lib/api.ts";
@@ -14,9 +21,10 @@ export type RegistryEditTarget = { kind: "issuer"; issuer?: EntityIssuer } | {
   rule?: IdentifierRule;
 };
 export function IssuerEditModal(
-  { target, onClose, onSaved, onState }: {
+  { target, onClose, onSaved, onState, onDeleted }: {
     target: RegistryEditTarget;
     onClose: () => void;
+    onDeleted?: () => void;
     onSaved: (value: EntityIssuer | IdentifierRule) => void;
     onState?: (state: MaterialSectionState) => void;
   },
@@ -31,7 +39,47 @@ export function IssuerEditModal(
     [latest, setLatest] = useState<EntityIssuer | IdentifierRule | null>(null),
     [reading, setReading] = useState(false),
     [confirmDisable, setConfirmDisable] = useState(false);
-  const { attempt, busy, uncertain } = useWriteAttempt();
+  const saving = useWriteAttempt(), deleting = useWriteAttempt();
+  const { attempt } = saving;
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [blockedTypes, setBlockedTypes] = useState<IdentityDefaultType[]>([]);
+  const [repairing, setRepairing] = useState<IdentityDefaultType | null>(null);
+  const [repairState, setRepairState] = useState({ busy: false, uncertain: false });
+  const reportRepair = useCallback((busy: boolean, uncertain: boolean) => setRepairState({ busy, uncertain }), []);
+  const busy = saving.busy || deleting.busy || repairState.busy;
+  const uncertain = saving.uncertain || deleting.uncertain || repairState.uncertain;
+  const showFailure = (e: unknown) => {
+    const changed = e instanceof ApiError && e.code === "settings_changed";
+    setConflict(changed);
+    setError(changed ? `${e.message} 입력을 유지했습니다. 최신 저장값을 확인하세요.` : writeErrorMessage(e));
+    setBlockedTypes(
+      e instanceof ApiError
+        ? e.fields.filter((f) => f.path.startsWith(identityDefaultTypeField))
+          .map((f) => ({ type_id: f.path.slice(identityDefaultTypeField.length), label: f.message }))
+        : [],
+    );
+  };
+  const remove = async () => {
+    if (!baseline || busy || reading || conflict || !onDeleted) return;
+    setConfirmDelete(false);
+    setError("");
+    try {
+      await deleting.attempt.run(async () => {
+        if (target.kind === "issuer") {
+          await issuerRegistry.remove((baseline as EntityIssuer).code, baseline.version, deleting.attempt.requestKey());
+        } else {
+          await issuerRegistry.removeRule(
+            (baseline as IdentifierRule).id,
+            baseline.version,
+            deleting.attempt.requestKey(),
+          );
+        }
+        if (mounted.current) onDeleted();
+      });
+    } catch (e) {
+      if (mounted.current) showFailure(e);
+    }
+  };
   const mounted = useRef(true);
   useEffect(() => {
     mounted.current = true;
@@ -77,9 +125,7 @@ export function IssuerEditModal(
       });
     } catch (e) {
       if (!mounted.current) return;
-      const blocked = e instanceof ApiError && ["conflict", "settings_changed"].includes(e.code);
-      setConflict(blocked);
-      setError(blocked ? `${e.message} 입력을 유지했습니다. 최신 저장값을 확인하세요.` : writeErrorMessage(e));
+      showFailure(e);
     }
   };
   const readLatest = async () => {
@@ -124,11 +170,12 @@ export function IssuerEditModal(
             className="btn btn-primary"
             type="submit"
             form="registry-edit-form"
-            disabled={busy || reading || conflict || (!dirty && !uncertain)}
+            disabled={busy || reading || conflict || deleting.uncertain || repairState.uncertain ||
+              (!dirty && !uncertain)}
           >
-            {busy
+            {saving.busy
               ? "저장 중…"
-              : uncertain
+              : saving.uncertain
               ? "같은 요청 다시 확인"
               : target.kind === "issuer" && !baseline
               ? "저장하고 번호 추가"
@@ -150,6 +197,34 @@ export function IssuerEditModal(
           <p role="status" className="secondary">발급처를 저장했습니다.</p>
         )}
         {error && <p className="error-text" role="alert">{error}</p>}
+        {blockedTypes.length > 0 && (
+          <div className="settings-fields">
+            {blockedTypes.filter((type) => type.type_id !== repairing?.type_id).map((type) => (
+              <BodyAction
+                key={type.type_id}
+                disabled={busy || uncertain}
+                onClick={() => setRepairing(type)}
+              >
+                {type.label} 기본 발급처 변경
+              </BodyAction>
+            ))}
+            {repairing && (
+              <DefaultIssuerRepair
+                key={repairing.type_id}
+                type={repairing}
+                blockedSource={target.kind === "issuer" ? (baseline as EntityIssuer).code : target.source}
+                blockedRule={target.kind === "rule" ? target.rule?.id : undefined}
+                onState={reportRepair}
+                onSaved={() => {
+                  setBlockedTypes((current) => current.filter((t) => t.type_id !== repairing.type_id));
+                  setRepairing(null);
+                  setRepairState({ busy: false, uncertain: false });
+                  setError("");
+                }}
+              />
+            )}
+          </div>
+        )}
         {conflict && (
           <div className="settings-inline-actions">
             <button
@@ -172,6 +247,7 @@ export function IssuerEditModal(
                     setConflict(false);
                     setError("");
                     attempt.reset();
+                    deleting.attempt.reset();
                   }}
                 >
                   입력 유지하고 최신 버전 사용
@@ -198,7 +274,28 @@ export function IssuerEditModal(
             </label>
           )}
         </fieldset>
+        {baseline && onDeleted && (
+          <div className="settings-inline-actions">
+            <BodyAction
+              danger
+              disabled={busy || reading || conflict || saving.uncertain || repairState.uncertain}
+              onClick={() => deleting.uncertain ? void remove() : setConfirmDelete(true)}
+            >
+              {deleting.uncertain ? "삭제 결과 다시 확인" : target.kind === "issuer" ? "발급처 삭제" : "번호 종류 삭제"}
+            </BodyAction>
+          </div>
+        )}
       </form>
+      <ConfirmDialog
+        open={confirmDelete}
+        danger
+        title={target.kind === "issuer" ? "발급처를 삭제할까요?" : "번호 종류를 삭제할까요?"}
+        message={`${baseline?.label ?? "항목"}을 영구 삭제합니다. 연결되거나 사용된 항목은 삭제할 수 없습니다.`}
+        confirmLabel="삭제"
+        busy={busy}
+        onConfirm={() => void remove()}
+        onCancel={() => setConfirmDelete(false)}
+      />
       <ConfirmDialog
         open={confirmDisable}
         title="사용을 중지할까요?"

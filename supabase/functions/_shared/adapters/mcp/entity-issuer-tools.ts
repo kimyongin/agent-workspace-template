@@ -5,11 +5,14 @@ import {
   issuerCode,
   issuerCreate,
   issuerUpdate,
+  registryDelete,
   typeIdentityUpdate,
 } from "../../contracts/entity-issuer.ts";
 import {
   createEntityIssuer,
   createIdentifierRule,
+  deleteEntityIssuer,
+  deleteIdentifierRule,
   type EntityIssuerDeps,
   getEntityTypeIdentity,
   listEntityIssuers,
@@ -21,6 +24,28 @@ import {
 import { keyedTool, type ToolDef } from "./tools.ts";
 export function entityIssuerTools(d: EntityIssuerDeps): ToolDef[] {
   const tools: ToolDef[] = [
+    {
+      name: "delete_entity_issuer",
+      description: "연결·번호 종류가 전혀 없는 오등록 발급처 삭제. 시스템 발급처·참조된 정의는 삭제 불가.",
+      input: registryDelete.extend({ code: issuerCode }),
+      destructive: true,
+      readOnly: false,
+      handler: (i, a) => {
+        const { code, ...raw } = i;
+        return deleteEntityIssuer(d, a, String(code), raw);
+      },
+    },
+    {
+      name: "delete_entity_identifier_rule",
+      description: "자료 종류에 연결되지 않은 완전 미사용 번호 종류 삭제. 시스템·연결된 번호 종류는 삭제 불가.",
+      input: registryDelete.extend({ rule_id: z.string().uuid() }),
+      destructive: true,
+      readOnly: false,
+      handler: (i, a) => {
+        const { rule_id, ...raw } = i;
+        return deleteIdentifierRule(d, a, String(rule_id), raw);
+      },
+    },
     {
       name: "list_entity_issuers",
       description: "현재 소유자의 발급처 코드·이름·활성 상태·버전 조회.",
