@@ -431,3 +431,46 @@ test("single-choice and record-action samples preserve keyboard meaning and hidd
   await expect(settings.getByLabel("저장할 변경", { exact: true })).toHaveCount(0);
   await expect(settings.getByLabel("메모 템플릿", { exact: true })).toHaveText("대상 액션");
 });
+
+test("filter sample keeps drafts until common apply and reuses the tag modal", async ({ page }, info) => {
+  await page.goto("/design-samples/index.html?screen=filters");
+  const list = page.getByRole("region", { name: "적용된 조건의 자료 목록", exact: true });
+  await expect(list.getByRole("heading")).toHaveText("자료 · 3개");
+  const apply = page.getByRole("button", { name: "필터 적용", exact: true });
+  await apply.click();
+  await expect(list.getByRole("heading")).toHaveText("자료 · 1개");
+  await expect(list).toContainText("월간 업무 보고서");
+  await page.getByLabel("조건 1 값", { exact: true }).fill("프로젝트");
+  await page.getByRole("button", { name: "조건 2 제거", exact: true }).click();
+  await expect(list).toContainText("월간 업무 보고서");
+  await apply.click();
+  await expect(list).toContainText("프로젝트 정리");
+  await page.getByRole("button", { name: "조건 초기화", exact: true }).click();
+  await expect(list.getByRole("heading")).toHaveText("자료 · 1개");
+  await apply.click();
+  await expect(list.getByRole("heading")).toHaveText("자료 · 3개");
+  await page.getByRole("button", { name: "태그 선택", exact: true }).click();
+  const chooser = page.getByRole("dialog", { name: "자료 태그 선택", exact: true });
+  await chooser.getByRole("checkbox", { name: "프로젝트", exact: true }).check();
+  await chooser.getByRole("button", { name: "선택 완료", exact: true }).click();
+  await expect(list.getByRole("heading")).toHaveText("자료 · 3개");
+  await apply.click();
+  await expect(list).toContainText("프로젝트 정리");
+  await expect(list.getByRole("heading")).toHaveText("자료 · 1개");
+  await page.getByRole("button", { name: "조건 초기화", exact: true }).click();
+  await apply.click();
+  await page.getByRole("button", { name: "속성 조건 추가", exact: true }).click();
+  await page.getByRole("button", { name: "속성 조건 추가", exact: true }).click();
+  for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
+    await page.setViewportSize({ width, height: 1000 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    for (const button of await page.getByRole("button", { name: /^조건 [12] 제거$/ }).all()) {
+      const box = (await button.boundingBox())!;
+      expect(box.width).toBeGreaterThanOrEqual(44);
+      expect(box.height).toBeGreaterThanOrEqual(44);
+    }
+    if (width === 390 || width === 1440) {
+      await page.screenshot({ path: info.outputPath(`filter-sample-${width}.png`), fullPage: true });
+    }
+  }
+});

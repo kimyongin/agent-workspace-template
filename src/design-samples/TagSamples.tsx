@@ -25,7 +25,13 @@ export function TagSamples() {
               const next = event.target.value;
               setMode(next);
               setSelected(
-                next === "excluded" ? [tags[0].id] : next === "unknown" ? ["unknown"] : ["loading", "failure", "busy"].includes(next) ? [tags[0].id] : [],
+                next === "excluded"
+                  ? [tags[0].id]
+                  : next === "unknown"
+                  ? ["unknown"]
+                  : ["loading", "failure", "busy"].includes(next)
+                  ? [tags[0].id]
+                  : [],
               );
             }}
           >

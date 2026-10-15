@@ -139,7 +139,16 @@ export function TagFilter(
       value={value ? [value] : []}
       onChange={(ids) => onChange(ids[0] ?? "")}
       maxSelected={1}
-      status={showFailure && failed ? <><Notice kind="error">태그 필터를 불러오지 못했습니다.</Notice><button type="button" className="btn" onClick={retry}>태그 다시 시도</button></> : !tags ? <p className="secondary" role="status">태그를 불러오는 중…</p> : undefined}
+      status={showFailure && failed
+        ? (
+          <>
+            <Notice kind="error">태그 필터를 불러오지 못했습니다.</Notice>
+            <button type="button" className="btn" onClick={retry}>태그 다시 시도</button>
+          </>
+        )
+        : !tags
+        ? <p className="secondary" role="status">태그를 불러오는 중…</p>
+        : undefined}
     />
   );
 }
