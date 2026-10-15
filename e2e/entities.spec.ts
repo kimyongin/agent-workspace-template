@@ -45,7 +45,12 @@ test("Entity 웹 CRUD·초안 보호→MCP parity·활동 연결→삭제 원문
     await page.getByText("검색 조건",{exact:false}).first().click(); await page.getByLabel("자료", { exact: true }).selectOption(id);
     await expect(page.locator(".list .item-title")).toHaveCount(1);
     expect(new URL(page.url()).searchParams.get("entity_id")).toBe(id);
+    const detailRead = page.waitForRequest(request => request.method() === "GET" &&
+      new URL(request.url()).pathname.endsWith(`/tasks/${task.id}`));
     await page.getByRole("link", { name: task.title, exact: true }).click();
+    const detailResponse = await (await detailRead).response();
+    expect(detailResponse?.status()).toBe(200);
+    await detailResponse!.finished();
     await closeDetail(page, task.title);
     await expect(page.getByRole("link", { name: task.title, exact: true })).toBeFocused();
     await page.reload();
@@ -119,7 +124,13 @@ test("엔터티 관련 기록 취소: 작성 URL·reload·메모와 변경 이�
       await expect(page).not.toHaveURL(/create=/);await expect(page).toHaveURL(/list=/);
       await expect(page.getByRole("button",{name:"기록 작성",exact:true})).toBeFocused();
     }
-    await page.reload();await expect(page.getByRole("heading",{name:entity.title,exact:true})).toBeVisible();
+    const reloaded = page.waitForRequest(request => request.method() === "GET" &&
+      new URL(request.url()).pathname.endsWith(`/entities/${encodeURIComponent(entity.id)}`));
+    await page.reload();
+    const read = await (await reloaded).response();
+    expect(read?.status()).toBe(200);
+    await read!.finished();
+    await expect(page.getByRole("heading",{name:entity.title,exact:true})).toBeVisible();
     await expect(page.getByRole("dialog",{name:"기록 작성",exact:true})).toHaveCount(0);
     expect((await mcp.call("get_entity",{id:entity.id})).version).toBe(1);
     expect((await mcp.call("list_records",{entity_id:entity.id,record_kind:"user"})).items).toEqual([]);
@@ -166,7 +177,12 @@ test("Entity 목록: 키워드/선택/정렬·추가 페이지·상세 복귀/�
     await expect(page.getByRole("button", { name: `${marker} 19`, exact: true })).toBeFocused();
     await mcp.call("delete_entity", { id: ids[19], expected_version: 1 });
     ids.splice(19, 1);
+    const reloaded = page.waitForRequest(request => request.method() === "GET" &&
+      new URL(request.url()).pathname.endsWith("/entities") && new URL(request.url()).searchParams.get("keyword") === marker);
     await page.reload();
+    const read = await (await reloaded).response();
+    expect(read?.status()).toBe(200);
+    await read!.finished();
     await expect(page.getByRole("heading", { name: (await scalarFixtureType(mcp)).label, level: 1, exact: true })).toBeFocused();
   } finally {
     // The serial owned fixture releases exactly these rows after all browser work ends.
