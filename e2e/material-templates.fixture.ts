@@ -356,6 +356,7 @@ test("기록 대상과 액션 전환은 초안을 보존하고 대상별 저장�
   await expect(form.getByLabel("메모 템플릿")).toHaveValue("수정 초안");
   await form.getByLabel("액션", { exact: true }).selectOption("create");
   await expect(form.getByLabel("메모 템플릿")).toHaveValue("할 일 초안");
+  await page.getByRole("button", { name: "설정 메뉴", exact: true }).click();
   await page.getByRole("navigation", { name: "설정 메뉴" }).getByRole("link", { name: "기본", exact: true }).click();
   await page.getByRole("dialog", { name: "변경을 버릴까요?" }).getByRole("button", { name: "취소", exact: true }).click();
   await expect(form.getByLabel("메모 템플릿")).toHaveValue("할 일 초안");

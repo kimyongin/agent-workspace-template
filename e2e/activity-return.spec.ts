@@ -1,8 +1,10 @@
-import { createFixtureEntity, scalarFixtureType, fixtureEntityList } from "./entity-schema-support.ts";
+import postgres from "postgres";
+import { generateDataId } from "../supabase/functions/_shared/contracts/data-id.ts";
+import { createFixtureEntity } from "./entity-schema-support.ts";
 import { fillChangeMemo } from "./ui-actions.ts";
 import { saveOnce, openDetailEditor, openListDetail, openTabFilters } from "./ui-actions.ts";
 import { expect } from "@playwright/test";
-import { test, devLogin, mcpClient, mcpTokenViaConsent, unique } from "./support.ts";
+import { test, devLogin, env, ownFixtureResult, mcpClient, mcpTokenViaConsent, unique } from "./support.ts";
 
 for (
   const [kind, path, label, editLabel] of [
@@ -14,7 +16,13 @@ for (
     // Native-dialog list restoration; retained desktop panels have their own workspace suite.
     if (!isMobile) await page.setViewportSize({width:1024,height:720});
     await devLogin(page);
-    const mcp = await mcpClient(await mcpTokenViaConsent(page));
+    const token = await mcpTokenViaConsent(page);
+    const mcp = await mcpClient(token);
+    // This token came from the real consent grant. Limit direct fixture preparation
+    // to that authenticated owner; assertions still exercise public API CRUD.
+    const owner = JSON.parse(Buffer.from(token.split(".")[1], "base64url").toString()).sub as string;
+    expect(owner).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+    const admin = postgres(env.LOCAL_DB_URL, { max: 1, onnotice: () => {} });
     const tag = await mcp.call("create_tag", { scope:kind, name: unique("활동 왕복").slice(0, 30) });
     const emptyTag = await mcp.call("create_tag", { scope:kind, name: unique("빈 활동 조건").slice(0, 30) });
     const entity = await createFixtureEntity(mcp, { prop_1: unique("활동 문맥"), prop_2: 0 });
@@ -29,9 +37,40 @@ for (
       });
       return item;
     };
+    // Filler rows establish pagination only. Clone the API-created target's real
+    // context in one transaction and register exact IDs before any insert can finish.
+    const seedPage = async (targetId: string, count: number, label: string) => {
+      const ids = Array.from({ length: count }, () => generateDataId());
+      for (const id of ids) ownFixtureResult(owner, path, id);
+      const prefix = unique(label);
+      await admin.begin(async sql => {
+        const inserted = kind === "task"
+          ? await sql`
+            insert into app.tasks (id,owner_id,kind,title,body,status,entity_ids,entity_context,created_at,updated_at)
+            select seed.id,source.owner_id,source.kind,${prefix} || ' ' || seed.n,
+              ${prefix} || ' ' || seed.n,source.status,source.entity_ids,source.entity_context,clock_timestamp(),clock_timestamp()
+            from app.tasks source cross join unnest(${ids}::text[]) with ordinality seed(id,n)
+            where source.owner_id=${owner} and source.id=${targetId}
+            returning id`
+          : await sql`
+            insert into app.records (id,owner_id,body,record_kind,entity_ids,entity_context,applied_principle_snapshots,occurred_at,created_at,updated_at)
+            select seed.id,source.owner_id,${prefix} || ' ' || seed.n,source.record_kind,
+              source.entity_ids,source.entity_context,source.applied_principle_snapshots,clock_timestamp(),clock_timestamp(),clock_timestamp()
+            from app.records source cross join unnest(${ids}::text[]) with ordinality seed(id,n)
+            where source.owner_id=${owner} and source.id=${targetId}
+            returning id`;
+        expect(inserted).toHaveLength(count);
+        if (kind === "task") await sql`
+          insert into app.task_tags (task_id,tag_id,owner_id)
+          select id,${tag.id},owner_id from app.tasks where owner_id=${owner} and id=any(${ids}::text[])`;
+        else await sql`
+          insert into app.record_tags (record_id,tag_id,owner_id)
+          select id,${tag.id},owner_id from app.records where owner_id=${owner} and id=any(${ids}::text[])`;
+      });
+    };
     try {
       const target = await create(title);
-      for (let i = 0; i < 41; i++) await create(unique("앞선 항목"));
+      await seedPage(target.id, 41, "앞선 항목");
       const listPath = `/${path}?tag_id=${tag.id}`;
       await page.goto(listPath);
       await expect(page.locator(`.${path} .list .item-title`)).toHaveCount(20);
@@ -121,7 +160,7 @@ for (
       const discard=page.getByRole("dialog",{name:"변경을 버릴까요?",exact:true});await discard.getByRole("button",{name:"취소",exact:true}).click();await expect(dialog.getByLabel("본문")).toHaveValue("닫기 취소 뒤 보존할 초안");
       expect((await mcp.call(`get_${kind}`,{id:target.id})).body).toBe(target.body);await dialog.getByLabel("본문").fill(target.body);await dialog.getByRole("button",{name:"닫기",exact:true}).click();
       await expect(link).toBeFocused();await openListDetail(page,await link.innerText());
-      for (let i = 0; i < 21; i++) await create(unique("상세 중 추가"));
+      await seedPage(target.id, 21, "상세 중 추가");
       await page.goBack();
       await expect(page.locator(`.${path} .list .item-title`)).toHaveCount(63);
       await expect(link).toBeFocused();
@@ -167,6 +206,7 @@ for (
     } finally {
       // The automatic owned fixture closes UI first and removes these exact IDs,
       // dependent change records and queue state after the business assertions.
+      await admin.end();
       await mcp.close();
     }
   });
