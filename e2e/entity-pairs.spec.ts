@@ -1,5 +1,5 @@
 import { expect } from "@playwright/test";
-import { test, devLogin, mcpClient, mcpTokenViaConsent, unique } from "./support.ts";
+import { devLogin, mcpClient, mcpTokenViaConsent, test, unique } from "./support.ts";
 import { discardEditor, fillChangeMemo } from "./ui-actions.ts";
 
 test("연결된 자료: 웹 추가→상대 상세→해제→새로고침과 편집 초안·메모·키보드 보존", async ({ page }) => {
@@ -35,7 +35,8 @@ test("연결된 자료: 웹 추가→상대 상세→해제→새로고침과 �
     await links.getByLabel("자료 종류", { exact: true }).selectOption(otherType.id);
     const search = links.getByRole("searchbox", { name: "자료 제목 검색", exact: true });
     await search.fill(y.title);
-    await expect(links.getByText(otherType.label, { exact: false }).last()).toBeVisible();
+    const results = links.getByRole("group", { name: "자료 검색 결과", exact: true });
+    await expect(results.getByText(otherType.label, { exact: false })).toBeVisible();
     await links.getByRole("button", { name: `${y.title} 연결`, exact: true }).click();
     const confirmation = page.locator("dialog.modal-action[open]:visible");
     const memo = confirmation.getByLabel("기록 메모", { exact: true });
