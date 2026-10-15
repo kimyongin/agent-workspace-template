@@ -628,3 +628,99 @@ test("알 수 없는 변수와 조합 입력은 임의 치환 없이 원문을 �
   await expect(form.getByText("사용할 수 없는 변수", { exact: false }).first()).toBeVisible();
   await expect(memo).toHaveText("$자료.이후.가격$ $없는변수$ $$엔터티.이후.prop_2$$");
 });
+
+test("속성 정의를 기다리거나 실패한 동안 변수·편집·저장을 막고 재조회로 초안을 복원한다", async ({ page }) => {
+  const raw = "$엔터티.이후.prop_1$ 보존";
+  const state = await settingsFixture(page, {
+    entity_types: { [materials.id]: { create: { memo: raw, tag_ids: [] } } },
+  });
+  let release: (() => void) | undefined;
+  let fail = true;
+  await page.route(`**/api/entity-types/${materials.id}/schema`, async (route) => {
+    if (fail) {
+      await new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      fail = false;
+      return route.fulfill({ status: 500, json: { code: "unavailable", message: "fixture read failed" } });
+    }
+    return route.fulfill({
+      json: { type: materials, type_id: materials.id, schema_version: 1, ...initialEntityDefinition("이름") },
+    });
+  });
+  const form = await openTyped(page);
+  await expect(form.getByRole("status").filter({ hasText: "속성 정의를 읽는 중…" })).toBeVisible();
+  await expect(form.getByRole("textbox", { name: "메모 템플릿", exact: true })).toHaveCount(0);
+  await expect(form).not.toContainText("prop_1");
+  await expect(form.getByLabel("변수 삽입")).toBeDisabled();
+  await expect(form.getByRole("button", { name: "기록 자동 완성 저장", exact: true })).toBeDisabled();
+  release!();
+  await expect(form.getByText("속성 정의를 읽지 못했습니다.", { exact: false })).toBeVisible();
+  await expect(form.getByRole("textbox", { name: "메모 템플릿", exact: true })).toHaveCount(0);
+  await form.getByRole("button", { name: "속성 정의 다시 조회", exact: true }).click();
+  const memo = form.getByRole("textbox", { name: "메모 템플릿", exact: true });
+  await expect(memo).toHaveText("이름 · 이후 보존");
+  await expect(form.getByLabel("변수 삽입")).toBeEnabled();
+  expect(state.writes).toHaveLength(0);
+  await memo.focus();
+  await memo.evaluate((el) => {
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    range.collapse(false);
+    window.getSelection()!.removeAllRanges();
+    window.getSelection()!.addRange(range);
+  });
+  await memo.press("!");
+  await form.getByRole("button", { name: "기록 자동 완성 저장", exact: true }).click();
+  expect(state.writes[0].body.value.entity_types[materials.id].create.memo).toBe(raw + "!");
+});
+
+test("실행 취소는 다른 액션과 대상의 보존한 초안을 바꾸지 않는다", async ({ page }) => {
+  const state = await settingsFixture(page, {
+    task: { create: { memo: "할 일 기준", tag_ids: [] } },
+    entity_types: {
+      [materials.id]: { create: { memo: "등록 기준", tag_ids: [] }, update: { memo: "수정 기준", tag_ids: [] } },
+      [products.id]: { create: { memo: "상품 기준", tag_ids: [] } },
+    },
+  });
+  const form = await openTyped(page), target = page.getByLabel("대상", { exact: true });
+  const memo = form.getByRole("textbox", { name: "메모 템플릿", exact: true });
+  await memo.fill("등록 초안");
+  await form.getByLabel("액션", { exact: true }).selectOption("update");
+  await memo.focus();
+  await memo.press("ControlOrMeta+z");
+  await expect(memo).toHaveText("수정 기준");
+  await form.getByLabel("액션", { exact: true }).selectOption("create");
+  await expect(memo).toHaveText("등록 초안");
+  await target.selectOption(`type:${products.id}`);
+  const productForm = page.getByRole("form", { name: "기록 자동 완성", exact: true });
+  const productMemo = productForm.getByRole("textbox", { name: "메모 템플릿", exact: true });
+  await productMemo.focus();
+  await productMemo.press("ControlOrMeta+z");
+  await expect(productMemo).toHaveText("상품 기준");
+  await target.selectOption(`type:${materials.id}`);
+  await expect(memo).toHaveText("등록 초안");
+  await target.selectOption("task");
+  const taskMemo = page.getByRole("form", { name: "기록 자동 완성", exact: true }).getByRole("textbox", {
+    name: "메모 템플릿",
+    exact: true,
+  });
+  await taskMemo.focus();
+  await taskMemo.press("ControlOrMeta+z");
+  await expect(taskMemo).toHaveText("할 일 기준");
+  await taskMemo.fill("문장 ");
+  await taskMemo.press("ControlOrMeta+b");
+  await taskMemo.pressSequentially("B");
+  await taskMemo.press("ControlOrMeta+i");
+  await taskMemo.pressSequentially("I");
+  await taskMemo.press("ControlOrMeta+u");
+  await taskMemo.pressSequentially("U");
+  await expect(taskMemo.locator("b,strong,i,em,u,font,[style]")).toHaveCount(0);
+  await page.getByRole("form", { name: "기록 자동 완성", exact: true }).getByRole("button", {
+    name: "기록 자동 완성 저장",
+    exact: true,
+  }).click();
+  expect(state.writes[0].body.value.task.create.memo).toBe("문장 BIU");
+  await target.selectOption(`type:${materials.id}`);
+  await expect(memo).toHaveText("등록 초안");
+});

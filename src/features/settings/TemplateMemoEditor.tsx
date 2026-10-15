@@ -41,6 +41,19 @@ export function TemplateMemoEditor({ value, variables, onChange, readOnly, disab
     label?.addEventListener("click", focus);
     return () => label?.removeEventListener("click", focus);
   }, [field.id, disabled]);
+  useEffect(() => {
+    const root = element.current;
+    const plainInput = (event: InputEvent) => {
+      if (
+        event.inputType.startsWith("format") ||
+        ["insertOrderedList", "insertUnorderedList", "insertLink"].includes(event.inputType)
+      ) {
+        event.preventDefault();
+      }
+    };
+    root?.addEventListener("beforeinput", plainInput);
+    return () => root?.removeEventListener("beforeinput", plainInput);
+  }, []);
   useLayoutEffect(() => {
     const root = element.current;
     if (!root || composing.current) return;
@@ -106,6 +119,11 @@ export function TemplateMemoEditor({ value, variables, onChange, readOnly, disab
       suppressContentEditableWarning
       onInput={changed}
       onDrop={(event) => event.preventDefault()}
+      onKeyDown={(event) => {
+        if ((event.metaKey || event.ctrlKey) && !event.altKey && ["b", "i", "u"].includes(event.key.toLowerCase())) {
+          event.preventDefault();
+        }
+      }}
       onBlur={remember}
       onCompositionStart={() => {
         composing.current = true;
