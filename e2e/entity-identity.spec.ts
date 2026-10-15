@@ -534,7 +534,9 @@ test("five settings workspaces retain real API selections and stay within the vi
       await expect(template).toBeVisible();
       await expect(template.getByLabel("액션", { exact: true })).toBeEnabled();
       await expect(template.getByLabel("메모 템플릿")).toHaveValue("$대상$ $액션$");
-      await expect(page.getByText("설정을 읽는 중…", { exact: true })).not.toBeVisible();
+      await expect(page.getByRole("status").filter({
+        hasText: /^(?:설정을 읽는 중|속성 정의를 읽는 중|태그를 불러오는 중)…$/,
+      })).toHaveCount(0);
     }
     if (title === "발급처 설정") {
       await page.getByLabel("발급처", { exact: true }).selectOption(fixtureSource);
