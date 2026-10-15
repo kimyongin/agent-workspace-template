@@ -889,14 +889,8 @@ textarea.input {
 .entity-type-picker { min-width: 0; display: grid; gap: var(--space-2); }
 .entity-type-picker .input { min-width: 0; max-width: 100%; }
 
-.entity-query-bar > :is(.entity-type-picker, a, .notice, p) { grid-column: 1 / -1; }
-
 /* A page name gets the remaining header width instead of shrinking to one character. */
 .panel-head > .page-title { flex: 1 1 auto; min-width: 0; }
-.entity-query-bar > .entity-type-picker { grid-row: 1; }
-.entity-query-bar > .workspace-search { grid-column: 1; grid-row: 2; }
-.entity-query-bar .tab-filter-toolbar { grid-row: 2; }
-.filter-grid > .entity-property-conditions { grid-column: 1 / -1; }
 
 /* Choice labels retain compact inputs inside a complete touch target. */
 .choice-control { display: flex; align-items: center; gap: var(--space-2); min-height: 44px; min-width: 44px; width: fit-content; max-width: 100%; overflow-wrap: anywhere; cursor: pointer; }
