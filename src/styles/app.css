@@ -812,7 +812,7 @@ textarea.input {
 .auth-panel .actions { justify-content: flex-end; }
 .auth-panel .props { margin: 0; }
 .auth-panel .props dd { overflow-wrap: anywhere; }
-.guide-steps > li > .btn, .guide-steps > li > .actions { justify-self: start; }
+.guide-steps > li > .btn, .guide-steps > li > .body-action, .guide-steps > li > .actions { justify-self: start; }
 
 
 
