@@ -440,5 +440,5 @@ test("single-choice and record-action samples preserve keyboard meaning and hidd
   await expect(settings.getByLabel("저장할 변경", { exact: true })).toHaveText("변경: 등록 · 삭제");
   await settings.getByRole("button", { name: "취소", exact: true }).click();
   await expect(settings.getByLabel("저장할 변경", { exact: true })).toHaveCount(0);
-  await expect(settings.getByLabel("메모 템플릿", { exact: true })).toHaveValue("$대상$ $액션$");
+  await expect(settings.getByLabel("메모 템플릿", { exact: true })).toHaveText("대상 액션");
 });

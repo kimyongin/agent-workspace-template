@@ -14,7 +14,7 @@ const plan = (path: string): EntitySchemaChange => ({
 });
 test("removed property has an explicit removal picker while a removed constraint creates no ghost property", () => {
   const render = (path: string) => renderToStaticMarkup(<ConversionEditor plan={plan(path)} migration={{ rules: [], overrides: [] }} onChange={() => {}} disabled={false} />);
-  expect(render("properties.prop_2")).toContain('aria-label="prop_2 변환 방식"');
+  expect(render("properties.prop_2")).toContain('aria-label="삭제한 항목 변환 방식"');
   expect(render("properties.prop_2")).toContain('value="remove"');
-  expect(render("properties.prop_2.maximum")).not.toContain('aria-label="prop_2 변환 방식"');
+  expect(render("properties.prop_2.maximum")).not.toContain('aria-label="삭제한 항목 변환 방식"');
 });

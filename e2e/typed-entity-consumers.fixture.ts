@@ -166,7 +166,10 @@ test("template insertion uses selected type labels and immutable property keys",
   await expect(form.getByLabel("자료 종류", { exact: true })).toHaveCount(0);
   await form.getByLabel("액션", { exact: true }).selectOption("update");
   await form.getByLabel("변수 삽입", { exact: true }).selectOption("엔터티.이후.prop_2");
-  await expect(form.getByLabel("메모 템플릿", { exact: true })).toContainText("$엔터티.이후.prop_2$");
+  const memo = form.getByLabel("메모 템플릿", { exact: true });
+  await expect(memo).toContainText("수량 · 이후");
+  await expect(memo).not.toContainText("prop_");
+  await expect(memo.locator('[data-memo-token="$엔터티.이후.prop_2$"]')).toHaveText("수량 · 이후");
   await expect(form.getByLabel("변수 삽입", { exact: true }).locator('option[value="엔터티.이후.prop_2"]')).toHaveText(
     "수량 · 이후",
   );

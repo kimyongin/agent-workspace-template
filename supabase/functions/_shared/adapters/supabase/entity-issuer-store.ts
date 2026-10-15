@@ -39,10 +39,28 @@ export class SqlEntityIssuerStore implements EntityIssuerStore {
     const [row] = await this.tx`select * from app.entity_issuers where code=${code} for update`;
     return row ? issuer(row) : null;
   }
-  async issuerIsDefault(code: string) {
-    const [row] = await this
-      .tx`select exists(select 1 from app.entity_type_identity where default_source=${code}) as used`;
+  async defaultTypes(source: string, ruleId?: string) {
+    const rows = await this.tx`select t.id,t.label from app.entity_types t
+      join app.entity_type_identity i on i.owner_id=t.owner_id and i.type_id=t.id
+      join app.entity_type_identity_sources s on s.owner_id=i.owner_id and s.type_id=i.type_id and s.code=i.default_source
+      where s.code=${source} and (${ruleId ?? null}::uuid is null or s.rule_id=${ruleId ?? null}::uuid) order by t.id`;
+    return rows.map((row) => ({ type_id: row.id as string, label: row.label as string }));
+  }
+  async issuerHasDependencies(code: string) {
+    const [row] = await this.tx`select exists(select 1 from app.entity_identifier_rules where source=${code})
+      or exists(select 1 from app.entity_type_identity_sources where code=${code}) as used`;
     return row.used as boolean;
+  }
+  async ruleHasDependencies(id: string) {
+    const [row] = await this
+      .tx`select exists(select 1 from app.entity_type_identity_sources where rule_id=${id}::uuid) as used`;
+    return row.used as boolean;
+  }
+  async deleteIssuer(code: string) {
+    await this.tx`delete from app.entity_issuers where code=${code}`;
+  }
+  async deleteRule(id: string) {
+    await this.tx`delete from app.entity_identifier_rules where id=${id}::uuid`;
   }
   async countRules(source: string) {
     const [row] = await this.tx`select count(*)::int as count from app.entity_identifier_rules where source=${source}`;
@@ -55,9 +73,12 @@ export class SqlEntityIssuerStore implements EntityIssuerStore {
   }
   async ruleUsage(id: string) {
     const [row] = await this.tx`select
-      exists(select 1 from app.entity_type_identity_sources where rule_id=${id}::uuid and referenced) as referenced,
-      exists(select 1 from app.entity_type_identity i join app.entity_type_identity_sources s using(owner_id,type_id) where i.default_source=s.code and s.rule_id=${id}::uuid) as default_used`;
-    return { referenced: row.referenced as boolean, usedAsDefault: row.default_used as boolean };
+      exists(select 1 from app.entity_type_identity_sources where rule_id=${id}::uuid and referenced) as referenced`;
+    const [rule] = await this.tx`select source from app.entity_identifier_rules where id=${id}::uuid`;
+    return {
+      referenced: row.referenced as boolean,
+      defaultTypes: rule ? await this.defaultTypes(rule.source, id) : [],
+    };
   }
   async lockTypeIdentity(typeId: string) {
     await this.lockOwner();

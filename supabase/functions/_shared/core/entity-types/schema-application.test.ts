@@ -150,3 +150,35 @@ Deno.test("schema path compatibility, source version and active gate remain core
   assertEquals((await assertRejects(active.run) as { code: string }).code, "schema_migration_in_progress");
   assertEquals(active.saved, []);
 });
+
+Deno.test("an exact successful empty-material analysis can publish a structural change without a conversion job", async () => {
+  const f = await fixture("migration_required");
+  f.context.analysis!.total = 0;
+  const deps: EntityTypeDeps = {
+    uow: {
+      run: (_a, fn) =>
+        fn({
+          executeRequest: <T>(_r: unknown, run: () => Promise<T>) => run(),
+          loadSchemaApplication: () => Promise.resolve(f.context),
+          lockSchemaApplicationBindings: () => Promise.resolve({ templates: {}, recovery: null }),
+          saveSchemaPublication: (_c: SchemaApplicationContext, version: number) => Promise.resolve({ version }),
+        } as unknown as EntityTypeStore),
+    },
+  };
+  const actor = { userId: "owner", source: "http" as const, request: { key: crypto.randomUUID() } };
+  const publish = () =>
+    applyEntitySchemaChange(deps, actor, typeId, changeId, { expected_change_version: 1, analysis_id: analysisId });
+  assertEquals((await publish()).version, 2);
+  for (
+    const patch of [
+      { membership: "new-entity-inserted" },
+      { analysis: { ...f.context.analysis!, total: 1 } },
+      { change: { ...f.context.change, recovery_source_job_id: changeId } },
+    ]
+  ) {
+    const before = structuredClone(f.context);
+    Object.assign(f.context, patch);
+    await assertRejects(publish);
+    Object.assign(f.context, before);
+  }
+});

@@ -189,3 +189,55 @@ Deno.test("public schema change checks source before missing draft and preserves
     assertEquals((error as { code: string }).code, "conflict");
   }
 });
+
+Deno.test("public change resolves same-batch new field references in the user's display order", async () => {
+  const f = await fixture();
+  const input = {
+    ...f.input,
+    edits: [
+      { ...addition, field: { type: "string", title: "상태", enum: ["available"] } },
+      { ...addition, client_ref: "sku", field: { type: "string", title: "상품명", minLength: 1 }, required: true },
+      {
+        op: "set_display",
+        display: {
+          representative: "new_sku",
+          order: ["new_sku", "prop_1", "new_amount"],
+          list_columns: ["new_amount", "new_sku"],
+          archived: [],
+          option_labels: { new_amount: { available: "판매 중" } },
+        },
+      },
+    ],
+    migration: { rules: [{ op: "fill", key: "new_sku", value: "기본 상품명" }] },
+  };
+  const created = await createEntitySchemaChange(f.deps, actor, typeId, input);
+  assertEquals(created.target.display, {
+    representative: "prop_3",
+    order: ["prop_3", "prop_1", "prop_2"],
+    list_columns: ["prop_2", "prop_3"],
+    archived: [],
+    option_labels: { prop_2: { available: "판매 중" } },
+  });
+  assertEquals(created.migration.rules, [{ op: "fill", key: "prop_3", value: "기본 상품명", include_null: false }]);
+  const updated = await updateEntitySchemaChange(f.deps, actor, typeId, changeId, {
+    ...input,
+    expected_change_version: created.version,
+  });
+  assertEquals(updated, created);
+  const error = await assertRejects(() =>
+    createEntitySchemaChange(f.deps, actor, typeId, {
+      ...input,
+      edits: [{
+        op: "set_display",
+        display: {
+          representative: "new_missing",
+          order: ["prop_1"],
+          list_columns: [],
+          archived: [],
+          option_labels: {},
+        },
+      }],
+    })
+  );
+  assertEquals((error as { code: string }).code, "invalid_input");
+});

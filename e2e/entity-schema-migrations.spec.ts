@@ -116,7 +116,7 @@ test("값 변환 작업: MCP 접수→웹 취소→MCP 확정 상태·원본 유
   await devLogin(page);
   const mcp = await mcpClient(await mcpTokenViaConsent(page)),
     admin = postgres(env.LOCAL_DB_URL, { max: 1, onnotice: () => {} });
-  let typeId: string | undefined, entityId: string | undefined;
+  let typeId: string | undefined, entityId: string | undefined, restartedJobId: string | undefined;
   try {
     const type = await mcp.call("create_entity_type", { label: unique("취소 작업"), icon_id: "leaf" });
     typeId = type.id;
@@ -148,16 +148,57 @@ test("값 변환 작업: MCP 접수→웹 취소→MCP 확정 상태·원본 유
         analysis_id: ready.analysis.id,
         fingerprint: ready.fingerprint,
       });
-    await page.goto(`/settings/entity-types/${typeId}/migrations/${job.job_id}`);
+    await page.goto(`/settings/entity-types/${typeId}?job_id=${job.job_id}&change_id=${plan.id}`);
     await expect(page.getByRole("status").filter({ hasText: /^(접수|실행 중|완료|취소) · / })).toContainText("접수");
     await page.getByRole("button", { name: "변환 취소", exact: true }).click();
     await expect(page.getByRole("status").filter({ hasText: /^(접수|실행 중|완료|취소) · / })).toContainText("취소");
     expect((await mcp.call("get_entity_schema_migration", { job_id: job.job_id })).status).toBe("cancelled");
     expect((await mcp.call("get_entity", { id: entityId })).properties).toEqual({ prop_1: "原本" });
     expect((await mcp.call("get_entity_schema", { type_id: typeId })).schema_version).toBe(1);
+    const afterCancel = await mcp.call("get_entity_schema_change", { type_id: typeId, change_id: plan.id });
+    expect(afterCancel).toMatchObject({ status: "draft", analysis: null, executable: false });
+    const history = page.getByRole("region", { name: "변경 이력", exact: true });
+    await expect(history.getByRole("button", { name: "값 변환 시작", exact: true })).toHaveCount(0);
+    await expect(history.getByText("검토 완료", { exact: true })).toHaveCount(0);
+    const analysisResponse = page.waitForResponse(response =>
+      response.request().method() === "POST" && response.url().endsWith(`/schema-changes/${plan.id}/analyze`)
+    );
+    await history.getByRole("button", { name: "변경 검토", exact: true }).click();
+    const acceptedAnalysisResponse = await analysisResponse;
+    expect(acceptedAnalysisResponse.status()).toBe(202);
+    const nextAnalysis = await acceptedAnalysisResponse.json();
+    expect(nextAnalysis.analysis_id).not.toBe(ready.analysis.id);
+    await expect.poll(async () => {
+      await schemaAnalysisTick();
+      return (await mcp.call("get_entity_schema_change", { type_id: typeId, change_id: plan.id })).executable;
+    }, { timeout: 30000 }).toBe(true);
+    await expect(history.getByRole("button", { name: "값 변환 시작", exact: true })).toBeEnabled();
+    const restartResponse = page.waitForResponse(response =>
+      response.request().method() === "POST" && response.url().endsWith(`/schema-changes/${plan.id}/migrations`)
+    );
+    await history.getByRole("button", { name: "값 변환 시작", exact: true }).click();
+    const restartedResponse = await restartResponse;
+    expect(restartedResponse.status()).toBe(202);
+    const restarted = await restartedResponse.json();
+    restartedJobId = restarted.job_id;
+    expect(restarted.job_id).not.toBe(job.job_id);
+    expect(restarted.analysis_id).toBe(nextAnalysis.analysis_id);
+    await expect(page).toHaveURL(new RegExp(`job_id=${restarted.job_id}(?:&|$)`));
+    const cancelledAgain = await mcp.call("cancel_entity_schema_migration", {
+      job_id: restarted.job_id, expected_job_version: restarted.job_version,
+    });
+    expect(cancelledAgain.status).toBe("cancelled");
+    expect((await mcp.call("get_entity", { id: entityId })).properties).toEqual({ prop_1: "原本" });
+    expect((await mcp.call("get_entity_schema", { type_id: typeId })).schema_version).toBe(1);
     await page.reload();
     await expect(page.getByRole("status").filter({ hasText: /^(접수|실행 중|완료|취소) · / })).toContainText("취소");
   } finally {
+    if (restartedJobId) {
+      const remaining = await mcp.call("get_entity_schema_migration", { job_id: restartedJobId });
+      if (["queued", "preparing", "ready_to_commit"].includes(remaining.status)) {
+        await mcp.call("cancel_entity_schema_migration", { job_id: restartedJobId, expected_job_version: remaining.version });
+      }
+    }
     await mcp.close();
     if (entityId) await admin`delete from app.records where entity_ids@>array[${entityId}]`;
     if (entityId) await admin`delete from app.entities where id=${entityId}`;

@@ -23,7 +23,7 @@ import { AppError, conflict, invalidInput } from "../shared/errors.ts";
 import { runWrite } from "../shared/request.ts";
 import type { RecordTemplates } from "../../contracts/record-template.ts";
 import type { SchemaDefinition, SchemaEdit } from "../../contracts/entity-schema-change.ts";
-import { canonical, definitionFingerprint, resolveSchemaEdits } from "./evolution.ts";
+import { canonical, definitionFingerprint, resolvePropertyReference, resolveSchemaEdits } from "./evolution.ts";
 import { compileMigration } from "./conversions.ts";
 import { assertSchemaTemplateReferences, effectiveEntityTemplateFingerprint } from "./template-references.ts";
 
@@ -146,15 +146,25 @@ async function prepareSchemaChange(
   }
   const reservations = await s.reserveSchemaChangeProperties(typeId, input.edits, previous?.reservations ?? {});
   const resolved = resolveSchemaEdits(context.definition, input.edits, reservations);
-  for (const rule of input.migration.rules) {
+  const migration = {
+    rules: input.migration.rules.map((rule) => ({
+      ...rule,
+      key: resolvePropertyReference(rule.key, input.edits, reservations),
+    })),
+    overrides: input.migration.overrides.map((override) => ({
+      ...override,
+      key: resolvePropertyReference(override.key, input.edits, reservations),
+    })),
+  };
+  for (const rule of migration.rules) {
     if (rule.op === "remove" && !input.edits.some((e) => e.op === "remove_property" && e.key === rule.key)) {
       throw invalidInput("속성 제거 편집과 같은 키의 명시 제거만 지원합니다");
     }
   }
   const templates = await s.lockSchemaChangeBindings(typeId, [
-    ...new Set(input.migration.overrides.map((o) => o.entity_id)),
+    ...new Set(migration.overrides.map((o) => o.entity_id)),
   ]);
-  compileMigration(resolved.target, input.migration);
+  compileMigration(resolved.target, migration);
   const kind = input.migration.rules.length || input.migration.overrides.length ? "migration_required" : resolved.kind;
   const templateVersion = await effectiveEntityTemplateFingerprint(templates, typeId);
   if (previous && templateVersion !== previous.source_template_fingerprint) {
@@ -163,7 +173,7 @@ async function prepareSchemaChange(
   assertSchemaTemplateReferences(resolved.target, templates, typeId);
   if (
     previous && canonical(input.edits) === canonical(previous.edits) &&
-    canonical(input.migration) === canonical(previous.migration)
+    canonical(migration) === canonical(previous.migration)
   ) {
     return s.getChange(typeId, previous.id);
   }
@@ -173,12 +183,13 @@ async function prepareSchemaChange(
     source_schema_version: t.schema_version,
     source_template_fingerprint: templateVersion,
     edits: input.edits,
-    migration: input.migration,
+    migration,
     reservations,
     target: resolved.target,
   });
   return s.saveSchemaChangeDraft(context, {
     ...input,
+    migration,
     source_template_fingerprint: templateVersion,
     reservations,
     ...resolved,

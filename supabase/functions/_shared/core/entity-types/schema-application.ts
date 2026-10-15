@@ -94,7 +94,10 @@ export function assertSchemaApplicationReady(
   analysisId: string,
 ) {
   const { change, analysis } = context;
-  if (change.kind !== path) {
+  // A zero-row analysis is still bound to the current membership, versions and templates.
+  // Recovery always follows its durable source-retention path.
+  const emptyPublication = path === "compatible" && analysis?.total === 0 && !change.recovery_source_job_id;
+  if (change.kind !== path && !emptyPublication) {
     if (path === "migration_required") throw invalidInput("호환 가능한 변경은 새 버전 게시를 사용하세요");
     throw new AppError(
       "schema_migration_required",

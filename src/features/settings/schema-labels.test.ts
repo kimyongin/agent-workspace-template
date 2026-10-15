@@ -20,3 +20,9 @@ it("review translates enum codes using the definition belonging to that side of 
   expect(schemaDiffValueLabel("properties.prop_2.default", "unknown", definition)).toBe("unknown");
   expect(schemaDiffValueLabel("properties.prop_2.title", "ready", definition)).toBe("ready");
 });
+
+it("review names each changed choice dictionary rather than generic settings", () => {
+  const definition = initialEntityDefinition("재료명");
+  definition.schema.properties.prop_2 = { type: "string", title: "단위", enum: ["kg", "g"] };
+  expect(schemaDiffValueLabel("display.option_labels", { prop_2: { kg: "킬로그램", g: "그램" } }, definition)).toBe("단위: 킬로그램, 그램");
+});

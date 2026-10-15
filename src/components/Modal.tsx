@@ -107,10 +107,7 @@ function ActiveModalShell({ title, description, domain, headingLevel=2, open, on
   const actionRef = useRef<SurfaceAction | null>(null);
   const registerAction = useCallback((value: SurfaceAction | null) => { actionRef.current=value; setAction(value); }, []);
   const actionOpen = !!action;
-  const actionFocus = useRef<HTMLElement | null>(null);
-  useLayoutEffect(() => {
-    if (actionOpen) actionFocus.current = document.activeElement as HTMLElement;
-  }, [actionOpen]);
+  const retainedFocus = useRef<HTMLElement | null>(null);
   const docked = !!tab?.docked;
   // Reopening the parent would lift it above its confirmation. Defer only its native mode switch.
   const nativeDocked = useRef(docked);
@@ -152,7 +149,7 @@ function ActiveModalShell({ title, description, domain, headingLevel=2, open, on
       returnFocus.current = document.activeElement;
       if (dialogDocked) d.show(); else d.showModal();
       (d.querySelector<HTMLElement>("form [aria-invalid='true']") ??
-        (actionFocus.current?.isConnected ? actionFocus.current : null) ??
+        (retainedFocus.current?.isConnected ? retainedFocus.current : null) ??
         d.querySelector<HTMLElement>("form input, form textarea, form select") ??
         d.querySelector<HTMLElement>(".dialog-title"))?.focus();
     } else if ((!open || !active) && d.open) {
@@ -161,12 +158,14 @@ function ActiveModalShell({ title, description, domain, headingLevel=2, open, on
     }
     return () => {
       if (d.open) {
+        // Native mode changes close/reopen the same surface. Keep its current control,
+        // including the confirmation origin restored before a delayed resize commits.
+        retainedFocus.current = d.contains(document.activeElement) ? document.activeElement as HTMLElement : null;
         d.close();
         if (!tab) (returnFocus.current as HTMLElement | null)?.focus?.();
       }
     };
   }, [open, active, dialogDocked]);
-  useEffect(() => { if (!actionOpen) actionFocus.current = null; }, [actionOpen]);
 
   useEffect(() => {
     if (docked || !active) return;

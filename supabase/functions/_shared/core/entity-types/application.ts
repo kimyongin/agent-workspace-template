@@ -125,3 +125,13 @@ export function entityTypeUpdateDecision(
     ? null
     : next;
 }
+
+/** Prospective active-name policy; unchanged legacy duplicates remain editable. */
+export function assertEntityTypeLabelAvailable(duplicate: boolean): void {
+  if (duplicate) {
+    throw invalidInput("같은 이름의 자료 종류가 있습니다. 다른 이름을 입력하세요", [{
+      path: "label",
+      message: "사용 중인 이름입니다",
+    }]);
+  }
+}

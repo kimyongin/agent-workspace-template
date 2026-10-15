@@ -155,7 +155,6 @@ export function SchemaEditor(
   });
   const {
     draft,
-    unreservedFields,
     changedFields,
     changeCount,
     unsupportedNumericInputs,
@@ -172,6 +171,9 @@ export function SchemaEditor(
     readBusy,
     startState,
     analysisPending,
+    restartedFrom,
+    staleInput,
+    planSyncNeeded,
   } = editor.view;
   const {
     editField,
@@ -195,6 +197,15 @@ export function SchemaEditor(
       setSelectedJobOpen(true);
     }
   }, [selectedJob]);
+  const refreshedJobs = useRef(new Set<string>());
+  useEffect(() => {
+    if (!plan) return;
+    const terminal = jobs.items.find((job) => job.change_id === plan.id && !migrationActive(job) &&
+      !refreshedJobs.current.has(`${job.id}:${job.version}`));
+    if (!terminal) return;
+    refreshedJobs.current.add(`${terminal.id}:${terminal.version}`);
+    void editor.refreshPlan();
+  }, [jobs.items, plan?.id]);
   const historyRows = schemaHistoryRows(
     jobs.selectedChange && !changes.some((c) => c.id === jobs.selectedChange!.id)
       ? [...changes, jobs.selectedChange]
@@ -206,6 +217,7 @@ export function SchemaEditor(
   );
   const activeJob = jobs.items.find(migrationActive);
   const reviewSaved = propertiesOpen && plan?.status === "invalid" && plan.analysis?.status === "succeeded";
+  const emptyPublication = !!plan && !plan.recovery && plan.analysis?.status === "succeeded" && plan.analysis.total === 0;
   const analysisNeeded = plan && !dirty && !["analyzing", "applied", "cancelled", "stale"].includes(plan.status) &&
     (!plan.analysis || plan.analysis.status === "failed");
   const openEditing = () => {
@@ -468,7 +480,6 @@ export function SchemaEditor(
                                         {...props}
                                         className="input"
                                         maxLength={80}
-                                        disabled={unreservedFields.includes(key)}
                                         value={optionLabel(
                                           draft.display.option_labels[key],
                                           code!,
@@ -517,9 +528,6 @@ export function SchemaEditor(
                               <p className="secondary">
                                 선택 항목을 제거하면 기존 자료의 해당 값을 검토해야 합니다.
                               </p>
-                              {unreservedFields.includes(key) && (
-                                <p className="secondary">새 속성의 표시 이름은 변경 검토 후 편집할 수 있습니다.</p>
-                              )}
                             </div>
                           )}
                           <SchemaRepresentativeSetting
@@ -555,8 +563,7 @@ export function SchemaEditor(
                                   type="checkbox"
                                   aria-label={`${f.title || "새 항목"} 목록에 표시`}
                                   checked={draft.display.list_columns.includes(key)}
-                                  disabled={unreservedFields.includes(key) ||
-                                    draft.display.archived.includes(key)}
+                                  disabled={draft.display.archived.includes(key)}
                                   onChange={(event) =>
                                     editFlag(
                                       key,
@@ -566,11 +573,6 @@ export function SchemaEditor(
                                 />{" "}
                                 목록에 표시
                               </label>
-                              {unreservedFields.includes(key) && (
-                                <p className="secondary">
-                                  새 항목은 변경 검토 후 자료 이름과 목록 표시를 선택할 수 있습니다.
-                                </p>
-                              )}
 
                               <Field label="설명">
                                 {(p) => (
@@ -766,8 +768,7 @@ export function SchemaEditor(
                               <div className="schema-actions">
                                 <BodyAction
                                   type="button"
-                                  disabled={unreservedFields.includes(key) ||
-                                    key === draft.display.representative}
+                                  disabled={key === draft.display.representative}
                                   onClick={() =>
                                     editor.setFieldInactive(
                                       key,
@@ -895,7 +896,9 @@ export function SchemaEditor(
                     row.version?.schema_version;
               const transforming = row.jobs.some(migrationActive);
               const running = row.jobs.find(migrationActive);
-              const status = running
+              const status = planSyncNeeded && row.changeId === plan?.id
+                ? readBusy ? "상태 확인 중…" : "상태 확인 필요"
+                : running
                 ? `값 변환 중 · ${running.processed}/${running.total}`
                 : row.version
                 ? `버전 ${row.version.schema_version} · 적용됨`
@@ -1040,6 +1043,7 @@ export function SchemaEditor(
                           data-change-version={plan.version}
                         >
                           <h3 className="section-title" ref={reviewHeading} tabIndex={-1}>변경 검토</h3>
+                          {restartedFrom && <p role="status">최신 기준으로 만든 새 변경안입니다. 기존 변경안은 이력에 유지됩니다.</p>}
                           <p>버전 {plan.source_schema_version} → {plan.source_schema_version + 1}</p>
                           {!["applied", "cancelled"].includes(plan.status) && (
                             <p>
@@ -1092,11 +1096,12 @@ export function SchemaEditor(
                               </p>
                             </section>
                           )}
+                          {planSyncNeeded && <p role="status">{readBusy ? "최신 변경안 상태를 확인하는 중…" : "최신 변경안 상태를 다시 확인하세요."}</p>}
                           <SchemaChangeDiff
                             change={plan}
                             definition={definition}
                           />
-                          {plan.analysis && plan.status !== "cancelled" && (
+                          {!planSyncNeeded && plan.analysis && plan.status !== "cancelled" && (
                             <div
                               className="schema-analysis-status"
                               role="status"
@@ -1120,7 +1125,7 @@ export function SchemaEditor(
                               )}
                             </div>
                           )}
-                          {plan.analysis && plan.status !== "cancelled" && (
+                          {!planSyncNeeded && plan.analysis && plan.status !== "cancelled" && (
                             <details className="schema-result-details">
                               <summary>자료별 결과</summary>
                               <p>
@@ -1145,10 +1150,10 @@ export function SchemaEditor(
                               ))}
                             </details>
                           )}
-                          {plan.change_kind === "migration_required" ||
+                          {!planSyncNeeded && !emptyPublication && (plan.change_kind === "migration_required" ||
                               plan.recovery || migration.rules.length > 0 ||
                               migration.overrides.length > 0 ||
-                              (plan.analysis?.failed ?? 0) > 0
+                              (plan.analysis?.failed ?? 0) > 0)
                             ? (
                               <ConversionEditor
                                 key={plan.id}
@@ -1166,7 +1171,7 @@ export function SchemaEditor(
                               />
                             )
                             : null}
-                          {plan.analysis && plan.analysis.failed > 0 && (
+                          {!planSyncNeeded && plan.analysis && plan.analysis.failed > 0 && (
                             <p>
                               실패한 자료 값을 확인하여 직접 수정하거나 값 변환 변경을 준비한 뒤 다시 분석하세요. 실패가
                               있으면 게시할 수 없습니다.
@@ -1178,7 +1183,7 @@ export function SchemaEditor(
                               현재 자료와 활성 정의는 유지됩니다. 영향 분석 결과를 확인하고 값 변환 작업을 준비하세요.
                             </p>
                           )}
-                          {plan.analysis?.status === "failed" &&
+                          {!planSyncNeeded && plan.analysis?.status === "failed" &&
                             plan.status !== "cancelled" && (
                             <p role="alert" className="error-text">
                               분석 작업 실패: {plan.analysis.failure_reason}. 원본은 유지됩니다. 다시 분석하세요.
@@ -1214,14 +1219,16 @@ export function SchemaEditor(
                                 <>
                                   <button
                                     className="btn btn-danger"
-                                    disabled={busy || uncertain || dirty ||
+                                    disabled={busy || uncertain || dirty || readBusy || planSyncNeeded ||
                                       disabled || startState.busy ||
                                       startState.uncertain}
                                     onClick={() => setDiscardConfirm(true)}
                                   >
                                     폐기
                                   </button>
-                                  {uncertain && !dirty
+                                  {planSyncNeeded
+                                    ? <button className="btn btn-primary" disabled>{readBusy ? "상태 확인 중…" : "상태 확인 필요"}</button>
+                                    : uncertain
                                     ? (
                                       <button
                                         className="btn btn-primary"
@@ -1230,6 +1237,11 @@ export function SchemaEditor(
                                       >
                                         같은 요청 다시 확인
                                       </button>
+                                    )
+                                    : (staleInput || plan.status === "stale") && !plan.recovery
+                                    ? (
+                                      <button className="btn btn-primary" disabled={busy || uncertain || readBusy || disabled || planSyncNeeded}
+                                        onClick={() => void editor.restartReview()}>최신 기준으로 다시 검토</button>
                                     )
                                     : dirty
                                     ? (
@@ -1256,29 +1268,29 @@ export function SchemaEditor(
                                       <button
                                         className="btn btn-primary"
                                         disabled={busy || uncertain ||
-                                          disabled || readBusy}
+                                          disabled || readBusy || planSyncNeeded}
                                         onClick={() => void editor.analyze()}
                                       >
                                         {plan.analysis ? "검토 재시도" : "변경 검토"}
                                       </button>
                                     )
                                     : plan.change_kind ===
-                                          "migration_required" &&
+                                          "migration_required" && !emptyPublication &&
                                         plan.executable && !row.version
                                     ? (
                                       <MigrationStart
                                         plan={plan}
-                                        disabled={busy || uncertain || dirty ||
+                                        disabled={busy || uncertain || dirty || readBusy || planSyncNeeded ||
                                           disabled}
                                         onState={editor.migrationStateChanged}
                                       />
                                     )
-                                    : plan.change_kind === "compatible" &&
+                                    : (plan.change_kind === "compatible" || emptyPublication) &&
                                       plan.status !== "stale" && (
                                       <button
                                         className="btn btn-primary"
                                         disabled={busy || uncertain || dirty ||
-                                          disabled || readBusy ||
+                                          disabled || readBusy || planSyncNeeded ||
                                           plan.status !== "ready" ||
                                           plan.analysis?.failed !== 0}
                                         onClick={() => void editor.publish()}

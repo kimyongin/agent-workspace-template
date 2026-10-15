@@ -140,10 +140,10 @@ export function createLocalRuntimeAdapter(config) {
     const ids = inventory.output.trim().split('\n').filter(line => line.trim().split(' ')[1] === containerName).map(line => line.trim().split(' ')[0]);
     if (!ids.length) return null;
     if (ids.length !== 1 || !/^[a-f0-9]{64}$/.test(ids[0])) throw new Error('Ambiguous local runtime identity');
-    const inspected = await command('docker', ['inspect', '--format', '[{{json .Id}},{{json .Created}},{{json .Mounts}},{{json .State.Running}}]', ids[0]]);
+    const inspected = await command('docker', ['inspect', '--format', '[{{json .Id}},{{json .Created}},{{json .Mounts}},{{json .State.Running}},{{json .State.Status}}]', ids[0]]);
     if (inspected.code !== 0 || inspected.oversized) throw new Error('Cannot inspect local runtime identity');
-    const [id, created, mounts, running] = JSON.parse(inspected.output);
-    if (id !== ids[0] || !Number.isFinite(Date.parse(created)) || !Array.isArray(mounts) || typeof running !== 'boolean') throw new Error('Invalid local runtime metadata');
+    const [id, created, mounts, running, status] = JSON.parse(inspected.output);
+    if (id !== ids[0] || !Number.isFinite(Date.parse(created)) || !Array.isArray(mounts) || typeof running !== 'boolean' || typeof status !== 'string') throw new Error('Invalid local runtime metadata');
     // CLI bind destinations vary across hosts; compare the real host source, not a guessed destination.
     const functions = mounts.filter(m => {
       try { return m.Type === 'bind' && realHostBindSource(m.Source) === source; }
@@ -154,7 +154,7 @@ export function createLocalRuntimeAdapter(config) {
     if (marker.code !== 0 || marker.oversized) throw new Error('Cannot inspect runtime ownership marker');
     const entries = marker.output.trim().split('\n').filter(Boolean);
     const ownershipToken = entries.length === 1 ? entries[0].trim().slice('WORKSPACE_RUNTIME_OWNER='.length) : null;
-    return { id, source: functions.length === 1 ? source : null, running, ownershipToken };
+    return { id, source: functions.length === 1 ? source : null, running, status, ownershipToken };
   }
 
   async function observe(signal) {
@@ -163,7 +163,7 @@ export function createLocalRuntimeAdapter(config) {
     try { status = (await fetch(api, { signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(2000)]) : AbortSignal.timeout(2000) })).status; }
     catch { if (signal?.aborted) throw new Error('Local observation interrupted'); }
     if (status === 401) return { state: 'ready', container: existing };
-    if (existing) return { state: existing.running ? 'starting' : 'failed', container: existing };
+    if (existing) return { state: existing.running || ['created', 'restarting'].includes(existing.status) ? 'starting' : 'failed', container: existing };
     if (status !== undefined && ![502, 503, 404].includes(status)) return { state: 'failed' };
     return { state: 'absent' };
   }
