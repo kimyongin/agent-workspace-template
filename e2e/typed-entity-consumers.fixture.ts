@@ -212,32 +212,100 @@ test("entity numeric draft rejects precision loss before preparing a record and 
   expect(prepared).toBe(0);
 });
 
-test("read-only representative default is visible and permits creation without a user value",async({page},testInfo)=>{
-  const definition=structuredClone(fixtureSchema);
-  Object.assign(definition.schema.properties.prop_1,{readOnly:true,default:"Auto"});
-  await page.route("**/api/entity-types/*/schema",route=>route.fulfill({json:definition}));
-  const preparedInputs:Record<string,unknown>[]=[],savedInputs:Record<string,unknown>[]=[];
-  await page.route("**/api/records/prepare",route=>{
-    const body=route.request().postDataJSON();preparedInputs.push(body.input);
-    return route.fulfill({json:{change_note:"등록",change_tag_ids:[],missing_tag_ids:[],settings_version:0,prepared_input:body.input}});
+test(
+  "read-only representative default is visible and permits creation without a user value",
+  async ({ page }, testInfo) => {
+    const definition = structuredClone(fixtureSchema);
+    Object.assign(definition.schema.properties.prop_1, { readOnly: true, default: "Auto" });
+    await page.route("**/api/entity-types/*/schema", (route) => route.fulfill({ json: definition }));
+    const preparedInputs: Record<string, unknown>[] = [], savedInputs: Record<string, unknown>[] = [];
+    await page.route("**/api/records/prepare", (route) => {
+      const body = route.request().postDataJSON();
+      preparedInputs.push(body.input);
+      return route.fulfill({
+        json: {
+          change_note: "등록",
+          change_tag_ids: [],
+          missing_tag_ids: [],
+          settings_version: 0,
+          prepared_input: body.input,
+        },
+      });
+    });
+    await page.route("**/api/entities", (route) => {
+      if (route.request().method() !== "POST") return route.fallback();
+      savedInputs.push(route.request().postDataJSON());
+      return route.fulfill({ json: entity(1, { prop_1: "Auto" }) });
+    });
+    await page.goto(`/entities?entity_type_id=${fixtureType.id}`);
+    await page.getByRole("button", { name: "검사 자료 추가", exact: true }).click();
+    const form = page.getByRole("dialog", { name: "검사 자료 추가", exact: true });
+    await expect(form.getByText("제목 · 읽기 전용: Auto", { exact: true })).toBeVisible();
+    await form.screenshot({ path: testInfo.outputPath("readonly-representative-default.png") });
+    await form.getByRole("button", { name: "저장", exact: true }).click();
+    await expect.poll(() => preparedInputs.length).toBe(1);
+    expect(preparedInputs[0].properties).not.toHaveProperty("prop_1");
+    const confirmation = page.locator("dialog.modal-action[open]");
+    await expect(confirmation).toContainText("Auto");
+    await confirmation.getByRole("button", { name: "등록하고 저장", exact: true }).click();
+    await expect.poll(() => savedInputs.length).toBe(1);
+    expect(savedInputs[0].properties).not.toHaveProperty("prop_1");
+    await expect(form).not.toBeVisible();
+  },
+);
+
+for (const serverDefault of [true, false]) {
+  test(`required nullable choice ${serverDefault ? "default" : "selection"} creates with explicit null and keeps choice labels`, async ({ page }) => {
+    const definition = structuredClone(fixtureSchema);
+    definition.schema.properties.prop_2 = {
+      type: ["string", "null"],
+      "x-order": 20,
+      title: "진행 상태",
+      oneOf: [{ const: "a", title: "진행" }, { const: null, title: "미정" }, { const: "null", title: "문자 코드" }],
+      ...(serverDefault ? { default: null } : {}),
+    };
+    definition.schema.required.push("prop_2");
+    await page.route("**/api/entity-types/*/schema", (route) => route.fulfill({ json: definition }));
+    const preparedInputs: Record<string, unknown>[] = [], savedInputs: Record<string, unknown>[] = [];
+    await page.route("**/api/records/prepare", (route) => {
+      const body = route.request().postDataJSON();
+      preparedInputs.push(body.input);
+      return route.fulfill({
+        json: {
+          change_note: "등록",
+          change_tag_ids: [],
+          missing_tag_ids: [],
+          settings_version: 0,
+          prepared_input: body.input,
+        },
+      });
+    });
+    await page.route("**/api/entities", (route) => {
+      if (route.request().method() !== "POST") return route.fallback();
+      savedInputs.push(route.request().postDataJSON());
+      return route.fulfill({ json: entity(1, { prop_1: "명시적 null", prop_2: null }) });
+    });
+    await page.goto(`/entities?entity_type_id=${fixtureType.id}`);
+    await page.getByRole("button", { name: "검사 자료 추가", exact: true }).click();
+    const form = page.getByRole("dialog", { name: "검사 자료 추가", exact: true });
+    await form.getByLabel("제목", { exact: false }).fill("명시적 null");
+    const status = form.getByLabel("진행 상태", { exact: false });
+    await expect(status.locator("option")).toHaveText(["미입력", "진행", "미정", "문자 코드"]);
+    await expect(status).toHaveValue(serverDefault ? "null" : "unset");
+    if (!serverDefault) {
+      await form.getByRole("button", { name: "저장", exact: true }).click();
+      await expect(status).toHaveAttribute("aria-invalid", "true");
+      expect(preparedInputs).toHaveLength(0);
+      await status.selectOption("value:null");
+      await expect(status.locator("option:checked")).toHaveText("문자 코드");
+      await status.selectOption("null");
+    }
+    await form.getByRole("button", { name: "저장", exact: true }).click();
+    await expect.poll(() => preparedInputs.length).toBe(1);
+    expect((preparedInputs[0].properties as Record<string, unknown>).prop_2).toBeNull();
+    await page.locator("dialog.modal-action[open]").getByRole("button", { name: "등록하고 저장", exact: true }).click();
+    await expect.poll(() => savedInputs.length).toBe(1);
+    expect((savedInputs[0].properties as Record<string, unknown>).prop_2).toBeNull();
+    await expect(form).not.toBeVisible();
   });
-  await page.route("**/api/entities",route=>{
-    if(route.request().method()!=="POST")return route.fallback();
-    savedInputs.push(route.request().postDataJSON());
-    return route.fulfill({json:entity(1,{prop_1:"Auto"})});
-  });
-  await page.goto(`/entities?entity_type_id=${fixtureType.id}`);
-  await page.getByRole("button",{name:"검사 자료 추가",exact:true}).click();
-  const form=page.getByRole("dialog",{name:"검사 자료 추가",exact:true});
-  await expect(form.getByText("제목 · 읽기 전용: Auto",{exact:true})).toBeVisible();
-  await form.screenshot({path:testInfo.outputPath("readonly-representative-default.png")});
-  await form.getByRole("button",{name:"저장",exact:true}).click();
-  await expect.poll(()=>preparedInputs.length).toBe(1);
-  expect(preparedInputs[0].properties).not.toHaveProperty("prop_1");
-  const confirmation=page.locator("dialog.modal-action[open]");
-  await expect(confirmation).toContainText("Auto");
-  await confirmation.getByRole("button",{name:"등록하고 저장",exact:true}).click();
-  await expect.poll(()=>savedInputs.length).toBe(1);
-  expect(savedInputs[0].properties).not.toHaveProperty("prop_1");
-  await expect(form).not.toBeVisible();
-});
+}

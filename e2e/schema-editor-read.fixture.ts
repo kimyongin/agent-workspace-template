@@ -583,19 +583,19 @@ test("새 행의 타입과 필수 설정은 단순하며 삭제 취소와 사용
     .toBeChecked();
 });
 
-test("자료 폼에서 빈 선택 값은 하나로 표시하고 null·0·false와 이전 정의를 보존한다", async ({ page }) => {
+test("자료 폼에서 미입력과 명시적 null을 구분하고 0·false와 이전 정의를 보존한다", async ({ page }) => {
   await page.goto("/e2e/fixtures/schema-editor-read.html?empty-inputs=1");
   const result = page.getByLabel("입력 결과", { exact: true });
   await expect(result).toContainText('"prop_2":"0"');
   await expect(result).toContainText('"prop_3":false');
   await page.getByLabel("숫자 입력", { exact: true }).fill("");
   await expect(result).toContainText('"prop_2":null');
-  await page.getByLabel("참거짓 입력", { exact: true }).selectOption("unset");
+  await page.getByLabel("참거짓 입력", { exact: true }).selectOption("null");
   await expect(result).toContainText('"prop_3":null');
-  await page.getByLabel("선택 입력", { exact: true }).selectOption("unset");
+  await page.getByLabel("선택 입력", { exact: true }).selectOption("null");
   await expect(result).toContainText('"prop_4":null');
   await expect(page.getByLabel("선택 입력").getByRole("option", { name: "미입력", exact: true })).toHaveCount(1);
-  await expect(page.getByRole("option", { name: "값 없음", exact: true })).toHaveCount(0);
+  await expect(page.getByLabel("선택 입력").getByRole("option", { name: "값 없음", exact: true })).toHaveCount(1);
   await page.getByLabel("이전 텍스트", { exact: true }).fill("");
   await expect(result).not.toContainText('"prop_5"');
   await page.getByLabel("이전 선택", { exact: true }).selectOption("unset");

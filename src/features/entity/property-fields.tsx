@@ -28,7 +28,7 @@ export function propertyValues(
   for (const [key, value] of Object.entries(values)) {
     const kind = fieldType(definition.schema.properties[key]);
     if (
-      definition.schema.required.includes(key) &&
+      schemaPresentation(definition).representative === key &&
       (value === null || value === "" ||
         typeof value === "string" && !value.trim())
     ) {
@@ -77,7 +77,7 @@ export function propertyValues(
 }
 export function displayedProperty(field: EntityField, value: unknown, labels: Record<string, string> = {}): string {
   if (value === undefined) return "미입력";
-  if (value === null) return "미입력";
+  if (value === null) return field.oneOf?.find((option) => option.const === null)?.title ?? "값 없음";
   if (typeof value === "boolean") return value ? "참" : "거짓";
   const choices = { ...fieldChoiceLabels(field), ...labels };
   return Object.hasOwn(choices, String(value)) ? choices[String(value)] : String(value);
@@ -122,13 +122,15 @@ export function PropertyFields(
                     <select
                       {...props}
                       className="input"
-                      value={value === undefined || value === null ? "unset" : `value:${String(value)}`}
+                      value={value === undefined ? "unset" : value === null ? "null" : `value:${String(value)}`}
                       onChange={(e) => {
                         const v = e.target.value;
                         set(
                           key,
                           v === "unset"
-                            ? nullable ? null : undefined
+                            ? undefined
+                            : v === "null"
+                            ? null
                             : fieldType(field) === "boolean"
                             ? v === "value:true"
                             : v.slice(6),
@@ -141,11 +143,15 @@ export function PropertyFields(
                           <>
                             <option value="value:true">참</option>
                             <option value="value:false">거짓</option>
+                            {nullable && <option value="null">값 없음</option>}
                           </>
                         )
-                        : fieldChoices(field)?.filter((code) => code !== null).map((code) => (
-                          <option key={code} value={`value:${code}`}>
-                            {schemaPresentation(definition).option_labels[key]?.[code!] ?? code}
+                        : field.oneOf?.map((option) => (
+                          <option
+                            key={option.const === null ? "null" : `value:${option.const}`}
+                            value={option.const === null ? "null" : `value:${option.const}`}
+                          >
+                            {displayedProperty(field, option.const, schemaPresentation(definition).option_labels[key])}
                           </option>
                         ))}
                     </select>

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
-import { PropertyFields, propertyValues } from "./property-fields.tsx";
+import { displayedProperty, PropertyFields, propertyValues } from "./property-fields.tsx";
 import { initialEntityDefinition } from "@contracts/entity-type.ts";
 describe("schema form public presentation", () => {
   it("renders labels and three boolean states while preserving zero", () => {
@@ -22,7 +22,7 @@ describe("schema form public presentation", () => {
     expect(html).toContain('value="0"');
   });
 });
-it("nullable single-select has one empty option, even for a stored null", () => {
+it("nullable single-select distinguishes omitted input from its stored null choice", () => {
   const definition = initialEntityDefinition("이름");
   definition.schema.properties.prop_2 = {
     "x-order": 40,
@@ -37,8 +37,8 @@ it("nullable single-select has one empty option, even for a stored null", () => 
       errors={{}}
     />,
   );
-  expect(html).not.toContain('value="null"');
-  expect(html).toContain('value="unset" selected=""');
+  expect(html).toContain('value="null" selected=""');
+  expect(html).toContain('value="unset"');
   expect(html).not.toContain("미입력으로 변경");
 });
 it("archived arbitrary stored text cannot resolve inherited option labels", () => {
@@ -146,4 +146,43 @@ it("read-only fields show their saved value without an editable input", () => {
   expect(html).toContain("고정 번호");
   expect(html).toContain("ABC");
   expect(html).not.toContain('value="ABC"');
+});
+
+it("keeps null branch labels and order distinct from the literal string null and missing input", () => {
+  const definition = initialEntityDefinition("이름");
+  const field = {
+    type: ["string", "null"] as ["string", "null"],
+    "x-order": 20,
+    title: "진행 상태",
+    oneOf: [{ const: "a", title: "진행" }, { const: null, title: "미정" }, { const: "null", title: "문자 코드" }],
+  };
+  definition.schema.properties.prop_2 = field;
+  expect(displayedProperty(field, null, { null: "문자 별칭" })).toBe("미정");
+  expect(displayedProperty(field, undefined)).toBe("미입력");
+  expect(displayedProperty(field, "null")).toBe("문자 코드");
+  const html = renderToStaticMarkup(
+    <PropertyFields
+      definition={definition}
+      values={{ prop_1: "이름", prop_2: null }}
+      onChange={() => {}}
+      errors={{}}
+    />,
+  );
+  expect(html).toContain('value="null" selected=""');
+  expect(html).toContain('value="value:null"');
+  expect(html.indexOf(">진행<")).toBeLessThan(html.indexOf(">미정<"));
+  expect(html.indexOf(">미정<")).toBeLessThan(html.indexOf(">문자 코드<"));
+});
+it("required means presence while nullable null and unconstrained empty strings remain valid", () => {
+  const definition = initialEntityDefinition("이름");
+  definition.schema.properties.prop_2 = { type: ["string", "null"], "x-order": 20, default: null };
+  definition.schema.properties.prop_3 = { type: "string", "x-order": 30 };
+  definition.schema.required.push("prop_2", "prop_3");
+  expect(propertyValues(definition, { prop_1: "이름", prop_2: null, prop_3: "" })).toEqual({
+    prop_1: "이름",
+    prop_2: null,
+    prop_3: "",
+  });
+  expect(propertyValues(definition, { prop_1: "이름", prop_2: null, prop_3: "  " }).prop_3).toBe("  ");
+  expect(() => propertyValues(definition, { prop_1: " ", prop_2: null, prop_3: "" })).toThrow();
 });
