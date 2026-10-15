@@ -197,7 +197,7 @@ test("미적용 입력 항목 변경안의 폐기 취소·확정은 현재 자�
     await confirm.getByRole("button", { name: "폐기", exact: true }).click();
     await expect.poll(async () =>
       (await mcp.call("get_entity_schema_change", { type_id: type.id, change_id: change.id })).status
-    ).toBe("discarded");
+    ).toBe("cancelled");
     const current = await mcp.call("get_entity", { id: entity.id });
     expect([current.version, current.schema_version, current.properties]).toEqual([
       entity.version,
@@ -208,6 +208,10 @@ test("미적용 입력 항목 변경안의 폐기 취소·확정은 현재 자�
     await page.reload();
     await expect(page.getByText("폐기됨", { exact: true }).first()).toBeVisible();
     await expect(page.getByRole("button", { name: "변경 적용", exact: true })).toHaveCount(0);
+    await page.getByRole("button", { name: "입력 항목", exact: true }).click();
+    await expect(page.getByRole("list", { name: "입력 항목 목록", exact: true }).getByRole("listitem"))
+      .toHaveCount(1);
+    await expect(page.getByRole("region", { name: "메모 속성", exact: true })).toHaveCount(0);
   } finally {
     await mcp.close();
   }
