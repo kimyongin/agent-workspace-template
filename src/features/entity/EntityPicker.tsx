@@ -1,5 +1,5 @@
 import { EntityTypeIcon } from "./EntityTypeIcon.tsx";
-import { entityIdentityLabel } from "@contracts/entity-identity.ts";
+import { entityIdentityLabel, splitEntityId } from "@contracts/entity-identity.ts";
 import { CollectionList } from "../../components/Collection.tsx";
 import { RelatedSection } from "../../components/RelatedItems.tsx";
 import { RelatedPreviewItem } from "../relations/RelatedPreviewItem.tsx";
@@ -127,17 +127,22 @@ export function EntityLinks(
 
 export function EntityLinkItem({ id, context = [] }: { id: string; context?: EntityContext[] }) {
   const capture = context.find((item) => item.id === id);
+  let number: string | undefined;
+  try {
+    number = splitEntityId(id).external_id;
+  } catch { /* A historical reference may not have the current key format. */ }
   return (
     <RelatedPreviewItem
       to={`/entities/${encodeURIComponent(id)}`}
       title={capture?.title ?? "연결된 자료"}
-      metadata={
-        <span>
-          {capture?.type && <EntityTypeIcon id={capture.type.icon_id} />}{" "}
-          {capture?.type ? `${capture.type.label} · 속성 버전 ${capture.schema_version ?? "—"} · ` : ""}
-          {id}
-        </span>
-      }
+      metadata={(capture?.type || number) &&
+        (
+          <span>
+            {capture?.type && <EntityTypeIcon id={capture.type.icon_id} />} {capture?.type?.label}
+            {capture?.type && number ? " · " : ""}
+            {number ? `번호 ${number}` : ""}
+          </span>
+        )}
       restoreKey={`linked-entity-${id}`}
     />
   );

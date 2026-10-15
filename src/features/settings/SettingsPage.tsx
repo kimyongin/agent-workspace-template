@@ -1,7 +1,7 @@
 import { NavigationSettings } from "./NavigationSettingsPage.tsx";
 import { SettingsHeading } from "./SettingsHeading.tsx";
 import { Field } from "../../components/Field.tsx";
-import { browserTimezone, timezoneOptions } from "../../lib/timezone.ts";
+import { TimezoneSelect } from "../../components/TimezoneSelect.tsx";
 import { useEffect, useRef, useState } from "react";
 import { useBlocker } from "react-router";
 import { ConfirmDialog } from "../../components/Modal.tsx";
@@ -205,18 +205,15 @@ function AccountSettings() {
   const date = (
     <Field label="표시 시간대">
       {(props) => (
-        <select
+        <TimezoneSelect
           {...props}
-          className="input"
+          deviceDefault
           value={draft.timezone ?? ""}
           onChange={(event) => {
             setDraft((value) => ({ ...value, timezone: event.target.value || null }));
             clearMessage("date");
           }}
-        >
-          <option value="">기기 시간대 사용 ({browserTimezone()})</option>
-          {timezoneOptions(draft.timezone).map((zone) => <option key={zone} value={zone}>{zone}</option>)}
-        </select>
+        />
       )}
     </Field>
   );

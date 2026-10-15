@@ -1,4 +1,9 @@
-import { readEntityListUrl, writeEntityListUrl, detailListLink, changeEntityListQuery } from "../../lib/entity-list-url.ts";
+import {
+  changeEntityListQuery,
+  detailListLink,
+  readEntityListUrl,
+  writeEntityListUrl,
+} from "../../lib/entity-list-url.ts";
 import { EntityTypeIcon } from "./EntityTypeIcon.tsx";
 import { useEffect, useState } from "react";
 import type { EntitySchemaResult } from "@contracts/entity-type.ts";
@@ -24,7 +29,7 @@ import { api, ApiError, query } from "../../lib/api.ts";
 import { EntityForm } from "./forms.tsx";
 import { GuideLink } from "../../components/GuideLink.tsx";
 import { TabCreateButton } from "../../components/TabCreateButton.tsx";
-import { BodyAction } from "../../components/BodyAction.tsx";
+import { BodyAction, BodyActionFace } from "../../components/BodyAction.tsx";
 
 export function EntitiesPage() {
   const create = useCreateMode();
@@ -80,14 +85,36 @@ export function EntitiesPage() {
         sort: filter.sort.startsWith("{") ? JSON.parse(filter.sort) : filter.sort,
       });
       if (parsed.success) {
-        const comparison = { eq: "", contains: " 포함", gt: " 초과", gte: " 이상", lt: " 미만", lte: " 이하", unset: "" };
+        const comparison = {
+          eq: "",
+          contains: " 포함",
+          gt: " 초과",
+          gte: " 이상",
+          lt: " 미만",
+          lte: " 이하",
+          unset: "",
+        };
         for (const condition of parsed.data.filters ?? []) {
           const field = schema.schema.properties[condition.key];
-          if (field) filterSummary.push(`${field.title ?? condition.key}${comparison[condition.operator]}: ${condition.operator === "unset" ? "미지정" : displayedProperty(field, condition.value, schema.display.option_labels[condition.key])}`);
+          if (field) {
+            filterSummary.push(
+              `${field.title ?? condition.key}${comparison[condition.operator]}: ${
+                condition.operator === "unset"
+                  ? "미지정"
+                  : displayedProperty(field, condition.value, schema.display.option_labels[condition.key])
+              }`,
+            );
+          }
         }
         if (typeof parsed.data.sort === "object") {
           const field = schema.schema.properties[parsed.data.sort.key];
-          if (field) filterSummary.push(`${field.title ?? parsed.data.sort.key}: ${parsed.data.sort.direction === "asc" ? "오름차순" : "내림차순"}`);
+          if (field) {
+            filterSummary.push(
+              `${field.title ?? parsed.data.sort.key}: ${
+                parsed.data.sort.direction === "asc" ? "오름차순" : "내림차순"
+              }`,
+            );
+          }
         } else if (parsed.data.sort === "title") filterSummary.push("이름순");
       }
     } catch { /* The list and condition editor report invalid input. */ }
@@ -97,11 +124,22 @@ export function EntitiesPage() {
   const schemaReady = !filter.entity_type_id || schema?.type_id === filter.entity_type_id;
   const invalidType = !!filter.entity_type_id && types !== null && !selectedType;
   const unsupported = ["prop3_from", "prop3_to", "prop4"].some((key) => params.has(key));
-  const key = query(filter), context = `${key}|${hash}|${urlFilters.error ?? ""}|${unsupported}|${schema?.schema_version ?? 0}`;
+  const key = query(filter),
+    context = `${key}|${hash}|${urlFilters.error ?? ""}|${unsupported}|${schema?.schema_version ?? 0}`;
   const hasConditions = !!(filter.keyword || filter.tag_id || filter.filters || filter.sort !== "updated_at");
   const creating = create.open;
   const list = usePagedList<EntitySummary, ListPage<EntitySummary>>({
-    scope: `${context}|${typeError ? "catalog_error" : types === null ? "catalog_loading" : invalidType ? "invalid" : !schemaReady ? "schema_loading" : "ready"}`,
+    scope: `${context}|${
+      typeError
+        ? "catalog_error"
+        : types === null
+        ? "catalog_loading"
+        : invalidType
+        ? "invalid"
+        : !schemaReady
+        ? "schema_loading"
+        : "ready"
+    }`,
     pages,
     anchor: anchorId("entities", urlFilters.anchor),
     anchorLookahead: 1,
@@ -166,7 +204,10 @@ export function EntitiesPage() {
     }
     next.delete("pages");
     next.delete("open");
-    navigate({ pathname: "/entities", ...(name === "entity_type_id" ? writeEntityListUrl(next, null) : changeEntityListQuery(next, params, hash)) }, { replace: name !== "entity_type_id" });
+    navigate({
+      pathname: "/entities",
+      ...(name === "entity_type_id" ? writeEntityListUrl(next, null) : changeEntityListQuery(next, params, hash)),
+    }, { replace: name !== "entity_type_id" });
   };
   return (
     <>
@@ -260,7 +301,20 @@ export function EntitiesPage() {
             />
             {!invalidType && !selectedType?.archived && types?.some((type) => !type.archived)
               ? <TabCreateButton label={`${selectedType?.label ?? "자료"} 추가`} onClick={create.begin} />
-              : <Link to="/settings/entity-types">자료 종류 만들기·보관 관리</Link>}
+              : types && !typeError && !invalidType && (
+                <Link
+                  className="body-action"
+                  to={selectedType?.archived
+                    ? `/settings/entity-types/${selectedType.id}`
+                    : types.length
+                    ? "/settings/materials"
+                    : "/settings/entity-types"}
+                >
+                  <BodyActionFace icon={types.length ? "view" : "create"}>
+                    {selectedType?.archived ? "종류 설정" : types.length ? "보관된 종류 관리" : "자료 종류 추가"}
+                  </BodyActionFace>
+                </Link>
+              )}
           </div>
           {error && (
             <>
@@ -282,17 +336,25 @@ export function EntitiesPage() {
             </>
           )}
           {!page && (busy || types === null && !typeError) && <p role="status" className="secondary">불러오는 중…</p>}
-          {page?.items.length === 0 && (
+          {page?.items.length === 0 && !error && (
             <>
               <p className="secondary">
                 {hasConditions ? "조건에 맞는 자료가 없습니다." : "아직 자료가 없습니다."}
               </p>
               {!hasConditions && <GuideLink />}
-              {hasConditions && <BodyAction icon="reset" onClick={() => {
-                const next = resetTabFilters(params);
-                next.delete("keyword");
-                navigate(`/entities?${next}`, { replace: true });
-              }}>필터 해제</BodyAction>}
+              {hasConditions && (
+                <BodyAction
+                  icon="reset"
+                  onClick={() => {
+                    const next = resetTabFilters(params);
+                    next.delete("keyword");
+                    navigate(`/entities?${next}`, { replace: true });
+                    document.querySelector<HTMLInputElement>(".workspace-search input")?.focus();
+                  }}
+                >
+                  검색 조건 해제
+                </BodyAction>
+              )}
             </>
           )}
           <TagReadProvider

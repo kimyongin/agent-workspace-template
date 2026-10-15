@@ -1,3 +1,4 @@
+import { TimezoneSelect } from "../components/TimezoneSelect.tsx";
 import { useRef, useState } from "react";
 import { BodyAction } from "../components/BodyAction.tsx";
 import { Field } from "../components/Field.tsx";
@@ -28,7 +29,15 @@ export function AccountSettingsSample({ standalone = false }: { standalone?: boo
   const field = (key: keyof typeof initial, label: string, choices?: string[]) => (
     <Field label={label}>
       {(props) =>
-        choices
+        key === "timezone"
+          ? (
+            <TimezoneSelect
+              {...props}
+              value={draft.timezone}
+              onChange={(event) => setDraft({ ...draft, timezone: event.target.value })}
+            />
+          )
+          : choices
           ? (
             <select
               {...props}
@@ -36,8 +45,7 @@ export function AccountSettingsSample({ standalone = false }: { standalone?: boo
               value={draft[key]}
               onChange={(event) => setDraft({ ...draft, [key]: event.target.value })}
             >
-              {choices.map((value) => <option key={value} value={value}>{value}{key === "timezone" ? "" : "%"}
-              </option>)}
+              {choices.map((value) => <option key={value} value={value}>{value}%</option>)}
             </select>
           )
           : (

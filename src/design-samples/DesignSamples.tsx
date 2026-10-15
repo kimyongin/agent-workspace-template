@@ -5,12 +5,15 @@ import { MaterialSettingsSection } from "../features/settings/MaterialSettingsSe
 import { MaterialWorkspaceSample } from "./PropertySamples.tsx";
 import { ModalSamples } from "./ModalSamples.tsx";
 import { TagSamples } from "./TagSamples.tsx";
+import { TimezoneSelect } from "../components/TimezoneSelect.tsx";
+import { RecordActionsSample } from "./RecordActionsSample.tsx";
 import { IssuerSettingsSample } from "./IssuerSettingsSample.tsx";
 import { AccountSettingsSample } from "./AccountSettingsSample.tsx";
 
 const topics = [
   ["settings", "기본 설정"],
   ["issuers", "발급처"],
+  ["record-actions", "기록 설정"],
   ["buttons", "버튼"],
   ["forms", "폼과 상태"],
   ["tags", "태그"],
@@ -107,6 +110,9 @@ function SamplesContent() {
       </section>
       <section id="issuers" className="samples-topic" aria-label="발급처 샘플">
         <IssuerSettingsSample />
+      </section>
+      <section id="record-actions" className="samples-topic" aria-label="기록 설정 샘플">
+        <RecordActionsSample />
       </section>
       <section id="buttons" className="samples-topic" aria-labelledby="buttons-title">
         <h2 id="buttons-title" className="page-title">버튼</h2>
@@ -255,6 +261,7 @@ function ButtonSamples() {
 }
 
 function FormSamples() {
+  const [frequency, setFrequency] = useState("매일"), [zone, setZone] = useState("Asia/Seoul");
   const [name, setName] = useState("");
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
@@ -284,6 +291,25 @@ function FormSamples() {
             placeholder="예: 유리컵"
           />
         )}
+      </Field>
+      <fieldset className="field plain-fieldset">
+        <legend className="label">반복 주기</legend>
+        <div className="chips">
+          {["매일", "매주", "매월"].map((value) => (
+            <label key={value} className="chip choice-chip">
+              <input
+                type="radio"
+                name="sample-frequency"
+                checked={frequency === value}
+                onChange={() => setFrequency(value)}
+              />
+              {value}
+            </label>
+          ))}
+        </div>
+      </fieldset>
+      <Field label="시간대">
+        {(props) => <TimezoneSelect {...props} value={zone} onChange={(event) => setZone(event.target.value)} />}
       </Field>
       <div className="samples-form-pair">
         <Field label="읽기 전용" help="내용을 읽고 복사할 수 있습니다.">

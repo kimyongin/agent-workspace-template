@@ -135,7 +135,7 @@ test("미설정과 null은 고정 문구를 표시하고 되돌리기는 다른 
   const variableBox = await form.getByLabel("변수 삽입").boundingBox();
   const memoBox = await form.getByLabel("메모 템플릿").boundingBox();
   expect(variableBox!.y + variableBox!.height).toBeLessThan(memoBox!.y);
-  await expect(form.getByRole("button", { name: "기록 기본값 저장", exact: true })).toBeDisabled();
+  await expect(form.getByRole("button", { name: "기록 자동 완성 저장", exact: true })).toBeDisabled();
   await page.screenshot({ path: info.outputPath("record-settings.png"), fullPage: true });
   await form.getByLabel("변수 삽입").selectOption("대상");
   await expect(form.getByLabel("메모 템플릿")).toBeFocused();
@@ -143,7 +143,7 @@ test("미설정과 null은 고정 문구를 표시하고 되돌리기는 다른 
   await form.getByRole("button", { name: "기본 문구로 되돌리기", exact: true }).click();
 
   await form.getByText("기록 전용", { exact: true }).click();
-  await form.getByRole("button", { name: "기록 기본값 저장", exact: true }).click();
+  await form.getByRole("button", { name: "기록 자동 완성 저장", exact: true }).click();
   await expect(form.getByRole("status")).toContainText("저장했습니다");
   expect(state.writes[0].body.value.entity_types[materials.id].create).toEqual({ memo: null, tag_ids: [tag.id] });
   await form.getByLabel("메모 템플릿").fill("종류 문구");
@@ -160,10 +160,10 @@ test("미설정과 null은 고정 문구를 표시하고 되돌리기는 다른 
     document.documentElement.style.fontSize = "";
   });
 
-  await form.getByRole("button", { name: "기록 기본값 저장", exact: true }).click();
+  await form.getByRole("button", { name: "기록 자동 완성 저장", exact: true }).click();
   await expect(form.getByRole("status")).toContainText("저장했습니다");
   await form.getByRole("button", { name: "기본 문구로 되돌리기", exact: true }).click();
-  await form.getByRole("button", { name: "기록 기본값 저장", exact: true }).click();
+  await form.getByRole("button", { name: "기록 자동 완성 저장", exact: true }).click();
   await expect(form.getByRole("status")).toContainText("저장했습니다");
   expect(state.writes[2].body.value.entity_types[materials.id].create).toEqual({ memo: null, tag_ids: [tag.id] });
   expect(state.writes[2].body.value.entity_types[products.id].create.memo).toBe("상품 유지");
@@ -181,13 +181,13 @@ test("종류 문구 저장 충돌은 초안을 보존하고 응답 유실은 같
   const form = await openTyped(page);
   await form.getByLabel("메모 템플릿").fill("충돌 초안");
   state.fail("conflict");
-  await form.getByRole("button", { name: "기록 기본값 저장", exact: true }).click();
+  await form.getByRole("button", { name: "기록 자동 완성 저장", exact: true }).click();
   await expect(form.getByLabel("메모 템플릿")).toHaveValue("충돌 초안");
   await form.getByRole("button", { name: "최신값 확인", exact: true }).click();
   await form.getByRole("button", { name: "최신값으로 다시 편집", exact: true }).click();
   await form.getByLabel("메모 템플릿").fill("유실 초안");
   state.fail("lost");
-  await form.getByRole("button", { name: "기록 기본값 저장", exact: true }).click();
+  await form.getByRole("button", { name: "기록 자동 완성 저장", exact: true }).click();
   await form.getByRole("button", { name: "같은 내용 다시 시도", exact: true }).click();
   await expect(form.getByRole("status")).toContainText("저장했습니다");
   expect(state.writes[2]).toEqual(state.writes[1]);
@@ -323,7 +323,7 @@ test("공유 기록 설정은 본문 조회만 작은 버튼으로 표시하고 
   await expect(form).toBeVisible();
   await form.getByLabel("메모 템플릿").fill("기록 설정 버튼 검증");
   fixture.fail("conflict");
-  const save = form.getByRole("button", { name: "기록 기본값 저장", exact: true });
+  const save = form.getByRole("button", { name: "기록 자동 완성 저장", exact: true });
   await save.click();
   const reload = form.getByRole("button", { name: "최신값 확인", exact: true });
   await expect(reload).toBeVisible();
@@ -349,7 +349,7 @@ test("기록 대상과 액션 전환은 초안을 보존하고 대상별 저장�
   await form.getByLabel("메모 템플릿").fill("수정 초안");
   await target.selectOption(`type:${materials.id}`);
   await form.getByLabel("메모 템플릿").fill("재료 저장");
-  await form.getByRole("button", { name: "기록 기본값 저장", exact: true }).click();
+  await form.getByRole("button", { name: "기록 자동 완성 저장", exact: true }).click();
   await expect(form.getByRole("status")).toContainText("저장했습니다");
   expect(fixture.writes[0].body.value).not.toHaveProperty("task");
   await target.selectOption("task");
@@ -359,9 +359,39 @@ test("기록 대상과 액션 전환은 초안을 보존하고 대상별 저장�
   await expect(form.getByLabel("메모 템플릿")).toHaveValue("할 일 초안");
   await page.getByRole("button", { name: "설정 메뉴", exact: true }).click();
   await page.getByRole("navigation", { name: "설정 메뉴" }).getByRole("link", { name: "기본", exact: true }).click();
-  await page.getByRole("dialog", { name: "변경을 버릴까요?" }).getByRole("button", { name: "취소", exact: true }).click();
+  await page.getByRole("dialog", { name: "변경을 버릴까요?" }).getByRole("button", { name: "취소", exact: true })
+    .click();
   await expect(form.getByLabel("메모 템플릿")).toHaveValue("할 일 초안");
-  await form.getByRole("button", { name: "기록 기본값 저장", exact: true }).click();
+  await form.getByRole("button", { name: "기록 자동 완성 저장", exact: true }).click();
   await expect(form.getByRole("status")).toContainText("저장했습니다");
   expect(fixture.writes[1].body.value.entity_types[materials.id].create.memo).toBe("재료 저장");
+});
+
+test("action switches expose hidden errors and all changed actions before a scoped save", async ({ page }, info) => {
+  const state = await settingsFixture(page, { task: { create: { memo: "다른 대상 유지", tag_ids: [] } } });
+  const form = await openTyped(page);
+  await form.getByLabel("메모 템플릿").fill("$없는변수$");
+  await form.getByLabel("액션", { exact: true }).selectOption("delete");
+  await expect(form.getByLabel("액션", { exact: true }).locator('option[value="create"]')).toContainText("오류");
+  await expect(form.getByLabel("저장할 변경", { exact: true })).toHaveText("변경: 등록");
+  await form.getByRole("button", { name: "오류 항목 보기", exact: true }).click();
+  await expect(form.getByLabel("액션", { exact: true })).toHaveValue("create");
+  await expect(form.getByLabel("메모 템플릿")).toBeFocused();
+  await form.getByLabel("메모 템플릿").fill("등록할 때 남길 문구");
+  await form.getByLabel("액션", { exact: true }).selectOption("delete");
+  await form.getByLabel("메모 템플릿").fill("삭제할 때 남길 문구");
+  await expect(form.getByLabel("저장할 변경", { exact: true })).toHaveText("변경: 등록 · 삭제");
+  await page.screenshot({ path: info.outputPath("record-changed-actions.png"), fullPage: true });
+  await form.getByRole("button", { name: "기록 자동 완성 저장", exact: true }).click();
+  await expect(form).toContainText("기록 자동 완성을 저장했습니다.");
+  expect(state.writes.at(-1)?.body.value).toMatchObject({
+    task: { create: { memo: "다른 대상 유지" } },
+    entity_types: {
+      [materials.id]: {
+        create: { memo: "등록할 때 남길 문구" },
+        delete: { memo: "삭제할 때 남길 문구" },
+      },
+    },
+  });
+  await expect(form.getByLabel("저장할 변경", { exact: true })).toHaveCount(0);
 });

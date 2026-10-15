@@ -1,3 +1,4 @@
+import { changedTemplateActions, templateFieldTarget } from "./record-template-actions.ts";
 import { BodyAction } from "../../components/BodyAction.tsx";
 import { useEntityTypes } from "../entity/useEntityTypes.ts";
 import type { EntitySchemaResult } from "@contracts/entity-type.ts";
@@ -200,11 +201,25 @@ function RecordTemplateForm({
       };
     });
     setMessage("");
-    setFields({});
+    setFields((current) =>
+      Object.fromEntries(Object.entries(current).filter(([key]) => key !== path && !key.startsWith(`${path}.`)))
+    );
   };
   const parse = recordTemplates.safeParse(draft);
   const currentError = parse.success ? null : parse.error.issues.find((issue) => issue.path.join(".").startsWith(path))
     ?.message;
+  const changes = changedTemplateActions(draft, saved?.settings.record_templates ?? {}, model, typeId);
+  const errors = {
+    ...(!parse.success
+      ? Object.fromEntries(parse.error.issues.map((issue) => [issue.path.join("."), issue.message]))
+      : {}),
+    ...fields,
+  };
+  const actionHasError = (key: TemplateAction) =>
+    Object.keys(errors).some((path) => {
+      const target = templateFieldTarget(path);
+      return target?.model === model && (model !== "entity" || target.typeId === typeId) && target.action === key;
+    });
   const title = "기록 자동 완성";
   return (
     <section className={materialResource ? "material-record-template" : "settings-section"} aria-label={title}>
@@ -243,7 +258,7 @@ function RecordTemplateForm({
             setMessage("");
             if (await editor.resource.save()) {
               window.dispatchEvent(new Event("workspace:record-settings-changed"));
-              setMessage("기록 기본값을 저장했습니다.");
+              setMessage("기록 자동 완성을 저장했습니다.");
               setFields({});
             }
           }}
@@ -305,6 +320,7 @@ function RecordTemplateForm({
                     {modelActions(model).map((key) => (
                       <option key={key} value={key}>
                         {templateActionNames[key]}
+                        {actionHasError(key) ? " · 오류" : changes.includes(key) ? " · 미저장" : ""}
                       </option>
                     ))}
                   </select>
@@ -401,32 +417,29 @@ function RecordTemplateForm({
               value={value.tag_ids}
               onChange={(tag_ids) => setValue({ tag_ids })}
             />
-            {Object.entries(fields).filter(([key]) => key !== `${path}.memo`)
-              .map(([key, error]) => (
-                <p className="error-text" key={key}>
-                  {key.split(".")[0] === "entity" ? "자료" : templateModelNames[key.split(".")[0] as TemplateModel] ??
-                    "설정"} {templateActionNames[key.split(".")[1] as TemplateAction] ??
-                    ""}: {error}{" "}
-                  <BodyAction
-                    icon="view"
-                    type="button"
-                    disabled={!!materialResource}
-                    onClick={() => {
-                      const [nextModel, nextAction] = key.split(
-                        ".",
-                      );
-                      if (
-                        TEMPLATE_MODELS.includes(nextModel as TemplateModel)
-                      ) {
-                        setModel(nextModel as TemplateModel);
-                        setAction(nextAction as TemplateAction);
-                      }
-                    }}
-                  >
-                    오류 항목 보기
-                  </BodyAction>
+            {Object.entries(errors).filter(([key]) => key !== `${path}.memo`).map(([key, error]) => {
+              const target = templateFieldTarget(key);
+              const canOpen = target &&
+                (!materialResource || target.model === model && (model !== "entity" || target.typeId === typeId));
+              return (
+                <p className="error-text" key={key} role="alert">
+                  {target ? `${templateActionNames[target.action]}: ` : "설정: "}
+                  {error} {canOpen && target.action !== action && (
+                    <BodyAction
+                      icon="view"
+                      type="button"
+                      onClick={() => {
+                        setModel(target.model);
+                        setAction(target.action);
+                        requestAnimationFrame(() => text.current?.focus());
+                      }}
+                    >
+                      오류 항목 보기
+                    </BodyAction>
+                  )}
                 </p>
-              ))}
+              );
+            })}
           </fieldset>
           <p role="status">{message}</p>
           {conflict && (
@@ -435,6 +448,11 @@ function RecordTemplateForm({
             </BodyAction>
           )}
           <div className="settings-section-footer">
+            {changes.length > 0 && (
+              <p className="secondary" aria-label="저장할 변경">
+                변경: {changes.map((key) => templateActionNames[key]).join(" · ")}
+              </p>
+            )}
             <div className="actions">
               <button
                 type="button"
@@ -453,7 +471,7 @@ function RecordTemplateForm({
                 type="submit"
                 className="btn btn-primary"
                 disabled={busy || !dirty || conflict}
-                aria-label={busy ? "저장 중…" : uncertain ? "같은 내용 다시 시도" : "기록 기본값 저장"}
+                aria-label={busy ? "저장 중…" : uncertain ? "같은 내용 다시 시도" : "기록 자동 완성 저장"}
               >
                 {busy ? "저장 중…" : uncertain ? "같은 내용 다시 시도" : "저장"}
               </button>

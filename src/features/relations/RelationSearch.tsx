@@ -87,9 +87,7 @@ export function RelationSearch(
           items: page.items.map((item) => ({
             id: item.id,
             title: item.title,
-            ...("entity_type_id" in item
-              ? { type: item.type, identity: `${item.type.label} · ${entityIdentityLabel(item)}` }
-              : {}),
+            ...("entity_type_id" in item ? { type: item.type, identity: entityIdentityLabel(item) } : {}),
             ...("entity_ids" in item ? { entityIds: item.entity_ids } : {}),
           })),
         };
@@ -116,6 +114,7 @@ export function RelationSearch(
   }, [state.completion]);
   const result = state.page, pending = waiting || state.busy, failed = !!state.error;
   const more = () => session.more();
+  const candidates = result?.items.filter((item) => !item.type?.archived && !excluded(item)) ?? [];
   return (
     <div className="related-search">
       <Field label={`${label} 제목 검색`}>
@@ -151,14 +150,21 @@ export function RelationSearch(
       )}
       {result && (
         <div className="related-search-results" role="group" aria-label={`${label} 검색 결과`}>
-          {result.items.filter((item) => !item.type?.archived && !excluded(item)).map((item) => (
+          {candidates.map((item) => (
             <RelatedItem
               key={item.id}
               to={draftMode ? undefined : `/${kind === "entity" ? "entities" : "tasks"}/${encodeURIComponent(item.id)}`}
               restoreKey={`relation-candidate-${kind}-${item.id}`}
               title={item.title}
               metadata={item.identity && (
-                <span>{item.type && <EntityTypeIcon id={item.type.icon_id} />} {item.identity}</span>
+                <span>
+                  {item.type && (
+                    <>
+                      <EntityTypeIcon id={item.type.icon_id} /> {item.type.label} ·
+                    </>
+                  )}
+                  {item.identity}
+                </span>
               )}
               action={
                 <BodyAction
@@ -174,7 +180,15 @@ export function RelationSearch(
               }
             />
           ))}
-          {!result.items.length && !pending && <p className="secondary">검색 결과가 없습니다.</p>}
+          {!candidates.length && !pending && !failed && (
+            <p className="secondary">
+              {!result.items.length
+                ? "검색 결과가 없습니다."
+                : result.next_cursor
+                ? "현재 결과에 연결할 수 있는 항목이 없습니다."
+                : "연결할 수 있는 결과가 없습니다."}
+            </p>
+          )}
           {result.next_cursor && (
             <BodyAction disabled={pending || disabled} onClick={more}>검색 결과 더 보기</BodyAction>
           )}

@@ -1,4 +1,5 @@
 import { EntityTypeIcon } from "../entity/EntityTypeIcon.tsx";
+import { entityIdentityLabel } from "@contracts/entity-identity.ts";
 import type { EntityContext } from "@contracts/entity-links.ts";
 import { BodyAction } from "../../components/BodyAction.tsx";
 import { useEffect, useId, useRef, useState } from "react";
@@ -21,12 +22,19 @@ export function RelationPicker({ kind, value, context = [], onChange, error }: {
   const [types, setTypes] = useState(() =>
     new Map(context.filter((item) => item.type).map((item) => [item.id, item.type!]))
   );
+  const [identities, setIdentities] = useState(() => new Map<string, string>());
+  const [pending, setPending] = useState(() => new Set<string>()),
+    [failed, setFailed] = useState(() => new Set<string>());
+  const [retry, setRetry] = useState(0);
   const [searching, setSearching] = useState(false), searchId = useId();
   const root = useRef<HTMLDivElement>(null), nextFocus = useRef<string | null>(null);
   const selection = value.join(",");
   useEffect(() => {
     const controller = new AbortController();
-    for (const id of value.filter((id) => !names.has(id))) {
+    const unresolved = value.filter((id) => !names.has(id) || kind === "entity" && !identities.has(id));
+    setPending(new Set(unresolved));
+    setFailed(new Set());
+    for (const id of unresolved) {
       void api<EntitySummary | TaskResult>(
         "GET",
         `/${kind === "entity" ? "entities" : "tasks"}/${encodeURIComponent(id)}`,
@@ -35,13 +43,26 @@ export function RelationPicker({ kind, value, context = [], onChange, error }: {
       )
         .then((item) => {
           if (!controller.signal.aborted) {
-            setNames((prior) => new Map(prior).set(id, item.title));
-            if ("type" in item) setTypes((prior) => new Map(prior).set(id, item.type));
+            setNames((prior) => prior.has(id) ? prior : new Map(prior).set(id, item.title));
+            if ("type" in item) {
+              setTypes((prior) => prior.has(id) ? prior : new Map(prior).set(id, item.type));
+              setIdentities((prior) => new Map(prior).set(id, entityIdentityLabel(item)));
+            }
           }
-        }).catch(() => {});
+        }).catch(() => {
+          if (!controller.signal.aborted) setFailed((prior) => new Set(prior).add(id));
+        }).finally(() => {
+          if (!controller.signal.aborted) {
+            setPending((prior) => {
+              const next = new Set(prior);
+              next.delete(id);
+              return next;
+            });
+          }
+        });
     }
     return () => controller.abort();
-  }, [kind, selection]);
+  }, [kind, selection, retry]);
   useEffect(() => {
     if (nextFocus.current === null) return;
     const button = Array.from(root.current?.querySelectorAll<HTMLButtonElement>("button[data-selection]") ?? []).find(
@@ -53,6 +74,8 @@ export function RelationPicker({ kind, value, context = [], onChange, error }: {
   }, [selection]);
   const choose = (item: Candidate) => {
     setNames((prior) => new Map(prior).set(item.id, item.title));
+    if (item.type) setTypes((prior) => new Map(prior).set(item.id, item.type!));
+    if (item.identity) setIdentities((prior) => new Map(prior).set(item.id, item.identity!));
     nextFocus.current = item.id;
     onChange(kind === "task" ? [item.id] : [...value, item.id].sort());
   };
@@ -72,6 +95,12 @@ export function RelationPicker({ kind, value, context = [], onChange, error }: {
         }
       >
         {error && <p className="error-text" role="alert">{error}</p>}
+        {[...failed].some((id) => value.includes(id)) && (
+          <p className="error-text" role="alert">
+            선택한 {label} 정보를 확인하지 못했습니다.{" "}
+            <BodyAction icon="reset" onClick={() => setRetry((value) => value + 1)}>다시 조회</BodyAction>
+          </p>
+        )}
         <div id={searchId} hidden={!searching}>
           {searching && (
             <RelationSearch
@@ -93,10 +122,13 @@ export function RelationPicker({ kind, value, context = [], onChange, error }: {
                     <span>
                       {types.get(id) && (
                         <>
-                          <EntityTypeIcon id={types.get(id)!.icon_id} /> {types.get(id)!.label} ·
+                          <EntityTypeIcon id={types.get(id)!.icon_id} /> {types.get(id)!.label}
+                          {identities.has(id) ? " · " : ""}
                         </>
                       )}
-                      {id}
+                      {identities.get(id)}
+                      {pending.has(id) && <span role="status">· 확인 중…</span>}
+                      {failed.has(id) && <span>· 정보 확인 필요</span>}
                     </span>
                   )
                   : undefined}

@@ -333,9 +333,9 @@ test("desktop: recurring task confirmation cancellation prepares and saves the c
   await expect(confirmation.getByLabel("기록 메모")).toHaveValue("처음 계획 수정");
   await confirmation.getByRole("button", { name: "취소", exact: true }).click();
   await panel(page).getByLabel("제목").fill("월간 계획");
-  await panel(page).getByRole("button", { name: "매월", exact: true }).click();
+  await panel(page).getByRole("radio", { name: "매월", exact: true }).check();
   await panel(page).getByLabel("날짜", { exact: true }).fill("1, 15");
-  await panel(page).getByLabel("시간대").fill("America/New_York");
+  await panel(page).getByLabel("시간대").selectOption("America/New_York");
   await panel(page).getByRole("button", { name: "저장", exact: true }).click();
   await expect(confirmation.getByLabel("기록 메모")).toHaveValue("월간 계획 수정");
   await confirmation.getByLabel("기록 메모").fill("월간 검토로 변경");

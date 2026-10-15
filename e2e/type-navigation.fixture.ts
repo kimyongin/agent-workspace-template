@@ -336,7 +336,7 @@ test("type catalog failure and all archived types have distinct recovery paths",
   failing = false;
   await page.getByRole("button", { name: "종류 다시 시도", exact: true }).click();
   await expect(page.getByText("모든 자료 종류가 보관되어 있습니다.", { exact: true })).toBeVisible();
-  await expect(page.getByRole("link", { name: "자료 종류 만들기·보관 관리", exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "보관된 종류 관리", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "자료 추가", exact: true })).toHaveCount(0);
 });
 

@@ -422,3 +422,23 @@ test("property choices and native disclosures share production touch targets", a
   }));
   expect(marker).toEqual({ display: "grid", column: "2", list: "none" });
 });
+
+test("single-choice and record-action samples preserve keyboard meaning and hidden drafts", async ({ page }) => {
+  await page.goto(direct);
+  const form = page.locator("#forms");
+  await form.getByRole("radio", { name: "매일", exact: true }).press("ArrowRight");
+  await expect(form.getByRole("radio", { name: "매주", exact: true })).toBeChecked();
+  await form.getByRole("combobox", { name: "시간대", exact: true }).selectOption("UTC");
+  const settings = page.locator("#record-actions");
+  await settings.getByLabel("메모 템플릿", { exact: true }).fill("$없는변수$");
+  await settings.getByLabel("액션", { exact: true }).selectOption("delete");
+  await settings.getByRole("button", { name: "오류 항목 보기", exact: true }).click();
+  await expect(settings.getByLabel("액션", { exact: true })).toHaveValue("create");
+  await settings.getByLabel("메모 템플릿", { exact: true }).fill("등록 문구");
+  await settings.getByLabel("액션", { exact: true }).selectOption("delete");
+  await settings.getByLabel("메모 템플릿", { exact: true }).fill("삭제 문구");
+  await expect(settings.getByLabel("저장할 변경", { exact: true })).toHaveText("변경: 등록 · 삭제");
+  await settings.getByRole("button", { name: "취소", exact: true }).click();
+  await expect(settings.getByLabel("저장할 변경", { exact: true })).toHaveCount(0);
+  await expect(settings.getByLabel("메모 템플릿", { exact: true })).toHaveValue("$대상$ $액션$");
+});

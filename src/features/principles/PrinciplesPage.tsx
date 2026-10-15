@@ -25,7 +25,7 @@ export function PrinciplesPage() {
     return()=>controller.abort();},[retry,workspace?.revision]);
   return <><section className="panel main-tab-header" aria-labelledby="principles-title">
     <div className="panel-head"><h1 id="principles-title" className="page-title" tabIndex={-1}>원칙</h1>
-    <Link className="body-action" to="/records"><BodyActionFace>과거 기록 보기</BodyActionFace></Link>
+    <Link className="body-action" to="/records"><BodyActionFace>전체 기록 보기</BodyActionFace></Link>
     </div>
     </section><section className="activity-section" aria-label="현재 원칙">
     {current===null&&!error&&<div className="detail-section-head"><h2 className="section-title">현재 원칙</h2><TabCreateButton label="원칙 작성" onClick={create.begin}/></div>}
