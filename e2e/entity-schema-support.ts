@@ -1,7 +1,8 @@
 import { expect } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { parseEnv } from "node:util";
-import { env } from "./support.ts";
+import postgres from "postgres";
+import { env, ownFixtureResult } from "./support.ts";
 /** Explicit actual internal worker consumption; callers own serial local API tests. */
 export async function schemaAnalysisTick() {
   const token =
@@ -71,4 +72,37 @@ export function fixtureEntityList(typeId: string, keyword = "", category?: strin
   if (category) params.set("property_filters", JSON.stringify([{ key: "prop_4", operator: "eq", value: category }]));
   if (sort) params.set("sort", JSON.stringify({ key: "prop_2", direction: "asc" }));
   return "/entities?" + params;
+}
+
+/** Seed only list fixtures in one local transaction; public CRUD is exercised by separate scenarios. */
+export async function seedFixtureEntities(
+  mcp: Parameters<typeof scalarFixtureType>[0],
+  ownerId: string,
+  values: Record<string, unknown>[],
+) {
+  const type = await scalarFixtureType(mcp);
+  const target = new URL(env.LOCAL_DB_URL);
+  if (!["127.0.0.1", "localhost"].includes(target.hostname)) throw new Error("fixture seed requires a local database");
+  const admin = postgres(env.LOCAL_DB_URL, { max: 1, onnotice: () => {} });
+  const prefix = "fixture_" + crypto.randomUUID();
+  const rows = values.map((properties, index) => ({
+    owner_id: ownerId,
+    id: `app:${type.id}:${prefix}_${index}`,
+    source: "app",
+    external_id: `${prefix}_${index}`,
+    entity_type_id: type.id,
+    schema_version: type.schema_version,
+    properties: JSON.stringify({ prop_2: 0, prop_3: null, prop_4: "a", ...properties }),
+  }));
+  try {
+    await admin.begin(async (tx) => {
+      const owned = await tx`select id from app.entity_types where id=${type.id} and owner_id=${ownerId}`;
+      expect(owned).toHaveLength(1);
+      if (rows.length) await tx`insert into app.entities ${tx(rows)}`;
+    });
+    for (const row of rows) ownFixtureResult(ownerId, "entities", row.id);
+    return rows.map((row) => row.id);
+  } finally {
+    await admin.end();
+  }
 }
