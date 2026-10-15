@@ -1,3 +1,4 @@
+import { BodyAction } from "../../components/BodyAction.tsx";
 import { DetailLink as Link, useDetailExploration } from "../../lib/detail-exploration.tsx";
 import { SearchMatch } from "../../components/SearchMatch.tsx";
 import { useEffect, useRef, useState } from "react";
@@ -53,7 +54,7 @@ export function SearchPage(){
         <Link id={`search-${r.kind}-${r.id}`} className="item-title" to={r.path}><span className={r.kind==="record"?"record-preview":undefined}>{r.title}</span></Link>{r.snippet!==r.title&&<span className="secondary record-snippet">{r.snippet}</span>}
         <div className="search-result-meta"><span className="meta">{kinds[r.kind]} · {formatDateTime(r.at)}</span><SearchMatch item={r}/></div>
       </div></li>;})}</ul>
-      {result.next_cursor&&<button type="button" className="btn" disabled={busy} onClick={()=>more?.()}>더 보기</button>}
+      {result.next_cursor&&<BodyAction disabled={busy} onClick={()=>more?.()}>더 보기</BodyAction>}
     </>}
   </section>;
 }

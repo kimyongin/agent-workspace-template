@@ -335,3 +335,23 @@ test("tag clear retains list position with the template label at 200%", async ({
   expect(await offset()).toBe(before);
   await page.evaluate(() => document.documentElement.style.fontSize = "");
 });
+
+ test("property choices and native disclosures share production touch targets", async ({ page }) => {
+  await page.goto(direct);
+  const workspace = page.locator("#workspace");
+  const summary = workspace.locator("summary").filter({ hasText: "추가 설정" }).first();
+  await summary.click();
+  const label = workspace.locator(".choice-control").first();
+  await expect(label).toBeVisible();
+  expect((await label.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+  const input = label.locator("input"), before = await input.isChecked();
+  await label.click();
+  await expect(input).toBeChecked({ checked: !before });
+  await summary.focus();
+  await page.keyboard.press("Enter");
+  await expect(label).toBeHidden();
+  await page.keyboard.press("Space");
+  await expect(label).toBeVisible();
+  const marker = await summary.evaluate((el) => ({ display: getComputedStyle(el).display, column: getComputedStyle(el, "::after").gridColumnStart, list: getComputedStyle(el).listStyleType }));
+  expect(marker).toEqual({ display: "grid", column: "2", list: "none" });
+});

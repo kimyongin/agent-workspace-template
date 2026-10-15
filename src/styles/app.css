@@ -790,7 +790,7 @@ textarea.input {
 .action-explanation p { margin: 0; }
 .modal.modal-action { border: 1px solid var(--line); width: min(30rem, calc(100% - 2 * var(--space-4))); height: fit-content; margin: auto; border-radius: var(--radius-card); max-height: calc(var(--surface-height,100dvh) - 2 * var(--space-4)); }
 .modal-action .modal-inner { height: auto; max-height: calc(var(--surface-height,100dvh) - 2 * var(--space-4)); }
-.modal-action .dialog-title { font-size: 1.125rem; line-height: 1.75rem; }
+
 .modal-action .dialog-title { max-height: min(5.25rem, calc(var(--surface-height,100dvh) * .2)); overflow: auto; }
 .modal-action .modal-head, .modal-action .modal-foot { padding: var(--space-3) var(--space-4); }
 .modal-action .modal-body { padding: var(--space-4); }
@@ -811,9 +811,7 @@ textarea.input {
 .auth-panel .props dd { overflow-wrap: anywhere; }
 .guide-steps > li > .btn, .guide-steps > li > .actions { justify-self: start; }
 
-.modal-action .modal-foot { flex-wrap: nowrap; gap: var(--space-1); padding: var(--space-2); }
-.modal-action .modal-foot .btn { min-width: 0; padding-inline: var(--space-2); }
-.modal-action .modal-body { padding-block: var(--space-2); }
+
 
 /* Flat page surfaces and one responsive navigation, using the same DOM order. */
 .navigation-brand, .nav-control-label { display: none; }
@@ -893,3 +891,13 @@ textarea.input {
 .entity-query-bar > .workspace-search { grid-column: 1; grid-row: 2; }
 .entity-query-bar .tab-filter-toolbar { grid-row: 2; }
 .filter-grid > .entity-property-conditions { grid-column: 1 / -1; }
+
+/* Choice labels retain compact inputs inside a complete touch target. */
+.choice-control { display: flex; align-items: center; gap: var(--space-2); min-height: 44px; min-width: 44px; width: fit-content; max-width: 100%; overflow-wrap: anywhere; cursor: pointer; }
+.choice-control input { flex-shrink: 0; accent-color: var(--accent); }
+/* Native disclosures keep their keyboard semantics and reserve the last column for the marker. */
+details > summary { display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: center; gap: var(--space-2); min-height: 44px; cursor: pointer; list-style: none; overflow-wrap: anywhere; }
+details > summary::-webkit-details-marker { display: none; }
+details > summary::marker { content: ''; }
+details > summary::after { content: ''; grid-column: 2; grid-row: 1; width: 6px; height: 6px; margin-inline: var(--space-2); border-top: 1px solid var(--muted-ink); border-right: 1px solid var(--muted-ink); transform: rotate(45deg); }
+details[open] > summary::after { transform: rotate(135deg); }

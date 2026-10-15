@@ -42,7 +42,7 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
         const title = await typography(".item-title"),
           pageTitle = await typography(path.startsWith("/tags") ? ".dialog-title" : ".page-title");
         expect(pageTitle.size).toBeGreaterThan(title.size);
-        expect(title.weight).toBeGreaterThanOrEqual(600);
+        expect(title.weight).toBe(600);
         if (await page.locator(".secondary").count()) {
           const secondary = await typography(".secondary");
           expect(title.size).toBeGreaterThan(secondary.size);
