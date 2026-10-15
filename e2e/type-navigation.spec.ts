@@ -32,8 +32,8 @@ test("settings type creation opens typed entity creation, immutable detail, and 
     const form = page.getByRole("dialog", { name: `${label} 추가`, exact: true });
     await expect(form.getByLabel("자료 종류", { exact: true })).toHaveValue(typeId!);
     await form.getByLabel("이름", { exact: false }).fill(title);
-    await expect(form.getByLabel("식별자", { exact: true })).toHaveAttribute("readonly", "");
-    await expect(form.getByLabel("식별자", { exact: true })).toHaveAttribute("placeholder", "자동 발급");
+    await expect(form.getByLabel("번호", { exact: true })).toHaveAttribute("readonly", "");
+    await expect(form.getByLabel("번호", { exact: true })).toHaveAttribute("placeholder", "자동 발급");
     await saveOnce(page, form);
     await expect(page).toHaveURL(/\/entities\//);
     await expect(page.getByText(title, { exact: true }).first()).toBeVisible();
@@ -49,8 +49,8 @@ test("settings type creation opens typed entity creation, immutable detail, and 
     await page.getByRole("button", { name: "편집", exact: true }).click();
     const editing = page.getByRole("dialog", { name: `${label} 편집`, exact: true });
     await expect(editing.getByLabel("자료 종류", { exact: true })).toHaveCount(0);
-    await expect(editing.getByLabel("식별자", { exact: true })).toHaveValue(stored.external_id);
-    await expect(editing.getByLabel("식별자", { exact: true })).toHaveAttribute("readonly", "");
+    await expect(editing.getByLabel("번호", { exact: true })).toHaveValue(stored.external_id);
+    await expect(editing.getByLabel("번호", { exact: true })).toHaveAttribute("readonly", "");
     await expect(editing).toContainText("저장 후 종류를 변경할 수 없습니다");
     await editing.getByRole("button", { name: "취소", exact: true }).click();
     await closeDetail(page, title);
