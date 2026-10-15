@@ -10,3 +10,13 @@ it("review uses input labels while preserving boolean values and schema referenc
   expect(schemaDiffValueLabel("schema.properties.prop_2.default", false, definition)).toBe("아니오");
   expect(schemaDiffValueLabel("schema.properties.prop_2.default", 0, definition)).toBe("0");
 });
+
+it("review translates enum codes using the definition belonging to that side of the change", () => {
+  const definition = initialEntityDefinition("재료명");
+  definition.schema.properties.prop_2 = { type: "string", enum: ["ready", "closed"] };
+  definition.display.option_labels.prop_2 = { ready: "판매 중", closed: "판매 종료" };
+  expect(schemaDiffValueLabel("properties.prop_2.enum", ["ready", "closed"], definition)).toBe("판매 중, 판매 종료");
+  expect(schemaDiffValueLabel("properties.prop_2.default", "ready", definition)).toBe("판매 중");
+  expect(schemaDiffValueLabel("properties.prop_2.default", "unknown", definition)).toBe("unknown");
+  expect(schemaDiffValueLabel("properties.prop_2.title", "ready", definition)).toBe("ready");
+});

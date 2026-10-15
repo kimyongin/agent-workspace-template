@@ -190,20 +190,7 @@
   min-width: 44px;
 }
 
-@media (min-width: 640px) {
-  .status-issue-list summary {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto;
-    gap: var(--space-2);
-    align-items: start;
-  }
-  .status-issue-list summary::before {
-    content: "›";
-  }
-  .status-issue-list details[open] summary::before {
-    content: "⌄";
-  }
-  .status-issue-list summary span {
-    margin-top: 0;
-  }
-}
+
+.status-issue-list summary > strong { grid-column: 1; font-weight: 600; }
+.status-issue-list summary > span { grid-column: 1; margin: 0; }
+.status-issue-list summary::after { grid-column: 2; grid-row: 1 / span 2; }

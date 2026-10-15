@@ -3,6 +3,7 @@ import type { StatusOverview } from "@contracts/status.ts";
 import { api } from "../../lib/api.ts";
 import { StatusContent } from "./StatusContent.tsx";
 import "./status.css";
+import { Notice } from "../../components/Field.tsx";
 import { IndexingIssues } from "./IndexingIssues.tsx";
 
 export function StatusPage() {
@@ -57,7 +58,7 @@ export function StatusPage() {
           </svg>
         </button>
       </header>
-      {error && <p className="error" role="alert">{error}</p>}
+      {error && <Notice kind="error">{error}</Notice>}
       {data && (
         <StatusContent data={data}>
           <IndexingIssues key={issuesRevision} count={data.indexing.attention} disabled={busy || !!error} />

@@ -42,7 +42,7 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
         const title = await typography(".item-title"),
           pageTitle = await typography(path.startsWith("/tags") ? ".dialog-title" : ".page-title");
         expect(pageTitle.size).toBeGreaterThan(title.size);
-        expect(title.weight).toBeGreaterThanOrEqual(600);
+        expect(title.weight).toBe(600);
         if (await page.locator(".secondary").count()) {
           const secondary = await typography(".secondary");
           expect(title.size).toBeGreaterThan(secondary.size);
@@ -333,7 +333,10 @@ test("200% reflow·축소 visual viewport·한 글자 제목", async ({ page }, 
   await expect(form(page).getByRole("button", { name: "저장", exact: true })).toBeInViewport();
   await fillChangeMemo(page, form(page), "확대 확인");
   await page.setViewportSize({ width: 390, height: 360 });
-  await expect(form(page).getByRole("button", { name: "수정하고 저장", exact: true })).toBeInViewport();
+  await expect(form(page).getByRole("button", { name: "수정하고 저장", exact: true })).toBeInViewport({ ratio: 1 });
+  await expect(form(page).getByRole("button", { name: "취소", exact: true })).toBeInViewport({ ratio: 1 });
+  const actions = await form(page).locator(".modal-foot > .btn").evaluateAll(nodes => nodes.map(node => ({ width: node.getBoundingClientRect().width, height: node.getBoundingClientRect().height })));
+  for (const action of actions) { expect(action.width).toBeGreaterThanOrEqual(44); expect(action.height).toBeGreaterThanOrEqual(44); }
   await page.screenshot({ path: info.outputPath("zoom-keyboard-viewport.png") });
   expect(state.errors).toEqual([]);
 });

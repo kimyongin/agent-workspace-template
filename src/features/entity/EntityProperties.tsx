@@ -3,7 +3,10 @@ import type { EntityValues } from "@contracts/entity.ts";
 import type { EntitySchemaResult } from "@contracts/entity-type.ts";
 import { api } from "../../lib/api.ts";
 import { displayedProperty } from "./property-fields.tsx";
-export function EntityProperties({ entity }: { entity: EntityValues }) {
+import { Notice } from "../../components/Field.tsx";
+export function EntityProperties(
+  { entity, omitRepresentative = false }: { entity: EntityValues; omitRepresentative?: boolean },
+) {
   const [definition, setDefinition] = useState<EntitySchemaResult | null>(null),
     [failed, setFailed] = useState(false),
     [retry, setRetry] = useState(0);
@@ -26,7 +29,7 @@ export function EntityProperties({ entity }: { entity: EntityValues }) {
   if (failed) {
     return (
       <>
-        <p role="alert">속성 정의를 불러오지 못했습니다.</p>
+        <Notice kind="error">속성 정의를 불러오지 못했습니다.</Notice>
         <button className="btn" onClick={() => setRetry((n) => n + 1)}>속성 정의 다시 조회</button>
       </>
     );
@@ -34,7 +37,9 @@ export function EntityProperties({ entity }: { entity: EntityValues }) {
   if (!definition) return <p role="status">속성 정의를 불러오는 중…</p>;
   return (
     <dl className="props">
-      {definition.display.order.map((key) => (
+      {definition.display.order.filter((key) => !omitRepresentative || key !== definition.display.representative).map((
+        key,
+      ) => (
         <div key={key}>
           <dt>
             {definition.schema.properties[key].title ?? key}

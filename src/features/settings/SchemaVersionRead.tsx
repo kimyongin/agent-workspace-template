@@ -58,7 +58,7 @@ export function SchemaVersionRead(
   }, [typeId, version, open, retry]);
   return (
     <div className="schema-version-read">
-      {error && <p role="alert">{error}</p>}
+      {error && <p role="alert" className="error-text">{error}</p>}
       {error && (
         <BodyAction icon="reset"  onClick={() => setRetry((n) => n + 1)}>
           입력 항목 다시 조회

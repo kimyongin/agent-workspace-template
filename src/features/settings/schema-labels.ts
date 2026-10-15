@@ -1,6 +1,19 @@
 import type { EntityField } from "@contracts/entity-type.ts";
 import type { EntitySchemaChange, SchemaDefinition } from "@contracts/entity-schema-change.ts";
 import { fieldType } from "../entity/property-fields.tsx";
+import { entityIdentityLabel, splitEntityId } from "@contracts/entity-identity.ts";
+
+/** A readable reference without guessing a current title for a historical result. */
+export function schemaEntityLabel(id: string) {
+  try {
+    return entityIdentityLabel(splitEntityId(id));
+  } catch {
+    return id;
+  }
+}
+export function schemaOptionLabel(labels: Record<string, string> | undefined, value: string): string {
+  return labels && Object.hasOwn(labels, value) ? labels[value] || value : value;
+}
 export const schemaChangeLabels: Record<EntitySchemaChange["status"], string> = {
   draft: "초안",
   analyzing: "검토 중",
@@ -74,6 +87,14 @@ export function schemaDiffValueLabel(path: string, value: unknown, definition: S
   if (path.endsWith(".required") && typeof value === "boolean") return value ? "필수" : "선택";
   if (path.endsWith(".type") && (typeof value === "string" || Array.isArray(value))) {
     return fieldTypeLabel({ type: value as EntityField["type"] });
+  }
+  const key = path.split(".").find((part) => /^prop_[0-9]+$/.test(part));
+  if (key && /\.(enum|default)$/.test(path)) {
+    const option = (item: unknown) =>
+      typeof item === "string"
+        ? schemaOptionLabel(definition.display.option_labels[key], item)
+        : schemaValueLabel(item);
+    return Array.isArray(value) ? value.map(option).join(", ") || "없음" : option(value);
   }
   return schemaValueLabel(
     value,

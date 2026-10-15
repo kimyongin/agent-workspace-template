@@ -239,13 +239,19 @@ test("issuer and rule creation dialogs return to an unchanged dirty type draft",
   const binding = page.getByRole("dialog", { name: "지원 발급처 연결", exact: true });
   await binding.getByRole("button", { name: "발급처 추가" }).click();
   const create = page.getByRole("dialog", { name: "발급처 추가", exact: true });
+  await expect(page.locator("dialog[open]")).toHaveCount(1);
   await create.getByLabel("이름").fill("새 마켓");
   await create.getByRole("button", { name: "취소", exact: true }).click();
   const confirm = page.getByRole("dialog", { name: "변경을 버릴까요?" });
+  await expect(page.locator("dialog[open]")).toHaveCount(2);
+  for (const button of await confirm.locator(".modal-foot button").all()) {
+    expect((await button.boundingBox())!.width).toBeGreaterThanOrEqual(88);
+  }
   await confirm.getByRole("button", { name: "취소", exact: true }).click();
   await expect(create.getByLabel("이름")).toHaveValue("새 마켓");
   await create.getByRole("button", { name: "취소", exact: true }).click();
   await page.getByRole("dialog", { name: "변경을 버릴까요?" }).getByRole("button", { name: "변경 버리기" }).click();
+  await expect(binding.getByRole("button", { name: "발급처 추가" })).toBeFocused();
   await binding.getByRole("button", { name: "취소", exact: true }).click();
   await expect(form.getByRole("textbox", { name: "이름 (필수)", exact: true })).toHaveValue("편집 중인 번호");
 });
@@ -254,6 +260,8 @@ test("issuer retry retains its hidden stable code and request key; builtin app s
   await page.goto("/settings/issuers");
   await expect(page.getByRole("heading", { name: "발급처 설정", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "편집", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "기본 정보", exact: false })).toHaveCount(0);
+  await expect(page.getByText("자동 발급", { exact: true })).toHaveCount(1);
   await page.getByRole("button", { name: "발급처 추가", exact: true }).click();
   const modal = page.getByRole("dialog", { name: "발급처 추가", exact: true });
   await modal.getByLabel("이름").fill("새 마켓");
@@ -279,6 +287,7 @@ test("new issuer and number rule are created above the retained type draft and t
   await issuer.getByRole("button", { name: "저장", exact: true }).click();
   await binding.getByRole("button", { name: "규칙 추가", exact: true }).click();
   const rule = page.getByRole("dialog", { name: "번호 규칙 추가", exact: true });
+  await expect(page.locator("dialog[open]")).toHaveCount(1);
   await rule.getByLabel("이름").fill("상품 ID");
   await rule.getByRole("button", { name: "저장", exact: true }).click();
   await binding.getByRole("button", { name: "연결", exact: true }).click();
@@ -289,6 +298,22 @@ test("new issuer and number rule are created above the retained type draft and t
   await expect(page.getByText("식별자 설정을 저장했습니다.")).toBeVisible();
   expect(state.writes.find((w) => w.path.endsWith("/rules"))?.body).toEqual({ label: "상품 ID", meaning: "상품 ID" });
   expect(state.writes.at(-1)?.body.label).toBe("새 상품 번호");
+});
+
+test("returning from issuer creation keeps the connection selection and protects its discard", async ({ page, baseURL }) => {
+  const state = await fixture(page, baseURL!), form = await identityEditor(page);
+  await form.getByRole("button", { name: "연결", exact: true }).click();
+  const binding = page.getByRole("dialog", { name: "지원 발급처 연결", exact: true });
+  await binding.getByLabel("발급처", { exact: true }).selectOption("naver");
+  await binding.getByRole("button", { name: "발급처 추가", exact: true }).click();
+  const create = page.getByRole("dialog", { name: "발급처 추가", exact: true });
+  await expect(page.locator("dialog[open]")).toHaveCount(1);
+  await create.getByRole("button", { name: "취소", exact: true }).click();
+  await expect(binding.getByLabel("발급처", { exact: true })).toHaveValue("naver");
+  await expect(binding.getByRole("button", { name: "발급처 추가", exact: true })).toBeFocused();
+  await binding.getByRole("button", { name: "취소", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "변경을 버릴까요?", exact: true })).toBeVisible();
+  expect(state.writes).toEqual([]);
 });
 test("global disable confirmation cancels back to the editor and a default-source conflict retains its draft", async ({ page, baseURL }) => {
   await fixture(page, baseURL!);
@@ -327,6 +352,35 @@ test("selecting the current settings category closes its menu without leaving th
   expect(state.writes).toEqual([]);
 });
 
+test("settings menu supports directional keys and visibly identifies the current category", async ({ page, baseURL }) => {
+  const state = await fixture(page, baseURL!);
+  await page.goto("/settings/issuers");
+  const trigger = page.getByRole("button", { name: "설정 메뉴", exact: true });
+  await trigger.focus();
+  await trigger.press("ArrowDown");
+  const menu = page.getByRole("navigation", { name: "설정 메뉴", exact: true });
+  const first = menu.getByRole("link", { name: "기본", exact: true });
+  const current = menu.getByRole("link", { name: "발급처", exact: true });
+  await expect(first).toBeFocused();
+  await first.press("End");
+  await expect(current).toBeFocused();
+  await expect(current).toHaveAttribute("aria-current", "page");
+  expect(await current.evaluate((node) => getComputedStyle(node).backgroundColor))
+    .not.toBe(await first.evaluate((node) => getComputedStyle(node).backgroundColor));
+  await current.press("ArrowUp");
+  await expect(menu.getByRole("link", { name: "기록", exact: true })).toBeFocused();
+  await page.keyboard.press("Home");
+  await expect(first).toBeFocused();
+  await first.press("ArrowUp");
+  await expect(current).toBeFocused();
+  await current.press("ArrowDown");
+  await expect(first).toBeFocused();
+  await first.press("Escape");
+  await expect(trigger).toBeFocused();
+  await expect(trigger).toHaveAttribute("aria-expanded", "false");
+  expect(state.writes).toEqual([]);
+});
+
 test("settings menu destination remains mounted during discard confirmation and cancel restores the originating link focus", async ({ page, baseURL }) => {
   await fixture(page, baseURL!);
   const form = await identityEditor(page);
@@ -337,8 +391,10 @@ test("settings menu destination remains mounted during discard confirmation and 
   await entry.click();
   const confirm = page.getByRole("dialog", { name: "변경을 버릴까요?", exact: true });
   await expect(confirm).toBeVisible();
-  await expect(page.getByRole("navigation", { name: "설정 메뉴", exact: true, includeHidden: true })
-    .getByRole("link", { name: "기록", exact: true, includeHidden: true })).toBeAttached();
+  await expect(
+    page.getByRole("navigation", { name: "설정 메뉴", exact: true, includeHidden: true })
+      .getByRole("link", { name: "기록", exact: true, includeHidden: true }),
+  ).toBeAttached();
   await confirm.getByRole("button", { name: "취소", exact: true }).click();
   await expect(entry).toBeFocused();
   await expect(menu).toBeVisible();
@@ -372,4 +428,20 @@ test("nested issuer save detects a concurrent identity change and requires expli
   await form.getByRole("button", { name: "식별자 저장", exact: true }).click();
   await expect(page.getByText("식별자 설정을 저장했습니다.")).toBeVisible();
   expect(state.writes.at(-1)?.body.expected_version).toBe(4);
+});
+
+test("closing settings menu on a noninteractive background restores its trigger focus", async ({ page, baseURL }) => {
+  await fixture(page, baseURL!);
+  await page.goto("/settings/issuers");
+  const trigger = page.getByRole("button", { name: "설정 메뉴", exact: true });
+  await trigger.click();
+  await trigger.press("ArrowDown");
+  await expect(page.getByRole("navigation", { name: "설정 메뉴", exact: true }).getByRole("link").first()).toBeFocused();
+  await page.getByRole("heading", { name: "발급처 설정", exact: true }).click();
+  await expect(trigger).toHaveAttribute("aria-expanded", "false");
+  await expect(trigger).toBeFocused();
+  await trigger.click();
+  // The popover covers the select center on mobile; use its visible left edge.
+  await page.getByLabel("발급처", { exact: true }).click({ position: { x: 12, y: 22 } });
+  await expect(page.getByLabel("발급처", { exact: true })).toBeFocused();
 });

@@ -30,8 +30,10 @@ test("personal navigation partial save survives reload and login without changin
       await save.click();
       await expect(page.getByRole("status")).toHaveText("메뉴 설정을 저장했습니다.");
     }
-    await page.getByRole("button", { name: "원칙 추가", exact: true }).click();
-    await page.getByRole("button", { name: "할 일 추가", exact: true }).click();
+    for (const label of ["원칙", "할 일"]) {
+      await page.getByRole("combobox", { name: "추가할 메뉴", exact: true }).selectOption({ label });
+      await page.getByRole("button", { name: `${label} 추가`, exact: true }).click();
+    }
     await page.getByRole("button", { name: "메뉴 바로가기 저장" }).click();
     await expect(page.getByRole("status")).toHaveText("메뉴 설정을 저장했습니다.");
     const after = await read();

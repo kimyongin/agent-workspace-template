@@ -80,6 +80,8 @@ export function EntityPairRelations({ entity, onSaved }: { entity: EntityDetail;
       <div ref={section} tabIndex={-1} aria-label="연결된 자료 목록">
         <RelatedSection
           title="연결된 자료"
+          count={state.page?.items.length}
+          hasMore={!!state.page?.next_cursor}
           action={active && (
             <RelationSearchAction
               kind="entity"
@@ -98,7 +100,6 @@ export function EntityPairRelations({ entity, onSaved }: { entity: EntityDetail;
             </>
           )}
           {state.busy && !state.page && <p role="status">불러오는 중…</p>}
-          {state.page && !state.page.items.length && <p className="secondary">연결된 자료가 없습니다.</p>}
           <CollectionList>
             {state.page?.items.map((item) => (
               <li key={item.id}>
@@ -127,7 +128,7 @@ export function EntityPairRelations({ entity, onSaved }: { entity: EntityDetail;
             ))}
           </CollectionList>
           {state.page?.next_cursor && (
-            <button className="btn" disabled={state.busy} onClick={() => void session.more()}>더 보기</button>
+            <BodyAction disabled={state.busy} onClick={() => void session.more()}>더 보기</BodyAction>
           )}
           <div id={searchId} hidden={!searching}>
             {searching && active && (

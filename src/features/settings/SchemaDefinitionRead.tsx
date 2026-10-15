@@ -1,5 +1,5 @@
 import type { SchemaDefinition } from "@contracts/entity-schema-change.ts";
-import { fieldTypeLabel, schemaValueLabel } from "./schema-labels.ts";
+import { fieldTypeLabel, schemaOptionLabel, schemaValueLabel } from "./schema-labels.ts";
 
 /** Definition values, never material values or the mutable editor draft. */
 export function SchemaDefinitionRead(
@@ -13,7 +13,7 @@ export function SchemaDefinitionRead(
   ];
   return (
     <section aria-label="입력 항목 정의" className="schema-definition-read">
-      <h3>
+      <h3 className="section-title">
         입력 항목 <span className="secondary">읽기 전용</span>
       </h3>
       {keys.map((key) => {
@@ -21,10 +21,7 @@ export function SchemaDefinitionRead(
         if (!field) {
           return null;
         }
-        const optionLabel = (value: string) => {
-          const label = definition.display.option_labels[key]?.[value];
-          return label && label !== value ? `${label} (${value})` : value;
-        };
+        const optionLabel = (value: string) => schemaOptionLabel(definition.display.option_labels[key], value);
         const values: Array<[string, string]> = [
           ["데이터 타입", fieldTypeLabel(field)],
           [
@@ -66,15 +63,17 @@ export function SchemaDefinitionRead(
         if (Object.hasOwn(field, "default")) {
           values.push([
             "생성 기본값",
-            field.default === null ? "비워 두기" : typeof field.default === "string" && field.enum ? optionLabel(field.default) : schemaValueLabel(field.default),
+            field.default === null
+              ? "비워 두기"
+              : typeof field.default === "string" && field.enum
+              ? optionLabel(field.default)
+              : schemaValueLabel(field.default),
           ]);
         }
         if (field.enum) {
           values.push([
             "선택 항목",
-            field.enum.map((value) =>
-              value === null ? "비워 두기" : optionLabel(value)
-            ).join(", "),
+            field.enum.map((value) => value === null ? "비워 두기" : optionLabel(value)).join(", "),
           ]);
         }
         return (
@@ -82,7 +81,7 @@ export function SchemaDefinitionRead(
             key={key}
             aria-label={`${field.title || "이름 없는 항목"} 정의`}
           >
-            <h4>{field.title || "이름 없는 항목"}</h4>
+            <h4 className="section-title">{field.title || "이름 없는 항목"}</h4>
             <dl className="props schema-definition-values">
               {values.map(([label, value]) => (
                 <div key={label}>

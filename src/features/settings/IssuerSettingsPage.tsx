@@ -91,9 +91,24 @@ export function IssuerSettingsPage() {
             </select>
           )}
         </Field>
-        <button type="button" className="btn btn-input" disabled={!!editing || loading} onClick={() => setEditing({ kind: "issuer" })}>
+        <button
+          type="button"
+          className="btn btn-input"
+          disabled={!!editing || loading}
+          onClick={() => setEditing({ kind: "issuer" })}
+        >
           발급처 추가
         </button>
+        {issuer && !issuer.system && (
+          <button
+            type="button"
+            className="btn btn-input"
+            disabled={!!editing || loading}
+            onClick={() => setEditing({ kind: "issuer", issuer })}
+          >
+            편집
+          </button>
+        )}
       </div>
       {loading && <p role="status">불러오는 중…</p>}
       {error && (
@@ -102,23 +117,9 @@ export function IssuerSettingsPage() {
         </p>
       )}
       {message && <p role="status">{message}</p>}
-      {issuers?.length === 0 && !loading && !error && (
-        <p className="secondary">발급처가 없습니다.</p>
-      )}
+      {issuers?.length === 0 && !loading && !error && <p className="secondary">발급처가 없습니다.</p>}
       {issuer && (
         <>
-          <MaterialSettingsSection
-            key={`${selected}:basic`}
-            title="기본 정보"
-            state={editing?.kind === "issuer" ? editState : undefined}
-            summary={issuer.active ? undefined : "중지"}
-            initialOpen
-          >
-            <div className="settings-inline-actions">
-              <span className="secondary">{issuer.system ? "기본 제공" : ""}</span>
-              {!issuer.system && <BodyAction onClick={() => setEditing({ kind: "issuer", issuer })}>편집</BodyAction>}
-            </div>
-          </MaterialSettingsSection>
           <MaterialSettingsSection
             key={`${selected}:rules`}
             title="번호 규칙"
@@ -139,25 +140,27 @@ export function IssuerSettingsPage() {
             {rules === null && !error && <p role="status">규칙을 읽는 중…</p>}
             {rules?.length === 0 && <p className="secondary">번호 규칙이 없습니다.</p>}
             <div className="issuer-rule-list">
-              {rules?.map((rule) => (
-                <div key={rule.id} className="issuer-rule-row">
-                  <div>
-                    <span className="item-title">{rule.label}</span>
-                    <span className="secondary">
-                      {rule.generation === "automatic" ? "자동 발급" : "직접 입력"}
-                      {rule.active ? "" : " · 중지"}
-                    </span>
+              {rules?.map((rule) => {
+                const generation = rule.generation === "automatic" ? "자동 발급" : "직접 입력";
+                const summary = [rule.label === generation ? "" : generation, rule.active ? "" : "중지"].filter(Boolean)
+                  .join(" · ");
+                return (
+                  <div key={rule.id} className="issuer-rule-row">
+                    <div>
+                      <span className="item-title">{rule.label}</span>
+                      {summary && <span className="secondary">{summary}</span>}
+                    </div>
+                    {!issuer.system && (
+                      <BodyAction
+                        aria-label={`${rule.label} 편집`}
+                        onClick={() => setEditing({ kind: "rule", source: issuer.code, rule })}
+                      >
+                        편집
+                      </BodyAction>
+                    )}
                   </div>
-                  {!issuer.system && (
-                    <BodyAction
-                      aria-label={`${rule.label} 편집`}
-                      onClick={() => setEditing({ kind: "rule", source: issuer.code, rule })}
-                    >
-                      편집
-                    </BodyAction>
-                  )}
-                </div>
-              ))}
+                );
+              })}
             </div>
           </MaterialSettingsSection>
         </>
