@@ -91,9 +91,9 @@ export function IssuerSettingsPage() {
             </select>
           )}
         </Field>
-        <BodyAction icon="create" disabled={!!editing || loading} onClick={() => setEditing({ kind: "issuer" })}>
+        <button type="button" className="btn btn-input" disabled={!!editing || loading} onClick={() => setEditing({ kind: "issuer" })}>
           발급처 추가
-        </BodyAction>
+        </button>
       </div>
       {loading && <p role="status">불러오는 중…</p>}
       {error && (
