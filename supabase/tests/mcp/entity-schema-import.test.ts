@@ -1,6 +1,7 @@
+import { initialEntityDefinition } from "../../functions/_shared/contracts/entity-type.ts";
 import { assert, assertEquals, assertNotEquals } from "@std/assert";
 import { admin, call, httpTest, signIn } from "../http/_client.ts";
-import { connectMcp, mcpToken, tool } from "./_mcp.ts";
+import { claimsOf, connectMcp, mcpToken, tool } from "./_mcp.ts";
 
 httpTest("schema import HTTP/MCP: copy mapping, reviewed draft, stale source, no-op and ownership", async () => {
   const token = await signIn("A"), other = await signIn("B"), client = await connectMcp(await mcpToken(token));
@@ -118,3 +119,103 @@ httpTest("schema import rejects duplicate JSON keys and unsupported annotations 
     await client.close();
   }
 });
+
+httpTest(
+  "readonly imported defaults: HTTP/MCP memo preparation returns writable input while resolving server defaults",
+  async () => {
+    const token = await signIn("A"), client = await connectMcp(await mcpToken(token));
+    const owner = String(claimsOf(token).sub), run = crypto.randomUUID(), keys: string[] = [];
+    let typeId: string | undefined;
+    const key = () => {
+      const value = crypto.randomUUID();
+      keys.push(value);
+      return value;
+    };
+    try {
+      const schema = initialEntityDefinition("이름", {
+        id: crypto.randomUUID(),
+        title: `readonly preparation ${run}`,
+        icon: "box",
+      }).schema;
+      Object.assign(schema.properties.prop_1, { readOnly: true, default: "Auto" });
+      schema.properties.prop_2 = { type: "string", "x-order": 20, readOnly: true, default: "LOCKED" };
+      schema.properties.prop_3 = { type: "string", "x-order": 30 };
+      const copy = { mode: "copy", document: JSON.stringify(schema) };
+      const preview = await call(token, "POST", "/entity-schema-import/preview", copy, null);
+      assertEquals(preview.status, 200);
+      const copied = await tool(client, "prepare_entity_schema_import", {
+        ...copy,
+        preview_fingerprint: preview.body.preview_fingerprint,
+        request_key: key(),
+      });
+      assert(copied.type?.id);
+      typeId = copied.type.id;
+      for (const transport of ["http", "mcp"] as const) {
+        const input = {
+          model: "entity",
+          action: "create",
+          input: {
+            entity_type_id: typeId,
+            schema_version: 1,
+            external_id: `${transport}-${run}`,
+            properties: { prop_3: "human" },
+          },
+        };
+        const http = await call(token, "POST", "/records/prepare", input, null);
+        assertEquals(http.status, 200);
+        const mcp = await tool(client, "prepare_record_memo", input);
+        assertEquals(mcp, http.body);
+        assertEquals(mcp.prepared_input.properties, { prop_3: "human" });
+        assert(mcp.change_note.includes("Auto"), "memo must use the resolved readonly representative");
+        const payload = { ...mcp.prepared_input, change_note: mcp.change_note, change_tag_ids: mcp.change_tag_ids };
+        const requestKey = key();
+        const saved = transport === "http"
+          ? await call(token, "POST", "/entities", payload, requestKey)
+          : { status: 201, body: await tool(client, "create_entity", { ...payload, request_key: requestKey }) };
+        assertEquals(saved.status, 201);
+        assertEquals(saved.body.properties, { prop_1: "Auto", prop_2: "LOCKED", prop_3: "human" });
+        assertEquals(saved.body.title, "Auto");
+        const replay = transport === "http"
+          ? await tool(client, "create_entity", { ...payload, request_key: requestKey })
+          : (await call(token, "POST", "/entities", payload, requestKey)).body;
+        assertEquals(replay, saved.body);
+        assertEquals((await tool(client, "get_entity", { id: saved.body.id })).properties, saved.body.properties);
+      }
+      const bad = {
+        model: "entity",
+        action: "create",
+        input: {
+          entity_type_id: typeId,
+          schema_version: 1,
+          external_id: `invalid-${run}`,
+          properties: { prop_2: "LOCKED" },
+        },
+      };
+      const rejected = await call(token, "POST", "/records/prepare", bad, null);
+      assertEquals(rejected.status, 400);
+      assertEquals(rejected.body.code, "invalid_input");
+      assertEquals(rejected.body.fields[0].path, "properties.prop_2");
+      assertEquals((await tool(client, "prepare_record_memo", bad)).error, rejected.body);
+    } finally {
+      await client.close();
+      if (typeId) {
+        await admin.begin(async (tx) => {
+          const entities = await tx`select id from app.entities where owner_id=${owner} and entity_type_id=${typeId!}`;
+          const ids = entities.map((row) => String(row.id));
+          const records =
+            await tx`select id from app.records where owner_id=${owner} and change_metadata->>'target_kind'='entity' and change_metadata->>'target_id'=any(${ids}::text[])`;
+          const recordIds = records.map((row) => String(row.id));
+          await tx`delete from private.request_results where owner_id=${owner} and request_key=any(${keys}::uuid[])`;
+          await tx`delete from pgmq.q_search_index where message->>'owner_id'=${owner} and message->>'kind'='record' and message->>'id'=any(${recordIds}::text[])`;
+          await tx`delete from pgmq.a_search_index where message->>'owner_id'=${owner} and message->>'kind'='record' and message->>'id'=any(${recordIds}::text[])`;
+          await tx`delete from private.passage_effects where owner_id=${owner} and record_id=any(${recordIds}::text[])`;
+          await tx`delete from app.search_chunks where owner_id=${owner} and record_id=any(${recordIds}::text[])`;
+          await tx`delete from app.search_index_state where owner_id=${owner} and kind='record' and id=any(${recordIds}::text[])`;
+          await tx`delete from app.records where owner_id=${owner} and id=any(${recordIds}::text[])`;
+          await tx`delete from app.entities where owner_id=${owner} and entity_type_id=${typeId!}`;
+          await tx`delete from app.entity_types where owner_id=${owner} and id=${typeId!}`;
+        });
+      }
+    }
+  },
+);

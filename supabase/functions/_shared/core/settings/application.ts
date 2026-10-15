@@ -180,6 +180,7 @@ export function prepareBusinessRecord(
         { ...before?.properties, ...(content.properties as Record<string, unknown> ?? {}) },
         patch,
         input.action === "create",
+        before?.properties,
       );
       content = {
         ...content,
@@ -189,7 +190,15 @@ export function prepareBusinessRecord(
           Object.entries(definition.schema.properties).map(([key, field]) => [key, field.title ?? key]),
         ),
       };
-      if (input.action === "create") prepared_input = { ...prepared_input, properties };
+      if (input.action === "create") {
+        // Effective values render the memo; server-owned defaults are not user write input.
+        prepared_input = {
+          ...prepared_input,
+          properties: Object.fromEntries(
+            Object.entries(properties).filter(([key]) => !definition.schema.properties[key]?.readOnly),
+          ),
+        };
+      }
     }
     const after = input.action === "delete" ? null : {
       ...before,
