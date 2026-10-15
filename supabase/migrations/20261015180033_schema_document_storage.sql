@@ -33,7 +33,7 @@ end $$;
 revoke all on function private.normalize_legacy_entity_schema(jsonb,jsonb,uuid,integer) from public,anon,authenticated,app_user,app_server,app_worker;
 
 -- A valid old document can expand under oneOf and root metadata. Refuse atomically,
--- with an actionable diagnostic; never truncate facts or raise the product size cap.
+-- with an actionable diagnostic; never truncate facts or expand the approved document size cap.
 do $$ declare v record; begin
  for v in
   select s.type_id,s.schema_version,octet_length(private.normalize_legacy_entity_schema(s.schema,s.display,s.type_id,s.schema_version)::text) as bytes
