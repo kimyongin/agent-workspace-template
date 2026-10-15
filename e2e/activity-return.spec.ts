@@ -1,6 +1,6 @@
 import postgres from "postgres";
 import { generateDataId } from "../supabase/functions/_shared/contracts/data-id.ts";
-import { createFixtureEntity, scalarFixtureType, fixtureEntityList } from "./entity-schema-support.ts";
+import { createFixtureEntity } from "./entity-schema-support.ts";
 import { fillChangeMemo } from "./ui-actions.ts";
 import { saveOnce, openDetailEditor, openListDetail, openTabFilters } from "./ui-actions.ts";
 import { expect } from "@playwright/test";
