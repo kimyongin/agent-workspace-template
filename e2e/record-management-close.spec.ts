@@ -1,5 +1,5 @@
 import { expect } from "@playwright/test";
-import { test, devLogin, mcpClient, mcpTokenViaConsent, unique } from "./support.ts";
+import { test, devLogin, env, mcpClient, mcpTokenViaConsent, unique } from "./support.ts";
 
 for (const kind of ["once", "recurring"] as const) {
   test(`#341 실제 MCP/웹 ${kind}: 일반 기록 저장·작성 URL 종료·새로고침·취소`, async ({ page }) => {
@@ -20,10 +20,17 @@ for (const kind of ["once", "recurring"] as const) {
       const surface = page.locator("dialog.modal:not(.modal-confirm)[open]");
       await surface.getByRole("button", { name: "기록 작성", exact: true }).click();
       await surface.getByRole("textbox", { name: /^본문/ }).fill(`${title} 참고 메모`);
+      const saved = page.waitForResponse(response => response.request().method() === "POST" && response.url() === `${env.VITE_API_URL}/records`);
       await surface.getByRole("button", { name: "저장", exact: true }).click();
+      expect((await saved).status()).toBe(201);
       await expect(surface.getByRole("heading", { name: title, exact: true })).toBeVisible();
       await expect(page).not.toHaveURL(/action=record/);
+      // Wait for the actual detail read before asserting its rendered viewer.
+      const reloaded = page.waitForResponse(response => response.request().method() === "GET" && response.url() === `${env.VITE_API_URL}/tasks/${taskId}`);
       await page.reload();
+      const loaded = await reloaded;
+      expect(loaded.status()).toBe(200);
+      await loaded.finished();
       await expect(surface.getByRole("heading", { name: title, exact: true })).toBeVisible();
       await expect(surface.getByRole("textbox", { name: /^본문/ })).toHaveCount(0);
       const records = await mcp.call("list_records", { task_id: taskId, record_kind: "user" });
