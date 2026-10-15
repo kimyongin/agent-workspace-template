@@ -1,6 +1,6 @@
 import { expect } from "@playwright/test";
 import postgres from "postgres";
-import { test, devLogin, env, mcpClient, mcpTokenViaConsent, unique } from "./support.ts";
+import { devLogin, env, mcpClient, mcpTokenViaConsent, test, unique } from "./support.ts";
 import { schemaAnalysisTick } from "./entity-schema-support.ts";
 test("값 변환 준비: 저장된 직접 링크·실패 행 보완·재분석·MCP 결과·stale·모바일 초안 보존", async ({ page }) => {
   await devLogin(page);
@@ -18,12 +18,11 @@ test("값 변환 준비: 저장된 직접 링크·실패 행 보완·재분석·
     entityId = entity.id;
     const plan = await mcp.call("create_entity_schema_change", {
       type_id: typeId,
-      expected_type_version: 1,
       expected_schema_version: 1,
       edits: [{
         op: "update_property",
         key: "prop_1",
-        field: { type: "string", title: "이름", minLength: 1, maxLength: 2 },
+        field: { "x-order": 20, type: "string", title: "이름", minLength: 1, maxLength: 2 },
         required: true,
       }],
     });
@@ -49,12 +48,15 @@ test("값 변환 준비: 저장된 직접 링크·실패 행 보완·재분석·
     await expect(dialog).toBeVisible();
     await dialog.getByRole("button", { name: "취소", exact: true }).click();
     await expect(row.getByRole("textbox", { name: "보완값", exact: true })).toHaveValue("01");
-    const reviewed = page.waitForResponse(response =>
-      response.url().endsWith('/analyze') && response.request().method() === 'POST' && response.status() === 202
+    const reviewed = page.waitForResponse((response) =>
+      response.url().endsWith("/analyze") && response.request().method() === "POST" && response.status() === 202
     );
     await page.getByRole("button", { name: "보완 내용 검토", exact: true }).click();
     await reviewed;
-    await expect(page.getByRole("region", { name: "속성 변경 요약", exact: true })).toHaveAttribute("data-change-version", "2");
+    await expect(page.getByRole("region", { name: "속성 변경 요약", exact: true })).toHaveAttribute(
+      "data-change-version",
+      "2",
+    );
     await expect(page.getByRole("heading", { name: "변경 검토" })).toBeVisible();
     await page.reload();
     await expect(page.getByRole("heading", { name: "변경 검토" })).toBeVisible();
@@ -123,12 +125,11 @@ test("늦은 전체 결과가 새 실패 필터의 분석 페이지를 덮어쓰
     ids.push(bad.id, good.id);
     const plan = await mcp.call("create_entity_schema_change", {
       type_id: typeId,
-      expected_type_version: 1,
       expected_schema_version: 1,
       edits: [{
         op: "update_property",
         key: "prop_1",
-        field: { type: "string", minLength: 1, maxLength: 2 },
+        field: { "x-order": 30, type: "string", minLength: 1, maxLength: 2 },
         required: true,
       }],
     });

@@ -1,3 +1,4 @@
+import { schemaPresentation } from "../../lib/schema-document.ts";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { EntityField, EntitySchemaVersion, EntityType } from "@contracts/entity-type.ts";
 import type {
@@ -24,7 +25,25 @@ function supportsNumericCondition(field: EntityField, name: string) {
   if (name === "default" && (field.default === undefined || field.default === null)) return false;
   return kind === "number" || kind === "integer";
 }
-const clone = (v: SchemaDefinition) => structuredClone({ schema: v.schema, display: v.display });
+/** Optional false annotations and object key order have no document meaning. */
+function draftFingerprint(value: unknown): string {
+  const normalize = (item: unknown, key?: string): unknown => {
+    if (Array.isArray(item)) return key === "required" ? [...item].sort() : item.map((value) => normalize(value));
+    if (item && typeof item === "object") {
+      return Object.fromEntries(
+        Object.entries(item)
+          .filter(([name, value]) =>
+            value !== undefined &&
+            !(value === false && ["deprecated", "readOnly", "x-representative", "x-show-in-list"].includes(name))
+          )
+          .sort(([a], [b]) => a.localeCompare(b)).map(([name, value]) => [name, normalize(value, name)]),
+      );
+    }
+    return item;
+  };
+  return JSON.stringify(normalize(value));
+}
+const clone = (v: SchemaDefinition) => structuredClone({ schema: v.schema });
 export type EditState = { dirty: boolean; busy: boolean; uncertain: boolean; error?: boolean };
 /** Owns a material's schema-change editing intent, reads, and writes.
  * Published definitions come from the settings owner; rows and focus stay in the UI.
@@ -70,8 +89,8 @@ export function useSchemaChangeEditor(
   latestDefinition.current = definition;
   const seenDefinition = useRef({ typeId: type.id, version: definition.schema_version });
   const planRead = useRef<{ epoch: number; controller: AbortController | null }>({ epoch: 0, controller: null });
-  const dirty = Object.keys(numericDrafts).length > 0 || JSON.stringify(draft) !== JSON.stringify(saved) ||
-    JSON.stringify(migration) !== JSON.stringify(plan?.migration ?? { rules: [], overrides: [] });
+  const dirty = Object.keys(numericDrafts).length > 0 || draftFingerprint(draft) !== draftFingerprint(saved) ||
+    draftFingerprint(migration) !== draftFingerprint(plan?.migration ?? { rules: [], overrides: [] });
   const protectedDraft = useRef({ dirty, busy, uncertain });
   protectedDraft.current = { dirty, busy: busy || startState.busy, uncertain: uncertain || startState.uncertain };
   const cancelPlanRead = () => {
@@ -121,58 +140,31 @@ export function useSchemaChangeEditor(
     const next = clone(definition);
     for (const key of new Set([...Object.keys(saved.schema.properties), ...Object.keys(draft.schema.properties)])) {
       const previousField = saved.schema.properties[key], localField = draft.schema.properties[key];
-      if (JSON.stringify(previousField) !== JSON.stringify(localField)) {
+      if (draftFingerprint(previousField) !== draftFingerprint(localField)) {
         if (!localField) {
           delete next.schema.properties[key];
-          next.display.order = next.display.order.filter((value) => value !== key);
         } else if (!previousField || !next.schema.properties[key]) {
           next.schema.properties[key] = structuredClone(localField);
-          if (!next.display.order.includes(key)) next.display.order.push(key);
         } else {
           // Carry local attribute edits, while keeping the worker's published type/conditions.
           const field = { ...next.schema.properties[key] };
           for (const name of new Set([...Object.keys(previousField), ...Object.keys(localField)])) {
             const attribute = name as keyof EntityField;
-            if (JSON.stringify(previousField[attribute]) !== JSON.stringify(localField[attribute])) {
+            if (draftFingerprint(previousField[attribute]) !== draftFingerprint(localField[attribute])) {
               Object.assign(field, { [attribute]: localField[attribute] });
             }
           }
           next.schema.properties[key] = field;
         }
       }
-      for (const name of ["required", "list_columns", "archived"] as const) {
-        const previous = name === "required" ? saved.schema.required : saved.display[name];
-        const local = name === "required" ? draft.schema.required : draft.display[name];
-        const current = name === "required" ? next.schema.required : next.display[name];
-        if (!next.schema.properties[key]) {
-          current.splice(0, current.length, ...current.filter((value) => value !== key));
-        } else if (previous.includes(key) !== local.includes(key)) {
-          current.splice(
-            0,
-            current.length,
-            ...current.filter((value) => value !== key),
-            ...(local.includes(key) ? [key] : []),
-          );
-        }
+      const previous = saved.schema.required.includes(key), local = draft.schema.required.includes(key);
+      if (!next.schema.properties[key]) next.schema.required = next.schema.required.filter((value) => value !== key);
+      else if (previous !== local) {
+        next.schema.required = [...next.schema.required.filter((value) => value !== key), ...(local ? [key] : [])];
       }
-      if (!next.schema.properties[key]) delete next.display.option_labels[key];
-      else if (JSON.stringify(saved.display.option_labels[key]) !== JSON.stringify(draft.display.option_labels[key])) {
-        if (draft.display.option_labels[key]) {
-          next.display.option_labels[key] = structuredClone(draft.display.option_labels[key]);
-        } else delete next.display.option_labels[key];
-      }
-    }
-    if (saved.display.representative !== draft.display.representative) {
-      next.display.representative = draft.display.representative;
-    }
-    if (JSON.stringify(saved.display.order) !== JSON.stringify(draft.display.order)) {
-      next.display.order = [
-        ...draft.display.order.filter((key) => next.schema.properties[key]),
-        ...next.display.order.filter((key) => !draft.display.order.includes(key)),
-      ];
     }
     const migrationEdited =
-      JSON.stringify(migration) !== JSON.stringify(plan?.migration ?? { rules: [], overrides: [] });
+      draftFingerprint(migration) !== draftFingerprint(plan?.migration ?? { rules: [], overrides: [] });
     setPlan(null);
     setAcceptedAnalysis(null);
     setDraft(next);
@@ -257,7 +249,7 @@ export function useSchemaChangeEditor(
     setDraft((d) => ({ ...d, schema: { ...d.schema, properties: { ...d.schema.properties, [key]: field } } }));
   const setNumericField = (
     key: string,
-    name: "minLength" | "maxLength" | "minimum" | "maximum" | "default",
+    name: "minLength" | "maxLength" | "minimum" | "maximum" | "multipleOf" | "default",
     raw: string,
   ) => {
     setNumericDrafts((values) => ({ ...values, [key + ":" + name]: raw }));
@@ -281,9 +273,12 @@ export function useSchemaChangeEditor(
       }
       return {
         ...d,
-        display: {
-          ...d.display,
-          [name]: value ? [...d.display[name].filter((k) => k !== key), key] : d.display[name].filter((k) => k !== key),
+        schema: {
+          ...d.schema,
+          properties: {
+            ...d.schema.properties,
+            [key]: { ...d.schema.properties[key], [name === "archived" ? "deprecated" : "x-show-in-list"]: value },
+          },
         },
       };
     });
@@ -294,7 +289,7 @@ export function useSchemaChangeEditor(
       if (refs[key]) {
         result.push({ op: "add_property", client_ref: refs[key], field, required });
       } else if (
-        JSON.stringify(field) !== JSON.stringify(definition.schema.properties[key]) ||
+        draftFingerprint(field) !== draftFingerprint(definition.schema.properties[key]) ||
         required !== definition.schema.required.includes(key)
       ) result.push({ op: "update_property", key, field, required });
     }
@@ -303,24 +298,10 @@ export function useSchemaChangeEditor(
         result.push({ op: "remove_property", key });
       }
     }
-    const reference = (key: string) => refs[key] ? `new_${refs[key]}` : key;
-    const display = {
-      representative: reference(draft.display.representative),
-      order: draft.display.order.map(reference),
-      list_columns: draft.display.list_columns.map(reference),
-      archived: draft.display.archived.map(reference),
-      option_labels: Object.fromEntries(Object.entries(draft.display.option_labels).map(([key, labels]) => [
-        reference(key),
-        Object.fromEntries(Object.entries(labels).filter(([code]) => draft.schema.properties[key]?.enum?.includes(code))),
-      ])),
-    };
-    if (JSON.stringify(display) !== JSON.stringify(definition.display)) {
-      result.push({ op: "set_display", display });
-    }
     return result;
   };
   const validateFields = () => {
-    for (const key of draft.display.order) {
+    for (const key of schemaPresentation(draft).order) {
       let condition: string | undefined;
       try {
         if (
@@ -379,7 +360,6 @@ export function useSchemaChangeEditor(
     try {
       payload = action === "save" || action === "restart"
         ? {
-          expected_type_version: type.version,
           expected_schema_version: definition.schema_version,
           edits: edits(schemaNumericValues(draft, numericDrafts)),
           migration: migrationInput(),
@@ -392,7 +372,11 @@ export function useSchemaChangeEditor(
       setError(e instanceof Error ? e.message : "숫자를 확인하세요.");
       return;
     }
-    const path = action === "restart" ? base : action === "save" ? (plan ? `${base}/${plan.id}` : base) : `${base}/${plan!.id}/${action}`;
+    const path = action === "restart"
+      ? base
+      : action === "save"
+      ? (plan ? `${base}/${plan.id}` : base)
+      : `${base}/${plan!.id}/${action}`;
     try {
       await attempt.run(async () => {
         if (action === "analyze") {
@@ -417,9 +401,11 @@ export function useSchemaChangeEditor(
           applyPlan(value);
           if (action === "restart") setRestartedFrom(plan!.id);
           setReviewTarget({ id: value.id, version: value.version });
-          setMessage(action === "restart"
-            ? "최신 기준으로 새 변경안을 만들었습니다. 기존 변경안은 이력에 유지됩니다."
-            : "변경안을 저장했습니다. 자료에 미치는 영향을 확인합니다.");
+          setMessage(
+            action === "restart"
+              ? "최신 기준으로 새 변경안을 만들었습니다. 기존 변경안은 이력에 유지됩니다."
+              : "변경안을 저장했습니다. 자료에 미치는 영향을 확인합니다.",
+          );
           onReviewed();
         } else if (action === "discard") {
           applyPlan(value);
@@ -472,7 +458,9 @@ export function useSchemaChangeEditor(
     cancelPlanRead();
     const controller = new AbortController(), epoch = planRead.current.epoch;
     planRead.current.controller = controller;
-    const current = () => mounted.current && !controller.signal.aborted && epoch === planRead.current.epoch && latestPlan.current?.id === selected.id;
+    const current = () =>
+      mounted.current && !controller.signal.aborted && epoch === planRead.current.epoch &&
+      latestPlan.current?.id === selected.id;
     setPlanSyncNeeded(true);
     setReadBusy(true);
     try {
@@ -487,7 +475,10 @@ export function useSchemaChangeEditor(
     } catch (e) {
       if (current()) setError(e instanceof Error ? e.message : "변경안 상태를 다시 조회하세요.");
     } finally {
-      if (current()) { planRead.current.controller = null; setReadBusy(false); }
+      if (current()) {
+        planRead.current.controller = null;
+        setReadBusy(false);
+      }
     }
   };
   const loadPlan = async (id: string) => {
@@ -526,10 +517,19 @@ export function useSchemaChangeEditor(
   }, [selectionSearch, type.id, definition.schema_version]);
   const reorder = (key: string, offset: number) =>
     setDraft((d) => {
-      const order = [...d.display.order], at = order.indexOf(key), other = at + offset;
+      const order = [...schemaPresentation(d).order], at = order.indexOf(key), other = at + offset;
       if (other < 0 || other >= order.length) return d;
       [order[at], order[other]] = [order[other], order[at]];
-      return { ...d, display: { ...d.display, order } };
+      return {
+        ...d,
+        schema: {
+          ...d.schema,
+          properties: Object.fromEntries(
+            Object.entries(d.schema.properties)
+              .map(([name, field]) => [name, { ...field, "x-order": (order.indexOf(name) + 1) * 10 }]),
+          ),
+        },
+      };
     });
 
   const editable = () => !busy && !uncertain && !disabled && !readBusy && !startState.busy && !startState.uncertain;
@@ -538,7 +538,7 @@ export function useSchemaChangeEditor(
   };
   const editNumeric = (
     key: string,
-    name: "minLength" | "maxLength" | "minimum" | "maximum" | "default",
+    name: "minLength" | "maxLength" | "minimum" | "maximum" | "multipleOf" | "default",
     raw: string,
   ) => {
     if (editable() && !plan?.recovery) setNumericField(key, name, raw);
@@ -556,7 +556,7 @@ export function useSchemaChangeEditor(
   };
   const setFieldInactive = (key: string, value: boolean) => {
     if (
-      !editable() || plan?.recovery || key === draft.display.representative
+      !editable() || plan?.recovery || key === schemaPresentation(draft).representative
     ) return;
     if (value) {
       flag(key, "required", false);
@@ -568,18 +568,32 @@ export function useSchemaChangeEditor(
     if (!editable() || plan?.recovery) return;
     setDraft((d) => ({
       ...d,
-      display: {
-        ...d.display,
-        option_labels: {
-          ...d.display.option_labels,
-          [key]: { ...d.display.option_labels[key], [code]: label },
+      schema: {
+        ...d.schema,
+        properties: {
+          ...d.schema.properties,
+          [key]: {
+            ...d.schema.properties[key],
+            oneOf: d.schema.properties[key].oneOf?.map((option) =>
+              option.const === code ? { ...option, title: label } : option
+            ),
+          },
         },
       },
     }));
   };
   const chooseRepresentative = (key: string) => {
     if (editable() && !plan?.recovery) {
-      setDraft((d) => ({ ...d, display: { ...d.display, representative: key } }));
+      setDraft((d) => ({
+        ...d,
+        schema: {
+          ...d.schema,
+          properties: Object.fromEntries(
+            Object.entries(d.schema.properties)
+              .map(([name, field]) => [name, { ...field, "x-representative": name === key }]),
+          ),
+        },
+      }));
     }
   };
   const removeField = (key: string) => {
@@ -590,13 +604,6 @@ export function useSchemaChangeEditor(
       return {
         ...d,
         schema: { ...d.schema, properties, required: d.schema.required.filter((k) => k !== key) },
-        display: {
-          ...d.display,
-          order: d.display.order.filter((k) => k !== key),
-          list_columns: d.display.list_columns.filter((k) => k !== key),
-          archived: d.display.archived.filter((k) => k !== key),
-          option_labels: Object.fromEntries(Object.entries(d.display.option_labels).filter(([k]) => k !== key)),
-        },
       };
     });
   };
@@ -608,9 +615,15 @@ export function useSchemaChangeEditor(
       ...d,
       schema: {
         ...d.schema,
-        properties: { ...d.schema.properties, [key]: fieldInputPolicy({ type: "string", title: "새 항목" }, false) },
+        properties: {
+          ...d.schema.properties,
+          [key]: fieldInputPolicy({
+            type: "string",
+            title: "새 항목",
+            "x-order": Math.max(0, ...Object.values(d.schema.properties).map((f) => f["x-order"])) + 10,
+          }, false),
+        },
       },
-      display: { ...d.display, order: [...d.display.order, key] },
     }));
     return key;
   };
@@ -640,7 +653,8 @@ export function useSchemaChangeEditor(
   };
   const publish = () => {
     if (
-      editable() && !dirty && plan?.status === "ready" && (plan.change_kind === "compatible" || (!plan.recovery && plan.analysis?.total === 0)) &&
+      editable() && !dirty && plan?.status === "ready" &&
+      (plan.change_kind === "compatible" || (!plan.recovery && plan.analysis?.total === 0)) &&
       plan.analysis?.failed === 0
     ) {
       return write("apply");
@@ -705,15 +719,14 @@ export function useSchemaChangeEditor(
       if (mounted.current) setReadBusy(false);
     }
   };
-  const changedFields = draft.display.order.filter((key) =>
-    JSON.stringify(draft.schema.properties[key]) !== JSON.stringify(saved.schema.properties[key]) ||
+  const changedFields = schemaPresentation(draft).order.filter((key) =>
+    draftFingerprint(draft.schema.properties[key]) !== draftFingerprint(saved.schema.properties[key]) ||
     draft.schema.required.includes(key) !== saved.schema.required.includes(key) ||
     Object.keys(numericDrafts).some((address) => address.startsWith(key + ":"))
   );
   const changeCount = changedFields.length +
     Object.keys(saved.schema.properties).filter((key) => !draft.schema.properties[key]).length +
-    (JSON.stringify(draft.display) !== JSON.stringify(saved.display) ? 1 : 0) +
-    (JSON.stringify(migration) !== JSON.stringify(plan?.migration ?? { rules: [], overrides: [] }) ? 1 : 0);
+    (draftFingerprint(migration) !== draftFingerprint(plan?.migration ?? { rules: [], overrides: [] }) ? 1 : 0);
   return {
     view: {
       draft,
@@ -740,7 +753,8 @@ export function useSchemaChangeEditor(
       restartedFrom,
       staleInput,
       planSyncNeeded,
-      migrationEdited: JSON.stringify(migration) !== JSON.stringify(plan?.migration ?? { rules: [], overrides: [] }),
+      migrationEdited:
+        draftFingerprint(migration) !== draftFingerprint(plan?.migration ?? { rules: [], overrides: [] }),
     },
     editField,
     editNumeric,

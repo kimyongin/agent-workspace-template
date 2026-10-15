@@ -1,3 +1,4 @@
+import { schemaPresentation } from "../../lib/schema-document.ts";
 import type { EntitySchemaChange } from "@contracts/entity-schema-change.ts";
 import type { EntitySchemaVersion } from "@contracts/entity-type.ts";
 import { SchemaDefinitionRead } from "./SchemaDefinitionRead.tsx";
@@ -11,7 +12,7 @@ export function SchemaChangeDiff(
 ) {
   const source = definition.schema_version === change.source_schema_version ? definition : {
     ...definition,
-    display: { ...definition.display, option_labels: {} },
+    schema: { ...definition.schema, properties: {} },
   };
   return (
     <dl className="schema-change-list">

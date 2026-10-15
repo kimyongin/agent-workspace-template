@@ -1,3 +1,5 @@
+import { fieldChoices } from "../../lib/schema-document.ts";
+import { schemaPresentation } from "../../lib/schema-document.ts";
 import { entityNumberDraft } from "@contracts/entity-number.ts";
 import { useEffect, useState } from "react";
 import type { EntitySchemaResult } from "@contracts/entity-type.ts";
@@ -32,7 +34,9 @@ export function TypedEntityFilters(
       setError("속성 조건이 잘못되었습니다. 조건을 초기화하세요.");
     }
   }, [raw]);
-  const keys = schema?.display.order.filter((key) => !schema.display.archived.includes(key)) ?? [];
+  const keys = schema
+    ? schemaPresentation(schema).order.filter((key) => !schema.schema.properties[key].deprecated)
+    : [];
   const update = (index: number, patch: Record<string, unknown>) =>
     setDraft((rows) =>
       rows.map((row, n) =>
@@ -74,7 +78,7 @@ export function TypedEntityFilters(
           <legend className="label">속성 조건 · 모두 충족</legend>
           {draft.map((row, index) => {
             const field = schema.schema.properties[row.key], kind = field ? fieldType(field) : null;
-            const operators = field?.enum || kind === "boolean"
+            const operators = fieldChoices(field) || kind === "boolean"
               ? ["eq"]
               : kind === "string" && !field?.format
               ? ["eq", "contains"]
@@ -141,7 +145,7 @@ export function TypedEntityFilters(
                             <option value="false">거짓</option>
                           </select>
                         )
-                        : field?.enum
+                        : fieldChoices(field)
                         ? (
                           <select
                             {...props}
@@ -150,9 +154,9 @@ export function TypedEntityFilters(
                             onChange={(event) => update(index, { value: event.target.value })}
                           >
                             <option value="">선택하세요</option>
-                            {field.enum.filter((value) => value !== null).map((value) => (
+                            {fieldChoices(field)!.filter((value) => value !== null).map((value) => (
                               <option key={value!} value={value!}>
-                                {displayedProperty(field, value, schema.display.option_labels[row.key])}
+                                {displayedProperty(field, value, schemaPresentation(schema).option_labels[row.key])}
                               </option>
                             ))}
                           </select>
@@ -206,7 +210,10 @@ export function TypedEntityFilters(
                       (kind === "integer" || kind === "number") && (typeof value !== "string" || !value.trim()) &&
                       typeof value !== "number"
                     ) throw Error("숫자를 입력하세요");
-                    return { ...row, value: kind === "integer" || kind === "number" ? entityNumberDraft(String(value), kind) : value };
+                    return {
+                      ...row,
+                      value: kind === "integer" || kind === "number" ? entityNumberDraft(String(value), kind) : value,
+                    };
                   });
                   const parsed = z.array(entityPropertyFilter).parse(filters);
                   setError("");

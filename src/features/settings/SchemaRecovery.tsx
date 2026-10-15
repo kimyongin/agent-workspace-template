@@ -94,7 +94,6 @@ export function submitRecoveryChange(job: EntitySchemaMigration, requestKey: str
     `/entity-schema-migrations/${job.id}/recovery-changes`,
     {
       expected_job_version: job.version,
-      expected_type_version: job.recovery.current_type_version,
       expected_schema_version: job.recovery.current_schema_version,
     },
     undefined,

@@ -1,3 +1,4 @@
+import { schemaPresentation } from "../../lib/schema-document.ts";
 import { useEffect, useState } from "react";
 import type { EntityValues } from "@contracts/entity.ts";
 import type { EntitySchemaResult } from "@contracts/entity-type.ts";
@@ -37,19 +38,21 @@ export function EntityProperties(
   if (!definition) return <p role="status">속성 정의를 불러오는 중…</p>;
   return (
     <dl className="props">
-      {definition.display.order.filter((key) => !omitRepresentative || key !== definition.display.representative).map((
+      {schemaPresentation(definition).order.filter((key) =>
+        !omitRepresentative || key !== schemaPresentation(definition).representative
+      ).map((
         key,
       ) => (
         <div key={key}>
           <dt>
             {definition.schema.properties[key].title ?? key}
-            {definition.display.archived.includes(key) ? " · 보관" : ""}
+            {schemaPresentation(definition).archived.includes(key) ? " · 보관" : ""}
           </dt>
           <dd>
             {displayedProperty(
               definition.schema.properties[key],
               entity.properties[key],
-              definition.display.option_labels[key],
+              schemaPresentation(definition).option_labels[key],
             )}
           </dd>
         </div>

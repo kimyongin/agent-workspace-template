@@ -14,7 +14,8 @@ export function schemaNumericValues(definition: SchemaDefinition, drafts: Record
     if (!field || name === "default" && (!Object.hasOwn(field, "default") || field.default === null)) continue;
     const kind = fieldType(field);
     if (
-      (name === "minimum" || name === "maximum" || name === "default") && !["integer", "number"].includes(kind ?? "")
+      (name === "minimum" || name === "maximum" || name === "multipleOf" || name === "default") &&
+      !["integer", "number"].includes(kind ?? "")
     ) continue;
     if ((name === "minLength" || name === "maxLength") && kind !== "string") continue;
     try {

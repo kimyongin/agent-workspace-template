@@ -44,7 +44,7 @@ export function createMaterialDefinition(typeId?: string) {
   };
   const admitType = (saved: EntityType, preserveDraft: boolean) => {
     const previous = state.type;
-    if (previous && saved.version < previous.version) return previous;
+    if (previous && saved.schema_version < previous.schema_version) return previous;
     state = {
       ...state,
       type: saved,
@@ -135,7 +135,6 @@ export function createMaterialDefinition(typeId?: string) {
     },
     refresh,
     basicSaveInput: () => ({
-      expected_type_version: state.type!.version,
       expected_schema_version: state.type!.schema_version,
       label: state.label,
       icon_id: state.icon,

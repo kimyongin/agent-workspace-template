@@ -1,31 +1,31 @@
 import { expect, it } from "vitest";
 import { fieldInputPolicy } from "./field-input-policy.ts";
 it("optional choice fields allow null in both type and choices without altering the source", () => {
-  const field = { type: "string" as const, enum: ["a"], title: "단위" };
+  const field = { "x-order": 20, type: "string" as const, oneOf: [{ const: "a" }], title: "단위" };
   expect(fieldInputPolicy(field, false)).toEqual({
     ...field,
     type: ["string", "null"],
-    enum: ["a", null],
+    oneOf: [{ const: "a" }, { const: null }],
   });
-  expect(field.enum).toEqual(["a"]);
+  expect(field.oneOf).toEqual([{ const: "a" }]);
 });
 it("required fields reject null and blank text while removing incompatible null defaults", () => {
   expect(
     fieldInputPolicy(
-      { type: ["string", "null"], minLength: 0, default: null },
+      { "x-order": 40, type: ["string", "null"], minLength: 0, default: null },
       true,
     ),
   )
-    .toEqual({ type: "string", minLength: 1 });
+    .toEqual({ "x-order": 40, type: "string", minLength: 1 });
   expect(
-    fieldInputPolicy({ type: ["string", "null"], enum: ["a", null] }, true),
+    fieldInputPolicy({ "x-order": 60, type: ["string", "null"], oneOf: [{ const: "a" }, { const: null }] }, true),
   )
-    .toEqual({ type: "string", enum: ["a"] });
+    .toEqual({ "x-order": 60, type: "string", oneOf: [{ const: "a" }] });
 });
 it("false and zero defaults remain real values", () => {
-  expect(fieldInputPolicy({ type: "boolean", default: false }, true).default)
+  expect(fieldInputPolicy({ "x-order": 80, type: "boolean", default: false }, true).default)
     .toBe(false);
-  expect(fieldInputPolicy({ type: "number", default: 0 }, false).default).toBe(
+  expect(fieldInputPolicy({ "x-order": 90, type: "number", default: 0 }, false).default).toBe(
     0,
   );
 });

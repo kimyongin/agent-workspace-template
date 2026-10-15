@@ -1,3 +1,4 @@
+import { schemaPresentation } from "../../lib/schema-document.ts";
 import { PageHeading } from "../../components/PageHeading.tsx";
 import {
   changeEntityListQuery,
@@ -102,7 +103,7 @@ export function EntitiesPage() {
               `${field.title ?? condition.key}${comparison[condition.operator]}: ${
                 condition.operator === "unset"
                   ? "미지정"
-                  : displayedProperty(field, condition.value, schema.display.option_labels[condition.key])
+                  : displayedProperty(field, condition.value, schemaPresentation(schema).option_labels[condition.key])
               }`,
             );
           }
@@ -213,8 +214,12 @@ export function EntitiesPage() {
   return (
     <>
       <section className="panel main-tab-header" aria-labelledby="entities-title">
-        <PageHeading title={label} id="entities-title" tabIndex={-1}
-          description="자료를 등록하고, 속성과 연결된 할 일·기록을 관리합니다." />
+        <PageHeading
+          title={label}
+          id="entities-title"
+          tabIndex={-1}
+          description="자료를 등록하고, 속성과 연결된 할 일·기록을 관리합니다."
+        />
         <div className="query-bar entity-query-bar">
           <EntityTypePicker
             types={types ?? []}
@@ -365,7 +370,9 @@ export function EntitiesPage() {
               view={view === "calendar" ? "list" : view}
               label={`${label} 목록`}
               numericColumns={displaySchema
-                ? displaySchema.display.list_columns.filter((key) => key !== displaySchema.display.representative)
+                ? schemaPresentation(displaySchema).list_columns.filter((key) =>
+                  key !== schemaPresentation(displaySchema).representative
+                )
                   .flatMap((key, index) =>
                     ["integer", "number"].includes(fieldType(displaySchema.schema.properties[key]) ?? "")
                       ? [index + 1]
@@ -375,7 +382,9 @@ export function EntitiesPage() {
               columns={displaySchema
                 ? [
                   "자료",
-                  ...displaySchema.display.list_columns.filter((key) => key !== displaySchema.display.representative)
+                  ...schemaPresentation(displaySchema).list_columns.filter((key) =>
+                    key !== schemaPresentation(displaySchema).representative
+                  )
                     .map((key) => displaySchema.schema.properties[key].title ?? key),
                 ]
                 : ["자료", "자료 종류"]}
@@ -388,14 +397,14 @@ export function EntitiesPage() {
                       id={e.id}
                       title={e.title}
                       cells={displaySchema
-                        ? displaySchema.display.list_columns.filter((key) =>
-                          key !== displaySchema.display.representative
+                        ? schemaPresentation(displaySchema).list_columns.filter((key) =>
+                          key !== schemaPresentation(displaySchema).representative
                         ).map(
                           (key) =>
                             displayedProperty(
                               displaySchema.schema.properties[key],
                               e.display_properties[key],
-                              displaySchema.display.option_labels[key],
+                              schemaPresentation(displaySchema).option_labels[key],
                             ),
                         )
                         : [

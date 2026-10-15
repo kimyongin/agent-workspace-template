@@ -5,8 +5,7 @@ import postgres from "postgres";
 import { env, ownFixtureResult } from "./support.ts";
 /** Explicit actual internal worker consumption; callers own serial local API tests. */
 export async function schemaAnalysisTick() {
-  const token =
-    parseEnv(readFileSync(new URL("../supabase/functions/.env", import.meta.url), "utf8")).PROCESSING_TOKEN;
+  const token = parseEnv(readFileSync(new URL("../supabase/functions/.env", import.meta.url), "utf8")).PROCESSING_TOKEN;
   if (!token) throw new Error("local schema worker token missing");
   const response = await fetch(`${env.VITE_SUPABASE_URL}/functions/v1/entity-schema-worker`, {
     method: "POST",
@@ -46,13 +45,39 @@ export function scalarFixtureType(mcp: { call(name: string, input: Record<string
   let result = fixtureTypes.get(mcp);
   if (!result) {
     result = (async () => {
-      const type = await mcp.call("create_entity_type", { label: "검사 자료 " + crypto.randomUUID().slice(0, 8), icon_id: "box", representative_label: "제목" });
+      const type = await mcp.call("create_entity_type", {
+        label: "검사 자료 " + crypto.randomUUID().slice(0, 8),
+        icon_id: "box",
+        representative_label: "제목",
+      });
       const change = await mcp.call("create_entity_schema_change", {
-        type_id: type.id, expected_type_version: type.version, expected_schema_version: type.schema_version,
+        type_id: type.id,
+        expected_schema_version: type.schema_version,
         edits: [
-          { op: "add_property", client_ref: "quantity", field: { type: ["integer", "null"], title: "수량", default: 0 }, required: false },
-          { op: "add_property", client_ref: "date", field: { type: ["string", "null"], title: "날짜", format: "date", default: null }, required: false },
-          { op: "add_property", client_ref: "category", field: { type: "string", title: "분류", enum: ["a", "b", "c"], default: "a" }, required: false },
+          {
+            op: "add_property",
+            client_ref: "quantity",
+            field: { "x-order": 20, type: ["integer", "null"], title: "수량", default: 0 },
+            required: false,
+          },
+          {
+            op: "add_property",
+            client_ref: "date",
+            field: { "x-order": 30, type: ["string", "null"], title: "날짜", format: "date", default: null },
+            required: false,
+          },
+          {
+            op: "add_property",
+            client_ref: "category",
+            field: {
+              "x-order": 40,
+              type: "string",
+              title: "분류",
+              oneOf: [{ const: "a" }, { const: "b" }, { const: "c" }],
+              default: "a",
+            },
+            required: false,
+          },
         ],
       });
       await analyzeAndApply(mcp, type.id, change.id, change.version);
@@ -62,9 +87,18 @@ export function scalarFixtureType(mcp: { call(name: string, input: Record<string
   }
   return result;
 }
-export async function createFixtureEntity(mcp: { call(name: string, input: Record<string, unknown>): Promise<any> }, properties: Record<string, unknown>, identity: Record<string, unknown> = {}) {
+export async function createFixtureEntity(
+  mcp: { call(name: string, input: Record<string, unknown>): Promise<any> },
+  properties: Record<string, unknown>,
+  identity: Record<string, unknown> = {},
+) {
   const type = await scalarFixtureType(mcp);
-  return mcp.call("create_entity", { ...identity, entity_type_id: type.id, schema_version: type.schema_version, properties });
+  return mcp.call("create_entity", {
+    ...identity,
+    entity_type_id: type.id,
+    schema_version: type.schema_version,
+    properties,
+  });
 }
 export function fixtureEntityList(typeId: string, keyword = "", category?: string, sort = false) {
   const params = new URLSearchParams({ entity_type_id: typeId });
@@ -100,9 +134,12 @@ export async function seedFixtureEntities(
       const owned = await tx`select id from app.entity_types where id=${type.id} and owner_id=${ownerId}`;
       expect(owned).toHaveLength(1);
       if (rows.length) {
-        const inserted = await tx`insert into app.entities (owner_id,id,source,external_id,entity_type_id,schema_version,properties)
+        const inserted =
+          await tx`insert into app.entities (owner_id,id,source,external_id,entity_type_id,schema_version,properties)
           select owner_id,id,source,external_id,entity_type_id,schema_version,properties
-          from jsonb_to_recordset(${tx.json(rows)}) as fixture(owner_id uuid,id text,source text,external_id text,entity_type_id uuid,schema_version integer,properties jsonb)
+          from jsonb_to_recordset(${
+            tx.json(rows)
+          }) as fixture(owner_id uuid,id text,source text,external_id text,entity_type_id uuid,schema_version integer,properties jsonb)
           returning id`;
         expect(inserted).toHaveLength(rows.length);
       }

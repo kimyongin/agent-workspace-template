@@ -118,35 +118,41 @@ function PropertyList(
               <div className="related-item schema-field" data-property-id={field.id} data-expanded={open || undefined}>
                 <div className="schema-field-heading">
                   <h3>
-                    {open ? <span className="schema-field-title">
-                      <input
-                        className="input"
-                        aria-label="항목 이름 (필수)"
-                        aria-required
-                        aria-invalid={!!labelError}
-                        aria-describedby={labelError ? labelErrorId : undefined}
-                        value={field.label}
-                        onChange={(event) => edit(field.id, { label: event.target.value })}
-                      />
-                      {labelError && <span id={labelErrorId} className="error-text">{labelError}</span>}
-                      {summary}
-                    </span> : <button
-                      type="button"
-                      className="schema-field-title related-toggle item-title"
-                      aria-expanded={open}
-                      aria-controls={bodyId}
-                      onClick={() => {
-                        toggle(field.id);
-                        requestAnimationFrame(() => {
-                          root.current?.querySelector<HTMLInputElement>(
-                            `[data-property-id="${field.id}"] .schema-field-title input`,
-                          )?.focus({ preventScroll: true });
-                        });
-                      }}
-                    >
-                      <span>{field.label || "새 항목"}</span>
-                      {summary}
-                    </button>}
+                    {open
+                      ? (
+                        <span className="schema-field-title">
+                          <input
+                            className="input"
+                            aria-label="항목 이름 (필수)"
+                            aria-required
+                            aria-invalid={!!labelError}
+                            aria-describedby={labelError ? labelErrorId : undefined}
+                            value={field.label}
+                            onChange={(event) => edit(field.id, { label: event.target.value })}
+                          />
+                          {labelError && <span id={labelErrorId} className="error-text">{labelError}</span>}
+                          {summary}
+                        </span>
+                      )
+                      : (
+                        <button
+                          type="button"
+                          className="schema-field-title related-toggle item-title"
+                          aria-expanded={open}
+                          aria-controls={bodyId}
+                          onClick={() => {
+                            toggle(field.id);
+                            requestAnimationFrame(() => {
+                              root.current?.querySelector<HTMLInputElement>(
+                                `[data-property-id="${field.id}"] .schema-field-title input`,
+                              )?.focus({ preventScroll: true });
+                            });
+                          }}
+                        >
+                          <span>{field.label || "새 항목"}</span>
+                          {summary}
+                        </button>
+                      )}
                   </h3>
                   <div className="schema-order-actions">
                     <BodyAction
@@ -260,7 +266,10 @@ function PropertyList(
 }
 
 function PropertyDefinition({ fields }: { fields: Property[] }) {
-  const properties: Record<string, EntityField> = Object.fromEntries(fields.map((field) => [field.id, {
+  const properties: Record<string, EntityField> = Object.fromEntries(fields.map((field, index) => [field.id, {
+    "x-order": (index + 1) * 10,
+    "x-representative": field.representative,
+    "x-show-in-list": field.listed,
     title: field.label,
     type: field.type === "text" ? "string" : "number",
     ...(field.type === "text" && field.maxLength ? { maxLength: Number(field.maxLength) } : {}),
@@ -270,17 +279,14 @@ function PropertyDefinition({ fields }: { fields: Property[] }) {
       definition={{
         schema: {
           $schema: ENTITY_SCHEMA_DIALECT,
+          "x-type-id": "sample",
+          "x-version": 1,
+          title: "자료",
+          "x-icon": "box",
           type: "object",
           additionalProperties: false,
           properties,
           required: fields.filter((field) => field.required).map((field) => field.id),
-        },
-        display: {
-          representative: fields.find((field) => field.representative)?.id ?? "",
-          order: fields.map((field) => field.id),
-          list_columns: fields.filter((field) => field.listed).map((field) => field.id),
-          archived: [],
-          option_labels: {},
         },
       }}
     />
@@ -413,7 +419,9 @@ export function MaterialWorkspaceSample() {
         </Field>
         <div className="settings-section-footer">
           <div className="actions schema-actions">
-            <button type="button" className="btn" aria-label="변경 취소" onClick={() => setTypeName(savedTypeName)}>취소</button>
+            <button type="button" className="btn" aria-label="변경 취소" onClick={() => setTypeName(savedTypeName)}>
+              취소
+            </button>
             <button
               type="button"
               className="btn btn-primary"

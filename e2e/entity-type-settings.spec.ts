@@ -1,3 +1,4 @@
+import { entitySchemaPresentation } from "../supabase/functions/_shared/contracts/entity-type.ts";
 import { expect } from "@playwright/test";
 import postgres from "postgres";
 import { devLogin, env, mcpClient, mcpTokenViaConsent, test, unique } from "./support.ts";
@@ -65,19 +66,18 @@ test("자료 종류를 웹에서 만들고 이름·아이콘·보관과 게시 �
     const concurrentLabel = unique("다른 화면 이름");
     const concurrent = await mcp.call("update_entity_type", {
       type_id: typeId,
-      expected_type_version: created.version,
       expected_schema_version: created.schema_version,
       label: concurrentLabel,
       icon_id: "book",
     });
-    expect(concurrent.version).toBe(2);
-    const conflictResponse = page.waitForResponse(response =>
+    expect(concurrent.schema_version).toBe(2);
+    const conflictResponse = page.waitForResponse((response) =>
       response.request().method() === "PATCH" && response.url().endsWith(`/entity-types/${typeId}`)
     );
     await page.getByRole("button", { name: "기본 정보 저장", exact: true }).click();
     const rejected = await conflictResponse;
     expect(rejected.status()).toBe(409);
-    expect(await rejected.json()).toMatchObject({ code: "schema_changed", current: { type_version: 2, schema_version: 1 } });
+    expect(await rejected.json()).toMatchObject({ code: "schema_changed", current: { schema_version: 2 } });
     await expect(page.getByRole("alert")).toContainText("최신 기본 정보를 확인");
     await expect(page.getByLabel("자료 종류 이름", { exact: true })).toHaveValue(changedLabel);
     await expect(page.getByRole("radio", { name: "별", exact: true })).toBeChecked();
@@ -90,8 +90,8 @@ test("자료 종류를 웹에서 만들고 이름·아이콘·보관과 게시 �
     const renamed = await mcp.call("get_entity_type", { type_id: typeId });
     expect(renamed.label).toBe(changedLabel);
     expect(renamed.icon_id).toBe("star");
-    expect(renamed.version).toBe(3);
-    expect(renamed.schema_version).toBe(1);
+    expect(renamed.schema_version).toBe(3);
+    expect(renamed.schema_version).toBe(3);
     const history = page.getByRole("region", { name: "변경 이력", exact: true });
     await history.getByRole("button", { name: /^변경 이력/ }).click();
     const row = history.locator(".schema-history-row").filter({ hasText: "버전 1 · 적용됨" });
@@ -122,13 +122,11 @@ test("자료 종류를 웹에서 만들고 이름·아이콘·보관과 게시 �
         type_id: published.type_id,
         schema_version: published.schema_version,
         schema: published.schema,
-        display: published.display,
         created_at: published.created_at,
       }).toEqual({
         type_id: original.type_id,
         schema_version: original.schema_version,
         schema: original.schema,
-        display: original.display,
         created_at: original.created_at,
       });
     };
@@ -243,7 +241,7 @@ test("새 입력 항목의 첫 웹 검토가 순서·대표 이름·선택 표�
     await field.getByRole("radio", { name: "상품명 자료 이름으로 사용", exact: true }).check();
     await page.getByRole("button", { name: "상품명 위로", exact: true }).click();
     await page.getByRole("button", { name: "상품명 위로", exact: true }).click();
-    const saveResponse = page.waitForResponse(response =>
+    const saveResponse = page.waitForResponse((response) =>
       response.request().method() === "POST" && response.url().endsWith(`/entity-types/${type.id}/schema-changes`)
     );
     await page.getByRole("button", { name: "변경 검토", exact: true }).click();
@@ -254,7 +252,7 @@ test("새 입력 항목의 첫 웹 검토가 순서·대표 이름·선택 표�
     const fields = Object.entries(stored.target.schema.properties) as Array<[string, { title?: string }]>;
     const statusKey = fields.find(([, value]) => value.title === "판매 상태")![0];
     const nameKey = fields.find(([, value]) => value.title === "상품명")![0];
-    expect(stored.target.display).toEqual({
+    expect(entitySchemaPresentation(stored.target.schema)).toEqual({
       representative: nameKey,
       order: [nameKey, "prop_1", statusKey],
       list_columns: ["prop_1", statusKey],
@@ -270,7 +268,7 @@ test("새 입력 항목의 첫 웹 검토가 순서·대표 이름·선택 표�
     ).toBe("applied");
     const published = await mcp.call("get_entity_schema", { type_id: type.id });
     expect(published.schema_version).toBe(2);
-    expect(published.display).toEqual(stored.target.display);
+    expect(entitySchemaPresentation(published.schema)).toEqual(entitySchemaPresentation(stored.target.schema));
     await expect(history.getByRole("button", { name: "변경 이력 다시 조회", exact: true })).toBeEnabled();
     const inputToggle = page.getByRole("button", { name: "입력 항목", exact: true });
     if (await inputToggle.getAttribute("aria-expanded") === "false") await inputToggle.click();
@@ -290,24 +288,43 @@ test("기록 템플릿이 바뀌면 같은 이력 행에서 변환 초안을 유
   try {
     const type = await mcp.call("create_entity_type", { label: unique("템플릿 변경 재검토") });
     const addition = await mcp.call("create_entity_schema_change", {
-      type_id: type.id, expected_type_version: 1, expected_schema_version: 1,
-      edits: [{ op: "add_property", client_ref: "price", field: { type: ["integer", "null"], title: "가격" } }],
+      type_id: type.id,
+      expected_schema_version: 1,
+      edits: [{
+        op: "add_property",
+        client_ref: "price",
+        field: { "x-order": 20, type: ["integer", "null"], title: "가격" },
+      }],
     });
     await analyzeAndApply(mcp, type.id, addition.id, addition.version);
     const priceKey = addition.reservations.price;
     await mcp.call("create_entity", {
-      entity_type_id: type.id, schema_version: 2, properties: { prop_1: "원본 상품", [priceKey]: 0 },
+      entity_type_id: type.id,
+      schema_version: 2,
+      properties: { prop_1: "원본 상품", [priceKey]: 0 },
     });
     const change = await mcp.call("create_entity_schema_change", {
-      type_id: type.id, expected_type_version: 2, expected_schema_version: 2,
-      edits: [{ op: "update_property", key: priceKey, field: { type: ["string", "null"], title: "가격" }, required: false }],
+      type_id: type.id,
+      expected_schema_version: 2,
+      edits: [{
+        op: "update_property",
+        key: priceKey,
+        field: { "x-order": 30, type: ["string", "null"], title: "가격" },
+        required: false,
+      }],
     });
-    await mcp.call("analyze_entity_schema_change", { type_id: type.id, change_id: change.id, expected_change_version: change.version });
+    await mcp.call("analyze_entity_schema_change", {
+      type_id: type.id,
+      change_id: change.id,
+      expected_change_version: change.version,
+    });
     await expect.poll(async () => {
       await schemaAnalysisTick();
       return await mcp.call("get_entity_schema_change", { type_id: type.id, change_id: change.id });
     }, { timeout: 30000 }).toMatchObject({
-      status: "ready", analysis: { status: "succeeded", failed: 1 }, executable: false,
+      status: "ready",
+      analysis: { status: "succeeded", failed: 1 },
+      executable: false,
     });
     await page.goto(`/settings/entity-types/${type.id}?change_id=${change.id}`);
     const history = page.getByRole("region", { name: "변경 이력", exact: true });
@@ -315,16 +332,23 @@ test("기록 템플릿이 바뀌면 같은 이력 행에서 변환 초안을 유
     const before = await mcp.call("get_business_settings", { id: "record_templates" });
     const templates = before.settings.record_templates ?? {};
     await mcp.call("update_business_settings", {
-      id: "record_templates", expected_version: before.versions.record_templates,
-      value: { ...templates, entity_types: { ...templates.entity_types,
-        [type.id]: { ...templates.entity_types?.[type.id], update: { memo: "변환 확인 $대상$", tag_ids: [] } },
-      } },
+      id: "record_templates",
+      expected_version: before.versions.record_templates,
+      value: {
+        ...templates,
+        entity_types: {
+          ...templates.entity_types,
+          [type.id]: { ...templates.entity_types?.[type.id], update: { memo: "변환 확인 $대상$", tag_ids: [] } },
+        },
+      },
     });
-    const savedTemplates = (await mcp.call("get_business_settings", { id: "record_templates" })).settings.record_templates;
+    const savedTemplates =
+      (await mcp.call("get_business_settings", { id: "record_templates" })).settings.record_templates;
     expect({ ...savedTemplates, entity_types: { ...savedTemplates.entity_types, [type.id]: undefined } }).toEqual({
-      ...templates, entity_types: { ...templates.entity_types, [type.id]: undefined },
+      ...templates,
+      entity_types: { ...templates.entity_types, [type.id]: undefined },
     });
-    const rejectedResponse = page.waitForResponse(response =>
+    const rejectedResponse = page.waitForResponse((response) =>
       response.request().method() === "PATCH" && response.url().endsWith(`/schema-changes/${change.id}`)
     );
     await history.getByRole("button", { name: "보완 내용 검토", exact: true }).click();
@@ -333,7 +357,7 @@ test("기록 템플릿이 바뀌면 같은 이력 행에서 변환 초안을 유
     expect(await rejected.json()).toMatchObject({ code: "schema_plan_stale" });
     await expect(page.getByRole("alert").filter({ hasText: "기록 템플릿이 변경되었습니다" })).toBeVisible();
     await expect(history.getByLabel("가격 변환 방식", { exact: true })).toHaveValue("convert");
-    const recreatedResponse = page.waitForResponse(response =>
+    const recreatedResponse = page.waitForResponse((response) =>
       response.request().method() === "POST" && response.url().endsWith(`/entity-types/${type.id}/schema-changes`)
     );
     await history.getByRole("button", { name: "최신 기준으로 다시 검토", exact: true }).click();
@@ -345,9 +369,14 @@ test("기록 템플릿이 바뀌면 같은 이력 행에서 변환 초안을 유
     expect(stored.target.schema.properties[priceKey].type).toEqual(["string", "null"]);
     expect(stored.migration.rules).toEqual([{ op: "convert", key: priceKey, to: "string" }]);
     expect(stored.source_template_fingerprint).not.toBe(change.source_template_fingerprint);
-    expect((await mcp.call("get_entity_schema_change", { type_id: type.id, change_id: change.id })).status).toBe("stale");
+    expect((await mcp.call("get_entity_schema_change", { type_id: type.id, change_id: change.id })).status).toBe(
+      "stale",
+    );
     await expect(history).toContainText("기존 변경안은 이력에 유지됩니다");
-    await expect(history.getByRole("link", { name: "이 변경안 직접 링크", exact: true })).toHaveAttribute("href", new RegExp(`change_id=${next.id}`));
+    await expect(history.getByRole("link", { name: "이 변경안 직접 링크", exact: true })).toHaveAttribute(
+      "href",
+      new RegExp(`change_id=${next.id}`),
+    );
     await expect.poll(async () => {
       await schemaAnalysisTick();
       return (await mcp.call("get_entity_schema_change", { type_id: type.id, change_id: next.id })).executable;

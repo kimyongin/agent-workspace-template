@@ -1,12 +1,5 @@
 import { expect, test } from "@playwright/test";
-import {
-  entity,
-  fixtureIdentity,
-  fixtureSchema,
-  fixtureType,
-  id,
-  stamp,
-} from "./support/workspace-data.ts";
+import { entity, fixtureIdentity, fixtureSchema, fixtureType, id, stamp } from "./support/workspace-data.ts";
 import { openTabFilters } from "./ui-actions.ts";
 const second = { ...fixtureType, id: id(901), label: "다른 자료" };
 test.beforeEach(async ({ page, baseURL }) => {
@@ -21,13 +14,18 @@ test.beforeEach(async ({ page, baseURL }) => {
       if (url.pathname.endsWith("/identity")) {
         return route.fulfill({ json: fixtureIdentity(selected.id) });
       }
-      if (url.pathname.endsWith("/schemas")) return route.fulfill({ json: {
-        items: [{ type_id: selected.id, schema_version: fixtureSchema.schema_version, created_at: stamp }], next_before: null,
-      } });
+      if (url.pathname.endsWith("/schemas")) {
+        return route.fulfill({
+          json: {
+            items: [{ type_id: selected.id, schema_version: fixtureSchema.schema_version, created_at: stamp }],
+            next_before: null,
+          },
+        });
+      }
       if (url.pathname.endsWith("/schema-changes")) return route.fulfill({ json: { items: [], next_before: null } });
-      return route.fulfill({ json: url.pathname.endsWith("/schema")
-        ? { ...fixtureSchema, type_id: selected.id, type: selected }
-        : selected });
+      return route.fulfill({
+        json: url.pathname.endsWith("/schema") ? { ...fixtureSchema, type_id: selected.id, type: selected } : selected,
+      });
     }
     if (url.pathname === "/api/settings/business") {
       return route.fulfill({
@@ -128,7 +126,8 @@ test("manual deleted lookup opens restore confirmation without submitting archiv
         }],
       },
     }));
-  const schema = { ...fixtureSchema, display: { ...fixtureSchema.display, archived: ["prop_4"] } };
+  const schema = structuredClone(fixtureSchema);
+  schema.schema.properties.prop_4.deprecated = true;
   await page.route("**/api/entity-types/*/schema", (route) => route.fulfill({ json: schema }));
   await page.route("**/api/entities/*", (route) => route.fulfill({ json: archived }));
   const inputs: Record<string, unknown>[] = [];
@@ -188,12 +187,17 @@ test("numeric filter rejects a precision-losing draft without applying or cleari
   expect(new URL(page.url()).searchParams.has("property_filters")).toBe(false);
   await input.fill("42");
   await page.getByRole("button", { name: "속성 조건 적용", exact: true }).click();
-  await expect.poll(() => new URL(page.url()).searchParams.get("property_filters")).toBe('[{"key":"prop_2","operator":"eq","value":42}]');
+  await expect.poll(() => new URL(page.url()).searchParams.get("property_filters")).toBe(
+    '[{"key":"prop_2","operator":"eq","value":42}]',
+  );
 });
 
 test("entity numeric draft rejects precision loss before preparing a record and preserves the input", async ({ page }) => {
   let prepared = 0;
-  await page.route("**/api/records/prepare", async (route) => { prepared++; return route.fulfill({ json: {} }); });
+  await page.route("**/api/records/prepare", async (route) => {
+    prepared++;
+    return route.fulfill({ json: {} });
+  });
   await page.goto(`/entities?entity_type_id=${fixtureType.id}`);
   await page.getByRole("button", { name: "검사 자료 추가", exact: true }).click();
   const form = page.getByRole("dialog", { name: "검사 자료 추가", exact: true });

@@ -7,7 +7,6 @@ const type = (n: number, label: string, archived = false): EntityType => ({
   label,
   archived,
   icon_id: "leaf",
-  version: 1,
   schema_version: 1,
   next_property_number: 2,
   created_at: `2026-10-${String(n).padStart(2, "0")}T00:00:00Z`,
@@ -449,10 +448,10 @@ test("editing another action retains hidden server validation errors and their j
 
 async function namedTemplateProperties(page: import("@playwright/test").Page) {
   const definition = initialEntityDefinition("이름");
-  definition.schema.properties.prop_2 = { type: "string", title: "가격" };
-  definition.schema.properties.prop_3 = { type: "string", title: "가격" };
-  definition.schema.properties.prop_4 = { type: "string", title: "특수 $ . ${이름$}" };
-  definition.display.order.push("prop_2", "prop_3", "prop_4");
+  definition.schema.properties.prop_2 = { "x-order": 20, type: "string", title: "가격" };
+  definition.schema.properties.prop_3 = { "x-order": 30, type: "string", title: "가격" };
+  definition.schema.properties.prop_4 = { "x-order": 40, type: "string", title: "특수 $ . ${이름$}" };
+
   await page.route(`**/api/entity-types/${materials.id}/schema`, (route) =>
     route.fulfill({
       json: {
@@ -550,10 +549,12 @@ test("변수 붙여넣기와 복사·잘라내기·실행 취소는 원문과 �
       nodes.every((node) => (node as HTMLElement).contentEditable === "false")
     ),
   ).toBe(true);
-  expect(await memo.evaluate(() => {
-    const anchor = window.getSelection()?.anchorNode;
-    return !(anchor instanceof Element ? anchor : anchor?.parentElement)?.closest("[data-memo-token]");
-  })).toBe(true);
+  expect(
+    await memo.evaluate(() => {
+      const anchor = window.getSelection()?.anchorNode;
+      return !(anchor instanceof Element ? anchor : anchor?.parentElement)?.closest("[data-memo-token]");
+    }),
+  ).toBe(true);
   const copied = await memo.evaluate((el) => {
     const range = document.createRange();
     range.selectNodeContents(el);

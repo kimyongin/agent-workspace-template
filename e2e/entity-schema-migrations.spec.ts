@@ -44,9 +44,13 @@ test("값 변환 작업: 웹 접수→페이지 이탈→실제 local runner 완
     const otherBefore = await mcp.call("get_entity", { id: y.id });
     const plan = await mcp.call("create_entity_schema_change", {
       type_id: type.id,
-      expected_type_version: 1,
       expected_schema_version: 1,
-      edits: [{ op: "add_property", client_ref: "count", field: { type: "integer", title: "수량" }, required: true }],
+      edits: [{
+        op: "add_property",
+        client_ref: "count",
+        field: { "x-order": 20, type: "integer", title: "수량" },
+        required: true,
+      }],
       migration: { rules: [{ op: "fill", key: "prop_2", value: 7 }], overrides: [] },
     });
     await mcp.call("analyze_entity_schema_change", {
@@ -128,9 +132,13 @@ test("값 변환 작업: MCP 접수→웹 취소→MCP 확정 상태·원본 유
     entityId = entity.id;
     const plan = await mcp.call("create_entity_schema_change", {
       type_id: typeId,
-      expected_type_version: 1,
       expected_schema_version: 1,
-      edits: [{ op: "add_property", client_ref: "value", field: { type: "boolean", title: "確認" }, required: true }],
+      edits: [{
+        op: "add_property",
+        client_ref: "value",
+        field: { "x-order": 30, type: "boolean", title: "確認" },
+        required: true,
+      }],
       migration: { rules: [{ op: "fill", key: "prop_2", value: false }], overrides: [] },
     });
     await mcp.call("analyze_entity_schema_change", { type_id: typeId, change_id: plan.id, expected_change_version: 1 });
@@ -142,7 +150,6 @@ test("값 변환 작업: MCP 접수→웹 취소→MCP 확정 상태·원본 유
       job = await mcp.call("start_entity_schema_migration", {
         type_id: typeId,
         change_id: plan.id,
-        expected_type_version: 1,
         expected_schema_version: 1,
         expected_change_version: 1,
         analysis_id: ready.analysis.id,
@@ -160,7 +167,7 @@ test("값 변환 작업: MCP 접수→웹 취소→MCP 확정 상태·원본 유
     const history = page.getByRole("region", { name: "변경 이력", exact: true });
     await expect(history.getByRole("button", { name: "값 변환 시작", exact: true })).toHaveCount(0);
     await expect(history.getByText("검토 완료", { exact: true })).toHaveCount(0);
-    const analysisResponse = page.waitForResponse(response =>
+    const analysisResponse = page.waitForResponse((response) =>
       response.request().method() === "POST" && response.url().endsWith(`/schema-changes/${plan.id}/analyze`)
     );
     await history.getByRole("button", { name: "변경 검토", exact: true }).click();
@@ -173,7 +180,7 @@ test("값 변환 작업: MCP 접수→웹 취소→MCP 확정 상태·원본 유
       return (await mcp.call("get_entity_schema_change", { type_id: typeId, change_id: plan.id })).executable;
     }, { timeout: 30000 }).toBe(true);
     await expect(history.getByRole("button", { name: "값 변환 시작", exact: true })).toBeEnabled();
-    const restartResponse = page.waitForResponse(response =>
+    const restartResponse = page.waitForResponse((response) =>
       response.request().method() === "POST" && response.url().endsWith(`/schema-changes/${plan.id}/migrations`)
     );
     await history.getByRole("button", { name: "값 변환 시작", exact: true }).click();
@@ -185,7 +192,8 @@ test("값 변환 작업: MCP 접수→웹 취소→MCP 확정 상태·원본 유
     expect(restarted.analysis_id).toBe(nextAnalysis.analysis_id);
     await expect(page).toHaveURL(new RegExp(`job_id=${restarted.job_id}(?:&|$)`));
     const cancelledAgain = await mcp.call("cancel_entity_schema_migration", {
-      job_id: restarted.job_id, expected_job_version: restarted.job_version,
+      job_id: restarted.job_id,
+      expected_job_version: restarted.job_version,
     });
     expect(cancelledAgain.status).toBe("cancelled");
     expect((await mcp.call("get_entity", { id: entityId })).properties).toEqual({ prop_1: "原本" });
@@ -196,7 +204,10 @@ test("값 변환 작업: MCP 접수→웹 취소→MCP 확정 상태·원본 유
     if (restartedJobId) {
       const remaining = await mcp.call("get_entity_schema_migration", { job_id: restartedJobId });
       if (["queued", "preparing", "ready_to_commit"].includes(remaining.status)) {
-        await mcp.call("cancel_entity_schema_migration", { job_id: restartedJobId, expected_job_version: remaining.version });
+        await mcp.call("cancel_entity_schema_migration", {
+          job_id: restartedJobId,
+          expected_job_version: remaining.version,
+        });
       }
     }
     await mcp.close();
@@ -239,9 +250,13 @@ test("값 변환 작업: 실제 worker 실패→웹 같은 작업 재시도→�
     entityId = entity.id;
     const plan = await mcp.call("create_entity_schema_change", {
       type_id: typeId,
-      expected_type_version: 1,
       expected_schema_version: 1,
-      edits: [{ op: "add_property", client_ref: "count", field: { type: "integer", title: "수량" }, required: true }],
+      edits: [{
+        op: "add_property",
+        client_ref: "count",
+        field: { "x-order": 40, type: "integer", title: "수량" },
+        required: true,
+      }],
       migration: { rules: [{ op: "fill", key: "prop_2", value: 7 }], overrides: [] },
     });
     await mcp.call("analyze_entity_schema_change", { type_id: typeId, change_id: plan.id, expected_change_version: 1 });
@@ -253,7 +268,6 @@ test("값 변환 작업: 실제 worker 실패→웹 같은 작업 재시도→�
     const job = await mcp.call("start_entity_schema_migration", {
       type_id: typeId,
       change_id: plan.id,
-      expected_type_version: 1,
       expected_schema_version: 1,
       expected_change_version: 1,
       analysis_id: ready.analysis.id,

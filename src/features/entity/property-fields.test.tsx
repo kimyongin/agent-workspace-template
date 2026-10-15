@@ -5,9 +5,8 @@ import { initialEntityDefinition } from "@contracts/entity-type.ts";
 describe("schema form public presentation", () => {
   it("renders labels and three boolean states while preserving zero", () => {
     const definition = initialEntityDefinition("품명");
-    definition.schema.properties.prop_2 = { type: ["boolean", "null"], title: "검사" };
-    definition.schema.properties.prop_3 = { type: "number", title: "무게" };
-    definition.display.order.push("prop_2", "prop_3");
+    definition.schema.properties.prop_2 = { "x-order": 20, type: ["boolean", "null"], title: "검사" };
+    definition.schema.properties.prop_3 = { "x-order": 30, type: "number", title: "무게" };
     const html = renderToStaticMarkup(
       <PropertyFields
         definition={definition}
@@ -25,11 +24,18 @@ describe("schema form public presentation", () => {
 });
 it("nullable single-select has one empty option, even for a stored null", () => {
   const definition = initialEntityDefinition("이름");
-  definition.schema.properties.prop_2 = { type: ["string", "null"], enum: ["a", null],
+  definition.schema.properties.prop_2 = {
+    "x-order": 40,
+    type: ["string", "null"],
+    oneOf: [{ const: "a" }, { const: null }],
   };
-  definition.display.order.push("prop_2");
   const html = renderToStaticMarkup(
-    <PropertyFields definition={definition} values={{ prop_1: "이름", prop_2: null }} onChange={() => {}} errors={{}} />,
+    <PropertyFields
+      definition={definition}
+      values={{ prop_1: "이름", prop_2: null }}
+      onChange={() => {}}
+      errors={{}}
+    />,
   );
   expect(html).not.toContain('value="null"');
   expect(html).toContain('value="unset" selected=""');
@@ -37,9 +43,8 @@ it("nullable single-select has one empty option, even for a stored null", () => 
 });
 it("archived arbitrary stored text cannot resolve inherited option labels", () => {
   const definition = initialEntityDefinition("이름");
-  definition.schema.properties.prop_2 = { type: "string", title: "보관 메모" };
-  definition.display.order.push("prop_2");
-  definition.display.archived.push("prop_2");
+  definition.schema.properties.prop_2 = { "x-order": 50, type: "string", title: "보관 메모" };
+  definition.schema.properties.prop_2.deprecated = true;
   for (const value of ["__proto__", "constructor", "toString"]) {
     const html = renderToStaticMarkup(
       <PropertyFields
@@ -55,7 +60,7 @@ it("archived arbitrary stored text cannot resolve inherited option labels", () =
 
 it("property drafts reject a rounded numeric value while preserving the draft", () => {
   const definition = initialEntityDefinition("이름");
-  definition.schema.properties.prop_2 = { type: "number", title: "수량" };
+  definition.schema.properties.prop_2 = { "x-order": 60, type: "number", title: "수량" };
   const values = { prop_1: "이름", prop_2: "1.0000000000000001" };
   expect(() => propertyValues(definition, values)).toThrow();
   expect(values.prop_2).toBe("1.0000000000000001");
@@ -63,16 +68,20 @@ it("property drafts reject a rounded numeric value while preserving the draft", 
 
 it("numeric draft failure reports the original field key for accessible form feedback", () => {
   const definition = initialEntityDefinition("이름");
-  definition.schema.properties.prop_2 = { type: "number", title: "수량" };
-  try { propertyValues(definition, { prop_1: "자료", prop_2: "1.0000000000000001" }); throw new Error("must reject"); }
-  catch (error) { expect((error as { fields: Record<string, string> }).fields["properties.prop_2"]).toContain("정밀도"); }
+  definition.schema.properties.prop_2 = { "x-order": 70, type: "number", title: "수량" };
+  try {
+    propertyValues(definition, { prop_1: "자료", prop_2: "1.0000000000000001" });
+    throw new Error("must reject");
+  } catch (error) {
+    expect((error as { fields: Record<string, string> }).fields["properties.prop_2"]).toContain("정밀도");
+  }
 });
 
 it("required empty inputs fail while optional null, zero and false remain distinct", () => {
   const definition = initialEntityDefinition("이름");
   Object.assign(definition.schema.properties, {
-    prop_2: { type: ["number", "null"] },
-    prop_3: { type: ["boolean", "null"] },
+    prop_2: { "x-order": 80, type: ["number", "null"] },
+    prop_3: { "x-order": 90, type: ["boolean", "null"] },
   });
   expect(
     propertyValues(definition, { prop_1: "이름", prop_2: "0", prop_3: false }),
@@ -92,23 +101,49 @@ it("required empty inputs fail while optional null, zero and false remain distin
 it("schema constraints reject invalid values beside the original field without changing drafts", () => {
   const definition = initialEntityDefinition("이름");
   Object.assign(definition.schema.properties, {
-    prop_2: { type: ["integer", "null"], minimum: 0, maximum: 100 },
-    prop_3: { type: "string", minLength: 2, maxLength: 3 },
-    prop_4: { type: ["string", "null"], enum: ["a", null] },
-    prop_5: { type: "string", format: "date" },
+    prop_2: { "x-order": 100, type: ["integer", "null"], minimum: 0, maximum: 100 },
+    prop_3: { "x-order": 110, type: "string", minLength: 2, maxLength: 3 },
+    prop_4: { "x-order": 120, type: ["string", "null"], oneOf: [{ const: "a" }, { const: null }] },
+    prop_5: { "x-order": 130, type: "string", format: "date" },
   });
-  for (const [key, value, message] of [
-    ["prop_2", "101", "100 이하"], ["prop_2", "-1", "0 이상"],
-    ["prop_3", "가", "2자 이상"], ["prop_3", "가나다라", "3자 이하"],
-    ["prop_4", "missing", "선택"], ["prop_5", "2025-02-29", "날짜"], ["prop_5", "0000-02-29", "날짜"],
-  ]) {
+  for (
+    const [key, value, message] of [
+      ["prop_2", "101", "100 이하"],
+      ["prop_2", "-1", "0 이상"],
+      ["prop_3", "가", "2자 이상"],
+      ["prop_3", "가나다라", "3자 이하"],
+      ["prop_4", "missing", "선택"],
+      ["prop_5", "2025-02-29", "날짜"],
+      ["prop_5", "0000-02-29", "날짜"],
+    ]
+  ) {
     const draft = { prop_1: "자료", [key]: value };
-    try { propertyValues(definition, draft); throw new Error("must reject"); }
-    catch (error) {
-      expect((error as { fields: Record<string, string> }).fields["properties."+key]).toContain(message);
+    try {
+      propertyValues(definition, draft);
+      throw new Error("must reject");
+    } catch (error) {
+      expect((error as { fields: Record<string, string> }).fields["properties." + key]).toContain(message);
     }
     expect(draft[key]).toBe(value);
   }
-  expect(propertyValues(definition, {prop_1:"자료",prop_2:"0",prop_3:"😀가",prop_4:null,prop_5:"2024-02-29"}))
-    .toEqual({prop_1:"자료",prop_2:0,prop_3:"😀가",prop_4:null,prop_5:"2024-02-29"});
+  expect(
+    propertyValues(definition, { prop_1: "자료", prop_2: "0", prop_3: "😀가", prop_4: null, prop_5: "2024-02-29" }),
+  )
+    .toEqual({ prop_1: "자료", prop_2: 0, prop_3: "😀가", prop_4: null, prop_5: "2024-02-29" });
+});
+
+it("read-only fields show their saved value without an editable input", () => {
+  const definition = initialEntityDefinition("이름");
+  definition.schema.properties.prop_2 = { type: "string", title: "고정 번호", "x-order": 20, readOnly: true };
+  const html = renderToStaticMarkup(
+    <PropertyFields
+      definition={definition}
+      values={{ prop_1: "자료", prop_2: "ABC" }}
+      onChange={() => {}}
+      errors={{}}
+    />,
+  );
+  expect(html).toContain("고정 번호");
+  expect(html).toContain("ABC");
+  expect(html).not.toContain('value="ABC"');
 });

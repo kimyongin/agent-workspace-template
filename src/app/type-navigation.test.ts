@@ -8,7 +8,6 @@ const type = (id: string, label: string, archived = false): EntityType => ({
   icon_id: "leaf",
   created_at: id,
   updated_at: id,
-  version: 1,
   schema_version: 1,
   next_property_number: 2,
 });
