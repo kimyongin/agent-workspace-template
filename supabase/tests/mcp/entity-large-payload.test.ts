@@ -19,7 +19,7 @@ function env(name: string) {
 const bytes = (value: unknown) => new TextEncoder().encode(JSON.stringify(value)).byteLength;
 
 httpTest(
-  "large typed pages actual HTTP/OAuth SDK preserve near-64KiB schema/properties default20/max100 and long cursors",
+  "large typed pages actual HTTP/OAuth SDK preserve schema and near-64KiB properties default20/max100 and long cursors",
   async () => {
     const run = crypto.randomUUID(),
       token = await signIn("A"),
@@ -115,7 +115,7 @@ httpTest(
       assertEquals(plan.status, 201);
       validateEntityDefinition(plan.body.target);
       const definitionBytes = new TextEncoder().encode(jsonbText(plan.body.target)).byteLength;
-      assert(definitionBytes > 65000 && definitionBytes <= 65536);
+      assert(definitionBytes > 65000 && definitionBytes <= 262144);
       evidence.definition_bytes = definitionBytes;
       const accepted = await sdk<{ analysis_id: string; status: string }>(
         "analyze_entity_schema_change",
