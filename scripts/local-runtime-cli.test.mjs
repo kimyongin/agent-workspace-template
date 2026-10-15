@@ -1,9 +1,54 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { acquireRuntimeLock, realHostBindSource, removeOwnedContainer, runLeasedLocalChecks } from './local-runtime-cli.mjs';
-import { mkdtempSync, rmdirSync, readdirSync, writeFileSync, unlinkSync, realpathSync } from 'node:fs';
+import { acquireRuntimeLock, createLocalRuntimeAdapter, realHostBindSource, removeOwnedContainer, runLeasedLocalChecks } from './local-runtime-cli.mjs';
+import { mkdtempSync, rmdirSync, readdirSync, writeFileSync, unlinkSync, realpathSync, chmodSync, rmSync } from 'node:fs';
+import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+
+test('CLI observation waits for a created container but fails an exited container', { skip: process.platform === 'win32' }, async () => {
+  const directory = mkdtempSync(join(tmpdir(), 'runtime-observe-test-'));
+  const executable = join(directory, 'docker'), metadata = join(directory, 'state.json');
+  const priorPath = process.env.PATH, priorNpm = process.env.npm_execpath, priorMetadata = process.env.TEST_RUNTIME_METADATA;
+  const id = 'a'.repeat(64), projectId = 'created-observation-test';
+  const server = createServer((_request, response) => { response.writeHead(503); response.end(); });
+  try {
+    writeFileSync(executable, `#!${process.execPath}\n` + `
+      const fs = require('node:fs');
+      const state = JSON.parse(fs.readFileSync(process.env.TEST_RUNTIME_METADATA, 'utf8'));
+      const args = process.argv.slice(2);
+      if (args[0] === 'ps') console.log(state.id + ' supabase_edge_runtime_created-observation-test');
+      else if (args[0] === 'inspect' && args[2].includes('.Config.Env')) console.log('WORKSPACE_RUNTIME_OWNER=fixture');
+      else if (args[0] === 'inspect') {
+        const fields = [state.id, '2026-10-15T00:00:00Z', [{Type:'bind',Source:state.source}], state.running];
+        if (args[2].includes('.State.Status')) fields.push(state.status);
+        console.log(JSON.stringify(fields));
+      } else process.exit(1);
+    `);
+    chmodSync(executable, 0o700);
+    process.env.PATH = `${directory}:${priorPath}`;
+    process.env.npm_execpath = process.execPath;
+    process.env.TEST_RUNTIME_METADATA = metadata;
+    await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+    const adapter = createLocalRuntimeAdapter({ projectId, apiUrl: `http://127.0.0.1:${server.address().port}` });
+    for (const [status, running, expected] of [
+      ['created', false, 'starting'], ['running', true, 'starting'],
+      ['restarting', false, 'starting'], ['exited', false, 'failed'], ['dead', false, 'failed'],
+    ]) {
+      writeFileSync(metadata, JSON.stringify({ id, status, running, source: realpathSync('supabase/functions') }));
+      const observed = await adapter.observe();
+      assert.equal(observed.state, expected, status);
+      assert.equal(observed.container.id, id);
+      assert.equal(observed.container.ownershipToken, 'fixture');
+    }
+  } finally {
+    await new Promise(resolve => server.close(resolve));
+    for (const [key, prior] of [['PATH', priorPath], ['npm_execpath', priorNpm], ['TEST_RUNTIME_METADATA', priorMetadata]]) {
+      if (prior === undefined) delete process.env[key]; else process.env[key] = prior;
+    }
+    rmSync(directory, { recursive: true });
+  }
+});
 
 test('native host bind sources resolve to the existing host directory', () => {
   const directory = mkdtempSync(join(tmpdir(), 'runtime-bind-test-'));
