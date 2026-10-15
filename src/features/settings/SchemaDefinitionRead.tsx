@@ -1,5 +1,5 @@
 import type { SchemaDefinition } from "@contracts/entity-schema-change.ts";
-import { fieldTypeLabel, schemaValueLabel } from "./schema-labels.ts";
+import { fieldTypeLabel, schemaOptionLabel, schemaValueLabel } from "./schema-labels.ts";
 
 /** Definition values, never material values or the mutable editor draft. */
 export function SchemaDefinitionRead(
@@ -21,10 +21,7 @@ export function SchemaDefinitionRead(
         if (!field) {
           return null;
         }
-        const optionLabel = (value: string) => {
-          const label = definition.display.option_labels[key]?.[value];
-          return label || value;
-        };
+        const optionLabel = (value: string) => schemaOptionLabel(definition.display.option_labels[key], value);
         const values: Array<[string, string]> = [
           ["데이터 타입", fieldTypeLabel(field)],
           [

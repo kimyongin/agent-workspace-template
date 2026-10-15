@@ -11,6 +11,9 @@ export function schemaEntityLabel(id: string) {
     return id;
   }
 }
+export function schemaOptionLabel(labels: Record<string, string> | undefined, value: string): string {
+  return labels && Object.hasOwn(labels, value) ? labels[value] || value : value;
+}
 export const schemaChangeLabels: Record<EntitySchemaChange["status"], string> = {
   draft: "초안",
   analyzing: "검토 중",
@@ -89,7 +92,7 @@ export function schemaDiffValueLabel(path: string, value: unknown, definition: S
   if (key && /\.(enum|default)$/.test(path)) {
     const option = (item: unknown) =>
       typeof item === "string"
-        ? definition.display.option_labels[key]?.[item] || schemaValueLabel(item)
+        ? schemaOptionLabel(definition.display.option_labels[key], item)
         : schemaValueLabel(item);
     return Array.isArray(value) ? value.map(option).join(", ") || "없음" : option(value);
   }

@@ -1,5 +1,5 @@
 import { BodyAction } from "../../components/BodyAction.tsx";
-import { schemaDiffLabel, schemaEntityLabel, schemaValueLabel } from "./schema-labels.ts";
+import { schemaDiffLabel, schemaEntityLabel, schemaOptionLabel, schemaValueLabel } from "./schema-labels.ts";
 import { useEffect, useRef, useState } from "react";
 import type {
   EntitySchemaChange,
@@ -15,7 +15,7 @@ import { api } from "../../lib/api.ts";
 import { fieldType } from "../entity/property-fields.tsx";
 type Rule = MigrationPlan["rules"][number];
 function propertyValue(value: unknown, key: string, definition?: SchemaDefinition) {
-  return typeof value === "string" && definition?.display.option_labels[key]?.[value] || schemaValueLabel(value);
+  return typeof value === "string" ? schemaOptionLabel(definition?.display.option_labels[key], value) : schemaValueLabel(value);
 }
 function analysisRowTitle(row: SchemaAnalysisRow, target: SchemaDefinition, source?: SchemaDefinition) {
   const before = source ? row.before[source.display.representative] : undefined;
@@ -80,7 +80,7 @@ function Literal(
           >
             <option value="">선택하세요</option>
             {field.enum.filter((v) => v !== null).map((code) => (
-              <option key={code!} value={code!}>{optionLabels[code!] || code}</option>
+              <option key={code!} value={code!}>{schemaOptionLabel(optionLabels, code!)}</option>
             ))}
           </select>
         )

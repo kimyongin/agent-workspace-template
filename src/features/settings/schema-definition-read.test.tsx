@@ -21,6 +21,15 @@ it("reads a saved definition using option labels without exposing storage codes"
   expect(html).not.toContain("closed");
 });
 
+it("preserves option values that share names with object prototype keys", () => {
+  const definition = initialEntityDefinition("상품명");
+  definition.schema.properties.prop_2 = { type: "string", enum: ["constructor", "toString"] };
+  definition.display.order.push("prop_2");
+  definition.display.option_labels.prop_2 = {};
+  const html = renderToStaticMarkup(<SchemaDefinitionRead definition={definition} />);
+  expect(html).toContain("constructor, toString");
+});
+
 it("does not reinterpret an older option using an unrelated current definition", () => {
   const target = initialEntityDefinition("상품명");
   target.display.option_labels.prop_2 = { ready: "판매 중" };

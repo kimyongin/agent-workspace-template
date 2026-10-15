@@ -68,7 +68,9 @@ function SnapshotValue({ value, labels, field }: { value: unknown; labels?: Reco
           {entries.map(([key, item]) => (
             <div key={key}>
               <dt>
-                {labels?.[key] || snapshotLabels[key] || (/^prop_[0-9]+$/.test(key) ? `항목 ${key.slice(5)}` : key)}
+                {(labels && Object.hasOwn(labels, key) ? labels[key] : undefined) ||
+                  (Object.hasOwn(snapshotLabels, key) ? snapshotLabels[key] : undefined) ||
+                  (/^prop_[0-9]+$/.test(key) ? `항목 ${key.slice(5)}` : key)}
               </dt>
               <dd>
                 <SnapshotValue value={item} labels={key === "properties" ? captured : undefined} field={key} />
