@@ -99,10 +99,19 @@ for (const scenario of ["empty", "populated", "size_boundary", "large_legacy", "
       const jobs =
         await sql`select id,source_definition,target,migration,fingerprint,result,source_expires_at from app.entity_schema_migrations order by id`;
       const requests = await sql`select * from private.request_results`;
+      const applyMigration = async () => {
+        try {
+          // Match the CLI path: the migration itself owns its transaction.
+          await sql.unsafe(migration);
+        } catch (error) {
+          await sql.unsafe("rollback");
+          throw error;
+        }
+      };
       if (scenario === "over_new_limit") {
         const originals = await sql`select * from app.entity_schema_versions order by schema_version`;
         const states = await sql`select status,fence from app.entity_schema_migrations order by id`;
-        const failure = await assertRejects(() => sql.begin((tx) => tx.unsafe(migration)));
+        const failure = await assertRejects(() => applyMigration());
         assertEquals((failure as { code?: string }).code, "54000");
         assertEquals((failure as Error).message.includes("schema_document_upgrade_size_limit"), true);
         assertEquals(await sql`select * from app.entity_schema_versions order by schema_version`, originals);
@@ -110,7 +119,7 @@ for (const scenario of ["empty", "populated", "size_boundary", "large_legacy", "
         assertEquals(await sql`select * from private.request_results`, requests);
         return;
       }
-      await sql.begin((tx) => tx.unsafe(migration));
+      await applyMigration();
       const columns =
         await sql`select column_name,is_generated from information_schema.columns where table_schema='app' and table_name='entity_schema_versions' order by column_name`;
       assertEquals(columns.map((r) => [r.column_name, r.is_generated]), [

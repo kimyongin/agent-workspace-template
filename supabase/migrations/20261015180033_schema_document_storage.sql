@@ -1,3 +1,5 @@
+begin;
+
 -- One publication document owns properties, presentation and type metadata.
 -- Historical metadata was never recorded: normalize only facts actually retained.
 -- Locking waits for in-flight atomic commits, then fences every old worker snapshot.
@@ -210,3 +212,5 @@ begin
 end $$;
 revoke all on function app.replay_retained_request(uuid,text,text) from public,anon,authenticated,app_server,app_worker;
 grant execute on function app.replay_retained_request(uuid,text,text) to app_user;
+
+commit;
