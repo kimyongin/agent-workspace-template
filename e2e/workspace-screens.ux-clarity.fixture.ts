@@ -130,7 +130,7 @@ for (const archived of [false, true]) {
   test(`direct create: ${archived ? "archived types offer management" : "no types offer creation"}`, async ({ page }) => {
     const state = await fixtures(page);
     await page.route(
-      "**/api/entity-types",
+      (url) => url.pathname === "/api/entity-types",
       (route) =>
         route.fulfill({
           json: {

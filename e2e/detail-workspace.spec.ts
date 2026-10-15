@@ -680,7 +680,8 @@ for (const entered of [false,true]) test(`manual identity defaults preserve canc
   releaseSettings();
   await expect(form.getByLabel("식별자")).toBeEnabled();
   await expect(form.getByLabel("식별자")).toHaveValue("");
-  await expect(form.getByLabel("발급처")).toHaveValue("crm");
+  await expect(form.getByText("고객", {exact:true})).toBeVisible();
+  await expect(form.getByRole("combobox", {name:"발급처",exact:true})).toHaveCount(0);
   if (entered) await expect(form.getByLabel("제목")).toHaveValue("설정 도착 전 입력");
   await form.getByRole("button", {name:"취소",exact:true}).click();
   const discard = page.getByRole("dialog", {name:"변경을 버릴까요?",exact:true});
