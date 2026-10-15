@@ -115,7 +115,7 @@ test("JSON file export→edited import→normal publication→web create/read→
     await page.getByRole("button", { name: `${label} 추가`, exact: true }).click();
     const form = page.getByRole("dialog", { name: `${label} 추가`, exact: true });
     const name = unique("파일 왕복 상품");
-    await form.getByLabel("상품명", { exact: true }).fill(name);
+    await form.getByRole("textbox", { name: "상품명 (필수)", exact: true }).fill(name);
     await expect(form.getByLabel("수량", { exact: true })).toHaveValue("0");
     await expect(form.getByLabel("판매 상태", { exact: true })).toHaveValue("null");
     await expect(form.getByLabel("고정 번호", { exact: true })).toHaveCount(0);

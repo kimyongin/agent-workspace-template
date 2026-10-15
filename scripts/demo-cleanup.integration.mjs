@@ -76,7 +76,8 @@ test('administrator cleanup preserves accounts, settings and another owner; stal
     assert.deepEqual(saved.find(r => r.id === 'record_templates').settings, { entity_types: {}, task: { create: { memo: 'personal' }, update: { memo: 'keep' } } });
     assert.equal(saved.length, 1);
     assert.equal(saved[0].id, 'record_templates');
-    assert.equal(saved[0].version, 2);
+    // PostgreSQL bigint versions are returned as strings by postgres.js.
+    assert.equal(saved[0].version, '2');
     assert.equal((await sql`select count(*)::int n from app.entity_type_identity_sources where owner_id=${owner} and type_id=${type}`)[0].n, 0);
     assert.equal((await sql`select count(*)::int n from app.entity_type_identity_sources where owner_id=${other} and type_id=${otherType} and code='demo' and referenced`)[0].n, 1);
     assert.equal((await sql`select count(*)::int n from app.entity_issuers where owner_id=${other} and code='demo'`)[0].n, 1);
