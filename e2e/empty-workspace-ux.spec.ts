@@ -17,6 +17,8 @@ test("빈 계정에서 자료 준비와 모든 설정의 다음 행동을 찾고
   await page.getByRole("link", { name: "자료 종류 추가", exact: true }).click();
   await expect(page.getByRole("form", { name: "자료 종류 만들기", exact: true })).toBeVisible();
   await expect(page.getByLabel("자료 종류 이름", { exact: true })).toHaveValue("");
+  await expect(page.getByRole("status").filter({ hasText: /불러오는 중|읽는 중/ })).toHaveCount(0);
+  await expect(page.getByRole("alert")).toHaveCount(0);
   await page.screenshot({ path: info.outputPath("first-type.png"), fullPage: true });
   for (
     const [path, heading] of [
@@ -40,6 +42,8 @@ test("빈 계정에서 자료 준비와 모든 설정의 다음 행동을 찾고
       await expect(page.getByText("발급처가 없습니다.", { exact: true })).toBeVisible();
       await expect(page.getByRole("button", { name: "발급처 추가", exact: true })).toBeEnabled();
     }
+    await expect(page.getByRole("status").filter({ hasText: /불러오는 중|읽는 중/ })).toHaveCount(0);
+    await expect(page.getByRole("alert")).toHaveCount(0);
     await page.screenshot({ path: info.outputPath(`${path.split("/").at(-1)}-empty.png`), fullPage: true });
   }
   await page.goto("/principles");

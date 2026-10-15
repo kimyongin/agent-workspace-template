@@ -1,6 +1,6 @@
 import { expect } from "@playwright/test";
 import postgres from "postgres";
-import { test, devLogin, env, mcpClient, mcpTokenViaConsent, unique } from "./support.ts";
+import { devLogin, env, mcpClient, mcpTokenViaConsent, test, unique } from "./support.ts";
 import { saveOnce } from "./ui-actions.ts";
 import { analyzeAndApply } from "./entity-schema-support.ts";
 import { initialEntityDefinition } from "../supabase/functions/_shared/contracts/entity-type.ts";
@@ -95,7 +95,9 @@ test("다중 타입 여섯 속성을 MCP로 저장하고 웹 전체 상세 편�
     await expect(stale.getByRole("region", { name: "현재 속성 정의 검토" })).toContainText("현재 정의 버전 3");
     await expect(stale.getByLabel("이름", { exact: false })).toHaveValue("실패해도 보존할 초안");
     await stale.getByRole("button", { name: "확인한 정의로 편집", exact: true }).click();
-    await expect(stale).toContainText(`편집 정의 버전 3 · 자료 버전 ${saved.version}`);
+    await expect(stale.getByRole("region", { name: "현재 속성 정의 검토" })).toHaveCount(0);
+    await expect(stale.getByText("次の定義", { exact: true })).toBeVisible();
+    await expect(stale.getByLabel("이름", { exact: false })).toHaveValue("실패해도 보존할 초안");
     await saveOnce(page, stale);
     const recovered = await mcp.call("get_entity", { id: entityId });
     expect(recovered.properties.prop_1).toBe("실패해도 보존할 초안");
