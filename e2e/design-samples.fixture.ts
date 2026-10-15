@@ -500,3 +500,36 @@ test("successful tag refresh invalidates a formerly known selection and empty di
   await modal.getByRole("searchbox", { name: "태그 이름 검색" }).fill("없는 이름");
   await expect(modal.getByText("일치하는 태그가 없습니다.", { exact: true })).toBeVisible();
 });
+
+test("filter tag headings remain readable at320px with enlarged text before and after selection", async ({ page }, info) => {
+  await page.setViewportSize({ width: 320, height: 900 });
+  await page.goto("/design-samples/index.html?screen=filters");
+  await page.evaluate(() => document.documentElement.style.fontSize = "200%");
+  const tags = page.getByRole("group", { name: "자료 태그", exact: true });
+  const opener = tags.getByRole("button", { name: "태그 선택", exact: true });
+  const clear = tags.getByRole("button", { name: "모든 태그 선택 해제", exact: true });
+  for (const selected of [false, true]) {
+    if (selected) {
+      await opener.click();
+      const chooser = page.getByRole("dialog", { name: "자료 태그 선택", exact: true });
+      await chooser.getByRole("checkbox", { name: "보고서", exact: true }).check();
+      await chooser.getByRole("button", { name: "선택 완료", exact: true }).click();
+      await expect(tags.getByRole("button", { name: "보고서 선택 해제", exact: true })).toBeVisible();
+    }
+    const label = tags.getByText("자료 태그", { exact: true });
+    const labelSize = await label.evaluate(el => ({ height: el.getBoundingClientRect().height, lineHeight: parseFloat(getComputedStyle(el).lineHeight) }));
+    expect(labelSize.height).toBeLessThanOrEqual(labelSize.lineHeight + 1);
+    await expect(clear).toHaveCount(selected ? 1 : 0);
+    const bounds = (await tags.boundingBox())!;
+    for (const control of selected ? [opener, clear] : [opener]) {
+      const box = (await control.boundingBox())!;
+      expect(box.width).toBeGreaterThanOrEqual(44);
+      expect(box.height).toBeGreaterThanOrEqual(44);
+      expect(box.x).toBeGreaterThanOrEqual(bounds.x);
+      expect(box.x + box.width).toBeLessThanOrEqual(bounds.x + bounds.width);
+    }
+    expect(await tags.evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await tags.screenshot({ path: info.outputPath(`filter-tags-320-text200-${selected ? "selected" : "empty"}.png`) });
+  }
+});
