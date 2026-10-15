@@ -1,3 +1,4 @@
+import { TemplateMemoEditor, type TemplateMemoHandle } from "../features/settings/TemplateMemoEditor.tsx";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { BodyAction } from "../components/BodyAction.tsx";
 import { CollectionList } from "../components/Collection.tsx";
@@ -338,7 +339,7 @@ export function MaterialWorkspaceSample() {
   const [message, setMessage] = useState("예: ‘수량’을 ‘재고 수량’으로 바꾼 초안입니다. 변경 검토를 눌러보세요.");
   const [template, setTemplate] = useState("$대상$ $액션$");
   const [savedTemplate, setSavedTemplate] = useState(template);
-  const templateInput = useRef<HTMLTextAreaElement>(null);
+  const templateInput = useRef<TemplateMemoHandle>(null);
   const [typeName, setTypeName] = useState("상품"), [savedTypeName, setSavedTypeName] = useState("상품");
   const review = () => {
     const invalid: Record<string, string> = {};
@@ -484,10 +485,7 @@ export function MaterialWorkspaceSample() {
                 className="input"
                 value=""
                 onChange={(event) => {
-                  const start = templateInput.current?.selectionStart ?? template.length;
-                  const end = templateInput.current?.selectionEnd ?? start;
-                  setTemplate(template.slice(0, start) + `$${event.target.value}$` + template.slice(end));
-                  templateInput.current?.focus();
+                  templateInput.current?.insert(event.target.value);
                 }}
               >
                 <option value="" disabled>변수를 선택하세요</option>
@@ -498,13 +496,12 @@ export function MaterialWorkspaceSample() {
           </Field>
           <Field label="메모 템플릿" help="비워두면 기본 문구를 사용합니다. 달러 기호 자체는 $$로 입력하세요.">
             {(props) => (
-              <textarea
+              <TemplateMemoEditor
                 {...props}
-                className="input"
-                rows={3}
-                ref={templateInput}
+                editorRef={templateInput}
+                variables={[{ value: "대상", label: "대상" }, { value: "액션", label: "액션" }]}
                 value={template}
-                onChange={(event) => setTemplate(event.target.value.trim() ? event.target.value : "$대상$ $액션$")}
+                onChange={(value) => setTemplate(value.trim() ? value : "$대상$ $액션$")}
               />
             )}
           </Field>

@@ -128,7 +128,7 @@ test("미설정과 null은 고정 문구를 표시하고 되돌리기는 다른 
     entity_types: { [products.id]: { create: { memo: "상품 유지", tag_ids: [] } } },
   });
   const form = await openTyped(page);
-  await expect(form.getByLabel("메모 템플릿")).toHaveValue("$대상$ $액션$");
+  await expect(form.getByLabel("메모 템플릿")).toHaveText("대상 액션");
   await expect(form.getByRole("button", { name: "기본 문구로 되돌리기", exact: true })).toHaveCount(0);
   await expect(form.getByLabel("기록 메모 예시")).toHaveCount(0);
   await expect(form.getByText(/속성 버전/)).toHaveCount(0);
@@ -139,7 +139,7 @@ test("미설정과 null은 고정 문구를 표시하고 되돌리기는 다른 
   await page.screenshot({ path: info.outputPath("record-settings.png"), fullPage: true });
   await form.getByLabel("변수 삽입").selectOption("대상");
   await expect(form.getByLabel("메모 템플릿")).toBeFocused();
-  await expect(form.getByLabel("메모 템플릿")).toHaveValue(/\$대상\$/);
+  await expect(form.getByLabel("메모 템플릿")).toHaveText(/대상/);
   await form.getByRole("button", { name: "기본 문구로 되돌리기", exact: true }).click();
 
   await form.getByText("기록 전용", { exact: true }).click();
@@ -171,7 +171,7 @@ test("미설정과 null은 고정 문구를 표시하고 되돌리기는 다른 
   expect(state.writes[2].body.value).not.toHaveProperty("entity");
   await page.reload();
   await page.getByLabel("대상", { exact: true }).selectOption(`type:${materials.id}`);
-  await expect(form.getByLabel("메모 템플릿")).toHaveValue("$대상$ $액션$");
+  await expect(form.getByLabel("메모 템플릿")).toHaveText("대상 액션");
   await expect(form.getByRole("button", { name: "기본 문구로 되돌리기", exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "공통 설정", exact: true })).toHaveCount(0);
 });
@@ -182,7 +182,7 @@ test("종류 문구 저장 충돌은 초안을 보존하고 응답 유실은 같
   await form.getByLabel("메모 템플릿").fill("충돌 초안");
   state.fail("conflict");
   await form.getByRole("button", { name: "기록 자동 완성 저장", exact: true }).click();
-  await expect(form.getByLabel("메모 템플릿")).toHaveValue("충돌 초안");
+  await expect(form.getByLabel("메모 템플릿")).toHaveText("충돌 초안");
   await form.getByRole("button", { name: "최신값 확인", exact: true }).click();
   await form.getByRole("button", { name: "최신값으로 다시 편집", exact: true }).click();
   await form.getByLabel("메모 템플릿").fill("유실 초안");
@@ -332,7 +332,7 @@ test("공유 기록 설정은 본문 조회만 작은 버튼으로 표시하고 
     await save.evaluate((el) => ({ font: getComputedStyle(el).fontSize, height: el.getBoundingClientRect().height })),
   ).toEqual({ font: "14px", height: 44 });
   await reload.click();
-  await expect(form.getByLabel("메모 템플릿")).toHaveValue("기록 설정 버튼 검증");
+  await expect(form.getByLabel("메모 템플릿")).toHaveText("기록 설정 버튼 검증");
   await expect(form.getByRole("button", { name: "최신값으로 다시 편집", exact: true })).toBeEnabled();
   await form.getByRole("button", { name: "최신값으로 다시 편집", exact: true }).click();
   await expect(reload).toHaveCount(0);
@@ -354,14 +354,14 @@ test("기록 대상과 액션 전환은 초안을 보존하고 대상별 저장�
   expect(fixture.writes[0].body.value).not.toHaveProperty("task");
   await target.selectOption("task");
   await expect(form.getByLabel("액션", { exact: true })).toHaveValue("update");
-  await expect(form.getByLabel("메모 템플릿")).toHaveValue("수정 초안");
+  await expect(form.getByLabel("메모 템플릿")).toHaveText("수정 초안");
   await form.getByLabel("액션", { exact: true }).selectOption("create");
-  await expect(form.getByLabel("메모 템플릿")).toHaveValue("할 일 초안");
+  await expect(form.getByLabel("메모 템플릿")).toHaveText("할 일 초안");
   await page.getByRole("button", { name: "설정 메뉴", exact: true }).click();
   await page.getByRole("navigation", { name: "설정 메뉴" }).getByRole("link", { name: "기본", exact: true }).click();
   await page.getByRole("dialog", { name: "변경을 버릴까요?" }).getByRole("button", { name: "취소", exact: true })
     .click();
-  await expect(form.getByLabel("메모 템플릿")).toHaveValue("할 일 초안");
+  await expect(form.getByLabel("메모 템플릿")).toHaveText("할 일 초안");
   await form.getByRole("button", { name: "기록 자동 완성 저장", exact: true }).click();
   await expect(form.getByRole("status")).toContainText("저장했습니다");
   expect(fixture.writes[1].body.value.entity_types[materials.id].create.memo).toBe("재료 저장");
@@ -445,4 +445,186 @@ test("editing another action retains hidden server validation errors and their j
     create: { memo: "등록 문구 수정" },
     delete: { memo: "삭제 초안 수정" },
   });
+});
+
+async function namedTemplateProperties(page: import("@playwright/test").Page) {
+  const definition = initialEntityDefinition("이름");
+  definition.schema.properties.prop_2 = { type: "string", title: "가격" };
+  definition.schema.properties.prop_3 = { type: "string", title: "가격" };
+  definition.schema.properties.prop_4 = { type: "string", title: "특수 $ . ${이름$}" };
+  definition.display.order.push("prop_2", "prop_3", "prop_4");
+  await page.route(`**/api/entity-types/${materials.id}/schema`, (route) =>
+    route.fulfill({
+      json: {
+        type: materials,
+        type_id: materials.id,
+        schema_version: 1,
+        ...definition,
+      },
+    }));
+}
+
+test("속성 변수는 이름으로 읽고 선택 위치에 삽입하며 canonical 번호로 저장한다", async ({ page }, info) => {
+  const state = await settingsFixture(page, {
+    entity_types: {
+      [materials.id]: {
+        create: {
+          memo: "${엔터티.이후.prop_2$} / $엔터티.이후.prop_3$ / $엔터티.이후.prop_4$ / $$대상$$",
+          tag_ids: [],
+        },
+      },
+    },
+  });
+  await namedTemplateProperties(page);
+  const form = await openTyped(page), memo = form.getByRole("textbox", { name: "메모 템플릿", exact: true });
+  await expect(memo).toHaveAttribute("contenteditable", "true");
+  expect(await memo.evaluate((el) => el.getBoundingClientRect().height)).toBeGreaterThanOrEqual(100);
+  await expect(memo.locator(".template-variable-token")).toHaveCount(3);
+  await expect(memo).not.toContainText("prop_");
+  await expect(memo).toContainText("특수 $ . ${이름$}");
+  await page.screenshot({ path: info.outputPath("named-variable-tokens.png"), fullPage: true });
+  expect(
+    await memo.locator(".template-variable-token").evaluateAll((nodes) =>
+      nodes.map((node) => (node as HTMLElement).dataset.memoToken)
+    ),
+  ).toEqual([
+    "${엔터티.이후.prop_2$}",
+    "$엔터티.이후.prop_3$",
+    "$엔터티.이후.prop_4$",
+  ]);
+  await memo.focus();
+  await memo.evaluate((el) => {
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    range.collapse(false);
+    window.getSelection()!.removeAllRanges();
+    window.getSelection()!.addRange(range);
+  });
+  await memo.press("!");
+  await form.getByRole("button", { name: "기록 자동 완성 저장", exact: true }).click();
+  expect(state.writes[0].body.value.entity_types[materials.id].create.memo).toBe(
+    "${엔터티.이후.prop_2$} / $엔터티.이후.prop_3$ / $엔터티.이후.prop_4$ / $$대상$$!",
+  );
+  await memo.fill("앞 뒤");
+  await memo.evaluate((el) => {
+    const range = document.createRange();
+    range.setStart(el.firstChild!, 2);
+    range.collapse(true);
+    window.getSelection()!.removeAllRanges();
+    window.getSelection()!.addRange(range);
+  });
+  await form.getByLabel("변수 삽입").selectOption("엔터티.이후.prop_2");
+  await expect(memo.locator(".template-variable-token")).toHaveAttribute("aria-label", "변수: 가격 · 이후 (1)");
+  await expect(memo).toHaveText("앞 가격 · 이후 (1)뒤");
+  await form.getByRole("button", { name: "기록 자동 완성 저장", exact: true }).click();
+  expect(state.writes[1].body.value.entity_types[materials.id].create.memo).toBe("앞 $엔터티.이후.prop_2$뒤");
+});
+
+test("변수 붙여넣기와 복사·잘라내기·실행 취소는 원문과 줄바꿈을 유지한다", async ({ page }) => {
+  const state = await settingsFixture(page, {
+    entity_types: { [materials.id]: { create: { memo: "앞 ", tag_ids: [] } } },
+  });
+  await namedTemplateProperties(page);
+  const form = await openTyped(page), memo = form.getByRole("textbox", { name: "메모 템플릿", exact: true });
+  await memo.focus();
+  await memo.evaluate((el) => {
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    range.collapse(false);
+    window.getSelection()!.removeAllRanges();
+    window.getSelection()!.addRange(range);
+  });
+  const raw = "${엔터티.이후.prop_2$} / $$대상$$\n$엔터티.이후.prop_4$";
+  await memo.evaluate((el, raw) => {
+    const data = new DataTransfer();
+    data.setData("text/plain", raw);
+    el.dispatchEvent(new ClipboardEvent("paste", { clipboardData: data, bubbles: true, cancelable: true }));
+  }, raw);
+  await expect(memo.locator(".template-variable-token")).toHaveCount(2);
+  await memo.press("ControlOrMeta+z");
+  await expect(memo).toHaveText("앞 ");
+  await memo.press("ControlOrMeta+Shift+z");
+  await expect(memo.locator(".template-variable-token")).toHaveCount(2);
+  expect(
+    await memo.locator(".template-variable-token").evaluateAll((nodes) =>
+      nodes.every((node) => (node as HTMLElement).contentEditable === "false")
+    ),
+  ).toBe(true);
+  const copied = await memo.evaluate((el) => {
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    window.getSelection()!.removeAllRanges();
+    window.getSelection()!.addRange(range);
+    const data = new DataTransfer();
+    el.dispatchEvent(new ClipboardEvent("copy", { clipboardData: data, bubbles: true, cancelable: true }));
+    return data.getData("text/plain");
+  });
+  expect(copied).toBe("앞 " + raw);
+  await form.getByRole("button", { name: "기록 자동 완성 저장", exact: true }).click();
+  expect(state.writes[0].body.value.entity_types[materials.id].create.memo).toBe("앞 " + raw);
+  await expect(form).toHaveAttribute("aria-busy", "false");
+  await expect(memo).toHaveAttribute("contenteditable", "true");
+  await memo.focus();
+  await memo.evaluate((el) => {
+    const range = document.createRange();
+    range.selectNode(el.querySelector(".template-variable-token")!);
+    window.getSelection()!.removeAllRanges();
+    window.getSelection()!.addRange(range);
+  });
+  await memo.press("Backspace");
+  await expect(memo.locator(".template-variable-token")).toHaveCount(1);
+  await memo.press("ControlOrMeta+z");
+  await expect(memo.locator(".template-variable-token")).toHaveCount(2);
+  await memo.focus();
+  await memo.evaluate((el) => {
+    const range = document.createRange();
+    range.selectNode(el.querySelector(".template-variable-token")!);
+    window.getSelection()!.removeAllRanges();
+    window.getSelection()!.addRange(range);
+    const data = new DataTransfer();
+    el.dispatchEvent(new ClipboardEvent("cut", { clipboardData: data, bubbles: true, cancelable: true }));
+  });
+  await expect(memo.locator(".template-variable-token")).toHaveCount(1);
+  await memo.press("ControlOrMeta+z");
+  await expect(memo.locator(".template-variable-token")).toHaveCount(2);
+});
+
+test("알 수 없는 변수와 조합 입력은 임의 치환 없이 원문을 보존한다", async ({ page }) => {
+  const state = await settingsFixture(page, {
+    entity_types: { [materials.id]: { create: { memo: "원문", tag_ids: [] } } },
+  });
+  await namedTemplateProperties(page);
+  const form = await openTyped(page), memo = form.getByRole("textbox", { name: "메모 템플릿", exact: true });
+  const save = form.getByRole("button", { name: "기록 자동 완성 저장", exact: true });
+  await expect(save).toBeDisabled();
+  await memo.focus();
+  await memo.evaluate((el) => {
+    el.dispatchEvent(new CompositionEvent("compositionstart", { bubbles: true }));
+    el.textContent = "조합 중";
+    el.dispatchEvent(new InputEvent("input", { bubbles: true, isComposing: true, inputType: "insertCompositionText" }));
+  });
+  await expect(save).toBeDisabled();
+  await memo.evaluate((el) =>
+    el.dispatchEvent(new CompositionEvent("compositionend", { bubbles: true, data: "조합 중" }))
+  );
+  await expect(save).toBeEnabled();
+  await memo.fill("첫 줄");
+  await memo.press("End");
+  await memo.press("Enter");
+  await memo.press("Enter");
+  await memo.pressSequentially("끝 줄");
+  await save.click();
+  await expect(form.getByRole("status").filter({ hasText: "기록 자동 완성을 저장했습니다." })).toBeVisible();
+  expect(state.writes[0].body.value.entity_types[materials.id].create.memo).toBe("첫 줄\n\n끝 줄");
+  await memo.fill("첫 줄");
+  await memo.press("End");
+  await memo.press("Shift+Enter");
+  await memo.pressSequentially("끝 줄");
+  await save.click();
+  expect(state.writes[1].body.value.entity_types[materials.id].create.memo).toBe("첫 줄\n끝 줄");
+  await memo.fill("$자료.이후.가격$ $없는변수$ $$엔터티.이후.prop_2$$");
+  await expect(memo.locator(".template-variable-token")).toHaveCount(0);
+  await save.click();
+  await expect(form.getByText("사용할 수 없는 변수", { exact: false }).first()).toBeVisible();
+  await expect(memo).toHaveText("$자료.이후.가격$ $없는변수$ $$엔터티.이후.prop_2$$");
 });
