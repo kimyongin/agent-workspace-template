@@ -80,7 +80,7 @@ test("타입별 목록·AND 필터·업무 문맥·템플릿은 현재 정의를
     await page.getByLabel("조건 1 속성", { exact: true }).selectOption("prop_2");
     await page.getByLabel("조건 1 비교", { exact: true }).selectOption("gte");
     await page.getByLabel("조건 1 값", { exact: true }).fill("0");
-    await page.getByRole("button", { name: "속성 조건 적용", exact: true }).click();
+    await page.getByRole("button", { name: "필터 적용", exact: true }).click();
     await expect(page.getByRole("button", { name: first.title, exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: second.title, exact: true })).toBeVisible();
     await page.goto("/settings/records");

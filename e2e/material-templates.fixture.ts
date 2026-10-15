@@ -1,3 +1,4 @@
+import { chooseTag } from "./ui-actions.ts";
 import { fixtureIdentity } from "./support/workspace-data.ts";
 import { expect, test } from "@playwright/test";
 import { type EntityType, initialEntityDefinition } from "../supabase/functions/_shared/contracts/entity-type.ts";
@@ -141,7 +142,7 @@ test("미설정과 null은 고정 문구를 표시하고 되돌리기는 다른 
   await expect(form.getByLabel("메모 템플릿")).toHaveText(/대상/);
   await form.getByRole("button", { name: "기본 문구로 되돌리기", exact: true }).click();
 
-  await form.getByText("기록 전용", { exact: true }).click();
+  await chooseTag(page, form, "기록 전용");
   await form.getByRole("button", { name: "기록 자동 완성 저장", exact: true }).click();
   await expect(form.getByRole("status")).toContainText("저장했습니다");
   expect(state.writes[0].body.value.entity_types[materials.id].create).toEqual({ memo: null, tag_ids: [tag.id] });

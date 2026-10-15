@@ -2,7 +2,7 @@ import postgres from "postgres";
 import { generateDataId } from "../supabase/functions/_shared/contracts/data-id.ts";
 import { createFixtureEntity } from "./entity-schema-support.ts";
 import { fillChangeMemo } from "./ui-actions.ts";
-import { saveOnce, openListDetail, openTabFilters } from "./ui-actions.ts";
+import { saveOnce, openListDetail, openTabFilters, chooseTag, applyTabFilters } from "./ui-actions.ts";
 import { expect } from "@playwright/test";
 import { test, devLogin, env, ownFixtureResult, mcpClient, mcpTokenViaConsent, unique } from "./support.ts";
 
@@ -181,7 +181,7 @@ for (
       await expect(page.locator(`.${path} .list .item-title`)).toHaveCount(63);
       await expect(link).toBeFocused();
       await expect(link).toBeInViewport();
-      await openTabFilters(page);await expect(page.getByRole("button",{name:tag.name,exact:true})).toHaveAttribute("aria-pressed","true");
+      await openTabFilters(page);await expect(page.getByRole("button", { name: `${tag.name} 선택 해제`, exact: true })).toHaveCount(1);
       await page.reload();
       await expect(page.locator(`.${path} .list .item-title`)).toHaveCount(63);
       await expect(link).toBeFocused();
@@ -203,7 +203,7 @@ for (
       await expect(page.locator(`.${path} .list .item-title`)).toHaveCount(62);
       await expect(page.getByRole("heading", { name: label, level:1, exact: true })).toBeFocused();
       await expect(page.locator(`#activity-${path}-page-control`)).toHaveCount(0);
-      await openTabFilters(page);await page.getByRole("button",{name:tag.name,exact:true}).click();await page.getByRole("button",{name:emptyTag.name,exact:true}).click();
+      await openTabFilters(page);await chooseTag(page,page,tag.name,false);await chooseTag(page,page,emptyTag.name);await applyTabFilters(page);
       await expect(page.locator(`.${path} .list .item-title`)).toHaveCount(0);
       expect(new URL(page.url()).hash).toBe("");
       expect(new URL(page.url()).searchParams.has("pages")).toBe(false);
@@ -218,7 +218,7 @@ for (
       await page.goBack();
       await expect(leavingLink).toHaveCount(0);
       await expect(page.getByRole("heading", { name: label, level:1, exact: true })).toBeFocused();
-      await openTabFilters(page);await expect(page.getByRole("button",{name:tag.name,exact:true})).toHaveAttribute("aria-pressed","true");
+      await openTabFilters(page);await expect(page.getByRole("button", { name: `${tag.name} 선택 해제`, exact: true })).toHaveCount(1);
     } finally {
       // The automatic owned fixture closes UI first and removes these exact IDs,
       // dependent change records and queue state after the business assertions.

@@ -1,5 +1,6 @@
 import { fieldChoices } from "../../lib/schema-document.ts";
 import { schemaPresentation } from "../../lib/schema-document.ts";
+import { FilterPanel } from "../../components/TabSearch.tsx";
 import { BodyAction } from "../../components/BodyAction.tsx";
 import { schemaDiffLabel, schemaEntityLabel, schemaOptionLabel, schemaValueLabel } from "./schema-labels.ts";
 import { useEffect, useRef, useState } from "react";
@@ -131,6 +132,7 @@ export function ConversionEditor(
 ) {
   const [page, setPage] = useState<SchemaAnalysisPage>(),
     [failures, setFailures] = useState(false),
+    [draftFailures, setDraftFailures] = useState(false),
     [error, setError] = useState("");
   const pending = useRef<AbortController | null>(null);
   const unsaved = JSON.stringify(migration) !== JSON.stringify(plan.migration);
@@ -161,6 +163,9 @@ export function ConversionEditor(
     if (plan.analysis?.status === "succeeded") void load();
     return () => pending.current?.abort();
   }, [plan.id, plan.type_id, plan.analysis?.id, plan.analysis?.status, failures]);
+  useEffect(() => {
+    setDraftFailures(failures);
+  }, [failures, plan.id, plan.analysis?.id]);
   const group = (rule: Rule) =>
     rule.op === "fill" ? "fill" : rule.op === "replace_failure" ? "replace_failure" : "transform";
   const setRule = (key: string, rule: Rule | undefined, kind = "transform") =>
@@ -378,10 +383,17 @@ export function ConversionEditor(
         : null}
       {plan.analysis?.status !== "succeeded" ? <p>분석 완료 후 원본과 변환값을 확인할 수 있습니다.</p> : (
         <>
-          <label className="choice-control">
-            <input type="checkbox" checked={failures} onChange={(e) => setFailures(e.target.checked)} />{" "}
-            실패한 자료만 보기
-          </label>
+          <FilterPanel
+            dirty={draftFailures !== failures}
+            onReset={() => setDraftFailures(false)}
+            onApply={() => setFailures(draftFailures)}
+          >
+            <label className="choice-control">
+              <input type="checkbox" checked={draftFailures} onChange={(e) => setDraftFailures(e.target.checked)} />
+              {" "}
+              실패한 자료만 보기
+            </label>
+          </FilterPanel>
           {page?.items.length === 0 && <p>표시할 자료가 없습니다. 전체 대상 {plan.analysis.total}개</p>}
           {page?.items.map((row) => (
             <article className="schema-field" key={row.entity_id}>
