@@ -253,6 +253,7 @@ for (const scenario of ["reserved", "deleted"] as const) {
           before = await f.effects(),
           review = await previewEntitySchemaImport(f.deps, f.a.actor, input);
         assertEquals(review.key_mapping, { prop_1: "prop_1", prop_2: "prop_3" });
+        assertEquals(review.source_is_stale, scenario === "deleted");
         assertEquals(await f.effects(), before);
         assertEquals((await getEntityType(f.deps, f.a.actor, type.id)).next_property_number, 3);
         const first = await prepareEntitySchemaImport(f.deps, f.actor(), {
@@ -382,6 +383,40 @@ dbTest(
       assertEquals(sizes.published_bytes, 262144);
       assertEquals(sizes.draft_bytes, 262144);
       assert(sizes.receipt_bytes < 16384);
+      const beforeExpandedLabel = await f.effects();
+      const original = await getEntitySchema(f.deps, f.a.actor, { type_id: copied.type.id });
+      await rejectsCode(() =>
+        updateEntityType(f.deps, f.actor(), copied.type!.id, {
+          expected_schema_version: 1,
+          label: "최대 문서 이름 증가",
+        }), "invalid_input");
+      assertEquals(await f.effects(), beforeExpandedLabel);
+      assertEquals((await getEntitySchema(f.deps, f.a.actor, { type_id: copied.type.id })).schema, original.schema);
+      // Same-width metadata changes fit through version 9. The server-assigned 10
+      // must be counted before any new draft, key reservation or receipt commits.
+      for (let version = 2; version <= 9; version++) {
+        const updated = await updateEntityType(f.deps, f.actor(), copied.type.id, {
+          expected_schema_version: version - 1,
+          label: version % 2 === 0 ? "최대 문사" : "최대 문서",
+        });
+        assertEquals(updated.schema_version, version);
+      }
+      const head = await getEntitySchema(f.deps, f.a.actor, { type_id: copied.type.id });
+      assertEquals(head.schema["x-version"], 9);
+      const beforeVersionGrowth = await f.effects();
+      await rejectsCode(() =>
+        createEntitySchemaChange(f.deps, f.actor(), copied.type!.id, {
+          expected_schema_version: 9,
+          edits: [{
+            op: "update_property",
+            key: "prop_1",
+            field: { ...head.schema.properties.prop_1, title: "코드" },
+            required: true,
+          }],
+        }), "invalid_input");
+      assertEquals(await f.effects(), beforeVersionGrowth);
+      assertEquals((await getEntitySchema(f.deps, f.a.actor, { type_id: copied.type.id })).schema, head.schema);
+      assertEquals((await getEntityType(f.deps, f.a.actor, copied.type.id)).next_property_number, 65);
     } finally {
       await f.cleanup();
     }
