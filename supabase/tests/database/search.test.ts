@@ -17,7 +17,7 @@ dbTest("검색: 한국어 본문·literal 와일드카드·상태·태그·기�
     sameId = crypto.randomUUID(),
     tagId = crypto.randomUUID(),
     externalId = crypto.randomUUID(),
-    entity = `app:${externalId}`,
+    entity = `app:${schema.entity_type_id}:${externalId}`,
     scopeTag = crypto.randomUUID(),
     taskTag = crypto.randomUUID(),
     at = "2001-03-04T00:00:00.000Z";
@@ -79,7 +79,7 @@ dbTest("검색: 한국어 본문·literal 와일드카드·상태·태그·기�
       { query: token + "changed" },
       { mode: "auto" as const },
       { tag_id: tagId },
-      { entity_id: `app:${crypto.randomUUID()}` },
+      { entity_id: `app:00000000-0000-4000-8000-000000000001:${crypto.randomUUID()}` },
       { entity_id: undefined },
       { kinds: ["record"] as ("record")[] },
     ]

@@ -1,10 +1,9 @@
-import { EntityIdentitySettings } from "./EntityIdentitySettings.tsx";
-import { RecordTemplateSettings } from "./RecordTemplateSettings.tsx";
+import { NavigationSettings } from "./NavigationSettingsPage.tsx";
+import { SettingsHeading } from "./SettingsHeading.tsx";
 import { Field } from "../../components/Field.tsx";
 import { browserTimezone, timezoneOptions } from "../../lib/timezone.ts";
-import { DetailLink } from "../../lib/detail-exploration.tsx";
 import { useEffect, useRef, useState } from "react";
-import { Link, useBlocker } from "react-router";
+import { useBlocker } from "react-router";
 import { ConfirmDialog } from "../../components/Modal.tsx";
 import { useAuth } from "../auth/AuthProvider.tsx";
 import { ProfileDisplayRefreshError } from "../auth/profile-client.ts";
@@ -38,8 +37,7 @@ function AccountSettings() {
   const saved = { ...preferences, nickname: preferences.nickname ?? "" };
   const [draft, setDraft] = useState(saved);
   useDisplayScalePreview(draft.desktopDisplayScale, draft.mobileDisplayScale);
-  const [identityState, setIdentityState] = useState({ dirty: false, busy: false });
-  const [businessState, setBusinessState] = useState({ dirty: false, busy: false });
+  const [navigationState, setNavigationState] = useState({ dirty: false, busy: false });
   const [saving, setSaving] = useState<PreferenceSection | null>(null);
   const [messages, setMessages] = useState<Partial<Record<PreferenceSection, { text: string; error?: boolean }>>>({});
   const pending = useRef(false), mounted = useRef(true), previousSaved = useRef(saved);
@@ -62,8 +60,8 @@ function AccountSettings() {
         : value.mobileDisplayScale,
     }));
   }, [saved.icon, saved.nickname, saved.timezone, saved.desktopDisplayScale, saved.mobileDisplayScale]);
-  const anyBusy = saving !== null || businessState.busy || identityState.busy;
-  const anyDirty = dirty || businessState.dirty || identityState.dirty;
+  const anyBusy = saving !== null || navigationState.busy;
+  const anyDirty = dirty || navigationState.dirty;
   const blocker = useBlocker(anyDirty || anyBusy);
   useEffect(() => {
     if (anyBusy && blocker.state === "blocked") blocker.reset();
@@ -253,7 +251,8 @@ function AccountSettings() {
   );
   return (
     <section className="panel settings" aria-labelledby="settings-title">
-      <h1 className="page-title" id="settings-title">설정</h1>
+      <SettingsHeading title="기본 설정" id="settings-title" />
+
       {(["profile", "date", "display"] as const).map((section) => (
         <section className="settings-section" aria-labelledby={`settings-${section}`} key={section}>
           <h2 id={`settings-${section}`} className="settings-section-title">{preferenceSections[section].title}</h2>
@@ -270,23 +269,10 @@ function AccountSettings() {
               {{ profile, date, display }[section]}
             </fieldset>
             {controls(section)}
-            {section === "display" && (
-              <div className="settings-links">
-                <DetailLink to="/settings/navigation">메뉴 바로가기</DetailLink>
-              </div>
-            )}
           </form>
+          {section === "display" && <NavigationSettings inline onStateChange={setNavigationState} />}
         </section>
       ))}
-      <section className="settings-section" aria-labelledby="data-title">
-        <h2 className="settings-section-title" id="data-title">자료 관리</h2>
-        <div className="settings-links">
-          <DetailLink to="/settings/entity-types">자료 설정</DetailLink>
-          <Link to="/settings/tags">태그 관리</Link>
-        </div>
-      </section>
-      <EntityIdentitySettings onStateChange={setIdentityState} />
-      <RecordTemplateSettings onStateChange={setBusinessState} />
       <ConfirmDialog
         open={!anyBusy && blocker.state === "blocked"}
         title="변경을 버릴까요?"

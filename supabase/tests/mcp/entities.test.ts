@@ -72,7 +72,13 @@ httpTest("Entity MCP: 실제 SDK/OAuth CRUD·태그 scope·웹 parity·참조 �
     const found = await tool(client, "search", search);
     assertEquals(found.items.map((x: { id: string }) => x.id), [r.id]);
     assertEquals(found, (await call(token, "POST", "/search", search)).body);
-    assertEquals((await tool(client, "search", { ...search, entity_id: `app:${crypto.randomUUID()}` })).items, []);
+    assertEquals(
+      (await tool(client, "search", {
+        ...search,
+        entity_id: `app:00000000-0000-4000-8000-000000000001:${crypto.randomUUID()}`,
+      })).items,
+      [],
+    );
     assertEquals((await tool(client, "search", { ...search, entity_id: "bad" })).error.code, "invalid_input");
     assertEquals(
       (await tool(client, "update_entity", {

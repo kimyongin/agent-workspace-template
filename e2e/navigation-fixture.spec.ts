@@ -1,15 +1,33 @@
-import { fixtureType, fixtureSchema } from "./support/workspace-data.ts";
+import {
+  fixtureIdentity,
+  fixtureSchema,
+  fixtureType,
+} from "./support/workspace-data.ts";
 import { settingsResponse } from "./support/preparation-api.ts";
 // 실제 App/data-router/Auth SDK를 실행한다. 원격 Auth·API 응답만 격리하며 실제 OAuth/DB 증거와 구분한다.
-import { expect, test, type Page } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
 const user = { id: "00000000-0000-0000-0000-000000000001", aud: "authenticated", email: "fixture@example.test", app_metadata: {}, user_metadata: { full_name: "Fixture", workspace_avatar_id: "person", provider_value: "preserved" } };
 test.beforeEach(async ({ page, baseURL }) => {
-  await page.route("**/*", async route => {
+  await page.route("**/*", async (route) => {
     const url = new URL(route.request().url());
-    if(url.pathname === "/api/entity-types") await route.fulfill({json:{items:[fixtureType],next_cursor:null}});
-    else if(url.pathname.startsWith("/api/entity-types/")) await route.fulfill({json:url.pathname.endsWith("/schema")?fixtureSchema:fixtureType});
-    else if(url.pathname.endsWith("/settings/business")) await route.fulfill({json:settingsResponse(route, {versions:{record_templates:0,entity_identity:0},settings:{record_templates:{},entity_identity:{generation:"short",default_source:"app",sources:[{code:"app",label:"앱"}]}}})});
-    else if (/\/(?:functions\/v1\/)?api\//.test(url.pathname)) await route.fulfill({ json: { items: [], next_cursor: null } });
+    if (url.pathname === "/api/entity-types") {
+      await route.fulfill({json:{items:[fixtureType],next_cursor:null}});
+    } else if (url.pathname.startsWith("/api/entity-types/")) {
+      await route.fulfill({
+        json: url.pathname.endsWith("/schema")
+          ? fixtureSchema
+          : url.pathname.endsWith("/identity")
+          ? fixtureIdentity()
+          : fixtureType,
+      });
+    } else if (url.pathname.endsWith("/settings/business")) {
+      await route.fulfill({
+        json: settingsResponse(route, {
+          versions: { record_templates:0 },
+          settings: { record_templates:{} },
+        }),
+      });
+    } else if (/\/(?:functions\/v1\/)?api\//.test(url.pathname)) await route.fulfill({ json: { items: [], next_cursor: null } });
     else if (url.origin === new URL(baseURL!).origin) await route.continue();
     else await route.abort();
   });
@@ -92,7 +110,7 @@ test("프로필 팝오버는 키보드·외부 클릭·경로 이동에 초점�
   await page.keyboard.press("ArrowDown"); await expect(popup.getByRole("link", { name:"사용 가이드", exact:true })).toBeFocused();
   await page.keyboard.press("End"); await expect(popup.getByRole("link", { name:"로그아웃", exact:true })).toBeFocused();
   await page.keyboard.press("Escape"); await expect(profile).toBeFocused();
-  await profile.click(); await page.getByRole("heading", { name:"설정", exact:true }).click(); await expect(profile).toHaveAttribute("aria-expanded", "false");
+  await profile.click(); await page.getByRole("heading", { name:"기본 설정", exact:true }).click(); await expect(profile).toHaveAttribute("aria-expanded", "false");
   await profile.click(); await popup.getByRole("link", { name:"사용 가이드", exact:true }).click(); await expect(page).toHaveURL(/\/guide$/); await expect(profile).toHaveAttribute("aria-expanded", "false");
   await expect(profile).toHaveAttribute("data-current", "true");
 });
@@ -190,7 +208,7 @@ test("가이드의 복사 실패와 성공 안내는 유지한다", async ({ pag
 
 for(const width of [390,1440])test(`#205 ${width}px: 설정·가이드 구획과 탐색 팝오버`,async({page},info)=>{
   await page.setViewportSize({width,height:900});await page.goto("/settings");
-  const groups=page.locator(".settings .settings-section");await expect(groups).toHaveCount(5);
+  const groups=page.locator(".settings .settings-section");await expect(groups).toHaveCount(3);
   expect((await page.locator(".settings").boundingBox())!.width).toBeLessThanOrEqual(768);
   await page.screenshot({path:info.outputPath(`compact-settings-${width}.png`)});
   await page.getByRole("button",{name:/^내 프로필(?: · .+)?$/,exact:true}).click();const popup=page.locator("#nav-profile-options"),box=(await popup.boundingBox())!;

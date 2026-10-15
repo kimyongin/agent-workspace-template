@@ -1,7 +1,7 @@
+import { fixtureIdentity } from "./support/workspace-data.ts";
 import { revealSetting } from "./ui-actions.ts";
 import { expect, type Route, test } from "@playwright/test";
 import { entityDetail } from "../supabase/functions/_shared/contracts/entity.ts";
-import { defaultEntityIdentitySettings } from "../supabase/functions/_shared/contracts/entity-identity.ts";
 import { type EntityType, initialEntityDefinition } from "../supabase/functions/_shared/contracts/entity-type.ts";
 import { fulfillPreparation } from "./support/preparation-api.ts";
 import type { EntitySchemaMigration } from "../supabase/functions/_shared/contracts/entity-schema-migration.ts";
@@ -37,6 +37,9 @@ test.beforeEach(async ({ page, baseURL }) => {
       url.pathname.startsWith(`/api/entity-types/${value.id}`)
     );
     if (selected) {
+      if (url.pathname.endsWith("/identity")) {
+        return route.fulfill({ json: fixtureIdentity(selected.id) });
+      }
       if (url.pathname.includes("/schema-changes/")) {
         return route.fulfill({
           json: {
@@ -328,7 +331,7 @@ test("완료 작업에서 만든 원본 복구안은 같은 작업공간과 기�
   );
 });
 
-test("변환 완료는 새 게시 속성을 바로 갱신하고 기본·속성·기록 초안을 유지한다", async ({ page }) => {
+test("변환 완료는 새 게시 속성을 바로 갱신하고 기본·속성·식별자 초안을 유지한다", async ({ page }) => {
   let complete = false;
   let definitionReads = 0;
   const original = initialEntityDefinition("이름");
@@ -343,6 +346,11 @@ test("변환 완료는 새 게시 속성을 바로 갱신하고 기본·속성·
   published.display.order.push("prop_2", "prop_3");
   await page.route(`**/api/entity-types/${materials.id}**`, (route) => {
     const path = new URL(route.request().url()).pathname;
+    if (path.endsWith("/identity")) {
+      return route.fulfill({
+        json: fixtureIdentity(decodeURIComponent(path.split("/").at(-2)!)),
+      });
+    }
     if (path.endsWith(`/schema-changes/${id(500)}`)) {
       return route.fulfill({ json: linkedChange() });
     }
@@ -367,16 +375,13 @@ test("변환 완료는 새 게시 속성을 바로 갱신하고 기본·속성·
       },
     });
   });
-  await page.route(
-    "**/api/settings/business**",
-    (route) =>
-      route.fulfill({
-        json: {
-          settings: { record_templates: {} },
-          versions: { record_templates: 0 },
-        },
-      }),
-  );
+  await page.route("**/api/settings/business**", (route) =>
+    route.fulfill({
+      json: {
+        settings: { record_templates: {} },
+        versions: { record_templates: 0 },
+      },
+    }));
   await page.route(
     "**/api/entity-schema-migrations/**",
     (route) =>
@@ -409,15 +414,12 @@ test("변환 완료는 새 게시 속성을 바로 갱신하고 기본·속성·
     "남길 속성 입력",
   );
   await page.getByRole("button", { name: "수량 속성 편집", exact: true })
-    .click();
+      .click();
   await revealSetting(page.getByLabel("최소값", { exact: true }));
   await page.getByLabel("최소값", { exact: true }).fill("7.5");
-  await page.getByRole("button", { name: /^기록 자동 완성/ }).click();
-  const record = page.getByRole("form", {
-    name: "기록 자동 완성",
-    exact: true,
-  });
-  await record.getByLabel("메모 템플릿").fill("남길 기록 입력");
+  await page.getByRole("region", { name: "식별자", exact: true }).locator(".material-section-toggle").click();
+  const record = page.getByRole("form", { name: "식별자 설정", exact: true });
+  await record.getByLabel("이름", { exact: false }).fill("남길 식별자 입력");
   complete = true;
   await page.getByRole("button", { name: "상태 다시 조회", exact: true })
     .click();
@@ -428,18 +430,14 @@ test("변환 완료는 새 게시 속성을 바로 갱신하고 기본·속성·
   ).toContainText(
     "완료",
   );
-  await expect(
-    record.getByLabel("변수 삽입").locator("option").filter({
-      hasText: "게시된 추가값",
-    }).first(),
-  )
-    .toHaveCount(1);
   await expect(page.getByLabel("자료 종류 이름", { exact: true })).toHaveValue(
     "남길 기본 입력",
   );
   await expect(page.getByLabel("항목 이름", { exact: true }).first())
     .toHaveValue("남길 속성 입력");
-  await expect(record.getByLabel("메모 템플릿")).toHaveValue("남길 기록 입력");
+  await expect(record.getByLabel("이름", { exact: false })).toHaveValue(
+    "남길 식별자 입력",
+  );
   await expect(
     page.getByRole("button", { name: "게시된 추가값 속성 편집", exact: true }),
   ).toBeVisible();
@@ -473,6 +471,11 @@ test("완료 작업의 최신 정의 조회 실패는 작업 결과와 초안을
   const published = initialEntityDefinition("갱신한 이름");
   await page.route(`**/api/entity-types/${materials.id}**`, (route) => {
     const path = new URL(route.request().url()).pathname;
+    if (path.endsWith("/identity")) {
+      return route.fulfill({
+        json: fixtureIdentity(decodeURIComponent(path.split("/").at(-2)!)),
+      });
+    }
     if (path.endsWith(`/schema-changes/${id(500)}`)) {
       return route.fulfill({ json: linkedChange() });
     }
@@ -568,6 +571,11 @@ test("늦은 완료 작업 조회는 확인된 기본 정보와 다음 저장 �
   const writes: any[] = [];
   await page.route(`**/api/entity-types/${materials.id}**`, async (route) => {
     const path = new URL(route.request().url()).pathname;
+    if (path.endsWith("/identity")) {
+      return route.fulfill({
+        json: fixtureIdentity(decodeURIComponent(path.split("/").at(-2)!)),
+      });
+    }
     if (path.endsWith(`/schema-changes/${id(500)}`)) {
       return route.fulfill({ json: linkedChange() });
     }
@@ -668,6 +676,11 @@ test("완료 작업을 다시 선택하면 다른 작업을 보는 동안 게시
   published.display.order.push("prop_2");
   await page.route(`**/api/entity-types/${materials.id}**`, (route) => {
     const path = new URL(route.request().url()).pathname;
+    if (path.endsWith("/identity")) {
+      return route.fulfill({
+        json: fixtureIdentity(decodeURIComponent(path.split("/").at(-2)!)),
+      });
+    }
     if (path.endsWith(`/schema-changes/${id(500)}`)) {
       return route.fulfill({ json: linkedChange() });
     }
@@ -735,11 +748,11 @@ test("완료 작업을 다시 선택하면 다른 작업을 보는 동안 게시
       exact: true,
     }),
   ).toBeVisible();
-  await page.getByRole("button", { name: /^기록 자동 완성/ }).click();
-  const record = page.getByRole("form", {
-    name: "기록 자동 완성",
-    exact: true,
-  });
+  await page.goto("/settings/records");
+  await page.getByLabel("대상", { exact: true }).selectOption(
+    `type:${materials.id}`,
+  );
+  const record = page.getByRole("form", { name: "기록 자동 완성", exact: true });
   await expect(
     record.getByLabel("변수 삽입").locator("option").filter({
       hasText: "다른 곳에서 게시한 값",
@@ -784,6 +797,15 @@ test("새 게시 이력이 취소한 이전 페이지의 본문 읽기 오류는
     };
   }, `/api/entity-types/${materials.id}/schemas`);
   await page.route(`**/api/entity-types/${materials.id}**`, (route) => {
+    if (new URL(route.request().url()).pathname.endsWith("/identity")) {
+      return route.fulfill({
+        json: fixtureIdentity(
+          decodeURIComponent(
+            new URL(route.request().url()).pathname.split("/").at(-2)!,
+          ),
+        ),
+      });
+    }
     const url = new URL(route.request().url());
     if (url.pathname.endsWith(`/schema-changes/${id(500)}`)) {
       return route.fulfill({ json: linkedChange() });
@@ -803,9 +825,7 @@ test("새 게시 이력이 취소한 이전 페이지의 본문 읽기 오류는
         },
       });
     }
-    if (url.pathname.endsWith("/schema-changes")) {
-      return route.fulfill({ json: { items: [], next_before: null } });
-    }
+    if (url.pathname.endsWith("/schema-changes")) return route.fulfill({ json: { items: [], next_before: null } });
     if (url.pathname.endsWith("/schemas")) {
       if (url.searchParams.has("before")) {
         if (complete) {
@@ -910,15 +930,12 @@ test(
         }),
     );
     await page.route("**/api/settings/business**", (route) =>
-      route.fulfill({
-        json: {
-          settings: {
-            record_templates: {},
-            entity_identity: defaultEntityIdentitySettings,
-          },
-          versions: { record_templates: 0, entity_identity: 0 },
-        },
-      }));
+    route.fulfill({
+      json: {
+        settings: { record_templates: {} },
+        versions: { record_templates: 0 },
+      },
+    }));
     await page.goto(`/settings/entity-types/${materials.id}`);
     await expect(page.getByLabel("자료 종류 검색", { exact: true })).toHaveCount(0);
     await expect(page.getByLabel("자료 종류 선택", { exact: true }).locator("option")).toContainText([
@@ -927,7 +944,7 @@ test(
 
     for (const width of [320, 390, 768]) {
       await page.setViewportSize({ width, height: 900 });
-      const names = ["기본 정보", "입력 항목", "기록 자동 완성", "변경 이력"];
+      const names = ["기본 정보", "식별자", "입력 항목", "변경 이력"];
       const boxes = [];
       for (const name of names) {
         boxes.push((await page.getByRole("region", { name, exact: true }).boundingBox())!);
@@ -996,8 +1013,8 @@ test(
     const deletion = quantity.getByRole("button", { name: "항목 삭제", exact: true });
     expect(await deletion.locator(".body-action-face").evaluate(el => getComputedStyle(el).color)).toBe("rgb(255, 140, 150)");
     await quantity.getByText("추가 설정", { exact: true }).click();
-    await page.getByRole("button", { name: "기록 자동 완성", exact: true }).click();
-    const record = page.getByRole("form", { name: "기록 자동 완성", exact: true });
+    await page.getByRole("region", { name: "식별자", exact: true }).locator(".material-section-toggle").click();
+    const record = page.getByRole("form", { name: "식별자 설정", exact: true });
     await expect(record).toBeVisible();
     const innerChrome = await record.evaluate(el => {
       const section = el.parentElement!;
@@ -1005,9 +1022,12 @@ test(
       return { border: style.borderTopWidth, padding: style.padding };
     });
     expect(innerChrome).toEqual({ border: "0px", padding: "0px" });
-    await expect(page.getByRole("heading", { name: "기록 자동 완성", exact: true })).toHaveCount(1);
-    await page.screenshot({ path: info.outputPath("record-autocomplete-flat.png"), fullPage: true });
-    await page.getByRole("button", { name: "기록 자동 완성", exact: true }).click();
+    await expect(page.getByRole("heading", { name: /^식별자/ })).toHaveCount(1);
+    await page.screenshot({
+      path: info.outputPath("identity-settings-flat.png"),
+      fullPage: true,
+    });
+    await page.getByRole("region", { name: "식별자", exact: true }).locator(".material-section-toggle").click();
     await page.screenshot({
       path: info.outputPath("property-display-settings.png"),
       fullPage: true,
@@ -1084,6 +1104,15 @@ test("변환을 접어도 같은 행에서 완료 버전으로 바뀌며 중복 
       : null,
   });
   await page.route(`**/api/entity-types/${materials.id}**`, (route) => {
+    if (new URL(route.request().url()).pathname.endsWith("/identity")) {
+      return route.fulfill({
+        json: fixtureIdentity(
+          decodeURIComponent(
+            new URL(route.request().url()).pathname.split("/").at(-2)!,
+          ),
+        ),
+      });
+    }
     const url = new URL(route.request().url());
     if (url.pathname.endsWith("/schema-changes")) {
       return route.fulfill({ json: { items: [change()], next_before: null } });
@@ -1193,6 +1222,15 @@ test("적용 변경과 최초 생성은 한 목록에서 각 버전 정의와 �
     updated_at: "2026-10-15T00:00:00Z",
   };
   await page.route(`**/api/entity-types/${materials.id}**`, (route) => {
+    if (new URL(route.request().url()).pathname.endsWith("/identity")) {
+      return route.fulfill({
+        json: fixtureIdentity(
+          decodeURIComponent(
+            new URL(route.request().url()).pathname.split("/").at(-2)!,
+          ),
+        ),
+      });
+    }
     const url = new URL(route.request().url());
     if (url.pathname.endsWith("/schema-changes")) {
       return route.fulfill({ json: { items: [change], next_before: null } });
@@ -1334,6 +1372,15 @@ test(
     target.display.list_columns.push("prop_2");
     let mismatch = true;
     await page.route(`**/api/entity-types/${materials.id}**`, (route) => {
+      if (new URL(route.request().url()).pathname.endsWith("/identity")) {
+        return route.fulfill({
+          json: fixtureIdentity(
+            decodeURIComponent(
+              new URL(route.request().url()).pathname.split("/").at(-2)!,
+            ),
+          ),
+        });
+      }
       const url = new URL(route.request().url());
       if (url.pathname.endsWith("/schemas")) {
         return route.fulfill({
@@ -1347,9 +1394,7 @@ test(
           },
         });
       }
-      if (url.pathname.endsWith("/schema-changes")) {
-        return route.fulfill({ json: { items: [], next_before: null } });
-      }
+      if (url.pathname.endsWith("/schema-changes")) return route.fulfill({ json: { items: [], next_before: null } });
       if (url.pathname.endsWith("/schema")) {
         const n = requestedVersion(route, 2);
         return route.fulfill({
@@ -1365,7 +1410,7 @@ test(
       });
     });
     await page.goto(`/settings/entity-types/${materials.id}`);
-    const sections = ["기본 정보", "입력 항목", "기록 자동 완성", "변경 이력"];
+    const sections = ["기본 정보", "식별자", "입력 항목", "변경 이력"];
     const styles = [];
     for (const name of sections) {
       styles.push(

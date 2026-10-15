@@ -5,20 +5,19 @@ const A = await signIn("A"), B = await signIn("B");
 httpTest("Entity HTTP: CRUD·권한·입력·버전·참조·삭제 보존 실제 진입점", async () => {
   assertEquals((await call(null, "GET", "/entities")).status, 401);
   assertEquals((await call(A, "POST", "/entities/prepare", { source: "app" })).status, 404);
-  const settings = await call(A, "GET", "/settings/business?id=entity_identity");
-  assertEquals(settings.status, 200);
-  assertEquals(Object.keys(settings.body.settings), ["entity_identity"]);
-  const settings_version = settings.body.versions.entity_identity;
   const schema = await httpEntityFixture(A);
+  const settings = await call(A, "GET", `/entity-types/${schema.entity_type_id}/identity`);
+  assertEquals(settings.status, 200);
+  const identity_version = settings.body.version;
   const input = {
     ...schema,
-    settings_version,
+    identity_version,
     source: "app",
     external_id: crypto.randomUUID(),
     properties: { prop_1: "실제 엔터티", prop_2: 0, prop_3: "2024-02-29" },
   };
   assertEquals(
-    (await call(A, "POST", "/entities", { ...input, settings_version: settings_version + 1 })).body.code,
+    (await call(A, "POST", "/entities", { ...input, identity_version: identity_version + 1 })).body.code,
     "settings_changed",
   );
   const created = await call(A, "POST", "/entities", input);
@@ -53,7 +52,10 @@ httpTest("Entity HTTP: CRUD·권한·입력·버전·참조·삭제 보존 실�
   assertEquals((await call(A, "POST", "/search", search)).body.items.map((x: { id: string }) => x.id), [task.id]);
   assertEquals((await call(B, "POST", "/search", search)).body.items, []);
   assertEquals(
-    (await call(A, "POST", "/search", { ...search, entity_id: `app:${crypto.randomUUID()}` })).body.items,
+    (await call(A, "POST", "/search", {
+      ...search,
+      entity_id: `app:00000000-0000-4000-8000-000000000001:${crypto.randomUUID()}`,
+    })).body.items,
     [],
   );
   assertEquals((await call(A, "POST", "/search", { ...search, entity_id: "bad" })).body.code, "invalid_input");
@@ -101,7 +103,7 @@ httpTest("Entity HTTP: CRUD·권한·입력·버전·참조·삭제 보존 실�
     properties: {},
     source: input.source,
     external_id: input.external_id,
-    settings_version,
+    identity_version,
     expected_version: retained.version,
   });
   assertEquals(restored.status, 201);

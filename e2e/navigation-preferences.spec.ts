@@ -22,7 +22,6 @@ test("personal navigation partial save survives reload and login without changin
   let bodyFailed = false;
   try {
     await page.goto("/settings");
-    await page.getByRole("link", { name: "메뉴 바로가기", exact: true }).click();
     const list = page.getByRole("list", { name: "선택한 바로가기" });
     await expect(list).toBeVisible();
     while (await list.locator("li").count()) await list.getByRole("button", { name: /숨기기$/ }).first().click();

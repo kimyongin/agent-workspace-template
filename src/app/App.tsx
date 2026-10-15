@@ -1,5 +1,6 @@
+import { IssuerSettingsPage } from "../features/settings/IssuerSettingsPage.tsx";
+import { RecordSettingsPage } from "../features/settings/RecordSettingsPage.tsx";
 import { NavigationPreviewProvider } from "../features/settings/navigation-preview.tsx";
-import { NavigationSettingsPage } from "../features/settings/NavigationSettingsPage.tsx";
 import { EntityTypeSettings } from "../features/settings/EntityTypeSettings.tsx";
 import { StatusPage } from "../features/status/StatusPage.tsx";
 import { WriteOutcomeNotice } from "../components/WriteOutcomeNotice.tsx";
@@ -127,12 +128,14 @@ export function App() {
           <Route path="tags/:scope" element={guarded(<TagsPage />)} />
           <Route path="tags/:scope/:id" element={guarded(<TagsPage />)} />
           <Route path="guide" element={guarded(<GuidePage />)} />
-          <Route path="settings/navigation" element={guarded(<NavigationSettingsPage />)} />
+          <Route path="settings/navigation" element={guarded(<Navigate to="/settings#settings-display" replace />)} />
+          <Route path="settings/issuers" element={guarded(<IssuerSettingsPage />)} />
+          <Route path="settings/records" element={guarded(<RecordSettingsPage />)} />
           <Route path="settings" element={guarded(<SettingsPage />)} />
           <Route path="settings/tags" element={guarded(<TagSettingsPage />)} />
           <Route
             path="settings/entity-identity"
-            element={guarded(<Navigate to="/settings#entity-identity-title" replace />)}
+            element={guarded(<Navigate to="/settings/issuers" replace />)}
           />
           {materialSettingsRoutes.map((path) => (
             <Route key={path} path={path} element={guarded(<EntityTypeSettings />)} />

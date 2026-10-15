@@ -44,8 +44,8 @@ httpTest(
       client = await connectMcp(grant.access_token);
       const catalog = await client.listTools(),
         names = catalog.tools.map((t) => t.name);
-      assertEquals(names.length, 58);
-      assertEquals(new Set(names).size, 58);
+      assertEquals(names.length, 67);
+      assertEquals(new Set(names).size, 67);
       for (
         const name of [
           "get_entity_schema",
@@ -310,14 +310,14 @@ httpTest(
       const all = [...first.body.items, ...mcpNext.body.items].map((item) => item.id);
       assertEquals(new Set(all).size, 101);
       assertEquals(all.sort(), entities.toSorted());
-      assertEquals(
-        (await call<EntitySchemaResult>(
-          token,
-          "GET",
-          `/entity-types/${typeId}/schema`,
-        )).body,
-        schema.body,
-      );
+      const afterCreation = (await call<EntitySchemaResult>(token, "GET", `/entity-types/${typeId}/schema`)).body;
+      const { identity: initialIdentity, ...initialDefinition } = schema.body;
+      const { identity: referencedIdentity, ...unchangedDefinition } = afterCreation;
+      assertEquals(unchangedDefinition, initialDefinition);
+      assert(initialIdentity && referencedIdentity);
+      assertEquals(initialIdentity.sources.find((source) => source.code === "app")?.referenced, false);
+      assertEquals(referencedIdentity.sources.find((source) => source.code === "app")?.referenced, true);
+      assertEquals(referencedIdentity.version, initialIdentity.version);
       const filtered = {
         entity_type_id: typeId,
         limit: 100,

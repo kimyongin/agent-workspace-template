@@ -35,7 +35,7 @@ export function entityTools(d: entity.EntityDeps): ToolDef[] {
     {
       name: "create_entity",
       description:
-        "활성 자료 종류의 자료 생성. list_entity_types와 get_entity_schema로 entity_type_id/schema_version/prop_n의 의미와 제약을 확인하고 properties를 제출한다. 기본값은 새 생성에만 적용된다. 발급처 source·external_id는 정확하게 보존한다. get_business_settings id=entity_identity의 발급처·발급 방식·versions.entity_identity를 settings_version으로 유지한다. short 방식은 external_id 생략 시 서버 발급한다. 삭제된 식별자는 get_entity의 원래 타입·보관값·version을 확인하고 같은 entity_type_id 및 현재 schema_version/expected_version으로 복원한다. 타입 변경은 금지된다. schema_changed/settings_changed이면 초안을 유지하고 최신 정본을 확인한 뒤 새 의도 키로 제출한다.",
+        "활성 자료 종류의 자료 생성. list_entity_types와 get_entity_schema로 entity_type_id/schema_version/prop_n의 의미와 제약을 확인하고 properties를 제출한다. 기본값은 새 생성에만 적용된다. 발급처 source·external_id는 정확하게 보존한다. get_entity_type_identity의 발급처·발급 방식·version을 identity_version으로 유지한다. automatic 방식은 external_id 생략 시 서버 발급한다. 삭제된 식별자는 get_entity의 원래 타입·보관값·version을 확인하고 같은 entity_type_id 및 현재 schema_version/expected_version으로 복원한다. 타입 변경은 금지된다. schema_changed/settings_changed이면 초안을 유지하고 최신 정본을 확인한 뒤 새 의도 키로 제출한다.",
       input: entityCreate,
       readOnly: false,
       handler: (i, a) => entity.createEntity(d, a, parse(entityCreate, i)),
@@ -43,11 +43,12 @@ export function entityTools(d: entity.EntityDeps): ToolDef[] {
     {
       name: "update_entity",
       description:
-        "현재 schema_version/expected_version으로 properties 부분 수정과 발급처·식별자 정정. 생략한 키는 유지하고 명시 null은 스키마가 허용할 때 저장한다. 타입은 변경할 수 없다. 식별 변경과 연결·기록 참조는 원자적으로 전환한다. schema_changed이면 초안을 유지하고 현재 정의를 확인한다.",
+        "현재 schema_version/expected_version으로 properties 부분 수정. 생략한 키는 유지하고 명시 null은 스키마가 허용할 때 저장한다. 자료 종류·발급처·번호는 변경할 수 없다. schema_changed이면 초안을 유지하고 현재 정의를 확인한다.",
       input: entityUpdate.extend({ id }),
       readOnly: false,
       handler: (i, a) => {
-        entity.assertImmutableType(i);
+        const { id: _id, ...fields } = i;
+        entity.assertImmutableType(fields);
         idParam(i.id);
         const { id, ...rest } = parse(update, i);
         return entity.updateEntity(d, a, idParam(id), rest);

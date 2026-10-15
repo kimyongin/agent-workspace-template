@@ -164,3 +164,22 @@ section[aria-labelledby="entity-identity-title"] .settings-section-footer { bord
 .schema-history-result { font-size: var(--text-body); font-weight: 400; line-height: 1.5rem; color: var(--muted-ink); }
 .schema-history-result p, .schema-history-result ul { margin-block: var(--space-2); }
 .schema-history-result ul { padding-left: var(--space-5); }
+
+.settings-menu { position: relative; flex: 0 0 auto; margin: 0; z-index: 30; }
+.settings-heading { flex-wrap: nowrap; }
+.settings-menu-trigger { width: 44px; height: 44px; padding: 0; display: grid; place-items: center; }
+.settings-menu-options { position: absolute; inset-inline-end: 0; margin-block-start: var(--space-2); min-width: 9rem; display: grid; padding: var(--space-2); background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-card); box-shadow: var(--shadow-soft); }
+.settings-menu-options a { display: flex; align-items: center; min-height: 44px; padding-inline: var(--space-3); }
+.navigation-inline-settings { margin-block-start: var(--space-4); }
+
+/* Issuer definitions and type bindings use the same flat settings rows. */
+.settings-inline-actions, .issuer-binding-choice { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:var(--space-3); }
+.issuer-binding-choice > .field, .issuer-binding-choice > div { flex:1 1 12rem; min-width:0; }
+.issuer-rule-list, .issuer-binding-list { display:grid; min-width:0; }
+.issuer-rule-row, .issuer-binding-row { display:flex; align-items:center; gap:var(--space-3); min-height:44px; padding-block:var(--space-3); border-bottom:1px solid var(--line); min-width:0; }
+.issuer-rule-row > div { display:grid; gap:var(--space-1); flex:1; min-width:0; overflow-wrap:anywhere; }
+.issuer-binding-row { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); }
+.issuer-binding-row > div { min-width:0; overflow-wrap:anywhere; }
+.issuer-status-choice { display:flex; align-items:center; gap:var(--space-2); min-height:44px; overflow-wrap:anywhere; min-width:0; }
+.issuer-status-choice input { flex-shrink:0; accent-color:var(--accent); }
+@media (max-width:389px) { .issuer-binding-row { grid-template-columns:minmax(0,1fr); gap:var(--space-1); } }

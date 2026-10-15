@@ -2,6 +2,8 @@
 
 검토 범위는 [#285](https://github.com/kimyongin/agent-workspace-template/issues/285)다. `b9ccaa56a36add3882cd6c86bd16f90442dd64e6`의 코드와 기존 검사에서 확인했다. 제품 동작과 검사 interface를 변경하는 설계 승인이 아니라, 후속 판단에 쓰는 근거다.
 
+이 검토는 위 revision의 과거 구조를 다룬다. [ADR-0021](../adr/0021-type-scoped-immutable-identity.md) 이후 식별자 변경 경로는 제거되었으며 현재 구현의 번호 불변 정책을 대체하지 않는다.
+
 ## 결론
 
 현재 구조를 유지한다. 탭 전이를 여러 hook으로 나누는 변경은 읽기 경로와 실행 순서를 더 늘릴 수 있다. [DetailWorkspace](../../src/features/details/DetailWorkspace.tsx)는 탭·활성 대상·목록 문맥을 한 곳에서 소유하고, 읽기 수명·편집·식별자 교체·패널 크기는 이미 분리되어 있다. 이번 검토에서는 prototype이나 제품 refactor가 필요하지 않았다.
@@ -17,7 +19,7 @@
 | 연결 상세의 돌아갈 위치 | DetailWorkspace의 `returnTarget`, `rememberReturn`, `Tab.returnTo`; 모바일 직접 진입은 [detail-exploration](../../src/lib/detail-exploration.tsx)의 trail | 연결 탐색은 최초 상세 하나를 기억한다. 출발 탭을 닫으면 무효 return pointer를 제거한다. 모바일 history trail과 desktop retained tab은 서로 다른 실행 경로다. |
 | 초안·guard·busy | 각 폼과 [Modal](../../src/components/Modal.tsx)의 `SurfaceEditor`, `readGuard`; TabContent와 WorkspaceRouteProtection | 숨기거나 다른 탭을 선택해도 폼은 mounted 상태로 남는다. dirty 닫기는 확인하며, 확인 취소는 유지한다. busy일 때 선택·닫기·재정렬·숨김·경로 이동이 차단된다. |
 | 상세 읽기·늦은 응답·확정값 | [useDetailResource](../../src/features/details/useDetailResource.ts), [detail-resource](../../src/features/details/detail-resource.ts) | identity별 resource와 취소·generation이 오래된 GET을 버린다. 확정 저장값을 이전 GET이 덮지 않고, 충돌 후 초안 version은 편집 종료 전 갱신하지 않는다. |
-| 편집 종료·식별자 교체 | [useDetailEditor](../../src/features/details/useDetailEditor.ts), [useEntityIdentityChange](../../src/features/details/useEntityIdentityChange.ts), [identity-change](../../src/features/details/identity-change.ts), [useDeferredNavigation](../../src/lib/useDeferredNavigation.ts) | 폼과 guard를 제거한 뒤 이동한다. 저장된 새 식별자는 탭과 return pointer를 교체하고 목록 펼침·초점 hash를 옮긴다. |
+| 편집 종료·식별자 교체 | [useDetailEditor](../../src/features/details/useDetailEditor.ts), [useEntityIdentityChange](https://github.com/kimyongin/agent-workspace-template/blob/b9ccaa56a36add3882cd6c86bd16f90442dd64e6/src/features/details/useEntityIdentityChange.ts), [identity-change](https://github.com/kimyongin/agent-workspace-template/blob/b9ccaa56a36add3882cd6c86bd16f90442dd64e6/src/features/details/identity-change.ts), [useDeferredNavigation](../../src/lib/useDeferredNavigation.ts) | 폼과 guard를 제거한 뒤 이동한다. 저장된 새 식별자는 탭과 return pointer를 교체하고 목록 펼침·초점 hash를 옮긴다. |
 | 화면 전환·scroll·focus | DetailWorkspace의 `started`, media query, `useWorkspaceScroll`, focus effect; [useWorkspaceResize](../../src/features/details/useWorkspaceResize.ts); ModalShell | 이미 시작한 workspace는 mobile modal 전환에서도 탭 폼을 유지한다. 모바일에서 시작한 열린 native dialog는 넓어진 화면에서도 재부모화하지 않는다. 목록 scroll 소유자가 바뀌면 위치를 옮긴다. |
 | 계정 수명 | [App Layout](../../src/app/App.tsx)의 account/logout key와 DetailNavigationProvider의 scope | 로그아웃·사용자 ID 변경은 retained workspace를 다시 mount하고 탐색 snapshot을 분리한다. 계정 간 초안·탭·복귀 정보가 공유되어서는 안 된다. |
 
@@ -52,7 +54,7 @@
 | 늦은 GET·취소 identity가 확정 저장값과 새 identity를 덮지 않음 | [detail-resource.test](../../src/features/details/detail-resource.test.ts)의 5개 검사 | 이 단위 검사는 비동기 resource interface를 검증한다. 계정 변경 시 진행 중 mutation의 결과까지 입증하는 검사는 아니다. |
 | 계정 변경·로그아웃에서 탭·초안·snapshot 폐기 | App key/scope; record tabs/logout 검사 | 기존 브라우저 검사는 로그아웃을 다룬다. 다른 계정으로 교체되는 경로와 늦은 mutation의 조합은 후속 refactor에서 기존 UI interface로 확인할 필요가 있다. 현재 성공했다고 주장하지 않는다. |
 | desktop/mobile·표시 배율 전환에서 폼 재부모화·초안 손실 없음 | mobile unfinished native editor, resized split draft retention, 150% divider 검사; [display-scale](../../e2e/display-scale.spec.ts) | dialog mode와 focus·scroll ownership을 reducer 값만으로 증명할 수 없다. |
-| rekey는 중복 identity를 정리하고 active·return pointer·목록 펼침·Unicode hash를 함께 이전 | [identity-change.test](../../src/features/details/identity-change.test.ts), desktop rekey, related previous 검사 | 현재 rekey 브라우저 검사는 기본 탭 교체를 확인한다. 모든 중복 탭·return pointer 조합을 이미 실행 검증한 것으로 확대하지 않는다. |
+| rekey는 중복 identity를 정리하고 active·return pointer·목록 펼침·Unicode hash를 함께 이전 | [identity-change.test](https://github.com/kimyongin/agent-workspace-template/blob/b9ccaa56a36add3882cd6c86bd16f90442dd64e6/src/features/details/identity-change.test.ts), desktop rekey, related previous 검사 | 현재 rekey 브라우저 검사는 기본 탭 교체를 확인한다. 모든 중복 탭·return pointer 조합을 이미 실행 검증한 것으로 확대하지 않는다. |
 
 후속 구현을 제안하려면 위 행동을 보존한 채 대표 변경 전후의 실제 읽기 경로를 비교하고, 새 interface가 필요할 경우 별도 합의를 받아야 한다. 여러 hook으로 이동한 파일 수 감소나 내부 reducer 테스트 통과만으로 채택하지 않는다. [#270](https://github.com/kimyongin/agent-workspace-template/issues/270)의 검색·설정 초안 소유권은 이번 검토의 재구현 대상이 아니다.
 

@@ -2,16 +2,10 @@
 import { readFileSync } from "node:fs";
 import { parseEnv } from "node:util";
 import { createHash, randomBytes } from "node:crypto";
-import {
-  Client,
-  StreamableHTTPClientTransport,
-} from "@modelcontextprotocol/client";
+import { Client, StreamableHTTPClientTransport } from "@modelcontextprotocol/client";
 import { expect, type Page, test as baseTest } from "@playwright/test";
 import { parse } from "smol-toml";
-import {
-  cleanupOwnedFixture,
-  type FixtureScope,
-} from "../scripts/actual-fixture-cleanup.mjs";
+import { cleanupOwnedFixture, type FixtureScope } from "../scripts/actual-fixture-cleanup.mjs";
 
 export const env = parseEnv(
   readFileSync(new URL("../.env.local", import.meta.url), "utf8"),
@@ -31,8 +25,7 @@ const tokenOwners = new Map<string, string>();
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 function tokenOwner(token: string) {
   try {
-    const owner =
-      JSON.parse(Buffer.from(token.split(".")[1], "base64url").toString()).sub;
+    const owner = JSON.parse(Buffer.from(token.split(".")[1], "base64url").toString()).sub;
     return typeof owner === "string" && uuid.test(owner) ? owner : null;
   } catch {
     return null;
@@ -44,7 +37,15 @@ function ownerScope(owner: string) {
   if (!scope) {
     scope = {
       ownerId: owner,
-      ids: { entities: [], tasks: [], records: [], tags: [], entity_types: [] },
+      ids: {
+        entities: [],
+        tasks: [],
+        records: [],
+        tags: [],
+        entity_types: [],
+        entity_issuers: [],
+        entity_identifier_rules: [],
+      },
       requestKeys: [],
     };
     activeScope.owners.set(owner, scope);
@@ -59,8 +60,8 @@ export function ownFixtureResult(
 ) {
   const scope = ownerScope(owner);
   if (!scope) return;
-  if (typeof id === "string" && !scope.ids[root].includes(id)) {
-    scope.ids[root].push(id);
+  if (typeof id === "string" && !scope.ids[root]?.includes(id)) {
+    (scope.ids[root] ??= []).push(id);
   }
   if (
     requestKey && uuid.test(requestKey) &&
@@ -98,11 +99,13 @@ export const test = baseTest.extend<{ _ownedFixture: void }>({
         new URL(response.url()).origin !== apiOrigin
       ) return;
       const path = new URL(response.url()).pathname,
-        root = path.endsWith("/api/entity-types")
+        root = path.endsWith("/api/entity-issuers")
+          ? "entity_issuers"
+          : /\/api\/entity-issuers\/[^/]+\/rules$/.test(path)
+          ? "entity_identifier_rules"
+          : path.endsWith("/api/entity-types")
           ? "entity_types"
-          : (["entities", "tasks", "records", "tags"] as const).find((root) =>
-            path.endsWith(`/api/${root}`)
-          );
+          : (["entities", "tasks", "records", "tags"] as const).find((root) => path.endsWith(`/api/${root}`));
       const owner = tokenOwner(
         response.request().headers().authorization?.replace(/^Bearer /i, "") ??
           "",
@@ -115,7 +118,7 @@ export const test = baseTest.extend<{ _ownedFixture: void }>({
           ownFixtureResult(
             owner,
             root,
-            result.id,
+            root === "entity_issuers" ? result.code : result.id,
             response.request().headers()["idempotency-key"],
           );
         } catch {
@@ -134,7 +137,7 @@ export const test = baseTest.extend<{ _ownedFixture: void }>({
       try {
         if (
           [...scope.owners.values()].some((owner) =>
-            Object.values(owner.ids).some((ids) => ids.length) ||
+            Object.values(owner.ids).some((ids) => ids?.length) ||
             owner.requestKeys.length
           )
         ) {
@@ -326,6 +329,8 @@ export async function mcpClient(token: string) {
       }
       const result = res.structuredContent as Record<string, any>;
       const root = ({
+        create_entity_issuer: "entity_issuers",
+        create_entity_identifier_rule: "entity_identifier_rules",
         create_entity_type: "entity_types",
         create_entity: "entities",
         create_task: "tasks",
@@ -333,6 +338,8 @@ export async function mcpClient(token: string) {
         create_tag: "tags",
       } as const)[
         name as
+          | "create_entity_issuer"
+          | "create_entity_identifier_rule"
           | "create_entity_type"
           | "create_entity"
           | "create_task"
@@ -340,7 +347,7 @@ export async function mcpClient(token: string) {
           | "create_tag"
       ];
       if (root && owner) {
-        ownFixtureResult(owner, root, result.id, String(args.request_key));
+        ownFixtureResult(owner, root, root === "entity_issuers" ? result.code : result.id, String(args.request_key));
       }
       return result;
     },
@@ -348,5 +355,4 @@ export async function mcpClient(token: string) {
   };
 }
 
-export const unique = (label: string) =>
-  `${label} ${Date.now().toString(36)}${randomBytes(2).toString("hex")}`;
+export const unique = (label: string) => `${label} ${Date.now().toString(36)}${randomBytes(2).toString("hex")}`;

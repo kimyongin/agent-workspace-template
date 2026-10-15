@@ -1,3 +1,5 @@
+import * as registry from "../../functions/_shared/core/entity-issuers/application.ts";
+import { SqlEntityIssuerUnitOfWork } from "../../functions/_shared/adapters/supabase/entity-issuer-store.ts";
 import { assertEquals, assertRejects } from "@std/assert";
 import type { Actor } from "../../functions/_shared/core/shared/actor.ts";
 import { AppError } from "../../functions/_shared/core/shared/errors.ts";
@@ -13,7 +15,7 @@ import * as tag from "../../functions/_shared/core/tags/application.ts";
 import * as settings from "../../functions/_shared/core/settings/application.ts";
 import { taskCreate } from "../../functions/_shared/contracts/task.ts";
 import { entityCreate } from "../../functions/_shared/contracts/entity.ts";
-import { entityFixture } from "./_entity.ts";
+import { directEntitySource, entityFixture } from "./_entity.ts";
 import { principleCreate } from "../../functions/_shared/contracts/principle.ts";
 import { recordCreate } from "../../functions/_shared/contracts/record.ts";
 import { tagCreate } from "../../functions/_shared/contracts/tag.ts";
@@ -114,28 +116,26 @@ dbTest("tag and current principle writes replay without reapplying changed or de
 });
 
 dbTest(
-  "issuer settings lookup allocates nothing; first write validates settings while replay survives settings, rekey and restore",
+  "issuer settings lookup allocates nothing; first write validates type identity while replay survives configuration edits and restore",
   async () => {
     const f = await fixtureOwner(admin);
     try {
       const schema = await entityFixture(admin, f.actor.userId);
-      const savedSettings = await settings.getBusinessSettings(sd, f.actor, { id: "entity_identity" });
+      const savedSettings = await registry.getEntityTypeIdentity(
+        { uow: new SqlEntityIssuerUnitOfWork(sql) },
+        f.actor,
+        schema.entity_type_id,
+      );
       const input = entityCreate.parse({
         ...schema,
-        source: savedSettings.settings.entity_identity!.default_source,
-        settings_version: savedSettings.versions.entity_identity,
+        source: savedSettings.default_source,
+        identity_version: savedSettings.version,
         properties: { prop_1: "auto" },
       });
       const createAttempt = keyed(f.actor);
       const auto = await entity.createEntity(ed, createAttempt, input);
-      const identity = {
-        generation: "manual" as const,
-        default_source: "app",
-        sources: [{ code: "app", label: "앱", generation: "manual" as const }],
-      };
-      const settingInput = { id: "entity_identity", expected_version: 0, value: identity };
-      const saved = await replay(f.actor, (a) => settings.updateBusinessSettings(sd, a, settingInput));
-      assertEquals(saved.versions.entity_identity, 1);
+      const setup = await directEntitySource(sql, f.actor, schema.entity_type_id);
+      assertEquals(setup.identity.version, savedSettings.version + 1);
       assertEquals(await entity.createEntity(ed, createAttempt, input), auto);
       await code(() => entity.createEntity(ed, keyed(f.actor), input), "settings_changed");
       await code(
@@ -155,7 +155,7 @@ dbTest(
       });
       const explicitAttempt = keyed(f.actor);
       const explicit = await entity.createEntity(ed, explicitAttempt, explicitInput);
-      assertEquals(explicit.id, "app:000AbC");
+      assertEquals(explicit.id, `app:${schema.entity_type_id}:000AbC`);
       const updated = await replay(
         f.actor,
         (a) =>
@@ -165,35 +165,29 @@ dbTest(
             properties: { prop_1: "updated" },
           }),
       );
-      const rekeyed = await replay(
-        f.actor,
-        (a) =>
-          entity.updateEntity(ed, a, explicit.id, {
+      await code(
+        () =>
+          entity.updateEntity(ed, keyed(f.actor), explicit.id, {
             schema_version: schema.schema_version,
             expected_version: updated.version,
-            source: "app",
-            external_id: "000XYZ",
+            ...{ source: "app", external_id: "000XYZ" },
           }),
+        "entity_type_immutable",
       );
       assertEquals(await entity.createEntity(ed, explicitAttempt, explicitInput), explicit);
-      await code(() => entity.getEntity(ed, f.actor, explicit.id), "not_found");
-      await replay(f.actor, (a) => entity.deleteEntity(ed, a, rekeyed.id, rekeyed.version));
-      const deleted = await entity.getEntity(ed, f.actor, rekeyed.id);
+      await replay(f.actor, (a) => entity.deleteEntity(ed, a, updated.id, updated.version));
+      const deleted = await entity.getEntity(ed, f.actor, updated.id);
       const restoreInput = entityCreate.parse({
         ...schema,
         properties: {},
         source: "app",
-        external_id: "000XYZ",
+        external_id: "000AbC",
         expected_version: deleted.version,
       });
       const restored = await replay(f.actor, (a) => entity.createEntity(ed, a, restoreInput));
       assertEquals(restored.properties.prop_1, "updated");
-      const nextSettings = {
-        ...settingInput,
-        expected_version: 1,
-        value: { ...identity, sources: [{ code: "app", label: "renamed", generation: "manual" }] },
-      };
-      await settings.updateBusinessSettings(sd, keyed(f.actor), nextSettings);
+      await registry.updateEntityIssuer(setup.deps, keyed(f.actor), "app", { expected_version: 1, label: "renamed" });
+      assertEquals(await entity.createEntity(ed, explicitAttempt, explicitInput), explicit);
       const templates = { id: "record_templates", expected_version: 0, value: {} };
       const oldSettingsAttempt = keyed(f.actor);
       const oldSettings = await settings.updateBusinessSettings(sd, oldSettingsAttempt, templates);

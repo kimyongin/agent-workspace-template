@@ -7,7 +7,7 @@ export const fixtureConfigs = [
   "e2e/type-navigation.config.ts", "e2e/typed-entity-consumers.config.ts",
   "e2e/schema-editor-read.config.ts", "e2e/schema-job-history.config.ts",
   "e2e/navigation-preferences.config.ts", "e2e/workspace-screens.config.ts",
-  "e2e/material-schema.config.ts", "e2e/material-templates.config.ts",
+  "e2e/material-schema.config.ts", "e2e/material-templates.config.ts", "e2e/issuer-settings.config.ts",
   "playwright.design-samples.config.ts",
 ];
 export function e2eRunPlan(args) {

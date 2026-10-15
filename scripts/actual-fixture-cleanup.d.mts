@@ -6,6 +6,8 @@ export type FixtureScope = {
     records: string[];
     tags: string[];
     entity_types: string[];
+    entity_issuers?: string[];
+    entity_identifier_rules?: string[];
   };
   requestKeys: string[];
 };

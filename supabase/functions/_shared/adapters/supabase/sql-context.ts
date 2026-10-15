@@ -28,12 +28,6 @@ export class SqlActorStore {
     const [row] = await this.tx`select app.data_id_candidate() as id`;
     return row.id as string;
   }
-  async getBusinessSettings(lockIdentity = false) {
-    if (lockIdentity) {
-      await this.tx`select pg_advisory_xact_lock(hashtextextended(${`${this.actor.userId}:entity_identity`},0))`;
-    }
-    return new SqlBusinessSettingsStore(this.tx, this.actor).get();
-  }
 
   /** Explicit user commands call this once, never the internal insert itself. */
   async appendChange(input: ChangeInput) {

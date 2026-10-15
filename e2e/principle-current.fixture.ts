@@ -24,11 +24,16 @@ test("키보드 Enter는 할 일 확인 단계를 열고 확인 뒤 한 번 저�
   const form=page.locator("dialog.modal:not(.modal-confirm)[open]");
   await form.getByLabel(/^제목/).fill("키보드 할 일");await form.getByLabel(/^본문/).fill("할 일 근거");
   await form.getByLabel(/^제목/).focus();await page.keyboard.press("Enter");
-  expect(writes).toHaveLength(0);await form.getByRole("button",{name:"등록하고 저장"}).click();
-  await expect(form.getByRole("alert")).toContainText("검증용 저장 충돌");
+  const confirmation = page.getByRole("dialog", { name: /키보드 할 일.*등록하시겠습니까/ });
+  await expect(confirmation).toBeVisible();
+  expect(writes).toHaveLength(0);await confirmation.getByRole("button",{name:"등록하고 저장",exact:true}).click();
+  await expect(confirmation.getByRole("alert")).toContainText("검증용 저장 충돌");
   expect(writes).toHaveLength(1);expect(writes[0].body).toBe("할 일 근거");
   expect(writes[0]).not.toHaveProperty("summary");expect(writes[0]).not.toHaveProperty("change_memo");
-  await form.getByRole("button",{name:"취소",exact:true}).click();await expect(form.getByLabel(/^본문/)).toHaveValue("할 일 근거");
+  await confirmation.getByRole("button",{name:"취소",exact:true}).click();
+  await expect(confirmation).not.toBeVisible();
+  await expect(form.getByLabel(/^제목/)).toHaveValue("키보드 할 일");
+  await expect(form.getByLabel(/^본문/)).toHaveValue("할 일 근거");
 });
 test("현재 원칙은 한 번에 저장해 같은 문서를 갱신하며 삭제 뒤 과거를 승격하지 않는다",async({page})=>{
   let current:Record<string,unknown>|null={id,title:"현재 기준",body:"원문",is_current:true,version:1,saved_at:stamp,created_at:stamp,updated_at:stamp,origin:"saved"};

@@ -110,16 +110,6 @@ export function DetailWorkspace({ children, render, enabled }: { children: React
       // A mode transition is a new visit even when its URL matches; selecting a retained tab is not.
       setTabs(previous => previous.map(value => value.id === id ? { ...value, location: { ...value.location, pathname: url.pathname, search: url.search, hash: url.hash, key: crypto.randomUUID() } } : value));
       if (state.active === id) void navigate(path, { replace: true, state: { workspaceOwner: state.base.pathname } });
-    } else if (identity && options.state?.rekeyedDetail === id) {
-      // A successful identity change replaces this visit and every tab return pointer.
-      const url = new URL(path, "https://workspace.invalid");
-      setTabs(previous => previous.filter(value => value.id !== identity).map(value => ({
-        ...value,
-        ...(value.id === id ? {id:identity,location:{...value.location,pathname:url.pathname,search:url.search,hash:url.hash,key:crypto.randomUUID()}} : {}),
-        ...(value.returnTo === id ? {returnTo:identity} : {}),
-      })));
-      if (state.active === id) setActive(identity);
-      setIdentityDestination({path,owner:state.base.pathname});
     } else if (identity) {
       const returnTo = returnTarget(tab.location, identity);
       rememberReturn(identity, returnTo);

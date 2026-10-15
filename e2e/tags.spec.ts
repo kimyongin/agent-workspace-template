@@ -50,9 +50,10 @@ test("태그 실제 DELETE pending은 Back을 막고 응답 뒤 정상 복귀한
     await page.goto("/entities");
     await page.getByRole("button",{name:/^내 프로필(?: · .+)?$/,exact:true}).click();
     await page.getByRole("link",{name:"설정",exact:true}).click();
-    await expect(page.getByRole("link",{name:"자료 설정",exact:true})).toBeVisible();
-    await page.getByRole("link",{name:"기록 태그",exact:true}).click();
-    await expect(page).toHaveURL(/tags\/record$/);
+    await page.getByRole("button",{name:"설정 메뉴",exact:true}).click();
+    await page.getByRole("navigation",{name:"설정 메뉴",exact:true}).getByRole("link",{name:"태그",exact:true}).click();
+    await page.getByLabel("관리 대상",{exact:true}).selectOption("record");
+    await expect(page).toHaveURL(/settings\/tags\?scope=record$/);
     let arrived!:()=>void,finished!:()=>void,deletes=0;
     const waiting=new Promise<void>(resolve=>{arrived=resolve;}),done=new Promise<void>(resolve=>{finished=resolve;}),hold=new Promise<void>(resolve=>{release=resolve;});
     await page.route(`**/api/tags/${tag.id}?**`,async route=>{
@@ -62,13 +63,14 @@ test("태그 실제 DELETE pending은 Back을 막고 응답 뒤 정상 복귀한
     await page.getByRole("button",{name:`${tag.name} 삭제`,exact:true}).click();
     const confirm=page.locator("dialog.modal-action[open]");
     await confirm.getByRole("button",{name:"삭제하고 기록",exact:true}).click();await waiting;
-    await page.goBack();await expect(page).toHaveURL(/tags\/record$/);await expect(confirm).toBeVisible();
+    await page.goBack();await expect(page).toHaveURL(/settings\/tags\?scope=record$/);await expect(confirm).toBeVisible();
     await expect(confirm.getByRole("button",{name:"삭제 중…"})).toBeDisabled();
     await page.keyboard.press("Escape");await expect(confirm).toBeVisible();
     release();await done;await expect(confirm).toHaveCount(0);
     await expect(page.getByRole("button",{name:`${tag.name} 삭제`,exact:true})).toHaveCount(0);
     expect(deletes).toBe(1);expect((await mcp.call("list_tags",{scope:"record",limit:100})).items.some((value:{id:string})=>value.id===tag.id)).toBe(false);
-    await page.goBack();await expect(page).toHaveURL(/settings$/);
+    await page.goBack();await expect(page).toHaveURL(/settings\/tags$/);
+    await expect(page.getByLabel("관리 대상",{exact:true})).toHaveValue("entity");
   }finally{release();await mcp.close();}
 });
 test("엔터티·기록 태그 같은 이름·웹 선택 정정·삭제 뒤 원문 보존",async({page})=>{

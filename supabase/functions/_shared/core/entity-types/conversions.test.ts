@@ -85,7 +85,11 @@ Deno.test("migration public plan retains prototype-like mapping codes and Unicod
       key: "prop_2",
       mapping: JSON.parse('{"__proto__":"mapped","constructor":"mapped","toString":"mapped"}'),
     }],
-    overrides: [{ entity_id: "app:" + "😀".repeat(200), key: "prop_2", value: "mapped" }],
+    overrides: [{
+      entity_id: "app:00000000-0000-4000-8000-000000000001:" + "😀".repeat(200),
+      key: "prop_2",
+      value: "mapped",
+    }],
   };
   const parsed = migrationPlan.parse(raw);
   assertEquals(Object.keys((parsed.rules[0] as { mapping: Record<string, string> }).mapping), [
@@ -94,12 +98,19 @@ Deno.test("migration public plan retains prototype-like mapping codes and Unicod
     "toString",
   ]);
   for (const code of ["__proto__", "constructor", "toString"]) {
-    assertEquals(compileMigration(d, parsed)("app:a", { prop_1: "A", prop_2: code }).after?.prop_2, "mapped");
+    assertEquals(
+      compileMigration(d, parsed)("app:00000000-0000-4000-8000-000000000001:a", { prop_1: "A", prop_2: code }).after
+        ?.prop_2,
+      "mapped",
+    );
   }
   assertEquals(
-    schemaAnalysisRows.parse({ analysis_id: "00000000-0000-4000-8000-000000000001", after: "app:" + "😀".repeat(200) })
+    schemaAnalysisRows.parse({
+      analysis_id: "00000000-0000-4000-8000-000000000001",
+      after: "app:00000000-0000-4000-8000-000000000001:" + "😀".repeat(200),
+    })
       .after,
-    "app:" + "😀".repeat(200),
+    "app:00000000-0000-4000-8000-000000000001:" + "😀".repeat(200),
   );
 });
 

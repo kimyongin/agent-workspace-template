@@ -1,3 +1,4 @@
+import { APP_IDENTIFIER_RULE_ID, type EntityTypeIdentity } from "../../supabase/functions/_shared/contracts/entity-issuer.ts";
 import { initialEntityDefinition } from "../../supabase/functions/_shared/contracts/entity-type.ts";
 import type { EntityDetail } from "../../supabase/functions/_shared/contracts/entity.ts";
 import type { TaskDetail, TaskListItem } from "../../supabase/functions/_shared/contracts/task.ts";
@@ -15,7 +16,7 @@ export const base = (n: number, title: string) => ({
   updated_at: stamp,
 });
 export const identity = (n: number) => ({ id: id(n), version: 1, created_at: stamp, updated_at: stamp });
-export const entityKey = (n: number) => `app:${id(n)}`;
+export const entityKey = (n: number) => `app:${id(900)}:${id(n)}`;
 export const fixtureType = {
   id: id(900),
   label: "검사 자료",
@@ -27,6 +28,11 @@ export const fixtureType = {
   created_at: stamp,
   updated_at: stamp,
 };
+export function fixtureIdentity(typeId = fixtureType.id): EntityTypeIdentity {
+  return { type_id: typeId, label: "번호", default_source: "app", version: 1,
+    sources: [{ code: "app", rule_id: APP_IDENTIFIER_RULE_ID, active: true, referenced: false,
+      source_label: "앱", rule_label: "자동 발급", generation: "automatic" }] };
+}
 export const fixtureSchema = (() => {
   const definition = initialEntityDefinition("제목");
   Object.assign(definition.schema.properties, {

@@ -1,4 +1,12 @@
 import {
+  identifierRuleCreate,
+  identifierRuleUpdate,
+  issuerCode,
+  issuerCreate,
+  issuerUpdate,
+  typeIdentityUpdate,
+} from "../../functions/_shared/contracts/entity-issuer.ts";
+import {
   schemaMigrationAction,
   schemaMigrationList,
   schemaMigrationStart,
@@ -181,6 +189,14 @@ const EXPECTED_TOOLS = [
   "update_business_settings",
   "prepare_record_memo",
   "create_entity",
+  "list_entity_issuers",
+  "create_entity_issuer",
+  "update_entity_issuer",
+  "list_entity_identifier_rules",
+  "create_entity_identifier_rule",
+  "update_entity_identifier_rule",
+  "get_entity_type_identity",
+  "update_entity_type_identity",
   "delete_entity",
   "get_entity",
   "list_entities",
@@ -431,7 +447,7 @@ httpTest("원칙: HTTP/MCP 현재 수정·과거 접근 차단·재시도·삭�
     const bad = {
       expected_version: second.version,
       title: "틀린 참조",
-      entity_id: `app:${crypto.randomUUID()}`,
+      entity_id: `app:00000000-0000-4000-8000-000000000001:${crypto.randomUUID()}`,
       change_note: "수정",
     };
     assertEquals(
@@ -515,6 +531,14 @@ httpTest("tools/list: 계약의 도구 이름과 contracts JSON Schema", async (
   assertEquals(tools.map((t) => t.name).sort(), EXPECTED_TOOLS);
   const byName = Object.fromEntries(tools.map((t) => [t.name, t]));
   const foundationContracts = {
+    list_entity_issuers: z.strictObject({}),
+    create_entity_issuer: issuerCreate.extend({ request_key: requestKey }),
+    update_entity_issuer: issuerUpdate.extend({ code: issuerCode, request_key: requestKey }),
+    list_entity_identifier_rules: z.strictObject({ source: issuerCode }),
+    create_entity_identifier_rule: identifierRuleCreate.extend({ source: issuerCode, request_key: requestKey }),
+    update_entity_identifier_rule: identifierRuleUpdate.extend({ rule_id: z.string().uuid(), request_key: requestKey }),
+    get_entity_type_identity: z.strictObject({ type_id: z.string().uuid() }),
+    update_entity_type_identity: typeIdentityUpdate.safeExtend({ type_id: z.string().uuid(), request_key: requestKey }),
     list_entity_links: entityPairQuery.extend({ id: entityReferenceId }),
     link_entities: entityPairWrite.extend({ id: entityReferenceId, request_key: requestKey }),
     unlink_entities: entityPairWrite.extend({ id: entityReferenceId, request_key: requestKey }),

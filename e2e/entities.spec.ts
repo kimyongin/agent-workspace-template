@@ -1,6 +1,6 @@
 import { setEntityCategory } from "./ui-actions.ts";
 import { entity as makeEntity, fixtureType, fixtureSchema } from "./support/workspace-data.ts";
-import { createFixtureEntity, scalarFixtureType, fixtureEntityList, analyzeAndApply } from "./entity-schema-support.ts";
+import { createFixtureEntity, scalarFixtureType, fixtureEntityList, analyzeAndApply, seedFixtureEntities } from "./entity-schema-support.ts";
 import { fillChangeMemo } from "./ui-actions.ts";
 import { saveOnce, beginTabAction, openDetailEditor, openListDetail, openTabFilters, closeDetail } from "./ui-actions.ts";
 import { expect } from "@playwright/test";
@@ -45,7 +45,12 @@ test("Entity 웹 CRUD·초안 보호→MCP parity·활동 연결→삭제 원문
     await page.getByText("검색 조건",{exact:false}).first().click(); await page.getByLabel("자료", { exact: true }).selectOption(id);
     await expect(page.locator(".list .item-title")).toHaveCount(1);
     expect(new URL(page.url()).searchParams.get("entity_id")).toBe(id);
+    const detailRead = page.waitForRequest(request => request.method() === "GET" &&
+      new URL(request.url()).pathname.endsWith(`/tasks/${task.id}`));
     await page.getByRole("link", { name: task.title, exact: true }).click();
+    const detailResponse = await (await detailRead).response();
+    expect(detailResponse?.status()).toBe(200);
+    await detailResponse!.finished();
     await closeDetail(page, task.title);
     await expect(page.getByRole("link", { name: task.title, exact: true })).toBeFocused();
     await page.reload();
@@ -119,7 +124,10 @@ test("엔터티 관련 기록 취소: 작성 URL·reload·메모와 변경 이�
       await expect(page).not.toHaveURL(/create=/);await expect(page).toHaveURL(/list=/);
       await expect(page.getByRole("button",{name:"기록 작성",exact:true})).toBeFocused();
     }
-    await page.reload();await expect(page.getByRole("heading",{name:entity.title,exact:true})).toBeVisible();
+    // Reload commits a new document; verify its rendered target rather than
+    // capturing a previous document's final request while it is unloading.
+    await page.reload();
+    await expect(page.getByRole("heading",{name:entity.title,exact:true})).toBeVisible();
     await expect(page.getByRole("dialog",{name:"기록 작성",exact:true})).toHaveCount(0);
     expect((await mcp.call("get_entity",{id:entity.id})).version).toBe(1);
     expect((await mcp.call("list_records",{entity_id:entity.id,record_kind:"user"})).items).toEqual([]);
@@ -128,18 +136,13 @@ test("엔터티 관련 기록 취소: 작성 URL·reload·메모와 변경 이�
 });
 test("Entity 목록: 키워드/선택/정렬·추가 페이지·상세 복귀/새로고침 초점·viewport", async ({ page }) => {
   await devLogin(page);
-  const mcp = await mcpClient(await mcpTokenViaConsent(page)),
-    marker = unique("페이지 엔터티"),
-    ids: string[] = [];
+  const token = await mcpTokenViaConsent(page);
+  const ownerId: string = JSON.parse(Buffer.from(token.split(".")[1], "base64url").toString()).sub;
+  const mcp = await mcpClient(token), marker = unique("페이지 엔터티"), ids: string[] = [];
   try {
-    for (let i = 0; i < 21; i++) {
-      const e = await createFixtureEntity(mcp, {
-        prop_1: `${marker} ${String(i).padStart(2, "0")}`,
-        prop_2: i,
-        prop_4: "c",
-      });
-      ids.push(e.id);
-    }
+    ids.push(...await seedFixtureEntities(mcp, ownerId, Array.from({ length: 21 }, (_, i) => ({
+      prop_1: `${marker} ${String(i).padStart(2, "0")}`, prop_2: i, prop_4: "c",
+    }))));
     await page.goto(
       fixtureEntityList((await scalarFixtureType(mcp)).id, marker, "c", true),
     );
@@ -171,12 +174,15 @@ test("Entity 목록: 키워드/선택/정렬·추가 페이지·상세 복귀/�
     await expect(page.getByRole("button", { name: `${marker} 19`, exact: true })).toBeFocused();
     await mcp.call("delete_entity", { id: ids[19], expected_version: 1 });
     ids.splice(19, 1);
+    const reloaded = page.waitForRequest(request => request.method() === "GET" &&
+      new URL(request.url()).pathname.endsWith("/entities") && new URL(request.url()).searchParams.get("keyword") === marker);
     await page.reload();
+    const read = await (await reloaded).response();
+    expect(read?.status()).toBe(200);
+    await read!.finished();
     await expect(page.getByRole("heading", { name: (await scalarFixtureType(mcp)).label, level: 1, exact: true })).toBeFocused();
   } finally {
-    for (const id of ids) {
-      await mcp.call("delete_entity", { id, expected_version: 1 });
-    }
+    // The serial owned fixture releases exactly these rows after all browser work ends.
     await mcp.close();
   }
 });
@@ -195,10 +201,10 @@ test("Entity 복원: 대상 없음 조회 한도·제목 초점·필터 hash 제
       await delayed;
     }
     const externalId = crypto.randomUUID();
-    const item = { ...makeEntity(1,{prop_1:keyword ?? "계속되는 목록"}),id:`app:${externalId}`,external_id:externalId };
+    const item = { ...makeEntity(1,{prop_1:keyword ?? "계속되는 목록"}),id:`app:${makeEntity(1).entity_type_id}:${externalId}`,external_id:externalId };
     await route.fulfill({ json: { items: [item], next_cursor: keyword ? null : "more" } }).catch(() => {});
   });
-  await page.goto(`/entities?pages=1#entity-${encodeURIComponent(`app:${crypto.randomUUID()}`)}`);
+  await page.goto(`/entities?pages=1#entity-${encodeURIComponent(`app:${makeEntity(1).entity_type_id}:${crypto.randomUUID()}`)}`);
   await expect(page.getByRole("heading", { name: "전체 자료", level: 1, exact: true })).toBeFocused();
   expect(requests).toBe(2);
   await openTabFilters(page);
@@ -216,11 +222,13 @@ test("Entity 복원: 대상 없음 조회 한도·제목 초점·필터 hash 제
 
 test("Entity lookahead 뒤 더 보기: 현재 커서 append·실패 retry·행과 버튼 초점 보존", async ({ page }) => {
   await devLogin(page);
-  const mcp = await mcpClient(await mcpTokenViaConsent(page)), marker = unique("복원 후 추가"), ids: string[] = [];
+  const token = await mcpTokenViaConsent(page);
+  const ownerId: string = JSON.parse(Buffer.from(token.split(".")[1], "base64url").toString()).sub;
+  const mcp = await mcpClient(token), marker = unique("복원 후 추가"), ids: string[] = [];
   try {
-    for (let i = 0; i < 61; i++) {
-      ids.push((await createFixtureEntity(mcp, { prop_1: `${marker} ${String(i).padStart(2, "0")}`, prop_2: i })).id);
-    }
+    ids.push(...await seedFixtureEntities(mcp, ownerId, Array.from({ length: 61 }, (_, i) => ({
+      prop_1: `${marker} ${String(i).padStart(2, "0")}`, prop_2: i,
+    }))));
     await page.goto(fixtureEntityList((await scalarFixtureType(mcp)).id, marker, undefined, true));
     const anchor = page.getByRole("button", { name: `${marker} 19`, exact: true });
     await openListDetail(page, `${marker} 19`);
@@ -228,6 +236,9 @@ test("Entity lookahead 뒤 더 보기: 현재 커서 append·실패 retry·행�
     await closeDetail(page, `${marker} 19`);
     await expect(anchor).toBeFocused();
     await expect(page.locator(".list .item-title")).toHaveCount(40);
+    const more = page.getByRole("button", { name: "더 보기", exact: true });
+    // A refresh retains old rows; measure append requests after it finishes.
+    await expect(more).toHaveAttribute("aria-disabled", "false");
     const cursors: string[] = [];
     let fail = false, failed = false;
     await page.route("**/api/entities?**", async (route) => {
@@ -241,7 +252,6 @@ test("Entity lookahead 뒤 더 보기: 현재 커서 append·실패 retry·행�
         });
       } else await route.continue();
     });
-    const more = page.getByRole("button", { name: "더 보기", exact: true });
     await more.scrollIntoViewIfNeeded();
     const y = await page.evaluate(() => window.scrollY);
     await more.click();
@@ -272,7 +282,7 @@ test("Entity lookahead 뒤 더 보기: 현재 커서 append·실패 retry·행�
     expect(await page.evaluate(() => window.scrollY)).toBeGreaterThanOrEqual(retryY - 100);
     await expect(anchor).not.toBeFocused();
   } finally {
-    for (const id of ids) await mcp.call("delete_entity", { id, expected_version: 1 });
+    // Cleanup is tied to this exact fixture scope, including failed scenarios.
     await mcp.close();
   }
 });

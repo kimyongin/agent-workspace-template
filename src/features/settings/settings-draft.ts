@@ -5,6 +5,8 @@ export interface SettingsDraftAdapter<T, Saved> {
   save: (draft: T, before: Saved, signal: AbortSignal, requestKey: string) => Promise<Saved>;
   toDraft: (saved: Saved) => T;
   isConflict: (error: unknown) => boolean;
+  /** Versioned settings detect concurrent changes even during a background read. */
+  version?: (saved: Saved) => number;
 }
 
 /** One setting owns its baseline and draft; conflicts require explicitly adopting the latest baseline. */
@@ -54,7 +56,10 @@ export function createSettingsDraft<T, Saved>(adapter: SettingsDraftAdapter<T, S
       if (current.signal.aborted || request !== current) return null;
       const latest = adapter.toDraft(saved);
       const draft = operation === "read" && (state.conflict || state.dirty) ? state.draft : latest;
-      emit({ saved, draft, conflict: operation === "read" ? state.conflict : false, latestReady: operation === "read" && state.conflict });
+      const concurrent = operation === "read" && state.dirty && state.saved !== null && adapter.version !== undefined &&
+        adapter.version(state.saved) !== adapter.version(saved);
+      const conflict = operation === "read" && (state.conflict || concurrent);
+      emit({ saved, draft, conflict, latestReady: operation === "read" && conflict });
       return saved;
     } catch (error) {
       if (!current.signal.aborted && request === current) {
@@ -82,6 +87,11 @@ export function createSettingsDraft<T, Saved>(adapter: SettingsDraftAdapter<T, S
     dispose:()=>{cancel();attempt.abandon();},
     edit: (update: (value: T) => T) => {
       if (!state.busy && !state.uncertain) emit({ draft: update(state.draft), error: null });
+    },
+    acceptLatest: () => {
+      if (!state.busy && !state.uncertain && state.saved && state.conflict && state.latestReady) {
+        emit({ conflict: false, latestReady: false, error: null });
+      }
     },
     reset: () => {
       if (!state.busy && !state.uncertain && state.saved && (!state.conflict || state.latestReady)) {

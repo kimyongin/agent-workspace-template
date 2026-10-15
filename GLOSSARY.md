@@ -46,9 +46,10 @@
 | 기록 템플릿 | 업무 변경 시 기본 메모를 채우는 문구와 변수. 자료 종류 또는 모델·행동별로 기본 기록 태그도 함께 정한다. 자료 종류에 문구가 없으면 고정 기본 문구를 사용한다. | [템플릿 결정](docs/adr/0015-change-record-templates.md) |
 | 태그 사전 | 엔터티·할 일·기록마다 따로 관리하는 태그 목록. 각 소유자의 태그 이름·ID·연결 범위는 독립적이며, 선택과 이름 표시에 사용한다. | [태그 규칙](docs/product/concept.md#두-태그-사전) |
 | 업무 설정 초안 | 발급처나 기록 템플릿 설정에서 편집 중인 값. 저장한 기준값과 구분하며, 최신값을 확인할 때도 입력한 내용을 유지한다. 저장 전에는 실제 업무 설정을 바꾸지 않는다. | [설정 결정](docs/adr/0015-change-record-templates.md), [화면 규칙](docs/design/ui-patterns.md) |
-| 발급처 | 엔터티 식별자를 발급한 곳 또는 직접 관리하는 식별자의 구분. 같은 코드라도 발급처가 다르면 다른 대상이다. | [식별 결정](docs/adr/0016-entity-source-identity-and-restoration.md) |
-| 엔터티 식별자 | 발급처와 입력한 코드의 조합으로 같은 대상을 구분하는 값. 제목이나 설명이 바뀌어도 같은 대상을 가리킨다. | [식별 결정](docs/adr/0016-entity-source-identity-and-restoration.md) |
-| 복원 | 삭제 상태로 보관한 엔터티를 같은 식별자로 다시 사용하며 이전 속성과 연결을 이어가는 행동. | [복원 결정](docs/adr/0016-entity-source-identity-and-restoration.md) |
+| 발급처 | 자료의 번호를 발급하거나 관리하는 곳. 표시 이름과 불변 코드를 구분하며 여러 자료 종류에서 재사용한다. | [식별 결정](docs/adr/0021-type-scoped-immutable-identity.md) |
+| 식별자 규칙 | 발급처 번호의 의미와 발급 방식. 자료 종류는 발급처마다 규칙 하나를 연결하며 참조 후 의미와 연결을 바꿀 수 없다. | [식별 결정](docs/adr/0021-type-scoped-immutable-identity.md) |
+| 엔터티 식별자 | 같은 소유자 안에서 자료 종류·발급처·문자열 번호로 대상을 구분하는 불변 값. 별도 자료 UUID 없이 이 구성을 결합한 키로 참조한다. | [식별 결정](docs/adr/0021-type-scoped-immutable-identity.md) |
+| 복원 | 삭제 상태로 보관한 엔터티를 같은 식별자로 다시 사용하며 이전 속성과 연결을 이어가는 행동. | [복원 결정](docs/adr/0021-type-scoped-immutable-identity.md) |
 | 참고 기록 | 할 일을 준비하거나 판단할 때 인용·링크로 참고하는 기록. 참고만으로 수행이나 완료를 뜻하지 않는다. | [PRD](docs/product/concept.md#최신-상태와-통합-기록) |
 | 결과 기록 | 할 일을 실제로 수행한 내용과 결과를 남긴 기록. 반복 할 일에서는 수행한 회차와 구분해서 연결한다. | [PRD](docs/product/concept.md#일회성-할-일과-반복-할-일) |
 | 활동 | 앱의 업무 사건을 통합 기록에서 보는 관점. 화면 이름은 기록으로 통일하고 별도 활동 객체·탭을 두지 않는다. | [PRD](docs/product/concept.md#네-탭과-기록-화면) |

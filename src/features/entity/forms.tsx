@@ -1,12 +1,6 @@
+import type { EntityTypeIdentity } from "@contracts/entity-issuer.ts";
 import { EntityTypePicker } from "./EntityTypePicker.tsx";
-import {
-  defaultEntityIdentitySettings,
-  entityId,
-  entityIdentity,
-  type EntityIdentitySettings,
-  entityPath,
-  entitySourceGeneration,
-} from "@contracts/entity-identity.ts";
+import { entityId, entityIdentity, entityPath } from "@contracts/entity-identity.ts";
 import { api, ApiError } from "../../lib/api.ts";
 import type { DeletionOptions } from "../../components/DeleteAction.tsx";
 import { type EntityCreate, entityCreate, type EntityDetail } from "@contracts/entity.ts";
@@ -18,7 +12,14 @@ import { ConfirmDialog } from "../../components/Modal.tsx";
 import { Field } from "../../components/Field.tsx";
 import { fieldErrors } from "../../lib/format.ts";
 import { TagPicker } from "../tags/TagPicker.tsx";
-import { fieldType, type PropertyDraft, PropertyDraftError, propertyDraft, PropertyFields, propertyValues } from "./property-fields.tsx";
+import {
+  fieldType,
+  type PropertyDraft,
+  propertyDraft,
+  PropertyDraftError,
+  PropertyFields,
+  propertyValues,
+} from "./property-fields.tsx";
 export function EntityForm({
   initial,
   initialTypeId,
@@ -38,18 +39,19 @@ export function EntityForm({
   onRouteDiscard?: () => void;
   onSave: (value: EntityCreate & { tag_ids: string[] }, requestKey: () => string) => Promise<void>;
 }) {
-  const [identitySettings, setIdentitySettings] = useState<EntityIdentitySettings | null>(null),
+  const [identitySettings, setIdentitySettings] = useState<EntityTypeIdentity | null>(null),
     [typeId, setTypeId] = useState(initial?.entity_type_id ?? initialTypeId ?? ""),
     [definition, setDefinition] = useState<EntitySchemaResult | null>(null),
     [schemaError, setSchemaError] = useState(""),
     [pendingDefinition, setPendingDefinition] = useState<EntitySchemaResult | null>(null),
     [schemaReading, setSchemaReading] = useState(false),
     [reviewKeys, setReviewKeys] = useState<string[]>([]),
-    [reload, setReload] = useState(0),
+    [identityReload, setIdentityReload] = useState(0),
     [nextType, setNextType] = useState<string | null>(null);
   const { types, error: catalogError, retry: retryCatalog } = useEntityTypes();
   const [archived, setArchived] = useState<EntityDetail | null>(initial?.deleted_at ? initial : null),
-    [identityMessage, setIdentityMessage] = useState("");
+    [identityMessage, setIdentityMessage] = useState(""),
+    [identityStale, setIdentityStale] = useState(false);
   const [source, setSource] = useState(initial?.source ?? ""),
     [external, setExternal] = useState(initial?.external_id ?? ""),
     [properties, setProperties] = useState<PropertyDraft>(propertyDraft(initial?.properties ?? {})),
@@ -68,29 +70,28 @@ export function EntityForm({
     definitionRead = useRef<AbortController | null>(null);
   useEffect(() => {
     const c = new AbortController();
-    void api<{ settings: { entity_identity: EntityIdentitySettings }; versions: { entity_identity: number } }>(
-      "GET",
-      "/settings/business?id=entity_identity",
-      undefined,
-      c.signal,
-    ).then((saved) => {
-      if (c.signal.aborted) return;
-      const settings = saved.settings.entity_identity ?? defaultEntityIdentitySettings;
-      settingsVersion.current = saved.versions.entity_identity;
-      setIdentitySettings(settings);
-      if (!initial) {
-        setSource(settings.default_source);
-        baseline.current.source = settings.default_source;
-      }
-    }).catch(() => {
-      if (!c.signal.aborted) setIdentityMessage("자료 종류·식별자 설정을 읽지 못했습니다. 다시 열어 주세요.");
-    });
+    setIdentitySettings(null);
+    if (typeId) {
+      void api<EntityTypeIdentity>("GET", `/entity-types/${typeId}/identity`, undefined, c.signal).then((settings) => {
+        if (c.signal.aborted) return;
+        settingsVersion.current = settings.version;
+        setIdentitySettings(settings);
+        setIdentityStale(false);
+        if (!initial && !source) {
+          setSource(settings.default_source);
+          baseline.current.source = settings.default_source;
+        }
+      }).catch(() => {
+        if (!c.signal.aborted) {
+          setIdentityMessage("식별자 설정을 읽지 못했습니다. 다시 조회하세요.");
+        }
+      });
+    }
     return () => {
       c.abort();
       lookup.current?.abort();
-      definitionRead.current?.abort();
     };
-  }, []);
+  }, [typeId, identityReload]);
   useEffect(() => {
     const c = new AbortController();
     definitionRead.current?.abort();
@@ -121,7 +122,7 @@ export function EntityForm({
       });
     }
     return () => c.abort();
-  }, [typeId, reload]);
+  }, [typeId]);
   const readDefinition = async () => {
     if (!typeId || schemaReading) return;
     const controller = new AbortController();
@@ -173,7 +174,7 @@ export function EntityForm({
       properties: writable,
       source,
       external_id: external || undefined,
-      settings_version: !initial ? settingsVersion.current : undefined,
+      identity_version: !initial || archived ? settingsVersion.current : undefined,
       expected_version: archived?.version,
       tag_ids: tags,
     };
@@ -181,14 +182,21 @@ export function EntityForm({
   const checkExisting = async () => {
     if (initial || archived) return archived;
     if (!identitySettings) throw new Error("식별자 설정을 확인하세요");
-    if (!external && entitySourceGeneration(identitySettings, source) === "short") return null;
-    const identity = entityIdentity.safeParse({ source, external_id: external });
+    if (!external && identitySettings.sources.find((item) => item.code === source)?.generation === "automatic") {
+      return null;
+    }
+    const identity = entityIdentity.safeParse({ source, entity_type_id: typeId, external_id: external });
     if (!identity.success) throw new Error(identity.error.issues.map((i) => i.message).join(" · "));
     lookup.current?.abort();
     const c = new AbortController();
     lookup.current = c;
     try {
-      const stored = await api<EntityDetail>("GET", entityPath(entityId(source, external)), undefined, c.signal);
+      const stored = await api<EntityDetail>(
+        "GET",
+        entityPath(entityId(source, typeId, external)),
+        undefined,
+        c.signal,
+      );
       c.signal.throwIfAborted();
       if (!stored.deleted_at) throw new Error("같은 발급처·식별자의 활성 자료가 있습니다.");
       if (stored.entity_type_id !== typeId) {
@@ -218,7 +226,8 @@ export function EntityForm({
         domain={label}
         title={`${label} ${archived ? "복원" : initial ? "편집" : "추가"}`}
         submitLabel="저장"
-        submitDisabled={!!typeId && (!identitySettings || !types || catalogError || !definition || schemaReading || !!pendingDefinition)}
+        submitDisabled={!!typeId &&
+          (!identitySettings || !types || catalogError || !definition || schemaReading || !!pendingDefinition)}
         mutation={{
           target: definition ? String(properties[definition.display.representative] ?? label) : label,
           action: archived ? "복원" : initial ? "수정" : "등록",
@@ -240,7 +249,13 @@ export function EntityForm({
             }
             : value();
           if (initial && !existing) {
-            const { entity_type_id: _type, settings_version: _settings, ...patch } = input;
+            const {
+              entity_type_id: _type,
+              identity_version: _settings,
+              source: _source,
+              external_id: _number,
+              ...patch
+            } = input;
             return {
               model: "entity",
               action: "update",
@@ -266,7 +281,11 @@ export function EntityForm({
               entity_type_id: "보관된 자료 종류에는 새 자료를 추가할 수 없습니다",
             };
           }
-          if (!identitySettings || !types || catalogError || !definition) return { entity_type_id: "자료 종류와 속성 정의를 확인하세요" };
+          if (!identitySettings || !types || catalogError || !definition) {
+            return {
+              entity_type_id: "자료 종류와 속성 정의를 확인하세요",
+            };
+          }
           if (schemaReading || pendingDefinition) return { entity_type_id: "현재 속성 정의를 확인한 뒤 적용하세요" };
           if (reviewKeys.length) {
             return Object.fromEntries(
@@ -279,9 +298,13 @@ export function EntityForm({
             );
           }
           let fields;
-          try { fields = value(); }
-          catch (error) { if (error instanceof PropertyDraftError) return error.fields; throw error; }
-          if (entitySourceGeneration(identitySettings, source) === "manual" && !external) {
+          try {
+            fields = value();
+          } catch (error) {
+            if (error instanceof PropertyDraftError) return error.fields;
+            throw error;
+          }
+          if (identitySettings.sources.find((item) => item.code === source)?.generation === "direct" && !external) {
             return {
               external_id: "식별자를 입력하세요",
             };
@@ -312,16 +335,29 @@ export function EntityForm({
         }}
         onSubmit={async (requestKey, memo) => {
           const current = value();
-          return onSave(
-            { ...current, ...prepared.current, tag_ids: tags, ...memo } as EntityCreate & { tag_ids: string[] },
-            requestKey,
-          );
+          try {
+            await onSave(
+              { ...current, ...prepared.current, tag_ids: tags, ...memo } as EntityCreate & { tag_ids: string[] },
+              requestKey,
+            );
+          } catch (error) {
+            if (error instanceof ApiError && error.code === "settings_changed") {
+              setIdentityStale(true);
+              setIdentityMessage("식별자 설정이 변경되었습니다. 입력을 유지했으니 현재 설정을 확인하세요.");
+            }
+            throw error;
+          }
         }}
       >
         {(errors) => (
           <>
             <section className="detail-section form">
-              {catalogError && <p role="alert">자료 종류를 읽지 못했습니다. <button type="button" className="btn" onClick={retryCatalog}>자료 종류 다시 조회</button></p>}
+              {catalogError && (
+                <p role="alert">
+                  자료 종류를 읽지 못했습니다.{" "}
+                  <button type="button" className="btn" onClick={retryCatalog}>자료 종류 다시 조회</button>
+                </p>
+              )}
               {initial || archived ? <p>자료 종류: {label} · 저장 후 종류를 변경할 수 없습니다.</p> : (
                 <>
                   <EntityTypePicker
@@ -393,36 +429,71 @@ export function EntityForm({
                   </button>
                 </section>
               )}
-              <Field label="발급처" required error={errors.source}>
-                {(p) => (
-                  <select
-                    {...p}
-                    className="input"
-                    value={source}
-                    disabled={!identitySettings || !!archived}
-                    onChange={(e) => {
-                      lookup.current?.abort();
-                      setSource(e.target.value);
-                      if (!initial) setExternal("");
-                    }}
-                  >
-                    {identitySettings?.sources.filter((item) =>
-                      !item.deleted || item.code === initial?.source
-                    ).map(
-                      (item) => <option key={item.code} value={item.code} disabled={item.deleted}>{item.label}</option>,
+              {(!identitySettings || identityStale) && typeId && (
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => setIdentityReload((value) => value + 1)}
+                >
+                  식별자 설정 다시 조회
+                </button>
+              )}
+              {(initial || archived)
+                ? (
+                  <Field label="발급처">
+                    {(p) => (
+                      <input
+                        {...p}
+                        className="input"
+                        value={identitySettings?.sources.find((item) => item.code === source)?.source_label ??
+                          initial?.source_label ?? source}
+                        readOnly
+                      />
                     )}
-                  </select>
+                  </Field>
+                )
+                : identitySettings?.sources.filter((item) => item.active).length === 1 &&
+                    identitySettings.sources.find((item) => item.active)?.code === "app" ? null : (
+                  <Field label="발급처" required error={errors.source}>
+                    {(p) => (
+                      <select
+                        {...p}
+                        className="input"
+                        value={source}
+                        disabled={!identitySettings || !!initial || !!archived}
+                        onChange={(e) => {
+                          lookup.current?.abort();
+                          setSource(e.target.value);
+                          if (!initial) setExternal("");
+                        }}
+                      >
+                        {identitySettings?.sources.filter((item) =>
+                          item.active
+                        ).map(
+                          (item) => (
+                            <option key={item.code} value={item.code} disabled={!item.active}>
+                              {item.source_label}
+                            </option>
+                          ),
+                        )}
+                      </select>
+                    )}
+                  </Field>
                 )}
-              </Field>
-              <Field label="식별자" error={errors.external_id}>
+              <Field label={identitySettings?.label ?? "번호"} error={errors.external_id}>
                 {(p) => (
                   <input
                     {...p}
                     className="input"
                     value={external}
                     maxLength={200}
-                    disabled={!identitySettings || !!archived}
-                    placeholder="자동 발급은 비워 두세요"
+                    disabled={!identitySettings}
+                    readOnly={!!initial || !!archived ||
+                      identitySettings?.sources.find((item) => item.code === source)?.generation === "automatic"}
+                    placeholder={identitySettings?.sources.find((item) => item.code === source)?.generation ===
+                        "automatic"
+                      ? "자동 발급"
+                      : undefined}
                     onChange={(e) => {
                       lookup.current?.abort();
                       setExternal(e.target.value);
@@ -445,7 +516,9 @@ export function EntityForm({
                   기존 대상 확인
                 </button>
               )}
-      {(!identitySettings || !types) && !identityMessage && !catalogError && <p role="status">자료 종류·식별자 설정을 읽는 중…</p>}
+              {(!identitySettings || !types) && !identityMessage && !catalogError && (
+                <p role="status">자료 종류·식별자 설정을 읽는 중…</p>
+              )}
               {identityMessage && <p role={!identitySettings ? "alert" : "status"}>{identityMessage}</p>}
               {(initial || archived) && errors.entity_type_id && <p role="alert">{errors.entity_type_id}</p>}
               {definition
@@ -485,6 +558,7 @@ export function EntityForm({
           setProperties({});
           setTags([]);
           setExternal("");
+          setSource("");
           setIdentityMessage("");
           setNextType(null);
         }}

@@ -1,3 +1,4 @@
+import { SqlEntityIssuerStore } from "./entity-issuer-store.ts";
 import { executeSqlRequest } from "./request-ledger.ts";
 import type { RequestIdentity } from "../../core/shared/request.ts";
 import type postgres from "postgres";
@@ -19,6 +20,9 @@ import { entityPresentationRow, loadEntityDefinition } from "./entity-values.ts"
 
 export class SqlBusinessSettingsStore implements BusinessSettingsStore {
   constructor(private readonly tx: postgres.TransactionSql, private readonly actor: Actor) {}
+  getTypeIdentity(typeId: string, lock = false) {
+    return new SqlEntityIssuerStore(this.tx, this.actor).getTypeIdentity(typeId, lock);
+  }
   definition(typeId: string, lock = false) {
     return loadEntityDefinition(this.tx, typeId, lock);
   }
@@ -27,8 +31,8 @@ export class SqlBusinessSettingsStore implements BusinessSettingsStore {
   }
   async get(): Promise<BusinessSettingsResult> {
     const rows = await this
-      .tx`select id,version,settings from app.user_business_settings where owner_id=${this.actor.userId}`;
-    const versions = { record_templates: 0, entity_identity: 0 };
+      .tx`select id,version,settings from app.user_business_settings where owner_id=${this.actor.userId} and id='record_templates'`;
+    const versions = { record_templates: 0 };
     const settings: BusinessSettings = {};
     for (const row of rows) {
       const id = row.id as keyof BusinessSettings;

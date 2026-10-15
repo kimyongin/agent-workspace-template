@@ -1,3 +1,4 @@
+import { SqlEntityIssuerStore } from "../../functions/_shared/adapters/supabase/entity-issuer-store.ts";
 import { assert, assertEquals, assertRejects } from "@std/assert";
 import { asUser, connect, dbTest, fixtureOwner, urls } from "./_db.ts";
 import { requestActor } from "../_request.ts";
@@ -37,6 +38,7 @@ async function typeFixture(owner: string, label: string, numeric = true) {
     await tx`insert into app.entity_schema_versions(owner_id,type_id,schema_version,schema,display) values(${owner},${type.id},1,${
       tx.json(definition.schema as never)
     },${tx.json(definition.display as never)})`;
+    await new SqlEntityIssuerStore(tx, { userId: owner }).initializeTypeIdentity(type.id);
     return { id: String(type.id), definition };
   });
 }
@@ -56,7 +58,7 @@ dbTest("typed list: scalar AND, missing/null order, stable ID ties, owner/type/r
     ];
     for (const [n, value] of values.entries()) {
       await admin`insert into app.entities(owner_id,id,source,external_id,entity_type_id,schema_version,properties) values(${owner.actor.userId},${
-        "app:order" + n
+        `app:${type.id}:order` + n
       },'app',${"order" + n},${type.id},1,${admin.json({ prop_1: "行" + n, ...value })})`;
     }
     for (
@@ -68,7 +70,7 @@ dbTest("typed list: scalar AND, missing/null order, stable ID ties, owner/type/r
       ]] as const
     ) {
       await admin`insert into app.entities(owner_id,id,source,external_id,entity_type_id,schema_version,properties) values(${ownerId},${
-        "app:" + id
+        `app:${typeId}:` + id
       },'app',${id},${typeId},1,${admin.json({ prop_1: id, prop_2: value })})`;
     }
     let cursor = "";
@@ -84,8 +86,22 @@ dbTest("typed list: scalar AND, missing/null order, stable ID ties, owner/type/r
       assertEquals(
         ids,
         direction === "asc"
-          ? ["app:order0", "app:order1", "app:order2", "app:order3", "app:order4", "app:order5"]
-          : ["app:order5", "app:order4", "app:order3", "app:order2", "app:order1", "app:order0"],
+          ? [
+            `app:${type.id}:order0`,
+            `app:${type.id}:order1`,
+            `app:${type.id}:order2`,
+            `app:${type.id}:order3`,
+            `app:${type.id}:order4`,
+            `app:${type.id}:order5`,
+          ]
+          : [
+            `app:${type.id}:order5`,
+            `app:${type.id}:order4`,
+            `app:${type.id}:order3`,
+            `app:${type.id}:order2`,
+            `app:${type.id}:order1`,
+            `app:${type.id}:order0`,
+          ],
       );
     }
     const query = entityListQuery.parse({
@@ -119,7 +135,7 @@ dbTest("typed list: scalar AND, missing/null order, stable ID ties, owner/type/r
         sort: "title",
       }),
     );
-    assertEquals(filtered.items.map((row) => row.id), ["app:order4"]);
+    assertEquals(filtered.items.map((row) => row.id), [`app:${type.id}:order4`]);
     assertEquals(
       (await listEntities(
         d,
@@ -130,7 +146,7 @@ dbTest("typed list: scalar AND, missing/null order, stable ID ties, owner/type/r
           sort: "title",
         }),
       )).items.map((row) => row.id),
-      ["app:order0", "app:order1"],
+      [`app:${type.id}:order0`, `app:${type.id}:order1`],
     );
     for (const value of ["2", true, 1.0000001, 1e10]) {
       await assertRejects(() =>
@@ -177,13 +193,13 @@ dbTest(
         expected_version: 0,
         value,
       });
-      await admin`insert into app.entities(owner_id,id,source,external_id,entity_type_id,schema_version,properties,deleted_at) values(${owner.actor.userId},'app:restore','app','restore',${type.id},1,${
+      await admin`insert into app.entities(owner_id,id,source,external_id,entity_type_id,schema_version,properties,deleted_at) values(${owner.actor.userId},${`app:${type.id}:restore`},'app','restore',${type.id},1,${
         admin.json({ prop_1: "保管", prop_2: 0, prop_4: false, prop_5: "原文" })
       },now())`;
       const preview = await prepareBusinessRecord(settings, owner.actor, {
         model: "entity",
         action: "restore",
-        target_id: "app:restore",
+        target_id: `app:${type.id}:restore`,
         expected_version: 1,
         input: {
           entity_type_id: type.id,
@@ -194,7 +210,7 @@ dbTest(
         },
       });
       assertEquals(preview.change_note, "0 / false");
-      assertEquals((await getEntity(d, owner.actor, "app:restore")).properties.prop_5, "原文");
+      assertEquals((await getEntity(d, owner.actor, `app:${type.id}:restore`)).properties.prop_5, "原文");
       for (
         const next of [{ entity_types: { [other.id]: { create: { memo: "$대상$", tag_ids: [] } } } }, {
           entity_types: { [type.id]: { create: { memo: "$엔터티.이후.prop_5$", tag_ids: [] } } },
@@ -217,7 +233,7 @@ dbTest("typed list scale: 2000 rows use the actual bounded joined query plan", a
   const owner = await fixtureOwner(admin);
   try {
     const type = await typeFixture(owner.actor.userId, "계획 검사");
-    await admin`insert into app.entities(owner_id,id,source,external_id,entity_type_id,schema_version,properties) select ${owner.actor.userId}::uuid,'app:scale-'||n,'app','scale-'||n,${type.id}::uuid,1,jsonb_build_object('prop_1','자료 '||n,'prop_2',n,'prop_4',false) from generate_series(1,2000) n`;
+    await admin`insert into app.entities(owner_id,id,source,external_id,entity_type_id,schema_version,properties) select ${owner.actor.userId}::uuid,'app:'||${type.id}::text||':scale-'||n,'app','scale-'||n,${type.id}::uuid,1,jsonb_build_object('prop_1','자료 '||n,'prop_2',n,'prop_4',false) from generate_series(1,2000) n`;
     observed = null;
     const started = performance.now();
     const page = await listEntities(

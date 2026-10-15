@@ -1,7 +1,8 @@
+import {TypeIdentitySettings} from "./TypeIdentitySettings.tsx";
+import type {MaterialSectionState} from "./MaterialSettingsSection.tsx";
 import { BodyAction } from "../../components/BodyAction.tsx";
 import { createMaterialDefinition } from "./material-definition.ts";
-import { RecordTemplateSettings } from "./RecordTemplateSettings.tsx";
-import { createMaterialTemplateDraft } from "./material-template-drafts.ts";
+import { SettingsHeading } from "./SettingsHeading.tsx";
 import { MaterialSettingsProtection } from "./MaterialSettingsProtection.tsx";
 import { MaterialSettingsSection } from "./MaterialSettingsSection.tsx";
 import { useAuth } from "../auth/AuthProvider.tsx";
@@ -23,18 +24,6 @@ export function EntityTypeSettings() {
 function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
   const { session } = useAuth();
   const iconGroup = useId();
-  const [templates] = useState(() => type_id ? createMaterialTemplateDraft(type_id) : null);
-  useEffect(() => {
-    const refresh = () => {
-      void templates?.read();
-    };
-    window.addEventListener("workspace:tags-changed", refresh);
-    return () => {
-      window.removeEventListener("workspace:tags-changed", refresh);
-      templates?.dispose();
-    };
-  }, [templates]);
-  const [recordState, setRecordState] = useState({ dirty: false, busy: false });
   const { type_id: activeTypeId, job_id } = useParams();
   const queryJob = new URLSearchParams(useLocation().search).get("job_id");
   const selectedJob = job_id ?? queryJob ?? undefined;
@@ -72,6 +61,8 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
       setJobState({ ...state, uncertain: !!state.uncertain, error: !!state.error }),
     [],
   );
+  const [identityState,setIdentityState]=useState<MaterialSectionState>({dirty:false,busy:false});
+  const identityStateChange=useCallback((state:MaterialSectionState)=>setIdentityState(state),[]);
   const [schemaState, setSchemaState] = useState({ dirty: false, busy: false, uncertain: false });
   const schemaStateChange = useCallback(
     (state: { dirty: boolean; busy: boolean; uncertain: boolean }) => setSchemaState(state),
@@ -111,11 +102,10 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
     };
   }, []);
   const dirty = type_id ? basicDirty : label !== "" || icon !== "box" || representative !== "이름";
-  const protectedDraft = recordState.dirty ||
-    recordState.busy || dirty || busy || uncertain ||
+  const protectedDraft = dirty || busy || uncertain || identityState.dirty || identityState.uncertain || identityState.busy ||
     schemaState.dirty || schemaState.busy || schemaState.uncertain || jobState.dirty || jobState.busy ||
     jobState.uncertain;
-  const anyBusy = busy || schemaState.busy || recordState.busy ||
+  const anyBusy = busy || identityState.busy || schemaState.busy ||
     jobState.busy;
   useEffect(() => {
     const controller = new AbortController();
@@ -246,7 +236,8 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
       className="panel settings"
       aria-labelledby="entity-types-title"
     >
-      <h1 id="entity-types-title" className="page-title">자료 설정</h1>
+      <SettingsHeading title="자료 설정" id="entity-types-title" />
+
       <div className="material-settings-toolbar">
         <Field label="자료 종류 선택">
           {(props) => (
@@ -399,61 +390,47 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
                   ? "이름·아이콘·보관 상태 변경은 속성 정의와 저장값을 바꾸지 않습니다."
                   : "필수 텍스트 대표 속성과 함께 생성합니다."}
               </p>
-              <button
-                type="button"
-                className="btn"
-                disabled={busy || uncertain || latestBusy || basicConflict || !dirty}
-                onClick={cancel}
-              >
-                변경 취소
-              </button>
-              {basicConflict && (
+              <div className="actions">
                 <button
                   type="button"
                   className="btn"
-                  disabled={busy || uncertain || latestBusy}
-                  onClick={() => void readLatestBasics()}
+                  disabled={busy || uncertain || latestBusy || basicConflict || !dirty}
+                  onClick={cancel}
                 >
-                  {latestBusy ? "최신 기본 정보 읽는 중…" : "최신 기본 정보 확인"}
+                  변경 취소
                 </button>
-              )}
-              <button
-                className="btn btn-primary"
-                disabled={anyBusy || latestBusy || basicConflict || (!dirty && !uncertain)}
-              >
-                {busy
-                  ? "저장 중…"
-                  : uncertain
-                  ? "같은 요청 다시 확인"
-                  : type_id
-                  ? "기본 정보 저장"
-                  : "자료 종류 만들기"}
-              </button>
+                {basicConflict && (
+                  <button
+                    type="button"
+                    className="btn"
+                    disabled={busy || uncertain || latestBusy}
+                    onClick={() => void readLatestBasics()}
+                  >
+                    {latestBusy ? "최신 기본 정보 읽는 중…" : "최신 기본 정보 확인"}
+                  </button>
+                )}
+                <button
+                  className="btn btn-primary"
+                  disabled={anyBusy || latestBusy || basicConflict || (!dirty && !uncertain)}
+                >
+                  {busy
+                    ? "저장 중…"
+                    : uncertain
+                    ? "같은 요청 다시 확인"
+                    : type_id
+                    ? "기본 정보 저장"
+                    : "자료 종류 만들기"}
+                </button>
+              </div>
             </div>
           </form>
         </MaterialSettingsSection>
       )}
+      {!loading&&type_id&&type&&<TypeIdentitySettings typeId={type_id} onState={identityStateChange} disabled={busy||uncertain||schemaState.busy||schemaState.uncertain||jobState.busy||jobState.uncertain}/>}
       {schema && type && (
         <SchemaEditor
           type={type}
           definition={schema}
-          betweenSections={
-            <>
-              {type_id && templates && (
-                <MaterialSettingsSection
-                  title="기록 자동 완성"
-                  state={recordState}
-                >
-                  <RecordTemplateSettings
-                    materialResource={templates}
-                    materialTypeId={type_id}
-                    publishedVersion={schema?.schema_version}
-                    onStateChange={setRecordState}
-                  />
-                </MaterialSettingsSection>
-              )}
-            </>
-          }
           historyInitiallyOpen={versions || !!historyVersion || location.pathname.includes("/migrations") ||
             !!selectedJob}
           historyVersions={history}
@@ -466,10 +443,10 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
           onMigrationApplied={definitions.migrationSucceeded}
           jobErrors={jobErrors}
           onJobState={jobStateChange}
-          jobDisabled={busy || uncertain || schemaState.busy || schemaState.uncertain}
+          jobDisabled={busy || uncertain || identityState.busy || identityState.uncertain || schemaState.busy || schemaState.uncertain}
           onApplied={definitions.published}
           onState={schemaStateChange}
-          disabled={busy || uncertain || jobState.busy || jobState.uncertain}
+          disabled={busy || uncertain || identityState.busy || identityState.uncertain || jobState.busy || jobState.uncertain}
         />
       )}
       <MaterialSettingsProtection
