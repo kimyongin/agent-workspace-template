@@ -271,6 +271,7 @@ test("새 입력 항목의 첫 웹 검토가 순서·대표 이름·선택 표�
     const published = await mcp.call("get_entity_schema", { type_id: type.id });
     expect(published.schema_version).toBe(2);
     expect(published.display).toEqual(stored.target.display);
+    await expect(history.getByRole("button", { name: "변경 이력 다시 조회", exact: true })).toBeEnabled();
     const inputToggle = page.getByRole("button", { name: "입력 항목", exact: true });
     if (await inputToggle.getAttribute("aria-expanded") === "false") await inputToggle.click();
     const renderedFields = page.getByRole("list", { name: "입력 항목 목록", exact: true }).getByRole("region");
@@ -330,7 +331,7 @@ test("기록 템플릿이 바뀌면 같은 이력 행에서 변환 초안을 유
     const rejected = await rejectedResponse;
     expect(rejected.status()).toBe(409);
     expect(await rejected.json()).toMatchObject({ code: "schema_plan_stale" });
-    await expect(page.getByRole("alert")).toContainText("기록 템플릿이 변경되었습니다");
+    await expect(page.getByRole("alert").filter({ hasText: "기록 템플릿이 변경되었습니다" })).toBeVisible();
     await expect(history.getByLabel("가격 변환 방식", { exact: true })).toHaveValue("convert");
     const recreatedResponse = page.waitForResponse(response =>
       response.request().method() === "POST" && response.url().endsWith(`/entity-types/${type.id}/schema-changes`)
