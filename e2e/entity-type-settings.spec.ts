@@ -271,9 +271,13 @@ test("새 입력 항목의 첫 웹 검토가 순서·대표 이름·선택 표�
     const published = await mcp.call("get_entity_schema", { type_id: type.id });
     expect(published.schema_version).toBe(2);
     expect(published.display).toEqual(stored.target.display);
-    await page.getByRole("button", { name: "입력 항목", exact: true }).click();
-    await expect(page.getByRole("list", { name: "입력 항목 목록", exact: true }).locator(".schema-field > .schema-field-heading h3"))
-      .toContainText(["상품명", "이름", "판매 상태"]);
+    const inputToggle = page.getByRole("button", { name: "입력 항목", exact: true });
+    if (await inputToggle.getAttribute("aria-expanded") === "false") await inputToggle.click();
+    const renderedFields = page.getByRole("list", { name: "입력 항목 목록", exact: true }).getByRole("region");
+    await expect(renderedFields).toHaveCount(3);
+    await expect(renderedFields.nth(0)).toHaveAttribute("aria-label", "상품명 속성");
+    await expect(renderedFields.nth(1)).toHaveAttribute("aria-label", "이름 속성");
+    await expect(renderedFields.nth(2)).toHaveAttribute("aria-label", "판매 상태 속성");
   } finally {
     await mcp.close();
   }
@@ -300,8 +304,10 @@ test("기록 템플릿이 바뀌면 같은 이력 행에서 변환 초안을 유
     await mcp.call("analyze_entity_schema_change", { type_id: type.id, change_id: change.id, expected_change_version: change.version });
     await expect.poll(async () => {
       await schemaAnalysisTick();
-      return (await mcp.call("get_entity_schema_change", { type_id: type.id, change_id: change.id })).status;
-    }, { timeout: 30000 }).toBe("invalid");
+      return await mcp.call("get_entity_schema_change", { type_id: type.id, change_id: change.id });
+    }, { timeout: 30000 }).toMatchObject({
+      status: "ready", analysis: { status: "succeeded", failed: 1 }, executable: false,
+    });
     await page.goto(`/settings/entity-types/${type.id}?change_id=${change.id}`);
     const history = page.getByRole("region", { name: "변경 이력", exact: true });
     await history.getByLabel("가격 변환 방식", { exact: true }).selectOption("convert");
