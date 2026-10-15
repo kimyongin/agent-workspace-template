@@ -339,9 +339,10 @@ test("tag clear retains list position with the template label at 200%", async ({
  test("property choices and native disclosures share production touch targets", async ({ page }) => {
   await page.goto(direct);
   const workspace = page.locator("#workspace");
-  const summary = workspace.locator("summary").filter({ hasText: "추가 설정" }).first();
+  const advanced = workspace.locator(".schema-field[data-expanded] details").first();
+  const summary = advanced.locator("summary");
   await summary.click();
-  const label = workspace.locator(".choice-control").first();
+  const label = advanced.locator(".choice-control").first();
   await expect(label).toBeVisible();
   expect((await label.boundingBox())!.height).toBeGreaterThanOrEqual(44);
   const input = label.locator("input"), before = await input.isChecked();
