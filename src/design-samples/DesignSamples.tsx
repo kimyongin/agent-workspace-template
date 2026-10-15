@@ -5,17 +5,39 @@ import { MaterialSettingsSection } from "../features/settings/MaterialSettingsSe
 import { MaterialWorkspaceSample } from "./PropertySamples.tsx";
 import { ModalSamples } from "./ModalSamples.tsx";
 import { TagSamples } from "./TagSamples.tsx";
+import { IssuerSettingsSample } from "./IssuerSettingsSample.tsx";
 import { AccountSettingsSample } from "./AccountSettingsSample.tsx";
 
-const topics = [["settings", "기본 설정"], ["buttons", "버튼"], ["forms", "폼과 상태"], ["tags", "태그"], ["workspace", "목록과 자료 설정"], [
-  "dialogs",
-  "모달과 확인",
-]] as const;
+const topics = [
+  ["settings", "기본 설정"],
+  ["issuers", "발급처"],
+  ["buttons", "버튼"],
+  ["forms", "폼과 상태"],
+  ["tags", "태그"],
+  ["workspace", "목록과 자료 설정"],
+  [
+    "dialogs",
+    "모달과 확인",
+  ],
+] as const;
 
 /** A separate HTML entry imports presentation only: no App, Auth or API client. */
 export function DesignSamples() {
   const params = new URLSearchParams(location.search);
-  if (params.get("screen") === "settings") return <main className="samples-content"><AccountSettingsSample standalone /></main>;
+  if (params.get("screen") === "settings") {
+    return (
+      <main className="samples-content">
+        <AccountSettingsSample standalone />
+      </main>
+    );
+  }
+  if (params.get("screen") === "issuers") {
+    return (
+      <main className="samples-content">
+        <IssuerSettingsSample standalone />
+      </main>
+    );
+  }
   const content = params.get("content") === "1";
   return content ? <SamplesContent /> : <SamplesPreview />;
 }
@@ -82,6 +104,9 @@ function SamplesContent() {
       </header>
       <section id="settings" className="samples-topic" aria-label="기본 설정 샘플">
         <AccountSettingsSample />
+      </section>
+      <section id="issuers" className="samples-topic" aria-label="발급처 샘플">
+        <IssuerSettingsSample />
       </section>
       <section id="buttons" className="samples-topic" aria-labelledby="buttons-title">
         <h2 id="buttons-title" className="page-title">버튼</h2>

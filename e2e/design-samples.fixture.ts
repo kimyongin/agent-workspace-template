@@ -1,5 +1,31 @@
 import { expect, test } from "@playwright/test";
 
+test("issuer sample opens flat rows and separates saved issuer from optional first number", async ({ page }, info) => {
+  const writes: string[] = [];
+  page.on("request", (request) => {
+    if (request.method() !== "GET") writes.push(request.url());
+  });
+  await page.goto("/design-samples/index.html?screen=issuers");
+  await page.getByRole("button", { name: "쿠팡", exact: true }).click();
+  await expect(page.getByText("주문 번호", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "발급처 추가", exact: true }).click();
+  const issuer = page.getByRole("dialog", { name: "발급처 추가", exact: true });
+  await issuer.getByLabel("발급처 이름").fill("지마켓");
+  await issuer.getByRole("button", { name: "저장하고 번호 추가" }).click();
+  const number = page.getByRole("dialog", { name: "번호 종류 추가", exact: true });
+  await expect(number.getByRole("status")).toHaveText("발급처를 저장했습니다.");
+  await page.screenshot({ path: info.outputPath("issuer-first-number.png"), fullPage: true });
+  await number.getByRole("button", { name: "나중에 추가" }).click();
+  const row = page.getByRole("region", { name: "지마켓", exact: true });
+  await expect(row.getByText("등록된 번호 종류가 없습니다.")).toBeVisible();
+  await row.getByRole("button", { name: "번호 종류 추가", exact: true }).click();
+  await number.getByLabel("번호 종류 이름").fill("상품 번호");
+  await number.getByRole("button", { name: "저장", exact: true }).click();
+  await expect(row.getByText("상품 번호", { exact: true })).toBeVisible();
+  await page.screenshot({ path: info.outputPath("issuer-sample.png"), fullPage: true });
+  expect(writes).toEqual([]);
+});
+
 test("account settings sample keeps independent drafts and clear row actions", async ({ page }, info) => {
   await page.goto("/design-samples/index.html?screen=settings");
   const section = (name: string) => page.getByRole("region", { name, exact: true });
@@ -255,10 +281,12 @@ test("history expansion preserves the same section surface as other settings", a
   const history = workspace.getByRole("region", { name: "변경 이력", exact: true });
   for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
     await page.setViewportSize({ width, height: 900 });
-    const sections = await workspace.locator(".material-settings-section").evaluateAll((elements) => elements.map((el) => {
-      const box = el.getBoundingClientRect();
-      return { top: box.top, bottom: box.bottom };
-    }));
+    const sections = await workspace.locator(".material-settings-section").evaluateAll((elements) =>
+      elements.map((el) => {
+        const box = el.getBoundingClientRect();
+        return { top: box.top, bottom: box.bottom };
+      })
+    );
     for (let index = 1; index < sections.length; index++) {
       expect(sections[index].top - sections[index - 1].bottom, `section gap at ${width}px`).toBeCloseTo(20, 0);
     }
@@ -370,7 +398,7 @@ test("tag clear retains list position with the template label at 200%", async ({
   await page.evaluate(() => document.documentElement.style.fontSize = "");
 });
 
- test("property choices and native disclosures share production touch targets", async ({ page }) => {
+test("property choices and native disclosures share production touch targets", async ({ page }) => {
   await page.goto(direct);
   const workspace = page.locator("#workspace");
   const advanced = workspace.locator(".schema-field[data-expanded] details").first();
@@ -387,6 +415,10 @@ test("tag clear retains list position with the template label at 200%", async ({
   await expect(label).toBeHidden();
   await page.keyboard.press("Space");
   await expect(label).toBeVisible();
-  const marker = await summary.evaluate((el) => ({ display: getComputedStyle(el).display, column: getComputedStyle(el, "::after").gridColumnStart, list: getComputedStyle(el).listStyleType }));
+  const marker = await summary.evaluate((el) => ({
+    display: getComputedStyle(el).display,
+    column: getComputedStyle(el, "::after").gridColumnStart,
+    list: getComputedStyle(el).listStyleType,
+  }));
   expect(marker).toEqual({ display: "grid", column: "2", list: "none" });
 });

@@ -71,6 +71,9 @@ export function IdentitySourceModal({
     if ("code" in row) {
       onIssuer(row);
       setSource(row.code);
+      returnTo.current = "rule";
+      setEditing({ kind: "rule", source: row.code, sourceLabel: row.label, createdIssuer: true });
+      return;
     } else {
       rulesRequest.current?.abort();
       setRules((current) => [...(current ?? []).filter((r) => r.id !== row.id), row]);
@@ -84,6 +87,7 @@ export function IdentitySourceModal({
   if (editing) {
     return (
       <IssuerEditModal
+        key={editing.kind === "issuer" ? "issuer:new" : `rule:${editing.source}`}
         target={editing}
         onClose={() => setEditing(null)}
         onSaved={saved}
@@ -94,7 +98,7 @@ export function IdentitySourceModal({
   return (
     <ModalShell
       open
-      title="지원 발급처 연결"
+      title="발급처 연결"
       dirty={!!source || editState.dirty || !!editState.uncertain}
       busy={editState.busy || !!editState.uncertain}
       onClose={onClose}
@@ -148,10 +152,10 @@ export function IdentitySourceModal({
           <div className="issuer-binding-choice">
             <div>
               {rules === null && !error
-                ? <p role="status">규칙을 읽는 중…</p>
+                ? <p role="status">번호 종류를 읽는 중…</p>
                 : eligible.length > 1
                 ? (
-                  <Field label="번호 규칙">
+                  <Field label="번호 종류">
                     {(props) => (
                       <select
                         {...props}
@@ -172,7 +176,7 @@ export function IdentitySourceModal({
                     {eligible[0].generation === "automatic" && eligible[0].label !== "자동 발급" ? " · 자동 발급" : ""}
                   </p>
                 )
-                : <p className="secondary">사용할 번호 규칙이 없습니다.</p>}
+                : <p className="secondary">등록된 번호 종류가 없습니다.</p>}
             </div>
             {issuer && !issuer.system && (
               <button
@@ -182,10 +186,10 @@ export function IdentitySourceModal({
                 disabled={rules === null}
                 onClick={() => {
                   returnTo.current = "rule";
-                  setEditing({ kind: "rule", source });
+                  setEditing({ kind: "rule", source, sourceLabel: issuer.label });
                 }}
               >
-                {eligible.length > 1 ? "규칙 추가" : <BodyActionFace icon="create">규칙 추가</BodyActionFace>}
+                {eligible.length > 1 ? "번호 종류 추가" : <BodyActionFace icon="create">번호 종류 추가</BodyActionFace>}
               </button>
             )}
           </div>

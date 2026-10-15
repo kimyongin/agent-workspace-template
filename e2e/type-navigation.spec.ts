@@ -1,6 +1,6 @@
 import postgres from "postgres";
 import { expect } from "@playwright/test";
-import { test, devLogin, env, unique } from "./support.ts";
+import { devLogin, env, test, unique } from "./support.ts";
 import { closeDetail, saveOnce } from "./ui-actions.ts";
 
 // Real API/Auth/DB consumer round-trip. Run only in the serial integration environment.
@@ -17,7 +17,10 @@ test("settings type creation opens typed entity creation, immutable detail, and 
   try {
     await page.goto("/settings");
     await page.getByRole("button", { name: "설정 메뉴", exact: true }).click();
-    await page.getByRole("navigation", { name: "설정 메뉴", exact: true }).getByRole("link", { name: "자료", exact: true }).click();
+    await page.getByRole("navigation", { name: "설정 메뉴", exact: true }).getByRole("link", {
+      name: "자료",
+      exact: true,
+    }).click();
     await page.getByLabel("자료 종류 이름", { exact: true }).fill(label);
     const creating = page.waitForResponse((response) =>
       new URL(response.url()).pathname.endsWith("/entity-types") && response.request().method() === "POST"
@@ -32,8 +35,7 @@ test("settings type creation opens typed entity creation, immutable detail, and 
     const form = page.getByRole("dialog", { name: `${label} 추가`, exact: true });
     await expect(form.getByLabel("자료 종류", { exact: true })).toHaveValue(typeId!);
     await form.getByLabel("이름", { exact: false }).fill(title);
-    await expect(form.getByLabel("번호", { exact: true })).toHaveAttribute("readonly", "");
-    await expect(form.getByLabel("번호", { exact: true })).toHaveAttribute("placeholder", "자동 발급");
+    await expect(form.getByText("등록 시 자동 발급", { exact: true })).toBeVisible();
     await saveOnce(page, form);
     await expect(page).toHaveURL(/\/entities\//);
     await expect(page.getByText(title, { exact: true }).first()).toBeVisible();
@@ -59,10 +61,16 @@ test("settings type creation opens typed entity creation, immutable detail, and 
     await page.getByRole("button", { name: /^내 프로필(?: · .+)?$/, exact: true }).click();
     await page.getByRole("link", { name: "설정", exact: true }).click();
     await page.getByRole("button", { name: "설정 메뉴", exact: true }).click();
-    await page.getByRole("navigation", { name: "설정 메뉴", exact: true }).getByRole("link", { name: "자료", exact: true }).click();
+    await page.getByRole("navigation", { name: "설정 메뉴", exact: true }).getByRole("link", {
+      name: "자료",
+      exact: true,
+    }).click();
     await page.getByLabel("자료 종류 선택", { exact: true }).selectOption(typeId!);
     await expect(page).toHaveURL(new RegExp(`/settings/entity-types/${typeId}$`));
-    await expect(page.getByRole("button", { name: /^내 프로필(?: · .+)?$/, exact: true })).toHaveAttribute("data-current", "true");
+    await expect(page.getByRole("button", { name: /^내 프로필(?: · .+)?$/, exact: true })).toHaveAttribute(
+      "data-current",
+      "true",
+    );
     await page.reload();
     await page.getByRole("button", { name: /^기본 정보(?! 저장)/ }).click();
     await expect(page.getByLabel("자료 종류 이름", { exact: true })).toHaveValue(label);

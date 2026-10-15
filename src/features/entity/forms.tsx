@@ -389,16 +389,17 @@ export function EntityForm({
               )}
               {schemaError && <p className="error-text" role="alert">{schemaError}</p>}
               {typeId && (schemaError || errors.schema_version ||
-                definition && activeType && definition.schema_version !== activeType.schema_version) && (
-                <button
-                  type="button"
-                  className="btn"
-                  disabled={schemaReading}
-                  onClick={() => void readDefinition()}
-                >
-                  {schemaReading ? "현재 정의 확인 중…" : "속성 정의 다시 조회"}
-                </button>
-              )}
+                definition && activeType && definition.schema_version !== activeType.schema_version) &&
+                (
+                  <button
+                    type="button"
+                    className="btn"
+                    disabled={schemaReading}
+                    onClick={() => void readDefinition()}
+                  >
+                    {schemaReading ? "현재 정의 확인 중…" : "속성 정의 다시 조회"}
+                  </button>
+                )}
               {pendingDefinition && (
                 <section aria-label="현재 속성 정의 검토">
                   <p>
@@ -448,8 +449,17 @@ export function EntityForm({
                     )}
                   </Field>
                 )
-                : identitySettings?.sources.filter((item) => item.active).length === 1 &&
-                    identitySettings.sources.find((item) => item.active)?.code === "app" ? null : (
+                : identitySettings?.sources.filter((item) => item.active).length === 1
+                ? identitySettings.sources.find((item) => item.active)?.code === "app" ? null : (
+                  <div className="field">
+                    <span className="label">발급처</span>
+                    <p className="fixed-field-value">
+                      {identitySettings.sources.find((item) => item.active)?.source_label}
+                    </p>
+                    {errors.source && <p className="error-text" role="alert">{errors.source}</p>}
+                  </div>
+                )
+                : (
                   <Field label="발급처" required error={errors.source}>
                     {(p) => (
                       <select
@@ -476,27 +486,38 @@ export function EntityForm({
                     )}
                   </Field>
                 )}
-              <Field label={identitySettings?.label ?? "번호"} error={errors.external_id}>
-                {(p) => (
-                  <input
-                    {...p}
-                    className="input"
-                    value={external}
-                    maxLength={200}
-                    disabled={!identitySettings}
-                    readOnly={!!initial || !!archived ||
-                      identitySettings?.sources.find((item) => item.code === source)?.generation === "automatic"}
-                    placeholder={identitySettings?.sources.find((item) => item.code === source)?.generation ===
-                        "automatic"
-                      ? "자동 발급"
-                      : undefined}
-                    onChange={(e) => {
-                      lookup.current?.abort();
-                      setExternal(e.target.value);
-                    }}
-                  />
+              {!initial && !archived &&
+                  identitySettings?.sources.find((item) => item.code === source)?.generation === "automatic"
+                ? (
+                  <div className="field">
+                    <span className="label">{identitySettings.label}</span>
+                    <p className="fixed-field-value">등록 시 자동 발급</p>
+                    {errors.external_id && <p className="error-text" role="alert">{errors.external_id}</p>}
+                  </div>
+                )
+                : (
+                  <Field label={identitySettings?.label ?? "번호"} error={errors.external_id}>
+                    {(p) => (
+                      <input
+                        {...p}
+                        className="input"
+                        value={external}
+                        maxLength={200}
+                        disabled={!identitySettings}
+                        readOnly={!!initial || !!archived ||
+                          identitySettings?.sources.find((item) => item.code === source)?.generation === "automatic"}
+                        placeholder={identitySettings?.sources.find((item) => item.code === source)?.generation ===
+                            "automatic"
+                          ? "자동 발급"
+                          : undefined}
+                        onChange={(e) => {
+                          lookup.current?.abort();
+                          setExternal(e.target.value);
+                        }}
+                      />
+                    )}
+                  </Field>
                 )}
-              </Field>
               {!initial && !archived && external &&
                 identitySettings?.sources.find((item) => item.code === source)?.generation === "direct" && (
                 <button
@@ -516,8 +537,17 @@ export function EntityForm({
               {(!identitySettings || !types) && !identityMessage && !catalogError && (
                 <p role="status">자료 종류·식별자 설정을 읽는 중…</p>
               )}
-              {identityMessage && <p className={!identitySettings ? "error-text" : undefined} role={!identitySettings ? "alert" : "status"}>{identityMessage}</p>}
-              {(initial || archived) && errors.entity_type_id && <p className="error-text" role="alert">{errors.entity_type_id}</p>}
+              {identityMessage && (
+                <p
+                  className={!identitySettings ? "error-text" : undefined}
+                  role={!identitySettings ? "alert" : "status"}
+                >
+                  {identityMessage}
+                </p>
+              )}
+              {(initial || archived) && errors.entity_type_id && (
+                <p className="error-text" role="alert">{errors.entity_type_id}</p>
+              )}
               {definition
                 ? (
                   <PropertyFields

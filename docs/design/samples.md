@@ -11,6 +11,7 @@
 ## 조작
 
 - 기본 설정: 네 독립 저장 카드와 제목/폼 정렬을 확인한다. 샘플 주소에 `?screen=settings`를 붙이면 기본 설정만 볼 수 있다. 닉네임·시간대·배율 선택과 메뉴 순서·추가/제거를 바꾸고 섹션별 취소·저장을 확인한다. 프로필 아이콘 등 일부 입력을 생략한 구성 사례이며, 배율 선택은 샘플 자체의 실제 배율을 변경하지 않는다.
+- 발급처: `?screen=issuers`에서 발급처만 볼 수 있다. 목록 열기/접기와 발급처 저장 → 첫 번호 종류 추가 → 나중에 추가를 조작한다. 실제 API 저장·충돌 복구는 앱에서 검증한다.
 - 버튼: 종류 선택 옆 추가, 입력 옆 제거, 독립 보조 행동, 섹션 푸터를 비교한다.
 - 폼: 빈 상품명으로 입력 확인을 눌러 오류와 초점을 확인한다. 읽기 전용·비활성·0·긴 값도 비교한다.
 - 태그: 선택·재클릭 해제·라벨 옆 전체 해제·빈 사전·조회 중/실패·이름 확인 필요·10개 한도·저장 중을 비교한다.
@@ -21,7 +22,7 @@
 
 ## 유지
 
-샘플 코드는 [src/design-samples](../../src/design-samples)에 있다. `Field`, `BodyAction`, `CollectionList`, `MaterialSettingsSection`, `SchemaDefinitionRead`, `ConfirmDialog`, `TagSelection`과 공용 CSS·토큰을 사용한다. 샘플 전용 CSS는 미리보기 배치만 담당한다. 편집 모달의 예시 상태는 native dialog와 같은 공용 shell 클래스를 사용하고, 저장·폐기 확인은 실제 앱과 같은 `ConfirmationSurface`를 편집창 위에 연다.
+샘플 코드는 [src/design-samples](../../src/design-samples)에 있다. `Field`, `BodyAction`, `CollectionList`, `MaterialSettingsSection`, `SchemaDefinitionRead`, `ConfirmDialog`, `TagSelection`, `IssuerRow`와 공용 CSS·토큰을 사용한다. 샘플 전용 CSS는 미리보기 배치만 담당한다. 편집 모달의 예시 상태는 native dialog와 같은 공용 shell 클래스를 사용하고, 저장·폐기 확인은 실제 앱과 같은 `ConfirmationSurface`를 편집창 위에 연다.
 
 시각 값은 [시각 규격](visual-spec.md), 행동은 [UI 패턴](ui-patterns.md)이 소유한다. 샘플에서 차이를 발견하면 기준과 실제 소비 화면을 함께 확인해 수정하며 샘플에만 다른 컨트롤 스타일을 추가하지 않는다.
 

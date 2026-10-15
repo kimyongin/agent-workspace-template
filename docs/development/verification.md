@@ -136,7 +136,7 @@ Playwright 결과·trace와 서비스 로그는 다음 실행으로 덮어써질
 | schema-editor-read | 속성 변경안 공개 화면의 지연 조회·조회 실패·초안·저장 결과·복구안 desktop/mobile |
 | material-schema | 통합 자료 설정의 속성 행·검토·변환·작업·복구와 기존 직접 주소 desktop/mobile |
 | material-templates | 자료 종류별 고정 기본 문구·독립 저장·충돌·재시도·일반 설정 태그 진입/복귀 desktop/mobile |
-| issuer-settings | 발급처·번호 규칙·종류별 연결·중첩 확인·초안 충돌·설정 메뉴 desktop/mobile |
+| issuer-settings | 발급처 목록·첫 번호 종류 추가·종류별 연결과 기본 선택·등록·중첩 확인·초안 충돌·설정 메뉴 desktop/mobile |
 | schema-job-history | 값 변환 작업 공개 목록의 20개 초과 이력·자동 갱신·겹친 응답·더 보기 재시도·종류 전환 desktop/mobile |
 | design-samples | 인증·API 없이 공용 디자인 사례와 미리보기 폭 전환·입력/확인/실패 상태 desktop/mobile |
 | query-layout.build | 운영과 같은 정적 빌드·하위 기본 경로에서 자료 종류/검색/필터의 행·겹침·가로 넘침을 320/390/640/1440px에서 검증; 격리 Auth/API 사용 |

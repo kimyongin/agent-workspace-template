@@ -34,7 +34,7 @@ test("deleted entity related task retains standard preview and detail navigation
 test("automatic number creation has no empty lookup or normal schema recovery actions", async ({ page }) => {
   const state = await fixtures(page);
   await go(page, "/entities?create=1");
-  await expect(form(page).getByLabel("번호", { exact: true })).toHaveAttribute("placeholder", "자동 발급");
+  await expect(form(page).getByText("등록 시 자동 발급", { exact: true })).toBeVisible();
   await expect(form(page).getByRole("button", { name: "기존 대상 확인", exact: true })).toHaveCount(0);
   await expect(form(page).getByRole("button", { name: "속성 정의 다시 조회", exact: true })).toHaveCount(0);
   expect(state.writes).toHaveLength(0);

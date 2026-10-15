@@ -910,3 +910,5 @@ details[open] > summary::after { transform: rotate(135deg); }
   .modal-action .modal-foot { flex-wrap: nowrap; gap: var(--space-1); }
   .modal-action .modal-foot > .btn { flex: 1; min-width: 44px; padding-inline: var(--space-1); overflow-wrap: anywhere; }
 }
+
+.fixed-field-value { margin: 0; min-height: 44px; display: flex; align-items: center; overflow-wrap: anywhere; }

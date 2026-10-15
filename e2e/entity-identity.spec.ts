@@ -77,7 +77,9 @@ test.beforeEach(async ({ page }) => {
       await tx`insert into app.entity_schema_versions(owner_id,type_id,schema_version,schema,display) values(${owner.owner_id},${
         fixtureType!.id
       },2,${tx.json(definition.schema)},${tx.json(definition.display)})`;
-      await tx`update app.entity_types set schema_version=2,next_property_number=5,version=version+1 where id=${fixtureType!.id}`;
+      await tx`update app.entity_types set schema_version=2,next_property_number=5,version=version+1 where id=${
+        fixtureType!.id
+      }`;
     });
   } finally {
     await admin.end();
@@ -525,7 +527,7 @@ test("five settings workspaces retain real API selections and stay within the vi
       const identity = page.getByRole("region", { name: "식별자", exact: true });
       await identity.getByRole("button", { name: /^식별자/ }).click();
       await expect(identity.getByLabel("이름", { exact: false })).toHaveValue("식별자");
-      await expect(identity.getByLabel("기본 발급처")).toHaveValue(fixtureSource);
+      await expect(identity.getByRole("radio", { name: "시험 마켓 기본 발급처", exact: true })).toBeChecked();
       await expect(page.getByRole("region", { name: "기록 자동 완성", exact: true })).toHaveCount(0);
     }
     if (title === "기록 설정") {
@@ -534,13 +536,14 @@ test("five settings workspaces retain real API selections and stay within the vi
       await expect(template).toBeVisible();
       await expect(template.getByLabel("액션", { exact: true })).toBeEnabled();
       await expect(template.getByLabel("메모 템플릿")).toHaveValue("$대상$ $액션$");
-      await expect(page.getByRole("status").filter({
-        hasText: /^(?:설정을 읽는 중|속성 정의를 읽는 중|태그를 불러오는 중)…$/,
-      })).toHaveCount(0);
+      await expect(
+        page.getByRole("status").filter({
+          hasText: /^(?:설정을 읽는 중|속성 정의를 읽는 중|태그를 불러오는 중)…$/,
+        }),
+      ).toHaveCount(0);
     }
     if (title === "발급처 설정") {
-      await page.getByLabel("발급처", { exact: true }).selectOption(fixtureSource);
-      await expect(page.getByLabel("발급처", { exact: true })).toHaveValue(fixtureSource);
+      await page.getByRole("button", { name: "시험 마켓", exact: true }).click();
       await expect(page.getByText("상품 번호", { exact: true })).toBeVisible();
     }
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth))
