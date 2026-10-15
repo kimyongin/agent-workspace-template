@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { EntityIssuer, IdentifierRule } from "@contracts/entity-issuer.ts";
+import { BodyActionFace } from "../../components/BodyAction.tsx";
 import { Field } from "../../components/Field.tsx";
 import { ModalShell } from "../../components/Modal.tsx";
 import { IssuerEditModal, type RegistryEditTarget } from "./IssuerEditModal.tsx";
@@ -176,7 +177,7 @@ export function IdentitySourceModal({
             {issuer && !issuer.system && (
               <button
                 type="button"
-                className="btn btn-input"
+                className={eligible.length > 1 ? "btn btn-input" : "body-action"}
                 ref={ruleAdd}
                 disabled={rules === null}
                 onClick={() => {
@@ -184,7 +185,7 @@ export function IdentitySourceModal({
                   setEditing({ kind: "rule", source });
                 }}
               >
-                규칙 추가
+                {eligible.length > 1 ? "규칙 추가" : <BodyActionFace icon="create">규칙 추가</BodyActionFace>}
               </button>
             )}
           </div>
