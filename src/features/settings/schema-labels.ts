@@ -1,4 +1,4 @@
-import { fieldChoices } from "../../lib/schema-document.ts";
+import { fieldChoices, fieldChoiceTitle } from "../../lib/schema-document.ts";
 import { schemaPresentation } from "../../lib/schema-document.ts";
 import type { EntityField } from "@contracts/entity-type.ts";
 import type { EntitySchemaChange, SchemaDefinition } from "@contracts/entity-schema-change.ts";
@@ -106,12 +106,15 @@ export function schemaDiffValueLabel(path: string, value: unknown, definition: S
   const key = path.split(".").find((part) => /^prop_[0-9]+$/.test(part));
   if (key && /\.(oneOf|default)$/.test(path)) {
     const option = (item: unknown) =>
-      typeof item === "string"
-        ? schemaOptionLabel(schemaPresentation(definition).option_labels[key], item)
-        : schemaValueLabel(item);
+      fieldChoiceTitle(definition.schema.properties[key], item) ??
+        (typeof item === "string"
+          ? schemaOptionLabel(schemaPresentation(definition).option_labels[key], item)
+          : schemaValueLabel(item));
     return Array.isArray(value)
       ? value.map((item) =>
-        item && typeof item === "object" && "const" in item ? item.title || option(item.const) : option(item)
+        item && typeof item === "object" && "const" in item
+          ? typeof item.title === "string" ? item.title : option(item.const)
+          : option(item)
       ).join(", ") || "없음"
       : option(value);
   }

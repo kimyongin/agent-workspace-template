@@ -14,3 +14,8 @@ export function fieldChoiceLabels(field: EntityField | undefined): Record<string
       .map((option) => [option.const!, option.title!]),
   );
 }
+
+/** Resolve the typed const directly: JSON null and the string "null" are different choices. */
+export function fieldChoiceTitle(field: EntityField | undefined, value: unknown): string | undefined {
+  return field?.oneOf?.find((option) => option.const === value)?.title;
+}

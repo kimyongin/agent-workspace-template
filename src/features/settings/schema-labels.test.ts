@@ -38,3 +38,15 @@ it("review names choices from the oneOf branch titles", () => {
     ),
   ).toBe("킬로그램, 그램");
 });
+
+it("default diff resolves null through its field branch without colliding with string null", () => {
+  const definition = initialEntityDefinition("이름");
+  definition.schema.properties.prop_2 = {
+    type: ["string", "null"],
+    "x-order": 20,
+    oneOf: [{ const: null, title: "미정" }, { const: "null", title: "문자 코드" }],
+  };
+  expect(schemaDiffValueLabel("properties.prop_2.default", null, definition)).toBe("미정");
+  expect(schemaDiffValueLabel("properties.prop_2.default", "null", definition)).toBe("문자 코드");
+  expect(schemaDiffValueLabel("properties.prop_2.oneOf", [null, "null"], definition)).toBe("미정, 문자 코드");
+});

@@ -1,4 +1,4 @@
-import { fieldChoiceLabels, fieldChoices } from "../../lib/schema-document.ts";
+import { fieldChoiceLabels, fieldChoices, fieldChoiceTitle } from "../../lib/schema-document.ts";
 import { schemaPresentation } from "../../lib/schema-document.ts";
 import { codePointLength, isoDate } from "@contracts/common.ts";
 import { entityNumberDraft } from "@contracts/entity-number.ts";
@@ -77,7 +77,7 @@ export function propertyValues(
 }
 export function displayedProperty(field: EntityField, value: unknown, labels: Record<string, string> = {}): string {
   if (value === undefined) return "미입력";
-  if (value === null) return field.oneOf?.find((option) => option.const === null)?.title ?? "값 없음";
+  if (value === null) return fieldChoiceTitle(field, null) ?? "값 없음";
   if (typeof value === "boolean") return value ? "참" : "거짓";
   const choices = { ...fieldChoiceLabels(field), ...labels };
   return Object.hasOwn(choices, String(value)) ? choices[String(value)] : String(value);

@@ -29,3 +29,14 @@ it("false and zero defaults remain real values", () => {
     0,
   );
 });
+
+it("making an existing nullable choice optional preserves the null branch title and position", () => {
+  const field = {
+    type: ["string", "null"] as ["string", "null"],
+    "x-order": 20,
+    oneOf: [{ const: "a", title: "진행" }, { const: null, title: "미정" }, { const: "null", title: "문자 코드" }],
+    default: null,
+  };
+  expect(fieldInputPolicy(field, false).oneOf).toEqual(field.oneOf);
+  expect(field.oneOf[1]).toEqual({ const: null, title: "미정" });
+});

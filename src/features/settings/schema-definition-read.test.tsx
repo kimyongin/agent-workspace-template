@@ -71,3 +71,24 @@ it("does not reinterpret an older option using an unrelated current definition",
   expect(html).toContain("판매 중");
   expect(html).not.toContain("현재의 다른 이름");
 });
+
+it("saved definition keeps the null branch title for defaults choices and examples", () => {
+  const definition = initialEntityDefinition("이름");
+  definition.schema.properties.prop_2 = {
+    type: ["string", "null"],
+    "x-order": 20,
+    title: "진행 상태",
+    oneOf: [{ const: "a", title: "진행" }, { const: null, title: "미정" }, { const: "null", title: "문자 코드" }],
+    default: null,
+    examples: [null, "null"],
+  };
+  const html = renderToStaticMarkup(<SchemaDefinitionRead definition={definition} />);
+  expect(html).toContain("<dt>생성 기본값</dt><dd>미정</dd>");
+  expect(html).toContain("진행, 미정, 문자 코드");
+  expect(html).toContain("미정, 문자 코드");
+  expect(html).not.toContain("비워 두기");
+  definition.schema.properties.prop_2.default = "null";
+  expect(renderToStaticMarkup(<SchemaDefinitionRead definition={definition} />)).toContain(
+    "<dt>생성 기본값</dt><dd>문자 코드</dd>",
+  );
+});

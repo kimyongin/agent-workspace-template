@@ -1,5 +1,5 @@
 import { entityTypeIcons } from "@contracts/entity-type.ts";
-import { fieldChoices } from "../../lib/schema-document.ts";
+import { fieldChoices, fieldChoiceTitle } from "../../lib/schema-document.ts";
 import { schemaPresentation } from "../../lib/schema-document.ts";
 import type { SchemaDefinition } from "@contracts/entity-schema-change.ts";
 import { fieldTypeLabel, schemaOptionLabel, schemaValueLabel } from "./schema-labels.ts";
@@ -57,8 +57,11 @@ export function SchemaDefinitionRead(
         if (!field) {
           return null;
         }
-        const optionLabel = (value: string) =>
-          schemaOptionLabel(schemaPresentation(definition).option_labels[key], value);
+        const optionLabel = (value: string | null) =>
+          fieldChoiceTitle(field, value) ??
+            (value === null
+              ? "비워 두기"
+              : schemaOptionLabel(schemaPresentation(definition).option_labels[key], value));
         const values: Array<[string, string]> = [
           ["데이터 타입", fieldTypeLabel(field)],
           [
@@ -80,7 +83,11 @@ export function SchemaDefinitionRead(
         if (field.examples?.length) {
           values.push([
             "입력 예시",
-            field.examples.map((value) => schemaValueLabel(value)).join(", "),
+            field.examples.map((value) =>
+              fieldChoices(field) && (typeof value === "string" || value === null)
+                ? optionLabel(value)
+                : schemaValueLabel(value)
+            ).join(", "),
           ]);
         }
         if (field.description) {
@@ -109,7 +116,7 @@ export function SchemaDefinitionRead(
           values.push([
             "생성 기본값",
             field.default === null
-              ? "비워 두기"
+              ? optionLabel(null)
               : typeof field.default === "string" && fieldChoices(field)
               ? optionLabel(field.default)
               : schemaValueLabel(field.default),
@@ -118,7 +125,7 @@ export function SchemaDefinitionRead(
         if (fieldChoices(field)) {
           values.push([
             "선택 항목",
-            fieldChoices(field)!.map((value) => value === null ? "비워 두기" : optionLabel(value)).join(", "),
+            fieldChoices(field)!.map(optionLabel).join(", "),
           ]);
         }
         return (

@@ -12,10 +12,11 @@ export function fieldInputPolicy(
     type: required ? scalar : [scalar, "null"],
   };
   if (field.oneOf) {
-    next.oneOf = [
-      ...field.oneOf.filter((option) => option.const !== null),
-      ...(required ? [] : [{ const: null }]),
-    ];
+    next.oneOf = required
+      ? field.oneOf.filter((option) => option.const !== null)
+      : field.oneOf.some((option) => option.const === null)
+      ? [...field.oneOf]
+      : [...field.oneOf, { const: null }];
   }
   if (required && scalar === "string" && !field.format && !field.oneOf) {
     next.minLength = Math.max(1, field.minLength ?? 0);
