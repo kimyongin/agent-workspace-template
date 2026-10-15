@@ -199,7 +199,7 @@ export function IssuerEditModal(
         {error && <p className="error-text" role="alert">{error}</p>}
         {blockedTypes.length > 0 && (
           <div className="settings-fields">
-            {blockedTypes.map((type) => (
+            {blockedTypes.filter((type) => type.type_id !== repairing?.type_id).map((type) => (
               <BodyAction
                 key={type.type_id}
                 disabled={busy || uncertain}
