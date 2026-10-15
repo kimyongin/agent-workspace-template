@@ -490,26 +490,41 @@ test("type selection remains scoped while a returned list catalog is loading", a
   } finally { release(); }
 });
 
-test("definition history reads the cursor beyond the first hundred versions and opens the oldest diff", async ({ page }) => {
+test("definition history reads beyond the first hundred versions and opens the immutable oldest snapshot", async ({ page }) => {
   const cursors: (string | null)[] = [];
+  const readVersions: number[] = [];
   await page.route(`**/api/entity-types/${materials.id}**`, route => {
     const url = new URL(route.request().url());
-    if (url.pathname.endsWith("/schema-changes")) return route.fallback();
+    if (url.pathname.endsWith("/schema-changes") || url.pathname.endsWith("/identity")) return route.fallback();
     if (url.pathname.endsWith("/schemas")) {
       const before = url.searchParams.get("before"); cursors.push(before);
       const versions = before ? [1] : Array.from({ length: 100 }, (_, n) => 101 - n);
       return route.fulfill({ json: { items: versions.map(schema_version => ({ type_id: materials.id, schema_version, created_at: materials.created_at })), next_before: before ? null : 2 } });
     }
-    if (url.pathname.endsWith("/schema")) return route.fulfill({ json: { type_id: materials.id, schema_version: Number(url.searchParams.get("schema_version") ?? 101), created_at: materials.created_at, ...initialEntityDefinition("이름") } });
+    if (url.pathname.endsWith("/schema")) {
+      const schema_version = Number(url.searchParams.get("schema_version") ?? 101);
+      readVersions.push(schema_version);
+      return route.fulfill({ json: { type_id: materials.id, schema_version, created_at: materials.created_at, ...initialEntityDefinition(schema_version === 1 ? "최초 이름" : "현재 이름") } });
+    }
     return route.fulfill({ json: { ...materials, schema_version: 101 } });
   });
   await page.goto(`/settings/entity-types/${materials.id}/versions`);
   await expect(page.getByRole("button", { name: "이전 게시 버전 더 보기", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "이전 게시 버전 더 보기", exact: true }).click();
-  const oldest = page.locator("details").filter({ has: page.locator("summary", { hasText: /^버전 1 ·/ }) });
-  await oldest.locator("summary").click();
-  await oldest.getByRole("button", { name: "이 버전 보기", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "버전 1 → 101 차이", exact: true })).toBeVisible();
+  const history = page.getByRole("region", { name: "변경 이력", exact: true });
+  await expect(history.locator(".schema-history-row")).toHaveCount(101);
+  const oldest = history.locator(".schema-history-row").filter({ hasText: "버전 1 · 적용됨" });
+  await oldest.getByRole("button", { name: /^최초 생성/ }).click();
+  await expect(page).toHaveURL(/schema_version=1/);
+  const definition = oldest.getByRole("region", { name: "입력 항목 정의", exact: true });
+  await expect(definition.getByRole("heading", { name: "최초 이름", exact: true })).toBeVisible();
+  const field = definition.getByRole("region", { name: "최초 이름 정의", exact: true });
+  await expect(field.locator("dl > div").filter({ has: page.getByText("자료 이름", { exact: true }) }).locator("dd")).toHaveText("사용");
+  await expect(definition.locator("input,select,textarea")).toHaveCount(0);
+  await expect(oldest.getByRole("region", { name: "변경 결과", exact: true })).toContainText("버전 1 · 최초 생성");
+  expect(readVersions).toContain(101);
+  expect(readVersions).toContain(1);
+  expect(readVersions).not.toContain(0);
   expect(cursors).toEqual([null, "2"]);
   await expect(page.getByRole("button", { name: "이전 게시 버전 더 보기", exact: true })).toHaveCount(0);
 });
