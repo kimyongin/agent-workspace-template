@@ -56,6 +56,8 @@ npm run worker:entity-schema:local
 
 `.env*`·서명 키·개인 설정·시험 계정 값은 Git에 포함하지 않는다. 생성 값이나 인증 정보를 증거에 출력하지 않는다. 초기화와 설정 생성의 보존 동작은 관련 스크립트의 테스트가 확인한다.
 
+발급처 초기 migration의 업그레이드 경로는 `LOCAL_DB_URL`을 설정하고 `node --test scripts/entity-issuer-upgrade.integration.mjs`로 확인한다. 기존 로컬 PostgreSQL 서버에 새 임시 DB를 만들어 빈 저장소와 기존 자료 종류·발급처 설정이 있는 저장소에 실제 migration을 적용하고 RLS·소유자별 연결·기존 자료 보존·FK 거부를 확인한다. 기존 DB는 수정하지 않고 검사에서 만든 임시 DB만 종료 시 제거한다. 새 Supabase 스택은 필요하지 않다.
+
 ## 검사 도구의 한계
 
 문서 검사기는 UTF-8·BOM·LF·공백·상대 파일 링크와 Claude 연결 파일의 원본 frontmatter를 확인한다. Markdown·HTML의 앵커 존재는 확인하지 않으므로 변경한 앵커는 대상 제목이나 HTML id와 대조한다.
