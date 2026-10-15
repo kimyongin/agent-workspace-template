@@ -5,15 +5,18 @@ import { MaterialSettingsSection } from "../features/settings/MaterialSettingsSe
 import { MaterialWorkspaceSample } from "./PropertySamples.tsx";
 import { ModalSamples } from "./ModalSamples.tsx";
 import { TagSamples } from "./TagSamples.tsx";
+import { AccountSettingsSample } from "./AccountSettingsSample.tsx";
 
-const topics = [["buttons", "버튼"], ["forms", "폼과 상태"], ["tags", "태그"], ["workspace", "목록과 자료 설정"], [
+const topics = [["settings", "기본 설정"], ["buttons", "버튼"], ["forms", "폼과 상태"], ["tags", "태그"], ["workspace", "목록과 자료 설정"], [
   "dialogs",
   "모달과 확인",
 ]] as const;
 
 /** A separate HTML entry imports presentation only: no App, Auth or API client. */
 export function DesignSamples() {
-  const content = new URLSearchParams(location.search).get("content") === "1";
+  const params = new URLSearchParams(location.search);
+  if (params.get("screen") === "settings") return <main className="samples-content"><AccountSettingsSample standalone /></main>;
+  const content = params.get("content") === "1";
   return content ? <SamplesContent /> : <SamplesPreview />;
 }
 
@@ -77,6 +80,9 @@ function SamplesContent() {
           앱의 공용 스타일과 컴포넌트로 만든 예시입니다. 로그인이나 서버 연결 없이 조작할 수 있습니다.
         </p>
       </header>
+      <section id="settings" className="samples-topic" aria-label="기본 설정 샘플">
+        <AccountSettingsSample />
+      </section>
       <section id="buttons" className="samples-topic" aria-labelledby="buttons-title">
         <h2 id="buttons-title" className="page-title">버튼</h2>
         <p className="secondary">입력 옆 조작은 입력과 크기를 맞추고, 독립적인 보조 행동은 가볍게 표시합니다.</p>

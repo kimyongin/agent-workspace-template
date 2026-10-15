@@ -247,7 +247,7 @@ function AccountSettings() {
     </div>
   );
   return (
-    <section className="panel settings" aria-labelledby="settings-title">
+    <section className="panel settings account-settings" aria-labelledby="settings-title">
       <SettingsHeading title="기본 설정" id="settings-title" />
 
       {(["profile", "date", "display"] as const).map((section) => (

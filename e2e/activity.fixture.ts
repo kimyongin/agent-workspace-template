@@ -215,7 +215,7 @@ test("현재 원칙 편집 취소는 원칙 화면·초점을 복원하고 과�
   await openListEditor(page,"현재 기준");
   await page.getByRole("button",{name:"닫기",exact:true}).click();
   await expect(page).toHaveURL(/principles#principles-title$/);await expect(page.locator("#principles-title")).toBeFocused();
-  await expect(page.getByRole("link",{name:"과거 근거는 통합 기록에서 보기"})).toHaveAttribute("href","/records");
+  await expect(page.getByRole("link",{name:"과거 기록 보기"})).toHaveAttribute("href","/records");
 });
 
 test("긴 제목·태그와 편집 조작은 대표 폭에서 읽기 순서와 누름 영역을 유지한다", async ({page},testInfo) => {

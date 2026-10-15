@@ -65,7 +65,7 @@ test("로그인·OAuth 동의의 긴 주소와 중요 안내는 320~1440px에서
     await page.setViewportSize({width,height:900});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
     await expect(page.getByText("직접 시작한 연결이 아니거나 돌아갈 주소를 모르면 거부하세요.",{exact:false})).toBeVisible();
     for(const name of ["승인","거부"]){const box=(await page.getByRole("button",{name,exact:true}).boundingBox())!;expect(box.width).toBeGreaterThanOrEqual(44);expect(box.height).toBeGreaterThanOrEqual(44);}
-    if(width===390)await page.screenshot({path:info.outputPath("consent-hierarchy-390.png")});
+    if(width===390||width===1440)await page.screenshot({path:info.outputPath(`consent-hierarchy-${width}.png`)});
   }
   expect(f.decisions).toHaveLength(0);
 });

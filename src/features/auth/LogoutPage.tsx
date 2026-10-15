@@ -32,11 +32,11 @@ export function LogoutPage() {
     }
     if (!started.current) { started.current = true; void signOut(); }
   }, [loading, session, navigate]);
-  return <section className="panel">
-    <h1 className="page-title">로그아웃</h1>
+  return <section className="panel auth-panel" aria-labelledby="logout-title">
+    <h1 id="logout-title" className="page-title">로그아웃</h1>
     {error ? <>
       <p className="error-text" role="alert">{localSignedOut ? "이 기기에서는 로그아웃했습니다. 서버의 다른 세션 로그아웃은 확인하지 못했습니다." : "로그아웃하지 못했습니다. 다시 시도하세요."}</p>
-      {localSignedOut ? <Link className="btn" to="/login">로그인으로 이동</Link>
+      {localSignedOut ? <div className="actions"><Link className="btn btn-primary" to="/login">로그인으로 이동</Link></div>
         : <div className="actions"><button className="btn" onClick={signOut}>다시 시도</button><Link className="btn" to="/tasks">할 일로 돌아가기</Link></div>}
     </> : <p className="secondary" role="status">로그아웃 중…</p>}
   </section>;

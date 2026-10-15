@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useBlocker, useLocation } from "react-router";
 import { ConfirmDialog } from "../../components/Modal.tsx";
 import { BodyAction } from "../../components/BodyAction.tsx";
+import { NavigationRowActions } from "./NavigationRowActions.tsx";
 import { DetailLink } from "../../lib/detail-exploration.tsx";
 import { defaultNavigationRefs, type NavigationRef, resolveNavigationRefs } from "../../app/type-navigation.ts";
 import { useAuth } from "../auth/AuthProvider.tsx";
@@ -150,81 +151,23 @@ export function NavigationSettings(
                     {entry?.archived ? " · 보관" : ""}
                     {!entry ? catalog.types === null && !catalog.error ? " · 확인 중" : " · 참조 유지" : ""}
                   </span>
-                  <div className="navigation-row-actions">
-                    <BodyAction
-                      type="button"
-                      className="item-icon"
-                      aria-label={`${label} 위로 이동`}
-                      title="위로 이동"
-                      disabled={index === 0}
-                      onClick={() => {
-                        const next = [...refs];
-                        [next[index - 1], next[index]] = [next[index], next[index - 1]];
-                        edit(next);
-                      }}
-                    >
-                      <svg
-                        width="18"
-                        height="18"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="1.5"
-                        aria-hidden="true"
-                      >
-                        <path d="m6 12 6-6 6 6M12 6v14" />
-                      </svg>
-                    </BodyAction>
-                    <BodyAction
-                      type="button"
-                      className="item-icon"
-                      aria-label={`${label} 아래로 이동`}
-                      title="아래로 이동"
-                      disabled={index === refs.length - 1}
-                      onClick={() => {
-                        const next = [...refs];
-                        [next[index + 1], next[index]] = [next[index], next[index + 1]];
-                        edit(next);
-                      }}
-                    >
-                      <svg
-                        width="18"
-                        height="18"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="1.5"
-                        aria-hidden="true"
-                      >
-                        <path d="m6 12 6 6 6-6M12 4v14" />
-                      </svg>
-                    </BodyAction>
-                    <BodyAction
-                      type="button"
-                      className="item-icon"
-                      aria-label={`${label} 숨기기`}
-                      title="바로가기에서 제거"
-                      onClick={(event) => {
-                        const row = event.currentTarget.closest("li");
-                        const next = (row?.nextElementSibling ?? row?.previousElementSibling)
-                          ?.querySelector<HTMLButtonElement>('button[title="바로가기에서 제거"]');
-                        edit(refs.filter((_, position) => position !== index));
-                        requestAnimationFrame(() => (next ?? addSelect.current)?.focus());
-                      }}
-                    >
-                      <svg
-                        width="18"
-                        height="18"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="1.5"
-                        aria-hidden="true"
-                      >
-                        <path d="m6 6 12 12M6 18 18 6" />
-                      </svg>
-                    </BodyAction>
-                  </div>
+                  <NavigationRowActions
+                    label={label}
+                    index={index}
+                    count={refs.length}
+                    onMove={(direction) => {
+                      const next = [...refs];
+                      [next[index + direction], next[index]] = [next[index], next[index + direction]];
+                      edit(next);
+                    }}
+                    onRemove={(event) => {
+                      const row = event.currentTarget.closest("li");
+                      const next = (row?.nextElementSibling ?? row?.previousElementSibling)
+                        ?.querySelector<HTMLButtonElement>('button[title="바로가기에서 제거"]');
+                      edit(refs.filter((_, position) => position !== index));
+                      requestAnimationFrame(() => (next ?? addSelect.current)?.focus());
+                    }}
+                  />
                 </li>
               );
             })}

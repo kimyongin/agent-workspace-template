@@ -6,7 +6,7 @@ const id="00000000-0000-4000-8000-000000000131", stamp="2026-10-06T01:00:00Z";
 test("원칙 화면의 기록 이동 링크는 모든 대표 폭에서 44px 누름 영역을 유지한다",async({page})=>{
   await page.route("**/api/**",route=>route.fulfill({json:new URL(route.request().url()).pathname.endsWith("/current")?{current:null}:{items:[],next_cursor:null}}));
   await page.goto("/e2e/fixtures/workspace-screens.html?route=/principles");
-  const link=page.getByRole("link",{name:"과거 근거는 통합 기록에서 보기"});
+  const link=page.getByRole("link",{name:"과거 기록 보기"});
   for(const width of [320,360,390,639,640,768,1024,1440]){
     await page.setViewportSize({width,height:900});const box=await link.boundingBox();
     expect(box!.height,`${width}px 기록 링크 높이`).toBeGreaterThanOrEqual(44);expect(box!.width).toBeGreaterThanOrEqual(44);
@@ -45,7 +45,7 @@ test("현재 원칙은 한 번에 저장해 같은 문서를 갱신하며 삭제
     return route.fulfill({json:path.endsWith("/current")?{current}:path.endsWith(id)?current:{items:[],next_cursor:null}});
   });
   await page.goto("/e2e/fixtures/workspace-screens.html?route=/principles");
-  await expect(page.getByRole("link",{name:"과거 근거는 통합 기록에서 보기",exact:true})).toHaveAttribute("href","/records");
+  await expect(page.getByRole("link",{name:"과거 기록 보기",exact:true})).toHaveAttribute("href","/records");
   await openListEditor(page,"현재 기준");
   const form=page.locator("dialog.modal:not(.modal-confirm)[open]");
   await form.getByRole("textbox",{name:/^본문$/}).fill("새 본문");

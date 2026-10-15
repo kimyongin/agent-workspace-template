@@ -24,6 +24,6 @@ export function DeleteAction({message,onConfirm,note=true,onStateChange,label="�
   });
   const { active: armed, busy, uncertain } = confirmation;
   useEffect(() => { onStateChange?.({armed,busy,uncertain}); }, [armed,busy,uncertain,onStateChange]);
-  return <button type="button" className="btn btn-text" aria-label={label} disabled={busy||disabled}
+  return <button type="button" className="btn btn-text btn-danger" aria-label={label} disabled={busy||disabled}
     onClick={() => confirmation.begin("delete")}>{label === "삭제" ? label : "삭제"}</button>;
 }

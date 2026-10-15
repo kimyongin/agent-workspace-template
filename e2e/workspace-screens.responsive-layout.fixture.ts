@@ -130,7 +130,7 @@ for (const width of [390, 1440]) {
     expect((await current.boundingBox())!.y).toBeGreaterThanOrEqual(
       (await top.boundingBox())!.y + (await top.boundingBox())!.height,
     );
-    await expect(top.getByRole("link", { name: "과거 근거는 통합 기록에서 보기" })).toHaveAttribute("href", "/records");
+    await expect(top.getByRole("link", { name: "과거 기록 보기" })).toHaveAttribute("href", "/records");
     await expect(top.getByLabel("검색어", { exact: true })).toHaveCount(0);
     await expect(top.locator(".current-document,.record-date-group")).toHaveCount(0);
     await page.screenshot({ path: info.outputPath(`principles-sections-${width}.png`) });
@@ -217,7 +217,7 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
       expect(box.height).toBeGreaterThanOrEqual(44);
       const face = action.locator(".body-action-face");
       expect((await face.boundingBox())!.height).toBe(24);
-      expect(await face.evaluate((el) => getComputedStyle(el).fontSize)).toBe("12px");
+      expect(await face.evaluate((el) => getComputedStyle(el).fontSize)).toBe("13px");
       expect(await face.evaluate((el) => getComputedStyle(el).fontWeight)).toBe("400");
     }
     await row.getByRole("button", { name: "할 일 접기", exact: true }).click();
@@ -512,8 +512,8 @@ for (const width of [320, 1440]) {
   });
 }
 
-for (const width of [320, 390]) {
-  test(`mobile-entity-query ${width}px: type comes first and property filters fit the panel`, async ({ page }) => {
+for (const width of [320, 390, 639, 640]) {
+  test(`mobile-entity-query ${width}px: type comes first and property filters fit the panel`, async ({ page }, info) => {
     const state = await fixtures(page);
     await page.setViewportSize({ width, height: 900 });
     await go(page, "/entities");
@@ -529,6 +529,11 @@ for (const width of [320, 390]) {
     for (const scale of ["100%", "200%"]) {
       await page.evaluate(value => { document.documentElement.style.fontSize = value; }, scale);
       const panel = header.locator(".tab-filters > .form");
+      for (const grid of await panel.locator(".filter-grid, .entity-property-condition").all()) {
+        const columns = await grid.evaluate(el => getComputedStyle(el).gridTemplateColumns.split(" ").length);
+        expect(columns).toBeLessThanOrEqual(2);
+        if (width === 320 && scale === "200%") expect(columns).toBe(1);
+      }
       expect(await panel.evaluate(el => el.scrollWidth <= el.clientWidth), scale).toBe(true);
       const boxes = await panel.locator("input,select,button").evaluateAll(elements => elements.map(el => {
         const box = el.getBoundingClientRect();
@@ -539,6 +544,7 @@ for (const width of [320, 390]) {
         expect(box.left).toBeGreaterThanOrEqual(panelBox.x);
         expect(box.right).toBeLessThanOrEqual(panelBox.x + panelBox.width);
       }
+      if (scale === "200%") await panel.screenshot({ path: info.outputPath(`property-filter-${width}-text200.png`) });
     }
     expect(state.writes).toHaveLength(0);
   });
