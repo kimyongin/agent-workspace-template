@@ -50,7 +50,7 @@ export const entitySchemaEdit = z.discriminatedUnion("op", [
   z.strictObject({
     op: z.literal("set_metadata"),
     title: z.string().trim().min(1).max(80).optional(),
-    description: z.string().max(1000).optional(),
+    description: z.string().max(1000).nullable().optional(),
     "x-icon": z.enum(["box", "leaf", "package", "book", "tool", "star"]).optional(),
     deprecated: z.boolean().optional(),
   }),
@@ -107,7 +107,7 @@ const migrationInput = z.strictObject({
 });
 export const schemaChangeCreate = z.strictObject({
   expected_schema_version: z.number().int().positive(),
-  edits: z.array(entitySchemaEdit).min(1).max(128),
+  edits: z.array(entitySchemaEdit).min(1).max(129),
   migration: migrationInput.default({ rules: [], overrides: [] }),
 });
 export const schemaChangeUpdate = schemaChangeCreate.extend({ expected_change_version: z.number().int().positive() });
