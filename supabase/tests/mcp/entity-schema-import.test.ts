@@ -63,7 +63,9 @@ httpTest("schema import HTTP/MCP: copy mapping, reviewed draft, stale source, no
     const draft = await tool(client, "prepare_entity_schema_import", { ...writeInput, request_key: writeKey });
     assert(draft.change.id);
     assertEquals(draft.change.status, "draft");
-    assertEquals(draft.change.target.schema.properties.prop_2.multipleOf, 2);
+    const storedDraft =
+      (await call(token, "GET", `/entity-types/${created.id}/schema-changes/${draft.change.id}`)).body;
+    assertEquals(storedDraft.target.schema.properties.prop_2.multipleOf, 2);
     assertEquals((await call(token, "POST", "/entity-schema-import/prepare", writeInput, writeKey)).body, draft);
     assertEquals((await call(token, "GET", `/entity-types/${created.id}/schema`)).body.schema, exported);
     assertEquals((await call(other, "POST", "/entity-schema-import/preview", unchanged, null)).status, 404);
