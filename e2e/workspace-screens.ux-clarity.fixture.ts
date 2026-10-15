@@ -102,6 +102,10 @@ for (const width of [320, 1440]) {
       await editor.getByRole("radio", { name: "매월", exact: true }).check();
       const dates = editor.getByLabel("날짜", { exact: true });
       await expect(dates).toHaveAttribute("inputmode", "text");
+      await dates.fill("");
+      await editor.getByRole("button", { name: "추가", exact: true }).click();
+      await expect(dates).toHaveAttribute("aria-invalid", "true");
+      expect(state.writes).toHaveLength(0);
       await dates.fill("0, 32");
       await editor.getByRole("button", { name: "추가", exact: true }).click();
       await expect(editor.locator("[aria-invalid=true]")).toHaveCount(1);
