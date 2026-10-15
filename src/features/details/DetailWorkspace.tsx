@@ -77,7 +77,16 @@ export function DetailWorkspace({ children, render, enabled }: { children: React
       setStarted(true);
     }
     const id = detailIdentity(location.pathname);
-    if (!id) { setBase(location); return; }
+    if (!id) {
+      if (current.current.active && detailIdentity(openedLocation.current?.pathname ?? "")) {
+        setRevision(value => value + 1);
+        setVisible(false);
+        tabFocus.current = "list";
+      }
+      openedLocation.current = location;
+      setBase(location);
+      return;
+    }
     if (new URLSearchParams(current.current.base.search).has("create")) {
       const search = new URLSearchParams(current.current.base.search); search.delete("create");
       setBase({ ...current.current.base, search: `?${search}`, key: crypto.randomUUID() });
@@ -138,11 +147,14 @@ export function DetailWorkspace({ children, render, enabled }: { children: React
     const state = current.current, path = destination(to, origin), identity = detailIdentity(path);
     const existing = state.tabs.find(tab => tab.id === identity);
     if (workspaceBase(origin.pathname)) { setBase(origin); if(materialSettingsBase(origin.pathname) && !detailIdentity(location.pathname))baseFocus.current=document.activeElement instanceof HTMLElement ? document.activeElement : null; }
-    setVisible(true);
-    if (existing && state.active === identity && href(location) === href(existing.location)) return;
+    if (existing && state.active === identity && href(location) === href(existing.location)) { setVisible(true); return; }
     const returnTo = returnTarget(origin, identity);
     rememberReturn(identity, returnTo);
-    void navigate(existing ? href(existing.location) : path, { replace: !!existing, state: { workspaceOwner: workspaceBase(origin.pathname) ? origin.pathname : state.base.pathname, workspaceReturnTo: returnTo } });
+    const visit = () => navigate(existing ? href(existing.location) : path, { replace: !!existing && !!detailIdentity(location.pathname), state: { workspaceOwner: workspaceBase(origin.pathname) ? origin.pathname : state.base.pathname, workspaceReturnTo: returnTo } });
+    // Back must return to the same row context as the retained list pane.
+    if (workspaceList(location.pathname) && workspaceList(origin.pathname) && href(origin) !== href(location)) {
+      void Promise.resolve(navigate(href(origin), { replace: true, state: location.state, preventScrollReset: true })).then(visit);
+    } else void visit();
   }, [navigate, location, anyBusy]);
   const select = (tab: Tab) => {
     if (anyBusy()) return;
@@ -162,7 +174,7 @@ export function DetailWorkspace({ children, render, enabled }: { children: React
     return index;
   };
   useEffect(() => {
-    if ((!desktop && !materialSettingsBase(base.pathname)) || !visible) return;
+    if ((!desktop && !materialSettingsBase(base.pathname)) || (!visible && tabFocus.current !== "list")) return;
     const frame = requestAnimationFrame(() => {
       let anchor:HTMLElement|null = null;
       try {

@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useRef, useSyncExternalStore } from "react";
+import { useContext, useEffect, useMemo, useRef, useSyncExternalStore } from "react";
 import { useLocation, useNavigate } from "react-router";
 import type { SearchResult } from "@contracts/search.ts";
 import { api } from "../../lib/api.ts";
 import type { ListSnapshot } from "../collections/paged-list.ts";
 import { createSearchRead, searchAnchor } from "./search-read.ts";
+import { WorkspaceContext } from "../details/workspace-context.ts";
 const idle: ListSnapshot<SearchResult> = {
   page: null,
   busy: false,
@@ -15,6 +16,8 @@ const subscribeIdle = () => () => {};
 
 /** This visit owns accepted results, URL page acknowledgement and return focus. */
 export function useSearchRead(params: URLSearchParams, retry: number) {
+  const revision = useContext(WorkspaceContext)?.revision;
+  const previousRevision = useRef(revision);
   const location = useLocation(), navigate = useNavigate(), latest = useRef(location);
   latest.current = location;
   const scope = new URLSearchParams(params);
@@ -39,6 +42,12 @@ export function useSearchRead(params: URLSearchParams, retry: number) {
   useEffect(() => {
     void read?.restore(pages, location.hash);
   }, [read, pages, location.hash]);
+  useEffect(() => {
+    if (previousRevision.current !== revision) {
+      previousRevision.current = revision;
+      void read?.restart();
+    }
+  }, [read, revision]);
   useEffect(() => () => read?.cancel(), [read]);
   useEffect(() => {
     if (state.completion?.source !== "more") return;
@@ -49,7 +58,7 @@ export function useSearchRead(params: URLSearchParams, retry: number) {
   const focused = useRef("");
   useEffect(() => {
     focused.current = "";
-  }, [read, location.hash]);
+  }, [read, location.hash, revision]);
   useEffect(() => {
     const anchor = searchAnchor(location.hash);
     if (state.busy || focused.current === location.hash || !anchor || !state.page) return;
