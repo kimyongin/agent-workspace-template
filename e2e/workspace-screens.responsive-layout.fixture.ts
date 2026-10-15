@@ -130,7 +130,7 @@ for (const width of [390, 1440]) {
     expect((await current.boundingBox())!.y).toBeGreaterThanOrEqual(
       (await top.boundingBox())!.y + (await top.boundingBox())!.height,
     );
-    await expect(top.getByRole("link", { name: "과거 기록 보기" })).toHaveAttribute("href", "/records");
+    await expect(top.getByRole("link", { name: "전체 기록 보기" })).toHaveAttribute("href", "/records");
     await expect(top.getByLabel("검색어", { exact: true })).toHaveCount(0);
     await expect(top.locator(".current-document,.record-date-group")).toHaveCount(0);
     await page.screenshot({ path: info.outputPath(`principles-sections-${width}.png`) });

@@ -1,3 +1,4 @@
+import { PageHeading } from "../../components/PageHeading.tsx";
 import { useState } from "react";
 import { BodyActionFace } from "../../components/BodyAction.tsx";
 import { Link } from "react-router";
@@ -7,7 +8,7 @@ export function GuidePage() {
   const config = guideConfig(import.meta.env.VITE_API_URL, import.meta.env.VITE_REPOSITORY_URL, import.meta.env.VITE_PLUGIN_URL);
   const [copied, setCopied] = useState("");
   return <section className="panel guide" aria-labelledby="guide-title">
-    <h1 className="page-title" id="guide-title">사용 가이드</h1>
+    <PageHeading title="사용 가이드" id="guide-title" description="자료 등록부터 할 일·기록 관리, 에이전트 연결까지 시작 방법을 안내합니다." />
     <ol className="guide-steps">
       <li className="guide-step"><h2 className="item-title">자료 하나 만들기</h2>
         <p>진행 중인 프로젝트처럼 관리할 대상을 자료로 등록하세요. 자료 종류를 만들고 이름·수량·날짜처럼 필요한 항목을 정하세요.</p>

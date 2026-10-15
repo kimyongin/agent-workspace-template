@@ -1,3 +1,4 @@
+import { PageHeading } from "../../components/PageHeading.tsx";
 // 로그인: Google OAuth(기본). 로컬 개발·E2E에서만 이메일 로그인 폼을 보인다(티켓의 로컬 대체).
 import { type FormEvent, useState } from "react";
 import { Navigate, useSearchParams } from "react-router";
@@ -40,7 +41,7 @@ export function LoginPage() {
 
   return (
     <section className="panel auth-panel" aria-labelledby="login-title">
-      <h1 id="login-title" className="page-title">로그인</h1>
+      <PageHeading title="로그인" id="login-title" description="내 자료와 할 일·기록을 관리하려면 로그인하세요." />
       {error && <Notice kind="error">{error}</Notice>}
       <button type="button" className="btn btn-primary" onClick={google}>Google로 로그인</button>
       {devLoginEnabled && (

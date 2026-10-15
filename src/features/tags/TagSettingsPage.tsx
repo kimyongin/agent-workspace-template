@@ -33,7 +33,7 @@ export function TagSettingsPage() {
   }, [state.dirty, state.busy]);
   return (
     <section className="panel settings" aria-labelledby="tag-heading">
-      <SettingsHeading title="태그 설정" id="tag-heading" tabIndex={-1} />
+      <SettingsHeading title="태그 설정" description="자료·할 일·기록에 사용할 태그를 한곳에서 관리합니다." id="tag-heading" tabIndex={-1} />
 
       <div className="material-settings-toolbar">
         <Field label="관리 대상" hideLabel>

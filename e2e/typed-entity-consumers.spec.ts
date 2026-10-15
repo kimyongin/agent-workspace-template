@@ -84,8 +84,8 @@ test("타입별 목록·AND 필터·업무 문맥·템플릿은 현재 정의를
     const template = page.getByRole("form", { name: "기록 자동 완성" });
     await template.getByLabel("액션", { exact: true }).selectOption("update");
     await template.getByLabel("메모 템플릿", { exact: true }).fill("値 $엔터티.이후.prop_2$ / $엔터티.이후.prop_4$");
-    await template.getByRole("button", { name: "기록 기본값 저장", exact: true }).click();
-    await expect(template.getByRole("status").filter({ hasText: "기록 기본값을 저장했습니다." })).toHaveText("기록 기본값을 저장했습니다.");
+    await template.getByRole("button", { name: "기록 자동 완성 저장", exact: true }).click();
+    await expect(template.getByRole("status").filter({ hasText: "기록 자동 완성을 저장했습니다." })).toHaveText("기록 자동 완성을 저장했습니다.");
     const updated = await mcp.call("update_entity", {
       id: second.id,
       expected_version: second.version,

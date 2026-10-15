@@ -140,7 +140,7 @@ test("모든 페이지의 자료 종류가 목록과 생성 폼 및 종류 설�
   const form = page.locator("dialog.modal:not(.modal-confirm)[open]:visible");
   await expect(form.getByLabel("자료 종류", { exact: true }).locator("option")).toContainText(["재료", "상품"]);
   await page.goto("/settings/entity-types");
-  await expect(page.getByLabel("자료 종류 선택", { exact: true }).locator("option")).toContainText(["종류 추가", "재료", "상품", "보관 자료 (보관)"]);
+  await expect(page.getByLabel("자료 종류 선택", { exact: true }).locator("option")).toContainText(["기존 종류 선택", "재료", "상품", "보관 자료 (보관)"]);
 });
 test("typed shortcut and profile access preserve canonical list filters and Back", async ({ page }) => {
   await page.goto(`/entities?entity_type_id=${materials.id}&keyword=한글&tag_id=tag&sort=title&pages=2`);
@@ -336,7 +336,7 @@ test("type catalog failure and all archived types have distinct recovery paths",
   failing = false;
   await page.getByRole("button", { name: "종류 다시 시도", exact: true }).click();
   await expect(page.getByText("모든 자료 종류가 보관되어 있습니다.", { exact: true })).toBeVisible();
-  await expect(page.getByRole("link", { name: "자료 종류 만들기·보관 관리", exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "보관된 종류 관리", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "자료 추가", exact: true })).toHaveCount(0);
 });
 
@@ -759,7 +759,7 @@ test("history selection preserves basic drafts and survives reload", async ({ pa
   await expect(first.getByRole("region", { name: "변경 결과", exact: true })).toContainText("버전 1 · 최초 생성");
 });
 
-test("first type creation selects its workspace and independent basics save archives and restores", async ({ page }) => {
+test("first type creation selects its workspace and independent basics save archives and restores", async ({ page }, info) => {
   let saved = type(4, "첫 자료");
   let exists = false;
   const writes: any[] = [];
@@ -797,7 +797,10 @@ test("first type creation selects its workspace and independent basics save arch
     return route.fulfill({ json: saved });
   });
   await page.goto("/settings/materials");
-  await expect(page.getByText("자료 종류가 없습니다. 이름을 정해 첫 자료 종류를 만드세요.")).toBeVisible();
+  await expect(page.getByRole("form", { name: "자료 종류 만들기", exact: true })).toBeVisible();
+  await expect(page.getByLabel("자료 종류 선택", { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "종류 추가", exact: true })).toHaveCount(0);
+  await page.screenshot({ path: info.outputPath("first-type.png"), fullPage: true });
   await page.getByLabel("자료 종류 이름", { exact: true }).fill("첫 자료");
   await page.getByLabel("대표 속성 이름", { exact: true }).fill("제목");
   await page.getByRole("button", { name: "자료 종류 만들기", exact: true }).click();
@@ -818,6 +821,42 @@ test("first type creation selects its workspace and independent basics save arch
     expected_type_version: 1,
   }, { archived: false, expected_type_version: 2 }]);
 });
+
+for (const existing of [materials, retired]) {
+  test(
+    `type creation returns to ${existing.archived ? "archived" : "active"} kinds without duplicating add actions`,
+    async ({ page }, info) => {
+      await page.route("**/api/entity-types{,?**}", (route) =>
+        route.fulfill({ json: { items: [existing], next_cursor: null } }));
+      await page.goto(`/settings/entity-types/${existing.id}`);
+      const selector = page.getByLabel("자료 종류 선택", { exact: true });
+      await expect(selector.locator("option")).toHaveText([`${existing.label}${existing.archived ? " (보관)" : ""}`]);
+      await page.getByRole("link", { name: "종류 추가", exact: true }).click();
+      const name = page.getByLabel("자료 종류 이름", { exact: true });
+      await expect(name).toBeFocused();
+      await expect(selector).toHaveValue("");
+      await expect(selector.locator("option")).toHaveText([
+        "기존 종류 선택",
+        `${existing.label}${existing.archived ? " (보관)" : ""}`,
+      ]);
+      await expect(selector.locator('option[value=""]')).toBeDisabled();
+      await expect(page.getByRole("link", { name: "종류 추가", exact: true })).toHaveCount(0);
+      await name.fill("저장하지 않은 새 종류");
+      await selector.selectOption(existing.id);
+      const confirm = page.getByRole("dialog", { name: "변경을 버릴까요?", exact: true });
+      await confirm.getByRole("button", { name: "취소", exact: true }).click();
+      await expect(name).toHaveValue("저장하지 않은 새 종류");
+      await expect(selector).toHaveValue("");
+      await page.screenshot({ path: info.outputPath("create-with-existing-type.png"), fullPage: true });
+      await selector.selectOption(existing.id);
+      await confirm.getByRole("button", { name: "변경 버리기", exact: true }).click();
+      await expect(selector).toHaveValue(existing.id);
+      await expect(selector).toBeFocused();
+      await expect(page.getByRole("link", { name: "종류 추가", exact: true })).toBeVisible();
+      await expect(page.getByRole("form", { name: "자료 종류 만들기", exact: true })).toHaveCount(0);
+    },
+  );
+}
 
 test("basic conflict and uncertain responses retain input and retry the exact request", async ({ page }) => {
   const attempts: { key: string; body: unknown }[] = [];
@@ -869,7 +908,6 @@ test("basic save preserves property edits and unfiltered archived selection at e
   await expect(page.getByLabel("항목 이름", { exact: true })).toHaveValue("保留する属性");
   await expect(page.getByLabel("자료 종류 검색", { exact: true })).toHaveCount(0);
   await expect(page.getByLabel("자료 종류 선택", { exact: true }).locator("option")).toContainText([
-    "종류 추가",
     "재료",
     "상품",
     "보관 자료 (보관)",
@@ -1007,10 +1045,16 @@ for (const width of [320, 390]) {
   test(`mobile-header ${width}px: page titles use the available width across application routes`, async ({ page }) => {
     await page.route("**/api/status", route => route.fulfill({ status: 503, json: { error: { code: "unavailable", message: "헤더 검사용 응답" } } }));
     await page.setViewportSize({ width, height: 900 });
-    for (const path of ["/entities", "/tasks", "/records", "/principles", "/settings", "/status", "/search", "/guide"]) {
+    for (const path of ["/entities", "/tasks", "/records", "/principles", "/settings", "/settings/entity-types", "/settings/tags", "/settings/records", "/settings/issuers", "/status", "/search", "/guide"]) {
       await page.goto(path);
       const title = page.locator(".page-title").first();
       await expect(title, path).toBeVisible();
+      const description = page.locator(".page-heading > .page-description");
+      await expect(description, path).toHaveCount(1);
+      await expect(description, path).toBeVisible();
+      await expect(description, path).toHaveCSS("font-size", "13px");
+      expect((await description.innerText()).trim().length, path).toBeGreaterThan(10);
+      expect((await description.boundingBox())!.y, path).toBeGreaterThanOrEqual((await title.boundingBox())!.y + (await title.boundingBox())!.height);
       expect((await title.boundingBox())!.height, path).toBeLessThanOrEqual(44);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), path).toBe(true);
     }

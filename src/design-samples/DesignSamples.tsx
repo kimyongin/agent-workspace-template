@@ -5,17 +5,42 @@ import { MaterialSettingsSection } from "../features/settings/MaterialSettingsSe
 import { MaterialWorkspaceSample } from "./PropertySamples.tsx";
 import { ModalSamples } from "./ModalSamples.tsx";
 import { TagSamples } from "./TagSamples.tsx";
+import { TimezoneSelect } from "../components/TimezoneSelect.tsx";
+import { RecordActionsSample } from "./RecordActionsSample.tsx";
+import { IssuerSettingsSample } from "./IssuerSettingsSample.tsx";
 import { AccountSettingsSample } from "./AccountSettingsSample.tsx";
 
-const topics = [["settings", "기본 설정"], ["buttons", "버튼"], ["forms", "폼과 상태"], ["tags", "태그"], ["workspace", "목록과 자료 설정"], [
-  "dialogs",
-  "모달과 확인",
-]] as const;
+const topics = [
+  ["settings", "기본 설정"],
+  ["issuers", "발급처"],
+  ["record-actions", "기록 설정"],
+  ["buttons", "버튼"],
+  ["forms", "폼과 상태"],
+  ["tags", "태그"],
+  ["workspace", "목록과 자료 설정"],
+  [
+    "dialogs",
+    "모달과 확인",
+  ],
+] as const;
 
 /** A separate HTML entry imports presentation only: no App, Auth or API client. */
 export function DesignSamples() {
   const params = new URLSearchParams(location.search);
-  if (params.get("screen") === "settings") return <main className="samples-content"><AccountSettingsSample standalone /></main>;
+  if (params.get("screen") === "settings") {
+    return (
+      <main className="samples-content">
+        <AccountSettingsSample standalone />
+      </main>
+    );
+  }
+  if (params.get("screen") === "issuers") {
+    return (
+      <main className="samples-content">
+        <IssuerSettingsSample standalone />
+      </main>
+    );
+  }
   const content = params.get("content") === "1";
   return content ? <SamplesContent /> : <SamplesPreview />;
 }
@@ -27,9 +52,9 @@ function SamplesPreview() {
   return (
     <div className="samples-preview">
       <header className="samples-preview-header">
-        <div>
+        <div className="page-heading">
           <h1 className="page-title">디자인 샘플</h1>
-          <p className="secondary">직접 눌러보세요. 모든 변경은 예시 데이터에만 반영됩니다.</p>
+          <p className="page-description">화면 폭을 바꾸며 예시 데이터로 디자인과 동작을 확인합니다.</p>
         </div>
         <div className="actions" role="group" aria-label="미리보기 화면 폭">
           {[["auto", "현재 화면"], ["390", "모바일"], ["1280", "데스크톱"]].map(([value, label]) => (
@@ -73,15 +98,21 @@ function SamplesPreview() {
 function SamplesContent() {
   return (
     <main className="samples-content">
-      <header>
+      <header className="page-heading">
         <p className="meta">WORKSPACE · DESIGN SAMPLES</p>
         <h1 className="page-title">같은 역할, 같은 문법</h1>
-        <p className="secondary">
-          앱의 공용 스타일과 컴포넌트로 만든 예시입니다. 로그인이나 서버 연결 없이 조작할 수 있습니다.
+        <p className="page-description">
+          공용 스타일과 컴포넌트를 로그인 없이 예시 데이터로 조작해 봅니다.
         </p>
       </header>
       <section id="settings" className="samples-topic" aria-label="기본 설정 샘플">
         <AccountSettingsSample />
+      </section>
+      <section id="issuers" className="samples-topic" aria-label="발급처 샘플">
+        <IssuerSettingsSample />
+      </section>
+      <section id="record-actions" className="samples-topic" aria-label="기록 설정 샘플">
+        <RecordActionsSample />
       </section>
       <section id="buttons" className="samples-topic" aria-labelledby="buttons-title">
         <h2 id="buttons-title" className="page-title">버튼</h2>
@@ -230,6 +261,7 @@ function ButtonSamples() {
 }
 
 function FormSamples() {
+  const [frequency, setFrequency] = useState("매일"), [zone, setZone] = useState("Asia/Seoul");
   const [name, setName] = useState("");
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
@@ -259,6 +291,25 @@ function FormSamples() {
             placeholder="예: 유리컵"
           />
         )}
+      </Field>
+      <fieldset className="field plain-fieldset">
+        <legend className="label">반복 주기</legend>
+        <div className="chips">
+          {["매일", "매주", "매월"].map((value) => (
+            <label key={value} className="chip choice-chip">
+              <input
+                type="radio"
+                name="sample-frequency"
+                checked={frequency === value}
+                onChange={() => setFrequency(value)}
+              />
+              {value}
+            </label>
+          ))}
+        </div>
+      </fieldset>
+      <Field label="시간대">
+        {(props) => <TimezoneSelect {...props} value={zone} onChange={(event) => setZone(event.target.value)} />}
       </Field>
       <div className="samples-form-pair">
         <Field label="읽기 전용" help="내용을 읽고 복사할 수 있습니다.">

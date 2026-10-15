@@ -1,7 +1,7 @@
 import { NavigationSettings } from "./NavigationSettingsPage.tsx";
 import { SettingsHeading } from "./SettingsHeading.tsx";
 import { Field } from "../../components/Field.tsx";
-import { browserTimezone, timezoneOptions } from "../../lib/timezone.ts";
+import { TimezoneSelect } from "../../components/TimezoneSelect.tsx";
 import { useEffect, useRef, useState } from "react";
 import { useBlocker } from "react-router";
 import { ConfirmDialog } from "../../components/Modal.tsx";
@@ -205,18 +205,15 @@ function AccountSettings() {
   const date = (
     <Field label="표시 시간대">
       {(props) => (
-        <select
+        <TimezoneSelect
           {...props}
-          className="input"
+          deviceDefault
           value={draft.timezone ?? ""}
           onChange={(event) => {
             setDraft((value) => ({ ...value, timezone: event.target.value || null }));
             clearMessage("date");
           }}
-        >
-          <option value="">기기 시간대 사용 ({browserTimezone()})</option>
-          {timezoneOptions(draft.timezone).map((zone) => <option key={zone} value={zone}>{zone}</option>)}
-        </select>
+        />
       )}
     </Field>
   );
@@ -248,7 +245,7 @@ function AccountSettings() {
   );
   return (
     <section className="panel settings account-settings" aria-labelledby="settings-title">
-      <SettingsHeading title="기본 설정" id="settings-title" />
+      <SettingsHeading title="기본 설정" description="프로필과 날짜·시각, 화면 표시, 메뉴 바로가기를 내게 맞춥니다." id="settings-title" />
 
       {(["profile", "date", "display"] as const).map((section) => (
         <section className="settings-section" aria-labelledby={`settings-${section}`} key={section}>

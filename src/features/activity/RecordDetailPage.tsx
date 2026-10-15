@@ -39,7 +39,7 @@ export function RecordDetailPage() {
 
   if (loadError && !record) {
     return (
-      <DetailSurface title="기록" onClose={()=>navigate(back)}>
+      <DetailSurface title="기록" description="기록 내용을 읽고 수정하며, 연결된 업무를 확인합니다." onClose={()=>navigate(back)}>
         <Notice kind="error">{loadError}</Notice>
         <button type="button" className="btn" onClick={reload}>조회 다시 시도</button>
       </DetailSurface>
@@ -56,7 +56,7 @@ export function RecordDetailPage() {
       {(!editor.active||record.record_kind==="change")&&<TagNames compact ids={record.tag_ids}/>}
 
     </div>;
-  return <DetailSurface footer={<button type="button" className="btn btn-primary" onClick={editor.start}>편집</button>} title="기록" tabTitle={recordDisplayText(record.body)} onClose={()=>navigate(back)} busy={busy}>
+  return <DetailSurface footer={<button type="button" className="btn btn-primary" onClick={editor.start}>편집</button>} title="기록" description="기록 내용을 읽고 수정하며, 연결된 업무를 확인합니다." tabTitle={recordDisplayText(record.body)} onClose={()=>navigate(back)} busy={busy}>
 
       <div className="detail-stack">{record.body&&<section className="detail-section record-content" aria-label="내용"><MarkdownContent text={record.body}/></section>}
       {management}

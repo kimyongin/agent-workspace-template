@@ -4,6 +4,7 @@
 
 | 사용자 행동 | 파일 |
 | --- | --- |
+| 빈 결과 복구·선택 후보·자료 식별·반복 일정의 업무 흐름 | [ux-clarity](workspace-screens.ux-clarity.fixture.ts) |
 | 변경 확인·삭제 메모/태그·반복 업무 중단/재개 | [confirmation](workspace-screens.confirmation.fixture.ts) |
 | 변경 대상의 당시 문맥·현재 조회·삭제와 실패 구분 | [change-targets](workspace-screens.change-targets.fixture.ts) |
 | 초안·uncertain 재시도/폐기·busy·직접 링크 보호 | [draft-protection](workspace-screens.draft-protection.fixture.ts) |

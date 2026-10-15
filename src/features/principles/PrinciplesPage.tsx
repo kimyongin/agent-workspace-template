@@ -1,3 +1,4 @@
+import { PageHeading } from "../../components/PageHeading.tsx";
 import { useCreateMode } from "../../components/useCreateMode.ts";
 import { useContext, useEffect, useState } from "react";
 import { WorkspaceContext } from "../details/workspace-context.ts";
@@ -24,9 +25,9 @@ export function PrinciplesPage() {
     api<{current:WorkspacePrinciple|null}>("GET","/principles/current",undefined,controller.signal).then(p=>{if(!controller.signal.aborted)setCurrent(p.current);}).catch(()=>{if(!controller.signal.aborted)setError("현재 원칙을 불러오지 못했습니다.");});
     return()=>controller.abort();},[retry,workspace?.revision]);
   return <><section className="panel main-tab-header" aria-labelledby="principles-title">
-    <div className="panel-head"><h1 id="principles-title" className="page-title" tabIndex={-1}>원칙</h1>
-    <Link className="body-action" to="/records"><BodyActionFace>과거 기록 보기</BodyActionFace></Link>
-    </div>
+    <PageHeading title="원칙" id="principles-title" tabIndex={-1} description="업무의 판단 기준을 정하고, 변경 내용을 기록으로 남깁니다.">
+    <Link className="body-action" to="/records"><BodyActionFace>전체 기록 보기</BodyActionFace></Link>
+    </PageHeading>
     </section><section className="activity-section" aria-label="현재 원칙">
     {current===null&&!error&&<div className="detail-section-head"><h2 className="section-title">현재 원칙</h2><TabCreateButton label="원칙 작성" onClick={create.begin}/></div>}
     {error&&<><Notice kind="error">{error}</Notice><button className="btn" onClick={()=>setRetry(n=>n+1)}>다시 시도</button></>}

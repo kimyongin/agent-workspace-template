@@ -95,6 +95,12 @@ for (const width of [390, 1440]) {
       await expect(page.locator("h1").first()).toBeVisible();
       await expect(page.getByRole("navigation", { name: "주 메뉴", exact: true })).toBeVisible();
       await expect(page.getByRole("status").filter({ hasText: /로그인 상태를 확인/ })).toHaveCount(0);
+      const introduction = name.endsWith("-detail")
+        ? page.locator("dialog.modal[open] .modal-head > .page-description")
+        : page.locator(".page-heading > .page-description");
+      await expect(introduction).toHaveCount(1);
+      await expect(introduction).toBeVisible();
+      await expect(introduction).toHaveCSS("font-size", "13px");
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), name).toBe(true);
       if (name === "status") await expect(page.getByRole("region", { name: "자료 현황" })).toBeVisible();
       if (name === "status") {
@@ -147,6 +153,7 @@ for (const width of [390, 1440]) {
       await go(page, path);
       if (name.endsWith("-create") || name.endsWith("-edit")) {
         await expect(page.getByRole("textbox").first()).toBeVisible();
+        await expect(page.locator("dialog.modal[open] .modal-head > .page-description")).toBeVisible();
       }
       if (name.endsWith("-filters")) await expect(page.getByText("필터", { exact: true })).toBeVisible();
       if (name === "record-calendar") await expect(page.locator(".record-calendar")).toBeVisible();

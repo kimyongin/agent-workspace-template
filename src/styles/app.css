@@ -63,10 +63,12 @@ a {
 .has-navigation .app-main { padding-top: calc(var(--space-4) + env(safe-area-inset-top, 0px)); }
 .has-navigation :is(.app-main, .workspace-list) > .panel > :is(.page-title, .panel-head) { min-height: var(--space-8); }
 .has-navigation :is(.app-main, .workspace-list) > .panel > .page-title,
-.has-navigation :is(.app-main, .workspace-list) > .panel > .panel-head > .page-title { display: flex; align-items: center; gap: var(--space-3); min-height: var(--space-8); }
+.has-navigation :is(.app-main, .workspace-list) > .panel > .panel-head > .page-title,
+.has-navigation :is(.app-main, .workspace-list) > .panel > .page-heading .page-title { display: flex; align-items: center; gap: var(--space-3); min-height: var(--space-8); }
 @media(max-width:1023px), (max-height:319px) {
   .has-navigation :is(.app-main, .workspace-list) > .panel > .page-title::before,
-  .has-navigation :is(.app-main, .workspace-list) > .panel > .panel-head > .page-title::before { content: ""; flex: 0 0 var(--space-8); height: var(--space-8); background: url("../app/app-icon.svg") center / contain no-repeat; }
+  .has-navigation :is(.app-main, .workspace-list) > .panel > .panel-head > .page-title::before,
+  .has-navigation :is(.app-main, .workspace-list) > .panel > .page-heading .page-title::before { content: ""; flex: 0 0 var(--space-8); height: var(--space-8); background: url("../app/app-icon.svg") center / contain no-repeat; }
 }
 
 .bottom-nav a,
@@ -226,6 +228,18 @@ html { scroll-padding-bottom: calc(var(--navigation-height) + env(safe-area-inse
 
 .panel-head > :first-child {
   margin-right: auto;
+}
+
+.page-heading { display: grid; gap: var(--space-2); min-width: 0; }
+.page-heading > .panel-head { flex-wrap: nowrap; }
+.page-description {
+  margin: 0;
+  max-width: 65ch;
+  font-size: var(--text-label);
+  line-height: 1.25rem;
+  font-weight: 400;
+  color: var(--muted-ink);
+  overflow-wrap: anywhere;
 }
 
 .actions {
@@ -698,8 +712,10 @@ textarea.input {
   padding-top: calc(var(--space-2) + env(safe-area-inset-top, 0px));
   min-width: 0;
 }
-.modal-head .dialog-title { overflow-wrap: anywhere; min-width: 0; }
+.modal-head .dialog-title { overflow-wrap: anywhere; min-width: 0; flex: 1 1 0%; }
 .modal-head .btn { flex-shrink: 0; }
+.modal-head:has(> .page-description) { flex-wrap: wrap; row-gap: var(--space-1); }
+.modal-head > .page-description { flex: 1 0 100%; max-width: none; }
 .modal-head .modal-icon { width: 44px; height: 44px; padding: 0; font-size: 1.5rem; text-decoration: none; display: inline-flex; justify-content: center; align-items: center; }
 .modal-foot { flex-wrap: wrap; }
 .modal-foot[hidden] { display: none; }
@@ -889,14 +905,8 @@ textarea.input {
 .entity-type-picker { min-width: 0; display: grid; gap: var(--space-2); }
 .entity-type-picker .input { min-width: 0; max-width: 100%; }
 
-.entity-query-bar > :is(.entity-type-picker, a, .notice, p) { grid-column: 1 / -1; }
-
 /* A page name gets the remaining header width instead of shrinking to one character. */
 .panel-head > .page-title { flex: 1 1 auto; min-width: 0; }
-.entity-query-bar > .entity-type-picker { grid-row: 1; }
-.entity-query-bar > .workspace-search { grid-column: 1; grid-row: 2; }
-.entity-query-bar .tab-filter-toolbar { grid-row: 2; }
-.filter-grid > .entity-property-conditions { grid-column: 1 / -1; }
 
 /* Choice labels retain compact inputs inside a complete touch target. */
 .choice-control { display: flex; align-items: center; gap: var(--space-2); min-height: 44px; min-width: 44px; width: fit-content; max-width: 100%; overflow-wrap: anywhere; cursor: pointer; }
@@ -916,3 +926,10 @@ details[open] > summary::after { transform: rotate(135deg); }
   .modal-action .modal-foot { flex-wrap: nowrap; gap: var(--space-1); }
   .modal-action .modal-foot > .btn { flex: 1; min-width: 44px; padding-inline: var(--space-1); overflow-wrap: anywhere; }
 }
+
+.fixed-field-value { margin: 0; min-height: 44px; display: flex; align-items: center; overflow-wrap: anywhere; }
+
+.choice-chip { display: inline-flex; align-items: center; gap: var(--space-2); }
+.choice-chip input { margin: 0; accent-color: var(--accent); flex-shrink: 0; }
+.choice-chip:has(input:checked) { background: var(--accent-soft); border-color: var(--accent); }
+.choice-chip:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }

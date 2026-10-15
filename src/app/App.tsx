@@ -1,3 +1,4 @@
+import { PageHeading } from "../components/PageHeading.tsx";
 import { IssuerSettingsPage } from "../features/settings/IssuerSettingsPage.tsx";
 import { RecordSettingsPage } from "../features/settings/RecordSettingsPage.tsx";
 import { NavigationPreviewProvider } from "../features/settings/navigation-preview.tsx";
@@ -142,7 +143,7 @@ export function App() {
           {materialSettingsRoutes.map((path) => (
             <Route key={path} path={path} element={guarded(<EntityTypeSettings />)} />
           ))}
-          <Route path="*" element={<section className="panel" aria-labelledby="not-found-title"><h1 id="not-found-title" className="page-title">페이지를 찾을 수 없습니다</h1><Link className="body-action" to="/tasks"><BodyActionFace>할 일로 이동</BodyActionFace></Link></section>} />
+          <Route path="*" element={<section className="panel" aria-labelledby="not-found-title"><PageHeading title="페이지를 찾을 수 없습니다" id="not-found-title" description="주소를 확인하거나 할 일 화면으로 돌아가세요." /><Link className="body-action" to="/tasks"><BodyActionFace>할 일로 이동</BodyActionFace></Link></section>} />
         </Route>,
       ),
       { basename: import.meta.env.BASE_URL.replace(/\/$/, "") },

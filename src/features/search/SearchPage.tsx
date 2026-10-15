@@ -1,3 +1,4 @@
+import { PageHeading } from "../../components/PageHeading.tsx";
 import { BodyAction } from "../../components/BodyAction.tsx";
 import { DetailLink as Link, useDetailExploration } from "../../lib/detail-exploration.tsx";
 import { SearchMatch } from "../../components/SearchMatch.tsx";
@@ -25,7 +26,7 @@ export function SearchPage(){
   const change=(name:string,value:string)=>{const p=new URLSearchParams(params);p.delete("pages");p.delete("scroll");if(name==="kind"){p.delete("tag_id");p.delete("tag_ids");}value?p.set(name,value):p.delete(name);setParams(p);};
   const clearTags=()=>{const next=new URLSearchParams(params);for(const name of ["tag_id","tag_ids","pages","scroll"])next.delete(name);setParams(next);};
   return <section className="panel search-page" aria-labelledby="search-title">
-    <h1 id="search-title" className="page-title" tabIndex={-1}>검색</h1>
+    <PageHeading title="검색" id="search-title" tabIndex={-1} description="할 일·기록·원칙을 키워드나 의미로 찾아봅니다." />
     <form className="search-form" onSubmit={e=>{e.preventDefault();if(composing.current)return;const value=draft.trim();if(value===q)setRetry(n=>n+1);else change("q",value);}}>
       <Field label="검색어" required>{p=><input {...p} className="input" placeholder="검색어 입력" value={draft} onCompositionStart={()=>{composing.current=true;}} onCompositionEnd={()=>{composing.current=false;}} onKeyDown={e=>{if(e.key==="Enter"&&(e.nativeEvent.isComposing||e.keyCode===229))e.preventDefault();}} onChange={e=>setDraft(e.target.value)} required/>}</Field>
       <button className="btn btn-primary" type="submit" disabled={busy}>검색</button>

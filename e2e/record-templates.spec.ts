@@ -27,7 +27,7 @@ test("설정 템플릿 오류·변수 삽입과 실제 변경 확인·취소·�
     await expect(form.getByLabel("메모 템플릿")).toBeVisible();
     await expect(form.getByLabel("자료 종류", { exact: true })).toHaveCount(0);
     await form.getByLabel("메모 템플릿").fill("앞 $엔터티.이전.prop_2");
-    await form.getByRole("button",{name:"기록 기본값 저장"}).click();
+    await form.getByRole("button",{name:"기록 자동 완성 저장"}).click();
     await expect(form).toContainText("닫는 구분자 $가 없습니다");
     await expect(form.getByLabel("메모 템플릿")).toHaveValue("앞 $엔터티.이전.prop_2");
     await form.getByLabel("액션",{exact:true}).selectOption("update");
@@ -45,8 +45,8 @@ test("설정 템플릿 오류·변수 삽입과 실제 변경 확인·취소·�
     form = page.getByRole("form",{name:"기록 자동 완성", exact: true});
     await form.getByLabel("메모 템플릿").fill("$대상$ 준비 $액션$");
     await form.getByRole("button",{name:tag.name,exact:true}).click();
-    await form.getByRole("button",{name:"기록 기본값 저장"}).click();
-    await expect(form).toContainText("기록 기본값을 저장했습니다.");
+    await form.getByRole("button",{name:"기록 자동 완성 저장"}).click();
+    await expect(form).toContainText("기록 자동 완성을 저장했습니다.");
     await page.goto("/tasks");
     const preparedInputs:Record<string,unknown>[]=[];
     page.on("request", request => {if(request.url().endsWith("/records/prepare") && request.method()==="POST"){const input=request.postDataJSON();if(input.model==="task"&&input.action==="create")preparedInputs.push(input.input);}});

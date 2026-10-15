@@ -157,30 +157,15 @@ export function TypeIdentitySettings(
                 />
               )}
             </Field>
-            <Field label="기본 발급처">
-              {(props) => (
-                <select
-                  {...props}
-                  className="input"
-                  value={draft.default_source}
-                  onChange={(e) => update((v) => ({ ...v, default_source: e.target.value }))}
-                >
-                  {!active.some((s) => s.code === draft.default_source) && (
-                    <option value={draft.default_source}>{sourceName(draft.default_source)} (사용 중지)</option>
-                  )}
-                  {active.map((s) => <option key={s.code} value={s.code}>{sourceName(s.code)}</option>)}
-                </select>
-              )}
-            </Field>
             <div className="settings-source-heading">
-              <h3 className="label">지원 발급처</h3>
+              <h3 className="label">사용할 발급처</h3>
               <BodyAction icon="link" disabled={!!catalogError} onClick={() => setConnecting(true)}>연결</BodyAction>
             </div>
             {catalogError && (
               <p className="error-text" role="alert">
-                발급처·규칙을 읽지 못했습니다. {catalogError}{" "}
+                발급처·번호 종류를 읽지 못했습니다. {catalogError}{" "}
                 <button type="button" className="btn" onClick={() => setCatalogRevision((value) => value + 1)}>
-                  발급처·규칙 다시 조회
+                  발급처·번호 종류 다시 조회
                 </button>
               </p>
             )}
@@ -209,20 +194,22 @@ export function TypeIdentitySettings(
                       />
                       {sourceName(source.code)}
                     </label>
-                    <div>
+                    <div className="issuer-binding-number">
                       {locked || options.length <= 1
                         ? (
                           <span>
-                            {source.code === "app" ? "자동 발급" : rule?.label ?? metadata?.rule_label ?? "번호 규칙"}
+                            {source.code === "app" ? "자동 발급" : rule?.label ?? metadata?.rule_label ?? "번호 종류"}
                             {metadata?.referenced && (
-                              <span className="secondary" aria-label="참조된 규칙 · 변경 불가">· 변경 불가</span>
+                              <span className="secondary" aria-label="사용 중인 번호 종류 · 변경 불가">
+                                · 변경 불가
+                              </span>
                             )}
                           </span>
                         )
                         : (
                           <select
                             className="input"
-                            aria-label={`${sourceName(source.code)} 번호 규칙`}
+                            aria-label={`${sourceName(source.code)} 번호 종류`}
                             value={source.rule_id}
                             onChange={(e) =>
                               update((v) => ({
@@ -249,20 +236,39 @@ export function TypeIdentitySettings(
                           {!metadata?.referenced && (
                             <BodyAction
                               icon="create"
-                              aria-label={`${sourceName(source.code)} 번호 규칙 추가`}
+                              aria-label={`${sourceName(source.code)} 번호 종류 추가`}
                               disabled={!rules[source.code]}
-                              onClick={() => setRegistryEdit({ kind: "rule", source: source.code })}
+                              onClick={() =>
+                                setRegistryEdit({
+                                  kind: "rule",
+                                  source: source.code,
+                                  sourceLabel: sourceName(source.code),
+                                })}
                             >
-                              규칙 추가
+                              번호 종류 추가
                             </BodyAction>
                           )}
                         </div>
                       )}
                     </div>
+                    <label className="issuer-status-choice issuer-default-choice">
+                      <input
+                        type="radio"
+                        name={`default-source-${typeId}`}
+                        aria-label={`${sourceName(source.code)} 기본 발급처`}
+                        checked={source.active && available && draft.default_source === source.code}
+                        disabled={!source.active || !available}
+                        onChange={() => update((v) => ({ ...v, default_source: source.code }))}
+                      />
+                      기본
+                    </label>
                   </div>
                 );
               })}
             </div>
+            {!active.some((source) => source.code === draft.default_source) && (
+              <p className="error-text">기본 발급처를 선택하세요.</p>
+            )}
           </fieldset>
           <div className="settings-section-footer">
             <div className="actions">
@@ -279,7 +285,11 @@ export function TypeIdentitySettings(
               >
                 취소
               </button>
-              <button className="btn btn-primary" aria-label={busy ? "저장 중…" : uncertain ? "같은 요청 다시 확인" : "식별자 저장"} disabled={busy || disabled || conflict || (!dirty && !uncertain)}>
+              <button
+                className="btn btn-primary"
+                aria-label={busy ? "저장 중…" : uncertain ? "같은 요청 다시 확인" : "식별자 저장"}
+                disabled={busy || disabled || conflict || (!dirty && !uncertain)}
+              >
                 {busy ? "저장 중…" : uncertain ? "같은 요청 다시 확인" : "저장"}
               </button>
             </div>

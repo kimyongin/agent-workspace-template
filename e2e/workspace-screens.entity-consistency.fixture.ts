@@ -34,7 +34,7 @@ test("deleted entity related task retains standard preview and detail navigation
 test("automatic number creation has no empty lookup or normal schema recovery actions", async ({ page }) => {
   const state = await fixtures(page);
   await go(page, "/entities?create=1");
-  await expect(form(page).getByLabel("번호", { exact: true })).toHaveAttribute("placeholder", "자동 발급");
+  await expect(form(page).getByText("등록 시 자동 발급", { exact: true })).toBeVisible();
   await expect(form(page).getByRole("button", { name: "기존 대상 확인", exact: true })).toHaveCount(0);
   await expect(form(page).getByRole("button", { name: "속성 정의 다시 조회", exact: true })).toHaveCount(0);
   expect(state.writes).toHaveLength(0);
@@ -45,10 +45,10 @@ test("empty type scope is not a failed filter and keyword reset retains the type
   state.rows.entities.length = 0;
   await go(page, "/entities");
   await expect(page.getByText("아직 자료가 없습니다.", { exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "필터 해제", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "검색 조건 해제", exact: true })).toHaveCount(0);
   await go(page, "/entities?keyword=없는상품");
   await expect(page.getByText("조건에 맞는 자료가 없습니다.", { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "필터 해제", exact: true }).click();
+  await page.getByRole("button", { name: "검색 조건 해제", exact: true }).click();
   await expect(page).toHaveURL(/entity_type_id=00000000-0000-4000-8000-000000000900/);
   await expect(page.getByText("아직 자료가 없습니다.", { exact: true })).toBeVisible();
   expect(new URL(page.url()).searchParams.has("keyword")).toBe(false);

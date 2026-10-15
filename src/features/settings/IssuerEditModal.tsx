@@ -9,6 +9,8 @@ import type { MaterialSectionState } from "./MaterialSettingsSection.tsx";
 export type RegistryEditTarget = { kind: "issuer"; issuer?: EntityIssuer } | {
   kind: "rule";
   source: string;
+  sourceLabel: string;
+  createdIssuer?: boolean;
   rule?: IdentifierRule;
 };
 export function IssuerEditModal(
@@ -102,18 +104,21 @@ export function IssuerEditModal(
   return (
     <ModalShell
       open
+      description={target.kind === "issuer"
+        ? "자료 번호의 발급처 이름과 사용 상태를 관리합니다."
+        : "발급처에서 쓰는 번호 종류의 이름과 사용 상태를 관리합니다."}
       title={target.kind === "issuer"
         ? baseline ? "발급처 편집" : "발급처 추가"
         : baseline
-        ? "번호 규칙 편집"
-        : "번호 규칙 추가"}
+        ? "번호 종류 편집"
+        : "번호 종류 추가"}
       dirty={dirty || conflict || uncertain}
       busy={busy || reading || uncertain}
       onClose={onClose}
       footer={(requestClose) => (
         <>
           <button className="btn" type="button" disabled={busy || reading || uncertain} onClick={requestClose}>
-            취소
+            {target.kind === "rule" && target.createdIssuer ? "나중에 추가" : "취소"}
           </button>
           <button
             className="btn btn-primary"
@@ -121,7 +126,13 @@ export function IssuerEditModal(
             form="registry-edit-form"
             disabled={busy || reading || conflict || (!dirty && !uncertain)}
           >
-            {busy ? "저장 중…" : uncertain ? "같은 요청 다시 확인" : "저장"}
+            {busy
+              ? "저장 중…"
+              : uncertain
+              ? "같은 요청 다시 확인"
+              : target.kind === "issuer" && !baseline
+              ? "저장하고 번호 추가"
+              : "저장"}
           </button>
         </>
       )}
@@ -134,6 +145,10 @@ export function IssuerEditModal(
           void save();
         }}
       >
+        {target.kind === "rule" && <p className="item-title">{target.sourceLabel}</p>}
+        {target.kind === "rule" && target.createdIssuer && (
+          <p role="status" className="secondary">발급처를 저장했습니다.</p>
+        )}
         {error && <p className="error-text" role="alert">{error}</p>}
         {conflict && (
           <div className="settings-inline-actions">
@@ -166,7 +181,7 @@ export function IssuerEditModal(
           </div>
         )}
         <fieldset className="settings-fields" disabled={busy || reading || uncertain}>
-          <Field label="이름" required>
+          <Field label={target.kind === "issuer" ? "발급처 이름" : "번호 종류 이름"} required>
             {(props) => (
               <input
                 {...props}
@@ -177,12 +192,6 @@ export function IssuerEditModal(
               />
             )}
           </Field>
-          {target.kind === "rule" && (
-            <div className="field">
-              <span className="label">발급 방식</span>
-              <span>직접 입력</span>
-            </div>
-          )}
           {baseline && (
             <label className="issuer-status-choice">
               <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} /> 사용
@@ -193,7 +202,7 @@ export function IssuerEditModal(
       <ConfirmDialog
         open={confirmDisable}
         title="사용을 중지할까요?"
-        message="새 자료 등록에 이 발급처·규칙을 사용하지 않게 됩니다."
+        message="새 자료 등록에 이 발급처·번호 종류를 사용하지 않게 됩니다."
         confirmLabel="중지하고 저장"
         busy={busy}
         onConfirm={() => void save(true)}

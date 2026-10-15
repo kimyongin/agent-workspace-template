@@ -11,6 +11,7 @@ import { type ReactNode, useEffect, useRef, useState } from "react";
 import { FormModal } from "../../components/ContentForm.tsx";
 import { ConfirmDialog } from "../../components/Modal.tsx";
 import { Field } from "../../components/Field.tsx";
+import { BodyActionFace } from "../../components/BodyAction.tsx";
 import { fieldErrors } from "../../lib/format.ts";
 import { TagPicker } from "../tags/TagPicker.tsx";
 import {
@@ -225,6 +226,7 @@ export function EntityForm({
       <FormModal
         open
         domain={label}
+        description="발급처와 번호를 확인하고, 자료의 속성과 태그를 입력합니다."
         title={`${label} ${archived ? "복원" : initial ? "편집" : "추가"}`}
         submitLabel="저장"
         submitDisabled={!!typeId &&
@@ -383,22 +385,30 @@ export function EntityForm({
               {types && !types.some((type) =>
                 !type.archived
               ) && !initial && (
-                <p>
-                  활성 자료 종류가 없습니다. <Link to="/settings/entity-types">자료 종류 만들기·보관 관리</Link>
-                </p>
+                <div className="form">
+                  <p className="secondary">
+                    {types.length ? "모든 자료 종류가 보관되어 있습니다." : "아직 자료 종류가 없습니다."}
+                  </p>
+                  <Link className="body-action" to={types.length ? "/settings/materials" : "/settings/entity-types"}>
+                    <BodyActionFace icon={types.length ? undefined : "create"}>
+                      {types.length ? "보관된 종류 관리" : "자료 종류 추가"}
+                    </BodyActionFace>
+                  </Link>
+                </div>
               )}
               {schemaError && <p className="error-text" role="alert">{schemaError}</p>}
               {typeId && (schemaError || errors.schema_version ||
-                definition && activeType && definition.schema_version !== activeType.schema_version) && (
-                <button
-                  type="button"
-                  className="btn"
-                  disabled={schemaReading}
-                  onClick={() => void readDefinition()}
-                >
-                  {schemaReading ? "현재 정의 확인 중…" : "속성 정의 다시 조회"}
-                </button>
-              )}
+                definition && activeType && definition.schema_version !== activeType.schema_version) &&
+                (
+                  <button
+                    type="button"
+                    className="btn"
+                    disabled={schemaReading}
+                    onClick={() => void readDefinition()}
+                  >
+                    {schemaReading ? "현재 정의 확인 중…" : "속성 정의 다시 조회"}
+                  </button>
+                )}
               {pendingDefinition && (
                 <section aria-label="현재 속성 정의 검토">
                   <p>
@@ -448,8 +458,17 @@ export function EntityForm({
                     )}
                   </Field>
                 )
-                : identitySettings?.sources.filter((item) => item.active).length === 1 &&
-                    identitySettings.sources.find((item) => item.active)?.code === "app" ? null : (
+                : identitySettings?.sources.filter((item) => item.active).length === 1
+                ? identitySettings.sources.find((item) => item.active)?.code === "app" ? null : (
+                  <div className="field">
+                    <span className="label">발급처</span>
+                    <p className="fixed-field-value">
+                      {identitySettings.sources.find((item) => item.active)?.source_label}
+                    </p>
+                    {errors.source && <p className="error-text" role="alert">{errors.source}</p>}
+                  </div>
+                )
+                : (
                   <Field label="발급처" required error={errors.source}>
                     {(p) => (
                       <select
@@ -476,27 +495,38 @@ export function EntityForm({
                     )}
                   </Field>
                 )}
-              <Field label={identitySettings?.label ?? "번호"} error={errors.external_id}>
-                {(p) => (
-                  <input
-                    {...p}
-                    className="input"
-                    value={external}
-                    maxLength={200}
-                    disabled={!identitySettings}
-                    readOnly={!!initial || !!archived ||
-                      identitySettings?.sources.find((item) => item.code === source)?.generation === "automatic"}
-                    placeholder={identitySettings?.sources.find((item) => item.code === source)?.generation ===
-                        "automatic"
-                      ? "자동 발급"
-                      : undefined}
-                    onChange={(e) => {
-                      lookup.current?.abort();
-                      setExternal(e.target.value);
-                    }}
-                  />
+              {!initial && !archived &&
+                  identitySettings?.sources.find((item) => item.code === source)?.generation === "automatic"
+                ? (
+                  <div className="field">
+                    <span className="label">{identitySettings.label}</span>
+                    <p className="fixed-field-value">등록 시 자동 발급</p>
+                    {errors.external_id && <p className="error-text" role="alert">{errors.external_id}</p>}
+                  </div>
+                )
+                : (
+                  <Field label={identitySettings?.label ?? "번호"} error={errors.external_id}>
+                    {(p) => (
+                      <input
+                        {...p}
+                        className="input"
+                        value={external}
+                        maxLength={200}
+                        disabled={!identitySettings}
+                        readOnly={!!initial || !!archived ||
+                          identitySettings?.sources.find((item) => item.code === source)?.generation === "automatic"}
+                        placeholder={identitySettings?.sources.find((item) => item.code === source)?.generation ===
+                            "automatic"
+                          ? "자동 발급"
+                          : undefined}
+                        onChange={(e) => {
+                          lookup.current?.abort();
+                          setExternal(e.target.value);
+                        }}
+                      />
+                    )}
+                  </Field>
                 )}
-              </Field>
               {!initial && !archived && external &&
                 identitySettings?.sources.find((item) => item.code === source)?.generation === "direct" && (
                 <button
@@ -516,8 +546,17 @@ export function EntityForm({
               {(!identitySettings || !types) && !identityMessage && !catalogError && (
                 <p role="status">자료 종류·식별자 설정을 읽는 중…</p>
               )}
-              {identityMessage && <p className={!identitySettings ? "error-text" : undefined} role={!identitySettings ? "alert" : "status"}>{identityMessage}</p>}
-              {(initial || archived) && errors.entity_type_id && <p className="error-text" role="alert">{errors.entity_type_id}</p>}
+              {identityMessage && (
+                <p
+                  className={!identitySettings ? "error-text" : undefined}
+                  role={!identitySettings ? "alert" : "status"}
+                >
+                  {identityMessage}
+                </p>
+              )}
+              {(initial || archived) && errors.entity_type_id && (
+                <p className="error-text" role="alert">{errors.entity_type_id}</p>
+              )}
               {definition
                 ? (
                   <PropertyFields

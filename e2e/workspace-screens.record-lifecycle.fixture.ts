@@ -147,7 +147,7 @@ test("원칙: 최초 등록·같은 ID 편집·삭제 뒤 없음·기록으로 �
   await expect(confirm).toContainText("과거 원칙을 자동 승격하지 않습니다");
   await saveOnce(page, confirm, "삭제 확인");
   await expect(page.getByRole("button", { name: "원칙 작성" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "과거 기록 보기" })).toHaveAttribute("href", "/records");
+  await expect(page.getByRole("link", { name: "전체 기록 보기" })).toHaveAttribute("href", "/records");
   expect(state.errors).toEqual([]);
 });
 

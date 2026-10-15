@@ -333,9 +333,9 @@ test("desktop: recurring task confirmation cancellation prepares and saves the c
   await expect(confirmation.getByLabel("기록 메모")).toHaveValue("처음 계획 수정");
   await confirmation.getByRole("button", { name: "취소", exact: true }).click();
   await panel(page).getByLabel("제목").fill("월간 계획");
-  await panel(page).getByRole("button", { name: "매월", exact: true }).click();
+  await panel(page).getByRole("radio", { name: "매월", exact: true }).check();
   await panel(page).getByLabel("날짜", { exact: true }).fill("1, 15");
-  await panel(page).getByLabel("시간대").fill("America/New_York");
+  await panel(page).getByLabel("시간대").selectOption("America/New_York");
   await panel(page).getByRole("button", { name: "저장", exact: true }).click();
   await expect(confirmation.getByLabel("기록 메모")).toHaveValue("월간 계획 수정");
   await confirmation.getByLabel("기록 메모").fill("월간 검토로 변경");
@@ -536,6 +536,29 @@ test("desktop: relation saves refresh retained filtered lists without leaving th
   expect(state.writes).toHaveLength(1); expect(state.errors).toEqual([]);
 });
 
+for (const width of [320, 390]) {
+  test(`long domain heading ${width}: description keeps the close control on the title row`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    const state = await fixture(page);
+    const label = "긴자료종류이름".repeat(8);
+    state.rows.entities[0].type = { ...state.rows.entities[0].type, label };
+    await page.goto(`/entities/${encodeURIComponent(entityKey(1))}`);
+    const view = page.locator("dialog.modal[open]:not(.modal-confirm)");
+    const title = view.locator(".dialog-title");
+    await expect(title).toHaveText(label);
+    const close = view.getByRole("button", { name: "닫기", exact: true });
+    const titleBox = (await title.boundingBox())!, closeBox = (await close.boundingBox())!;
+    expect(closeBox.x).toBeGreaterThanOrEqual(titleBox.x + titleBox.width);
+    const descriptionBox = (await view.locator(".modal-head > .page-description").boundingBox())!;
+    expect(descriptionBox.y).toBeGreaterThanOrEqual(
+      Math.max(titleBox.y + titleBox.height, closeBox.y + closeBox.height),
+    );
+    expect(await view.evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
+    await close.click();
+    await expect(view).toHaveCount(0);
+  });
+}
+
 for (const width of [390, 1440]) test(`detail hierarchy ${width}: domain headings, content first and value-only editing`, async ({page}, info) => {
   await page.setViewportSize({width,height:900});
   const state=await fixture(page);
@@ -548,6 +571,10 @@ for (const width of [390, 1440]) test(`detail hierarchy ${width}: domain heading
     await page.goto(item.path);
     const view=page.locator("dialog.modal[open]:not(.modal-confirm)");
     await expect(view.locator(".modal-head .dialog-title")).toHaveText(item.domain);
+    const description = view.locator(".modal-head > .page-description");
+    await expect(description).toBeVisible();
+    const readDescription = await description.innerText();
+    await expect(view).toHaveAttribute("aria-describedby", await description.getAttribute("id") as string);
     if(item.title) await expect(view.locator(".modal-body .detail-title")).toHaveText(item.title);
     else await expect(view.locator(".record-content")).toHaveText("구매 기준을 정리했습니다.");
     const relation=view.locator(".detail-relations");
@@ -560,6 +587,8 @@ for (const width of [390, 1440]) test(`detail hierarchy ${width}: domain heading
     if(item.domain==="할 일") await view.screenshot({path:info.outputPath(`detail-hierarchy-${width}.png`)});
     await view.getByRole("button",{name:"편집",exact:true}).click();
     await expect(view.locator(".modal-head .dialog-title")).toHaveText(item.domain);
+    await expect(description).not.toHaveText(readDescription);
+    await expect(description).toHaveCSS("font-size", "13px");
     await expect(view.getByRole("region",{name:/^(엔터티|할 일|기록) \(\d+개\)$/})).toHaveCount(0);
     await expect(view.getByRole("button",{name:/^(엔터티|할 일|기록).* (연결|해제)$/})).toHaveCount(0);
     if(item.domain==="기록") {
@@ -571,6 +600,7 @@ for (const width of [390, 1440]) test(`detail hierarchy ${width}: domain heading
       await expect(view.getByRole("region",{name:"연결된 자료 (1개)",exact:true})).toBeVisible();
       await expect(view.getByRole("region",{name:"할 일 (1개)",exact:true})).toBeVisible();
     } else await view.getByRole("button",{name:"취소",exact:true}).click();
+    await expect(description).toHaveText(readDescription);
   }
   expect(state.errors).toEqual([]);
 });
@@ -680,7 +710,8 @@ for (const entered of [false,true]) test(`manual identity defaults preserve canc
   releaseSettings();
   await expect(form.getByLabel("식별자")).toBeEnabled();
   await expect(form.getByLabel("식별자")).toHaveValue("");
-  await expect(form.getByLabel("발급처")).toHaveValue("crm");
+  await expect(form.getByText("고객", {exact:true})).toBeVisible();
+  await expect(form.getByRole("combobox", {name:"발급처",exact:true})).toHaveCount(0);
   if (entered) await expect(form.getByLabel("제목")).toHaveValue("설정 도착 전 입력");
   await form.getByRole("button", {name:"취소",exact:true}).click();
   const discard = page.getByRole("dialog", {name:"변경을 버릴까요?",exact:true});
