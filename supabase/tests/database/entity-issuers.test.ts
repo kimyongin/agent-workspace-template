@@ -85,7 +85,7 @@ dbTest("issuer registry: type defaults, rule reuse, owner boundaries, disable an
           updateEntityIssuer(d, requestActor(a.actor), "coupang", { expected_version: source.version, active: false }),
         AppError,
       )).code,
-      "conflict",
+      "invalid_input",
     );
     assertEquals(
       (await assertRejects(
@@ -93,7 +93,7 @@ dbTest("issuer registry: type defaults, rule reuse, owner boundaries, disable an
         AppError,
       ))
         .code,
-      "conflict",
+      "invalid_input",
     );
     const latest = await getEntityTypeIdentity(d, a.actor, product.id);
     for (const [id, expected_version] of [[product.id, latest.version], [order.id, 2]] as const) {
@@ -160,6 +160,20 @@ dbTest("issuer registry: deleted entities retain rule meaning and type-source ma
     };
     const entity = await createEntity(entities, requestActor(a.actor), registration);
     await deleteEntity(entities, requestActor(a.actor), entity.id, entity.version);
+    assertEquals(
+      (await assertRejects(
+        () => deleteIdentifierRule(d, requestActor(a.actor), rule.id, { expected_version: 1 }),
+        AppError,
+      )).code,
+      "invalid_input",
+    );
+    assertEquals(
+      (await assertRejects(
+        () => deleteEntityIssuer(d, requestActor(a.actor), "coupang", { expected_version: 1 }),
+        AppError,
+      )).code,
+      "invalid_input",
+    );
     assertEquals(
       (await assertRejects(
         () =>
@@ -272,3 +286,136 @@ dbTest("account deletion cascades the complete referenced registry while preserv
     await admin.end();
   }
 });
+
+import { deleteEntityIssuer, deleteIdentifierRule } from "../../functions/_shared/core/entity-issuers/application.ts";
+dbTest("unused issuer cleanup preserves system, all linked kinds, owner isolation and replay", async () => {
+  const admin = connect(urls.admin), sql = connect(urls.direct);
+  const a = await fixtureOwner(admin), b = await fixtureOwner(admin);
+  const d = { uow: new SqlEntityIssuerUnitOfWork(sql) }, types = { uow: new SqlEntityTypeUnitOfWork(sql) };
+  try {
+    const type = await createEntityType(types, requestActor(a.actor), { label: "정리 검사" });
+    const source = await createEntityIssuer(d, requestActor(a.actor), { code: "unused", label: "오등록" });
+    const rule = await createIdentifierRule(d, requestActor(a.actor), source.code, { label: "번호", meaning: "번호" });
+    assertEquals(
+      (await assertRejects(
+        () => deleteEntityIssuer(d, requestActor(b.actor), source.code, { expected_version: 1 }),
+        AppError,
+      )).code,
+      "not_found",
+    );
+    assertEquals(
+      (await assertRejects(
+        () => deleteIdentifierRule(d, requestActor(b.actor), rule.id, { expected_version: 1 }),
+        AppError,
+      )).code,
+      "not_found",
+    );
+    assertEquals(
+      (await assertRejects(
+        () => deleteEntityIssuer(d, requestActor(a.actor), source.code, { expected_version: 1 }),
+        AppError,
+      )).code,
+      "invalid_input",
+    );
+    const identity = await getEntityTypeIdentity(d, a.actor, type.id);
+    await updateEntityTypeIdentity(d, requestActor(a.actor), type.id, {
+      label: identity.label,
+      default_source: "app",
+      expected_version: identity.version,
+      sources: [...identity.sources.map(({ code, rule_id, active }) => ({ code, rule_id, active })), {
+        code: source.code,
+        rule_id: rule.id,
+        active: false,
+      }],
+    });
+    assertEquals(
+      (await assertRejects(
+        () => deleteIdentifierRule(d, requestActor(a.actor), rule.id, { expected_version: 1 }),
+        AppError,
+      )).code,
+      "invalid_input",
+    );
+    await assertRejects(() =>
+      asUser(sql, a.actor.userId, (tx) => tx`delete from app.entity_identifier_rules where id=${rule.id}::uuid`)
+    );
+    const linked = await getEntityTypeIdentity(d, a.actor, type.id);
+    await updateEntityTypeIdentity(d, requestActor(a.actor), type.id, {
+      label: linked.label,
+      default_source: "app",
+      expected_version: linked.version,
+      sources: linked.sources.filter((s) => s.code === "app").map(({ code, rule_id, active }) => ({
+        code,
+        rule_id,
+        active,
+      })),
+    });
+    const writer = requestActor(a.actor);
+    assertEquals(await deleteIdentifierRule(d, writer, rule.id, { expected_version: 1 }), { deleted: true });
+    assertEquals(await deleteIdentifierRule(d, writer, rule.id, { expected_version: 1 }), { deleted: true });
+    assertEquals(await deleteEntityIssuer(d, requestActor(a.actor), source.code, { expected_version: 1 }), {
+      deleted: true,
+    });
+    await asUser(sql, a.actor.userId, async (tx) => {
+      assertEquals((await tx`delete from app.entity_issuers where code='app' returning code`).length, 0);
+      assertEquals((await tx`delete from app.entity_identifier_rules where source='app' returning id`).length, 0);
+    });
+    assertEquals((await listEntityIssuers(d, a.actor)).items.map((i) => i.code), ["app"]);
+  } finally {
+    await a.cleanup();
+    await b.cleanup();
+    await sql.end();
+    await admin.end();
+  }
+});
+
+dbTest(
+  "active type names reject new duplicates and restore collisions without rewriting legacy duplicates",
+  async () => {
+    const admin = connect(urls.admin), sql = connect(urls.direct, { max: 3 });
+    const a = await fixtureOwner(admin);
+    const d = { uow: new SqlEntityTypeUnitOfWork(sql) };
+    try {
+      const races = await Promise.allSettled(
+        [1, 2].map(() => createEntityType(d, requestActor(a.actor), { label: "상품" })),
+      );
+      assertEquals(races.filter((r) => r.status === "fulfilled").length, 1);
+      const rejected = races.find((r) => r.status === "rejected") as PromiseRejectedResult;
+      assertEquals((rejected.reason as AppError).code, "invalid_input");
+      const second = await createEntityType(d, requestActor(a.actor), { label: "주문" });
+      await asUser(
+        sql,
+        a.actor.userId,
+        (tx) => tx`update app.entity_types set label='상품' where id=${second.id}::uuid`,
+      );
+      const { updateEntityType } = await import("../../functions/_shared/core/entity-types/application.ts");
+      const changed = await updateEntityType(d, requestActor(a.actor), second.id, {
+        label: "상품",
+        icon_id: "star",
+        expected_type_version: 1,
+      });
+      assertEquals(changed.label, "상품");
+      const archived = await updateEntityType(d, requestActor(a.actor), second.id, {
+        archived: true,
+        expected_type_version: changed.version,
+      });
+      assertEquals(
+        (await assertRejects(() =>
+          updateEntityType(d, requestActor(a.actor), second.id, {
+            archived: false,
+            expected_type_version: archived.version,
+          }), AppError)).code,
+        "invalid_input",
+      );
+      const restored = await updateEntityType(d, requestActor(a.actor), second.id, {
+        label: "다른 상품",
+        archived: false,
+        expected_type_version: archived.version,
+      });
+      assertEquals(restored.archived, false);
+    } finally {
+      await a.cleanup();
+      await sql.end();
+      await admin.end();
+    }
+  },
+);

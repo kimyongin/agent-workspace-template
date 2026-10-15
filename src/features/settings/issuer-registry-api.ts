@@ -7,6 +7,22 @@ export const typeIdentityPort: TypeIdentitySettingsPort = {
     api("PATCH", `/entity-types/${encodeURIComponent(id)}/identity`, input, signal, key),
 };
 export const issuerRegistry = {
+  remove: (code: string, version: number, key: string) =>
+    api<{ deleted: true }>(
+      "DELETE",
+      `/entity-issuers/${encodeURIComponent(code)}`,
+      { expected_version: version },
+      undefined,
+      key,
+    ),
+  removeRule: (id: string, version: number, key: string) =>
+    api<{ deleted: true }>(
+      "DELETE",
+      `/entity-identifier-rules/${encodeURIComponent(id)}`,
+      { expected_version: version },
+      undefined,
+      key,
+    ),
   list: (signal?: AbortSignal) => api<{ items: EntityIssuer[] }>("GET", "/entity-issuers", undefined, signal),
   rules: (code: string, signal?: AbortSignal) =>
     api<{ items: IdentifierRule[] }>("GET", `/entity-issuers/${encodeURIComponent(code)}/rules`, undefined, signal),

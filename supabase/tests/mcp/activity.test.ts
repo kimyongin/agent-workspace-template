@@ -4,6 +4,7 @@ import {
   issuerCode,
   issuerCreate,
   issuerUpdate,
+  registryDelete,
   typeIdentityUpdate,
 } from "../../functions/_shared/contracts/entity-issuer.ts";
 import {
@@ -189,6 +190,8 @@ const EXPECTED_TOOLS = [
   "update_business_settings",
   "prepare_record_memo",
   "create_entity",
+  "delete_entity_issuer",
+  "delete_entity_identifier_rule",
   "list_entity_issuers",
   "create_entity_issuer",
   "update_entity_issuer",
@@ -531,6 +534,8 @@ httpTest("tools/list: 계약의 도구 이름과 contracts JSON Schema", async (
   assertEquals(tools.map((t) => t.name).sort(), EXPECTED_TOOLS);
   const byName = Object.fromEntries(tools.map((t) => [t.name, t]));
   const foundationContracts = {
+    delete_entity_issuer: registryDelete.extend({ code: issuerCode, request_key: requestKey }),
+    delete_entity_identifier_rule: registryDelete.extend({ rule_id: z.string().uuid(), request_key: requestKey }),
     list_entity_issuers: z.strictObject({}),
     create_entity_issuer: issuerCreate.extend({ request_key: requestKey }),
     update_entity_issuer: issuerUpdate.extend({ code: issuerCode, request_key: requestKey }),

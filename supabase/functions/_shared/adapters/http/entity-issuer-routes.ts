@@ -2,6 +2,8 @@ import { Hono } from "hono";
 import {
   createEntityIssuer,
   createIdentifierRule,
+  deleteEntityIssuer,
+  deleteIdentifierRule,
   type EntityIssuerDeps,
   getEntityTypeIdentity,
   listEntityIssuers,
@@ -33,6 +35,14 @@ export function entityIssuerRoutes(d: EntityIssuerDeps) {
   app.patch(
     "/entity-identifier-rules/:rule_id",
     async (c) => c.json(await updateIdentifierRule(d, c.get("actor"), c.req.param("rule_id"), await json(c.req.raw))),
+  );
+  app.delete(
+    "/entity-issuers/:code",
+    async (c) => c.json(await deleteEntityIssuer(d, c.get("actor"), c.req.param("code"), await json(c.req.raw))),
+  );
+  app.delete(
+    "/entity-identifier-rules/:rule_id",
+    async (c) => c.json(await deleteIdentifierRule(d, c.get("actor"), c.req.param("rule_id"), await json(c.req.raw))),
   );
   app.get(
     "/entity-types/:type_id/identity",

@@ -5,6 +5,7 @@ import type { Actor } from "../../core/shared/actor.ts";
 import type { RequestIdentity } from "../../core/shared/request.ts";
 import {
   assertEntityTypeCapacity,
+  assertEntityTypeLabelAvailable,
   type EntityTypeStore,
   entityTypeUpdateDecision,
 } from "../../core/entity-types/application.ts";
@@ -63,6 +64,7 @@ export class SqlEntityTypeStore extends SqlSchemaMigrationStore implements Entit
     await this.tx`select pg_advisory_xact_lock(hashtextextended(${this.actor.userId + ":entity-types"},0))`;
     const [count] = await this.tx`select count(*)::int as count from app.entity_types`;
     assertEntityTypeCapacity(count.count);
+    await this.assertActiveLabel(input.label);
     const [row] = await this
       .tx`insert into app.entity_types(owner_id,label,icon_id) values (${this.actor.userId},${input.label},${input.icon_id}) returning *`;
     await this
@@ -72,7 +74,13 @@ export class SqlEntityTypeStore extends SqlSchemaMigrationStore implements Entit
     await new SqlEntityIssuerStore(this.tx, this.actor).initializeTypeIdentity(row.id);
     return this.hydrate(row);
   }
+  private async assertActiveLabel(label: string, exceptId?: string) {
+    const [duplicate] = await this.tx`select 1 from app.entity_types where not archived and label=${label}
+      and (${exceptId ?? null}::uuid is null or id<>${exceptId ?? null}::uuid) limit 1`;
+    assertEntityTypeLabelAvailable(!!duplicate);
+  }
   async update(id: string, input: Parameters<EntityTypeStore["update"]>[1]) {
+    await this.tx`select pg_advisory_xact_lock(hashtextextended(${this.actor.userId + ":entity-types"},0))`;
     const [row] = await this.tx`select * from app.entity_types where id::text=${id} for update`;
     if (!row) throw notFound();
     if (row.schema_write_locked) {
@@ -81,6 +89,8 @@ export class SqlEntityTypeStore extends SqlSchemaMigrationStore implements Entit
     const next = entityTypeUpdateDecision({ ...typeRow(row), icon_id: row.icon_id }, input);
     if (!next) return this.hydrate(row);
     const { label, icon_id: icon, archived } = next;
+    // Existing duplicate labels may be edited without forcing a destructive cleanup.
+    if (!archived && (row.archived || label !== row.label)) await this.assertActiveLabel(label, row.id);
     const [saved] = await this
       .tx`update app.entity_types set label=${label},icon_id=${icon},archived=${archived},version=version+1,updated_at=now() where id=${row.id} returning *`;
     return this.hydrate(saved);

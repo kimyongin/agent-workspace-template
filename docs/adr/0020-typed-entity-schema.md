@@ -16,6 +16,8 @@
 
 이름·아이콘·보관 상태와 current 포인터는 type version 경쟁을 검사한다. schema_version은 schema와 해당 표시 설정을 식별한다. 데이터 version·entity_identity settings_version·변경안 version·job version·request_key는 서로 대체하지 않는다. HTTP/MCP는 같은 유스케이스와 owner 트랜잭션·요청 원장을 사용한다. 과거 schema는 app_user에게 UPDATE/DELETE 권한을 주지 않는다. 계정 삭제의 소유 자료 정리는 FK cascade로 가능하다.
 
+활성 자료 종류 이름은 소유자 안에서 새 생성·이름 변경·보관 해제 시 중복을 거절한다. 기존 동명 종류의 데이터는 그대로 보존하며 이름을 유지한 편집·보관은 허용한다. 다른 이름을 정해 보관 해제할 수 있다.
+
 자료 종류 없음 GET은 읽기만 한다. 명시 create가 최초 필수 대표 텍스트 prop_1과 자료 종류를 원자적으로 만든다. 재료/상품은 격리 검증 예시이며 기본 제품 타입이 아니다. 보관은 기존 자료·관계를 보존하고 신규 등록/복원 등록/연결은 타입 복원 뒤 가능하다. 양방향 관계는 owner와 정규화된 무순서 두 ID의 단일 매핑이며 타입 조합을 제한하지 않는다.
 
 ## 최초 자원·복구 한도
