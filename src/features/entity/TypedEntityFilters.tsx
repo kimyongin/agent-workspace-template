@@ -75,6 +75,14 @@ export function TypedEntityFilters(
       {schema && (
         <fieldset className="form plain-fieldset entity-property-conditions">
           <legend className="label">속성 조건 · 모두 충족</legend>
+          {draft.length > 0 && (
+            <div className="condition-column-labels label" aria-hidden="true">
+              <span>속성</span>
+              <span>비교</span>
+              <span className="condition-value-label">값</span>
+              <span />
+            </div>
+          )}
           {draft.map((row, index) => {
             const field = schema.schema.properties[row.key], kind = field ? fieldType(field) : null;
             const operators = field?.enum || kind === "boolean"
@@ -165,6 +173,7 @@ export function TypedEntityFilters(
                             {...props}
                             className="input"
                             type={field?.format === "date" ? "date" : "text"}
+                            placeholder="값 입력"
                             inputMode={kind === "integer" || kind === "number" ? "decimal" : undefined}
                             value={String(row.value)}
                             onChange={(event) => update(index, { value: event.target.value })}

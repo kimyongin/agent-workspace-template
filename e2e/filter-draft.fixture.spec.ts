@@ -125,16 +125,17 @@ test("history synchronizes optional drafts and property rows keep their responsi
   await page.getByRole("button", { name: "속성 조건 추가", exact: true }).click();
   for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
     await page.setViewportSize({ width, height: 1000 });
-    const property = await page.getByLabel("조건 1 속성", { exact: true }).boundingBox();
-    const comparison = await page.getByLabel("조건 1 비교", { exact: true }).boundingBox();
-    const value = await page.getByLabel("조건 1 값", { exact: true }).boundingBox();
-    const remove = await page.getByRole("button", { name: "조건 1 제거", exact: true }).boundingBox();
-    expect(Math.abs(property!.y - comparison!.y)).toBeLessThan(2);
-    expect(Math.abs(property!.y - remove!.y)).toBeLessThan(2);
-    if (width < 768) expect(value!.y).toBeGreaterThan(property!.y + 30);
-    else expect(Math.abs(property!.y - value!.y)).toBeLessThan(2);
+    await expect.poll(async () => {
+      const property = await page.getByLabel("조건 1 속성", { exact: true }).boundingBox();
+      const comparison = await page.getByLabel("조건 1 비교", { exact: true }).boundingBox();
+      const value = await page.getByLabel("조건 1 값", { exact: true }).boundingBox();
+      const remove = await page.getByRole("button", { name: "조건 1 제거", exact: true }).boundingBox();
+      if (!property || !comparison || !value || !remove) return false;
+      return Math.abs(property.y - comparison.y) < 2 && Math.abs(property.y - remove.y) < 2 &&
+        (width < 768 ? value.y > property.y + 30 : Math.abs(property.y - value.y) < 2);
+    }).toBe(true);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    if (test.info().project.name === "desktop") {
+    if (test.info().project.name.includes("desktop")) {
       await page.screenshot({ path: `/tmp/filter-panels-review/${width}.png`, fullPage: true });
     }
   }
