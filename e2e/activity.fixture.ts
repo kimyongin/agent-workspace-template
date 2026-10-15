@@ -49,6 +49,7 @@ for (const kind of ["tasks", "records"] as const) test(`${kind} 탭은 자기 �
   await expect(page.locator(kind==="tasks"?".records":".tasks")).toHaveCount(0);
   await expect(page.getByText(`아직 ${kind==="tasks"?"할 일":"기록"}이 없습니다.`,{exact:true})).toBeVisible();
   await openTabFilters(page);await page.getByLabel(kind==="tasks"?"할 일 상태":"기록 종류",{exact:true}).selectOption(kind==="tasks"?"stopped":"change");
+  await page.getByRole("button", { name: "필터 적용", exact: true }).click();
   await page.getByLabel("검색어",{exact:true}).fill("과거 근거");
   await expect.poll(()=>searches.length).toBe(1);
   expect(searches[0].kinds).toEqual([kind==="tasks"?"task":"record"]);

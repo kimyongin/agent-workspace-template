@@ -57,13 +57,13 @@ test("설정 템플릿 오류·변수 삽입과 실제 변경 확인·취소·�
     await dialog.getByRole("button",{name:"추가",exact:true}).click();
     const confirmation=page.locator("dialog.modal-action[open]");
     await expect(confirmation.getByLabel("기록 메모",{exact:true})).toHaveValue(`${title} 준비 등록`);
-    await expect(confirmation.getByRole("button",{name:tag.name,exact:true})).toHaveAttribute("aria-pressed","true");
+    await expect(confirmation.getByRole("button", { name: `${tag.name} 선택 해제`, exact: true })).toHaveCount(1);
     await confirmation.getByLabel("기록 메모",{exact:true}).fill("  내 메모\n");
     await confirmation.getByRole("button",{name:"모든 태그 선택 해제",exact:true}).click();
     await confirmation.getByRole("button",{name:"취소",exact:true}).click();
     await dialog.getByRole("button",{name:"추가",exact:true}).click();
     await expect(confirmation.getByLabel("기록 메모",{exact:true})).toHaveValue("  내 메모\n");
-    await expect(confirmation.getByRole("button",{name:tag.name,exact:true})).toHaveAttribute("aria-pressed","false");
+    await expect(confirmation.getByRole("button", { name: `${tag.name} 선택 해제`, exact: true })).toHaveCount(0);
     await expect(confirmation.getByRole("button",{name:"템플릿 다시 적용",exact:true})).toHaveCount(0);
     const requests:unknown[]=[], keys:(string|undefined)[]=[];
     await page.route("**/api/tasks",route=>{

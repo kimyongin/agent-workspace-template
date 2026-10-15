@@ -1,3 +1,4 @@
+import { chooseTag } from "./ui-actions.ts";
 import { entityKey } from "./support/workspace-data.ts";
 import { openListDetail } from "./ui-actions.ts";
 import { expect, test } from "@playwright/test";
@@ -152,7 +153,7 @@ for (const width of [320, 1440]) {
     await expect(draft.getByRole("group", { name: "태그", exact: true })).toHaveCount(0);
     const tags = draft.locator(".tag-picker");
     await expect(tags).toContainText("기록 태그");
-    await tags.getByRole("button", { name: "같은 이름", exact: true }).click();
+    await chooseTag(page, tags, "같은 이름");
     await expect(draft.getByRole("searchbox")).toHaveCount(0);
     await draft.getByRole("button", { name: "할 일 연결", exact: true }).click();
     const taskSearch = draft.getByRole("searchbox", { name: "할 일 제목 검색" });

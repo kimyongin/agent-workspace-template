@@ -1,3 +1,4 @@
+import { chooseTag, applyTabFilters } from "./ui-actions.ts";
 import { entityKey } from "./support/workspace-data.ts";
 import { openDetailEditor, openListDetail, openTabFilters } from "./ui-actions.ts";
 import { saveOnce } from "./ui-actions.ts";
@@ -84,7 +85,8 @@ test("연결 엔터티 범위: 각 탭 조회·검색 조건·본문 왕복·해
   await expect.poll(() => reads.length).toBe(1);
   expect(reads[0].kind).toBe("tasks");
   expect(reads[0].params.get("entity_id")).toBe(entityKey(1));
-  await page.getByRole("button", { name: "같은 이름", exact: true }).click();
+  await chooseTag(page, page, "같은 이름");
+  await applyTabFilters(page);
   await page.getByLabel("검색어", { exact: true }).fill("할");
   await expect.poll(() => state.searches.length).toBe(1);
   expect(state.searches[0].entity_id).toBe(entityKey(1));
