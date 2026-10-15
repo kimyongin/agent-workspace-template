@@ -512,7 +512,7 @@ for (const width of [320, 1440]) {
   });
 }
 
-for (const width of [320, 390]) {
+for (const width of [320, 390, 639, 640]) {
   test(`mobile-entity-query ${width}px: type comes first and property filters fit the panel`, async ({ page }, info) => {
     const state = await fixtures(page);
     await page.setViewportSize({ width, height: 900 });
@@ -529,6 +529,11 @@ for (const width of [320, 390]) {
     for (const scale of ["100%", "200%"]) {
       await page.evaluate(value => { document.documentElement.style.fontSize = value; }, scale);
       const panel = header.locator(".tab-filters > .form");
+      for (const grid of await panel.locator(".filter-grid, .entity-property-condition").all()) {
+        const columns = await grid.evaluate(el => getComputedStyle(el).gridTemplateColumns.split(" ").length);
+        expect(columns).toBeLessThanOrEqual(2);
+        if (width === 320 && scale === "200%") expect(columns).toBe(1);
+      }
       expect(await panel.evaluate(el => el.scrollWidth <= el.clientWidth), scale).toBe(true);
       const boxes = await panel.locator("input,select,button").evaluateAll(elements => elements.map(el => {
         const box = el.getBoundingClientRect();
