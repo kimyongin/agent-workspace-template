@@ -173,7 +173,7 @@ export function activityTools(deps: activity.ActivityDeps): ToolDef[] {
     {
       name: "create_record",
       description:
-        "일반 기록을 작성한다. 선택적 task_id로 할 일에 연결해도 완료·회차 상태는 바뀌지 않는다. 자료 선택 생략 시 해당 할 일의 현재 연결을 담는다. 본문은 검색에 쓰이며 필요한 원칙 근거는 본문에 설명한다.",
+        "일반 기록을 작성한다. 선택적 task_id로 할 일에 연결해도 완료·회차 상태는 바뀌지 않는다. 자료 선택 생략 시 해당 할 일의 현재 연결을 담는다. 본문은 검색에 쓰이며 판단 근거는 본문에 설명한다.",
       input: recordCreate,
       readOnly: false,
       handler: (args, actor) => activity.createRecord(deps, actor, parse(recordCreate, args)),
@@ -181,7 +181,7 @@ export function activityTools(deps: activity.ActivityDeps): ToolDef[] {
     {
       name: "get_record",
       description:
-        "기록 원문과 연결 시점의 적용 원칙 캡처를 읽는다. captured_at=migration은 이관 당시 자료이며 과거 실제 적용 시점의 사본을 보증하지 않는다.",
+        "기록의 전체 본문과 사건 정보·연결된 자료의 당시 문맥을 읽는다. 현재 자료 상태는 해당 자료 조회로 확인한다.",
       input: idOnly,
       readOnly: true,
       handler: (args, actor) => activity.getRecord(deps, actor, byId(args)),

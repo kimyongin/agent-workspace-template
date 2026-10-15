@@ -14,7 +14,7 @@ for (
     await go(page, `/${kind}`);
     await openListEditor(
       page,
-      kind === "entities" ? "자료" : kind === "tasks" ? "할 일" : kind === "records" ? "기록" : "현재 기준",
+      kind === "entities" ? "자료" : kind === "tasks" ? "할 일" : "기록",
     );
     await expect(form(page).getByRole("button", { name: "저장", exact: true })).toBeVisible();
     await form(page).getByRole("button", { name: "닫기", exact: true }).click();

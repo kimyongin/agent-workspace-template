@@ -61,8 +61,8 @@ export async function openDetailEditor(page: Page) {
   await expect(page.locator("dialog.modal:not(.modal-confirm)[open]:visible").getByRole("button", {name:"저장",exact:true})).toBeVisible();
 }
 
-export async function openListEditor(page: Page, title: string, scope: Page | Locator = page) {
-
+export async function openListEditor(page: Page, title: string) {
+  await openListDetail(page, title);
   await openDetailEditor(page);
 }
 

@@ -48,9 +48,12 @@ for (const populated of [false, true]) {
         await sql`insert into app.records values(${owner},'keep','원칙이라는 단어도 일반 기록은 보존','user',null,'[{"body":"REMOVE-ME"}]')`;
         await sql`insert into app.user_business_settings values(${owner},'record_templates','{"principle":{"create":{"memo":"REMOVE-ME"}},"task":{"create":{"memo":"keep template"}}}',4,now())`;
         await sql`insert into private.request_results values(${owner},'principle.create','{"id":"old-rule","body":"REMOVE-ME"}')`;
-        await sql`insert into private.request_results values(${owner},'record.update','{"record":{"id":"change","body":"REMOVE-ME"}}')`;
+        await sql`insert into private.request_results values(${owner},'record.update','{"record":{"id":"change","record_kind":"change","body":"REMOVE-ME"}}')`;
         await sql`insert into private.request_results values(${owner},'record.update','{"record":{"id":"keep","body":"keep","applied_principle_snapshots":[{"body":"REMOVE-ME"}]}}')`;
         await sql`insert into private.request_results values(${owner},'settings.update','{"settings":{"record_templates":{"principle":{"create":{"memo":"REMOVE-ME"}},"task":{}}}}')`;
+        // IDs are unique per table. Matching task/tag IDs must retain their 30-day replay.
+        await sql`insert into private.request_results values(${owner},'task.create','{"id":"change","body":"keep task replay"}')`;
+        await sql`insert into private.request_results values(${owner},'tag.create','{"id":"change","name":"keep tag replay"}')`;
         for (const id of ['change','capture','context','keep']) {
           await sql`insert into private.passage_effects values(${owner},${id})`;
           await sql`insert into app.search_chunks values(${owner},${id})`;
@@ -76,7 +79,7 @@ for (const populated of [false, true]) {
           const rows = await sql.unsafe(`select message from ${table} where message->>'owner_id'=$1`,[owner]);
           assert.deepEqual(rows.map(r=>r.message.id),['keep']);
         }
-        assert.equal((await sql`select count(*)::int n from private.request_results where owner_id=${owner}`)[0].n,2);
+        assert.equal((await sql`select count(*)::int n from private.request_results where owner_id=${owner}`)[0].n,4);
         const remaining=JSON.stringify(await sql`select result from private.request_results where owner_id=${owner}`);
         assert.ok(!remaining.includes('REMOVE-ME')); assert.ok(!remaining.includes('applied_principle_snapshots'));
         const [settings]=await sql`select settings,version from app.user_business_settings where owner_id=${owner}`;

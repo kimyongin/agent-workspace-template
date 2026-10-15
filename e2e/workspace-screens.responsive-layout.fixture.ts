@@ -117,7 +117,7 @@ for (const width of [390, 1440]) {
     expect((await top.getByLabel("자료 제목 검색", { exact: false }).boundingBox())!.x - topBox.x).toBeCloseTo(0);
     expect((await bottom.locator(".item-title").first().boundingBox())!.x - listBox.x).toBeGreaterThanOrEqual(inset);
     await expect(bottom.getByRole("link", { name: "자료 상세", exact: true })).toHaveCount(0);
-    await openListEditor(page, "자료", bottom);
+    await openListEditor(page, "자료");
     await expect(form(page).getByLabel("제목", { exact: false })).toHaveValue("자료");
     await expect(form(page).getByRole("button", { name: "할 일 작성", exact: true })).toHaveCount(0);
     await expect(form(page).getByRole("link", { name: /목록/ })).toHaveCount(0);

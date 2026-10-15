@@ -106,12 +106,10 @@ export class SqlBusinessSettingsStore implements BusinessSettingsStore {
           (field) => [field, row[field] instanceof Date ? row[field].toISOString().slice(0, 10) : row[field]],
         ),
       );
-    {
-      const tags = await this.tx`select tag_id from ${this.tx(`app.${model}_tags`)} where ${
-        this.tx(`${model}_id`)
-      }=${id}`;
-      facts.tag_ids = tags.map((tag) => tag.tag_id);
-    }
+    const tags = await this.tx`select tag_id from ${this.tx(`app.${model}_tags`)} where ${
+      this.tx(`${model}_id`)
+    }=${id}`;
+    facts.tag_ids = tags.map((tag) => tag.tag_id);
     return { version: Number(row.version), facts: facts as ChangeFacts, deleted_at: row.deleted_at };
   }
 }

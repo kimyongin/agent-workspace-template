@@ -10,7 +10,8 @@ where change_metadata->>'target_kind'='principle'
 delete from private.request_results q
 where q.operation like 'principle.%'
    or exists(select 1 from removed_principle_records r where r.owner_id=q.owner_id
-     and exists(select 1 from jsonb_path_query(q.result,'$.**.id') v where v=to_jsonb(r.id)));
+     and exists(select 1 from jsonb_path_query(q.result,'$.** ? (@.record_kind == "user" || @.record_kind == "result" || @.record_kind == "change")') v
+       where v->>'id'=r.id));
 
 -- Existing record and task responses can contain readonly historical captures at any depth.
 create function pg_temp.remove_principle_captures(value jsonb) returns jsonb
