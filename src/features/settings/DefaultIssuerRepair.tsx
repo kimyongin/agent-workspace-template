@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { APP_IDENTIFIER_RULE_ID, type EntityTypeIdentity, type IdentityDefaultType } from "@contracts/entity-issuer.ts";
 import { BodyAction } from "../../components/BodyAction.tsx";
 import { Field } from "../../components/Field.tsx";
@@ -12,6 +12,7 @@ export function DefaultIssuerRepair({ type, blockedSource, blockedRule, onSaved,
   onSaved: () => void;
   onState: (busy: boolean, uncertain: boolean) => void;
 }) {
+  const choice = useRef<HTMLSelectElement>(null);
   const [identity, setIdentity] = useState<EntityTypeIdentity | null>(null);
   const [source, setSource] = useState("");
   const [error, setError] = useState("");
@@ -33,6 +34,9 @@ export function DefaultIssuerRepair({ type, blockedSource, blockedRule, onSaved,
     });
     return () => c.abort();
   }, [type.type_id, revision]);
+  useEffect(() => {
+    if (identity) choice.current?.focus({ preventScroll: true });
+  }, [identity]);
   const sources = identity
     ? [
       ...identity.sources,
@@ -87,6 +91,7 @@ export function DefaultIssuerRepair({ type, blockedSource, blockedRule, onSaved,
           {(props) => (
             <select
               {...props}
+              ref={choice}
               className="input"
               value={source}
               disabled={busy || uncertain}
