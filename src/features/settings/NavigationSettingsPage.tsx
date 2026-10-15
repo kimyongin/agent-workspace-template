@@ -261,14 +261,14 @@ export function NavigationSettings(
             </button>
           </div>
           {catalog.error && (
-            <div role="alert">
+            <div role="alert" className="notice notice-error">
               자료 종류를 불러오지 못했습니다. 저장된 참조는 유지됩니다.{" "}
               <button type="button" className="btn" onClick={catalog.retry}>다시 시도</button>
             </div>
           )}
         </fieldset>
         {conflict && (
-          <div role="alert">
+          <div role="alert" className="notice notice-error">
             <p>
               다른 탭에서 메뉴 설정이 변경되었습니다. 선택한 미리보기는 유지했습니다. 최신 설정을 확인하고 계속하세요.
             </p>

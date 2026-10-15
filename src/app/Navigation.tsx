@@ -251,7 +251,7 @@ export function Navigation({ brand, navigationRef }: { brand: string; navigation
                   ))}
                 {catalog.error && (
                   <>
-                    <p role="alert">자료 종류를 불러오지 못했습니다.</p>
+                    <p role="alert" className="error-text">자료 종류를 불러오지 못했습니다.</p>
                     <button className="btn" onClick={catalog.retry}>다시 시도</button>
                   </>
                 )}

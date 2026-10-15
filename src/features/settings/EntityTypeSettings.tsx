@@ -273,7 +273,7 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
       {loading && <p role="status">불러오는 중…</p>}
       {!catalog.types && !catalog.error && <p role="status">자료 종류를 읽는 중…</p>}
       {catalog.error && (
-        <p role="alert">
+        <p role="alert" className="error-text">
           자료 종류를 읽지 못했습니다.{" "}
           <BodyAction icon="reset"  onClick={catalog.retry}>
             자료 종류 다시 조회

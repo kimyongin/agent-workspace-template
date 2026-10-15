@@ -12,6 +12,6 @@ export function WriteOutcomeNotice() {
   },[]);
   return <>
     {replayed && <p role="status">이전 요청의 성공 결과를 확인했습니다. 당시 결과와 버전이므로 현재 상태는 자료를 다시 조회해 확인하세요.</p>}
-    {unresolved && <p role="alert">이전 저장 결과를 확인하지 못했습니다. 현재 자료를 조회해 반영 여부를 확인하세요. 입력을 복원해 자동 재전송하지 않습니다. 확인 후 새 작업을 시작하세요.</p>}
+    {unresolved && <p role="alert" className="error-text">이전 저장 결과를 확인하지 못했습니다. 현재 자료를 조회해 반영 여부를 확인하세요. 입력을 복원해 자동 재전송하지 않습니다. 확인 후 새 작업을 시작하세요.</p>}
   </>;
 }
