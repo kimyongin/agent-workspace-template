@@ -124,12 +124,9 @@ test("엔터티 관련 기록 취소: 작성 URL·reload·메모와 변경 이�
       await expect(page).not.toHaveURL(/create=/);await expect(page).toHaveURL(/list=/);
       await expect(page.getByRole("button",{name:"기록 작성",exact:true})).toBeFocused();
     }
-    const reloaded = page.waitForRequest(request => request.method() === "GET" &&
-      new URL(request.url()).pathname.endsWith(`/entities/${encodeURIComponent(entity.id)}`));
+    // Reload commits a new document; verify its rendered target rather than
+    // capturing a previous document's final request while it is unloading.
     await page.reload();
-    const read = await (await reloaded).response();
-    expect(read?.status()).toBe(200);
-    await read!.finished();
     await expect(page.getByRole("heading",{name:entity.title,exact:true})).toBeVisible();
     await expect(page.getByRole("dialog",{name:"기록 작성",exact:true})).toHaveCount(0);
     expect((await mcp.call("get_entity",{id:entity.id})).version).toBe(1);
