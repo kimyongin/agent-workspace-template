@@ -429,3 +429,18 @@ test("nested issuer save detects a concurrent identity change and requires expli
   await expect(page.getByText("식별자 설정을 저장했습니다.")).toBeVisible();
   expect(state.writes.at(-1)?.body.expected_version).toBe(4);
 });
+
+test("closing settings menu on a noninteractive background restores its trigger focus", async ({ page, baseURL }) => {
+  await fixture(page, baseURL!);
+  await page.goto("/settings/issuers");
+  const trigger = page.getByRole("button", { name: "설정 메뉴", exact: true });
+  await trigger.click();
+  await trigger.press("ArrowDown");
+  await expect(page.getByRole("navigation", { name: "설정 메뉴", exact: true }).getByRole("link").first()).toBeFocused();
+  await page.getByRole("heading", { name: "발급처 설정", exact: true }).click();
+  await expect(trigger).toHaveAttribute("aria-expanded", "false");
+  await expect(trigger).toBeFocused();
+  await trigger.click();
+  await page.getByLabel("발급처", { exact: true }).click();
+  await expect(page.getByLabel("발급처", { exact: true })).toBeFocused();
+});

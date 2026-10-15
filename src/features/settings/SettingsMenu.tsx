@@ -17,6 +17,7 @@ export function SettingsMenu() {
     const outside = (event: PointerEvent) => {
       if (!document.querySelector("dialog.modal-confirm[open]") && !root.current?.contains(event.target as Node)) {
         setOpen(false);
+        trigger.current?.focus();
       }
     };
     document.addEventListener("pointerdown", outside);
