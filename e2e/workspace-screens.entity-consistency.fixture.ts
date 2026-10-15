@@ -110,7 +110,7 @@ test("nonrepresentative false, null and archived properties remain readable", as
   await go(page, `/entities/${encodeURIComponent(entityKey(1))}`);
   const properties = form(page).locator(".entity-detail-properties");
   await expect(properties.locator("div", { has: page.locator("dt", { hasText: /^판매 중$/ }) })).toContainText("거짓");
-  await expect(properties.locator("div", { has: page.locator("dt", { hasText: /^날짜$/ }) })).toContainText("미입력");
+  await expect(properties.locator("div", { has: page.locator("dt", { hasText: /^날짜$/ }) })).toContainText("값 없음");
   await expect(properties.locator("dt", { hasText: /^분류 · 보관$/ })).toBeVisible();
   expect(state.writes).toHaveLength(0);
 });
