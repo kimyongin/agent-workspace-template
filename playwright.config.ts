@@ -9,6 +9,9 @@ export default defineConfig({
   // Isolated feature fixtures run with their own API origins via test:e2e:all.
   testIgnore: ["**/*fixture*", "**/detail-workspace.spec.ts", "**/display-scale.spec.ts", "**/consent.spec.ts"],
   timeout: 60_000,
+  // The isolated one-shot Edge runtime can take over 5s for concurrent cold reads.
+  // Keep UI readiness inside the unchanged scenario budget; mocked suites own their timing.
+  expect: { timeout: 15_000 },
   fullyParallel: false,
   // Both projects share DEV_USER_A: account-wide current/history and dictionary fixtures require one writer.
   workers: 1,
