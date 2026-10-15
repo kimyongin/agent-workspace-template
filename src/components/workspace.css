@@ -25,8 +25,9 @@
 .tab-filter-toggle .body-action-face svg { width: 1.5rem; height: 1.5rem; }
 .tab-filter-toggle[aria-expanded=true] .body-action-face,
 .tab-filter-toolbar .body-action.tab-filter-toggle[aria-expanded=true]:hover .body-action-face { background: var(--surface); color: var(--accent); }
-.tab-filter-panel-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
-.tab-filter-panel-head .filter-reset { flex-shrink: 0; }
+.tab-filter-panel-head { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--space-2); }
+.tab-filter-panel-head > .label { flex-shrink: 0; }
+.tab-filter-panel-head .filter-reset { flex-shrink: 0; margin-left: auto; }
 .tab-filters > .form { gap: var(--space-3); padding-top: var(--space-2); }
 .tab-filters > .form[hidden] { display: none; }
 .filter-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: var(--space-3); min-width: 0; }

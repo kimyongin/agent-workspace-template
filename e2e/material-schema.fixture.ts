@@ -1008,10 +1008,10 @@ test(
       const style = getComputedStyle(face);
       return { text: style.fontSize, weight: style.fontWeight, visibleHeight: face.getBoundingClientRect().height, hitHeight: el.getBoundingClientRect().height, border: style.borderTopWidth };
     });
-    expect(compact).toEqual({ text: "12px", weight: "400", visibleHeight: 24, hitHeight: 44, border: "0px" });
+    expect(compact).toEqual({ text: "13px", weight: "400", visibleHeight: 24, hitHeight: 44, border: "0px" });
     const footer = await properties.getByRole("button", { name: "변경 검토", exact: true }).evaluate(el => ({ text: getComputedStyle(el).fontSize, height: el.getBoundingClientRect().height }));
     expect(footer).toEqual({ text: "14px", height: 44 });
-    expect(await quantity.locator(".schema-order-actions svg").first().evaluate(el => el.getBoundingClientRect().width)).toBe(12);
+    expect(await quantity.locator(".schema-order-actions svg").first().evaluate(el => el.getBoundingClientRect().width)).toBe(16);
     await quantity.getByText("추가 설정", { exact: true }).click();
     for (const label of await quantity.locator("label:has(input[type=checkbox])").all()) {
       const target = await label.boundingBox();

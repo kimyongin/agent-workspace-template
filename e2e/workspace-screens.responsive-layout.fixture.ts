@@ -513,7 +513,7 @@ for (const width of [320, 1440]) {
 }
 
 for (const width of [320, 390]) {
-  test(`mobile-entity-query ${width}px: type comes first and property filters fit the panel`, async ({ page }) => {
+  test(`mobile-entity-query ${width}px: type comes first and property filters fit the panel`, async ({ page }, info) => {
     const state = await fixtures(page);
     await page.setViewportSize({ width, height: 900 });
     await go(page, "/entities");
@@ -539,6 +539,7 @@ for (const width of [320, 390]) {
         expect(box.left).toBeGreaterThanOrEqual(panelBox.x);
         expect(box.right).toBeLessThanOrEqual(panelBox.x + panelBox.width);
       }
+      if (scale === "200%") await panel.screenshot({ path: info.outputPath(`property-filter-${width}-text200.png`) });
     }
     expect(state.writes).toHaveLength(0);
   });
