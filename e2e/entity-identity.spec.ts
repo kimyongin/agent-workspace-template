@@ -160,12 +160,10 @@ test("manual tuple registration restores stored properties and links while ident
     await expect(form.getByLabel("번호", { exact: true })).toBeDisabled();
     await expect(
       form.getByRole("button", { name: "기존 대상 확인", exact: true }),
-    ).toBeDisabled();
+    ).toHaveCount(0);
     releaseSettings();
     await expect(form.getByLabel("식별자")).toBeEnabled();
-    await form.getByRole("button", { name: "기존 대상 확인", exact: true })
-      .click();
-    await expect(form.getByRole("status")).toHaveText("식별자는 1~200자입니다");
+    await expect(form.getByRole("button", { name: "기존 대상 확인", exact: true })).toHaveCount(0);
     await form.getByLabel("식별자").fill(external_id);
     await form.getByRole("button", { name: "기존 대상 확인", exact: true })
       .click();
@@ -295,7 +293,9 @@ test("late archived lookup preserves newer identity and same-identity property e
       exact: true,
     });
   await expect(form().getByLabel("식별자")).toBeEnabled();
-  const source = await form().getByLabel("발급처").inputValue();
+  await expect(form().getByText("시험 마켓", { exact: true })).toBeVisible();
+  await expect(form().getByRole("combobox", { name: "발급처", exact: false })).toHaveCount(0);
+  const source = fixtureSource;
   const identity = unique("지연 식별자");
   const held: (() => Promise<void>)[] = [];
   let lookupNumber = 0;
@@ -428,7 +428,9 @@ test("manual lookup pending before confirmation cannot replace the prepared enti
     exact: true,
   });
   await expect(form.getByLabel("식별자")).toBeEnabled();
-  const source = await form.getByLabel("발급처").inputValue();
+  await expect(form.getByText("시험 마켓", { exact: true })).toBeVisible();
+  await expect(form.getByRole("combobox", { name: "발급처", exact: false })).toHaveCount(0);
+  const source = fixtureSource;
   const identity = unique("확인 중 조회"), title = unique("지킬 입력");
   await form.getByLabel("식별자").fill(identity);
   await form.getByLabel("이름", { exact: false }).fill(title);

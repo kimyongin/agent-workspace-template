@@ -113,6 +113,8 @@ npm exec -- deno fmt --no-config --line-width 120 --check src/components/Collect
 
 로컬 Supabase·함수 서버를 준비하고 Chromium을 설치한 뒤 `npm run test:e2e -- e2e/web-mcp.spec.ts --project=desktop`처럼 실행한다. 전체 브라우저 검사는 `npm run test:e2e:all`로 실제 API와 각 격리 화면 설정을 순서대로 실행한다. 설정별 소요 시간도 마지막 표에 표시한다. 로컬 통합 묶음 `npm run test:integration:local`은 실제 API E2E도 포함하며, 웹 단위·격리 화면 전체 검사를 대신하지 않는다. 실제 Pinecone 검사는 API 키가 있는 환경에서 `RUN_PINECONE_E2E=1`로 별도 실행한다.
 
+빈 계정의 첫 사용은 `e2e/empty-workspace-ux.spec.ts`가 검사한다. 전용 로컬 `DEV_USER_B` 계정에 자료 종류·자료·할 일·기록·원칙·발급처가 없는지 먼저 확인하고 `RUN_EMPTY_WORKSPACE_UX=1`로 worker 1개에서 실행한다. 검사는 자료를 초기화하지 않으며, 이 조건을 준비하지 않은 일반 실행에서는 생략한다.
+
 빠른 core·웹·어댑터 검사는 실제 DB·OAuth·브라우저 연결의 증거를 대신하지 않는다. 제품의 권한·일관성·웹/MCP 행동은 관련 [계약](../../supabase/functions/_shared/contracts/search.ts)과 실제 진입점의 테스트에서 확인한다. 제품 플러그인의 정적 패키지 검사는 실제 Claude·Codex 사용과 구분한다([제품 행동 검증 도구](../../experiments/plugin-behavior/README.md)).
 
 Playwright 결과·trace와 서비스 로그는 다음 실행으로 덮어써질 수 있다. 필요한 실패 증거는 저장소 밖의 실행별 위치에 보존한다. 검증 결과와 실행할 수 없었던 범위는 해당 GitHub 이슈·PR에서 확인한다.
