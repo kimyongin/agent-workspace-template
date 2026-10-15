@@ -239,6 +239,9 @@ test("Entity lookahead 뒤 더 보기: 현재 커서 append·실패 retry·행�
     await closeDetail(page, `${marker} 19`);
     await expect(anchor).toBeFocused();
     await expect(page.locator(".list .item-title")).toHaveCount(40);
+    const more = page.getByRole("button", { name: "더 보기", exact: true });
+    // A refresh retains old rows; measure append requests after it finishes.
+    await expect(more).toHaveAttribute("aria-disabled", "false");
     const cursors: string[] = [];
     let fail = false, failed = false;
     await page.route("**/api/entities?**", async (route) => {
@@ -252,7 +255,6 @@ test("Entity lookahead 뒤 더 보기: 현재 커서 append·실패 retry·행�
         });
       } else await route.continue();
     });
-    const more = page.getByRole("button", { name: "더 보기", exact: true });
     await more.scrollIntoViewIfNeeded();
     const y = await page.evaluate(() => window.scrollY);
     await more.click();
