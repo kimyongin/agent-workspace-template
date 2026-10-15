@@ -100,11 +100,11 @@ test("shortcut editing has its own section with compact rows, bounded selection 
   await page.getByLabel("닉네임", { exact: true }).fill("보존할 초안");
   await section.getByRole("button", { name: "상품 숨기기", exact: true }).click();
   await expect(section.getByRole("button", { name: "할 일 숨기기", exact: true })).toBeFocused();
-  await select.selectOption({ label: "기록" });
-  await section.getByRole("button", { name: "기록 추가", exact: true }).click();
+  await select.selectOption({ label: "전체 자료" });
+  await section.getByRole("button", { name: "전체 자료 추가", exact: true }).click();
   await expect(select).toHaveValue("");
   await expect(select).toBeDisabled();
-  await expect(nav(page).locator(".bottom-nav-inner > a")).toHaveText(["재료", "할 일", "기록", "기록"]);
+  await expect(nav(page).locator(".bottom-nav-inner > a")).toHaveText(["재료", "할 일", "기록", "전체 자료"]);
   await section.getByRole("button", { name: "변경 취소", exact: true }).click();
   await expect(nav(page).locator(".bottom-nav-inner > a")).toHaveText(["재료", "상품", "할 일", "기록"]);
   await expect(page.getByLabel("닉네임", { exact: true })).toHaveValue("보존할 초안");
@@ -234,7 +234,7 @@ test(
     );
     const preference = {
       version: 1,
-      refs: [{ kind: "type", id: types[11].id }, ref("tasks"), ref("records"), ref("records")],
+      refs: [{ kind: "type", id: types[11].id }, ref("tasks"), ref("records"), ref("entities")],
     };
     const state = await fixture(page, baseURL!, preference);
     state.setTypes(types);
