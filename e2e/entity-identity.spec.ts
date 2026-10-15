@@ -530,7 +530,11 @@ test("five settings workspaces retain real API selections and stay within the vi
     }
     if (title === "기록 설정") {
       await page.getByLabel("대상", { exact: true }).selectOption(`type:${fixtureType!.id}`);
-      await expect(page.getByLabel("메모 템플릿")).toHaveValue("$대상$ $액션$");
+      const template = page.getByRole("form", { name: "기록 자동 완성", exact: true });
+      await expect(template).toBeVisible();
+      await expect(template.getByLabel("액션", { exact: true })).toBeEnabled();
+      await expect(template.getByLabel("메모 템플릿")).toHaveValue("$대상$ $액션$");
+      await expect(page.getByText("설정을 읽는 중…", { exact: true })).not.toBeVisible();
     }
     if (title === "발급처 설정") {
       await page.getByLabel("발급처", { exact: true }).selectOption(fixtureSource);
