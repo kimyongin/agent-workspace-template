@@ -173,9 +173,9 @@ export function IssuerEditModal(
             disabled={busy || reading || conflict || deleting.uncertain || repairState.uncertain ||
               (!dirty && !uncertain)}
           >
-            {busy
+            {saving.busy
               ? "저장 중…"
-              : uncertain
+              : saving.uncertain
               ? "같은 요청 다시 확인"
               : target.kind === "issuer" && !baseline
               ? "저장하고 번호 추가"
@@ -288,8 +288,9 @@ export function IssuerEditModal(
       </form>
       <ConfirmDialog
         open={confirmDelete}
+        danger
         title={target.kind === "issuer" ? "발급처를 삭제할까요?" : "번호 종류를 삭제할까요?"}
-        message="연결되거나 사용된 항목은 삭제할 수 없습니다."
+        message={`${baseline?.label ?? "항목"}을 영구 삭제합니다. 연결되거나 사용된 항목은 삭제할 수 없습니다.`}
         confirmLabel="삭제"
         busy={busy}
         onConfirm={() => void remove()}
