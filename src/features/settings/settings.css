@@ -240,3 +240,13 @@ section[aria-labelledby="entity-identity-title"] .settings-section-footer { bord
 .input.template-memo-editor { min-height: 6.5rem; white-space: pre-wrap; overflow-wrap: anywhere; cursor: text; }
 .template-memo-editor[aria-disabled="true"], .template-memo-editor[aria-readonly="true"] { cursor: default; }
 .template-variable-token { display: inline; padding: .1em .3em; border-radius: var(--radius-chip); background: var(--accent-soft); color: var(--accent); font-size: .9em; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
+
+.schema-import-document { font-family: var(--font-mono, monospace); overflow-wrap: anywhere; }
+.schema-import-review { min-width: 0; overflow-wrap: anywhere; }
+.schema-import-review code, .schema-import .error-text code { overflow-wrap: anywhere; }
+
+.schema-import-file { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-3); min-width: 0; }
+.schema-import-file .help { margin: 0; overflow-wrap: anywhere; min-width: 0; }
+.schema-import-review .props { grid-template-columns: minmax(0,1fr); margin: 0; }
+.schema-import-review .props > div { display: grid; grid-template-columns: min(7rem,40%) minmax(0,1fr); gap: var(--space-3); align-items: baseline; }
+.schema-import-review .props dt, .schema-import-review .props dd { margin: 0; }
