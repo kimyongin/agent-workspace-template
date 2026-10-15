@@ -21,7 +21,9 @@ export function TagSelection(
   const root = useRef<HTMLFieldSetElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   const knownNames = useRef(new Map<string, string>());
-  for (const tag of tags ?? []) knownNames.current.set(tag.id, tag.name);
+  // A successful dictionary is authoritative, including IDs that disappeared.
+  // Keep its names only while a subsequent read has no dictionary snapshot.
+  if (tags !== null) knownNames.current = new Map(tags.map((tag) => [tag.id, tag.name]));
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [inheritedDisabled, setInheritedDisabled] = useState(false);
@@ -169,7 +171,11 @@ export function TagSelection(
               ))}
               {tags && !choices.length && (
                 <p className="secondary">
-                  {search.trim() ? "일치하는 태그가 없습니다." : "선택할 수 있는 태그가 없습니다."}
+                  {search.trim()
+                    ? "일치하는 태그가 없습니다."
+                    : tags.length === 0
+                    ? "태그 관리에서 태그를 먼저 추가하세요."
+                    : "선택할 수 있는 태그가 없습니다."}
                 </p>
               )}
             </div>

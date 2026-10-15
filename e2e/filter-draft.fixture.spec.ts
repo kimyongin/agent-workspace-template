@@ -140,3 +140,18 @@ test("history synchronizes optional drafts and property rows keep their responsi
     }
   }
 });
+
+test("legacy entity filter recovery reveals the pending reset before common apply", async ({ page }) => {
+  await page.goto(`/entities?entity_type_id=${fixtureType.id}&prop3_from=2026-10-01`);
+  await expect(page.getByText("이전 속성 조건은 더 이상 지원하지 않습니다. 조건을 초기화하세요.", { exact: true }))
+    .toBeVisible();
+  await page.getByRole("button", { name: "조건 초기화", exact: true }).click();
+  const apply = page.getByRole("button", { name: "필터 적용", exact: true });
+  await expect(apply).toBeVisible();
+  await expect(apply).toBeFocused();
+  await expect(page.getByText("변경사항 적용 대기", { exact: true })).toBeVisible();
+  expect(new URL(page.url()).searchParams.get("prop3_from")).toBe("2026-10-01");
+  await apply.click();
+  await expect.poll(() => new URL(page.url()).searchParams.has("prop3_from")).toBe(false);
+  await expect(page.getByRole("button", { name: "자료", exact: true })).toBeVisible();
+});

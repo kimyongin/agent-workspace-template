@@ -28,7 +28,7 @@ export function TagSamples() {
                 next === "excluded"
                   ? [tags[0].id]
                   : next === "unknown"
-                  ? ["unknown"]
+                  ? [tags[0].id]
                   : ["loading", "failure", "busy"].includes(next)
                   ? [tags[0].id]
                   : [],

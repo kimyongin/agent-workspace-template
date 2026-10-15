@@ -6,7 +6,7 @@ import {
   writeEntityListUrl,
 } from "../../lib/entity-list-url.ts";
 import { EntityTypeIcon } from "./EntityTypeIcon.tsx";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { EntitySchemaResult } from "@contracts/entity-type.ts";
 import { displayedProperty, fieldType } from "./property-fields.tsx";
 import { TypedEntityFilters, validatePropertyFilters } from "./TypedEntityFilters.tsx";
@@ -68,6 +68,13 @@ export function EntitiesPage() {
   if (urlFilters.raw) applied.set("property_filters", urlFilters.raw);
   const editing = useFilterDraft(applied, filter.entity_type_id ?? "");
   const [filterError, setFilterError] = useState("");
+  const filterArea = useRef<HTMLDivElement>(null);
+  const [focusRecoveryApply, setFocusRecoveryApply] = useState(false);
+  useEffect(() => {
+    if (!focusRecoveryApply || params.get("filters") !== "1") return;
+    filterArea.current?.querySelector<HTMLButtonElement>(".filter-apply-footer button")?.focus();
+    setFocusRecoveryApply(false);
+  }, [focusRecoveryApply, params]);
   const resetFilters = () => {
     editing.reset();
     setFilterError("");
@@ -254,7 +261,7 @@ export function EntitiesPage() {
           tabIndex={-1}
           description="자료를 등록하고, 속성과 연결된 할 일·기록을 관리합니다."
         />
-        <div className="query-bar entity-query-bar">
+        <div ref={filterArea} className="query-bar entity-query-bar">
           <EntityTypePicker
             types={types ?? []}
             value={filter.entity_type_id ?? ""}
@@ -355,7 +362,16 @@ export function EntitiesPage() {
               {unsupported && (
                 <button
                   className="btn"
-                  onClick={resetFilters}
+                  onClick={() => {
+                    resetFilters();
+                    setFocusRecoveryApply(true);
+                    const next = new URLSearchParams(params);
+                    next.set("filters", "1");
+                    navigate({ pathname: "/entities", search: next.toString(), hash }, {
+                      replace: true,
+                      preventScrollReset: true,
+                    });
+                  }}
                 >
                   조건 초기화
                 </button>

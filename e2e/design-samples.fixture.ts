@@ -474,3 +474,29 @@ test("filter sample keeps drafts until common apply and reuses the tag modal", a
     }
   }
 });
+
+test("successful tag refresh invalidates a formerly known selection and empty dictionaries guide management", async ({ page }) => {
+  await page.goto(direct);
+  const mode = page.getByLabel("태그 예시 상태");
+  const tags = page.getByRole("group", { name: "기본 기록 태그", exact: true });
+  const opener = tags.getByRole("button", { name: "태그 선택", exact: true });
+  const modal = page.getByRole("dialog", { name: "기본 기록 태그 선택", exact: true });
+  await opener.click();
+  await modal.getByRole("checkbox", { name: "중요", exact: true }).check();
+  await modal.getByRole("button", { name: "선택 완료", exact: true }).click();
+  await expect(tags.getByRole("button", { name: "중요 선택 해제", exact: true })).toBeVisible();
+  for (const state of ["loading", "failure"]) {
+    await mode.selectOption(state);
+    await expect(tags.getByRole("button", { name: "중요 선택 해제", exact: true })).toBeVisible();
+  }
+  await mode.selectOption("unknown");
+  await expect(tags.getByText("태그 확인 필요", { exact: true })).toBeVisible();
+  await expect(tags.getByRole("button", { name: "중요 선택 해제", exact: true })).toHaveCount(0);
+  await tags.getByRole("button", { name: "이름 확인이 필요한 태그 1 선택 해제", exact: true }).click();
+  await expect(tags.locator(".tag-selection .chip")).toHaveCount(0);
+  await mode.selectOption("empty");
+  await opener.click();
+  await expect(modal.getByText("태그 관리에서 태그를 먼저 추가하세요.", { exact: true })).toBeVisible();
+  await modal.getByRole("searchbox", { name: "태그 이름 검색" }).fill("없는 이름");
+  await expect(modal.getByText("일치하는 태그가 없습니다.", { exact: true })).toBeVisible();
+});
