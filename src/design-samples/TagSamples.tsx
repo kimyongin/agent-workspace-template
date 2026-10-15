@@ -25,11 +25,13 @@ export function TagSamples() {
               const next = event.target.value;
               setMode(next);
               setSelected(
-                next === "unknown" ? ["unknown"] : ["loading", "failure", "busy"].includes(next) ? [tags[0].id] : [],
+                next === "excluded" ? [tags[0].id] : next === "unknown" ? ["unknown"] : ["loading", "failure", "busy"].includes(next) ? [tags[0].id] : [],
               );
             }}
           >
             <option value="normal">일반 선택</option>
+            <option value="single">단일 태그 필터</option>
+            <option value="excluded">제외한 기존 선택</option>
             <option value="many">선택 한도</option>
             <option value="empty">태그 없음</option>
             <option value="loading">불러오는 중</option>
@@ -49,6 +51,8 @@ export function TagSamples() {
             : mode === "many"
             ? tags
             : tags.slice(0, 3)}
+          maxSelected={mode === "single" ? 1 : 10}
+          excludeId={mode === "excluded" ? tags[0].id : undefined}
           value={selected}
           onChange={setSelected}
           status={mode === "loading"
