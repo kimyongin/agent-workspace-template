@@ -1,4 +1,38 @@
 import { expect, test } from "@playwright/test";
+
+test("account settings sample keeps independent drafts and clear row actions", async ({ page }, info) => {
+  await page.goto("/design-samples/index.html?screen=settings");
+  const section = (name: string) => page.getByRole("region", { name, exact: true });
+  const profile = section("프로필");
+  const display = section("화면 표시");
+  const navigation = section("메뉴 바로가기");
+  await profile.getByRole("textbox", { name: "닉네임", exact: true }).fill("남겨 둘 초안");
+  await display.getByRole("combobox", { name: "모바일 화면 배율", exact: true }).selectOption("125");
+  await display.getByRole("button", { name: "저장", exact: true }).click();
+  await expect(profile.getByRole("textbox")).toHaveValue("남겨 둘 초안");
+  await navigation.getByRole("button", { name: "기록 위로 이동", exact: true }).click();
+  await expect(navigation.locator(".navigation-selection-label")).toHaveText(["상품", "기록", "할 일", "원칙"]);
+  await navigation.getByRole("button", { name: "취소", exact: true }).click();
+  await expect(navigation.locator(".navigation-selection-label")).toHaveText(["상품", "할 일", "기록", "원칙"]);
+  await navigation.getByRole("button", { name: "상품 숨기기", exact: true }).click();
+  await expect(navigation.getByRole("button", { name: "할 일 숨기기", exact: true })).toBeFocused();
+  await navigation.getByRole("combobox", { name: "추가할 메뉴", exact: true }).selectOption("products");
+  await navigation.getByRole("button", { name: "추가", exact: true }).click();
+  await navigation.getByRole("button", { name: "저장", exact: true }).click();
+  await expect(navigation.locator(".navigation-selection-label")).toHaveText(["할 일", "기록", "원칙", "상품"]);
+  await expect(profile.getByRole("textbox")).toHaveValue("남겨 둘 초안");
+  for (const width of [320, 390, 639, 640, 768, 1024, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    for (const button of await navigation.locator(".navigation-row-actions button").all()) {
+      const box = (await button.boundingBox())!;
+      expect(box.width).toBeGreaterThanOrEqual(44);
+      expect(box.height).toBeGreaterThanOrEqual(44);
+    }
+  }
+  await page.setViewportSize({ width: info.project.name === "mobile" ? 390 : 1440, height: 1000 });
+  await page.screenshot({ path: info.outputPath("account-settings.png"), fullPage: true });
+});
 const direct = "/design-samples/index.html?content=1";
 
 test("authentication-free samples align input actions and handle narrow widths", async ({ page }) => {
@@ -166,7 +200,7 @@ test("invalid closed fields expand and focus; move controls retain the expanded 
     await workspace.locator(".schema-order-actions .body-action-face svg").first().evaluate((node) =>
       getComputedStyle(node).width
     ),
-  ).toBe("12px");
+  ).toBe("16px");
 });
 
 test("confirmation fits its content at the center with a dimmed backdrop", async ({ page }) => {

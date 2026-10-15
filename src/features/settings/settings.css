@@ -39,13 +39,35 @@ section[aria-labelledby="entity-identity-title"] .settings-section-footer { bord
 .navigation-selection-label { display: flex; align-items: center; gap: var(--space-2); overflow-wrap: anywhere; min-width: 0; flex: 1 1 5rem; font-size: var(--text-body); }
 .navigation-selection-label > .entity-type-icon { flex-shrink: 0; }
 .navigation-row-actions { display: flex; margin-left: auto; flex-shrink: 0; }
-.navigation-row-actions .item-icon { width: 44px; min-width: 44px; height: 44px; padding: 0; color: var(--muted-ink); }
-.navigation-row-actions .body-action-face { padding: 0; background: transparent; }
+.navigation-icon-action { display: inline-grid; place-items: center; flex: 0 0 44px; width: 44px; min-height: 44px; padding: 0; border: 0; border-radius: var(--radius-input); background: transparent; color: var(--muted-ink); cursor: pointer; }
+.navigation-icon-action svg { width: 1rem; height: 1rem; }
+.navigation-icon-action:hover:not(:disabled) { background: var(--surface); color: var(--ink); }
+.navigation-icon-action:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.navigation-icon-action:disabled { opacity: .35; cursor: not-allowed; }
 .navigation-add-row { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: var(--space-2); min-width: 0; }
 .navigation-add-row .input { width: 100%; min-width: 0; }
 .navigation-add-row .btn { align-self: stretch; border-radius: var(--radius-input); }
 .navigation-settings-footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2); }
 .navigation-settings-footer > .actions { margin-left: auto; }
+
+/* A single independent card frames each save scope; spacing separates its footer. */
+.account-settings { container: account-settings / inline-size; }
+.account-settings > .settings-section { gap: var(--space-5); }
+.account-settings .settings-section-title { font-size: 1rem; line-height: 1.5rem; }
+.account-settings .settings-section-footer { border-top: 0; padding-top: var(--space-2); }
+.account-settings .settings-section-footer > .actions > .btn { min-width: 5.5rem; }
+.account-settings .settings-section-footer .btn:disabled { opacity: 1; color: var(--muted-ink); border-color: var(--line); background: var(--surface); }
+.account-settings .navigation-selection li { min-height: 56px; }
+.account-settings .navigation-selection-label { font-size: .9375rem; }
+.account-settings .navigation-selection-label > .entity-type-icon { color: var(--muted-ink); }
+.account-settings .navigation-settings-footer > .body-action { padding-left: 0; }
+.account-settings .navigation-settings-footer > .body-action > .body-action-face { padding-left: 0; background: transparent; font-size: var(--text-label); }
+
+@container account-settings (min-width: 40rem) {
+  .account-settings > .settings-section { grid-template-columns: 9rem minmax(0, 1fr); gap: var(--space-6); padding: var(--space-6); align-items: start; }
+  .account-settings > .settings-section > form { min-width: 0; }
+  .account-settings .navigation-settings-heading { flex-wrap: wrap; justify-content: flex-start; }
+}
 
 .entity-type-icon-picker { min-width: 0; padding: 0; border: 0; margin: 0; }
 .entity-type-icon-picker legend { padding: 0; margin-bottom: var(--space-2); }
