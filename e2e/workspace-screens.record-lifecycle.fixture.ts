@@ -57,10 +57,6 @@ test("태그 scoped 상세/편집·legacy ID 직접 링크 호환", async ({ pag
   expect(state.errors).toEqual([]);
 });
 
-
-
-
-
 for (const [kind, label] of [["entities", "검사 자료"], ["tasks", "할 일"], ["records", "기록"]]) {
   test(`${kind}: 생성·보기·편집 메모·태그·삭제 이유`, async ({ page }) => {
     const state = await fixtures(page);
@@ -106,8 +102,6 @@ for (const [kind, label] of [["entities", "검사 자료"], ["tasks", "할 일"]
   });
 }
 
-
-
 test("새 기록은 원칙 연관키 선택 없이 본문 근거를 저장한다", async ({ page }) => {
   const state = await fixtures(page);
   await go(page, "/records?create=1");
@@ -118,12 +112,6 @@ test("새 기록은 원칙 연관키 선택 없이 본문 근거를 저장한다
   expect(state.writes[0].body).not.toHaveProperty("applied_principle_ids");
   expect(state.errors).toEqual([]);
 });
-
-for (const capture of ["application", "migration"] as const) {
-
-}
-
-
 
 test("태그 인라인 편집: 취소는 목록으로 복귀·삭제 실패는 동일 입력과 버전으로 재시도", async ({ page }) => {
   const state = await fixtures(page);

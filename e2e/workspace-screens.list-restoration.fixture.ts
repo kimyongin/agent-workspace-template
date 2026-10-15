@@ -149,10 +149,6 @@ test("#203 긴 펼침 GET 뒤에 목록 scroll·초점을 복원", async ({ page
   expect(state.writes).toHaveLength(0);
 });
 
-for (const condition of ["status=inactive", "principle_view=all"]) {
-
-}
-
 test("검색: IME·300ms·옛 keyword URL도 auto·할 일 scope·clear 초점", async ({ page }) => {
   const state = await fixtures(page);
   await go(page, "/tasks?kind=once&status=open&mode=keyword");
@@ -479,8 +475,6 @@ test("목록 페이지·조건·scroll/focus 왕복과 검색 anchor 재조회",
   });
   expect(state.errors).toEqual([]);
 });
-
-
 
 test("#211 기록 필터·날짜 그룹·표시·편집은 계정 시간대로 일치하고 필터 안내는 없다", async ({ page }) => {
   const state = await fixtures(page), reads: URL[] = [];

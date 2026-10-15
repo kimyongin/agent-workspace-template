@@ -279,10 +279,6 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
   });
 }
 
-for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
-
-}
-
 test("200% reflow·축소 visual viewport·한 글자 제목", async ({ page }, info) => {
   const state = await fixtures(page);
   state.rows.tasks[0].title = "일";

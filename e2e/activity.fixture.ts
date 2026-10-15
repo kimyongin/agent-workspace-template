@@ -308,7 +308,7 @@ for (const [routePath, createLabel] of [["/records","기록 작성"],["/tasks","
 }
 for (const kind of ["records","tasks"]) {
   test(`직접 편집 ${kind} 라우트 버리기는 목록 복귀 대신 요청한 상세 조건으로 이동한다`,async({page})=>{
-    const item={...record(1),...(kind!=="records"?{title:"기록 1"}:{}),kind:kind==="records"?"general":"once",status:"open",due_on:null,recurrence:null,timezone:null,result_record:null,is_current:true,saved_at:"2026-10-04T00:00:00Z",change_note:"과거 메모",origin:"saved",legacy_context:null};
+    const item={...record(1),...(kind!=="records"?{title:"기록 1"}:{}),kind:kind==="records"?"general":"once",status:"open",due_on:null,recurrence:null,timezone:null,result_record:null,change_note:"과거 메모"};
     await page.route("http://127.0.0.1:55581/api/**",route=>route.fulfill({json:new URL(route.request().url()).pathname.endsWith(`/${kind}/${id(1)}`)?item:{items:[item],next_cursor:null}}));
     await page.goto(`/e2e/fixtures/activity.html?route=`+encodeURIComponent(`/${kind}/${id(1)}?edit=1`));
     const title=page.getByRole("textbox",{name:/^본문(?: \(필수\))?$/});
@@ -337,7 +337,7 @@ for(const kind of ["records","tasks"]){
   test(`${kind} 태그 사전 실패 재시도는 표시 행·읽던 위치·초점을 유지한다`,async({page})=>{
     let attempts=0,release:()=>void=()=>{};
     const held=new Promise<void>(resolve=>release=resolve);
-    const items=Array.from({length:20},(_,i)=>({...record(i+1),...(kind==="tasks"?{title:`기록 ${i+1}`} : {}),tag_ids:[id(99)],kind:kind==="records"?"general":"once",status:"open",due_on:null,recurrence:null,timezone:null,result_record:null,applies_when:"판단할 때",replaced_by_id:null}));
+    const items=Array.from({length:20},(_,i)=>({...record(i+1),...(kind==="tasks"?{title:`기록 ${i+1}`} : {}),tag_ids:[id(99)],kind:kind==="records"?"general":"once",status:"open",due_on:null,recurrence:null,timezone:null,result_record:null}));
     await page.route("http://127.0.0.1:55581/api/**",async route => {if(await fulfillPreparation(route))return;
       if(new URL(route.request().url()).pathname.endsWith("/tags")){
         if(!attempts++){await route.fulfill({status:503,json:{code:"internal",message:"태그 사전 실패"}});return;}
@@ -365,7 +365,7 @@ for(const kind of ["records","tasks"]){
 }
 for(const kind of ["records","tasks"]){
   test(`${kind} 한 글자 제목도 모든 폭에서44px 조작 영역을 유지한다`,async({page})=>{
-    const item={...record(1),is_current:true,origin:"saved",legacy_context:null,saved_at:"2026-10-03T16:00:00Z",...(kind!=="records"?{title:"함"}:{}),body:"함",kind:kind==="records"?"general":"once",status:"open",due_on:null,recurrence:null,timezone:null,result_record:null,applies_when:"판단할 때",replaced_by_id:null};
+    const item={...record(1),...(kind!=="records"?{title:"함"}:{}),body:"함",kind:kind==="records"?"general":"once",status:"open",due_on:null,recurrence:null,timezone:null,result_record:null};
     await page.route("http://127.0.0.1:55581/api/**",route=>route.fulfill({json:{items:[item],next_cursor:null}}));
     await page.goto(`/e2e/fixtures/activity.html?route=/${kind}`);
     const title=(page.locator(`.${kind}`)).getByRole("button",{name:"함",exact:true});

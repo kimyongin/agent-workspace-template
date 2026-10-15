@@ -126,12 +126,6 @@ test("#181 일반 기록은 바로 저장하고 삭제만 작은 메모·태그 
   expect(state.errors).toEqual([]);
 });
 
-
-
-for (const width of [320, 640]) {
-
-}
-
 test("반복 중단·재개 메모·결과 생성은 같은 surface", async ({ page }) => {
   const state = await fixtures(page);
   Object.assign(state.rows.tasks[0], {
