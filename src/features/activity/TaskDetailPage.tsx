@@ -187,7 +187,7 @@ export function TaskDetailPage() {
                       {o.date}
                       {o.date === occurrences.today ? " (오늘)" : ""}
                     </span>
-                    {!o.in_rule && <span className="secondary">규칙 밖 기록(규칙이 바뀌기 전에 남긴 기록)</span>}
+                    {!o.in_rule && <span className="secondary">규칙 밖 기록</span>}
                     {o.record_ids.length>0&&<span className="secondary">기록 {o.record_ids.length}개</span>}
                   </div>
                   <OccurrenceBadge status={o.status} />
@@ -245,7 +245,6 @@ export function TaskDetailPage() {
           submitLabel="완료하고 기록 저장"
           open
           initial={emptyRecord()}
-          intro={<p className="help" style={{ margin: 0 }}>실제로 수행한 결과를 남기면 할 일이 완료됩니다.</p>}
           onClose={closeManagement}
           onRouteDiscard={() => setDialog(null)}
           onSave={async (value,requestKey) => {

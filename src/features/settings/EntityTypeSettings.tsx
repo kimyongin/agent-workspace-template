@@ -239,7 +239,7 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
       <SettingsHeading title="자료 설정" id="entity-types-title" />
 
       <div className="material-settings-toolbar">
-        <Field label="자료 종류 선택">
+        <Field label="자료 종류 선택" hideLabel>
           {(props) => (
             <select
               {...props}
@@ -302,7 +302,7 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
       {!loading && (!type_id || type) && (
         <MaterialSettingsSection
           title={type_id ? "기본 정보" : "자료 종류 만들기"}
-          summary={type ? `${type.label} · ${type.archived ? "보관" : "사용 중"}` : undefined}
+          summary={type?.archived ? "보관" : undefined}
           state={{ dirty, busy, uncertain, error: !!error }}
           initialOpen={!type_id}
         >
@@ -383,21 +383,20 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
               )}
             </fieldset>
             <div className="settings-section-footer">
-              <p className="secondary">
-                {uncertain
-                  ? "저장 여부를 알 수 없습니다. 같은 요청으로 다시 확인하세요. 새로고침 후에는 현재 상태를 조회한 뒤 새 작업을 시작하세요."
-                  : type_id
-                  ? "이름·아이콘·보관 상태 변경은 속성 정의와 저장값을 바꾸지 않습니다."
-                  : "필수 텍스트 대표 속성과 함께 생성합니다."}
-              </p>
+              {uncertain && (
+                <p className="secondary" role="status">
+                  저장 여부를 알 수 없습니다. 같은 요청으로 다시 확인하세요. 새로고침 후에는 현재 상태를 조회한 뒤 새 작업을 시작하세요.
+                </p>
+              )}
               <div className="actions">
                 <button
                   type="button"
                   className="btn"
                   disabled={busy || uncertain || latestBusy || basicConflict || !dirty}
                   onClick={cancel}
+                  aria-label="변경 취소"
                 >
-                  변경 취소
+                  취소
                 </button>
                 {basicConflict && (
                   <button
@@ -411,6 +410,7 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
                 )}
                 <button
                   className="btn btn-primary"
+                  aria-label={busy ? "저장 중…" : uncertain ? "같은 요청 다시 확인" : type_id ? "기본 정보 저장" : "자료 종류 만들기"}
                   disabled={anyBusy || latestBusy || basicConflict || (!dirty && !uncertain)}
                 >
                   {busy
@@ -418,7 +418,7 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
                     : uncertain
                     ? "같은 요청 다시 확인"
                     : type_id
-                    ? "기본 정보 저장"
+                    ? "저장"
                     : "자료 종류 만들기"}
                 </button>
               </div>

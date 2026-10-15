@@ -405,7 +405,8 @@ test("save blocks duplicate submission and Back until typed detail is ready", as
   await page.getByRole("button",{name:"편집",exact:true}).click();
   const editing = page.getByRole("dialog", { name: "재료 편집", exact: true });
   await expect(editing.getByLabel("자료 종류", { exact: true })).toHaveCount(0);
-  await expect(editing).toContainText("저장 후 종류를 변경할 수 없습니다");
+  await expect(editing.getByRole("combobox", { name: "자료 종류", exact: true })).toHaveCount(0);
+  await expect(editing.getByRole("heading", { name: "재료", exact: true }).first()).toBeVisible();
 });
 
 test("clean settings navigation proceeds while initial record templates are still reading", async ({ page }) => {
@@ -541,7 +542,7 @@ test("numeric schema bounds keep invalid raw decimals and reject before creating
   });
   await page.goto(`/settings/entity-types/${materials.id}`);
   await page.getByRole("button", { name: "입력 항목", exact: true }).click();
-  await page.getByRole("button", { name: "정확한 수량 속성 편집", exact: true }).click();
+  await page.getByRole("button", { name: /^정확한 수량 항목 (?:펼치기|접기)$/, exact: true }).click();
   const section = page.getByRole("region", { name: "정확한 수량 속성", exact: true });
   await section.getByText("추가 설정", {exact:true}).click();
   const input = section.getByLabel("최소값", { exact: true });
@@ -859,7 +860,7 @@ test("basic save preserves property edits and unfiltered archived selection at e
   );
   await page.goto(`/settings/entity-types/${materials.id}`);
   await page.getByRole("button", { name: "입력 항목", exact: true }).click();
-  await page.getByRole("button", { name: "이름 속성 편집", exact: true }).click();
+  await page.getByRole("button", { name: /^이름 항목 (?:펼치기|접기)$/, exact: true }).click();
   await page.getByLabel("항목 이름", { exact: true }).fill("保留する属性");
   await page.getByRole("button", { name: /^기본 정보(?! 저장)/ }).click();
   await page.getByLabel("자료 종류 이름", { exact: true }).fill("新しい基本情報");
@@ -963,7 +964,7 @@ test("basic conflict refresh preserves section drafts and reapplies against the 
   });
   await page.goto(`/settings/entity-types/${materials.id}`);
   await page.getByRole("button", { name: "입력 항목", exact: true }).click();
-  await page.getByRole("button", { name: "이름 속성 편집", exact: true }).click();
+  await page.getByRole("button", { name: /^이름 항목 (?:펼치기|접기)$/, exact: true }).click();
   await page.getByLabel("항목 이름", { exact: true }).fill("남길 속성 초안");
   await page.getByRole("button", { name: /^식별자/ }).click();
   const record = page.getByRole("form", { name: "식별자 설정", exact: true });

@@ -7,10 +7,9 @@ export function GuidePage() {
   const [copied, setCopied] = useState("");
   return <section className="panel guide" aria-labelledby="guide-title">
     <h1 className="page-title" id="guide-title">사용 가이드</h1>
-    <p>자료에 할 일과 기록을 연결하고, 에이전트와 검색한 뒤 결과를 웹에서 확인하세요.</p>
     <ol className="guide-steps">
       <li className="guide-step"><h2 className="item-title">자료 하나 만들기</h2>
-        <p>진행 중인 프로젝트처럼 관리할 대상을 자료로 등록하세요. 먼저 자료 종류를 만들고 이름·수량·날짜처럼 필요한 속성을 정하세요. 각 자료는 선택한 종류의 정의에 따라 저장됩니다.</p>
+        <p>진행 중인 프로젝트처럼 관리할 대상을 자료로 등록하세요. 자료 종류를 만들고 이름·수량·날짜처럼 필요한 항목을 정하세요.</p>
         <Link className="btn" to="/entities">자료로 이동</Link></li>
       <li className="guide-step"><h2 className="item-title">할 일 또는 기록 작성하기</h2>
         <p>앞으로 할 행동은 할 일에, 메모·참고 자료는 기록에 남기세요. 연결 자료는 선택 사항이므로 자료 없이도 시작할 수 있습니다.</p>
@@ -25,7 +24,7 @@ export function GuidePage() {
         <details className="workspace-additional"><summary>설치·연결 정보</summary><div className="search-advanced">
         {config.pluginApp && <div>
           <a className="btn" href={config.pluginApp}>제품 플러그인 설치·연결 안내</a>
-          <p>플러그인에 접근할 수 있는 계정으로 안내를 여세요. 사용하는 클라이언트에서 플러그인을 추가하고 제품 스킬을 확인한 뒤, 이 앱의 OAuth 연결을 완료하세요. 설치와 로그인은 각각 확인해야 합니다.</p>
+          <p>플러그인에 접근할 수 있는 계정으로 안내를 여세요. 사용하는 클라이언트에서 플러그인을 추가하고 제품 스킬을 확인한 뒤, 이 앱의 OAuth 연결을 완료하세요.</p>
           <p className="secondary">비공개 플러그인은 허용된 계정에서만 사용할 수 있습니다. 다른 클라이언트의 설치가 자동 반영된다고 가정하지 말고 앱 이름·설치 버전·스킬·연결 상태를 확인하세요.</p>
         </div>}
         {config.mcp ? <div className="field">

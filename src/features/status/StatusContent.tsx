@@ -154,7 +154,7 @@ export function StatusContent({ data, children }: { data: StatusOverview; childr
           <span className="meta">활동: 최근 {data.period.days}일 · {data.period.from}–{data.period.to}</span>
         </div>
         {entities.total + tasks.total + records.total === 0 && (
-          <p className="secondary">아직 보관한 자료가 없습니다. 활동이 없는 날짜는 0으로 표시합니다.</p>
+          <p className="secondary">아직 보관한 자료가 없습니다.</p>
         )}
         <section className="status-domain" aria-label="자료 현황">
           <Summary

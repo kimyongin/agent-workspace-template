@@ -47,7 +47,7 @@ export function SearchPage(){
       {result.search_state==="keyword_fallback"&&<Notice>현재 키워드 검색 결과를 표시합니다. 의미 검색을 사용할 수 없습니다.</Notice>}
       {!!(result.semantic_coverage.pending+result.semantic_coverage.excluded)&&<p className="help">의미 색인 대기 {result.semantic_coverage.pending}개 · 제외 {result.semantic_coverage.excluded}개</p>}
       {!!result.semantic_coverage.pending&&<p className="help">대기 중인 기록은 의미 검색 결과에 빠질 수 있습니다. <PageLink to="/status">상태에서 오래 갱신되지 않은 대기 확인</PageLink> 후에도 계속되면 관리자에게 색인 서비스 점검을 요청하세요. 처리 실패로 확정된 상태는 아닙니다.</p>}
-      {!result.items.length&&<p className="secondary">검색 결과가 없습니다. 검색어 또는 필터를 바꿔 보세요.</p>}
+      {!result.items.length&&<p className="secondary">검색 결과가 없습니다.</p>}
       <ul className="list">{result.items.map(r=>{
         return <li className="list-item" key={`${r.kind}:${r.id}`}><div className="list-item-main">
         <Link id={`search-${r.kind}-${r.id}`} className="item-title" to={r.path}><span className={r.kind==="record"?"record-preview":undefined}>{r.title}</span></Link>{r.snippet!==r.title&&<span className="secondary record-snippet">{r.snippet}</span>}

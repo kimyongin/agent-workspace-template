@@ -70,7 +70,7 @@ function PropertyList(
       ? preferred
       : other && !other.disabled
       ? other
-      : row?.querySelector<HTMLButtonElement>(".schema-field-title");
+      : row?.querySelector<HTMLButtonElement>(".schema-field-disclosure");
     target?.focus();
   }, [fields]);
   useEffect(() => {
@@ -101,25 +101,51 @@ function PropertyList(
         {fields.map((field, index) => {
           const open = expanded.includes(field.id);
           const bodyId = `sample-${field.id}-body`;
+          const labelError = errors[`${field.id}.label`];
+          const labelErrorId = `sample-${field.id}-label-error`;
+          const summary = (
+            <span className="secondary">
+              {[
+                !open ? (field.type === "text" ? "텍스트" : "숫자") : null,
+                field.required ? "필수" : null,
+                field.representative ? "자료 이름" : null,
+              ].filter(Boolean).join(" · ")}
+            </span>
+          );
           return (
             <li key={field.id}>
               <div className="related-item schema-field" data-property-id={field.id} data-expanded={open || undefined}>
                 <div className="schema-field-heading">
                   <h3>
-                    <button
+                    {open ? <span className="schema-field-title">
+                      <input
+                        className="input"
+                        aria-label="항목 이름 (필수)"
+                        aria-required
+                        aria-invalid={!!labelError}
+                        aria-describedby={labelError ? labelErrorId : undefined}
+                        value={field.label}
+                        onChange={(event) => edit(field.id, { label: event.target.value })}
+                      />
+                      {labelError && <span id={labelErrorId} className="error-text">{labelError}</span>}
+                      {summary}
+                    </span> : <button
                       type="button"
                       className="schema-field-title related-toggle item-title"
                       aria-expanded={open}
                       aria-controls={bodyId}
-                      onClick={() => toggle(field.id)}
+                      onClick={() => {
+                        toggle(field.id);
+                        requestAnimationFrame(() => {
+                          root.current?.querySelector<HTMLInputElement>(
+                            `[data-property-id="${field.id}"] .schema-field-title input`,
+                          )?.focus({ preventScroll: true });
+                        });
+                      }}
                     >
                       <span>{field.label || "새 항목"}</span>
-                      <span className="secondary">
-                        {field.type === "text" ? "텍스트" : "숫자"}
-                        {field.required ? " · 필수" : ""}
-                        {field.representative ? " · 자료 이름" : ""}
-                      </span>
-                    </button>
+                      {summary}
+                    </button>}
                   </h3>
                   <div className="schema-order-actions">
                     <BodyAction
@@ -153,16 +179,6 @@ function PropertyList(
                 </div>
                 <fieldset id={bodyId} hidden={!open} className="plain-fieldset">
                   <legend className="visually-hidden">{field.label || "새 항목"} 편집</legend>
-                  <Field label="항목 이름" required error={errors[`${field.id}.label`]}>
-                    {(props) => (
-                      <input
-                        {...props}
-                        className="input"
-                        value={field.label}
-                        onChange={(event) => edit(field.id, { label: event.target.value })}
-                      />
-                    )}
-                  </Field>
                   <Field label="데이터 타입">
                     {(props) => (
                       <select
@@ -382,7 +398,6 @@ export function MaterialWorkspaceSample() {
     <div className="settings samples-stack">
       <MaterialSettingsSection
         title="기본 정보"
-        summary={`${savedTypeName} · 사용 중`}
         state={{ dirty: typeName !== savedTypeName, busy: false }}
       >
         <Field label="종류 이름">
@@ -397,7 +412,7 @@ export function MaterialWorkspaceSample() {
         </Field>
         <div className="settings-section-footer">
           <div className="actions schema-actions">
-            <button type="button" className="btn" onClick={() => setTypeName(savedTypeName)}>변경 취소</button>
+            <button type="button" className="btn" aria-label="변경 취소" onClick={() => setTypeName(savedTypeName)}>취소</button>
             <button
               type="button"
               className="btn btn-primary"
@@ -493,14 +508,11 @@ export function MaterialWorkspaceSample() {
               />
             )}
           </Field>
-          <div className="record-template-defaults">
-            <span className="secondary">
-              {template === "$대상$ $액션$" ? "기본 문구 사용 중" : "이 종류의 문구 사용 중"}
-            </span>
-            {template !== "$대상$ $액션$" && (
+          {template !== "$대상$ $액션$" && (
+            <div className="record-template-defaults">
               <BodyAction icon="reset" onClick={() => setTemplate("$대상$ $액션$")}>기본 문구로 되돌리기</BodyAction>
-            )}
-          </div>
+            </div>
+          )}
         </div>
         <div className="settings-section-footer">
           <div className="actions schema-actions">

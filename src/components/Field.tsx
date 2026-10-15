@@ -3,20 +3,21 @@ import { type ReactNode, useId } from "react";
 
 interface FieldProps {
   label: string;
+  hideLabel?: boolean;
   required?: boolean;
   help?: string;
   error?: string;
   children: (props: { id: string; "aria-describedby"?: string; "aria-invalid"?: boolean }) => ReactNode;
 }
 
-export function Field({ label, required, help, error, children }: FieldProps) {
+export function Field({ label, hideLabel = false, required, help, error, children }: FieldProps) {
   const id = useId();
   const helpId = `${id}-help`;
   const errorId = `${id}-error`;
   const describedBy = [help && helpId, error && errorId].filter(Boolean).join(" ") || undefined;
   return (
     <div className="field">
-      <label className="label" htmlFor={id}>
+      <label className={hideLabel ? "label visually-hidden" : "label"} htmlFor={id}>
         {label}
         {required && <span className="required" aria-hidden="true">*</span>}
         {required && <span className="visually-hidden">(필수)</span>}

@@ -46,7 +46,6 @@ export function LoginPage() {
       {devLoginEnabled && (
         <form className="form auth-alternative" onSubmit={devLogin} aria-labelledby="dev-login-title">
           <h2 id="dev-login-title" className="section-title">개발용 로그인</h2>
-          <p className="help" style={{ margin: 0 }}>로컬 개발 환경에서 사용하는 계정으로 로그인하세요.</p>
           <Field label="이메일" required>
             {(p) => (
               <input {...p} className="input" type="email" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} required />

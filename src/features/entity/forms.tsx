@@ -358,7 +358,7 @@ export function EntityForm({
                   <button type="button" className="btn" onClick={retryCatalog}>자료 종류 다시 조회</button>
                 </p>
               )}
-              {initial || archived ? <p>자료 종류: {label} · 저장 후 종류를 변경할 수 없습니다.</p> : (
+              {!initial && !archived && (
                 <>
                   <EntityTypePicker
                     types={types?.filter((type) => !type.archived) ?? []}
@@ -384,12 +384,6 @@ export function EntityForm({
               ) && !initial && (
                 <p>
                   활성 자료 종류가 없습니다. <a href="/settings/entity-types">자료 종류 만들기·보관 관리</a>
-                </p>
-              )}
-              {definition && (
-                <p className="help">
-                  편집 정의 버전 {definition.schema_version}
-                  {initial ? ` · 자료 버전 ${initial.version}` : ""}. 정의를 다시 읽어도 초안과 자료 버전은 유지됩니다.
                 </p>
               )}
               {schemaError && <p role="alert">{schemaError}</p>}

@@ -36,7 +36,7 @@ export function TagSettingsPage() {
       <SettingsHeading title="태그 설정" id="tag-heading" tabIndex={-1} />
 
       <div className="material-settings-toolbar">
-        <Field label="관리 대상">
+        <Field label="관리 대상" hideLabel>
           {(props) => (
             <select
               {...props}
@@ -51,7 +51,7 @@ export function TagSettingsPage() {
           )}
         </Field>
       </div>
-      <MaterialSettingsSection title="태그" summary={tagScopeLabels[scope]} initialOpen state={state}>
+      <MaterialSettingsSection title="태그" initialOpen state={state}>
         <SurfaceActionContext.Provider value={setAction}>
           <TagManagement key={scope} scope={scope} inline onStateChange={setState} />
         </SurfaceActionContext.Provider>

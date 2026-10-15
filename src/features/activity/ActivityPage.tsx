@@ -41,7 +41,7 @@ function ActivitySection({ kind, tags, bounds, dictionary, onCreate }: { onCreat
     return <ListPreviewItem kind={kind} id={item.id} title={displayText(item)} cells={cells} metadata={"match" in item ? <SearchMatch item={item}/> : undefined}/>;
   };
   return <ListExpansionProvider readiness={list.readiness}><section className={`activity-section ${kind}`} aria-label={`${kind === "tasks" ? "할 일" : "기록"} 목록`}>
-    <div className="detail-section-head"><CollectionHeading label={kind==="tasks"?"할 일":"기록"} count={list.items?.length} hasMore={!!list.cursor} view={view} onChange={changeView} calendar={kind==="records"}/><TabCreateButton label={kind === "tasks" ? "할 일 등록" : "기록 작성"} onClick={onCreate}/></div>
+    <div className="detail-section-head"><CollectionHeading hideLabel label={kind==="tasks"?"할 일":"기록"} count={list.items?.length} hasMore={!!list.cursor} view={view} onChange={changeView} calendar={kind==="records"}/><TabCreateButton label={kind === "tasks" ? "할 일 등록" : "기록 작성"} onClick={onCreate}/></div>
     {q && <p className="help">관련도순으로 회수한 검색 결과{kind === "records" ? "를 날짜별로 표시합니다." : "입니다."}</p>}
     {metadata?.search_state === "keyword_fallback" && <Notice>의미 검색을 사용할 수 없어 키워드 검색 결과를 표시합니다.</Notice>}
     {metadata && metadata.semantic_coverage.pending + metadata.semantic_coverage.excluded > 0 && <p className="help">의미 색인 대기 {metadata.semantic_coverage.pending}개 · 제외 {metadata.semantic_coverage.excluded}개</p>}

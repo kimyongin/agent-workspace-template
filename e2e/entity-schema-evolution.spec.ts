@@ -32,7 +32,7 @@ test("웹 속성 초안·분석·게시 후 기존 자료 표시와 MCP 생성·
     );
     await page.goto(`/settings/entity-types/${typeId}`);
     await page.getByRole("button", { name: "입력 항목", exact: true }).click();
-    await page.getByRole("button", { name: "이름 속성 편집", exact: true }).click();
+    await page.getByRole("button", { name: /^이름 항목 (?:펼치기|접기)$/, exact: true }).click();
     await page.getByRole("region", { name: "이름 속성", exact: true }).getByLabel("항목 이름", { exact: true }).fill(
       "자료 이름",
     );

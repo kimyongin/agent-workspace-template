@@ -361,7 +361,7 @@ function RecordTemplateForm({
                         {schema?.schema.properties[key]
                           ? `${schema.schema.properties[key].title ?? key} · ${
                             variable.includes(".이전.") ? "이전" : "이후"
-                          } (${key})`
+                          }`
                           : variable.replaceAll("엔터티", "자료")}
                       </option>
                     );
@@ -387,14 +387,11 @@ function RecordTemplateForm({
                 />
               )}
             </Field>
-            {model === "entity" && (
+            {model === "entity" && !usingDefault && (
               <div className="record-template-defaults">
-                <span className="secondary">{usingDefault ? "기본 문구 사용 중" : "이 종류의 문구 사용 중"}</span>
-                {!usingDefault && (
-                  <BodyAction icon="reset" onClick={() => setValue({ memo: null })}>
-                    기본 문구로 되돌리기
-                  </BodyAction>
-                )}
+                <BodyAction icon="reset" onClick={() => setValue({ memo: null })}>
+                  기본 문구로 되돌리기
+                </BodyAction>
               </div>
             )}
 
@@ -443,20 +440,22 @@ function RecordTemplateForm({
                 type="button"
                 className="btn"
                 disabled={busy || uncertain || (conflict ? !latestReady : !dirty)}
+                aria-label={conflict ? "최신값으로 다시 편집" : "변경 취소"}
                 onClick={() => {
                   editor.resource.reset();
                   setFields({});
                   setMessage("");
                 }}
               >
-                {conflict ? "최신값으로 다시 편집" : "변경 취소"}
+                {conflict ? "최신값으로 다시 편집" : "취소"}
               </button>
               <button
                 type="submit"
                 className="btn btn-primary"
                 disabled={busy || !dirty || conflict}
+                aria-label={busy ? "저장 중…" : uncertain ? "같은 내용 다시 시도" : "기록 기본값 저장"}
               >
-                {busy ? "저장 중…" : uncertain ? "같은 내용 다시 시도" : "기록 기본값 저장"}
+                {busy ? "저장 중…" : uncertain ? "같은 내용 다시 시도" : "저장"}
               </button>
             </div>
           </div>
