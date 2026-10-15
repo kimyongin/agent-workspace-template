@@ -537,7 +537,7 @@ test("five settings workspaces retain real API selections and stay within the vi
       const template = page.getByRole("form", { name: "기록 자동 완성", exact: true });
       await expect(template).toBeVisible();
       await expect(template.getByLabel("액션", { exact: true })).toBeEnabled();
-      await expect(template.getByLabel("메모 템플릿")).toHaveValue("$대상$ $액션$");
+      await expect(template.getByLabel("메모 템플릿")).toHaveText("대상 액션");
       await expect(
         page.getByRole("status").filter({
           hasText: /^(?:설정을 읽는 중|속성 정의를 읽는 중|태그를 불러오는 중)…$/,

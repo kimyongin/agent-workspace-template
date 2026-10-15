@@ -1,3 +1,4 @@
+import { TemplateMemoEditor } from "../features/settings/TemplateMemoEditor.tsx";
 import { useState } from "react";
 import { Field } from "../components/Field.tsx";
 import { BodyAction } from "../components/BodyAction.tsx";
@@ -7,6 +8,7 @@ import {
   recordTemplates,
   type TemplateAction,
   templateActionNames,
+  templateVariables,
 } from "@contracts/record-template.ts";
 import { changedTemplateActions, templateFieldTarget } from "../features/settings/record-template-actions.ts";
 
@@ -53,13 +55,13 @@ export function RecordActionsSample() {
         </Field>
         <Field label="메모 템플릿" error={errors.find((error) => error.action === action)?.message}>
           {(props) => (
-            <textarea
+            <TemplateMemoEditor
+              key={action}
               {...props}
-              className="input"
-              rows={3}
+              variables={templateVariables("task", action).map((value) => ({ value, label: value }))}
               value={draft.task?.[action]?.memo ?? "$대상$ $액션$"}
-              onChange={(event) => {
-                setDraft({ task: { ...draft.task, [action]: { memo: event.target.value, tag_ids: [] } } });
+              onChange={(memo) => {
+                setDraft({ task: { ...draft.task, [action]: { memo, tag_ids: [] } } });
                 setMessage("");
               }}
             />

@@ -1,3 +1,4 @@
+import { TemplateMemoEditor, type TemplateMemoHandle } from "./TemplateMemoEditor.tsx";
 import { changedTemplateActions, templateFieldTarget } from "./record-template-actions.ts";
 import { BodyAction } from "../../components/BodyAction.tsx";
 import { useEntityTypes } from "../entity/useEntityTypes.ts";
@@ -135,7 +136,7 @@ function RecordTemplateForm({
   const [message, setMessage] = useState("");
   const [fields, setFields] = useState<Record<string, string>>({});
   const missing = unavailableTemplateTags(editor.saved, draft);
-  const text = useRef<HTMLTextAreaElement>(null);
+  const text = useRef<TemplateMemoHandle>(null);
   const read = async () => {
     const refreshing = !!saved;
     setMessage("");
@@ -220,6 +221,32 @@ function RecordTemplateForm({
       const target = templateFieldTarget(path);
       return target?.model === model && (model !== "entity" || target.typeId === typeId) && target.action === key;
     });
+  const variables = templateVariables(
+    model,
+    action,
+    model === "entity" && schema ? schema.display.order.filter((key) => !schema.display.archived.includes(key)) : [],
+  ).map((variable) => {
+    const key = variable.split(".").at(-1)!;
+    return {
+      value: variable,
+      label: schema?.schema.properties[key]
+        ? `${schema.schema.properties[key].title || "이름 없는 항목"} · ${
+          variable.includes(".이전.") ? "이전" : "이후"
+        }`
+        : variable.replaceAll("엔터티", "자료"),
+    };
+  });
+  const labelCounts = new Map<string, number>();
+  for (const variable of variables) labelCounts.set(variable.label, (labelCounts.get(variable.label) ?? 0) + 1);
+  const seenLabels = new Map<string, number>();
+  for (const variable of variables) {
+    const label = variable.label;
+    if ((labelCounts.get(label) ?? 0) > 1) {
+      const number = (seenLabels.get(label) ?? 0) + 1;
+      seenLabels.set(label, number);
+      variable.label = `${label} (${number})`;
+    }
+  }
   const title = "기록 자동 완성";
   return (
     <section className={materialResource ? "material-record-template" : "settings-section"} aria-label={title}>
@@ -352,36 +379,13 @@ function RecordTemplateForm({
                   className="input"
                   value=""
                   onChange={(event) => {
-                    const variable = `$${event.target.value}$`;
-                    const start = text.current?.selectionStart ??
-                        value.memo.length,
-                      end = text.current?.selectionEnd ?? start;
-                    setValue({
-                      memo: value.memo.slice(0, start) + variable +
-                        value.memo.slice(end),
-                    });
-                    text.current?.focus();
+                    text.current?.insert(event.target.value);
                   }}
                 >
                   <option value="" disabled>변수를 선택하세요</option>
-                  {templateVariables(
-                    model,
-                    action,
-                    model === "entity" && schema
-                      ? schema.display.order.filter((key) => !schema.display.archived.includes(key))
-                      : [],
-                  ).map((variable) => {
-                    const key = variable.split(".").at(-1)!;
-                    return (
-                      <option key={variable} value={variable}>
-                        {schema?.schema.properties[key]
-                          ? `${schema.schema.properties[key].title ?? key} · ${
-                            variable.includes(".이전.") ? "이전" : "이후"
-                          }`
-                          : variable.replaceAll("엔터티", "자료")}
-                      </option>
-                    );
-                  })}
+                  {variables.map((variable) => (
+                    <option key={variable.value} value={variable.value}>{variable.label}</option>
+                  ))}
                 </select>
               )}
             </Field>
@@ -391,15 +395,15 @@ function RecordTemplateForm({
               error={fields[`${path}.memo`] ?? currentError ?? undefined}
             >
               {(props) => (
-                <textarea
+                <TemplateMemoEditor
+                  key={`${model}:${typeId}:${action}`}
                   {...props}
-                  ref={text}
-                  className="input"
-                  rows={3}
+                  editorRef={text}
+                  variables={variables}
+                  disabled={busy}
                   readOnly={uncertain}
-                  value={value.memo}
-                  onChange={(event) =>
-                    setValue({ memo: model === "entity" && !event.target.value.trim() ? null : event.target.value })}
+                  value={stored?.memo ?? value.memo}
+                  onChange={(memo) => setValue({ memo: model === "entity" && !memo.trim() ? null : memo })}
                 />
               )}
             </Field>
