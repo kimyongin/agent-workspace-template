@@ -171,7 +171,7 @@ test("미설정과 null은 고정 문구를 표시하고 되돌리기는 다른 
   await page.reload();
   await page.getByLabel("대상", { exact: true }).selectOption(`type:${materials.id}`);
   await expect(form.getByLabel("메모 템플릿")).toHaveValue("$대상$ $액션$");
-  await expect(form.getByText("기본 문구 사용 중", { exact: true })).toBeVisible();
+  await expect(form.getByRole("button", { name: "기본 문구로 되돌리기", exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "공통 설정", exact: true })).toHaveCount(0);
 });
 

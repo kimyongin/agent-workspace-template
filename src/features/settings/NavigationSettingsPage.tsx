@@ -104,10 +104,6 @@ export function NavigationSettings({ inline = false, onStateChange }: { inline?:
         <span>메뉴 바로가기</span>
       </nav>
       <h1 className="page-title" id="navigation-settings-title">메뉴 바로가기</h1>
-      <p className="secondary">
-        내 프로필은 항상 표시됩니다. 바로가기는 최대 4개를 선택할 수 있고, 모든 업무와 자료 종류는 프로필에서 찾을 수
-        있습니다.
-      </p>
       </>}
       <form
         className="form"
@@ -119,11 +115,7 @@ export function NavigationSettings({ inline = false, onStateChange }: { inline?:
         }}
       >
         <fieldset className="settings-fields" disabled={busy}>
-          <legend className="label">바로가기 순서와 미리보기</legend>
-          <p className="secondary">
-            {draft === null ? "기본 구성 사용 중" : "내가 선택한 구성"}{" "}
-            · 화면에 맞지 않는 후순위 항목은 프로필에서 접근할 수 있습니다. 아래 선택은 현재 메뉴에 미리 표시됩니다.
-          </p>
+          <legend className="label">메뉴 바로가기 ({refs.length}/4)</legend>
           <ol className="navigation-selection" aria-label="선택한 바로가기">
             {refs.map((ref, index) => {
               const entry = resolveNavigationRefs([ref], types)[0];
@@ -264,6 +256,7 @@ export function NavigationSettings({ inline = false, onStateChange }: { inline?:
             <button
               type="button"
               className="btn"
+              aria-label="변경 취소"
               disabled={!dirty && !conflict || busy}
               onClick={() => {
                 setBaseline(saved);
@@ -272,7 +265,7 @@ export function NavigationSettings({ inline = false, onStateChange }: { inline?:
                 setMessage(null);
               }}
             >
-              변경 취소
+              취소
             </button>
             <button
               type="submit"

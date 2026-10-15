@@ -160,7 +160,7 @@ test("알 수 없는 아이콘은 기본값이며 계정 전환과 세션 만료
     const token = `${encode({ alg: "HS256", typ: "JWT" })}.${encode({ exp: Math.floor(Date.now() / 1000) + 3600, sub: user.id })}.fixture`;
     const { error } = await supabase.auth.setSession({ access_token: token, refresh_token: "fixture-other" }); if (error) throw error;
   }, alternate);
-  await expect(page.getByRole("radio", { name: "잎", exact: true })).toBeChecked(); await expect(page.locator(".profile-preview")).toContainText("Other"); await expect(page.getByText(user.email, { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("radio", { name: "잎", exact: true })).toBeChecked(); await expect(page.getByLabel("닉네임", { exact: true })).toHaveValue(""); await expect(page.getByLabel("닉네임", { exact: true })).toHaveAttribute("placeholder", "Other"); await expect(page.getByText(user.email, { exact: true })).toHaveCount(0);
   await page.route("**/auth/v1/logout*", route => route.fulfill({ status: 204 }));
   await page.evaluate(async () => { const path = "/src/lib/supabase.ts"; const { supabase } = await import(path); await supabase.auth.signOut(); });
   await expect(page).toHaveURL(/\/login\?next=/); await expect(page.getByRole("navigation", { name: "주 메뉴" })).toHaveCount(0); await expect(page.getByRole("heading", { name: "로그인", exact: true })).toBeVisible();

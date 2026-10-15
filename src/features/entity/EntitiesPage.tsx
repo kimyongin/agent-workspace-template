@@ -249,6 +249,7 @@ export function EntitiesPage() {
         <section className="activity-section" aria-label={`${label} 목록`}>
           <div className="detail-section-head">
             <CollectionHeading
+              hideLabel
               label={label}
               count={page?.items.length}
               hasMore={!!page?.next_cursor}

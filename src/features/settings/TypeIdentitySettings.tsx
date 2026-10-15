@@ -90,7 +90,7 @@ export function TypeIdentitySettings(
     ? writeErrorMessage(editor.error)
     : inputError;
   return (
-    <MaterialSettingsSection title="식별자" summary={saved?.label} state={state}>
+    <MaterialSettingsSection title="식별자" state={state}>
       {error && <p role="alert" className="error-text">{error}</p>}
       {message && <p role="status">{message}</p>}
       {!saved && (
@@ -269,6 +269,7 @@ export function TypeIdentitySettings(
               <button
                 className="btn"
                 type="button"
+                aria-label="변경 취소"
                 disabled={busy || uncertain || disabled || (!dirty && !conflict) || conflict && !latestReady}
                 onClick={() => {
                   editor.resource.reset();
@@ -276,10 +277,10 @@ export function TypeIdentitySettings(
                   setInputError("");
                 }}
               >
-                변경 취소
+                취소
               </button>
-              <button className="btn btn-primary" disabled={busy || disabled || conflict || (!dirty && !uncertain)}>
-                {busy ? "저장 중…" : uncertain ? "같은 요청 다시 확인" : "식별자 저장"}
+              <button className="btn btn-primary" aria-label={busy ? "저장 중…" : uncertain ? "같은 요청 다시 확인" : "식별자 저장"} disabled={busy || disabled || conflict || (!dirty && !uncertain)}>
+                {busy ? "저장 중…" : uncertain ? "같은 요청 다시 확인" : "저장"}
               </button>
             </div>
           </div>

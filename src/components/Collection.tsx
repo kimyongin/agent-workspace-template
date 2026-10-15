@@ -88,9 +88,10 @@ export function ViewPicker(
 }
 
 export function CollectionHeading(
-  { id, label, count, hasMore = false, view, onChange, calendar }: {
+  { id, label, count, hasMore = false, view, onChange, calendar, hideLabel = false }: {
     id?: string;
     label: string;
+    hideLabel?: boolean;
     count?: number;
     hasMore?: boolean;
     view: CollectionView;
@@ -101,9 +102,14 @@ export function CollectionHeading(
   const expansion = useCollectionExpansion();
   return (
     <div className="collection-heading">
-      <h2 id={id} className="section-title">
-        {label}
-        {count === undefined ? "" : ` (${count}개${hasMore ? "+" : ""})`}
+      <h2
+        id={id}
+        className="section-title"
+        aria-label={hideLabel && count !== undefined ? `${label} (${count}개${hasMore ? "+" : ""})` : undefined}
+      >
+        {hideLabel && count !== undefined
+          ? `${count}개${hasMore ? "+" : ""}`
+          : <>{label}{count === undefined ? "" : ` (${count}개${hasMore ? "+" : ""})`}</>}
       </h2>
       <div className="collection-controls">
         {expansion && (

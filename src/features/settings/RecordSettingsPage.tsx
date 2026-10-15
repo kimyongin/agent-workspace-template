@@ -27,7 +27,7 @@ export function RecordSettingsPage() {
   }, [dirty, busy]);
   return <section className="panel settings" aria-label="기록 설정">
     <SettingsHeading title="기록 설정" />
-    <Field label="대상">{props => <select {...props} className="input" value={selected} onChange={event => { const id = event.target.value; setSelected(id); setVisited(current => current.includes(id) ? current : [...current, id]); }}>{targets.map(target => <option key={target.id} value={target.id}>{target.label}{states[target.id]?.uncertain ? " · 결과 확인 필요" : states[target.id]?.dirty ? " · 미저장" : ""}</option>)}</select>}</Field>
+    <Field label="대상" hideLabel>{props => <select {...props} className="input" value={selected} onChange={event => { const id = event.target.value; setSelected(id); setVisited(current => current.includes(id) ? current : [...current, id]); }}>{targets.map(target => <option key={target.id} value={target.id}>{target.label}{states[target.id]?.uncertain ? " · 결과 확인 필요" : states[target.id]?.dirty ? " · 미저장" : ""}</option>)}</select>}</Field>
     {catalog.error && <Notice kind="error">자료 종류를 읽지 못했습니다. <button type="button" className="btn" onClick={catalog.retry}>다시 시도</button></Notice>}
     {visited.map(id => { const target = targets.find(target => target.id === id); return target && <div key={id} hidden={selected !== id}><TargetEditor target={target} report={report} /></div>; })}
     <ConfirmDialog open={!busy && blocker.state === "blocked"} title="변경을 버릴까요?" message="저장하지 않은 기록 설정이 사라집니다." confirmLabel="변경 버리기" onConfirm={() => { if (blocker.state === "blocked") blocker.proceed(); }} onCancel={() => { if (blocker.state === "blocked") blocker.reset(); }} />

@@ -1,6 +1,5 @@
 import { useId, useState } from "react";
 import type { EntityType } from "@contracts/entity-type.ts";
-import { EntityTypeIcon } from "./EntityTypeIcon.tsx";
 export function EntityTypePicker(
   { types, value, onChange, all = false, disabled = false, error, compact = false }: {
     types: EntityType[];
@@ -53,12 +52,6 @@ export function EntityTypePicker(
         </select>
       </div>
       {error && <p id={`${id}-error`} role="alert" className="error-text">{error}</p>}
-      {selected && !compact && (
-        <span className="help">
-          <EntityTypeIcon id={selected.icon_id} /> {selected.label}
-          {selected.archived ? " · 보관" : ""}
-        </span>
-      )}
       {keyword && !options.length && <p role="status" className="secondary">조건에 맞는 자료 종류가 없습니다.</p>}
     </div>
   );

@@ -177,9 +177,11 @@ test("작업 직접 링크와 작업 재선택에서도 기본 입력과 속성 
   await page.getByLabel("자료 종류 이름", { exact: true }).fill(
     "남길 기본 입력",
   );
-  await page.getByRole("button", { name: "이름 속성 편집", exact: true })
+  await page.getByRole("button", { name: /^이름 항목 (?:펼치기|접기)$/, exact: true })
     .click();
-  await page.getByLabel("항목 이름", { exact: true }).fill("남길 속성 입력");
+  const title = page.locator(".schema-field-heading").getByLabel("항목 이름", { exact: true });
+  await expect(title).toHaveCount(1);
+  await title.fill("남길 속성 입력");
   await page.getByRole("link", { name: / · 완료$/ }).and(
     page.locator(`a[href*="${id(21)}"]`),
   ).click();
@@ -408,12 +410,12 @@ test("변환 완료는 새 게시 속성을 바로 갱신하고 기본·속성·
   await page.getByLabel("자료 종류 이름", { exact: true }).fill(
     "남길 기본 입력",
   );
-  await page.getByRole("button", { name: "이름 속성 편집", exact: true })
+  await page.getByRole("button", { name: /^이름 항목 (?:펼치기|접기)$/, exact: true })
     .click();
   await page.getByLabel("항목 이름", { exact: true }).first().fill(
     "남길 속성 입력",
   );
-  await page.getByRole("button", { name: "수량 속성 편집", exact: true })
+  await page.getByRole("button", { name: /^수량 항목 (?:펼치기|접기)$/, exact: true })
       .click();
   await revealSetting(page.getByLabel("최소값", { exact: true }));
   await page.getByLabel("최소값", { exact: true }).fill("7.5");
@@ -439,7 +441,7 @@ test("변환 완료는 새 게시 속성을 바로 갱신하고 기본·속성·
     "남길 식별자 입력",
   );
   await expect(
-    page.getByRole("button", { name: "게시된 추가값 속성 편집", exact: true }),
+    page.getByRole("button", { name: /^게시된 추가값 항목 (?:펼치기|접기)$/, exact: true }),
   ).toBeVisible();
   await expect(page.getByLabel("이전 최소값 입력", { exact: true }))
     .toHaveValue("7.5");
@@ -548,7 +550,7 @@ test("완료 작업의 최신 정의 조회 실패는 작업 결과와 초안을
   await page.getByRole("button", { name: "최신 속성 다시 조회", exact: true })
     .click();
   await expect(
-    page.getByRole("button", { name: "갱신한 이름 속성 편집", exact: true }),
+    page.getByRole("button", { name: /^갱신한 이름 항목 (?:펼치기|접기)$/, exact: true }),
   ).toBeVisible();
   await expect(page.getByLabel("자료 종류 이름", { exact: true })).toHaveValue(
     "실패 후 유지할 기본 입력",
@@ -744,7 +746,7 @@ test("완료 작업을 다시 선택하면 다른 작업을 보는 동안 게시
   ).click();
   await expect(
     page.getByRole("button", {
-      name: "다른 곳에서 게시한 값 속성 편집",
+      name: /^다른 곳에서 게시한 값 항목 (?:펼치기|접기)$/,
       exact: true,
     }),
   ).toBeVisible();
@@ -887,7 +889,7 @@ test("새 게시 이력이 취소한 이전 페이지의 본문 읽기 오류는
   await page.getByRole("button", { name: "상태 다시 조회", exact: true })
     .click();
   await expect(
-    page.getByRole("button", { name: "확인한 새 속성 속성 편집", exact: true }),
+    page.getByRole("button", { name: /^확인한 새 속성 항목 (?:펼치기|접기)$/, exact: true }),
   ).toBeVisible();
   await page.waitForFunction(() => document.documentElement.dataset.fixtureHistoryBody === "aborted");
   await expect(page.getByRole("button", { name: /버전 3 · 적용됨$/ })).toBeVisible();
@@ -901,7 +903,7 @@ test("새 게시 이력이 취소한 이전 페이지의 본문 읽기 오류는
     "현재 이전 게시 조회 실패",
   );
   await expect(
-    page.getByRole("button", { name: "확인한 새 속성 속성 편집", exact: true }),
+    page.getByRole("button", { name: /^확인한 새 속성 항목 (?:펼치기|접기)$/, exact: true }),
   ).toBeVisible();
 });
 
@@ -954,7 +956,7 @@ test(
       }
     }
     await page.getByRole("button", { name: "입력 항목", exact: true }).click();
-    await page.getByRole("button", { name: "수량 속성 편집", exact: true })
+    await page.getByRole("button", { name: /^수량 항목 (?:펼치기|접기)$/, exact: true })
       .click();
     const properties = page.getByRole("region", {
       name: "입력 항목",
@@ -963,18 +965,18 @@ test(
     await expect(page.getByRole("region", { name: "화면 표시", exact: true }))
       .toHaveCount(0);
     await expect(properties.getByLabel("자료 이름으로 사용할 항목")).toHaveCount(0);
-    await page.getByRole("button", { name: "재료명 속성 편집", exact: true }).click();
+    await page.getByRole("button", { name: /^재료명 항목 (?:펼치기|접기)$/, exact: true }).click();
     await expect(properties.getByRole("radio", { name: "재료명 자료 이름으로 사용", exact: true })).toBeChecked();
     await expect(properties.getByRole("radio", { name: "수량 자료 이름으로 사용", exact: true })).toBeDisabled();
-    await page.getByRole("button", { name: "표시 이름 속성 편집", exact: true }).click();
+    await page.getByRole("button", { name: /^표시 이름 항목 (?:펼치기|접기)$/, exact: true }).click();
     await properties.getByRole("radio", { name: "표시 이름 자료 이름으로 사용", exact: true }).check();
     await expect(properties.getByRole("radio", { name: "재료명 자료 이름으로 사용", exact: true })).not.toBeChecked();
     await expect(properties.getByRole("radio", { name: "표시 이름 자료 이름으로 사용", exact: true })).toBeChecked();
     await properties.getByRole("radio", { name: "재료명 자료 이름으로 사용", exact: true }).check();
     await expect(properties.getByRole("radio", { name: "표시 이름 자료 이름으로 사용", exact: true })).not.toBeChecked();
-    await page.getByRole("button", { name: "표시 이름 속성 편집", exact: true }).click();
+    await page.getByRole("button", { name: /^표시 이름 항목 (?:펼치기|접기)$/, exact: true }).click();
 
-    await page.getByRole("button", { name: "재료명 속성 편집", exact: true }).click();
+    await page.getByRole("button", { name: /^재료명 항목 (?:펼치기|접기)$/, exact: true }).click();
     await expect(
       properties.getByRole("button", { name: "변경 검토", exact: true }),
     ).toBeDisabled();
@@ -1338,7 +1340,7 @@ test("변환 목록 조회가 실패해도 페이지 밖 작업 직접 링크는
   );
   await page.getByRole("button", { name: "입력 항목", exact: true }).click();
   await expect(
-    page.getByRole("button", { name: "이름 속성 편집", exact: true }),
+    page.getByRole("button", { name: /^이름 항목 (?:펼치기|접기)$/, exact: true }),
   ).toBeVisible();
   await expect(
     page.getByRole("alert").filter({ hasText: "변환 목록 조회 실패" }),

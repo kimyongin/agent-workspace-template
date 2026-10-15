@@ -284,7 +284,6 @@ export function SchemaEditor(
             </h2>
           </div>
           <div hidden={!propertiesOpen} className="schema-input-content">
-            <p className="secondary">수량·단위처럼 자료에 입력할 항목을 설정하세요.</p>
             <fieldset
               id="schema-property-inputs"
               hidden={!propertiesOpen}
@@ -299,6 +298,21 @@ export function SchemaEditor(
                   const toggleField = () => setOpenFields(keys =>
                     keys.includes(key) ? keys.filter(value => value !== key) : [...keys, key]
                   );
+                  const expanded = openFields.includes(key);
+                  const fieldSummary = (
+                    <span className="secondary">
+                      <span>{fieldTypeLabel(f)}</span>
+                      {draft.schema.required.includes(key) && <span className="schema-badge">필수</span>}
+                      {key === draft.display.representative && <span className="schema-badge">자료 이름</span>}
+                      {draft.display.archived.includes(key) && <span className="schema-badge">사용 중지</span>}
+                      {changedFields.includes(key) && <span className="schema-badge">변경됨</span>}
+                      {fieldError === key && (
+                        <span className="schema-badge error-text">
+                          오류
+                        </span>
+                      )}
+                    </span>
+                  );
                   return (
                     <li key={key}>
                       <section
@@ -311,28 +325,32 @@ export function SchemaEditor(
                       >
                         <div className="schema-field-heading">
                           <h3>
-                            <button
-                              className="schema-field-title related-toggle item-title"
-                              type="button"
-                              aria-label={`${f.title || "새 항목"} 속성 편집`}
-                              aria-expanded={openFields.includes(key)}
-                              aria-controls={`schema-field-${key}`}
-                              onClick={toggleField}
-                          >
-                              <span>{f.title || "새 항목"}</span>
-                              <span className="secondary">
-                                <span>{fieldTypeLabel(f)}</span>
-                                {draft.schema.required.includes(key) && <span className="schema-badge">필수</span>}
-                                {key === draft.display.representative && <span className="schema-badge">자료 이름</span>}
-                                {draft.display.archived.includes(key) && <span className="schema-badge">사용 중지</span>}
-                                {changedFields.includes(key) && <span className="schema-badge">변경됨</span>}
-                                {fieldError === key && (
-                                  <span className="schema-badge error-text">
-                                    오류
-                                  </span>
-                                )}
+                            {expanded ? (
+                              <span className="schema-field-title">
+                                <input
+                                  className="input"
+                                  aria-label="항목 이름"
+                                  maxLength={80}
+                                  data-schema-setting="title"
+                                  value={f.title ?? ""}
+                                  disabled={Boolean(plan?.recovery)}
+                                  onChange={(event) => editField(key, { ...f, title: event.target.value })}
+                                />
+                                {fieldSummary}
                               </span>
-                            </button>
+                            ) : (
+                              <button
+                                className="schema-field-title related-toggle item-title"
+                                type="button"
+                                aria-label={`${f.title || "새 항목"} 속성 편집`}
+                                aria-expanded={expanded}
+                                aria-controls={`schema-field-${key}`}
+                                onClick={toggleField}
+                              >
+                                <span>{f.title || "새 항목"}</span>
+                                {fieldSummary}
+                              </button>
+                            )}
                           </h3>
                           <div className="schema-order-actions">
                             <BodyAction
@@ -369,18 +387,6 @@ export function SchemaEditor(
                           hidden={!openFields.includes(key)}
                           disabled={Boolean(plan?.recovery)}
                         >
-                          <Field label="항목 이름">
-                            {(p) => (
-                              <input
-                                {...p}
-                                className="input"
-                                maxLength={80}
-                                data-schema-setting="title"
-                                value={f.title ?? ""}
-                                onChange={(e) => editField(key, { ...f, title: e.target.value })}
-                              />
-                            )}
-                          </Field>
                           <Field label="데이터 타입">
                             {(p) => (
                               <select
@@ -760,8 +766,7 @@ export function SchemaEditor(
                               </div>
                               {key === draft.display.representative && (
                                 <p className="secondary">
-                                  자료 이름으로 쓰는 항목입니다. 다른 항목을 펼쳐 자료 이름으로 선택한 뒤 사용
-                                  중지하거나 삭제하세요.
+                                  다른 항목을 자료 이름으로 선택한 뒤 사용 중지하거나 삭제하세요.
                                 </p>
                               )}
                             </div>
@@ -791,13 +796,13 @@ export function SchemaEditor(
             <p className="secondary">항목 순서는 입력·상세·목록에 함께 적용됩니다.</p>
             {!plan?.recovery && (!plan || dirty || reviewSaved) && (
               <div className="settings-section-footer schema-review-actions">
-                <p className="secondary">
-                  {dirty
-                    ? `변경 ${changeCount}개 · 검토 후 자료에 적용됩니다.`
-                    : plan && plan.status !== "applied"
-                    ? "저장한 변경안입니다. 아직 자료에 적용되지 않았습니다."
-                    : "현재 적용된 설정입니다."}
-                </p>
+                {(dirty || plan && plan.status !== "applied") && (
+                  <p className="secondary">
+                    {dirty
+                      ? `변경 ${changeCount}개 · 검토 후 자료에 적용됩니다.`
+                      : "저장한 변경안입니다. 아직 자료에 적용되지 않았습니다."}
+                  </p>
+                )}
                 <div className="actions">
                   <button
                     className="btn"
@@ -1056,10 +1061,6 @@ export function SchemaEditor(
                               </p>
                             </section>
                           )}
-                          <p>
-                            상태: {schemaChangeLabels[plan.status]} ·{" "}
-                            {plan.change_kind === "compatible" ? "검토 완료 후 적용 가능" : "자료 값 변환 필요"}
-                          </p>
                           <SchemaChangeDiff
                             change={plan}
                             definition={definition}
@@ -1081,12 +1082,6 @@ export function SchemaEditor(
                                 확인한 자료 {plan.analysis.processed}/{plan.analysis
                                   .total}개 · 문제 {plan.analysis.failed}개
                               </p>
-                              {plan.analysis.status === "succeeded" &&
-                                plan.analysis.failed === 0 && (
-                                <p className="secondary">
-                                  기존 자료가 새 입력 조건을 충족합니다.
-                                </p>
-                              )}
                               {dirty && (
                                 <p className="error-text">
                                   검토 이후 입력이 바뀌었습니다. 변경 검토를 다시 진행하세요.
@@ -1117,7 +1112,6 @@ export function SchemaEditor(
                                   </ul>
                                 </div>
                               ))}
-                              {!plan.analysis.errors.length && <p>표시할 문제 항목이 없습니다.</p>}
                             </details>
                           )}
                           {plan.change_kind === "migration_required" ||

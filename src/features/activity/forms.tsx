@@ -306,7 +306,7 @@ export function TaskFormModal(props: {
                   </fieldset>
                 )}
                 {draft.freq === "monthly" && (
-                  <Field label={taskLabels.month_days} error={errors.month_days} help="해당 달에 없는 날짜는 그 달 마지막 날로 옮깁니다. 예: 매월 31일 → 9월 30일. 같은 날로 겹치면 회차 하나입니다." >
+                  <Field label={taskLabels.month_days} error={errors.month_days} help="해당 달에 없는 날짜는 마지막 날로 옮깁니다. 같은 날로 겹치면 회차 하나입니다." >
                     {(p) => (
                       <input {...p} className="input" placeholder="예: 1, 15, 31" inputMode="numeric" value={draft.month_days} onChange={(e) => set({ month_days: e.target.value })} />
                     )}

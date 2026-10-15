@@ -72,7 +72,7 @@ export function IssuerSettingsPage() {
     <section className="panel settings" aria-label="발급처 설정">
       <SettingsHeading title="발급처 설정" />
       <div className="material-settings-toolbar">
-        <Field label="발급처">
+        <Field label="발급처" hideLabel>
           {(props) => (
             <select
               {...props}
@@ -103,7 +103,7 @@ export function IssuerSettingsPage() {
       )}
       {message && <p role="status">{message}</p>}
       {issuers?.length === 0 && !loading && !error && (
-        <p className="secondary">발급처를 추가하면 자료 종류에서 번호 규칙을 연결할 수 있습니다.</p>
+        <p className="secondary">발급처가 없습니다.</p>
       )}
       {issuer && (
         <>
@@ -111,7 +111,7 @@ export function IssuerSettingsPage() {
             key={`${selected}:basic`}
             title="기본 정보"
             state={editing?.kind === "issuer" ? editState : undefined}
-            summary={issuer.active ? "사용 중" : "중지"}
+            summary={issuer.active ? undefined : "중지"}
             initialOpen
           >
             <div className="settings-inline-actions">

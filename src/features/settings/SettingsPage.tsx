@@ -138,6 +138,7 @@ function AccountSettings() {
           type="button"
           className="btn"
           disabled={!isDirty(section) || saving !== null}
+          aria-label="변경 취소"
           onClick={() => {
             setDraft((current) => ({
               ...current,
@@ -146,7 +147,7 @@ function AccountSettings() {
             clearMessage(section);
           }}
         >
-          변경 취소
+          취소
         </button>
         <button
           type="submit"
@@ -161,10 +162,6 @@ function AccountSettings() {
   );
   const profile = (
     <>
-      <div className="profile-preview">
-        <ProfileIcon id={draft.icon} />
-        <span className="account-name">{profileName({ ...metadata, workspace_nickname: draft.nickname })}</span>
-      </div>
       <Field label="닉네임">
         {(props) => (
           <input
