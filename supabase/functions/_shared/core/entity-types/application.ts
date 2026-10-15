@@ -1,3 +1,4 @@
+import { replayRetainedSchemaRequest } from "./retained-requests.ts";
 import type { SchemaMigrationStore } from "./schema-migrations.ts";
 import type { SchemaChangeStore } from "./schema-changes.ts";
 import {
@@ -36,13 +37,13 @@ export interface EntityTypeStore extends RequestStore, SchemaChangeStore, Schema
   get(id: string): Promise<EntityType | null>;
   create(
     input: ReturnType<typeof entityTypeCreate.parse>,
-    definition: Pick<EntitySchemaVersion, "schema" | "display">,
+    definition: Pick<EntitySchemaVersion, "schema">,
   ): Promise<EntityType>;
   update(id: string, input: ReturnType<typeof entityTypeUpdate.parse>): Promise<EntityType>;
   schema(
     id: string,
     version?: number,
-  ): Promise<(EntitySchemaVersion & { type: EntityTypeRef; type_version: number }) | null>;
+  ): Promise<(EntitySchemaVersion & { type: EntityTypeRef }) | null>;
   history(
     input: ReturnType<typeof entitySchemaHistory.parse>,
   ): Promise<{ items: EntitySchemaVersionSummary[]; next_before: number | null }>;
@@ -75,6 +76,10 @@ export function createEntityType(d: EntityTypeDeps, actor: Actor, raw: unknown) 
 }
 export function updateEntityType(d: EntityTypeDeps, actor: Actor, id: string, raw: unknown) {
   id = parse(z.string().uuid(), id);
+  if (
+    raw && typeof raw === "object" && Object.hasOwn(raw, "expected_type_version") &&
+    !entityTypeUpdate.safeParse(raw).success
+  ) return replayRetainedSchemaRequest<EntityType>(d, actor, "entity-type.update", id, raw);
   const input = parse(entityTypeUpdate, raw);
   return runWrite(d.uow, actor, "entity-type.update", id, input, (store) => store.update(id, input));
 }
@@ -107,12 +112,11 @@ export function entityTypeUpdateDecision(
   input: ReturnType<typeof entityTypeUpdate.parse>,
 ): Pick<EntityType, "label" | "icon_id" | "archived"> | null {
   if (
-    current.version !== input.expected_type_version ||
-    (input.expected_schema_version !== undefined && current.schema_version !== input.expected_schema_version)
+    current.schema_version !== input.expected_schema_version
   ) {
     throw new AppError("schema_changed", "자료 종류나 속성 정의가 변경되었습니다. 최신 버전을 확인하세요.", undefined, {
       type_id: current.id,
-      type_version: current.version,
+
       schema_version: current.schema_version,
     });
   }

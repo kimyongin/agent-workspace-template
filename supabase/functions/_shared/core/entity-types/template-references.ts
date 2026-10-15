@@ -1,3 +1,4 @@
+import { entitySchemaPresentation } from "../../contracts/entity-type.ts";
 import {
   effectiveEntityTemplates,
   effectiveRecordTemplate,
@@ -24,7 +25,9 @@ export function assertSchemaTemplateReferences(target: SchemaDefinition, templat
       if (match[0] === "$$") continue;
       const variable = match[1] ?? match[2];
       const ref = /^엔터티\.(?:이전|이후)\.(prop_[1-9][0-9]*)$/.exec(variable);
-      if (ref && (!target.schema.properties[ref[1]] || target.display.archived.includes(ref[1]))) {
+      if (
+        ref && (!target.schema.properties[ref[1]] || entitySchemaPresentation(target.schema).archived.includes(ref[1]))
+      ) {
         issues.push(`${ref[1]} 참조가 없거나 보관되어 있습니다. 기록 템플릿을 먼저 수정하세요`);
       }
     }

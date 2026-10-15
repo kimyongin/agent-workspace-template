@@ -87,7 +87,7 @@ export class SqlBusinessSettingsStore implements BusinessSettingsStore {
     const table = model === "entity" ? "entities" : model === "task" ? "tasks" : "principles";
     const [row] = model === "entity"
       ? await this
-        .tx`select e.*,t.id as type_id,t.label,t.icon_id,t.archived,t.schema_version as current_schema_version,v.display from app.entities e
+        .tx`select e.*,t.id as type_id,v.schema->>'title' as label,v.schema->>'x-icon' as icon_id,coalesce((v.schema->>'deprecated')::boolean,false) as archived,t.schema_version as current_schema_version,v.schema from app.entities e
         join app.entity_types t on t.owner_id=e.owner_id and t.id=e.entity_type_id
         join app.entity_schema_versions v on v.owner_id=t.owner_id and v.type_id=t.id and v.schema_version=t.schema_version where e.id=${id}`
       : await this.tx`select * from app.${this.tx(table)} where id=${id}`;

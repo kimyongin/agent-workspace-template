@@ -113,7 +113,7 @@ export function entityTypeTools(deps: EntityTypeDeps): ToolDef[] {
     {
       name: "create_entity_schema_change",
       description:
-        "자료 종류의 속성 변경 초안 저장. add_property client_ref를 prop_n으로 영구 예약. 같은 edits의 set_display 및 migration key에서 new_<client_ref>로 새 항목의 순서·대표·목록·선택 이름을 지정 가능. 제한된 편집만 지원, request_key 필수.",
+        "자료 종류의 속성 변경 초안 저장. add_property client_ref를 prop_n으로 영구 예약. 속성의 x-order/x-representative/x-show-in-list와 const/title oneOf로 표시를 지정. migration key는 new_<client_ref>로 새 항목을 참조. set_metadata로 종류 정보를 같은 문서에서 수정. 제한된 편집만 지원, request_key 필수.",
       input: schemaChangeCreate.extend({ type_id: z.string().uuid() }),
       readOnly: false,
       handler: (i, a) => {
@@ -208,7 +208,7 @@ export function entityTypeTools(deps: EntityTypeDeps): ToolDef[] {
     },
     {
       name: "get_entity_type",
-      description: "자료 종류의 이름·아이콘·보관 상태·metadata version·현재 schema_version 조회.",
+      description: "자료 종류의 이름·아이콘·보관 상태·현재 schema_version 조회.",
       input: z.strictObject({ type_id: z.string().uuid() }),
       readOnly: true,
       handler: (i, a) => getEntityType(deps, a, String(i.type_id)),
@@ -223,7 +223,7 @@ export function entityTypeTools(deps: EntityTypeDeps): ToolDef[] {
     {
       name: "update_entity_type",
       description:
-        "자료 종류 이름·icon_id·archived 수정. expected_type_version 필요, expected_schema_version을 선택적으로 함께 확인. 속성/값을 변경하지 않습니다.",
+        "자료 종류 이름·icon_id·archived 수정. expected_schema_version을 확인하여 같은 문서의 새 버전으로 게시합니다.",
       input: entityTypeUpdate.safeExtend({ type_id: z.string().uuid() }),
       readOnly: false,
       handler: (i, a) => {
@@ -234,7 +234,7 @@ export function entityTypeTools(deps: EntityTypeDeps): ToolDef[] {
     {
       name: "get_entity_schema",
       description:
-        "type_id별 현재 또는 schema_version의 불변 Draft 2020-12 정의·표시 설정 조회. 기본값은 생성에만 적용.",
+        "type_id별 현재 또는 schema_version의 불변 Draft 2020-12 단일 정의 문서 조회. 기본값은 생성에만 적용.",
       input: entitySchemaRead,
       readOnly: true,
       handler: (i, a) => getEntitySchema(deps, a, i),
@@ -242,7 +242,7 @@ export function entityTypeTools(deps: EntityTypeDeps): ToolDef[] {
     {
       name: "list_entity_schema_versions",
       description:
-        "type_id별 불변 버전 목록을 최신순으로 조회. limit/before 페이지. metadata version과 schema_version은 별개.",
+        "type_id별 불변 버전 목록을 최신순으로 조회. limit/before 페이지. 종류 정보와 속성을 같은 버전으로 보존.",
       input: entitySchemaHistory,
       readOnly: true,
       handler: (i, a) => listEntitySchemaVersions(deps, a, i),

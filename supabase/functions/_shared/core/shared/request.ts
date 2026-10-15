@@ -8,6 +8,7 @@ export interface RequestIdentity {
   fingerprint: string;
 }
 export interface RequestStore {
+  replayRetainedRequest?<T>(request: RequestIdentity): Promise<{ found: boolean; result?: T }>;
   executeRequest?<T>(request: RequestIdentity, execute: () => Promise<T>): Promise<T>;
 }
 export function requireRequestKey(actor: Actor): string {
@@ -35,12 +36,7 @@ export async function runRequest<T>(
   input: unknown,
   execute: () => Promise<T>,
 ): Promise<T> {
-  const key = requireRequestKey(actor);
-  const bytes = new TextEncoder().encode(JSON.stringify(canonical({ revision: 1, operation, target, input })));
-  const fingerprint = Array.from(
-    new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)),
-    (b) => b.toString(16).padStart(2, "0"),
-  ).join("");
+  const { key, fingerprint } = await requestIdentity(actor, operation, target, input);
   if (!store.executeRequest) throw invalidInput("요청 원장 저장소가 필요합니다");
   return await store.executeRequest({ key, operation, fingerprint }, execute);
 }
@@ -55,4 +51,19 @@ export function runWrite<S extends RequestStore, T>(
 ): Promise<T> {
   requireRequestKey(actor);
   return uow.run(actor, (store) => runRequest(store, actor, operation, target, input, () => execute(store)));
+}
+
+export async function requestIdentity(
+  actor: Actor,
+  operation: string,
+  target: unknown,
+  input: unknown,
+): Promise<RequestIdentity> {
+  const key = requireRequestKey(actor);
+  const bytes = new TextEncoder().encode(JSON.stringify(canonical({ revision: 1, operation, target, input })));
+  const fingerprint = Array.from(
+    new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)),
+    (b) => b.toString(16).padStart(2, "0"),
+  ).join("");
+  return { key, operation, fingerprint };
 }

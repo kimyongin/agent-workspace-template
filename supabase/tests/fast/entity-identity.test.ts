@@ -24,10 +24,21 @@ const definition: EntityDefinition = {
   type: { id: typeId, label: "검사 자료", icon_id: "box", archived: false },
 };
 definition.schema.properties.prop_1.maxLength = 100;
-definition.schema.properties.prop_2 = { type: ["integer", "null"], minimum: 0, maximum: 1_000_000, default: null };
-definition.schema.properties.prop_3 = { type: ["string", "null"], format: "date", default: null };
-definition.schema.properties.prop_4 = { type: "string", enum: ["a", "b", "c"], default: "a" };
-definition.display.order = ["prop_1", "prop_2", "prop_3", "prop_4"];
+definition.schema.properties.prop_2 = {
+  "x-order": 20,
+  type: ["integer", "null"],
+  minimum: 0,
+  maximum: 1_000_000,
+  default: null,
+};
+definition.schema.properties.prop_3 = { "x-order": 30, type: ["string", "null"], format: "date", default: null };
+definition.schema.properties.prop_4 = {
+  "x-order": 40,
+  type: "string",
+  oneOf: ["a", "b", "c"].map((value) => ({ const: value })),
+  default: "a",
+};
+
 const schema = { entity_type_id: typeId, schema_version: 1 };
 
 Deno.test("Entity registration uses exact namespaced identity and rejects active duplicate", async () => {

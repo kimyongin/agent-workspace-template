@@ -26,18 +26,14 @@ export function assessRecovery(e: RecoveryEvidence, now: Date): NonNullable<Enti
   } else if (!e.expires_at || !e.material_present || e.retained !== e.total) {
     status = "unavailable";
     reason = "복구 원본 또는 확정 기준 자료가 없습니다";
-  } else if (!e.values_match || !e.references_match || e.type.archived) {
+  } else if (!e.values_match || !e.references_match) {
     status = "conflict";
-    reason = e.type.archived
-      ? "보관된 자료 종류를 먼저 복원하세요"
-      : "완료 후 값·자료 구성·연결 선택이 변경되었습니다. 수동 보완과 새 분석이 필요합니다";
-    if (e.type.archived) conflicts.push({ path: "type.archived", message: "보관된 자료 종류를 먼저 복원하세요" });
+    reason = "완료 후 값·자료 구성·연결 선택이 변경되었습니다. 수동 보완과 새 분석이 필요합니다";
   }
   return {
     status,
     reason,
     conflicts: conflicts.slice(0, 21),
-    current_type_version: e.type.version,
     current_schema_version: e.type.schema_version,
   };
 }
@@ -66,19 +62,41 @@ export type RecoveryProposal = {
   keys: string[];
 };
 export function recoveryTarget(context: RecoveryContext): SchemaDefinition {
-  const target = structuredClone(context.source);
-  for (const [key, field] of Object.entries(context.current.schema.properties)) {
+  const target = {
+    schema: {
+      ...structuredClone(context.current.schema),
+      properties: structuredClone(context.source.schema.properties),
+      required: [...context.source.schema.required],
+    },
+  };
+  const orders = new Set(Object.values(target.schema.properties).map((f) => f["x-order"]));
+  const listOrders = new Set(
+    Object.values(target.schema.properties).filter((f) => f["x-show-in-list"] && !f.deprecated).map((f) =>
+      f["x-list-order"] ?? f["x-order"]
+    ),
+  );
+  for (
+    const [key, field] of Object.entries(context.current.schema.properties).sort(([, a], [, b]) =>
+      a["x-order"] - b["x-order"]
+    )
+  ) {
     if (
       !Object.hasOwn(target.schema.properties, key) && !Object.hasOwn(context.committed_target.schema.properties, key)
     ) {
-      target.schema.properties[key] = structuredClone(field);
+      const later = structuredClone(field);
+      if (orders.has(later["x-order"])) later["x-order"] = Math.max(...orders) + 10;
+      orders.add(later["x-order"]);
+      if (later["x-representative"]) later["x-representative"] = false;
+      if (later["x-show-in-list"] && !later.deprecated) {
+        let order = later["x-list-order"] ?? later["x-order"];
+        if (listOrders.has(order)) {
+          order = Math.max(...listOrders) + 10;
+          later["x-list-order"] = order;
+        }
+        listOrders.add(order);
+      }
+      target.schema.properties[key] = later;
       if (context.current.schema.required.includes(key)) target.schema.required.push(key);
-      for (const name of ["order", "list_columns", "archived"] as const) {
-        if (context.current.display[name].includes(key)) target.display[name].push(key);
-      }
-      if (context.current.display.option_labels[key]) {
-        target.display.option_labels[key] = structuredClone(context.current.display.option_labels[key]);
-      }
     }
   }
   validateEntityDefinition(target);

@@ -37,26 +37,15 @@ export function resolveSchemaEdits(
   const touched = new Set<string>();
   const additions = new Set<string>();
   for (const edit of edits) {
-    if (edit.op === "set_display") {
-      const resolve = (key: string) => resolvePropertyReference(key, edits, reservations);
-      target.display = {
-        representative: resolve(edit.display.representative),
-        order: edit.display.order.map(resolve),
-        list_columns: edit.display.list_columns.map(resolve),
-        archived: edit.display.archived.map(resolve),
-        option_labels: Object.fromEntries(
-          Object.entries(edit.display.option_labels).map(([key, labels]) => [resolve(key), labels]),
-        ),
-      };
+    if (edit.op === "set_metadata") {
+      const { op: _op, ...metadata } = edit;
+      Object.assign(target.schema, metadata);
       continue;
     }
     if (edit.op === "archive_property" || edit.op === "restore_property") {
       if (!source.schema.properties[edit.key]) throw invalidInput("현재 정의에 없는 속성은 보관할 수 없습니다");
-      target.display.archived = target.display.archived.filter((k) => k !== edit.key);
-      if (edit.op === "archive_property") {
-        target.display.archived.push(edit.key);
-        target.display.list_columns = target.display.list_columns.filter((k) => k !== edit.key);
-      }
+      target.schema.properties[edit.key].deprecated = edit.op === "archive_property";
+      if (edit.op === "archive_property") target.schema.properties[edit.key]["x-show-in-list"] = false;
       continue;
     }
     const key = edit.op === "add_property"
@@ -70,7 +59,6 @@ export function resolveSchemaEdits(
       }
       additions.add(edit.client_ref);
       target.schema.properties[key] = edit.field;
-      if (!target.display.order.includes(key)) target.display.order.push(key);
     } else if (!source.schema.properties[key]) {
       throw invalidInput("현재 정의에 없는 속성은 수정할 수 없습니다", [{
         path: `properties.${key}`,
@@ -79,24 +67,16 @@ export function resolveSchemaEdits(
     } else if (edit.op === "remove_property") {
       delete target.schema.properties[key];
       target.schema.required = target.schema.required.filter((k) => k !== key);
-      for (const name of ["order", "list_columns", "archived"] as const) {
-        target.display[name] = target.display[name].filter((k) => k !== key);
-      }
-      delete target.display.option_labels[key];
       continue;
     } else target.schema.properties[key] = edit.field;
     target.schema.required = target.schema.required.filter((k) => k !== key);
     if (edit.required) target.schema.required.push(key);
   }
-  // Archiving never silently changes requiredness or removes stored values.
-  if (target.display.archived.some((k) => target.schema.required.includes(k))) {
-    throw invalidInput(
-      "필수 속성을 보관하려면 먼저 필수를 해제하세요",
-      target.display.archived.filter((k) => target.schema.required.includes(k)).map((k) => ({
-        path: `properties.${k}.required`,
-        message: "필수 해제와 보관을 같은 변경에 지정하세요",
-      })),
-    );
+  for (const edit of edits) {
+    if (edit.op === "archive_property" || edit.op === "restore_property") {
+      target.schema.properties[edit.key].deprecated = edit.op === "archive_property";
+      if (edit.op === "archive_property") target.schema.properties[edit.key]["x-show-in-list"] = false;
+    }
   }
   validateEntityDefinition(target);
   const diff = schemaDefinitionDiff(source, target);
@@ -135,8 +115,11 @@ export function schemaDefinitionDiff(source: SchemaDefinition, target: SchemaDef
       continue;
     }
     for (const name of new Set([...Object.keys(a), ...Object.keys(b)])) {
-      const old = (a as unknown as Record<string, unknown>)[name],
-        next = (b as unknown as Record<string, unknown>)[name];
+      const booleans = ["deprecated", "readOnly", "x-representative", "x-show-in-list"];
+      const old = (a as unknown as Record<string, unknown>)[name] ??
+          (booleans.includes(name) ? false : name === "x-list-order" ? a["x-order"] : undefined),
+        next = (b as unknown as Record<string, unknown>)[name] ??
+          (booleans.includes(name) ? false : name === "x-list-order" ? b["x-order"] : undefined);
       let migration = false;
       let reason = "표시 또는 생성 기본값 변경";
       if (name === "type") {
@@ -164,8 +147,12 @@ export function schemaDefinitionDiff(source: SchemaDefinition, target: SchemaDef
         const following = typeof next === "number" ? next : fallback;
         migration = min ? following > previous : following < previous;
         reason = migration ? "허용 범위 축소" : "허용 범위 확대";
-      } else if (name === "enum") {
-        migration = Array.isArray(next) && (!Array.isArray(old) || old.some((x) => !next.includes(x)));
+      } else if (name === "multipleOf") {
+        migration = typeof next === "number" && (typeof old !== "number" || old % next !== 0);
+        reason = migration ? "배수 제약 축소" : "배수 제약 확대";
+      } else if (name === "oneOf") {
+        const previous = a.oneOf?.map((o) => o.const), following = b.oneOf?.map((o) => o.const);
+        migration = !!following && (!previous || previous.some((x) => !following.includes(x)));
         reason = migration ? "선택 코드 제거 또는 선택 제약 추가" : "선택 코드 추가 또는 제약 해제";
       }
       add(`properties.${key}.${name}`, old, next, migration, reason);
@@ -178,8 +165,14 @@ export function schemaDefinitionDiff(source: SchemaDefinition, target: SchemaDef
       "필수 입력 변경",
     );
   }
-  for (const key of Object.keys(target.display) as Array<keyof typeof target.display>) {
-    add(`display.${key}`, source.display[key], target.display[key], false, "표시 설정 변경");
+  for (const key of ["title", "description", "x-icon", "deprecated"] as const) {
+    add(
+      key,
+      source.schema[key] ?? (key === "deprecated" ? false : undefined),
+      target.schema[key] ?? (key === "deprecated" ? false : undefined),
+      false,
+      "종류 정보 변경",
+    );
   }
   return diff;
 }

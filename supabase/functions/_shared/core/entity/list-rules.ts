@@ -1,3 +1,4 @@
+import { entitySchemaPresentation } from "../../contracts/entity-type.ts";
 import type { EntityQuery } from "../../contracts/entity.ts";
 import type { EntityField } from "../../contracts/entity-type.ts";
 import type { EntityDefinition } from "./values.ts";
@@ -23,7 +24,7 @@ export function validFilterScalar(field: EntityField, value: unknown) {
     typeof value !== "string" || Array.from(value).length > 4096 || value.includes("\u0000") ||
     /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/.test(value)
   ) return false;
-  if (field.enum) return field.enum.includes(value);
+  if (field.oneOf) return field.oneOf.some((option) => option.const === value);
   if (field.format !== "date") return true;
   if (!/^(?!0000)\d{4}-\d{2}-\d{2}$/.test(value)) return false;
   const date = new Date(value + "T00:00:00.000Z");
@@ -35,7 +36,7 @@ export function validateEntityQuery(q: EntityQuery, definition: EntityDefinition
   if (!q.entity_type_id || !definition) throw invalidInput("속성 조건에는 자료 종류를 선택하세요");
   const field = (key: string) => {
     const value = definition.schema.properties[key];
-    if (!value || definition.display.archived.includes(key)) {
+    if (!value || entitySchemaPresentation(definition.schema).archived.includes(key)) {
       throw invalidInput("없거나 보관된 속성 조건입니다", [{ path: "filters", message: key }]);
     }
     return value;
@@ -45,7 +46,7 @@ export function validateEntityQuery(q: EntityQuery, definition: EntityDefinition
     const f = field(filter.key), kind = fieldKind(f);
     if (!("value" in filter)) continue;
     if (!validFilterScalar(f, filter.value)) throw invalidInput("속성 조건 값의 타입을 확인하세요");
-    const allowed = f.enum || kind === "boolean"
+    const allowed = f.oneOf || kind === "boolean"
       ? ["eq"]
       : kind === "string" && !f.format
       ? ["eq", "contains"]

@@ -7,11 +7,14 @@ import { createEntitySchemaRecovery } from "./schema-migrations.ts";
 const jobId = "11111111-1111-4111-8111-111111111111";
 function context(): RecoveryContext {
   const source = initialEntityDefinition("이름"), current = structuredClone(source);
-  current.schema.properties.prop_3 = { type: "string", title: "현재만 존재", enum: ["value"] };
-  current.schema.required.push("prop_3");
-  current.display.order.push("prop_3");
-  current.display.archived.push("prop_3");
-  current.display.option_labels.prop_3 = { value: "표시 이름" };
+  current.schema.properties.prop_3 = {
+    "x-order": 30,
+    type: "string",
+    title: "현재만 존재",
+    oneOf: ["value"].map((value) => ({ const: value })),
+  };
+  current.schema.properties.prop_3.deprecated = true;
+  current.schema.properties.prop_3.oneOf = [{ const: "value", title: "표시 이름" }];
   return {
     job_id: jobId,
     job_version: 4,
@@ -54,12 +57,15 @@ function usecase(c: RecoveryContext) {
         deps,
         { userId: "owner", source: "http", request: { key: crypto.randomUUID() } },
         jobId,
-        { expected_job_version: 4, expected_type_version: 3, expected_schema_version: 2 },
+        { expected_job_version: 4, expected_schema_version: 2 },
       ),
   };
 }
 Deno.test("recovery creation retains current-only field values and presentation in its new proposal", async () => {
   const c = context(), run = usecase(c);
+  c.current.schema.title = "변환 후 새 이름";
+  c.current.schema["x-icon"] = "leaf";
+  c.current.schema.description = "최신 설명";
   await run.create();
   assertEquals(run.saved.length, 1);
   assertEquals(run.saved[0].target, c.current);
@@ -102,7 +108,7 @@ Deno.test("recovery creation observes expiry again after template preparation be
       { uow: { run: (_a, fn) => fn(store) } },
       { userId: "owner", request: { key: crypto.randomUUID() } },
       jobId,
-      { expected_job_version: 4, expected_type_version: 3, expected_schema_version: 2 },
+      { expected_job_version: 4, expected_schema_version: 2 },
     )
   );
   assertEquals((e as { code: string }).code, "migration_source_expired");
@@ -111,13 +117,36 @@ Deno.test("recovery creation observes expiry again after template preparation be
 
 Deno.test("recovery review reports each restored property type instead of a generic definition object", async () => {
   const c = context();
-  c.source.schema.properties.prop_2 = { type: "integer", title: "가격" };
-  c.source.display.order.push("prop_2");
-  c.current.schema.properties.prop_2 = { type: "string", title: "가격" };
-  c.current.display.order.push("prop_2");
+  c.source.schema.properties.prop_2 = { "x-order": 20, type: "integer", title: "가격" };
+
+  c.current.schema.properties.prop_2 = { "x-order": 20, type: "string", title: "가격" };
+
   c.committed_target = structuredClone(c.current);
   const run = usecase(c);
   await run.create();
   assertEquals(run.saved[0].diff.find((d) => d.path === "properties.prop_2.type")?.before, "string");
   assertEquals(run.saved[0].diff.find((d) => d.path === "properties.prop_2.type")?.after, "integer");
+});
+
+Deno.test("bounded value recovery preserves the current archived root and newer metadata", async () => {
+  const c = context(), run = usecase(c);
+  c.evidence.type.archived = true;
+  c.current.schema.title = "보관 후 이름";
+  c.current.schema["x-icon"] = "book";
+  c.current.schema.deprecated = true;
+  await run.create();
+  assertEquals(run.saved[0].target.schema.title, "보관 후 이름");
+  assertEquals(run.saved[0].target.schema["x-icon"], "book");
+  assertEquals(run.saved[0].target.schema.deprecated, true);
+});
+
+Deno.test("recovery retains later fields when their annotation orders collide with a restored field", async () => {
+  const c = context(), run = usecase(c);
+  c.source.schema.properties.prop_2 = { type: "integer", "x-order": 20, "x-show-in-list": true };
+  c.current.schema.properties.prop_3 = { type: "string", "x-order": 20, "x-show-in-list": true };
+  c.committed_target = initialEntityDefinition("이름");
+  await run.create();
+  assertEquals(run.saved[0].target.schema.properties.prop_2["x-order"], 20);
+  assertEquals(run.saved[0].target.schema.properties.prop_3["x-order"], 30);
+  assertEquals(run.saved[0].target.schema.properties.prop_3["x-show-in-list"], true);
 });

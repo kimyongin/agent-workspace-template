@@ -77,10 +77,12 @@ export class SqlEntityLinks {
           archived: boolean;
           schema_version: number;
         }[]
-      >`select e.id,e.properties->>(v.display->>'representative') as title,now() as captured_at,t.id as type_id,t.label,t.icon_id,t.archived,t.schema_version from app.entities e
+      >`select e.id,e.properties->>(select key from jsonb_each(v.schema->'properties') where value->>'x-representative'='true' limit 1) as title,now() as captured_at,t.id as type_id,v.schema->>'title' as label,v.schema->>'x-icon' as icon_id,coalesce((v.schema->>'deprecated')::boolean,false) as archived,t.schema_version from app.entities e
       join app.entity_types t on t.owner_id=e.owner_id and t.id=e.entity_type_id
       join app.entity_schema_versions v on v.owner_id=t.owner_id and v.type_id=t.id and v.schema_version=t.schema_version
-      where e.deleted_at is null and not t.archived and e.id in ${this.tx(uncaptured)} order by e.id for key share of e`
+      where e.deleted_at is null and not coalesce((v.schema->>'deprecated')::boolean,false) and e.id in ${
+        this.tx(uncaptured)
+      } order by e.id for key share of e`
       : [];
     return ids.map((id) => {
       const captured = prior.find((entity) => entity.id === id);

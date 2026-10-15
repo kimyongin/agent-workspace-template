@@ -55,7 +55,6 @@ export function assertSchemaApplication(
   input: {
     expected_change_version: number;
     analysis_id: string;
-    expected_type_version?: number;
     expected_schema_version?: number;
     fingerprint?: string;
   },
@@ -68,7 +67,7 @@ export function assertSchemaApplication(
   if (["applied", "cancelled"].includes(change.status)) throw conflict("완료된 변경은 수정할 수 없습니다");
   assertSchemaApplicationSource(
     context,
-    input.expected_type_version ?? change.source_type_version,
+    change.source_type_version,
     input.expected_schema_version ?? change.source_schema_version,
   );
   if (input.fingerprint !== undefined && change.fingerprint !== input.fingerprint) {
@@ -79,14 +78,19 @@ export function assertSchemaApplication(
 }
 export function assertSchemaApplicationSource(context: SchemaApplicationContext, version: number, schema: number) {
   const { type } = context;
-  if (type.version !== version || type.schema_version !== schema) {
+  if (type.schema_version !== schema) {
     throw new AppError("schema_changed", "자료 종류나 속성 정의가 변경되었습니다", undefined, {
       type_id: type.id,
-      type_version: type.version,
+
       schema_version: type.schema_version,
     });
   }
-  if (type.archived) throw new AppError("entity_type_archived", "보관된 자료 종류를 먼저 복원하세요");
+  const propertiesChanged = context.change.diff.some((d) => d.path.startsWith("properties."));
+  if (
+    type.archived && !context.change.recovery_source_job_id && propertiesChanged &&
+    context.change.target.schema.deprecated !== false
+  ) throw new AppError("entity_type_archived", "보관된 자료 종류를 먼저 복원하세요");
+  void version;
 }
 export function assertSchemaApplicationReady(
   context: SchemaApplicationContext,

@@ -40,7 +40,8 @@ export class SqlEntityIssuerStore implements EntityIssuerStore {
     return row ? issuer(row) : null;
   }
   async defaultTypes(source: string, ruleId?: string) {
-    const rows = await this.tx`select t.id,t.label from app.entity_types t
+    const rows = await this.tx`select t.id,v.schema->>'title' as label from app.entity_types t
+      join app.entity_schema_versions v on v.owner_id=t.owner_id and v.type_id=t.id and v.schema_version=t.schema_version
       join app.entity_type_identity i on i.owner_id=t.owner_id and i.type_id=t.id
       join app.entity_type_identity_sources s on s.owner_id=i.owner_id and s.type_id=i.type_id and s.code=i.default_source
       where s.code=${source} and (${ruleId ?? null}::uuid is null or s.rule_id=${ruleId ?? null}::uuid) order by t.id`;

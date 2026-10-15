@@ -23,19 +23,11 @@ Deno.test("valid near-64 KiB properties and schema retain every value through GE
   for (let n = 2; n <= 21; n++) {
     definition.schema.properties[`prop_${n}`] = {
       type: "string",
+      "x-order": n * 10,
       description: "뜻".repeat(1000),
     };
-    definition.display.order.push(`prop_${n}`);
   }
-  definition.display.list_columns = [
-    "prop_1",
-    "prop_2",
-    "prop_3",
-    "prop_4",
-    "prop_5",
-    "prop_6",
-    "prop_7",
-  ];
+  for (let n = 1; n <= 7; n++) definition.schema.properties[`prop_${n}`]["x-show-in-list"] = true;
   validateEntityDefinition(definition);
   const properties: Record<string, string> = {
     prop_1: "대표",

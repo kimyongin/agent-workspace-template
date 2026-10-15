@@ -1,3 +1,5 @@
+import { loadSchemaType } from "./schema-type.ts";
+import { normalizeStoredEntityDefinition } from "../../core/entity-types/stored-definition.ts";
 import { type SchemaApplicationContext } from "../../core/entity-types/schema-application.ts";
 import { jsonbText } from "../../core/entity-types/schema-rules.ts";
 import { migrationRecordRenderer } from "../../core/entity-types/migration-preparation.ts";
@@ -32,8 +34,7 @@ export class SqlSchemaMigrationStore extends SqlSchemaChangeStore implements Sch
     return r;
   }
   private async jobDto(r: postgres.Row): Promise<EntitySchemaMigration> {
-    const [t] = await this
-      .tx`select id,label,icon_id,archived,version,schema_version,schema_write_locked from app.entity_types where id=${r.type_id}`;
+    const t = (await loadSchemaType(this.tx, r.type_id))!;
     return {
       id: r.id,
       type_id: r.type_id,
@@ -42,7 +43,6 @@ export class SqlSchemaMigrationStore extends SqlSchemaChangeStore implements Sch
       change_version: Number(r.change_version),
       analysis_id: r.analysis_id,
       fingerprint: r.fingerprint,
-      source_type_version: Number(r.source_type_version),
       source_schema_version: Number(r.source_schema_version),
       version: Number(r.version),
       status: r.status,
@@ -50,7 +50,14 @@ export class SqlSchemaMigrationStore extends SqlSchemaChangeStore implements Sch
       processed: Number(r.processed),
       retryable: r.retryable,
       failure_reason: r.failure_reason,
-      result: r.result,
+      result: r.result
+        ? {
+          schema_version: Number(r.result.schema_version),
+          total: Number(r.result.total),
+          changed: Number(r.result.changed),
+          committed_at: r.result.committed_at,
+        }
+        : null,
       recovery: await this.recoveryAvailability(r, t),
       source_expires_at: r.source_expires_at?.toISOString() ?? null,
       created_at: r.created_at.toISOString(),
@@ -63,15 +70,15 @@ export class SqlSchemaMigrationStore extends SqlSchemaChangeStore implements Sch
   }
   async loadRecovery(id: string): Promise<RecoveryContext> {
     const identity = await this.job(id);
-    const [t] = await this.tx`select * from app.entity_types where id=${identity.type_id} for update`;
+    const t = await loadSchemaType(this.tx, identity.type_id, true);
     if (!t) throw notFound();
     const j = await this.job(id, true), read = await this.recoveryEvidence(j, t);
     return {
       job_id: j.id,
       job_version: Number(j.version),
       ...read,
-      source: j.source_definition,
-      committed_target: j.target,
+      source: normalizeStoredEntityDefinition(j.source_definition, t.id, Number(j.source_schema_version)),
+      committed_target: normalizeStoredEntityDefinition(j.target, t.id, Number(j.source_schema_version) + 1),
       current: await this.definition(t),
       committed_membership: j.committed_membership,
       committed_references: j.committed_references,
@@ -97,7 +104,7 @@ export class SqlSchemaMigrationStore extends SqlSchemaChangeStore implements Sch
     const t = context.type, c = context.change, a = context.analysis!;
     const typeId = t.id, changeId = c.id;
     const [definition] = await this
-      .tx`select schema,display from app.entity_schema_versions where type_id=${typeId} and schema_version=${t.schema_version}`;
+      .tx`select schema from app.entity_schema_versions where type_id=${typeId} and schema_version=${t.schema_version}`;
     const [settings] = await this.tx`select settings from app.user_business_settings where id='record_templates'`;
     const templates = effectiveEntityTemplates(settings?.settings, typeId);
     for (const template of Object.values(templates.entity!)) template!.tag_ids = [...template!.tag_ids].sort();
@@ -120,7 +127,7 @@ export class SqlSchemaMigrationStore extends SqlSchemaChangeStore implements Sch
       type_id: typeId,
       source_schema_version: Number(t.schema_version),
       target: c.target,
-      source_definition: { schema: definition.schema, display: definition.display },
+      source_definition: { schema: definition.schema },
       templates,
       available_tags: tags.map((tag) => String(tag.id)),
       type: { id: t.id, label: t.label, icon_id: resolvedEntityTypeIcon(t.icon_id), archived: t.archived },

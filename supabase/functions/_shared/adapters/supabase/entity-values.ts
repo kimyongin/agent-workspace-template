@@ -1,3 +1,4 @@
+import { type EntitySchema, entitySchemaPresentation } from "../../contracts/entity-type.ts";
 import type postgres from "postgres";
 import type { EntityValues } from "../../contracts/entity.ts";
 import type { EntityDefinition } from "../../core/entity/values.ts";
@@ -21,7 +22,6 @@ export async function loadEntityDefinition(
         undefined,
         {
           type_id: typeId,
-          type_version: Number(type.version),
           schema_version: Number(type.schema_version),
           ...(job ? { job_id: job.id, job_version: Number(job.version) } : {}),
         },
@@ -29,12 +29,11 @@ export async function loadEntityDefinition(
     }
   }
   const [row] =
-    await tx`select v.schema,v.display,t.id,t.label,t.icon_id,t.archived,t.version,t.schema_version from app.entity_types t
+    await tx`select v.schema,t.id,v.schema->>'title' as label,v.schema->>'x-icon' as icon_id,coalesce((v.schema->>'deprecated')::boolean,false) as archived,t.schema_version as version,t.schema_version from app.entity_types t
     join app.entity_schema_versions v on v.owner_id=t.owner_id and v.type_id=t.id and v.schema_version=t.schema_version where t.id::text=${typeId}`;
   return row
     ? {
       schema: row.schema,
-      display: row.display,
       type_id: row.id,
       schema_version: Number(row.schema_version),
       type_version: Number(row.version),
@@ -45,7 +44,7 @@ export async function loadEntityDefinition(
 /** Current display settings project unchanged stored values after compatible publication. */
 /** Joined entity+current definition reads use one statement snapshot, including during atomic migration. */
 export function entityPresentationRow(row: Record<string, unknown>, properties: EntityValues["properties"]) {
-  const display = row.display as { representative: string; list_columns: string[] };
+  const display = entitySchemaPresentation(row.schema as EntitySchema);
   return {
     type: {
       id: String(row.type_id ?? row.id),

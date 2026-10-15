@@ -36,7 +36,7 @@ export class SqlEntityPairStore extends SqlActorStore implements EntityPairStore
   async list(id: string, limit: number, after?: string) {
     const tx = this.tx;
     const rows =
-      await tx`select e.*,t.id as type_id,t.label,t.icon_id,t.archived,t.schema_version as current_schema_version,v.display,
+      await tx`select e.*,t.id as type_id,v.schema->>'title' as label,v.schema->>'x-icon' as icon_id,coalesce((v.schema->>'deprecated')::boolean,false) as archived,t.schema_version as current_schema_version,v.schema,
       coalesce((select jsonb_agg(tag_id order by tag_id) from app.entity_tags where owner_id=e.owner_id and entity_id=e.id),'[]'::jsonb) as tag_ids,
       issuer.label as source_label
       from app.entity_pairs p join app.entities e on e.owner_id=p.owner_id

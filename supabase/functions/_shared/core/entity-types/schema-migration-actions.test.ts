@@ -21,7 +21,6 @@ async function fixture() {
     change_version: 2,
     analysis_id: id,
     fingerprint: "a".repeat(64),
-    source_type_version: 1,
     source_schema_version: 1,
     version: 3,
     status: "preparing",
@@ -177,7 +176,7 @@ Deno.test("public retry rejects stale change identity before changed source vers
     const f = await fixture();
     f.set({ status: "failed", retryable: true });
     Object.assign(f.context.change, change);
-    f.context.type.version = 99;
+    f.context.type.schema_version = 99;
     const error = await assertRejects(() => f.retry());
     assertEquals((error as { code: string }).code, "schema_plan_stale");
     assertEquals((error as Error).message, "새 분석을 준비하세요");
@@ -187,12 +186,14 @@ Deno.test("public retry rejects stale change identity before changed source vers
 Deno.test("public retry checks source and archived type before analysis readiness", async () => {
   const f = await fixture();
   f.set({ status: "failed", retryable: true });
-  f.context.type.version = 99;
+  f.context.type.schema_version = 99;
   f.context.analysis = null;
   let error = await assertRejects(() => f.retry());
   assertEquals((error as { code: string }).code, "schema_changed");
-  f.context.type.version = 1;
+  f.context.type.schema_version = 1;
   f.context.type.archived = true;
+  f.context.change.diff = [{ path: "properties.prop_2.type" } as typeof f.context.change.diff[number]];
+  f.context.change.target.schema.deprecated = true;
   error = await assertRejects(() => f.retry());
   assertEquals((error as { code: string }).code, "entity_type_archived");
   f.context.type.archived = false;

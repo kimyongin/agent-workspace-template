@@ -1,3 +1,5 @@
+import { normalizeStoredEntityDefinition } from "../../core/entity-types/stored-definition.ts";
+import { loadSchemaType } from "./schema-type.ts";
 import type {
   SchemaApplicationBindings,
   SchemaApplicationContext,
@@ -28,7 +30,7 @@ import { jsonbText } from "../../core/entity-types/schema-rules.ts";
 export class SqlSchemaChangeStore implements SchemaChangeStore {
   constructor(protected readonly tx: postgres.TransactionSql, protected readonly actor: Actor) {}
   protected async lockType(typeId: string) {
-    const [t] = await this.tx`select * from app.entity_types where id::text=${typeId} for update`;
+    const t = await loadSchemaType(this.tx, typeId, true);
     if (!t) throw notFound();
     if (t.schema_write_locked) {
       throw new AppError("schema_migration_in_progress", "마이그레이션 완료 후 다시 시도하세요");
@@ -36,19 +38,17 @@ export class SqlSchemaChangeStore implements SchemaChangeStore {
     return t;
   }
   protected sourceRefs(t: postgres.Row, i: { expected_type_version: number; expected_schema_version: number }) {
-    if (t.version !== i.expected_type_version || t.schema_version !== i.expected_schema_version) {
+    if (t.schema_version !== i.expected_schema_version) {
       throw new AppError("schema_changed", "자료 종류나 속성 정의가 변경되었습니다", undefined, {
         type_id: t.id,
-        type_version: Number(t.version),
         schema_version: Number(t.schema_version),
       });
     }
-    if (t.archived) throw new AppError("entity_type_archived", "보관된 자료 종류를 먼저 복원하세요");
   }
   protected async definition(t: postgres.Row): Promise<SchemaDefinition> {
     const [v] = await this
-      .tx`select schema,display from app.entity_schema_versions where type_id=${t.id} and schema_version=${t.schema_version}`;
-    return { schema: v.schema, display: v.display };
+      .tx`select schema from app.entity_schema_versions where type_id=${t.id} and schema_version=${t.schema_version}`;
+    return { schema: v.schema };
   }
   protected async templates(target: SchemaDefinition, typeId: string, expected?: string) {
     await this.tx`select pg_advisory_xact_lock(hashtextextended(${`${this.actor.userId}:record_templates`},0))`;
@@ -143,7 +143,7 @@ export class SqlSchemaChangeStore implements SchemaChangeStore {
       lock ? this.tx`for update` : this.tx``
     }`;
     if (!j) throw notFound();
-    const [t] = await this.tx`select * from app.entity_types where id=${typeId}`;
+    const t = await loadSchemaType(this.tx, typeId);
     if (!t) throw notFound();
     const read = await this.recoveryEvidence(j, t);
     assertRecoveryFresh(read.evidence, new Date(read.observed_at));
@@ -190,7 +190,7 @@ export class SqlSchemaChangeStore implements SchemaChangeStore {
     }
     if (!["applied", "cancelled"].includes(status)) {
       const [fresh] = await this
-        .tx`select version=${row.source_type_version} and schema_version=${row.source_schema_version} and (not schema_write_locked or exists(select 1 from app.entity_schema_migrations j where j.change_id=${row.id} and j.status in ('queued','preparing','ready_to_commit','committing'))) as fresh from app.entity_types where id=${row.type_id}`;
+        .tx`select schema_version=${row.source_schema_version} and (not schema_write_locked or exists(select 1 from app.entity_schema_migrations j where j.change_id=${row.id} and j.status in ('queued','preparing','ready_to_commit','committing'))) as fresh from app.entity_types where id=${row.type_id}`;
       if (!fresh?.fresh) status = "stale";
       const [settings] = await this.tx`select settings from app.user_business_settings where id='record_templates'`;
       if (
@@ -205,20 +205,19 @@ export class SqlSchemaChangeStore implements SchemaChangeStore {
     return {
       id: row.id,
       type_id: row.type_id,
-      source_type_version: Number(row.source_type_version),
       source_schema_version: Number(row.source_schema_version),
       source_template_fingerprint: row.source_template_fingerprint,
       version: Number(row.version),
       status,
       change_kind: row.kind,
-      edits: row.edits,
+      edits: retainedSchemaEdits(row),
       migration: row.migration ?? { rules: [], overrides: [] },
       recovery: row.recovery_source_job_id
         ? { source_job_id: row.recovery_source_job_id, source_expires_at: row.recovery_expires_at.toISOString() }
         : null,
       executable: status === "ready" && analysis?.status === "succeeded" && analysis.failed === 0,
       reservations: row.reservations,
-      target: row.target,
+      target: normalizeStoredEntityDefinition(row.target, row.type_id, Number(row.source_schema_version) + 1),
       diff: row.diff,
       fingerprint: row.fingerprint,
       analysis,
@@ -249,7 +248,7 @@ export class SqlSchemaChangeStore implements SchemaChangeStore {
     return this.dto(saved);
   }
   async loadSchemaChangeDraft(typeId: string): Promise<SchemaChangeDraftContext> {
-    const [t] = await this.tx`select * from app.entity_types where id::text=${typeId} for update`;
+    const t = await loadSchemaType(this.tx, typeId, true);
     if (!t) throw notFound();
     return {
       type: {
@@ -272,7 +271,6 @@ export class SqlSchemaChangeStore implements SchemaChangeStore {
       id: row.id,
       version: Number(row.version),
       status: row.status,
-      source_type_version: Number(row.source_type_version),
       source_schema_version: Number(row.source_schema_version),
       source_template_fingerprint: row.source_template_fingerprint,
       edits: row.edits,
@@ -414,7 +412,9 @@ export class SqlSchemaChangeStore implements SchemaChangeStore {
     };
   }
   async loadSchemaApplication(typeId: string, id: string, analysisId: string): Promise<SchemaApplicationContext> {
-    const [t] = await this.tx`select * from app.entity_types where id::text=${typeId} for update`;
+    // Metadata writes and worker publication use the same owner -> type lock order.
+    await this.tx`select pg_advisory_xact_lock(hashtextextended(${this.actor.userId + ":entity-types"},0))`;
+    const t = await loadSchemaType(this.tx, typeId, true);
     if (!t) throw notFound();
     const c = await this.row(typeId, id, true);
     const [a] = await this
@@ -475,14 +475,46 @@ export class SqlSchemaChangeStore implements SchemaChangeStore {
   }
   async saveSchemaPublication(context: SchemaApplicationContext, next: number) {
     const typeId = context.type.id, id = context.change.id, row = context.change;
+    const metadata = row.target.schema;
+    if (!metadata.deprecated && (context.type.archived || context.type.label !== metadata.title)) {
+      await this.tx`select pg_advisory_xact_lock(hashtextextended(${this.actor.userId + ":entity-types"},0))`;
+      const [duplicate] = await this
+        .tx`select 1 from app.entity_types t join app.entity_schema_versions v on v.owner_id=t.owner_id and v.type_id=t.id and v.schema_version=t.schema_version where t.id<>${typeId} and not coalesce((v.schema->>'deprecated')::boolean,false) and v.schema->>'title'=${
+        metadata.title ?? ""
+      } limit 1`;
+      if (duplicate) {
+        throw invalidInput("같은 이름의 자료 종류가 있습니다. 다른 이름을 입력하세요", [{
+          path: "schema.title",
+          message: "사용 중인 이름입니다",
+        }]);
+      }
+    }
     await this
-      .tx`insert into app.entity_schema_versions(owner_id,type_id,schema_version,schema,display) values(${this.actor.userId},${typeId},${next},${
-      this.tx.json(row.target.schema)
-    },${this.tx.json(row.target.display)})`;
+      .tx`insert into app.entity_schema_versions(owner_id,schema) values(${this.actor.userId},${
+      this.tx.json({ ...row.target.schema, "x-type-id": typeId, "x-version": next })
+    })`;
     await this
-      .tx`update app.entity_types set schema_version=${next},version=version+1,updated_at=now() where id=${typeId}`;
+      .tx`update app.entity_types set schema_version=${next},updated_at=now() where id=${typeId}`;
     const [r] = await this
       .tx`update app.entity_schema_changes set status='applied',updated_at=now() where id=${id} returning *`;
     return this.dto(r);
   }
+}
+
+function retainedSchemaEdits(row: postgres.Row): SchemaEdit[] {
+  const target = normalizeStoredEntityDefinition(row.target, row.type_id, Number(row.source_schema_version) + 1);
+  if (
+    !(row.edits as Array<{ op: string }>).some((e) => e.op === "set_display") &&
+    !(row.target as { display?: unknown }).display
+  ) return row.edits;
+  const edits: SchemaEdit[] = [];
+  for (const edit of row.edits as Array<SchemaEdit | { op: "set_display" }>) {
+    if (edit.op === "set_display") continue;
+    if (edit.op === "add_property") {
+      const key = row.reservations[edit.client_ref];
+      edits.push({ ...edit, field: target.schema.properties[key] });
+    } else if (edit.op === "update_property") edits.push({ ...edit, field: target.schema.properties[edit.key] });
+    else edits.push(edit);
+  }
+  return edits;
 }
