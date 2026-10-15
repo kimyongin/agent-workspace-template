@@ -63,10 +63,26 @@ export function TemplateMemoEditor({ value, variables, onChange, readOnly, disab
     }
     previousLabels.current = labelKey;
   }, [value, labelKey]);
-  const freezeTokens = () =>
-    element.current?.querySelectorAll<HTMLElement>("[data-memo-token]").forEach((token) => {
-      token.contentEditable = "false";
+  const freezeTokens = () => {
+    const root = element.current;
+    if (!root) return;
+    const current = window.getSelection(), anchor = current?.anchorNode;
+    const parent = anchor instanceof Element ? anchor : anchor?.parentElement;
+    const token = parent?.closest<HTMLElement>("[data-memo-token]");
+    root.querySelectorAll<HTMLElement>("[data-memo-token]").forEach((item) => {
+      item.contentEditable = "false";
     });
+    // Native insertion/redo can leave the caret inside the now-frozen label text.
+    // Continue typing in the surrounding editor, without adding sentinel characters.
+    if (current?.isCollapsed && token && root.contains(token)) {
+      const range = document.createRange();
+      range.setStartAfter(token);
+      range.collapse(true);
+      current.removeAllRanges();
+      current.addRange(range);
+      selection.current = range.cloneRange();
+    }
+  };
   const changed = () => {
     // Native redo can recreate the editable insertion snapshot; freeze after its transaction.
     queueMicrotask(freezeTokens);

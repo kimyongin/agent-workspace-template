@@ -550,6 +550,10 @@ test("변수 붙여넣기와 복사·잘라내기·실행 취소는 원문과 �
       nodes.every((node) => (node as HTMLElement).contentEditable === "false")
     ),
   ).toBe(true);
+  expect(await memo.evaluate(() => {
+    const anchor = window.getSelection()?.anchorNode;
+    return !(anchor instanceof Element ? anchor : anchor?.parentElement)?.closest("[data-memo-token]");
+  })).toBe(true);
   const copied = await memo.evaluate((el) => {
     const range = document.createRange();
     range.selectNodeContents(el);
@@ -723,4 +727,29 @@ test("실행 취소는 다른 액션과 대상의 보존한 초안을 바꾸지 
   expect(state.writes[0].body.value.task.create.memo).toBe("문장 BIU");
   await target.selectOption(`type:${materials.id}`);
   await expect(memo).toHaveText("등록 초안");
+});
+
+test("변수 삽입 직후 그대로 문장을 입력하고 다음 변수를 이어 붙인다", async ({ page }) => {
+  const state = await settingsFixture(page);
+  await namedTemplateProperties(page);
+  const form = await openTyped(page);
+  await form.getByLabel("액션", { exact: true }).selectOption("update");
+  const memo = form.getByRole("textbox", { name: "메모 템플릿", exact: true });
+  await memo.fill("수량 ");
+  await form.getByLabel("변수 삽입", { exact: true }).selectOption("엔터티.이전.prop_2");
+  expect(
+    await memo.evaluate((root) => {
+      const selection = window.getSelection(), anchor = selection?.anchorNode;
+      const parent = anchor instanceof Element ? anchor : anchor?.parentElement;
+      return document.activeElement === root && selection?.isCollapsed && !parent?.closest("[data-memo-token]");
+    }),
+  ).toBe(true);
+  await page.keyboard.insertText(" → ");
+  await expect(memo).toHaveText("수량 가격 · 이전 (1) → ");
+  await form.getByLabel("변수 삽입", { exact: true }).selectOption("엔터티.이후.prop_2");
+  await expect(memo).toHaveText("수량 가격 · 이전 (1) → 가격 · 이후 (1)");
+  await form.getByRole("button", { name: "기록 자동 완성 저장", exact: true }).click();
+  expect(state.writes[0].body.value.entity_types[materials.id].update.memo).toBe(
+    "수량 $엔터티.이전.prop_2$ → $엔터티.이후.prop_2$",
+  );
 });
