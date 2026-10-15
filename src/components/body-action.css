@@ -1,7 +1,7 @@
 /* Compact visual faces inside normal, non-overlapping 44px hit areas. */
 .body-action { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; max-width: 100%; padding: 0 var(--space-1); border: 0; background: transparent; font: inherit; text-decoration: none; cursor: pointer; }
-.body-action-face { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-1); min-height: 1.5rem; padding: 0 var(--space-1); border-radius: var(--radius-body-action); background: var(--neutral-action-soft); color: var(--muted-ink); font-size: var(--text-meta); line-height: 1.125rem; font-weight: 400; }
-.body-action-face svg { flex-shrink: 0; width: .75rem; height: .75rem; }
+.body-action-face { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-1); min-height: 1.5rem; padding: 0 var(--space-1); border-radius: var(--radius-body-action); background: var(--neutral-action-soft); color: var(--muted-ink); font-size: var(--text-body-action); line-height: 1.25rem; font-weight: 400; }
+.body-action-face svg { flex-shrink: 0; width: .875rem; height: .875rem; }
 /* Icon-only row actions need a legible symbol, rather than the text action's miniature face. */
 .body-action.item-icon { padding: 0; border-radius: var(--radius-input); }
 .body-action.item-icon .body-action-face { padding: 0; background: transparent; }

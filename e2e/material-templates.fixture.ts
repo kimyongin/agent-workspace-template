@@ -327,7 +327,7 @@ test("공유 기록 설정은 본문 조회만 작은 버튼으로 표시하고 
   await save.click();
   const reload = form.getByRole("button", { name: "최신값 확인", exact: true });
   await expect(reload).toBeVisible();
-  expect(await reload.locator(".body-action-face").evaluate((el) => getComputedStyle(el).fontSize)).toBe("12px");
+  expect(await reload.locator(".body-action-face").evaluate((el) => getComputedStyle(el).fontSize)).toBe("13px");
   expect(
     await save.evaluate((el) => ({ font: getComputedStyle(el).fontSize, height: el.getBoundingClientRect().height })),
   ).toEqual({ font: "14px", height: 44 });

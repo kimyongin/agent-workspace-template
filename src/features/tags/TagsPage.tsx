@@ -139,12 +139,12 @@ export function TagManagement({scope,inline=false,onClose,onStateChange}:{scope:
     };
   const reportDeletion=(id:string,state:DeletionState)=>setDeletions(current=>{const before=current[id];return before&&before.armed===state.armed&&before.busy===state.busy&&before.uncertain===state.uncertain?current:{...current,[id]:state};});
   const deleteAction=(target:TagResult,editor=false)=><DeleteAction key={target.id} excludeTag={target.id} disabled={busy||(deletionDirty&&!deletions[target.id]?.armed&&!deletions[target.id]?.uncertain)||(editor&&(uncertain||conflict))} label={editor?"삭제":`${target.name} 삭제`} message={`${target.name} 태그와 연결을 제거합니다. 원문은 보존합니다.`} onStateChange={state=>{reportDeletion(target.id,state);if(editor)setDeletionState(current=>current.armed===state.armed&&current.busy===state.busy&&current.uncertain===state.uncertain?current:state);}} onConfirm={(reason,tags,requestKey)=>deleteTag(target,reason,tags,requestKey)}/>;
-  const editor=(initial:TagResult|null)=><form className="form tag-editor" aria-label={initial?"태그 이름 변경":"태그 추가"} onSubmit={e=>{e.preventDefault();void save();}}>
+  const editor=(initial:TagResult|null)=><form className="form tag-editor" data-mode={initial?"edit":"create"} aria-label={initial?"태그 이름 변경":"태그 추가"} onSubmit={e=>{e.preventDefault();void save();}}>
     <Field label={tagLabels.name} required error={fieldError}>{p=><input {...p} ref={input} className="input" placeholder="태그 이름" value={draft?.name??""} readOnly={busy||uncertain||deletionState.armed} onChange={e=>setDraft({initial,name:e.target.value})}/>}</Field>
     <div className="actions">
       {initial&&deleteAction(initial,true)}
-      {draft&&<button type="button" className="btn" disabled={busy} onClick={()=>change(cancel)}>취소</button>}
-      <button type="submit" className="btn btn-primary" disabled={busy||conflict||deletionState.armed}>{writing?"저장 중…":uncertain?"같은 내용 다시 시도":initial?"저장":"추가"}</button>
+      {draft&&<button type="button" className={initial?"btn":"btn btn-input"} disabled={busy} onClick={()=>change(cancel)}>취소</button>}
+      <button type="submit" className={initial?"btn btn-primary":"btn btn-input btn-primary"} disabled={busy||conflict||deletionState.armed}>{writing?"저장 중…":uncertain?"같은 내용 다시 시도":initial?"저장":"추가"}</button>
     </div>
     {failure&&<Notice kind="error">{failure}</Notice>}
   </form>;

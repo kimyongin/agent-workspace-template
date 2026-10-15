@@ -71,7 +71,7 @@ function DailyChart(
           setSelected(Math.max(0, Math.min(days.length - 1, next)));
         }}
       >
-        <svg className="status-chart" viewBox="0 0 600 105" aria-hidden="true" preserveAspectRatio="none">
+        <svg className="status-chart" viewBox="0 0 600 84" aria-hidden="true" preserveAspectRatio="none">
           <rect x={index * step} y="0" width={step} height={height + 4} fill="var(--accent-soft)" />
           {[0, .5, 1].map((n) => (
             <line
@@ -107,14 +107,14 @@ function DailyChart(
               </g>
             );
           })}
-          {days.length > 0 && (
-            <>
-              <text x="0" y="103">{days[0].date.slice(5)}</text>
-              <text x="600" y="103" textAnchor="end">{days[days.length - 1].date.slice(5)}</text>
-            </>
-          )}
         </svg>
       </button>
+      {days.length > 0 && (
+        <div className="status-chart-axis" aria-hidden="true">
+          <span>{days[0].date.slice(5)}</span>
+          <span>{days[days.length - 1].date.slice(5)}</span>
+        </div>
+      )}
       {current && (
         <p id={id} className="status-day-detail" aria-live="polite">
           <strong>{current.date}</strong> · {series.map((s) => `${s.label} ${s.value(current)}건`).join(" · ")}

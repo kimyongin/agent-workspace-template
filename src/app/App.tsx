@@ -11,6 +11,7 @@ import {
   createBrowserRouter,
   createRoutesFromElements,
   type Location,
+  Link,
   Navigate,
   Outlet,
   Route,
@@ -39,6 +40,7 @@ import { TagSettingsPage } from "../features/tags/TagSettingsPage.tsx";
 import { SearchPage } from "../features/search/SearchPage.tsx";
 import { EntitiesPage } from "../features/entity/EntitiesPage.tsx";
 import { EntityDetailPage } from "../features/entity/EntityDetailPage.tsx";
+import { BodyActionFace } from "../components/BodyAction.tsx";
 
 export const APP_NAME = "Workspace";
 
@@ -140,7 +142,7 @@ export function App() {
           {materialSettingsRoutes.map((path) => (
             <Route key={path} path={path} element={guarded(<EntityTypeSettings />)} />
           ))}
-          <Route path="*" element={<p className="secondary">페이지를 찾을 수 없습니다.</p>} />
+          <Route path="*" element={<section className="panel" aria-labelledby="not-found-title"><h1 id="not-found-title" className="page-title">페이지를 찾을 수 없습니다</h1><Link className="body-action" to="/tasks"><BodyActionFace>할 일로 이동</BodyActionFace></Link></section>} />
         </Route>,
       ),
       { basename: import.meta.env.BASE_URL.replace(/\/$/, "") },

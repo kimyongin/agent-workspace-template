@@ -41,7 +41,7 @@ test("현재 원칙이 바뀌어도 과거 근거는 기록 검색에서 원문�
   try{
     await savePrinciple(mcp,{title:marker,body:"기록으로 보존할 최초 근거",change_note:`${marker} 기록으로 보존할 최초 근거`});
     await savePrinciple(mcp,{title:unique("현재 다른 기준"),body:"현재 본문"});
-    await page.goto("/principles");await page.getByRole("link",{name:"과거 근거는 통합 기록에서 보기"}).click();
+    await page.goto("/principles");await page.getByRole("link",{name:"과거 기록 보기"}).click();
     await page.getByLabel("검색어",{exact:true}).fill(marker);
     const item=page.locator(".records .list .item-title").filter({hasText:marker}).first();await expect(item).toBeVisible();await openListDetail(page,await item.innerText());
     await expect(page.locator("dialog.modal:not(.modal-confirm)[open]")).toContainText("기록으로 보존할 최초 근거");

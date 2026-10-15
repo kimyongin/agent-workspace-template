@@ -130,7 +130,7 @@ for (const width of [390, 1440]) {
     expect((await current.boundingBox())!.y).toBeGreaterThanOrEqual(
       (await top.boundingBox())!.y + (await top.boundingBox())!.height,
     );
-    await expect(top.getByRole("link", { name: "과거 근거는 통합 기록에서 보기" })).toHaveAttribute("href", "/records");
+    await expect(top.getByRole("link", { name: "과거 기록 보기" })).toHaveAttribute("href", "/records");
     await expect(top.getByLabel("검색어", { exact: true })).toHaveCount(0);
     await expect(top.locator(".current-document,.record-date-group")).toHaveCount(0);
     await page.screenshot({ path: info.outputPath(`principles-sections-${width}.png`) });
@@ -217,7 +217,7 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
       expect(box.height).toBeGreaterThanOrEqual(44);
       const face = action.locator(".body-action-face");
       expect((await face.boundingBox())!.height).toBe(24);
-      expect(await face.evaluate((el) => getComputedStyle(el).fontSize)).toBe("12px");
+      expect(await face.evaluate((el) => getComputedStyle(el).fontSize)).toBe("13px");
       expect(await face.evaluate((el) => getComputedStyle(el).fontWeight)).toBe("400");
     }
     await row.getByRole("button", { name: "할 일 접기", exact: true }).click();

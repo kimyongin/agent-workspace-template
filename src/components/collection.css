@@ -16,6 +16,7 @@
 .collection .related-items > li:last-child .related-item { border-bottom: 0; }
 .collection .related-item-text { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 1; overflow: hidden; overflow-wrap: anywhere; }
 .collection-list { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius-card); }
+.collection-list:has(> .related-items:empty) { border: 0; background: transparent; }
 .collection-list .related-items > li:first-child .related-item { border-top-left-radius: var(--radius-card); border-top-right-radius: var(--radius-card); }
 .collection-list .related-items > li:last-child .related-item { border-bottom-left-radius: var(--radius-card); border-bottom-right-radius: var(--radius-card); }
 .collection .related-item:hover { background: var(--surface); }

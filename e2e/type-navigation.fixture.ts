@@ -1041,7 +1041,7 @@ for (const width of [320, 1440]) {
     const next=page.getByRole("button",{name:"다음",exact:true});
     await expect(next).toBeDisabled();
     expect((await next.boundingBox())!.height).toBeGreaterThanOrEqual(44);
-    await expect(next.locator(".body-action-face")).toHaveCSS("font-size","12px");
+    await expect(next.locator(".body-action-face")).toHaveCSS("font-size","13px");
     expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
   });
 }

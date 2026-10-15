@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import type { EntitySchemaResult } from "@contracts/entity-type.ts";
 import { entityPropertyFilter } from "@contracts/entity.ts";
 import { Field, Notice } from "../../components/Field.tsx";
+import { BodyAction } from "../../components/BodyAction.tsx";
 import { displayedProperty, fieldType } from "./property-fields.tsx";
 import { z } from "zod";
 const labels: Record<string, string> = {
@@ -79,7 +80,7 @@ export function TypedEntityFilters(
               ? ["eq", "contains"]
               : ["eq", "gt", "gte", "lt", "lte"];
             return (
-              <div className="form" key={index}>
+              <div className="entity-property-condition" key={index}>
                 <Field label={`조건 ${index + 1} 속성`}>
                   {(props) => (
                     <select
@@ -168,20 +169,22 @@ export function TypedEntityFilters(
                         )}
                   </Field>
                 )}
-                <button
+                <BodyAction
+                  icon="close"
                   type="button"
-                  className="btn"
+                  className="condition-remove"
                   onClick={() => setDraft((rows) => rows.filter((_, n) => n !== index))}
                 >
                   조건 {index + 1} 제거
-                </button>
+                </BodyAction>
               </div>
             );
           })}
           <div className="actions">
-            <button
+            <BodyAction
+              icon="create"
               type="button"
-              className="btn"
+              className="condition-add"
               disabled={!keys.length || draft.length >= 32}
               onClick={() => {
                 const key = keys[0];
@@ -189,10 +192,10 @@ export function TypedEntityFilters(
               }}
             >
               속성 조건 추가
-            </button>
+            </BodyAction>
             <button
               type="button"
-              className="btn"
+              className="btn btn-primary"
               onClick={() => {
                 try {
                   const filters = draft.map((row) => {

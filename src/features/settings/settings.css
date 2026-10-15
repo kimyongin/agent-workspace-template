@@ -1,5 +1,5 @@
 .settings .settings-section .settings-fields { min-width: 0; display: grid; gap: var(--space-4); padding: 0; border: 0; background: transparent; }
-.settings-section-footer { display: grid; gap: var(--space-2); padding-top: var(--space-3); border-top: 1px solid var(--line); }
+.settings-section-footer { display: grid; gap: var(--space-2); padding-top: var(--space-2); }
 .settings-section-footer .actions { margin: 0; }
 .settings-source-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
 .settings-source-heading h3 { margin: 0; font-size: var(--text-label); color: var(--muted-ink); font-weight: 400; }
@@ -53,8 +53,6 @@ section[aria-labelledby="entity-identity-title"] .settings-section-footer { bord
 /* A single independent card frames each save scope; spacing separates its footer. */
 .account-settings { container: account-settings / inline-size; }
 .account-settings > .settings-section { gap: var(--space-5); }
-.account-settings .settings-section-title { font-size: 1rem; line-height: 1.5rem; }
-.account-settings .settings-section-footer { border-top: 0; padding-top: var(--space-2); }
 .account-settings .settings-section-footer > .actions > .btn { min-width: 5.5rem; }
 .account-settings .settings-section-footer .btn:disabled { opacity: 1; color: var(--muted-ink); border-color: var(--line); background: var(--surface); }
 .account-settings .navigation-selection li { min-height: 56px; }
@@ -107,7 +105,7 @@ section[aria-labelledby="entity-identity-title"] .settings-section-footer { bord
 .schema-area-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2); }
 .schema-area-heading h2 { margin: 0; }
 .schema-field-title > .secondary { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); color: var(--muted-ink); font-size: var(--text-meta); font-weight: 400; }
-.schema-badge { padding: .125rem .375rem; border: 1px solid var(--line); border-radius: var(--radius-chip); font-size: var(--text-meta); }
+.schema-badge { font-size: var(--text-meta); }
 .schema-advanced { min-width: 0; padding-top: var(--space-3); border-top: 1px solid var(--line); }
 .schema-advanced > summary, .schema-saved-changes > summary { cursor: pointer; min-height: 44px; align-content: center; }
 .schema-advanced > .form { margin-top: var(--space-3); }
@@ -197,7 +195,8 @@ section[aria-labelledby="entity-identity-title"] .settings-section-footer { bord
 
 .settings-menu { position: relative; flex: 0 0 auto; margin: 0; z-index: 30; }
 .settings-heading { flex-wrap: nowrap; }
-.settings-menu-trigger { width: 44px; height: 44px; padding: 0; display: grid; place-items: center; }
+.settings-menu > .settings-menu-trigger { width: 44px; height: 44px; padding: 0; display: grid; place-items: center; }
+.settings-menu-trigger svg { width: 1.125rem; height: 1.125rem; }
 .settings-menu-options { position: absolute; inset-inline-end: 0; margin-block-start: var(--space-2); min-width: 9rem; display: grid; padding: var(--space-2); background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-card); box-shadow: var(--shadow-soft); }
 .settings-menu-options a { display: flex; align-items: center; min-height: 44px; padding-inline: var(--space-3); }
 
@@ -206,6 +205,7 @@ section[aria-labelledby="entity-identity-title"] .settings-section-footer { bord
 .issuer-binding-choice > .field, .issuer-binding-choice > div { flex:1 1 12rem; min-width:0; }
 .issuer-rule-list, .issuer-binding-list { display:grid; min-width:0; }
 .issuer-rule-row, .issuer-binding-row { display:flex; align-items:center; gap:var(--space-3); min-height:44px; padding-block:var(--space-3); border-bottom:1px solid var(--line); min-width:0; }
+.issuer-rule-row:last-child, .issuer-binding-row:last-child { border-bottom: 0; }
 .issuer-rule-row > div { display:grid; gap:var(--space-1); flex:1; min-width:0; overflow-wrap:anywhere; }
 .issuer-binding-row { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); }
 .issuer-binding-row > div { min-width:0; overflow-wrap:anywhere; }

@@ -40,6 +40,8 @@
   --text-body: .875rem;
   --text-label: .8125rem;
   --text-meta: .75rem;
+  --text-body-action: .8125rem;
+  --text-settings-title: 1rem;
 
   --font-sans: "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", system-ui, sans-serif;
   --font-mono: ui-monospace, "SFMono-Regular", Consolas, monospace;
