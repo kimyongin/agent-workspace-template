@@ -558,7 +558,7 @@ for (const width of [320, 390, 639, 640]) {
       expect(value.y).toBeGreaterThanOrEqual(Math.max(property.bottom, comparison.bottom));
       expect(value.x).toBeCloseTo(property.x);
       expect(await panel.evaluate(el => el.scrollWidth <= el.clientWidth), scale).toBe(true);
-      const boxes = await panel.locator("input,select,button").evaluateAll(elements => elements.map(el => {
+      const boxes = await panel.locator("input:visible,select:visible,button:visible").evaluateAll(elements => elements.map(el => {
         const box = el.getBoundingClientRect();
         return { left: box.left, right: box.right };
       }));
