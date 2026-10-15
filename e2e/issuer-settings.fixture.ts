@@ -441,6 +441,7 @@ test("closing settings menu on a noninteractive background restores its trigger 
   await expect(trigger).toHaveAttribute("aria-expanded", "false");
   await expect(trigger).toBeFocused();
   await trigger.click();
-  await page.getByLabel("발급처", { exact: true }).click();
+  // The popover covers the select center on mobile; use its visible left edge.
+  await page.getByLabel("발급처", { exact: true }).click({ position: { x: 12, y: 22 } });
   await expect(page.getByLabel("발급처", { exact: true })).toBeFocused();
 });
