@@ -608,28 +608,73 @@ test(
   },
 );
 
-test("issuer and number reads offer recovery without an empty successful state or writes", async ({ page, baseURL }) => {
-  const state = await fixture(page, baseURL!);
-  let listFail = true, numberFail = true;
-  await page.route("**/api/entity-issuers", (route) => {
-    if (!listFail) return route.fallback();
-    listFail = false;
-    return route.fulfill({ status: 503, json: { code: "internal", message: "발급처 조회 실패" } });
+test(
+  "issuer and number reads offer recovery without an empty successful state or writes",
+  async ({ page, baseURL }, info) => {
+    const state = await fixture(page, baseURL!);
+    let listFail = true, numberFail = true;
+    await page.route("**/api/entity-issuers", (route) => {
+      if (!listFail) return route.fallback();
+      listFail = false;
+      return route.fulfill({ status: 503, json: { code: "internal", message: "발급처 조회 실패" } });
+    });
+    await page.route("**/api/entity-issuers/coupang/rules", (route) => {
+      if (!numberFail) return route.fallback();
+      numberFail = false;
+      return route.fulfill({ status: 503, json: { code: "internal", message: "번호 조회 실패" } });
+    });
+    await page.goto("/settings/issuers");
+    await expect(page.getByRole("alert")).toContainText("발급처 조회 실패");
+    await expect(page.getByText("발급처가 없습니다.", { exact: true })).toHaveCount(0);
+    await page.getByRole("button", { name: "다시 조회", exact: true }).click();
+    await page.getByRole("button", { name: "쿠팡", exact: true }).click();
+    await expect(page.getByRole("alert")).toContainText("번호 조회 실패");
+    await expect(page.getByRole("button", { name: "번호 종류 추가", exact: true })).toBeDisabled();
+    await page.getByRole("button", { name: "다시 조회", exact: true }).click();
+    await expect(page.getByText("판매자 번호", { exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "번호 종류 추가", exact: true })).toBeEnabled();
+    await page.setViewportSize({ width: info.project.name === "mobile" ? 390 : 1280, height: 900 });
+    await page.screenshot({ path: info.outputPath("issuer-list.png"), fullPage: true });
+    expect(state.writes).toHaveLength(0);
+  },
+);
+
+test("skipping first number before its slow read completes restores focus to the active source selector", async ({ page, baseURL }) => {
+  await fixture(page, baseURL!);
+  let release!: () => void, started!: () => void;
+  const pending = new Promise<void>((resolve) => {
+    release = resolve;
   });
-  await page.route("**/api/entity-issuers/coupang/rules", (route) => {
-    if (!numberFail) return route.fallback();
-    numberFail = false;
-    return route.fulfill({ status: 503, json: { code: "internal", message: "번호 조회 실패" } });
+  const requested = new Promise<void>((resolve) => {
+    started = resolve;
   });
-  await page.goto("/settings/issuers");
-  await expect(page.getByRole("alert")).toContainText("발급처 조회 실패");
-  await expect(page.getByText("발급처가 없습니다.", { exact: true })).toHaveCount(0);
-  await page.getByRole("button", { name: "다시 조회", exact: true }).click();
-  await page.getByRole("button", { name: "쿠팡", exact: true }).click();
-  await expect(page.getByRole("alert")).toContainText("번호 조회 실패");
-  await expect(page.getByRole("button", { name: "번호 종류 추가", exact: true })).toBeDisabled();
-  await page.getByRole("button", { name: "다시 조회", exact: true }).click();
-  await expect(page.getByText("판매자 번호", { exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "번호 종류 추가", exact: true })).toBeEnabled();
-  expect(state.writes).toHaveLength(0);
+  await page.route("**/api/entity-issuers/issuer_*/rules", async (route) => {
+    started();
+    await pending;
+    await route.fulfill({ json: { items: [] } });
+  });
+  try {
+    const form = await identityEditor(page);
+    await form.getByRole("textbox", { name: "이름 (필수)", exact: true }).fill("유지할 번호");
+    await form.getByRole("button", { name: "연결", exact: true }).click();
+    const binding = page.getByRole("dialog", { name: "발급처 연결", exact: true });
+    await binding.getByRole("button", { name: "발급처 추가", exact: true }).click();
+    const issuer = page.getByRole("dialog", { name: "발급처 추가", exact: true });
+    await issuer.getByLabel("발급처 이름").fill("새 발급처");
+    await issuer.getByRole("button", { name: "저장하고 번호 추가" }).click();
+    await requested;
+    await page.getByRole("dialog", { name: "번호 종류 추가", exact: true }).getByRole("button", { name: "나중에 추가" })
+      .click();
+    await expect(binding.getByLabel("발급처", { exact: true })).toBeFocused();
+    await expect(binding.getByRole("button", { name: "번호 종류 추가", exact: true })).toBeDisabled();
+    await binding.getByRole("button", { name: "취소", exact: true }).click();
+    await page.getByRole("dialog", { name: "변경을 버릴까요?", exact: true }).getByRole("button", {
+      name: "변경 버리기",
+    }).click();
+    await expect(form.getByRole("textbox", { name: "이름 (필수)", exact: true })).toHaveValue(
+      "유지할 번호",
+    );
+  } finally {
+    release();
+  }
 });

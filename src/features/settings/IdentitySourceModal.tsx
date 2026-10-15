@@ -31,11 +31,13 @@ export function IdentitySourceModal({
     [editState, setEditState] = useState<MaterialSectionState>({ dirty: false, busy: false });
   const report = useCallback((state: MaterialSectionState) => setEditState(state), []);
   const issuerAdd = useRef<HTMLButtonElement>(null), ruleAdd = useRef<HTMLButtonElement>(null);
+  const sourceSelect = useRef<HTMLSelectElement>(null);
   const returnTo = useRef<"issuer" | "rule" | null>(null);
   useEffect(() => {
     if (!editing && returnTo.current) {
       const frame = requestAnimationFrame(() => {
-        (returnTo.current === "issuer" ? issuerAdd : ruleAdd).current?.focus();
+        const target = (returnTo.current === "issuer" ? issuerAdd : ruleAdd).current;
+        (target && !target.disabled ? target : sourceSelect.current)?.focus();
         returnTo.current = null;
       });
       return () => cancelAnimationFrame(frame);
@@ -124,6 +126,7 @@ export function IdentitySourceModal({
             {(props) => (
               <select
                 {...props}
+                ref={sourceSelect}
                 className="input"
                 value={source}
                 onChange={(e) => setSource(e.target.value)}
