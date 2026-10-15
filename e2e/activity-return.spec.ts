@@ -174,6 +174,8 @@ for (
       expect((await mcp.call(`get_${kind}`,{id:target.id})).body).toBe(target.body);await dialog.getByLabel("본문").fill(target.body);await dialog.getByRole("button",{name:"닫기",exact:true}).click();
       await expect(page.locator(`.${path} .list .item-title`)).toHaveCount(42);
       await expect(link).toBeFocused();await openListDetail(page,await link.innerText());
+      // Enter the rendered detail before simulating external rows and returning.
+      await expect(view.getByRole("heading", { name: kind === "record" ? "기록" : title, exact: true })).toBeVisible();
       await seedPage(target.id, 21, "상세 중 추가");
       await page.goBack();
       await expect(page.locator(`.${path} .list .item-title`)).toHaveCount(63);
