@@ -53,9 +53,26 @@ test("settings type creation opens typed entity creation, immutable detail, and 
     await expect(editing.getByLabel("자료 종류", { exact: true })).toHaveCount(0);
     await expect(editing.getByLabel("번호", { exact: true })).toHaveValue(stored.external_id);
     await expect(editing.getByLabel("번호", { exact: true })).toHaveAttribute("readonly", "");
-    await expect(editing).toContainText("저장 후 종류를 변경할 수 없습니다");
-    await editing.getByRole("button", { name: "취소", exact: true }).click();
-    await closeDetail(page, title);
+    await expect(editing.getByRole("textbox", { name: "발급처", exact: true })).toHaveValue(stored.source_label);
+    await expect(editing.getByRole("textbox", { name: "발급처", exact: true })).toHaveAttribute("readonly", "");
+    const updatedTitle = `${title} 수정`;
+    await editing.getByRole("textbox", { name: "이름 (필수)", exact: true }).fill(updatedTitle);
+    await saveOnce(page, editing);
+    await expect(editing).not.toBeVisible();
+    const updated = await page.request.get(`${env.VITE_API_URL}/entities/${encodeURIComponent(entityId)}`, {
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(updated.ok()).toBe(true);
+    const changed = await updated.json();
+    expect(changed).toMatchObject({
+      id: entityId,
+      entity_type_id: typeId,
+      source: stored.source,
+      external_id: stored.external_id,
+      properties: { prop_1: updatedTitle },
+      version: stored.version + 1,
+    });
+    await closeDetail(page, updatedTitle);
     await expect(page).toHaveURL(new RegExp(`entity_type_id=${typeId}`));
     expect(new URL(page.url()).searchParams.get("keyword")).toBe(title);
     await page.getByRole("button", { name: /^내 프로필(?: · .+)?$/, exact: true }).click();
