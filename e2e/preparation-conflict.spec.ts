@@ -26,8 +26,12 @@ for (const model of ["entity", "task", "principle"] as const) {
               identity_version: identity.version,
             },
           );
-        } else if (model === "task") target = await mcp.call("create_task", { kind: "once", title });
-        else target = await savePrinciple(mcp, { title });
+        } else {
+          const created = model === "task"
+            ? await mcp.call("create_task", { kind: "once", title })
+            : await savePrinciple(mcp, { title });
+          target = { id: created.id, version: created.version };
+        }
         const list = model === "entity" ? "entities" : model === "task" ? "tasks" : "principles";
         const inputLabel = model === "entity" ? "제목" : "제목";
         await page.goto(`/${list}/${encodeURIComponent(target!.id)}`);
