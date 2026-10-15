@@ -1,3 +1,5 @@
+import { entitySchemaImportPrepare, entitySchemaImportPreview } from "../../contracts/entity-schema-import.ts";
+import { prepareEntitySchemaImport, previewEntitySchemaImport } from "../../core/entity-types/schema-import.ts";
 import {
   cancelEntitySchemaMigration,
   createEntitySchemaRecovery,
@@ -51,6 +53,22 @@ import {
 import { keyedTool, type ToolDef } from "./tools.ts";
 export function entityTypeTools(deps: EntityTypeDeps): ToolDef[] {
   const tools: ToolDef[] = [
+    {
+      name: "preview_entity_schema_import",
+      description:
+        "파일 또는 붙여넣기의 JSON 원문을 중복 키부터 검증합니다. update는 소유 종류 ID와 검토할 현재 expected_schema_version 필요. 문서 x-version은 원본 버전으로 유지하고 차이·키 대응·제거 후보·과거 메타데이터 보존을 보여 줍니다. 키 예약·게시·자료 변경은 하지 않습니다.",
+      input: entitySchemaImportPreview,
+      readOnly: true,
+      handler: (input, actor) => previewEntitySchemaImport(deps, actor, input),
+    },
+    {
+      name: "prepare_entity_schema_import",
+      description:
+        "검토한 preview_fingerprint와 정확한 원문에 결속한 가져오기 준비. update는 정상 변경안을 만들며 별도로 영향 분석·게시/값 변환을 실행해야 합니다. remove_keys로 영구 제거를 명시 확인. copy는 서버가 새 ID와 전체 속성 대응을 발급하여 새 종류를 원자적으로 생성합니다. 같은 request_key의 정확한 재시도만 성공 결과 재현. 무변경은 changed=false이며 새 버전·변경안을 만들지 않습니다.",
+      input: entitySchemaImportPrepare,
+      readOnly: false,
+      handler: (input, actor) => prepareEntitySchemaImport(deps, actor, input),
+    },
     {
       name: "create_entity_schema_recovery",
       description:

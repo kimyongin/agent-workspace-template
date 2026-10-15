@@ -78,13 +78,16 @@ function decimalPlaces(value: number) {
   const [fraction, exponent] = String(value).toLowerCase().split("e");
   return Math.max(0, (fraction.split(".")[1]?.length ?? 0) - Number(exponent ?? 0));
 }
+export function exactMultipleOf(value: number, divisor: number): boolean {
+  const scale = Math.max(decimalPlaces(value), decimalPlaces(divisor));
+  const integer = (number: number) => BigInt(number.toFixed(scale).replace(".", ""));
+  return integer(value) % integer(divisor) === 0n;
+}
 function numeric(f: EntityField, value: unknown, path: string) {
   if (typeof value !== "number") return;
   if (typeOf(f) === "integer" && !Number.isSafeInteger(value)) fail(path, "정수는 안전한 정수 범위여야 합니다");
   if (f.multipleOf !== undefined) {
-    const scale = Math.max(decimalPlaces(value), decimalPlaces(f.multipleOf));
-    const integer = (v: number) => BigInt(v.toFixed(scale).replace(".", ""));
-    if (integer(value) % integer(f.multipleOf) !== 0n) fail(path, "지정한 배수의 숫자를 입력하세요");
+    if (!exactMultipleOf(value, f.multipleOf)) fail(path, "지정한 배수의 숫자를 입력하세요");
   }
   if (typeOf(f) === "number" && (Math.abs(value) > limits.number_abs || decimalPlaces(value) > limits.decimal_places)) {
     fail(path, "숫자는 절댓값 10억 이하, 소수점 6자리 이하입니다");
@@ -127,7 +130,11 @@ export function validateEntityDefinition(raw: unknown): Pick<EntitySchemaVersion
   if (!parsed.success) {
     throw invalidInput(
       "지원하지 않는 속성 정의입니다",
-      parsed.error.issues.map((i) => ({ path: i.path.join("."), message: i.message })),
+      parsed.error.issues.flatMap((i) =>
+        i.code === "unrecognized_keys"
+          ? i.keys.map((key) => ({ path: [...i.path, key].join("."), message: i.message }))
+          : [{ path: i.path.join("."), message: i.message }]
+      ),
     );
   }
   const { schema } = parsed.data;
@@ -199,15 +206,15 @@ export function validateEntityDefinition(raw: unknown): Pick<EntitySchemaVersion
       fail(name, "속성 참조는 존재하고 중복되지 않아야 합니다");
     }
   }
-  if (display.order.length !== keys.length) fail("display.order", "모든 속성의 순서가 필요합니다");
+  if (display.order.length !== keys.length) fail("schema.properties", "모든 속성의 순서가 필요합니다");
   const rep = schema.properties[display.representative];
   if (
     !rep || rep.type !== "string" || rep.format !== undefined || rep.oneOf !== undefined ||
     !schema.required.includes(display.representative) ||
     display.archived.includes(display.representative) || (rep.minLength ?? 0) < 1
-  ) fail("display.representative", "대표 속성은 활성 필수 텍스트이며 빈 문자열을 허용하지 않습니다");
+  ) fail("schema.properties", "대표 속성은 활성 필수 텍스트이며 빈 문자열을 허용하지 않습니다");
   if (display.list_columns.some((k) => display.archived.includes(k))) {
-    fail("display.list_columns", "보관 속성은 목록에서 제외하세요");
+    fail("schema.properties", "보관 속성은 목록에서 제외하세요");
   }
   if (new Set(Object.values(schema.properties).map((f) => f["x-order"])).size !== keys.length) {
     fail("schema.properties", "입력 순서는 중복될 수 없습니다");

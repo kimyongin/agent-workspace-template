@@ -1,6 +1,6 @@
 import type { SchemaDefinition, SchemaDiff, SchemaEdit } from "../../contracts/entity-schema-change.ts";
 import { invalidInput } from "../shared/errors.ts";
-import { validateEntityDefinition } from "./schema-rules.ts";
+import { exactMultipleOf, validateEntityDefinition } from "./schema-rules.ts";
 export function canonical(value: unknown): string {
   const sort = (v: unknown): unknown =>
     Array.isArray(v) ? v.map(sort) : v && typeof v === "object"
@@ -40,6 +40,7 @@ export function resolveSchemaEdits(
     if (edit.op === "set_metadata") {
       const { op: _op, ...metadata } = edit;
       Object.assign(target.schema, metadata);
+      if (metadata.description === null) delete target.schema.description;
       continue;
     }
     if (edit.op === "archive_property" || edit.op === "restore_property") {
@@ -148,7 +149,7 @@ export function schemaDefinitionDiff(source: SchemaDefinition, target: SchemaDef
         migration = min ? following > previous : following < previous;
         reason = migration ? "허용 범위 축소" : "허용 범위 확대";
       } else if (name === "multipleOf") {
-        migration = typeof next === "number" && (typeof old !== "number" || old % next !== 0);
+        migration = typeof next === "number" && (typeof old !== "number" || !exactMultipleOf(old, next));
         reason = migration ? "배수 제약 축소" : "배수 제약 확대";
       } else if (name === "oneOf") {
         const previous = a.oneOf?.map((o) => o.const), following = b.oneOf?.map((o) => o.const);

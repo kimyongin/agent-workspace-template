@@ -1,3 +1,5 @@
+import { entitySchemaImportLimits } from "../../contracts/entity-schema-import.ts";
+import { prepareEntitySchemaImport, previewEntitySchemaImport } from "../../core/entity-types/schema-import.ts";
 import {
   cancelEntitySchemaMigration,
   createEntitySchemaRecovery,
@@ -34,6 +36,14 @@ function number(value: string | undefined) {
 }
 export function entityTypeRoutes(deps: EntityTypeDeps) {
   const app = new Hono<HttpEnv>();
+  app.post(
+    "/entity-schema-import/preview",
+    async (c) => c.json(await previewEntitySchemaImport(deps, c.get("actor"), await importJson(c.req.raw))),
+  );
+  app.post(
+    "/entity-schema-import/prepare",
+    async (c) => c.json(await prepareEntitySchemaImport(deps, c.get("actor"), await importJson(c.req.raw)), 201),
+  );
   app.get("/entity-type-icons", (c) => c.json({ items: entityTypeIcons }));
   app.get("/entity-types", (c) => {
     const archived = c.req.query("include_archived");
@@ -211,4 +221,44 @@ export function entityTypeRoutes(deps: EntityTypeDeps) {
       c.json(await createEntitySchemaRecovery(deps, c.get("actor"), c.req.param("job_id"), await json(c.req.raw)), 201),
   );
   return app;
+}
+
+/** The envelope permits JSON escaping of the largest accepted raw text, but is bounded before parsing. */
+async function importJson(request: Request): Promise<unknown> {
+  if (!request.headers.get("content-type")?.includes("application/json")) return {};
+  const reader = request.body?.getReader();
+  if (!reader) return {};
+  const chunks: Uint8Array[] = [], limit = entitySchemaImportLimits.raw_bytes * 8;
+  let length = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      length += value.length;
+      if (length > limit) {
+        await reader.cancel();
+        throw invalidInput("가져오기 요청 본문이 너무 큽니다", [{
+          path: "document",
+          message: "원문 크기 한도를 확인하세요",
+        }]);
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  const bytes = new Uint8Array(length);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.length;
+  }
+  try {
+    return JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
+  } catch {
+    throw invalidInput("가져오기 요청은 UTF-8 JSON이어야 합니다", [{
+      path: "document",
+      message: "요청 본문의 JSON 형식을 확인하세요",
+    }]);
+  }
 }

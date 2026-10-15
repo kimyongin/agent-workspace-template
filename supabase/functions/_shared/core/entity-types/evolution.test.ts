@@ -77,3 +77,15 @@ Deno.test("integer widening accounts for effective product number limits", () =>
     "compatible",
   );
 });
+
+Deno.test("decimal multipleOf expansion follows exact decimal divisibility", () => {
+  const source = initialEntityDefinition("이름");
+  source.schema.properties.prop_2 = { type: "number", "x-order": 20, multipleOf: 0.3 };
+  const expanded = resolveSchemaEdits(source, [{
+    op: "update_property",
+    key: "prop_2",
+    field: { type: "number", "x-order": 20, multipleOf: 0.1 },
+    required: false,
+  }], {});
+  assertEquals(expanded.kind, "compatible");
+});

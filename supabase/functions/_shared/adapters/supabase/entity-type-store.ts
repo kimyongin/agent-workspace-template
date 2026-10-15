@@ -89,6 +89,21 @@ export class SqlEntityTypeStore extends SqlSchemaMigrationStore implements Entit
     await new SqlEntityIssuerStore(this.tx, this.actor).initializeTypeIdentity(row.id);
     return this.hydrate(row);
   }
+  async createImportedType(document: EntitySchemaVersion["schema"]) {
+    await this.tx`select pg_advisory_xact_lock(hashtextextended(${this.actor.userId + ":entity-types"},0))`;
+    const [count] = await this.tx`select count(*)::int as count from app.entity_types`;
+    assertEntityTypeCapacity(count.count);
+    if (!document.deprecated) await this.assertActiveLabel(document.title!);
+    const id = crypto.randomUUID(), schema = { ...document, "x-type-id": id, "x-version": 1 };
+    const next = Object.keys(schema.properties).length + 1;
+    await this
+      .tx`insert into app.entity_types(id,owner_id,next_property_number) values (${id},${this.actor.userId},${next})`;
+    await this.tx`insert into app.entity_schema_versions(owner_id,schema) values (${this.actor.userId},${
+      this.tx.json(schema as never)
+    })`;
+    await new SqlEntityIssuerStore(this.tx, this.actor).initializeTypeIdentity(id);
+    return this.hydrate((await loadSchemaType(this.tx, id))!);
+  }
   private async assertActiveLabel(label: string, exceptId?: string) {
     const [duplicate] = await this
       .tx`select 1 from app.entity_types t join app.entity_schema_versions v on v.owner_id=t.owner_id and v.type_id=t.id and v.schema_version=t.schema_version where not coalesce((v.schema->>'deprecated')::boolean,false) and v.schema->>'title'=${label}

@@ -39,6 +39,7 @@ export interface EntityTypeStore extends RequestStore, SchemaChangeStore, Schema
     input: ReturnType<typeof entityTypeCreate.parse>,
     definition: Pick<EntitySchemaVersion, "schema">,
   ): Promise<EntityType>;
+  createImportedType(schema: EntitySchemaVersion["schema"]): Promise<EntityType>;
   update(id: string, input: ReturnType<typeof entityTypeUpdate.parse>): Promise<EntityType>;
   schema(
     id: string,

@@ -120,7 +120,7 @@ export function updateEntitySchemaChange(d: EntityTypeDeps, a: Actor, typeId: st
     (s) => prepareSchemaChange(s, typeId, i, id),
   );
 }
-async function prepareSchemaChange(
+export async function prepareSchemaChange(
   s: SchemaChangeStore,
   typeId: string,
   input: ChangeInput & { expected_change_version?: number },
