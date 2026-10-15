@@ -455,17 +455,20 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
       if (kind !== "entities") expect(inputs[0].y).toBeCloseTo(inputs[1].y);
       else await expect(page.locator(".main-tab-header").getByLabel("자료 종류", { exact: true })).toBeVisible();
       const filterBottom = (await grid.boundingBox())!;
-      expect((await page.locator(".tag-filter-chips").boundingBox())!.y).toBeGreaterThanOrEqual(
+      expect((await page.getByRole("group", { name: kind === "entities" ? "자료 태그" : kind === "tasks" ? "할 일 태그" : "기록 태그", exact: true }).boundingBox())!.y).toBeGreaterThanOrEqual(
         filterBottom.y + filterBottom.height,
       );
       if (kind === "entities") await setEntityCategory(page, value);
-      else await page.getByLabel(label, { exact: true }).selectOption(value);
+      else { await page.getByLabel(label, { exact: true }).selectOption(value); await page.getByRole("button", { name: "필터 적용", exact: true }).click(); }
       const search = page.getByLabel(kind === "entities" ? "자료 제목 검색" : "검색어", { exact: true });
       await search.fill("조건 유지");
       await expect.poll(() => new URL(page.url()).searchParams.get(kind === "entities" ? "keyword" : "q")).toBe(
         "조건 유지",
       );
+      const appliedBeforeReset = page.url();
       await page.getByRole("button", { name: "조건 초기화", exact: true }).click();
+      expect(page.url()).toBe(appliedBeforeReset);
+      await page.getByRole("button", { name: "필터 적용", exact: true }).click();
       const params = new URL(page.url()).searchParams;
       expect(params.get("filters")).toBe("1");
       expect(params.get(kind === "entities" ? "keyword" : "q")).toBe("조건 유지");

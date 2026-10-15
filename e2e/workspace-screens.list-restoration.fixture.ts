@@ -1,3 +1,4 @@
+import { chooseTag, applyTabFilters } from "./ui-actions.ts";
 import { setEntityCategory } from "./ui-actions.ts";
 import { openDetailEditor, openListDetail, openListEditor, openTabFilters } from "./ui-actions.ts";
 import { saveOnce } from "./ui-actions.ts";
@@ -55,7 +56,7 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
       await expect(input).toBeVisible();
       await expect(summary).toHaveAccessibleName("필터 열기");
       await expect(page.getByLabel(kind === "entities" ? "조건 1 값" : label, { exact: true })).toBeHidden();
-      await expect(filters.locator(".tag-filter-chips")).toBeHidden();
+      await expect(filters.getByRole("group", { name: kind === "entities" ? "자료 태그" : kind === "tasks" ? "할 일 태그" : "기록 태그", exact: true })).toBeHidden();
       await expect(filters.getByRole("combobox")).toHaveCount(0);
       if (kind === "entities") await expect(page.locator(".main-tab-header").getByLabel("자료 종류", { exact: true })).toBeVisible();
       await expect(page.locator(".list .related-item").first()).toBeVisible();
@@ -66,10 +67,10 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
       await expect(summary).toHaveAttribute("aria-expanded", "true");
       expect(new URL(page.url()).searchParams.get("filters")).toBe("1");
       expect(reads).toBe(beforeReads);
-      await expect(filters.locator(".tag-filter-chips")).toBeVisible();
+      await expect(filters.getByRole("group", { name: kind === "entities" ? "자료 태그" : kind === "tasks" ? "할 일 태그" : "기록 태그", exact: true })).toBeVisible();
       const changedRead = page.waitForResponse((response) => new URL(response.url()).pathname === `/api/${kind}`);
       if (kind === "entities") await setEntityCategory(page, value);
-      else await page.getByLabel(kind === "entities" ? "조건 1 값" : label, { exact: true }).selectOption(value);
+      else { await page.getByLabel(label, { exact: true }).selectOption(value); await applyTabFilters(page); }
       await changedRead;
       await expect(summary).toHaveAccessibleName(/적용 중/);
       const applied = page.url(), appliedReads = reads;
@@ -108,6 +109,7 @@ test("#203 목록은 여러 항목을 독립적으로 펼침·필터 변경은 �
   await expect(second).toHaveAttribute("aria-expanded", "true");
   await openTabFilters(page);
   await page.getByLabel("할 일 상태", { exact: true }).selectOption("open");
+  await page.getByRole("button", { name: "필터 적용", exact: true }).click();
   await expect(second).toHaveAttribute("aria-expanded", "false");
   expect(new URL(page.url()).searchParams.has("open")).toBe(false);
   await page.route(
@@ -200,7 +202,8 @@ test("검색 대기 중 필터 병합·IME 시작 취소·즉시 clear는 오래
   expect(state.searches).toHaveLength(0);
   await input.fill("최신 초안");
   await openTabFilters(page);
-  await page.getByRole("button", { name: "같은 이름", exact: true }).click();
+  await chooseTag(page, page, "같은 이름");
+  await applyTabFilters(page);
   await expect(input).toHaveValue("최신 초안");
   await input.dispatchEvent("compositionend");
   await expect.poll(() => state.searches.length).toBe(1);
@@ -231,9 +234,11 @@ test("기록 기간 변경과 잘못된 범위는 할 일을 재조회하지 않
   expect(tasks).toBe(0);
   await openTabFilters(page);
   await page.getByLabel("기록 종료일", { exact: true }).fill("2026-10-05");
+  await page.getByRole("button", { name: "필터 적용", exact: true }).click();
   await expect.poll(() => reads.length).toBe(2);
   expect(reads[1]).toContain("occurred_to=");
   await page.getByLabel("기록 시작일", { exact: true }).fill("2026-10-06");
+  await page.getByRole("button", { name: "필터 적용", exact: true }).click();
   await expect(page.getByRole("alert")).toContainText("이전 유효 기간");
   await expect(page.locator(".records .list .item-title")).toHaveText("기록");
   await expect(page.locator(".tasks")).toHaveCount(0);
@@ -266,6 +271,7 @@ test("늦은 다른 탭 페이지는 기록 날짜·페이지·검색 초안과 
   await openTabFilters(page);
   const date = page.getByLabel("기록 시작일", { exact: true });
   await date.fill("2026-10-01");
+  await applyTabFilters(page);
   await page.locator("#activity-records-page-control").click();
   await expect(page).toHaveURL(/pages=2/);
   const input = page.getByLabel("검색어", { exact: true });
@@ -305,16 +311,24 @@ for (const overLimit of [false, true]) {
     await go(page, overLimit ? `/tasks?tag_ids=${tags.map((tag) => tag.id).join(",")}` : "/tasks");
     await openTabFilters(page);
     if (overLimit) {
-      await expect(page.locator(".tag-filter-chips").getByRole("status")).toContainText("기존 조건의 앞 10개만 적용");
+      await expect(page.getByRole("status").filter({ hasText: "기존 조건의 앞 10개만 적용" })).toContainText("기존 조건의 앞 10개만 적용");
       expect(new URL(page.url()).searchParams.get("tag_ids")?.split(",")).toHaveLength(10);
-    } else for (const tag of tags.slice(0, 10)) await page.getByRole("button", { name: tag.name, exact: true }).click();
-    const eleventh = page.getByRole("button", { name: tags[10].name, exact: true });
+    }
+    const appliedReads = requests.length;
+    await page.getByRole("button", { name: "태그 선택", exact: true }).click();
+    const picker = page.getByRole("dialog", { name: "할 일 태그 선택", exact: true });
+    if (!overLimit) for (const tag of tags.slice(0, 10)) await picker.getByRole("checkbox", { name: tag.name, exact: true }).check();
+    const eleventh = picker.getByRole("checkbox", { name: tags[10].name, exact: true });
     await expect(eleventh).toBeDisabled();
-    await expect(page.locator(".tag-filter-chips button[aria-pressed=true]")).toHaveCount(10);
-    await page.getByRole("button", { name: tags[0].name, exact: true }).click();
+    await expect(picker.getByRole("checkbox", { checked: true })).toHaveCount(10);
+    await picker.getByRole("checkbox", { name: tags[0].name, exact: true }).uncheck();
     await expect(eleventh).toBeEnabled();
-    await eleventh.click();
-    await expect(eleventh).toHaveAttribute("aria-pressed", "true");
+    await eleventh.check();
+    await expect(eleventh).toBeChecked();
+    await picker.getByRole("button", { name: "선택 완료", exact: true }).click();
+    expect(requests).toHaveLength(appliedReads);
+    await applyTabFilters(page);
+    await expect.poll(() => requests.at(-1)).toBe(10);
     expect(Math.max(...requests)).toBeLessThanOrEqual(10);
     await expect(page.getByRole("alert")).toHaveCount(0);
     expect(state.errors).toEqual([]);
@@ -496,14 +510,16 @@ test("목록 페이지·조건·scroll/focus 왕복과 검색 anchor 재조회",
 test("#191 원칙 검색 전환은 태그 조건 해제·직접 링크의 조건은 명시 해제 가능", async ({ page }) => {
   const state = await fixtures(page);
   await go(page, `/search?q=기준&kind=task&tag_id=${id(12)}`);
-  await page.getByText("검색 조건 · 조건 적용 중", { exact: true }).click();
+  await openTabFilters(page);
   await page.getByRole("combobox", { name: "검색 대상", exact: true }).selectOption("principle");
+  await applyTabFilters(page);
   await expect(page).not.toHaveURL(/tag_id=/);
   await expect.poll(() => state.searches.at(-1)?.kinds).toEqual(["principle"]);
   expect(state.searches.at(-1)?.tag_ids).toBeUndefined();
   await go(page, `/search?q=기준&kind=principle&tag_id=${id(12)}`);
-  await page.getByText("검색 조건 · 조건 적용 중", { exact: true }).click();
+  await openTabFilters(page);
   await page.getByRole("button", { name: "저장된 태그 조건 해제", exact: true }).click();
+  await applyTabFilters(page);
   await expect(page).not.toHaveURL(/tag_id=/);
   expect(state.errors).toEqual([]);
 });

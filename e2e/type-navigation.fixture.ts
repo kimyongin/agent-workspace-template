@@ -633,7 +633,7 @@ test("entity edit preserves draft and tags while identity settings are delayed b
     const form=page.getByRole("dialog", { name: "재료 편집", exact: true });
     await reading;
     await form.getByLabel("이름", { exact: false }).fill("保持する下書き");
-    await expect(form.getByRole("button", { name: "保留タグ", exact: true })).toHaveAttribute("aria-pressed","true");
+    await expect(form.getByRole("button", { name: "保留タグ 선택 해제", exact: true })).toHaveCount(1);
     await expect(form.getByRole("button", { name: "저장", exact: true })).toBeDisabled();
     await expect(form.getByRole("status").filter({ hasText: "자료 종류·식별자 설정을 읽는 중…" })).toBeVisible();
     await form.getByLabel("이름", { exact: false }).press("Enter");
@@ -641,7 +641,7 @@ test("entity edit preserves draft and tags while identity settings are delayed b
     release();
     await expect(form.getByRole("button", { name: "저장", exact: true })).toBeEnabled();
     await expect(form.getByLabel("이름", { exact: false })).toHaveValue("保持する下書き");
-    await expect(form.getByRole("button", { name: "保留タグ", exact: true })).toHaveAttribute("aria-pressed","true");
+    await expect(form.getByRole("button", { name: "保留タグ 선택 해제", exact: true })).toHaveCount(1);
     await form.getByRole("button", { name: "저장", exact: true }).click();
     const confirmation=page.locator("dialog.modal-action[open]");
     await expect(confirmation.getByRole("button", { name: "수정하고 저장", exact: true })).toBeEnabled();

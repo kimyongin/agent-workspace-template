@@ -153,7 +153,9 @@ test("늦은 전체 결과가 새 실패 필터의 분석 페이지를 덮어쓰
     });
     await page.goto(`/settings/entity-types/${typeId}/migrations?change_id=${plan.id}`);
     await expect.poll(() => intercepted).toBe(true);
+    await page.getByRole("button", { name: /^필터 열기/ }).click();
     await page.getByLabel("실패한 자료만 보기").check();
+    await page.getByRole("button", { name: "필터 적용", exact: true }).click();
     await expect(page.locator("article")).toHaveCount(1);
     await expect(page.locator("article")).toContainText(bad.id);
     release();
