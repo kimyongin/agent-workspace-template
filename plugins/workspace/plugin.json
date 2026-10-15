@@ -11,7 +11,7 @@
         "shortDescription": "할 일·기록 관리",
         "longDescription": "Workspace에서 현재 상태와 저장된 근거를 조회하고 요청한 업무 결과를 기록합니다.",
         "category": "Productivity",
-        "defaultPrompt": "Workspace에서 현재 할 일과 관련 자료을 확인해 주세요."
+        "defaultPrompt": "Workspace에서 현재 할 일과 관련 자료를 확인해 주세요."
       }
     }
   }
