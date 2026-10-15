@@ -1,16 +1,28 @@
 import { schemaPresentation } from "../../lib/schema-document.ts";
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useState } from "react";
 import type { EntityValues } from "@contracts/entity.ts";
 import type { EntitySchemaResult } from "@contracts/entity-type.ts";
 import { api } from "../../lib/api.ts";
 import { displayedProperty } from "./property-fields.tsx";
 import { Notice } from "../../components/Field.tsx";
 export function EntityProperties(
-  { entity, omitRepresentative = false }: { entity: EntityValues; omitRepresentative?: boolean },
+  { entity, omitRepresentative = false, onReadyChange }: {
+    entity: EntityValues;
+    omitRepresentative?: boolean;
+    onReadyChange?: (ready: boolean) => void;
+  },
 ) {
   const [definition, setDefinition] = useState<EntitySchemaResult | null>(null),
     [failed, setFailed] = useState(false),
     [retry, setRetry] = useState(0);
+  const key = `${entity.entity_type_id}:${entity.current_schema_version}:${retry}`;
+  const [readKey, setReadKey] = useState(key);
+  if (readKey !== key) {
+    setReadKey(key);
+    setDefinition(null);
+    setFailed(false);
+  }
+  useLayoutEffect(() => onReadyChange?.(!!definition || failed), [definition, failed, onReadyChange]);
   useEffect(() => {
     const c = new AbortController();
     setDefinition(null);

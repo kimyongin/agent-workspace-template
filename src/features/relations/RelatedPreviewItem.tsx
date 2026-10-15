@@ -26,8 +26,8 @@ export function RelatedPreviewItem({list,fallback,resource,...props}:ComponentPr
   useExpansionRegistration(kind ? path : undefined,enabled);
   const expanded=enabled&&!!path&&!!selection?.value.includes(path);
   const readKey=expanded?path:null;
-  const [ownedKey,setOwnedKey]=useState(readKey),[tagsReady,setTagsReady]=useState(false);
-  if(ownedKey!==readKey){setOwnedKey(readKey);setTagsReady(false);}
+  const [ownedKey,setOwnedKey]=useState(readKey),[tagsReady,setTagsReady]=useState(false),[propertiesReady,setPropertiesReady]=useState(false);
+  if(ownedKey!==readKey){setOwnedKey(readKey);setTagsReady(false);setPropertiesReady(false);}
   const report=useRef<ReturnType<NonNullable<typeof readiness>["track"]>|null>(null);
   useLayoutEffect(()=>{
     if(!expanded||!path||!readiness)return;
@@ -35,7 +35,8 @@ export function RelatedPreviewItem({list,fallback,resource,...props}:ComponentPr
     return()=>{tracked.dispose();report.current=null;};
   },[readiness,path,expanded]);
   const onTagsReady=useCallback((ready:boolean)=>setTagsReady(ready),[]);
-  useLayoutEffect(()=>{report.current?.settle(!!fallback||!!error||!!item&&(kind==="principles"||tagsReady));},[item,error,tagsReady,kind,readiness,expanded,fallback]);
+  const onPropertiesReady=useCallback((ready:boolean)=>setPropertiesReady(ready),[]);
+  useLayoutEffect(()=>{report.current?.settle(!!fallback||!!error||!!item&&(kind==="principles"||tagsReady&&(kind!=="entities"||propertiesReady)));},[item,error,tagsReady,propertiesReady,kind,readiness,expanded,fallback]);
   const hasFallback = !!fallback;
   useEffect(() => {
     if (!expanded || !path || hasFallback) { read.resource.closePreview(); return; }
@@ -63,7 +64,7 @@ export function RelatedPreviewItem({list,fallback,resource,...props}:ComponentPr
     {!fallback&&error==="missing"&&<p className="secondary">삭제된 대상 또는 접근할 수 없는 대상입니다.</p>}
     {!fallback&&error==="failed"&&<><Notice kind="error">내용을 불러오지 못했습니다.</Notice><BodyAction onClick={()=>void read.resource.read("preview")}>다시 시도</BodyAction></>}
     {!fallback&&item&&<>
-      <PreviewContents kind={kind} item={item} main={!!list} onTagsReady={onTagsReady}/>
+      <PreviewContents kind={kind} item={item} main={!!list} onTagsReady={onTagsReady} onPropertiesReady={onPropertiesReady}/>
       {list?.metadata}
     </>}
   </>}}/>;
