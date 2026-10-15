@@ -110,6 +110,7 @@ function RecordTemplateForm({
   );
   const { types, error: typeError, retry: retryTypes } = useEntityTypes();
   const typeId = materialTypeId ?? "";
+  const [schemaAttempt, setSchemaAttempt] = useState(0);
   const [schema, setSchema] = useState<EntitySchemaResult | null>(null),
     [schemaError, setSchemaError] = useState(false);
   useEffect(() => {
@@ -131,7 +132,7 @@ function RecordTemplateForm({
       });
     }
     return () => controller.abort();
-  }, [typeId, publishedVersion]);
+  }, [typeId, publishedVersion, schemaAttempt]);
   const [action, setAction] = useState<TemplateAction>("create");
   const [message, setMessage] = useState("");
   const [fields, setFields] = useState<Record<string, string>>({});
@@ -247,6 +248,7 @@ function RecordTemplateForm({
       variable.label = `${label} (${number})`;
     }
   }
+  const schemaUnavailable = model === "entity" && !!typeId && !schema;
   const title = "기록 자동 완성";
   return (
     <section className={materialResource ? "material-record-template" : "settings-section"} aria-label={title}>
@@ -270,7 +272,7 @@ function RecordTemplateForm({
           aria-busy={busy}
           onSubmit={async (event) => {
             event.preventDefault();
-            if (busy || conflict || !dirty) return;
+            if (busy || conflict || !dirty || schemaUnavailable) return;
             if (!parse.success) {
               setFields(
                 Object.fromEntries(
@@ -364,12 +366,6 @@ function RecordTemplateForm({
                     </BodyAction>
                   </Notice>
                 )}
-                {typeId && !schema && !schemaError && <p role="status">속성 정의를 읽는 중…</p>}
-                {schemaError && (
-                  <Notice kind="error">
-                    속성 정의를 읽지 못했습니다. 자료 종류를 다시 선택하세요.
-                  </Notice>
-                )}
               </>
             )}
             <Field label="변수 삽입">
@@ -377,6 +373,7 @@ function RecordTemplateForm({
                 <select
                   {...props}
                   className="input"
+                  disabled={schemaUnavailable}
                   value=""
                   onChange={(event) => {
                     text.current?.insert(event.target.value);
@@ -391,23 +388,42 @@ function RecordTemplateForm({
             </Field>
             <Field
               label="메모 템플릿"
-              help="비워두면 기본 문구를 사용합니다. 달러 기호 자체는 $$로 입력하세요."
+              help={schemaUnavailable
+                ? undefined
+                : "비워두면 기본 문구를 사용합니다. 달러 기호 자체는 $$로 입력하세요."}
               error={fields[`${path}.memo`] ?? currentError ?? undefined}
             >
               {(props) => (
-                <TemplateMemoEditor
-                  key={`${model}:${typeId}:${action}`}
-                  {...props}
-                  editorRef={text}
-                  variables={variables}
-                  disabled={busy}
-                  readOnly={uncertain}
-                  value={stored?.memo ?? value.memo}
-                  onChange={(memo) => setValue({ memo: model === "entity" && !memo.trim() ? null : memo })}
-                />
+                schemaUnavailable
+                  ? schemaError
+                    ? (
+                      <Notice kind="error">
+                        속성 정의를 읽지 못했습니다.{" "}
+                        <BodyAction
+                          icon="reset"
+                          aria-label="속성 정의 다시 조회"
+                          onClick={() => setSchemaAttempt((value) => value + 1)}
+                        >
+                          다시 시도
+                        </BodyAction>
+                      </Notice>
+                    )
+                    : <p role="status">속성 정의를 읽는 중…</p>
+                  : (
+                    <TemplateMemoEditor
+                      key={`${model}:${typeId}:${action}`}
+                      {...props}
+                      editorRef={text}
+                      variables={variables}
+                      disabled={busy}
+                      readOnly={uncertain}
+                      value={stored?.memo ?? value.memo}
+                      onChange={(memo) => setValue({ memo: model === "entity" && !memo.trim() ? null : memo })}
+                    />
+                  )
               )}
             </Field>
-            {model === "entity" && !usingDefault && (
+            {model === "entity" && !usingDefault && !schemaUnavailable && (
               <div className="record-template-defaults">
                 <BodyAction icon="reset" onClick={() => setValue({ memo: null })}>
                   기본 문구로 되돌리기
@@ -474,7 +490,7 @@ function RecordTemplateForm({
               <button
                 type="submit"
                 className="btn btn-primary"
-                disabled={busy || !dirty || conflict}
+                disabled={busy || !dirty || conflict || schemaUnavailable}
                 aria-label={busy ? "저장 중…" : uncertain ? "같은 내용 다시 시도" : "기록 자동 완성 저장"}
               >
                 {busy ? "저장 중…" : uncertain ? "같은 내용 다시 시도" : "저장"}
