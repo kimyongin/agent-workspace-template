@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { EntityIssuer, IdentifierRule } from "@contracts/entity-issuer.ts";
-import { BodyAction } from "../../components/BodyAction.tsx";
+import { BodyActionFace } from "../../components/BodyAction.tsx";
 import { Field } from "../../components/Field.tsx";
 import { ModalShell } from "../../components/Modal.tsx";
 import { IssuerEditModal, type RegistryEditTarget } from "./IssuerEditModal.tsx";
@@ -30,6 +30,17 @@ export function IdentitySourceModal({
   const [editing, setEditing] = useState<RegistryEditTarget | null>(null),
     [editState, setEditState] = useState<MaterialSectionState>({ dirty: false, busy: false });
   const report = useCallback((state: MaterialSectionState) => setEditState(state), []);
+  const issuerAdd = useRef<HTMLButtonElement>(null), ruleAdd = useRef<HTMLButtonElement>(null);
+  const returnTo = useRef<"issuer" | "rule" | null>(null);
+  useEffect(() => {
+    if (!editing && returnTo.current) {
+      const frame = requestAnimationFrame(() => {
+        (returnTo.current === "issuer" ? issuerAdd : ruleAdd).current?.focus();
+        returnTo.current = null;
+      });
+      return () => cancelAnimationFrame(frame);
+    }
+  }, [editing]);
   const rulesRequest = useRef<AbortController | null>(null);
   const issuer = issuers.find((i) => i.code === source), rule = rules?.find((r) => r.id === ruleId);
   const eligible = rules?.filter((r) => r.active) ?? [];
@@ -69,6 +80,17 @@ export function IdentitySourceModal({
     setEditing(null);
     setEditState({ dirty: false, busy: false });
   };
+  // Keep the connection draft in this component while its one auxiliary surface changes mode.
+  if (editing) {
+    return (
+      <IssuerEditModal
+        target={editing}
+        onClose={() => setEditing(null)}
+        onSaved={saved}
+        onState={report}
+      />
+    );
+  }
   return (
     <ModalShell
       open
@@ -109,7 +131,17 @@ export function IdentitySourceModal({
               </select>
             )}
           </Field>
-          <BodyAction icon="create" onClick={() => setEditing({ kind: "issuer" })}>발급처 추가</BodyAction>
+          <button
+            type="button"
+            className="btn btn-input"
+            ref={issuerAdd}
+            onClick={() => {
+              returnTo.current = "issuer";
+              setEditing({ kind: "issuer" });
+            }}
+          >
+            발급처 추가
+          </button>
         </div>
         {error && <p className="error-text" role="alert">{error}</p>}
         {source && (
@@ -134,29 +166,31 @@ export function IdentitySourceModal({
                   </Field>
                 )
                 : eligible.length === 1
-                ? <p>{eligible[0].label}{eligible[0].generation === "automatic" ? " · 자동 발급" : ""}</p>
+                ? (
+                  <p>
+                    {eligible[0].label}
+                    {eligible[0].generation === "automatic" && eligible[0].label !== "자동 발급" ? " · 자동 발급" : ""}
+                  </p>
+                )
                 : <p className="secondary">사용할 번호 규칙이 없습니다.</p>}
             </div>
             {issuer && !issuer.system && (
-              <BodyAction
-                icon="create"
+              <button
+                type="button"
+                className={eligible.length > 1 ? "btn btn-input" : "body-action"}
+                ref={ruleAdd}
                 disabled={rules === null}
-                onClick={() => setEditing({ kind: "rule", source })}
+                onClick={() => {
+                  returnTo.current = "rule";
+                  setEditing({ kind: "rule", source });
+                }}
               >
-                규칙 추가
-              </BodyAction>
+                {eligible.length > 1 ? "규칙 추가" : <BodyActionFace icon="create">규칙 추가</BodyActionFace>}
+              </button>
             )}
           </div>
         )}
       </div>
-      {editing && (
-        <IssuerEditModal
-          target={editing}
-          onClose={() => setEditing(null)}
-          onSaved={saved}
-          onState={report}
-        />
-      )}
     </ModalShell>
   );
 }
