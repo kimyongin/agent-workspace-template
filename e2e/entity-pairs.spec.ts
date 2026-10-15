@@ -29,8 +29,8 @@ test("연결된 자료: 웹 추가→상대 상세→해제→새로고침과 �
     const path = (id: string) => `/entities/${encodeURIComponent(id)}`;
     await page.goto(path(x.id));
     const detail = page.locator("dialog.modal:not(.modal-confirm)[open]:visible");
-    const links = detail.getByRole("region", { name: "연결된 자료", exact: true });
-    await expect(links.getByRole("heading", { name: "연결된 자료", exact: true })).toBeVisible();
+    const links = detail.getByRole("region", { name: /^연결된 자료(?: \(\d+개\))?$/ });
+    await expect(links.getByRole("heading", { name: /^연결된 자료(?: \(\d+개\))?$/ })).toBeVisible();
     await links.getByRole("button", { name: "자료 연결", exact: true }).click();
     await links.getByLabel("자료 종류", { exact: true }).selectOption(otherType.id);
     const search = links.getByRole("searchbox", { name: "자료 제목 검색", exact: true });
