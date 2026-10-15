@@ -5,14 +5,14 @@ import { expect, test } from "@playwright/test";
 import { id } from "./support/workspace-data.ts";
 import { compatibleEdit, fillText, fixtures, form, go } from "./support/workspace-screens.ts";
 
-for (const [kind, label] of [["entities", "검사 자료"], ["tasks", "할 일"], ["records", "기록"], ["principles", "원칙"]]) {
+for (const [kind, label] of [["entities", "검사 자료"], ["tasks", "할 일"], ["records", "기록"]]) {
   test(`${kind}: uncertain 생성 폐기 후 새 작성은 새로운 요청키`, async ({ page }) => {
-    const state = await fixtures(page, { failWrite: "unknown", emptyPrinciple: true });
+    const state = await fixtures(page, { failWrite: "unknown" });
     await go(page, `/${kind}`);
     const begin = () =>
       beginTabAction(
         page,
-        kind === "principles" ? "현재 원칙 등록" : kind === "records" ? "기록 작성" : `${label} 추가`,
+        kind === "records" ? "기록 작성" : `${label} 추가`,
       );
     const fill = async (value: string) => {
       if (kind === "entities") await form(page).getByLabel("제목", { exact: false }).fill(value);
@@ -36,7 +36,7 @@ for (const [kind, label] of [["entities", "검사 자료"], ["tasks", "할 일"]
   });
 }
 
-for (const [kind, n] of [["entities", 1], ["tasks", 2], ["records", 3], ["principles", 4]] as const) {
+for (const [kind, n] of [["entities", 1], ["tasks", 2], ["records", 3]] as const) {
   test(`${kind}: uncertain 편집 폐기 후 새 편집은 같은 버전에 새 메모`, async ({ page }) => {
     const state = await fixtures(page, { failWrite: "unknown" });
     await go(page, `/${kind}/${kind === "entities" ? encodeURIComponent(entityKey(n)) : id(n)}`);

@@ -1,5 +1,6 @@
 # ADR-0015: 변경 기록 템플릿과 사용자 업무 설정
 
+사용자 원칙과 그 보존 계약은 [ADR-0022](0022-remove-user-principles.md)로 대체되었다. 아래의 해당 부분은 당시 결정의 배경이다.
 - 상태: 채택
 - 날짜: 2026-10-09
 - 근거: 웹과 에이전트에 같은 템플릿을 적용하고 잘못된 템플릿 저장을 거부하자는 대화 합의, [#242](https://github.com/kimyongin/agent-workspace-template/issues/242)

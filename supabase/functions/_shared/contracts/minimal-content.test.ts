@@ -1,18 +1,15 @@
 import { assertEquals } from "@std/assert";
 import { recordCreate } from "./record.ts";
 import { taskCreate } from "./task.ts";
-import { principleCreate } from "./principle.ts";
 import { changeNote } from "./change.ts";
-Deno.test("body-only records and title/body tasks and principles reject retired content", () => {
+Deno.test("body-only records and title/body tasks reject retired content", () => {
   assertEquals(recordCreate.safeParse({ body: "기록 내용" }).success, true);
   assertEquals(recordCreate.safeParse({ body: "" }).success, false);
   for (const field of ["title", "summary", "change_memo", "change_note"]) {
     assertEquals(recordCreate.safeParse({ body: "내용", [field]: "옛 입력" }).success, false);
   }
   for (
-    const [schema, input] of [[taskCreate, { kind: "once", title: "할 일" }], [principleCreate, {
-      title: "원칙",
-    }]] as const
+    const [schema, input] of [[taskCreate, { kind: "once", title: "할 일" }]] as const
   ) {
     assertEquals(schema.safeParse(input).success, true);
     assertEquals(schema.safeParse({ ...input, summary: "제거됨" }).success, false);

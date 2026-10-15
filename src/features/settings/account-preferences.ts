@@ -44,7 +44,7 @@ export function navigationPreference(value: unknown): NavigationPreference | nul
     if (!ref || typeof ref !== "object" || typeof ref.id !== "string") return null;
     if (
       ref.kind === "builtin"
-        ? !["entities", "tasks", "records", "principles"].includes(ref.id)
+        ? !["entities", "tasks", "records"].includes(ref.id)
         : ref.kind !== "type" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(ref.id)
     ) return null;
     const key = `${ref.kind}:${ref.id}`;

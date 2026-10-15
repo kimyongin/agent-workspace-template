@@ -109,7 +109,6 @@ dbTest("HTTP and MCP use the same owner/key/payload and preserve creation and de
       deps,
       { basePath: "", token: {} as never, allowedOrigins: [] },
       unused,
-      unused,
       {} as never,
       () => Promise.resolve(f.actor),
     );

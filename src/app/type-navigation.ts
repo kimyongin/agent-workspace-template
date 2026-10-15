@@ -1,5 +1,5 @@
 import type { EntityType } from "@contracts/entity-type.ts";
-export type NavigationRef = { kind: "builtin"; id: "entities" | "tasks" | "records" | "principles" } | {
+export type NavigationRef = { kind: "builtin"; id: "entities" | "tasks" | "records" } | {
   kind: "type";
   id: string;
 };
@@ -15,7 +15,6 @@ const builtins = {
   entities: { label: "전체 자료", icon: "box" },
   tasks: { label: "할 일", icon: "tool" },
   records: { label: "기록", icon: "book" },
-  principles: { label: "원칙", icon: "star" },
 };
 export function defaultNavigationRefs(types: EntityType[]): NavigationRef[] {
   const active = types.filter((type) => !type.archived).sort((a, b) =>
@@ -27,7 +26,6 @@ export function defaultNavigationRefs(types: EntityType[]): NavigationRef[] {
       : [{ kind: "builtin" as const, id: "entities" as const }]),
     { kind: "builtin", id: "tasks" },
     { kind: "builtin", id: "records" },
-    ...(active.length < 2 ? [{ kind: "builtin" as const, id: "principles" as const }] : []),
   ];
 }
 /** Resolve names and icons from owner data; refs never contain domain metadata. */
@@ -89,7 +87,6 @@ export function currentNavigationName(section: string | null, path: string, type
   if (section === "entities") return typeLabel ?? "전체 자료";
   if (section === "tasks") return "할 일";
   if (section === "records") return "기록";
-  if (section === "principles") return "원칙";
   if (path.startsWith("/settings/entity-types") || path.startsWith("/settings/materials")) {
     return typeLabel ? `${typeLabel}${path.includes("/migrations") ? " · 값 변환 작업" : ""}` : "자료 설정";
   }

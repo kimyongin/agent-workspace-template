@@ -7,10 +7,7 @@ import { id, record, stamp } from "./support/workspace-data.ts";
 import { connectedTarget, fillText, fixtures, form, go, linkedFixture } from "./support/workspace-screens.ts";
 
 for (
-  const [kind, title] of [["entities", "검사 자료 편집"], ["tasks", "할 일 편집"], ["records", "기록 편집"], [
-    "principles",
-    "현재 원칙 편집",
-  ]]
+  const [kind, title] of [["entities", "검사 자료 편집"], ["tasks", "할 일 편집"], ["records", "기록 편집"]]
 ) {
   test(`${kind}: 목록 편집 닫기는 한 번에 목록·초점으로 복귀`, async ({ page }) => {
     const state = await fixtures(page);
@@ -21,12 +18,10 @@ for (
     );
     await expect(form(page).getByRole("button", { name: "저장", exact: true })).toBeVisible();
     await form(page).getByRole("button", { name: "닫기", exact: true }).click();
-    await expect(page).toHaveURL(kind === "principles" ? /\/principles#principles-title$/ : new RegExp(`/${kind}\\?`));
+    await expect(page).toHaveURL(new RegExp(`/${kind}\\?`));
     await expect(form(page)).toHaveCount(0);
     await expect(page.locator(
-      kind === "principles"
-        ? "#principles-title"
-        : kind === "entities"
+      kind === "entities"
         ? `[id="entity-${entityKey(1)}"]`
         : `#activity-${kind}-${id(kind === "tasks" ? 2 : 3)}`,
     )).toBeFocused();
@@ -402,7 +397,7 @@ test("상세 탐색 검색: 동시 추가 뒤 깊은 anchor와 reload 초점 복
   expect(state.errors).toEqual([]);
 });
 
-for (const [kind, label] of [["tasks", "할 일"], ["records", "기록"], ["principles", "현재 기준"]]) {
+for (const [kind, label] of [["tasks", "할 일"], ["records", "기록"]]) {
   test(`상세 탐색 검색 ${kind}: 이전과 닫기는 검색·직접 링크`, async ({ page }) => {
     const state = await fixtures(page);
     await go(page, `/search?q=자료&kind=${kind.slice(0, -1)}`);
@@ -413,7 +408,7 @@ for (const [kind, label] of [["tasks", "할 일"], ["records", "기록"], ["prin
     await page.getByRole("link", { name: label, exact: true }).click();
     await form(page).getByRole("button", { name: "닫기", exact: true }).click();
     await expect(page).toHaveURL(/\/search\?/);
-    await go(page, `/${kind}/${state.rows[kind as "entities" | "tasks" | "records" | "principles"][0].id}`);
+    await go(page, `/${kind}/${state.rows[kind as "entities" | "tasks" | "records"][0].id}`);
     await expect(form(page)).toHaveCount(1);
     await expect(form(page).getByRole("button", { name: /^이전:/ })).toHaveCount(0);
     expect(state.errors).toEqual([]);
@@ -449,11 +444,7 @@ for (const [kind, title] of [["entities", "자료"], ["tasks", "할 일"], ["rec
 }
 
 for (
-  const [kind, n, title] of [["entities", 1, "자료"], ["tasks", 2, "할 일"], ["records", 3, "기록"], [
-    "principles",
-    4,
-    "현재 기준",
-  ]] as const
+  const [kind, n, title] of [["entities", 1, "자료"], ["tasks", 2, "할 일"], ["records", 3, "기록"]] as const
 ) {
   for (const width of [390, 1440]) {
     test(`#185 ${kind} ${width}px: 제목만 클릭·동일 dialog 편집/취소·한 번 닫기`, async ({ page }, info) => {
@@ -461,16 +452,16 @@ for (
       await page.setViewportSize({ width, height: 900 });
       await go(page, `/${kind}`);
       await expect(page.getByRole("link", { name: title + " 상세", exact: true })).toHaveCount(0);
-      const titleLink = page.getByRole(kind === "principles" ? "link" : "button", { name: title, exact: true }),
+      const titleLink = page.getByRole("button", { name: title, exact: true }),
         row = titleLink.locator(
-          "xpath=ancestor::section[contains(@class,'current-document')] | ancestor::li[contains(@class,'list-item')]",
+          "xpath=ancestor::li[contains(@class,'list-item')]",
         ).first();
       const t = (await titleLink.boundingBox())!, r = (await row.boundingBox())!;
       expect(t.width).toBeLessThan(r.width - 40);
       await page.mouse.click(t.x + t.width + 12, t.y + t.height / 2);
       await expect(form(page)).toHaveCount(0);
       await titleLink.click();
-      if (kind !== "principles") await page.getByRole("link", { name: title + " 상세", exact: true }).click();
+      await page.getByRole("link", { name: title + " 상세", exact: true }).click();
       await expect(form(page)).toHaveCount(1);
       await form(page).evaluate((el) => el.setAttribute("data-same-dialog", "yes"));
       await openDetailEditor(page);
@@ -506,7 +497,7 @@ for (
   }
 }
 
-for (const [kind, n] of [["entities", 1], ["tasks", 2], ["records", 3], ["principles", 4]] as const) {
+for (const [kind, n] of [["entities", 1], ["tasks", 2], ["records", 3]] as const) {
   test(`#185 ${kind}: 직접 편집 취소의 폐기 확인은 같은 보기로 복귀`, async ({ page }) => {
     const state = await fixtures(page);
     await go(page, `/${kind}/${kind === "entities" ? encodeURIComponent(entityKey(n)) : id(n)}?edit=1`);

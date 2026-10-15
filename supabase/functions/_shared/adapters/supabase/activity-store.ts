@@ -48,7 +48,6 @@ function toRecord(r: Row): ActivityRecord {
   return {
     record_kind: r.record_kind as "user" | "result" | "change",
     change: (r.change_metadata as ActivityRecord["change"]) ?? null,
-    applied_principle_snapshots: (r.applied_principle_snapshots as ActivityRecord["applied_principle_snapshots"]) ?? [],
     entity_ids: (r.entity_ids as string[]) ?? [],
     entity_context: (r.entity_context as Task["entity_context"]) ?? [],
     tag_ids: (r.tag_ids as string[]) ?? [],
@@ -70,7 +69,7 @@ const taskColumns = (tx: Tx) =>
      ${tagIdsColumn(tx, "task")}`;
 const recordColumns = (tx: Tx) =>
   tx`id, entity_ids, entity_context, body, occurred_at, task_id, occurrence_on::text as occurrence_on, version, created_at, updated_at,
-    record_kind,change_metadata,applied_principle_snapshots,
+    record_kind,change_metadata,
     ${tagIdsColumn(tx, "record")}`;
 
 /** 수정 가능한 컬럼의 허용 목록. 이 밖의 키는 SQL로 가지 않는다. */

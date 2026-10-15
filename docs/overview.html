@@ -362,7 +362,7 @@ footer a { margin-right: 10px; white-space: nowrap; }
 
   <!-- 1 -->
   <section id="what">
-    <p class="note">도메인 구성: 엔터티 / 할 일 / 원칙 / 기록 네 탭. 최신 상태는 각 도메인에서, 과거 근거는 통합 기록에서 확인합니다. 일반 기록 작성과 모든 기록의 편집은 추가 로그를 만들지 않습니다. 업무 변경은 작은 확인창에서 기록 메모와 기록 태그를 입력한 뒤 함께 저장합니다. <a href="architecture/unified-record-model.md">도메인 설계</a> · <a href="adr/0012-current-state-and-unified-records.md">ADR-0012</a>. 화면 구현과 검증 상태는 GitHub 이슈·PR에서 확인합니다.</p>
+    <p class="note">도메인 구성: 자료 / 할 일 / 기록. 최신 상태는 각 도메인에서, 과거 근거는 통합 기록에서 확인합니다. 일반 기록 작성과 모든 기록의 편집은 추가 로그를 만들지 않습니다. 업무 변경은 작은 확인창에서 기록 메모와 기록 태그를 입력한 뒤 함께 저장합니다. <a href="architecture/unified-record-model.md">도메인 설계</a> · <a href="adr/0012-current-state-and-unified-records.md">ADR-0012</a>. 화면 구현과 검증 상태는 GitHub 이슈·PR에서 확인합니다.</p>
     <p class="sec-num">01</p>
     <h2>무엇을 만들고 어떻게 쓰는가</h2>
     <p class="sec-lead">내가 한 일과 그 결과, 그리고 내가 정한 판단 기준을 쌓아 두는 앱입니다. 다음에 비슷한 일을 할 때 사람도, AI 에이전트도 그 기록을 찾아보고 참고합니다. 이 저장소는 그런 앱을 업무 분야마다 빠르게 만들 수 있게 해 주는 출발점(템플릿)입니다.</p>
@@ -402,7 +402,7 @@ footer a { margin-right: 10px; white-space: nowrap; }
           <div class="feat">
             <div><svg class="i"><use href="#i-note"/></svg><b>통합 기록</b><span>자료·수행 결과·업무 변경 메모를 한곳에</span></div>
             <div><svg class="i"><use href="#i-check"/></svg><b>할 일</b><span>미리 하는 계획. 한 번 또는 반복</span></div>
-            <div><svg class="i"><use href="#i-flag"/></svg><b>사용자 원칙</b><span>내가 정한 판단 기준</span></div>
+
             <div><svg class="i"><use href="#i-search"/></svg><b>검색</b><span>검색한 구간에서 전체 본문으로</span></div>
           </div>
           <div class="rails">
@@ -419,7 +419,7 @@ footer a { margin-right: 10px; white-space: nowrap; }
           <div class="appbar"><span class="dots"><i></i><i></i><i></i></span><svg class="i"><use href="#i-users"/></svg>고객 관리 앱</div>
           <div class="appbody">
             <div class="filled"><span class="ent">고객</span><div class="kv"><div><small>이름</small><b>김하늘</b></div><div><small>연락처</small><b>010-…</b></div><div><small>등급</small><b>VIP</b></div></div></div>
-            <div class="minibase"><span><svg class="i"><use href="#i-note"/></svg>기록</span><span><svg class="i"><use href="#i-check"/></svg>할 일</span><span><svg class="i"><use href="#i-flag"/></svg>원칙</span><span><svg class="i"><use href="#i-search"/></svg>검색</span></div>
+            <div class="minibase"><span><svg class="i"><use href="#i-note"/></svg>기록</span><span><svg class="i"><use href="#i-check"/></svg>할 일</span><span><svg class="i"><use href="#i-search"/></svg>검색</span></div>
             <div class="bubble"><svg class="i"><use href="#i-bot"/></svg><p>“이 고객, 지난 상담에서 뭐라고 했지?”</p></div>
           </div>
         </div>
@@ -428,7 +428,7 @@ footer a { margin-right: 10px; white-space: nowrap; }
           <div class="appbar"><span class="dots"><i></i><i></i><i></i></span><svg class="i"><use href="#i-book"/></svg>독서 기록 앱</div>
           <div class="appbody">
             <div class="filled"><span class="ent">책</span><div class="kv"><div><small>제목</small><b>데미안</b></div><div><small>저자</small><b>헤세</b></div><div><small>다 읽은 날</small><b>9/28</b></div></div></div>
-            <div class="minibase"><span><svg class="i"><use href="#i-note"/></svg>기록</span><span><svg class="i"><use href="#i-check"/></svg>할 일</span><span><svg class="i"><use href="#i-flag"/></svg>원칙</span><span><svg class="i"><use href="#i-search"/></svg>검색</span></div>
+            <div class="minibase"><span><svg class="i"><use href="#i-note"/></svg>기록</span><span><svg class="i"><use href="#i-check"/></svg>할 일</span><span><svg class="i"><use href="#i-search"/></svg>검색</span></div>
             <div class="bubble"><svg class="i"><use href="#i-bot"/></svg><p>“최근 읽은 책 중에 이 주제와 비슷한 게 있었나?”</p></div>
           </div>
         </div>
@@ -437,8 +437,8 @@ footer a { margin-right: 10px; white-space: nowrap; }
           <div class="appbar"><span class="dots"><i></i><i></i><i></i></span><svg class="i"><use href="#i-gym"/></svg>운동 기록 앱</div>
           <div class="appbody">
             <div class="filled"><span class="ent">운동</span><div class="kv"><div><small>종목</small><b>스쿼트</b></div><div><small>무게</small><b>60kg</b></div><div><small>횟수</small><b>5×5</b></div></div></div>
-            <div class="minibase"><span><svg class="i"><use href="#i-note"/></svg>기록</span><span><svg class="i"><use href="#i-check"/></svg>할 일</span><span><svg class="i"><use href="#i-flag"/></svg>원칙</span><span><svg class="i"><use href="#i-search"/></svg>검색</span></div>
-            <div class="bubble"><svg class="i"><use href="#i-bot"/></svg><p>“내 원칙대로라면 이번 주에 무게를 올려도 될까?”</p></div>
+            <div class="minibase"><span><svg class="i"><use href="#i-note"/></svg>기록</span><span><svg class="i"><use href="#i-check"/></svg>할 일</span><span><svg class="i"><use href="#i-search"/></svg>검색</span></div>
+            <div class="bubble"><svg class="i"><use href="#i-bot"/></svg><p>“저장한 자료를 보면 이번 주에 무게를 올려도 될까?”</p></div>
           </div>
         </div>
       </div>
@@ -461,7 +461,7 @@ footer a { margin-right: 10px; white-space: nowrap; }
             <div>
               <h4>웹 앱에서 직접</h4>
               <p class="via">브라우저 · Google 계정으로 로그인</p>
-              <p>목록·상세·편집 화면에서 할 일, 기록, 원칙을 직접 보고 쓰고 고칩니다. 내가 누른 대로 정확히 바뀝니다.</p>
+              <p>목록·상세·편집 화면에서 자료, 할 일, 기록을 직접 보고 쓰고 고칩니다. 내가 누른 대로 정확히 바뀝니다.</p>
               <span class="tag">데이터를 직접 조작</span>
             </div>
           </div>
@@ -474,7 +474,7 @@ footer a { margin-right: 10px; white-space: nowrap; }
             <div>
               <h4>AI 에이전트에게 말로</h4>
               <p class="via">Claude·Codex · 플러그인으로 앱에 연결</p>
-              <p>“다음 업무를 준비해줘”라고 요청하면 최신 상태·현재 원칙과 과거 기록의 원문을 확인해 준비합니다. “준비하고 기록해줘”라면 요청한 저장까지 처리합니다.</p>
+              <p>“다음 업무를 준비해줘”라고 요청하면 최신 상태·관련 자료와 과거 기록의 원문을 확인해 준비합니다. “준비하고 기록해줘”라면 요청한 저장까지 처리합니다.</p>
               <span class="tag">추론해서 처리</span>
             </div>
           </div>
@@ -484,7 +484,7 @@ footer a { margin-right: 10px; white-space: nowrap; }
       <div class="system">
         <span class="icon big"><svg viewBox="0 0 24 24" aria-hidden="true"><ellipse cx="12" cy="5.5" rx="7" ry="2.5"/><path d="M5 5.5v13c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5v-13M5 12c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5"/></svg></span>
         <h4>앱 시스템</h4>
-        <p>할 일·기록·원칙이 저장된 곳</p>
+        <p>할 일·기록이 저장된 곳</p>
         <ul>
           <li>어느 길로 와도 같은 규칙, 같은 결과</li>
           <li>내 데이터는 나만 볼 수 있음</li>
@@ -526,7 +526,7 @@ footer a { margin-right: 10px; white-space: nowrap; }
         <ellipse class="cy-icon" cx="270" cy="200" rx="11" ry="4"/>
         <path class="cy-icon" d="M259 200 v13 c0 2.2 4.9 4 11 4 s11 -1.8 11 -4 v-13 M259 206.5 c0 2.2 4.9 4 11 4 s11 -1.8 11 -4"/>
         <text class="cy-storetitle" x="270" y="239" text-anchor="middle">쌓인 기록</text>
-        <text class="cy-storesub" x="270" y="255" text-anchor="middle">한 일 · 할 일 · 원칙</text>
+        <text class="cy-storesub" x="270" y="255" text-anchor="middle">한 일 · 할 일 · 자료</text>
 
         <!-- 저장: 2 → 가운데, 꺼내 보기: 가운데 → 3 -->
         <path class="cy-link" d="M358 277 L325 258" marker-end="url(#cy-head-g)"/>
@@ -553,7 +553,7 @@ footer a { margin-right: 10px; white-space: nowrap; }
         <circle class="cy-badge" cx="43" cy="278" r="12"/>
         <text class="cy-badgenum" x="43" y="283" text-anchor="middle">3</text>
         <text class="cy-title" x="131" y="306" text-anchor="middle">지난 기록을 찾는다</text>
-        <text class="cy-sub" x="131" y="328" text-anchor="middle">비슷한 일, 내 원칙</text>
+        <text class="cy-sub" x="131" y="328" text-anchor="middle">비슷한 일, 관련 자료</text>
       </svg>
       <div class="cycle-notes">
         <div class="card"><h4>시작은 “일을 한다”부터</h4><p>할 일을 미리 만들지 않아도 됩니다. 한 일을 바로 기록하면 그때부터 순환이 시작됩니다.</p></div>
@@ -735,7 +735,7 @@ footer a { margin-right: 10px; white-space: nowrap; }
     <div class="tree" role="list" aria-label="저장소 폴더 구조">
       <div class="tr root" role="listitem"><span class="tn"><b>agent-workspace-template/</b></span><span class="td">이 저장소</span></div>
       <div class="tr d1" role="listitem"><span class="tn"><i>├─ </i><b>src/</b></span><span class="td">웹 화면: 사람이 보는 화면과 버튼</span></div>
-      <div class="tr d2" role="listitem"><span class="tn"><i>│  └─ </i><b>features/</b></span><span class="td">기능별 화면: 할 일·기록·원칙·검색·업무 대상</span></div>
+      <div class="tr d2" role="listitem"><span class="tn"><i>│  └─ </i><b>features/</b></span><span class="td">기능별 화면: 할 일·기록·검색·업무 대상</span></div>
       <div class="tr d1" role="listitem"><span class="tn"><i>├─ </i><b>supabase/</b></span><span class="td">서버와 데이터베이스</span></div>
       <div class="tr d2" role="listitem"><span class="tn"><i>│  ├─ </i><b>functions/</b></span><span class="td">요청을 받는 입구: 웹(api) · 에이전트(mcp) · 예약 작업</span></div>
       <div class="tr d3" role="listitem"><span class="tn"><i>│  │  ├─ </i><b>_shared/core/</b></span><span class="td">가운데 핵심: 업무 규칙과 처리 순서</span></div>
@@ -761,7 +761,7 @@ footer a { margin-right: 10px; white-space: nowrap; }
       <p class="faq-group">앱 사용</p>
       <details>
         <summary>앱 안에 AI가 들어 있나요?</summary>
-        <p>아니요. 앱은 할 일·기록·원칙을 정확하게 저장하고 꺼내 주는 역할만 합니다. 기록을 읽고 생각해서 판단하는 일은 사용자가 연결한 AI 에이전트(Claude·Codex)가 합니다. 검색을 위해 글을 숫자로 바꾸는 일(임베딩)에만 외부 서비스를 씁니다.</p>
+        <p>아니요. 앱은 할 일·기록을 정확하게 저장하고 꺼내 주는 역할만 합니다. 기록을 읽고 생각해서 판단하는 일은 사용자가 연결한 AI 에이전트(Claude·Codex)가 합니다. 검색을 위해 글을 숫자로 바꾸는 일(임베딩)에만 외부 서비스를 씁니다.</p>
       </details>
       <details>
         <summary>어떤 AI 에이전트로 쓸 수 있나요?</summary>
@@ -793,13 +793,13 @@ footer a { margin-right: 10px; white-space: nowrap; }
       </details>
       <details>
         <summary>“사용자 원칙”과 “코드 설계 원칙”은 같은 건가요?</summary>
-        <p>다릅니다. 사용자 원칙은 앱 사용자가 저장해 두는 판단 기준(데이터)이고, 코드 설계 원칙은 개발 에이전트가 코드를 만들 때 따르는 문서입니다.</p>
+        <p>코드 설계 원칙은 개발 에이전트가 코드를 만들 때 따르는 문서입니다. 업무 판단 기준은 앱의 일반 자료에 작성합니다.</p>
       </details>
 
       <p class="faq-group">새 앱 만들기</p>
       <details>
         <summary>내 업무에 맞는 앱으로 바꾸려면 무엇을 하나요?</summary>
-        <p>업무 대상(예: 고객, 책)과 그 항목, 화면, 에이전트가 참고하는 사용 요령을 바꿉니다. 로그인·할 일·기록·원칙·검색은 그대로 씁니다. 에이전트에게 “정리해봐: 고객 관리 앱으로 바꾸고 싶어”처럼 시작하면 됩니다.</p>
+        <p>업무 대상(예: 고객, 책)과 그 항목, 화면, 에이전트가 참고하는 사용 요령을 바꿉니다. 로그인·할 일·기록·검색은 그대로 씁니다. 에이전트에게 “정리해봐: 고객 관리 앱으로 바꾸고 싶어”처럼 시작하면 됩니다.</p>
       </details>
       <details>
         <summary>프로그래밍을 몰라도 쓸 수 있나요?</summary>

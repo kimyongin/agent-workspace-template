@@ -23,7 +23,7 @@ import { openRoundtripTrial } from './roundtrip-session.mjs';
 const repo = fileURLToPath(new URL('../../', import.meta.url));
 const [client, fixtureFile, mode, expectedCondition] = process.argv.slice(2);
 if (process.env.PLUGIN_ENV_HANDOFF !== 'exclusive-local' || !['codex-cli', 'claude-cli'].includes(client) || !fixtureFile || !['prepare', 'prepare-explicit', ...savingModes, ...roundtripModes].includes(mode)) {
-  throw new Error('Usage: run-client.mjs <codex-cli|claude-cli> <outside-fixture.json> <prepare|prepare-explicit|save-record|save-task|save-memo|save-failure|save-response-loss|roundtrip-entity|roundtrip-task|roundtrip-task-read|roundtrip-principle-read> [condition]');
+  throw new Error('Usage: run-client.mjs <codex-cli|claude-cli> <outside-fixture.json> <prepare|prepare-explicit|save-record|save-task|save-memo|save-failure|save-response-loss|roundtrip-entity|roundtrip-task|roundtrip-task-read> [condition]');
 }
 const fixture = JSON.parse(await readFile(fixtureFile, 'utf8'));
 assertJournal(fixture, fixture.endpoint, client);
@@ -31,10 +31,7 @@ const preparing = mode.startsWith('prepare');
 const saving = savingModes.includes(mode);
 const roundtrip = roundtripModes.includes(mode);
 const originalRecord = mode === 'roundtrip-task-read' ? fixture.roundtrip?.result : fixture.record;
-function hasCurrentPrinciple(tool, payload) {
-  return hasRoundtripOriginal(tool, payload, 'principle', fixture.principle);
-}
-if (roundtrip && (!fixture.record || !fixture.entity || !fixture.principle || (mode === 'roundtrip-task-read' && !originalRecord))) throw new Error('Roundtrip native phase requires its durably observed web originals');
+if (roundtrip && (!fixture.record || !fixture.entity || (mode === 'roundtrip-task-read' && !originalRecord))) throw new Error('Roundtrip native phase requires its durably observed web originals');
 const allocatedBackendRevision = process.env.PREPARATION_BACKEND_REVISION ?? null;
 if ((preparing || saving || roundtrip) && !/^[a-f0-9]{40}$/.test(allocatedBackendRevision ?? '')) throw new Error('Trial requires root-allocated actual backend revision separately from fixture origin');
 const condition = expectedCondition ?? fixture.scenario ?? 'normal';
@@ -104,15 +101,13 @@ const actualVersion = execFileSync(command, ['--version'], { encoding: 'utf8' })
 const args = client === 'codex-cli' ? codexArgs : claudeArgs;
 const checkoutMetadata = path => ({ path, revision: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: path, encoding: 'utf8' }).trim(), dirty: Boolean(execFileSync('git', ['status', '--porcelain'], { cwd: path, encoding: 'utf8' }).trim()) });
 const canonicalSharedSkill = await readFile(resolve(plugin, 'skills/workspace/SKILL.md'), 'utf8');
-const evidence = { client, mode, requested: { model, effort }, cliVersion: actualVersion, marketplaceName, availableSkillEvidence: client === 'codex-cli' ? 'CLI initialization does not expose skill inventory in known JSON events' : 'native initialization metadata below', eventTypes: {}, itemTypes: {}, skillReads: [], cachePolicy: 'unique native runtime materialization allowed; no manual installed cache edits', readsSkill: false, completedSkillRead: false, answer: { originalDetail: false, currentValue: false, sourceId: false, currentPrincipleId: false, taskId: false, uncertainty: false }, actualBackendModel: 'unexposed unless client metadata reports it', actualBackendEffort: 'unexposed', backendAllocatedRevision: allocatedBackendRevision, fixtureOriginRevision: fixture.serverRevision, marker: fixture.marker, sourceRevision: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: repo, encoding: 'utf8' }).trim(), productCheckout: checkoutMetadata(fixture.productSource ?? resolve(repo, 'plugins/workspace')), runnerCheckout: checkoutMetadata(repo), runnerSha256: createHash('sha256').update(await readFile(fileURLToPath(import.meta.url))).digest('hex'), dependencyProxy: Boolean(process.env.PREPARATION_MCP_PROXY), sharedSkillSha256: createHash('sha256').update(await readFile(resolve(plugin, 'skills/workspace/SKILL.md'))).digest('hex'), authentication: 'real local OAuth consent+PKCE token supplied by fixture; CLI-native OAuth unverified', connection: client === 'codex-cli' ? 'shared plugin skill with bundled MCP disabled; identical loopback direct session MCP uses bearer_token_env_var' : 'shared plugin-dir with bundled loopback MCP environment header', events: [] };
+const evidence = { client, mode, requested: { model, effort }, cliVersion: actualVersion, marketplaceName, availableSkillEvidence: client === 'codex-cli' ? 'CLI initialization does not expose skill inventory in known JSON events' : 'native initialization metadata below', eventTypes: {}, itemTypes: {}, skillReads: [], cachePolicy: 'unique native runtime materialization allowed; no manual installed cache edits', readsSkill: false, completedSkillRead: false, answer: { originalDetail: false, currentValue: false, sourceId: false, taskId: false, uncertainty: false }, actualBackendModel: 'unexposed unless client metadata reports it', actualBackendEffort: 'unexposed', backendAllocatedRevision: allocatedBackendRevision, fixtureOriginRevision: fixture.serverRevision, marker: fixture.marker, sourceRevision: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: repo, encoding: 'utf8' }).trim(), productCheckout: checkoutMetadata(fixture.productSource ?? resolve(repo, 'plugins/workspace')), runnerCheckout: checkoutMetadata(repo), runnerSha256: createHash('sha256').update(await readFile(fileURLToPath(import.meta.url))).digest('hex'), dependencyProxy: Boolean(process.env.PREPARATION_MCP_PROXY), sharedSkillSha256: createHash('sha256').update(await readFile(resolve(plugin, 'skills/workspace/SKILL.md'))).digest('hex'), authentication: 'real local OAuth consent+PKCE token supplied by fixture; CLI-native OAuth unverified', connection: client === 'codex-cli' ? 'shared plugin skill with bundled MCP disabled; identical loopback direct session MCP uses bearer_token_env_var' : 'shared plugin-dir with bundled loopback MCP environment header', events: [] };
 let savingAnswer = '';
 function answerFacts(text = '') {
   if (saving || roundtrip) savingAnswer += text + '\n'; // Memory only; no raw answer persisted.
   evidence.answer.originalDetail ||= text.includes(fixture.originalDetail);
   evidence.answer.currentValue ||= new RegExp(`(?<![a-zA-Z0-9-])${fixture.entity.properties.prop_2}(?![a-zA-Z0-9-])`).test(text);
   evidence.answer.sourceId ||= text.includes(fixture.record.id);
-  evidence.answer.currentPrincipleId ||= text.includes(fixture.principle.id);
-  if (fixture.scenario === 'missing') evidence.answer.missingCurrentPrinciple ||= /현재.{0,30}원칙.{0,30}(없|부재|미설정|비어)/.test(text);
   if (fixture.scenario === 'conflict') evidence.answer.conflict ||= /충돌|상충|불일치|모순/.test(text);
   evidence.answer.searchFailure ||= /검색.{0,35}(장애|오류|실패)|의미.{0,35}(불가|실패|오류)/.test(text);
   evidence.answer.indexDelay ||= /색인.{0,35}(지연|대기|미완|pending)|미색인|keyword_fallback|keyword.{0,35}(대체|fallback)/.test(text);
@@ -172,7 +167,6 @@ createInterface({ input: child.stdout }).on('line', (line) => {
       if (saving && item.tool === 'search' && typeof item.id === 'string' && item.arguments) searchInputs.set(item.id, item.arguments);
       if (item.status === 'completed' && !item.error && !item.result?.isError) {
         evidence.originalSourceRead ||= hasOriginalRecord(item.tool, item.result, originalRecord);
-        if (roundtrip) evidence.currentPrincipleRead ||= hasCurrentPrinciple(item.tool, item.result);
         if (roundtrip) evidence.completedTaskRead ||= hasRoundtripOriginal(item.tool, item.result, 'task', fixture.task);
         if (saving && item.tool === 'search') { const observed = observeSearch(item.arguments ?? searchInputs.get(item.id), item.result, fixture.saving?.correction); if (observed) searchObservations.push(observed); }
       }
@@ -201,7 +195,6 @@ createInterface({ input: child.stdout }).on('line', (line) => {
       if (saving && block.type === 'tool_use' && block.name.split('__').at(-1) === 'search') searchInputs.set(block.id, block.input);
       if (saving && block.type === 'tool_result' && !block.is_error && recordReadTools.get(block.tool_use_id) === 'search') { const observed = observeSearch(searchInputs.get(block.tool_use_id), block.content, fixture.saving?.correction); if (observed) searchObservations.push(observed); searchInputs.delete(block.tool_use_id); }
       if (block.type === 'tool_result' && !block.is_error && hasOriginalRecord(recordReadTools.get(block.tool_use_id), block.content, originalRecord)) { evidence.originalSourceRead = true; evidence.originalSourceReadVia = recordReadTools.get(block.tool_use_id); }
-      if (roundtrip && block.type === 'tool_result' && !block.is_error) evidence.currentPrincipleRead ||= hasCurrentPrinciple(recordReadTools.get(block.tool_use_id), block.content);
       if (roundtrip && block.type === 'tool_result' && !block.is_error) evidence.completedTaskRead ||= hasRoundtripOriginal(recordReadTools.get(block.tool_use_id), block.content, 'task', fixture.task);
       if (block.type === 'tool_use') { if (block.name === 'Read' && ownSkillPath(block.input?.file_path)) { reads.set(block.id, ownSkillPath(block.input.file_path)); evidence.readsSkill = true; } if (block.name === 'Skill' && /(^|:)workspace$/.test(block.input?.skill ?? '') && evidence.init?.plugins?.includes('workspace')) { reads.set(block.id, resolve(plugin, 'skills/workspace/SKILL.md')); evidence.readsSkill = true; } }
       if (block.type === 'text') answerFacts(block.text);

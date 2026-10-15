@@ -66,9 +66,9 @@ for (
             where source.owner_id=${owner} and source.id=${targetId}
             returning id`
           : await sql`
-            insert into app.records (id,owner_id,body,record_kind,entity_ids,entity_context,applied_principle_snapshots,occurred_at,created_at,updated_at)
+            insert into app.records (id,owner_id,body,record_kind,entity_ids,entity_context,occurred_at,created_at,updated_at)
             select seed.id,source.owner_id,${prefix} || ' ' || seed.n,source.record_kind,
-              source.entity_ids,source.entity_context,source.applied_principle_snapshots,clock_timestamp(),clock_timestamp(),clock_timestamp()
+              source.entity_ids,source.entity_context,clock_timestamp(),clock_timestamp(),clock_timestamp()
             from app.records source cross join unnest(${ids}::text[]) with ordinality seed(id,n)
             where source.owner_id=${owner} and source.id=${targetId}
             returning id`;

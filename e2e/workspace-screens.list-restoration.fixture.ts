@@ -150,20 +150,7 @@ test("#203 긴 펼침 GET 뒤에 목록 scroll·초점을 복원", async ({ page
 });
 
 for (const condition of ["status=inactive", "principle_view=all"]) {
-  test(`검색: 폐기된 ${condition} 링크는 오류를 알리고 명시적 해제 후 현재 원칙만 찾는다`, async ({ page }) => {
-    const state = await fixtures(page);
-    await go(page, `/search?q=기준&kind=principle&${condition}`);
-    await expect(page.getByRole("button", { name: "지원하지 않는 검색 조건 지우기", exact: true })).toBeVisible();
-    expect(state.searches).toHaveLength(0);
-    await expect(page.getByLabel("원칙 범위")).toHaveCount(0);
-    await page.getByRole("button", { name: "지원하지 않는 검색 조건 지우기", exact: true }).click();
-    await expect.poll(() => state.searches.length).toBe(1);
-    expect(state.searches[0]).not.toHaveProperty("status");
-    expect(state.searches[0]).not.toHaveProperty("principle_view");
-    await expect(page.locator(".list .item-title")).toHaveText(["현재 기준"]);
-    expect(new URL(page.url()).searchParams.get("q")).toBe("기준");
-    expect(state.errors).toEqual([]);
-  });
+
 }
 
 test("검색: IME·300ms·옛 keyword URL도 auto·할 일 scope·clear 초점", async ({ page }) => {
@@ -493,20 +480,7 @@ test("목록 페이지·조건·scroll/focus 왕복과 검색 anchor 재조회",
   expect(state.errors).toEqual([]);
 });
 
-test("#191 원칙 검색 전환은 태그 조건 해제·직접 링크의 조건은 명시 해제 가능", async ({ page }) => {
-  const state = await fixtures(page);
-  await go(page, `/search?q=기준&kind=task&tag_id=${id(12)}`);
-  await page.getByText("검색 조건 · 조건 적용 중", { exact: true }).click();
-  await page.getByRole("combobox", { name: "검색 대상", exact: true }).selectOption("principle");
-  await expect(page).not.toHaveURL(/tag_id=/);
-  await expect.poll(() => state.searches.at(-1)?.kinds).toEqual(["principle"]);
-  expect(state.searches.at(-1)?.tag_ids).toBeUndefined();
-  await go(page, `/search?q=기준&kind=principle&tag_id=${id(12)}`);
-  await page.getByText("검색 조건 · 조건 적용 중", { exact: true }).click();
-  await page.getByRole("button", { name: "저장된 태그 조건 해제", exact: true }).click();
-  await expect(page).not.toHaveURL(/tag_id=/);
-  expect(state.errors).toEqual([]);
-});
+
 
 test("#211 기록 필터·날짜 그룹·표시·편집은 계정 시간대로 일치하고 필터 안내는 없다", async ({ page }) => {
   const state = await fixtures(page), reads: URL[] = [];

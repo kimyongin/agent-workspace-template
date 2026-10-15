@@ -37,7 +37,6 @@ Deno.test("record write without request key never starts a transaction", async (
 import { z } from "zod";
 import { activityTools } from "../../functions/_shared/adapters/mcp/activity-tools.ts";
 import { entityTools } from "../../functions/_shared/adapters/mcp/entity-tools.ts";
-import { principleTools } from "../../functions/_shared/adapters/mcp/principle-tools.ts";
 import { tagTools } from "../../functions/_shared/adapters/mcp/tag-tools.ts";
 import { settingsTools } from "../../functions/_shared/adapters/mcp/settings-tools.ts";
 Deno.test("every public MCP business write requires UUID request_key before execution, preparation stays read-only", async () => {
@@ -52,12 +51,11 @@ Deno.test("every public MCP business write requires UUID request_key before exec
   const tools = [
     ...activityTools(deps),
     ...entityTools(deps),
-    ...principleTools(deps),
     ...tagTools(deps),
     ...settingsTools(deps),
   ];
   const writes = tools.filter((tool) => !tool.readOnly);
-  assertEquals(writes.length, 20);
+  assertEquals(writes.length, 17);
   for (const tool of writes) {
     const schema = z.toJSONSchema(tool.input, { io: "input" });
     assertEquals(schema.required?.includes("request_key"), true, tool.name);

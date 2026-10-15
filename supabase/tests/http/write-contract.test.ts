@@ -10,7 +10,6 @@ httpTest("writes require request keys and reject client IDs and retired metadata
       ["/entities", { ...schema, properties: { prop_1: "입력 거부" } }],
       ["/tasks", { kind: "once", title: "입력 거부" }],
       ["/records", { body: "입력 거부" }],
-      ["/principles", { title: "입력 거부" }],
       ["/tags", { name: "입력 거부" }],
     ] as const
   ) {
@@ -37,8 +36,6 @@ httpTest("retired HTTP paths return 404 and preserve their target values", async
     external_id: crypto.randomUUID(),
     properties: { prop_1: "retired-route-proof" },
   })).body;
-  const baseline = (await call(token, "GET", "/principles/current")).body.current;
-  const principle = baseline ?? (await call(token, "POST", "/principles", { title: "retired-route-proof" })).body;
   const taskBefore = (await call(token, "GET", `/tasks/${task.id}`)).body;
   const recordBefore = (await call(token, "GET", `/records/${record.id}`)).body;
   try {
@@ -46,7 +43,6 @@ httpTest("retired HTTP paths return 404 and preserve their target values", async
       const [method, path] of [
         ["DELETE", `/tasks/${task.id}?expected_version=${task.version}`],
         ["DELETE", `/entities/${encodeURIComponent(entity.id)}?expected_version=${entity.version}`],
-        ["DELETE", `/principles/${principle.id}?expected_version=${principle.version}`],
         ["POST", `/entities/${encodeURIComponent(entity.id)}/identity`],
         ["GET", `/records/${record.id}/index-effects`],
       ]
@@ -63,13 +59,9 @@ httpTest("retired HTTP paths return 404 and preserve their target values", async
     }
     assertEquals((await call(token, "GET", `/tasks/${task.id}`)).body, taskBefore);
     assertEquals((await call(token, "GET", `/records/${record.id}`)).body, recordBefore);
-    assertEquals((await call(token, "GET", `/principles/${principle.id}`)).body, principle);
     const retained = (await call(token, "GET", `/entities/${encodeURIComponent(entity.id)}`)).body;
     assertEquals([retained.id, retained.version, retained.deleted_at], [entity.id, entity.version, null]);
   } finally {
-    if (!baseline) {
-      await call(token, "POST", `/principles/${principle.id}/delete`, { expected_version: principle.version });
-    }
     await call(token, "POST", `/tasks/${task.id}/delete`, { expected_version: task.version });
     await call(token, "DELETE", `/records/${record.id}?expected_version=${record.version}`);
     await call(token, "POST", `/entities/${encodeURIComponent(entity.id)}/delete`, {

@@ -13,7 +13,7 @@ export const changeActionNames = {
   stop: "중단",
   resume: "재개",
 };
-const targets = { entity: "자료", task: "할 일", record: "기록", principle: "원칙" };
+const targets = { entity: "자료", task: "할 일", record: "기록" };
 const snapshotLabels: Record<string, string> = {
   title: "이름",
   body: "내용",
@@ -156,30 +156,5 @@ export function ChangeContext({ record, compact = false }: { record: WorkspaceRe
         </>
       )}
     </div>
-  );
-}
-export function PrincipleSnapshots(
-  { snapshots }: { snapshots: NonNullable<WorkspaceRecord["applied_principle_snapshots"]> },
-) {
-  const { formatDateTime } = useDisplayTime();
-  if (!snapshots.length) return null;
-  return (
-    <section className="detail-section">
-      <h2 className="section-title">적용 당시 원칙</h2>
-      {snapshots.map((p, index) => (
-        <details key={index} className="workspace-additional">
-          <summary>{p.title}</summary>
-          <div className="historical-document">
-            <p className="meta">저장 {formatDateTime(p.saved_at)}</p>
-            <p className="secondary">{p.summary}</p>
-            <MarkdownContent text={p.body} />
-            {p.captured_at === "migration"
-              ? <p className="help">기존 자료 이관 때 보존한 본문입니다. 실제 판단 당시의 본문을 보증하지 않습니다.</p>
-              : <p className="help">업무 적용 시 보존한 본문입니다.</p>}
-          </div>
-        </details>
-      ))}
-      <p className="help">기록에 보존한 본문입니다. 이후 원칙 변경·삭제와 별도로 보존됩니다.</p>
-    </section>
   );
 }

@@ -37,7 +37,7 @@ export async function fillChangeMemo(page: Page, scope: Page | Locator, value: s
 
 /** Exercise the primary creation action; detail-page actions remain direct. */
 export async function beginTabAction(page: Page, label: string) {
-  const actions: Record<string, [string,string]> = {"할 일 추가":["할 일","할 일 등록"],"기록 작성":["기록","기록 작성"],"검사 자료 추가":["검사 자료","검사 자료 추가"],"현재 원칙 등록":["원칙","원칙 작성"]};
+  const actions: Record<string, [string,string]> = {"할 일 추가":["할 일","할 일 등록"],"기록 작성":["기록","기록 작성"],"검사 자료 추가":["검사 자료","검사 자료 추가"]};
   if (label === "검사 자료 추가") {
     const header = page.locator(".main-tab-header");
     const picker = header.getByLabel("자료 종류", { exact: true });
@@ -51,7 +51,7 @@ export async function beginTabAction(page: Page, label: string) {
   }
   const action = actions[label];
   if (!action) { await page.getByRole("button",{name:label,exact:true}).click(); return; }
-  if (/^\/(entities|tasks|records|principles)\/?$/.test(new URL(page.url()).pathname)) { await page.getByRole("button",{name:action[1],exact:true}).click(); }
+  if (/^\/(entities|tasks|records)\/?$/.test(new URL(page.url()).pathname)) { await page.getByRole("button",{name:action[1],exact:true}).click(); }
   else await page.getByRole("button",{name:label,exact:true}).click();
 }
 
@@ -62,11 +62,7 @@ export async function openDetailEditor(page: Page) {
 }
 
 export async function openListEditor(page: Page, title: string, scope: Page | Locator = page) {
-  if(new URL(page.url()).pathname==="/principles") {
-    await scope.getByRole("link",{name:title,exact:true}).click();
-  } else {
-    await openListDetail(page,title);
-  }
+
   await openDetailEditor(page);
 }
 

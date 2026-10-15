@@ -3,20 +3,16 @@ import type { EntityDetail } from "@contracts/entity.ts";
 import { EntityProperties } from "../entity/EntityProperties.tsx";
 import { taskLabels, type TaskResult } from "@contracts/task.ts";
 import type { RecordResult } from "@contracts/record.ts";
-import type { WorkspacePrinciple } from "../principles/model.ts";
 import { MarkdownContent } from "../../components/MarkdownContent.tsx";
 import { TagNames } from "../tags/TagPicker.tsx";
 import { StatusBadge } from "../activity/shared.tsx";
 import { ChangeContext } from "../activity/ChangeContext.tsx";
 
-export type Preview = EntityDetail | TaskResult | RecordResult | WorkspacePrinciple;
-export type PreviewKind = "entities" | "tasks" | "records" | "principles";
+export type Preview = EntityDetail | TaskResult | RecordResult;
+export type PreviewKind = "entities" | "tasks" | "records";
 export function previewKind(path: string): PreviewKind | undefined {
   const kind = path.split("/")[1];
-  return kind === "entities" || kind === "tasks" || kind === "records" || kind === "principles" ? kind : undefined;
-}
-export function previewViewable(kind: PreviewKind, item: Preview) {
-  return kind !== "principles" || (item as WorkspacePrinciple).is_current;
+  return kind === "entities" || kind === "tasks" || kind === "records" ? kind : undefined;
 }
 /** Domain read adapters own content; disclosure and request lifetimes do not know its fields. */
 export function PreviewContents({ kind, item, main, onTagsReady }: {
@@ -72,6 +68,5 @@ export function PreviewContents({ kind, item, main, onTagsReady }: {
       </>
     );
   }
-  const principle = item as WorkspacePrinciple;
-  return principle.body ? <MarkdownContent text={principle.body} /> : null;
+  return null;
 }

@@ -49,12 +49,12 @@ export async function cleanupRoundtrip(f, save, call) {
   assertRoundtripOwner(f);
   let state = await readBusinessOriginals(call);
   const baseline = f.roundtrip.pending?.before ?? f.roundtrip.baseline;
-  for (const k of ['entities', 'tasks', 'records', 'principles', 'tags']) {
+  for (const k of ['entities', 'tasks', 'records', 'tags']) {
     f.roundtrip.owned[k] = [...new Set([...(f.roundtrip.owned[k] ?? []), ...state[k].filter(r => !baseline[k].some(b => b.id === r.id)).map(r => r.id)])];
     if (state[k].some(r => !f.roundtrip.owned[k].includes(r.id))) throw new Error('Roundtrip cleanup encountered unjournaled original');
   }
   f.state = 'cleaning'; await save();
-  for (const [kind, plural] of [['task', 'tasks'], ['principle', 'principles'], ['entity', 'entities'], ['record', 'records'], ['tag', 'tags']]) {
+  for (const [kind, plural] of [['task', 'tasks'], ['entity', 'entities'], ['record', 'records'], ['tag', 'tags']]) {
     state = await readBusinessOriginals(call);
     for (const id of f.roundtrip.owned[plural]) {
       const row = state[plural].find(r => r.id === id);
@@ -62,7 +62,7 @@ export async function cleanupRoundtrip(f, save, call) {
       f.roundtrip.cleanupIntent = { kind, id, expected_version: row.version, before: state }; await save();
       await call(`delete_${kind}`, { id, expected_version: row.version });
       const after = await readBusinessOriginals(call);
-      for (const k of ['entities', 'tasks', 'records', 'principles', 'tags']) f.roundtrip.owned[k] = [...new Set([...f.roundtrip.owned[k], ...after[k].filter(r => !state[k].some(old => old.id === r.id)).map(r => r.id)])];
+      for (const k of ['entities', 'tasks', 'records', 'tags']) f.roundtrip.owned[k] = [...new Set([...f.roundtrip.owned[k], ...after[k].filter(r => !state[k].some(old => old.id === r.id)).map(r => r.id)])];
       // Do not append while iterating the deletion set: generated cleanup events
       // are journaled for Auth cascade, rather than recursively generating logs.
       await save();

@@ -5,7 +5,6 @@ export function assessPreparation(evidence, scenario) {
   if (!evidence.originalSourceRead) failures.push('original-source-read');
   if (evidence.mutationCalls !== 0) failures.push('unexpected-write');
   for (const name of ['originalDetail', 'currentValue', 'sourceId', 'taskId']) if (!evidence.answer?.[name]) failures.push(name);
-  if (!(scenario === 'missing' ? evidence.answer?.missingCurrentPrinciple : evidence.answer?.currentPrincipleId)) failures.push('current-criterion');
   if (scenario !== 'normal' && !evidence.answer?.uncertainty) failures.push('uncertainty');
   if (scenario === 'conflict' && !evidence.answer?.conflict) failures.push('conflict');
   if (['semantic-failure', 'index-delay'].includes(scenario)) {

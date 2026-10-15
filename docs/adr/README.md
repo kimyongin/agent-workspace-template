@@ -31,3 +31,5 @@
 ## 문서의 책임
 
 ADR에는 결정·이유·대가를 담는다. 제품의 의미와 범위는 [PRD](../product/concept.md), 설계·개발 방법은 [Matt 스킬](../development/matt-skills.md)이 담당한다. 번호는 재사용하지 않는다. 합의한 변경과 과거 근거는 Git/GitHub에서 추적한다.
+
+- [ADR-0022: 판단 기준은 자료로 관리하고 사용자 원칙 기능 제거](0022-remove-user-principles.md)

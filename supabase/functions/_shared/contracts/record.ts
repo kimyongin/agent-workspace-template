@@ -45,21 +45,9 @@ export const recordListQuery = z
   });
 export type RecordListQuery = z.infer<typeof recordListQuery>;
 
-export const appliedPrincipleSnapshot = z.object({
-  id,
-  title: z.string(),
-  summary: z.string(),
-  body: z.string(),
-  version: z.number().int(),
-  saved_at: isoDateTime,
-  status: z.enum(["active", "inactive"]),
-  captured_at: z.enum(["application", "migration"]),
-});
-export type AppliedPrincipleSnapshot = z.infer<typeof appliedPrincipleSnapshot>;
 export const recordResult = z.object({
   record_kind: z.enum(["user", "result", "change"]),
   change: changeMetadata.nullable(),
-  applied_principle_snapshots: z.array(appliedPrincipleSnapshot),
   id,
   entity_ids: z.array(entityReferenceId),
   entity_context: z.array(entityContext),

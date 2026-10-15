@@ -34,8 +34,8 @@ async function webPhase(mode, intent, path, action) {
   // Record the UI's own request identity before forwarding its real mutation.
   // This route never substitutes a response, changes a request, or retries it.
   const match = url => new URL(url).pathname.endsWith(`/api${path}`);
-  const method = ['web-memo', 'web-principle-update'].includes(mode) ? 'PATCH' : 'POST';
-  const creating = ['web-entity', 'web-principle', 'web-source'].includes(mode);
+  const method = mode === 'web-memo' ? 'PATCH' : 'POST';
+  const creating = ['web-entity', 'web-source'].includes(mode);
   await page.route(match, async route => {
     const request = route.request();
     if (request.method() === method) {
@@ -56,7 +56,6 @@ async function webPhase(mode, intent, path, action) {
     if (!proof.pass) throw new Error('Independent web contract mismatch');
     if (mode === 'web-entity') f.entity = after.entities.find(r => r.id === proof.targetId);
     if (mode === 'web-source') f.record = after.records.find(r => r.id === proof.targetId);
-    if (mode.startsWith('web-principle') && mode !== 'web-principle-delete') f.principle = after.principles.find(r => r.id === proof.targetId);
     if (mode === 'web-complete') { f.task = after.tasks.find(r => r.id === f.task.id); f.roundtrip.result = after.records.find(r => r.id === f.task.result_record_id); }
     if (mode === 'web-memo') f.roundtrip.result = after.records.find(r => r.id === intent.id);
     await save();
@@ -129,12 +128,6 @@ try {
     await fields(form, { 제목: f.marker, 수량: '7', 날짜: '2026-10-06' }); await form.getByLabel(webFieldLabel('분류')).selectOption('b');
     await saveOnce(page, form); await expect(form).not.toBeVisible();
   });
-  await webPhase('web-principle', { body: '초기 조건: 속성2가 7이면 보류' }, '/principles', async () => {
-    await page.goto('/principles'); await beginTabAction(page, '현재 원칙 등록');
-    const form = page.getByRole('dialog', { name: '현재 원칙 등록', exact: true });
-    await fields(form, { 제목: `${f.marker}-principle`, 본문: f.roundtrip.intent.body });
-    await saveOnce(page, form); await expect(form).not.toBeVisible();
-  });
   await webPhase('web-source', { body: `${f.originalDetail}; 당시 속성2=7; 초기 기준에서는 보류` }, '/records', async () => {
     await page.goto('/records'); await beginTabAction(page, '기록 작성'); const form = page.getByRole('dialog', { name: '기록 작성', exact: true });
     await fields(form, { 본문: f.roundtrip.intent.body });
@@ -161,11 +154,6 @@ try {
     await page.goto(`/records/${f.roundtrip.result.id}`); await openDetailEditor(page); const form = page.getByRole('dialog', { name: '기록 편집', exact: true });
     await fields(form, { 본문: f.roundtrip.intent.body }); await saveOnce(page, form); await expect(form).not.toBeVisible();
   });
-  await webPhase('web-principle-update', { id: f.principle.id, body: '현재 조건: 속성2가 11이면 진행', memoBody: `현재 기준 변경; PRINCIPLE-${randomUUID()}` }, `/principles/${f.principle.id}`, async () => {
-    await page.goto(`/principles/${f.principle.id}`); await openDetailEditor(page); const form = page.getByRole('dialog', { name: '현재 원칙 편집', exact: true });
-    await fields(form, { 본문: f.roundtrip.intent.body }); await commitMemo(form, f.roundtrip.intent.memoBody); await expect(form).not.toBeVisible();
-  });
-  await nativePhase('roundtrip-principle-read', {});
   await readWeb('desktop-exact-source-reopening', async () => { await page.goto(`/records/${f.record.id}`); await expect(page.locator('main')).toContainText(f.record.body); });
   await page.setViewportSize(evidence.mobileViewport);
   await readWeb('mobile-result-and-current-reread', async () => {
@@ -175,16 +163,10 @@ try {
     await expect(page.getByRole('listitem').filter({ has: taskLink }).getByText('완료', { exact: true })).toBeVisible();
     await taskLink.click(); await expect(page.locator('main')).toContainText(f.task.body);
     await page.goto(`/records/${f.roundtrip.result.id}`); await expect(page.locator('main')).toContainText(f.roundtrip.result.body);
-    await page.goto(`/principles/${f.principle.id}`); await expect(page.locator('main')).toContainText(f.principle.body);
     await page.goto(`/records/${f.record.id}`); await expect(page.locator('main')).toContainText(f.record.body);
   });
   await page.setViewportSize(evidence.desktopViewport);
-  await webPhase('web-principle-delete', { id: f.principle.id }, `/principles/${f.principle.id}/delete`, async () => {
-    await page.goto(`/principles/${f.principle.id}?edit=1`); await page.getByRole('button', { name: '삭제', exact: true }).click();
-    const form = page.getByRole('dialog', { name: '원칙을 삭제할까요?', exact: true }); await expect(form).toContainText('과거 원칙을 자동 승격하지 않습니다'); await saveOnce(page, form, '삭제'); await expect(form).not.toBeVisible();
-  });
   await readWeb('current-empty-source-still-exact', async () => {
-    await page.goto('/principles'); await expect(page.locator('main')).toContainText('현재 원칙이 없습니다');
     await page.goto(`/records/${f.record.id}`); await expect(page.locator('main')).toContainText(f.record.body);
   });
   evidence.pass = true;

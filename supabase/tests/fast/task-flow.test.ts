@@ -62,7 +62,6 @@ function fixture(storageNow = () => now) {
         record_kind: input.record_kind ?? "user",
         entity_context: [],
         change: null,
-        applied_principle_snapshots: [],
         id: crypto.randomUUID(),
         occurred_at: input.occurred_at ?? now,
         tag_ids: input.tag_ids ?? [],
@@ -121,7 +120,7 @@ function fixture(storageNow = () => now) {
     token: { audience: "authenticated", issuer: "https://auth.invalid" },
     allowedOrigins: [],
   };
-  const app = createHttpApp(deps, config, unused, unused, unused, (request, policy) => {
+  const app = createHttpApp(deps, config, unused, unused, (request, policy) => {
     assertEquals(request.headers.get("authorization"), "Bearer fixture");
     assertEquals(policy, config.token);
     return Promise.resolve(actor);
@@ -510,10 +509,31 @@ Deno.test("HTTP PATCH/POST delete and MCP task mutation schema/handler share val
 
 Deno.test("HTTP production default still rejects missing bearer token before any port runs", async () => {
   const f = fixture();
-  const app = createHttpApp(f.deps, f.config, f.unused, f.unused, f.unused);
+  const app = createHttpApp(f.deps, f.config, f.unused, f.unused);
   const response = await app.fetch(new Request("https://app.invalid/api/tasks"));
   assertEquals(response.status, 401);
   assertEquals(response.headers.get("WWW-Authenticate"), 'Bearer error="invalid_token"');
   assertEquals((await response.json()).code, "unauthenticated");
   assertEquals(f.tasks.size, 0);
+});
+
+Deno.test("removed principle HTTP routes return 404 without reading or writing business storage", async () => {
+  const f = fixture();
+  for (const method of ["GET", "POST", "PATCH", "DELETE"]) {
+    for (
+      const path of [
+        "/principles",
+        "/principles/current",
+        "/principles/20261016-ABCDEFGH",
+        "/principles/20261016-ABCDEFGH/delete",
+      ]
+    ) {
+      const response = await f.app.request(path, { method, headers: { authorization: "Bearer test" } });
+      assertEquals(response.status, 404);
+      await response.body?.cancel();
+    }
+  }
+  assertEquals(f.jobs.length, 0);
+  assertEquals(f.tasks.size, 0);
+  assertEquals(f.records.size, 0);
 });

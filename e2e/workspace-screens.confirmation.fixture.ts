@@ -59,7 +59,7 @@ test("#181 일반 기록: 취소한 삭제 메모의 검증이 본문 저장을 
   expect(state.writes[0].body.body).toBe("유효한 본문");
 });
 
-for (const [kind, n, label] of [["entities", 1, "제목"], ["tasks", 2, "제목"], ["principles", 4, "제목"]] as const) {
+for (const [kind, n, label] of [["entities", 1, "제목"], ["tasks", 2, "제목"]] as const) {
   test(`#181 ${kind}: 편집 위 작은 확인창·취소 초안 보존·기록 태그`, async ({ page }, info) => {
     const state = await fixtures(page);
     await page.setViewportSize({ width: 390, height: 844 });
@@ -126,61 +126,10 @@ test("#181 일반 기록은 바로 저장하고 삭제만 작은 메모·태그 
   expect(state.errors).toEqual([]);
 });
 
-test("원칙 삭제 실패는 메모를 보존하고 단일 요청으로 재시도한다", async ({ page }) => {
-  const state = await fixtures(page);
-  await go(page, `/principles/${id(4)}?edit=1`);
-  let failed = true;
-  const attempts: Record<string, unknown>[] = [];
-  await page.route(`**/api/principles/${id(4)}/delete`, (route) => {
-    attempts.push(route.request().postDataJSON());
-    if (failed) return route.fulfill({ status: 422, json: { code: "validation_failed", message: "저장 실패" } });
-    state.rows.principles = state.rows.principles.filter((r) => r.id !== id(4));
-    return route.fulfill({ status: 204 });
-  });
-  await form(page).getByRole("button", { name: "삭제", exact: true }).click();
-  const confirm = page.locator("dialog.modal-action[open]");
-  await confirm.getByLabel("기록 메모").fill("보존할 이유");
-  await saveOnce(page, confirm, "삭제 확인");
-  await expect(confirm).toContainText("저장 실패");
-  await expect(confirm.getByLabel("기록 메모")).toHaveValue("보존할 이유");
-  expect(attempts).toHaveLength(1);
-  failed = false;
-  await saveOnce(page, confirm, "삭제 확인");
-  await expect(page).toHaveURL(/\/principles$/);
-  expect(attempts[1]).toEqual(attempts[0]);
-  expect(state.errors).toEqual([]);
-});
+
 
 for (const width of [320, 640]) {
-  test(`확인창 ${width}px: 긴 삭제 메모·줄어든 viewport·고정 footer`, async ({ page }) => {
-    const state = await fixtures(page);
-    state.rows.principles[1].body = "승격될 긴 본문\n\n".repeat(300);
-    await page.setViewportSize({ width, height: 360 });
-    await go(page, `/principles/${id(4)}?edit=1`);
-    await form(page).getByRole("button", { name: "삭제", exact: true }).click();
-    const confirm = page.locator("dialog.modal-action[open]");
-    await confirm.getByLabel("기록 메모").fill("긴 삭제 메모\\n".repeat(300));
-    const dimensions = await confirm.evaluate((node) => {
-      const style = (selector: string) => getComputedStyle(node.querySelector(selector)!);
-      return {
-        buttons: Array.from(node.querySelectorAll(".modal-foot > button")).map((button) => ({ width: button.getBoundingClientRect().width, height: button.getBoundingClientRect().height })),
-        padding: [".modal-head", ".modal-body", ".modal-foot"].map((selector) => [style(selector).paddingLeft, style(selector).paddingRight]),
-        title: { size: style(".dialog-title").fontSize, weight: style(".dialog-title").fontWeight },
-      };
-    });
-    for (const button of dimensions.buttons) { expect(button.width).toBeGreaterThanOrEqual(88); expect(button.height).toBeGreaterThanOrEqual(44); }
-    expect(dimensions.padding).toEqual([["16px", "16px"], ["16px", "16px"], ["16px", "16px"]]);
-    expect(dimensions.title).toEqual({ size: "20px", weight: "600" });
-    const bounds = await confirm.boundingBox();
-    expect(bounds!.width).toBeLessThanOrEqual(width - 32);
-    expect(bounds!.height).toBeLessThanOrEqual(328);
-    await confirm.locator(".modal-body").evaluate((el) => {
-      el.scrollTop = el.scrollHeight;
-    });
-    await expect(confirm.getByRole("button", { name: "삭제하고 기록", exact: true })).toBeInViewport();
-    await expect(confirm.getByRole("button", { name: "취소", exact: true })).toBeInViewport();
-    expect(state.errors).toEqual([]);
-  });
+
 }
 
 test("반복 중단·재개 메모·결과 생성은 같은 surface", async ({ page }) => {
@@ -261,7 +210,7 @@ test("할 일 보기에서 완료, 편집 초안은 닫기 확인으로 보호",
   expect(state.errors).toEqual([]);
 });
 
-for (const [kind, n] of [["entities", 1], ["tasks", 2], ["records", 3], ["principles", 4]] as const) {
+for (const [kind, n] of [["entities", 1], ["tasks", 2], ["records", 3]] as const) {
   test(`${kind}: 두 단계 삭제·취소는 요청 없이 같은 surface`, async ({ page }) => {
     const state = await fixtures(page);
     await go(page, `/${kind}/${kind === "entities" ? encodeURIComponent(entityKey(n)) : id(n)}?edit=1`);

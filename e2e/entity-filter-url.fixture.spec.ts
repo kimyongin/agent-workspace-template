@@ -7,7 +7,7 @@ test("long property filter copied URL/reload/history/reset/type scope and entity
   const remote="http://127.0.0.1:55587", user={id:id(100),aud:"authenticated",email:"fixture@example.test",app_metadata:{},user_metadata:{workspace_timezone:"Asia/Seoul"}};
   const value="한".repeat(4096),row=entity(1,{prop_1:"필터 검사",prop_2:value}),schema=structuredClone(fixtureSchema);
   schema.schema.properties.prop_2={type:"string",title:"긴 값"};
-  await installWorkspaceApi(page,remote,{entities:[row],tasks:[],records:[],principles:[],tags:[]});
+  await installWorkspaceApi(page,remote,{entities:[row],tasks:[],records:[],tags:[]});
   await page.addInitScript(user=>localStorage.setItem("sb-127-auth-token",JSON.stringify({access_token:"fixture",refresh_token:"fixture",expires_at:Math.floor(Date.now()/1000)+3600,user})),user);
   await page.route("**/*",async route=>{
     const url=new URL(route.request().url());
@@ -68,7 +68,7 @@ test("long filter survives detail edit/task/record modes and copied desktop owne
   const value="한".repeat(4096),row=entity(1,{prop_1:"모드 검사",prop_2:value}),schema=structuredClone(fixtureSchema);
   schema.schema.properties.prop_2={type:"string",title:"긴 값"};
   const relatedTask={...task(2),title:"관련 할 일 모드 검사"};
-  await installWorkspaceApi(page,remote,{entities:[row],tasks:[relatedTask],records:[],principles:[],tags:[]});
+  await installWorkspaceApi(page,remote,{entities:[row],tasks:[relatedTask],records:[],tags:[]});
   await page.addInitScript(user=>localStorage.setItem("sb-127-auth-token",JSON.stringify({access_token:"fixture",refresh_token:"fixture",expires_at:Math.floor(Date.now()/1000)+3600,user})),user);
   await page.route("**/*",async route=>{
     const url=new URL(route.request().url());

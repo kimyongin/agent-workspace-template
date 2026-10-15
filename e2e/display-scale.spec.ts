@@ -1,11 +1,11 @@
 import { expect, test, type Page } from "@playwright/test";
 import { installWorkspaceApi } from "./support/workspace-api.ts";
-import { entity, task, record, principle, id } from "./support/workspace-data.ts";
+import { entity, task, record,  id } from "./support/workspace-data.ts";
 
 async function fixture(page: Page, scale = "100") {
   const user = { id: id(100), aud: "authenticated", email: "fixture@example.test", app_metadata: {}, user_metadata: { workspace_display_scale: scale, workspace_mobile_display_scale: scale, workspace_avatar_id: "person", provider_value: "preserved" } };
   const state = { account: user.id, fail: false, writes: [] as Record<string, unknown>[], metadata: user.user_metadata };
-  await installWorkspaceApi(page, "http://127.0.0.1:55591", { entities: [entity()], tasks: [task()], records: [record()], principles: [principle()], tags: [] });
+  await installWorkspaceApi(page, "http://127.0.0.1:55591", { entities: [entity()], tasks: [task()], records: [record()],  tags: [] });
   await page.addInitScript(user => {
     if (sessionStorage.getItem("fixture-started")) return;
     sessionStorage.setItem("fixture-started", "true");
@@ -108,7 +108,7 @@ test("display scale: 150% settings, menus and lists reflow at compact widths", a
   }
   await smallFont.evaluate(node => node.remove());
   await page.setViewportSize({ width: 320, height: 844 });
-  for (const path of ["/entities", "/tasks", "/records", "/principles", "/guide"]) {
+  for (const path of ["/entities", "/tasks", "/records", "/guide"]) {
     await page.goto(path);
     await expect(page.locator("main h1")).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), path).toBe(true);

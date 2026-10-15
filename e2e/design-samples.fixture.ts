@@ -37,15 +37,15 @@ test("account settings sample keeps independent drafts and clear row actions", a
   await display.getByRole("button", { name: "저장", exact: true }).click();
   await expect(profile.getByRole("textbox")).toHaveValue("남겨 둘 초안");
   await navigation.getByRole("button", { name: "기록 위로 이동", exact: true }).click();
-  await expect(navigation.locator(".navigation-selection-label")).toHaveText(["상품", "기록", "할 일", "원칙"]);
+  await expect(navigation.locator(".navigation-selection-label")).toHaveText(["상품", "기록", "할 일"]);
   await navigation.getByRole("button", { name: "취소", exact: true }).click();
-  await expect(navigation.locator(".navigation-selection-label")).toHaveText(["상품", "할 일", "기록", "원칙"]);
+  await expect(navigation.locator(".navigation-selection-label")).toHaveText(["상품", "할 일", "기록"]);
   await navigation.getByRole("button", { name: "상품 숨기기", exact: true }).click();
   await expect(navigation.getByRole("button", { name: "할 일 숨기기", exact: true })).toBeFocused();
   await navigation.getByRole("combobox", { name: "추가할 메뉴", exact: true }).selectOption("products");
   await navigation.getByRole("button", { name: "추가", exact: true }).click();
   await navigation.getByRole("button", { name: "저장", exact: true }).click();
-  await expect(navigation.locator(".navigation-selection-label")).toHaveText(["할 일", "기록", "원칙", "상품"]);
+  await expect(navigation.locator(".navigation-selection-label")).toHaveText(["할 일", "기록", "상품"]);
   await expect(profile.getByRole("textbox")).toHaveValue("남겨 둘 초안");
   for (const width of [320, 390, 639, 640, 768, 1024, 1440]) {
     await page.setViewportSize({ width, height: 900 });

@@ -10,7 +10,7 @@ export const mutationMeta = { change_note: changeNote.optional(), change_tag_ids
 export const businessMeta = mutationMeta;
 export const changeMetadata = z.object({
   event_id: id,
-  target_kind: z.enum(["entity", "task", "record", "principle"]),
+  target_kind: z.enum(["entity", "task", "record"]),
   target_id: z.union([id, entityReferenceId]),
   target_title: z.string(),
   action: z.enum(["create", "update", "delete", "restore", "stop", "resume"]),

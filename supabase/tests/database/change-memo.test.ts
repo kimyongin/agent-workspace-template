@@ -2,10 +2,7 @@ import { requestActor } from "../_request.ts";
 import { assertEquals, assertRejects } from "@std/assert";
 import { entityCreate, entityUpdate } from "../../functions/_shared/contracts/entity.ts";
 import { taskCreate } from "../../functions/_shared/contracts/task.ts";
-import { principleCreate, principleUpdate } from "../../functions/_shared/contracts/principle.ts";
 import { recordCreate } from "../../functions/_shared/contracts/record.ts";
-import { SqlPrincipleUnitOfWork } from "../../functions/_shared/adapters/supabase/principle-store.ts";
-import * as principles from "../../functions/_shared/core/principles/application.ts";
 import { activityRoutes } from "../../functions/_shared/adapters/http/activity-routes.ts";
 import { activityTools } from "../../functions/_shared/adapters/mcp/activity-tools.ts";
 import { Hono } from "hono";
@@ -96,22 +93,6 @@ dbTest("change record tags are separate, owner-scoped, atomic and carried throug
     for (const memo of ["중단 메모", "재개 메모"]) {
       assertEquals((await events()).items.find((r) => r.body === memo)!.tag_ids, [own]);
     }
-    const pd = { uow: new SqlPrincipleUnitOfWork(sql) };
-    const p = await principles.createPrinciple(
-      pd,
-      requestActor(f.actor),
-      principleCreate.parse({ title: "기준", change_tag_ids: [own] }),
-    );
-    const updated = await principles.updatePrinciple(
-      pd,
-      requestActor(f.actor),
-      p.id,
-      principleUpdate.parse({ expected_version: p.version, body: "수정", change_tag_ids: [own] }),
-    );
-    await principles.deletePrinciple(pd, requestActor(f.actor), p.id, updated.version, "기준 삭제", [own]);
-    assertEquals((await events()).items.filter((r) => r.change?.target_id === p.id).map((r) => r.tag_ids), [[own], [
-      own,
-    ], [own]]);
     await entity.deleteEntity(ed, requestActor(f.actor), target.id, target.version, "원본 삭제", [own]);
     assertEquals((await events()).items.find((r) => r.body === "원본 삭제")!.tag_ids, [own]);
     const before = (await events()).items.length;

@@ -2,7 +2,7 @@ import { beginTabAction, saveOnce } from "./ui-actions.ts";
 // 디자인 가이드의 화면 검수 중 자동으로 확인할 수 있는 항목(docs/design/guide.md "화면 완료 체크리스트").
 // 화면 폭별 가로 넘침, 조작 영역 44px, 200% 확대(폭 절반), 키보드만으로 작성·닫기, 대화상자 초점.
 import { expect, type Page } from "@playwright/test";
-import {savePrinciple} from "./principle-support.ts";
+
 import { test, devLogin, mcpClient, mcpTokenViaConsent, unique } from "./support.ts";
 
 const WIDTHS = [320,360,390,639,640,768,1024,1440];
@@ -12,7 +12,7 @@ test("사용자 바로가기와 별도로 프로필에서 전체 업무 화면�
   const navigation = page.getByRole("navigation",{name:"주 메뉴"});
   await navigation.getByRole("button",{name:/^내 프로필(?: · .+)?$/,exact:true}).click();
   const menu = page.locator("#nav-profile-options");
-  for (const [path, label] of [["/entities","전체 자료"],["/tasks","할 일"],["/records","기록"],["/principles","원칙"]]) {
+  for (const [path, label] of [["/entities","전체 자료"],["/tasks","할 일"],["/records","기록"]]) {
     const link = menu.locator(`a[href="${path}"]`);
     await expect(link).toHaveAccessibleName(label);
     await expect(link).toBeVisible();
@@ -79,17 +79,12 @@ test.describe("화면 폭별 배치", () => {
     await expect(page.locator("dialog.modal:not(.modal-confirm)[open] .dialog-title")).toHaveText("기록");
     const recordDetail = page.url();
 
-    const mcp=await mcpClient(await mcpTokenViaConsent(page));
-    const principleTitle=unique("긴원칙"+"다".repeat(40));
-    try{const p=await savePrinciple(mcp,{title:principleTitle,body:"조건 "+"c".repeat(150)+"d".repeat(300)});await page.goto(`/principles/${p.id}`);}finally{await mcp.close();}
-    await expect(page.locator("dialog.modal:not(.modal-confirm)[open]").getByRole("heading",{name:principleTitle,exact:true})).toBeVisible();
-    const principleDetail = page.url();
 
       await page.setViewportSize({ width, height: 900 });
-      for (const path of ["/tasks", taskDetail, "/records", recordDetail, "/principles", principleDetail,"/tags",`/search?q=${encodeURIComponent(longTitle)}&mode=keyword`]) {
+      for (const path of ["/tasks", taskDetail, "/records", recordDetail,"/tags",`/search?q=${encodeURIComponent(longTitle)}&mode=keyword`]) {
         await page.goto(path);
         const detail=page.locator("dialog.modal:not(.modal-confirm)[open]");
-        if(/\/(tasks|records|principles)\/[^/?]+/.test(new URL(path,"http://fixture.invalid").pathname))await expect(detail.locator(".dialog-title")).toBeVisible();
+        if(/\/(tasks|records)\/[^/?]+/.test(new URL(path,"http://fixture.invalid").pathname))await expect(detail.locator(".dialog-title")).toBeVisible();
         else await expect(page.getByRole("heading",{level:1})).toBeVisible();
         expect(await layoutProblems(page), `${width}px ${path}`).toEqual([]);
       }

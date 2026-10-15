@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { assessPreparation } from './assess-preparation.mjs';
-const success = () => ({ exitCode: 0, completedSkillRead: true, mutationCalls: 0, originalSourceRead: true, answer: { originalDetail: true, currentValue: true, sourceId: true, currentPrincipleId: true, taskId: true, uncertainty: true, missingCurrentPrinciple: true, conflict: true, searchFailure: true, indexDelay: true }, proxy: { mode: 'semantic-failure', applied: 1, keywordFallbacks: 1, originalReads: 1, sameInstance: true } });
+const success = () => ({ exitCode: 0, completedSkillRead: true, mutationCalls: 0, originalSourceRead: true, answer: { originalDetail: true, currentValue: true, sourceId: true, taskId: true, uncertainty: true, conflict: true, searchFailure: true, indexDelay: true }, proxy: { mode: 'semantic-failure', applied: 1, keywordFallbacks: 1, originalReads: 1, sameInstance: true } });
 test('correct preparation answers cannot pass without observed original-source reading', () => {
   for (const scenario of ['normal', 'missing', 'conflict']) {
     const evidence = success(); delete evidence.proxy;

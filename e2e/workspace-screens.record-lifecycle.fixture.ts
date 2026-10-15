@@ -57,30 +57,9 @@ test("태그 scoped 상세/편집·legacy ID 직접 링크 호환", async ({ pag
   expect(state.errors).toEqual([]);
 });
 
-test("폐기한 원칙 ID는 조회 오류를 알리고 편집·삭제를 제공하지 않는다", async ({ page }) => {
-  const state = await fixtures(page);
-  const current = { ...state.rows.principles[0] };
-  await go(page, `/principles/${encodeURIComponent(entityKey(5))}?edit=1`);
-  await expect(form(page)).toContainText("삭제된 자료");
-  await expect(form(page).getByRole("button", { name: "삭제", exact: true })).toHaveCount(0);
-  await expect(form(page).getByRole("textbox")).toHaveCount(0);
-  expect(state.writes).toHaveLength(0);
-  expect(state.rows.principles[0]).toEqual(current);
-  expect(state.errors).toEqual([]);
-});
 
-test("원칙 저장 결과는 같은 ID·확인된 본문을 보여준다", async ({ page }) => {
-  const state = await fixtures(page);
-  await go(page, `/principles/${id(4)}?list=%2Fprinciples`);
-  await compatibleEdit(page);
-  await form(page).getByRole("textbox", { name: "본문", exact: true }).fill("확인된 현재 원칙");
-  await saveOnce(page, form(page));
-  await expect(page).toHaveURL(new RegExp(id(4)));
-  await expect(form(page)).toContainText("확인된 현재 원칙");
-  expect(state.rows.principles[0].id).toBe(id(4));
-  expect(state.writes).toHaveLength(1);
-  expect(state.errors).toEqual([]);
-});
+
+
 
 for (const [kind, label] of [["entities", "검사 자료"], ["tasks", "할 일"], ["records", "기록"]]) {
   test(`${kind}: 생성·보기·편집 메모·태그·삭제 이유`, async ({ page }) => {
@@ -127,29 +106,7 @@ for (const [kind, label] of [["entities", "검사 자료"], ["tasks", "할 일"]
   });
 }
 
-test("원칙: 최초 등록·같은 ID 편집·삭제 뒤 없음·기록으로 과거 근거 조회", async ({ page }) => {
-  const state = await fixtures(page, { emptyPrinciple: true });
-  await go(page, "/principles");
-  await beginTabAction(page, "현재 원칙 등록");
-  await fillText(page, "첫 기준");
-  await saveOnce(page, form(page));
-  await expect.poll(() => state.rows.principles.length).toBe(1);
-  const first = state.rows.principles[0].id;
-  await expect(page).toHaveURL(new RegExp(`/principles/${first}`));
-  await compatibleEdit(page);
-  await form(page).getByRole("textbox", { name: "본문", exact: true }).fill("둘째 정책");
-  await saveOnce(page, form(page));
-  await expect(page).toHaveURL(new RegExp(first));
-  expect(state.rows.principles.filter((p) => p.is_current)).toHaveLength(1);
-  await compatibleEdit(page);
-  await form(page).getByRole("button", { name: "삭제", exact: true }).click();
-  const confirm = page.locator("dialog.modal-action[open]");
-  await expect(confirm).toContainText("과거 원칙을 자동 승격하지 않습니다");
-  await saveOnce(page, confirm, "삭제 확인");
-  await expect(page.getByRole("button", { name: "원칙 작성" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "전체 기록 보기" })).toHaveAttribute("href", "/records");
-  expect(state.errors).toEqual([]);
-});
+
 
 test("새 기록은 원칙 연관키 선택 없이 본문 근거를 저장한다", async ({ page }) => {
   const state = await fixtures(page);
@@ -163,109 +120,10 @@ test("새 기록은 원칙 연관키 선택 없이 본문 근거를 저장한다
 });
 
 for (const capture of ["application", "migration"] as const) {
-  test(`기록: ${capture} 과거 원칙의 설명 정정은 snapshot 보존`, async ({ page }) => {
-    const state = await fixtures(page), r = state.rows.records[0];
-    Object.assign(r, {
-      applied_principle_snapshots: [
-        {
-          id: id(4),
-          title: "당시 기준",
-          body: "보존할 당시 본문",
-          summary: "당시 요약",
-          version: 1,
-          saved_at: stamp,
-          captured_at: capture,
-          status: "active",
-        },
-      ],
-    });
-    await page.route("**/api/records/" + r.id, async (route) => {
-      if (route.request().method() !== "PATCH") return route.fallback();
-      const body = route.request().postDataJSON();
-      state.writes.push({
-        method: "PATCH",
-        path: new URL(route.request().url()).pathname,
-        body,
-        params: new URLSearchParams(),
-      });
-      if (Object.hasOwn(body, "applied_principle_ids")) {
-        return route.fulfill({ status: 400, json: { code: "invalid_input", message: "지원하지 않는 기록 입력" } });
-      }
-      Object.assign(r, body, { version: r.version + 1 });
-      await route.fulfill({ json: r });
-    });
-    await go(page, `/records/${r.id}?edit=1&edit_from=view`);
-    await expect(form(page)).toContainText("보존할 당시 본문");
-    await compatibleEdit(page);
-    await expect(form(page).getByText("적용한 원칙", { exact: true })).toHaveCount(0);
-    await form(page).getByRole("textbox", { name: /^본문(?: \(필수\))?$/ }).fill("설명 정정");
-    await expect(form(page).getByLabel("편집 메모", { exact: false })).toHaveCount(0);
-    await saveOnce(page, form(page));
-    await expect.poll(() => r.version).toBe(2);
-    await expect(page).not.toHaveURL(/[?&]edit=/);
-    await expect(form(page).getByRole("heading", { name: "기록", exact: true })).toBeVisible();
-    await compatibleEdit(page);
-    expect(state.writes).toHaveLength(1);
-    expect(state.writes[0].body).not.toHaveProperty("applied_principle_ids");
-    await expect(form(page)).toContainText("보존할 당시 본문");
-    expect(state.errors).toEqual([]);
-  });
+
 }
 
-test("기록: 자동 변경 문맥·원칙 snapshot·정정 시스템 필드 제외", async ({ page }) => {
-  const state = await fixtures(page);
-  const r = state.rows.records[0];
-  Object.assign(r, {
-    record_kind: "change",
-    body: "실측 반영",
-    change: {
-      event_id: id(30),
-      target_kind: "entity",
-      target_id: entityKey(99),
-      target_title: "삭제된 엔터티",
-      action: "delete",
-      source: "mcp",
-      before: { prop2: 10 },
-      after: null,
-      path: null,
-    },
-    applied_principle_snapshots: [{
-      id: id(4),
-      version: 1,
-      status: "active",
-      title: "당시 기준",
-      body: "당시 본문",
-      saved_at: stamp,
-      summary: "당시 요약",
-      captured_at: "migration",
-    }],
-  });
-  await go(page, `/records/${r.id}`);
-  await expect(form(page)).toContainText("에이전트");
-  await expect(connectedTarget(page, "entity")).toContainText("삭제됨");
-  await expect(form(page)).toContainText("당시 본문");
-  await expect(form(page)).toContainText("실제 판단 당시의 본문을 보증하지 않습니다.");
-  await expect(connectedTarget(page, "entity").getByRole("link")).toHaveCount(0);
-  await compatibleEdit(page);
-  await expect(form(page).getByLabel("수행 시각")).toHaveCount(0);
-  await expect(form(page).getByText("기록 태그", { exact: true })).toHaveCount(0);
-  await form(page).getByLabel("본문", { exact: false }).fill("설명 정정");
-  await saveOnce(page, form(page));
-  await expect.poll(() => state.writes.length).toBe(1);
-  expect(Object.keys(state.writes[0].body).sort()).toEqual(["body", "expected_version"].sort());
-  expect(state.rows.entities[0].properties.prop_2).toBe(0);
-  await expect(page).not.toHaveURL(/[?&]edit=/);
-  await expect(form(page).getByRole("heading", { name: "기록", exact: true })).toBeVisible();
-  await compatibleEdit(page);
-  await form(page).getByRole("button", { name: "삭제", exact: true }).click();
-  const confirm = page.locator("dialog.modal-action[open]");
-  await expect(confirm).toContainText("대상의 업무 상태는 되돌리지 않습니다.");
-  await saveOnce(page, confirm, "삭제 확인");
-  await expect(page).toHaveURL(/\/records$/);
-  expect(state.rows.entities[0].properties.prop_2).toBe(0);
-  expect(state.rows.records).toHaveLength(0);
-  expect(state.errors).toEqual([]);
-});
+
 
 test("태그 인라인 편집: 취소는 목록으로 복귀·삭제 실패는 동일 입력과 버전으로 재시도", async ({ page }) => {
   const state = await fixtures(page);

@@ -3,15 +3,12 @@ import type postgres from "postgres";
 import { SqlUnitOfWork } from "../../functions/_shared/adapters/supabase/activity-store.ts";
 import { SqlEntityUnitOfWork } from "../../functions/_shared/adapters/supabase/entity-store.ts";
 import { SqlTagUnitOfWork } from "../../functions/_shared/adapters/supabase/tag-store.ts";
-import { SqlPrincipleUnitOfWork } from "../../functions/_shared/adapters/supabase/principle-store.ts";
 import * as activity from "../../functions/_shared/core/activity/application.ts";
 import * as entity from "../../functions/_shared/core/entity/application.ts";
 import * as tag from "../../functions/_shared/core/tags/application.ts";
-import * as principle from "../../functions/_shared/core/principles/application.ts";
 import { taskCreate } from "../../functions/_shared/contracts/task.ts";
 import { recordCreate } from "../../functions/_shared/contracts/record.ts";
 import { entityCreate } from "../../functions/_shared/contracts/entity.ts";
-import { principleCreate } from "../../functions/_shared/contracts/principle.ts";
 import { AppError } from "../../functions/_shared/core/shared/errors.ts";
 import { connect, dbTest, fixtureOwner, urls } from "./_db.ts";
 import { entityFixture } from "./_entity.ts";
@@ -67,18 +64,15 @@ dbTest(
       await tx`insert into app.tags(id,owner_id,name,scope) values(${collision},${owner},'existing','task')`;
       await tx`insert into app.tasks(id,owner_id,kind,title,status) values(${collision},${owner},'once','existing','open')`;
       await tx`insert into app.records(id,owner_id,body) values(${collision},${owner},'existing')`;
-      await tx`insert into app.principles(id,owner_id,title,body,is_current) values(${collision},${owner},'existing','',false)`;
       await tx`insert into app.entities(id,owner_id,source,external_id,entity_type_id,schema_version,properties)
         values(${`app:${schema.entity_type_id}:${collision}`},${owner},'app',${collision},${schema.entity_type_id},1,'{"prop_1":"existing"}'::jsonb)`;
       const ad = { uow: new SqlUnitOfWork(sql), clock: { now: () => new Date() } };
-      const td = { uow: new SqlTagUnitOfWork(sql) }, pd = { uow: new SqlPrincipleUnitOfWork(sql) };
+      const td = { uow: new SqlTagUnitOfWork(sql) };
       const ed = { uow: new SqlEntityUnitOfWork(sql) };
       const writes = [
         (a: ReturnType<typeof actor>) => tag.createTag(td, a, { name: "new", scope: "task" }),
         (a: ReturnType<typeof actor>) => activity.createTask(ad, a, taskCreate.parse({ kind: "once", title: "new" })),
         (a: ReturnType<typeof actor>) => activity.createRecord(ad, a, recordCreate.parse({ body: "new" })),
-        (a: ReturnType<typeof actor>) =>
-          principle.createPrinciple(pd, a, principleCreate.parse({ title: "new", body: "" })),
         (a: ReturnType<typeof actor>) =>
           entity.createEntity(ed, a, entityCreate.parse({ ...schema, properties: { prop_1: "new" } })),
       ];
@@ -93,7 +87,7 @@ dbTest(
       }
       const changes =
         await tx`select id,change_metadata from app.records where owner_id=${owner} and record_kind='change'`;
-      assertEquals(changes.length, 3);
+      assertEquals(changes.length, 2);
       for (const row of changes) assertEquals(row.change_metadata.event_id, row.id);
       await tx`reset role`;
       assertEquals((await tx`select to_regclass('private.data_id_reservations') value`)[0].value, null);

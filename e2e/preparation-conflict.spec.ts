@@ -1,10 +1,10 @@
 import { createFixtureEntity, fixtureEntityList, scalarFixtureType } from "./entity-schema-support.ts";
 import { expect } from "@playwright/test";
 import { devLogin, mcpClient, mcpTokenViaConsent, test, unique } from "./support.ts";
-import { savePrinciple } from "./principle-support.ts";
+
 import { openDetailEditor, saveOnce } from "./ui-actions.ts";
 
-for (const model of ["entity", "task", "principle"] as const) {
+for (const model of ["entity", "task"] as const) {
   for (const stage of ["prepare", "write"] as const) {
     test(`#335 실제 MCP→웹 ${model}: ${stage} 충돌·초안 보존·취소 후 재조회·새 의도 저장`, async ({ page }) => {
       await devLogin(page);
@@ -27,12 +27,10 @@ for (const model of ["entity", "task", "principle"] as const) {
             },
           );
         } else {
-          const created = model === "task"
-            ? await mcp.call("create_task", { kind: "once", title })
-            : await savePrinciple(mcp, { title });
+          const created = await mcp.call("create_task", { kind: "once", title });
           target = { id: created.id, version: created.version };
         }
-        const list = model === "entity" ? "entities" : model === "task" ? "tasks" : "principles";
+        const list = model === "entity" ? "entities" : "tasks";
         const inputLabel = model === "entity" ? "제목" : "제목";
         await page.goto(`/${list}/${encodeURIComponent(target!.id)}`);
         await openDetailEditor(page);

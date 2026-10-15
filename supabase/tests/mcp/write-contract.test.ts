@@ -64,13 +64,12 @@ httpTest("OAuth MCP rejects missing request keys and client IDs/retired metadata
   const client = await connectMcp(await mcpToken(session));
   try {
     const { tools } = await client.listTools();
-    assertEquals(tools.some((t) => t.name === "save_current_principle"), false);
+    assertEquals(tools.some((t) => t.name.includes("principle")), false);
     for (
       const [name, content] of [
         ["create_entity", { ...schema, properties: { prop_1: "입력 거부" } }],
         ["create_task", { kind: "once", title: "입력 거부" }],
         ["create_record", { body: "입력 거부" }],
-        ["create_principle", { title: "입력 거부" }],
         ["create_tag", { name: "입력 거부" }],
       ] as const
     ) {

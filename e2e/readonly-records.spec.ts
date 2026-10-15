@@ -53,9 +53,9 @@ test("읽기·검색·네 탭 이동·상세 닫기는 계정 기록 원문과 �
       await navigation.getByRole("button", { name: /^내 프로필(?: · .+)?$/, exact: true }).click();
       await page.locator(`#nav-profile-options a[href="${path}"]`).click();
     };
-    for (const [name, path] of [["전체 자료", "/entities"], ["할 일", "/tasks"], ["기록", "/records"], ["원칙", "/principles/current"]]) {
+    for (const [name, path] of [["전체 자료", "/entities"], ["할 일", "/tasks"], ["기록", "/records"], []]) {
       const response = page.waitForResponse(response => response.request().method() === "GET" && new URL(response.url()).pathname.endsWith(path));
-      await navigateBuiltin(name === "원칙" ? "/principles" : path);
+      await navigateBuiltin(path);
       const read = await response;
       expect(read.ok()).toBe(true);await read.finished();
       await expect(page.getByRole("heading", { name, level: 1 })).toBeVisible();

@@ -6,7 +6,7 @@ test("네 업무 탭의 목록과 상세 URL은 각자의 탐색에 속한다", 
   for (const path of ["/tasks", "/tasks/abc"]) expect(navigationSection(path)).toBe("tasks");
   for (const path of ["/records", "/records/abc"]) expect(navigationSection(path)).toBe("records");
   expect(navigationSection("/entities/abc")).toBe("entities");
-  expect(navigationSection("/principles/abc")).toBe("principles");
+  expect(navigationSection("/principles/abc")).toBe(null);
   expect(navigationSection("/search")).toBe("more");
   expect(navigationSection("/settings")).toBe("more");
   expect(navigationSection("/tags/entity")).toBe("more");

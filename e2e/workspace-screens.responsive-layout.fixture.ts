@@ -23,7 +23,6 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
         "/entities",
         "/tasks",
         "/records",
-        "/principles",
         "/tags/entity",
         "/tags/record",
         "/search",
@@ -125,15 +124,6 @@ for (const width of [390, 1440]) {
     await expect(form(page).getByRole("button", { name: "취소", exact: true })).toHaveCount(1);
     await form(page).getByRole("button", { name: "닫기", exact: true }).click();
     await expect(page.locator(`[id="entity-${entityKey(1)}"]`)).toBeFocused();
-    await go(page, "/principles");
-    const current = page.getByRole("region", { name: "현재 원칙", exact: true });
-    expect((await current.boundingBox())!.y).toBeGreaterThanOrEqual(
-      (await top.boundingBox())!.y + (await top.boundingBox())!.height,
-    );
-    await expect(top.getByRole("link", { name: "전체 기록 보기" })).toHaveAttribute("href", "/records");
-    await expect(top.getByLabel("검색어", { exact: true })).toHaveCount(0);
-    await expect(top.locator(".current-document,.record-date-group")).toHaveCount(0);
-    await page.screenshot({ path: info.outputPath(`principles-sections-${width}.png`) });
     await go(page, "/tasks");
     expect(
       await page.getByRole("region", { name: "할 일 목록", exact: true }).locator(".collection-list .related-item")
@@ -226,8 +216,6 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
     await row.getByRole("button", { name: "할 일 열기", exact: true }).click();
     await page.screenshot({ path: info.outputPath(`modal-${width}.png`) });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    await go(page, "/principles");
-    await expect(page.locator(".current-document .related-item")).toHaveCount(0);
     expect(state.writes).toHaveLength(0);
     expect(state.errors).toEqual([]);
   });
@@ -292,32 +280,7 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
 }
 
 for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
-  test(`소비 화면 ${width}px: 목록·원칙·기록·엔터티·태그`, async ({ page }, info) => {
-    const state = await fixtures(page, { long: true });
-    state.rows.tags[0].name = "긴이름".repeat(10);
-    await page.setViewportSize({ width, height: 800 });
-    for (const path of ["/entities", "/tasks", "/records", "/principles", "/tags/entity", "/tags/record"]) {
-      await go(page, path);
-      await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
-      expect(
-        await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
-        path,
-      ).toBe(true);
-    }
-    for (const [kind, n] of [["entities", 1], ["records", 3], ["principles", 4]] as const) {
-      await go(page, `/${kind}/${kind === "entities" ? encodeURIComponent(entityKey(n)) : id(n)}`);
-      await expect(form(page)).toBeVisible();
-      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), kind).toBe(true);
-      await expect(form(page).getByRole("button", { name: "닫기", exact: true })).toBeInViewport();
-      await page.screenshot({ path: info.outputPath(`${kind}-${width}.png`) });
-    }
-    await go(page, `/tags/entity?edit=${id(10)}`);
-    await expect(form(page).getByRole("form", { name: "태그 이름 변경" })).toBeVisible();
-    await expect(form(page)).toHaveCount(1);
-    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    await page.screenshot({ path: info.outputPath(`tags-${width}.png`) });
-    expect(state.errors).toEqual([]);
-  });
+
 }
 
 test("200% reflow·축소 visual viewport·한 글자 제목", async ({ page }, info) => {

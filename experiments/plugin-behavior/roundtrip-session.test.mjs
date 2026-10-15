@@ -2,11 +2,10 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { prepareRoundtripProfile, cleanupRoundtrip } from './roundtrip-session.mjs';
 
-const empty = () => ({ current: { current: null }, entities: [], tasks: [], records: [], principles: [], tags: [] });
+const empty = () => ({ entities: [], tasks: [], records: [], tags: [] });
 const own = () => ({ marker: 'plugin-codex-cli-12345678', authCreated: true, ownerId: 'owner', authUserId: 'owner', authEmail: 'plugin-codex-cli-12345678@fixture.invalid' });
 function reader(state) {
   return async name => {
-    if (name === 'get_current_principle') return state.current;
     if (name.startsWith('list_')) return { items: state[name.slice(5)].map(({ id }) => ({ id })), next_cursor: null };
     if (name.startsWith('get_')) return state[name === 'get_entity' ? 'entities' : name.slice(4) + 's'][0];
     throw new Error('Auth-only profile must never mutate business data');

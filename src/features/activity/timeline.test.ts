@@ -25,6 +25,5 @@ describe("record dates and return state", () => {
     expect([...collapsedDates(params)]).toEqual(["2026-10-04","2026-10-03"]);
     expect(listScope(params)).toBe("tag_id=t");
     expect(listDetailVisit("records",{pathname:"/records",search:params.toString(),hash:""},"r",120).back).toContain("collapsed=");
-    expect(safeListReturn("/principles?pages=2#principle-a","principles","fallback")).toBe("/principles?pages=2#principle-a");
   });
 });

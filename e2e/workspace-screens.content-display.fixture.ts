@@ -3,7 +3,7 @@ import { entityKey, id, stamp } from "./support/workspace-data.ts";
 import { connectedTarget, fixtures, form, go } from "./support/workspace-screens.ts";
 
 for (const width of [390, 1440]) {
-  for (const [kind, n] of [["tasks", 2], ["records", 3], ["principles", 4]] as const) {
+  for (const [kind, n] of [["tasks", 2], ["records", 3]] as const) {
     test(`문서 viewer ${kind} ${width}px: 정보 구획·편집과 안전한 markdown`, async ({ page }, info) => {
       const state = await fixtures(page), item = state.rows[kind][0];
       if ("tag_ids" in item) item.tag_ids = [id(11)];

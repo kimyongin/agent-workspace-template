@@ -4,14 +4,12 @@ import type { RequestStore } from "../shared/request.ts";
 import type { Actor } from "../shared/actor.ts";
 import type { ChangeStore } from "../shared/changes.ts";
 import type { ChangeMetadata } from "../../contracts/change.ts";
-import type { AppliedPrincipleSnapshot } from "../../contracts/record.ts";
 import type { IndexJob } from "../shared/store.ts";
 import type { NewTask, Task } from "./domain.ts";
 
 export interface ActivityRecord {
   record_kind?: "user" | "result" | "change";
   change?: ChangeMetadata | null;
-  applied_principle_snapshots?: AppliedPrincipleSnapshot[];
   entity_ids?: string[];
   entity_context?: EntityContext[];
   tag_ids: string[];

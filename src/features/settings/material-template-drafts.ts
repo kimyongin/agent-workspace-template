@@ -25,7 +25,7 @@ export function createMaterialTemplateDraft(typeId: string) {
 export type MaterialTemplateResource = ReturnType<typeof createMaterialTemplateDraft>;
 
 /** A model owns only its defaults; other targets remain in the checked baseline. */
-export function createRecordModelDraft(model: "task" | "principle") {
+export function createRecordModelDraft(model: "task") {
   const adapter = createRecordTemplatesDraft(api);
   return createSettingsDraft({
     ...adapter,
