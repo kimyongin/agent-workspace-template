@@ -119,7 +119,13 @@ test("엔터티 관련 기록 취소: 작성 URL·reload·메모와 변경 이�
       await expect(page).not.toHaveURL(/create=/);await expect(page).toHaveURL(/list=/);
       await expect(page.getByRole("button",{name:"기록 작성",exact:true})).toBeFocused();
     }
-    await page.reload();await expect(page.getByRole("heading",{name:entity.title,exact:true})).toBeVisible();
+    const reloaded = page.waitForResponse(response => response.request().method() === "GET" &&
+      new URL(response.url()).pathname.endsWith(`/entities/${encodeURIComponent(entity.id)}`));
+    await page.reload();
+    const read = await reloaded;
+    expect(read.status()).toBe(200);
+    await read.finished();
+    await expect(page.getByRole("heading",{name:entity.title,exact:true})).toBeVisible();
     await expect(page.getByRole("dialog",{name:"기록 작성",exact:true})).toHaveCount(0);
     expect((await mcp.call("get_entity",{id:entity.id})).version).toBe(1);
     expect((await mcp.call("list_records",{entity_id:entity.id,record_kind:"user"})).items).toEqual([]);
@@ -166,7 +172,12 @@ test("Entity 목록: 키워드/선택/정렬·추가 페이지·상세 복귀/�
     await expect(page.getByRole("button", { name: `${marker} 19`, exact: true })).toBeFocused();
     await mcp.call("delete_entity", { id: ids[19], expected_version: 1 });
     ids.splice(19, 1);
+    const reloaded = page.waitForResponse(response => response.request().method() === "GET" &&
+      new URL(response.url()).pathname.endsWith("/entities") && new URL(response.url()).searchParams.get("keyword") === marker);
     await page.reload();
+    const read = await reloaded;
+    expect(read.status()).toBe(200);
+    await read.finished();
     await expect(page.getByRole("heading", { name: (await scalarFixtureType(mcp)).label, level: 1, exact: true })).toBeFocused();
   } finally {
     // The serial owned fixture releases exactly these rows after all browser work ends.
