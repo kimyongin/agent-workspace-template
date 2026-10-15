@@ -532,11 +532,23 @@ for (const width of [320, 390, 639, 640]) {
     for (const scale of ["100%", "200%"]) {
       await page.evaluate(value => { document.documentElement.style.fontSize = value; }, scale);
       const panel = header.locator(".tab-filters > .form");
-      for (const grid of await panel.locator(".filter-grid, .entity-property-condition").all()) {
-        const columns = await grid.evaluate(el => getComputedStyle(el).gridTemplateColumns.split(" ").length);
-        expect(columns).toBeLessThanOrEqual(2);
-        if (width === 320 && scale === "200%") expect(columns).toBe(1);
-      }
+      const condition = panel.locator(".entity-property-condition");
+      await expect(condition).toHaveCount(1);
+      const controls = condition.locator("input,select");
+      await expect(controls).toHaveCount(3);
+      const [property, comparison, value] = await controls.evaluateAll(elements => elements.map(el => {
+        const box = el.getBoundingClientRect();
+        return { x: box.x, y: box.y, right: box.right, bottom: box.bottom };
+      }));
+      const remove = (await condition.getByRole("button", { name: "조건 1 제거", exact: true }).boundingBox())!;
+      expect(property.y).toBeCloseTo(comparison.y);
+      expect(property.right).toBeLessThanOrEqual(comparison.x);
+      expect(comparison.right).toBeLessThanOrEqual(remove.x);
+      expect(remove.y).toBeCloseTo(property.y);
+      expect(remove.width).toBeGreaterThanOrEqual(44);
+      expect(remove.height).toBeGreaterThanOrEqual(44);
+      expect(value.y).toBeGreaterThanOrEqual(Math.max(property.bottom, comparison.bottom));
+      expect(value.x).toBeCloseTo(property.x);
       expect(await panel.evaluate(el => el.scrollWidth <= el.clientWidth), scale).toBe(true);
       const boxes = await panel.locator("input,select,button").evaluateAll(elements => elements.map(el => {
         const box = el.getBoundingClientRect();

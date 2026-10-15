@@ -33,7 +33,7 @@
 .filter-grid > .field { width: min(100%, 15rem); }
 .filter-grid .input { min-width: 0; padding-inline: var(--space-2); }
 .filter-grid > .entity-property-conditions { flex-basis: 100%; }
-@media(max-width:639px) { .filter-grid > .field { flex: 1 1 8rem; } }
+@media(max-width:639px) { .filter-grid > .field { flex: 1 1 7rem; } }
 .filter-apply-footer { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: var(--space-3); }
 .filter-apply-footer .help { margin: 0 auto 0 0; }
 .mixed-query-bar > .notice { grid-column: 1 / -1; }
