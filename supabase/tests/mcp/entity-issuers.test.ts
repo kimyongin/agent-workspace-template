@@ -38,10 +38,7 @@ httpTest("issuer HTTP/MCP parity: policy impacts, owner isolation, unused deleti
     assertEquals(refused.status, 400);
     assertEquals(refused.body.code, "invalid_input");
     assertEquals(refused.body.fields, [{ path: `default_types.${typeId}`, message: created.body.label }]);
-    assertEquals(await tool(client, "update_entity_issuer", { code: source, ...stop }), {
-      ...refused.body,
-      error: true,
-    });
+    assertEquals(await tool(client, "update_entity_issuer", { code: source, ...stop }), { error: refused.body });
     assertEquals((await call(b, "DELETE", `/entity-identifier-rules/${rule.id}`, { expected_version: 1 })).status, 404);
     const linked = await call(a, "DELETE", `/entity-identifier-rules/${rule.id}`, { expected_version: 1 });
     assertEquals(linked.status, 400);
@@ -74,7 +71,12 @@ httpTest("issuer HTTP/MCP parity: policy impacts, owner isolation, unused deleti
     assertEquals(replay.status, 200);
     assertEquals(replay.headers.get("Idempotency-Replayed"), "true");
     assertEquals((await call(null, "DELETE", "/entity-issuers/app", { expected_version: 1 })).status, 401);
-    assertEquals((await call(a, "DELETE", "/entity-issuers/app", { expected_version: 1 })).body.code, "invalid_input");
+    const registry = (await call(a, "GET", "/entity-issuers")).body;
+    const app = registry.items.find((issuer: { code: string; version: number }) => issuer.code === "app");
+    assertEquals(
+      (await call(a, "DELETE", "/entity-issuers/app", { expected_version: app.version })).body.code,
+      "invalid_input",
+    );
   } finally {
     // Only this test's newly created objects. Existing definitions/data are untouched.
     const [owner] = typeId ? await admin`select owner_id from app.entity_types where id=${typeId}::uuid` : [];
