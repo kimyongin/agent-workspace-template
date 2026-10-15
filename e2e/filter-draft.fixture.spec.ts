@@ -136,7 +136,7 @@ test("history synchronizes optional drafts and property rows keep their responsi
     }).toBe(true);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     if (test.info().project.name.includes("desktop")) {
-      await page.screenshot({ path: `/tmp/filter-panels-review/${width}.png`, fullPage: true });
+      await page.screenshot({ path: test.info().outputPath(`${width}.png`), fullPage: true });
     }
   }
 });
