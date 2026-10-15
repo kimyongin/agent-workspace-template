@@ -16,7 +16,8 @@ test("settings type creation opens typed entity creation, immutable detail, and 
   let typeId: string | undefined;
   try {
     await page.goto("/settings");
-    await page.getByRole("link", { name: "자료 설정", exact: true }).click();
+    await page.getByRole("button", { name: "설정 메뉴", exact: true }).click();
+    await page.getByRole("navigation", { name: "설정 메뉴", exact: true }).getByRole("link", { name: "자료", exact: true }).click();
     await page.getByLabel("자료 종류 이름", { exact: true }).fill(label);
     const creating = page.waitForResponse((response) =>
       new URL(response.url()).pathname.endsWith("/entity-types") && response.request().method() === "POST"
@@ -31,7 +32,8 @@ test("settings type creation opens typed entity creation, immutable detail, and 
     const form = page.getByRole("dialog", { name: `${label} 추가`, exact: true });
     await expect(form.getByLabel("자료 종류", { exact: true })).toHaveValue(typeId!);
     await form.getByLabel("이름", { exact: false }).fill(title);
-    await form.getByLabel("식별자", { exact: true }).fill(unique("navigation-id"));
+    await expect(form.getByLabel("식별자", { exact: true })).toHaveAttribute("readonly", "");
+    await expect(form.getByLabel("식별자", { exact: true })).toHaveAttribute("placeholder", "자동 발급");
     await saveOnce(page, form);
     await expect(page).toHaveURL(/\/entities\//);
     await expect(page.getByText(title, { exact: true }).first()).toBeVisible();
@@ -40,16 +42,25 @@ test("settings type creation opens typed entity creation, immutable detail, and 
       headers: { authorization: `Bearer ${token}` },
     });
     expect(saved.ok()).toBe(true);
-    expect(await saved.json()).toMatchObject({ entity_type_id: typeId, properties: { prop_1: title } });
+    const stored = await saved.json();
+    expect(stored).toMatchObject({ entity_type_id: typeId, source: "app", properties: { prop_1: title } });
+    expect(stored.external_id).toBeTruthy();
+    expect(entityId).toBe(`app:${typeId}:${stored.external_id}`);
     await page.getByRole("button", { name: "편집", exact: true }).click();
     const editing = page.getByRole("dialog", { name: `${label} 편집`, exact: true });
     await expect(editing.getByLabel("자료 종류", { exact: true })).toHaveCount(0);
+    await expect(editing.getByLabel("식별자", { exact: true })).toHaveValue(stored.external_id);
+    await expect(editing.getByLabel("식별자", { exact: true })).toHaveAttribute("readonly", "");
     await expect(editing).toContainText("저장 후 종류를 변경할 수 없습니다");
     await editing.getByRole("button", { name: "취소", exact: true }).click();
     await closeDetail(page, title);
     await expect(page).toHaveURL(new RegExp(`entity_type_id=${typeId}`));
     expect(new URL(page.url()).searchParams.get("keyword")).toBe(title);
-    await page.getByRole("link", { name: "자료 설정", exact: true }).click();
+    await page.getByRole("button", { name: /^내 프로필(?: · .+)?$/, exact: true }).click();
+    await page.getByRole("link", { name: "설정", exact: true }).click();
+    await page.getByRole("button", { name: "설정 메뉴", exact: true }).click();
+    await page.getByRole("navigation", { name: "설정 메뉴", exact: true }).getByRole("link", { name: "자료", exact: true }).click();
+    await page.getByLabel("자료 종류 선택", { exact: true }).selectOption(typeId!);
     await expect(page).toHaveURL(new RegExp(`/settings/entity-types/${typeId}$`));
     await expect(page.getByRole("button", { name: /^내 프로필(?: · .+)?$/, exact: true })).toHaveAttribute("data-current", "true");
     await page.reload();
