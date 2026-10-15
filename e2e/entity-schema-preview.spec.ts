@@ -16,13 +16,14 @@ test("값 변환 준비: 저장된 직접 링크·실패 행 보완·재분석·
       properties: { prop_1: "001" },
     });
     entityId = entity.id;
+    const current = await mcp.call("get_entity_schema", { type_id: typeId });
     const plan = await mcp.call("create_entity_schema_change", {
       type_id: typeId,
       expected_schema_version: 1,
       edits: [{
         op: "update_property",
         key: "prop_1",
-        field: { "x-order": 20, type: "string", title: "이름", minLength: 1, maxLength: 2 },
+        field: { ...current.schema.properties.prop_1, maxLength: 2 },
         required: true,
       }],
     });
@@ -123,13 +124,14 @@ test("늦은 전체 결과가 새 실패 필터의 분석 페이지를 덮어쓰
         properties: { prop_1: "OK" },
       });
     ids.push(bad.id, good.id);
+    const current = await mcp.call("get_entity_schema", { type_id: typeId });
     const plan = await mcp.call("create_entity_schema_change", {
       type_id: typeId,
       expected_schema_version: 1,
       edits: [{
         op: "update_property",
         key: "prop_1",
-        field: { "x-order": 30, type: "string", minLength: 1, maxLength: 2 },
+        field: { ...current.schema.properties.prop_1, maxLength: 2 },
         required: true,
       }],
     });
