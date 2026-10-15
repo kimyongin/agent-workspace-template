@@ -43,11 +43,11 @@ for (
       // the retained previous viewer during a related-detail transition.
       await expect.poll(() => new URL(page.url()).pathname).toBe(detailPath);
       await expect(viewer.getByRole("heading", { name: heading, exact: true })).toBeVisible();
-      const freshRead = page.waitForResponse(response => response.request().method() === "GET" && response.url() === `${env.VITE_API_URL}${detailPath}`);
+      const freshRead = page.waitForRequest(request => request.method() === "GET" && request.url() === `${env.VITE_API_URL}${detailPath}`);
       await viewer.getByRole("button", { name: "편집", exact: true }).click();
-      const loaded = await freshRead;
-      expect(loaded.status()).toBe(200);
-      await loaded.finished();
+      const loaded = await (await freshRead).response();
+      expect(loaded?.status()).toBe(200);
+      await loaded!.finished();
       await expect(viewer.getByRole("button", { name: "저장", exact: true })).toBeVisible();
     };
     // Filler rows establish pagination only. Clone the API-created target's real
