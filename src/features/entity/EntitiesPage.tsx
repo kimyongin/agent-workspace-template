@@ -24,6 +24,7 @@ import { api, ApiError, query } from "../../lib/api.ts";
 import { EntityForm } from "./forms.tsx";
 import { GuideLink } from "../../components/GuideLink.tsx";
 import { TabCreateButton } from "../../components/TabCreateButton.tsx";
+import { BodyAction } from "../../components/BodyAction.tsx";
 
 export function EntitiesPage() {
   const create = useCreateMode();
@@ -97,6 +98,7 @@ export function EntitiesPage() {
   const invalidType = !!filter.entity_type_id && types !== null && !selectedType;
   const unsupported = ["prop3_from", "prop3_to", "prop4"].some((key) => params.has(key));
   const key = query(filter), context = `${key}|${hash}|${urlFilters.error ?? ""}|${unsupported}|${schema?.schema_version ?? 0}`;
+  const hasConditions = !!(filter.keyword || filter.tag_id || filter.filters || filter.sort !== "updated_at");
   const creating = create.open;
   const list = usePagedList<EntitySummary, ListPage<EntitySummary>>({
     scope: `${context}|${typeError ? "catalog_error" : types === null ? "catalog_loading" : invalidType ? "invalid" : !schemaReady ? "schema_loading" : "ready"}`,
@@ -283,15 +285,14 @@ export function EntitiesPage() {
           {page?.items.length === 0 && (
             <>
               <p className="secondary">
-                {key !== "?sort=updated_at" ? "조건에 맞는 자료가 없습니다." : "아직 자료가 없습니다."}
+                {hasConditions ? "조건에 맞는 자료가 없습니다." : "아직 자료가 없습니다."}
               </p>
-              {key === "?sort=updated_at" && <GuideLink />}
-              <button
-                className="btn"
-                onClick={() => navigate(`/entities?${resetTabFilters(params)}`, { replace: true })}
-              >
-                필터 해제
-              </button>
+              {!hasConditions && <GuideLink />}
+              {hasConditions && <BodyAction icon="reset" onClick={() => {
+                const next = resetTabFilters(params);
+                next.delete("keyword");
+                navigate(`/entities?${next}`, { replace: true });
+              }}>필터 해제</BodyAction>}
             </>
           )}
           <TagReadProvider
@@ -347,8 +348,7 @@ export function EntitiesPage() {
             </CollectionList>
           </TagReadProvider>
           {page && (page.next_cursor || page.pages > 1) && (
-            <button
-              className="btn"
+            <BodyAction
               aria-disabled={busy || !page.next_cursor}
               onClick={() => {
                 if (busy || !page.next_cursor) return;
@@ -367,7 +367,7 @@ export function EntitiesPage() {
               }}
             >
               {busy ? "불러오는 중…" : error ? "다시 시도" : page.next_cursor ? "더 보기" : "모두 불러왔습니다"}
-            </button>
+            </BodyAction>
           )}
           {creating && !invalidType && !selectedType?.archived && (
             <EntityForm

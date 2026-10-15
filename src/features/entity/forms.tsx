@@ -1,4 +1,5 @@
 import type { EntityTypeIdentity } from "@contracts/entity-issuer.ts";
+import { Link } from "react-router";
 import { EntityTypePicker } from "./EntityTypePicker.tsx";
 import { entityId, entityIdentity, entityPath } from "@contracts/entity-identity.ts";
 import { api, ApiError } from "../../lib/api.ts";
@@ -129,7 +130,6 @@ export function EntityForm({
     definitionRead.current?.abort();
     definitionRead.current = controller;
     setSchemaReading(true);
-    setSchemaError("");
     try {
       const latest = await api<EntitySchemaResult>(
         "GET",
@@ -157,6 +157,7 @@ export function EntityForm({
       ),
     );
     setDefinition(pendingDefinition);
+    setSchemaError("");
     setPendingDefinition(null);
     prepared.current = null;
   };
@@ -383,11 +384,12 @@ export function EntityForm({
                 !type.archived
               ) && !initial && (
                 <p>
-                  활성 자료 종류가 없습니다. <a href="/settings/entity-types">자료 종류 만들기·보관 관리</a>
+                  활성 자료 종류가 없습니다. <Link to="/settings/entity-types">자료 종류 만들기·보관 관리</Link>
                 </p>
               )}
               {schemaError && <p role="alert">{schemaError}</p>}
-              {typeId && (
+              {typeId && (schemaError || errors.schema_version ||
+                definition && activeType && definition.schema_version !== activeType.schema_version) && (
                 <button
                   type="button"
                   className="btn"
@@ -495,7 +497,8 @@ export function EntityForm({
                   />
                 )}
               </Field>
-              {!initial && !archived && (
+              {!initial && !archived && external &&
+                identitySettings?.sources.find((item) => item.code === source)?.generation === "direct" && (
                 <button
                   type="button"
                   className="btn"

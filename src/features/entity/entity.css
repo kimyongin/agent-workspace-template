@@ -5,4 +5,3 @@
 .entity-list-properties dt { color: var(--muted-ink); }
 .entity-list-properties dd { margin: 0; overflow-wrap: anywhere; }
 .entity-identity-value { font-family: ui-monospace, monospace; overflow-wrap: anywhere; }
-.entity-detail-properties .detail-title { font-size: inherit; font-weight: inherit; line-height: inherit; }
