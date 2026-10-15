@@ -47,8 +47,8 @@ test("owned fixture final cleanup preserves same-number other owner/baseline/Aut
           otherType,
         ]]
       ) {
-        await tx`insert into app.entity_types(owner_id,id,label) values(${user},${id},'owned fixture')`;
-        await tx`insert into app.entity_schema_versions(owner_id,type_id,schema_version,schema,display) values(${user},${id},1,'{}','{}')`;
+        await tx`insert into app.entity_types(owner_id,id) values(${user},${id})`;
+        await tx`insert into app.entity_schema_versions(owner_id,schema) values(${user},${tx.json(fixtureSchema(id))})`;
       }
       for (
         const [user, id, source, ruleId] of [[owner, type, "fixture", rule], [other, otherType, "fixture", otherRule], [
@@ -224,3 +224,17 @@ test("owned fixture final cleanup preserves same-number other owner/baseline/Aut
     await sql.end();
   }
 });
+
+function fixtureSchema(typeId) {
+  return {
+    "x-type-id": typeId,
+    "x-version": 1,
+    title: "owned fixture",
+    "x-icon": "box",
+    deprecated: false,
+    type: "object",
+    additionalProperties: false,
+    properties: { prop_1: { type: "string", title: "이름", "x-order": 1, "x-representative": true } },
+    required: ["prop_1"],
+  };
+}

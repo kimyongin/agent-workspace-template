@@ -21,8 +21,8 @@ test('administrator cleanup preserves accounts, settings and another owner; stal
     await sql.begin(async tx => {
       await tx`insert into auth.users(id,email) values(${owner},${`cleanup-${owner}@example.test`}),(${other},${`cleanup-${other}@example.test`})`;
       for (const [user, typeId] of [[owner, type], [other, otherType]]) {
-        await tx`insert into app.entity_types(owner_id,id,label) values(${user},${typeId},'cleanup test')`;
-        await tx`insert into app.entity_schema_versions(owner_id,type_id,schema_version,schema,display) values(${user},${typeId},1,'{}','{}')`;
+        await tx`insert into app.entity_types(owner_id,id) values(${user},${typeId})`;
+        await tx`insert into app.entity_schema_versions(owner_id,schema) values(${user},${tx.json(fixtureSchema(typeId))})`;
         await tx`insert into app.entities(owner_id,id,source,external_id,entity_type_id,schema_version,properties) values(${user},'demo:a','demo','a',${typeId},1,'{}')`;
       }
       await tx`insert into app.entities(owner_id,id,source,external_id,entity_type_id,schema_version,properties) values(${owner},'demo:b','demo','b',${type},1,'{}')`;
@@ -32,10 +32,10 @@ test('administrator cleanup preserves accounts, settings and another owner; stal
       await tx`insert into app.records(owner_id,id,body) values(${owner},${record},'approved demo'),(${owner},${personal},'personal keep')`;
       await tx`update app.records set task_id=${task},entity_ids=array['demo:a'] where owner_id=${owner} and id=${record}`;
       await tx`insert into app.record_tags(owner_id,record_id,tag_id) values(${owner},${record},${tag})`;
-      await tx`insert into app.entity_schema_changes(owner_id,type_id,id,source_type_version,source_schema_version,source_template_fingerprint,kind,edits,reservations,target,diff,fingerprint) values(${owner},${type},${change},1,1,'test','migration_required','[]','[]','{"schema":{},"display":{}}','{}','test')`;
+      await tx`insert into app.entity_schema_changes(owner_id,type_id,id,source_type_version,source_schema_version,source_template_fingerprint,kind,edits,reservations,target,diff,fingerprint) values(${owner},${type},${change},1,1,'test','migration_required','[]','[]',${tx.json({ schema: fixtureSchema(type) })},'{}','test')`;
       await tx`insert into app.entity_schema_analyses(owner_id,type_id,change_id,id,change_version,fingerprint,membership,status,total) values(${owner},${type},${change},${analysis},1,'test','test','succeeded',1)`;
       await tx`insert into private.entity_schema_analysis_rows(owner_id,analysis_id,entity_id,source_version,source_schema_version,properties) values(${owner},${analysis},'demo:a',1,1,'{"prop_1":"original"}')`;
-      await tx`insert into app.entity_schema_migrations(owner_id,type_id,id,change_id,change_version,analysis_id,fingerprint,membership,source_type_version,source_schema_version,source_template_fingerprint,source_templates,source_definition,target,migration,status,total,actor_source,source_expires_at) values(${owner},${type},${job},${change},1,${analysis},'test','test',1,1,'test','{}','{}','{}','{}','succeeded',1,'http',now()+interval '30 days')`;
+      await tx`insert into app.entity_schema_migrations(owner_id,type_id,id,change_id,change_version,analysis_id,fingerprint,membership,source_type_version,source_schema_version,source_template_fingerprint,source_templates,source_definition,target,migration,status,total,actor_source,source_expires_at) values(${owner},${type},${job},${change},1,${analysis},'test','test',1,1,'test','{}',${tx.json({ schema: fixtureSchema(type) })},${tx.json({ schema: fixtureSchema(type) })},'{}','succeeded',1,'http',now()+interval '30 days')`;
       await tx`insert into private.entity_schema_migration_rows(owner_id,job_id,entity_id,source_version,source_schema_version,source_properties,source_identity,after,changed) values(${owner},${job},'demo:a',1,1,'{"prop_1":"original"}','{}','{}',false)`;
       await tx`insert into app.user_business_settings(owner_id,id,version,settings) values(${owner},'record_templates',1,${tx.json(settings)}),(${owner},'entity_identity',1,'{"default_source":"personal"}')`;
       await tx`select pgmq.send('search_index'::text,${tx.json({ owner_id: owner, kind: 'record', id: record, pipeline: 'test', input_hash: '0'.repeat(64) })}::jsonb)`;
@@ -80,3 +80,17 @@ test('administrator cleanup preserves accounts, settings and another owner; stal
     await sql.end();
   }
 });
+
+function fixtureSchema(typeId) {
+  return {
+    "x-type-id": typeId,
+    "x-version": 1,
+    title: "cleanup test",
+    "x-icon": "box",
+    deprecated: false,
+    type: "object",
+    additionalProperties: false,
+    properties: { prop_1: { type: "string", title: "이름", "x-order": 1, "x-representative": true } },
+    required: ["prop_1"],
+  };
+}

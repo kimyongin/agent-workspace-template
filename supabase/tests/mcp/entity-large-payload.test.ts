@@ -337,9 +337,9 @@ httpTest(
       });
       await clean(() =>
         admin.begin(async (tx) => {
-          // Exact run label also finds a creation whose HTTP response was lost.
+          // Exact run schema title also finds a creation whose HTTP response was lost.
           const kinds =
-            await tx`select id,label from app.entity_types where owner_id=${owner} and label=${`large351 ${run}`}`;
+            await tx`select t.id from app.entity_types t join app.entity_schema_versions s on s.owner_id=t.owner_id and s.type_id=t.id and s.schema_version=t.schema_version where t.owner_id=${owner} and s.schema->>'title'=${`large351 ${run}`}`;
           assert(kinds.length <= 1);
           const cleanupType = kinds[0]?.id as string | undefined;
           if (typeId && cleanupType) assertEquals(cleanupType, typeId);
@@ -362,7 +362,7 @@ httpTest(
             await tx`delete from app.entity_types where owner_id=${owner} and id=${cleanupType}`;
           }
           const [remaining] =
-            await tx`select (select count(*) from app.entities where owner_id=${owner} and id=any(${ownedIds}::text[]))::int as entities,(select count(*) from app.entity_types where owner_id=${owner} and label=${`large351 ${run}`})::int as types,(select count(*) from app.records where owner_id=${owner} and id=any(${recordIds}::text[]))::int as records,(select count(*) from private.request_results where owner_id=${owner} and request_key=any(${keys}::uuid[]))::int as requests,(select count(*) from app.search_index_state where owner_id=${owner} and id=any(${recordIds}::text[]))::int as indexes,(select count(*) from private.passage_effects where owner_id=${owner} and record_id=any(${recordIds}::text[]))::int as effects,(select count(*) from app.search_chunks where owner_id=${owner} and record_id=any(${recordIds}::text[]))::int as chunks,(select count(*) from pgmq.q_search_index where message->>'owner_id'=${owner} and message->>'id'=any(${recordIds}::text[]))::int as queue,(select count(*) from pgmq.a_search_index where message->>'owner_id'=${owner} and message->>'id'=any(${recordIds}::text[]))::int as archive`;
+            await tx`select (select count(*) from app.entities where owner_id=${owner} and id=any(${ownedIds}::text[]))::int as entities,(select count(*) from app.entity_types t join app.entity_schema_versions s on s.owner_id=t.owner_id and s.type_id=t.id and s.schema_version=t.schema_version where t.owner_id=${owner} and s.schema->>'title'=${`large351 ${run}`})::int as types,(select count(*) from app.records where owner_id=${owner} and id=any(${recordIds}::text[]))::int as records,(select count(*) from private.request_results where owner_id=${owner} and request_key=any(${keys}::uuid[]))::int as requests,(select count(*) from app.search_index_state where owner_id=${owner} and id=any(${recordIds}::text[]))::int as indexes,(select count(*) from private.passage_effects where owner_id=${owner} and record_id=any(${recordIds}::text[]))::int as effects,(select count(*) from app.search_chunks where owner_id=${owner} and record_id=any(${recordIds}::text[]))::int as chunks,(select count(*) from pgmq.q_search_index where message->>'owner_id'=${owner} and message->>'id'=any(${recordIds}::text[]))::int as queue,(select count(*) from pgmq.a_search_index where message->>'owner_id'=${owner} and message->>'id'=any(${recordIds}::text[]))::int as archive`;
           assertEquals(remaining, {
             entities: 0,
             types: 0,

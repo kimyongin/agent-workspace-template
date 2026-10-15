@@ -99,6 +99,7 @@ description: Workspace에서 다음 업무의 검토·준비안을 만들거나 
 | 자료 종류·현재 이름·아이콘·보관 상태 조회 | `list_entity_types`, `get_entity_type`, `list_entity_type_icons` |
 | 요청받은 자료 종류 생성·이름·아이콘·보관 상태 변경 | `create_entity_type`, `update_entity_type` |
 | 종류별 현재·과거 속성 정의와 버전 조회 | `get_entity_schema`, `list_entity_schema_versions` |
+| JSON 정의 원문 검토·요청받은 변경안 또는 새 종류 복사 준비 | `preview_entity_schema_import`, `prepare_entity_schema_import` |
 | 요청받은 속성 변경 초안·영향 분석·호환 가능한 게시 | `create_entity_schema_change`, `update_entity_schema_change`, `analyze_entity_schema_change`, `apply_entity_schema_change`, `discard_entity_schema_change` |
 | 변경 초안·차이·분석 상태 조회 | `get_entity_schema_change`, `list_entity_schema_changes` |
 | 완료한 현재 분석의 변환 전후·실패 페이지 조회 | `list_entity_schema_analysis_rows` |

@@ -9,7 +9,7 @@ type Mcp = Awaited<ReturnType<typeof mcpClient>>;
 
 async function currentDocument(page: Page) {
   const history = page.getByRole("region", { name: "변경 이력", exact: true });
-  const toggle = history.getByRole("button", { name: /^변경 이력/ });
+  const toggle = history.getByRole("heading", { level: 2, name: /^변경 이력/ }).getByRole("button");
   if (await toggle.getAttribute("aria-expanded") === "false") await toggle.click();
   const [download] = await Promise.all([
     page.waitForEvent("download"),
@@ -51,7 +51,7 @@ async function importAndPublish(page: Page, mcp: Mcp, typeId: string, document: 
     { timeout: 30_000 },
   ).toBe("applied");
   const published = await mcp.call("get_entity_schema", { type_id: typeId });
-  await expect(history.getByRole("button", { name: /^변경 이력/ })).toContainText(
+  await expect(history.getByRole("heading", { level: 2, name: /^변경 이력/ }).getByRole("button")).toContainText(
     `현재 버전 ${published.schema_version}`,
   );
   return published;
@@ -117,7 +117,7 @@ test("JSON file export→edited import→normal publication→web create/read→
     const name = unique("파일 왕복 상품");
     await form.getByLabel("상품명", { exact: true }).fill(name);
     await expect(form.getByLabel("수량", { exact: true })).toHaveValue("0");
-    await expect(form.getByLabel("판매 상태", { exact: true })).toHaveValue("unset");
+    await expect(form.getByLabel("판매 상태", { exact: true })).toHaveValue("null");
     await expect(form.getByLabel("고정 번호", { exact: true })).toHaveCount(0);
     await saveOnce(page, form);
     await expect(form).not.toBeVisible();

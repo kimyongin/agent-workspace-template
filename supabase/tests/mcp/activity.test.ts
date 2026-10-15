@@ -1,4 +1,8 @@
 import {
+  entitySchemaImportPrepare,
+  entitySchemaImportPreview,
+} from "../../functions/_shared/contracts/entity-schema-import.ts";
+import {
   identifierRuleCreate,
   identifierRuleUpdate,
   issuerCode,
@@ -213,6 +217,8 @@ const EXPECTED_TOOLS = [
   "create_entity_type",
   "update_entity_type",
   "get_entity_schema",
+  "preview_entity_schema_import",
+  "prepare_entity_schema_import",
   "list_entity_schema_versions",
   "create_entity_schema_change",
   "get_entity_schema_change",
@@ -553,6 +559,8 @@ httpTest("tools/list: 계약의 도구 이름과 contracts JSON Schema", async (
     create_entity_type: entityTypeCreate.extend({ request_key: requestKey }),
     update_entity_type: entityTypeUpdate.safeExtend({ type_id: z.string().uuid(), request_key: requestKey }),
     get_entity_schema: entitySchemaRead,
+    preview_entity_schema_import: entitySchemaImportPreview,
+    prepare_entity_schema_import: entitySchemaImportPrepare.safeExtend({ request_key: requestKey }),
     list_entity_schema_versions: entitySchemaHistory,
     create_entity_schema_change: schemaChangeCreate.extend({ type_id: z.string().uuid(), request_key: requestKey }),
     update_entity_schema_change: schemaChangeUpdate.extend({
@@ -608,6 +616,8 @@ httpTest("tools/list: 계약의 도구 이름과 contracts JSON Schema", async (
     z.toJSONSchema(recordCreate.extend({ request_key: requestKey }), { target: "draft-2020-12", io: "input" }),
   );
   for (const t of tools) assertEquals(t.inputSchema.type, "object", t.name);
+  assertEquals(byName.preview_entity_schema_import.annotations?.readOnlyHint, true);
+  assertEquals(byName.prepare_entity_schema_import.annotations?.readOnlyHint, false);
   assertEquals(byName.get_task.annotations?.readOnlyHint, true);
   assertEquals(byName.delete_task.annotations?.destructiveHint, true);
 });
