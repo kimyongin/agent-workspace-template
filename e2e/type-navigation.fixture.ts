@@ -572,9 +572,9 @@ test("conversion literals preserve unsafe drafts and removed properties permit e
   });
   await page.goto(`/settings/entity-types/${materials.id}?change_id=${changeId}`);
   const conversions = page.getByRole("region", { name: "변환 규칙과 영향 미리보기" });
-  await conversions.getByLabel("prop_3 변환 방식", { exact: true }).selectOption("remove");
-  await expect(conversions.getByLabel("prop_3 변환 방식", { exact: true })).toHaveValue("remove");
-  const field = conversions.locator(".schema-field").filter({ has: page.getByLabel("prop_2 변환 방식", { exact: true }) });
+  await conversions.getByLabel("이전 수량 변환 방식", { exact: true }).selectOption("remove");
+  await expect(conversions.getByLabel("이전 수량 변환 방식", { exact: true })).toHaveValue("remove");
+  const field = conversions.locator(".schema-field").filter({ has: page.getByLabel("수량 변환 방식", { exact: true }) });
   await field.getByLabel("누락값 채우기", { exact: true }).check();
   const input = field.getByLabel("보완값", { exact: true });
   await input.fill("1.0000000000000001");
@@ -864,7 +864,7 @@ test("basic conflict and uncertain responses retain input and retry the exact re
     if (route.request().method() !== "PATCH") return route.fallback();
     attempts.push({ key: route.request().headers()["idempotency-key"], body: route.request().postDataJSON() });
     if (attempts.length === 1) {
-      return route.fulfill({ status: 409, json: { code: "conflict", message: "다른 변경이 저장되었습니다." } });
+      return route.fulfill({ status: 409, json: { code: "schema_changed", message: "다른 변경이 저장되었습니다.", current: { type_version: 2, schema_version: 1 } } });
     }
     if (attempts.length === 2) return route.abort();
     return route.fulfill({ json: { ...materials, label: "남길 입력", version: 2 } });
@@ -995,7 +995,7 @@ test("basic conflict refresh preserves section drafts and reapplies against the 
     writes.push({ key: route.request().headers()["idempotency-key"], body });
     if (writes.length === 1) {
       latest = { ...materials, label: "다른 화면 저장값", icon_id: "book", archived: true, version: 2 };
-      return route.fulfill({ status: 409, json: { code: "conflict", message: "다른 변경이 저장되었습니다." } });
+      return route.fulfill({ status: 409, json: { code: "schema_changed", message: "다른 변경이 저장되었습니다.", current: { type_version: 2, schema_version: 1 } } });
     }
     latest = { ...latest, ...body, version: 3 };
     return route.fulfill({ json: latest });

@@ -43,6 +43,7 @@ export function fieldSummary(field: EntityField) {
   return [label, ...constraints.filter(Boolean)].join(" · ");
 }
 export function schemaDiffLabel(path: string, target: SchemaDefinition, source: SchemaDefinition) {
+  if (path === "recovery") return "자료 값 복구";
   const parts = path.split("."), key = parts.find((part) => /^prop_[0-9]+$/.test(part));
   const name = key
     ? target.schema.properties[key]?.title ?? source.schema.properties[key]?.title ?? "삭제한 속성"
@@ -84,6 +85,11 @@ export function schemaValueLabel(value: unknown, definition?: SchemaDefinition):
 
 /** Review values use the input labels rather than schema storage spellings. */
 export function schemaDiffValueLabel(path: string, value: unknown, definition: SchemaDefinition): string {
+  if (path === "display.option_labels" && value && typeof value === "object") {
+    return Object.entries(value).map(([key, labels]) =>
+      `${definition.schema.properties[key]?.title ?? "항목"}: ${Object.values(labels ?? {}).join(", ") || "없음"}`
+    ).join(" · ") || "없음";
+  }
   if (path.endsWith(".required") && typeof value === "boolean") return value ? "필수" : "선택";
   if (path.endsWith(".type") && (typeof value === "string" || Array.isArray(value))) {
     return fieldTypeLabel({ type: value as EntityField["type"] });

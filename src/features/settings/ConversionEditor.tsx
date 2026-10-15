@@ -14,8 +14,15 @@ import { Field } from "../../components/Field.tsx";
 import { api } from "../../lib/api.ts";
 import { fieldType } from "../entity/property-fields.tsx";
 type Rule = MigrationPlan["rules"][number];
-function propertyValue(value: unknown, key: string, definition?: SchemaDefinition) {
-  return typeof value === "string" ? schemaOptionLabel(definition?.display.option_labels[key], value) : schemaValueLabel(value);
+function propertyValue(value: unknown, key: string, definition?: SchemaDefinition, showType = false) {
+  const label = typeof value === "string" ? schemaOptionLabel(definition?.display.option_labels[key], value) : schemaValueLabel(value);
+  const kind = typeof value === "string" ? "텍스트" : typeof value === "number" ? Number.isInteger(value) ? "정수" : "숫자" : typeof value === "boolean" ? "참·거짓" : "";
+  return showType && kind ? `${label} (${kind})` : label;
+}
+function previewKeys(row: SchemaAnalysisRow) {
+  const keys = [...new Set([...Object.keys(row.before), ...Object.keys(row.after ?? {})])];
+  const changed = (key: string) => !row.after || Object.hasOwn(row.before, key) !== Object.hasOwn(row.after, key) || JSON.stringify(row.before[key]) !== JSON.stringify(row.after[key]);
+  return keys.sort((a, b) => Number(changed(b)) - Number(changed(a)));
 }
 function analysisRowTitle(row: SchemaAnalysisRow, target: SchemaDefinition, source?: SchemaDefinition) {
   const before = source ? row.before[source.display.representative] : undefined;
@@ -182,6 +189,7 @@ export function ConversionEditor(
                   ),
                 ]),
               ].map((key) => {
+                const sourceField = sourceDefinition?.schema.properties[key] ?? plan.diff.find((diff) => diff.path === `properties.${key}`)?.before as EntityField | undefined;
                 const f = plan.target.schema.properties[key],
                   r = migration.rules.find((r) => r.key === key && group(r) === "transform"),
                   fill = migration.rules.find((r) => r.key === key && r.op === "fill"),
@@ -189,12 +197,12 @@ export function ConversionEditor(
                   scalar = fieldType(f);
                 return (
                   <section className="schema-field" key={key}>
-                    <Field label={f?.title ?? "삭제한 속성"}>
+                    <Field label={f?.title ?? sourceField?.title ?? "삭제한 속성"}>
                       {(p) => (
                         <select
                           {...p}
                           className="input"
-                          aria-label={`${key} 변환 방식`}
+                          aria-label={`${f?.title ?? sourceField?.title ?? "삭제한 항목"} 변환 방식`}
                           value={r?.op ?? "none"}
                           onChange={(e) => {
                             const op = e.target.value;
@@ -367,7 +375,7 @@ export function ConversionEditor(
                 {row.errors.length ? "변환 실패" : row.changed ? "변경" : "무변경"}
               </h4>
               <dl className="props">
-                {[...new Set([...Object.keys(row.before), ...Object.keys(row.after ?? {})])].map((key) => (
+                {previewKeys(row).map((key) => (
                   <div key={key}>
                     <dt>
                       {plan.target.schema.properties[key]?.title ?? sourceDefinition?.schema.properties[key]?.title ??
@@ -375,12 +383,12 @@ export function ConversionEditor(
                     </dt>
                     <dd style={{ overflowWrap: "anywhere" }}>
                       {plan.recovery ? "현재 값" : "원본"}{" "}
-                      {Object.hasOwn(row.before, key) ? propertyValue(row.before[key], key, sourceDefinition) : "누락"}
+                      {Object.hasOwn(row.before, key) ? propertyValue(row.before[key], key, sourceDefinition, row.after !== null && Object.hasOwn(row.after, key) && typeof row.before[key] !== typeof row.after[key]) : "누락"}
                       {" "}
                       → {plan.recovery ? "복구" : "변환"} {row.after === null
                         ? "미리보기 크기 초과"
                         : Object.hasOwn(row.after, key)
-                        ? propertyValue(row.after[key], key, plan.target)
+                        ? propertyValue(row.after[key], key, plan.target, Object.hasOwn(row.before, key) && typeof row.before[key] !== typeof row.after[key])
                         : "제거"}
                     </dd>
                   </div>

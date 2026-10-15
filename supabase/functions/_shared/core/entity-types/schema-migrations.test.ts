@@ -108,3 +108,16 @@ Deno.test("recovery creation observes expiry again after template preparation be
   assertEquals((e as { code: string }).code, "migration_source_expired");
   assertEquals(run.saved, []);
 });
+
+Deno.test("recovery review reports each restored property type instead of a generic definition object", async () => {
+  const c = context();
+  c.source.schema.properties.prop_2 = { type: "integer", title: "가격" };
+  c.source.display.order.push("prop_2");
+  c.current.schema.properties.prop_2 = { type: "string", title: "가격" };
+  c.current.display.order.push("prop_2");
+  c.committed_target = structuredClone(c.current);
+  const run = usecase(c);
+  await run.create();
+  assertEquals(run.saved[0].diff.find((d) => d.path === "properties.prop_2.type")?.before, "string");
+  assertEquals(run.saved[0].diff.find((d) => d.path === "properties.prop_2.type")?.after, "integer");
+});

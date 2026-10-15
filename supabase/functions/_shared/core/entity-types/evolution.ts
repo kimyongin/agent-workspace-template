@@ -18,6 +18,16 @@ export async function definitionFingerprint(value: unknown) {
     (x) => x.toString(16).padStart(2, "0"),
   ).join("");
 }
+/** Resolve same-request additions without admitting temporary keys into a stored definition. */
+export function resolvePropertyReference(key: string, edits: SchemaEdit[], reservations: Record<string, string>) {
+  if (!key.startsWith("new_")) return key;
+  const ref = key.slice(4);
+  if (
+    !edits.some((item) => item.op === "add_property" && item.client_ref === ref) ||
+    !Object.hasOwn(reservations, ref)
+  ) throw invalidInput("새 항목의 참조를 확인하세요");
+  return reservations[ref];
+}
 export function resolveSchemaEdits(
   source: SchemaDefinition,
   edits: SchemaEdit[],
@@ -28,7 +38,16 @@ export function resolveSchemaEdits(
   const additions = new Set<string>();
   for (const edit of edits) {
     if (edit.op === "set_display") {
-      target.display = structuredClone(edit.display);
+      const resolve = (key: string) => resolvePropertyReference(key, edits, reservations);
+      target.display = {
+        representative: resolve(edit.display.representative),
+        order: edit.display.order.map(resolve),
+        list_columns: edit.display.list_columns.map(resolve),
+        archived: edit.display.archived.map(resolve),
+        option_labels: Object.fromEntries(
+          Object.entries(edit.display.option_labels).map(([key, labels]) => [resolve(key), labels]),
+        ),
+      };
       continue;
     }
     if (edit.op === "archive_property" || edit.op === "restore_property") {
@@ -51,7 +70,7 @@ export function resolveSchemaEdits(
       }
       additions.add(edit.client_ref);
       target.schema.properties[key] = edit.field;
-      target.display.order.push(key);
+      if (!target.display.order.includes(key)) target.display.order.push(key);
     } else if (!source.schema.properties[key]) {
       throw invalidInput("현재 정의에 없는 속성은 수정할 수 없습니다", [{
         path: `properties.${key}`,
@@ -80,6 +99,15 @@ export function resolveSchemaEdits(
     );
   }
   validateEntityDefinition(target);
+  const diff = schemaDefinitionDiff(source, target);
+  return {
+    target,
+    diff,
+    kind: diff.some((d) => d.kind === "migration_required") ? "migration_required" : "compatible",
+  };
+}
+/** The same per-field comparison describes edits and source-preserving recovery proposals. */
+export function schemaDefinitionDiff(source: SchemaDefinition, target: SchemaDefinition): SchemaDiff[] {
   const diff: SchemaDiff[] = [];
   const add = (path: string, before: unknown, after: unknown, migration: boolean, reason: string) => {
     if (canonical(before) === canonical(after)) return;
@@ -153,9 +181,5 @@ export function resolveSchemaEdits(
   for (const key of Object.keys(target.display) as Array<keyof typeof target.display>) {
     add(`display.${key}`, source.display[key], target.display[key], false, "표시 설정 변경");
   }
-  return {
-    target,
-    diff,
-    kind: diff.some((d) => d.kind === "migration_required") ? "migration_required" : "compatible",
-  };
+  return diff;
 }

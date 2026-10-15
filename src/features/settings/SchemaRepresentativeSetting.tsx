@@ -8,7 +8,7 @@ export function SchemaRepresentativeSetting({ draft, propertyKey, disabled, choo
   chooseRepresentative: (key: string) => void;
 }) {
   const field = draft.schema.properties[propertyKey];
-  const eligible = !propertyKey.startsWith("new_") && !draft.display.archived.includes(propertyKey) &&
+  const eligible = !draft.display.archived.includes(propertyKey) &&
     field.type === "string" && !field.format && !field.enum && draft.schema.required.includes(propertyKey) &&
     (field.minLength ?? 0) >= 1;
   return (
@@ -25,7 +25,7 @@ export function SchemaRepresentativeSetting({ draft, propertyKey, disabled, choo
         <span>자료 이름으로 사용</span>
       </label>
       {!eligible && (
-        <p className="secondary">검토한 필수 텍스트 항목만 선택할 수 있습니다. 최소 길이는 1자 이상이어야 합니다.</p>
+        <p className="secondary">필수 텍스트 항목만 선택할 수 있습니다. 최소 길이는 1자 이상이어야 합니다.</p>
       )}
     </div>
   );

@@ -1,6 +1,6 @@
 # 자료 종류 속성 변경 계약
 
-속성 변경은 종류별 초안 저장 → 비동기 영향 분석 → 호환 가능한 새 버전 게시 또는 값 변환 작업으로 진행한다. HTTP와 MCP는 같은 유스케이스·Actor 트랜잭션·요청 원장을 사용한다. 조회와 버전 미리보기는 쓰기나 분석 실행을 하지 않는다.
+속성 변경은 종류별 초안 저장 → 영향 분석 → 호환 가능한 새 버전 게시 또는 값 변환 작업으로 진행한다. HTTP와 MCP는 같은 유스케이스·Actor 트랜잭션·요청 원장을 사용한다. 조회와 버전 미리보기는 쓰기나 분석 실행을 하지 않는다.
 
 ## 제한된 편집
 
@@ -12,19 +12,19 @@
 
 ## 정확한 정책과 분석
 
-초안은 해석된 target, 예약, fingerprint와 필드별 before/after·분류·이유·다음 행동을 반환한다. 라벨·설명·표시 순서·선택 속성 추가·필수 해제·제약 확대·선택 코드 추가는 호환 가능하다. 필수화·타입 변환·제약 축소·코드 제거·영구 삭제는 자료 수가 0이어도 값 변환이 필요하다. 정수→숫자는 이전 정수 범위가 제품 숫자 범위 ±10억 안에 있을 때만 호환 가능하다. 대표 이름 불변 조건이 일반 정책보다 우선한다.
+초안은 해석된 target, 예약, fingerprint와 필드별 before/after·분류·이유·다음 행동을 반환한다. 라벨·설명·표시 순서·선택 속성 추가·필수 해제·제약 확대·선택 코드 추가는 호환 가능하다. 필수화·타입 변환·제약 축소·코드 제거·영구 삭제는 migration_required로 분류한다. 다만 복구안이 아니고 정확한 성공 분석의 전체 대상이 0개면 값 변환 작업 없이 정의만 게시할 수 있다. 정수→숫자는 이전 정수 범위가 제품 숫자 범위 ±10억 안에 있을 때만 호환 가능하다. 대표 이름 불변 조건이 일반 정책보다 우선한다.
 
-`POST .../:change_id/analyze`는 `expected_change_version`과 요청 키를 받아 202로 `type_id/change_id/change_version/analysis_id/status: queued`를 반환한다. 정의·초안·기록 템플릿 버전과 삭제 상태를 포함한 전체 자료 집합·버전·값을 고정하여 durable 분석을 접수한다. 최대 2000개·8 MiB다. 내부 작업자는 50개씩 정의/값 validator를 한 번 컴파일하여 모든 결과를 검증한다. 분석은 제한된 변환 규칙을 적용한 별도 결과를 저장하며 활성 자료 값·정의를 바꾸지 않는다. 생성 기본값은 기존 자료에 채우지 않는다. 분석 상태는 queued/running/succeeded/failed, 변경 상태와 분석 상태는 별개다. succeeded의 failed 수가 양수면 실행할 수 없다.
+`POST .../:change_id/analyze`는 `expected_change_version`과 요청 키를 받아 202로 `type_id/change_id/change_version/analysis_id/status: queued`를 반환한다. 정의·초안·기록 템플릿 버전과 삭제 상태를 포함한 전체 자료 집합·버전·값을 고정하여 durable 분석을 접수한다. 최대 2000개·8 MiB다. 대상이 0개인 일반 변경은 같은 잠금·트랜잭션에서 성공 분석과 ready를 기록한다. 202의 queued는 접수 응답이므로 완료 여부는 GET 정본을 확인한다. 나머지 내부 작업자는 50개씩 정의/값 validator를 한 번 컴파일하여 모든 결과를 검증한다. 분석은 제한된 변환 규칙을 적용한 별도 결과를 저장하며 활성 자료 값·정의를 바꾸지 않는다. 생성 기본값은 기존 자료에 채우지 않는다. 분석 상태는 queued/running/succeeded/failed, 변경 상태와 분석 상태는 별개다. succeeded의 failed 수가 양수면 실행할 수 없다.
 
 작업자 claim/결과는 fence와 90초 lease로 결속한다. 오래된 작업자가 새 초안/분석에 결과를 저장할 수 없다. 분석 완료와 GET은 현재 종류·스키마·자료 membership를 대조하여 stale을 반환한다. 분석/GET 응답은 원본 전체 자료를 노출하지 않고 최대 20개 실패 요약만 반환한다. before/after 페이지와 실제 적용 작업은 아래 별도 경계를 사용한다.
 
 ## 게시와 표시
 
-`POST .../:change_id/apply`는 `expected_change_version`, `analysis_id`, 요청 키를 받는다. 최신 성공 분석·실패 0·동일 소스와 membership·compatible 여부를 같은 종류 잠금 아래 검사한다. 새 불변 정의를 삽입하고 종류의 현재 스키마 포인터와 metadata 버전을 원자적으로 올린다. 기존 자료의 저장값·저장 schema_version·데이터 version·과거 기록은 바꾸지 않는다. 이전 입력 폼은 schema_changed로 초안을 유지한다.
+`POST .../:change_id/apply`는 `expected_change_version`, `analysis_id`, 요청 키를 받는다. 최신 성공 분석·실패 0·동일 소스와 membership·compatible 또는 복구가 아닌 정확한 대상 0개 여부를 같은 종류 잠금 아래 검사한다. 새 불변 정의를 삽입하고 종류의 현재 스키마 포인터와 metadata 버전을 원자적으로 올린다. 기존 자료의 저장값·저장 schema_version·데이터 version·과거 기록은 바꾸지 않는다. 이전 입력 폼은 schema_changed로 초안을 유지한다.
 
 목록/상세/새 연결 capture의 현재 라벨·대표 이름·표시 순서·목록 컬럼·보관 표시는 현재 정의를 사용한다. 저장 schema_version은 마지막 저장 정의의 이력으로 유지한다. 과거 기록의 당시 제목/본문은 다시 쓰지 않는다.
 
-MCP는 `create/get/list/update/analyze/apply/discard_entity_schema_change`를 제공한다. create/update/analyze/apply/discard는 모두 request_key가 필요한 명시 쓰기다. 웹은 발급 전 추가 속성을 저장하여 키를 확인한 뒤 그 키의 대표/목록/선택 라벨 표시를 편집한다. 전송 결과가 불명확하면 동일 요청을 재확인하고, 완료 후 조회 실패는 게시 실패와 구분한다.
+MCP는 `create/get/list/update/analyze/apply/discard_entity_schema_change`를 제공한다. create/update/analyze/apply/discard는 모두 request_key가 필요한 명시 쓰기다. 웹은 발급 전 추가 속성의 대표/목록/순서/선택 라벨도 같은 초안에서 편집한다. set_display와 migration.rules/overrides의 key는 같은 edits에 포함한 add_property의 `new_<client_ref>`를 참조할 수 있다. 서버가 이를 예약한 prop_n으로 해석한 target·migration만 저장하며, 추가가 없는 참조는 거절한다. 전송 결과가 불명확하면 동일 요청을 재확인하고, 완료 후 조회 실패는 게시 실패와 구분한다.
 
 자료 종류별 effective 기록 템플릿의 속성 참조가 target에서 존재하고 활성인지 검사한다. create/update/analyze/apply는 설정 잠금 아래 해당 타입의 effective 템플릿 SHA256을 비교한다. 다른 타입·할 일 템플릿 변경만으로 무관한 변경안을 stale로 만들지 않는다.
 
@@ -109,3 +109,7 @@ job 상태/목록의 `recovery.status`는 available/expired/unavailable/conflict
 ## 웹 변경 이력의 연결
 
 변경안 목록은 `source_schema_version`을 포함한다. 적용 트랜잭션은 현재 source 버전에서 정확히 다음 버전을 게시하므로 applied 변경의 source+1을 게시 이력에 연결한다. 값 변환 작업은 `change_id`와 성공 `result.schema_version`으로 연결한다. 생성 날짜나 목록 위치로 버전을 추측하지 않는다. 웹은 세 조회의 cursor·오류를 보존하면서 연결된 변경을 하나의 행으로 표시하며 최초 버전과 아직 변경안을 조회하지 않은 게시 버전도 누락하지 않는다.
+
+기록 템플릿 변경으로 낡아진 일반 변경안은 펼친 이력 행의 최신 기준 재검토에서 기존 속성·변환 초안을 유지한 별도 새 변경안을 만든다. 기존 변경안과 분석은 이력에 남고 새 fingerprint와 분석을 사용한다. 실제 게시 정의·자료 종류 버전이 바뀐 경우의 보호를 우회하지 않으며 제거하는 속성을 현재 템플릿이 참조하면 계속 거절한다.
+
+값 변환 작업이 취소·실패·완료되면 선택한 변경안과 분석도 정본을 다시 읽는다. 취소 뒤 무효화된 분석은 검토 완료·재시작 근거로 사용하지 않는다. 상태 조회 실패 중에는 실행을 막고 이력 다시 조회로 재확인한다. 취소와 commit이 경쟁하면 서버가 반환한 완료 상태를 우선한다. 복구안도 같은 속성별 전후 비교를 사용하며 값만 복구할 때는 현재 값과 보존 원본을 구분한다.
