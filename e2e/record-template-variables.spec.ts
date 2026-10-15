@@ -32,14 +32,23 @@ test("속성 이름으로 작성한 문구는 안정 키로 저장되고 MCP의 
     memo = form.getByRole("textbox", { name: "메모 템플릿", exact: true });
     await expect(memo).toHaveText("수량 수량 · 이전 → 수량 · 이후");
     const input = {
-      id: entity.id,
-      expected_version: entity.version,
       schema_version: type.schema_version,
       properties: { prop_2: 2 },
     };
-    const prepared = await mcp.call("prepare_record_memo", { model: "entity", action: "update", input });
+    const prepared = await mcp.call("prepare_record_memo", {
+      model: "entity",
+      action: "update",
+      target_id: entity.id,
+      expected_version: entity.version,
+      input,
+    });
     expect(prepared.change_note).toBe("수량 0 → 2");
-    const updated = await mcp.call("update_entity", { ...input, change_note: prepared.change_note });
+    const updated = await mcp.call("update_entity", {
+      id: entity.id,
+      expected_version: entity.version,
+      ...input,
+      change_note: prepared.change_note,
+    });
     expect(updated.properties.prop_2).toBe(2);
     const records = await mcp.call("list_records", { record_kind: "change", limit: 100 });
     const change = records.items.find((record: { change?: { target_id: string; action: string } }) =>
