@@ -40,7 +40,7 @@ const definition = z.strictObject({
   schema: z.strictObject({
     $schema: z.literal(ENTITY_SCHEMA_DIALECT),
     "x-type-id": z.string().uuid(),
-    "x-version": z.number().int().positive(),
+    "x-version": z.number().int().positive().max(2147483647),
     title: z.string().trim().min(1).max(80),
     description: z.string().max(1000).optional(),
     "x-icon": entityTypeIcon,
@@ -86,11 +86,11 @@ export function exactMultipleOf(value: number, divisor: number): boolean {
 function numeric(f: EntityField, value: unknown, path: string) {
   if (typeof value !== "number") return;
   if (typeOf(f) === "integer" && !Number.isSafeInteger(value)) fail(path, "정수는 안전한 정수 범위여야 합니다");
-  if (f.multipleOf !== undefined) {
-    if (!exactMultipleOf(value, f.multipleOf)) fail(path, "지정한 배수의 숫자를 입력하세요");
-  }
   if (typeOf(f) === "number" && (Math.abs(value) > limits.number_abs || decimalPlaces(value) > limits.decimal_places)) {
     fail(path, "숫자는 절댓값 10억 이하, 소수점 6자리 이하입니다");
+  }
+  if (f.multipleOf !== undefined) {
+    if (!exactMultipleOf(value, f.multipleOf)) fail(path, "지정한 배수의 숫자를 입력하세요");
   }
 }
 export function sqlSafeText(value: string): boolean {
@@ -247,6 +247,14 @@ export function validateEntityDefinition(raw: unknown): Pick<EntitySchemaVersion
   }
   void validate;
   return parsed.data as Pick<EntitySchemaVersion, "schema">;
+}
+/** Validate the bytes actually published, including server-owned ID and next revision. */
+export function publicationDefinition(
+  definition: Pick<EntitySchemaVersion, "schema">,
+  typeId: string,
+  revision: number,
+) {
+  return validateEntityDefinition({ schema: { ...definition.schema, "x-type-id": typeId, "x-version": revision } });
 }
 export function compileEntityProperties(raw: unknown) {
   const { schema } = validateEntityDefinition(raw);

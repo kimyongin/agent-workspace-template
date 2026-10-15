@@ -26,7 +26,7 @@ import type {
   SchemaEdit,
 } from "../../contracts/entity-schema-change.ts";
 import { AppError, conflict, invalidInput, notFound } from "../../core/shared/errors.ts";
-import { jsonbText } from "../../core/entity-types/schema-rules.ts";
+import { jsonbText, publicationDefinition } from "../../core/entity-types/schema-rules.ts";
 export class SqlSchemaChangeStore implements SchemaChangeStore {
   constructor(protected readonly tx: postgres.TransactionSql, protected readonly actor: Actor) {}
   protected async lockType(typeId: string) {
@@ -491,7 +491,7 @@ export class SqlSchemaChangeStore implements SchemaChangeStore {
     }
     await this
       .tx`insert into app.entity_schema_versions(owner_id,schema) values(${this.actor.userId},${
-      this.tx.json({ ...row.target.schema, "x-type-id": typeId, "x-version": next })
+      this.tx.json(publicationDefinition(row.target, typeId, next).schema)
     })`;
     await this
       .tx`update app.entity_types set schema_version=${next},updated_at=now() where id=${typeId}`;

@@ -362,3 +362,76 @@ Deno.test("metadata description removal stays compatible and becomes an explicit
     deprecated: false,
   });
 });
+
+Deno.test("nullable type order alone is a no-op while choice display order remains meaningful", async () => {
+  const f = fixture();
+  f.definition.schema.properties.prop_2 = {
+    type: ["string", "null"],
+    "x-order": 20,
+    oneOf: [{ const: "a", title: "첫째" }, { const: null, title: "없음" }],
+  };
+  const imported = structuredClone(f.definition.schema);
+  imported.properties.prop_2.type = ["null", "string"];
+  const actor = { userId: "owner", request: { key: crypto.randomUUID() } };
+  const deps: EntityTypeDeps = {
+    uow: {
+      run: (a, fn) =>
+        f.deps.uow.run(a, (store) =>
+          fn({
+            ...store,
+            executeRequest: <T>(_r: unknown, run: () => Promise<T>) => run(),
+          } as EntityTypeStore)),
+    },
+  };
+  const input = { mode: "update", type_id: typeId, expected_schema_version: 3, document: JSON.stringify(imported) };
+  const review = await previewEntitySchemaImport(deps, actor, input);
+  assertEquals(review.changed, false);
+  const result = await prepareEntitySchemaImport(deps, actor, {
+    ...input,
+    preview_fingerprint: review.preview_fingerprint,
+  });
+  assertEquals(result.changed, false);
+  assertEquals(result.change, null);
+  assertEquals(f.writes(), 0);
+  assertEquals(f.type.schema_version, 3);
+  imported.properties.prop_2.oneOf!.reverse();
+  const choiceReview = await previewEntitySchemaImport(deps, actor, { ...input, document: JSON.stringify(imported) });
+  assertEquals(choiceReview.changed, true);
+  assertEquals(choiceReview.diff.map((item) => item.path), ["properties.prop_2.oneOf"]);
+});
+
+Deno.test("changed maximum document rejects publication version digit growth before reserving keys", async () => {
+  const f = fixture();
+  f.definition.schema["x-version"] = 9;
+  f.type.schema_version = 9;
+  f.type.next_property_number = 65;
+  for (let n = 2; n <= 64; n++) {
+    f.definition.schema.properties[`prop_${n}`] = {
+      type: "string",
+      "x-order": n * 10,
+      oneOf: Array.from(
+        { length: 4 },
+        (_, i) => ({ const: String(i).padStart(3, "0") + "a".repeat(900), title: "옵션" }),
+      ),
+    };
+  }
+  const size = () => new TextEncoder().encode(jsonbText(f.definition.schema)).length;
+  for (const option of Object.values(f.definition.schema.properties).flatMap((field) => field.oneOf ?? [])) {
+    option.const += "a".repeat(Math.min(4096 - option.const!.length, entitySchemaLimits.definition_bytes - size()));
+    if (size() === entitySchemaLimits.definition_bytes) break;
+  }
+  assertEquals(size(), 262144);
+  const changed = structuredClone(f.definition.schema);
+  changed.properties.prop_2.oneOf![0].const = changed.properties.prop_2.oneOf![0].const!.replace("a", "b");
+  const error = await assertRejects(() =>
+    previewEntitySchemaImport(f.deps, { userId: "owner" }, {
+      mode: "update",
+      type_id: typeId,
+      expected_schema_version: 9,
+      document: JSON.stringify(changed),
+    })
+  );
+  assertEquals((error as { code: string }).code, "invalid_input");
+  assertEquals(f.writes(), 0);
+  assertEquals(f.type.schema_version, 9);
+});

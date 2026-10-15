@@ -73,3 +73,12 @@ Deno.test("readOnly creation defaults and immutable values remain independent of
   delete definition.schema.properties.prop_2.default;
   assertThrows(() => validateEntityDefinition(definition));
 });
+
+Deno.test("numeric defaults outside supported bounds fail as invalid input before decimal conversion", () => {
+  for (const value of [1e-101, 1e21]) {
+    const definition = initialEntityDefinition("이름");
+    definition.schema.properties.prop_2 = { type: "number", "x-order": 20, multipleOf: 0.1, default: value };
+    const error = assertThrows(() => validateEntityDefinition(definition));
+    assertEquals((error as { code: string }).code, "invalid_input");
+  }
+});

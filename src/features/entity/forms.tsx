@@ -166,6 +166,16 @@ export function EntityForm({
   };
   const activeType = types?.find((type) => type.id === typeId),
     label = activeType?.label ?? initial?.type.label ?? initialTypeLabel ?? "자료";
+  const effectiveProperties = !initial && !archived && definition
+    ? {
+      ...properties,
+      ...propertyDraft(Object.fromEntries(
+        Object.entries(definition.schema.properties).filter(([, field]) =>
+          field.readOnly && !field.deprecated && field.default !== undefined
+        ).map(([key, field]) => [key, field.default!]),
+      )),
+    }
+    : properties;
   const value = () => {
     if (!definition) throw new Error("자료 종류와 속성 정의를 확인하세요");
     const values = propertyValues(definition, properties);
@@ -236,7 +246,7 @@ export function EntityForm({
         submitDisabled={!!typeId &&
           (!identitySettings || !types || catalogError || !definition || schemaReading || !!pendingDefinition)}
         mutation={{
-          target: definition ? String(properties[schemaPresentation(definition).representative] ?? label) : label,
+          target: definition ? String(effectiveProperties[schemaPresentation(definition).representative] ?? label) : label,
           action: archived ? "복원" : initial ? "수정" : "등록",
         }}
         dirty={dirty}
@@ -337,7 +347,7 @@ export function EntityForm({
             if (old !== undefined && properties[key] === undefined) {errors[`properties.${key}`] =
                 "기존 값을 지우려면 값 없음으로 변경하세요. 미입력은 기존 값을 유지합니다.";}
           }
-          if (!String(properties[schemaPresentation(definition).representative] ?? "").trim()) {
+          if (!String(effectiveProperties[schemaPresentation(definition).representative] ?? "").trim()) {
             errors[
               `properties.${schemaPresentation(definition).representative}`
             ] = "이름은 공백만 입력할 수 없습니다";
@@ -570,12 +580,14 @@ export function EntityForm({
                 ? (
                   <PropertyFields
                     definition={definition}
-                    values={properties}
+                    values={effectiveProperties}
                     errors={errors}
                     onChange={(values) => {
                       lookup.current?.abort();
                       setReviewKeys((keys) => keys.filter((key) => values[key] === properties[key]));
-                      setProperties(values);
+                      setProperties(!initial && !archived
+                        ? Object.fromEntries(Object.entries(values).filter(([key]) => !definition.schema.properties[key]?.readOnly))
+                        : values);
                     }}
                   />
                 )

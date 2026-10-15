@@ -125,6 +125,7 @@ export function schemaDefinitionDiff(source: SchemaDefinition, target: SchemaDef
       let reason = "표시 또는 생성 기본값 변경";
       if (name === "type") {
         const aa = Array.isArray(a.type) ? a.type : [a.type], bb = Array.isArray(b.type) ? b.type : [b.type];
+        if (canonical([...aa].sort()) === canonical([...bb].sort())) continue;
         migration = aa.some((t) => !bb.includes(t) && !(t === "integer" && bb.includes("number")));
         if (
           aa.includes("integer") && bb.includes("number") &&

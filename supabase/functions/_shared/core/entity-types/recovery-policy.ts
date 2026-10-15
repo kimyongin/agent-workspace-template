@@ -2,7 +2,7 @@ import type { SchemaDefinition, SchemaDiff } from "../../contracts/entity-schema
 import type { EntitySchemaMigration } from "../../contracts/entity-schema-migration.ts";
 import { AppError, conflict } from "../shared/errors.ts";
 import { definitionFingerprint, schemaDefinitionDiff } from "./evolution.ts";
-import { validateEntityDefinition } from "./schema-rules.ts";
+import { publicationDefinition, validateEntityDefinition } from "./schema-rules.ts";
 export type RecoveryEvidence = {
   status: EntitySchemaMigration["status"];
   expires_at: string | null;
@@ -100,6 +100,7 @@ export function recoveryTarget(context: RecoveryContext): SchemaDefinition {
     }
   }
   validateEntityDefinition(target);
+  publicationDefinition(target, context.evidence.type.id, context.evidence.type.schema_version + 1);
   return target;
 }
 export async function recoveryProposal(

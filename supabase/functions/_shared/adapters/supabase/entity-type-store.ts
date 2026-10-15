@@ -1,3 +1,4 @@
+import { publicationDefinition } from "../../core/entity-types/schema-rules.ts";
 import { normalizeStoredEntityDefinition } from "../../core/entity-types/stored-definition.ts";
 import { loadSchemaType } from "./schema-type.ts";
 import { SqlEntityIssuerStore } from "./entity-issuer-store.ts";
@@ -94,7 +95,7 @@ export class SqlEntityTypeStore extends SqlSchemaMigrationStore implements Entit
     const [count] = await this.tx`select count(*)::int as count from app.entity_types`;
     assertEntityTypeCapacity(count.count);
     if (!document.deprecated) await this.assertActiveLabel(document.title!);
-    const id = crypto.randomUUID(), schema = { ...document, "x-type-id": id, "x-version": 1 };
+    const id = crypto.randomUUID(), schema = publicationDefinition({ schema: document }, id, 1).schema;
     const next = Object.keys(schema.properties).length + 1;
     await this
       .tx`insert into app.entity_types(id,owner_id,next_property_number) values (${id},${this.actor.userId},${next})`;
@@ -123,7 +124,11 @@ export class SqlEntityTypeStore extends SqlSchemaMigrationStore implements Entit
     // Existing duplicate labels may be edited without forcing a destructive cleanup.
     if (!archived && (row.archived || label !== row.label)) await this.assertActiveLabel(label, row.id);
     const revision = Number(row.schema_version) + 1;
-    const schema = { ...row.schema, title: label, "x-icon": icon, deprecated: archived, "x-version": revision };
+    const schema = publicationDefinition(
+      { schema: { ...row.schema, title: label, "x-icon": icon, deprecated: archived } },
+      row.id,
+      revision,
+    ).schema;
     await this.tx`insert into app.entity_schema_versions(owner_id,schema) values (${this.actor.userId},${
       this.tx.json(schema)
     })`;

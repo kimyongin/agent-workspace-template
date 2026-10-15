@@ -13,7 +13,7 @@ import type { EntityTypeDeps, EntityTypeStore } from "./application.ts";
 import type { Actor } from "../shared/actor.ts";
 import { AppError, invalidInput, notFound } from "../shared/errors.ts";
 import { parseSchemaDocument } from "./schema-import-json.ts";
-import { validateEntityDefinition } from "./schema-rules.ts";
+import { publicationDefinition, validateEntityDefinition } from "./schema-rules.ts";
 import { canonical, definitionFingerprint, schemaDefinitionDiff } from "./evolution.ts";
 import { type EntitySchema, entityTypeIcon } from "../../contracts/entity-type.ts";
 function parseInput(raw: unknown): EntitySchemaImportInput {
@@ -174,6 +174,7 @@ async function reviewImport(
   const diff = current ? schemaDefinitionDiff({ schema: current }, { schema: target }) : schemaDefinitionDiff({
     schema: { ...target, properties: {}, required: [], title: undefined, "x-icon": undefined, deprecated: false },
   }, { schema: target });
+  if (current && diff.length) publicationDefinition({ schema: target }, source.id, current["x-version"] + 1);
   const review = {
     mode: input.mode,
     changed: input.mode === "copy" || diff.length > 0,
