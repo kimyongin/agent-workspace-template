@@ -895,7 +895,9 @@ test("template-stale review creates a separate latest plan from the retained con
 
 for (const terminal of ["cancelled", "succeeded"] as const) {
   test(`migration cancellation reconciles selected plan and preview with server ${terminal} result`, async ({ page }) => {
-    let cancelled = false;
+    let cancelled = false, waitingForPlan = false;
+    let releasePlan!: () => void;
+    const planReady = new Promise<void>(resolve => { releasePlan = resolve; });
     const current = { ...plan("b"), status: "ready" as const, change_kind: "migration_required" as const,
       analysis: { id: "analysis-old", status: "succeeded" as const, total: 2, processed: 2, failed: 0,
         change_version: 1, snapshot_fingerprint: "s", definition_fingerprint: "f", changed: 2, unchanged: 0,
@@ -905,10 +907,11 @@ for (const terminal of ["cancelled", "succeeded"] as const) {
       source_schema_version: 1, version: cancelled ? 2 : 1, status: cancelled ? terminal : "queued", total: 2, processed: 0,
       retryable: false, failure_reason: null, result: terminal === "succeeded" && cancelled ? { schema_version: 2, type_version: 2, total: 2, changed: 2, committed_at: current.created_at } : null,
       source_expires_at: null, created_at: current.created_at, updated_at: current.updated_at });
-    await page.route(`**${base}**`, route => {
+    await page.route(`**${base}**`, async route => {
       const url = new URL(route.request().url());
       if (url.pathname === base) return route.fulfill({ json: { items: [current] } });
       if (url.pathname.endsWith("/rows")) return route.fulfill({ json: { items: [] } });
+      if (cancelled) { waitingForPlan = true; await planReady; }
       return route.fulfill({ json: cancelled ? { ...current, status: terminal === "succeeded" ? "applied" : "draft", analysis: null, executable: false } : current });
     });
     await page.route("**/api/entity-schema-migrations**", route => {
@@ -918,6 +921,10 @@ for (const terminal of ["cancelled", "succeeded"] as const) {
     await page.goto("/e2e/fixtures/schema-editor-read.html?change_id=b");
     const history = page.getByRole("region", { name: "변경 이력", exact: true });
     await history.getByRole("button", { name: "변환 취소", exact: true }).click();
+    await expect.poll(() => waitingForPlan).toBe(true);
+    await expect(history.getByText("검토 완료", { exact: true })).toHaveCount(0);
+    await expect(history.getByRole("region", { name: "변환 규칙과 영향 미리보기", exact: true })).toHaveCount(0);
+    releasePlan();
     await expect(history.getByRole("button", { name: "값 변환 시작", exact: true })).toHaveCount(0);
     await expect(history.getByText("검토 완료", { exact: true })).toHaveCount(0);
     if (terminal === "cancelled") await expect(history.getByRole("button", { name: "변경 검토", exact: true })).toBeEnabled();
