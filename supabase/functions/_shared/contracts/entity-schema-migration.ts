@@ -2,14 +2,12 @@ import { z } from "zod";
 import type { EntityType } from "./entity-type.ts";
 export const schemaMigrationStart = z.strictObject({
   expected_change_version: z.number().int().positive(),
-  expected_type_version: z.number().int().positive(),
   expected_schema_version: z.number().int().positive(),
   analysis_id: z.string().uuid(),
   fingerprint: z.string().regex(/^[a-f0-9]{64}$/),
 });
 export const schemaRecoveryCreate = z.strictObject({
   expected_job_version: z.number().int().positive(),
-  expected_type_version: z.number().int().positive(),
   expected_schema_version: z.number().int().positive(),
 });
 export const schemaMigrationAction = z.strictObject({ expected_job_version: z.number().int().positive() });

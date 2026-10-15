@@ -1,7 +1,7 @@
 import { entityReferenceId } from "./entity-identity.ts";
-import { optionLabelDictionary, ownStringDictionary } from "./option-labels.ts";
+import { ownStringDictionary } from "./option-labels.ts";
 import { z } from "zod";
-import { type EntityDisplay, type EntityField, type EntitySchemaVersion, propertyKey } from "./entity-type.ts";
+import { type EntityField, type EntitySchemaVersion, propertyKey } from "./entity-type.ts";
 const scalar = z.enum(["string", "integer", "number", "boolean"]);
 export const entityFieldInput = z.strictObject({
   type: z.union([scalar, z.array(z.union([scalar, z.literal("null")])).min(2).max(2)]),
@@ -12,19 +12,20 @@ export const entityFieldInput = z.strictObject({
   maxLength: z.number().int().min(0).max(4096).optional(),
   minimum: z.number().finite().optional(),
   maximum: z.number().finite().optional(),
-  enum: z.array(z.union([z.string().max(4096), z.null()])).min(1).max(128).optional(),
+  oneOf: z.array(z.strictObject({ const: z.union([z.string().max(4096), z.null()]), title: z.string().max(80).optional() })).min(1).max(128).optional(),
+  deprecated: z.boolean().optional(),
+  readOnly: z.boolean().optional(),
+  examples: z.array(z.union([z.string(),z.number().finite(),z.boolean(),z.null()])).max(128).optional(),
+  multipleOf: z.number().positive().finite().optional(),
+  "x-order": z.number().int().positive(),
+  "x-list-order": z.number().int().positive().optional(),
+  "x-representative": z.boolean().optional(),
+  "x-show-in-list": z.boolean().optional(),
   default: z.union([z.string(), z.number().finite(), z.boolean(), z.null()]).optional(),
 });
 // new_<client_ref> is valid in display/conversion input alongside its add_property.
 // Published definitions and all other property-key contracts remain prop_n only.
 const propertyInputReference = z.union([propertyKey, z.string().startsWith("new_").min(5).max(84)]);
-const displayInput = z.strictObject({
-  representative: propertyInputReference,
-  order: z.array(propertyInputReference).max(64),
-  list_columns: z.array(propertyInputReference).max(64),
-  archived: z.array(propertyInputReference).max(64),
-  option_labels: z.record(propertyInputReference, optionLabelDictionary),
-});
 export const entitySchemaEdit = z.discriminatedUnion("op", [
   z.strictObject({
     op: z.literal("add_property"),
@@ -44,7 +45,7 @@ export const entitySchemaEdit = z.discriminatedUnion("op", [
   z.strictObject({ op: z.literal("archive_property"), key: propertyKey }),
   z.strictObject({ op: z.literal("restore_property"), key: propertyKey }),
   z.strictObject({ op: z.literal("remove_property"), key: propertyKey }),
-  z.strictObject({ op: z.literal("set_display"), display: displayInput }),
+  z.strictObject({ op: z.literal("set_metadata"), title: z.string().trim().min(1).max(80).optional(), description: z.string().max(1000).optional(), "x-icon": z.enum(["box", "leaf", "package", "book", "tool", "star"]).optional(), deprecated: z.boolean().optional() }),
 ]);
 const literal = z.union([z.string().max(4096), z.number().finite(), z.boolean(), z.null()]);
 export const migrationRule = z.discriminatedUnion("op", [
@@ -97,7 +98,6 @@ const migrationInput = z.strictObject({
   overrides: z.array(migrationOverride.extend({ key: propertyInputReference })).max(2000).default([]),
 });
 export const schemaChangeCreate = z.strictObject({
-  expected_type_version: z.number().int().positive(),
   expected_schema_version: z.number().int().positive(),
   edits: z.array(entitySchemaEdit).min(1).max(128),
   migration: migrationInput.default({ rules: [], overrides: [] }),
@@ -152,16 +152,15 @@ export type EntitySchemaChange = {
   recovery?: { source_job_id: string; source_expires_at: string } | null;
   executable: boolean;
   reservations: Record<string, string>;
-  target: Pick<EntitySchemaVersion, "schema" | "display">;
+  target: Pick<EntitySchemaVersion, "schema">;
   diff: SchemaDiff[];
   fingerprint: string;
   analysis: SchemaAnalysis | null;
   created_at: string;
   updated_at: string;
 };
-export type SchemaDefinition = Pick<EntitySchemaVersion, "schema" | "display">;
+export type SchemaDefinition = Pick<EntitySchemaVersion, "schema">;
 export type PropertyField = EntityField;
-export type PropertyDisplay = EntityDisplay;
 
 export type SchemaAnalysisAccepted = {
   type_id: string;
