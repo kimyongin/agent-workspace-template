@@ -2,7 +2,7 @@ import { scalarFixtureType } from "./entity-schema-support.ts";
 import { test, mcpClient, mcpTokenViaConsent } from "./support.ts";
 import { expect } from "@playwright/test";
 import { devLogin, env, unique } from "./support.ts";
-import { beginTabAction } from "./ui-actions.ts";
+import { beginTabAction, chooseTag } from "./ui-actions.ts";
 
 test("설정 템플릿 오류·변수 삽입과 실제 변경 확인·취소·수정 메모 보존·고정 재시도", async ({page}) => {
   await devLogin(page);
@@ -44,7 +44,7 @@ test("설정 템플릿 오류·변수 삽입과 실제 변경 확인·취소·�
     await target.selectOption("task");
     form = page.getByRole("form",{name:"기록 자동 완성", exact: true});
     await form.getByLabel("메모 템플릿").fill("$대상$ 준비 $액션$");
-    await form.getByRole("button",{name:tag.name,exact:true}).click();
+    await chooseTag(page,form,tag.name);
     await form.getByRole("button",{name:"기록 자동 완성 저장"}).click();
     await expect(form).toContainText("기록 자동 완성을 저장했습니다.");
     await page.goto("/tasks");
