@@ -8,12 +8,12 @@ import { BodyAction } from "../../components/BodyAction.tsx";
 import type { EntityContext } from "@contracts/entity-links.ts";
 import { RelatedSection } from "../../components/RelatedItems.tsx";
 import { RelatedRecordItem } from "../activity/RelatedRecords.tsx";
+import { RelatedTaskItem } from "../activity/RelatedTask.tsx";
 import { useDetailDeleteReturn, useDetailNavigate, useDetailOwnerReturn } from "../../lib/detail-exploration.tsx";
 import { useDetailEditor } from "../details/useDetailEditor.ts";
 import { useDeferredNavigation } from "../../lib/useDeferredNavigation.ts";
 import { TagNames } from "../tags/TagPicker.tsx";
 import { EntityProperties } from "./EntityProperties.tsx";
-import { EntityTypeIcon } from "./EntityTypeIcon.tsx";
 import type { EntityDetail } from "@contracts/entity.ts";
 import { useEffect, useRef, useState } from "react";
 import { useLocation, useParams, useSearchParams } from "react-router";
@@ -183,29 +183,18 @@ export function EntityDetailPage() {
       {entity && (
         <div className="detail-stack">
           <section className="detail-section entity-detail-properties">
+            <DetailTitle>{entity.title}</DetailTitle>
             <dl className="props">
               <div>
                 <dt>발급처</dt>
-                <dd>{entity.source_label} ({entity.source})</dd>
+                <dd>{entity.source_label}</dd>
               </div>
               <div>
                 <dt>식별자</dt>
                 <dd className="entity-identity-value">{entity.external_id}</dd>
               </div>
-              <div>
-                <dt>자료 종류</dt>
-                <dd>
-                  <EntityTypeIcon id={entity.type.icon_id} /> {entity.type.label}
-                </dd>
-              </div>
-              <div>
-                <dt>이름</dt>
-                <dd>
-                  <DetailTitle>{entity.title}</DetailTitle>
-                </dd>
-              </div>
             </dl>
-            <EntityProperties entity={entity} />
+            <EntityProperties entity={entity} omitRepresentative />
             <TagNames scope="entity" compact ids={entity.tag_ids} />
           </section>
           <div className="detail-relations">
@@ -222,7 +211,7 @@ export function EntityDetailPage() {
                   <CollectionList>
                     {entity.tasks.items.map((item) => (
                       <li key={item.id}>
-                        <a href={`/tasks/${item.id}`}>{item.title}</a>
+                        <RelatedTaskItem id={item.id} occurrence={null} />
                       </li>
                     ))}
                   </CollectionList>
