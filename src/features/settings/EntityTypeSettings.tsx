@@ -75,11 +75,12 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
     [error, setError] = useState(""),
     [message, setMessage] = useState("");
   const selector = useRef<HTMLSelectElement>(null);
+  const creationName = useRef<HTMLInputElement>(null);
   useEffect(() => {
     if (!loading && location.state?.materialTypeFocus) {
-      selector.current?.focus();
+      (type_id ? selector.current : creationName.current)?.focus();
     }
-  }, [loading, location.state?.materialTypeFocus]);
+  }, [loading, location.state?.materialTypeFocus, type_id]);
   const { attempt, busy, uncertain } = useWriteAttempt();
   const createdTypeId = useRef<string | null>(null);
   const readLatestBasics = async () => {
@@ -238,38 +239,48 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
     >
       <SettingsHeading title="자료 설정" id="entity-types-title" />
 
-      <div className="material-settings-toolbar">
-        <Field label="자료 종류 선택" hideLabel>
-          {(props) => (
-            <select
-              {...props}
-              className="input"
-              ref={selector}
-              value={type_id ?? ""}
-              disabled={anyBusy}
-              onChange={(event) =>
-                navigate(
-                  event.target.value ? `/settings/entity-types/${event.target.value}` : "/settings/entity-types",
-                  { state: { materialTypeFocus: true } },
+      {(type_id || items.length > 0) && (
+        <div className="material-settings-toolbar">
+          <Field label="자료 종류 선택" hideLabel>
+            {(props) => (
+              <select
+                {...props}
+                className="input"
+                ref={selector}
+                value={type_id ?? ""}
+                disabled={anyBusy}
+                onChange={(event) =>
+                  navigate(
+                    event.target.value ? `/settings/entity-types/${event.target.value}` : "/settings/entity-types",
+                    { state: { materialTypeFocus: true } },
+                  )}
+              >
+                {!type_id && <option value="" disabled>기존 종류 선택</option>}
+                {type_id && !items.some((item) => item.id === type_id) && (
+                  <option value={type_id}>
+                    {type?.label ?? "자료 종류 읽는 중…"}
+                  </option>
                 )}
+                {items.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.label}
+                    {item.archived ? " (보관)" : ""}
+                  </option>
+                ))}
+              </select>
+            )}
+          </Field>
+          {type_id && (
+            <Link
+              className="btn btn-input"
+              to="/settings/entity-types"
+              state={{ materialTypeFocus: true }}
             >
-              <option value="">종류 추가</option>
-              {type_id && !items.some((item) => item.id === type_id) && (
-                <option value={type_id}>
-                  {type?.label ?? "자료 종류 읽는 중…"}
-                </option>
-              )}
-              {items.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.label}
-                  {item.archived ? " (보관)" : ""}
-                </option>
-              ))}
-            </select>
+              종류 추가
+            </Link>
           )}
-        </Field>
-        <Link className="btn btn-input" to="/settings/entity-types">종류 추가</Link>
-      </div>
+        </div>
+      )}
       {loading && <p role="status">불러오는 중…</p>}
       {!catalog.types && !catalog.error && <p role="status">자료 종류를 읽는 중…</p>}
       {catalog.error && (
@@ -290,15 +301,6 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
         </BodyAction>
       )}
       {message && <p role="status">{message}</p>}
-      {!loading && !type_id && (
-        <>
-          {catalog.types && items.length === 0 && !catalog.error && !error && (
-            <p className="secondary">
-              자료 종류가 없습니다. 이름을 정해 첫 자료 종류를 만드세요.
-            </p>
-          )}
-        </>
-      )}
       {!loading && (!type_id || type) && (
         <MaterialSettingsSection
           title={type_id ? "기본 정보" : "자료 종류 만들기"}
@@ -329,6 +331,7 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
                 {(props) => (
                   <input
                     {...props}
+                    ref={type_id ? undefined : creationName}
                     className="input"
                     required
                     maxLength={80}

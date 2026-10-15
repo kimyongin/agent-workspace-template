@@ -942,7 +942,7 @@ test(
     await page.goto(`/settings/entity-types/${materials.id}`);
     await expect(page.getByLabel("자료 종류 검색", { exact: true })).toHaveCount(0);
     await expect(page.getByLabel("자료 종류 선택", { exact: true }).locator("option")).toContainText([
-      "종류 추가", "재료", "상품", "보관 자료 (보관)",
+      "재료", "상품", "보관 자료 (보관)",
     ]);
 
     for (const width of [320, 390, 768]) {

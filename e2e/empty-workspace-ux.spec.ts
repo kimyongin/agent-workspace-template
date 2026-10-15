@@ -17,6 +17,8 @@ test("빈 계정에서 자료 준비와 모든 설정의 다음 행동을 찾고
   await page.getByRole("link", { name: "자료 종류 추가", exact: true }).click();
   await expect(page.getByRole("form", { name: "자료 종류 만들기", exact: true })).toBeVisible();
   await expect(page.getByLabel("자료 종류 이름", { exact: true })).toHaveValue("");
+  await expect(page.getByLabel("자료 종류 선택", { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "종류 추가", exact: true })).toHaveCount(0);
   await expect(page.getByRole("status").filter({ hasText: /불러오는 중|읽는 중/ })).toHaveCount(0);
   await expect(page.getByRole("alert")).toHaveCount(0);
   await page.screenshot({ path: info.outputPath("first-type.png"), fullPage: true });
