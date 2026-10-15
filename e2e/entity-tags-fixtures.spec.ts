@@ -368,6 +368,7 @@ test("태그 설정의 인라인 초안은 대상 전환·탐색 취소와 histo
   await name.fill("대상 전환 초안");
   await expect(manager.getByRole("form", { name: "태그 이름 변경", exact: true })).toBeVisible();
   await page.screenshot({path:info.outputPath("tag-management-inline.png")});
+  await target.focus();
   await target.selectOption("record");
   const discard = page.getByRole("dialog", { name: "변경을 버릴까요?" });
   await discard.getByRole("button", { name: "취소", exact: true }).click();
@@ -387,7 +388,9 @@ test("태그 설정의 인라인 초안은 대상 전환·탐색 취소와 histo
   await page.getByRole("textbox", { name: /태그 이름/ }).fill("탐색 보존 초안");
   await settingsCategory(page, "기본");
   await discard.getByRole("button", { name: "취소", exact: true }).click();
-  await expect(target).toBeFocused();
+  await expect(page.getByRole("navigation", { name: "설정 메뉴", exact: true })
+    .getByRole("link", { name: "기본", exact: true })).toBeFocused();
+  await page.getByRole("button", { name: "설정 메뉴", exact: true }).click();
   await expect(page.getByRole("textbox", { name: /태그 이름/ })).toHaveValue("탐색 보존 초안");
   await settingsCategory(page, "기본");
   await discard.getByRole("button", { name: "변경 버리기", exact: true }).click();

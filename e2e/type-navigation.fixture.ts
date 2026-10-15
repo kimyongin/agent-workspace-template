@@ -540,6 +540,7 @@ test("numeric schema bounds keep invalid raw decimals and reject before creating
     return route.fulfill({ json: { items: [], next_before: null } });
   });
   await page.goto(`/settings/entity-types/${materials.id}`);
+  await page.getByRole("button", { name: "입력 항목", exact: true }).click();
   await page.getByRole("button", { name: "정확한 수량 속성 편집", exact: true }).click();
   const section = page.getByRole("region", { name: "정확한 수량 속성", exact: true });
   await section.getByText("추가 설정", {exact:true}).click();
@@ -747,13 +748,14 @@ test("history selection preserves basic drafts and survives reload", async ({ pa
   await page.goto(`/settings/entity-types/${materials.id}/versions`);
   await page.getByRole("button", { name: /^기본 정보(?! 저장)/ }).click();
   await page.getByLabel("자료 종류 이름", { exact: true }).fill("유지할 기본 정보");
-  await page.locator("summary", { hasText: /^버전 1 ·/ }).click();
-  await page.getByRole("button", { name: "이 버전 보기", exact: true }).click();
+  await page.getByRole("button", { name: /^최초 생성.*버전 1 · 적용됨$/ }).click();
   await expect(page).toHaveURL(/schema_version=1/);
   await expect(page.getByLabel("자료 종류 이름", { exact: true })).toHaveValue("유지할 기본 정보");
   page.on("dialog", (dialog) => dialog.accept());
   await page.reload();
-  await expect(page.getByRole("heading", { name: "버전 1 → 1 차이", exact: true })).toBeVisible();
+  const first = page.locator(".schema-history-row").filter({ has: page.getByRole("button", { name: /^최초 생성/ }) });
+  await expect(first.getByRole("region", { name: "입력 항목 정의", exact: true })).toBeVisible();
+  await expect(first.getByRole("region", { name: "변경 결과", exact: true })).toContainText("버전 1 · 최초 생성");
 });
 
 test("first type creation selects its workspace and independent basics save archives and restores", async ({ page }) => {
@@ -960,8 +962,9 @@ test("basic conflict refresh preserves section drafts and reapplies against the 
     return route.fulfill({ json: latest });
   });
   await page.goto(`/settings/entity-types/${materials.id}`);
+  await page.getByRole("button", { name: "입력 항목", exact: true }).click();
   await page.getByRole("button", { name: "이름 속성 편집", exact: true }).click();
-  await page.getByLabel("속성 이름", { exact: true }).fill("남길 속성 초안");
+  await page.getByLabel("항목 이름", { exact: true }).fill("남길 속성 초안");
   await page.getByRole("button", { name: /^식별자/ }).click();
   const record = page.getByRole("form", { name: "식별자 설정", exact: true });
   await record.getByLabel("이름", {exact:false}).fill("남길 식별자 초안");
@@ -975,13 +978,13 @@ test("basic conflict refresh preserves section drafts and reapplies against the 
   await expect(name).toHaveValue("내 기본 정보 초안");
   await expect(page.getByRole("radio", { name: "책", exact: true })).toBeChecked();
   await expect(page.getByLabel("자료 종류 보관 (기존 자료와 연결은 유지)")).toBeChecked();
-  await expect(page.getByLabel("속성 이름", { exact: true })).toHaveValue("남길 속성 초안");
+  await expect(page.getByLabel("항목 이름", { exact: true })).toHaveValue("남길 속성 초안");
   await expect(record.getByLabel("이름", {exact:false})).toHaveValue(
     "남길 식별자 초안",
   );
   await page.getByRole("form", { name: "기본 정보", exact: true }).getByRole("button", { name: "변경 취소", exact: true }).click();
   await expect(name).toHaveValue("다른 화면 저장값");
-  await expect(page.getByLabel("속성 이름", { exact: true })).toHaveValue("남길 속성 초안");
+  await expect(page.getByLabel("항목 이름", { exact: true })).toHaveValue("남길 속성 초안");
   await expect(record.getByLabel("이름", {exact:false})).toHaveValue(
     "남길 식별자 초안",
   );
@@ -993,7 +996,7 @@ test("basic conflict refresh preserves section drafts and reapplies against the 
   await name.fill("취소할 입력");
   await page.getByRole("form", { name: "기본 정보", exact: true }).getByRole("button", { name: "변경 취소", exact: true }).click();
   await expect(name).toHaveValue("내 기본 정보 초안");
-  await expect(page.getByLabel("속성 이름", { exact: true })).toHaveValue("남길 속성 초안");
+  await expect(page.getByLabel("항목 이름", { exact: true })).toHaveValue("남길 속성 초안");
   await expect(record.getByLabel("이름", {exact:false})).toHaveValue(
     "남길 식별자 초안",
   );
