@@ -92,15 +92,21 @@ export async function seedFixtureEntities(
     external_id: `${prefix}_${index}`,
     entity_type_id: type.id,
     schema_version: type.schema_version,
-    properties: JSON.stringify({ prop_2: 0, prop_3: null, prop_4: "a", ...properties }),
+    properties: { prop_2: 0, prop_3: null, prop_4: "a", ...properties },
   }));
+  for (const row of rows) ownFixtureResult(ownerId, "entities", row.id);
   try {
     await admin.begin(async (tx) => {
       const owned = await tx`select id from app.entity_types where id=${type.id} and owner_id=${ownerId}`;
       expect(owned).toHaveLength(1);
-      if (rows.length) await tx`insert into app.entities ${tx(rows)}`;
+      if (rows.length) {
+        const inserted = await tx`insert into app.entities (owner_id,id,source,external_id,entity_type_id,schema_version,properties)
+          select owner_id,id,source,external_id,entity_type_id,schema_version,properties
+          from jsonb_to_recordset(${tx.json(rows)}) as fixture(owner_id uuid,id text,source text,external_id text,entity_type_id uuid,schema_version integer,properties jsonb)
+          returning id`;
+        expect(inserted).toHaveLength(rows.length);
+      }
     });
-    for (const row of rows) ownFixtureResult(ownerId, "entities", row.id);
     return rows.map((row) => row.id);
   } finally {
     await admin.end();
