@@ -587,6 +587,7 @@ test("related previous: one starting tab survives cross-links, dirty drafts, res
   const records=panel(page).getByRole("region",{name:"기록 (1개)",exact:true});
   await records.getByRole("button",{name:"구매 기준을 정리했습니다.",exact:true}).click();
   await records.getByRole("link",{name:"구매 기준을 정리했습니다. 상세",exact:true}).click();
+  await expect(page.getByRole("tab",{name:"구매 기준을 정리했습니다.",exact:true})).toHaveAttribute("aria-selected","true");
   await expect(panel(page).getByRole("button",{name:"이전: 등심",exact:true})).toBeVisible();
   await panel(page).getByRole("button",{name:"이전: 등심",exact:true}).click();
   await expect(page.getByRole("tab",{name:"등심",exact:true})).toHaveAttribute("aria-selected","true");
