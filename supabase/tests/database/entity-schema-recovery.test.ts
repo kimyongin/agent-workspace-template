@@ -233,8 +233,7 @@ async function fixture() {
       entity_ids: [x.id],
       tag_ids: [],
     });
-    const source = await getEntitySchema(d, a.actor, { type_id: type.id }),
-      tx = await getEntityType(d, a.actor, type.id);
+    const source = await getEntitySchema(d, a.actor, { type_id: type.id });
     const edits: SchemaEdit[] = [2, 3, 4, 5, 6].map((i) => ({
       op: "remove_property",
       key: `prop_${i}`,
@@ -300,7 +299,6 @@ async function fixture() {
         },
       },
     );
-    const current = await getEntityType(d, a.actor, type.id);
     const removal = await createEntitySchemaChange(d, actor(), type.id, {
       expected_schema_version: 2,
       edits: [2, 3, 4, 5, 6].map((i) => ({
