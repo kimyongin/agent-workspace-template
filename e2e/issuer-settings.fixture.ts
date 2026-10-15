@@ -320,7 +320,8 @@ test("settings menu destination remains mounted during discard confirmation and 
   await entry.click();
   const confirm = page.getByRole("dialog", { name: "변경을 버릴까요?", exact: true });
   await expect(confirm).toBeVisible();
-  await expect(entry).toBeAttached();
+  await expect(page.getByRole("navigation", { name: "설정 메뉴", exact: true, includeHidden: true })
+    .getByRole("link", { name: "기록", exact: true, includeHidden: true })).toBeAttached();
   await confirm.getByRole("button", { name: "취소", exact: true }).click();
   await expect(entry).toBeFocused();
   await expect(menu).toBeVisible();

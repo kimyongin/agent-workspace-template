@@ -33,6 +33,7 @@ export function SettingsMenu() {
       onBlur={(event) => {
         if (
           !document.querySelector("dialog.modal-confirm[open]") && event.relatedTarget &&
+          !(event.relatedTarget instanceof Element && event.relatedTarget.closest("dialog.modal-confirm")) &&
           !event.currentTarget.contains(event.relatedTarget as Node)
         ) setOpen(false);
       }}
