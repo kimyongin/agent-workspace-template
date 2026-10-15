@@ -267,9 +267,9 @@ function AccountSettings() {
             </fieldset>
             {controls(section)}
           </form>
-          {section === "display" && <NavigationSettings inline onStateChange={setNavigationState} />}
         </section>
       ))}
+      <NavigationSettings inline onStateChange={setNavigationState} />
       <ConfirmDialog
         open={!anyBusy && blocker.state === "blocked"}
         title="변경을 버릴까요?"

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useBlocker, useLocation } from "react-router";
 import { ConfirmDialog } from "../../components/Modal.tsx";
+import { BodyAction } from "../../components/BodyAction.tsx";
 import { DetailLink } from "../../lib/detail-exploration.tsx";
 import { defaultNavigationRefs, type NavigationRef, resolveNavigationRefs } from "../../app/type-navigation.ts";
 import { useAuth } from "../auth/AuthProvider.tsx";
@@ -16,7 +17,12 @@ export function NavigationSettingsPage() {
   const { session } = useAuth();
   return session ? <NavigationSettings key={session.user.id} /> : null;
 }
-export function NavigationSettings({ inline = false, onStateChange }: { inline?: boolean; onStateChange?: (state: { dirty: boolean; busy: boolean }) => void }) {
+export function NavigationSettings(
+  { inline = false, onStateChange }: {
+    inline?: boolean;
+    onStateChange?: (state: { dirty: boolean; busy: boolean }) => void;
+  },
+) {
   const { session, savePreferences } = useAuth();
   const saved = accountPreferences(session!.user.user_metadata).navigation;
   const [baseline, setBaseline] = useState(saved);
@@ -24,8 +30,9 @@ export function NavigationSettings({ inline = false, onStateChange }: { inline?:
   const [conflict, setConflict] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ text: string; error?: boolean } | null>(null);
-  const [keyword, setKeyword] = useState("");
+  const [candidate, setCandidate] = useState("");
   const pending = useRef(false), mounted = useRef(true);
+  const addSelect = useRef<HTMLSelectElement>(null);
   const { setPreview } = useNavigationPreview();
   const location = useLocation();
   const catalog = useEntityTypes(location.key);
@@ -36,7 +43,11 @@ export function NavigationSettings({ inline = false, onStateChange }: { inline?:
     ...["entities", "tasks", "principles", "records"].map((id) => ({ kind: "builtin", id } as NavigationRef)),
     ...types.map((type) => ({ kind: "type" as const, id: type.id })),
   ], types);
-  useEffect(() => { onStateChange?.({ dirty, busy }); }, [dirty, busy, onStateChange]);
+  const available = choices.filter((entry) => !refs.some((ref) => key(ref) === entry.key));
+  const selected = available.find((entry) => entry.key === candidate);
+  useEffect(() => {
+    onStateChange?.({ dirty, busy });
+  }, [dirty, busy, onStateChange]);
   useEffect(() => {
     if (equal(saved, baseline)) return;
     if (dirty || pending.current) setConflict(true);
@@ -97,14 +108,26 @@ export function NavigationSettings({ inline = false, onStateChange }: { inline?:
     }
   };
   return (
-    <section className={inline ? "navigation-inline-settings" : "panel settings"} aria-label="메뉴 바로가기">
-      {!inline && <>
-      <nav className="settings-breadcrumb" aria-label="설정 경로">
-        <DetailLink to="/settings">설정</DetailLink>
-        <span>메뉴 바로가기</span>
-      </nav>
-      <h1 className="page-title" id="navigation-settings-title">메뉴 바로가기</h1>
-      </>}
+    <section
+      className={inline ? "settings-section navigation-settings" : "panel settings navigation-settings"}
+      id="settings-navigation"
+      aria-label="메뉴 바로가기"
+    >
+      {inline && (
+        <div className="navigation-settings-heading">
+          <h2 className="settings-section-title">메뉴 바로가기</h2>
+          <span className="secondary" aria-label={`${refs.length}개 선택, 최대 4개`}>{refs.length}/4</span>
+        </div>
+      )}
+      {!inline && (
+        <>
+          <nav className="settings-breadcrumb" aria-label="설정 경로">
+            <DetailLink to="/settings">설정</DetailLink>
+            <span>메뉴 바로가기</span>
+          </nav>
+          <h1 className="page-title" id="navigation-settings-title">메뉴 바로가기</h1>
+        </>
+      )}
       <form
         className="form"
         aria-label="메뉴 바로가기 설정"
@@ -115,7 +138,6 @@ export function NavigationSettings({ inline = false, onStateChange }: { inline?:
         }}
       >
         <fieldset className="settings-fields" disabled={busy}>
-          <legend className="label">메뉴 바로가기 ({refs.length}/4)</legend>
           <ol className="navigation-selection" aria-label="선택한 바로가기">
             {refs.map((ref, index) => {
               const entry = resolveNavigationRefs([ref], types)[0];
@@ -128,11 +150,12 @@ export function NavigationSettings({ inline = false, onStateChange }: { inline?:
                     {entry?.archived ? " · 보관" : ""}
                     {!entry ? catalog.types === null && !catalog.error ? " · 확인 중" : " · 참조 유지" : ""}
                   </span>
-                  <div className="actions">
-                    <button
+                  <div className="navigation-row-actions">
+                    <BodyAction
                       type="button"
-                      className="btn"
+                      className="item-icon"
                       aria-label={`${label} 위로 이동`}
+                      title="위로 이동"
                       disabled={index === 0}
                       onClick={() => {
                         const next = [...refs];
@@ -140,12 +163,23 @@ export function NavigationSettings({ inline = false, onStateChange }: { inline?:
                         edit(next);
                       }}
                     >
-                      위로
-                    </button>
-                    <button
+                      <svg
+                        width="18"
+                        height="18"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.5"
+                        aria-hidden="true"
+                      >
+                        <path d="m6 12 6-6 6 6M12 6v14" />
+                      </svg>
+                    </BodyAction>
+                    <BodyAction
                       type="button"
-                      className="btn"
+                      className="item-icon"
                       aria-label={`${label} 아래로 이동`}
+                      title="아래로 이동"
                       disabled={index === refs.length - 1}
                       onClick={() => {
                         const next = [...refs];
@@ -153,48 +187,78 @@ export function NavigationSettings({ inline = false, onStateChange }: { inline?:
                         edit(next);
                       }}
                     >
-                      아래로
-                    </button>
-                    <button
+                      <svg
+                        width="18"
+                        height="18"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.5"
+                        aria-hidden="true"
+                      >
+                        <path d="m6 12 6 6 6-6M12 4v14" />
+                      </svg>
+                    </BodyAction>
+                    <BodyAction
                       type="button"
-                      className="btn"
+                      className="item-icon"
                       aria-label={`${label} 숨기기`}
-                      onClick={() => edit(refs.filter((_, position) => position !== index))}
+                      title="바로가기에서 제거"
+                      onClick={(event) => {
+                        const row = event.currentTarget.closest("li");
+                        const next = (row?.nextElementSibling ?? row?.previousElementSibling)
+                          ?.querySelector<HTMLButtonElement>('button[title="바로가기에서 제거"]');
+                        edit(refs.filter((_, position) => position !== index));
+                        requestAnimationFrame(() => (next ?? addSelect.current)?.focus());
+                      }}
                     >
-                      숨기기
-                    </button>
+                      <svg
+                        width="18"
+                        height="18"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.5"
+                        aria-hidden="true"
+                      >
+                        <path d="m6 6 12 12M6 18 18 6" />
+                      </svg>
+                    </BodyAction>
                   </div>
                 </li>
               );
             })}
           </ol>
           {refs.length === 0 && <p className="secondary">내 프로필만 표시합니다.</p>}
-          <label className="field">
-            <span className="label">바로가기 검색</span>
-            <input
+          <div className="navigation-add-row">
+            <select
+              ref={addSelect}
               className="input"
-              type="search"
-              value={keyword}
-              onChange={(event) => setKeyword(event.target.value)}
-            />
-          </label>
-          <div className="navigation-choices" aria-label="추가할 바로가기">
-            {choices.filter((entry) =>
-              !refs.some((ref) => key(ref) === entry.key) &&
-              entry.label.toLocaleLowerCase().includes(keyword.toLocaleLowerCase())
-            ).map((entry) => (
-              <button
-                type="button"
-                className="btn"
-                key={entry.key}
-                disabled={refs.length >= 4}
-                onClick={() => edit([...refs, entry.ref])}
-              >
-                <EntityTypeIcon id={entry.icon} />
-                {entry.label}
-                {entry.archived ? " · 보관" : ""} 추가
-              </button>
-            ))}
+              aria-label="추가할 메뉴"
+              value={selected?.key ?? ""}
+              disabled={refs.length >= 4 || available.length === 0}
+              onChange={(event) => setCandidate(event.target.value)}
+            >
+              <option value="">
+                {refs.length >= 4 ? "최대 4개 선택" : available.length ? "메뉴 선택" : "추가할 메뉴 없음"}
+              </option>
+              {available.map((entry) => (
+                <option key={entry.key} value={entry.key}>{entry.label}{entry.archived ? " · 보관" : ""}</option>
+              ))}
+            </select>
+            <button
+              type="button"
+              className="btn"
+              disabled={refs.length >= 4 || !selected}
+              aria-label={selected ? `${selected.label} 추가` : "메뉴 추가"}
+              onClick={() => {
+                if (!selected || refs.length >= 4) return;
+                edit([...refs, selected.ref]);
+                setCandidate("");
+              }}
+            >
+              추가
+            </button>
           </div>
           {catalog.error && (
             <div role="alert">
@@ -202,17 +266,6 @@ export function NavigationSettings({ inline = false, onStateChange }: { inline?:
               <button type="button" className="btn" onClick={catalog.retry}>다시 시도</button>
             </div>
           )}
-          <button
-            type="button"
-            className="btn"
-            disabled={draft === null}
-            onClick={() => {
-              setDraft(null);
-              setMessage(null);
-            }}
-          >
-            기본 구성 사용
-          </button>
         </fieldset>
         {conflict && (
           <div role="alert">
@@ -251,7 +304,17 @@ export function NavigationSettings({ inline = false, onStateChange }: { inline?:
             {message.text}
           </p>
         )}
-        <div className="settings-section-footer">
+        <div className="settings-section-footer navigation-settings-footer">
+          <BodyAction
+            icon="reset"
+            disabled={draft === null || busy}
+            onClick={() => {
+              setDraft(null);
+              setMessage(null);
+            }}
+          >
+            기본 구성 사용
+          </BodyAction>
           <div className="actions">
             <button
               type="button"
@@ -285,6 +348,21 @@ export function NavigationSettings({ inline = false, onStateChange }: { inline?:
 
 function NavigationSettingsProtection({ dirty, busy }: { dirty: boolean; busy: boolean }) {
   const blocker = useBlocker(dirty || busy);
-  useEffect(() => { if (busy && blocker.state === "blocked") blocker.reset(); }, [busy, blocker]);
-  return <ConfirmDialog open={!busy && blocker.state === "blocked"} title="변경을 버릴까요?" message="저장하지 않은 메뉴 설정이 사라집니다." confirmLabel="변경 버리기" onConfirm={() => { if (blocker.state === "blocked") blocker.proceed(); }} onCancel={() => { if (blocker.state === "blocked") blocker.reset(); }} />;
+  useEffect(() => {
+    if (busy && blocker.state === "blocked") blocker.reset();
+  }, [busy, blocker]);
+  return (
+    <ConfirmDialog
+      open={!busy && blocker.state === "blocked"}
+      title="변경을 버릴까요?"
+      message="저장하지 않은 메뉴 설정이 사라집니다."
+      confirmLabel="변경 버리기"
+      onConfirm={() => {
+        if (blocker.state === "blocked") blocker.proceed();
+      }}
+      onCancel={() => {
+        if (blocker.state === "blocked") blocker.reset();
+      }}
+    />
+  );
 }
