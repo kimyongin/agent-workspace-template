@@ -201,7 +201,7 @@ async function fixture() {
       properties: { prop_1: "deleted" },
     });
     await deleteEntity(e, actor(), deleted.id, deleted.version);
-    const other = await createEntityType(d, actor(), { label: "Peer" }),
+    const other = await createEntityType(d, actor(), { label: `${label} Peer` }),
       peer = await createEntity(e, actor(), {
         entity_type_id: other.id,
         schema_version: 1,
