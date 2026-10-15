@@ -232,7 +232,7 @@ for(const width of [390,1440])test(`#205 ${width}px: 설정·가이드 구획과
 });
 
 // #215 exercises the real App shell and URL filters without writing user data.
-test("#215 메인 네 탭의 상단 구획·브랜드·필터 조작은 좁은 화면에서도 정렬된다", async ({ page }, info) => {
+test("#215 메인 목록 탭의 상단 구획·브랜드·필터 조작은 좁은 화면에서도 정렬된다", async ({ page }, info) => {
   test.setTimeout(90_000);
   for (const width of [320, 360, 390, 479, 480, 639, 640, 768, 1024, 1440]) {
     await page.setViewportSize({ width, height: 844 });
