@@ -31,7 +31,7 @@ test("long property filter copied URL/reload/history/reset/type scope and entity
   await page.getByRole("button",{name:"속성 조건 추가",exact:true}).click();
   await page.getByLabel("조건 1 속성",{exact:true}).selectOption("prop_2");
   await page.getByLabel("조건 1 값",{exact:true}).fill(value);
-  await page.getByRole("button",{name:"속성 조건 적용",exact:true}).click();
+  await page.getByRole("button",{name:"필터 적용",exact:true}).click();
   await expect.poll(()=>reads.at(-1)?.filters?.[0].value).toBe(value);
   expect(reads.at(-1)?.method).toBe("POST");
   const copied=page.url(),longUrl=new URL(copied);
@@ -56,6 +56,7 @@ test("long property filter copied URL/reload/history/reset/type scope and entity
   await page.goto(ambiguous.href);
   await expect(page.getByText("속성 조건 주소가 잘못되었거나 중복되었습니다. 조건을 확인하거나 초기화하세요.",{exact:true})).toBeVisible();
   await page.getByRole("button",{name:"조건 초기화",exact:true}).click();
+      await page.getByRole("button", { name: "필터 적용", exact: true }).click();
   await expect.poll(()=>new URL(page.url()).hash).toBe("");
   expect(new URL(page.url()).searchParams.get("entity_type_id")).toBe(fixtureType.id);
   expect(new URL(page.url()).searchParams.get("keyword")).toBe("保留");

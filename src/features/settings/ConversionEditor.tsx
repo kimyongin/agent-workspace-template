@@ -1,3 +1,4 @@
+import { FilterPanel } from "../../components/TabSearch.tsx";
 import { BodyAction } from "../../components/BodyAction.tsx";
 import { schemaDiffLabel, schemaEntityLabel, schemaOptionLabel, schemaValueLabel } from "./schema-labels.ts";
 import { useEffect, useRef, useState } from "react";
@@ -15,13 +16,23 @@ import { api } from "../../lib/api.ts";
 import { fieldType } from "../entity/property-fields.tsx";
 type Rule = MigrationPlan["rules"][number];
 function propertyValue(value: unknown, key: string, definition?: SchemaDefinition, showType = false) {
-  const label = typeof value === "string" ? schemaOptionLabel(definition?.display.option_labels[key], value) : schemaValueLabel(value);
-  const kind = typeof value === "string" ? "텍스트" : typeof value === "number" ? Number.isInteger(value) ? "정수" : "숫자" : typeof value === "boolean" ? "참·거짓" : "";
+  const label = typeof value === "string"
+    ? schemaOptionLabel(definition?.display.option_labels[key], value)
+    : schemaValueLabel(value);
+  const kind = typeof value === "string"
+    ? "텍스트"
+    : typeof value === "number"
+    ? Number.isInteger(value) ? "정수" : "숫자"
+    : typeof value === "boolean"
+    ? "참·거짓"
+    : "";
   return showType && kind ? `${label} (${kind})` : label;
 }
 function previewKeys(row: SchemaAnalysisRow) {
   const keys = [...new Set([...Object.keys(row.before), ...Object.keys(row.after ?? {})])];
-  const changed = (key: string) => !row.after || Object.hasOwn(row.before, key) !== Object.hasOwn(row.after, key) || JSON.stringify(row.before[key]) !== JSON.stringify(row.after[key]);
+  const changed = (key: string) =>
+    !row.after || Object.hasOwn(row.before, key) !== Object.hasOwn(row.after, key) ||
+    JSON.stringify(row.before[key]) !== JSON.stringify(row.after[key]);
   return keys.sort((a, b) => Number(changed(b)) - Number(changed(a)));
 }
 function analysisRowTitle(row: SchemaAnalysisRow, target: SchemaDefinition, source?: SchemaDefinition) {
@@ -119,6 +130,7 @@ export function ConversionEditor(
 ) {
   const [page, setPage] = useState<SchemaAnalysisPage>(),
     [failures, setFailures] = useState(false),
+    [draftFailures, setDraftFailures] = useState(false),
     [error, setError] = useState("");
   const pending = useRef<AbortController | null>(null);
   const unsaved = JSON.stringify(migration) !== JSON.stringify(plan.migration);
@@ -149,6 +161,9 @@ export function ConversionEditor(
     if (plan.analysis?.status === "succeeded") void load();
     return () => pending.current?.abort();
   }, [plan.id, plan.type_id, plan.analysis?.id, plan.analysis?.status, failures]);
+  useEffect(() => {
+    setDraftFailures(failures);
+  }, [failures, plan.id, plan.analysis?.id]);
   const group = (rule: Rule) =>
     rule.op === "fill" ? "fill" : rule.op === "replace_failure" ? "replace_failure" : "transform";
   const setRule = (key: string, rule: Rule | undefined, kind = "transform") =>
@@ -189,7 +204,8 @@ export function ConversionEditor(
                   ),
                 ]),
               ].map((key) => {
-                const sourceField = sourceDefinition?.schema.properties[key] ?? plan.diff.find((diff) => diff.path === `properties.${key}`)?.before as EntityField | undefined;
+                const sourceField = sourceDefinition?.schema.properties[key] ??
+                  plan.diff.find((diff) => diff.path === `properties.${key}`)?.before as EntityField | undefined;
                 const f = plan.target.schema.properties[key],
                   r = migration.rules.find((r) => r.key === key && group(r) === "transform"),
                   fill = migration.rules.find((r) => r.key === key && r.op === "fill"),
@@ -363,10 +379,17 @@ export function ConversionEditor(
         : null}
       {plan.analysis?.status !== "succeeded" ? <p>분석 완료 후 원본과 변환값을 확인할 수 있습니다.</p> : (
         <>
-          <label className="choice-control">
-            <input type="checkbox" checked={failures} onChange={(e) => setFailures(e.target.checked)} />{" "}
-            실패한 자료만 보기
-          </label>
+          <FilterPanel
+            dirty={draftFailures !== failures}
+            onReset={() => setDraftFailures(false)}
+            onApply={() => setFailures(draftFailures)}
+          >
+            <label className="choice-control">
+              <input type="checkbox" checked={draftFailures} onChange={(e) => setDraftFailures(e.target.checked)} />
+              {" "}
+              실패한 자료만 보기
+            </label>
+          </FilterPanel>
           {page?.items.length === 0 && <p>표시할 자료가 없습니다. 전체 대상 {plan.analysis.total}개</p>}
           {page?.items.map((row) => (
             <article className="schema-field" key={row.entity_id}>
@@ -382,13 +405,22 @@ export function ConversionEditor(
                         "삭제한 속성"}
                     </dt>
                     <dd style={{ overflowWrap: "anywhere" }}>
-                      {plan.recovery ? "현재 값" : "원본"}{" "}
-                      {Object.hasOwn(row.before, key) ? propertyValue(row.before[key], key, sourceDefinition, row.after !== null && Object.hasOwn(row.after, key) && typeof row.before[key] !== typeof row.after[key]) : "누락"}
-                      {" "}
-                      → {plan.recovery ? "복구" : "변환"} {row.after === null
-                        ? "미리보기 크기 초과"
-                        : Object.hasOwn(row.after, key)
-                        ? propertyValue(row.after[key], key, plan.target, Object.hasOwn(row.before, key) && typeof row.before[key] !== typeof row.after[key])
+                      {plan.recovery ? "현재 값" : "원본"} {Object.hasOwn(row.before, key)
+                        ? propertyValue(
+                          row.before[key],
+                          key,
+                          sourceDefinition,
+                          row.after !== null && Object.hasOwn(row.after, key) &&
+                            typeof row.before[key] !== typeof row.after[key],
+                        )
+                        : "누락"} → {plan.recovery ? "복구" : "변환"}{" "}
+                      {row.after === null ? "미리보기 크기 초과" : Object.hasOwn(row.after, key)
+                        ? propertyValue(
+                          row.after[key],
+                          key,
+                          plan.target,
+                          Object.hasOwn(row.before, key) && typeof row.before[key] !== typeof row.after[key],
+                        )
                         : "제거"}
                     </dd>
                   </div>

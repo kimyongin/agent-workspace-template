@@ -1,3 +1,4 @@
+import { chooseTag } from "./ui-actions.ts";
 import { entityKey, fixtureType } from "./support/workspace-data.ts";
 import { fillChangeMemo } from "./ui-actions.ts";
 import { beginTabAction, saveOnce } from "./ui-actions.ts";
@@ -64,7 +65,7 @@ for (const [kind, label] of [["entities", "검사 자료"], ["tasks", "할 일"]
     await beginTabAction(page, kind === "records" ? "기록 작성" : `${label} 추가`);
     if (kind === "entities") await form(page).getByLabel("제목", { exact: false }).fill("새 엔터티");
     else await fillText(page, `새 ${label}`);
-    await form(page).getByRole("button", { name: "같은 이름", exact: true }).click();
+    await chooseTag(page, form(page), "같은 이름");
     await saveOnce(page, form(page), kind === "tasks" ? "추가" : "저장");
     await expect(page).toHaveURL(new RegExp(`/${kind}/`));
     await expect(form(page).getByRole("button", { name: "편집", exact: true })).toBeVisible();

@@ -12,11 +12,20 @@ import type { TaskResult } from "@contracts/task.ts";
 import { taskLabels } from "@contracts/task.ts";
 import type { RecordResult } from "@contracts/record.ts";
 import { TabCreateButton } from "../../components/TabCreateButton.tsx";
-import { clearListPosition, resetTabFilters, TabFilters, TabSearch } from "../../components/TabSearch.tsx";
+import {
+  applyFilterParams,
+  clearListPosition,
+  pickFilterParams,
+  resetTabFilters,
+  TabFilters,
+  TabSearch,
+  useFilterDraft,
+} from "../../components/TabSearch.tsx";
 import { Field, Notice } from "../../components/Field.tsx";
 import { useCreateMode } from "../../components/useCreateMode.ts";
 import { api } from "../../lib/api.ts";
 import { useDisplayTime } from "../../lib/useDisplayTime.ts";
+import { TagSelection } from "../tags/TagSelection.tsx";
 import { TagDictionaryStatus, TagReadProvider, useTagDictionary } from "../tags/TagPicker.tsx";
 import { recordKindNames } from "./ChangeContext.tsx";
 import { emptyRecord, emptyTask, RecordFormModal, TaskFormModal } from "./forms.tsx";
@@ -198,16 +207,20 @@ export function ActivityPage({ kind }: { kind: WorkspaceListKind }) {
     next.set("create", "1");
     setParams(next);
   };
-  const filter = (name: string, value: string) => {
-    const next = clearListPosition(new URLSearchParams(params));
-    value ? next.set(name, value) : next.delete(name);
-    setParams(next, { replace: true });
-  };
-  const setDate = (name: string, value: string) => {
-    const next = new URLSearchParams(params);
-    value ? next.set(name, value) : next.delete(name);
-    if (periodBounds(next.get("from") ?? "", next.get("to") ?? "", timezone)) clearListPosition(next);
-    setParams(next, { replace: true });
+  const filterKeys = ["tag_id", "tag_ids", "entity_id", "kind", "status", "record_kind", "from", "to"];
+  const editing = useFilterDraft(pickFilterParams(params, filterKeys), kind);
+  const draftTags = activityTags(editing.draft).slice(0, ACTIVITY_TAG_LIMIT);
+  const [filterError, setFilterError] = useState("");
+  const filter = editing.set;
+  const setDate = editing.set;
+  const applyFilters = () => {
+    if (!periodBounds(editing.draft.get("from") ?? "", editing.draft.get("to") ?? "", timezone)) {
+      setFilterError("기록 시작일은 종료일보다 늦을 수 없습니다. 이전 유효 기간의 기록을 유지합니다.");
+      return;
+    }
+    setFilterError("");
+    editing.commit(editing.draft);
+    setParams(applyFilterParams(params, editing.draft, filterKeys), { replace: true });
   };
   const saved = (kind: string, id: string) => {
     const next = new URLSearchParams(params);
@@ -220,10 +233,14 @@ export function ActivityPage({ kind }: { kind: WorkspaceListKind }) {
   return (
     <>
       <section className="panel main-tab-header" aria-labelledby={`${kind}-title`}>
-        <PageHeading title={label} id={`${kind}-title`} tabIndex={-1}
+        <PageHeading
+          title={label}
+          id={`${kind}-title`}
+          tabIndex={-1}
           description={kind === "tasks"
             ? "할 일을 정리하고, 반복 일정과 수행 결과를 관리합니다."
-            : "메모와 참고 자료, 업무 변경 내역을 모아 봅니다."} />
+            : "메모와 참고 자료, 업무 변경 내역을 모아 봅니다."}
+        />
         <div className="panel-body">
           {params.has("legacy_activity") && (
             <Notice>
@@ -235,6 +252,12 @@ export function ActivityPage({ kind }: { kind: WorkspaceListKind }) {
           <div className="query-bar">
             <TabSearch />
             <TabFilters
+              dirty={editing.dirty}
+              onReset={() => {
+                editing.reset();
+                setFilterError("");
+              }}
+              onApply={applyFilters}
               active={!!(tags.length || params.get("entity_id") || params.get("kind") || params.get("status") ||
                 params.get("record_kind") || from || to)}
               attention={!checked || dictionary.failed || trimmedTags}
@@ -255,15 +278,11 @@ export function ActivityPage({ kind }: { kind: WorkspaceListKind }) {
                 to ? `종료: ${to}` : "",
               ].filter(Boolean)}
             >
-              {params.get("entity_id") && (
+              {editing.draft.get("entity_id") && (
                 <EntityScope
-                  key={params.get("entity_id")}
-                  id={params.get("entity_id")!}
-                  onClear={() => {
-                    const next = clearListPosition(new URLSearchParams(params));
-                    next.delete("entity_id");
-                    setParams(next, { replace: true });
-                  }}
+                  key={editing.draft.get("entity_id")}
+                  id={editing.draft.get("entity_id")!}
+                  onClear={() => editing.set("entity_id", "")}
                 />
               )}
               <div className="filter-grid">
@@ -275,7 +294,7 @@ export function ActivityPage({ kind }: { kind: WorkspaceListKind }) {
                           <select
                             {...props}
                             className="input"
-                            value={params.get("kind") ?? ""}
+                            value={editing.draft.get("kind") ?? ""}
                             onChange={(event) => filter("kind", event.target.value)}
                           >
                             <option value="">전체</option>
@@ -289,7 +308,7 @@ export function ActivityPage({ kind }: { kind: WorkspaceListKind }) {
                           <select
                             {...props}
                             className="input"
-                            value={params.get("status") ?? ""}
+                            value={editing.draft.get("status") ?? ""}
                             onChange={(event) => filter("status", event.target.value)}
                           >
                             <option value="">전체</option>
@@ -309,7 +328,7 @@ export function ActivityPage({ kind }: { kind: WorkspaceListKind }) {
                         <select
                           {...props}
                           className="input"
-                          value={params.get("record_kind") ?? ""}
+                          value={editing.draft.get("record_kind") ?? ""}
                           onChange={(event) => filter("record_kind", event.target.value)}
                         >
                           <option value="">전체</option>
@@ -322,7 +341,11 @@ export function ActivityPage({ kind }: { kind: WorkspaceListKind }) {
                   )}
                 {kind === "records" && (
                   <>
-                    {[["from", "기록 시작일", from], ["to", "기록 종료일", to]].map(([name, label, value]) => (
+                    {[["from", "기록 시작일", editing.draft.get("from") ?? ""], [
+                      "to",
+                      "기록 종료일",
+                      editing.draft.get("to") ?? "",
+                    ]].map(([name, label, value]) => (
                       <Field key={name} label={label}>
                         {(props) => (
                           <input
@@ -330,7 +353,7 @@ export function ActivityPage({ kind }: { kind: WorkspaceListKind }) {
                             type="date"
                             className="input"
                             value={value}
-                            aria-invalid={!checked || undefined}
+                            aria-invalid={!!filterError || undefined}
                             onChange={(event) => setDate(name, event.target.value)}
                           />
                         )}
@@ -339,43 +362,25 @@ export function ActivityPage({ kind }: { kind: WorkspaceListKind }) {
                   </>
                 )}
               </div>
-              {kind === "records" && !checked && (
-                <Notice kind="error">
-                  기록 시작일은 종료일보다 늦을 수 없습니다. 이전 유효 기간의 기록을 유지합니다.
-                </Notice>
+              {filterError && <Notice kind="error">{filterError}</Notice>}
+              <TagSelection
+                label={`${label} 태그`}
+                tags={dictionary.tags}
+                value={draftTags}
+                maxSelected={ACTIVITY_TAG_LIMIT}
+                status={<TagDictionaryStatus dictionary={dictionary} />}
+                onChange={(ids) => {
+                  editing.setDraft((previous) => {
+                    const next = new URLSearchParams(previous);
+                    next.delete("tag_id");
+                    ids.length ? next.set("tag_ids", [...ids].sort().join(",")) : next.delete("tag_ids");
+                    return next;
+                  });
+                }}
+              />
+              {trimmedTags && (
+                <p className="help" role="status">태그는 최대 10개입니다. 기존 조건의 앞 10개만 적용했습니다.</p>
               )}
-              <TagDictionaryStatus dictionary={dictionary} />
-              <fieldset className="field tag-filter-chips">
-                <legend className="label">{label} 태그</legend>
-                <div className="chips">
-                  {dictionary.tags?.map((tag) => (
-                    <button
-                      type="button"
-                      key={tag.id}
-                      className="chip"
-                      disabled={tags.length >= ACTIVITY_TAG_LIMIT && !tags.includes(tag.id)}
-                      aria-pressed={tags.includes(tag.id)}
-                      onClick={() => {
-                        setTrimmedTags(false);
-                        const selected = tags.includes(tag.id) ? tags.filter((id) => id !== tag.id) : [...tags, tag.id];
-                        const next = clearListPosition(new URLSearchParams(params));
-                        next.delete("tag_id");
-                        selected.length ? next.set("tag_ids", selected.sort().join(",")) : next.delete("tag_ids");
-                        setParams(next, { replace: true });
-                      }}
-                    >
-                      {tag.name}
-                    </button>
-                  ))}
-                </div>
-                {(trimmedTags || tags.length === ACTIVITY_TAG_LIMIT) && (
-                  <p className="help" role="status">
-                    {trimmedTags
-                      ? "태그는 최대 10개입니다. 기존 조건의 앞 10개만 적용했습니다."
-                      : "태그는 최대 10개까지 선택할 수 있습니다. 선택한 태그를 해제하면 바꿀 수 있습니다."}
-                  </p>
-                )}
-              </fieldset>
             </TabFilters>
           </div>
         </div>

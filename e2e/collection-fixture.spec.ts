@@ -54,6 +54,7 @@ for (const [kind, label, title] of [["entities", "전체 자료", entity.title],
   await expect(list.getByRole("button", { name: title, exact: true })).toHaveAttribute("aria-expanded", "true");
   await page.getByRole("button", { name: "필터 열기" }).click();
   await page.getByRole("button", { name: "조건 초기화" }).click();
+      await page.getByRole("button", { name: "필터 적용", exact: true }).click();
   await expect(modes.getByRole("radio", { name: "테이블", exact: true })).toHaveAttribute("aria-checked", "true");
   expect(state.writes).toEqual([]); expect(state.errors).toEqual([]);
 });

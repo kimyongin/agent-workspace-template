@@ -4,6 +4,7 @@ import { Field, Notice } from "../components/Field.tsx";
 import { MaterialSettingsSection } from "../features/settings/MaterialSettingsSection.tsx";
 import { MaterialWorkspaceSample } from "./PropertySamples.tsx";
 import { ModalSamples } from "./ModalSamples.tsx";
+import { FilterSamples } from "./FilterSamples.tsx";
 import { TagSamples } from "./TagSamples.tsx";
 import { TimezoneSelect } from "../components/TimezoneSelect.tsx";
 import { RecordActionsSample } from "./RecordActionsSample.tsx";
@@ -16,6 +17,7 @@ const topics = [
   ["record-actions", "기록 설정"],
   ["buttons", "버튼"],
   ["forms", "폼과 상태"],
+  ["filters", "필터"],
   ["tags", "태그"],
   ["workspace", "목록과 자료 설정"],
   [
@@ -38,6 +40,13 @@ export function DesignSamples() {
     return (
       <main className="samples-content">
         <IssuerSettingsSample standalone />
+      </main>
+    );
+  }
+  if (params.get("screen") === "filters") {
+    return (
+      <main className="samples-content">
+        <FilterSamples />
       </main>
     );
   }
@@ -124,9 +133,16 @@ function SamplesContent() {
         <p className="secondary">필수 입력, 도움말, 오류, 읽기 전용과 비활성을 비교해보세요.</p>
         <FormSamples />
       </section>
+      <section id="filters" className="samples-topic" aria-labelledby="filters-title">
+        <h2 id="filters-title" className="page-title">필터</h2>
+        <p className="secondary">조건을 편집한 뒤 아래 필터 적용으로 결과를 확인합니다.</p>
+        <FilterSamples />
+      </section>
       <section id="tags" className="samples-topic" aria-labelledby="tags-title">
         <h2 id="tags-title" className="page-title">태그</h2>
-        <p className="secondary">태그를 눌러 선택하거나 해제하세요. 전체 해제는 라벨 옆의 보조 행동입니다.</p>
+        <p className="secondary">
+          선택한 태그만 표시하고 중앙 선택창에서 검색·체크합니다. 선택은 부모 초안에 반영됩니다.
+        </p>
         <TagSamples />
       </section>
       <section id="workspace" className="samples-topic" aria-labelledby="workspace-title">

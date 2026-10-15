@@ -1,5 +1,5 @@
+import { isoDate } from "@contracts/common.ts";
 import { entityNumberDraft } from "@contracts/entity-number.ts";
-import { useEffect, useState } from "react";
 import type { EntitySchemaResult } from "@contracts/entity-type.ts";
 import { entityPropertyFilter } from "@contracts/entity.ts";
 import { Field, Notice } from "../../components/Field.tsx";
@@ -23,21 +23,24 @@ export function TypedEntityFilters(
     onChange: (filters: string, sort: string) => void;
   },
 ) {
-  const [draft, setDraft] = useState<Array<z.infer<typeof entityPropertyFilter>>>([]), [error, setError] = useState("");
-  useEffect(() => {
-    try {
-      setDraft(raw ? z.array(entityPropertyFilter).parse(JSON.parse(raw)) : []);
-      setError("");
-    } catch {
-      setError("속성 조건이 잘못되었습니다. 조건을 초기화하세요.");
-    }
-  }, [raw]);
+  let draft: Array<z.infer<typeof entityPropertyFilter>> = [], error = "";
+  try {
+    draft = raw ? z.array(entityPropertyFilter).parse(JSON.parse(raw)) : [];
+  } catch {
+    error = "속성 조건이 잘못되었습니다. 조건을 초기화하세요.";
+  }
+  const setDraft = (
+    change: (rows: Array<z.infer<typeof entityPropertyFilter>>) => Array<z.infer<typeof entityPropertyFilter>>,
+  ) => {
+    const next = change(draft);
+    onChange(next.length ? JSON.stringify(next) : "", sort);
+  };
   const keys = schema?.display.order.filter((key) => !schema.display.archived.includes(key)) ?? [];
   const update = (index: number, patch: Record<string, unknown>) =>
     setDraft((rows) =>
       rows.map((row, n) =>
         n === index
-          ? {
+          ? patch.operator === "unset" ? { key: row.key, operator: "unset" } : {
             ...row,
             ...patch,
             ...(patch.operator && patch.operator !== "unset" && !("value" in row)
@@ -72,6 +75,14 @@ export function TypedEntityFilters(
       {schema && (
         <fieldset className="form plain-fieldset entity-property-conditions">
           <legend className="label">속성 조건 · 모두 충족</legend>
+          {draft.length > 0 && (
+            <div className="condition-column-labels label" aria-hidden="true">
+              <span>속성</span>
+              <span>비교</span>
+              <span className="condition-value-label">값</span>
+              <span />
+            </div>
+          )}
           {draft.map((row, index) => {
             const field = schema.schema.properties[row.key], kind = field ? fieldType(field) : null;
             const operators = field?.enum || kind === "boolean"
@@ -81,7 +92,7 @@ export function TypedEntityFilters(
               : ["eq", "gt", "gte", "lt", "lte"];
             return (
               <div className="entity-property-condition" key={index}>
-                <Field label={`조건 ${index + 1} 속성`}>
+                <Field hideLabel label={`조건 ${index + 1} 속성`}>
                   {(props) => (
                     <select
                       {...props}
@@ -112,7 +123,7 @@ export function TypedEntityFilters(
                     </select>
                   )}
                 </Field>
-                <Field label={`조건 ${index + 1} 비교`}>
+                <Field hideLabel label={`조건 ${index + 1} 비교`}>
                   {(props) => (
                     <select
                       {...props}
@@ -127,7 +138,7 @@ export function TypedEntityFilters(
                   )}
                 </Field>
                 {"value" in row && (
-                  <Field label={`조건 ${index + 1} 값`}>
+                  <Field hideLabel label={`조건 ${index + 1} 값`}>
                     {(props) =>
                       kind === "boolean"
                         ? (
@@ -162,6 +173,7 @@ export function TypedEntityFilters(
                             {...props}
                             className="input"
                             type={field?.format === "date" ? "date" : "text"}
+                            placeholder="값 입력"
                             inputMode={kind === "integer" || kind === "number" ? "decimal" : undefined}
                             value={String(row.value)}
                             onChange={(event) => update(index, { value: event.target.value })}
@@ -173,9 +185,10 @@ export function TypedEntityFilters(
                   icon="close"
                   type="button"
                   className="condition-remove"
+                  aria-label={`조건 ${index + 1} 제거`}
                   onClick={() => setDraft((rows) => rows.filter((_, n) => n !== index))}
                 >
-                  조건 {index + 1} 제거
+                  {null}
                 </BodyAction>
               </div>
             );
@@ -193,35 +206,66 @@ export function TypedEntityFilters(
             >
               속성 조건 추가
             </BodyAction>
-            <button
-              type="button"
-              className="btn btn-primary"
-              onClick={() => {
-                try {
-                  const filters = draft.map((row) => {
-                    if (row.operator === "unset") return { key: row.key, operator: row.operator };
-                    const field = schema.schema.properties[row.key], kind = fieldType(field);
-                    const value = "value" in row ? row.value : undefined;
-                    if (
-                      (kind === "integer" || kind === "number") && (typeof value !== "string" || !value.trim()) &&
-                      typeof value !== "number"
-                    ) throw Error("숫자를 입력하세요");
-                    return { ...row, value: kind === "integer" || kind === "number" ? entityNumberDraft(String(value), kind) : value };
-                  });
-                  const parsed = z.array(entityPropertyFilter).parse(filters);
-                  setError("");
-                  onChange(parsed.length ? JSON.stringify(parsed) : "", sort);
-                } catch {
-                  setError("조건 값과 비교를 확인하세요. 빈 숫자는 0으로 처리하지 않습니다.");
-                }
-              }}
-            >
-              속성 조건 적용
-            </button>
           </div>
         </fieldset>
       )}
       {error && <Notice kind="error">{error}</Notice>}
     </>
   );
+}
+
+export function validatePropertyFilters(raw: string | null, schema: EntitySchemaResult | null) {
+  if (!raw) return "";
+  if (!schema) throw Error("속성 정의를 확인한 뒤 적용하세요.");
+  const rows = z.array(entityPropertyFilter).parse(JSON.parse(raw));
+  const parsed = rows.map((row) => {
+    const field = schema.schema.properties[row.key];
+    if (!field || schema.display.archived.includes(row.key)) throw Error("속성 조건을 확인하세요.");
+    if (row.operator === "unset") return { key: row.key, operator: row.operator };
+    const kind = fieldType(field), value = "value" in row ? row.value : undefined;
+    const normalized = kind === "integer" || kind === "number" ? entityNumberDraft(String(value ?? ""), kind) : value;
+    const allowed = field.enum || kind === "boolean"
+      ? ["eq"]
+      : kind === "string" && !field.format
+      ? ["eq", "contains"]
+      : ["eq", "gt", "gte", "lt", "lte"];
+    if (
+      !allowed.includes(row.operator) || kind === "boolean" && typeof normalized !== "boolean" ||
+      field.enum && !field.enum.includes(normalized as string) ||
+      kind === "string" && (typeof normalized !== "string" || normalized.includes("\u0000") ||
+          field.format === "date" && (normalized.startsWith("0000-") || !isoDate.safeParse(normalized).success))
+    ) throw Error("속성 조건을 확인하세요.");
+    return { ...row, value: normalized };
+  });
+  const checked = z.array(entityPropertyFilter).max(32).parse(parsed);
+  const groups = new Map<string, typeof checked>();
+  for (const row of checked) groups.set(row.key, [...(groups.get(row.key) ?? []), row]);
+  for (const group of groups.values()) {
+    if (
+      new Set(group.map((row) => row.operator)).size !== group.length ||
+      group.length > 1 && group.some((row) => row.operator === "unset")
+    ) throw Error("조건이 중복됩니다.");
+    for (const left of group) {
+      for (const right of group) {
+        if (!("value" in left) || !("value" in right)) continue;
+        if (
+          (left.operator === "gt" || left.operator === "gte") &&
+          (right.operator === "lt" || right.operator === "lte") &&
+          (left.value > right.value ||
+            left.value === right.value && (left.operator === "gt" || right.operator === "lt"))
+        ) throw Error("범위 조건을 확인하세요.");
+        if (
+          left.operator === "eq" && (
+            right.operator === "gt" && left.value <= right.value ||
+            right.operator === "gte" && left.value < right.value ||
+            right.operator === "lt" && left.value >= right.value ||
+            right.operator === "lte" && left.value > right.value ||
+            right.operator === "contains" && typeof left.value === "string" && typeof right.value === "string" &&
+              !left.value.includes(right.value)
+          )
+        ) throw Error("조건을 확인하세요.");
+      }
+    }
+  }
+  return checked.length ? JSON.stringify(checked) : "";
 }
