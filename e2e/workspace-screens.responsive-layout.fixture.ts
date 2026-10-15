@@ -541,12 +541,20 @@ for (const width of [320, 390, 639, 640]) {
         return { x: box.x, y: box.y, right: box.right, bottom: box.bottom };
       }));
       const remove = (await condition.getByRole("button", { name: "조건 1 제거", exact: true }).boundingBox())!;
-      expect(property.y).toBeCloseTo(comparison.y);
-      expect(property.right).toBeLessThanOrEqual(comparison.x);
-      expect(comparison.right).toBeLessThanOrEqual(remove.x);
       expect(remove.y).toBeCloseTo(property.y);
       expect(remove.width).toBeGreaterThanOrEqual(44);
       expect(remove.height).toBeGreaterThanOrEqual(44);
+      if (scale === "100%" || Math.abs(property.y - comparison.y) < 1) {
+        expect(property.y).toBeCloseTo(comparison.y);
+        expect(property.right).toBeLessThanOrEqual(comparison.x);
+        expect(comparison.right).toBeLessThanOrEqual(remove.x);
+      } else {
+        // Enlarged text may give each field its own row while keeping the remove action beside the property.
+        expect(property.right).toBeLessThanOrEqual(remove.x);
+        expect(comparison.y).toBeGreaterThanOrEqual(Math.max(property.bottom, remove.y + remove.height));
+        expect(comparison.x).toBeCloseTo(property.x);
+        expect(comparison.right).toBeCloseTo(value.right);
+      }
       expect(value.y).toBeGreaterThanOrEqual(Math.max(property.bottom, comparison.bottom));
       expect(value.x).toBeCloseTo(property.x);
       expect(await panel.evaluate(el => el.scrollWidth <= el.clientWidth), scale).toBe(true);
