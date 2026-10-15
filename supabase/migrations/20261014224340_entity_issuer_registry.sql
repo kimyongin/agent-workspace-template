@@ -56,6 +56,9 @@ select t.owner_id,t.type_id,r.source,r.id,r.active,
  exists(select 1 from app.entities e where e.owner_id=t.owner_id and e.entity_type_id=t.type_id and e.source=r.source)
 from app.entity_type_identity t join app.entity_identifier_rules r on r.owner_id=t.owner_id;
 
+-- Both sides of the circular default mapping now exist; flush deferred FK events before DDL.
+set constraints all immediate;
+
 alter table app.entity_issuers enable row level security;
 alter table app.entity_identifier_rules enable row level security;
 alter table app.entity_type_identity enable row level security;
