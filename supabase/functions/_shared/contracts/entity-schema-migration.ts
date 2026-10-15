@@ -33,7 +33,6 @@ export type EntitySchemaMigration = {
   change_version: number;
   analysis_id: string;
   fingerprint: string;
-  source_type_version: number;
   source_schema_version: number;
   version: number;
   status: typeof schemaMigrationStatuses[number];
@@ -41,12 +40,11 @@ export type EntitySchemaMigration = {
   processed: number;
   retryable: boolean;
   failure_reason: string | null;
-  result: { schema_version: number; type_version: number; total: number; changed: number; committed_at: string } | null;
+  result: { schema_version: number; total: number; changed: number; committed_at: string } | null;
   recovery?: {
     status: "available" | "expired" | "unavailable" | "conflict";
     reason: string | null;
     conflicts?: Array<{ path: string; message: string }>;
-    current_type_version: number;
     current_schema_version: number;
   };
   source_expires_at: string | null;

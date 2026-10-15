@@ -131,7 +131,7 @@ export type EntitySchemaVersion = {
   created_at: string;
 };
 export type EntityTypeRef = Pick<EntityType, "id" | "label" | "icon_id" | "archived">;
-export type EntitySchemaRefs = { type_id: string; type_version: number; schema_version: number };
+export type EntitySchemaRefs = { type_id: string; schema_version: number };
 export type EntitySchemaChangeBinding = EntitySchemaRefs & {
   change_id: string;
   change_version: number;
@@ -195,7 +195,6 @@ export const entitySchemaPolicy = {
 export type EntitySchemaVersionSummary = Pick<EntitySchemaVersion, "type_id" | "schema_version" | "created_at">;
 export type EntitySchemaResult = EntitySchemaVersion & {
   type: EntityTypeRef;
-  type_version: number;
   constraints: typeof entitySchemaLimits;
   policy: typeof entitySchemaPolicy;
 };

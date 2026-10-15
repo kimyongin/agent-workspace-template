@@ -141,7 +141,6 @@ export type SchemaAnalysis = {
 export type EntitySchemaChange = {
   id: string;
   type_id: string;
-  source_type_version: number;
   source_schema_version: number;
   source_template_fingerprint: string;
   version: number;
