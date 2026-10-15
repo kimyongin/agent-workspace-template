@@ -193,12 +193,60 @@ async function fixture(page: Page, baseURL: string) {
         }
         return route.fulfill({ status: 201, json: rule });
       }
-      if (path.startsWith("/api/entity-issuers/") && body.active === true) {
-        const source = issuers.find((i) => i.code === path.split("/").at(-1))!;
-        Object.assign(source, { label: body.label, version: source.version + 1 });
+      if (request.method() === "DELETE") {
+        const rule = path.startsWith("/api/entity-identifier-rules/")
+          ? rules.find((r) => r.id === path.split("/").at(-1))
+          : undefined;
+        const issuer = path.startsWith("/api/entity-issuers/")
+          ? issuers.find((i) => i.code === path.split("/").at(-1))
+          : undefined;
+        const used = rule
+          ? identity.sources.some((s) => s.rule_id === rule.id)
+          : rules.some((r) => r.source === issuer?.code);
+        if (used) {
+          return route.fulfill({
+            status: 400,
+            json: {
+              code: "invalid_input",
+              message: "연결되거나 사용된 발급처·번호 종류는 삭제할 수 없습니다. 사용을 중지하세요",
+            },
+          });
+        }
+        if (rule) rules.splice(rules.indexOf(rule), 1);
+        if (issuer) issuers.splice(issuers.indexOf(issuer), 1);
+        const response = { deleted: true };
+        if (key) receipts.set(key, response);
+        if (fail === "delete-lost") {
+          fail = "";
+          return route.abort();
+        }
+        return route.fulfill({ json: response });
+      }
+      if (path.startsWith("/api/entity-issuers/") || path.startsWith("/api/entity-identifier-rules/")) {
+        const id = path.split("/").at(-1);
+        const source = path.startsWith("/api/entity-issuers/")
+          ? issuers.find((i) => i.code === id)!
+          : rules.find((r) => r.id === id)!;
+        if (body.expected_version !== source.version) {
+          return route.fulfill({ status: 409, json: { code: "settings_changed", message: "설정이 변경되었습니다" } });
+        }
+        const blocking = identity.default_source === ("code" in source ? source.code : source.source) &&
+          ("code" in source ||
+            identity.sources.some((s) => s.code === identity.default_source && s.rule_id === source.id));
+        if (body.active === false && blocking) {
+          return route.fulfill({
+            status: 400,
+            json: {
+              code: "invalid_input",
+              message: "기본 발급처를 먼저 변경하세요",
+              fields: [{ path: `default_types.${typeId}`, message: "상품" }],
+            },
+          });
+        }
+        Object.assign(source, { label: body.label, active: body.active, version: source.version + 1 });
         return route.fulfill({ json: source });
       }
-      return route.fulfill({ status: 409, json: { code: "conflict", message: "기본 발급처를 먼저 변경하세요" } });
+      return route.fulfill({ status: 400, json: { code: "invalid_input", message: "설정 입력 확인" } });
     }
     if (path === "/api/entities") {
       return route.fulfill({ json: { items: registered ? [registered] : [], next_cursor: null } });
@@ -240,6 +288,9 @@ async function fixture(page: Page, baseURL: string) {
     },
     concurrentIdentity: () => {
       identity = { ...identity, label: "다른 창의 번호", default_source: "coupang", version: 4 };
+    },
+    withoutApp: () => {
+      identity = { ...identity, sources: identity.sources.filter((s) => s.code !== "app") };
     },
     fail: (mode: string) => {
       fail = mode;
@@ -366,8 +417,9 @@ test("returning from issuer creation keeps the connection selection and protects
   await expect(page.getByRole("dialog", { name: "변경을 버릴까요?", exact: true })).toBeVisible();
   expect(state.writes).toEqual([]);
 });
-test("global disable confirmation cancels back to the editor and a default-source conflict retains its draft", async ({ page, baseURL }) => {
-  await fixture(page, baseURL!);
+test("default policy refusal preserves the draft and resolves affected types without a version-conflict detour", async ({ page, baseURL }) => {
+  const state = await fixture(page, baseURL!);
+  state.concurrentIdentity();
   await page.goto("/settings/issuers");
   await page.getByRole("button", { name: "쿠팡", exact: true }).click();
   await page.getByRole("button", { name: "쿠팡 편집", exact: true }).click();
@@ -384,6 +436,21 @@ test("global disable confirmation cancels back to the editor and a default-sourc
   await confirm.getByRole("button", { name: "중지하고 저장" }).click();
   await expect(modal.getByRole("alert")).toContainText("기본 발급처를 먼저 변경하세요");
   await expect(modal.getByLabel("이름")).toHaveValue("내 쿠팡");
+  await expect(modal.getByRole("button", { name: "최신 저장값 확인" })).toHaveCount(0);
+  await modal.getByRole("button", { name: "상품 기본 발급처 변경", exact: true }).click();
+  await modal.getByLabel("상품 기본 발급처", { exact: true }).selectOption("app");
+  await modal.getByRole("button", { name: "기본 발급처 변경", exact: true }).click();
+  await expect(modal.getByRole("button", { name: "상품 기본 발급처 변경", exact: true })).toHaveCount(0);
+  await expect(modal.getByLabel("이름")).toHaveValue("내 쿠팡");
+  await modal.getByRole("button", { name: "저장", exact: true }).click();
+  await page.getByRole("dialog", { name: "사용을 중지할까요?" }).getByRole("button", { name: "중지하고 저장" }).click();
+  await expect(modal).not.toBeVisible();
+  expect(state.identity().default_source).toBe("app");
+  expect(state.writes.map((w) => w.path)).toEqual([
+    "/api/entity-issuers/coupang",
+    `/api/entity-types/${typeId}/identity`,
+    "/api/entity-issuers/coupang",
+  ]);
 });
 
 test("selecting the current settings category closes its menu without leaving the page", async ({ page, baseURL }) => {
@@ -678,3 +745,73 @@ test("skipping first number before its slow read completes restores focus to the
     release();
   }
 });
+
+test("unused number kind and issuer can be removed, confirmation cancels and a lost response replays the same deletion", async ({ page, baseURL }) => {
+  const state = await fixture(page, baseURL!);
+  await page.goto("/settings/issuers");
+  await page.getByRole("button", { name: "네이버", exact: true }).click();
+  await page.getByRole("button", { name: "상품 ID 편집", exact: true }).click();
+  let editor = page.getByRole("dialog", { name: "번호 종류 편집", exact: true });
+  await editor.getByRole("button", { name: "번호 종류 삭제", exact: true }).click();
+  let confirm = page.getByRole("dialog", { name: "번호 종류를 삭제할까요?" });
+  await confirm.getByRole("button", { name: "취소", exact: true }).click();
+  await expect(editor).toBeVisible();
+  expect(state.writes).toHaveLength(0);
+  await editor.getByRole("button", { name: "번호 종류 삭제", exact: true }).click();
+  state.fail("delete-lost");
+  await page.getByRole("dialog", { name: "번호 종류를 삭제할까요?" }).getByRole("button", { name: "삭제", exact: true })
+    .click();
+  await editor.getByRole("button", { name: "삭제 결과 다시 확인", exact: true }).click();
+  await expect(editor).not.toBeVisible();
+  expect(state.writes[0]).toEqual(state.writes[1]);
+  await page.getByRole("button", { name: "네이버 편집", exact: true }).click();
+  editor = page.getByRole("dialog", { name: "발급처 편집", exact: true });
+  await editor.getByRole("button", { name: "발급처 삭제", exact: true }).click();
+  await page.getByRole("dialog", { name: "발급처를 삭제할까요?" }).getByRole("button", { name: "삭제", exact: true })
+    .click();
+  await expect(editor).not.toBeVisible();
+  await expect(page.getByRole("button", { name: "네이버", exact: true })).toHaveCount(0);
+});
+
+test("linked number deletion refuses without losing the editor draft", async ({ page, baseURL }) => {
+  await fixture(page, baseURL!);
+  await page.goto("/settings/issuers");
+  await page.getByRole("button", { name: "쿠팡", exact: true }).click();
+  await page.getByRole("button", { name: "상품 ID 편집", exact: true }).click();
+  const editor = page.getByRole("dialog", { name: "번호 종류 편집", exact: true });
+  await editor.getByLabel("이름").fill("내 상품 번호");
+  await editor.getByRole("button", { name: "번호 종류 삭제", exact: true }).click();
+  await page.getByRole("dialog", { name: "번호 종류를 삭제할까요?" }).getByRole("button", { name: "삭제", exact: true })
+    .click();
+  await expect(editor.getByRole("alert")).toContainText("연결되거나 사용된");
+  await expect(editor.getByLabel("이름")).toHaveValue("내 상품 번호");
+  await expect(editor.getByRole("button", { name: "최신 저장값 확인" })).toHaveCount(0);
+});
+
+test(
+  "default repair offers app automatic numbering when its unreferenced mapping was removed, and an unknown write can only retry identically",
+  async ({ page, baseURL }, testInfo) => {
+    const state = await fixture(page, baseURL!);
+    state.concurrentIdentity();
+    state.withoutApp();
+    await page.goto("/settings/issuers");
+    await page.getByRole("button", { name: "쿠팡", exact: true }).click();
+    await page.getByRole("button", { name: "쿠팡 편집", exact: true }).click();
+    const modal = page.getByRole("dialog", { name: "발급처 편집", exact: true });
+    await modal.getByLabel("사용", { exact: true }).uncheck();
+    await modal.getByRole("button", { name: "저장", exact: true }).click();
+    await page.getByRole("dialog", { name: "사용을 중지할까요?" }).getByRole("button", { name: "중지하고 저장" })
+      .click();
+    await modal.getByRole("button", { name: "상품 기본 발급처 변경", exact: true }).click();
+    await modal.getByLabel("상품 기본 발급처", { exact: true }).selectOption("app");
+    await page.screenshot({ path: testInfo.outputPath("default-issuer-repair.png") });
+    state.fail("lost");
+    await modal.getByRole("button", { name: "기본 발급처 변경", exact: true }).click();
+    await expect(modal.getByLabel("상품 기본 발급처", { exact: true })).toBeDisabled();
+    await expect(modal.getByRole("button", { name: "저장", exact: true })).toBeDisabled();
+    await modal.getByRole("button", { name: "같은 요청 다시 확인", exact: true }).click();
+    expect(state.writes[1]).toEqual(state.writes[2]);
+    expect(state.identity().sources.find((s) => s.code === "app")?.active).toBe(true);
+    await expect(modal.getByRole("button", { name: "저장", exact: true })).toBeEnabled();
+  },
+);

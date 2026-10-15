@@ -184,6 +184,11 @@ export function IssuerSettingsPage() {
           target={editing}
           onClose={() => setEditing(null)}
           onSaved={saved}
+          onDeleted={() => {
+            if (editing.kind === "issuer") { setSelected(""); setRevision(v => v + 1); }
+            else setRuleRevision(v => v + 1);
+            setEditing(null); setMessage("삭제했습니다.");
+          }}
         />
       )}
     </section>

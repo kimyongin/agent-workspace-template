@@ -90,8 +90,8 @@ description: Workspace에서 다음 업무의 검토·준비안을 만들거나 
 | 업무 설정 조회·요청받은 설정 변경 | `get_business_settings`, `update_business_settings` |
 | 변경 메모·기록 태그와 실제 저장 입력 준비 | `prepare_record_memo` |
 | 자료 종류의 번호 라벨·지원 발급처·기본값 조회·설정 | `get_entity_type_identity`, `update_entity_type_identity` |
-| 발급처 목록·생성·이름 변경·사용 중지 | `list_entity_issuers`, `create_entity_issuer`, `update_entity_issuer` |
-| 발급처의 번호 규칙 조회·생성·라벨 변경·사용 중지 | `list_entity_identifier_rules`, `create_entity_identifier_rule`, `update_entity_identifier_rule` |
+| 발급처 목록·생성·이름 변경·사용 중지 | `list_entity_issuers`, `create_entity_issuer`, `update_entity_issuer`, `delete_entity_issuer` |
+| 발급처의 번호 규칙 조회·생성·라벨 변경·사용 중지 | `list_entity_identifier_rules`, `create_entity_identifier_rule`, `update_entity_identifier_rule`, `delete_entity_identifier_rule` |
 | 자료 종류·현재 이름·아이콘·보관 상태 조회 | `list_entity_types`, `get_entity_type`, `list_entity_type_icons` |
 | 요청받은 자료 종류 생성·이름·아이콘·보관 상태 변경 | `create_entity_type`, `update_entity_type` |
 | 종류별 현재·과거 속성 정의와 버전 조회 | `get_entity_schema`, `list_entity_schema_versions` |
@@ -120,3 +120,5 @@ description: Workspace에서 다음 업무의 검토·준비안을 만들거나 
 저장이 요청 범위에 포함될 때 기록 본문에 수행 내용·결론·조건·근거·출처를 작성한다. 불확실성·부정·가정을 유지하며 원문에 없는 주장을 더하지 않는다. 할 일·원칙의 제목은 대상·행동·기준을 짧게 식별한다. 길이·태그·참조·버전 제한은 실제 계약을 따른다.
 
 확인한 사실과 준비안, 사용한 원본 식별 정보, 중요한 불확실성·남은 작업을 보고한다. 실제 저장한 결과와 저장하지 않은 초안을 명확히 구분한다.
+
+발급처·번호 종류는 완전 미사용 오등록만 삭제한다. 자료 종류 연결이 남아 있으면 연결을 먼저 정리하며 참조된 정의는 사용 중지한다. 기본 발급처 중지의 `invalid_input`은 `fields`의 `default_types.<종류 ID>`에 영향받는 종류 이름을 준다. 해당 종류의 기본 발급처를 변경한 뒤 원래 중지를 다시 요청한다. `settings_changed`일 때만 최신 버전을 확인한다.

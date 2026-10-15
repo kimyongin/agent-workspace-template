@@ -103,9 +103,9 @@ Deno.test("HTTP and MCP enforce registry system-definition policy through the sh
         fn({
           executeRequest: <T>(_r: unknown, execute: () => Promise<T>) => execute(),
           lockIssuer: () => Promise.resolve(appIssuer),
-          issuerIsDefault: () => Promise.resolve(true),
+          defaultTypes: () => Promise.resolve([{ type_id: typeId, label: "상품" }]),
           lockRule: () => Promise.resolve(appRule),
-          ruleUsage: () => Promise.resolve({ referenced: true, usedAsDefault: true }),
+          ruleUsage: () => Promise.resolve({ referenced: true, defaultTypes: [{ type_id: typeId, label: "상품" }] }),
         } as unknown as EntityIssuerStore),
     },
   };
@@ -134,4 +134,65 @@ Deno.test("HTTP and MCP enforce registry system-definition policy through the sh
     )
   );
   assertEquals((e as { code: string }).code, "invalid_input");
+});
+
+Deno.test("HTTP and MCP expose identical unused deletion and default-policy fields", async () => {
+  let deletions = 0;
+  const current = { code: "crm", label: "고객", active: true, system: false, version: 3 };
+  const defaults = [{ type_id: typeId, label: "상품" }];
+  const d: EntityIssuerDeps = {
+    uow: {
+      run: (_a, fn) =>
+        fn({
+          executeRequest: <T>(_r: unknown, execute: () => Promise<T>) => execute(),
+          lockIssuer: () => Promise.resolve(current),
+          defaultTypes: () => Promise.resolve(defaults),
+          issuerHasDependencies: () => Promise.resolve(false),
+          deleteIssuer: () => {
+            deletions++;
+            return Promise.resolve();
+          },
+        } as unknown as EntityIssuerStore),
+    },
+  };
+  const app = new Hono<HttpEnv>();
+  app.use("*", async (c, next) => {
+    c.set("actor", actor);
+    await next();
+  });
+  app.route("/", entityIssuerRoutes(d));
+  app.onError((e, c) => {
+    const { body, status } = toErrorBody(e);
+    return c.json(body, status as 400);
+  });
+  const response = await app.request("/entity-issuers/crm", {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ active: false, expected_version: 3 }),
+  });
+  assertEquals(response.status, 400);
+  const body = await response.json();
+  assertEquals(body.fields, [{ path: `default_types.${typeId}`, message: "상품" }]);
+  const tools = entityIssuerTools(d);
+  const failure = await assertRejects(() =>
+    tools.find((t) => t.name === "update_entity_issuer")!.handler({
+      code: "crm",
+      active: false,
+      expected_version: 3,
+      request_key: crypto.randomUUID(),
+    }, actor)
+  );
+  assertEquals(toErrorBody(failure).body, body);
+  const removed = await app.request("/entity-issuers/crm", {
+    method: "DELETE",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ expected_version: 3 }),
+  });
+  assertEquals(await removed.json(), { deleted: true });
+  const tool = tools.find((t) => t.name === "delete_entity_issuer")!;
+  assertEquals(tool.readOnly, false);
+  assertEquals(await tool.handler({ code: "crm", expected_version: 3, request_key: crypto.randomUUID() }, actor), {
+    deleted: true,
+  });
+  assertEquals(deletions, 2);
 });

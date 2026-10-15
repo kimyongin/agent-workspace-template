@@ -55,7 +55,7 @@ Deno.test("referenced rule meaning cannot change through the public core usecase
   const store = {
     executeRequest: <T>(_r: unknown, fn: () => Promise<T>) => fn(),
     lockRule: () => Promise.resolve(stored),
-    ruleUsage: () => Promise.resolve({ referenced: true, usedAsDefault: false }),
+    ruleUsage: () => Promise.resolve({ referenced: true, defaultTypes: [] }),
     listRules: () => Promise.resolve([stored]),
     updateRule: (_id: string, input: { meaning?: string }) => {
       stored = { ...stored, meaning: input.meaning ?? stored.meaning };
@@ -114,10 +114,14 @@ function registryFixture() {
     executeRequest: <T>(_r: unknown, fn: () => Promise<T>) => fn(),
     countIssuersForUpdate: () => Promise.resolve(2),
     lockIssuer: (code: string) => Promise.resolve(code === "app" ? app : issuer),
-    issuerIsDefault: () => Promise.resolve(defaultUsed),
+    defaultTypes: () => Promise.resolve(defaultUsed ? [{ type_id: identity.type_id, label: "상품" }] : []),
     countRules: () => Promise.resolve(1),
     lockRule: () => Promise.resolve(rule),
-    ruleUsage: () => Promise.resolve({ referenced: true, usedAsDefault: defaultUsed }),
+    ruleUsage: () =>
+      Promise.resolve({
+        referenced: true,
+        defaultTypes: defaultUsed ? [{ type_id: identity.type_id, label: "상품" }] : [],
+      }),
     listRules: () => Promise.resolve([rule]),
     listIssuers: () => Promise.resolve([app, issuer]),
     getTypeIdentity: () => Promise.resolve(identity),
@@ -178,7 +182,7 @@ Deno.test("core registry keeps app definitions protected and requires moving def
       () => updateEntityIssuer(f.d, f.actor, "crm", { active: false, expected_version: 1 }),
       () => updateIdentifierRule(f.d, f.actor, f.rule.id, { active: false, expected_version: 1 }),
     ]
-  ) assertEquals((await assertRejects(command) as { code: string }).code, "conflict");
+  ) assertEquals((await assertRejects(command) as { code: string }).code, "invalid_input");
   f.defaultUsed(false);
   const stopped = await updateIdentifierRule(f.d, f.actor, f.rule.id, {
     active: false,
@@ -229,4 +233,69 @@ Deno.test("core type identity refuses inactive and unavailable issuer-rule bindi
   }
   f.available(true, true);
   assertEquals((await updateEntityTypeIdentity(f.d, f.actor, f.identity.type_id, input)).label, "새 번호");
+});
+
+import { deleteEntityIssuer, deleteIdentifierRule } from "./application.ts";
+Deno.test("unused registry deletion checks version, system and every mapping before removing definitions", async () => {
+  const issuer = { code: "crm", label: "고객", active: true, system: false, version: 3 };
+  const rule = { id: "22222222-2222-4222-8222-222222222222", source: "crm", version: 4 };
+  let used = true, deleted = 0;
+  const store = {
+    executeRequest: <T>(_r: unknown, fn: () => Promise<T>) => fn(),
+    lockIssuer: () => Promise.resolve(issuer),
+    lockRule: () => Promise.resolve(rule),
+    issuerHasDependencies: () => Promise.resolve(used),
+    ruleHasDependencies: () => Promise.resolve(used),
+    deleteIssuer: () => {
+      deleted++;
+      return Promise.resolve();
+    },
+    deleteRule: () => {
+      deleted++;
+      return Promise.resolve();
+    },
+  } as unknown as EntityIssuerStore;
+  const d = { uow: { run: <T>(_a: unknown, fn: (s: EntityIssuerStore) => Promise<T>) => fn(store) } };
+  const actor = { userId: "owner", request: { key: crypto.randomUUID() } };
+  assertEquals(
+    (await assertRejects(() => deleteEntityIssuer(d, actor, "crm", { expected_version: 2 })) as { code: string }).code,
+    "settings_changed",
+  );
+  for (
+    const run of [
+      () => deleteEntityIssuer(d, actor, "crm", { expected_version: 3 }),
+      () => deleteIdentifierRule(d, actor, rule.id, { expected_version: 4 }),
+    ]
+  ) {
+    assertEquals((await assertRejects(run) as { code: string }).code, "invalid_input");
+  }
+  assertEquals(deleted, 0);
+  used = false;
+  issuer.system = true;
+  assertEquals(
+    (await assertRejects(() => deleteEntityIssuer(d, actor, "crm", { expected_version: 3 })) as { code: string }).code,
+    "invalid_input",
+  );
+  issuer.system = false;
+  assertEquals(await deleteIdentifierRule(d, actor, rule.id, { expected_version: 4 }), { deleted: true });
+  assertEquals(await deleteEntityIssuer(d, actor, "crm", { expected_version: 3 }), { deleted: true });
+  assertEquals(deleted, 2);
+});
+
+Deno.test("policy refusals identify all affected kinds while stale registry versions remain settings_changed", async () => {
+  const f = registryFixture();
+  f.defaultUsed(true);
+  const error = await assertRejects(() =>
+    updateEntityIssuer(f.d, f.actor, "crm", { active: false, expected_version: 1 })
+  );
+  assertEquals((error as { fields: unknown }).fields, [{
+    path: `default_types.${f.identity.type_id}`,
+    message: "상품",
+  }]);
+  assertEquals(
+    (await assertRejects(() => updateEntityIssuer(f.d, f.actor, "crm", { active: false, expected_version: 9 })) as {
+      code: string;
+    }).code,
+    "settings_changed",
+  );
 });

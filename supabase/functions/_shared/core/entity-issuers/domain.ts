@@ -4,13 +4,15 @@ import type {
   EntityTypeIdentity,
   IdentifierRule,
   identifierRuleUpdate,
+  IdentityDefaultType,
   issuerUpdate,
   typeIdentityUpdate,
 } from "../../contracts/entity-issuer.ts";
+import { identityDefaultTypeField } from "../../contracts/entity-issuer.ts";
 import { AppError, invalidInput } from "../shared/errors.ts";
 export interface RuleUsage {
   referenced: boolean;
-  usedAsDefault: boolean;
+  defaultTypes: IdentityDefaultType[];
 }
 export interface IdentitySourceAvailability {
   code: string;
@@ -28,11 +30,11 @@ export function assertIssuerCreation(code: string, count: number) {
 export function issuerUpdateDecision(
   current: EntityIssuer,
   input: z.infer<typeof issuerUpdate>,
-  usedAsDefault: boolean,
+  defaultTypes: IdentityDefaultType[],
 ) {
   assertVersion(current.version, input.expected_version);
   if (current.system && input.active === false) throw invalidInput("앱 발급처는 중지할 수 없습니다");
-  if (input.active === false && usedAsDefault) throw new AppError("conflict", "기본 발급처를 먼저 변경하세요");
+  if (input.active === false) assertNoDefaultTypes(defaultTypes);
   return { label: input.label ?? current.label, active: input.active ?? current.active };
 }
 export function assertRuleCreation(source: EntityIssuer, count: number) {
@@ -51,7 +53,7 @@ export function identifierRuleUpdateDecision(
   if (input.meaning !== undefined && input.meaning !== current.meaning && usage.referenced) {
     throw invalidInput("참조된 규칙의 번호 의미는 변경할 수 없습니다");
   }
-  if (input.active === false && usage.usedAsDefault) throw new AppError("conflict", "기본 발급 규칙을 먼저 변경하세요");
+  if (input.active === false) assertNoDefaultTypes(usage.defaultTypes);
   return {
     label: input.label ?? current.label,
     meaning: input.meaning ?? current.meaning,
@@ -79,4 +81,26 @@ export function assertTypeIdentityUpdate(
       throw invalidInput("중지된 발급처·규칙을 활성 연결할 수 없습니다");
     }
   }
+}
+
+export function assertNoDefaultTypes(types: IdentityDefaultType[]) {
+  if (types.length) {
+    throw invalidInput(
+      "기본 발급처를 먼저 변경하세요",
+      types.map((t) => ({
+        path: `${identityDefaultTypeField}${t.type_id}`,
+        message: t.label,
+      })),
+    );
+  }
+}
+export function assertRegistryDeletion(
+  current: { version: number },
+  expected: number,
+  protectedDefinition: boolean,
+  used: boolean,
+) {
+  assertVersion(current.version, expected);
+  if (protectedDefinition) throw invalidInput("앱 발급처·번호 종류는 삭제할 수 없습니다");
+  if (used) throw invalidInput("연결되거나 사용된 발급처·번호 종류는 삭제할 수 없습니다. 사용을 중지하세요");
 }

@@ -65,3 +65,11 @@ export interface EntityTypeIdentity {
     generation: "automatic" | "direct";
   }[];
 }
+
+/** Policy field paths carry the affected owner-scoped type, never another owner's labels. */
+export const identityDefaultTypeField = "default_types.";
+export interface IdentityDefaultType {
+  type_id: string;
+  label: string;
+}
+export const registryDelete = z.strictObject({ expected_version: expectedVersion });
