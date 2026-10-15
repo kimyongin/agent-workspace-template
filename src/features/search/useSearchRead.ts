@@ -23,6 +23,7 @@ export function useSearchRead(params: URLSearchParams, retry: number) {
   const scope = new URLSearchParams(params);
   scope.delete("pages");
   scope.delete("scroll");
+  scope.delete("filters");
   const key = scope.toString(), q = params.get("q") ?? "";
   const requested = Number(params.get("pages") ?? 1);
   const pages = Number.isSafeInteger(requested) && requested > 0 ? Math.min(requested, 1000) : 1;

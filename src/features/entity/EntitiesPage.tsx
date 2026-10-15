@@ -9,7 +9,7 @@ import { EntityTypeIcon } from "./EntityTypeIcon.tsx";
 import { useEffect, useState } from "react";
 import type { EntitySchemaResult } from "@contracts/entity-type.ts";
 import { displayedProperty, fieldType } from "./property-fields.tsx";
-import { TypedEntityFilters } from "./TypedEntityFilters.tsx";
+import { TypedEntityFilters, validatePropertyFilters } from "./TypedEntityFilters.tsx";
 import { EntityTypePicker } from "./EntityTypePicker.tsx";
 import { useEntityTypes } from "./useEntityTypes.ts";
 import { typeListSearch } from "../../app/type-navigation.ts";
@@ -17,7 +17,15 @@ import { Link } from "react-router";
 import { entityPath } from "@contracts/entity-identity.ts";
 import { CollectionHeading, CollectionList, useMainCollectionView } from "../../components/Collection.tsx";
 import { useCreateMode } from "../../components/useCreateMode.ts";
-import { resetTabFilters, TabFilters, TabSearch } from "../../components/TabSearch.tsx";
+import {
+  applyFilterParams,
+  pickFilterParams,
+  resetTabFilters,
+  TabFilters,
+  TabSearch,
+  useFilterDraft,
+} from "../../components/TabSearch.tsx";
+import { TagSelection } from "../tags/TagSelection.tsx";
 import { TagDictionaryStatus, TagReadProvider, useTagDictionary } from "../tags/TagPicker.tsx";
 import { anchorId, requestedPages } from "../activity/list-state.ts";
 import { usePagedList } from "../collections/usePagedList.ts";
@@ -54,6 +62,33 @@ export function EntitiesPage() {
     entity_type_id: params.get("entity_type_id"),
     sort: params.get("sort") ?? "updated_at",
     filters: urlFilters.raw,
+  };
+  const filterKeys = ["tag_id", "sort", "property_filters", "prop3_from", "prop3_to", "prop4"];
+  const applied = pickFilterParams(params, filterKeys);
+  if (urlFilters.raw) applied.set("property_filters", urlFilters.raw);
+  const editing = useFilterDraft(applied, filter.entity_type_id ?? "");
+  const [filterError, setFilterError] = useState("");
+  const resetFilters = () => {
+    editing.reset();
+    setFilterError("");
+  };
+  const applyFilters = () => {
+    try {
+      const sort = editing.draft.get("sort") ?? "updated_at";
+      const parsedSort = entityListQuery.shape.sort.parse(sort.startsWith("{") ? JSON.parse(sort) : sort);
+      if (
+        typeof parsedSort === "object" &&
+        (!schema?.schema.properties[parsedSort.key] || schema.display.archived.includes(parsedSort.key))
+      ) throw Error("정렬 속성을 확인하세요.");
+      const raw = validatePropertyFilters(editing.draft.get("property_filters"), schema);
+      const next = applyFilterParams(params, editing.draft, filterKeys);
+      raw ? next.set("property_filters", raw) : next.delete("property_filters");
+      editing.commit(pickFilterParams(next, filterKeys));
+      setFilterError("");
+      navigate({ pathname: "/entities", ...writeEntityListUrl(next, raw || null) }, { replace: true });
+    } catch {
+      setFilterError("조건 값과 비교를 확인하세요. 빈 숫자는 0으로 처리하지 않습니다.");
+    }
   };
   const { types, error: typeError, retry: retryTypes } = useEntityTypes();
   const selectedType = types?.find((type) => type.id === filter.entity_type_id),
@@ -213,8 +248,12 @@ export function EntitiesPage() {
   return (
     <>
       <section className="panel main-tab-header" aria-labelledby="entities-title">
-        <PageHeading title={label} id="entities-title" tabIndex={-1}
-          description="자료를 등록하고, 속성과 연결된 할 일·기록을 관리합니다." />
+        <PageHeading
+          title={label}
+          id="entities-title"
+          tabIndex={-1}
+          description="자료를 등록하고, 속성과 연결된 할 일·기록을 관리합니다."
+        />
         <div className="query-bar entity-query-bar">
           <EntityTypePicker
             types={types ?? []}
@@ -251,40 +290,34 @@ export function EntitiesPage() {
             active={!!(filter.tag_id || filter.sort !== "updated_at" || filter.filters)}
             attention={dictionary.failed}
             summary={filterSummary}
+            dirty={editing.dirty}
+            onReset={resetFilters}
+            onApply={applyFilters}
           >
             <div className="filter-grid" role="group" aria-label="자료 필터">
               <TypedEntityFilters
                 schema={schema}
-                raw={filter.filters}
-                sort={filter.sort}
+                raw={editing.draft.get("property_filters")}
+                sort={editing.draft.get("sort") ?? "updated_at"}
                 onChange={(filters, sort) => {
-                  const next = new URLSearchParams(params);
-                  if (filters) next.set("property_filters", filters);
-                  else next.delete("property_filters");
-                  if (sort !== "updated_at") next.set("sort", sort);
-                  else next.delete("sort");
-                  for (const key of ["pages", "cursor", "open"]) next.delete(key);
-                  navigate({ pathname: "/entities", ...writeEntityListUrl(next, filters || null) }, { replace: true });
+                  editing.setDraft((previous) => {
+                    const next = new URLSearchParams(previous);
+                    filters ? next.set("property_filters", filters) : next.delete("property_filters");
+                    sort !== "updated_at" ? next.set("sort", sort) : next.delete("sort");
+                    return next;
+                  });
                 }}
               />
             </div>
-            <TagDictionaryStatus dictionary={dictionary} />
-            <fieldset className="field tag-filter-chips">
-              <legend className="label">자료 태그</legend>
-              <div className="chips">
-                {dictionary.tags?.map((tag) => (
-                  <button
-                    type="button"
-                    className="chip"
-                    key={tag.id}
-                    aria-pressed={filter.tag_id === tag.id}
-                    onClick={() => set("tag_id", filter.tag_id === tag.id ? "" : tag.id)}
-                  >
-                    {tag.name}
-                  </button>
-                ))}
-              </div>
-            </fieldset>
+            <TagSelection
+              label="자료 태그"
+              tags={dictionary.tags}
+              value={editing.draft.get("tag_id") ? [editing.draft.get("tag_id")!] : []}
+              maxSelected={1}
+              onChange={(ids) => editing.set("tag_id", ids[0] ?? "")}
+              status={<TagDictionaryStatus dictionary={dictionary} />}
+            />
+            {filterError && <Notice kind="error">{filterError}</Notice>}
           </TabFilters>
         </div>
       </section>
@@ -322,7 +355,7 @@ export function EntitiesPage() {
               {unsupported && (
                 <button
                   className="btn"
-                  onClick={() => navigate(`/entities?${resetTabFilters(params)}`, { replace: true })}
+                  onClick={resetFilters}
                 >
                   조건 초기화
                 </button>
