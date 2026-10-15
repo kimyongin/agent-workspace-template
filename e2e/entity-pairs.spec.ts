@@ -35,7 +35,7 @@ test("연결된 자료: 웹 추가→상대 상세→해제→새로고침과 �
     await links.getByLabel("자료 종류", { exact: true }).selectOption(otherType.id);
     const search = links.getByRole("searchbox", { name: "자료 제목 검색", exact: true });
     await search.fill(y.title);
-    await expect(links.getByText(otherType.label, { exact: false }).last()).toBeVisible();
+    await expect(links.getByRole("group", { name: "자료 검색 결과", exact: true }).getByText(otherType.label, { exact: false })).toBeVisible();
     await links.getByRole("button", { name: `${y.title} 연결`, exact: true }).click();
     const confirmation = page.locator("dialog.modal-action[open]:visible");
     const memo = confirmation.getByLabel("기록 메모", { exact: true });
