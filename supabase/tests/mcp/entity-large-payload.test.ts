@@ -1,5 +1,4 @@
 import { assert, assertEquals } from "@std/assert";
-import postgres from "postgres";
 import { admin, API, call, httpTest, signIn, SUPABASE_URL } from "../http/_client.ts";
 import { claimsOf, connectMcp, mcpGrant } from "./_mcp.ts";
 import type { EntityDetail, EntitySummary } from "../../functions/_shared/contracts/entity.ts";
@@ -30,7 +29,6 @@ httpTest(
       entities: string[] = [];
     let typeId: string | undefined, oauthClientId: string | undefined;
     let client: Awaited<ReturnType<typeof connectMcp>> | undefined;
-    let worker: ReturnType<typeof postgres> | undefined;
     const key = () => {
       const id = crypto.randomUUID();
       keys.push(id);
@@ -44,8 +42,8 @@ httpTest(
       client = await connectMcp(grant.access_token);
       const catalog = await client.listTools(),
         names = catalog.tools.map((t) => t.name);
-      assertEquals(names.length, 67);
-      assertEquals(new Set(names).size, 67);
+      assertEquals(names.length, 69);
+      assertEquals(new Set(names).size, 69);
       for (
         const name of [
           "get_entity_schema",
@@ -54,6 +52,8 @@ httpTest(
           "create_entity",
           "analyze_entity_schema_change",
           "apply_entity_schema_change",
+          "delete_entity_issuer",
+          "delete_entity_identifier_rule",
         ]
       ) assert(names.includes(name));
       assertEquals(
@@ -137,24 +137,7 @@ httpTest(
         },
       );
       assertEquals(accepted.body.status, "queued");
-      const url = new URL(env("LOCAL_DB_URL"));
-      url.username = "app_worker";
-      url.password = encodeURIComponent(env("APP_WORKER_PASSWORD"));
-      worker = postgres(url.href, {
-        max: 1,
-        prepare: false,
-        onnotice: () => {},
-        connection: { statement_timeout: 15000 },
-      });
-      const [claimed] = await worker`select app.claim_entity_schema_analysis() as batch`;
-      assert(claimed.batch);
-      assertEquals(claimed.batch.id, accepted.body.analysis_id);
-      assertEquals(claimed.batch.rows, []);
-      const [completed] =
-        await worker`select app.complete_entity_schema_analysis_batch(${claimed.batch.id},${claimed.batch.fence},${
-          worker.json([])
-        }) as completed`;
-      assertEquals(completed.completed, true);
+      // Empty types finish at acceptance; no privileged worker claim is needed.
       const ready = await call<EntitySchemaChange>(
         token,
         "GET",
@@ -162,6 +145,8 @@ httpTest(
       );
       assertEquals(ready.status, 200);
       assertEquals(ready.body.analysis?.status, "succeeded");
+      assertEquals(ready.body.analysis?.id, accepted.body.analysis_id);
+      assertEquals(ready.body.analysis?.total, 0);
       assert(ready.body.executable);
       await sdk("apply_entity_schema_change", {
         type_id: typeId,
@@ -358,9 +343,6 @@ httpTest(
       };
       await clean(async () => {
         await client?.close();
-      });
-      await clean(async () => {
-        await worker?.end();
       });
       await clean(() =>
         admin.begin(async (tx) => {
