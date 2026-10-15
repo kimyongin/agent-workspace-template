@@ -308,94 +308,83 @@ test("history expansion preserves the same section surface as other settings", a
   }
 });
 
-test("tag clear is a contextual action outside the choices and restores keyboard focus", async ({ page }) => {
+test("tag modal searches and retains draft selections on Escape with focus restoration", async ({ page }, info) => {
   await page.goto(direct);
   const tags = page.getByRole("group", { name: "기본 기록 태그", exact: true });
-  const clear = tags.getByRole("button", { name: "모든 태그 선택 해제", exact: true });
-  await expect(clear).toHaveCount(0);
-  await expect(tags.locator(".tag-selection button")).toHaveCount(3);
-  const offset = () =>
-    tags.evaluate((node) =>
-      node.querySelector(".tag-selection")!.getBoundingClientRect().top - node.getBoundingClientRect().top
-    );
-  const before = await offset();
-  await tags.getByRole("button", { name: "중요", exact: true }).click();
-  await expect(tags).toHaveAccessibleName("기본 기록 태그");
-  await expect(clear).toBeVisible();
-  await expect(tags.locator(".tag-selection").getByRole("button", { name: "모든 태그 선택 해제" })).toHaveCount(0);
-  expect(await offset()).toBe(before);
-  await tags.getByRole("button", { name: "진행 중", exact: true }).click();
-  await tags.getByRole("button", { name: "중요", exact: true }).click();
-  await expect(tags.getByRole("button", { name: "중요", exact: true })).toHaveAttribute("aria-pressed", "false");
-  await clear.click();
-  await expect(clear).toHaveCount(0);
-  await expect(tags.getByRole("button", { name: "중요", exact: true })).toBeFocused();
-  await expect(tags.locator("[aria-pressed=true]")).toHaveCount(0);
-  expect(await offset()).toBe(before);
-  for (const width of [320, 390, 639, 640, 1440]) {
-    await page.setViewportSize({ width, height: 800 });
-    await tags.getByRole("button", { name: "중요", exact: true }).click();
-    const box = (await clear.boundingBox())!;
-    expect(box.width).toBeGreaterThanOrEqual(44);
-    expect(box.height).toBeGreaterThanOrEqual(44);
-    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    await clear.click();
-  }
+  const opener = tags.getByRole("button", { name: "태그 선택", exact: true });
+  await expect(tags.locator(".tag-selection .chip")).toHaveCount(0);
+  await opener.click();
+  const modal = page.getByRole("dialog", { name: "기본 기록 태그 선택", exact: true });
+  await expect(modal.getByRole("searchbox", { name: "태그 이름 검색" })).toBeFocused();
+  await modal.getByRole("checkbox", { name: "중요", exact: true }).check();
+  await modal.getByRole("searchbox").fill("진행");
+  await expect(modal.getByRole("checkbox")).toHaveCount(1);
+  await modal.getByRole("checkbox", { name: "진행 중", exact: true }).check();
+  await expect(modal.getByText("2개 선택", { exact: true })).toBeVisible();
+  await page.screenshot({ path: info.outputPath("tag-modal-open.png"), fullPage: false });
+  await page.keyboard.press("Escape");
+  await expect(modal).toHaveCount(0);
+  await expect(opener).toBeFocused();
+  await expect(tags.getByRole("button", { name: "중요 선택 해제", exact: true })).toBeVisible();
+  await expect(tags.getByRole("button", { name: "진행 중 선택 해제", exact: true })).toBeVisible();
+  await tags.getByRole("button", { name: "중요 선택 해제", exact: true }).click();
+  await expect(opener).toBeFocused();
+  await tags.getByRole("button", { name: "모든 태그 선택 해제" }).click();
+  await expect(opener).toBeFocused();
+  await expect(tags.locator(".tag-selection .chip")).toHaveCount(0);
 });
 
-test("tag selection handles empty, missing, loading, failure, busy and the ten-tag limit", async ({ page }) => {
+test("tag modal preserves unknown and excluded selections and supports single replacement and limits", async ({ page }) => {
   await page.goto(direct);
   const mode = page.getByLabel("태그 예시 상태");
   const tags = page.getByRole("group", { name: "기본 기록 태그", exact: true });
-  const clear = tags.getByRole("button", { name: "모든 태그 선택 해제", exact: true });
-  await mode.selectOption("empty");
-  await expect(tags.getByRole("button")).toHaveCount(0);
-  await expect(tags).toContainText("태그 관리에서 태그를 먼저 추가하세요.");
-  for (const state of ["loading", "failure"]) {
+  const opener = tags.getByRole("button", { name: "태그 선택", exact: true });
+  const modal = page.getByRole("dialog", { name: "기본 기록 태그 선택", exact: true });
+  for (const state of ["loading", "failure", "unknown", "excluded"]) {
     await mode.selectOption(state);
-    await expect(clear).toBeEnabled();
-    await clear.click();
-    await expect(clear).toHaveCount(0);
-    await expect(tags.locator("legend")).toBeFocused();
+    await expect(tags.locator(".tag-selection .chip")).toHaveCount(1);
+    await tags.locator(".tag-selection .chip").click();
+    await expect(tags.locator(".tag-selection .chip")).toHaveCount(0);
+    await expect(opener).toBeFocused();
   }
-  await mode.selectOption("unknown");
-  await tags.getByRole("button", { name: "이름 확인이 필요한 태그 1 선택 해제", exact: true }).click();
-  await expect(tags.locator("legend")).toBeFocused();
-  await expect(clear).toHaveCount(0);
+  await mode.selectOption("excluded");
+  await opener.click();
+  await expect(modal.getByRole("checkbox", { name: "중요", exact: true })).toHaveCount(0);
+  await modal.getByRole("button", { name: "닫기", exact: true }).click();
+  await expect(tags.getByRole("button", { name: "중요 선택 해제", exact: true })).toBeVisible();
   await mode.selectOption("busy");
-  await expect(clear).toBeDisabled();
-  await expect(tags.getByRole("button", { name: "중요", exact: true })).toBeDisabled();
+  await expect(opener).toBeDisabled();
+  await expect(tags.getByRole("button", { name: "모든 태그 선택 해제" })).toBeDisabled();
+  await mode.selectOption("single");
+  await opener.click();
+  await modal.getByRole("checkbox", { name: "중요", exact: true }).check();
+  await modal.getByRole("checkbox", { name: "진행 중", exact: true }).check();
+  await expect(modal.getByRole("checkbox", { name: "중요", exact: true })).not.toBeChecked();
+  await expect(modal.getByText("1개 선택", { exact: true })).toBeVisible();
+  await modal.getByRole("button", { name: "선택 완료", exact: true }).click();
   await mode.selectOption("many");
-  const choices = tags.locator(".tag-selection button");
-  for (let i = 0; i < 10; i++) await choices.nth(i).click();
+  await opener.click();
+  const choices = modal.getByRole("checkbox");
+  for (let i = 0; i < 10; i++) await choices.nth(i).check();
   await expect(choices.nth(10)).toBeDisabled();
-  await expect(tags.getByRole("status")).toContainText("최대 10개");
-  await page.setViewportSize({ width: 320, height: 800 });
-  await page.evaluate(() => document.documentElement.style.fontSize = "200%");
+  await expect(modal).toContainText("최대 10개");
+  for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
+    await page.setViewportSize({ width, height: 800 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    const box = (await modal.boundingBox())!;
+    expect(box.x).toBeGreaterThan(0);
+    expect(box.y).toBeGreaterThan(0);
+    expect(Math.abs(box.x + box.width / 2 - width / 2)).toBeLessThan(2);
+    expect((await modal.getByRole("button", { name: "선택 완료" }).boundingBox())!.height).toBeGreaterThanOrEqual(44);
+  }
+  await page.setViewportSize({ width: 640, height: 800 });
+  await page.evaluate(() => document.documentElement.style.zoom = "2");
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-  await choices.first().click();
+  await expect(modal.getByRole("button", { name: "선택 완료" })).toBeInViewport();
+  await choices.first().uncheck();
   await expect(choices.nth(10)).toBeEnabled();
-  await expect(tags.getByRole("status")).toHaveCount(0);
-  await clear.click();
-  await expect(choices.filter({ has: page.locator("[aria-pressed=true]") })).toHaveCount(0);
-  await page.evaluate(() => document.documentElement.style.fontSize = "");
-});
-
-test("tag clear retains list position with the template label at 200%", async ({ page }) => {
-  await page.goto(direct);
-  await page.setViewportSize({ width: 320, height: 800 });
-  await page.evaluate(() => document.documentElement.style.fontSize = "200%");
-  const tags = page.getByRole("group", { name: "기본 기록 태그", exact: true });
-  const offset = () =>
-    tags.evaluate((node) =>
-      node.querySelector(".tag-selection")!.getBoundingClientRect().top - node.getBoundingClientRect().top
-    );
-  const before = await offset();
-  await tags.getByRole("button", { name: "중요", exact: true }).click();
-  expect(await offset()).toBe(before);
-  await tags.getByRole("button", { name: "모든 태그 선택 해제", exact: true }).click();
-  expect(await offset()).toBe(before);
-  await page.evaluate(() => document.documentElement.style.fontSize = "");
+  await page.evaluate(() => document.documentElement.style.zoom = "");
+  await modal.getByRole("button", { name: "선택 완료", exact: true }).click();
 });
 
 test("property choices and native disclosures share production touch targets", async ({ page }) => {
@@ -441,4 +430,106 @@ test("single-choice and record-action samples preserve keyboard meaning and hidd
   await settings.getByRole("button", { name: "취소", exact: true }).click();
   await expect(settings.getByLabel("저장할 변경", { exact: true })).toHaveCount(0);
   await expect(settings.getByLabel("메모 템플릿", { exact: true })).toHaveText("대상 액션");
+});
+
+test("filter sample keeps drafts until common apply and reuses the tag modal", async ({ page }, info) => {
+  await page.goto("/design-samples/index.html?screen=filters");
+  const list = page.getByRole("region", { name: "적용된 조건의 자료 목록", exact: true });
+  await expect(list.getByRole("heading")).toHaveText("자료 · 3개");
+  const apply = page.getByRole("button", { name: "필터 적용", exact: true });
+  await apply.click();
+  await expect(list.getByRole("heading")).toHaveText("자료 · 1개");
+  await expect(list).toContainText("월간 업무 보고서");
+  await page.getByLabel("조건 1 값", { exact: true }).fill("프로젝트");
+  await page.getByRole("button", { name: "조건 2 제거", exact: true }).click();
+  await expect(list).toContainText("월간 업무 보고서");
+  await apply.click();
+  await expect(list).toContainText("프로젝트 정리");
+  await page.getByRole("button", { name: "조건 초기화", exact: true }).click();
+  await expect(list.getByRole("heading")).toHaveText("자료 · 1개");
+  await apply.click();
+  await expect(list.getByRole("heading")).toHaveText("자료 · 3개");
+  await page.getByRole("button", { name: "태그 선택", exact: true }).click();
+  const chooser = page.getByRole("dialog", { name: "자료 태그 선택", exact: true });
+  await chooser.getByRole("checkbox", { name: "프로젝트", exact: true }).check();
+  await chooser.getByRole("button", { name: "선택 완료", exact: true }).click();
+  await expect(list.getByRole("heading")).toHaveText("자료 · 3개");
+  await apply.click();
+  await expect(list).toContainText("프로젝트 정리");
+  await expect(list.getByRole("heading")).toHaveText("자료 · 1개");
+  await page.getByRole("button", { name: "조건 초기화", exact: true }).click();
+  await apply.click();
+  await page.getByRole("button", { name: "속성 조건 추가", exact: true }).click();
+  await page.getByRole("button", { name: "속성 조건 추가", exact: true }).click();
+  for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
+    await page.setViewportSize({ width, height: 1000 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    for (const button of await page.getByRole("button", { name: /^조건 [12] 제거$/ }).all()) {
+      const box = (await button.boundingBox())!;
+      expect(box.width).toBeGreaterThanOrEqual(44);
+      expect(box.height).toBeGreaterThanOrEqual(44);
+    }
+    if (width === 390 || width === 1440) {
+      await page.screenshot({ path: info.outputPath(`filter-sample-${width}.png`), fullPage: true });
+    }
+  }
+});
+
+test("successful tag refresh invalidates a formerly known selection and empty dictionaries guide management", async ({ page }) => {
+  await page.goto(direct);
+  const mode = page.getByLabel("태그 예시 상태");
+  const tags = page.getByRole("group", { name: "기본 기록 태그", exact: true });
+  const opener = tags.getByRole("button", { name: "태그 선택", exact: true });
+  const modal = page.getByRole("dialog", { name: "기본 기록 태그 선택", exact: true });
+  await opener.click();
+  await modal.getByRole("checkbox", { name: "중요", exact: true }).check();
+  await modal.getByRole("button", { name: "선택 완료", exact: true }).click();
+  await expect(tags.getByRole("button", { name: "중요 선택 해제", exact: true })).toBeVisible();
+  for (const state of ["loading", "failure"]) {
+    await mode.selectOption(state);
+    await expect(tags.getByRole("button", { name: "중요 선택 해제", exact: true })).toBeVisible();
+  }
+  await mode.selectOption("unknown");
+  await expect(tags.getByText("태그 확인 필요", { exact: true })).toBeVisible();
+  await expect(tags.getByRole("button", { name: "중요 선택 해제", exact: true })).toHaveCount(0);
+  await tags.getByRole("button", { name: "이름 확인이 필요한 태그 1 선택 해제", exact: true }).click();
+  await expect(tags.locator(".tag-selection .chip")).toHaveCount(0);
+  await mode.selectOption("empty");
+  await opener.click();
+  await expect(modal.getByText("태그 관리에서 태그를 먼저 추가하세요.", { exact: true })).toBeVisible();
+  await modal.getByRole("searchbox", { name: "태그 이름 검색" }).fill("없는 이름");
+  await expect(modal.getByText("일치하는 태그가 없습니다.", { exact: true })).toBeVisible();
+});
+
+test("filter tag headings remain readable at320px with enlarged text before and after selection", async ({ page }, info) => {
+  await page.setViewportSize({ width: 320, height: 900 });
+  await page.goto("/design-samples/index.html?screen=filters");
+  await page.evaluate(() => document.documentElement.style.fontSize = "200%");
+  const tags = page.getByRole("group", { name: "자료 태그", exact: true });
+  const opener = tags.getByRole("button", { name: "태그 선택", exact: true });
+  const clear = tags.getByRole("button", { name: "모든 태그 선택 해제", exact: true });
+  for (const selected of [false, true]) {
+    if (selected) {
+      await opener.click();
+      const chooser = page.getByRole("dialog", { name: "자료 태그 선택", exact: true });
+      await chooser.getByRole("checkbox", { name: "보고서", exact: true }).check();
+      await chooser.getByRole("button", { name: "선택 완료", exact: true }).click();
+      await expect(tags.getByRole("button", { name: "보고서 선택 해제", exact: true })).toBeVisible();
+    }
+    const label = tags.getByText("자료 태그", { exact: true });
+    const labelSize = await label.evaluate(el => ({ height: el.getBoundingClientRect().height, lineHeight: parseFloat(getComputedStyle(el).lineHeight) }));
+    expect(labelSize.height).toBeLessThanOrEqual(labelSize.lineHeight + 1);
+    await expect(clear).toHaveCount(selected ? 1 : 0);
+    const bounds = (await tags.boundingBox())!;
+    for (const control of selected ? [opener, clear] : [opener]) {
+      const box = (await control.boundingBox())!;
+      expect(box.width).toBeGreaterThanOrEqual(44);
+      expect(box.height).toBeGreaterThanOrEqual(44);
+      expect(box.x).toBeGreaterThanOrEqual(bounds.x);
+      expect(box.x + box.width).toBeLessThanOrEqual(bounds.x + bounds.width);
+    }
+    expect(await tags.evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await tags.screenshot({ path: info.outputPath(`filter-tags-320-text200-${selected ? "selected" : "empty"}.png`) });
+  }
 });

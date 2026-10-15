@@ -3,7 +3,7 @@ import { createContext, type ReactNode, useContext, useEffect, useLayoutEffect, 
 import { useLocation } from "react-router";
 import { WorkspaceContext } from "../details/workspace-context.ts";
 import { api } from "../../lib/api.ts";
-import { Field, Notice } from "../../components/Field.tsx";
+import { Notice } from "../../components/Field.tsx";
 import { TagSelection } from "./TagSelection.tsx";
 import { createTagRead } from "./tag-read.ts";
 const tagRead = createTagRead(api);
@@ -133,29 +133,23 @@ export function TagFilter(
   const local = useTagDictionary(!dictionary);
   const { tags, failed, retry } = dictionary ?? local;
   return (
-    <>
-      <Field label="태그 필터">
-        {(p) => (
-          <select
-            {...p}
-            className="input"
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
-            disabled={!tags}
-          >
-            <option value="">모든 태그</option>
-            {tags?.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-            {value && tags && !tags.some((t) => t.id === value) && <option value={value}>태그 확인 필요</option>}
-          </select>
-        )}
-      </Field>
-      {showFailure && failed && (
-        <>
-          <Notice kind="error">태그 필터를 불러오지 못했습니다.</Notice>
-          <button type="button" className="btn" onClick={retry}>태그 다시 시도</button>
-        </>
-      )}
-    </>
+    <TagSelection
+      label="태그 필터"
+      tags={tags}
+      value={value ? [value] : []}
+      onChange={(ids) => onChange(ids[0] ?? "")}
+      maxSelected={1}
+      status={showFailure && failed
+        ? (
+          <>
+            <Notice kind="error">태그 필터를 불러오지 못했습니다.</Notice>
+            <button type="button" className="btn" onClick={retry}>태그 다시 시도</button>
+          </>
+        )
+        : !tags
+        ? <p className="secondary" role="status">태그를 불러오는 중…</p>
+        : undefined}
+    />
   );
 }
 export function TagDictionaryStatus({ dictionary }: { dictionary: TagDictionary }) {

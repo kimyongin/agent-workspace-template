@@ -88,13 +88,14 @@ test("typed list exposes current columns and AND filters, type switch clears onl
   await page.getByLabel("조건 1 속성", { exact: true }).selectOption("prop_2");
   await page.getByLabel("조건 1 비교", { exact: true }).selectOption("gte");
   await page.getByLabel("조건 1 값", { exact: true }).fill("0");
-  await page.getByRole("button", { name: "속성 조건 적용", exact: true }).click();
+  await page.getByRole("button", { name: "필터 적용", exact: true }).click();
   expect(JSON.parse(new URL(page.url()).searchParams.get("property_filters")!)).toEqual([{
     key: "prop_2",
     operator: "gte",
     value: 0,
   }]);
   await page.getByLabel("정렬", { exact: true }).selectOption(JSON.stringify({ key: "prop_2", direction: "desc" }));
+  await page.getByRole("button", { name: "필터 적용", exact: true }).click();
   await page.getByLabel("자료 종류", { exact: true }).selectOption(second.id);
   const url = new URL(page.url());
   expect(url.searchParams.has("property_filters")).toBe(false);
@@ -182,12 +183,12 @@ test("numeric filter rejects a precision-losing draft without applying or cleari
   await page.getByLabel("조건 1 속성", { exact: true }).selectOption("prop_2");
   const input = page.getByLabel("조건 1 값", { exact: true });
   await input.fill("9007199254740993");
-  await page.getByRole("button", { name: "속성 조건 적용", exact: true }).click();
+  await page.getByRole("button", { name: "필터 적용", exact: true }).click();
   await expect(page.getByRole("alert")).toContainText("조건 값과 비교");
   await expect(input).toHaveValue("9007199254740993");
   expect(new URL(page.url()).searchParams.has("property_filters")).toBe(false);
   await input.fill("42");
-  await page.getByRole("button", { name: "속성 조건 적용", exact: true }).click();
+  await page.getByRole("button", { name: "필터 적용", exact: true }).click();
   await expect.poll(() => new URL(page.url()).searchParams.get("property_filters")).toBe('[{"key":"prop_2","operator":"eq","value":42}]');
 });
 

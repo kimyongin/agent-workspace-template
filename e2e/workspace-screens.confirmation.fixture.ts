@@ -1,3 +1,4 @@
+import { chooseTag } from "./ui-actions.ts";
 import { entityKey } from "./support/workspace-data.ts";
 import { fillChangeMemo, openListDetail } from "./ui-actions.ts";
 import { saveOnce } from "./ui-actions.ts";
@@ -25,7 +26,7 @@ for (const uncertain of [false, true]) {
     await go(page, `/tasks/${id(2)}`);
     await form(page).getByRole("button", { name: "중단", exact: true }).click();
     await form(page).getByLabel("기록 메모", { exact: true }).fill("다음 주부터 계획 변경");
-    await form(page).getByRole("button", { name: "같은 이름", exact: true }).click();
+    await chooseTag(page, form(page), "같은 이름");
     if (uncertain) {
       await form(page).getByRole("button", { name: "중단하고 저장" }).click();
       await expect(form(page).getByRole("button", { name: "같은 내용 다시 시도" })).toBeVisible();
@@ -33,10 +34,7 @@ for (const uncertain of [false, true]) {
     await form(page).getByRole("button", { name: "취소", exact: true }).click();
     await form(page).getByRole("button", { name: "중단", exact: true }).click();
     await expect(form(page).getByLabel("기록 메모", { exact: true })).toHaveValue("다음 주부터 계획 변경");
-    await expect(form(page).getByRole("button", { name: "같은 이름", exact: true })).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
+    await expect(form(page).getByRole("button", { name: "같은 이름 선택 해제", exact: true })).toHaveCount(1);
     if (uncertain) {
       await expect(form(page).getByLabel("기록 메모", { exact: true })).toBeDisabled();
       await form(page).getByRole("button", { name: "같은 내용 다시 시도" }).click();
@@ -74,10 +72,7 @@ for (const [kind, n, label] of [["entities", 1, "제목"], ["tasks", 2, "제목"
     expect(box.height).toBeLessThan(844 - 32);
     expect(box.y).toBeGreaterThan(0);
     await form(page).getByLabel("기록 메모").fill("금요일 일정에 맞춰 수정함");
-    await form(page).getByRole("group", { name: "기록 태그", exact: true }).getByRole("button", {
-      name: "같은 이름",
-      exact: true,
-    }).click();
+    await chooseTag(page, form(page).getByRole("group", { name: "기록 태그", exact: true }), "같은 이름");
     await page.screenshot({ path: info.outputPath(`confirmation-${kind}.png`) });
     await form(page).getByRole("button", { name: "취소", exact: true }).click();
     await expect(form(page).getByRole("textbox", { name: `${label} (필수)`, exact: true })).toHaveValue("변경 초안");
@@ -339,17 +334,17 @@ for (const [kind, n, label] of [["entities", 1, "자료 태그"], ["tasks", 2, "
     const state = await fixtures(page);
     await go(page, `/${kind}/${kind === "entities" ? encodeURIComponent(entityKey(n)) : id(n)}?edit=1&edit_from=view`);
     const picker = form(page).getByRole("group", { name: label, exact: true });
-    const choice = picker.getByRole("button", { name: "같은 이름", exact: true });
+    const choice = picker.getByRole("button", { name: "같은 이름 선택 해제", exact: true });
     const clear = picker.getByRole("button", { name: "모든 태그 선택 해제", exact: true });
     await expect(clear).toHaveCount(0);
-    await choice.click();
-    await expect(choice).toHaveAttribute("aria-pressed", "true");
+    await chooseTag(page, picker, "같은 이름");
+    await expect(choice).toHaveCount(1);
     await expect(picker).toHaveAccessibleName(label);
     await expect(picker.locator(".tag-selection").getByRole("button", { name: "모든 태그 선택 해제" })).toHaveCount(0);
     await clear.click();
     await expect(clear).toHaveCount(0);
-    await expect(choice).toHaveAttribute("aria-pressed", "false");
-    await expect(choice).toBeFocused();
+    await expect(choice).toHaveCount(0);
+    await expect(picker.getByRole("button", { name: "태그 선택", exact: true })).toBeFocused();
     expect(state.writes).toHaveLength(0);
     expect(state.errors).toEqual([]);
   });
@@ -364,6 +359,6 @@ test("failed tag lookup still permits clearing existing draft selections", async
   await expect(picker.getByRole("alert")).toContainText("기존 선택은 유지합니다");
   await picker.getByRole("button", { name: "모든 태그 선택 해제", exact: true }).click();
   await expect(picker.getByRole("button", { name: "모든 태그 선택 해제", exact: true })).toHaveCount(0);
-  await expect(picker.locator("legend")).toBeFocused();
+  await expect(picker.getByRole("button", { name: "태그 선택", exact: true })).toBeFocused();
   expect(state.writes).toHaveLength(0);
 });

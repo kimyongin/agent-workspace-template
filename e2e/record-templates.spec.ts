@@ -2,7 +2,7 @@ import { scalarFixtureType } from "./entity-schema-support.ts";
 import { test, mcpClient, mcpTokenViaConsent } from "./support.ts";
 import { expect } from "@playwright/test";
 import { devLogin, env, unique } from "./support.ts";
-import { beginTabAction } from "./ui-actions.ts";
+import { beginTabAction, chooseTag } from "./ui-actions.ts";
 
 test("설정 템플릿 오류·변수 삽입과 실제 변경 확인·취소·수정 메모 보존·고정 재시도", async ({page}) => {
   await devLogin(page);
@@ -44,7 +44,7 @@ test("설정 템플릿 오류·변수 삽입과 실제 변경 확인·취소·�
     await target.selectOption("task");
     form = page.getByRole("form",{name:"기록 자동 완성", exact: true});
     await form.getByLabel("메모 템플릿").fill("$대상$ 준비 $액션$");
-    await form.getByRole("button",{name:tag.name,exact:true}).click();
+    await chooseTag(page,form,tag.name);
     await form.getByRole("button",{name:"기록 자동 완성 저장"}).click();
     await expect(form).toContainText("기록 자동 완성을 저장했습니다.");
     await page.goto("/tasks");
@@ -57,13 +57,13 @@ test("설정 템플릿 오류·변수 삽입과 실제 변경 확인·취소·�
     await dialog.getByRole("button",{name:"추가",exact:true}).click();
     const confirmation=page.locator("dialog.modal-action[open]");
     await expect(confirmation.getByLabel("기록 메모",{exact:true})).toHaveValue(`${title} 준비 등록`);
-    await expect(confirmation.getByRole("button",{name:tag.name,exact:true})).toHaveAttribute("aria-pressed","true");
+    await expect(confirmation.getByRole("button", { name: `${tag.name} 선택 해제`, exact: true })).toHaveCount(1);
     await confirmation.getByLabel("기록 메모",{exact:true}).fill("  내 메모\n");
     await confirmation.getByRole("button",{name:"모든 태그 선택 해제",exact:true}).click();
     await confirmation.getByRole("button",{name:"취소",exact:true}).click();
     await dialog.getByRole("button",{name:"추가",exact:true}).click();
     await expect(confirmation.getByLabel("기록 메모",{exact:true})).toHaveValue("  내 메모\n");
-    await expect(confirmation.getByRole("button",{name:tag.name,exact:true})).toHaveAttribute("aria-pressed","false");
+    await expect(confirmation.getByRole("button", { name: `${tag.name} 선택 해제`, exact: true })).toHaveCount(0);
     await expect(confirmation.getByRole("button",{name:"템플릿 다시 적용",exact:true})).toHaveCount(0);
     const requests:unknown[]=[], keys:(string|undefined)[]=[];
     await page.route("**/api/tasks",route=>{

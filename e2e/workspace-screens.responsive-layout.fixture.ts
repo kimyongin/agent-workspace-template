@@ -455,17 +455,20 @@ for (const width of [320, 360, 390, 639, 640, 768, 1024, 1440]) {
       if (kind !== "entities") expect(inputs[0].y).toBeCloseTo(inputs[1].y);
       else await expect(page.locator(".main-tab-header").getByLabel("자료 종류", { exact: true })).toBeVisible();
       const filterBottom = (await grid.boundingBox())!;
-      expect((await page.locator(".tag-filter-chips").boundingBox())!.y).toBeGreaterThanOrEqual(
+      expect((await page.getByRole("group", { name: kind === "entities" ? "자료 태그" : kind === "tasks" ? "할 일 태그" : "기록 태그", exact: true }).boundingBox())!.y).toBeGreaterThanOrEqual(
         filterBottom.y + filterBottom.height,
       );
       if (kind === "entities") await setEntityCategory(page, value);
-      else await page.getByLabel(label, { exact: true }).selectOption(value);
+      else { await page.getByLabel(label, { exact: true }).selectOption(value); await page.getByRole("button", { name: "필터 적용", exact: true }).click(); }
       const search = page.getByLabel(kind === "entities" ? "자료 제목 검색" : "검색어", { exact: true });
       await search.fill("조건 유지");
       await expect.poll(() => new URL(page.url()).searchParams.get(kind === "entities" ? "keyword" : "q")).toBe(
         "조건 유지",
       );
+      const appliedBeforeReset = page.url();
       await page.getByRole("button", { name: "조건 초기화", exact: true }).click();
+      expect(page.url()).toBe(appliedBeforeReset);
+      await page.getByRole("button", { name: "필터 적용", exact: true }).click();
       const params = new URL(page.url()).searchParams;
       expect(params.get("filters")).toBe("1");
       expect(params.get(kind === "entities" ? "keyword" : "q")).toBe("조건 유지");
@@ -529,13 +532,33 @@ for (const width of [320, 390, 639, 640]) {
     for (const scale of ["100%", "200%"]) {
       await page.evaluate(value => { document.documentElement.style.fontSize = value; }, scale);
       const panel = header.locator(".tab-filters > .form");
-      for (const grid of await panel.locator(".filter-grid, .entity-property-condition").all()) {
-        const columns = await grid.evaluate(el => getComputedStyle(el).gridTemplateColumns.split(" ").length);
-        expect(columns).toBeLessThanOrEqual(2);
-        if (width === 320 && scale === "200%") expect(columns).toBe(1);
+      const condition = panel.locator(".entity-property-condition");
+      await expect(condition).toHaveCount(1);
+      const controls = condition.locator("input,select");
+      await expect(controls).toHaveCount(3);
+      const [property, comparison, value] = await controls.evaluateAll(elements => elements.map(el => {
+        const box = el.getBoundingClientRect();
+        return { x: box.x, y: box.y, right: box.right, bottom: box.bottom };
+      }));
+      const remove = (await condition.getByRole("button", { name: "조건 1 제거", exact: true }).boundingBox())!;
+      expect(remove.y).toBeCloseTo(property.y);
+      expect(remove.width).toBeGreaterThanOrEqual(44);
+      expect(remove.height).toBeGreaterThanOrEqual(44);
+      if (scale === "100%" || Math.abs(property.y - comparison.y) < 1) {
+        expect(property.y).toBeCloseTo(comparison.y);
+        expect(property.right).toBeLessThanOrEqual(comparison.x);
+        expect(comparison.right).toBeLessThanOrEqual(remove.x);
+      } else {
+        // Enlarged text may give each field its own row while keeping the remove action beside the property.
+        expect(property.right).toBeLessThanOrEqual(remove.x);
+        expect(comparison.y).toBeGreaterThanOrEqual(Math.max(property.bottom, remove.y + remove.height));
+        expect(comparison.x).toBeCloseTo(property.x);
+        expect(comparison.right).toBeCloseTo(value.right);
       }
+      expect(value.y).toBeGreaterThanOrEqual(Math.max(property.bottom, comparison.bottom));
+      expect(value.x).toBeCloseTo(property.x);
       expect(await panel.evaluate(el => el.scrollWidth <= el.clientWidth), scale).toBe(true);
-      const boxes = await panel.locator("input,select,button").evaluateAll(elements => elements.map(el => {
+      const boxes = await panel.locator("input:visible,select:visible,button:visible").evaluateAll(elements => elements.map(el => {
         const box = el.getBoundingClientRect();
         return { left: box.left, right: box.right };
       }));
