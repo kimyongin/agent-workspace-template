@@ -26,11 +26,11 @@ for (const kind of ["once", "recurring"] as const) {
       await expect(surface.getByRole("heading", { name: title, exact: true })).toBeVisible();
       await expect(page).not.toHaveURL(/action=record/);
       // Wait for the actual detail read before asserting its rendered viewer.
-      const reloaded = page.waitForResponse(response => response.request().method() === "GET" && response.url() === `${env.VITE_API_URL}/tasks/${taskId}`);
+      const reloaded = page.waitForRequest(request => request.method() === "GET" && request.url() === `${env.VITE_API_URL}/tasks/${taskId}`);
       await page.reload();
-      const loaded = await reloaded;
-      expect(loaded.status()).toBe(200);
-      await loaded.finished();
+      const loaded = await (await reloaded).response();
+      expect(loaded?.status()).toBe(200);
+      await loaded!.finished();
       await expect(surface.getByRole("heading", { name: title, exact: true })).toBeVisible();
       await expect(surface.getByRole("textbox", { name: /^본문/ })).toHaveCount(0);
       const records = await mcp.call("list_records", { task_id: taskId, record_kind: "user" });

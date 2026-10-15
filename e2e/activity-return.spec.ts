@@ -2,7 +2,7 @@ import postgres from "postgres";
 import { generateDataId } from "../supabase/functions/_shared/contracts/data-id.ts";
 import { createFixtureEntity } from "./entity-schema-support.ts";
 import { fillChangeMemo } from "./ui-actions.ts";
-import { saveOnce, openDetailEditor, openListDetail, openTabFilters } from "./ui-actions.ts";
+import { saveOnce, openListDetail, openTabFilters } from "./ui-actions.ts";
 import { expect } from "@playwright/test";
 import { test, devLogin, env, ownFixtureResult, mcpClient, mcpTokenViaConsent, unique } from "./support.ts";
 
@@ -36,6 +36,19 @@ for (
         entity_ids: [entity.id],
       });
       return item;
+    };
+    const editLoadedDetail = async (detailPath: string, heading: string) => {
+      const viewer = page.locator("dialog.modal:not(.modal-confirm)[open]:visible");
+      // Route and target rendering must agree before invoking an action from
+      // the retained previous viewer during a related-detail transition.
+      await expect.poll(() => new URL(page.url()).pathname).toBe(detailPath);
+      await expect(viewer.getByRole("heading", { name: heading, exact: true })).toBeVisible();
+      const freshRead = page.waitForRequest(request => request.method() === "GET" && request.url() === `${env.VITE_API_URL}${detailPath}`);
+      await viewer.getByRole("button", { name: "편집", exact: true }).click();
+      const loaded = await (await freshRead).response();
+      expect(loaded?.status()).toBe(200);
+      await loaded!.finished();
+      await expect(viewer.getByRole("button", { name: "저장", exact: true })).toBeVisible();
     };
     // Filler rows establish pagination only. Clone the API-created target's real
     // context in one transaction and register exact IDs before any insert can finish.
@@ -152,13 +165,14 @@ for (
       const view=page.locator("dialog.modal:not(.modal-confirm)[open]");
       const initialDetail=page.url(),entityToggle=view.getByRole("region",{name:/^연결된 자료/}).getByRole("button",{name:entity.title,exact:true});
       await entityToggle.click();await expect(entityToggle).toHaveAttribute("aria-expanded","true");await expect(page).toHaveURL(initialDetail);
-      const entityEdit=view.getByRole("link",{name:entity.title+" 상세",exact:true});await entityEdit.click();await openDetailEditor(page);
+      const entityEdit=view.getByRole("link",{name:entity.title+" 상세",exact:true});await entityEdit.click();await editLoadedDetail(`/entities/${encodeURIComponent(entity.id)}`,entity.title);
       await expect(view.getByLabel("제목",{exact:false})).toHaveValue(entity.title);await view.getByRole("button",{name:"취소",exact:true}).click();await view.getByRole("button",{name:/^이전:/}).click();
       await expect(page).toHaveURL(initialDetail);await expect(entityEdit).toBeFocused();
-      await openDetailEditor(page);const dialog=page.getByRole("dialog",{name:editLabel,exact:true});
+      await editLoadedDetail(`/${path}/${target.id}`,kind === "record" ? "기록" : title);const dialog=page.getByRole("dialog",{name:editLabel,exact:true});
       await dialog.getByLabel("본문").fill("닫기 취소 뒤 보존할 초안");await dialog.getByRole("button",{name:"닫기",exact:true}).click();
       const discard=page.getByRole("dialog",{name:"변경을 버릴까요?",exact:true});await discard.getByRole("button",{name:"취소",exact:true}).click();await expect(dialog.getByLabel("본문")).toHaveValue("닫기 취소 뒤 보존할 초안");
       expect((await mcp.call(`get_${kind}`,{id:target.id})).body).toBe(target.body);await dialog.getByLabel("본문").fill(target.body);await dialog.getByRole("button",{name:"닫기",exact:true}).click();
+      await expect(page.locator(`.${path} .list .item-title`)).toHaveCount(42);
       await expect(link).toBeFocused();await openListDetail(page,await link.innerText());
       await seedPage(target.id, 21, "상세 중 추가");
       await page.goBack();
@@ -170,7 +184,7 @@ for (
       await expect(page.locator(`.${path} .list .item-title`)).toHaveCount(63);
       await expect(link).toBeFocused();
       await openListDetail(page,await link.innerText());
-      await openDetailEditor(page);
+      await editLoadedDetail(`/${path}/${target.id}`,kind === "record" ? "기록" : title);
       await dialog.getByLabel("본문").fill("수정한 근거");
       if(kind==="task")await fillChangeMemo(page,dialog,"판단 근거 정정");
       await saveOnce(page, dialog);
@@ -180,7 +194,7 @@ for (
       await expect(link).toBeFocused();
       await expect(link).toBeInViewport();
       await openListDetail(page,await link.innerText());
-      await openDetailEditor(page);
+      await editLoadedDetail(`/${path}/${target.id}`,kind === "record" ? "기록" : title);
       await page.getByRole("button", { name: "삭제", exact: true }).click();
       await saveOnce(page,page.locator("dialog.modal-action[open]"),"삭제 확인");
       await expect(link).toHaveCount(0);

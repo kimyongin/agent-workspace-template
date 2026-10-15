@@ -866,3 +866,39 @@ test("docked confirmation remains topmost during one-way resize and cancellation
   expect(state.writes).toHaveLength(0);
   expect(state.errors).toEqual([]);
 });
+
+
+test("related navigation hides the previous model edit action while the destination read is pending", async ({ page }) => {
+  const state = await fixture(page);
+  await page.setViewportSize({ width: 1024, height: 720 });
+  await page.goto(`/tasks/${id(2)}`);
+  const viewer = page.locator("dialog.modal:not(.modal-confirm)[open]:visible");
+  await expect(viewer.getByRole("heading", { name: "등심 구매하기", exact: true })).toBeVisible();
+  await viewer.getByRole("region", { name: /^연결된 자료/ }).getByRole("button", { name: "등심", exact: true }).click();
+  let release!: () => void;
+  let arrived = false;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  await page.route("**/api/entities/**", async route => {
+    if (decodeURIComponent(new URL(route.request().url()).pathname).endsWith(`/entities/${entityKey(1)}`) && route.request().method() === "GET") {
+      arrived = true;
+      await gate;
+    }
+    await route.fallback();
+  });
+  try {
+    await viewer.getByRole("link", { name: "등심 상세", exact: true }).click();
+    await expect.poll(() => arrived).toBe(true);
+    await expect.poll(() => new URL(page.url()).pathname).toBe(`/entities/${encodeURIComponent(entityKey(1))}`);
+    await expect(viewer.getByRole("button", { name: "편집", exact: true })).toHaveCount(0);
+    await expect(viewer.getByRole("textbox", { name: "제목", exact: false })).toHaveCount(0);
+    release();
+    await expect(viewer.getByRole("heading", { name: "등심", exact: true })).toBeVisible();
+    await viewer.getByRole("button", { name: "편집", exact: true }).click();
+    await expect(viewer.getByLabel("제목", { exact: false })).toHaveValue("등심");
+    await viewer.getByRole("button", { name: "취소", exact: true }).click();
+    expect(state.writes).toHaveLength(0);
+    expect(state.errors).toEqual([]);
+  } finally {
+    release();
+  }
+});
