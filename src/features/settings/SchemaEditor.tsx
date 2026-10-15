@@ -227,7 +227,7 @@ export function SchemaEditor(
       else {(element?.querySelector<HTMLButtonElement>(
           ".schema-order-actions button:not(:disabled)",
         ) ??
-          element?.querySelector<HTMLButtonElement>("h3 button"))?.focus();}
+          element?.querySelector<HTMLButtonElement>(".schema-field-disclosure:not(:disabled)"))?.focus();}
     });
   };
   const newEditing = async () => {
@@ -301,7 +301,7 @@ export function SchemaEditor(
                   const expanded = openFields.includes(key);
                   const fieldSummary = (
                     <span className="secondary">
-                      <span>{fieldTypeLabel(f)}</span>
+                      {!expanded && <span>{fieldTypeLabel(f)}</span>}
                       {draft.schema.required.includes(key) && <span className="schema-badge">필수</span>}
                       {key === draft.display.representative && <span className="schema-badge">자료 이름</span>}
                       {draft.display.archived.includes(key) && <span className="schema-badge">사용 중지</span>}
@@ -345,7 +345,17 @@ export function SchemaEditor(
                                 aria-label={`${f.title || "새 항목"} 속성 편집`}
                                 aria-expanded={expanded}
                                 aria-controls={`schema-field-${key}`}
-                                onClick={toggleField}
+                                onClick={() => {
+                                  toggleField();
+                                  requestAnimationFrame(() => {
+                                    const element = fieldElements.current[key];
+                                    (element?.querySelector<HTMLInputElement>(
+                                      'input[data-schema-setting="title"]:not(:disabled)',
+                                    ) ?? element?.querySelector<HTMLButtonElement>(
+                                      ".schema-field-disclosure:not(:disabled)",
+                                    ))?.focus({ preventScroll: true });
+                                  });
+                                }}
                               >
                                 <span>{f.title || "새 항목"}</span>
                                 {fieldSummary}

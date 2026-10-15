@@ -70,7 +70,7 @@ function PropertyList(
       ? preferred
       : other && !other.disabled
       ? other
-      : row?.querySelector<HTMLButtonElement>(".schema-field-title");
+      : row?.querySelector<HTMLButtonElement>(".schema-field-disclosure");
     target?.focus();
   }, [fields]);
   useEffect(() => {
@@ -105,9 +105,11 @@ function PropertyList(
           const labelErrorId = `sample-${field.id}-label-error`;
           const summary = (
             <span className="secondary">
-              {field.type === "text" ? "텍스트" : "숫자"}
-              {field.required ? " · 필수" : ""}
-              {field.representative ? " · 자료 이름" : ""}
+              {[
+                !open ? (field.type === "text" ? "텍스트" : "숫자") : null,
+                field.required ? "필수" : null,
+                field.representative ? "자료 이름" : null,
+              ].filter(Boolean).join(" · ")}
             </span>
           );
           return (
@@ -132,7 +134,14 @@ function PropertyList(
                       className="schema-field-title related-toggle item-title"
                       aria-expanded={open}
                       aria-controls={bodyId}
-                      onClick={() => toggle(field.id)}
+                      onClick={() => {
+                        toggle(field.id);
+                        requestAnimationFrame(() => {
+                          root.current?.querySelector<HTMLInputElement>(
+                            `[data-property-id="${field.id}"] .schema-field-title input`,
+                          )?.focus({ preventScroll: true });
+                        });
+                      }}
                     >
                       <span>{field.label || "새 항목"}</span>
                       {summary}

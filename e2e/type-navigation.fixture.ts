@@ -405,7 +405,8 @@ test("save blocks duplicate submission and Back until typed detail is ready", as
   await page.getByRole("button",{name:"편집",exact:true}).click();
   const editing = page.getByRole("dialog", { name: "재료 편집", exact: true });
   await expect(editing.getByLabel("자료 종류", { exact: true })).toHaveCount(0);
-  await expect(editing).toContainText("저장 후 종류를 변경할 수 없습니다");
+  await expect(editing.getByRole("combobox", { name: "자료 종류", exact: true })).toHaveCount(0);
+  await expect(editing.getByRole("heading", { name: "재료", exact: true }).first()).toBeVisible();
 });
 
 test("clean settings navigation proceeds while initial record templates are still reading", async ({ page }) => {

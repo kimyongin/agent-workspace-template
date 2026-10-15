@@ -120,7 +120,7 @@ async function openTyped(page: import("@playwright/test").Page) {
   return page.getByRole("form", { name: "기록 자동 완성", exact: true });
 }
 
-test("미설정과 null은 고정 문구를 표시하고 되돌리기는 다른 종류와 태그를 보존한다", async ({ page }) => {
+test("미설정과 null은 고정 문구를 표시하고 되돌리기는 다른 종류와 태그를 보존한다", async ({ page }, info) => {
   const tag = { id: "00000000-0000-4000-8000-000000000010", name: "기록 전용", scope: "record", version: 1 };
   await page.route("**/api/tags**", (route) => route.fulfill({ json: { items: [tag], next_cursor: null } }));
   const state = await settingsFixture(page, {
@@ -136,6 +136,7 @@ test("미설정과 null은 고정 문구를 표시하고 되돌리기는 다른 
   const memoBox = await form.getByLabel("메모 템플릿").boundingBox();
   expect(variableBox!.y + variableBox!.height).toBeLessThan(memoBox!.y);
   await expect(form.getByRole("button", { name: "기록 기본값 저장", exact: true })).toBeDisabled();
+  await page.screenshot({ path: info.outputPath("record-settings.png"), fullPage: true });
   await form.getByLabel("변수 삽입").selectOption("대상");
   await expect(form.getByLabel("메모 템플릿")).toBeFocused();
   await expect(form.getByLabel("메모 템플릿")).toHaveValue(/\$대상\$/);

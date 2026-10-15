@@ -141,7 +141,10 @@ test("preview width changes keep the same live draft and dialog", async ({ page 
 test("invalid closed fields expand and focus; move controls retain the expanded row", async ({ page }) => {
   await page.goto(direct);
   const workspace = page.locator("#workspace");
-  await workspace.getByRole("button", { name: "상품명 펼치기", exact: true }).click();
+  await workspace.getByRole("button", { name: "상품명 텍스트 · 필수 · 자료 이름", exact: true }).focus();
+  await page.keyboard.press("Enter");
+  const row = workspace.locator('[data-property-id="prop_1"]');
+  await expect(row.getByRole("textbox", { name: "항목 이름" })).toBeFocused();
   const field = workspace.locator("#sample-prop_1-body");
   await field.locator("summary").click();
   await field.getByLabel("최대 길이").fill("0");
@@ -155,7 +158,7 @@ test("invalid closed fields expand and focus; move controls retain the expanded 
   await expect(field.getByLabel("최대 길이")).toBeVisible();
   await workspace.getByRole("button", { name: "상품명 아래로 이동", exact: true }).click();
   await expect(workspace.getByRole("button", { name: "상품명 아래로 이동", exact: true })).toBeDisabled();
-  await expect(field.getByLabel("항목 이름")).toHaveValue("상품명");
+  await expect(row.getByLabel("항목 이름")).toHaveValue("상품명");
   await expect(workspace.getByRole("button", { name: "상품명 위로 이동", exact: true })).toBeFocused();
   await workspace.getByRole("button", { name: "상품명 위로 이동", exact: true }).click();
   await expect(workspace.getByRole("button", { name: "상품명 아래로 이동", exact: true })).toBeFocused();

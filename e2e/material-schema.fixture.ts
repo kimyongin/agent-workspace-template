@@ -177,10 +177,11 @@ test("작업 직접 링크와 작업 재선택에서도 기본 입력과 속성 
   await page.getByLabel("자료 종류 이름", { exact: true }).fill(
     "남길 기본 입력",
   );
-  await page.getByRole("button", { name: /^이름 항목 (?:펼치기|접기)$/, exact: true })
-    .click();
+  await page.getByRole("button", { name: "이름 속성 편집", exact: true }).focus();
+  await page.keyboard.press("Enter");
   const title = page.locator(".schema-field-heading").getByLabel("항목 이름", { exact: true });
   await expect(title).toHaveCount(1);
+  await expect(title).toBeFocused();
   await title.fill("남길 속성 입력");
   await page.getByRole("link", { name: / · 완료$/ }).and(
     page.locator(`a[href*="${id(21)}"]`),

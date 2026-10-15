@@ -90,7 +90,7 @@ test("empty and failed lists keep truthful counts and retry in every view", asyn
   }
   expect(recordReads()).toBe(before);
   clearFailure(); await page.getByRole("button", { name: "다시 시도", exact: true }).click();
-  await expect(page.locator(".collection-heading h2")).toHaveText("기록 (0개)");
+  await expect(page.getByRole("heading", { name: "기록 (0개)", exact: true })).toHaveText("0개");
   await expect(page.getByRole("alert")).toHaveCount(0);
   expect(state.writes).toEqual([]); expect(state.errors).toEqual([]);
 });

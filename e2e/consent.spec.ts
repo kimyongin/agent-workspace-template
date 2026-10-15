@@ -58,7 +58,7 @@ test("로그인·OAuth 동의의 긴 주소와 중요 안내는 320~1440px에서
   await page.goto("/login");await expect(page.getByRole("heading",{name:"로그인",exact:true})).toBeVisible();
   for(const width of [320,360,390,639,640,768,1024,1440]){
     await page.setViewportSize({width,height:900});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
-    const heading=page.locator(".page-title"),help=page.locator(".help");expect(await heading.evaluate(el=>parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThan(await help.evaluate(el=>parseFloat(getComputedStyle(el).fontSize)));
+    const heading=page.getByRole("heading",{name:"로그인",exact:true}),action=page.getByRole("button",{name:"Google로 로그인",exact:true});expect(await heading.evaluate(el=>parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThan(await action.evaluate(el=>parseFloat(getComputedStyle(el).fontSize)));
   }
   await session(page);await page.goto("/oauth/consent?authorization_id=layout");await expect(page.getByRole("button",{name:"승인",exact:true})).toBeVisible();
   for(const width of [320,360,390,639,640,768,1024,1440]){

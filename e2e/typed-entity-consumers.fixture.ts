@@ -168,7 +168,7 @@ test("template insertion uses selected type labels and immutable property keys",
   await form.getByLabel("변수 삽입", { exact: true }).selectOption("엔터티.이후.prop_2");
   await expect(form.getByLabel("메모 템플릿", { exact: true })).toContainText("$엔터티.이후.prop_2$");
   await expect(form.getByLabel("변수 삽입", { exact: true }).locator('option[value="엔터티.이후.prop_2"]')).toHaveText(
-    "수량 · 이후 (prop_2)",
+    "수량 · 이후",
   );
 });
 
