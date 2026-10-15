@@ -23,7 +23,7 @@ dbTest("type foundation: explicit creation, owner isolation, immutable versions 
     const second = await createEntityType(d, requestActor(a.actor), { label: "상품" });
     const definition = await getEntitySchema(d, a.actor, { type_id: first.id });
     assertEquals(definition.schema.required, ["prop_1"]);
-    assertEquals(definition.display.representative, "prop_1");
+    assertEquals(definition.schema.properties.prop_1["x-representative"], true);
     assertEquals((await getEntitySchema(d, a.actor, { type_id: second.id })).schema_version, 1);
     assertEquals((await listEntityTypes(d, b.actor)).items, []);
     assertEquals((await assertRejects(() => getEntityType(d, b.actor, first.id), AppError)).code, "not_found");
@@ -32,7 +32,6 @@ dbTest("type foundation: explicit creation, owner isolation, immutable versions 
       "not_found",
     );
     const mutation = {
-      expected_type_version: first.version,
       expected_schema_version: first.schema_version,
       label: "材料",
       icon_id: "star",
@@ -41,26 +40,24 @@ dbTest("type foundation: explicit creation, owner isolation, immutable versions 
     const updater = requestActor(a.actor);
     const changed = await updateEntityType(d, updater, first.id, mutation);
     assertEquals(await updateEntityType(d, updater, first.id, mutation), changed);
-    assertEquals(changed.version, 2);
-    assertEquals(changed.schema_version, 1);
+    assertEquals(changed.schema_version, 2);
     assertEquals((await listEntityTypes(d, a.actor)).items.map((row) => row.id), [second.id]);
     assertEquals(
       (await getEntitySchema(d, a.actor, { type_id: first.id, schema_version: 1 })).schema,
       definition.schema,
     );
-    assertEquals((await listEntitySchemaVersions(d, a.actor, { type_id: first.id })).items.length, 1);
+    assertEquals((await listEntitySchemaVersions(d, a.actor, { type_id: first.id })).items.length, 2);
     const races = await Promise.allSettled(
       ["복원 A", "복원 B"].map((label) =>
         updateEntityType(d, requestActor(a.actor), first.id, {
-          expected_type_version: 2,
-          expected_schema_version: 1,
+          expected_schema_version: 2,
           label,
           archived: false,
         })
       ),
     );
     assertEquals(races.filter((r) => r.status === "fulfilled").length, 1);
-    assertEquals((await getEntityType(d, a.actor, second.id)).version, 1);
+    assertEquals((await getEntityType(d, a.actor, second.id)).schema_version, 1);
     await assertRejects(() =>
       asUser(sql, a.actor.userId, async (tx) => {
         await tx`update app.entity_schema_versions set schema='{}'::jsonb where type_id=${first.id}`;
@@ -70,8 +67,13 @@ dbTest("type foundation: explicit creation, owner isolation, immutable versions 
       async () => await createEntityType(d, requestActor(a.actor), { label: "잘못된 아이콘", icon_id: "unknown" }),
       AppError,
     );
-    await admin`update app.entity_types set icon_id='retired-icon' where id=${second.id}`;
-    assertEquals((await getEntityType(d, a.actor, second.id)).icon_id, "box");
+    const afterRace = await getEntityType(d, a.actor, first.id);
+    const noOp = await updateEntityType(d, requestActor(a.actor), first.id, {
+      expected_schema_version: afterRace.schema_version,
+      label: afterRace.label,
+    });
+    assertEquals(noOp.schema_version, afterRace.schema_version);
+    assertEquals((await listEntitySchemaVersions(d, a.actor, { type_id: first.id })).items.length, 3);
   } finally {
     await a.cleanup();
     await b.cleanup();

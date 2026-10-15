@@ -12,8 +12,9 @@ import { initialEntityDefinition } from "../../functions/_shared/contracts/entit
 export async function entityFixture(sql: postgres.Sql, owner: string) {
   return await sql.begin(async (tx) => {
     await tx`select pg_advisory_xact_lock(hashtextextended(${owner + ":typed-entity-fixture"},0))`;
-    const [existing] = await tx`select id,schema_version from app.entity_types where owner_id=${owner}
-      and label='검사 자료' order by created_at,id limit 1`;
+    const [existing] =
+      await tx`select t.id,t.schema_version from app.entity_types t join app.entity_schema_versions s on s.owner_id=t.owner_id and s.type_id=t.id and s.schema_version=t.schema_version where t.owner_id=${owner}
+      and s.schema->>'title'='검사 자료' order by t.created_at,t.id limit 1`;
     if (existing) {
       const [identity] =
         await tx`select 1 from app.entity_type_identity where owner_id=${owner} and type_id=${existing.id}`;
@@ -22,17 +23,46 @@ export async function entityFixture(sql: postgres.Sql, owner: string) {
     }
     const definition = initialEntityDefinition("속성 1");
     definition.schema.properties = {
-      prop_1: { type: "string", title: "속성 1", minLength: 1, maxLength: 100 },
-      prop_2: { type: ["integer", "null"], title: "속성 2", minimum: 0, maximum: 1_000_000, default: null },
-      prop_3: { type: ["string", "null"], title: "속성 3", format: "date", default: null },
-      prop_4: { type: "string", title: "속성 4", enum: ["a", "b", "c"], default: "a" },
+      prop_1: {
+        type: "string",
+        title: "속성 1",
+        minLength: 1,
+        maxLength: 100,
+        "x-order": 10,
+        "x-representative": true,
+        "x-show-in-list": true,
+      },
+      prop_2: {
+        type: ["integer", "null"],
+        title: "속성 2",
+        minimum: 0,
+        maximum: 1_000_000,
+        default: null,
+        "x-order": 20,
+        "x-show-in-list": true,
+      },
+      prop_3: {
+        type: ["string", "null"],
+        title: "속성 3",
+        format: "date",
+        default: null,
+        "x-order": 30,
+        "x-show-in-list": true,
+      },
+      prop_4: {
+        type: "string",
+        title: "속성 4",
+        oneOf: [{ const: "a" }, { const: "b" }, { const: "c" }],
+        default: "a",
+        "x-order": 40,
+      },
     };
-    definition.display.order = ["prop_1", "prop_2", "prop_3", "prop_4"];
-    definition.display.list_columns = ["prop_1", "prop_2", "prop_3"];
-    const [type] = await tx`insert into app.entity_types(owner_id,label,next_property_number)
-      values(${owner},'검사 자료',5) returning id`;
-    await tx`insert into app.entity_schema_versions(owner_id,type_id,schema_version,schema,display)
-      values(${owner},${type.id},1,${tx.json(definition.schema as never)},${tx.json(definition.display as never)})`;
+    const [type] = await tx`insert into app.entity_types(owner_id,next_property_number)
+      values(${owner},5) returning id`;
+    definition.schema["x-type-id"] = String(type.id);
+    definition.schema.title = "검사 자료";
+    await tx`insert into app.entity_schema_versions(owner_id,schema)
+      values(${owner},${tx.json(definition.schema as never)})`;
     await new SqlEntityIssuerStore(tx, { userId: owner }).initializeTypeIdentity(type.id);
     return { entity_type_id: String(type.id), schema_version: 1 };
   });

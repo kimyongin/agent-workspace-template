@@ -115,7 +115,6 @@ async function fixture() {
     assert(ready.executable);
     return startEntitySchemaMigration(d, actor(), type, id, {
       expected_change_version: ready.version,
-      expected_type_version: ready.source_type_version,
       expected_schema_version: ready.source_schema_version,
       analysis_id: ready.analysis!.id,
       fingerprint: ready.fingerprint,
@@ -170,12 +169,11 @@ async function fixture() {
       },
     ];
     const change = await createEntitySchemaChange(d, actor(), type.id, {
-      expected_type_version: 1,
       expected_schema_version: 1,
       edits: fields.map((field, i) => ({
         op: "add_property",
         client_ref: String(i),
-        field,
+        field: { ...field, "x-order": (i + 2) * 10 },
         required: false,
       })),
     });
@@ -242,7 +240,6 @@ async function fixture() {
       key: `prop_${i}`,
     }));
     const migration = await createEntitySchemaChange(d, actor(), type.id, {
-      expected_type_version: tx.version,
       expected_schema_version: 2,
       edits,
       migration: {
@@ -259,7 +256,6 @@ async function fixture() {
       t = await getEntityType(d, a.actor, job.type_id);
     return createEntitySchemaRecovery(d, key, id, {
       expected_job_version: job.version,
-      expected_type_version: t.version,
       expected_schema_version: t.schema_version,
     });
   }
@@ -268,14 +264,13 @@ async function fixture() {
       label: "Large recovery",
     });
     const addition = await createEntitySchemaChange(d, actor(), type.id, {
-      expected_type_version: 1,
       expected_schema_version: 1,
       edits: Array.from(
         { length: 5 },
         (_, i) => ({
           op: "add_property" as const,
           client_ref: String(i),
-          field: { type: "string" as const },
+          field: { "x-order": (i + 2) * 10, type: "string" as const },
           required: false,
         }),
       ),
@@ -307,7 +302,6 @@ async function fixture() {
     );
     const current = await getEntityType(d, a.actor, type.id);
     const removal = await createEntitySchemaChange(d, actor(), type.id, {
-      expected_type_version: current.version,
       expected_schema_version: 2,
       edits: [2, 3, 4, 5, 6].map((i) => ({
         op: "remove_property" as const,
@@ -364,7 +358,7 @@ dbTest(
       const o = await f.original(),
         t = await getEntityType(f.d, f.a.actor, o.type.id);
       await updateEntityType(f.d, f.actor(), t.id, {
-        expected_type_version: t.version,
+        expected_schema_version: t.schema_version,
         label: "Renamed",
         icon_id: "leaf",
       });
@@ -388,12 +382,11 @@ dbTest(
         f.actor(),
         o.other.id,
         {
-          expected_type_version: peerType.version,
           expected_schema_version: peerType.schema_version,
           edits: [{
             op: "add_property",
             client_ref: "unrelated",
-            field: { type: "string" },
+            field: { "x-order": 20, type: "string" },
             required: false,
           }],
         },
@@ -433,7 +426,6 @@ dbTest(
         () =>
           createEntitySchemaRecovery(f.d, requestActor(f.b.actor), job.id, {
             expected_job_version: job.version,
-            expected_type_version: current.version,
             expected_schema_version: current.schema_version,
           }),
         "not_found",
@@ -441,8 +433,7 @@ dbTest(
       await code(() =>
         createEntitySchemaRecovery(f.d, key, job.id, {
           expected_job_version: job.version,
-          expected_type_version: current.version + 1,
-          expected_schema_version: current.schema_version,
+          expected_schema_version: current.schema_version + 1,
         }), "idempotency_key_reused");
       const ready = await f.analyze(o.type.id, c.id, c.version),
         rows = await getEntitySchemaAnalysisRows(
@@ -472,7 +463,6 @@ dbTest(
         c.id,
         {
           expected_change_version: c.version,
-          expected_type_version: current.version,
           expected_schema_version: current.schema_version,
           analysis_id: ready.analysis!.id,
           fingerprint: ready.fingerprint,
@@ -487,7 +477,7 @@ dbTest(
         prop_4: false,
         prop_5: "",
       });
-      assertEquals(result.schema_version, 4);
+      assertEquals(result.schema_version, 5);
       assertEquals(result.entity_type_id, o.type.id);
       assertEquals(
         (await getEntity(f.e, f.a.actor, o.deleted.id)).deleted_at !== null,
@@ -511,8 +501,8 @@ dbTest(
       const restored = await getEntitySchema(f.d, f.a.actor, {
         type_id: o.type.id,
       });
-      assertEquals(restored.schema, o.source.schema);
-      assertEquals(restored.display, o.source.display);
+      assertEquals(restored.schema, { ...o.source.schema, title: "Renamed", "x-icon": "leaf", "x-version": 5 });
+      assertEquals(restored.schema.properties, o.source.schema.properties);
       const old = await asUser(
         f.sql,
         f.a.actor.userId,
@@ -528,7 +518,7 @@ dbTest(
         sort: "updated_at",
       });
       assert(
-        list.items.every((r) => r.entity_type_id === o.type.id && r.current_schema_version === 4),
+        list.items.every((r) => r.entity_type_id === o.type.id && r.current_schema_version === 5),
       );
       const filtered = await listEntities(f.e, f.a.actor, {
         entity_type_id: o.type.id,
@@ -659,7 +649,7 @@ dbTest(
   },
 );
 dbTest(
-  "recovery rejects unreviewed changes across creation-analysis and preview-start plus archived type; compatible schema needs fresh analysis",
+  "recovery rejects unreviewed changes across creation-analysis and preview-start; archived metadata is preserved and compatible schema needs fresh analysis",
   async () => {
     const f = await fixture();
     try {
@@ -691,7 +681,6 @@ dbTest(
         () =>
           startEntitySchemaMigration(g.d, g.actor(), o.type.id, c.id, {
             expected_change_version: c.version,
-            expected_type_version: c.source_type_version,
             expected_schema_version: c.source_schema_version,
             analysis_id: ready.analysis!.id,
             fingerprint: ready.fingerprint,
@@ -706,12 +695,11 @@ dbTest(
       const o = await h.original(),
         t = await getEntityType(h.d, h.a.actor, o.type.id),
         later = await createEntitySchemaChange(h.d, h.actor(), t.id, {
-          expected_type_version: t.version,
           expected_schema_version: t.schema_version,
           edits: [{
             op: "add_property",
             client_ref: "later",
-            field: { type: "string" },
+            field: { "x-order": 20, type: "string" },
             required: false,
           }],
         });
@@ -726,10 +714,18 @@ dbTest(
       assertEquals(c.status, "draft");
       const next = await getEntityType(h.d, h.a.actor, t.id);
       await updateEntityType(h.d, h.actor(), t.id, {
-        expected_type_version: next.version,
+        expected_schema_version: next.schema_version,
         archived: true,
       });
-      await code(() => h.recovery(o.job.job_id), "entity_type_archived");
+      const archivedRecovery = await h.recovery(o.job.job_id);
+      assertEquals(archivedRecovery.target.schema.deprecated, true);
+      const recovered = await h.accept(t.id, archivedRecovery.id, archivedRecovery.version);
+      await h.finish(recovered.job_id);
+      const definition = await getEntitySchema(h.d, h.a.actor, { type_id: t.id });
+      assertEquals(definition.schema.deprecated, true);
+      assertEquals(definition.schema.title, next.label);
+      assertEquals(definition.schema["x-icon"], next.icon_id);
+      assertEquals(definition.schema["x-version"], 6);
     } finally {
       await h.cleanup();
     }
@@ -856,7 +852,6 @@ dbTest(
         c.id,
         {
           expected_change_version: c.version,
-          expected_type_version: current.version,
           expected_schema_version: current.schema_version,
           analysis_id: ready.analysis!.id,
           fingerprint: ready.fingerprint,
@@ -908,7 +903,6 @@ dbTest(
         () =>
           startEntitySchemaMigration(f.d, f.actor(), o.type.id, c.id, {
             expected_change_version: c.version,
-            expected_type_version: t.version,
             expected_schema_version: t.schema_version,
             analysis_id: ready.analysis!.id,
             fingerprint: ready.fingerprint,
@@ -961,7 +955,6 @@ dbTest(
       await code(() =>
         startEntitySchemaMigration(f.d, f.actor(), o.type.id, c.id, {
           expected_change_version: c.version,
-          expected_type_version: t.version,
           expected_schema_version: t.schema_version,
           analysis_id: ready.analysis!.id,
           fingerprint: ready.fingerprint,
@@ -1023,7 +1016,6 @@ dbTest(
         () =>
           startEntitySchemaMigration(f.d, f.actor(), o.type.id, c.id, {
             expected_change_version: c.version,
-            expected_type_version: t.version,
             expected_schema_version: t.schema_version,
             analysis_id: ready.analysis!.id,
             fingerprint: ready.fingerprint,
@@ -1088,7 +1080,6 @@ dbTest("recovery expiry uses wallclock after type/template lock waits and before
       const result = (phase === "template-start"
         ? startEntitySchemaMigration(f.d, f.actor(), o.type.id, c!.id, {
           expected_change_version: c!.version,
-          expected_type_version: ready!.source_type_version,
           expected_schema_version: ready!.source_schema_version,
           analysis_id: ready!.analysis!.id,
           fingerprint: ready!.fingerprint,
