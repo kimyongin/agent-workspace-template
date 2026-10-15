@@ -896,7 +896,9 @@ export function SchemaEditor(
                     row.version?.schema_version;
               const transforming = row.jobs.some(migrationActive);
               const running = row.jobs.find(migrationActive);
-              const status = running
+              const status = planSyncNeeded && row.changeId === plan?.id
+                ? readBusy ? "상태 확인 중…" : "상태 확인 필요"
+                : running
                 ? `값 변환 중 · ${running.processed}/${running.total}`
                 : row.version
                 ? `버전 ${row.version.schema_version} · 적용됨`
@@ -1094,11 +1096,12 @@ export function SchemaEditor(
                               </p>
                             </section>
                           )}
+                          {planSyncNeeded && <p role="status">{readBusy ? "최신 변경안 상태를 확인하는 중…" : "최신 변경안 상태를 다시 확인하세요."}</p>}
                           <SchemaChangeDiff
                             change={plan}
                             definition={definition}
                           />
-                          {plan.analysis && plan.status !== "cancelled" && (
+                          {!planSyncNeeded && plan.analysis && plan.status !== "cancelled" && (
                             <div
                               className="schema-analysis-status"
                               role="status"
@@ -1122,7 +1125,7 @@ export function SchemaEditor(
                               )}
                             </div>
                           )}
-                          {plan.analysis && plan.status !== "cancelled" && (
+                          {!planSyncNeeded && plan.analysis && plan.status !== "cancelled" && (
                             <details className="schema-result-details">
                               <summary>자료별 결과</summary>
                               <p>
@@ -1147,7 +1150,7 @@ export function SchemaEditor(
                               ))}
                             </details>
                           )}
-                          {!emptyPublication && (plan.change_kind === "migration_required" ||
+                          {!planSyncNeeded && !emptyPublication && (plan.change_kind === "migration_required" ||
                               plan.recovery || migration.rules.length > 0 ||
                               migration.overrides.length > 0 ||
                               (plan.analysis?.failed ?? 0) > 0)
@@ -1168,7 +1171,7 @@ export function SchemaEditor(
                               />
                             )
                             : null}
-                          {plan.analysis && plan.analysis.failed > 0 && (
+                          {!planSyncNeeded && plan.analysis && plan.analysis.failed > 0 && (
                             <p>
                               실패한 자료 값을 확인하여 직접 수정하거나 값 변환 변경을 준비한 뒤 다시 분석하세요. 실패가
                               있으면 게시할 수 없습니다.
@@ -1180,7 +1183,7 @@ export function SchemaEditor(
                               현재 자료와 활성 정의는 유지됩니다. 영향 분석 결과를 확인하고 값 변환 작업을 준비하세요.
                             </p>
                           )}
-                          {plan.analysis?.status === "failed" &&
+                          {!planSyncNeeded && plan.analysis?.status === "failed" &&
                             plan.status !== "cancelled" && (
                             <p role="alert" className="error-text">
                               분석 작업 실패: {plan.analysis.failure_reason}. 원본은 유지됩니다. 다시 분석하세요.
@@ -1216,14 +1219,16 @@ export function SchemaEditor(
                                 <>
                                   <button
                                     className="btn btn-danger"
-                                    disabled={busy || uncertain || dirty ||
+                                    disabled={busy || uncertain || dirty || readBusy || planSyncNeeded ||
                                       disabled || startState.busy ||
                                       startState.uncertain}
                                     onClick={() => setDiscardConfirm(true)}
                                   >
                                     폐기
                                   </button>
-                                  {uncertain
+                                  {planSyncNeeded
+                                    ? <button className="btn btn-primary" disabled>{readBusy ? "상태 확인 중…" : "상태 확인 필요"}</button>
+                                    : uncertain
                                     ? (
                                       <button
                                         className="btn btn-primary"
