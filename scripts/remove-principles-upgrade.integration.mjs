@@ -77,6 +77,38 @@ for (const populated of [false, true]) {
             sql.json(historicalCapture)
           },'[]')`;
           await sql`insert into app.records values(${owner},'history-tail','REMOVE-ME','change','{"target_kind":"record","target_id":"history-capture","before":null,"after":null}','[]')`;
+          // Older change facts stored body without the record DTO's id/record_kind.
+          for (
+            const [id, side, body] of [["history-facts-before", "before", capture], [
+              "history-facts-after",
+              "after",
+              context,
+            ]]
+          ) {
+            const facts = {
+              target_kind: "record",
+              target_id: `${id}-deleted`,
+              before: null,
+              after: null,
+              [side]: { body, tag_ids: [], entity_ids: [] },
+            };
+            await sql`insert into app.records values(${owner},${id},'REMOVE-ME','change',${sql.json(facts)},'[]')`;
+          }
+          await sql`insert into private.request_results values(${owner},'record.update',${
+            sql.json({
+              record: {
+                id: "orphan-facts-replay",
+                record_kind: "change",
+                body: "REMOVE-ME",
+                change: {
+                  target_kind: "record",
+                  target_id: "orphan-facts-deleted",
+                  before: { body: capture, tag_ids: [] },
+                  after: null,
+                },
+              },
+            })
+          })`;
           const ordinaryHistory = {
             target_kind: "record",
             target_id: "ordinary-deleted",
@@ -110,7 +142,17 @@ for (const populated of [false, true]) {
             })
           })`;
           for (
-            const id of ["change", "capture", "context", "keep", "history-capture", "history-tail", "history-snapshot"]
+            const id of [
+              "change",
+              "capture",
+              "context",
+              "keep",
+              "history-capture",
+              "history-tail",
+              "history-snapshot",
+              "history-facts-before",
+              "history-facts-after",
+            ]
           ) {
             await sql`insert into private.passage_effects values(${owner},${id})`;
             await sql`insert into app.search_chunks values(${owner},${id})`;

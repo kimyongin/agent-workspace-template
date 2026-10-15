@@ -1,12 +1,15 @@
 -- #467: user-approved removal, including existing principle content. No archive or material conversion.
 -- Applied migrations stay immutable; only the final live schema is contracted here.
 -- Classify full record copies, including records already deleted from the live table.
+create function pg_temp.is_principle_capture(body text) returns boolean
+language sql immutable as $$
+  select body ~ '^이관 캡처: [^\n]+ / 원본: (principle|record_principle_context) [0-9a-f-]{36} / 조각: [0-9]+/[0-9]+\n실제 적용 시각이 아닙니다\. 원본 시각과 captured_at 의미는 아래 자료 그대로 보존합니다\.';
+$$;
 create function pg_temp.is_principle_record(value jsonb) returns boolean
 language sql immutable as $$
   select (value->>'record_kind'='change'
       and coalesce(value #>> '{change,target_kind}',value #>> '{change_metadata,target_kind}')='principle')
-    or (value->>'record_kind'='user'
-      and value->>'body' ~ '^이관 캡처: [^\n]+ / 원본: (principle|record_principle_context) [0-9a-f-]{36} / 조각: [0-9]+/[0-9]+\n실제 적용 시각이 아닙니다\. 원본 시각과 captured_at 의미는 아래 자료 그대로 보존합니다\.');
+    or (value->>'record_kind'='user' and pg_temp.is_principle_capture(value->>'body'));
 $$;
 
 create temporary table principle_record_copies on commit drop as
@@ -19,9 +22,19 @@ cross join lateral jsonb_path_query(q.result,'$.** ? (@.record_kind == "user" ||
 -- Follow exact, owner-scoped record identities into deletion logs and their saved copies.
 -- Before/after history may be the only remaining provenance for an already deleted record.
 create temporary table removed_principle_records on commit drop as
-with recursive removed(owner_id,id) as (
+with recursive seeds(owner_id,id) as (
   select owner_id,value->>'id' from principle_record_copies
-  where pg_temp.is_principle_record(value) and value->>'id' is not null
+  where pg_temp.is_principle_record(value)
+  union
+  -- Older before/after facts contain body alone, without a full record DTO.
+  select owner_id,coalesce(value #>> '{change,target_id}',value #>> '{change_metadata,target_id}')
+  from principle_record_copies
+  where value->>'record_kind'='change'
+    and coalesce(value #>> '{change,target_kind}',value #>> '{change_metadata,target_kind}')='record'
+    and (pg_temp.is_principle_capture(coalesce(value #>> '{change,before,body}',value #>> '{change_metadata,before,body}'))
+      or pg_temp.is_principle_capture(coalesce(value #>> '{change,after,body}',value #>> '{change_metadata,after,body}')))
+), removed(owner_id,id) as (
+  select owner_id,id from seeds where id is not null
   union
   select c.owner_id,c.value->>'id' from principle_record_copies c join removed r
     on r.owner_id=c.owner_id
