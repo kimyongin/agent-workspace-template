@@ -12,10 +12,12 @@ export const entityFieldInput = z.strictObject({
   maxLength: z.number().int().min(0).max(4096).optional(),
   minimum: z.number().finite().optional(),
   maximum: z.number().finite().optional(),
-  oneOf: z.array(z.strictObject({ const: z.union([z.string().max(4096), z.null()]), title: z.string().max(80).optional() })).min(1).max(128).optional(),
+  oneOf: z.array(
+    z.strictObject({ const: z.union([z.string().max(4096), z.null()]), title: z.string().max(80).optional() }),
+  ).min(1).max(128).optional(),
   deprecated: z.boolean().optional(),
   readOnly: z.boolean().optional(),
-  examples: z.array(z.union([z.string(),z.number().finite(),z.boolean(),z.null()])).max(128).optional(),
+  examples: z.array(z.union([z.string(), z.number().finite(), z.boolean(), z.null()])).max(128).optional(),
   multipleOf: z.number().positive().finite().optional(),
   "x-order": z.number().int().positive(),
   "x-list-order": z.number().int().positive().optional(),
@@ -45,7 +47,13 @@ export const entitySchemaEdit = z.discriminatedUnion("op", [
   z.strictObject({ op: z.literal("archive_property"), key: propertyKey }),
   z.strictObject({ op: z.literal("restore_property"), key: propertyKey }),
   z.strictObject({ op: z.literal("remove_property"), key: propertyKey }),
-  z.strictObject({ op: z.literal("set_metadata"), title: z.string().trim().min(1).max(80).optional(), description: z.string().max(1000).optional(), "x-icon": z.enum(["box", "leaf", "package", "book", "tool", "star"]).optional(), deprecated: z.boolean().optional() }),
+  z.strictObject({
+    op: z.literal("set_metadata"),
+    title: z.string().trim().min(1).max(80).optional(),
+    description: z.string().max(1000).optional(),
+    "x-icon": z.enum(["box", "leaf", "package", "book", "tool", "star"]).optional(),
+    deprecated: z.boolean().optional(),
+  }),
 ]);
 const literal = z.union([z.string().max(4096), z.number().finite(), z.boolean(), z.null()]);
 export const migrationRule = z.discriminatedUnion("op", [

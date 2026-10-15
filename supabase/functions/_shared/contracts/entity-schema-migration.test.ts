@@ -8,7 +8,6 @@ import {
 Deno.test("migration acceptance binds exact plan and source versions without coercion", () => {
   const input = {
     expected_change_version: 2,
-    expected_type_version: 3,
     expected_schema_version: 1,
     analysis_id: "12345678-1234-4234-8234-123456789012",
     fingerprint: "a".repeat(64),
@@ -21,7 +20,7 @@ Deno.test("migration acceptance binds exact plan and source versions without coe
 });
 
 Deno.test("recovery creation accepts only exact current and successful job versions", () => {
-  const refs = { expected_job_version: 7, expected_type_version: 3, expected_schema_version: 2 };
+  const refs = { expected_job_version: 7, expected_schema_version: 2 };
   assertEquals(schemaRecoveryCreate.safeParse(refs).success, true);
   for (
     const extra of [{ entity_type_id: "other" }, { target: {} }, { properties: { prop_1: "overwrite" } }, {

@@ -1,24 +1,22 @@
 import { assertEquals } from "@std/assert";
 import { z } from "zod";
 import { entitySchemaEdit } from "./entity-schema-change.ts";
-import { optionLabelDictionary } from "./option-labels.ts";
-Deno.test("display contract preserves own prototype-like option labels with an exact public JSON Schema", () => {
-  const labels = JSON.parse('{"__proto__":"특수 코드","constructor":"생성 코드","toString":"문자 코드"}');
+Deno.test("choice contract preserves prototype-like string codes in const/title branches", () => {
   const edit = entitySchemaEdit.parse({
-    op: "set_display",
-    display: {
-      representative: "prop_1",
-      order: ["prop_1", "prop_2"],
-      list_columns: ["prop_1"],
-      archived: [],
-      option_labels: { prop_2: labels },
+    op: "add_property",
+    client_ref: "choice",
+    field: {
+      type: "string",
+      "x-order": 20,
+      oneOf: [{ const: "__proto__", title: "특수 코드" }, { const: "constructor", title: "생성 코드" }, {
+        const: "toString",
+        title: "문자 코드",
+      }],
     },
   });
-  if (edit.op !== "set_display") throw new Error("wrong operation");
-  assertEquals(Object.keys(edit.display.option_labels.prop_2), ["__proto__", "constructor", "toString"]);
-  assertEquals(edit.display.option_labels.prop_2["__proto__"], "특수 코드");
-  assertEquals(optionLabelDictionary.safeParse(JSON.parse('{"__proto__":7}')).success, false);
-  const json = z.toJSONSchema(optionLabelDictionary, { target: "draft-2020-12", io: "input" });
-  assertEquals(json.type, "object");
-  assertEquals(json.additionalProperties, { type: "string", minLength: 1, maxLength: 80 });
+  if (edit.op !== "add_property") throw new Error("wrong operation");
+  assertEquals(edit.field.oneOf?.map((o) => o.const), ["__proto__", "constructor", "toString"]);
+  assertEquals(edit.field.oneOf?.[0].title, "특수 코드");
+  const json = z.toJSONSchema(entitySchemaEdit, { target: "draft-2020-12", io: "input" });
+  assertEquals(Array.isArray(json.oneOf), true);
 });

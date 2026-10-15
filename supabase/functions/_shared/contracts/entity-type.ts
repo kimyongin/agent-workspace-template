@@ -17,7 +17,7 @@ export const entityTypeIcon = z.enum(["box", "leaf", "package", "book", "tool", 
 export const entitySchemaLimits = {
   types: 64,
   fields: 64,
-  definition_bytes: 65536,
+  definition_bytes: 262144,
   properties_bytes: 65536,
   string_length: 4096,
   enum_values: 128,
@@ -103,9 +103,10 @@ export type EntitySchema = {
   $schema: typeof ENTITY_SCHEMA_DIALECT;
   "x-type-id": string;
   "x-version": number;
-  title: string;
+  /** Absent only on retained historical documents that never captured this metadata. */
+  title?: string;
   description?: string;
-  "x-icon": string;
+  "x-icon"?: string;
   deprecated?: boolean;
   type: "object";
   additionalProperties: false;
@@ -128,6 +129,7 @@ export type EntitySchemaVersion = {
   type_id: string;
   schema_version: number;
   schema: EntitySchema;
+  metadata_missing?: boolean;
   created_at: string;
 };
 export type EntityTypeRef = Pick<EntityType, "id" | "label" | "icon_id" | "archived">;
@@ -145,7 +147,10 @@ export type EntityMigrationBinding = EntitySchemaChangeBinding & {
   preparation_bytes: number;
   expires_at: string;
 };
-export function initialEntityDefinition(label: string, metadata: { id?: string; title?: string; icon?: string } = {}): Pick<EntitySchemaVersion, "schema"> {
+export function initialEntityDefinition(
+  label: string,
+  metadata: { id?: string; title?: string; icon?: string } = {},
+): Pick<EntitySchemaVersion, "schema"> {
   return {
     schema: {
       $schema: ENTITY_SCHEMA_DIALECT,
@@ -156,7 +161,17 @@ export function initialEntityDefinition(label: string, metadata: { id?: string; 
       deprecated: false,
       type: "object",
       additionalProperties: false,
-      properties: { prop_1: { type: "string", title: label, minLength: 1, maxLength: 4096, "x-order": 10, "x-representative": true, "x-show-in-list": true } },
+      properties: {
+        prop_1: {
+          type: "string",
+          title: label,
+          minLength: 1,
+          maxLength: 4096,
+          "x-order": 10,
+          "x-representative": true,
+          "x-show-in-list": true,
+        },
+      },
       required: ["prop_1"],
     },
   };
@@ -209,18 +224,28 @@ export type EntityLinkResult = { changed: boolean; pair: [string, string]; versi
 /** A view derived from annotations; never a second stored or public definition. */
 export function entitySchemaPresentation(schema: EntitySchema) {
   const keys = Object.keys(schema.properties);
-  const order = [...keys].sort((a,b) => schema.properties[a]["x-order"] - schema.properties[b]["x-order"]);
+  const order = [...keys].sort((a, b) => schema.properties[a]["x-order"] - schema.properties[b]["x-order"]);
   return {
-    representative: keys.find(k => schema.properties[k]["x-representative"]) ?? "",
+    representative: keys.find((k) => schema.properties[k]["x-representative"]) ?? "",
     order,
-    list_columns: keys.filter(k => schema.properties[k]["x-show-in-list"] && !schema.properties[k].deprecated)
-      .sort((a,b) => (schema.properties[a]["x-list-order"] ?? schema.properties[a]["x-order"]) - (schema.properties[b]["x-list-order"] ?? schema.properties[b]["x-order"])),
-    archived: keys.filter(k => schema.properties[k].deprecated),
-    option_labels: Object.fromEntries(keys.filter(k => schema.properties[k].oneOf).map(k => [k,
-      Object.fromEntries(schema.properties[k].oneOf!.filter(o => o.const !== null).map(o => [o.const!, o.title ?? o.const!])),
-    ])),
+    list_columns: keys.filter((k) => schema.properties[k]["x-show-in-list"] && !schema.properties[k].deprecated)
+      .sort((a, b) =>
+        (schema.properties[a]["x-list-order"] ?? schema.properties[a]["x-order"]) -
+        (schema.properties[b]["x-list-order"] ?? schema.properties[b]["x-order"])
+      ),
+    archived: keys.filter((k) => schema.properties[k].deprecated),
+    option_labels: Object.fromEntries(
+      keys.filter((k) => schema.properties[k].oneOf).map(
+        (k) => [
+          k,
+          Object.fromEntries(
+            schema.properties[k].oneOf!.filter((o) => o.const !== null).map((o) => [o.const!, o.title ?? o.const!]),
+          ),
+        ],
+      ),
+    ),
   };
 }
 export function entityFieldChoices(field: EntityField): Array<string | null> | undefined {
-  return field.oneOf?.map(option => option.const);
+  return field.oneOf?.map((option) => option.const);
 }
