@@ -1,5 +1,5 @@
 import { type ReactNode, useEffect, useId, useRef, useState } from "react";
-import { BodyAction } from "../../components/BodyAction.tsx";
+import { BodyAction, BodyActionFace } from "../../components/BodyAction.tsx";
 import { ConfirmationSurface } from "../../components/ConfirmDialog.tsx";
 import "./tag-picker.css";
 
@@ -41,15 +41,19 @@ export function TagSelection({ label, tags, value, onChange, error, status, excl
   return (
     <fieldset ref={root} className="tag-picker" disabled={disabled} aria-labelledby={id} aria-describedby={error ? `${id}-error` : undefined}>
       <legend className="tag-picker-heading">
-        <span id={id} className="label">{label}</span>
+        <span className="tag-picker-heading-main">
+          <span id={id} className="label">{label}</span>
+          <button ref={trigger} type="button" className="body-action" disabled={busy} aria-haspopup="dialog" aria-label="태그 선택"
+            onClick={() => { setSearch(""); setOpen(true); }}><BodyActionFace icon="create">태그 선택</BodyActionFace></button>
+        </span>
         <BodyAction icon="close" className="tag-clear-action" data-empty={!value.length || undefined}
           aria-hidden={!value.length || undefined} disabled={!value.length || busy} tabIndex={value.length ? undefined : -1}
           aria-label="모든 태그 선택 해제" onClick={() => { onChange([]); focusTrigger(); }}>전체 해제</BodyAction>
       </legend>
-      <div className="field">
+      {(error || status || value.length > 0) && <div className="field">
         {error && <p id={`${id}-error`} className="error-text">{error}</p>}
         {status}
-        <div className="chips tag-selection">
+        {value.length > 0 && <div className="chips tag-selection">
           {value.map((selected, index) => {
             const name = knownNames.current.get(selected);
             return <button type="button" className="chip" aria-pressed="true" key={selected} disabled={busy}
@@ -58,10 +62,8 @@ export function TagSelection({ label, tags, value, onChange, error, status, excl
               <span>{name ?? "태그 확인 필요"}</span><span aria-hidden="true">×</span>
             </button>;
           })}
-          <button ref={trigger} type="button" className="body-action" disabled={busy} aria-haspopup="dialog" aria-label="태그 선택"
-            onClick={() => { setSearch(""); setOpen(true); }}><span className="body-action-face" data-tone="accent">＋ 태그 선택</span></button>
-        </div>
-      </div>
+        </div>}
+      </div>}
       {open && <ConfirmationSurface open title={`${label} 선택`} closeButton busy={busy} onCancel={() => setOpen(false)}
         footer={<><span className="tag-selection-count" role="status">{value.length}개 선택</span><button type="button" className="btn btn-primary" disabled={busy} onClick={() => setOpen(false)}>선택 완료</button></>}>
         <div className="tag-chooser">
