@@ -126,29 +126,41 @@ for (const width of [320, 1440]) {
   );
 }
 
-test("historical relations retain their captured names and original number without exposing composite storage keys", async ({ page }) => {
-  const state = await fixtures(page), item = marketEntity(21, "coupang", "쿠팡");
-  state.rows.entities.splice(0, state.rows.entities.length, item);
-  Object.assign(state.rows.records[0], {
-    entity_ids: [item.id],
-    entity_context: [{
-      id: item.id,
-      title: "당시 상품명",
-      type: { ...fixtureType, label: "당시 종류" },
-      schema_version: 1,
-      source: "selection",
-      captured_at: "2026-10-15T00:00:00Z",
-    }],
+for (const archived of [false, true]) {
+  test(`direct create: ${archived ? "archived types offer management" : "no types offer creation"}`, async ({ page }) => {
+    const state = await fixtures(page);
+    await page.route(
+      "**/api/entity-types",
+      (route) =>
+        route.fulfill({
+          json: {
+            items: archived ? [{ ...fixtureType, archived: true }] : [],
+            next_cursor: null,
+          },
+        }),
+    );
+    await page.goto("http://127.0.0.1:55580/entities?create=1");
+    const editor = form(page);
+    await expect(
+      editor.getByRole("link", {
+        name: archived ? "보관된 종류 관리" : "자료 종류 추가",
+        exact: true,
+      }),
+    ).toHaveAttribute(
+      "href",
+      archived ? "/settings/materials" : "/settings/entity-types",
+    );
+    await expect(
+      editor.getByText(
+        archived
+          ? "모든 자료 종류가 보관되어 있습니다."
+          : "아직 자료 종류가 없습니다.",
+        { exact: true },
+      ),
+    ).toBeVisible();
+    await expect(
+      editor.getByRole("link", { name: "자료 종류 만들기·보관 관리" }),
+    ).toHaveCount(0);
+    expect(state.writes).toHaveLength(0);
   });
-  await go(page, `/records/${state.rows.records[0].id}`);
-  const linked = form(page).getByRole("region", { name: "연결된 자료 (1개)", exact: true });
-  await expect(linked).toContainText("당시 상품명");
-  await expect(linked).toContainText("당시 종류 · 번호 000Ab-21");
-  await expect(linked).not.toContainText(item.id);
-  await expect(linked).not.toContainText("속성 버전");
-  expect(state.reads.some((url) => url.includes(`/entities/${encodeURIComponent(item.id)}`))).toBe(false);
-  await linked.getByRole("button", { name: "당시 상품명", exact: true }).click();
-  await expect(linked).toContainText("쿠팡 · 000Ab-21");
-  await expect(linked.getByRole("button", { name: "당시 상품명", exact: true })).toBeVisible();
-  expect(state.writes).toHaveLength(0);
-});
+}

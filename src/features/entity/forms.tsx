@@ -11,6 +11,7 @@ import { type ReactNode, useEffect, useRef, useState } from "react";
 import { FormModal } from "../../components/ContentForm.tsx";
 import { ConfirmDialog } from "../../components/Modal.tsx";
 import { Field } from "../../components/Field.tsx";
+import { BodyActionFace } from "../../components/BodyAction.tsx";
 import { fieldErrors } from "../../lib/format.ts";
 import { TagPicker } from "../tags/TagPicker.tsx";
 import {
@@ -383,9 +384,16 @@ export function EntityForm({
               {types && !types.some((type) =>
                 !type.archived
               ) && !initial && (
-                <p>
-                  활성 자료 종류가 없습니다. <Link to="/settings/entity-types">자료 종류 만들기·보관 관리</Link>
-                </p>
+                <div className="form">
+                  <p className="secondary">
+                    {types.length ? "모든 자료 종류가 보관되어 있습니다." : "아직 자료 종류가 없습니다."}
+                  </p>
+                  <Link className="body-action" to={types.length ? "/settings/materials" : "/settings/entity-types"}>
+                    <BodyActionFace icon={types.length ? undefined : "create"}>
+                      {types.length ? "보관된 종류 관리" : "자료 종류 추가"}
+                    </BodyActionFace>
+                  </Link>
+                </div>
               )}
               {schemaError && <p className="error-text" role="alert">{schemaError}</p>}
               {typeId && (schemaError || errors.schema_version ||

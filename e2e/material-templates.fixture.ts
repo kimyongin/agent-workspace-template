@@ -395,3 +395,54 @@ test("action switches expose hidden errors and all changed actions before a scop
   });
   await expect(form.getByLabel("저장할 변경", { exact: true })).toHaveCount(0);
 });
+
+test("editing another action retains hidden server validation errors and their jump target", async ({ page }) => {
+  const state = await settingsFixture(page);
+  const editor = await openTyped(page);
+  await editor.getByLabel("메모 템플릿").fill("등록 초안");
+  await editor.getByLabel("액션", { exact: true }).selectOption("delete");
+  await editor.getByLabel("메모 템플릿").fill("삭제 초안");
+  let reject = true;
+  await page.route("**/api/settings/business**", (route) => {
+    if (route.request().method() === "PATCH" && reject) {
+      reject = false;
+      return route.fulfill({
+        status: 400,
+        json: {
+          code: "invalid_input",
+          message: "문구를 확인하세요",
+          fields: [{
+            path: `value.entity_types.${materials.id}.create.memo`,
+            message: "등록 문구를 확인하세요",
+          }],
+        },
+      });
+    }
+    return route.fallback();
+  });
+  await editor.getByRole("button", { name: "기록 자동 완성 저장", exact: true })
+    .click();
+  await expect(
+    editor.getByRole("button", { name: "오류 항목 보기", exact: true }),
+  ).toBeVisible();
+  await editor.getByLabel("메모 템플릿").fill("삭제 초안 수정");
+  await expect(
+    editor.getByLabel("액션", { exact: true }).locator(
+      'option[value="create"]',
+    ),
+  ).toContainText("오류");
+  await editor.getByRole("button", { name: "오류 항목 보기", exact: true })
+    .click();
+  await expect(editor.getByLabel("메모 템플릿")).toBeFocused();
+  await expect(editor.getByText("등록 문구를 확인하세요", { exact: true }))
+    .toBeVisible();
+  await editor.getByLabel("메모 템플릿").fill("등록 문구 수정");
+  await editor.getByRole("button", { name: "기록 자동 완성 저장", exact: true })
+    .click();
+  await expect(editor.getByRole("status")).toContainText("저장했습니다");
+  expect(state.writes).toHaveLength(1);
+  expect(state.writes[0].body.value.entity_types[materials.id]).toMatchObject({
+    create: { memo: "등록 문구 수정" },
+    delete: { memo: "삭제 초안 수정" },
+  });
+});
