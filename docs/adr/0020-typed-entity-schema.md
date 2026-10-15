@@ -1,6 +1,6 @@
 # ADR-0020: 자료 종류별 JSON Schema와 불변 게시 버전
 
-- 상태: 설계 채택, 구현·검증은 [스펙 #343](https://github.com/kimyongin/agent-workspace-template/issues/343)과 하위 티켓
+- 상태: 채택. schema/display 및 metadata/schema 분리 결정은 [ADR-0022](0022-single-schema-document.md)로 대체. 기존 구현 근거는 [스펙 #343](https://github.com/kimyongin/agent-workspace-template/issues/343).
 - 날짜: 2026-10-12
 - 승인 근거: #343의 다중 타입·JSONB·schema evolution·아이콘·메뉴 대화 합의
 
@@ -8,7 +8,10 @@
 
 고정 prop1~4 컬럼과 화면은 업무 속성을 바꿀 때 코드 수정이 필요했다. 단일 현재 설정 JSON만 덮어쓰면 과거 데이터의 정의와 변경 경쟁을 구분할 수 없다.
 
-## 결정
+## 최초 결정과 유지하는 보장
+
+종류·속성·표시의 현재 정본과 버전 정책은 ADR-0022를 따른다. 아래의 분리 저장·독립 metadata version은 최초 구현의 근거이며, 속성 키·자료 종류·권한·변환/복구 보장은 계속 유지한다.
+
 
 단일 entities에 entity_type_id와 properties JSONB, 마지막 저장에 적용한 schema_version을 둔다. 사용자별 자료 종류는 label/icon_id/보관 상태와 metadata version을 가진다. 타입별 current schema 포인터와 immutable schema/display 게시 버전을 별도로 보존한다. 생성 이후 자료 종류 변경은 제공하지 않는다. source+external_id는 owner 전체에서 유일하며 자료 종류는 식별자 범위를 나누지 않는다.
 

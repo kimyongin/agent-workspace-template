@@ -10,12 +10,11 @@ httpTest(
       const type = (await call(token, "POST", "/entity-types", { label: "schema parity " + crypto.randomUUID() })).body;
       id = type.id;
       const input = {
-        expected_type_version: 1,
         expected_schema_version: 1,
         edits: [{
           op: "add_property",
           client_ref: "count",
-          field: { type: "integer", title: "수량" },
+          field: { type: "integer", title: "수량", "x-order": 20, "x-show-in-list": true },
           required: false,
         }],
       };

@@ -24,9 +24,11 @@
 
 | [0019](0019-pk-based-data-id-generation.md) | 테이블 PK 기반 서버 ID 생성 | 채택 |
 
-| [0020](0020-typed-entity-schema.md) | 자료 종류별 JSON Schema와 불변 게시 버전 | 설계 채택, 구현은 #343 |
+| [0020](0020-typed-entity-schema.md) | 자료 종류별 JSON Schema와 불변 게시 버전 | 채택; 정의·버전 분리는 ADR-0022로 대체 |
 
 | [0021](0021-type-scoped-immutable-identity.md) | 종류 범위의 불변 자료 식별자와 재사용 발급처 | 채택 |
+
+| [0022](0022-single-schema-document.md) | 자료 종류·속성·표시의 단일 JSON Schema 정본 | 채택, 구현은 #468 |
 
 ## 문서의 책임
 

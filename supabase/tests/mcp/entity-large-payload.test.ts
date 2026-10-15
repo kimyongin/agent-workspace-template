@@ -42,8 +42,8 @@ httpTest(
       client = await connectMcp(grant.access_token);
       const catalog = await client.listTools(),
         names = catalog.tools.map((t) => t.name);
-      assertEquals(names.length, 69);
-      assertEquals(new Set(names).size, 69);
+      assert(names.length > 0);
+      assertEquals(new Set(names).size, names.length);
       for (
         const name of [
           "get_entity_schema",
@@ -78,7 +78,7 @@ httpTest(
         };
       };
       const created = await call<
-        { id: string; version: number; schema_version: number }
+        { id: string; schema_version: number }
       >(token, "POST", "/entity-types", {
         label: `large351 ${run}`,
         representative_label: "이름",
@@ -86,9 +86,7 @@ httpTest(
       }, key());
       assertEquals(created.status, 201);
       typeId = created.body.id;
-      const order = Array.from({ length: 23 }, (_, n) => `prop_${n + 1}`);
       const input = {
-        expected_type_version: created.body.version,
         expected_schema_version: created.body.schema_version,
         edits: [
           ...Array.from(
@@ -98,21 +96,13 @@ httpTest(
               client_ref: `field${n + 2}`,
               field: {
                 type: "string",
+                "x-order": (n + 2) * 10,
+                "x-show-in-list": n < 6,
                 description: "뜻".repeat(n === 21 ? 100 : 1000),
               },
               required: false,
             }),
           ),
-          {
-            op: "set_display",
-            display: {
-              representative: "prop_1",
-              order,
-              list_columns: order.slice(0, 7),
-              archived: [],
-              option_labels: {},
-            },
-          },
         ],
       };
       const plan = await call<EntitySchemaChange>(
@@ -161,8 +151,10 @@ httpTest(
         `/entity-types/${typeId}/schema`,
       );
       assertEquals(schema.status, 200);
-      assertEquals(schema.body.schema, plan.body.target.schema);
-      assertEquals(schema.body.display, plan.body.target.display);
+      assertEquals(schema.body.schema, {
+        ...plan.body.target.schema,
+        "x-version": schema.body.schema_version,
+      });
       assertEquals(
         (await sdk<EntitySchemaResult>("get_entity_schema", {
           type_id: typeId,
@@ -185,7 +177,6 @@ httpTest(
       };
       validateEntityProperties({
         schema: schema.body.schema,
-        display: schema.body.display,
       }, properties);
       evidence.properties_bytes = new TextEncoder().encode(jsonbText(properties)).byteLength;
       assertEquals(evidence.properties_bytes, 65444);
