@@ -146,6 +146,8 @@ test("늦은 전체 결과가 새 실패 필터의 분석 페이지를 덮어쓰
     const delayed = new Promise<void>((resolve) => {
       release = resolve;
     });
+    let finishDelayed!: () => void;
+    const delayedFinished = new Promise<void>((resolve) => finishDelayed = resolve);
     let intercepted = false;
     await page.route(`**/schema-changes/${plan.id}/rows?**`, async (route) => {
       if (!intercepted && route.request().url().includes("failures_only=false")) {
@@ -154,18 +156,37 @@ test("늦은 전체 결과가 새 실패 필터의 분석 페이지를 덮어쓰
         await delayed;
         try {
           await route.fulfill({ response });
-        } catch { /* Aborted response must not update the page. */ }
+        } catch {
+          /* Aborted response must not update the page. */
+        } finally {
+          finishDelayed();
+        }
       } else await route.continue();
     });
     await page.goto(`/settings/entity-types/${typeId}/migrations?change_id=${plan.id}`);
     await expect.poll(() => intercepted).toBe(true);
     await page.getByLabel("실패한 자료만 보기").check();
     await page.getByRole("button", { name: "필터 적용", exact: true }).click();
-    await expect(page.locator("article")).toHaveCount(1);
-    await expect(page.locator("article")).toContainText(bad.id);
+    const articles = page.getByRole("article");
+    const failedHeading = articles.getByRole("heading", {
+      name: `${bad.title} · ${bad.source} · ${bad.external_id} · 변환 실패`,
+      exact: true,
+    });
+    const unchangedHeading = articles.getByRole("heading", {
+      name: `${good.title} · ${good.source} · ${good.external_id} · 무변경`,
+      exact: true,
+    });
+    await expect(articles).toHaveCount(1);
+    await expect(failedHeading).toBeVisible();
+    await expect(unchangedHeading).toHaveCount(0);
     release();
-    await expect(page.locator("article")).toHaveCount(1);
-    await expect(page.locator("article")).not.toContainText(good.id);
+    await delayedFinished;
+    await page.evaluate(() =>
+      new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
+    );
+    await expect(articles).toHaveCount(1);
+    await expect(failedHeading).toBeVisible();
+    await expect(unchangedHeading).toHaveCount(0);
   } finally {
     release();
     await mcp.close();
