@@ -57,7 +57,8 @@ test("연결된 자료: 웹 추가→상대 상세→해제→새로고침과 �
     await confirmation.getByRole("button", { name: "해제하고 저장", exact: true }).click();
     await expect(confirmation).not.toBeVisible();
     await page.reload();
-    await expect(links.getByText("연결된 자료가 없습니다.", { exact: true })).toBeVisible();
+    await expect(links.getByRole("heading", { name: "연결된 자료 (0개)", exact: true })).toBeVisible();
+    await expect(links.getByRole("list").getByRole("listitem")).toHaveCount(0);
     expect((await mcp.call("list_entity_links", { id: x.id })).items).toEqual([]);
     await detail.getByRole("button", { name: "편집", exact: true }).click();
     await expect(detail.getByRole("button", { name: "저장", exact: true })).toBeVisible();
