@@ -310,6 +310,23 @@ test("global disable confirmation cancels back to the editor and a default-sourc
   await expect(modal.getByLabel("이름")).toHaveValue("내 쿠팡");
 });
 
+test("selecting the current settings category closes its menu without leaving the page", async ({ page, baseURL }) => {
+  const state = await fixture(page, baseURL!);
+  await page.goto("/settings/issuers");
+  await expect(page.getByRole("heading", { name: "발급처 설정", exact: true })).toBeVisible();
+  const url = page.url(), trigger = page.getByRole("button", { name: "설정 메뉴", exact: true });
+  await trigger.click();
+  const current = page.getByRole("navigation", { name: "설정 메뉴", exact: true })
+    .getByRole("link", { name: "발급처", exact: true });
+  await expect(current).toHaveAttribute("aria-current", "page");
+  await current.click();
+  await expect(trigger).toHaveAttribute("aria-expanded", "false");
+  await expect(page.getByRole("navigation", { name: "설정 메뉴", exact: true })).toHaveCount(0);
+  await expect(trigger).toBeFocused();
+  await expect(page).toHaveURL(url);
+  expect(state.writes).toEqual([]);
+});
+
 test("settings menu destination remains mounted during discard confirmation and cancel restores the originating link focus", async ({ page, baseURL }) => {
   await fixture(page, baseURL!);
   const form = await identityEditor(page);

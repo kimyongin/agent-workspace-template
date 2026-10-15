@@ -68,7 +68,21 @@ export function SettingsMenu() {
       {open && (
         <nav id={menuId} className="settings-menu-options" aria-label="설정 메뉴">
           {settingsCategories.map(({ to, label }) => (
-            <Link key={to} to={to} aria-current={current(to) ? "page" : undefined}>{label}</Link>
+            <Link
+              key={to}
+              to={to}
+              aria-current={current(to) ? "page" : undefined}
+              onClick={(event) => {
+                if (
+                  event.button === 0 && !event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey &&
+                  to === `${location.pathname}${location.search}${location.hash}`
+                ) {
+                  event.preventDefault();
+                  setOpen(false);
+                  trigger.current?.focus();
+                }
+              }}
+            >{label}</Link>
           ))}
         </nav>
       )}
