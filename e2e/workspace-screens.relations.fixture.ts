@@ -97,6 +97,7 @@ test("연결 엔터티 범위: 각 탭 조회·검색 조건·본문 왕복·해
   await expect(page.getByText("연결된 자료: 검사 자료: 자료", { exact: true })).toBeVisible();
   expect(new URL(page.url()).searchParams.get("entity_id")).toBe(entityKey(1));
   await page.getByRole("button", { name: "자료 범위 해제", exact: true }).click();
+  await page.getByRole("button", { name: "필터 적용", exact: true }).click();
   await expect(page).not.toHaveURL(/entity_id=/);
   await expect.poll(() => state.searches.length).toBe(3);
   expect(state.searches.at(-1)).not.toHaveProperty("entity_id");
@@ -146,6 +147,7 @@ test("연결 범위 해제 뒤 늦은 scoped 페이지는 전체 행·cursor를 
   await page.locator(".tasks").getByRole("button", { name: "할 일 더 보기", exact: true }).click();
   await held.started;
   await page.getByRole("button", { name: "자료 범위 해제", exact: true }).click();
+  await page.getByRole("button", { name: "필터 적용", exact: true }).click();
   await expect(page.locator(".tasks .item-title")).toHaveText(["전체 업무"]);
   held.release();
   await held.finished;
@@ -175,6 +177,7 @@ for (const scope of ["invalid", entityKey(99)]) {
     await expect(page.getByText("연결된 자료: 믿지않을이름", { exact: true })).toHaveCount(0);
     expect(new URL(page.url()).searchParams.get("entity_id")).toBe(scope);
     await page.getByRole("button", { name: "자료 범위 해제", exact: true }).click();
+  await page.getByRole("button", { name: "필터 적용", exact: true }).click();
     await expect(page).not.toHaveURL(/entity_id=/);
     expect(state.errors).toEqual([]);
   });
