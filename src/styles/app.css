@@ -901,3 +901,12 @@ details > summary::-webkit-details-marker { display: none; }
 details > summary::marker { content: ''; }
 details > summary::after { content: ''; grid-column: 2; grid-row: 1; width: 6px; height: 6px; margin-inline: var(--space-2); border-top: 1px solid var(--muted-ink); border-right: 1px solid var(--muted-ink); transform: rotate(45deg); }
 details[open] > summary::after { transform: rotate(135deg); }
+
+/* At extreme zoom/keyboard sizes the surface must still fit both decisions. */
+.modal-action { container-type: inline-size; }
+@container (max-width: 240px) {
+  .modal-action .modal-head, .modal-action .modal-foot { padding: var(--space-2); }
+  .modal-action .modal-body { padding: var(--space-2); }
+  .modal-action .modal-foot { flex-wrap: nowrap; gap: var(--space-1); }
+  .modal-action .modal-foot > .btn { flex: 1; min-width: 44px; padding-inline: var(--space-1); overflow-wrap: anywhere; }
+}
