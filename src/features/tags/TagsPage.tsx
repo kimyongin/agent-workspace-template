@@ -1,3 +1,4 @@
+import { BodyAction } from "../../components/BodyAction.tsx";
 import { useDeferredNavigation } from "../../lib/useDeferredNavigation.ts";
 import { dataId } from "@contracts/data-id.ts";
 import { tagCreate, tagLabels, type TagResult } from "@contracts/tag.ts";
@@ -141,9 +142,9 @@ export function TagManagement({scope,inline=false,onClose,onStateChange}:{scope:
   const editor=(initial:TagResult|null)=><form className="form tag-editor" aria-label={initial?"태그 이름 변경":"태그 추가"} onSubmit={e=>{e.preventDefault();void save();}}>
     <Field label={tagLabels.name} required error={fieldError}>{p=><input {...p} ref={input} className="input" placeholder="태그 이름" value={draft?.name??""} readOnly={busy||uncertain||deletionState.armed} onChange={e=>setDraft({initial,name:e.target.value})}/>}</Field>
     <div className="actions">
-      <button type="submit" className="btn btn-primary" disabled={busy||conflict||deletionState.armed}>{writing?"저장 중…":uncertain?"같은 내용 다시 시도":initial?"저장":"추가"}</button>
-      {draft&&<button type="button" className="btn btn-text" disabled={busy} onClick={()=>change(cancel)}>취소</button>}
       {initial&&deleteAction(initial,true)}
+      {draft&&<button type="button" className="btn" disabled={busy} onClick={()=>change(cancel)}>취소</button>}
+      <button type="submit" className="btn btn-primary" disabled={busy||conflict||deletionState.armed}>{writing?"저장 중…":uncertain?"같은 내용 다시 시도":initial?"저장":"추가"}</button>
     </div>
     {failure&&<Notice kind="error">{failure}</Notice>}
   </form>;
@@ -156,18 +157,18 @@ export function TagManagement({scope,inline=false,onClose,onStateChange}:{scope:
     {page?.items.length === 0 && <p className="secondary">아직 태그가 없습니다.</p>}
     <ul className="list">{(draft?.initial&&!page?.items.some(t=>t.id===draft.initial?.id)?[draft.initial,...(page?.items??[])]:page?.items??[]).map(t=><li key={t.id} className="list-item">
       {draft?.initial?.id===t.id?editor(t):<><span className="item-title">{t.name}</span><div className="actions">
-        <button id={`tag-${t.id}`} className="btn btn-text" disabled={busy} aria-label={`${t.name} 이름 변경`} onClick={()=>select(t)}>이름 변경</button>
+        <BodyAction id={`tag-${t.id}`} disabled={busy} aria-label={`${t.name} 이름 변경`} onClick={()=>select(t)}>이름 변경</BodyAction>
         {deleteAction(t)}
       </div></>}
     </li>)}</ul>
-    {page?.next_cursor && <button className="btn" disabled={loading || busy} onClick={async () => {
+    {page?.next_cursor && <BodyAction disabled={loading || busy} onClick={async () => {
       const epoch = readEpoch.current, controller = new AbortController(); readAbort.current = controller;
       const current = () => !controller.signal.aborted && epoch === readEpoch.current;
       setLoading(true); setError(null); try { const next = await api<Page>("GET", `/tags?scope=${scope}&cursor=${encodeURIComponent(page.next_cursor!)}`, undefined, controller.signal);
         if (!current()) return;
         setPage(p => p && ({ items: [...p.items, ...next.items.filter(t => !p.items.some(old => old.id === t.id))], next_cursor: next.next_cursor })); pageCount.current++;
       } catch { if (current()) setError("다음 태그를 불러오지 못했습니다."); } finally { if (current()) setLoading(false); }
-    }}>더 보기</button>}
+    }}>더 보기</BodyAction>}
     <ConfirmDialog open={!!pending} busy={busy} title="변경을 버릴까요?" message="저장하지 않은 내용이 사라집니다." confirmLabel="변경 버리기"
       onCancel={() => setPending(null)}
       onConfirm={() => {const action=pending;setPending(null);action?.();}} />

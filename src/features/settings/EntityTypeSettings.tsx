@@ -372,7 +372,7 @@ function EntityTypeSettingsEditor({ type_id }: { type_id?: string }) {
                 </Field>
               )}
               {type_id && (
-                <label>
+                <label className="choice-control">
                   <input
                     type="checkbox"
                     checked={archived}

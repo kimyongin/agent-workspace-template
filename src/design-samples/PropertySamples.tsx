@@ -209,14 +209,14 @@ function PropertyList(
                   <details className="schema-advanced">
                     <summary className="secondary">추가 설정</summary>
                     <div className="form">
-                      <label className="samples-choice">
+                      <label className="choice-control">
                         <input
                           type="checkbox"
                           checked={field.required}
                           onChange={(event) => edit(field.id, { required: event.target.checked })}
                         />필수 입력
                       </label>
-                      <label className="samples-choice">
+                      <label className="choice-control">
                         <input
                           type="checkbox"
                           checked={field.listed}
