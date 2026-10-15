@@ -91,7 +91,7 @@ test("값 변환 작업: 웹 접수→페이지 이탈→실제 local runner 완
     await expect(page.getByRole("status").filter({ hasText: /^(접수|실행 중|완료|취소) · / })).toContainText("완료");
     await page.reload();
     await expect(page.getByRole("status").filter({ hasText: /^(접수|실행 중|완료|취소) · / })).toContainText("완료");
-    await expect(page.locator(".material-settings-current")).toBeVisible();
+    await expect(page.getByLabel("자료 종류 선택")).toHaveValue(type.id);
     const current = await mcp.call("get_entity", { id: x.id });
     expect(current.properties).toEqual({ prop_1: "원본", prop_2: 7 });
     expect(current.entity_type_id).toBe(type.id);

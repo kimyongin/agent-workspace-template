@@ -52,8 +52,9 @@ test("원본 복구: 웹 키보드 생성·분석→MCP 실행→자료·연결�
     await expect(page.getByRole("alert")).toContainText("이 자료 종류의 작업이 아닙니다");
     await expect(page.getByRole("button", { name: "원본 복구안 만들기", exact: true })).toHaveCount(0);
     await page.goto(`/settings/entity-types/${type.id}/migrations/${started.job_id}`);
-    await expect(page.locator(".material-settings-current")).toContainText(label);
-    await expect(page.locator(".material-settings-current svg")).toHaveAttribute("data-icon", "star");
+    await expect(page.getByLabel("자료 종류 선택")).toHaveValue(type.id);
+    await expect(page.getByLabel("자료 종류 선택").locator("option:checked")).toHaveText(label);
+    expect((await mcp.call("get_entity_type", { type_id: type.id })).icon_id).toBe("star");
     const create = page.getByRole("button", { name: "원본 복구안 만들기", exact: true });
     await expect(create).toBeEnabled();
     const recoveryResponse = page.waitForResponse((r) => r.url().endsWith(`/entity-schema-migrations/${started.job_id}/recovery-changes`) && r.request().method() === "POST");
@@ -107,7 +108,8 @@ test("원본 복구: 웹 키보드 생성·분석→MCP 실행→자료·연결�
     expect((await mcp.call("get_entity_type", { type_id: type.id })).label).toBe(label);
     expect((await mcp.call("get_entity_type", { type_id: type.id })).icon_id).toBe("star");
     await page.reload();
-    await expect(page.locator(".material-settings-current")).toContainText(label);
+    await expect(page.getByLabel("자료 종류 선택")).toHaveValue(type.id);
+    await expect(page.getByLabel("자료 종류 선택").locator("option:checked")).toHaveText(label);
     await page.setViewportSize({ width: 320, height: 750 });
     await expect(page.getByRole("status").filter({ hasText: /^(접수|실행 중|완료|취소) · / })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
