@@ -11,7 +11,7 @@ export function SettingsMenu() {
   const location = useLocation();
   useEffect(() => {
     setOpen(false);
-  }, [location]);
+  }, [location.pathname, location.search, location.hash]);
   useEffect(() => {
     if (!open) return;
     const outside = (event: PointerEvent) => {
@@ -33,7 +33,6 @@ export function SettingsMenu() {
       onBlur={(event) => {
         if (
           !document.querySelector("dialog.modal-confirm[open]") && event.relatedTarget &&
-          !(event.relatedTarget instanceof Element && event.relatedTarget.closest("dialog.modal-confirm")) &&
           !event.currentTarget.contains(event.relatedTarget as Node)
         ) setOpen(false);
       }}

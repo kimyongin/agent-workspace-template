@@ -205,13 +205,13 @@ async function identityEditor(page: Page) {
 }
 test("type identity cancel and explicit conflict resolution preserve the local number label", async ({ page, baseURL }) => {
   const state = await fixture(page, baseURL!), form = await identityEditor(page);
-  await form.getByLabel("이름").fill("내 상품 번호");
+  await form.getByRole("textbox", { name: "이름 (필수)", exact: true }).fill("내 상품 번호");
   await form.getByRole("button", { name: "변경 취소", exact: true }).click();
-  await expect(form.getByLabel("이름")).toHaveValue("상품 번호");
-  await form.getByLabel("이름").fill("내 상품 번호");
+  await expect(form.getByRole("textbox", { name: "이름 (필수)", exact: true })).toHaveValue("상품 번호");
+  await form.getByRole("textbox", { name: "이름 (필수)", exact: true }).fill("내 상품 번호");
   state.fail("conflict");
   await form.getByRole("button", { name: "식별자 저장" }).click();
-  await expect(form.getByLabel("이름")).toHaveValue("내 상품 번호");
+  await expect(form.getByRole("textbox", { name: "이름 (필수)", exact: true })).toHaveValue("내 상품 번호");
   await form.getByRole("button", { name: "최신 저장값 확인" }).click();
   await expect(form.getByText("최신 번호", { exact: false })).toBeVisible();
   await form.getByRole("button", { name: "입력 유지하고 최신 버전 사용" }).click();
@@ -234,7 +234,7 @@ test("referenced rules are read only and stopping support does not delete the bi
 test("issuer and rule creation dialogs return to an unchanged dirty type draft", async ({ page, baseURL }) => {
   await fixture(page, baseURL!);
   const form = await identityEditor(page);
-  await form.getByLabel("이름").fill("편집 중인 번호");
+  await form.getByRole("textbox", { name: "이름 (필수)", exact: true }).fill("편집 중인 번호");
   await form.getByRole("button", { name: "연결", exact: true }).click();
   const binding = page.getByRole("dialog", { name: "지원 발급처 연결", exact: true });
   await binding.getByRole("button", { name: "발급처 추가" }).click();
@@ -247,7 +247,7 @@ test("issuer and rule creation dialogs return to an unchanged dirty type draft",
   await create.getByRole("button", { name: "취소", exact: true }).click();
   await page.getByRole("dialog", { name: "변경을 버릴까요?" }).getByRole("button", { name: "변경 버리기" }).click();
   await binding.getByRole("button", { name: "취소", exact: true }).click();
-  await expect(form.getByLabel("이름")).toHaveValue("편집 중인 번호");
+  await expect(form.getByRole("textbox", { name: "이름 (필수)", exact: true })).toHaveValue("편집 중인 번호");
 });
 test("issuer retry retains its hidden stable code and request key; builtin app stays read only", async ({ page, baseURL }) => {
   const state = await fixture(page, baseURL!);
@@ -270,7 +270,7 @@ test("issuer retry retains its hidden stable code and request key; builtin app s
 
 test("new issuer and number rule are created above the retained type draft and then explicitly connected", async ({ page, baseURL }) => {
   const state = await fixture(page, baseURL!), form = await identityEditor(page);
-  await form.getByLabel("이름").fill("새 상품 번호");
+  await form.getByRole("textbox", { name: "이름 (필수)", exact: true }).fill("새 상품 번호");
   await form.getByRole("button", { name: "연결", exact: true }).click();
   const binding = page.getByRole("dialog", { name: "지원 발급처 연결", exact: true });
   await binding.getByRole("button", { name: "발급처 추가" }).click();
@@ -282,7 +282,7 @@ test("new issuer and number rule are created above the retained type draft and t
   await rule.getByLabel("이름").fill("상품 ID");
   await rule.getByRole("button", { name: "저장", exact: true }).click();
   await binding.getByRole("button", { name: "연결", exact: true }).click();
-  await expect(form.getByLabel("이름")).toHaveValue("새 상품 번호");
+  await expect(form.getByRole("textbox", { name: "이름 (필수)", exact: true })).toHaveValue("새 상품 번호");
   await expect(form.getByLabel("새 마켓", { exact: true })).toBeChecked();
   await expect(form.getByLabel("기본 발급처")).toHaveValue("app");
   await form.getByRole("button", { name: "식별자 저장" }).click();
@@ -313,7 +313,7 @@ test("global disable confirmation cancels back to the editor and a default-sourc
 test("settings menu destination remains mounted during discard confirmation and cancel restores the originating link focus", async ({ page, baseURL }) => {
   await fixture(page, baseURL!);
   const form = await identityEditor(page);
-  await form.getByLabel("이름").fill("보존할 번호");
+  await form.getByRole("textbox", { name: "이름 (필수)", exact: true }).fill("보존할 번호");
   await page.getByRole("button", { name: "설정 메뉴", exact: true }).click();
   const menu = page.getByRole("navigation", { name: "설정 메뉴", exact: true }),
     entry = menu.getByRole("link", { name: "기록", exact: true });
@@ -325,7 +325,7 @@ test("settings menu destination remains mounted during discard confirmation and 
   await confirm.getByRole("button", { name: "취소", exact: true }).click();
   await expect(entry).toBeFocused();
   await expect(menu).toBeVisible();
-  await expect(form.getByLabel("이름")).toHaveValue("보존할 번호");
+  await expect(form.getByRole("textbox", { name: "이름 (필수)", exact: true })).toHaveValue("보존할 번호");
   await expect(page).toHaveURL(new RegExp(`/settings/entity-types/${typeId}$`));
   await entry.click();
   await page.getByRole("dialog", { name: "변경을 버릴까요?", exact: true }).getByRole("button", {
@@ -338,7 +338,7 @@ test("settings menu destination remains mounted during discard confirmation and 
 
 test("nested issuer save detects a concurrent identity change and requires explicit reconciliation", async ({ page, baseURL }) => {
   const state = await fixture(page, baseURL!), form = await identityEditor(page);
-  await form.getByLabel("이름").fill("내 번호 초안");
+  await form.getByRole("textbox", { name: "이름 (필수)", exact: true }).fill("내 번호 초안");
   // Another tab saves the type identity while this tab retains its complete draft.
   state.concurrentIdentity();
   await form.getByRole("button", { name: "쿠팡 편집", exact: true }).click();
@@ -347,7 +347,7 @@ test("nested issuer save detects a concurrent identity change and requires expli
   await modal.getByRole("button", { name: "저장", exact: true }).click();
   await expect(modal).toHaveCount(0);
   await expect(page.getByRole("alert").filter({ hasText: "같은 식별자 설정이 변경되었습니다" })).toBeVisible();
-  await expect(form.getByLabel("이름")).toHaveValue("내 번호 초안");
+  await expect(form.getByRole("textbox", { name: "이름 (필수)", exact: true })).toHaveValue("내 번호 초안");
   await expect(form.getByRole("button", { name: "식별자 저장", exact: true })).toBeDisabled();
   await expect(form.getByLabel("기본 발급처")).toHaveValue("app");
   expect(state.writes.filter((w) => w.path.endsWith("/identity"))).toEqual([]);
