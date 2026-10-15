@@ -295,9 +295,10 @@ export function SchemaEditor(
                 {draft.display.order.map((key, index) => {
                   const f = draft.schema.properties[key],
                     scalar = fieldType(f) ?? "string";
-                  const toggleField = () => setOpenFields(keys =>
-                    keys.includes(key) ? keys.filter(value => value !== key) : [...keys, key]
-                  );
+                  const toggleField = () =>
+                    setOpenFields((keys) =>
+                      keys.includes(key) ? keys.filter((value) => value !== key) : [...keys, key]
+                    );
                   const expanded = openFields.includes(key);
                   const fieldSummary = (
                     <span className="secondary">
@@ -324,43 +325,45 @@ export function SchemaEditor(
                         }}
                       >
                         <div className="schema-field-heading">
-                          <h3>
-                            {expanded ? (
-                              <span className="schema-field-title">
-                                <input
-                                  className="input"
-                                  aria-label="항목 이름"
-                                  maxLength={80}
-                                  data-schema-setting="title"
-                                  value={f.title ?? ""}
-                                  disabled={Boolean(plan?.recovery)}
-                                  onChange={(event) => editField(key, { ...f, title: event.target.value })}
-                                />
-                                {fieldSummary}
-                              </span>
-                            ) : (
-                              <button
-                                className="schema-field-title related-toggle item-title"
-                                type="button"
-                                aria-label={`${f.title || "새 항목"} 속성 편집`}
-                                aria-expanded={expanded}
-                                aria-controls={`schema-field-${key}`}
-                                onClick={() => {
-                                  toggleField();
-                                  requestAnimationFrame(() => {
-                                    const element = fieldElements.current[key];
-                                    (element?.querySelector<HTMLInputElement>(
-                                      'input[data-schema-setting="title"]:not(:disabled)',
-                                    ) ?? element?.querySelector<HTMLButtonElement>(
-                                      ".schema-field-disclosure:not(:disabled)",
-                                    ))?.focus({ preventScroll: true });
-                                  });
-                                }}
-                              >
-                                <span>{f.title || "새 항목"}</span>
-                                {fieldSummary}
-                              </button>
-                            )}
+                          <h3 className="item-title">
+                            {expanded
+                              ? (
+                                <span className="schema-field-title">
+                                  <input
+                                    className="input"
+                                    aria-label="항목 이름"
+                                    maxLength={80}
+                                    data-schema-setting="title"
+                                    value={f.title ?? ""}
+                                    disabled={Boolean(plan?.recovery)}
+                                    onChange={(event) => editField(key, { ...f, title: event.target.value })}
+                                  />
+                                  {fieldSummary}
+                                </span>
+                              )
+                              : (
+                                <button
+                                  className="schema-field-title related-toggle item-title"
+                                  type="button"
+                                  aria-label={`${f.title || "새 항목"} 속성 편집`}
+                                  aria-expanded={expanded}
+                                  aria-controls={`schema-field-${key}`}
+                                  onClick={() => {
+                                    toggleField();
+                                    requestAnimationFrame(() => {
+                                      const element = fieldElements.current[key];
+                                      (element?.querySelector<HTMLInputElement>(
+                                        'input[data-schema-setting="title"]:not(:disabled)',
+                                      ) ?? element?.querySelector<HTMLButtonElement>(
+                                        ".schema-field-disclosure:not(:disabled)",
+                                      ))?.focus({ preventScroll: true });
+                                    });
+                                  }}
+                                >
+                                  <span>{f.title || "새 항목"}</span>
+                                  {fieldSummary}
+                                </button>
+                              )}
                           </h3>
                           <div className="schema-order-actions">
                             <BodyAction
@@ -370,7 +373,17 @@ export function SchemaEditor(
                               disabled={index === 0 || Boolean(plan?.recovery)}
                               onClick={() => moveInput(key, -1)}
                             >
-                              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="m6 12 6-6 6 6M12 6v14" /></svg>
+                              <svg
+                                width="18"
+                                height="18"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="1.5"
+                                aria-hidden="true"
+                              >
+                                <path d="m6 12 6-6 6 6M12 6v14" />
+                              </svg>
                             </BodyAction>
                             <BodyAction
                               type="button"
@@ -379,7 +392,17 @@ export function SchemaEditor(
                               disabled={index === draft.display.order.length - 1 || Boolean(plan?.recovery)}
                               onClick={() => moveInput(key, 1)}
                             >
-                              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="m6 12 6 6 6-6M12 4v14" /></svg>
+                              <svg
+                                width="18"
+                                height="18"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="1.5"
+                                aria-hidden="true"
+                              >
+                                <path d="m6 12 6 6 6-6M12 4v14" />
+                              </svg>
                             </BodyAction>
                           </div>
                           <button
@@ -433,7 +456,7 @@ export function SchemaEditor(
                           </Field>
                           {f.enum && (
                             <div className="schema-options">
-                              <h4>선택 항목</h4>
+                              <h4 className="section-title">선택 항목</h4>
                               {f.enum.filter((value) => value !== null).map((
                                 code,
                                 i,
@@ -463,9 +486,7 @@ export function SchemaEditor(
                                     type="button"
                                     className="btn btn-input"
                                     aria-label={`선택 항목 ${i + 1} 제거`}
-                                    disabled={f.enum!.filter((value) =>
-                                      value !== null
-                                    ).length <= 1}
+                                    disabled={f.enum!.filter((value) => value !== null).length <= 1}
                                     onClick={() =>
                                       editField(key, {
                                         ...f,
@@ -476,9 +497,9 @@ export function SchemaEditor(
                                   </button>
                                 </div>
                               ))}
-                              <BodyAction icon="create"
+                              <BodyAction
+                                icon="create"
                                 type="button"
-
                                 disabled={f.enum.filter((value) => value !== null).length >= 128}
                                 onClick={() => {
                                   let number = 1;
@@ -513,13 +534,15 @@ export function SchemaEditor(
                             onToggle={(event) => {
                               const open = event.currentTarget.open;
                               setAdvancedFields((keys) =>
-                                open ? keys.includes(key) ? keys : [...keys, key] : keys.filter((value) => value !== key)
+                                open
+                                  ? keys.includes(key) ? keys : [...keys, key]
+                                  : keys.filter((value) => value !== key)
                               );
                             }}
                           >
                             <summary>추가 설정</summary>
                             <div className="form">
-                              <label>
+                              <label className="choice-control">
                                 <input
                                   type="checkbox"
                                   checked={draft.schema.required.includes(key)}
@@ -527,7 +550,7 @@ export function SchemaEditor(
                                 />{" "}
                                 필수 입력
                               </label>
-                              <label>
+                              <label className="choice-control">
                                 <input
                                   type="checkbox"
                                   aria-label={`${f.title || "새 항목"} 목록에 표시`}
@@ -583,7 +606,6 @@ export function SchemaEditor(
                                         )}
                                       </Field>
                                       <BodyAction
-
                                         type="button"
                                         aria-label={`${f.title ?? "속성"} 이전 ${label} 입력 제거`}
                                         onClick={() => editor.removeNumericInput(address)}
@@ -743,7 +765,6 @@ export function SchemaEditor(
                               </p>
                               <div className="schema-actions">
                                 <BodyAction
-
                                   type="button"
                                   disabled={unreservedFields.includes(key) ||
                                     key === draft.display.representative}
@@ -789,8 +810,8 @@ export function SchemaEditor(
               </CollectionList>
             </fieldset>
             <div className="schema-actions">
-              <BodyAction icon="create"
-
+              <BodyAction
+                icon="create"
                 type="button"
                 disabled={busy || uncertain || disabled || readBusy || startState.busy || startState.uncertain ||
                   Boolean(plan?.recovery) || Object.keys(draft.schema.properties).length >= 64}
@@ -1018,7 +1039,7 @@ export function SchemaEditor(
                           aria-label="속성 변경 요약"
                           data-change-version={plan.version}
                         >
-                          <h3 ref={reviewHeading} tabIndex={-1}>변경 검토</h3>
+                          <h3 className="section-title" ref={reviewHeading} tabIndex={-1}>변경 검토</h3>
                           <p>버전 {plan.source_schema_version} → {plan.source_schema_version + 1}</p>
                           {!["applied", "cancelled"].includes(plan.status) && (
                             <p>
@@ -1132,6 +1153,9 @@ export function SchemaEditor(
                               <ConversionEditor
                                 key={plan.id}
                                 plan={plan}
+                                sourceDefinition={definition.schema_version === plan.source_schema_version
+                                  ? definition
+                                  : undefined}
                                 migration={migration}
                                 onChange={editor.editMigration}
                                 disabled={!!row.version || busy || uncertain ||
@@ -1156,7 +1180,7 @@ export function SchemaEditor(
                           )}
                           {plan.analysis?.status === "failed" &&
                             plan.status !== "cancelled" && (
-                            <p role="alert">
+                            <p role="alert" className="error-text">
                               분석 작업 실패: {plan.analysis.failure_reason}. 원본은 유지됩니다. 다시 분석하세요.
                             </p>
                           )}
@@ -1276,15 +1300,14 @@ export function SchemaEditor(
           {historyRows.length === 0 && <p className="secondary">변경 이력이 없습니다.</p>}
           {editor.view.changesBefore && (
             <BodyAction
-
               disabled={readBusy || busy || uncertain}
               onClick={() => void editor.moreChanges()}
             >
               이전 변경안 더 보기
             </BodyAction>
           )}
-          <BodyAction icon="reset"
-
+          <BodyAction
+            icon="reset"
             disabled={busy || readBusy || uncertain}
             onClick={() => {
               jobs.refresh();
@@ -1293,20 +1316,19 @@ export function SchemaEditor(
           >
             변경 이력 다시 조회
           </BodyAction>
-          {jobs.error && <p role="alert">{jobs.error}</p>}
+          {jobs.error && <p role="alert" className="error-text">{jobs.error}</p>}
           {jobs.before && (
-            <BodyAction  disabled={jobs.moreBusy} onClick={() => void jobs.more()}>
+            <BodyAction disabled={jobs.moreBusy} onClick={() => void jobs.more()}>
               {jobs.moreBusy ? "이전 변환 이력 읽는 중…" : "이전 변환 이력 더 보기"}
             </BodyAction>
           )}
           {jobs.error && (
-            <BodyAction icon="reset"  onClick={jobs.refresh}>
+            <BodyAction icon="reset" onClick={jobs.refresh}>
               변환 이력 다시 조회
             </BodyAction>
           )}
           {historyBefore !== null && (
             <BodyAction
-
               disabled={historyBusy}
               onClick={() => void onMoreVersions?.()}
             >

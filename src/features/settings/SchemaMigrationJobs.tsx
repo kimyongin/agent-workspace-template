@@ -73,7 +73,7 @@ export function MigrationStart(
       >
         {busy ? "접수 중…" : uncertain ? "같은 접수 요청 다시 확인" : "값 변환 시작"}
       </button>
-      {error && <p role="alert">{error} 작업 목록에서 접수 여부를 확인할 수 있습니다.</p>}
+      {error && <p role="alert" className="error-text">{error} 작업 목록에서 접수 여부를 확인할 수 있습니다.</p>}
     </div>
   );
 }
@@ -342,14 +342,14 @@ export function SchemaMigrationJob(
   };
   return (
     <section aria-label="값 변환 상세" className="schema-job-detail">
-      <h3>값 변환</h3>
+      <h3 className="section-title">값 변환</h3>
       <p className="secondary">
         접수한 작업은 화면을 닫거나 다른 페이지로 이동해도 계속됩니다. 다시 열면 서버의 확정 상태를 조회합니다.
       </p>
-      {(error || publicationError) && <p role="alert">{error || publicationError}</p>}
-      <BodyAction icon="reset"  onClick={() => setRefresh((n) => n + 1)}>상태 다시 조회</BodyAction>
+      {(error || publicationError) && <p role="alert" className="error-text">{error || publicationError}</p>}
+      <BodyAction icon="reset" onClick={() => setRefresh((n) => n + 1)}>상태 다시 조회</BodyAction>
       {publicationError && (
-        <BodyAction icon="reset"  onClick={() => setRefresh((n) => n + 1)}>
+        <BodyAction icon="reset" onClick={() => setRefresh((n) => n + 1)}>
           최신 속성 다시 조회
         </BodyAction>
       )}
@@ -373,7 +373,7 @@ export function SchemaMigrationJob(
             <p>원본 보존 만료: {new Date(job.source_expires_at).toLocaleString()}</p>
           )}
           {job.status === "failed" && (
-            <p role="alert">
+            <p role="alert" className="error-text">
               {job.failure_reason} · 기존 자료와 속성 정의가 유지됩니다.{" "}
               {job.retryable ? "같은 작업을 재시도할 수 있습니다." : "변경안과 최신 분석을 다시 준비하세요."}
             </p>

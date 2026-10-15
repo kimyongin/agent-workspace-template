@@ -6,11 +6,24 @@ import { ChangeContext, PrincipleSnapshots, type WorkspaceRecord } from "./Chang
 vi.mock("../../lib/api.ts", () => ({ api: vi.fn(), ApiError: Error }));
 
 it("does not display an applied-principle panel for records without historical captures", () => {
-  expect(renderToStaticMarkup(<PrincipleSnapshots snapshots={[]}/>)).toBe("");
+  expect(renderToStaticMarkup(<PrincipleSnapshots snapshots={[]} />)).toBe("");
 });
 
 it("reads captured principle text and provenance without linking to a retired historical detail", () => {
-  const html = renderToStaticMarkup(<PrincipleSnapshots snapshots={[{ id: "historical-principle", title: "당시 기준", summary: "당시 요약", body: "원래 본문을 그대로 보존", version: 3, saved_at: "2026-10-01T02:03:04Z", status: "inactive", captured_at: "migration" }]}/>);
+  const html = renderToStaticMarkup(
+    <PrincipleSnapshots
+      snapshots={[{
+        id: "historical-principle",
+        title: "당시 기준",
+        summary: "당시 요약",
+        body: "원래 본문을 그대로 보존",
+        version: 3,
+        saved_at: "2026-10-01T02:03:04Z",
+        status: "inactive",
+        captured_at: "migration",
+      }]}
+    />,
+  );
   expect(html).toContain("원래 본문을 그대로 보존");
   expect(html).not.toContain("historical-principle");
   expect(html).toContain("<summary>당시 기준</summary>");
@@ -20,15 +33,58 @@ it("reads captured principle text and provenance without linking to a retired hi
 });
 
 it("describes application capture as provenance rather than inventing a capture timestamp", () => {
-  const html = renderToStaticMarkup(<PrincipleSnapshots snapshots={[{ id: "historical-principle", title: "적용 기준", summary: "당시 요약", body: "적용 당시 본문", version: 2, saved_at: "2026-10-01T02:03:04Z", status: "active", captured_at: "application" }]}/>);
+  const html = renderToStaticMarkup(
+    <PrincipleSnapshots
+      snapshots={[{
+        id: "historical-principle",
+        title: "적용 기준",
+        summary: "당시 요약",
+        body: "적용 당시 본문",
+        version: 2,
+        saved_at: "2026-10-01T02:03:04Z",
+        status: "active",
+        captured_at: "application",
+      }]}
+    />,
+  );
   expect(html).toContain("업무 적용 시 보존한 본문입니다");
   expect(html).not.toContain("실제 판단 당시의 본문을 보증하지 않습니다");
 });
 
 it("shows stored historical snapshots, without implying missing snapshots describe historical absence", () => {
-  const stamp="2026-10-01T02:03:04Z";
-  const record: WorkspaceRecord = { id:"record", body:"고객 수정",record_kind: "change",occurred_at:stamp,task_id:null,occurrence_on:null,entity_ids:[],entity_context:[],tag_ids:[],applied_principle_snapshots:[],version:1,created_at:stamp,updated_at:stamp,change: { event_id:"event",target_kind: "entity", target_id: "target", target_title: "고객", action: "update", source: "http", before: null, after: null,path:null } };
-  const render = (value: WorkspaceRecord) => renderToStaticMarkup(<MemoryRouter><ChangeContext record={value}/></MemoryRouter>);
+  const stamp = "2026-10-01T02:03:04Z";
+  const record: WorkspaceRecord = {
+    id: "record",
+    body: "고객 수정",
+    record_kind: "change",
+    occurred_at: stamp,
+    task_id: null,
+    occurrence_on: null,
+    entity_ids: [],
+    entity_context: [],
+    tag_ids: [],
+    applied_principle_snapshots: [],
+    version: 1,
+    created_at: stamp,
+    updated_at: stamp,
+    change: {
+      event_id: "event",
+      target_kind: "entity",
+      target_id: "target",
+      target_title: "고객",
+      action: "update",
+      source: "http",
+      before: null,
+      after: null,
+      path: null,
+    },
+  };
+  const render = (value: WorkspaceRecord) =>
+    renderToStaticMarkup(
+      <MemoryRouter>
+        <ChangeContext record={value} />
+      </MemoryRouter>,
+    );
   expect(render(record)).not.toContain("변경 전");
   expect(render(record)).not.toContain("변경 후");
   const old = { ...record, change: { ...record.change!, before: { prop1: "옛 이름" }, after: { prop1: "새 이름" } } };
@@ -36,4 +92,62 @@ it("shows stored historical snapshots, without implying missing snapshots descri
   expect(render(old)).toContain("옛 이름");
   expect(render(old)).toContain("새 이름");
   expect(render({ ...old, change: { ...old.change, before: null } })).toContain("변경 후");
+});
+
+it("reads saved changes as labeled values while preserving zero, false, null and unknown historical fields", () => {
+  const stamp = "2026-10-01T02:03:04Z";
+  const record: WorkspaceRecord = {
+    id: "record",
+    body: "고객 수정",
+    record_kind: "change",
+    occurred_at: stamp,
+    task_id: null,
+    occurrence_on: null,
+    entity_ids: [],
+    entity_context: [],
+    tag_ids: [],
+    applied_principle_snapshots: [],
+    version: 1,
+    created_at: stamp,
+    updated_at: stamp,
+    change: {
+      event_id: "event",
+      target_kind: "entity",
+      target_id: "target",
+      target_title: "고객",
+      action: "update",
+      source: "http",
+      before: { title: "당시 이름", properties: { prop_1: 0, prop_2: false, prop_3: null, legacy: "과거 값" } },
+      after: null,
+      path: null,
+    },
+  };
+  const html = renderToStaticMarkup(
+    <MemoryRouter>
+      <ChangeContext record={record} />
+    </MemoryRouter>,
+  );
+  expect(html).toContain("<dt>이름</dt>");
+  expect(html).toContain("<dt>항목 1</dt><dd>0</dd>");
+  expect(html).toContain("<dt>항목 2</dt><dd>아니오</dd>");
+  expect(html).toContain("<dt>항목 3</dt><dd>값 없음</dd>");
+  expect(html).toContain("<dt>legacy</dt><dd>과거 값</dd>");
+  expect(html).not.toContain("<pre>");
+  expect(html).not.toContain("prop_1");
+  const captured = {
+    ...record,
+    change: {
+      ...record.change!,
+      before: { properties: { prop_1: "옛 값" }, property_labels: { prop_1: "당시 항목" } },
+      after: { properties: { prop_1: "새 값" }, property_labels: { prop_1: "변경 후 항목" } },
+    },
+  };
+  const historical = renderToStaticMarkup(
+    <MemoryRouter>
+      <ChangeContext record={captured} />
+    </MemoryRouter>,
+  );
+  expect(historical).toContain("<dt>당시 항목</dt><dd>옛 값</dd>");
+  expect(historical).toContain("<dt>변경 후 항목</dt><dd>새 값</dd>");
+  expect(historical).not.toContain("property_labels");
 });

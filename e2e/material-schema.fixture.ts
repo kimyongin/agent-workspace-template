@@ -1013,6 +1013,12 @@ test(
     expect(footer).toEqual({ text: "14px", height: 44 });
     expect(await quantity.locator(".schema-order-actions svg").first().evaluate(el => el.getBoundingClientRect().width)).toBe(12);
     await quantity.getByText("추가 설정", { exact: true }).click();
+    for (const label of await quantity.locator("label:has(input[type=checkbox])").all()) {
+      const target = await label.boundingBox();
+      expect(target!.width).toBeGreaterThanOrEqual(44);
+      expect(target!.height).toBeGreaterThanOrEqual(44);
+    }
+    expect(await quantity.getByRole("heading").evaluate(el => getComputedStyle(el).fontWeight)).toBe("600");
     const deletion = quantity.getByRole("button", { name: "항목 삭제", exact: true });
     expect(await deletion.locator(".body-action-face").evaluate(el => getComputedStyle(el).color)).toBe("rgb(255, 140, 150)");
     await quantity.getByText("추가 설정", { exact: true }).click();
@@ -1488,8 +1494,15 @@ test(
     await expect(
       definition.getByRole("region", { name: "판매 가능 정의", exact: true }),
     ).toContainText("아니오");
-    await expect(definition.getByRole("region", { name: "단위 정의", exact: true })).toContainText("킬로그램 (kg)");
-    await expect(definition.getByRole("region", { name: "단위 정의", exact: true })).toContainText("그램 (g)");
+    await expect(definition.getByRole("region", { name: "단위 정의", exact: true })).toContainText("킬로그램");
+    await expect(definition.getByRole("region", { name: "단위 정의", exact: true })).toContainText("그램");
+    await expect(definition).not.toContainText("(kg)");
+    await expect(definition).not.toContainText("(g)");
+    const headingStyles = await definition.getByRole("heading").evaluateAll((elements) => elements.map((element) => {
+      const style = getComputedStyle(element);
+      return { size: style.fontSize, weight: style.fontWeight, height: style.lineHeight };
+    }));
+    for (const style of headingStyles) expect(style).toEqual({ size: "13px", weight: "600", height: "20px" });
     const positions = await definition.locator("dt").evaluateAll((elements) =>
       elements.map((el) => el.getBoundingClientRect().x)
     );
