@@ -105,8 +105,8 @@ export function IssuerEditModal(
     <ModalShell
       open
       description={target.kind === "issuer"
-        ? "자료 번호의 발급처 이름과 코드를 정합니다."
-        : "번호의 용도와 발급 방식을 정합니다."}
+        ? "자료 번호의 발급처 이름과 사용 상태를 관리합니다."
+        : "발급처에서 쓰는 번호 종류의 이름과 사용 상태를 관리합니다."}
       title={target.kind === "issuer"
         ? baseline ? "발급처 편집" : "발급처 추가"
         : baseline

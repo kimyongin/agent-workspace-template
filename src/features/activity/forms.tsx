@@ -270,7 +270,9 @@ export function TaskFormModal(
   return (
     <FormModal
       domain="할 일"
-      description="내용과 일정을 정하고, 관련 자료와 태그를 연결합니다."
+      description={props.mode === "create"
+        ? "내용과 일정을 정하고, 관련 자료와 태그를 연결합니다."
+        : "할 일의 내용과 태그를 수정합니다."}
       title={props.mode === "create" ? "할 일 추가" : "할 일 편집"}
       mutation={{ target: draft.title, action: props.mode === "create" ? "등록" : "수정" }}
       preparation={() => ({

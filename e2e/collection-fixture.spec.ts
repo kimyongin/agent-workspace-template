@@ -260,7 +260,7 @@ test("responsive brand aligns desktop title and menu/search gaps, with icon-only
         brandShown: rect(brand).height > 0,
         headerShown: rect(document.querySelector(".workspace-header")!).height > 0,
         titleTop: rect(title).top, brandTop: rect(brand).top,
-        searchGap: rect(document.querySelector(".query-bar")!).top - rect(title).bottom,
+        searchGap: rect(document.querySelector(".query-bar")!).top - rect(document.querySelector(".page-heading")!).bottom,
         menuGap: rect(document.querySelector(".nav-profile-trigger")!).top - rect(brand).bottom,
         titleFont: ts.fontSize, brandFont: bs.fontSize,
         mobileIcon: getComputedStyle(title, "::before").backgroundImage,
