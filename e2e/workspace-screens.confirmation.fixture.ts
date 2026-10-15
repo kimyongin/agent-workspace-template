@@ -160,6 +160,17 @@ for (const width of [320, 640]) {
     await form(page).getByRole("button", { name: "삭제", exact: true }).click();
     const confirm = page.locator("dialog.modal-action[open]");
     await confirm.getByLabel("기록 메모").fill("긴 삭제 메모\\n".repeat(300));
+    const dimensions = await confirm.evaluate((node) => {
+      const style = (selector: string) => getComputedStyle(node.querySelector(selector)!);
+      return {
+        buttons: Array.from(node.querySelectorAll(".modal-foot > button")).map((button) => ({ width: button.getBoundingClientRect().width, height: button.getBoundingClientRect().height })),
+        padding: [".modal-head", ".modal-body", ".modal-foot"].map((selector) => [style(selector).paddingLeft, style(selector).paddingRight]),
+        title: { size: style(".dialog-title").fontSize, weight: style(".dialog-title").fontWeight },
+      };
+    });
+    for (const button of dimensions.buttons) { expect(button.width).toBeGreaterThanOrEqual(88); expect(button.height).toBeGreaterThanOrEqual(44); }
+    expect(dimensions.padding).toEqual([["16px", "16px"], ["16px", "16px"], ["16px", "16px"]]);
+    expect(dimensions.title).toEqual({ size: "20px", weight: "600" });
     const bounds = await confirm.boundingBox();
     expect(bounds!.width).toBeLessThanOrEqual(width - 32);
     expect(bounds!.height).toBeLessThanOrEqual(328);

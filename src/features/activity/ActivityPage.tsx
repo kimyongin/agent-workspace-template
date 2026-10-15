@@ -1,3 +1,4 @@
+import { BodyAction } from "../../components/BodyAction.tsx";
 import { CollectionHeading, CollectionList, useMainCollectionView } from "../../components/Collection.tsx";
 import { RecordCalendar } from "./RecordCalendar.tsx";
 import { StatusBadge } from "./shared.tsx";
@@ -53,7 +54,7 @@ function ActivitySection({ kind, tags, bounds, dictionary, onCreate }: { onCreat
         : <Timeline items={list.items} kind="기록" view={view} at={item => "occurred_at" in item ? item.occurred_at : (item as SearchItem).at}>{item => preview(item)}</Timeline>}
     </TagReadProvider>}
     {list.error && <Notice kind="error">{list.error}</Notice>}
-    {list.showMoreControl && <button id={`activity-${kind}-page-control`} type="button" className="btn" aria-disabled={list.busy || !list.cursor && !list.error} onClick={list.error ? list.retry : list.more}>{list.busy ? "불러오는 중…" : list.error ? "다시 시도" : list.cursor ? `${kind === "tasks" ? "할 일" : "기록"} 더 보기` : "모두 불러왔습니다"}</button>}
+    {list.showMoreControl && <BodyAction id={`activity-${kind}-page-control`} aria-disabled={list.busy || !list.cursor && !list.error} onClick={list.error ? list.retry : list.more}>{list.busy ? "불러오는 중…" : list.error ? "다시 시도" : list.cursor ? `${kind === "tasks" ? "할 일" : "기록"} 더 보기` : "모두 불러왔습니다"}</BodyAction>}
   </section></ListExpansionProvider>;
 }
 

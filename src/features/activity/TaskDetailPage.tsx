@@ -168,10 +168,10 @@ export function TaskDetailPage() {
             <h2 id="occ-title" className="section-title">회차</h2>
             {occurrences && (
               <div className="actions">
-                <button type="button" className="btn" onClick={() => setRangeEnd(addDays(occurrences.items.at(-1)?.date ?? occurrences.today, -1))}>
+                <BodyAction onClick={() => setRangeEnd(addDays(occurrences.items.at(-1)?.date ?? occurrences.today, -1))}>
                   이전 기간
-                </button>
-                {rangeEnd && <button type="button" className="btn" onClick={() => setRangeEnd(null)}>최근으로</button>}
+                </BodyAction>
+                {rangeEnd && <BodyAction onClick={() => setRangeEnd(null)}>최근으로</BodyAction>}
               </div>
             )}
           </div>
@@ -192,9 +192,9 @@ export function TaskDetailPage() {
                   </div>
                   <OccurrenceBadge status={o.status} />
                   {o.in_rule && o.status !== "upcoming" && (
-                    <button type="button" className="btn" onClick={() => manage("occurrence", o.date)} aria-label={`${o.date} 회차 기록`}>
+                    <BodyAction onClick={() => manage("occurrence", o.date)} aria-label={`${o.date} 회차 기록`}>
                       기록
-                    </button>
+                    </BodyAction>
                   )}
                 </li>
               ))}

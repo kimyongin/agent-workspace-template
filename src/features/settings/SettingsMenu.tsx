@@ -38,9 +38,33 @@ export function SettingsMenu() {
       }}
       onKeyDown={(event) => {
         if (event.key === "Escape") {
+          event.preventDefault();
           setOpen(false);
           trigger.current?.focus();
+          return;
         }
+        if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
+        event.preventDefault();
+        if (!open) {
+          setOpen(true);
+          requestAnimationFrame(() => {
+            const links = root.current?.querySelectorAll<HTMLAnchorElement>("nav a");
+            const index = event.key === "ArrowUp" || event.key === "End" ? (links?.length ?? 1) - 1 : 0;
+            links?.[index]?.focus();
+          });
+          return;
+        }
+        const links = Array.from(root.current?.querySelectorAll<HTMLAnchorElement>("nav a") ?? []);
+        if (!links.length) return;
+        const index = links.indexOf(document.activeElement as HTMLAnchorElement);
+        const next = event.key === "Home"
+          ? 0
+          : event.key === "End"
+          ? links.length - 1
+          : event.key === "ArrowDown"
+          ? (index + 1) % links.length
+          : (index < 0 ? links.length - 1 : (index - 1 + links.length) % links.length);
+        links[next]?.focus();
       }}
     >
       <button
@@ -82,7 +106,9 @@ export function SettingsMenu() {
                   trigger.current?.focus();
                 }
               }}
-            >{label}</Link>
+            >
+              {label}
+            </Link>
           ))}
         </nav>
       )}

@@ -7,11 +7,12 @@
 .tag-filter-chips { border: 0; padding: 0; margin: 0; min-width: 0; }
 .tag-filter-chips legend { margin-bottom: 8px; }
 .workspace-additional { min-width: 0; }
-.workspace-additional > summary { min-height: 44px; display: flex; gap: 8px; align-items: center; cursor: pointer; font-size: .875rem; line-height: 1.25rem; color: var(--muted-ink); font-weight: 400; }
-.workspace-additional > summary::after { content: " ▾"; }
-.workspace-additional[open] > summary::after { content: " ▴"; }
+.workspace-additional > summary { font-size: var(--text-body); line-height: 1.25rem; color: var(--muted-ink); font-weight: 400; }
 .change-snapshot { display: grid; gap: var(--space-3); }
-.change-snapshot pre { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; font: inherit; font-size: .875rem; }
+.change-snapshot > section, .change-snapshot .props, .change-snapshot .props > div { min-width: 0; }
+.change-snapshot .props > div { grid-template-columns: minmax(0,1fr); gap: var(--space-1); }
+.change-snapshot dd { margin: 0; overflow-wrap: anywhere; }
+.change-snapshot ul { margin: 0; padding-left: var(--space-5); }
 @media(min-width:640px) { .change-snapshot { grid-template-columns: repeat(2,minmax(0,1fr)); } }
 
 /* Dense controls share columns; the conditions group has no internal dividers. */

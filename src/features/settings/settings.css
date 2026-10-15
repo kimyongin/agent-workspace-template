@@ -190,3 +190,10 @@ section[aria-labelledby="entity-identity-title"] .settings-section-footer { bord
 .issuer-status-choice { display:flex; align-items:center; gap:var(--space-2); min-height:44px; overflow-wrap:anywhere; min-width:0; }
 .issuer-status-choice input { flex-shrink:0; accent-color:var(--accent); }
 @media (max-width:389px) { .issuer-binding-row { grid-template-columns:minmax(0,1fr); gap:var(--space-1); } }
+
+.settings-menu-options a { border-radius: var(--radius-input); text-decoration: none; }
+.settings-menu-options a:hover { background: var(--panel); }
+.settings-menu-options a[aria-current="page"] { background: var(--accent-soft); color: var(--accent); }
+.issuer-binding-choice { align-items: end; }
+.issuer-binding-choice > .btn-input { border-radius: var(--radius-input); }
+.schema-field-heading > h3, .schema-definition-read h4 { font-weight: 600; }
