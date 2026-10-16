@@ -2,7 +2,7 @@
 
 상태: 2026-10-15 설계안에 대한 사용자의 진행 지시로 구현 범위를 승인받았다. 아래 설계와 시안 검수 기록은 구현 완료·운영 적용을 뜻하지 않는다. 실제 구현 상태와 실행 증거는 연결된 GitHub 이슈·PR에서 관리한다.
 
-시안 원본: `codex/settings-layout-prototype` 브랜치의 `src/features/settings/settings-prototype.html`. 로컬 실행은 `npm run dev` 후 해당 HTML 경로를 연다. 시안은 메모리 안의 예시만 사용하며 저장 버튼은 실제 저장을 하지 않는다.
+시안은 구현 전의 메모리 예시이며 현재 소스의 실행 대상이 아니다. 원본은 커밋 `f00f07f02fa7265e98a034a3a6b537da56f91882`의 `src/features/settings/settings-prototype.html`로 식별하며 브랜치 정리 전 Git 백업에 보존했다. 현재 식별 계약은 [ADR-0021](../adr/0021-type-scoped-immutable-identity.md), 구현 상태와 실행 증거는 연결된 GitHub 이슈·PR에서 확인한다.
 
 ## 1. 목적: 출처를 보존하면서 같은 업무로 관리한다
 

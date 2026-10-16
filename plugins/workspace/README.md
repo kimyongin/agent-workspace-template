@@ -16,7 +16,7 @@
 
 통합 소스 후보는 자료 종류·현재/과거 단일 스키마 문서 조회와 `properties` 기반 생성·부분 수정·상세 계약을 안내한다. 종류 메타데이터와 속성 표시 annotation은 같은 문서에 있고 이름·아이콘·보관 변경도 새 스키마 버전으로 게시한다. 같은 종류의 스키마와 전체 값을 확인한 뒤 저장하며, 스키마 충돌에서는 초안을 유지하고 정본을 검토한다. 이 소스 변경은 기존 설치 갱신이나 운영 서버 배포를 뜻하지 않는다. 전체 스키마 전환을 검증한 실제 제품 릴리스에서 두 manifest의 버전을 함께 올린다.
 
-이 패키지의 소유 원본은 이 저장소의 `plugins/workspace/`와 로컬/Git marketplace다. `plugin-creator:update-plugin` 스킬은 소유 원본에 맞는 갱신 경로를 선택하는 절차다. Workspace는 원본 수정·패키지 검사 후 아래 CLI 갱신/재설치를 사용하며 설치 cache를 직접 편집하지 않는다. 계정 편집 도구는 정확한 backend plugin ID·현재 release·편집 가능 scope를 확인한 eligible 계정 플러그인에만 적용한다([배포 기준](../../docs/deployment/release.md#플러그인-패키징과-배포)).
+제품 스킬 정본은 이 저장소의 `plugins/workspace/`다. `plugin-creator:update-plugin` 스킬로 설치 대상의 소유 원본과 갱신 경로를 구분한다. 로컬/Git marketplace 설치는 아래 CLI 갱신/재설치를 사용하며 설치 cache를 직접 편집하지 않는다. ChatGPT 계정 패키지는 현재 원본·정확한 backend plugin ID·release·편집 가능 scope를 조회하고 도구로 갱신한다. 웹·모바일 배포나 스킬만 보이는 문제는 [MCP 앱 연결 절차](../../docs/deployment/release.md#chatgpt-웹모바일의-mcp-앱-연결)를 먼저 따른다. 서버 배포·앱 등록·패키지 업로드·실제 호출의 완료 여부를 각각 확인한다.
 
 앞으로 웹/앱 UI에서 플러그인을 설치·갱신·게시하지 않는다. 대상의 도구·CLI가 지원하지 않으면 미지원/미검증으로 기록하고 UI로 대신하지 않는다. 과거 Claude 웹 설치·사용 검증은 당시 이력이며 이 새 배포 경로의 검증을 뜻하지 않는다.
 
